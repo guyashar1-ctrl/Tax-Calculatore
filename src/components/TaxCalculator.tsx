@@ -3,8 +3,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LabelList,
 } from 'recharts';
-import { Client, TaxCalcInput, TaxCalcResult, RentalTaxTrack } from '../types';
-import { calculateTax, calcCreditPoints } from '../utils/taxCalculations';
+import { Client, TaxCalcInput, TaxCalcResult, FamilyTaxResult, RentalTaxTrack } from '../types';
+import { calculateTax, calcCreditPoints, calculateFamilyTax } from '../utils/taxCalculations';
 import { getTaxYearData, AVAILABLE_YEARS } from '../data/taxData';
 
 const fmt = (n: number) => n.toLocaleString('he-IL', { maximumFractionDigits: 0 });
@@ -55,6 +55,14 @@ export default function TaxCalculator({ client, onBack }: Props) {
     if (!taxData || !calculated) return null;
     return calculateTax({ ...input, year }, taxData);
   }, [input, year, taxData, calculated]);
+
+  const familyResult: FamilyTaxResult | null = useMemo(() => {
+    if (!taxData || !calculated) return null;
+    return calculateFamilyTax({ ...input, year }, taxData);
+  }, [input, year, taxData, calculated]);
+
+  const hasSpouse = client.familyStatus === 'married' && client.spouse != null;
+  const spouseResult = familyResult?.spouse ?? null;
 
   const previewCredits = useMemo(() => {
     if (!taxData) return [];
@@ -629,8 +637,147 @@ export default function TaxCalculator({ client, onBack }: Props) {
             </div>
           </div>
 
+          {/* ── Family unit summary ──────────────────────────────────────── */}
+          {hasSpouse && familyResult && spouseResult && (
+            <div className="card" style={{ border: '2px solid var(--purple)', borderRadius: 'var(--radius-lg)' }}>
+              <div className="card-header" style={{ background: 'var(--purple-light)' }}>
+                <span className="card-title" style={{ color: 'var(--purple)' }}>
+                  {'\u{1F491}'} סיכום תא מ��פחתי — {client.firstName} + {client.spouse!.firstName}
+                </span>
+              </div>
+              <div className="card-body">
+                {/* Side by side comparison */}
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th className="number">{client.firstName} {client.lastName}</th>
+                        <th className="number">{client.spouse!.firstName} {client.spouse!.lastName}</th>
+                        <th className="number" style={{ color: 'var(--purple)', fontWeight: 700 }}>תא משפחתי</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>הכנסה ברוטו</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(result.grossIncome))}</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.grossIncome))}</td>
+                        <td className="number" style={{ fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedGrossIncome))}</td>
+                      </tr>
+                      <tr>
+                        <td>הכנסה חייבת</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(result.taxableIncome))}</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.taxableIncome))}</td>
+                        <td className="number" style={{ fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(result.taxableIncome + spouseResult.taxableIncome))}</td>
+                      </tr>
+                      <tr>
+                        <td>נקודות זיכוי</td>
+                        <td className="number">{result.totalCreditPoints.toFixed(1)}</td>
+                        <td className="number">{spouseResult.totalCreditPoints.toFixed(1)}</td>
+                        <td className="number" style={{ fontWeight: 700 }}>{(result.totalCreditPoints + spouseResult.totalCreditPoints).toFixed(1)}</td>
+                      </tr>
+                      <tr>
+                        <td>מס הכנסה</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(result.totalIncomeTax))}</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.totalIncomeTax))}</td>
+                        <td className="number" style={{ fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(result.totalIncomeTax + spouseResult.totalIncomeTax))}</td>
+                      </tr>
+                      <tr>
+                        <td>{`ביטוח לאומי + בריאות`}</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(result.totalNI))}</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.totalNI))}</td>
+                        <td className="number" style={{ fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(result.totalNI + spouseResult.totalNI))}</td>
+                      </tr>
+                      {familyResult.combinedSurtax > 0 && (
+                        <tr>
+                          <td>היטל יסף 3% (תא משפחתי)</td>
+                          <td className="number">{'\u20AA'}{fmt(Math.round(result.surtax))}</td>
+                          <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.surtax))}</td>
+                          <td className="number" style={{ fontWeight: 700, color: 'var(--red)' }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedSurtax))}</td>
+                        </tr>
+                      )}
+                      <tr className="total">
+                        <td>{`סה"כ חבות מס`}</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(result.totalTaxBurden))}</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.totalTaxBurden))}</td>
+                        <td className="number">{'\u20AA'}{fmt(Math.round(familyResult.combinedTaxBurden))}</td>
+                      </tr>
+                      <tr>
+                        <td>הכנסה נטו לשנה</td>
+                        <td className="number" style={{ color: 'var(--green)', fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(result.netAnnualIncome))}</td>
+                        <td className="number" style={{ color: 'var(--green)', fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(spouseResult.netAnnualIncome))}</td>
+                        <td className="number" style={{ color: 'var(--green)', fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedNetIncome))}</td>
+                      </tr>
+                      <tr>
+                        <td>{'\u2248'} נטו לחודש</td>
+                        <td className="number" style={{ color: 'var(--green)' }}>{'\u20AA'}{fmt(Math.round(result.netAnnualIncome / 12))}</td>
+                        <td className="number" style={{ color: 'var(--green)' }}>{'\u20AA'}{fmt(Math.round(spouseResult.netAnnualIncome / 12))}</td>
+                        <td className="number" style={{ color: 'var(--green)', fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedNetIncome / 12))}</td>
+                      </tr>
+                      <tr>
+                        <td>שיעור מס אפקטיבי</td>
+                        <td className="number">{fmtR(result.effectiveTotalRate)}</td>
+                        <td className="number">{fmtR(spouseResult.effectiveTotalRate)}</td>
+                        <td className="number" style={{ fontWeight: 700 }}>{fmtR(familyResult.combinedEffectiveRate)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Surtax note */}
+                {familyResult.combinedSurtax > 0 && familyResult.surtaxSavingVsSeparate !== 0 && (
+                  <div className="alert alert-info" style={{ marginTop: '.75rem' }}>
+                    {'\u2139\uFE0F'} היטל יסף: מחושב על הכנסת התא המשפחתי (סכום הכנסות שני בני הזוג).
+                    {familyResult.surtaxSavingVsSeparate > 0 && (
+                      <> חיסכון בחישוב משולב: <strong>{'\u20AA'}{fmt(Math.round(familyResult.surtaxSavingVsSeparate))}</strong></>
+                    )}
+                    {familyResult.surtaxSavingVsSeparate < 0 && (
+                      <> תוספת בחישוב משולב: <strong>{'\u20AA'}{fmt(Math.round(Math.abs(familyResult.surtaxSavingVsSeparate)))}</strong></>
+                    )}
+                  </div>
+                )}
+
+                {/* Spouse credit points breakdown */}
+                {spouseResult.creditPointLines.length > 0 && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <div style={{ fontSize: '.875rem', fontWeight: 700, color: 'var(--gray-700)', marginBottom: '.5rem' }}>
+                      {'\u2B50'} נקודות זיכוי — {client.spouse!.firstName}:
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>זיכוי</th>
+                            <th>בסיס חוקי</th>
+                            <th className="number">נקודות</th>
+                            <th className="number">{`ערך (\u20AA)`}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {spouseResult.creditPointLines.map((l, i) => (
+                            <tr key={i}>
+                              <td>{l.description}</td>
+                              <td style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>{l.legalBasis}</td>
+                              <td className="number">{l.points.toFixed(1)}</td>
+                              <td className="number">{'\u20AA'}{fmt(Math.round(l.valueNIS))}</td>
+                            </tr>
+                          ))}
+                          <tr className="total">
+                            <td colSpan={2}>{`סה"כ`}</td>
+                            <td className="number">{spouseResult.totalCreditPoints.toFixed(1)}</td>
+                            <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.totalCreditValue))}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="alert alert-warning">
-            ⚠️ חישוב זה הוא הערכה כללית בלבד ואינו מהווה ייעוץ מס. יש לאמת מול פרסומי רשות המיסים ומוסד הביטוח הלאומי.
+            {'\u26A0\uFE0F'} חישוב זה הוא הערכה כללית בלבד ואינו מהווה ייעוץ מס. יש לאמת מול פרסומי רשות המיסים ומוסד הביטוח הלאומי.
           </div>
         </div>
       )}

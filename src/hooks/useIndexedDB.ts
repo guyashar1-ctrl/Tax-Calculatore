@@ -13,6 +13,7 @@ export interface StoredDoc {
   category: DocCategory;
   year: number | 'general';
   uploadedAt: string;
+  description: string;
   notes: string;
   fileData: ArrayBuffer;
 }

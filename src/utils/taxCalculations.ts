@@ -1,10 +1,16 @@
 import {
   Client,
+  Child,
+  SpouseData,
   TaxCalcInput,
   TaxCalcResult,
   TaxYearData,
   CreditPointLine,
   BracketLine,
+  FamilyTaxResult,
+  IncomeTaxType,
+  NIType,
+  Gender,
 } from '../types';
 import { getSettlementById } from '../data/settlements';
 
@@ -16,13 +22,83 @@ function getChildAge(birthYear: number, taxYear: number): number {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// נקודות זיכוי
+// ממשק גנרי לנתוני נישום (ראשי או בן/בת זוג)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function calcCreditPoints(
-  client: Client,
+interface TaxPerson {
+  gender: Gender;
+  familyStatus?: string;
+  children: Child[];
+  isNewImmigrant: boolean;
+  aliyahYear: number;
+  isReturningResident: boolean;
+  returningYear: number;
+  disabilityPercentage: number;
+  hasAcademicDegree: boolean;
+  academicDegreeYear: number;
+  academicDegreeType: 'bachelor' | 'master' | 'phd' | '';
+  completedIDF: boolean;
+  idfReleaseYear: number;
+  completedNationalService: boolean;
+  nationalServiceYear: number;
+  qualifyingSettlementId: string;
+  qualifyingSettlementOverride: boolean;
+  qualifyingSettlementCreditPoints: number;
+}
+
+function clientToTaxPerson(client: Client): TaxPerson {
+  return {
+    gender: client.gender,
+    familyStatus: client.familyStatus,
+    children: client.children,
+    isNewImmigrant: client.isNewImmigrant,
+    aliyahYear: client.aliyahYear,
+    isReturningResident: client.isReturningResident,
+    returningYear: client.returningYear,
+    disabilityPercentage: client.disabilityPercentage,
+    hasAcademicDegree: client.hasAcademicDegree,
+    academicDegreeYear: client.academicDegreeYear,
+    academicDegreeType: client.academicDegreeType,
+    completedIDF: client.completedIDF,
+    idfReleaseYear: client.idfReleaseYear,
+    completedNationalService: client.completedNationalService,
+    nationalServiceYear: client.nationalServiceYear,
+    qualifyingSettlementId: client.qualifyingSettlementId,
+    qualifyingSettlementOverride: client.qualifyingSettlementOverride,
+    qualifyingSettlementCreditPoints: client.qualifyingSettlementCreditPoints,
+  };
+}
+
+function spouseToTaxPerson(spouse: SpouseData, children: Child[]): TaxPerson {
+  return {
+    gender: spouse.gender,
+    children,
+    isNewImmigrant: spouse.isNewImmigrant,
+    aliyahYear: spouse.aliyahYear,
+    isReturningResident: spouse.isReturningResident,
+    returningYear: spouse.returningYear,
+    disabilityPercentage: spouse.disabilityPercentage,
+    hasAcademicDegree: spouse.hasAcademicDegree,
+    academicDegreeYear: spouse.academicDegreeYear,
+    academicDegreeType: spouse.academicDegreeType,
+    completedIDF: spouse.completedIDF,
+    idfReleaseYear: spouse.idfReleaseYear,
+    completedNationalService: spouse.completedNationalService,
+    nationalServiceYear: spouse.nationalServiceYear,
+    qualifyingSettlementId: spouse.qualifyingSettlementId,
+    qualifyingSettlementOverride: spouse.qualifyingSettlementOverride,
+    qualifyingSettlementCreditPoints: spouse.qualifyingSettlementCreditPoints,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// נקודות זיכוי — גנרי (עובד לראשי ולבן/בת זוג)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function calcCreditPointsForPerson(
+  person: TaxPerson,
   year: number,
-  cpValue: number
+  cpValue: number,
 ): CreditPointLine[] {
   const lines: CreditPointLine[] = [];
   const add = (description: string, legalBasis: string, points: number) => {
@@ -33,17 +109,17 @@ export function calcCreditPoints(
   add('נקודת זיכוי בסיסית לתושב ישראל', 'סעיף 34', 2.25);
 
   // 2. תוספת לאישה
-  if (client.gender === 'female') {
+  if (person.gender === 'female') {
     add('תוספת נקודת זיכוי לאישה', 'סעיף 34(א)', 0.5);
   }
 
   // 3. הורה יחיד
-  if (client.familyStatus === 'singleParent') {
+  if (person.familyStatus === 'singleParent') {
     add('הורה יחיד', 'סעיף 35', 1.0);
   }
 
-  // 4. ילדים — לפי גיל בשנת המס
-  for (const child of client.children) {
+  // 4. ילדים — לפי גיל בשנת המס (שני ההורים מקבלים — מאז רפורמת 2012)
+  for (const child of person.children) {
     const age = getChildAge(child.birthYear, year);
     if (age < 0 || age > 18) continue;
     let pts = 0, desc = '';
@@ -61,23 +137,23 @@ export function calcCreditPoints(
   }
 
   // 5. עולה חדש
-  if (client.isNewImmigrant && client.aliyahYear > 0) {
-    const diff = year - client.aliyahYear;
+  if (person.isNewImmigrant && person.aliyahYear > 0) {
+    const diff = year - person.aliyahYear;
     if (diff === 0 || diff === 1) add(`עולה חדש — שנה ${diff + 1} מאז עלייה`, 'סעיף 35א', 3.0);
     else if (diff === 2) add('עולה חדש — שנה שלישית', 'סעיף 35א', 2.0);
     else if (diff === 3) add('עולה חדש — שנה רביעית', 'סעיף 35א', 1.0);
   }
 
   // 6. תושב חוזר
-  if (client.isReturningResident && client.returningYear > 0) {
-    const diff = year - client.returningYear;
+  if (person.isReturningResident && person.returningYear > 0) {
+    const diff = year - person.returningYear;
     if (diff === 0) add('תושב חוזר ותיק — שנת חזרה', 'סעיף 35ב', 2.0);
     else if (diff === 1) add('תושב חוזר — שנה ראשונה', 'סעיף 35ב', 1.0);
   }
 
   // 7. נכות
-  if (client.disabilityPercentage > 0) {
-    const dp = client.disabilityPercentage;
+  if (person.disabilityPercentage > 0) {
+    const dp = person.disabilityPercentage;
     let pts = 0, desc = '';
     if (dp >= 90) { pts = 4.0; desc = `נכות ${dp}% (90%+)`; }
     else if (dp >= 60) { pts = 2.5; desc = `נכות ${dp}% (60%–89%)`; }
@@ -87,35 +163,54 @@ export function calcCreditPoints(
   }
 
   // 8. תואר אקדמי — שנת הסיום בלבד
-  if (client.hasAcademicDegree && client.academicDegreeYear === year) {
-    const label = client.academicDegreeType === 'bachelor' ? 'תואר ראשון'
-                : client.academicDegreeType === 'master' ? 'תואר שני' : 'דוקטורט';
+  if (person.hasAcademicDegree && person.academicDegreeYear === year) {
+    const label = person.academicDegreeType === 'bachelor' ? 'תואר ראשון'
+                : person.academicDegreeType === 'master' ? 'תואר שני' : 'דוקטורט';
     add(`סיום ${label} (${year})`, 'סעיף 40(ב)', 1.0);
   }
 
   // 9. שחרור מצבא
-  if (client.completedIDF && client.idfReleaseYear > 0) {
-    const diff = year - client.idfReleaseYear;
+  if (person.completedIDF && person.idfReleaseYear > 0) {
+    const diff = year - person.idfReleaseYear;
     if (diff === 0) add('שחרור צה"ל — שנת השחרור', 'סעיף 41', 2.0);
     else if (diff === 1) add('שחרור צה"ל — שנה לאחר השחרור', 'סעיף 41', 1.0);
   }
 
   // 10. שירות לאומי
-  if (client.completedNationalService && client.nationalServiceYear > 0) {
-    if (year === client.nationalServiceYear) {
+  if (person.completedNationalService && person.nationalServiceYear > 0) {
+    if (year === person.nationalServiceYear) {
       add('סיום שירות לאומי/אזרחי', 'סעיף 41א', 0.5);
     }
   }
 
   // 11. ישוב מזכה
-  if (client.qualifyingSettlementId) {
-    const settlement = getSettlementById(client.qualifyingSettlementId);
-    const pts = client.qualifyingSettlementCreditPoints || settlement?.creditPoints || 0.5;
-    const name = settlement?.name ?? client.qualifyingSettlementId;
+  if (person.qualifyingSettlementId) {
+    const settlement = getSettlementById(person.qualifyingSettlementId);
+    const pts = person.qualifyingSettlementCreditPoints || settlement?.creditPoints || 0.5;
+    const name = settlement?.name ?? person.qualifyingSettlementId;
     add(`ישוב מזכה: ${name}`, 'תקנה 11 לתקנות מ"ה', pts);
   }
 
   return lines;
+}
+
+// API נשמר תואם לשימוש הקיים
+export function calcCreditPoints(
+  client: Client,
+  year: number,
+  cpValue: number
+): CreditPointLine[] {
+  return calcCreditPointsForPerson(clientToTaxPerson(client), year, cpValue);
+}
+
+// חישוב נקודות זיכוי לבן/בת זוג
+export function calcSpouseCreditPoints(
+  spouse: SpouseData,
+  children: Child[],
+  year: number,
+  cpValue: number
+): CreditPointLine[] {
+  return calcCreditPointsForPerson(spouseToTaxPerson(spouse, children), year, cpValue);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -158,10 +253,20 @@ function calcBrackets(taxableIncome: number, taxData: TaxYearData): {
 // ביטוח לאומי ומס בריאות
 // ─────────────────────────────────────────────────────────────────────────────
 
-function calcNI(input: TaxCalcInput, taxData: TaxYearData): {
+interface NIInput {
+  grossSalary: number;
+  selfEmployedGrossIncome: number;
+  recognizedExpenses: number;
+  rentalIncome: number;
+  otherIncome: number;
+  niType: NIType;
+  incomeTaxType: IncomeTaxType;
+}
+
+function calcNI(input: NIInput, taxData: TaxYearData): {
   niEmployee: number;
   healthEmployee: number;
-  niSE_insurance: number;    // רכיב הביטוח בלבד (להיוון הניכוי)
+  niSE_insurance: number;
   niSE_health: number;
   breakdown: string[];
 } {
@@ -171,9 +276,9 @@ function calcNI(input: TaxCalcInput, taxData: TaxYearData): {
 
   const threshold60A = taxData.niThreshold60Monthly * 12;
   const maxA = taxData.niMaxIncomeMonthly * 12;
-  const type = input.client.niType;
+  const type = input.niType;
 
-  // ── שכיר ──────────────────────────────────────────────────────────────
+  // ── שכיר ──
   const salary = input.grossSalary;
   if (salary > 0 && (type === 'employee' || type === 'employeeAndSE')) {
     const insured = Math.min(salary, maxA);
@@ -189,7 +294,7 @@ function calcNI(input: TaxCalcInput, taxData: TaxYearData): {
     );
   }
 
-  // ── עצמאי ──────────────────────────────────────────────────────────────
+  // ── עצמאי ──
   const seNet = Math.max(0, input.selfEmployedGrossIncome - input.recognizedExpenses);
   if (seNet > 0 && (type === 'selfEmployed' || type === 'employeeAndSE')) {
     const alreadyInsured = type === 'employeeAndSE' ? Math.min(salary, maxA) : 0;
@@ -220,7 +325,7 @@ function calcNI(input: TaxCalcInput, taxData: TaxYearData): {
     }
   }
 
-  // ── עוסק שאינו עונה להגדרה ──────────────────────────────────────────
+  // ── עוסק שאינו עונה להגדרה ──
   if (type === 'nonQualifying') {
     const flat = taxData.nonQualifyingMonthlyNI * 12;
     const allInc = (input.grossSalary + seNet + input.rentalIncome + input.otherIncome);
@@ -231,9 +336,9 @@ function calcNI(input: TaxCalcInput, taxData: TaxYearData): {
     breakdown.push(`מס בריאות: ${taxData.employeeNI.healthLowRate}% על כלל ההכנסה ₪${fmt(allInc)} = ₪${fmt(Math.round(hlth))}`);
   }
 
-  // ── פסיבי / שכירות בלבד ──────────────────────────────────────────────
+  // ── פסיבי / שכירות בלבד ──
   if (type === 'passive') {
-    const rentalNet = Math.max(0, input.rentalIncome - input.rentalExpenses);
+    const rentalNet = Math.max(0, input.rentalIncome);
     if (rentalNet > 0) {
       const hlth = rentalNet * (taxData.employeeNI.healthLowRate / 100);
       niSE_health = hlth;
@@ -241,7 +346,7 @@ function calcNI(input: TaxCalcInput, taxData: TaxYearData): {
     }
   }
 
-  // ── פנסיונר ────────────────────────────────────────────────────────────
+  // ── פנסיונר ──
   if (type === 'pensioner') {
     breakdown.push('פנסיונר: אינו חייב בדמי ביטוח לאומי על פנסיה. מס בריאות בלבד.');
     const pension = input.grossSalary + input.otherIncome;
@@ -255,23 +360,30 @@ function calcNI(input: TaxCalcInput, taxData: TaxYearData): {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // חישוב ראשי
-// ─────────────────────────────────────────────────────────────────────────────
+// ���────────────────────────────────────────────────────────────────────────────
 
 export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalcResult {
   const { client } = input;
   const deductionBreakdown: string[] = [];
   const type = client.incomeTaxType;
 
-  // ── א. הכנסות ──────────────────────────────────────────────────────────
+  // ── א. הכנסות ──
   const grossSalary = Math.max(0, input.grossSalary);
   const seGross = Math.max(0, input.selfEmployedGrossIncome);
   const seExpenses = Math.max(0, input.recognizedExpenses);
   const seNet = Math.max(0, seGross - seExpenses);
 
-  // ── ב. ביטוח לאומי (מחושב על ההכנסה הגולמית — לפני ניכוי ב"ל) ─────────
-  const niCalc = calcNI(input, taxData);
+  // ── ב. ביטוח לאומי ──
+  const niCalc = calcNI({
+    grossSalary,
+    selfEmployedGrossIncome: seGross,
+    recognizedExpenses: seExpenses,
+    rentalIncome: input.rentalIncome,
+    otherIncome: input.otherIncome,
+    niType: client.niType,
+    incomeTaxType: client.incomeTaxType,
+  }, taxData);
 
-  // ניכוי 52% מרכיב הביטוח לאומי לעצמאי (סעיף 17(5))
   const niDeductionSE = niCalc.niSE_insurance * 0.52;
   if (niDeductionSE > 0) {
     deductionBreakdown.push(
@@ -279,14 +391,14 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     );
   }
 
-  // ניכוי פנסיה שכיר (עד 7%)
+  // ניכוי פנסיה שכיר
   let pensionDeductionEmp = 0;
   if (grossSalary > 0 && input.employeePensionPct > 0) {
     pensionDeductionEmp = grossSalary * (Math.min(input.employeePensionPct, 7) / 100);
     deductionBreakdown.push(`ניכוי פנסיה שכיר (${Math.min(input.employeePensionPct, 7)}%): ₪${fmt(Math.round(pensionDeductionEmp))} (סעיף 47)`);
   }
 
-  // ניכוי פנסיה עצמאי (עד 16.5%)
+  // ניכוי פנסיה עצמאי
   let pensionDeductionSE = 0;
   if (seNet > 0 && input.selfEmployedPensionAmount > 0) {
     const max = seNet * 0.165;
@@ -294,7 +406,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     deductionBreakdown.push(`ניכוי פנסיה עצמאי: ₪${fmt(Math.round(pensionDeductionSE))} (מוגבל ל-16.5%, סעיפים 47, 47א)`);
   }
 
-  // ניכוי קרן השתלמות עצמאי (עד 4.5%)
+  // ניכוי קרן השתלמות עצמאי
   let krenDeduction = 0;
   if ((type === 'selfEmployed' || type === 'both') && input.krenHashtalmutSE > 0) {
     const max = seNet * 0.045;
@@ -304,7 +416,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
 
   if (seExpenses > 0) deductionBreakdown.push(`הוצאות מוכרות מהכנסת עסק: ₪${fmt(seExpenses)}`);
 
-  // ── ג. הכנסה חייבת ────────────────────────────────────────────────────
+  // ── ג. הכנסה חייבת ──
   const taxableSalary = Math.max(0, grossSalary - pensionDeductionEmp);
   const taxableSE = Math.max(0, seNet - pensionDeductionSE - krenDeduction - niDeductionSE);
 
@@ -342,10 +454,10 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   const grossIncome = grossSalary + seGross + rentalIncome + otherIncome;
   const totalDeductions = grossIncome - taxableIncome;
 
-  // ── ד. מדרגות מס ───────────────────────────────────────────────────────
+  // ── ד. מדרגות מס ──
   const { bracketLines, totalTax: taxBeforeCredit } = calcBrackets(taxableIncome, taxData);
 
-  // ── ה. נקודות זיכוי ─────────────────────────────────────────────────────
+  // ── ה. נקודות זיכוי ──
   const creditPointLines = input.overrideCreditPoints
     ? [{ description: 'נקודות זיכוי — הזנה ידנית', legalBasis: '', points: input.manualCreditPoints, valueNIS: input.manualCreditPoints * taxData.creditPointValue }]
     : calcCreditPoints(client, input.year, taxData.creditPointValue);
@@ -354,18 +466,17 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   const totalCreditValue = totalCreditPoints * taxData.creditPointValue;
   const taxWithoutCredits = taxBeforeCredit;
 
-  // ── ו. זיכוי תרומות (35%) ────────────────────────────────────────────────
+  // ── ו. זיכוי תרומות ──
   let donationCredit = 0;
   if (input.donationsSection46 > 0) {
     donationCredit = input.donationsSection46 * 0.35;
     deductionBreakdown.push(`זיכוי תרומות מוכרות (35%): ₪${fmt(Math.round(donationCredit))} (סעיף 46)`);
   }
 
-  // ── ז. מס הכנסה ──────────────────────────────────────────────────────────
+  // ── ז. מס הכנסה ──
   const incomeTax = Math.max(0, taxBeforeCredit - totalCreditValue - donationCredit);
   const rentalFlat10 = input.rentalTaxTrack === 'flat10' ? rentalIncome * 0.1 : 0;
 
-  // היטל יסף 3%
   let surtax = 0;
   if (taxableIncome > taxData.surtaxThreshold) {
     surtax = (taxableIncome - taxData.surtaxThreshold) * 0.03;
@@ -376,13 +487,12 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   const marginalRate = marginalBracket?.rate ?? 50;
   const effectiveIncomeTaxRate = taxableIncome > 0 ? (totalIncomeTax / taxableIncome) * 100 : 0;
 
-  // ── ח. ניתוח נוסף ─────────────────────────────────────────────────────────
+  // ── ח. ניתוח נוסף ──
   const unusedCreditValue = Math.max(0, totalCreditValue - taxBeforeCredit);
   const remainingFreeIncomeCapacity = unusedCreditValue > 0
     ? unusedCreditValue / (marginalRate / 100)
     : 0;
 
-  // מרחק למדרגה הבאה
   let distanceToNextBracket = 0;
   let nextBracketRate = 0;
   for (let i = 0; i < taxData.incomeTaxBrackets.length; i++) {
@@ -395,10 +505,10 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     }
   }
 
-  // ── ט. ביטוח לאומי סיכום ─────────────────────────────────────────────────
+  // ── ט. ביטוח לאומי סיכום ──
   const totalNI = niCalc.niEmployee + niCalc.healthEmployee + niCalc.niSE_insurance + niCalc.niSE_health;
 
-  // ── י. סיכום ─────────────────────────────────────────────────────────────
+  // ── י. סיכום ──
   const totalTaxBurden = totalIncomeTax + totalNI;
   const netAnnualIncome = grossIncome - totalTaxBurden;
   const effectiveTotalRate = grossIncome > 0 ? (totalTaxBurden / grossIncome) * 100 : 0;
@@ -435,5 +545,120 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     effectiveTotalRate,
     deductionBreakdown,
     rentalExplanation,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// חישוב תא משפחתי — נפרד + משולב
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function calculateFamilyTax(
+  primaryInput: TaxCalcInput,
+  taxData: TaxYearData,
+): FamilyTaxResult {
+  const primaryResult = calculateTax(primaryInput, taxData);
+  const { client } = primaryInput;
+  const spouse = client.spouse;
+
+  if (!spouse || client.familyStatus !== 'married') {
+    return {
+      primary: primaryResult,
+      spouse: null,
+      combinedGrossIncome: primaryResult.grossIncome,
+      combinedTaxBurden: primaryResult.totalTaxBurden,
+      combinedNetIncome: primaryResult.netAnnualIncome,
+      combinedEffectiveRate: primaryResult.effectiveTotalRate,
+      combinedSurtax: primaryResult.surtax,
+      surtaxSavingVsSeparate: 0,
+    };
+  }
+
+  // ── בניית קלט מס לבן/בת הזוג ──
+  const spouseClient: Client = {
+    ...client,
+    id: client.id + '_spouse',
+    firstName: spouse.firstName,
+    lastName: spouse.lastName,
+    idNumber: spouse.idNumber,
+    birthDate: spouse.birthDate,
+    gender: spouse.gender,
+    phone: spouse.phone,
+    email: '',
+    incomeTaxType: spouse.incomeTaxType,
+    vatStatus: spouse.vatStatus,
+    businessDescription: spouse.businessDescription,
+    niType: spouse.niType,
+    hasTaxCoordination: false,
+    taxCoordinationDetails: '',
+    isNewImmigrant: spouse.isNewImmigrant,
+    aliyahYear: spouse.aliyahYear,
+    isReturningResident: spouse.isReturningResident,
+    returningYear: spouse.returningYear,
+    disabilityPercentage: spouse.disabilityPercentage,
+    disabilityType: spouse.disabilityType,
+    hasAcademicDegree: spouse.hasAcademicDegree,
+    academicDegreeYear: spouse.academicDegreeYear,
+    academicDegreeType: spouse.academicDegreeType,
+    completedIDF: spouse.completedIDF,
+    idfReleaseYear: spouse.idfReleaseYear,
+    completedNationalService: spouse.completedNationalService,
+    nationalServiceYear: spouse.nationalServiceYear,
+    // ירושת ישוב מזכה מהנישום הראשי אם לא הוגדר בנפרד
+    qualifyingSettlementId: spouse.qualifyingSettlementOverride ? spouse.qualifyingSettlementId : client.qualifyingSettlementId,
+    qualifyingSettlementOverride: spouse.qualifyingSettlementOverride,
+    qualifyingSettlementCreditPoints: spouse.qualifyingSettlementOverride ? spouse.qualifyingSettlementCreditPoints : client.qualifyingSettlementCreditPoints,
+    hasPension: spouse.hasPension,
+    pensionFundName: spouse.pensionFundName,
+    employeePensionPct: spouse.employeePensionPct,
+    employerPensionPct: spouse.employerPensionPct,
+    hasKrenHashtalmut: spouse.hasKrenHashtalmut,
+    krenHashtalmutMonthly: spouse.krenHashtalmutMonthly,
+    spouse: null,
+  };
+
+  const spouseInput: TaxCalcInput = {
+    client: spouseClient,
+    year: primaryInput.year,
+    grossSalary: spouse.grossSalary,
+    employeePensionPct: spouse.employeePensionPct,
+    selfEmployedGrossIncome: spouse.selfEmployedGrossIncome,
+    recognizedExpenses: spouse.recognizedExpenses,
+    selfEmployedPensionAmount: spouse.selfEmployedPensionAmount,
+    rentalIncome: 0,
+    rentalExpenses: 0,
+    rentalTaxTrack: 'exempt',
+    otherIncome: 0,
+    donationsSection46: 0,
+    krenHashtalmutSE: spouse.krenHashtalmutSE,
+    overrideCreditPoints: false,
+    manualCreditPoints: 0,
+  };
+
+  const spouseResult = calculateTax(spouseInput, taxData);
+
+  // ── חישוב היטל יסף משולב (על הכנסת התא המשפחתי) ──
+  const combinedTaxableIncome = primaryResult.taxableIncome + spouseResult.taxableIncome;
+  const combinedSurtax = combinedTaxableIncome > taxData.surtaxThreshold
+    ? (combinedTaxableIncome - taxData.surtaxThreshold) * 0.03
+    : 0;
+  const separateSurtax = primaryResult.surtax + spouseResult.surtax;
+  const surtaxSavingVsSeparate = separateSurtax - combinedSurtax;
+
+  const combinedGrossIncome = primaryResult.grossIncome + spouseResult.grossIncome;
+  const combinedTaxBurden = primaryResult.totalTaxBurden + spouseResult.totalTaxBurden - separateSurtax + combinedSurtax;
+  const combinedNetIncome = combinedGrossIncome - combinedTaxBurden;
+  const combinedEffectiveRate = combinedGrossIncome > 0
+    ? (combinedTaxBurden / combinedGrossIncome) * 100
+    : 0;
+
+  return {
+    primary: primaryResult,
+    spouse: spouseResult,
+    combinedGrossIncome,
+    combinedTaxBurden,
+    combinedNetIncome,
+    combinedEffectiveRate,
+    combinedSurtax,
+    surtaxSavingVsSeparate,
   };
 }

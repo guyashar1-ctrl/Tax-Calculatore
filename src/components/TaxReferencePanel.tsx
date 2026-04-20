@@ -5,6 +5,7 @@ import type { SettlementRegion } from '../data/settlements';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList,
 } from 'recharts';
+import NIReferenceSection from './NIReferenceSection';
 
 const fmt = (n: number) =>
   n === Infinity ? '∞' : '₪' + n.toLocaleString('he-IL');
@@ -64,6 +65,22 @@ export default function TaxReferencePanel({ onBack }: Props) {
   const [settRegion, setSettRegion] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'brackets' | 'credits' | 'ni' | 'settlements'>('brackets');
 
+  // Inline income tax calculator state
+  const [calcIncome, setCalcIncome] = useState<number>(0);
+  // Credit points selector state
+  const [cpGender, setCpGender] = useState<'male' | 'female'>('male');
+  const [cpFamilyStatus, setCpFamilyStatus] = useState<'single' | 'singleParent'>('single');
+  const [cpChildBirthYears, setCpChildBirthYears] = useState<number[]>([]);
+  const [cpNewImmigrant, setCpNewImmigrant] = useState(false);
+  const [cpAliyahYear, setCpAliyahYear] = useState(0);
+  const [cpDegree, setCpDegree] = useState<'' | 'bachelor' | 'master'>('');
+  const [cpDegreeYear, setCpDegreeYear] = useState(0);
+  const [cpIDF, setCpIDF] = useState(false);
+  const [cpIDFYear, setCpIDFYear] = useState(0);
+  const [cpSettlement, setCpSettlement] = useState(false);
+  const [cpSettlementPts, setCpSettlementPts] = useState(0.5);
+  const [cpDisability, setCpDisability] = useState(0);
+
   const data = TAX_YEARS.find(t => t.year === year)!;
 
   // Build bracket chart data
@@ -78,11 +95,6 @@ export default function TaxReferencePanel({ onBack }: Props) {
       width,
     };
   });
-
-  // NI chart data — employee example at avg wage * 12
-  const annualAvg = data.niAverageWage * 12;
-  const niLowMax = data.niThreshold60Monthly * 12;
-  const niMax = data.niMaxIncomeMonthly * 12;
 
   const filteredSettlements = settRegion === 'all'
     ? SETTLEMENTS_SORTED
@@ -243,6 +255,264 @@ export default function TaxReferencePanel({ onBack }: Props) {
             <strong>היטל יסף (3%)</strong> — חל על הכנסה חייבת העולה על {fmt(data.surtaxThreshold)} לשנה, בנוסף למס השולי הרגיל.
             סה"כ מס שולי עליון אפקטיבי: <strong>53%</strong> (50% + 3%).
           </div>
+
+          {/* ── Inline Income Tax Calculator ── */}
+          {(() => {
+            // ── Credit points calculation ──
+            const cpLines: { desc: string; pts: number }[] = [];
+            cpLines.push({ desc: 'תושב ישראל', pts: 2.25 });
+            if (cpGender === 'female') cpLines.push({ desc: 'תוספת לאישה', pts: 0.5 });
+            if (cpFamilyStatus === 'singleParent') cpLines.push({ desc: 'הורה יחיד', pts: 1 });
+            for (const by of cpChildBirthYears) {
+              const age = year - by;
+              if (age < 0 || age > 18) continue;
+              const pts = age === 0 ? 1.5 : age <= 5 ? 2.5 : age <= 12 ? 2 : age <= 17 ? 1 : 0.5;
+              cpLines.push({ desc: `ילד/ה (${by}) גיל ${age}`, pts });
+            }
+            if (cpNewImmigrant && cpAliyahYear > 0) {
+              const d = year - cpAliyahYear;
+              if (d >= 0 && d <= 1) cpLines.push({ desc: `עולה חדש שנה ${d + 1}`, pts: 3 });
+              else if (d === 2) cpLines.push({ desc: 'עולה חדש שנה 3', pts: 2 });
+              else if (d === 3) cpLines.push({ desc: 'עולה חדש שנה 4', pts: 1 });
+            }
+            if (cpDegree && cpDegreeYear > 0 && cpDegreeYear <= year && year - cpDegreeYear <= 3) {
+              cpLines.push({ desc: cpDegree === 'bachelor' ? 'תואר ראשון' : 'תואר שני', pts: 1 });
+            }
+            if (cpIDF && cpIDFYear > 0) {
+              const d = year - cpIDFYear;
+              if (d === 0) cpLines.push({ desc: 'שחרור צה"ל — שנת השחרור', pts: 2 });
+              else if (d === 1) cpLines.push({ desc: 'שחרור צה"ל — שנה לאחר', pts: 1 });
+            }
+            if (cpSettlement) cpLines.push({ desc: 'ישוב מזכה', pts: cpSettlementPts });
+            if (cpDisability >= 90) cpLines.push({ desc: `נכות ${cpDisability}%`, pts: 4 });
+            else if (cpDisability >= 60) cpLines.push({ desc: `נכות ${cpDisability}%`, pts: 2.5 });
+            else if (cpDisability >= 30) cpLines.push({ desc: `נכות ${cpDisability}%`, pts: 1.5 });
+            else if (cpDisability >= 10) cpLines.push({ desc: `נכות ${cpDisability}%`, pts: 0.5 });
+
+            const calcCredits = cpLines.reduce((s, l) => s + l.pts, 0);
+
+            // ── Tax calculation ──
+            let remaining = calcIncome;
+            let totalTax = 0;
+            let prevLimit = 0;
+            const lines: { from: number; to: number | null; rate: number; income: number; tax: number }[] = [];
+            for (const b of data.incomeTaxBrackets) {
+              if (remaining <= 0) break;
+              const top = b.upTo === Infinity ? calcIncome : b.upTo;
+              const size = top - prevLimit;
+              const taxable = Math.min(remaining, size);
+              const tax = taxable * b.rate / 100;
+              if (taxable > 0) lines.push({ from: prevLimit, to: b.upTo === Infinity ? null : b.upTo, rate: b.rate, income: taxable, tax });
+              totalTax += tax;
+              remaining -= taxable;
+              prevLimit = top;
+            }
+            const creditVal = calcCredits * data.creditPointValue;
+            const taxAfterCredit = Math.max(0, totalTax - creditVal);
+            const surtax = calcIncome > data.surtaxThreshold ? (calcIncome - data.surtaxThreshold) * 0.03 : 0;
+            const finalTax = taxAfterCredit + surtax;
+            const effective = calcIncome > 0 ? (finalTax / calcIncome * 100) : 0;
+            const marginalBracket = data.incomeTaxBrackets.find(b => calcIncome <= b.upTo);
+            const marginalRate = marginalBracket?.rate ?? 50;
+            const unusedCredit = Math.max(0, creditVal - totalTax);
+
+            return (
+              <div className="card" style={{ border: '2px solid var(--blue-border)', borderRadius: 'var(--radius-lg)' }}>
+                <div className="card-header" style={{ background: 'var(--blue-light)' }}>
+                  <span className="card-title" style={{ color: 'var(--blue-dark)' }}>🧮 מחשבון מס הכנסה מהיר — {year}</span>
+                </div>
+                <div className="card-body">
+                  {/* Income input */}
+                  <div className="form-group" style={{ marginBottom: '1rem', maxWidth: 320 }}>
+                    <label style={{ fontWeight: 700 }}>הכנסה שנתית חייבת (₪)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={calcIncome || ''}
+                      onChange={e => setCalcIncome(+e.target.value)}
+                      placeholder="הזן הכנסה שנתית..."
+                      style={{ fontSize: '1.1rem' }}
+                    />
+                  </div>
+
+                  {/* Credit points selector */}
+                  <div style={{ background: '#f0f9ff', borderRadius: 'var(--radius)', padding: '1rem', marginBottom: '1rem' }}>
+                    <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: '.75rem', color: 'var(--blue-dark)' }}>
+                      נקודות זיכוי — סה"כ: <span style={{ fontSize: '1.1rem' }}>{calcCredits.toFixed(2)}</span> ({fmt(Math.round(creditVal))})
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '.75rem' }}>
+                      {/* Gender */}
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label>מין</label>
+                        <select value={cpGender} onChange={e => setCpGender(e.target.value as 'male' | 'female')} style={{ padding: '.3rem .5rem' }}>
+                          <option value="male">זכר</option>
+                          <option value="female">נקבה (+0.5)</option>
+                        </select>
+                      </div>
+                      {/* Family status */}
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label>מצב משפחתי</label>
+                        <select value={cpFamilyStatus} onChange={e => setCpFamilyStatus(e.target.value as 'single' | 'singleParent')} style={{ padding: '.3rem .5rem' }}>
+                          <option value="single">לא הורה יחיד</option>
+                          <option value="singleParent">הורה יחיד (+1)</option>
+                        </select>
+                      </div>
+                      {/* Children */}
+                      <div className="form-group" style={{ marginBottom: 0, gridColumn: 'span 2' }}>
+                        <label>
+                          ילדים (שנות לידה, מופרדות בפסיק)
+                          <span style={{ fontWeight: 400, color: 'var(--gray-500)', marginRight: '.3rem' }}>
+                            למשל: 2015, 2018, 2021
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="2015, 2018, 2021"
+                          value={cpChildBirthYears.join(', ')}
+                          onChange={e => {
+                            const years = e.target.value.split(/[,\s]+/).map(Number).filter(n => n > 1950 && n <= year);
+                            setCpChildBirthYears(years);
+                          }}
+                          style={{ padding: '.3rem .5rem' }}
+                        />
+                      </div>
+                      {/* Academic degree */}
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label>תואר אקדמי</label>
+                        <select value={cpDegree} onChange={e => setCpDegree(e.target.value as '' | 'bachelor' | 'master')} style={{ padding: '.3rem .5rem' }}>
+                          <option value="">ללא</option>
+                          <option value="bachelor">תואר ראשון (+1)</option>
+                          <option value="master">תואר שני (+1)</option>
+                        </select>
+                      </div>
+                      {cpDegree && (
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label>שנת סיום תואר</label>
+                          <input type="number" min={1990} max={year} value={cpDegreeYear || ''} onChange={e => setCpDegreeYear(+e.target.value)} style={{ padding: '.3rem .5rem' }} />
+                          <span style={{ fontSize: '.65rem', color: 'var(--gray-500)' }}>שנת הסיום + 3 שנים</span>
+                        </div>
+                      )}
+                      {/* IDF */}
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="checkbox-row">
+                          <input type="checkbox" checked={cpIDF} onChange={e => setCpIDF(e.target.checked)} />
+                          שירות צבאי/לאומי
+                        </label>
+                      </div>
+                      {cpIDF && (
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label>שנת שחרור</label>
+                          <input type="number" min={1990} max={year} value={cpIDFYear || ''} onChange={e => setCpIDFYear(+e.target.value)} style={{ padding: '.3rem .5rem' }} />
+                        </div>
+                      )}
+                      {/* New immigrant */}
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="checkbox-row">
+                          <input type="checkbox" checked={cpNewImmigrant} onChange={e => setCpNewImmigrant(e.target.checked)} />
+                          עולה חדש
+                        </label>
+                      </div>
+                      {cpNewImmigrant && (
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label>שנת עלייה</label>
+                          <input type="number" min={1990} max={year} value={cpAliyahYear || ''} onChange={e => setCpAliyahYear(+e.target.value)} style={{ padding: '.3rem .5rem' }} />
+                        </div>
+                      )}
+                      {/* Settlement */}
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="checkbox-row">
+                          <input type="checkbox" checked={cpSettlement} onChange={e => setCpSettlement(e.target.checked)} />
+                          ישוב מזכה
+                        </label>
+                      </div>
+                      {cpSettlement && (
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label>נקודות ישוב</label>
+                          <select value={cpSettlementPts} onChange={e => setCpSettlementPts(+e.target.value)} style={{ padding: '.3rem .5rem' }}>
+                            <option value={0.25}>0.25 (מעגל ב)</option>
+                            <option value={0.5}>0.5 (מעגל א)</option>
+                          </select>
+                        </div>
+                      )}
+                      {/* Disability */}
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label>נכות (%)</label>
+                        <input type="number" min={0} max={100} value={cpDisability || ''} onChange={e => setCpDisability(+e.target.value)} placeholder="0" style={{ padding: '.3rem .5rem' }} />
+                      </div>
+                    </div>
+
+                    {/* Credit points summary */}
+                    {cpLines.length > 1 && (
+                      <div style={{ marginTop: '.75rem', display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+                        {cpLines.map((l, i) => (
+                          <span key={i} className="badge badge-blue" style={{ fontSize: '.7rem' }}>
+                            {l.desc}: {l.pts}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Results */}
+                  {calcIncome > 0 && (
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '.5rem', marginBottom: '1rem' }}>
+                        {[
+                          { label: 'מס לפני זיכוי', value: fmt(Math.round(totalTax)), color: 'var(--gray-700)' },
+                          { label: 'זיכוי נקודות', value: '-' + fmt(Math.round(Math.min(creditVal, totalTax))), color: '#16a34a' },
+                          ...(surtax > 0 ? [{ label: 'היטל יסף', value: '+' + fmt(Math.round(surtax)), color: '#dc2626' }] : []),
+                          { label: 'מס סופי', value: fmt(Math.round(finalTax)), color: '#dc2626' },
+                          { label: 'שיעור אפקטיבי', value: effective.toFixed(1) + '%', color: '#7c3aed' },
+                          { label: 'שיעור שולי', value: marginalRate + '%', color: '#d97706' },
+                          { label: 'נטו (לפני ב"ל)', value: fmt(Math.round(calcIncome - finalTax)), color: '#16a34a' },
+                        ].map(c => (
+                          <div key={c.label} style={{ padding: '.6rem', background: 'var(--gray-50)', borderRadius: 'var(--radius)', textAlign: 'center' }}>
+                            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: c.color }}>{c.value}</div>
+                            <div style={{ fontSize: '.7rem', color: 'var(--gray-500)' }}>{c.label}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8125rem' }}>
+                        <thead>
+                          <tr style={{ background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
+                            <th style={{ padding: '.4rem .6rem', textAlign: 'right' }}>מדרגה</th>
+                            <th style={{ padding: '.4rem .6rem', textAlign: 'center' }}>שיעור</th>
+                            <th style={{ padding: '.4rem .6rem', textAlign: 'center' }}>הכנסה במדרגה</th>
+                            <th style={{ padding: '.4rem .6rem', textAlign: 'center' }}>מס</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lines.map((l, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                              <td style={{ padding: '.35rem .6rem' }}>
+                                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: BRACKET_COLORS[i], marginLeft: '.3rem', verticalAlign: 'middle' }} />
+                                {fmt(l.from)} – {l.to ? fmt(l.to) : '∞'}
+                              </td>
+                              <td style={{ padding: '.35rem .6rem', textAlign: 'center', fontWeight: 700, color: BRACKET_COLORS[i] }}>{l.rate}%</td>
+                              <td style={{ padding: '.35rem .6rem', textAlign: 'center' }}>{fmt(Math.round(l.income))}</td>
+                              <td style={{ padding: '.35rem .6rem', textAlign: 'center' }}>{fmt(Math.round(l.tax))}</td>
+                            </tr>
+                          ))}
+                          <tr style={{ background: '#fef2f2', fontWeight: 700 }}>
+                            <td colSpan={3} style={{ padding: '.5rem .6rem' }}>סה"כ מס הכנסה סופי (כולל היטל יסף)</td>
+                            <td style={{ padding: '.5rem .6rem', textAlign: 'center', color: '#dc2626', fontSize: '.95rem' }}>{fmt(Math.round(finalTax))}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      {unusedCredit > 0 && (
+                        <div className="alert alert-warning" style={{ marginTop: '.75rem', marginBottom: 0 }}>
+                          <strong>זיכוי לא מנוצל:</strong> {fmt(Math.round(unusedCredit))} מתוך הזיכוי לא נוצלו (המס נמוך מסך הזיכוי).
+                          ניתן להרוויח עוד כ-{fmt(Math.round(unusedCredit / (marginalRate / 100)))} לפני תשלום מס.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -295,146 +565,7 @@ export default function TaxReferencePanel({ onBack }: Props) {
       )}
 
       {/* ── TAB: ביטוח לאומי ── */}
-      {activeTab === 'ni' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Key NI numbers */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '.75rem' }}>
-            {[
-              { label: 'שכר ממוצע במשק', value: fmt(data.niAverageWage) + '/חודש' },
-              { label: 'שכר ממוצע (שנתי)', value: fmt(data.niAverageWage * 12) + '/שנה' },
-              { label: 'סף 60% (מדרגה ראשונה)', value: fmt(data.niThreshold60Monthly) + '/חודש' },
-              { label: 'תקרת הכנסה לב"ל', value: fmt(data.niMaxIncomeMonthly) + '/חודש' },
-              { label: 'תקרת הכנסה לב"ל (שנתי)', value: fmt(data.niMaxIncomeMonthly * 12) + '/שנה' },
-            ].map(item => (
-              <div key={item.label} className="card" style={{ padding: '.75rem 1rem' }}>
-                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--blue-dark)' }}>{item.value}</div>
-                <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>{item.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Rates table */}
-          <div className="card">
-            <div className="card-header"><span className="card-title">שיעורי ביטוח לאומי ומס בריאות — {year}</span></div>
-            <div className="card-body" style={{ padding: 0 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.875rem' }}>
-                <thead>
-                  <tr style={{ background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
-                    <th style={{ padding: '.6rem 1rem', textAlign: 'right', fontWeight: 600 }}>סוג</th>
-                    <th style={{ padding: '.6rem 1rem', textAlign: 'center', fontWeight: 600 }}>ב"ל מדרגה ראשונה<br /><span style={{ fontSize: '.7rem', fontWeight: 400 }}>(עד {fmt(data.niThreshold60Monthly)}/חודש)</span></th>
-                    <th style={{ padding: '.6rem 1rem', textAlign: 'center', fontWeight: 600 }}>ב"ל מדרגה שנייה<br /><span style={{ fontSize: '.7rem', fontWeight: 400 }}>(מעל {fmt(data.niThreshold60Monthly)}/חודש)</span></th>
-                    <th style={{ padding: '.6rem 1rem', textAlign: 'center', fontWeight: 600 }}>בריאות מדרגה ראשונה</th>
-                    <th style={{ padding: '.6rem 1rem', textAlign: 'center', fontWeight: 600 }}>בריאות מדרגה שנייה</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ borderBottom: '1px solid var(--gray-100)' }}>
-                    <td style={{ padding: '.5rem 1rem', fontWeight: 600 }}>שכיר (חלק עובד)</td>
-                    <td style={{ padding: '.5rem 1rem', textAlign: 'center' }}>{data.employeeNI.lowRate}%</td>
-                    <td style={{ padding: '.5rem 1rem', textAlign: 'center' }}>{data.employeeNI.highRate}%</td>
-                    <td style={{ padding: '.5rem 1rem', textAlign: 'center' }}>{data.employeeNI.healthLowRate}%</td>
-                    <td style={{ padding: '.5rem 1rem', textAlign: 'center' }}>{data.employeeNI.healthHighRate}%</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
-                    <td style={{ padding: '.5rem 1rem', fontWeight: 600 }}>עצמאי</td>
-                    <td style={{ padding: '.5rem 1rem', textAlign: 'center' }}>{data.selfEmployedNI.lowRate}%</td>
-                    <td style={{ padding: '.5rem 1rem', textAlign: 'center' }}>{data.selfEmployedNI.highRate}%</td>
-                    <td style={{ padding: '.5rem 1rem', textAlign: 'center' }}>{data.selfEmployedNI.healthLowRate}%</td>
-                    <td style={{ padding: '.5rem 1rem', textAlign: 'center' }}>{data.selfEmployedNI.healthHighRate}%</td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid var(--gray-100)' }}>
-                    <td style={{ padding: '.5rem 1rem', fontWeight: 600 }}>שאינו עובד / פסיבי</td>
-                    <td colSpan={4} style={{ padding: '.5rem 1rem', textAlign: 'center', color: 'var(--gray-600)' }}>
-                      {fmt(data.nonQualifyingMonthlyNI)} לחודש (סכום קבוע)
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* NI Deduction rule */}
-          <div className="card" style={{ border: '2px solid var(--blue-border)' }}>
-            <div className="card-header" style={{ background: 'var(--blue-light)' }}>
-              <span className="card-title">⚖️ ניכוי ביטוח לאומי עצמאי מהכנסה החייבת (סעיף 17(5) לפקודה)</span>
-            </div>
-            <div className="card-body">
-              <p style={{ marginBottom: '.75rem' }}>
-                עצמאי רשאי לנכות <strong>52% מתשלומי ביטוח הלאומי</strong> (לא כולל מס בריאות) כהוצאה מוכרת מהכנסתו החייבת לצורכי מס הכנסה.
-              </p>
-              <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius)', padding: '1rem', fontFamily: 'monospace', fontSize: '.8125rem', lineHeight: 1.8 }}>
-                <div>1. חישוב ב"ל על <strong>הכנסה גולמית</strong> (לפני ניכוי)</div>
-                <div>2. ניכוי = 52% × תשלום ב"ל ביטוח (לא בריאות)</div>
-                <div>3. <strong>הכנסה חייבת למ"ה</strong> = הכנסה גולמית − ניכויים אחרים − 52% × ב"ל</div>
-                <div>4. חישוב מס הכנסה על הכנסה המופחתת</div>
-              </div>
-              <div className="alert alert-info" style={{ marginTop: '.75rem' }}>
-                <strong>חשוב:</strong> החישוב אינו מעגלי — ביטוח לאומי מחושב על ההכנסה הגולמית (לפני ניכוי),
-                ואז 52% מה-ב"ל מנוכים לחישוב מס הכנסה. לא נדרשת איטרציה.
-              </div>
-
-              {/* Example at average wage */}
-              <div style={{ marginTop: '.75rem' }}>
-                <strong>דוגמה חישובית בשנת {year} (הכנסה = שכר ממוצע × 12 = {fmt(annualAvg)}):</strong>
-                <div style={{ marginTop: '.5rem', fontSize: '.8125rem', color: 'var(--gray-700)' }}>
-                  {(() => {
-                    const lowMax = data.niThreshold60Monthly * 12;
-                    const lowNI = Math.min(annualAvg, lowMax) * data.selfEmployedNI.lowRate / 100;
-                    const highNI = Math.max(0, Math.min(annualAvg, niMax) - lowMax) * data.selfEmployedNI.highRate / 100;
-                    const totalNIinsurance = lowNI + highNI;
-                    const deduction = totalNIinsurance * 0.52;
-                    const saving = deduction * 0.31; // rough 31% bracket
-                    return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
-                        <div>ב"ל ביטוח (רכיב ביטוח בלבד): <strong>{fmt(Math.round(totalNIinsurance))}</strong></div>
-                        <div>ניכוי 52%: <strong>{fmt(Math.round(deduction))}</strong></div>
-                        <div>חיסכון במס (מדרגה 31%): <strong>~{fmt(Math.round(saving))}</strong></div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* NI Bar Chart */}
-          <div className="card">
-            <div className="card-header"><span className="card-title">מבנה תשלום ב"ל עצמאי לפי רמת הכנסה — {year}</span></div>
-            <div className="card-body">
-              {(() => {
-                const incomes = [50_000, 100_000, 150_000, 200_000, 300_000, 400_000, niMax * 12 / 12 * 12];
-                const chartData = incomes.map(inc => {
-                  const lowMax = niLowMax;
-                  const lowNI = Math.min(inc, lowMax) * data.selfEmployedNI.lowRate / 100;
-                  const highNI = Math.max(0, Math.min(inc, niMax) - lowMax) * data.selfEmployedNI.highRate / 100;
-                  const lowH = Math.min(inc, lowMax) * data.selfEmployedNI.healthLowRate / 100;
-                  const highH = Math.max(0, Math.min(inc, niMax) - lowMax) * data.selfEmployedNI.healthHighRate / 100;
-                  return {
-                    income: `₪${(inc / 1000).toFixed(0)}K`,
-                    niInsurance: Math.round(lowNI + highNI),
-                    niHealth: Math.round(lowH + highH),
-                  };
-                });
-                return (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="income" tick={{ fontSize: 11, fontFamily: 'Heebo' }} />
-                      <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 10, fontFamily: 'Heebo' }} />
-                      <Tooltip formatter={(v: unknown, name: unknown) => [fmt(v as number), (name as string) === 'niInsurance' ? 'ב"ל ביטוח' : 'מס בריאות']} contentStyle={{ fontFamily: 'Heebo', fontSize: 12 }} />
-                      <Bar dataKey="niInsurance" name='ב"ל ביטוח' stackId="a" fill="#3b82f6" />
-                      <Bar dataKey="niHealth" name="מס בריאות" stackId="a" fill="#93c5fd" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                );
-              })()}
-              <p style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.5rem', textAlign: 'center' }}>
-                הכנסה מעל {fmt(data.niMaxIncomeMonthly)}/חודש — פטורה מתשלום ב"ל
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === 'ni' && <NIReferenceSection taxData={data} year={year} />}
 
       {/* ── TAB: ישובים מזכים ── */}
       {activeTab === 'settlements' && (

@@ -1,3 +1,12 @@
 node_modules/
 dist/
 .env
+
+# Vite dev cache
+.vite/
+
+# Editor / IDE settings (local only)
+.vscode/
+
+# Personal study/reference materials — not part of the app
+חומרים/
