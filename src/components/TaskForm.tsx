@@ -5,10 +5,13 @@ import {
   TaskCategory,
   BallWith,
   TaskPriority,
+  TaskProgress,
   TASK_CATEGORY_LABELS,
+  TASK_PROGRESS_LABELS,
   BALL_WITH_LABELS,
   BALL_WITH_ICON,
 } from '../types';
+import LinkedDocsWidget from './LinkedDocsWidget';
 
 interface Props {
   task: Task | null;                     // null = יצירה חדשה
@@ -24,11 +27,12 @@ function blankTask(clientId: string): Task {
   return {
     id: crypto.randomUUID(),
     clientId,
-    category: 'income_tax',
+    category: 'not_selected',
     title: '',
     description: '',
     ballWith: 'me',
     status: 'open',
+    progress: 'new',
     priority: 'normal',
     createdAt: now,
     updatedAt: now,
@@ -36,14 +40,13 @@ function blankTask(clientId: string): Task {
 }
 
 const CATEGORIES: TaskCategory[] = [
-  'income_tax', 'ni', 'withholdings',
-  'vat_report', 'withholdings_report',
-  'audit', 'cutoff', 'economic_work',
-  'client_onboarding', 'authority_contact',
-  'other',
+  'annual_report', 'institutions', 'management', 'economic_work',
+  'personal_report', 'cutoff', 'wealth_declaration', 'ongoing',
+  'discussions', 'special_approval', 'not_selected',
 ];
 
 const BALL_OPTIONS: BallWith[] = ['me', 'client', 'authority', 'stuck'];
+const PROGRESS_OPTIONS: TaskProgress[] = ['new', 'in_progress'];
 
 export default function TaskForm({ task, clients, presetClientId, onSave, onCancel, onDelete }: Props) {
   const [data, setData] = useState<Task>(
@@ -117,11 +120,32 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
               </div>
 
               <div className="form-group">
-                <label>קטגוריה</label>
+                <label>סוג משימה</label>
                 <select value={data.category} onChange={(e) => upd('category', e.target.value as TaskCategory)}>
                   {CATEGORIES.map(c => (
                     <option key={c} value={c}>{TASK_CATEGORY_LABELS[c]}</option>
                   ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>סטטוס</label>
+                <select
+                  value={data.status === 'done' ? 'done' : (data.progress || 'new')}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const now = new Date().toISOString();
+                    if (v === 'done') {
+                      setData(d => ({ ...d, status: 'done', completedAt: d.completedAt || now, updatedAt: now }));
+                    } else {
+                      setData(d => ({ ...d, status: 'open', progress: v as TaskProgress, completedAt: undefined, updatedAt: now }));
+                    }
+                  }}
+                >
+                  {PROGRESS_OPTIONS.map(p => (
+                    <option key={p} value={p}>{TASK_PROGRESS_LABELS[p]}</option>
+                  ))}
+                  <option value="done">הושלמה</option>
                 </select>
               </div>
 
@@ -166,6 +190,18 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                   onChange={(e) => upd('description', e.target.value)}
                   rows={4}
                   placeholder="פרטים נוספים, הקשר, מה צריך לעשות..."
+                />
+              </div>
+
+              {/* מסמכים מקושרים למשימה — נשמרים בתיק המסמכים של הלקוח */}
+              <div className="form-group span-full">
+                <label>📎 מסמכים מקושרים</label>
+                <LinkedDocsWidget
+                  clientId={data.clientId}
+                  linkKey={`task:${data.id}`}
+                  linkLabel={`מסמך משימה — ${data.title || 'ללא כותרת'}`}
+                  defaultCategory="other"
+                  compact
                 />
               </div>
             </div>

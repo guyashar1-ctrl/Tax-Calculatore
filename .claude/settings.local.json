@@ -96,7 +96,15 @@
       "Bash(./node_modules/.bin/vite)",
       "Bash(./node_modules/.bin/vite --port 5174 --strictPort)",
       "Bash(kill %1)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(sort -k9)",
+      "Bash(cmd.exe /c \"dir CLAUDE.md\")",
+      "Bash(supabase --version)",
+      "Bash(psql --version)",
+      "Bash(npx --version)",
+      "Bash(awk -F= '{print $1}' .env.local)",
+      "Bash(git check-ignore *)",
+      "Bash(git add *)"
     ]
   }
 }

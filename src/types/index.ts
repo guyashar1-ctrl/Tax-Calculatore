@@ -22,8 +22,62 @@ export type FamilyStatus = 'single' | 'married' | 'divorced' | 'widowed' | 'sing
 export type Gender = 'male' | 'female';
 export type RentalTaxTrack = 'exempt' | 'flat10' | 'regular';
 
+// סוג נכס דיור
+export type PropertyType = 'apartment' | 'house' | 'duplex' | 'commercial' | 'land' | 'other';
+
+export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
+  apartment:  'דירה',
+  house:      'בית פרטי',
+  duplex:     'דופלקס / קוטג׳',
+  commercial: 'נכס מסחרי',
+  land:       'קרקע / מגרש',
+  other:      'אחר',
+};
+
+// ─── חשבונות והשקעות בחו"ל ──────────────────────────────────────────────
+export type ForeignAccountType = 'bank' | 'brokerage' | 'crypto' | 'pension' | 'real_estate' | 'business' | 'other';
+
+export const FOREIGN_ACCOUNT_TYPE_LABELS: Record<ForeignAccountType, string> = {
+  bank:        'חשבון בנק',
+  brokerage:   'חשבון השקעות / ברוקר',
+  crypto:      'ארנק קריפטו / מטבעות וירטואליים',
+  pension:     'פנסיה / קופ״ג זרה',
+  real_estate: 'נכס נדל״ן בחו״ל',
+  business:    'חברה / עסק זר (CFC)',
+  other:       'אחר',
+};
+
+export interface ForeignAccount {
+  id: string;
+  type?: ForeignAccountType;
+  country?: string;          // שם המדינה
+  institutionName?: string;   // שם המוסד / הברוקר / הבנק
+  accountNumber?: string;     // אופציונלי — מספר חשבון/IBAN
+  estimatedValue?: number;    // שווי משוער (₪)
+  annualIncome?: number;      // הכנסה שנתית מהחשבון (₪) — דיבידנד/ריבית/שכ״ד וכו'
+  foreignTaxPaid?: number;    // מס ששולם בחו״ל על ההכנסה — לזיכוי מס זר
+  notes?: string;
+}
+
+/** נכס דיור בודד — נכלל ברשימה של נכסי הלקוח */
+export interface ResidentialProperty {
+  id: string;
+  type?: PropertyType;
+  address: string;
+  city?: string;
+  sizeSqm?: number;             // שטח במ"ר
+  rooms?: number;                // מספר חדרים
+  purchaseYear?: number;
+  purchasePrice?: number;        // מחיר רכישה (₪)
+  isRented?: boolean;            // האם מושכר
+  monthlyRent?: number;          // שכ״ד חודשי (₪)
+  rentalTaxTrack?: RentalTaxTrack;
+  notes?: string;
+}
+
 export interface Child {
   id: string;
+  firstName?: string;   // שם פרטי (אופציונלי לתאימות לרשומות ישנות)
   birthDate: string;    // YYYY-MM-DD (תאריך לידה מלא)
   birthYear: number;    // מחושב מ-birthDate, נשמר לתאימות
   hasDisability: boolean;
@@ -173,8 +227,44 @@ export interface Client {
 
   // ── נכסים ──
   hasResidentialProperty: boolean;
-  propertyAddress: string;
+  propertyAddress: string;       // נשמר לתאימות אחורה (סיכום) — הנתון העדכני נמצא ב-properties[]
   numberOfProperties: number;
+  /** רשימה מפורטת של נכסי דיור — אופציונלי, מומלץ למלא במקום propertyAddress */
+  properties?: ResidentialProperty[];
+
+  // ── הכנסה משכירות (אופציונלי) ──
+  hasRentalIncome?: boolean;
+  rentalIncomeAnnual?: number;       // ₪ ברוטו לשנה
+  rentalTaxTrack?: RentalTaxTrack;    // exempt / flat10 / regular
+  rentalNotes?: string;
+
+  // ── השקעות בשוק ההון (אופציונלי) ──
+  hasInvestments?: boolean;
+  investmentBrokerName?: string;      // ברוקר / בנק / בית השקעות
+  investmentNotes?: string;
+
+  // ── חשבונות והשקעות בחו"ל (חובת דיווח CRS/FATCA) ──
+  hasForeignAssets?: boolean;
+  foreignAccounts?: ForeignAccount[];
+  isReturningResidentVeteran?: boolean;  // תושב חוזר ותיק (פטור 10 שנים על הכנסות חו״ל)
+
+  // ── הגרלות, הימורים ופרסים (מס נפרד 35%) ──
+  hasGamblingIncome?: boolean;
+  gamblingIncomeAnnual?: number;        // סך הזכיות (₪)
+  gamblingTaxWithheldAtSource?: boolean; // האם נוכה במקור (אז לא צריך דיווח/חישוב)
+
+  // ── הכנסות הון מקומיות (מס נפרד 25%/30%) ──
+  hasCapitalIncome?: boolean;
+  capitalGainsAnnual?: number;          // רווחי הון (₪) — ני"ע, קריפטו וכו'
+  dividendInterestAnnual?: number;       // דיבידנד + ריבית מקומיים (₪)
+  isSubstantialShareholder?: boolean;    // בעל מניות מהותי (10%+) — מס 30% במקום 25%
+
+  // ── תרומות וזיכויים נוספים ──
+  donationsAnnual?: number;              // תרומות שנתיות מוכרות סעיף 46 (₪)
+  hasLifeInsurance?: boolean;
+  lifeInsuranceAnnual?: number;          // פרמיה שנתית לביטוח חיים/אכ״ע (₪)
+  hasMedicalInsurance?: boolean;
+  medicalInsuranceAnnual?: number;       // פרמיה שנתית לבריאות/סיעוד (₪)
 
   // ── פנסיה וחיסכון ──
   hasPension: boolean;
@@ -191,6 +281,42 @@ export interface Client {
   // ── סטטוס ייצוג (lifecycle של תהליך הייצוג) ──
   representationStatus?: RepresentationStatus; // ברירת מחדל: 'active' (לקוח שנוצר ידנית)
   representationRequestId?: string;            // קישור ל-RepresentationRequest אם הלקוח נוצר מבקשה
+
+  // ── הרחבות תיק עבודה (אופציונלי, ראה types/clientWorkspace.ts) ──
+  // השדות הבאים אופציונליים כדי לא לשבור רשומות קיימות.
+  assignedAccountantId?: string;
+  tags?: string[];
+  pinnedNote?: string;
+  additionalContacts?: import('./clientWorkspace').ClientContact[];
+
+  vatFrequency?: import('./clientWorkspace').VATFrequency;
+  vatDetailedReport?: boolean;
+  vatDetailedReportStartDate?: string;
+
+  pitAdvancePercent?: number;
+  pitAdvanceFrequency?: import('./clientWorkspace').VATFrequency;
+
+  withholdingFrequency?: import('./clientWorkspace').WithholdingFrequency;
+  withholdingRate?: number;
+  withholdingValidUntil?: string;
+  bookStatus?: import('./clientWorkspace').BookStatus;
+
+  niAdvanceMonthly?: number;
+
+  shaamStatus?: import('./clientWorkspace').ShaamStatus;
+  shaamCreatedAt?: string;
+  shaamLastUsed?: string;
+  shaamSource?: import('./clientWorkspace').FieldSource;
+
+  taxOfficeName?: string;
+  withholdingOfficeName?: string;
+  niBranchName?: string;
+
+  hasWealthDeclaration?: boolean;
+  lastWealthDeclarationYear?: number;
+
+  fieldMeta?: Record<string, import('./clientWorkspace').FieldMeta>;
+  activity?: import('./clientWorkspace').ActivityEntry[];
 
   createdAt: string;
   updatedAt: string;
@@ -396,7 +522,20 @@ export interface TaxCalcInput {
   krenHashtalmutSE: number;
   overrideCreditPoints: boolean;
   manualCreditPoints: number;
+
+  // ── הכנסות במס נפרד (לא נכנסות למדרגות הרגילות) ──
+  /** זכיות בהגרלות/הימורים — מס 35% (סעיף 124ב). פטור עד הסף ל-2026: 32,310 ש"ח לזכייה */
+  gamblingIncome?: number;
+  /** רווחי הון מני"ע, קריפטו וכו' — מס 25% (30% לבעל מניות מהותי) */
+  capitalGains?: number;
+  /** דיבידנד + ריבית — מס 25% (30% לבעל מניות מהותי) */
+  dividendInterest?: number;
+  /** מס ששולם בחו״ל — לזיכוי מס זר (עד גובה המס הישראלי על אותה הכנסה) */
+  foreignTaxPaid?: number;
 }
+
+/** סף הפטור השנתי על זכיות בהגרלות (₪). מתעדכן מדי שנה. */
+export const GAMBLING_EXEMPTION_THRESHOLD = 32310;
 
 export interface CreditPointLine {
   description: string;
@@ -415,19 +554,22 @@ export interface BracketLine {
 
 // ─── משימות ותיקי עבודה ─────────────────────────────────────────────────────
 
-/** קטגוריית המשימה — נושא העבודה */
+/**
+ * קטגוריית המשימה — נושא העבודה (לפי הקונבנציה של מונדיי במשרד).
+ * עבור ערכים ישנים שעדיין קיימים באחסון — ראה LEGACY_CATEGORY_MAP.
+ */
 export type TaskCategory =
-  | 'income_tax'             // מס הכנסה
-  | 'ni'                     // ביטוח לאומי
-  | 'withholdings'           // ניכויים
-  | 'vat_report'             // דיווח מע"מ
-  | 'withholdings_report'    // דיווח ניכויים
-  | 'audit'                  // ביקורת
-  | 'cutoff'                 // חיתוך
-  | 'economic_work'          // עבודה כלכלית
-  | 'client_onboarding'      // קליטת לקוח
-  | 'authority_contact'      // פנייה לרשויות
-  | 'other';                 // אחר
+  | 'annual_report'        // דוח שנתי
+  | 'institutions'         // מוסדות
+  | 'management'           // ניהול
+  | 'economic_work'        // עבודות כלכליות
+  | 'personal_report'      // דוח אישי
+  | 'cutoff'               // חיתוך
+  | 'wealth_declaration'   // הצהרות הון
+  | 'ongoing'              // שוטף
+  | 'discussions'          // דיונים
+  | 'special_approval'     // אישור מיוחד
+  | 'not_selected';        // טרם נבחר (ברירת מחדל)
 
 /** אצל מי הכדור — איפה המשימה ממתינה כרגע */
 export type BallWith =
@@ -436,7 +578,16 @@ export type BallWith =
   | 'authority'  // אצל הרשות — מחכה מהם
   | 'stuck';     // תקועה — צריך חשיבה/התלבטות
 
+/**
+ * סטטוס המשימה — איפה היא בצינור.
+ * 'open' עדיין בשימוש במקומות רבים כשאלה בינארית (פתוח/סגור);
+ * מבחינת UI "פתוח" מתחלק ל-new/in_progress לפי השדה `progress`.
+ */
 export type TaskStatus = 'open' | 'done';
+
+/** תת-סטטוס עבור משימות פתוחות — האם טרם התחילה או בעיצומה */
+export type TaskProgress = 'new' | 'in_progress';
+
 export type TaskPriority = 'normal' | 'urgent';
 
 export interface Task {
@@ -449,8 +600,11 @@ export interface Task {
   description?: string;
   ballWith: BallWith;
   status: TaskStatus;
+  progress?: TaskProgress;       // ברירת מחדל 'new' אם 'open', לא רלוונטי אם 'done'
   priority: TaskPriority;
   dueDate?: string;              // YYYY-MM-DD
+  sortOrder?: number;            // סדר ידני בתוך קבוצת סטטוס (קטן קודם); חסר = ברירת מחדל
+  assigneeId?: string;           // מוכן לעתיד — הוספת עובדים (כרגע לא בשימוש)
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
@@ -465,45 +619,61 @@ export interface Case {
 }
 
 export const TASK_CATEGORY_LABELS: Record<TaskCategory, string> = {
-  income_tax: 'מס הכנסה',
-  ni: 'ביטוח לאומי',
-  withholdings: 'ניכויים',
-  vat_report: 'דיווח מע"מ',
-  withholdings_report: 'דיווח ניכויים',
-  audit: 'ביקורת',
+  annual_report: 'דוח שנתי',
+  institutions: 'מוסדות',
+  management: 'ניהול',
+  economic_work: 'עבודות כלכליות',
+  personal_report: 'דוח אישי',
   cutoff: 'חיתוך',
-  economic_work: 'עבודה כלכלית',
-  client_onboarding: 'קליטת לקוח',
-  authority_contact: 'פנייה לרשויות',
-  other: 'אחר',
+  wealth_declaration: 'הצהרות הון',
+  ongoing: 'שוטף',
+  discussions: 'דיונים',
+  special_approval: 'אישור מיוחד',
+  not_selected: 'טרם נבחר',
 };
 
-export const TASK_CATEGORY_SHORT: Record<TaskCategory, string> = {
-  income_tax: 'מ"ה',
-  ni: 'ב"ל',
-  withholdings: 'ניכ׳',
-  vat_report: 'מע"מ',
-  withholdings_report: 'דיו״נ',
-  audit: 'ביק׳',
-  cutoff: 'חיתוך',
-  economic_work: 'כלכ׳',
-  client_onboarding: 'קליטה',
-  authority_contact: 'רשויות',
-  other: 'אחר',
-};
-
+/** צבע הבאדג' לכל קטגוריה — בהשראת הצבעים של מונדיי */
 export const TASK_CATEGORY_BADGE: Record<TaskCategory, string> = {
-  income_tax: 'badge-blue',
-  ni: 'badge-purple',
-  withholdings: 'badge-orange',
-  vat_report: 'badge-green',
-  withholdings_report: 'badge-gray',
-  audit: 'badge-red',
-  cutoff: 'badge-purple',
-  economic_work: 'badge-blue',
-  client_onboarding: 'badge-green',
-  authority_contact: 'badge-orange',
-  other: 'badge-gray',
+  annual_report: 'cat-green',
+  institutions: 'cat-red',
+  management: 'cat-yellow',
+  economic_work: 'cat-orange',
+  personal_report: 'cat-amber',
+  cutoff: 'cat-blue',
+  wealth_declaration: 'cat-brown',
+  ongoing: 'cat-purple',
+  discussions: 'cat-pink',
+  special_approval: 'cat-black',
+  not_selected: 'cat-gray',
+};
+
+/**
+ * מיפוי מהערכים הישנים של הקטגוריות (לפני שינוי ל-monday-style)
+ * לערכים החדשים. בשימוש בפונקציית migrateTasks.
+ */
+export const LEGACY_CATEGORY_MAP: Record<string, TaskCategory> = {
+  income_tax: 'personal_report',        // מ"ה → דוח אישי
+  ni: 'ongoing',                         // ב"ל → שוטף
+  withholdings: 'ongoing',               // ניכויים → שוטף
+  vat_report: 'ongoing',                 // דיווח מע"מ → שוטף
+  withholdings_report: 'ongoing',        // דיווח ניכויים → שוטף
+  audit: 'management',                   // ביקורת → ניהול
+  client_onboarding: 'management',       // קליטת לקוח → ניהול
+  authority_contact: 'institutions',     // פנייה לרשויות → מוסדות
+  other: 'not_selected',                 // אחר → טרם נבחר
+  // הבאות כבר קיימות גם בשמות חדשים: 'cutoff', 'economic_work'
+};
+
+/** תוויות לסטטוס (פתוחה מתפצלת ל-new/in_progress) */
+export const TASK_STATUS_GROUP_LABELS = {
+  new: 'חדשות',
+  in_progress: 'בתהליך',
+  done: 'הושלמו',
+} as const;
+
+export const TASK_PROGRESS_LABELS: Record<TaskProgress, string> = {
+  new: 'חדשה',
+  in_progress: 'בתהליך',
 };
 
 export const BALL_WITH_LABELS: Record<BallWith, string> = {
@@ -565,6 +735,14 @@ export interface TaxCalcResult {
   distanceToNextBracket: number;       // מרחק למדרגה הבאה (₪)
   nextBracketRate: number;             // שיעור המדרגה הבאה
   taxWithoutCredits: number;           // מס ללא זיכויים
+
+  // ── מסים נפרדים ──
+  gamblingTax?: number;          // 35% על זכיות מעל הסף
+  capitalGainsTax?: number;       // 25%/30% על רווחי הון
+  dividendInterestTax?: number;   // 25%/30% על דיבידנד וריבית
+  foreignTaxCredit?: number;      // זיכוי מס זר שנוצל בפועל
+  separateTaxesTotal?: number;    // סך כל המסים הנפרדים
+  separateTaxesBreakdown?: string[];
 
   // סיכום
   totalTaxBurden: number;

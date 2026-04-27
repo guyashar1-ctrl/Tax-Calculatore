@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Client,
   IncomeTaxType,
@@ -7,7 +7,17 @@ import {
   RepresentationStatus,
   REPRESENTATION_STATUS_LABELS,
   REPRESENTATION_STATUS_BADGE,
+  Task,
+  VATStatus,
 } from '../types';
+import { ShaamStatus } from '../types/clientWorkspace';
+import { useEmployees } from '../hooks/useEmployees';
+import { useDocumentDB } from '../hooks/useIndexedDB';
+import {
+  getClientOpenTasks,
+  getUpcomingDebts,
+  isWithholdingExpired,
+} from '../utils/clientDerived';
 
 const IT_LABELS: Record<IncomeTaxType, string> = {
   employee: 'שכיר',
@@ -26,20 +36,42 @@ const IT_BADGE: Record<IncomeTaxType, string> = {
 };
 
 const NI_LABELS: Record<NIType, string> = {
-  employee: 'שכיר (ב"ל)',
-  selfEmployed: 'עצמאי (ב"ל)',
-  nonQualifying: 'שאינו עונה להגדרה',
-  employeeAndSE: 'שכיר+עצמאי (ב"ל)',
-  passive: 'פסיבי (ב"ל)',
+  employee: 'שכיר',
+  selfEmployed: 'עצמאי',
+  nonQualifying: 'לא עונה',
+  employeeAndSE: 'שכיר+עצמאי',
+  passive: 'פסיבי',
   pensioner: 'פנסיונר',
 };
 
-type SortField = 'name' | 'idNumber' | 'city' | 'type' | 'phone' | 'email' | 'status' | 'createdAt';
+const VAT_LABELS: Record<VATStatus, string> = {
+  authorizedDealer: 'עוסק מורשה',
+  exemptDealer: 'עוסק פטור',
+  none: 'פטור',     // אם אין רישום מע"מ — מוצג כ"פטור" לפי הוראת המשתמש
+};
+
+const VAT_BADGE: Record<VATStatus, string> = {
+  authorizedDealer: 'badge-green',
+  exemptDealer: 'badge-blue',
+  none: 'badge-gray',
+};
+
+const NI_BADGE: Record<NIType, string> = {
+  employee: 'badge-blue',
+  selfEmployed: 'badge-green',
+  employeeAndSE: 'badge-purple',
+  nonQualifying: 'badge-gray',
+  passive: 'badge-gray',
+  pensioner: 'badge-orange',
+};
+
+type SortField = 'name' | 'idNumber' | 'city' | 'phone' | 'email' | 'status' | 'assignee' | 'tasks';
 type SortDir = 'asc' | 'desc';
 
 interface Props {
   clients: Client[];
   requests: RepresentationRequest[];
+  tasks: Task[];
   onSelect: (id: string) => void;
   onAdd: () => void;
   onDelete: (id: string) => void;
@@ -49,7 +81,7 @@ interface Props {
 }
 
 const STATUS_ORDER: Record<RepresentationStatus, number> = {
-  awaiting_accountant: 0,   // דורש התייחסות שלי — דחוף ביותר
+  awaiting_accountant: 0,
   pending_fill: 1,
   awaiting_authorities: 2,
   active: 3,
@@ -68,6 +100,7 @@ const STATUS_FILTERS: { id: StatusFilter; label: string; }[] = [
 export default function ClientList({
   clients,
   requests,
+  tasks,
   onSelect,
   onAdd,
   onDelete,
@@ -80,6 +113,18 @@ export default function ClientList({
   const [sortField, setSortField] = useState<SortField>('status');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
+  // ── פילטרים מורחבים ──
+  const [employeeFilter, setEmployeeFilter] = useState<string>('all');
+  const [vatFilter, setVatFilter] = useState<'all' | VATStatus>('all');
+  const [itFilter, setItFilter] = useState<'all' | IncomeTaxType>('all');
+  const [niFilter, setNiFilter] = useState<'all' | NIType>('all');
+  const [shaamFilter, setShaamFilter] = useState<'all' | ShaamStatus>('all');
+  const [openTasksOnly, setOpenTasksOnly] = useState(false);
+  const [upcomingDebtsOnly, setUpcomingDebtsOnly] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const { employees, findEmployee } = useEmployees();
+
   const getStatus = (c: Client): RepresentationStatus => c.representationStatus ?? 'active';
 
   function toggleSort(field: SortField) {
@@ -91,25 +136,52 @@ export default function ClientList({
     }
   }
 
+  // ── מטריקות לכל לקוח (לעמודות + פילטרים) ──
+  const metricsByClient = useMemo(() => {
+    const map = new Map<string, {
+      openTasksCount: number;
+      upcomingDebtsCount: number;
+      withholdingExpired: boolean;
+    }>();
+    for (const c of clients) {
+      map.set(c.id, {
+        openTasksCount: getClientOpenTasks(c.id, tasks).length,
+        upcomingDebtsCount: getUpcomingDebts(c.id, tasks).length,
+        withholdingExpired: isWithholdingExpired(c).expired,
+      });
+    }
+    return map;
+  }, [clients, tasks]);
+
   const filtered = useMemo(() => {
     let list = clients.filter(c => {
-      // status filter
       if (statusFilter !== 'all' && getStatus(c) !== statusFilter) return false;
-      // search
-      const q = search.toLowerCase();
+      if (employeeFilter !== 'all' && c.assignedAccountantId !== employeeFilter) return false;
+      if (vatFilter !== 'all' && c.vatStatus !== vatFilter) return false;
+      if (itFilter !== 'all' && c.incomeTaxType !== itFilter) return false;
+      if (niFilter !== 'all' && c.niType !== niFilter) return false;
+      if (shaamFilter !== 'all' && (c.shaamStatus ?? 'unknown') !== shaamFilter) return false;
+
+      const m = metricsByClient.get(c.id);
+      if (openTasksOnly && (!m || m.openTasksCount === 0)) return false;
+      if (upcomingDebtsOnly && (!m || m.upcomingDebtsCount === 0)) return false;
+
+      const q = search.toLowerCase().trim();
       if (!q) return true;
       return (
         c.firstName.toLowerCase().includes(q) ||
         c.lastName.toLowerCase().includes(q) ||
         c.idNumber.includes(q) ||
-        c.phone.includes(q) ||
-        c.email?.toLowerCase().includes(q) ||
-        c.city?.toLowerCase().includes(q)
+        (c.phone || '').includes(q) ||
+        (c.email || '').toLowerCase().includes(q) ||
+        (c.city || '').toLowerCase().includes(q)
       );
     });
 
     list.sort((a, b) => {
       let cmp = 0;
+      const ma = metricsByClient.get(a.id);
+      const mb = metricsByClient.get(b.id);
       switch (sortField) {
         case 'name':
           cmp = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, 'he');
@@ -120,9 +192,6 @@ export default function ClientList({
         case 'city':
           cmp = (a.city || '').localeCompare(b.city || '', 'he');
           break;
-        case 'type':
-          cmp = IT_LABELS[a.incomeTaxType].localeCompare(IT_LABELS[b.incomeTaxType], 'he');
-          break;
         case 'phone':
           cmp = (a.phone || '').localeCompare(b.phone || '');
           break;
@@ -132,22 +201,29 @@ export default function ClientList({
         case 'status':
           cmp = STATUS_ORDER[getStatus(a)] - STATUS_ORDER[getStatus(b)];
           break;
-        case 'createdAt':
-          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case 'assignee':
+          cmp = (findEmployee(a.assignedAccountantId)?.name || '').localeCompare(
+            findEmployee(b.assignedAccountantId)?.name || '', 'he');
+          break;
+        case 'tasks':
+          cmp = (ma?.openTasksCount ?? 0) - (mb?.openTasksCount ?? 0);
           break;
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
 
     return list;
-  }, [clients, search, sortField, sortDir, statusFilter]);
+  }, [
+    clients, search, sortField, sortDir, statusFilter,
+    employeeFilter, vatFilter, itFilter, niFilter, shaamFilter,
+    openTasksOnly, upcomingDebtsOnly, metricsByClient,
+  ]);
 
   const sortIcon = (field: SortField) => {
     if (sortField !== field) return <span className="sort-icon inactive">⇅</span>;
     return <span className="sort-icon active">{sortDir === 'asc' ? '▲' : '▼'}</span>;
   };
 
-  // ספירות לכל סטטוס
   const statusCounts = useMemo(() => {
     const counts: Record<StatusFilter, number> = {
       all: clients.length,
@@ -156,33 +232,46 @@ export default function ClientList({
       awaiting_authorities: 0,
       active: 0,
     };
-    for (const c of clients) {
-      counts[getStatus(c)]++;
-    }
+    for (const c of clients) counts[getStatus(c)]++;
     return counts;
   }, [clients]);
 
   function handleRowClick(c: Client) {
     const status = getStatus(c);
     if (status !== 'active' && c.representationRequestId) {
-      // נווט למסך הסקירה של הבקשה
       onSelectRequest(c.representationRequestId);
     } else {
       onSelect(c.id);
     }
   }
 
-  // unused but kept for type compatibility
   void requests;
+
+  const activeAdvancedCount =
+    (employeeFilter !== 'all' ? 1 : 0) +
+    (vatFilter !== 'all' ? 1 : 0) +
+    (itFilter !== 'all' ? 1 : 0) +
+    (niFilter !== 'all' ? 1 : 0) +
+    (shaamFilter !== 'all' ? 1 : 0) +
+    (openTasksOnly ? 1 : 0) +
+    (upcomingDebtsOnly ? 1 : 0);
+
+  function clearAdvanced() {
+    setEmployeeFilter('all');
+    setVatFilter('all');
+    setItFilter('all');
+    setNiFilter('all');
+    setShaamFilter('all');
+    setOpenTasksOnly(false);
+    setUpcomingDebtsOnly(false);
+  }
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '.75rem' }}>
+      <div className="cl-list-header">
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--gray-900)' }}>לקוחות</h1>
-          <p style={{ fontSize: '.875rem', color: 'var(--gray-500)', marginTop: 2 }}>
-            {clients.length} לקוחות במערכת
-          </p>
+          <h1 className="cl-list-title">לקוחות</h1>
+          <p className="cl-list-sub">{clients.length} לקוחות במערכת{filtered.length !== clients.length ? ` · ${filtered.length} מסוננים` : ''}</p>
         </div>
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
@@ -191,7 +280,7 @@ export default function ClientList({
         </div>
       </div>
 
-      {/* Filter chips */}
+      {/* Status chips */}
       <div className="tabs">
         {STATUS_FILTERS.map(f => {
           const count = statusCounts[f.id];
@@ -204,41 +293,99 @@ export default function ClientList({
             >
               {f.label}
               {count > 0 && (
-                <span
-                  style={{
-                    marginRight: 6,
-                    background: active ? 'var(--blue-light)' : 'var(--gray-200)',
-                    color: active ? 'var(--blue)' : 'var(--gray-600)',
-                    padding: '.05rem .4rem',
-                    borderRadius: 999,
-                    fontSize: '.7rem',
-                    fontWeight: 700,
-                  }}
-                >
-                  {count}
-                </span>
+                <span className={`tab-count ${active ? 'active' : ''}`}>{count}</span>
               )}
             </button>
           );
         })}
       </div>
 
-      <div className="search-bar">
-        <div className="search-input-wrap">
-          <span className="search-icon">&#x1F50D;</span>
+      {/* Search + advanced toggle */}
+      <div className="cl-search-row">
+        <div className="search-input-wrap" style={{ flex: 1 }}>
+          <span className="search-icon">🔍</span>
           <input
             type="text"
-            placeholder="חיפוש לפי שם, ת.ז., עיר, טלפון..."
+            placeholder="חיפוש לפי שם, ת.ז., עיר, טלפון, אימייל..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        {search && <span style={{ fontSize: '.875rem', color: 'var(--gray-500)' }}>{filtered.length} תוצאות</span>}
+        <button
+          className={`btn ${showAdvanced || activeAdvancedCount > 0 ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setShowAdvanced(s => !s)}
+        >
+          🎯 פילטרים מתקדמים{activeAdvancedCount > 0 ? ` (${activeAdvancedCount})` : ''}
+        </button>
+        {activeAdvancedCount > 0 && (
+          <button className="btn btn-ghost btn-sm" onClick={clearAdvanced}>נקה</button>
+        )}
       </div>
+
+      {showAdvanced && (
+        <div className="cl-advanced">
+          <div className="cl-adv-row">
+            <label>עובד מטפל
+              <select value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)}>
+                <option value="all">הכל</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </label>
+            <label>מע״מ
+              <select value={vatFilter} onChange={e => setVatFilter(e.target.value as 'all' | VATStatus)}>
+                <option value="all">הכל</option>
+                <option value="authorizedDealer">עוסק מורשה</option>
+                <option value="exemptDealer">עוסק פטור</option>
+                <option value="none">אין</option>
+              </select>
+            </label>
+            <label>מס הכנסה
+              <select value={itFilter} onChange={e => setItFilter(e.target.value as 'all' | IncomeTaxType)}>
+                <option value="all">הכל</option>
+                <option value="employee">שכיר</option>
+                <option value="selfEmployed">עצמאי</option>
+                <option value="both">שכיר + עצמאי</option>
+                <option value="rentalOnly">שכירות</option>
+                <option value="other">אחר</option>
+              </select>
+            </label>
+            <label>ביטוח לאומי
+              <select value={niFilter} onChange={e => setNiFilter(e.target.value as 'all' | NIType)}>
+                <option value="all">הכל</option>
+                <option value="employee">שכיר</option>
+                <option value="selfEmployed">עצמאי</option>
+                <option value="employeeAndSE">שכיר+עצמאי</option>
+                <option value="nonQualifying">לא עונה להגדרה</option>
+                <option value="passive">פסיבי</option>
+                <option value="pensioner">פנסיונר</option>
+              </select>
+            </label>
+            <label>הרשאת שע״ם
+              <select value={shaamFilter} onChange={e => setShaamFilter(e.target.value as 'all' | ShaamStatus)}>
+                <option value="all">הכל</option>
+                <option value="active">פעילה</option>
+                <option value="inactive">לא פעילה</option>
+                <option value="pending">בטיפול</option>
+                <option value="unknown">לא ידוע</option>
+              </select>
+            </label>
+          </div>
+          <div className="cl-adv-toggles">
+            <label className="checkbox-row">
+              <input type="checkbox" checked={openTasksOnly} onChange={e => setOpenTasksOnly(e.target.checked)} />
+              משימות פתוחות
+            </label>
+            <label className="checkbox-row">
+              <input type="checkbox" checked={upcomingDebtsOnly} onChange={e => setUpcomingDebtsOnly(e.target.checked)} />
+              חובות קרובים (21 יום)
+            </label>
+          </div>
+        </div>
+      )}
 
       {clients.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">&#x1F465;</div>
+          <div className="empty-state-icon">👥</div>
           <div className="empty-state-title">אין לקוחות עדיין</div>
           <div className="empty-state-desc">הוסף לקוח חדש, צור בקשת ייצוג, או טען לקוחות לדוגמה</div>
           <br />
@@ -250,18 +397,15 @@ export default function ClientList({
         </div>
       ) : filtered.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">&#x1F50D;</div>
+          <div className="empty-state-icon">🔍</div>
           <div className="empty-state-title">לא נמצאו תוצאות</div>
         </div>
       ) : (
         <div className="card" style={{ overflow: 'hidden' }}>
           <div className="table-wrap">
-            <table className="client-table">
+            <table className="client-table client-table-dense">
               <thead>
                 <tr>
-                  <th className="th-sortable" onClick={() => toggleSort('status')} style={{ width: 160 }}>
-                    <span>סטטוס</span> {sortIcon('status')}
-                  </th>
                   <th className="th-sortable" onClick={() => toggleSort('name')}>
                     <span>שם</span> {sortIcon('name')}
                   </th>
@@ -271,29 +415,32 @@ export default function ClientList({
                   <th className="th-sortable hide-mobile" onClick={() => toggleSort('city')}>
                     <span>עיר</span> {sortIcon('city')}
                   </th>
-                  <th className="th-sortable hide-mobile" onClick={() => toggleSort('type')}>
-                    <span>סיווג</span> {sortIcon('type')}
-                  </th>
                   <th className="th-sortable hide-mobile" onClick={() => toggleSort('phone')}>
                     <span>טלפון</span> {sortIcon('phone')}
                   </th>
-                  <th className="th-sortable hide-mobile" onClick={() => toggleSort('email')}>
-                    <span>אימייל</span> {sortIcon('email')}
+                  <th className="hide-mobile">
+                    <span>סטטוסי מס</span>
                   </th>
-                  <th style={{ width: 80 }}>פעולות</th>
+                  <th className="th-sortable hide-mobile" onClick={() => toggleSort('assignee')}>
+                    <span>מטפל</span> {sortIcon('assignee')}
+                  </th>
+                  <th className="th-sortable" onClick={() => toggleSort('tasks')} style={{ width: 80 }}>
+                    <span>משימות</span> {sortIcon('tasks')}
+                  </th>
+                  <th className="hide-mobile" style={{ width: 60 }}>שע״ם</th>
+                  <th style={{ width: 60 }}></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(client => {
                   const status = getStatus(client);
                   const fullName = `${client.firstName} ${client.lastName}`.trim() || '(ללא שם)';
+                  const m = metricsByClient.get(client.id);
+                  const employee = findEmployee(client.assignedAccountantId);
+                  const repBadgeForNonActive = status !== 'active';
+
                   return (
                     <tr key={client.id} className="client-row" onClick={() => handleRowClick(client)}>
-                      <td>
-                        <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`} style={{ fontSize: '.7rem', whiteSpace: 'nowrap' }}>
-                          {REPRESENTATION_STATUS_LABELS[status]}
-                        </span>
-                      </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
                           <div className="client-avatar-sm">
@@ -302,39 +449,59 @@ export default function ClientList({
                           <div>
                             <div className="client-table-name">{fullName}</div>
                             <div className="client-table-badges">
-                              {client.isNewImmigrant && <span className="badge badge-blue" style={{ fontSize: '.65rem', padding: '.1rem .4rem' }}>עולה חדש</span>}
-                              {client.qualifyingSettlementId && <span className="badge badge-purple" style={{ fontSize: '.65rem', padding: '.1rem .4rem' }}>ישוב מזכה</span>}
-                              {client.disabilityPercentage > 0 && <span className="badge badge-orange" style={{ fontSize: '.65rem', padding: '.1rem .4rem' }}>נכות {client.disabilityPercentage}%</span>}
-                              {client.hasTaxCoordination && <span className="badge badge-orange" style={{ fontSize: '.65rem', padding: '.1rem .4rem' }}>תיאום מס</span>}
+                              {repBadgeForNonActive && (
+                                <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`} style={{ fontSize: '.65rem', padding: '.05rem .35rem' }}>
+                                  {REPRESENTATION_STATUS_LABELS[status]}
+                                </span>
+                              )}
+                              {client.qualifyingSettlementId && <span className="badge badge-purple cl-mini-badge">ישוב מזכה</span>}
+                              {client.disabilityPercentage > 0 && <span className="badge badge-orange cl-mini-badge">נכות {client.disabilityPercentage}%</span>}
+                              {client.isNewImmigrant && <span className="badge badge-blue cl-mini-badge">עולה</span>}
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="mono-text">{client.idNumber || '—'}</td>
                       <td className="hide-mobile">{client.city || '—'}</td>
+                      <td className="mono-text hide-mobile" dir="ltr" style={{ textAlign: 'right' }}>{client.phone || '—'}</td>
                       <td className="hide-mobile">
-                        <span className={`badge ${IT_BADGE[client.incomeTaxType]}`} style={{ fontSize: '.75rem' }}>
-                          {IT_LABELS[client.incomeTaxType]}
-                        </span>
-                        {client.vatStatus === 'authorizedDealer' && (
-                          <span className="badge badge-green" style={{ fontSize: '.65rem', marginRight: '.3rem', padding: '.1rem .4rem' }}>מע"מ</span>
-                        )}
-                        {client.niType !== client.incomeTaxType && client.niType !== 'employee' && (
-                          <div style={{ fontSize: '.7rem', color: 'var(--gray-500)', marginTop: 2 }}>{NI_LABELS[client.niType]}</div>
+                        <div className="cl-tax-chips">
+                          <span className={`badge ${IT_BADGE[client.incomeTaxType]} cl-mini-badge`}>מ״ה: {IT_LABELS[client.incomeTaxType]}</span>
+                          <span className={`badge ${NI_BADGE[client.niType]} cl-mini-badge`}>ב״ל: {NI_LABELS[client.niType]}</span>
+                          <span className={`badge ${VAT_BADGE[client.vatStatus]} cl-mini-badge`}>מע״מ: {VAT_LABELS[client.vatStatus]}</span>
+                        </div>
+                      </td>
+                      <td className="hide-mobile">
+                        {employee ? (
+                          <div className="cl-emp-chip" title={employee.role}>
+                            <span className="cl-emp-dot" style={{ background: employee.color }}>{employee.initials}</span>
+                            <span style={{ fontSize: '.75rem' }}>{employee.name}</span>
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--gray-400)', fontSize: '.75rem' }}>לא הוקצה</span>
                         )}
                       </td>
-                      <td className="mono-text hide-mobile" dir="ltr" style={{ textAlign: 'right' }}>{client.phone || '—'}</td>
-                      <td className="hide-mobile" style={{ fontSize: '.8125rem' }}>{client.email || '—'}</td>
+                      <td>
+                        {m && m.openTasksCount > 0 ? (
+                          <div className="cl-metric-cell">
+                            <span className={`cl-metric-num ${m.upcomingDebtsCount > 0 ? 'warn' : ''}`}>{m.openTasksCount}</span>
+                            {m.upcomingDebtsCount > 0 && <span className="cl-metric-tag">⏰ {m.upcomingDebtsCount}</span>}
+                          </div>
+                        ) : <span className="cl-metric-zero">—</span>}
+                      </td>
+                      <td className="hide-mobile" style={{ textAlign: 'center' }}>
+                        {client.shaamStatus === 'active' && <span title="שע״ם פעיל">🟢</span>}
+                        {client.shaamStatus === 'inactive' && <span title="שע״ם לא פעיל">🔴</span>}
+                        {client.shaamStatus === 'pending' && <span title="שע״ם בטיפול">🟠</span>}
+                        {(!client.shaamStatus || client.shaamStatus === 'unknown') && <span title="לא ידוע" style={{ color: 'var(--gray-300)' }}>○</span>}
+                      </td>
                       <td onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: '.25rem' }}>
-                          <button className="btn btn-ghost btn-icon" onClick={() => handleRowClick(client)} title="פתח">&#x270F;&#xFE0F;</button>
-                          <button
-                            className="btn btn-ghost btn-icon"
-                            onClick={() => { if (confirm(`למחוק את ${fullName}?`)) onDelete(client.id); }}
-                            title="מחיקה"
-                            style={{ color: 'var(--red)' }}
-                          >&#x1F5D1;&#xFE0F;</button>
-                        </div>
+                        <button
+                          className="btn btn-ghost btn-icon"
+                          onClick={() => { if (confirm(`למחוק את ${fullName}?`)) onDelete(client.id); }}
+                          title="מחיקה"
+                          style={{ color: 'var(--red)' }}
+                        >🗑</button>
                       </td>
                     </tr>
                   );

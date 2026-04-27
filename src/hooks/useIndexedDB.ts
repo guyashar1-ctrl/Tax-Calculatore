@@ -16,6 +16,17 @@ export interface StoredDoc {
   description: string;
   notes: string;
   fileData: ArrayBuffer;
+  /**
+   * קישור אופציונלי למקום בתיק הלקוח. דוגמאות:
+   *   "task:abc123"               — מסמך הקשור למשימה
+   *   "personal:idf_service"      — תעודת שחרור
+   *   "personal:academic_degree"  — אישור סיום תואר
+   *   "personal:foreign:fa-xxx"   — מסמך של חשבון זר ספציפי
+   * המסמך נשמר רגיל בתיק המסמכים, ה-linkedTo רק מאפשר להציגו במקום הרלוונטי.
+   */
+  linkedTo?: string;
+  /** תווית קצרה שמתארת את הקישור — מוצגת ב-DocumentManager (לדוגמה: "תעודת שחרור") */
+  linkedLabel?: string;
 }
 
 export type DocCategory =

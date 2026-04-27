@@ -1,33 +1,43 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Client,
   RepresentationRequest,
   RequestSubmission,
   AccountantPartB,
   Task,
+  TaskCategory,
+  TaskProgress,
+  BallWith,
 } from './types';
 import { ExtractedClientData } from './utils/geminiVision';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useDocumentDB } from './hooks/useIndexedDB';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
 import { SAMPLE_TASKS } from './data/sampleTasks';
+import { migrateTasks } from './utils/taskMigration';
+import { migrateClients } from './utils/clientMigration';
 import ClientList from './components/ClientList';
-import ClientForm from './components/ClientForm';
+import ClientWorkspace from './components/ClientWorkspace';
+import EmployeesPanel from './components/EmployeesPanel';
 import TaxCalculator from './components/TaxCalculator';
 import DocumentManager from './components/DocumentManager';
+import { enrichClientsWithWorkspace } from './data/sampleClientWorkspace';
 import TaxReferencePanel from './components/TaxReferencePanel';
 import RepresentationRequestForm from './components/RepresentationRequestForm';
 import RepresentationFillForm from './components/RepresentationFillForm';
 import RepresentationRequestReview from './components/RepresentationRequestReview';
 import MyDesk from './components/MyDesk';
-import TasksPage from './components/TasksPage';
+import TaskBoard from './components/TaskBoard';
 import TaskForm from './components/TaskForm';
+import LoginScreen from './components/LoginScreen';
+import { useAuth } from './hooks/useAuth';
 
 type View =
   | 'myDesk'
   | 'tasks'
   | 'list'
   | 'form'
+  | 'employees'
   | 'calculator'
   | 'documents'
   | 'reference'
@@ -110,14 +120,32 @@ function standardFileName(lastName: string, firstName: string, docLabel: string,
 }
 
 export default function App() {
-  const [clients, setClients] = useLocalStorage<Client[]>('crm_clients', SAMPLE_CLIENTS);
+  const { user, loading: authLoading, displayName, avatarUrl, signOut } = useAuth();
+
+  const [clients, setClients] = useLocalStorage<Client[]>('crm_clients', enrichClientsWithWorkspace(SAMPLE_CLIENTS));
   const [requests, setRequests] = useLocalStorage<RepresentationRequest[]>('crm_representation_requests', []);
   const [tasks, setTasks] = useLocalStorage<Task[]>('crm_tasks', SAMPLE_TASKS);
-  const [view, setView] = useState<View>('myDesk');
+  const [view, setView] = useState<View>('tasks');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
+  const [migrationBanner, setMigrationBanner] = useState<{ count: number } | null>(null);
   const db = useDocumentDB();
+
+  // ── מיגרציה: משימות + לקוחות ───────────────────────────────
+  useEffect(() => {
+    const result = migrateTasks(tasks);
+    if (result.migratedCount > 0) {
+      setTasks(result.tasks);
+      setMigrationBanner({ count: result.migratedCount });
+    }
+    const cm = migrateClients(clients);
+    if (cm.migratedCount > 0) {
+      setClients(cm.clients);
+    }
+    // רק פעם אחת בעליית האפליקציה
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── ניהול משימות ───────────────────────────────────────────────────────
   function handleSaveTask(task: Task) {
@@ -143,8 +171,80 @@ export default function App() {
       if (t.status === 'open') {
         return { ...t, status: 'done', completedAt: now, updatedAt: now };
       }
-      return { ...t, status: 'open', completedAt: undefined, updatedAt: now };
+      return { ...t, status: 'open', progress: t.progress || 'in_progress', completedAt: undefined, updatedAt: now };
     }));
+  }
+
+  /** שינוי סטטוס ישיר מהלוח — new/in_progress/done */
+  function handleChangeTaskStatus(id: string, status: TaskProgress | 'done') {
+    const now = new Date().toISOString();
+    setTasks(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      if (status === 'done') {
+        return { ...t, status: 'done', completedAt: t.completedAt || now, updatedAt: now };
+      }
+      return { ...t, status: 'open', progress: status, completedAt: undefined, updatedAt: now };
+    }));
+  }
+
+  function handleChangeTaskBall(id: string, ball: BallWith) {
+    const now = new Date().toISOString();
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ballWith: ball, updatedAt: now } : t));
+  }
+
+  function handleChangeTaskCategory(id: string, category: TaskCategory) {
+    const now = new Date().toISOString();
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, category, updatedAt: now } : t));
+  }
+
+  /**
+   * גרירה ושחרור של משימה:
+   * - targetStatus הוא 'new' | 'in_progress' | 'done' (קבוצת היעד)
+   * - beforeId = המשימה שאליה נעצור *לפניה* (null = לסוף הקבוצה)
+   * משנה גם סטטוס (אם לא תואם) וגם sortOrder של משימות באותה קבוצה.
+   */
+  function handleReorderTask(id: string, targetStatus: TaskProgress | 'done', beforeId: string | null) {
+    const now = new Date().toISOString();
+    setTasks(prev => {
+      const moving = prev.find(t => t.id === id);
+      if (!moving) return prev;
+
+      const updatedMoving: Task = targetStatus === 'done'
+        ? { ...moving, status: 'done', completedAt: moving.completedAt || now, updatedAt: now }
+        : { ...moving, status: 'open', progress: targetStatus, completedAt: undefined, updatedAt: now };
+
+      // אוסף משימות הקבוצה (פרט לזו שזזה), לפי הסדר הקיים
+      const inGroup = prev
+        .filter(t => t.id !== id)
+        .filter(t => {
+          if (targetStatus === 'done') return t.status === 'done';
+          return t.status === 'open' && (t.progress || 'new') === targetStatus;
+        })
+        .sort((a, b) => {
+          const ao = a.sortOrder, bo = b.sortOrder;
+          if (ao !== undefined && bo !== undefined) return ao - bo;
+          if (ao !== undefined) return -1;
+          if (bo !== undefined) return 1;
+          return a.createdAt.localeCompare(b.createdAt);
+        });
+
+      const idx = beforeId === null ? inGroup.length : inGroup.findIndex(t => t.id === beforeId);
+      const insertAt = idx === -1 ? inGroup.length : idx;
+      const nextGroup = [...inGroup.slice(0, insertAt), updatedMoving, ...inGroup.slice(insertAt)];
+
+      // מקצים sortOrder רציף (10, 20, 30...) לכל הקבוצה
+      const orderMap = new Map<string, number>();
+      nextGroup.forEach((t, i) => orderMap.set(t.id, (i + 1) * 10));
+
+      return prev.map(t => {
+        if (t.id === id) {
+          const order = orderMap.get(id) ?? 0;
+          return { ...updatedMoving, sortOrder: order };
+        }
+        const order = orderMap.get(t.id);
+        return order !== undefined ? { ...t, sortOrder: order } : t;
+      });
+    });
   }
 
   function openNewTaskModal(presetClientId?: string) {
@@ -197,24 +297,6 @@ export default function App() {
     }
   }
 
-  function handleOpenCalculator(client: Client) {
-    setClients(prev => {
-      const exists = prev.some(c => c.id === client.id);
-      return exists ? prev.map(c => c.id === client.id ? client : c) : [...prev, client];
-    });
-    setSelectedId(client.id);
-    setView('calculator');
-  }
-
-  function handleOpenDocuments(client: Client) {
-    setClients(prev => {
-      const exists = prev.some(c => c.id === client.id);
-      return exists ? prev.map(c => c.id === client.id ? client : c) : [...prev, client];
-    });
-    setSelectedId(client.id);
-    setView('documents');
-  }
-
   function handleApplyExtractedData(data: ExtractedClientData) {
     if (!selectedId) return;
     setClients(prev => prev.map(c => {
@@ -243,7 +325,8 @@ export default function App() {
   function handleLoadSamples() {
     setClients(prev => {
       const existingIds = new Set(prev.map(c => c.id));
-      const newSamples = SAMPLE_CLIENTS.filter(s => !existingIds.has(s.id));
+      const enriched = enrichClientsWithWorkspace(SAMPLE_CLIENTS);
+      const newSamples = enriched.filter(s => !existingIds.has(s.id));
       return [...prev, ...newSamples];
     });
   }
@@ -431,17 +514,24 @@ export default function App() {
       : null;
 
   function goHome() {
-    setView('myDesk');
+    setView('tasks');
     setSelectedId(null);
     setSelectedRequestId(null);
+  }
+
+  if (authLoading) {
+    return <div className="app-loading">טוען…</div>;
+  }
+  if (!user) {
+    return <LoginScreen />;
   }
 
   const openTasksCount = tasks.filter(t => t.status === 'open' && (t.ballWith === 'me' || t.ballWith === 'stuck')).length;
 
   const navTabs: { id: View; label: string; badge?: number }[] = [
-    { id: 'myDesk', label: '🏠 על השולחן', badge: openTasksCount > 0 ? openTasksCount : undefined },
-    { id: 'tasks', label: '✓ משימות' },
+    { id: 'tasks', label: '✓ משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
     { id: 'list', label: '👥 לקוחות' },
+    { id: 'employees', label: '🧑‍💼 עובדים' },
     { id: 'reference', label: '📚 מדריך מס' },
   ];
 
@@ -471,7 +561,7 @@ export default function App() {
           ))}
         </nav>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginRight: 'auto' }}>
           {breadcrumb && (
             <div className="header-nav">
               <span
@@ -484,10 +574,39 @@ export default function App() {
               <span className="header-breadcrumb">{breadcrumb}</span>
             </div>
           )}
+
+          <div className="header-user" title={user.email ?? ''}>
+            {avatarUrl ? (
+              <img className="header-user-avatar" src={avatarUrl} alt="" />
+            ) : (
+              <span className="header-user-avatar">
+                {(displayName || user.email || '?').slice(0, 1).toUpperCase()}
+              </span>
+            )}
+            <span className="header-user-name">{displayName || user.email}</span>
+          </div>
+
+          <button
+            type="button"
+            className="header-logout-btn"
+            onClick={async () => { await signOut(); }}
+          >
+            התנתק
+          </button>
         </div>
       </header>
 
       <main className="main">
+        {migrationBanner && (
+          <div className="migration-banner">
+            <span>
+              עודכן מבנה סוגי המשימות לסגנון מונדיי. {migrationBanner.count} משימות הועברו אוטומטית —
+              מומלץ לעבור עליהן ולוודא שהסוג נכון.
+            </span>
+            <button className="btn btn-ghost btn-sm" onClick={() => setMigrationBanner(null)}>סגור ✕</button>
+          </div>
+        )}
+
         {view === 'myDesk' && (
           <MyDesk
             tasks={tasks}
@@ -504,12 +623,23 @@ export default function App() {
         )}
 
         {view === 'tasks' && (
-          <TasksPage
+          <TaskBoard
             tasks={tasks}
             clients={clients}
             onSelectTask={openEditTaskModal}
             onAddTask={() => openNewTaskModal()}
             onToggleDone={handleToggleTaskDone}
+            onChangeStatus={handleChangeTaskStatus}
+            onChangeBall={handleChangeTaskBall}
+            onChangeCategory={handleChangeTaskCategory}
+            onReorder={handleReorderTask}
+            onSelectClient={handleSelectClient}
+            onDeleteTask={handleDeleteTask}
+            onLoadSampleTasks={() => setTasks(prev => {
+              const existing = new Set(prev.map(t => t.id));
+              const toAdd = SAMPLE_TASKS.filter(t => !existing.has(t.id));
+              return [...prev, ...toAdd];
+            })}
           />
         )}
 
@@ -517,6 +647,7 @@ export default function App() {
           <ClientList
             clients={clients}
             requests={requests}
+            tasks={tasks}
             onSelect={handleSelectClient}
             onAdd={handleAddNew}
             onDelete={handleDelete}
@@ -527,17 +658,26 @@ export default function App() {
         )}
 
         {view === 'form' && (
-          <ClientForm
+          <ClientWorkspace
             client={selectedClient}
+            clients={clients}
             tasks={tasks}
             onSave={handleSave}
             onCancel={handleCancelForm}
-            onOpenCalculator={handleOpenCalculator}
-            onOpenDocuments={handleOpenDocuments}
+            onDelete={handleDelete}
             onAddTaskForClient={(clientId) => openNewTaskModal(clientId)}
             onSelectTask={openEditTaskModal}
             onToggleTaskDone={handleToggleTaskDone}
+            onChangeTaskStatus={handleChangeTaskStatus}
+            onChangeTaskBall={handleChangeTaskBall}
+            onChangeTaskCategory={handleChangeTaskCategory}
+            onReorderTask={handleReorderTask}
+            onDeleteTask={handleDeleteTask}
           />
+        )}
+
+        {view === 'employees' && (
+          <EmployeesPanel clients={clients} />
         )}
 
         {view === 'calculator' && (

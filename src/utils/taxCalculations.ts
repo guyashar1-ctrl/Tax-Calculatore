@@ -505,11 +505,51 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     }
   }
 
+  // ── ח-ב. מסים נפרדים: הגרלות (35%) / רווחי הון (25%-30%) / דיבידנד+ריבית ──
+  const sepBreakdown: string[] = [];
+  const isSubstantial = !!client.isSubstantialShareholder;
+  const capitalRate = isSubstantial ? 0.30 : 0.25;
+  const capitalRateLabel = isSubstantial ? '30% (בעל מניות מהותי)' : '25%';
+
+  let gamblingTax = 0;
+  if (input.gamblingIncome && input.gamblingIncome > 0) {
+    const GAMBLING_THRESHOLD = 32310; // 2026
+    const taxable = Math.max(0, input.gamblingIncome - GAMBLING_THRESHOLD);
+    gamblingTax = taxable * 0.35;
+    if (gamblingTax > 0) {
+      sepBreakdown.push(`הגרלות והימורים: ₪${fmt(input.gamblingIncome)} - פטור ₪${fmt(GAMBLING_THRESHOLD)} = ₪${fmt(taxable)} × 35% = ₪${fmt(Math.round(gamblingTax))}`);
+    }
+  }
+
+  let capitalGainsTax = 0;
+  if (input.capitalGains && input.capitalGains > 0) {
+    capitalGainsTax = input.capitalGains * capitalRate;
+    sepBreakdown.push(`רווחי הון: ₪${fmt(input.capitalGains)} × ${capitalRateLabel} = ₪${fmt(Math.round(capitalGainsTax))}`);
+  }
+
+  let dividendInterestTax = 0;
+  if (input.dividendInterest && input.dividendInterest > 0) {
+    dividendInterestTax = input.dividendInterest * capitalRate;
+    sepBreakdown.push(`דיבידנד וריבית: ₪${fmt(input.dividendInterest)} × ${capitalRateLabel} = ₪${fmt(Math.round(dividendInterestTax))}`);
+  }
+
+  // זיכוי מס זר — מקסימום עד גובה המס שחושב על אותן הכנסות
+  let foreignTaxCredit = 0;
+  if (input.foreignTaxPaid && input.foreignTaxPaid > 0) {
+    const eligibleCap = capitalGainsTax + dividendInterestTax;
+    foreignTaxCredit = Math.min(input.foreignTaxPaid, eligibleCap);
+    if (foreignTaxCredit > 0) {
+      sepBreakdown.push(`זיכוי מס זר: ₪${fmt(Math.round(foreignTaxCredit))} (מתוך ₪${fmt(input.foreignTaxPaid)} ששולם בחו״ל)`);
+    }
+  }
+
+  const separateTaxesTotal = Math.max(0, gamblingTax + capitalGainsTax + dividendInterestTax - foreignTaxCredit);
+
   // ── ט. ביטוח לאומי סיכום ──
   const totalNI = niCalc.niEmployee + niCalc.healthEmployee + niCalc.niSE_insurance + niCalc.niSE_health;
 
   // ── י. סיכום ──
-  const totalTaxBurden = totalIncomeTax + totalNI;
+  const totalTaxBurden = totalIncomeTax + totalNI + separateTaxesTotal;
   const netAnnualIncome = grossIncome - totalTaxBurden;
   const effectiveTotalRate = grossIncome > 0 ? (totalTaxBurden / grossIncome) * 100 : 0;
 
@@ -540,6 +580,12 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     distanceToNextBracket,
     nextBracketRate,
     taxWithoutCredits,
+    gamblingTax,
+    capitalGainsTax,
+    dividendInterestTax,
+    foreignTaxCredit,
+    separateTaxesTotal,
+    separateTaxesBreakdown: sepBreakdown,
     totalTaxBurden,
     netAnnualIncome,
     effectiveTotalRate,

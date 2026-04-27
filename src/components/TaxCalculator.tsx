@@ -22,6 +22,28 @@ const NI_LABELS: Record<string, string> = {
 const CHART_COLORS = ['#2563eb','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#db2777'];
 
 function defaultInput(client: Client, year: number): TaxCalcInput {
+  // הכנסה משכירות מצטברת מתוך נכסי הלקוח (אם קיימים) או מהשדה הישן
+  const propsRental = (client.properties ?? [])
+    .filter(p => p.isRented && p.monthlyRent)
+    .reduce((sum, p) => sum + (p.monthlyRent || 0) * 12, 0);
+  const rentalFromProps = propsRental || (client.rentalIncomeAnnual ?? 0);
+  const rentalTrackFromProps =
+    (client.properties ?? []).find(p => p.isRented && p.rentalTaxTrack)?.rentalTaxTrack
+    ?? client.rentalTaxTrack ?? 'exempt';
+
+  // סכום ההגרלות — אם נוכה במקור, אין צורך לחשב שוב
+  const gambling = client.hasGamblingIncome && !client.gamblingTaxWithheldAtSource
+    ? (client.gamblingIncomeAnnual ?? 0)
+    : 0;
+
+  // הכנסות הון מקומיות
+  const capitalGains = client.hasCapitalIncome ? (client.capitalGainsAnnual ?? 0) : 0;
+  const dividendInterest = client.hasCapitalIncome ? (client.dividendInterestAnnual ?? 0) : 0;
+
+  // מס זר ששולם — סכום משדה foreignTaxPaid בכל החשבונות הזרים
+  const foreignTaxPaid = (client.foreignAccounts ?? [])
+    .reduce((sum, a) => sum + (a.foreignTaxPaid ?? 0), 0);
+
   return {
     client, year,
     grossSalary: 0,
@@ -29,14 +51,19 @@ function defaultInput(client: Client, year: number): TaxCalcInput {
     selfEmployedGrossIncome: 0,
     recognizedExpenses: 0,
     selfEmployedPensionAmount: 0,
-    rentalIncome: 0,
+    rentalIncome: rentalFromProps,
     rentalExpenses: 0,
-    rentalTaxTrack: 'exempt',
+    rentalTaxTrack: rentalTrackFromProps,
     otherIncome: 0,
-    donationsSection46: 0,
+    donationsSection46: client.donationsAnnual ?? 0,
     krenHashtalmutSE: client.krenHashtalmutMonthly ? client.krenHashtalmutMonthly * 12 : 0,
     overrideCreditPoints: false,
     manualCreditPoints: 0,
+    // הכנסות במס נפרד
+    gamblingIncome: gambling,
+    capitalGains,
+    dividendInterest,
+    foreignTaxPaid,
   };
 }
 

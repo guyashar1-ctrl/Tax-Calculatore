@@ -615,6 +615,11 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                       </td>
                       <td>
                         <div className="doc-cell-desc">{doc.description || doc.fileName}</div>
+                        {doc.linkedTo && (
+                          <div className="doc-cell-linked">
+                            🔗 {doc.linkedLabel || 'מקושר'}
+                          </div>
+                        )}
                         {doc.notes && <div className="doc-cell-notes">{doc.notes}</div>}
                       </td>
                       <td>
