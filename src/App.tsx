@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Client,
   RepresentationRequest,
@@ -10,12 +10,12 @@ import {
   BallWith,
 } from './types';
 import { ExtractedClientData } from './utils/geminiVision';
-import { useLocalStorage } from './hooks/useLocalStorage';
 import { useDocumentDB } from './hooks/useIndexedDB';
+import { useClients } from './hooks/useClients';
+import { useTasks } from './hooks/useTasks';
+import { useRepresentationRequests } from './hooks/useRepresentationRequests';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
 import { SAMPLE_TASKS } from './data/sampleTasks';
-import { migrateTasks } from './utils/taskMigration';
-import { migrateClients } from './utils/clientMigration';
 import ClientList from './components/ClientList';
 import ClientWorkspace from './components/ClientWorkspace';
 import EmployeesPanel from './components/EmployeesPanel';
@@ -30,6 +30,7 @@ import MyDesk from './components/MyDesk';
 import TaskBoard from './components/TaskBoard';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
+import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateClient';
 import { useAuth } from './hooks/useAuth';
 
 type View =
@@ -82,7 +83,7 @@ function makeEmptyClient(id: string, partial: Partial<Client> = {}): Client {
     hasAcademicDegree: false,
     academicDegreeYear: 0,
     academicDegreeType: '',
-    completedIDF: false,
+    completedIdf: false,
     idfReleaseYear: 0,
     completedNationalService: false,
     nationalServiceYear: 0,
@@ -122,79 +123,64 @@ function standardFileName(lastName: string, firstName: string, docLabel: string,
 export default function App() {
   const { user, loading: authLoading, displayName, avatarUrl, signOut } = useAuth();
 
-  const [clients, setClients] = useLocalStorage<Client[]>('crm_clients', enrichClientsWithWorkspace(SAMPLE_CLIENTS));
-  const [requests, setRequests] = useLocalStorage<RepresentationRequest[]>('crm_representation_requests', []);
-  const [tasks, setTasks] = useLocalStorage<Task[]>('crm_tasks', SAMPLE_TASKS);
+  const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients } = useClients(user?.id);
+  const { tasks, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks } = useTasks(user?.id);
+  const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
+
   const [view, setView] = useState<View>('tasks');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
-  const [migrationBanner, setMigrationBanner] = useState<{ count: number } | null>(null);
+  const [showCreateClient, setShowCreateClient] = useState(false);
   const db = useDocumentDB();
 
-  // ── מיגרציה: משימות + לקוחות ───────────────────────────────
-  useEffect(() => {
-    const result = migrateTasks(tasks);
-    if (result.migratedCount > 0) {
-      setTasks(result.tasks);
-      setMigrationBanner({ count: result.migratedCount });
-    }
-    const cm = migrateClients(clients);
-    if (cm.migratedCount > 0) {
-      setClients(cm.clients);
-    }
-    // רק פעם אחת בעליית האפליקציה
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // ── ניהול משימות ───────────────────────────────────────────────────────
-  function handleSaveTask(task: Task) {
-    const now = new Date().toISOString();
-    setTasks(prev => {
-      const exists = prev.some(t => t.id === task.id);
-      return exists
-        ? prev.map(t => t.id === task.id ? { ...task, updatedAt: now } : t)
-        : [...prev, { ...task, updatedAt: now }];
-    });
+  async function handleSaveTask(task: Task) {
+    const exists = tasks.some(t => t.id === task.id);
+    if (exists) {
+      await updateTask(task);
+    } else {
+      await addTask(task);
+    }
     setTaskModalState(null);
   }
 
-  function handleDeleteTask(id: string) {
-    setTasks(prev => prev.filter(t => t.id !== id));
+  async function handleDeleteTask(id: string) {
+    await removeTask(id);
     setTaskModalState(null);
   }
 
-  function handleToggleTaskDone(id: string) {
+  async function handleToggleTaskDone(id: string) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
     const now = new Date().toISOString();
-    setTasks(prev => prev.map(t => {
-      if (t.id !== id) return t;
-      if (t.status === 'open') {
-        return { ...t, status: 'done', completedAt: now, updatedAt: now };
-      }
-      return { ...t, status: 'open', progress: t.progress || 'in_progress', completedAt: undefined, updatedAt: now };
-    }));
+    const updated: Task = t.status === 'open'
+      ? { ...t, status: 'done', completedAt: now }
+      : { ...t, status: 'open', progress: t.progress || 'in_progress', completedAt: undefined };
+    await updateTask(updated);
   }
 
   /** שינוי סטטוס ישיר מהלוח — new/in_progress/done */
-  function handleChangeTaskStatus(id: string, status: TaskProgress | 'done') {
+  async function handleChangeTaskStatus(id: string, status: TaskProgress | 'done') {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
     const now = new Date().toISOString();
-    setTasks(prev => prev.map(t => {
-      if (t.id !== id) return t;
-      if (status === 'done') {
-        return { ...t, status: 'done', completedAt: t.completedAt || now, updatedAt: now };
-      }
-      return { ...t, status: 'open', progress: status, completedAt: undefined, updatedAt: now };
-    }));
+    const updated: Task = status === 'done'
+      ? { ...t, status: 'done', completedAt: t.completedAt || now }
+      : { ...t, status: 'open', progress: status, completedAt: undefined };
+    await updateTask(updated);
   }
 
-  function handleChangeTaskBall(id: string, ball: BallWith) {
-    const now = new Date().toISOString();
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ballWith: ball, updatedAt: now } : t));
+  async function handleChangeTaskBall(id: string, ball: BallWith) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    await updateTask({ ...t, ballWith: ball });
   }
 
-  function handleChangeTaskCategory(id: string, category: TaskCategory) {
-    const now = new Date().toISOString();
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, category, updatedAt: now } : t));
+  async function handleChangeTaskCategory(id: string, category: TaskCategory) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    await updateTask({ ...t, category });
   }
 
   /**
@@ -203,48 +189,35 @@ export default function App() {
    * - beforeId = המשימה שאליה נעצור *לפניה* (null = לסוף הקבוצה)
    * משנה גם סטטוס (אם לא תואם) וגם sortOrder של משימות באותה קבוצה.
    */
-  function handleReorderTask(id: string, targetStatus: TaskProgress | 'done', beforeId: string | null) {
+  async function handleReorderTask(id: string, targetStatus: TaskProgress | 'done', beforeId: string | null) {
+    const moving = tasks.find(t => t.id === id);
+    if (!moving) return;
     const now = new Date().toISOString();
-    setTasks(prev => {
-      const moving = prev.find(t => t.id === id);
-      if (!moving) return prev;
 
-      const updatedMoving: Task = targetStatus === 'done'
-        ? { ...moving, status: 'done', completedAt: moving.completedAt || now, updatedAt: now }
-        : { ...moving, status: 'open', progress: targetStatus, completedAt: undefined, updatedAt: now };
+    const updatedMoving: Task = targetStatus === 'done'
+      ? { ...moving, status: 'done', completedAt: moving.completedAt || now }
+      : { ...moving, status: 'open', progress: targetStatus, completedAt: undefined };
 
-      // אוסף משימות הקבוצה (פרט לזו שזזה), לפי הסדר הקיים
-      const inGroup = prev
-        .filter(t => t.id !== id)
-        .filter(t => {
-          if (targetStatus === 'done') return t.status === 'done';
-          return t.status === 'open' && (t.progress || 'new') === targetStatus;
-        })
-        .sort((a, b) => {
-          const ao = a.sortOrder, bo = b.sortOrder;
-          if (ao !== undefined && bo !== undefined) return ao - bo;
-          if (ao !== undefined) return -1;
-          if (bo !== undefined) return 1;
-          return a.createdAt.localeCompare(b.createdAt);
-        });
-
-      const idx = beforeId === null ? inGroup.length : inGroup.findIndex(t => t.id === beforeId);
-      const insertAt = idx === -1 ? inGroup.length : idx;
-      const nextGroup = [...inGroup.slice(0, insertAt), updatedMoving, ...inGroup.slice(insertAt)];
-
-      // מקצים sortOrder רציף (10, 20, 30...) לכל הקבוצה
-      const orderMap = new Map<string, number>();
-      nextGroup.forEach((t, i) => orderMap.set(t.id, (i + 1) * 10));
-
-      return prev.map(t => {
-        if (t.id === id) {
-          const order = orderMap.get(id) ?? 0;
-          return { ...updatedMoving, sortOrder: order };
-        }
-        const order = orderMap.get(t.id);
-        return order !== undefined ? { ...t, sortOrder: order } : t;
+    const inGroup = tasks
+      .filter(t => t.id !== id)
+      .filter(t => {
+        if (targetStatus === 'done') return t.status === 'done';
+        return t.status === 'open' && (t.progress || 'new') === targetStatus;
+      })
+      .sort((a, b) => {
+        const ao = a.sortOrder, bo = b.sortOrder;
+        if (ao !== undefined && bo !== undefined) return ao - bo;
+        if (ao !== undefined) return -1;
+        if (bo !== undefined) return 1;
+        return a.createdAt.localeCompare(b.createdAt);
       });
-    });
+
+    const idx = beforeId === null ? inGroup.length : inGroup.findIndex(t => t.id === beforeId);
+    const insertAt = idx === -1 ? inGroup.length : idx;
+    const nextGroup = [...inGroup.slice(0, insertAt), updatedMoving, ...inGroup.slice(insertAt)];
+
+    const updates: Task[] = nextGroup.map((t, i) => ({ ...t, sortOrder: (i + 1) * 10 }));
+    await bulkUpdateTasks(updates);
   }
 
   function openNewTaskModal(presetClientId?: string) {
@@ -265,55 +238,64 @@ export default function App() {
   }
 
   function handleAddNew() {
-    setSelectedId(null);
+    setShowCreateClient(true);
+  }
+
+  async function handleCreateClient(basics: QuickClientBasics) {
+    const draft = makeEmptyClient(crypto.randomUUID(), {
+      firstName: basics.firstName,
+      lastName: basics.lastName,
+      idNumber: basics.idNumber,
+      phone: basics.phone,
+      email: basics.email,
+    });
+    const inserted = await addClient(draft);
+    setShowCreateClient(false);
+    setSelectedId(inserted.id);
     setView('form');
   }
 
-  function handleSave(client: Client) {
-    setClients(prev => {
-      const exists = prev.some(c => c.id === client.id);
-      return exists
-        ? prev.map(c => c.id === client.id ? client : c)
-        : [...prev, client];
-    });
+  async function handleSave(client: Client) {
+    const exists = clients.some(c => c.id === client.id);
+    if (exists) {
+      await updateClient(client);
+    } else {
+      await addClient(client);
+    }
     setSelectedId(client.id);
     setView('form');
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     const client = clients.find(c => c.id === id);
-    setClients(prev => prev.filter(c => c.id !== id));
-    // אם הלקוח קשור לבקשה — מחק גם אותה
     if (client?.representationRequestId) {
-      setRequests(prev => prev.filter(r => r.id !== client.representationRequestId));
-      // ומחק קבצים מ-IDB
+      try { await removeRequest(client.representationRequestId); } catch { /* ignore */ }
       db.getDocsByClient(id).then(docs => {
         docs.forEach(d => db.deleteDoc(d.id));
       });
     }
+    await removeClient(id);
     if (selectedId === id) {
       setSelectedId(null);
       setView('list');
     }
   }
 
-  function handleApplyExtractedData(data: ExtractedClientData) {
+  async function handleApplyExtractedData(data: ExtractedClientData) {
     if (!selectedId) return;
-    setClients(prev => prev.map(c => {
-      if (c.id !== selectedId) return c;
-      const updated = { ...c };
-      if (data.firstName) updated.firstName = data.firstName;
-      if (data.lastName) updated.lastName = data.lastName;
-      if (data.idNumber) updated.idNumber = data.idNumber;
-      if (data.birthDate) updated.birthDate = data.birthDate;
-      if (data.gender) updated.gender = data.gender;
-      if (data.phone) updated.phone = data.phone;
-      if (data.email) updated.email = data.email;
-      if (data.city) updated.city = data.city;
-      if (data.address) updated.address = data.address;
-      updated.updatedAt = new Date().toISOString();
-      return updated;
-    }));
+    const c = clients.find(x => x.id === selectedId);
+    if (!c) return;
+    const updated: Client = { ...c };
+    if (data.firstName) updated.firstName = data.firstName;
+    if (data.lastName) updated.lastName = data.lastName;
+    if (data.idNumber) updated.idNumber = data.idNumber;
+    if (data.birthDate) updated.birthDate = data.birthDate;
+    if (data.gender) updated.gender = data.gender;
+    if (data.phone) updated.phone = data.phone;
+    if (data.email) updated.email = data.email;
+    if (data.city) updated.city = data.city;
+    if (data.address) updated.address = data.address;
+    await updateClient(updated);
     setView('form');
   }
 
@@ -322,13 +304,19 @@ export default function App() {
     setSelectedId(null);
   }
 
-  function handleLoadSamples() {
-    setClients(prev => {
-      const existingIds = new Set(prev.map(c => c.id));
-      const enriched = enrichClientsWithWorkspace(SAMPLE_CLIENTS);
-      const newSamples = enriched.filter(s => !existingIds.has(s.id));
-      return [...prev, ...newSamples];
-    });
+  async function handleLoadSamples() {
+    const existingIds = new Set(clients.map(c => c.id));
+    const enriched = enrichClientsWithWorkspace(SAMPLE_CLIENTS);
+    const newSamples = enriched.filter(s => !existingIds.has(s.id));
+    if (newSamples.length === 0) return;
+    await bulkAddClients(newSamples);
+  }
+
+  async function handleLoadSampleTasks() {
+    const existing = new Set(tasks.map(t => t.id));
+    const toAdd = SAMPLE_TASKS.filter(t => !existing.has(t.id));
+    if (toAdd.length === 0) return;
+    await bulkAddTasks(toAdd);
   }
 
   // ─── Representation requests ───────────────────────────────────────────────
@@ -347,14 +335,11 @@ export default function App() {
    * שמירת בקשה. אם זו בקשה חדשה — יוצרים גם stub Client עם status = 'pending_fill'
    * וקושרים ביניהם.
    */
-  function handleSaveRequest(req: RepresentationRequest) {
+  async function handleSaveRequest(req: RepresentationRequest) {
     const isNew = !requests.some(r => r.id === req.id);
-    const now = new Date().toISOString();
-
-    let finalReq = req;
 
     if (isNew) {
-      // יצירת stub Client
+      // 1. יוצרים stub Client עם reqId משוייך
       const stubClientId = crypto.randomUUID();
       const nameParts = (req.clientName || '').trim().split(/\s+/);
       const stubClient = makeEmptyClient(stubClientId, {
@@ -365,17 +350,15 @@ export default function App() {
         representationRequestId: req.id,
         notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין למילוי הלקוח.',
       });
-      setClients(prev => [...prev, stubClient]);
-      finalReq = { ...req, linkedClientId: stubClientId };
+      const insertedClient = await addClient(stubClient);
+      // 2. יוצרים את הבקשה עם linkedClientId
+      const finalReq = { ...req, linkedClientId: insertedClient.id };
+      await addRequest(finalReq);
+      setSelectedRequestId(finalReq.id);
+    } else {
+      await updateRequest(req);
+      setSelectedRequestId(req.id);
     }
-
-    setRequests(prev => {
-      const exists = prev.some(r => r.id === finalReq.id);
-      return exists
-        ? prev.map(r => r.id === finalReq.id ? { ...finalReq, updatedAt: now } : r)
-        : [...prev, { ...finalReq, updatedAt: now }];
-    });
-    setSelectedRequestId(finalReq.id);
     setView('requestReview');
   }
 
@@ -417,10 +400,10 @@ export default function App() {
     }
 
     // ── עדכון Client ──
-    setClients(prev => prev.map(c => {
-      if (c.id !== req.linkedClientId) return c;
-      return {
-        ...c,
+    const linkedClient = clients.find(c => c.id === req.linkedClientId);
+    if (linkedClient) {
+      await updateClient({
+        ...linkedClient,
         firstName: submission.firstName,
         lastName: submission.lastName,
         idNumber: submission.idNumber,
@@ -431,50 +414,35 @@ export default function App() {
         city: submission.city,
         address: submission.address,
         notes: submission.notes
-          ? `${c.notes}\n\nהערות הלקוח:\n${submission.notes}`
-          : c.notes,
+          ? `${linkedClient.notes}\n\nהערות הלקוח:\n${submission.notes}`
+          : linkedClient.notes,
         representationStatus: 'awaiting_accountant',
-        updatedAt: now,
-      };
-    }));
+      });
+    }
 
     // ── עדכון Request ──
-    setRequests(prev => prev.map(r =>
-      r.id === selectedRequestId
-        ? { ...r, submission, status: 'awaiting_accountant', submittedAt: now, updatedAt: now }
-        : r
-    ));
+    await updateRequest({ ...req, submission, status: 'awaiting_accountant', submittedAt: now });
     setView('requestReview');
   }
 
   /**
    * המייצג חתם וייפוי הכוח החתום נוצר. מעדכנים את הסטטוס ל-awaiting_authorities.
    */
-  function handleAccountantSign(req: RepresentationRequest, partB: AccountantPartB, signedPdfStoredId: string) {
-    const now = new Date().toISOString();
-    setRequests(prev => prev.map(r =>
-      r.id === req.id
-        ? { ...r, partB, signedPdfStoredId, status: 'awaiting_authorities', updatedAt: now }
-        : r
-    ));
-    setClients(prev => prev.map(c =>
-      c.id === req.linkedClientId
-        ? { ...c, representationStatus: 'awaiting_authorities', updatedAt: now }
-        : c
-    ));
+  async function handleAccountantSign(req: RepresentationRequest, partB: AccountantPartB, signedPdfStoredId: string) {
+    await updateRequest({ ...req, partB, signedPdfStoredId, status: 'awaiting_authorities' });
+    const linkedClient = clients.find(c => c.id === req.linkedClientId);
+    if (linkedClient) {
+      await updateClient({ ...linkedClient, representationStatus: 'awaiting_authorities' });
+    }
   }
 
   /** ידנית — סימון לקוח כמיוצג פעיל לאחר אישור הרשויות */
-  function handleMarkActive(req: RepresentationRequest) {
-    const now = new Date().toISOString();
-    setRequests(prev => prev.map(r =>
-      r.id === req.id ? { ...r, status: 'active', updatedAt: now } : r
-    ));
-    setClients(prev => prev.map(c =>
-      c.id === req.linkedClientId
-        ? { ...c, representationStatus: 'active', updatedAt: now }
-        : c
-    ));
+  async function handleMarkActive(req: RepresentationRequest) {
+    await updateRequest({ ...req, status: 'active' });
+    const linkedClient = clients.find(c => c.id === req.linkedClientId);
+    if (linkedClient) {
+      await updateClient({ ...linkedClient, representationStatus: 'active' });
+    }
   }
 
   async function handleDeleteRequest(id: string) {
@@ -487,11 +455,10 @@ export default function App() {
     } catch {
       // ignore
     }
-    // מחיקת ה-Client הקשור
     if (req?.linkedClientId) {
-      setClients(prev => prev.filter(c => c.id !== req.linkedClientId));
+      try { await removeClient(req.linkedClientId); } catch { /* ignore */ }
     }
-    setRequests(prev => prev.filter(r => r.id !== id));
+    await removeRequest(id);
     setSelectedRequestId(null);
     setView('list');
   }
@@ -597,16 +564,6 @@ export default function App() {
       </header>
 
       <main className="main">
-        {migrationBanner && (
-          <div className="migration-banner">
-            <span>
-              עודכן מבנה סוגי המשימות לסגנון מונדיי. {migrationBanner.count} משימות הועברו אוטומטית —
-              מומלץ לעבור עליהן ולוודא שהסוג נכון.
-            </span>
-            <button className="btn btn-ghost btn-sm" onClick={() => setMigrationBanner(null)}>סגור ✕</button>
-          </div>
-        )}
-
         {view === 'myDesk' && (
           <MyDesk
             tasks={tasks}
@@ -614,11 +571,7 @@ export default function App() {
             onSelectTask={openEditTaskModal}
             onAddTask={() => openNewTaskModal()}
             onToggleDone={handleToggleTaskDone}
-            onLoadSampleTasks={() => setTasks(prev => {
-              const existing = new Set(prev.map(t => t.id));
-              const toAdd = SAMPLE_TASKS.filter(t => !existing.has(t.id));
-              return [...prev, ...toAdd];
-            })}
+            onLoadSampleTasks={handleLoadSampleTasks}
           />
         )}
 
@@ -635,11 +588,7 @@ export default function App() {
             onReorder={handleReorderTask}
             onSelectClient={handleSelectClient}
             onDeleteTask={handleDeleteTask}
-            onLoadSampleTasks={() => setTasks(prev => {
-              const existing = new Set(prev.map(t => t.id));
-              const toAdd = SAMPLE_TASKS.filter(t => !existing.has(t.id));
-              return [...prev, ...toAdd];
-            })}
+            onLoadSampleTasks={handleLoadSampleTasks}
           />
         )}
 
@@ -767,6 +716,13 @@ export default function App() {
           onSave={handleSaveTask}
           onCancel={() => setTaskModalState(null)}
           onDelete={handleDeleteTask}
+        />
+      )}
+
+      {showCreateClient && (
+        <QuickCreateClient
+          onSave={handleCreateClient}
+          onCancel={() => setShowCreateClient(false)}
         />
       )}
     </div>

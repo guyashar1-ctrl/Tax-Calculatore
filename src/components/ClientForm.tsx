@@ -22,7 +22,7 @@ function newClient(): Client {
     isReturningResident: false, returningYear: 0,
     disabilityPercentage: 0, disabilityType: '',
     hasAcademicDegree: false, academicDegreeYear: 0, academicDegreeType: '',
-    completedIDF: false, idfReleaseYear: 0,
+    completedIdf: false, idfReleaseYear: 0,
     completedNationalService: false, nationalServiceYear: 0,
     qualifyingSettlementId: '', qualifyingSettlementOverride: false, qualifyingSettlementCreditPoints: 0,
     hasResidentialProperty: false, propertyAddress: '', numberOfProperties: 0,
@@ -743,8 +743,8 @@ export default function ClientForm({
                 <div className="card-header"><span className="card-title">{'\u{1F396}\uFE0F'} שירות צבאי / לאומי</span></div>
                 <div className="card-body">
                   <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                    <div className="form-group"><label className="checkbox-row"><input type="checkbox" checked={data.completedIDF} onChange={e => upd('completedIDF', e.target.checked)} /> {`צה"ל`}</label></div>
-                    {data.completedIDF && <div className="form-group"><label>שנת שחרור</label><input type="number" min={1970} max={2030} value={data.idfReleaseYear || ''} onChange={e => upd('idfReleaseYear', +e.target.value)} /></div>}
+                    <div className="form-group"><label className="checkbox-row"><input type="checkbox" checked={data.completedIdf} onChange={e => upd('completedIdf', e.target.checked)} /> {`צה"ל`}</label></div>
+                    {data.completedIdf && <div className="form-group"><label>שנת שחרור</label><input type="number" min={1970} max={2030} value={data.idfReleaseYear || ''} onChange={e => upd('idfReleaseYear', +e.target.value)} /></div>}
                     <div className="form-group"><label className="checkbox-row"><input type="checkbox" checked={data.completedNationalService} onChange={e => upd('completedNationalService', e.target.checked)} /> שירות לאומי</label></div>
                     {data.completedNationalService && <div className="form-group"><label>שנת סיום</label><input type="number" min={1990} max={2030} value={data.nationalServiceYear || ''} onChange={e => upd('nationalServiceYear', +e.target.value)} /></div>}
                   </div>
@@ -812,8 +812,8 @@ export default function ClientForm({
                   <div className="card-header"><span className="card-title">{'\u{1F396}\uFE0F'} שירות צבאי / לאומי</span></div>
                   <div className="card-body">
                     <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                      <div className="form-group"><label className="checkbox-row"><input type="checkbox" checked={sp.completedIDF} onChange={e => updSp('completedIDF', e.target.checked)} /> {`צה"ל`}</label></div>
-                      {sp.completedIDF && <div className="form-group"><label>שנת שחרור</label><input type="number" min={1970} max={2030} value={sp.idfReleaseYear || ''} onChange={e => updSp('idfReleaseYear', +e.target.value)} /></div>}
+                      <div className="form-group"><label className="checkbox-row"><input type="checkbox" checked={sp.completedIdf} onChange={e => updSp('completedIdf', e.target.checked)} /> {`צה"ל`}</label></div>
+                      {sp.completedIdf && <div className="form-group"><label>שנת שחרור</label><input type="number" min={1970} max={2030} value={sp.idfReleaseYear || ''} onChange={e => updSp('idfReleaseYear', +e.target.value)} /></div>}
                       <div className="form-group"><label className="checkbox-row"><input type="checkbox" checked={sp.completedNationalService} onChange={e => updSp('completedNationalService', e.target.checked)} /> שירות לאומי</label></div>
                       {sp.completedNationalService && <div className="form-group"><label>שנת סיום</label><input type="number" min={1990} max={2030} value={sp.nationalServiceYear || ''} onChange={e => updSp('nationalServiceYear', +e.target.value)} /></div>}
                     </div>

@@ -37,7 +37,7 @@ interface TaxPerson {
   hasAcademicDegree: boolean;
   academicDegreeYear: number;
   academicDegreeType: 'bachelor' | 'master' | 'phd' | '';
-  completedIDF: boolean;
+  completedIdf: boolean;
   idfReleaseYear: number;
   completedNationalService: boolean;
   nationalServiceYear: number;
@@ -59,7 +59,7 @@ function clientToTaxPerson(client: Client): TaxPerson {
     hasAcademicDegree: client.hasAcademicDegree,
     academicDegreeYear: client.academicDegreeYear,
     academicDegreeType: client.academicDegreeType,
-    completedIDF: client.completedIDF,
+    completedIdf: client.completedIdf,
     idfReleaseYear: client.idfReleaseYear,
     completedNationalService: client.completedNationalService,
     nationalServiceYear: client.nationalServiceYear,
@@ -81,7 +81,7 @@ function spouseToTaxPerson(spouse: SpouseData, children: Child[]): TaxPerson {
     hasAcademicDegree: spouse.hasAcademicDegree,
     academicDegreeYear: spouse.academicDegreeYear,
     academicDegreeType: spouse.academicDegreeType,
-    completedIDF: spouse.completedIDF,
+    completedIdf: spouse.completedIdf,
     idfReleaseYear: spouse.idfReleaseYear,
     completedNationalService: spouse.completedNationalService,
     nationalServiceYear: spouse.nationalServiceYear,
@@ -170,7 +170,7 @@ function calcCreditPointsForPerson(
   }
 
   // 9. שחרור מצבא
-  if (person.completedIDF && person.idfReleaseYear > 0) {
+  if (person.completedIdf && person.idfReleaseYear > 0) {
     const diff = year - person.idfReleaseYear;
     if (diff === 0) add('שחרור צה"ל — שנת השחרור', 'סעיף 41', 2.0);
     else if (diff === 1) add('שחרור צה"ל — שנה לאחר השחרור', 'סעיף 41', 1.0);
@@ -645,7 +645,7 @@ export function calculateFamilyTax(
     hasAcademicDegree: spouse.hasAcademicDegree,
     academicDegreeYear: spouse.academicDegreeYear,
     academicDegreeType: spouse.academicDegreeType,
-    completedIDF: spouse.completedIDF,
+    completedIdf: spouse.completedIdf,
     idfReleaseYear: spouse.idfReleaseYear,
     completedNationalService: spouse.completedNationalService,
     nationalServiceYear: spouse.nationalServiceYear,

@@ -12,3 +12,7 @@ dist/
 
 # Personal study/reference materials — not part of the app
 חומרים/
+
+# Temporary working dirs
+tmp_letter/
+tmp/

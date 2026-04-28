@@ -590,11 +590,11 @@ export default function PersonalContactsTab({ client, update, patch, employees }
           <div className="form-grid form-grid-4">
             <div className="form-group">
               <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
-                <input type="checkbox" checked={client.completedIDF} onChange={e => update('completedIDF', e.target.checked)} />
+                <input type="checkbox" checked={client.completedIdf} onChange={e => update('completedIdf', e.target.checked)} />
                 שירת בצה"ל
               </label>
             </div>
-            {client.completedIDF && (
+            {client.completedIdf && (
               <div className="form-group">
                 <label>שנת שחרור</label>
                 <input type="number" min={1970} max={2030} value={client.idfReleaseYear || ''} onChange={e => update('idfReleaseYear', Number(e.target.value))} dir="ltr" />
@@ -613,7 +613,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
               </div>
             )}
           </div>
-          {client.completedIDF && (
+          {client.completedIdf && (
             <LinkedDocsWidget
               clientId={client.id}
               linkKey="personal:idf_service"

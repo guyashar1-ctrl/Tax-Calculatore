@@ -118,7 +118,7 @@ export interface SpouseData {
   hasAcademicDegree: boolean;
   academicDegreeYear: number;
   academicDegreeType: 'bachelor' | 'master' | 'phd' | '';
-  completedIDF: boolean;
+  completedIdf: boolean;
   idfReleaseYear: number;
   completedNationalService: boolean;
   nationalServiceYear: number;
@@ -148,7 +148,7 @@ export const EMPTY_SPOUSE: SpouseData = {
   isReturningResident: false, returningYear: 0,
   disabilityPercentage: 0, disabilityType: '',
   hasAcademicDegree: false, academicDegreeYear: 0, academicDegreeType: '',
-  completedIDF: false, idfReleaseYear: 0,
+  completedIdf: false, idfReleaseYear: 0,
   completedNationalService: false, nationalServiceYear: 0,
   qualifyingSettlementId: '', qualifyingSettlementOverride: false, qualifyingSettlementCreditPoints: 0,
   hasPension: false, pensionFundName: '',
@@ -215,7 +215,7 @@ export interface Client {
   academicDegreeYear: number;
   academicDegreeType: 'bachelor' | 'master' | 'phd' | '';
 
-  completedIDF: boolean;
+  completedIdf: boolean;
   idfReleaseYear: number;
   completedNationalService: boolean;
   nationalServiceYear: number;

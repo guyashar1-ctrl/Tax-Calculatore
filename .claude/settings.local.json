@@ -104,7 +104,19 @@
       "Bash(npx --version)",
       "Bash(awk -F= '{print $1}' .env.local)",
       "Bash(git check-ignore *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git push *)",
+      "Bash(pandoc --track-changes=all \"C:/Users/גיא ישר/OneDrive/Desktop/קורס רואי חשבון עצמאיים/קורס רוח עצמאי- חומרים/רוח סיכום כללי/דוח שנתי/מכתב לדוח השנתי - עוסק מורשה.docx\" -o /tmp/letter.md)",
+      "Read(//tmp/**)",
+      "Bash(python3 -c \"import docx\")",
+      "Read(//c/Users/גיא ישר/OneDrive/Desktop/קורס רואי חשבון עצמאיים/קורס רוח עצמאי- חומרים/רוח סיכום כללי/דוח שנתי/**)",
+      "Bash(cp \"C:/Users/גיא ישר/OneDrive/Desktop/קורס רואי חשבון עצמאיים/קורס רוח עצמאי- חומרים/רוח סיכום כללי/דוח שנתי/מכתב לדוח השנתי - עוסק מורשה.docx\" /tmp/letter.docx)",
+      "Read(//c/tmp/**)",
+      "Bash(unzip -o -q letter.docx -d letter_unpacked/)",
+      "Bash(mkdir -p ./tmp_letter)",
+      "Bash(cp \"C:/Users/גיא ישר/OneDrive/Desktop/קורס רואי חשבון עצמאיים/קורס רוח עצמאי- חומרים/רוח סיכום כללי/דוח שנתי/מכתב לדוח השנתי - עוסק מורשה.docx\" ./tmp_letter/letter.docx)",
+      "Bash(unzip -o -q letter.docx -d unpacked/)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

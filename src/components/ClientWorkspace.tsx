@@ -72,7 +72,7 @@ function newEmptyClient(): Client {
     isReturningResident: false, returningYear: 0,
     disabilityPercentage: 0, disabilityType: '',
     hasAcademicDegree: false, academicDegreeYear: 0, academicDegreeType: '',
-    completedIDF: false, idfReleaseYear: 0,
+    completedIdf: false, idfReleaseYear: 0,
     completedNationalService: false, nationalServiceYear: 0,
     qualifyingSettlementId: '', qualifyingSettlementOverride: false, qualifyingSettlementCreditPoints: 0,
     hasResidentialProperty: false, propertyAddress: '', numberOfProperties: 0,
