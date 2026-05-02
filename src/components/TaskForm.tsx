@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Task,
   Client,
+  SignatureRequest,
   TaskCategory,
   BallWith,
   TaskPriority,
@@ -12,6 +13,7 @@ import {
   BALL_WITH_ICON,
 } from '../types';
 import LinkedDocsWidget from './LinkedDocsWidget';
+import SignatureRequestEditor from './signatureRequest/SignatureRequestEditor';
 
 interface Props {
   task: Task | null;                     // null = יצירה חדשה
@@ -20,6 +22,8 @@ interface Props {
   onSave: (task: Task) => void;
   onCancel: () => void;
   onDelete?: (id: string) => void;
+  // אם המשתמש מסמן "שמור גם באנשי הקשר של הלקוח" בתוך עורך החתימה — נשמור גם את הלקוח
+  onUpdateClient?: (client: Client) => void;
 }
 
 function blankTask(clientId: string): Task {
@@ -48,10 +52,11 @@ const CATEGORIES: TaskCategory[] = [
 const BALL_OPTIONS: BallWith[] = ['me', 'client', 'authority', 'stuck'];
 const PROGRESS_OPTIONS: TaskProgress[] = ['new', 'in_progress'];
 
-export default function TaskForm({ task, clients, presetClientId, onSave, onCancel, onDelete }: Props) {
+export default function TaskForm({ task, clients, presetClientId, onSave, onCancel, onDelete, onUpdateClient }: Props) {
   const [data, setData] = useState<Task>(
     task ?? blankTask(presetClientId ?? clients[0]?.id ?? '')
   );
+  const [showSignatureEditor, setShowSignatureEditor] = useState(false);
 
   useEffect(() => {
     if (task) setData(task);
@@ -59,6 +64,8 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
 
   const isEditing = !!task;
   const isLocked = !!presetClientId;
+  const linkedClient = clients.find(c => c.id === data.clientId);
+  const sigReq = data.signatureRequest;
 
   function upd<K extends keyof Task>(key: K, val: Task[K]) {
     setData(d => ({ ...d, [key]: val, updatedAt: new Date().toISOString() }));
@@ -204,6 +211,54 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                   compact
                 />
               </div>
+
+              {/* בקשת חתימה על PDF — שלב 1 (ללא שליחה אמיתית עדיין) */}
+              <div className="form-group span-full">
+                <label>📝 מסמך לחתימה</label>
+                {sigReq ? (
+                  <div className="task-sig-summary">
+                    <div className="task-sig-line">
+                      <strong>📄 {sigReq.pdfFileName || '(אין PDF)'}</strong>
+                      <span className="task-sig-meta">
+                        {sigReq.signers.length} חותמים · {sigReq.fields.length} סימונים
+                        {sigReq.requireOrder ? ' · בסדר חתימה' : ' · במקביל'}
+                      </span>
+                    </div>
+                    <div className="task-sig-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setShowSignatureEditor(true)}
+                        disabled={!data.clientId}
+                      >ערוך</button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ color: 'var(--red)' }}
+                        onClick={() => {
+                          if (confirm('להסיר את בקשת החתימה מהמשימה?')) {
+                            setData(d => ({ ...d, signatureRequest: undefined, updatedAt: new Date().toISOString() }));
+                          }
+                        }}
+                      >הסר</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowSignatureEditor(true)}
+                    disabled={!data.clientId}
+                  >
+                    📝 הוסף מסמך לחתימה
+                  </button>
+                )}
+                {!data.clientId && (
+                  <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.25rem' }}>
+                    יש לבחור לקוח לפני הוספת בקשת חתימה.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -229,6 +284,20 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
           </div>
         </form>
       </div>
+
+      {showSignatureEditor && (
+        <SignatureRequestEditor
+          client={linkedClient}
+          taskId={data.id}
+          initial={data.signatureRequest}
+          onSave={(req: SignatureRequest, updatedClient) => {
+            setData(d => ({ ...d, signatureRequest: req, updatedAt: new Date().toISOString() }));
+            if (updatedClient && onUpdateClient) onUpdateClient(updatedClient);
+            setShowSignatureEditor(false);
+          }}
+          onCancel={() => setShowSignatureEditor(false)}
+        />
+      )}
     </div>
   );
 }

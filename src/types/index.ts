@@ -608,6 +608,57 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  signatureRequest?: SignatureRequest; // אופציונלי — בקשת חתימה על PDF מצורף
+}
+
+// ─── בקשת חתימה על PDF ────────────────────────────────────────────────
+// שלב 1: הגדרת חותמים + סימון מיקומי חתימה/טקסט. שלב 2 (עתידי): שליחה ואוטומציה.
+
+export type SignerSource = 'client_self' | 'client_contact' | 'manual';
+
+export interface Signer {
+  id: string;
+  source: SignerSource;            // מאיפה הגיע — לקוח עצמו, איש קשר של הלקוח, או נוסף ידני
+  sourceContactId?: string;        // אם source === 'client_contact' — מזהה איש הקשר
+  name: string;
+  email: string;
+  phone?: string;
+  order: number;                   // 1, 2, 3... — סדר חתימה אם requireOrder=true
+  saveToClientContacts?: boolean;  // עבור 'manual' — לשמור גם ברשימת אנשי הקשר של הלקוח
+}
+
+export type SignatureFieldKind = 'signature' | 'text';
+
+export interface SignatureField {
+  id: string;
+  signerId: string;                // למי שייך — Signer.id
+  kind: SignatureFieldKind;
+  pageIndex: number;               // 0-based
+  // אחוזים מהממדים של העמוד (0..1) — לא תלויים ב-zoom של תצוגה.
+  xPct: number;
+  yPct: number;
+  widthPct: number;
+  heightPct: number;
+  placeholder?: string;            // לטקסט — טקסט עזר ("תאריך", "שם מלא"...)
+}
+
+export type SignatureRequestStatus =
+  | 'draft'           // עדיין בעריכה — לא נשלח
+  | 'sent'            // נשלח לחותמים (Phase 2)
+  | 'partial'         // חלק חתמו (Phase 2)
+  | 'completed'       // כולם חתמו (Phase 2)
+  | 'cancelled';
+
+export interface SignatureRequest {
+  id: string;
+  pdfFileName: string;             // שם הקובץ שהועלה (לתצוגה)
+  pdfDocId?: string;               // מזהה מסמך ב-IndexedDB (אם נשמר שם)
+  signers: Signer[];
+  fields: SignatureField[];
+  requireOrder: boolean;           // האם סדר החתימה חשוב
+  status: SignatureRequestStatus;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Case {
