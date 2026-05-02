@@ -153,6 +153,25 @@ export default function ClientList({
     return map;
   }, [clients, tasks]);
 
+  // איש הקשר הראשי — אם תוסף מסומן ראשי משתמשים בו, אחרת הנישום עצמו.
+  function getPrimaryContact(c: Client): { name: string; phone: string; email: string; isClient: boolean } {
+    const primary = (c.additionalContacts ?? []).find(ac => ac.isPrimary);
+    if (primary) {
+      return {
+        name: primary.name,
+        phone: primary.phone || '',
+        email: primary.email || '',
+        isClient: false,
+      };
+    }
+    return {
+      name: `${c.firstName} ${c.lastName}`.trim(),
+      phone: c.phone || '',
+      email: c.email || '',
+      isClient: true,
+    };
+  }
+
   const filtered = useMemo(() => {
     let list = clients.filter(c => {
       if (statusFilter !== 'all' && getStatus(c) !== statusFilter) return false;
@@ -168,13 +187,17 @@ export default function ClientList({
 
       const q = search.toLowerCase().trim();
       if (!q) return true;
+      const pc = getPrimaryContact(c);
       return (
         c.firstName.toLowerCase().includes(q) ||
         c.lastName.toLowerCase().includes(q) ||
         c.idNumber.includes(q) ||
         (c.phone || '').includes(q) ||
         (c.email || '').toLowerCase().includes(q) ||
-        (c.city || '').toLowerCase().includes(q)
+        (c.city || '').toLowerCase().includes(q) ||
+        pc.phone.includes(q) ||
+        pc.email.toLowerCase().includes(q) ||
+        pc.name.toLowerCase().includes(q)
       );
     });
 
@@ -193,10 +216,10 @@ export default function ClientList({
           cmp = (a.city || '').localeCompare(b.city || '', 'he');
           break;
         case 'phone':
-          cmp = (a.phone || '').localeCompare(b.phone || '');
+          cmp = getPrimaryContact(a).phone.localeCompare(getPrimaryContact(b).phone);
           break;
         case 'email':
-          cmp = (a.email || '').localeCompare(b.email || '');
+          cmp = getPrimaryContact(a).email.localeCompare(getPrimaryContact(b).email);
           break;
         case 'status':
           cmp = STATUS_ORDER[getStatus(a)] - STATUS_ORDER[getStatus(b)];
@@ -418,6 +441,9 @@ export default function ClientList({
                   <th className="th-sortable hide-mobile" onClick={() => toggleSort('phone')}>
                     <span>טלפון</span> {sortIcon('phone')}
                   </th>
+                  <th className="th-sortable hide-mobile" onClick={() => toggleSort('email')}>
+                    <span>אימייל</span> {sortIcon('email')}
+                  </th>
                   <th className="hide-mobile">
                     <span>סטטוסי מס</span>
                   </th>
@@ -438,6 +464,9 @@ export default function ClientList({
                   const m = metricsByClient.get(client.id);
                   const employee = findEmployee(client.assignedAccountantId);
                   const repBadgeForNonActive = status !== 'active';
+                  const pc = getPrimaryContact(client);
+                  // אם הראשי הוא לא הנישום, נציג שם של הראשי כדי שגיא יבין את מי הוא רואה
+                  const primaryNote = !pc.isClient ? pc.name : '';
 
                   return (
                     <tr key={client.id} className="client-row" onClick={() => handleRowClick(client)}>
@@ -463,7 +492,19 @@ export default function ClientList({
                       </td>
                       <td className="mono-text">{client.idNumber || '—'}</td>
                       <td className="hide-mobile">{client.city || '—'}</td>
-                      <td className="mono-text hide-mobile" dir="ltr" style={{ textAlign: 'right' }}>{client.phone || '—'}</td>
+                      <td className="mono-text hide-mobile" dir="ltr" style={{ textAlign: 'right' }}>
+                        {pc.phone ? (
+                          <span title={primaryNote ? `איש קשר ראשי: ${primaryNote}` : ''}>
+                            {pc.phone}
+                            {primaryNote && <span className="cl-primary-mark" title={`איש קשר ראשי: ${primaryNote}`}>🔑</span>}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="mono-text hide-mobile" dir="ltr" style={{ textAlign: 'right' }}>
+                        {pc.email ? (
+                          <span title={primaryNote ? `איש קשר ראשי: ${primaryNote}` : ''}>{pc.email}</span>
+                        ) : '—'}
+                      </td>
                       <td className="hide-mobile">
                         <div className="cl-tax-chips">
                           <span className={`badge ${IT_BADGE[client.incomeTaxType]} cl-mini-badge`}>מ״ה: {IT_LABELS[client.incomeTaxType]}</span>

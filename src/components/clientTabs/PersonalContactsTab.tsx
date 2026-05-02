@@ -7,7 +7,7 @@
 //   5. 🏠 נכסים והשקעות (מגורים, שכירות, שוק ההון)
 //   6. 👥 עובד מטפל
 //   7. 🏷 תגיות
-//   8. 📞 אנשי קשר נוספים
+//   8. 📞 אנשי קשר — הנישום עצמו + אנשי קשר נוספים, עם סימון ראשי 🔑
 
 import React, { useState } from 'react';
 import {
@@ -244,12 +244,16 @@ export default function PersonalContactsTab({ client, update, patch, employees }
     patch({ tags: (client.tags ?? []).filter(x => x !== t) });
   }
 
-  // ── אנשי קשר נוספים ────────────────────────────────────────────────
+  // ── אנשי קשר ────────────────────────────────────────────────
+  // איש קשר ראשי — אם אף תוסף לא מסומן ראשי, הנישום עצמו הוא הראשי כברירת מחדל.
+  const additionalList = client.additionalContacts ?? [];
+  const isClientPrimary = !additionalList.some(c => c.isPrimary);
+
   function saveContact() {
     if (!contactDraft.role || !contactDraft.name) return;
     const list = client.additionalContacts ?? [];
     if (editingContactId) {
-      patch({ additionalContacts: list.map(c => c.id === editingContactId ? { ...c, ...contactDraft, id: editingContactId } as ClientContact : c) });
+      patch({ additionalContacts: list.map(c => c.id === editingContactId ? { ...c, ...contactDraft, id: editingContactId, isPrimary: c.isPrimary } as ClientContact : c) });
     } else {
       const c: ClientContact = {
         id: `k-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -276,6 +280,26 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       setEditingContactId(null);
       setContactDraft({ role: '', name: '', phone: '', email: '' });
     }
+  }
+
+  // לחיצה על המפתח של איש קשר נוסף — הופך אותו לראשי, ומבטל ראשי מאחרים.
+  function setAdditionalAsPrimary(id: string) {
+    patch({
+      additionalContacts: (client.additionalContacts ?? []).map(c => ({
+        ...c,
+        isPrimary: c.id === id,
+      })),
+    });
+  }
+
+  // לחיצה על המפתח של הנישום — מבטל את הראשי מכולם, כך שהנישום הוא ראשי כברירת מחדל.
+  function setClientAsPrimary() {
+    patch({
+      additionalContacts: (client.additionalContacts ?? []).map(c => ({
+        ...c,
+        isPrimary: false,
+      })),
+    });
   }
 
   const isMarried = client.familyStatus === 'married';
@@ -1148,36 +1172,71 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          8. 📞 אנשי קשר נוספים
+          8. 📞 אנשי קשר — הנישום + אנשי קשר נוספים, עם סימון ראשי 🔑
           ════════════════════════════════════════════════════════════ */}
-      <ColoredSection color={COLOR_CONTACTS} icon="📞" label="אנשי קשר נוספים">
-        {(client.additionalContacts ?? []).length === 0 ? (
-          <div className="cw-empty">אין אנשי קשר נוספים</div>
-        ) : (
-          <div className="cw-contacts">
-            {(client.additionalContacts ?? []).map(c => (
-              <div key={c.id} className="cw-contact-card">
-                <div className="cw-contact-head">
-                  <strong>{c.name}</strong>
-                  <span className="badge badge-gray cl-mini-badge">{c.role}</span>
-                </div>
-                <div className="cw-contact-meta">
-                  {c.phone && <span dir="ltr">📞 {c.phone}</span>}
-                  {c.email && <span dir="ltr">✉ {c.email}</span>}
-                </div>
-                {c.notes && <div className="cw-contact-notes">{c.notes}</div>}
-                <div className="cw-contact-actions">
-                  <button className="btn btn-ghost btn-sm" onClick={() => editContact(c)}>עריכה</button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => deleteContact(c.id)} style={{ color: 'var(--red)' }}>מחק</button>
-                </div>
-              </div>
-            ))}
+      <ColoredSection color={COLOR_CONTACTS} icon="📞" label="אנשי קשר">
+        <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginBottom: '.6rem' }}>
+          לחיצה על 🔑 מסמנת את איש הקשר הראשי — זה מי שמופיע בטבלת הלקוחות וזה אליו פונים בפועל.
+        </div>
+
+        {/* כרטיס הנישום עצמו — נמשך מהפרטים האישיים, לא ניתן לעריכה כאן */}
+        <div className="cw-contacts">
+          <div
+            className={`cw-contact-card cw-contact-self${isClientPrimary ? ' cw-contact-primary' : ''}`}
+            title="פרטים נשלפים מ'פרטי נישום' למעלה — שינוי שם/טלפון/אימייל ייעשה שם"
+          >
+            <div className="cw-contact-head">
+              <button
+                className="cw-contact-key"
+                onClick={setClientAsPrimary}
+                title={isClientPrimary ? 'איש הקשר הראשי' : 'הפוך לאיש הקשר הראשי'}
+                aria-pressed={isClientPrimary}
+              >
+                {isClientPrimary ? '🔑' : '🔓'}
+              </button>
+              <strong>{`${client.firstName} ${client.lastName}`.trim() || '(ללא שם)'}</strong>
+              <span className="badge badge-blue cl-mini-badge">הנישום</span>
+            </div>
+            <div className="cw-contact-meta">
+              {client.phone ? <span dir="ltr">📞 {client.phone}</span> : <span style={{ color: 'var(--gray-400)' }}>📞 — אין טלפון</span>}
+              {client.email ? <span dir="ltr">✉ {client.email}</span> : <span style={{ color: 'var(--gray-400)' }}>✉ — אין אימייל</span>}
+            </div>
+            <div className="cw-contact-notes" style={{ fontStyle: 'normal', color: 'var(--gray-500)' }}>
+              לעריכה: גלילה ל"פרטי נישום" למעלה.
+            </div>
           </div>
-        )}
+
+          {/* אנשי קשר נוספים */}
+          {additionalList.map(c => (
+            <div key={c.id} className={`cw-contact-card${c.isPrimary ? ' cw-contact-primary' : ''}`}>
+              <div className="cw-contact-head">
+                <button
+                  className="cw-contact-key"
+                  onClick={() => setAdditionalAsPrimary(c.id)}
+                  title={c.isPrimary ? 'איש הקשר הראשי' : 'הפוך לאיש הקשר הראשי'}
+                  aria-pressed={c.isPrimary || false}
+                >
+                  {c.isPrimary ? '🔑' : '🔓'}
+                </button>
+                <strong>{c.name}</strong>
+                <span className="badge badge-gray cl-mini-badge">{c.role}</span>
+              </div>
+              <div className="cw-contact-meta">
+                {c.phone && <span dir="ltr">📞 {c.phone}</span>}
+                {c.email && <span dir="ltr">✉ {c.email}</span>}
+              </div>
+              {c.notes && <div className="cw-contact-notes">{c.notes}</div>}
+              <div className="cw-contact-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => editContact(c)}>עריכה</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => deleteContact(c.id)} style={{ color: 'var(--red)' }}>מחק</button>
+              </div>
+            </div>
+          ))}
+        </div>
 
         <div className="cw-contact-form">
           <h4 style={{ fontSize: '.85rem', color: 'var(--gray-600)', marginBottom: '.5rem' }}>
-            {editingContactId ? 'עריכת איש קשר' : '+ איש קשר חדש'}
+            {editingContactId ? 'עריכת איש קשר' : '+ הוסף איש קשר נוסף (בן/בת זוג, רו״ח, עו״ד...)'}
           </h4>
           <div className="form-grid form-grid-4">
             <div className="form-group">

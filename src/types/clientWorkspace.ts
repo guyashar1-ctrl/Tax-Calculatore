@@ -29,6 +29,9 @@ export interface ClientContact {
   phone?: string;
   email?: string;
   notes?: string;
+  // האם זה איש הקשר הראשי שאליו פונים בפועל (מסומן ב-🔑).
+  // אם אף איש קשר לא מסומן ראשי — הנישום עצמו הוא הראשי כברירת מחדל.
+  isPrimary?: boolean;
 }
 
 // ── רשומת פעילות ──
