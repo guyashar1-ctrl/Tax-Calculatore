@@ -1982,6 +1982,341 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
   padding: .1rem .4rem !important;
 }
 
+/* סימון 🔑 ליד טלפון/אימייל בטבלת לקוחות — כשאיש הקשר הראשי הוא לא הנישום */
+.cl-primary-mark {
+  margin-inline-start: .25rem;
+  font-size: .7rem;
+  vertical-align: middle;
+}
+
+/* ─── Signature request editor ──────────────────────────────────────── */
+.sig-modal {
+  width: min(1100px, 96vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+.sig-modal .modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+.sig-steps {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--gray-200);
+  background: var(--gray-50);
+}
+.sig-step {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: .75rem 1rem;
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--gray-500);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+}
+.sig-step.active { color: var(--blue); border-bottom-color: var(--blue); background: white; }
+.sig-step:disabled { cursor: not-allowed; opacity: .5; }
+.sig-step-count {
+  background: var(--blue); color: white; font-size: .7rem;
+  padding: .1rem .45rem; border-radius: 999px;
+}
+
+.sig-body { padding: 1rem 1.25rem; }
+
+/* Signers panel */
+.sig-section { margin-bottom: 1.25rem; }
+.sig-section h4 { font-size: .9rem; color: var(--gray-700); margin-bottom: .5rem; }
+.sig-section-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; flex-wrap: wrap; gap: .5rem; }
+
+.sig-candidates {
+  display: flex; flex-direction: column; gap: .35rem;
+}
+.sig-candidate {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .5rem .75rem;
+  background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius);
+  cursor: pointer;
+}
+.sig-candidate:hover { background: white; border-color: var(--gray-300); }
+.sig-candidate.selected { background: var(--blue-light); border-color: var(--blue-border); }
+.sig-candidate.no-email { opacity: .55; cursor: not-allowed; }
+.sig-candidate-text { flex: 1; min-width: 0; }
+.sig-candidate-name { font-weight: 600; font-size: .85rem; color: var(--gray-800); }
+.sig-candidate-meta { font-size: .75rem; color: var(--gray-600); }
+
+.sig-manual-form {
+  background: var(--gray-50); padding: .75rem;
+  border: 1px dashed var(--gray-300); border-radius: var(--radius);
+}
+
+.sig-signers-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: .35rem;
+}
+.sig-signer-row {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .55rem .75rem;
+  background: white; border: 1px solid var(--gray-200); border-radius: var(--radius);
+}
+.sig-signer-num {
+  background: var(--blue); color: white;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .75rem;
+  flex: 0 0 auto;
+}
+.sig-signer-info { flex: 1; min-width: 0; }
+.sig-signer-name { font-weight: 600; font-size: .85rem; }
+.sig-signer-meta { font-size: .75rem; color: var(--gray-600); }
+.sig-signer-order { display: flex; gap: .15rem; }
+
+/* Fields panel */
+.sig-fields { display: flex; flex-direction: column; gap: .75rem; }
+
+/* פס הוראה — מסביר במצב הסימון מה לעשות */
+.sig-instruction {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .65rem .85rem;
+  background: white;
+  border: 2px solid;
+  border-radius: var(--radius);
+  position: sticky; top: 0; z-index: 6;
+  box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+.sig-instruction-icon {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: white; font-size: 1rem;
+  flex: 0 0 auto;
+}
+.sig-instruction-text { font-size: .9rem; line-height: 1.3; flex: 1; min-width: 0; }
+
+.sig-toolbar {
+  display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;
+  background: var(--gray-50); padding: .6rem .75rem;
+  border: 1px solid var(--gray-200); border-radius: var(--radius);
+  position: sticky; top: 56px; z-index: 5;
+}
+.sig-toolbar-group { display: flex; align-items: center; gap: .5rem; }
+.sig-toolbar-label { font-size: .8rem; color: var(--gray-600); font-weight: 600; }
+
+.sig-kind-toggle { display: flex; gap: 0; border: 1px solid var(--gray-300); border-radius: var(--radius); overflow: hidden; }
+.sig-kind-toggle button {
+  background: white; border: none; padding: .35rem .75rem;
+  font-size: .8rem; cursor: pointer;
+}
+.sig-kind-toggle button:not(:last-child) { border-inline-end: 1px solid var(--gray-300); }
+.sig-kind-toggle button.active { background: var(--blue); color: white; }
+
+.sig-pdf-canvas-wrap {
+  display: flex; flex-direction: column; gap: 1rem;
+  background: var(--gray-100); padding: 1rem;
+  border-radius: var(--radius);
+  min-height: 400px;
+}
+.sig-pdf-page {
+  background: white; border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+  align-self: center;
+  max-width: 100%;
+}
+.sig-pdf-page-label {
+  background: var(--gray-50); padding: .35rem .75rem;
+  font-size: .75rem; color: var(--gray-500);
+  border-bottom: 1px solid var(--gray-200);
+}
+.sig-pdf-page-inner {
+  position: relative;
+  cursor: crosshair;
+  line-height: 0;
+  direction: ltr;
+}
+.sig-pdf-page-inner:hover {
+  outline: 2px solid rgba(37, 99, 235, .25);
+}
+.sig-pdf-page-inner canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  pointer-events: none;  /* קליקים יעברו לאלמנט ההורה */
+}
+
+.sig-marker {
+  position: absolute;
+  border: 2px solid;
+  border-radius: 4px;
+  cursor: move;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.7);
+  transition: box-shadow .15s;
+  user-select: none;
+}
+.sig-marker:hover { box-shadow: 0 0 0 2px rgba(255,255,255,.7), 0 4px 12px rgba(0,0,0,.15); z-index: 2; }
+.sig-marker:active { cursor: grabbing; }
+.sig-marker-signature { border-style: solid; }
+.sig-marker-text { border-style: dashed; }
+
+/* select בראש התיבה — מחליף את הלייבל הסטטי, לחיצה פותחת בחירת חותם */
+.sig-marker-select {
+  position: absolute;
+  top: -22px; right: 0;
+  color: white; font-size: .7rem;
+  padding: .15rem 1.4rem .15rem .4rem;
+  border-radius: 3px 3px 0 0;
+  white-space: nowrap;
+  font-weight: 600;
+  direction: rtl;
+  box-shadow: 0 1px 3px rgba(0,0,0,.15);
+  border: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='white' d='M2 4l3 3 3-3z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left .35rem center;
+  height: 22px;
+  line-height: 1;
+}
+.sig-marker-select option { color: var(--gray-900); background: white; }
+
+.sig-marker-x {
+  position: absolute;
+  top: -22px; left: 0;          /* באותה שורה של ה-select (מעל התיבה) — לא חוסם פינה NW */
+  width: 22px; height: 22px;
+  border-radius: 3px 3px 0 0;
+  background: var(--red); color: white;
+  border: none;
+  font-size: .9rem; line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,.15);
+  z-index: 4;
+}
+.sig-marker-x:hover { background: #b91c1c; }
+
+/* ─── ידיות שינוי גודל — 8 כיוונים ─── */
+.sig-marker-handle {
+  position: absolute;
+  background: white;
+  border: 2px solid;
+  z-index: 3;
+  user-select: none;
+  box-shadow: 0 1px 2px rgba(0,0,0,.1);
+}
+.sig-marker-handle:hover { background: #fffbe6; }
+
+/* פינות — ריבועים קטנים, חציים בתוך התיבה וחציים החוצה */
+.sig-marker-handle-nw,
+.sig-marker-handle-ne,
+.sig-marker-handle-se,
+.sig-marker-handle-sw {
+  width: 14px; height: 14px;
+  border-radius: 3px;
+}
+.sig-marker-handle-nw { top: -7px; left: -7px;    cursor: nwse-resize; }
+.sig-marker-handle-ne { top: -7px; right: -7px;   cursor: nesw-resize; }
+.sig-marker-handle-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+.sig-marker-handle-sw { bottom: -7px; left: -7px;  cursor: nesw-resize; }
+
+/* קצוות — פסים דקים לאורך/רוחב הצלעות (בין פינה לפינה) */
+.sig-marker-handle-n,
+.sig-marker-handle-s {
+  height: 8px;
+  left: 14px; right: 14px;
+  cursor: ns-resize;
+  border-left: none; border-right: none;
+  background: rgba(255,255,255,.85);
+}
+.sig-marker-handle-n { top: -5px; }
+.sig-marker-handle-s { bottom: -5px; }
+
+.sig-marker-handle-e,
+.sig-marker-handle-w {
+  width: 8px;
+  top: 14px; bottom: 14px;
+  cursor: ew-resize;
+  border-top: none; border-bottom: none;
+  background: rgba(255,255,255,.85);
+}
+.sig-marker-handle-e { right: -5px; }
+.sig-marker-handle-w { left: -5px; }
+
+/* תיבות מאוד קטנות — מסתיר את הידיות הקצוות (אין מקום ביניהן) */
+.sig-marker:not(:hover) .sig-marker-handle-n,
+.sig-marker:not(:hover) .sig-marker-handle-s,
+.sig-marker:not(:hover) .sig-marker-handle-e,
+.sig-marker:not(:hover) .sig-marker-handle-w {
+  opacity: .55;
+}
+.sig-marker:hover .sig-marker-handle { background: white; }
+
+.sig-upload-area { padding: 2rem; }
+
+/* כפתור מחיקה במקבץ בסרגל הבחירה */
+.doc-bulk-delete {
+  background: var(--red);
+  color: white;
+  border: 1px solid var(--red);
+}
+.doc-bulk-delete:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+.doc-bulk-delete:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ─── באנר הגירה חד-פעמי לענן ─── */
+.legacy-migration-banner {
+  display: flex; align-items: center; gap: 1rem;
+  padding: .75rem 1rem;
+  margin: 1rem 1.5rem;
+  background: var(--blue-light);
+  border: 1px solid var(--blue-border);
+  border-radius: var(--radius);
+  flex-wrap: wrap;
+}
+.legacy-migration-banner.error { background: var(--red-light); border-color: #fecaca; }
+.legacy-migration-banner .lmb-icon { font-size: 1.5rem; flex: 0 0 auto; }
+.legacy-migration-banner .lmb-text { flex: 1; min-width: 200px; font-size: .85rem; }
+.legacy-migration-banner .lmb-sub { color: var(--gray-600); font-size: .75rem; margin-top: .15rem; }
+.legacy-migration-banner .lmb-progressbar {
+  margin-top: .35rem;
+  background: white; border: 1px solid var(--blue-border);
+  border-radius: 999px; height: 8px; overflow: hidden;
+}
+.legacy-migration-banner .lmb-progressbar-fill {
+  height: 100%; background: var(--blue);
+  transition: width .25s;
+}
+
+/* סיכום בקשת חתימה בתוך TaskForm */
+.task-sig-summary {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .65rem .85rem;
+  background: var(--blue-light);
+  border: 1px solid var(--blue-border);
+  border-radius: var(--radius);
+  flex-wrap: wrap;
+}
+.task-sig-line { flex: 1; min-width: 0; }
+.task-sig-line strong { display: block; font-size: .9rem; }
+.task-sig-meta { font-size: .75rem; color: var(--gray-600); }
+.task-sig-actions { display: flex; gap: .35rem; }
+
 .cl-tax-chips {
   display: flex; gap: .25rem; flex-wrap: wrap;
 }
@@ -2275,35 +2610,67 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
 .cw-tags { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; }
 
 .cw-contacts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: .6rem;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
   margin-bottom: 1rem;
 }
 .cw-contact-card {
   background: var(--gray-50); border: 1px solid var(--gray-200);
-  padding: .6rem .8rem; border-radius: var(--radius);
+  padding: .55rem .75rem; border-radius: var(--radius);
+  display: flex; align-items: center; gap: .75rem;
+  flex-wrap: wrap;
 }
 .cw-contact-head {
-  display: flex; align-items: center; gap: .4rem; margin-bottom: .25rem;
+  display: flex; align-items: center; gap: .4rem;
+  flex: 1 1 220px; min-width: 0;
 }
 .cw-contact-meta {
-  display: flex; flex-direction: column; gap: .15rem;
-  font-size: .75rem; color: var(--gray-600);
+  display: flex; flex-direction: row; gap: 1rem; flex-wrap: wrap;
+  font-size: .8rem; color: var(--gray-700);
+  flex: 2 1 320px;
 }
 .cw-contact-notes {
-  margin-top: .35rem; padding-top: .35rem;
-  border-top: 1px solid var(--gray-200);
-  font-size: .75rem; color: var(--gray-700); font-style: italic;
+  font-size: .75rem; color: var(--gray-600); font-style: italic;
+  flex: 1 1 100%;
+  margin-top: .15rem;
+  padding-top: .35rem;
+  border-top: 1px dashed var(--gray-200);
 }
 .cw-contact-actions {
   display: flex; gap: .25rem; justify-content: flex-end;
-  margin-top: .35rem; padding-top: .35rem;
-  border-top: 1px solid var(--gray-200);
+  flex: 0 0 auto;
+  margin-inline-start: auto;
 }
 .cw-contact-form {
   background: var(--gray-50); padding: .75rem;
   border: 1px dashed var(--gray-300); border-radius: var(--radius);
+}
+
+/* כפתור מפתח לסימון איש הקשר הראשי */
+.cw-contact-key {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 1rem; padding: 0 .15rem; line-height: 1;
+  opacity: .55; transition: opacity .15s, transform .15s;
+}
+.cw-contact-key:hover { opacity: 1; transform: scale(1.15); }
+.cw-contact-key[aria-pressed="true"] { opacity: 1; }
+
+/* כרטיס איש הקשר הראשי — מודגש */
+.cw-contact-card.cw-contact-primary {
+  background: #fff7e6;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b inset;
+}
+
+/* כרטיס הנישום עצמו — צבע רקע עדין כדי להבדיל ש"זה לא לערוך כאן" */
+.cw-contact-card.cw-contact-self {
+  background: var(--blue-light);
+  border-color: var(--blue-border);
+}
+.cw-contact-card.cw-contact-self.cw-contact-primary {
+  background: #fff7e6;
+  border-color: #f59e0b;
 }
 
 /* ─── Tax & NI tab ─────────────────────────────────────────────────────── */

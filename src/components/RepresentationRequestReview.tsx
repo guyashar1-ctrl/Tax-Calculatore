@@ -88,8 +88,15 @@ export default function RepresentationRequestReview({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  function openPreview(doc: StoredDoc) {
-    const blob = new Blob([doc.fileData], { type: doc.fileType || 'application/octet-stream' });
+  async function openPreview(doc: StoredDoc) {
+    // doc מ-getDocsByClient — מטא בלבד. טוענים את הבייטים בפועל מהענן.
+    let bytes = doc.fileData;
+    if (bytes.byteLength === 0) {
+      const full = await db.getDoc(doc.id);
+      if (!full || full.fileData.byteLength === 0) return;
+      bytes = full.fileData;
+    }
+    const blob = new Blob([bytes], { type: doc.fileType || 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     setPreview({ doc, url });
   }

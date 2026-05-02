@@ -31,6 +31,8 @@ import TaskBoard from './components/TaskBoard';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
 import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateClient';
+import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
+import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import { useAuth } from './hooks/useAuth';
 
 type View =
@@ -121,6 +123,11 @@ function standardFileName(lastName: string, firstName: string, docLabel: string,
 }
 
 export default function App() {
+  // ⚠ זמני: דף בדיקה של עורך החתימה ללא התחברות. יוסר לאחר אימות.
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-sig')) {
+    return <TestSignaturePage />;
+  }
+
   const { user, loading: authLoading, displayName, avatarUrl, signOut } = useAuth();
 
   const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients } = useClients(user?.id);
@@ -564,6 +571,7 @@ export default function App() {
       </header>
 
       <main className="main">
+        <LegacyMigrationBanner knownClientIds={new Set(clients.map(c => c.id))} />
         {view === 'myDesk' && (
           <MyDesk
             tasks={tasks}
@@ -716,6 +724,7 @@ export default function App() {
           onSave={handleSaveTask}
           onCancel={() => setTaskModalState(null)}
           onDelete={handleDeleteTask}
+          onUpdateClient={updateClient}
         />
       )}
 

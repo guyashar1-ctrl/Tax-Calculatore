@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Client } from '../types';
-import { useDocumentDB, StoredDoc, DocCategory, DOC_CATEGORY_LABELS } from '../hooks/useIndexedDB';
+import { useDocumentDB, StoredDoc, DocCategory, DOC_CATEGORY_LABELS, isPlaceholderDoc } from '../hooks/useIndexedDB';
 import { AVAILABLE_YEARS } from '../data/taxData';
 import { analyzeDocument, isGeminiAvailable, AnalysisResult, DocAnalysisType, ExtractedClientData } from '../utils/geminiVision';
 
@@ -146,6 +146,15 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
   const [copying, setCopying] = useState(false);
   const [copySuccess, setCopySuccess] = useState('');
 
+  // Edit modal — לעריכת מטא-נתונים של מסמך קיים
+  const [editModal, setEditModal] = useState<StoredDoc | null>(null);
+  const [editFileName, setEditFileName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editCat, setEditCat] = useState<DocCategory>('other');
+  const [editYear, setEditYear] = useState<number | 'general'>('general');
+  const [editNotes, setEditNotes] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
   // Preview
   const [preview, setPreview] = useState<{ doc: StoredDoc; url: string } | null>(null);
 
@@ -162,8 +171,30 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // טעינה רגילה כשהלקוח משתנה
   useEffect(() => {
+    loadDocs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client.id]);
+
+  // האזנה ל-event גלובלי 'crm:docs-changed' — נשלח אחרי upload/delete מכל מקום באפליקציה.
+  // ככה אם המשתמש העלה מסמך ממסך אחר (למשל ממשימה במודל), הרשימה כאן תתעדכן.
+  useEffect(() => {
+    function handleChange(e: Event) {
+      const ce = e as CustomEvent<{ clientId?: string }>;
+      // נטען מחדש אם זה הלקוח שלנו (או אם לא צוין clientId)
+      if (!ce.detail?.clientId || ce.detail.clientId === client.id) {
+        loadDocs();
+      }
+    }
+    window.addEventListener('crm:docs-changed', handleChange);
+    return () => window.removeEventListener('crm:docs-changed', handleChange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client.id]);
+
+  function loadDocs() {
     db.getDocsByClient(client.id).then(d => {
+      console.log('[DocumentManager] loaded', d.length, 'docs for client', client.id);
       let allDocs = d;
       if (d.length === 0 && client.id.startsWith('sample-')) {
         const fakes = generateSampleDocs(client.id);
@@ -173,8 +204,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
       setDocs(allDocs);
       setLoading(false);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client.id]);
+  }
 
   // Sort toggle
   function toggleSort(field: SortField) {
@@ -304,31 +334,120 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
     if (preview?.doc.id === id) { URL.revokeObjectURL(preview.url); setPreview(null); }
   }
 
-  async function handlePreview(doc: StoredDoc) {
-    if (doc.fileData.byteLength === 0) return;
-    if (preview?.doc.id === doc.id) { URL.revokeObjectURL(preview.url); setPreview(null); return; }
-    if (preview) URL.revokeObjectURL(preview.url);
-    const blob = new Blob([doc.fileData], { type: doc.fileType });
-    const url = URL.createObjectURL(blob);
-    setPreview({ doc, url });
+  // מחיקה במקבץ של כל המסמכים שסומנו
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  async function handleBulkDelete() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    const msg = ids.length === 1
+      ? 'למחוק את המסמך שנבחר?'
+      : `למחוק ${ids.length} מסמכים שנבחרו? פעולה זו לא ניתנת לביטול.`;
+    if (!confirm(msg)) return;
+
+    setBulkDeleting(true);
+    let deleted = 0, failed = 0;
+    for (const id of ids) {
+      try {
+        await db.deleteDoc(id);
+        deleted++;
+      } catch (err) {
+        console.error('bulk delete failed for', id, err);
+        failed++;
+      }
+    }
+    setDocs(prev => prev.filter(d => !ids.includes(d.id)));
+    setSelected(new Set());
+    if (preview && ids.includes(preview.doc.id)) {
+      URL.revokeObjectURL(preview.url);
+      setPreview(null);
+    }
+    setBulkDeleting(false);
+    if (failed > 0) {
+      alert(`נמחקו ${deleted}, נכשלו ${failed}. ראה קונסול לפרטים.`);
+    }
   }
 
-  function handleDownload(doc: StoredDoc) {
-    if (doc.fileData.byteLength === 0) return;
-    const blob = new Blob([doc.fileData], { type: doc.fileType });
+  // ── עריכת מטא-נתונים של מסמך קיים ──
+  function openEditModal(doc: StoredDoc) {
+    if (isPlaceholderDoc(doc)) return;
+    setEditModal(doc);
+    setEditFileName(doc.fileName);
+    setEditDesc(doc.description || '');
+    setEditCat(doc.category);
+    setEditYear(doc.year);
+    setEditNotes(doc.notes || '');
+  }
+  function closeEditModal() {
+    setEditModal(null);
+  }
+  async function saveEdit() {
+    if (!editModal) return;
+    if (!editFileName.trim()) { alert('שם הקובץ לא יכול להיות ריק'); return; }
+    if (!editDesc.trim())     { alert('יש להזין תיאור'); return; }
+    if (!editCat)             { alert('יש לבחור קטגוריה'); return; }
+    if (editYear === undefined || editYear === null) { alert('יש לבחור שנה'); return; }
+
+    setSavingEdit(true);
+    try {
+      // saveDoc עם fileData ריק — לא יעלה את הקובץ מחדש, רק יעדכן מטא-נתונים
+      const updated: StoredDoc = {
+        ...editModal,
+        fileName: editFileName.trim(),
+        description: editDesc.trim(),
+        category: editCat,
+        year: editYear,
+        notes: editNotes,
+        fileData: new ArrayBuffer(0), // לא להעלות שוב את הבייטים
+      };
+      await db.saveDoc(updated);
+      // עדכון מקומי של הרשימה
+      setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, _remote: true } : d));
+      closeEditModal();
+    } catch (err: any) {
+      console.error('saveEdit failed', err);
+      alert(`שגיאה בשמירה: ${err?.message || err}`);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  // עוזר: מוודא שלמסמך יש בייטים בזיכרון. אם הוא רק מטא-נתונים (חוזר מ-getDocsByClient),
+  // מוריד את הקובץ מהאחסון בענן. מחזיר undefined אם זה דמה (sample) ללא קובץ.
+  async function ensureBytes(doc: StoredDoc): Promise<StoredDoc | undefined> {
+    if (doc.fileData.byteLength > 0) return doc;
+    if (isPlaceholderDoc(doc)) return undefined;
+    const full = await db.getDoc(doc.id);
+    return full && full.fileData.byteLength > 0 ? full : undefined;
+  }
+
+  async function handlePreview(doc: StoredDoc) {
+    if (preview?.doc.id === doc.id) { URL.revokeObjectURL(preview.url); setPreview(null); return; }
+    const full = await ensureBytes(doc);
+    if (!full) return;
+    if (preview) URL.revokeObjectURL(preview.url);
+    const blob = new Blob([full.fileData], { type: full.fileType });
+    const url = URL.createObjectURL(blob);
+    setPreview({ doc: full, url });
+  }
+
+  async function handleDownload(doc: StoredDoc) {
+    const full = await ensureBytes(doc);
+    if (!full) return;
+    const blob = new Blob([full.fileData], { type: full.fileType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = doc.fileName; a.click();
+    a.href = url; a.download = full.fileName; a.click();
     URL.revokeObjectURL(url);
   }
 
   // AI Analysis
   async function handleAnalyze(doc: StoredDoc) {
-    if (doc.fileData.byteLength === 0) return;
-    setAnalyzing(doc.id);
+    const full = await ensureBytes(doc);
+    if (!full) return;
+    setAnalyzing(full.id);
     setAnalysisResult(null);
-    const docAnalysisType = CATEGORY_TO_ANALYSIS[doc.category] || 'general';
-    const result = await analyzeDocument(doc.fileData, doc.fileType, docAnalysisType);
+    const docAnalysisType = CATEGORY_TO_ANALYSIS[full.category] || 'general';
+    const result = await analyzeDocument(full.fileData, full.fileType, docAnalysisType);
     setAnalysisResult(result);
     setAnalyzing(null);
   }
@@ -528,10 +647,18 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
       {selected.size > 0 && (
         <div className="doc-bulk-bar">
           <span>{selected.size} מסמכים נבחרו</span>
-          <button className="btn btn-secondary btn-sm" onClick={() => openCopyModal(Array.from(selected))}>
+          <button className="btn btn-secondary btn-sm" onClick={() => openCopyModal(Array.from(selected))} disabled={bulkDeleting}>
             {'\uD83D\uDCCB'} שכפול / העתקה
           </button>
-          <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>
+          <button
+            className="btn btn-sm doc-bulk-delete"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            title="מחיקה לצמיתות של כל המסמכים שנבחרו"
+          >
+            {bulkDeleting ? '\u23F3 מוחק...' : `\uD83D\uDDD1 מחק ${selected.size}`}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())} disabled={bulkDeleting}>
             {'\u2715'} בטל בחירה
           </button>
         </div>
@@ -599,7 +726,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
               </thead>
               <tbody>
                 {filtered.map(doc => {
-                  const isFake = doc.fileData.byteLength === 0;
+                  const isFake = isPlaceholderDoc(doc);
                   const catColor = CATEGORY_COLORS[doc.category];
                   const canPreview = !isFake && (doc.fileType.startsWith('image/') || doc.fileType === 'application/pdf');
 
@@ -660,6 +787,16 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                               disabled={analyzing === doc.id}
                             >
                               {analyzing === doc.id ? '\u23F3' : '\uD83E\uDDE0'}
+                            </button>
+                          )}
+                          {!isFake && (
+                            <button
+                              className="btn btn-ghost btn-icon btn-sm"
+                              onClick={() => openEditModal(doc)}
+                              title="עריכת פרטי מסמך"
+                              style={{ color: 'var(--gray-700)' }}
+                            >
+                              {'\u270F\uFE0F'}
                             </button>
                           )}
                           <button
@@ -777,6 +914,65 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit metadata modal */}
+      {editModal && (
+        <div className="doc-modal-overlay" onClick={() => !savingEdit && closeEditModal()}>
+          <div className="doc-modal" onClick={e => e.stopPropagation()}>
+            <div className="doc-modal-header">
+              <h3>{'\u270F\uFE0F'} עריכת פרטי מסמך</h3>
+              <button className="btn btn-ghost btn-icon" onClick={closeEditModal} disabled={savingEdit}>{'\u2715'}</button>
+            </div>
+            <div className="doc-modal-body">
+              <div className="form-grid form-grid-2" style={{ marginBottom: '1rem' }}>
+                <div className="form-group span-full">
+                  <label className="required">תיאור המסמך</label>
+                  <input
+                    type="text"
+                    value={editDesc}
+                    onChange={e => setEditDesc(e.target.value)}
+                    placeholder="לדוגמה: תלוש שכר דצמבר 2025"
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group span-full">
+                  <label className="required">שם הקובץ</label>
+                  <input
+                    type="text"
+                    value={editFileName}
+                    onChange={e => setEditFileName(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="required">קטגוריה</label>
+                  <select value={editCat} onChange={e => setEditCat(e.target.value as DocCategory)}>
+                    {(Object.keys(DOC_CATEGORY_LABELS) as DocCategory[]).map(k => (
+                      <option key={k} value={k}>{DOC_CATEGORY_LABELS[k]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="required">שנה</label>
+                  <select value={String(editYear)} onChange={e => setEditYear(e.target.value === 'general' ? 'general' : +e.target.value)}>
+                    <option value="general">כללי / רב-שנתי</option>
+                    {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+                <div className="form-group span-full">
+                  <label>הערות (אופציונלי)</label>
+                  <input type="text" value={editNotes} onChange={e => setEditNotes(e.target.value)} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
+                <button className="btn btn-secondary" onClick={closeEditModal} disabled={savingEdit}>ביטול</button>
+                <button className="btn btn-primary" onClick={saveEdit} disabled={savingEdit}>
+                  {savingEdit ? '\u23F3 שומר...' : '\uD83D\uDCBE שמור שינויים'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

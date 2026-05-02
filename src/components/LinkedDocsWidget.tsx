@@ -62,9 +62,13 @@ export default function LinkedDocsWidget({
     if (!clientId) return;
     try {
       const all = await db.getDocsByClient(clientId);
+      console.log('[LinkedDocs.reload]', all.length, 'docs for client', clientId, '— filtering by linkKey:', linkKey);
       setAllClientDocs(all);
-      setDocs(all.filter(d => d.linkedTo === linkKey));
-    } catch {
+      const filtered = all.filter(d => d.linkedTo === linkKey);
+      console.log('[LinkedDocs.reload] showing', filtered.length, 'after filter');
+      setDocs(filtered);
+    } catch (err) {
+      console.error('[LinkedDocs.reload] failed', err);
       setDocs([]);
       setAllClientDocs([]);
     }
@@ -73,6 +77,19 @@ export default function LinkedDocsWidget({
   useEffect(() => {
     reload();
     return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, linkKey]);
+
+  // האזנה ל-event גלובלי כדי שאם מישהו שינה מסמכים מאזור אחר באפליקציה — נתעדכן.
+  useEffect(() => {
+    function handleChange(e: Event) {
+      const ce = e as CustomEvent<{ clientId?: string }>;
+      if (!ce.detail?.clientId || ce.detail.clientId === clientId) {
+        reload();
+      }
+    }
+    window.addEventListener('crm:docs-changed', handleChange);
+    return () => window.removeEventListener('crm:docs-changed', handleChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, linkKey]);
 
@@ -101,28 +118,44 @@ export default function LinkedDocsWidget({
     if (!pending.year) errs.push('יש לבחור שנה');
     if (errs.length) { setErrors(errs); return; }
 
+    if (!clientId) {
+      setErrors(['חסר מזהה לקוח — לא ניתן לשמור. אנא רענן ונסה שוב.']);
+      return;
+    }
+
     setLoading(true);
-    const buf = await pending.file.arrayBuffer();
-    const doc: StoredDoc = {
-      id: crypto.randomUUID(),
-      clientId,
-      fileName: pending.file.name,
-      fileType: pending.file.type,
-      fileSize: pending.file.size,
-      category: pending.category,
-      year: pending.year,
-      uploadedAt: new Date().toISOString(),
-      description: pending.description.trim(),
-      notes: pending.notes,
-      fileData: buf,
-      linkedTo: linkKey,
-      linkedLabel: linkLabel,
-    };
-    await db.saveDoc(doc);
-    setLoading(false);
-    setPending(null);
     setErrors([]);
-    reload();
+    console.log('[LinkedDocs.confirmUpload] start', { clientId, linkKey, fileName: pending.file.name });
+    try {
+      const buf = await pending.file.arrayBuffer();
+      const doc: StoredDoc = {
+        id: crypto.randomUUID(),
+        clientId,
+        fileName: pending.file.name,
+        fileType: pending.file.type || 'application/octet-stream',
+        fileSize: pending.file.size,
+        category: pending.category,
+        year: pending.year,
+        uploadedAt: new Date().toISOString(),
+        description: pending.description.trim(),
+        notes: pending.notes,
+        fileData: buf,
+        linkedTo: linkKey,
+        linkedLabel: linkLabel,
+      };
+      await db.saveDoc(doc);
+      console.log('[LinkedDocs.confirmUpload] saveDoc OK, reloading...');
+      await reload();
+      console.log('[LinkedDocs.confirmUpload] reload done');
+      setPending(null);
+    } catch (err: any) {
+      console.error('[LinkedDocs.confirmUpload] FAILED', err);
+      const msg = err?.message || (typeof err === 'string' ? err : JSON.stringify(err));
+      setErrors([`שמירה נכשלה: ${msg}`]);
+      // לא סוגרים את הטופס כדי שהמשתמש יראה את ההודעה ויוכל לנסות שוב
+    } finally {
+      setLoading(false);
+    }
   }
 
   function cancelUpload() {
@@ -163,7 +196,14 @@ export default function LinkedDocsWidget({
 
   async function handlePreview(doc: StoredDoc) {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
-    const blob = new Blob([doc.fileData], { type: doc.fileType || 'application/octet-stream' });
+    // doc מ-getDocsByClient הוא מטא-בלבד; טעינה אמיתית של הבייטים מהענן ב-getDoc
+    let bytes = doc.fileData;
+    if (bytes.byteLength === 0) {
+      const full = await db.getDoc(doc.id);
+      if (!full || full.fileData.byteLength === 0) return;
+      bytes = full.fileData;
+    }
+    const blob = new Blob([bytes], { type: doc.fileType || 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     setPreviewUrl(url);
     window.open(url, '_blank');

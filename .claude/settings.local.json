@@ -116,7 +116,11 @@
       "Bash(mkdir -p ./tmp_letter)",
       "Bash(cp \"C:/Users/גיא ישר/OneDrive/Desktop/קורס רואי חשבון עצמאיים/קורס רוח עצמאי- חומרים/רוח סיכום כללי/דוח שנתי/מכתב לדוח השנתי - עוסק מורשה.docx\" ./tmp_letter/letter.docx)",
       "Bash(unzip -o -q letter.docx -d unpacked/)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(git commit -m ' *)",
+      "Bash(cp -r \"C:/Users/גיא ישר/code Projects/Tax Calculator/node_modules/pdfjs-dist/cmaps\" \"C:/Users/גיא ישר/code Projects/Tax Calculator/public/\")",
+      "Bash(cp -r \"C:/Users/גיא ישר/code Projects/Tax Calculator/node_modules/pdfjs-dist/standard_fonts\" \"C:/Users/גיא ישר/code Projects/Tax Calculator/public/\")",
+      "Bash(python3)"
     ]
   }
 }

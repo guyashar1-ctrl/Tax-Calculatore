@@ -17,3 +17,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
   },
 });
+
+// חשיפה ב-window רק במצב פיתוח — מאפשר אבחון ישיר מהקונסול:
+//   await window.__sb.from('documents').select('*')
+//   await window.__sb.auth.getUser()
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  (window as any).__sb = supabase;
+}
