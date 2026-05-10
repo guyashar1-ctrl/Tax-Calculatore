@@ -4,7 +4,6 @@
 
 import { Client } from '../types';
 import {
-  ClientContact,
   ActivityEntry,
   ClientWorkspaceExtensions,
 } from '../types/clientWorkspace';

@@ -16,3 +16,5 @@ dist/
 # Temporary working dirs
 tmp_letter/
 tmp/
+
+.vercel
