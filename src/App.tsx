@@ -34,6 +34,7 @@ import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateCl
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import { useAuth } from './hooks/useAuth';
+import AnnualReport from './features/annualReport/AnnualReport';
 
 type View =
   | 'myDesk'
@@ -44,6 +45,7 @@ type View =
   | 'calculator'
   | 'documents'
   | 'reference'
+  | 'annualReport'
   | 'requestNew'
   | 'requestReview'
   | 'requestFill';
@@ -506,6 +508,7 @@ export default function App() {
     { id: 'tasks', label: '✓ משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
     { id: 'list', label: '👥 לקוחות' },
     { id: 'employees', label: '🧑‍💼 עובדים' },
+    { id: 'annualReport', label: '📋 דוח שנתי 1301' },
     { id: 'reference', label: '📚 מדריך מס' },
   ];
 
@@ -670,6 +673,13 @@ export default function App() {
         {view === 'reference' && (
           <TaxReferencePanel
             onBack={() => setView('list')}
+          />
+        )}
+
+        {view === 'annualReport' && (
+          <AnnualReport
+            clients={clients}
+            userId={user?.id}
           />
         )}
 

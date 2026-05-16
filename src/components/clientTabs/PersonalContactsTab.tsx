@@ -14,6 +14,12 @@ import {
   Client, Child, FamilyStatus, Gender, RentalTaxTrack,
   ResidentialProperty, PropertyType, PROPERTY_TYPE_LABELS,
   ForeignAccount, ForeignAccountType, FOREIGN_ACCOUNT_TYPE_LABELS,
+  InvestmentAccount, InvestmentAccountKind, INVESTMENT_ACCOUNT_KIND_LABELS,
+  EmployerInfo,
+  BankAccountInfo, BankAccountKind, BANK_ACCOUNT_KIND_LABELS,
+  PensionFundInfo, PensionFundKind, PENSION_FUND_KIND_LABELS,
+  DependentRelativeInfo, DependentRelation, DEPENDENT_RELATION_LABELS,
+  BusinessInfo, BusinessKind, BUSINESS_KIND_LABELS,
 } from '../../types';
 import { ClientContact, Employee } from '../../types/clientWorkspace';
 import { SETTLEMENTS_SORTED, findSettlementByName } from '../../data/settlements';
@@ -28,6 +34,12 @@ const COLOR_ASSETS     = '#059669';  // ירוק — נכסים/כסף
 const COLOR_EMPLOYEE   = '#0891b2';  // טורקיז — צוות
 const COLOR_TAGS       = '#65a30d';  // ירוק לימון — תגיות
 const COLOR_CONTACTS   = '#6366f1';  // אינדיגו — אנשי קשר
+const COLOR_EMPLOYERS  = '#0284c7';  // כחול ים — מעבידים
+const COLOR_BANK       = '#0d9488';  // ירוק-טורקיז — בנקים
+const COLOR_PENSION    = '#9333ea';  // סגול — פנסיה
+const COLOR_DEPENDENTS = '#be185d';  // ורוד עמוק — קרובים תלויים
+const COLOR_BUSINESS   = '#ca8a04';  // צהוב חרדל — עסקים
+const COLOR_SPECIAL    = '#7c2d12';  // חום — דיווחי חובה
 
 function ColoredSection({ color, icon, label, count, action, children }: {
   color: string;
@@ -179,6 +191,155 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         a.id === id ? { ...a, [field]: value } as ForeignAccount : a
       ),
     });
+  }
+
+  // ── חשבונות השקעה בארץ ─────────────────────────────────────────────
+  const getInvestmentAccounts = (): InvestmentAccount[] => client.investmentAccounts ?? [];
+  function addInvestmentAccount() {
+    const a: InvestmentAccount = {
+      id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      institutionName: '',
+      kind: 'broker_account',
+    };
+    patch({ investmentAccounts: [...getInvestmentAccounts(), a], hasInvestments: true });
+  }
+  function updateInvestmentAccount(id: string, field: keyof InvestmentAccount, value: unknown) {
+    patch({
+      investmentAccounts: getInvestmentAccounts().map(a =>
+        a.id === id ? { ...a, [field]: value } as InvestmentAccount : a
+      ),
+    });
+  }
+  function removeInvestmentAccount(id: string) {
+    const next = getInvestmentAccounts().filter(a => a.id !== id);
+    patch({ investmentAccounts: next, hasInvestments: next.length > 0 });
+  }
+
+  // ── מעבידים ───────────────────────────────────────────────────────
+  const getEmployers = (): EmployerInfo[] => client.employers ?? [];
+  function addEmployer() {
+    const e: EmployerInfo = {
+      id: `emp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: '',
+    };
+    patch({ employers: [...getEmployers(), e] });
+  }
+  function updateEmployer(id: string, field: keyof EmployerInfo, value: unknown) {
+    patch({
+      employers: getEmployers().map(e => (e.id === id ? { ...e, [field]: value } as EmployerInfo : e)),
+    });
+  }
+  function removeEmployer(id: string) {
+    patch({ employers: getEmployers().filter(e => e.id !== id) });
+  }
+
+  // ── חשבונות בנק ────────────────────────────────────────────────────
+  const getBankAccounts = (): BankAccountInfo[] => client.bankAccounts ?? [];
+  function addBankAccount() {
+    const isFirst = getBankAccounts().length === 0;
+    const b: BankAccountInfo = {
+      id: `bank-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      bankName: '',
+      kind: 'checking',
+      isPrimary: isFirst,            // הראשון נחשב אוטומטית לעיקרי
+    };
+    patch({ bankAccounts: [...getBankAccounts(), b] });
+  }
+  function updateBankAccount(id: string, field: keyof BankAccountInfo, value: unknown) {
+    // אם מסמנים isPrimary=true על אחד — להוריד את הסימון מהאחרים
+    let next = getBankAccounts().map(a =>
+      a.id === id ? { ...a, [field]: value } as BankAccountInfo : a
+    );
+    if (field === 'isPrimary' && value === true) {
+      next = next.map(a => a.id === id ? a : { ...a, isPrimary: false });
+    }
+    patch({ bankAccounts: next });
+  }
+  function removeBankAccount(id: string) {
+    let next = getBankAccounts().filter(a => a.id !== id);
+    // אם הסירו את העיקרי — הופכים את הראשון שנשאר לעיקרי
+    if (next.length > 0 && !next.some(a => a.isPrimary)) {
+      next = next.map((a, i) => (i === 0 ? { ...a, isPrimary: true } : a));
+    }
+    patch({ bankAccounts: next });
+  }
+
+  // ── קופות פנסיה / השתלמות / קופ"ג ────────────────────────────────
+  const getPensionFunds = (): PensionFundInfo[] => client.pensionFunds ?? [];
+  function addPensionFund() {
+    const f: PensionFundInfo = {
+      id: `pen-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      institutionName: '',
+      kind: 'new_pension',
+    };
+    patch({ pensionFunds: [...getPensionFunds(), f], hasPension: true });
+  }
+  function updatePensionFund(id: string, field: keyof PensionFundInfo, value: unknown) {
+    patch({
+      pensionFunds: getPensionFunds().map(f =>
+        f.id === id ? { ...f, [field]: value } as PensionFundInfo : f
+      ),
+    });
+  }
+  function removePensionFund(id: string) {
+    const next = getPensionFunds().filter(f => f.id !== id);
+    patch({ pensionFunds: next, hasPension: next.length > 0 });
+  }
+
+  // ── אזרחויות נוספות ─────────────────────────────────────────────────
+  const getCitizenships = (): string[] => client.additionalCitizenships ?? [];
+  const [citizenshipDraft, setCitizenshipDraft] = useState('');
+  function addCitizenship() {
+    const v = citizenshipDraft.trim();
+    if (!v) return;
+    if (getCitizenships().includes(v)) { setCitizenshipDraft(''); return; }
+    patch({ additionalCitizenships: [...getCitizenships(), v] });
+    setCitizenshipDraft('');
+  }
+  function removeCitizenship(value: string) {
+    patch({ additionalCitizenships: getCitizenships().filter(c => c !== value) });
+  }
+
+  // ── קרובים תלויים במוסד (סעיף 44ב) ───────────────────────────────
+  const getDependents = (): DependentRelativeInfo[] => client.dependentRelatives ?? [];
+  function addDependent() {
+    const d: DependentRelativeInfo = {
+      id: `dep-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      relation: 'parent',
+      isAtInstitution: true,
+    };
+    patch({ dependentRelatives: [...getDependents(), d] });
+  }
+  function updateDependent(id: string, field: keyof DependentRelativeInfo, value: unknown) {
+    patch({
+      dependentRelatives: getDependents().map(d =>
+        d.id === id ? { ...d, [field]: value } as DependentRelativeInfo : d
+      ),
+    });
+  }
+  function removeDependent(id: string) {
+    patch({ dependentRelatives: getDependents().filter(d => d.id !== id) });
+  }
+
+  // ── עסקים (לעצמאי עם 2+ עסקים) ──────────────────────────────────
+  const getBusinesses = (): BusinessInfo[] => client.businesses ?? [];
+  function addBusiness() {
+    const b: BusinessInfo = {
+      id: `biz-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: '',
+      kind: 'osek_morshe',
+    };
+    patch({ businesses: [...getBusinesses(), b] });
+  }
+  function updateBusiness(id: string, field: keyof BusinessInfo, value: unknown) {
+    patch({
+      businesses: getBusinesses().map(b =>
+        b.id === id ? { ...b, [field]: value } as BusinessInfo : b
+      ),
+    });
+  }
+  function removeBusiness(id: string) {
+    patch({ businesses: getBusinesses().filter(b => b.id !== id) });
   }
 
   function removeForeignAccount(id: string) {
@@ -402,6 +563,45 @@ export default function PersonalContactsTab({ client, update, patch, employees }
               </label>
             </div>
           </div>
+        </div>
+
+        {/* ── אזרחויות נוספות (FATCA / CRS / אמנות מס) ── */}
+        <div className="cw-subsection">
+          <div className="cw-subsection-title">🌐 אזרחויות נוספות</div>
+          <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .5rem' }}>
+            אם יש אזרחות זרה — חשוב לדיווח FATCA/CRS ולשימוש באמנות מס. ישראלית נרשמת אוטומטית, אין צורך להוסיף.
+          </p>
+          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="לדוגמה: ארה״ב, בריטניה, קנדה..."
+              value={citizenshipDraft}
+              onChange={e => setCitizenshipDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCitizenship(); } }}
+              style={{ flex: '1 1 220px', minWidth: 200 }}
+            />
+            <button type="button" className="btn btn-secondary btn-sm" onClick={addCitizenship}>+ הוסף</button>
+          </div>
+          {getCitizenships().length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem', marginTop: '.6rem' }}>
+              {getCitizenships().map(c => (
+                <span key={c} style={{
+                  background: '#dbeafe', color: '#1e40af',
+                  padding: '.25rem .6rem', borderRadius: 999,
+                  display: 'inline-flex', alignItems: 'center', gap: '.4rem',
+                  fontSize: '.85rem',
+                }}>
+                  {c}
+                  <button
+                    type="button"
+                    onClick={() => removeCitizenship(c)}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#1e40af', padding: 0, fontSize: '1rem', lineHeight: 1 }}
+                    title="הסר"
+                  >×</button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </ColoredSection>
 
@@ -906,6 +1106,23 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                 <input type="number" min={0} step={100} value={client.medicalInsuranceAnnual ?? 0} onChange={e => update('medicalInsuranceAnnual', Number(e.target.value))} dir="ltr" />
               </div>
             )}
+            <div className="form-group">
+              <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
+                <input
+                  type="checkbox"
+                  checked={client.hasDisabilityInsurance ?? false}
+                  onChange={e => update('hasDisabilityInsurance', e.target.checked)}
+                />
+                ביטוח אובדן כושר עבודה
+              </label>
+              <div className="cw-field-meta">שדה 112 ב-1301 — ניכוי עד 3.5% מההכנסה</div>
+            </div>
+            {client.hasDisabilityInsurance && (
+              <div className="form-group">
+                <label>פרמיה שנתית (₪)</label>
+                <input type="number" min={0} step={100} value={client.disabilityInsuranceAnnual ?? 0} onChange={e => update('disabilityInsuranceAnnual', Number(e.target.value))} dir="ltr" />
+              </div>
+            )}
           </div>
           {(client.donationsAnnual ?? 0) > 0 && (
             <LinkedDocsWidget
@@ -1108,29 +1325,502 @@ export default function PersonalContactsTab({ client, update, patch, employees }
           </div>
         </div>
 
-        {/* שוק ההון */}
+        {/* שוק ההון — רשימת חשבונות */}
         <div className="cw-subsection">
-          <div className="cw-subsection-title">📈 השקעות בשוק ההון</div>
-          <div className="form-grid form-grid-3">
-            <div className="form-group">
-              <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
-                <input type="checkbox" checked={client.hasInvestments ?? false} onChange={e => update('hasInvestments', e.target.checked)} />
-                יש השקעות בשוק ההון
-              </label>
-            </div>
-            {client.hasInvestments && (
-              <>
-                <div className="form-group span-2">
-                  <label>גוף מנהל (ברוקר / בנק / בית השקעות)</label>
-                  <input type="text" value={client.investmentBrokerName ?? ''} onChange={e => update('investmentBrokerName', e.target.value || undefined)} placeholder="לדוגמה: IBI, מיטב דש, פסגות..." />
-                </div>
-                <div className="form-group span-full">
-                  <label>הערות (סוג השקעות, חו"ל, חשבונות מנוהלים וכו')</label>
-                  <input type="text" value={client.investmentNotes ?? ''} onChange={e => update('investmentNotes', e.target.value || undefined)} />
-                </div>
-              </>
-            )}
+          <div className="cw-subsection-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>📈 חשבונות השקעה בארץ ({getInvestmentAccounts().length})</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={addInvestmentAccount}>+ הוסף חשבון</button>
           </div>
+          <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+            כל חשבון = אישור 867 נפרד שיופיע בצ'ק-ליסט של הדוח השנתי.
+          </p>
+          {getInvestmentAccounts().length === 0 ? (
+            <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין חשבונות השקעה. לחץ "+ הוסף חשבון" כדי להוסיף.</p>
+          ) : (
+            <div className="cw-properties-list">
+              {getInvestmentAccounts().map((a, idx) => (
+                <div key={a.id} className="cw-property-card">
+                  <div className="cw-property-head">
+                    <span className="cw-property-num">{idx + 1}</span>
+                    <span className="cw-property-title">
+                      {a.institutionName || `חשבון ${idx + 1}`}
+                      {a.kind && <span className="cw-property-type-badge">{INVESTMENT_ACCOUNT_KIND_LABELS[a.kind]}</span>}
+                    </span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => removeInvestmentAccount(a.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
+                  </div>
+                  <div className="form-grid form-grid-3">
+                    <div className="form-group span-2">
+                      <label>בית השקעות / בנק</label>
+                      <input type="text" value={a.institutionName} onChange={e => updateInvestmentAccount(a.id, 'institutionName', e.target.value)} placeholder="לדוגמה: מיטב דש, IBI, אקסלנס, פסגות..." />
+                    </div>
+                    <div className="form-group">
+                      <label>סוג חשבון</label>
+                      <select value={a.kind ?? 'broker_account'} onChange={e => updateInvestmentAccount(a.id, 'kind', e.target.value as InvestmentAccountKind)}>
+                        {(Object.entries(INVESTMENT_ACCOUNT_KIND_LABELS) as [InvestmentAccountKind, string][]).map(([k, v]) =>
+                          <option key={k} value={k}>{v}</option>
+                        )}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>מספר חשבון (4 ספרות אחרונות)</label>
+                      <input type="text" value={a.accountNumber ?? ''} onChange={e => updateInvestmentAccount(a.id, 'accountNumber', e.target.value || undefined)} placeholder="אופציונלי" />
+                    </div>
+                    <div className="form-group">
+                      <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
+                        <input type="checkbox" checked={a.isClosed ?? false} onChange={e => updateInvestmentAccount(a.id, 'isClosed', e.target.checked)} />
+                        החשבון נסגר
+                      </label>
+                    </div>
+                    {a.isClosed && (
+                      <div className="form-group">
+                        <label>שנת סגירה</label>
+                        <input type="number" min={1990} max={2030} value={a.closedYear ?? ''} onChange={e => updateInvestmentAccount(a.id, 'closedYear', Number(e.target.value) || undefined)} dir="ltr" />
+                      </div>
+                    )}
+                    <div className="form-group span-full">
+                      <label>הערות</label>
+                      <input type="text" value={a.notes ?? ''} onChange={e => updateInvestmentAccount(a.id, 'notes', e.target.value || undefined)} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </ColoredSection>
+
+      {/* ════════════════════════════════════════════════════════════
+          5b. 💼 מעבידים — כל מעביד = 106 נפרד בצ'ק-ליסט
+          ════════════════════════════════════════════════════════════ */}
+      <ColoredSection
+        color={COLOR_EMPLOYERS}
+        icon="💼"
+        label="מעבידים"
+        count={getEmployers().length}
+        action={<button type="button" className="btn btn-secondary btn-sm" onClick={addEmployer}>+ הוסף מעביד</button>}
+      >
+        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+          רשימת המעבידים של הנישום. כל מעביד = טופס 106 נפרד שיופיע בצ'ק-ליסט הדוח השנתי.
+        </p>
+        {getEmployers().length === 0 ? (
+          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין מעבידים. לחץ "+ הוסף מעביד" כדי להוסיף.</p>
+        ) : (
+          <div className="cw-properties-list">
+            {getEmployers().map((e, idx) => (
+              <div key={e.id} className="cw-property-card">
+                <div className="cw-property-head">
+                  <span className="cw-property-num">{idx + 1}</span>
+                  <span className="cw-property-title">
+                    {e.name || `מעביד ${idx + 1}`}
+                    {!e.endDate && e.name && <span className="cw-property-type-badge" style={{ background: '#dcfce7', color: '#166534' }}>פעיל</span>}
+                  </span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => removeEmployer(e.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
+                </div>
+                <div className="form-grid form-grid-3">
+                  <div className="form-group span-2">
+                    <label>שם המעביד</label>
+                    <input type="text" value={e.name} onChange={ev => updateEmployer(e.id, 'name', ev.target.value)} placeholder="לדוגמה: גוגל ישראל, חברת המתנדבים..." />
+                  </div>
+                  <div className="form-group">
+                    <label>ע.מ / מספר חברה</label>
+                    <input type="text" value={e.taxId ?? ''} onChange={ev => updateEmployer(e.id, 'taxId', ev.target.value || undefined)} placeholder="9 ספרות" dir="ltr" />
+                  </div>
+                  <div className="form-group">
+                    <label>תאריך תחילה</label>
+                    <input type="date" value={e.startDate ?? ''} onChange={ev => updateEmployer(e.id, 'startDate', ev.target.value || undefined)} />
+                  </div>
+                  <div className="form-group">
+                    <label>תאריך סיום (ריק = עדיין מועסק)</label>
+                    <input type="date" value={e.endDate ?? ''} onChange={ev => updateEmployer(e.id, 'endDate', ev.target.value || undefined)} />
+                  </div>
+                  <div className="form-group">
+                    <label>תפקיד</label>
+                    <input type="text" value={e.role ?? ''} onChange={ev => updateEmployer(e.id, 'role', ev.target.value || undefined)} />
+                  </div>
+                  <div className="form-group span-full">
+                    <label>הערות</label>
+                    <input type="text" value={e.notes ?? ''} onChange={ev => updateEmployer(e.id, 'notes', ev.target.value || undefined)} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </ColoredSection>
+
+      {/* ════════════════════════════════════════════════════════════
+          5c. 🏦 חשבונות בנק — חשבון ראשי לקבלת החזרי מס + 867 לריבית
+          ════════════════════════════════════════════════════════════ */}
+      <ColoredSection
+        color={COLOR_BANK}
+        icon="🏦"
+        label="חשבונות בנק"
+        count={getBankAccounts().length}
+        action={<button type="button" className="btn btn-secondary btn-sm" onClick={addBankAccount}>+ הוסף חשבון</button>}
+      >
+        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+          סמן חשבון אחד כ"ראשי" — לשם זה יועברו החזרי מס. כל חשבון עם ריבית מחייב 867 מהבנק.
+        </p>
+        {getBankAccounts().length === 0 ? (
+          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין חשבונות בנק. לחץ "+ הוסף חשבון" כדי להוסיף.</p>
+        ) : (
+          <div className="cw-properties-list">
+            {getBankAccounts().map((b, idx) => (
+              <div key={b.id} className="cw-property-card">
+                <div className="cw-property-head">
+                  <span className="cw-property-num">{idx + 1}</span>
+                  <span className="cw-property-title">
+                    {b.bankName || `חשבון ${idx + 1}`}
+                    {b.isPrimary && <span className="cw-property-type-badge" style={{ background: '#fef3c7', color: '#92400e' }}>🔑 ראשי</span>}
+                    {b.kind && <span className="cw-property-type-badge">{BANK_ACCOUNT_KIND_LABELS[b.kind]}</span>}
+                  </span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => removeBankAccount(b.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
+                </div>
+                <div className="form-grid form-grid-3">
+                  <div className="form-group span-2">
+                    <label>שם הבנק</label>
+                    <input type="text" value={b.bankName} onChange={e => updateBankAccount(b.id, 'bankName', e.target.value)} placeholder="לדוגמה: בנק הפועלים, מזרחי טפחות, דיסקונט..." />
+                  </div>
+                  <div className="form-group">
+                    <label>סוג חשבון</label>
+                    <select value={b.kind ?? 'checking'} onChange={e => updateBankAccount(b.id, 'kind', e.target.value as BankAccountKind)}>
+                      {(Object.entries(BANK_ACCOUNT_KIND_LABELS) as [BankAccountKind, string][]).map(([k, v]) =>
+                        <option key={k} value={k}>{v}</option>
+                      )}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>מספר סניף</label>
+                    <input type="text" value={b.branchNumber ?? ''} onChange={e => updateBankAccount(b.id, 'branchNumber', e.target.value || undefined)} dir="ltr" />
+                  </div>
+                  <div className="form-group">
+                    <label>שם סניף</label>
+                    <input type="text" value={b.branchName ?? ''} onChange={e => updateBankAccount(b.id, 'branchName', e.target.value || undefined)} />
+                  </div>
+                  <div className="form-group">
+                    <label>מספר חשבון</label>
+                    <input type="text" value={b.accountNumber ?? ''} onChange={e => updateBankAccount(b.id, 'accountNumber', e.target.value || undefined)} dir="ltr" />
+                  </div>
+                  <div className="form-group">
+                    <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
+                      <input type="checkbox" checked={b.isPrimary ?? false} onChange={e => updateBankAccount(b.id, 'isPrimary', e.target.checked)} />
+                      🔑 חשבון ראשי (לקבלת החזרי מס)
+                    </label>
+                  </div>
+                  <div className="form-group span-full">
+                    <label>הערות</label>
+                    <input type="text" value={b.notes ?? ''} onChange={e => updateBankAccount(b.id, 'notes', e.target.value || undefined)} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </ColoredSection>
+
+      {/* ════════════════════════════════════════════════════════════
+          5d. 🛡 קופות פנסיה / השתלמות / קופ"ג
+          ════════════════════════════════════════════════════════════ */}
+      <ColoredSection
+        color={COLOR_PENSION}
+        icon="🛡"
+        label="קופות פנסיה וחיסכון"
+        count={getPensionFunds().length}
+        action={<button type="button" className="btn btn-secondary btn-sm" onClick={addPensionFund}>+ הוסף קופה</button>}
+      >
+        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+          רשימת קופות פנסיה, השתלמות וקופ"ג. כל קופה = אישור הפקדות נפרד שיופיע בצ'ק-ליסט הדוח.
+        </p>
+        {getPensionFunds().length === 0 ? (
+          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין קופות. לחץ "+ הוסף קופה" כדי להוסיף.</p>
+        ) : (
+          <div className="cw-properties-list">
+            {getPensionFunds().map((f, idx) => (
+              <div key={f.id} className="cw-property-card">
+                <div className="cw-property-head">
+                  <span className="cw-property-num">{idx + 1}</span>
+                  <span className="cw-property-title">
+                    {f.institutionName || `קופה ${idx + 1}`}
+                    <span className="cw-property-type-badge">{PENSION_FUND_KIND_LABELS[f.kind]}</span>
+                    {f.hasSelfDeposits && <span className="cw-property-type-badge" style={{ background: '#dcfce7', color: '#166534' }}>הפקדה עצמאית</span>}
+                  </span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => removePensionFund(f.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
+                </div>
+                <div className="form-grid form-grid-3">
+                  <div className="form-group span-2">
+                    <label>גוף ניהול</label>
+                    <input type="text" value={f.institutionName} onChange={e => updatePensionFund(f.id, 'institutionName', e.target.value)} placeholder="לדוגמה: מנורה, הראל, כלל, מגדל, אלטשולר שחם..." />
+                  </div>
+                  <div className="form-group">
+                    <label>סוג</label>
+                    <select value={f.kind} onChange={e => updatePensionFund(f.id, 'kind', e.target.value as PensionFundKind)}>
+                      {(Object.entries(PENSION_FUND_KIND_LABELS) as [PensionFundKind, string][]).map(([k, v]) =>
+                        <option key={k} value={k}>{v}</option>
+                      )}
+                    </select>
+                  </div>
+                  <div className="form-group span-2">
+                    <label>שם מוצר (אופציונלי)</label>
+                    <input type="text" value={f.productName ?? ''} onChange={e => updatePensionFund(f.id, 'productName', e.target.value || undefined)} placeholder="שם מוצר ספציפי אם רלוונטי" />
+                  </div>
+                  <div className="form-group">
+                    <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
+                      <input type="checkbox" checked={f.isEmployerLinked ?? false} onChange={e => updatePensionFund(f.id, 'isEmployerLinked', e.target.checked)} />
+                      הפקדה דרך מעביד
+                    </label>
+                  </div>
+                  <div className="form-group span-2">
+                    <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
+                      <input type="checkbox" checked={f.hasSelfDeposits ?? false} onChange={e => updatePensionFund(f.id, 'hasSelfDeposits', e.target.checked)} />
+                      יש גם הפקדה עצמאית (נוסף על מעביד)
+                    </label>
+                  </div>
+                  <div className="form-group span-full">
+                    <label>הערות</label>
+                    <input type="text" value={f.notes ?? ''} onChange={e => updatePensionFund(f.id, 'notes', e.target.value || undefined)} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </ColoredSection>
+
+      {/* ════════════════════════════════════════════════════════════
+          5e. 👨‍🦳 קרובים תלויים במוסד (סעיף 44ב — זיכוי 35%)
+          ════════════════════════════════════════════════════════════ */}
+      <ColoredSection
+        color={COLOR_DEPENDENTS}
+        icon="👨‍🦳"
+        label="קרובים תלויים במוסד"
+        count={getDependents().length}
+        action={<button type="button" className="btn btn-secondary btn-sm" onClick={addDependent}>+ הוסף קרוב</button>}
+      >
+        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+          החזקה של הורה / בן זוג / אח נטול יכולת במוסד מיוחד — מקנה זיכוי של 35% מסכום ההוצאה (סעיף 44ב לפקודה).
+        </p>
+        {getDependents().length === 0 ? (
+          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין קרובים תלויים. לחץ "+ הוסף קרוב" אם רלוונטי.</p>
+        ) : (
+          <div className="cw-properties-list">
+            {getDependents().map((d, idx) => (
+              <div key={d.id} className="cw-property-card">
+                <div className="cw-property-head">
+                  <span className="cw-property-num">{idx + 1}</span>
+                  <span className="cw-property-title">
+                    {d.name || `קרוב ${idx + 1}`}
+                    <span className="cw-property-type-badge">{DEPENDENT_RELATION_LABELS[d.relation]}</span>
+                    {d.isAtInstitution && <span className="cw-property-type-badge" style={{ background: '#fce7f3', color: '#9d174d' }}>מוחזק במוסד</span>}
+                  </span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => removeDependent(d.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
+                </div>
+                <div className="form-grid form-grid-3">
+                  <div className="form-group">
+                    <label>קרבה</label>
+                    <select value={d.relation} onChange={e => updateDependent(d.id, 'relation', e.target.value as DependentRelation)}>
+                      {(Object.entries(DEPENDENT_RELATION_LABELS) as [DependentRelation, string][]).map(([k, v]) =>
+                        <option key={k} value={k}>{v}</option>
+                      )}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>שם</label>
+                    <input type="text" value={d.name ?? ''} onChange={e => updateDependent(d.id, 'name', e.target.value || undefined)} />
+                  </div>
+                  <div className="form-group">
+                    <label>ת.ז (אופציונלי)</label>
+                    <input type="text" value={d.idNumber ?? ''} onChange={e => updateDependent(d.id, 'idNumber', e.target.value || undefined)} dir="ltr" />
+                  </div>
+                  <div className="form-group">
+                    <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
+                      <input type="checkbox" checked={d.isAtInstitution} onChange={e => updateDependent(d.id, 'isAtInstitution', e.target.checked)} />
+                      מוחזק במוסד מיוחד
+                    </label>
+                  </div>
+                  {d.isAtInstitution && (
+                    <>
+                      <div className="form-group">
+                        <label>שם המוסד</label>
+                        <input type="text" value={d.institutionName ?? ''} onChange={e => updateDependent(d.id, 'institutionName', e.target.value || undefined)} placeholder="לדוגמה: דיור עזריאלי..." />
+                      </div>
+                      <div className="form-group">
+                        <label>הוצאה חודשית (₪)</label>
+                        <input type="number" min={0} step={100} value={d.monthlyContribution ?? ''} onChange={e => updateDependent(d.id, 'monthlyContribution', Number(e.target.value) || undefined)} dir="ltr" />
+                      </div>
+                    </>
+                  )}
+                  <div className="form-group span-full">
+                    <label>הערות</label>
+                    <input type="text" value={d.notes ?? ''} onChange={e => updateDependent(d.id, 'notes', e.target.value || undefined)} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </ColoredSection>
+
+      {/* ════════════════════════════════════════════════════════════
+          5f. 🏢 עסקים (לעצמאי עם 2+ עסקים — כל אחד = נספח א' 1320)
+          ════════════════════════════════════════════════════════════ */}
+      <ColoredSection
+        color={COLOR_BUSINESS}
+        icon="🏢"
+        label="עסקים"
+        count={getBusinesses().length}
+        action={<button type="button" className="btn btn-secondary btn-sm" onClick={addBusiness}>+ הוסף עסק</button>}
+      >
+        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+          רשימה לעצמאי עם <strong>2 עסקים או יותר</strong> (חנות + שותפות + פרילנס וכו'). כל עסק = נספח א' (1320) נפרד בדוח 1301.
+          לעצמאי עם עסק יחיד — די בשדות businessDescription/vatStatus ברמת הלקוח.
+        </p>
+        {getBusinesses().length === 0 ? (
+          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין עסקים נוספים. לחץ "+ הוסף עסק" אם רלוונטי.</p>
+        ) : (
+          <div className="cw-properties-list">
+            {getBusinesses().map((b, idx) => (
+              <div key={b.id} className="cw-property-card">
+                <div className="cw-property-head">
+                  <span className="cw-property-num">{idx + 1}</span>
+                  <span className="cw-property-title">
+                    {b.name || `עסק ${idx + 1}`}
+                    <span className="cw-property-type-badge">{BUSINESS_KIND_LABELS[b.kind]}</span>
+                    {b.isClosed && <span className="cw-property-type-badge" style={{ background: '#fee2e2', color: '#991b1b' }}>נסגר</span>}
+                  </span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => removeBusiness(b.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
+                </div>
+                <div className="form-grid form-grid-3">
+                  <div className="form-group span-2">
+                    <label>שם העסק</label>
+                    <input type="text" value={b.name} onChange={e => updateBusiness(b.id, 'name', e.target.value)} placeholder="לדוגמה: יועץ עסקי גיא ישר" />
+                  </div>
+                  <div className="form-group">
+                    <label>ע.מ / מספר חברה</label>
+                    <input type="text" value={b.taxId ?? ''} onChange={e => updateBusiness(b.id, 'taxId', e.target.value || undefined)} dir="ltr" />
+                  </div>
+                  <div className="form-group">
+                    <label>סוג</label>
+                    <select value={b.kind} onChange={e => updateBusiness(b.id, 'kind', e.target.value as BusinessKind)}>
+                      {(Object.entries(BUSINESS_KIND_LABELS) as [BusinessKind, string][]).map(([k, v]) =>
+                        <option key={k} value={k}>{v}</option>
+                      )}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>תדירות מע"מ</label>
+                    <select value={b.vatFrequency ?? ''} onChange={e => updateBusiness(b.id, 'vatFrequency', (e.target.value || undefined) as 'monthly' | 'bi_monthly' | undefined)}>
+                      <option value="">—</option>
+                      <option value="monthly">חודשי</option>
+                      <option value="bi_monthly">דו-חודשי</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>שנת תחילה</label>
+                    <input type="number" min={1990} max={2030} value={b.startYear ?? ''} onChange={e => updateBusiness(b.id, 'startYear', Number(e.target.value) || undefined)} dir="ltr" />
+                  </div>
+                  <div className="form-group">
+                    <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
+                      <input type="checkbox" checked={b.isClosed ?? false} onChange={e => updateBusiness(b.id, 'isClosed', e.target.checked)} />
+                      העסק נסגר
+                    </label>
+                  </div>
+                  {b.isClosed && (
+                    <div className="form-group">
+                      <label>שנת סגירה</label>
+                      <input type="number" min={1990} max={2030} value={b.closedYear ?? ''} onChange={e => updateBusiness(b.id, 'closedYear', Number(e.target.value) || undefined)} dir="ltr" />
+                    </div>
+                  )}
+                  <div className="form-group span-full">
+                    <label>תיאור פעילות</label>
+                    <input type="text" value={b.description ?? ''} onChange={e => updateBusiness(b.id, 'description', e.target.value || undefined)} placeholder="ייעוץ, שירותים, מסחר..." />
+                  </div>
+                  <div className="form-group span-full">
+                    <label>הערות</label>
+                    <input type="text" value={b.notes ?? ''} onChange={e => updateBusiness(b.id, 'notes', e.target.value || undefined)} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </ColoredSection>
+
+      {/* ════════════════════════════════════════════════════════════
+          5g. 📋 דיווחי חובה ומצבים מיוחדים
+          ════════════════════════════════════════════════════════════ */}
+      <ColoredSection color={COLOR_SPECIAL} icon="📋" label="דיווחי חובה ומצבים מיוחדים">
+        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+          דגלי "כן/לא" למקרים מיוחדים. סמן רק אם רלוונטי — כל אחד מהם מחייב התייחסות נפרדת בדוח 1301.
+        </p>
+        <div className="form-grid form-grid-2">
+          {/* חברה משפחתית */}
+          <div className="form-group">
+            <label className="checkbox-row">
+              <input type="checkbox" checked={client.isFamilyCompanyMember ?? false} onChange={e => update('isFamilyCompanyMember', e.target.checked)} />
+              בעלים בחברה משפחתית
+            </label>
+            <div className="cw-field-meta">חישוב מס שונה — ההכנסה מיוחסת לבעל המניות</div>
+          </div>
+          {client.isFamilyCompanyMember && (
+            <div className="form-group">
+              <label>שם החברה המשפחתית</label>
+              <input type="text" value={client.familyCompanyName ?? ''} onChange={e => update('familyCompanyName', e.target.value || undefined)} />
+            </div>
+          )}
+
+          {/* בעל שליטה בחברה זרה */}
+          <div className="form-group">
+            <label className="checkbox-row">
+              <input type="checkbox" checked={client.isForeignControllingShareholder ?? false} onChange={e => update('isForeignControllingShareholder', e.target.checked)} />
+              בעל שליטה בחבר בני אדם תושב חוץ
+            </label>
+            <div className="cw-field-meta">חובת דיווח לפי 1301 + לעיתים מתקיים CFC</div>
+          </div>
+          {client.isForeignControllingShareholder && (
+            <div className="form-group">
+              <label>פרטי החברה הזרה</label>
+              <input type="text" value={client.foreignCompanyDetails ?? ''} onChange={e => update('foreignCompanyDetails', e.target.value || undefined)} placeholder="שם, מדינה, % החזקה" />
+            </div>
+          )}
+
+          {/* צדדים קשורים בחו"ל */}
+          <div className="form-group span-full">
+            <label className="checkbox-row">
+              <input type="checkbox" checked={client.hasRelatedPartyTransactionsAbroad ?? false} onChange={e => update('hasRelatedPartyTransactionsAbroad', e.target.checked)} />
+              עסקאות עם צדדים קשורים בחו"ל (סעיף 85א)
+            </label>
+            <div className="cw-field-meta">דורש נספח 1385 + הצהרת מחירי העברה לכל עסקה</div>
+          </div>
+
+          {/* חבר קיבוץ */}
+          <div className="form-group">
+            <label className="checkbox-row">
+              <input type="checkbox" checked={client.isKibbutzMember ?? false} onChange={e => update('isKibbutzMember', e.target.checked)} />
+              חבר קיבוץ / מושב שיתופי
+            </label>
+            <div className="cw-field-meta">הקיבוץ הוא בר השומה — חישוב מס שונה לחלוטין</div>
+          </div>
+          {client.isKibbutzMember && (
+            <div className="form-group">
+              <label>שם הקיבוץ / מושב</label>
+              <input type="text" value={client.kibbutzName ?? ''} onChange={e => update('kibbutzName', e.target.value || undefined)} />
+            </div>
+          )}
+
+          {/* סעיף 14 */}
+          <div className="form-group">
+            <label className="checkbox-row">
+              <input type="checkbox" checked={client.section14Elected ?? false} onChange={e => update('section14Elected', e.target.checked)} />
+              בחר/ה פטור לפי סעיף 14
+            </label>
+            <div className="cw-field-meta">פטור 10 שנים על הכנסות חו"ל לעולה חדש / תושב חוזר ותיק</div>
+          </div>
+          {client.section14Elected && (
+            <div className="form-group">
+              <label>שנת התחלת הפטור</label>
+              <input type="number" min={2000} max={2030} value={client.section14StartYear ?? ''} onChange={e => update('section14StartYear', Number(e.target.value) || undefined)} dir="ltr" />
+            </div>
+          )}
         </div>
       </ColoredSection>
 

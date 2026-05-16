@@ -48,6 +48,15 @@ export function clientFromDb(row: Record<string, any>): Client {
   const c = rowToObject<Client>(row);
   if (!c.children) c.children = [] as any;
   if (!c.tags) c.tags = [];
+  // ארבע הרשימות החדשות — ברירת מחדל [] אם null/undefined ב-DB
+  if (!c.investmentAccounts) c.investmentAccounts = [];
+  if (!c.bankAccounts) c.bankAccounts = [];
+  if (!c.employers) c.employers = [];
+  if (!c.pensionFunds) c.pensionFunds = [];
+  // הרשימות הנוספות לכיסוי 1301
+  if (!c.additionalCitizenships) c.additionalCitizenships = [];
+  if (!c.dependentRelatives) c.dependentRelatives = [];
+  if (!c.businesses) c.businesses = [];
   return c;
 }
 

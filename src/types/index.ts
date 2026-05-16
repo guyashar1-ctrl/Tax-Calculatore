@@ -75,6 +75,110 @@ export interface ResidentialProperty {
   notes?: string;
 }
 
+// ─── בתי השקעות / חשבונות מסחר בארץ ─────────────────────────────────────
+export type InvestmentAccountKind =
+  | 'self_managed'         // תיק עצמאי בבית השקעות
+  | 'managed_portfolio'    // תיק מנוהל
+  | 'kupat_gemel_ira'      // קופ״ג IRA (עצמאית)
+  | 'kupat_hishtalmut_ira' // קרן השתלמות IRA
+  | 'mutual_funds'         // קרנות נאמנות
+  | 'broker_account'       // חשבון ברוקר רגיל
+  | 'other';
+
+export const INVESTMENT_ACCOUNT_KIND_LABELS: Record<InvestmentAccountKind, string> = {
+  self_managed:           'תיק עצמאי',
+  managed_portfolio:      'תיק מנוהל',
+  kupat_gemel_ira:        'קופ״ג IRA',
+  kupat_hishtalmut_ira:   'השתלמות IRA',
+  mutual_funds:           'קרנות נאמנות',
+  broker_account:         'חשבון ברוקר',
+  other:                  'אחר',
+};
+
+/**
+ * חשבון השקעות בארץ. כל חשבון = מסמך 867 נפרד בצ'ק-ליסט הסופי של 1301.
+ */
+export interface InvestmentAccount {
+  id: string;
+  institutionName: string;     // 'מיטב דש', 'IBI', 'אקסלנס', 'פסגות'...
+  kind?: InvestmentAccountKind;
+  accountNumber?: string;       // 4-6 ספרות אחרונות לרוב מספיק
+  isClosed?: boolean;
+  closedYear?: number;
+  notes?: string;
+}
+
+// ─── מעבידים ────────────────────────────────────────────────────────────
+/**
+ * מעביד של הנישום בשנה הנוכחית (או בעבר). כל מעביד = טופס 106 נפרד.
+ */
+export interface EmployerInfo {
+  id: string;
+  name: string;
+  taxId?: string;               // ע.מ / מספר חברה
+  startDate?: string;            // ISO yyyy-mm-dd
+  endDate?: string;              // ריק = עדיין מועסק שם
+  role?: string;                 // תיאור התפקיד
+  notes?: string;
+}
+
+// ─── חשבונות בנק בארץ ──────────────────────────────────────────────────
+export type BankAccountKind = 'checking' | 'savings' | 'investment' | 'other';
+
+export const BANK_ACCOUNT_KIND_LABELS: Record<BankAccountKind, string> = {
+  checking:   'עו״ש',
+  savings:    'חיסכון / פיקדון',
+  investment: 'השקעות',
+  other:      'אחר',
+};
+
+/**
+ * חשבון בנק בישראל. החשבון הראשי (isPrimary=true) הוא לקבלת החזרי מס.
+ * נדרש 867 מהבנק לדיווח ריבית (שדה 043) אם היה.
+ */
+export interface BankAccountInfo {
+  id: string;
+  bankName: string;             // 'בנק הפועלים', 'מזרחי טפחות'...
+  branchNumber?: string;
+  branchName?: string;
+  accountNumber?: string;        // 4-6 ספרות אחרונות מספיק
+  kind?: BankAccountKind;
+  isPrimary?: boolean;
+  notes?: string;
+}
+
+// ─── קופות פנסיה / השתלמות / קופ״ג ────────────────────────────────────
+export type PensionFundKind =
+  | 'new_pension'        // קרן פנסיה חדשה
+  | 'old_pension'        // קרן פנסיה ותיקה
+  | 'manager_insurance'  // ביטוח מנהלים
+  | 'kupat_gemel'        // קופ״ג רגילה (לא IRA)
+  | 'study_fund'         // קרן השתלמות
+  | 'other';
+
+export const PENSION_FUND_KIND_LABELS: Record<PensionFundKind, string> = {
+  new_pension:       'פנסיה חדשה',
+  old_pension:       'פנסיה ותיקה',
+  manager_insurance: 'ביטוח מנהלים',
+  kupat_gemel:       'קופ״ג',
+  study_fund:        'קרן השתלמות',
+  other:             'אחר',
+};
+
+/**
+ * חיסכון פנסיוני / השתלמות / קופ״ג של הנישום. אישור הפקדות = מסמך נדרש
+ * נפרד לכל מוצר.
+ */
+export interface PensionFundInfo {
+  id: string;
+  institutionName: string;       // 'מנורה', 'הראל', 'כלל', 'מגדל', 'אלטשולר שחם'...
+  productName?: string;           // שם מוצר ספציפי (אופציונלי)
+  kind: PensionFundKind;
+  isEmployerLinked?: boolean;    // הפקדה דרך מעביד
+  hasSelfDeposits?: boolean;     // הפקדות עצמאיות בנוסף
+  notes?: string;
+}
+
 export interface Child {
   id: string;
   firstName?: string;   // שם פרטי (אופציונלי לתאימות לרשומות ישנות)
@@ -82,6 +186,65 @@ export interface Child {
   birthYear: number;    // מחושב מ-birthDate, נשמר לתאימות
   hasDisability: boolean;
   disabilityPercentage?: number;
+}
+
+// ─── קרובים תלויים — סעיף 44ב לפקודה ──────────────────────────────────────
+/**
+ * החזקה במוסד מיוחד של הורה/בן/בת זוג/אח נטול יכולת — מקנה זיכוי
+ * של 35% מסכום ההוצאה.
+ */
+export type DependentRelation = 'parent' | 'spouse' | 'child_over_18' | 'sibling' | 'other';
+
+export const DEPENDENT_RELATION_LABELS: Record<DependentRelation, string> = {
+  parent:        'הורה',
+  spouse:        'בן/בת זוג',
+  child_over_18: 'ילד מעל 18',
+  sibling:       'אח/אחות',
+  other:         'אחר',
+};
+
+export interface DependentRelativeInfo {
+  id: string;
+  relation: DependentRelation;
+  name?: string;
+  idNumber?: string;
+  isAtInstitution: boolean;      // האם מוחזק במוסד מיוחד
+  institutionName?: string;
+  monthlyContribution?: number;  // הוצאה חודשית (₪)
+  notes?: string;
+}
+
+// ─── עסקים — לעצמאי עם 2+ עסקים ────────────────────────────────────────
+/**
+ * עסק עצמאי של הנישום. כל עסק = נספח א' (1320) נפרד + שורת מחזור
+ * נפרדת ב-1301 (שדה 150). שונה מ-EmployerInfo שמייצג מעבידים.
+ */
+export type BusinessKind =
+  | 'osek_patur'
+  | 'osek_morshe'
+  | 'family_company'
+  | 'partnership'
+  | 'freelance';
+
+export const BUSINESS_KIND_LABELS: Record<BusinessKind, string> = {
+  osek_patur:     'עוסק פטור',
+  osek_morshe:    'עוסק מורשה',
+  family_company: 'חברה משפחתית',
+  partnership:    'שותפות',
+  freelance:      'פרילנס',
+};
+
+export interface BusinessInfo {
+  id: string;
+  name: string;
+  taxId?: string;                 // ע.מ / מספר חברה
+  kind: BusinessKind;
+  description?: string;
+  startYear?: number;
+  isClosed?: boolean;
+  closedYear?: number;
+  vatFrequency?: 'monthly' | 'bi_monthly';
+  notes?: string;
 }
 
 // ─── נתוני בן/בת זוג (לחישוב תא משפחתי) ───────────────────────────────────
@@ -240,8 +403,19 @@ export interface Client {
 
   // ── השקעות בשוק ההון (אופציונלי) ──
   hasInvestments?: boolean;
-  investmentBrokerName?: string;      // ברוקר / בנק / בית השקעות
+  /** @deprecated השתמש ב-investmentAccounts במקום. נשאר לתאימות לאחור עד שכל הלקוחות יעברו מיגרציה. */
+  investmentBrokerName?: string;
   investmentNotes?: string;
+  /** רשימת חשבונות השקעה בארץ. כל חשבון = אישור 867 נפרד בצ'ק-ליסט. */
+  investmentAccounts?: InvestmentAccount[];
+
+  // ── חשבונות בנק בארץ ──
+  /** רשימת חשבונות בנק. החשבון עם isPrimary=true הוא לקבלת החזרי מס. */
+  bankAccounts?: BankAccountInfo[];
+
+  // ── מעבידים (שכירים) ──
+  /** רשימת מעבידים. כל מעביד = טופס 106 נפרד בצ'ק-ליסט. */
+  employers?: EmployerInfo[];
 
   // ── חשבונות והשקעות בחו"ל (חובת דיווח CRS/FATCA) ──
   hasForeignAssets?: boolean;
@@ -268,12 +442,43 @@ export interface Client {
 
   // ── פנסיה וחיסכון ──
   hasPension: boolean;
+  /** @deprecated השתמש ב-pensionFunds. נשאר לתאימות. */
   pensionFundName: string;
   employeePensionPct: number;
   employerPensionPct: number;
   hasKupotGemel: boolean;
   hasKrenHashtalmut: boolean;
   krenHashtalmutMonthly: number;
+  /** רשימה מפורטת של קופות פנסיה/השתלמות/קופ"ג. כל קופה = אישור הפקדות נפרד. */
+  pensionFunds?: PensionFundInfo[];
+
+  // ── אזרחויות נוספות (FATCA/CRS + אמנות מס) ──
+  /** אזרחויות נוספות מעבר לישראלית. דוגמאות: 'ארה"ב', 'בריטניה'. */
+  additionalCitizenships?: string[];
+
+  // ── ביטוח אובדן כושר עבודה (שדה 112 ב-1301, נפרד מביטוח חיים) ──
+  hasDisabilityInsurance?: boolean;
+  disabilityInsuranceAnnual?: number;
+
+  // ── קרובים תלויים במוסד (סעיף 44ב — זיכוי 35%) ──
+  dependentRelatives?: DependentRelativeInfo[];
+
+  // ── רשימת עסקים (לעצמאי עם 2+ עסקים) ──
+  /** כל עסק = נספח א' (1320) נפרד. למשתמש עם עסק יחיד, שדות businessDescription/vatStatus ברמת הלקוח הם המקור. */
+  businesses?: BusinessInfo[];
+
+  // ── דיווחי חובה ומצבים מיוחדים ──
+  isFamilyCompanyMember?: boolean;
+  familyCompanyName?: string;
+  isForeignControllingShareholder?: boolean;
+  foreignCompanyDetails?: string;
+  /** עסקאות עם צדדים קשורים בחו"ל — מחייב נספח 1385 (סעיף 85א). */
+  hasRelatedPartyTransactionsAbroad?: boolean;
+  isKibbutzMember?: boolean;
+  kibbutzName?: string;
+  /** סעיף 14 — פטור 10 שנים על הכנסות חו"ל לעולים/חוזרים ותיקים. */
+  section14Elected?: boolean;
+  section14StartYear?: number;
 
   // ── הערות ──
   notes: string;
