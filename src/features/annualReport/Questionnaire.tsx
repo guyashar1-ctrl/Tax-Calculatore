@@ -6,6 +6,7 @@ import { getQuestionById } from './engine';
 import { estimateTotalQuestions } from './tree';
 import { getAnswersForSession } from './repository';
 import QuestionCard from './QuestionCard';
+import ValidationCard from './ValidationCard';
 
 interface Props {
   initialSession: AnnualReportSession;
@@ -13,9 +14,10 @@ interface Props {
   client?: Client | null;
   onFinished: (session: AnnualReportSession) => void;
   onExit: () => void;
+  onPatchClient?: (partial: Partial<Client>) => Promise<void>;
 }
 
-export default function Questionnaire({ initialSession, clientName, client, onFinished, onExit }: Props) {
+export default function Questionnaire({ initialSession, clientName, client, onFinished, onExit, onPatchClient }: Props) {
   const flow = useAnnualReportFlow(initialSession);
   const { session, saving, error, submitAnswer, restart, isFinished } = flow;
 
@@ -96,20 +98,49 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
 
       <div className="card">
         <div className="card-body">
-          {previewItems && previewItems.length > 0 && (
-            <DataPreviewBox items={previewItems} />
-          )}
-          {priorAnswers.has(node.id) && (
-            <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light)', borderRadius: 4, fontSize: '.85rem', color: 'var(--gray-700)' }}>
-              ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת — לחץ "המשך" לאישור, או שנה לפי הצורך.
-            </div>
-          )}
-          <QuestionCard
-            node={node}
-            initialValue={priorAnswers.get(node.id)}
-            disabled={saving}
-            onSubmit={(value) => void handleSubmit(value)}
-          />
+          {(() => {
+            // החלטה: ValidationCard או QuestionCard רגיל
+            const eligible =
+              node.validationMode &&
+              !!node.deriveAnswerFromCard &&
+              !!previewItems &&
+              previewItems.length > 0 &&
+              previewItems.every((it) => !it.missing) &&
+              !!onPatchClient;
+            if (eligible && node.deriveAnswerFromCard) {
+              const derived = node.deriveAnswerFromCard({ client: client ?? undefined, model: session.model });
+              if (derived !== null) {
+                return (
+                  <ValidationCard
+                    node={node}
+                    previewItems={previewItems!}
+                    client={client}
+                    derivedAnswer={derived}
+                    disabled={saving}
+                    onConfirm={() => void handleSubmit(derived)}
+                    onIrrelevant={() => void handleSubmit(irrelevantValue(node.type))}
+                    onPatchClient={onPatchClient!}
+                  />
+                );
+              }
+            }
+            return (
+              <>
+                {previewItems && previewItems.length > 0 && <DataPreviewBox items={previewItems} />}
+                {priorAnswers.has(node.id) && (
+                  <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light)', borderRadius: 4, fontSize: '.85rem', color: 'var(--gray-700)' }}>
+                    ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת — לחץ "המשך" לאישור, או שנה לפי הצורך.
+                  </div>
+                )}
+                <QuestionCard
+                  node={node}
+                  initialValue={priorAnswers.get(node.id)}
+                  disabled={saving}
+                  onSubmit={(value) => void handleSubmit(value)}
+                />
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -166,6 +197,15 @@ function DataPreviewBox({ items }: { items: QuestionPreviewItem[] }) {
       </table>
     </div>
   );
+}
+
+// ─── ערך "לא רלוונטי השנה" עבור שאלה ב-ValidationCard ─────────────────────
+
+function irrelevantValue(type: 'boolean' | 'number' | 'single_select' | 'multi_select' | 'text'): AnswerValue {
+  if (type === 'boolean') return false;
+  if (type === 'number') return 0;
+  if (type === 'multi_select') return [];
+  return '';
 }
 
 // ─── ספירת שאלות שנענו על בסיס המודל ─────────────────────────────────────

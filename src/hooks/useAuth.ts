@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
+// Module-level flag so dev auto-login fires once across all useAuth callers.
+let devAutoLoginAttempted = false;
+
+export const DEV_AUTO_LOGIN_ENABLED =
+  import.meta.env.DEV && import.meta.env.VITE_DEV_AUTO_LOGIN === 'true';
+
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -10,6 +16,17 @@ export function useAuth() {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
+
+      if (!data.session && DEV_AUTO_LOGIN_ENABLED && !devAutoLoginAttempted) {
+        devAutoLoginAttempted = true;
+        const email = import.meta.env.VITE_DEV_USER_EMAIL as string | undefined;
+        const password = import.meta.env.VITE_DEV_USER_PASSWORD as string | undefined;
+        if (email && password) {
+          supabase.auth.signInWithPassword({ email, password }).then(({ error }) => {
+            if (error) console.error('[dev auto-login] failed:', error.message);
+          });
+        }
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -28,6 +45,16 @@ export function useAuth() {
     if (error) throw error;
   }
 
+  async function signInWithDevUser() {
+    const email = import.meta.env.VITE_DEV_USER_EMAIL as string | undefined;
+    const password = import.meta.env.VITE_DEV_USER_PASSWORD as string | undefined;
+    if (!email || !password) {
+      throw new Error('VITE_DEV_USER_EMAIL / VITE_DEV_USER_PASSWORD חסרים ב-.env.local');
+    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  }
+
   async function signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -43,5 +70,5 @@ export function useAuth() {
     (user?.user_metadata?.avatar_url as string | undefined) ||
     (user?.user_metadata?.picture as string | undefined);
 
-  return { session, user, loading, displayName, avatarUrl, signInWithGoogle, signOut };
+  return { session, user, loading, displayName, avatarUrl, signInWithGoogle, signInWithDevUser, signOut };
 }

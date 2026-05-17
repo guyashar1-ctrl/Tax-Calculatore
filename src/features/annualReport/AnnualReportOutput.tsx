@@ -1,10 +1,15 @@
 // ─── מסך פלט: Checklist + נספחים + מיפוי 1301 + חישוב מס שקוף ──────────────
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import type { AnnualReportSession, MappedField, QuestionPreviewClient } from './types';
-import { buildRequiredDocs, buildRequiredAttachments, mapModelToForm1301, computeTransparentTax } from './engine';
+import {
+  buildRequiredDocs, buildRequiredAttachments, mapModelToForm1301, computeTransparentTax,
+  computeAllFieldStatuses, DOC_SOURCE_LABELS,
+  type FieldWithStatus, type FieldStatus, type DocSource, type RequiredDoc,
+} from './engine';
 import { SECTION_LABELS } from './form1301Fields';
 import { collectMissingClientFields, type MissingClientField } from './tree';
+import { getAnswersForSession } from './repository';
 
 interface Props {
   session: AnnualReportSession;
@@ -27,14 +32,40 @@ export default function AnnualReportOutput({ session, clientName, client, onBack
   const mapped = useMemo(() => mapModelToForm1301(session.model), [session.model]);
   const tax = useMemo(() => computeTransparentTax(session.model), [session.model]);
 
-  const grouped = useMemo(() => {
-    const m = new Map<MappedField['section'], MappedField[]>();
-    for (const f of mapped) {
-      if (!m.has(f.section)) m.set(f.section, []);
-      m.get(f.section)!.push(f);
+  // טוען answeredQuestionIds מה-DB כדי שנדע אילו שדות עברו הערכה
+  // ואילו עדיין pending (השאלון לא הגיע לשם).
+  const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await getAnswersForSession(session.id);
+        if (!cancelled) setAnsweredIds(new Set(list.map((a) => a.questionId)));
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [session.id]);
+
+  const fieldsWithStatus = useMemo(
+    () => computeAllFieldStatuses(session.model, answeredIds),
+    [session.model, answeredIds],
+  );
+
+  const statusCounts = useMemo(() => ({
+    active:  fieldsWithStatus.filter((f) => f.status === 'active').length,
+    pruned:  fieldsWithStatus.filter((f) => f.status === 'pruned').length,
+    pending: fieldsWithStatus.filter((f) => f.status === 'pending').length,
+  }), [fieldsWithStatus]);
+
+  const groupedAll = useMemo(() => {
+    const m = new Map<MappedField['section'], FieldWithStatus[]>();
+    for (const f of fieldsWithStatus) {
+      const sec = f.mapped.section;
+      if (!m.has(sec)) m.set(sec, []);
+      m.get(sec)!.push(f);
     }
     return m;
-  }, [mapped]);
+  }, [fieldsWithStatus]);
 
   const [activeTab, setActiveTab] = useState<'summary' | 'checklist' | 'mapping' | 'tax'>('summary');
 
@@ -60,7 +91,7 @@ export default function AnnualReportOutput({ session, clientName, client, onBack
         {[
           { id: 'summary' as const, label: '📊 סיכום' },
           { id: 'checklist' as const, label: `📎 דרישות (${docs.length + missingClientFields.length})` },
-          { id: 'mapping' as const, label: `🗺 מיפוי שדות 1301 (${mapped.length})` },
+          { id: 'mapping' as const, label: `🗺 מיפוי 1301 (🟢${statusCounts.active} · 🔴${statusCounts.pruned} · 🟡${statusCounts.pending})` },
           { id: 'tax' as const, label: '💰 חישוב מס שקוף' },
         ].map((t) => (
           <button
@@ -81,7 +112,7 @@ export default function AnnualReportOutput({ session, clientName, client, onBack
         <ChecklistView docs={docs} attachments={attachments} missingClientFields={missingClientFields} />
       )}
       {activeTab === 'mapping' && (
-        <MappingView grouped={grouped} />
+        <MappingView grouped={groupedAll} statusCounts={statusCounts} />
       )}
       {activeTab === 'tax' && (
         <TaxView tax={tax} />
@@ -178,10 +209,19 @@ function SummaryCard({ title, children }: { title: string; children: React.React
 }
 
 function ChecklistView({ docs, attachments, missingClientFields }: {
-  docs: Array<{ code: string; name: string; reason: string }>;
+  docs: RequiredDoc[];
   attachments: Array<{ formNumber: string; name: string; reason: string }>;
   missingClientFields: MissingClientField[];
 }) {
+  // קיבוץ לפי source
+  const grouped = new Map<DocSource, RequiredDoc[]>();
+  for (const d of docs) {
+    if (!grouped.has(d.source)) grouped.set(d.source, []);
+    grouped.get(d.source)!.push(d);
+  }
+  // סדר תצוגה — לפי "מי קרוב לרואה החשבון"
+  const order: DocSource[] = ['client', 'employer', 'investment_house', 'authority_ni', 'authority_tax', 'self'];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {missingClientFields.length > 0 && (
@@ -207,54 +247,86 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.25rem' }}>
-        <div className="card">
-          <div className="card-header"><h3 className="card-title">📎 מסמכים נדרשים</h3></div>
-          <div className="card-body">
-            {docs.length === 0 ? (
-              <p style={{ color: 'var(--gray-500)', margin: 0 }}>לא נדרשים מסמכים נוספים על פי תשובות השאלון.</p>
-            ) : (
+      <div style={{ background: 'var(--gray-50)', padding: '.75rem 1rem', borderRadius: 6, fontSize: '.9rem', color: 'var(--gray-700)' }}>
+        <strong>📋 רכז דרישות:</strong> {docs.length} מסמכים, {attachments.length} נספחים. כל מסמך מקוטלג לפי מי שצריך לספק אותו.
+      </div>
+
+      {/* מסמכים מקובצים לפי source */}
+      {order.map((src) => {
+        const list = grouped.get(src);
+        if (!list || list.length === 0) return null;
+        return (
+          <div className="card" key={src}>
+            <div className="card-header" style={{ background: sourceBg(src) }}>
+              <h3 className="card-title">{DOC_SOURCE_LABELS[src]} ({list.length})</h3>
+            </div>
+            <div className="card-body">
               <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                {docs.map((d) => (
+                {list.map((d) => (
                   <li key={d.code} style={{ display: 'flex', gap: '.75rem', padding: '.6rem 0', borderBottom: '1px solid var(--gray-100)' }}>
                     <div style={{ flex: '0 0 24px', color: 'var(--blue)' }}>☐</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600 }}>{d.name}</div>
                       <div style={{ fontSize: '.85rem', color: 'var(--gray-600)' }}>{d.reason}</div>
+                      {d.forFields && d.forFields.length > 0 && (
+                        <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: 2 }}>
+                          שדות 1301: {d.forFields.join(', ')}
+                        </div>
+                      )}
                     </div>
                   </li>
                 ))}
               </ul>
-            )}
+            </div>
           </div>
-        </div>
+        );
+      })}
 
-        <div className="card">
-          <div className="card-header"><h3 className="card-title">📄 נספחים לטופס 1301</h3></div>
-          <div className="card-body">
-            {attachments.length === 0 ? (
-              <p style={{ color: 'var(--gray-500)', margin: 0 }}>אין נספחים חובה — דוח רגיל מספיק.</p>
-            ) : (
-              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                {attachments.map((a, i) => (
-                  <li key={i} style={{ display: 'flex', gap: '.75rem', padding: '.6rem 0', borderBottom: '1px solid var(--gray-100)' }}>
-                    <div style={{ flex: '0 0 100px', color: 'var(--blue)', fontWeight: 600 }}>{a.formNumber}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600 }}>{a.name}</div>
-                      <div style={{ fontSize: '.85rem', color: 'var(--gray-600)' }}>{a.reason}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+      <div className="card">
+        <div className="card-header"><h3 className="card-title">📄 נספחים לטופס 1301 ({attachments.length})</h3></div>
+        <div className="card-body">
+          {attachments.length === 0 ? (
+            <p style={{ color: 'var(--gray-500)', margin: 0 }}>אין נספחים חובה — דוח רגיל מספיק.</p>
+          ) : (
+            <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+              {attachments.map((a, i) => (
+                <li key={i} style={{ display: 'flex', gap: '.75rem', padding: '.6rem 0', borderBottom: '1px solid var(--gray-100)' }}>
+                  <div style={{ flex: '0 0 100px', color: 'var(--blue)', fontWeight: 600 }}>{a.formNumber}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600 }}>{a.name}</div>
+                    <div style={{ fontSize: '.85rem', color: 'var(--gray-600)' }}>{a.reason}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function MappingView({ grouped }: { grouped: Map<MappedField['section'], MappedField[]> }) {
+function sourceBg(s: DocSource): string {
+  return ({
+    client: '#dbeafe',
+    employer: '#fef3c7',
+    investment_house: '#d1fae5',
+    authority_ni: '#fce7f3',
+    authority_tax: '#e0e7ff',
+    self: '#f3f4f6',
+  } as Record<DocSource, string>)[s];
+}
+
+type StatusFilter = 'all' | FieldStatus;
+
+function MappingView({
+  grouped, statusCounts,
+}: {
+  grouped: Map<MappedField['section'], FieldWithStatus[]>;
+  statusCounts: { active: number; pruned: number; pending: number };
+}) {
+  const [filter, setFilter] = useState<StatusFilter>('all');
+
   const sections = Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
   if (sections.length === 0) {
@@ -263,51 +335,98 @@ function MappingView({ grouped }: { grouped: Map<MappedField['section'], MappedF
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <p style={{ background: 'var(--gray-50)', padding: '.75rem 1rem', borderRadius: 6, margin: 0, fontSize: '.9rem', color: 'var(--gray-700)' }}>
-        כל שורה מציגה שדה מטופס 1301 הרשמי, הערך שיוזן בו, ומאיזה מקור הגיע הערך — לחיצה על "פרטים" תציג שרשרת המקור המלאה.
-      </p>
-      {sections.map(([section, fields]) => (
-        <div className="card" key={section}>
-          <div className="card-header">
-            <h3 className="card-title">{SECTION_LABELS[section]}</h3>
-          </div>
-          <div className="card-body" style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
-                  <th style={{ padding: '.6rem', textAlign: 'right', width: 90 }}>מס' שדה</th>
-                  <th style={{ padding: '.6rem', textAlign: 'right' }}>תיאור</th>
-                  <th style={{ padding: '.6rem', textAlign: 'right' }}>ערך</th>
-                  <th style={{ padding: '.6rem', textAlign: 'right' }}>מקור</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fields.map((f) => (
-                  <FieldRow key={f.fieldNumber} field={f} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div style={{ background: 'var(--gray-50)', padding: '.75rem 1rem', borderRadius: 6, fontSize: '.9rem', color: 'var(--gray-700)' }}>
+        <div style={{ marginBottom: '.5rem' }}>
+          כל 44 שדות הטופס נראים כאן עם סטטוס דינמי: 🟢 פעיל לפרופיל הלקוח, 🔴 נפסל אוטומטית, 🟡 ממתין להחלטה בשאלון.
         </div>
-      ))}
+        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+          <FilterButton current={filter} value="all"     onChange={setFilter}>הכל ({statusCounts.active + statusCounts.pruned + statusCounts.pending})</FilterButton>
+          <FilterButton current={filter} value="active"  onChange={setFilter}>🟢 רלוונטיים ({statusCounts.active})</FilterButton>
+          <FilterButton current={filter} value="pruned"  onChange={setFilter}>🔴 מנוטרלים ({statusCounts.pruned})</FilterButton>
+          <FilterButton current={filter} value="pending" onChange={setFilter}>🟡 ממתינים ({statusCounts.pending})</FilterButton>
+        </div>
+      </div>
+      {sections.map(([section, fields]) => {
+        const visible = filter === 'all' ? fields : fields.filter((f) => f.status === filter);
+        if (visible.length === 0) return null;
+        return (
+          <div className="card" key={section}>
+            <div className="card-header">
+              <h3 className="card-title">{SECTION_LABELS[section]}</h3>
+            </div>
+            <div className="card-body" style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
+                    <th style={{ padding: '.6rem', textAlign: 'right', width: 50 }}></th>
+                    <th style={{ padding: '.6rem', textAlign: 'right', width: 90 }}>מס' שדה</th>
+                    <th style={{ padding: '.6rem', textAlign: 'right' }}>תיאור</th>
+                    <th style={{ padding: '.6rem', textAlign: 'right' }}>ערך</th>
+                    <th style={{ padding: '.6rem', textAlign: 'right' }}>מקור</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((fws) => (
+                    <FieldRow key={fws.field.fieldNumber} fws={fws} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function FieldRow({ field }: { field: MappedField }) {
+function FilterButton({ current, value, onChange, children }: {
+  current: StatusFilter;
+  value: StatusFilter;
+  onChange: (v: StatusFilter) => void;
+  children: React.ReactNode;
+}) {
+  const active = current === value;
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(value)}
+      style={{
+        padding: '.35rem .8rem',
+        borderRadius: 999,
+        border: '1px solid ' + (active ? 'var(--blue)' : 'var(--gray-300)'),
+        background: active ? 'var(--blue)' : 'white',
+        color: active ? 'white' : 'var(--gray-700)',
+        cursor: 'pointer',
+        fontSize: '.85rem',
+        fontWeight: active ? 600 : 400,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FieldRow({ fws }: { fws: FieldWithStatus }) {
   const [open, setOpen] = useState(false);
+  const field = fws.mapped;
+  const rowStyle = statusRowStyle(fws.status);
   return (
     <>
-      <tr style={{ borderBottom: '1px solid var(--gray-100)' }}>
+      <tr style={{ borderBottom: '1px solid var(--gray-100)', ...rowStyle }}>
+        <td style={{ padding: '.6rem', fontSize: '1.1rem', textAlign: 'center' }} title={statusLabelFor(fws.status)}>
+          {statusIcon(fws.status)}
+        </td>
         <td style={{ padding: '.6rem', fontFamily: 'monospace', color: 'var(--blue)' }}>{field.fieldNumber}</td>
-        <td style={{ padding: '.6rem' }}>
+        <td style={{ padding: '.6rem', textDecoration: fws.status === 'pruned' ? 'line-through' : 'none' }}>
           {field.hebrewLabel}
           {field.legalReference && (
             <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>{field.legalReference}</div>
           )}
         </td>
         <td style={{ padding: '.6rem', fontWeight: field.value ? 600 : 400 }}>
-          {field.value ?? <span style={{ color: 'var(--gray-400)' }}>—</span>}
+          {fws.status === 'pruned' ? (
+            <span style={{ color: 'var(--gray-400)', fontStyle: 'italic' }}>—</span>
+          ) : field.value ?? <span style={{ color: 'var(--gray-400)' }}>—</span>}
         </td>
         <td style={{ padding: '.6rem' }}>
           <span style={{
@@ -330,8 +449,11 @@ function FieldRow({ field }: { field: MappedField }) {
       </tr>
       {open && (
         <tr>
-          <td colSpan={4} style={{ padding: '0 .6rem .75rem' }}>
+          <td colSpan={5} style={{ padding: '0 .6rem .75rem' }}>
             <div style={{ background: 'var(--gray-50)', borderRight: '3px solid var(--blue)', padding: '.75rem 1rem', fontSize: '.85rem', color: 'var(--gray-700)' }}>
+              <div style={{ marginBottom: '.4rem' }}>
+                <strong>סטטוס:</strong> {statusLabelFor(fws.status)}
+              </div>
               <strong>{traceLabel(field.trace.kind)}:</strong> {field.trace.detail}
               {field.trace.questionIds && field.trace.questionIds.length > 0 && (
                 <div style={{ marginTop: '.4rem', fontSize: '.8rem', color: 'var(--gray-500)' }}>
@@ -349,6 +471,20 @@ function FieldRow({ field }: { field: MappedField }) {
       )}
     </>
   );
+}
+
+function statusIcon(s: FieldStatus): string {
+  return s === 'active' ? '🟢' : s === 'pruned' ? '🔴' : '🟡';
+}
+function statusLabelFor(s: FieldStatus): string {
+  if (s === 'active')  return 'רלוונטי לפרופיל — ייכנס לטופס';
+  if (s === 'pruned')  return 'נפסל ע"י השאלון — לא רלוונטי';
+  return 'ממתין — השאלון לא הגיע לכאן עדיין';
+}
+function statusRowStyle(s: FieldStatus): React.CSSProperties {
+  if (s === 'active')  return { background: 'rgba(16, 185, 129, 0.05)' };
+  if (s === 'pruned')  return { background: 'rgba(239, 68, 68, 0.05)', opacity: 0.65 };
+  return { background: 'rgba(148, 163, 184, 0.05)' };
 }
 
 function TaxView({ tax }: { tax: ReturnType<typeof computeTransparentTax> }) {

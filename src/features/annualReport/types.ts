@@ -26,7 +26,7 @@ export type RegisteredSpouseRole =
   | 'file_jointly'    // אני הרשום, מגישים יחד (חישוב מאוחד)
   | 'separate_files'; // כל אחד מגיש בנפרד
 
-export type BizRevenueBand = 'none' | 'under_100k' | '100k_2m' | '2m_plus';
+export type BizRevenueBand = 'none' | 'under_300k' | '300k_plus';
 
 export type WithholdingSource =
   | 'salary_106'        // משכר — שדה 042
@@ -49,6 +49,8 @@ export interface TaxpayerModel {
     spouseHasIncome?: boolean;
     childrenCount?: number;
     childrenWithSpecialNeeds?: boolean;
+    /** הורה יחיד שילדיו מתגוררים אצלו — שדה 029 ב-1301. */
+    isCustodialSingleParent?: boolean;
     residencyType?: 'resident' | 'new_immigrant' | 'returning_resident';
     immigrationYear?: number;
     city?: string;
@@ -104,6 +106,20 @@ export interface TaxpayerModel {
     // אחר
     hasOtherIncome?: boolean;
     otherIncomeKinds?: OtherIncomeKind[];
+
+    // ── תקבולי ביטוח לאומי (חייבים במס לרוב) ──
+    /** דמי לידה — שדה 194 ב-1301. */
+    niMaternityReceived?: boolean;
+    /** דמי אבטלה — שדה 196 ב-1301. */
+    niUnemploymentReceived?: boolean;
+    /** דמי מילואים — שדה 250 ב-1301. */
+    niReserveDutyReceived?: boolean;
+    /** תקבולי פגיעה בעבודה — שדה 270 ב-1301. */
+    niWorkInjuryReceived?: boolean;
+
+    // ── אופציות 102/3i ──
+    /** התקבלו / מומשו אופציות 102 / 3i — שדה 282 ב-1301. */
+    hasOptions102?: boolean;
   };
 
   taxPaid: {
@@ -120,6 +136,10 @@ export interface TaxpayerModel {
     hasKerenHashtalmutSelf?: boolean;
     isDischargedSoldier?: boolean;
     hasAcademicDegree?: boolean;
+    /** מזונות שהתקבלו (₪/שנה) — שדה 9(21). */
+    alimonyReceivedAnnual?: number;
+    /** מזונות ששולמו (₪/שנה) — שדה 25, זיכוי. */
+    alimonyPaidAnnual?: number;
   };
 
   specialSituations: {
@@ -127,6 +147,12 @@ export interface TaxpayerModel {
     electsSection14?: boolean;
     hasCarriedLosses?: boolean;
     wealthDeclarationRequired?: boolean;
+    /** חבר בחברה משפחתית — סעיף 64א. */
+    isFamilyCompanyMember?: boolean;
+    /** חברה זרה נשלטת (CFC) — סעיף 75ב. */
+    isForeignControllingShareholder?: boolean;
+    /** חבר קיבוץ / מושב שיתופי — חישוב מס מיוחד. */
+    isKibbutzMember?: boolean;
   };
 }
 
@@ -185,6 +211,36 @@ export interface QuestionPreviewClient {
   address?: string;
   phone?: string;
   email?: string;
+
+  // ─── זכאויות ומס ─────────────────────────────────────────────────────
+  familyStatus?: 'single' | 'married' | 'divorced' | 'widowed' | 'singleParent';
+  isNewImmigrant?: boolean;
+  aliyahYear?: number;
+  isReturningResident?: boolean;
+  disabilityPercentage?: number;
+  qualifyingSettlementId?: string;
+  completedIdf?: boolean;
+  idfReleaseYear?: number;
+  hasAcademicDegree?: boolean;
+  academicDegreeYear?: number;
+
+  // ─── סכומים שנתיים לזיכויים ──────────────────────────────────────────
+  donationsAnnual?: number;
+  lifeInsuranceAnnual?: number;
+
+  // ─── ילדים — רשימה מפורטת ───────────────────────────────────────────
+  children?: Array<{ id: string; firstName?: string; birthDate: string; birthYear: number; hasDisability: boolean }>;
+
+  // ─── עסקים, נכסים, השקעות ────────────────────────────────────────────
+  rentalTaxTrack?: 'exempt' | 'flat10' | 'regular';
+  businesses?: Array<{ id: string; name: string; kind: string; revenueAnnual?: number; belongsToSpouse?: boolean }>;
+
+  // ─── דיווחי חובה ומצבים מיוחדים ──────────────────────────────────────
+  isFamilyCompanyMember?: boolean;
+  isForeignControllingShareholder?: boolean;
+  isKibbutzMember?: boolean;
+  section14Elected?: boolean;
+
   // ─── רשימות נוספות מהכרטיס (לדוגמה: מיטב דש, IBI, ...) ─────────────
   investmentAccounts?: Array<{ id: string; institutionName: string; kind?: string; isClosed?: boolean }>;
   bankAccounts?: Array<{ id: string; bankName: string; isPrimary?: boolean; kind?: string }>;
@@ -205,6 +261,22 @@ export interface QuestionPreviewItem {
   missing?: boolean;          // אם true — מסומן באדום ("(חסר)")
 }
 
+/**
+ * סקציה בכרטיס הלקוח שמתאימה לאימות במצב validation. משמשת לכפתור
+ * "ערוך" — פותח inline editor של אותה סקציה.
+ */
+export type CardEditSection =
+  | 'identity'        // פרטי זיהוי (שם, ת.ז, כתובת)
+  | 'spouse'          // בן/בת זוג
+  | 'children'        // ילדים
+  | 'employers'       // מעבידים
+  | 'investmentAccounts' // חשבונות השקעה
+  | 'bankAccounts'    // חשבונות בנק
+  | 'pensionFunds'    // קופות פנסיה
+  | 'businesses'      // עסקים
+  | 'dependentRelatives' // קרובים תלויים
+  | 'properties';     // נכסים
+
 export interface QuestionNode {
   id: string;
   question: string;
@@ -224,6 +296,19 @@ export interface QuestionNode {
   // אם השאלה רק "אישור" שנתון מסוים מעודכן בכרטיס הלקוח — מחזירה רשימת
   // שדות (תווית + ערך) שתוצג כקופסה לפני אפשרויות התשובה.
   dataPreview?: (ctx: QuestionPreviewContext) => QuestionPreviewItem[] | null;
+
+  // ─── מצב Validation-First (Wave ד') ────────────────────────────────────
+  // אם true והנתונים בכרטיס מלאים — השאלה תוצג כ"אישור/עדכון/לא רלוונטי"
+  // במקום שאלת חקירה רגילה.
+  validationMode?: boolean;
+
+  // איזה סקציה בכרטיס נפתחת לעריכה כשלוחצים "ערוך" במצב validation.
+  editTarget?: CardEditSection;
+
+  // ─── הסקה אוטומטית של תשובה מהכרטיס (Wave ד') ──────────────────────────
+  // כאשר המשתמש לוחץ "מאשר ונכון" במצב validation, הפונקציה הזו ממירה את
+  // הנתונים בכרטיס לתשובה תקפה לשאלה (למשל: רשימת 2 מעבידים → number 2).
+  deriveAnswerFromCard?: (ctx: QuestionPreviewContext) => AnswerValue | null;
 }
 
 export interface QuestionTree {

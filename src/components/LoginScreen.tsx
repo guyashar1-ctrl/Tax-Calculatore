@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth, DEV_AUTO_LOGIN_ENABLED } from '../hooks/useAuth';
+
+const IS_DEV = import.meta.env.DEV;
 
 export default function LoginScreen() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signInWithDevUser } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -11,6 +13,17 @@ export default function LoginScreen() {
     setError(null);
     try {
       await signInWithGoogle();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'שגיאה לא ידועה');
+      setBusy(false);
+    }
+  }
+
+  async function handleDevLogin() {
+    setBusy(true);
+    setError(null);
+    try {
+      await signInWithDevUser();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'שגיאה לא ידועה');
       setBusy(false);
@@ -38,6 +51,29 @@ export default function LoginScreen() {
           </svg>
           {busy ? 'מתחבר…' : 'התחבר עם Google'}
         </button>
+
+        {IS_DEV && (
+          <button
+            type="button"
+            onClick={handleDevLogin}
+            disabled={busy}
+            style={{
+              marginTop: 12,
+              padding: '10px 16px',
+              background: '#fef3c7',
+              color: '#92400e',
+              border: '1px dashed #f59e0b',
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: busy ? 'not-allowed' : 'pointer',
+              width: '100%',
+            }}
+          >
+            🧪 כניסה כמשתמש בדיקה (DEV בלבד)
+            {DEV_AUTO_LOGIN_ENABLED && <span style={{ fontSize: 11, opacity: 0.7, display: 'block' }}>auto-login פעיל — אמור להיכנס אוטומטית</span>}
+          </button>
+        )}
 
         {error && <div className="login-error">שגיאה: {error}</div>}
 

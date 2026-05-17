@@ -86,15 +86,57 @@ export function answerAndAdvance(
 
 // ─── רשימת מסמכים נדרשים ──────────────────────────────────────────────────
 
+/**
+ * מקור הצוואה למסמך — קובע אצל מי צריך לבקש אותו.
+ */
+export type DocSource =
+  | 'client'           // מהלקוח עצמו (אישורים, תעודות, חוזים)
+  | 'employer'         // מהמעביד (106, אישור אופציות)
+  | 'investment_house' // מבית ההשקעות / בנק (867)
+  | 'authority_ni'     // מביטוח לאומי (דמי לידה, אבטלה, מילואים)
+  | 'authority_tax'    // מרשות המסים (מקדמות, שומה, אישור מס)
+  | 'self';            // רואה החשבון מכין (נספח א', 6111, הצהרת הון)
+
+export const DOC_SOURCE_LABELS: Record<DocSource, string> = {
+  client:           '📨 לבקש מהלקוח',
+  employer:         '🏢 לבקש מהמעביד/ים',
+  investment_house: '📈 לבקש מבית ההשקעות / בנק',
+  authority_ni:     '🏛 לקבל מביטוח לאומי',
+  authority_tax:    '🏛 לקבל מרשות המסים / שע"ם',
+  self:             '🧮 לבנות (רואה החשבון)',
+};
+
 export interface RequiredDoc {
   code: string;
   name: string;
   reason: string;
   forFields?: string[];      // שדות בטופס שהמסמך מזין
+  source: DocSource;          // מי האחראי לספק אותו
+}
+
+/**
+ * הסקת מקור המסמך לפי קוד / שם — heuristic.
+ */
+export function inferDocSource(code: string, _name: string): DocSource {
+  const c = code.toLowerCase();
+  // טפסי מעביד
+  if (c.startsWith('106') || c === 'options_102_cert') return 'employer';
+  // טפסי בנק / בית השקעות
+  if (c.startsWith('867')) return 'investment_house';
+  // בט"ל
+  if (c.startsWith('ni_') || c.includes('ni_maternity') || c.includes('ni_unemployment') || c.includes('ni_reserve') || c.includes('ni_work_injury')) return 'authority_ni';
+  if (c === '161') return 'authority_ni';
+  // רשות המסים
+  if (c === 'advance_payments' || c === 'last_year_assessment' || c === '857_837_summary' || c === 'land_appraisal') return 'authority_tax';
+  // רואה החשבון מכין
+  if (c === '6111' || c === 'wealth_declaration' || c === 'biz_pnl' || c === 'annex_1320' || c === 'annex_1322' || c === 'annex_1324' || c === 'annex_1325' || c === '134' || c === 'family_company_decl' || c === 'cfc_decl') return 'self';
+  // ברירת מחדל — מהלקוח
+  return 'client';
 }
 
 export function buildRequiredDocs(model: TaxpayerModel, client?: QuestionPreviewClient): RequiredDoc[] {
-  return buildDocumentChecklist(model, client);
+  const docs = buildDocumentChecklist(model, client);
+  return docs.map((d) => ({ ...d, source: inferDocSource(d.code, d.name) }));
 }
 
 // ─── נספחים נדרשים ───────────────────────────────────────────────────────
@@ -111,8 +153,8 @@ export function buildRequiredAttachments(model: TaxpayerModel): RequiredAttachme
   if (src.includes('business')) {
     out.push({ formNumber: 'נספח א\' (1320)', name: 'דוח הכנסות מעסק', reason: 'דרישה לכל בעל עסק/משלח יד' });
   }
-  if (model.income.bizRevenueBand === '2m_plus') {
-    out.push({ formNumber: '6111', name: 'מאזן ודוח רווח-הפסד מקודד', reason: 'חובה לעסקים עם מחזור מעל 2,086,000 ₪' });
+  if (model.income.bizRevenueBand === '300k_plus') {
+    out.push({ formNumber: '6111', name: 'מאזן ודוח רווח-הפסד מקודד', reason: 'חובה לעסקים עם מחזור מעל 300,000 ₪ (הוראות 2025)' });
   }
   if ((model.income.capitalSubTypes ?? []).length > 0) {
     out.push({ formNumber: 'נספח ג\' (1322)', name: 'פירוט רווחי הון', reason: 'דיווח רווחי הון מני"ע / קריפטו / מקרקעין' });
@@ -196,6 +238,55 @@ export function mapModelToForm1301(model: TaxpayerModel): MappedField[] {
     return false;
   });
   return applicableFields.map((f) => fieldToMapped(f, model));
+}
+
+// ─── סטטוס שדה עבור צביעה דינמית ב-UI (Wave ד') ────────────────────────────
+
+/**
+ * סטטוס של שדה ב-1301:
+ * - 🟢 active: רלוונטי לפרופיל הלקוח. ייכנס לטופס.
+ * - 🔴 pruned: נפסל אוטומטית ע"י תשובות השאלון (לא רלוונטי לפרופיל).
+ * - 🟡 pending: השאלון עוד לא הגיע לשאלות שמכריעות לגבי השדה.
+ */
+export type FieldStatus = 'active' | 'pruned' | 'pending';
+
+export interface FieldWithStatus {
+  field: Form1301FieldDef;
+  mapped: MappedField;
+  status: FieldStatus;
+}
+
+function computeFieldStatus(
+  field: Form1301FieldDef,
+  model: TaxpayerModel,
+  answeredQuestionIds: Set<string>,
+): FieldStatus {
+  if (field.required === 'always') return 'active';
+  if (!field.conditionalOn) return 'active';
+
+  // אם conditionalOn מחזיר true — יש מספיק במודל. active.
+  if (field.conditionalOn(model)) return 'active';
+
+  // false: pruned רק אם נענתה לפחות אחת מ-sourceQuestionIds של השדה.
+  // אחרת — pending (השאלון עוד לא הגיע לנקודה שמכריעה לגביו).
+  if (field.sourceQuestionIds.length === 0) return 'active';
+
+  const anyAnswered = field.sourceQuestionIds.some((qid) => answeredQuestionIds.has(qid));
+  return anyAnswered ? 'pruned' : 'pending';
+}
+
+/**
+ * מחזיר את כל 44 השדות עם סטטוס וערך, לצורך צביעה דינמית בטאב "מיפוי".
+ */
+export function computeAllFieldStatuses(
+  model: TaxpayerModel,
+  answeredQuestionIds: Set<string>,
+): FieldWithStatus[] {
+  return form1301Fields.map((field) => ({
+    field,
+    mapped: fieldToMapped(field, model),
+    status: computeFieldStatus(field, model, answeredQuestionIds),
+  }));
 }
 
 // ─── חישוב מס שקוף (כמו קודם, ללא שינוי משמעותי) ───────────────────────

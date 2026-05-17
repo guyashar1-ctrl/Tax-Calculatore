@@ -8,27 +8,32 @@ import AnnualReportEntry from './AnnualReportEntry';
 import Questionnaire from './Questionnaire';
 import AnnualReportOutput from './AnnualReportOutput';
 import AnswersReview from './AnswersReview';
+import SyncConfirmation from './SyncConfirmation';
 import TaxConstantsDashboard from './TaxConstantsDashboard';
 
-type Mode = 'entry' | 'questionnaire' | 'answers_review' | 'output' | 'dashboard';
+type Mode = 'entry' | 'questionnaire' | 'sync_confirmation' | 'answers_review' | 'output' | 'dashboard';
 
 interface Props {
   clients: Client[];
   userId: string | undefined;
+  onUpdateClient?: (client: Client) => Promise<Client>;
 }
 
-export default function AnnualReport({ clients, userId }: Props) {
+export default function AnnualReport({ clients, userId, onUpdateClient }: Props) {
   const { sessions, loading, startOrResume, removeSession, restartForEdit } = useAnnualReportSessions(userId);
   const [mode, setMode] = useState<Mode>('entry');
   const [currentSession, setCurrentSession] = useState<AnnualReportSession | null>(null);
 
   // אם session מסומן כ-mapping_done/review, פתח את ה-output ישר
+  // (אבל לא אם המשתמש כרגע במצב sync_confirmation — שזה שלב ביניים אחרי השאלון).
   useEffect(() => {
+    if (mode === 'sync_confirmation') return;
     if (currentSession && (currentSession.status === 'review' || currentSession.status === 'mapping_done')) {
       setMode('output');
     } else if (currentSession && currentSession.status === 'in_progress') {
       setMode('questionnaire');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSession]);
 
   async function handleStart(clientId: string, taxYear: number) {
@@ -38,7 +43,12 @@ export default function AnnualReport({ clients, userId }: Props) {
 
   function handleQuestionnaireFinished(session: AnnualReportSession) {
     setCurrentSession(session);
-    setMode('output');
+    // אם יש לקוח + onUpdateClient — קודם מסך Sync Confirmation, אחר כך פלט.
+    if (onUpdateClient && clients.find((c) => c.id === session.clientId)) {
+      setMode('sync_confirmation');
+    } else {
+      setMode('output');
+    }
   }
 
   function handleExitToEntry() {
@@ -148,6 +158,18 @@ export default function AnnualReport({ clients, userId }: Props) {
           client={selectedClient}
           onFinished={handleQuestionnaireFinished}
           onExit={handleExitToEntry}
+          onPatchClient={onUpdateClient && selectedClient ? async (partial) => {
+            await onUpdateClient({ ...selectedClient, ...partial, updatedAt: new Date().toISOString() });
+          } : undefined}
+        />
+      )}
+
+      {mode === 'sync_confirmation' && currentSession && selectedClient && onUpdateClient && (
+        <SyncConfirmation
+          session={currentSession}
+          client={selectedClient}
+          onUpdateClient={onUpdateClient}
+          onContinue={() => setMode('output')}
         />
       )}
 

@@ -26,6 +26,9 @@ export const annualReportTree: QuestionTree = {
       applyToModel: (m) => m,
       next: () => 'marital_status',
       targetFieldCodes: ['001', '002', '003', '004'],
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: () => true,
       dataPreview: ({ client }) => {
         if (!client) return null;
         const fullName = [client.firstName, client.lastName].filter(Boolean).join(' ').trim();
@@ -64,6 +67,23 @@ export const annualReportTree: QuestionTree = {
       }),
       next: (a) => (a === 'married' ? 'registered_spouse_role' : 'children_count'),
       targetFieldCodes: ['113'],
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: ({ client }) => {
+        const fs = client?.familyStatus;
+        if (!fs) return null;
+        return fs === 'singleParent' ? 'divorced' : fs;
+      },
+      dataPreview: ({ client }) => {
+        const label = ({
+          single: 'רווק/ה',
+          married: 'נשוי/אה',
+          divorced: 'גרוש/ה',
+          widowed: 'אלמן/ה',
+          singleParent: 'הורה יחיד',
+        } as Record<string, string>)[client?.familyStatus ?? ''] ?? '';
+        return [{ label: 'סטטוס משפחתי בכרטיס', value: label, missing: !label }];
+      },
     },
 
     // ═══ ב. בן/בת זוג (רק אם נשוי) ══════════════════════════════════════════
@@ -146,6 +166,20 @@ export const annualReportTree: QuestionTree = {
       }),
       next: (a) => (Number(a) > 0 ? 'children_details_required' : 'residency_type'),
       targetFieldCodes: ['C-list'],
+      validationMode: true,
+      editTarget: 'children',
+      deriveAnswerFromCard: ({ client }) => (client?.children ?? []).length,
+      dataPreview: ({ client }) => {
+        const kids = client?.children ?? [];
+        if (kids.length === 0) {
+          return [{ label: 'ילדים בכרטיס', value: 'אין ילדים רשומים', missing: true }];
+        }
+        return kids.map((c, i) => ({
+          label: c.firstName || `ילד ${i + 1}`,
+          value: c.birthDate ? `נולד ${c.birthDate}` : `שנת לידה ${c.birthYear}`,
+          missing: !c.birthDate && !c.birthYear,
+        }));
+      },
     },
 
     children_details_required: {
@@ -168,8 +202,28 @@ export const annualReportTree: QuestionTree = {
         ...m,
         identity: { ...m.identity, childrenWithSpecialNeeds: a as boolean },
       }),
-      next: () => 'residency_type',
+      next: (_a, m) => {
+        // הורה יחיד? הילדים אצל הנישום — נשאל רק אם רווק/גרוש/אלמן/פרוד עם ילדים
+        const ms = m.identity?.maritalStatus;
+        const hasKids = (m.identity?.childrenCount ?? 0) > 0;
+        if (ms && ms !== 'married' && hasKids) return 'is_custodial_single_parent';
+        return 'residency_type';
+      },
       targetFieldCodes: ['C-special'],
+    },
+
+    is_custodial_single_parent: {
+      id: 'is_custodial_single_parent',
+      question: 'האם הילדים נמצאים במשמורת הנישום (הורה יחיד שילדיו אצלו)?',
+      helpText: 'הורה יחיד שילדיו אצלו זכאי לזיכוי מס מיוחד (שדה 029).',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        identity: { ...m.identity, isCustodialSingleParent: a as boolean },
+      }),
+      next: () => 'residency_type',
+      targetFieldCodes: ['029'],
     },
 
     // ═══ ד. תושבות ונכות ═════════════════════════════════════════════════════
@@ -189,6 +243,20 @@ export const annualReportTree: QuestionTree = {
         specialSituations: { ...m.specialSituations, isNewImmigrant: a === 'new_immigrant' },
       }),
       next: (a) => (a !== 'resident' ? 'elects_section_14' : 'qualifying_settlement'),
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: ({ client }) => {
+        if (client?.isNewImmigrant) return 'new_immigrant';
+        if (client?.isReturningResident) return 'returning_resident';
+        return 'resident';
+      },
+      dataPreview: ({ client }) => {
+        const items: { label: string; value: string; missing?: boolean }[] = [];
+        if (client?.isNewImmigrant) items.push({ label: 'עולה חדש', value: client.aliyahYear ? `משנת ${client.aliyahYear}` : 'מסומן' });
+        if (client?.isReturningResident) items.push({ label: 'תושב חוזר', value: 'מסומן' });
+        if (items.length === 0) items.push({ label: 'תושבות בכרטיס', value: 'תושב ישראל ותיק' });
+        return items;
+      },
     },
 
     elects_section_14: {
@@ -230,6 +298,17 @@ export const annualReportTree: QuestionTree = {
       }),
       next: (a) => (a ? 'disability_band' : 'income_sources'),
       targetFieldCodes: ['D-pct'],
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: ({ client }) => (client?.disabilityPercentage ?? 0) > 0,
+      dataPreview: ({ client }) => {
+        const pct = client?.disabilityPercentage ?? 0;
+        return [{
+          label: 'אחוז נכות בכרטיס',
+          value: pct > 0 ? `${pct}%` : 'לא מוגדר',
+          missing: pct === 0 && client?.disabilityPercentage === undefined,
+        }];
+      },
     },
 
     disability_band: {
@@ -286,6 +365,9 @@ export const annualReportTree: QuestionTree = {
       }),
       next: () => 'received_severance',
       targetFieldCodes: ['158', '170'],
+      validationMode: true,
+      editTarget: 'employers',
+      deriveAnswerFromCard: ({ client }) => (client?.employers ?? []).length,
       dataPreview: ({ client }) => {
         const employers = client?.employers ?? [];
         const active = employers.filter((e) => !e.endDate);
@@ -309,8 +391,22 @@ export const annualReportTree: QuestionTree = {
         ...m,
         income: { ...m.income, receivedSeverance: a as boolean },
       }),
-      next: (_a, m) => nextIncomeBranch(m, 'salary'),
+      next: () => 'has_options_102',
       targetFieldCodes: ['037-sev'],
+    },
+
+    has_options_102: {
+      id: 'has_options_102',
+      question: 'האם הנישום מימש אופציות 102 / 3i השנה?',
+      helpText: 'אופציות עובדים — תוכנית 102 (מעבידים ישראליים) או 3i (מעבידים זרים). שווי המימוש מופיע ב-106.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        income: { ...m.income, hasOptions102: a as boolean },
+      }),
+      next: (_a, m) => nextIncomeBranch(m, 'salary'),
+      targetFieldCodes: ['282'],
     },
 
     // ─── ענף עסק ───────────────────────────────────────────────────────────
@@ -335,13 +431,12 @@ export const annualReportTree: QuestionTree = {
     biz_revenue_band: {
       id: 'biz_revenue_band',
       question: 'מה רמת המחזור השנתי של העסק?',
-      helpText: 'מחזור מעל 2,086,000 ₪ מחייב הגשת נספח 6111 (מאזן מקודד).',
+      helpText: 'מחזור מעל 300,000 ₪ מחייב הגשת נספח 6111 (מאזן ודוח רווח-הפסד מקודד) לפי הוראות 2025.',
       type: 'single_select',
       required: true,
       options: [
-        { value: 'under_100k', label: 'עד 100,000 ₪' },
-        { value: '100k_2m', label: '100,000 - 2,086,000 ₪' },
-        { value: '2m_plus', label: 'מעל 2,086,000 ₪ (מחייב 6111)' },
+        { value: 'under_300k', label: 'עד 300,000 ₪' },
+        { value: '300k_plus', label: 'מעל 300,000 ₪ (מחייב 6111)' },
       ],
       applyToModel: (m, a) => ({
         ...m,
@@ -428,6 +523,10 @@ export const annualReportTree: QuestionTree = {
       }),
       next: (a) => (a ? 'capital_securities_withholding' : 'capital_has_crypto'),
       targetFieldCodes: ['142'],
+      validationMode: true,
+      editTarget: 'investmentAccounts',
+      deriveAnswerFromCard: ({ client }) =>
+        (client?.investmentAccounts ?? []).filter((a) => !a.isClosed).length > 0,
       dataPreview: ({ client }) => {
         const accounts = (client?.investmentAccounts ?? []).filter((a) => !a.isClosed);
         if (accounts.length === 0) {
@@ -519,6 +618,9 @@ export const annualReportTree: QuestionTree = {
       }),
       next: (a) => (a ? 'interest_has_withholding' : 'has_pension_income'),
       targetFieldCodes: ['126'],
+      validationMode: true,
+      editTarget: 'bankAccounts',
+      deriveAnswerFromCard: ({ client }) => (client?.bankAccounts ?? []).length > 0,
       dataPreview: ({ client }) => {
         const banks = client?.bankAccounts ?? [];
         if (banks.length === 0) {
@@ -555,8 +657,62 @@ export const annualReportTree: QuestionTree = {
         ...m,
         income: { ...m.income, hasPensionIncome: a as boolean },
       }),
-      next: () => 'has_other_income',
+      next: () => 'ni_maternity',
       targetFieldCodes: ['P-pension'],
+    },
+
+    // ─── ענף תקבולי ביטוח לאומי ────────────────────────────────────────────
+    ni_maternity: {
+      id: 'ni_maternity',
+      question: 'האם הנישום קיבל דמי לידה מביטוח לאומי?',
+      helpText: 'דמי לידה חייבים במס מלא (שלא כמו ב-106 הרגיל). נדרש אישור בט"ל.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        income: { ...m.income, niMaternityReceived: a as boolean },
+      }),
+      next: () => 'ni_unemployment',
+      targetFieldCodes: ['194'],
+    },
+
+    ni_unemployment: {
+      id: 'ni_unemployment',
+      question: 'האם הנישום קיבל דמי אבטלה מביטוח לאומי?',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        income: { ...m.income, niUnemploymentReceived: a as boolean },
+      }),
+      next: () => 'ni_reserve_duty',
+      targetFieldCodes: ['196'],
+    },
+
+    ni_reserve_duty: {
+      id: 'ni_reserve_duty',
+      question: 'האם הנישום קיבל תגמולי מילואים מביטוח לאומי?',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        income: { ...m.income, niReserveDutyReceived: a as boolean },
+      }),
+      next: () => 'ni_work_injury',
+      targetFieldCodes: ['250'],
+    },
+
+    ni_work_injury: {
+      id: 'ni_work_injury',
+      question: 'האם הנישום קיבל תקבולי פגיעה בעבודה מביטוח לאומי?',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        income: { ...m.income, niWorkInjuryReceived: a as boolean },
+      }),
+      next: () => 'has_other_income',
+      targetFieldCodes: ['270'],
     },
 
     // ─── ענף אחר ─────────────────────────────────────────────────────────
@@ -632,6 +788,17 @@ export const annualReportTree: QuestionTree = {
       }),
       next: () => 'life_insurance',
       targetFieldCodes: ['037'],
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: ({ client }) => client?.donationsAnnual ?? 0,
+      dataPreview: ({ client }) => {
+        const amt = client?.donationsAnnual ?? 0;
+        return [{
+          label: 'תרומות בכרטיס',
+          value: amt > 0 ? `${amt.toLocaleString('he-IL')} ₪/שנה` : 'לא הוזן',
+          missing: !amt,
+        }];
+      },
     },
 
     life_insurance: {
@@ -647,8 +814,47 @@ export const annualReportTree: QuestionTree = {
           lifeInsuranceAnnual: Number(a) || 0,
         },
       }),
-      next: () => 'self_pension',
+      next: () => 'alimony_received',
       targetFieldCodes: ['045'],
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: ({ client }) => client?.lifeInsuranceAnnual ?? 0,
+      dataPreview: ({ client }) => {
+        const amt = client?.lifeInsuranceAnnual ?? 0;
+        return [{
+          label: 'ביטוח חיים בכרטיס',
+          value: amt > 0 ? `${amt.toLocaleString('he-IL')} ₪/שנה` : 'לא הוזן',
+          missing: !amt,
+        }];
+      },
+    },
+
+    alimony_received: {
+      id: 'alimony_received',
+      question: 'האם הנישום קיבל דמי מזונות השנה? אם כן — סכום שנתי (₪).',
+      helpText: 'מזונות חייבים חלקית במס לפי סעיף 9(21).',
+      type: 'number',
+      required: false,
+      applyToModel: (m, a) => ({
+        ...m,
+        deductionsCredits: { ...m.deductionsCredits, alimonyReceivedAnnual: Number(a) || 0 },
+      }),
+      next: () => 'alimony_paid',
+      targetFieldCodes: ['9-21'],
+    },
+
+    alimony_paid: {
+      id: 'alimony_paid',
+      question: 'האם הנישום שילם דמי מזונות השנה? אם כן — סכום שנתי (₪).',
+      helpText: 'זיכוי לפי סעיף 25 — בלבד אם התשלום מעוגן בפסק דין.',
+      type: 'number',
+      required: false,
+      applyToModel: (m, a) => ({
+        ...m,
+        deductionsCredits: { ...m.deductionsCredits, alimonyPaidAnnual: Number(a) || 0 },
+      }),
+      next: () => 'self_pension',
+      targetFieldCodes: ['25-alimony-paid'],
     },
 
     self_pension: {
@@ -702,6 +908,18 @@ export const annualReportTree: QuestionTree = {
       }),
       next: () => 'paid_advance_payments',
       targetFieldCodes: ['CR-academic'],
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: ({ client }) => !!client?.hasAcademicDegree,
+      dataPreview: ({ client }) => {
+        if (!client?.hasAcademicDegree) {
+          return [{ label: 'תואר אקדמי בכרטיס', value: 'לא מסומן', missing: true }];
+        }
+        return [{
+          label: 'תואר אקדמי בכרטיס',
+          value: client.academicDegreeYear ? `שנת קבלה ${client.academicDegreeYear}` : 'מסומן (ללא שנה)',
+        }];
+      },
     },
 
     // ═══ ז. מיסים ששולמו במהלך השנה ═══════════════════════════════════════
@@ -766,8 +984,71 @@ export const annualReportTree: QuestionTree = {
         ...m,
         specialSituations: { ...m.specialSituations, wealthDeclarationRequired: a as boolean },
       }),
-      next: () => 'final_declaration',
+      next: () => 'is_family_company_member',
       targetFieldCodes: ['W-decl'],
+    },
+
+    is_family_company_member: {
+      id: 'is_family_company_member',
+      question: 'האם הנישום חבר בחברה משפחתית (סעיף 64א)?',
+      helpText: 'חברה משפחתית מייחסת רווחים לבעל המניות, ולא לחברה. דורש דיווח נוסף.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        specialSituations: { ...m.specialSituations, isFamilyCompanyMember: a as boolean },
+      }),
+      next: () => 'is_foreign_controlling_shareholder',
+      targetFieldCodes: ['64a-fam-co'],
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: ({ client }) => !!client?.isFamilyCompanyMember,
+      dataPreview: ({ client }) => [{
+        label: 'חבר בחברה משפחתית',
+        value: client?.isFamilyCompanyMember ? 'כן (מסומן בכרטיס)' : 'לא מסומן',
+      }],
+    },
+
+    is_foreign_controlling_shareholder: {
+      id: 'is_foreign_controlling_shareholder',
+      question: 'האם הנישום הוא בעל שליטה בחברה זרה (10%+)?',
+      helpText: 'חברה זרה נשלטת (CFC) — סעיף 75ב. רווחי החברה הזרה מיוחסים לבעל השליטה גם אם לא חולקו.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        specialSituations: { ...m.specialSituations, isForeignControllingShareholder: a as boolean },
+      }),
+      next: () => 'is_kibbutz_member',
+      targetFieldCodes: ['75b-cfc'],
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: ({ client }) => !!client?.isForeignControllingShareholder,
+      dataPreview: ({ client }) => [{
+        label: 'בעל שליטה בחברה זרה',
+        value: client?.isForeignControllingShareholder ? 'כן (מסומן בכרטיס)' : 'לא מסומן',
+      }],
+    },
+
+    is_kibbutz_member: {
+      id: 'is_kibbutz_member',
+      question: 'האם הנישום חבר קיבוץ או מושב שיתופי?',
+      helpText: 'חישוב המס לחברי קיבוץ שונה — סעיפים 54-58 לפקודה.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        specialSituations: { ...m.specialSituations, isKibbutzMember: a as boolean },
+      }),
+      next: () => 'final_declaration',
+      targetFieldCodes: ['kibbutz'],
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: ({ client }) => !!client?.isKibbutzMember,
+      dataPreview: ({ client }) => [{
+        label: 'חבר קיבוץ',
+        value: client?.isKibbutzMember ? 'כן (מסומן בכרטיס)' : 'לא מסומן',
+      }],
     },
 
     // ═══ ט. חתימה ════════════════════════════════════════════════════════════

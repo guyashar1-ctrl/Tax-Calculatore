@@ -680,6 +680,7 @@ export default function App() {
           <AnnualReport
             clients={clients}
             userId={user?.id}
+            onUpdateClient={updateClient}
           />
         )}
 

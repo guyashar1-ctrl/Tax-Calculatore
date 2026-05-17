@@ -24,6 +24,10 @@ import {
 import { ClientContact, Employee } from '../../types/clientWorkspace';
 import { SETTLEMENTS_SORTED, findSettlementByName } from '../../data/settlements';
 import LinkedDocsWidget from '../LinkedDocsWidget';
+import Employer106Details from './Employer106Details';
+import InvestmentAccount867Details from './InvestmentAccount867Details';
+import Business1320Details from './Business1320Details';
+import ChildTaxDetails from './ChildTaxDetails';
 
 // צבעים ייחודיים לכל סעיף — בהמשך לפלטה של לשונית מיסוי
 const COLOR_IDENTITY   = '#2563eb';  // כחול — זהות רשמית
@@ -683,6 +687,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   </div>
                 )}
                 <button className="btn btn-ghost btn-sm" onClick={() => removeChild(child.id)} style={{ color: 'var(--red)', alignSelf: 'flex-end', marginBottom: 4 }}>🗑</button>
+                <ChildTaxDetails child={child} onUpdate={(field, value) => updateChild(child.id, field, value)} />
               </div>
             ))}
           </div>
@@ -1382,6 +1387,8 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                       <input type="text" value={a.notes ?? ''} onChange={e => updateInvestmentAccount(a.id, 'notes', e.target.value || undefined)} />
                     </div>
                   </div>
+
+                  <InvestmentAccount867Details account={a} onUpdate={(field, value) => updateInvestmentAccount(a.id, field, value)} />
                 </div>
               ))}
             </div>
@@ -1442,6 +1449,8 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                     <input type="text" value={e.notes ?? ''} onChange={ev => updateEmployer(e.id, 'notes', ev.target.value || undefined)} />
                   </div>
                 </div>
+
+                <Employer106Details employer={e} onUpdate={(field, value) => updateEmployer(e.id, field, value)} />
               </div>
             ))}
           </div>
@@ -1739,6 +1748,8 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                     <input type="text" value={b.notes ?? ''} onChange={e => updateBusiness(b.id, 'notes', e.target.value || undefined)} />
                   </div>
                 </div>
+
+                <Business1320Details business={b} onUpdate={(field, value) => updateBusiness(b.id, field, value)} />
               </div>
             ))}
           </div>

@@ -102,7 +102,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: isMarried,
     modelPath: 'spouse.registeredRole',
-    sourceQuestionIds: ['registered_spouse_role'],
+    sourceQuestionIds: ['marital_status', 'registered_spouse_role'],
     requiredDocuments: [],
     legalReference: 'הוראות פקודה — בחירת בן זוג רשום',
   },
@@ -113,7 +113,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => isMarried(m) && m.identity?.spouseHasIncome === true,
     modelPath: 'spouse.eligibleSeparateCalc',
-    sourceQuestionIds: ['eligible_separate_calc'],
+    sourceQuestionIds: ['marital_status', 'eligible_separate_calc'],
     requiredDocuments: [],
     legalReference: 'סעיף 66 לפקודה',
   },
@@ -136,11 +136,24 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.identity?.childrenWithSpecialNeeds === true,
     modelPath: 'identity.childrenWithSpecialNeeds',
-    sourceQuestionIds: ['children_special_needs'],
+    sourceQuestionIds: ['children_count', 'children_special_needs'],
     requiredDocuments: [
       { code: 'special_child_cert', name: 'אישור נכות לילד', reason: 'נדרש לזיכוי לפי סעיף 40(ד)' },
     ],
     legalReference: 'סעיף 40(ד) לפקודה',
+  },
+  {
+    fieldNumber: '029',
+    hebrewLabel: 'הורה יחיד שילדיו בחזקתו',
+    section: '2_family',
+    required: 'conditional',
+    conditionalOn: (m) => m.identity?.isCustodialSingleParent === true,
+    modelPath: 'identity.isCustodialSingleParent',
+    sourceQuestionIds: ['marital_status', 'is_custodial_single_parent'],
+    requiredDocuments: [
+      { code: 'custody_decree', name: 'פסק דין למשמורת / אישור עיריה', reason: 'הוכחת הורה יחיד לזיכוי 029' },
+    ],
+    legalReference: 'סעיף 40(ב) לפקודה',
   },
 
   // ═══ חלק 3 — הכנסות מעבודה ═══════════════════════════════════════════════
@@ -199,10 +212,23 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => isMarried(m) && m.identity?.spouseHasIncome === true && m.spouse?.has106 === true,
     modelPath: 'spouse.salary.totalGross',
-    sourceQuestionIds: ['spouse_has_106'],
+    sourceQuestionIds: ['marital_status', 'spouse_has_106'],
     requiredDocuments: [
       { code: '106_spouse', name: 'טופס 106 של בן/בת הזוג', reason: 'דיווח הכנסת התא המשפחתי' },
     ],
+  },
+  {
+    fieldNumber: '282',
+    hebrewLabel: 'הכנסה ממימוש אופציות 102 / 3i',
+    section: '3_income_salary',
+    required: 'conditional',
+    conditionalOn: (m) => m.income?.hasOptions102 === true,
+    modelPath: 'income.options102Total',
+    sourceQuestionIds: ['has_options_102'],
+    requiredDocuments: [
+      { code: 'options_102_cert', name: 'אישור מהמעביד / נאמן על מימוש אופציות', reason: 'דיווח שווי המימוש' },
+    ],
+    legalReference: 'סעיף 102 / 3i לפקודה',
   },
 
   // ═══ חלק 4 — הכנסות מעסק ════════════════════════════════════════════════
@@ -222,14 +248,14 @@ export const form1301Fields: Form1301FieldDef[] = [
   },
   {
     fieldNumber: '6111-req',
-    hebrewLabel: 'חובת הגשת טופס 6111 (מחזור מעל 2M)',
+    hebrewLabel: 'חובת הגשת טופס 6111 (מחזור מעל 300K)',
     section: '4_income_business',
     required: 'conditional',
-    conditionalOn: (m) => m.income?.bizRevenueBand === '2m_plus',
+    conditionalOn: (m) => m.income?.bizRevenueBand === '300k_plus',
     modelPath: 'income.business.requires6111',
     sourceQuestionIds: ['biz_revenue_band'],
     requiredDocuments: [
-      { code: '6111', name: 'טופס 6111 — מאזן ודוח רווח-הפסד מקודד', reason: 'חובה לעסק עם מחזור מעל 2,086,000 ₪' },
+      { code: '6111', name: 'טופס 6111 — מאזן ודוח רווח-הפסד מקודד', reason: 'חובה לעסק עם מחזור מעל 300,000 ₪ (הוראות 2025)' },
     ],
   },
   {
@@ -318,6 +344,67 @@ export const form1301Fields: Form1301FieldDef[] = [
     requiredDocuments: [
       { code: '161', name: 'אישור על קצבה / טופס 161', reason: 'דיווח קצבאות שוטפות' },
     ],
+  },
+  {
+    fieldNumber: '194',
+    hebrewLabel: 'דמי לידה מביטוח לאומי',
+    section: '5_income_passive',
+    required: 'conditional',
+    conditionalOn: (m) => m.income?.niMaternityReceived === true,
+    modelPath: 'income.niMaternityAmount',
+    sourceQuestionIds: ['ni_maternity'],
+    requiredDocuments: [
+      { code: 'ni_maternity_cert', name: 'אישור ביטוח לאומי על תקבול דמי לידה', reason: 'תקבול חייב במס מלא' },
+    ],
+  },
+  {
+    fieldNumber: '196',
+    hebrewLabel: 'דמי אבטלה מביטוח לאומי',
+    section: '5_income_passive',
+    required: 'conditional',
+    conditionalOn: (m) => m.income?.niUnemploymentReceived === true,
+    modelPath: 'income.niUnemploymentAmount',
+    sourceQuestionIds: ['ni_unemployment'],
+    requiredDocuments: [
+      { code: 'ni_unemployment_cert', name: 'אישור ביטוח לאומי על תקבול דמי אבטלה', reason: 'תקבול חייב במס' },
+    ],
+  },
+  {
+    fieldNumber: '250',
+    hebrewLabel: 'תגמולי מילואים מביטוח לאומי',
+    section: '5_income_passive',
+    required: 'conditional',
+    conditionalOn: (m) => m.income?.niReserveDutyReceived === true,
+    modelPath: 'income.niReserveDutyAmount',
+    sourceQuestionIds: ['ni_reserve_duty'],
+    requiredDocuments: [
+      { code: 'ni_reserve_cert', name: 'אישור תגמולי מילואים', reason: 'תקבול חייב במס' },
+    ],
+  },
+  {
+    fieldNumber: '270',
+    hebrewLabel: 'תקבולי פגיעה בעבודה מביטוח לאומי',
+    section: '5_income_passive',
+    required: 'conditional',
+    conditionalOn: (m) => m.income?.niWorkInjuryReceived === true,
+    modelPath: 'income.niWorkInjuryAmount',
+    sourceQuestionIds: ['ni_work_injury'],
+    requiredDocuments: [
+      { code: 'ni_work_injury_cert', name: 'אישור פגיעה בעבודה מבט"ל', reason: 'דיווח תקבולי פיצוי' },
+    ],
+  },
+  {
+    fieldNumber: '9-21',
+    hebrewLabel: 'דמי מזונות שהתקבלו',
+    section: '5_income_passive',
+    required: 'conditional',
+    conditionalOn: (m) => (m.deductionsCredits?.alimonyReceivedAnnual ?? 0) > 0,
+    modelPath: 'deductionsCredits.alimonyReceivedAnnual',
+    sourceQuestionIds: ['alimony_received'],
+    requiredDocuments: [
+      { code: 'alimony_decree', name: 'פסק דין מזונות / הסכם', reason: 'דיווח תקבולי מזונות שחייבים חלקית' },
+    ],
+    legalReference: 'סעיף 9(21) לפקודה',
   },
 
   // ═══ חלק 6 — רווחי הון ודיבידנד ══════════════════════════════════════════
@@ -468,6 +555,19 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 17(5א) לפקודה',
   },
   {
+    fieldNumber: '25-alimony-paid',
+    hebrewLabel: 'מזונות ששולמו (זיכוי)',
+    section: '8_deductions',
+    required: 'conditional',
+    conditionalOn: (m) => (m.deductionsCredits?.alimonyPaidAnnual ?? 0) > 0,
+    modelPath: 'deductionsCredits.alimonyPaidAnnual',
+    sourceQuestionIds: ['alimony_paid'],
+    requiredDocuments: [
+      { code: 'alimony_decree_paid', name: 'פסק דין מזונות + אישורי תשלום', reason: 'זיכוי לפי סעיף 25 — בלבד אם מעוגן בפסק דין' },
+    ],
+    legalReference: 'סעיף 25 לפקודה',
+  },
+  {
     fieldNumber: 'S14',
     hebrewLabel: 'פטור לפי סעיף 14 (עולה חדש / תושב חוזר ותיק)',
     section: '8_deductions',
@@ -536,6 +636,45 @@ export const form1301Fields: Form1301FieldDef[] = [
   },
 
   // ═══ חלק 11 — נסיבות מיוחדות ═════════════════════════════════════════════
+  {
+    fieldNumber: '64a-fam-co',
+    hebrewLabel: 'חבר בחברה משפחתית (סעיף 64א)',
+    section: '11_special',
+    required: 'conditional',
+    conditionalOn: (m) => m.specialSituations?.isFamilyCompanyMember === true,
+    modelPath: 'specialSituations.isFamilyCompanyMember',
+    sourceQuestionIds: ['is_family_company_member'],
+    requiredDocuments: [
+      { code: 'family_company_decl', name: 'אישור חבר בחברה משפחתית + טופס 2152', reason: 'ייחוס ההכנסה לבעל המניות' },
+    ],
+    legalReference: 'סעיף 64א לפקודה',
+  },
+  {
+    fieldNumber: '75b-cfc',
+    hebrewLabel: 'חברה זרה נשלטת (CFC)',
+    section: '11_special',
+    required: 'conditional',
+    conditionalOn: (m) => m.specialSituations?.isForeignControllingShareholder === true,
+    modelPath: 'specialSituations.isForeignControllingShareholder',
+    sourceQuestionIds: ['is_foreign_controlling_shareholder'],
+    requiredDocuments: [
+      { code: 'cfc_decl', name: 'דיווח על חברה זרה נשלטת + טופס 150', reason: 'דיווח רווחי CFC' },
+    ],
+    legalReference: 'סעיף 75ב לפקודה',
+  },
+  {
+    fieldNumber: 'kibbutz',
+    hebrewLabel: 'חבר קיבוץ / מושב שיתופי',
+    section: '11_special',
+    required: 'conditional',
+    conditionalOn: (m) => m.specialSituations?.isKibbutzMember === true,
+    modelPath: 'specialSituations.isKibbutzMember',
+    sourceQuestionIds: ['is_kibbutz_member'],
+    requiredDocuments: [
+      { code: 'kibbutz_cert', name: 'אישור חברות קיבוץ + פירוט הכנסות', reason: 'חישוב מס שונה לחברי קיבוץ' },
+    ],
+    legalReference: 'סעיף 54-58 לפקודה',
+  },
   {
     fieldNumber: 'L-losses',
     hebrewLabel: 'הפסדים מועברים משנים קודמות',

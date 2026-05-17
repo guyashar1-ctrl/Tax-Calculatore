@@ -97,6 +97,10 @@ export const INVESTMENT_ACCOUNT_KIND_LABELS: Record<InvestmentAccountKind, strin
 
 /**
  * חשבון השקעות בארץ. כל חשבון = מסמך 867 נפרד בצ'ק-ליסט הסופי של 1301.
+ *
+ * שדות הסכומים נשאבים מטופס 867 של בית ההשקעות/הבנק. כולם אופציונליים.
+ * מסוכמים אוטומטית ל-1301 (שדות 142 לריבית/דיבידנד, 053/054 לרווחי/הפסדי
+ * הון, 040 לניכוי במקור).
  */
 export interface InvestmentAccount {
   id: string;
@@ -106,11 +110,24 @@ export interface InvestmentAccount {
   isClosed?: boolean;
   closedYear?: number;
   notes?: string;
+
+  // ── סכומי 867 (Wave ג') ──
+  interestIncome?: number;             // ריבית מני"ע ופיקדונות → שדה 142
+  dividendIncome?: number;             // דיבידנדים → שדה 142
+  capitalGainsRealized?: number;       // רווחי הון ממומשים → שדה 054
+  capitalLosses?: number;              // הפסדי הון → שדה 053
+  taxWithheldOnInterest?: number;      // ניכוי מס שנוכה על ריבית → שדה 040
+  taxWithheldOnDividends?: number;     // ניכוי מס שנוכה על דיבידנדים → שדה 040
+  taxWithheldOnCapitalGains?: number;  // ניכוי מס שנוכה על רווחי הון → שדה 040
 }
 
 // ─── מעבידים ────────────────────────────────────────────────────────────
 /**
  * מעביד של הנישום בשנה הנוכחית (או בעבר). כל מעביד = טופס 106 נפרד.
+ *
+ * שדות הסכומים נשאבים מטופס 106 של המעביד. כולם אופציונליים — נישום
+ * שטרם הזין נתונים יראה ריק. אם הוזנו, הם מוצגים בעורך פרטי 106 ומסוכמים
+ * לרמת 1301 (שדות 158/042/044/089/245/249/282/086).
  */
 export interface EmployerInfo {
   id: string;
@@ -120,6 +137,18 @@ export interface EmployerInfo {
   endDate?: string;              // ריק = עדיין מועסק שם
   role?: string;                 // תיאור התפקיד
   notes?: string;
+
+  // ── סכומי 106 (Wave ג') ──
+  grossSalaryAnnual?: number;              // סך ברוטו שנתי → שדה 158 ב-1301
+  mandatoryTaxWithheld?: number;           // מס שנוכה במקור → שדה 042
+  niEmployeeWithheld?: number;             // ב"ל עובד שנוכה → שדה 044
+  healthEmployeeWithheld?: number;         // מס בריאות שנוכה → שדה 089
+  pensionEmployerContribution?: number;    // הפקדת מעביד לפנסיה
+  pensionEmployeeContribution?: number;    // הפקדת עובד לפנסיה → שדה 245
+  studyFundEmployerContribution?: number;  // הפקדת מעביד לקרן השתלמות
+  studyFundEmployeeContribution?: number;  // הפקדת עובד לקרן השתלמות → שדה 249
+  optionsValueGranted102?: number;         // שווי אופציות 102 שמומשו → שדה 282
+  severancePayReceived?: number;           // פיצויי פיטורין → שדה 086
 }
 
 // ─── חשבונות בנק בארץ ──────────────────────────────────────────────────
@@ -179,6 +208,15 @@ export interface PensionFundInfo {
   notes?: string;
 }
 
+export type ChildCustody = 'self' | 'spouse' | 'shared' | 'after_18';
+
+export const CHILD_CUSTODY_LABELS: Record<ChildCustody, string> = {
+  self:     'אצל הנישום',
+  spouse:   'אצל בן/בת הזוג',
+  shared:   'משמורת משותפת',
+  after_18: 'מעל 18 (לא רלוונטי)',
+};
+
 export interface Child {
   id: string;
   firstName?: string;   // שם פרטי (אופציונלי לתאימות לרשומות ישנות)
@@ -186,6 +224,15 @@ export interface Child {
   birthYear: number;    // מחושב מ-birthDate, נשמר לתאימות
   hasDisability: boolean;
   disabilityPercentage?: number;
+
+  // ── שדות מס לפי גיל/משמורת (Wave ג') ──
+  lastName?: string;                  // שונה מההורה במקרי גירושין
+  idNumber?: string;                  // לחישוב זיכוי הורה יחיד (158)
+  custody?: ChildCustody;             // קובע מי מקבל את נקודות הזיכוי
+  livesWithTaxpayer?: boolean;        // קריטריון לסעיף 029 (הורה יחיד)
+  monthlyAlimonyReceived?: number;    // דמי מזונות שמתקבלים (חייב חלקית במס)
+  monthlyAlimonyPaid?: number;        // דמי מזונות ששולמו (זיכוי אם בפסק דין)
+  educationCostsAnnual?: number;      // לזיכוי הוצאות לימוד (סעיף 45א)
 }
 
 // ─── קרובים תלויים — סעיף 44ב לפקודה ──────────────────────────────────────
@@ -245,6 +292,18 @@ export interface BusinessInfo {
   closedYear?: number;
   vatFrequency?: 'monthly' | 'bi_monthly';
   notes?: string;
+
+  // ── שדות נספח א' 1320 (Wave ג') ──
+  /** אם true — שדה המחזור 150 מתחלף ב-170 (עסק של בן/בת זוג רשום). */
+  belongsToSpouse?: boolean;
+  revenueAnnual?: number;             // מחזור שנתי → שדה 150 או 170 ב-1301
+  cogs?: number;                       // עלות המכר
+  operatingExpenses?: number;          // הוצאות תפעוליות
+  depreciation?: number;               // פחת
+  netIncome?: number;                  // רווח/הפסד נטו — בסיס לחישוב 1301
+  clientWithholdingTax857?: number;    // ניכוי במקור מלקוחות (857) → שדה 040
+  selfPensionContribution?: number;    // הפקדת פנסיה עצמאי → שדה 268
+  selfStudyFundContribution?: number;  // הפקדת קרן השתלמות עצמאי → שדה 249
 }
 
 // ─── נתוני בן/בת זוג (לחישוב תא משפחתי) ───────────────────────────────────
