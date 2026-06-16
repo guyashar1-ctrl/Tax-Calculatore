@@ -35,6 +35,16 @@ A safe, ordered path from the current working application to the MVP, **preservi
 
 ---
 
+## 2.5 The current schema already anticipates this evolution
+
+Reading the live schema ([supabase/01-schema.sql](supabase/01-schema.sql)) confirms the app was built toward this direction — so we **evolve, not replace**:
+
+- **Documents are already client-owned** (`documents.client_id`) — the ownership principle holds today.
+- **The `clients` table already holds the permanent Tax Profile** (~80 fields incl. jsonb `spouse`/`children`/`properties`/`foreign_accounts`, plus representation/SHAAM/VAT settings). Tax Profile is a *resurfacing* of existing columns — not a data migration.
+- **The `cases` table is the Engagement seed** (commented "מוכן לעתיד"); `tasks.case_id` already links tasks to it. Engagements grow out of `cases`.
+
+Net effect: most phases are additive, and every screen you use today keeps working.
+
 ## 3. Data-migration safety rules
 
 - Snapshot Supabase (and any remaining localStorage) **before** each phase.
@@ -100,4 +110,39 @@ External integrations (bookkeeping/payroll/SHAAM connectors), operational AI age
 
 ---
 
-> No implementation begins until you approve the start of Phase 0/1.
+## 7. What stays unchanged vs what evolves
+
+**Stays unchanged (preserved, keeps working throughout):**
+
+- Auth (Supabase + Google + dev login) and `profiles`.
+- The `clients` table and the full `ClientForm` (all ~80 fields) — untouched.
+- The `tasks` table and the `MyDesk` / `TasksPage` screens.
+- Document storage, `useDocumentStore`, and the `DocumentManager` screen.
+- The representation flow (`RepresentationRequest*`, signing, POA PDF) and `representation_requests` table.
+- The 1301 `annualReport` engine.
+- Tax calculator + reference, Vercel deploy, RLS, storage buckets.
+
+**Evolves (additive surfacing/wrapping — no loss):**
+
+| Today | Evolves into | Phase | Existing thing kept? |
+|---|---|---|---|
+| `documents` | + tags/status/many-to-many links + **Document Library** screen | 1 | Yes — `DocumentManager` stays |
+| `tasks` | **Work Center** (cross-client, statuses *derived*) + `DocumentRequest` for missing items | 2 | Yes — task screens stay |
+| `cases` | **Engagements** (first-class workflow) + **Engagement Workspace** wrapping 1301 & representation | 3 | Yes — engines reused as-is |
+| `clients` (~80 fields) | surfaced as **Tax Profile** + insights in **Client Workspace** | 4 | Yes — no field migration |
+| `representation_requests` / `representation_status` | **Representation Registry** (per authority) | 4 | Yes — backfilled |
+| representation client-fill flow | **Client Portal** | 5 | Yes — generalized |
+
+## 8. Database changes per phase
+
+All additive; each phase's DDL is one new migration file, reversible.
+
+| Phase | Database changes | Notes |
+|---|---|---|
+| **1 — Document Library** | `documents` + `tags`, `status`; new `document_task_links`; backfill from `linked_to` | `supabase/07-document-library.sql` (written, **not applied**) |
+| **2 — Work Center** | new `document_requests`; `documents.status` gains `requested` | **`tasks`: no schema change** — the 5 statuses are *derived* from existing `status` / `ball_with` / `progress` |
+| **3 — Engagement Workspace** | add columns to `cases` (`type`, `status`, `stage`, `period`, `due`, `owner`) → cases become engagements; new `document_engagement_links` | Reuses `tasks.case_id`; 1301 + representation wrapped, not migrated |
+| **4 — Client Workspace** | new `representation_records` (backfilled from `representation_status` + `representation_requests`) | **`clients`: no schema change** — Tax Profile resurfaces existing columns |
+| **5 — Client Portal** | none required | Reuses documents, requests, representation records, tasks, auth |
+
+> Roadmap for review. No database migration is applied until you approve this plan and then explicitly authorize the apply for that phase. The Phase 1 migration file stays on `feature/mvp-migration`, unapplied.
