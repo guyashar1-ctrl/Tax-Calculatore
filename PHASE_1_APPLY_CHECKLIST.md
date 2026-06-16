@@ -56,4 +56,16 @@ One of: (a) test on a **Supabase branch** first, then live; (b) **direct** apply
 
 ---
 
-> No migration is applied until this checklist is approved **and** you authorize the apply and its method.
+## 6. Sandbox test result — PASSED (2026-06-16)
+
+Branching needs Pro (project is Free), so the migration was validated in a throwaway `phase1_test` schema in the same project, seeded to mirror the live shape (5 docs, 4 task-links, 1 valid task, 2 tasks). The live `public` tables were never touched.
+
+- Documents: 5 → **5** (none lost) · all `status = received`.
+- Link table: **exactly 1** link created (the valid task); **idempotent** (re-ran backfill → still 1, no duplicates).
+- `tags` + `status` added; `linked_to` **preserved** (`task:gone1` unchanged).
+- Migration ran with **no errors**.
+- Cleanup: sandbox dropped (0 remaining). Live `documents` confirmed **0 new columns, still 5 rows** — untouched.
+
+**Conclusion:** the migration is safe and behaves exactly as specified. Ready to apply to live **on approval**.
+
+> No migration is applied to the live database until this checklist is approved **and** you authorize the apply and its method.
