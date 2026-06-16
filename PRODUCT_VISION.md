@@ -373,4 +373,13 @@ The matured form of §13/timeline: the central place for all client communicatio
 Operational visibility into AI agents as firm resources: which agents exist · what work is assigned · what each is currently doing · pending approvals · failures/exceptions · workload across agents.
 *MVP seeds already present:* the agent roster (§16) and the "pending approval" lines on the Work Center and Engagement surfaces. The Agent Workspace is a management/observability layer over those same logged actions; no model change required.
 
+### 18.3 Client financial/tax dashboard + external data pull (V2 → V3)
+
+The Client Portal evolves beyond action items into a dashboard the client finds genuinely useful: income, expenses, liabilities to the authorities, VAT/reporting status, and related documents. Data may be **pulled automatically** from external systems (e.g. **Paperless**, bookkeeping, payroll) through the integration fabric (Layer 3) — capability, not vendor.
+*MVP seeds:* the document repository, representation registry, and per-engagement status already give the client truthful status today.
+
+### Core product goals (north star)
+
+Keep every change in service of: managing clients · managing tasks · managing documents · linking clients/tasks/documents/engagements · collecting information from clients · collecting documents from clients · preparing data for **SHAAM** submission · and ultimately a useful client portal (income, expenses, authority liabilities, VAT/reporting status, related documents). Evolve the current system; preserve its direction and feel.
+
 > No implementation begins until each step is reviewed and approved. Build sequencing and data-preserving migration are defined in [MIGRATION_PLAN.md](MIGRATION_PLAN.md).
