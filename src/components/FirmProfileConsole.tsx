@@ -57,7 +57,12 @@ export default function FirmProfileConsole({ profile, onSave }: Props) {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(profile);
+  // השוואה ללא שדות שהשרת מנהל (updated_at משתנה בכל שמירה) — אחרת dirty לעולם לא מתאפס.
+  const editableJson = (p: FirmProfile) => {
+    const { updatedAt: _u, createdAt: _c, ...rest } = p as FirmProfile & { updatedAt?: string; createdAt?: string };
+    return JSON.stringify(rest);
+  };
+  const dirty = editableJson(draft) !== editableJson(profile);
 
   const updTop = <K extends keyof FirmProfile>(key: K, val: FirmProfile[K]) =>
     setDraft(d => ({ ...d, [key]: val }));

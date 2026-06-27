@@ -123,11 +123,15 @@ async function status() {
 }
 
 try {
-  if (has('--status')) { await status(); process.exit(0); }
-  const user = await ensureUser();
-  if (has('--reset-data')) await resetData(user.id);
-  process.exit(0);
+  if (has('--status')) {
+    await status();
+  } else {
+    const user = await ensureUser();
+    if (has('--reset-data')) await resetData(user.id);
+  }
+  // לא קוראים ל-process.exit כדי לא להתנגש עם סגירת ה-handles (אזהרת libuv ב-Windows).
+  process.exitCode = 0;
 } catch (e) {
   console.error('✖ ההקמה נכשלה:', e?.message || e);
-  process.exit(1);
+  process.exitCode = 1;
 }
