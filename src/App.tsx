@@ -19,6 +19,9 @@ import { useDocumentDB } from './hooks/useIndexedDB';
 import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
+import { useFirmProfile } from './hooks/useFirmProfile';
+import FirmProfileConsole from './components/FirmProfileConsole';
+import type { FirmProfile } from './types/firmProfile';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
 import { SAMPLE_TASKS } from './data/sampleTasks';
 import ClientList from './components/ClientList';
@@ -52,6 +55,7 @@ type View =
   | 'documents'
   | 'reference'
   | 'annualReport'
+  | 'firmProfile'
   | 'requestNew'
   | 'requestReview'
   | 'requestFill';
@@ -141,6 +145,7 @@ export default function App() {
   const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients } = useClients(user?.id);
   const { tasks, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks } = useTasks(user?.id);
   const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
+  const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
 
   const [view, setView] = useState<View>('tasks');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -638,6 +643,15 @@ export default function App() {
 
           <button
             type="button"
+            className={`header-logout-btn ${view === 'firmProfile' ? 'active' : ''}`}
+            title="פרופיל המשרד"
+            onClick={() => { setView('firmProfile'); setSelectedId(null); setSelectedRequestId(null); }}
+          >
+            ⚙ המשרד
+          </button>
+
+          <button
+            type="button"
             className="header-logout-btn"
             onClick={async () => { await signOut(); }}
           >
@@ -755,6 +769,17 @@ export default function App() {
             userId={user?.id}
             onUpdateClient={updateClient}
           />
+        )}
+
+        {view === 'firmProfile' && (
+          firmProfile ? (
+            <FirmProfileConsole
+              profile={firmProfile}
+              onSave={async (p: FirmProfile) => { await saveProfile(p); }}
+            />
+          ) : (
+            <div className="app-loading">טוען את פרופיל המשרד…</div>
+          )
         )}
 
         {view === 'requestNew' && (
