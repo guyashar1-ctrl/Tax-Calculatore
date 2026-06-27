@@ -8,6 +8,11 @@ import {
   TaskCategory,
   TaskProgress,
   BallWith,
+  AuthorityKind,
+  AuthorityRepresentations,
+  RepAuthorityKind,
+  DEFAULT_REQUESTED_DOCS,
+  REP_AUTHORITY_LABELS,
 } from './types';
 import { ExtractedClientData } from './utils/geminiVision';
 import { useDocumentDB } from './hooks/useIndexedDB';
@@ -31,6 +36,7 @@ import TaskBoard from './components/TaskBoard';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
 import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateClient';
+import RepresentationOnboardingDialog from './components/RepresentationOnboardingDialog';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import { useAuth } from './hooks/useAuth';
@@ -141,6 +147,7 @@ export default function App() {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const db = useDocumentDB();
 
   // ── ניהול משימות ───────────────────────────────────────────────────────
@@ -331,8 +338,74 @@ export default function App() {
   // ─── Representation requests ───────────────────────────────────────────────
 
   function handleAddRequest() {
-    setSelectedRequestId(null);
-    setView('requestNew');
+    setShowOnboarding(true);
+  }
+
+  /**
+   * נקודת הכניסה החדשה לייצוג (MVP — שלב 1): מהזנת שם+אימייל+רשויות
+   * המערכת יוצרת אוטומטית: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
+   * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
+   */
+  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations }) {
+    const { name, email, areas } = data;
+    const nameParts = name.trim().split(/\s+/);
+    const clientId = crypto.randomUUID();
+    const reqId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const selectedKeys = Object.keys(areas) as RepAuthorityKind[];
+
+    // 1. לקוח חדש — מסומן "ממתין" עם מרשם הייצוג לפי רשות
+    const client = makeEmptyClient(clientId, {
+      firstName: nameParts[0] || '',
+      lastName: nameParts.slice(1).join(' ') || '',
+      email,
+      representationStatus: 'pending_fill',
+      representationRequestId: reqId,
+      authorityRepresentations: areas,
+      notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין להשלמת התהליך.',
+    });
+    await addClient(client);
+
+    // 2. התקשרות ייצוג. טופס 2279א'5 (שע"ם) מכסה רק מ"ה/ניכויים/מע"מ —
+    //    ביטוח לאומי הוא ייצוג נפרד ולכן נשמר רק במרשם הלקוח, לא ברשויות הבקשה.
+    const shaamAuthorities = selectedKeys.filter(k => k !== 'nationalInsurance') as unknown as AuthorityKind[];
+    const request: RepresentationRequest = {
+      id: reqId,
+      linkedClientId: clientId,
+      clientName: name.trim(),
+      clientEmail: email,
+      authorities: shaamAuthorities,
+      requestedDocs: DEFAULT_REQUESTED_DOCS.map(d => ({ ...d })),
+      notes: '',
+      status: 'pending_fill',
+      createdAt: now,
+      updatedAt: now,
+      submission: null,
+      submittedAt: null,
+      partB: null,
+      signedPdfStoredId: null,
+      ocrExtracted: null,
+    };
+    await addRequest(request);
+
+    // 3. משימה פנימית למעקב התהליך
+    const areaLabels = selectedKeys.map(a => REP_AUTHORITY_LABELS[a]).join(', ');
+    const task: Task = {
+      id: crypto.randomUUID(),
+      clientId,
+      category: 'institutions',
+      title: `להשלים ייצוג — ${name.trim()}`,
+      description: `בקשת ייצוג חדשה. רשויות: ${areaLabels}.`,
+      ballWith: 'me',
+      status: 'open',
+      progress: 'new',
+      priority: 'normal',
+      createdAt: now,
+      updatedAt: now,
+    };
+    await addTask(task);
+
+    setShowOnboarding(false);
   }
 
   function handleSelectRequest(id: string) {
@@ -743,6 +816,13 @@ export default function App() {
         <QuickCreateClient
           onSave={handleCreateClient}
           onCancel={() => setShowCreateClient(false)}
+        />
+      )}
+
+      {showOnboarding && (
+        <RepresentationOnboardingDialog
+          onCreate={handleCreateRepresentation}
+          onCancel={() => setShowOnboarding(false)}
         />
       )}
     </div>

@@ -546,6 +546,10 @@ export interface Client {
   representationStatus?: RepresentationStatus; // ברירת מחדל: 'active' (לקוח שנוצר ידנית)
   representationRequestId?: string;            // קישור ל-RepresentationRequest אם הלקוח נוצר מבקשה
 
+  // ── מרשם ייצוג לפי רשות — מצב הייצוג מול כל רשות בנפרד (RepresentationRecord) ──
+  // מתוכנן להחזיק בעתיד גם היסטוריה, הגשות, אישורים וקישורי מסמכים לכל רשות.
+  authorityRepresentations?: AuthorityRepresentations;
+
   // ── הרחבות תיק עבודה (אופציונלי, ראה types/clientWorkspace.ts) ──
   // השדות הבאים אופציונליים כדי לא לשבור רשומות קיימות.
   assignedAccountantId?: string;
@@ -723,6 +727,58 @@ export const REPRESENTATION_STATUS_BADGE: Record<RepresentationStatus, string> =
   awaiting_accountant: 'badge-red',
   awaiting_authorities: 'badge-purple',
   active: 'badge-green',
+};
+
+// ─── מרשם ייצוג לפי רשות ─────────────────────────────────────────────────────
+// בניגוד ל-AuthorityKind (שמכסה רק את שלוש רשויות טופס 2279א'5 בשע"ם),
+// המרשם מכסה את כל ארבע הרשויות — כולל ביטוח לאומי, שהוא ייצוג נפרד.
+
+export type RepAuthorityKind = 'incomeTax' | 'withholding' | 'vat' | 'nationalInsurance';
+
+/** סטטוס הייצוג מול רשות בודדת */
+export type RepAreaStatus = 'none' | 'in_process' | 'active';
+
+/** סוג/רמת הייצוג — רלוונטי למ"ה / ניכויים / מע"מ; ביטוח לאומי ללא סוג */
+export type RepLevel = 'primary' | 'secondary';
+
+/** רשומת הייצוג מול רשות בודדת. מתוכננת להתרחב (היסטוריה, הגשות, מסמכים). */
+export interface AuthorityRepresentation {
+  status: RepAreaStatus;
+  level?: RepLevel;
+}
+
+export type AuthorityRepresentations = Partial<Record<RepAuthorityKind, AuthorityRepresentation>>;
+
+/** סדר התצוגה הקבוע של הרשויות */
+export const REP_AUTHORITY_ORDER: RepAuthorityKind[] = ['incomeTax', 'withholding', 'vat', 'nationalInsurance'];
+
+/** הרשויות שבהן בוחרים סוג ייצוג (ביטוח לאומי — ייצוג יחיד, ללא סוג) */
+export const REP_AUTHORITIES_WITH_LEVEL: RepAuthorityKind[] = ['incomeTax', 'withholding', 'vat'];
+
+export const REP_AUTHORITY_LABELS: Record<RepAuthorityKind, string> = {
+  incomeTax: 'מס הכנסה',
+  withholding: 'ניכויים',
+  vat: 'מע"מ',
+  nationalInsurance: 'ביטוח לאומי',
+};
+
+/** קיצורים לטבלת הלקוחות */
+export const REP_AUTHORITY_SHORT: Record<RepAuthorityKind, string> = {
+  incomeTax: 'מ"ה',
+  withholding: 'ניכ׳',
+  vat: 'מע"מ',
+  nationalInsurance: 'ב"ל',
+};
+
+export const REP_LEVEL_LABELS: Record<RepLevel, string> = {
+  primary: 'מייצג ראשי',
+  secondary: 'מייצג משני',
+};
+
+export const REP_AREA_STATUS_LABELS: Record<RepAreaStatus, string> = {
+  none: 'לא בייצוג',
+  in_process: 'בתהליך',
+  active: 'מיוצג',
 };
 
 // ─── חישוב תא משפחתי ────────────────────────────────────────────────────────

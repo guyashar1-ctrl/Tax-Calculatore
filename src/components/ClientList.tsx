@@ -9,6 +9,13 @@ import {
   REPRESENTATION_STATUS_BADGE,
   Task,
   VATStatus,
+  AuthorityRepresentations,
+  RepAreaStatus,
+  REP_AUTHORITY_ORDER,
+  REP_AUTHORITY_SHORT,
+  REP_AUTHORITY_LABELS,
+  REP_AREA_STATUS_LABELS,
+  REP_LEVEL_LABELS,
 } from '../types';
 import { ShaamStatus } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
@@ -63,6 +70,21 @@ const NI_BADGE: Record<NIType, string> = {
   passive: 'badge-gray',
   pensioner: 'badge-orange',
 };
+
+// ── מחווני ייצוג לפי רשות ──
+const REP_DOT: Record<RepAreaStatus, { dot: string; bg: string; fg: string }> = {
+  active: { dot: '#1D9E75', bg: '#E1F5EE', fg: '#0F6E56' },
+  in_process: { dot: '#EF9F27', bg: '#FAEEDA', fg: '#854F0B' },
+  none: { dot: 'transparent', bg: 'var(--gray-50)', fg: 'var(--gray-500)' },
+};
+
+/** מצב ייצוג כולל נגזר מהמרשם לפי רשות: מיוצג רק אם כל הרשויות פעילות. */
+function deriveOverallRep(reps?: AuthorityRepresentations): 'active' | 'in_process' | null {
+  if (!reps) return null;
+  const entries = Object.values(reps).filter(Boolean) as { status: RepAreaStatus }[];
+  if (entries.length === 0) return null;
+  return entries.every(e => e.status === 'active') ? 'active' : 'in_process';
+}
 
 type SortField = 'name' | 'idNumber' | 'city' | 'phone' | 'email' | 'status' | 'assignee' | 'tasks';
 type SortDir = 'asc' | 'desc';
@@ -444,7 +466,7 @@ export default function ClientList({
                     <span>אימייל</span> {sortIcon('email')}
                   </th>
                   <th className="hide-mobile">
-                    <span>סטטוסי מס</span>
+                    <span>מס וייצוג</span>
                   </th>
                   <th className="th-sortable hide-mobile" onClick={() => toggleSort('assignee')}>
                     <span>מטפל</span> {sortIcon('assignee')}
@@ -463,6 +485,7 @@ export default function ClientList({
                   const m = metricsByClient.get(client.id);
                   const employee = findEmployee(client.assignedAccountantId);
                   const repBadgeForNonActive = status !== 'active';
+                  const overallRep = deriveOverallRep(client.authorityRepresentations);
                   const pc = getPrimaryContact(client);
                   // אם הראשי הוא לא הנישום, נציג שם של הראשי כדי שגיא יבין את מי הוא רואה
                   const primaryNote = !pc.isClient ? pc.name : '';
@@ -477,7 +500,13 @@ export default function ClientList({
                           <div>
                             <div className="client-table-name">{fullName}</div>
                             <div className="client-table-badges">
-                              {repBadgeForNonActive && (
+                              {overallRep === 'in_process' && (
+                                <span className="badge badge-orange" style={{ fontSize: '.65rem', padding: '.05rem .35rem' }}>טרם מיוצג</span>
+                              )}
+                              {overallRep === 'active' && (
+                                <span className="badge badge-green" style={{ fontSize: '.65rem', padding: '.05rem .35rem' }}>מיוצג</span>
+                              )}
+                              {overallRep === null && repBadgeForNonActive && (
                                 <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`} style={{ fontSize: '.65rem', padding: '.05rem .35rem' }}>
                                   {REPRESENTATION_STATUS_LABELS[status]}
                                 </span>
@@ -505,11 +534,33 @@ export default function ClientList({
                         ) : '—'}
                       </td>
                       <td className="hide-mobile">
-                        <div className="cl-tax-chips">
+                        <div className="cl-tax-chips" style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '.6rem', color: 'var(--gray-400)' }}>סיווג</span>
                           <span className={`badge ${IT_BADGE[client.incomeTaxType]} cl-mini-badge`}>מ״ה: {IT_LABELS[client.incomeTaxType]}</span>
                           <span className={`badge ${NI_BADGE[client.niType]} cl-mini-badge`}>ב״ל: {NI_LABELS[client.niType]}</span>
                           <span className={`badge ${VAT_BADGE[client.vatStatus]} cl-mini-badge`}>מע״מ: {VAT_LABELS[client.vatStatus]}</span>
                         </div>
+                        {client.authorityRepresentations && Object.keys(client.authorityRepresentations).length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                            <span style={{ fontSize: '.6rem', color: 'var(--gray-400)' }}>ייצוג</span>
+                            {REP_AUTHORITY_ORDER.map(a => {
+                              const rep = client.authorityRepresentations?.[a];
+                              const st: RepAreaStatus = rep?.status ?? 'none';
+                              const c = REP_DOT[st];
+                              const title = `${REP_AUTHORITY_LABELS[a]}: ${REP_AREA_STATUS_LABELS[st]}${rep?.level ? ` (${REP_LEVEL_LABELS[rep.level]})` : ''}`;
+                              return (
+                                <span
+                                  key={a}
+                                  title={title}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '.62rem', padding: '1px 6px', borderRadius: 20, background: c.bg, color: c.fg }}
+                                >
+                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: st === 'none' ? 'transparent' : c.dot, border: st === 'none' ? '1.5px solid #B4B2A9' : 'none' }} />
+                                  {REP_AUTHORITY_SHORT[a]}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </td>
                       <td className="hide-mobile">
                         {employee ? (
