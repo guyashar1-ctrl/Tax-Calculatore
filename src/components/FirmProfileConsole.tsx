@@ -9,13 +9,16 @@ import {
   FONT_OPTIONS,
   deriveMonogram,
 } from '../types/firmProfile';
+import { Client } from '../types';
+import EmployeesPanel from './EmployeesPanel';
 
 interface Props {
   profile: FirmProfile;
+  clients: Client[];
   onSave: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Section = 'identity' | 'branding' | 'contact' | 'signature';
+type Section = 'identity' | 'branding' | 'contact' | 'signature' | 'employees';
 
 const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'identity', label: 'זהות', icon: 'ti-id-badge-2' },
@@ -44,13 +47,13 @@ const SOON_GROUPS: { group: string; items: { label: string; icon: string }[] }[]
   },
   {
     group: 'מערכת',
-    items: [{ label: 'צוות והרשאות', icon: 'ti-users-group' }],
+    items: [{ label: 'הרשאות ותפקידים', icon: 'ti-shield-lock' }],
   },
 ];
 
 const ACCENT = '#4F46E5';
 
-export default function FirmProfileConsole({ profile, onSave }: Props) {
+export default function FirmProfileConsole({ profile, clients, onSave }: Props) {
   const [draft, setDraft] = useState<FirmProfile>(profile);
   const [section, setSection] = useState<Section>('identity');
   const [busy, setBusy] = useState(false);
@@ -103,18 +106,20 @@ export default function FirmProfileConsole({ profile, onSave }: Props) {
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 500 }}>פרופיל המשרד</div>
-          <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>מקור האמת לזהות ולמיתוג של כל חוויות הלקוח</div>
+          <div style={{ fontSize: 20, fontWeight: 500 }}>המשרד</div>
+          <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח</div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--gray-600)', background: 'var(--gray-100)', padding: '5px 10px', borderRadius: 20 }}>
-            <i className="ti ti-circle-check" style={{ fontSize: 14, color: ACCENT }} aria-hidden="true" />
-            הפרופיל {completeness}% מוגדר
-          </span>
-          <button className="btn btn-primary" onClick={handleSave} disabled={busy || !dirty}>
-            {busy ? 'שומר…' : dirty ? 'שמירה' : savedAt ? '✓ נשמר' : 'שמור'}
-          </button>
-        </div>
+        {section !== 'employees' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--gray-600)', background: 'var(--gray-100)', padding: '5px 10px', borderRadius: 20 }}>
+              <i className="ti ti-circle-check" style={{ fontSize: 14, color: ACCENT }} aria-hidden="true" />
+              הפרופיל {completeness}% מוגדר
+            </span>
+            <button className="btn btn-primary" onClick={handleSave} disabled={busy || !dirty}>
+              {busy ? 'שומר…' : dirty ? 'שמירה' : savedAt ? '✓ נשמר' : 'שמור'}
+            </button>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -145,6 +150,21 @@ export default function FirmProfileConsole({ profile, onSave }: Props) {
               </div>
             );
           })}
+
+          <div style={navGroupLabel}>צוות</div>
+          <div
+            onClick={() => setSection('employees')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 9, padding: '8px 9px', borderRadius: 8,
+              cursor: 'pointer', fontSize: 13, marginBottom: 2,
+              background: section === 'employees' ? 'rgba(79,70,229,.10)' : 'transparent',
+              color: section === 'employees' ? ACCENT : 'var(--gray-600)',
+              fontWeight: section === 'employees' ? 500 : 400,
+            }}
+          >
+            <i className="ti ti-users-group" style={{ fontSize: 16 }} aria-hidden="true" />
+            עובדים
+          </div>
 
           {SOON_GROUPS.map(g => (
             <div key={g.group}>
@@ -266,6 +286,10 @@ export default function FirmProfileConsole({ profile, onSave }: Props) {
                 </div>
               )}
             </div>
+          )}
+
+          {section === 'employees' && (
+            <EmployeesPanel clients={clients} />
           )}
 
         </div>

@@ -26,7 +26,6 @@ import { SAMPLE_CLIENTS } from './data/sampleClients';
 import { SAMPLE_TASKS } from './data/sampleTasks';
 import ClientList from './components/ClientList';
 import ClientWorkspace from './components/ClientWorkspace';
-import EmployeesPanel from './components/EmployeesPanel';
 import TaxCalculator from './components/TaxCalculator';
 import DocumentManager from './components/DocumentManager';
 import { enrichClientsWithWorkspace } from './data/sampleClientWorkspace';
@@ -50,7 +49,6 @@ type View =
   | 'tasks'
   | 'list'
   | 'form'
-  | 'employees'
   | 'calculator'
   | 'documents'
   | 'reference'
@@ -585,7 +583,6 @@ export default function App() {
   const navTabs: { id: View; label: string; badge?: number }[] = [
     { id: 'tasks', label: '✓ משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
     { id: 'list', label: '👥 לקוחות' },
-    { id: 'employees', label: '🧑‍💼 עובדים' },
     { id: 'annualReport', label: '📋 דוח שנתי 1301' },
     { id: 'reference', label: '📚 מדריך מס' },
   ];
@@ -723,10 +720,6 @@ export default function App() {
           />
         )}
 
-        {view === 'employees' && (
-          <EmployeesPanel clients={clients} />
-        )}
-
         {view === 'calculator' && (
           selectedClient ? (
             <TaxCalculator
@@ -775,6 +768,7 @@ export default function App() {
           firmProfile ? (
             <FirmProfileConsole
               profile={firmProfile}
+              clients={clients}
               onSave={async (p: FirmProfile) => { await saveProfile(p); }}
             />
           ) : (
