@@ -4,6 +4,7 @@ import type {
   RepresentationRequest,
 } from '../types';
 import type { Employee } from '../types/clientWorkspace';
+import type { FirmProfile } from '../types/firmProfile';
 
 function toSnake(s: string): string {
   // Convert camelCase / PascalCase to snake_case, treating runs of uppercase
@@ -112,4 +113,22 @@ export function employeeToDb(emp: Partial<Employee>, userId?: string): Record<st
   const row = objectToRow(emp, EMP_OMIT_ON_WRITE);
   if (userId) row.user_id = userId;
   return row;
+}
+
+// ───────────────────────────────────────── FirmProfile ────────────────────
+// מורחב מטבלת profiles. שדות ה-jsonb (branding/communication/settings) עוברים
+// כמות שהם — המרת camel↔snake חלה רק על מפתחות הרמה העליונה.
+
+const PROFILE_OMIT_ON_WRITE = ['id', 'updatedAt', 'createdAt'];
+
+export function profileFromDb(row: Record<string, any>): FirmProfile {
+  const p = rowToObject<FirmProfile>(row);
+  if (!p.branding) p.branding = {};
+  if (!p.communication) p.communication = {};
+  if (!p.settings) p.settings = {};
+  return p;
+}
+
+export function profileToDb(profile: Partial<FirmProfile>): Record<string, any> {
+  return objectToRow(profile, PROFILE_OMIT_ON_WRITE);
 }
