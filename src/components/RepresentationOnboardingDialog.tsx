@@ -10,7 +10,7 @@ import {
 } from '../types';
 
 interface Props {
-  onCreate: (data: { name: string; email: string; areas: AuthorityRepresentations }) => Promise<void> | void;
+  onCreate: (data: { name: string; email: string; areas: AuthorityRepresentations }) => Promise<string>;
   onCancel: () => void;
 }
 
@@ -36,6 +36,8 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createdLink, setCreatedLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const selectedKeys = REP_AUTHORITY_ORDER.filter(a => areas[a].selected);
 
@@ -71,7 +73,8 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
     setBusy(true);
     setError(null);
     try {
-      await onCreate({ name: name.trim(), email: email.trim(), areas: built });
+      const link = await onCreate({ name: name.trim(), email: email.trim(), areas: built });
+      setCreatedLink(link);
     } catch (err) {
       console.error('Representation onboarding failed:', err);
       setError(extractErrorMessage(err));
@@ -87,6 +90,38 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
       if (parts.length > 0) return parts.join(' — ');
     }
     return 'שגיאה לא ידועה ביצירת בקשת הייצוג';
+  }
+
+  if (createdLink) {
+    return (
+      <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+        <div className="modal task-modal">
+          <div className="modal-header">
+            <h3>✓ בקשת הייצוג נוצרה</h3>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>✕</button>
+          </div>
+          <div className="modal-body">
+            <p style={{ color: 'var(--gray-700)', fontSize: '.9rem', marginBottom: '1rem', lineHeight: 1.6 }}>
+              נוצרו הלקוח, ההתקשרות והמשימה. <strong>שליחת המייל האוטומטית תתווסף בשלב הבא</strong> — בינתיים העתיקו את קישור ההזדהות ושלחו אותו ללקוח:
+            </p>
+            <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem' }}>
+              <input readOnly value={createdLink} dir="ltr" style={{ flex: 1, textAlign: 'left', fontSize: '.8rem', fontFamily: 'var(--font-mono, monospace)' }} onFocus={e => e.currentTarget.select()} />
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => { try { await navigator.clipboard.writeText(createdLink); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ } }}
+              >
+                {copied ? '✓ הועתק' : 'העתק'}
+              </button>
+            </div>
+            <p style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>הקישור ייחודי ללקוח זה ומאובטח. הלקוח ימלא דרכו את פרטי ההזדהות.</p>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-primary" onClick={onCancel}>סיום</button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

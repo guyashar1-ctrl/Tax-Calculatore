@@ -686,7 +686,29 @@ export interface RepresentationRequest {
     address?: string;
     city?: string;
   } | null;
+
+  // ── אונבורדינג ציבורי (Phase 2): קישור הזדהות + הפרטים שהלקוח מילא ──
+  onboardingToken?: string;
+  onboardingStatus?: 'pending' | 'submitted';
+  identification?: OnboardingIdentification | null;
+  onboardingSubmittedAt?: string | null;
 }
+
+/** פרטי הזדהות שהלקוח מילא בעמוד הציבורי */
+export interface OnboardingIdentification {
+  idNumber?: string;
+  birthDate?: string;
+  secondaryType?: OnboardingSecondaryType;
+  secondaryValue?: string;
+}
+
+export type OnboardingSecondaryType = 'parentId' | 'driverLicense' | 'passport';
+
+export const ONBOARDING_SECONDARY_LABELS: Record<OnboardingSecondaryType, string> = {
+  parentId: 'תעודת זהות של הורה',
+  driverLicense: 'מספר רישיון נהיגה',
+  passport: 'מספר דרכון',
+};
 
 export const DEFAULT_REQUESTED_DOCS: RequestedDocItem[] = [
   { id: 'id_card', label: 'תצלום תעודת זהות + ספח', required: true, isDefault: true },

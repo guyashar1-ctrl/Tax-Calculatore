@@ -39,6 +39,7 @@ import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
 import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateClient';
 import RepresentationOnboardingDialog from './components/RepresentationOnboardingDialog';
+import OnboardingPage from './components/OnboardingPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import { useAuth } from './hooks/useAuth';
@@ -136,6 +137,11 @@ export default function App() {
   // ⚠ זמני: דף בדיקה של עורך החתימה ללא התחברות. יוסר לאחר אימות.
   if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-sig')) {
     return <TestSignaturePage />;
+  }
+  // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
+  if (typeof window !== 'undefined') {
+    const onboardToken = new URLSearchParams(window.location.search).get('onboard');
+    if (onboardToken) return <OnboardingPage token={onboardToken} />;
   }
 
   const { user, loading: authLoading, displayName, avatarUrl, signOut } = useAuth();
@@ -349,11 +355,12 @@ export default function App() {
    * המערכת יוצרת אוטומטית: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
    * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
    */
-  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations }) {
+  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations }): Promise<string> {
     const { name, email, areas } = data;
     const nameParts = name.trim().split(/\s+/);
     const clientId = crypto.randomUUID();
     const reqId = crypto.randomUUID();
+    const onboardingToken = crypto.randomUUID().replace(/-/g, '');
     const now = new Date().toISOString();
     const selectedKeys = Object.keys(areas) as RepAuthorityKind[];
 
@@ -388,6 +395,10 @@ export default function App() {
       partB: null,
       signedPdfStoredId: null,
       ocrExtracted: null,
+      onboardingToken,
+      onboardingStatus: 'pending',
+      identification: null,
+      onboardingSubmittedAt: null,
     };
     await addRequest(request);
 
@@ -408,7 +419,7 @@ export default function App() {
     };
     await addTask(task);
 
-    setShowOnboarding(false);
+    return `${window.location.origin}/?onboard=${onboardingToken}`;
   }
 
   function handleSelectRequest(id: string) {

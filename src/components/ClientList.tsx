@@ -289,7 +289,7 @@ export default function ClientList({
     }
   }
 
-  void requests;
+  const requestById = useMemo(() => new Map(requests.map(r => [r.id, r])), [requests]);
 
   const activeAdvancedCount =
     (employeeFilter !== 'all' ? 1 : 0) +
@@ -486,6 +486,8 @@ export default function ClientList({
                   const employee = findEmployee(client.assignedAccountantId);
                   const repBadgeForNonActive = status !== 'active';
                   const overallRep = deriveOverallRep(client.authorityRepresentations);
+                  const linkedReq = client.representationRequestId ? requestById.get(client.representationRequestId) : undefined;
+                  const idSubmitted = linkedReq?.onboardingStatus === 'submitted' && status !== 'active';
                   const pc = getPrimaryContact(client);
                   // אם הראשי הוא לא הנישום, נציג שם של הראשי כדי שגיא יבין את מי הוא רואה
                   const primaryNote = !pc.isClient ? pc.name : '';
@@ -510,6 +512,9 @@ export default function ClientList({
                                 <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`} style={{ fontSize: '.65rem', padding: '.05rem .35rem' }}>
                                   {REPRESENTATION_STATUS_LABELS[status]}
                                 </span>
+                              )}
+                              {idSubmitted && (
+                                <span className="badge badge-green cl-mini-badge" title="הלקוח השלים את פרטי ההזדהות">✓ פרטי זיהוי התקבלו</span>
                               )}
                               {client.qualifyingSettlementId && <span className="badge badge-purple cl-mini-badge">ישוב מזכה</span>}
                               {client.disabilityPercentage > 0 && <span className="badge badge-orange cl-mini-badge">נכות {client.disabilityPercentage}%</span>}
