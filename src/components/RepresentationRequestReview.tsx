@@ -5,6 +5,7 @@ import {
   AUTHORITY_LABELS,
   REPRESENTATION_STATUS_LABELS,
   REPRESENTATION_STATUS_BADGE,
+  ONBOARDING_SECONDARY_LABELS,
 } from '../types';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { generateSignedPoaPdf, downloadPdfBytes, toPureArrayBuffer } from '../utils/poaPdfGenerator';
@@ -81,6 +82,14 @@ export default function RepresentationRequestReview({
 
   const submission = request.submission;
   const authorityList = request.authorities.map(a => AUTHORITY_LABELS[a]).join(', ');
+
+  // בקשות אונבורדינג חדשות (Phase 2): מזוהות ע"י טוקן; הזרימה הישנה (מסמכים/הדמיה/חתימה) לא רלוונטית להן.
+  const isNewOnboarding = !!request.onboardingToken;
+  const ident = request.identification;
+  const onboardingSubmitted = request.onboardingStatus === 'submitted';
+  const onboardingLink = request.onboardingToken
+    ? `${window.location.origin}/?onboard=${request.onboardingToken}`
+    : '';
 
   const fmt = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -218,12 +227,12 @@ export default function RepresentationRequestReview({
         </div>
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={onBack}>← חזרה</button>
-          {request.status === 'pending_fill' && (
+          {!isNewOnboarding && request.status === 'pending_fill' && (
             <button className="btn btn-primary" onClick={() => onOpenFill(request.id)}>
               🧪 הדמיית מילוי
             </button>
           )}
-          {request.status === 'awaiting_accountant' && !signMode && (
+          {!isNewOnboarding && request.status === 'awaiting_accountant' && !signMode && (
             <button className="btn btn-green btn-lg" onClick={() => setSignMode(true)}>
               ✍️ חתום ויצור ייפוי כוח חתום
             </button>
@@ -368,7 +377,8 @@ export default function RepresentationRequestReview({
         </div>
       )}
 
-      {/* רשימת מסמכים שנדרשו */}
+      {/* רשימת מסמכים שנדרשו — רק בזרימה הישנה */}
+      {!isNewOnboarding && (
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div className="card-header"><div className="card-title">📋 מסמכים שנדרשו ({request.requestedDocs.length})</div></div>
         <div className="card-body">
@@ -401,9 +411,43 @@ export default function RepresentationRequestReview({
           </div>
         </div>
       </div>
+      )}
 
-      {/* הגשה — פרטים שהלקוח מילא */}
-      {submission ? (
+      {/* פרטי ההזדהות (זרימת אונבורדינג חדשה) / ההגשה (זרימה ישנה) */}
+      {isNewOnboarding ? (
+        onboardingSubmitted && ident ? (
+          <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="card-header"><div className="card-title">👤 פרטי הזדהות שהלקוח מילא</div></div>
+            <div className="card-body">
+              <div className="form-grid form-grid-2">
+                <Field label="תעודת זהות" value={ident.idNumber || ''} ltr />
+                <Field label="תאריך לידה" value={ident.birthDate || ''} ltr />
+                <Field label={ident.secondaryType ? ONBOARDING_SECONDARY_LABELS[ident.secondaryType] : 'מזהה משני'} value={ident.secondaryValue || ''} ltr />
+                <Field label="נשלח בתאריך" value={request.onboardingSubmittedAt ? new Date(request.onboardingSubmittedAt).toLocaleString('he-IL') : ''} />
+              </div>
+              <div style={{ marginTop: '.75rem', fontSize: '.8rem', color: 'var(--gray-500)' }}>
+                ✓ הפרטים נכתבו לכרטיס הלקוח. הפקת ייפוי הכוח והגשה לשע״ם יתווספו בשלב הבא.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="card" style={{ background: 'var(--orange-light)', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
+            <div className="card-body">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
+                <span style={{ fontSize: '1.5rem' }}>⏳</span>
+                <strong style={{ color: 'var(--orange)' }}>ממתין למילוי הלקוח</strong>
+              </div>
+              <div style={{ fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.6rem' }}>
+                שלחו ללקוח את קישור ההזדהות. כשימלא — הפרטים יופיעו כאן.
+              </div>
+              <div style={{ display: 'flex', gap: '.5rem' }}>
+                <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, fontSize: '.8rem' }} onFocus={e => e.currentTarget.select()} />
+                <button className="btn btn-primary btn-sm" onClick={() => { navigator.clipboard.writeText(onboardingLink).catch(() => {}); }}>העתק קישור</button>
+              </div>
+            </div>
+          </div>
+        )
+      ) : submission ? (
         <>
           <div className="card" style={{ marginBottom: '1rem' }}>
             <div className="card-header">
