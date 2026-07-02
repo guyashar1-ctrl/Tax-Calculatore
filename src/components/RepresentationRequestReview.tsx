@@ -8,6 +8,7 @@ import {
   ONBOARDING_SECONDARY_LABELS,
 } from '../types';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
+import { supabase } from '../lib/supabase';
 import { generateSignedPoaPdf, downloadPdfBytes, toPureArrayBuffer } from '../utils/poaPdfGenerator';
 import SignaturePad from './SignaturePad';
 
@@ -85,6 +86,23 @@ export default function RepresentationRequestReview({
 
   // בקשות אונבורדינג חדשות (Phase 2): מזוהות ע"י טוקן; הזרימה הישנה (מסמכים/הדמיה/חתימה) לא רלוונטית להן.
   const isNewOnboarding = !!request.onboardingToken;
+  const [emailStatus, setEmailStatus] = useState<string | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  async function resendOnboardingEmail() {
+    setSendingEmail(true);
+    setEmailStatus(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: request.id } });
+      if (error) setEmailStatus(`⚠ ${error.message}`);
+      else if (data?.ok) setEmailStatus(`✓ מייל נשלח ל-${request.clientEmail}`);
+      else setEmailStatus(`⚠ ${data?.detail?.message || data?.error || 'שליחה נכשלה'}`);
+    } catch (e) {
+      setEmailStatus(`⚠ ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSendingEmail(false);
+    }
+  }
   const ident = request.identification;
   const onboardingSubmitted = request.onboardingStatus === 'submitted';
   const onboardingLink = request.onboardingToken
@@ -440,10 +458,16 @@ export default function RepresentationRequestReview({
               <div style={{ fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.6rem' }}>
                 שלחו ללקוח את קישור ההזדהות. כשימלא — הפרטים יופיעו כאן.
               </div>
-              <div style={{ display: 'flex', gap: '.5rem' }}>
-                <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, fontSize: '.8rem' }} onFocus={e => e.currentTarget.select()} />
-                <button className="btn btn-primary btn-sm" onClick={() => { navigator.clipboard.writeText(onboardingLink).catch(() => {}); }}>העתק קישור</button>
+              <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+                <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, minWidth: 180, fontSize: '.8rem' }} onFocus={e => e.currentTarget.select()} />
+                <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(onboardingLink).catch(() => {}); }}>העתק קישור</button>
+                <button className="btn btn-primary btn-sm" onClick={resendOnboardingEmail} disabled={sendingEmail}>
+                  {sendingEmail ? 'שולח…' : '📧 שלח מייל שוב'}
+                </button>
               </div>
+              {emailStatus && (
+                <div style={{ marginTop: '.5rem', fontSize: '.8rem', color: emailStatus.startsWith('✓') ? 'var(--green-dark, #0F6E56)' : 'var(--red)' }}>{emailStatus}</div>
+              )}
             </div>
           </div>
         )

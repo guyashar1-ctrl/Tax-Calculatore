@@ -9,8 +9,10 @@ import {
   REP_LEVEL_LABELS,
 } from '../types';
 
+interface CreateResult { link: string; emailSent: boolean; emailError?: string; }
+
 interface Props {
-  onCreate: (data: { name: string; email: string; areas: AuthorityRepresentations }) => Promise<string>;
+  onCreate: (data: { name: string; email: string; areas: AuthorityRepresentations }) => Promise<CreateResult>;
   onCancel: () => void;
 }
 
@@ -36,7 +38,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [createdLink, setCreatedLink] = useState<string | null>(null);
+  const [result, setResult] = useState<CreateResult | null>(null);
   const [copied, setCopied] = useState(false);
 
   const selectedKeys = REP_AUTHORITY_ORDER.filter(a => areas[a].selected);
@@ -73,8 +75,8 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
     setBusy(true);
     setError(null);
     try {
-      const link = await onCreate({ name: name.trim(), email: email.trim(), areas: built });
-      setCreatedLink(link);
+      const res = await onCreate({ name: name.trim(), email: email.trim(), areas: built });
+      setResult(res);
     } catch (err) {
       console.error('Representation onboarding failed:', err);
       setError(extractErrorMessage(err));
@@ -92,7 +94,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
     return 'שגיאה לא ידועה ביצירת בקשת הייצוג';
   }
 
-  if (createdLink) {
+  if (result) {
     return (
       <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
         <div className="modal task-modal">
@@ -101,20 +103,27 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
             <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>✕</button>
           </div>
           <div className="modal-body">
-            <p style={{ color: 'var(--gray-700)', fontSize: '.9rem', marginBottom: '1rem', lineHeight: 1.6 }}>
-              נוצרו הלקוח, ההתקשרות והמשימה. <strong>שליחת המייל האוטומטית תתווסף בשלב הבא</strong> — בינתיים העתיקו את קישור ההזדהות ושלחו אותו ללקוח:
-            </p>
+            {result.emailSent ? (
+              <div style={{ padding: '.7rem .9rem', background: 'var(--green-light)', borderRadius: 'var(--radius)', color: 'var(--green-dark, #0F6E56)', fontSize: '.9rem', marginBottom: '1rem' }}>
+                📧 מייל הזדהות נשלח אוטומטית ללקוח (<span dir="ltr">{email.trim()}</span>).
+              </div>
+            ) : (
+              <div style={{ padding: '.7rem .9rem', background: 'var(--orange-light)', borderRadius: 'var(--radius)', color: 'var(--gray-800)', fontSize: '.85rem', marginBottom: '1rem', lineHeight: 1.6 }}>
+                ⚠ המייל לא נשלח אוטומטית{result.emailError ? ` (${result.emailError})` : ''}. אפשר להעתיק את הקישור ולשלוח ידנית.
+              </div>
+            )}
+            <div style={{ fontSize: '.8rem', color: 'var(--gray-600)', marginBottom: '.35rem' }}>קישור ההזדהות של הלקוח:</div>
             <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem' }}>
-              <input readOnly value={createdLink} dir="ltr" style={{ flex: 1, textAlign: 'left', fontSize: '.8rem', fontFamily: 'var(--font-mono, monospace)' }} onFocus={e => e.currentTarget.select()} />
+              <input readOnly value={result.link} dir="ltr" style={{ flex: 1, textAlign: 'left', fontSize: '.8rem', fontFamily: 'var(--font-mono, monospace)' }} onFocus={e => e.currentTarget.select()} />
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={async () => { try { await navigator.clipboard.writeText(createdLink); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ } }}
+                onClick={async () => { try { await navigator.clipboard.writeText(result.link); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ } }}
               >
                 {copied ? '✓ הועתק' : 'העתק'}
               </button>
             </div>
-            <p style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>הקישור ייחודי ללקוח זה ומאובטח. הלקוח ימלא דרכו את פרטי ההזדהות.</p>
+            <p style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>הקישור ייחודי ללקוח זה ומאובטח.</p>
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-primary" onClick={onCancel}>סיום</button>

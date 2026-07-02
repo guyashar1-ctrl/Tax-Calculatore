@@ -16,6 +16,7 @@ import {
 } from './types';
 import { ExtractedClientData } from './utils/geminiVision';
 import { useDocumentDB } from './hooks/useIndexedDB';
+import { supabase } from './lib/supabase';
 import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
@@ -355,7 +356,7 @@ export default function App() {
    * המערכת יוצרת אוטומטית: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
    * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
    */
-  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations }): Promise<string> {
+  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations }): Promise<{ link: string; emailSent: boolean; emailError?: string }> {
     const { name, email, areas } = data;
     const nameParts = name.trim().split(/\s+/);
     const clientId = crypto.randomUUID();
@@ -419,7 +420,19 @@ export default function App() {
     };
     await addTask(task);
 
-    return `${window.location.origin}/?onboard=${onboardingToken}`;
+    // שליחת מייל אוטומטית ללקוח (הכל נקרא מ-Firm Profile בצד-שרת). לא חוסם — אם נכשל, הקישור הידני זמין.
+    const link = `${window.location.origin}/?onboard=${onboardingToken}`;
+    let emailSent = false;
+    let emailError: string | undefined;
+    try {
+      const { data: res, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: reqId } });
+      if (error) emailError = error.message;
+      else if (res?.ok) emailSent = true;
+      else emailError = res?.detail?.message || res?.error || 'שגיאה לא ידועה';
+    } catch (e) {
+      emailError = e instanceof Error ? e.message : String(e);
+    }
+    return { link, emailSent, emailError };
   }
 
   function handleSelectRequest(id: string) {
