@@ -18,20 +18,20 @@ interface Props {
   onSave: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Section = 'identity' | 'branding' | 'contact' | 'signature' | 'employees';
+type Section = 'identity' | 'branding' | 'contact' | 'signature' | 'communication' | 'employees';
 
 const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'identity', label: 'זהות', icon: 'ti-id-badge-2' },
   { id: 'branding', label: 'מותג', icon: 'ti-palette' },
   { id: 'contact', label: 'פרטי קשר', icon: 'ti-address-book' },
   { id: 'signature', label: 'חתימת מייל', icon: 'ti-signature' },
+  { id: 'communication', label: 'ערוצי תקשורת', icon: 'ti-messages' },
 ];
 
 const SOON_GROUPS: { group: string; items: { label: string; icon: string }[] }[] = [
   {
     group: 'תקשורת ואוטומציה',
     items: [
-      { label: 'ערוצי תקשורת', icon: 'ti-messages' },
       { label: 'תבניות מייל', icon: 'ti-mail-cog' },
       { label: 'אוטומציות', icon: 'ti-bolt' },
     ],
@@ -60,10 +60,11 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // השוואה ללא שדות שהשרת מנהל (updated_at משתנה בכל שמירה) — אחרת dirty לעולם לא מתאפס.
+  // השוואה ללא שדות שהשרת מנהל (updated_at משתנה בכל שמירה), ובאופן אדיש לסדר
+  // המפתחות — כי jsonb ב-Postgres מחזיר מפתחות בסדר אחר ואחרת dirty לעולם לא מתאפס.
   const editableJson = (p: FirmProfile) => {
     const { updatedAt: _u, createdAt: _c, ...rest } = p as FirmProfile & { updatedAt?: string; createdAt?: string };
-    return JSON.stringify(rest);
+    return stableStringify(rest);
   };
   const dirty = editableJson(draft) !== editableJson(profile);
 
@@ -288,6 +289,27 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
             </div>
           )}
 
+          {section === 'communication' && (
+            <div style={card}>
+              <div style={cardTitle}>ערוצי תקשורת</div>
+              <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
+                מכאן נשלחים המיילים ללקוחות. השם שיוצג הוא שם המשרד; התשובות יגיעו לכתובת ה-Reply-To.
+              </div>
+              <div style={grid2}>
+                <Field label="כתובת שולח (From)">
+                  <input value={draft.communication.senderEmail ?? ''} onChange={e => updComm('senderEmail', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} placeholder="ברירת מחדל: כתובת מערכת" />
+                </Field>
+                <Field label="כתובת לתשובות (Reply-To)">
+                  <input value={draft.communication.replyTo ?? ''} onChange={e => updComm('replyTo', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} placeholder={draft.email || 'office@example.co.il'} />
+                </Field>
+              </div>
+              <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 11.5, color: 'var(--gray-600)', lineHeight: 1.6 }}>
+                <i className="ti ti-info-circle" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />
+                כדי לשלוח מכתובת שולח משלך צריך לאמת את הדומיין אצל ספק המייל. עד אז נשלח מכתובת מערכת עם שם המשרד שלך והתשובות אליך. כשתאמת דומיין — פשוט עדכן כאן, בלי שינוי קוד.
+              </div>
+            </div>
+          )}
+
           {section === 'employees' && (
             <EmployeesPanel clients={clients} />
           )}
@@ -331,6 +353,14 @@ const navGroupLabel: React.CSSProperties = { fontSize: 10.5, letterSpacing: '.06
 const card: React.CSSProperties = { border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 18, background: 'white' };
 const cardTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 500, marginBottom: 14 };
 const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 };
+
+/** JSON יציב — ממיין מפתחות רקורסיבית, כדי שהשוואת שינוי לא תושפע מסדר מפתחות של jsonb. */
+function stableStringify(v: unknown): string {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  const obj = v as Record<string, unknown>;
+  return '{' + Object.keys(obj).sort().map(k => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') + '}';
+}
 
 function extractErr(e: unknown): string {
   if (typeof e === 'string') return e;
