@@ -62,16 +62,23 @@ Deno.serve(async (req: Request) => {
     const replyTo = (comm.replyTo && String(comm.replyTo).trim()) || profile?.email || undefined;
     const link = `${APP_URL}/?onboard=${reqRow.onboarding_token}`;
     const clientFirst = String(reqRow.client_name || "").trim().split(/\s+/)[0] || "";
+    const subject = "ברוכים הבאים — נשאר רק לאמת את הזהות";
     const payload: Record<string, unknown> = {
       from: `${firmName} <${fromAddress}>`,
       to: [reqRow.client_email],
-      subject: "ברוכים הבאים — נשאר רק לאמת את הזהות",
+      subject,
       html: emailHtml({ firmName, ink, monogram, clientFirst, link, signature: comm.emailSignature || "" }),
     };
     if (replyTo) payload.reply_to = replyTo;
     const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const body = await r.json();
-    if (!r.ok) return json({ error: "resend_failed", detail: body }, 502);
+
+    const logBase = { user_id: user.id, client_id: reqRow.linked_client_id, request_id: reqRow.id, to_email: reqRow.client_email, subject, kind: "onboarding" };
+    if (!r.ok) {
+      await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
+      return json({ error: "resend_failed", detail: body }, 502);
+    }
+    await admin.from("email_messages").insert({ ...logBase, resend_id: body.id, status: "sent" });
     return json({ ok: true, id: body.id });
   } catch (e) {
     return json({ error: String(e) }, 500);

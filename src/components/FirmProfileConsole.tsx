@@ -11,6 +11,7 @@ import {
 } from '../types/firmProfile';
 import { Client } from '../types';
 import EmployeesPanel from './EmployeesPanel';
+import EmailActivityModule from './EmailActivity/EmailActivityModule';
 
 interface Props {
   profile: FirmProfile;
@@ -18,7 +19,7 @@ interface Props {
   onSave: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Section = 'identity' | 'branding' | 'contact' | 'signature' | 'communication' | 'employees';
+type Section = 'identity' | 'branding' | 'contact' | 'signature' | 'communication' | 'emailActivity' | 'employees';
 
 const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'identity', label: 'זהות', icon: 'ti-id-badge-2' },
@@ -26,6 +27,7 @@ const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'contact', label: 'פרטי קשר', icon: 'ti-address-book' },
   { id: 'signature', label: 'חתימת מייל', icon: 'ti-signature' },
   { id: 'communication', label: 'ערוצי תקשורת', icon: 'ti-messages' },
+  { id: 'emailActivity', label: 'פעילות מייל', icon: 'ti-mail-forward' },
 ];
 
 const SOON_GROUPS: { group: string; items: { label: string; icon: string }[] }[] = [
@@ -110,7 +112,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
           <div style={{ fontSize: 20, fontWeight: 500 }}>המשרד</div>
           <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח</div>
         </div>
-        {section !== 'employees' && (
+        {section !== 'employees' && section !== 'emailActivity' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--gray-600)', background: 'var(--gray-100)', padding: '5px 10px', borderRadius: 20 }}>
               <i className="ti ti-circle-check" style={{ fontSize: 14, color: ACCENT }} aria-hidden="true" />
@@ -308,6 +310,10 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                 כדי לשלוח מכתובת שולח משלך צריך לאמת את הדומיין אצל ספק המייל. עד אז נשלח מכתובת מערכת עם שם המשרד שלך והתשובות אליך. כשתאמת דומיין — פשוט עדכן כאן, בלי שינוי קוד.
               </div>
             </div>
+          )}
+
+          {section === 'emailActivity' && (
+            <div style={card}><EmailActivityModule userId={profile.id} /></div>
           )}
 
           {section === 'employees' && (
