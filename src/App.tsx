@@ -356,7 +356,7 @@ export default function App() {
    * המערכת יוצרת אוטומטית: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
    * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
    */
-  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations }): Promise<{ link: string; emailSent: boolean; emailError?: string; trace?: string }> {
+  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations }): Promise<{ link: string; emailSent: boolean; emailError?: string }> {
     const { name, email, areas } = data;
     const nameParts = name.trim().split(/\s+/);
     const clientId = crypto.randomUUID();
@@ -364,11 +364,6 @@ export default function App() {
     const onboardingToken = crypto.randomUUID().replace(/-/g, '');
     const now = new Date().toISOString();
     const selectedKeys = Object.keys(areas) as RepAuthorityKind[];
-
-    // ⚠ הכשרה זמנית לאבחון — יוסר לאחר שנאתר את נקודת העצירה.
-    const trace: string[] = [];
-    const dbg = (m: string) => { trace.push(m); try { console.info('[onboarding]', m); } catch { /* */ } };
-    dbg(`START handler-v2c · origin=${window.location.origin} · reqId=${reqId}`);
 
     // 1. לקוח חדש — מסומן "ממתין" עם מרשם הייצוג לפי רשות
     const client = makeEmptyClient(clientId, {
@@ -381,7 +376,6 @@ export default function App() {
       notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין להשלמת התהליך.',
     });
     await addClient(client);
-    dbg('client inserted');
 
     // 2. התקשרות ייצוג. טופס 2279א'5 (שע"ם) מכסה רק מ"ה/ניכויים/מע"מ —
     //    ביטוח לאומי הוא ייצוג נפרד ולכן נשמר רק במרשם הלקוח, לא ברשויות הבקשה.
@@ -408,7 +402,6 @@ export default function App() {
       onboardingSubmittedAt: null,
     };
     await addRequest(request);
-    dbg('request inserted');
 
     // 3. משימה פנימית למעקב התהליך
     const areaLabels = selectedKeys.map(a => REP_AUTHORITY_LABELS[a]).join(', ');
@@ -426,25 +419,20 @@ export default function App() {
       updatedAt: now,
     };
     await addTask(task);
-    dbg('task inserted');
 
     // שליחת מייל אוטומטית ללקוח (הכל נקרא מ-Firm Profile בצד-שרת). לא חוסם — אם נכשל, הקישור הידני זמין.
     const link = `${window.location.origin}/?onboard=${onboardingToken}`;
     let emailSent = false;
     let emailError: string | undefined;
-    dbg('invoking send-onboarding-email…');
     try {
       const { data: res, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: reqId } });
-      dbg(`invoke returned · error=${error ? (error.name + ': ' + error.message) : 'none'} · res=${JSON.stringify(res ?? null)}`);
-      if (error) emailError = `${error.name}: ${error.message}`;
+      if (error) emailError = error.message;
       else if (res?.ok) emailSent = true;
       else emailError = res?.detail?.message || res?.error || 'שגיאה לא ידועה';
     } catch (e) {
-      emailError = 'INVOKE THREW: ' + (e instanceof Error ? (e.name + ': ' + e.message) : String(e));
-      dbg(emailError);
+      emailError = e instanceof Error ? e.message : String(e);
     }
-    dbg(`DONE · emailSent=${emailSent} · emailError=${emailError ?? 'none'}`);
-    return { link, emailSent, emailError, trace: trace.join('\n') };
+    return { link, emailSent, emailError };
   }
 
   function handleSelectRequest(id: string) {
