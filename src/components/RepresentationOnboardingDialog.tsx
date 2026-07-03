@@ -9,7 +9,7 @@ import {
   REP_LEVEL_LABELS,
 } from '../types';
 
-interface CreateResult { link: string; emailSent: boolean; emailError?: string; }
+interface CreateResult { link: string; emailSent: boolean; emailError?: string; trace?: string; }
 
 interface Props {
   onCreate: (data: { name: string; email: string; areas: AuthorityRepresentations }) => Promise<CreateResult>;
@@ -124,6 +124,13 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
               </button>
             </div>
             <p style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>הקישור ייחודי ללקוח זה ומאובטח.</p>
+            {result.trace && (
+              <div style={{ marginTop: '.9rem' }}>
+                <div style={{ fontSize: '.7rem', color: 'var(--gray-500)', marginBottom: 4 }}>🔧 אבחון (זמני) — העתק לי את זה:</div>
+                <textarea readOnly value={result.trace} dir="ltr" onFocus={e => e.currentTarget.select()}
+                  style={{ width: '100%', height: 120, fontSize: '.7rem', fontFamily: 'var(--font-mono, monospace)', textAlign: 'left', whiteSpace: 'pre', overflow: 'auto' }} />
+              </div>
+            )}
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-primary" onClick={onCancel}>סיום</button>
