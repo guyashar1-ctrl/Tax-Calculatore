@@ -8,18 +8,19 @@ import {
   CreditPointLine,
   BracketLine,
   FamilyTaxResult,
-  IncomeTaxType,
   NIType,
   Gender,
 } from '../types';
-import { getSettlementById } from '../data/settlements';
+import { resolveSettlement } from '../data/eligibleSettlements';
+import {
+  calcCreditPointsV2,
+  calcSettlementCredit,
+  CreditProfile,
+  DegreeInfo,
+} from './creditPoints';
 
 const fmt = (n: number) =>
   n.toLocaleString('he-IL', { maximumFractionDigits: 0 });
-
-function getChildAge(birthYear: number, taxYear: number): number {
-  return taxYear - birthYear;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ממשק גנרי לנתוני נישום (ראשי או בן/בת זוג)
@@ -31,8 +32,6 @@ interface TaxPerson {
   children: Child[];
   isNewImmigrant: boolean;
   aliyahYear: number;
-  isReturningResident: boolean;
-  returningYear: number;
   disabilityPercentage: number;
   hasAcademicDegree: boolean;
   academicDegreeYear: number;
@@ -42,8 +41,6 @@ interface TaxPerson {
   completedNationalService: boolean;
   nationalServiceYear: number;
   qualifyingSettlementId: string;
-  qualifyingSettlementOverride: boolean;
-  qualifyingSettlementCreditPoints: number;
 }
 
 function clientToTaxPerson(client: Client): TaxPerson {
@@ -53,8 +50,6 @@ function clientToTaxPerson(client: Client): TaxPerson {
     children: client.children,
     isNewImmigrant: client.isNewImmigrant,
     aliyahYear: client.aliyahYear,
-    isReturningResident: client.isReturningResident,
-    returningYear: client.returningYear,
     disabilityPercentage: client.disabilityPercentage,
     hasAcademicDegree: client.hasAcademicDegree,
     academicDegreeYear: client.academicDegreeYear,
@@ -64,8 +59,6 @@ function clientToTaxPerson(client: Client): TaxPerson {
     completedNationalService: client.completedNationalService,
     nationalServiceYear: client.nationalServiceYear,
     qualifyingSettlementId: client.qualifyingSettlementId,
-    qualifyingSettlementOverride: client.qualifyingSettlementOverride,
-    qualifyingSettlementCreditPoints: client.qualifyingSettlementCreditPoints,
   };
 }
 
@@ -75,8 +68,6 @@ function spouseToTaxPerson(spouse: SpouseData, children: Child[]): TaxPerson {
     children,
     isNewImmigrant: spouse.isNewImmigrant,
     aliyahYear: spouse.aliyahYear,
-    isReturningResident: spouse.isReturningResident,
-    returningYear: spouse.returningYear,
     disabilityPercentage: spouse.disabilityPercentage,
     hasAcademicDegree: spouse.hasAcademicDegree,
     academicDegreeYear: spouse.academicDegreeYear,
@@ -86,131 +77,66 @@ function spouseToTaxPerson(spouse: SpouseData, children: Child[]): TaxPerson {
     completedNationalService: spouse.completedNationalService,
     nationalServiceYear: spouse.nationalServiceYear,
     qualifyingSettlementId: spouse.qualifyingSettlementId,
-    qualifyingSettlementOverride: spouse.qualifyingSettlementOverride,
-    qualifyingSettlementCreditPoints: spouse.qualifyingSettlementCreditPoints,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// נקודות זיכוי — גנרי (עובד לראשי ולבן/בת זוג)
+// נקודות זיכוי — מותאם למנוע V2 (הכללים המאומתים)
+// הערה: בפרטי לקוח אין חודש עלייה/שחרור ואין משך שירות — לכן הונחו:
+// חודש ינואר, ושירות מלא (2 נק' לחייל). ניתן לדייק דרך אשף נקודות הזיכוי.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function calcCreditPointsForPerson(
-  person: TaxPerson,
-  year: number,
-  cpValue: number,
-): CreditPointLine[] {
-  const lines: CreditPointLine[] = [];
-  const add = (description: string, legalBasis: string, points: number) => {
-    if (points > 0) lines.push({ description, legalBasis, points, valueNIS: points * cpValue });
+function personToProfile(person: TaxPerson, year: number): CreditProfile {
+  const degrees: DegreeInfo[] = [];
+  if (person.hasAcademicDegree && person.academicDegreeYear > 0) {
+    const kind = person.academicDegreeType === 'master' ? 'master'
+      : person.academicDegreeType === 'phd' ? 'phdDirect'
+      : 'bachelor';
+    degrees.push({ kind, endYear: person.academicDegreeYear });
+  }
+
+  const anyAlimonyPaid = person.children.some(c => (c.monthlyAlimonyPaid ?? 0) > 0);
+
+  return {
+    year,
+    gender: person.gender,
+    isMarried: person.familyStatus === 'married',
+    children: person.children.map(c => ({ birthYear: c.birthYear, hasDisability: c.hasDisability })),
+    parentRole: person.gender === 'female' ? 'allowanceParent' : 'otherParent',
+    isSoleParent: person.familyStatus === 'singleParent',
+    participatesInChildSupport: (person.familyStatus === 'divorced' && person.children.length > 0) || anyAlimonyPaid,
+    isNewImmigrant: person.isNewImmigrant,
+    aliyahYear: person.aliyahYear || undefined,
+    service: person.completedIdf && person.idfReleaseYear > 0
+      ? { kind: 'military', months: 24, releaseYear: person.idfReleaseYear }
+      : person.completedNationalService && person.nationalServiceYear > 0
+        ? { kind: 'national', months: 24, releaseYear: person.nationalServiceYear }
+        : undefined,
+    degrees,
+    // נכות 90%+ ⇒ מועמד לפטור 9(5) (לא נקודות זיכוי!). דיוק מלא — באשף.
+    qualifiesForDisabilityExemption: person.disabilityPercentage >= 90,
+    disabilityFullYear: true,
   };
-
-  // 1. בסיסי לכל תושב
-  add('נקודת זיכוי בסיסית לתושב ישראל', 'סעיף 34', 2.25);
-
-  // 2. תוספת לאישה
-  if (person.gender === 'female') {
-    add('תוספת נקודת זיכוי לאישה', 'סעיף 34(א)', 0.5);
-  }
-
-  // 3. הורה יחיד
-  if (person.familyStatus === 'singleParent') {
-    add('הורה יחיד', 'סעיף 35', 1.0);
-  }
-
-  // 4. ילדים — לפי גיל בשנת המס (שני ההורים מקבלים — מאז רפורמת 2012)
-  for (const child of person.children) {
-    const age = getChildAge(child.birthYear, year);
-    if (age < 0 || age > 18) continue;
-    let pts = 0, desc = '';
-    if (age === 0)              { pts = 1.5; desc = `ילד/ה (${child.birthYear}) — שנת לידה`; }
-    else if (age <= 5)          { pts = 2.5; desc = `ילד/ה (${child.birthYear}) גיל ${age} — 1–5`; }
-    else if (age <= 12)         { pts = 2.0; desc = `ילד/ה (${child.birthYear}) גיל ${age} — 6–12`; }
-    else if (age <= 17)         { pts = 1.0; desc = `ילד/ה (${child.birthYear}) גיל ${age} — 13–17`; }
-    else if (age === 18)        { pts = 0.5; desc = `ילד/ה (${child.birthYear}) גיל 18`; }
-    add(desc, 'סעיף 40', pts);
-    if (child.hasDisability && child.disabilityPercentage) {
-      const dp = child.disabilityPercentage;
-      const dPts = dp >= 90 ? 2 : dp >= 60 ? 1 : dp >= 30 ? 0.5 : 0;
-      add(`ילד עם נכות ${dp}% (${child.birthYear})`, 'סעיף 45ב', dPts);
-    }
-  }
-
-  // 5. עולה חדש
-  if (person.isNewImmigrant && person.aliyahYear > 0) {
-    const diff = year - person.aliyahYear;
-    if (diff === 0 || diff === 1) add(`עולה חדש — שנה ${diff + 1} מאז עלייה`, 'סעיף 35א', 3.0);
-    else if (diff === 2) add('עולה חדש — שנה שלישית', 'סעיף 35א', 2.0);
-    else if (diff === 3) add('עולה חדש — שנה רביעית', 'סעיף 35א', 1.0);
-  }
-
-  // 6. תושב חוזר
-  if (person.isReturningResident && person.returningYear > 0) {
-    const diff = year - person.returningYear;
-    if (diff === 0) add('תושב חוזר ותיק — שנת חזרה', 'סעיף 35ב', 2.0);
-    else if (diff === 1) add('תושב חוזר — שנה ראשונה', 'סעיף 35ב', 1.0);
-  }
-
-  // 7. נכות
-  if (person.disabilityPercentage > 0) {
-    const dp = person.disabilityPercentage;
-    let pts = 0, desc = '';
-    if (dp >= 90) { pts = 4.0; desc = `נכות ${dp}% (90%+)`; }
-    else if (dp >= 60) { pts = 2.5; desc = `נכות ${dp}% (60%–89%)`; }
-    else if (dp >= 30) { pts = 1.5; desc = `נכות ${dp}% (30%–59%)`; }
-    else if (dp >= 10) { pts = 0.5; desc = `נכות ${dp}% (10%–29%)`; }
-    add(desc, 'סעיפים 45, 66–68', pts);
-  }
-
-  // 8. תואר אקדמי — שנת הסיום בלבד
-  if (person.hasAcademicDegree && person.academicDegreeYear === year) {
-    const label = person.academicDegreeType === 'bachelor' ? 'תואר ראשון'
-                : person.academicDegreeType === 'master' ? 'תואר שני' : 'דוקטורט';
-    add(`סיום ${label} (${year})`, 'סעיף 40(ב)', 1.0);
-  }
-
-  // 9. שחרור מצבא
-  if (person.completedIdf && person.idfReleaseYear > 0) {
-    const diff = year - person.idfReleaseYear;
-    if (diff === 0) add('שחרור צה"ל — שנת השחרור', 'סעיף 41', 2.0);
-    else if (diff === 1) add('שחרור צה"ל — שנה לאחר השחרור', 'סעיף 41', 1.0);
-  }
-
-  // 10. שירות לאומי
-  if (person.completedNationalService && person.nationalServiceYear > 0) {
-    if (year === person.nationalServiceYear) {
-      add('סיום שירות לאומי/אזרחי', 'סעיף 41א', 0.5);
-    }
-  }
-
-  // 11. ישוב מזכה
-  if (person.qualifyingSettlementId) {
-    const settlement = getSettlementById(person.qualifyingSettlementId);
-    const pts = person.qualifyingSettlementCreditPoints || settlement?.creditPoints || 0.5;
-    const name = settlement?.name ?? person.qualifyingSettlementId;
-    add(`ישוב מזכה: ${name}`, 'תקנה 11 לתקנות מ"ה', pts);
-  }
-
-  return lines;
 }
 
-// API נשמר תואם לשימוש הקיים
+// API תואם לשימוש הקיים — מחזיר את שורות הנקודות בלבד
 export function calcCreditPoints(
   client: Client,
   year: number,
   cpValue: number
 ): CreditPointLine[] {
-  return calcCreditPointsForPerson(clientToTaxPerson(client), year, cpValue);
+  const result = calcCreditPointsV2(personToProfile(clientToTaxPerson(client), year), cpValue);
+  return result.lines;
 }
 
-// חישוב נקודות זיכוי לבן/בת זוג
 export function calcSpouseCreditPoints(
   spouse: SpouseData,
   children: Child[],
   year: number,
   cpValue: number
 ): CreditPointLine[] {
-  return calcCreditPointsForPerson(spouseToTaxPerson(spouse, children), year, cpValue);
+  const result = calcCreditPointsV2(personToProfile(spouseToTaxPerson(spouse, children), year), cpValue);
+  return result.lines;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -258,9 +184,9 @@ interface NIInput {
   selfEmployedGrossIncome: number;
   recognizedExpenses: number;
   rentalIncome: number;
+  rentalTaxTrack: string;
   otherIncome: number;
   niType: NIType;
-  incomeTaxType: IncomeTaxType;
 }
 
 function calcNI(input: NIInput, taxData: TaxYearData): {
@@ -276,6 +202,7 @@ function calcNI(input: NIInput, taxData: TaxYearData): {
 
   const threshold60A = taxData.niThreshold60Monthly * 12;
   const maxA = taxData.niMaxIncomeMonthly * 12;
+  const exempt25A = Math.round(taxData.niAverageWage * 0.25) * 12;
   const type = input.niType;
 
   // ── שכיר ──
@@ -287,7 +214,7 @@ function calcNI(input: NIInput, taxData: TaxYearData): {
     niEmployee = low * (taxData.employeeNI.lowRate / 100) + high * (taxData.employeeNI.highRate / 100);
     healthEmployee = low * (taxData.employeeNI.healthLowRate / 100) + high * (taxData.employeeNI.healthHighRate / 100);
     breakdown.push(
-      `ביטוח לאומי שכיר: ${taxData.employeeNI.lowRate}% × ₪${fmt(Math.round(low))} (עד סף 60%) + ${taxData.employeeNI.highRate}% × ₪${fmt(Math.round(high))} = ₪${fmt(Math.round(niEmployee))}`
+      `ביטוח לאומי שכיר: ${taxData.employeeNI.lowRate}% × ₪${fmt(Math.round(low))} (עד המדרגה המופחתת) + ${taxData.employeeNI.highRate}% × ₪${fmt(Math.round(high))} = ₪${fmt(Math.round(niEmployee))}`
     );
     breakdown.push(
       `מס בריאות שכיר: ${taxData.employeeNI.healthLowRate}% × ₪${fmt(Math.round(low))} + ${taxData.employeeNI.healthHighRate}% × ₪${fmt(Math.round(high))} = ₪${fmt(Math.round(healthEmployee))}`
@@ -320,47 +247,119 @@ function calcNI(input: NIInput, taxData: TaxYearData): {
       );
       const deductible = niSE_insurance * 0.52;
       breakdown.push(
-        `ניכוי ב"ל ממס הכנסה (סעיף 17(5)): 52% × ₪${fmt(Math.round(niSE_insurance))} = ₪${fmt(Math.round(deductible))} — יופחת מהכנסה החייבת`
+        `ניכוי ב"ל ממס הכנסה (סעיף 47א): 52% × ₪${fmt(Math.round(niSE_insurance))} = ₪${fmt(Math.round(deductible))} — יופחת מההכנסה החייבת`
       );
     }
   }
 
-  // ── עוסק שאינו עונה להגדרה ──
+  // ── עצמאי שאינו עונה להגדרה — מחויב כבעל הכנסה שלא מעבודה ──
   if (type === 'nonQualifying') {
-    const flat = taxData.nonQualifyingMonthlyNI * 12;
-    const allInc = (input.grossSalary + seNet + input.rentalIncome + input.otherIncome);
-    const hlth = allInc * (taxData.employeeNI.healthLowRate / 100);
-    niSE_insurance = flat;
-    niSE_health = hlth;
-    breakdown.push(`עוסק שאינו עונה להגדרה: ב"ל מינימלי ₪${fmt(taxData.nonQualifyingMonthlyNI)}/חודש = ₪${fmt(flat)}/שנה`);
-    breakdown.push(`מס בריאות: ${taxData.employeeNI.healthLowRate}% על כלל ההכנסה ₪${fmt(allInc)} = ₪${fmt(Math.round(hlth))}`);
+    const income = seNet + input.otherIncome;
+    if (income > 0) {
+      if (income <= exempt25A) {
+        breakdown.push(`עצמאי שאינו עונה להגדרה: הכנסה ₪${fmt(income)} עד 25% מהשכר הממוצע (₪${fmt(exempt25A)}) — פטור מדמי ביטוח`);
+      } else {
+        // מעל הפטור — חיוב על מלוא ההכנסה בשיעורי הכנסה פסיבית
+        const insured = Math.min(income, maxA);
+        const low = Math.min(insured, threshold60A);
+        const high = Math.max(0, insured - threshold60A);
+        niSE_insurance = low * (taxData.passiveNI.lowRate / 100) + high * (taxData.passiveNI.highRate / 100);
+        niSE_health = low * (taxData.passiveNI.healthLowRate / 100) + high * (taxData.passiveNI.healthHighRate / 100);
+        breakdown.push(
+          `עצמאי שאינו עונה להגדרה (מחויב כהכנסה שלא מעבודה): ` +
+          `${(taxData.passiveNI.lowRate + taxData.passiveNI.healthLowRate).toFixed(2)}% עד המדרגה, ` +
+          `${(taxData.passiveNI.highRate + taxData.passiveNI.healthHighRate).toFixed(2)}% מעליה = ₪${fmt(Math.round(niSE_insurance + niSE_health))}`
+        );
+        breakdown.push('לתשומת לב: מעמד זה אינו מבוטח לנפגעי עבודה ודמי לידה מעיסוק זה');
+        const minA = taxData.nonQualifyingMonthlyNI * 12;
+        if (niSE_insurance + niSE_health < minA) {
+          breakdown.push(`הוחל מינימום שנתי: ₪${fmt(minA)} (₪${fmt(taxData.nonQualifyingMonthlyNI)}/חודש)`);
+          niSE_health = minA * 0.46;
+          niSE_insurance = minA - niSE_health;
+        }
+      }
+    }
   }
 
   // ── פסיבי / שכירות בלבד ──
   if (type === 'passive') {
-    const rentalNet = Math.max(0, input.rentalIncome);
-    if (rentalNet > 0) {
-      const hlth = rentalNet * (taxData.employeeNI.healthLowRate / 100);
-      niSE_health = hlth;
-      breakdown.push(`הכנסה פסיבית/שכירות: אינה חייבת בביטוח לאומי. מס בריאות ${taxData.employeeNI.healthLowRate}% = ₪${fmt(Math.round(hlth))}`);
+    // שכ"ד למגורים (פטור/10%/שולי), דיבידנד 125ב, ריבית 125ג ורווח הון —
+    // פטורים מדמי ביטוח לפי סעיף 350(א). חיוב רק על הכנסה פסיבית אחרת.
+    const rentalNote = input.rentalIncome > 0
+      ? 'שכ"ד למגורים — פטור מדמי ביטוח בכל המסלולים (סעיף 350(א)(7)). '
+      : '';
+    const income = input.otherIncome;
+    if (income <= exempt25A) {
+      breakdown.push(`${rentalNote}הכנסה פסיבית אחרת ₪${fmt(income)} עד הפטור (₪${fmt(exempt25A)}) — אין דמי ביטוח`);
+    } else {
+      const insured = Math.min(income, maxA);
+      const low = Math.min(insured, threshold60A);
+      const high = Math.max(0, insured - threshold60A);
+      niSE_insurance = low * (taxData.passiveNI.lowRate / 100) + high * (taxData.passiveNI.highRate / 100);
+      niSE_health = low * (taxData.passiveNI.healthLowRate / 100) + high * (taxData.passiveNI.healthHighRate / 100);
+      breakdown.push(
+        `${rentalNote}הכנסה פסיבית אחרת: שיעור מופחת ${(taxData.passiveNI.lowRate + taxData.passiveNI.healthLowRate).toFixed(2)}% / מלא ${(taxData.passiveNI.highRate + taxData.passiveNI.healthHighRate).toFixed(2)}% = ₪${fmt(Math.round(niSE_insurance + niSE_health))}`
+      );
     }
   }
 
-  // ── פנסיונר ──
+  // ── פנסיה מוקדמת ──
   if (type === 'pensioner') {
-    breakdown.push('פנסיונר: אינו חייב בדמי ביטוח לאומי על פנסיה. מס בריאות בלבד.');
     const pension = input.grossSalary + input.otherIncome;
-    const hlth = pension * (taxData.employeeNI.healthLowRate / 100);
-    niSE_health = hlth;
-    breakdown.push(`מס בריאות פנסיונר: ${taxData.employeeNI.healthLowRate}% × ₪${fmt(pension)} = ₪${fmt(Math.round(hlth))}`);
+    if (pension > 0) {
+      const insured = Math.min(pension, maxA);
+      const low = Math.min(insured, threshold60A);
+      const high = Math.max(0, insured - threshold60A);
+      niSE_insurance = low * (taxData.earlyPensionNI.lowRate / 100) + high * (taxData.earlyPensionNI.highRate / 100);
+      niSE_health = low * (taxData.earlyPensionNI.healthLowRate / 100) + high * (taxData.earlyPensionNI.healthHighRate / 100);
+      breakdown.push(
+        `פנסיה מוקדמת (מנוכה במקור ע"י משלם הפנסיה): ` +
+        `${(taxData.earlyPensionNI.lowRate + taxData.earlyPensionNI.healthLowRate).toFixed(2)}% עד המדרגה / ` +
+        `${(taxData.earlyPensionNI.highRate + taxData.earlyPensionNI.healthHighRate).toFixed(2)}% מעליה = ₪${fmt(Math.round(niSE_insurance + niSE_health))}`
+      );
+      breakdown.push('מגיל פרישה / מקבל קצבת אזרח ותיק — חלים פטורים ושיעורים מופחתים אחרים');
+    }
   }
 
   return { niEmployee, healthEmployee, niSE_insurance, niSE_health, breakdown };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// מס יסף — שתי שכבות (סעיף 121ב + תיקון 276)
+// שכבה 1: 3% על כלל ההכנסה החייבת מעל הסף.
+// שכבה 2 (מ-2025): 2% נוסף על הכנסה שאינה מיגיעה אישית (הונית/פסיבית),
+//                  רק אם ההכנסה ההונית לבדה עולה על הסף (הו"ב 5/2025).
+// ─────────────────────────────────────────────────────────────────────────────
+
+function calcSurtax(
+  totalTaxableIncome: number,
+  capitalSourceIncome: number,
+  taxData: TaxYearData,
+): { base: number; extra: number; breakdown: string[] } {
+  const th = taxData.surtaxThreshold;
+  const breakdown: string[] = [];
+  const base = totalTaxableIncome > th ? (totalTaxableIncome - th) * 0.03 : 0;
+  if (base > 0) {
+    breakdown.push(`מס יסף 3%: (₪${fmt(totalTaxableIncome)} − ₪${fmt(th)}) × 3% = ₪${fmt(Math.round(base))}`);
+  }
+  let extra = 0;
+  if (taxData.surtaxCapitalExtraRate > 0 && capitalSourceIncome > th) {
+    extra = (capitalSourceIncome - th) * (taxData.surtaxCapitalExtraRate / 100);
+    breakdown.push(
+      `מס יסף נוסף ${taxData.surtaxCapitalExtraRate}% על הכנסות הוניות (תיקון 276): ` +
+      `(₪${fmt(capitalSourceIncome)} − ₪${fmt(th)}) × ${taxData.surtaxCapitalExtraRate}% = ₪${fmt(Math.round(extra))}`
+    );
+  } else if (taxData.surtaxCapitalExtraRate > 0 && capitalSourceIncome > 0 && totalTaxableIncome > th) {
+    breakdown.push(
+      `היסף הנוסף (2%) לא חל: ההכנסות ההוניות לבדן (₪${fmt(capitalSourceIncome)}) אינן עולות על הסף (₪${fmt(th)})`
+    );
+  }
+  return { base, extra, breakdown };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // חישוב ראשי
-// ���────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalcResult {
   const { client } = input;
@@ -379,31 +378,43 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     selfEmployedGrossIncome: seGross,
     recognizedExpenses: seExpenses,
     rentalIncome: input.rentalIncome,
+    rentalTaxTrack: input.rentalTaxTrack,
     otherIncome: input.otherIncome,
     niType: client.niType,
-    incomeTaxType: client.incomeTaxType,
   }, taxData);
 
   const niDeductionSE = niCalc.niSE_insurance * 0.52;
-  if (niDeductionSE > 0) {
+  if (niDeductionSE > 0 && (client.niType === 'selfEmployed' || client.niType === 'employeeAndSE')) {
     deductionBreakdown.push(
-      `ניכוי ביטוח לאומי לעצמאי (52% × ₪${fmt(Math.round(niCalc.niSE_insurance))}): ₪${fmt(Math.round(niDeductionSE))} — סעיף 17(5) לפקודה`
+      `ניכוי ביטוח לאומי לעצמאי (52% × ₪${fmt(Math.round(niCalc.niSE_insurance))}): ₪${fmt(Math.round(niDeductionSE))} — סעיף 47א לפקודה`
+    );
+  }
+  const niDeductionApplies = client.niType === 'selfEmployed' || client.niType === 'employeeAndSE';
+
+  // ── ניכויים והפקדות פנסיוניות ──
+  // שכיר: הפקדות העובד לפנסיה מקנות זיכוי ממס של 35% (סעיף 45א) — לא ניכוי!
+  let pensionCredit = 0;
+  if (grossSalary > 0 && input.employeePensionPct > 0) {
+    const qualifyingAnnual = (taxData.qualifyingIncomeMonthly ?? 9_700) * 12;
+    const contribution = grossSalary * (input.employeePensionPct / 100);
+    const eligibleContribution = Math.min(contribution, 0.07 * Math.min(grossSalary, qualifyingAnnual));
+    pensionCredit = eligibleContribution * 0.35;
+    deductionBreakdown.push(
+      `זיכוי פנסיה לשכיר (סעיף 45א): 35% × ₪${fmt(Math.round(eligibleContribution))} (עד 7% מההכנסה המזכה) = ₪${fmt(Math.round(pensionCredit))} — זיכוי מהמס, לא ניכוי מההכנסה`
     );
   }
 
-  // ניכוי פנסיה שכיר
-  let pensionDeductionEmp = 0;
-  if (grossSalary > 0 && input.employeePensionPct > 0) {
-    pensionDeductionEmp = grossSalary * (Math.min(input.employeePensionPct, 7) / 100);
-    deductionBreakdown.push(`ניכוי פנסיה שכיר (${Math.min(input.employeePensionPct, 7)}%): ₪${fmt(Math.round(pensionDeductionEmp))} (סעיף 47)`);
-  }
-
-  // ניכוי פנסיה עצמאי
+  // עצמאי: ניכוי לפי סעיף 47 (מוגבל ל-11% לניכוי; 16.5% כולל חלק הזיכוי)
   let pensionDeductionSE = 0;
   if (seNet > 0 && input.selfEmployedPensionAmount > 0) {
-    const max = seNet * 0.165;
+    const max = seNet * 0.11;
     pensionDeductionSE = Math.min(input.selfEmployedPensionAmount, max);
-    deductionBreakdown.push(`ניכוי פנסיה עצמאי: ₪${fmt(Math.round(pensionDeductionSE))} (מוגבל ל-16.5%, סעיפים 47, 47א)`);
+    deductionBreakdown.push(`ניכוי פנסיה עצמאי (סעיף 47): ₪${fmt(Math.round(pensionDeductionSE))} (עד 11% ניכוי; יתרת ההפקדה עד 16.5% מזכה בזיכוי 35%)`);
+    const creditPart = Math.min(Math.max(0, input.selfEmployedPensionAmount - pensionDeductionSE), seNet * 0.055);
+    if (creditPart > 0) {
+      pensionCredit += creditPart * 0.35;
+      deductionBreakdown.push(`זיכוי פנסיה עצמאי (סעיף 45א): 35% × ₪${fmt(Math.round(creditPart))} = ₪${fmt(Math.round(creditPart * 0.35))}`);
+    }
   }
 
   // ניכוי קרן השתלמות עצמאי
@@ -411,14 +422,14 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   if ((type === 'selfEmployed' || type === 'both') && input.krenHashtalmutSE > 0) {
     const max = seNet * 0.045;
     krenDeduction = Math.min(input.krenHashtalmutSE, max);
-    deductionBreakdown.push(`ניכוי קרן השתלמות עצמאי: ₪${fmt(Math.round(krenDeduction))} (עד 4.5%, סעיף 17(5א))`);
+    deductionBreakdown.push(`ניכוי קרן השתלמות עצמאי: ₪${fmt(Math.round(krenDeduction))} (עד 4.5% מההכנסה, סעיף 17(5א))`);
   }
 
   if (seExpenses > 0) deductionBreakdown.push(`הוצאות מוכרות מהכנסת עסק: ₪${fmt(seExpenses)}`);
 
   // ── ג. הכנסה חייבת ──
-  const taxableSalary = Math.max(0, grossSalary - pensionDeductionEmp);
-  const taxableSE = Math.max(0, seNet - pensionDeductionSE - krenDeduction - niDeductionSE);
+  const taxableSalary = grossSalary;
+  const taxableSE = Math.max(0, seNet - pensionDeductionSE - krenDeduction - (niDeductionApplies ? niDeductionSE : 0));
 
   // הכנסות שכירות
   let taxableRental = 0;
@@ -434,15 +445,18 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
       if (monthlyRent <= exemptMonthly) {
         taxableRental = 0;
         rentalExplanation = `שכירות פטורה: ₪${fmt(Math.round(monthlyRent))}/חודש ≤ תקרה ₪${fmt(exemptMonthly)}. פטור מלא.`;
+      } else if (monthlyRent < exemptMonthly * 2) {
+        const excessMonthly = monthlyRent - exemptMonthly;
+        const adjustedExempt = exemptMonthly - excessMonthly;
+        taxableRental = (monthlyRent - adjustedExempt) * 12;
+        rentalExplanation = `פטור חלקי (תקרה מתואמת): חריגה ₪${fmt(Math.round(excessMonthly))} → פטור ₪${fmt(Math.round(adjustedExempt))} → חייב ₪${fmt(Math.round(taxableRental))}/שנה. כל שקל חריגה מוסיף 2 ₪ לחלק החייב.`;
       } else {
-        const excess = rentalIncome - exemptMonthly * 12;
-        const reducedExempt = Math.max(0, exemptMonthly * 12 - excess);
-        taxableRental = rentalIncome - reducedExempt;
-        rentalExplanation = `שכירות — פטור חלקי: חריגה מהתקרה → חייב ₪${fmt(Math.round(taxableRental))}.`;
+        taxableRental = Math.max(0, rentalIncome - rentalExp);
+        rentalExplanation = `שכ"ד ₪${fmt(Math.round(monthlyRent))}/חודש ≥ פי 2 מהתקרה — הפטור התאפס; חייב במלואו ₪${fmt(Math.round(taxableRental))}.`;
       }
     } else if (input.rentalTaxTrack === 'flat10') {
       taxableRental = 0;
-      rentalExplanation = `שכירות 10% (מחושב בנפרד): ₪${fmt(rentalIncome)} × 10% = ₪${fmt(Math.round(rentalIncome * 0.1))}.`;
+      rentalExplanation = `מסלול 10% (סעיף 122): ₪${fmt(rentalIncome)} × 10% = ₪${fmt(Math.round(rentalIncome * 0.1))} — ללא הוצאות/פחת; לשלם עד 30.1.${input.year + 1}.`;
     } else {
       taxableRental = Math.max(0, rentalIncome - rentalExp);
       rentalExplanation = `שכירות מסלול רגיל: ₪${fmt(rentalIncome)} − הוצאות ₪${fmt(rentalExp)} = ₪${fmt(Math.round(taxableRental))}.`;
@@ -450,7 +464,22 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   }
 
   const otherIncome = Math.max(0, input.otherIncome);
-  const taxableIncome = taxableSalary + taxableSE + taxableRental + otherIncome;
+  let taxableIncome = taxableSalary + taxableSE + taxableRental + otherIncome;
+
+  // ── פטור נכה/עיוור סעיף 9(5) — אם רלוונטי ──
+  const profile = personToProfile(clientToTaxPerson(client), input.year);
+  const cpResult = calcCreditPointsV2(profile, taxData.creditPointValue);
+  if (cpResult.disabilityExemption?.eligible) {
+    const personalExertion = taxableSalary + taxableSE;
+    const exemptPersonal = Math.min(personalExertion, cpResult.disabilityExemption.personalExertionCeiling);
+    if (exemptPersonal > 0) {
+      taxableIncome = Math.max(0, taxableIncome - exemptPersonal);
+      deductionBreakdown.push(
+        `פטור נכה/עיוור (סעיף 9(5)): הכנסה מיגיעה אישית פטורה עד ₪${fmt(cpResult.disabilityExemption.personalExertionCeiling)} — הופחתו ₪${fmt(Math.round(exemptPersonal))}`
+      );
+    }
+  }
+
   const grossIncome = grossSalary + seGross + rentalIncome + otherIncome;
   const totalDeductions = grossIncome - taxableIncome;
 
@@ -460,65 +489,67 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   // ── ה. נקודות זיכוי ──
   const creditPointLines = input.overrideCreditPoints
     ? [{ description: 'נקודות זיכוי — הזנה ידנית', legalBasis: '', points: input.manualCreditPoints, valueNIS: input.manualCreditPoints * taxData.creditPointValue }]
-    : calcCreditPoints(client, input.year, taxData.creditPointValue);
+    : cpResult.lines;
 
   const totalCreditPoints = creditPointLines.reduce((s, l) => s + l.points, 0);
   const totalCreditValue = totalCreditPoints * taxData.creditPointValue;
   const taxWithoutCredits = taxBeforeCredit;
 
-  // ── ו. זיכוי תרומות ──
-  let donationCredit = 0;
-  if (input.donationsSection46 > 0) {
-    donationCredit = input.donationsSection46 * 0.35;
-    deductionBreakdown.push(`זיכוי תרומות מוכרות (35%): ₪${fmt(Math.round(donationCredit))} (סעיף 46)`);
-  }
-
-  // ── ז. מס הכנסה ──
-  const incomeTax = Math.max(0, taxBeforeCredit - totalCreditValue - donationCredit);
-  const rentalFlat10 = input.rentalTaxTrack === 'flat10' ? rentalIncome * 0.1 : 0;
-
-  let surtax = 0;
-  if (taxableIncome > taxData.surtaxThreshold) {
-    surtax = (taxableIncome - taxData.surtaxThreshold) * 0.03;
-  }
-
-  const totalIncomeTax = incomeTax + rentalFlat10 + surtax;
-  const marginalBracket = taxData.incomeTaxBrackets.find(b => taxableIncome <= b.upTo);
-  const marginalRate = marginalBracket?.rate ?? 50;
-  const effectiveIncomeTaxRate = taxableIncome > 0 ? (totalIncomeTax / taxableIncome) * 100 : 0;
-
-  // ── ח. ניתוח נוסף ──
-  const unusedCreditValue = Math.max(0, totalCreditValue - taxBeforeCredit);
-  const remainingFreeIncomeCapacity = unusedCreditValue > 0
-    ? unusedCreditValue / (marginalRate / 100)
-    : 0;
-
-  let distanceToNextBracket = 0;
-  let nextBracketRate = 0;
-  for (let i = 0; i < taxData.incomeTaxBrackets.length; i++) {
-    if (taxableIncome <= taxData.incomeTaxBrackets[i].upTo) {
-      if (i + 1 < taxData.incomeTaxBrackets.length) {
-        distanceToNextBracket = taxData.incomeTaxBrackets[i].upTo - taxableIncome;
-        nextBracketRate = taxData.incomeTaxBrackets[i + 1].rate;
-      }
-      break;
+  // ── ו. זיכוי יישוב מוטב (סעיף 11) — אחוז מההכנסה מיגיעה אישית עד תקרה ──
+  let settlementCredit = 0;
+  let settlementCreditExplanation = '';
+  if (client.qualifyingSettlementId) {
+    const settlement = resolveSettlement(client.qualifyingSettlementId, input.year);
+    if (settlement) {
+      const personalExertionTaxable = Math.max(0, Math.min(taxableIncome, taxableSalary + taxableSE));
+      const sc = calcSettlementCredit(settlement.ratePercent, settlement.ceilingAnnual, personalExertionTaxable, settlement.name);
+      settlementCredit = sc.credit;
+      settlementCreditExplanation = sc.explanation;
+    } else {
+      settlementCreditExplanation = `היישוב שנבחר ("${client.qualifyingSettlementId}") אינו ברשימת היישובים המוטבים הרשמית לשנת ${input.year} — יש לעדכן בכרטיס הלקוח.`;
     }
   }
 
-  // ── ח-ב. מסים נפרדים: הגרלות (35%) / רווחי הון (25%-30%) / דיבידנד+ריבית ──
+  // ── ז. זיכוי תרומות (סעיף 46): 35%, מינימום 207 ₪, עד 30% מההכנסה החייבת ──
+  let donationCredit = 0;
+  if (input.donationsSection46 >= 207) {
+    const eligibleDonation = Math.min(input.donationsSection46, taxableIncome * 0.3);
+    donationCredit = eligibleDonation * 0.35;
+    deductionBreakdown.push(`זיכוי תרומות (סעיף 46): 35% × ₪${fmt(Math.round(eligibleDonation))} = ₪${fmt(Math.round(donationCredit))}`);
+  } else if (input.donationsSection46 > 0) {
+    deductionBreakdown.push(`תרומות ₪${fmt(input.donationsSection46)} — מתחת למינימום לזיכוי (207 ₪)`);
+  }
+
+  // ── ח. מס הכנסה (זיכויים אינם יוצרים מס שלילי) ──
+  const totalCredits = totalCreditValue + donationCredit + settlementCredit + pensionCredit;
+  const incomeTax = Math.max(0, taxBeforeCredit - totalCredits);
+  const rentalFlat10 = input.rentalTaxTrack === 'flat10' ? rentalIncome * 0.1 : 0;
+
+  // ── ט. מסים נפרדים: הגרלות / רווחי הון / דיבידנד+ריבית ──
   const sepBreakdown: string[] = [];
   const isSubstantial = !!client.isSubstantialShareholder;
   const capitalRate = isSubstantial ? 0.30 : 0.25;
   const capitalRateLabel = isSubstantial ? '30% (בעל מניות מהותי)' : '25%';
 
   let gamblingTax = 0;
+  let gamblingTaxable = 0;
   if (input.gamblingIncome && input.gamblingIncome > 0) {
-    const GAMBLING_THRESHOLD = 32310; // 2026
-    const taxable = Math.max(0, input.gamblingIncome - GAMBLING_THRESHOLD);
-    gamblingTax = taxable * 0.35;
-    if (gamblingTax > 0) {
-      sepBreakdown.push(`הגרלות והימורים: ₪${fmt(input.gamblingIncome)} - פטור ₪${fmt(GAMBLING_THRESHOLD)} = ₪${fmt(taxable)} × 35% = ₪${fmt(Math.round(gamblingTax))}`);
+    const ceiling = taxData.gamblingExemptionCeiling;
+    if (ceiling == null) {
+      sepBreakdown.push(`הגרלות: אין תקרת פטור מאומתת לשנת ${input.year} — חושב 35% על מלוא הזכייה`);
+      gamblingTaxable = input.gamblingIncome;
+    } else if (input.gamblingIncome <= ceiling) {
+      sepBreakdown.push(`הגרלות: זכייה ₪${fmt(input.gamblingIncome)} עד תקרת הפטור ₪${fmt(ceiling)} — פטור מלא`);
+    } else if (input.gamblingIncome < ceiling * 2) {
+      // פטור מתקפל: הפטור קטן בגובה החריגה מהתקרה
+      const reducedExemption = Math.max(0, ceiling - (input.gamblingIncome - ceiling));
+      gamblingTaxable = input.gamblingIncome - reducedExemption;
+      sepBreakdown.push(`הגרלות (פטור מתקפל): פטור ₪${fmt(reducedExemption)} → חייב ₪${fmt(gamblingTaxable)} × 35% = ₪${fmt(Math.round(gamblingTaxable * 0.35))}`);
+    } else {
+      gamblingTaxable = input.gamblingIncome;
+      sepBreakdown.push(`הגרלות: זכייה מעל כפל התקרה — חייבת במלואה: ₪${fmt(gamblingTaxable)} × 35% = ₪${fmt(Math.round(gamblingTaxable * 0.35))}`);
     }
+    gamblingTax = gamblingTaxable * 0.35;
   }
 
   let capitalGainsTax = 0;
@@ -533,7 +564,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     sepBreakdown.push(`דיבידנד וריבית: ₪${fmt(input.dividendInterest)} × ${capitalRateLabel} = ₪${fmt(Math.round(dividendInterestTax))}`);
   }
 
-  // זיכוי מס זר — מקסימום עד גובה המס שחושב על אותן הכנסות
+  // זיכוי מס זר — עד גובה המס שחושב על אותן הכנסות
   let foreignTaxCredit = 0;
   if (input.foreignTaxPaid && input.foreignTaxPaid > 0) {
     const eligibleCap = capitalGainsTax + dividendInterestTax;
@@ -545,12 +576,44 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
 
   const separateTaxesTotal = Math.max(0, gamblingTax + capitalGainsTax + dividendInterestTax - foreignTaxCredit);
 
-  // ── ט. ביטוח לאומי סיכום ──
+  // ── י. מס יסף — שתי שכבות ──
+  // בסיס שכבה 1: כלל ההכנסה החייבת כולל הכנסות הוניות והגרלות.
+  // בסיס שכבה 2: ההכנסות שאינן מיגיעה אישית בלבד (הוניות, שכירות חייבת).
+  const capitalSourceIncome = (input.capitalGains ?? 0) + (input.dividendInterest ?? 0) + gamblingTaxable + taxableRental;
+  const surtaxTotalBase = taxableIncome + (input.capitalGains ?? 0) + (input.dividendInterest ?? 0) + gamblingTaxable;
+  const surtaxCalc = calcSurtax(surtaxTotalBase, capitalSourceIncome, taxData);
+  const surtax = surtaxCalc.base;
+  const surtaxCapitalExtra = surtaxCalc.extra;
+
+  const totalIncomeTax = incomeTax + rentalFlat10 + surtax + surtaxCapitalExtra;
+  const marginalBracket = taxData.incomeTaxBrackets.find(b => taxableIncome <= b.upTo);
+  const marginalRate = marginalBracket?.rate ?? 50;
+  const effectiveIncomeTaxRate = taxableIncome > 0 ? (totalIncomeTax / taxableIncome) * 100 : 0;
+
+  // ── ניתוח נוסף ──
+  const unusedCreditValue = Math.max(0, totalCredits - taxBeforeCredit);
+  const remainingFreeIncomeCapacity = unusedCreditValue > 0
+    ? unusedCreditValue / (Math.max(marginalRate, 10) / 100)
+    : 0;
+
+  let distanceToNextBracket = 0;
+  let nextBracketRate = 0;
+  for (let i = 0; i < taxData.incomeTaxBrackets.length; i++) {
+    if (taxableIncome <= taxData.incomeTaxBrackets[i].upTo) {
+      if (i + 1 < taxData.incomeTaxBrackets.length) {
+        distanceToNextBracket = taxData.incomeTaxBrackets[i].upTo - taxableIncome;
+        nextBracketRate = taxData.incomeTaxBrackets[i + 1].rate;
+      }
+      break;
+    }
+  }
+
+  // ── ביטוח לאומי סיכום ──
   const totalNI = niCalc.niEmployee + niCalc.healthEmployee + niCalc.niSE_insurance + niCalc.niSE_health;
 
-  // ── י. סיכום ──
+  // ── סיכום ──
   const totalTaxBurden = totalIncomeTax + totalNI + separateTaxesTotal;
-  const netAnnualIncome = grossIncome - totalTaxBurden;
+  const netAnnualIncome = grossIncome + (input.capitalGains ?? 0) + (input.dividendInterest ?? 0) + (input.gamblingIncome ?? 0) - totalTaxBurden;
   const effectiveTotalRate = grossIncome > 0 ? (totalTaxBurden / grossIncome) * 100 : 0;
 
   return {
@@ -563,8 +626,13 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     bracketLines,
     taxBeforeCredit,
     donationCredit,
+    settlementCredit,
+    settlementCreditExplanation,
+    pensionCredit,
     incomeTax,
     surtax,
+    surtaxCapitalExtra,
+    surtaxBreakdown: surtaxCalc.breakdown,
     totalIncomeTax,
     marginalRate,
     effectiveIncomeTaxRate,
@@ -572,7 +640,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     healthEmployee: niCalc.healthEmployee,
     niSelfEmployed: niCalc.niSE_insurance,
     healthSelfEmployed: niCalc.niSE_health,
-    niDeductionFromIncomeTax: niDeductionSE,
+    niDeductionFromIncomeTax: niDeductionApplies ? niDeductionSE : 0,
     totalNI,
     niBreakdown: niCalc.breakdown,
     unusedCreditValue,
@@ -595,7 +663,9 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// חישוב תא משפחתי — נפרד + משולב
+// חישוב תא משפחתי — נפרד לכל בן זוג
+// מס יסף מוטל על כל יחיד בנפרד, עם סף מלא לכל אחד (בחישוב נפרד) —
+// הו"ב 9/2015; הכנסות מרכוש משותף ניתנות לפיצול.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function calculateFamilyTax(
@@ -614,7 +684,7 @@ export function calculateFamilyTax(
       combinedTaxBurden: primaryResult.totalTaxBurden,
       combinedNetIncome: primaryResult.netAnnualIncome,
       combinedEffectiveRate: primaryResult.effectiveTotalRate,
-      combinedSurtax: primaryResult.surtax,
+      combinedSurtax: primaryResult.surtax + primaryResult.surtaxCapitalExtra,
       surtaxSavingVsSeparate: 0,
     };
   }
@@ -649,10 +719,10 @@ export function calculateFamilyTax(
     idfReleaseYear: spouse.idfReleaseYear,
     completedNationalService: spouse.completedNationalService,
     nationalServiceYear: spouse.nationalServiceYear,
-    // ירושת ישוב מזכה מהנישום הראשי אם לא הוגדר בנפרד
+    // ירושת ישוב מוטב מהנישום הראשי אם לא הוגדר בנפרד
     qualifyingSettlementId: spouse.qualifyingSettlementOverride ? spouse.qualifyingSettlementId : client.qualifyingSettlementId,
     qualifyingSettlementOverride: spouse.qualifyingSettlementOverride,
-    qualifyingSettlementCreditPoints: spouse.qualifyingSettlementOverride ? spouse.qualifyingSettlementCreditPoints : client.qualifyingSettlementCreditPoints,
+    qualifyingSettlementCreditPoints: 0,
     hasPension: spouse.hasPension,
     pensionFundName: spouse.pensionFundName,
     employeePensionPct: spouse.employeePensionPct,
@@ -682,16 +752,12 @@ export function calculateFamilyTax(
 
   const spouseResult = calculateTax(spouseInput, taxData);
 
-  // ── חישוב היטל יסף משולב (על הכנסת התא המשפחתי) ──
-  const combinedTaxableIncome = primaryResult.taxableIncome + spouseResult.taxableIncome;
-  const combinedSurtax = combinedTaxableIncome > taxData.surtaxThreshold
-    ? (combinedTaxableIncome - taxData.surtaxThreshold) * 0.03
-    : 0;
-  const separateSurtax = primaryResult.surtax + spouseResult.surtax;
-  const surtaxSavingVsSeparate = separateSurtax - combinedSurtax;
+  // מס יסף — אינדיבידואלי לכל בן זוג (אין "סף משפחתי")
+  const combinedSurtax = primaryResult.surtax + primaryResult.surtaxCapitalExtra
+    + spouseResult.surtax + spouseResult.surtaxCapitalExtra;
 
   const combinedGrossIncome = primaryResult.grossIncome + spouseResult.grossIncome;
-  const combinedTaxBurden = primaryResult.totalTaxBurden + spouseResult.totalTaxBurden - separateSurtax + combinedSurtax;
+  const combinedTaxBurden = primaryResult.totalTaxBurden + spouseResult.totalTaxBurden;
   const combinedNetIncome = combinedGrossIncome - combinedTaxBurden;
   const combinedEffectiveRate = combinedGrossIncome > 0
     ? (combinedTaxBurden / combinedGrossIncome) * 100
@@ -705,6 +771,6 @@ export function calculateFamilyTax(
     combinedNetIncome,
     combinedEffectiveRate,
     combinedSurtax,
-    surtaxSavingVsSeparate,
+    surtaxSavingVsSeparate: 0,
   };
 }

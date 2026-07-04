@@ -837,13 +837,23 @@ export interface TaxYearData {
   creditPointValue: number;
   incomeTaxBrackets: TaxBracket[];
   surtaxThreshold: number;
+  /** מס יסף נוסף על הכנסות שאינן מיגיעה אישית (סעיף 121ב(א1), תיקון 276) — 2% מ-2025 */
+  surtaxCapitalExtraRate: number;
   niAverageWage: number;
   niThreshold60Monthly: number;
   niMaxIncomeMonthly: number;
   employeeNI: NIRates;
   selfEmployedNI: NIRates;
+  /** דמי ביטוח על הכנסה פסיבית (שאינה מעבודה) — פטור עד 25% מהשכר הממוצע */
+  passiveNI: NIRates;
+  /** ניכוי דמי ביטוח מפנסיה מוקדמת (במקור ע"י משלם הפנסיה) */
+  earlyPensionNI: NIRates;
   nonQualifyingMonthlyNI: number;
   rentalExemptMonthly: number;
+  /** תקרת פטור זכיות בהגרלות (סעיף 9(28)); undefined = אין נתון מאומת לשנה */
+  gamblingExemptionCeiling?: number;
+  /** "הכנסה מזכה" חודשית לזיכוי פנסיה לשכיר (סעיף 45א) */
+  qualifyingIncomeMonthly?: number;
 }
 
 // ─── מחשבון מס ──────────────────────────────────────────────────────────────
@@ -866,7 +876,7 @@ export interface TaxCalcInput {
   manualCreditPoints: number;
 
   // ── הכנסות במס נפרד (לא נכנסות למדרגות הרגילות) ──
-  /** זכיות בהגרלות/הימורים — מס 35% (סעיף 124ב). פטור עד הסף ל-2026: 32,310 ש"ח לזכייה */
+  /** זכיות בהגרלות/הימורים — מס 35% (סעיף 124ב). תקרת הפטור לפי שנה ב-TaxYearData */
   gamblingIncome?: number;
   /** רווחי הון מני"ע, קריפטו וכו' — מס 25% (30% לבעל מניות מהותי) */
   capitalGains?: number;
@@ -876,14 +886,13 @@ export interface TaxCalcInput {
   foreignTaxPaid?: number;
 }
 
-/** סף הפטור השנתי על זכיות בהגרלות (₪). מתעדכן מדי שנה. */
-export const GAMBLING_EXEMPTION_THRESHOLD = 32310;
-
 export interface CreditPointLine {
   description: string;
   legalBasis: string;
   points: number;
   valueNIS: number;
+  /** הסבר "למה" — מוצג באשף ובפירוט החישוב */
+  explanation?: string;
 }
 
 export interface BracketLine {
@@ -1107,8 +1116,17 @@ export interface TaxCalcResult {
   bracketLines: BracketLine[];
   taxBeforeCredit: number;
   donationCredit: number;
+  /** זיכוי תושב יישוב מוטב (סעיף 11): אחוז מההכנסה מיגיעה אישית עד תקרה */
+  settlementCredit: number;
+  settlementCreditExplanation: string;
+  /** זיכוי 35% על הפקדות עובד לפנסיה (סעיף 45א) */
+  pensionCredit: number;
   incomeTax: number;
+  /** מס יסף בסיסי — 3% על הכנסה חייבת מעל הסף */
   surtax: number;
+  /** מס יסף נוסף — 2% על הכנסות הוניות מעל הסף (מ-2025) */
+  surtaxCapitalExtra: number;
+  surtaxBreakdown: string[];
   totalIncomeTax: number;
   marginalRate: number;
   effectiveIncomeTaxRate: number;

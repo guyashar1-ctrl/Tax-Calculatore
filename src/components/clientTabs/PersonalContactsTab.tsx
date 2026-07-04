@@ -22,7 +22,8 @@ import {
   BusinessInfo, BusinessKind, BUSINESS_KIND_LABELS,
 } from '../../types';
 import { ClientContact, Employee } from '../../types/clientWorkspace';
-import { SETTLEMENTS_SORTED, findSettlementByName } from '../../data/settlements';
+import { getEligibleSettlements, resolveSettlement } from '../../data/eligibleSettlements';
+import { CURRENT_TAX_YEAR } from '../../data/taxData';
 import LinkedDocsWidget from '../LinkedDocsWidget';
 import Employer106Details from './Employer106Details';
 import InvestmentAccount867Details from './InvestmentAccount867Details';
@@ -385,12 +386,12 @@ export default function PersonalContactsTab({ client, update, patch, employees }
     patch({ children: client.children.filter(c => c.id !== id) });
   }
 
-  // ── ישוב מזכה ──────────────────────────────────────────────────────
+  // ── יישוב מוטב ─────────────────────────────────────────────────────
   function syncSettlementFromCity() {
-    const found = findSettlementByName(client.city);
+    const found = resolveSettlement(client.city, CURRENT_TAX_YEAR);
     patch({
-      qualifyingSettlementId: found?.id ?? '',
-      qualifyingSettlementCreditPoints: found?.creditPoints ?? 0,
+      qualifyingSettlementId: found?.name ?? '',
+      qualifyingSettlementCreditPoints: 0,
       qualifyingSettlementOverride: false,
     });
   }
@@ -468,9 +469,9 @@ export default function PersonalContactsTab({ client, update, patch, employees }
   }
 
   const isMarried = client.familyStatus === 'married';
-  const settlementName = client.qualifyingSettlementId
-    ? SETTLEMENTS_SORTED.find(s => s.id === client.qualifyingSettlementId)?.name
-    : null;
+  const resolvedSettlement = client.qualifyingSettlementId
+    ? resolveSettlement(client.qualifyingSettlementId, CURRENT_TAX_YEAR)
+    : undefined;
 
   return (
     <div className="cw-tab">
@@ -521,40 +522,38 @@ export default function PersonalContactsTab({ client, update, patch, employees }
           </div>
         </div>
 
-        {/* ── ישוב מזכה ── */}
+        {/* ── יישוב מוטב ── */}
         <div className="cw-subsection" style={{ marginTop: '.75rem' }}>
-          <div className="cw-subsection-title">🏘 ישוב מזכה (משפיע על נקודות זיכוי)</div>
+          <div className="cw-subsection-title">🏘 יישוב מוטב (זיכוי באחוזים מההכנסה — סעיף 11)</div>
           <div className="form-grid form-grid-3">
             <div className="form-group">
-              <label>ישוב מזכה</label>
+              <label>יישוב מוטב</label>
               <select
-                value={client.qualifyingSettlementId}
+                value={resolvedSettlement?.name ?? ''}
                 onChange={e => {
-                  const s = SETTLEMENTS_SORTED.find(x => x.id === e.target.value);
                   patch({
                     qualifyingSettlementId: e.target.value,
-                    qualifyingSettlementCreditPoints: s?.creditPoints ?? 0,
+                    qualifyingSettlementCreditPoints: 0,
                     qualifyingSettlementOverride: e.target.value !== '',
                   });
                 }}
               >
-                <option value="">— לא ישוב מזכה —</option>
-                {SETTLEMENTS_SORTED.map(s => <option key={s.id} value={s.id}>{s.name} ({s.creditPoints} נ.ז.)</option>)}
+                <option value="">— לא יישוב מוטב —</option>
+                {getEligibleSettlements(CURRENT_TAX_YEAR).map(s => (
+                  <option key={s.name} value={s.name}>{s.name} ({s.ratePercent}%)</option>
+                ))}
               </select>
-              {settlementName && <div className="cw-field-meta">זוהה: {settlementName}</div>}
+              {resolvedSettlement && (
+                <div className="cw-field-meta">
+                  זיכוי {resolvedSettlement.ratePercent}% מההכנסה מיגיעה אישית, עד תקרה ₪{resolvedSettlement.ceilingAnnual.toLocaleString('he-IL')} לשנה
+                </div>
+              )}
+              {client.qualifyingSettlementId && !resolvedSettlement && (
+                <div className="cw-field-meta" style={{ color: 'var(--red, #dc2626)' }}>
+                  "{client.qualifyingSettlementId}" אינו ברשימת היישובים המוטבים הרשמית — יש לבחור מחדש
+                </div>
+              )}
             </div>
-
-            {client.qualifyingSettlementId && (
-              <div className="form-group">
-                <label>נקודות זיכוי (override)</label>
-                <input
-                  type="number" min={0} max={2} step={0.25}
-                  value={client.qualifyingSettlementCreditPoints}
-                  onChange={e => update('qualifyingSettlementCreditPoints', Number(e.target.value))}
-                  dir="ltr"
-                />
-              </div>
-            )}
 
             <div className="form-group">
               <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
