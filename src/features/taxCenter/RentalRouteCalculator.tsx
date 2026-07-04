@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { TaxYearData } from '../../types';
-import { compareRentalRoutes, RentalInput } from '../../utils/rentalTax';
+import { compareRentalRoutes, optimizeApartmentRoutes, RentalInput } from '../../utils/rentalTax';
 
 const fmt = (n: number) => '₪' + Math.round(n).toLocaleString('he-IL');
 
@@ -12,8 +12,8 @@ interface Props {
 const MARGINAL_RATES = [10, 14, 20, 31, 35, 47, 50];
 
 export default function RentalRouteCalculator({ taxData, year }: Props) {
-  const [monthlyRent, setMonthlyRent] = useState(7000);
-  const [propertyCount, setPropertyCount] = useState(1);
+  // שכ"ד לכל דירה בנפרד — דירה אחת כברירת מחדל
+  const [apartments, setApartments] = useState<number[]>([7000]);
   const [isAge60Plus, setIsAge60Plus] = useState(false);
   const [marginalRate, setMarginalRate] = useState(31);
   const [annualExpenses, setAnnualExpenses] = useState(0);
@@ -21,9 +21,13 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
   const [eligible122f, setEligible122f] = useState(false);
   const [rentPaid, setRentPaid] = useState(0);
 
+  const monthlyRent = apartments.reduce((s, r) => s + (r || 0), 0);
+  const propertyCount = apartments.length;
+
   const input: RentalInput = useMemo(() => ({
     year,
     monthlyRent,
+    apartmentRents: apartments,
     exemptCeilingMonthly: taxData.rentalExemptMonthly,
     marginalRatePct: marginalRate,
     isAge60Plus,
@@ -32,15 +36,54 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
     eligibleForRentPaidDeduction: eligible122f,
     annualRentPaidForOwnHome: rentPaid,
     propertyCount,
-  }), [year, monthlyRent, taxData.rentalExemptMonthly, marginalRate, isAge60Plus, annualExpenses, annualDepreciation, eligible122f, rentPaid, propertyCount]);
+  }), [year, monthlyRent, apartments, taxData.rentalExemptMonthly, marginalRate, isAge60Plus, annualExpenses, annualDepreciation, eligible122f, rentPaid, propertyCount]);
 
   const result = useMemo(() => compareRentalRoutes(input), [input]);
+  const mixed = useMemo(
+    () => optimizeApartmentRoutes(apartments, taxData.rentalExemptMonthly, marginalRate),
+    [apartments, taxData.rentalExemptMonthly, marginalRate],
+  );
   const m = result.mechanism;
   const annualRent = monthlyRent * 12;
 
   // ── ויזואליזציית הפטור המתקפל ──
-  const scaleMax = Math.max(m.zeroPoint * 1.15, monthlyRent * 1.1);
+  // הציר בכיוון עברי: 0 בצד ימין. עם דירה אחת — הסמן ניתן לגרירה.
+  const scaleMax = Math.max(m.zeroPoint * 1.35, monthlyRent * 1.1);
   const pct = (v: number) => Math.min(100, (v / scaleMax) * 100);
+  const dragEnabled = propertyCount === 1;
+
+  const barRef = useRef<HTMLDivElement>(null);
+  // בזמן גרירה מקפיאים את קנה המידה כדי שהציר לא "יברח" מתחת לעכבר
+  const dragScale = useRef<number | null>(null);
+
+  function rentFromPointer(clientX: number): number {
+    const rect = barRef.current!.getBoundingClientRect();
+    const scale = dragScale.current ?? scaleMax;
+    const raw = ((rect.right - clientX) / rect.width) * scale; // 0 בצד ימין
+    const stepped = Math.round(raw / 50) * 50;
+    return Math.min(Math.max(0, stepped), Math.round(scale));
+  }
+  function handleBarPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragEnabled) return;
+    dragScale.current = scaleMax;
+    setApartments([rentFromPointer(e.clientX)]);
+    try {
+      barRef.current?.setPointerCapture(e.pointerId);
+    } catch {
+      // אם תפיסת המצביע נכשלת — עדיין מקבלים לחיצה בודדת
+    }
+  }
+  function handleBarPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragEnabled || dragScale.current == null) return;
+    setApartments([rentFromPointer(e.clientX)]);
+  }
+  function handleBarPointerUp() {
+    dragScale.current = null;
+  }
+
+  function updateApartment(idx: number, value: number) {
+    setApartments(arr => arr.map((r, i) => (i === idx ? value : r)));
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -48,16 +91,37 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
       <div className="card">
         <div className="card-header"><span className="card-title">🏠 נתוני ההשכרה</span></div>
         <div className="card-body">
+          {/* דירות */}
+          <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '.75rem' }}>
+            {apartments.map((rent, i) => (
+              <div key={i} className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontWeight: 700 }}>
+                  {propertyCount === 1 ? 'שכ"ד חודשי ₪' : `דירה ${i + 1} — שכ"ד חודשי ₪`}
+                </label>
+                <input
+                  type="number" min={0} value={rent || ''} placeholder="0"
+                  onChange={e => updateApartment(i, +e.target.value)}
+                  style={{ fontSize: '1.05rem', width: 140 }}
+                />
+              </div>
+            ))}
+            {propertyCount > 1 && (
+              <button type="button" className="btn btn-secondary" style={{ padding: '.45rem .6rem' }}
+                onClick={() => setApartments(arr => arr.slice(0, -1))}>
+                ✕ הסרת דירה
+              </button>
+            )}
+            <button type="button" className="btn btn-secondary"
+              onClick={() => setApartments(arr => [...arr, 0])}>
+              + הוספת דירה
+            </button>
+            <div style={{ fontSize: '.8rem', color: 'var(--gray-500)', paddingBottom: '.5rem' }}>
+              סה"כ: <strong>{fmt(monthlyRent)}/חודש</strong> · {fmt(annualRent)} לשנה
+              {propertyCount > 1 && ` · ${propertyCount} דירות`}
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '.75rem' }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label style={{ fontWeight: 700 }}>שכ"ד חודשי (כל הדירות) ₪</label>
-              <input type="number" min={0} value={monthlyRent || ''} onChange={e => setMonthlyRent(+e.target.value)} style={{ fontSize: '1.05rem' }} />
-              <span style={{ fontSize: '.7rem', color: 'var(--gray-500)' }}>= {fmt(annualRent)} לשנה</span>
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>מספר דירות מושכרות</label>
-              <input type="number" min={1} max={20} value={propertyCount} onChange={e => setPropertyCount(+e.target.value)} />
-            </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>שיעור מס שולי של המשכיר</label>
               <select value={marginalRate} onChange={e => setMarginalRate(+e.target.value)}>
@@ -89,6 +153,11 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
               <input type="checkbox" checked={eligible122f} onChange={e => setEligible122f(e.target.checked)} />
               💡 סעיף 122(ו): למשכיר דירה יחידה שגר בעצמו בשכירות או משלם על בית אבות
             </label>
+            {eligible122f && propertyCount > 1 && (
+              <div style={{ fontSize: '.75rem', color: '#b45309', marginTop: '.3rem' }}>
+                ⚠ הניכוי לפי 122(ו) מיועד לבעל <strong>דירה יחידה</strong> — עם {propertyCount} דירות הוא ככל הנראה לא חל.
+              </div>
+            )}
             {eligible122f && (
               <div className="form-group" style={{ marginBottom: 0, marginTop: '.5rem', maxWidth: 300 }}>
                 <label>שכ"ד שנתי שהמשכיר משלם בעד מגוריו ₪</label>
@@ -109,25 +178,57 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
           </span>
         </div>
         <div className="card-body">
-          {/* פס אזורים */}
-          <div style={{ position: 'relative', height: 62, marginBottom: '.5rem' }}>
-            <div style={{ position: 'absolute', top: 22, left: 0, right: 0, height: 18, borderRadius: 9, overflow: 'hidden', display: 'flex', flexDirection: 'row-reverse' }}>
-              <div style={{ width: `${pct(m.ceiling)}%`, background: '#86efac' }} title="פטור מלא" />
-              <div style={{ width: `${pct(m.zeroPoint) - pct(m.ceiling)}%`, background: '#fde047' }} title="פטור חלקי" />
-              <div style={{ flex: 1, background: '#fca5a5' }} title="אין פטור" />
+          {/* פס אזורים — 0 בצד ימין (כיוון עברי); עם דירה אחת גרירה משנה את שכ"ד */}
+          <div
+            ref={barRef}
+            onPointerDown={handleBarPointerDown}
+            onPointerMove={handleBarPointerMove}
+            onPointerUp={handleBarPointerUp}
+            onPointerCancel={handleBarPointerUp}
+            style={{
+              position: 'relative', height: 70, marginBottom: '.5rem',
+              cursor: dragEnabled ? 'pointer' : 'default',
+              touchAction: 'none', userSelect: 'none',
+            }}
+          >
+            <div style={{ position: 'absolute', top: 30, left: 0, right: 0, height: 18, borderRadius: 9, overflow: 'hidden' }}>
+              {/* מיקום מוחלט מהימין — בלי תלות בכיוון flex */}
+              <div style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: `${pct(m.ceiling)}%`, background: '#86efac' }} title="פטור מלא" />
+              <div style={{ position: 'absolute', top: 0, bottom: 0, right: `${pct(m.ceiling)}%`, width: `${pct(m.zeroPoint) - pct(m.ceiling)}%`, background: '#fde047' }} title="פטור חלקי" />
+              <div style={{ position: 'absolute', top: 0, bottom: 0, right: `${pct(m.zeroPoint)}%`, left: 0, background: '#fca5a5' }} title="אין פטור" />
             </div>
+            {/* קווי סף */}
+            {[m.ceiling, m.zeroPoint].map(v => (
+              <div key={v} style={{ position: 'absolute', top: 26, height: 26, right: `${pct(v)}%`, width: 1, background: 'rgba(0,0,0,.25)' }} />
+            ))}
             {/* סמן שכ"ד נוכחי */}
-            <div style={{ position: 'absolute', top: 0, right: `${pct(monthlyRent)}%`, transform: 'translateX(50%)', textAlign: 'center' }}>
-              <div style={{ fontSize: '.7rem', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--blue-dark)' }}>▼ {fmt(monthlyRent)}</div>
-              <div style={{ width: 2, height: 44, background: 'var(--blue-dark)', margin: '0 auto' }} />
+            <div style={{ position: 'absolute', top: 4, right: `${pct(monthlyRent)}%`, transform: 'translateX(50%)', textAlign: 'center', pointerEvents: 'none' }}>
+              <div style={{ fontSize: '.72rem', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--blue-dark)' }}>{fmt(monthlyRent)}</div>
+              <div style={{ width: 2, height: 34, background: 'var(--blue-dark)', margin: '0 auto' }} />
+              {dragEnabled && (
+                <div style={{
+                  width: 16, height: 16, borderRadius: '50%', margin: '-2px auto 0',
+                  background: 'white', border: '3px solid var(--blue-dark)',
+                  boxShadow: '0 1px 4px rgba(0,0,0,.25)',
+                }} />
+              )}
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.72rem', color: 'var(--gray-500)', flexDirection: 'row-reverse' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.72rem', color: 'var(--gray-500)' }}>
             <span>0</span>
             <span>🟢 פטור מלא עד {fmt(m.ceiling)}</span>
             <span>🟡 פטור חלקי</span>
             <span>🔴 אין פטור מ-{fmt(m.zeroPoint)}</span>
           </div>
+          {dragEnabled ? (
+            <div style={{ fontSize: '.7rem', color: 'var(--gray-400)', marginTop: '.25rem' }}>
+              💡 אפשר לגרור את הסמן על הציר — שכ"ד החודשי יתעדכן בהתאם
+            </div>
+          ) : (
+            <div style={{ fontSize: '.7rem', color: 'var(--gray-400)', marginTop: '.25rem' }}>
+              הסמן מציג את סך השכירות מכל {propertyCount} הדירות — זה הסכום שנבחן מול התקרה
+            </div>
+          )}
 
           {m.zone === 'partial' && (
             <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '.5rem' }}>
@@ -150,7 +251,82 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
         </div>
       </div>
 
-      {/* ── השוואת מסלולים ── */}
+      {/* ── ריבוי דירות: שיוך מסלולים חכם ── */}
+      {mixed && (
+        <div className="card" style={{ border: '2px solid #7c3aed' }}>
+          <div className="card-header" style={{ background: '#faf5ff' }}>
+            <span className="card-title" style={{ color: '#6d28d9' }}>🧩 שיוך מסלולים חכם — {propertyCount} דירות</span>
+            <span style={{ fontSize: '.8rem', color: 'var(--gray-500)' }}>
+              הבחירה במסלול היא לכל דירה בנפרד — והשיוך הנכון חוסך מס
+            </span>
+          </div>
+          <div className="card-body">
+            <div className="table-wrap">
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.875rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
+                    <th style={{ padding: '.5rem .8rem', textAlign: 'right' }}>דירה</th>
+                    <th style={{ padding: '.5rem .8rem', textAlign: 'center' }}>שכ"ד חודשי</th>
+                    <th style={{ padding: '.5rem .8rem', textAlign: 'center' }}>מסלול מומלץ</th>
+                    <th style={{ padding: '.5rem .8rem', textAlign: 'center' }}>פטור מנוצל</th>
+                    <th style={{ padding: '.5rem .8rem', textAlign: 'center' }}>חייב במס</th>
+                    <th style={{ padding: '.5rem .8rem', textAlign: 'center' }}>מס שנתי</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mixed.apartments.map((a, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                      <td style={{ padding: '.45rem .8rem', fontWeight: 600 }}>דירה {i + 1}</td>
+                      <td style={{ padding: '.45rem .8rem', textAlign: 'center' }}>{fmt(a.monthlyRent)}</td>
+                      <td style={{ padding: '.45rem .8rem', textAlign: 'center' }}>
+                        <span className={a.route === 'exempt' ? 'badge badge-green' : 'badge badge-blue'}>
+                          {a.route === 'exempt' ? 'פטור' : '10%'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '.45rem .8rem', textAlign: 'center', color: '#15803d' }}>
+                        {a.exemptionUsedMonthly > 0 ? fmt(a.exemptionUsedMonthly) + '/חודש' : '—'}
+                      </td>
+                      <td style={{ padding: '.45rem .8rem', textAlign: 'center' }}>
+                        {a.taxableMonthly > 0 ? fmt(a.taxableMonthly) + '/חודש' : '—'}
+                      </td>
+                      <td style={{ padding: '.45rem .8rem', textAlign: 'center', fontWeight: 700 }}>{fmt(a.taxAnnual)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ background: '#faf5ff', fontWeight: 700 }}>
+                    <td colSpan={5} style={{ padding: '.55rem .8rem' }}>
+                      סה"כ בשיוך המומלץ (פטור זמין: {fmt(mixed.adjustedExemptionMonthly)}/חודש)
+                    </td>
+                    <td style={{ padding: '.55rem .8rem', textAlign: 'center', color: '#6d28d9', fontSize: '.95rem' }}>
+                      {fmt(mixed.totalTaxAnnual)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ marginTop: '.75rem', display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 220px', padding: '.6rem .8rem', background: 'var(--gray-50)', borderRadius: 8, fontSize: '.83rem' }}>
+                חלופה פשוטה ({mixed.bestUniformLabel}): <strong>{fmt(mixed.bestUniformTaxAnnual)}</strong> לשנה
+              </div>
+              <div style={{
+                flex: '1 1 220px', padding: '.6rem .8rem', borderRadius: 8, fontSize: '.83rem',
+                background: mixed.savingVsUniform > 0 ? '#ecfdf5' : 'var(--gray-50)',
+                border: mixed.savingVsUniform > 0 ? '1px solid #a7f3d0' : '1px solid var(--gray-200)',
+              }}>
+                {mixed.savingVsUniform > 0
+                  ? <>💰 חיסכון מהשיוך החכם: <strong style={{ color: '#15803d' }}>{fmt(mixed.savingVsUniform)}</strong> לשנה</>
+                  : 'במקרה הזה אין יתרון לפיצול — השיוך האחיד הוא גם האופטימלי'}
+              </div>
+            </div>
+
+            <ul style={{ paddingRight: '1.1rem', marginTop: '.6rem', fontSize: '.75rem', color: 'var(--gray-600)', display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+              {mixed.notes.map((n, i) => <li key={i}>{n}</li>)}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* ── השוואת מסלולים (על סך ההכנסה) ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '.9rem' }}>
         {result.routes.map(r => {
           const isBest = r.key === result.recommendedKey;
@@ -202,7 +378,9 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
 
       {/* ── המלצה ואזהרות ── */}
       <div className="alert alert-info" style={{ marginBottom: 0 }}>
-        <strong>שורה תחתונה:</strong> {result.recommendationNote}
+        <strong>שורה תחתונה:</strong> {mixed && mixed.savingVsUniform > 0
+          ? `עם ${propertyCount} דירות — השיוך החכם למעלה חוסך ${fmt(mixed.savingVsUniform)} לשנה לעומת מסלול אחיד. `
+          : result.recommendationNote}
       </div>
       {result.generalWarnings.map((w, i) => (
         <div key={i} className="alert alert-warning" style={{ marginBottom: 0, fontSize: '.85rem' }}>{w}</div>

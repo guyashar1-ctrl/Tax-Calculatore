@@ -13,6 +13,8 @@ export interface RentalInput {
   year: number;
   /** דמי שכירות חודשיים מכלל דירות המגורים (כולל דירות במסלולים אחרים!) */
   monthlyRent: number;
+  /** שכ"ד חודשי לכל דירה בנפרד (לאופטימיזציית שיוך מסלולים) */
+  apartmentRents?: number[];
   /** תקרת הפטור החודשית לשנה (מ-TaxYearData) */
   exemptCeilingMonthly: number;
   /** שיעור המס השולי של המשכיר על הכנסה פסיבית (31 ומעלה מתחת לגיל 60) */
@@ -237,5 +239,113 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
     recommendedKey: best.key,
     recommendationNote,
     generalWarnings,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// אופטימיזציית שיוך מסלולים לריבוי דירות
+//
+// הבחירה במסלול היא לכל דירה בנפרד, אבל תקרת הפטור נבחנת מול סך דמי
+// השכירות מכל דירות המגורים — כולל דירות שבמסלול 10%. לכן שיוך חכם
+// (איזו דירה בפטור ואיזו ב-10%) יכול לחסוך מס אמיתי.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ApartmentAssignment {
+  monthlyRent: number;
+  route: 'exempt' | 'flat10';
+  /** הפטור החודשי שנוצל על הדירה (במסלול הפטור) */
+  exemptionUsedMonthly: number;
+  /** חלק חייב חודשי (במסלול הפטור — החלק שמעל הפטור, במס שולי) */
+  taxableMonthly: number;
+  taxAnnual: number;
+}
+
+export interface MixedRouteResult {
+  apartments: ApartmentAssignment[];
+  /** התקרה המתואמת (הפטור הזמין) לפי סך ההכנסות מכל הדירות */
+  adjustedExemptionMonthly: number;
+  totalTaxAnnual: number;
+  /** המס בחלופה הפשוטה הטובה ביותר (כל הדירות באותו מסלול) */
+  bestUniformTaxAnnual: number;
+  bestUniformLabel: string;
+  savingVsUniform: number;
+  notes: string[];
+}
+
+export function optimizeApartmentRoutes(
+  apartmentRents: number[],
+  exemptCeilingMonthly: number,
+  marginalRatePct: number,
+): MixedRouteResult | null {
+  const rents = apartmentRents.filter(r => r > 0);
+  if (rents.length < 2 || rents.length > 10) return null;
+
+  const T = exemptCeilingMonthly;
+  const rate = marginalRatePct / 100;
+  const totalRent = rents.reduce((s, r) => s + r, 0);
+  // התקרה המתואמת נקבעת לפי סך השכירות מכל הדירות — בכל שיוך שהוא
+  const excess = Math.max(0, totalRent - T);
+  const adjustedExemption = Math.max(0, T - excess);
+
+  interface Candidate { mask: number; tax: number; exemptRent: number }
+  let best: Candidate | null = null;
+
+  for (let mask = 0; mask < (1 << rents.length); mask++) {
+    let exemptRent = 0;
+    let flatRent = 0;
+    for (let i = 0; i < rents.length; i++) {
+      if (mask & (1 << i)) exemptRent += rents[i];
+      else flatRent += rents[i];
+    }
+    const exemptionUsed = Math.min(exemptRent, adjustedExemption);
+    const taxableAtMarginal = exemptRent - exemptionUsed;
+    const tax = (taxableAtMarginal * rate + flatRent * 0.10) * 12;
+    if (
+      best === null ||
+      tax < best.tax - 0.5 ||
+      // שוברי שוויון: עדיף לנצל יותר פטור (פחות תשלומי 10% ודיווח)
+      (Math.abs(tax - best.tax) <= 0.5 && exemptRent > best.exemptRent)
+    ) {
+      best = { mask, tax, exemptRent };
+    }
+  }
+  if (!best) return null;
+
+  // בניית השיוך המנצח, עם חלוקת הפטור לפי סדר הדירות בפול הפטור
+  let exemptionLeft = adjustedExemption;
+  const apartments: ApartmentAssignment[] = rents.map((r, i) => {
+    if (best!.mask & (1 << i)) {
+      const used = Math.min(r, exemptionLeft);
+      exemptionLeft -= used;
+      const taxable = r - used;
+      return { monthlyRent: r, route: 'exempt', exemptionUsedMonthly: used, taxableMonthly: taxable, taxAnnual: taxable * rate * 12 };
+    }
+    return { monthlyRent: r, route: 'flat10', exemptionUsedMonthly: 0, taxableMonthly: r, taxAnnual: r * 0.10 * 12 };
+  });
+
+  // חלופות אחידות להשוואה
+  const allExemptTaxable = totalRent - Math.min(totalRent, adjustedExemption);
+  const allExemptTax = allExemptTaxable * rate * 12;
+  const allFlatTax = totalRent * 0.10 * 12;
+  const uniform = allExemptTax <= allFlatTax
+    ? { tax: allExemptTax, label: 'כל הדירות במסלול הפטור' }
+    : { tax: allFlatTax, label: 'כל הדירות במסלול 10%' };
+
+  const notes: string[] = [
+    `התקרה המתואמת חושבה לפי סך השכירות מכל הדירות (${Math.round(totalRent).toLocaleString('he-IL')} ₪/חודש) — גם דירות במסלול 10% נספרות בבדיקת התקרה.`,
+    'החישוב ללא הוצאות ופחת פר-דירה; דירה עם ריבית משכנתא כבדה עשויה להצדיק מסלול שולי פרטני.',
+  ];
+  if (adjustedExemption === 0) {
+    notes.unshift('סך השכירות מעל כפל התקרה — הפטור התאפס לחלוטין, ולכן ההשוואה היא בעיקר 10% מול שולי.');
+  }
+
+  return {
+    apartments,
+    adjustedExemptionMonthly: adjustedExemption,
+    totalTaxAnnual: Math.round(best.tax),
+    bestUniformTaxAnnual: Math.round(uniform.tax),
+    bestUniformLabel: uniform.label,
+    savingVsUniform: Math.round(uniform.tax - best.tax),
+    notes,
   };
 }
