@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Client, Child, SpouseData, EMPTY_SPOUSE, IncomeTaxType, NIType, VATStatus, FamilyStatus, Gender, Task } from '../types';
-import { SETTLEMENTS_SORTED, findSettlementByName } from '../data/settlements';
+import { getEligibleSettlements, resolveSettlement } from '../data/eligibleSettlements';
+import { CURRENT_TAX_YEAR } from '../data/taxData';
 import { calcCreditPoints, calcSpouseCreditPoints } from '../utils/taxCalculations';
 import { getTaxYearData } from '../data/taxData';
 import TaskCard from './TaskCard';
@@ -94,23 +95,15 @@ export default function ClientForm({
     if (!data.id) upd('niType', suggestNIType(val));
   }
 
-  // זיהוי ישוב מזכה אוטומטי לפי עיר
+  // זיהוי יישוב מוטב אוטומטי לפי עיר
   useEffect(() => {
     if (data.qualifyingSettlementOverride) return;
-    const found = findSettlementByName(data.city);
-    if (found) {
-      setData(d => ({
-        ...d,
-        qualifyingSettlementId: found.id,
-        qualifyingSettlementCreditPoints: found.creditPoints,
-      }));
-    } else if (!data.qualifyingSettlementOverride) {
-      setData(d => ({
-        ...d,
-        qualifyingSettlementId: '',
-        qualifyingSettlementCreditPoints: 0,
-      }));
-    }
+    const found = resolveSettlement(data.city, CURRENT_TAX_YEAR);
+    setData(d => ({
+      ...d,
+      qualifyingSettlementId: found?.name ?? '',
+      qualifyingSettlementCreditPoints: 0,
+    }));
   }, [data.city, data.qualifyingSettlementOverride]);
 
   const isNew = !client;
@@ -170,7 +163,7 @@ export default function ClientForm({
   );
   const openTasksCount = clientTasks.filter(t => t.status === 'open').length;
 
-  const settlementInfo = SETTLEMENTS_SORTED.find(s => s.id === data.qualifyingSettlementId);
+  const settlementInfo = resolveSettlement(data.qualifyingSettlementId, CURRENT_TAX_YEAR);
 
   // ── Spouse helpers ──
   const sp = data.spouse ?? EMPTY_SPOUSE;
@@ -266,7 +259,7 @@ export default function ClientForm({
                   list="settlements-list"
                 />
                 <datalist id="settlements-list">
-                  {SETTLEMENTS_SORTED.map(s => <option key={s.id} value={s.name} />)}
+                  {getEligibleSettlements(CURRENT_TAX_YEAR).map(s => <option key={s.name} value={s.name} />)}
                 </datalist>
               </div>
               <div className="form-group span-full">
@@ -279,9 +272,9 @@ export default function ClientForm({
             {settlementInfo && (
               <div className="alert alert-info" style={{ marginTop: '1rem' }}>
                 <div>
-                  <strong>🏘️ זוהה ישוב מזכה אוטומטית:</strong> {settlementInfo.name} —
-                  {' '}{settlementInfo.creditPoints} נקודות זיכוי לשנה (מעגל {settlementInfo.tier}׳).
-                  {' '}פרטים ניתן לשנות בלשונית "זיכויים".
+                  <strong>🏘️ זוהה יישוב מוטב אוטומטית:</strong> {settlementInfo.name} —
+                  {' '}זיכוי {settlementInfo.ratePercent}% מההכנסה מיגיעה אישית, עד תקרה ₪{settlementInfo.ceilingAnnual.toLocaleString('he-IL')} לשנה.
+                  {' '}ניתן לשנות בלשונית "זיכויים".
                 </div>
               </div>
             )}
@@ -685,19 +678,17 @@ export default function ClientForm({
                 <div className="card-body">
                   <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
                     <div className="form-group">
-                      <label>ישוב מזכה</label>
-                      <select value={data.qualifyingSettlementId} onChange={e => {
-                        const s = SETTLEMENTS_SORTED.find(x => x.id === e.target.value);
-                        setData(d => ({ ...d, qualifyingSettlementId: e.target.value, qualifyingSettlementCreditPoints: s?.creditPoints ?? 0.5, qualifyingSettlementOverride: true }));
+                      <label>יישוב מוטב</label>
+                      <select value={settlementInfo?.name ?? ''} onChange={e => {
+                        setData(d => ({ ...d, qualifyingSettlementId: e.target.value, qualifyingSettlementCreditPoints: 0, qualifyingSettlementOverride: true }));
                       }}>
                         <option value="">— לא —</option>
-                        {SETTLEMENTS_SORTED.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        {getEligibleSettlements(CURRENT_TAX_YEAR).map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
                       </select>
                     </div>
-                    {data.qualifyingSettlementId && (
-                      <div className="form-group">
-                        <label>נקודות</label>
-                        <input type="number" min={0} max={2} step={0.25} value={data.qualifyingSettlementCreditPoints} onChange={e => upd('qualifyingSettlementCreditPoints', +e.target.value)} />
+                    {settlementInfo && (
+                      <div style={{ fontSize: '.8125rem', color: 'var(--green-dark)', paddingTop: '1.6rem', fontWeight: 600 }}>
+                        זיכוי {settlementInfo.ratePercent}% עד ₪{settlementInfo.ceilingAnnual.toLocaleString('he-IL')}
                       </div>
                     )}
                   </div>
@@ -765,7 +756,7 @@ export default function ClientForm({
                     <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
                       <div className="form-group"><label className="checkbox-row"><input type="checkbox" checked={sp.qualifyingSettlementOverride} onChange={e => updSp('qualifyingSettlementOverride', e.target.checked)} /> שונה מהנישום</label></div>
                       {sp.qualifyingSettlementOverride ? (
-                        <div className="form-group"><label>ישוב</label><select value={sp.qualifyingSettlementId} onChange={e => { const s = SETTLEMENTS_SORTED.find(x => x.id === e.target.value); updSp('qualifyingSettlementId', e.target.value); if (s) updSp('qualifyingSettlementCreditPoints', s.creditPoints); }}><option value="">— לא —</option>{SETTLEMENTS_SORTED.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                        <div className="form-group"><label>יישוב</label><select value={sp.qualifyingSettlementId} onChange={e => { updSp('qualifyingSettlementId', e.target.value); updSp('qualifyingSettlementCreditPoints', 0); }}><option value="">— לא —</option>{getEligibleSettlements(CURRENT_TAX_YEAR).map(s => <option key={s.name} value={s.name}>{s.name}</option>)}</select></div>
                       ) : data.qualifyingSettlementId ? (
                         <div style={{ fontSize: '.8125rem', color: 'var(--gray-500)', paddingTop: '1.5rem' }}>זהה: {settlementInfo?.name}</div>
                       ) : null}

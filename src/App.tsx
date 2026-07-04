@@ -30,7 +30,7 @@ import ClientWorkspace from './components/ClientWorkspace';
 import TaxCalculator from './components/TaxCalculator';
 import DocumentManager from './components/DocumentManager';
 import { enrichClientsWithWorkspace } from './data/sampleClientWorkspace';
-import TaxReferencePanel from './components/TaxReferencePanel';
+import TaxCenter from './features/taxCenter/TaxCenter';
 import RepresentationRequestForm from './components/RepresentationRequestForm';
 import RepresentationFillForm from './components/RepresentationFillForm';
 import RepresentationRequestReview from './components/RepresentationRequestReview';
@@ -580,7 +580,7 @@ export default function App() {
       : view === 'documents' && selectedClient
       ? `${selectedClient.firstName} ${selectedClient.lastName} — מסמכים`
       : view === 'reference'
-      ? 'מדריך מס'
+      ? 'מרכז ידע מס'
       : view === 'requestNew'
       ? selectedRequest ? 'עריכת בקשת ייצוג' : 'בקשת ייצוג חדשה'
       : view === 'requestReview'
@@ -608,7 +608,7 @@ export default function App() {
     { id: 'tasks', label: '✓ משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
     { id: 'list', label: '👥 לקוחות' },
     { id: 'annualReport', label: '📋 דוח שנתי 1301' },
-    { id: 'reference', label: '📚 מדריך מס' },
+    { id: 'reference', label: '🧭 מרכז ידע מס' },
   ];
 
   return (
@@ -775,7 +775,7 @@ export default function App() {
         )}
 
         {view === 'reference' && (
-          <TaxReferencePanel
+          <TaxCenter
             onBack={() => setView('list')}
           />
         )}

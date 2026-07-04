@@ -553,19 +553,40 @@ export default function TaxCalculator({ client, onBack }: Props) {
                   <span>מס לפני זיכויים:</span><span style={{ fontWeight: 600 }}>₪{fmt(Math.round(result.taxBeforeCredit))}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--green)', marginBottom: '.3rem' }}>
-                  <span>ניכוי נקודות זיכוי + תרומות:</span>
+                  <span>נקודות זיכוי + תרומות:</span>
                   <span style={{ fontWeight: 600 }}>−₪{fmt(Math.round(result.totalCreditValue + result.donationCredit))}</span>
                 </div>
+                {result.pensionCredit > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--green)', marginBottom: '.3rem' }}>
+                    <span>זיכוי פנסיה 35% (סעיף 45א):</span>
+                    <span style={{ fontWeight: 600 }}>−₪{fmt(Math.round(result.pensionCredit))}</span>
+                  </div>
+                )}
+                {result.settlementCredit > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--green)', marginBottom: '.3rem' }}>
+                    <span>זיכוי יישוב מוטב (סעיף 11):</span>
+                    <span style={{ fontWeight: 600 }}>−₪{fmt(Math.round(result.settlementCredit))}</span>
+                  </div>
+                )}
                 {result.surtax > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--red)', marginBottom: '.3rem' }}>
-                    <span>היטל יסף 3% (מעל ₪{fmt(taxData?.surtaxThreshold ?? 0)}):</span>
+                    <span>מס יסף 3% (מעל ₪{fmt(taxData?.surtaxThreshold ?? 0)}):</span>
                     <span style={{ fontWeight: 600 }}>+₪{fmt(Math.round(result.surtax))}</span>
+                  </div>
+                )}
+                {result.surtaxCapitalExtra > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--red)', marginBottom: '.3rem' }}>
+                    <span>מס יסף נוסף 2% — הכנסות הוניות (תיקון 276):</span>
+                    <span style={{ fontWeight: 600 }}>+₪{fmt(Math.round(result.surtaxCapitalExtra))}</span>
                   </div>
                 )}
                 <hr style={{ margin: '.3rem 0', borderColor: 'var(--blue-border)' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1rem', color: 'var(--blue-dark)' }}>
                   <span>מס הכנסה סופי:</span><span>₪{fmt(Math.round(result.totalIncomeTax))}</span>
                 </div>
+                {result.settlementCreditExplanation && (
+                  <div style={{ fontSize: '.72rem', color: 'var(--gray-600)', marginTop: '.4rem' }}>{result.settlementCreditExplanation}</div>
+                )}
               </div>
             </div>
           </div>
@@ -648,8 +669,11 @@ export default function TaxCalculator({ client, onBack }: Props) {
                     <tr><td>ניכויים מוכרים</td><td className="number" style={{ color: 'var(--green)' }}>−₪{fmt(Math.round(result.totalDeductions))}</td></tr>
                     <tr className="subtotal"><td>הכנסה חייבת</td><td className="number">₪{fmt(Math.round(result.taxableIncome))}</td></tr>
                     <tr><td>מס לפני זיכויים</td><td className="number">₪{fmt(Math.round(result.taxBeforeCredit))}</td></tr>
-                    <tr><td>ניכוי נקודות זיכוי ({result.totalCreditPoints} נק')</td><td className="number" style={{ color: 'var(--green)' }}>−₪{fmt(Math.round(result.totalCreditValue))}</td></tr>
-                    {result.surtax > 0 && <tr><td>היטל יסף 3%</td><td className="number">+₪{fmt(Math.round(result.surtax))}</td></tr>}
+                    <tr><td>נקודות זיכוי ({result.totalCreditPoints.toFixed(2)} נק')</td><td className="number" style={{ color: 'var(--green)' }}>−₪{fmt(Math.round(result.totalCreditValue))}</td></tr>
+                    {result.pensionCredit > 0 && <tr><td>זיכוי פנסיה (45א)</td><td className="number" style={{ color: 'var(--green)' }}>−₪{fmt(Math.round(result.pensionCredit))}</td></tr>}
+                    {result.settlementCredit > 0 && <tr><td>זיכוי יישוב מוטב (סעיף 11)</td><td className="number" style={{ color: 'var(--green)' }}>−₪{fmt(Math.round(result.settlementCredit))}</td></tr>}
+                    {result.surtax > 0 && <tr><td>מס יסף 3%</td><td className="number">+₪{fmt(Math.round(result.surtax))}</td></tr>}
+                    {result.surtaxCapitalExtra > 0 && <tr><td>מס יסף נוסף 2% (הוני)</td><td className="number">+₪{fmt(Math.round(result.surtaxCapitalExtra))}</td></tr>}
                     <tr><td>מס הכנסה</td><td className="number">₪{fmt(Math.round(result.totalIncomeTax))}</td></tr>
                     <tr><td>ביטוח לאומי + בריאות</td><td className="number">₪{fmt(Math.round(result.totalNI))}</td></tr>
                     <tr className="total"><td>סה"כ חבות מס</td><td className="number">₪{fmt(Math.round(result.totalTaxBurden))}</td></tr>
@@ -717,9 +741,9 @@ export default function TaxCalculator({ client, onBack }: Props) {
                       </tr>
                       {familyResult.combinedSurtax > 0 && (
                         <tr>
-                          <td>היטל יסף 3% (תא משפחתי)</td>
-                          <td className="number">{'\u20AA'}{fmt(Math.round(result.surtax))}</td>
-                          <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.surtax))}</td>
+                          <td>מס יסף (לכל יחיד בנפרד)</td>
+                          <td className="number">{'\u20AA'}{fmt(Math.round(result.surtax + result.surtaxCapitalExtra))}</td>
+                          <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.surtax + spouseResult.surtaxCapitalExtra))}</td>
                           <td className="number" style={{ fontWeight: 700, color: 'var(--red)' }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedSurtax))}</td>
                         </tr>
                       )}
@@ -752,15 +776,10 @@ export default function TaxCalculator({ client, onBack }: Props) {
                 </div>
 
                 {/* Surtax note */}
-                {familyResult.combinedSurtax > 0 && familyResult.surtaxSavingVsSeparate !== 0 && (
+                {familyResult.combinedSurtax > 0 && (
                   <div className="alert alert-info" style={{ marginTop: '.75rem' }}>
-                    {'\u2139\uFE0F'} היטל יסף: מחושב על הכנסת התא המשפחתי (סכום הכנסות שני בני הזוג).
-                    {familyResult.surtaxSavingVsSeparate > 0 && (
-                      <> חיסכון בחישוב משולב: <strong>{'\u20AA'}{fmt(Math.round(familyResult.surtaxSavingVsSeparate))}</strong></>
-                    )}
-                    {familyResult.surtaxSavingVsSeparate < 0 && (
-                      <> תוספת בחישוב משולב: <strong>{'\u20AA'}{fmt(Math.round(Math.abs(familyResult.surtaxSavingVsSeparate)))}</strong></>
-                    )}
+                    מס יסף מוטל על כל יחיד בנפרד — בחישוב נפרד כל בן זוג נהנה מסף מלא.
+                    הכנסות שאינן מיגיעה אישית מיוחסות בדרך כלל לבן הזוג בעל ההכנסה הגבוהה מיגיעה אישית; הכנסה מרכוש משותף ניתנת לפיצול (הו"ב 9/2015) — נקודת תכנון חשובה.
                   </div>
                 )}
 

@@ -53,7 +53,7 @@ export function getExpectedDocs(client: ClientExt): MissingDocItem[] {
     list.push({ id: 'business_pnl', label: 'רווח והפסד שנתי אחרון' });
   }
   if (client.qualifyingSettlementId) {
-    list.push({ id: 'residence_certificate', label: 'אישור מגורים בישוב מזכה' });
+    list.push({ id: 'residence_certificate', label: 'אישור תושבות ביישוב מוטב (טופס 1312א)' });
   }
   if (client.hasPension) {
     list.push({ id: 'pension_statement', label: 'אישור קרן פנסיה שנתי' });
