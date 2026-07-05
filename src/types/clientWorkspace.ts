@@ -5,7 +5,7 @@
 import { Client } from './index';
 
 // ── מטא-נתונים על שדה רגולטורי ──
-export type FieldSource = 'manual' | 'shaam' | 'authority' | 'import';
+export type FieldSource = 'manual' | 'shaam' | 'authority' | 'import' | 'questionnaire';
 
 export interface FieldMeta {
   source?: FieldSource;
@@ -19,6 +19,7 @@ export const FIELD_SOURCE_LABELS: Record<FieldSource, string> = {
   shaam: 'שע״ם',
   authority: 'הרשות',
   import: 'יבוא',
+  questionnaire: 'שאלון',
 };
 
 // ── איש קשר נוסף (עו"ד, מנהל חשבונות, רו"ח אחר וכו') ──
