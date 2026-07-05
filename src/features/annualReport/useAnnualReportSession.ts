@@ -57,7 +57,11 @@ export function useAnnualReportSessions(userId: string | undefined) {
   return { sessions, loading, error, startOrResume, removeSession, restartForEdit };
 }
 
-export function useAnnualReportFlow(initialSession: AnnualReportSession) {
+export function useAnnualReportFlow(
+  initialSession: AnnualReportSession,
+  /** תשובות שהועתקו מהשנה הקודמת — שאלה שיש לה תשובה כאן נענית אוטומטית. */
+  autoAnswers?: Map<string, AnswerValue>,
+) {
   const [session, setSession] = useState<AnnualReportSession>(initialSession);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +82,17 @@ export function useAnnualReportFlow(initialSession: AnnualReportSession) {
     setError(null);
     try {
       setHistory((prev) => [...prev, { questionId: qid, model: session.model }]);
-      const { model: newModel, nextQuestionId } = answerAndAdvance(session.model, qid, answer);
+      let { model: newModel, nextQuestionId } = answerAndAdvance(session.model, qid, answer);
+      // צריכה אוטומטית של תשובות שהועתקו מהשנה הקודמת — הלקוח לא רואה אותן,
+      // אבל הן נשמרות למסד כדי שהכיסוי והעריכה יכירו אותן.
+      let guard = 0;
+      while (nextQuestionId && autoAnswers?.has(nextQuestionId) && guard++ < 200) {
+        const autoValue = autoAnswers.get(nextQuestionId)!;
+        await saveAnswer(session.id, nextQuestionId, autoValue);
+        const res = answerAndAdvance(newModel, nextQuestionId, autoValue);
+        newModel = res.model;
+        nextQuestionId = res.nextQuestionId;
+      }
       const nextStatus = nextQuestionId ? 'in_progress' : 'review';
       const completedAt = nextQuestionId ? null : new Date().toISOString();
 
@@ -174,6 +188,12 @@ export function useAnnualReportFlow(initialSession: AnnualReportSession) {
     }
   }, [session]);
 
+  // אימוץ סשן שעודכן מחוץ ל-hook (למשל אחרי החלת הסקירה השנתית).
+  const adoptSession = useCallback((s: AnnualReportSession) => {
+    setSession(s);
+    setHistory([]);
+  }, []);
+
   return {
     session,
     saving,
@@ -182,6 +202,7 @@ export function useAnnualReportFlow(initialSession: AnnualReportSession) {
     goBack,
     canGoBack: history.length > 0,
     restart,
+    adoptSession,
     markMappingDone,
     goToReview,
     isFinished: session.currentQuestionId === null,

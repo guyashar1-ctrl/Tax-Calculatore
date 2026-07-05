@@ -39,7 +39,13 @@ export default function SyncConfirmation({ session, client, onUpdateClient, onCo
       for (const d of diffs) {
         if (selected.has(d.key)) updates = { ...updates, ...d.apply(client) };
       }
-      await onUpdateClient({ ...client, ...updates, updatedAt: new Date().toISOString() });
+      // חותמת מקור לכל שדה שעודכן — מזין את תגיות "מאיפה אנחנו יודעים" בפרופיל
+      const now = new Date().toISOString();
+      const fieldMeta = { ...(client.fieldMeta ?? {}) };
+      for (const key of Object.keys(updates)) {
+        fieldMeta[key] = { ...(fieldMeta[key] ?? {}), source: 'questionnaire', syncedAt: now };
+      }
+      await onUpdateClient({ ...client, ...updates, fieldMeta, updatedAt: now });
       onContinue();
     } catch (e) {
       console.error('[sync] failed', e);

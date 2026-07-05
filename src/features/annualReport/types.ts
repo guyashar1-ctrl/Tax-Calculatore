@@ -59,8 +59,18 @@ export interface OwnershipCodes {
 
 // ─── המודל הפנימי ────────────────────────────────────────────────────────────
 
+/** סוג הזרימה שהסשן מריץ — קובע אילו שאלות נשאלות. */
+export type FlowKind = 'full' | 'onboarding' | 'annual';
+
 export interface TaxpayerModel {
   taxYear: number;
+
+  /** מטא-נתוני זרימה (לא נתוני מס). flow חסר = 'full' (התנהגות היסטורית). */
+  meta?: {
+    flow?: FlowKind;
+    /** סטטוס מסמכים לתיק השנה: קוד מסמך → מצב. */
+    docStatuses?: Record<string, 'pending' | 'requested' | 'received' | 'not_relevant'>;
+  };
 
   identity: {
     maritalStatus?: MaritalStatus;
@@ -117,9 +127,14 @@ export interface TaxpayerModel {
     /** השכרת נכס ששימש בעסק 10+ שנים — יגיעה אישית, שדות 120/220. */
     hasBusinessAssetRental10y?: boolean;
 
-    // שכ"ד
+    // שכ"ד — הלקוח מדווח עובדות; המסלול (rentalTrack) הוא החלטת רו"ח
+    // שמתקבלת בשער הכיסוי, בעזרת מחשבון האופטימיזציה הקיים.
     rentalTrack?: 'exempt' | 'flat10' | 'regular';
     rentalGrossAnnual?: number;
+    /** הלקוח עצמו גר בשכירות — פותח ניכוי לפי סעיף 122(ו) ומשפיע על בחירת המסלול. */
+    livesInRentedHome?: boolean;
+    /** שכ"ד שנתי שהלקוח משלם על דירת מגוריו. */
+    rentPaidAnnual?: number;
     /** של מי הנכס — מנתב 059/201/301 ומשפיע על חישוב נפרד. */
     rentalOwner?: IncomeOwnership;
     /** שכירות שאינה למגורים (עסקית / דמי מפתח) — שדות 059/201/301. */
@@ -316,6 +331,7 @@ export function migrateModel(raw: Partial<TaxpayerModel> | null | undefined, tax
   const r = raw ?? {};
   const migrated: TaxpayerModel = {
     taxYear: r.taxYear ?? taxYear,
+    meta: { ...(r.meta ?? {}) },
     identity: { ...(r.identity ?? {}) },
     spouse: { ...(r.spouse ?? {}) },
     income: { sources: [], ...(r.income ?? {}) },
@@ -454,6 +470,22 @@ export const CHAPTER_LABELS: Record<ChapterKey, string> = {
   finish: 'סיכום ומסמכים',
 };
 
+/**
+ * קהל היעד של שאלה — עיקרון "הלקוח מדווח עובדות, הרו"ח מקבל החלטות":
+ * - client:     עובדה שהלקוח יודע (יש דירה? כמה שכ"ד?). מופיעה בכל הזרימות.
+ * - accountant: החלטה מקצועית / בחירת מסלול (חישוב נפרד, פריסה, סעיף 14).
+ *               מוצגת רק כשרו"ח מפעיל את השאלון; בזרימת לקוח עתידית — מדולגת
+ *               והופכת לפריט "ממתין להחלטת רו"ח" בשער הכיסוי.
+ */
+export type QuestionAudience = 'client' | 'accountant';
+
+/**
+ * אורך חיים של עובדה — לב ארכיטקטורת "פרופיל מס חי":
+ * - permanent: נשאל פעם אחת בקליטה, נשמר בפרופיל (תושבות, ילדים, נכסים...).
+ * - annual:    נאסף כל שנת מס מחדש (סכומים, אירועי השנה, מסמכים).
+ */
+export type QuestionLifetime = 'permanent' | 'annual';
+
 export interface QuestionNode {
   id: string;
   question: string;
@@ -461,6 +493,10 @@ export interface QuestionNode {
   type: QuestionType;
   /** הפרק שאליו שייכת השאלה בחוויית הפרקים החדשה. */
   chapter?: ChapterKey;
+  /** ברירת מחדל: 'client'. */
+  audience?: QuestionAudience;
+  /** ברירת מחדל: 'annual'. */
+  lifetime?: QuestionLifetime;
   options?: SelectOption[];
   required: boolean;
   applyToModel: (model: TaxpayerModel, answer: AnswerValue) => TaxpayerModel;

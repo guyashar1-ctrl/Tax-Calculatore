@@ -11,8 +11,9 @@ import AnswersReview from './AnswersReview';
 import SyncConfirmation from './SyncConfirmation';
 import TaxConstantsDashboard from './TaxConstantsDashboard';
 import TreeMapView from './TreeMapView';
+import CoverageGate from './CoverageGate';
 
-type Mode = 'entry' | 'questionnaire' | 'sync_confirmation' | 'answers_review' | 'output' | 'dashboard' | 'treemap';
+type Mode = 'entry' | 'questionnaire' | 'sync_confirmation' | 'answers_review' | 'gate' | 'output' | 'dashboard' | 'treemap';
 
 interface Props {
   clients: Client[];
@@ -28,7 +29,9 @@ export default function AnnualReport({ clients, userId, onUpdateClient }: Props)
   // אם session מסומן כ-mapping_done/review, פתח את ה-output ישר
   // (אבל לא אם המשתמש כרגע במצב sync_confirmation — שזה שלב ביניים אחרי השאלון).
   useEffect(() => {
-    if (mode === 'sync_confirmation') return;
+    // ניתוב אוטומטי רק ממסכי הכניסה — מסכים שנבחרו במפורש (מאזן, מפה, עריכה,
+    // סנכרון) לא נדרסים כשהסשן מתעדכן בתוכם.
+    if (mode !== 'entry' && mode !== 'questionnaire') return;
     if (currentSession && (currentSession.status === 'review' || currentSession.status === 'mapping_done')) {
       setMode('output');
     } else if (currentSession && currentSession.status === 'in_progress') {
@@ -124,6 +127,15 @@ export default function AnnualReport({ clients, userId, onUpdateClient }: Props)
           </button>
           <button
             type="button"
+            className={`tab ${mode === 'gate' ? 'active' : ''}`}
+            disabled={!currentSession}
+            onClick={() => setMode('gate')}
+            style={{ opacity: currentSession ? 1 : 0.4 }}
+          >
+            🚦 מאזן כיסוי
+          </button>
+          <button
+            type="button"
             className={`tab ${mode === 'output' ? 'active' : ''}`}
             disabled={!currentSession}
             onClick={() => setMode('output')}
@@ -215,6 +227,16 @@ export default function AnnualReport({ clients, userId, onUpdateClient }: Props)
             setCurrentSession(updated);
             setMode('questionnaire');
           }}
+        />
+      )}
+
+      {mode === 'gate' && currentSession && (
+        <CoverageGate
+          session={currentSession}
+          clientName={clientName}
+          client={selectedClient}
+          onSessionUpdate={setCurrentSession}
+          onReady={() => setMode('output')}
         />
       )}
 

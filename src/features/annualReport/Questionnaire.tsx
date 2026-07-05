@@ -1,7 +1,10 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import type { AnnualReportSession, AnswerValue, QuestionPreviewItem, ChapterKey } from './types';
-import { CHAPTER_LABELS } from './types';
 import type { Client } from '../../types';
+import CoverageRail from './CoverageRail';
+import AnnualDeltaScreen, { type DeltaResult } from './AnnualDeltaScreen';
+import { replayAnswers } from './engine';
+import { findSession, saveAnswer, updateSessionState } from './repository';
 import { useAnnualReportFlow } from './useAnnualReportSession';
 import { getQuestionById } from './engine';
 import { estimateTotalQuestions, chaptersForModel } from './tree';
@@ -19,23 +22,69 @@ interface Props {
   onPatchClient?: (partial: Partial<Client>) => Promise<void>;
 }
 
-const CHAPTER_ICONS: Record<ChapterKey, string> = {
-  identity_family: '👤',
-  salary: '💼',
-  business: '🧾',
-  rental: '🏠',
-  capital: '📈',
-  pension_ni: '🌅',
-  foreign: '✈️',
-  companies: '🏢',
-  deductions: '💝',
-  special: '⭐',
-  finish: '📋',
-};
-
 export default function Questionnaire({ initialSession, clientName, client, onFinished, onExit, onPatchClient }: Props) {
-  const flow = useAnnualReportFlow(initialSession);
-  const { session, saving, error, submitAnswer, goBack, canGoBack, restart, isFinished } = flow;
+  // תשובות שהועתקו מהשנה הקודמת (הסקירה השנתית) — נצרכות אוטומטית בזרימה.
+  const autoAnswersRef = useRef<Map<string, AnswerValue>>(new Map());
+  const flow = useAnnualReportFlow(initialSession, autoAnswersRef.current);
+  const { session, saving, error, submitAnswer, goBack, canGoBack, restart, adoptSession, isFinished } = flow;
+  const [applyingDelta, setApplyingDelta] = useState(false);
+
+  // תיק השנה הקודמת — אם קיים והושלם, מסך "מה השתנה?" מחליף את שער האריחים.
+  const [prior, setPrior] = useState<{ session: AnnualReportSession; answers: Map<string, AnswerValue> } | null>(null);
+  const [priorLoaded, setPriorLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const prev = await findSession(initialSession.clientId, initialSession.taxYear - 1);
+        if (cancelled || !prev || prev.status === 'in_progress') { setPriorLoaded(true); return; }
+        const list = await getAnswersForSession(prev.id);
+        if (cancelled) return;
+        const m = new Map<string, AnswerValue>();
+        for (const a of list) m.set(a.questionId, a.value);
+        setPrior({ session: prev, answers: m });
+      } catch {
+        // אין שנה קודמת — שער רגיל
+      } finally {
+        if (!cancelled) setPriorLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [initialSession.clientId, initialSession.taxYear]);
+
+  // החלת הסקירה: משחזרים מסלול מהתשובות שהועתקו ושומרים הכל לתיק החדש.
+  async function applyDelta(result: DeltaResult) {
+    setApplyingDelta(true);
+    try {
+      const answers = new Map<string, AnswerValue>(result.copiedAnswers);
+      answers.set('year_map', result.gateTiles);
+      const { model, currentQuestionId, usedQuestionIds } = replayAnswers(answers, session.taxYear, 'annual');
+      for (const qid of usedQuestionIds) {
+        await saveAnswer(session.id, qid, answers.get(qid)!);
+      }
+      const done = currentQuestionId === null;
+      const updated = await updateSessionState(session.id, {
+        model,
+        currentQuestionId,
+        status: done ? 'review' : 'in_progress',
+        completedAt: done ? new Date().toISOString() : null,
+      });
+      // תשובות שלא נכנסו במסלול (פרקים שעוד לא הגענו אליהם) — ייצרכו אוטומטית בהמשך.
+      autoAnswersRef.current.clear();
+      for (const [qid, v] of answers) {
+        if (!usedQuestionIds.includes(qid)) autoAnswersRef.current.set(qid, v);
+      }
+      setPriorAnswers((prevMap) => {
+        const next = new Map(prevMap);
+        for (const [qid, v] of answers) next.set(qid, v);
+        return next;
+      });
+      adoptSession(updated);
+      if (done) onFinished(updated);
+    } finally {
+      setApplyingDelta(false);
+    }
+  }
 
   // טעינת תשובות קודמות מ-DB — כדי לסמן תשובות קיימות כברירת מחדל בכל שאלה.
   const [priorAnswers, setPriorAnswers] = useState<Map<string, AnswerValue>>(new Map());
@@ -117,28 +166,50 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
     });
   const uniqueCodes = Array.from(new Set(feedsCodes)).slice(0, 4);
 
-  // ─── מסך השער — פריסה מלאה בלי sidebar ─────────────────────────────────
+  // ─── מסך השער ────────────────────────────────────────────────────────────
+  // לקוח חוזר (יש תיק שנה קודם) → סקירה שנתית "מה השתנה?";
+  // לקוח חדש → שער האריחים (שאלון הקליטה).
   if (isGate) {
+    if (!priorLoaded) {
+      return (
+        <div style={{ maxWidth: 860, margin: '3rem auto', textAlign: 'center', color: 'var(--gray-500)' }}>
+          בודק אם קיים תיק משנה קודמת…
+        </div>
+      );
+    }
     return (
       <div style={{ maxWidth: 860, margin: '1.5rem auto', padding: '0 1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
           <div style={{ color: 'var(--gray-600)' }}>
             <strong>{clientName}</strong> · שנת מס <strong>{session.taxYear}</strong>
+            {prior && <span style={{ fontSize: '.8rem' }}> · סקירה שנתית על בסיס {prior.session.taxYear}</span>}
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onExit}>שמור וצא</button>
         </div>
-        <div className="card">
-          <div className="card-body" style={{ padding: '1.75rem' }}>
-            <QuestionCard
-              node={node}
-              variant="tiles"
-              initialValue={priorAnswers.get(node.id)}
-              disabled={saving}
-              onSubmit={(value) => void handleSubmit(value)}
-              submitLabel="נתחיל ←"
-            />
+        {prior ? (
+          <AnnualDeltaScreen
+            clientName={clientName}
+            taxYear={session.taxYear}
+            priorYear={prior.session.taxYear}
+            priorModel={prior.session.model}
+            priorAnswers={prior.answers}
+            saving={applyingDelta}
+            onApply={(r) => void applyDelta(r)}
+          />
+        ) : (
+          <div className="card">
+            <div className="card-body" style={{ padding: '1.75rem' }}>
+              <QuestionCard
+                node={node}
+                variant="tiles"
+                initialValue={priorAnswers.get(node.id)}
+                disabled={saving}
+                onSubmit={(value) => void handleSubmit(value)}
+                submitLabel="נתחיל ←"
+              />
+            </div>
           </div>
-        </div>
+        )}
         {error && <ErrorBox message={error} />}
       </div>
     );
@@ -155,36 +226,15 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
       </div>
 
       <div className="ar-qlayout">
-        {/* ─── סרגל פרקים ─── */}
-        <nav aria-label="פרקי השאלון" className="ar-chnav">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {chapters.map((ch, idx) => {
-              const state = idx < currentChapterIdx ? 'done' : idx === currentChapterIdx ? 'now' : 'todo';
-              return (
-                <div
-                  key={ch}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '.45rem .6rem', borderRadius: 8, fontSize: '.88rem',
-                    background: state === 'now' ? 'var(--blue-light, #dbeafe)' : 'transparent',
-                    color: state === 'done' ? 'var(--green)' : state === 'now' ? 'var(--blue)' : 'var(--gray-500)',
-                    fontWeight: state === 'now' ? 700 : 500,
-                  }}
-                >
-                  <span style={{
-                    width: 22, minWidth: 22, height: 22, borderRadius: '50%',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '.7rem', fontWeight: 700,
-                    background: state === 'done' ? 'var(--green)' : state === 'now' ? 'var(--blue)' : 'var(--gray-100)',
-                    color: state === 'todo' ? 'var(--gray-500)' : 'white',
-                  }}>
-                    {state === 'done' ? '✓' : idx + 1}
-                  </span>
-                  <span>{CHAPTER_ICONS[ch]} {CHAPTER_LABELS[ch]}</span>
-                </div>
-              );
-            })}
-          </div>
+        {/* ─── סרגל העץ החי (מצב רו"ח) ─── */}
+        <nav aria-label="עץ הראיון" className="ar-chnav">
+          <CoverageRail
+            model={session.model}
+            answeredQuestionIds={new Set(priorAnswers.keys())}
+            currentQuestionId={session.currentQuestionId}
+            client={client}
+            session={session}
+          />
         </nav>
 
         {/* ─── אזור השאלה ─── */}

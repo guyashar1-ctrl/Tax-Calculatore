@@ -10,6 +10,7 @@ import { computeClientAlerts, getClientOpenTasks, getUpcomingDebts } from '../ut
 import OverviewTab from './clientTabs/OverviewTab';
 import PersonalContactsTab from './clientTabs/PersonalContactsTab';
 import TaxNITab from './clientTabs/TaxNITab';
+import TaxProfileTab from './clientTabs/TaxProfileTab';
 import DocumentsTab from './clientTabs/DocumentsTab';
 import TasksActivityTab from './clientTabs/TasksActivityTab';
 
@@ -27,14 +28,15 @@ const IT_LABELS: Record<IncomeTaxType, string> = {
   other: 'אחר',
 };
 
-type TabId = 'overview' | 'personal' | 'tax' | 'docs' | 'tasks';
+type TabId = 'overview' | 'personal' | 'tax' | 'taxProfile' | 'docs' | 'tasks';
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'overview',  label: 'סקירה',                icon: '📋' },
-  { id: 'personal',  label: 'פרטים אישיים וקשרים', icon: '👤' },
-  { id: 'tax',       label: 'מיסוי וביטוח לאומי',  icon: '🏛️' },
-  { id: 'docs',      label: 'מסמכים',               icon: '📁' },
-  { id: 'tasks',     label: 'משימות',               icon: '✅' },
+  { id: 'overview',   label: 'סקירה',                icon: '📋' },
+  { id: 'personal',   label: 'פרטים אישיים וקשרים', icon: '👤' },
+  { id: 'tax',        label: 'מיסוי וביטוח לאומי',  icon: '🏛️' },
+  { id: 'taxProfile', label: 'פרופיל מס',            icon: '🧬' },
+  { id: 'docs',       label: 'מסמכים',               icon: '📁' },
+  { id: 'tasks',      label: 'משימות',               icon: '✅' },
 ];
 
 interface Props {
@@ -309,6 +311,10 @@ export default function ClientWorkspace({
             client={client}
             update={update}
           />
+        )}
+
+        {tab === 'taxProfile' && (
+          <TaxProfileTab client={client} />
         )}
 
         {tab === 'docs' && (
