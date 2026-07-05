@@ -83,10 +83,12 @@ export function useAnnualReportFlow(
     try {
       setHistory((prev) => [...prev, { questionId: qid, model: session.model }]);
       let { model: newModel, nextQuestionId } = answerAndAdvance(session.model, qid, answer);
-      // צריכה אוטומטית של תשובות שהועתקו מהשנה הקודמת — הלקוח לא רואה אותן.
+      // צריכה אוטומטית של תשובות שהועתקו מהשנה הקודמת — הלקוח לא רואה אותן,
+      // אבל הן נשמרות למסד כדי שהכיסוי והעריכה יכירו אותן.
       let guard = 0;
       while (nextQuestionId && autoAnswers?.has(nextQuestionId) && guard++ < 200) {
         const autoValue = autoAnswers.get(nextQuestionId)!;
+        await saveAnswer(session.id, nextQuestionId, autoValue);
         const res = answerAndAdvance(newModel, nextQuestionId, autoValue);
         newModel = res.model;
         nextQuestionId = res.nextQuestionId;
