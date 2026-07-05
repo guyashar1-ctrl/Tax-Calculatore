@@ -125,21 +125,39 @@ const normalize = (s: string) =>
  * חיפוש לפי כותרת + מילות מפתח. "חליפה" → ביגוד, "מסעדה" → ארוחות עסקיות.
  * מחזיר מדורג: התאמת כותרת מלאה > תחילית כותרת > מילת מפתח > הופעה בטקסט.
  */
+function scoreAgainst(t: ExpenseTopic, q: string): number {
+  const title = normalize(t.title);
+  const kws = t.keywords.map(normalize);
+  if (title === q) return 100;
+  if (title.startsWith(q)) return 80;
+  if (kws.some(k => k === q)) return 70;
+  if (title.includes(q)) return 60;
+  if (kws.some(k => k.startsWith(q) || q.startsWith(k))) return 50;
+  if (kws.some(k => k.includes(q) || q.includes(k))) return 40;
+  if (normalize(t.summary).includes(q)) return 20;
+  return 0;
+}
+
+const STOPWORDS = new Set(['של', 'על', 'את', 'עם', 'אני', 'הוא', 'היא', 'לי', 'מה', 'זה', 'או']);
+
 export function searchExpenseTopics(topics: ExpenseTopic[], query: string): ExpenseTopic[] {
   const q = normalize(query);
   if (!q) return topics;
+  // מילים בודדות מהשאילתה — כולל הסרת מ"ם/בי"ת שימוש ("מהבית" → "הבית", "בבית" → "בית")
+  const words = q.split(' ')
+    .filter(w => w.length >= 2 && !STOPWORDS.has(w))
+    .flatMap(w => {
+      const variants = [w];
+      if (w.length >= 4 && /^[מבלכשה]/.test(w)) variants.push(w.slice(1));
+      if (w.length >= 5 && /^[מבלכש]ה/.test(w)) variants.push(w.slice(2));
+      return variants;
+    });
   const scored = topics
     .map(t => {
-      const title = normalize(t.title);
-      const kws = t.keywords.map(normalize);
-      let score = 0;
-      if (title === q) score = 100;
-      else if (title.startsWith(q)) score = 80;
-      else if (title.includes(q)) score = 60;
-      else if (kws.some(k => k === q)) score = 70;
-      else if (kws.some(k => k.startsWith(q) || q.startsWith(k))) score = 50;
-      else if (kws.some(k => k.includes(q) || q.includes(k))) score = 40;
-      else if (normalize(t.summary).includes(q)) score = 20;
+      let score = scoreAgainst(t, q);
+      for (const w of words) {
+        score = Math.max(score, scoreAgainst(t, w) * 0.9);
+      }
       return { t, score };
     })
     .filter(x => x.score > 0)
