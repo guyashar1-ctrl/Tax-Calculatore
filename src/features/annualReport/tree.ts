@@ -147,6 +147,7 @@ export const annualReportTree: QuestionTree = {
         spouse: { ...m.spouse, registeredRole: a as RegisteredSpouseRole },
       }),
       next: () => 'spouse_has_income',
+      visibleWhen: (m) => m.identity?.maritalStatus === 'married',
       targetFieldCodes: ['S-role'],
     },
 
@@ -195,6 +196,7 @@ export const annualReportTree: QuestionTree = {
         spouse: { ...m.spouse, eligibleSeparateCalc: a as boolean },
       }),
       next: () => 'children_count',
+      visibleWhen: (m) => m.identity?.maritalStatus === 'married' && m.identity?.spouseHasIncome === true,
       targetFieldCodes: ['S-calc'],
     },
 
@@ -329,6 +331,7 @@ export const annualReportTree: QuestionTree = {
         specialSituations: { ...m.specialSituations, electsSection14: a as boolean },
       }),
       next: () => 'qualifying_settlement',
+      visibleWhen: (m) => (m.identity?.residencyType ?? 'resident') !== 'resident',
       targetFieldCodes: ['S14'],
     },
 
@@ -502,6 +505,7 @@ export const annualReportTree: QuestionTree = {
         income: { ...m.income, severanceSpreadYears: Number(a) || 0 },
       }),
       next: () => 'has_options_102',
+      visibleWhen: (m) => m.income?.receivedSeverance === true,
       targetFieldCodes: ['009'],
     },
 
@@ -690,6 +694,7 @@ export const annualReportTree: QuestionTree = {
         ...m,
         income: { ...m.income, rentalTrack: a as 'exempt' | 'flat10' | 'regular' },
       }),
+      visibleWhen: (m) => (m.income?.sources ?? []).includes('rental'),
       // מחוץ לשרשרת החדשה — נענית משער הכיסוי. סשן ישן שעצר כאן ממשיך רגיל.
       next: () => 'rental_owner',
       targetFieldCodes: ['332', 'R-flat10', 'R-marginal'],
@@ -1806,6 +1811,22 @@ export function collectMissingClientFields(
 }
 
 // ─── פרקים רלוונטיים לפרופיל, לפי סדר ההופעה בשאלון ────────────────────────
+
+/** סדר הפרקים הקבוע — משמש את המפה, הסרגל ושער הכיסוי. */
+export const CHAPTER_ORDER: ChapterKey[] = [
+  'identity_family', 'salary', 'business', 'rental', 'capital',
+  'pension_ni', 'foreign', 'deductions', 'companies', 'special', 'finish',
+];
+
+/** כל השאלות מקובצות לפי פרק, בסדר ההגדרה בעץ. */
+export function nodesByChapter(): Map<ChapterKey, import('./types').QuestionNode[]> {
+  const map = new Map<ChapterKey, import('./types').QuestionNode[]>();
+  for (const ch of CHAPTER_ORDER) map.set(ch, []);
+  for (const node of Object.values(annualReportTree.nodes)) {
+    map.get(node.chapter ?? 'finish')?.push(node);
+  }
+  return map;
+}
 
 export function chaptersForModel(m: TaxpayerModel): ChapterKey[] {
   const src = m.income?.sources ?? [];

@@ -15,6 +15,8 @@ import type { Client } from '../../types';
 interface Props {
   clients: Client[];
   sessions: AnnualReportSession[];
+  /** פתיחה עם מסלול לקוח מודגש (למשל מתוך overlay של הסרגל). */
+  initialOverlaySessionId?: string;
 }
 
 const CHAPTER_ORDER: ChapterKey[] = [
@@ -40,11 +42,11 @@ const GATE_TILES = [
   { value: 'other', label: '⭐ אחר' },
 ];
 
-export default function TreeMapView({ clients, sessions }: Props) {
+export default function TreeMapView({ clients, sessions, initialOverlaySessionId }: Props) {
   const [selectedNodeId, setSelectedNodeId] = useState<string>('year_map');
   const [simTiles, setSimTiles] = useState<string[]>(GATE_TILES.map((t) => t.value));
   const [simMarried, setSimMarried] = useState(true);
-  const [overlaySessionId, setOverlaySessionId] = useState<string>('');
+  const [overlaySessionId, setOverlaySessionId] = useState<string>(initialOverlaySessionId ?? '');
   const [overlayAnswered, setOverlayAnswered] = useState<Set<string>>(new Set());
 
   // ─── מודל סימולציה מהאריחים המסומנים ─────────────────────────────────

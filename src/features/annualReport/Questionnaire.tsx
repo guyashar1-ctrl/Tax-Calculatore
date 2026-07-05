@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useState } from 'react';
 import type { AnnualReportSession, AnswerValue, QuestionPreviewItem, ChapterKey } from './types';
-import { CHAPTER_LABELS } from './types';
 import type { Client } from '../../types';
+import CoverageRail from './CoverageRail';
 import { useAnnualReportFlow } from './useAnnualReportSession';
 import { getQuestionById } from './engine';
 import { estimateTotalQuestions, chaptersForModel } from './tree';
@@ -18,20 +18,6 @@ interface Props {
   onExit: () => void;
   onPatchClient?: (partial: Partial<Client>) => Promise<void>;
 }
-
-const CHAPTER_ICONS: Record<ChapterKey, string> = {
-  identity_family: '👤',
-  salary: '💼',
-  business: '🧾',
-  rental: '🏠',
-  capital: '📈',
-  pension_ni: '🌅',
-  foreign: '✈️',
-  companies: '🏢',
-  deductions: '💝',
-  special: '⭐',
-  finish: '📋',
-};
 
 export default function Questionnaire({ initialSession, clientName, client, onFinished, onExit, onPatchClient }: Props) {
   const flow = useAnnualReportFlow(initialSession);
@@ -155,36 +141,15 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
       </div>
 
       <div className="ar-qlayout">
-        {/* ─── סרגל פרקים ─── */}
-        <nav aria-label="פרקי השאלון" className="ar-chnav">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {chapters.map((ch, idx) => {
-              const state = idx < currentChapterIdx ? 'done' : idx === currentChapterIdx ? 'now' : 'todo';
-              return (
-                <div
-                  key={ch}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '.45rem .6rem', borderRadius: 8, fontSize: '.88rem',
-                    background: state === 'now' ? 'var(--blue-light, #dbeafe)' : 'transparent',
-                    color: state === 'done' ? 'var(--green)' : state === 'now' ? 'var(--blue)' : 'var(--gray-500)',
-                    fontWeight: state === 'now' ? 700 : 500,
-                  }}
-                >
-                  <span style={{
-                    width: 22, minWidth: 22, height: 22, borderRadius: '50%',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '.7rem', fontWeight: 700,
-                    background: state === 'done' ? 'var(--green)' : state === 'now' ? 'var(--blue)' : 'var(--gray-100)',
-                    color: state === 'todo' ? 'var(--gray-500)' : 'white',
-                  }}>
-                    {state === 'done' ? '✓' : idx + 1}
-                  </span>
-                  <span>{CHAPTER_ICONS[ch]} {CHAPTER_LABELS[ch]}</span>
-                </div>
-              );
-            })}
-          </div>
+        {/* ─── סרגל העץ החי (מצב רו"ח) ─── */}
+        <nav aria-label="עץ הראיון" className="ar-chnav">
+          <CoverageRail
+            model={session.model}
+            answeredQuestionIds={new Set(priorAnswers.keys())}
+            currentQuestionId={session.currentQuestionId}
+            client={client}
+            session={session}
+          />
         </nav>
 
         {/* ─── אזור השאלה ─── */}
