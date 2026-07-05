@@ -234,6 +234,7 @@ export default function AnnualReport({ clients, userId, onUpdateClient }: Props)
         <CoverageGate
           session={currentSession}
           clientName={clientName}
+          client={selectedClient}
           onSessionUpdate={setCurrentSession}
           onReady={() => setMode('output')}
         />

@@ -10,6 +10,7 @@ import type {
   QuestionPreviewClient,
 } from './types';
 import { annualReportTree } from './tree';
+import { emptyModel } from './types';
 import { form1301Fields } from './form1301Fields';
 import { computeCoverage, buildDocumentChecklist } from './coverage';
 
@@ -96,6 +97,30 @@ export function answerAndAdvance(
     }
   }
   return { model: updated, nextQuestionId: nextId };
+}
+
+// ─── שחזור מסלול מתשובות קיימות (הסקירה השנתית) ────────────────────────────
+// מריץ את העץ מהשורש עם מאגר תשובות מוכן (שהועתקו מהשנה הקודמת אחרי אישור
+// "ללא שינוי"). נעצר בשאלה הראשונה שאין לה תשובה — משם הלקוח ממשיך ידנית.
+
+export function replayAnswers(
+  answers: Map<string, AnswerValue>,
+  taxYear: number,
+  flow: 'full' | 'onboarding' | 'annual' = 'annual',
+): { model: TaxpayerModel; currentQuestionId: string | null; usedQuestionIds: string[] } {
+  let model: TaxpayerModel = { ...emptyModel(taxYear), meta: { flow } };
+  let currentId: string | null = annualReportTree.rootNodeId;
+  const used: string[] = [];
+  let guard = 0;
+  while (currentId && guard++ < 300) {
+    if (!answers.has(currentId)) break;
+    const value = answers.get(currentId)!;
+    used.push(currentId);
+    const res = answerAndAdvance(model, currentId, value);
+    model = res.model;
+    currentId = res.nextQuestionId;
+  }
+  return { model, currentQuestionId: currentId, usedQuestionIds: used };
 }
 
 // ─── רשימת מסמכים נדרשים ──────────────────────────────────────────────────

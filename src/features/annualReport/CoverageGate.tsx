@@ -6,20 +6,33 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AnnualReportSession, QuestionNode, SectionKey } from './types';
 import type { AnswerValue } from './types';
+import type { Client } from '../../types';
 import { SECTION_LABELS } from './form1301Fields';
-import { computeAllFieldStatuses, getQuestionById, nodeInFlow } from './engine';
+import { computeAllFieldStatuses, getQuestionById, nodeInFlow, buildRequiredDocs, DOC_SOURCE_LABELS } from './engine';
 import { annualReportTree, chaptersForModel } from './tree';
 import { getAnswersForSession, saveAnswer, updateSessionState } from './repository';
 import QuestionCard from './QuestionCard';
 
+type DocStatus = 'pending' | 'requested' | 'received' | 'not_relevant';
+
+const DOC_STATUS_META: Record<DocStatus, { label: string; color: string; bg: string }> = {
+  pending:      { label: 'טרם טופל', color: '#b45309', bg: '#FBF2E2' },
+  requested:    { label: 'נשלחה בקשה', color: '#1d4ed8', bg: '#dbeafe' },
+  received:     { label: 'התקבל ✓', color: '#1F7A4D', bg: '#E8F3EC' },
+  not_relevant: { label: 'לא רלוונטי', color: '#6b7280', bg: '#f3f4f6' },
+};
+
+const DOC_STATUS_CYCLE: DocStatus[] = ['pending', 'requested', 'received', 'not_relevant'];
+
 interface Props {
   session: AnnualReportSession;
   clientName: string;
+  client?: Client | null;
   onSessionUpdate: (s: AnnualReportSession) => void;
   onReady: () => void;   // נלחץ "מוכן להכנה" (סטטוס עודכן) — ההורה מחליף מסך
 }
 
-export default function CoverageGate({ session, clientName, onSessionUpdate, onReady }: Props) {
+export default function CoverageGate({ session, clientName, client, onSessionUpdate, onReady }: Props) {
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
   const [openDecision, setOpenDecision] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -77,6 +90,28 @@ export default function CoverageGate({ session, clientName, onSessionUpdate, onR
   }, [bySection]);
 
   const blocked = totals.pending > 0 || pendingDecisions.length > 0;
+
+  // ─── מעקב מסמכים לתיק השנה ──────────────────────────────────────────────
+  const requiredDocs = useMemo(
+    () => buildRequiredDocs(model, client ?? undefined),
+    [model, client],
+  );
+  const docStatuses = model.meta?.docStatuses ?? {};
+  const docsMissing = requiredDocs.filter((d) => {
+    const st = (docStatuses[d.code] ?? 'pending') as DocStatus;
+    return st === 'pending' || st === 'requested';
+  }).length;
+
+  async function cycleDocStatus(code: string) {
+    const cur = (docStatuses[code] ?? 'pending') as DocStatus;
+    const next = DOC_STATUS_CYCLE[(DOC_STATUS_CYCLE.indexOf(cur) + 1) % DOC_STATUS_CYCLE.length];
+    const newModel = {
+      ...model,
+      meta: { ...(model.meta ?? {}), docStatuses: { ...docStatuses, [code]: next } },
+    };
+    const updated = await updateSessionState(session.id, { model: newModel });
+    onSessionUpdate(updated);
+  }
 
   async function answerDecision(node: QuestionNode, value: AnswerValue) {
     setSaving(true);
@@ -154,6 +189,43 @@ export default function CoverageGate({ session, clientName, onSessionUpdate, onR
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── מעקב מסמכים ─── */}
+      {requiredDocs.length > 0 && (
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="card-body">
+            <h3 style={{ marginTop: 0 }}>
+              📎 מעקב מסמכים ({requiredDocs.length - docsMissing}/{requiredDocs.length} טופלו)
+            </h3>
+            <p style={{ fontSize: '.82rem', color: 'var(--gray-600)', marginTop: 0 }}>
+              לחיצה על הסטטוס מקדמת אותו: טרם טופל ← נשלחה בקשה ← התקבל ← לא רלוונטי.
+            </p>
+            {requiredDocs.map((d) => {
+              const st = (docStatuses[d.code] ?? 'pending') as DocStatus;
+              const meta = DOC_STATUS_META[st];
+              return (
+                <div key={d.code} style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.4rem 0', borderTop: '1px solid var(--gray-100)', fontSize: '.86rem' }}>
+                  <span style={{ flex: 1 }}>
+                    {d.name}
+                    <span style={{ display: 'block', fontSize: '.7rem', color: 'var(--gray-400)' }}>{DOC_SOURCE_LABELS[d.source]}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void cycleDocStatus(d.code)}
+                    style={{
+                      fontFamily: 'inherit', cursor: 'pointer', border: 'none',
+                      fontSize: '.74rem', fontWeight: 700, borderRadius: 99, padding: '.2rem .7rem',
+                      color: meta.color, background: meta.bg,
+                    }}
+                  >
+                    {meta.label}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
