@@ -62,6 +62,17 @@ export function formatAnswerForDisplay(
   return String(value);
 }
 
+/**
+ * האם שאלה שייכת לזרימה הנוכחית של הסשן?
+ * - onboarding: רק שאלות "קבוע" (בונות פרופיל).
+ * - annual/full: הכל (בזרימה שנתית ה"קבוע" בדרך כלל כבר מאושר מראש מהפרופיל).
+ */
+export function nodeInFlow(node: QuestionNode, model: TaxpayerModel): boolean {
+  const flow = model.meta?.flow ?? 'full';
+  if (flow === 'onboarding') return (node.lifetime ?? 'annual') === 'permanent';
+  return true;
+}
+
 export function answerAndAdvance(
   model: TaxpayerModel,
   questionId: string,
@@ -75,7 +86,10 @@ export function answerAndAdvance(
   while (nextId) {
     const nextNode = annualReportTree.nodes[nextId];
     if (!nextNode) break;
-    if (nextNode.visibleWhen && !nextNode.visibleWhen(updated)) {
+    const skip =
+      (nextNode.visibleWhen && !nextNode.visibleWhen(updated)) ||
+      !nodeInFlow(nextNode, updated);
+    if (skip) {
       nextId = nextNode.next(undefined as unknown as AnswerValue, updated);
     } else {
       break;

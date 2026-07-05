@@ -131,6 +131,7 @@ export const annualReportTree: QuestionTree = {
     // ═══ ב. בן/בת זוג (רק אם נשוי) ══════════════════════════════════════════
     registered_spouse_role: {
       id: 'registered_spouse_role',
+      audience: 'accountant',
       question: 'מי "בן הזוג הרשום" שמגיש את הדוח?',
       helpText: 'בן הזוג הרשום הוא זה שמופיע ראשון בדוח. הבחירה נעשית אחת לכמה שנים ומשפיעה על מי מקבל החזרי מס.',
       type: 'single_select',
@@ -184,7 +185,8 @@ export const annualReportTree: QuestionTree = {
 
     eligible_separate_calc: {
       id: 'eligible_separate_calc',
-      question: 'האם בני הזוג עומדים בתנאי החישוב הנפרד?',
+      audience: 'accountant',
+      question: 'החלטת רו"ח: האם בני הזוג עומדים בתנאי החישוב הנפרד?',
       helpText: 'תנאי החישוב הנפרד: הכנסת כל אחד מעבודה לא תלויה בשני, וכל אחד מקדיש לפחות 36 שעות שבועיות לעיסוקו.',
       type: 'boolean',
       required: true,
@@ -317,7 +319,8 @@ export const annualReportTree: QuestionTree = {
 
     elects_section_14: {
       id: 'elects_section_14',
-      question: 'האם הנישום בוחר להחיל פטור לפי סעיף 14 (פטור 10 שנים על הכנסות חו"ל)?',
+      audience: 'accountant',
+      question: 'החלטת רו"ח: החלת פטור סעיף 14 (10 שנים על הכנסות חו"ל)?',
       helpText: 'הזכאות פוקעת אוטומטית 10 שנים מיום העלייה/החזרה. אם פוקעת בשנת המס — חישוב חלקי.',
       type: 'boolean',
       required: true,
@@ -489,7 +492,8 @@ export const annualReportTree: QuestionTree = {
 
     severance_spread: {
       id: 'severance_spread',
-      question: 'האם אושרה פריסת פיצויים? אם כן — כמה שנות פריסה נותרו (לא כולל השנה)?',
+      audience: 'accountant',
+      question: 'החלטת רו"ח: פריסת פיצויים — כמה שנות פריסה נותרו (לא כולל השנה)?',
       helpText: 'פריסה מאושרת ע"י פקיד השומה עד 5 שנים. אם אין פריסה — השאירו 0.',
       type: 'number',
       required: false,
@@ -625,22 +629,68 @@ export const annualReportTree: QuestionTree = {
       targetFieldCodes: ['136'],
     },
 
-    // ─── ענף שכ"ד ────────────────────────────────────────────────────────
+    // ─── ענף שכ"ד — הלקוח מדווח עובדות בלבד ─────────────────────────────
+    // בחירת המסלול (פטור/10%/שולי) היא החלטת רו"ח: השאלה rental_track קיימת
+    // אך מסומנת audience='accountant' ומחוץ לשרשרת — עונים עליה בשער הכיסוי,
+    // בעזרת מחשבון האופטימיזציה הקיים במערכת.
+    rental_gross: {
+      id: 'rental_gross',
+      question: 'מה סך שכר הדירה השנתי שהתקבל מהנכס?',
+      helpText: 'סכום ברוטו לכל השנה. את מסלול המס המשתלם ביותר רואה החשבון יבחר עבורך.',
+      type: 'number',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        income: { ...m.income, rentalGrossAnnual: Number(a) || 0 },
+      }),
+      next: () => 'rental_owner',
+      targetFieldCodes: ['332', 'R-flat10', 'R-marginal'],
+    },
+
+    rents_own_home: {
+      id: 'rents_own_home',
+      question: 'האם אתם עצמכם גרים בשכירות (משלמים שכר דירה על דירת המגורים)?',
+      helpText: 'משכיר דירה שגר בעצמו בשכירות זכאי להקלה משמעותית (סעיף 122(ו)) — זה משפיע על בחירת המסלול.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        income: { ...m.income, livesInRentedHome: a as boolean },
+      }),
+      next: (a, m) => (a ? 'rent_paid_annual' : nextIncomeBranch(m, 'rental')),
+      targetFieldCodes: ['R-rent-paid'],
+    },
+
+    rent_paid_annual: {
+      id: 'rent_paid_annual',
+      question: 'כמה שכר דירה שנתי אתם משלמים על דירת המגורים?',
+      type: 'number',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        income: { ...m.income, rentPaidAnnual: Number(a) || 0 },
+      }),
+      next: (_a, m) => nextIncomeBranch(m, 'rental'),
+      targetFieldCodes: ['R-rent-paid'],
+    },
+
     rental_track: {
       id: 'rental_track',
-      question: 'באיזה מסלול מס נבחר לשכר הדירה?',
-      helpText: 'פטור עד 5,654 ₪/חודש (2025), 10% על המחזור, או מס שולי עם הוצאות.',
+      question: 'החלטת רו"ח: באיזה מסלול מס תדווח השכירות למגורים?',
+      helpText: 'מומלץ להריץ את מחשבון השכירות (122(ו) כשיש שכ"ד ששולם). ההחלטה מפעילה את השדה המתאים בטופס.',
       type: 'single_select',
       required: true,
+      audience: 'accountant',
       options: [
         { value: 'exempt', label: 'פטור (עד 5,654 ₪/חודש)' },
-        { value: 'flat10', label: 'מסלול 10% (סעיף 122)' },
-        { value: 'regular', label: 'מס שולי רגיל (עם הוצאות)' },
+        { value: 'flat10', label: 'מסלול 10% (סעיף 122, כולל ניכוי 122(ו))' },
+        { value: 'regular', label: 'מס שולי עם הוצאות (נספח ב\')' },
       ],
       applyToModel: (m, a) => ({
         ...m,
         income: { ...m.income, rentalTrack: a as 'exempt' | 'flat10' | 'regular' },
       }),
+      // מחוץ לשרשרת החדשה — נענית משער הכיסוי. סשן ישן שעצר כאן ממשיך רגיל.
       next: () => 'rental_owner',
       targetFieldCodes: ['332', 'R-flat10', 'R-marginal'],
     },
@@ -660,22 +710,9 @@ export const annualReportTree: QuestionTree = {
         ...m,
         income: { ...m.income, rentalOwner: a as IncomeOwnership },
       }),
-      next: () => 'rental_gross',
+      next: () => 'rents_own_home',
       visibleWhen: (m) => m.identity?.maritalStatus === 'married',
       targetFieldCodes: ['R-marginal'],
-    },
-
-    rental_gross: {
-      id: 'rental_gross',
-      question: 'מה סך הכנסת שכ"ד השנתית?',
-      type: 'number',
-      required: false,
-      applyToModel: (m, a) => ({
-        ...m,
-        income: { ...m.income, rentalGrossAnnual: Number(a) || 0 },
-      }),
-      next: (_a, m) => nextIncomeBranch(m, 'rental'),
-      targetFieldCodes: ['332', 'R-flat10', 'R-marginal'],
     },
 
     // ─── ענף הון ─────────────────────────────────────────────────────────
@@ -986,7 +1023,8 @@ export const annualReportTree: QuestionTree = {
 
     maternity_spread: {
       id: 'maternity_spread',
-      question: 'האם לבקש פריסת דמי הלידה לשנת המס הבאה?',
+      audience: 'accountant',
+      question: 'החלטת רו"ח: לבקש פריסת דמי הלידה לשנת המס הבאה?',
       helpText: 'פריסה משתלמת כשההכנסה בשנת הלידה גבוהה מהצפוי בשנה הבאה — נבדוק ונמליץ.',
       type: 'boolean',
       required: false,
@@ -1613,6 +1651,8 @@ const NODE_CHAPTERS: Record<string, ChapterKey> = {
   rental_track: 'rental',
   rental_owner: 'rental',
   rental_gross: 'rental',
+  rents_own_home: 'rental',
+  rent_paid_annual: 'rental',
 
   capital_has_securities: 'capital',
   capital_securities_withholding: 'capital',
@@ -1672,6 +1712,30 @@ for (const [nodeId, chapter] of Object.entries(NODE_CHAPTERS)) {
   if (node) node.chapter = chapter;
 }
 
+// ─── תיוג אורך-חיים ─────────────────────────────────────────────────────────
+// עובדות "קבוע" נשאלות פעם אחת בקליטה ונשמרות בפרופיל; כל השאר "שנתי".
+// ברירת מחדל למה שלא ברשימה: annual.
+
+const PERMANENT_NODES: string[] = [
+  'year_map',                    // מקורות ההכנסה הקיימים = מבנה הפרופיל
+  'identity_basics', 'marital_status', 'registered_spouse_role',
+  'children_count', 'children_details_required', 'children_special_needs',
+  'is_custodial_single_parent', 'child_economics',
+  'residency_type', 'qualifying_settlement', 'has_disability', 'disability_band',
+  'salary_owner',
+  'business_kind', 'business_owner', 'partnership_member',
+  'rental_owner', 'rents_own_home',
+  'interest_owner', 'pension_owner',
+  'dividend_controlling',
+  'is_discharged_soldier', 'soldier_service_months', 'has_academic_degree',
+  'is_family_company_member', 'is_foreign_controlling_shareholder', 'is_kibbutz_member',
+  'trust_role',
+];
+
+for (const node of Object.values(annualReportTree.nodes)) {
+  node.lifetime = PERMANENT_NODES.includes(node.id) ? 'permanent' : 'annual';
+}
+
 // ─── עזרים ──────────────────────────────────────────────────────────────────
 
 const INCOME_BRANCH_ORDER: IncomeSourceKind[] = [
@@ -1681,7 +1745,7 @@ const INCOME_BRANCH_ORDER: IncomeSourceKind[] = [
 const BRANCH_FIRST_NODE: Partial<Record<IncomeSourceKind, string>> = {
   salary: 'salary_employer_count',
   business: 'business_kind',
-  rental: 'rental_track',
+  rental: 'rental_gross',
   capital: 'capital_has_securities',
   dividend: 'dividend_controlling',
   foreign: 'foreign_countries',

@@ -407,6 +407,22 @@ export const form1301Fields: Form1301FieldDef[] = [
     accountantAction: 'בניית נספח ב\' (1321) עם פחת והוצאות',
   },
   {
+    fieldNumber: 'R-rent-paid',
+    hebrewLabel: 'שכ"ד ששולם על דירת המגורים (ניכוי 122(ו) / שיקול מסלול)',
+    section: '5_income_passive',
+    required: 'conditional',
+    conditionalOn: (m) => has(m, 'rental') && m.income?.livesInRentedHome === true,
+    modelPath: 'income.rentPaidAnnual',
+    sourceQuestionIds: ['rents_own_home', 'rent_paid_annual'],
+    requiredDocuments: [
+      { code: 'own_rent_contract', name: 'חוזה השכירות של דירת המגורים + אסמכתאות תשלום', reason: 'ניכוי שכ"ד ששולם כנגד הכנסת השכירות (עד התקרה)' },
+    ],
+    legalReference: 'סעיף 122(ו) לפקודה',
+    dataLayer: 'question',
+    officialRef: 'תיקון 2023 — משכיר שגר בשכירות; מוזן במחשבון האופטימיזציה',
+    accountantAction: 'הרצת מחשבון השכירות ובחירת מסלול (שאלת rental_track בשער הכיסוי)',
+  },
+  {
     fieldNumber: '120',
     hebrewLabel: 'השכרת נכס ששימש בעסק 10+ שנים (יגיעה אישית)',
     section: '5_income_passive',
