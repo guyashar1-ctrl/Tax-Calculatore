@@ -3305,3 +3305,25 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
 }
 
 
+
+/* ── שאלון 1301 — פריסת פרקים רספונסיבית ─────────────────────────────── */
+.ar-qlayout {
+  display: grid;
+  grid-template-columns: 215px 1fr;
+  gap: 1.4rem;
+  align-items: start;
+}
+.ar-chnav { position: sticky; top: 1rem; }
+.ar-treemap-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.1rem;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .ar-qlayout { grid-template-columns: 1fr; }
+  .ar-chnav { position: static; }
+  .ar-chnav > div { flex-direction: row !important; flex-wrap: wrap; }
+  .ar-treemap-layout { grid-template-columns: 1fr; }
+  .ar-treemap-layout .card { position: static !important; }
+}

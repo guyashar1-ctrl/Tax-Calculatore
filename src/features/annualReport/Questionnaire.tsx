@@ -154,9 +154,9 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
         <button className="btn btn-ghost btn-sm" onClick={onExit}>שמור וצא</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '215px 1fr', gap: '1.4rem', alignItems: 'start' }}>
+      <div className="ar-qlayout">
         {/* ─── סרגל פרקים ─── */}
-        <nav aria-label="פרקי השאלון" style={{ position: 'sticky', top: '1rem' }}>
+        <nav aria-label="פרקי השאלון" className="ar-chnav">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {chapters.map((ch, idx) => {
               const state = idx < currentChapterIdx ? 'done' : idx === currentChapterIdx ? 'now' : 'todo';

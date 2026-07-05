@@ -186,7 +186,7 @@ export default function TreeMapView({ clients, sessions }: Props) {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.1rem', alignItems: 'start' }}>
+      <div className="ar-treemap-layout">
         {/* ─── המפה: פרקים כשורות, שאלות כצמתים ─── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem' }}>
           {CHAPTER_ORDER.map((ch) => {

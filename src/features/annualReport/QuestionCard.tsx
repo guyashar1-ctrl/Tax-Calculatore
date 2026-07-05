@@ -113,8 +113,9 @@ export default function QuestionCard({
                   type="button"
                   key={opt.value}
                   onClick={() => {
-                    if (checked) setMultiValue(multiValue.filter((v) => v !== opt.value));
-                    else setMultiValue([...multiValue, opt.value]);
+                    setMultiValue((prev) =>
+                      prev.includes(opt.value) ? prev.filter((v) => v !== opt.value) : [...prev, opt.value],
+                    );
                   }}
                   aria-pressed={checked}
                   style={{

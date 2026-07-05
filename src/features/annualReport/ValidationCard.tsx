@@ -36,7 +36,7 @@ export default function ValidationCard({
         </p>
       )}
 
-      <ValidationPreview items={previewItems} derivedAnswer={derivedAnswer} questionType={node.type} />
+      <ValidationPreview items={previewItems} derivedAnswer={derivedAnswer} node={node} />
 
       <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
         <button
@@ -86,11 +86,11 @@ export default function ValidationCard({
 // ─── תצוגת preview עם הסבר על מה ייכנס לתשובה ─────────────────────────────
 
 function ValidationPreview({
-  items, derivedAnswer, questionType,
+  items, derivedAnswer, node,
 }: {
   items: QuestionPreviewItem[];
   derivedAnswer: AnswerValue;
-  questionType: QuestionNode['type'];
+  node: QuestionNode;
 }) {
   return (
     <div
@@ -126,16 +126,18 @@ function ValidationPreview({
 
       <div style={{ marginTop: '.85rem', padding: '.5rem .75rem', background: 'white', borderRadius: 6, fontSize: '.85rem' }}>
         <span style={{ color: 'var(--gray-600)' }}>אם תאשר, התשובה תהיה: </span>
-        <strong style={{ color: '#065f46' }}>{formatAnswer(derivedAnswer, questionType)}</strong>
+        <strong style={{ color: '#065f46' }}>{formatAnswer(derivedAnswer, node)}</strong>
       </div>
     </div>
   );
 }
 
-function formatAnswer(a: AnswerValue, type: QuestionNode['type']): string {
+function formatAnswer(a: AnswerValue, node: QuestionNode): string {
   if (a === null || a === undefined) return '(ריק)';
+  const type = node.type;
   if (type === 'boolean') return a === true ? 'כן' : 'לא';
   if (type === 'number') return typeof a === 'number' ? a.toLocaleString('he-IL') : String(a);
-  if (Array.isArray(a)) return a.join(', ');
-  return String(a);
+  const labelOf = (v: string) => node.options?.find((o) => o.value === v)?.label ?? v;
+  if (Array.isArray(a)) return a.map(labelOf).join(', ');
+  return labelOf(String(a));
 }
