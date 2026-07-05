@@ -61,10 +61,14 @@ export function useAnnualReportFlow(initialSession: AnnualReportSession) {
   const [session, setSession] = useState<AnnualReportSession>(initialSession);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // היסטוריית ניווט לצורך "שאלה קודמת" — נשמרת רק בזיכרון (בטעינה מחדש
+  // אפשר לערוך דרך "ערוך תשובות"). כל צעד שומר את המודל לפני התשובה.
+  const [history, setHistory] = useState<Array<{ questionId: string; model: AnnualReportSession['model'] }>>([]);
 
   // sync if a new initialSession is passed
   useEffect(() => {
     setSession(initialSession);
+    setHistory([]);
   }, [initialSession.id]);
 
   const submitAnswer = useCallback(async (answer: AnswerValue) => {
@@ -73,6 +77,7 @@ export function useAnnualReportFlow(initialSession: AnnualReportSession) {
     setSaving(true);
     setError(null);
     try {
+      setHistory((prev) => [...prev, { questionId: qid, model: session.model }]);
       const { model: newModel, nextQuestionId } = answerAndAdvance(session.model, qid, answer);
       const nextStatus = nextQuestionId ? 'in_progress' : 'review';
       const completedAt = nextQuestionId ? null : new Date().toISOString();
@@ -105,6 +110,27 @@ export function useAnnualReportFlow(initialSession: AnnualReportSession) {
     }
   }, [session, initialSession]);
 
+  const goBack = useCallback(async () => {
+    const prev = history[history.length - 1];
+    if (!prev || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      setHistory((h) => h.slice(0, -1));
+      const updated = await updateSessionState(session.id, {
+        model: prev.model,
+        currentQuestionId: prev.questionId,
+        status: 'in_progress',
+        completedAt: null,
+      });
+      setSession(updated);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }, [history, session.id, saving]);
+
   const restart = useCallback(async () => {
     setSaving(true);
     try {
@@ -116,6 +142,7 @@ export function useAnnualReportFlow(initialSession: AnnualReportSession) {
         completedAt: null,
       });
       setSession(updated);
+      setHistory([]);
     } finally {
       setSaving(false);
     }
@@ -152,6 +179,8 @@ export function useAnnualReportFlow(initialSession: AnnualReportSession) {
     saving,
     error,
     submitAnswer,
+    goBack,
+    canGoBack: history.length > 0,
     restart,
     markMappingDone,
     goToReview,

@@ -10,8 +10,9 @@ import AnnualReportOutput from './AnnualReportOutput';
 import AnswersReview from './AnswersReview';
 import SyncConfirmation from './SyncConfirmation';
 import TaxConstantsDashboard from './TaxConstantsDashboard';
+import TreeMapView from './TreeMapView';
 
-type Mode = 'entry' | 'questionnaire' | 'sync_confirmation' | 'answers_review' | 'output' | 'dashboard';
+type Mode = 'entry' | 'questionnaire' | 'sync_confirmation' | 'answers_review' | 'output' | 'dashboard' | 'treemap';
 
 interface Props {
   clients: Client[];
@@ -133,6 +134,13 @@ export default function AnnualReport({ clients, userId, onUpdateClient }: Props)
           <div style={{ flex: 1 }} />
           <button
             type="button"
+            className={`tab ${mode === 'treemap' ? 'active' : ''}`}
+            onClick={() => setMode('treemap')}
+          >
+            🌳 מפת העץ
+          </button>
+          <button
+            type="button"
             className={`tab ${mode === 'dashboard' ? 'active' : ''}`}
             onClick={() => setMode('dashboard')}
           >
@@ -209,6 +217,8 @@ export default function AnnualReport({ clients, userId, onUpdateClient }: Props)
           }}
         />
       )}
+
+      {mode === 'treemap' && <TreeMapView clients={clients} sessions={sessions} />}
 
       {mode === 'dashboard' && <TaxConstantsDashboard />}
     </div>

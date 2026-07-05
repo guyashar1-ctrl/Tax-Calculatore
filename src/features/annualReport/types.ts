@@ -38,6 +38,25 @@ export type WithholdingSource =
 
 export type OtherIncomeKind = 'gambling' | 'royalties' | 'prize' | 'other';
 
+/** של מי ההכנסה — קובע לאיזה קוד בטופס היא מתנקזת (למשל 158 לרשום / 172 לבן הזוג). */
+export type IncomeOwnership = 'registered' | 'spouse' | 'both';
+
+/**
+ * שכבת האיסוף של שדה — מודל שלוש השכבות:
+ * - question:   הלקוח עונה על הערך ישירות בשאלון (מעט שדות, בעיקר סכומים קטנים).
+ * - document:   השאלון רק מזהה שהמצב קיים; הערך מגיע ממסמך (106/867/1399...).
+ * - accountant: מצב מורכב — נפתח דגל טיפול לרו"ח + טופס נלווה; הלקוח לא נשאל מעבר לטריגר.
+ * - auto:       מחושב אוטומטית מהנתונים (מס יסף, נ"ז תושבות) — אין שאלה ואין מסמך.
+ */
+export type DataLayer = 'question' | 'document' | 'accountant' | 'auto';
+
+/** קודי שדה רשמיים לפי בעלות — בן זוג רשום / בן זוג / משותף (טור שלישי בטופס). */
+export interface OwnershipCodes {
+  registered?: string;
+  spouse?: string;
+  joint?: string;
+}
+
 // ─── המודל הפנימי ────────────────────────────────────────────────────────────
 
 export interface TaxpayerModel {
@@ -49,8 +68,14 @@ export interface TaxpayerModel {
     spouseHasIncome?: boolean;
     childrenCount?: number;
     childrenWithSpecialNeeds?: boolean;
-    /** הורה יחיד שילדיו מתגוררים אצלו — שדה 029 ב-1301. */
+    /**
+     * הורה במשפחה חד-הורית שילדיו בחזקתו — שדה 026 (זיכוי חד-הורי).
+     * הערה היסטורית: עד יולי 2026 מופה בטעות לקוד 029; 029/129 הם בעצם
+     * "זיכוי כלכלת ילדים" להורה פרוד שמשתתף בכלכלה — ראה childEconomicsCredit.
+     */
     isCustodialSingleParent?: boolean;
+    /** הורה פרוד/גרוש שאינו משמורן אך משתתף בכלכלת הילדים — שדות 029/129. */
+    paysChildEconomics?: boolean;
     residencyType?: 'resident' | 'new_immigrant' | 'returning_resident';
     immigrationYear?: number;
     city?: string;
@@ -73,16 +98,32 @@ export interface TaxpayerModel {
     salaryEmployerCount?: number;
     hasMultipleEmployers?: boolean;
     receivedSeverance?: boolean;
+    /** של מי הכנסת השכר — מנתב 158 (רשום) / 172 (בן זוג). */
+    salaryOwner?: IncomeOwnership;
+    /** עבודה במשמרות בתעשייה — שדות 068/069 (זיכוי 15%). */
+    hasShiftWork?: boolean;
+    /** פריסת פיצויים — מספר שנות פריסה שנותרו, שדה 009 (+אישור פ"ש). */
+    severanceSpreadYears?: number;
 
     // עסק
     businessKind?: 'osek_patur' | 'osek_morshe' | 'family_company';
     bizRevenueBand?: BizRevenueBand;
     bizHasClientWithholding?: boolean;
     bizHasKerenHashtalmutSelf?: boolean;
+    /** של מי העסק — מנתב 150 (רשום) / 170 (בן זוג). */
+    businessOwner?: IncomeOwnership;
+    /** שותף בשותפות — מחייב טופס 1504 + ייחוס חלק יחסי במחזור. */
+    isPartnershipMember?: boolean;
+    /** השכרת נכס ששימש בעסק 10+ שנים — יגיעה אישית, שדות 120/220. */
+    hasBusinessAssetRental10y?: boolean;
 
     // שכ"ד
     rentalTrack?: 'exempt' | 'flat10' | 'regular';
     rentalGrossAnnual?: number;
+    /** של מי הנכס — מנתב 059/201/301 ומשפיע על חישוב נפרד. */
+    rentalOwner?: IncomeOwnership;
+    /** שכירות שאינה למגורים (עסקית / דמי מפתח) — שדות 059/201/301. */
+    hasNonResidentialRental?: boolean;
 
     // הון
     capitalSubTypes?: Array<'securities' | 'crypto' | 'real_estate'>;
@@ -90,17 +131,40 @@ export interface TaxpayerModel {
 
     // דיבידנד
     isControllingShareholder?: boolean;
+    /** דיבידנד ממפעל מועדף/מאושר (20%) — שדות 173/275/375 (לעומת רגיל 141). */
+    hasPreferredEnterpriseDividend?: boolean;
 
     // ריבית
     hasInterestIncome?: boolean;
     interestHasWithholding?: boolean;
+    /** של מי חשבונות הריבית/ני"ע — מנתב בין טורי הקודים. */
+    interestOwner?: IncomeOwnership;
 
-    // פנסיה
+    // פנסיה, קצבאות ופרישה
     hasPensionIncome?: boolean;
+    /** קצבאות ומענקי פרישה חייבים — שדות 258/272 (+161). */
+    pensionOwner?: IncomeOwnership;
+    /** קצבאות פטורות (נכות ממשרד הביטחון, שאירים...) — שדות 101/102/209. */
+    hasExemptPensions?: boolean;
+
+    // משיכות והכנסות מחברות בבעלות
+    /** משיכת בעל מניות מהותי מחברה (סעיף 3(ט1), טופס 1350) — שדות 323/343/350. */
+    hasOwnerWithdrawals?: boolean;
+    /** הכנסה מועברת מחברת מעטים לפי סעיף 62א — שדה 351. */
+    hasCloseCompanyPassthrough?: boolean;
+    /** חברת בית לפי סעיף 64 — שדות 159/202/302. */
+    isHouseCompanyMember?: boolean;
+    /** מכירת פטנט / הכנסה לאחר פטירה (מס מוגבל 40%) — שדות 061/214/314. */
+    hasPatentOrPostMortemIncome?: boolean;
+    /** נבחר אריח "חברות ושותפויות" בשער — פותח את שאלת המצבים החברתיים. */
+    hasCompanyInvolvement?: boolean;
 
     // חו"ל
     foreignCountries?: string;
-    foreignIncomeKinds?: Array<'salary' | 'business' | 'capital' | 'rental' | 'pension'>;
+    foreignIncomeKinds?: Array<
+      'salary' | 'business' | 'capital' | 'rental' | 'pension'
+      | 'interest' | 'dividend' | 'gambling' | 'annuity' | 'other'
+    >;
     foreignPaidTaxAbroad?: boolean;
 
     // אחר
@@ -108,14 +172,24 @@ export interface TaxpayerModel {
     otherIncomeKinds?: OtherIncomeKind[];
 
     // ── תקבולי ביטוח לאומי (חייבים במס לרוב) ──
-    /** דמי לידה — שדה 194 ב-1301. */
+    // הבהרת קודים (מדריך 2025 עמ' 11–12): בטופס ההבחנה היא לפי מעמד ובעלות —
+    // 194/196 = תקבולים כשכיר (רשום/בן זוג), 250/270 = תקבולים כעצמאי (רשום/בן זוג).
+    // סוגי הקצבה (לידה/אבטלה/מילואים/פגיעה) הם פירוט פנימי של אותם שדות.
+    /** דמי לידה. */
     niMaternityReceived?: boolean;
-    /** דמי אבטלה — שדה 196 ב-1301. */
+    /** דמי אבטלה. */
     niUnemploymentReceived?: boolean;
-    /** דמי מילואים — שדה 250 ב-1301. */
+    /** תגמולי מילואים. */
     niReserveDutyReceived?: boolean;
-    /** תקבולי פגיעה בעבודה — שדה 270 ב-1301. */
+    /** תקבולי פגיעה בעבודה. */
     niWorkInjuryReceived?: boolean;
+    /** מי קיבל את התקבולים — מנתב 194/196 מול 250/270 יחד עם מעמד שכיר/עצמאי. */
+    niBenefitsOwner?: IncomeOwnership;
+    /** בקשה לפריסת דמי לידה לשנה הבאה (הצהרה בראש הדוח). */
+    requestsMaternitySpread?: boolean;
+
+    // ── הימורים, הגרלות ופרסים — שדה 427 (35%, פטור עד תקרה) ──
+    hasGamblingOrPrizes?: boolean;
 
     // ── אופציות 102/3i ──
     /** התקבלו / מומשו אופציות 102 / 3i — שדה 282 ב-1301. */
@@ -125,6 +199,10 @@ export interface TaxpayerModel {
   taxPaid: {
     paidAdvancePayments?: boolean;
     withholdingSources?: WithholdingSource[];
+    /** מס שבח שנקבע בשומת מסמ"ק (קרן בלבד) — שדה 041. */
+    hasLandAppreciationAssessment?: boolean;
+    /** ריבית והפרשי הצמדה פטורים על החזרי מס — שדה 353. */
+    hasTaxRefundInterest?: boolean;
   };
 
   deductionsCredits: {
@@ -140,6 +218,67 @@ export interface TaxpayerModel {
     alimonyReceivedAnnual?: number;
     /** מזונות ששולמו (₪/שנה) — שדה 25, זיכוי. */
     alimonyPaidAnnual?: number;
+
+    // ── ניכויים (מדריך 2025 עמ' 27–29) ──
+    /** ביטוח אובדן כושר עבודה — שדות 112/113 (עצמאי) או 206/207 (שכיר, טופס 134). */
+    hasDisabilityInsurance?: boolean;
+    /** דמי ב"ל ששולמו כעצמאי — ניכוי 52%, שדות 030/089. */
+    paidNiSelfEmployed?: boolean;
+    /** השקעות מיוחדות בנות ניכוי: מחקר מדעי (005/006), נפט (116/117 + 858), סרטים (118/119). */
+    specialInvestments?: Array<'research' | 'oil' | 'film'>;
+
+    // ── זיכויים (מדריך 2025 עמ' 30–36) ──
+    /** ביטוח קצבת שאירים — זיכוי 35%, שדות 140/240. */
+    hasSurvivorAnnuityInsurance?: boolean;
+    /** החזקת בן משפחה במוסד — זיכוי 35% עד תקרה, שדות 132/232 (+127). */
+    paysInstitutionCare?: boolean;
+    /** תרומות למוסדות בארה"ב (אמנה, עד 25% מהכנסת ארה"ב) — שדות 046/048. */
+    hasUsCharityDonations?: boolean;
+    /** עודפי תרומות מ-3 שנים קודמות מעל התקרה — שדות 364/292. */
+    hasDonationCarryover?: boolean;
+    /** תושב אילת (זיכוי 10% עד תקרה) — שדות 139/183. */
+    isEilatResident?: boolean;
+    /** תואר: קוד סוג 1–5 (ראשון/שני/שלישי/הוראה) — שדות 181/182. */
+    degreeTypeCode?: number;
+    /** חודשי שירות סדיר (לחישוב מדויק של זיכוי חייל משוחרר) — שדות 024/124. */
+    soldierServiceMonths?: number;
+  };
+
+  /** הפסדים — פירוט לפי סוג (מדריך 2025 עמ' 26–27). מחליף את הדגל הבודד. */
+  losses: {
+    kinds?: Array<
+      | 'business_carry'        // 079 — הפסד מעסק מועבר (+1344)
+      | 'rental_property'       // 179 — הפסד מנכס בית (רק כנגד אותו בניין)
+      | 'capital_carry'         // 166 — הפסדי הון מועברים (יחס 1:3.5)
+      | 'securities_pre2006'    // 160 — הפסדי ני"ע עד 31.12.05
+      | 'foreign_carry'         // 299 — הפסדי חו"ל (מנספח ד')
+      | 'rnd_investment'        // 319 — השקעה מזכה בחברת מו"פ
+    >;
+  };
+
+  /**
+   * הצהרות הפתיחה של הדוח — הצ'קבוקסים בעמוד הראשון של 1301.
+   * רובן שכבת-רו"ח: טריגר מהלקוח → דגל טיפול + טופס נלווה.
+   */
+  openingDeclarations: {
+    /** נאמנות: יוצר (151/148) / נהנה (142, שדה 271) / אין. */
+    trustRole?: 'none' | 'settlor' | 'beneficiary' | 'both';
+    /** העברת 500,000 ₪+ לחו"ל — חובת דיווח שנתיים. */
+    transferredAbroad500k?: boolean;
+    /** נכסי חו"ל בשווי מעל ~2,086,000 ₪ (כולל בן זוג וילדים עד 18). */
+    hasForeignAssetsOverThreshold?: boolean;
+    /** מחזור מכירות ני"ע בבורסה מעל ~2,810,000 ₪. */
+    securitiesTurnoverOverThreshold?: boolean;
+    /** עסקאות עם צדדים קשורים בחו"ל — טופס 1385 לכל עסקה. */
+    hasRelatedPartyForeignTransactions?: boolean;
+    /** חוות דעת חייבת בדיווח (1345) / עמדה חייבת בדיווח / תכנון מס (1213). */
+    hasReportableOpinionOrPosition?: boolean;
+    /** טוען לאי-תושבות למרות חזקת ימי שהייה — טופס 1348. */
+    claimsNonResidencyDaysPresumption?: boolean;
+    /** הכנסות מפעילות אינטרנט / אנרגיות מתחדשות — קודי שדה 307. */
+    specialActivityCodes?: Array<'internet' | 'renewable_energy'>;
+    /** קבלן — דיווח סיום בנייה (702). */
+    hasConstructionCompletion?: boolean;
   };
 
   specialSituations: {
@@ -164,6 +303,8 @@ export function emptyModel(taxYear: number): TaxpayerModel {
     income: { sources: [] },
     taxPaid: {},
     deductionsCredits: {},
+    losses: {},
+    openingDeclarations: {},
     specialSituations: {},
   };
 }
@@ -173,15 +314,23 @@ export function emptyModel(taxYear: number): TaxpayerModel {
 // קוראים לזה ב-rowToSession ובכל מקום שמודל עלול להגיע ממקור חיצוני.
 export function migrateModel(raw: Partial<TaxpayerModel> | null | undefined, taxYear: number): TaxpayerModel {
   const r = raw ?? {};
-  return {
+  const migrated: TaxpayerModel = {
     taxYear: r.taxYear ?? taxYear,
     identity: { ...(r.identity ?? {}) },
     spouse: { ...(r.spouse ?? {}) },
     income: { sources: [], ...(r.income ?? {}) },
     taxPaid: { ...(r.taxPaid ?? {}) },
     deductionsCredits: { ...(r.deductionsCredits ?? {}) },
+    losses: { ...(r.losses ?? {}) },
+    openingDeclarations: { ...(r.openingDeclarations ?? {}) },
     specialSituations: { ...(r.specialSituations ?? {}) },
   };
+  // סשן ישן שסימן "יש הפסדים מועברים" בדגל בודד — ממופה לרשימת הסוגים החדשה
+  // כ"עסק" (הנפוץ ביותר) כדי שהשדות החדשים לא ייעלמו לו.
+  if (migrated.specialSituations.hasCarriedLosses && !(migrated.losses.kinds?.length)) {
+    migrated.losses.kinds = ['business_carry'];
+  }
+  return migrated;
 }
 
 // ─── שאלון — Decision Tree ───────────────────────────────────────────────────
@@ -277,11 +426,41 @@ export type CardEditSection =
   | 'dependentRelatives' // קרובים תלויים
   | 'properties';     // נכסים
 
+/** פרקי השאלון החדש — כל שאלה משויכת לפרק; הפרקים נגזרים משער האריחים. */
+export type ChapterKey =
+  | 'identity_family'   // פרטים, בן/בת זוג, ילדים, תושבות — תמיד
+  | 'salary'            // שכר ושכיר
+  | 'business'          // עסק / משלח יד
+  | 'rental'            // נדל"ן מושכר
+  | 'capital'           // שוק ההון, ריבית, דיבידנד, קריפטו
+  | 'pension_ni'        // פנסיה, פרישה, ביטוח לאומי
+  | 'foreign'           // חו"ל — הכנסות ונכסים
+  | 'companies'         // חברות בבעלות, שותפויות, משיכות
+  | 'deductions'        // ניכויים וזיכויים — תמיד
+  | 'special'           // מצבים מיוחדים, הפסדים, הצהרות — תמיד (מקוצר)
+  | 'finish';           // סיכום, מסמכים והצהרה
+
+export const CHAPTER_LABELS: Record<ChapterKey, string> = {
+  identity_family: 'פרטים ומשפחה',
+  salary: 'שכר',
+  business: 'עסק עצמאי',
+  rental: 'נדל"ן מושכר',
+  capital: 'שוק ההון וחסכונות',
+  pension_ni: 'פנסיה וביטוח לאומי',
+  foreign: 'חו"ל',
+  companies: 'חברות ושותפויות',
+  deductions: 'ניכויים וזיכויים',
+  special: 'מצבים מיוחדים',
+  finish: 'סיכום ומסמכים',
+};
+
 export interface QuestionNode {
   id: string;
   question: string;
   helpText?: string;
   type: QuestionType;
+  /** הפרק שאליו שייכת השאלה בחוויית הפרקים החדשה. */
+  chapter?: ChapterKey;
   options?: SelectOption[];
   required: boolean;
   applyToModel: (model: TaxpayerModel, answer: AnswerValue) => TaxpayerModel;
@@ -353,6 +532,16 @@ export interface Form1301FieldDef {
   requiredDocuments: DocRequirement[];
 
   legalReference?: string;
+
+  // ─── הרחבות מודל שלוש השכבות (2026-07) ─────────────────────────────────
+  /** שכבת האיסוף. ברירת מחדל כשלא צוין: 'question' (התנהגות היסטורית). */
+  dataLayer?: DataLayer;
+  /** קודי הטופס לפי בעלות (רשום/בן זוג/משותף), למשל {registered:'158', spouse:'172'}. */
+  codes?: OwnershipCodes;
+  /** הפניה למקור הרשמי — עמוד במדריך רשות המיסים 2025 + הערה. */
+  officialRef?: string;
+  /** דגל טיפול רו"ח: שם הטופס הנלווה / הפעולה שנדרשת מהמשרד כשהשדה נדלק. */
+  accountantAction?: string;
 }
 
 // ─── דיווח כיסוי ─────────────────────────────────────────────────────────

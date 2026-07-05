@@ -8,6 +8,7 @@ interface Props {
   initialValue?: AnswerValue;       // לערוך תשובה קיימת — נטען כברירת מחדל
   disabled: boolean;
   submitLabel?: string;             // ברירת מחדל: "המשך →" / בעריכה: "שמור"
+  variant?: 'tiles';                // תצוגת אריחים גדולה — למסך השער
   onSubmit: (value: AnswerValue) => void;
   onCancel?: () => void;
 }
@@ -17,6 +18,7 @@ export default function QuestionCard({
   initialValue,
   disabled,
   submitLabel,
+  variant,
   onSubmit,
   onCancel,
 }: Props) {
@@ -96,7 +98,50 @@ export default function QuestionCard({
           </div>
         )}
 
-        {node.type === 'multi_select' && (
+        {node.type === 'multi_select' && variant === 'tiles' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '.7rem' }}>
+            {node.options?.map((opt) => {
+              const checked = multiValue.includes(opt.value);
+              // התווית באה בפורמט "אימוג'י כותרת (פירוט)" — מפצלים לתצוגת אריח
+              const [icon, ...rest] = opt.label.split(' ');
+              const text = rest.join(' ');
+              const parenIdx = text.indexOf('(');
+              const title = parenIdx > 0 ? text.slice(0, parenIdx).trim() : text;
+              const sub = parenIdx > 0 ? text.slice(parenIdx + 1).replace(/\)$/, '') : '';
+              return (
+                <button
+                  type="button"
+                  key={opt.value}
+                  onClick={() => {
+                    setMultiValue((prev) =>
+                      prev.includes(opt.value) ? prev.filter((v) => v !== opt.value) : [...prev, opt.value],
+                    );
+                  }}
+                  aria-pressed={checked}
+                  style={{
+                    textAlign: 'right', fontFamily: 'inherit', cursor: 'pointer',
+                    padding: '.85rem .95rem', borderRadius: 10,
+                    border: checked ? '2px solid var(--blue)' : '1.5px solid var(--gray-200)',
+                    background: checked ? 'var(--blue-light, #dbeafe)' : 'white',
+                    position: 'relative', transition: 'border-color .12s, background .12s',
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: 8, left: 10, width: 20, height: 20, borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '.7rem',
+                    background: checked ? 'var(--blue)' : 'var(--gray-100)',
+                    color: checked ? 'white' : 'transparent',
+                  }}>✓</span>
+                  <span style={{ fontSize: '1.4rem', display: 'block' }}>{icon}</span>
+                  <span style={{ fontWeight: 700, fontSize: '.92rem', display: 'block', marginTop: 4 }}>{title}</span>
+                  {sub && <span style={{ fontSize: '.76rem', color: 'var(--gray-500)', display: 'block', lineHeight: 1.35 }}>{sub}</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {node.type === 'multi_select' && variant !== 'tiles' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '.5rem' }}>
             {node.options?.map((opt) => {
               const checked = multiValue.includes(opt.value);
