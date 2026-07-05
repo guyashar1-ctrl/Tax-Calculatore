@@ -1747,6 +1747,11 @@ export const form1301Fields: Form1301FieldDef[] = [
 
 // ─── עזרים ─────────────────────────────────────────────────────────────────
 
+// אינדקס לפי מזהה שדה — לשליפת קודים רשמיים ותוויות ב-UI.
+export const fieldByNumber: Record<string, Form1301FieldDef> = Object.fromEntries(
+  form1301Fields.map((f) => [f.fieldNumber, f]),
+);
+
 // אינדקס הפוך: questionId → fieldNumbers שהיא מזינה (מופק אוטומטית)
 export function buildQuestionTargetIndex(): Record<string, string[]> {
   const idx: Record<string, string[]> = {};

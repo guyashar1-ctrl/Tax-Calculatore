@@ -1,9 +1,11 @@
 import { useMemo, useEffect, useState } from 'react';
-import type { AnnualReportSession, AnswerValue, QuestionPreviewItem } from './types';
+import type { AnnualReportSession, AnswerValue, QuestionPreviewItem, ChapterKey } from './types';
+import { CHAPTER_LABELS } from './types';
 import type { Client } from '../../types';
 import { useAnnualReportFlow } from './useAnnualReportSession';
 import { getQuestionById } from './engine';
-import { estimateTotalQuestions } from './tree';
+import { estimateTotalQuestions, chaptersForModel } from './tree';
+import { fieldByNumber } from './form1301Fields';
 import { getAnswersForSession } from './repository';
 import QuestionCard from './QuestionCard';
 import ValidationCard from './ValidationCard';
@@ -17,12 +19,25 @@ interface Props {
   onPatchClient?: (partial: Partial<Client>) => Promise<void>;
 }
 
+const CHAPTER_ICONS: Record<ChapterKey, string> = {
+  identity_family: '👤',
+  salary: '💼',
+  business: '🧾',
+  rental: '🏠',
+  capital: '📈',
+  pension_ni: '🌅',
+  foreign: '✈️',
+  companies: '🏢',
+  deductions: '💝',
+  special: '⭐',
+  finish: '📋',
+};
+
 export default function Questionnaire({ initialSession, clientName, client, onFinished, onExit, onPatchClient }: Props) {
   const flow = useAnnualReportFlow(initialSession);
-  const { session, saving, error, submitAnswer, restart, isFinished } = flow;
+  const { session, saving, error, submitAnswer, goBack, canGoBack, restart, isFinished } = flow;
 
   // טעינת תשובות קודמות מ-DB — כדי לסמן תשובות קיימות כברירת מחדל בכל שאלה.
-  // עובד הן לזרימה רגילה (אחרי "שמור וצא" וחזרה) והן לעריכה (איפוס לשורש).
   const [priorAnswers, setPriorAnswers] = useState<Map<string, AnswerValue>>(new Map());
   useEffect(() => {
     let cancelled = false;
@@ -45,12 +60,18 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
     if (!node?.dataPreview) return null;
     return node.dataPreview({ client: client ?? undefined, model: session.model });
   }, [node, client, session.model]);
-  const totalEst = estimateTotalQuestions(session.model);
-  const answered = countAnswered(session.model);
-  const progress = totalEst > 0 ? Math.min(100, Math.round((answered / totalEst) * 100)) : 0;
 
-  // עוטף ל-submitAnswer שמעדכן גם את ה-map המקומי של התשובות הקודמות,
-  // כך שאם המשתמש חוזר לשאלה הוא רואה את הערך החדש שלו, לא הישן.
+  const chapters = useMemo(() => chaptersForModel(session.model), [session.model]);
+  const currentChapter: ChapterKey = node?.chapter ?? 'finish';
+  const currentChapterIdx = Math.max(0, chapters.indexOf(currentChapter));
+
+  const totalEst = estimateTotalQuestions(session.model);
+  const answered = priorAnswers.size;
+  const remaining = Math.max(1, totalEst - answered);
+
+  const isGate = node?.id === 'year_map';
+
+  // עוטף ל-submitAnswer שמעדכן גם את ה-map המקומי של התשובות הקודמות.
   async function handleSubmit(value: AnswerValue) {
     if (node) {
       setPriorAnswers((prev) => {
@@ -72,16 +93,60 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
   }
 
   if (!node) {
+    // שאלה שלא קיימת יותר בעץ (סשן מגרסה ישנה) — מציעים המשך בטוח.
     return (
       <div className="card" style={{ maxWidth: 700, margin: '2rem auto', padding: '2rem', textAlign: 'center' }}>
-        <h3>השאלון הסתיים</h3>
-        <button className="btn btn-primary" onClick={() => onFinished(session)}>המשך לתצוגת התוצאות</button>
+        <h3>השאלון עודכן מאז הביקור הקודם</h3>
+        <p style={{ color: 'var(--gray-600)' }}>אפשר להמשיך לתוצאות עם מה שכבר נענה, או להתחיל את השאלון מחדש (התשובות הקודמות יסומנו אוטומטית).</p>
+        <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'center' }}>
+          <button className="btn btn-primary" onClick={() => onFinished(session)}>המשך לתוצאות</button>
+          <button className="btn btn-secondary" onClick={() => void restart()}>התחל מחדש</button>
+        </div>
       </div>
     );
   }
 
+  // ─── קודי 1301 שהשאלה מזינה — לשקיפות "מה מתעדכן" ─────────────────────
+  const feedsCodes = (node.targetFieldCodes ?? [])
+    .map((c) => fieldByNumber[c])
+    .filter(Boolean)
+    .map((f) => {
+      const oc = f.codes;
+      const official = oc ? [oc.registered, oc.spouse, oc.joint].filter(Boolean).join('/') : '';
+      return official || f.fieldNumber;
+    });
+  const uniqueCodes = Array.from(new Set(feedsCodes)).slice(0, 4);
+
+  // ─── מסך השער — פריסה מלאה בלי sidebar ─────────────────────────────────
+  if (isGate) {
+    return (
+      <div style={{ maxWidth: 860, margin: '1.5rem auto', padding: '0 1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
+          <div style={{ color: 'var(--gray-600)' }}>
+            <strong>{clientName}</strong> · שנת מס <strong>{session.taxYear}</strong>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={onExit}>שמור וצא</button>
+        </div>
+        <div className="card">
+          <div className="card-body" style={{ padding: '1.75rem' }}>
+            <QuestionCard
+              node={node}
+              variant="tiles"
+              initialValue={priorAnswers.get(node.id)}
+              disabled={saving}
+              onSubmit={(value) => void handleSubmit(value)}
+              submitLabel="נתחיל ←"
+            />
+          </div>
+        </div>
+        {error && <ErrorBox message={error} />}
+      </div>
+    );
+  }
+
+  // ─── פריסת פרקים: סרגל פרקים מימין + שאלה במרכז ────────────────────────
   return (
-    <div style={{ maxWidth: 760, margin: '1.5rem auto', padding: '0 1rem' }}>
+    <div style={{ maxWidth: 1000, margin: '1.5rem auto', padding: '0 1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <div style={{ color: 'var(--gray-600)' }}>
           <strong>{clientName}</strong> · שנת מס <strong>{session.taxYear}</strong>
@@ -89,72 +154,133 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
         <button className="btn btn-ghost btn-sm" onClick={onExit}>שמור וצא</button>
       </div>
 
-      <div style={{ height: 8, background: 'var(--gray-100)', borderRadius: 4, overflow: 'hidden', marginBottom: '.4rem' }}>
-        <div style={{ width: `${progress}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s' }} />
-      </div>
-      <div style={{ fontSize: '.85rem', color: 'var(--gray-500)', marginBottom: '1.5rem' }}>
-        שאלה {answered + 1} מתוך ~{totalEst}
-      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '215px 1fr', gap: '1.4rem', alignItems: 'start' }}>
+        {/* ─── סרגל פרקים ─── */}
+        <nav aria-label="פרקי השאלון" style={{ position: 'sticky', top: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {chapters.map((ch, idx) => {
+              const state = idx < currentChapterIdx ? 'done' : idx === currentChapterIdx ? 'now' : 'todo';
+              return (
+                <div
+                  key={ch}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '.45rem .6rem', borderRadius: 8, fontSize: '.88rem',
+                    background: state === 'now' ? 'var(--blue-light, #dbeafe)' : 'transparent',
+                    color: state === 'done' ? 'var(--green)' : state === 'now' ? 'var(--blue)' : 'var(--gray-500)',
+                    fontWeight: state === 'now' ? 700 : 500,
+                  }}
+                >
+                  <span style={{
+                    width: 22, minWidth: 22, height: 22, borderRadius: '50%',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '.7rem', fontWeight: 700,
+                    background: state === 'done' ? 'var(--green)' : state === 'now' ? 'var(--blue)' : 'var(--gray-100)',
+                    color: state === 'todo' ? 'var(--gray-500)' : 'white',
+                  }}>
+                    {state === 'done' ? '✓' : idx + 1}
+                  </span>
+                  <span>{CHAPTER_ICONS[ch]} {CHAPTER_LABELS[ch]}</span>
+                </div>
+              );
+            })}
+          </div>
+        </nav>
 
-      <div className="card">
-        <div className="card-body">
-          {(() => {
-            // החלטה: ValidationCard או QuestionCard רגיל
-            const eligible =
-              node.validationMode &&
-              !!node.deriveAnswerFromCard &&
-              !!previewItems &&
-              previewItems.length > 0 &&
-              previewItems.every((it) => !it.missing) &&
-              !!onPatchClient;
-            if (eligible && node.deriveAnswerFromCard) {
-              const derived = node.deriveAnswerFromCard({ client: client ?? undefined, model: session.model });
-              if (derived !== null) {
+        {/* ─── אזור השאלה ─── */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.6rem', fontSize: '.83rem', color: 'var(--gray-500)' }}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => void goBack()}
+              disabled={!canGoBack || saving}
+              style={{ opacity: canGoBack ? 1 : 0.35 }}
+            >
+              → שאלה קודמת
+            </button>
+            <span className="num">
+              פרק {currentChapterIdx + 1} מתוך {chapters.length} · נותרו כ-{remaining} שאלות
+            </span>
+          </div>
+
+          <div className="card">
+            <div className="card-body">
+              {(() => {
+                const eligible =
+                  node.validationMode &&
+                  !!node.deriveAnswerFromCard &&
+                  !!previewItems &&
+                  previewItems.length > 0 &&
+                  previewItems.every((it) => !it.missing) &&
+                  !!onPatchClient;
+                if (eligible && node.deriveAnswerFromCard) {
+                  const derived = node.deriveAnswerFromCard({ client: client ?? undefined, model: session.model });
+                  if (derived !== null) {
+                    return (
+                      <ValidationCard
+                        node={node}
+                        previewItems={previewItems!}
+                        client={client}
+                        derivedAnswer={derived}
+                        disabled={saving}
+                        onConfirm={() => void handleSubmit(derived)}
+                        onIrrelevant={() => void handleSubmit(irrelevantValue(node.type))}
+                        onPatchClient={onPatchClient!}
+                      />
+                    );
+                  }
+                }
                 return (
-                  <ValidationCard
-                    node={node}
-                    previewItems={previewItems!}
-                    client={client}
-                    derivedAnswer={derived}
-                    disabled={saving}
-                    onConfirm={() => void handleSubmit(derived)}
-                    onIrrelevant={() => void handleSubmit(irrelevantValue(node.type))}
-                    onPatchClient={onPatchClient!}
-                  />
+                  <>
+                    {previewItems && previewItems.length > 0 && <DataPreviewBox items={previewItems} />}
+                    {priorAnswers.has(node.id) && (
+                      <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light, #dbeafe)', borderRadius: 4, fontSize: '.85rem', color: 'var(--gray-700)' }}>
+                        ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת — לחץ "המשך" לאישור, או שנה לפי הצורך.
+                      </div>
+                    )}
+                    <QuestionCard
+                      node={node}
+                      initialValue={priorAnswers.get(node.id)}
+                      disabled={saving}
+                      onSubmit={(value) => void handleSubmit(value)}
+                    />
+                  </>
                 );
-              }
-            }
-            return (
-              <>
-                {previewItems && previewItems.length > 0 && <DataPreviewBox items={previewItems} />}
-                {priorAnswers.has(node.id) && (
-                  <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light)', borderRadius: 4, fontSize: '.85rem', color: 'var(--gray-700)' }}>
-                    ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת — לחץ "המשך" לאישור, או שנה לפי הצורך.
-                  </div>
-                )}
-                <QuestionCard
-                  node={node}
-                  initialValue={priorAnswers.get(node.id)}
-                  disabled={saving}
-                  onSubmit={(value) => void handleSubmit(value)}
-                />
-              </>
-            );
-          })()}
+              })()}
+            </div>
+          </div>
+
+          {/* ─── שקיפות: מה השאלה מזינה ─── */}
+          {uniqueCodes.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', marginTop: '.7rem', fontSize: '.76rem', color: 'var(--gray-500)', flexWrap: 'wrap' }}>
+              🔄 מתעדכן:
+              <span style={{ background: 'var(--blue-light, #dbeafe)', color: 'var(--blue)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }}>
+                כרטיס הלקוח
+              </span>
+              <span style={{ background: 'var(--gray-100)', color: 'var(--gray-600)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }} className="num">
+                טופס 1301 · שדות {uniqueCodes.join(', ')}
+              </span>
+            </div>
+          )}
+
+          {error && <ErrorBox message={error} />}
+
+          <div style={{ marginTop: '1rem' }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => void restart()} disabled={saving}>
+              התחל מחדש
+            </button>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {error && (
-        <div style={{ marginTop: '1rem', padding: '.75rem 1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: 6 }}>
-          שגיאה בשמירה: {error}
-        </div>
-      )}
-
-      <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between' }}>
-        <button className="btn btn-ghost btn-sm" onClick={() => void restart()} disabled={saving}>
-          התחל מחדש
-        </button>
-      </div>
+function ErrorBox({ message }: { message: string }) {
+  return (
+    <div style={{ marginTop: '1rem', padding: '.75rem 1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: 6 }}>
+      שגיאה בשמירה: {message}
     </div>
   );
 }
@@ -207,70 +333,3 @@ function irrelevantValue(type: 'boolean' | 'number' | 'single_select' | 'multi_s
   if (type === 'multi_select') return [];
   return '';
 }
-
-// ─── ספירת שאלות שנענו על בסיס המודל ─────────────────────────────────────
-
-function countAnswered(model: AnnualReportSession['model']): number {
-  let n = 0;
-  // הגנה: בנתיב טעינת סשן ישן ייתכן שחלק מהנתיבים חסרים. אנחנו לא מסתכנים.
-  const id = model.identity ?? {};
-  const sp_ = model.spouse ?? {};
-  const inc = model.income ?? { sources: [] as string[] };
-  const tp = model.taxPaid ?? {};
-  const ded = model.deductionsCredits ?? {};
-  const sit = model.specialSituations ?? {};
-
-  // זהות + משפחה
-  if (id.maritalStatus) n++;
-  if (id.spouseHasIncome !== undefined) n++;
-  if (sp_.registeredRole) n++;
-  if (sp_.has106 !== undefined) n++;
-  if (sp_.hasBusinessIncome !== undefined) n++;
-  if (sp_.eligibleSeparateCalc !== undefined) n++;
-  if (id.childrenCount !== undefined) n++;
-  if (id.childrenWithSpecialNeeds !== undefined) n++;
-  if (id.residencyType) n++;
-  if (id.livesInQualifyingSettlement !== undefined) n++;
-  if (id.hasDisability !== undefined) n++;
-  if (id.disabilityBand) n++;
-
-  // הכנסות
-  if (inc.sources && inc.sources.length > 0) n++;
-  if (inc.salaryEmployerCount !== undefined) n++;
-  if (inc.receivedSeverance !== undefined) n++;
-  if (inc.businessKind) n++;
-  if (inc.bizRevenueBand) n++;
-  if (inc.bizHasClientWithholding !== undefined) n++;
-  if (inc.rentalTrack) n++;
-  if (inc.rentalGrossAnnual !== undefined) n++;
-  if (inc.capitalSubTypes && inc.capitalSubTypes.length > 0) n++;
-  if (inc.capitalHasWithholding !== undefined) n++;
-  if (inc.isControllingShareholder !== undefined) n++;
-  if (inc.hasInterestIncome !== undefined) n++;
-  if (inc.interestHasWithholding !== undefined) n++;
-  if (inc.hasPensionIncome !== undefined) n++;
-  if (inc.hasOtherIncome !== undefined) n++;
-  if (inc.foreignCountries !== undefined) n++;
-  if (inc.foreignIncomeKinds && inc.foreignIncomeKinds.length > 0) n++;
-  if (inc.foreignPaidTaxAbroad !== undefined) n++;
-
-  // ניכויים וזיכויים
-  if (ded.donationAmount !== undefined) n++;
-  if (ded.lifeInsuranceAnnual !== undefined) n++;
-  if (ded.selfPensionDeposits !== undefined) n++;
-  if (ded.hasKerenHashtalmutSelf !== undefined) n++;
-  if (ded.isDischargedSoldier !== undefined) n++;
-  if (ded.hasAcademicDegree !== undefined) n++;
-
-  // מיסים ששולמו
-  if (tp.paidAdvancePayments !== undefined) n++;
-  if (tp.withholdingSources !== undefined) n++;
-
-  // נסיבות מיוחדות
-  if (sit.hasCarriedLosses !== undefined) n++;
-  if (sit.wealthDeclarationRequired !== undefined) n++;
-  if (sit.electsSection14 !== undefined) n++;
-
-  return n;
-}
-

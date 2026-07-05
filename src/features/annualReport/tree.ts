@@ -1741,6 +1741,23 @@ export function collectMissingClientFields(
   return out;
 }
 
+// ─── פרקים רלוונטיים לפרופיל, לפי סדר ההופעה בשאלון ────────────────────────
+
+export function chaptersForModel(m: TaxpayerModel): ChapterKey[] {
+  const src = m.income?.sources ?? [];
+  const out: ChapterKey[] = ['identity_family'];
+  if (src.includes('salary')) out.push('salary');
+  if (src.includes('business')) out.push('business');
+  if (src.includes('rental')) out.push('rental');
+  if (src.includes('capital') || src.includes('interest')) out.push('capital');
+  if (src.includes('pension')) out.push('pension_ni');
+  if (src.includes('foreign')) out.push('foreign');
+  out.push('deductions');
+  if (m.income?.hasCompanyInvolvement || src.includes('dividend')) out.push('companies');
+  out.push('special', 'finish');
+  return out;
+}
+
 // אומדן מספר השאלות הצפויות לפרופיל מסוים (אחרי שער האריחים)
 export function estimateTotalQuestions(model: TaxpayerModel): number {
   const married = model.identity.maritalStatus === 'married';
