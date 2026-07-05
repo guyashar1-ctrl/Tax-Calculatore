@@ -156,6 +156,8 @@ export interface TaxpayerModel {
     isHouseCompanyMember?: boolean;
     /** מכירת פטנט / הכנסה לאחר פטירה (מס מוגבל 40%) — שדות 061/214/314. */
     hasPatentOrPostMortemIncome?: boolean;
+    /** נבחר אריח "חברות ושותפויות" בשער — פותח את שאלת המצבים החברתיים. */
+    hasCompanyInvolvement?: boolean;
 
     // חו"ל
     foreignCountries?: string;

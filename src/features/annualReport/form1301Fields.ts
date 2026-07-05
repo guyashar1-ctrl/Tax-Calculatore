@@ -102,7 +102,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: isMarried,
     modelPath: 'spouse.idNumber',
-    sourceQuestionIds: ['marital_status', 'spouse_basics'],
+    sourceQuestionIds: ['marital_status', 'registered_spouse_role'],
     requiredDocuments: [
       { code: 'spouse_id', name: 'תעודת זהות בן/בת זוג', reason: 'נדרש לכל זוג נשוי' },
     ],
@@ -721,7 +721,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasGamblingOrPrizes === true,
     modelPath: 'income.hasGamblingOrPrizes',
-    sourceQuestionIds: ['gambling_prizes'],
+    sourceQuestionIds: ['other_income_kinds'],
     requiredDocuments: [
       { code: 'prize_cert', name: 'אישור על הזכייה וניכוי המס', reason: 'מס 35% מעל תקרת הפטור' },
     ],
@@ -911,7 +911,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.deductionsCredits?.hasSurvivorAnnuityInsurance === true,
     modelPath: 'deductionsCredits.hasSurvivorAnnuityInsurance',
-    sourceQuestionIds: ['survivor_annuity'],
+    sourceQuestionIds: ['extra_deductions'],
     requiredDocuments: [
       { code: 'survivor_cert', name: 'אישור תשלומים לביטוח קצבת שאירים', reason: 'זיכוי 35% ללא תקרה' },
     ],
@@ -926,7 +926,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.deductionsCredits?.paysInstitutionCare === true,
     modelPath: 'deductionsCredits.paysInstitutionCare',
-    sourceQuestionIds: ['institution_care'],
+    sourceQuestionIds: ['extra_deductions'],
     requiredDocuments: [
       { code: 'institution_receipts', name: 'קבלות מקוריות מהמוסד', reason: 'זיכוי 35% מהחלק שמעל 12.5% מההכנסה' },
       { code: '127', name: 'טופס 127 — תעודה רפואית', reason: 'הוכחת מצב בן המשפחה' },
@@ -944,7 +944,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.deductionsCredits?.hasUsCharityDonations === true,
     modelPath: 'deductionsCredits.hasUsCharityDonations',
-    sourceQuestionIds: ['us_charities'],
+    sourceQuestionIds: ['extra_deductions'],
     requiredDocuments: [
       { code: 'us_donation_receipts', name: 'קבלות תרומה למוסדות אמריקאיים מוכרים', reason: 'לפי אמנת המס ישראל-ארה"ב' },
     ],
@@ -1182,7 +1182,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.specialSituations?.wealthDeclarationRequired === true,
     modelPath: 'specialSituations.wealthDeclarationRequired',
-    sourceQuestionIds: ['wealth_declaration_required'],
+    sourceQuestionIds: ['special_situations_select'],
     requiredDocuments: [
       { code: 'wealth_declaration', name: 'טופס הצהרת הון', reason: 'מילוי הצהרת הון לפי דרישה' },
     ],
@@ -1196,7 +1196,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.deductionsCredits?.hasDisabilityInsurance === true,
     modelPath: 'deductionsCredits.hasDisabilityInsurance',
-    sourceQuestionIds: ['disability_insurance'],
+    sourceQuestionIds: ['extra_deductions'],
     requiredDocuments: [
       { code: 'ak_insurance_cert', name: 'אישור מבטח על פרמיית אובדן כושר', reason: 'ניכוי עד 3.5% מההכנסה, תקרה 399,480 ₪' },
       { code: '134-ak', name: 'טופס 134 (לשכיר)', reason: 'חישוב הניכוי לשכיר — שדות 206/207' },
@@ -1212,7 +1212,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => has(m, 'business') || m.deductionsCredits?.paidNiSelfEmployed === true,
     modelPath: 'deductionsCredits.paidNiSelfEmployed',
-    sourceQuestionIds: ['business_kind', 'ni_self_employed_paid'],
+    sourceQuestionIds: ['business_kind'],
     requiredDocuments: [
       { code: 'ni_payment_cert', name: 'אישור שנתי מב"ל על תשלומים כעצמאי', reason: 'רק תשלומים בפועל, ללא קנסות/הצמדה/מס בריאות' },
     ],
@@ -1242,7 +1242,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => (m.deductionsCredits?.specialInvestments ?? []).length > 0,
     modelPath: 'deductionsCredits.specialInvestments',
-    sourceQuestionIds: ['special_investments'],
+    sourceQuestionIds: ['extra_deductions'],
     requiredDocuments: [
       { code: 'invest_certs', name: 'אישורי ההשקעה (מדען ראשי / טופס 858 / אישור ועדה)', reason: 'מחקר: 005/006, נפט: 116/117, סרטים: 118/119' },
     ],
@@ -1275,7 +1275,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.isHouseCompanyMember === true,
     modelPath: 'income.isHouseCompanyMember',
-    sourceQuestionIds: ['house_company'],
+    sourceQuestionIds: ['companies_situations'],
     requiredDocuments: [
       { code: 'house_co_246', name: 'דיווח חברת בית (טופס 246)', reason: 'ייחוס הכנסות החברה לבעלי המניות' },
     ],
@@ -1306,7 +1306,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasPatentOrPostMortemIncome === true,
     modelPath: 'income.hasPatentOrPostMortemIncome',
-    sourceQuestionIds: ['patent_postmortem'],
+    sourceQuestionIds: ['companies_situations'],
     requiredDocuments: [
       { code: 'patent_docs', name: 'הסכם מכירת הפטנט / אסמכתת ההכנסה', reason: 'מס מוגבל 40% — מכירה חד-פעמית שלא במסגרת עיסוק' },
     ],
@@ -1321,7 +1321,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasOwnerWithdrawals === true,
     modelPath: 'income.hasOwnerWithdrawals',
-    sourceQuestionIds: ['owner_withdrawals'],
+    sourceQuestionIds: ['companies_situations'],
     requiredDocuments: [
       { code: '1350', name: 'טופס 1350', reason: 'סיווג המשיכה: דיבידנד (323) / שכר (343) / עסק (350)' },
     ],
@@ -1337,7 +1337,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasCloseCompanyPassthrough === true,
     modelPath: 'income.hasCloseCompanyPassthrough',
-    sourceQuestionIds: ['close_company_62a'],
+    sourceQuestionIds: ['companies_situations'],
     requiredDocuments: [
       { code: 'co_62a_reports', name: 'דוחות החברה + ייחוס ההכנסה', reason: 'חברת ארנק — ההכנסה מיוחסת לבעל המניות המהותי' },
     ],
@@ -1427,7 +1427,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.openingDeclarations?.hasRelatedPartyForeignTransactions === true,
     modelPath: 'openingDeclarations.hasRelatedPartyForeignTransactions',
-    sourceQuestionIds: ['related_party_foreign'],
+    sourceQuestionIds: ['special_situations_select'],
     requiredDocuments: [
       { code: '1385', name: 'טופס 1385 לכל עסקה', reason: 'הצהרת מחירי שוק לפי סעיף 85א' },
     ],
@@ -1442,7 +1442,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.openingDeclarations?.hasReportableOpinionOrPosition === true,
     modelPath: 'openingDeclarations.hasReportableOpinionOrPosition',
-    sourceQuestionIds: ['reportable_opinion'],
+    sourceQuestionIds: ['special_situations_select'],
     requiredDocuments: [
       { code: '1345_1213', name: 'טופס 1345 / 1213 לפי העניין', reason: 'דיווח לפי סעיפים 131ד–131ה' },
     ],
@@ -1470,7 +1470,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => (m.openingDeclarations?.specialActivityCodes ?? []).length > 0,
     modelPath: 'openingDeclarations.specialActivityCodes',
-    sourceQuestionIds: ['special_activities'],
+    sourceQuestionIds: ['special_situations_select'],
     requiredDocuments: [],
     dataLayer: 'question',
     codes: { joint: '307' },
@@ -1483,7 +1483,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.openingDeclarations?.hasConstructionCompletion === true,
     modelPath: 'openingDeclarations.hasConstructionCompletion',
-    sourceQuestionIds: ['special_activities'],
+    sourceQuestionIds: ['special_situations_select'],
     requiredDocuments: [
       { code: '702', name: 'טופס 702 — סיום בנייה', reason: 'דיווח פרויקט שהסתיים' },
     ],
