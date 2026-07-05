@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TAX_YEARS, AVAILABLE_YEARS } from '../../data/taxData';
 import NIReferenceSection from '../../components/NIReferenceSection';
 import CreditPointsWizard from './CreditPointsWizard';
+import ExpenseKnowledge from './expenses/ExpenseKnowledge';
 import RentalRouteCalculator from './RentalRouteCalculator';
 import SettlementLookup from './SettlementLookup';
 import IncomeTaxPanel from './IncomeTaxPanel';
@@ -10,9 +11,10 @@ import KnowledgeTopics from './KnowledgeTopics';
 const fmt = (n: number) => '₪' + n.toLocaleString('he-IL');
 
 type Tool =
-  | 'overview' | 'wizard' | 'rental' | 'incomeTax' | 'ni' | 'settlements' | 'topics';
+  | 'overview' | 'expenses' | 'wizard' | 'rental' | 'incomeTax' | 'ni' | 'settlements' | 'topics';
 
 const TOOLS: { key: Tool; icon: string; label: string; desc: string }[] = [
+  { key: 'expenses',    icon: '💼', label: 'הוצאות מוכרות',       desc: '"אפשר לנכות את זה?" — תשובה בשניות: מס הכנסה, מע"מ, מקורות ופסיקה' },
   { key: 'wizard',      icon: '⭐', label: 'אשף נקודות זיכוי',   desc: 'עונים על שאלות — המערכת קובעת את הנקודות ומסבירה למה' },
   { key: 'rental',      icon: '🏠', label: 'מחשבון שכר דירה',     desc: 'השוואת פטור / 10% / שולי, כולל הפטור המתקפל ו-122(ו)' },
   { key: 'incomeTax',   icon: '📊', label: 'מדרגות ומס יסף',      desc: 'מדרגות עדכניות, מס יסף דו-שכבתי וחישוב מהיר' },
@@ -131,6 +133,7 @@ export default function TaxCenter({ onBack }: Props) {
         </div>
       )}
 
+      {tool === 'expenses' && <ExpenseKnowledge />}
       {tool === 'wizard' && <CreditPointsWizard taxData={data} year={year} />}
       {tool === 'rental' && <RentalRouteCalculator taxData={data} year={year} />}
       {tool === 'incomeTax' && <IncomeTaxPanel taxData={data} year={year} />}
