@@ -19,7 +19,8 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
   const [annualExpenses, setAnnualExpenses] = useState(0);
   const [annualDepreciation, setAnnualDepreciation] = useState(0);
   const [eligible122f, setEligible122f] = useState(false);
-  const [rentPaid, setRentPaid] = useState(0);
+  /** שכ"ד חודשי שהמשכיר משלם בעד מגוריו (122(ו)) — נקלט חודשי, מחושב שנתי */
+  const [rentPaidMonthly, setRentPaidMonthly] = useState(0);
 
   const monthlyRent = apartments.reduce((s, r) => s + (r || 0), 0);
   const propertyCount = apartments.length;
@@ -34,9 +35,9 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
     annualExpenses,
     annualDepreciation,
     eligibleForRentPaidDeduction: eligible122f,
-    annualRentPaidForOwnHome: rentPaid,
+    annualRentPaidForOwnHome: rentPaidMonthly * 12,
     propertyCount,
-  }), [year, monthlyRent, apartments, taxData.rentalExemptMonthly, marginalRate, isAge60Plus, annualExpenses, annualDepreciation, eligible122f, rentPaid, propertyCount]);
+  }), [year, monthlyRent, apartments, taxData.rentalExemptMonthly, marginalRate, isAge60Plus, annualExpenses, annualDepreciation, eligible122f, rentPaidMonthly, propertyCount]);
 
   const result = useMemo(() => compareRentalRoutes(input), [input]);
   const mixed = useMemo(
@@ -155,14 +156,17 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
             </label>
             {eligible122f && propertyCount > 1 && (
               <div style={{ fontSize: '.75rem', color: '#b45309', marginTop: '.3rem' }}>
-                ⚠ הניכוי לפי 122(ו) מיועד לבעל <strong>דירה יחידה</strong> — עם {propertyCount} דירות הוא ככל הנראה לא חל.
+                ⚠ הניכוי לפי 122(ו) מיועד לבעל <strong>דירה יחידה</strong> — עם {propertyCount} דירות מושכרות הוא לא חל, ולכן <strong>לא הופעל בחישוב</strong>.
               </div>
             )}
-            {eligible122f && (
-              <div className="form-group" style={{ marginBottom: 0, marginTop: '.5rem', maxWidth: 300 }}>
-                <label>שכ"ד שנתי שהמשכיר משלם בעד מגוריו ₪</label>
-                <input type="number" min={0} value={rentPaid || ''} placeholder="0" onChange={e => setRentPaid(+e.target.value)} />
-                <span style={{ fontSize: '.7rem', color: 'var(--gray-500)' }}>ניכוי במסלול 10% — עד 90,000 ₪ לשנה, לא מקרוב</span>
+            {eligible122f && propertyCount <= 1 && (
+              <div className="form-group" style={{ marginBottom: 0, marginTop: '.5rem', maxWidth: 320 }}>
+                <label>שכ"ד חודשי שהמשכיר משלם בעד מגוריו ₪</label>
+                <input type="number" min={0} value={rentPaidMonthly || ''} placeholder="0" onChange={e => setRentPaidMonthly(+e.target.value)} />
+                <span style={{ fontSize: '.7rem', color: 'var(--gray-500)' }}>
+                  {rentPaidMonthly > 0 && <>= {fmt(Math.min(rentPaidMonthly * 12, 90_000))} לשנה בניכוי · </>}
+                  התקרה: 7,500 ₪/חודש (90,000 ₪/שנה) · לא כשמשלמים לקרוב
+                </span>
               </div>
             )}
           </div>
@@ -330,6 +334,9 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '.9rem' }}>
         {result.routes.map(r => {
           const isBest = r.key === result.recommendedKey;
+          const deduction122 = r.key === 'flat10' && eligible122f && propertyCount <= 1
+            ? Math.min(rentPaidMonthly * 12, 90_000, annualRent)
+            : 0;
           return (
             <div key={r.key} className="card" style={{
               border: isBest ? '2px solid #16a34a' : '1px solid var(--gray-200)',
@@ -354,6 +361,15 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
                   <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>
                     מס שנתי · {r.effectiveRatePct.toFixed(1)}% מהשכירות · חייב: {fmt(r.taxableAnnual)}
                   </div>
+                  {deduction122 > 0 && (
+                    <div style={{
+                      marginTop: '.35rem', display: 'inline-block', padding: '.2rem .6rem',
+                      background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 999,
+                      fontSize: '.72rem', fontWeight: 700, color: '#15803d',
+                    }}>
+                      💡 הופעל ניכוי 122(ו): −{fmt(deduction122)} מהבסיס
+                    </div>
+                  )}
                 </div>
                 <details>
                   <summary style={{ cursor: 'pointer', fontSize: '.8rem', fontWeight: 600, color: 'var(--blue)' }}>איך חושב?</summary>
@@ -377,11 +393,26 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
       </div>
 
       {/* ── המלצה ואזהרות ── */}
-      <div className="alert alert-info" style={{ marginBottom: 0 }}>
-        <strong>שורה תחתונה:</strong> {mixed && mixed.savingVsUniform > 0
-          ? `עם ${propertyCount} דירות — השיוך החכם למעלה חוסך ${fmt(mixed.savingVsUniform)} לשנה לעומת מסלול אחיד. `
-          : result.recommendationNote}
-      </div>
+      {(() => {
+        const exemptTax = result.routes.find(r => r.key === 'exempt')?.taxAnnual ?? 0;
+        const flatTax = result.routes.find(r => r.key === 'flat10')?.taxAnnual ?? 0;
+        if (eligible122f && propertyCount <= 1 && exemptTax === 0 && flatTax === 0) {
+          return (
+            <div className="alert alert-info" style={{ marginBottom: 0 }}>
+              <strong>שורה תחתונה:</strong> גם הפטור וגם מסלול 10% (עם ניכוי 122(ו)) יוצאים כאן אפס מס.
+              במצב כזה מסלול הפטור פשוט יותר — אין תשלום עד 30.1 ואין דיווח מקוצר. הניכוי לפי 122(ו)
+              הופך קריטי רק כשהשכירות מעל התקרה.
+            </div>
+          );
+        }
+        return (
+          <div className="alert alert-info" style={{ marginBottom: 0 }}>
+            <strong>שורה תחתונה:</strong> {mixed && mixed.savingVsUniform > 0
+              ? `עם ${propertyCount} דירות — השיוך החכם למעלה חוסך ${fmt(mixed.savingVsUniform)} לשנה לעומת מסלול אחיד. `
+              : result.recommendationNote}
+          </div>
+        );
+      })()}
       {result.generalWarnings.map((w, i) => (
         <div key={i} className="alert alert-warning" style={{ marginBottom: 0, fontSize: '.85rem' }}>{w}</div>
       ))}

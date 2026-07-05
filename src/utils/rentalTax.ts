@@ -138,7 +138,8 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
   };
 
   // ── מסלול 10% ──
-  const rentPaidDeduction = input.eligibleForRentPaidDeduction
+  // ניכוי 122(ו) מותנה בבעלות על דירת מגורים יחידה — עם 2+ דירות מושכרות אינו חל
+  const rentPaidDeduction = input.eligibleForRentPaidDeduction && input.propertyCount <= 1
     ? Math.min(input.annualRentPaidForOwnHome, RENT_PAID_DEDUCTION_CEILING, annualRent)
     : 0;
   const flat10Base = Math.max(0, annualRent - rentPaidDeduction);
