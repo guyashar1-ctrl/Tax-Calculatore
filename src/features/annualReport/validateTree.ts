@@ -4,7 +4,7 @@
 import { annualReportTree, estimateTotalQuestions } from './tree';
 import { form1301Fields } from './form1301Fields';
 import { emptyModel } from './types';
-import type { AnswerValue, TaxpayerModel } from './types';
+import type { AnswerValue, TaxpayerModel, QuestionNode } from './types';
 
 interface Issue { level: 'error' | 'warn'; msg: string }
 const issues: Issue[] = [];
@@ -69,7 +69,7 @@ function walkPath(label: string, answers: Record<string, AnswerValue>): number {
       issues.push({ level: 'error', msg: `מסלול '${label}': לולאה אינסופית ב-'${currentId}'` });
       break;
     }
-    const node = annualReportTree.nodes[currentId];
+    const node: QuestionNode | undefined = annualReportTree.nodes[currentId];
     if (!node) {
       issues.push({ level: 'error', msg: `מסלול '${label}': הגעה לשאלה לא קיימת '${currentId}'` });
       break;
@@ -80,8 +80,8 @@ function walkPath(label: string, answers: Record<string, AnswerValue>): number {
     }
     visited.add(currentId);
     steps++;
-    const skip = node.visibleWhen && !node.visibleWhen(model);
-    const answer = answers[currentId] ?? defaultAnswer(currentId, model);
+    const skip: boolean = !!node.visibleWhen && !node.visibleWhen(model);
+    const answer: AnswerValue = answers[currentId] ?? defaultAnswer(currentId, model);
     if (!skip) model = node.applyToModel(model, answer);
     const nextId: string | null = skip
       ? node.next(undefined as unknown as AnswerValue, model)
