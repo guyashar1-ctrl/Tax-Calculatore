@@ -3,7 +3,23 @@
 // לפרופיל מס קריא — בלוקים לתצוגה + רשימת המסמכים הקבועה שנדרשת כל שנה.
 
 import type { Client } from '../../types';
+import type { TaxpayerModel } from './types';
 import { FIELD_SOURCE_LABELS } from '../../types/clientWorkspace';
+
+// ─── זריעת עובדות מהכרטיס לתוך מודל השאלון ──────────────────────────────────
+// עובדות שנגזרות אוטומטית מהכרטיס ולא נשאלות בכלל (למשל ישוב מזכה — לפי
+// הכתובת). רץ בפתיחת תיק ובשחזור הסקירה השנתית; בטוח להריץ שוב (אידמפוטנטי).
+
+export function seedModelFromClient(model: TaxpayerModel, client: Client): TaxpayerModel {
+  return {
+    ...model,
+    identity: {
+      ...model.identity,
+      livesInQualifyingSettlement: !!client.qualifyingSettlementId,
+      city: client.city || model.identity.city,
+    },
+  };
+}
 
 export interface ProfileRow {
   label: string;

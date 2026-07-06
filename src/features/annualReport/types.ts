@@ -70,6 +70,8 @@ export interface TaxpayerModel {
     flow?: FlowKind;
     /** סטטוס מסמכים לתיק השנה: קוד מסמך → מצב. */
     docStatuses?: Record<string, 'pending' | 'requested' | 'received' | 'not_relevant'>;
+    /** שאלות שהלקוח ענה "לא בטוח" — ממתינות לבירור רו"ח בשער הכיסוי. */
+    unknownQuestions?: string[];
   };
 
   identity: {

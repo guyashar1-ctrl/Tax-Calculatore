@@ -43,7 +43,8 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
     (async () => {
       try {
         const answers = await getAnswersForSession(session.id);
-        if (!cancelled) setAnsweredIds(new Set(answers.map((a) => a.questionId)));
+        // "לא בטוח" לא נחשב תשובה — הסעיפים נשארים פתוחים עד בירור
+        if (!cancelled) setAnsweredIds(new Set(answers.filter((a) => a.value !== 'unknown').map((a) => a.questionId)));
       } finally {
         if (!cancelled) setLoaded(true);
       }
@@ -89,7 +90,14 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
     return { active, pruned, pending };
   }, [bySection]);
 
-  const blocked = totals.pending > 0 || pendingDecisions.length > 0;
+  // שאלות שהלקוח ענה "לא בטוח" — לבירור מולו לפני סגירת המאזן
+  const unknownNodes: QuestionNode[] = useMemo(() => {
+    return (model.meta?.unknownQuestions ?? [])
+      .map((qid) => getQuestionById(qid))
+      .filter((n): n is QuestionNode => !!n && !answeredIds.has(n.id));
+  }, [model.meta?.unknownQuestions, answeredIds]);
+
+  const blocked = totals.pending > 0 || pendingDecisions.length > 0 || unknownNodes.length > 0;
 
   // ─── מעקב מסמכים לתיק השנה ──────────────────────────────────────────────
   const requiredDocs = useMemo(
@@ -116,7 +124,17 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
   async function answerDecision(node: QuestionNode, value: AnswerValue) {
     setSaving(true);
     try {
-      const newModel = node.applyToModel(model, value);
+      let newModel = node.applyToModel(model, value);
+      // אם השאלה הייתה מסומנת "לא בטוח" — הבירור הושלם
+      if (newModel.meta?.unknownQuestions?.includes(node.id)) {
+        newModel = {
+          ...newModel,
+          meta: {
+            ...newModel.meta,
+            unknownQuestions: newModel.meta.unknownQuestions.filter((q) => q !== node.id),
+          },
+        };
+      }
       await saveAnswer(session.id, node.id, value);
       const updated = await updateSessionState(session.id, { model: newModel });
       setAnsweredIds((prev) => new Set(prev).add(node.id));
@@ -184,6 +202,38 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
                     <span style={{ fontSize: '.9rem', fontWeight: 600 }}>{n.question}</span>
                     <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpenDecision(n.id)}>
                       הכרע עכשיו
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── בירורים מול הלקוח ("לא בטוח") ─── */}
+      {unknownNodes.length > 0 && (
+        <div className="card" style={{ marginBottom: '1rem', border: '1.5px solid #c7d7f5' }}>
+          <div className="card-body">
+            <h3 style={{ marginTop: 0 }}>🤷 לוודא מול הלקוח ({unknownNodes.length})</h3>
+            <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', marginTop: 0 }}>
+              הלקוח ענה "לא בטוח" — שיחה קצרה סוגרת את זה, והתשובה נקלטת כאן.
+            </p>
+            {unknownNodes.map((n) => (
+              <div key={n.id} style={{ borderTop: '1px solid var(--gray-100)', padding: '.6rem 0' }}>
+                {openDecision === n.id ? (
+                  <QuestionCard
+                    node={n}
+                    disabled={saving}
+                    submitLabel="שמור תשובה"
+                    onSubmit={(v) => void answerDecision(n, v)}
+                    onCancel={() => setOpenDecision(null)}
+                  />
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.6rem' }}>
+                    <span style={{ fontSize: '.9rem', fontWeight: 600 }}>{n.question}</span>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpenDecision(n.id)}>
+                      עדכן תשובה
                     </button>
                   </div>
                 )}
@@ -283,7 +333,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
       }}>
         <span style={{ fontWeight: 700, fontSize: '.9rem', color: blocked ? '#b45309' : 'var(--green)' }}>
           {blocked
-            ? `⛔ נותרו ${totals.pending} סעיפים פתוחים ו-${pendingDecisions.length} החלטות — המאזן לא סגור.`
+            ? `⛔ המאזן לא סגור: ${totals.pending} סעיפים פתוחים · ${pendingDecisions.length} החלטות · ${unknownNodes.length} בירורים מול הלקוח.`
             : '✓ המאזן סגור: כל סעיפי הטופס הוכרעו. אפשר לעבור להכנת הדוח.'}
         </span>
         <div style={{ display: 'flex', gap: '.5rem' }}>

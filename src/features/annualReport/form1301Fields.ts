@@ -197,7 +197,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => has(m, 'salary'),
     modelPath: 'income.salary.totalGross',
-    sourceQuestionIds: ['salary_employer_count', 'salary_owner'],
+    sourceQuestionIds: ['salary_employer_count'],
     requiredDocuments: [
       { code: '106', name: 'טופס 106 מכל מעביד', reason: 'אישור שנתי על שכר ברוטו ומס שנוכה' },
     ],
@@ -318,7 +318,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => has(m, 'business'),
     modelPath: 'income.business.netIncome',
-    sourceQuestionIds: ['business_kind', 'biz_revenue_band', 'business_owner'],
+    sourceQuestionIds: ['business_kind', 'biz_revenue_band'],
     requiredDocuments: [
       { code: 'biz_pnl', name: 'דוח רווח-הפסד שנתי', reason: 'בסיס לחישוב הכנסה חייבת' },
       { code: 'annex_1320', name: 'נספח א\' (1320)', reason: 'פירוט ההכנסה מעסק לכל עסק בנפרד' },
@@ -379,7 +379,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => has(m, 'rental') && m.income?.rentalTrack === 'flat10',
     modelPath: 'income.rentalGrossAnnual',
-    sourceQuestionIds: ['rental_track', 'rental_gross', 'rental_owner'],
+    sourceQuestionIds: ['rental_track', 'rental_gross'],
     requiredDocuments: [
       { code: 'rental_contract', name: 'חוזה שכירות', reason: 'אסמכתא להכנסה' },
       { code: 'rental_wh_cert', name: 'אישור ניכוי במקור משכ"ד (אם נוכה)', reason: 'קיזוז המס ששולם' },
@@ -395,7 +395,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => has(m, 'rental') && m.income?.rentalTrack === 'regular',
     modelPath: 'income.rentalGrossAnnual',
-    sourceQuestionIds: ['rental_track', 'rental_gross', 'rental_owner'],
+    sourceQuestionIds: ['rental_track', 'rental_gross'],
     requiredDocuments: [
       { code: 'rental_contract', name: 'חוזה שכירות', reason: 'אסמכתא להכנסה' },
       { code: 'rental_expenses', name: 'קבלות הוצאות (פחת, ריבית משכנתא, תיקונים)', reason: 'דרישה להוצאות במסלול שולי' },
@@ -447,7 +447,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasInterestIncome === true,
     modelPath: 'income.interest.gross',
-    sourceQuestionIds: ['has_interest_income', 'interest_owner'],
+    sourceQuestionIds: ['has_interest_income'],
     requiredDocuments: [
       { code: '867', name: 'טופס 867 מכל בנק', reason: 'הפיצול לפי שיעור מס מופיע ב-867' },
     ],
@@ -462,7 +462,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasInterestIncome === true,
     modelPath: 'income.interest.gross',
-    sourceQuestionIds: ['has_interest_income', 'interest_owner'],
+    sourceQuestionIds: ['has_interest_income'],
     requiredDocuments: [{ code: '867', name: 'טופס 867', reason: 'מקור הנתון' }],
     dataLayer: 'document',
     codes: { registered: '074', spouse: '208', joint: '308' },
@@ -475,7 +475,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasInterestIncome === true,
     modelPath: 'income.interest.gross',
-    sourceQuestionIds: ['has_interest_income', 'interest_owner'],
+    sourceQuestionIds: ['has_interest_income'],
     requiredDocuments: [{ code: '867', name: 'טופס 867(ג)', reason: 'מקור הנתון' }],
     dataLayer: 'document',
     codes: { registered: '060', spouse: '211', joint: '311' },
@@ -488,7 +488,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasInterestIncome === true,
     modelPath: 'income.interest.gross',
-    sourceQuestionIds: ['has_interest_income', 'interest_owner'],
+    sourceQuestionIds: ['has_interest_income'],
     requiredDocuments: [{ code: '867', name: 'טופס 867(ג)', reason: 'מקור הנתון' }],
     dataLayer: 'document',
     codes: { registered: '067', spouse: '228', joint: '328' },
@@ -501,7 +501,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasInterestIncome === true,
     modelPath: 'income.interest.gross',
-    sourceQuestionIds: ['has_interest_income', 'interest_owner'],
+    sourceQuestionIds: ['has_interest_income'],
     requiredDocuments: [{ code: '867', name: 'טופס 867(ג)', reason: 'מקור הנתון' }],
     dataLayer: 'document',
     codes: { registered: '157', spouse: '257', joint: '357' },
@@ -512,9 +512,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'ניכוי במקור מריבית',
     section: '5_income_passive',
     required: 'conditional',
-    conditionalOn: (m) => m.income?.interestHasWithholding === true,
+    conditionalOn: (m) => m.income?.hasInterestIncome === true, // הניכוי נקרא מה-867
     modelPath: 'income.interest.withheld',
-    sourceQuestionIds: ['has_interest_income', 'had_withholding_at_source'],
+    sourceQuestionIds: ['has_interest_income'],
     requiredDocuments: [
       { code: '867', name: 'טופס 867 מהבנק', reason: 'הסכום מופיע ב-867' },
     ],
@@ -530,7 +530,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasPensionIncome === true,
     modelPath: 'income.pension.gross',
-    sourceQuestionIds: ['has_pension_income', 'pension_owner'],
+    sourceQuestionIds: ['has_pension_income'],
     requiredDocuments: [
       { code: '106_pension', name: 'טופס 106 מהגוף המשלם את הקצבה', reason: 'דיווח קצבאות שוטפות' },
     ],
@@ -582,7 +582,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     conditionalOn: (m) =>
       anyNiBenefit(m) && (has(m, 'salary') || !has(m, 'business')),
     modelPath: 'income.niBenefitsOwner',
-    sourceQuestionIds: ['ni_maternity', 'ni_unemployment', 'ni_reserve_duty', 'ni_work_injury', 'ni_benefits_owner'],
+    sourceQuestionIds: ['ni_maternity', 'ni_unemployment', 'ni_reserve_duty', 'ni_work_injury'],
     requiredDocuments: [
       { code: 'ni_annual_cert', name: 'אישור שנתי מביטוח לאומי על תקבולים חייבים', reason: 'סכום אחד שנתי לכל התקבולים כשכיר' },
     ],
@@ -597,7 +597,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => anyNiBenefit(m) && has(m, 'business'),
     modelPath: 'income.niBenefitsOwner',
-    sourceQuestionIds: ['ni_maternity', 'ni_unemployment', 'ni_reserve_duty', 'ni_work_injury', 'ni_benefits_owner'],
+    sourceQuestionIds: ['ni_maternity', 'ni_unemployment', 'ni_reserve_duty', 'ni_work_injury'],
     requiredDocuments: [
       { code: 'ni_annual_cert', name: 'אישור שנתי מביטוח לאומי על תקבולים חייבים', reason: 'סכום אחד שנתי לכל התקבולים כעצמאי' },
     ],
@@ -657,9 +657,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'ניכוי במקור מרווחי הון',
     section: '6_capital',
     required: 'conditional',
-    conditionalOn: (m) => m.income?.capitalHasWithholding === true,
+    conditionalOn: (m) => (m.income?.capitalSubTypes ?? []).includes('securities'), // הניכוי נקרא מה-867
     modelPath: 'income.capital.withheld',
-    sourceQuestionIds: ['capital_has_securities', 'had_withholding_at_source'],
+    sourceQuestionIds: ['capital_has_securities'],
     requiredDocuments: [
       { code: '867_capital', name: 'טופס 867 (א+ב)', reason: 'הסכום מופיע ב-867' },
     ],
@@ -989,7 +989,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.deductionsCredits?.isEilatResident === true,
     modelPath: 'deductionsCredits.isEilatResident',
-    sourceQuestionIds: ['qualifying_settlement'],
+    sourceQuestionIds: ['identity_basics'],
     requiredDocuments: [
       { code: 'eilat_residency', name: 'אישור תושבות אילת', reason: 'זיכוי 10% על יגיעה אישית שהופקה באילת, תקרה 259,800 ₪' },
     ],
@@ -1005,7 +1005,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.identity?.livesInQualifyingSettlement === true,
     modelPath: 'identity.livesInQualifyingSettlement',
-    sourceQuestionIds: ['qualifying_settlement'],
+    sourceQuestionIds: ['identity_basics'],
     requiredDocuments: [
       { code: 'settlement_residency', name: 'תעודת תושב מהרשות המקומית', reason: 'נדרשים 12 חודשי תושבות רצופים' },
     ],

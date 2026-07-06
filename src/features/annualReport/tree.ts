@@ -7,7 +7,6 @@ import type {
   TaxpayerModel,
   MaritalStatus,
   IncomeSourceKind,
-  IncomeOwnership,
   DisabilityBand,
   RegisteredSpouseRole,
   BizRevenueBand,
@@ -93,7 +92,7 @@ export const annualReportTree: QuestionTree = {
 
     marital_status: {
       id: 'marital_status',
-      question: 'מה הסטטוס המשפחתי של הלקוח לתום שנת המס?',
+      question: 'מה המצב המשפחתי שלך לתום שנת המס?',
       type: 'single_select',
       required: true,
       options: [
@@ -107,7 +106,8 @@ export const annualReportTree: QuestionTree = {
         ...m,
         identity: { ...m.identity, maritalStatus: a as MaritalStatus, hasSpouse: a === 'married' },
       }),
-      next: (a) => (a === 'married' ? 'registered_spouse_role' : 'children_count'),
+      // בן הזוג הרשום + חישוב מאוחד/נפרד = הכרעות רו"ח בשער הכיסוי, לא שאלות לקוח
+      next: (a) => (a === 'married' ? 'spouse_has_income' : 'children_count'),
       targetFieldCodes: ['113'],
       validationMode: true,
       editTarget: 'identity',
@@ -181,7 +181,7 @@ export const annualReportTree: QuestionTree = {
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({ ...m, spouse: { ...m.spouse, hasBusinessIncome: a as boolean } }),
-      next: () => 'eligible_separate_calc',
+      next: () => 'children_count',
     },
 
     eligible_separate_calc: {
@@ -203,7 +203,7 @@ export const annualReportTree: QuestionTree = {
     // ═══ ג. ילדים ════════════════════════════════════════════════════════════
     children_count: {
       id: 'children_count',
-      question: 'כמה ילדים יש לנישום עד גיל 18 (כולל)?',
+      question: 'כמה ילדים עד גיל 18 (כולל) יש לך?',
       type: 'number',
       required: true,
       applyToModel: (m, a) => ({
@@ -260,7 +260,7 @@ export const annualReportTree: QuestionTree = {
 
     is_custodial_single_parent: {
       id: 'is_custodial_single_parent',
-      question: 'האם הילדים נמצאים במשמורת הנישום (הורה יחיד שילדיו אצלו)?',
+      question: 'האם הילדים בחזקתך (הורה יחיד שהילדים אצלו)?',
       helpText: 'הורה יחיד שילדיו אצלו זכאי לזיכוי מס מיוחד (שדה 029).',
       type: 'boolean',
       required: true,
@@ -274,7 +274,7 @@ export const annualReportTree: QuestionTree = {
 
     child_economics: {
       id: 'child_economics',
-      question: 'האם הנישום משתתף בכלכלת הילדים (מזונות/הוצאות) למרות שאינם בחזקתו?',
+      question: 'האם את/ה משתתף/ת בכלכלת הילדים (מזונות או הוצאות) למרות שאינם בחזקתך?',
       helpText: 'הורה פרוד שמשתתף בכלכלת ילדיו זכאי לנקודת זיכוי (יחסית אם ההשתתפות חלקית).',
       type: 'boolean',
       required: true,
@@ -289,7 +289,7 @@ export const annualReportTree: QuestionTree = {
     // ═══ ד. תושבות ונכות ═════════════════════════════════════════════════════
     residency_type: {
       id: 'residency_type',
-      question: 'מה סטטוס התושבות של הנישום?',
+      question: 'מה סטטוס התושבות שלך?',
       type: 'single_select',
       required: true,
       options: [
@@ -302,7 +302,7 @@ export const annualReportTree: QuestionTree = {
         identity: { ...m.identity, residencyType: a as 'resident' | 'new_immigrant' | 'returning_resident' },
         specialSituations: { ...m.specialSituations, isNewImmigrant: a === 'new_immigrant' },
       }),
-      next: (a) => (a !== 'resident' ? 'elects_section_14' : 'qualifying_settlement'),
+      next: (a) => (a !== 'resident' ? 'elects_section_14' : 'has_disability'),
       validationMode: true,
       editTarget: 'identity',
       deriveAnswerFromCard: ({ client }) => {
@@ -330,27 +330,30 @@ export const annualReportTree: QuestionTree = {
         ...m,
         specialSituations: { ...m.specialSituations, electsSection14: a as boolean },
       }),
-      next: () => 'qualifying_settlement',
+      next: () => 'has_disability',
       visibleWhen: (m) => (m.identity?.residencyType ?? 'resident') !== 'resident',
       targetFieldCodes: ['S14'],
     },
 
+    // ישוב מזכה — נגזר אוטומטית מהכתובת בכרטיס (seedModelFromClient), לא נשאל.
+    // הצומת נשאר לתאימות (הפניות שדות + סשנים ישנים שעצרו כאן).
     qualifying_settlement: {
       id: 'qualifying_settlement',
-      question: 'האם הנישום מתגורר ביישוב מזכה (נגב/גליל/גולן/ערבה/בקעת הירדן)?',
-      helpText: 'מקנה נקודות זיכוי נוספות לפי מעגל הישוב. נדרש תעודת תושב.',
+      question: 'האם הלקוח מתגורר ביישוב מזכה?',
+      helpText: 'נקבע אוטומטית לפי הכתובת בכרטיס. תיקון — דרך שדה "יישוב מזכה" בכרטיס הלקוח.',
       type: 'boolean',
-      required: true,
+      required: false,
       applyToModel: (m, a) => ({
         ...m,
         identity: { ...m.identity, livesInQualifyingSettlement: a as boolean },
       }),
       next: () => 'has_disability',
+      visibleWhen: () => false,
     },
 
     has_disability: {
       id: 'has_disability',
-      question: 'האם לנישום יש אחוז נכות מוכר?',
+      question: 'האם יש לך אחוז נכות מוכר?',
       helpText: 'נכות 90% או יותר מזכה בפטור מלא ממס על הכנסה מיגיעה אישית עד תקרה.',
       type: 'boolean',
       required: true,
@@ -419,7 +422,7 @@ export const annualReportTree: QuestionTree = {
     // ─── ענף שכיר ─────────────────────────────────────────────────────────
     salary_employer_count: {
       id: 'salary_employer_count',
-      question: 'מכמה מעבידים קיבל הנישום שכר בשנת המס?',
+      question: 'אצל כמה מעסיקים עבדת בשנת המס?',
       helpText: 'אם הרשימה מהכרטיס נכונה — תכניס את אותו המספר. אחרת — תזכור להוסיף/להסיר מעבידים בכרטיס.',
       type: 'number',
       required: true,
@@ -427,7 +430,7 @@ export const annualReportTree: QuestionTree = {
         ...m,
         income: { ...m.income, salaryEmployerCount: Number(a) || 0, hasMultipleEmployers: Number(a) > 1 },
       }),
-      next: () => 'salary_owner',
+      next: () => 'shift_work',
       targetFieldCodes: ['158', '106-count'],
       validationMode: true,
       editTarget: 'employers',
@@ -446,25 +449,7 @@ export const annualReportTree: QuestionTree = {
       },
     },
 
-    salary_owner: {
-      id: 'salary_owner',
-      question: 'של מי הכנסת השכר?',
-      helpText: 'קובע לאיזה טור בטופס נכנסת ההכנסה (בן הזוג הרשום / בן הזוג) — משפיע על החישוב.',
-      type: 'single_select',
-      required: true,
-      options: [
-        { value: 'registered', label: 'של בן הזוג הרשום' },
-        { value: 'spouse', label: 'של בן/בת הזוג' },
-        { value: 'both', label: 'לשניהם יש שכר' },
-      ],
-      applyToModel: (m, a) => ({
-        ...m,
-        income: { ...m.income, salaryOwner: a as IncomeOwnership },
-      }),
-      next: () => 'shift_work',
-      visibleWhen: (m) => m.identity?.maritalStatus === 'married',
-      targetFieldCodes: ['158', '172'],
-    },
+    // "של מי השכר/העסק/החשבון" — נלמד מהמסמכים עצמם (106/867 נושאים שם), לא נשאל.
 
     shift_work: {
       id: 'shift_work',
@@ -482,7 +467,7 @@ export const annualReportTree: QuestionTree = {
 
     received_severance: {
       id: 'received_severance',
-      question: 'האם הנישום קיבל מענק פרישה / פיצויי פיטורין בשנת המס?',
+      question: 'האם קיבלת מענק פרישה / פיצויי פיטורין בשנת המס?',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -511,7 +496,7 @@ export const annualReportTree: QuestionTree = {
 
     has_options_102: {
       id: 'has_options_102',
-      question: 'האם הנישום מימש אופציות 102 / 3i השנה?',
+      question: 'האם מימשת אופציות 102 / 3i השנה?',
       helpText: 'אופציות עובדים — תוכנית 102 (מעבידים ישראליים) או 3i (מעבידים זרים). שווי המימוש מופיע ב-106.',
       type: 'boolean',
       required: true,
@@ -538,26 +523,7 @@ export const annualReportTree: QuestionTree = {
         ...m,
         income: { ...m.income, businessKind: a as 'osek_patur' | 'osek_morshe' | 'family_company' },
       }),
-      next: () => 'business_owner',
-      targetFieldCodes: ['150'],
-    },
-
-    business_owner: {
-      id: 'business_owner',
-      question: 'של מי העסק?',
-      type: 'single_select',
-      required: true,
-      options: [
-        { value: 'registered', label: 'של בן הזוג הרשום' },
-        { value: 'spouse', label: 'של בן/בת הזוג' },
-        { value: 'both', label: 'לשניהם עסק / עסק משותף' },
-      ],
-      applyToModel: (m, a) => ({
-        ...m,
-        income: { ...m.income, businessOwner: a as IncomeOwnership },
-      }),
       next: () => 'partnership_member',
-      visibleWhen: (m) => m.identity?.maritalStatus === 'married',
       targetFieldCodes: ['150'],
     },
 
@@ -595,7 +561,7 @@ export const annualReportTree: QuestionTree = {
 
     biz_has_client_withholding: {
       id: 'biz_has_client_withholding',
-      question: 'האם לקוחות העסק ניכו לנישום מס במקור (טופס 857)?',
+      question: 'האם לקוחות ניכו לך מס במקור (טופס 857)?',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -608,7 +574,7 @@ export const annualReportTree: QuestionTree = {
 
     business_asset_rental: {
       id: 'business_asset_rental',
-      question: 'האם הנישום משכיר נכס ששימש בעסק שלו 10 שנים ומעלה?',
+      question: 'האם אתם משכירים נכס ששימש בעסק שלכם 10 שנים ומעלה?',
       helpText: 'השכרה כזו נחשבת הכנסה מיגיעה אישית (שדות 120/220) — מדרגות מס נמוכות יותר.',
       type: 'boolean',
       required: true,
@@ -622,7 +588,7 @@ export const annualReportTree: QuestionTree = {
 
     biz_keren_hashtalmut: {
       id: 'biz_keren_hashtalmut',
-      question: 'האם הנישום הפקיד לקרן השתלמות לעצמאי השנה?',
+      question: 'האם הפקדת לקרן השתלמות לעצמאים השנה?',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -647,7 +613,7 @@ export const annualReportTree: QuestionTree = {
         ...m,
         income: { ...m.income, rentalGrossAnnual: Number(a) || 0 },
       }),
-      next: () => 'rental_owner',
+      next: () => 'rents_own_home',
       targetFieldCodes: ['332', 'R-flat10', 'R-marginal'],
     },
 
@@ -696,34 +662,14 @@ export const annualReportTree: QuestionTree = {
       }),
       visibleWhen: (m) => (m.income?.sources ?? []).includes('rental'),
       // מחוץ לשרשרת החדשה — נענית משער הכיסוי. סשן ישן שעצר כאן ממשיך רגיל.
-      next: () => 'rental_owner',
-      targetFieldCodes: ['332', 'R-flat10', 'R-marginal'],
-    },
-
-    rental_owner: {
-      id: 'rental_owner',
-      question: 'על שם מי רשום הנכס המושכר?',
-      helpText: 'נכס שנרכש לפני הנישואין או התקבל בירושה נשאר בחישוב נפרד של אותו בן זוג.',
-      type: 'single_select',
-      required: true,
-      options: [
-        { value: 'registered', label: 'בן הזוג הרשום' },
-        { value: 'spouse', label: 'בן/בת הזוג' },
-        { value: 'both', label: 'משותף' },
-      ],
-      applyToModel: (m, a) => ({
-        ...m,
-        income: { ...m.income, rentalOwner: a as IncomeOwnership },
-      }),
       next: () => 'rents_own_home',
-      visibleWhen: (m) => m.identity?.maritalStatus === 'married',
-      targetFieldCodes: ['R-marginal'],
+      targetFieldCodes: ['332', 'R-flat10', 'R-marginal'],
     },
 
     // ─── ענף הון ─────────────────────────────────────────────────────────
     capital_has_securities: {
       id: 'capital_has_securities',
-      question: 'האם הנישום מחזיק בני"ע סחירים (מניות, אג"ח, קרנות)?',
+      question: 'האם יש לך ניירות ערך סחירים (מניות, אג"ח, קרנות)?',
       helpText: 'הצ\'ק-ליסט יבקש 867 נפרד מכל בית השקעות. הוסף בכרטיס חשבונות שחסרים.',
       type: 'boolean',
       required: true,
@@ -736,8 +682,9 @@ export const annualReportTree: QuestionTree = {
             : (m.income.capitalSubTypes ?? []).filter((t) => t !== 'securities'),
         },
       }),
-      next: (a) => (a ? 'capital_securities_withholding' : 'capital_has_crypto'),
-      targetFieldCodes: ['CG-securities', '054', 'D-sec-turnover'],
+      // ניכוי המס במקור ייקרא ישירות מטופסי ה-867 — אין צורך לשאול
+      next: () => 'capital_has_crypto',
+      targetFieldCodes: ['CG-securities', '054', 'D-sec-turnover', '253'],
       validationMode: true,
       editTarget: 'investmentAccounts',
       deriveAnswerFromCard: ({ client }) =>
@@ -753,20 +700,6 @@ export const annualReportTree: QuestionTree = {
           missing: !a.institutionName,
         }));
       },
-    },
-
-    capital_securities_withholding: {
-      id: 'capital_securities_withholding',
-      question: 'האם בית ההשקעות ניכה לנישום מס במקור מרווחי ההון?',
-      helpText: 'מופיע ב-867 כסכום מס שנוכה במקור (שדה 253 בטופס).',
-      type: 'boolean',
-      required: true,
-      applyToModel: (m, a) => ({
-        ...m,
-        income: { ...m.income, capitalHasWithholding: a as boolean },
-      }),
-      next: () => 'capital_has_crypto',
-      targetFieldCodes: ['253'],
     },
 
     capital_has_crypto: {
@@ -789,7 +722,7 @@ export const annualReportTree: QuestionTree = {
 
     capital_has_real_estate: {
       id: 'capital_has_real_estate',
-      question: 'האם הנישום מכר מקרקעין (שאינו דירת מגורים יחידה) השנה?',
+      question: 'האם מכרת נכס מקרקעין (שאינו דירת מגורים יחידה) השנה?',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -838,7 +771,7 @@ export const annualReportTree: QuestionTree = {
     // ─── ענף ריבית ────────────────────────────────────────────────────────
     has_interest_income: {
       id: 'has_interest_income',
-      question: 'האם הייתה לנישום הכנסה מריבית על פיקדונות / אג"ח / תוכניות חיסכון?',
+      question: 'האם קיבלת ריבית מפיקדונות / אג"ח / תוכניות חיסכון?',
       helpText: 'אם כן — נצטרך 867 מכל בנק בהמשך.',
       type: 'boolean',
       required: true,
@@ -846,9 +779,10 @@ export const annualReportTree: QuestionTree = {
         ...m,
         income: { ...m.income, hasInterestIncome: a as boolean },
       }),
-      next: (a) => (a ? 'interest_owner' : 'has_pension_income'),
+      // הפירוט לפי שיעורי מס והניכוי במקור נקראים מה-867 — שאלת טריגר בלבד
+      next: () => 'has_pension_income',
       visibleWhen: (m) => (m.income?.sources ?? []).includes('interest') || (m.income?.sources ?? []).includes('capital'),
-      targetFieldCodes: ['076', '074', '060', '067', '157'],
+      targetFieldCodes: ['076', '074', '060', '067', '157', '043'],
       validationMode: true,
       editTarget: 'bankAccounts',
       deriveAnswerFromCard: ({ client }) => (client?.bankAccounts ?? []).length > 0,
@@ -865,69 +799,18 @@ export const annualReportTree: QuestionTree = {
       },
     },
 
-    interest_owner: {
-      id: 'interest_owner',
-      question: 'על שם מי החשבונות נושאי הריבית / ההשקעות?',
-      type: 'single_select',
-      required: true,
-      options: [
-        { value: 'registered', label: 'בן הזוג הרשום' },
-        { value: 'spouse', label: 'בן/בת הזוג' },
-        { value: 'both', label: 'משותף / של שנינו' },
-      ],
-      applyToModel: (m, a) => ({
-        ...m,
-        income: { ...m.income, interestOwner: a as IncomeOwnership },
-      }),
-      next: () => 'interest_has_withholding',
-      visibleWhen: (m) => m.identity?.maritalStatus === 'married',
-      targetFieldCodes: ['076', '074'],
-    },
-
-    interest_has_withholding: {
-      id: 'interest_has_withholding',
-      question: 'האם הבנק ניכה מס במקור מהריבית?',
-      type: 'boolean',
-      required: true,
-      applyToModel: (m, a) => ({
-        ...m,
-        income: { ...m.income, interestHasWithholding: a as boolean },
-      }),
-      next: () => 'has_pension_income',
-      targetFieldCodes: ['043'],
-    },
-
     // ─── ענף פנסיה, פרישה וקצבאות ─────────────────────────────────────────
     has_pension_income: {
       id: 'has_pension_income',
-      question: 'האם הנישום מקבל פנסיה / קצבה שוטפת (ממעביד לשעבר, קרן פנסיה, ביטוח)?',
+      question: 'האם את/ה מקבל/ת פנסיה או קצבה שוטפת (ממעביד לשעבר, קרן פנסיה, ביטוח)?',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
         ...m,
         income: { ...m.income, hasPensionIncome: a as boolean },
       }),
-      next: (a) => (a ? 'pension_owner' : 'exempt_pensions'),
-      visibleWhen: (m) => (m.income?.sources ?? []).includes('pension'),
-      targetFieldCodes: ['258-pension'],
-    },
-
-    pension_owner: {
-      id: 'pension_owner',
-      question: 'מי מקבל את הקצבה?',
-      type: 'single_select',
-      required: true,
-      options: [
-        { value: 'registered', label: 'בן הזוג הרשום' },
-        { value: 'spouse', label: 'בן/בת הזוג' },
-        { value: 'both', label: 'שנינו' },
-      ],
-      applyToModel: (m, a) => ({
-        ...m,
-        income: { ...m.income, pensionOwner: a as IncomeOwnership },
-      }),
       next: () => 'exempt_pensions',
-      visibleWhen: (m) => m.identity?.maritalStatus === 'married',
+      visibleWhen: (m) => (m.income?.sources ?? []).includes('pension'),
       targetFieldCodes: ['258-pension'],
     },
 
@@ -949,7 +832,7 @@ export const annualReportTree: QuestionTree = {
     // ─── ענף תקבולי ביטוח לאומי ────────────────────────────────────────────
     ni_maternity: {
       id: 'ni_maternity',
-      question: 'האם הנישום קיבל דמי לידה מביטוח לאומי?',
+      question: 'האם קיבלת דמי לידה מביטוח לאומי?',
       helpText: 'דמי לידה חייבים במס מלא (שלא כמו ב-106 הרגיל). נדרש אישור בט"ל.',
       type: 'boolean',
       required: true,
@@ -964,7 +847,7 @@ export const annualReportTree: QuestionTree = {
 
     ni_unemployment: {
       id: 'ni_unemployment',
-      question: 'האם הנישום קיבל דמי אבטלה מביטוח לאומי?',
+      question: 'האם קיבלת דמי אבטלה מביטוח לאומי?',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -978,7 +861,7 @@ export const annualReportTree: QuestionTree = {
 
     ni_reserve_duty: {
       id: 'ni_reserve_duty',
-      question: 'האם הנישום קיבל תגמולי מילואים מביטוח לאומי?',
+      question: 'האם קיבלת תגמולי מילואים מביטוח לאומי?',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -992,37 +875,16 @@ export const annualReportTree: QuestionTree = {
 
     ni_work_injury: {
       id: 'ni_work_injury',
-      question: 'האם הנישום קיבל תקבולי פגיעה בעבודה מביטוח לאומי?',
+      question: 'האם קיבלת תקבולי פגיעה בעבודה מביטוח לאומי?',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
         ...m,
         income: { ...m.income, niWorkInjuryReceived: a as boolean },
       }),
-      next: () => 'ni_benefits_owner',
-      visibleWhen: (m) => (m.income?.sources ?? []).includes('pension'),
-      targetFieldCodes: ['NI-employee', 'NI-self'],
-    },
-
-    ni_benefits_owner: {
-      id: 'ni_benefits_owner',
-      question: 'מי קיבל את התקבולים מביטוח לאומי?',
-      type: 'single_select',
-      required: true,
-      options: [
-        { value: 'registered', label: 'בן הזוג הרשום' },
-        { value: 'spouse', label: 'בן/בת הזוג' },
-        { value: 'both', label: 'שנינו' },
-      ],
-      applyToModel: (m, a) => ({
-        ...m,
-        income: { ...m.income, niBenefitsOwner: a as IncomeOwnership },
-      }),
+      // מי קיבל את התקבולים — נלמד מאישורי הביטוח הלאומי עצמם
       next: () => 'maternity_spread',
-      visibleWhen: (m) =>
-        m.identity?.maritalStatus === 'married' &&
-        (m.income?.niMaternityReceived === true || m.income?.niUnemploymentReceived === true ||
-         m.income?.niReserveDutyReceived === true || m.income?.niWorkInjuryReceived === true),
+      visibleWhen: (m) => (m.income?.sources ?? []).includes('pension'),
       targetFieldCodes: ['NI-employee', 'NI-self'],
     },
 
@@ -1255,7 +1117,7 @@ export const annualReportTree: QuestionTree = {
 
     alimony_received: {
       id: 'alimony_received',
-      question: 'האם הנישום קיבל דמי מזונות השנה? אם כן — סכום שנתי (₪).',
+      question: 'האם קיבלת דמי מזונות השנה? אם כן — סכום שנתי (₪).',
       helpText: 'מזונות חייבים חלקית במס לפי סעיף 9(21).',
       type: 'number',
       required: false,
@@ -1311,7 +1173,7 @@ export const annualReportTree: QuestionTree = {
 
     is_discharged_soldier: {
       id: 'is_discharged_soldier',
-      question: 'האם הנישום השתחרר מצה"ל / שירות לאומי בשנתיים האחרונות?',
+      question: 'האם השתחררת מצה"ל / שירות לאומי בשנתיים האחרונות?',
       helpText: 'מקנה 2 נקודות זיכוי לשנת השחרור ושנתיים אחריה.',
       type: 'boolean',
       required: true,
@@ -1339,7 +1201,7 @@ export const annualReportTree: QuestionTree = {
 
     has_academic_degree: {
       id: 'has_academic_degree',
-      question: 'האם הנישום קיבל תואר אקדמי בשלוש השנים האחרונות?',
+      question: 'האם קיבלת תואר אקדמי בשלוש השנים האחרונות?',
       helpText: 'תואר ראשון = נקודה אחת לשנת קבלה ו-3 שנים אחריה. תואר שני/דוקטור = 0.5 נוסף.',
       type: 'boolean',
       required: true,
@@ -1640,14 +1502,12 @@ const NODE_CHAPTERS: Record<string, ChapterKey> = {
   income_sources: 'identity_family',
 
   salary_employer_count: 'salary',
-  salary_owner: 'salary',
   shift_work: 'salary',
   received_severance: 'salary',
   severance_spread: 'salary',
   has_options_102: 'salary',
 
   business_kind: 'business',
-  business_owner: 'business',
   partnership_member: 'business',
   biz_revenue_band: 'business',
   biz_has_client_withholding: 'business',
@@ -1655,29 +1515,23 @@ const NODE_CHAPTERS: Record<string, ChapterKey> = {
   biz_keren_hashtalmut: 'business',
 
   rental_track: 'rental',
-  rental_owner: 'rental',
   rental_gross: 'rental',
   rents_own_home: 'rental',
   rent_paid_annual: 'rental',
 
   capital_has_securities: 'capital',
-  capital_securities_withholding: 'capital',
   capital_has_crypto: 'capital',
   capital_has_real_estate: 'capital',
   has_interest_income: 'capital',
-  interest_owner: 'capital',
-  interest_has_withholding: 'capital',
   dividend_controlling: 'companies',
   dividend_preferred: 'companies',
 
   has_pension_income: 'pension_ni',
-  pension_owner: 'pension_ni',
   exempt_pensions: 'pension_ni',
   ni_maternity: 'pension_ni',
   ni_unemployment: 'pension_ni',
   ni_reserve_duty: 'pension_ni',
   ni_work_injury: 'pension_ni',
-  ni_benefits_owner: 'pension_ni',
   maternity_spread: 'pension_ni',
 
   has_other_income: 'special',
@@ -1728,10 +1582,9 @@ const PERMANENT_NODES: string[] = [
   'children_count', 'children_details_required', 'children_special_needs',
   'is_custodial_single_parent', 'child_economics',
   'residency_type', 'qualifying_settlement', 'has_disability', 'disability_band',
-  'salary_owner',
-  'business_kind', 'business_owner', 'partnership_member',
-  'rental_owner', 'rents_own_home',
-  'interest_owner', 'pension_owner',
+
+  'business_kind', 'partnership_member',
+  'rents_own_home',
   'dividend_controlling',
   'is_discharged_soldier', 'soldier_service_months', 'has_academic_degree',
   'is_family_company_member', 'is_foreign_controlling_shareholder', 'is_kibbutz_member',
@@ -1850,18 +1703,18 @@ export function estimateTotalQuestions(model: TaxpayerModel): number {
   // בסיס: שער, זהות, מצב משפחתי, ילדים, תושבות, ישוב, נכות, תרומות, ביטוח חיים,
   // ניכויים נוספים, פנסיה עצמאית, חייל, תואר, מקדמות, ניכוי במקור, מצבים מיוחדים,
   // 3 אימותי כרטיס, הצהרה — רובן בלחיצה אחת.
-  let base = 19;
-  if (married) base += 4;
+  let base = 17;
+  if (married) base += 3;
   if ((model.identity.childrenCount ?? 0) > 0) base += 2;
   if (model.identity.hasDisability) base += 1;
   if (model.identity.residencyType !== 'resident') base += 1;
   for (const k of model.income.sources) {
-    if (k === 'salary') base += married ? 4 : 3;
-    if (k === 'business') base += married ? 6 : 5;
-    if (k === 'rental') base += married ? 3 : 2;
-    if (k === 'capital') base += 4;
-    if (k === 'interest') base += married ? 2 : 1;
-    if (k === 'pension') base += married ? 7 : 6;
+    if (k === 'salary') base += 4;
+    if (k === 'business') base += 5;
+    if (k === 'rental') base += 2;
+    if (k === 'capital') base += 3;
+    if (k === 'interest') base += 1;
+    if (k === 'pension') base += 6;
     if (k === 'dividend') base += 2;
     if (k === 'foreign') base += 5;
     if (k === 'other') base += 2;

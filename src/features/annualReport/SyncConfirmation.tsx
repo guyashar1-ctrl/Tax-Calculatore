@@ -289,6 +289,73 @@ function computeDiffs(session: AnnualReportSession, client: Client): Diff[] {
     });
   }
 
+  // ── מקורות הכנסה שהתגלו בשאלון ומעדכנים את הפרופיל ──
+  const src = m.income?.sources ?? [];
+
+  // נכס מושכר
+  if (src.includes('rental') && !client.hasResidentialProperty) {
+    out.push({
+      key: 'rental',
+      label: 'נכס מושכר',
+      fromCard: 'לא מסומן נדל"ן בכרטיס',
+      fromQuestionnaire: (m.income?.rentalGrossAnnual ?? 0) > 0
+        ? `נכס מושכר · שכ"ד ${(m.income!.rentalGrossAnnual!).toLocaleString('he-IL')} ₪/שנה`
+        : 'יש נכס מושכר',
+      apply: () => ({
+        hasResidentialProperty: true,
+        numberOfProperties: Math.max(1, client.numberOfProperties || 0),
+      }),
+    });
+  }
+
+  // שוק ההון
+  const hasCapitalInModel = src.includes('capital') || (m.income?.capitalSubTypes ?? []).length > 0;
+  if (hasCapitalInModel && !client.hasCapitalIncome) {
+    out.push({
+      key: 'capital',
+      label: 'פעילות בשוק ההון',
+      fromCard: 'לא מסומן',
+      fromQuestionnaire: (m.income?.capitalSubTypes ?? []).length > 0
+        ? `כן (${(m.income!.capitalSubTypes!).join(', ')})`
+        : 'כן',
+      apply: () => ({ hasCapitalIncome: true }),
+    });
+  }
+
+  // בעל מניות מהותי
+  if (m.income?.isControllingShareholder !== undefined && !!client.isSubstantialShareholder !== m.income.isControllingShareholder) {
+    out.push({
+      key: 'substantialShareholder',
+      label: 'בעל מניות מהותי (10%+)',
+      fromCard: client.isSubstantialShareholder ? 'כן' : 'לא',
+      fromQuestionnaire: m.income.isControllingShareholder ? 'כן' : 'לא',
+      apply: () => ({ isSubstantialShareholder: m.income.isControllingShareholder ?? false }),
+    });
+  }
+
+  // הגרלות ופרסים
+  if (m.income?.hasGamblingOrPrizes && !client.hasGamblingIncome) {
+    out.push({
+      key: 'gambling',
+      label: 'הכנסות מהגרלות/פרסים',
+      fromCard: 'לא מסומן',
+      fromQuestionnaire: 'כן',
+      apply: () => ({ hasGamblingIncome: true }),
+    });
+  }
+
+  // נכסים/הכנסות בחו"ל
+  const foreignInModel = src.includes('foreign') || m.openingDeclarations?.hasForeignAssetsOverThreshold === true;
+  if (foreignInModel && !client.hasForeignAssets) {
+    out.push({
+      key: 'foreign',
+      label: 'הכנסות/נכסים בחו"ל',
+      fromCard: 'לא מסומן',
+      fromQuestionnaire: m.income?.foreignCountries ? `כן (${m.income.foreignCountries})` : 'כן',
+      apply: () => ({ hasForeignAssets: true }),
+    });
+  }
+
   return out;
 }
 
