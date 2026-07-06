@@ -11,12 +11,16 @@ import { FIELD_SOURCE_LABELS } from '../../types/clientWorkspace';
 // הכתובת). רץ בפתיחת תיק ובשחזור הסקירה השנתית; בטוח להריץ שוב (אידמפוטנטי).
 
 export function seedModelFromClient(model: TaxpayerModel, client: Client): TaxpayerModel {
+  const pct = client.disabilityPercentage ?? 0;
+  const band = pct >= 90 ? 'full' : pct >= 40 ? 'high' : pct > 0 ? 'low' : undefined;
   return {
     ...model,
     identity: {
       ...model.identity,
       livesInQualifyingSettlement: !!client.qualifyingSettlementId,
       city: client.city || model.identity.city,
+      // דרגת הנכות נגזרת מאחוז הנכות בכרטיס — השאלה מדולגת כשידוע
+      disabilityBand: model.identity.disabilityBand ?? band,
     },
   };
 }
