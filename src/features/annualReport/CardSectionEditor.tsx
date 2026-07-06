@@ -6,7 +6,7 @@
 // המלאה בכרטיס.
 
 import { useState } from 'react';
-import type { Client, EmployerInfo, InvestmentAccount, BankAccountInfo } from '../../types';
+import type { Client, Child, EmployerInfo, InvestmentAccount, BankAccountInfo, PensionFundInfo } from '../../types';
 import type { CardEditSection } from './types';
 
 interface Props {
@@ -18,9 +18,11 @@ interface Props {
 
 export default function CardSectionEditor({ client, editTarget, onPatchClient, onClose }: Props) {
   if (editTarget === 'identity') return <IdentityEditor client={client} onPatch={onPatchClient} onClose={onClose} />;
+  if (editTarget === 'children') return <ChildrenEditor client={client} onPatch={onPatchClient} onClose={onClose} />;
   if (editTarget === 'employers') return <EmployersEditor client={client} onPatch={onPatchClient} onClose={onClose} />;
   if (editTarget === 'investmentAccounts') return <InvestmentAccountsEditor client={client} onPatch={onPatchClient} onClose={onClose} />;
   if (editTarget === 'bankAccounts') return <BankAccountsEditor client={client} onPatch={onPatchClient} onClose={onClose} />;
+  if (editTarget === 'pensionFunds') return <PensionFundsEditor client={client} onPatch={onPatchClient} onClose={onClose} />;
   return (
     <EditorShell title="לא נתמך עדיין" onClose={onClose}>
       <p style={{ color: 'var(--gray-600)' }}>
@@ -80,23 +82,49 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
   const [firstName, setFirstName] = useState(client.firstName);
   const [lastName, setLastName] = useState(client.lastName);
   const [idNumber, setIdNumber] = useState(client.idNumber);
+  const [birthDate, setBirthDate] = useState(client.birthDate || '');
   const [address, setAddress] = useState(client.address);
   const [city, setCity] = useState(client.city);
+  const [familyStatus, setFamilyStatus] = useState<Client['familyStatus']>(client.familyStatus);
+  const [isNewImmigrant, setIsNewImmigrant] = useState(client.isNewImmigrant);
+  const [aliyahYear, setAliyahYear] = useState(client.aliyahYear || 0);
+  const [isReturningResident, setIsReturningResident] = useState(client.isReturningResident);
+  const [disabilityPercentage, setDisabilityPercentage] = useState(client.disabilityPercentage || 0);
+  const [hasAcademicDegree, setHasAcademicDegree] = useState(client.hasAcademicDegree);
+  const [academicDegreeYear, setAcademicDegreeYear] = useState(client.academicDegreeYear || 0);
+  const [donationsAnnual, setDonationsAnnual] = useState(client.donationsAnnual ?? 0);
+  const [lifeInsuranceAnnual, setLifeInsuranceAnnual] = useState(client.lifeInsuranceAnnual ?? 0);
+  const [isFamilyCompanyMember, setIsFamilyCompanyMember] = useState(client.isFamilyCompanyMember ?? false);
+  const [isForeignControllingShareholder, setIsForeignControllingShareholder] = useState(client.isForeignControllingShareholder ?? false);
+  const [isKibbutzMember, setIsKibbutzMember] = useState(client.isKibbutzMember ?? false);
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
     setSaving(true);
     try {
-      await onPatch({ firstName, lastName, idNumber, address, city });
+      await onPatch({
+        firstName, lastName, idNumber, birthDate, address, city,
+        familyStatus,
+        isNewImmigrant, aliyahYear, isReturningResident,
+        disabilityPercentage,
+        hasAcademicDegree, academicDegreeYear,
+        donationsAnnual, lifeInsuranceAnnual,
+        isFamilyCompanyMember, isForeignControllingShareholder, isKibbutzMember,
+      });
       onClose();
     } finally {
       setSaving(false);
     }
   }
 
+  const sub = (t: string) => (
+    <div style={{ gridColumn: '1 / -1', fontWeight: 700, fontSize: '.82rem', color: 'var(--gray-500)', borderBottom: '1px solid var(--gray-100)', paddingBottom: 4, marginTop: 8 }}>{t}</div>
+  );
+
   return (
-    <EditorShell title="✏ עריכת פרטי זיהוי" onClose={onClose} onSave={handleSave} saving={saving}>
+    <EditorShell title="✏ עריכת פרטי הלקוח" onClose={onClose} onSave={handleSave} saving={saving}>
       <div className="form-grid form-grid-2">
+        {sub('פרטי זיהוי')}
         <div className="form-group">
           <label>שם פרטי</label>
           <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -110,14 +138,208 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
           <input type="text" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} dir="ltr" maxLength={9} />
         </div>
         <div className="form-group">
+          <label>תאריך לידה</label>
+          <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} dir="ltr" />
+        </div>
+        <div className="form-group">
           <label>עיר</label>
           <input type="text" value={city} onChange={(e) => setCity(e.target.value)} />
         </div>
-        <div className="form-group span-full">
+        <div className="form-group">
           <label>כתובת</label>
           <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} />
         </div>
+
+        {sub('משפחה ותושבות')}
+        <div className="form-group">
+          <label>מצב משפחתי</label>
+          <select value={familyStatus} onChange={(e) => setFamilyStatus(e.target.value as Client['familyStatus'])}>
+            <option value="single">רווק/ה</option>
+            <option value="married">נשוי/אה</option>
+            <option value="divorced">גרוש/ה</option>
+            <option value="widowed">אלמן/ה</option>
+            <option value="singleParent">הורה יחיד</option>
+          </select>
+        </div>
+        <div className="form-group">
+          <label>אחוז נכות מוכר</label>
+          <input type="number" value={disabilityPercentage || ''} onChange={(e) => setDisabilityPercentage(Number(e.target.value) || 0)} min={0} max={100} />
+        </div>
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={isNewImmigrant} onChange={(e) => setIsNewImmigrant(e.target.checked)} />
+            עולה חדש/ה
+          </label>
+          {isNewImmigrant && (
+            <input type="number" value={aliyahYear || ''} onChange={(e) => setAliyahYear(Number(e.target.value) || 0)} placeholder="שנת עלייה" />
+          )}
+        </div>
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={isReturningResident} onChange={(e) => setIsReturningResident(e.target.checked)} />
+            תושב/ת חוזר/ת
+          </label>
+        </div>
+
+        {sub('השכלה וסכומים שנתיים')}
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={hasAcademicDegree} onChange={(e) => setHasAcademicDegree(e.target.checked)} />
+            תואר אקדמי
+          </label>
+          {hasAcademicDegree && (
+            <input type="number" value={academicDegreeYear || ''} onChange={(e) => setAcademicDegreeYear(Number(e.target.value) || 0)} placeholder="שנת קבלה" />
+          )}
+        </div>
+        <div className="form-group">
+          <label>תרומות שנתיות (₪)</label>
+          <input type="number" value={donationsAnnual || ''} onChange={(e) => setDonationsAnnual(Number(e.target.value) || 0)} />
+        </div>
+        <div className="form-group">
+          <label>ביטוח חיים שנתי (₪)</label>
+          <input type="number" value={lifeInsuranceAnnual || ''} onChange={(e) => setLifeInsuranceAnnual(Number(e.target.value) || 0)} />
+        </div>
+
+        {sub('מצבים מיוחדים')}
+        <div className="form-group span-full" style={{ display: 'flex', gap: '1.2rem', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={isFamilyCompanyMember} onChange={(e) => setIsFamilyCompanyMember(e.target.checked)} />
+            חברה משפחתית
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={isForeignControllingShareholder} onChange={(e) => setIsForeignControllingShareholder(e.target.checked)} />
+            בעל שליטה בחברה זרה
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={isKibbutzMember} onChange={(e) => setIsKibbutzMember(e.target.checked)} />
+            חבר/ת קיבוץ
+          </label>
+        </div>
       </div>
+    </EditorShell>
+  );
+}
+
+// ─── עורך ילדים ────────────────────────────────────────────────────────────
+
+function ChildrenEditor({ client, onPatch, onClose }: { client: Client; onPatch: (p: Partial<Client>) => Promise<void>; onClose: () => void }) {
+  const [list, setList] = useState<Child[]>(client.children ?? []);
+  const [saving, setSaving] = useState(false);
+
+  function addRow() {
+    setList([...list, {
+      id: `child-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      firstName: '', birthDate: '', birthYear: 0, hasDisability: false,
+    }]);
+  }
+  function updateRow(id: string, patch: Partial<Child>) {
+    setList(list.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  }
+  function removeRow(id: string) {
+    setList(list.filter((c) => c.id !== id));
+  }
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const cleaned = list.map((c) => ({
+        ...c,
+        birthYear: c.birthDate ? Number(c.birthDate.slice(0, 4)) : c.birthYear,
+      }));
+      await onPatch({ children: cleaned });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <EditorShell title="✏ עריכת רשימת ילדים" onClose={onClose} onSave={handleSave} saving={saving}>
+      <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+        תאריך הלידה קובע את נקודות הזיכוי. סמנו נכות אם קיימת (זיכוי לפי סעיף 45).
+      </p>
+      {list.length === 0 && <p style={{ color: 'var(--gray-500)', fontSize: '.9rem' }}>אין ילדים ברשימה. לחץ "+ הוסף" כדי להוסיף.</p>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+        {list.map((c) => (
+          <div key={c.id} style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={c.firstName ?? ''}
+              onChange={(ev) => updateRow(c.id, { firstName: ev.target.value })}
+              placeholder="שם"
+              style={{ flex: 1, minWidth: 110, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+            />
+            <input
+              type="date"
+              value={c.birthDate ?? ''}
+              onChange={(ev) => updateRow(c.id, { birthDate: ev.target.value })}
+              dir="ltr"
+              style={{ padding: '.45rem .6rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+            />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '.85rem' }}>
+              <input type="checkbox" checked={c.hasDisability} onChange={(ev) => updateRow(c.id, { hasDisability: ev.target.checked })} />
+              נכות
+            </label>
+            <button type="button" onClick={() => removeRow(c.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={addRow} style={{ marginTop: '.75rem' }}>+ הוסף ילד/ה</button>
+    </EditorShell>
+  );
+}
+
+// ─── עורך קופות פנסיה ──────────────────────────────────────────────────────
+
+function PensionFundsEditor({ client, onPatch, onClose }: { client: Client; onPatch: (p: Partial<Client>) => Promise<void>; onClose: () => void }) {
+  const [list, setList] = useState<PensionFundInfo[]>(client.pensionFunds ?? []);
+  const [saving, setSaving] = useState(false);
+
+  function addRow() {
+    setList([...list, {
+      id: `pf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      institutionName: '', kind: 'new_pension', hasSelfDeposits: true,
+    }]);
+  }
+  function updateRow(id: string, patch: Partial<PensionFundInfo>) {
+    setList(list.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+  function removeRow(id: string) {
+    setList(list.filter((p) => p.id !== id));
+  }
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onPatch({ pensionFunds: list, hasPension: list.length > 0 });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <EditorShell title="✏ עריכת קופות פנסיה" onClose={onClose} onSave={handleSave} saving={saving}>
+      <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+        קופה עם "הפקדה עצמאית" מייצרת דרישת אישור הפקדות שנתי.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+        {list.map((p) => (
+          <div key={p.id} style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={p.institutionName}
+              onChange={(ev) => updateRow(p.id, { institutionName: ev.target.value })}
+              placeholder="מנורה, הראל, אלטשולר..."
+              style={{ flex: 1, minWidth: 130, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+            />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '.85rem' }}>
+              <input type="checkbox" checked={p.hasSelfDeposits ?? false} onChange={(ev) => updateRow(p.id, { hasSelfDeposits: ev.target.checked })} />
+              הפקדה עצמאית
+            </label>
+            <button type="button" onClick={() => removeRow(p.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={addRow} style={{ marginTop: '.75rem' }}>+ הוסף קופה</button>
     </EditorShell>
   );
 }
