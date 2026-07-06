@@ -1295,6 +1295,7 @@ export const annualReportTree: QuestionTree = {
       }),
       next: () => 'is_discharged_soldier',
       targetFieldCodes: ['135', '268'],
+      editTarget: 'pensionFunds',
       dataPreview: ({ client }) => {
         const selfDepositFunds = (client?.pensionFunds ?? []).filter((p) => p.hasSelfDeposits);
         if (selfDepositFunds.length === 0) {

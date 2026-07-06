@@ -2,6 +2,7 @@ import { useMemo, useEffect, useRef, useState } from 'react';
 import type { AnnualReportSession, AnswerValue, QuestionPreviewItem, ChapterKey } from './types';
 import type { Client } from '../../types';
 import CoverageRail from './CoverageRail';
+import CardSectionEditor from './CardSectionEditor';
 import AnnualDeltaScreen, { type DeltaResult } from './AnnualDeltaScreen';
 import { replayAnswers } from './engine';
 import { findSession, saveAnswer, updateSessionState } from './repository';
@@ -28,6 +29,9 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
   const flow = useAnnualReportFlow(initialSession, autoAnswersRef.current);
   const { session, saving, error, submitAnswer, goBack, canGoBack, restart, adoptSession, isFinished } = flow;
   const [applyingDelta, setApplyingDelta] = useState(false);
+  // עורך הכרטיס — נפתח מכפתור "עדכן בכרטיס" שמופיע ליד כל שאלה עם editTarget
+  const [cardEditorOpen, setCardEditorOpen] = useState(false);
+  useEffect(() => { setCardEditorOpen(false); }, [session.currentQuestionId]);
 
   // תיק השנה הקודמת — אם קיים והושלם, מסך "מה השתנה?" מחליף את שער האריחים.
   const [prior, setPrior] = useState<{ session: AnnualReportSession; answers: Map<string, AnswerValue> } | null>(null);
@@ -281,9 +285,25 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
                     );
                   }
                 }
+                const canEditCard = !!node.editTarget && !!client && !!onPatchClient;
                 return (
                   <>
-                    {previewItems && previewItems.length > 0 && <DataPreviewBox items={previewItems} />}
+                    {previewItems && previewItems.length > 0 && (
+                      <div>
+                        <DataPreviewBox items={previewItems} />
+                        {canEditCard && (
+                          <div style={{ marginTop: '-.6rem', marginBottom: '1rem', textAlign: 'left' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setCardEditorOpen(true)}
+                            >
+                              ✏ השלם / עדכן בכרטיס
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {priorAnswers.has(node.id) && (
                       <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light, #dbeafe)', borderRadius: 4, fontSize: '.85rem', color: 'var(--gray-700)' }}>
                         ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת — לחץ "המשך" לאישור, או שנה לפי הצורך.
@@ -295,6 +315,25 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
                       disabled={saving}
                       onSubmit={(value) => void handleSubmit(value)}
                     />
+                    {canEditCard && (!previewItems || previewItems.length === 0) && (
+                      <div style={{ marginTop: '.6rem' }}>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => setCardEditorOpen(true)}
+                        >
+                          ✏ עדכן בכרטיס הלקוח
+                        </button>
+                      </div>
+                    )}
+                    {cardEditorOpen && client && node.editTarget && onPatchClient && (
+                      <CardSectionEditor
+                        client={client}
+                        editTarget={node.editTarget}
+                        onPatchClient={onPatchClient}
+                        onClose={() => setCardEditorOpen(false)}
+                      />
+                    )}
                   </>
                 );
               })()}
