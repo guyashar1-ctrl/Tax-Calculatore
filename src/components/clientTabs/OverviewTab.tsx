@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { Client, Task, BALL_WITH_LABELS, BALL_WITH_BADGE, TASK_CATEGORY_LABELS } from '../../types';
 import { ClientAlert, ACTIVITY_ICON, ACTIVITY_LABELS } from '../../types/clientWorkspace';
 import { shortDate, relativeTime } from '../../utils/clientDerived';
+import type { AnnualReportSession } from '../../features/annualReport/types';
+import TaxSnapshot from '../../features/annualReport/TaxSnapshot';
 
 interface Props {
   client: Client;
@@ -14,9 +16,12 @@ interface Props {
   upcomingDebts: Task[];
   onPinNote: (text: string) => void;
   onAddNote: (text: string) => void;
-  onGotoTab: (tab: 'overview' | 'personal' | 'tax' | 'docs' | 'tasks') => void;
+  onGotoTab: (tab: 'overview' | 'personal' | 'tax' | 'taxProfile' | 'docs' | 'tasks') => void;
   onSelectTask: (id: string) => void;
   onToggleTaskDone: (id: string) => void;
+  taxSessions: AnnualReportSession[];
+  taxSessionsLoading?: boolean;
+  onOpenYear?: (taxYear: number) => void;
 }
 
 export default function OverviewTab({
@@ -29,6 +34,9 @@ export default function OverviewTab({
   onGotoTab,
   onSelectTask,
   onToggleTaskDone,
+  taxSessions,
+  taxSessionsLoading,
+  onOpenYear,
 }: Props) {
   const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState(client.pinnedNote ?? '');
@@ -63,6 +71,21 @@ export default function OverviewTab({
           <div className="cw-stat-num">{client.shaamStatus === 'active' ? '✓' : client.shaamStatus === 'inactive' ? '✗' : '?'}</div>
           <div className="cw-stat-label">שע״ם</div>
         </button>
+      </div>
+
+      {/* ── תמונת מס — מה שנאסף על הלקוח במבט אחד ── */}
+      <div className="cw-section" style={{ borderTop: '3px solid var(--blue)' }}>
+        <div className="cw-section-head">
+          <span>🧬 תמונת מס</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => onGotoTab('taxProfile')}>לפרופיל המלא ←</button>
+        </div>
+        <TaxSnapshot
+          client={client}
+          sessions={taxSessions}
+          loading={taxSessionsLoading}
+          variant="compact"
+          onOpenYear={onOpenYear}
+        />
       </div>
 
       {/* ── הערה מוצמדת ── */}

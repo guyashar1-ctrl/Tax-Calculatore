@@ -3,7 +3,7 @@
 // לפרופיל מס קריא — בלוקים לתצוגה + רשימת המסמכים הקבועה שנדרשת כל שנה.
 
 import type { Client } from '../../types';
-import type { TaxpayerModel } from './types';
+import type { TaxpayerModel, AnnualReportSession, IncomeSourceKind } from './types';
 import { FIELD_SOURCE_LABELS } from '../../types/clientWorkspace';
 
 // ─── זריעת עובדות מהכרטיס לתוך מודל השאלון ──────────────────────────────────
@@ -194,4 +194,74 @@ export function provenanceLabel(client: Client, metaKey?: string): string | null
   const src = FIELD_SOURCE_LABELS[meta.source] ?? meta.source;
   const when = meta.syncedAt ? new Date(meta.syncedAt).toLocaleDateString('he-IL', { month: 'numeric', year: 'numeric' }) : '';
   return when ? `${src} · ${when}` : src;
+}
+
+// ─── תמונת מס — סיכום תיקי השנה של הלקוח לתצוגה בכרטיס ──────────────────────
+
+export const SESSION_STATUS_META: Record<AnnualReportSession['status'], { label: string; color: string; bg: string }> = {
+  in_progress: { label: 'באמצע השאלון', color: '#1d4ed8', bg: '#dbeafe' },
+  review:      { label: 'ממתין לבדיקה', color: '#b45309', bg: '#fef3c7' },
+  mapping_done:{ label: 'מוכן להגשה', color: '#1F7A4D', bg: '#E8F3EC' },
+  archived:    { label: 'בארכיון', color: '#6b7280', bg: '#f3f4f6' },
+};
+
+const SOURCE_LABELS: Record<IncomeSourceKind, string> = {
+  salary: '💼 שכר', business: '🧾 עסק', rental: '🏠 שכירות', capital: '📈 שוק ההון',
+  interest: '💰 ריבית', dividend: '📊 דיבידנד', pension: '🌅 קצבאות', foreign: '✈️ חו"ל', other: '⭐ אחר',
+};
+
+export interface YearFileSummary {
+  sessionId: string;
+  taxYear: number;
+  status: AnnualReportSession['status'];
+  updatedAt: string;
+  sourceLabels: string[];
+  docsTotal: number;
+  docsReceived: number;
+  openUnknowns: number;
+}
+
+export function summarizeYearFile(session: AnnualReportSession): YearFileSummary {
+  const m = session.model;
+  const sources = (m.income?.sources ?? []).filter((s) => s !== 'interest'); // ריבית משתמעת משוק ההון
+  const docStatuses = m.meta?.docStatuses ?? {};
+  const docsList = Object.values(docStatuses);
+  return {
+    sessionId: session.id,
+    taxYear: session.taxYear,
+    status: session.status,
+    updatedAt: session.updatedAt,
+    sourceLabels: sources.map((s) => SOURCE_LABELS[s] ?? s),
+    docsTotal: docsList.length,
+    docsReceived: docsList.filter((s) => s === 'received').length,
+    openUnknowns: (m.meta?.unknownQuestions ?? []).length,
+  };
+}
+
+export interface TaxSnapshotAmount {
+  label: string;
+  value: string;
+  year?: number;
+}
+
+/** סכומי מפתח שנאספו — מהכרטיס ומתיק השנה האחרון. */
+export function buildKeyAmounts(client: Client, latest: AnnualReportSession | null): TaxSnapshotAmount[] {
+  const out: TaxSnapshotAmount[] = [];
+  const nis = (n: number) => `${Math.round(n).toLocaleString('he-IL')} ₪`;
+  const m = latest?.model;
+  const yr = latest?.taxYear;
+
+  const salaryTotal = (client.employers ?? []).reduce((s, e) => s + (e.grossSalaryAnnual ?? 0), 0);
+  if (salaryTotal > 0) out.push({ label: 'שכר ברוטו (106)', value: nis(salaryTotal) });
+
+  if ((m?.income?.rentalGrossAnnual ?? 0) > 0) out.push({ label: 'שכר דירה שהתקבל', value: nis(m!.income!.rentalGrossAnnual!), year: yr });
+  if ((m?.income?.rentPaidAnnual ?? 0) > 0) out.push({ label: 'שכר דירה ששולם', value: nis(m!.income!.rentPaidAnnual!), year: yr });
+
+  const donations = client.donationsAnnual ?? m?.deductionsCredits?.donationAmount ?? 0;
+  if (donations > 0) out.push({ label: 'תרומות', value: nis(donations) });
+
+  const lifeIns = client.lifeInsuranceAnnual ?? m?.deductionsCredits?.lifeInsuranceAnnual ?? 0;
+  if (lifeIns > 0) out.push({ label: 'ביטוח חיים', value: nis(lifeIns) });
+
+  return out;
 }

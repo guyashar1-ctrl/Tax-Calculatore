@@ -20,12 +20,23 @@ interface Props {
   clients: Client[];
   userId: string | undefined;
   onUpdateClient?: (client: Client) => Promise<Client>;
+  /** בחירה מוקדמת (מ"פתח ←" בכרטיס הלקוח) — נפתחת אוטומטית פעם אחת. */
+  initialSelection?: { clientId: string; taxYear: number } | null;
+  onConsumeInitialSelection?: () => void;
 }
 
-export default function AnnualReport({ clients, userId, onUpdateClient }: Props) {
+export default function AnnualReport({ clients, userId, onUpdateClient, initialSelection, onConsumeInitialSelection }: Props) {
   const { sessions, loading, startOrResume, removeSession, restartForEdit } = useAnnualReportSessions(userId);
   const [mode, setMode] = useState<Mode>('entry');
   const [currentSession, setCurrentSession] = useState<AnnualReportSession | null>(null);
+
+  // פתיחה אוטומטית של תיק שנבחר מהכרטיס
+  useEffect(() => {
+    if (!initialSelection) return;
+    void handleStart(initialSelection.clientId, initialSelection.taxYear);
+    onConsumeInitialSelection?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSelection?.clientId, initialSelection?.taxYear]);
 
   // אם session מסומן כ-mapping_done/review, פתח את ה-output ישר
   // (אבל לא אם המשתמש כרגע במצב sync_confirmation — שזה שלב ביניים אחרי השאלון).
