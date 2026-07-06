@@ -136,7 +136,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => (m.identity?.childrenCount ?? 0) > 0,
     modelPath: 'identity.children',
-    sourceQuestionIds: ['children_count', 'children_details_required'],
+    sourceQuestionIds: ['children_count'],
     requiredDocuments: [
       { code: 'children_id', name: 'תעודות זהות ילדים + ספח', reason: 'אימות גילאי הילדים לחישוב נקודות זיכוי' },
     ],
@@ -212,7 +212,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => has(m, 'salary') || m.income?.hasPensionIncome === true,
     modelPath: 'income.salary.totalWithheld',
-    sourceQuestionIds: ['salary_employer_count', 'had_withholding_at_source'],
+    sourceQuestionIds: ['salary_employer_count'],
     requiredDocuments: [
       { code: '106', name: 'טופס 106', reason: 'הסכום מופיע על גבי הטופס' },
     ],
@@ -271,9 +271,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'הכנסה ברוטו ממשכורת — בן/בת הזוג',
     section: '3_income_salary',
     required: 'conditional',
-    conditionalOn: (m) => isMarried(m) && m.identity?.spouseHasIncome === true && m.spouse?.has106 === true,
+    conditionalOn: (m) => isMarried(m) && m.identity?.spouseHasIncome === true && m.spouse?.has106 === true, // נגזר משאלת מקורות בן הזוג
     modelPath: 'spouse.salary.totalGross',
-    sourceQuestionIds: ['marital_status', 'spouse_has_106'],
+    sourceQuestionIds: ['marital_status', 'spouse_income_kinds'],
     requiredDocuments: [
       { code: '106_spouse', name: 'טופס 106 של בן/בת הזוג', reason: 'דיווח הכנסת התא המשפחתי' },
     ],
@@ -286,9 +286,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'עבודה במשמרות בתעשייה (זיכוי 15%)',
     section: '3_income_salary',
     required: 'conditional',
-    conditionalOn: (m) => m.income?.hasShiftWork === true,
+    conditionalOn: (m) => has(m, 'salary'), // נקרא מה-106
     modelPath: 'income.hasShiftWork',
-    sourceQuestionIds: ['shift_work'],
+    sourceQuestionIds: ['salary_employer_count'],
     requiredDocuments: [
       { code: '106_shift', name: 'טופס 106 עם פירוט תוספת משמרות', reason: 'הזיכוי מוגבל לתקרה שנתית' },
     ],
@@ -301,9 +301,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'הכנסה ממימוש אופציות 102 / 3i',
     section: '3_income_salary',
     required: 'conditional',
-    conditionalOn: (m) => m.income?.hasOptions102 === true,
+    conditionalOn: (m) => has(m, 'salary'), // מופיע ב-106 כשקיים
     modelPath: 'income.options102Total',
-    sourceQuestionIds: ['has_options_102'],
+    sourceQuestionIds: ['salary_employer_count'],
     requiredDocuments: [
       { code: 'options_102_cert', name: 'אישור מהמעביד / נאמן על מימוש אופציות', reason: 'דיווח שווי המימוש' },
     ],
@@ -318,7 +318,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => has(m, 'business'),
     modelPath: 'income.business.netIncome',
-    sourceQuestionIds: ['business_kind', 'biz_revenue_band'],
+    sourceQuestionIds: ['business_kind'],
     requiredDocuments: [
       { code: 'biz_pnl', name: 'דוח רווח-הפסד שנתי', reason: 'בסיס לחישוב הכנסה חייבת' },
       { code: 'annex_1320', name: 'נספח א\' (1320)', reason: 'פירוט ההכנסה מעסק לכל עסק בנפרד' },
@@ -333,9 +333,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'חובת הגשת טופס 6111 (מחזור מעל 300K)',
     section: '4_income_business',
     required: 'conditional',
-    conditionalOn: (m) => m.income?.bizRevenueBand === '300k_plus',
+    conditionalOn: (m) => has(m, 'business'), // נקבע לפי המחזור בדוח רו"ה
     modelPath: 'income.business.requires6111',
-    sourceQuestionIds: ['biz_revenue_band'],
+    sourceQuestionIds: ['business_kind'],
     requiredDocuments: [
       { code: '6111', name: 'טופס 6111 — מאזן ודוח רווח-הפסד מקודד', reason: 'חובה לעסק עם מחזור מעל 300,000 ₪ (הוראות 2025)' },
     ],
@@ -345,9 +345,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'ניכוי במקור מלקוחות (לעצמאי)',
     section: '4_income_business',
     required: 'conditional',
-    conditionalOn: (m) => m.income?.bizHasClientWithholding === true,
+    conditionalOn: (m) => has(m, 'business'), // נמשך מאישורי 857
     modelPath: 'income.business.clientWithholding',
-    sourceQuestionIds: ['biz_has_client_withholding'],
+    sourceQuestionIds: ['business_kind'],
     requiredDocuments: [
       { code: '857', name: 'טופס 857 — אישור ניכוי במקור', reason: 'סך הניכוי במקור מלקוחות לעצמאי' },
     ],
@@ -582,7 +582,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     conditionalOn: (m) =>
       anyNiBenefit(m) && (has(m, 'salary') || !has(m, 'business')),
     modelPath: 'income.niBenefitsOwner',
-    sourceQuestionIds: ['ni_maternity', 'ni_unemployment', 'ni_reserve_duty', 'ni_work_injury'],
+    sourceQuestionIds: ['ni_benefits'],
     requiredDocuments: [
       { code: 'ni_annual_cert', name: 'אישור שנתי מביטוח לאומי על תקבולים חייבים', reason: 'סכום אחד שנתי לכל התקבולים כשכיר' },
     ],
@@ -597,7 +597,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => anyNiBenefit(m) && has(m, 'business'),
     modelPath: 'income.niBenefitsOwner',
-    sourceQuestionIds: ['ni_maternity', 'ni_unemployment', 'ni_reserve_duty', 'ni_work_injury'],
+    sourceQuestionIds: ['ni_benefits'],
     requiredDocuments: [
       { code: 'ni_annual_cert', name: 'אישור שנתי מביטוח לאומי על תקבולים חייבים', reason: 'סכום אחד שנתי לכל התקבולים כעצמאי' },
     ],
@@ -802,7 +802,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'תשלומים לקופ"ג לקצבה — "עמית עצמאי" (ניכוי)',
     section: '8_deductions',
     required: 'conditional',
-    conditionalOn: (m) => (m.deductionsCredits?.selfPensionDeposits ?? 0) > 0,
+    conditionalOn: (m) => (m.deductionsCredits?.selfPensionDeposits ?? 0) > 0 || m.deductionsCredits?.hasSelfPensionDeposits === true,
     modelPath: 'deductionsCredits.selfPensionDeposits',
     sourceQuestionIds: ['self_pension'],
     requiredDocuments: [
@@ -818,7 +818,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'תשלומים לקופ"ג לקצבה — זיכוי "עמית עצמאי" (35%)',
     section: '8_deductions',
     required: 'conditional',
-    conditionalOn: (m) => (m.deductionsCredits?.selfPensionDeposits ?? 0) > 0,
+    conditionalOn: (m) => (m.deductionsCredits?.selfPensionDeposits ?? 0) > 0 || m.deductionsCredits?.hasSelfPensionDeposits === true,
     modelPath: 'deductionsCredits.selfPensionDeposits',
     sourceQuestionIds: ['self_pension'],
     requiredDocuments: [],
@@ -1037,9 +1037,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'מקדמות מ"ה ששולמו במהלך השנה',
     section: '10_tax_paid',
     required: 'conditional',
-    conditionalOn: (m) => m.taxPaid?.paidAdvancePayments === true,
+    conditionalOn: (m) => has(m, 'business') || has(m, 'rental') || has(m, 'capital') || has(m, 'foreign'), // דוח מקדמות משע"ם
     modelPath: 'taxPaid.advancePaymentsTotal',
-    sourceQuestionIds: ['paid_advance_payments'],
+    sourceQuestionIds: ['year_map'],
     requiredDocuments: [
       { code: 'advance_payments', name: 'דוח מקדמות שנתי מאזור האישי בשע"ם', reason: 'סכום המקדמות לקיזוז כנגד חוב המס' },
     ],
@@ -1049,9 +1049,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'סך ניכוי במקור מכל המקורות',
     section: '10_tax_paid',
     required: 'conditional',
-    conditionalOn: (m) => (m.taxPaid?.withholdingSources ?? []).length > 0,
+    conditionalOn: (m) => (m.income?.sources ?? []).length > 0, // מסוכם מהמסמכים
     modelPath: 'taxPaid.withholdingTotal',
-    sourceQuestionIds: ['had_withholding_at_source'],
+    sourceQuestionIds: ['year_map'],
     requiredDocuments: [
       { code: '857_837_summary', name: 'אישורי ניכוי במקור (857/837/867)', reason: 'סכום כולל לקיזוז' },
     ],
@@ -1513,7 +1513,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.income?.requestsMaternitySpread === true,
     modelPath: 'income.requestsMaternitySpread',
-    sourceQuestionIds: ['ni_maternity'],
+    sourceQuestionIds: ['ni_benefits'],
     requiredDocuments: [],
     dataLayer: 'question',
     officialRef: 'מדריך 2025 עמ\' 9 — פריסת דמי לידה',
@@ -1697,7 +1697,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => has(m, 'business'),
     modelPath: 'income.business.turnover',
-    sourceQuestionIds: ['biz_revenue_band'],
+    sourceQuestionIds: ['business_kind'],
     requiredDocuments: [],
     dataLayer: 'document',
     codes: { joint: '294' },
@@ -1727,7 +1727,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     required: 'conditional',
     conditionalOn: (m) => m.taxPaid?.hasTaxRefundInterest === true,
     modelPath: 'taxPaid.hasTaxRefundInterest',
-    sourceQuestionIds: ['paid_advance_payments'],
+    sourceQuestionIds: ['year_map'],
     requiredDocuments: [],
     dataLayer: 'accountant',
     codes: { joint: '353' },
@@ -1738,9 +1738,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     hebrewLabel: 'ניכוי במקור מהכנסות אחרות (רווחי הון, שכ"ד, ספקים)',
     section: '10_tax_paid',
     required: 'conditional',
-    conditionalOn: (m) => (m.taxPaid?.withholdingSources ?? []).some((s) => s !== 'salary_106'),
+    conditionalOn: (m) => has(m, 'business') || has(m, 'rental') || has(m, 'capital'),
     modelPath: 'taxPaid.withholdingTotal',
-    sourceQuestionIds: ['had_withholding_at_source'],
+    sourceQuestionIds: ['year_map'],
     requiredDocuments: [
       { code: '857_837_867', name: 'אישורי ניכוי במקור (857/837/867)', reason: 'סכום כולל לקיזוז — מתואם עם שדה 040' },
     ],

@@ -227,6 +227,8 @@ export interface TaxpayerModel {
     hasLifeInsurance?: boolean;
     lifeInsuranceAnnual?: number;
     selfPensionDeposits?: number;
+    /** יש הפקדות עצמאיות לקצבה — הסכום נקרא מאישור הקופה. */
+    hasSelfPensionDeposits?: boolean;
     selfStudyFundDeposits?: number;
     hasKerenHashtalmutSelf?: boolean;
     isDischargedSoldier?: boolean;
@@ -388,8 +390,12 @@ export interface QuestionPreviewClient {
   qualifyingSettlementId?: string;
   completedIdf?: boolean;
   idfReleaseYear?: number;
+  completedNationalService?: boolean;
+  nationalServiceYear?: number;
   hasAcademicDegree?: boolean;
   academicDegreeYear?: number;
+  hasKrenHashtalmut?: boolean;
+  isSubstantialShareholder?: boolean;
 
   // ─── סכומים שנתיים לזיכויים ──────────────────────────────────────────
   donationsAnnual?: number;
@@ -400,7 +406,7 @@ export interface QuestionPreviewClient {
 
   // ─── עסקים, נכסים, השקעות ────────────────────────────────────────────
   rentalTaxTrack?: 'exempt' | 'flat10' | 'regular';
-  businesses?: Array<{ id: string; name: string; kind: string; revenueAnnual?: number; belongsToSpouse?: boolean }>;
+  businesses?: Array<{ id: string; name: string; kind: string; revenueAnnual?: number; belongsToSpouse?: boolean; isClosed?: boolean }>;
 
   // ─── דיווחי חובה ומצבים מיוחדים ──────────────────────────────────────
   isFamilyCompanyMember?: boolean;
