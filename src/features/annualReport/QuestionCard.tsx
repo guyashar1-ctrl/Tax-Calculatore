@@ -186,6 +186,18 @@ export default function QuestionCard({
             >
               לא
             </button>
+            {node.audience !== 'accountant' && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => onSubmit('unknown')}
+                disabled={disabled}
+                style={{ color: 'var(--gray-500)' }}
+                title="נמשיך הלאה — רואה החשבון יבדוק את זה איתך"
+              >
+                🤷 לא בטוח/ה
+              </button>
+            )}
           </div>
         )}
 

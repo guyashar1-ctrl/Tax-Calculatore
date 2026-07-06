@@ -5,6 +5,7 @@ import CoverageRail from './CoverageRail';
 import CardSectionEditor from './CardSectionEditor';
 import AnnualDeltaScreen, { type DeltaResult } from './AnnualDeltaScreen';
 import { replayAnswers } from './engine';
+import { seedModelFromClient } from './profile';
 import { findSession, saveAnswer, updateSessionState } from './repository';
 import { useAnnualReportFlow } from './useAnnualReportSession';
 import { getQuestionById } from './engine';
@@ -68,7 +69,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
       }
       const done = currentQuestionId === null;
       const updated = await updateSessionState(session.id, {
-        model,
+        model: client ? seedModelFromClient(model, client) : model,
         currentQuestionId,
         status: done ? 'review' : 'in_progress',
         completedAt: done ? new Date().toISOString() : null,
@@ -234,7 +235,9 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
         <nav aria-label="עץ הראיון" className="ar-chnav">
           <CoverageRail
             model={session.model}
-            answeredQuestionIds={new Set(priorAnswers.keys())}
+            answeredQuestionIds={new Set(
+              [...priorAnswers.entries()].filter(([, v]) => v !== 'unknown').map(([k]) => k),
+            )}
             currentQuestionId={session.currentQuestionId}
             client={client}
             session={session}

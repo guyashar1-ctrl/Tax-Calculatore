@@ -12,6 +12,7 @@ import SyncConfirmation from './SyncConfirmation';
 import TaxConstantsDashboard from './TaxConstantsDashboard';
 import TreeMapView from './TreeMapView';
 import CoverageGate from './CoverageGate';
+import { seedModelFromClient } from './profile';
 
 type Mode = 'entry' | 'questionnaire' | 'sync_confirmation' | 'answers_review' | 'gate' | 'output' | 'dashboard' | 'treemap';
 
@@ -42,7 +43,9 @@ export default function AnnualReport({ clients, userId, onUpdateClient }: Props)
 
   async function handleStart(clientId: string, taxYear: number) {
     const s = await startOrResume(clientId, taxYear);
-    setCurrentSession(s);
+    // עובדות שנגזרות מהכרטיס (ישוב מזכה לפי כתובת) נזרעות למודל בלי לשאול.
+    const client = clients.find((c) => c.id === clientId);
+    setCurrentSession(client ? { ...s, model: seedModelFromClient(s.model, client) } : s);
   }
 
   function handleQuestionnaireFinished(session: AnnualReportSession) {

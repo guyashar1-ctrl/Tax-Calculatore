@@ -82,7 +82,30 @@ export function useAnnualReportFlow(
     setError(null);
     try {
       setHistory((prev) => [...prev, { questionId: qid, model: session.model }]);
-      let { model: newModel, nextQuestionId } = answerAndAdvance(session.model, qid, answer);
+      // "לא בטוח": ממשיכים כאילו "לא" (לא פותחים תת-ענף), אבל השאלה מסומנת
+      // לבירור רו"ח והסעיפים שלה נשארים 🟡 פתוחים בשער הכיסוי.
+      const isUnknown = answer === 'unknown';
+      const effectiveAnswer: AnswerValue = isUnknown ? false : answer;
+      let { model: newModel, nextQuestionId } = answerAndAdvance(session.model, qid, effectiveAnswer);
+      if (isUnknown) {
+        const prevUnknown = newModel.meta?.unknownQuestions ?? [];
+        newModel = {
+          ...newModel,
+          meta: {
+            ...(newModel.meta ?? {}),
+            unknownQuestions: prevUnknown.includes(qid) ? prevUnknown : [...prevUnknown, qid],
+          },
+        };
+      } else if (newModel.meta?.unknownQuestions?.includes(qid)) {
+        // נענתה מחדש בתשובה אמיתית — יורדת מרשימת הבירורים
+        newModel = {
+          ...newModel,
+          meta: {
+            ...newModel.meta,
+            unknownQuestions: newModel.meta.unknownQuestions.filter((q) => q !== qid),
+          },
+        };
+      }
       // צריכה אוטומטית של תשובות שהועתקו מהשנה הקודמת — הלקוח לא רואה אותן,
       // אבל הן נשמרות למסד כדי שהכיסוי והעריכה יכירו אותן.
       let guard = 0;
