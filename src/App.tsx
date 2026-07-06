@@ -158,6 +158,8 @@ export default function App() {
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  // בחירה מוקדמת לדוח השנתי (מתוך "פתח ←" בתמונת המס של הכרטיס)
+  const [annualReportSelection, setAnnualReportSelection] = useState<{ clientId: string; taxYear: number } | null>(null);
   const db = useDocumentDB();
 
   // ── ניהול משימות ───────────────────────────────────────────────────────
@@ -741,6 +743,10 @@ export default function App() {
             onChangeTaskCategory={handleChangeTaskCategory}
             onReorderTask={handleReorderTask}
             onDeleteTask={handleDeleteTask}
+            onOpenAnnualReport={(clientId, taxYear) => {
+              setAnnualReportSelection({ clientId, taxYear });
+              setView('annualReport');
+            }}
           />
         )}
 
@@ -785,6 +791,8 @@ export default function App() {
             clients={clients}
             userId={user?.id}
             onUpdateClient={updateClient}
+            initialSelection={annualReportSelection}
+            onConsumeInitialSelection={() => setAnnualReportSelection(null)}
           />
         )}
 

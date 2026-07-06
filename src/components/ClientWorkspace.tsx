@@ -12,6 +12,7 @@ import PersonalContactsTab from './clientTabs/PersonalContactsTab';
 import TaxNITab from './clientTabs/TaxNITab';
 import TaxProfileTab from './clientTabs/TaxProfileTab';
 import DocumentsTab from './clientTabs/DocumentsTab';
+import { useClientTaxSessions } from '../features/annualReport/useClientTaxSessions';
 import TasksActivityTab from './clientTabs/TasksActivityTab';
 
 const VAT_LABELS: Record<VATStatus, string> = {
@@ -55,6 +56,8 @@ interface Props {
   onChangeTaskCategory: (id: string, category: import('../types').TaskCategory) => void;
   onReorderTask: (id: string, targetProgress: import('../types').TaskProgress | 'done', beforeId: string | null) => void;
   onDeleteTask: (id: string) => void;
+  // פתיחת הדוח השנתי לשנה מסוימת (מתוך תמונת המס בכרטיס)
+  onOpenAnnualReport?: (clientId: string, taxYear: number) => void;
 }
 
 function newEmptyClient(): Client {
@@ -104,6 +107,7 @@ export default function ClientWorkspace({
   onChangeTaskCategory,
   onReorderTask,
   onDeleteTask,
+  onOpenAnnualReport,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
@@ -113,6 +117,11 @@ export default function ClientWorkspace({
 
   const db = useDocumentDB();
   const { employees, findEmployee } = useEmployees();
+  const { sessions: taxSessions, loading: taxSessionsLoading } = useClientTaxSessions(client.id || undefined);
+
+  const openYear = onOpenAnnualReport && client.id
+    ? (taxYear: number) => onOpenAnnualReport(client.id, taxYear)
+    : undefined;
 
   useEffect(() => {
     if (initialClient) {
@@ -294,6 +303,9 @@ export default function ClientWorkspace({
             onGotoTab={(t) => setTab(t)}
             onSelectTask={onSelectTask}
             onToggleTaskDone={onToggleTaskDone}
+            taxSessions={taxSessions}
+            taxSessionsLoading={taxSessionsLoading}
+            onOpenYear={openYear}
           />
         )}
 
@@ -314,7 +326,12 @@ export default function ClientWorkspace({
         )}
 
         {tab === 'taxProfile' && (
-          <TaxProfileTab client={client} />
+          <TaxProfileTab
+            client={client}
+            sessions={taxSessions}
+            loading={taxSessionsLoading}
+            onOpenYear={openYear}
+          />
         )}
 
         {tab === 'docs' && (

@@ -54,6 +54,17 @@ export async function listSessions(): Promise<AnnualReportSession[]> {
   return (data ?? []).map((r) => rowToSession(r as SessionRow));
 }
 
+// כל תיקי השנה של לקוח מסוים — לתצוגת "תמונת מס" בכרטיס הלקוח.
+export async function listSessionsForClient(clientId: string): Promise<AnnualReportSession[]> {
+  const { data, error } = await supabase
+    .from('annual_report_sessions')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('tax_year', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => rowToSession(r as SessionRow));
+}
+
 export async function createSession(
   userId: string,
   clientId: string,
