@@ -9,7 +9,8 @@ export interface FirmBranding {
   accentColor?: string; // hex, למשל #4F46E5
   font?: string;        // למשל 'Heebo'
   monogram?: string;    // ראשי תיבות — דריסה ידנית; אחרת נגזר משם המשרד
-  logoPath?: string;    // עתידי — נתיב ב-Storage; כרגע משתמשים במונוגרמה
+  logoPath?: string;    // נתיב הקובץ ב-Storage (bucket: firm-logos) — לצורך החלפה/מחיקה
+  logoUrl?: string;     // כתובת ציבורית ללוגו — מוצגת באפליקציה, בעמודי הלקוח ובמיילים
 }
 
 export type PreferredLanguage = 'he' | 'en';

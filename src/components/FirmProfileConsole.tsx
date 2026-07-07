@@ -12,6 +12,11 @@ import {
 import { Client } from '../types';
 import EmployeesPanel from './EmployeesPanel';
 import EmailActivityModule from './EmailActivity/EmailActivityModule';
+import { supabase } from '../lib/supabase';
+
+const LOGO_BUCKET = 'firm-logos';
+const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2MB
+const LOGO_MIME = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
 
 interface Props {
   profile: FirmProfile;
@@ -61,6 +66,53 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
+
+  async function handleLogoFile(file: File | null) {
+    if (!file) return;
+    setError(null);
+    if (!LOGO_MIME.includes(file.type)) {
+      setError('פורמט לא נתמך — יש להעלות PNG, JPG, SVG או WEBP');
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      setError('הקובץ גדול מדי — עד 2MB');
+      return;
+    }
+    setLogoBusy(true);
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      const path = `${profile.id}/logo-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from(LOGO_BUCKET)
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
+      const prevPath = draft.branding.logoPath;
+      setDraft(d => ({ ...d, branding: { ...d.branding, logoUrl: pub.publicUrl, logoPath: path } }));
+      if (prevPath && prevPath !== path) {
+        await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
+      }
+    } catch (e) {
+      setError(extractErr(e));
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  async function handleLogoRemove() {
+    setError(null);
+    setLogoBusy(true);
+    try {
+      const prevPath = draft.branding.logoPath;
+      if (prevPath) await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
+      setDraft(d => ({ ...d, branding: { ...d.branding, logoUrl: undefined, logoPath: undefined } }));
+    } catch (e) {
+      setError(extractErr(e));
+    } finally {
+      setLogoBusy(false);
+    }
+  }
 
   // השוואה ללא שדות שהשרת מנהל (updated_at משתנה בכל שמירה), ובאופן אדיש לסדר
   // המפתחות — כי jsonb ב-Postgres מחזיר מפתחות בסדר אחר ואחרת dirty לעולם לא מתאפס.
@@ -80,6 +132,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const theme = BRAND_THEMES.find(t => t.id === (draft.branding.theme ?? 'monochrome')) ?? BRAND_THEMES[0];
   const monogram = (draft.branding.monogram || deriveMonogram(draft.firmName)).slice(0, 2);
   const previewAccent = draft.branding.accentColor || theme.accent;
+  const logoUrl = draft.branding.logoUrl;
 
   const completeness = useMemo(() => {
     const checks = [
@@ -190,16 +243,20 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
             <>
               <div style={card}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ width: 58, height: 58, borderRadius: '50%', border: `1.5px solid ${theme.ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 500, color: theme.ink }}>{monogram}</div>
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="לוגו המשרד" style={{ width: 58, height: 58, borderRadius: 10, objectFit: 'contain', border: '1px solid var(--gray-200)', background: 'white' }} />
+                  ) : (
+                    <div style={{ width: 58, height: 58, borderRadius: '50%', border: `1.5px solid ${theme.ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 500, color: theme.ink }}>{monogram}</div>
+                  )}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 16, fontWeight: 500 }}>{draft.firmName || 'שם המשרד'}</div>
                     <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
                       {draft.representativeNumber ? `מספר מייצג ${draft.representativeNumber}` : 'מספר מייצג —'} · {draft.representativeType || 'רואה חשבון'}
                     </div>
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--gray-400)' }} title="העלאת לוגו תתאפשר בשלב עמודי הלקוח">
-                    <i className="ti ti-photo" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />לוגו · בקרוב
-                  </span>
+                  <button className="btn" onClick={() => setSection('branding')} style={{ fontSize: 11.5, padding: '5px 10px' }}>
+                    <i className="ti ti-photo" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />{logoUrl ? 'החלף לוגו' : 'הוסף לוגו'}
+                  </button>
                 </div>
               </div>
 
@@ -217,12 +274,44 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                 </div>
               </div>
 
-              <ClientPreview firmName={draft.firmName} monogram={monogram} ink={theme.ink} accent={previewAccent} />
+              <ClientPreview firmName={draft.firmName} monogram={monogram} ink={theme.ink} accent={previewAccent} logoUrl={logoUrl} />
             </>
           )}
 
           {section === 'branding' && (
             <>
+              <div style={card}>
+                <div style={cardTitle}>לוגו המשרד</div>
+                <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
+                  יופיע בראש המיילים ללקוח, בעמודי ההזדהות ובתצוגות. מומלץ <b>PNG או JPG</b> עם רקע שקוף — כדי שיוצג תקין גם במיילים (SVG מתאים לאתר אך חלק מתוכנות המייל חוסמות אותו).
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ width: 96, height: 96, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                    {logoUrl
+                      ? <img src={logoUrl} alt="לוגו" style={{ maxWidth: '86%', maxHeight: '86%', objectFit: 'contain' }} />
+                      : <i className="ti ti-photo" style={{ fontSize: 26, color: 'var(--gray-400)' }} aria-hidden="true" />}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+                    <label className="btn btn-primary" style={{ cursor: logoBusy ? 'default' : 'pointer', opacity: logoBusy ? 0.6 : 1 }}>
+                      {logoBusy ? 'מעלה…' : logoUrl ? 'החלף לוגו' : 'העלה לוגו'}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                        style={{ display: 'none' }}
+                        disabled={logoBusy}
+                        onChange={e => { const f = e.target.files?.[0] ?? null; void handleLogoFile(f); e.target.value = ''; }}
+                      />
+                    </label>
+                    {logoUrl && (
+                      <button className="btn" onClick={() => void handleLogoRemove()} disabled={logoBusy} style={{ fontSize: 12.5 }}>
+                        <i className="ti ti-trash" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />הסר לוגו
+                      </button>
+                    )}
+                    <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>PNG · JPG · SVG · WEBP · עד 2MB</div>
+                  </div>
+                </div>
+              </div>
+
               <div style={card}>
                 <div style={cardTitle}>ערכת מותג</div>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
@@ -253,7 +342,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   </Field>
                 </div>
               </div>
-              <ClientPreview firmName={draft.firmName} monogram={monogram} ink={theme.ink} accent={previewAccent} />
+              <ClientPreview firmName={draft.firmName} monogram={monogram} ink={theme.ink} accent={previewAccent} logoUrl={logoUrl} />
             </>
           )}
 
@@ -335,7 +424,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ClientPreview({ firmName, monogram, ink, accent }: { firmName?: string; monogram: string; ink: string; accent: string }) {
+function ClientPreview({ firmName, monogram, ink, accent, logoUrl }: { firmName?: string; monogram: string; ink: string; accent: string; logoUrl?: string }) {
   return (
     <div style={{ border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 12, background: 'var(--gray-50)' }}>
       <div style={{ fontSize: 10.5, letterSpacing: '.05em', color: 'var(--gray-400)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -343,8 +432,12 @@ function ClientPreview({ firmName, monogram, ink, accent }: { firmName?: string;
       </div>
       <div style={{ maxWidth: 320, background: '#fff', border: '1px solid #E7E6E1', borderRadius: 12, padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
-          <div style={{ width: 24, height: 24, borderRadius: '50%', border: `1.5px solid ${ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 500, color: ink }}>{monogram}</div>
-          <span style={{ fontSize: 11, color: ink }}>{firmName || 'משרד רואי חשבון'}</span>
+          {logoUrl
+            ? <img src={logoUrl} alt="" style={{ maxHeight: 24, maxWidth: 110, objectFit: 'contain' }} />
+            : <>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', border: `1.5px solid ${ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 500, color: ink }}>{monogram}</div>
+                <span style={{ fontSize: 11, color: ink }}>{firmName || 'משרד רואי חשבון'}</span>
+              </>}
         </div>
         <div style={{ fontSize: 15, fontWeight: 500, color: '#111', marginBottom: 3 }}>נעים להכיר</div>
         <div style={{ fontSize: 11.5, color: '#6B6B68', marginBottom: 12 }}>נשאר רק לאמת את הזהות.</div>

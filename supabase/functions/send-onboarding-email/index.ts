@@ -1,6 +1,6 @@
 // Edge Function: send-onboarding-email
 // שולח את מייל ההזדנות ללקוח. כל הזהות (שם משרד, מיתוג, כתובת שולח, reply-to,
-// חתימה) נקראת מ-Firm Profile (טבלת profiles) — אין ערכים קשיחים. מעבר לדומיין
+// חתימה, לוגו) נקראת מ-Firm Profile (טבלת profiles) — אין ערכים קשיחים. מעבר לדומיין
 // מותאם בעתיד = עדכון senderEmail ב-Firm Profile + אימות הדומיין אצל הספק, בלי שינוי קוד.
 //
 // אבטחה: verify_jwt=false בשער, ואימות פנימי — מאמת את המשתמש מה-JWT ושהבקשה שלו.
@@ -8,6 +8,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const THEME_INK: Record<string, string> = { monochrome: "#1A1A1A", navy: "#0E1F3A", emerald: "#0B3B36" };
+const THEME_ACCENT: Record<string, string> = { monochrome: "#4F46E5", navy: "#C9A75A", emerald: "#10B981" };
 
 function deriveMonogram(firmName: string): string {
   if (!firmName) return "★";
@@ -17,19 +18,36 @@ function deriveMonogram(firmName: string): string {
   return (words[0][0] || "") + (words[1][0] || "");
 }
 
-function emailHtml(o: { firmName: string; ink: string; monogram: string; clientFirst: string; link: string; signature: string }) {
+// עיצוב המייל: מבנה טבלה + כיוון RTL מוטמע בכל אלמנט (Gmail מוחק dir מתגית <html>,
+// לכן חובה direction/text-align inline). לוגו מחליף את המונוגרמה כשקיים.
+function emailHtml(o: { firmName: string; ink: string; accent: string; monogram: string; logoUrl: string; clientFirst: string; link: string; signature: string }) {
   const sig = o.signature ? o.signature.replace(/\n/g, "<br/>") : ("בברכה,<br/>" + o.firmName);
-  return `<!doctype html><html dir="rtl" lang="he"><body style="margin:0;background:#F1F0EC;font-family:Arial,Helvetica,sans-serif;">`
-    + `<div style="max-width:480px;margin:0 auto;padding:24px 16px;">`
-    + `<div style="background:#fff;border:1px solid #E7E6E1;border-radius:14px;padding:30px 34px;">`
-    + `<div style="margin-bottom:24px;"><span style="display:inline-block;width:28px;height:28px;line-height:26px;text-align:center;border:1.5px solid ${o.ink};border-radius:50%;color:${o.ink};font-size:12px;">${o.monogram}</span>`
-    + `<span style="font-size:13px;color:${o.ink};margin-inline-start:8px;">${o.firmName}</span></div>`
-    + `<div style="font-size:21px;font-weight:bold;color:#111;margin-bottom:10px;">נעים להכיר${o.clientFirst ? ", " + o.clientFirst : ""}</div>`
-    + `<div style="font-size:14px;line-height:1.7;color:#5C5C58;margin-bottom:22px;">שמחים שבחרתם בנו. כדי שנתחיל לייצג אתכם מול רשויות המס, נשאר רק לאמת כמה פרטי זיהוי — פחות מדקה, מאובטח.</div>`
-    + `<a href="${o.link}" style="display:block;background:${o.ink};color:#fff;text-decoration:none;text-align:center;border-radius:10px;padding:14px;font-size:15px;font-weight:bold;margin-bottom:14px;">להשלמת הפרטים ←</a>`
-    + `<div style="text-align:center;font-size:11px;color:#9A9A95;margin-bottom:24px;word-break:break-all;">${o.link}</div>`
-    + `<div style="border-top:1px solid #F0EFEB;padding-top:18px;font-size:12.5px;line-height:1.7;color:#6B6B68;">${sig}</div>`
-    + `</div></div></body></html>`;
+  const fontStack = "Arial,Helvetica,sans-serif";
+  const header = o.logoUrl
+    ? `<img src="${o.logoUrl}" alt="${o.firmName}" style="max-height:44px;max-width:190px;display:block;border:0;" />`
+    : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" dir="rtl"><tr>`
+      + `<td style="vertical-align:middle;"><div style="width:34px;height:34px;border-radius:50%;border:1.5px solid ${o.ink};text-align:center;line-height:31px;font-family:${fontStack};font-size:13px;color:${o.ink};">${o.monogram}</div></td>`
+      + `<td style="vertical-align:middle;padding-right:10px;font-family:${fontStack};font-size:14px;color:${o.ink};">${o.firmName}</td>`
+      + `</tr></table>`;
+  return `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>`
+    + `<body style="margin:0;padding:0;background:#F1F0EC;">`
+    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="background:#F1F0EC;">`
+    + `<tr><td align="center" style="padding:28px 16px;">`
+    + `<table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:480px;max-width:480px;background:#ffffff;border:1px solid #ECEBE6;border-radius:16px;overflow:hidden;">`
+    + `<tr><td style="height:4px;background:${o.accent};line-height:4px;font-size:0;">&nbsp;</td></tr>`
+    + `<tr><td style="padding:30px 32px;direction:rtl;text-align:right;">`
+    + header
+    + `<div style="font-family:${fontStack};font-size:22px;font-weight:bold;line-height:1.3;color:#111111;margin:22px 0 12px;">נעים להכיר${o.clientFirst ? ", " + o.clientFirst : ""}</div>`
+    + `<div style="font-family:${fontStack};font-size:15px;line-height:1.75;color:#575752;margin-bottom:26px;">שמחים שבחרתם בנו. כדי שנתחיל לייצג אתכם מול רשויות המס, נשאר רק לאמת כמה פרטי זיהוי — פחות מדקה, מאובטח.</div>`
+    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="border-radius:10px;background:${o.ink};">`
+    + `<a href="${o.link}" style="display:block;padding:15px 20px;font-family:${fontStack};font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;text-align:center;border-radius:10px;">להשלמת הפרטים&nbsp;&nbsp;←</a>`
+    + `</td></tr></table>`
+    + `<div dir="ltr" style="text-align:center;font-family:${fontStack};font-size:11px;color:#A6A5A0;word-break:break-all;margin:14px 0 26px;">${o.link}</div>`
+    + `<div style="border-top:1px solid #F0EFEB;padding-top:18px;direction:rtl;text-align:right;font-family:${fontStack};font-size:13px;line-height:1.7;color:#6B6B68;">${sig}</div>`
+    + `</td></tr></table>`
+    + `<div style="font-family:${fontStack};font-size:11px;color:#B0AFA9;text-align:center;margin-top:14px;direction:rtl;">מאובטח · פחות מדקה</div>`
+    + `</td></tr></table>`
+    + `</body></html>`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -42,7 +60,7 @@ Deno.serve(async (req: Request) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
-    const APP_URL = Deno.env.get("APP_URL") || "https://accountant-crm-brown.vercel.app";
+    const APP_URL = Deno.env.get("APP_URL") || "https://crm.yasharcpa.co.il";
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "");
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -57,7 +75,9 @@ Deno.serve(async (req: Request) => {
     const branding = profile?.branding || {};
     const comm = profile?.communication || {};
     const ink = THEME_INK[branding.theme] || "#1A1A1A";
+    const accent = (branding.accentColor && String(branding.accentColor).trim()) || THEME_ACCENT[branding.theme] || "#4F46E5";
     const monogram = (branding.monogram || deriveMonogram(firmName)).slice(0, 2);
+    const logoUrl = (branding.logoUrl && String(branding.logoUrl).trim()) || "";
     const fromAddress = (comm.senderEmail && String(comm.senderEmail).trim()) || "onboarding@resend.dev";
     const replyTo = (comm.replyTo && String(comm.replyTo).trim()) || profile?.email || undefined;
     const link = `${APP_URL}/?onboard=${reqRow.onboarding_token}`;
@@ -67,7 +87,7 @@ Deno.serve(async (req: Request) => {
       from: `${firmName} <${fromAddress}>`,
       to: [reqRow.client_email],
       subject,
-      html: emailHtml({ firmName, ink, monogram, clientFirst, link, signature: comm.emailSignature || "" }),
+      html: emailHtml({ firmName, ink, accent, monogram, logoUrl, clientFirst, link, signature: comm.emailSignature || "" }),
     };
     if (replyTo) payload.reply_to = replyTo;
     const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
