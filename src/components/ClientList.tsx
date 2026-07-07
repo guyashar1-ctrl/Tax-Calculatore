@@ -108,14 +108,11 @@ const STATUS_ORDER: Record<RepresentationStatus, number> = {
   active: 3,
 };
 
-type StatusFilter = 'all' | RepresentationStatus;
-
-const STATUS_FILTERS: { id: StatusFilter; label: string; }[] = [
-  { id: 'all', label: 'הכל' },
-  { id: 'awaiting_accountant', label: 'דורש התייחסות' },
-  { id: 'pending_fill', label: 'ממתין למילוי' },
-  { id: 'awaiting_authorities', label: 'ממתין לאישור' },
-  { id: 'active', label: 'מיוצג פעיל' },
+// שלבי צינור הייצוג (הבקשות שעדיין לא הפכו ל"מיוצג פעיל") + "אצל מי הכדור" בכל שלב.
+const PIPELINE_STAGES: { id: RepresentationStatus; label: string; ball: string; ballClass: string }[] = [
+  { id: 'pending_fill', label: 'ממתין למילוי הלקוח', ball: 'אצל הלקוח', ballClass: 'badge-blue' },
+  { id: 'awaiting_accountant', label: 'דורש התייחסות שלי', ball: 'אצלי', ballClass: 'badge-orange' },
+  { id: 'awaiting_authorities', label: 'ממתין לאישור הרשויות', ball: 'אצל הרשות', ballClass: 'badge-purple' },
 ];
 
 export default function ClientList({
@@ -129,7 +126,6 @@ export default function ClientList({
   onAddRequest,
   onSelectRequest,
 }: Props) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('status');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -195,7 +191,6 @@ export default function ClientList({
 
   const filtered = useMemo(() => {
     let list = clients.filter(c => {
-      if (statusFilter !== 'all' && getStatus(c) !== statusFilter) return false;
       if (employeeFilter !== 'all' && c.assignedAccountantId !== employeeFilter) return false;
       if (vatFilter !== 'all' && c.vatStatus !== vatFilter) return false;
       if (itFilter !== 'all' && c.incomeTaxType !== itFilter) return false;
@@ -258,7 +253,7 @@ export default function ClientList({
 
     return list;
   }, [
-    clients, search, sortField, sortDir, statusFilter,
+    clients, search, sortField, sortDir,
     employeeFilter, vatFilter, itFilter, niFilter, shaamFilter,
     openTasksOnly, upcomingDebtsOnly, metricsByClient,
   ]);
@@ -268,17 +263,14 @@ export default function ClientList({
     return <span className="sort-icon active">{sortDir === 'asc' ? '▲' : '▼'}</span>;
   };
 
-  const statusCounts = useMemo(() => {
-    const counts: Record<StatusFilter, number> = {
-      all: clients.length,
-      pending_fill: 0,
-      awaiting_accountant: 0,
-      awaiting_authorities: 0,
-      active: 0,
-    };
-    for (const c of clients) counts[getStatus(c)]++;
-    return counts;
-  }, [clients]);
+  // הפרדה: בקשות בתהליך (עדיין לא "מיוצג פעיל") מול לקוחות מיוצגים.
+  const pipelineList = useMemo(
+    () => filtered
+      .filter(c => getStatus(c) !== 'active')
+      .sort((a, b) => STATUS_ORDER[getStatus(a)] - STATUS_ORDER[getStatus(b)]),
+    [filtered],
+  );
+  const activeList = useMemo(() => filtered.filter(c => getStatus(c) === 'active'), [filtered]);
 
   function handleRowClick(c: Client) {
     const status = getStatus(c);
@@ -315,33 +307,13 @@ export default function ClientList({
       <div className="cl-list-header">
         <div>
           <h1 className="cl-list-title">לקוחות</h1>
-          <p className="cl-list-sub">{clients.length} לקוחות במערכת{filtered.length !== clients.length ? ` · ${filtered.length} מסוננים` : ''}</p>
+          <p className="cl-list-sub">{activeList.length} מיוצגים · {pipelineList.length} בתהליך ייצוג</p>
         </div>
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
           <button className="btn btn-secondary" onClick={onAddRequest}>📨 בקשת ייצוג</button>
           <button className="btn btn-primary btn-lg" onClick={onAdd}>+ לקוח חדש</button>
         </div>
-      </div>
-
-      {/* Status chips */}
-      <div className="tabs">
-        {STATUS_FILTERS.map(f => {
-          const count = statusCounts[f.id];
-          const active = statusFilter === f.id;
-          return (
-            <button
-              key={f.id}
-              className={`tab ${active ? 'active' : ''}`}
-              onClick={() => setStatusFilter(f.id)}
-            >
-              {f.label}
-              {count > 0 && (
-                <span className={`tab-count ${active ? 'active' : ''}`}>{count}</span>
-              )}
-            </button>
-          );
-        })}
       </div>
 
       {/* Search + advanced toggle */}
@@ -439,13 +411,65 @@ export default function ClientList({
             <button className="btn btn-primary" onClick={onAdd}>+ לקוח חדש</button>
           </div>
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">🔍</div>
-          <div className="empty-state-title">לא נמצאו תוצאות</div>
-        </div>
       ) : (
-        <div className="card" style={{ overflow: 'hidden' }}>
+        <>
+          {pipelineList.length > 0 && (
+            <div className="card" style={{ padding: '1rem 1.1rem', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
+                <span style={{ fontSize: '1.05rem', fontWeight: 500 }}>בתהליך ייצוג</span>
+                <span style={{ fontSize: '.8rem', color: 'var(--gray-500)' }}>· {pipelineList.length}</span>
+              </div>
+              <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginBottom: 12 }}>כל בקשה, השלב שבו היא, ואצל מי הכדור.</div>
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 4 }}>
+                {PIPELINE_STAGES.map(s => {
+                  const n = pipelineList.filter(c => getStatus(c) === s.id).length;
+                  return (
+                    <div key={s.id} style={{ flex: '0 0 auto', minWidth: 108, textAlign: 'center', background: 'var(--gray-50)', borderRadius: 10, padding: '8px 12px' }}>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 500 }}>{n}</div>
+                      <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>{s.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              {pipelineList.map(c => {
+                const stage = PIPELINE_STAGES.find(s => s.id === getStatus(c)) ?? PIPELINE_STAGES[0];
+                const fullName = `${c.firstName} ${c.lastName}`.trim() || '(ללא שם)';
+                const linkedReq = c.representationRequestId ? requestById.get(c.representationRequestId) : undefined;
+                const idSubmitted = linkedReq?.onboardingStatus === 'submitted' && getStatus(c) === 'pending_fill';
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => handleRowClick(c)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '.55rem .25rem', borderTop: '1px solid var(--gray-100)', cursor: 'pointer' }}
+                  >
+                    <div className="client-avatar-sm">{`${c.firstName.charAt(0) || '?'}${c.lastName.charAt(0) || ''}`}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '.9rem' }}>{fullName}</div>
+                      <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>
+                        {stage.label}{idSubmitted ? ' · ✓ פרטי זיהוי התקבלו' : ''}
+                      </div>
+                    </div>
+                    <span className={`badge ${stage.ballClass}`} style={{ fontSize: '.65rem' }}>{stage.ball}</span>
+                    <span style={{ color: 'var(--gray-300)', fontSize: '1.1rem' }}>‹</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '0 0 .6rem' }}>
+            <span style={{ fontSize: '1.05rem', fontWeight: 500 }}>לקוחות מיוצגים</span>
+            <span style={{ fontSize: '.8rem', color: 'var(--gray-500)' }}>· {activeList.length}</span>
+          </div>
+
+          {activeList.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">✓</div>
+              <div className="empty-state-title">אין עדיין לקוחות מיוצגים</div>
+              <div className="empty-state-desc">בקשות בתהליך מופיעות למעלה. כשרשות מאשרת ייצוג — הלקוח עובר לכאן.</div>
+            </div>
+          ) : (
+          <div className="card" style={{ overflow: 'hidden' }}>
           <div className="table-wrap">
             <table className="client-table client-table-dense">
               <thead>
@@ -479,7 +503,7 @@ export default function ClientList({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(client => {
+                {activeList.map(client => {
                   const status = getStatus(client);
                   const fullName = `${client.firstName} ${client.lastName}`.trim() || '(ללא שם)';
                   const m = metricsByClient.get(client.id);
@@ -605,7 +629,9 @@ export default function ClientList({
               </tbody>
             </table>
           </div>
-        </div>
+          </div>
+          )}
+        </>
       )}
     </div>
   );
