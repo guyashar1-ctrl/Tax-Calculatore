@@ -11,6 +11,8 @@ import {
   AuthorityKind,
   AuthorityRepresentations,
   RepAuthorityKind,
+  RepresentationStatus,
+  REPRESENTATION_STATUS_LABELS,
   DEFAULT_REQUESTED_DOCS,
   REP_AUTHORITY_LABELS,
 } from './types';
@@ -354,12 +356,40 @@ export default function App() {
   }
 
   /**
+   * מחזיר התנגשות אם המייל כבר שייך ללקוח שנמצא בתהליך ייצוג או שכבר מיוצג.
+   * מייל הוא "המזהה" של הלקוח בתהליך הייצוג — אסור לפתוח שתי בקשות לאותו מייל.
+   */
+  function repEmailConflict(email: string): { status: RepresentationStatus; name: string } | null {
+    const norm = email.trim().toLowerCase();
+    if (!norm) return null;
+    const client = clients.find(c => (c.email || '').trim().toLowerCase() === norm && !!c.representationStatus);
+    if (client) {
+      return { status: client.representationStatus!, name: `${client.firstName} ${client.lastName}`.trim() || email.trim() };
+    }
+    const req = requests.find(r => (r.clientEmail || '').trim().toLowerCase() === norm);
+    if (req) return { status: req.status, name: req.clientName || email.trim() };
+    return null;
+  }
+
+  /** הודעה בעברית להצגה כשמנסים לפתוח בקשת ייצוג למייל שכבר בשימוש. */
+  function repEmailConflictMessage(email: string): string | null {
+    const c = repEmailConflict(email);
+    if (!c) return null;
+    return c.status === 'active'
+      ? `${c.name} כבר מיוצג/ת עם המייל הזה — אין צורך בבקשת ייצוג נוספת.`
+      : `כבר קיימת בקשת ייצוג בתהליך למייל הזה (${c.name} — ${REPRESENTATION_STATUS_LABELS[c.status]}). אפשר להמשיך את התהליך מלשונית הלקוחות.`;
+  }
+
+  /**
    * נקודת הכניסה החדשה לייצוג (MVP — שלב 1): מהזנת שם+אימייל+רשויות
    * המערכת יוצרת אוטומטית: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
    * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
    */
   async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations }): Promise<{ link: string; emailSent: boolean; emailError?: string }> {
     const { name, email, areas } = data;
+    // שער בטיחות: לא פותחים בקשה כפולה לאותו מייל (גם אם ה-UI כבר חוסם).
+    const conflictMsg = repEmailConflictMessage(email);
+    if (conflictMsg) throw new Error(conflictMsg);
     const nameParts = name.trim().split(/\s+/);
     const clientId = crypto.randomUUID();
     const reqId = crypto.randomUUID();
@@ -427,7 +457,10 @@ export default function App() {
     let emailSent = false;
     let emailError: string | undefined;
     try {
-      const { data: res, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: reqId } });
+      // מגבלת זמן — שהחלון לא ייתקע על "יוצר…" אם שרת המייל איטי/לא מגיב.
+      const invoke = supabase.functions.invoke('send-onboarding-email', { body: { requestId: reqId } });
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('פג הזמן לשליחת המייל')), 12000));
+      const { data: res, error } = await Promise.race([invoke, timeout]);
       if (error) emailError = error.message;
       else if (res?.ok) emailSent = true;
       else emailError = res?.detail?.message || res?.error || 'שגיאה לא ידועה';
@@ -897,6 +930,7 @@ export default function App() {
         <RepresentationOnboardingDialog
           onCreate={handleCreateRepresentation}
           onCancel={() => setShowOnboarding(false)}
+          checkEmailConflict={repEmailConflictMessage}
         />
       )}
     </div>

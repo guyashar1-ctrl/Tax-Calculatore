@@ -14,6 +14,8 @@ interface CreateResult { link: string; emailSent: boolean; emailError?: string; 
 interface Props {
   onCreate: (data: { name: string; email: string; areas: AuthorityRepresentations }) => Promise<CreateResult>;
   onCancel: () => void;
+  /** בודק אם המייל כבר בשימוש בייצוג פעיל/בתהליך. מחזיר הודעת חסימה, או null אם פנוי. */
+  checkEmailConflict?: (email: string) => string | null;
 }
 
 interface AreaState {
@@ -27,7 +29,7 @@ function isValidEmail(email: string): boolean {
 
 const hasLevel = (a: RepAuthorityKind) => REP_AUTHORITIES_WITH_LEVEL.includes(a);
 
-export default function RepresentationOnboardingDialog({ onCreate, onCancel }: Props) {
+export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>({
@@ -42,6 +44,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
   const [copied, setCopied] = useState(false);
 
   const selectedKeys = REP_AUTHORITY_ORDER.filter(a => areas[a].selected);
+  const emailConflict = checkEmailConflict && isValidEmail(email) ? checkEmailConflict(email) : null;
 
   function toggleArea(a: RepAuthorityKind) {
     setAreas(prev => ({ ...prev, [a]: { ...prev[a], selected: !prev[a].selected } }));
@@ -55,6 +58,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
     if (!name.trim()) return 'יש להזין שם לקוח';
     if (!email.trim()) return 'יש להזין אימייל';
     if (!isValidEmail(email)) return 'כתובת אימייל לא תקינה';
+    if (emailConflict) return emailConflict;
     if (selectedKeys.length === 0) return 'יש לבחור לפחות רשות אחת לייצוג';
     return null;
   }
@@ -164,7 +168,13 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
                 placeholder="client@example.com"
                 dir="ltr"
                 disabled={busy}
+                style={emailConflict ? { borderColor: 'var(--red)' } : undefined}
               />
+              {emailConflict && (
+                <div style={{ marginTop: '.4rem', fontSize: '.8rem', color: 'var(--red)', lineHeight: 1.5 }}>
+                  ⛔ {emailConflict}
+                </div>
+              )}
             </div>
           </div>
 
@@ -259,7 +269,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel }: P
           <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={busy}>
             ביטול
           </button>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
+          <button type="submit" className="btn btn-primary" disabled={busy || !!emailConflict}>
             {busy ? 'יוצר…' : '📨 שליחה'}
           </button>
         </div>
