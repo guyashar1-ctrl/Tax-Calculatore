@@ -10,6 +10,7 @@ import {
   ONBOARDING_SECONDARY_LABELS,
 } from '../types';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
+import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { generateSignedPoaPdf, downloadPdfBytes, toPureArrayBuffer } from '../utils/poaPdfGenerator';
 import SignaturePad from './SignaturePad';
@@ -40,6 +41,7 @@ export default function RepresentationRequestReview({
   onOpenFill,
 }: Props) {
   const db = useDocumentDB();
+  const { user } = useAuth();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [profile, setProfile] = useState<any>(null);
   const [docs, setDocs] = useState<StoredDoc[]>([]);
@@ -71,10 +73,11 @@ export default function RepresentationRequestReview({
   }, [request.id]);
 
   useEffect(() => {
-    // טעינת ה-PDF החתום אם קיים
-    if (request.signedPdfStoredId) {
+    // טעינת ה-PDF החתום אם קיים. תלוי ב-user כדי לא לרוץ לפני שההזדהות נטענה
+    // (אחרת getDoc מחזיר undefined ולא מנסה שוב).
+    if (request.signedPdfStoredId && user) {
       db.getDoc(request.signedPdfStoredId).then(d => {
-        if (d) {
+        if (d && d.fileData.byteLength > 0) {
           const blob = new Blob([d.fileData], { type: 'application/pdf' });
           const url = URL.createObjectURL(blob);
           setGeneratedPdfUrl(url);
@@ -85,7 +88,7 @@ export default function RepresentationRequestReview({
       if (generatedPdfUrl) URL.revokeObjectURL(generatedPdfUrl);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [request.signedPdfStoredId]);
+  }, [request.signedPdfStoredId, user]);
 
   // טעינת פרופיל המשרד — לחותמת ולמילוי מוקדם של חלק ב'
   useEffect(() => {

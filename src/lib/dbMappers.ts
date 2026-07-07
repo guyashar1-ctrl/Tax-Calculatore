@@ -90,13 +90,21 @@ export function repRequestFromDb(row: Record<string, any>): RepresentationReques
   const r = rowToObject<RepresentationRequest>(row);
   if (!r.requestedDocs) r.requestedDocs = [] as any;
   if (!r.authorities) r.authorities = [] as any;
+  // signed_pdf_path משמש כמצביע ל-docId של ה-PDF החתום במאגר המסמכים.
+  // rowToObject המיר אותו ל-signedPdfPath; ממפים חזרה ל-signedPdfStoredId ומנקים.
+  const anyR = r as unknown as { signedPdfPath?: string };
+  if (anyR.signedPdfPath) {
+    r.signedPdfStoredId = anyR.signedPdfPath;
+    delete anyR.signedPdfPath;
+  }
   return r;
 }
 
 export function repRequestToDb(req: Partial<RepresentationRequest>, userId?: string): Record<string, any> {
-  // Drop the legacy IndexedDB-specific field that doesn't exist in the new schema
-  const { signedPdfStoredId: _drop, ...rest } = req as any;
+  // signedPdfStoredId (מצביע במאגר המסמכים) נשמר בעמודה signed_pdf_path.
+  const { signedPdfStoredId, signedPdfPath: _legacy, ...rest } = req as Partial<RepresentationRequest> & { signedPdfPath?: string };
   const row = objectToRow(rest, REP_OMIT_ON_WRITE);
+  if (signedPdfStoredId) row.signed_pdf_path = signedPdfStoredId;
   if (userId) row.user_id = userId;
   return row;
 }
