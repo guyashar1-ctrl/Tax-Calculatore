@@ -56,6 +56,7 @@ export default function OnboardingPage({ token }: Props) {
   const ink = theme.ink;
   const accent = info?.branding.accentColor || theme.accent;
   const monogram = (info?.branding.monogram || deriveMonogram(info?.firmName)).slice(0, 2);
+  const logoUrl = info?.branding.logoUrl;
   const firstName = (info?.clientName || '').trim().split(/\s+/)[0] || '';
 
   function validate(): string | null {
@@ -103,8 +104,14 @@ export default function OnboardingPage({ token }: Props) {
   function Header() {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 30 }}>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', border: `1.5px solid ${ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ink, fontWeight: 500, fontSize: 12 }}>{monogram}</div>
-        <span style={{ fontSize: 12.5, color: ink }}>{info?.firmName}</span>
+        {logoUrl ? (
+          <img src={logoUrl} alt={info?.firmName || ''} style={{ maxHeight: 36, maxWidth: 150, objectFit: 'contain' }} />
+        ) : (
+          <>
+            <div style={{ width: 30, height: 30, borderRadius: '50%', border: `1.5px solid ${ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ink, fontWeight: 500, fontSize: 12 }}>{monogram}</div>
+            <span style={{ fontSize: 12.5, color: ink }}>{info?.firmName}</span>
+          </>
+        )}
         <span style={{ marginInlineStart: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#6B6B68' }}>🔒 מאובטח</span>
       </div>
     );
