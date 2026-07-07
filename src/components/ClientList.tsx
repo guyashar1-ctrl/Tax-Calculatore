@@ -103,15 +103,19 @@ interface Props {
 
 const STATUS_ORDER: Record<RepresentationStatus, number> = {
   awaiting_accountant: 0,
-  pending_fill: 1,
-  awaiting_authorities: 2,
-  active: 3,
+  awaiting_stamp: 1,
+  pending_fill: 2,
+  pending_signature: 3,
+  awaiting_authorities: 4,
+  active: 5,
 };
 
 // שלבי צינור הייצוג (הבקשות שעדיין לא הפכו ל"מיוצג פעיל") + "אצל מי הכדור" בכל שלב.
 const PIPELINE_STAGES: { id: RepresentationStatus; label: string; ball: string; ballClass: string }[] = [
   { id: 'pending_fill', label: 'ממתין למילוי הלקוח', ball: 'אצל הלקוח', ballClass: 'badge-blue' },
-  { id: 'awaiting_accountant', label: 'דורש התייחסות שלי', ball: 'אצלי', ballClass: 'badge-orange' },
+  { id: 'awaiting_accountant', label: 'דורש הפקת טופס', ball: 'אצלי', ballClass: 'badge-orange' },
+  { id: 'pending_signature', label: 'נשלח לחתימת הלקוח', ball: 'אצל הלקוח', ballClass: 'badge-blue' },
+  { id: 'awaiting_stamp', label: 'דרושה חתימה + חותמת', ball: 'אצלי', ballClass: 'badge-orange' },
   { id: 'awaiting_authorities', label: 'ממתין לאישור הרשויות', ball: 'אצל הרשות', ballClass: 'badge-purple' },
 ];
 
