@@ -67,6 +67,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
+  const [stampBusy, setStampBusy] = useState(false);
 
   async function handleLogoFile(file: File | null) {
     if (!file) return;
@@ -114,6 +115,52 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
     }
   }
 
+  async function handleStampFile(file: File | null) {
+    if (!file) return;
+    setError(null);
+    if (!LOGO_MIME.includes(file.type)) {
+      setError('פורמט לא נתמך — יש להעלות PNG, JPG, SVG או WEBP');
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      setError('הקובץ גדול מדי — עד 2MB');
+      return;
+    }
+    setStampBusy(true);
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      const path = `${profile.id}/stamp-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from(LOGO_BUCKET)
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
+      const prevPath = draft.branding.stampPath;
+      setDraft(d => ({ ...d, branding: { ...d.branding, stampUrl: pub.publicUrl, stampPath: path } }));
+      if (prevPath && prevPath !== path) {
+        await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
+      }
+    } catch (e) {
+      setError(extractErr(e));
+    } finally {
+      setStampBusy(false);
+    }
+  }
+
+  async function handleStampRemove() {
+    setError(null);
+    setStampBusy(true);
+    try {
+      const prevPath = draft.branding.stampPath;
+      if (prevPath) await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
+      setDraft(d => ({ ...d, branding: { ...d.branding, stampUrl: undefined, stampPath: undefined } }));
+    } catch (e) {
+      setError(extractErr(e));
+    } finally {
+      setStampBusy(false);
+    }
+  }
+
   // השוואה ללא שדות שהשרת מנהל (updated_at משתנה בכל שמירה), ובאופן אדיש לסדר
   // המפתחות — כי jsonb ב-Postgres מחזיר מפתחות בסדר אחר ואחרת dirty לעולם לא מתאפס.
   const editableJson = (p: FirmProfile) => {
@@ -133,6 +180,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const monogram = (draft.branding.monogram || deriveMonogram(draft.firmName)).slice(0, 2);
   const previewAccent = draft.branding.accentColor || theme.accent;
   const logoUrl = draft.branding.logoUrl;
+  const stampUrl = draft.branding.stampUrl;
 
   const completeness = useMemo(() => {
     const checks = [
@@ -305,6 +353,38 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                     {logoUrl && (
                       <button className="btn" onClick={() => void handleLogoRemove()} disabled={logoBusy} style={{ fontSize: 12.5 }}>
                         <i className="ti ti-trash" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />הסר לוגו
+                      </button>
+                    )}
+                    <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>PNG · JPG · SVG · WEBP · עד 2MB</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={card}>
+                <div style={cardTitle}>חותמת המשרד</div>
+                <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
+                  תוטבע על טפסי ייפוי הכוח החתומים, באזור החתימה של המייצג. מומלץ PNG עם רקע שקוף.
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ width: 96, height: 96, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                    {stampUrl
+                      ? <img src={stampUrl} alt="חותמת" style={{ maxWidth: '86%', maxHeight: '86%', objectFit: 'contain' }} />
+                      : <i className="ti ti-rubber-stamp" style={{ fontSize: 26, color: 'var(--gray-400)' }} aria-hidden="true" />}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+                    <label className="btn btn-primary" style={{ cursor: stampBusy ? 'default' : 'pointer', opacity: stampBusy ? 0.6 : 1 }}>
+                      {stampBusy ? 'מעלה…' : stampUrl ? 'החלף חותמת' : 'העלה חותמת'}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                        style={{ display: 'none' }}
+                        disabled={stampBusy}
+                        onChange={e => { const f = e.target.files?.[0] ?? null; void handleStampFile(f); e.target.value = ''; }}
+                      />
+                    </label>
+                    {stampUrl && (
+                      <button className="btn" onClick={() => void handleStampRemove()} disabled={stampBusy} style={{ fontSize: 12.5 }}>
+                        <i className="ti ti-trash" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />הסר חותמת
                       </button>
                     )}
                     <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>PNG · JPG · SVG · WEBP · עד 2MB</div>

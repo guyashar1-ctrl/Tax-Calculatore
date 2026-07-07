@@ -601,8 +601,10 @@ export type AuthorityKind = 'incomeTax' | 'vat' | 'withholding';
 /** סטטוס הבקשה (ה-lifecycle של תהליך הייצוג) */
 export type RepresentationStatus =
   | 'pending_fill'         // נשלחה ללקוח, ממתינה למילוי
-  | 'awaiting_accountant'  // הלקוח מילא וחתם, דורש התייחסות והחתמה של המייצג
-  | 'awaiting_authorities' // המייצג חתם, ה-PDF נוצר, ממתין לאישור הרשויות
+  | 'awaiting_accountant'  // הלקוח מילא — עליי להפיק את טופס השע"מ
+  | 'pending_signature'    // הטופס נשלח ללקוח לחתימה
+  | 'awaiting_stamp'       // הלקוח חתם — עליי לחתום ולהוסיף חותמת משרד
+  | 'awaiting_authorities' // נשלח לשע"מ, ממתין לאישור הרשויות
   | 'active';              // מיוצג פעיל
 
 /** מסמך אחד שהמייצג מבקש מהלקוח להעלות */
@@ -700,6 +702,9 @@ export interface OnboardingIdentification {
   birthDate?: string;
   secondaryType?: OnboardingSecondaryType;
   secondaryValue?: string;
+  spouseName?: string;          // שם בן/בת הזוג (נקלט בבקשת הייצוג)
+  signatureDataUrl?: string;    // חתימת הלקוח על ייפוי הכוח (שלב pending_signature)
+  signedAt?: string;
 }
 
 export type OnboardingSecondaryType = 'parentId' | 'driverLicense' | 'passport';
@@ -739,7 +744,9 @@ export const AUTHORITY_LABELS: Record<AuthorityKind, string> = {
 
 export const REPRESENTATION_STATUS_LABELS: Record<RepresentationStatus, string> = {
   pending_fill: 'ממתין למילוי הלקוח',
-  awaiting_accountant: 'דורש התייחסות שלי',
+  awaiting_accountant: 'דורש הפקת טופס',
+  pending_signature: 'נשלח לחתימת הלקוח',
+  awaiting_stamp: 'דרושה חתימה + חותמת שלי',
   awaiting_authorities: 'ממתין לאישור הרשויות',
   active: 'מיוצג פעיל',
 };
@@ -747,6 +754,8 @@ export const REPRESENTATION_STATUS_LABELS: Record<RepresentationStatus, string> 
 export const REPRESENTATION_STATUS_BADGE: Record<RepresentationStatus, string> = {
   pending_fill: 'badge-orange',
   awaiting_accountant: 'badge-red',
+  pending_signature: 'badge-blue',
+  awaiting_stamp: 'badge-orange',
   awaiting_authorities: 'badge-purple',
   active: 'badge-green',
 };

@@ -11,6 +11,8 @@ export interface FirmBranding {
   monogram?: string;    // ראשי תיבות — דריסה ידנית; אחרת נגזר משם המשרד
   logoPath?: string;    // נתיב הקובץ ב-Storage (bucket: firm-logos) — לצורך החלפה/מחיקה
   logoUrl?: string;     // כתובת ציבורית ללוגו — מוצגת באפליקציה, בעמודי הלקוח ובמיילים
+  stampPath?: string;   // נתיב חותמת המשרד ב-Storage — לצורך החלפה/מחיקה
+  stampUrl?: string;    // כתובת ציבורית לחותמת — מוטבעת על טפסי ייפוי כוח חתומים
 }
 
 export type PreferredLanguage = 'he' | 'en';

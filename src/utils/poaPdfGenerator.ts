@@ -80,6 +80,8 @@ const FIELDS = {
   partBDate:      { x: 530, y: 150, anchor: 'right' as const },
   firmName:       { x: 330, y: 150, anchor: 'right' as const },
   partBAccountantSignature: { x: 30, y: 140, w: 130, h: 35 },
+  // חותמת המשרד — לצד חתימת המייצג בתא "חתימה וחותמת" (ניתן לכוונון)
+  partBFirmStamp: { x: 165, y: 124, w: 74, h: 60 },
 };
 
 const TEXT_SIZE = 9;
@@ -176,6 +178,16 @@ async function embedSignature(doc: PDFDocument, dataUrl: string) {
   return doc.embedPng(bytes);
 }
 
+/** הטבעת תמונה מ-dataURL — תומך גם ב-PNG וגם ב-JPG (לחותמת המשרד) */
+async function embedImageAny(doc: PDFDocument, dataUrl: string) {
+  const [meta, base64] = dataUrl.split(',');
+  if (!base64) return null;
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return /jpe?g/i.test(meta) ? doc.embedJpg(bytes) : doc.embedPng(bytes);
+}
+
 function formatHebrewDate(iso: string): string {
   if (!iso) return '';
   const d = new Date(iso);
@@ -195,9 +207,11 @@ function authoritiesNote(authorities: AuthorityKind[]): string {
 
 export interface PdfGenerationInput {
   request: RepresentationRequest;
+  /** חותמת המשרד כ-dataURL (PNG/JPG) — תוטבע לצד חתימת המייצג. אופציונלי. */
+  stampDataUrl?: string;
 }
 
-export async function generateSignedPoaPdf({ request }: PdfGenerationInput): Promise<Uint8Array> {
+export async function generateSignedPoaPdf({ request, stampDataUrl }: PdfGenerationInput): Promise<Uint8Array> {
   if (!request.submission) throw new Error('אין נתוני מילוי של הלקוח');
   if (!request.partB) throw new Error('המייצג עדיין לא מילא את חלק ב\'');
 
@@ -287,6 +301,19 @@ export async function generateSignedPoaPdf({ request }: PdfGenerationInput): Pro
       width: FIELDS.partBAccountantSignature.w,
       height: FIELDS.partBAccountantSignature.h,
     });
+  }
+
+  // חותמת המשרד (אם הועלתה בפרופיל המשרד) — לצד חתימת המייצג
+  if (stampDataUrl) {
+    const stamp = await embedImageAny(doc, stampDataUrl);
+    if (stamp) {
+      page.drawImage(stamp, {
+        x: FIELDS.partBFirmStamp.x,
+        y: FIELDS.partBFirmStamp.y,
+        width: FIELDS.partBFirmStamp.w,
+        height: FIELDS.partBFirmStamp.h,
+      });
+    }
   }
 
   // הערה קטנה בתחתית — אילו רשויות נבחרו (חיווי לרו"ח)

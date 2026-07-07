@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
   RepresentationRequest,
+  RequestSubmission,
+  Gender,
   AccountantPartB,
   AUTHORITY_LABELS,
   REPRESENTATION_STATUS_LABELS,
@@ -8,6 +10,7 @@ import {
   ONBOARDING_SECONDARY_LABELS,
 } from '../types';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
+import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { generateSignedPoaPdf, downloadPdfBytes, toPureArrayBuffer } from '../utils/poaPdfGenerator';
 import SignaturePad from './SignaturePad';
@@ -15,6 +18,7 @@ import SignaturePad from './SignaturePad';
 interface Props {
   request: RepresentationRequest;
   onBack: () => void;
+  onProduceForm: (req: RepresentationRequest) => void;
   onSign: (req: RepresentationRequest, partB: AccountantPartB, signedPdfStoredId: string) => void;
   onMarkActive: (req: RepresentationRequest) => void;
   onDelete: (id: string) => void;
@@ -30,12 +34,16 @@ const REP_TYPE_OPTIONS = [
 export default function RepresentationRequestReview({
   request,
   onBack,
+  onProduceForm,
   onSign,
   onMarkActive,
   onDelete,
   onOpenFill,
 }: Props) {
   const db = useDocumentDB();
+  const { user } = useAuth();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [profile, setProfile] = useState<any>(null);
   const [docs, setDocs] = useState<StoredDoc[]>([]);
   const [preview, setPreview] = useState<{ doc: StoredDoc; url: string } | null>(null);
 
@@ -65,10 +73,11 @@ export default function RepresentationRequestReview({
   }, [request.id]);
 
   useEffect(() => {
-    // טעינת ה-PDF החתום אם קיים
-    if (request.signedPdfStoredId) {
+    // טעינת ה-PDF החתום אם קיים. תלוי ב-user כדי לא לרוץ לפני שההזדהות נטענה
+    // (אחרת getDoc מחזיר undefined ולא מנסה שוב).
+    if (request.signedPdfStoredId && user) {
       db.getDoc(request.signedPdfStoredId).then(d => {
-        if (d) {
+        if (d && d.fileData.byteLength > 0) {
           const blob = new Blob([d.fileData], { type: 'application/pdf' });
           const url = URL.createObjectURL(blob);
           setGeneratedPdfUrl(url);
@@ -79,7 +88,27 @@ export default function RepresentationRequestReview({
       if (generatedPdfUrl) URL.revokeObjectURL(generatedPdfUrl);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [request.signedPdfStoredId]);
+  }, [request.signedPdfStoredId, user]);
+
+  // טעינת פרופיל המשרד — לחותמת ולמילוי מוקדם של חלק ב'
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u?.user) return;
+      const { data } = await supabase.from('profiles').select('*').eq('id', u.user.id).single();
+      setProfile(data);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!profile) return;
+    setPartB(p => ({
+      ...p,
+      firmName: p.firmName || profile.firm_name || '',
+      representativeNumber: p.representativeNumber || profile.representative_number || '',
+      representativeType: p.representativeType || profile.representative_type || 'רואה חשבון',
+    }));
+  }, [profile]);
 
   const submission = request.submission;
   const authorityList = request.authorities.map(a => AUTHORITY_LABELS[a]).join(', ');
@@ -89,11 +118,11 @@ export default function RepresentationRequestReview({
   const [emailStatus, setEmailStatus] = useState<string | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
 
-  async function resendOnboardingEmail() {
+  async function resendEmail(stage: 'onboard' | 'sign' = 'onboard') {
     setSendingEmail(true);
     setEmailStatus(null);
     try {
-      const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: request.id } });
+      const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: request.id, stage } });
       if (error) setEmailStatus(`⚠ ${error.message}`);
       else if (data?.ok) setEmailStatus(`✓ מייל נשלח ל-${request.clientEmail}`);
       else setEmailStatus(`⚠ ${data?.detail?.message || data?.error || 'שליחה נכשלה'}`);
@@ -108,6 +137,13 @@ export default function RepresentationRequestReview({
   const onboardingLink = request.onboardingToken
     ? `${window.location.origin}/?onboard=${request.onboardingToken}`
     : '';
+  const newFlowNote =
+    request.status === 'awaiting_accountant' ? 'מוכן — לחצו "הפק טופס ושלח לחתימה" למעלה.'
+    : request.status === 'pending_signature' ? 'הטופס נשלח ללקוח לחתימה.'
+    : request.status === 'awaiting_stamp' ? 'הלקוח חתם — חתמו והוסיפו חותמת (כפתור למעלה).'
+    : request.status === 'awaiting_authorities' ? 'נשלח לשע"מ, ממתין לאישור.'
+    : request.status === 'active' ? 'הלקוח מיוצג פעיל ✓'
+    : 'הפרטים נכתבו לכרטיס הלקוח.';
 
   const fmt = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -141,6 +177,48 @@ export default function RepresentationRequestReview({
     return e;
   }
 
+  // בונה RequestSubmission: בזרימה הישנה מגיע מוכן; בזרימת האונבורדינג נבנה מהזיהוי + החתימה.
+  function buildSubmission(): RequestSubmission | null {
+    if (request.submission) return request.submission;
+    if (!request.onboardingToken) return null;
+    const ident = request.identification || {};
+    const nameParts = (request.clientName || '').trim().split(/\s+/);
+    return {
+      firstName: nameParts[0] || '',
+      lastName: nameParts.slice(1).join(' ') || '',
+      idNumber: ident.idNumber || '',
+      birthDate: ident.birthDate || '',
+      gender: 'male' as Gender,
+      phone: '',
+      email: request.clientEmail || '',
+      city: '',
+      address: '',
+      notes: '',
+      uploadedDocs: [],
+      signatureDataUrl: ident.signatureDataUrl || '',
+      signedAt: ident.signedAt || '',
+      allowSmsEmail: false,
+    };
+  }
+
+  // חותמת המשרד כ-dataURL (מ-Storage). pdf-lib תומך ב-PNG/JPG בלבד — SVG מדולג.
+  async function loadStampDataUrl(): Promise<string | undefined> {
+    const url: string | undefined = profile?.branding?.stampUrl;
+    if (!url || /\.svg(\?|$)/i.test(url)) return undefined;
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result as string);
+        fr.onerror = () => reject(new Error('stamp read failed'));
+        fr.readAsDataURL(blob);
+      });
+    } catch {
+      return undefined;
+    }
+  }
+
   async function handleSignAndGenerate() {
     const e = validatePartB();
     if (e.length) {
@@ -154,14 +232,17 @@ export default function RepresentationRequestReview({
         ...partB,
         signedAt: new Date().toISOString(),
       };
-      // יצירת PDF סופי
+      const sub = buildSubmission();
+      if (!sub) throw new Error('חסרים נתוני הלקוח');
+      const stampDataUrl = await loadStampDataUrl();
+      // יצירת PDF סופי — עם חתימת הלקוח, חתימת המייצג, וחותמת המשרד
       const pdfBytes = await generateSignedPoaPdf({
-        request: { ...request, partB: filledPartB },
+        request: { ...request, submission: sub, partB: filledPartB },
+        stampDataUrl,
       });
 
       // שמירה ל-IndexedDB
       const storedId = `signed-poa-${request.id}`;
-      const sub = request.submission!;
       const fileName = `${sub.lastName} ${sub.firstName} ייפוי כוח חתום.pdf`;
       await db.saveDoc({
         id: storedId,
@@ -255,9 +336,19 @@ export default function RepresentationRequestReview({
               ✍️ חתום ויצור ייפוי כוח חתום
             </button>
           )}
+          {isNewOnboarding && request.status === 'awaiting_accountant' && onboardingSubmitted && (
+            <button className="btn btn-green btn-lg" onClick={() => onProduceForm(request)}>
+              📄 הפק טופס ושלח לחתימה
+            </button>
+          )}
+          {isNewOnboarding && request.status === 'awaiting_stamp' && !signMode && (
+            <button className="btn btn-green btn-lg" onClick={() => setSignMode(true)}>
+              ✍️ חתום + הוסף חותמת
+            </button>
+          )}
           {request.status === 'awaiting_authorities' && (
             <button className="btn btn-green" onClick={() => onMarkActive(request)}>
-              ✓ סמן כמיוצג פעיל
+              ✓ סמן כמיוצג פעיל (אושר בשע"ם)
             </button>
           )}
           <button
@@ -301,7 +392,7 @@ export default function RepresentationRequestReview({
       </div>
 
       {/* ─── מסך החתמה של המייצג ──────────────────────────────────────── */}
-      {signMode && submission && (
+      {signMode && (
         <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--green)' }}>
           <div className="card-header" style={{ background: 'var(--green-light)' }}>
             <div className="card-title">✍️ חתימת המייצג + מילוי חלק ב' של הטופס</div>
@@ -433,21 +524,61 @@ export default function RepresentationRequestReview({
 
       {/* פרטי ההזדהות (זרימת אונבורדינג חדשה) / ההגשה (זרימה ישנה) */}
       {isNewOnboarding ? (
-        onboardingSubmitted && ident ? (
-          <div className="card" style={{ marginBottom: '1rem' }}>
-            <div className="card-header"><div className="card-title">👤 פרטי הזדהות שהלקוח מילא</div></div>
-            <div className="card-body">
-              <div className="form-grid form-grid-2">
-                <Field label="תעודת זהות" value={ident.idNumber || ''} ltr />
-                <Field label="תאריך לידה" value={ident.birthDate || ''} ltr />
-                <Field label={ident.secondaryType ? ONBOARDING_SECONDARY_LABELS[ident.secondaryType] : 'מזהה משני'} value={ident.secondaryValue || ''} ltr />
-                <Field label="נשלח בתאריך" value={request.onboardingSubmittedAt ? new Date(request.onboardingSubmittedAt).toLocaleString('he-IL') : ''} />
+        onboardingSubmitted ? (
+          <>
+            {ident && (
+              <div className="card" style={{ marginBottom: '1rem' }}>
+                <div className="card-header"><div className="card-title">👤 פרטי הזדהות שהלקוח מילא</div></div>
+                <div className="card-body">
+                  <div className="form-grid form-grid-2">
+                    <Field label="תעודת זהות" value={ident.idNumber || ''} ltr />
+                    <Field label="תאריך לידה" value={ident.birthDate || ''} ltr />
+                    <Field label={ident.secondaryType ? ONBOARDING_SECONDARY_LABELS[ident.secondaryType] : 'מזהה משני'} value={ident.secondaryValue || ''} ltr />
+                    <Field label="נשלח בתאריך" value={request.onboardingSubmittedAt ? new Date(request.onboardingSubmittedAt).toLocaleString('he-IL') : ''} />
+                  </div>
+                  <div style={{ marginTop: '.75rem', fontSize: '.8rem', color: 'var(--gray-500)' }}>✓ {newFlowNote}</div>
+                </div>
               </div>
-              <div style={{ marginTop: '.75rem', fontSize: '.8rem', color: 'var(--gray-500)' }}>
-                ✓ הפרטים נכתבו לכרטיס הלקוח. הפקת ייפוי הכוח והגשה לשע״ם יתווספו בשלב הבא.
+            )}
+
+            {request.status === 'pending_signature' && (
+              <div className="card" style={{ background: 'var(--orange-light)', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
+                <div className="card-body">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
+                    <span style={{ fontSize: '1.5rem' }}>✍️</span>
+                    <strong style={{ color: 'var(--orange)' }}>ממתין לחתימת הלקוח</strong>
+                  </div>
+                  <div style={{ fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.6rem' }}>
+                    הטופס נשלח ללקוח לחתימה. כשיחתום — החתימה תופיע כאן ותוכלו לחתום ולהוסיף חותמת.
+                  </div>
+                  <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+                    <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, minWidth: 180, fontSize: '.8rem' }} onFocus={e => e.currentTarget.select()} />
+                    <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(onboardingLink).catch(() => {}); }}>העתק קישור</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => resendEmail('sign')} disabled={sendingEmail}>
+                      {sendingEmail ? 'שולח…' : '📧 שלח קישור חתימה'}
+                    </button>
+                  </div>
+                  {emailStatus && (
+                    <div style={{ marginTop: '.5rem', fontSize: '.8rem', color: emailStatus.startsWith('✓') ? '#0F6E56' : 'var(--red)' }}>{emailStatus}</div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
+            )}
+
+            {request.status === 'awaiting_stamp' && request.identification?.signatureDataUrl && (
+              <div className="card" style={{ marginBottom: '1rem' }}>
+                <div className="card-header"><div className="card-title">✍️ חתימת הלקוח התקבלה</div></div>
+                <div className="card-body">
+                  <div style={{ border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', background: 'white', padding: '.5rem', display: 'inline-block' }}>
+                    <img src={request.identification.signatureDataUrl} alt="חתימת לקוח" style={{ maxHeight: 120, display: 'block' }} />
+                  </div>
+                  <div style={{ fontSize: '.8rem', color: 'var(--gray-600)', marginTop: '.6rem' }}>
+                    לחצו "חתום + הוסף חותמת" למעלה כדי לחתום, להטביע את חותמת המשרד, וליצור את ה-PDF הסופי.
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="card" style={{ background: 'var(--orange-light)', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
             <div className="card-body">
@@ -461,7 +592,7 @@ export default function RepresentationRequestReview({
               <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
                 <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, minWidth: 180, fontSize: '.8rem' }} onFocus={e => e.currentTarget.select()} />
                 <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(onboardingLink).catch(() => {}); }}>העתק קישור</button>
-                <button className="btn btn-primary btn-sm" onClick={resendOnboardingEmail} disabled={sendingEmail}>
+                <button className="btn btn-primary btn-sm" onClick={() => resendEmail('onboard')} disabled={sendingEmail}>
                   {sendingEmail ? 'שולח…' : '📧 שלח מייל שוב'}
                 </button>
               </div>
