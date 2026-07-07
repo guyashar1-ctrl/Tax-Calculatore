@@ -702,6 +702,9 @@ export interface OnboardingIdentification {
   birthDate?: string;
   secondaryType?: OnboardingSecondaryType;
   secondaryValue?: string;
+  spouseName?: string;          // שם בן/בת הזוג (נקלט בבקשת הייצוג)
+  signatureDataUrl?: string;    // חתימת הלקוח על ייפוי הכוח (שלב pending_signature)
+  signedAt?: string;
 }
 
 export type OnboardingSecondaryType = 'parentId' | 'driverLicense' | 'passport';

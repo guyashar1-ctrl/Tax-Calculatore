@@ -3,8 +3,11 @@ import { supabase } from '../lib/supabase';
 import {
   OnboardingSecondaryType,
   ONBOARDING_SECONDARY_LABELS,
+  AUTHORITY_LABELS,
+  AuthorityKind,
 } from '../types';
 import { BRAND_THEMES, deriveMonogram, FirmBranding } from '../types/firmProfile';
+import SignaturePad from './SignaturePad';
 
 interface Props {
   token: string;
@@ -15,9 +18,12 @@ interface OnboardingInfo {
   firmName: string;
   branding: FirmBranding;
   alreadySubmitted: boolean;
+  status: string;
+  authorities: AuthorityKind[];
+  alreadySigned: boolean;
 }
 
-type Phase = 'loading' | 'invalid' | 'form' | 'done' | 'already';
+type Phase = 'loading' | 'invalid' | 'form' | 'done' | 'already' | 'sign' | 'signed';
 
 const SECONDARY_ORDER: OnboardingSecondaryType[] = ['parentId', 'driverLicense', 'passport'];
 
@@ -28,6 +34,7 @@ export default function OnboardingPage({ token }: Props) {
   const [birthDate, setBirthDate] = useState('');
   const [secondaryType, setSecondaryType] = useState<OnboardingSecondaryType>('parentId');
   const [secondaryValue, setSecondaryValue] = useState('');
+  const [signature, setSignature] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,13 +48,20 @@ export default function OnboardingPage({ token }: Props) {
         setPhase('invalid');
         return;
       }
+      const st: string = row.status || 'pending_fill';
       setInfo({
         clientName: row.client_name || '',
         firmName: row.firm_name || 'המשרד',
         branding: row.branding || {},
         alreadySubmitted: !!row.already_submitted,
+        status: st,
+        authorities: (row.authorities || []) as AuthorityKind[],
+        alreadySigned: !!row.already_signed,
       });
-      setPhase(row.already_submitted ? 'already' : 'form');
+      if (st === 'pending_signature' && !row.already_signed) setPhase('sign');
+      else if (row.already_signed || ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(st)) setPhase('signed');
+      else if (row.already_submitted) setPhase('already');
+      else setPhase('form');
     })();
     return () => { cancelled = true; };
   }, [token]);
@@ -84,6 +98,19 @@ export default function OnboardingPage({ token }: Props) {
       return;
     }
     setPhase('done');
+  }
+
+  async function handleSubmitSignature() {
+    if (!signature) { setError('נא לחתום על הטופס'); return; }
+    setBusy(true);
+    setError(null);
+    const { data, error } = await supabase.rpc('submit_signature', { p_token: token, p_signature: signature });
+    if (error || data === false) {
+      setError('אירעה שגיאה בשליחה. נסו שוב, או פנו למשרד.');
+      setBusy(false);
+      return;
+    }
+    setPhase('signed');
   }
 
   // ── styles ──
@@ -156,6 +183,46 @@ export default function OnboardingPage({ token }: Props) {
             <div style={{ width: 42, height: 42, borderRadius: '50%', background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#fff', fontSize: 22 }}>✓</div>
             <div style={{ fontSize: 18, fontWeight: 500, color: '#111', marginBottom: 5 }}>תודה{firstName ? `, ${firstName}` : ''}. קיבלנו את הפרטים.</div>
             <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>{info?.firmName} יכין את בקשת הייצוג ויחזור אליכם בהקדם. אפשר לסגור את החלון.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'sign') {
+    const authList = (info?.authorities || []).map(a => AUTHORITY_LABELS[a]).filter(Boolean).join(', ');
+    return (
+      <div style={page}>
+        <div style={card}>
+          <Header />
+          <div style={{ fontSize: 11, letterSpacing: '.08em', color: '#9A9A95', marginBottom: 8 }}>חתימה על ייפוי כוח</div>
+          <div style={{ fontSize: 24, fontWeight: 500, color: '#111', marginBottom: 6 }}>כמעט סיימנו{firstName ? `, ${firstName}` : ''}</div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.6, color: '#6B6B68', marginBottom: 20 }}>
+            בחתימתכם אתם מייפים את כוחו של {info?.firmName} לייצג אתכם מול {authList || 'רשויות המס'}. החתימה מאובטחת ומשמשת אך ורק לטופס ייפוי הכוח.
+          </div>
+          <div style={{ ...label, marginBottom: 8 }}>חתמו כאן</div>
+          <SignaturePad value={signature} onChange={setSignature} />
+          {error && (
+            <div style={{ marginTop: 16, padding: '10px 12px', background: '#FCEBEB', color: '#A32D2D', borderRadius: 9, fontSize: 12.5 }}>{error}</div>
+          )}
+          <button onClick={handleSubmitSignature} disabled={busy}
+            style={{ width: '100%', marginTop: 20, background: ink, color: '#fff', border: 'none', borderRadius: 10, padding: 13, fontSize: 14.5, fontWeight: 500, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+            {busy ? 'שולח…' : 'שליחת החתימה'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'signed') {
+    return (
+      <div style={page}>
+        <div style={card}>
+          <Header />
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <div style={{ width: 42, height: 42, borderRadius: '50%', background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#fff', fontSize: 22 }}>✓</div>
+            <div style={{ fontSize: 18, fontWeight: 500, color: '#111', marginBottom: 5 }}>תודה{firstName ? `, ${firstName}` : ''}. קיבלנו את החתימה.</div>
+            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>{info?.firmName} ישלים את התהליך מול רשויות המס ויחזור אליכם. אפשר לסגור את החלון.</div>
           </div>
         </div>
       </div>

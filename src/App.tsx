@@ -547,13 +547,35 @@ export default function App() {
     }
   }
 
-  /** ידנית — סימון לקוח כמיוצג פעיל לאחר אישור הרשויות */
+  /** הרו"ח הפיק את הטופס ושלח ללקוח לחתימה: awaiting_accountant → pending_signature */
+  async function handleProduceForm(req: RepresentationRequest) {
+    await updateRequest({ ...req, status: 'pending_signature' });
+    const linkedClient = clients.find(c => c.id === req.linkedClientId);
+    if (linkedClient) {
+      await updateClient({ ...linkedClient, representationStatus: 'pending_signature' });
+    }
+    // שליחת מייל ללקוח עם קישור לחתימה (לא חוסם — הקישור זמין גם ידנית במסך)
+    try {
+      await supabase.functions.invoke('send-onboarding-email', { body: { requestId: req.id, stage: 'sign' } });
+    } catch { /* ignore */ }
+  }
+
+  /** הרשויות אישרו — הלקוח הופך למיוצג פעיל: כל הרשויות במרשם → active, ונשלח מייל המשך */
   async function handleMarkActive(req: RepresentationRequest) {
     await updateRequest({ ...req, status: 'active' });
     const linkedClient = clients.find(c => c.id === req.linkedClientId);
     if (linkedClient) {
-      await updateClient({ ...linkedClient, representationStatus: 'active' });
+      const reps = { ...(linkedClient.authorityRepresentations || {}) } as AuthorityRepresentations;
+      for (const k of Object.keys(reps) as RepAuthorityKind[]) {
+        const r = reps[k];
+        if (r) reps[k] = { ...r, status: 'active' };
+      }
+      await updateClient({ ...linkedClient, representationStatus: 'active', authorityRepresentations: reps });
     }
+    // מייל המשך ללקוח (לא חוסם)
+    try {
+      await supabase.functions.invoke('send-onboarding-email', { body: { requestId: req.id, stage: 'active' } });
+    } catch { /* ignore */ }
   }
 
   async function handleDeleteRequest(id: string) {
@@ -822,6 +844,7 @@ export default function App() {
             <RepresentationRequestReview
               request={selectedRequest}
               onBack={() => { setView('list'); setSelectedRequestId(null); }}
+              onProduceForm={handleProduceForm}
               onSign={handleAccountantSign}
               onMarkActive={handleMarkActive}
               onDelete={handleDeleteRequest}
