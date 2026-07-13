@@ -18,6 +18,7 @@ import {
   REP_LEVEL_LABELS,
 } from '../types';
 import { ShaamStatus } from '../types/clientWorkspace';
+import RepSignersStatus from './RepSignersStatus';
 import { useEmployees } from '../hooks/useEmployees';
 import {
   getClientOpenTasks,
@@ -452,6 +453,11 @@ export default function ClientList({
                       <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>
                         {stage.label}{idSubmitted ? ' · ✓ פרטי זיהוי התקבלו' : ''}
                       </div>
+                      {linkedReq && (
+                        <div style={{ marginTop: 3 }}>
+                          <RepSignersStatus request={linkedReq} compact />
+                        </div>
+                      )}
                     </div>
                     <span className={`badge ${stage.ballClass}`} style={{ fontSize: '.65rem' }}>{stage.ball}</span>
                     <span style={{ color: 'var(--gray-300)', fontSize: '1.1rem' }}>‹</span>

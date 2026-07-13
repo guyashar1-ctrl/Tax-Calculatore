@@ -654,6 +654,27 @@ export interface AccountantPartB {
   signedAt: string;
 }
 
+// ── חותמים על ייפוי הכוח ──────────────────────────────────────────────────
+// לקוח יחיד → חותם אחד. לקוח נשוי → שני חותמים (הנישום + בן/בת הזוג), שכל אחד
+// מקבל בקשת חתימה ומצב חתימה נפרד, כדי שרואה החשבון יראה מי כבר חתם ומי ממתין.
+export type RepSignerRole = 'client' | 'spouse';
+export type RepSignStatus = 'pending' | 'signed';
+
+export interface RepSigner {
+  id: string;                    // 'client' | 'spouse' (או מזהה ייחודי בעתיד)
+  role: RepSignerRole;
+  name: string;
+  email: string;                 // לאן נשלחת בקשת החתימה שלו
+  signStatus: RepSignStatus;
+  signedAt?: string | null;
+  signToken?: string;            // טוקן חתימה ייחודי לחותם (לזרימת החתימה)
+}
+
+export const REP_SIGNER_ROLE_LABELS: Record<RepSignerRole, string> = {
+  client: 'הנישום',
+  spouse: 'בן/בת הזוג',
+};
+
 export interface RepresentationRequest {
   id: string;
   linkedClientId: string;       // ה-id של ה-Client הקשור (תמיד קיים מרגע היצירה)
@@ -694,6 +715,10 @@ export interface RepresentationRequest {
   onboardingStatus?: 'pending' | 'submitted';
   identification?: OnboardingIdentification | null;
   onboardingSubmittedAt?: string | null;
+
+  // ── חותמים (נישום + בן/בת זוג אם נשוי) ──
+  // אם ריק/לא קיים — נגזר חותם יחיד מ-clientName/clientEmail (תאימות לאחור).
+  signers?: RepSigner[];
 }
 
 /** פרטי הזדהות שהלקוח מילא בעמוד הציבורי */

@@ -14,6 +14,8 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { generateSignedPoaPdf, downloadPdfBytes, toPureArrayBuffer } from '../utils/poaPdfGenerator';
 import SignaturePad from './SignaturePad';
+import RepSignersStatus from './RepSignersStatus';
+import { isSpouseRequest } from '../utils/repSigners';
 
 interface Props {
   request: RepresentationRequest;
@@ -359,6 +361,16 @@ export default function RepresentationRequestReview({
           >🗑️ מחק</button>
         </div>
       </div>
+
+      {/* סטטוס חתימות — נישום + בן/בת זוג */}
+      {isSpouseRequest(request) && (
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="card-header"><div className="card-title">✍ סטטוס חתימות</div></div>
+          <div className="card-body">
+            <RepSignersStatus request={request} />
+          </div>
+        </div>
+      )}
 
       {/* פרטי הבקשה */}
       <div className="card" style={{ marginBottom: '1rem' }}>

@@ -11,8 +11,10 @@ import {
 
 interface CreateResult { link: string; emailSent: boolean; emailError?: string; }
 
+interface SpouseInput { name: string; email: string; }
+
 interface Props {
-  onCreate: (data: { name: string; email: string; areas: AuthorityRepresentations }) => Promise<CreateResult>;
+  onCreate: (data: { name: string; email: string; areas: AuthorityRepresentations; spouse: SpouseInput | null }) => Promise<CreateResult>;
   onCancel: () => void;
   /** בודק אם המייל כבר בשימוש בייצוג פעיל/בתהליך. מחזיר הודעת חסימה, או null אם פנוי. */
   checkEmailConflict?: (email: string) => string | null;
@@ -32,6 +34,12 @@ const hasLevel = (a: RepAuthorityKind) => REP_AUTHORITIES_WITH_LEVEL.includes(a)
 export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  // ── בן/בת זוג ──
+  const [married, setMarried] = useState(false);
+  const [spouseName, setSpouseName] = useState('');
+  const [spouseEmail, setSpouseEmail] = useState('');
+  // ברירת מחדל: כל אחד מקבל בקשת חתימה למייל שלו (לא מסומן).
+  const [sameSigningEmail, setSameSigningEmail] = useState(false);
   const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>({
     incomeTax: { selected: true, level: 'primary' },
     withholding: { selected: false, level: 'primary' },
@@ -59,6 +67,10 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     if (!email.trim()) return 'יש להזין אימייל';
     if (!isValidEmail(email)) return 'כתובת אימייל לא תקינה';
     if (emailConflict) return emailConflict;
+    if (married) {
+      if (!spouseName.trim()) return 'יש להזין שם בן/בת הזוג';
+      if (!sameSigningEmail && !isValidEmail(spouseEmail)) return 'כתובת אימייל של בן/בת הזוג לא תקינה';
+    }
     if (selectedKeys.length === 0) return 'יש לבחור לפחות רשות אחת לייצוג';
     return null;
   }
@@ -76,10 +88,13 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
         ? { status: 'in_process', level: areas[a].level }
         : { status: 'in_process' };
     }
+    const spouse: SpouseInput | null = married
+      ? { name: spouseName.trim(), email: (sameSigningEmail ? email : spouseEmail).trim() }
+      : null;
     setBusy(true);
     setError(null);
     try {
-      const res = await onCreate({ name: name.trim(), email: email.trim(), areas: built });
+      const res = await onCreate({ name: name.trim(), email: email.trim(), areas: built, spouse });
       setResult(res);
     } catch (err) {
       console.error('Representation onboarding failed:', err);
@@ -178,6 +193,40 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             </div>
           </div>
 
+          {/* בן/בת זוג — כשנשוי, שני בני הזוג חותמים על ייפוי הכוח */}
+          <div style={{ marginTop: '1rem', padding: '.75rem .9rem', border: `1px solid ${married ? 'var(--blue)' : 'var(--gray-200)'}`, borderRadius: 'var(--radius)', background: married ? 'var(--blue-light)' : 'white' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.6rem', cursor: busy ? 'default' : 'pointer', fontWeight: 600, fontSize: '.9rem' }}>
+              <input type="checkbox" checked={married} onChange={e => setMarried(e.target.checked)} disabled={busy} />
+              💍 הלקוח/ה נשוי/אה — צריך גם חתימת בן/בת הזוג
+            </label>
+
+            {married && (
+              <div style={{ marginTop: '.85rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+                <div className="form-group">
+                  <label className="required">שם בן/בת הזוג</label>
+                  <input type="text" value={spouseName} onChange={e => setSpouseName(e.target.value)} placeholder="שם פרטי ושם משפחה" disabled={busy} />
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: busy ? 'default' : 'pointer', fontSize: '.85rem', color: 'var(--gray-700)' }}>
+                  <input type="checkbox" checked={sameSigningEmail} onChange={e => setSameSigningEmail(e.target.checked)} disabled={busy} />
+                  ✉ שלח את כל בקשות החתימה לאותו מייל (המייל של הלקוח למעלה)
+                </label>
+
+                {sameSigningEmail ? (
+                  <div style={{ fontSize: '.8rem', color: 'var(--gray-700)', background: 'var(--gray-50)', padding: '.55rem .75rem', borderRadius: 'var(--radius)', lineHeight: 1.6 }}>
+                    שתי בקשות החתימה — של {name.trim() || 'הלקוח'} ושל {spouseName.trim() || 'בן/בת הזוג'} — יישלחו ל<span dir="ltr">{email.trim() || 'מייל הלקוח'}</span>.
+                  </div>
+                ) : (
+                  <div className="form-group">
+                    <label className="required">אימייל של בן/בת הזוג</label>
+                    <input type="email" value={spouseEmail} onChange={e => setSpouseEmail(e.target.value)} placeholder="spouse@example.com" dir="ltr" disabled={busy} />
+                    <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.35rem' }}>בקשת החתימה של בן/בת הזוג תישלח לכתובת הזו.</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* רשויות לבקשת ייצוג */}
           <div style={{ marginTop: '1.25rem' }}>
             <label style={{ display: 'block', fontWeight: 600, fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.5rem' }}>
@@ -243,6 +292,11 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>✨ מה ייווצר אוטומטית בשליחה</div>
             <div>✓ כרטיס לקוח חדש — מסומן "טרם מיוצג"</div>
             <div>✓ התקשרות ייצוג למעקב התהליך</div>
+            <div>
+              ✓ {married
+                ? `2 חותמים — ${name.trim() || 'הלקוח'} ו-${spouseName.trim() || 'בן/בת הזוג'}${sameSigningEmail ? ' (לאותו מייל)' : ' (כל אחד למייל שלו)'}`
+                : 'חותם אחד — הנישום'}
+            </div>
             <div>✓ משימה פנימית: "להשלים ייצוג{name.trim() ? ` — ${name.trim()}` : ''}"</div>
             <div>
               ✓ {selectedKeys.length > 0

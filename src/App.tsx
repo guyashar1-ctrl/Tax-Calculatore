@@ -11,6 +11,7 @@ import {
   AuthorityKind,
   AuthorityRepresentations,
   RepAuthorityKind,
+  RepSigner,
   RepresentationStatus,
   REPRESENTATION_STATUS_LABELS,
   DEFAULT_REQUESTED_DOCS,
@@ -390,8 +391,8 @@ export default function App() {
    * המערכת יוצרת אוטומטית: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
    * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
    */
-  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations }): Promise<{ link: string; emailSent: boolean; emailError?: string }> {
-    const { name, email, areas } = data;
+  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations; spouse: { name: string; email: string } | null }): Promise<{ link: string; emailSent: boolean; emailError?: string }> {
+    const { name, email, areas, spouse } = data;
     // שער בטיחות: לא פותחים בקשה כפולה לאותו מייל (גם אם ה-UI כבר חוסם).
     const conflictMsg = repEmailConflictMessage(email);
     if (conflictMsg) throw new Error(conflictMsg);
@@ -402,6 +403,14 @@ export default function App() {
     const now = new Date().toISOString();
     const selectedKeys = Object.keys(areas) as RepAuthorityKind[];
 
+    // חותמים: הנישום תמיד; בן/בת הזוג נוסף אם הלקוח נשוי. לכל חותם טוקן ומצב נפרד.
+    const signers: RepSigner[] = [
+      { id: 'client', role: 'client', name: name.trim(), email, signStatus: 'pending', signToken: crypto.randomUUID().replace(/-/g, '') },
+    ];
+    if (spouse) {
+      signers.push({ id: 'spouse', role: 'spouse', name: spouse.name, email: spouse.email, signStatus: 'pending', signToken: crypto.randomUUID().replace(/-/g, '') });
+    }
+
     // 1. לקוח חדש — מסומן "ממתין" עם מרשם הייצוג לפי רשות
     const client = makeEmptyClient(clientId, {
       firstName: nameParts[0] || '',
@@ -410,6 +419,7 @@ export default function App() {
       representationStatus: 'pending_fill',
       representationRequestId: reqId,
       authorityRepresentations: areas,
+      ...(spouse ? { familyStatus: 'married' as const, spouseName: spouse.name } : {}),
       notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין להשלמת התהליך.',
     });
     await addClient(client);
@@ -437,6 +447,7 @@ export default function App() {
       onboardingStatus: 'pending',
       identification: null,
       onboardingSubmittedAt: null,
+      signers,
     };
     await addRequest(request);
 
