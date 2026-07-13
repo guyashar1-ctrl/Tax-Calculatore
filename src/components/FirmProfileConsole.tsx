@@ -68,6 +68,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const [error, setError] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [stampBusy, setStampBusy] = useState(false);
+  const [sigBusy, setSigBusy] = useState(false);
 
   async function handleLogoFile(file: File | null) {
     if (!file) return;
@@ -161,6 +162,52 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
     }
   }
 
+  async function handleSignatureFile(file: File | null) {
+    if (!file) return;
+    setError(null);
+    if (!LOGO_MIME.includes(file.type)) {
+      setError('פורמט לא נתמך — יש להעלות PNG, JPG, SVG או WEBP');
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      setError('הקובץ גדול מדי — עד 2MB');
+      return;
+    }
+    setSigBusy(true);
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      const path = `${profile.id}/signature-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from(LOGO_BUCKET)
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
+      const prevPath = draft.branding.signaturePath;
+      setDraft(d => ({ ...d, branding: { ...d.branding, signatureUrl: pub.publicUrl, signaturePath: path } }));
+      if (prevPath && prevPath !== path) {
+        await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
+      }
+    } catch (e) {
+      setError(extractErr(e));
+    } finally {
+      setSigBusy(false);
+    }
+  }
+
+  async function handleSignatureRemove() {
+    setError(null);
+    setSigBusy(true);
+    try {
+      const prevPath = draft.branding.signaturePath;
+      if (prevPath) await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
+      setDraft(d => ({ ...d, branding: { ...d.branding, signatureUrl: undefined, signaturePath: undefined } }));
+    } catch (e) {
+      setError(extractErr(e));
+    } finally {
+      setSigBusy(false);
+    }
+  }
+
   // השוואה ללא שדות שהשרת מנהל (updated_at משתנה בכל שמירה), ובאופן אדיש לסדר
   // המפתחות — כי jsonb ב-Postgres מחזיר מפתחות בסדר אחר ואחרת dirty לעולם לא מתאפס.
   const editableJson = (p: FirmProfile) => {
@@ -181,6 +228,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const previewAccent = draft.branding.accentColor || theme.accent;
   const logoUrl = draft.branding.logoUrl;
   const stampUrl = draft.branding.stampUrl;
+  const signatureUrl = draft.branding.signatureUrl;
 
   const completeness = useMemo(() => {
     const checks = [
@@ -439,6 +487,38 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
           )}
 
           {section === 'signature' && (
+            <>
+            <div style={card}>
+              <div style={cardTitle}>החתימה הדיגיטלית שלי</div>
+              <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
+                תמונת החתימה שלך (סריקה או צילום, רצוי PNG עם רקע שקוף). בחדר החתימה תוכל להוסיף אותה בלחיצה על כל מקום שדורש את חתימתך — בלי לצייר מחדש.
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 150, height: 80, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                  {signatureUrl
+                    ? <img src={signatureUrl} alt="חתימה" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }} />
+                    : <i className="ti ti-signature" style={{ fontSize: 26, color: 'var(--gray-400)' }} aria-hidden="true" />}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+                  <label className="btn btn-primary" style={{ cursor: sigBusy ? 'default' : 'pointer', opacity: sigBusy ? 0.6 : 1 }}>
+                    {sigBusy ? 'מעלה…' : signatureUrl ? 'החלף חתימה' : 'העלה חתימה'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                      style={{ display: 'none' }}
+                      disabled={sigBusy}
+                      onChange={e => { const f = e.target.files?.[0] ?? null; void handleSignatureFile(f); e.target.value = ''; }}
+                    />
+                  </label>
+                  {signatureUrl && (
+                    <button className="btn" onClick={() => void handleSignatureRemove()} disabled={sigBusy} style={{ fontSize: 12.5 }}>
+                      <i className="ti ti-trash" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />הסר חתימה
+                    </button>
+                  )}
+                  <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>החותמת נשמרת בלשונית "מותג".</div>
+                </div>
+              </div>
+            </div>
             <div style={card}>
               <div style={cardTitle}>חתימת מייל</div>
               <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 8 }}>תופיע בתחתית כל מייל שנשלח ללקוח.</div>
@@ -458,6 +538,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                 </div>
               )}
             </div>
+            </>
           )}
 
           {section === 'communication' && (

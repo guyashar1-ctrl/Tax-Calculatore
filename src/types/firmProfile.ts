@@ -13,6 +13,8 @@ export interface FirmBranding {
   logoUrl?: string;     // כתובת ציבורית ללוגו — מוצגת באפליקציה, בעמודי הלקוח ובמיילים
   stampPath?: string;   // נתיב חותמת המשרד ב-Storage — לצורך החלפה/מחיקה
   stampUrl?: string;    // כתובת ציבורית לחותמת — מוטבעת על טפסי ייפוי כוח חתומים
+  signaturePath?: string; // נתיב חתימת הרו"ח הדיגיטלית ב-Storage
+  signatureUrl?: string;  // כתובת ציבורית לחתימה — הוספה בלחיצה על מסמכים לחתימה
 }
 
 export type PreferredLanguage = 'he' | 'en';
