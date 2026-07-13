@@ -1347,6 +1347,12 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
   to { opacity: 1; }
 }
 
+/* פעימה עדינה על מקום חתימה שממתין לחתימה — לכוון את עין החותם */
+@keyframes sigPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .0); }
+  50% { box-shadow: 0 0 0 4px rgba(37, 99, 235, .18); }
+}
+
 .modal {
   background: white;
   border-radius: var(--radius-lg);

@@ -987,7 +987,13 @@ export interface Signer {
   saveToClientContacts?: boolean;  // עבור 'manual' — לשמור גם ברשימת אנשי הקשר של הלקוח
 }
 
-export type SignatureFieldKind = 'signature' | 'text';
+export type SignatureFieldKind = 'signature' | 'text' | 'stamp';
+
+export const SIGNATURE_FIELD_KIND_LABELS: Record<SignatureFieldKind, string> = {
+  signature: 'חתימה',
+  stamp: 'חותמת',
+  text: 'טקסט',
+};
 
 export interface SignatureField {
   id: string;
@@ -1000,6 +1006,17 @@ export interface SignatureField {
   widthPct: number;
   heightPct: number;
   placeholder?: string;            // לטקסט — טקסט עזר ("תאריך", "שם מלא"...)
+}
+
+/**
+ * ערך שמולא בשדה חתימה במהלך "חדר החתימה".
+ * חתימה/חותמת → imageDataUrl (PNG/JPG). טקסט → text.
+ */
+export interface SignatureValue {
+  fieldId: string;
+  imageDataUrl?: string;
+  text?: string;
+  signedAt: string;
 }
 
 export type SignatureRequestStatus =

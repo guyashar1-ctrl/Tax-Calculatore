@@ -44,6 +44,7 @@ import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateCl
 import RepresentationOnboardingDialog from './components/RepresentationOnboardingDialog';
 import OnboardingPage from './components/OnboardingPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
+import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import { useAuth } from './hooks/useAuth';
 import AnnualReport from './features/annualReport/AnnualReport';
@@ -140,6 +141,9 @@ export default function App() {
   // ⚠ זמני: דף בדיקה של עורך החתימה ללא התחברות. יוסר לאחר אימות.
   if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-sig')) {
     return <TestSignaturePage />;
+  }
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-signroom')) {
+    return <TestSigningRoom />;
   }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {

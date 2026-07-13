@@ -71,6 +71,7 @@ export default function SignatureRequestEditor({
   // גודל ברירת מחדל לכל סוג סימון — עדכון אחרי resize ידני, כדי שהבא יהיה באותו גודל.
   const [lastSizes, setLastSizes] = useState<Record<SignatureFieldKind, { w: number; h: number }>>({
     signature: { w: 0.22, h: 0.06 },
+    stamp:     { w: 0.12, h: 0.10 },
     text:      { w: 0.18, h: 0.035 },
   });
 

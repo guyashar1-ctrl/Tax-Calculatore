@@ -28,8 +28,10 @@ export interface LoadedPdf {
 
 /** טעינה של PDF מ-ArrayBuffer / Uint8Array. */
 export async function loadPdf(data: ArrayBuffer | Uint8Array): Promise<LoadedPdf> {
-  // pdfjs מנתק (detach) את ה-buffer בעת השימוש בו, לכן המתקשר חייב להעביר עותק שאינו נחוץ לעוד שימוש.
-  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  // pdfjs מנתק (detach) את ה-buffer בעת השימוש בו. עובדים תמיד על עותק עצמאי כדי לא
+  // לפגוע ב-buffer של המתקשר — קריטי תחת React StrictMode שמריץ את ה-effect פעמיים
+  // (הריצה השנייה הייתה מקבלת buffer מנותק ונכשלת).
+  const bytes = (data instanceof Uint8Array ? data : new Uint8Array(data)).slice();
   const doc = await pdfjsLib.getDocument({
     data: bytes,
     cMapUrl: CMAP_URL,
