@@ -45,6 +45,7 @@ import RepresentationOnboardingDialog from './components/RepresentationOnboardin
 import OnboardingPage from './components/OnboardingPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
+import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import { useAuth } from './hooks/useAuth';
 import AnnualReport from './features/annualReport/AnnualReport';
@@ -743,6 +744,7 @@ export default function App() {
       </header>
 
       <main className="main">
+        <ErrorBoundary resetKey={view}>
         <LegacyMigrationBanner knownClientIds={new Set(clients.map(c => c.id))} />
         {view === 'myDesk' && (
           <MyDesk
@@ -909,6 +911,7 @@ export default function App() {
             </div>
           )
         )}
+        </ErrorBoundary>
       </main>
 
       {taskModalState && (

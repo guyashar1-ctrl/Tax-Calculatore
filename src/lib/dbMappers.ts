@@ -45,8 +45,18 @@ function objectToRow<T extends Record<string, any>>(obj: T, exclude: string[] = 
 
 const CLIENT_OMIT_ON_WRITE = ['updatedAt'];
 
+// שדות מחרוזת שהאפליקציה מניחה שתמיד קיימים (קוראת עליהם .charAt/.toLowerCase/.localeCompare).
+// ב-DB הם עלולים להיות null (למשל לקוח שנוצר חלקית / יובא) — מאפסים ל-'' כדי שלא יקרוס.
+const CLIENT_STRING_FIELDS = [
+  'firstName', 'lastName', 'idNumber', 'phone', 'email', 'city', 'address',
+  'birthDate', 'spouseName', 'spouseIdNumber',
+] as const;
+
 export function clientFromDb(row: Record<string, any>): Client {
   const c = rowToObject<Client>(row);
+  for (const k of CLIENT_STRING_FIELDS) {
+    if ((c as any)[k] == null) (c as any)[k] = '';
+  }
   if (!c.children) c.children = [] as any;
   if (!c.tags) c.tags = [];
   // ארבע הרשימות החדשות — ברירת מחדל [] אם null/undefined ב-DB

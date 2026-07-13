@@ -446,7 +446,7 @@ export default function ClientList({
                     onClick={() => handleRowClick(c)}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '.55rem .25rem', borderTop: '1px solid var(--gray-100)', cursor: 'pointer' }}
                   >
-                    <div className="client-avatar-sm">{`${c.firstName.charAt(0) || '?'}${c.lastName.charAt(0) || ''}`}</div>
+                    <div className="client-avatar-sm">{`${(c.firstName || '').charAt(0) || '?'}${(c.lastName || '').charAt(0) || ''}`}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '.9rem' }}>{fullName}</div>
                       <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>
@@ -525,7 +525,7 @@ export default function ClientList({
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
                           <div className="client-avatar-sm">
-                            {`${client.firstName.charAt(0) || '?'}${client.lastName.charAt(0) || ''}`}
+                            {`${(client.firstName || '').charAt(0) || '?'}${(client.lastName || '').charAt(0) || ''}`}
                           </div>
                           <div>
                             <div className="client-table-name">{fullName}</div>
