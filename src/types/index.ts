@@ -719,6 +719,20 @@ export interface RepresentationRequest {
   // ── חותמים (נישום + בן/בת זוג אם נשוי) ──
   // אם ריק/לא קיים — נגזר חותם יחיד מ-clientName/clientEmail (תאימות לאחור).
   signers?: RepSigner[];
+
+  // ── הגדרת מסמך החתימה (שלב "הפקת טופס"): ה-PDF שהרו"ח העלה + אזורי החתימה ──
+  // קיום setup ⇒ הבקשה עובדת בזרימת החתימה החדשה (חדר חתימה על PDF אמיתי).
+  signatureSetup?: SignatureSetup | null;
+  // ערכי החתימות שנאספו מכל החותמים: fieldId → ערך (תמונה/טקסט).
+  signatureValues?: Record<string, SignatureValue> | null;
+}
+
+/** הגדרת מסמך החתימה — נוצרת בשלב "הפקת טופס" אצל הרו"ח */
+export interface SignatureSetup {
+  pdfDocId: string;         // מזהה ה-PDF שהועלה במאגר המסמכים
+  pdfFileName: string;
+  fields: SignatureField[]; // signerId ∈ 'client' | 'spouse' | 'accountant'
+  createdAt: string;
 }
 
 /** פרטי הזדהות שהלקוח מילא בעמוד הציבורי */

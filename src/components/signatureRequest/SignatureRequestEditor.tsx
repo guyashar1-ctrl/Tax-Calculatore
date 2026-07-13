@@ -28,6 +28,15 @@ interface Props {
 
 type Step = 'signers' | 'fields';
 
+/** גדלי ברירת מחדל לכל סוג סימון (אחוזים מהעמוד) — משותף גם לעורך ייפוי הכוח */
+export const DEFAULT_FIELD_SIZES: Record<SignatureFieldKind, { w: number; h: number }> = {
+  signature: { w: 0.22, h: 0.06 },
+  stamp:     { w: 0.12, h: 0.10 },
+  text:      { w: 0.18, h: 0.035 },
+};
+
+const KIND_ICONS: Record<SignatureFieldKind, string> = { signature: '✍', stamp: '🏷', text: '📝' };
+
 // ── עזרי אנשי קשר ────────────────────────────────────────────────────
 function buildClientSelfContact(c: Client): { id: string; name: string; email: string; phone: string } {
   const name = `${c.firstName} ${c.lastName}`.trim() || '(הנישום)';
@@ -69,11 +78,7 @@ export default function SignatureRequestEditor({
   const [activeSignerId, setActiveSignerId] = useState<string>('');
   const [activeKind, setActiveKind] = useState<SignatureFieldKind>('signature');
   // גודל ברירת מחדל לכל סוג סימון — עדכון אחרי resize ידני, כדי שהבא יהיה באותו גודל.
-  const [lastSizes, setLastSizes] = useState<Record<SignatureFieldKind, { w: number; h: number }>>({
-    signature: { w: 0.22, h: 0.06 },
-    stamp:     { w: 0.12, h: 0.10 },
-    text:      { w: 0.18, h: 0.035 },
-  });
+  const [lastSizes, setLastSizes] = useState<Record<SignatureFieldKind, { w: number; h: number }>>({ ...DEFAULT_FIELD_SIZES });
 
   // ── הוספת חותם חיצוני ──
   const [showAddManual, setShowAddManual] = useState(false);
@@ -550,7 +555,9 @@ function SignersPanel(p: SignersPanelProps) {
 //                          FIELDS PANEL
 // ─────────────────────────────────────────────────────────────────────
 
-interface FieldsPanelProps {
+export interface FieldsPanelProps {
+  /** אילו סוגי סימון להציע (ברירת מחדל: חתימה+טקסט; עורך ייפוי הכוח מוסיף חותמת) */
+  kinds?: SignatureFieldKind[];
   pdfDoc: PdfDocument | null;
   pdfFileName: string;
   pdfPages: { width: number; height: number }[];
@@ -568,7 +575,8 @@ interface FieldsPanelProps {
   rememberSize: (kind: SignatureFieldKind, w: number, h: number) => void;
 }
 
-function FieldsPanel(p: FieldsPanelProps) {
+export function FieldsPanel(p: FieldsPanelProps) {
+  const kinds = p.kinds ?? ['signature', 'text'];
   const activeSigner = p.signers.find(s => s.id === p.activeSignerId);
   const myFieldsCount = p.fields.filter(f => f.signerId === p.activeSignerId).length;
   const totalFields = p.fields.length;
@@ -623,11 +631,11 @@ function FieldsPanel(p: FieldsPanelProps) {
           {/* פס הוראה ברור ובולט — מסביר למשתמש בדיוק מה לעשות */}
           <div className="sig-instruction" style={{ borderColor: activeColor }}>
             <span className="sig-instruction-icon" style={{ background: activeColor }}>
-              {p.activeKind === 'signature' ? '✍' : '📝'}
+              {KIND_ICONS[p.activeKind]}
             </span>
             <div className="sig-instruction-text">
               <strong>לחץ על המקום בעמוד</strong> שבו <strong style={{ color: activeColor }}>{activeSigner?.name || '—'}</strong>{' '}
-              צריך {p.activeKind === 'signature' ? 'לחתום' : 'לכתוב טקסט'}.
+              צריך {p.activeKind === 'signature' ? 'לחתום' : p.activeKind === 'stamp' ? 'להטביע חותמת' : 'לכתוב טקסט'}.
               {' '}
               <span style={{ color: 'var(--gray-600)', fontSize: '.8rem' }}>
                 (סימונים: {myFieldsCount} עבור החותם, {totalFields} בסה"כ)
@@ -658,16 +666,14 @@ function FieldsPanel(p: FieldsPanelProps) {
             <div className="sig-toolbar-group">
               <span className="sig-toolbar-label">סוג:</span>
               <div className="sig-kind-toggle">
-                <button
-                  type="button"
-                  className={p.activeKind === 'signature' ? 'active' : ''}
-                  onClick={() => p.setActiveKind('signature')}
-                >✍ חתימה</button>
-                <button
-                  type="button"
-                  className={p.activeKind === 'text' ? 'active' : ''}
-                  onClick={() => p.setActiveKind('text')}
-                >📝 טקסט</button>
+                {kinds.map(k => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={p.activeKind === k ? 'active' : ''}
+                    onClick={() => p.setActiveKind(k)}
+                  >{KIND_ICONS[k]} {k === 'signature' ? 'חתימה' : k === 'stamp' ? 'חותמת' : 'טקסט'}</button>
+                ))}
               </div>
             </div>
           </div>
@@ -874,7 +880,7 @@ function PdfPageWithMarkers({
                 borderColor: color,
                 background: `${color}22`,
               }}
-              title={`${f.kind === 'signature' ? 'חתימה' : 'טקסט'} · ${signer?.name ?? 'חותם'} — גרור להזיז, גרור פינה לשנות גודל`}
+              title={`${f.kind === 'signature' ? 'חתימה' : f.kind === 'stamp' ? 'חותמת' : 'טקסט'} · ${signer?.name ?? 'חותם'} — גרור להזיז, גרור פינה לשנות גודל`}
               onMouseDown={(e) => startDrag(e, f)}
             >
               {/* תווית עם דרופדאון לחותם — אפשר להחליף חותם ישירות מהתיבה */}
@@ -889,7 +895,7 @@ function PdfPageWithMarkers({
               >
                 {signers.map(s => (
                   <option key={s.id} value={s.id}>
-                    {f.kind === 'signature' ? '✍' : '📝'} {s.name}
+                    {KIND_ICONS[f.kind]} {s.name}
                   </option>
                 ))}
               </select>

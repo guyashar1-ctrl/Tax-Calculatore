@@ -80,7 +80,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
   try {
-    const { requestId, stage: rawStage } = await req.json();
+    const { requestId, stage: rawStage, signerId } = await req.json();
     if (!requestId) return json({ error: "missing requestId" }, 400);
     const stage: Stage = (rawStage === "sign" || rawStage === "active") ? rawStage : "onboard";
     const copy = COPY[stage];
@@ -107,11 +107,22 @@ Deno.serve(async (req: Request) => {
     const logoUrl = (branding.logoUrl && String(branding.logoUrl).trim()) || "";
     const fromAddress = (comm.senderEmail && String(comm.senderEmail).trim()) || "onboarding@resend.dev";
     const replyTo = (comm.replyTo && String(comm.replyTo).trim()) || profile?.email || undefined;
-    const link = `${APP_URL}/?onboard=${reqRow.onboarding_token}`;
-    const clientFirst = String(reqRow.client_name || "").trim().split(/\s+/)[0] || "";
+    // ברירת מחדל: קישור ההזדהות של הבקשה. עבור stage=sign עם signerId — קישור
+    // חתימה אישי (signToken) לחותם המסוים, לכתובת המייל שלו.
+    let link = `${APP_URL}/?onboard=${reqRow.onboarding_token}`;
+    let toEmail = reqRow.client_email;
+    let clientFirst = String(reqRow.client_name || "").trim().split(/\s+/)[0] || "";
+    if (stage === "sign" && signerId) {
+      const signers: any[] = Array.isArray(reqRow.signers) ? reqRow.signers : [];
+      const signer = signers.find((s) => s?.id === signerId);
+      if (!signer?.email || !signer?.signToken) return json({ error: "signer not found" }, 400);
+      link = `${APP_URL}/?sign=${signer.signToken}`;
+      toEmail = signer.email;
+      clientFirst = String(signer.name || "").trim().split(/\s+/)[0] || clientFirst;
+    }
     const payload: Record<string, unknown> = {
       from: `${firmName} <${fromAddress}>`,
-      to: [reqRow.client_email],
+      to: [toEmail],
       subject: copy.subject,
       html: emailHtml({ firmName, ink, accent, monogram, logoUrl, clientFirst, link, signature: comm.emailSignature || "", heading: copy.heading, body: copy.body, ctaLabel: copy.cta }),
     };
@@ -119,7 +130,7 @@ Deno.serve(async (req: Request) => {
     const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const body = await r.json();
 
-    const logBase = { user_id: user.id, client_id: reqRow.linked_client_id, request_id: reqRow.id, to_email: reqRow.client_email, subject: copy.subject, kind: stage };
+    const logBase = { user_id: user.id, client_id: reqRow.linked_client_id, request_id: reqRow.id, to_email: toEmail, subject: copy.subject, kind: stage };
     if (!r.ok) {
       await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
       return json({ error: "resend_failed", detail: body }, 502);

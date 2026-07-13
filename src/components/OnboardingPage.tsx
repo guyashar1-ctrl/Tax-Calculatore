@@ -23,7 +23,7 @@ interface OnboardingInfo {
   alreadySigned: boolean;
 }
 
-type Phase = 'loading' | 'invalid' | 'form' | 'done' | 'already' | 'sign' | 'signed';
+type Phase = 'loading' | 'invalid' | 'form' | 'done' | 'already' | 'sign' | 'signed' | 'signLinkSent';
 
 const SECONDARY_ORDER: OnboardingSecondaryType[] = ['parentId', 'driverLicense', 'passport'];
 
@@ -58,7 +58,9 @@ export default function OnboardingPage({ token }: Props) {
         authorities: (row.authorities || []) as AuthorityKind[],
         alreadySigned: !!row.already_signed,
       });
-      if (st === 'pending_signature' && !row.already_signed) setPhase('sign');
+      // בזרימת החתימה החדשה (יש הגדרת PDF) — החתימה נעשית בקישור האישי, לא כאן.
+      if (st === 'pending_signature' && row.has_setup) setPhase('signLinkSent');
+      else if (st === 'pending_signature' && !row.already_signed) setPhase('sign');
       else if (row.already_signed || ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(st)) setPhase('signed');
       else if (row.already_submitted) setPhase('already');
       else setPhase('form');
@@ -209,6 +211,23 @@ export default function OnboardingPage({ token }: Props) {
             style={{ width: '100%', marginTop: 20, background: ink, color: '#fff', border: 'none', borderRadius: 10, padding: 13, fontSize: 14.5, fontWeight: 500, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1 }}>
             {busy ? 'שולח…' : 'שליחת החתימה'}
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'signLinkSent') {
+    return (
+      <div style={page}>
+        <div style={card}>
+          <Header />
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <div style={{ fontSize: 26, marginBottom: 10 }}>✉️</div>
+            <div style={{ fontSize: 18, fontWeight: 500, color: '#111', marginBottom: 5 }}>הטופס מוכן לחתימה</div>
+            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>
+              שלחנו לכל חותם קישור חתימה אישי למייל. פתחו את המייל מ{info?.firmName || 'המשרד'} ולחצו על הכפתור כדי לחתום על הטופס.
+            </div>
+          </div>
         </div>
       </div>
     );

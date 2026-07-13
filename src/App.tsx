@@ -12,6 +12,8 @@ import {
   AuthorityRepresentations,
   RepAuthorityKind,
   RepSigner,
+  SignatureSetup,
+  SignatureValue,
   RepresentationStatus,
   REPRESENTATION_STATUS_LABELS,
   DEFAULT_REQUESTED_DOCS,
@@ -46,6 +48,7 @@ import RepresentationOnboardingDialog from './components/RepresentationOnboardin
 import OnboardingPage from './components/OnboardingPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
+import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import { useAuth } from './hooks/useAuth';
@@ -151,6 +154,9 @@ export default function App() {
   if (typeof window !== 'undefined') {
     const onboardToken = new URLSearchParams(window.location.search).get('onboard');
     if (onboardToken) return <OnboardingPage token={onboardToken} />;
+    // עמוד חתימה ציבורי — קישור אישי לכל חותם (נישום / בן זוג).
+    const signToken = new URLSearchParams(window.location.search).get('sign');
+    if (signToken) return <PublicSignPage token={signToken} />;
   }
 
   const { user, loading: authLoading, displayName, avatarUrl, signOut } = useAuth();
@@ -596,17 +602,42 @@ export default function App() {
     }
   }
 
-  /** הרו"ח הפיק את הטופס ושלח ללקוח לחתימה: awaiting_accountant → pending_signature */
-  async function handleProduceForm(req: RepresentationRequest) {
-    await updateRequest({ ...req, status: 'pending_signature' });
+  /**
+   * הרו"ח סיים לסמן את אזורי החתימה על ה-PDF ("הפקת טופס") — שומרים את ההגדרה,
+   * עוברים ל"נשלח לחתימה", ושולחים לכל חותם קישור חתימה אישי למייל שלו.
+   */
+  async function handleProduceFormWithSetup(req: RepresentationRequest, setup: SignatureSetup) {
+    // ודא שלכל חותם יש טוקן חתימה (בקשות ותיקות נוצרו לפני שהיו טוקנים)
+    const signers: RepSigner[] = (req.signers && req.signers.length > 0
+      ? req.signers
+      : [{ id: 'client', role: 'client' as const, name: req.clientName || '', email: req.clientEmail || '', signStatus: 'pending' as const }]
+    ).map(s => s.signToken ? s : { ...s, signToken: crypto.randomUUID().replace(/-/g, '') });
+
+    await updateRequest({ ...req, signers, signatureSetup: setup, status: 'pending_signature' });
     const linkedClient = clients.find(c => c.id === req.linkedClientId);
     if (linkedClient) {
       await updateClient({ ...linkedClient, representationStatus: 'pending_signature' });
     }
-    // שליחת מייל ללקוח עם קישור לחתימה (לא חוסם — הקישור זמין גם ידנית במסך)
-    try {
-      await supabase.functions.invoke('send-onboarding-email', { body: { requestId: req.id, stage: 'sign' } });
-    } catch { /* ignore */ }
+    // קישור חתימה אישי לכל חותם (לא חוסם — הקישורים זמינים גם ידנית במסך)
+    for (const s of signers) {
+      try {
+        await supabase.functions.invoke('send-onboarding-email', { body: { requestId: req.id, stage: 'sign', signerId: s.id } });
+      } catch { /* ignore */ }
+    }
+  }
+
+  /** נשמר ה-PDF הסופי (חתימות + חותמת צרובות) — עדיין בסטטוס awaiting_stamp עד "נשלח לשע"ם" */
+  async function handleSaveSignedPdf(req: RepresentationRequest, values: Record<string, SignatureValue>, signedPdfStoredId: string) {
+    await updateRequest({ ...req, signatureValues: values, signedPdfStoredId });
+  }
+
+  /** הרו"ח מסמן שהטופס הוגש לשע"ם: awaiting_stamp → awaiting_authorities */
+  async function handleMarkSentToShaam(req: RepresentationRequest) {
+    await updateRequest({ ...req, status: 'awaiting_authorities' });
+    const linkedClient = clients.find(c => c.id === req.linkedClientId);
+    if (linkedClient) {
+      await updateClient({ ...linkedClient, representationStatus: 'awaiting_authorities' });
+    }
   }
 
   /** הרשויות אישרו — הלקוח הופך למיוצג פעיל: כל הרשויות במרשם → active, ונשלח מייל המשך */
@@ -894,7 +925,9 @@ export default function App() {
             <RepresentationRequestReview
               request={selectedRequest}
               onBack={() => { setView('list'); setSelectedRequestId(null); }}
-              onProduceForm={handleProduceForm}
+              onProduceWithSetup={handleProduceFormWithSetup}
+              onSaveSignedPdf={handleSaveSignedPdf}
+              onMarkSentToShaam={handleMarkSentToShaam}
               onSign={handleAccountantSign}
               onMarkActive={handleMarkActive}
               onDelete={handleDeleteRequest}

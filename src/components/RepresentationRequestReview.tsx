@@ -15,12 +15,20 @@ import { supabase } from '../lib/supabase';
 import { generateSignedPoaPdf, downloadPdfBytes, toPureArrayBuffer } from '../utils/poaPdfGenerator';
 import SignaturePad from './SignaturePad';
 import RepSignersStatus from './RepSignersStatus';
-import { isSpouseRequest } from '../utils/repSigners';
+import { isSpouseRequest, getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
+import { SignatureSetup, SignatureValue } from '../types';
+import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
+import SigningRoom, { SavedMarks } from './signatureRequest/SigningRoom';
+import { burnSignaturesIntoPdf } from '../utils/signaturePdf';
 
 interface Props {
   request: RepresentationRequest;
   onBack: () => void;
-  onProduceForm: (req: RepresentationRequest) => void;
+  /** שלב הפקת הטופס: ה-PDF הועלה, האזורים סומנו — לשלוח קישורי חתימה */
+  onProduceWithSetup: (req: RepresentationRequest, setup: SignatureSetup) => Promise<void> | void;
+  /** ה-PDF הסופי (חתום + חותמת) נשמר; ממתין ל"נשלח לשע"ם" */
+  onSaveSignedPdf: (req: RepresentationRequest, values: Record<string, SignatureValue>, signedPdfStoredId: string) => Promise<void> | void;
+  onMarkSentToShaam: (req: RepresentationRequest) => Promise<void> | void;
   onSign: (req: RepresentationRequest, partB: AccountantPartB, signedPdfStoredId: string) => void;
   onMarkActive: (req: RepresentationRequest) => void;
   onDelete: (id: string) => void;
@@ -36,7 +44,9 @@ const REP_TYPE_OPTIONS = [
 export default function RepresentationRequestReview({
   request,
   onBack,
-  onProduceForm,
+  onProduceWithSetup,
+  onSaveSignedPdf,
+  onMarkSentToShaam,
   onSign,
   onMarkActive,
   onDelete,
@@ -203,9 +213,8 @@ export default function RepresentationRequestReview({
     };
   }
 
-  // חותמת המשרד כ-dataURL (מ-Storage). pdf-lib תומך ב-PNG/JPG בלבד — SVG מדולג.
-  async function loadStampDataUrl(): Promise<string | undefined> {
-    const url: string | undefined = profile?.branding?.stampUrl;
+  // תמונת מיתוג (חותמת/חתימה) כ-dataURL. pdf-lib תומך ב-PNG/JPG בלבד — SVG מדולג.
+  async function loadBrandingImage(url?: string): Promise<string | undefined> {
     if (!url || /\.svg(\?|$)/i.test(url)) return undefined;
     try {
       const res = await fetch(url);
@@ -213,11 +222,67 @@ export default function RepresentationRequestReview({
       return await new Promise<string>((resolve, reject) => {
         const fr = new FileReader();
         fr.onload = () => resolve(fr.result as string);
-        fr.onerror = () => reject(new Error('stamp read failed'));
+        fr.onerror = () => reject(new Error('image read failed'));
         fr.readAsDataURL(blob);
       });
     } catch {
       return undefined;
+    }
+  }
+  const loadStampDataUrl = () => loadBrandingImage(profile?.branding?.stampUrl);
+
+  // ── זרימת החתימה החדשה: עורך הפקה + חדר חתימה של הרו"ח ──
+  const setup = request.signatureSetup;
+  const [showProduceEditor, setShowProduceEditor] = useState(false);
+  const [stampRoom, setStampRoom] = useState<{ pdfBytes: ArrayBuffer; marks: SavedMarks } | null>(null);
+  const [stampError, setStampError] = useState('');
+  const [finalizing, setFinalizing] = useState(false);
+
+  async function openStampRoom() {
+    if (!setup) return;
+    setStampError('');
+    try {
+      const doc = await db.getDoc(setup.pdfDocId);
+      if (!doc || doc.fileData.byteLength === 0) throw new Error('ה-PDF שהועלה לא נמצא במאגר המסמכים');
+      const [sig, stamp] = await Promise.all([
+        loadBrandingImage(profile?.branding?.signatureUrl),
+        loadBrandingImage(profile?.branding?.stampUrl),
+      ]);
+      setStampRoom({ pdfBytes: doc.fileData, marks: { signature: sig, stamp } });
+    } catch (e) {
+      setStampError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function handleStampComplete(values: Record<string, SignatureValue>) {
+    if (!setup || !stampRoom) return;
+    setFinalizing(true);
+    try {
+      const merged = { ...(request.signatureValues || {}), ...values };
+      const burned = await burnSignaturesIntoPdf(stampRoom.pdfBytes.slice(0), setup.fields, merged);
+      const storedId = `signed-poa-${request.id}`;
+      await db.saveDoc({
+        id: storedId,
+        clientId: request.linkedClientId,
+        fileName: `${request.clientName || 'לקוח'} — ייפוי כוח חתום.pdf`,
+        fileType: 'application/pdf',
+        fileSize: burned.byteLength,
+        category: 'other',
+        year: 'general',
+        uploadedAt: new Date().toISOString(),
+        description: 'ייפוי כוח חתום (כל החותמים + חותמת המשרד)',
+        notes: '',
+        fileData: toPureArrayBuffer(burned),
+      });
+      await onSaveSignedPdf(request, merged, storedId);
+      const blob = new Blob([toPureArrayBuffer(burned)], { type: 'application/pdf' });
+      if (generatedPdfUrl) URL.revokeObjectURL(generatedPdfUrl);
+      setGeneratedPdfUrl(URL.createObjectURL(blob));
+      setStampRoom(null);
+    } catch (e) {
+      setStampError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFinalizing(false);
     }
   }
 
@@ -339,11 +404,21 @@ export default function RepresentationRequestReview({
             </button>
           )}
           {isNewOnboarding && request.status === 'awaiting_accountant' && onboardingSubmitted && (
-            <button className="btn btn-green btn-lg" onClick={() => onProduceForm(request)}>
-              📄 הפק טופס ושלח לחתימה
+            <button className="btn btn-green btn-lg" onClick={() => setShowProduceEditor(true)}>
+              📄 העלה טופס וסמן אזורי חתימה
             </button>
           )}
-          {isNewOnboarding && request.status === 'awaiting_stamp' && !signMode && (
+          {request.status === 'awaiting_stamp' && setup && !request.signedPdfStoredId && (
+            <button className="btn btn-green btn-lg" onClick={() => void openStampRoom()}>
+              ✍️ חתום + הוסף חותמת
+            </button>
+          )}
+          {request.status === 'awaiting_stamp' && setup && request.signedPdfStoredId && (
+            <button className="btn btn-green btn-lg" onClick={() => void onMarkSentToShaam(request)}>
+              📤 נשלח לשע"ם
+            </button>
+          )}
+          {isNewOnboarding && request.status === 'awaiting_stamp' && !setup && !signMode && (
             <button className="btn btn-green btn-lg" onClick={() => setSignMode(true)}>
               ✍️ חתום + הוסף חותמת
             </button>
@@ -553,16 +628,51 @@ export default function RepresentationRequestReview({
               </div>
             )}
 
-            {request.status === 'pending_signature' && (
+            {request.status === 'pending_signature' && setup && (
               <div className="card" style={{ background: 'var(--orange-light)', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
                 <div className="card-body">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
                     <span style={{ fontSize: '1.5rem' }}>✍️</span>
-                    <strong style={{ color: 'var(--orange)' }}>ממתין לחתימת הלקוח</strong>
+                    <strong style={{ color: 'var(--orange)' }}>נשלח לחתימה — קישור אישי לכל חותם</strong>
                   </div>
-                  <div style={{ fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.6rem' }}>
-                    הטופס נשלח ללקוח לחתימה. כשיחתום — החתימה תופיע כאן ותוכלו לחתום ולהוסיף חותמת.
-                  </div>
+                  {getRequestSigners(request).map(s => {
+                    const signed = effectiveSignStatus(request, s) === 'signed';
+                    const link = s.signToken ? `${window.location.origin}/?sign=${s.signToken}` : '';
+                    return (
+                      <div key={s.id} style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '.5rem' }}>
+                        <span style={{ minWidth: 150, fontSize: '.85rem', fontWeight: signed ? 600 : 400, color: signed ? '#0F6E56' : 'var(--gray-700)' }}>
+                          👤 {s.name} — {signed ? '✅ חתם/ה' : '⏳ ממתין/ה'}
+                        </span>
+                        {!signed && link && (
+                          <>
+                            <input readOnly value={link} dir="ltr" style={{ flex: 1, minWidth: 160, fontSize: '.75rem' }} onFocus={e => e.currentTarget.select()} />
+                            <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(link).catch(() => {}); }}>העתק</button>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              disabled={sendingEmail}
+                              onClick={async () => {
+                                setSendingEmail(true); setEmailStatus(null);
+                                try {
+                                  const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: request.id, stage: 'sign', signerId: s.id } });
+                                  setEmailStatus(error || !data?.ok ? `⚠ ${error?.message || data?.error || 'שליחה נכשלה'}` : `✓ מייל נשלח ל-${s.email}`);
+                                } finally { setSendingEmail(false); }
+                              }}
+                            >📧 שלח</button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {emailStatus && (
+                    <div style={{ marginTop: '.25rem', fontSize: '.8rem', color: emailStatus.startsWith('✓') ? '#0F6E56' : 'var(--red)' }}>{emailStatus}</div>
+                  )}
+                </div>
+              </div>
+            )}
+            {request.status === 'pending_signature' && !setup && (
+              <div className="card" style={{ background: 'var(--orange-light)', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
+                <div className="card-body">
+                  <div style={{ fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.6rem' }}>הטופס נשלח ללקוח לחתימה (זרימה ותיקה).</div>
                   <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
                     <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, minWidth: 180, fontSize: '.8rem' }} onFocus={e => e.currentTarget.select()} />
                     <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(onboardingLink).catch(() => {}); }}>העתק קישור</button>
@@ -570,9 +680,6 @@ export default function RepresentationRequestReview({
                       {sendingEmail ? 'שולח…' : '📧 שלח קישור חתימה'}
                     </button>
                   </div>
-                  {emailStatus && (
-                    <div style={{ marginTop: '.5rem', fontSize: '.8rem', color: emailStatus.startsWith('✓') ? '#0F6E56' : 'var(--red)' }}>{emailStatus}</div>
-                  )}
                 </div>
               </div>
             )}
@@ -756,6 +863,39 @@ export default function RepresentationRequestReview({
               <div style={{ padding: '2rem', color: 'var(--gray-600)' }}>לא ניתן להציג קובץ מסוג זה.</div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* עורך הפקת הטופס — העלאת PDF + סימון אזורי חתימה */}
+      {showProduceEditor && (
+        <PoaProduceEditor
+          request={request}
+          onCancel={() => setShowProduceEditor(false)}
+          onContinue={async (s) => { await onProduceWithSetup(request, s); setShowProduceEditor(false); }}
+        />
+      )}
+
+      {/* חדר החתימה של הרו"ח — חתימה + חותמת על ה-PDF שהלקוחות כבר חתמו */}
+      {stampRoom && setup && (
+        <SigningRoom
+          pdfBytes={stampRoom.pdfBytes.slice(0)}
+          pdfFileName={setup.pdfFileName}
+          fields={setup.fields}
+          signers={[
+            ...getRequestSigners(request).map((s, i) => ({ id: s.id, source: 'manual' as const, name: s.name, email: s.email, order: i + 1 })),
+            { id: 'accountant', source: 'manual' as const, name: 'אני — רו"ח', email: '', order: 99 },
+          ]}
+          activeSignerId="accountant"
+          savedMarks={stampRoom.marks}
+          initialValues={request.signatureValues || {}}
+          title={finalizing ? 'מייצר PDF סופי…' : '✍ חתימה + חותמת המשרד'}
+          onComplete={v => void handleStampComplete(v)}
+          onCancel={() => setStampRoom(null)}
+        />
+      )}
+      {stampError && (
+        <div style={{ position: 'fixed', bottom: 16, insetInlineStart: 16, background: 'var(--red-light)', color: 'var(--red)', padding: '.6rem .9rem', borderRadius: 8, zIndex: 1200, fontSize: '.85rem' }}>
+          ⚠ {stampError}
         </div>
       )}
     </div>
