@@ -1026,12 +1026,24 @@ export interface Signer {
   saveToClientContacts?: boolean;  // עבור 'manual' — לשמור גם ברשימת אנשי הקשר של הלקוח
 }
 
-export type SignatureFieldKind = 'signature' | 'text' | 'stamp';
+export type SignatureFieldKind =
+  | 'signature'  // חתימה — ממולאת ע"י חותם בחדר החתימה
+  | 'stamp'      // חותמת — ממולאת ע"י חותם (בפועל: הרו"ח)
+  | 'text'       // טקסט שהחותם מקליד (תאריך, שם...)
+  | 'label'      // טקסט קבוע שהרו"ח כותב על הטופס בעת ההפקה
+  | 'check'      // סימן ✓ קבוע שהרו"ח מוסיף בעת ההפקה
+  | 'cross';     // סימן ✗ קבוע שהרו"ח מוסיף בעת ההפקה
+
+/** סוגים "סטטיים" — תוכן קבוע שהרו"ח מניח בעת ההפקה; לא דורשים חותם */
+export const STATIC_FIELD_KINDS: SignatureFieldKind[] = ['label', 'check', 'cross'];
 
 export const SIGNATURE_FIELD_KIND_LABELS: Record<SignatureFieldKind, string> = {
   signature: 'חתימה',
   stamp: 'חותמת',
-  text: 'טקסט',
+  text: 'טקסט למילוי החותם',
+  label: 'טקסט שלי',
+  check: 'סימן ✓',
+  cross: 'סימן ✗',
 };
 
 export interface SignatureField {
@@ -1045,6 +1057,7 @@ export interface SignatureField {
   widthPct: number;
   heightPct: number;
   placeholder?: string;            // לטקסט — טקסט עזר ("תאריך", "שם מלא"...)
+  staticText?: string;             // ל-kind 'label' — הטקסט הקבוע שנכתב על הטופס
 }
 
 /**

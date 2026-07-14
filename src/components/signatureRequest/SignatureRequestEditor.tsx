@@ -33,9 +33,14 @@ export const DEFAULT_FIELD_SIZES: Record<SignatureFieldKind, { w: number; h: num
   signature: { w: 0.22, h: 0.06 },
   stamp:     { w: 0.12, h: 0.10 },
   text:      { w: 0.18, h: 0.035 },
+  label:     { w: 0.18, h: 0.03 },
+  check:     { w: 0.035, h: 0.025 },
+  cross:     { w: 0.035, h: 0.025 },
 };
 
-const KIND_ICONS: Record<SignatureFieldKind, string> = { signature: '✍', stamp: '🏷', text: '📝' };
+const KIND_ICONS: Record<SignatureFieldKind, string> = { signature: '✍', stamp: '🏷', text: '📝', label: '🅰', check: '✓', cross: '✗' };
+const KIND_TOGGLE_LABELS: Record<SignatureFieldKind, string> = { signature: 'חתימה', stamp: 'חותמת', text: 'טקסט לחותם', label: 'טקסט שלי', check: 'סימן ✓', cross: 'סימן ✗' };
+const STATIC_KINDS: SignatureFieldKind[] = ['label', 'check', 'cross'];
 
 // ── עזרי אנשי קשר ────────────────────────────────────────────────────
 function buildClientSelfContact(c: Client): { id: string; name: string; email: string; phone: string } {
@@ -634,8 +639,12 @@ export function FieldsPanel(p: FieldsPanelProps) {
               {KIND_ICONS[p.activeKind]}
             </span>
             <div className="sig-instruction-text">
-              <strong>לחץ על המקום בעמוד</strong> שבו <strong style={{ color: activeColor }}>{activeSigner?.name || '—'}</strong>{' '}
-              צריך {p.activeKind === 'signature' ? 'לחתום' : p.activeKind === 'stamp' ? 'להטביע חותמת' : 'לכתוב טקסט'}.
+              {STATIC_KINDS.includes(p.activeKind) ? (
+                <><strong>לחץ על המקום בעמוד</strong> שבו להוסיף {KIND_TOGGLE_LABELS[p.activeKind]} — ייכתב על הטופס לפני השליחה.</>
+              ) : (
+                <><strong>לחץ על המקום בעמוד</strong> שבו <strong style={{ color: activeColor }}>{activeSigner?.name || '—'}</strong>{' '}
+                צריך {p.activeKind === 'signature' ? 'לחתום' : p.activeKind === 'stamp' ? 'להטביע חותמת' : 'לכתוב טקסט'}.</>
+              )}
               {' '}
               <span style={{ color: 'var(--gray-600)', fontSize: '.8rem' }}>
                 (סימונים: {myFieldsCount} עבור החותם, {totalFields} בסה"כ)
@@ -672,7 +681,7 @@ export function FieldsPanel(p: FieldsPanelProps) {
                     type="button"
                     className={p.activeKind === k ? 'active' : ''}
                     onClick={() => p.setActiveKind(k)}
-                  >{KIND_ICONS[k]} {k === 'signature' ? 'חתימה' : k === 'stamp' ? 'חותמת' : 'טקסט'}</button>
+                  >{KIND_ICONS[k]} {KIND_TOGGLE_LABELS[k]}</button>
                 ))}
               </div>
             </div>
@@ -883,22 +892,34 @@ function PdfPageWithMarkers({
               title={`${f.kind === 'signature' ? 'חתימה' : f.kind === 'stamp' ? 'חותמת' : 'טקסט'} · ${signer?.name ?? 'חותם'} — גרור להזיז, גרור פינה לשנות גודל`}
               onMouseDown={(e) => startDrag(e, f)}
             >
-              {/* תווית עם דרופדאון לחותם — אפשר להחליף חותם ישירות מהתיבה */}
-              <select
-                className="sig-marker-select"
-                value={f.signerId}
-                onChange={(e) => onUpdateField(f.id, { signerId: e.target.value })}
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                style={{ background: color }}
-                title="החלף חותם"
-              >
-                {signers.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {KIND_ICONS[f.kind]} {s.name}
-                  </option>
-                ))}
-              </select>
+              {/* סימון סטטי: מציגים את התוכן שייכתב על הטופס. סימון של חותם: דרופדאון להחלפה */}
+              {STATIC_KINDS.includes(f.kind) ? (
+                <span style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '100%', height: '100%', pointerEvents: 'none',
+                  fontWeight: 700, color: '#111',
+                  fontSize: f.kind === 'label' ? '.72rem' : '1rem',
+                  lineHeight: 1.1, overflow: 'hidden', textAlign: 'center',
+                }}>
+                  {f.kind === 'check' ? '✓' : f.kind === 'cross' ? '✗' : (f.staticText || 'טקסט')}
+                </span>
+              ) : (
+                <select
+                  className="sig-marker-select"
+                  value={f.signerId}
+                  onChange={(e) => onUpdateField(f.id, { signerId: e.target.value })}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  style={{ background: color }}
+                  title="החלף חותם"
+                >
+                  {signers.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {KIND_ICONS[f.kind]} {s.name}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               <button
                 type="button"

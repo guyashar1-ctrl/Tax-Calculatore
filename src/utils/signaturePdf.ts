@@ -50,7 +50,8 @@ export async function burnSignaturesIntoPdf(
 
   for (const field of fields) {
     const val = values[field.id];
-    if (!val) continue;
+    const isStatic = field.kind === 'label' || field.kind === 'check' || field.kind === 'cross';
+    if (!val && !isStatic) continue;
     const page = pages[field.pageIndex];
     if (!page) continue;
 
@@ -59,6 +60,34 @@ export async function burnSignaturesIntoPdf(
     const boxW = field.widthPct * pw;
     const boxH = field.heightPct * ph;
     const boxY = ph - field.yPct * ph - boxH; // top-left → bottom-left
+
+    // ── תוכן קבוע שהרו"ח הניח בעת ההפקה — נצרב תמיד, ללא ערך מחותם ──
+    if (field.kind === 'check' || field.kind === 'cross') {
+      const cx = boxX + boxW / 2;
+      const cy = boxY + boxH / 2;
+      const s = Math.min(boxW, boxH) * 0.5;
+      const line = (x1: number, y1: number, x2: number, y2: number) =>
+        page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: Math.max(1.1, s * 0.18), color: rgb(0, 0, 0) });
+      if (field.kind === 'check') {
+        line(cx - s, cy, cx - s * 0.25, cy - s * 0.7);
+        line(cx - s * 0.25, cy - s * 0.7, cx + s, cy + s * 0.7);
+      } else {
+        line(cx - s, cy - s * 0.8, cx + s, cy + s * 0.8);
+        line(cx - s, cy + s * 0.8, cx + s, cy - s * 0.8);
+      }
+      continue;
+    }
+    if (field.kind === 'label') {
+      const raw = field.staticText || '';
+      if (!raw) continue;
+      const text = hasHebrew(raw) ? reverseForRTL(raw) : raw;
+      let size = Math.min(boxH * 0.72, 12);
+      let tw = font.widthOfTextAtSize(text, size);
+      if (tw > boxW && tw > 0) { size = size * (boxW / tw); tw = font.widthOfTextAtSize(text, size); }
+      page.drawText(text, { x: boxX + (boxW - tw) / 2, y: boxY + (boxH - size) / 2 + size * 0.15, size, font, color: rgb(0, 0, 0) });
+      continue;
+    }
+    if (!val) continue;
 
     if ((field.kind === 'signature' || field.kind === 'stamp') && val.imageDataUrl) {
       const parsed = dataUrlToBytes(val.imageDataUrl);

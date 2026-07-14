@@ -17,6 +17,10 @@ const FIELDS: SignatureField[] = [
   { id: 'sig1', signerId: 'client', kind: 'signature', pageIndex: 0, xPct: 0.06, yPct: 0.60, widthPct: 0.22, heightPct: 0.05 },
   { id: 'stamp1', signerId: 'client', kind: 'stamp', pageIndex: 0, xPct: 0.30, yPct: 0.58, widthPct: 0.12, heightPct: 0.09 },
   { id: 'date1', signerId: 'client', kind: 'text', pageIndex: 0, xPct: 0.72, yPct: 0.60, widthPct: 0.18, heightPct: 0.03, placeholder: 'תאריך' },
+  // תוכן קבוע — נצרב בלי ערך מחותם
+  { id: 'lbl1', signerId: 'static', kind: 'label', pageIndex: 0, xPct: 0.10, yPct: 0.30, widthPct: 0.20, heightPct: 0.03, staticText: 'רישום מיוצג — בדיקה' },
+  { id: 'chk1', signerId: 'static', kind: 'check', pageIndex: 0, xPct: 0.85, yPct: 0.44, widthPct: 0.035, heightPct: 0.025 },
+  { id: 'x1', signerId: 'static', kind: 'cross', pageIndex: 0, xPct: 0.12, yPct: 0.72, widthPct: 0.035, heightPct: 0.025 },
 ];
 
 export default function TestSigningRoom() {

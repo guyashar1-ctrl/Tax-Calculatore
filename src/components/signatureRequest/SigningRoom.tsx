@@ -289,6 +289,28 @@ function SigningPage(p: PageProps) {
     <div style={{ position: 'relative', boxShadow: '0 2px 10px rgba(0,0,0,.12)', background: 'white', lineHeight: 0 }}>
       <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%' }} />
       {ready && p.fields.map(f => {
+        // תוכן קבוע שהרו"ח הניח בהפקה — מוצג כפי שיודפס, לא אינטראקטיבי
+        if (f.kind === 'label' || f.kind === 'check' || f.kind === 'cross') {
+          return (
+            <div
+              key={f.id}
+              style={{
+                position: 'absolute',
+                left: `${f.xPct * 100}%`,
+                top: `${f.yPct * 100}%`,
+                width: `${f.widthPct * 100}%`,
+                height: `${f.heightPct * 100}%`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                pointerEvents: 'none',
+                fontWeight: 700, color: '#111',
+                fontSize: f.kind === 'label' ? '.72rem' : '1rem',
+                lineHeight: 1.1, overflow: 'hidden', textAlign: 'center',
+              }}
+            >
+              {f.kind === 'check' ? '✓' : f.kind === 'cross' ? '✗' : f.staticText}
+            </div>
+          );
+        }
         const mine = f.signerId === p.activeSignerId;
         const val = p.values[f.id];
         const filled = !!val;

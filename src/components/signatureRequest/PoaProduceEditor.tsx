@@ -10,6 +10,7 @@ import {
   SignatureFieldKind,
   SignatureSetup,
   Signer,
+  STATIC_FIELD_KINDS,
 } from '../../types';
 import { getRequestSigners } from '../../utils/repSigners';
 import { loadPdf, PdfDocument } from '../../utils/pdfRender';
@@ -94,27 +95,39 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
 
   function addFieldAt(pageIndex: number, xPct: number, yPct: number) {
     const { w, h } = lastSizes[activeKind];
+    // טקסט קבוע: הרו"ח מקליד את התוכן כבר בעת ההנחה
+    let staticText: string | undefined;
+    if (activeKind === 'label') {
+      const t = prompt('מה לכתוב על הטופס במקום הזה?');
+      if (!t || !t.trim()) return;
+      staticText = t.trim();
+    }
+    const isStatic = STATIC_FIELD_KINDS.includes(activeKind);
     setFields(prev => [...prev, {
       id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      signerId: activeSignerId,
+      // תוכן קבוע לא שייך לאף חותם — הוא נצרב על הטופס לפני השליחה
+      signerId: isStatic ? 'static' : activeSignerId,
       kind: activeKind,
       pageIndex,
       xPct: Math.max(0, Math.min(1 - w, xPct - w / 2)),
       yPct: Math.max(0, Math.min(1 - h, yPct - h / 2)),
       widthPct: w,
       heightPct: h,
+      ...(staticText ? { staticText } : {}),
     }]);
   }
 
-  // ── שלמות הסימון: כל חותם צריך לפחות חתימה אחת; הרו"ח גם חותמת ──
+  // ── שלמות הסימון: כל חותם צריך חתימה אחת; לרו"ח מספיקה חתימה או חותמת ──
   const checklist = useMemo(() => {
     const items: { label: string; done: boolean }[] = [{ label: 'הועלה קובץ PDF', done: !!pdfDoc }];
     for (const s of signers) {
       if (s.id === 'accountant') continue;
       items.push({ label: `חתימה של ${s.name}`, done: fields.some(f => f.signerId === s.id && f.kind === 'signature') });
     }
-    items.push({ label: 'החתימה שלי (רו"ח)', done: fields.some(f => f.signerId === 'accountant' && f.kind === 'signature') });
-    items.push({ label: 'חותמת המשרד', done: fields.some(f => f.signerId === 'accountant' && f.kind === 'stamp') });
+    items.push({
+      label: 'חתימה או חותמת שלי (רו"ח)',
+      done: fields.some(f => f.signerId === 'accountant' && (f.kind === 'signature' || f.kind === 'stamp')),
+    });
     return items;
   }, [pdfDoc, fields, signers]);
   const ready = checklist.every(c => c.done);
@@ -164,7 +177,7 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
 
         <div className="modal-body sig-body" style={{ flex: 1, overflow: 'auto' }}>
           <FieldsPanel
-            kinds={['signature', 'stamp', 'text']}
+            kinds={['signature', 'stamp', 'text', 'label', 'check', 'cross']}
             pdfDoc={pdfDoc}
             pdfFileName={pdfFileName}
             pdfPages={pdfPages}
