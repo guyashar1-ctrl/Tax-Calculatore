@@ -93,21 +93,17 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
     }
   }
 
-  function addFieldAt(pageIndex: number, xPct: number, yPct: number) {
-    const { w, h } = lastSizes[activeKind];
-    // טקסט קבוע: הרו"ח מקליד את התוכן כבר בעת ההנחה
-    let staticText: string | undefined;
-    if (activeKind === 'label') {
-      const t = prompt('מה לכתוב על הטופס במקום הזה?');
-      if (!t || !t.trim()) return;
-      staticText = t.trim();
-    }
-    const isStatic = STATIC_FIELD_KINDS.includes(activeKind);
+  // "טקסט שלי": במקום prompt של הדפדפן — מודל מעוצב; שומרים את נקודת הלחיצה עד לאישור
+  const [labelDraft, setLabelDraft] = useState<{ pageIndex: number; xPct: number; yPct: number; text: string } | null>(null);
+
+  function placeField(kind: SignatureFieldKind, pageIndex: number, xPct: number, yPct: number, staticText?: string) {
+    const { w, h } = lastSizes[kind];
+    const isStatic = STATIC_FIELD_KINDS.includes(kind);
     setFields(prev => [...prev, {
       id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       // תוכן קבוע לא שייך לאף חותם — הוא נצרב על הטופס לפני השליחה
       signerId: isStatic ? 'static' : activeSignerId,
-      kind: activeKind,
+      kind,
       pageIndex,
       xPct: Math.max(0, Math.min(1 - w, xPct - w / 2)),
       yPct: Math.max(0, Math.min(1 - h, yPct - h / 2)),
@@ -115,6 +111,20 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
       heightPct: h,
       ...(staticText ? { staticText } : {}),
     }]);
+  }
+
+  function addFieldAt(pageIndex: number, xPct: number, yPct: number) {
+    if (activeKind === 'label') {
+      setLabelDraft({ pageIndex, xPct, yPct, text: '' });
+      return;
+    }
+    placeField(activeKind, pageIndex, xPct, yPct);
+  }
+
+  function confirmLabelDraft() {
+    if (!labelDraft || !labelDraft.text.trim()) return;
+    placeField('label', labelDraft.pageIndex, labelDraft.xPct, labelDraft.yPct, labelDraft.text.trim());
+    setLabelDraft(null);
   }
 
   // ── שלמות הסימון: כל חותם צריך חתימה אחת; לרו"ח מספיקה חתימה או חותמת ──
@@ -212,6 +222,39 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
           </button>
         </div>
       </div>
+
+      {/* מודל "טקסט שלי" — מחליף את prompt של הדפדפן */}
+      {labelDraft && (
+        <div className="modal-backdrop" style={{ zIndex: 1100 }} onClick={e => { if (e.target === e.currentTarget) setLabelDraft(null); }}>
+          <div className="modal" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h3>🅰 טקסט על הטופס</h3>
+              <button type="button" className="btn btn-ghost btn-icon" onClick={() => setLabelDraft(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ fontSize: '.85rem', color: 'var(--gray-600)', marginBottom: '.6rem' }}>
+                הטקסט ייכתב על הטופס במקום שלחצת, לפני השליחה לחתימה. אפשר לגרור ולשנות גודל אחר כך.
+              </div>
+              <input
+                type="text"
+                autoFocus
+                value={labelDraft.text}
+                placeholder="למשל: שם המשרד, מספר תיק…"
+                onChange={e => setLabelDraft(d => d ? { ...d, text: e.target.value } : d)}
+                onKeyDown={e => { if (e.key === 'Enter') confirmLabelDraft(); if (e.key === 'Escape') setLabelDraft(null); }}
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setLabelDraft(null)}>ביטול</button>
+              <div style={{ flex: 1 }} />
+              <button type="button" className="btn btn-primary" disabled={!labelDraft.text.trim()} onClick={confirmLabelDraft}>
+                הוסף לטופס
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

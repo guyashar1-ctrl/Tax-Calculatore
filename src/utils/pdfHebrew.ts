@@ -31,16 +31,20 @@ export async function embedPdfFonts(doc: PDFDocument): Promise<PdfFonts> {
 export const hasHebrew = (s: string) => /[֐-׿]/.test(s);
 const isHebChar = (ch: string) => /[֐-׿]/.test(ch);
 
+export interface TextSegment { rtl: boolean; text: string; }
+
 /**
- * סידור ויזואלי לציור LTR של טקסט שבסיסו עברית: הופכים את סדר הרצפים (runs),
- * בתוך רצף עברי הופכים את התווים, ורצפי ספרות/לטינית נשארים כמו שהם —
- * כך "תיק 123 פעיל" נקרא נכון וגם המספרים לא מתהפכים.
+ * פירוק טקסט למקטעים בסדר ויזואלי (לציור משמאל לימין):
+ * fontkit כבר הופך בעצמו רצף עברי בתוך drawText — לכן רצף עברי נשאר בסדר
+ * הלוגי שלו (ההיפוך הידני גרם להיפוך כפול!). אנחנו הופכים רק את סדר הרצפים,
+ * כדי שבטקסט מעורב ("תיק 123 רו״ח") המילים והמספרים ינחתו במקום הנכון.
+ * גרש/גרשיים ASCII מוחלפים בתווים העבריים (״ ׳) שקיימים בפונט העברי.
  */
-export function bidiVisualRTL(text: string): string {
-  if (!hasHebrew(text)) return text;
+export function layoutMixed(text: string): TextSegment[] {
   const cls = (ch: string) => isHebChar(ch) ? 'R' : /[A-Za-z0-9]/.test(ch) ? 'L' : 'N';
-  const runs: { rtl: boolean; text: string }[] = [];
-  let cur: { rtl: boolean; text: string } | null = null;
+  if (!hasHebrew(text)) return [{ rtl: false, text }];
+  const runs: TextSegment[] = [];
+  let cur: TextSegment | null = null;
   let neutrals = '';
   for (const ch of [...text]) {
     const c = cls(ch);
@@ -57,31 +61,24 @@ export function bidiVisualRTL(text: string): string {
   }
   if (cur) { cur.text += neutrals; runs.push(cur); }
   else if (neutrals) runs.push({ rtl: true, text: neutrals });
-  return runs.reverse().map(r => r.rtl ? [...r.text].reverse().join('') : r.text).join('');
+  return runs.reverse().map(r => r.rtl
+    ? { ...r, text: r.text.replace(/"/g, '״').replace(/'/g, '׳') }
+    : r);
 }
 
-/** פיצול מחרוזת ויזואלית למקטעים לפי הפונט שמכיל את התווים */
-function segmentsByFont(visual: string, fonts: PdfFonts): { font: PDFFont; text: string }[] {
-  const segs: { font: PDFFont; text: string }[] = [];
-  for (const ch of [...visual]) {
-    const font = isHebChar(ch) ? fonts.hebrew : fonts.latin;
-    const last = segs[segs.length - 1];
-    if (last && last.font === font) last.text += ch;
-    else segs.push({ font, text: ch });
-  }
-  return segs;
+const segFont = (seg: TextSegment, fonts: PdfFonts): PDFFont => seg.rtl ? fonts.hebrew : fonts.latin;
+
+/** רוחב כולל של מקטעים בגודל נתון */
+export function measureMixed(segments: TextSegment[], size: number, fonts: PdfFonts): number {
+  return segments.reduce((w, s) => w + segFont(s, fonts).widthOfTextAtSize(s.text, size), 0);
 }
 
-/** רוחב טקסט ויזואלי בגודל נתון (סכום המקטעים בשני הפונטים) */
-export function measureMixed(visual: string, size: number, fonts: PdfFonts): number {
-  return segmentsByFont(visual, fonts).reduce((w, s) => w + s.font.widthOfTextAtSize(s.text, size), 0);
-}
-
-/** ציור מחרוזת ויזואלית משמאל x — כל מקטע בפונט הנכון */
-export function drawMixedVisual(page: PDFPage, visual: string, x: number, y: number, size: number, fonts: PdfFonts) {
+/** ציור המקטעים משמאל x — רצף עברי בפונט העברי (fontkit מסדר את כיוונו) */
+export function drawMixedVisual(page: PDFPage, segments: TextSegment[], x: number, y: number, size: number, fonts: PdfFonts) {
   let cx = x;
-  for (const seg of segmentsByFont(visual, fonts)) {
-    page.drawText(seg.text, { x: cx, y, size, font: seg.font, color: rgb(0, 0, 0) });
-    cx += seg.font.widthOfTextAtSize(seg.text, size);
+  for (const seg of segments) {
+    const font = segFont(seg, fonts);
+    page.drawText(seg.text, { x: cx, y, size, font, color: rgb(0, 0, 0) });
+    cx += font.widthOfTextAtSize(seg.text, size);
   }
 }

@@ -11,7 +11,7 @@
 import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { RepresentationRequest, AuthorityKind } from '../types';
-import { embedPdfFonts, bidiVisualRTL, measureMixed, drawMixedVisual, PdfFonts } from './pdfHebrew';
+import { embedPdfFonts, layoutMixed, measureMixed, drawMixedVisual, PdfFonts } from './pdfHebrew';
 
 const TEMPLATE_URL = '/templates/poa_2279a5.pdf';
 
@@ -128,9 +128,9 @@ function reverseForRTL(text: string): string {
 function drawHebrew(page: PDFPage, text: string, x: number, y: number, font: PDFFont, size = TEXT_SIZE) {
   if (!text) return;
   if (FONTS) {
-    const visual = bidiVisualRTL(text);
-    const width = measureMixed(visual, size, FONTS);
-    drawMixedVisual(page, visual, x - width, y, size, FONTS);
+    const segs = layoutMixed(text);
+    const width = measureMixed(segs, size, FONTS);
+    drawMixedVisual(page, segs, x - width, y, size, FONTS);
     return;
   }
   const visual = reverseForRTL(text);

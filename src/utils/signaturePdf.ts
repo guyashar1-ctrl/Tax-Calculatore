@@ -8,7 +8,7 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { SignatureField, SignatureValue } from '../types';
-import { embedPdfFonts, bidiVisualRTL, measureMixed, drawMixedVisual, PdfFonts } from './pdfHebrew';
+import { embedPdfFonts, layoutMixed, measureMixed, drawMixedVisual, PdfFonts } from './pdfHebrew';
 
 function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; isJpg: boolean } | null {
   const [meta, base64] = dataUrl.split(',');
@@ -65,11 +65,11 @@ export async function burnSignaturesIntoPdf(
     if (field.kind === 'label') {
       const raw = field.staticText || '';
       if (!raw) continue;
-      const visual = bidiVisualRTL(raw);
+      const segs = layoutMixed(raw);
       let size = Math.min(boxH * 0.72, 12);
-      let tw = measureMixed(visual, size, fonts);
-      if (tw > boxW && tw > 0) { size = size * (boxW / tw); tw = measureMixed(visual, size, fonts); }
-      drawMixedVisual(page, visual, boxX + (boxW - tw) / 2, boxY + (boxH - size) / 2 + size * 0.15, size, fonts);
+      let tw = measureMixed(segs, size, fonts);
+      if (tw > boxW && tw > 0) { size = size * (boxW / tw); tw = measureMixed(segs, size, fonts); }
+      drawMixedVisual(page, segs, boxX + (boxW - tw) / 2, boxY + (boxH - size) / 2 + size * 0.15, size, fonts);
       continue;
     }
     if (!val) continue;
@@ -89,14 +89,14 @@ export async function burnSignaturesIntoPdf(
         height: dh,
       });
     } else if (field.kind === 'text' && val.text) {
-      const visual = bidiVisualRTL(val.text);
+      const segs = layoutMixed(val.text);
       let size = Math.min(boxH * 0.72, 14);
-      let tw = measureMixed(visual, size, fonts);
+      let tw = measureMixed(segs, size, fonts);
       if (tw > boxW && tw > 0) {
         size = size * (boxW / tw);
-        tw = measureMixed(visual, size, fonts);
+        tw = measureMixed(segs, size, fonts);
       }
-      drawMixedVisual(page, visual, boxX + (boxW - tw) / 2, boxY + (boxH - size) / 2 + size * 0.15, size, fonts);
+      drawMixedVisual(page, segs, boxX + (boxW - tw) / 2, boxY + (boxH - size) / 2 + size * 0.15, size, fonts);
     }
   }
 
