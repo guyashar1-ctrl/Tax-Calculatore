@@ -144,11 +144,20 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
           <button type="button" className="btn btn-ghost btn-icon" onClick={onCancel} disabled={busy}>✕</button>
         </div>
 
-        {/* צ'קליסט שלמות */}
+        {/* צ'קליסט שלמות — מה שחסר בולט בכתום */}
         <div style={{ display: 'flex', gap: '.9rem', flexWrap: 'wrap', padding: '.55rem 1rem', borderBottom: '1px solid var(--gray-200)', background: 'var(--gray-50)', fontSize: '.78rem' }}>
           {checklist.map(c => (
-            <span key={c.label} style={{ color: c.done ? 'var(--green-dark, #0F6E56)' : 'var(--gray-500)', fontWeight: c.done ? 600 : 400 }}>
-              {c.done ? '✓' : '○'} {c.label}
+            <span
+              key={c.label}
+              style={{
+                color: c.done ? 'var(--green-dark, #0F6E56)' : '#B45309',
+                fontWeight: 600,
+                background: c.done ? 'transparent' : '#FEF3C7',
+                padding: c.done ? undefined : '2px 8px',
+                borderRadius: 8,
+              }}
+            >
+              {c.done ? '✓' : '⚠ חסר:'} {c.label}
             </span>
           ))}
         </div>
@@ -182,7 +191,11 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
           <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={busy}>ביטול</button>
           <div style={{ flex: 1 }} />
           <button type="button" className="btn btn-primary btn-lg" onClick={handleContinue} disabled={!ready || busy}>
-            {busy ? 'שולח…' : ready ? '📨 המשך ושלח לחתימה' : 'סמנו את כל האזורים כדי להמשיך'}
+            {busy
+              ? 'שולח…'
+              : ready
+              ? '📨 המשך ושלח לחתימה'
+              : `⚠ חסר: ${checklist.filter(c => !c.done).map(c => c.label).join(' · ')}`}
           </button>
         </div>
       </div>
