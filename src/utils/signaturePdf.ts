@@ -8,18 +8,7 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { SignatureField, SignatureValue } from '../types';
-
-const FONT_URL = '/fonts/NotoSans-Regular.ttf';
-let cachedFont: ArrayBuffer | null = null;
-
-async function getFontBytes(): Promise<ArrayBuffer> {
-  if (!cachedFont) {
-    const res = await fetch(FONT_URL);
-    if (!res.ok) throw new Error(`טעינת הפונט נכשלה: ${res.status}`);
-    cachedFont = await res.arrayBuffer();
-  }
-  return cachedFont;
-}
+import { embedPdfFonts, bidiVisualRTL, measureMixed, drawMixedVisual, PdfFonts } from './pdfHebrew';
 
 function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; isJpg: boolean } | null {
   const [meta, base64] = dataUrl.split(',');
@@ -29,10 +18,6 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; isJpg: boolean } 
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return { bytes, isJpg: /jpe?g/i.test(meta) };
 }
-
-// pdf-lib מצייר תמיד LTR — לטקסט עברי הופכים את סדר התווים כך שייקרא נכון.
-const hasHebrew = (s: string) => /[֐-׿]/.test(s);
-const reverseForRTL = (s: string) => [...s].reverse().join('');
 
 /**
  * מטביע את כל הערכים שמולאו על עותק של ה-PDF, ומחזיר bytes סופיים.
@@ -45,7 +30,7 @@ export async function burnSignaturesIntoPdf(
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(pdfBytes);
   doc.registerFontkit(fontkit);
-  const font = await doc.embedFont(await getFontBytes());
+  const fonts: PdfFonts = await embedPdfFonts(doc);
   const pages = doc.getPages();
 
   for (const field of fields) {
@@ -80,11 +65,11 @@ export async function burnSignaturesIntoPdf(
     if (field.kind === 'label') {
       const raw = field.staticText || '';
       if (!raw) continue;
-      const text = hasHebrew(raw) ? reverseForRTL(raw) : raw;
+      const visual = bidiVisualRTL(raw);
       let size = Math.min(boxH * 0.72, 12);
-      let tw = font.widthOfTextAtSize(text, size);
-      if (tw > boxW && tw > 0) { size = size * (boxW / tw); tw = font.widthOfTextAtSize(text, size); }
-      page.drawText(text, { x: boxX + (boxW - tw) / 2, y: boxY + (boxH - size) / 2 + size * 0.15, size, font, color: rgb(0, 0, 0) });
+      let tw = measureMixed(visual, size, fonts);
+      if (tw > boxW && tw > 0) { size = size * (boxW / tw); tw = measureMixed(visual, size, fonts); }
+      drawMixedVisual(page, visual, boxX + (boxW - tw) / 2, boxY + (boxH - size) / 2 + size * 0.15, size, fonts);
       continue;
     }
     if (!val) continue;
@@ -104,20 +89,14 @@ export async function burnSignaturesIntoPdf(
         height: dh,
       });
     } else if (field.kind === 'text' && val.text) {
-      const text = hasHebrew(val.text) ? reverseForRTL(val.text) : val.text;
+      const visual = bidiVisualRTL(val.text);
       let size = Math.min(boxH * 0.72, 14);
-      let tw = font.widthOfTextAtSize(text, size);
+      let tw = measureMixed(visual, size, fonts);
       if (tw > boxW && tw > 0) {
         size = size * (boxW / tw);
-        tw = font.widthOfTextAtSize(text, size);
+        tw = measureMixed(visual, size, fonts);
       }
-      page.drawText(text, {
-        x: boxX + (boxW - tw) / 2,
-        y: boxY + (boxH - size) / 2 + size * 0.15,
-        size,
-        font,
-        color: rgb(0, 0, 0),
-      });
+      drawMixedVisual(page, visual, boxX + (boxW - tw) / 2, boxY + (boxH - size) / 2 + size * 0.15, size, fonts);
     }
   }
 

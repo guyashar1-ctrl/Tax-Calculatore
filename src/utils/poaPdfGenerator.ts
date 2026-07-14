@@ -11,9 +11,9 @@
 import { PDFDocument, PDFFont, PDFPage, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { RepresentationRequest, AuthorityKind } from '../types';
+import { embedPdfFonts, bidiVisualRTL, measureMixed, drawMixedVisual, PdfFonts } from './pdfHebrew';
 
 const TEMPLATE_URL = '/templates/poa_2279a5.pdf';
-const FONT_URL = '/fonts/NotoSans-Regular.ttf';
 
 const PAGE_HEIGHT = 841.89;
 
@@ -87,7 +87,6 @@ const FIELDS = {
 const TEXT_SIZE = 9;
 const TEXT_COLOR = rgb(0, 0, 0);
 
-let cachedFontBytes: ArrayBuffer | null = null;
 let cachedTemplateBytes: ArrayBuffer | null = null;
 
 async function loadAsset(url: string): Promise<ArrayBuffer> {
@@ -101,10 +100,9 @@ async function getTemplateBytes(): Promise<ArrayBuffer> {
   return cachedTemplateBytes;
 }
 
-async function getFontBytes(): Promise<ArrayBuffer> {
-  if (!cachedFontBytes) cachedFontBytes = await loadAsset(FONT_URL);
-  return cachedFontBytes;
-}
+// שני הפונטים (לטיני + עברי) של המסמך הנוכחי — נקבע בתחילת generateSignedPoaPdf.
+// NotoSans-Regular לבדו לא מכיל עברית — ציור עברי בלעדיו יוצא ריבועים ריקים.
+let FONTS: PdfFonts | null = null;
 
 // ─── ציור טקסט על טופס RTL ──────────────────────────────────────────────────
 //
@@ -126,9 +124,15 @@ function reverseForRTL(text: string): string {
   return [...text].reverse().join('');
 }
 
-/** ציור טקסט עברי (כולל מעורב) — היפוך מלא + יישור ימני */
+/** ציור טקסט עברי (כולל מעורב) — סידור ויזואלי + יישור ימני, בפונט העברי */
 function drawHebrew(page: PDFPage, text: string, x: number, y: number, font: PDFFont, size = TEXT_SIZE) {
   if (!text) return;
+  if (FONTS) {
+    const visual = bidiVisualRTL(text);
+    const width = measureMixed(visual, size, FONTS);
+    drawMixedVisual(page, visual, x - width, y, size, FONTS);
+    return;
+  }
   const visual = reverseForRTL(text);
   const width = font.widthOfTextAtSize(visual, size);
   page.drawText(visual, { x: x - width, y, size, font, color: TEXT_COLOR });
@@ -215,14 +219,12 @@ export async function generateSignedPoaPdf({ request, stampDataUrl }: PdfGenerat
   if (!request.submission) throw new Error('אין נתוני מילוי של הלקוח');
   if (!request.partB) throw new Error('המייצג עדיין לא מילא את חלק ב\'');
 
-  const [templateBytes, fontBytes] = await Promise.all([
-    getTemplateBytes(),
-    getFontBytes(),
-  ]);
+  const templateBytes = await getTemplateBytes();
 
   const doc = await PDFDocument.load(templateBytes);
   doc.registerFontkit(fontkit);
-  const font = await doc.embedFont(fontBytes);
+  FONTS = await embedPdfFonts(doc);
+  const font = FONTS.latin;
   const page = doc.getPage(0);
 
   const sub = request.submission;

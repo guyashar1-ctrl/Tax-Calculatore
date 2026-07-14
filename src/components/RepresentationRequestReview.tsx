@@ -414,9 +414,14 @@ export default function RepresentationRequestReview({
             </button>
           )}
           {request.status === 'awaiting_stamp' && setup && request.signedPdfStoredId && (
-            <button className="btn btn-green btn-lg" onClick={() => void onMarkSentToShaam(request)}>
-              📤 נשלח לשע"ם
-            </button>
+            <>
+              <button className="btn btn-secondary" onClick={() => void openStampRoom()} title="פתיחת חדר החתימה מחדש — מייצר PDF סופי חדש">
+                ↺ חתום מחדש
+              </button>
+              <button className="btn btn-green btn-lg" onClick={() => void onMarkSentToShaam(request)}>
+                📤 נשלח לשע"ם
+              </button>
+            </>
           )}
           {isNewOnboarding && request.status === 'awaiting_stamp' && !setup && !signMode && (
             <button className="btn btn-green btn-lg" onClick={() => setSignMode(true)}>
