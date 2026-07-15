@@ -11,6 +11,7 @@ import {
 import { calcTotals, formatILS, itemFinalPrice } from '../../utils/quotationCalc';
 import { deriveQuotationBrand } from './quotationBranding';
 import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
+import { generateQuotationPdf, downloadPdf } from '../../utils/quotationPdf';
 import QuotationWebView, { type QuotationWebViewData } from './QuotationWebView';
 
 type PreviewTab = 'web' | 'email' | 'pdf';
@@ -35,6 +36,7 @@ interface Props {
   existing?: Quotation | null;               // עריכת טיוטה קיימת
   existingQuotations: Quotation[];           // לאזהרת "כבר יש הצעה פתוחה"
   onSaveDraft: (payload: SaveDraftPayload) => Promise<void>;
+  onSend: (payload: SaveDraftPayload, isTest: boolean) => Promise<{ ok: boolean; error?: string; link?: string }>;
   onBack: () => void;
 }
 
@@ -75,7 +77,7 @@ function daysFromNow(days: number): string {
 }
 
 export default function QuotationBuilder({
-  profile, services, templates, leads, clients, existing, existingQuotations, onSaveDraft, onBack,
+  profile, services, templates, leads, clients, existing, existingQuotations, onSaveDraft, onSend, onBack,
 }: Props) {
   const brand = useMemo(() => deriveQuotationBrand(profile), [profile]);
 
@@ -109,6 +111,9 @@ export default function QuotationBuilder({
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recipientPicker, setRecipientPicker] = useState(false);
+  const [sending, setSending] = useState<'test' | 'send' | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const totals = calcTotals(items, vatRate);
 
@@ -178,6 +183,52 @@ export default function QuotationBuilder({
     }
   }
 
+  function buildPayload(): SaveDraftPayload {
+    return {
+      id: existing?.id,
+      recipient, items, vatRate,
+      emailSubject, emailMessage, notesForClient, internalNotes,
+      templateId, expiresAt,
+    };
+  }
+
+  async function handleSend(isTest: boolean) {
+    setError(null);
+    setNotice(null);
+    if (!recipient.fullName.trim()) { setError('יש להזין נמען לפני שליחה.'); return; }
+    if (!isTest && !recipient.email?.trim()) { setError('לנמען אין כתובת מייל — לא ניתן לשלוח ללקוח.'); return; }
+    if (items.length === 0) { setError('אין שירותים בהצעה.'); return; }
+    setSending(isTest ? 'test' : 'send');
+    try {
+      const res = await onSend(buildPayload(), isTest);
+      if (res.ok) {
+        setNotice({ kind: 'ok', text: isTest ? 'מייל בדיקה נשלח אליך.' : 'ההצעה נשלחה ללקוח.' });
+        if (!isTest) { setTimeout(onBack, 900); }
+      } else {
+        setNotice({ kind: 'err', text: `השליחה נכשלה: ${res.error ?? 'שגיאה'}` });
+      }
+    } finally {
+      setSending(null);
+    }
+  }
+
+  async function handleDownloadPdf() {
+    setPdfBusy(true);
+    try {
+      const bytes = await generateQuotationPdf({
+        quotationNumber: existing?.quotationNumber ?? 'טיוטה',
+        recipientName: recipient.fullName || 'הלקוח',
+        businessName: recipient.businessName,
+        items, vatRate, notesForClient, expiresAt,
+      }, brand);
+      downloadPdf(bytes, `הצעת מחיר ${existing?.quotationNumber ?? 'טיוטה'}.pdf`);
+    } catch (e) {
+      setNotice({ kind: 'err', text: `הפקת ה-PDF נכשלה: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   const catalogFiltered = services.filter(s =>
     s.active && (!catalogSearch.trim() || s.name.includes(catalogSearch.trim())));
   const usedServiceIds = new Set(items.map(i => i.serviceId).filter(Boolean));
@@ -191,14 +242,21 @@ export default function QuotationBuilder({
           <div style={{ fontSize: 20, fontWeight: 600 }}>{existing ? `עריכת הצעה ${existing.quotationNumber}` : 'הצעת מחיר חדשה'}</div>
           <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>בונים, מציגים תצוגה מקדימה ושומרים — הכל במסך אחד</div>
         </div>
-        <button className="btn btn-secondary" disabled title="יהיה זמין בשלב הבא">מייל בדיקה</button>
-        <button className="btn btn-secondary" disabled title="יהיה זמין בשלב הבא">שליחה ללקוח</button>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+        <button className="btn btn-secondary" onClick={() => handleSend(true)} disabled={sending !== null || saving}>
+          {sending === 'test' ? 'שולח…' : 'מייל בדיקה'}
+        </button>
+        <button className="btn btn-secondary" onClick={handleSave} disabled={saving || sending !== null}>
           {saving ? 'שומר…' : savedAt ? '✓ נשמר' : 'שמירת טיוטה'}
+        </button>
+        <button className="btn btn-primary" onClick={() => handleSend(false)} disabled={sending !== null || saving}>
+          {sending === 'send' ? 'שולח…' : 'שליחה ללקוח'}
         </button>
       </div>
 
       {error && <div className="alert alert-warning" style={{ marginBottom: 12 }}>{error}</div>}
+      {notice && (
+        <div className={`alert ${notice.kind === 'ok' ? 'alert-info' : 'alert-warning'}`} style={{ marginBottom: 12 }}>{notice.text}</div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 460px) 1fr', gap: 18, alignItems: 'start' }}>
 
@@ -334,9 +392,12 @@ export default function QuotationBuilder({
                 {tab === 'pdf' && (
                   <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-500)' }}>
                     <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
-                    <div style={{ fontWeight: 600, marginBottom: 6 }}>תצוגת ה-PDF תתווסף בשלב הבא</div>
-                    <div style={{ fontSize: 13 }}>ה-PDF יופק אוטומטית ויתאים לעמוד ההצעה. סיכום נוכחי:</div>
-                    <div style={{ marginTop: 16, display: 'inline-flex', flexDirection: 'column', gap: 4, textAlign: 'start', background: 'white', border: '1px solid var(--gray-200)', borderRadius: 10, padding: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--gray-700)' }}>ה-PDF של ההצעה</div>
+                    <div style={{ fontSize: 13, marginBottom: 16 }}>מופק אוטומטית ותואם לעמוד ההצעה. אפשר להוריד ולבדוק:</div>
+                    <button className="btn btn-primary" disabled={pdfBusy || items.length === 0} onClick={handleDownloadPdf}>
+                      {pdfBusy ? 'מפיק…' : '⬇ הורדת PDF לבדיקה'}
+                    </button>
+                    <div style={{ marginTop: 18, display: 'inline-flex', flexDirection: 'column', gap: 4, textAlign: 'start', background: 'white', border: '1px solid var(--gray-200)', borderRadius: 10, padding: 16 }}>
                       {totals.monthly.withVat > 0 && <span>חודשי: <b>{formatILS(Math.round(totals.monthly.withVat))}</b></span>}
                       {totals.annual.withVat > 0 && <span>שנתי: <b>{formatILS(Math.round(totals.annual.withVat))}</b></span>}
                       {totals.oneTime.withVat > 0 && <span>חד־פעמי: <b>{formatILS(Math.round(totals.oneTime.withVat))}</b></span>}

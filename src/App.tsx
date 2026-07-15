@@ -31,6 +31,8 @@ import { useQuotations } from './hooks/useQuotations';
 import { useQuotationCatalog } from './hooks/useQuotationCatalog';
 import QuotationsPipeline from './components/quotations/QuotationsPipeline';
 import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
+import { deriveQuotationBrand } from './components/quotations/quotationBranding';
+import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
 import type { Quotation } from './types/quotations';
 import FirmProfileConsole from './components/FirmProfileConsole';
 import type { FirmProfile } from './types/firmProfile';
@@ -53,6 +55,7 @@ import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateCl
 import RepresentationOnboardingDialog from './components/RepresentationOnboardingDialog';
 import OnboardingPage from './components/OnboardingPage';
 import PublicIntakePage from './components/PublicIntakePage';
+import PublicQuotationPage from './components/PublicQuotationPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import PublicSignPage from './components/PublicSignPage';
@@ -169,6 +172,9 @@ export default function App() {
     // שאלון עצמאי — נשלח יזום מכרטיס הלקוח, בלי הליך ייצוג.
     const intakeToken = new URLSearchParams(window.location.search).get('intake');
     if (intakeToken) return <PublicIntakePage token={intakeToken} />;
+    // עמוד הצעת מחיר ציבורי — קישור מאובטח לפי טוקן.
+    const quoteToken = new URLSearchParams(window.location.search).get('quote');
+    if (quoteToken) return <PublicQuotationPage token={quoteToken} />;
   }
 
   const { user, loading: authLoading, displayName, avatarUrl, signOut } = useAuth();
@@ -707,10 +713,10 @@ export default function App() {
   }
 
   /**
-   * שמירת טיוטת הצעה. אם הנמען הוא "ליד חדש" — יוצרים קודם רשומת ליד ומקשרים.
-   * ליד הופך ללקוח רק אחרי אישור ההצעה (שלב 4) — לא כאן.
+   * שומר טיוטת הצעה (יוצר/מעדכן) ומחזיר את ההצעה השמורה. אם הנמען "ליד חדש" —
+   * יוצר קודם רשומת ליד ומקשר. ליד הופך ללקוח רק אחרי אישור ההצעה (שלב 4).
    */
-  async function handleSaveQuotationDraft(payload: SaveDraftPayload) {
+  async function persistQuotation(payload: SaveDraftPayload): Promise<Quotation> {
     let leadId: string | undefined;
     let clientId: string | undefined;
 
@@ -730,30 +736,12 @@ export default function App() {
       clientId = payload.recipient.id;
     }
 
-    if (payload.id) {
-      const existing = quotations.find(q => q.id === payload.id);
-      if (existing) {
-        await updateQuotation({
-          ...existing,
-          leadId: leadId ?? existing.leadId,
-          clientId: clientId ?? existing.clientId,
-          items: payload.items,
-          vatRate: payload.vatRate,
-          emailSubject: payload.emailSubject,
-          emailMessage: payload.emailMessage,
-          notesForClient: payload.notesForClient,
-          internalNotes: payload.internalNotes,
-          templateId: payload.templateId,
-          expiresAt: payload.expiresAt,
-          events: [...existing.events, { type: 'edited', at: new Date().toISOString() }],
-        });
-      }
-    } else {
-      await addQuotation({
-        leadId,
-        clientId,
-        revision: 1,
-        status: 'draft',
+    const existing = payload.id ? quotations.find(q => q.id === payload.id) : undefined;
+    if (existing) {
+      return updateQuotation({
+        ...existing,
+        leadId: leadId ?? existing.leadId,
+        clientId: clientId ?? existing.clientId,
         items: payload.items,
         vatRate: payload.vatRate,
         emailSubject: payload.emailSubject,
@@ -762,9 +750,92 @@ export default function App() {
         internalNotes: payload.internalNotes,
         templateId: payload.templateId,
         expiresAt: payload.expiresAt,
-        events: [],
+        events: [...existing.events, { type: 'edited', at: new Date().toISOString() }],
       });
     }
+    return addQuotation({
+      leadId, clientId, revision: 1, status: 'draft',
+      items: payload.items,
+      vatRate: payload.vatRate,
+      emailSubject: payload.emailSubject,
+      emailMessage: payload.emailMessage,
+      notesForClient: payload.notesForClient,
+      internalNotes: payload.internalNotes,
+      templateId: payload.templateId,
+      expiresAt: payload.expiresAt,
+      events: [],
+    });
+  }
+
+  async function handleSaveQuotationDraft(payload: SaveDraftPayload) {
+    const saved = await persistQuotation(payload);
+    setEditingQuotationId(saved.id);
+  }
+
+  /**
+   * שולח הצעה ללקוח (או מייל בדיקה לרו"ח). שומר קודם, מקפיא snapshot ברגע השליחה,
+   * מייצר טוקן ציבורי, ובונה את ה-HTML באותו מחולל של התצוגה המקדימה — כדי
+   * שהמייל יהיה זהה למה שהוצג. מחזיר תוצאה להצגה בבונה.
+   */
+  async function handleSendQuotation(payload: SaveDraftPayload, isTest: boolean): Promise<{ ok: boolean; error?: string; link?: string }> {
+    const saved = await persistQuotation(payload);
+    const token = saved.publicToken || crypto.randomUUID().replace(/-/g, '');
+    const link = `${window.location.origin}/?quote=${token}`;
+    const now = new Date().toISOString();
+
+    const brand = deriveQuotationBrand(firmProfile);
+    const ctx: Record<string, string> = {
+      '{{clientName}}': payload.recipient.fullName,
+      '{{businessName}}': payload.recipient.businessName || payload.recipient.fullName,
+      '{{quotationNumber}}': saved.quotationNumber,
+      '{{quotationLink}}': link,
+    };
+    const applyPlaceholders = (s: string) => Object.entries(ctx).reduce((acc, [k, v]) => acc.split(k).join(v ?? ''), s);
+    const subject = applyPlaceholders(payload.emailSubject || 'הצעת מחיר');
+    const html = buildQuotationEmailHtml({
+      quotationNumber: saved.quotationNumber,
+      recipientName: payload.recipient.fullName,
+      businessName: payload.recipient.businessName,
+      items: payload.items,
+      vatRate: payload.vatRate,
+      message: applyPlaceholders(payload.emailMessage || ''),
+      quotationLink: link,
+      expiresAt: payload.expiresAt,
+    }, brand);
+
+    // שולחים קודם — ורק אם המייל יצא בהצלחה מסמנים "נשלחה" ומקפיאים snapshot.
+    // כך הצעה לא תיתקע במצב "נשלחה" בלי שהמייל באמת יצא.
+    let res: { ok?: boolean; error?: string; detail?: { message?: string } } | null = null;
+    try {
+      const { data, error } = await supabase.functions.invoke('send-quotation-email', {
+        body: { quotationId: saved.id, isTest, html, subject },
+      });
+      if (error) return { ok: false, error: error.message, link };
+      res = data;
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e), link };
+    }
+    if (!res?.ok) return { ok: false, error: res?.detail?.message || res?.error || 'שגיאה לא ידועה', link };
+
+    const snapshot = {
+      frozenAt: now, quotationNumber: saved.quotationNumber, revision: saved.revision,
+      recipientName: payload.recipient.fullName, recipientEmail: payload.recipient.email,
+      businessName: payload.recipient.businessName, items: payload.items, vatRate: payload.vatRate,
+      notesForClient: payload.notesForClient, emailSubject: payload.emailSubject,
+      emailMessage: payload.emailMessage, firmName: firmProfile?.firmName,
+    };
+    if (!isTest) {
+      await updateQuotation({
+        ...saved, status: 'sent', sentAt: now, publicToken: token, snapshot,
+        events: [...saved.events, { type: 'sent', at: now }],
+      });
+    } else if (!saved.publicToken) {
+      await updateQuotation({
+        ...saved, publicToken: token,
+        events: [...saved.events, { type: 'test_email_sent', at: now }],
+      });
+    }
+    return { ok: true, link };
   }
 
   const breadcrumb =
@@ -1012,6 +1083,7 @@ export default function App() {
             existing={editingQuotation}
             existingQuotations={quotations}
             onSaveDraft={handleSaveQuotationDraft}
+            onSend={handleSendQuotation}
             onBack={() => { setEditingQuotationId(null); setView('quotations'); }}
           />
         )}
