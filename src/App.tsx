@@ -46,6 +46,7 @@ import LoginScreen from './components/LoginScreen';
 import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateClient';
 import RepresentationOnboardingDialog from './components/RepresentationOnboardingDialog';
 import OnboardingPage from './components/OnboardingPage';
+import PublicIntakePage from './components/PublicIntakePage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import PublicSignPage from './components/PublicSignPage';
@@ -157,6 +158,9 @@ export default function App() {
     // עמוד חתימה ציבורי — קישור אישי לכל חותם (נישום / בן זוג).
     const signToken = new URLSearchParams(window.location.search).get('sign');
     if (signToken) return <PublicSignPage token={signToken} />;
+    // שאלון עצמאי — נשלח יזום מכרטיס הלקוח, בלי הליך ייצוג.
+    const intakeToken = new URLSearchParams(window.location.search).get('intake');
+    if (intakeToken) return <PublicIntakePage token={intakeToken} />;
   }
 
   const { user, loading: authLoading, displayName, avatarUrl, signOut } = useAuth();

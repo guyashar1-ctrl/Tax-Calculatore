@@ -14,6 +14,7 @@ import TaxProfileTab from './clientTabs/TaxProfileTab';
 import DocumentsTab from './clientTabs/DocumentsTab';
 import { useClientTaxSessions } from '../features/annualReport/useClientTaxSessions';
 import TasksActivityTab from './clientTabs/TasksActivityTab';
+import SendIntakeModal from './SendIntakeModal';
 
 const VAT_LABELS: Record<VATStatus, string> = {
   authorizedDealer: 'עוסק מורשה',
@@ -114,6 +115,7 @@ export default function ClientWorkspace({
   const [tab, setTab] = useState<TabId>('overview');
   const [docCategories, setDocCategories] = useState<Set<string>>(new Set());
   const [dirty, setDirty] = useState(false);
+  const [intakeModalOpen, setIntakeModalOpen] = useState(false);
 
   const db = useDocumentDB();
   const { employees, findEmployee } = useEmployees();
@@ -221,6 +223,13 @@ export default function ClientWorkspace({
 
           <div className="cw-header-actions">
             {dirty && <span className="cw-dirty-flag">שינויים לא שמורים</span>}
+            {!isNew && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setIntakeModalOpen(true)}
+                title="שליחת קישור שאלון היכרות/עדכון למייל הלקוח"
+              >📨 שלח שאלון</button>
+            )}
             <button className="btn btn-primary" onClick={handleSave} disabled={!dirty}>שמור</button>
             {!isNew && (
               <button
@@ -363,6 +372,14 @@ export default function ClientWorkspace({
           />
         )}
       </div>
+
+      {intakeModalOpen && (
+        <SendIntakeModal
+          client={client}
+          onClose={() => setIntakeModalOpen(false)}
+          onSent={(email) => appendActivity({ kind: 'manual', text: `📨 נשלח שאלון עדכון אל ${email}` })}
+        />
+      )}
     </div>
   );
 }
