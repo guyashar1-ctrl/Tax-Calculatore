@@ -5,7 +5,7 @@ import CoverageRail from './CoverageRail';
 import CardSectionEditor from './CardSectionEditor';
 import AnnualDeltaScreen, { type DeltaResult } from './AnnualDeltaScreen';
 import { replayAnswers } from './engine';
-import { seedModelFromClient } from './profile';
+import { seedModelFromClient, registeredFileInfo } from './profile';
 import { findSession, saveAnswer, updateSessionState } from './repository';
 import { useAnnualReportFlow } from './useAnnualReportSession';
 import { getQuestionById } from './engine';
@@ -125,6 +125,22 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
 
   const isGate = node?.id === 'year_map';
 
+  // תגית "בן הזוג הרשום" — נגזרת מתיק מס הכנסה בכרטיס (מקור האמת)
+  const regFile = client ? registeredFileInfo(client) : null;
+  const regChip = regFile && (
+    <span
+      style={{
+        fontSize: '.74rem', fontWeight: 700, borderRadius: 99, padding: '.12rem .6rem',
+        background: regFile.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-100)',
+        color: regFile.owner === 'spouse' ? '#b45309' : 'var(--gray-600)',
+        marginRight: '.5rem', whiteSpace: 'nowrap',
+      }}
+      title="על שם מי מתנהל תיק מס הכנסה — נקבע בכרטיס הלקוח"
+    >
+      🗄️ התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
+    </span>
+  );
+
   // עוטף ל-submitAnswer שמעדכן גם את ה-map המקומי של התשובות הקודמות.
   async function handleSubmit(value: AnswerValue) {
     if (node) {
@@ -186,7 +202,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
       <div style={{ maxWidth: 860, margin: '1.5rem auto', padding: '0 1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
           <div style={{ color: 'var(--gray-600)' }}>
-            <strong>{clientName}</strong> · שנת מס <strong>{session.taxYear}</strong>
+            <strong>{clientName}</strong> · שנת מס <strong>{session.taxYear}</strong>{regChip}
             {prior && <span style={{ fontSize: '.8rem' }}> · סקירה שנתית על בסיס {prior.session.taxYear}</span>}
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onExit}>שמור וצא</button>
@@ -225,7 +241,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
     <div style={{ maxWidth: 1000, margin: '1.5rem auto', padding: '0 1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <div style={{ color: 'var(--gray-600)' }}>
-          <strong>{clientName}</strong> · שנת מס <strong>{session.taxYear}</strong>
+          <strong>{clientName}</strong> · שנת מס <strong>{session.taxYear}</strong>{regChip}
         </div>
         <button className="btn btn-ghost btn-sm" onClick={onExit}>שמור וצא</button>
       </div>

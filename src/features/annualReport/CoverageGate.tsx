@@ -11,6 +11,7 @@ import { SECTION_LABELS } from './form1301Fields';
 import { computeAllFieldStatuses, getQuestionById, nodeInFlow, buildRequiredDocs, DOC_SOURCE_LABELS } from './engine';
 import { annualReportTree, chaptersForModel } from './tree';
 import { getAnswersForSession, saveAnswer, updateSessionState } from './repository';
+import { registeredFileInfo } from './profile';
 import QuestionCard from './QuestionCard';
 
 type DocStatus = 'pending' | 'requested' | 'received' | 'not_relevant';
@@ -163,12 +164,30 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
     }
   }
 
+  // תגית "בן הזוג הרשום" — נגזרת מתיק מס הכנסה בכרטיס (מקור האמת)
+  const regFile = client ? registeredFileInfo(client) : null;
+
   if (!loaded) return <div style={{ maxWidth: 900, margin: '2rem auto', textAlign: 'center', color: 'var(--gray-500)' }}>טוען מאזן…</div>;
 
   return (
     <div style={{ maxWidth: 980, margin: '1.5rem auto', padding: '0 1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '.5rem' }}>
-        <h2 style={{ margin: 0 }}>🚦 מאזן כיסוי 1301 — {clientName} · {session.taxYear}</h2>
+        <h2 style={{ margin: 0 }}>
+          🚦 מאזן כיסוי 1301 — {clientName} · {session.taxYear}
+          {regFile && (
+            <span
+              style={{
+                fontSize: '.72rem', fontWeight: 700, borderRadius: 99, padding: '.15rem .6rem', verticalAlign: 'middle',
+                background: regFile.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-100)',
+                color: regFile.owner === 'spouse' ? '#b45309' : 'var(--gray-600)',
+                marginRight: '.6rem', whiteSpace: 'nowrap',
+              }}
+              title="על שם מי מתנהל תיק מס הכנסה — נקבע בכרטיס הלקוח"
+            >
+              🗄️ התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
+            </span>
+          )}
+        </h2>
         <span className="num" style={{ fontWeight: 700 }}>
           <span style={{ color: 'var(--green)' }}>{totals.active} 🟢 מכוסים</span>
           {' · '}<span style={{ color: 'var(--red)' }}>{totals.pruned} 🔴 לא רלוונטיים</span>

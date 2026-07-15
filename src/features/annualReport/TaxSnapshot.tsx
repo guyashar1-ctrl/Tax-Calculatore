@@ -7,7 +7,7 @@ import { TAX_AUTHORITY_LABELS, TAX_FILE_OWNER_LABELS, TAX_FILE_REP_STATUS_LABELS
 import type { AnnualReportSession } from './types';
 import {
   buildProfileBlocks, deriveRecurringDocs, buildKeyAmounts,
-  summarizeYearFile, provenanceLabel, SESSION_STATUS_META,
+  summarizeYearFile, provenanceLabel, SESSION_STATUS_META, registeredFileInfo,
 } from './profile';
 
 interface Props {
@@ -26,18 +26,23 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
   const compact = variant === 'compact';
 
   const taxFiles = client.taxFiles ?? [];
-  const itOnSpouse = taxFiles.find((f) => f.authority === 'income_tax' && f.owner === 'spouse');
+  // מקור האמת: על שם מי מתנהל תיק מס הכנסה — קובע את בן הזוג הרשום בכל המערכת
+  const regFile = registeredFileInfo(client);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
-      {/* ── אזהרה קריטית: תיק מ"ה על ת.ז. של בן הזוג ── */}
-      {itOnSpouse && (
+      {/* ── בן הזוג הרשום — תמיד מוצג כשיש תיק מ"ה; מודגש כשהתיק על בן הזוג ── */}
+      {regFile && (
         <div style={{
           padding: '.55rem .9rem', borderRadius: 9, fontSize: '.88rem', fontWeight: 700,
-          background: '#FBF2E2', border: '1.5px solid #f2d492', color: '#b45309',
+          background: regFile.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-50, #f8f9fa)',
+          border: regFile.owner === 'spouse' ? '1.5px solid #f2d492' : '1px solid var(--gray-200)',
+          color: regFile.owner === 'spouse' ? '#b45309' : 'var(--gray-700, #333)',
         }}>
-          ⚠ תיק מס הכנסה מתנהל על ת.ז. של בן/בת הזוג{client.spouseName ? ` — ${client.spouseName}` : ''}
-          {itOnSpouse.fileNumber ? ` (${itOnSpouse.fileNumber})` : ''}
+          {regFile.owner === 'spouse' ? '⚠ ' : '🗄️ '}
+          תיק מס הכנסה ע"ש <b>{regFile.name}</b>
+          {regFile.idNumber ? <> · ת.ז. <span className="num" dir="ltr">{regFile.idNumber}</span></> : ''}
+          {regFile.owner === 'spouse' ? ' — כל ההתנהלות מול מ"ה בת.ז. הזו' : ''}
         </div>
       )}
 
