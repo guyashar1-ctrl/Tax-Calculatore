@@ -26,6 +26,12 @@ import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
 import { useFirmProfile } from './hooks/useFirmProfile';
+import { useLeads } from './hooks/useLeads';
+import { useQuotations } from './hooks/useQuotations';
+import { useQuotationCatalog } from './hooks/useQuotationCatalog';
+import QuotationsPipeline from './components/quotations/QuotationsPipeline';
+import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
+import type { Quotation } from './types/quotations';
 import FirmProfileConsole from './components/FirmProfileConsole';
 import type { FirmProfile } from './types/firmProfile';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
@@ -67,7 +73,9 @@ type View =
   | 'firmProfile'
   | 'requestNew'
   | 'requestReview'
-  | 'requestFill';
+  | 'requestFill'
+  | 'quotations'
+  | 'quotationBuilder';
 
 /** יוצר Client חדש עם ערכי ברירת מחדל */
 function makeEmptyClient(id: string, partial: Partial<Client> = {}): Client {
@@ -169,10 +177,14 @@ export default function App() {
   const { tasks, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks } = useTasks(user?.id);
   const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
+  const { leads, addLead } = useLeads(user?.id);
+  const { quotations, addQuotation, updateQuotation } = useQuotations(user?.id);
+  const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
 
   const [view, setView] = useState<View>('tasks');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -680,6 +692,81 @@ export default function App() {
     setView('list');
   }
 
+  // ─── הצעות מחיר ולידים ─────────────────────────────────────────────────────
+
+  const editingQuotation = editingQuotationId ? quotations.find(q => q.id === editingQuotationId) ?? null : null;
+
+  function handleNewQuotation() {
+    setEditingQuotationId(null);
+    setView('quotationBuilder');
+  }
+
+  function handleOpenQuotation(q: Quotation) {
+    setEditingQuotationId(q.id);
+    setView('quotationBuilder');
+  }
+
+  /**
+   * שמירת טיוטת הצעה. אם הנמען הוא "ליד חדש" — יוצרים קודם רשומת ליד ומקשרים.
+   * ליד הופך ללקוח רק אחרי אישור ההצעה (שלב 4) — לא כאן.
+   */
+  async function handleSaveQuotationDraft(payload: SaveDraftPayload) {
+    let leadId: string | undefined;
+    let clientId: string | undefined;
+
+    if (payload.recipient.kind === 'new') {
+      const lead = await addLead({
+        fullName: payload.recipient.fullName,
+        phone: payload.recipient.phone,
+        email: payload.recipient.email,
+        businessName: payload.recipient.businessName,
+        dealerType: payload.recipient.dealerType,
+        status: 'new',
+      });
+      leadId = lead.id;
+    } else if (payload.recipient.kind === 'lead') {
+      leadId = payload.recipient.id;
+    } else {
+      clientId = payload.recipient.id;
+    }
+
+    if (payload.id) {
+      const existing = quotations.find(q => q.id === payload.id);
+      if (existing) {
+        await updateQuotation({
+          ...existing,
+          leadId: leadId ?? existing.leadId,
+          clientId: clientId ?? existing.clientId,
+          items: payload.items,
+          vatRate: payload.vatRate,
+          emailSubject: payload.emailSubject,
+          emailMessage: payload.emailMessage,
+          notesForClient: payload.notesForClient,
+          internalNotes: payload.internalNotes,
+          templateId: payload.templateId,
+          expiresAt: payload.expiresAt,
+          events: [...existing.events, { type: 'edited', at: new Date().toISOString() }],
+        });
+      }
+    } else {
+      await addQuotation({
+        leadId,
+        clientId,
+        revision: 1,
+        status: 'draft',
+        items: payload.items,
+        vatRate: payload.vatRate,
+        emailSubject: payload.emailSubject,
+        emailMessage: payload.emailMessage,
+        notesForClient: payload.notesForClient,
+        internalNotes: payload.internalNotes,
+        templateId: payload.templateId,
+        expiresAt: payload.expiresAt,
+        events: [],
+      });
+    }
+  }
+
   const breadcrumb =
     view === 'form'
       ? selectedClient ? `${selectedClient.firstName} ${selectedClient.lastName}` : 'לקוח חדש'
@@ -715,6 +802,7 @@ export default function App() {
   const navTabs: { id: View; label: string; badge?: number }[] = [
     { id: 'tasks', label: '✓ משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
     { id: 'list', label: '👥 לקוחות' },
+    { id: 'quotations', label: '📝 הצעות ולידים' },
     { id: 'annualReport', label: '📋 דוח שנתי 1301' },
     { id: 'reference', label: '🧭 מרכז ידע מס' },
   ];
@@ -734,6 +822,7 @@ export default function App() {
                 setView(t.id);
                 setSelectedId(null);
                 setSelectedRequestId(null);
+                setEditingQuotationId(null);
               }}
               className={`nav-tab ${view === t.id ? 'active' : ''}`}
             >
@@ -900,6 +989,30 @@ export default function App() {
             onUpdateClient={updateClient}
             initialSelection={annualReportSelection}
             onConsumeInitialSelection={() => setAnnualReportSelection(null)}
+          />
+        )}
+
+        {view === 'quotations' && (
+          <QuotationsPipeline
+            quotations={quotations}
+            leads={leads}
+            clients={clients}
+            onNew={handleNewQuotation}
+            onOpen={handleOpenQuotation}
+          />
+        )}
+
+        {view === 'quotationBuilder' && (
+          <QuotationBuilder
+            profile={firmProfile}
+            services={catalogServices}
+            templates={quotationTemplates}
+            leads={leads}
+            clients={clients}
+            existing={editingQuotation}
+            existingQuotations={quotations}
+            onSaveDraft={handleSaveQuotationDraft}
+            onBack={() => { setEditingQuotationId(null); setView('quotations'); }}
           />
         )}
 
