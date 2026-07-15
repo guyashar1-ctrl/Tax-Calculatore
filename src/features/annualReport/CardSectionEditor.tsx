@@ -97,6 +97,14 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
   const [isFamilyCompanyMember, setIsFamilyCompanyMember] = useState(client.isFamilyCompanyMember ?? false);
   const [isForeignControllingShareholder, setIsForeignControllingShareholder] = useState(client.isForeignControllingShareholder ?? false);
   const [isKibbutzMember, setIsKibbutzMember] = useState(client.isKibbutzMember ?? false);
+  const [isSubstantialShareholder, setIsSubstantialShareholder] = useState(client.isSubstantialShareholder ?? false);
+  const [spouseName, setSpouseName] = useState(client.spouseName || '');
+  const [spouseIdNumber, setSpouseIdNumber] = useState(client.spouseIdNumber || '');
+  const [spouseWorking, setSpouseWorking] = useState(client.spouseWorking ?? false);
+  const [completedIdf, setCompletedIdf] = useState(client.completedIdf ?? false);
+  const [idfReleaseYear, setIdfReleaseYear] = useState(client.idfReleaseYear || 0);
+  const [completedNationalService, setCompletedNationalService] = useState(client.completedNationalService ?? false);
+  const [nationalServiceYear, setNationalServiceYear] = useState(client.nationalServiceYear || 0);
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -105,11 +113,14 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
       await onPatch({
         firstName, lastName, idNumber, birthDate, address, city,
         familyStatus,
+        spouseName, spouseIdNumber, spouseWorking,
         isNewImmigrant, aliyahYear, isReturningResident,
         disabilityPercentage,
         hasAcademicDegree, academicDegreeYear,
+        completedIdf, idfReleaseYear, completedNationalService, nationalServiceYear,
         donationsAnnual, lifeInsuranceAnnual,
         isFamilyCompanyMember, isForeignControllingShareholder, isKibbutzMember,
+        isSubstantialShareholder,
       });
       onClose();
     } finally {
@@ -181,6 +192,46 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
           </label>
         </div>
 
+        {familyStatus === 'married' && (
+          <>
+            {sub('בן/בת הזוג')}
+            <div className="form-group">
+              <label>שם בן/בת הזוג</label>
+              <input type="text" value={spouseName} onChange={(e) => setSpouseName(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>ת.ז. בן/בת הזוג</label>
+              <input type="text" value={spouseIdNumber} onChange={(e) => setSpouseIdNumber(e.target.value)} dir="ltr" maxLength={9} />
+            </div>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={spouseWorking} onChange={(e) => setSpouseWorking(e.target.checked)} />
+                בן/בת הזוג עובד/ת
+              </label>
+            </div>
+          </>
+        )}
+
+        {sub('שירות')}
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={completedIdf} onChange={(e) => setCompletedIdf(e.target.checked)} />
+            חייל/ת משוחרר/ת
+          </label>
+          {completedIdf && (
+            <input type="number" value={idfReleaseYear || ''} onChange={(e) => setIdfReleaseYear(Number(e.target.value) || 0)} placeholder="שנת שחרור" />
+          )}
+        </div>
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={completedNationalService} onChange={(e) => setCompletedNationalService(e.target.checked)} />
+            שירות לאומי
+          </label>
+          {completedNationalService && (
+            <input type="number" value={nationalServiceYear || ''} onChange={(e) => setNationalServiceYear(Number(e.target.value) || 0)} placeholder="שנת סיום" />
+          )}
+        </div>
+
         {sub('השכלה וסכומים שנתיים')}
         <div className="form-group">
           <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -213,6 +264,10 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
           <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input type="checkbox" checked={isKibbutzMember} onChange={(e) => setIsKibbutzMember(e.target.checked)} />
             חבר/ת קיבוץ
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={isSubstantialShareholder} onChange={(e) => setIsSubstantialShareholder(e.target.checked)} />
+            בעל/ת מניות מהותי/ת (10%+)
           </label>
         </div>
       </div>
