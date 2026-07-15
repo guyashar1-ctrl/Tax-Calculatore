@@ -153,6 +153,8 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
   const [editCat, setEditCat] = useState<DocCategory>('other');
   const [editYear, setEditYear] = useState<number | 'general'>('general');
   const [editNotes, setEditNotes] = useState('');
+  const [editReplaceFile, setEditReplaceFile] = useState<File | null>(null);
+  const editFileRef = useRef<HTMLInputElement>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Preview
@@ -376,9 +378,21 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
     setEditCat(doc.category);
     setEditYear(doc.year);
     setEditNotes(doc.notes || '');
+    setEditReplaceFile(null);
+    if (editFileRef.current) editFileRef.current.value = '';
   }
   function closeEditModal() {
     setEditModal(null);
+    setEditReplaceFile(null);
+    if (editFileRef.current) editFileRef.current.value = '';
+  }
+  // בחירת קובץ חלופי בעריכה — משנה גם את שם הקובץ המוצג (אלא אם המשתמש שינה אותו ידנית)
+  function handleEditFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] || null;
+    setEditReplaceFile(file);
+    if (file && (!editFileName.trim() || editFileName === editModal?.fileName)) {
+      setEditFileName(file.name);
+    }
   }
   async function saveEdit() {
     if (!editModal) return;
@@ -389,7 +403,20 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
 
     setSavingEdit(true);
     try {
-      // saveDoc עם fileData ריק — לא יעלה את הקובץ מחדש, רק יעדכן מטא-נתונים
+      // אם נבחר קובץ חלופי — קוראים את הבייטים שלו ומחליפים את הקובץ באחסון
+      // (saveDoc דורס את הקובץ הקיים באותו נתיב). אחרת — שולחים בייטים ריקים
+      // ומעדכנים רק מטא-נתונים.
+      let fileData = new ArrayBuffer(0);
+      let fileType = editModal.fileType;
+      let fileSize = editModal.fileSize;
+      let uploadedAt = editModal.uploadedAt;
+      if (editReplaceFile) {
+        fileData = await editReplaceFile.arrayBuffer();
+        fileType = editReplaceFile.type || editModal.fileType;
+        fileSize = editReplaceFile.size;
+        uploadedAt = new Date().toISOString();
+      }
+
       const updated: StoredDoc = {
         ...editModal,
         fileName: editFileName.trim(),
@@ -397,11 +424,19 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
         category: editCat,
         year: editYear,
         notes: editNotes,
-        fileData: new ArrayBuffer(0), // לא להעלות שוב את הבייטים
+        fileType,
+        fileSize,
+        uploadedAt,
+        fileData,
       };
       await db.saveDoc(updated);
-      // עדכון מקומי של הרשימה
-      setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, _remote: true } : d));
+      // עדכון מקומי של הרשימה — בלי הבייטים (חוסך זיכרון; ייטענו בעת תצוגה/הורדה)
+      setDocs(prev => prev.map(d => d.id === updated.id ? { ...updated, fileData: new ArrayBuffer(0), _remote: true } : d));
+      // אם המסמך שהוחלף פתוח בתצוגה מקדימה — סוגרים כדי לא להציג בייטים ישנים
+      if (editReplaceFile && preview?.doc.id === updated.id) {
+        URL.revokeObjectURL(preview.url);
+        setPreview(null);
+      }
       closeEditModal();
     } catch (err: any) {
       console.error('saveEdit failed', err);
@@ -965,6 +1000,33 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                 <div className="form-group span-full">
                   <label>הערות (אופציונלי)</label>
                   <input type="text" value={editNotes} onChange={e => setEditNotes(e.target.value)} />
+                </div>
+                <div className="form-group span-full">
+                  <label>החלפת הקובץ עצמו (אופציונלי)</label>
+                  <div style={{ fontSize: '.8125rem', color: 'var(--gray-500)', marginBottom: '.4rem' }}>
+                    הקובץ הנוכחי: <strong>{editModal.fileName}</strong> ({fmt(editModal.fileSize)}).
+                    בחר קובץ חדש כדי להחליף אותו — אם לא תבחר, הקובץ יישאר כפי שהוא.
+                  </div>
+                  <input
+                    ref={editFileRef}
+                    type="file"
+                    accept={FILE_ACCEPT}
+                    onChange={handleEditFileChange}
+                    disabled={savingEdit}
+                  />
+                  {editReplaceFile && (
+                    <div style={{ fontSize: '.8125rem', color: 'var(--green)', marginTop: '.4rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                      {'✅'} קובץ חדש נבחר: <strong>{editReplaceFile.name}</strong> ({fmt(editReplaceFile.size)})
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => { setEditReplaceFile(null); if (editFileRef.current) editFileRef.current.value = ''; }}
+                        disabled={savingEdit}
+                      >
+                        {'✕'} בטל החלפה
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
