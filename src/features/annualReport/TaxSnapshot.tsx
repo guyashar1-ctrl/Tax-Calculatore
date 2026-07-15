@@ -2,12 +2,13 @@
 // מוצג בכרטיס הלקוח (סקירה + פרופיל מס). מרכז: פרופיל, תיקי שנה, סכומי מפתח,
 // ומסמכים קבועים. variant='compact' לסקירה, variant='full' לטאב הפרופיל.
 
-import type { Client } from '../../types';
-import { TAX_AUTHORITY_LABELS, TAX_FILE_OWNER_LABELS, TAX_FILE_REP_STATUS_LABELS } from '../../types';
+import type { Client, TaxFileInfo, TaxFileOwner } from '../../types';
+import { TAX_AUTHORITY_LABELS, TAX_FILE_REP_STATUS_LABELS } from '../../types';
 import type { AnnualReportSession } from './types';
 import {
   buildProfileBlocks, deriveRecurringDocs, buildKeyAmounts,
   summarizeYearFile, provenanceLabel, SESSION_STATUS_META, registeredFileInfo,
+  taxFileOwnerLabel, clientDisplayName, spouseDisplayName,
 } from './profile';
 
 interface Props {
@@ -16,14 +17,28 @@ interface Props {
   loading?: boolean;
   variant?: 'compact' | 'full';
   onOpenYear?: (taxYear: number) => void;
+  /** כשמסופק — הבעלים של תיק מס הכנסה ניתן לעריכה ישירות מהתצוגה (נשמר מיד). */
+  onUpdateTaxFiles?: (files: TaxFileInfo[]) => void;
 }
 
-export default function TaxSnapshot({ client, sessions, loading, variant = 'full', onOpenYear }: Props) {
+export default function TaxSnapshot({ client, sessions, loading, variant = 'full', onOpenYear, onUpdateTaxFiles }: Props) {
   const latest = sessions[0] ?? null;
   const amounts = buildKeyAmounts(client, latest);
-  const blocks = buildProfileBlocks(client);
+  const blocks = buildProfileBlocks(client, latest?.model ?? null);
   const docs = deriveRecurringDocs(client);
   const compact = variant === 'compact';
+
+  // שינוי בן הזוג הרשום מהתצוגה: מעדכן בעלים + ממלא את הת.ז. הנכונה כמספר תיק
+  function changeItOwner(owner: TaxFileOwner) {
+    if (!onUpdateTaxFiles) return;
+    const files = client.taxFiles ?? [];
+    onUpdateTaxFiles(files.map((f) => {
+      if (f.authority !== 'income_tax') return f;
+      const ownerId = owner === 'spouse' ? client.spouseIdNumber : owner === 'client' ? client.idNumber : '';
+      const shouldFill = ownerId && (!f.fileNumber || f.fileNumber === client.idNumber || f.fileNumber === client.spouseIdNumber);
+      return { ...f, owner, fileNumber: shouldFill ? ownerId : f.fileNumber };
+    }));
+  }
 
   const taxFiles = client.taxFiles ?? [];
   // מקור האמת: על שם מי מתנהל תיק מס הכנסה — קובע את בן הזוג הרשום בכל המערכת
@@ -31,18 +46,37 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
-      {/* ── בן הזוג הרשום — תמיד מוצג כשיש תיק מ"ה; מודגש כשהתיק על בן הזוג ── */}
+      {/* ── בן הזוג הרשום — תמיד מוצג כשיש תיק מ"ה; מודגש כשהתיק על בן הזוג.
+             כשיש onUpdateTaxFiles אפשר להחליף את הרשום ישירות מכאן. ── */}
       {regFile && (
         <div style={{
           padding: '.55rem .9rem', borderRadius: 9, fontSize: '.88rem', fontWeight: 700,
           background: regFile.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-50, #f8f9fa)',
           border: regFile.owner === 'spouse' ? '1.5px solid #f2d492' : '1px solid var(--gray-200)',
           color: regFile.owner === 'spouse' ? '#b45309' : 'var(--gray-700, #333)',
+          display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap',
         }}>
-          {regFile.owner === 'spouse' ? '⚠ ' : '🗄️ '}
-          תיק מס הכנסה ע"ש <b>{regFile.name}</b>
-          {regFile.idNumber ? <> · ת.ז. <span className="num" dir="ltr">{regFile.idNumber}</span></> : ''}
-          {regFile.owner === 'spouse' ? ' — כל ההתנהלות מול מ"ה בת.ז. הזו' : ''}
+          <span>
+            {regFile.owner === 'spouse' ? '⚠ ' : '🗄️ '}
+            תיק מס הכנסה ע"ש <b>{regFile.name}</b>
+            {(client.familyStatus === 'married' || !!client.spouseName?.trim()) && <> — <b>בן/בת הזוג הרשום/ה</b></>}
+            {regFile.idNumber ? <> · ת.ז. <span className="num" dir="ltr">{regFile.idNumber}</span></> : ''}
+            {regFile.owner === 'spouse' ? ' · כל ההתנהלות מול מ"ה בת.ז. הזו' : ''}
+          </span>
+          {onUpdateTaxFiles && (
+            <select
+              value={regFile.owner}
+              onChange={(e) => changeItOwner(e.target.value as TaxFileOwner)}
+              title="החלפת בן הזוג הרשום — נשמר מיד ומעדכן את הת.ז. של התיק"
+              style={{
+                padding: '.2rem .45rem', borderRadius: 6, border: '1px solid var(--gray-300, #ccc)',
+                fontSize: '.78rem', fontWeight: 700, background: '#fff', marginRight: 'auto',
+              }}
+            >
+              <option value="client">{clientDisplayName(client)}</option>
+              <option value="spouse">{spouseDisplayName(client)}</option>
+            </select>
+          )}
         </div>
       )}
 
@@ -60,10 +94,11 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
                 {f.fileNumber && <span className="num" dir="ltr" style={{ color: 'var(--gray-500)' }}>{f.fileNumber}</span>}
                 <span style={{
                   fontSize: '.7rem', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 700,
-                  background: f.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-100)',
-                  color: f.owner === 'spouse' ? '#b45309' : 'var(--gray-500)',
+                  background: f.authority === 'income_tax' && f.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-100)',
+                  color: f.authority === 'income_tax' && f.owner === 'spouse' ? '#b45309' : 'var(--gray-500)',
                 }}>
-                  ע"ש {TAX_FILE_OWNER_LABELS[f.owner]}
+                  {f.authority === 'national_insurance' ? 'של ' : 'ע"ש '}
+                  {taxFileOwnerLabel(client, f.authority, f.owner)}
                 </span>
                 <span style={{
                   fontSize: '.7rem', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 700,

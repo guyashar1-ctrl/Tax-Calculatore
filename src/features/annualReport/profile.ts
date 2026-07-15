@@ -2,7 +2,7 @@
 // "הפרופיל הוא המוצר": הקובץ הזה מרכז את הלוגיקה שהופכת את כרטיס הלקוח
 // לפרופיל מס קריא — בלוקים לתצוגה + רשימת המסמכים הקבועה שנדרשת כל שנה.
 
-import type { Client } from '../../types';
+import type { Client, TaxFileInfo, TaxFileOwner } from '../../types';
 import type { TaxpayerModel, AnnualReportSession, IncomeSourceKind } from './types';
 import { FIELD_SOURCE_LABELS } from '../../types/clientWorkspace';
 
@@ -39,6 +39,35 @@ export function registeredFileInfo(client: Client): RegisteredFileInfo | null {
     idNumber: (isSpouse ? client.spouseIdNumber : client.idNumber) || file.fileNumber || '',
     fileNumber: file.fileNumber,
   };
+}
+
+export function clientDisplayName(client: Client): string {
+  return `${client.firstName} ${client.lastName}`.trim() || 'הלקוח/ה';
+}
+
+export function spouseDisplayName(client: Client): string {
+  return client.spouseName?.trim()
+    || (client.spouse ? `${client.spouse.firstName ?? ''} ${client.spouse.lastName ?? ''}`.trim() : '')
+    || 'בן/בת הזוג';
+}
+
+/**
+ * תווית בעלים עם שם אמיתי במקום "ע"ש הלקוח/ה":
+ * מס הכנסה — בעל התיק הוא בן הזוג הרשום ("דין · בן הזוג הרשום");
+ * ביטוח לאומי — תיק אישי לכל אחד ("של גיא"), ו-joint משמש לתיק הניכויים.
+ */
+export function taxFileOwnerLabel(client: Client, authority: TaxFileInfo['authority'], owner: TaxFileOwner): string {
+  const me = clientDisplayName(client);
+  const sp = spouseDisplayName(client);
+  const married = client.familyStatus === 'married' || !!client.spouseName?.trim();
+  if (authority === 'national_insurance') {
+    if (owner === 'joint') return 'עבור תיק הניכויים';
+    return owner === 'spouse' ? sp : me;
+  }
+  if (owner === 'joint') return 'משותף';
+  const name = owner === 'spouse' ? sp : me;
+  if (authority === 'income_tax' && married) return `${name} · בן/בת הזוג הרשום/ה`;
+  return name;
 }
 
 export function seedModelFromClient(model: TaxpayerModel, client: Client): TaxpayerModel {
@@ -88,8 +117,16 @@ function yesNo(v: boolean | undefined): string {
   return v ? 'כן' : 'לא';
 }
 
-export function buildProfileBlocks(client: Client): ProfileBlock[] {
+export function buildProfileBlocks(client: Client, latestModel?: TaxpayerModel | null): ProfileBlock[] {
   const blocks: ProfileBlock[] = [];
+  // מיזוג עם השאלון האחרון: מה שהלקוח ענה נחשב גם כשהכרטיס עוד לא פורט
+  // (למשל ענה "שכיר" אבל שם המעסיק טרם הוזן) — כדי שהפרופיל לא יסתור את השאלון.
+  const modelSources = latestModel?.income?.sources ?? [];
+  const saysSalary = modelSources.includes('salary') || client.incomeTaxType === 'employee' || client.incomeTaxType === 'both';
+  const saysBusiness = modelSources.includes('business');
+  const saysRental = modelSources.includes('rental');
+  const saysCapital = modelSources.includes('capital') || modelSources.includes('interest');
+  const saysForeign = modelSources.includes('foreign');
 
   // ── זהות ומשפחה ──
   blocks.push({
@@ -121,6 +158,23 @@ export function buildProfileBlocks(client: Client): ProfileBlock[] {
       ...(client.hasAcademicDegree
         ? [{ label: 'תואר אקדמי', value: `${client.academicDegreeType || 'תואר'} (${client.academicDegreeYear || '?'})`, metaKey: 'hasAcademicDegree' }]
         : []),
+      // תעסוקת בן/בת הזוג — מהכרטיס או מהשאלון
+      ...(client.familyStatus === 'married'
+        ? [{
+            label: `תעסוקת ${spouseDisplayName(client)}`,
+            value: latestModel?.spouse?.has106
+              ? 'שכיר/ה (טופס 106)'
+              : latestModel?.spouse?.hasBusinessIncome
+                ? 'עצמאי/ת'
+                : latestModel?.identity?.spouseHasIncome === false
+                  ? 'ללא הכנסה'
+                  : client.spouseWorking
+                    ? 'עובד/ת'
+                    : 'טרם נענה',
+            metaKey: 'spouseWorking',
+            missing: latestModel?.identity?.spouseHasIncome === undefined && !client.spouseWorking,
+          }]
+        : []),
     ],
   });
 
@@ -135,24 +189,28 @@ export function buildProfileBlocks(client: Client): ProfileBlock[] {
         label: 'שכיר/ה',
         value: employers.length > 0
           ? employers.filter((e) => !e.endDate).map((e) => e.name).join(', ') || 'מעסיקים לשעבר בלבד'
-          : 'לא',
+          : saysSalary ? 'כן — שם המעסיק טרם הוזן' : 'לא',
         metaKey: 'employers',
-        missing: employers.length === 0 && client.incomeTaxType !== 'selfEmployed',
+        missing: employers.length === 0 && saysSalary,
       },
       {
         label: 'עסק עצמאי',
-        value: businesses.length > 0 ? businesses.map((b) => b.name).join(', ') : 'אין',
+        value: businesses.length > 0
+          ? businesses.map((b) => b.name).join(', ')
+          : saysBusiness ? 'כן — פרטי העסק טרם הוזנו' : 'אין',
         metaKey: 'businesses',
+        missing: businesses.length === 0 && saysBusiness,
       },
       {
         label: 'נדל"ן',
         value: client.hasResidentialProperty || properties.length > 0
           ? `${properties.length || client.numberOfProperties || 1} נכס/ים${properties.some((p) => p.isRented) ? ' (מושכר)' : ''}`
-          : 'אין',
+          : saysRental ? 'כן — פרטי הנכס טרם הוזנו' : 'אין',
         metaKey: 'properties',
+        missing: properties.length === 0 && saysRental,
       },
-      { label: 'שוק ההון', value: yesNo(client.hasCapitalIncome || (client.investmentAccounts ?? []).length > 0), metaKey: 'hasCapitalIncome' },
-      { label: 'הכנסות/נכסים בחו"ל', value: yesNo(client.hasForeignAssets), metaKey: 'hasForeignAssets' },
+      { label: 'שוק ההון', value: yesNo(client.hasCapitalIncome || (client.investmentAccounts ?? []).length > 0 || saysCapital), metaKey: 'hasCapitalIncome' },
+      { label: 'הכנסות/נכסים בחו"ל', value: yesNo(client.hasForeignAssets || saysForeign), metaKey: 'hasForeignAssets' },
     ],
   });
 
@@ -163,8 +221,21 @@ export function buildProfileBlocks(client: Client): ProfileBlock[] {
   blocks.push({
     key: 'accounts', icon: '🏦', title: 'קופות וחשבונות',
     rows: [
-      { label: 'חשבונות בנק', value: banks.length > 0 ? banks.map((b) => b.bankName).join(', ') : 'לא הוזנו', missing: banks.length === 0, metaKey: 'bankAccounts' },
-      { label: 'חשבונות השקעה', value: invest.length > 0 ? invest.map((a) => a.institutionName).join(', ') : 'אין', metaKey: 'investmentAccounts' },
+      {
+        label: 'חשבונות בנק',
+        value: banks.length > 0
+          ? banks.map((b) => b.bankName).join(', ')
+          : latestModel?.accounts?.bankNames?.trim() || 'לא הוזנו',
+        missing: banks.length === 0 && !latestModel?.accounts?.bankNames?.trim(),
+        metaKey: 'bankAccounts',
+      },
+      {
+        label: 'חשבונות השקעה',
+        value: invest.length > 0
+          ? invest.map((a) => a.institutionName).join(', ')
+          : latestModel?.accounts?.investmentInstitutions?.trim() || 'אין',
+        metaKey: 'investmentAccounts',
+      },
       { label: 'קופות פנסיה', value: pensions.length > 0 ? pensions.map((p) => p.institutionName).join(', ') : 'לא הוזנו', metaKey: 'pensionFunds' },
       ...(client.hasKrenHashtalmut ? [{ label: 'קרן השתלמות', value: 'כן', metaKey: 'hasKrenHashtalmut' }] : []),
     ],

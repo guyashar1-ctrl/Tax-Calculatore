@@ -7,6 +7,7 @@
 import { useState, useMemo } from 'react';
 import type { Client } from '../../types';
 import type { AnnualReportSession } from './types';
+import { clientDisplayName, spouseDisplayName } from './profile';
 
 interface Props {
   session: AnnualReportSession;
@@ -353,8 +354,8 @@ function computeDiffs(session: AnnualReportSession, client: Client): Diff[] {
       out.push({
         key: 'itFileOwner',
         label: 'תיק מס הכנסה — על שם מי',
-        fromCard: itFile ? `ע"ש ${itFile.owner === 'spouse' ? 'בן/בת הזוג' : 'הלקוח/ה'}` : 'לא מוגדר תיק',
-        fromQuestionnaire: wantOwner === 'spouse' ? 'ע"ש בן/בת הזוג (בן הזוג הרשום)' : 'ע"ש הלקוח/ה',
+        fromCard: itFile ? `ע"ש ${itFile.owner === 'spouse' ? spouseDisplayName(client) : clientDisplayName(client)}` : 'לא מוגדר תיק',
+        fromQuestionnaire: `ע"ש ${wantOwner === 'spouse' ? spouseDisplayName(client) : clientDisplayName(client)} (בן/בת הזוג הרשום/ה)`,
         apply: (c) => {
           const cur = c.taxFiles ?? [];
           const existing = cur.find((f) => f.authority === 'income_tax');
@@ -387,6 +388,57 @@ function computeDiffs(session: AnnualReportSession, client: Client): Diff[] {
       fromQuestionnaire: m.income?.foreignCountries ? `כן (${m.income.foreignCountries})` : 'כן',
       apply: () => ({ hasForeignAssets: true }),
     });
+  }
+
+  // תעסוקת בן/בת הזוג ← spouseWorking בכרטיס
+  if (m.identity?.spouseHasIncome !== undefined && client.familyStatus === 'married'
+      && client.spouseWorking !== m.identity.spouseHasIncome) {
+    const val = m.identity.spouseHasIncome;
+    out.push({
+      key: 'spouseWorking',
+      label: 'תעסוקת בן/בת הזוג',
+      fromCard: client.spouseWorking ? 'עובד/ת' : 'לא עובד/ת',
+      fromQuestionnaire: val ? (m.spouse?.has106 ? 'שכיר/ה' : m.spouse?.hasBusinessIncome ? 'עצמאי/ת' : 'יש הכנסה') : 'ללא הכנסה',
+      apply: () => ({ spouseWorking: val }),
+    });
+  }
+
+  // בנקים מהשאלון ← חשבונות בנק בכרטיס (רק כשהכרטיס ריק — לא דורסים פירוט קיים)
+  const bankNames = (m.accounts?.bankNames ?? '').trim();
+  if (bankNames && (client.bankAccounts ?? []).length === 0) {
+    const names = bankNames.split(/[,،;\/]+| ו/).map((s) => s.trim()).filter((s) => s.length > 1);
+    if (names.length > 0) {
+      out.push({
+        key: 'bankAccounts',
+        label: 'חשבונות בנק',
+        fromCard: 'לא הוזנו',
+        fromQuestionnaire: names.join(', '),
+        apply: () => ({
+          bankAccounts: names.map((n, i) => ({
+            id: `bank-${Date.now()}-${i}`, bankName: n, isPrimary: i === 0,
+          })),
+        }),
+      });
+    }
+  }
+
+  // בתי השקעות מהשאלון ← חשבונות השקעה בכרטיס
+  const investNames = (m.accounts?.investmentInstitutions ?? '').trim();
+  if (investNames && (client.investmentAccounts ?? []).length === 0) {
+    const names = investNames.split(/[,،;\/]+| ו/).map((s) => s.trim()).filter((s) => s.length > 1);
+    if (names.length > 0) {
+      out.push({
+        key: 'investmentAccounts',
+        label: 'חשבונות השקעה',
+        fromCard: 'לא הוזנו',
+        fromQuestionnaire: names.join(', '),
+        apply: () => ({
+          investmentAccounts: names.map((n, i) => ({
+            id: `inv-${Date.now()}-${i}`, institutionName: n,
+          })),
+        }),
+      });
+    }
   }
 
   return out;

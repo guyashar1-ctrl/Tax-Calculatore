@@ -22,6 +22,7 @@ interface Props {
   taxSessions: AnnualReportSession[];
   taxSessionsLoading?: boolean;
   onOpenYear?: (taxYear: number) => void;
+  onUpdateTaxFiles?: (files: import('../../types').TaxFileInfo[]) => void;
 }
 
 export default function OverviewTab({
@@ -37,6 +38,7 @@ export default function OverviewTab({
   taxSessions,
   taxSessionsLoading,
   onOpenYear,
+  onUpdateTaxFiles,
 }: Props) {
   const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState(client.pinnedNote ?? '');
@@ -85,6 +87,7 @@ export default function OverviewTab({
           loading={taxSessionsLoading}
           variant="compact"
           onOpenYear={onOpenYear}
+          onUpdateTaxFiles={onUpdateTaxFiles}
         />
       </div>
 
