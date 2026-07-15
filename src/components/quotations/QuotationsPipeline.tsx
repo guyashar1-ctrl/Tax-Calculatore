@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Client } from '../../types';
 import type { Lead, Quotation, QuotationStatus } from '../../types/quotations';
-import { QUOTATION_STATUS_LABELS } from '../../types/quotations';
+import { QUOTATION_STATUS_LABELS, REMINDER_DAYS_BEFORE_EXPIRY } from '../../types/quotations';
 import { calcTotals, formatILS } from '../../utils/quotationCalc';
 
 interface Props {
@@ -11,7 +11,11 @@ interface Props {
   onNew: () => void;
   onOpen: (q: Quotation) => void;
   onConvert: (q: Quotation) => void;
+  onRelease: (q: Quotation) => void;
+  onRemind: (q: Quotation) => Promise<{ ok: boolean; error?: string }>;
 }
+
+const STATUSES_WITH_ACTIONS = ['approved', 'sent', 'viewed'];
 
 // סדר תצוגה של קבוצות הסטטוס + צבע הפס
 const GROUP_ORDER: { status: QuotationStatus; badge: string; strip: string }[] = [
@@ -23,8 +27,30 @@ const GROUP_ORDER: { status: QuotationStatus; badge: string; strip: string }[] =
   { status: 'expired', badge: 'badge-orange', strip: 'var(--orange)' },
 ];
 
-export default function QuotationsPipeline({ quotations, leads, clients, onNew, onOpen, onConvert }: Props) {
+export default function QuotationsPipeline({ quotations, leads, clients, onNew, onOpen, onConvert, onRelease, onRemind }: Props) {
   const [filter, setFilter] = useState<QuotationStatus | 'all'>('all');
+  const [remindBusy, setRemindBusy] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  const leadOf = (q: Quotation): Lead | undefined => q.leadId ? leads.find(x => x.id === q.leadId) : undefined;
+  const hasPrevAccountant = (q: Quotation): boolean => !!leadOf(q)?.hasPreviousAccountant;
+
+  // ימים עד פקיעה (שלילי = כבר עבר). null אם אין תוקף.
+  const daysToExpiry = (q: Quotation): number | null => {
+    if (!q.expiresAt) return null;
+    return Math.ceil((new Date(q.expiresAt).getTime() - Date.now()) / 86400000);
+  };
+
+  async function remind(q: Quotation) {
+    setRemindBusy(q.id);
+    setToast(null);
+    try {
+      const res = await onRemind(q);
+      setToast(res.ok ? { kind: 'ok', text: 'תזכורת נשלחה.' } : { kind: 'err', text: `שליחת תזכורת נכשלה: ${res.error ?? ''}` });
+    } finally {
+      setRemindBusy(null);
+    }
+  }
 
   const recipientName = (q: Quotation): string => {
     if (q.leadId) { const l = leads.find(x => x.id === q.leadId); if (l) return l.fullName; }
@@ -63,6 +89,10 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
         </div>
         <button className="btn btn-primary" onClick={onNew}>+ הצעה חדשה</button>
       </div>
+
+      {toast && (
+        <div className={`alert ${toast.kind === 'ok' ? 'alert-info' : 'alert-warning'}`} style={{ marginBottom: 12 }}>{toast.text}</div>
+      )}
 
       {/* strip סטטיסטיקה */}
       <div className="doc-stats-strip" style={{ marginBottom: 16 }}>
@@ -107,7 +137,7 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
                     <thead>
                       <tr>
                         <th>מס׳</th><th>נמען</th><th className="number">סכום</th><th>תוקף</th><th>עודכן</th>
-                        {g.status === 'approved' && <th></th>}
+                        {STATUSES_WITH_ACTIONS.includes(g.status) && <th></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -115,19 +145,36 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
                         const t = calcTotals(q.items, q.vatRate);
                         const headline = t.monthly.withVat || t.annual.withVat || t.oneTime.withVat;
                         const converted = isConverted(q);
+                        const days = daysToExpiry(q);
+                        const expiringSoon = (g.status === 'sent' || g.status === 'viewed') && days !== null && days >= 0 && days <= REMINDER_DAYS_BEFORE_EXPIRY;
                         return (
                           <tr key={q.id} className="client-row" style={{ cursor: 'pointer', borderInlineStart: `3px solid ${g.strip}` }} onClick={() => onOpen(q)}>
                             <td className="mono-text">{q.quotationNumber}{q.revision > 1 ? ` · גרסה ${q.revision}` : ''}</td>
                             <td style={{ fontWeight: 600, color: 'var(--gray-900)' }}>{recipientName(q)}</td>
                             <td className="number">{headline > 0 ? formatILS(Math.round(headline)) : '—'}</td>
-                            <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>{q.expiresAt ? new Date(q.expiresAt).toLocaleDateString('he-IL') : '—'}</td>
+                            <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>
+                              {q.expiresAt ? new Date(q.expiresAt).toLocaleDateString('he-IL') : '—'}
+                              {expiringSoon && <span className="badge badge-orange" style={{ marginInlineStart: 6, fontSize: 10 }}>{days === 0 ? 'פג היום' : `פג בעוד ${days} ימים`}</span>}
+                            </td>
                             <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>{q.updatedAt ? new Date(q.updatedAt).toLocaleDateString('he-IL') : '—'}</td>
-                            {g.status === 'approved' && (
-                              <td style={{ textAlign: 'end' }} onClick={e => e.stopPropagation()}>
-                                {converted ? (
-                                  <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>לקוח ✓ — לכרטיס ←</button>
-                                ) : (
-                                  <button className="btn btn-sm btn-green" onClick={() => onConvert(q)}>הפוך ללקוח והתחל ייצוג ←</button>
+                            {STATUSES_WITH_ACTIONS.includes(g.status) && (
+                              <td style={{ textAlign: 'end', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                                {(g.status === 'sent' || g.status === 'viewed') && (
+                                  <button className={`btn btn-sm ${expiringSoon ? 'btn-primary' : 'btn-ghost'}`} disabled={remindBusy === q.id} onClick={() => remind(q)}>
+                                    {remindBusy === q.id ? 'שולח…' : 'תזכורת'}
+                                  </button>
+                                )}
+                                {g.status === 'approved' && (
+                                  <>
+                                    {converted ? (
+                                      <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>לקוח ✓ — לכרטיס ←</button>
+                                    ) : (
+                                      <button className="btn btn-sm btn-green" onClick={() => onConvert(q)}>הפוך ללקוח והתחל ייצוג ←</button>
+                                    )}
+                                    {converted && hasPrevAccountant(q) && (
+                                      <button className="btn btn-sm btn-secondary" style={{ marginInlineStart: 6 }} onClick={() => onRelease(q)}>מכתב שחרור</button>
+                                    )}
+                                  </>
                                 )}
                               </td>
                             )}

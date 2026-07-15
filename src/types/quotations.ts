@@ -18,6 +18,11 @@ export interface Lead {
   notes?: string;
   status: LeadStatus;
   convertedClientId?: string;
+  // רו"ח קודם — רלוונטי רק אם הליד עובר מרו"ח אחר; מפעיל את זרימת השחרור
+  hasPreviousAccountant?: boolean;
+  prevAccountantName?: string;
+  prevAccountantEmail?: string;
+  prevAccountantPhone?: string;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -31,6 +31,7 @@ import { useQuotations } from './hooks/useQuotations';
 import { useQuotationCatalog } from './hooks/useQuotationCatalog';
 import QuotationsPipeline from './components/quotations/QuotationsPipeline';
 import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
+import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
 import type { Quotation } from './types/quotations';
@@ -192,6 +193,7 @@ export default function App() {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
   const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
+  const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; prevAccountant: { name?: string; email?: string; phone?: string } } | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -728,6 +730,10 @@ export default function App() {
         email: payload.recipient.email,
         businessName: payload.recipient.businessName,
         dealerType: payload.recipient.dealerType,
+        hasPreviousAccountant: payload.recipient.hasPreviousAccountant,
+        prevAccountantName: payload.recipient.prevAccountantName,
+        prevAccountantEmail: payload.recipient.prevAccountantEmail,
+        prevAccountantPhone: payload.recipient.prevAccountantPhone,
         status: 'new',
       });
       leadId = lead.id;
@@ -857,6 +863,50 @@ export default function App() {
       return;
     }
     setConvertingQuotation(q);
+  }
+
+  /** פתיחת מכתב שחרור לרו"ח קודם — רק אם לליד יש רו"ח קודם והוא כבר הומר ללקוח. */
+  function handleReleaseLetter(q: Quotation) {
+    const lead = q.leadId ? leads.find(l => l.id === q.leadId) : undefined;
+    const clientId = lead?.convertedClientId || q.clientId;
+    if (!clientId) return;
+    const client = clients.find(c => c.id === clientId);
+    setReleaseFor({
+      clientId,
+      clientName: client ? `${client.firstName} ${client.lastName}`.trim() : (lead?.fullName ?? ''),
+      businessName: lead?.businessName,
+      prevAccountant: { name: lead?.prevAccountantName, email: lead?.prevAccountantEmail, phone: lead?.prevAccountantPhone },
+    });
+  }
+
+  /** תזכורת — שליחה חוזרת של אותה הצעה שנשלחה, עם אותו קישור ותוכן. */
+  async function handleRemindQuotation(q: Quotation): Promise<{ ok: boolean; error?: string }> {
+    if (!q.publicToken) return { ok: false, error: 'להצעה אין קישור ציבורי — שלח אותה קודם.' };
+    const link = `${window.location.origin}/?quote=${q.publicToken}`;
+    const brand = deriveQuotationBrand(firmProfile);
+    const snap = q.snapshot;
+    const html = buildQuotationEmailHtml({
+      quotationNumber: q.quotationNumber,
+      recipientName: snap?.recipientName ?? '',
+      businessName: snap?.businessName,
+      items: snap?.items ?? q.items,
+      vatRate: snap?.vatRate ?? q.vatRate,
+      message: snap?.emailMessage ?? q.emailMessage ?? '',
+      quotationLink: link,
+      expiresAt: q.expiresAt,
+    }, brand);
+    const subject = q.emailSubject || snap?.emailSubject || 'תזכורת — הצעת מחיר';
+    try {
+      const { data: res, error } = await supabase.functions.invoke('send-quotation-email', {
+        body: { quotationId: q.id, isTest: false, html, subject },
+      });
+      if (error) return { ok: false, error: error.message };
+      if (!res?.ok) return { ok: false, error: res?.detail?.message || res?.error || 'שגיאה' };
+      await updateQuotation({ ...q, events: [...q.events, { type: 'reminder_sent', at: new Date().toISOString() }] });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
   }
 
   /** onCreate של דיאלוג הייצוג בזרימת ההמרה — יוצר ייצוג ואז מקשר ליד+הצעה ללקוח. */
@@ -1109,6 +1159,8 @@ export default function App() {
             onNew={handleNewQuotation}
             onOpen={handleOpenQuotation}
             onConvert={handleConvertQuotation}
+            onRelease={handleReleaseLetter}
+            onRemind={handleRemindQuotation}
           />
         )}
 
@@ -1210,6 +1262,17 @@ export default function App() {
           onCreate={handleCreateRepresentation}
           onCancel={() => setShowOnboarding(false)}
           checkEmailConflict={repEmailConflictMessage}
+        />
+      )}
+
+      {releaseFor && (
+        <ReleaseLetterDialog
+          clientId={releaseFor.clientId}
+          clientName={releaseFor.clientName}
+          businessName={releaseFor.businessName}
+          prevAccountant={releaseFor.prevAccountant}
+          brand={deriveQuotationBrand(firmProfile)}
+          onClose={() => setReleaseFor(null)}
         />
       )}
 

@@ -25,6 +25,11 @@ interface RecipientDraft {
   email?: string;
   phone?: string;
   dealerType?: Lead['dealerType'];
+  // רו"ח קודם — נלכד ביצירת ליד חדש; מפעיל את זרימת השחרור אחרי ההמרה
+  hasPreviousAccountant?: boolean;
+  prevAccountantName?: string;
+  prevAccountantEmail?: string;
+  prevAccountantPhone?: string;
 }
 
 interface Props {
@@ -422,6 +427,8 @@ function RecipientEditor({ leads, clients, value, onPick }: {
   const [mode, setMode] = useState<'existing' | 'new'>(value.kind === 'client' ? 'existing' : 'new');
   const [search, setSearch] = useState('');
   const [nl, setNl] = useState({ fullName: value.fullName, phone: value.phone ?? '', email: value.email ?? '', businessName: value.businessName ?? '' });
+  const [hasPrev, setHasPrev] = useState(!!value.hasPreviousAccountant);
+  const [prev, setPrev] = useState({ name: value.prevAccountantName ?? '', email: value.prevAccountantEmail ?? '', phone: value.prevAccountantPhone ?? '' });
 
   const matches = search.trim()
     ? [
@@ -464,8 +471,34 @@ function RecipientEditor({ leads, clients, value, onPick }: {
             <input placeholder="אימייל" value={nl.email} onChange={e => setNl(v => ({ ...v, email: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
           </div>
           <input placeholder="שם העסק (אופציונלי)" value={nl.businessName} onChange={e => setNl(v => ({ ...v, businessName: e.target.value }))} />
+
+          <div style={{ border: '1px solid var(--gray-200)', borderRadius: 8, padding: 10, background: hasPrev ? 'var(--blue-light)' : 'var(--gray-50)' }}>
+            <label className="checkbox-row" style={{ fontWeight: 500 }}>
+              <input type="checkbox" checked={hasPrev} onChange={e => setHasPrev(e.target.checked)} />
+              עובר מרו״ח אחר?
+            </label>
+            {hasPrev && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                <input placeholder="שם הרו״ח הקודם" value={prev.name} onChange={e => setPrev(v => ({ ...v, name: e.target.value }))} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <input placeholder="מייל הרו״ח הקודם" value={prev.email} onChange={e => setPrev(v => ({ ...v, email: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
+                  <input placeholder="טלפון" value={prev.phone} onChange={e => setPrev(v => ({ ...v, phone: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר, נכין מכתב שחרור לרו״ח הקודם.</div>
+              </div>
+            )}
+          </div>
+
           <button className="btn btn-sm btn-primary" disabled={!nl.fullName.trim()}
-            onClick={() => onPick({ kind: 'new', fullName: nl.fullName.trim(), phone: nl.phone.trim() || undefined, email: nl.email.trim() || undefined, businessName: nl.businessName.trim() || undefined })}
+            onClick={() => onPick({
+              kind: 'new', fullName: nl.fullName.trim(),
+              phone: nl.phone.trim() || undefined, email: nl.email.trim() || undefined,
+              businessName: nl.businessName.trim() || undefined,
+              hasPreviousAccountant: hasPrev,
+              prevAccountantName: hasPrev ? prev.name.trim() || undefined : undefined,
+              prevAccountantEmail: hasPrev ? prev.email.trim() || undefined : undefined,
+              prevAccountantPhone: hasPrev ? prev.phone.trim() || undefined : undefined,
+            })}
             style={{ alignSelf: 'flex-start' }}>
             שימוש בליד זה
           </button>
