@@ -137,6 +137,8 @@ export interface EmployerInfo {
   endDate?: string;              // ריק = עדיין מועסק שם
   role?: string;                 // תיאור התפקיד
   notes?: string;
+  /** מעביד של בן/בת הזוג — 106 נפרד לכל בן זוג בתא המשפחתי. */
+  belongsToSpouse?: boolean;
 
   // ── סכומי 106 (Wave ג') ──
   grossSalaryAnnual?: number;              // סך ברוטו שנתי → שדה 158 ב-1301

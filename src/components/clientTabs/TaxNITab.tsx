@@ -23,6 +23,8 @@ import TaxFilesSection from './TaxFilesSection';
 interface Props {
   client: Client;
   update: <K extends keyof Client>(key: K, value: Client[K]) => void;
+  /** כשהתיקים כבר מוצגים למעלה (בלשונית "התיק") — לא להציג שוב. */
+  hideFiles?: boolean;
 }
 
 const IT_LABELS: Record<IncomeTaxType, string> = {
@@ -80,14 +82,14 @@ const COLOR_NI        = '#7c3aed';  // סגול
 const COLOR_SHAAM     = '#d97706';  // כתום
 const COLOR_WEALTH    = '#be185d';  // פוקסיה
 
-export default function TaxNITab({ client, update }: Props) {
+export default function TaxNITab({ client, update, hideFiles }: Props) {
   const meta = client.fieldMeta ?? {};
 
   return (
     <div className="cw-tab cw-tax-tab">
 
       {/* ── תיקי הרשויות של התא המשפחתי — על שם מי כל תיק וסטטוס הייצוג ── */}
-      <TaxFilesSection client={client} update={update} />
+      {!hideFiles && <TaxFilesSection client={client} update={update} />}
 
       {/* ════════════════════════════════════════════════════════════
           1. 🏛 מס הכנסה

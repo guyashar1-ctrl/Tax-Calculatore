@@ -22,6 +22,7 @@ import {
   BusinessInfo, BusinessKind, BUSINESS_KIND_LABELS,
 } from '../../types';
 import { ClientContact, Employee } from '../../types/clientWorkspace';
+import { clientDisplayName, spouseDisplayName } from '../../features/annualReport/profile';
 import { getEligibleSettlements, resolveSettlement } from '../../data/eligibleSettlements';
 import { CURRENT_TAX_YEAR } from '../../data/taxData';
 import LinkedDocsWidget from '../LinkedDocsWidget';
@@ -1419,6 +1420,11 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <span className="cw-property-title">
                     {e.name || `מעביד ${idx + 1}`}
                     {!e.endDate && e.name && <span className="cw-property-type-badge" style={{ background: '#dcfce7', color: '#166534' }}>פעיל</span>}
+                    {client.familyStatus === 'married' && (
+                      <span className="cw-property-type-badge" style={{ background: e.belongsToSpouse ? '#FBF2E2' : '#eef2fa', color: e.belongsToSpouse ? '#b45309' : '#2b4c9b' }}>
+                        של {e.belongsToSpouse ? spouseDisplayName(client) : clientDisplayName(client)}
+                      </span>
+                    )}
                   </span>
                   <button className="btn btn-ghost btn-sm" onClick={() => removeEmployer(e.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
                 </div>
@@ -1443,6 +1449,18 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                     <label>תפקיד</label>
                     <input type="text" value={e.role ?? ''} onChange={ev => updateEmployer(e.id, 'role', ev.target.value || undefined)} />
                   </div>
+                  {client.familyStatus === 'married' && (
+                    <div className="form-group">
+                      <label>המעביד של</label>
+                      <select
+                        value={e.belongsToSpouse ? 'spouse' : 'client'}
+                        onChange={ev => updateEmployer(e.id, 'belongsToSpouse', ev.target.value === 'spouse' ? true : undefined)}
+                      >
+                        <option value="client">{clientDisplayName(client)}</option>
+                        <option value="spouse">{spouseDisplayName(client)}</option>
+                      </select>
+                    </div>
+                  )}
                   <div className="form-group span-full">
                     <label>הערות</label>
                     <input type="text" value={e.notes ?? ''} onChange={ev => updateEmployer(e.id, 'notes', ev.target.value || undefined)} />
@@ -1694,6 +1712,11 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                     {b.name || `עסק ${idx + 1}`}
                     <span className="cw-property-type-badge">{BUSINESS_KIND_LABELS[b.kind]}</span>
                     {b.isClosed && <span className="cw-property-type-badge" style={{ background: '#fee2e2', color: '#991b1b' }}>נסגר</span>}
+                    {client.familyStatus === 'married' && (
+                      <span className="cw-property-type-badge" style={{ background: b.belongsToSpouse ? '#FBF2E2' : '#eef2fa', color: b.belongsToSpouse ? '#b45309' : '#2b4c9b' }}>
+                        של {b.belongsToSpouse ? spouseDisplayName(client) : clientDisplayName(client)}
+                      </span>
+                    )}
                   </span>
                   <button className="btn btn-ghost btn-sm" onClick={() => removeBusiness(b.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
                 </div>
@@ -1722,6 +1745,18 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                       <option value="bi_monthly">דו-חודשי</option>
                     </select>
                   </div>
+                  {client.familyStatus === 'married' && (
+                    <div className="form-group">
+                      <label>העסק של</label>
+                      <select
+                        value={b.belongsToSpouse ? 'spouse' : 'client'}
+                        onChange={e => updateBusiness(b.id, 'belongsToSpouse', e.target.value === 'spouse' ? true : undefined)}
+                      >
+                        <option value="client">{clientDisplayName(client)}</option>
+                        <option value="spouse">{spouseDisplayName(client)}</option>
+                      </select>
+                    </div>
+                  )}
                   <div className="form-group">
                     <label>שנת תחילה</label>
                     <input type="number" min={1990} max={2030} value={b.startYear ?? ''} onChange={e => updateBusiness(b.id, 'startYear', Number(e.target.value) || undefined)} dir="ltr" />
