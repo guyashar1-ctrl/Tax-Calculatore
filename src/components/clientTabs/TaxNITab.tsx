@@ -18,6 +18,7 @@ import {
   FieldMeta, FIELD_SOURCE_LABELS,
 } from '../../types/clientWorkspace';
 import { shortDate } from '../../utils/clientDerived';
+import TaxFilesSection from './TaxFilesSection';
 
 interface Props {
   client: Client;
@@ -84,6 +85,9 @@ export default function TaxNITab({ client, update }: Props) {
 
   return (
     <div className="cw-tab cw-tax-tab">
+
+      {/* ── תיקי הרשויות של התא המשפחתי — על שם מי כל תיק וסטטוס הייצוג ── */}
+      <TaxFilesSection client={client} update={update} />
 
       {/* ════════════════════════════════════════════════════════════
           1. 🏛 מס הכנסה

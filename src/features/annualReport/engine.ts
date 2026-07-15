@@ -70,7 +70,12 @@ export function formatAnswerForDisplay(
  */
 export function nodeInFlow(node: QuestionNode, model: TaxpayerModel): boolean {
   const flow = model.meta?.flow ?? 'full';
-  if (flow === 'onboarding') return (node.lifetime ?? 'annual') === 'permanent';
+  if (flow === 'onboarding') {
+    // קליטה = עובדות קבע בלבד, והלקוח לבדו — בלי שאלות רו"ח.
+    // אימות נתוני הכרטיס מיותר כאן: הלקוח הזדהה הרגע בשלב הקודם של הקישור.
+    if (node.id === 'identity_basics') return false;
+    return (node.lifetime ?? 'annual') === 'permanent' && node.audience !== 'accountant';
+  }
   return true;
 }
 

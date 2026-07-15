@@ -3,6 +3,7 @@
 // ומסמכים קבועים. variant='compact' לסקירה, variant='full' לטאב הפרופיל.
 
 import type { Client } from '../../types';
+import { TAX_AUTHORITY_LABELS, TAX_FILE_OWNER_LABELS, TAX_FILE_REP_STATUS_LABELS } from '../../types';
 import type { AnnualReportSession } from './types';
 import {
   buildProfileBlocks, deriveRecurringDocs, buildKeyAmounts,
@@ -24,8 +25,54 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
   const docs = deriveRecurringDocs(client);
   const compact = variant === 'compact';
 
+  const taxFiles = client.taxFiles ?? [];
+  const itOnSpouse = taxFiles.find((f) => f.authority === 'income_tax' && f.owner === 'spouse');
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
+      {/* ── אזהרה קריטית: תיק מ"ה על ת.ז. של בן הזוג ── */}
+      {itOnSpouse && (
+        <div style={{
+          padding: '.55rem .9rem', borderRadius: 9, fontSize: '.88rem', fontWeight: 700,
+          background: '#FBF2E2', border: '1.5px solid #f2d492', color: '#b45309',
+        }}>
+          ⚠ תיק מס הכנסה מתנהל על ת.ז. של בן/בת הזוג{client.spouseName ? ` — ${client.spouseName}` : ''}
+          {itOnSpouse.fileNumber ? ` (${itOnSpouse.fileNumber})` : ''}
+        </div>
+      )}
+
+      {/* ── תיקים ברשויות ── */}
+      {taxFiles.length > 0 && (
+        <div className="cw-section">
+          <div className="cw-section-head"><span>🗄️ תיקים ברשויות</span></div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.45rem' }}>
+            {taxFiles.map((f) => (
+              <div key={f.id} style={{
+                border: '1px solid var(--gray-200)', borderRadius: 9, padding: '.4rem .7rem',
+                fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: '.45rem',
+              }}>
+                <b>{TAX_AUTHORITY_LABELS[f.authority]}</b>
+                {f.fileNumber && <span className="num" dir="ltr" style={{ color: 'var(--gray-500)' }}>{f.fileNumber}</span>}
+                <span style={{
+                  fontSize: '.7rem', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 700,
+                  background: f.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-100)',
+                  color: f.owner === 'spouse' ? '#b45309' : 'var(--gray-500)',
+                }}>
+                  ע"ש {TAX_FILE_OWNER_LABELS[f.owner]}
+                </span>
+                <span style={{
+                  fontSize: '.7rem', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 700,
+                  background: f.repStatus === 'active' ? '#E8F3EC' : f.repStatus === 'pending' ? '#FBF2E2' : 'var(--gray-100)',
+                  color: f.repStatus === 'active' ? '#1F7A4D' : f.repStatus === 'pending' ? '#b45309' : 'var(--gray-500)',
+                }}>
+                  {TAX_FILE_REP_STATUS_LABELS[f.repStatus]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── תיקי שנה ── */}
       <div className="cw-section">
         <div className="cw-section-head">

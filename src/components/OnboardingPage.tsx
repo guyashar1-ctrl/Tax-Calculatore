@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { BRAND_THEMES, deriveMonogram, FirmBranding } from '../types/firmProfile';
 import SignaturePad from './SignaturePad';
+import PublicIntake from './PublicIntake';
 
 interface Props {
   token: string;
@@ -23,7 +24,7 @@ interface OnboardingInfo {
   alreadySigned: boolean;
 }
 
-type Phase = 'loading' | 'invalid' | 'form' | 'done' | 'already' | 'sign' | 'signed' | 'signLinkSent';
+type Phase = 'loading' | 'invalid' | 'form' | 'done' | 'already' | 'sign' | 'signed' | 'signLinkSent' | 'intake' | 'intakeDone';
 
 const SECONDARY_ORDER: OnboardingSecondaryType[] = ['parentId', 'driverLicense', 'passport'];
 
@@ -61,8 +62,15 @@ export default function OnboardingPage({ token }: Props) {
       // בזרימת החתימה החדשה (יש הגדרת PDF) — החתימה נעשית בקישור האישי, לא כאן.
       if (st === 'pending_signature' && row.has_setup) setPhase('signLinkSent');
       else if (st === 'pending_signature' && !row.already_signed) setPhase('sign');
-      else if (row.already_signed || ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(st)) setPhase('signed');
-      else if (row.already_submitted) setPhase('already');
+      else if (row.already_submitted || row.already_signed || ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(st)) {
+        // הזיהוי הושלם — אם שאלון ההיכרות עוד לא הסתיים, ממשיכים אליו באותו קישור
+        const { data: intake } = await supabase.rpc('get_intake', { p_token: token });
+        if (cancelled) return;
+        const irow = Array.isArray(intake) ? intake[0] : intake;
+        const intakeDone = irow?.session_status && irow.session_status !== 'in_progress';
+        if (intakeDone) setPhase(row.already_signed ? 'signed' : 'already');
+        else setPhase('intake');
+      }
       else setPhase('form');
     })();
     return () => { cancelled = true; };
@@ -99,7 +107,9 @@ export default function OnboardingPage({ token }: Props) {
       setBusy(false);
       return;
     }
-    setPhase('done');
+    // הזיהוי הושלם — ממשיכים ישר לשאלון ההיכרות, בלי קישור נוסף
+    setBusy(false);
+    setPhase('intake');
   }
 
   async function handleSubmitSignature() {
@@ -170,6 +180,39 @@ export default function OnboardingPage({ token }: Props) {
             <div style={{ width: 42, height: 42, borderRadius: '50%', background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#fff', fontSize: 22 }}>✓</div>
             <div style={{ fontSize: 18, fontWeight: 500, color: '#111', marginBottom: 5 }}>הפרטים כבר התקבלו</div>
             <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>תודה{firstName ? `, ${firstName}` : ''}. כבר קיבלנו את פרטי ההזדהות שלכם. אפשר לסגור את החלון.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'intake') {
+    return (
+      <div style={page}>
+        <div style={{ ...card, width: 560 }}>
+          <Header />
+          <PublicIntake
+            token={token}
+            firstName={firstName}
+            ink={ink}
+            onDone={() => setPhase('intakeDone')}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'intakeDone') {
+    return (
+      <div style={page}>
+        <div style={card}>
+          <Header />
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <div style={{ width: 42, height: 42, borderRadius: '50%', background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#fff', fontSize: 22 }}>✓</div>
+            <div style={{ fontSize: 18, fontWeight: 500, color: '#111', marginBottom: 5 }}>זהו, סיימנו{firstName ? `, ${firstName}` : ''}! 🎉</div>
+            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>
+              קיבלנו את כל הפרטים. {info?.firmName} יעבור עליהם, יטפל בייצוג מול הרשויות ויחזור אליכם עם רשימת המסמכים המדויקת. אפשר לסגור את החלון.
+            </div>
           </div>
         </div>
       </div>
