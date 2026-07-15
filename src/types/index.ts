@@ -261,6 +261,47 @@ export interface DependentRelativeInfo {
   notes?: string;
 }
 
+// ─── תיקי רשויות — התא המשפחתי מול כל רשות ─────────────────────────────
+// תיק מס הכנסה מתנהל על ת.ז. של בן הזוג הרשום (לאו דווקא "הלקוח שלנו");
+// במע"מ ובניכויים ייתכנו תיקים נפרדים לכל בן זוג; בב"ל — ייצוג לכל בן זוג
+// בנפרד + ייצוג לתיק הניכויים אם קיים.
+
+export type TaxAuthority = 'income_tax' | 'vat' | 'deductions' | 'national_insurance';
+
+export const TAX_AUTHORITY_LABELS: Record<TaxAuthority, string> = {
+  income_tax:         'מס הכנסה',
+  vat:                'מע"מ',
+  deductions:         'ניכויים',
+  national_insurance: 'ביטוח לאומי',
+};
+
+export type TaxFileOwner = 'client' | 'spouse' | 'joint';
+
+export const TAX_FILE_OWNER_LABELS: Record<TaxFileOwner, string> = {
+  client: 'הלקוח/ה',
+  spouse: 'בן/בת הזוג',
+  joint:  'משותף',
+};
+
+export type TaxFileRepStatus = 'none' | 'pending' | 'active';
+
+export const TAX_FILE_REP_STATUS_LABELS: Record<TaxFileRepStatus, string> = {
+  none:    'אין ייצוג',
+  pending: 'בתהליך',
+  active:  'ייצוג פעיל',
+};
+
+export interface TaxFileInfo {
+  id: string;
+  authority: TaxAuthority;
+  /** מספר התיק ברשות (במ"ה = ת.ז. של בן הזוג הרשום). */
+  fileNumber?: string;
+  /** על שם מי מתנהל התיק. */
+  owner: TaxFileOwner;
+  repStatus: TaxFileRepStatus;
+  notes?: string;
+}
+
 // ─── עסקים — לעצמאי עם 2+ עסקים ────────────────────────────────────────
 /**
  * עסק עצמאי של הנישום. כל עסק = נספח א' (1320) נפרד + שורת מחזור
@@ -579,6 +620,9 @@ export interface Client {
   taxOfficeName?: string;
   withholdingOfficeName?: string;
   niBranchName?: string;
+
+  /** תיקי הרשויות של התא המשפחתי — מי הבעלים של כל תיק ומה סטטוס הייצוג. */
+  taxFiles?: TaxFileInfo[];
 
   hasWealthDeclaration?: boolean;
   lastWealthDeclarationYear?: number;

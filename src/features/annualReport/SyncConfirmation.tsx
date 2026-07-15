@@ -344,6 +344,39 @@ function computeDiffs(session: AnnualReportSession, client: Client): Diff[] {
     });
   }
 
+  // בן הזוג הרשום (הכרעת רו"ח במאזן) ← תיק מס הכנסה בכרטיס
+  if (m.spouse?.registeredRole) {
+    const wantOwner = m.spouse.registeredRole === 'spouse_only' ? 'spouse' as const : 'client' as const;
+    const files = client.taxFiles ?? [];
+    const itFile = files.find((f) => f.authority === 'income_tax');
+    if (!itFile || itFile.owner !== wantOwner) {
+      out.push({
+        key: 'itFileOwner',
+        label: 'תיק מס הכנסה — על שם מי',
+        fromCard: itFile ? `ע"ש ${itFile.owner === 'spouse' ? 'בן/בת הזוג' : 'הלקוח/ה'}` : 'לא מוגדר תיק',
+        fromQuestionnaire: wantOwner === 'spouse' ? 'ע"ש בן/בת הזוג (בן הזוג הרשום)' : 'ע"ש הלקוח/ה',
+        apply: (c) => {
+          const cur = c.taxFiles ?? [];
+          const existing = cur.find((f) => f.authority === 'income_tax');
+          const ownerId = wantOwner === 'spouse' ? (c.spouseIdNumber || undefined) : (c.idNumber || undefined);
+          if (existing) {
+            return {
+              taxFiles: cur.map((f) => f.authority === 'income_tax'
+                ? { ...f, owner: wantOwner, fileNumber: f.fileNumber || ownerId }
+                : f),
+            };
+          }
+          return {
+            taxFiles: [...cur, {
+              id: `tf-${Date.now()}`, authority: 'income_tax' as const,
+              owner: wantOwner, repStatus: 'none' as const, fileNumber: ownerId,
+            }],
+          };
+        },
+      });
+    }
+  }
+
   // נכסים/הכנסות בחו"ל
   const foreignInModel = src.includes('foreign') || m.openingDeclarations?.hasForeignAssetsOverThreshold === true;
   if (foreignInModel && !client.hasForeignAssets) {
