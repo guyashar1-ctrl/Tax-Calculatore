@@ -765,7 +765,7 @@ export const annualReportTree: QuestionTree = {
         income: { ...m.income, hasInterestIncome: a as boolean },
       }),
       // הפירוט לפי שיעורי מס והניכוי במקור נקראים מה-867 — שאלת טריגר בלבד
-      next: () => 'has_pension_income',
+      next: () => 'bank_names',
       visibleWhen: (m) => (m.income?.sources ?? []).includes('interest') || (m.income?.sources ?? []).includes('capital'),
       targetFieldCodes: ['076', '074', '060', '067', '157', '043'],
       validationMode: true,
@@ -781,6 +781,56 @@ export const annualReportTree: QuestionTree = {
           value: b.isPrimary ? '🔑 ראשי' : 'חשבון',
           missing: !b.bankName,
         }));
+      },
+    },
+
+    // ─── חשבונות — פרופיל קבוע, רלוונטי ל-867 ולהצהרת הון ───────────────────
+    bank_names: {
+      id: 'bank_names',
+      question: 'באילו בנקים מתנהלים חשבונות העו"ש שלכם?',
+      helpText: 'למשל: לאומי, הפועלים. עוזר לנו לדעת מאילו בנקים לבקש אישורים (867) — וחשוב גם להצהרת הון.',
+      type: 'text',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        accounts: { ...(m.accounts ?? {}), bankNames: String(a ?? '').trim() },
+      }),
+      next: () => 'investment_institutions',
+      validationMode: true,
+      editTarget: 'bankAccounts',
+      deriveAnswerFromCard: ({ client }) => {
+        const banks = (client?.bankAccounts ?? []).map((b) => b.bankName).filter(Boolean);
+        return banks.length > 0 ? banks.join(', ') : null;
+      },
+      dataPreview: ({ client }) => {
+        const banks = client?.bankAccounts ?? [];
+        if (banks.length === 0) return [{ label: 'חשבונות בנק בכרטיס', value: 'אין', missing: true }];
+        return banks.map((b) => ({ label: b.bankName, value: b.isPrimary ? '🔑 ראשי' : 'חשבון', missing: !b.bankName }));
+      },
+    },
+
+    investment_institutions: {
+      id: 'investment_institutions',
+      question: 'איפה מתנהל תיק ההשקעות / ניירות הערך שלכם?',
+      helpText: 'בית השקעות (מיטב, IBI, אקסלנס...) או בנק. מכל מוסד כזה נבקש אישור שנתי.',
+      type: 'text',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        accounts: { ...(m.accounts ?? {}), investmentInstitutions: String(a ?? '').trim() },
+      }),
+      next: () => 'has_pension_income',
+      visibleWhen: (m) => (m.income?.sources ?? []).includes('capital'),
+      validationMode: true,
+      editTarget: 'investmentAccounts',
+      deriveAnswerFromCard: ({ client }) => {
+        const inst = (client?.investmentAccounts ?? []).map((a) => a.institutionName).filter(Boolean);
+        return inst.length > 0 ? inst.join(', ') : null;
+      },
+      dataPreview: ({ client }) => {
+        const inst = client?.investmentAccounts ?? [];
+        if (inst.length === 0) return [{ label: 'חשבונות השקעה בכרטיס', value: 'אין', missing: true }];
+        return inst.map((a) => ({ label: a.institutionName, value: a.kind || 'חשבון', missing: !a.institutionName }));
       },
     },
 
@@ -1465,6 +1515,8 @@ const NODE_CHAPTERS: Record<string, ChapterKey> = {
   capital_has_crypto: 'capital',
   capital_has_real_estate: 'capital',
   has_interest_income: 'capital',
+  bank_names: 'capital',
+  investment_institutions: 'capital',
   dividend_controlling: 'companies',
   dividend_preferred: 'companies',
 
@@ -1516,6 +1568,8 @@ for (const [nodeId, chapter] of Object.entries(NODE_CHAPTERS)) {
 const PERMANENT_NODES: string[] = [
   'year_map',                    // מקורות ההכנסה הקיימים = מבנה הפרופיל
   'identity_basics', 'marital_status', 'registered_spouse_role',
+  'spouse_has_income', 'spouse_income_kinds',   // תעסוקת בן/בת הזוג = חלק מהפרופיל
+  'bank_names', 'investment_institutions',      // איפה החשבונות — 867 והצהרת הון
   'children_count', 'children_special_needs',
   'is_custodial_single_parent', 'child_economics',
   'residency_type', 'qualifying_settlement', 'has_disability', 'disability_band',

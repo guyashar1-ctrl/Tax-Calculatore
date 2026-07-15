@@ -312,6 +312,14 @@ export interface TaxpayerModel {
     /** חבר קיבוץ / מושב שיתופי — חישוב מס מיוחד. */
     isKibbutzMember?: boolean;
   };
+
+  /** איפה מתנהלים החשבונות — פרופיל קבוע, רלוונטי ל-867 ולהצהרת הון. */
+  accounts?: {
+    /** שמות הבנקים של חשבונות העו"ש (טקסט חופשי מהלקוח). */
+    bankNames?: string;
+    /** בתי השקעות / בנקים שבהם מנוהל תיק ני"ע. */
+    investmentInstitutions?: string;
+  };
 }
 
 export function emptyModel(taxYear: number): TaxpayerModel {
@@ -344,6 +352,7 @@ export function migrateModel(raw: Partial<TaxpayerModel> | null | undefined, tax
     losses: { ...(r.losses ?? {}) },
     openingDeclarations: { ...(r.openingDeclarations ?? {}) },
     specialSituations: { ...(r.specialSituations ?? {}) },
+    accounts: { ...(r.accounts ?? {}) },
   };
   // סשן ישן שסימן "יש הפסדים מועברים" בדגל בודד — ממופה לרשימת הסוגים החדשה
   // כ"עסק" (הנפוץ ביותר) כדי שהשדות החדשים לא ייעלמו לו.

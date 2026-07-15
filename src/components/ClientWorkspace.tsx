@@ -168,6 +168,13 @@ export default function ClientWorkspace({
     handleSaveImmediate({ ...client, activity: next });
   }
 
+  // שינוי תיקי רשויות מתמונת המס (למשל החלפת בן הזוג הרשום) — נשמר מיד, בלי "שמור"
+  function updateTaxFilesImmediate(files: import('../types').TaxFileInfo[]) {
+    const next = { ...client, taxFiles: files };
+    setClient(next);
+    handleSaveImmediate(next);
+  }
+
   function handleSaveImmediate(c: Client) {
     if (!c.id) return;  // ללקוח חדש אין שמירה מיידית
     onSave({ ...c, updatedAt: new Date().toISOString() });
@@ -315,6 +322,7 @@ export default function ClientWorkspace({
             taxSessions={taxSessions}
             taxSessionsLoading={taxSessionsLoading}
             onOpenYear={openYear}
+            onUpdateTaxFiles={updateTaxFilesImmediate}
           />
         )}
 
@@ -340,6 +348,7 @@ export default function ClientWorkspace({
             sessions={taxSessions}
             loading={taxSessionsLoading}
             onOpenYear={openYear}
+            onUpdateTaxFiles={updateTaxFilesImmediate}
           />
         )}
 

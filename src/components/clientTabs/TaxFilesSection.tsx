@@ -4,8 +4,9 @@
 
 import type { Client, TaxFileInfo, TaxAuthority, TaxFileOwner, TaxFileRepStatus } from '../../types';
 import {
-  TAX_AUTHORITY_LABELS, TAX_FILE_OWNER_LABELS, TAX_FILE_REP_STATUS_LABELS,
+  TAX_AUTHORITY_LABELS, TAX_FILE_REP_STATUS_LABELS,
 } from '../../types';
+import { clientDisplayName, spouseDisplayName } from '../../features/annualReport/profile';
 
 interface Props {
   client: Client;
@@ -23,18 +24,28 @@ function newFile(authority: TaxAuthority): TaxFileInfo {
   };
 }
 
-/** שלד מומלץ לפי הכרטיס: מ"ה תמיד; מע"מ/ניכויים אם יש עסק; ב"ל לכל בן זוג. */
+/** שלד מומלץ לפי הכרטיס: מ"ה תמיד; מע"מ/ניכויים אם יש עסק; ב"ל אישי לכל בן זוג
+    + שורת ב"ל לתיק הניכויים כשיש כזה. */
 function suggestFiles(client: Client): TaxFileInfo[] {
   const out: TaxFileInfo[] = [];
   const hasSpouse = client.familyStatus === 'married';
+  const hasBusiness = (client.businesses ?? []).length > 0 || client.incomeTaxType === 'selfEmployed' || client.incomeTaxType === 'both';
   out.push({ ...newFile('income_tax'), fileNumber: client.idNumber || undefined });
-  if ((client.businesses ?? []).length > 0 || client.incomeTaxType === 'selfEmployed' || client.incomeTaxType === 'both') {
+  if (hasBusiness) {
     out.push(newFile('vat'));
     out.push(newFile('deductions'));
   }
   out.push(newFile('national_insurance'));
   if (hasSpouse) out.push({ ...newFile('national_insurance'), owner: 'spouse' });
+  if (hasBusiness) out.push({ ...newFile('national_insurance'), owner: 'joint' }); // ב"ל של תיק הניכויים
   return out;
+}
+
+/** תוויות בעלים עם שמות אמיתיים; בב"ל owner='joint' מייצג את תיק הניכויים. */
+function ownerOptionLabel(client: Client, authority: TaxAuthority, owner: TaxFileOwner): string {
+  if (authority === 'national_insurance' && owner === 'joint') return 'תיק הניכויים (מעסיק)';
+  if (owner === 'joint') return 'משותף';
+  return owner === 'spouse' ? spouseDisplayName(client) : clientDisplayName(client);
 }
 
 export default function TaxFilesSection({ client, update }: Props) {
@@ -86,8 +97,8 @@ export default function TaxFilesSection({ client, update }: Props) {
           margin: '.3rem 0 .6rem', padding: '.5rem .8rem', borderRadius: 8, fontSize: '.85rem', fontWeight: 700,
           background: '#FBF2E2', border: '1.5px solid #f2d492', color: '#b45309',
         }}>
-          ⚠ תיק מס הכנסה מתנהל על ת.ז. של בן/בת הזוג{client.spouseName ? ` (${client.spouseName})` : ''}
-          {itFile?.fileNumber ? ` — ${itFile.fileNumber}` : ''}. כל התנהלות מול מ"ה בת.ז. הזו.
+          ⚠ בן/בת הזוג הרשום/ה במס הכנסה: {spouseDisplayName(client)}
+          {itFile?.fileNumber ? ` — ת.ז. ${itFile.fileNumber}` : ''}. כל התנהלות מול מ"ה בת.ז. הזו.
         </div>
       )}
 
@@ -121,16 +132,21 @@ export default function TaxFilesSection({ client, update }: Props) {
                 style={{ width: 130, padding: '.35rem .55rem', borderRadius: 6, border: '1px solid var(--gray-200)' }}
               />
               <label style={{ fontSize: '.78rem', color: 'var(--gray-500)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                על שם
+                {f.authority === 'national_insurance' ? 'של' : 'ע"ש'}
                 <select
                   value={f.owner}
                   onChange={(e) => patchFile(f.id, { owner: e.target.value as TaxFileOwner })}
                   style={{ padding: '.3rem .45rem', borderRadius: 6, border: '1px solid var(--gray-200)' }}
                 >
-                  {(Object.keys(TAX_FILE_OWNER_LABELS) as TaxFileOwner[]).map((o) => (
-                    <option key={o} value={o}>{TAX_FILE_OWNER_LABELS[o]}</option>
+                  {(['client', 'spouse', 'joint'] as TaxFileOwner[]).map((o) => (
+                    <option key={o} value={o}>{ownerOptionLabel(client, f.authority, o)}</option>
                   ))}
                 </select>
+                {f.authority === 'income_tax' && f.owner !== 'joint' && client.familyStatus === 'married' && (
+                  <span style={{ fontSize: '.72rem', fontWeight: 700, color: '#b45309', whiteSpace: 'nowrap' }}>
+                    ← בן/בת הזוג הרשום/ה
+                  </span>
+                )}
               </label>
               <select
                 value={f.repStatus}
@@ -151,7 +167,7 @@ export default function TaxFilesSection({ client, update }: Props) {
         </div>
       )}
       <div style={{ fontSize: '.73rem', color: 'var(--gray-400)', marginTop: '.5rem' }}>
-        💡 במס הכנסה תיק אחד לתא המשפחתי — על ת.ז. של בן הזוג הרשום. במע"מ/ניכויים ייתכן תיק לכל בן זוג. בב"ל — שורה לכל בן זוג + לתיק הניכויים.
+        💡 במס הכנסה תיק אחד לתא המשפחתי — מי שעליו התיק הוא בן/בת הזוג הרשום/ה. במע"מ/ניכויים ייתכן תיק לכל בן זוג. בב"ל התיק אישי — שורה לכל בן זוג, ועוד שורה לייצוג בתיק הניכויים אם קיים.
       </div>
     </div>
   );
