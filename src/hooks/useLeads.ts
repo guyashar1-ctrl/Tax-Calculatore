@@ -1,0 +1,71 @@
+import { useEffect, useState } from 'react';
+import type { Lead } from '../types/quotations';
+import { supabase } from '../lib/supabase';
+import { leadFromDb, leadToDb } from '../lib/dbMappers';
+
+export function useLeads(userId: string | undefined) {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) {
+      setLeads([]);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (cancelled) return;
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+      setLeads((data ?? []).map(leadFromDb));
+      setError(null);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  async function addLead(lead: Omit<Lead, 'id'>): Promise<Lead> {
+    if (!userId) throw new Error('Not signed in');
+    const row = leadToDb(lead as Partial<Lead>, userId);
+    const { data, error } = await supabase.from('leads').insert(row).select().single();
+    if (error) throw error;
+    const inserted = leadFromDb(data);
+    setLeads(prev => [inserted, ...prev]);
+    return inserted;
+  }
+
+  async function updateLead(lead: Lead): Promise<Lead> {
+    const row = leadToDb(lead);
+    delete row.id;
+    delete row.user_id;
+    delete row.created_at;
+    const { data, error } = await supabase
+      .from('leads')
+      .update(row)
+      .eq('id', lead.id)
+      .select()
+      .single();
+    if (error) throw error;
+    const updated = leadFromDb(data);
+    setLeads(prev => prev.map(l => l.id === updated.id ? updated : l));
+    return updated;
+  }
+
+  async function deleteLead(id: string): Promise<void> {
+    const { error } = await supabase.from('leads').delete().eq('id', id);
+    if (error) throw error;
+    setLeads(prev => prev.filter(l => l.id !== id));
+  }
+
+  return { leads, loading, error, addLead, updateLead, deleteLead };
+}

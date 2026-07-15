@@ -5,6 +5,12 @@ import type {
 } from '../types';
 import type { Employee } from '../types/clientWorkspace';
 import type { FirmProfile } from '../types/firmProfile';
+import type {
+  Lead,
+  ServiceCatalogItem,
+  QuotationTemplate,
+  Quotation,
+} from '../types/quotations';
 
 function toSnake(s: string): string {
   // Convert camelCase / PascalCase to snake_case, treating runs of uppercase
@@ -149,4 +155,54 @@ export function profileFromDb(row: Record<string, any>): FirmProfile {
 
 export function profileToDb(profile: Partial<FirmProfile>): Record<string, any> {
   return objectToRow(profile, PROFILE_OMIT_ON_WRITE);
+}
+
+// ──────────────────────────── מודול הצעות מחיר ─────────────────────────────
+
+export function leadFromDb(row: Record<string, any>): Lead {
+  return rowToObject<Lead>(row);
+}
+
+export function leadToDb(lead: Partial<Lead>, userId?: string): Record<string, any> {
+  const row = objectToRow(lead, ['updatedAt']);
+  if (userId) row.user_id = userId;
+  return row;
+}
+
+export function serviceCatalogFromDb(row: Record<string, any>): ServiceCatalogItem {
+  return rowToObject<ServiceCatalogItem>(row);
+}
+
+export function serviceCatalogToDb(item: Partial<ServiceCatalogItem>, userId?: string): Record<string, any> {
+  const row = objectToRow(item, ['updatedAt']);
+  if (userId) row.user_id = userId;
+  return row;
+}
+
+export function quotationTemplateFromDb(row: Record<string, any>): QuotationTemplate {
+  const t = rowToObject<QuotationTemplate>(row);
+  if (!t.serviceIds) t.serviceIds = [];
+  return t;
+}
+
+export function quotationTemplateToDb(tpl: Partial<QuotationTemplate>, userId?: string): Record<string, any> {
+  const row = objectToRow(tpl, ['updatedAt']);
+  if (userId) row.user_id = userId;
+  return row;
+}
+
+// quotation_number נקבע ב-DB (טריגר מונה שנתי) — לא נשלח בהכנסה כדי לא לדרוס
+const QUOTATION_OMIT_ON_INSERT = ['updatedAt', 'quotationNumber'];
+
+export function quotationFromDb(row: Record<string, any>): Quotation {
+  const q = rowToObject<Quotation>(row);
+  if (!q.items) q.items = [];
+  if (!q.events) q.events = [];
+  return q;
+}
+
+export function quotationToDb(q: Partial<Quotation>, userId?: string, forInsert = false): Record<string, any> {
+  const row = objectToRow(q, forInsert ? QUOTATION_OMIT_ON_INSERT : ['updatedAt']);
+  if (userId) row.user_id = userId;
+  return row;
 }

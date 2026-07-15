@@ -29,7 +29,7 @@ const ENV_PATH = resolve(ROOT, '.env.local');
 const TEST_EMAIL = 'e2e-test@firm.local';
 
 // סדר מחיקה בטוח-FK (ילדים קודם). רק טבלאות עם user_id.
-const E2E_TABLES = ['document_task_links', 'tasks', 'representation_requests', 'documents', 'cases', 'employees', 'clients'];
+const E2E_TABLES = ['document_task_links', 'tasks', 'representation_requests', 'documents', 'cases', 'employees', 'quotations', 'leads', 'quotation_templates', 'service_catalog', 'quotation_counters', 'clients'];
 
 const args = process.argv.slice(2);
 const has = (f) => args.includes(f);
