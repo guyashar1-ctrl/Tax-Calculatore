@@ -1,6 +1,7 @@
 // Edge Function: send-onboarding-email
 // שולח מיילים ללקוח בשלבי תהליך הייצוג. stage קובע את התוכן:
 //   onboard – אימות זהות (ברירת מחדל) · sign – חתימה על ייפוי הכוח · active – הייצוג אושר
+//   intake – שאלון עדכון יזום מכרטיס הלקוח (בלי בקשת ייצוג)
 // כל הזהות (שם משרד, מיתוג, כתובת שולח, reply-to, חתימה, לוגו) נקראת מ-Firm Profile.
 //
 // אבטחה: verify_jwt=false בשער, ואימות פנימי — מאמת את המשתמש מה-JWT ושהבקשה שלו.
@@ -10,8 +11,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 const THEME_INK: Record<string, string> = { monochrome: "#1A1A1A", navy: "#0E1F3A", emerald: "#0B3B36" };
 const THEME_ACCENT: Record<string, string> = { monochrome: "#4F46E5", navy: "#C9A75A", emerald: "#10B981" };
 
-type Stage = "onboard" | "sign" | "active";
+type Stage = "onboard" | "sign" | "active" | "intake";
 const COPY: Record<Stage, { subject: string; heading: string; body: string; cta: string }> = {
+  intake: {
+    subject: "שאלון קצר — כדי שהתיק שלכם יישאר מעודכן",
+    heading: "נשמח לעדכון קצר",
+    body: "כדי שנוכל להמשיך לטפל בענייני המס שלכם בצורה מדויקת, נשמח שתענו על שאלון קצר. השאלון מתאים את עצמו אליכם — עונים רק על מה שרלוונטי, ואפשר לסמן \"לא בטוח\" בכל שאלה.",
+    cta: "למילוי השאלון",
+  },
   onboard: {
     subject: "ברוכים הבאים — נשאר רק לאמת את הזהות",
     heading: "נעים להכיר",
@@ -80,9 +87,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
   try {
-    const { requestId, stage: rawStage, signerId } = await req.json();
-    if (!requestId) return json({ error: "missing requestId" }, 400);
-    const stage: Stage = (rawStage === "sign" || rawStage === "active") ? rawStage : "onboard";
+    const { requestId, stage: rawStage, signerId, clientId, email } = await req.json();
+    const stage: Stage = (rawStage === "sign" || rawStage === "active" || rawStage === "intake") ? rawStage : "onboard";
+    if (stage === "intake" ? !clientId : !requestId) return json({ error: "missing requestId" }, 400);
     const copy = COPY[stage];
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -94,9 +101,36 @@ Deno.serve(async (req: Request) => {
     const { data: userData } = await admin.auth.getUser(token);
     const user = userData?.user;
     if (!user) return json({ error: "unauthorized" }, 401);
-    const { data: reqRow } = await admin.from("representation_requests").select("*").eq("id", requestId).single();
-    if (!reqRow || reqRow.user_id !== user.id) return json({ error: "not found" }, 404);
-    if (!reqRow.client_email) return json({ error: "no client email" }, 400);
+    // stage=intake: שליחה יזומה מכרטיס הלקוח — בלי בקשת ייצוג. הטוקן קבוע על הכרטיס
+    // ונוצר כאן בשליחה הראשונה.
+    let link = "";
+    let toEmail = "";
+    let clientFirst = "";
+    let logClientId: string | null = null;
+    let logRequestId: string | null = null;
+    let reqRow: any = null;
+    if (stage === "intake") {
+      const { data: clientRow } = await admin.from("clients").select("id,user_id,first_name,last_name,email,intake_token").eq("id", clientId).single();
+      if (!clientRow || clientRow.user_id !== user.id) return json({ error: "not found" }, 404);
+      toEmail = (email && String(email).trim()) || clientRow.email || "";
+      if (!toEmail) return json({ error: "no client email" }, 400);
+      let intakeToken = clientRow.intake_token;
+      if (!intakeToken) {
+        intakeToken = crypto.randomUUID().replace(/-/g, "");
+        const { error: tokenErr } = await admin.from("clients").update({ intake_token: intakeToken }).eq("id", clientId);
+        if (tokenErr) return json({ error: "token_save_failed" }, 500);
+      }
+      link = `${Deno.env.get("APP_URL") || "https://crm.yasharcpa.co.il"}/?intake=${intakeToken}`;
+      clientFirst = String(clientRow.first_name || "").trim();
+      logClientId = clientRow.id;
+    } else {
+      const { data } = await admin.from("representation_requests").select("*").eq("id", requestId).single();
+      reqRow = data;
+      if (!reqRow || reqRow.user_id !== user.id) return json({ error: "not found" }, 404);
+      if (!reqRow.client_email) return json({ error: "no client email" }, 400);
+      logClientId = reqRow.linked_client_id;
+      logRequestId = reqRow.id;
+    }
     const { data: profile } = await admin.from("profiles").select("*").eq("id", user.id).single();
     const firmName = (profile?.firm_name || "המשרד").trim();
     const branding = profile?.branding || {};
@@ -109,9 +143,11 @@ Deno.serve(async (req: Request) => {
     const replyTo = (comm.replyTo && String(comm.replyTo).trim()) || profile?.email || undefined;
     // ברירת מחדל: קישור ההזדהות של הבקשה. עבור stage=sign עם signerId — קישור
     // חתימה אישי (signToken) לחותם המסוים, לכתובת המייל שלו.
-    let link = `${APP_URL}/?onboard=${reqRow.onboarding_token}`;
-    let toEmail = reqRow.client_email;
-    let clientFirst = String(reqRow.client_name || "").trim().split(/\s+/)[0] || "";
+    if (stage !== "intake") {
+      link = `${APP_URL}/?onboard=${reqRow.onboarding_token}`;
+      toEmail = reqRow.client_email;
+      clientFirst = String(reqRow.client_name || "").trim().split(/\s+/)[0] || "";
+    }
     if (stage === "sign" && signerId) {
       const signers: any[] = Array.isArray(reqRow.signers) ? reqRow.signers : [];
       const signer = signers.find((s) => s?.id === signerId);
@@ -130,7 +166,7 @@ Deno.serve(async (req: Request) => {
     const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const body = await r.json();
 
-    const logBase = { user_id: user.id, client_id: reqRow.linked_client_id, request_id: reqRow.id, to_email: toEmail, subject: copy.subject, kind: stage };
+    const logBase = { user_id: user.id, client_id: logClientId, request_id: logRequestId, to_email: toEmail, subject: copy.subject, kind: stage };
     if (!r.ok) {
       await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
       return json({ error: "resend_failed", detail: body }, 502);
