@@ -27,12 +27,35 @@ export function useQuotations(userId: string | undefined) {
         setLoading(false);
         return;
       }
-      setQuotations((data ?? []).map(quotationFromDb));
+      const loaded = (data ?? []).map(quotationFromDb);
+      setQuotations(loaded);
       setError(null);
       setLoading(false);
+
+      // סימון אוטומטי של הצעות שפג תוקפן (נשלחו/נצפו אך עבר מועד התוקף)
+      const now = Date.now();
+      const stale = loaded.filter(q =>
+        (q.status === 'sent' || q.status === 'viewed') &&
+        q.expiresAt && new Date(q.expiresAt).getTime() < now);
+      if (stale.length > 0) void expireStale(stale);
     })();
     return () => { cancelled = true; };
   }, [userId]);
+
+  async function expireStale(stale: Quotation[]) {
+    for (const q of stale) {
+      try {
+        const updated = quotationFromDb((await supabase
+          .from('quotations')
+          .update({
+            status: 'expired',
+            events: [...q.events, { type: 'expired', at: new Date().toISOString() }],
+          })
+          .eq('id', q.id).select().single()).data);
+        setQuotations(prev => prev.map(x => x.id === updated.id ? updated : x));
+      } catch { /* לא חוסם — סימון תוקף הוא נוחות תצוגה */ }
+    }
+  }
 
   // יצירת טיוטה. quotation_number לא נשלח — נקבע ב-DB מהמונה השנתי (2026-001)
   async function addQuotation(q: Omit<Quotation, 'id' | 'quotationNumber'>): Promise<Quotation> {

@@ -10,6 +10,7 @@ interface Props {
   clients: Client[];
   onNew: () => void;
   onOpen: (q: Quotation) => void;
+  onConvert: (q: Quotation) => void;
 }
 
 // סדר תצוגה של קבוצות הסטטוס + צבע הפס
@@ -22,13 +23,20 @@ const GROUP_ORDER: { status: QuotationStatus; badge: string; strip: string }[] =
   { status: 'expired', badge: 'badge-orange', strip: 'var(--orange)' },
 ];
 
-export default function QuotationsPipeline({ quotations, leads, clients, onNew, onOpen }: Props) {
+export default function QuotationsPipeline({ quotations, leads, clients, onNew, onOpen, onConvert }: Props) {
   const [filter, setFilter] = useState<QuotationStatus | 'all'>('all');
 
   const recipientName = (q: Quotation): string => {
     if (q.leadId) { const l = leads.find(x => x.id === q.leadId); if (l) return l.fullName; }
     if (q.clientId) { const c = clients.find(x => x.id === q.clientId); if (c) return `${c.firstName} ${c.lastName}`.trim(); }
     return q.snapshot?.recipientName || '—';
+  };
+
+  // האם הליד של ההצעה כבר הומר ללקוח?
+  const isConverted = (q: Quotation): boolean => {
+    if (q.clientId) return true;
+    const l = q.leadId ? leads.find(x => x.id === q.leadId) : undefined;
+    return !!l?.convertedClientId;
   };
 
   const grouped = useMemo(() => {
@@ -99,12 +107,14 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
                     <thead>
                       <tr>
                         <th>מס׳</th><th>נמען</th><th className="number">סכום</th><th>תוקף</th><th>עודכן</th>
+                        {g.status === 'approved' && <th></th>}
                       </tr>
                     </thead>
                     <tbody>
                       {list.map(q => {
                         const t = calcTotals(q.items, q.vatRate);
                         const headline = t.monthly.withVat || t.annual.withVat || t.oneTime.withVat;
+                        const converted = isConverted(q);
                         return (
                           <tr key={q.id} className="client-row" style={{ cursor: 'pointer', borderInlineStart: `3px solid ${g.strip}` }} onClick={() => onOpen(q)}>
                             <td className="mono-text">{q.quotationNumber}{q.revision > 1 ? ` · גרסה ${q.revision}` : ''}</td>
@@ -112,6 +122,15 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
                             <td className="number">{headline > 0 ? formatILS(Math.round(headline)) : '—'}</td>
                             <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>{q.expiresAt ? new Date(q.expiresAt).toLocaleDateString('he-IL') : '—'}</td>
                             <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>{q.updatedAt ? new Date(q.updatedAt).toLocaleDateString('he-IL') : '—'}</td>
+                            {g.status === 'approved' && (
+                              <td style={{ textAlign: 'end' }} onClick={e => e.stopPropagation()}>
+                                {converted ? (
+                                  <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>לקוח ✓ — לכרטיס ←</button>
+                                ) : (
+                                  <button className="btn btn-sm btn-green" onClick={() => onConvert(q)}>הפוך ללקוח והתחל ייצוג ←</button>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         );
                       })}

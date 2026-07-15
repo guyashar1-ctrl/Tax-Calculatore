@@ -183,7 +183,7 @@ export default function App() {
   const { tasks, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks } = useTasks(user?.id);
   const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
-  const { leads, addLead } = useLeads(user?.id);
+  const { leads, addLead, updateLead } = useLeads(user?.id);
   const { quotations, addQuotation, updateQuotation } = useQuotations(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
 
@@ -191,6 +191,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
+  const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -419,7 +420,7 @@ export default function App() {
    * המערכת יוצרת אוטומטית: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
    * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
    */
-  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations; spouse: { name: string; email: string } | null }): Promise<{ link: string; emailSent: boolean; emailError?: string }> {
+  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations; spouse: { name: string; email: string } | null }): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
     const { name, email, areas, spouse } = data;
     // שער בטיחות: לא פותחים בקשה כפולה לאותו מייל (גם אם ה-UI כבר חוסם).
     const conflictMsg = repEmailConflictMessage(email);
@@ -511,7 +512,7 @@ export default function App() {
     } catch (e) {
       emailError = e instanceof Error ? e.message : String(e);
     }
-    return { link, emailSent, emailError };
+    return { link, emailSent, emailError, clientId };
   }
 
   function handleSelectRequest(id: string) {
@@ -817,7 +818,7 @@ export default function App() {
     }
     if (!res?.ok) return { ok: false, error: res?.detail?.message || res?.error || 'שגיאה לא ידועה', link };
 
-    const snapshot = {
+    const snapshot: NonNullable<Quotation['snapshot']> = {
       frozenAt: now, quotationNumber: saved.quotationNumber, revision: saved.revision,
       recipientName: payload.recipient.fullName, recipientEmail: payload.recipient.email,
       businessName: payload.recipient.businessName, items: payload.items, vatRate: payload.vatRate,
@@ -836,6 +837,43 @@ export default function App() {
       });
     }
     return { ok: true, link };
+  }
+
+  /**
+   * הצעה אושרה → הפיכת הליד ללקוח והמשך לתהליך הייצוג הקיים.
+   * אם הליד כבר הומר — פשוט קופצים לכרטיס הלקוח. אחרת פותחים את דיאלוג
+   * הייצוג הקיים (ממולא מראש) — כדי לא לשכפל את מנגנון יצירת הייצוג.
+   */
+  function handleConvertQuotation(q: Quotation) {
+    const lead = q.leadId ? leads.find(l => l.id === q.leadId) : undefined;
+    if (lead?.convertedClientId) {
+      setSelectedId(lead.convertedClientId);
+      setView('form');
+      return;
+    }
+    if (q.clientId) {   // הצעה ללקוח קיים — כבר לקוח, ישר לכרטיס
+      setSelectedId(q.clientId);
+      setView('form');
+      return;
+    }
+    setConvertingQuotation(q);
+  }
+
+  /** onCreate של דיאלוג הייצוג בזרימת ההמרה — יוצר ייצוג ואז מקשר ליד+הצעה ללקוח. */
+  async function handleCreateRepresentationFromQuotation(data: { name: string; email: string; areas: AuthorityRepresentations; spouse: { name: string; email: string } | null }) {
+    const res = await handleCreateRepresentation(data);
+    const q = convertingQuotation;
+    if (q) {
+      if (q.leadId) {
+        const lead = leads.find(l => l.id === q.leadId);
+        if (lead) await updateLead({ ...lead, status: 'converted', convertedClientId: res.clientId });
+      }
+      await updateQuotation({
+        ...q, clientId: res.clientId,
+        events: [...q.events, { type: 'lead_converted', at: new Date().toISOString() }],
+      });
+    }
+    return res;
   }
 
   const breadcrumb =
@@ -1070,6 +1108,7 @@ export default function App() {
             clients={clients}
             onNew={handleNewQuotation}
             onOpen={handleOpenQuotation}
+            onConvert={handleConvertQuotation}
           />
         )}
 
@@ -1173,6 +1212,19 @@ export default function App() {
           checkEmailConflict={repEmailConflictMessage}
         />
       )}
+
+      {convertingQuotation && (() => {
+        const lead = convertingQuotation.leadId ? leads.find(l => l.id === convertingQuotation.leadId) : undefined;
+        return (
+          <RepresentationOnboardingDialog
+            initialName={lead?.fullName ?? convertingQuotation.snapshot?.recipientName ?? ''}
+            initialEmail={lead?.email ?? convertingQuotation.snapshot?.recipientEmail ?? ''}
+            onCreate={handleCreateRepresentationFromQuotation}
+            onCancel={() => setConvertingQuotation(null)}
+            checkEmailConflict={repEmailConflictMessage}
+          />
+        );
+      })()}
     </div>
   );
 }
