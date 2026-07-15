@@ -145,7 +145,8 @@ export const annualReportTree: QuestionTree = {
         spouse: { ...m.spouse, registeredRole: a as RegisteredSpouseRole },
       }),
       next: () => 'spouse_has_income',
-      visibleWhen: (m) => m.identity?.maritalStatus === 'married',
+      // מוצג רק כשהכרטיס לא קבע (תיק מ"ה בכרטיס = מקור האמת; נזרע למודל בפתיחה)
+      visibleWhen: (m) => m.identity?.maritalStatus === 'married' && !m.spouse?.registeredRole,
       targetFieldCodes: ['S-role'],
     },
 

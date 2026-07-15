@@ -10,9 +10,44 @@ import { FIELD_SOURCE_LABELS } from '../../types/clientWorkspace';
 // עובדות שנגזרות אוטומטית מהכרטיס ולא נשאלות בכלל (למשל ישוב מזכה — לפי
 // הכתובת). רץ בפתיחת תיק ובשחזור הסקירה השנתית; בטוח להריץ שוב (אידמפוטנטי).
 
+// ─── בן הזוג הרשום — נגזר מתיק מס הכנסה בכרטיס (מקור האמת) ──────────────────
+
+export interface RegisteredFileInfo {
+  /** על שם מי מתנהל תיק מס הכנסה. */
+  owner: 'client' | 'spouse' | 'joint';
+  /** שם בן הזוג הרשום (הלקוח או בן/בת הזוג). */
+  name: string;
+  /** ת.ז. שעליה מתנהל התיק. */
+  idNumber: string;
+  fileNumber?: string;
+}
+
+/**
+ * שדה "על שם מי התיק במס הכנסה" בכרטיס הוא המקור הקובע לבן הזוג הרשום.
+ * מחזיר null כשאין תיק מ"ה מוגדר — ואז ההכרעה נופלת לשער הכיסוי.
+ */
+export function registeredFileInfo(client: Client): RegisteredFileInfo | null {
+  const file = (client.taxFiles ?? []).find((f) => f.authority === 'income_tax');
+  if (!file) return null;
+  const clientName = `${client.firstName} ${client.lastName}`.trim();
+  const spouseName = client.spouseName?.trim()
+    || (client.spouse ? `${client.spouse.firstName ?? ''} ${client.spouse.lastName ?? ''}`.trim() : '');
+  const isSpouse = file.owner === 'spouse';
+  return {
+    owner: file.owner,
+    name: isSpouse ? (spouseName || 'בן/בת הזוג') : clientName,
+    idNumber: (isSpouse ? client.spouseIdNumber : client.idNumber) || file.fileNumber || '',
+    fileNumber: file.fileNumber,
+  };
+}
+
 export function seedModelFromClient(model: TaxpayerModel, client: Client): TaxpayerModel {
   const pct = client.disabilityPercentage ?? 0;
   const band = pct >= 90 ? 'full' : pct >= 40 ? 'high' : pct > 0 ? 'low' : undefined;
+  // בן הזוג הרשום מהכרטיס — רק אם טרם הוכרע בתיק השנה (הכרעה מפורשת גוברת)
+  const regFile = registeredFileInfo(client);
+  const seededRole = model.spouse.registeredRole
+    ?? (regFile ? (regFile.owner === 'spouse' ? 'spouse_only' as const : 'me_only' as const) : undefined);
   return {
     ...model,
     identity: {
@@ -21,6 +56,10 @@ export function seedModelFromClient(model: TaxpayerModel, client: Client): Taxpa
       city: client.city || model.identity.city,
       // דרגת הנכות נגזרת מאחוז הנכות בכרטיס — השאלה מדולגת כשידוע
       disabilityBand: model.identity.disabilityBand ?? band,
+    },
+    spouse: {
+      ...model.spouse,
+      registeredRole: seededRole,
     },
   };
 }

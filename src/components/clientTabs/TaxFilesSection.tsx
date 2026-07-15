@@ -44,7 +44,18 @@ export default function TaxFilesSection({ client, update }: Props) {
     update('taxFiles', next);
   }
   function patchFile(id: string, patch: Partial<TaxFileInfo>) {
-    setFiles(files.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+    setFiles(files.map((f) => {
+      if (f.id !== id) return f;
+      const next = { ...f, ...patch };
+      // מקור האמת: שינוי הבעלים של תיק מ"ה ממלא אוטומטית את הת.ז. הנכונה כמספר תיק
+      if (next.authority === 'income_tax' && patch.owner) {
+        const ownerId = patch.owner === 'spouse' ? client.spouseIdNumber : client.idNumber;
+        if (ownerId && (!f.fileNumber || f.fileNumber === client.idNumber || f.fileNumber === client.spouseIdNumber)) {
+          next.fileNumber = ownerId;
+        }
+      }
+      return next;
+    }));
   }
   function removeFile(id: string) {
     setFiles(files.filter((f) => f.id !== id));
