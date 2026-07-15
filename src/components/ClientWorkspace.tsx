@@ -7,14 +7,15 @@ import { ActivityEntry, ClientAlert, SHAAM_STATUS_BADGE } from '../types/clientW
 import { useEmployees } from '../hooks/useEmployees';
 import { useDocumentDB } from '../hooks/useIndexedDB';
 import { computeClientAlerts, getClientOpenTasks, getUpcomingDebts } from '../utils/clientDerived';
-import OverviewTab from './clientTabs/OverviewTab';
-import PersonalContactsTab from './clientTabs/PersonalContactsTab';
-import TaxNITab from './clientTabs/TaxNITab';
-import TaxProfileTab from './clientTabs/TaxProfileTab';
+// הלשוניות הישנות (OverviewTab/PersonalContactsTab/TaxNITab/TaxProfileTab) הוחלפו
+// ב-ClientCockpitTab + ClientDossierTab; הטפסים המלאים נגישים מתוך "התיק".
 import DocumentsTab from './clientTabs/DocumentsTab';
 import { useClientTaxSessions } from '../features/annualReport/useClientTaxSessions';
+import { registeredFileInfo } from '../features/annualReport/profile';
 import TasksActivityTab from './clientTabs/TasksActivityTab';
 import SendIntakeModal from './SendIntakeModal';
+import ClientDossierTab from './clientTabs/ClientDossierTab';
+import ClientCockpitTab from './clientTabs/ClientCockpitTab';
 
 const VAT_LABELS: Record<VATStatus, string> = {
   authorizedDealer: 'עוסק מורשה',
@@ -30,15 +31,15 @@ const IT_LABELS: Record<IncomeTaxType, string> = {
   other: 'אחר',
 };
 
-type TabId = 'overview' | 'personal' | 'tax' | 'taxProfile' | 'docs' | 'tasks';
+// ארבע לשוניות קבועות — יכולת חדשה בעתיד נכנסת כקטע בתוך "התיק" או אות
+// במרכז השליטה, אף פעם לא כלשונית (ראה הצעת הארכיטקטורה שאושרה 15.07.2026).
+type TabId = 'overview' | 'dossier' | 'docs' | 'tasks';
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'overview',   label: 'סקירה',                icon: '📋' },
-  { id: 'personal',   label: 'פרטים אישיים וקשרים', icon: '👤' },
-  { id: 'tax',        label: 'מיסוי וביטוח לאומי',  icon: '🏛️' },
-  { id: 'taxProfile', label: 'פרופיל מס',            icon: '🧬' },
-  { id: 'docs',       label: 'מסמכים',               icon: '📁' },
-  { id: 'tasks',      label: 'משימות',               icon: '✅' },
+  { id: 'overview', label: 'מרכז שליטה', icon: '🎛️' },
+  { id: 'dossier',  label: 'התיק',        icon: '👤' },
+  { id: 'docs',     label: 'מסמכים',      icon: '📁' },
+  { id: 'tasks',    label: 'משימות',      icon: '✅' },
 ];
 
 interface Props {
@@ -112,7 +113,8 @@ export default function ClientWorkspace({
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
-  const [tab, setTab] = useState<TabId>('overview');
+  // לקוח חדש נוחת ישר ב"תיק" — שם ממלאים את הפרטים
+  const [tab, setTab] = useState<TabId>(initialClient ? 'overview' : 'dossier');
   const [docCategories, setDocCategories] = useState<Set<string>>(new Set());
   const [dirty, setDirty] = useState(false);
   const [intakeModalOpen, setIntakeModalOpen] = useState(false);
@@ -168,11 +170,12 @@ export default function ClientWorkspace({
     handleSaveImmediate({ ...client, activity: next });
   }
 
-  // שינוי תיקי רשויות מתמונת המס (למשל החלפת בן הזוג הרשום) — נשמר מיד, בלי "שמור"
-  function updateTaxFilesImmediate(files: import('../types').TaxFileInfo[]) {
-    const next = { ...client, taxFiles: files };
+  // עדכון מקטעי "התיק" — נשמר מיד, בלי כפתור "שמור" (מסך עבודה, לא טופס)
+  async function patchAndSaveImmediate(partial: Partial<Client>) {
+    const next = { ...client, ...partial };
     setClient(next);
-    handleSaveImmediate(next);
+    if (next.id) handleSaveImmediate(next);
+    else setDirty(true); // לקוח חדש — נשמר בכפתור "שמור" אחרי מילוי החובה
   }
 
   function handleSaveImmediate(c: Client) {
@@ -206,6 +209,7 @@ export default function ClientWorkspace({
   const fullName = `${client.firstName} ${client.lastName}`.trim() || (isNew ? 'לקוח חדש' : '(ללא שם)');
   const status = client.representationStatus ?? 'active';
   const employee = findEmployee(client.assignedAccountantId);
+  const regFile = registeredFileInfo(client);
 
   return (
     <div className="cw-root">
@@ -237,6 +241,20 @@ export default function ClientWorkspace({
                 title="שליחת קישור שאלון היכרות/עדכון למייל הלקוח"
               >📨 שלח שאלון</button>
             )}
+            {!isNew && openYear && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => openYear(taxSessions[0]?.taxYear ?? new Date().getFullYear() - 1)}
+                title="פתיחת הדוח השנתי של הלקוח"
+              >📋 דוח שנתי</button>
+            )}
+            {!isNew && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => onAddTaskForClient(client.id)}
+                title="משימה חדשה ללקוח"
+              >➕ משימה</button>
+            )}
             <button className="btn btn-primary" onClick={handleSave} disabled={!dirty}>שמור</button>
             {!isNew && (
               <button
@@ -253,6 +271,23 @@ export default function ClientWorkspace({
           <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`}>
             {REPRESENTATION_STATUS_LABELS[status]}
           </span>
+
+          {/* העוגן: על שם מי רץ תיק מס הכנסה — תמיד מול העיניים, בכל לשונית */}
+          {regFile && (
+            <span
+              className="cw-tax-chip"
+              title="בן/בת הזוג הרשום/ה — כל ההתנהלות מול מס הכנסה בת.ז. הזו. ניתן לשינוי בלשונית התיק."
+              style={{
+                fontWeight: 700,
+                background: regFile.owner === 'spouse' ? '#FBF2E2' : undefined,
+                color: regFile.owner === 'spouse' ? '#b45309' : undefined,
+                border: regFile.owner === 'spouse' ? '1px solid #f2d492' : undefined,
+              }}
+            >
+              🗄️ תיק מ"ה ע"ש {regFile.name}
+              {regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
+            </span>
+          )}
 
           {employee ? (
             <span className="cw-emp-chip" title={employee.role}>
@@ -308,47 +343,32 @@ export default function ClientWorkspace({
       {/* ─── תוכן הלשונית ─────────────────────────────────────── */}
       <div className="cw-body">
         {tab === 'overview' && (
-          <OverviewTab
+          <ClientCockpitTab
             client={client}
             tasks={tasks}
             alerts={alerts}
             openTasks={openTasks}
             upcomingDebts={upcomingDebts}
+            docCategories={docCategories}
             onPinNote={(note) => update('pinnedNote', note)}
             onAddNote={(text) => appendActivity({ kind: 'note', text })}
             onGotoTab={(t) => setTab(t)}
             onSelectTask={onSelectTask}
-            onToggleTaskDone={onToggleTaskDone}
             taxSessions={taxSessions}
             taxSessionsLoading={taxSessionsLoading}
             onOpenYear={openYear}
-            onUpdateTaxFiles={updateTaxFilesImmediate}
           />
         )}
 
-        {tab === 'personal' && (
-          <PersonalContactsTab
+        {tab === 'dossier' && (
+          <ClientDossierTab
             client={client}
             update={update}
             patch={patch}
+            patchAndSave={patchAndSaveImmediate}
             employees={employees}
-          />
-        )}
-
-        {tab === 'tax' && (
-          <TaxNITab
-            client={client}
-            update={update}
-          />
-        )}
-
-        {tab === 'taxProfile' && (
-          <TaxProfileTab
-            client={client}
             sessions={taxSessions}
-            loading={taxSessionsLoading}
-            onOpenYear={openYear}
-            onUpdateTaxFiles={updateTaxFilesImmediate}
+            isNew={isNew}
           />
         )}
 
