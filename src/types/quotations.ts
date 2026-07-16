@@ -203,6 +203,10 @@ export interface Quotation {
   cancelledAt?: string;
   snapshot?: QuotationSnapshot;
   events: QuotationEvent[];
+  // תזכורת אוטומטית לפני פקיעה (מנוהל בצד-שרת ע"י ה-cron)
+  autoReminderSentAt?: string;
+  autoReminderError?: string;
+  autoReminderErrorAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }

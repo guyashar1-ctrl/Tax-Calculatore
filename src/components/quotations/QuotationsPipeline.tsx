@@ -73,6 +73,8 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
 
   const visibleGroups = GROUP_ORDER.filter(g => filter === 'all' || filter === g.status).filter(g => (grouped[g.status]?.length ?? 0) > 0);
 
+  const reminderFailures = quotations.filter(q => q.autoReminderError && ['sent', 'viewed'].includes(q.status));
+
   const stats = {
     open: quotations.filter(q => ['sent', 'viewed'].includes(q.status)).length,
     drafts: quotations.filter(q => q.status === 'draft').length,
@@ -92,6 +94,15 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
 
       {toast && (
         <div className={`alert ${toast.kind === 'ok' ? 'alert-info' : 'alert-warning'}`} style={{ marginBottom: 12 }}>{toast.text}</div>
+      )}
+
+      {reminderFailures.length > 0 && (
+        <div className="alert alert-warning" style={{ marginBottom: 12, flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+          <div style={{ fontWeight: 600 }}>⚠ תזכורת אוטומטית נכשלה ל־{reminderFailures.length} הצעות — נדרש טיפול:</div>
+          {reminderFailures.map(q => (
+            <div key={q.id} style={{ fontSize: 12.5 }}>• {q.quotationNumber} ({recipientName(q)}) — {q.autoReminderError}. אפשר לשלוח תזכורת ידנית מהשורה.</div>
+          ))}
+        </div>
       )}
 
       {/* strip סטטיסטיקה */}
