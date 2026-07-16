@@ -18,6 +18,9 @@ interface Props {
   onCancel: () => void;
   /** בודק אם המייל כבר בשימוש בייצוג פעיל/בתהליך. מחזיר הודעת חסימה, או null אם פנוי. */
   checkEmailConflict?: (email: string) => string | null;
+  /** ערכי פתיחה — לזרימת "הפוך ליד ללקוח" מהצעת מחיר מאושרת. */
+  initialName?: string;
+  initialEmail?: string;
 }
 
 interface AreaState {
@@ -31,9 +34,9 @@ function isValidEmail(email: string): boolean {
 
 const hasLevel = (a: RepAuthorityKind) => REP_AUTHORITIES_WITH_LEVEL.includes(a);
 
-export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict }: Props) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict, initialName, initialEmail }: Props) {
+  const [name, setName] = useState(initialName ?? '');
+  const [email, setEmail] = useState(initialEmail ?? '');
   // ── בן/בת זוג ──
   const [married, setMarried] = useState(false);
   const [spouseName, setSpouseName] = useState('');

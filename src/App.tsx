@@ -26,6 +26,15 @@ import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
 import { useFirmProfile } from './hooks/useFirmProfile';
+import { useLeads } from './hooks/useLeads';
+import { useQuotations } from './hooks/useQuotations';
+import { useQuotationCatalog } from './hooks/useQuotationCatalog';
+import QuotationsPipeline from './components/quotations/QuotationsPipeline';
+import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
+import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
+import { deriveQuotationBrand } from './components/quotations/quotationBranding';
+import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
+import type { Quotation } from './types/quotations';
 import FirmProfileConsole from './components/FirmProfileConsole';
 import type { FirmProfile } from './types/firmProfile';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
@@ -47,6 +56,7 @@ import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateCl
 import RepresentationOnboardingDialog from './components/RepresentationOnboardingDialog';
 import OnboardingPage from './components/OnboardingPage';
 import PublicIntakePage from './components/PublicIntakePage';
+import PublicQuotationPage from './components/PublicQuotationPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import PublicSignPage from './components/PublicSignPage';
@@ -67,7 +77,9 @@ type View =
   | 'firmProfile'
   | 'requestNew'
   | 'requestReview'
-  | 'requestFill';
+  | 'requestFill'
+  | 'quotations'
+  | 'quotationBuilder';
 
 /** יוצר Client חדש עם ערכי ברירת מחדל */
 function makeEmptyClient(id: string, partial: Partial<Client> = {}): Client {
@@ -161,6 +173,9 @@ export default function App() {
     // שאלון עצמאי — נשלח יזום מכרטיס הלקוח, בלי הליך ייצוג.
     const intakeToken = new URLSearchParams(window.location.search).get('intake');
     if (intakeToken) return <PublicIntakePage token={intakeToken} />;
+    // עמוד הצעת מחיר ציבורי — קישור מאובטח לפי טוקן.
+    const quoteToken = new URLSearchParams(window.location.search).get('quote');
+    if (quoteToken) return <PublicQuotationPage token={quoteToken} />;
   }
 
   const { user, loading: authLoading, displayName, avatarUrl, signOut } = useAuth();
@@ -169,10 +184,16 @@ export default function App() {
   const { tasks, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks } = useTasks(user?.id);
   const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
+  const { leads, addLead, updateLead } = useLeads(user?.id);
+  const { quotations, addQuotation, updateQuotation } = useQuotations(user?.id);
+  const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
 
   const [view, setView] = useState<View>('tasks');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
+  const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
+  const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; prevAccountant: { name?: string; email?: string; phone?: string } } | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -401,7 +422,7 @@ export default function App() {
    * המערכת יוצרת אוטומטית: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
    * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
    */
-  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations; spouse: { name: string; email: string } | null }): Promise<{ link: string; emailSent: boolean; emailError?: string }> {
+  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations; spouse: { name: string; email: string } | null }): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
     const { name, email, areas, spouse } = data;
     // שער בטיחות: לא פותחים בקשה כפולה לאותו מייל (גם אם ה-UI כבר חוסם).
     const conflictMsg = repEmailConflictMessage(email);
@@ -493,7 +514,7 @@ export default function App() {
     } catch (e) {
       emailError = e instanceof Error ? e.message : String(e);
     }
-    return { link, emailSent, emailError };
+    return { link, emailSent, emailError, clientId };
   }
 
   function handleSelectRequest(id: string) {
@@ -680,6 +701,231 @@ export default function App() {
     setView('list');
   }
 
+  // ─── הצעות מחיר ולידים ─────────────────────────────────────────────────────
+
+  const editingQuotation = editingQuotationId ? quotations.find(q => q.id === editingQuotationId) ?? null : null;
+
+  function handleNewQuotation() {
+    setEditingQuotationId(null);
+    setView('quotationBuilder');
+  }
+
+  function handleOpenQuotation(q: Quotation) {
+    setEditingQuotationId(q.id);
+    setView('quotationBuilder');
+  }
+
+  /**
+   * שומר טיוטת הצעה (יוצר/מעדכן) ומחזיר את ההצעה השמורה. אם הנמען "ליד חדש" —
+   * יוצר קודם רשומת ליד ומקשר. ליד הופך ללקוח רק אחרי אישור ההצעה (שלב 4).
+   */
+  async function persistQuotation(payload: SaveDraftPayload): Promise<Quotation> {
+    let leadId: string | undefined;
+    let clientId: string | undefined;
+
+    if (payload.recipient.kind === 'new') {
+      const lead = await addLead({
+        fullName: payload.recipient.fullName,
+        phone: payload.recipient.phone,
+        email: payload.recipient.email,
+        businessName: payload.recipient.businessName,
+        dealerType: payload.recipient.dealerType,
+        hasPreviousAccountant: payload.recipient.hasPreviousAccountant,
+        prevAccountantName: payload.recipient.prevAccountantName,
+        prevAccountantEmail: payload.recipient.prevAccountantEmail,
+        prevAccountantPhone: payload.recipient.prevAccountantPhone,
+        status: 'new',
+      });
+      leadId = lead.id;
+    } else if (payload.recipient.kind === 'lead') {
+      leadId = payload.recipient.id;
+    } else {
+      clientId = payload.recipient.id;
+    }
+
+    const existing = payload.id ? quotations.find(q => q.id === payload.id) : undefined;
+    if (existing) {
+      return updateQuotation({
+        ...existing,
+        leadId: leadId ?? existing.leadId,
+        clientId: clientId ?? existing.clientId,
+        items: payload.items,
+        vatRate: payload.vatRate,
+        emailSubject: payload.emailSubject,
+        emailMessage: payload.emailMessage,
+        notesForClient: payload.notesForClient,
+        internalNotes: payload.internalNotes,
+        templateId: payload.templateId,
+        expiresAt: payload.expiresAt,
+        events: [...existing.events, { type: 'edited', at: new Date().toISOString() }],
+      });
+    }
+    return addQuotation({
+      leadId, clientId, revision: 1, status: 'draft',
+      items: payload.items,
+      vatRate: payload.vatRate,
+      emailSubject: payload.emailSubject,
+      emailMessage: payload.emailMessage,
+      notesForClient: payload.notesForClient,
+      internalNotes: payload.internalNotes,
+      templateId: payload.templateId,
+      expiresAt: payload.expiresAt,
+      events: [],
+    });
+  }
+
+  async function handleSaveQuotationDraft(payload: SaveDraftPayload) {
+    const saved = await persistQuotation(payload);
+    setEditingQuotationId(saved.id);
+  }
+
+  /**
+   * שולח הצעה ללקוח (או מייל בדיקה לרו"ח). שומר קודם, מקפיא snapshot ברגע השליחה,
+   * מייצר טוקן ציבורי, ובונה את ה-HTML באותו מחולל של התצוגה המקדימה — כדי
+   * שהמייל יהיה זהה למה שהוצג. מחזיר תוצאה להצגה בבונה.
+   */
+  async function handleSendQuotation(payload: SaveDraftPayload, isTest: boolean): Promise<{ ok: boolean; error?: string; link?: string }> {
+    const saved = await persistQuotation(payload);
+    const token = saved.publicToken || crypto.randomUUID().replace(/-/g, '');
+    const link = `${window.location.origin}/?quote=${token}`;
+    const now = new Date().toISOString();
+
+    const brand = deriveQuotationBrand(firmProfile);
+    const ctx: Record<string, string> = {
+      '{{clientName}}': payload.recipient.fullName,
+      '{{businessName}}': payload.recipient.businessName || payload.recipient.fullName,
+      '{{quotationNumber}}': saved.quotationNumber,
+      '{{quotationLink}}': link,
+    };
+    const applyPlaceholders = (s: string) => Object.entries(ctx).reduce((acc, [k, v]) => acc.split(k).join(v ?? ''), s);
+    const subject = applyPlaceholders(payload.emailSubject || 'הצעת מחיר');
+    const html = buildQuotationEmailHtml({
+      quotationNumber: saved.quotationNumber,
+      recipientName: payload.recipient.fullName,
+      businessName: payload.recipient.businessName,
+      items: payload.items,
+      vatRate: payload.vatRate,
+      message: applyPlaceholders(payload.emailMessage || ''),
+      quotationLink: link,
+      expiresAt: payload.expiresAt,
+    }, brand);
+
+    // שולחים קודם — ורק אם המייל יצא בהצלחה מסמנים "נשלחה" ומקפיאים snapshot.
+    // כך הצעה לא תיתקע במצב "נשלחה" בלי שהמייל באמת יצא.
+    let res: { ok?: boolean; error?: string; detail?: { message?: string } } | null = null;
+    try {
+      const { data, error } = await supabase.functions.invoke('send-quotation-email', {
+        body: { quotationId: saved.id, isTest, html, subject },
+      });
+      if (error) return { ok: false, error: error.message, link };
+      res = data;
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e), link };
+    }
+    if (!res?.ok) return { ok: false, error: res?.detail?.message || res?.error || 'שגיאה לא ידועה', link };
+
+    const snapshot: NonNullable<Quotation['snapshot']> = {
+      frozenAt: now, quotationNumber: saved.quotationNumber, revision: saved.revision,
+      recipientName: payload.recipient.fullName, recipientEmail: payload.recipient.email,
+      businessName: payload.recipient.businessName, items: payload.items, vatRate: payload.vatRate,
+      notesForClient: payload.notesForClient, emailSubject: payload.emailSubject,
+      emailMessage: payload.emailMessage, firmName: firmProfile?.firmName,
+    };
+    if (!isTest) {
+      await updateQuotation({
+        ...saved, status: 'sent', sentAt: now, publicToken: token, snapshot,
+        events: [...saved.events, { type: 'sent', at: now }],
+      });
+    } else if (!saved.publicToken) {
+      await updateQuotation({
+        ...saved, publicToken: token,
+        events: [...saved.events, { type: 'test_email_sent', at: now }],
+      });
+    }
+    return { ok: true, link };
+  }
+
+  /**
+   * הצעה אושרה → הפיכת הליד ללקוח והמשך לתהליך הייצוג הקיים.
+   * אם הליד כבר הומר — פשוט קופצים לכרטיס הלקוח. אחרת פותחים את דיאלוג
+   * הייצוג הקיים (ממולא מראש) — כדי לא לשכפל את מנגנון יצירת הייצוג.
+   */
+  function handleConvertQuotation(q: Quotation) {
+    const lead = q.leadId ? leads.find(l => l.id === q.leadId) : undefined;
+    if (lead?.convertedClientId) {
+      setSelectedId(lead.convertedClientId);
+      setView('form');
+      return;
+    }
+    if (q.clientId) {   // הצעה ללקוח קיים — כבר לקוח, ישר לכרטיס
+      setSelectedId(q.clientId);
+      setView('form');
+      return;
+    }
+    setConvertingQuotation(q);
+  }
+
+  /** פתיחת מכתב שחרור לרו"ח קודם — רק אם לליד יש רו"ח קודם והוא כבר הומר ללקוח. */
+  function handleReleaseLetter(q: Quotation) {
+    const lead = q.leadId ? leads.find(l => l.id === q.leadId) : undefined;
+    const clientId = lead?.convertedClientId || q.clientId;
+    if (!clientId) return;
+    const client = clients.find(c => c.id === clientId);
+    setReleaseFor({
+      clientId,
+      clientName: client ? `${client.firstName} ${client.lastName}`.trim() : (lead?.fullName ?? ''),
+      businessName: lead?.businessName,
+      prevAccountant: { name: lead?.prevAccountantName, email: lead?.prevAccountantEmail, phone: lead?.prevAccountantPhone },
+    });
+  }
+
+  /** תזכורת — שליחה חוזרת של אותה הצעה שנשלחה, עם אותו קישור ותוכן. */
+  async function handleRemindQuotation(q: Quotation): Promise<{ ok: boolean; error?: string }> {
+    if (!q.publicToken) return { ok: false, error: 'להצעה אין קישור ציבורי — שלח אותה קודם.' };
+    const link = `${window.location.origin}/?quote=${q.publicToken}`;
+    const brand = deriveQuotationBrand(firmProfile);
+    const snap = q.snapshot;
+    const html = buildQuotationEmailHtml({
+      quotationNumber: q.quotationNumber,
+      recipientName: snap?.recipientName ?? '',
+      businessName: snap?.businessName,
+      items: snap?.items ?? q.items,
+      vatRate: snap?.vatRate ?? q.vatRate,
+      message: snap?.emailMessage ?? q.emailMessage ?? '',
+      quotationLink: link,
+      expiresAt: q.expiresAt,
+    }, brand);
+    const subject = q.emailSubject || snap?.emailSubject || 'תזכורת — הצעת מחיר';
+    try {
+      const { data: res, error } = await supabase.functions.invoke('send-quotation-email', {
+        body: { quotationId: q.id, isTest: false, html, subject },
+      });
+      if (error) return { ok: false, error: error.message };
+      if (!res?.ok) return { ok: false, error: res?.detail?.message || res?.error || 'שגיאה' };
+      await updateQuotation({ ...q, events: [...q.events, { type: 'reminder_sent', at: new Date().toISOString() }] });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  /** onCreate של דיאלוג הייצוג בזרימת ההמרה — יוצר ייצוג ואז מקשר ליד+הצעה ללקוח. */
+  async function handleCreateRepresentationFromQuotation(data: { name: string; email: string; areas: AuthorityRepresentations; spouse: { name: string; email: string } | null }) {
+    const res = await handleCreateRepresentation(data);
+    const q = convertingQuotation;
+    if (q) {
+      if (q.leadId) {
+        const lead = leads.find(l => l.id === q.leadId);
+        if (lead) await updateLead({ ...lead, status: 'converted', convertedClientId: res.clientId });
+      }
+      await updateQuotation({
+        ...q, clientId: res.clientId,
+        events: [...q.events, { type: 'lead_converted', at: new Date().toISOString() }],
+      });
+    }
+    return res;
+  }
+
   const breadcrumb =
     view === 'form'
       ? selectedClient ? `${selectedClient.firstName} ${selectedClient.lastName}` : 'לקוח חדש'
@@ -715,6 +961,7 @@ export default function App() {
   const navTabs: { id: View; label: string; badge?: number }[] = [
     { id: 'tasks', label: '✓ משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
     { id: 'list', label: '👥 לקוחות' },
+    { id: 'quotations', label: '📝 הצעות ולידים' },
     { id: 'annualReport', label: '📋 דוח שנתי 1301' },
     { id: 'reference', label: '🧭 מרכז ידע מס' },
   ];
@@ -734,6 +981,7 @@ export default function App() {
                 setView(t.id);
                 setSelectedId(null);
                 setSelectedRequestId(null);
+                setEditingQuotationId(null);
               }}
               className={`nav-tab ${view === t.id ? 'active' : ''}`}
             >
@@ -903,6 +1151,34 @@ export default function App() {
           />
         )}
 
+        {view === 'quotations' && (
+          <QuotationsPipeline
+            quotations={quotations}
+            leads={leads}
+            clients={clients}
+            onNew={handleNewQuotation}
+            onOpen={handleOpenQuotation}
+            onConvert={handleConvertQuotation}
+            onRelease={handleReleaseLetter}
+            onRemind={handleRemindQuotation}
+          />
+        )}
+
+        {view === 'quotationBuilder' && (
+          <QuotationBuilder
+            profile={firmProfile}
+            services={catalogServices}
+            templates={quotationTemplates}
+            leads={leads}
+            clients={clients}
+            existing={editingQuotation}
+            existingQuotations={quotations}
+            onSaveDraft={handleSaveQuotationDraft}
+            onSend={handleSendQuotation}
+            onBack={() => { setEditingQuotationId(null); setView('quotations'); }}
+          />
+        )}
+
         {view === 'firmProfile' && (
           firmProfile ? (
             <FirmProfileConsole
@@ -988,6 +1264,30 @@ export default function App() {
           checkEmailConflict={repEmailConflictMessage}
         />
       )}
+
+      {releaseFor && (
+        <ReleaseLetterDialog
+          clientId={releaseFor.clientId}
+          clientName={releaseFor.clientName}
+          businessName={releaseFor.businessName}
+          prevAccountant={releaseFor.prevAccountant}
+          brand={deriveQuotationBrand(firmProfile)}
+          onClose={() => setReleaseFor(null)}
+        />
+      )}
+
+      {convertingQuotation && (() => {
+        const lead = convertingQuotation.leadId ? leads.find(l => l.id === convertingQuotation.leadId) : undefined;
+        return (
+          <RepresentationOnboardingDialog
+            initialName={lead?.fullName ?? convertingQuotation.snapshot?.recipientName ?? ''}
+            initialEmail={lead?.email ?? convertingQuotation.snapshot?.recipientEmail ?? ''}
+            onCreate={handleCreateRepresentationFromQuotation}
+            onCancel={() => setConvertingQuotation(null)}
+            checkEmailConflict={repEmailConflictMessage}
+          />
+        );
+      })()}
     </div>
   );
 }
