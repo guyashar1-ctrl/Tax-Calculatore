@@ -6,7 +6,7 @@
 import { PDFDocument, PDFPage, rgb, type RGB } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { embedPdfFonts, layoutMixed, measureMixed, type PdfFonts } from './pdfHebrew';
-import type { QuotationItem } from '../types/quotations';
+import type { QuotationItem, FutureService } from '../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../types/quotations';
 import { calcTotals, itemFinalPrice } from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
@@ -16,6 +16,7 @@ export interface QuotationPdfData {
   recipientName: string;
   businessName?: string;
   items: QuotationItem[];
+  futureServices?: FutureService[];
   vatRate: number;
   notesForClient?: string;
   expiresAt?: string;
@@ -84,9 +85,8 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   sectionLine('השירותים שלנו');
   for (const item of priced) {
     ensureSpace(38);
-    const withVat = item.vatFlag ? itemFinalPrice(item) * (1 + data.vatRate / 100) : itemFinalPrice(item);
     rtl(item.name, 11.5, ink, y);
-    ltr(money(withVat), 11.5, ink, y);
+    ltr(`${money(itemFinalPrice(item))}${item.vatFlag ? ' + מע״מ' : ''}`, 11.5, ink, y);
     y -= 15;
     const meta = `${SERVICE_CATEGORY_LABELS[item.category]}${item.billingType === 'per_unit' && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}${item.description ? ` · ${item.description}` : ''}`;
     rtl(meta, 8.5, gray, y);
@@ -103,22 +103,40 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     }
   }
 
-  // ── סיכום ──
+  // ── סיכום: לפני מע"מ, מע"מ בנפרד, סה"כ ──
   y -= 10;
   sectionLine('סיכום התמחור');
-  const rows: [string, number, string][] = [];
-  if (totals.monthly.withVat > 0) rows.push(['חודשי', totals.monthly.withVat, 'לחודש']);
-  if (totals.annual.withVat > 0) rows.push(['שנתי', totals.annual.withVat, 'לשנה']);
-  if (totals.oneTime.withVat > 0) rows.push(['חד־פעמי', totals.oneTime.withVat, '']);
-  for (const [label, val, suffix] of rows) {
-    ensureSpace(20);
-    rtl(label, 12, ink, y);
-    ltr(`${money(val)}${suffix ? ' ' + suffix : ''}`, 12, accent, y);
+  const blocks: [string, typeof totals.monthly, string][] = [];
+  if (totals.monthly.withVat > 0) blocks.push(['חודשי', totals.monthly, 'לחודש']);
+  if (totals.annual.withVat > 0) blocks.push(['שנתי', totals.annual, 'לשנה']);
+  if (totals.oneTime.withVat > 0) blocks.push(['חד־פעמי', totals.oneTime, '']);
+  for (const [label, t, suffix] of blocks) {
+    ensureSpace(62);
+    rtl(label, 11.5, ink, y); y -= 15;
+    rtl('לפני מע״מ', 9.5, gray, y); ltr(money(t.beforeVat), 9.5, gray, y); y -= 13;
+    rtl(`מע״מ (${data.vatRate}%)`, 9.5, gray, y); ltr(money(t.vat), 9.5, gray, y); y -= 13;
+    rtl(suffix ? `סה״כ ${suffix}` : 'סה״כ לתשלום', 11.5, ink, y);
+    ltr(money(t.withVat), 12.5, accent, y);
     y -= 20;
   }
-  y -= 2;
-  rtl(`המחירים כוללים מע״מ (${data.vatRate}%). חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד.`, 8.5, gray, y);
+  rtl('חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד ואינם מאוחדים.', 8.5, gray, y);
   y -= 20;
+
+  // ── שירותים עתידיים (מחירון ידוע מראש) ──
+  const future = data.futureServices ?? [];
+  if (future.length > 0) {
+    ensureSpace(50);
+    sectionLine('שירותים נוספים — אם וכאשר תצטרכו');
+    rtl('אינם כלולים בהצעה. תחויבו רק אם וכאשר תבקשו אותם בפועל.', 8.5, gray, y);
+    y -= 16;
+    for (const fs of future) {
+      ensureSpace(16);
+      rtl(fs.name, 10.5, bodyGray, y);
+      ltr(`${money(fs.price)}${fs.vatFlag ? ' + מע״מ' : ''}${fs.billingType === 'per_unit' ? ` / ${fs.unitLabel || 'יחידה'}` : ''}`, 10.5, bodyGray, y);
+      y -= 15;
+    }
+    y -= 6;
+  }
 
   // ── הערות ──
   if (data.notesForClient?.trim()) {

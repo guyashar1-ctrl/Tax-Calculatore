@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { FirmProfile } from '../types/firmProfile';
-import type { QuotationItem } from '../types/quotations';
+import type { QuotationItem, FutureService } from '../types/quotations';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import QuotationWebView, { type QuotationWebViewData } from './quotations/QuotationWebView';
 import { generateQuotationPdf, downloadPdf } from '../utils/quotationPdf';
@@ -21,6 +21,7 @@ interface QuotationInfo {
   businessName?: string;
   notesForClient?: string;
   items: QuotationItem[];
+  futureServices?: FutureService[];
   firm: {
     firmName?: string;
     branding?: Record<string, unknown>;
@@ -88,7 +89,7 @@ export default function PublicQuotationPage({ token }: Props) {
       quotationNumber: info.quotationNumber,
       recipientName: info.recipientName || '',
       businessName: info.businessName,
-      items: info.items, vatRate: info.vatRate,
+      items: info.items, futureServices: info.futureServices, vatRate: info.vatRate,
       notesForClient: info.notesForClient, expiresAt: info.expiresAt,
     }, brand);
     downloadPdf(bytes, `הצעת מחיר ${info.quotationNumber}.pdf`);
@@ -112,7 +113,7 @@ export default function PublicQuotationPage({ token }: Props) {
     quotationNumber: info.quotationNumber,
     recipientName: info.recipientName || 'הלקוח',
     businessName: info.businessName,
-    items: info.items, vatRate: info.vatRate,
+    items: info.items, futureServices: info.futureServices, vatRate: info.vatRate,
     notesForClient: info.notesForClient, expiresAt: info.expiresAt,
   };
 

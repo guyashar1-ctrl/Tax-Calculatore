@@ -750,6 +750,7 @@ export default function App() {
         leadId: leadId ?? existing.leadId,
         clientId: clientId ?? existing.clientId,
         items: payload.items,
+        futureServices: payload.futureServices,
         vatRate: payload.vatRate,
         emailSubject: payload.emailSubject,
         emailMessage: payload.emailMessage,
@@ -763,6 +764,7 @@ export default function App() {
     return addQuotation({
       leadId, clientId, revision: 1, status: 'draft',
       items: payload.items,
+      futureServices: payload.futureServices,
       vatRate: payload.vatRate,
       emailSubject: payload.emailSubject,
       emailMessage: payload.emailMessage,
@@ -827,7 +829,8 @@ export default function App() {
     const snapshot: NonNullable<Quotation['snapshot']> = {
       frozenAt: now, quotationNumber: saved.quotationNumber, revision: saved.revision,
       recipientName: payload.recipient.fullName, recipientEmail: payload.recipient.email,
-      businessName: payload.recipient.businessName, items: payload.items, vatRate: payload.vatRate,
+      businessName: payload.recipient.businessName, items: payload.items,
+      futureServices: payload.futureServices, vatRate: payload.vatRate,
       notesForClient: payload.notesForClient, emailSubject: payload.emailSubject,
       emailMessage: payload.emailMessage, firmName: firmProfile?.firmName,
     };
