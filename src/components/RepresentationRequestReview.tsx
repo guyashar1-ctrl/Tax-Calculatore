@@ -12,6 +12,7 @@ import {
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { downloadPrivateDataUrl } from '../utils/privateAsset';
 import { generateSignedPoaPdf, downloadPdfBytes, toPureArrayBuffer } from '../utils/poaPdfGenerator';
 import SignaturePad from './SignaturePad';
 import RepSignersStatus from './RepSignersStatus';
@@ -213,23 +214,12 @@ export default function RepresentationRequestReview({
     };
   }
 
-  // תמונת מיתוג (חותמת/חתימה) כ-dataURL. pdf-lib תומך ב-PNG/JPG בלבד — SVG מדולג.
-  async function loadBrandingImage(url?: string): Promise<string | undefined> {
-    if (!url || /\.svg(\?|$)/i.test(url)) return undefined;
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      return await new Promise<string>((resolve, reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(fr.result as string);
-        fr.onerror = () => reject(new Error('image read failed'));
-        fr.readAsDataURL(blob);
-      });
-    } catch {
-      return undefined;
-    }
+  // חותמת/חתימה מהדלי הפרטי כ-dataURL. pdf-lib תומך ב-PNG/JPG בלבד — SVG מדולג.
+  async function loadBrandingImage(path?: string): Promise<string | undefined> {
+    if (!path || /\.svg$/i.test(path)) return undefined;
+    return downloadPrivateDataUrl(path);
   }
-  const loadStampDataUrl = () => loadBrandingImage(profile?.branding?.stampUrl);
+  const loadStampDataUrl = () => loadBrandingImage(profile?.branding?.stampPath);
 
   // ── זרימת החתימה החדשה: עורך הפקה + חדר חתימה של הרו"ח ──
   const setup = request.signatureSetup;
@@ -245,8 +235,8 @@ export default function RepresentationRequestReview({
       const doc = await db.getDoc(setup.pdfDocId);
       if (!doc || doc.fileData.byteLength === 0) throw new Error('ה-PDF שהועלה לא נמצא במאגר המסמכים');
       const [sig, stamp] = await Promise.all([
-        loadBrandingImage(profile?.branding?.signatureUrl),
-        loadBrandingImage(profile?.branding?.stampUrl),
+        loadBrandingImage(profile?.branding?.signaturePath),
+        loadBrandingImage(profile?.branding?.stampPath),
       ]);
       setStampRoom({ pdfBytes: doc.fileData, marks: { signature: sig, stamp } });
     } catch (e) {

@@ -13,8 +13,10 @@ import QuotationSettings from './quotations/QuotationSettings';
 import QuotationDesignStudio from './quotations/QuotationDesignStudio';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import { supabase } from '../lib/supabase';
+import { FIRM_PRIVATE_BUCKET, downloadPrivateDataUrl } from '../utils/privateAsset';
 
-const LOGO_BUCKET = 'firm-logos';
+const LOGO_BUCKET = 'firm-logos';           // לוגו — ציבורי (מוטבע במיילים ללקוחות)
+const SIGN_BUCKET = FIRM_PRIVATE_BUCKET;     // חתימה/חותמת — פרטי, גישה מאומתת בלבד
 const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2MB
 const LOGO_MIME = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
 
@@ -104,6 +106,9 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const [logoBusy, setLogoBusy] = useState(false);
   const [stampBusy, setStampBusy] = useState(false);
   const [sigBusy, setSigBusy] = useState(false);
+  // תצוגת החתימה/חותמת מהדלי הפרטי — data URL שנפתר מהנתיב (download מאומת)
+  const [stampSrc, setStampSrc] = useState<string | undefined>(undefined);
+  const [sigSrc, setSigSrc] = useState<string | undefined>(undefined);
 
   async function handleLogoFile(file: File | null) {
     if (!file) return;
@@ -167,14 +172,15 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
       const ext = (file.name.split('.').pop() || 'png').toLowerCase();
       const path = `${profile.id}/stamp-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
-        .from(LOGO_BUCKET)
+        .from(SIGN_BUCKET)
         .upload(path, file, { upsert: true, contentType: file.type });
       if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
       const prevPath = draft.branding.stampPath;
-      setDraft(d => ({ ...d, branding: { ...d.branding, stampUrl: pub.publicUrl, stampPath: path } }));
+      // דלי פרטי — שומרים נתיב בלבד, לא כתובת ציבורית. התצוגה נגזרת מהנתיב.
+      setDraft(d => ({ ...d, branding: { ...d.branding, stampUrl: undefined, stampPath: path } }));
+      setStampSrc(await downloadPrivateDataUrl(path));
       if (prevPath && prevPath !== path) {
-        await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
+        await supabase.storage.from(SIGN_BUCKET).remove([prevPath]);
       }
     } catch (e) {
       setError(extractErr(e));
@@ -188,8 +194,9 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
     setStampBusy(true);
     try {
       const prevPath = draft.branding.stampPath;
-      if (prevPath) await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
+      if (prevPath) await supabase.storage.from(SIGN_BUCKET).remove([prevPath]);
       setDraft(d => ({ ...d, branding: { ...d.branding, stampUrl: undefined, stampPath: undefined } }));
+      setStampSrc(undefined);
     } catch (e) {
       setError(extractErr(e));
     } finally {
@@ -213,14 +220,15 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
       const ext = (file.name.split('.').pop() || 'png').toLowerCase();
       const path = `${profile.id}/signature-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
-        .from(LOGO_BUCKET)
+        .from(SIGN_BUCKET)
         .upload(path, file, { upsert: true, contentType: file.type });
       if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
       const prevPath = draft.branding.signaturePath;
-      setDraft(d => ({ ...d, branding: { ...d.branding, signatureUrl: pub.publicUrl, signaturePath: path } }));
+      // דלי פרטי — שומרים נתיב בלבד, לא כתובת ציבורית. התצוגה נגזרת מהנתיב.
+      setDraft(d => ({ ...d, branding: { ...d.branding, signatureUrl: undefined, signaturePath: path } }));
+      setSigSrc(await downloadPrivateDataUrl(path));
       if (prevPath && prevPath !== path) {
-        await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
+        await supabase.storage.from(SIGN_BUCKET).remove([prevPath]);
       }
     } catch (e) {
       setError(extractErr(e));
@@ -234,8 +242,9 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
     setSigBusy(true);
     try {
       const prevPath = draft.branding.signaturePath;
-      if (prevPath) await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
+      if (prevPath) await supabase.storage.from(SIGN_BUCKET).remove([prevPath]);
       setDraft(d => ({ ...d, branding: { ...d.branding, signatureUrl: undefined, signaturePath: undefined } }));
+      setSigSrc(undefined);
     } catch (e) {
       setError(extractErr(e));
     } finally {
@@ -270,8 +279,20 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   // צבעי העיצוב האמיתיים של עמודי הלקוח — מהמערכת המרכזית (כולל תבנית הסטודיו)
   const clientBrand = deriveQuotationBrand(draft);
   const logoUrl = draft.branding.logoUrl;
-  const stampUrl = draft.branding.stampUrl;
-  const signatureUrl = draft.branding.signatureUrl;
+  const stampPath = draft.branding.stampPath;
+  const signaturePath = draft.branding.signaturePath;
+
+  // פותרים את החתימה/חותמת מהדלי הפרטי לפי הנתיב (download מאומת), כשמשתנה הנתיב
+  useEffect(() => {
+    let cancelled = false;
+    downloadPrivateDataUrl(stampPath).then(src => { if (!cancelled) setStampSrc(src); });
+    return () => { cancelled = true; };
+  }, [stampPath]);
+  useEffect(() => {
+    let cancelled = false;
+    downloadPrivateDataUrl(signaturePath).then(src => { if (!cancelled) setSigSrc(src); });
+    return () => { cancelled = true; };
+  }, [signaturePath]);
 
   const completeness = useMemo(() => {
     const checks = [
@@ -466,13 +487,13 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div style={{ width: 96, height: 96, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                    {stampUrl
-                      ? <img src={stampUrl} alt="חותמת" style={{ maxWidth: '86%', maxHeight: '86%', objectFit: 'contain' }} />
+                    {stampSrc
+                      ? <img src={stampSrc} alt="חותמת" style={{ maxWidth: '86%', maxHeight: '86%', objectFit: 'contain' }} />
                       : <span style={{ color: 'var(--gray-400)', display: 'inline-flex' }}><NavIcon name="stamp" size={26} /></span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
                     <label className="btn btn-primary" style={{ cursor: stampBusy ? 'default' : 'pointer', opacity: stampBusy ? 0.6 : 1 }}>
-                      {stampBusy ? 'מעלה…' : stampUrl ? 'החלף חותמת' : 'העלה חותמת'}
+                      {stampBusy ? 'מעלה…' : stampPath ? 'החלף חותמת' : 'העלה חותמת'}
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/svg+xml,image/webp"
@@ -481,7 +502,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                         onChange={e => { const f = e.target.files?.[0] ?? null; void handleStampFile(f); e.target.value = ''; }}
                       />
                     </label>
-                    {stampUrl && (
+                    {stampPath && (
                       <button className="btn" onClick={() => void handleStampRemove()} disabled={stampBusy} style={{ fontSize: 12.5 }}>
                         <NavIcon name="trash" size={14} />הסר חותמת
                       </button>
@@ -528,13 +549,13 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 150, height: 80, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                  {signatureUrl
-                    ? <img src={signatureUrl} alt="חתימה" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }} />
+                  {sigSrc
+                    ? <img src={sigSrc} alt="חתימה" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }} />
                     : <span style={{ color: 'var(--gray-400)', display: 'inline-flex' }}><NavIcon name="signature" size={26} /></span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
                   <label className="btn btn-primary" style={{ cursor: sigBusy ? 'default' : 'pointer', opacity: sigBusy ? 0.6 : 1 }}>
-                    {sigBusy ? 'מעלה…' : signatureUrl ? 'החלף חתימה' : 'העלה חתימה'}
+                    {sigBusy ? 'מעלה…' : signaturePath ? 'החלף חתימה' : 'העלה חתימה'}
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/svg+xml,image/webp"
@@ -543,7 +564,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                       onChange={e => { const f = e.target.files?.[0] ?? null; void handleSignatureFile(f); e.target.value = ''; }}
                     />
                   </label>
-                  {signatureUrl && (
+                  {signaturePath && (
                     <button className="btn" onClick={() => void handleSignatureRemove()} disabled={sigBusy} style={{ fontSize: 12.5 }}>
                       <NavIcon name="trash" size={14} />הסר חתימה
                     </button>
