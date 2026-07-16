@@ -14,6 +14,7 @@ import EmployeesPanel from './EmployeesPanel';
 import EmailActivityModule from './EmailActivity/EmailActivityModule';
 import QuotationSettings from './quotations/QuotationSettings';
 import QuotationDesignStudio from './quotations/QuotationDesignStudio';
+import { deriveQuotationBrand } from './quotations/quotationBranding';
 import { supabase } from '../lib/supabase';
 
 const LOGO_BUCKET = 'firm-logos';
@@ -229,7 +230,8 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 
   const theme = BRAND_THEMES.find(t => t.id === (draft.branding.theme ?? 'monochrome')) ?? BRAND_THEMES[0];
   const monogram = (draft.branding.monogram || deriveMonogram(draft.firmName)).slice(0, 2);
-  const previewAccent = draft.branding.accentColor || theme.accent;
+  // צבעי העיצוב האמיתיים של עמודי הלקוח — מהמערכת המרכזית (כולל תבנית הסטודיו)
+  const clientBrand = deriveQuotationBrand(draft);
   const logoUrl = draft.branding.logoUrl;
   const stampUrl = draft.branding.stampUrl;
   const signatureUrl = draft.branding.signatureUrl;
@@ -374,7 +376,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                 </div>
               </div>
 
-              <ClientPreview firmName={draft.firmName} monogram={monogram} ink={theme.ink} accent={previewAccent} logoUrl={logoUrl} />
+              <DesignStudioPointer brand={clientBrand} onOpen={() => setSection('design')} />
             </>
           )}
 
@@ -474,7 +476,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   </Field>
                 </div>
               </div>
-              <ClientPreview firmName={draft.firmName} monogram={monogram} ink={theme.ink} accent={previewAccent} logoUrl={logoUrl} />
+              <DesignStudioPointer brand={clientBrand} onOpen={() => setSection('design')} />
             </>
           )}
 
@@ -597,26 +599,26 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ClientPreview({ firmName, monogram, ink, accent, logoUrl }: { firmName?: string; monogram: string; ink: string; accent: string; logoUrl?: string }) {
+/** מצביע לסטודיו העיצוב — במקום מיני-תצוגה כפולה (וקפואה) של עמוד הלקוח.
+ *  מציג את צבעי העיצוב האמיתיים מהמערכת המרכזית; לחיצה פותחת את הסטודיו. */
+function DesignStudioPointer({ brand, onOpen }: { brand: ReturnType<typeof deriveQuotationBrand>; onOpen: () => void }) {
   return (
-    <div style={{ border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 12, background: 'var(--gray-50)' }}>
-      <div style={{ fontSize: 10.5, letterSpacing: '.05em', color: 'var(--gray-400)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
-        <i className="ti ti-eye" style={{ fontSize: 13 }} aria-hidden="true" />תצוגה מקדימה · עמוד לקוח
+    <div
+      onClick={onOpen}
+      style={{ border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: '14px 16px', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}
+    >
+      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+        <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.ink }} />
+        <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.accent }} />
+        <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.pageBg, border: '1px solid var(--gray-200)' }} />
       </div>
-      <div style={{ maxWidth: 320, background: '#fff', border: '1px solid #E7E6E1', borderRadius: 12, padding: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
-          {logoUrl
-            ? <img src={logoUrl} alt="" style={{ maxHeight: 24, maxWidth: 110, objectFit: 'contain' }} />
-            : <>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', border: `1.5px solid ${ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 500, color: ink }}>{monogram}</div>
-                <span style={{ fontSize: 11, color: ink }}>{firmName || 'משרד רואי חשבון'}</span>
-              </>}
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 500 }}>עיצוב עמודי הלקוח והמיילים</div>
+        <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginTop: 2 }}>
+          תצוגה מקדימה חיה ועריכה מלאה — תבניות, צבעים, פונטים וכפתורים
         </div>
-        <div style={{ fontSize: 15, fontWeight: 500, color: '#111', marginBottom: 3 }}>נעים להכיר</div>
-        <div style={{ fontSize: 11.5, color: '#6B6B68', marginBottom: 12 }}>נשאר רק לאמת את הזהות.</div>
-        <div style={{ background: ink, color: '#fff', borderRadius: 8, padding: '9px', textAlign: 'center', fontSize: 12, fontWeight: 500 }}>המשך</div>
-        <div style={{ height: 3, width: 40, background: accent, borderRadius: 3, margin: '12px auto 0' }} />
       </div>
+      <span style={{ color: ACCENT, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>לסטודיו ←</span>
     </div>
   );
 }
