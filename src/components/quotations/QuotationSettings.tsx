@@ -8,14 +8,13 @@ import {
 } from '../../types/quotations';
 import { useQuotationCatalog } from '../../hooks/useQuotationCatalog';
 import { formatILS } from '../../utils/quotationCalc';
-import QuotationDesignStudio from './QuotationDesignStudio';
 
 interface Props {
   profile: FirmProfile;
   onSaveProfile: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Tab = 'catalog' | 'templates' | 'email' | 'design';
+type Tab = 'catalog' | 'templates' | 'email';
 
 const DEFAULT_EMAIL_SUBJECT = 'הצעת מחיר מ{{businessName}}';
 const DEFAULT_EMAIL_BODY = 'שלום {{clientName}},\n\nמצורפת הצעת מחיר אישית ({{quotationNumber}}).\nלצפייה ולאישור: {{quotationLink}}\n\nנשמח לעמוד לרשותך לכל שאלה.';
@@ -34,7 +33,6 @@ export default function QuotationSettings({ profile, onSaveProfile }: Props) {
         <button className={`tab ${tab === 'catalog' ? 'active' : ''}`} onClick={() => setTab('catalog')}>מחירון</button>
         <button className={`tab ${tab === 'templates' ? 'active' : ''}`} onClick={() => setTab('templates')}>תבניות</button>
         <button className={`tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>תבנית מייל</button>
-        <button className={`tab ${tab === 'design' ? 'active' : ''}`} onClick={() => setTab('design')}>🎨 עיצוב</button>
       </div>
 
       {catalog.loading ? (
@@ -46,7 +44,6 @@ export default function QuotationSettings({ profile, onSaveProfile }: Props) {
           {tab === 'catalog' && <CatalogTab catalog={catalog} />}
           {tab === 'templates' && <TemplatesTab catalog={catalog} />}
           {tab === 'email' && <EmailTab profile={profile} onSaveProfile={onSaveProfile} />}
-          {tab === 'design' && <QuotationDesignStudio profile={profile} onSaveProfile={onSaveProfile} />}
         </>
       )}
     </div>
