@@ -13,6 +13,7 @@ import { Client } from '../types';
 import EmployeesPanel from './EmployeesPanel';
 import EmailActivityModule from './EmailActivity/EmailActivityModule';
 import QuotationSettings from './quotations/QuotationSettings';
+import QuotationDesignStudio from './quotations/QuotationDesignStudio';
 import { supabase } from '../lib/supabase';
 
 const LOGO_BUCKET = 'firm-logos';
@@ -25,11 +26,12 @@ interface Props {
   onSave: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Section = 'identity' | 'branding' | 'contact' | 'signature' | 'communication' | 'emailActivity' | 'quotations' | 'employees';
+type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'emailActivity' | 'quotations' | 'employees';
 
 const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'identity', label: 'זהות', icon: 'ti-id-badge-2' },
   { id: 'branding', label: 'מותג', icon: 'ti-palette' },
+  { id: 'design', label: 'עיצוב עמודי לקוח', icon: 'ti-brush' },
   { id: 'contact', label: 'פרטי קשר', icon: 'ti-address-book' },
   { id: 'signature', label: 'חתימת מייל', icon: 'ti-signature' },
   { id: 'communication', label: 'ערוצי תקשורת', icon: 'ti-messages' },
@@ -263,7 +265,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
           <div style={{ fontSize: 20, fontWeight: 500 }}>המשרד</div>
           <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח</div>
         </div>
-        {section !== 'employees' && section !== 'emailActivity' && section !== 'quotations' && (
+        {section !== 'employees' && section !== 'emailActivity' && section !== 'quotations' && section !== 'design' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--gray-600)', background: 'var(--gray-100)', padding: '5px 10px', borderRadius: 20 }}>
               <i className="ti ti-circle-check" style={{ fontSize: 14, color: ACCENT }} aria-hidden="true" />
@@ -566,6 +568,10 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 
           {section === 'emailActivity' && (
             <div style={card}><EmailActivityModule userId={profile.id} /></div>
+          )}
+
+          {section === 'design' && (
+            <QuotationDesignStudio profile={profile} onSaveProfile={onSave} />
           )}
 
           {section === 'quotations' && (
