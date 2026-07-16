@@ -15,6 +15,20 @@ export interface FirmBranding {
   stampUrl?: string;    // כתובת ציבורית לחותמת — מוטבעת על טפסי ייפוי כוח חתומים
   signaturePath?: string; // נתיב חתימת הרו"ח הדיגיטלית ב-Storage
   signatureUrl?: string;  // כתובת ציבורית לחתימה — הוספה בלחיצה על מסמכים לחתימה
+  docDesign?: FirmDocDesign; // עיצוב עמוד הלקוח (הצעה/ייצוג) — נערך בסטודיו העיצוב
+}
+
+// עיצוב המסמכים ללקוח — תבנית + כיוונונים. שדות ריקים יורשים מהתבנית.
+export interface FirmDocDesign {
+  preset?: string;      // מזהה תבנית עיצוב
+  accent?: string;      // צבע אקסנט (דורס)
+  ink?: string;         // צבע כהה ראשי (דורס)
+  pageBg?: string;      // רקע העמוד (דורס)
+  cardBg?: string;      // רקע הכרטיס (דורס)
+  font?: string;        // פונט (דורס)
+  headerStyle?: 'minimal' | 'centered' | 'band';
+  buttonStyle?: 'solid' | 'outline' | 'pill';
+  corner?: 'sharp' | 'rounded' | 'soft';
 }
 
 export type PreferredLanguage = 'he' | 'en';
