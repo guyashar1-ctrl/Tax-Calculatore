@@ -213,6 +213,6 @@ export interface Quotation {
 
 // ─── ברירות מחדל עסקיות ────────────────────────────────────────────────────
 
-export const DEFAULT_VAT_RATE = 18;            // מע"מ בישראל נכון ל-2026
-export const DEFAULT_EXPIRY_DAYS = 30;         // תוקף הצעה
-export const REMINDER_DAYS_BEFORE_EXPIRY = 3;  // תזכורת אוטומטית לפני פקיעה
+export const DEFAULT_VAT_RATE = 18;              // מע"מ בישראל נכון ל-2026
+export const DEFAULT_EXPIRY_BUSINESS_DAYS = 3;   // תוקף הצעה — 3 ימי עסקים (החלטת גיא)
+export const REMINDER_BUSINESS_DAYS_BEFORE = 1;  // תזכורת יום עסקים אחד לפני פקיעה

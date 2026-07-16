@@ -1,9 +1,23 @@
 // Edge Function: quotation-reminders  (מופעל מ-pg_cron פעם ביום)
-// כלל: תזכורת אחת, 3 ימים לפני פקיעה, רק ל-sent/viewed שלא אושרו/בוטלו/פגו.
+// כלל: תזכורת אחת, יום עסקים אחד לפני פקיעה, רק ל-sent/viewed שלא אושרו/בוטלו/פגו.
 // מניעת כפילות מוחלטת: תפיסה אטומית של auto_reminder_sent_at לפני השליחה.
 // כישלון: משחררים את התפיסה + מתעדים שגיאה (לא מסמנים שנשלח) → מוצג לרו"ח.
 // אימות: x-cron-secret (מה-cron) או Authorization: Bearer <service_role> (הרצה ידנית).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+// ימי עסקים בישראל: ראשון–חמישי. שישי(5)/שבת(6) = סוף שבוע. חגים לא מטופלים.
+function businessDaysUntil(target: Date, now: Date): number {
+  if (target.getTime() <= now.getTime()) return 0;
+  const d = new Date(now);
+  let count = 0;
+  while (d.getTime() < target.getTime()) {
+    d.setDate(d.getDate() + 1);
+    if (d.getTime() > target.getTime()) break;
+    const day = d.getDay();
+    if (day !== 5 && day !== 6) count++;
+  }
+  return count;
+}
 
 const THEME_INK: Record<string, string> = { monochrome: "#1A1A1A", navy: "#0E1F3A", emerald: "#0B3B36" };
 const THEME_ACCENT: Record<string, string> = { monochrome: "#4F46E5", navy: "#C9A75A", emerald: "#10B981" };
@@ -55,13 +69,14 @@ Deno.serve(async (req: Request) => {
 
     const bodyJson = await req.json().catch(() => ({}));
     const dryRun = bodyJson?.dryRun === true;
-    const windowDays = Number(bodyJson?.windowDays ?? 3);
-    const nowMs = Date.now();
-    const nowIso = new Date(nowMs).toISOString();
-    const horizonIso = new Date(nowMs + windowDays * 86400000).toISOString();
+    // שולחים כשנשאר יום עסקים אחד (או פחות) עד הפקיעה
+    const bizDaysBefore = Number(bodyJson?.bizDaysBefore ?? 1);
+    const now = new Date();
+    const nowIso = now.toISOString();
+    // סינון גס לפי חלון קלנדרי רחב (מכסה סופ"ש), ואז סינון מדויק לפי ימי עסקים
+    const horizonIso = new Date(now.getTime() + 6 * 86400000).toISOString();
 
-    // מועמדים: sent/viewed, יש תוקף, טרם נשלחה תזכורת, בתוך חלון X הימים ולא פג
-    const { data: candidates, error: qErr } = await admin
+    const { data: rawCandidates, error: qErr } = await admin
       .from("quotations")
       .select("*")
       .in("status", ["sent", "viewed"])
@@ -70,6 +85,11 @@ Deno.serve(async (req: Request) => {
       .lte("expires_at", horizonIso)
       .gt("expires_at", nowIso);
     if (qErr) return json({ error: "query_failed", detail: qErr.message }, 500);
+
+    // רק הצעות שנותר להן ≤ bizDaysBefore ימי עסקים עד הפקיעה
+    const candidates = (rawCandidates ?? []).filter(
+      (q) => businessDaysUntil(new Date(q.expires_at), now) <= bizDaysBefore,
+    );
 
     const profileCache = new Map<string, any>();
     async function getProfile(uid: string) {

@@ -8,15 +8,14 @@ import {
 } from '../../types/quotations';
 import { useQuotationCatalog } from '../../hooks/useQuotationCatalog';
 import { formatILS } from '../../utils/quotationCalc';
-import { deriveQuotationBrand } from './quotationBranding';
-import QuotationWebView, { type QuotationWebViewData } from './QuotationWebView';
+import QuotationDesignStudio from './QuotationDesignStudio';
 
 interface Props {
   profile: FirmProfile;
   onSaveProfile: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Tab = 'catalog' | 'templates' | 'email' | 'preview';
+type Tab = 'catalog' | 'templates' | 'email' | 'design';
 
 const DEFAULT_EMAIL_SUBJECT = 'הצעת מחיר מ{{businessName}}';
 const DEFAULT_EMAIL_BODY = 'שלום {{clientName}},\n\nמצורפת הצעת מחיר אישית ({{quotationNumber}}).\nלצפייה ולאישור: {{quotationLink}}\n\nנשמח לעמוד לרשותך לכל שאלה.';
@@ -35,7 +34,7 @@ export default function QuotationSettings({ profile, onSaveProfile }: Props) {
         <button className={`tab ${tab === 'catalog' ? 'active' : ''}`} onClick={() => setTab('catalog')}>מחירון</button>
         <button className={`tab ${tab === 'templates' ? 'active' : ''}`} onClick={() => setTab('templates')}>תבניות</button>
         <button className={`tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>תבנית מייל</button>
-        <button className={`tab ${tab === 'preview' ? 'active' : ''}`} onClick={() => setTab('preview')}>תצוגה מקדימה</button>
+        <button className={`tab ${tab === 'design' ? 'active' : ''}`} onClick={() => setTab('design')}>🎨 עיצוב</button>
       </div>
 
       {catalog.loading ? (
@@ -47,7 +46,7 @@ export default function QuotationSettings({ profile, onSaveProfile }: Props) {
           {tab === 'catalog' && <CatalogTab catalog={catalog} />}
           {tab === 'templates' && <TemplatesTab catalog={catalog} />}
           {tab === 'email' && <EmailTab profile={profile} onSaveProfile={onSaveProfile} />}
-          {tab === 'preview' && <PreviewTab profile={profile} catalog={catalog} />}
+          {tab === 'design' && <QuotationDesignStudio profile={profile} onSaveProfile={onSaveProfile} />}
         </>
       )}
     </div>
@@ -310,41 +309,6 @@ function EmailTab({ profile, onSaveProfile }: { profile: FirmProfile; onSaveProf
       </label>
       <div style={{ marginTop: 14 }}>
         <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'שומר…' : saved ? '✓ נשמר' : 'שמירת תבנית'}</button>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────── תצוגה מקדימה ───────────────────────────────
-
-function PreviewTab({ profile, catalog }: { profile: FirmProfile; catalog: ReturnType<typeof useQuotationCatalog> }) {
-  const brand = deriveQuotationBrand(profile);
-  // הצעת דוגמה מהתבנית הראשונה, אחרת מהשירותים הראשונים
-  const tpl = catalog.templates[0];
-  const svc = (tpl?.serviceIds.map(id => catalog.services.find(s => s.id === id)).filter(Boolean) as ServiceCatalogItem[] | undefined)
-    ?? catalog.services.slice(0, 4);
-  const sample: QuotationWebViewData = {
-    quotationNumber: '2026-000',
-    recipientName: 'ישראל ישראלי',
-    businessName: 'ישראל ישראלי בע״מ',
-    vatRate: 18,
-    items: (svc ?? []).map(s => ({
-      id: s.id, serviceId: s.id, name: s.name, description: s.description,
-      category: s.category, billingType: s.billingType, unitLabel: s.unitLabel,
-      quantity: 1, catalogPrice: s.defaultPrice, clientPrice: s.defaultPrice, vatFlag: s.vatFlag,
-    })),
-    notesForClient: 'שמחים על ההזדמנות ללוות אתכם. ההצעה מותאמת בדיוק לצרכים שסיכמנו בשיחה.',
-  };
-
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <div style={{ flex: 1, fontSize: 12.5, color: 'var(--gray-500)' }}>
-          כך תיראה הצעה ללקוח, במיתוג המשרד. את הלוגו, הצבעים והחתימה עורכים בלשוניות <b>מותג</b> ו<b>חתימת מייל</b>.
-        </div>
-      </div>
-      <div style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', maxWidth: 680, margin: '0 auto' }}>
-        <QuotationWebView data={sample} brand={brand} />
       </div>
     </div>
   );
