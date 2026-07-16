@@ -55,3 +55,5 @@ comment on function public.is_authorized() is
 
 revoke all on function public.is_authorized() from public;
 grant execute on function public.is_authorized() to authenticated;
+-- Supabase מעניק הרשאת הרצה אוטומטית ל-anon על פונקציות חדשות — מסירים במפורש.
+revoke execute on function public.is_authorized() from anon;
