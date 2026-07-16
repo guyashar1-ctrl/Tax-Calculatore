@@ -157,11 +157,11 @@ function standardFileName(lastName: string, firstName: string, docLabel: string,
 }
 
 export default function App() {
-  // ⚠ זמני: דף בדיקה של עורך החתימה ללא התחברות. יוסר לאחר אימות.
-  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-sig')) {
+  // דפי בדיקה של עורך החתימה — פיתוח בלבד. מקומפלים החוצה מהאתר החי.
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-sig')) {
     return <TestSignaturePage />;
   }
-  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-signroom')) {
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-signroom')) {
     return <TestSigningRoom />;
   }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
