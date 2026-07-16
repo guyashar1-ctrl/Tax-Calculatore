@@ -58,9 +58,9 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
     : `${ctaInner}color:#ffffff;background:${brand.accent};">צפייה ואישור ההצעה</a>`;
 
   const summaryRows: string[] = [];
-  if (totals.monthly.withVat > 0) summaryRows.push(priceRow('חודשי', totals.monthly.withVat, 'לחודש', brand.accent, brand.ink));
-  if (totals.annual.withVat > 0) summaryRows.push(priceRow('שנתי', totals.annual.withVat, 'לשנה', brand.accent, brand.ink));
-  if (totals.oneTime.withVat > 0) summaryRows.push(priceRow('חד־פעמי', totals.oneTime.withVat, '', brand.accent, brand.ink));
+  if (totals.monthly.withVat > 0) summaryRows.push(priceBlock('חודשי', totals.monthly, 'לחודש', data.vatRate, brand));
+  if (totals.annual.withVat > 0) summaryRows.push(priceBlock('שנתי', totals.annual, 'לשנה', data.vatRate, brand));
+  if (totals.oneTime.withVat > 0) summaryRows.push(priceBlock('חד־פעמי', totals.oneTime, '', data.vatRate, brand));
 
   const messageBlock = data.message?.trim()
     ? `<tr><td style="padding:0 40px 8px;"><div style="background:${cardTint};border-radius:${rad}px;padding:16px 18px;font-family:${f};font-size:14px;color:${brand.ink};line-height:1.7;white-space:pre-line;">${esc(data.message)}</div></td></tr>`
@@ -120,12 +120,28 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
 </body></html>`;
 }
 
-function priceRow(label: string, value: number, suffix: string, accent: string, ink: string): string {
-  return `<tr><td style="padding:7px 18px;">
-    <table role="presentation" width="100%"><tr>
-      <td style="font-size:14px;color:${ink};font-weight:500;">${label}</td>
-      <td align="left" style="font-size:17px;font-weight:700;color:${accent};direction:ltr;">${formatILS(Math.round(value))}${suffix ? ` <span style="font-size:11px;color:${accent};font-weight:500;">${suffix}</span>` : ''}</td>
-    </tr></table>
+// סיכום לפי תדירות — לפני מע"מ, מע"מ בנפרד, וסה"כ (זהה לעמוד ההצעה ול-PDF)
+function priceBlock(
+  label: string,
+  t: { beforeVat: number; vat: number; withVat: number },
+  suffix: string,
+  vatRate: number,
+  brand: QuotationBrand,
+): string {
+  const small = (l: string, v: number) => `<tr>
+      <td style="font-size:12.5px;color:${brand.muted};padding:2px 0;">${l}</td>
+      <td align="left" style="font-size:12.5px;color:${brand.muted};direction:ltr;padding:2px 0;">${formatILS(Math.round(v))}</td>
+    </tr>`;
+  return `<tr><td style="padding:10px 18px 4px;">
+    <div style="font-size:13px;font-weight:700;color:${brand.ink};padding-bottom:4px;">${label}</div>
+    <table role="presentation" width="100%" style="border-top:1px solid ${brand.border};">
+      ${small('לפני מע״מ', t.beforeVat)}
+      ${small(`מע״מ (${vatRate}%)`, t.vat)}
+      <tr>
+        <td style="font-size:14px;font-weight:600;color:${brand.ink};border-top:1px solid ${brand.border};padding-top:5px;">${suffix ? `סה״כ ${suffix}` : 'סה״כ לתשלום'}</td>
+        <td align="left" style="font-size:17px;font-weight:700;color:${brand.accent};direction:ltr;border-top:1px solid ${brand.border};padding-top:5px;">${formatILS(Math.round(t.withVat))}</td>
+      </tr>
+    </table>
   </td></tr>`;
 }
 

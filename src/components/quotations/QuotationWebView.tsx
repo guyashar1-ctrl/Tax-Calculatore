@@ -3,7 +3,7 @@
 // כל הצבעים/פינות/כותרת/כפתור/פונט מגיעים מ-brand (טוקני עיצוב) — כך שהסטודיו
 // שולט במראה בזמן אמת בלי לגעת בקוד.
 
-import type { QuotationItem, ServiceCategory } from '../../types/quotations';
+import type { QuotationItem, ServiceCategory, FutureService } from '../../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../../types/quotations';
 import type { QuotationBrand } from './quotationBranding';
 import { calcTotals, itemFinalPrice, formatILS } from '../../utils/quotationCalc';
@@ -13,6 +13,7 @@ export interface QuotationWebViewData {
   recipientName: string;
   businessName?: string;
   items: QuotationItem[];
+  futureServices?: FutureService[];
   vatRate: number;
   notesForClient?: string;
   expiresAt?: string;
@@ -135,7 +136,7 @@ export default function QuotationWebView({
             <SectionLabel brand={brand}>השירותים שלנו</SectionLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
               {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>טרם נוספו שירותים להצעה.</div>}
-              {priced.map(item => <ServiceCard key={item.id} item={item} vatRate={data.vatRate} brand={brand} compact={compact} />)}
+              {priced.map(item => <ServiceCard key={item.id} item={item} brand={brand} compact={compact} />)}
             </div>
 
             {included.length > 0 && (
@@ -156,16 +157,42 @@ export default function QuotationWebView({
           {/* תמחור */}
           <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, background: tint(brand.pageBg), borderTop: `1px solid ${brand.border}`, borderBottom: `1px solid ${brand.border}` }}>
             <SectionLabel brand={brand}>סיכום התמחור</SectionLabel>
-            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {totals.monthly.withVat > 0 && <PriceRow brand={brand} label="חודשי" value={totals.monthly.withVat} vat={totals.monthly.vat} suffix="לחודש" />}
-              {totals.annual.withVat > 0 && <PriceRow brand={brand} label="שנתי" value={totals.annual.withVat} vat={totals.annual.vat} suffix="לשנה" />}
-              {totals.oneTime.withVat > 0 && <PriceRow brand={brand} label="חד־פעמי" value={totals.oneTime.withVat} vat={totals.oneTime.vat} suffix="" />}
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {totals.monthly.withVat > 0 && <PriceBlock brand={brand} label="חודשי" t={totals.monthly} vatRate={data.vatRate} suffix="לחודש" compact={compact} />}
+              {totals.annual.withVat > 0 && <PriceBlock brand={brand} label="שנתי" t={totals.annual} vatRate={data.vatRate} suffix="לשנה" compact={compact} />}
+              {totals.oneTime.withVat > 0 && <PriceBlock brand={brand} label="חד־פעמי" t={totals.oneTime} vatRate={data.vatRate} suffix="" compact={compact} />}
               {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>—</div>}
             </div>
-            <div style={{ marginTop: 12, fontSize: 11.5, color: brand.muted }}>
-              המחירים כוללים מע״מ ({data.vatRate}%). חיובים חודשיים, שנתיים וחד־פעמיים מוצגים בנפרד ואינם מאוחדים.
+            <div style={{ marginTop: 14, fontSize: 11.5, color: brand.muted, lineHeight: 1.6 }}>
+              חיובים חודשיים, שנתיים וחד־פעמיים מוצגים בנפרד ואינם מאוחדים.
             </div>
           </div>
+
+          {/* מחירון שירותים עתידיים — שקיפות מלאה, בלי הפתעות */}
+          {(data.futureServices?.length ?? 0) > 0 && (
+            <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
+              <SectionLabel brand={brand}>שירותים נוספים — אם וכאשר תצטרכו</SectionLabel>
+              <div style={{ marginTop: 8, fontSize: 12.5, color: brand.muted, lineHeight: 1.6 }}>
+                השירותים הבאים אינם כלולים בהצעה. אין צורך לעשות איתם דבר עכשיו — אבל כדי שלא תהיו מופתעים בהמשך, אלה המחירים הידועים מראש. תחויבו רק אם וכאשר תבקשו אותם בפועל.
+              </div>
+              <div style={{ marginTop: 12, borderRadius: brand.radius, border: `1px solid ${brand.border}`, overflow: 'hidden' }}>
+                {data.futureServices!.map((fs, i) => (
+                  <div key={fs.id} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: compact ? '10px 12px' : '11px 14px', borderTop: i ? `1px solid ${brand.border}` : 'none', background: i % 2 ? tint(brand.cardBg) : brand.cardBg }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 500, color: brand.ink }}>{fs.name}</div>
+                      {fs.description && <div style={{ fontSize: 11.5, color: brand.muted, marginTop: 2 }}>{fs.description}</div>}
+                    </div>
+                    <div style={{ textAlign: 'end', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(fs.price)}</span>
+                      <span style={{ fontSize: 10.5, color: brand.muted, marginInlineStart: 4 }}>
+                        {fs.vatFlag ? '+ מע״מ' : ''}{fs.billingType === 'per_unit' ? ` / ${fs.unitLabel || 'יחידה'}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* הערה */}
           {data.notesForClient?.trim() && (
@@ -244,9 +271,8 @@ function SectionLabel({ children, brand }: { children: React.ReactNode; brand: Q
   return <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', color: brand.muted }}>{children}</div>;
 }
 
-function ServiceCard({ item, vatRate, brand, compact }: { item: QuotationItem; vatRate: number; brand: QuotationBrand; compact?: boolean }) {
+function ServiceCard({ item, brand, compact }: { item: QuotationItem; brand: QuotationBrand; compact?: boolean }) {
   const finalBeforeVat = itemFinalPrice(item);
-  const withVat = item.vatFlag ? finalBeforeVat * (1 + vatRate / 100) : finalBeforeVat;
   const perUnit = item.billingType === 'per_unit';
   return (
     <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: compact ? 14 : 16, display: 'flex', gap: 12, alignItems: 'flex-start', background: brand.cardBg }}>
@@ -260,23 +286,34 @@ function ServiceCard({ item, vatRate, brand, compact }: { item: QuotationItem; v
         </div>
       </div>
       <div style={{ textAlign: 'end', whiteSpace: 'nowrap' }}>
-        <div style={{ fontSize: compact ? 15 : 16.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: brand.ink }}>{formatILS(Math.round(withVat))}</div>
-        <div style={{ fontSize: 10.5, color: brand.muted }}>כולל מע״מ</div>
+        <div style={{ fontSize: compact ? 15 : 16.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: brand.ink }}>{formatILS(Math.round(finalBeforeVat))}</div>
+        <div style={{ fontSize: 10.5, color: brand.muted }}>{item.vatFlag ? '+ מע״מ' : 'ללא מע״מ'}</div>
       </div>
     </div>
   );
 }
 
-function PriceRow({ label, value, vat, suffix, brand }: { label: string; value: number; vat: number; suffix: string; brand: QuotationBrand }) {
+// סיכום לפי תדירות — לפני מע"מ, מע"מ בנפרד, וסה"כ לתשלום
+function PriceBlock({ label, t, vatRate, suffix, brand, compact }: {
+  label: string; t: { beforeVat: number; vat: number; withVat: number }; vatRate: number; suffix: string; brand: QuotationBrand; compact?: boolean;
+}) {
+  const line = (l: string, v: number, strong?: boolean) => (
+    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '3px 0' }}>
+      <span style={{ fontSize: strong ? 14 : 12.5, color: strong ? brand.ink : brand.muted, fontWeight: strong ? 600 : 400 }}>{l}</span>
+      <span style={{ fontSize: strong ? (compact ? 16 : 17.5) : 12.5, fontWeight: strong ? 700 : 500, color: strong ? brand.accent : brand.muted, fontVariantNumeric: 'tabular-nums' }}>
+        {formatILS(Math.round(v))}
+      </span>
+    </div>
+  );
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '7px 0' }}>
-      <div style={{ fontSize: 14, color: brand.ink, fontWeight: 500 }}>
-        {label}
-        <span style={{ fontSize: 11, color: brand.muted, marginInlineStart: 6 }}>(כולל מע״מ {formatILS(Math.round(vat))})</span>
-      </div>
-      <div style={{ fontSize: 17, fontWeight: 700, color: brand.accent, fontVariantNumeric: 'tabular-nums' }}>
-        {formatILS(Math.round(value))}
-        {suffix && <span style={{ fontSize: 11.5, color: brand.muted, fontWeight: 500, marginInlineStart: 3 }}>{suffix}</span>}
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: brand.ink, marginBottom: 4 }}>{label}</div>
+      <div style={{ borderTop: `1px solid ${brand.border}`, paddingTop: 6 }}>
+        {line('לפני מע״מ', t.beforeVat)}
+        {line(`מע״מ (${vatRate}%)`, t.vat)}
+        <div style={{ borderTop: `1px solid ${brand.border}`, marginTop: 5, paddingTop: 5 }}>
+          {line(suffix ? `סה״כ ${suffix}` : 'סה״כ לתשלום', t.withVat, true)}
+        </div>
       </div>
     </div>
   );

@@ -134,6 +134,20 @@ export interface QuotationItem {
   internalNote?: string;      // פנימי בלבד — לא נשלח ולא מודפס
 }
 
+// שירות עתידי — לא כלול בהצעה, אבל המחיר ידוע מראש כדי שהלקוח לא יופתע
+// (הצהרת הון, מעבר מעוסק פטור למורשה וכו'). המחיר מוקפא יחד עם ההצעה.
+export interface FutureService {
+  id: string;
+  serviceId?: string;        // קישור לקטלוג
+  name: string;
+  description?: string;
+  category: ServiceCategory;
+  price: number;             // מחיר לפני מע"מ, כפי שהיה בקטלוג בזמן ההצעה
+  vatFlag: boolean;
+  billingType: ServiceBillingType;
+  unitLabel?: string;
+}
+
 export type QuotationEventType =
   | 'created'
   | 'edited'
@@ -174,6 +188,7 @@ export interface QuotationSnapshot {
   recipientEmail?: string;
   businessName?: string;
   items: QuotationItem[];
+  futureServices?: FutureService[];
   vatRate: number;
   notesForClient?: string;
   emailSubject?: string;
@@ -190,6 +205,7 @@ export interface Quotation {
   status: QuotationStatus;
   publicToken?: string;
   items: QuotationItem[];
+  futureServices: FutureService[];   // מחירון שירותים עתידיים — למניעת הפתעות
   vatRate: number;
   emailSubject?: string;
   emailMessage?: string;

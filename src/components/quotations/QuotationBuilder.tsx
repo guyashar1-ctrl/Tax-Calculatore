@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { FirmProfile } from '../../types/firmProfile';
 import type { Client } from '../../types';
 import type {
-  Lead, ServiceCatalogItem, QuotationTemplate, Quotation, QuotationItem,
+  Lead, ServiceCatalogItem, QuotationTemplate, Quotation, QuotationItem, FutureService,
 } from '../../types/quotations';
 import {
   SERVICE_CATEGORY_LABELS,
@@ -50,6 +50,7 @@ export interface SaveDraftPayload {
   id?: string;
   recipient: RecipientDraft;
   items: QuotationItem[];
+  futureServices: FutureService[];
   vatRate: number;
   emailSubject: string;
   emailMessage: string;
@@ -95,6 +96,12 @@ export default function QuotationBuilder({
 
   const [recipient, setRecipient] = useState<RecipientDraft>(initialRecipient);
   const [items, setItems] = useState<QuotationItem[]>(existing?.items ?? []);
+  // מחירון שירותים עתידיים — ברירת מחדל בהצעה חדשה: השירותים החד־פעמיים
+  // (הצהרת הון, מעבר מפטור למורשה וכו') — אלה שהלקוח עלול להיות מופתע מהם.
+  const [futureIds, setFutureIds] = useState<Set<string>>(() =>
+    existing
+      ? new Set((existing.futureServices ?? []).map(f => f.serviceId).filter((v): v is string => !!v))
+      : new Set(services.filter(s => s.active && s.defaultPrice > 0 && s.category === 'one_time').map(s => s.id)));
   const [vatRate] = useState<number>(existing?.vatRate ?? DEFAULT_VAT_RATE);
   const [templateId, setTemplateId] = useState<string | undefined>(existing?.templateId);
   const [emailSubject, setEmailSubject] = useState(existing?.emailSubject ?? 'הצעת מחיר מהמשרד');
@@ -148,11 +155,22 @@ export default function QuotationBuilder({
     setItems(prev => prev.filter(it => it.id !== id));
   }
 
+  // מועמדים לשירותים עתידיים: שירותים פעילים בתשלום שאינם כבר בהצעה
+  const usedIds = new Set(items.map(i => i.serviceId).filter(Boolean));
+  const futureCandidates = services.filter(s => s.active && s.defaultPrice > 0 && !usedIds.has(s.id));
+  const futureServices: FutureService[] = futureCandidates
+    .filter(s => futureIds.has(s.id))
+    .map(s => ({
+      id: s.id, serviceId: s.id, name: s.name, description: s.description,
+      category: s.category, price: s.defaultPrice, vatFlag: s.vatFlag,
+      billingType: s.billingType, unitLabel: s.unitLabel,
+    }));
+
   const webData: QuotationWebViewData = {
     quotationNumber: existing?.quotationNumber ?? 'טיוטה',
     recipientName: recipient.fullName || 'הלקוח',
     businessName: recipient.businessName,
-    items, vatRate, notesForClient, expiresAt,
+    items, futureServices, vatRate, notesForClient, expiresAt,
   };
   const emailHtml = useMemo(() => buildQuotationEmailHtml({
     quotationNumber: existing?.quotationNumber ?? 'טיוטה',
@@ -169,12 +187,7 @@ export default function QuotationBuilder({
     }
     setSaving(true);
     try {
-      await onSaveDraft({
-        id: existing?.id,
-        recipient, items, vatRate,
-        emailSubject, emailMessage, notesForClient, internalNotes,
-        templateId, expiresAt,
-      });
+      await onSaveDraft(buildPayload());
       setSavedAt(Date.now());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'שמירה נכשלה');
@@ -186,7 +199,7 @@ export default function QuotationBuilder({
   function buildPayload(): SaveDraftPayload {
     return {
       id: existing?.id,
-      recipient, items, vatRate,
+      recipient, items, futureServices, vatRate,
       emailSubject, emailMessage, notesForClient, internalNotes,
       templateId, expiresAt,
     };
@@ -333,6 +346,33 @@ export default function QuotationBuilder({
                 {items.map(item => (
                   <LineItem key={item.id} item={item} vatRate={vatRate}
                     onChange={p => updateItem(item.id, p)} onRemove={() => removeItem(item.id)} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* שירותים עתידיים — שקיפות מחירים מראש */}
+          <div style={card}>
+            <div style={{ ...cardTitle, marginBottom: 6 }}>🔮 שירותים עתידיים (מחירון מראש)</div>
+            <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
+              יוצגו ללקוח כמחירון "אם וכאשר", כדי שלא יופתע ממחיר בעתיד. לא נכלל בסכומי ההצעה.
+            </div>
+            {futureCandidates.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>כל השירותים בתשלום כבר כלולים בהצעה.</div>
+            ) : (
+              <div style={{ maxHeight: 190, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {futureCandidates.map(s => (
+                  <label key={s.id} className="checkbox-row" style={{ padding: '4px 0', fontSize: 12.5 }}>
+                    <input type="checkbox" checked={futureIds.has(s.id)} onChange={() => setFutureIds(prev => {
+                      const next = new Set(prev);
+                      next.has(s.id) ? next.delete(s.id) : next.add(s.id);
+                      return next;
+                    })} />
+                    <span style={{ flex: 1 }}>{s.name}</span>
+                    <span style={{ color: 'var(--gray-500)', fontSize: 11.5, whiteSpace: 'nowrap' }}>
+                      {formatILS(s.defaultPrice)}{s.vatFlag ? ' + מע״מ' : ''}
+                    </span>
+                  </label>
                 ))}
               </div>
             )}
