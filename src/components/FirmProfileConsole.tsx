@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FirmProfile,
   FirmBranding,
@@ -29,37 +29,70 @@ interface Props {
 
 type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'emailActivity' | 'quotations' | 'employees';
 
+// אייקוני הניווט כ-SVG מוטמע. (הפרויקט לא טוען את פונט Tabler, ולכן ה-<i class="ti">
+// שהיו כאן קודם פשוט לא הוצגו — זה מחליף אותם באייקונים שבאמת נראים.)
+const ICON_PATHS: Record<string, string> = {
+  identity: 'M4 5h16v14H4z M10 11a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M8.5 16.5c.4-1.3 1.8-2 3.5-2s3.1.7 3.5 2',
+  branding: 'M12 21a9 9 0 1 1 0-18 8 8 0 0 1 8 8h-3.5a2.5 2.5 0 0 0 0 5H18a2 2 0 0 1 0 5z M7.5 10.5h.01 M11 7.5h.01 M15 9h.01',
+  design: 'M4 20s3 .8 5-1.2c1.5-1.5 1-4 3-5l7-7-2-2-7 7c-1 2-3.5 1.5-5 3-2 2-1 5.2-1 5.2z',
+  contact: 'M6 3h13v18H6z M6 3v18 M11 10a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M10.5 16c.3-1.1 1.4-1.7 2.5-1.7s2.2.6 2.5 1.7',
+  signature: 'M3 19c3 0 5-2 6-5s2-6 4-6 2 3 0 6-4 4-6 4c3 0 6 1 8 1s3-1 3-1',
+  communication: 'M8 9h8 M8 13h5 M4 5h16v11H9l-5 4z',
+  emailActivity: 'M3 6h18v12H3z M3 7l9 6 9-6',
+  quotations: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4',
+  employees: 'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M17.5 5.2a3 3 0 0 1 0 5.6 M21 20v-1a4 4 0 0 0-3-3.85',
+  mailCog: 'M3 6h18v7 M3 7l9 6 9-6 M17.5 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0',
+  bolt: 'M13 2 4 14h7l-1 8 9-12h-7z',
+  userCheck: 'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M16 12.5l2 2 4-4',
+  fileUpload: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M12 17v-5 M9.5 14.5 12 12l2.5 2.5',
+  dashboard: 'M4 4h7v7H4z M13 4h7v4h-7z M13 10h7v10h-7z M4 13h7v7H4z',
+  shieldLock: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M12 11v3',
+  photo: 'M4 5h16v14H4z M8.5 10.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M4 16l4.5-4.5 3 3L15 11l5 5',
+  trash: 'M4 7h16 M10 11v6 M14 11v6 M5.5 7l1 13h11l1-13 M9 7V4h6v3',
+  stamp: 'M9 10V6.5a3 3 0 0 1 6 0V10 M5 14h14v3.5H5z M4 20.5h16',
+  info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11.5v4.5 M12 8h.01',
+};
+
+function NavIcon({ name, size = 16 }: { name: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path d={ICON_PATHS[name] ?? ''} />
+    </svg>
+  );
+}
+
 const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
-  { id: 'identity', label: 'זהות', icon: 'ti-id-badge-2' },
-  { id: 'branding', label: 'מותג', icon: 'ti-palette' },
-  { id: 'design', label: 'עיצוב עמודי לקוח', icon: 'ti-brush' },
-  { id: 'contact', label: 'פרטי קשר', icon: 'ti-address-book' },
-  { id: 'signature', label: 'חתימת מייל', icon: 'ti-signature' },
-  { id: 'communication', label: 'ערוצי תקשורת', icon: 'ti-messages' },
-  { id: 'emailActivity', label: 'פעילות מייל', icon: 'ti-mail-forward' },
-  { id: 'quotations', label: 'הצעות מחיר', icon: 'ti-file-invoice' },
+  { id: 'identity', label: 'זהות', icon: 'identity' },
+  { id: 'branding', label: 'מותג', icon: 'branding' },
+  { id: 'design', label: 'עיצוב עמודי לקוח', icon: 'design' },
+  { id: 'contact', label: 'פרטי קשר', icon: 'contact' },
+  { id: 'signature', label: 'חתימת מייל', icon: 'signature' },
+  { id: 'communication', label: 'ערוצי תקשורת', icon: 'communication' },
+  { id: 'emailActivity', label: 'פעילות מייל', icon: 'emailActivity' },
+  { id: 'quotations', label: 'הצעות מחיר', icon: 'quotations' },
 ];
 
 const SOON_GROUPS: { group: string; items: { label: string; icon: string }[] }[] = [
   {
     group: 'תקשורת ואוטומציה',
     items: [
-      { label: 'תבניות מייל', icon: 'ti-mail-cog' },
-      { label: 'אוטומציות', icon: 'ti-bolt' },
+      { label: 'תבניות מייל', icon: 'mailCog' },
+      { label: 'אוטומציות', icon: 'bolt' },
     ],
   },
   {
     group: 'חוויות לקוח',
     items: [
-      { label: 'עמודי הזדהות', icon: 'ti-user-check' },
-      { label: 'בקשות מסמכים', icon: 'ti-file-upload' },
-      { label: 'חתימה דיגיטלית', icon: 'ti-writing-sign' },
-      { label: 'פורטל לקוחות', icon: 'ti-layout-dashboard' },
+      { label: 'עמודי הזדהות', icon: 'userCheck' },
+      { label: 'בקשות מסמכים', icon: 'fileUpload' },
+      { label: 'חתימה דיגיטלית', icon: 'signature' },
+      { label: 'פורטל לקוחות', icon: 'dashboard' },
     ],
   },
   {
     group: 'מערכת',
-    items: [{ label: 'הרשאות ותפקידים', icon: 'ti-shield-lock' }],
+    items: [{ label: 'הרשאות ותפקידים', icon: 'shieldLock' }],
   },
 ];
 
@@ -221,6 +254,14 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   };
   const dirty = editableJson(draft) !== editableJson(profile);
 
+  // הטיוטה מאמצת את הפרופיל השמור כשאין שינויים פתוחים (אחרי שמירה, או אם
+  // הפרופיל התעדכן ממקום אחר). כך אין מצב של שתי אמיתות על אותה רשומה.
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    if (!dirtyRef.current) setDraft(profile);
+  }, [profile]);
+
   const updTop = <K extends keyof FirmProfile>(key: K, val: FirmProfile[K]) =>
     setDraft(d => ({ ...d, [key]: val }));
   const updBranding = <K extends keyof FirmBranding>(key: K, val: FirmBranding[K]) =>
@@ -259,22 +300,30 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
     }
   }
 
+  // כל הלשוניות למעט אלו שאינן עורכות את הפרופיל חולקות את אותה טיוטה ואת
+  // אותו כפתור שמירה — מקור אמת אחד למסך.
+  const editsProfile = section !== 'employees' && section !== 'emailActivity';
+
   return (
-    <div dir="rtl" style={{ fontFamily: 'var(--font-sans)' }}>
-      {/* header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+    <div dir="rtl">
+      {/* סרגל פעולה דביק — הכותרת, מצב השמירה והשמירה עצמה תמיד נגישים */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 20, background: 'var(--gray-50)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 12, flexWrap: 'wrap', padding: '10px 0 12px', marginBottom: 6,
+        borderBottom: '1px solid var(--gray-200)',
+      }}>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 500 }}>המשרד</div>
-          <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח</div>
+          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0, letterSpacing: '-.01em' }}>המשרד</h1>
+          <p style={{ fontSize: 12.5, color: 'var(--gray-500)', margin: '2px 0 0' }}>
+            מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח
+          </p>
         </div>
-        {section !== 'employees' && section !== 'emailActivity' && section !== 'quotations' && section !== 'design' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--gray-600)', background: 'var(--gray-100)', padding: '5px 10px', borderRadius: 20 }}>
-              <i className="ti ti-circle-check" style={{ fontSize: 14, color: ACCENT }} aria-hidden="true" />
-              הפרופיל {completeness}% מוגדר
-            </span>
+        {editsProfile && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <SaveState dirty={dirty} busy={busy} savedAt={savedAt} completeness={completeness} />
             <button className="btn btn-primary" onClick={handleSave} disabled={busy || !dirty}>
-              {busy ? 'שומר…' : dirty ? 'שמירה' : savedAt ? '✓ נשמר' : 'שמור'}
+              {busy ? 'שומר…' : 'שמירת שינויים'}
             </button>
           </div>
         )}
@@ -303,7 +352,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   fontWeight: active ? 500 : 400,
                 }}
               >
-                <i className={`ti ${item.icon}`} style={{ fontSize: 16 }} aria-hidden="true" />
+                <NavIcon name={item.icon} />
                 {item.label}
               </div>
             );
@@ -320,7 +369,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
               fontWeight: section === 'employees' ? 500 : 400,
             }}
           >
-            <i className="ti ti-users-group" style={{ fontSize: 16 }} aria-hidden="true" />
+            <NavIcon name="employees" />
             עובדים
           </div>
 
@@ -329,7 +378,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
               <div style={navGroupLabel}>{g.group}</div>
               {g.items.map(it => (
                 <div key={it.label} title="בקרוב — עדיין לא פעיל" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 9px', color: 'var(--gray-400)', fontSize: 12.5 }}>
-                  <i className={`ti ${it.icon}`} style={{ fontSize: 15 }} aria-hidden="true" />
+                  <NavIcon name={it.icon} />
                   {it.label}
                   <span style={{ marginInlineStart: 'auto', fontSize: 9, background: 'var(--gray-100)', color: 'var(--gray-500)', padding: '1px 5px', borderRadius: 6 }}>בקרוב</span>
                 </div>
@@ -357,7 +406,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                     </div>
                   </div>
                   <button className="btn" onClick={() => setSection('branding')} style={{ fontSize: 11.5, padding: '5px 10px' }}>
-                    <i className="ti ti-photo" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />{logoUrl ? 'החלף לוגו' : 'הוסף לוגו'}
+                    <NavIcon name="photo" size={14} />{logoUrl ? 'החלף לוגו' : 'הוסף לוגו'}
                   </button>
                 </div>
               </div>
@@ -391,7 +440,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   <div style={{ width: 96, height: 96, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                     {logoUrl
                       ? <img src={logoUrl} alt="לוגו" style={{ maxWidth: '86%', maxHeight: '86%', objectFit: 'contain' }} />
-                      : <i className="ti ti-photo" style={{ fontSize: 26, color: 'var(--gray-400)' }} aria-hidden="true" />}
+                      : <span style={{ color: 'var(--gray-400)', display: 'inline-flex' }}><NavIcon name="photo" size={26} /></span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
                     <label className="btn btn-primary" style={{ cursor: logoBusy ? 'default' : 'pointer', opacity: logoBusy ? 0.6 : 1 }}>
@@ -406,7 +455,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                     </label>
                     {logoUrl && (
                       <button className="btn" onClick={() => void handleLogoRemove()} disabled={logoBusy} style={{ fontSize: 12.5 }}>
-                        <i className="ti ti-trash" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />הסר לוגו
+                        <NavIcon name="trash" size={14} />הסר לוגו
                       </button>
                     )}
                     <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>PNG · JPG · SVG · WEBP · עד 2MB</div>
@@ -423,7 +472,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   <div style={{ width: 96, height: 96, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                     {stampUrl
                       ? <img src={stampUrl} alt="חותמת" style={{ maxWidth: '86%', maxHeight: '86%', objectFit: 'contain' }} />
-                      : <i className="ti ti-rubber-stamp" style={{ fontSize: 26, color: 'var(--gray-400)' }} aria-hidden="true" />}
+                      : <span style={{ color: 'var(--gray-400)', display: 'inline-flex' }}><NavIcon name="stamp" size={26} /></span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
                     <label className="btn btn-primary" style={{ cursor: stampBusy ? 'default' : 'pointer', opacity: stampBusy ? 0.6 : 1 }}>
@@ -438,7 +487,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                     </label>
                     {stampUrl && (
                       <button className="btn" onClick={() => void handleStampRemove()} disabled={stampBusy} style={{ fontSize: 12.5 }}>
-                        <i className="ti ti-trash" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />הסר חותמת
+                        <NavIcon name="trash" size={14} />הסר חותמת
                       </button>
                     )}
                     <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>PNG · JPG · SVG · WEBP · עד 2MB</div>
@@ -503,7 +552,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                 <div style={{ width: 150, height: 80, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                   {signatureUrl
                     ? <img src={signatureUrl} alt="חתימה" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }} />
-                    : <i className="ti ti-signature" style={{ fontSize: 26, color: 'var(--gray-400)' }} aria-hidden="true" />}
+                    : <span style={{ color: 'var(--gray-400)', display: 'inline-flex' }}><NavIcon name="signature" size={26} /></span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
                   <label className="btn btn-primary" style={{ cursor: sigBusy ? 'default' : 'pointer', opacity: sigBusy ? 0.6 : 1 }}>
@@ -518,7 +567,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   </label>
                   {signatureUrl && (
                     <button className="btn" onClick={() => void handleSignatureRemove()} disabled={sigBusy} style={{ fontSize: 12.5 }}>
-                      <i className="ti ti-trash" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />הסר חתימה
+                      <NavIcon name="trash" size={14} />הסר חתימה
                     </button>
                   )}
                   <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>החותמת נשמרת בלשונית "מותג".</div>
@@ -562,7 +611,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                 </Field>
               </div>
               <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 11.5, color: 'var(--gray-600)', lineHeight: 1.6 }}>
-                <i className="ti ti-info-circle" style={{ fontSize: 14, verticalAlign: -2, marginLeft: 4 }} aria-hidden="true" />
+                <NavIcon name="info" size={14} />
                 כדי לשלוח מכתובת שולח משלך צריך לאמת את הדומיין אצל ספק המייל. עד אז נשלח מכתובת מערכת עם שם המשרד שלך והתשובות אליך. כשתאמת דומיין — פשוט עדכן כאן, בלי שינוי קוד.
               </div>
             </div>
@@ -573,11 +622,14 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
           )}
 
           {section === 'design' && (
-            <QuotationDesignStudio profile={profile} onSaveProfile={onSave} />
+            <QuotationDesignStudio
+              profile={draft}
+              onChange={dd => setDraft(d => ({ ...d, branding: { ...d.branding, docDesign: dd } }))}
+            />
           )}
 
           {section === 'quotations' && (
-            <QuotationSettings profile={profile} onSaveProfile={onSave} />
+            <QuotationSettings profile={draft} onChangeProfile={setDraft} />
           )}
 
           {section === 'employees' && (
@@ -587,6 +639,28 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
         </div>
       </div>
     </div>
+  );
+}
+
+/** מצב השמירה של המסך — נקרא במבט: יש שינויים / נשמר / כמה מוגדר */
+function SaveState({ dirty, busy, savedAt, completeness }: { dirty: boolean; busy: boolean; savedAt: number | null; completeness: number }) {
+  const chip: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5,
+    padding: '5px 11px', borderRadius: 20, whiteSpace: 'nowrap', fontWeight: 500,
+  };
+  if (busy) return <span style={{ ...chip, background: 'var(--gray-100)', color: 'var(--gray-600)' }}>שומר…</span>;
+  if (dirty) return (
+    <span style={{ ...chip, background: 'var(--orange-light)', color: '#92400e' }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--orange)' }} />
+      שינויים שלא נשמרו
+    </span>
+  );
+  if (savedAt) return <span style={{ ...chip, background: 'var(--green-light)', color: '#065f46' }}>✓ נשמר</span>;
+  return (
+    <span style={{ ...chip, background: 'var(--gray-100)', color: 'var(--gray-600)' }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT }} />
+      הפרופיל {completeness}% מוגדר
+    </span>
   );
 }
 

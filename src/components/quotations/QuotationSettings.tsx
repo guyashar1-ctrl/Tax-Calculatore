@@ -10,8 +10,10 @@ import { useQuotationCatalog } from '../../hooks/useQuotationCatalog';
 import { formatILS } from '../../utils/quotationCalc';
 
 interface Props {
+  /** הטיוטה המשותפת של מסך המשרד — מקור האמת היחיד */
   profile: FirmProfile;
-  onSaveProfile: (p: FirmProfile) => Promise<void> | void;
+  /** מעדכן את אותה טיוטה (השמירה מרוכזת במסך המשרד) */
+  onChangeProfile: (p: FirmProfile) => void;
 }
 
 type Tab = 'catalog' | 'templates' | 'email';
@@ -23,7 +25,7 @@ interface QuotationSettingsBlob {
   emailTemplate?: { subject?: string; body?: string };
 }
 
-export default function QuotationSettings({ profile, onSaveProfile }: Props) {
+export default function QuotationSettings({ profile, onChangeProfile }: Props) {
   const [tab, setTab] = useState<Tab>('catalog');
   const catalog = useQuotationCatalog(profile.id);
 
@@ -43,7 +45,7 @@ export default function QuotationSettings({ profile, onSaveProfile }: Props) {
         <>
           {tab === 'catalog' && <CatalogTab catalog={catalog} />}
           {tab === 'templates' && <TemplatesTab catalog={catalog} />}
-          {tab === 'email' && <EmailTab profile={profile} onSaveProfile={onSaveProfile} />}
+          {tab === 'email' && <EmailTab profile={profile} onChangeProfile={onChangeProfile} />}
         </>
       )}
     </div>
@@ -267,26 +269,18 @@ function TemplateEditor({ template, services, onClose, onSave }: {
 
 // ─────────────────────────────── תבנית מייל ───────────────────────────────
 
-function EmailTab({ profile, onSaveProfile }: { profile: FirmProfile; onSaveProfile: (p: FirmProfile) => Promise<void> | void }) {
+// עורך מבוקר על הטיוטה המשותפת — בלי שמירה משלו (השמירה המרכזית מטפלת בכל)
+function EmailTab({ profile, onChangeProfile }: { profile: FirmProfile; onChangeProfile: (p: FirmProfile) => void }) {
   const blob = (profile.settings?.quotations as QuotationSettingsBlob | undefined)?.emailTemplate;
-  const [subject, setSubject] = useState(blob?.subject ?? DEFAULT_EMAIL_SUBJECT);
-  const [body, setBody] = useState(blob?.body ?? DEFAULT_EMAIL_BODY);
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const subject = blob?.subject ?? DEFAULT_EMAIL_SUBJECT;
+  const body = blob?.body ?? DEFAULT_EMAIL_BODY;
 
   const placeholders = ['{{clientName}}', '{{businessName}}', '{{quotationNumber}}', '{{quotationLink}}'];
 
-  async function save() {
-    setBusy(true);
-    try {
-      const nextSettings = { ...(profile.settings ?? {}), quotations: { ...((profile.settings?.quotations as object) ?? {}), emailTemplate: { subject, body } } };
-      await onSaveProfile({ ...profile, settings: nextSettings });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const update = (patch: { subject?: string; body?: string }) => {
+    const quotations = { ...((profile.settings?.quotations as object) ?? {}), emailTemplate: { subject, body, ...patch } };
+    onChangeProfile({ ...profile, settings: { ...(profile.settings ?? {}), quotations } });
+  };
 
   return (
     <div style={{ maxWidth: 640 }}>
@@ -299,13 +293,13 @@ function EmailTab({ profile, onSaveProfile }: { profile: FirmProfile; onSaveProf
         ))}
       </div>
       <label style={lbl}>נושא המייל
-        <input value={subject} onChange={e => setSubject(e.target.value)} style={{ marginTop: 4 }} />
+        <input value={subject} onChange={e => update({ subject: e.target.value })} style={{ marginTop: 4 }} />
       </label>
       <label style={{ ...lbl, marginTop: 14, display: 'block' }}>גוף המייל
-        <textarea rows={7} value={body} onChange={e => setBody(e.target.value)} style={{ marginTop: 4, width: '100%' }} />
+        <textarea rows={7} value={body} onChange={e => update({ body: e.target.value })} style={{ marginTop: 4, width: '100%' }} />
       </label>
-      <div style={{ marginTop: 14 }}>
-        <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'שומר…' : saved ? '✓ נשמר' : 'שמירת תבנית'}</button>
+      <div style={{ marginTop: 12, fontSize: 11.5, color: 'var(--gray-500)' }}>
+        השינויים נשמרים עם כפתור השמירה למעלה.
       </div>
     </div>
   );

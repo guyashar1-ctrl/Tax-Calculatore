@@ -1,6 +1,8 @@
-// סטודיו העיצוב — עורך את מראה עמוד ההצעה ובקשת הייצוג עם תצוגה מקדימה חיה.
-// בוחרים תבנית, מכווננים צבעים/פונט/כותרת/כפתור/פינות, ורואים בזמן אמת בדיוק
-// מה שהלקוח יראה — בהצעה, בבקשת הייצוג ובמייל, בדסקטופ ובמובייל.
+// סטודיו העיצוב — עורך את מראה עמודי הלקוח והמיילים עם תצוגה מקדימה חיה.
+//
+// ★ ארכיטקטורה: הסטודיו הוא עורך *מבוקר* (controlled). אין לו טיוטה משלו ואין
+// לו כפתור שמירה — הוא קורא וכותב אל הטיוטה היחידה של מסך "המשרד", והשמירה
+// המרכזית שם מטפלת בכל. כך אי אפשר שהעיצוב ייצא מסנכרון או יידרס.
 
 import { useMemo, useState } from 'react';
 import type { FirmProfile, FirmDocDesign } from '../../types/firmProfile';
@@ -15,8 +17,10 @@ import RepresentationPreview from './RepresentationPreview';
 import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
 
 interface Props {
+  /** הטיוטה המשותפת של מסך המשרד — מקור האמת היחיד */
   profile: FirmProfile;
-  onSaveProfile: (p: FirmProfile) => Promise<void> | void;
+  /** מעדכן את העיצוב בתוך אותה טיוטה */
+  onChange: (docDesign: FirmDocDesign) => void;
 }
 
 type Surface = 'quotation' | 'representation' | 'email';
@@ -35,114 +39,101 @@ const SAMPLE: QuotationWebViewData = {
     { id: '5', name: 'תכנון מס רבעוני', category: 'included', billingType: 'fixed', quantity: 1, catalogPrice: 0, clientPrice: 0, vatFlag: false },
     { id: '6', name: 'ייעוץ שוטף', category: 'included', billingType: 'fixed', quantity: 1, catalogPrice: 0, clientPrice: 0, vatFlag: false },
   ],
+  futureServices: [
+    { id: 'f1', name: 'הצהרת הון ראשונה', category: 'one_time', price: 1200, vatFlag: true, billingType: 'fixed' },
+    { id: 'f2', name: 'מעבר מעוסק פטור לעוסק מורשה', category: 'one_time', price: 200, vatFlag: true, billingType: 'fixed' },
+  ],
   notesForClient: 'שמחים על ההזדמנות ללוות אתכם. ההצעה מותאמת בדיוק לצרכים שסיכמנו בשיחה.',
 };
 
-export default function QuotationDesignStudio({ profile, onSaveProfile }: Props) {
-  const [draft, setDraft] = useState<FirmDocDesign>(profile.branding?.docDesign ?? { preset: 'minimal-light' });
+export default function QuotationDesignStudio({ profile, onChange }: Props) {
   const [surface, setSurface] = useState<Surface>('quotation');
   const [device, setDevice] = useState<Device>('desktop');
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(profile.branding?.docDesign ?? { preset: 'minimal-light' });
+  const dd: FirmDocDesign = profile.branding?.docDesign ?? {};
 
-  // מותג חי מהטיוטה — כך שהתצוגה מתעדכנת מיד עם כל שינוי
-  const liveBrand = useMemo(() => deriveQuotationBrand({
-    ...profile, branding: { ...profile.branding, docDesign: draft },
-  }), [profile, draft]);
+  // המותג החי נגזר ישירות מהטיוטה — לכן כל שינוי מופיע מיד, וגם שאר
+  // הלשוניות (זהות/מותג) רואות בדיוק את אותו דבר.
+  const brand = useMemo(() => deriveQuotationBrand(profile), [profile]);
 
   const emailHtml = useMemo(() => buildQuotationEmailHtml({
     quotationNumber: SAMPLE.quotationNumber, recipientName: SAMPLE.recipientName,
     businessName: SAMPLE.businessName, items: SAMPLE.items, vatRate: SAMPLE.vatRate,
     message: 'שמחים על ההזדמנות ללוות אתכם — מצורפת הצעה אישית.', quotationLink: '#',
-    expiresAt: undefined,
-  }, liveBrand), [liveBrand]);
+  }, brand), [brand]);
 
   const set = <K extends keyof FirmDocDesign>(key: K, val: FirmDocDesign[K]) =>
-    setDraft(d => ({ ...d, [key]: val }));
+    onChange({ ...dd, [key]: val });
 
-  function applyPreset(id: string) {
-    // בחירת תבנית מאפסת כיוונונים אישיים — נקודת פתיחה נקייה
-    setDraft({ preset: id });
-  }
-
-  async function handleSave() {
-    setBusy(true);
-    try {
-      await onSaveProfile({ ...profile, branding: { ...profile.branding, docDesign: draft } });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } finally { setBusy(false); }
-  }
-
-  const previewMaxW = device === 'mobile' ? 400 : '100%';
+  // בחירת תבנית מאפסת כיוונונים אישיים — נקודת פתיחה נקייה
+  const applyPreset = (id: string) => onChange({ preset: id });
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: 18, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(272px, 320px) 1fr', gap: 20, alignItems: 'start' }}>
 
       {/* ── בקרות ── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={ctlCard}>
-          <div style={ctlTitle}>תבנית עיצוב</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Group title="תבנית עיצוב" hint="נקודת פתיחה — אפשר לכוונן כל פרט אחריה">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {DESIGN_PRESETS.map(p => {
-              const sel = draft.preset === p.id && !hasOverrides(draft);
+              const selected = dd.preset === p.id && !hasOverrides(dd);
               return (
-                <button key={p.id} onClick={() => applyPreset(p.id)} title={p.description}
-                  style={{ textAlign: 'start', padding: 8, borderRadius: 10, cursor: 'pointer', background: 'white', border: sel ? `2px solid ${p.accent}` : '1px solid var(--gray-200)', fontFamily: 'inherit' }}>
-                  <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-                    <span style={{ width: 22, height: 22, borderRadius: 5, background: p.ink }} />
-                    <span style={{ width: 22, height: 22, borderRadius: 5, background: p.accent }} />
-                    <span style={{ width: 22, height: 22, borderRadius: 5, background: p.pageBg, border: '1px solid var(--gray-200)' }} />
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 600 }}>{p.label}</div>
+                <button
+                  key={p.id} onClick={() => applyPreset(p.id)} title={p.description}
+                  aria-pressed={selected}
+                  style={{
+                    textAlign: 'start', padding: 9, borderRadius: 10, cursor: 'pointer',
+                    background: 'white', fontFamily: 'inherit',
+                    border: selected ? `1.5px solid ${p.accent}` : '1px solid var(--gray-200)',
+                    boxShadow: selected ? `0 0 0 3px ${p.accent}22` : 'none',
+                    transition: 'box-shadow .12s, border-color .12s',
+                  }}
+                >
+                  <span style={{ display: 'flex', gap: 4, marginBottom: 7 }}>
+                    <span style={{ width: 20, height: 20, borderRadius: 5, background: p.ink }} />
+                    <span style={{ width: 20, height: 20, borderRadius: 5, background: p.accent }} />
+                    <span style={{ width: 20, height: 20, borderRadius: 5, background: p.pageBg, border: '1px solid var(--gray-200)' }} />
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600, display: 'block' }}>{p.label}</span>
                 </button>
               );
             })}
           </div>
-        </div>
+        </Group>
 
-        <div style={ctlCard}>
-          <div style={ctlTitle}>צבעים</div>
-          <ColorField label="צבע אקסנט (כפתורים, מחירים)" value={liveBrand.accent} onChange={v => set('accent', v)} />
-          <ColorField label="צבע כהה (כותרות, רקע אישור)" value={liveBrand.ink} onChange={v => set('ink', v)} />
-          <ColorField label="רקע העמוד" value={liveBrand.pageBg} onChange={v => set('pageBg', v)} />
-        </div>
+        <Group title="צבעים">
+          <ColorField label="אקסנט — כפתורים ומחירים" value={brand.accent} onChange={v => set('accent', v)} />
+          <ColorField label="כהה — כותרות ומשטח האישור" value={brand.ink} onChange={v => set('ink', v)} />
+          <ColorField label="רקע העמוד" value={brand.pageBg} onChange={v => set('pageBg', v)} last />
+        </Group>
 
-        <div style={ctlCard}>
-          <div style={ctlTitle}>טיפוגרפיה וסגנון</div>
+        <Group title="טיפוגרפיה וסגנון">
           <Field label="פונט">
-            <select value={liveBrand.font} onChange={e => set('font', e.target.value)}>
-              {FONT_CHOICES.map(f => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
+            <select value={brand.font} onChange={e => set('font', e.target.value)}>
+              {FONT_CHOICES.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </Field>
-          <Field label="סגנון כותרת">
-            <select value={liveBrand.headerStyle} onChange={e => set('headerStyle', e.target.value as HeaderStyle)}>
+          <Field label="כותרת">
+            <select value={brand.headerStyle} onChange={e => set('headerStyle', e.target.value as HeaderStyle)}>
               {(Object.keys(HEADER_STYLE_LABELS) as HeaderStyle[]).map(k => <option key={k} value={k}>{HEADER_STYLE_LABELS[k]}</option>)}
             </select>
           </Field>
-          <Field label="סגנון כפתור">
-            <select value={liveBrand.buttonStyle} onChange={e => set('buttonStyle', e.target.value as ButtonStyle)}>
+          <Field label="כפתור">
+            <select value={brand.buttonStyle} onChange={e => set('buttonStyle', e.target.value as ButtonStyle)}>
               {(Object.keys(BUTTON_STYLE_LABELS) as ButtonStyle[]).map(k => <option key={k} value={k}>{BUTTON_STYLE_LABELS[k]}</option>)}
             </select>
           </Field>
-          <Field label="פינות">
-            <select value={cornerOf(draft, liveBrand.radius)} onChange={e => set('corner', e.target.value as CornerStyle)}>
+          <Field label="פינות" last>
+            <select value={cornerOf(dd, brand.radius)} onChange={e => set('corner', e.target.value as CornerStyle)}>
               {(Object.keys(CORNER_STYLE_LABELS) as CornerStyle[]).map(k => <option key={k} value={k}>{CORNER_STYLE_LABELS[k]}</option>)}
             </select>
           </Field>
-        </div>
+        </Group>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="btn btn-primary" onClick={handleSave} disabled={busy || !dirty}>
-            {busy ? 'שומר…' : saved ? '✓ נשמר' : dirty ? 'שמירת העיצוב' : 'נשמר'}
-          </button>
-          {dirty && <button className="btn btn-ghost btn-sm" onClick={() => setDraft(profile.branding?.docDesign ?? { preset: 'minimal-light' })}>ביטול שינויים</button>}
-        </div>
-        <div style={{ fontSize: 11.5, color: 'var(--gray-500)', lineHeight: 1.6 }}>
-          העיצוב חל על עמוד ההצעה, בקשת הייצוג והמייל ללקוח. הלוגו והחתימה נערכים בלשוניות <b>מותג</b> ו<b>חתימת מייל</b>.
-        </div>
+        <p style={{ fontSize: 11.5, color: 'var(--gray-500)', lineHeight: 1.65, margin: 0 }}>
+          העיצוב חל על עמוד ההצעה, בקשת הייצוג וכל מייל ללקוח. הלוגו והחתימה נערכים
+          בלשוניות <b>מותג</b> ו<b>חתימת מייל</b>. השינויים נשמרים עם כפתור השמירה למעלה.
+        </p>
       </div>
 
       {/* ── תצוגה מקדימה חיה ── */}
@@ -161,12 +152,12 @@ export default function QuotationDesignStudio({ profile, onSaveProfile }: Props)
           )}
         </div>
 
-        <div style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', background: liveBrand.pageBg, height: 'calc(100vh - 150px)', minHeight: 560 }}>
+        <div style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', background: brand.pageBg, height: 'calc(100vh - 190px)', minHeight: 540 }}>
           <div style={{ height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
-            <div style={{ width: previewMaxW, maxWidth: '100%', transition: 'width .2s' }}>
-              {surface === 'quotation' && <QuotationWebView data={SAMPLE} brand={liveBrand} compact={device === 'mobile'} />}
-              {surface === 'representation' && <RepresentationPreview brand={liveBrand} compact={device === 'mobile'} />}
-              {surface === 'email' && <iframe title="email-preview" srcDoc={emailHtml} style={{ width: '100%', height: '100%', border: 'none', minHeight: 560 }} />}
+            <div style={{ width: device === 'mobile' && surface !== 'email' ? 400 : '100%', maxWidth: '100%', transition: 'width .2s' }}>
+              {surface === 'quotation' && <QuotationWebView data={SAMPLE} brand={brand} compact={device === 'mobile'} />}
+              {surface === 'representation' && <RepresentationPreview brand={brand} compact={device === 'mobile'} />}
+              {surface === 'email' && <iframe title="email-preview" srcDoc={emailHtml} style={{ width: '100%', height: '100%', border: 'none', minHeight: 540 }} />}
             </div>
           </div>
         </div>
@@ -184,21 +175,33 @@ function cornerOf(d: FirmDocDesign, radius: number): CornerStyle {
   return radius <= 6 ? 'sharp' : radius >= 18 ? 'soft' : 'rounded';
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Group({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block', marginBottom: 10 }}>
+    <section style={{ border: '1px solid var(--gray-200)', borderRadius: 12, padding: 14, background: 'white' }}>
+      <h3 style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--gray-700)', margin: 0 }}>{title}</h3>
+      {hint && <p style={{ fontSize: 11, color: 'var(--gray-500)', margin: '3px 0 0' }}>{hint}</p>}
+      <div style={{ marginTop: 12 }}>{children}</div>
+    </section>
+  );
+}
+
+function Field({ label, children, last }: { label: string; children: React.ReactNode; last?: boolean }) {
+  return (
+    <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block', marginBottom: last ? 0 : 10 }}>
       {label}
       <div style={{ marginTop: 4 }}>{children}</div>
     </label>
   );
 }
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ColorField({ label, value, onChange, last }: { label: string; value: string; onChange: (v: string) => void; last?: boolean }) {
   return (
-    <Field label={label}>
+    <Field label={label} last={last}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input type="color" value={toHex(value)} onChange={e => onChange(e.target.value)} style={{ width: 40, height: 32, padding: 2, cursor: 'pointer', border: '1px solid var(--gray-300)', borderRadius: 6 }} />
-        <input value={value} onChange={e => onChange(e.target.value)} dir="ltr" style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 12.5 }} />
+        <input type="color" value={toHex(value)} onChange={e => onChange(e.target.value)}
+          style={{ width: 38, height: 32, padding: 2, cursor: 'pointer', border: '1px solid var(--gray-300)', borderRadius: 6, flexShrink: 0 }} />
+        <input value={value} onChange={e => onChange(e.target.value)} dir="ltr"
+          style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }} />
       </div>
     </Field>
   );
@@ -208,6 +211,3 @@ function toHex(v: string): string {
   const m = /^#?([0-9a-f]{6})$/i.exec((v || '').trim());
   return m ? '#' + m[1] : '#000000';
 }
-
-const ctlCard: React.CSSProperties = { border: '1px solid var(--gray-200)', borderRadius: 12, padding: 14, background: 'white' };
-const ctlTitle: React.CSSProperties = { fontSize: 12.5, fontWeight: 600, marginBottom: 12, color: 'var(--gray-700)' };
