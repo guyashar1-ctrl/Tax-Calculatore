@@ -6,8 +6,9 @@ import type {
 } from '../../types/quotations';
 import {
   SERVICE_CATEGORY_LABELS,
-  DEFAULT_VAT_RATE, DEFAULT_EXPIRY_DAYS,
+  DEFAULT_VAT_RATE, DEFAULT_EXPIRY_BUSINESS_DAYS,
 } from '../../types/quotations';
+import { businessDaysExpiry } from '../../utils/businessDays';
 import { calcTotals, formatILS, itemFinalPrice } from '../../utils/quotationCalc';
 import { deriveQuotationBrand } from './quotationBranding';
 import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
@@ -74,12 +75,6 @@ function catalogToItem(svc: ServiceCatalogItem): QuotationItem {
   };
 }
 
-function daysFromNow(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  d.setHours(23, 59, 0, 0);
-  return d.toISOString();
-}
 
 export default function QuotationBuilder({
   profile, services, templates, leads, clients, existing, existingQuotations, onSaveDraft, onSend, onBack,
@@ -106,7 +101,7 @@ export default function QuotationBuilder({
   const [emailMessage, setEmailMessage] = useState(existing?.emailMessage ?? '');
   const [notesForClient, setNotesForClient] = useState(existing?.notesForClient ?? '');
   const [internalNotes, setInternalNotes] = useState(existing?.internalNotes ?? '');
-  const [expiresAt, setExpiresAt] = useState(existing?.expiresAt ?? daysFromNow(DEFAULT_EXPIRY_DAYS));
+  const [expiresAt, setExpiresAt] = useState(existing?.expiresAt ?? businessDaysExpiry(DEFAULT_EXPIRY_BUSINESS_DAYS));
 
   const [tab, setTab] = useState<PreviewTab>('web');
   const [device, setDevice] = useState<Device>('desktop');

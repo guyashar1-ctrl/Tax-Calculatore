@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { Client } from '../../types';
 import type { Lead, Quotation, QuotationStatus } from '../../types/quotations';
-import { QUOTATION_STATUS_LABELS, REMINDER_DAYS_BEFORE_EXPIRY } from '../../types/quotations';
+import { QUOTATION_STATUS_LABELS, REMINDER_BUSINESS_DAYS_BEFORE } from '../../types/quotations';
 import { calcTotals, formatILS } from '../../utils/quotationCalc';
+import { businessDaysUntil } from '../../utils/businessDays';
 
 interface Props {
   quotations: Quotation[];
@@ -35,10 +36,12 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
   const leadOf = (q: Quotation): Lead | undefined => q.leadId ? leads.find(x => x.id === q.leadId) : undefined;
   const hasPrevAccountant = (q: Quotation): boolean => !!leadOf(q)?.hasPreviousAccountant;
 
-  // ימים עד פקיעה (שלילי = כבר עבר). null אם אין תוקף.
-  const daysToExpiry = (q: Quotation): number | null => {
+  // ימי עסקים עד פקיעה. null אם אין תוקף או שכבר פג.
+  const bizDaysToExpiry = (q: Quotation): number | null => {
     if (!q.expiresAt) return null;
-    return Math.ceil((new Date(q.expiresAt).getTime() - Date.now()) / 86400000);
+    const t = new Date(q.expiresAt);
+    if (t.getTime() <= Date.now()) return null;
+    return businessDaysUntil(t);
   };
 
   async function remind(q: Quotation) {
@@ -156,8 +159,8 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
                         const t = calcTotals(q.items, q.vatRate);
                         const headline = t.monthly.withVat || t.annual.withVat || t.oneTime.withVat;
                         const converted = isConverted(q);
-                        const days = daysToExpiry(q);
-                        const expiringSoon = (g.status === 'sent' || g.status === 'viewed') && days !== null && days >= 0 && days <= REMINDER_DAYS_BEFORE_EXPIRY;
+                        const days = bizDaysToExpiry(q);
+                        const expiringSoon = (g.status === 'sent' || g.status === 'viewed') && days !== null && days <= REMINDER_BUSINESS_DAYS_BEFORE;
                         return (
                           <tr key={q.id} className="client-row" style={{ cursor: 'pointer', borderInlineStart: `3px solid ${g.strip}` }} onClick={() => onOpen(q)}>
                             <td className="mono-text">{q.quotationNumber}{q.revision > 1 ? ` · גרסה ${q.revision}` : ''}</td>
@@ -165,7 +168,7 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
                             <td className="number">{headline > 0 ? formatILS(Math.round(headline)) : '—'}</td>
                             <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>
                               {q.expiresAt ? new Date(q.expiresAt).toLocaleDateString('he-IL') : '—'}
-                              {expiringSoon && <span className="badge badge-orange" style={{ marginInlineStart: 6, fontSize: 10 }}>{days === 0 ? 'פג היום' : `פג בעוד ${days} ימים`}</span>}
+                              {expiringSoon && <span className="badge badge-orange" style={{ marginInlineStart: 6, fontSize: 10 }}>{days === 0 ? 'פג היום' : days === 1 ? 'פג ביום עסקים הבא' : `פג בעוד ${days} ימי עסקים`}</span>}
                             </td>
                             <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>{q.updatedAt ? new Date(q.updatedAt).toLocaleDateString('he-IL') : '—'}</td>
                             {STATUSES_WITH_ACTIONS.includes(g.status) && (
