@@ -130,72 +130,79 @@ export const LEGACY_THEMES: Record<string, { ink: string; accent: string }> = {
 
 export const DEFAULT_PRESET_ID = 'minimal-light';
 
-/** ★ התבניות — להוסיף תבנית חדשה: כאן בלבד. */
+/** ★ התבניות — להוסיף תבנית חדשה: כאן בלבד.
+ *
+ *  עקרונות שלפיהם נבנו (ולפיהם להוסיף בעתיד):
+ *  1. הנייטרלים אינם אפור טהור — לכל תבנית רקע/גבול/טקסט-משני עם הטיה עדינה
+ *     לגוון האקסנט שלה. זה מה שגורם לפלטה להיראות "נבחרה" ולא "נפלה כברירת מחדל".
+ *  2. האקסנט נבדק על הרקע: רווי מספיק לכפתור, אבל לא צועק על הקרם/הלבן.
+ *  3. ה-ink כהה מספיק לניגודיות טקסט תקינה, ונושא את אותו גוון כמו האקסנט.
+ */
 export const DESIGN_PRESETS: DesignPreset[] = [
   {
-    id: 'minimal-light', label: 'מינימל בהיר', description: 'נקי, אוורירי, אינדיגו עדין — ברירת המחדל',
-    ink: '#1A1A1A', accent: '#4F46E5', pageBg: '#F4F3EF', cardBg: '#FFFFFF',
-    border: '#EDECE7', muted: '#6B6A63', headerStyle: 'minimal', buttonStyle: 'solid', corner: 'soft', font: 'Heebo',
+    id: 'minimal-light', label: 'מינימל בהיר', description: 'שקט ואוורירי — דיו כחלחל על נייר חם',
+    ink: '#1C1B22', accent: '#4B4ACF', pageBg: '#F5F4F1', cardBg: '#FFFFFF',
+    border: '#E8E7E2', muted: '#6E6C77', headerStyle: 'minimal', buttonStyle: 'solid', corner: 'soft', font: 'Heebo',
   },
   {
-    id: 'navy-lux', label: 'נייבי יוקרתי', description: 'רשמי ומכובד, נייבי עמוק עם זהב',
-    ink: '#0E1F3A', accent: '#C9A75A', pageBg: '#F4F5F8', cardBg: '#FFFFFF',
-    border: '#E6E8EE', muted: '#5C6474', headerStyle: 'band', buttonStyle: 'solid', corner: 'rounded', font: 'Frank Ruhl Libre',
+    id: 'navy-lux', label: 'נייבי יוקרתי', description: 'רשמי ומכובד — נייבי עמוק וזהב מרוסן',
+    ink: '#122340', accent: '#B08D46', pageBg: '#F3F4F7', cardBg: '#FFFFFF',
+    border: '#E3E5EC', muted: '#5B6379', headerStyle: 'band', buttonStyle: 'solid', corner: 'rounded', font: 'Frank Ruhl Libre',
   },
   {
-    id: 'emerald-fresh', label: 'אמרלד רענן', description: 'מודרני ונקי, ירוק ביתי ואמין',
-    ink: '#0B3B36', accent: '#10B981', pageBg: '#F1F6F4', cardBg: '#FFFFFF',
-    border: '#E1EBE7', muted: '#5A6B66', headerStyle: 'centered', buttonStyle: 'pill', corner: 'soft', font: 'Assistant',
+    id: 'emerald-fresh', label: 'אמרלד רענן', description: 'נקי ואמין — ירוק בהיר על נייר קריר',
+    ink: '#0D3A33', accent: '#0E9E6F', pageBg: '#F1F6F3', cardBg: '#FFFFFF',
+    border: '#DFEBE5', muted: '#566E67', headerStyle: 'centered', buttonStyle: 'pill', corner: 'soft', font: 'Assistant',
   },
   {
-    id: 'warm-cream', label: 'קרם חם', description: 'חמים ומזמין, גווני קרם וטרקוטה',
-    ink: '#2A2622', accent: '#B4703A', pageBg: '#F7F3EC', cardBg: '#FFFDF9',
-    border: '#EBE4D8', muted: '#7A7167', headerStyle: 'minimal', buttonStyle: 'solid', corner: 'soft', font: 'Frank Ruhl Libre',
+    id: 'warm-cream', label: 'קרם חם', description: 'מזמין ואנושי — חול חם וחומר אדמה',
+    ink: '#2B2520', accent: '#A65F32', pageBg: '#F6F1E9', cardBg: '#FFFEFB',
+    border: '#E9E1D3', muted: '#7B6F61', headerStyle: 'minimal', buttonStyle: 'solid', corner: 'soft', font: 'Frank Ruhl Libre',
   },
   {
-    id: 'mono-editorial', label: 'מונוכרום חד', description: 'עריכתי ונועז, שחור-לבן עם פינות חדות',
-    ink: '#111111', accent: '#111111', pageBg: '#FAFAFA', cardBg: '#FFFFFF',
-    border: '#E5E5E5', muted: '#6B7280', headerStyle: 'band', buttonStyle: 'outline', corner: 'sharp', font: 'Secular One',
+    id: 'mono-editorial', label: 'מונוכרום חד', description: 'עריכתי ונועז — דיו על נייר, בלי קישוט',
+    ink: '#151515', accent: '#151515', pageBg: '#F7F7F6', cardBg: '#FFFFFF',
+    border: '#E2E2E0', muted: '#6C6C68', headerStyle: 'band', buttonStyle: 'outline', corner: 'sharp', font: 'Secular One',
   },
   {
-    id: 'soft-pastel', label: 'פסטל עדין', description: 'רך ונעים, סגול פסטלי ופינות מעוגלות',
-    ink: '#2E2A4A', accent: '#7C6FE0', pageBg: '#F6F4FB', cardBg: '#FFFFFF',
-    border: '#EAE6F5', muted: '#6A6486', headerStyle: 'centered', buttonStyle: 'pill', corner: 'soft', font: 'Rubik',
+    id: 'soft-pastel', label: 'פסטל עדין', description: 'רך ונגיש — סגול מעומעם וקצוות מעוגלים',
+    ink: '#2C2848', accent: '#6F63D2', pageBg: '#F5F3FA', cardBg: '#FFFFFF',
+    border: '#E7E3F2', muted: '#67628A', headerStyle: 'centered', buttonStyle: 'pill', corner: 'soft', font: 'Rubik',
   },
   {
-    id: 'tech-blue', label: 'טק כחול', description: 'מודרני והייטקי, כחול חי על רקע נקי',
-    ink: '#0F172A', accent: '#2563EB', pageBg: '#F1F5F9', cardBg: '#FFFFFF',
-    border: '#E2E8F0', muted: '#64748B', headerStyle: 'band', buttonStyle: 'pill', corner: 'rounded', font: 'Assistant',
+    id: 'tech-blue', label: 'טק כחול', description: 'חד ומודרני — כחול חשמלי על פלדה בהירה',
+    ink: '#101A2E', accent: '#2563EB', pageBg: '#F1F4F9', cardBg: '#FFFFFF',
+    border: '#DFE5EF', muted: '#5E6B82', headerStyle: 'band', buttonStyle: 'pill', corner: 'rounded', font: 'Assistant',
   },
   {
-    id: 'black-gold', label: 'שחור־זהב', description: 'יוקרה מקסימלית, שחור עמוק עם זהב',
-    ink: '#111111', accent: '#C6A15B', pageBg: '#F4F2EE', cardBg: '#FFFFFF',
-    border: '#E8E4DC', muted: '#6E6A62', headerStyle: 'band', buttonStyle: 'solid', corner: 'sharp', font: 'Frank Ruhl Libre',
+    id: 'black-gold', label: 'שחור־זהב', description: 'יוקרה מרוסנת — פחם עמוק וזהב עתיק',
+    ink: '#141210', accent: '#A98846', pageBg: '#F5F3EE', cardBg: '#FFFFFF',
+    border: '#E7E3D9', muted: '#6E685C', headerStyle: 'band', buttonStyle: 'solid', corner: 'sharp', font: 'Frank Ruhl Libre',
   },
   {
-    id: 'wine-elegant', label: 'בורדו קלאסי', description: 'חם ומכובד, גוון יין עם קרם',
-    ink: '#4A1F2B', accent: '#9B2D3F', pageBg: '#F8F3F1', cardBg: '#FFFDFC',
-    border: '#EEE0DD', muted: '#7C6660', headerStyle: 'centered', buttonStyle: 'solid', corner: 'soft', font: 'Frank Ruhl Libre',
+    id: 'wine-elegant', label: 'בורדו קלאסי', description: 'חם ומכובד — יין עמוק על קרם ורדרד',
+    ink: '#43202A', accent: '#8E2B3C', pageBg: '#F7F2F1', cardBg: '#FFFDFC',
+    border: '#EBDEDB', muted: '#7A645F', headerStyle: 'centered', buttonStyle: 'solid', corner: 'soft', font: 'Frank Ruhl Libre',
   },
   {
-    id: 'teal-clean', label: 'טורקיז נקי', description: 'רענן ומינימלי, טורקיז על לבן',
-    ink: '#0F3B3A', accent: '#0EA5A5', pageBg: '#F0F7F6', cardBg: '#FFFFFF',
-    border: '#DEEDEB', muted: '#557370', headerStyle: 'minimal', buttonStyle: 'pill', corner: 'soft', font: 'Rubik',
+    id: 'teal-clean', label: 'טורקיז נקי', description: 'רענן ומינימלי — טורקיז עמוק על נייר קריר',
+    ink: '#103A38', accent: '#0E8F92', pageBg: '#F0F6F5', cardBg: '#FFFFFF',
+    border: '#DCEAE8', muted: '#547170', headerStyle: 'minimal', buttonStyle: 'pill', corner: 'soft', font: 'Rubik',
   },
   {
-    id: 'graphite', label: 'גרפיט', description: 'מאופק ורציני, אפור פחם מונוכרומטי',
-    ink: '#1F2933', accent: '#3D4B5C', pageBg: '#F5F6F7', cardBg: '#FFFFFF',
-    border: '#E4E7EA', muted: '#66727E', headerStyle: 'minimal', buttonStyle: 'solid', corner: 'rounded', font: 'Assistant',
+    id: 'graphite', label: 'גרפיט', description: 'מאופק ורציני — פלדה קרירה, בלי צבע מיותר',
+    ink: '#1E2732', accent: '#41566E', pageBg: '#F4F5F7', cardBg: '#FFFFFF',
+    border: '#E1E4E9', muted: '#64717F', headerStyle: 'minimal', buttonStyle: 'solid', corner: 'rounded', font: 'Assistant',
   },
   {
-    id: 'sunset-warm', label: 'כתום שקיעה', description: 'אנרגטי ומזמין, כתום חם וקורן',
-    ink: '#3A2417', accent: '#E0672E', pageBg: '#FBF4EE', cardBg: '#FFFDFB',
-    border: '#F0E3D8', muted: '#84695A', headerStyle: 'centered', buttonStyle: 'pill', corner: 'soft', font: 'Rubik',
+    id: 'sunset-warm', label: 'כתום שקיעה', description: 'אנרגטי ומזמין — נחושת קורנת על חול',
+    ink: '#38221A', accent: '#CE5F2C', pageBg: '#FAF3EE', cardBg: '#FFFEFC',
+    border: '#EFE1D8', muted: '#82675A', headerStyle: 'centered', buttonStyle: 'pill', corner: 'soft', font: 'Rubik',
   },
   {
-    id: 'forest-deep', label: 'ירוק יער', description: 'טבעי ובוטח, ירוק עמוק ואדמתי',
-    ink: '#1B2E20', accent: '#2F7D4F', pageBg: '#F1F5F0', cardBg: '#FFFFFF',
-    border: '#E1EADD', muted: '#5C6B5D', headerStyle: 'band', buttonStyle: 'solid', corner: 'rounded', font: 'Assistant',
+    id: 'forest-deep', label: 'ירוק יער', description: 'טבעי ובוטח — ירוק אזוב על נייר עלים',
+    ink: '#1C2E22', accent: '#356F4C', pageBg: '#F1F4EF', cardBg: '#FFFFFF',
+    border: '#E0E7DB', muted: '#5B6A5D', headerStyle: 'band', buttonStyle: 'solid', corner: 'rounded', font: 'Assistant',
   },
 ];
 
@@ -249,7 +256,9 @@ export function resolveBrand(input: BrandInput): ResolvedBrand {
     emailSignature: input.emailSignature,
     font: dd.font || base.font,
     ink: dd.ink || base.ink,
-    accent: dd.accent || (branding.accentColor && branding.accentColor.trim()) || base.accent,
+    // base כבר מכיל את המותג הישן כשלא נבחרה תבנית. אסור להחיל את accentColor
+    // הישן גם כאן — אחרת הוא היה דורס את האקסנט של התבנית שנבחרה בסטודיו.
+    accent: dd.accent || base.accent,
     pageBg: dd.pageBg || base.pageBg,
     cardBg: dd.cardBg || base.cardBg,
     border: dd.border || base.border,
