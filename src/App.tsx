@@ -52,6 +52,7 @@ import MyDesk from './components/MyDesk';
 import TaskBoard from './components/TaskBoard';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
+import NoAccessScreen from './components/NoAccessScreen';
 import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateClient';
 import RepresentationOnboardingDialog from './components/RepresentationOnboardingDialog';
 import OnboardingPage from './components/OnboardingPage';
@@ -178,7 +179,7 @@ export default function App() {
     if (quoteToken) return <PublicQuotationPage token={quoteToken} />;
   }
 
-  const { user, loading: authLoading, displayName, avatarUrl, signOut } = useAuth();
+  const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
 
   const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients } = useClients(user?.id);
   const { tasks, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks } = useTasks(user?.id);
@@ -957,6 +958,14 @@ export default function App() {
   }
   if (!user) {
     return <LoginScreen />;
+  }
+  // מחובר אך טרם הושלמה בדיקת ההרשאה
+  if (authorized === null) {
+    return <div className="app-loading">בודק הרשאה…</div>;
+  }
+  // מחובר אך אינו ברשימת המורשים — חוסמים ומאפשרים התנתקות בלבד
+  if (!authorized) {
+    return <NoAccessScreen email={user.email ?? ''} onSignOut={signOut} />;
   }
 
   const openTasksCount = tasks.filter(t => t.status === 'open' && (t.ballWith === 'me' || t.ballWith === 'stuck')).length;

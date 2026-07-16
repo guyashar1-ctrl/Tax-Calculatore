@@ -11,6 +11,8 @@ export const DEV_AUTO_LOGIN_ENABLED =
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  // null = טרם נבדק, true/false = תוצאת בדיקת ההרשאה מול authorized_users
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -36,6 +38,19 @@ export function useAuth() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // בדיקת הרשאה בכל פעם שהמשתמש משתנה — מקור האמת הוא is_authorized() במסד.
+  useEffect(() => {
+    let cancelled = false;
+    if (!session) { setAuthorized(null); return; }
+    setAuthorized(null);
+    supabase.rpc('is_authorized').then(({ data, error }) => {
+      if (cancelled) return;
+      // בכשל תקשורת — לא פותחים את השער. RLS ממילא יחסום, אבל עדיף מסך ברור.
+      setAuthorized(error ? false : data === true);
+    });
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
 
   async function signInWithGoogle() {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -70,5 +85,5 @@ export function useAuth() {
     (user?.user_metadata?.avatar_url as string | undefined) ||
     (user?.user_metadata?.picture as string | undefined);
 
-  return { session, user, loading, displayName, avatarUrl, signInWithGoogle, signInWithDevUser, signOut };
+  return { session, user, loading, authorized, displayName, avatarUrl, signInWithGoogle, signInWithDevUser, signOut };
 }
