@@ -1,9 +1,11 @@
 /**
- * Gemini Vision API — ניתוח מסמכים וחילוץ נתונים
+ * ניתוח מסמכים וחילוץ נתונים.
+ *
+ * ⚠ הקריאה ל-Gemini עברה לשרת (פונקציית ocr-document). מפתח ה-AI לא מגיע יותר
+ * לדפדפן — הדפדפן שולח את המסמך לפונקציה, שמוודאת שהמשתמש מורשה וקוראת ל-AI
+ * עם מפתח שיושב רק בשרת. הקובץ הזה נשאר כשכבת נוחות (המרה ל-base64 + טיפוסים).
  */
-
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
-const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+import { supabase } from '../lib/supabase';
 
 // ─── סוגי מסמכים שאנחנו יודעים לנתח ─────────────────────────────────────────
 
@@ -58,172 +60,29 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-// ─── בניית prompt לפי סוג המסמך ──────────────────────────────────────────────
-
-function buildPrompt(docType: DocAnalysisType): string {
-  const base = `אתה מנתח מסמכים מקצועי. נתח את המסמך המצורף וחלץ את כל הנתונים הרלוונטיים.
-החזר את התוצאה **אך ורק** כ-JSON תקין (ללא markdown, ללא backticks) בפורמט הבא:
-{
-  "documentType": "סוג המסמך שזוהה",
-  "confidence": "high/medium/low",
-  "summary": "תיאור קצר של המסמך בעברית",
-  "data": {
-    ...שדות שחולצו...
-  },
-  "additionalFields": {
-    ...שדות נוספים שזוהו...
-  }
-}`;
-
-  switch (docType) {
-    case 'id_card':
-      return `${base}
-
-זהו תעודת זהות ישראלית או ספח. חלץ את השדות הבאים ב-data:
-- "firstName": שם פרטי
-- "lastName": שם משפחה
-- "idNumber": מספר זהות (9 ספרות)
-- "birthDate": תאריך לידה בפורמט YYYY-MM-DD
-- "gender": "male" או "female"
-- "city": עיר מגורים
-- "address": כתובת מלאה
-אם יש ספח — חלץ גם פרטי בן/בת זוג וילדים ב-additionalFields.`;
-
-    case 'drivers_license':
-      return `${base}
-
-זהו רישיון נהיגה ישראלי. חלץ את השדות הבאים ב-data:
-- "firstName": שם פרטי
-- "lastName": שם משפחה
-- "idNumber": מספר זהות (9 ספרות)
-- "birthDate": תאריך לידה בפורמט YYYY-MM-DD
-- "address": כתובת
-- "city": עיר`;
-
-    case 'salary_slip':
-      return `${base}
-
-זהו תלוש שכר ישראלי. חלץ את השדות הבאים ב-data:
-- "firstName": שם העובד
-- "lastName": שם משפחה
-- "idNumber": מספר זהות
-- "grossSalary": שכר ברוטו (מספר)
-- "employerName": שם המעסיק
-חלץ ב-additionalFields: ניכויים, שכר נטו, תאריך, וכל שדה נוסף רלוונטי.`;
-
-    case 'form_1301':
-      return `${base}
-
-זהו טופס 1301 של רשות המיסים. חלץ את כל השדות האפשריים כולל:
-- פרטי הנישום (שם, ת.ז., כתובת)
-- הכנסות
-- ניכויים
-- זיכויים
-- כל שדה רלוונטי`;
-
-    case 'tax_assessment':
-      return `${base}
-
-זוהי שומת מס הכנסה. חלץ את כל הנתונים הרלוונטיים כולל:
-- פרטי הנישום
-- הכנסה חייבת
-- מס שנקבע
-- זיכויים ופטורים`;
-
-    default:
-      return `${base}
-
-נתח את המסמך וחלץ כל מידע רלוונטי שיכול לשמש למילוי פרטי לקוח:
-פרטים אישיים (שם, ת.ז., כתובת, טלפון), הכנסות, או כל מידע פיננסי.`;
-  }
-}
-
-// ─── קריאה ל-Gemini API ──────────────────────────────────────────────────────
+// ─── קריאה לפונקציית ה-OCR בשרת ──────────────────────────────────────────────
+// בניית ה-prompt והקריאה ל-Gemini עברו לפונקציה ocr-document (בשרת).
 
 export async function analyzeDocument(
   fileData: ArrayBuffer,
   mimeType: string,
   docType: DocAnalysisType = 'general',
 ): Promise<AnalysisResult> {
-  if (!API_KEY) {
-    return { success: false, data: {}, summary: '', error: 'מפתח API לא הוגדר. הוסף VITE_GEMINI_API_KEY בקובץ .env' };
-  }
-
-  const base64Data = arrayBufferToBase64(fileData);
-  const prompt = buildPrompt(docType);
-
-  // Gemini API supports these MIME types for vision
-  const supportedMime = mimeType === 'application/pdf' ? 'application/pdf'
-    : mimeType.startsWith('image/') ? mimeType
-    : 'application/octet-stream';
-
   try {
-    const response = await fetch(`${API_URL}?key=${API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            {
-              inline_data: {
-                mime_type: supportedMime,
-                data: base64Data,
-              },
-            },
-          ],
-        }],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 4096,
-        },
-      }),
+    const base64 = arrayBufferToBase64(fileData);
+    const { data, error } = await supabase.functions.invoke('ocr-document', {
+      body: { base64, mimeType, docType },
     });
-
-    if (!response.ok) {
-      const errBody = await response.text();
-      return { success: false, data: {}, summary: '', error: `שגיאת API (${response.status}): ${errBody.substring(0, 200)}` };
+    if (error) {
+      return { success: false, data: {}, summary: '', error: `שגיאת ניתוח: ${error.message}` };
     }
-
-    const json = await response.json();
-    const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      return { success: false, data: {}, summary: '', error: 'לא התקבלה תשובה מ-Gemini' };
+    if (!data?.success) {
+      return { success: false, data: {}, summary: '', error: data?.error || 'הניתוח נכשל' };
     }
-
-    // Parse JSON from response (strip markdown if present)
-    const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    let parsed: {
-      documentType?: string;
-      confidence?: string;
-      summary?: string;
-      data?: Record<string, unknown>;
-      additionalFields?: Record<string, string>;
-    };
-
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      // If JSON parsing fails, return the raw text
-      return {
-        success: true,
-        data: { rawText: text },
-        summary: 'המסמך נותח אך לא הוחזר JSON מובנה. הטקסט הגולמי זמין.',
-      };
-    }
-
-    const data: ExtractedClientData = {
-      ...(parsed.data as ExtractedClientData ?? {}),
-      documentType: parsed.documentType,
-      confidence: parsed.confidence,
-      additionalFields: parsed.additionalFields,
-    };
-
     return {
       success: true,
-      data,
-      summary: parsed.summary || 'המסמך נותח בהצלחה',
+      data: (data.data ?? {}) as ExtractedClientData,
+      summary: data.summary || 'המסמך נותח בהצלחה',
     };
   } catch (err) {
     return {
@@ -235,8 +94,10 @@ export async function analyzeDocument(
   }
 }
 
-// ─── בדיקת זמינות API ────���───────────────────────────────────────────────────
+// ─── זמינות ה-OCR ────────────────────────────────────────────────────────────
+// המפתח יושב בשרת; הזמינות נקבעת שם. תמיד מציגים את הכפתור, והשרת יחזיר שגיאה
+// ברורה אם המפתח לא הוגדר.
 
 export function isGeminiAvailable(): boolean {
-  return !!API_KEY;
+  return true;
 }
