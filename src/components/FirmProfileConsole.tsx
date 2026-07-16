@@ -3,10 +3,7 @@ import {
   FirmProfile,
   FirmBranding,
   FirmCommunication,
-  BrandTheme,
-  BRAND_THEMES,
   REP_TYPE_OPTIONS,
-  FONT_OPTIONS,
   deriveMonogram,
 } from '../types/firmProfile';
 import { Client } from '../types';
@@ -269,7 +266,6 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const updComm = <K extends keyof FirmCommunication>(key: K, val: FirmCommunication[K]) =>
     setDraft(d => ({ ...d, communication: { ...d.communication, [key]: val } }));
 
-  const theme = BRAND_THEMES.find(t => t.id === (draft.branding.theme ?? 'monochrome')) ?? BRAND_THEMES[0];
   const monogram = (draft.branding.monogram || deriveMonogram(draft.firmName)).slice(0, 2);
   // צבעי העיצוב האמיתיים של עמודי הלקוח — מהמערכת המרכזית (כולל תבנית הסטודיו)
   const clientBrand = deriveQuotationBrand(draft);
@@ -280,7 +276,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const completeness = useMemo(() => {
     const checks = [
       draft.firmName, draft.representativeNumber, draft.representativeType,
-      draft.email, draft.phone, draft.branding.theme,
+      draft.email, draft.phone, draft.branding.docDesign?.preset,
       draft.communication.emailSignature, draft.website,
     ];
     const filled = checks.filter(v => v && String(v).trim()).length;
@@ -397,7 +393,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   {logoUrl ? (
                     <img src={logoUrl} alt="לוגו המשרד" style={{ width: 58, height: 58, borderRadius: 10, objectFit: 'contain', border: '1px solid var(--gray-200)', background: 'white' }} />
                   ) : (
-                    <div style={{ width: 58, height: 58, borderRadius: '50%', border: `1.5px solid ${theme.ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 500, color: theme.ink }}>{monogram}</div>
+                    <div style={{ width: 58, height: 58, borderRadius: '50%', border: `1.5px solid ${clientBrand.ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 500, color: clientBrand.ink }}>{monogram}</div>
                   )}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 16, fontWeight: 500 }}>{draft.firmName || 'שם המשרד'}</div>
@@ -495,34 +491,16 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                 </div>
               </div>
 
+              {/* צבעים/פונטים/תבניות חיים בסטודיו העיצוב בלבד — כאן רק נכסי מותג.
+                  (סעיף "ערכת מותג" הישן הוסר: הוא הגדיר צבעים במקביל לסטודיו והציג
+                  ערכים שלא תאמו את מה שהלקוח באמת רואה.) */}
               <div style={card}>
-                <div style={cardTitle}>ערכת מותג</div>
-                <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
-                  {BRAND_THEMES.map(t => {
-                    const sel = (draft.branding.theme ?? 'monochrome') === t.id;
-                    return (
-                      <div key={t.id} onClick={() => updBranding('theme', t.id as BrandTheme)} style={{ cursor: 'pointer', textAlign: 'center' }}>
-                        <div style={{ width: 38, height: 38, borderRadius: 9, background: t.ink, border: sel ? `2px solid ${ACCENT}` : '2px solid transparent', boxShadow: sel ? `0 0 0 2px white inset` : 'none' }} />
-                        <div style={{ fontSize: 10.5, color: sel ? ACCENT : 'var(--gray-500)', marginTop: 4, fontWeight: sel ? 500 : 400 }}>{t.label}</div>
-                      </div>
-                    );
-                  })}
+                <div style={cardTitle}>מונוגרמה</div>
+                <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
+                  ראשי התיבות שמוצגים ללקוח כשאין לוגו. אם ריק — נגזר משם המשרד.
                 </div>
-                <div style={grid2}>
-                  <Field label="צבע אקסנט">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input type="color" value={draft.branding.accentColor || theme.accent} onChange={e => updBranding('accentColor', e.target.value)} style={{ width: 36, height: 32, padding: 2, cursor: 'pointer' }} />
-                      <input value={draft.branding.accentColor || theme.accent} onChange={e => updBranding('accentColor', e.target.value)} dir="ltr" style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }} />
-                    </div>
-                  </Field>
-                  <Field label="טיפוגרפיה">
-                    <select value={draft.branding.font ?? FONT_OPTIONS[0]} onChange={e => updBranding('font', e.target.value)}>
-                      {FONT_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="מונוגרמה (ראשי תיבות)">
-                    <input value={draft.branding.monogram ?? ''} onChange={e => updBranding('monogram', e.target.value)} placeholder={deriveMonogram(draft.firmName)} maxLength={2} />
-                  </Field>
+                <div style={{ maxWidth: 220 }}>
+                  <input value={draft.branding.monogram ?? ''} onChange={e => updBranding('monogram', e.target.value)} placeholder={deriveMonogram(draft.firmName)} maxLength={2} />
                 </div>
               </div>
               <DesignStudioPointer brand={clientBrand} onOpen={() => setSection('design')} />

@@ -17,4 +17,7 @@ dist/
 tmp_letter/
 tmp/
 
+# Claude scratch worktrees (local only)
+.claude/worktrees/
+
 .vercel
