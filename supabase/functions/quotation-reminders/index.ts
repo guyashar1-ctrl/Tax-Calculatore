@@ -4,6 +4,8 @@
 // כישלון: משחררים את התפיסה + מתעדים שגיאה (לא מסמנים שנשלח) → מוצג לרו"ח.
 // אימות: x-cron-secret (מה-cron) או Authorization: Bearer <service_role> (הרצה ידנית).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// ★ מערכת העיצוב המשותפת — אותו קובץ שהאתר צורך. אין כאן צבעים/מעטפת משלנו.
+import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
 
 // ימי עסקים בישראל: ראשון–חמישי. שישי(5)/שבת(6) = סוף שבוע. חגים לא מטופלים.
 function businessDaysUntil(target: Date, now: Date): number {
@@ -17,32 +19,6 @@ function businessDaysUntil(target: Date, now: Date): number {
     if (day !== 5 && day !== 6) count++;
   }
   return count;
-}
-
-const THEME_INK: Record<string, string> = { monochrome: "#1A1A1A", navy: "#0E1F3A", emerald: "#0B3B36" };
-const THEME_ACCENT: Record<string, string> = { monochrome: "#4F46E5", navy: "#C9A75A", emerald: "#10B981" };
-
-function reminderHtml(o: { firmName: string; ink: string; accent: string; logoUrl: string; firstName: string; link: string; expiry: string; signature: string }) {
-  const f = "Arial,Helvetica,sans-serif";
-  const header = o.logoUrl
-    ? `<img src="${o.logoUrl}" alt="${o.firmName}" style="max-height:40px;max-width:180px;border:0;" />`
-    : `<div style="font-size:17px;font-weight:bold;color:${o.ink};">${o.firmName}</div>`;
-  const sig = o.signature ? o.signature.replace(/\n/g, "<br/>") : `בברכה,<br/>${o.firmName}`;
-  return `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>`
-    + `<body style="margin:0;padding:0;background:#F1F0EC;font-family:${f};">`
-    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="rtl" style="background:#F1F0EC;"><tr><td align="center" style="padding:28px 16px;">`
-    + `<table role="presentation" width="480" cellpadding="0" cellspacing="0" dir="rtl" style="width:480px;max-width:480px;background:#fff;border:1px solid #ECEBE6;border-radius:16px;overflow:hidden;">`
-    + `<tr><td style="height:4px;background:${o.accent};font-size:0;">&nbsp;</td></tr>`
-    + `<tr><td style="padding:30px 32px;direction:rtl;text-align:right;">`
-    + header
-    + `<div style="font-size:20px;font-weight:bold;color:#111;margin:22px 0 12px;">תזכורת קטנה${o.firstName ? ", " + o.firstName : ""}</div>`
-    + `<div style="font-size:15px;line-height:1.75;color:#575752;margin-bottom:22px;">הצעת המחיר שהכנו עבורך עדיין ממתינה לאישורך. ההצעה בתוקף עד ${o.expiry}. נשמח לצרף אתכם.</div>`
-    + `<table role="presentation" width="100%"><tr><td align="center" style="border-radius:10px;background:${o.ink};">`
-    + `<a href="${o.link}" style="display:block;padding:15px 20px;font-size:15px;font-weight:bold;color:#fff;text-decoration:none;border-radius:10px;">צפייה ואישור ההצעה&nbsp;&nbsp;←</a>`
-    + `</td></tr></table>`
-    + `<div dir="ltr" style="text-align:center;font-size:11px;color:#A6A5A0;word-break:break-all;margin:14px 0 22px;">${o.link}</div>`
-    + `<div style="border-top:1px solid #F0EFEB;padding-top:16px;font-size:13px;line-height:1.7;color:#6B6B68;">${sig}</div>`
-    + `</td></tr></table></td></tr></table></body></html>`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -135,18 +111,29 @@ Deno.serve(async (req: Request) => {
       if (!toEmail) { await fail("no recipient email"); continue; }
 
       const profile = await getProfile(q.user_id);
-      const firmName = (profile?.firm_name || "המשרד").trim();
-      const branding = profile?.branding || {};
       const comm = profile?.communication || {};
-      const ink = THEME_INK[branding.theme] || "#1A1A1A";
-      const accent = (branding.accentColor && String(branding.accentColor).trim()) || THEME_ACCENT[branding.theme] || "#4F46E5";
-      const logoUrl = (branding.logoUrl && String(branding.logoUrl).trim()) || "";
+      // ★ אותו פענוח + אותה מעטפת מייל של האתר — מהקובץ המשותף
+      const brand = resolveBrand({
+        firmName: profile?.firm_name,
+        branding: profile?.branding || {},
+        email: profile?.email,
+        phone: profile?.phone,
+        emailSignature: comm.emailSignature,
+      });
+      const firmName = brand.firmName;
       const fromAddress = (comm.senderEmail && String(comm.senderEmail).trim()) || "onboarding@resend.dev";
       const replyTo = (comm.replyTo && String(comm.replyTo).trim()) || profile?.email || undefined;
       const link = `${APP_URL}/?quote=${q.public_token}`;
       const expiry = new Date(q.expires_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
       const subject = `תזכורת — הצעת המחיר שלך בתוקף עד ${expiry}`;
-      const html = reminderHtml({ firmName, ink, accent, logoUrl, firstName, link, expiry, signature: comm.emailSignature || "" });
+      const html = buildBrandedEmail(brand, {
+        heading: "תזכורת קטנה" + (firstName ? ", " + firstName : ""),
+        bodyHtml: esc(`הצעת המחיר שהכנו עבורך עדיין ממתינה לאישורך. ההצעה בתוקף עד ${expiry}. נשמח לצרף אתכם.`),
+        ctaLabel: "צפייה ואישור ההצעה",
+        ctaHref: link,
+        ctaArrow: true,
+        showLinkFallback: true,
+      });
 
       if (dryRun) {
         await admin.from("quotations").update({ auto_reminder_error: null, auto_reminder_error_at: null, events: [...(q.events || []), { type: "reminder_sent", at: nowIso, to: toEmail, auto: true, dryRun: true }] }).eq("id", q.id);
