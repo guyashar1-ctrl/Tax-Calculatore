@@ -7,6 +7,7 @@ import { PDFDocument, rgb, type RGB } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { embedPdfFonts, layoutMixed, measureMixed } from './pdfHebrew';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
+import { esc, emailFont, emailHeaderRow } from './brandedEmail';
 
 export interface ReleaseContext {
   clientName: string;
@@ -38,20 +39,17 @@ export function defaultReleaseBody(ctx: ReleaseContext, firmName: string): strin
   ].join('\n');
 }
 
-// HTML ממותג לשליחה בפועל — מבנה מכתב פשוט, RTL, לוגו/מונוגרמה בראש.
+// HTML ממותג לשליחה בפועל — נגזר במלואו מטוקני העיצוב (אותה שפה של כל המיילים).
 export function buildReleaseEmailHtml(bodyText: string, brand: QuotationBrand): string {
-  const header = brand.logoUrl
-    ? `<img src="${esc(brand.logoUrl)}" alt="${esc(brand.firmName)}" style="max-height:38px;max-width:170px;" />`
-    : `<div style="font-size:17px;font-weight:600;color:${brand.ink};">${esc(brand.firmName)}</div>`;
+  const f = emailFont(brand);
   const contact = [brand.phone, brand.email].filter((v): v is string => Boolean(v)).map(esc).join(' · ');
   return `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#F4F3EF;font-family:'${brand.font}',Arial,sans-serif;color:#1a1a1a;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F3EF;padding:24px 0;"><tr><td align="center">
-    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.06);">
-      <tr><td style="height:4px;background:${brand.accent};font-size:0;">&nbsp;</td></tr>
-      <tr><td style="padding:28px 34px 8px;">${header}</td></tr>
-      <tr><td style="padding:8px 34px 26px;font-size:14.5px;line-height:1.8;color:#333;white-space:pre-line;">${esc(bodyText)}</td></tr>
-      ${contact ? `<tr><td style="padding:0 34px 26px;border-top:1px solid #EFEEE9;padding-top:14px;font-size:12px;color:#9a988f;">${contact}</td></tr>` : ''}
+<body style="margin:0;padding:0;background:${brand.pageBg};font-family:${f};color:${brand.ink};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${brand.pageBg};padding:24px 0;"><tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${brand.cardBg};border:1px solid ${brand.border};border-radius:${brand.radius + 4}px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.06);">
+      ${emailHeaderRow(brand)}
+      <tr><td style="padding:${brand.headerStyle === 'minimal' ? '20' : '24'}px 40px 26px;font-family:${f};font-size:14.5px;line-height:1.8;color:${brand.ink};white-space:pre-line;">${esc(bodyText)}</td></tr>
+      ${contact ? `<tr><td style="padding:0 40px 28px;"><div style="border-top:1px solid ${brand.border};padding-top:14px;font-family:${f};font-size:12px;color:${brand.muted};">${contact}</div></td></tr>` : ''}
     </table>
   </td></tr></table>
 </body></html>`;
@@ -66,7 +64,7 @@ export async function generateReleaseEmailPdf(rec: {
   const fonts = await embedPdfFonts(doc);
   const ink = hexToRgb(brand.ink);
   const accent = hexToRgb(brand.accent);
-  const gray = rgb(0.42, 0.42, 0.4);
+  const gray = hexToRgb(brand.muted);
   const A4 = { w: 595.28, h: 841.89 };
   const M = 50, RIGHT = A4.w - M;
 
@@ -91,14 +89,14 @@ export async function generateReleaseEmailPdf(rec: {
     y -= 17;
   }
   y -= 6;
-  page.drawRectangle({ x: M, y, width: A4.w - M * 2, height: 0.6, color: rgb(0.9, 0.89, 0.86) });
+  page.drawRectangle({ x: M, y, width: A4.w - M * 2, height: 0.6, color: hexToRgb(brand.border) });
   y -= 18;
 
   // גוף המכתב
   for (const paragraph of rec.bodyText.split('\n')) {
     for (const line of wrap(paragraph, 92)) {
       ensure(16);
-      rtl(line || ' ', 11, rgb(0.15, 0.15, 0.14), y);
+      rtl(line || ' ', 11, ink, y);
       y -= 16;
     }
   }
@@ -123,6 +121,3 @@ function hexToRgb(hex: string): RGB {
   return rgb(((int >> 16) & 255) / 255, ((int >> 8) & 255) / 255, (int & 255) / 255);
 }
 
-function esc(s: string): string {
-  return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
-}

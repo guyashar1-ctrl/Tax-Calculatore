@@ -43,7 +43,9 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   const fonts = await embedPdfFonts(doc);
   const ink = hexToRgb(brand.ink);
   const accent = hexToRgb(brand.accent);
-  const gray = rgb(0.42, 0.42, 0.4);
+  const gray = hexToRgb(brand.muted);
+  const bodyGray = hexToRgb(brand.ink);
+  const lineGray = hexToRgb(brand.border);
 
   let page = doc.addPage([A4.w, A4.h]);
   let y = A4.h - MARGIN;
@@ -96,7 +98,7 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     sectionLine('כלול במחיר — ללא תוספת');
     for (const item of included) {
       ensureSpace(16);
-      rtl(`•  ${item.name}`, 10.5, rgb(0.3, 0.3, 0.28), y);
+      rtl(`•  ${item.name}`, 10.5, bodyGray, y);
       y -= 15;
     }
   }
@@ -124,7 +126,7 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     sectionLine('הערה');
     for (const line of wrapText(data.notesForClient, 95)) {
       ensureSpace(16);
-      rtl(line, 10.5, rgb(0.3, 0.3, 0.28), y);
+      rtl(line, 10.5, bodyGray, y);
       y -= 15;
     }
     y -= 6;
@@ -146,7 +148,7 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     ensureSpace(26);
     rtl(title, 9.5, accent, y);
     y -= 6;
-    page.drawRectangle({ x: LEFT, y: y, width: A4.w - MARGIN * 2, height: 0.6, color: rgb(0.9, 0.89, 0.86) });
+    page.drawRectangle({ x: LEFT, y: y, width: A4.w - MARGIN * 2, height: 0.6, color: lineGray });
     y -= 16;
   }
 }
