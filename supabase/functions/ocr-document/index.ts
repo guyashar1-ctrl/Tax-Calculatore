@@ -93,7 +93,13 @@ Deno.serve(async (req: Request) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    // חסין לשם הסוד: קודם השם התקני, ואם חסר — כל מפתח סביבה שמכיל "gemini".
+    let GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
+      const envs = Deno.env.toObject();
+      const k = Object.keys(envs).find((k) => /gemini/i.test(k) && envs[k]);
+      if (k) GEMINI_API_KEY = envs[k];
+    }
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
     // ── אימות: משתמש מחובר ──
@@ -107,7 +113,10 @@ Deno.serve(async (req: Request) => {
     const authorized = (rows ?? []).some((r) => String(r.email).toLowerCase() === user.email!.toLowerCase());
     if (!authorized) return json({ success: false, error: "forbidden" }, 403);
 
-    if (!GEMINI_API_KEY) return json({ success: false, error: "מפתח ה-AI לא הוגדר בשרת (GEMINI_API_KEY)" }, 500);
+    if (!GEMINI_API_KEY) {
+      const seen = Object.keys(Deno.env.toObject()).filter((k) => /gemini/i.test(k));
+      return json({ success: false, error: "מפתח ה-AI לא הוגדר בשרת (GEMINI_API_KEY)", seenKeys: seen }, 500);
+    }
 
     const { base64, mimeType, docType } = await req.json();
     if (!base64) return json({ success: false, error: "missing document data" }, 400);
