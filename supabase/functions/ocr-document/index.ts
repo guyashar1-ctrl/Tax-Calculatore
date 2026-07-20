@@ -9,8 +9,10 @@ type DocType =
   | "id_card" | "drivers_license" | "salary_slip"
   | "form_1301" | "tax_assessment" | "general";
 
+// המודל ניתן לשינוי דרך משתנה סביבה GEMINI_MODEL (בלי פריסה מחדש).
+const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-flash-latest";
 const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 function buildPrompt(docType: DocType): string {
   const base = `אתה מנתח מסמכים מקצועי. נתח את המסמך המצורף וחלץ את כל הנתונים הרלוונטיים.
@@ -135,7 +137,7 @@ Deno.serve(async (req: Request) => {
     });
     if (!r.ok) {
       const errBody = await r.text();
-      return json({ success: false, error: `שגיאת API (${r.status}): ${errBody.substring(0, 200)}` }, 502);
+      return json({ success: false, error: `שגיאת API (${r.status}): ${errBody.substring(0, 800)}` }, 502);
     }
     const body = await r.json();
     const text = body.candidates?.[0]?.content?.parts?.[0]?.text;
