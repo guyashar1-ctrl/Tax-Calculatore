@@ -306,11 +306,12 @@ export default function TaskBoard({
                   items.map(t => {
                     const client = clientMap.get(t.clientId) ?? null;
                     const overdue = isOverdue(t);
+                    const isSystemTask = t.clientId === 'system';
                     const clientLabel = client
                       ? `${client.firstName} ${client.lastName}`.trim() || client.idNumber
-                      : 'לקוח לא ידוע';
+                      : isSystemTask ? 'משימת מערכת' : 'לקוח לא ידוע';
                     const av = client ? avatarColor(client.id) : AVATAR_COLORS[0];
-                    const initialsLabel = client ? initials(client.firstName, client.lastName) : '?';
+                    const initialsLabel = client ? initials(client.firstName, client.lastName) : isSystemTask ? '🛠' : '?';
                     const done = t.status === 'done';
                     const currentStatus: TaskProgress | 'done' = done ? 'done' : (t.progress || 'new');
                     const isDragging = draggedId === t.id;
@@ -384,7 +385,7 @@ export default function TaskBoard({
                               <span className="client-chip-name">{clientLabel}</span>
                             </button>
                           ) : (
-                            <span className="client-chip client-chip-missing">לקוח לא ידוע</span>
+                            <span className="client-chip client-chip-missing">{isSystemTask ? '🛠 משימת מערכת' : 'לקוח לא ידוע'}</span>
                           )}
                         </div>
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Client,
   RepresentationRequest,
@@ -45,6 +45,7 @@ import TaxCalculator from './components/TaxCalculator';
 import DocumentManager from './components/DocumentManager';
 import { enrichClientsWithWorkspace } from './data/sampleClientWorkspace';
 import TaxCenter from './features/taxCenter/TaxCenter';
+import { buildQuarterlyFreshnessTask, markFreshnessCreationAttempted, quarterlyTaskExists } from './data/freshnessTask';
 import RepresentationRequestForm from './components/RepresentationRequestForm';
 import RepresentationFillForm from './components/RepresentationFillForm';
 import RepresentationRequestReview from './components/RepresentationRequestReview';
@@ -182,7 +183,18 @@ export default function App() {
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
 
   const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients } = useClients(user?.id);
-  const { tasks, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks } = useTasks(user?.id);
+  const { tasks, loading: tasksLoading, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks } = useTasks(user?.id);
+
+  // בתחילת כל רבעון (ינואר/אפריל/יולי/אוקטובר) נוצרת אוטומטית משימת בדיקת
+  // עדכניות של מרכז הידע — פעם אחת לרבעון (זיהוי לפי תגית בכותרת + נעילת מודול
+  // נגד ההרכבה הכפולה של StrictMode + אינדקס ייחודי במסד כרשת אחרונה).
+  useEffect(() => {
+    if (!user || tasksLoading) return;
+    if (quarterlyTaskExists(tasks)) return;
+    if (!markFreshnessCreationAttempted()) return;
+    void addTask(buildQuarterlyFreshnessTask()).catch(() => { /* ניסיון חוזר בכניסה הבאה */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, tasksLoading]);
   const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
   const { leads, addLead, updateLead } = useLeads(user?.id);
@@ -1150,6 +1162,8 @@ export default function App() {
         {view === 'reference' && (
           <TaxCenter
             onBack={() => setView('list')}
+            freshnessTaskExists={quarterlyTaskExists(tasks)}
+            onCreateFreshnessTask={() => { if (!quarterlyTaskExists(tasks)) void addTask(buildQuarterlyFreshnessTask()); }}
           />
         )}
 

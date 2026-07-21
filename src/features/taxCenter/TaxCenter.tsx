@@ -8,6 +8,7 @@ import SettlementLookup from './SettlementLookup';
 import IncomeTaxPanel from './IncomeTaxPanel';
 import KnowledgeTopics from './KnowledgeTopics';
 import BookkeepingKnowledge from './bookkeeping/BookkeepingKnowledge';
+import { FreshnessBadge, FreshnessPanel } from './DataFreshness';
 
 const fmt = (n: number) => '₪' + n.toLocaleString('he-IL');
 
@@ -25,11 +26,25 @@ const TOOLS: { key: Tool; icon: string; label: string; desc: string }[] = [
   { key: 'topics',      icon: '📚', label: 'נושאים מקצועיים',      desc: 'פנסיה, פרישה, מע"מ, חברות, מקרקעין, מועדים ועוד' },
 ];
 
+/** מיפוי כלי → מאגר הנתונים שמזין אותו (לתג העדכניות) */
+const TOOL_DATASET: Partial<Record<Tool, string>> = {
+  expenses: 'expenses',
+  bookkeeping: 'bookkeeping',
+  wizard: 'taxData',
+  rental: 'taxData',
+  incomeTax: 'taxData',
+  ni: 'taxData',
+  settlements: 'settlements',
+  topics: 'topics',
+};
+
 interface Props {
   onBack: () => void;
+  freshnessTaskExists: boolean;
+  onCreateFreshnessTask: () => void;
 }
 
-export default function TaxCenter({ onBack }: Props) {
+export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshnessTask }: Props) {
   const [year, setYear] = useState<number>(2026);
   const [tool, setTool] = useState<Tool>('overview');
   const data = TAX_YEARS.find(t => t.year === year)!;
@@ -128,12 +143,15 @@ export default function TaxCenter({ onBack }: Props) {
             ))}
           </div>
 
+          <FreshnessPanel checkTaskExists={freshnessTaskExists} onCreateCheckTask={onCreateFreshnessTask} />
+
           <div className="alert alert-info" style={{ marginBottom: 0, fontSize: '.83rem' }}>
-            כל הנתונים אומתו מול לוחות העזר הרשמיים של רשות המסים (2025/2026), חוזרי הביטוח הלאומי (כולל חוזר 1522), הודעות קובץ התקנות וכל-זכות — יולי 2026.
             שנים 2025–2027: רוב התקרות מוקפאות (חוק ההתייעלות — הקפאת עדכוני מס).
           </div>
         </div>
       )}
+
+      {tool !== 'overview' && TOOL_DATASET[tool] && <FreshnessBadge datasetId={TOOL_DATASET[tool]!} />}
 
       {tool === 'expenses' && <ExpenseKnowledge />}
       {tool === 'bookkeeping' && <BookkeepingKnowledge />}

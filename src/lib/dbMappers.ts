@@ -88,12 +88,16 @@ export function clientToDb(client: Partial<Client>, userId?: string): Record<str
 const TASK_OMIT_ON_WRITE = ['updatedAt'];
 
 export function taskFromDb(row: Record<string, any>): Task {
-  return rowToObject<Task>(row);
+  const t = rowToObject<Task>(row);
+  // משימת מערכת (בדיקת עדכניות וכו') — client_id NULL במסד ↔ 'system' באפליקציה
+  if (!t.clientId) t.clientId = 'system';
+  return t;
 }
 
 export function taskToDb(task: Partial<Task>, userId?: string): Record<string, any> {
   const row = objectToRow(task, TASK_OMIT_ON_WRITE);
   if (userId) row.user_id = userId;
+  if (row.client_id === 'system') row.client_id = null;
   return row;
 }
 

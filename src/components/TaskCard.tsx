@@ -51,11 +51,12 @@ export default function TaskCard({
 }: Props) {
   const overdue = isOverdue(task);
   const done = task.status === 'done';
+  const isSystemTask = task.clientId === 'system';
   const clientLabel = client
     ? `${client.firstName} ${client.lastName}`.trim() || client.idNumber
-    : 'לקוח לא ידוע';
+    : isSystemTask ? 'משימת מערכת' : 'לקוח לא ידוע';
   const avatar = client ? avatarColor(client.id) : AVATAR_COLORS[0];
-  const initialsLabel = client ? initials(client.firstName, client.lastName) : '?';
+  const initialsLabel = client ? initials(client.firstName, client.lastName) : isSystemTask ? '🛠' : '?';
 
   // מצב — קו צבע בצד הכרטיס (לפי מצב המשימה)
   const strip = done
