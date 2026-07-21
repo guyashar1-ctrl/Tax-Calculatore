@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { getEligibleSettlements, EILAT_BENEFIT } from '../../data/eligibleSettlements';
+import { getEligibleSettlements, EILAT_BENEFIT, EASTERN_CONFRONTATION_LINE } from '../../data/eligibleSettlements';
 import { calcSettlementCredit } from '../../utils/creditPoints';
 
 const fmt = (n: number) => '₪' + Math.round(n).toLocaleString('he-IL');
@@ -22,6 +22,15 @@ export default function SettlementLookup({ year }: Props) {
     if (rateFilter !== 'all') r = r.filter(s => s.ratePercent === rateFilter);
     return r;
   }, [list, query, rateFilter]);
+
+  // התאמות ברשימת קו העימות המזרחי (הוראת שעה 2026-2027) — קבוצה נפרדת
+  const eclActive = (EASTERN_CONFRONTATION_LINE.validYears as readonly number[]).includes(year);
+  const eclMatches = useMemo(() => {
+    if (!eclActive || !query.trim()) return [] as string[];
+    const q = query.replace(/["'׳״]/g, '').trim();
+    return EASTERN_CONFRONTATION_LINE.settlements.filter(s => s.replace(/["'׳״]/g, '').includes(q));
+  }, [eclActive, query]);
+  const eclCredit = Math.min(income || 0, EASTERN_CONFRONTATION_LINE.ceilingAnnual) * EASTERN_CONFRONTATION_LINE.ratePercent / 100;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -78,7 +87,7 @@ export default function SettlementLookup({ year }: Props) {
                     )}
                   </tr>
                 ))}
-                {filtered.length === 0 && (
+                {filtered.length === 0 && eclMatches.length === 0 && (
                   <tr><td colSpan={income > 0 ? 5 : 4} style={{ padding: '1rem', textAlign: 'center', color: 'var(--gray-500)' }}>
                     לא נמצא — היישוב אינו ברשימה הרשמית לשנת {year} (ואינו זכאי להטבה)
                   </td></tr>
@@ -86,6 +95,28 @@ export default function SettlementLookup({ year }: Props) {
               </tbody>
             </table>
           </div>
+
+          {eclMatches.length > 0 && (
+            <div style={{ marginTop: '.75rem', border: '1.5px solid #86efac', background: '#f0fdf4', borderRadius: 10, padding: '.8rem 1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: '.3rem' }}>
+                🆕 נמצא ברשימת "קו עימות מזרחי" (הוראת שעה 2026–2027)
+              </div>
+              <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginBottom: '.4rem' }}>
+                {eclMatches.map(s => (
+                  <span key={s} style={{ background: 'white', border: '1px solid #bbf7d0', borderRadius: 999, padding: '.15rem .6rem', fontSize: '.82rem', fontWeight: 600 }}>{s}</span>
+                ))}
+              </div>
+              <div style={{ fontSize: '.83rem' }}>
+                זיכוי <b>{EASTERN_CONFRONTATION_LINE.ratePercent}%</b> עד תקרת {fmt(EASTERN_CONFRONTATION_LINE.ceilingAnnual)} לשנה
+                (זיכוי מרבי {fmt(EASTERN_CONFRONTATION_LINE.ceilingAnnual * EASTERN_CONFRONTATION_LINE.ratePercent / 100)})
+                {income > 0 && <> · זיכוי בפועל: <b style={{ color: 'var(--green-dark)' }}>{fmt(eclCredit)}</b></>}
+                — רטרואקטיבית מ-1.1.2026.
+              </div>
+              <div style={{ fontSize: '.78rem', color: 'var(--gray-600)', marginTop: '.35rem' }}>
+                {EASTERN_CONFRONTATION_LINE.conditions.map((c, i) => <div key={i}>• {c}</div>)}
+              </div>
+            </div>
+          )}
           {filtered.length > 200 && (
             <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.4rem' }}>מוצגים 200 ראשונים — צמצמו בחיפוש</div>
           )}
@@ -103,7 +134,8 @@ export default function SettlementLookup({ year }: Props) {
             🏚 <strong>מפוני המלחמה:</strong> תושבי יישובים שפונו (בארי, כפר עזה, ניר עוז ועוד) שומרים על ההטבה גם ללא מגורים בפועל, לפי הנחיות רשות המסים — עם תאריכי תפוגה פרטניים (ניר עוז: עד 31.8.2027). נדרשת הצהרה למעסיק.
           </div>
           <div>
-            🆕 <strong>"קו עימות מזרחי" (מיוני 2026):</strong> כ-60 יישובי יו"ש נוספו בהוראת שעה — 7% עד 146,640 ₪, רטרואקטיבית מ-1.1.2026 ועד סוף 2027. ייתכן שטרם מופיעים ברשימה כאן.
+            🆕 <strong>"קו עימות מזרחי" (ס"ח 3531, יוני 2026):</strong> {EASTERN_CONFRONTATION_LINE.settlements.length} יישובי יו"ש בהוראת שעה — 7% עד {fmt(EASTERN_CONFRONTATION_LINE.ceilingAnnual)}, רטרואקטיבית מ-1.1.2026 ועד סוף 2027.
+            הרשימה המלאה כלולה בחיפוש למעלה (לפי הוראת ביצוע רשות המסים 2026-000832 מ-9.7.2026; אומת 07/2026). שימו לב: תושבות כל השנה + בחירה בין הטבות.
           </div>
           <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>
             מקורות: הודעת מס הכנסה (רשימת יישובים מוטבים) לשנת {year}, קובץ התקנות · כל-זכות — זיכוי ממס לתושבי פריפריה · הנחיית רשות המסים למעסיקים 6.1.2026

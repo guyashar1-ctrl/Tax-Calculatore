@@ -249,6 +249,7 @@ export const ELIGIBLE_SETTLEMENTS_2025: EligibleSettlement[] = [
   { name: "מבוא חמה", score: 70, ratePercent: 12, ceilingAnnual: 213240 },
   { name: "מבועים", score: 37, ratePercent: 7, ceilingAnnual: 146640 },
   { name: "מבטחים", score: 70, ratePercent: 20, ceilingAnnual: 267840 },
+  { name: "מבקיעים", score: 0, ratePercent: 20, ceilingAnnual: 267840 },
   { name: "מג'ד אל־כרום", score: 50, ratePercent: 12, ceilingAnnual: 186000 },
   { name: "מג'דל שמס", score: 93, ratePercent: 20, ceilingAnnual: 259920 },
   { name: "מגאר", score: 60, ratePercent: 12, ceilingAnnual: 213240 },
@@ -740,6 +741,7 @@ export const ELIGIBLE_SETTLEMENTS_2026: EligibleSettlement[] = [
   { name: "מבוא חמה", score: 70, ratePercent: 12, ceilingAnnual: 213240 },
   { name: "מבועים", score: 37, ratePercent: 7, ceilingAnnual: 146640 },
   { name: "מבטחים", score: 70, ratePercent: 20, ceilingAnnual: 267840 },
+  { name: "מבקיעים", score: 0, ratePercent: 20, ceilingAnnual: 267840 },
   { name: "מג'ד אל־כרום", score: 50, ratePercent: 12, ceilingAnnual: 186000 },
   { name: "מג'דל שמס", score: 93, ratePercent: 20, ceilingAnnual: 259920 },
   { name: "מגאר", score: 60, ratePercent: 12, ceilingAnnual: 213240 },
@@ -1005,6 +1007,47 @@ export const EILAT_BENEFIT = {
   ceilingAnnual: 268_560,
   legalBasis: 'חוק אזור סחר חופשי באילת (פטורים והנחות ממסים), התשמ"ה-1985',
 } as const;
+
+// ─── קו עימות מזרחי — הוראת שעה נפרדת (לא חלק מההודעה השנתית) ───────────────
+// חוק הטבות מס ליישוב אזור קו עימות מזרחי (הוראת שעה), התשפ"ו-2026
+// (ס"ח 3531, 8.6.2026; סעיף 11(ב4) לפקודה). זיכוי 7% עד תקרת 146,640 ₪,
+// רטרואקטיבית מ-1.1.2026 ועד 31.12.2027 (ניתן להארכה בצו).
+// תנאים שונים מהרשימה הרגילה: תושבות במשך *כל* שנת המס, ומי שזכאי גם לזיכוי
+// אחר לפי סעיף 11 — בוחר אחד מהם (אין כפל).
+// הרשימה: 64 יישובים, מתוך הוראת ביצוע רשות המסים 2026-000832 מ-9.7.2026 (PDF רשמי).
+// אומת 07/2026. לבדוק בכל רבעון: הארכה/עדכון רשימה.
+export const EASTERN_CONFRONTATION_LINE = {
+  ratePercent: 7,
+  ceilingAnnual: 146_640,
+  validYears: [2026, 2027],
+  legalBasis: 'חוק הטבות מס ליישוב אזור קו עימות מזרחי (הוראת שעה), התשפ"ו-2026 — ס"ח 3531',
+  conditions: [
+    'תושבות ביישוב במשך כל שנת המס (בשונה מהרשימה הרגילה)',
+    'מי שזכאי גם לזיכוי לפי הרשימה הרגילה — בוחר אחת מההטבות, אין כפל',
+    'מימוש דרך המעסיק בטופס 1312א׳ + אישור תושבות, או בדוח השנתי',
+  ],
+  settlements: [
+    'אבני חפץ', 'אחיה', 'איבי הנחל', 'איתמר', 'אלון מורה', 'בית אל', 'ברוכין',
+    'ברכה', 'ברקן', 'גבעות הרואה', 'גיתית', 'דולב', 'חמרה', 'חרמש', 'חרשה',
+    'טלמון', 'ייט"ב', 'יצהר', 'יקיר', 'כוכב השחר', 'כוכב יעקב', 'כפר תפוח',
+    'כרם רעים', 'כרמי צור', 'לשם', 'מבוא דותן', 'מבואות יריחו', 'מגדלים',
+    'מגרון', 'מכורה', 'מעלה אפרים', 'מעלה לבונה', 'מעלה מכמש', 'מעלה עמוס',
+    'נווה צוף', 'נופים', 'נוקדים', 'נחליאל', 'ניל"י', 'נעלה', 'נריה', 'עדי עד',
+    'עטרת', 'עלי', 'עלי זהב', 'עמיחי', 'עמנואל', 'ענב', 'עפרה', 'פדואל',
+    'פסגות', 'קדומים', 'קריית נטפים', 'קרני שומרון', 'רבבה', 'רחלים', 'רימונים',
+    'שא-נור', 'שבות רחל', 'שבי שומרון', 'שחרית', 'שילה', 'תל ציון', 'תקוע',
+  ],
+} as const;
+
+/** האם יישוב נמצא ברשימת קו העימות המזרחי (לשנים שבתוקף) */
+export function findEasternConfrontationSettlement(query: string, year: number): boolean {
+  if (!(EASTERN_CONFRONTATION_LINE.validYears as readonly number[]).includes(year)) return false;
+  const q = query.replace(/["'׳״]/g, '').trim();
+  return EASTERN_CONFRONTATION_LINE.settlements.some(s => {
+    const n = s.replace(/["'׳״]/g, '');
+    return n === q || n.includes(q) || q.includes(n);
+  });
+}
 
 // ─── מיפוי מזהים ישנים (נשמרו בתיקי לקוחות) → שם רשמי ─────────────────────
 // מזהים שאינם כאן היו שייכים ליישובים שאינם זכאים כלל — ההפניה תוסר בעדינות.
