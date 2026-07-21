@@ -7,14 +7,16 @@ import RentalRouteCalculator from './RentalRouteCalculator';
 import SettlementLookup from './SettlementLookup';
 import IncomeTaxPanel from './IncomeTaxPanel';
 import KnowledgeTopics from './KnowledgeTopics';
+import BookkeepingKnowledge from './bookkeeping/BookkeepingKnowledge';
 
 const fmt = (n: number) => '₪' + n.toLocaleString('he-IL');
 
 type Tool =
-  | 'overview' | 'expenses' | 'wizard' | 'rental' | 'incomeTax' | 'ni' | 'settlements' | 'topics';
+  | 'overview' | 'expenses' | 'bookkeeping' | 'wizard' | 'rental' | 'incomeTax' | 'ni' | 'settlements' | 'topics';
 
 const TOOLS: { key: Tool; icon: string; label: string; desc: string }[] = [
   { key: 'expenses',    icon: '💼', label: 'הוצאות מוכרות',       desc: '"אפשר לנכות את זה?" — תשובה בשניות: מס הכנסה, מע"מ, מקורות ופסיקה' },
+  { key: 'bookkeeping', icon: '📖', label: 'ניהול ספרים',          desc: 'איזו תוספת ואילו ספרים כל עוסק חייב — אשף, 15 התוספות ומילון הספרים' },
   { key: 'wizard',      icon: '⭐', label: 'אשף נקודות זיכוי',   desc: 'עונים על שאלות — המערכת קובעת את הנקודות ומסבירה למה' },
   { key: 'rental',      icon: '🏠', label: 'מחשבון שכר דירה',     desc: 'השוואת פטור / 10% / שולי, כולל הפטור המתקפל ו-122(ו)' },
   { key: 'incomeTax',   icon: '📊', label: 'מדרגות ומס יסף',      desc: 'מדרגות עדכניות, מס יסף דו-שכבתי וחישוב מהיר' },
@@ -134,6 +136,7 @@ export default function TaxCenter({ onBack }: Props) {
       )}
 
       {tool === 'expenses' && <ExpenseKnowledge />}
+      {tool === 'bookkeeping' && <BookkeepingKnowledge />}
       {tool === 'wizard' && <CreditPointsWizard taxData={data} year={year} />}
       {tool === 'rental' && <RentalRouteCalculator taxData={data} year={year} />}
       {tool === 'incomeTax' && <IncomeTaxPanel taxData={data} year={year} />}
