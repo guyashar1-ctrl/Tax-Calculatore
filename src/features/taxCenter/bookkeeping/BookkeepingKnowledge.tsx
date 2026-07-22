@@ -388,7 +388,7 @@ function Dictionary() {
           <div key={d.id} style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontWeight: 700 }}>{d.icon} {d.name}</div>
-              <span style={chip(d.kind === 'book' ? '#eff6ff' : '#f0fdf4', d.kind === 'book' ? '#1d4ed8' : '#15803d')}>
+              <span style={chip(d.kind === 'book' ? '#eef2f6' : '#f0fdf4', d.kind === 'book' ? '#264155' : '#15803d')}>
                 {d.kind === 'book' ? 'ספר חשבון' : 'תיעוד'}
               </span>
             </div>

@@ -11,7 +11,7 @@ const fmt = (bytes: number) => {
 };
 
 const CATEGORY_COLORS: Record<DocCategory, string> = {
-  id_card: '#3b82f6',
+  id_card: '#436e8f',
   drivers_license: '#8b5cf6',
   form_1301: '#ef4444',
   residence_certificate: '#10b981',

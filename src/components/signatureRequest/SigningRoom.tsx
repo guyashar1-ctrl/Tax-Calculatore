@@ -33,7 +33,7 @@ interface Props {
   onCancel: () => void;
 }
 
-const SIGNER_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#ec4899', '#0891b2'];
+const SIGNER_COLORS = ['#33556f', '#059669', '#d97706', '#7c3aed', '#ec4899', '#0891b2'];
 const colorForSigner = (signers: Signer[], id: string) =>
   SIGNER_COLORS[Math.max(0, signers.findIndex(s => s.id === id)) % SIGNER_COLORS.length];
 

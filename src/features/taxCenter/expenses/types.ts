@@ -87,7 +87,7 @@ export interface ExpenseTopic {
 export const INCOME_TAX_VERDICT_META: Record<IncomeTaxVerdict, { label: string; color: string; bg: string }> = {
   full:        { label: 'מוכר',          color: '#15803d', bg: '#ecfdf5' },
   partial:     { label: 'מוכר חלקית',    color: '#b45309', bg: '#fef9c3' },
-  conditional: { label: 'מוכר בתנאים',   color: '#1d4ed8', bg: '#eff6ff' },
+  conditional: { label: 'מוכר בתנאים',   color: '#264155', bg: '#eef2f6' },
   denied:      { label: 'לא מוכר',       color: '#b91c1c', bg: '#fef2f2' },
   special:     { label: 'מנגנון מיוחד',  color: '#6d28d9', bg: '#faf5ff' },
 };
@@ -96,7 +96,7 @@ export const VAT_VERDICT_META: Record<VatVerdict, { label: string; color: string
   full:          { label: 'קיזוז מלא',    color: '#15803d', bg: '#ecfdf5' },
   twoThirds:     { label: '2/3',          color: '#b45309', bg: '#fef9c3' },
   quarter:       { label: '1/4',          color: '#b45309', bg: '#fef9c3' },
-  conditional:   { label: 'בתנאים',       color: '#1d4ed8', bg: '#eff6ff' },
+  conditional:   { label: 'בתנאים',       color: '#264155', bg: '#eef2f6' },
   denied:        { label: 'אסור בקיזוז',  color: '#b91c1c', bg: '#fef2f2' },
   notApplicable: { label: 'לא רלוונטי',   color: '#6b7280', bg: '#f9fafb' },
 };

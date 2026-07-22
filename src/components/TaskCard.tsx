@@ -19,7 +19,7 @@ interface Props {
 
 /** צבע אווטאר לפי hash של מזהה הלקוח */
 const AVATAR_COLORS = [
-  { bg: '#dbeafe', fg: '#1d4ed8' },
+  { bg: '#dbe4ec', fg: '#264155' },
   { bg: '#fef3c7', fg: '#b45309' },
   { bg: '#fce7f3', fg: '#be185d' },
   { bg: '#dcfce7', fg: '#15803d' },

@@ -309,7 +309,7 @@ export function provenanceLabel(client: Client, metaKey?: string): string | null
 // ─── תמונת מס — סיכום תיקי השנה של הלקוח לתצוגה בכרטיס ──────────────────────
 
 export const SESSION_STATUS_META: Record<AnnualReportSession['status'], { label: string; color: string; bg: string }> = {
-  in_progress: { label: 'באמצע השאלון', color: '#1d4ed8', bg: '#dbeafe' },
+  in_progress: { label: 'באמצע השאלון', color: '#264155', bg: '#dbe4ec' },
   review:      { label: 'ממתין לבדיקה', color: '#b45309', bg: '#fef3c7' },
   mapping_done:{ label: 'מוכן להגשה', color: '#1F7A4D', bg: '#E8F3EC' },
   archived:    { label: 'בארכיון', color: '#6b7280', bg: '#f3f4f6' },

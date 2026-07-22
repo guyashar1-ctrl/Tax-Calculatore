@@ -308,7 +308,7 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
 
 function sourceBg(s: DocSource): string {
   return ({
-    client: '#dbeafe',
+    client: '#dbe4ec',
     employer: '#fef3c7',
     investment_house: '#d1fae5',
     authority_ni: '#fce7f3',
@@ -542,8 +542,8 @@ function traceLabel(k: string): string {
   return ({ questionnaire: 'מהשאלון', computed: 'חישוב', default: 'בהמתנה לפאזה הבאה', empty: 'ריק' } as Record<string, string>)[k] ?? k;
 }
 function traceColor(k: string): string {
-  return ({ questionnaire: '#1e40af', computed: '#065f46', default: '#92400e', empty: '#6b7280' } as Record<string, string>)[k] ?? '#6b7280';
+  return ({ questionnaire: '#22384a', computed: '#065f46', default: '#92400e', empty: '#6b7280' } as Record<string, string>)[k] ?? '#6b7280';
 }
 function traceBg(k: string): string {
-  return ({ questionnaire: '#dbeafe', computed: '#d1fae5', default: '#fef3c7', empty: '#f3f4f6' } as Record<string, string>)[k] ?? '#f3f4f6';
+  return ({ questionnaire: '#dbe4ec', computed: '#d1fae5', default: '#fef3c7', empty: '#f3f4f6' } as Record<string, string>)[k] ?? '#f3f4f6';
 }

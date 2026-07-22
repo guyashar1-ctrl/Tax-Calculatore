@@ -18,7 +18,7 @@ type DocStatus = 'pending' | 'requested' | 'received' | 'not_relevant';
 
 const DOC_STATUS_META: Record<DocStatus, { label: string; color: string; bg: string }> = {
   pending:      { label: 'טרם טופל', color: '#b45309', bg: '#FBF2E2' },
-  requested:    { label: 'נשלחה בקשה', color: '#1d4ed8', bg: '#dbeafe' },
+  requested:    { label: 'נשלחה בקשה', color: '#264155', bg: '#dbe4ec' },
   received:     { label: 'התקבל ✓', color: '#1F7A4D', bg: '#E8F3EC' },
   not_relevant: { label: 'לא רלוונטי', color: '#6b7280', bg: '#f3f4f6' },
 };

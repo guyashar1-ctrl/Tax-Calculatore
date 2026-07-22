@@ -7,7 +7,7 @@ import { useEmployees } from '../hooks/useEmployees';
 import { Client } from '../types';
 
 const PRESET_COLORS = [
-  '#2563eb', '#059669', '#d97706', '#7c3aed',
+  '#33556f', '#059669', '#d97706', '#7c3aed',
   '#dc2626', '#0891b2', '#be185d', '#65a30d',
   '#9333ea', '#0d9488',
 ];

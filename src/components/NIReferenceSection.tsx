@@ -502,7 +502,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
               </table>
             </div>
             <AxisDiagram zones={[
-              { from: 0, to: threshold60, label: 'שיעור מופחת', color: '#3b82f6', rate: fmtPct(taxData.employeeNI.lowRate + taxData.employeeNI.healthLowRate) },
+              { from: 0, to: threshold60, label: 'שיעור מופחת', color: '#436e8f', rate: fmtPct(taxData.employeeNI.lowRate + taxData.employeeNI.healthLowRate) },
               { from: threshold60, to: maxIncome, label: 'שיעור מלא', color: '#d97706', rate: fmtPct(taxData.employeeNI.highRate + taxData.employeeNI.healthHighRate) },
               { from: maxIncome, to: null, label: 'פטור', color: '#cbd5e1' },
             ]} />
@@ -555,7 +555,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
               </div>
             </div>
             <AxisDiagram zones={[
-              { from: 0, to: threshold60, label: 'שיעור מופחת', color: '#3b82f6', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
+              { from: 0, to: threshold60, label: 'שיעור מופחת', color: '#436e8f', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
               { from: threshold60, to: maxIncome, label: 'שיעור מלא', color: '#d97706', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
               { from: maxIncome, to: null, label: 'פטור', color: '#cbd5e1' },
             ]} />
@@ -609,7 +609,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
             </div>
             <AxisDiagram zones={[
               { from: 0, to: threshold25, label: 'פטור', color: '#cbd5e1', rate: '0%' },
-              { from: threshold25, to: threshold50, label: 'מופחת', color: '#3b82f6', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
+              { from: threshold25, to: threshold50, label: 'מופחת', color: '#436e8f', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
               { from: threshold50, to: maxIncome, label: 'מלא', color: '#d97706', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
               { from: maxIncome, to: null, label: 'פטור', color: '#cbd5e1' },
             ]} />
@@ -663,7 +663,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
             </div>
             <AxisDiagram zones={[
               { from: 0, to: threshold25, label: 'פטור', color: '#cbd5e1', rate: '0%' },
-              { from: threshold25, to: threshold60, label: 'מופחת', color: '#3b82f6', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
+              { from: threshold25, to: threshold60, label: 'מופחת', color: '#436e8f', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
               { from: threshold60, to: maxIncome, label: 'מלא', color: '#d97706', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
               { from: maxIncome, to: null, label: 'פטור', color: '#cbd5e1' },
             ]} />
@@ -802,7 +802,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                   <tbody>
                     <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '.5rem .75rem', fontWeight: 600 }}>חודשי (חלק עובד)</td>
-                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: '#2563eb' }}>{fmt(calcResult.ni)}</td>
+                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: '#33556f' }}>{fmt(calcResult.ni)}</td>
                       <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: '#0891b2' }}>{fmt(calcResult.health)}</td>
                       <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: '#7c3aed', fontSize: '1rem' }}>{fmt(calcResult.total)}</td>
                     </tr>
@@ -816,7 +816,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                     )}
                     <tr style={{ background: '#f0f9ff', fontWeight: 700 }}>
                       <td style={{ padding: '.6rem .75rem' }}>שנתי (עובד × {(calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12})</td>
-                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: '#2563eb' }}>{fmt(calcResult.ni * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
+                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: '#33556f' }}>{fmt(calcResult.ni * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
                       <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: '#0891b2' }}>{fmt(calcResult.health * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
                       <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: '#7c3aed', fontSize: '1.05rem' }}>{fmt(calcResult.annual)}</td>
                     </tr>

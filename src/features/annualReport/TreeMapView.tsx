@@ -25,7 +25,7 @@ const CHAPTER_ORDER: ChapterKey[] = [
 ];
 
 const LAYER_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  question:   { label: 'שאלה ללקוח', color: '#1d4ed8', bg: '#dbeafe' },
+  question:   { label: 'שאלה ללקוח', color: '#264155', bg: '#dbe4ec' },
   document:   { label: 'נשלף ממסמך', color: '#7c3aed', bg: '#ede9fe' },
   accountant: { label: 'טיפול רו"ח', color: '#b45309', bg: '#fef3c7' },
   auto:       { label: 'אוטומטי', color: '#047857', bg: '#d1fae5' },
@@ -141,7 +141,7 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
                 onClick={() => setSimTiles((prev) => on ? prev.filter((v) => v !== t.value) : [...prev, t.value])}
                 style={{
                   border: on ? '1.5px solid var(--blue)' : '1.5px solid var(--gray-200)',
-                  background: on ? 'var(--blue-light, #dbeafe)' : 'white',
+                  background: on ? 'var(--blue-light, #dbe4ec)' : 'white',
                   color: on ? 'var(--blue)' : 'var(--gray-500)',
                   fontWeight: 600,
                 }}
@@ -231,7 +231,7 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
                           border: selected ? '2px solid var(--blue)'
                             : visited ? '2px solid var(--green)'
                             : alive ? '1.5px solid var(--gray-300)' : '1.5px dashed var(--gray-200)',
-                          background: selected ? 'var(--blue-light, #dbeafe)'
+                          background: selected ? 'var(--blue-light, #dbe4ec)'
                             : visited ? '#e8f5ee'
                             : alive ? 'white' : 'var(--gray-50)',
                           color: alive ? 'var(--gray-700)' : 'var(--gray-400)',
@@ -337,7 +337,7 @@ function NodeInspector({ node }: { node: QuestionNode }) {
           <InspectorTitle>מתעדכן בפרופיל הלקוח</InspectorTitle>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
             {Array.from(crmPaths).slice(0, 6).map((p) => (
-              <span key={p} style={{ fontSize: '.7rem', direction: 'ltr', background: '#dbeafe', color: '#1d4ed8', fontWeight: 600, borderRadius: 99, padding: '.08rem .55rem' }}>{p}</span>
+              <span key={p} style={{ fontSize: '.7rem', direction: 'ltr', background: '#dbe4ec', color: '#264155', fontWeight: 600, borderRadius: 99, padding: '.08rem .55rem' }}>{p}</span>
             ))}
           </div>
         </>

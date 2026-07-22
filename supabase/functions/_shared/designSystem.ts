@@ -128,7 +128,7 @@ export const LEGACY_THEMES: Record<string, { ink: string; accent: string }> = {
   emerald: { ink: '#0B3B36', accent: '#10B981' },
 };
 
-export const DEFAULT_PRESET_ID = 'minimal-light';
+export const DEFAULT_PRESET_ID = 'yashar';
 
 /** ★ התבניות — להוסיף תבנית חדשה: כאן בלבד.
  *
@@ -139,6 +139,11 @@ export const DEFAULT_PRESET_ID = 'minimal-light';
  *  3. ה-ink כהה מספיק לניגודיות טקסט תקינה, ונושא את אותו גוון כמו האקסנט.
  */
 export const DESIGN_PRESETS: DesignPreset[] = [
+  {
+    id: 'yashar', label: 'ישר · מותג המשרד', description: 'המותג הרשמי — גרפיט ופלדה על נייר',
+    ink: '#1D1D1F', accent: '#33556F', pageBg: '#F5F5F7', cardBg: '#FFFFFF',
+    border: '#E4E7EA', muted: '#5B6470', headerStyle: 'band', buttonStyle: 'solid', corner: 'rounded', font: 'Heebo',
+  },
   {
     id: 'minimal-light', label: 'מינימל בהיר', description: 'שקט ואוורירי — דיו כחלחל על נייר חם',
     ink: '#1C1B22', accent: '#4B4ACF', pageBg: '#F5F4F1', cardBg: '#FFFFFF',
@@ -232,14 +237,13 @@ export function resolveBrand(input: BrandInput): ResolvedBrand {
   const branding = input.branding ?? {};
   const dd = branding.docDesign ?? {};
   const structural = findPreset(DEFAULT_PRESET_ID);
-  const legacy = LEGACY_THEMES[branding.theme ?? 'monochrome'] ?? LEGACY_THEMES.monochrome;
 
+  // ללא תבנית נבחרת — נופלים למותג ישר (structural) במלואו, עם כיבוד אקסנט אישי אם הוגדר.
   const base: DesignTokens = dd.preset
     ? findPreset(dd.preset)
     : {
         ...structural,
-        ink: legacy.ink,
-        accent: (branding.accentColor && branding.accentColor.trim()) || legacy.accent,
+        accent: (branding.accentColor && branding.accentColor.trim()) || structural.accent,
         font: branding.font || structural.font,
       };
 

@@ -2,13 +2,18 @@ import { useEffect, useState } from 'react';
 import type { Task } from '../types';
 import { supabase } from '../lib/supabase';
 import { taskFromDb, taskToDb } from '../lib/dbMappers';
+import { SAMPLE_TASKS } from '../data/sampleTasks';
+
+// DEV-only local brand-QA seed (see DEV_BYPASS_AUTHZ in useAuth). Compiled out of prod builds.
+const DEV_SEED = import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS_AUTHZ === 'true';
 
 export function useTasks(userId: string | undefined) {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>(DEV_SEED ? SAMPLE_TASKS : []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (DEV_SEED) { setTasks(SAMPLE_TASKS); setLoading(false); return; }
     if (!userId) {
       setTasks([]);
       setLoading(false);

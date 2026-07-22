@@ -133,7 +133,7 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
         <Bullets items={topic.vat.detail} />
         {(topic.vat.exceptions?.length ?? 0) > 0 && (
           <div style={{ marginTop: '.6rem' }}>
-            <div style={{ fontWeight: 700, fontSize: '.83rem', color: '#1d4ed8', marginBottom: '.25rem' }}>↪ חריגים</div>
+            <div style={{ fontWeight: 700, fontSize: '.83rem', color: '#264155', marginBottom: '.25rem' }}>↪ חריגים</div>
             <Bullets items={topic.vat.exceptions!} />
           </div>
         )}
@@ -211,7 +211,7 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
                 <div style={{ padding: '.5rem .8rem', fontSize: '.83rem', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
                   {c.summary && <div>{c.summary}</div>}
                   <div><span style={{ fontWeight: 600, color: '#6d28d9' }}>מה השתנה: </span>{c.whatChanged}</div>
-                  {c.whyItMatters && <div><span style={{ fontWeight: 600, color: '#1d4ed8' }}>למה חשוב: </span>{c.whyItMatters}</div>}
+                  {c.whyItMatters && <div><span style={{ fontWeight: 600, color: '#264155' }}>למה חשוב: </span>{c.whyItMatters}</div>}
                   {c.whenToApply && <div><span style={{ fontWeight: 600, color: '#15803d' }}>מתי מיישמים: </span>{c.whenToApply}</div>}
                 </div>
               </div>

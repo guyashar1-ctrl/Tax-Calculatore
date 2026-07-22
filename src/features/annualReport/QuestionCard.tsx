@@ -122,7 +122,7 @@ export default function QuestionCard({
                     textAlign: 'right', fontFamily: 'inherit', cursor: 'pointer',
                     padding: '.85rem .95rem', borderRadius: 10,
                     border: checked ? '2px solid var(--blue)' : '1.5px solid var(--gray-200)',
-                    background: checked ? 'var(--blue-light, #dbeafe)' : 'white',
+                    background: checked ? 'var(--blue-light, #dbe4ec)' : 'white',
                     position: 'relative', transition: 'border-color .12s, background .12s',
                   }}
                 >

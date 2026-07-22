@@ -218,7 +218,7 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
                   onClick={() => setDecisions((p) => ({ ...p, [c.key]: 'changed' }))}
                   style={{
                     border: d === 'changed' ? '1.5px solid var(--blue)' : '1.5px solid var(--gray-200)',
-                    background: d === 'changed' ? 'var(--blue-light, #dbeafe)' : 'white',
+                    background: d === 'changed' ? 'var(--blue-light, #dbe4ec)' : 'white',
                     color: d === 'changed' ? 'var(--blue)' : 'var(--gray-600)', fontWeight: 700,
                   }}
                 >
@@ -243,7 +243,7 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
                     onClick={() => setNewTiles((prev) => on ? prev.filter((v) => v !== t.value) : [...prev, t.value])}
                     style={{
                       border: on ? '1.5px solid var(--blue)' : '1.5px solid var(--gray-200)',
-                      background: on ? 'var(--blue-light, #dbeafe)' : 'white',
+                      background: on ? 'var(--blue-light, #dbe4ec)' : 'white',
                       color: on ? 'var(--blue)' : 'var(--gray-600)', fontWeight: 600,
                     }}
                   >
