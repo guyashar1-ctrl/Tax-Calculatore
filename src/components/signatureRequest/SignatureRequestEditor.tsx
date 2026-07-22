@@ -730,11 +730,11 @@ interface PageProps {
   onRememberSize: (kind: SignatureFieldKind, w: number, h: number) => void;
 }
 
-const SIGNER_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#ec4899', '#0891b2'];
+const SIGNER_COLORS = ['#33556f', '#059669', '#d97706', '#7c3aed', '#ec4899', '#0891b2'];
 
 function colorForSigner(signers: Signer[], signerId: string): string {
   const idx = signers.findIndex(s => s.id === signerId);
-  return SIGNER_COLORS[idx % SIGNER_COLORS.length] || '#2563eb';
+  return SIGNER_COLORS[idx % SIGNER_COLORS.length] || '#33556f';
 }
 
 // 8 ידיות שינוי גודל — n/s/e/w עבור קצוות, ne/se/sw/nw עבור פינות

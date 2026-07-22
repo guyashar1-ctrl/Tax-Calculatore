@@ -924,7 +924,7 @@ function getChildCreditInfo(birthYear: number, taxYear: number): { label: string
   if (age < 0 || age > 18) return null;
   if (age === 0) return { label: 'שנת לידה', pts: 1.5, color: '#ec4899' };
   if (age <= 5) return { label: `גיל ${age} (1–5)`, pts: 2.5, color: '#8b5cf6' };
-  if (age <= 12) return { label: `גיל ${age} (6–12)`, pts: 2.0, color: '#2563eb' };
+  if (age <= 12) return { label: `גיל ${age} (6–12)`, pts: 2.0, color: '#33556f' };
   if (age <= 17) return { label: `גיל ${age} (13–17)`, pts: 1.0, color: '#059669' };
   if (age === 18) return { label: 'גיל 18', pts: 0.5, color: '#6b7280' };
   return null;

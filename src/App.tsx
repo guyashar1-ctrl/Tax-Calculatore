@@ -993,8 +993,9 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <div className="header-logo" onClick={goHome}>
-          📊 CRM רואה חשבון
+        <div className="header-logo" onClick={goHome} title="גיא ישר · רואה חשבון">
+          <span className="brand-wordmark">YASHAR<span className="brand-dot" /></span>
+          <span className="brand-sub">גיא ישר · רואה חשבון</span>
         </div>
 
         <nav className="main-nav">

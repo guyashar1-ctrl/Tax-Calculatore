@@ -8,6 +8,13 @@ let devAutoLoginAttempted = false;
 export const DEV_AUTO_LOGIN_ENABLED =
   import.meta.env.DEV && import.meta.env.VITE_DEV_AUTO_LOGIN === 'true';
 
+// DEV-only: lets a local dev session view the app without being in the authorized_users
+// allowlist — for local visual QA only. Guarded by import.meta.env.DEV, so it is compiled
+// out of every production/Preview build (DEV === false there); prod authorization
+// (is_authorized() RPC + RLS) is never weakened.
+export const DEV_BYPASS_AUTHZ =
+  import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS_AUTHZ === 'true';
+
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,6 +50,7 @@ export function useAuth() {
   useEffect(() => {
     let cancelled = false;
     if (!session) { setAuthorized(null); return; }
+    if (DEV_BYPASS_AUTHZ) { setAuthorized(true); return; }
     setAuthorized(null);
     supabase.rpc('is_authorized').then(({ data, error }) => {
       if (cancelled) return;

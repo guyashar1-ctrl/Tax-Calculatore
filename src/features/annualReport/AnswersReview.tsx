@@ -70,7 +70,7 @@ export default function AnswersReview({ session, clientName, onStartEdit, onBack
 
       <div style={{ background: 'var(--blue-light)', padding: '1rem 1.25rem', borderRadius: 8, marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontWeight: 600, color: 'var(--blue-dark, #1e40af)', marginBottom: '.25rem' }}>✏ ערוך תשובות בעץ ההחלטות</div>
+          <div style={{ fontWeight: 600, color: 'var(--blue-dark, #22384a)', marginBottom: '.25rem' }}>✏ ערוך תשובות בעץ ההחלטות</div>
           <div style={{ fontSize: '.85rem', color: 'var(--gray-700)' }}>
             השאלון יתחיל מהשורש. בכל שאלה תראה את התשובה הקודמת מסומנת. לחיצה על "המשך" משאירה אותה, או שנה לפני שתמשיך.
           </div>

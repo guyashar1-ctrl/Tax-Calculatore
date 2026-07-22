@@ -324,7 +324,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
                       </div>
                     )}
                     {priorAnswers.has(node.id) && (
-                      <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light, #dbeafe)', borderRadius: 4, fontSize: '.85rem', color: 'var(--gray-700)' }}>
+                      <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light, #dbe4ec)', borderRadius: 4, fontSize: '.85rem', color: 'var(--gray-700)' }}>
                         ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת — לחץ "המשך" לאישור, או שנה לפי הצורך.
                       </div>
                     )}
@@ -363,7 +363,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
           {uniqueCodes.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', marginTop: '.7rem', fontSize: '.76rem', color: 'var(--gray-500)', flexWrap: 'wrap' }}>
               🔄 מתעדכן:
-              <span style={{ background: 'var(--blue-light, #dbeafe)', color: 'var(--blue)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }}>
+              <span style={{ background: 'var(--blue-light, #dbe4ec)', color: 'var(--blue)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }}>
                 כרטיס הלקוח
               </span>
               <span style={{ background: 'var(--gray-100)', color: 'var(--gray-600)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }} className="num">

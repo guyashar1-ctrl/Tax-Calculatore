@@ -19,7 +19,7 @@ const NI_LABELS: Record<string, string> = {
   employeeAndSE: 'שכיר+עצמאי', passive: 'פסיבי', pensioner: 'פנסיונר',
 };
 
-const CHART_COLORS = ['#2563eb','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#db2777'];
+const CHART_COLORS = ['#33556f','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#db2777'];
 
 function defaultInput(client: Client, year: number): TaxCalcInput {
   // הכנסה משכירות מצטברת מתוך נכסי הלקוח (אם קיימים) או מהשדה הישן
@@ -121,7 +121,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
   })) ?? [];
 
   const pieData = result ? [
-    { name: 'מס הכנסה', value: Math.round(result.totalIncomeTax), color: '#2563eb' },
+    { name: 'מס הכנסה', value: Math.round(result.totalIncomeTax), color: '#33556f' },
     { name: 'ביטוח לאומי', value: Math.round(result.niEmployee + result.niSelfEmployed), color: '#d97706' },
     { name: 'מס בריאות', value: Math.round(result.healthEmployee + result.healthSelfEmployed), color: '#7c3aed' },
     { name: 'נטו', value: Math.round(result.netAnnualIncome), color: '#059669' },
@@ -470,10 +470,10 @@ export default function TaxCalculator({ client, onBack }: Props) {
                     <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} />
                     <Tooltip formatter={(v: unknown) => `₪${fmt(v as number)}`} />
                     <Legend />
-                    <Bar dataKey="הכנסה במדרגה" fill="#bfdbfe">
+                    <Bar dataKey="הכנסה במדרגה" fill="#c3d3de">
                       {bracketChartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length] + '55'} />)}
                     </Bar>
-                    <Bar dataKey="מס במדרגה" fill="#2563eb">
+                    <Bar dataKey="מס במדרגה" fill="#33556f">
                       {bracketChartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                       <LabelList dataKey="מס במדרגה" position="top" formatter={(v: unknown) => (v as number) > 0 ? `₪${fmt(v as number)}` : ''} style={{ fontSize: 11 }} />
                     </Bar>

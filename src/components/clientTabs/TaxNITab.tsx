@@ -75,7 +75,7 @@ function ColoredSection({ color, icon, label, children }: { color: string; icon:
 }
 
 // צבעים ייחודיים לכל רשות (תואמים לפלטות של מערכות CRM מקצועיות)
-const COLOR_PIT       = '#2563eb';  // כחול
+const COLOR_PIT       = '#33556f';  // כחול
 const COLOR_NIKUYIM   = '#0891b2';  // טורקיז
 const COLOR_VAT       = '#059669';  // ירוק
 const COLOR_NI        = '#7c3aed';  // סגול

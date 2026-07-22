@@ -2,13 +2,20 @@ import { useEffect, useState } from 'react';
 import type { Client } from '../types';
 import { supabase } from '../lib/supabase';
 import { clientFromDb, clientToDb } from '../lib/dbMappers';
+import { SAMPLE_CLIENTS } from '../data/sampleClients';
+import { enrichClientsWithWorkspace } from '../data/sampleClientWorkspace';
+
+// DEV-only local brand-QA seed (see DEV_BYPASS_AUTHZ in useAuth). Compiled out of prod builds.
+const DEV_SEED = import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS_AUTHZ === 'true';
+const DEV_CLIENTS = DEV_SEED ? enrichClientsWithWorkspace(SAMPLE_CLIENTS) : [];
 
 export function useClients(userId: string | undefined) {
-  const [clients, setClients] = useState<Client[]>([]);
+  const [clients, setClients] = useState<Client[]>(DEV_CLIENTS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (DEV_SEED) { setClients(DEV_CLIENTS); setLoading(false); return; }
     if (!userId) {
       setClients([]);
       setLoading(false);

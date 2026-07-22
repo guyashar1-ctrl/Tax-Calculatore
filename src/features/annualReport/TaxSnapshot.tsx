@@ -194,7 +194,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
                       <td style={{ padding: '.4rem .2rem', fontSize: '.88rem', fontWeight: 600 }}>
                         {row.missing ? <span style={{ color: 'var(--orange, #d97706)', fontWeight: 500 }}>⚠ {row.value}</span> : row.value}
                         {prov && (
-                          <span style={{ display: 'inline-block', marginRight: 6, fontSize: '.64rem', fontWeight: 700, background: 'var(--blue-light, #dbeafe)', color: 'var(--blue)', borderRadius: 99, padding: '.02rem .5rem', verticalAlign: 'middle' }}>
+                          <span style={{ display: 'inline-block', marginRight: 6, fontSize: '.64rem', fontWeight: 700, background: 'var(--blue-light, #dbe4ec)', color: 'var(--blue)', borderRadius: 99, padding: '.02rem .5rem', verticalAlign: 'middle' }}>
                             {prov}
                           </span>
                         )}

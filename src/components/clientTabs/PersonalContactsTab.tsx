@@ -32,7 +32,7 @@ import Business1320Details from './Business1320Details';
 import ChildTaxDetails from './ChildTaxDetails';
 
 // צבעים ייחודיים לכל סעיף — בהמשך לפלטה של לשונית מיסוי
-const COLOR_IDENTITY   = '#2563eb';  // כחול — זהות רשמית
+const COLOR_IDENTITY   = '#33556f';  // כחול — זהות רשמית
 const COLOR_FAMILY     = '#7c3aed';  // סגול — משפחה
 const COLOR_CHILDREN   = '#ec4899';  // ורוד — ילדים
 const COLOR_CREDITS    = '#d97706';  // כתום — כוכב/זכאויות
@@ -590,7 +590,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem', marginTop: '.6rem' }}>
               {getCitizenships().map(c => (
                 <span key={c} style={{
-                  background: '#dbeafe', color: '#1e40af',
+                  background: '#dbe4ec', color: '#22384a',
                   padding: '.25rem .6rem', borderRadius: 999,
                   display: 'inline-flex', alignItems: 'center', gap: '.4rem',
                   fontSize: '.85rem',
@@ -599,7 +599,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <button
                     type="button"
                     onClick={() => removeCitizenship(c)}
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#1e40af', padding: 0, fontSize: '1rem', lineHeight: 1 }}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#22384a', padding: 0, fontSize: '1rem', lineHeight: 1 }}
                     title="הסר"
                   >×</button>
                 </span>

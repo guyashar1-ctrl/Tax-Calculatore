@@ -90,7 +90,7 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
                       width: 9, height: 9, borderRadius: 3, display: 'inline-block',
                       background: s === 'done' ? 'var(--green)' : s === 'now' ? 'var(--blue)' : s === 'cut' ? '#EDEBE4' : 'white',
                       border: s === 'todo' ? '1.5px solid #C9C6BD' : s === 'cut' ? '1px dashed #C9C6BD' : 'none',
-                      outline: s === 'now' ? '2px solid #dbeafe' : 'none',
+                      outline: s === 'now' ? '2px solid #dbe4ec' : 'none',
                     }}
                   />
                 );

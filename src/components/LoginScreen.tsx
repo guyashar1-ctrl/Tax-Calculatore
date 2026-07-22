@@ -33,8 +33,10 @@ export default function LoginScreen() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <div className="login-logo">📊</div>
-        <h1 className="login-title">CRM רואה חשבון</h1>
+        <div className="login-brand">
+          <span className="brand-wordmark login-wordmark">YASHAR<span className="brand-dot" /></span>
+          <span className="login-brand-sub">גיא ישר · רואה חשבון</span>
+        </div>
         <p className="login-subtitle">היכנס כדי לגשת ללקוחות, למשימות ולמסמכים שלך</p>
 
         <button
