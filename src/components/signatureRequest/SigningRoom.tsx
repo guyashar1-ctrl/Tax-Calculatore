@@ -33,7 +33,8 @@ interface Props {
   onCancel: () => void;
 }
 
-const SIGNER_COLORS = ['#33556f', '#059669', '#d97706', '#7c3aed', '#ec4899', '#0891b2'];
+// צבעי החותמים מסומנים על דף PDF לבן — ערכים קבועים, לא תלויי ערכה
+const SIGNER_COLORS = ['#3f5f8f', '#2e7d5b', '#b07515', '#6b4a87', '#a4406a', '#17767c'];
 const colorForSigner = (signers: Signer[], id: string) =>
   SIGNER_COLORS[Math.max(0, signers.findIndex(s => s.id === id)) % SIGNER_COLORS.length];
 
@@ -330,7 +331,7 @@ function SigningPage(p: PageProps) {
               width: `${f.widthPct * 100}%`,
               height: `${f.heightPct * 100}%`,
               boxSizing: 'border-box',
-              border: filled ? `2px solid var(--green, #059669)` : (mine ? `2px dashed ${color}` : `1.5px dotted ${color}99`),
+              border: filled ? `2px solid var(--green, var(--ok))` : (mine ? `2px dashed ${color}` : `1.5px dotted ${color}99`),
               background: filled ? 'transparent' : (mine ? `${color}18` : `${color}0d`),
               borderRadius: 4,
               cursor: mine && !filled ? 'pointer' : 'default',

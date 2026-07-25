@@ -325,7 +325,7 @@ export default function QuotationBuilder({
                   {catalogFiltered.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--gray-500)', padding: 8 }}>הקטלוג ריק — הגדר שירותים בהגדרות המשרד ← הצעות מחיר.</div>}
                   {catalogFiltered.map(s => (
                     <button key={s.id} onClick={() => addService(s)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', border: '1px solid var(--gray-200)', borderRadius: 8, background: 'white', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', border: '1px solid var(--gray-200)', borderRadius: 8, background: 'var(--card)', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
                       <span style={{ flex: 1 }}>
                         <span style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</span>
                         <span style={{ fontSize: 11, color: 'var(--gray-400)', marginInlineStart: 6 }}>{SERVICE_CATEGORY_LABELS[s.category]}</span>
@@ -422,7 +422,8 @@ export default function QuotationBuilder({
             )}
           </div>
 
-          <div style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', background: '#F4F3EF', height: 'calc(100vh - 180px)', minHeight: 520 }}>
+          {/* תצוגה מקדימה של מסמך שהלקוח יקבל — נשארת בהירה גם במצב כהה */}
+          <div className="pivo-light" style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', background: '#F4F3EF', height: 'calc(100vh - 180px)', minHeight: 520 }}>
             <div style={{ height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
               <div style={{ width: device === 'mobile' && tab !== 'pdf' ? 390 : '100%', maxWidth: '100%', transition: 'width .2s' }}>
                 {tab === 'web' && <QuotationWebView data={webData} brand={brand} compact={device === 'mobile'} />}
@@ -437,7 +438,7 @@ export default function QuotationBuilder({
                     <button className="btn btn-primary" disabled={pdfBusy || items.length === 0} onClick={handleDownloadPdf}>
                       {pdfBusy ? 'מפיק…' : '⬇ הורדת PDF לבדיקה'}
                     </button>
-                    <div style={{ marginTop: 18, display: 'inline-flex', flexDirection: 'column', gap: 4, textAlign: 'start', background: 'white', border: '1px solid var(--gray-200)', borderRadius: 10, padding: 16 }}>
+                    <div style={{ marginTop: 18, display: 'inline-flex', flexDirection: 'column', gap: 4, textAlign: 'start', background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 10, padding: 16 }}>
                       {totals.monthly.withVat > 0 && <span>חודשי: <b>{formatILS(Math.round(totals.monthly.withVat))}</b></span>}
                       {totals.annual.withVat > 0 && <span>שנתי: <b>{formatILS(Math.round(totals.annual.withVat))}</b></span>}
                       {totals.oneTime.withVat > 0 && <span>חד־פעמי: <b>{formatILS(Math.round(totals.oneTime.withVat))}</b></span>}
@@ -487,7 +488,7 @@ function RecipientEditor({ leads, clients, value, onPick }: {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
             {matches.map(m => (
               <button key={`${m.kind}-${m.id}`} onClick={() => onPick(m)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--gray-200)', borderRadius: 8, background: 'white', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--gray-200)', borderRadius: 8, background: 'var(--card)', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
                 <span style={{ flex: 1 }}>
                   <span style={{ fontWeight: 500, fontSize: 13.5 }}>{m.fullName || '(ללא שם)'}</span>
                   <span style={{ fontSize: 11, color: 'var(--gray-400)', marginInlineStart: 6 }}>{m.kind === 'lead' ? 'ליד' : 'לקוח'}</span>
@@ -577,7 +578,7 @@ function LineItem({ item, vatRate, onChange, onRemove }: {
   );
 }
 
-const card: React.CSSProperties = { border: '1px solid var(--gray-200)', borderRadius: 12, padding: 16, background: 'white' };
+const card: React.CSSProperties = { border: '1px solid var(--gray-200)', borderRadius: 12, padding: 16, background: 'var(--card)' };
 const cardTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 600, marginBottom: 12 };
 const fieldLabel: React.CSSProperties = { fontSize: 12, color: 'var(--gray-600)', display: 'block' };
 const miniLabel: React.CSSProperties = { fontSize: 11, color: 'var(--gray-500)', display: 'flex', flexDirection: 'column', gap: 2 };

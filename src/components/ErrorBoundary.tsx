@@ -37,7 +37,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div style={{ maxWidth: 620, margin: '3rem auto', padding: '1.75rem 2rem', background: 'white', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-lg, 14px)', textAlign: 'center' }}>
+        <div style={{ maxWidth: 620, margin: '3rem auto', padding: '1.75rem 2rem', background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-lg, 14px)', textAlign: 'center' }}>
           <div style={{ fontSize: '2.4rem', marginBottom: '.5rem' }}>😕</div>
           <h2 style={{ margin: '0 0 .5rem', fontSize: '1.15rem' }}>
             {this.props.label ? `שגיאה ב${this.props.label}` : 'משהו השתבש בטעינת המסך'}

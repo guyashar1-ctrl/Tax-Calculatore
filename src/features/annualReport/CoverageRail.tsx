@@ -88,9 +88,9 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
                     title={n.question}
                     style={{
                       width: 9, height: 9, borderRadius: 3, display: 'inline-block',
-                      background: s === 'done' ? 'var(--green)' : s === 'now' ? 'var(--blue)' : s === 'cut' ? '#EDEBE4' : 'white',
-                      border: s === 'todo' ? '1.5px solid #C9C6BD' : s === 'cut' ? '1px dashed #C9C6BD' : 'none',
-                      outline: s === 'now' ? '2px solid #dbe4ec' : 'none',
+                      background: s === 'done' ? 'var(--green)' : s === 'now' ? 'var(--blue)' : s === 'cut' ? '#EDEBE4' : 'var(--card)',
+                      border: s === 'todo' ? '1.5px solid var(--bd-strong)' : s === 'cut' ? '1px dashed var(--bd-strong)' : 'none',
+                      outline: s === 'now' ? '2px solid var(--chip-blue-bg)' : 'none',
                     }}
                   />
                 );
@@ -106,13 +106,13 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
           <span>
             <span style={{ color: 'var(--green)' }}>{meter.active}🟢</span>
             {' · '}<span style={{ color: 'var(--red)' }}>{meter.pruned}🔴</span>
-            {' · '}<span style={{ color: '#b45309' }}>{meter.pending}🟡</span>
+            {' · '}<span style={{ color: 'var(--warn)' }}>{meter.pending}🟡</span>
           </span>
         </div>
         <div style={{ height: 7, borderRadius: 99, background: '#E8E6DF', overflow: 'hidden', display: 'flex', margin: '.3rem 0' }}>
           <i style={{ width: pct(meter.active), background: 'var(--green)' }} />
-          <i style={{ width: pct(meter.pruned), background: '#D8B4AC' }} />
-          <i style={{ width: pct(meter.pending), background: '#E8D9A8' }} />
+          <i style={{ width: pct(meter.pruned), background: 'var(--chip-red-bd)' }} />
+          <i style={{ width: pct(meter.pending), background: 'var(--chip-amber-bd)' }} />
         </div>
         <div style={{ fontSize: '.66rem', color: 'var(--gray-500)' }}>
           🟡 = סעיפים שטרם הוכרעו. בסוף הראיון המונה חייב לרדת ל-0 (שער הכיסוי).

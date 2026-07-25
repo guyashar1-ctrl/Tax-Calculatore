@@ -32,20 +32,20 @@ import Business1320Details from './Business1320Details';
 import ChildTaxDetails from './ChildTaxDetails';
 
 // צבעים ייחודיים לכל סעיף — בהמשך לפלטה של לשונית מיסוי
-const COLOR_IDENTITY   = '#33556f';  // כחול — זהות רשמית
-const COLOR_FAMILY     = '#7c3aed';  // סגול — משפחה
-const COLOR_CHILDREN   = '#ec4899';  // ורוד — ילדים
-const COLOR_CREDITS    = '#d97706';  // כתום — כוכב/זכאויות
-const COLOR_ASSETS     = '#059669';  // ירוק — נכסים/כסף
-const COLOR_EMPLOYEE   = '#0891b2';  // טורקיז — צוות
-const COLOR_TAGS       = '#65a30d';  // ירוק לימון — תגיות
-const COLOR_CONTACTS   = '#6366f1';  // אינדיגו — אנשי קשר
-const COLOR_EMPLOYERS  = '#0284c7';  // כחול ים — מעבידים
-const COLOR_BANK       = '#0d9488';  // ירוק-טורקיז — בנקים
-const COLOR_PENSION    = '#9333ea';  // סגול — פנסיה
-const COLOR_DEPENDENTS = '#be185d';  // ורוד עמוק — קרובים תלויים
-const COLOR_BUSINESS   = '#ca8a04';  // צהוב חרדל — עסקים
-const COLOR_SPECIAL    = '#7c2d12';  // חום — דיווחי חובה
+const COLOR_IDENTITY   = 'var(--br)';  // כחול — זהות רשמית
+const COLOR_FAMILY     = 'var(--info)';  // סגול — משפחה
+const COLOR_CHILDREN   = 'var(--chip-pink-tx)';  // ורוד — ילדים
+const COLOR_CREDITS    = 'var(--warn)';  // כתום — כוכב/זכאויות
+const COLOR_ASSETS     = 'var(--ok)';  // ירוק — נכסים/כסף
+const COLOR_EMPLOYEE   = 'var(--chip-teal-tx)';  // טורקיז — צוות
+const COLOR_TAGS       = 'var(--ok)';  // ירוק לימון — תגיות
+const COLOR_CONTACTS   = 'var(--info)';  // אינדיגו — אנשי קשר
+const COLOR_EMPLOYERS  = 'var(--chip-teal-tx)';  // כחול ים — מעבידים
+const COLOR_BANK       = 'var(--chip-teal-tx)';  // ירוק-טורקיז — בנקים
+const COLOR_PENSION    = 'var(--info)';  // סגול — פנסיה
+const COLOR_DEPENDENTS = 'var(--chip-pink-tx)';  // ורוד עמוק — קרובים תלויים
+const COLOR_BUSINESS   = 'var(--warn)';  // צהוב חרדל — עסקים
+const COLOR_SPECIAL    = 'var(--chip-orange-tx)';  // חום — דיווחי חובה
 
 function ColoredSection({ color, icon, label, count, action, children }: {
   color: string;
@@ -550,7 +550,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                 </div>
               )}
               {client.qualifyingSettlementId && !resolvedSettlement && (
-                <div className="cw-field-meta" style={{ color: 'var(--red, #dc2626)' }}>
+                <div className="cw-field-meta" style={{ color: 'var(--red, var(--err))' }}>
                   "{client.qualifyingSettlementId}" אינו ברשימת היישובים המוטבים הרשמית — יש לבחור מחדש
                 </div>
               )}
@@ -590,7 +590,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem', marginTop: '.6rem' }}>
               {getCitizenships().map(c => (
                 <span key={c} style={{
-                  background: '#dbe4ec', color: '#22384a',
+                  background: 'var(--chip-blue-bg)', color: 'var(--chip-blue-tx)',
                   padding: '.25rem .6rem', borderRadius: 999,
                   display: 'inline-flex', alignItems: 'center', gap: '.4rem',
                   fontSize: '.85rem',
@@ -599,7 +599,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <button
                     type="button"
                     onClick={() => removeCitizenship(c)}
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#22384a', padding: 0, fontSize: '1rem', lineHeight: 1 }}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--chip-blue-tx)', padding: 0, fontSize: '1rem', lineHeight: 1 }}
                     title="הסר"
                   >×</button>
                 </span>
@@ -1419,9 +1419,9 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <span className="cw-property-num">{idx + 1}</span>
                   <span className="cw-property-title">
                     {e.name || `מעביד ${idx + 1}`}
-                    {!e.endDate && e.name && <span className="cw-property-type-badge" style={{ background: '#dcfce7', color: '#166534' }}>פעיל</span>}
+                    {!e.endDate && e.name && <span className="cw-property-type-badge" style={{ background: 'var(--chip-green-bg)', color: 'var(--chip-green-tx)' }}>פעיל</span>}
                     {client.familyStatus === 'married' && (
-                      <span className="cw-property-type-badge" style={{ background: e.belongsToSpouse ? '#FBF2E2' : '#eef2fa', color: e.belongsToSpouse ? '#b45309' : '#2b4c9b' }}>
+                      <span className="cw-property-type-badge" style={{ background: e.belongsToSpouse ? 'var(--chip-amber-bg)' : 'var(--chip-blue-bg)', color: e.belongsToSpouse ? 'var(--warn)' : 'var(--br)' }}>
                         של {e.belongsToSpouse ? spouseDisplayName(client) : clientDisplayName(client)}
                       </span>
                     )}
@@ -1497,7 +1497,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <span className="cw-property-num">{idx + 1}</span>
                   <span className="cw-property-title">
                     {b.bankName || `חשבון ${idx + 1}`}
-                    {b.isPrimary && <span className="cw-property-type-badge" style={{ background: '#fef3c7', color: '#92400e' }}>🔑 ראשי</span>}
+                    {b.isPrimary && <span className="cw-property-type-badge" style={{ background: 'var(--chip-amber-bg)', color: 'var(--chip-amber-tx)' }}>🔑 ראשי</span>}
                     {b.kind && <span className="cw-property-type-badge">{BANK_ACCOUNT_KIND_LABELS[b.kind]}</span>}
                   </span>
                   <button className="btn btn-ghost btn-sm" onClick={() => removeBankAccount(b.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
@@ -1568,7 +1568,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <span className="cw-property-title">
                     {f.institutionName || `קופה ${idx + 1}`}
                     <span className="cw-property-type-badge">{PENSION_FUND_KIND_LABELS[f.kind]}</span>
-                    {f.hasSelfDeposits && <span className="cw-property-type-badge" style={{ background: '#dcfce7', color: '#166534' }}>הפקדה עצמאית</span>}
+                    {f.hasSelfDeposits && <span className="cw-property-type-badge" style={{ background: 'var(--chip-green-bg)', color: 'var(--chip-green-tx)' }}>הפקדה עצמאית</span>}
                   </span>
                   <button className="btn btn-ghost btn-sm" onClick={() => removePensionFund(f.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
                 </div>
@@ -1636,7 +1636,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <span className="cw-property-title">
                     {d.name || `קרוב ${idx + 1}`}
                     <span className="cw-property-type-badge">{DEPENDENT_RELATION_LABELS[d.relation]}</span>
-                    {d.isAtInstitution && <span className="cw-property-type-badge" style={{ background: '#fce7f3', color: '#9d174d' }}>מוחזק במוסד</span>}
+                    {d.isAtInstitution && <span className="cw-property-type-badge" style={{ background: 'var(--chip-pink-bg)', color: 'var(--chip-pink-tx)' }}>מוחזק במוסד</span>}
                   </span>
                   <button className="btn btn-ghost btn-sm" onClick={() => removeDependent(d.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
                 </div>
@@ -1711,9 +1711,9 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <span className="cw-property-title">
                     {b.name || `עסק ${idx + 1}`}
                     <span className="cw-property-type-badge">{BUSINESS_KIND_LABELS[b.kind]}</span>
-                    {b.isClosed && <span className="cw-property-type-badge" style={{ background: '#fee2e2', color: '#991b1b' }}>נסגר</span>}
+                    {b.isClosed && <span className="cw-property-type-badge" style={{ background: 'var(--chip-red-bg)', color: 'var(--chip-red-tx)' }}>נסגר</span>}
                     {client.familyStatus === 'married' && (
-                      <span className="cw-property-type-badge" style={{ background: b.belongsToSpouse ? '#FBF2E2' : '#eef2fa', color: b.belongsToSpouse ? '#b45309' : '#2b4c9b' }}>
+                      <span className="cw-property-type-badge" style={{ background: b.belongsToSpouse ? 'var(--chip-amber-bg)' : 'var(--chip-blue-bg)', color: b.belongsToSpouse ? 'var(--warn)' : 'var(--br)' }}>
                         של {b.belongsToSpouse ? spouseDisplayName(client) : clientDisplayName(client)}
                       </span>
                     )}

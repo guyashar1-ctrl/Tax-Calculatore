@@ -58,7 +58,7 @@ export default function TestSignaturePage() {
   return (
     <div style={{ padding: '2rem', fontFamily: 'Heebo, sans-serif' }}>
       <h1>🧪 בדיקה: עורך מסמך לחתימה</h1>
-      <p style={{ color: '#6b7280' }}>
+      <p style={{ color: 'var(--tx2)' }}>
         דף בדיקה זמני (ללא התחברות). הוסיפו <code>?test-sig=1</code> לכתובת.
       </p>
 
@@ -67,7 +67,7 @@ export default function TestSignaturePage() {
       </div>
 
       {saved && (
-        <div style={{ background: '#fff7ed', border: '1px solid #f59e0b', padding: '1rem', borderRadius: 8, marginBottom: '1rem' }}>
+        <div style={{ background: 'var(--chip-amber-bg)', border: '1px solid var(--warn)', padding: '1rem', borderRadius: 8, marginBottom: '1rem' }}>
           <strong>נשמר:</strong>
           <pre style={{ direction: 'ltr', textAlign: 'left', fontSize: '.75rem', marginTop: '.5rem' }}>
             {JSON.stringify(saved, null, 2)}

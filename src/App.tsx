@@ -21,6 +21,8 @@ import {
 } from './types';
 import { ExtractedClientData } from './utils/geminiVision';
 import { useDocumentDB } from './hooks/useIndexedDB';
+import { useTheme } from './hooks/useTheme';
+import { PivoMark } from './components/PivoMark';
 import { supabase } from './lib/supabase';
 import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
@@ -167,17 +169,22 @@ export default function App() {
   }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {
+    // הדפים שהלקוח רואה נשארים תמיד בהירים — הם נושאים את מיתוג המשרד,
+    // נשלחים במייל ולעיתים מודפסים. מצב כהה הוא העדפה פנימית של המשרד בלבד.
+    const asClientPage = (node: JSX.Element) => (
+      <div className="pivo-light public-page-shell">{node}</div>
+    );
     const onboardToken = new URLSearchParams(window.location.search).get('onboard');
-    if (onboardToken) return <OnboardingPage token={onboardToken} />;
+    if (onboardToken) return asClientPage(<OnboardingPage token={onboardToken} />);
     // עמוד חתימה ציבורי — קישור אישי לכל חותם (נישום / בן זוג).
     const signToken = new URLSearchParams(window.location.search).get('sign');
-    if (signToken) return <PublicSignPage token={signToken} />;
+    if (signToken) return asClientPage(<PublicSignPage token={signToken} />);
     // שאלון עצמאי — נשלח יזום מכרטיס הלקוח, בלי הליך ייצוג.
     const intakeToken = new URLSearchParams(window.location.search).get('intake');
-    if (intakeToken) return <PublicIntakePage token={intakeToken} />;
+    if (intakeToken) return asClientPage(<PublicIntakePage token={intakeToken} />);
     // עמוד הצעת מחיר ציבורי — קישור מאובטח לפי טוקן.
     const quoteToken = new URLSearchParams(window.location.search).get('quote');
-    if (quoteToken) return <PublicQuotationPage token={quoteToken} />;
+    if (quoteToken) return asClientPage(<PublicQuotationPage token={quoteToken} />);
   }
 
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
@@ -201,6 +208,7 @@ export default function App() {
   const { quotations, addQuotation, updateQuotation } = useQuotations(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
 
+  const { theme, toggleTheme } = useTheme();
   const [view, setView] = useState<View>('tasks');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
@@ -982,20 +990,23 @@ export default function App() {
 
   const openTasksCount = tasks.filter(t => t.status === 'open' && (t.ballWith === 'me' || t.ballWith === 'stuck')).length;
 
-  const navTabs: { id: View; label: string; badge?: number }[] = [
-    { id: 'tasks', label: '✓ משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
-    { id: 'list', label: '👥 לקוחות' },
-    { id: 'quotations', label: '📝 הצעות ולידים' },
-    { id: 'annualReport', label: '📋 דוח שנתי 1301' },
-    { id: 'reference', label: '🧭 מרכז ידע מס' },
+  const navTabs: { id: View; label: string; icon: string; shortLabel: string; badge?: number }[] = [
+    { id: 'tasks', label: '✓ משימות', icon: '✓', shortLabel: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
+    { id: 'list', label: '👥 לקוחות', icon: '👥', shortLabel: 'לקוחות' },
+    { id: 'quotations', label: '📝 הצעות ולידים', icon: '📝', shortLabel: 'הצעות' },
+    { id: 'annualReport', label: '📋 דוח שנתי 1301', icon: '📋', shortLabel: 'דוח 1301' },
+    { id: 'reference', label: '🧭 מרכז ידע מס', icon: '🧭', shortLabel: 'ידע מס' },
   ];
 
   return (
     <div className="app">
       <header className="header">
-        <div className="header-logo" onClick={goHome} title="גיא ישר · רואה חשבון">
-          <span className="brand-wordmark">YASHAR<span className="brand-dot" /></span>
-          <span className="brand-sub">גיא ישר · רואה חשבון</span>
+        <div className="header-logo" onClick={goHome} title="PIVO">
+          <span className="brand-lockup">
+            <PivoMark size={28} />
+            <span className="brand-wordmark">PIVO</span>
+          </span>
+          <span className="brand-sub">{firmProfile?.firmName || 'גיא ישר · רואה חשבון'}</span>
         </div>
 
         <nav className="main-nav">
@@ -1042,6 +1053,16 @@ export default function App() {
             )}
             <span className="header-user-name">{displayName || user.email}</span>
           </div>
+
+          <button
+            type="button"
+            className="header-theme-btn"
+            title={theme === 'dark' ? 'מעבר לתצוגה בהירה' : 'מעבר לתצוגה כהה'}
+            aria-label={theme === 'dark' ? 'מעבר לתצוגה בהירה' : 'מעבר לתצוגה כהה'}
+            onClick={toggleTheme}
+          >
+            {theme === 'dark' ? '☀' : '☾'}
+          </button>
 
           <button
             type="button"
@@ -1264,6 +1285,27 @@ export default function App() {
         )}
         </ErrorBoundary>
       </main>
+
+      {/* סרגל ניווט תחתון — מופיע רק במסכי טלפון */}
+      <nav className="mobile-nav">
+        {navTabs.map(t => (
+          <button
+            key={t.id}
+            type="button"
+            className={`mobile-nav-item ${view === t.id || (t.id === 'list' && view === 'form') ? 'active' : ''}`}
+            onClick={() => {
+              setView(t.id);
+              setSelectedId(null);
+              setSelectedRequestId(null);
+              setEditingQuotationId(null);
+            }}
+          >
+            <span className="mobile-nav-icon">{t.icon}</span>
+            <span className="mobile-nav-label">{t.shortLabel}</span>
+            {t.badge !== undefined && <span className="mobile-nav-badge">{t.badge}</span>}
+          </button>
+        ))}
+      </nav>
 
       {taskModalState && (
         <TaskForm

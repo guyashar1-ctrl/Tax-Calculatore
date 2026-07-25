@@ -90,7 +90,7 @@ export default function Business1320Details({
         style={{
           cursor: 'pointer',
           fontWeight: 600,
-          color: filled > 0 ? '#ca8a04' : 'var(--gray-700)',
+          color: filled > 0 ? 'var(--warn)' : 'var(--gray-700)',
           padding: '4px 0',
           userSelect: 'none',
         }}
@@ -103,7 +103,7 @@ export default function Business1320Details({
           סכומים שנתיים מנספח א' / דוח רווח-הפסד של העסק. הסכומים מסוכמים אוטומטית לדוח השנתי 1301.
         </div>
 
-        <div style={{ marginBottom: 12, padding: 8, background: '#fef3c7', borderRadius: 6 }}>
+        <div style={{ marginBottom: 12, padding: 8, background: 'var(--chip-amber-bg)', borderRadius: 6 }}>
           <label className="checkbox-row" style={{ margin: 0, fontWeight: 500 }}>
             <input
               type="checkbox"

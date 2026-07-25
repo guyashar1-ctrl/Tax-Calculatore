@@ -131,8 +131,8 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
     <span
       style={{
         fontSize: '.74rem', fontWeight: 700, borderRadius: 99, padding: '.12rem .6rem',
-        background: regFile.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-100)',
-        color: regFile.owner === 'spouse' ? '#b45309' : 'var(--gray-600)',
+        background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
+        color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-600)',
         marginRight: '.5rem', whiteSpace: 'nowrap',
       }}
       title="על שם מי מתנהל תיק מס הכנסה — נקבע בכרטיס הלקוח"
@@ -324,7 +324,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
                       </div>
                     )}
                     {priorAnswers.has(node.id) && (
-                      <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light, #dbe4ec)', borderRadius: 4, fontSize: '.85rem', color: 'var(--gray-700)' }}>
+                      <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light, var(--chip-blue-bg))', borderRadius: 4, fontSize: '.85rem', color: 'var(--gray-700)' }}>
                         ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת — לחץ "המשך" לאישור, או שנה לפי הצורך.
                       </div>
                     )}
@@ -363,7 +363,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
           {uniqueCodes.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', marginTop: '.7rem', fontSize: '.76rem', color: 'var(--gray-500)', flexWrap: 'wrap' }}>
               🔄 מתעדכן:
-              <span style={{ background: 'var(--blue-light, #dbe4ec)', color: 'var(--blue)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }}>
+              <span style={{ background: 'var(--blue-light, var(--chip-blue-bg))', color: 'var(--blue)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }}>
                 כרטיס הלקוח
               </span>
               <span style={{ background: 'var(--gray-100)', color: 'var(--gray-600)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }} className="num">
@@ -387,7 +387,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
 
 function ErrorBox({ message }: { message: string }) {
   return (
-    <div style={{ marginTop: '1rem', padding: '.75rem 1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: 6 }}>
+    <div style={{ marginTop: '1rem', padding: '.75rem 1rem', background: 'var(--chip-red-bg)', color: 'var(--err)', borderRadius: 6 }}>
       שגיאה בשמירה: {message}
     </div>
   );

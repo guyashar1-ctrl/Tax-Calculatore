@@ -66,7 +66,7 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
           </div>
 
           {inProgressSessions.length > 0 && (
-            <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '0.75rem 1rem' }}>
+            <div style={{ background: 'var(--chip-amber-bg)', border: '1px solid var(--warn)', borderRadius: 8, padding: '0.75rem 1rem' }}>
               <strong>תהליכים פתוחים:</strong>{' '}
               {inProgressSessions.length} {inProgressSessions.length === 1 ? 'תהליך' : 'תהליכים'} בעבודה.
               <ul style={{ margin: '.5rem 0 0', padding: 0, listStyle: 'none' }}>
@@ -80,7 +80,7 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
                     archived: 'בארכיון',
                   } as Record<string, string>)[s.status] ?? s.status;
                   return (
-                    <li key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem 0', borderTop: '1px solid #fde68a' }}>
+                    <li key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.4rem 0', borderTop: '1px solid var(--chip-amber-bd)' }}>
                       <span style={{ flex: 1 }}>
                         <strong>{name}</strong> · שנת מס {s.taxYear} · {statusLabel}
                       </span>
@@ -145,7 +145,7 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
                           padding: '.6rem .9rem',
                           borderBottom: '1px solid var(--gray-100)',
                           borderRadius: 0,
-                          background: selectedClientId === c.id ? 'var(--blue-light)' : 'white',
+                          background: selectedClientId === c.id ? 'var(--blue-light)' : 'var(--card)',
                         }}
                       >
                         <span style={{ fontWeight: 600 }}>{c.firstName} {c.lastName}</span>

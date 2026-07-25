@@ -66,9 +66,9 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         {stat('נשלחו', stats.total)}
-        {stat('נמסרו', stats.delivered, '#0F6E56')}
-        {stat('נפתחו', stats.opened, '#3C3489')}
-        {stat('נכשלו', stats.failed, '#A32D2D')}
+        {stat('נמסרו', stats.delivered, 'var(--ok)')}
+        {stat('נפתחו', stats.opened, 'var(--info)')}
+        {stat('נכשלו', stats.failed, 'var(--err)')}
       </div>
 
       {rows.length === 0 ? (
@@ -95,7 +95,7 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
                     <td style={{ padding: '10px 8px' }}>{m.subject || '—'}</td>
                     <td style={{ padding: '10px 8px' }}>
                       <StatusChip status={m.status} />
-                      {m.error && <div style={{ fontSize: 11, color: '#A32D2D', marginTop: 3 }}>{m.error}</div>}
+                      {m.error && <div style={{ fontSize: 11, color: 'var(--err)', marginTop: 3 }}>{m.error}</div>}
                     </td>
                     <td style={{ padding: '10px 8px', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{fmtTime(m.sentAt)}</td>
                     <td style={{ padding: '10px 8px', fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--gray-400)' }} dir="ltr" align="right">

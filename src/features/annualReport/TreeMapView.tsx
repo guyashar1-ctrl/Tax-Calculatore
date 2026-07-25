@@ -25,10 +25,10 @@ const CHAPTER_ORDER: ChapterKey[] = [
 ];
 
 const LAYER_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  question:   { label: 'שאלה ללקוח', color: '#264155', bg: '#dbe4ec' },
-  document:   { label: 'נשלף ממסמך', color: '#7c3aed', bg: '#ede9fe' },
-  accountant: { label: 'טיפול רו"ח', color: '#b45309', bg: '#fef3c7' },
-  auto:       { label: 'אוטומטי', color: '#047857', bg: '#d1fae5' },
+  question:   { label: 'שאלה ללקוח', color: 'var(--chip-blue-tx)', bg: 'var(--chip-blue-bg)' },
+  document:   { label: 'נשלף ממסמך', color: 'var(--info)', bg: 'var(--chip-violet-bg)' },
+  accountant: { label: 'טיפול רו"ח', color: 'var(--warn)', bg: 'var(--chip-amber-bg)' },
+  auto:       { label: 'אוטומטי', color: 'var(--ok)', bg: 'var(--chip-green-bg)' },
 };
 
 const GATE_TILES = [
@@ -141,7 +141,7 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
                 onClick={() => setSimTiles((prev) => on ? prev.filter((v) => v !== t.value) : [...prev, t.value])}
                 style={{
                   border: on ? '1.5px solid var(--blue)' : '1.5px solid var(--gray-200)',
-                  background: on ? 'var(--blue-light, #dbe4ec)' : 'white',
+                  background: on ? 'var(--blue-light, var(--chip-blue-bg))' : 'var(--card)',
                   color: on ? 'var(--blue)' : 'var(--gray-500)',
                   fontWeight: 600,
                 }}
@@ -159,7 +159,7 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
             צפי: <b>{estQuestions}</b> שאלות · שדות 1301:
             <b style={{ color: 'var(--green)' }}> {fieldStats.active} פעילים</b> ·
             <span style={{ color: 'var(--red)' }}> {fieldStats.pruned} נגזמו</span> ·
-            <span style={{ color: 'var(--orange, #d97706)' }}> {fieldStats.pending} ממתינים</span>
+            <span style={{ color: 'var(--orange, var(--warn))' }}> {fieldStats.pending} ממתינים</span>
             {' '}מתוך {fieldStats.total}
           </span>
         </div>
@@ -201,7 +201,7 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
                 style={{
                   display: 'flex', gap: '.6rem', alignItems: 'flex-start',
                   opacity: chapterAlive ? 1 : 0.45,
-                  background: 'white', border: '1px solid var(--gray-200)', borderRadius: 10,
+                  background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 10,
                   padding: '.6rem .8rem',
                 }}
               >
@@ -231,9 +231,9 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
                           border: selected ? '2px solid var(--blue)'
                             : visited ? '2px solid var(--green)'
                             : alive ? '1.5px solid var(--gray-300)' : '1.5px dashed var(--gray-200)',
-                          background: selected ? 'var(--blue-light, #dbe4ec)'
-                            : visited ? '#e8f5ee'
-                            : alive ? 'white' : 'var(--gray-50)',
+                          background: selected ? 'var(--blue-light, var(--chip-blue-bg))'
+                            : visited ? 'var(--chip-green-bg)'
+                            : alive ? 'var(--card)' : 'var(--gray-50)',
                           color: alive ? 'var(--gray-700)' : 'var(--gray-400)',
                         }}
                       >
@@ -248,7 +248,7 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
           <div style={{ fontSize: '.74rem', color: 'var(--gray-500)', display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '.2rem .2rem' }}>
             <span><span style={{ display: 'inline-block', width: 10, height: 10, border: '1.5px solid var(--gray-300)', borderRadius: 3, verticalAlign: -1 }} /> שאלה חיה בסימולציה</span>
             <span><span style={{ display: 'inline-block', width: 10, height: 10, border: '1.5px dashed var(--gray-300)', borderRadius: 3, background: 'var(--gray-50)', verticalAlign: -1 }} /> נגזמת (לא תישאל)</span>
-            <span><span style={{ display: 'inline-block', width: 10, height: 10, border: '2px solid var(--green)', borderRadius: 3, background: '#e8f5ee', verticalAlign: -1 }} /> נענתה במסלול הלקוח</span>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, border: '2px solid var(--green)', borderRadius: 3, background: 'var(--chip-green-bg)', verticalAlign: -1 }} /> נענתה במסלול הלקוח</span>
           </div>
         </div>
 
@@ -318,7 +318,7 @@ function NodeInspector({ node }: { node: QuestionNode }) {
             </div>
             <div style={{ fontSize: '.8rem', marginTop: 2 }}>{f.hebrewLabel}</div>
             {f.officialRef && <div style={{ fontSize: '.68rem', color: 'var(--gray-400)' }}>{f.officialRef}</div>}
-            {f.accountantAction && <div style={{ fontSize: '.7rem', color: '#b45309' }}>🔧 {f.accountantAction}</div>}
+            {f.accountantAction && <div style={{ fontSize: '.7rem', color: 'var(--warn)' }}>🔧 {f.accountantAction}</div>}
           </div>
         );
       })}
@@ -337,7 +337,7 @@ function NodeInspector({ node }: { node: QuestionNode }) {
           <InspectorTitle>מתעדכן בפרופיל הלקוח</InspectorTitle>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
             {Array.from(crmPaths).slice(0, 6).map((p) => (
-              <span key={p} style={{ fontSize: '.7rem', direction: 'ltr', background: '#dbe4ec', color: '#264155', fontWeight: 600, borderRadius: 99, padding: '.08rem .55rem' }}>{p}</span>
+              <span key={p} style={{ fontSize: '.7rem', direction: 'ltr', background: 'var(--chip-blue-bg)', color: 'var(--chip-blue-tx)', fontWeight: 600, borderRadius: 99, padding: '.08rem .55rem' }}>{p}</span>
             ))}
           </div>
         </>

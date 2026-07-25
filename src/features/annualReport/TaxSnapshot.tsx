@@ -51,9 +51,9 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
       {regFile && (
         <div style={{
           padding: '.55rem .9rem', borderRadius: 9, fontSize: '.88rem', fontWeight: 700,
-          background: regFile.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-50, #f8f9fa)',
-          border: regFile.owner === 'spouse' ? '1.5px solid #f2d492' : '1px solid var(--gray-200)',
-          color: regFile.owner === 'spouse' ? '#b45309' : 'var(--gray-700, #333)',
+          background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-50, var(--s2))',
+          border: regFile.owner === 'spouse' ? '1.5px solid var(--chip-amber-bd)' : '1px solid var(--gray-200)',
+          color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-700, #333)',
           display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap',
         }}>
           <span>
@@ -70,7 +70,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
               title="החלפת בן הזוג הרשום — נשמר מיד ומעדכן את הת.ז. של התיק"
               style={{
                 padding: '.2rem .45rem', borderRadius: 6, border: '1px solid var(--gray-300, #ccc)',
-                fontSize: '.78rem', fontWeight: 700, background: '#fff', marginRight: 'auto',
+                fontSize: '.78rem', fontWeight: 700, background: 'var(--card)', marginRight: 'auto',
               }}
             >
               <option value="client">{clientDisplayName(client)}</option>
@@ -94,16 +94,16 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
                 {f.fileNumber && <span className="num" dir="ltr" style={{ color: 'var(--gray-500)' }}>{f.fileNumber}</span>}
                 <span style={{
                   fontSize: '.7rem', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 700,
-                  background: f.authority === 'income_tax' && f.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-100)',
-                  color: f.authority === 'income_tax' && f.owner === 'spouse' ? '#b45309' : 'var(--gray-500)',
+                  background: f.authority === 'income_tax' && f.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
+                  color: f.authority === 'income_tax' && f.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-500)',
                 }}>
                   {f.authority === 'national_insurance' ? 'של ' : 'ע"ש '}
                   {taxFileOwnerLabel(client, f.authority, f.owner)}
                 </span>
                 <span style={{
                   fontSize: '.7rem', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 700,
-                  background: f.repStatus === 'active' ? '#E8F3EC' : f.repStatus === 'pending' ? '#FBF2E2' : 'var(--gray-100)',
-                  color: f.repStatus === 'active' ? '#1F7A4D' : f.repStatus === 'pending' ? '#b45309' : 'var(--gray-500)',
+                  background: f.repStatus === 'active' ? 'var(--chip-green-bg)' : f.repStatus === 'pending' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
+                  color: f.repStatus === 'active' ? 'var(--ok)' : f.repStatus === 'pending' ? 'var(--warn)' : 'var(--gray-500)',
                 }}>
                   {TAX_FILE_REP_STATUS_LABELS[f.repStatus]}
                 </span>
@@ -150,7 +150,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
                     </span>
                   )}
                   {y.openUnknowns > 0 && (
-                    <span style={{ fontSize: '.72rem', color: '#b45309' }}>🤷 {y.openUnknowns} לבירור</span>
+                    <span style={{ fontSize: '.72rem', color: 'var(--warn)' }}>🤷 {y.openUnknowns} לבירור</span>
                   )}
                   {onOpenYear && (
                     <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenYear(y.taxYear)}>
@@ -192,9 +192,9 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
                     <tr key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--gray-100)' }}>
                       <td style={{ padding: '.4rem .2rem', color: 'var(--gray-500)', fontSize: '.82rem', width: '40%', verticalAlign: 'top' }}>{row.label}</td>
                       <td style={{ padding: '.4rem .2rem', fontSize: '.88rem', fontWeight: 600 }}>
-                        {row.missing ? <span style={{ color: 'var(--orange, #d97706)', fontWeight: 500 }}>⚠ {row.value}</span> : row.value}
+                        {row.missing ? <span style={{ color: 'var(--orange, var(--warn))', fontWeight: 500 }}>⚠ {row.value}</span> : row.value}
                         {prov && (
-                          <span style={{ display: 'inline-block', marginRight: 6, fontSize: '.64rem', fontWeight: 700, background: 'var(--blue-light, #dbe4ec)', color: 'var(--blue)', borderRadius: 99, padding: '.02rem .5rem', verticalAlign: 'middle' }}>
+                          <span style={{ display: 'inline-block', marginRight: 6, fontSize: '.64rem', fontWeight: 700, background: 'var(--blue-light, var(--chip-blue-bg))', color: 'var(--blue)', borderRadius: 99, padding: '.02rem .5rem', verticalAlign: 'middle' }}>
                             {prov}
                           </span>
                         )}

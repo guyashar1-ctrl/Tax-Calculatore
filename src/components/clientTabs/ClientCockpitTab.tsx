@@ -38,7 +38,7 @@ interface Signal {
   onClick?: () => void;
 }
 
-const LEVEL_COLOR: Record<SignalLevel, string> = { crit: '#c0392b', warn: '#e0b25a', ok: '#1F7A4D' };
+const LEVEL_COLOR: Record<SignalLevel, string> = { crit: 'var(--err)', warn: 'var(--warn)', ok: 'var(--ok)' };
 const LEVEL_RANK: Record<SignalLevel, number> = { crit: 0, warn: 1, ok: 2 };
 
 // ─── לוח חובות הגשה — נגזר מצורת המס של הלקוח ───────────────────────────────
@@ -184,7 +184,7 @@ export default function ClientCockpitTab({
             onClick={s.onClick}
             disabled={!s.onClick}
             style={{
-              textAlign: 'right', background: '#fff', fontFamily: 'inherit',
+              textAlign: 'right', background: 'var(--card)', fontFamily: 'inherit',
               border: '1px solid var(--gray-200)', borderTop: `3px solid ${LEVEL_COLOR[s.level]}`,
               borderRadius: 10, padding: '.6rem .8rem', cursor: s.onClick ? 'pointer' : 'default',
             }}
@@ -209,7 +209,7 @@ export default function ClientCockpitTab({
                   padding: '.35rem 0', borderBottom: '1px dashed var(--gray-100)',
                 }}>
                   <span>{c.label}</span>
-                  <span style={{ fontWeight: 700, color: c.ok ? 'var(--green, #1F7A4D)' : '#b45309', whiteSpace: 'nowrap' }}>{c.due}</span>
+                  <span style={{ fontWeight: 700, color: c.ok ? 'var(--green, var(--ok))' : 'var(--warn)', whiteSpace: 'nowrap' }}>{c.due}</span>
                 </div>
               ))}
             </div>
@@ -221,7 +221,7 @@ export default function ClientCockpitTab({
                   key={t.id} type="button" onClick={() => onSelectTask(t.id)}
                   style={{
                     display: 'flex', justifyContent: 'space-between', width: '100%', gap: '.6rem',
-                    background: '#FBF2E2', border: '1px solid #f2d492', borderRadius: 7,
+                    background: 'var(--chip-amber-bg)', border: '1px solid var(--chip-amber-bd)', borderRadius: 7,
                     padding: '.3rem .6rem', fontSize: '.8rem', marginBottom: '.3rem',
                     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right',
                   }}
@@ -274,7 +274,7 @@ export default function ClientCockpitTab({
                   <span style={{ fontSize: '.72rem', fontWeight: 700, borderRadius: 99, padding: '.1rem .5rem', color: meta.color, background: meta.bg }}>{meta.label}</span>
                   {y.sourceLabels.length > 0 && <span style={{ color: 'var(--gray-500)' }}>{y.sourceLabels.join(' · ')}</span>}
                   {y.docsTotal > 0 && <span style={{ color: 'var(--gray-500)' }}>📎 {y.docsReceived}/{y.docsTotal}</span>}
-                  {y.openUnknowns > 0 && <span style={{ color: '#b45309', fontWeight: 700 }}>🤷 {y.openUnknowns}</span>}
+                  {y.openUnknowns > 0 && <span style={{ color: 'var(--warn)', fontWeight: 700 }}>🤷 {y.openUnknowns}</span>}
                   {onOpenYear && (
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => onOpenYear(y.taxYear)}>פתח ←</button>
                   )}

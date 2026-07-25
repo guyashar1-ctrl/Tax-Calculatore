@@ -122,7 +122,7 @@ export default function TaxConstantsDashboard() {
       </div>
 
       {!isCurrent2025 && (
-        <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '.5rem 1rem', marginBottom: '1rem', fontSize: '.9rem' }}>
+        <div style={{ background: 'var(--chip-amber-bg)', border: '1px solid var(--warn)', borderRadius: 6, padding: '.5rem 1rem', marginBottom: '1rem', fontSize: '.9rem' }}>
           ℹ הציטוטים בכרטיסיות מתייחסים לחוברת 2025 הרשמית; ערכי הנתונים — לשנת המס {year}.
         </div>
       )}
@@ -155,7 +155,7 @@ export default function TaxConstantsDashboard() {
                       <td style={{ padding: '.6rem' }}>
                         <span style={{
                           background: bracketColor(b.rate),
-                          color: 'white',
+                          color: 'var(--card)',
                           padding: '2px 10px',
                           borderRadius: 999,
                           fontWeight: 600,
@@ -241,11 +241,11 @@ function DashboardCardView({ card }: { card: DashboardCard }) {
 }
 
 function bracketColor(rate: number): string {
-  if (rate <= 10) return '#22c55e';
-  if (rate <= 14) return '#86efac';
-  if (rate <= 20) return '#fbbf24';
-  if (rate <= 31) return '#f97316';
-  if (rate <= 35) return '#ef4444';
-  if (rate <= 47) return '#b91c1c';
-  return '#7f1d1d';
+  if (rate <= 10) return 'var(--ok)';
+  if (rate <= 14) return 'var(--chip-green-bd)';
+  if (rate <= 20) return 'var(--warn)';
+  if (rate <= 31) return 'var(--chip-orange-tx)';
+  if (rate <= 35) return 'var(--err)';
+  if (rate <= 47) return 'var(--err)';
+  return 'var(--chip-red-tx)';
 }

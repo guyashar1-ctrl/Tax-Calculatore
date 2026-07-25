@@ -75,12 +75,12 @@ function ColoredSection({ color, icon, label, children }: { color: string; icon:
 }
 
 // צבעים ייחודיים לכל רשות (תואמים לפלטות של מערכות CRM מקצועיות)
-const COLOR_PIT       = '#33556f';  // כחול
-const COLOR_NIKUYIM   = '#0891b2';  // טורקיז
-const COLOR_VAT       = '#059669';  // ירוק
-const COLOR_NI        = '#7c3aed';  // סגול
-const COLOR_SHAAM     = '#d97706';  // כתום
-const COLOR_WEALTH    = '#be185d';  // פוקסיה
+const COLOR_PIT       = 'var(--br)';  // כחול
+const COLOR_NIKUYIM   = 'var(--chip-teal-tx)';  // טורקיז
+const COLOR_VAT       = 'var(--ok)';  // ירוק
+const COLOR_NI        = 'var(--info)';  // סגול
+const COLOR_SHAAM     = 'var(--warn)';  // כתום
+const COLOR_WEALTH    = 'var(--chip-pink-tx)';  // פוקסיה
 
 export default function TaxNITab({ client, update, hideFiles }: Props) {
   const meta = client.fieldMeta ?? {};

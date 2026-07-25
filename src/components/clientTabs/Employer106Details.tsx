@@ -94,7 +94,7 @@ export default function Employer106Details({
         style={{
           cursor: 'pointer',
           fontWeight: 600,
-          color: filled > 0 ? '#0284c7' : 'var(--gray-700)',
+          color: filled > 0 ? 'var(--chip-teal-tx)' : 'var(--gray-700)',
           padding: '4px 0',
           userSelect: 'none',
         }}

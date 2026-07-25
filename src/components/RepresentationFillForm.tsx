@@ -339,7 +339,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
                     padding: '.75rem',
                     border: `1px solid ${uploaded ? 'var(--green)' : 'var(--gray-200)'}`,
                     borderRadius: 'var(--radius)',
-                    background: uploaded ? 'var(--green-light)' : 'white',
+                    background: uploaded ? 'var(--green-light)' : 'var(--card)',
                     flexWrap: 'wrap',
                   }}
                 >

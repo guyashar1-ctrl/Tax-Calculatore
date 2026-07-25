@@ -13,7 +13,7 @@ import {
 } from './generalData';
 import { BUSINESS_TYPES, DECISION_QUESTIONS } from './businessTypes';
 
-const card: React.CSSProperties = { background: 'white', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '1rem 1.15rem' };
+const card: React.CSSProperties = { background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '1rem 1.15rem' };
 const chip = (bg: string, color: string): React.CSSProperties => ({ display: 'inline-block', padding: '.15rem .6rem', borderRadius: 999, fontSize: '.72rem', fontWeight: 700, background: bg, color });
 
 type View = 'wizard' | 'addenda' | 'dictionary' | 'rules';
@@ -42,7 +42,7 @@ export default function BookkeepingKnowledge() {
       <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', borderBottom: '2px solid var(--gray-200)', paddingBottom: '.5rem' }}>
         {tabs.map(t => (
           <button key={t.key} onClick={() => { setView(t.key); setOpenAddendum(null); }}
-            style={{ padding: '.4rem .8rem', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '.85rem', fontWeight: view === t.key ? 700 : 400, background: view === t.key ? 'var(--blue)' : 'transparent', color: view === t.key ? 'white' : 'var(--gray-600)' }}>
+            style={{ padding: '.4rem .8rem', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '.85rem', fontWeight: view === t.key ? 700 : 400, background: view === t.key ? 'var(--blue)' : 'transparent', color: view === t.key ? 'var(--card)' : 'var(--gray-600)' }}>
             {t.label}
           </button>
         ))}
@@ -133,7 +133,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
               <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginTop: '.3rem' }}>
                 {ADDENDA.map(a => (
                   <button key={a.id} onClick={() => setPicked({ label: a.title, keywords: [], addendumId: a.id, confidence: 'high' })}
-                    style={{ padding: '.3rem .6rem', borderRadius: 8, border: '1px solid var(--gray-300)', background: 'white', cursor: 'pointer', fontFamily: 'inherit', fontSize: '.78rem' }}>
+                    style={{ padding: '.3rem .6rem', borderRadius: 8, border: '1px solid var(--gray-300)', background: 'var(--card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: '.78rem' }}>
                     {a.icon} {a.letter}
                   </button>
                 ))}
@@ -153,7 +153,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
           <span style={{ cursor: 'pointer', color: 'var(--blue)' }} onClick={reset}>← חיפוש חדש</span>
         </div>
         <button onClick={() => onOpenAddendum(addendum!.id)}
-          style={{ padding: '.35rem .8rem', borderRadius: 8, border: '1px solid var(--gray-300)', background: 'white', cursor: 'pointer', fontFamily: 'inherit', fontSize: '.8rem' }}>
+          style={{ padding: '.35rem .8rem', borderRadius: 8, border: '1px solid var(--gray-300)', background: 'var(--card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: '.8rem' }}>
           לדף המלא של התוספת ←
         </button>
       </div>
@@ -166,7 +166,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
             <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>תוספת {addendum!.letter} — {addendum!.title}</div>
             {picked.reasoning && <div style={{ fontSize: '.82rem', color: 'var(--gray-600)', marginTop: '.2rem' }}>{picked.reasoning}</div>}
             {picked.caveat && (
-              <div style={{ fontSize: '.82rem', color: '#b45309', background: '#fef9c3', borderRadius: 8, padding: '.4rem .6rem', marginTop: '.4rem' }}>
+              <div style={{ fontSize: '.82rem', color: 'var(--warn)', background: 'var(--chip-yellow-bg)', borderRadius: 8, padding: '.4rem .6rem', marginTop: '.4rem' }}>
                 ⚠ מקרה גבול: {picked.caveat}
               </div>
             )}
@@ -208,12 +208,12 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
           const active = activeTier?.id === tier.id;
           return (
             <div key={tier.id} onClick={() => setManualTier(tier.id)}
-              style={{ ...card, cursor: 'pointer', borderColor: active ? '#15803d' : 'var(--gray-200)', borderWidth: active ? 2 : 1, background: active ? '#f0fdf4' : 'white' }}>
+              style={{ ...card, cursor: 'pointer', borderColor: active ? 'var(--chip-green-tx)' : 'var(--gray-200)', borderWidth: active ? 2 : 1, background: active ? 'var(--chip-green-bg)' : 'var(--card)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.5rem', flexWrap: 'wrap' }}>
                 <div style={{ fontWeight: 700, fontSize: '.92rem' }}>
-                  {active && <span style={{ color: '#15803d' }}>✓ </span>}{tier.label}
+                  {active && <span style={{ color: 'var(--chip-green-tx)' }}>✓ </span>}{tier.label}
                 </div>
-                {tier.doubleEntry && <span style={chip('#faf5ff', '#6d28d9')}>חשבונאות כפולה</span>}
+                {tier.doubleEntry && <span style={chip('var(--chip-violet-bg)', 'var(--info)')}>חשבונאות כפולה</span>}
               </div>
               <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.15rem' }}>{tier.condition.asWritten}</div>
               {active && <TierBooks tier={tier} />}
@@ -252,7 +252,7 @@ function TierBooks({ tier }: { tier: AddendumTier }) {
         </div>
       )}
       {tier.notes?.map((n, i) => (
-        <div key={i} style={{ fontSize: '.8rem', color: '#b45309', marginTop: '.3rem' }}>• {n}</div>
+        <div key={i} style={{ fontSize: '.8rem', color: 'var(--warn)', marginTop: '.3rem' }}>• {n}</div>
       ))}
     </div>
   );
@@ -262,7 +262,7 @@ function BookLine({ name, sectionRef, details }: { name: string; sectionRef?: st
   const [open, setOpen] = useState(false);
   const dict = BOOK_DICTIONARY.find(d => name.includes(d.name) || d.name.includes(name.replace(/ או .*/, '')));
   return (
-    <div style={{ background: 'white', border: '1px solid var(--gray-200)', borderRadius: 8, padding: '.45rem .7rem' }}>
+    <div style={{ background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 8, padding: '.45rem .7rem' }}>
       <div onClick={() => dict && setOpen(!open)} style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', cursor: dict ? 'pointer' : 'default', alignItems: 'center' }}>
         <div style={{ fontSize: '.85rem', fontWeight: 600 }}>
           {dict?.icon ?? '📘'} {name}
@@ -334,7 +334,7 @@ function AddendumDetail({ addendum, onBack }: { addendum: BookkeepingAddendum; o
         <div key={tier.id} style={card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', flexWrap: 'wrap' }}>
             <div style={{ fontWeight: 700 }}>{tier.label}</div>
-            {tier.doubleEntry && <span style={chip('#faf5ff', '#6d28d9')}>חשבונאות כפולה</span>}
+            {tier.doubleEntry && <span style={chip('var(--chip-violet-bg)', 'var(--info)')}>חשבונאות כפולה</span>}
           </div>
           <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.15rem' }}>{tier.condition.asWritten}</div>
           <TierBooks tier={tier} />
@@ -361,8 +361,8 @@ function AddendumDetail({ addendum, onBack }: { addendum: BookkeepingAddendum; o
       )}
 
       {addendum.specialNotes && addendum.specialNotes.length > 0 && (
-        <div style={{ ...card, background: '#fffbeb', borderColor: '#fde68a' }}>
-          {addendum.specialNotes.map((n, i) => <div key={i} style={{ fontSize: '.82rem', color: '#92400e', marginTop: i ? '.25rem' : 0 }}>• {n}</div>)}
+        <div style={{ ...card, background: 'var(--chip-amber-bg)', borderColor: 'var(--chip-amber-bd)' }}>
+          {addendum.specialNotes.map((n, i) => <div key={i} style={{ fontSize: '.82rem', color: 'var(--chip-amber-tx)', marginTop: i ? '.25rem' : 0 }}>• {n}</div>)}
         </div>
       )}
       {addendum.needsReview && addendum.needsReview.length > 0 && (
@@ -388,7 +388,7 @@ function Dictionary() {
           <div key={d.id} style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontWeight: 700 }}>{d.icon} {d.name}</div>
-              <span style={chip(d.kind === 'book' ? '#eef2f6' : '#f0fdf4', d.kind === 'book' ? '#264155' : '#15803d')}>
+              <span style={chip(d.kind === 'book' ? 'var(--soft)' : 'var(--chip-green-bg)', d.kind === 'book' ? 'var(--chip-blue-tx)' : 'var(--chip-green-tx)')}>
                 {d.kind === 'book' ? 'ספר חשבון' : 'תיעוד'}
               </span>
             </div>
@@ -396,7 +396,7 @@ function Dictionary() {
             <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.4rem' }}><b>מה רושמים:</b> {d.whatIsRecorded.join(' · ')}</div>
             {d.whenRecorded && <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.25rem' }}><b>מתי:</b> {d.whenRecorded}</div>}
             {d.commonMistakes && d.commonMistakes.length > 0 && (
-              <div style={{ fontSize: '.78rem', color: '#b45309', marginTop: '.35rem' }}>
+              <div style={{ fontSize: '.78rem', color: 'var(--warn)', marginTop: '.35rem' }}>
                 {d.commonMistakes.map((m, i) => <div key={i}>⚠ {m}</div>)}
               </div>
             )}
@@ -419,7 +419,7 @@ function GeneralRules() {
           <div key={i} style={{ marginTop: '.5rem', borderRight: '3px solid var(--blue)', paddingRight: '.6rem' }}>
             <div style={{ fontWeight: 600, fontSize: '.9rem' }}>"{d.term}" <span style={{ fontSize: '.68rem', color: 'var(--gray-400)', fontWeight: 400 }}>{d.sectionRef}</span></div>
             <div style={{ fontSize: '.82rem', color: 'var(--gray-600)', lineHeight: 1.55 }}>{d.definition}</div>
-            {d.note && <div style={{ fontSize: '.8rem', color: '#b45309', marginTop: '.15rem' }}>💡 {d.note}</div>}
+            {d.note && <div style={{ fontSize: '.8rem', color: 'var(--warn)', marginTop: '.15rem' }}>💡 {d.note}</div>}
           </div>
         ))}
       </div>
@@ -461,14 +461,14 @@ function GeneralRules() {
         <div style={{ fontSize: '.8rem', color: 'var(--gray-500)', marginTop: '.4rem' }}>{RELIEFS.smallDealer}</div>
       </div>
 
-      <div style={{ ...card, borderColor: '#fecaca' }}>
-        <div style={{ fontWeight: 700, marginBottom: '.4rem', color: '#b91c1c' }}>🚨 פסילת ספרים</div>
+      <div style={{ ...card, borderColor: 'var(--chip-red-bd)' }}>
+        <div style={{ fontWeight: 700, marginBottom: '.4rem', color: 'var(--err)' }}>🚨 פסילת ספרים</div>
         <div style={{ fontSize: '.84rem', color: 'var(--gray-600)', lineHeight: 1.6 }}>{DISQUALIFICATION.what}</div>
         <div style={{ fontSize: '.82rem', color: 'var(--gray-600)', marginTop: '.4rem' }}>
           {DISQUALIFICATION.consequences.map((c, i) => <div key={i} style={{ marginTop: '.15rem' }}>• {c}</div>)}
         </div>
         <div style={{ fontSize: '.82rem', color: 'var(--gray-600)', marginTop: '.4rem' }}>{DISQUALIFICATION.closedSystem}</div>
-        <div style={{ fontSize: '.84rem', fontWeight: 700, color: '#b91c1c', marginTop: '.4rem' }}>{DISQUALIFICATION.mostCommon}</div>
+        <div style={{ fontSize: '.84rem', fontWeight: 700, color: 'var(--err)', marginTop: '.4rem' }}>{DISQUALIFICATION.mostCommon}</div>
       </div>
 
       <div style={card}>

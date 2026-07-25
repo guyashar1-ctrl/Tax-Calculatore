@@ -635,7 +635,7 @@ export default function RepresentationRequestReview({
                     const link = s.signToken ? `${window.location.origin}/?sign=${s.signToken}` : '';
                     return (
                       <div key={s.id} style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '.5rem' }}>
-                        <span style={{ minWidth: 150, fontSize: '.85rem', fontWeight: signed ? 600 : 400, color: signed ? '#0F6E56' : 'var(--gray-700)' }}>
+                        <span style={{ minWidth: 150, fontSize: '.85rem', fontWeight: signed ? 600 : 400, color: signed ? 'var(--ok)' : 'var(--gray-700)' }}>
                           👤 {s.name} — {signed ? '✅ חתם/ה' : '⏳ ממתין/ה'}
                         </span>
                         {!signed && link && (
@@ -659,7 +659,7 @@ export default function RepresentationRequestReview({
                     );
                   })}
                   {emailStatus && (
-                    <div style={{ marginTop: '.25rem', fontSize: '.8rem', color: emailStatus.startsWith('✓') ? '#0F6E56' : 'var(--red)' }}>{emailStatus}</div>
+                    <div style={{ marginTop: '.25rem', fontSize: '.8rem', color: emailStatus.startsWith('✓') ? 'var(--ok)' : 'var(--red)' }}>{emailStatus}</div>
                   )}
                 </div>
               </div>
@@ -683,7 +683,7 @@ export default function RepresentationRequestReview({
               <div className="card" style={{ marginBottom: '1rem' }}>
                 <div className="card-header"><div className="card-title">✍️ חתימת הלקוח התקבלה</div></div>
                 <div className="card-body">
-                  <div style={{ border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', background: 'white', padding: '.5rem', display: 'inline-block' }}>
+                  <div style={{ border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', background: 'var(--card)', padding: '.5rem', display: 'inline-block' }}>
                     <img src={request.identification.signatureDataUrl} alt="חתימת לקוח" style={{ maxHeight: 120, display: 'block' }} />
                   </div>
                   <div style={{ fontSize: '.8rem', color: 'var(--gray-600)', marginTop: '.6rem' }}>
@@ -711,7 +711,7 @@ export default function RepresentationRequestReview({
                 </button>
               </div>
               {emailStatus && (
-                <div style={{ marginTop: '.5rem', fontSize: '.8rem', color: emailStatus.startsWith('✓') ? 'var(--green-dark, #0F6E56)' : 'var(--red)' }}>{emailStatus}</div>
+                <div style={{ marginTop: '.5rem', fontSize: '.8rem', color: emailStatus.startsWith('✓') ? 'var(--green-dark, var(--ok))' : 'var(--red)' }}>{emailStatus}</div>
               )}
             </div>
           </div>
@@ -786,7 +786,7 @@ export default function RepresentationRequestReview({
                 <div style={{
                   border: '1px solid var(--gray-200)',
                   borderRadius: 'var(--radius)',
-                  background: 'white',
+                  background: 'var(--card)',
                   padding: '.5rem',
                   display: 'inline-block',
                 }}>
@@ -837,7 +837,7 @@ export default function RepresentationRequestReview({
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: 'white',
+              background: 'var(--card)',
               borderRadius: 'var(--radius)',
               padding: '1rem',
               maxWidth: '90vw',

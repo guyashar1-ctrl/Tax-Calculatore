@@ -93,7 +93,7 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
             fontFamily: 'inherit', fontSize: '.875rem',
             fontWeight: tool === 'overview' ? 700 : 400,
             background: tool === 'overview' ? 'var(--blue)' : 'transparent',
-            color: tool === 'overview' ? 'white' : 'var(--gray-600)',
+            color: tool === 'overview' ? 'var(--card)' : 'var(--gray-600)',
           }}
         >
           🧭 סקירה
@@ -107,7 +107,7 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
               fontFamily: 'inherit', fontSize: '.875rem',
               fontWeight: tool === t.key ? 700 : 400,
               background: tool === t.key ? 'var(--blue)' : 'transparent',
-              color: tool === t.key ? 'white' : 'var(--gray-600)',
+              color: tool === t.key ? 'var(--card)' : 'var(--gray-600)',
             }}
           >
             {t.icon} {t.label}

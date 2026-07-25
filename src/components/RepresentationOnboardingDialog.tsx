@@ -126,7 +126,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           </div>
           <div className="modal-body">
             {result.emailSent ? (
-              <div style={{ padding: '.7rem .9rem', background: 'var(--green-light)', borderRadius: 'var(--radius)', color: 'var(--green-dark, #0F6E56)', fontSize: '.9rem', marginBottom: '1rem' }}>
+              <div style={{ padding: '.7rem .9rem', background: 'var(--green-light)', borderRadius: 'var(--radius)', color: 'var(--green-dark, var(--ok))', fontSize: '.9rem', marginBottom: '1rem' }}>
                 📧 מייל הזדהות נשלח אוטומטית ללקוח (<span dir="ltr">{email.trim()}</span>).
               </div>
             ) : (
@@ -197,7 +197,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           </div>
 
           {/* בן/בת זוג — כשנשוי, שני בני הזוג חותמים על ייפוי הכוח */}
-          <div style={{ marginTop: '1rem', padding: '.75rem .9rem', border: `1px solid ${married ? 'var(--blue)' : 'var(--gray-200)'}`, borderRadius: 'var(--radius)', background: married ? 'var(--blue-light)' : 'white' }}>
+          <div style={{ marginTop: '1rem', padding: '.75rem .9rem', border: `1px solid ${married ? 'var(--blue)' : 'var(--gray-200)'}`, borderRadius: 'var(--radius)', background: married ? 'var(--blue-light)' : 'var(--card)' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '.6rem', cursor: busy ? 'default' : 'pointer', fontWeight: 600, fontSize: '.9rem' }}>
               <input type="checkbox" checked={married} onChange={e => setMarried(e.target.checked)} disabled={busy} />
               💍 הלקוח/ה נשוי/אה — צריך גם חתימת בן/בת הזוג
@@ -248,7 +248,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                       gap: '.75rem',
                       padding: '.6rem .8rem',
                       border: `1px solid ${st.selected ? 'var(--blue)' : 'var(--gray-200)'}`,
-                      background: st.selected ? 'var(--blue-light)' : 'white',
+                      background: st.selected ? 'var(--blue-light)' : 'var(--card)',
                       borderRadius: 'var(--radius)',
                       cursor: busy ? 'default' : 'pointer',
                     }}

@@ -3,11 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>גיא ישר · רואה חשבון · CRM</title>
+    <title>PIVO · גיא ישר · רואה חשבון</title>
+    <meta name="theme-color" content="#f8f7f5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#131619" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Heebo:wght@300;400;500;600;700&family=Assistant:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;700;900&family=Secular+One&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Heebo:wght@300;400;500;600;700;800&family=Assistant:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;700;900&family=Space+Mono:wght@400;700&family=Secular+One&display=swap" rel="stylesheet" />
+    <script>
+      // קובע את הערכה עוד לפני שהאפליקציה נטענת, כדי שלא יהיה הבזק לבן
+      (function () {
+        try {
+          var saved = localStorage.getItem('pivo_theme');
+          var theme = saved === 'light' || saved === 'dark'
+            ? saved
+            : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.dataset.theme = theme;
+        } catch (e) { /* אין גישה לאחסון — נשארים בברירת המחדל הבהירה */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

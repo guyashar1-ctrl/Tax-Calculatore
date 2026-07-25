@@ -152,7 +152,8 @@ export default function QuotationDesignStudio({ profile, onChange }: Props) {
           )}
         </div>
 
-        <div style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', background: brand.pageBg, height: 'calc(100vh - 190px)', minHeight: 540 }}>
+        {/* תצוגה מקדימה של מסמך שהלקוח יקבל — נשארת בהירה גם במצב כהה */}
+        <div className="pivo-light" style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', background: brand.pageBg, height: 'calc(100vh - 190px)', minHeight: 540 }}>
           <div style={{ height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
             <div style={{ width: device === 'mobile' && surface !== 'email' ? 400 : '100%', maxWidth: '100%', transition: 'width .2s' }}>
               {surface === 'quotation' && <QuotationWebView data={SAMPLE} brand={brand} compact={device === 'mobile'} />}

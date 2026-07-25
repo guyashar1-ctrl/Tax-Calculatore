@@ -191,7 +191,7 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
               style={{
                 display: 'flex', alignItems: 'center', gap: '.7rem', flexWrap: 'wrap',
                 border: '1.5px solid var(--gray-200)', borderRadius: 11,
-                padding: '.7rem .9rem', marginBottom: '.55rem', background: 'white',
+                padding: '.7rem .9rem', marginBottom: '.55rem', background: 'var(--card)',
               }}
             >
               <span style={{ fontSize: '1.25rem' }}>{c.icon}</span>
@@ -206,7 +206,7 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
                   onClick={() => setDecisions((p) => ({ ...p, [c.key]: 'same' }))}
                   style={{
                     border: d === 'same' ? '1.5px solid var(--green)' : '1.5px solid var(--gray-200)',
-                    background: d === 'same' ? '#E8F3EC' : 'white',
+                    background: d === 'same' ? 'var(--chip-green-bg)' : 'var(--card)',
                     color: d === 'same' ? 'var(--green)' : 'var(--gray-600)', fontWeight: 700,
                   }}
                 >
@@ -218,7 +218,7 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
                   onClick={() => setDecisions((p) => ({ ...p, [c.key]: 'changed' }))}
                   style={{
                     border: d === 'changed' ? '1.5px solid var(--blue)' : '1.5px solid var(--gray-200)',
-                    background: d === 'changed' ? 'var(--blue-light, #dbe4ec)' : 'white',
+                    background: d === 'changed' ? 'var(--blue-light, var(--chip-blue-bg))' : 'var(--card)',
                     color: d === 'changed' ? 'var(--blue)' : 'var(--gray-600)', fontWeight: 700,
                   }}
                 >
@@ -243,7 +243,7 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
                     onClick={() => setNewTiles((prev) => on ? prev.filter((v) => v !== t.value) : [...prev, t.value])}
                     style={{
                       border: on ? '1.5px solid var(--blue)' : '1.5px solid var(--gray-200)',
-                      background: on ? 'var(--blue-light, #dbe4ec)' : 'white',
+                      background: on ? 'var(--blue-light, var(--chip-blue-bg))' : 'var(--card)',
                       color: on ? 'var(--blue)' : 'var(--gray-600)', fontWeight: 600,
                     }}
                   >
