@@ -309,10 +309,10 @@ export function provenanceLabel(client: Client, metaKey?: string): string | null
 // ─── תמונת מס — סיכום תיקי השנה של הלקוח לתצוגה בכרטיס ──────────────────────
 
 export const SESSION_STATUS_META: Record<AnnualReportSession['status'], { label: string; color: string; bg: string }> = {
-  in_progress: { label: 'באמצע השאלון', color: '#264155', bg: '#dbe4ec' },
-  review:      { label: 'ממתין לבדיקה', color: '#b45309', bg: '#fef3c7' },
-  mapping_done:{ label: 'מוכן להגשה', color: '#1F7A4D', bg: '#E8F3EC' },
-  archived:    { label: 'בארכיון', color: '#6b7280', bg: '#f3f4f6' },
+  in_progress: { label: 'באמצע השאלון', color: 'var(--chip-blue-tx)', bg: 'var(--chip-blue-bg)' },
+  review:      { label: 'ממתין לבדיקה', color: 'var(--warn)', bg: 'var(--chip-amber-bg)' },
+  mapping_done:{ label: 'מוכן להגשה', color: 'var(--ok)', bg: 'var(--chip-green-bg)' },
+  archived:    { label: 'בארכיון', color: 'var(--tx2)', bg: 'var(--s2)' },
 };
 
 const SOURCE_LABELS: Record<IncomeSourceKind, string> = {

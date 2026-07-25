@@ -160,7 +160,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
   const secTitle: React.CSSProperties = { fontWeight: 700, fontSize: '.95rem', marginBottom: '.6rem' };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '1.25rem', alignItems: 'start' }}>
+    <div className="tc-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '1.25rem', alignItems: 'start' }}>
       {/* ── שאלות ── */}
       <div className="card">
         <div className="card-body">
@@ -204,7 +204,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                     textAlign: 'right', cursor: 'pointer', fontFamily: 'inherit',
                     padding: '.7rem .8rem', borderRadius: 10,
                     border: on ? '2px solid var(--blue)' : '1px solid var(--gray-200)',
-                    background: on ? 'var(--blue-light)' : 'white',
+                    background: on ? 'var(--blue-light)' : 'var(--card)',
                     boxShadow: on ? 'none' : '0 1px 2px rgba(0,0,0,.04)',
                   }}>
                   <div style={{ fontSize: '1.3rem' }}>{c.icon}</div>
@@ -419,7 +419,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 {!settlement && settlementQuery && (
                   <div style={{
                     position: 'absolute', top: '100%', right: 0, left: 0, zIndex: 20,
-                    background: 'white', border: '1px solid var(--gray-200)', borderRadius: 8,
+                    background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 8,
                     boxShadow: '0 8px 20px rgba(0,0,0,.1)', maxHeight: 220, overflowY: 'auto',
                   }}>
                     {searchSettlements(settlementQuery, year).map(s => (
@@ -495,14 +495,14 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
             </div>
 
             {settlementResult && (
-              <div style={{ marginTop: '.6rem', padding: '.5rem .7rem', background: 'var(--green-light, #ecfdf5)', borderRadius: 8, fontSize: '.8rem' }}>
+              <div style={{ marginTop: '.6rem', padding: '.5rem .7rem', background: 'var(--green-light, var(--chip-green-bg))', borderRadius: 8, fontSize: '.8rem' }}>
                 <strong>+ זיכוי יישוב מוטב: {fmt(settlementResult.credit)}</strong>
                 <div style={{ fontSize: '.72rem', color: 'var(--gray-600)', marginTop: '.2rem' }}>{settlementResult.explanation}</div>
               </div>
             )}
 
             {result.disabilityExemption && (
-              <div style={{ marginTop: '.6rem', padding: '.5rem .7rem', background: '#fef9c3', borderRadius: 8, fontSize: '.78rem' }}>
+              <div style={{ marginTop: '.6rem', padding: '.5rem .7rem', background: 'var(--chip-yellow-bg)', borderRadius: 8, fontSize: '.78rem' }}>
                 <strong>פטור נכה/עיוור (9(5)):</strong> {result.disabilityExemption.explanation}
               </div>
             )}
@@ -519,7 +519,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                   <span>מס לתשלום:</span><span>{fmt(taxAnalysis.final)}</span>
                 </div>
                 {taxAnalysis.unused > 0 && (
-                  <div style={{ marginTop: '.4rem', fontSize: '.75rem', color: '#b45309' }}>
+                  <div style={{ marginTop: '.4rem', fontSize: '.75rem', color: 'var(--warn)' }}>
                     ⚠ {fmt(taxAnalysis.unused)} מהזיכויים לא מנוצלים — נקודות זיכוי אינן מוחזרות ואינן נצברות
                   </div>
                 )}

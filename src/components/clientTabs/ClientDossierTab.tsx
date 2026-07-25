@@ -35,7 +35,7 @@ function DossierGroup({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+    <div style={{ border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden', background: 'var(--card)' }}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -61,10 +61,10 @@ export default function ClientDossierTab({ client, update, patch, employees, isN
   return (
     <div className="cw-tab" style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
       {/* ── העוגן: תיקים ברשויות — פעם אחת, תמיד למעלה ── */}
-      <div style={{ border: '1.5px solid #e5d9b2', borderRadius: 12, background: '#fffdf6', padding: '.6rem .9rem' }}>
+      <div style={{ border: '1.5px solid var(--chip-amber-bd)', borderRadius: 12, background: 'var(--chip-amber-bg)', padding: '.6rem .9rem' }}>
         <TaxFilesSection client={client} update={update} />
         {regFile && client.familyStatus === 'married' && (
-          <div style={{ fontSize: '.8rem', fontWeight: 700, color: regFile.owner === 'spouse' ? '#b45309' : 'var(--gray-600)', marginTop: '.35rem' }}>
+          <div style={{ fontSize: '.8rem', fontWeight: 700, color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-600)', marginTop: '.35rem' }}>
             {regFile.owner === 'spouse' ? '⚠' : '🗄️'} בן/בת הזוג הרשום/ה: {regFile.name}
             {regFile.idNumber ? ` · ת.ז. ${regFile.idNumber}` : ''} — כל ההתנהלות מול מ"ה בת.ז. הזו
           </div>

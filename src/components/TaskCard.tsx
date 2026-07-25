@@ -19,14 +19,14 @@ interface Props {
 
 /** צבע אווטאר לפי hash של מזהה הלקוח */
 const AVATAR_COLORS = [
-  { bg: '#dbe4ec', fg: '#264155' },
-  { bg: '#fef3c7', fg: '#b45309' },
-  { bg: '#fce7f3', fg: '#be185d' },
-  { bg: '#dcfce7', fg: '#15803d' },
-  { bg: '#e0e7ff', fg: '#4338ca' },
-  { bg: '#fee2e2', fg: '#b91c1c' },
-  { bg: '#f3e8ff', fg: '#7e22ce' },
-  { bg: '#ccfbf1', fg: '#0f766e' },
+  { bg: 'var(--chip-blue-bg)', fg: 'var(--chip-blue-tx)' },
+  { bg: 'var(--chip-amber-bg)', fg: 'var(--warn)' },
+  { bg: 'var(--chip-pink-bg)', fg: 'var(--chip-pink-tx)' },
+  { bg: 'var(--chip-green-bg)', fg: 'var(--chip-green-tx)' },
+  { bg: 'var(--chip-violet-bg)', fg: 'var(--info)' },
+  { bg: 'var(--chip-red-bg)', fg: 'var(--err)' },
+  { bg: 'var(--chip-violet-bg)', fg: 'var(--info)' },
+  { bg: 'var(--chip-teal-bg)', fg: 'var(--chip-teal-tx)' },
 ];
 
 function avatarColor(id: string) {

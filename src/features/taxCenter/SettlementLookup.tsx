@@ -97,13 +97,13 @@ export default function SettlementLookup({ year }: Props) {
           </div>
 
           {eclMatches.length > 0 && (
-            <div style={{ marginTop: '.75rem', border: '1.5px solid #86efac', background: '#f0fdf4', borderRadius: 10, padding: '.8rem 1rem' }}>
+            <div style={{ marginTop: '.75rem', border: '1.5px solid var(--chip-green-bd)', background: 'var(--chip-green-bg)', borderRadius: 10, padding: '.8rem 1rem' }}>
               <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: '.3rem' }}>
                 🆕 נמצא ברשימת "קו עימות מזרחי" (הוראת שעה 2026–2027)
               </div>
               <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginBottom: '.4rem' }}>
                 {eclMatches.map(s => (
-                  <span key={s} style={{ background: 'white', border: '1px solid #bbf7d0', borderRadius: 999, padding: '.15rem .6rem', fontSize: '.82rem', fontWeight: 600 }}>{s}</span>
+                  <span key={s} style={{ background: 'var(--card)', border: '1px solid var(--chip-green-bd)', borderRadius: 999, padding: '.15rem .6rem', fontSize: '.82rem', fontWeight: 600 }}>{s}</span>
                 ))}
               </div>
               <div style={{ fontSize: '.83rem' }}>

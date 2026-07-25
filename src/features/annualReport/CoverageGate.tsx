@@ -17,10 +17,10 @@ import QuestionCard from './QuestionCard';
 type DocStatus = 'pending' | 'requested' | 'received' | 'not_relevant';
 
 const DOC_STATUS_META: Record<DocStatus, { label: string; color: string; bg: string }> = {
-  pending:      { label: 'טרם טופל', color: '#b45309', bg: '#FBF2E2' },
-  requested:    { label: 'נשלחה בקשה', color: '#264155', bg: '#dbe4ec' },
-  received:     { label: 'התקבל ✓', color: '#1F7A4D', bg: '#E8F3EC' },
-  not_relevant: { label: 'לא רלוונטי', color: '#6b7280', bg: '#f3f4f6' },
+  pending:      { label: 'טרם טופל', color: 'var(--warn)', bg: 'var(--chip-amber-bg)' },
+  requested:    { label: 'נשלחה בקשה', color: 'var(--chip-blue-tx)', bg: 'var(--chip-blue-bg)' },
+  received:     { label: 'התקבל ✓', color: 'var(--ok)', bg: 'var(--chip-green-bg)' },
+  not_relevant: { label: 'לא רלוונטי', color: 'var(--tx2)', bg: 'var(--s2)' },
 };
 
 const DOC_STATUS_CYCLE: DocStatus[] = ['pending', 'requested', 'received', 'not_relevant'];
@@ -178,8 +178,8 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
             <span
               style={{
                 fontSize: '.72rem', fontWeight: 700, borderRadius: 99, padding: '.15rem .6rem', verticalAlign: 'middle',
-                background: regFile.owner === 'spouse' ? '#FBF2E2' : 'var(--gray-100)',
-                color: regFile.owner === 'spouse' ? '#b45309' : 'var(--gray-600)',
+                background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
+                color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-600)',
                 marginRight: '.6rem', whiteSpace: 'nowrap',
               }}
               title="על שם מי מתנהל תיק מס הכנסה — נקבע בכרטיס הלקוח"
@@ -191,7 +191,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
         <span className="num" style={{ fontWeight: 700 }}>
           <span style={{ color: 'var(--green)' }}>{totals.active} 🟢 מכוסים</span>
           {' · '}<span style={{ color: 'var(--red)' }}>{totals.pruned} 🔴 לא רלוונטיים</span>
-          {' · '}<span style={{ color: '#b45309' }}>{totals.pending} 🟡 טרם הוכרעו</span>
+          {' · '}<span style={{ color: 'var(--warn)' }}>{totals.pending} 🟡 טרם הוכרעו</span>
         </span>
       </div>
       <p style={{ color: 'var(--gray-600)', fontSize: '.9rem' }}>
@@ -200,7 +200,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
 
       {/* ─── החלטות רו"ח פתוחות ─── */}
       {pendingDecisions.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem', border: '1.5px solid #f2d492' }}>
+        <div className="card" style={{ marginBottom: '1rem', border: '1.5px solid var(--chip-amber-bd)' }}>
           <div className="card-body">
             <h3 style={{ marginTop: 0 }}>🧑‍💼 החלטות מקצועיות פתוחות ({pendingDecisions.length})</h3>
             <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', marginTop: 0 }}>
@@ -232,7 +232,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
 
       {/* ─── בירורים מול הלקוח ("לא בטוח") ─── */}
       {unknownNodes.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem', border: '1.5px solid #c7d7f5' }}>
+        <div className="card" style={{ marginBottom: '1rem', border: '1.5px solid var(--chip-blue-bd)' }}>
           <div className="card-body">
             <h3 style={{ marginTop: 0 }}>🤷 לוודא מול הלקוח ({unknownNodes.length})</h3>
             <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', marginTop: 0 }}>
@@ -328,7 +328,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
                         <span style={{ flex: 1 }}>
                           {f.field.hebrewLabel}
                           {missingQs.length > 0 && (
-                            <span style={{ display: 'block', fontSize: '.72rem', color: '#b45309' }}>
+                            <span style={{ display: 'block', fontSize: '.72rem', color: 'var(--warn)' }}>
                               ממתין ל: {missingQs.slice(0, 2).join(' · ')}
                             </span>
                           )}
@@ -347,10 +347,10 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
       <div style={{
         marginTop: '1rem', padding: '.8rem 1.1rem', borderRadius: 10, display: 'flex',
         justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.6rem',
-        background: blocked ? '#FBF2E2' : '#E8F3EC',
-        border: blocked ? '1.5px solid #f2d492' : '1.5px solid #b7dcc4',
+        background: blocked ? 'var(--chip-amber-bg)' : 'var(--chip-green-bg)',
+        border: blocked ? '1.5px solid var(--chip-amber-bd)' : '1.5px solid var(--chip-green-bd)',
       }}>
-        <span style={{ fontWeight: 700, fontSize: '.9rem', color: blocked ? '#b45309' : 'var(--green)' }}>
+        <span style={{ fontWeight: 700, fontSize: '.9rem', color: blocked ? 'var(--warn)' : 'var(--green)' }}>
           {blocked
             ? `⛔ המאזן לא סגור: ${totals.pending} סעיפים פתוחים · ${pendingDecisions.length} החלטות · ${unknownNodes.length} בירורים מול הלקוח.`
             : '✓ המאזן סגור: כל סעיפי הטופס הוכרעו. אפשר לעבור להכנת הדוח.'}

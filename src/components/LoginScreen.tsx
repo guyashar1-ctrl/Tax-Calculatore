@@ -45,6 +45,7 @@ export default function LoginScreen() {
           onClick={handleClick}
           disabled={busy}
         >
+          {/* לוגו Google — צבעי המותג הרשמיים, לא מתחלפים עם הערכה */}
           <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
             <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/>
             <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
@@ -62,9 +63,9 @@ export default function LoginScreen() {
             style={{
               marginTop: 12,
               padding: '10px 16px',
-              background: '#fef3c7',
-              color: '#92400e',
-              border: '1px dashed #f59e0b',
+              background: 'var(--chip-amber-bg)',
+              color: 'var(--chip-amber-tx)',
+              border: '1px dashed var(--warn)',
               borderRadius: 8,
               fontSize: 14,
               fontWeight: 500,

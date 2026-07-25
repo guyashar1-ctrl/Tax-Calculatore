@@ -173,9 +173,9 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
             <span
               key={c.label}
               style={{
-                color: c.done ? 'var(--green-dark, #0F6E56)' : '#B45309',
+                color: c.done ? 'var(--green-dark, var(--ok))' : 'var(--warn)',
                 fontWeight: 600,
-                background: c.done ? 'transparent' : '#FEF3C7',
+                background: c.done ? 'transparent' : 'var(--chip-amber-bg)',
                 padding: c.done ? undefined : '2px 8px',
                 borderRadius: 8,
               }}

@@ -233,7 +233,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
                     padding: '.6rem .8rem',
                     border: '1px solid var(--gray-200)',
                     borderRadius: 'var(--radius)',
-                    background: doc.isDefault ? 'var(--gray-50)' : 'white',
+                    background: doc.isDefault ? 'var(--gray-50)' : 'var(--card)',
                   }}
                 >
                   <span style={{ fontSize: '1.1rem' }}>📄</span>

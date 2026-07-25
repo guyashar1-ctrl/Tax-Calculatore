@@ -76,7 +76,7 @@ function CatalogTab({ catalog }: { catalog: ReturnType<typeof useQuotationCatalo
             </div>
             <div style={{ border: '1px solid var(--gray-200)', borderRadius: 10, overflow: 'hidden' }}>
               {rows.map((s, i) => (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderTop: i ? '1px solid var(--gray-100)' : 'none', background: s.active ? 'white' : 'var(--gray-50)', opacity: s.active ? 1 : 0.6 }}>
+                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderTop: i ? '1px solid var(--gray-100)' : 'none', background: s.active ? 'var(--card)' : 'var(--gray-50)', opacity: s.active ? 1 : 0.6 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 500, fontSize: 13.5 }}>
                       {s.name}
@@ -193,7 +193,7 @@ function TemplatesTab({ catalog }: { catalog: ReturnType<typeof useQuotationCata
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {catalog.templates.map(t => (
-          <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', border: '1px solid var(--gray-200)', borderRadius: 10, background: 'white' }}>
+          <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', border: '1px solid var(--gray-200)', borderRadius: 10, background: 'var(--card)' }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{t.name} <span style={{ fontSize: 11, color: 'var(--gray-400)', fontWeight: 400 }}>{TEMPLATE_KIND_LABELS[t.kind]}</span></div>
               <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>{t.serviceIds.length} שירותים</div>

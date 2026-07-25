@@ -74,8 +74,8 @@ const NI_BADGE: Record<NIType, string> = {
 
 // ── מחווני ייצוג לפי רשות ──
 const REP_DOT: Record<RepAreaStatus, { dot: string; bg: string; fg: string }> = {
-  active: { dot: '#1D9E75', bg: '#E1F5EE', fg: '#0F6E56' },
-  in_process: { dot: '#EF9F27', bg: '#FAEEDA', fg: '#854F0B' },
+  active: { dot: 'var(--ok)', bg: 'var(--chip-green-bg)', fg: 'var(--ok)' },
+  in_process: { dot: 'var(--warn)', bg: 'var(--chip-amber-bg)', fg: 'var(--chip-amber-tx)' },
   none: { dot: 'transparent', bg: 'var(--gray-50)', fg: 'var(--gray-500)' },
 };
 

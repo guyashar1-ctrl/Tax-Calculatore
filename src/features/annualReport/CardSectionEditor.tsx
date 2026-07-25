@@ -53,7 +53,7 @@ function EditorShell({
     >
       <div
         style={{
-          background: 'white', borderRadius: 8, padding: '1.5rem',
+          background: 'var(--card)', borderRadius: 8, padding: '1.5rem',
           maxWidth: 640, width: '100%', maxHeight: '90vh', overflowY: 'auto',
         }}
         onClick={(e) => e.stopPropagation()}

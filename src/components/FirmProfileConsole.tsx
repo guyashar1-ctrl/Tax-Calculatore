@@ -95,7 +95,7 @@ const SOON_GROUPS: { group: string; items: { label: string; icon: string }[] }[]
   },
 ];
 
-const ACCENT = '#4F46E5';
+const ACCENT = 'var(--br)';
 
 export default function FirmProfileConsole({ profile, clients, onSave }: Props) {
   const [draft, setDraft] = useState<FirmProfile>(profile);
@@ -353,7 +353,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
       <div style={{ display: 'grid', gridTemplateColumns: '184px 1fr', gap: 18, alignItems: 'start' }}>
 
         {/* nav rail */}
-        <div style={{ border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 10, background: 'white' }}>
+        <div style={{ border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 10, background: 'var(--card)' }}>
           <div style={navGroupLabel}>המשרד</div>
           {ACTIVE_NAV.map(item => {
             const active = section === item.id;
@@ -412,7 +412,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
               <div style={card}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   {logoUrl ? (
-                    <img src={logoUrl} alt="לוגו המשרד" style={{ width: 58, height: 58, borderRadius: 10, objectFit: 'contain', border: '1px solid var(--gray-200)', background: 'white' }} />
+                    <img src={logoUrl} alt="לוגו המשרד" style={{ width: 58, height: 58, borderRadius: 10, objectFit: 'contain', border: '1px solid var(--gray-200)', background: 'var(--card)' }} />
                   ) : (
                     <div style={{ width: 58, height: 58, borderRadius: '50%', border: `1.5px solid ${clientBrand.ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 500, color: clientBrand.ink }}>{monogram}</div>
                   )}
@@ -649,12 +649,12 @@ function SaveState({ dirty, busy, savedAt, completeness }: { dirty: boolean; bus
   };
   if (busy) return <span style={{ ...chip, background: 'var(--gray-100)', color: 'var(--gray-600)' }}>שומר…</span>;
   if (dirty) return (
-    <span style={{ ...chip, background: 'var(--orange-light)', color: '#92400e' }}>
+    <span style={{ ...chip, background: 'var(--orange-light)', color: 'var(--chip-amber-tx)' }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--orange)' }} />
       שינויים שלא נשמרו
     </span>
   );
-  if (savedAt) return <span style={{ ...chip, background: 'var(--green-light)', color: '#065f46' }}>✓ נשמר</span>;
+  if (savedAt) return <span style={{ ...chip, background: 'var(--green-light)', color: 'var(--chip-green-tx)' }}>✓ נשמר</span>;
   return (
     <span style={{ ...chip, background: 'var(--gray-100)', color: 'var(--gray-600)' }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT }} />
@@ -678,7 +678,7 @@ function DesignStudioPointer({ brand, onOpen }: { brand: ReturnType<typeof deriv
   return (
     <div
       onClick={onOpen}
-      style={{ border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: '14px 16px', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}
+      style={{ border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: '14px 16px', background: 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}
     >
       <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
         <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.ink }} />
@@ -697,7 +697,7 @@ function DesignStudioPointer({ brand, onOpen }: { brand: ReturnType<typeof deriv
 }
 
 const navGroupLabel: React.CSSProperties = { fontSize: 10.5, letterSpacing: '.06em', color: 'var(--gray-400)', padding: '12px 8px 4px' };
-const card: React.CSSProperties = { border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 18, background: 'white' };
+const card: React.CSSProperties = { border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 18, background: 'var(--card)' };
 const cardTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 500, marginBottom: 14 };
 const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 };
 

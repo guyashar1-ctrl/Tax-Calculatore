@@ -70,11 +70,11 @@ export default function TestSigningRoom() {
   return (
     <div style={{ padding: '1.5rem', fontFamily: 'Heebo, sans-serif' }}>
       <h1>🧪 בדיקה: חדר החתימה + הטבעת PDF</h1>
-      <p style={{ color: '#6b7280' }}>הוסיפו <code>?test-signroom=1</code> לכתובת.</p>
+      <p style={{ color: 'var(--tx2)' }}>הוסיפו <code>?test-signroom=1</code> לכתובת.</p>
       <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem' }}>
         <button className="btn btn-primary" onClick={() => setOpen(true)} disabled={!bytes}>פתח חדר חתימה</button>
       </div>
-      {result && <div style={{ background: '#ecfdf5', border: '1px solid #10b981', padding: '.75rem', borderRadius: 8, direction: 'ltr', textAlign: 'left' }}>{result}</div>}
+      {result && <div style={{ background: 'var(--chip-green-bg)', border: '1px solid var(--ok)', padding: '.75rem', borderRadius: 8, direction: 'ltr', textAlign: 'left' }}>{result}</div>}
       {pdfUrl && <iframe title="out" src={pdfUrl} style={{ width: '100%', height: 500, marginTop: '1rem', border: '1px solid #ddd' }} />}
       {open && bytes && (
         <SigningRoom

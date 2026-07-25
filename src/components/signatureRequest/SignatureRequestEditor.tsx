@@ -730,11 +730,12 @@ interface PageProps {
   onRememberSize: (kind: SignatureFieldKind, w: number, h: number) => void;
 }
 
-const SIGNER_COLORS = ['#33556f', '#059669', '#d97706', '#7c3aed', '#ec4899', '#0891b2'];
+// צבעי החותמים מסומנים על דף PDF לבן — ערכים קבועים, לא תלויי ערכה
+const SIGNER_COLORS = ['#3f5f8f', '#2e7d5b', '#b07515', '#6b4a87', '#a4406a', '#17767c'];
 
 function colorForSigner(signers: Signer[], signerId: string): string {
   const idx = signers.findIndex(s => s.id === signerId);
-  return SIGNER_COLORS[idx % SIGNER_COLORS.length] || '#33556f';
+  return SIGNER_COLORS[idx % SIGNER_COLORS.length] || 'var(--br)';
 }
 
 // 8 ידיות שינוי גודל — n/s/e/w עבור קצוות, ne/se/sw/nw עבור פינות

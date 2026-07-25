@@ -12,23 +12,23 @@ function getEmployerRates(year: number) {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const greenHeader: React.CSSProperties = {
-  background: '#166534',
-  color: 'white',
+  background: 'var(--chip-green-tx)',
+  color: 'var(--card)',
   padding: '8px 12px',
   fontWeight: 700,
   fontSize: '.8125rem',
   textAlign: 'right',
-  borderBottom: '2px solid #14532d',
+  borderBottom: '2px solid var(--chip-green-tx)',
 };
 
 const greenSubHeader: React.CSSProperties = {
-  background: '#15803d',
-  color: 'white',
+  background: 'var(--chip-green-tx)',
+  color: 'var(--card)',
   padding: '6px 12px',
   fontWeight: 600,
   fontSize: '.8rem',
   textAlign: 'center',
-  borderBottom: '1px solid #166534',
+  borderBottom: '1px solid var(--chip-green-tx)',
 };
 
 const cellStyle: React.CSSProperties = {
@@ -46,14 +46,14 @@ const rowLabelStyle: React.CSSProperties = {
 };
 
 const totalRowStyle: React.CSSProperties = {
-  background: '#ecfdf5',
+  background: 'var(--chip-green-bg)',
   fontWeight: 700,
 };
 
 const tableStyle: React.CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
-  border: '1px solid #166534',
+  border: '1px solid var(--chip-green-tx)',
   borderRadius: '8px',
   overflow: 'hidden',
 };
@@ -61,10 +61,10 @@ const tableStyle: React.CSSProperties = {
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: '1.1rem',
   fontWeight: 700,
-  color: '#166534',
+  color: 'var(--chip-green-tx)',
   marginBottom: '.75rem',
   paddingBottom: '.5rem',
-  borderBottom: '2px solid #bbf7d0',
+  borderBottom: '2px solid var(--chip-green-bd)',
   display: 'flex',
   alignItems: 'center',
   gap: '.5rem',
@@ -98,18 +98,18 @@ function AxisDiagram({ zones }: {
             }}>
               <div style={{
                 fontSize: '.8rem', fontWeight: 700,
-                color: z.rate === '0%' || z.label === 'פטור' ? '#94a3b8' : '#1e293b',
+                color: z.rate === '0%' || z.label === 'פטור' ? 'var(--tx3)' : 'var(--tx)',
               }}>
                 {z.rate || '0%'}
               </div>
-              <div style={{ fontSize: '.65rem', color: '#64748b', fontWeight: 500 }}>{z.label}</div>
+              <div style={{ fontSize: '.65rem', color: 'var(--tx2)', fontWeight: 500 }}>{z.label}</div>
             </div>
           );
         })}
       </div>
       {/* The line itself */}
       <div style={{ position: 'relative', height: 10 }}>
-        <div style={{ position: 'absolute', top: 4, left: 0, right: 0, height: 2, background: '#e2e8f0' }} />
+        <div style={{ position: 'absolute', top: 4, left: 0, right: 0, height: 2, background: 'var(--bd)' }} />
         {zones.map((z, i) => {
           const width = z.to === null ? 15 : ((z.to - z.from) / maxVal) * 85;
           const left = z.to === null
@@ -120,8 +120,8 @@ function AxisDiagram({ zones }: {
             <div key={i} style={{
               position: 'absolute', top: 1, left: `${left}%`, width: `${width}%`, height: 8,
               borderRadius: 4,
-              background: isExempt ? '#f1f5f9' : `${z.color}20`,
-              borderBottom: isExempt ? '2px solid #cbd5e1' : `3px solid ${z.color}`,
+              background: isExempt ? 'var(--s2)' : `${z.color}20`,
+              borderBottom: isExempt ? '2px solid var(--bd-strong)' : `3px solid ${z.color}`,
             }} />
           );
         })}
@@ -132,7 +132,7 @@ function AxisDiagram({ zones }: {
           return (
             <div key={`tick-${i}`} style={{
               position: 'absolute', top: -2, left: `${pos}%`, width: 1, height: 14,
-              background: '#94a3b8', transform: 'translateX(-0.5px)',
+              background: 'var(--tx3)', transform: 'translateX(-0.5px)',
             }} />
           );
         })}
@@ -145,7 +145,7 @@ function AxisDiagram({ zones }: {
             <div key={i} style={{
               flex: z.to === null ? '0 0 15%' : `0 0 ${width}%`,
               textAlign: 'center',
-              fontSize: '.65rem', color: '#94a3b8',
+              fontSize: '.65rem', color: 'var(--tx3)',
             }}>
               {fmt(z.from)}{z.to ? ` – ${fmt(z.to)}` : '+'}
             </div>
@@ -502,9 +502,9 @@ export default function NIReferenceSection({ taxData, year }: Props) {
               </table>
             </div>
             <AxisDiagram zones={[
-              { from: 0, to: threshold60, label: 'שיעור מופחת', color: '#436e8f', rate: fmtPct(taxData.employeeNI.lowRate + taxData.employeeNI.healthLowRate) },
-              { from: threshold60, to: maxIncome, label: 'שיעור מלא', color: '#d97706', rate: fmtPct(taxData.employeeNI.highRate + taxData.employeeNI.healthHighRate) },
-              { from: maxIncome, to: null, label: 'פטור', color: '#cbd5e1' },
+              { from: 0, to: threshold60, label: 'שיעור מופחת', color: 'var(--br)', rate: fmtPct(taxData.employeeNI.lowRate + taxData.employeeNI.healthLowRate) },
+              { from: threshold60, to: maxIncome, label: 'שיעור מלא', color: 'var(--warn)', rate: fmtPct(taxData.employeeNI.highRate + taxData.employeeNI.healthHighRate) },
+              { from: maxIncome, to: null, label: 'פטור', color: 'var(--bd-strong)' },
             ]} />
           </div>
         </div>
@@ -555,9 +555,9 @@ export default function NIReferenceSection({ taxData, year }: Props) {
               </div>
             </div>
             <AxisDiagram zones={[
-              { from: 0, to: threshold60, label: 'שיעור מופחת', color: '#436e8f', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
-              { from: threshold60, to: maxIncome, label: 'שיעור מלא', color: '#d97706', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
-              { from: maxIncome, to: null, label: 'פטור', color: '#cbd5e1' },
+              { from: 0, to: threshold60, label: 'שיעור מופחת', color: 'var(--br)', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
+              { from: threshold60, to: maxIncome, label: 'שיעור מלא', color: 'var(--warn)', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
+              { from: maxIncome, to: null, label: 'פטור', color: 'var(--bd-strong)' },
             ]} />
           </div>
         </div>
@@ -608,10 +608,10 @@ export default function NIReferenceSection({ taxData, year }: Props) {
               <span>תשלום מינימלי חודשי: {fmt(minNI)}</span>
             </div>
             <AxisDiagram zones={[
-              { from: 0, to: threshold25, label: 'פטור', color: '#cbd5e1', rate: '0%' },
-              { from: threshold25, to: threshold50, label: 'מופחת', color: '#436e8f', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
-              { from: threshold50, to: maxIncome, label: 'מלא', color: '#d97706', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
-              { from: maxIncome, to: null, label: 'פטור', color: '#cbd5e1' },
+              { from: 0, to: threshold25, label: 'פטור', color: 'var(--bd-strong)', rate: '0%' },
+              { from: threshold25, to: threshold50, label: 'מופחת', color: 'var(--br)', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
+              { from: threshold50, to: maxIncome, label: 'מלא', color: 'var(--warn)', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
+              { from: maxIncome, to: null, label: 'פטור', color: 'var(--bd-strong)' },
             ]} />
           </div>
         </div>
@@ -662,10 +662,10 @@ export default function NIReferenceSection({ taxData, year }: Props) {
               <span>הכנסה פסיבית: שכ"ד, ריבית, דיבידנד, פנסיה מוקדמת ועוד</span>
             </div>
             <AxisDiagram zones={[
-              { from: 0, to: threshold25, label: 'פטור', color: '#cbd5e1', rate: '0%' },
-              { from: threshold25, to: threshold60, label: 'מופחת', color: '#436e8f', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
-              { from: threshold60, to: maxIncome, label: 'מלא', color: '#d97706', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
-              { from: maxIncome, to: null, label: 'פטור', color: '#cbd5e1' },
+              { from: 0, to: threshold25, label: 'פטור', color: 'var(--bd-strong)', rate: '0%' },
+              { from: threshold25, to: threshold60, label: 'מופחת', color: 'var(--br)', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
+              { from: threshold60, to: maxIncome, label: 'מלא', color: 'var(--warn)', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
+              { from: maxIncome, to: null, label: 'פטור', color: 'var(--bd-strong)' },
             ]} />
           </div>
         </div>
@@ -674,13 +674,13 @@ export default function NIReferenceSection({ taxData, year }: Props) {
       {/* ═══════════════ PART 3: NI Calculator ═══════════════ */}
       <div style={{
         marginBottom: '2rem',
-        border: '2px solid #7c3aed',
+        border: '2px solid var(--info)',
         borderRadius: 12,
-        background: 'linear-gradient(135deg, #faf5ff 0%, #f5f3ff 100%)',
+        background: 'linear-gradient(135deg, var(--chip-violet-bg) 0%, var(--chip-violet-bg) 100%)',
         overflow: 'hidden',
       }}>
         <div style={{
-          background: '#7c3aed', color: 'white', padding: '.9rem 1.25rem',
+          background: 'var(--info)', color: 'var(--card)', padding: '.9rem 1.25rem',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>🧮 מחשבון ביטוח לאומי — {year}</span>
@@ -709,16 +709,16 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                   ? 'הכנסה (שכיר) ₪' : 'הכנסה ₪'}
                 <span style={{
                   display: 'inline-flex', borderRadius: 6, overflow: 'hidden',
-                  border: '1px solid #cbd5e1', fontSize: '.7rem', fontWeight: 500,
+                  border: '1px solid var(--bd-strong)', fontSize: '.7rem', fontWeight: 500,
                 }}>
                   <button type="button" onClick={() => { if (incomeMode === 'annual') { setIncomeMode('monthly'); setIncomeInput(Math.round(incomeInput / 12)); } }}
                     style={{ padding: '.15rem .5rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                      background: incomeMode === 'monthly' ? '#7c3aed' : 'white', color: incomeMode === 'monthly' ? 'white' : '#64748b' }}>
+                      background: incomeMode === 'monthly' ? 'var(--info)' : 'var(--card)', color: incomeMode === 'monthly' ? 'var(--card)' : 'var(--tx2)' }}>
                     חודשי
                   </button>
                   <button type="button" onClick={() => { if (incomeMode === 'monthly') { setIncomeMode('annual'); setIncomeInput(incomeInput * 12); } }}
-                    style={{ padding: '.15rem .5rem', border: 'none', borderRight: '1px solid #cbd5e1', cursor: 'pointer', fontFamily: 'inherit',
-                      background: incomeMode === 'annual' ? '#7c3aed' : 'white', color: incomeMode === 'annual' ? 'white' : '#64748b' }}>
+                    style={{ padding: '.15rem .5rem', border: 'none', borderRight: '1px solid var(--bd-strong)', cursor: 'pointer', fontFamily: 'inherit',
+                      background: incomeMode === 'annual' ? 'var(--info)' : 'var(--card)', color: incomeMode === 'annual' ? 'var(--card)' : 'var(--tx2)' }}>
                     שנתי
                   </button>
                 </span>
@@ -731,7 +731,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                 style={{ fontSize: '1.05rem' }}
               />
               {incomeInput > 0 && (
-                <span style={{ fontSize: '.7rem', color: '#64748b' }}>
+                <span style={{ fontSize: '.7rem', color: 'var(--tx2)' }}>
                   = {incomeMode === 'monthly' ? `${fmt(incomeInput * 12)}/שנה` : `${fmt(Math.round(incomeInput / 12))}/חודש`}
                 </span>
               )}
@@ -754,16 +754,16 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                     : 'הכנסה פסיבית ₪'}
                   <span style={{
                     display: 'inline-flex', borderRadius: 6, overflow: 'hidden',
-                    border: '1px solid #cbd5e1', fontSize: '.7rem', fontWeight: 500,
+                    border: '1px solid var(--bd-strong)', fontSize: '.7rem', fontWeight: 500,
                   }}>
                     <button type="button" onClick={() => { if (incomeModeSecondary === 'annual') { setIncomeModeSecondary('monthly'); setSecondaryInput(Math.round(secondaryInput / 12)); } }}
                       style={{ padding: '.15rem .5rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                        background: incomeModeSecondary === 'monthly' ? '#7c3aed' : 'white', color: incomeModeSecondary === 'monthly' ? 'white' : '#64748b' }}>
+                        background: incomeModeSecondary === 'monthly' ? 'var(--info)' : 'var(--card)', color: incomeModeSecondary === 'monthly' ? 'var(--card)' : 'var(--tx2)' }}>
                       חודשי
                     </button>
                     <button type="button" onClick={() => { if (incomeModeSecondary === 'monthly') { setIncomeModeSecondary('annual'); setSecondaryInput(secondaryInput * 12); } }}
-                      style={{ padding: '.15rem .5rem', border: 'none', borderRight: '1px solid #cbd5e1', cursor: 'pointer', fontFamily: 'inherit',
-                        background: incomeModeSecondary === 'annual' ? '#7c3aed' : 'white', color: incomeModeSecondary === 'annual' ? 'white' : '#64748b' }}>
+                      style={{ padding: '.15rem .5rem', border: 'none', borderRight: '1px solid var(--bd-strong)', cursor: 'pointer', fontFamily: 'inherit',
+                        background: incomeModeSecondary === 'annual' ? 'var(--info)' : 'var(--card)', color: incomeModeSecondary === 'annual' ? 'var(--card)' : 'var(--tx2)' }}>
                       שנתי
                     </button>
                   </span>
@@ -775,7 +775,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                   placeholder="0"
                 />
                 {secondaryInput > 0 && (
-                  <span style={{ fontSize: '.7rem', color: '#64748b' }}>
+                  <span style={{ fontSize: '.7rem', color: 'var(--tx2)' }}>
                     = {incomeModeSecondary === 'monthly' ? `${fmt(secondaryInput * 12)}/שנה` : `${fmt(Math.round(secondaryInput / 12))}/חודש`}
                   </span>
                 )}
@@ -787,12 +787,12 @@ export default function NIReferenceSection({ taxData, year }: Props) {
             <div>
               {/* Results table */}
               <div style={{
-                background: 'white', borderRadius: 8, overflow: 'hidden',
-                border: '1px solid #e2e8f0', marginBottom: '1rem',
+                background: 'var(--card)', borderRadius: 8, overflow: 'hidden',
+                border: '1px solid var(--bd)', marginBottom: '1rem',
               }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.875rem' }}>
                   <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                    <tr style={{ background: 'var(--s2)', borderBottom: '2px solid var(--bd)' }}>
                       <th style={{ padding: '.6rem .75rem', textAlign: 'right', fontWeight: 600 }}></th>
                       <th style={{ padding: '.6rem .75rem', textAlign: 'center', fontWeight: 600 }}>ביטוח לאומי</th>
                       <th style={{ padding: '.6rem .75rem', textAlign: 'center', fontWeight: 600 }}>מס בריאות</th>
@@ -800,25 +800,25 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <tr style={{ borderBottom: '1px solid var(--s2)' }}>
                       <td style={{ padding: '.5rem .75rem', fontWeight: 600 }}>חודשי (חלק עובד)</td>
-                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: '#33556f' }}>{fmt(calcResult.ni)}</td>
-                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: '#0891b2' }}>{fmt(calcResult.health)}</td>
-                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: '#7c3aed', fontSize: '1rem' }}>{fmt(calcResult.total)}</td>
+                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: 'var(--br)' }}>{fmt(calcResult.ni)}</td>
+                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: 'var(--chip-teal-tx)' }}>{fmt(calcResult.health)}</td>
+                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: 'var(--info)', fontSize: '1rem' }}>{fmt(calcResult.total)}</td>
                     </tr>
                     {(calcResult.employerNI > 0 || calcResult.employerHealth > 0) && (
-                      <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#fafafa' }}>
-                        <td style={{ padding: '.5rem .75rem', fontWeight: 500, color: '#64748b' }}>חודשי (חלק מעסיק)</td>
-                        <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: '#64748b' }}>{fmt(calcResult.employerNI)}</td>
-                        <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: '#64748b' }}>{fmt(calcResult.employerHealth)}</td>
-                        <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>{fmt(calcResult.employerNI + calcResult.employerHealth)}</td>
+                      <tr style={{ borderBottom: '1px solid var(--s2)', background: 'var(--s2)' }}>
+                        <td style={{ padding: '.5rem .75rem', fontWeight: 500, color: 'var(--tx2)' }}>חודשי (חלק מעסיק)</td>
+                        <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: 'var(--tx2)' }}>{fmt(calcResult.employerNI)}</td>
+                        <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: 'var(--tx2)' }}>{fmt(calcResult.employerHealth)}</td>
+                        <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: 'var(--tx2)', fontWeight: 600 }}>{fmt(calcResult.employerNI + calcResult.employerHealth)}</td>
                       </tr>
                     )}
-                    <tr style={{ background: '#f0f9ff', fontWeight: 700 }}>
+                    <tr style={{ background: 'var(--chip-teal-bg)', fontWeight: 700 }}>
                       <td style={{ padding: '.6rem .75rem' }}>שנתי (עובד × {(calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12})</td>
-                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: '#33556f' }}>{fmt(calcResult.ni * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
-                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: '#0891b2' }}>{fmt(calcResult.health * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
-                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: '#7c3aed', fontSize: '1.05rem' }}>{fmt(calcResult.annual)}</td>
+                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--br)' }}>{fmt(calcResult.ni * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
+                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--chip-teal-tx)' }}>{fmt(calcResult.health * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
+                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--info)', fontSize: '1.05rem' }}>{fmt(calcResult.annual)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -827,17 +827,17 @@ export default function NIReferenceSection({ taxData, year }: Props) {
               {/* 52% deduction highlight */}
               {calcResult.deduction52 !== undefined && (
                 <div style={{
-                  background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8,
+                  background: 'var(--chip-green-bg)', border: '1px solid var(--chip-green-bd)', borderRadius: 8,
                   padding: '.75rem 1rem', marginBottom: '.75rem', fontSize: '.875rem',
                 }}>
-                  <strong style={{ color: '#166534' }}>ניכוי 52% מב"ל:</strong> {fmt(calcResult.deduction52)}/חודש | {fmt(calcResult.deduction52 * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}/שנה — ניתן לניכוי ממס הכנסה (סעיף 17(5))
+                  <strong style={{ color: 'var(--chip-green-tx)' }}>ניכוי 52% מב"ל:</strong> {fmt(calcResult.deduction52)}/חודש | {fmt(calcResult.deduction52 * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}/שנה — ניתן לניכוי ממס הכנסה (סעיף 17(5))
                 </div>
               )}
 
               {/* Steps */}
               {calcResult.steps.length > 0 && (
                 <details style={{ marginTop: '.5rem' }}>
-                  <summary style={{ cursor: 'pointer', fontSize: '.85rem', fontWeight: 600, color: '#475569' }}>
+                  <summary style={{ cursor: 'pointer', fontSize: '.85rem', fontWeight: 600, color: 'var(--txc)' }}>
                     פירוט החישוב ({calcResult.steps.length} שלבים)
                   </summary>
                   <div className="explanation-block" style={{ marginTop: '.5rem' }}>
@@ -919,7 +919,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
           <li>למעשה, אם שיעור המס השולי הוא 47%, החיסכון בפועל הוא 52% * 47% = כ-24.4% מדמי הב"ל</li>
           <li>הניכוי מתבצע בדו"ח השנתי (מקדמות לא מביאות זאת בחשבון)</li>
         </ul>
-        <div style={{ background: 'var(--green-light)', padding: '.75rem 1rem', borderRadius: 'var(--radius)', border: '1px solid #a7f3d0' }}>
+        <div style={{ background: 'var(--green-light)', padding: '.75rem 1rem', borderRadius: 'var(--radius)', border: '1px solid var(--chip-green-bd)' }}>
           <strong>דוגמה:</strong> עצמאי ששילם {fmt(1000)} דמי ב"ל בחודש, יכול לנכות {fmt(520)} מההכנסה החייבת.
           בשיעור מס שולי 47%, החיסכון: {fmt(244)} בחודש.
         </div>

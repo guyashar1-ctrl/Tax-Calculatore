@@ -83,7 +83,7 @@ export default function QuestionCard({
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '.6rem .9rem', border: '1px solid var(--gray-200)',
                   borderRadius: 6, cursor: 'pointer',
-                  background: singleValue === opt.value ? 'var(--blue-light)' : 'white',
+                  background: singleValue === opt.value ? 'var(--blue-light)' : 'var(--card)',
                 }}
               >
                 <input
@@ -122,7 +122,7 @@ export default function QuestionCard({
                     textAlign: 'right', fontFamily: 'inherit', cursor: 'pointer',
                     padding: '.85rem .95rem', borderRadius: 10,
                     border: checked ? '2px solid var(--blue)' : '1.5px solid var(--gray-200)',
-                    background: checked ? 'var(--blue-light, #dbe4ec)' : 'white',
+                    background: checked ? 'var(--blue-light, var(--chip-blue-bg))' : 'var(--card)',
                     position: 'relative', transition: 'border-color .12s, background .12s',
                   }}
                 >
@@ -130,7 +130,7 @@ export default function QuestionCard({
                     position: 'absolute', top: 8, left: 10, width: 20, height: 20, borderRadius: '50%',
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '.7rem',
                     background: checked ? 'var(--blue)' : 'var(--gray-100)',
-                    color: checked ? 'white' : 'transparent',
+                    color: checked ? 'var(--card)' : 'transparent',
                   }}>✓</span>
                   <span style={{ fontSize: '1.4rem', display: 'block' }}>{icon}</span>
                   <span style={{ fontWeight: 700, fontSize: '.92rem', display: 'block', marginTop: 4 }}>{title}</span>
@@ -152,7 +152,7 @@ export default function QuestionCard({
                     display: 'flex', alignItems: 'center', gap: 8,
                     padding: '.6rem .9rem', border: '1px solid var(--gray-200)',
                     borderRadius: 6, cursor: 'pointer',
-                    background: checked ? 'var(--blue-light)' : 'white',
+                    background: checked ? 'var(--blue-light)' : 'var(--card)',
                   }}
                 >
                   <input

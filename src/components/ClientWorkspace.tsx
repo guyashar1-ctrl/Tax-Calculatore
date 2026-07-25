@@ -279,9 +279,9 @@ export default function ClientWorkspace({
               title="בן/בת הזוג הרשום/ה — כל ההתנהלות מול מס הכנסה בת.ז. הזו. ניתן לשינוי בלשונית התיק."
               style={{
                 fontWeight: 700,
-                background: regFile.owner === 'spouse' ? '#FBF2E2' : undefined,
-                color: regFile.owner === 'spouse' ? '#b45309' : undefined,
-                border: regFile.owner === 'spouse' ? '1px solid #f2d492' : undefined,
+                background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : undefined,
+                color: regFile.owner === 'spouse' ? 'var(--warn)' : undefined,
+                border: regFile.owner === 'spouse' ? '1px solid var(--chip-amber-bd)' : undefined,
               }}
             >
               🗄️ תיק מ"ה ע"ש {regFile.name}

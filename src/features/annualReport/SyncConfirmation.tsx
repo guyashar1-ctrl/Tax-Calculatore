@@ -108,7 +108,7 @@ export default function SyncConfirmation({ session, client, onUpdateClient, onCo
                   </td>
                   <td style={{ padding: '.6rem', fontWeight: 500 }}>{d.label}</td>
                   <td style={{ padding: '.6rem', color: 'var(--gray-500)', textDecoration: 'line-through' }}>{d.fromCard}</td>
-                  <td style={{ padding: '.6rem', color: '#16a34a', fontWeight: 500 }}>← {d.fromQuestionnaire}</td>
+                  <td style={{ padding: '.6rem', color: 'var(--ok)', fontWeight: 500 }}>← {d.fromQuestionnaire}</td>
                 </tr>
               ))}
             </tbody>

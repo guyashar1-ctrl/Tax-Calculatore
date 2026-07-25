@@ -113,7 +113,8 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
   return (
     <div>
       <div style={{ background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-200)', padding: '.6rem 1.5rem' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+        {/* בטלפון הסרגל ארוך מהמסך — נגלל לצדדים במקום למתוח את הדף */}
+        <div className="ar-wizard-nav" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', gap: '.5rem', alignItems: 'center' }}>
           <button
             type="button"
             className={`tab ${mode === 'entry' ? 'active' : ''}`}

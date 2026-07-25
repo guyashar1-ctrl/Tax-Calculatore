@@ -907,7 +907,7 @@ export default function ClientForm({
       )}
 
       {/* Bottom bar */}
-      <div style={{ position: 'sticky', bottom: 0, background: 'white', padding: '.75rem 1.25rem', borderTop: '1px solid var(--gray-200)', display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '1rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)' }}>
+      <div style={{ position: 'sticky', bottom: 0, background: 'var(--card)', padding: '.75rem 1.25rem', borderTop: '1px solid var(--gray-200)', display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '1rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)' }}>
         {!isNew && <button className="btn btn-secondary" onClick={() => onOpenDocuments(data)}>📁 מסמכים</button>}
         {!isNew && <button className="btn btn-green" onClick={() => onOpenCalculator(data)}>🧮 מחשבון מס</button>}
         <button className="btn btn-secondary" onClick={onCancel}>ביטול</button>
@@ -919,14 +919,17 @@ export default function ClientForm({
 
 // ─── רכיב ילדים עם תצוגת נקודות זיכוי ─────────────────────────────────────
 
-function getChildCreditInfo(birthYear: number, taxYear: number): { label: string; pts: number; color: string } | null {
+// כל קבוצת גיל מקבלת משפחת תגית שלמה (טקסט/רקע/גבול) כדי שהתגית תיראה נכון
+// גם בערכה הבהירה וגם בכהה — אי אפשר לגזור שקיפות מטוקן צבע.
+type ChildCreditInfo = { label: string; pts: number; fg: string; bg: string; bd: string };
+function getChildCreditInfo(birthYear: number, taxYear: number): ChildCreditInfo | null {
   const age = taxYear - birthYear;
   if (age < 0 || age > 18) return null;
-  if (age === 0) return { label: 'שנת לידה', pts: 1.5, color: '#ec4899' };
-  if (age <= 5) return { label: `גיל ${age} (1–5)`, pts: 2.5, color: '#8b5cf6' };
-  if (age <= 12) return { label: `גיל ${age} (6–12)`, pts: 2.0, color: '#33556f' };
-  if (age <= 17) return { label: `גיל ${age} (13–17)`, pts: 1.0, color: '#059669' };
-  if (age === 18) return { label: 'גיל 18', pts: 0.5, color: '#6b7280' };
+  if (age === 0) return { label: 'שנת לידה', pts: 1.5, fg: 'var(--chip-pink-tx)', bg: 'var(--chip-pink-bg)', bd: 'var(--chip-pink-bd)' };
+  if (age <= 5) return { label: `גיל ${age} (1–5)`, pts: 2.5, fg: 'var(--chip-violet-tx)', bg: 'var(--chip-violet-bg)', bd: 'var(--chip-violet-bd)' };
+  if (age <= 12) return { label: `גיל ${age} (6–12)`, pts: 2.0, fg: 'var(--chip-blue-tx)', bg: 'var(--chip-blue-bg)', bd: 'var(--chip-blue-bd)' };
+  if (age <= 17) return { label: `גיל ${age} (13–17)`, pts: 1.0, fg: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)', bd: 'var(--chip-green-bd)' };
+  if (age === 18) return { label: 'גיל 18', pts: 0.5, fg: 'var(--chip-slate-tx)', bg: 'var(--chip-slate-bg)', bd: 'var(--chip-slate-bd)' };
   return null;
 }
 
@@ -1021,7 +1024,7 @@ function ChildrenTab({ children, currentYear, onAdd, onUpdate, onRemove }: {
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', gap: '.3rem',
                           padding: '.15rem .6rem', borderRadius: 999, fontSize: '.75rem', fontWeight: 600,
-                          background: info.color + '15', color: info.color, border: `1px solid ${info.color}30`,
+                          background: info.bg, color: info.fg, border: `1px solid ${info.bd}`,
                         }}>
                           {'\u2B50'} {info.pts} נ.ז. {'\u00B7'} {info.label}
                         </span>
@@ -1032,7 +1035,7 @@ function ChildrenTab({ children, currentYear, onAdd, onUpdate, onRemove }: {
                           <span style={{
                             display: 'inline-flex', alignItems: 'center', gap: '.3rem',
                             padding: '.15rem .6rem', borderRadius: 999, fontSize: '.75rem', fontWeight: 600,
-                            background: '#f59e0b15', color: '#d97706', border: '1px solid #d9770630',
+                            background: 'var(--chip-amber-bg)', color: 'var(--chip-amber-tx)', border: '1px solid var(--chip-amber-bd)',
                           }}>
                             + {disabilityPts} נ.ז. נכות (סעיף 45ב)
                           </span>

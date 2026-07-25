@@ -19,7 +19,7 @@ const NI_LABELS: Record<string, string> = {
   employeeAndSE: 'שכיר+עצמאי', passive: 'פסיבי', pensioner: 'פנסיונר',
 };
 
-const CHART_COLORS = ['#33556f','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#db2777'];
+const CHART_COLORS = ['var(--br)','var(--info)','var(--ok)','var(--warn)','var(--err)','var(--chip-teal-tx)','var(--chip-pink-tx)'];
 
 function defaultInput(client: Client, year: number): TaxCalcInput {
   // הכנסה משכירות מצטברת מתוך נכסי הלקוח (אם קיימים) או מהשדה הישן
@@ -121,10 +121,10 @@ export default function TaxCalculator({ client, onBack }: Props) {
   })) ?? [];
 
   const pieData = result ? [
-    { name: 'מס הכנסה', value: Math.round(result.totalIncomeTax), color: '#33556f' },
-    { name: 'ביטוח לאומי', value: Math.round(result.niEmployee + result.niSelfEmployed), color: '#d97706' },
-    { name: 'מס בריאות', value: Math.round(result.healthEmployee + result.healthSelfEmployed), color: '#7c3aed' },
-    { name: 'נטו', value: Math.round(result.netAnnualIncome), color: '#059669' },
+    { name: 'מס הכנסה', value: Math.round(result.totalIncomeTax), color: 'var(--br)' },
+    { name: 'ביטוח לאומי', value: Math.round(result.niEmployee + result.niSelfEmployed), color: 'var(--warn)' },
+    { name: 'מס בריאות', value: Math.round(result.healthEmployee + result.healthSelfEmployed), color: 'var(--info)' },
+    { name: 'נטו', value: Math.round(result.netAnnualIncome), color: 'var(--ok)' },
   ].filter(d => d.value > 0) : [];
 
   const niChartData = result ? (() => {
@@ -363,7 +363,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                   <div className="stat-value" style={{ fontSize: '1.1rem' }}>₪{fmt(Math.round(result.taxWithoutCredits))}</div>
                   <div className="stat-sub">חסכון מזיכויים: ₪{fmt(Math.round(result.totalCreditValue))}</div>
                 </div>
-                <div className="stat-card green" style={{ background: result.remainingFreeIncomeCapacity > 0 ? 'var(--green-light)' : 'var(--gray-50)', borderColor: result.remainingFreeIncomeCapacity > 0 ? '#a7f3d0' : 'var(--gray-200)' }}>
+                <div className="stat-card green" style={{ background: result.remainingFreeIncomeCapacity > 0 ? 'var(--green-light)' : 'var(--gray-50)', borderColor: result.remainingFreeIncomeCapacity > 0 ? 'var(--chip-green-bd)' : 'var(--gray-200)' }}>
                   <div className="stat-label">פוטנציאל הכנסה ב-0% מס</div>
                   <div className="stat-value" style={{ fontSize: '1.1rem', color: result.remainingFreeIncomeCapacity > 0 ? 'var(--green)' : 'var(--gray-500)' }}>
                     {result.remainingFreeIncomeCapacity > 0 ? `₪${fmt(Math.round(result.remainingFreeIncomeCapacity))}` : '—'}
@@ -374,7 +374,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                       : 'כל הזיכויים מנוצלים'}
                   </div>
                 </div>
-                <div className="stat-card" style={{ background: 'var(--orange-light)', borderColor: '#fde68a' }}>
+                <div className="stat-card" style={{ background: 'var(--orange-light)', borderColor: 'var(--chip-amber-bd)' }}>
                   <div className="stat-label">מרחק למדרגה {result.nextBracketRate}%</div>
                   <div className="stat-value" style={{ fontSize: '1.1rem', color: 'var(--orange)' }}>
                     {result.distanceToNextBracket > 0 ? `₪${fmt(Math.round(result.distanceToNextBracket))}` : '—'}
@@ -470,10 +470,10 @@ export default function TaxCalculator({ client, onBack }: Props) {
                     <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} />
                     <Tooltip formatter={(v: unknown) => `₪${fmt(v as number)}`} />
                     <Legend />
-                    <Bar dataKey="הכנסה במדרגה" fill="#c3d3de">
+                    <Bar dataKey="הכנסה במדרגה" fill="var(--chip-blue-bd)">
                       {bracketChartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length] + '55'} />)}
                     </Bar>
-                    <Bar dataKey="מס במדרגה" fill="#33556f">
+                    <Bar dataKey="מס במדרגה" fill="var(--br)">
                       {bracketChartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                       <LabelList dataKey="מס במדרגה" position="top" formatter={(v: unknown) => (v as number) > 0 ? `₪${fmt(v as number)}` : ''} style={{ fontSize: 11 }} />
                     </Bar>
@@ -610,10 +610,10 @@ export default function TaxCalculator({ client, onBack }: Props) {
                     <YAxis tickFormatter={v => `₪${(v / 1000).toFixed(0)}K`} />
                     <Tooltip formatter={(v: unknown) => `₪${fmt(v as number)}`} />
                     <Legend />
-                    <Bar dataKey="amount" name="הכנסה מבוטחת" fill="#fde68a">
+                    <Bar dataKey="amount" name="הכנסה מבוטחת" fill="var(--chip-amber-bd)">
                       <LabelList dataKey="pct" position="top" formatter={(v: unknown) => `${v}%`} style={{ fontSize: 11 }} />
                     </Bar>
-                    <Bar dataKey="ni" name={'ב"ל לתשלום'} fill="#d97706">
+                    <Bar dataKey="ni" name={'ב"ל לתשלום'} fill="var(--warn)">
                       <LabelList dataKey="ni" position="top" formatter={(v: unknown) => (v as number) > 0 ? `₪${fmt(v as number)}` : ''} style={{ fontSize: 11 }} />
                     </Bar>
                   </BarChart>

@@ -95,7 +95,7 @@ export default function TaxFilesSection({ client, update }: Props) {
       {itOnSpouse && (
         <div style={{
           margin: '.3rem 0 .6rem', padding: '.5rem .8rem', borderRadius: 8, fontSize: '.85rem', fontWeight: 700,
-          background: '#FBF2E2', border: '1.5px solid #f2d492', color: '#b45309',
+          background: 'var(--chip-amber-bg)', border: '1.5px solid var(--chip-amber-bd)', color: 'var(--warn)',
         }}>
           ⚠ בן/בת הזוג הרשום/ה במס הכנסה: {spouseDisplayName(client)}
           {itFile?.fileNumber ? ` — ת.ז. ${itFile.fileNumber}` : ''}. כל התנהלות מול מ"ה בת.ז. הזו.
@@ -143,7 +143,7 @@ export default function TaxFilesSection({ client, update }: Props) {
                   ))}
                 </select>
                 {f.authority === 'income_tax' && f.owner !== 'joint' && client.familyStatus === 'married' && (
-                  <span style={{ fontSize: '.72rem', fontWeight: 700, color: '#b45309', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--warn)', whiteSpace: 'nowrap' }}>
                     ← בן/בת הזוג הרשום/ה
                   </span>
                 )}
@@ -153,8 +153,8 @@ export default function TaxFilesSection({ client, update }: Props) {
                 onChange={(e) => patchFile(f.id, { repStatus: e.target.value as TaxFileRepStatus })}
                 style={{
                   padding: '.3rem .45rem', borderRadius: 99, border: 'none', fontSize: '.76rem', fontWeight: 700,
-                  background: f.repStatus === 'active' ? '#E8F3EC' : f.repStatus === 'pending' ? '#FBF2E2' : 'var(--gray-100)',
-                  color: f.repStatus === 'active' ? '#1F7A4D' : f.repStatus === 'pending' ? '#b45309' : 'var(--gray-500)',
+                  background: f.repStatus === 'active' ? 'var(--chip-green-bg)' : f.repStatus === 'pending' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
+                  color: f.repStatus === 'active' ? 'var(--ok)' : f.repStatus === 'pending' ? 'var(--warn)' : 'var(--gray-500)',
                 }}
               >
                 {(Object.keys(TAX_FILE_REP_STATUS_LABELS) as TaxFileRepStatus[]).map((s) => (

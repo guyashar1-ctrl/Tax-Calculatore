@@ -27,7 +27,7 @@ export default function ChildTaxDetails({
         style={{
           cursor: 'pointer',
           fontWeight: 600,
-          color: filled > 0 ? '#ec4899' : 'var(--gray-700)',
+          color: filled > 0 ? 'var(--chip-pink-tx)' : 'var(--gray-700)',
           padding: '4px 0',
           fontSize: '.85rem',
           userSelect: 'none',
@@ -37,7 +37,7 @@ export default function ChildTaxDetails({
       </summary>
 
       <div style={{ marginTop: 8 }}>
-        <div style={{ marginBottom: 8, padding: 6, background: '#fef3c7', borderRadius: 6, fontSize: '.8rem', color: 'var(--gray-700)' }}>
+        <div style={{ marginBottom: 8, padding: 6, background: 'var(--chip-amber-bg)', borderRadius: 6, fontSize: '.8rem', color: 'var(--gray-700)' }}>
           השדות האלו משפיעים על נקודות זיכוי לפי גיל הילד, זיכוי הורה יחיד (שדה 029), וזיכוי הוצאות לימוד (סעיף 45א).
         </div>
 

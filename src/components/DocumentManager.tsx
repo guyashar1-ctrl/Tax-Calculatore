@@ -10,17 +10,20 @@ const fmt = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const CATEGORY_COLORS: Record<DocCategory, string> = {
-  id_card: '#436e8f',
-  drivers_license: '#8b5cf6',
-  form_1301: '#ef4444',
-  residence_certificate: '#10b981',
-  salary_slip: '#f59e0b',
-  pension_statement: '#06b6d4',
-  business_document: '#6366f1',
-  tax_assessment: '#ec4899',
-  ni_document: '#14b8a6',
-  other: '#6b7280',
+// שלישיית צבע לכל סוג מסמך (טקסט / רקע / גבול) — לא ניתן לגזור שקיפות מטוקן,
+// לכן כל סוג מצביע על משפחת התגיות המתאימה שמוגדרת גם לערכה הבהירה וגם לכהה.
+type CatPalette = { fg: string; bg: string; bd: string };
+const CATEGORY_COLORS: Record<DocCategory, CatPalette> = {
+  id_card:               { fg: 'var(--chip-blue-tx)',   bg: 'var(--chip-blue-bg)',   bd: 'var(--chip-blue-bd)' },
+  drivers_license:       { fg: 'var(--chip-violet-tx)', bg: 'var(--chip-violet-bg)', bd: 'var(--chip-violet-bd)' },
+  form_1301:             { fg: 'var(--chip-red-tx)',    bg: 'var(--chip-red-bg)',    bd: 'var(--chip-red-bd)' },
+  residence_certificate: { fg: 'var(--chip-green-tx)',  bg: 'var(--chip-green-bg)',  bd: 'var(--chip-green-bd)' },
+  salary_slip:           { fg: 'var(--chip-amber-tx)',  bg: 'var(--chip-amber-bg)',  bd: 'var(--chip-amber-bd)' },
+  pension_statement:     { fg: 'var(--chip-teal-tx)',   bg: 'var(--chip-teal-bg)',   bd: 'var(--chip-teal-bd)' },
+  business_document:     { fg: 'var(--chip-violet-tx)', bg: 'var(--chip-violet-bg)', bd: 'var(--chip-violet-bd)' },
+  tax_assessment:        { fg: 'var(--chip-pink-tx)',   bg: 'var(--chip-pink-bg)',   bd: 'var(--chip-pink-bd)' },
+  ni_document:           { fg: 'var(--chip-teal-tx)',   bg: 'var(--chip-teal-bg)',   bd: 'var(--chip-teal-bd)' },
+  other:                 { fg: 'var(--chip-slate-tx)',  bg: 'var(--chip-slate-bg)',  bd: 'var(--chip-slate-bd)' },
 };
 
 const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx';
@@ -785,7 +788,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                         {doc.notes && <div className="doc-cell-notes">{doc.notes}</div>}
                       </td>
                       <td>
-                        <span className="doc-cat-pill" style={{ background: catColor + '18', color: catColor, borderColor: catColor + '40' }}>
+                        <span className="doc-cat-pill" style={{ background: catColor.bg, color: catColor.fg, borderColor: catColor.bd }}>
                           {DOC_CATEGORY_LABELS[doc.category]}
                         </span>
                       </td>

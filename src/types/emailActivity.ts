@@ -41,12 +41,12 @@ export const EMAIL_STATUS_LABEL: Record<EmailStatus, string> = {
 
 // bg/fg/dot — צבעים תואמי כהה/בהיר דרך ערכים מפורשים
 export const EMAIL_STATUS_STYLE: Record<EmailStatus, { bg: string; fg: string; dot: string }> = {
-  sent: { bg: '#E6F1FB', fg: '#0C447C', dot: '#378ADD' },
-  delivered: { bg: '#E1F5EE', fg: '#0F6E56', dot: '#1D9E75' },
-  delivery_delayed: { bg: '#FAEEDA', fg: '#854F0B', dot: '#EF9F27' },
-  opened: { bg: '#EEEDFE', fg: '#3C3489', dot: '#7F77DD' },
-  clicked: { bg: '#EEEDFE', fg: '#26215C', dot: '#534AB7' },
-  bounced: { bg: '#FCEBEB', fg: '#A32D2D', dot: '#E24B4A' },
-  complained: { bg: '#FCEBEB', fg: '#A32D2D', dot: '#E24B4A' },
-  failed: { bg: '#FCEBEB', fg: '#A32D2D', dot: '#E24B4A' },
+  sent: { bg: 'var(--chip-blue-bg)', fg: 'var(--chip-blue-tx)', dot: 'var(--br)' },
+  delivered: { bg: 'var(--chip-green-bg)', fg: 'var(--chip-green-tx)', dot: 'var(--ok)' },
+  delivery_delayed: { bg: 'var(--chip-amber-bg)', fg: 'var(--chip-amber-tx)', dot: 'var(--warn)' },
+  opened: { bg: 'var(--chip-violet-bg)', fg: 'var(--chip-violet-tx)', dot: 'var(--info)' },
+  clicked: { bg: 'var(--chip-violet-bg)', fg: 'var(--chip-violet-tx)', dot: 'var(--info)' },
+  bounced: { bg: 'var(--chip-red-bg)', fg: 'var(--chip-red-tx)', dot: 'var(--err)' },
+  complained: { bg: 'var(--chip-red-bg)', fg: 'var(--chip-red-tx)', dot: 'var(--err)' },
+  failed: { bg: 'var(--chip-red-bg)', fg: 'var(--chip-red-tx)', dot: 'var(--err)' },
 };

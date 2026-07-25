@@ -84,7 +84,7 @@ export default function InvestmentAccount867Details({
         style={{
           cursor: 'pointer',
           fontWeight: 600,
-          color: filled > 0 ? '#059669' : 'var(--gray-700)',
+          color: filled > 0 ? 'var(--ok)' : 'var(--gray-700)',
           padding: '4px 0',
           userSelect: 'none',
         }}

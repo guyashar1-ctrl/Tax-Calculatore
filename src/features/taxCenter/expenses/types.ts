@@ -85,32 +85,32 @@ export interface ExpenseTopic {
 // ─── תוויות וצבעים לוורדיקטים ───────────────────────────────────────────────
 
 export const INCOME_TAX_VERDICT_META: Record<IncomeTaxVerdict, { label: string; color: string; bg: string }> = {
-  full:        { label: 'מוכר',          color: '#15803d', bg: '#ecfdf5' },
-  partial:     { label: 'מוכר חלקית',    color: '#b45309', bg: '#fef9c3' },
-  conditional: { label: 'מוכר בתנאים',   color: '#264155', bg: '#eef2f6' },
-  denied:      { label: 'לא מוכר',       color: '#b91c1c', bg: '#fef2f2' },
-  special:     { label: 'מנגנון מיוחד',  color: '#6d28d9', bg: '#faf5ff' },
+  full:        { label: 'מוכר',          color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
+  partial:     { label: 'מוכר חלקית',    color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
+  conditional: { label: 'מוכר בתנאים',   color: 'var(--chip-blue-tx)', bg: 'var(--soft)' },
+  denied:      { label: 'לא מוכר',       color: 'var(--err)', bg: 'var(--chip-red-bg)' },
+  special:     { label: 'מנגנון מיוחד',  color: 'var(--info)', bg: 'var(--chip-violet-bg)' },
 };
 
 export const VAT_VERDICT_META: Record<VatVerdict, { label: string; color: string; bg: string }> = {
-  full:          { label: 'קיזוז מלא',    color: '#15803d', bg: '#ecfdf5' },
-  twoThirds:     { label: '2/3',          color: '#b45309', bg: '#fef9c3' },
-  quarter:       { label: '1/4',          color: '#b45309', bg: '#fef9c3' },
-  conditional:   { label: 'בתנאים',       color: '#264155', bg: '#eef2f6' },
-  denied:        { label: 'אסור בקיזוז',  color: '#b91c1c', bg: '#fef2f2' },
-  notApplicable: { label: 'לא רלוונטי',   color: '#6b7280', bg: '#f9fafb' },
+  full:          { label: 'קיזוז מלא',    color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
+  twoThirds:     { label: '2/3',          color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
+  quarter:       { label: '1/4',          color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
+  conditional:   { label: 'בתנאים',       color: 'var(--chip-blue-tx)', bg: 'var(--soft)' },
+  denied:        { label: 'אסור בקיזוז',  color: 'var(--err)', bg: 'var(--chip-red-bg)' },
+  notApplicable: { label: 'לא רלוונטי',   color: 'var(--tx2)', bg: 'var(--s2)' },
 };
 
 export const RISK_META: Record<RiskLevel, { label: string; color: string; icon: string }> = {
-  low:    { label: 'סיכון נמוך',   color: '#15803d', icon: '🟢' },
-  medium: { label: 'סיכון בינוני', color: '#b45309', icon: '🟡' },
-  high:   { label: 'סיכון גבוה',   color: '#b91c1c', icon: '🔴' },
+  low:    { label: 'סיכון נמוך',   color: 'var(--chip-green-tx)', icon: '🟢' },
+  medium: { label: 'סיכון בינוני', color: 'var(--warn)', icon: '🟡' },
+  high:   { label: 'סיכון גבוה',   color: 'var(--err)', icon: '🔴' },
 };
 
 export const CONFIDENCE_META: Record<ConfidenceLevel, { label: string; color: string; bg: string }> = {
-  high:   { label: 'ודאות גבוהה — דין מיושב',          color: '#15803d', bg: '#ecfdf5' },
-  medium: { label: 'ודאות בינונית — תלוי נסיבות',       color: '#b45309', bg: '#fef9c3' },
-  low:    { label: 'ודאות נמוכה — נדרש שיקול דעת',      color: '#b91c1c', bg: '#fef2f2' },
+  high:   { label: 'ודאות גבוהה — דין מיושב',          color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
+  medium: { label: 'ודאות בינונית — תלוי נסיבות',       color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
+  low:    { label: 'ודאות נמוכה — נדרש שיקול דעת',      color: 'var(--err)', bg: 'var(--chip-red-bg)' },
 };
 
 // ─── חיפוש חכם ───────────────────────────────────────────────────────────────

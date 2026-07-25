@@ -6,10 +6,11 @@ import { Employee } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
 import { Client } from '../types';
 
+// צבעי זיהוי של עובדים — נשמרים במסד ומוצגים גם מחוץ למסך, לכן ערכים קבועים
 const PRESET_COLORS = [
-  '#33556f', '#059669', '#d97706', '#7c3aed',
-  '#dc2626', '#0891b2', '#be185d', '#65a30d',
-  '#9333ea', '#0d9488',
+  '#3f5f8f', '#2e7d5b', '#b07515', '#6b4a87',
+  '#b34141', '#17767c', '#a4406a', '#5c8a2e',
+  '#7c5aa0', '#0f7a72',
 ];
 
 interface Props {

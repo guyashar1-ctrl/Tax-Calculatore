@@ -5,7 +5,7 @@ import {
 import { TaxYearData } from '../../types';
 
 const fmt = (n: number) => n === Infinity ? '∞' : '₪' + Math.round(n).toLocaleString('he-IL');
-const BRACKET_COLORS = ['#22c55e', '#86efac', '#fbbf24', '#f97316', '#ef4444', '#b91c1c', '#7f1d1d'];
+const BRACKET_COLORS = ['var(--ok)', 'var(--chip-green-tx)', 'var(--warn)', 'var(--chip-orange-tx)', 'var(--err)', 'var(--err)', 'var(--chip-red-tx)'];
 
 interface Props {
   taxData: TaxYearData;
@@ -70,7 +70,7 @@ export default function IncomeTaxPanel({ taxData, year }: Props) {
               />
               <Bar dataKey="rate" name="שיעור">
                 {bracketChartData.map((_, i) => <Cell key={i} fill={BRACKET_COLORS[i % BRACKET_COLORS.length]} />)}
-                <LabelList dataKey="label" position="top" style={{ fontSize: 11, fontFamily: 'Heebo', fill: '#374151' }} />
+                <LabelList dataKey="label" position="top" style={{ fontSize: 11, fontFamily: 'Heebo', fill: 'var(--txb)' }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -103,8 +103,8 @@ export default function IncomeTaxPanel({ taxData, year }: Props) {
       </div>
 
       {/* מס יסף */}
-      <div className="card" style={{ border: '1px solid #fca5a5' }}>
-        <div className="card-header" style={{ background: '#fef2f2' }}>
+      <div className="card" style={{ border: '1px solid var(--chip-red-bd)' }}>
+        <div className="card-header" style={{ background: 'var(--chip-red-bg)' }}>
           <span className="card-title">⚡ מס יסף — שתי שכבות (סעיף 121ב)</span>
         </div>
         <div className="card-body" style={{ fontSize: '.875rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
@@ -150,11 +150,11 @@ export default function IncomeTaxPanel({ taxData, year }: Props) {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '.5rem', marginBottom: '.75rem' }}>
                 {[
                   { label: 'מס לפי מדרגות', value: fmt(calc.tax), color: 'var(--gray-700)' },
-                  { label: `זיכוי (${credits} נק')`, value: '−' + fmt(Math.min(calc.creditValue, calc.tax)), color: '#16a34a' },
-                  ...(calc.surtax3 > 0 ? [{ label: 'מס יסף 3%', value: '+' + fmt(calc.surtax3), color: '#dc2626' }] : []),
-                  ...(calc.surtax2 > 0 ? [{ label: `יסף הוני ${taxData.surtaxCapitalExtraRate}%`, value: '+' + fmt(calc.surtax2), color: '#dc2626' }] : []),
-                  { label: 'מס סופי (ללא מס ההון עצמו)', value: fmt(calc.afterCredits + calc.surtax3 + calc.surtax2), color: '#b91c1c' },
-                  { label: 'שיעור שולי', value: calc.marginal + '%', color: '#d97706' },
+                  { label: `זיכוי (${credits} נק')`, value: '−' + fmt(Math.min(calc.creditValue, calc.tax)), color: 'var(--ok)' },
+                  ...(calc.surtax3 > 0 ? [{ label: 'מס יסף 3%', value: '+' + fmt(calc.surtax3), color: 'var(--err)' }] : []),
+                  ...(calc.surtax2 > 0 ? [{ label: `יסף הוני ${taxData.surtaxCapitalExtraRate}%`, value: '+' + fmt(calc.surtax2), color: 'var(--err)' }] : []),
+                  { label: 'מס סופי (ללא מס ההון עצמו)', value: fmt(calc.afterCredits + calc.surtax3 + calc.surtax2), color: 'var(--err)' },
+                  { label: 'שיעור שולי', value: calc.marginal + '%', color: 'var(--warn)' },
                 ].map(c => (
                   <div key={c.label} style={{ padding: '.6rem', background: 'var(--gray-50)', borderRadius: 8, textAlign: 'center' }}>
                     <div style={{ fontSize: '1rem', fontWeight: 700, color: c.color }}>{c.value}</div>

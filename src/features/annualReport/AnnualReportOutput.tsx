@@ -225,8 +225,8 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {missingClientFields.length > 0 && (
-        <div className="card" style={{ borderRight: '4px solid #f59e0b' }}>
-          <div className="card-header" style={{ background: '#fef3c7' }}>
+        <div className="card" style={{ borderRight: '4px solid var(--warn)' }}>
+          <div className="card-header" style={{ background: 'var(--chip-amber-bg)' }}>
             <h3 className="card-title">📇 פרטים להשלים בכרטיס הלקוח ({missingClientFields.length})</h3>
           </div>
           <div className="card-body">
@@ -236,7 +236,7 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
             <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
               {missingClientFields.map((f, i) => (
                 <li key={i} style={{ display: 'flex', gap: '.75rem', padding: '.5rem 0', borderBottom: '1px solid var(--gray-100)' }}>
-                  <div style={{ flex: '0 0 24px', color: '#f59e0b' }}>☐</div>
+                  <div style={{ flex: '0 0 24px', color: 'var(--warn)' }}>☐</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600 }}>{f.label}</div>
                   </div>
@@ -308,12 +308,12 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
 
 function sourceBg(s: DocSource): string {
   return ({
-    client: '#dbe4ec',
-    employer: '#fef3c7',
-    investment_house: '#d1fae5',
-    authority_ni: '#fce7f3',
-    authority_tax: '#e0e7ff',
-    self: '#f3f4f6',
+    client: 'var(--chip-blue-bg)',
+    employer: 'var(--chip-amber-bg)',
+    investment_house: 'var(--chip-green-bg)',
+    authority_ni: 'var(--chip-pink-bg)',
+    authority_tax: 'var(--chip-violet-bg)',
+    self: 'var(--s2)',
   } as Record<DocSource, string>)[s];
 }
 
@@ -394,8 +394,8 @@ function FilterButton({ current, value, onChange, children }: {
         padding: '.35rem .8rem',
         borderRadius: 999,
         border: '1px solid ' + (active ? 'var(--blue)' : 'var(--gray-300)'),
-        background: active ? 'var(--blue)' : 'white',
-        color: active ? 'white' : 'var(--gray-700)',
+        background: active ? 'var(--blue)' : 'var(--card)',
+        color: active ? 'var(--card)' : 'var(--gray-700)',
         cursor: 'pointer',
         fontSize: '.85rem',
         fontWeight: active ? 600 : 400,
@@ -494,13 +494,13 @@ function TaxView({ tax }: { tax: ReturnType<typeof computeTransparentTax> }) {
         <h3 className="card-title">💰 חישוב מס שקוף — אומדן</h3>
       </div>
       <div className="card-body">
-        <p style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '.6rem 1rem', margin: '0 0 1rem', fontSize: '.875rem' }}>
+        <p style={{ background: 'var(--chip-amber-bg)', border: '1px solid var(--warn)', borderRadius: 6, padding: '.6rem 1rem', margin: '0 0 1rem', fontSize: '.875rem' }}>
           ⚠ זהו אומדן בלבד המבוסס על תשובות השאלון. החישוב המלא יבוצע במחשבון המס לאחר העלאת טפסי 106/867 בפאזה הבאה.
         </p>
 
         {tax.warnings.length > 0 && (
-          <ul style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 6, padding: '.6rem 1.5rem', margin: '0 0 1rem' }}>
-            {tax.warnings.map((w, i) => <li key={i} style={{ color: '#b91c1c' }}>{w}</li>)}
+          <ul style={{ background: 'var(--chip-red-bg)', border: '1px solid var(--chip-red-bd)', borderRadius: 6, padding: '.6rem 1.5rem', margin: '0 0 1rem' }}>
+            {tax.warnings.map((w, i) => <li key={i} style={{ color: 'var(--err)' }}>{w}</li>)}
           </ul>
         )}
 
@@ -542,8 +542,8 @@ function traceLabel(k: string): string {
   return ({ questionnaire: 'מהשאלון', computed: 'חישוב', default: 'בהמתנה לפאזה הבאה', empty: 'ריק' } as Record<string, string>)[k] ?? k;
 }
 function traceColor(k: string): string {
-  return ({ questionnaire: '#22384a', computed: '#065f46', default: '#92400e', empty: '#6b7280' } as Record<string, string>)[k] ?? '#6b7280';
+  return ({ questionnaire: 'var(--chip-blue-tx)', computed: 'var(--chip-green-tx)', default: 'var(--chip-amber-tx)', empty: 'var(--tx2)' } as Record<string, string>)[k] ?? 'var(--tx2)';
 }
 function traceBg(k: string): string {
-  return ({ questionnaire: '#dbe4ec', computed: '#d1fae5', default: '#fef3c7', empty: '#f3f4f6' } as Record<string, string>)[k] ?? '#f3f4f6';
+  return ({ questionnaire: 'var(--chip-blue-bg)', computed: 'var(--chip-green-bg)', default: 'var(--chip-amber-bg)', empty: 'var(--s2)' } as Record<string, string>)[k] ?? 'var(--s2)';
 }

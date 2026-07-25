@@ -133,13 +133,13 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
         <Bullets items={topic.vat.detail} />
         {(topic.vat.exceptions?.length ?? 0) > 0 && (
           <div style={{ marginTop: '.6rem' }}>
-            <div style={{ fontWeight: 700, fontSize: '.83rem', color: '#264155', marginBottom: '.25rem' }}>↪ חריגים</div>
+            <div style={{ fontWeight: 700, fontSize: '.83rem', color: 'var(--chip-blue-tx)', marginBottom: '.25rem' }}>↪ חריגים</div>
             <Bullets items={topic.vat.exceptions!} />
           </div>
         )}
         {(topic.vat.mistakes?.length ?? 0) > 0 && (
           <div style={{ marginTop: '.6rem' }}>
-            <div style={{ fontWeight: 700, fontSize: '.83rem', color: '#b91c1c', marginBottom: '.25rem' }}>✗ טעויות קיזוז נפוצות</div>
+            <div style={{ fontWeight: 700, fontSize: '.83rem', color: 'var(--err)', marginBottom: '.25rem' }}>✗ טעויות קיזוז נפוצות</div>
             <Bullets items={topic.vat.mistakes!} />
           </div>
         )}
@@ -184,14 +184,14 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
         <Section icon="⚖️" title="פסיקה שחשוב להכיר">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
             {topic.caseLaw.map((c, i) => (
-              <div key={i} style={{ borderRight: '3px solid #6d28d9', paddingRight: '.75rem' }}>
+              <div key={i} style={{ borderRight: '3px solid var(--info)', paddingRight: '.75rem' }}>
                 <div style={{ fontWeight: 700 }}>{c.name}{c.year ? ` (${c.year})` : ''}</div>
                 <div style={{ fontSize: '.83rem', margin: '.25rem 0' }}>{c.summary}</div>
                 <div style={{ fontSize: '.8rem' }}>
-                  <span style={{ fontWeight: 600, color: '#6d28d9' }}>למה זה חשוב: </span>{c.whyItMatters}
+                  <span style={{ fontWeight: 600, color: 'var(--info)' }}>למה זה חשוב: </span>{c.whyItMatters}
                 </div>
                 <div style={{ fontSize: '.8rem' }}>
-                  <span style={{ fontWeight: 600, color: '#15803d' }}>בפרקטיקה: </span>{c.practicalImplication}
+                  <span style={{ fontWeight: 600, color: 'var(--chip-green-tx)' }}>בפרקטיקה: </span>{c.practicalImplication}
                 </div>
               </div>
             ))}
@@ -210,9 +210,9 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
                 </div>
                 <div style={{ padding: '.5rem .8rem', fontSize: '.83rem', display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
                   {c.summary && <div>{c.summary}</div>}
-                  <div><span style={{ fontWeight: 600, color: '#6d28d9' }}>מה השתנה: </span>{c.whatChanged}</div>
-                  {c.whyItMatters && <div><span style={{ fontWeight: 600, color: '#264155' }}>למה חשוב: </span>{c.whyItMatters}</div>}
-                  {c.whenToApply && <div><span style={{ fontWeight: 600, color: '#15803d' }}>מתי מיישמים: </span>{c.whenToApply}</div>}
+                  <div><span style={{ fontWeight: 600, color: 'var(--info)' }}>מה השתנה: </span>{c.whatChanged}</div>
+                  {c.whyItMatters && <div><span style={{ fontWeight: 600, color: 'var(--chip-blue-tx)' }}>למה חשוב: </span>{c.whyItMatters}</div>}
+                  {c.whenToApply && <div><span style={{ fontWeight: 600, color: 'var(--chip-green-tx)' }}>מתי מיישמים: </span>{c.whenToApply}</div>}
                 </div>
               </div>
             ))}

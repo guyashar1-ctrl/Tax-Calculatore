@@ -44,7 +44,7 @@ export default function ValidationCard({
           className="btn btn-primary btn-lg"
           onClick={onConfirm}
           disabled={disabled}
-          style={{ background: '#16a34a' }}
+          style={{ background: 'var(--ok)' }}
         >
           ✓ מאשר ונכון, המשך
         </button>
@@ -95,26 +95,26 @@ function ValidationPreview({
   return (
     <div
       style={{
-        background: '#ecfdf5',
-        border: '1px solid #86efac',
+        background: 'var(--chip-green-bg)',
+        border: '1px solid var(--chip-green-bd)',
         borderRadius: 8,
         padding: '1rem',
         marginTop: '1.25rem',
       }}
     >
-      <div style={{ fontWeight: 600, fontSize: '.9rem', color: '#065f46', marginBottom: '.6rem' }}>
+      <div style={{ fontWeight: 600, fontSize: '.9rem', color: 'var(--chip-green-tx)', marginBottom: '.6rem' }}>
         📇 הנתונים הקיימים בכרטיס הלקוח
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <tbody>
           {items.map((item, i) => (
-            <tr key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid #d1fae5' }}>
-              <td style={{ padding: '.4rem 0', color: '#047857', width: '35%', fontSize: '.9rem' }}>
+            <tr key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--chip-green-bg)' }}>
+              <td style={{ padding: '.4rem 0', color: 'var(--ok)', width: '35%', fontSize: '.9rem' }}>
                 {item.label}
               </td>
               <td style={{ padding: '.4rem 0', fontWeight: 500 }}>
                 {item.missing ? (
-                  <span style={{ color: '#92400e', fontStyle: 'italic' }}>(לא הוזן)</span>
+                  <span style={{ color: 'var(--chip-amber-tx)', fontStyle: 'italic' }}>(לא הוזן)</span>
                 ) : (
                   item.value
                 )}
@@ -124,9 +124,9 @@ function ValidationPreview({
         </tbody>
       </table>
 
-      <div style={{ marginTop: '.85rem', padding: '.5rem .75rem', background: 'white', borderRadius: 6, fontSize: '.85rem' }}>
+      <div style={{ marginTop: '.85rem', padding: '.5rem .75rem', background: 'var(--card)', borderRadius: 6, fontSize: '.85rem' }}>
         <span style={{ color: 'var(--gray-600)' }}>אם תאשר, התשובה תהיה: </span>
-        <strong style={{ color: '#065f46' }}>{formatAnswer(derivedAnswer, node)}</strong>
+        <strong style={{ color: 'var(--chip-green-tx)' }}>{formatAnswer(derivedAnswer, node)}</strong>
       </div>
     </div>
   );
