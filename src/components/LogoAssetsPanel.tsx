@@ -1,25 +1,25 @@
 // ─── נכסי הלוגו של המשרד ──────────────────────────────────────────────────────
-// שלושה מקומות, כל אחד עם דרישה טכנית אחרת (ראה LogoSurface ב-types/firmProfile).
-// אפשר להעלות קובץ בודד לכל מקום, או להעלות את ערכת המותג כולה כקובץ ZIP ולבחור
-// מתוכה — כי ערכות מותג מגיעות כארכיון עם עשרות וריאציות.
+// שלושה מקומות, כל אחד עם דרישה טכנית אחרת (ראה LogoSurface ב-types/firmProfile),
+// ובקרת גודל אחת שחלה על כולם. התצוגה למטה מראה את התוצאה בפועל.
 
-import { useMemo, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { FirmBranding, LogoSurface } from '../types/firmProfile';
-import { LOGO_SURFACE_LABELS, resolveLogo, isLogoFallback } from '../types/firmProfile';
 import {
-  readBrandKitZip,
-  entryToFile,
-  entryToObjectUrl,
-  svgFileToPng,
-  type BrandKitEntry,
-} from '../utils/logoAssets';
+  LOGO_SURFACE_LABELS,
+  LOGO_SCALE_MIN,
+  LOGO_SCALE_MAX,
+  resolveLogo,
+  isLogoFallback,
+  logoScale,
+} from '../types/firmProfile';
+import { svgFileToPng } from '../utils/logoAssets';
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const ACCEPTED = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
 
 const SURFACES: { id: LogoSurface; hint: string }[] = [
-  { id: 'app', hint: 'ברירת המחדל. מוצג במערכת ובעמודי הלקוח על רקע בהיר. כל פורמט, כולל SVG.' },
-  { id: 'dark', hint: 'לרצועות הכהות — ראש המייל וראש הצעת המחיר. העלה את הגרסה הלבנה/הבהירה של הלוגו.' },
+  { id: 'app', hint: 'ברירת המחדל. מוצג בעמודי הלקוח על רקע בהיר. כל פורמט, כולל SVG.' },
+  { id: 'dark', hint: 'לרצועות הכהות — ראש המייל וראש הצעת המחיר. העלה את הגרסה הלבנה של הלוגו.' },
   { id: 'email', hint: 'בגוף המייל. חייב PNG או JPG — ג׳ימייל ואאוטלוק אינם מציגים SVG. קובץ SVG יומר אוטומטית.' },
 ];
 
@@ -35,16 +35,15 @@ interface Props {
   busySurface: LogoSurface | null;
   onUpload: (req: LogoUploadRequest) => Promise<void>;
   onRemove: (surface: LogoSurface) => Promise<void>;
+  onScaleChange: (scale: number) => void;
   onError: (message: string | null) => void;
 }
 
 export default function LogoAssetsPanel({
-  branding, darkBg, firmName, busySurface, onUpload, onRemove, onError,
+  branding, darkBg, firmName, busySurface, onUpload, onRemove, onScaleChange, onError,
 }: Props) {
-  const [kit, setKit] = useState<BrandKitEntry[] | null>(null);
-  const [kitBusy, setKitBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const kitInput = useRef<HTMLInputElement>(null);
+  const scale = logoScale(branding);
 
   async function accept(surface: LogoSurface, incoming: File) {
     onError(null);
@@ -76,55 +75,21 @@ export default function LogoAssetsPanel({
     await onUpload({ surface, file });
   }
 
-  async function loadKit(file: File | null) {
-    if (!file) return;
-    onError(null);
-    setNote(null);
-    setKitBusy(true);
-    try {
-      const entries = await readBrandKitZip(file);
-      if (entries.length === 0) {
-        onError('לא נמצאו קובצי תמונה בארכיון');
-        return;
-      }
-      setKit(entries);
-    } catch (e) {
-      onError(`לא הצלחתי לקרוא את הארכיון: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setKitBusy(false);
-    }
-  }
-
   return (
     <>
       <div style={card}>
-        <div style={cardHead}>
-          <div>
-            <div style={cardTitle}>הלוגו של המשרד</div>
-            <div style={sub}>
-              כל מקום שלא הועלה אליו לוגו משתמש בלוגו הראשי — אז מספיק להעלות אחד כדי להתחיל.
-            </div>
-          </div>
-          <label className="btn btn-secondary" style={{ cursor: kitBusy ? 'default' : 'pointer', opacity: kitBusy ? 0.6 : 1, whiteSpace: 'nowrap' }}>
-            {kitBusy ? 'קורא…' : '📦 העלה ערכת מותג (ZIP)'}
-            <input
-              ref={kitInput}
-              type="file"
-              accept=".zip,application/zip"
-              style={{ display: 'none' }}
-              disabled={kitBusy}
-              onChange={e => { const f = e.target.files?.[0] ?? null; void loadKit(f); e.target.value = ''; }}
-            />
-          </label>
+        <div style={cardTitle}>הלוגו של המשרד</div>
+        <div style={sub}>
+          כל מקום שלא הועלה אליו לוגו משתמש בלוגו הראשי — אז מספיק להעלות אחד כדי להתחיל.
         </div>
 
         {note && (
-          <div style={{ margin: '0 0 14px', padding: '.6rem .8rem', borderRadius: 8, background: 'var(--chip-green-bg)', color: 'var(--chip-green-tx)', fontSize: 12.5, lineHeight: 1.6 }}>
+          <div style={{ margin: '14px 0 0', padding: '.6rem .8rem', borderRadius: 8, background: 'var(--chip-green-bg)', color: 'var(--chip-green-tx)', fontSize: 12.5, lineHeight: 1.6 }}>
             {note}
           </div>
         )}
 
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
           {SURFACES.map(({ id, hint }) => {
             const url = resolveLogo(branding, id);
             const inherited = isLogoFallback(branding, id);
@@ -179,18 +144,55 @@ export default function LogoAssetsPanel({
             );
           })}
         </div>
+
+        <LogoSizeControl scale={scale} disabled={!branding.logoUrl} onChange={onScaleChange} />
       </div>
 
       <LogoPreviewCard branding={branding} darkBg={darkBg} firmName={firmName} />
-
-      {kit && (
-        <BrandKitPicker
-          entries={kit}
-          onPick={(entry, surface) => { void accept(surface, entryToFile(entry)); }}
-          onClose={() => setKit(null)}
-        />
-      )}
     </>
+  );
+}
+
+// ─── בקרת גודל ──────────────────────────────────────────────────────────────
+
+function LogoSizeControl({ scale, disabled, onChange }: { scale: number; disabled: boolean; onChange: (s: number) => void }) {
+  const pct = Math.round(scale * 100);
+  return (
+    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--gray-200)', opacity: disabled ? 0.5 : 1 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>גודל הלוגו</div>
+          <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
+            חל על כל המקומות יחד. התצוגה למטה מתעדכנת מיד.
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, minWidth: 58, textAlign: 'center', color: 'var(--br)' }}>
+            {pct}%
+          </span>
+          {pct !== 100 && (
+            <button className="btn btn-sm" disabled={disabled} onClick={() => onChange(1)} style={{ fontSize: 11.5 }}>
+              אפס
+            </button>
+          )}
+        </div>
+      </div>
+
+      <input
+        type="range"
+        min={LOGO_SCALE_MIN * 100}
+        max={LOGO_SCALE_MAX * 100}
+        step={5}
+        value={pct}
+        disabled={disabled}
+        onChange={e => onChange(Number(e.target.value) / 100)}
+        style={{ width: '100%', marginTop: 12, accentColor: 'var(--br)', cursor: disabled ? 'default' : 'pointer' }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
+        <span>{Math.round(LOGO_SCALE_MAX * 100)}% · גדול</span>
+        <span>{Math.round(LOGO_SCALE_MIN * 100)}% · קטן</span>
+      </div>
+    </div>
   );
 }
 
@@ -201,19 +203,20 @@ function LogoPreviewCard({ branding, darkBg, firmName }: { branding: FirmBrandin
   const darkLogo = resolveLogo(branding, 'dark');
   const emailLogo = resolveLogo(branding, 'email');
   const darkIsFallback = isLogoFallback(branding, 'dark');
+  const s = logoScale(branding);
 
   if (!appLogo) return null;
 
   return (
     <div style={card}>
       <div style={cardTitle}>איך זה ייראה ללקוח</div>
-      <div style={sub}>שלושת המקומות, עם הלוגו שמוגדר לכל אחד כרגע.</div>
+      <div style={sub}>שלושת המקומות, בגודל שנבחר למעלה.</div>
 
       <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', marginTop: 14 }}>
         <PreviewFrame label="ראש המייל ללקוח">
           <div style={{ background: '#ffffff', padding: '18px 20px', borderBottom: '1px solid #E8E5E0' }}>
             {emailLogo
-              ? <img src={emailLogo} alt="" style={{ maxHeight: 34, maxWidth: 150, objectFit: 'contain' }} />
+              ? <img src={emailLogo} alt="" style={{ maxHeight: 34 * s, maxWidth: 150 * s, objectFit: 'contain' }} />
               : <span style={{ fontSize: 15, fontWeight: 600, color: '#1B1F24' }}>{firmName}</span>}
           </div>
           <div style={{ background: '#ffffff', padding: '14px 20px 20px' }}>
@@ -228,7 +231,7 @@ function LogoPreviewCard({ branding, darkBg, firmName }: { branding: FirmBrandin
               ? <img
                   src={darkLogo}
                   alt=""
-                  style={{ maxHeight: 34, maxWidth: 150, objectFit: 'contain', filter: darkIsFallback ? 'brightness(0) invert(1)' : undefined }}
+                  style={{ maxHeight: 34 * s, maxWidth: 150 * s, objectFit: 'contain', filter: darkIsFallback ? 'brightness(0) invert(1)' : undefined }}
                 />
               : <span style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>{firmName}</span>}
           </div>
@@ -239,7 +242,7 @@ function LogoPreviewCard({ branding, darkBg, firmName }: { branding: FirmBrandin
 
         <PreviewFrame label="דף הזדהות / שאלון">
           <div style={{ background: '#FAF9F6', padding: '20px', textAlign: 'center' }}>
-            <img src={appLogo} alt="" style={{ maxHeight: 36, maxWidth: 150, objectFit: 'contain' }} />
+            <img src={appLogo} alt="" style={{ maxHeight: 36 * s, maxWidth: 150 * s, objectFit: 'contain' }} />
           </div>
           <div style={{ background: '#ffffff', padding: '14px 20px 20px' }}>
             <div style={{ height: 8, width: '54%', borderRadius: 4, background: '#EFEDE9', margin: '0 auto' }} />
@@ -266,94 +269,8 @@ function PreviewFrame({ label, children }: { label: string; children: React.Reac
   );
 }
 
-// ─── בוחר מתוך ערכת מותג ────────────────────────────────────────────────────
-
-function BrandKitPicker({
-  entries, onPick, onClose,
-}: {
-  entries: BrandKitEntry[];
-  onPick: (entry: BrandKitEntry, surface: LogoSurface) => void;
-  onClose: () => void;
-}) {
-  // הכתובות נוצרות פעם אחת לכל פתיחה; הדפדפן משחרר אותן כשהעמוד נסגר
-  const previews = useMemo(() => entries.map(entryToObjectUrl), [entries]);
-  const groups = useMemo(() => {
-    const map = new Map<string, number[]>();
-    entries.forEach((e, i) => {
-      const list = map.get(e.folder) ?? [];
-      list.push(i);
-      map.set(e.folder, list);
-    });
-    return [...map.entries()];
-  }, [entries]);
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 880, width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
-        <div className="modal-header">
-          <div>
-            <h3 style={{ margin: 0 }}>ערכת המותג — {entries.length} קבצים</h3>
-            <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>
-              בחר לכל מקום את הגרסה המתאימה. קובץ SVG שייבחר למייל יומר אוטומטית ל-PNG.
-            </div>
-          </div>
-          <button type="button" className="btn btn-ghost btn-icon" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="modal-body" style={{ overflowY: 'auto' }}>
-          {groups.map(([folder, idxs]) => (
-            <div key={folder} style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)', marginBottom: 8, direction: 'ltr', textAlign: 'right' }}>{folder}</div>
-              <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))' }}>
-                {idxs.map(i => {
-                  const e = entries[i];
-                  const isSvg = e.mime === 'image/svg+xml';
-                  // רקע משובץ מבהיר איפה הלוגו שקוף ואיפה לבן — קריטי כדי לזהות
-                  // גרסה לבנה, שעל רקע לבן נראית כאילו הקובץ ריק
-                  return (
-                    <div key={e.path} style={{ border: '1px solid var(--gray-200)', borderRadius: 10, overflow: 'hidden', background: 'var(--card)' }}>
-                      <div style={{
-                        height: 74, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8,
-                        backgroundColor: 'var(--gray-100)',
-                        backgroundImage: 'linear-gradient(45deg, var(--gray-200) 25%, transparent 25%), linear-gradient(-45deg, var(--gray-200) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--gray-200) 75%), linear-gradient(-45deg, transparent 75%, var(--gray-200) 75%)',
-                        backgroundSize: '12px 12px',
-                        backgroundPosition: '0 0, 0 6px, 6px -6px, -6px 0',
-                      }}>
-                        <img src={previews[i]} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                      </div>
-                      <div style={{ padding: '7px 9px 9px' }}>
-                        <div style={{ fontSize: 11, color: 'var(--gray-600)', direction: 'ltr', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.name}>
-                          {e.name}
-                        </div>
-                        <div style={{ fontSize: 10.5, color: 'var(--gray-400)', direction: 'ltr', textAlign: 'right', marginTop: 1 }}>
-                          {isSvg ? 'SVG' : e.mime.replace('image/', '').toUpperCase()} · {Math.max(1, Math.round(e.size / 1024))}KB
-                        </div>
-                        <div style={{ display: 'flex', gap: 4, marginTop: 7 }}>
-                          <button className="btn btn-sm" style={pick} onClick={() => onPick(e, 'app')}>ראשי</button>
-                          <button className="btn btn-sm" style={pick} onClick={() => onPick(e, 'dark')}>כהה</button>
-                          <button className="btn btn-sm" style={pick} onClick={() => onPick(e, 'email')}>מייל</button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>סגור</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const card: React.CSSProperties = { border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 18, background: 'var(--card)', marginBottom: 14 };
-const cardHead: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginBottom: 14 };
 const cardTitle: React.CSSProperties = { fontSize: 15, fontWeight: 600, color: 'var(--gray-800)' };
 const sub: React.CSSProperties = { fontSize: 12, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 };
 const slot: React.CSSProperties = { display: 'flex', gap: 14, alignItems: 'flex-start', padding: 12, border: '1px solid var(--gray-200)', borderRadius: 10, flexWrap: 'wrap' };
 const tag: React.CSSProperties = { fontSize: 10.5, fontWeight: 600, padding: '.1rem .45rem', borderRadius: 5, background: 'var(--chip-slate-bg)', color: 'var(--chip-slate-tx)' };
-const pick: React.CSSProperties = { flex: 1, fontSize: 11.5, padding: '.25rem 0', justifyContent: 'center' };

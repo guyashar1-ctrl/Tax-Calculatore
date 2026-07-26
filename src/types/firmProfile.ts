@@ -15,6 +15,7 @@ export interface FirmBranding {
   logoOnDarkUrl?: string;  // גרסה לרקע כהה — לרצועות הכהות במיילים ובעמודי הלקוח
   emailLogoPath?: string;  // גרסה למיילים — נתיב ב-Storage
   emailLogoUrl?: string;   // גרסה למיילים — חייבת PNG/JPG: תוכנות מייל לא מציגות SVG
+  logoScale?: number;      // הגדלה/הקטנה של הלוגו בכל המקומות. 1 = גודל ברירת המחדל
   stampPath?: string;   // נתיב חותמת המשרד ב-Storage — לצורך החלפה/מחיקה
   stampUrl?: string;    // כתובת ציבורית לחותמת — מוטבעת על טפסי ייפוי כוח חתומים
   signaturePath?: string; // נתיב חתימת הרו"ח הדיגיטלית ב-Storage
@@ -85,6 +86,17 @@ export const LOGO_SURFACE_LABELS: Record<LogoSurface, string> = {
   dark: 'לוגו לרקע כהה',
   email: 'לוגו למיילים',
 };
+
+// גבולות ההגדלה. מתחת ל-60% הלוגו בלתי קריא, מעל 250% הוא דוחק את שאר הכותרת.
+export const LOGO_SCALE_MIN = 0.6;
+export const LOGO_SCALE_MAX = 2.5;
+
+/** מכפיל הגודל שהוגדר, מוגבל לטווח החוקי. ברירת מחדל 1. */
+export function logoScale(branding: FirmBranding | undefined): number {
+  const raw = branding?.logoScale;
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return 1;
+  return Math.min(LOGO_SCALE_MAX, Math.max(LOGO_SCALE_MIN, raw));
+}
 
 export function resolveLogo(branding: FirmBranding | undefined, surface: LogoSurface): string | undefined {
   if (!branding) return undefined;

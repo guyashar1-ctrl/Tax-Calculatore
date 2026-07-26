@@ -64,6 +64,7 @@ export interface BrandingJson {
   logoUrl?: string;
   logoOnDarkUrl?: string; // גרסה בהירה של הלוגו — לרצועות כהות
   emailLogoUrl?: string;  // גרסת PNG/JPG — תוכנות מייל אינן מציגות SVG
+  logoScale?: number;     // מכפיל גודל הלוגו. 1 = ברירת מחדל
   docDesign?: DocDesign;
 }
 
@@ -85,6 +86,7 @@ export interface ResolvedBrand {
   logoUrl?: string;
   logoOnDarkUrl?: string;
   emailLogoUrl?: string;
+  logoScale: number;
   email?: string;
   phone?: string;
   website?: string;
@@ -259,6 +261,8 @@ export function resolveBrand(input: BrandInput): ResolvedBrand {
     logoUrl: branding.logoUrl,
     logoOnDarkUrl: branding.logoOnDarkUrl,
     emailLogoUrl: branding.emailLogoUrl,
+    // מוגבל לטווח שהממשק מאפשר, כדי שערך פגום ב-jsonb לא ישבור כותרת של מייל
+    logoScale: Math.min(2.5, Math.max(0.6, Number(branding.logoScale) || 1)),
     email: input.email,
     phone: input.phone,
     website: input.website,
@@ -307,13 +311,18 @@ export function emailHeaderRow(brand: ResolvedBrand, tag?: string): string {
   // כל אחת נופלת ללוגו הראשי אם לא הוגדרה.
   const emailLogo = brand.emailLogoUrl || brand.logoUrl;
   const darkLogo = brand.logoOnDarkUrl || brand.emailLogoUrl || brand.logoUrl;
+  // גובה הלוגו נגזר מהגודל שנקבע בפרופיל. הרוחב גדל יחד איתו כדי שלוגו רחב
+  // (מילה + כיתוב מתחת) לא ייחתך כשמגדילים.
+  const h = Math.round(40 * brand.logoScale);
+  const hDark = Math.round(38 * brand.logoScale);
+  const w = Math.round(180 * brand.logoScale);
   const mark = emailLogo
-    ? `<img src="${esc(emailLogo)}" alt="${esc(brand.firmName)}" style="max-height:40px;max-width:180px;border:0;" />`
+    ? `<img src="${esc(emailLogo)}" alt="${esc(brand.firmName)}" style="max-height:${h}px;max-width:${w}px;border:0;" />`
     : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" dir="rtl"><tr>`
       + `<td style="width:38px;height:38px;border:1.5px solid ${brand.ink};border-radius:50%;text-align:center;vertical-align:middle;color:${brand.ink};font-family:${f};font-size:15px;font-weight:600;">${esc(brand.monogram)}</td>`
       + `<td style="padding-right:10px;color:${brand.ink};font-family:${f};font-size:17px;font-weight:600;">${esc(brand.firmName)}</td></tr></table>`;
   const markDark = darkLogo
-    ? `<img src="${esc(darkLogo)}" alt="${esc(brand.firmName)}" style="max-height:38px;max-width:180px;border:0;" />`
+    ? `<img src="${esc(darkLogo)}" alt="${esc(brand.firmName)}" style="max-height:${hDark}px;max-width:${w}px;border:0;" />`
     : `<span style="color:#ffffff;font-family:${f};font-size:17px;font-weight:600;">${esc(brand.firmName)}</span>`;
   const tagHtml = tag ? `<span style="font-family:${f};font-size:11.5px;color:${brand.muted};">${esc(tag)}</span>` : '';
 

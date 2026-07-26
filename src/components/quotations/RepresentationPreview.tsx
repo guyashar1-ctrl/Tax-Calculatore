@@ -12,8 +12,9 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
     ? { background: 'transparent', color: brand.ink, border: `1.5px solid ${brand.ink}` }
     : { background: brand.accent, color: '#fff', border: 'none' };
 
+  const ls = brand.logoScale;
   const logo = brand.logoUrl
-    ? <img src={brand.logoUrl} alt="" style={{ maxHeight: compact ? 30 : 38, maxWidth: 160, objectFit: 'contain' }} />
+    ? <img src={brand.logoUrl} alt="" style={{ maxHeight: (compact ? 30 : 38) * ls, maxWidth: 160 * ls, objectFit: 'contain' }} />
     : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
         <span style={{ width: 36, height: 36, borderRadius: '50%', border: `1.5px solid ${brand.ink}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: brand.ink }}>{brand.monogram}</span>
         <span style={{ fontSize: 15, fontWeight: 600, color: brand.ink }}>{brand.firmName}</span>
@@ -28,7 +29,7 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
           <div style={{ background: brand.ink, padding: `${compact ? 16 : 20}px ${pad}px` }}>
             {/* ראה הערה זהה ב-QuotationWebView */}
             {brand.logoOnDarkUrl || brand.logoUrl
-              ? <img src={brand.logoOnDarkUrl || brand.logoUrl} alt="" style={{ maxHeight: 34, maxWidth: 160, objectFit: 'contain', filter: brand.logoOnDarkUrl ? undefined : 'brightness(0) invert(1)' }} />
+              ? <img src={brand.logoOnDarkUrl || brand.logoUrl} alt="" style={{ maxHeight: 34 * ls, maxWidth: 160 * ls, objectFit: 'contain', filter: brand.logoOnDarkUrl ? undefined : 'brightness(0) invert(1)' }} />
               : <span style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>{brand.firmName}</span>}
           </div>
         ) : (

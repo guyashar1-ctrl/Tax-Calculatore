@@ -60,8 +60,10 @@ export default function QuotationWebView({
   const firstName = greetingName(data.recipientName);
 
   // ─── כותרת לפי סגנון ───
+  // גודל הלוגו נקבע בפרופיל המשרד; הרוחב גדל יחד עם הגובה כדי שלוגו רחב לא ייחתך
+  const ls = brand.logoScale;
   const logoNode = brand.logoUrl
-    ? <img src={brand.logoUrl} alt="" style={{ maxHeight: compact ? 32 : 40, maxWidth: 170, objectFit: 'contain' }} />
+    ? <img src={brand.logoUrl} alt="" style={{ maxHeight: (compact ? 32 : 40) * ls, maxWidth: 170 * ls, objectFit: 'contain' }} />
     : (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
         <span style={{ width: compact ? 36 : 42, height: compact ? 36 : 42, borderRadius: '50%', border: `1.5px solid ${brand.ink}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: compact ? 14 : 16, fontWeight: 600, color: brand.ink }}>{brand.monogram}</span>
@@ -76,7 +78,7 @@ export default function QuotationWebView({
           {/* יש לוגו ייעודי לרקע כהה — מציגים אותו כמו שהוא. אין כזה — מלבינים את
               הראשי כפתרון ביניים, מה שהופך אותו לצללית אחידה. */}
           {brand.logoOnDarkUrl || brand.logoUrl
-            ? <img src={brand.logoOnDarkUrl || brand.logoUrl} alt="" style={{ maxHeight: compact ? 30 : 38, maxWidth: 170, objectFit: 'contain', filter: brand.logoOnDarkUrl ? undefined : 'brightness(0) invert(1)' }} />
+            ? <img src={brand.logoOnDarkUrl || brand.logoUrl} alt="" style={{ maxHeight: (compact ? 30 : 38) * ls, maxWidth: 170 * ls, objectFit: 'contain', filter: brand.logoOnDarkUrl ? undefined : 'brightness(0) invert(1)' }} />
             : <>
                 <span style={{ width: compact ? 34 : 40, height: compact ? 34 : 40, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,.85)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: compact ? 13 : 15, fontWeight: 600, color: '#fff' }}>{brand.monogram}</span>
                 <span style={{ fontSize: compact ? 15 : 17, fontWeight: 600, color: '#fff' }}>{brand.firmName}</span>
