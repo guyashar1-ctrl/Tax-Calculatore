@@ -73,8 +73,10 @@ export default function QuotationWebView({
     if (brand.headerStyle === 'band') {
       return (
         <div style={{ background: brand.ink, padding: `${compact ? 18 : 24}px ${pad}px`, display: 'flex', alignItems: 'center', gap: 10 }}>
-          {brand.logoUrl
-            ? <img src={brand.logoUrl} alt="" style={{ maxHeight: compact ? 30 : 38, maxWidth: 170, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+          {/* יש לוגו ייעודי לרקע כהה — מציגים אותו כמו שהוא. אין כזה — מלבינים את
+              הראשי כפתרון ביניים, מה שהופך אותו לצללית אחידה. */}
+          {brand.logoOnDarkUrl || brand.logoUrl
+            ? <img src={brand.logoOnDarkUrl || brand.logoUrl} alt="" style={{ maxHeight: compact ? 30 : 38, maxWidth: 170, objectFit: 'contain', filter: brand.logoOnDarkUrl ? undefined : 'brightness(0) invert(1)' }} />
             : <>
                 <span style={{ width: compact ? 34 : 40, height: compact ? 34 : 40, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,.85)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: compact ? 13 : 15, fontWeight: 600, color: '#fff' }}>{brand.monogram}</span>
                 <span style={{ fontSize: compact ? 15 : 17, fontWeight: 600, color: '#fff' }}>{brand.firmName}</span>

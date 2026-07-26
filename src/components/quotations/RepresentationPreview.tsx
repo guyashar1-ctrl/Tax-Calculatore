@@ -26,8 +26,9 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
       <div style={{ maxWidth: compact ? '100%' : 460, margin: '0 auto', background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: cardRadius, overflow: 'hidden', boxShadow: '0 12px 44px rgba(0,0,0,.09)' }}>
         {brand.headerStyle === 'band' ? (
           <div style={{ background: brand.ink, padding: `${compact ? 16 : 20}px ${pad}px` }}>
-            {brand.logoUrl
-              ? <img src={brand.logoUrl} alt="" style={{ maxHeight: 34, maxWidth: 160, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+            {/* ראה הערה זהה ב-QuotationWebView */}
+            {brand.logoOnDarkUrl || brand.logoUrl
+              ? <img src={brand.logoOnDarkUrl || brand.logoUrl} alt="" style={{ maxHeight: 34, maxWidth: 160, objectFit: 'contain', filter: brand.logoOnDarkUrl ? undefined : 'brightness(0) invert(1)' }} />
               : <span style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>{brand.firmName}</span>}
           </div>
         ) : (
