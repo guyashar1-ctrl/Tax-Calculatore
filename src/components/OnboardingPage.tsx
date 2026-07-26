@@ -153,7 +153,7 @@ export default function OnboardingPage({ token }: Props) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 30 }}>
         {logoUrl ? (
-          <img src={logoUrl} alt={info?.firmName || ''} style={{ maxHeight: 36, maxWidth: 150, objectFit: 'contain' }} />
+          <img src={logoUrl} alt={info?.firmName || ''} style={{ maxHeight: 36 * brand.logoScale, maxWidth: 150 * brand.logoScale, objectFit: 'contain' }} />
         ) : (
           <>
             <div style={{ width: 30, height: 30, borderRadius: '50%', border: `1.5px solid ${ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ink, fontWeight: 500, fontSize: 12 }}>{monogram}</div>

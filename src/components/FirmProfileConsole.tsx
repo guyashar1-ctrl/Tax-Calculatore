@@ -146,6 +146,10 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
     }
   }
 
+  function handleLogoScale(scale: number) {
+    setDraft(d => ({ ...d, branding: { ...d.branding, logoScale: scale } }));
+  }
+
   async function handleLogoRemove(surface: LogoSurface) {
     const fields = LOGO_FIELDS[surface];
     setError(null);
@@ -460,6 +464,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                 busySurface={logoBusy}
                 onUpload={handleLogoUpload}
                 onRemove={handleLogoRemove}
+                onScaleChange={handleLogoScale}
                 onError={setError}
               />
 

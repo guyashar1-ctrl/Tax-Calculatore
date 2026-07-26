@@ -82,7 +82,7 @@ export default function PublicIntakePage({ token }: Props) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22 }}>
         {logoUrl ? (
-          <img src={logoUrl} alt={info?.firmName} style={{ maxHeight: 40, maxWidth: 180 }} />
+          <img src={logoUrl} alt={info?.firmName} style={{ maxHeight: 40 * brand.logoScale, maxWidth: 180 * brand.logoScale, objectFit: 'contain' }} />
         ) : (
           <>
             <div style={{ width: 34, height: 34, borderRadius: '50%', border: `1.5px solid ${ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: ink }}>{monogram}</div>

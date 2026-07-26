@@ -30,14 +30,17 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
   // אותה בחירת לוגו כמו ב-designSystem: PNG למייל, גרסה בהירה לרצועה כהה.
   const emailLogo = brand.emailLogoUrl || brand.logoUrl;
   const darkLogo = brand.logoOnDarkUrl || brand.emailLogoUrl || brand.logoUrl;
+  const logoH = Math.round(40 * brand.logoScale);
+  const logoHDark = Math.round(38 * brand.logoScale);
+  const logoW = Math.round(180 * brand.logoScale);
   const brandMark = emailLogo
-    ? `<img src="${esc(emailLogo)}" alt="${esc(brand.firmName)}" style="max-height:40px;max-width:180px;border:0;" />`
+    ? `<img src="${esc(emailLogo)}" alt="${esc(brand.firmName)}" style="max-height:${logoH}px;max-width:${logoW}px;border:0;" />`
     : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" dir="rtl"><tr>`
       + `<td style="width:38px;height:38px;border:1.5px solid ${brand.ink};border-radius:50%;text-align:center;vertical-align:middle;color:${brand.ink};font-size:15px;font-weight:600;">${esc(brand.monogram)}</td>`
       + `<td style="padding-right:10px;color:${brand.ink};font-size:17px;font-weight:600;">${esc(brand.firmName)}</td>`
       + `</tr></table>`;
   const brandMarkOnDark = darkLogo
-    ? `<img src="${esc(darkLogo)}" alt="${esc(brand.firmName)}" style="max-height:38px;max-width:180px;border:0;" />`
+    ? `<img src="${esc(darkLogo)}" alt="${esc(brand.firmName)}" style="max-height:${logoHDark}px;max-width:${logoW}px;border:0;" />`
     : `<span style="color:#ffffff;font-size:17px;font-weight:600;">${esc(brand.firmName)}</span>`;
   const numTag = `<span style="font-size:11.5px;color:${brand.muted};">הצעה מס׳ ${esc(data.quotationNumber)}</span>`;
 
