@@ -10,7 +10,11 @@ export interface FirmBranding {
   font?: string;        // למשל 'Heebo'
   monogram?: string;    // ראשי תיבות — דריסה ידנית; אחרת נגזר משם המשרד
   logoPath?: string;    // נתיב הקובץ ב-Storage (bucket: firm-logos) — לצורך החלפה/מחיקה
-  logoUrl?: string;     // כתובת ציבורית ללוגו — מוצגת באפליקציה, בעמודי הלקוח ובמיילים
+  logoUrl?: string;     // כתובת ציבורית ללוגו — ברירת המחדל לכל מקום שלא הוגדר לו לוגו ייעודי
+  logoOnDarkPath?: string; // גרסה לרקע כהה (yashar-logo-white / -light) — נתיב ב-Storage
+  logoOnDarkUrl?: string;  // גרסה לרקע כהה — לרצועות הכהות במיילים ובעמודי הלקוח
+  emailLogoPath?: string;  // גרסה למיילים — נתיב ב-Storage
+  emailLogoUrl?: string;   // גרסה למיילים — חייבת PNG/JPG: תוכנות מייל לא מציגות SVG
   stampPath?: string;   // נתיב חותמת המשרד ב-Storage — לצורך החלפה/מחיקה
   stampUrl?: string;    // כתובת ציבורית לחותמת — מוטבעת על טפסי ייפוי כוח חתומים
   signaturePath?: string; // נתיב חתימת הרו"ח הדיגיטלית ב-Storage
@@ -67,6 +71,35 @@ export const BRAND_THEMES: { id: BrandTheme; label: string; ink: string; accent:
 export const REP_TYPE_OPTIONS = ['רואה חשבון', 'יועץ מס', 'עורך דין'];
 
 export const FONT_OPTIONS = ['Heebo', 'Assistant', 'Rubik'];
+
+// ─── בחירת הלוגו לפי המקום שבו הוא מוצג ──────────────────────────────────────
+// שלושה מקומות, כל אחד עם דרישות אחרות:
+//   app   — בתוך המערכת ובעמודי הלקוח על רקע בהיר. כל פורמט, כולל SVG.
+//   dark  — רצועות כהות (ראש המייל, ראש הצעת המחיר). דורש גרסה בהירה של הלוגו.
+//   email — גוף המייל. חייב PNG/JPG — ג׳ימייל ואאוטלוק לא מציגים SVG.
+// מקום שלא הוגדר לו לוגו ייעודי נופל ללוגו הראשי, כך שהתנהגות קיימת לא משתנה.
+export type LogoSurface = 'app' | 'dark' | 'email';
+
+export const LOGO_SURFACE_LABELS: Record<LogoSurface, string> = {
+  app: 'לוגו ראשי',
+  dark: 'לוגו לרקע כהה',
+  email: 'לוגו למיילים',
+};
+
+export function resolveLogo(branding: FirmBranding | undefined, surface: LogoSurface): string | undefined {
+  if (!branding) return undefined;
+  if (surface === 'dark') return branding.logoOnDarkUrl || branding.logoUrl;
+  if (surface === 'email') return branding.emailLogoUrl || branding.logoUrl;
+  return branding.logoUrl;
+}
+
+/** true אם המקום הזה משתמש בלוגו הראשי כי לא הוגדרה לו גרסה משלו */
+export function isLogoFallback(branding: FirmBranding | undefined, surface: LogoSurface): boolean {
+  if (!branding?.logoUrl) return false;
+  if (surface === 'dark') return !branding.logoOnDarkUrl;
+  if (surface === 'email') return !branding.emailLogoUrl;
+  return false;
+}
 
 /** ראשי תיבות לברירת מחדל מתוך שם המשרד (עד 2 אותיות משמעותיות) */
 export function deriveMonogram(firmName?: string): string {

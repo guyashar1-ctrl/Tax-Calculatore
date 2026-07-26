@@ -3,9 +3,11 @@ import {
   FirmProfile,
   FirmBranding,
   FirmCommunication,
+  LogoSurface,
   REP_TYPE_OPTIONS,
   deriveMonogram,
 } from '../types/firmProfile';
+import LogoAssetsPanel, { type LogoUploadRequest } from './LogoAssetsPanel';
 import { Client } from '../types';
 import EmployeesPanel from './EmployeesPanel';
 import EmailActivityModule from './EmailActivity/EmailActivityModule';
@@ -103,56 +105,59 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoBusy, setLogoBusy] = useState<LogoSurface | null>(null);
   const [stampBusy, setStampBusy] = useState(false);
   const [sigBusy, setSigBusy] = useState(false);
   // תצוגת החתימה/חותמת מהדלי הפרטי — data URL שנפתר מהנתיב (download מאומת)
   const [stampSrc, setStampSrc] = useState<string | undefined>(undefined);
   const [sigSrc, setSigSrc] = useState<string | undefined>(undefined);
 
-  async function handleLogoFile(file: File | null) {
-    if (!file) return;
+  // כל מקום-לוגו שמור בזוג שדות משלו (כתובת + נתיב), כדי שאפשר יהיה להחליף
+  // ולמחוק כל אחד בנפרד מבלי לגעת באחרים.
+  const LOGO_FIELDS: Record<LogoSurface, { url: keyof FirmBranding; path: keyof FirmBranding; prefix: string }> = {
+    app: { url: 'logoUrl', path: 'logoPath', prefix: 'logo' },
+    dark: { url: 'logoOnDarkUrl', path: 'logoOnDarkPath', prefix: 'logo-dark' },
+    email: { url: 'emailLogoUrl', path: 'emailLogoPath', prefix: 'logo-email' },
+  };
+
+  async function handleLogoUpload({ surface, file }: LogoUploadRequest) {
+    const fields = LOGO_FIELDS[surface];
     setError(null);
-    if (!LOGO_MIME.includes(file.type)) {
-      setError('פורמט לא נתמך — יש להעלות PNG, JPG, SVG או WEBP');
-      return;
-    }
-    if (file.size > LOGO_MAX_BYTES) {
-      setError('הקובץ גדול מדי — עד 2MB');
-      return;
-    }
-    setLogoBusy(true);
+    setLogoBusy(surface);
     try {
       const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-      const path = `${profile.id}/logo-${Date.now()}.${ext}`;
+      // כל העלאה מקבלת שם ייחודי, ולכן אין צורך ב-upsert. חשוב שלא יהיה: מדיניות
+      // האבטחה של הדלי חוסמת בקשות upsert ומחזירה "new row violates RLS policy".
+      const path = `${profile.id}/${fields.prefix}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from(LOGO_BUCKET)
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .upload(path, file, { contentType: file.type });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
-      const prevPath = draft.branding.logoPath;
-      setDraft(d => ({ ...d, branding: { ...d.branding, logoUrl: pub.publicUrl, logoPath: path } }));
+      const prevPath = draft.branding[fields.path] as string | undefined;
+      setDraft(d => ({ ...d, branding: { ...d.branding, [fields.url]: pub.publicUrl, [fields.path]: path } }));
       if (prevPath && prevPath !== path) {
         await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
       }
     } catch (e) {
       setError(extractErr(e));
     } finally {
-      setLogoBusy(false);
+      setLogoBusy(null);
     }
   }
 
-  async function handleLogoRemove() {
+  async function handleLogoRemove(surface: LogoSurface) {
+    const fields = LOGO_FIELDS[surface];
     setError(null);
-    setLogoBusy(true);
+    setLogoBusy(surface);
     try {
-      const prevPath = draft.branding.logoPath;
+      const prevPath = draft.branding[fields.path] as string | undefined;
       if (prevPath) await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
-      setDraft(d => ({ ...d, branding: { ...d.branding, logoUrl: undefined, logoPath: undefined } }));
+      setDraft(d => ({ ...d, branding: { ...d.branding, [fields.url]: undefined, [fields.path]: undefined } }));
     } catch (e) {
       setError(extractErr(e));
     } finally {
-      setLogoBusy(false);
+      setLogoBusy(null);
     }
   }
 
@@ -173,7 +178,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
       const path = `${profile.id}/stamp-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from(SIGN_BUCKET)
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .upload(path, file, { contentType: file.type });
       if (upErr) throw upErr;
       const prevPath = draft.branding.stampPath;
       // דלי פרטי — שומרים נתיב בלבד, לא כתובת ציבורית. התצוגה נגזרת מהנתיב.
@@ -221,7 +226,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
       const path = `${profile.id}/signature-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from(SIGN_BUCKET)
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .upload(path, file, { contentType: file.type });
       if (upErr) throw upErr;
       const prevPath = draft.branding.signaturePath;
       // דלי פרטי — שומרים נתיב בלבד, לא כתובת ציבורית. התצוגה נגזרת מהנתיב.
@@ -448,37 +453,15 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 
           {section === 'branding' && (
             <>
-              <div style={card}>
-                <div style={cardTitle}>לוגו המשרד</div>
-                <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
-                  יופיע בראש המיילים ללקוח, בעמודי ההזדהות ובתצוגות. מומלץ <b>PNG או JPG</b> עם רקע שקוף — כדי שיוצג תקין גם במיילים (SVG מתאים לאתר אך חלק מתוכנות המייל חוסמות אותו).
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ width: 96, height: 96, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                    {logoUrl
-                      ? <img src={logoUrl} alt="לוגו" style={{ maxWidth: '86%', maxHeight: '86%', objectFit: 'contain' }} />
-                      : <span style={{ color: 'var(--gray-400)', display: 'inline-flex' }}><NavIcon name="photo" size={26} /></span>}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
-                    <label className="btn btn-primary" style={{ cursor: logoBusy ? 'default' : 'pointer', opacity: logoBusy ? 0.6 : 1 }}>
-                      {logoBusy ? 'מעלה…' : logoUrl ? 'החלף לוגו' : 'העלה לוגו'}
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                        style={{ display: 'none' }}
-                        disabled={logoBusy}
-                        onChange={e => { const f = e.target.files?.[0] ?? null; void handleLogoFile(f); e.target.value = ''; }}
-                      />
-                    </label>
-                    {logoUrl && (
-                      <button className="btn" onClick={() => void handleLogoRemove()} disabled={logoBusy} style={{ fontSize: 12.5 }}>
-                        <NavIcon name="trash" size={14} />הסר לוגו
-                      </button>
-                    )}
-                    <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>PNG · JPG · SVG · WEBP · עד 2MB</div>
-                  </div>
-                </div>
-              </div>
+              <LogoAssetsPanel
+                branding={draft.branding}
+                darkBg={clientBrand.ink}
+                firmName={clientBrand.firmName}
+                busySurface={logoBusy}
+                onUpload={handleLogoUpload}
+                onRemove={handleLogoRemove}
+                onError={setError}
+              />
 
               <div style={card}>
                 <div style={cardTitle}>חותמת המשרד</div>
