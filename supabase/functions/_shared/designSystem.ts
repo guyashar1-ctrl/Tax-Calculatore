@@ -304,13 +304,22 @@ export function emailTint(hex: string): string {
   return `rgb(${r},${g},${b})`;
 }
 
+/**
+ * בוחר לוגו למייל מתוך רשימת מועמדים לפי סדר עדיפות, ומדלג על SVG.
+ * תוכנות מייל אינן מציגות SVG — עדיף לרדת למונוגרמה מאשר לשלוח תמונה שבורה.
+ * הבדיקה נחוצה גם לפרופילים שהוגדרו לפני שההמרה האוטומטית ל-PNG נוספה.
+ */
+function emailSafeLogo(...candidates: (string | undefined)[]): string | undefined {
+  return candidates.find(url => !!url && !/\.svg(\?|#|$)/i.test(url));
+}
+
 /** כותרת ממותגת לפי סגנון. tag = טקסט קטן בצד (אופציונלי). */
 export function emailHeaderRow(brand: ResolvedBrand, tag?: string): string {
   const f = emailFont(brand);
   // במייל מעדיפים תמיד את גרסת ה-PNG; לרצועה כהה את הגרסה הבהירה של הלוגו.
   // כל אחת נופלת ללוגו הראשי אם לא הוגדרה.
-  const emailLogo = brand.emailLogoUrl || brand.logoUrl;
-  const darkLogo = brand.logoOnDarkUrl || brand.emailLogoUrl || brand.logoUrl;
+  const emailLogo = emailSafeLogo(brand.emailLogoUrl, brand.logoUrl);
+  const darkLogo = emailSafeLogo(brand.logoOnDarkUrl, brand.emailLogoUrl, brand.logoUrl);
   // גובה הלוגו נגזר מהגודל שנקבע בפרופיל. הרוחב גדל יחד איתו כדי שלוגו רחב
   // (מילה + כיתוב מתחת) לא ייחתך כשמגדילים.
   const h = Math.round(40 * brand.logoScale);

@@ -27,9 +27,11 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
   const cardTint = tint(brand.pageBg);
 
   // ── כותרת לפי סגנון ──
-  // אותה בחירת לוגו כמו ב-designSystem: PNG למייל, גרסה בהירה לרצועה כהה.
-  const emailLogo = brand.emailLogoUrl || brand.logoUrl;
-  const darkLogo = brand.logoOnDarkUrl || brand.emailLogoUrl || brand.logoUrl;
+  // אותה בחירת לוגו כמו ב-designSystem: PNG למייל, גרסה בהירה לרצועה כהה,
+  // ודילוג על SVG — תוכנות מייל אינן מציגות אותו.
+  const emailSafe = (...c: (string | undefined)[]) => c.find(u => !!u && !/\.svg(\?|#|$)/i.test(u));
+  const emailLogo = emailSafe(brand.emailLogoUrl, brand.logoUrl);
+  const darkLogo = emailSafe(brand.logoOnDarkUrl, brand.emailLogoUrl, brand.logoUrl);
   const logoH = Math.round(40 * brand.logoScale);
   const logoHDark = Math.round(38 * brand.logoScale);
   const logoW = Math.round(180 * brand.logoScale);
