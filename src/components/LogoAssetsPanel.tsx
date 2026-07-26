@@ -19,9 +19,13 @@ const ACCEPTED = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
 
 const SURFACES: { id: LogoSurface; hint: string }[] = [
   { id: 'app', hint: 'ברירת המחדל. מוצג בעמודי הלקוח על רקע בהיר. כל פורמט, כולל SVG.' },
-  { id: 'dark', hint: 'לרצועות הכהות — ראש המייל וראש הצעת המחיר. העלה את הגרסה הלבנה של הלוגו.' },
-  { id: 'email', hint: 'בגוף המייל. חייב PNG או JPG — ג׳ימייל ואאוטלוק אינם מציגים SVG. קובץ SVG יומר אוטומטית.' },
+  { id: 'dark', hint: 'לרצועות הכהות — ראש המייל וראש הצעת המחיר. העלה את הגרסה הלבנה, ועדיף פריסה רחבה: הרצועה נמוכה, ובלוגו מוערם הכיתוב מתחת לשם נעשה זעיר.' },
+  { id: 'email', hint: 'בגוף המייל, על רקע בהיר. גם כאן עדיפה פריסה רחבה.' },
 ];
+
+// שתי המשבצות האלה נצרכות בתוך מיילים, ותוכנות מייל אינן מציגות SVG כלל —
+// לכן כל SVG שמגיע אליהן מומר ל-PNG לפני ההעלאה.
+const RASTERISE_SURFACES: LogoSurface[] = ['dark', 'email'];
 
 export interface LogoUploadRequest {
   surface: LogoSurface;
@@ -50,8 +54,7 @@ export default function LogoAssetsPanel({
     setNote(null);
 
     let file = incoming;
-    // מייל: SVG לא מוצג בתוכנות מייל — ממירים ל-PNG לפני ההעלאה
-    if (surface === 'email' && file.type === 'image/svg+xml') {
+    if (RASTERISE_SURFACES.includes(surface) && file.type === 'image/svg+xml') {
       try {
         const res = await svgFileToPng(file);
         file = res.file;
@@ -73,6 +76,18 @@ export default function LogoAssetsPanel({
       return;
     }
     await onUpload({ surface, file });
+
+    // הלוגו הראשי משמש כברירת מחדל גם במיילים. אם הוא SVG ואין עדיין לוגו מייל,
+    // המייל היה יוצא עם קובץ שתוכנות מייל לא מציגות — לכן מייצרים לו PNG מקביל.
+    if (surface === 'app' && incoming.type === 'image/svg+xml' && !branding.emailLogoUrl) {
+      try {
+        const res = await svgFileToPng(incoming);
+        await onUpload({ surface: 'email', file: res.file });
+        setNote(`הלוגו הראשי הוא SVG, שתוכנות מייל אינן מציגות — לכן יצרתי ממנו גם גרסת PNG (${res.width}×${res.height}) והצבתי אותה כלוגו למיילים. אפשר להחליף אותה בכל רגע.`);
+      } catch {
+        setNote('הלוגו הראשי הוא SVG. תוכנות מייל אינן מציגות SVG — כדאי להעלות גם קובץ PNG במשבצת «לוגו למיילים».');
+      }
+    }
   }
 
   return (
