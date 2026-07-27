@@ -50,6 +50,10 @@ jobs:
         with:
           version: latest
 
+      # אזהרה צפויה בפלט, אפשר להתעלם ממנה:
+      #   WARN: failed to read file: open supabase/supabase/functions/_shared/...
+      # ה-CLI מנסה גם נתיב עם קידומת כפולה עבור קבצים משותפים. הקובץ עצמו כן
+      # נארז — אומת ע"י קריאת הקוד שיושב בשרת אחרי הפרסום.
       - name: Deploy all edge functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
