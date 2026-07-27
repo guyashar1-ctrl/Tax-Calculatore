@@ -1,0 +1,66 @@
+name: Deploy Edge Functions
+
+# פונקציות השרת מפורסמות בנפרד מהאתר. Vercel מפרסם רק את הצד של הדפדפן, כך
+# שבלי הוורקפלו הזה שינוי בקוד שמייצר מיילים היה נראה נכון בתצוגה שבמערכת
+# ונשלח ללקוח בגרסה ישנה — פער שמתגלה רק מול הלקוח.
+#
+# דורש סוד אחד במאגר: SUPABASE_ACCESS_TOKEN
+# (Settings → Secrets and variables → Actions → New repository secret)
+# את הטוקן מייצרים ב-https://supabase.com/dashboard/account/tokens
+#
+# הגדרות verify_jwt לכל פונקציה נקראות מ-supabase/config.toml — אסור למחוק
+# אותו, אחרת הפונקציות הציבוריות יתחילו לדרוש התחברות.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/deploy-edge-functions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # פרסום אחד בכל רגע; דחיפה חדשה מבטלת פרסום שעדיין רץ
+  group: deploy-edge-functions
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_PROJECT_REF: uoweoqtuiettozagwgdw
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail early if the access token is missing
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "${SUPABASE_ACCESS_TOKEN}" ]; then
+            echo "::error::חסר הסוד SUPABASE_ACCESS_TOKEN. בלעדיו פונקציות השרת לא מתעדכנות, והמיילים ללקוחות ימשיכו לצאת בגרסה ישנה. להוסיף ב-Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy all edge functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          supabase functions deploy --project-ref "${SUPABASE_PROJECT_REF}"
+
+      - name: Report what is now live
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "### פונקציות השרת שפורסמו" >> "$GITHUB_STEP_SUMMARY"
+          supabase functions list --project-ref "${SUPABASE_PROJECT_REF}" >> "$GITHUB_STEP_SUMMARY"
