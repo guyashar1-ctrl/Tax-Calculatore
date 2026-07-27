@@ -13,6 +13,7 @@ import {
   NI_APPROVAL_PHONE,
 } from '../types';
 import { useDocumentDB } from '../hooks/useIndexedDB';
+import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 
 interface Props {
   request: RepresentationRequest;
@@ -21,6 +22,8 @@ interface Props {
   onSaveExecution: (execution: RepresentationExecution) => Promise<void> | void;
   /** שולח ללקוח את הוראות אישור ייפוי הכוח בב"ל. מחזיר שגיאה בעברית, או null. */
   onSendNiInstructions: () => Promise<string | null>;
+  /** פותח את עורך הפקת הטופס — העלאת PDF של ייפוי הכוח וסימון אזורי החתימה. */
+  onProduce: () => void;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -98,7 +101,7 @@ function Track({ title, subtitle, done, total, tone, children }: {
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, onSaveExecution, onSendNiInstructions }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, onSaveExecution, onSendNiInstructions, onProduce }: Props) {
   const db = useDocumentDB();
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
@@ -112,6 +115,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
   const [docName, setDocName] = useState<string | null>(null);
 
   const status = request.status;
+  const signers = getRequestSigners(request);
   const signed = ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(status);
   const sentToShaam = ['awaiting_authorities', 'active'].includes(status);
   const formReady = !!request.signatureSetup || signed;
@@ -183,7 +187,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
   }
 
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
-  const itSteps = [!!it.enteredAt, formReady, signed, sentToShaam, status === 'active'];
+  const itSteps = [!!it.enteredAt, formReady, !!exec.signatureEmailSentAt, signed, sentToShaam, status === 'active'];
   const niSteps = [!!ni.enteredAt, !!ni.referenceNumber, !!ni.instructionsSentAt, !!ni.confirmedAt];
 
   const dLeft = daysUntil(ni.deadline);
@@ -221,14 +225,33 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
               )}
             </Step>
 
-            <Step n={2} title="טופס ייפוי הכוח הועלה ונשלח לחתימה" done={formReady}
-              hint={formReady ? undefined : 'בכפתור "העלה טופס וסמן אזורי חתימה" למעלה'} />
+            <Step n={2} title="טופס ייפוי הכוח הועלה ואזורי החתימה סומנו" done={formReady}
+              hint={formReady
+                ? `${request.signatureSetup?.pdfFileName || 'הטופס'} — מוכן לשליחה`
+                : 'העלו את קובץ ייפוי הכוח וסמנו איפה כל אחד חותם'}>
+              <button className="btn btn-secondary btn-sm" onClick={onProduce}>
+                {formReady ? '↺ החלף טופס או ערוך אזורים' : '📄 העלה טופס וסמן אזורי חתימה'}
+              </button>
+            </Step>
 
-            <Step n={3} title="כל החותמים חתמו" done={signed} />
+            <Step n={3} title="נשלח לחתימת הלקוח" done={!!exec.signatureEmailSentAt}
+              hint={exec.signatureEmailSentAt ? `נשלח ב-${fmt(exec.signatureEmailSentAt)}` : 'בכפתור "שלח ללקוח" שבראש המסך'} />
 
-            <Step n={4} title="נשלח לשע״ם" done={sentToShaam} />
+            <Step n={4} title="כל החותמים חתמו" done={signed}>
+              {signers.length > 0 && !signed && (
+                <div style={{ fontSize: '.78rem', color: 'var(--gray-600)', lineHeight: 1.7 }}>
+                  {signers.map(s => (
+                    <div key={s.id}>
+                      {effectiveSignStatus(request, s) === 'signed' ? '✓' : '⏳'} {s.name || s.email}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Step>
 
-            <Step n={5} title="הייצוג פעיל" done={status === 'active'} />
+            <Step n={5} title="נשלח לשע״ם" done={sentToShaam} />
+
+            <Step n={6} title="הייצוג פעיל" done={status === 'active'} />
           </Track>
 
           {/* ─────────── ביטוח לאומי ─────────── */}

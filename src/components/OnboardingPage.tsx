@@ -134,6 +134,8 @@ export default function OnboardingPage({ token }: Props) {
   const greetName = (firstName || info?.clientName || '').trim().split(/\s+/)[0] || '';
 
   const yearLabel = familyStatus ? FAMILY_STATUS_YEAR_LABELS[familyStatus] : undefined;
+  // כמה פעולות ממתינות ללקוח במייל הבא — חתימה תמיד, ואישור ב"ל אם התבקש
+  const niSteps = info?.niIncluded ? 2 : 1;
   // הרו"ח כבר קבע את המצב המשפחתי (ואת השנה, אם נדרשת) ⇒ אין מה לשאול בשלב 3.
   const familyStepDone = !!info?.prefill.familyStatus
     && (!FAMILY_STATUS_YEAR_LABELS[info.prefill.familyStatus] || !!info.prefill.familyStatusYear)
@@ -280,32 +282,42 @@ export default function OnboardingPage({ token }: Props) {
       <div style={page}>
         <div style={{ ...card, width: 520 }}>
           <Header />
-          <div style={{ textAlign: 'center', padding: '4px 0 18px' }}>
-            <div style={{ width: 42, height: 42, borderRadius: '50%', background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#fff', fontSize: 22 }}>✓</div>
-            <div style={{ fontSize: 18, fontWeight: 500, color: '#111', marginBottom: 5 }}>קיבלנו הכול{greetName ? `, ${greetName}` : ''}! 🎉</div>
-            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>
+          <div style={{ textAlign: 'center', padding: '4px 0 20px' }}>
+            <div style={{ width: 46, height: 46, borderRadius: '50%', background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: '#fff', fontSize: 24 }}>✓</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 6, letterSpacing: '-.02em' }}>
+              קיבלנו הכול{greetName ? `, ${greetName}` : ''}!
+            </div>
+            <div style={{ fontSize: 14, color: '#6B6B68', lineHeight: 1.6 }}>
               {info?.firmName} כבר מטפל בפתיחת הייצוג מול הרשויות.
             </div>
           </div>
 
-          {/* השלב הקריטי: בלי המייל הבא הייצוג לא נכנס לתוקף */}
-          <div style={{ border: `1.5px solid ${accent}`, borderRadius: 10, padding: '15px 16px', marginBottom: 18 }}>
-            <div style={{ fontSize: 14.5, fontWeight: 700, color: '#111', marginBottom: 7 }}>
-              📩 בקרוב יגיע אליכם מייל נוסף — חשוב לפתוח אותו
+          {/* ‼ הלקוח חייב לצאת מכאן ביודעו שנשארו לו פעולות. אם הוא מפספס את
+              המייל הבא, הייצוג לא נכנס לתוקף — ולכן זה החלק הכי בולט במסך. */}
+          <div style={{ background: accent, color: '#fff', borderRadius: '10px 10px 0 0', padding: '13px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>עוד לא סיימנו — יגיעו אליכם {niSteps} פעולות במייל</div>
+          </div>
+          <div style={{ border: `2px solid ${accent}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '16px', marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.7 }}>
+              אחרי שנזין את הפרטים ברשויות נשלח מייל אל:
             </div>
-            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.75 }}>
-              אחרי שנזין את הפרטים ברשויות, נשלח לכם מייל שבו תתבקשו:
+            {/* הצגת הכתובת נותנת ללקוח הזדמנות אחרונה לתפוס טעות הקלדה */}
+            <div dir="ltr" style={{
+              margin: '8px 0 16px', padding: '11px 12px', background: '#F7F6F3', borderRadius: 8,
+              fontSize: 15, fontWeight: 700, color: '#111', textAlign: 'center', wordBreak: 'break-all',
+            }}>
+              {email.trim() || info?.knownEmail || '—'}
             </div>
-            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.8, paddingTop: 8 }}>
-              <div>• <strong style={{ color: '#111' }}>מס הכנסה</strong> — לחתום דיגיטלית על טופס ייפוי הכוח (בלחיצה, מהטלפון).</div>
-              {info?.niIncluded && (
-                <div style={{ paddingTop: 4 }}>
-                  • <strong style={{ color: '#111' }}>ביטוח לאומי</strong> — לאשר את ייפוי הכוח מול הביטוח הלאומי, באתר שלהם או בטלפון. נשלח לכם מספר אסמכתא והוראות מדויקות.
-                </div>
-              )}
-            </div>
-            <div style={{ fontSize: 12, color: '#9A9A95', lineHeight: 1.6, paddingTop: 10, borderTop: '1px solid #F0EFEB', marginTop: 11 }}>
-              עד שלא תשלימו את שני אלה, הייצוג עדיין לא בתוקף מול הרשויות.
+
+            <NextAction n={1} title="חתימה על ייפוי הכוח" tone={accent}
+              text="לייצוג מול מס הכנסה. חתימה דיגיטלית בלחיצה, גם מהטלפון." />
+            {info?.niIncluded && (
+              <NextAction n={2} title="אישור בביטוח הלאומי" tone="#C2410C"
+                text="נשלח לכם מספר אסמכתא. מאשרים באתר הביטוח הלאומי או בטלפון — לוקח כדקה." />
+            )}
+
+            <div style={{ fontSize: 12.5, color: '#8A4B00', background: '#FFF4E0', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6, marginTop: 14, textAlign: 'center' }}>
+              ⚠ עד להשלמת {info?.niIncluded ? 'שתי הפעולות' : 'הפעולה'} — הייצוג אינו בתוקף מול הרשויות.
             </div>
           </div>
 
@@ -389,6 +401,23 @@ export default function OnboardingPage({ token }: Props) {
             background: n <= step ? accent : '#E3E2DD',
           }} />
         ))}
+      </div>
+    );
+  }
+
+  /** פעולה ממוספרת במסך הסיום — כל אחת בשורה משלה עם עיגול צבעוני. */
+  function NextAction({ n, title, text, tone }: { n: number; title: string; text: string; tone: string }) {
+    return (
+      <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', padding: '11px 0', borderTop: '1px solid #F0EFEB' }}>
+        <div style={{
+          flex: '0 0 auto', width: 28, height: 28, borderRadius: '50%', background: tone,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontSize: 14, fontWeight: 700, marginTop: 1,
+        }}>{n}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#111', marginBottom: 2 }}>{title}</div>
+          <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>{text}</div>
+        </div>
       </div>
     );
   }

@@ -10,7 +10,7 @@
 //
 // אבטחה: verify_jwt=false בשער + אימות פנימי מה-JWT.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
+import { resolveBrand, buildBrandedEmail, emailButton, esc } from "../_shared/designSystem.ts";
 
 // sign_with_ni אינו נשלח מבחוץ — הוא נגזר מ-sign כשקיימת אסמכתת ביטוח לאומי.
 type Stage = "onboard" | "sign" | "active" | "intake" | "ni_approve" | "sign_with_ni";
@@ -44,7 +44,7 @@ const COPY: Record<Stage, { subject: string; heading: string; body: string; cta:
   sign_with_ni: {
     subject: "שתי פעולות אחרונות — חתימה ואישור בביטוח הלאומי",
     heading: "כמעט סיימנו",
-    body: "הכנו עבורכם את טופס ייפוי הכוח לייצוג מול רשויות המס. נשארו שתי פעולות קצרות — חתימה על הטופס כאן, ואישור ייפוי הכוח מול הביטוח הלאומי. שתיהן יחד לוקחות כשתי דקות.",
+    body: "כדי שנוכל לייצג אתכם בפועל, נשארו שתי פעולות קצרות. שתיהן יחד לוקחות כשתי דקות.",
     cta: "לחתימה על הטופס",
   },
   active: {
@@ -135,54 +135,95 @@ Deno.serve(async (req: Request) => {
       clientFirst = String(signer.name || "").trim().split(/\s+/)[0] || clientFirst;
     }
 
-    // ── בלוק ביטוח לאומי: אסמכתא, מועד אחרון ושתי דרכי האישור ──
-    // withHeading=true כשהבלוק מצורף למייל אחר (חתימה) וצריך להיפרד ממנו ויזואלית.
-    const niBlock = (ni: any, withHeading: boolean): string => {
-      const f = "Arial, sans-serif";
+    const f = "Arial, sans-serif";
+
+    /**
+     * כרטיס פעולה ממוספר. שתי הפעולות חייבות להיראות שוות במשקל — בגרסה קודמת
+     * החתימה קיבלה כפתור גדול והביטוח הלאומי נראה כהערת שוליים, ולקוח שפספס
+     * אותה השאיר את הייצוג בב"ל ללא תוקף בלי לדעת.
+     */
+    const actionCard = (n: number, title: string, lead: string, inner: string, tone: string) => `
+      <tr><td dir="rtl" align="right" style="text-align:right;padding:10px 28px 0;">
+        <table dir="rtl" role="presentation" width="100%" cellpadding="0" cellspacing="0"
+               style="border:2px solid ${tone};border-radius:${brand.radius + 4}px;background:#ffffff;">
+          <tr><td dir="rtl" align="right" style="text-align:right;padding:20px 22px 22px;">
+            <table dir="rtl" role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width:38px;height:38px;background:${tone};border-radius:50%;text-align:center;vertical-align:middle;
+                         font-family:${f};font-size:19px;font-weight:700;color:#ffffff;">${n}</td>
+              <td style="padding-right:12px;font-family:${f};font-size:21px;font-weight:700;color:${brand.ink};">${esc(title)}</td>
+            </tr></table>
+            <div style="font-family:${f};text-align:right;font-size:14.5px;color:${brand.muted};line-height:1.75;padding:14px 0 4px;">${lead}</div>
+            ${inner}
+          </td></tr>
+        </table>
+      </td></tr>`;
+
+    /** תוכן כרטיס הביטוח הלאומי: האסמכתא בגדול, המועד, ושתי דרכי האישור. */
+    const niCardInner = (ni: any): string => {
       const deadlineRow = ni.deadline
-        ? `<div style="font-family:${f};text-align:right;font-size:13px;color:${brand.muted};padding-top:6px;">המועד האחרון לאישור: <strong style="color:${brand.ink};">${esc(new Date(ni.deadline).toLocaleDateString("he-IL"))}</strong></div>`
-        : "";
-      const heading = withHeading
-        ? `<div style="border-top:1px solid ${brand.border};margin-top:24px;padding-top:20px;"></div>
-           <div style="font-family:${f};text-align:right;font-size:12px;letter-spacing:.06em;color:${brand.muted};">פעולה שנייה</div>
-           <div style="font-family:${f};text-align:right;font-size:19px;font-weight:700;color:${brand.ink};padding:4px 0 6px;">אישור ייפוי הכוח בביטוח הלאומי</div>
-           <div style="font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.7;padding-bottom:14px;">
-             הזנו עבורכם את ייפוי הכוח באתר הביטוח הלאומי. הביטוח הלאומי דורש שאתם תאשרו אותו בעצמכם — עד שלא תאשרו, הייצוג בביטוח הלאומי אינו בתוקף.
+        ? `<div style="font-family:${f};text-align:center;font-size:14px;color:#8A4B00;background:#FFF4E0;border-radius:8px;padding:8px 10px;margin-top:12px;">
+             ⏳ יש לאשר עד <strong style="color:#7A3E00;">${esc(new Date(ni.deadline).toLocaleDateString("he-IL"))}</strong>
            </div>`
         : "";
-      return `<tr><td dir="rtl" align="right" style="text-align:right;padding:6px 40px 0;">
-        ${heading}
-        <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:16px 18px;background:${brand.pageBg};">
-          <div style="font-family:${f};text-align:right;font-size:12px;color:${brand.muted};">מספר האסמכתא שלכם</div>
-          <div dir="ltr" style="font-family:${f};text-align:right;font-size:26px;font-weight:700;letter-spacing:.04em;color:${brand.ink};padding-top:2px;text-align:right;">${esc(String(ni.referenceNumber))}</div>
+      const option = (num: string, title: string, body: string) => `
+        <div style="font-family:${f};text-align:right;font-size:15px;font-weight:700;color:${brand.ink};padding:18px 0 5px;">
+          <span style="color:${brand.accent};">${num}</span> ${esc(title)}
+        </div>
+        <div style="font-family:${f};text-align:right;font-size:14px;color:${brand.muted};line-height:1.85;">${body}</div>`;
+      return `
+        <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:18px;background:${brand.pageBg};margin-top:6px;">
+          <div style="font-family:${f};text-align:center;font-size:13px;color:${brand.muted};">מספר האסמכתא שלכם</div>
+          <div dir="ltr" style="font-family:${f};text-align:center;font-size:40px;font-weight:700;letter-spacing:.06em;color:${brand.accent};padding-top:4px;">${esc(String(ni.referenceNumber))}</div>
           ${deadlineRow}
         </div>
-        <div style="font-family:${f};text-align:right;font-size:14px;font-weight:700;color:${brand.ink};padding:18px 0 6px;">אפשרות 1 — באתר הביטוח הלאומי</div>
-        <div style="font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.8;">
-          נכנסים ל-<a href="${esc(NI_SITE)}" style="color:${brand.accent};">${esc(NI_SITE)}</a> ← בפעולות מקישים "אישור ייפוי כח למייצג" ← מקלידים את מספר תעודת הזהות ואת מספר האסמכתא שלמעלה ← מזדהים בכרטיס אשראי או בסיסמה לטלפון הנייד ← מאשרים במסך. הייצוג נכנס לתוקף מיד.
-        </div>
-        <div style="font-family:${f};text-align:right;font-size:14px;font-weight:700;color:${brand.ink};padding:18px 0 6px;">אפשרות 2 — בטלפון</div>
-        <div style="font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.8;">
-          מתקשרים ל-<strong dir="ltr" style="color:${brand.ink};">${esc(NI_PHONE)}</strong> (מענה קולי) ומאשרים באמצעות מספר האסמכתא ובאמצעות קוד בן 6 ספרות שהביטוח הלאומי ישלח אליכם בדואר או במייל. מתאים למי שאין לו כרטיס אשראי או מייל מאומת בביטוח הלאומי.
-        </div>
-      </td></tr>`;
+        ${option("א.", "באתר הביטוח הלאומי", `נכנסים ל-<a href="${esc(NI_SITE)}" style="color:${brand.accent};font-weight:700;">${esc(NI_SITE)}</a> ← בפעולות מקישים "אישור ייפוי כח למייצג" ← מקלידים את מספר תעודת הזהות ואת מספר האסמכתא שלמעלה ← מזדהים בכרטיס אשראי או בסיסמה לטלפון הנייד ← מאשרים במסך. <strong style="color:${brand.ink};">הייצוג נכנס לתוקף מיד.</strong>`)}
+        ${option("ב.", "בטלפון", `מתקשרים ל-<strong dir="ltr" style="color:${brand.ink};font-size:16px;">${esc(NI_PHONE)}</strong> (מענה קולי) ומאשרים באמצעות מספר האסמכתא ובאמצעות קוד בן 6 ספרות שהביטוח הלאומי ישלח אליכם בדואר או במייל. מתאים למי שאין לו כרטיס אשראי או מייל מאומת בביטוח הלאומי.`)}`;
     };
 
+    /** הבלוק העצמאי — כשההוראות נשלחות לבדן ולא יחד עם החתימה. */
+    const niBlock = (ni: any): string =>
+      `<tr><td dir="rtl" align="right" style="text-align:right;padding:6px 40px 0;">${niCardInner(ni)}</td></tr>`;
+
     const niData = (reqRow?.execution || {}).nationalInsurance || {};
-    let extraHtml: string | undefined;      // מעל כפתור הפעולה
-    let afterCtaHtml: string | undefined;   // מתחתיו — פעולה שנייה באותו מייל
+    let extraHtml: string | undefined;
     let ctaHref = link;
+    let ctaLabel: string | undefined;
     let copy = COPY[stage];
 
     if (stage === "ni_approve") {
       if (!niData.referenceNumber) return json({ error: "missing_reference_number" }, 400);
       ctaHref = NI_SITE;
-      extraHtml = niBlock(niData, false);
+      ctaLabel = copy.cta;
+      extraHtml = niBlock(niData);
     } else if (stage === "sign" && niData.referenceNumber) {
-      // ★ מייל אחד לשתי הפעולות — חתימה על ייפוי הכוח + אישור בביטוח הלאומי.
-      // הבלוק יורד מתחת לכפתור החתימה כדי לשמור על סדר הפעולות.
+      // ★ שתי פעולות במייל אחד. הן נבנות ככרטיסים ממוספרים ולא ככפתור אחד עם
+      //   נספח, כדי שלא ניתן יהיה לפספס את השנייה. לכן אין כאן CTA סטנדרטי.
       copy = COPY.sign_with_ni;
-      afterCtaHtml = niBlock(niData, true);
+      const banner = `
+        <tr><td dir="rtl" align="right" style="text-align:right;padding:4px 28px 0;">
+          <div style="font-family:${f};text-align:center;background:${brand.accent};color:#ffffff;
+                      border-radius:${brand.radius}px;padding:12px 16px;font-size:16px;font-weight:700;">
+            נדרשות ממכם 2 פעולות — שתיהן חובה
+          </div>
+        </td></tr>`;
+      const signCard = actionCard(
+        1,
+        "חתימה על ייפוי הכוח",
+        "לייצוג מול מס הכנסה. החתימה דיגיטלית ולוקחת פחות מדקה, גם מהטלפון.",
+        `<div style="padding-top:10px;">${emailButton(brand, "לחתימה על הטופס", link, true)}</div>
+         <div dir="ltr" style="text-align:center;padding-top:8px;font-family:${f};font-size:11.5px;color:${brand.muted};word-break:break-all;">${esc(link)}</div>`,
+        brand.accent,
+      );
+      const niCard = actionCard(
+        2,
+        "אישור בביטוח הלאומי",
+        "הזנו עבורכם את ייפוי הכוח, אבל הביטוח הלאומי דורש שאתם תאשרו אותו בעצמכם. <strong style=\"color:" + brand.ink + ";\">בלי האישור הזה הייצוג בביטוח הלאומי אינו בתוקף.</strong>",
+        niCardInner(niData),
+        "#C2410C",
+      );
+      extraHtml = banner + signCard + niCard;
+    } else {
+      ctaLabel = copy.cta;
     }
 
     // ★ אותה מעטפת מייל בדיוק של האתר — מהקובץ המשותף
@@ -190,11 +231,10 @@ Deno.serve(async (req: Request) => {
       heading: copy.heading + (clientFirst ? ", " + clientFirst : ""),
       bodyHtml: esc(copy.body),
       extraHtml,
-      afterCtaHtml,
-      ctaLabel: copy.cta || undefined,
-      ctaHref: copy.cta ? ctaHref : undefined,
+      ctaLabel: ctaLabel || undefined,
+      ctaHref: ctaLabel ? ctaHref : undefined,
       ctaArrow: true,
-      showLinkFallback: !!copy.cta,
+      showLinkFallback: !!ctaLabel,
       footerTagline: stage === "ni_approve" ? "אישור מול הביטוח הלאומי · כדקה" : "מאובטח · פחות מדקה",
     });
 

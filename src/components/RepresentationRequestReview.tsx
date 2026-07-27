@@ -642,6 +642,7 @@ export default function RepresentationRequestReview({
               niIncluded={niIncluded}
               onSaveExecution={(execution) => onSaveExecution(request, execution)}
               onSendNiInstructions={sendNiInstructions}
+              onProduce={() => setShowProduceEditor(true)}
             />
 
             {request.status === 'pending_signature' && setup && (
