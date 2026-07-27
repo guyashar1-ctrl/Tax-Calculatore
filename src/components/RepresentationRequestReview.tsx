@@ -680,7 +680,17 @@ export default function RepresentationRequestReview({
                                 setSendingEmail(true); setEmailStatus(null);
                                 try {
                                   const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: request.id, stage: 'sign', signerId: s.id } });
-                                  setEmailStatus(error || !data?.ok ? `⚠ ${error?.message || data?.error || 'שליחה נכשלה'}` : `✓ מייל נשלח ל-${s.email}`);
+                                  const ok = !error && data?.ok;
+                                  setEmailStatus(ok ? `✓ מייל נשלח ל-${s.email}` : `⚠ ${error?.message || data?.error || 'שליחה נכשלה'}`);
+                                  // כשקיימת אסמכתת ב"ל, השרת צירף אותה לאותו מייל — מתעדים
+                                  // כדי שמרכז הביצוע לא יבקש לשלוח אותה שוב בנפרד.
+                                  const ni = request.execution?.nationalInsurance;
+                                  if (ok && ni?.referenceNumber && !ni.instructionsSentAt) {
+                                    await onSaveExecution(request, {
+                                      ...request.execution,
+                                      nationalInsurance: { ...ni, instructionsSentAt: new Date().toISOString(), instructionsSentWith: 'signature' },
+                                    });
+                                  }
                                 } finally { setSendingEmail(false); }
                               }}
                             >📧 שלח</button>

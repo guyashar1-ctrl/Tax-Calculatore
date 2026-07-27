@@ -316,10 +316,10 @@ function emailSafeLogo(...candidates: (string | undefined)[]): string | undefine
 /** כותרת ממותגת לפי סגנון. tag = טקסט קטן בצד (אופציונלי). */
 export function emailHeaderRow(brand: ResolvedBrand, tag?: string): string {
   const f = emailFont(brand);
-  // במייל מעדיפים תמיד את גרסת ה-PNG; לרצועה כהה את הגרסה הבהירה של הלוגו.
-  // כל אחת נופלת ללוגו הראשי אם לא הוגדרה.
+  // במייל מעדיפים תמיד את גרסת ה-PNG, ונופלים ללוגו הראשי אם לא הוגדרה.
   const emailLogo = emailSafeLogo(brand.emailLogoUrl, brand.logoUrl);
-  const darkLogo = emailSafeLogo(brand.logoOnDarkUrl, brand.emailLogoUrl, brand.logoUrl);
+  // לרצועה כהה — רק לוגו שיועד לרקע כהה. בלי נפילה ללוגו הרגיל (ראה markDark).
+  const brandDarkLogo = emailSafeLogo(brand.logoOnDarkUrl);
   // גובה הלוגו נגזר מהגודל שנקבע בפרופיל. הרוחב גדל יחד איתו כדי שלוגו רחב
   // (מילה + כיתוב מתחת) לא ייחתך כשמגדילים.
   const h = Math.round(40 * brand.logoScale);
@@ -330,8 +330,11 @@ export function emailHeaderRow(brand: ResolvedBrand, tag?: string): string {
     : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" dir="rtl"><tr>`
       + `<td style="width:38px;height:38px;border:1.5px solid ${brand.ink};border-radius:50%;text-align:center;vertical-align:middle;color:${brand.ink};font-family:${f};font-size:15px;font-weight:600;">${esc(brand.monogram)}</td>`
       + `<td style="padding-right:10px;color:${brand.ink};font-family:${f};font-size:17px;font-weight:600;">${esc(brand.firmName)}</td></tr></table>`;
-  const markDark = darkLogo
-    ? `<img src="${esc(darkLogo)}" alt="${esc(brand.firmName)}" style="max-height:${hDark}px;max-width:${w}px;border:0;" />`
+  // ברצועה כהה משתמשים רק בלוגו שהוגדר במפורש לרקע כהה. באתר אפשר להלבין לוגו
+  // כהה עם filter:invert, אבל תוכנות מייל אינן תומכות ב-CSS filters — ולכן לוגו
+  // כהה היה נשלח כמות שהוא ונעלם לגמרי על הרצועה. שם המשרד בלבן תמיד קריא.
+  const markDark = brandDarkLogo
+    ? `<img src="${esc(brandDarkLogo)}" alt="${esc(brand.firmName)}" style="max-height:${hDark}px;max-width:${w}px;border:0;" />`
     : `<span style="color:#ffffff;font-family:${f};font-size:17px;font-weight:600;">${esc(brand.firmName)}</span>`;
   const tagHtml = tag ? `<span style="font-family:${f};font-size:11.5px;color:${brand.muted};">${esc(tag)}</span>` : '';
 
@@ -362,6 +365,7 @@ export interface BrandedEmailContent {
   bodyHtml: string;           // HTML מוכן (השתמש ב-esc על טקסט משתמש)
   tag?: string;               // טקסט קטן בכותרת
   extraHtml?: string;         // בלוק נוסף מעל ה-CTA (למשל כרטיס סיכום)
+  afterCtaHtml?: string;      // בלוק מתחת ל-CTA — לפעולה שנייה שנשלחת באותו מייל
   ctaLabel?: string;
   ctaHref?: string;
   ctaArrow?: boolean;
@@ -396,6 +400,7 @@ export function buildBrandedEmail(brand: ResolvedBrand, c: BrandedEmailContent):
       </td></tr>
       ${c.extraHtml ?? ''}
       ${cta}
+      ${c.afterCtaHtml ?? ''}
       <tr><td style="padding:20px 40px 32px;border-top:1px solid ${brand.border};">
         <div style="font-family:${f};font-size:13px;color:${brand.muted};line-height:1.7;white-space:pre-line;">${esc(sig)}</div>
         ${contactLine ? `<div style="font-family:${f};font-size:12px;color:${brand.muted};padding-top:8px;">${contactLine}</div>` : ''}

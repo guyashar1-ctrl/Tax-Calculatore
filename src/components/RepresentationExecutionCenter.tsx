@@ -115,6 +115,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
   const signed = ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(status);
   const sentToShaam = ['awaiting_authorities', 'active'].includes(status);
   const formReady = !!request.signatureSetup || signed;
+  // בקשת החתימה יצאה ללקוח (או שכבר עברנו את השלב הזה)
+  const signatureSent = status === 'pending_signature' || signed;
+  const sentWithSignature = ni.instructionsSentWith === 'signature';
 
   async function patch(next: RepresentationExecution, label: string) {
     setBusy(label);
@@ -175,7 +178,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
       setBusy(null);
       return;
     }
-    await patchNi({ instructionsSentAt: new Date().toISOString() }, 'send');
+    await patchNi({ instructionsSentAt: new Date().toISOString(), instructionsSentWith: 'standalone' }, 'send');
     setNote({ kind: 'ok', text: `ההוראות נשלחו ל-${request.clientEmail}.` });
   }
 
@@ -284,16 +287,34 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
                 </div>
               </Step>
 
-              <Step n={3} title="הוראות האישור נשלחו ללקוח" done={!!ni.instructionsSentAt}
-                hint={ni.instructionsSentAt
-                  ? `נשלח ב-${fmt(ni.instructionsSentAt)}`
-                  : `מייל עם האסמכתא, המועד האחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}`}>
-                <button className="btn btn-primary btn-sm" disabled={busy === 'send' || !ni.referenceNumber || !request.clientEmail}
-                  onClick={handleSendInstructions}>
-                  {busy === 'send' ? 'שולח…' : ni.instructionsSentAt ? '📧 שלח שוב' : '📧 שלח ללקוח הוראות אישור'}
-                </button>
-                {!request.clientEmail && (
-                  <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.3rem' }}>אין מייל ללקוח בבקשה.</div>
+              <Step n={3} title="ההוראות הגיעו ללקוח" done={sentWithSignature || !!ni.instructionsSentAt}
+                hint={
+                  sentWithSignature ? 'נכללו במייל בקשת החתימה — מייל אחד לשתי הפעולות'
+                  : ni.instructionsSentAt ? `נשלחו בנפרד ב-${fmt(ni.instructionsSentAt)}`
+                  : `יישלחו יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}`
+                }>
+                {!sentWithSignature && (
+                  <>
+                    {!signatureSent && ni.referenceNumber && (
+                      <div style={{ fontSize: '.78rem', color: 'var(--gray-600)', background: 'var(--gray-50)', padding: '.45rem .6rem', borderRadius: 'var(--radius)', lineHeight: 1.6 }}>
+                        {'ℹ'} האסמכתא נשמרה. כששולחים את הטופס לחתימה — היא תיכלל באותו מייל.
+                      </div>
+                    )}
+                    {signatureSent && !ni.instructionsSentAt && (
+                      <>
+                        <div style={{ fontSize: '.78rem', color: 'var(--gray-800)', background: 'var(--orange-light)', padding: '.45rem .6rem', borderRadius: 'var(--radius)', lineHeight: 1.6, marginBottom: '.45rem' }}>
+                          {'⚠'} בקשת החתימה נשלחה לפני שהוזנה האסמכתא, ולכן היא לא נכללה בה. שלחו את ההוראות בנפרד.
+                        </div>
+                        <button className="btn btn-primary btn-sm" disabled={busy === 'send' || !ni.referenceNumber || !request.clientEmail}
+                          onClick={handleSendInstructions}>
+                          {busy === 'send' ? 'שולח…' : '📧 שלח הוראות אישור'}
+                        </button>
+                      </>
+                    )}
+                    {!request.clientEmail && (
+                      <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.3rem' }}>אין מייל ללקוח בבקשה.</div>
+                    )}
+                  </>
                 )}
               </Step>
 

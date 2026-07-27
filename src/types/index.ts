@@ -836,6 +836,8 @@ export interface RepresentationExecution {
     deadline?: string;
     /** נשלחו ללקוח הוראות האישור */
     instructionsSentAt?: string;
+    /** איך הן הגיעו: יחד עם בקשת החתימה (רצוי), או במייל נפרד (השלמה בדיעבד). */
+    instructionsSentWith?: 'signature' | 'standalone';
     /** הלקוח אישר את ייפוי הכוח — הייצוג בב"ל פעיל */
     confirmedAt?: string;
   };
