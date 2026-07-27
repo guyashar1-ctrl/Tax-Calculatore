@@ -24,6 +24,10 @@ interface Props {
   onSendNiInstructions: () => Promise<string | null>;
   /** פותח את עורך הפקת הטופס — העלאת PDF של ייפוי הכוח וסימון אזורי החתימה. */
   onProduce: () => void;
+  /** פותח את חדר החתימה של הרו"ח — חתימה + חותמת על הטופס שהלקוח חתם. */
+  onStamp: () => void;
+  /** סימון שהטופס החתום הוגש בשע"ם. */
+  onMarkSentToShaam: () => void;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -101,7 +105,7 @@ function Track({ title, subtitle, done, total, tone, children }: {
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, onSaveExecution, onSendNiInstructions, onProduce }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, onSaveExecution, onSendNiInstructions, onProduce, onStamp, onMarkSentToShaam }: Props) {
   const db = useDocumentDB();
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
@@ -119,6 +123,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
   const signed = ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(status);
   const sentToShaam = ['awaiting_authorities', 'active'].includes(status);
   const formReady = !!request.signatureSetup || signed;
+  // ה-PDF הסופי (חתימות + חותמת המשרד) נוצר ונשמר
+  const stamped = !!request.signedPdfStoredId || sentToShaam;
   // בקשת החתימה יצאה ללקוח (או שכבר עברנו את השלב הזה)
   const signatureSent = status === 'pending_signature' || signed;
   const sentWithSignature = ni.instructionsSentWith === 'signature';
@@ -187,7 +193,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
   }
 
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
-  const itSteps = [!!it.enteredAt, formReady, !!exec.signatureEmailSentAt, signed, sentToShaam, status === 'active'];
+  const itSteps = [!!it.enteredAt, formReady, !!exec.signatureEmailSentAt, signed, stamped, sentToShaam, status === 'active'];
   const niSteps = [!!ni.enteredAt, !!ni.referenceNumber, !!ni.instructionsSentAt, !!ni.confirmedAt];
 
   const dLeft = daysUntil(ni.deadline);
@@ -249,9 +255,24 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
               )}
             </Step>
 
-            <Step n={5} title="נשלח לשע״ם" done={sentToShaam} />
+            {/* החתימה והחותמת שלי — הטופס אינו שלם בלעדיהן, ואסור להגיש לשע״ם לפני */}
+            <Step n={5} title="חתמתי והוספתי חותמת" done={stamped}
+              hint={stamped
+                ? 'הטופס החתום מוכן להגשה'
+                : signed ? 'הלקוח חתם — נשארה החתימה והחותמת שלכם' : 'אפשרי אחרי שכל החותמים חתמו'}>
+              {signed && !stamped && (
+                <button className="btn btn-green btn-sm" onClick={onStamp}>✍️ חתום + הוסף חותמת</button>
+              )}
+            </Step>
 
-            <Step n={6} title="הייצוג פעיל" done={status === 'active'} />
+            <Step n={6} title="נשלח לשע״ם" done={sentToShaam}
+              hint={stamped && !sentToShaam ? 'הגישו את הטופס החתום בשע״ם, ואז סמנו' : undefined}>
+              {stamped && !sentToShaam && (
+                <button className="btn btn-green btn-sm" onClick={onMarkSentToShaam}>📤 נשלח לשע"ם</button>
+              )}
+            </Step>
+
+            <Step n={7} title="הייצוג פעיל" done={status === 'active'} />
           </Track>
 
           {/* ─────────── ביטוח לאומי ─────────── */}

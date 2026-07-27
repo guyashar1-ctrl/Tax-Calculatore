@@ -20,6 +20,7 @@ import RepSignersStatus from './RepSignersStatus';
 import RepresentationAuthorityData from './RepresentationAuthorityData';
 import RepresentationExecutionCenter from './RepresentationExecutionCenter';
 import RepresentationNextStep from './RepresentationNextStep';
+import RequestEmailTimeline from './EmailActivity/RequestEmailTimeline';
 import { isSpouseRequest, getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { SignatureSetup, SignatureValue } from '../types';
 import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
@@ -637,12 +638,16 @@ export default function RepresentationRequestReview({
                 הנתונים שמתחת, שם הם גם ניתנים להעתקה. */}
             <RepresentationAuthorityData request={request} />
 
+            <RequestEmailTimeline userId={user?.id} requestId={request.id} />
+
             <RepresentationExecutionCenter
               request={request}
               niIncluded={niIncluded}
               onSaveExecution={(execution) => onSaveExecution(request, execution)}
               onSendNiInstructions={sendNiInstructions}
               onProduce={() => setShowProduceEditor(true)}
+              onStamp={() => void openStampRoom()}
+              onMarkSentToShaam={() => void onMarkSentToShaam(request)}
             />
 
             {request.status === 'pending_signature' && setup && (
