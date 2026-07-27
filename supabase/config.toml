@@ -1,0 +1,38 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  הגדרות פונקציות השרת
+# ═══════════════════════════════════════════════════════════════════════════
+#  verify_jwt קובע אם הפונקציה דורשת משתמש מחובר.
+#  ברירת המחדל של ה-CLI היא true, ולכן חובה לרשום כאן במפורש את הפונקציות
+#  הפתוחות — אחרת פרסום אוטומטי היה סוגר אותן ושובר את הדפים שהלקוחות פותחים
+#  מקישור במייל (חתימה, שאלון, הצעת מחיר) ואת ה-webhook של Resend.
+#  הערכים כאן תואמים למצב שהיה בפרודקשן ב-2026-07-26.
+# ═══════════════════════════════════════════════════════════════════════════
+
+project_id = "uoweoqtuiettozagwgdw"
+
+# ── נקראות מקישור ציבורי שהלקוח מקבל, בלי התחברות ──────────────────────────
+[functions.send-onboarding-email]
+verify_jwt = false
+
+[functions.send-quotation-email]
+verify_jwt = false
+
+[functions.send-release-email]
+verify_jwt = false
+
+[functions.signing-session]
+verify_jwt = false
+
+# ── נקראות ע"י שירותים חיצוניים / מתזמן, עם סוד משלהן ───────────────────────
+[functions.resend-webhook]
+verify_jwt = false
+
+[functions.quotation-reminders]
+verify_jwt = false
+
+[functions.weekly-backup]
+verify_jwt = false
+
+# ── נקראת מתוך המערכת ע"י משתמש מחובר בלבד ─────────────────────────────────
+[functions.ocr-document]
+verify_jwt = true
