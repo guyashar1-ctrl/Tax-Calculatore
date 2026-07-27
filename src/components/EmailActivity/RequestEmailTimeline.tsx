@@ -71,20 +71,25 @@ export default function RequestEmailTimeline({ userId, requestId }: Props) {
   const [restoring, setRestoring] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
-  /** מושך מ-Resend את גוף המייל הזה בלבד. */
-  async function restore(messageId: string) {
-    setRestoring(messageId);
+  /**
+   * פותח את המייל. אם אין עותק שמור — מושך אותו מ-Resend ופותח מיד, באותה
+   * לחיצה. שחזור וצפייה כשתי פעולות נפרדות רק הוסיפו חיכוך בלי סיבה.
+   */
+  async function openEmail(m: EmailMessage) {
+    if (m.html) { setViewing(m); return; }
+    setRestoring(m.id);
     setNote(null);
     try {
-      const { data, error } = await supabase.functions.invoke('backfill-email-html', { body: { messageId } });
+      const { data, error } = await supabase.functions.invoke('backfill-email-html', { body: { messageId: m.id } });
       if (error || !data?.ok) {
         setNote(data?.error === 'missing_read_key'
           ? 'חסר מפתח קריאה של Resend בהגדרות השרת.'
-          : (data?.error || error?.message || 'השחזור נכשל'));
-      } else if (data.filled === 0) {
+          : (data?.error || error?.message || 'לא הצלחתי לשלוף את המייל'));
+      } else if (!data.html) {
         setNote('Resend לא מחזיק יותר את תוכן המייל הזה.');
       } else {
-        await reload();
+        setViewing({ ...m, html: data.html });
+        void reload();
       }
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
@@ -123,18 +128,10 @@ export default function RequestEmailTimeline({ userId, requestId }: Props) {
                 </div>
                 <Trail m={m} />
               </div>
-              <div style={{ flex: '0 0 auto', textAlign: 'left' }}>
-                {m.html ? (
-                  <button className="btn btn-secondary btn-sm" onClick={() => setViewing(m)}>👁 צפייה במייל</button>
-                ) : (
-                  <>
-                    <button className="btn btn-secondary btn-sm" disabled={restoring === m.id}
-                      onClick={() => restore(m.id)}>
-                      {restoring === m.id ? 'משחזר…' : '⤓ שחזור המייל'}
-                    </button>
-                    <div style={{ fontSize: '.7rem', color: 'var(--gray-400, #aaa)', marginTop: 3 }}>נשלח לפני שנשמרו עותקים</div>
-                  </>
-                )}
+              <div style={{ flex: '0 0 auto' }}>
+                <button className="btn btn-primary btn-sm" disabled={restoring === m.id} onClick={() => openEmail(m)}>
+                  {restoring === m.id ? 'פותח…' : '👁 צפייה במייל'}
+                </button>
               </div>
             </div>
           ))

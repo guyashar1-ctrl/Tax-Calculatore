@@ -169,20 +169,6 @@ export default function RepresentationRequestReview({
     }
   }
 
-  /** מייל הוראות אישור ייפוי הכוח בב"ל. מחזיר הודעת שגיאה בעברית, או null בהצלחה. */
-  async function sendNiInstructions(): Promise<string | null> {
-    try {
-      const { data, error } = await supabase.functions.invoke('send-onboarding-email', {
-        body: { requestId: request.id, stage: 'ni_approve' },
-      });
-      if (error) return error.message;
-      if (!data?.ok) return data?.detail?.message || data?.error || 'שליחה נכשלה';
-      return null;
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e);
-    }
-  }
-
   const onboardingSubmitted = request.onboardingStatus === 'submitted';
   const onboardingLink = request.onboardingToken
     ? `${window.location.origin}/?onboard=${request.onboardingToken}`
@@ -644,7 +630,6 @@ export default function RepresentationRequestReview({
               request={request}
               niIncluded={niIncluded}
               onSaveExecution={(execution) => onSaveExecution(request, execution)}
-              onSendNiInstructions={sendNiInstructions}
               onProduce={() => setShowProduceEditor(true)}
               onStamp={() => void openStampRoom()}
               onMarkSentToShaam={() => void onMarkSentToShaam(request)}
@@ -665,53 +650,18 @@ export default function RepresentationRequestReview({
                         <span style={{ minWidth: 150, fontSize: '.85rem', fontWeight: signed ? 600 : 400, color: signed ? 'var(--ok)' : 'var(--gray-700)' }}>
                           👤 {s.name} — {signed ? '✅ חתם/ה' : '⏳ ממתין/ה'}
                         </span>
+                        {/* ‼ אין כאן כפתור שליחה. השליחה נעשית ממקום אחד בלבד —
+                            הכפתור בכרטיס "מה עכשיו" — ששולח לכל החותמים יחד ומצרף
+                            את הביטוח הלאומי. כפתורים נוספים כאן גרמו לשליחה כפולה. */}
                         {!signed && link && (
                           <>
                             <input readOnly value={link} dir="ltr" style={{ flex: 1, minWidth: 160, fontSize: '.75rem' }} onFocus={e => e.currentTarget.select()} />
-                            <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(link).catch(() => {}); }}>העתק</button>
-                            <button
-                              className="btn btn-primary btn-sm"
-                              disabled={sendingEmail}
-                              onClick={async () => {
-                                setSendingEmail(true); setEmailStatus(null);
-                                try {
-                                  const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: request.id, stage: 'sign', signerId: s.id } });
-                                  const ok = !error && data?.ok;
-                                  setEmailStatus(ok ? `✓ מייל נשלח ל-${s.email}` : `⚠ ${error?.message || data?.error || 'שליחה נכשלה'}`);
-                                  // כשקיימת אסמכתת ב"ל, השרת צירף אותה לאותו מייל — מתעדים
-                                  // כדי שמרכז הביצוע לא יבקש לשלוח אותה שוב בנפרד.
-                                  const ni = request.execution?.nationalInsurance;
-                                  if (ok && ni?.referenceNumber && !ni.instructionsSentAt) {
-                                    await onSaveExecution(request, {
-                                      ...request.execution,
-                                      nationalInsurance: { ...ni, instructionsSentAt: new Date().toISOString(), instructionsSentWith: 'signature' },
-                                    });
-                                  }
-                                } finally { setSendingEmail(false); }
-                              }}
-                            >📧 שלח</button>
+                            <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(link).catch(() => {}); }}>העתק קישור אישי</button>
                           </>
                         )}
                       </div>
                     );
                   })}
-                  {emailStatus && (
-                    <div style={{ marginTop: '.25rem', fontSize: '.8rem', color: emailStatus.startsWith('✓') ? 'var(--ok)' : 'var(--red)' }}>{emailStatus}</div>
-                  )}
-                </div>
-              </div>
-            )}
-            {request.status === 'pending_signature' && !setup && (
-              <div className="card" style={{ background: 'var(--orange-light)', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
-                <div className="card-body">
-                  <div style={{ fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.6rem' }}>הטופס נשלח ללקוח לחתימה (זרימה ותיקה).</div>
-                  <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-                    <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, minWidth: 180, fontSize: '.8rem' }} onFocus={e => e.currentTarget.select()} />
-                    <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(onboardingLink).catch(() => {}); }}>העתק קישור</button>
-                    <button className="btn btn-primary btn-sm" onClick={() => resendEmail('sign')} disabled={sendingEmail}>
-                      {sendingEmail ? 'שולח…' : '📧 שלח קישור חתימה'}
-                    </button>
-                  </div>
                 </div>
               </div>
             )}

@@ -66,6 +66,9 @@ Deno.serve(async (req: Request) => {
     if (selErr) return json({ error: "select_failed", detail: selErr.message }, 500);
 
     let filled = 0;
+    // בשחזור נקודתי מחזירים גם את הגוף עצמו, כדי שהמסך יוכל לפתוח את המייל
+    // מיד באותה לחיצה במקום לטעון מחדש ולחפש אותו.
+    let singleHtml: string | null = null;
     const failures: { id: string; reason: string }[] = [];
 
     for (const row of rows ?? []) {
@@ -82,7 +85,7 @@ Deno.serve(async (req: Request) => {
             .update({ html: body.html })
             .eq("id", row.id);
           if (upErr) failures.push({ id: row.id, reason: upErr.message });
-          else filled++;
+          else { filled++; if (messageId) singleHtml = body.html; }
         } else {
           // Resend שומר תוכן לזמן מוגבל; ישנים מדי חוזרים בלי גוף
           failures.push({ id: row.id, reason: "no_html_in_response" });
@@ -101,7 +104,7 @@ Deno.serve(async (req: Request) => {
       .is("html", null)
       .not("resend_id", "is", null);
 
-    return json({ ok: true, scanned: rows?.length ?? 0, filled, remaining: remaining ?? 0, failures });
+    return json({ ok: true, scanned: rows?.length ?? 0, filled, remaining: remaining ?? 0, failures, html: singleHtml });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

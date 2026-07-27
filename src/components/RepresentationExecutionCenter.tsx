@@ -20,8 +20,6 @@ interface Props {
   /** האם התבקש ייצוג בביטוח לאומי — נגזר ממרשם הייצוג של הלקוח. */
   niIncluded: boolean;
   onSaveExecution: (execution: RepresentationExecution) => Promise<void> | void;
-  /** שולח ללקוח את הוראות אישור ייפוי הכוח בב"ל. מחזיר שגיאה בעברית, או null. */
-  onSendNiInstructions: () => Promise<string | null>;
   /** פותח את עורך הפקת הטופס — העלאת PDF של ייפוי הכוח וסימון אזורי החתימה. */
   onProduce: () => void;
   /** פותח את חדר החתימה של הרו"ח — חתימה + חותמת על הטופס שהלקוח חתם. */
@@ -105,7 +103,7 @@ function Track({ title, subtitle, done, total, tone, children }: {
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, onSaveExecution, onSendNiInstructions, onProduce, onStamp, onMarkSentToShaam }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, onSaveExecution, onProduce, onStamp, onMarkSentToShaam }: Props) {
   const db = useDocumentDB();
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
@@ -173,23 +171,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
     } finally {
       setBusy(null);
     }
-  }
-
-  async function handleSendInstructions() {
-    if (!ni.referenceNumber) {
-      setNote({ kind: 'err', text: 'יש לשמור קודם את מספר האסמכתא.' });
-      return;
-    }
-    setBusy('send');
-    setNote(null);
-    const err = await onSendNiInstructions();
-    if (err) {
-      setNote({ kind: 'err', text: err });
-      setBusy(null);
-      return;
-    }
-    await patchNi({ instructionsSentAt: new Date().toISOString(), instructionsSentWith: 'standalone' }, 'send');
-    setNote({ kind: 'ok', text: `ההוראות נשלחו ל-${request.clientEmail}.` });
   }
 
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
@@ -337,28 +318,18 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
                   : ni.instructionsSentAt ? `נשלחו בנפרד ב-${fmt(ni.instructionsSentAt)}`
                   : `יישלחו יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}`
                 }>
-                {!sentWithSignature && (
-                  <>
-                    {!signatureSent && ni.referenceNumber && (
-                      <div style={{ fontSize: '.78rem', color: 'var(--gray-600)', background: 'var(--gray-50)', padding: '.45rem .6rem', borderRadius: 'var(--radius)', lineHeight: 1.6 }}>
-                        {'ℹ'} האסמכתא נשמרה. כששולחים את הטופס לחתימה — היא תיכלל באותו מייל.
-                      </div>
-                    )}
-                    {signatureSent && !ni.instructionsSentAt && (
-                      <>
-                        <div style={{ fontSize: '.78rem', color: 'var(--gray-800)', background: 'var(--orange-light)', padding: '.45rem .6rem', borderRadius: 'var(--radius)', lineHeight: 1.6, marginBottom: '.45rem' }}>
-                          {'⚠'} בקשת החתימה נשלחה לפני שהוזנה האסמכתא, ולכן היא לא נכללה בה. שלחו את ההוראות בנפרד.
-                        </div>
-                        <button className="btn btn-primary btn-sm" disabled={busy === 'send' || !ni.referenceNumber || !request.clientEmail}
-                          onClick={handleSendInstructions}>
-                          {busy === 'send' ? 'שולח…' : '📧 שלח הוראות אישור'}
-                        </button>
-                      </>
-                    )}
-                    {!request.clientEmail && (
-                      <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.3rem' }}>אין מייל ללקוח בבקשה.</div>
-                    )}
-                  </>
+                {/* ‼ אין כאן כפתור שליחה. ההוראות תמיד יוצאות עם מייל החתימה —
+                    שליחה נפרדת גורמת ללקוח לקבל שני מיילים על אותו תהליך. */}
+                {!sentWithSignature && !ni.instructionsSentAt && (
+                  <div style={{
+                    fontSize: '.78rem', lineHeight: 1.6, padding: '.45rem .6rem', borderRadius: 'var(--radius)',
+                    background: signatureSent ? 'var(--orange-light)' : 'var(--gray-50)',
+                    color: signatureSent ? 'var(--gray-800)' : 'var(--gray-600)',
+                  }}>
+                    {signatureSent
+                      ? '⚠ בקשת החתימה נשלחה לפני שהוזנה האסמכתא, ולכן הלקוח לא קיבל את חלק הביטוח הלאומי. שלחו שוב מהכפתור שבראש המסך — הפעם המייל יכלול את שתי הפעולות.'
+                      : 'ℹ האסמכתא נשמרה. כששולחים את הטופס לחתימה — היא נכללת באותו מייל.'}
+                  </div>
                 )}
               </Step>
 
