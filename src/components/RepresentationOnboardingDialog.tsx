@@ -7,14 +7,29 @@ import {
   REP_AUTHORITY_LABELS,
   REP_AUTHORITIES_WITH_LEVEL,
   REP_LEVEL_LABELS,
+  FamilyStatus,
+  FAMILY_STATUS_LABELS,
+  FAMILY_STATUS_YEAR_LABELS,
+  OnboardingPrefill,
 } from '../types';
 
 interface CreateResult { link: string; emailSent: boolean; emailError?: string; }
 
 interface SpouseInput { name: string; email: string; }
 
+export interface CreateRepresentationInput {
+  name: string;
+  email: string;
+  areas: AuthorityRepresentations;
+  spouse: SpouseInput | null;
+  /** רק מה שהרו"ח בחר במפורש — קובע אילו שאלות לא יוצגו ללקוח. */
+  prefill: OnboardingPrefill;
+  /** false ⇒ מפיקים קישור בלבד; הרו"ח ישלח אותו בעצמו בוואטסאפ. */
+  sendEmail: boolean;
+}
+
 interface Props {
-  onCreate: (data: { name: string; email: string; areas: AuthorityRepresentations; spouse: SpouseInput | null }) => Promise<CreateResult>;
+  onCreate: (data: CreateRepresentationInput) => Promise<CreateResult>;
   onCancel: () => void;
   /** בודק אם המייל כבר בשימוש בייצוג פעיל/בתהליך. מחזיר הודעת חסימה, או null אם פנוי. */
   checkEmailConflict?: (email: string) => string | null;
@@ -34,14 +49,20 @@ function isValidEmail(email: string): boolean {
 
 const hasLevel = (a: RepAuthorityKind) => REP_AUTHORITIES_WITH_LEVEL.includes(a);
 
+const FAMILY_ORDER: FamilyStatus[] = ['single', 'married', 'divorced', 'widowed', 'singleParent'];
+
+const CURRENT_YEAR = new Date().getFullYear();
+
 export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict, initialName, initialEmail }: Props) {
   const [name, setName] = useState(initialName ?? '');
   const [email, setEmail] = useState(initialEmail ?? '');
-  // ── בן/בת זוג ──
-  const [married, setMarried] = useState(false);
+  // נפתח מראש רק כשהגענו לכאן עם פרטים ידועים (הפיכת ליד ללקוח)
+  const [showDetails, setShowDetails] = useState(!!(initialName || initialEmail));
+  // '' = לא נבחר ⇒ הלקוח יישאל בטופס
+  const [familyStatus, setFamilyStatus] = useState<FamilyStatus | ''>('');
+  const [familyYear, setFamilyYear] = useState('');
   const [spouseName, setSpouseName] = useState('');
   const [spouseEmail, setSpouseEmail] = useState('');
-  // ברירת מחדל: כל אחד מקבל בקשת חתימה למייל שלו (לא מסומן).
   const [sameSigningEmail, setSameSigningEmail] = useState(false);
   const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>({
     incomeTax: { selected: true, level: 'primary' },
@@ -56,6 +77,8 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
 
   const selectedKeys = REP_AUTHORITY_ORDER.filter(a => areas[a].selected);
   const emailConflict = checkEmailConflict && isValidEmail(email) ? checkEmailConflict(email) : null;
+  const married = familyStatus === 'married';
+  const yearLabel = familyStatus ? FAMILY_STATUS_YEAR_LABELS[familyStatus] : undefined;
 
   function toggleArea(a: RepAuthorityKind) {
     setAreas(prev => ({ ...prev, [a]: { ...prev[a], selected: !prev[a].selected } }));
@@ -66,15 +89,15 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   }
 
   function validate(): string | null {
-    if (!name.trim()) return 'יש להזין שם לקוח';
-    if (!email.trim()) return 'יש להזין אימייל';
-    if (!isValidEmail(email)) return 'כתובת אימייל לא תקינה';
-    if (emailConflict) return emailConflict;
-    if (married) {
-      if (!spouseName.trim()) return 'יש להזין שם בן/בת הזוג';
-      if (!sameSigningEmail && !isValidEmail(spouseEmail)) return 'כתובת אימייל של בן/בת הזוג לא תקינה';
-    }
     if (selectedKeys.length === 0) return 'יש לבחור לפחות רשות אחת לייצוג';
+    // שם ומייל אינם חובה — הלקוח ימלא אותם בקישור. אבל אם הוזן מייל, שיהיה תקין.
+    if (email.trim() && !isValidEmail(email)) return 'כתובת אימייל לא תקינה';
+    if (emailConflict) return emailConflict;
+    if (yearLabel && familyYear.trim()) {
+      const y = Number(familyYear);
+      if (!Number.isInteger(y) || y < 1900 || y > CURRENT_YEAR) return `${yearLabel} — יש להזין שנה תקינה`;
+    }
+    if (married && spouseEmail.trim() && !isValidEmail(spouseEmail)) return 'כתובת אימייל של בן/בת הזוג לא תקינה';
     return null;
   }
 
@@ -91,13 +114,32 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
         ? { status: 'in_process', level: areas[a].level }
         : { status: 'in_process' };
     }
-    const spouse: SpouseInput | null = married
+
+    const trimmedName = name.trim();
+    const nameParts = trimmedName.split(/\s+/);
+    const prefill: OnboardingPrefill = {};
+    if (nameParts[0]) prefill.firstName = nameParts[0];
+    if (nameParts.length > 1) prefill.lastName = nameParts.slice(1).join(' ');
+    if (email.trim()) prefill.email = email.trim();
+    if (familyStatus) prefill.familyStatus = familyStatus;
+    if (yearLabel && familyYear.trim()) prefill.familyStatusYear = Number(familyYear);
+
+    // חותם שני נוצר רק אם ידוע שמו. אחרת — הלקוח יצהיר בטופס והחותם ייווצר אז.
+    const spouse: SpouseInput | null = married && spouseName.trim()
       ? { name: spouseName.trim(), email: (sameSigningEmail ? email : spouseEmail).trim() }
       : null;
+
     setBusy(true);
     setError(null);
     try {
-      const res = await onCreate({ name: name.trim(), email: email.trim(), areas: built, spouse });
+      const res = await onCreate({
+        name: trimmedName,
+        email: email.trim(),
+        areas: built,
+        spouse,
+        prefill,
+        sendEmail: isValidEmail(email),
+      });
       setResult(res);
     } catch (err) {
       console.error('Representation onboarding failed:', err);
@@ -116,36 +158,79 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     return 'שגיאה לא ידועה ביצירת בקשת הייצוג';
   }
 
+  // ── מסך התוצאה: הקישור לשליחה ──────────────────────────────────────────
   if (result) {
+    const greeting = name.trim() ? `היי ${name.trim()},` : 'היי,';
+    const shareText =
+      `${greeting}\n` +
+      `כדי שאוכל להתחיל לטפל בייצוג שלך מול רשויות המס, יש למלא כמה פרטים בקישור המאובטח הבא:\n` +
+      `${result.link}\n` +
+      `לוקח פחות מדקה. תודה!`;
+    const waHref = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+    const canShare = typeof navigator !== 'undefined' && !!navigator.share;
+
     return (
       <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
         <div className="modal task-modal">
           <div className="modal-header">
-            <h3>✓ בקשת הייצוג נוצרה</h3>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>✕</button>
+            <h3>{'✓'} הקישור מוכן לשליחה</h3>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>{'✕'}</button>
           </div>
           <div className="modal-body">
-            {result.emailSent ? (
+            {result.emailSent && (
               <div style={{ padding: '.7rem .9rem', background: 'var(--green-light)', borderRadius: 'var(--radius)', color: 'var(--green-dark, var(--ok))', fontSize: '.9rem', marginBottom: '1rem' }}>
-                📧 מייל הזדהות נשלח אוטומטית ללקוח (<span dir="ltr">{email.trim()}</span>).
-              </div>
-            ) : (
-              <div style={{ padding: '.7rem .9rem', background: 'var(--orange-light)', borderRadius: 'var(--radius)', color: 'var(--gray-800)', fontSize: '.85rem', marginBottom: '1rem', lineHeight: 1.6 }}>
-                ⚠ המייל לא נשלח אוטומטית{result.emailError ? ` (${result.emailError})` : ''}. אפשר להעתיק את הקישור ולשלוח ידנית.
+                {'\u{1F4E7}'} הקישור גם נשלח במייל אל <span dir="ltr">{email.trim()}</span>.
               </div>
             )}
-            <div style={{ fontSize: '.8rem', color: 'var(--gray-600)', marginBottom: '.35rem' }}>קישור ההזדהות של הלקוח:</div>
-            <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem' }}>
-              <input readOnly value={result.link} dir="ltr" style={{ flex: 1, textAlign: 'left', fontSize: '.8rem', fontFamily: 'var(--font-mono, monospace)' }} onFocus={e => e.currentTarget.select()} />
+            {!result.emailSent && result.emailError && (
+              <div style={{ padding: '.7rem .9rem', background: 'var(--orange-light)', borderRadius: 'var(--radius)', color: 'var(--gray-800)', fontSize: '.85rem', marginBottom: '1rem', lineHeight: 1.6 }}>
+                {'⚠'} המייל לא נשלח ({result.emailError}). אפשר לשלוח את הקישור בוואטסאפ.
+              </div>
+            )}
+
+            <p style={{ fontSize: '.88rem', color: 'var(--gray-700)', lineHeight: 1.6, marginTop: 0 }}>
+              שלחו את הקישור ללקוח. הוא ימלא שם, ת.ז., תאריך לידה, טלפון, מייל, כתובת ומצב משפחתי —
+              והכל ייכנס אוטומטית לכרטיס שלו.
+            </p>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.6rem', margin: '1.1rem 0 .9rem' }}>
+              <a
+                href={waHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn"
+                style={{ background: '#25D366', color: '#fff', border: 'none', flex: '1 1 170px', justifyContent: 'center', textDecoration: 'none', fontWeight: 600 }}
+              >
+                {'\u{1F4AC}'} שליחה בוואטסאפ
+              </a>
+              {canShare && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ flex: '1 1 130px', justifyContent: 'center' }}
+                  onClick={() => { navigator.share({ text: shareText }).catch(() => {}); }}
+                >
+                  {'\u{1F4E4}'} שיתוף
+                </button>
+              )}
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-secondary"
+                style={{ flex: '1 1 130px', justifyContent: 'center' }}
                 onClick={async () => { try { await navigator.clipboard.writeText(result.link); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ } }}
               >
-                {copied ? '✓ הועתק' : 'העתק'}
+                {copied ? '✓ הועתק' : '\u{1F517} העתקת קישור'}
               </button>
             </div>
-            <p style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>הקישור ייחודי ללקוח זה ומאובטח.</p>
+
+            <input
+              readOnly
+              value={result.link}
+              dir="ltr"
+              style={{ width: '100%', textAlign: 'left', fontSize: '.78rem', fontFamily: 'var(--font-mono, monospace)' }}
+              onFocus={e => e.currentTarget.select()}
+            />
+            <p style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginBottom: 0 }}>הקישור ייחודי ללקוח זה ומאובטח.</p>
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-primary" onClick={onCancel}>סיום</button>
@@ -155,133 +240,171 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     );
   }
 
+  // ── מסך היצירה ─────────────────────────────────────────────────────────
   return (
     <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
       <form className="modal task-modal" onSubmit={handleSubmit}>
         <div className="modal-header">
-          <h3>📨 בקשת ייצוג חדשה</h3>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel} disabled={busy}>✕</button>
+          <h3>{'\u{1F4E8}'} קישור ייצוג חדש</h3>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel} disabled={busy}>{'✕'}</button>
         </div>
 
         <div className="modal-body">
-          {/* פרטי הלקוח */}
-          <div className="form-grid form-grid-2">
-            <div className="form-group">
-              <label className="required">שם הלקוח</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="שם פרטי ושם משפחה"
-                autoFocus
-                disabled={busy}
-              />
-            </div>
-            <div className="form-group">
-              <label className="required">אימייל</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="client@example.com"
-                dir="ltr"
-                disabled={busy}
-                style={emailConflict ? { borderColor: 'var(--red)' } : undefined}
-              />
-              {emailConflict && (
-                <div style={{ marginTop: '.4rem', fontSize: '.8rem', color: 'var(--red)', lineHeight: 1.5 }}>
-                  ⛔ {emailConflict}
+          {/* רשויות — הבחירה היחידה שנדרשת */}
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.5rem' }}>
+            אילו רשויות לייצג? <span style={{ color: 'var(--red)' }}>*</span>
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+            {REP_AUTHORITY_ORDER.map(a => {
+              const st = areas[a];
+              return (
+                <div
+                  key={a}
+                  onClick={() => !busy && toggleArea(a)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '.75rem',
+                    padding: '.7rem .8rem',
+                    border: `1px solid ${st.selected ? 'var(--blue)' : 'var(--gray-200)'}`,
+                    background: st.selected ? 'var(--blue-light)' : 'var(--card)',
+                    borderRadius: 'var(--radius)',
+                    cursor: busy ? 'default' : 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={st.selected}
+                    onChange={() => toggleArea(a)}
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={busy}
+                  />
+                  <span style={{ flex: 1, fontSize: '.95rem', fontWeight: st.selected ? 600 : 400 }}>
+                    {REP_AUTHORITY_LABELS[a]}
+                  </span>
+                  {hasLevel(a) ? (
+                    <select
+                      value={st.level}
+                      onChange={(e) => setLevel(a, e.target.value as RepLevel)}
+                      onClick={(e) => e.stopPropagation()}
+                      disabled={busy || !st.selected}
+                      style={{ width: 'auto', minWidth: 120 }}
+                    >
+                      <option value="primary">{REP_LEVEL_LABELS.primary}</option>
+                      <option value="secondary">{REP_LEVEL_LABELS.secondary}</option>
+                    </select>
+                  ) : (
+                    <span style={{ fontSize: '.78rem', color: 'var(--gray-500)' }}>{'ℹ'} ייצוג יחיד</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* כל השאר אופציונלי — מה שלא ימולא כאן, הלקוח ימלא בקישור */}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ marginTop: '1.1rem', padding: 0 }}
+            onClick={() => setShowDetails(v => !v)}
+            disabled={busy}
+          >
+            {showDetails ? '▾' : '▸'} פרטים שכבר ידועים לי (לא חובה)
+          </button>
+          <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.25rem', lineHeight: 1.5 }}>
+            כל מה שלא תמלא כאן — הלקוח ימלא בעצמו בקישור.
+          </div>
+
+          {showDetails && (
+            <div style={{ marginTop: '.9rem', padding: '.85rem .9rem', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', background: 'var(--gray-50)' }}>
+              <div className="form-grid form-grid-2">
+                <div className="form-group">
+                  <label>שם הלקוח</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="שם פרטי ושם משפחה"
+                    disabled={busy}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>אימייל</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="אם תמלא — יישלח גם מייל"
+                    dir="ltr"
+                    disabled={busy}
+                    style={emailConflict ? { borderColor: 'var(--red)' } : undefined}
+                  />
+                  {emailConflict && (
+                    <div style={{ marginTop: '.4rem', fontSize: '.8rem', color: 'var(--red)', lineHeight: 1.5 }}>
+                      {'⛔'} {emailConflict}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '.5rem' }}>
+                <label>מצב משפחתי</label>
+                <select
+                  value={familyStatus}
+                  onChange={(e) => { setFamilyStatus(e.target.value as FamilyStatus | ''); setFamilyYear(''); }}
+                  disabled={busy}
+                >
+                  <option value="">{'—'} שהלקוח יבחר {'—'}</option>
+                  {FAMILY_ORDER.map(f => (
+                    <option key={f} value={f}>{FAMILY_STATUS_LABELS[f]}</option>
+                  ))}
+                </select>
+              </div>
+
+              {yearLabel && (
+                <div className="form-group" style={{ marginTop: '.5rem' }}>
+                  <label>{yearLabel}</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={familyYear}
+                    onChange={(e) => setFamilyYear(e.target.value)}
+                    placeholder={`לדוגמה: ${CURRENT_YEAR - 5}`}
+                    min={1900}
+                    max={CURRENT_YEAR}
+                    disabled={busy}
+                  />
+                </div>
+              )}
+
+              {married && (
+                <div style={{ marginTop: '.75rem', paddingTop: '.75rem', borderTop: '1px solid var(--gray-200)' }}>
+                  <div className="form-group">
+                    <label>שם בן/בת הזוג</label>
+                    <input type="text" value={spouseName} onChange={e => setSpouseName(e.target.value)} placeholder="שם פרטי ושם משפחה" disabled={busy} />
+                    <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.35rem' }}>
+                      נשוי/אה {'←'} שני בני הזוג חותמים על ייפוי הכוח.
+                    </div>
+                  </div>
+
+                  {spouseName.trim() && (
+                    <>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: busy ? 'default' : 'pointer', fontSize: '.85rem', color: 'var(--gray-700)', margin: '.6rem 0' }}>
+                        <input type="checkbox" checked={sameSigningEmail} onChange={e => setSameSigningEmail(e.target.checked)} disabled={busy || !email.trim()} />
+                        {'✉'} שלח את שתי בקשות החתימה לאותו מייל
+                      </label>
+                      {!sameSigningEmail && (
+                        <div className="form-group">
+                          <label>אימייל של בן/בת הזוג</label>
+                          <input type="email" value={spouseEmail} onChange={e => setSpouseEmail(e.target.value)} placeholder="spouse@example.com" dir="ltr" disabled={busy} />
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
-          </div>
-
-          {/* בן/בת זוג — כשנשוי, שני בני הזוג חותמים על ייפוי הכוח */}
-          <div style={{ marginTop: '1rem', padding: '.75rem .9rem', border: `1px solid ${married ? 'var(--blue)' : 'var(--gray-200)'}`, borderRadius: 'var(--radius)', background: married ? 'var(--blue-light)' : 'var(--card)' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '.6rem', cursor: busy ? 'default' : 'pointer', fontWeight: 600, fontSize: '.9rem' }}>
-              <input type="checkbox" checked={married} onChange={e => setMarried(e.target.checked)} disabled={busy} />
-              💍 הלקוח/ה נשוי/אה — צריך גם חתימת בן/בת הזוג
-            </label>
-
-            {married && (
-              <div style={{ marginTop: '.85rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-                <div className="form-group">
-                  <label className="required">שם בן/בת הזוג</label>
-                  <input type="text" value={spouseName} onChange={e => setSpouseName(e.target.value)} placeholder="שם פרטי ושם משפחה" disabled={busy} />
-                </div>
-
-                <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: busy ? 'default' : 'pointer', fontSize: '.85rem', color: 'var(--gray-700)' }}>
-                  <input type="checkbox" checked={sameSigningEmail} onChange={e => setSameSigningEmail(e.target.checked)} disabled={busy} />
-                  ✉ שלח את כל בקשות החתימה לאותו מייל (המייל של הלקוח למעלה)
-                </label>
-
-                {sameSigningEmail ? (
-                  <div style={{ fontSize: '.8rem', color: 'var(--gray-700)', background: 'var(--gray-50)', padding: '.55rem .75rem', borderRadius: 'var(--radius)', lineHeight: 1.6 }}>
-                    שתי בקשות החתימה — של {name.trim() || 'הלקוח'} ושל {spouseName.trim() || 'בן/בת הזוג'} — יישלחו ל<span dir="ltr">{email.trim() || 'מייל הלקוח'}</span>.
-                  </div>
-                ) : (
-                  <div className="form-group">
-                    <label className="required">אימייל של בן/בת הזוג</label>
-                    <input type="email" value={spouseEmail} onChange={e => setSpouseEmail(e.target.value)} placeholder="spouse@example.com" dir="ltr" disabled={busy} />
-                    <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.35rem' }}>בקשת החתימה של בן/בת הזוג תישלח לכתובת הזו.</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* רשויות לבקשת ייצוג */}
-          <div style={{ marginTop: '1.25rem' }}>
-            <label style={{ display: 'block', fontWeight: 600, fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.5rem' }}>
-              רשויות לבקשת ייצוג <span style={{ color: 'var(--red)' }}>*</span>
-            </label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-              {REP_AUTHORITY_ORDER.map(a => {
-                const st = areas[a];
-                return (
-                  <div
-                    key={a}
-                    onClick={() => !busy && toggleArea(a)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '.75rem',
-                      padding: '.6rem .8rem',
-                      border: `1px solid ${st.selected ? 'var(--blue)' : 'var(--gray-200)'}`,
-                      background: st.selected ? 'var(--blue-light)' : 'var(--card)',
-                      borderRadius: 'var(--radius)',
-                      cursor: busy ? 'default' : 'pointer',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={st.selected}
-                      onChange={() => toggleArea(a)}
-                      onClick={(e) => e.stopPropagation()}
-                      disabled={busy}
-                    />
-                    <span style={{ flex: 1, fontSize: '.95rem', fontWeight: st.selected ? 600 : 400 }}>
-                      {REP_AUTHORITY_LABELS[a]}
-                    </span>
-                    {hasLevel(a) ? (
-                      <select
-                        value={st.level}
-                        onChange={(e) => setLevel(a, e.target.value as RepLevel)}
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={busy || !st.selected}
-                        style={{ width: 'auto', minWidth: 130 }}
-                      >
-                        <option value="primary">{REP_LEVEL_LABELS.primary}</option>
-                        <option value="secondary">{REP_LEVEL_LABELS.secondary}</option>
-                      </select>
-                    ) : (
-                      <span style={{ fontSize: '.78rem', color: 'var(--gray-500)' }}>ℹ ייצוג יחיד — ללא סוג</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          )}
 
           {/* מה ייווצר */}
           <div style={{
@@ -292,20 +415,16 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             fontSize: '.83rem',
             color: 'var(--gray-700)',
           }}>
-            <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>✨ מה ייווצר אוטומטית בשליחה</div>
-            <div>✓ כרטיס לקוח חדש — מסומן "טרם מיוצג"</div>
-            <div>✓ התקשרות ייצוג למעקב התהליך</div>
+            <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>{'✨'} מה ייווצר</div>
+            <div>{'✓'} קישור אישי לשליחה בוואטסאפ</div>
+            <div>{'✓'} כרטיס לקוח {name.trim() ? `— ${name.trim()}` : '— יקבל שם כשהלקוח ימלא'}</div>
             <div>
-              ✓ {married
-                ? `2 חותמים — ${name.trim() || 'הלקוח'} ו-${spouseName.trim() || 'בן/בת הזוג'}${sameSigningEmail ? ' (לאותו מייל)' : ' (כל אחד למייל שלו)'}`
-                : 'חותם אחד — הנישום'}
-            </div>
-            <div>✓ משימה פנימית: "להשלים ייצוג{name.trim() ? ` — ${name.trim()}` : ''}"</div>
-            <div>
-              ✓ {selectedKeys.length > 0
+              {'✓'} {selectedKeys.length > 0
                 ? `${selectedKeys.length} סטטוסי ייצוג "בתהליך": ${selectedKeys.map(a => REP_AUTHORITY_LABELS[a]).join(', ')}`
                 : 'בחר רשויות כדי ליצור סטטוסי ייצוג'}
             </div>
+            <div>{'✓'} משימה פנימית למעקב</div>
+            {isValidEmail(email) && <div>{'✓'} מייל אוטומטי ללקוח, בנוסף לקישור</div>}
           </div>
 
           {error && (
@@ -326,8 +445,8 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={busy}>
             ביטול
           </button>
-          <button type="submit" className="btn btn-primary" disabled={busy || !!emailConflict}>
-            {busy ? 'יוצר…' : '📨 שליחה'}
+          <button type="submit" className="btn btn-primary" disabled={busy || !!emailConflict || selectedKeys.length === 0}>
+            {busy ? 'מפיק…' : '\u{1F517} הפקת קישור'}
           </button>
         </div>
       </form>

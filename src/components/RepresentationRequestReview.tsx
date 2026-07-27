@@ -8,6 +8,7 @@ import {
   REPRESENTATION_STATUS_LABELS,
   REPRESENTATION_STATUS_BADGE,
   ONBOARDING_SECONDARY_LABELS,
+  RepresentationExecution,
 } from '../types';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
@@ -16,6 +17,8 @@ import { downloadPrivateDataUrl } from '../utils/privateAsset';
 import { generateSignedPoaPdf, downloadPdfBytes, toPureArrayBuffer } from '../utils/poaPdfGenerator';
 import SignaturePad from './SignaturePad';
 import RepSignersStatus from './RepSignersStatus';
+import RepresentationAuthorityData from './RepresentationAuthorityData';
+import RepresentationExecutionCenter from './RepresentationExecutionCenter';
 import { isSpouseRequest, getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { SignatureSetup, SignatureValue } from '../types';
 import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
@@ -34,6 +37,9 @@ interface Props {
   onMarkActive: (req: RepresentationRequest) => void;
   onDelete: (id: string) => void;
   onOpenFill: (id: string) => void;
+  /** האם התבקש ייצוג בב"ל — נגזר ממרשם הייצוג של הלקוח המקושר. */
+  niIncluded: boolean;
+  onSaveExecution: (req: RepresentationRequest, execution: RepresentationExecution) => Promise<void> | void;
 }
 
 const REP_TYPE_OPTIONS = [
@@ -52,6 +58,8 @@ export default function RepresentationRequestReview({
   onMarkActive,
   onDelete,
   onOpenFill,
+  niIncluded,
+  onSaveExecution,
 }: Props) {
   const db = useDocumentDB();
   const { user } = useAuth();
@@ -145,6 +153,20 @@ export default function RepresentationRequestReview({
       setSendingEmail(false);
     }
   }
+  /** מייל הוראות אישור ייפוי הכוח בב"ל. מחזיר הודעת שגיאה בעברית, או null בהצלחה. */
+  async function sendNiInstructions(): Promise<string | null> {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-onboarding-email', {
+        body: { requestId: request.id, stage: 'ni_approve' },
+      });
+      if (error) return error.message;
+      if (!data?.ok) return data?.detail?.message || data?.error || 'שליחה נכשלה';
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  }
+
   const ident = request.identification;
   const onboardingSubmitted = request.onboardingStatus === 'submitted';
   const onboardingLink = request.onboardingToken
@@ -622,6 +644,15 @@ export default function RepresentationRequestReview({
                 </div>
               </div>
             )}
+
+            <RepresentationAuthorityData request={request} />
+
+            <RepresentationExecutionCenter
+              request={request}
+              niIncluded={niIncluded}
+              onSaveExecution={(execution) => onSaveExecution(request, execution)}
+              onSendNiInstructions={sendNiInstructions}
+            />
 
             {request.status === 'pending_signature' && setup && (
               <div className="card" style={{ background: 'var(--orange-light)', borderColor: 'var(--orange)', marginBottom: '1rem' }}>

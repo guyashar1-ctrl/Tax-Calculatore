@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Client,
   RepresentationRequest,
+  RepresentationExecution,
   RequestSubmission,
   AccountantPartB,
   Task,
@@ -57,7 +58,7 @@ import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
 import NoAccessScreen from './components/NoAccessScreen';
 import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateClient';
-import RepresentationOnboardingDialog from './components/RepresentationOnboardingDialog';
+import RepresentationOnboardingDialog, { CreateRepresentationInput } from './components/RepresentationOnboardingDialog';
 import OnboardingPage from './components/OnboardingPage';
 import PublicIntakePage from './components/PublicIntakePage';
 import PublicQuotationPage from './components/PublicQuotationPage';
@@ -439,23 +440,36 @@ export default function App() {
   }
 
   /**
-   * נקודת הכניסה החדשה לייצוג (MVP — שלב 1): מהזנת שם+אימייל+רשויות
-   * המערכת יוצרת אוטומטית: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
+   * נקודת הכניסה לייצוג: הרו"ח בוחר רשויות ומקבל קישור לשליחה בוואטסאפ.
+   * שם ומייל אינם חובה — מה שלא הוזן כאן, הלקוח ממלא בעצמו בקישור.
+   * המערכת יוצרת: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
    * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
    */
-  async function handleCreateRepresentation(data: { name: string; email: string; areas: AuthorityRepresentations; spouse: { name: string; email: string } | null }): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
-    const { name, email, areas, spouse } = data;
+  async function handleCreateRepresentation(data: CreateRepresentationInput): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
+    const { name, email, areas, spouse, prefill, sendEmail } = data;
     // שער בטיחות: לא פותחים בקשה כפולה לאותו מייל (גם אם ה-UI כבר חוסם).
-    const conflictMsg = repEmailConflictMessage(email);
-    if (conflictMsg) throw new Error(conflictMsg);
-    const nameParts = name.trim().split(/\s+/);
+    // בלי מייל אין מה לבדוק — הזיהוי ייקבע כשהלקוח ימלא.
+    if (email) {
+      const conflictMsg = repEmailConflictMessage(email);
+      if (conflictMsg) throw new Error(conflictMsg);
+    }
+    const nameParts = name.trim().split(/\s+/).filter(Boolean);
     const clientId = crypto.randomUUID();
     const reqId = crypto.randomUUID();
     const onboardingToken = crypto.randomUUID().replace(/-/g, '');
     const now = new Date().toISOString();
     const selectedKeys = Object.keys(areas) as RepAuthorityKind[];
 
-    // חותמים: הנישום תמיד; בן/בת הזוג נוסף אם הלקוח נשוי. לכל חותם טוקן ומצב נפרד.
+    // כרטיס בלי שם צריך תווית זמנית שאפשר לזהות ברשימה — הזמן מבדיל בין
+    // כמה קישורים שהופקו באותו יום. submit_onboarding_full דורס אותה בשם האמיתי.
+    const placeholderLabel = new Date().toLocaleString('he-IL', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+    });
+    const displayFirstName = nameParts[0] || 'ממתין למילוי';
+    const displayLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : (nameParts[0] ? '' : placeholderLabel);
+
+    // חותמים: הנישום תמיד; בן/בת הזוג נוסף אם ידוע שהלקוח נשוי. לכל חותם טוקן
+    // ומצב נפרד. שם/מייל ריקים מתמלאים ב-submit_onboarding_full כשהלקוח ממלא.
     const signers: RepSigner[] = [
       { id: 'client', role: 'client', name: name.trim(), email, signStatus: 'pending', signToken: crypto.randomUUID().replace(/-/g, '') },
     ];
@@ -465,13 +479,17 @@ export default function App() {
 
     // 1. לקוח חדש — מסומן "ממתין" עם מרשם הייצוג לפי רשות
     const client = makeEmptyClient(clientId, {
-      firstName: nameParts[0] || '',
-      lastName: nameParts.slice(1).join(' ') || '',
+      firstName: displayFirstName,
+      lastName: displayLastName,
       email,
       representationStatus: 'pending_fill',
       representationRequestId: reqId,
       authorityRepresentations: areas,
-      ...(spouse ? { familyStatus: 'married' as const, spouseName: spouse.name } : {}),
+      ...(prefill.familyStatus ? { familyStatus: prefill.familyStatus } : {}),
+      ...(prefill.familyStatusYear && prefill.familyStatus === 'married'  ? { marriageYear: prefill.familyStatusYear } : {}),
+      ...(prefill.familyStatusYear && prefill.familyStatus === 'divorced' ? { divorceYear: prefill.familyStatusYear } : {}),
+      ...(prefill.familyStatusYear && prefill.familyStatus === 'widowed'  ? { widowhoodYear: prefill.familyStatusYear } : {}),
+      ...(spouse ? { spouseName: spouse.name } : {}),
       notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין להשלמת התהליך.',
     });
     await addClient(client);
@@ -499,6 +517,7 @@ export default function App() {
       onboardingStatus: 'pending',
       identification: null,
       onboardingSubmittedAt: null,
+      prefill,
       signers,
     };
     await addRequest(request);
@@ -509,7 +528,7 @@ export default function App() {
       id: crypto.randomUUID(),
       clientId,
       category: 'institutions',
-      title: `להשלים ייצוג — ${name.trim()}`,
+      title: name.trim() ? `להשלים ייצוג — ${name.trim()}` : 'להשלים ייצוג — ממתין שהלקוח ימלא',
       description: `בקשת ייצוג חדשה. רשויות: ${areaLabels}.`,
       ballWith: 'me',
       status: 'open',
@@ -521,7 +540,9 @@ export default function App() {
     await addTask(task);
 
     // שליחת מייל אוטומטית ללקוח (הכל נקרא מ-Firm Profile בצד-שרת). לא חוסם — אם נכשל, הקישור הידני זמין.
+    // בלי כתובת מייל מדלגים בשקט: הקישור נשלח בוואטסאפ, וזו אינה תקלה.
     const link = `${window.location.origin}/?onboard=${onboardingToken}`;
+    if (!sendEmail) return { link, emailSent: false, clientId };
     let emailSent = false;
     let emailError: string | undefined;
     try {
@@ -675,6 +696,26 @@ export default function App() {
   /** נשמר ה-PDF הסופי (חתימות + חותמת צרובות) — עדיין בסטטוס awaiting_stamp עד "נשלח לשע"ם" */
   async function handleSaveSignedPdf(req: RepresentationRequest, values: Record<string, SignatureValue>, signedPdfStoredId: string) {
     await updateRequest({ ...req, signatureValues: values, signedPdfStoredId });
+  }
+
+  /**
+   * מעקב ביצוע הייצוג מול הרשויות. כשהלקוח מאשר בב"ל, מרשם הייצוג של הלקוח
+   * מתעדכן ל-active — ייצוג ב"ל נפרד מהליך שע"ם ולכן גם מסתיים בנפרד ממנו.
+   */
+  async function handleSaveExecution(req: RepresentationRequest, execution: RepresentationExecution) {
+    await updateRequest({ ...req, execution });
+    const linkedClient = clients.find(c => c.id === req.linkedClientId);
+    const niConfirmed = !!execution.nationalInsurance?.confirmedAt;
+    const niRegistered = linkedClient?.authorityRepresentations?.nationalInsurance;
+    if (linkedClient && niConfirmed && niRegistered && niRegistered.status !== 'active') {
+      await updateClient({
+        ...linkedClient,
+        authorityRepresentations: {
+          ...linkedClient.authorityRepresentations,
+          nationalInsurance: { ...niRegistered, status: 'active' },
+        },
+      });
+    }
   }
 
   /** הרו"ח מסמן שהטופס הוגש לשע"ם: awaiting_stamp → awaiting_authorities */
@@ -934,7 +975,7 @@ export default function App() {
   }
 
   /** onCreate של דיאלוג הייצוג בזרימת ההמרה — יוצר ייצוג ואז מקשר ליד+הצעה ללקוח. */
-  async function handleCreateRepresentationFromQuotation(data: { name: string; email: string; areas: AuthorityRepresentations; spouse: { name: string; email: string } | null }) {
+  async function handleCreateRepresentationFromQuotation(data: CreateRepresentationInput) {
     const res = await handleCreateRepresentation(data);
     const q = convertingQuotation;
     if (q) {
@@ -1260,6 +1301,8 @@ export default function App() {
               onMarkActive={handleMarkActive}
               onDelete={handleDeleteRequest}
               onOpenFill={handleOpenFill}
+              niIncluded={!!clients.find(c => c.id === selectedRequest.linkedClientId)?.authorityRepresentations?.nationalInsurance}
+              onSaveExecution={handleSaveExecution}
             />
           ) : (
             <div className="empty-state">

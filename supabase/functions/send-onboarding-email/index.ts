@@ -2,6 +2,7 @@
 // שולח מיילים ללקוח בשלבי הייצוג. stage קובע את התוכן:
 //   onboard – אימות זהות · sign – חתימה על ייפוי הכוח · active – הייצוג אושר
 //   intake – שאלון עדכון יזום מכרטיס הלקוח
+//   ni_approve – אישור ייפוי הכוח בביטוח לאומי (אסמכתא + מועד אחרון + שתי הדרכים)
 //
 // כל העיצוב נגזר ממערכת העיצוב המשותפת (_shared/designSystem.ts) — בדיוק אותו
 // קובץ שהאתר צורך. אין כאן טבלת תבניות, אין צבעים קשיחים ואין מעטפת HTML משלנו:
@@ -11,7 +12,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
 
-type Stage = "onboard" | "sign" | "active" | "intake";
+type Stage = "onboard" | "sign" | "active" | "intake" | "ni_approve";
+
+// אישור ייפוי כוח בביטוח לאומי נעשה מול הביטוח הלאומי עצמו, לא אצלנו — ולכן
+// הקישור חיצוני והמייל מפרט את שתי הדרכים שהב"ל מאפשר.
+const NI_SITE = "https://www.btl.gov.il";
+const NI_PHONE = "02-5393740";
+
 const COPY: Record<Stage, { subject: string; heading: string; body: string; cta: string }> = {
   intake: {
     subject: "שאלון קצר — כדי שהתיק שלכם יישאר מעודכן",
@@ -37,6 +44,12 @@ const COPY: Record<Stage, { subject: string; heading: string; body: string; cta:
     body: "הייצוג שלכם מול רשויות המס אושר בהצלחה. ניצור קשר בקרוב להשלמת הפרטים הראשוניים. תודה שבחרתם בנו!",
     cta: "",
   },
+  ni_approve: {
+    subject: "פעולה נדרשת — אישור ייפוי הכוח בביטוח הלאומי",
+    heading: "נשאר צעד אחד בביטוח הלאומי",
+    body: "הזנו עבורכם את ייפוי הכוח באתר הביטוח הלאומי. הביטוח הלאומי דורש שאתם תאשרו אותו בעצמכם — עד שלא תאשרו, הייצוג בביטוח הלאומי אינו בתוקף. אפשר לאשר באחת משתי הדרכים שלמטה, לוקח כדקה.",
+    cta: "לאישור באתר הביטוח הלאומי",
+  },
 };
 
 Deno.serve(async (req: Request) => {
@@ -45,7 +58,7 @@ Deno.serve(async (req: Request) => {
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
   try {
     const { requestId, stage: rawStage, signerId, clientId, email } = await req.json();
-    const stage: Stage = (rawStage === "sign" || rawStage === "active" || rawStage === "intake") ? rawStage : "onboard";
+    const stage: Stage = (rawStage === "sign" || rawStage === "active" || rawStage === "intake" || rawStage === "ni_approve") ? rawStage : "onboard";
     if (stage === "intake" ? !clientId : !requestId) return json({ error: "missing requestId" }, 400);
     const copy = COPY[stage];
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -114,15 +127,44 @@ Deno.serve(async (req: Request) => {
       clientFirst = String(signer.name || "").trim().split(/\s+/)[0] || clientFirst;
     }
 
+    // ── ביטוח לאומי: האסמכתא, המועד האחרון ושתי דרכי האישור ──
+    let extraHtml: string | undefined;
+    let ctaHref = link;
+    if (stage === "ni_approve") {
+      const ni = (reqRow?.execution || {}).nationalInsurance || {};
+      if (!ni.referenceNumber) return json({ error: "missing_reference_number" }, 400);
+      ctaHref = NI_SITE;
+      const f = "Arial, sans-serif";
+      const deadlineRow = ni.deadline
+        ? `<div style="font-family:${f};font-size:13px;color:${brand.muted};padding-top:6px;">המועד האחרון לאישור: <strong style="color:${brand.ink};">${esc(new Date(ni.deadline).toLocaleDateString("he-IL"))}</strong></div>`
+        : "";
+      extraHtml = `<tr><td style="padding:6px 40px 0;">
+        <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:16px 18px;background:${brand.pageBg};">
+          <div style="font-family:${f};font-size:12px;color:${brand.muted};">מספר האסמכתא שלכם</div>
+          <div dir="ltr" style="font-family:${f};font-size:26px;font-weight:700;letter-spacing:.04em;color:${brand.ink};padding-top:2px;text-align:right;">${esc(String(ni.referenceNumber))}</div>
+          ${deadlineRow}
+        </div>
+        <div style="font-family:${f};font-size:14px;font-weight:700;color:${brand.ink};padding:18px 0 6px;">אפשרות 1 — באתר הביטוח הלאומי</div>
+        <div style="font-family:${f};font-size:13.5px;color:${brand.muted};line-height:1.8;">
+          נכנסים ל-${esc(NI_SITE)} ← בפעולות מקישים "אישור ייפוי כח למייצג" ← מקלידים את מספר תעודת הזהות ואת מספר האסמכתא שלמעלה ← מזדהים בכרטיס אשראי או בסיסמה לטלפון הנייד ← מאשרים במסך. הייצוג נכנס לתוקף מיד.
+        </div>
+        <div style="font-family:${f};font-size:14px;font-weight:700;color:${brand.ink};padding:18px 0 6px;">אפשרות 2 — בטלפון</div>
+        <div style="font-family:${f};font-size:13.5px;color:${brand.muted};line-height:1.8;">
+          מתקשרים ל-<strong dir="ltr" style="color:${brand.ink};">${esc(NI_PHONE)}</strong> (מענה קולי) ומאשרים באמצעות מספר האסמכתא ובאמצעות קוד בן 6 ספרות שהביטוח הלאומי ישלח אליכם בדואר או במייל. מתאים למי שאין לו כרטיס אשראי או מייל מאומת בביטוח הלאומי.
+        </div>
+      </td></tr>`;
+    }
+
     // ★ אותה מעטפת מייל בדיוק של האתר — מהקובץ המשותף
     const html = buildBrandedEmail(brand, {
       heading: copy.heading + (clientFirst ? ", " + clientFirst : ""),
       bodyHtml: esc(copy.body),
+      extraHtml,
       ctaLabel: copy.cta || undefined,
-      ctaHref: copy.cta ? link : undefined,
+      ctaHref: copy.cta ? ctaHref : undefined,
       ctaArrow: true,
       showLinkFallback: !!copy.cta,
-      footerTagline: "מאובטח · פחות מדקה",
+      footerTagline: stage === "ni_approve" ? "אישור מול הביטוח הלאומי · כדקה" : "מאובטח · פחות מדקה",
     });
 
     const payload: Record<string, unknown> = { from: `${brand.firmName} <${fromAddress}>`, to: [toEmail], subject: copy.subject, html };

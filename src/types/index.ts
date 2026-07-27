@@ -460,6 +460,12 @@ export interface Client {
   spouseWorking: boolean;
   spouseIncome: number;
 
+  // שנת האירוע שקבע את המצב המשפחתי. רשויות המס דורשות אותה בטפסי הייצוג,
+  // והיא קובעת ממתי הזוג/היחיד מדווח בנפרד. ריק = לא ידוע עדיין.
+  marriageYear?: number;    // familyStatus === 'married'
+  divorceYear?: number;     // familyStatus === 'divorced' — שנת הגירושין ברבנות
+  widowhoodYear?: number;   // familyStatus === 'widowed' — שנת הפטירה
+
   // ── נתוני בן/בת זוג מלאים (לחישוב תא משפחתי) ──
   spouse: SpouseData | null;
 
@@ -761,6 +767,10 @@ export interface RepresentationRequest {
   onboardingStatus?: 'pending' | 'submitted';
   identification?: OnboardingIdentification | null;
   onboardingSubmittedAt?: string | null;
+  /** מה שהרו"ח מילא במפורש בהפקת הקישור — רק אלה מדולגים בטופס הלקוח. */
+  prefill?: OnboardingPrefill;
+  /** מעקב הזנת הפרטים בפורטלים של הרשויות. ראה RepresentationExecution. */
+  execution?: RepresentationExecution;
 
   // ── חותמים (נישום + בן/בת זוג אם נשוי) ──
   // אם ריק/לא קיים — נגזר חותם יחיד מ-clientName/clientEmail (תאימות לאחור).
@@ -790,9 +800,79 @@ export interface OnboardingIdentification {
   spouseName?: string;          // שם בן/בת הזוג (נקלט בבקשת הייצוג)
   signatureDataUrl?: string;    // חתימת הלקוח על ייפוי הכוח (שלב pending_signature)
   signedAt?: string;
+
+  // ── פרטים שהלקוח ממלא בעצמו בקישור הוואטסאפ ──
+  // שם פרטי ומשפחה נשמרים בנפרד ולא כשדה אחד: טופס ייפוי הכוח בביטוח לאומי
+  // ובשע"ם דורש כל אחד בשדה נפרד, ופיצול אוטומטי של "שם מלא" שוגה בשמות מורכבים.
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  email?: string;
+  city?: string;
+  address?: string;
+  familyStatus?: FamilyStatus;
+  familyStatusYear?: number;    // שנת נישואין / גירושין ברבנות / פטירה, לפי המצב
+  spouseEmail?: string;         // לשליחת בקשת חתימה נפרדת לבן/בת הזוג
+  spouseIdNumber?: string;
+}
+
+/**
+ * מעקב אחרי ההזנה בפועל בפורטלים של הרשויות. שני המסלולים נפרדים לגמרי:
+ * מס הכנסה עובד מול שע"ם וייפוי הכוח נחתם דיגיטלית אצלנו; ביטוח לאומי מנפיק
+ * מספר אסמכתא עם מועד תפוגה, והלקוח הוא זה שמאשר אותו מול הביטוח הלאומי.
+ * כל שדה תאריך = "בוצע ומתי". ריק = טרם בוצע.
+ */
+export interface RepresentationExecution {
+  incomeTax?: {
+    /** הפרטים הוזנו בשע"ם ונפתחה בקשת ייצוג */
+    enteredAt?: string;
+  };
+  nationalInsurance?: {
+    /** ייפוי הכוח הוזן באתר הביטוח הלאומי */
+    enteredAt?: string;
+    /** מספר האסמכתא שהביטוח הלאומי הנפיק — הלקוח מאשר באמצעותו */
+    referenceNumber?: string;
+    /** המועד האחרון לאישור הטופס (YYYY-MM-DD). אחריו האסמכתא פגה. */
+    deadline?: string;
+    /** נשלחו ללקוח הוראות האישור */
+    instructionsSentAt?: string;
+    /** הלקוח אישר את ייפוי הכוח — הייצוג בב"ל פעיל */
+    confirmedAt?: string;
+  };
+}
+
+/** טלפון המענה הקולי לאישור ייפוי כוח בביטוח לאומי (מופיע גם במייל ללקוח). */
+export const NI_APPROVAL_PHONE = '02-5393740';
+
+/**
+ * מה שהרו"ח בחר במפורש בעת הפקת קישור הייצוג. שדה שמופיע כאן לא ייבחר שוב
+ * ע"י הלקוח. נשמר בנפרד מכרטיס הלקוח כי שם לשדות יש ברירות מחדל, ואי אפשר
+ * להבחין בין "הרו"ח בחר רווק" ל"אף אחד לא נגע בשדה".
+ */
+export interface OnboardingPrefill {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  familyStatus?: FamilyStatus;
+  familyStatusYear?: number;
 }
 
 export type OnboardingSecondaryType = 'parentId' | 'driverLicense' | 'passport';
+
+export const FAMILY_STATUS_LABELS: Record<FamilyStatus, string> = {
+  single:       'רווק/ה',
+  married:      'נשוי/אה',
+  divorced:     'גרוש/ה',
+  widowed:      'אלמן/ה',
+  singleParent: 'הורה יחיד',
+};
+
+/** תווית שנת האירוע שקבע את המצב המשפחתי, לפי המצב. חסר = אין שנה רלוונטית. */
+export const FAMILY_STATUS_YEAR_LABELS: Partial<Record<FamilyStatus, string>> = {
+  married:  'שנת הנישואין',
+  divorced: 'שנת הגירושין ברבנות',
+  widowed:  'שנת הפטירה',
+};
 
 export const ONBOARDING_SECONDARY_LABELS: Record<OnboardingSecondaryType, string> = {
   parentId: 'תעודת זהות של הורה',
