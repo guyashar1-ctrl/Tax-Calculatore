@@ -4,6 +4,7 @@
 
 import { useMemo, useState } from 'react';
 import { useEmailMessages } from '../../hooks/useEmailMessages';
+import { supabase } from '../../lib/supabase';
 import { EmailMessage } from '../../types/emailActivity';
 import SentEmailViewer from './SentEmailViewer';
 
@@ -65,8 +66,32 @@ function Trail({ m }: { m: EmailMessage }) {
 }
 
 export default function RequestEmailTimeline({ userId, requestId }: Props) {
-  const { messages, loading } = useEmailMessages(userId);
+  const { messages, loading, reload } = useEmailMessages(userId);
   const [viewing, setViewing] = useState<EmailMessage | null>(null);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  /** מושך מ-Resend את גוף המייל הזה בלבד. */
+  async function restore(messageId: string) {
+    setRestoring(messageId);
+    setNote(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('backfill-email-html', { body: { messageId } });
+      if (error || !data?.ok) {
+        setNote(data?.error === 'missing_read_key'
+          ? 'חסר מפתח קריאה של Resend בהגדרות השרת.'
+          : (data?.error || error?.message || 'השחזור נכשל'));
+      } else if (data.filled === 0) {
+        setNote('Resend לא מחזיק יותר את תוכן המייל הזה.');
+      } else {
+        await reload();
+      }
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRestoring(null);
+    }
+  }
 
   const rows = useMemo(
     () => messages.filter(m => m.requestId === requestId),
@@ -98,19 +123,26 @@ export default function RequestEmailTimeline({ userId, requestId }: Props) {
                 </div>
                 <Trail m={m} />
               </div>
-              <div style={{ flex: '0 0 auto' }}>
+              <div style={{ flex: '0 0 auto', textAlign: 'left' }}>
                 {m.html ? (
                   <button className="btn btn-secondary btn-sm" onClick={() => setViewing(m)}>👁 צפייה במייל</button>
                 ) : (
-                  <span style={{ fontSize: '.75rem', color: 'var(--gray-400, #aaa)' }} title="נשלח לפני שנשמרו עותקים — אפשר לשחזר ב״פעילות מייל״">
-                    אין עותק
-                  </span>
+                  <>
+                    <button className="btn btn-secondary btn-sm" disabled={restoring === m.id}
+                      onClick={() => restore(m.id)}>
+                      {restoring === m.id ? 'משחזר…' : '⤓ שחזור המייל'}
+                    </button>
+                    <div style={{ fontSize: '.7rem', color: 'var(--gray-400, #aaa)', marginTop: 3 }}>נשלח לפני שנשמרו עותקים</div>
+                  </>
                 )}
               </div>
             </div>
           ))
         )}
       </div>
+        {note && (
+          <div style={{ marginTop: ".6rem", padding: ".5rem .75rem", background: "var(--red-light)", color: "var(--red)", borderRadius: "var(--radius)", fontSize: ".82rem" }}>⚠ {note}</div>
+        )}
       {viewing && <SentEmailViewer message={viewing} onClose={() => setViewing(null)} />}
     </div>
   );

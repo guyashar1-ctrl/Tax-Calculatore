@@ -44,20 +44,25 @@ Deno.serve(async (req: Request) => {
     if (!user) return json({ error: "unauthorized" }, 401);
 
     let limit = DEFAULT_LIMIT;
+    let messageId: string | null = null;
     try {
       const b = await req.json();
       if (b?.limit && Number.isInteger(b.limit)) limit = Math.min(200, Math.max(1, b.limit));
+      // שחזור נקודתי — לרוב רוצים מייל אחד מסוים, לא את כל ההיסטוריה
+      if (typeof b?.messageId === "string" && b.messageId) messageId = b.messageId;
     } catch { /* גוף ריק — ברירת המחדל */ }
 
     // רק מיילים של המשתמש הזה, שיש להם מזהה ב-Resend ועדיין אין להם עותק
-    const { data: rows, error: selErr } = await admin
+    let q = admin
       .from("email_messages")
       .select("id,resend_id")
       .eq("user_id", user.id)
       .is("html", null)
-      .not("resend_id", "is", null)
+      .not("resend_id", "is", null);
+    if (messageId) q = q.eq("id", messageId);
+    const { data: rows, error: selErr } = await q
       .order("created_at", { ascending: false })
-      .limit(limit);
+      .limit(messageId ? 1 : limit);
     if (selErr) return json({ error: "select_failed", detail: selErr.message }, 500);
 
     let filled = 0;
