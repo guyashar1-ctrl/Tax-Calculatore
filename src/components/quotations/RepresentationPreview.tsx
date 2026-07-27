@@ -37,14 +37,53 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
         )}
 
         <div style={{ padding: `${compact ? 18 : 24}px ${pad}px ${pad}px`, textAlign: centered ? 'center' : 'start' }}>
-          <div style={{ height: 3, width: 44, background: brand.accent, borderRadius: 3, margin: centered ? '0 auto 16px' : '4px 0 16px' }} />
+          {/* סרגל השלבים — הטופס האמיתי מחולק לשלושה מסכים */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i === 0 ? brand.accent : brand.border }} />
+            ))}
+          </div>
+          <div style={{ fontSize: 11, letterSpacing: '.08em', color: brand.muted, marginBottom: 8, textAlign: 'start' }}>
+            שלב 1 מתוך 3 · הפרטים שלכם
+          </div>
           <div style={{ fontSize: compact ? 21 : 25, fontWeight: 700, color: brand.ink, marginBottom: 8, letterSpacing: '-.02em' }}>נעים להכיר</div>
-          <div style={{ fontSize: 14, color: brand.muted, lineHeight: 1.7, marginBottom: 22 }}>
-            שמחים שבחרתם בנו. כדי שנתחיל לייצג אתכם מול רשויות המס, נשאר רק לאמת כמה פרטי זיהוי — פחות מדקה, מאובטח.
+          <div style={{ fontSize: 14, color: brand.muted, lineHeight: 1.7, marginBottom: 18 }}>
+            כדי ש{brand.firmName} יוכל לייצג אתכם מול רשויות המס, נאסוף את הפרטים הנדרשים. לוקח כדקה.
           </div>
 
+          {/* מפת התהליך — מוצגת ללקוח כדי שידע שיגיע אליו מייל נוסף */}
+          <div style={{ background: brand.pageBg, borderRadius: brand.radius, padding: '12px 13px', marginBottom: 20, textAlign: 'start' }}>
+            <div style={{ fontSize: 11, letterSpacing: '.06em', color: brand.muted, marginBottom: 9 }}>איך זה עובד</div>
+            {[
+              ['הפרטים שלכם', 'ממלאים כאן — כדקה'],
+              [`${brand.firmName} מזין ברשויות`, 'אנחנו פותחים את בקשות הייצוג'],
+              ['מייל נוסף אליכם', 'חתימה על ייפוי הכוח ואישור בביטוח הלאומי'],
+              ['הייצוג פעיל', 'מכאן אנחנו מטפלים בכל'],
+            ].map(([title, sub], i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', paddingBottom: i < 3 ? 8 : 0 }}>
+                <div style={{
+                  flex: '0 0 auto', width: 17, height: 17, borderRadius: '50%', marginTop: 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9.5, fontWeight: 700,
+                  background: i === 0 ? brand.ink : brand.border, color: i === 0 ? '#fff' : brand.muted,
+                }}>{i + 1}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: i === 0 ? 700 : 500, color: i === 0 ? brand.ink : brand.muted }}>{title}</div>
+                  <div style={{ fontSize: 11, color: brand.muted, lineHeight: 1.45 }}>{sub}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10, textAlign: 'start' }}>
+            {['שם פרטי', 'שם משפחה'].map(l => (
+              <div key={l} style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: brand.muted, marginBottom: 4 }}>{l}</div>
+                <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: '11px 13px', fontSize: 13, color: '#bbb', background: brand.cardBg }}>—</div>
+              </div>
+            ))}
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22, textAlign: 'start' }}>
-            {['מספר תעודת זהות', 'תאריך הנפקת התעודה'].map(l => (
+            {['תעודת זהות', 'תאריך לידה'].map(l => (
               <div key={l}>
                 <div style={{ fontSize: 12, color: brand.muted, marginBottom: 4 }}>{l}</div>
                 <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: '11px 13px', fontSize: 13, color: '#bbb', background: brand.cardBg }}>—</div>
@@ -58,7 +97,9 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
           <div style={{ marginTop: 14, textAlign: 'center', fontSize: 11, color: brand.muted }}>מאובטח · פחות מדקה</div>
         </div>
       </div>
-      <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11.5, color: brand.muted }}>תצוגה מקדימה — כך הלקוח יראה את עמוד ההזדהות</div>
+      <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11.5, color: brand.muted }}>
+        תצוגה מקדימה — המסך הראשון מתוך שלושה שהלקוח ממלא
+      </div>
     </div>
   );
 }

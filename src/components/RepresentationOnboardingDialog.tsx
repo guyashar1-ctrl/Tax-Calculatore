@@ -12,10 +12,11 @@ import {
   FAMILY_STATUS_YEAR_LABELS,
   OnboardingPrefill,
 } from '../types';
+import { isValidIsraeliId } from '../utils/israeliId';
 
 interface CreateResult { link: string; emailSent: boolean; emailError?: string; }
 
-interface SpouseInput { name: string; email: string; }
+interface SpouseInput { name: string; email: string; idNumber?: string; }
 
 export interface CreateRepresentationInput {
   name: string;
@@ -56,12 +57,15 @@ const CURRENT_YEAR = new Date().getFullYear();
 export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict, initialName, initialEmail }: Props) {
   const [name, setName] = useState(initialName ?? '');
   const [email, setEmail] = useState(initialEmail ?? '');
+  // הגעה עם מייל ידוע (הפיכת ליד ללקוח) ⇒ שליחה במייל היא ברירת המחדל ההגיונית
+  const [sendBy, setSendBy] = useState<'link' | 'email'>(initialEmail ? 'email' : 'link');
   // נפתח מראש רק כשהגענו לכאן עם פרטים ידועים (הפיכת ליד ללקוח)
-  const [showDetails, setShowDetails] = useState(!!(initialName || initialEmail));
+  const [showDetails, setShowDetails] = useState(!!initialName);
   // '' = לא נבחר ⇒ הלקוח יישאל בטופס
   const [familyStatus, setFamilyStatus] = useState<FamilyStatus | ''>('');
   const [familyYear, setFamilyYear] = useState('');
   const [spouseName, setSpouseName] = useState('');
+  const [spouseIdNumber, setSpouseIdNumber] = useState('');
   const [spouseEmail, setSpouseEmail] = useState('');
   const [sameSigningEmail, setSameSigningEmail] = useState(false);
   const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>({
@@ -90,12 +94,16 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
 
   function validate(): string | null {
     if (selectedKeys.length === 0) return 'יש לבחור לפחות רשות אחת לייצוג';
-    // שם ומייל אינם חובה — הלקוח ימלא אותם בקישור. אבל אם הוזן מייל, שיהיה תקין.
+    // בשליחה במייל הכתובת היא תנאי; בקישור אין צורך בה כלל — הלקוח ימלא בעצמו.
+    if (sendBy === 'email' && !email.trim()) return 'יש להזין כתובת מייל, או לעבור לשליחה בקישור';
     if (email.trim() && !isValidEmail(email)) return 'כתובת אימייל לא תקינה';
     if (emailConflict) return emailConflict;
     if (yearLabel && familyYear.trim()) {
       const y = Number(familyYear);
       if (!Number.isInteger(y) || y < 1900 || y > CURRENT_YEAR) return `${yearLabel} — יש להזין שנה תקינה`;
+    }
+    if (married && spouseIdNumber.trim() && !isValidIsraeliId(spouseIdNumber)) {
+      return 'תעודת הזהות של בן/בת הזוג אינה תקינה';
     }
     if (married && spouseEmail.trim() && !isValidEmail(spouseEmail)) return 'כתובת אימייל של בן/בת הזוג לא תקינה';
     return null;
@@ -123,10 +131,16 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     if (email.trim()) prefill.email = email.trim();
     if (familyStatus) prefill.familyStatus = familyStatus;
     if (yearLabel && familyYear.trim()) prefill.familyStatusYear = Number(familyYear);
+    if (married && spouseName.trim()) prefill.spouseName = spouseName.trim();
+    if (married && spouseIdNumber.trim()) prefill.spouseIdNumber = spouseIdNumber.trim();
 
     // חותם שני נוצר רק אם ידוע שמו. אחרת — הלקוח יצהיר בטופס והחותם ייווצר אז.
     const spouse: SpouseInput | null = married && spouseName.trim()
-      ? { name: spouseName.trim(), email: (sameSigningEmail ? email : spouseEmail).trim() }
+      ? {
+          name: spouseName.trim(),
+          email: (sameSigningEmail ? email : spouseEmail).trim(),
+          idNumber: spouseIdNumber.trim() || undefined,
+        }
       : null;
 
     setBusy(true);
@@ -138,7 +152,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
         areas: built,
         spouse,
         prefill,
-        sendEmail: isValidEmail(email),
+        sendEmail: sendBy === 'email' && isValidEmail(email),
       });
       setResult(res);
     } catch (err) {
@@ -301,6 +315,58 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             })}
           </div>
 
+          {/* איך הקישור מגיע ללקוח — הבחירה קובעת אם המייל נדרש */}
+          <label style={{ display: 'block', fontWeight: 600, fontSize: '.85rem', color: 'var(--gray-700)', margin: '1.25rem 0 .5rem' }}>
+            איך לשלוח ללקוח?
+          </label>
+          <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap' }}>
+            {([
+              { key: 'link' as const, icon: '\u{1F517}', title: 'קישור לשליחה', sub: 'וואטסאפ, SMS או העתקה — בלי מייל' },
+              { key: 'email' as const, icon: '\u{1F4E7}', title: 'שליחה במייל', sub: 'המערכת שולחת אוטומטית ללקוח' },
+            ]).map(opt => {
+              const sel = sendBy === opt.key;
+              return (
+                <div
+                  key={opt.key}
+                  onClick={() => !busy && setSendBy(opt.key)}
+                  style={{
+                    flex: '1 1 200px', padding: '.7rem .8rem', cursor: busy ? 'default' : 'pointer',
+                    border: `1px solid ${sel ? 'var(--blue)' : 'var(--gray-200)'}`,
+                    background: sel ? 'var(--blue-light)' : 'var(--card)',
+                    borderRadius: 'var(--radius)',
+                  }}
+                >
+                  <div style={{ fontSize: '.92rem', fontWeight: sel ? 700 : 500 }}>{opt.icon} {opt.title}</div>
+                  <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: 2 }}>{opt.sub}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {sendBy === 'email' && (
+            <div className="form-group" style={{ marginTop: '.75rem' }}>
+              <label className="required">אימייל הלקוח</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="client@example.com"
+                dir="ltr"
+                disabled={busy}
+                autoFocus
+                style={emailConflict ? { borderColor: 'var(--red)' } : undefined}
+              />
+              {emailConflict && (
+                <div style={{ marginTop: '.4rem', fontSize: '.8rem', color: 'var(--red)', lineHeight: 1.5 }}>
+                  {'⛔'} {emailConflict}
+                </div>
+              )}
+              <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.35rem' }}>
+                הקישור יוצג גם כאן בסוף, כדי שתוכל לשלוח אותו גם בוואטסאפ.
+              </div>
+            </div>
+          )}
+
           {/* כל השאר אופציונלי — מה שלא ימולא כאן, הלקוח ימלא בקישור */}
           <button
             type="button"
@@ -317,34 +383,15 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
 
           {showDetails && (
             <div style={{ marginTop: '.9rem', padding: '.85rem .9rem', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', background: 'var(--gray-50)' }}>
-              <div className="form-grid form-grid-2">
-                <div className="form-group">
-                  <label>שם הלקוח</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="שם פרטי ושם משפחה"
-                    disabled={busy}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>אימייל</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="אם תמלא — יישלח גם מייל"
-                    dir="ltr"
-                    disabled={busy}
-                    style={emailConflict ? { borderColor: 'var(--red)' } : undefined}
-                  />
-                  {emailConflict && (
-                    <div style={{ marginTop: '.4rem', fontSize: '.8rem', color: 'var(--red)', lineHeight: 1.5 }}>
-                      {'⛔'} {emailConflict}
-                    </div>
-                  )}
-                </div>
+              <div className="form-group">
+                <label>שם הלקוח</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="שם פרטי ושם משפחה"
+                  disabled={busy}
+                />
               </div>
 
               <div className="form-group" style={{ marginTop: '.5rem' }}>
@@ -379,12 +426,27 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
 
               {married && (
                 <div style={{ marginTop: '.75rem', paddingTop: '.75rem', borderTop: '1px solid var(--gray-200)' }}>
-                  <div className="form-group">
-                    <label>שם בן/בת הזוג</label>
-                    <input type="text" value={spouseName} onChange={e => setSpouseName(e.target.value)} placeholder="שם פרטי ושם משפחה" disabled={busy} />
-                    <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.35rem' }}>
-                      נשוי/אה {'←'} שני בני הזוג חותמים על ייפוי הכוח.
+                  <div className="form-grid form-grid-2">
+                    <div className="form-group">
+                      <label>שם בן/בת הזוג</label>
+                      <input type="text" value={spouseName} onChange={e => setSpouseName(e.target.value)} placeholder="שם פרטי ושם משפחה" disabled={busy} />
                     </div>
+                    <div className="form-group">
+                      <label>ת.ז. בן/בת הזוג</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={9}
+                        dir="ltr"
+                        value={spouseIdNumber}
+                        onChange={e => setSpouseIdNumber(e.target.value.replace(/\D/g, ''))}
+                        placeholder="9 ספרות"
+                        disabled={busy}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginBottom: '.5rem' }}>
+                    נשוי/אה {'←'} שני בני הזוג חותמים על ייפוי הכוח. מה שלא תמלא — הלקוח ימלא בקישור.
                   </div>
 
                   {spouseName.trim() && (
@@ -416,7 +478,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             color: 'var(--gray-700)',
           }}>
             <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>{'✨'} מה ייווצר</div>
-            <div>{'✓'} קישור אישי לשליחה בוואטסאפ</div>
+            <div>{'✓'} קישור אישי {sendBy === 'email' ? '— וגם יישלח במייל אוטומטית' : 'לשליחה בוואטסאפ'}</div>
             <div>{'✓'} כרטיס לקוח {name.trim() ? `— ${name.trim()}` : '— יקבל שם כשהלקוח ימלא'}</div>
             <div>
               {'✓'} {selectedKeys.length > 0
@@ -424,7 +486,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                 : 'בחר רשויות כדי ליצור סטטוסי ייצוג'}
             </div>
             <div>{'✓'} משימה פנימית למעקב</div>
-            {isValidEmail(email) && <div>{'✓'} מייל אוטומטי ללקוח, בנוסף לקישור</div>}
+            {married && spouseName.trim() && <div>{'✓'} חותם שני — {spouseName.trim()}</div>}
           </div>
 
           {error && (

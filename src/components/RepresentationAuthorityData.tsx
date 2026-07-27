@@ -100,13 +100,19 @@ export default function RepresentationAuthorityData({ request }: { request: Repr
   const id = request.identification;
   if (!id) return null;
 
+  // מה שהרו"ח מילא בהפקת הקישור משלים את מה שהלקוח לא מילא — אחרת ת.ז. של
+  // בן/בת זוג שהוזנה מראש לא הייתה מגיעה לכאן בכלל.
+  const pre = request.prefill || {};
+
   // בקשות מלפני הטופס המלא שמרו שם מלא אחד בלבד; מפצלים כדי שיהיה מה להעתיק.
   const nameParts = (request.clientName || '').trim().split(/\s+/).filter(Boolean);
-  const firstName = id.firstName || nameParts[0] || '';
-  const lastName = id.lastName || nameParts.slice(1).join(' ') || '';
+  const firstName = id.firstName || pre.firstName || nameParts[0] || '';
+  const lastName = id.lastName || pre.lastName || nameParts.slice(1).join(' ') || '';
 
-  const familyLabel = id.familyStatus ? FAMILY_STATUS_LABELS[id.familyStatus] : '';
-  const yearLabel = id.familyStatus ? FAMILY_STATUS_YEAR_LABELS[id.familyStatus] : undefined;
+  const familyStatus = id.familyStatus || pre.familyStatus;
+  const familyLabel = familyStatus ? FAMILY_STATUS_LABELS[familyStatus] : '';
+  const yearLabel = familyStatus ? FAMILY_STATUS_YEAR_LABELS[familyStatus] : undefined;
+  const familyYear = id.familyStatusYear || pre.familyStatusYear;
 
   const incomeTaxRows: Row[] = [
     { label: 'שם פרטי', value: firstName },
@@ -114,7 +120,7 @@ export default function RepresentationAuthorityData({ request }: { request: Repr
     { label: 'תעודת זהות', value: id.idNumber || '' },
     { label: 'תאריך לידה', value: id.birthDate || '' },
     { label: 'טלפון', value: id.phone || '' },
-    { label: 'דוא"ל', value: id.email || request.clientEmail || '' },
+    { label: 'דוא"ל', value: id.email || pre.email || request.clientEmail || '' },
     { label: 'עיר', value: id.city || '' },
     { label: 'כתובת', value: id.address || '' },
     {
@@ -124,11 +130,11 @@ export default function RepresentationAuthorityData({ request }: { request: Repr
     { label: 'מצב משפחתי', value: familyLabel },
   ];
   if (yearLabel) {
-    incomeTaxRows.push({ label: yearLabel, value: id.familyStatusYear ? String(id.familyStatusYear) : '' });
+    incomeTaxRows.push({ label: yearLabel, value: familyYear ? String(familyYear) : '' });
   }
-  if (id.familyStatus === 'married') {
-    incomeTaxRows.push({ label: 'שם בן/בת הזוג', value: id.spouseName || '' });
-    incomeTaxRows.push({ label: 'ת.ז. בן/בת הזוג', value: id.spouseIdNumber || '' });
+  if (familyStatus === 'married') {
+    incomeTaxRows.push({ label: 'שם בן/בת הזוג', value: id.spouseName || pre.spouseName || '' });
+    incomeTaxRows.push({ label: 'ת.ז. בן/בת הזוג', value: id.spouseIdNumber || pre.spouseIdNumber || '' });
   }
 
   // סדר השדות זהה לטופס "הוספת ייפוי כח מבוטח" באתר ביטוח לאומי, כדי שאפשר

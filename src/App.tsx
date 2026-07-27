@@ -490,6 +490,7 @@ export default function App() {
       ...(prefill.familyStatusYear && prefill.familyStatus === 'divorced' ? { divorceYear: prefill.familyStatusYear } : {}),
       ...(prefill.familyStatusYear && prefill.familyStatus === 'widowed'  ? { widowhoodYear: prefill.familyStatusYear } : {}),
       ...(spouse ? { spouseName: spouse.name } : {}),
+      ...(spouse?.idNumber ? { spouseIdNumber: spouse.idNumber } : {}),
       notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין להשלמת התהליך.',
     });
     await addClient(client);

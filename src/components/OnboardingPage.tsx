@@ -14,6 +14,7 @@ import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import SignaturePad from './SignaturePad';
 import PublicIntake from './PublicIntake';
+import { isValidIsraeliId } from '../utils/israeliId';
 
 interface Props {
   token: string;
@@ -41,21 +42,6 @@ const SECONDARY_ORDER: OnboardingSecondaryType[] = ['parentId', 'driverLicense',
 const FAMILY_ORDER: FamilyStatus[] = ['single', 'married', 'divorced', 'widowed', 'singleParent'];
 
 const CURRENT_YEAR = new Date().getFullYear();
-
-/**
- * ספרת ביקורת של ת.ז. ישראלית. תופס שגיאות הקלדה לפני שהמספר מגיע לרשויות —
- * שם תיקון דורש הגשה מחדש של כל בקשת הייצוג.
- */
-function isValidIsraeliId(id: string): boolean {
-  const digits = id.padStart(9, '0');
-  if (!/^\d{9}$/.test(digits)) return false;
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    const step = Number(digits[i]) * ((i % 2) + 1);
-    sum += step > 9 ? step - 9 : step;
-  }
-  return sum % 10 === 0;
-}
 
 export default function OnboardingPage({ token }: Props) {
   const [phase, setPhase] = useState<Phase>('loading');
@@ -116,6 +102,8 @@ export default function OnboardingPage({ token }: Props) {
       if (prefill.email) setEmail(prefill.email);
       if (prefill.familyStatus) setFamilyStatus(prefill.familyStatus);
       if (prefill.familyStatusYear) setFamilyYear(String(prefill.familyStatusYear));
+      if (prefill.spouseName) setSpouseName(prefill.spouseName);
+      if (prefill.spouseIdNumber) setSpouseIdNumber(prefill.spouseIdNumber);
       // בזרימת החתימה החדשה (יש הגדרת PDF) — החתימה נעשית בקישור האישי, לא כאן.
       if (st === 'pending_signature' && row.has_setup) setPhase('signLinkSent');
       else if (st === 'pending_signature' && !row.already_signed) setPhase('sign');

@@ -855,6 +855,8 @@ export interface OnboardingPrefill {
   email?: string;
   familyStatus?: FamilyStatus;
   familyStatusYear?: number;
+  spouseName?: string;
+  spouseIdNumber?: string;
 }
 
 export type OnboardingSecondaryType = 'parentId' | 'driverLicense' | 'passport';
