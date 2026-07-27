@@ -13,7 +13,6 @@ import {
 import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import SignaturePad from './SignaturePad';
-import PublicIntake from './PublicIntake';
 import { isValidIsraeliId } from '../utils/israeliId';
 
 interface Props {
@@ -35,7 +34,9 @@ interface OnboardingInfo {
   niIncluded: boolean;
 }
 
-type Phase = 'loading' | 'invalid' | 'form' | 'done' | 'already' | 'sign' | 'signed' | 'signLinkSent' | 'intake' | 'intakeDone';
+// הקישור הזה מסיים בבקשת הייצוג בלבד. שאלון ההיכרות נשלח בנפרד מכרטיס הלקוח
+// (קישור ?intake=) ואינו נגרר אוטומטית אחרי ההזדהות.
+type Phase = 'loading' | 'invalid' | 'form' | 'submitted' | 'sign' | 'signed' | 'signLinkSent';
 
 const SECONDARY_ORDER: OnboardingSecondaryType[] = ['parentId', 'driverLicense', 'passport'];
 
@@ -107,14 +108,9 @@ export default function OnboardingPage({ token }: Props) {
       // בזרימת החתימה החדשה (יש הגדרת PDF) — החתימה נעשית בקישור האישי, לא כאן.
       if (st === 'pending_signature' && row.has_setup) setPhase('signLinkSent');
       else if (st === 'pending_signature' && !row.already_signed) setPhase('sign');
+      // הפרטים כבר נמסרו — מציגים את מסך הסיום, כולל התזכורת על המייל הבא.
       else if (row.already_submitted || row.already_signed || ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(st)) {
-        // הזיהוי הושלם — אם שאלון ההיכרות עוד לא הסתיים, ממשיכים אליו באותו קישור
-        const { data: intake } = await supabase.rpc('get_intake', { p_token: token });
-        if (cancelled) return;
-        const irow = Array.isArray(intake) ? intake[0] : intake;
-        const intakeDone = irow?.session_status && irow.session_status !== 'in_progress';
-        if (intakeDone) setPhase(row.already_signed ? 'signed' : 'already');
-        else setPhase('intake');
+        setPhase(row.already_signed ? 'signed' : 'submitted');
       }
       else setPhase('form');
     })();
@@ -215,9 +211,9 @@ export default function OnboardingPage({ token }: Props) {
       setBusy(false);
       return;
     }
-    // הזיהוי הושלם — ממשיכים ישר לשאלון ההיכרות, בלי קישור נוסף
+    // בקשת הייצוג הושלמה. השאלון אינו חלק מהקישור הזה.
     setBusy(false);
-    setPhase('intake');
+    setPhase('submitted');
   }
 
   async function handleSubmitSignature() {
@@ -279,38 +275,7 @@ export default function OnboardingPage({ token }: Props) {
     );
   }
 
-  if (phase === 'already') {
-    return (
-      <div style={page}>
-        <div style={card}>
-          <Header />
-          <div style={{ textAlign: 'center', padding: '8px 0' }}>
-            <div style={{ width: 42, height: 42, borderRadius: '50%', background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#fff', fontSize: 22 }}>✓</div>
-            <div style={{ fontSize: 18, fontWeight: 500, color: '#111', marginBottom: 5 }}>הפרטים כבר התקבלו</div>
-            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>תודה{greetName ? `, ${greetName}` : ''}. כבר קיבלנו את פרטי ההזדהות שלכם. אפשר לסגור את החלון.</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (phase === 'intake') {
-    return (
-      <div style={page}>
-        <div style={{ ...card, width: 560 }}>
-          <Header />
-          <PublicIntake
-            token={token}
-            firstName={firstName}
-            ink={ink}
-            onDone={() => setPhase('intakeDone')}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (phase === 'intakeDone') {
+  if (phase === 'submitted') {
     return (
       <div style={page}>
         <div style={{ ...card, width: 520 }}>
@@ -347,21 +312,6 @@ export default function OnboardingPage({ token }: Props) {
           <ProcessMap current={3} />
 
           <div style={{ textAlign: 'center', fontSize: 12, color: '#9A9A95' }}>אפשר לסגור את החלון.</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (phase === 'done') {
-    return (
-      <div style={page}>
-        <div style={card}>
-          <Header />
-          <div style={{ textAlign: 'center', padding: '8px 0' }}>
-            <div style={{ width: 42, height: 42, borderRadius: '50%', background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#fff', fontSize: 22 }}>✓</div>
-            <div style={{ fontSize: 18, fontWeight: 500, color: '#111', marginBottom: 5 }}>תודה{greetName ? `, ${greetName}` : ''}. קיבלנו את הפרטים.</div>
-            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>{info?.firmName} יכין את בקשת הייצוג ויחזור אליכם בהקדם. אפשר לסגור את החלון.</div>
-          </div>
         </div>
       </div>
     );
