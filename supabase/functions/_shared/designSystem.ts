@@ -338,15 +338,16 @@ export function emailHeaderRow(brand: ResolvedBrand, tag?: string): string {
     : `<span style="color:#ffffff;font-family:${f};font-size:17px;font-weight:600;">${esc(brand.firmName)}</span>`;
   const tagHtml = tag ? `<span style="font-family:${f};font-size:11.5px;color:${brand.muted};">${esc(tag)}</span>` : '';
 
+  // dir על כל td — ג'ימייל מסיר את <html>/<body> ואיתם את כיוון ברירת המחדל.
   if (brand.headerStyle === 'band') {
-    return `<tr><td style="background:${brand.ink};padding:22px 40px;">`
-      + `<table role="presentation" width="100%"><tr><td>${markDark}</td>`
+    return `<tr><td dir="rtl" style="background:${brand.ink};padding:22px 40px;">`
+      + `<table dir="rtl" role="presentation" width="100%"><tr><td align="right">${markDark}</td>`
       + `<td align="left" style="font-family:${f};font-size:11.5px;color:rgba(255,255,255,.65);">${tag ? esc(tag) : ''}</td></tr></table></td></tr>`;
   }
   if (brand.headerStyle === 'centered') {
-    return `<tr><td align="center" style="padding:30px 40px 6px;border-bottom:1px solid ${brand.border};">${mark}${tag ? `<div style="padding-top:8px;">${tagHtml}</div>` : ''}</td></tr>`;
+    return `<tr><td dir="rtl" align="center" style="padding:30px 40px 6px;border-bottom:1px solid ${brand.border};">${mark}${tag ? `<div style="padding-top:8px;">${tagHtml}</div>` : ''}</td></tr>`;
   }
-  return `<tr><td style="padding:30px 40px 0;"><table role="presentation" width="100%"><tr><td>${mark}</td><td align="left">${tagHtml}</td></tr></table></td></tr>`;
+  return `<tr><td dir="rtl" style="padding:30px 40px 0;"><table dir="rtl" role="presentation" width="100%"><tr><td align="right">${mark}</td><td align="left">${tagHtml}</td></tr></table></td></tr>`;
 }
 
 /** כפתור CTA לפי סגנון */
@@ -380,7 +381,7 @@ export function buildBrandedEmail(brand: ResolvedBrand, c: BrandedEmailContent):
   const f = emailFont(brand);
   const rad = brand.radius;
   const cta = c.ctaLabel && c.ctaHref
-    ? `<tr><td style="padding:8px 40px 8px;">${emailButton(brand, c.ctaLabel, c.ctaHref, c.ctaArrow)}`
+    ? `<tr><td dir="rtl" style="padding:8px 40px 8px;">${emailButton(brand, c.ctaLabel, c.ctaHref, c.ctaArrow)}`
       + (c.footerNote ? `<div style="text-align:center;padding-top:10px;font-family:${f};font-size:12px;color:${brand.muted};">${esc(c.footerNote)}</div>` : '')
       + (c.showLinkFallback ? `<div dir="ltr" style="text-align:center;padding-top:6px;font-family:${f};font-size:11px;color:${brand.muted};word-break:break-all;">${esc(c.ctaHref)}</div>` : '')
       + `</td></tr>`
@@ -388,22 +389,28 @@ export function buildBrandedEmail(brand: ResolvedBrand, c: BrandedEmailContent):
   const sig = (c.signature ?? brand.emailSignature ?? '').trim() || `בברכה,\n${brand.firmName}`;
   const contactLine = [brand.phone, brand.email].filter(Boolean).map(v => esc(v as string)).join(' · ');
 
+  // ‼ ג'ימייל (וחלק מהלקוחות האחרים) מסירים את <html> ו-<body> ומרנדרים רק את
+  // התוכן שבפנים — ולכן dir="rtl" שיושב עליהם נמחק והמייל נופל ל-LTR. הכיוון
+  // והיישור חייבים לשבת על האלמנטים עצמם, בכל td שמכיל טקסט עברי.
+  const rtl = 'dir="rtl"';
+  const rtlText = 'text-align:right;';
+
   return `<!DOCTYPE html>
 <html dir="rtl" lang="he"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
 <body style="margin:0;padding:0;background:${brand.pageBg};font-family:${f};color:${brand.ink};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${brand.pageBg};padding:24px 0;"><tr><td align="center">
-    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${brand.cardBg};border:1px solid ${brand.border};border-radius:${rad + 4}px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.06);">
+  <table ${rtl} role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${brand.pageBg};padding:24px 0;"><tr><td align="center">
+    <table ${rtl} role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${brand.cardBg};border:1px solid ${brand.border};border-radius:${rad + 4}px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.06);">
       ${emailHeaderRow(brand, c.tag)}
-      <tr><td style="padding:${brand.headerStyle === 'minimal' ? '22' : '26'}px 40px 6px;">
-        <div style="font-family:${f};font-size:24px;font-weight:700;letter-spacing:-.02em;color:${brand.ink};">${esc(c.heading)}</div>
-        <div style="font-family:${f};font-size:15px;color:${brand.muted};line-height:1.7;padding-top:9px;">${c.bodyHtml}</div>
+      <tr><td ${rtl} align="right" style="${rtlText}padding:${brand.headerStyle === 'minimal' ? '22' : '26'}px 40px 6px;">
+        <div style="font-family:${f};${rtlText}font-size:24px;font-weight:700;letter-spacing:-.02em;color:${brand.ink};">${esc(c.heading)}</div>
+        <div style="font-family:${f};${rtlText}font-size:15px;color:${brand.muted};line-height:1.7;padding-top:9px;">${c.bodyHtml}</div>
       </td></tr>
       ${c.extraHtml ?? ''}
       ${cta}
       ${c.afterCtaHtml ?? ''}
-      <tr><td style="padding:20px 40px 32px;border-top:1px solid ${brand.border};">
-        <div style="font-family:${f};font-size:13px;color:${brand.muted};line-height:1.7;white-space:pre-line;">${esc(sig)}</div>
-        ${contactLine ? `<div style="font-family:${f};font-size:12px;color:${brand.muted};padding-top:8px;">${contactLine}</div>` : ''}
+      <tr><td ${rtl} align="right" style="${rtlText}padding:20px 40px 32px;border-top:1px solid ${brand.border};">
+        <div style="font-family:${f};${rtlText}font-size:13px;color:${brand.muted};line-height:1.7;white-space:pre-line;">${esc(sig)}</div>
+        ${contactLine ? `<div style="font-family:${f};${rtlText}font-size:12px;color:${brand.muted};padding-top:8px;">${contactLine}</div>` : ''}
       </td></tr>
     </table>
     ${c.footerTagline ? `<div style="font-family:${f};font-size:11px;color:${brand.muted};text-align:center;margin-top:14px;">${esc(c.footerTagline)}</div>` : ''}

@@ -140,29 +140,29 @@ Deno.serve(async (req: Request) => {
     const niBlock = (ni: any, withHeading: boolean): string => {
       const f = "Arial, sans-serif";
       const deadlineRow = ni.deadline
-        ? `<div style="font-family:${f};font-size:13px;color:${brand.muted};padding-top:6px;">המועד האחרון לאישור: <strong style="color:${brand.ink};">${esc(new Date(ni.deadline).toLocaleDateString("he-IL"))}</strong></div>`
+        ? `<div style="font-family:${f};text-align:right;font-size:13px;color:${brand.muted};padding-top:6px;">המועד האחרון לאישור: <strong style="color:${brand.ink};">${esc(new Date(ni.deadline).toLocaleDateString("he-IL"))}</strong></div>`
         : "";
       const heading = withHeading
         ? `<div style="border-top:1px solid ${brand.border};margin-top:24px;padding-top:20px;"></div>
-           <div style="font-family:${f};font-size:12px;letter-spacing:.06em;color:${brand.muted};">פעולה שנייה</div>
-           <div style="font-family:${f};font-size:19px;font-weight:700;color:${brand.ink};padding:4px 0 6px;">אישור ייפוי הכוח בביטוח הלאומי</div>
-           <div style="font-family:${f};font-size:13.5px;color:${brand.muted};line-height:1.7;padding-bottom:14px;">
+           <div style="font-family:${f};text-align:right;font-size:12px;letter-spacing:.06em;color:${brand.muted};">פעולה שנייה</div>
+           <div style="font-family:${f};text-align:right;font-size:19px;font-weight:700;color:${brand.ink};padding:4px 0 6px;">אישור ייפוי הכוח בביטוח הלאומי</div>
+           <div style="font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.7;padding-bottom:14px;">
              הזנו עבורכם את ייפוי הכוח באתר הביטוח הלאומי. הביטוח הלאומי דורש שאתם תאשרו אותו בעצמכם — עד שלא תאשרו, הייצוג בביטוח הלאומי אינו בתוקף.
            </div>`
         : "";
-      return `<tr><td style="padding:6px 40px 0;">
+      return `<tr><td dir="rtl" align="right" style="text-align:right;padding:6px 40px 0;">
         ${heading}
         <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:16px 18px;background:${brand.pageBg};">
-          <div style="font-family:${f};font-size:12px;color:${brand.muted};">מספר האסמכתא שלכם</div>
-          <div dir="ltr" style="font-family:${f};font-size:26px;font-weight:700;letter-spacing:.04em;color:${brand.ink};padding-top:2px;text-align:right;">${esc(String(ni.referenceNumber))}</div>
+          <div style="font-family:${f};text-align:right;font-size:12px;color:${brand.muted};">מספר האסמכתא שלכם</div>
+          <div dir="ltr" style="font-family:${f};text-align:right;font-size:26px;font-weight:700;letter-spacing:.04em;color:${brand.ink};padding-top:2px;text-align:right;">${esc(String(ni.referenceNumber))}</div>
           ${deadlineRow}
         </div>
-        <div style="font-family:${f};font-size:14px;font-weight:700;color:${brand.ink};padding:18px 0 6px;">אפשרות 1 — באתר הביטוח הלאומי</div>
-        <div style="font-family:${f};font-size:13.5px;color:${brand.muted};line-height:1.8;">
+        <div style="font-family:${f};text-align:right;font-size:14px;font-weight:700;color:${brand.ink};padding:18px 0 6px;">אפשרות 1 — באתר הביטוח הלאומי</div>
+        <div style="font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.8;">
           נכנסים ל-<a href="${esc(NI_SITE)}" style="color:${brand.accent};">${esc(NI_SITE)}</a> ← בפעולות מקישים "אישור ייפוי כח למייצג" ← מקלידים את מספר תעודת הזהות ואת מספר האסמכתא שלמעלה ← מזדהים בכרטיס אשראי או בסיסמה לטלפון הנייד ← מאשרים במסך. הייצוג נכנס לתוקף מיד.
         </div>
-        <div style="font-family:${f};font-size:14px;font-weight:700;color:${brand.ink};padding:18px 0 6px;">אפשרות 2 — בטלפון</div>
-        <div style="font-family:${f};font-size:13.5px;color:${brand.muted};line-height:1.8;">
+        <div style="font-family:${f};text-align:right;font-size:14px;font-weight:700;color:${brand.ink};padding:18px 0 6px;">אפשרות 2 — בטלפון</div>
+        <div style="font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.8;">
           מתקשרים ל-<strong dir="ltr" style="color:${brand.ink};">${esc(NI_PHONE)}</strong> (מענה קולי) ומאשרים באמצעות מספר האסמכתא ובאמצעות קוד בן 6 ספרות שהביטוח הלאומי ישלח אליכם בדואר או במייל. מתאים למי שאין לו כרטיס אשראי או מייל מאומת בביטוח הלאומי.
         </div>
       </td></tr>`;
