@@ -686,12 +686,9 @@ export default function App() {
     if (linkedClient) {
       await updateClient({ ...linkedClient, representationStatus: 'pending_signature' });
     }
-    // קישור חתימה אישי לכל חותם (לא חוסם — הקישורים זמינים גם ידנית במסך)
-    for (const s of signers) {
-      try {
-        await supabase.functions.invoke('send-onboarding-email', { body: { requestId: req.id, stage: 'sign', signerId: s.id } });
-      } catch { /* ignore */ }
-    }
+    // ‼ בכוונה לא נשלח מייל כאן. הפקת הטופס והשליחה ללקוח הן שתי פעולות נפרדות:
+    // שליחה אוטומטית בשלב הזה יצאה לפני שהוזנה אסמכתת ב"ל, והלקוח קיבל מייל
+    // חלקי ואז עוד אחד מלא. השליחה נעשית מכפתור אחד מפורש במסך הבקשה.
   }
 
   /** נשמר ה-PDF הסופי (חתימות + חותמת צרובות) — עדיין בסטטוס awaiting_stamp עד "נשלח לשע"ם" */

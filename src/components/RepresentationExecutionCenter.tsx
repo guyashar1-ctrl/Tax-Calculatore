@@ -193,7 +193,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
     : { bg: 'var(--gray-50)', fg: 'var(--gray-600)', text: `נותרו ${dLeft} ימים לאישור` };
 
   return (
-    <div className="card" style={{ marginBottom: '1rem' }}>
+    <div id="rep-execution" className="card" style={{ marginBottom: '1rem' }}>
       <div className="card-header">
         <div className="card-title">🎯 ביצוע הייצוג מול הרשויות</div>
       </div>

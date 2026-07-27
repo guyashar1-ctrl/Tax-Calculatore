@@ -823,6 +823,11 @@ export interface OnboardingIdentification {
  * כל שדה תאריך = "בוצע ומתי". ריק = טרם בוצע.
  */
 export interface RepresentationExecution {
+  /**
+   * מתי יצא ללקוח מייל החתימה. פעולה מפורשת ונפרדת מהפקת הטופס, כדי שלא ייצא
+   * מייל לפני שהוזנה אסמכתת ב"ל — אחרת הלקוח מקבל מייל חלקי ואז עוד אחד מלא.
+   */
+  signatureEmailSentAt?: string;
   incomeTax?: {
     /** הפרטים הוזנו בשע"ם ונפתחה בקשת ייצוג */
     enteredAt?: string;

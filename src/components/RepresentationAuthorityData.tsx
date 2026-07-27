@@ -147,7 +147,7 @@ export default function RepresentationAuthorityData({ request }: { request: Repr
   ];
 
   return (
-    <div className="card" style={{ marginBottom: '1rem' }}>
+    <div id="rep-authority-data" className="card" style={{ marginBottom: '1rem' }}>
       <div className="card-header">
         <div className="card-title">📋 נתונים לביצוע הייצוג</div>
       </div>

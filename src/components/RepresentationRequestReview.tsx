@@ -7,8 +7,8 @@ import {
   AUTHORITY_LABELS,
   REPRESENTATION_STATUS_LABELS,
   REPRESENTATION_STATUS_BADGE,
-  ONBOARDING_SECONDARY_LABELS,
   RepresentationExecution,
+  RepSigner,
 } from '../types';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
@@ -19,6 +19,7 @@ import SignaturePad from './SignaturePad';
 import RepSignersStatus from './RepSignersStatus';
 import RepresentationAuthorityData from './RepresentationAuthorityData';
 import RepresentationExecutionCenter from './RepresentationExecutionCenter';
+import RepresentationNextStep from './RepresentationNextStep';
 import { isSpouseRequest, getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { SignatureSetup, SignatureValue } from '../types';
 import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
@@ -153,6 +154,20 @@ export default function RepresentationRequestReview({
       setSendingEmail(false);
     }
   }
+  /** מייל חתימה לחותם יחיד (כולל בלוק הב"ל אם יש אסמכתא). null = הצלחה. */
+  async function sendSignatureEmail(signer: RepSigner): Promise<string | null> {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-onboarding-email', {
+        body: { requestId: request.id, stage: 'sign', signerId: signer.id },
+      });
+      if (error) return error.message;
+      if (!data?.ok) return data?.detail?.message || data?.error || 'שליחה נכשלה';
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  }
+
   /** מייל הוראות אישור ייפוי הכוח בב"ל. מחזיר הודעת שגיאה בעברית, או null בהצלחה. */
   async function sendNiInstructions(): Promise<string | null> {
     try {
@@ -167,18 +182,11 @@ export default function RepresentationRequestReview({
     }
   }
 
-  const ident = request.identification;
   const onboardingSubmitted = request.onboardingStatus === 'submitted';
   const onboardingLink = request.onboardingToken
     ? `${window.location.origin}/?onboard=${request.onboardingToken}`
     : '';
-  const newFlowNote =
-    request.status === 'awaiting_accountant' ? 'מוכן — לחצו "הפק טופס ושלח לחתימה" למעלה.'
-    : request.status === 'pending_signature' ? 'הטופס נשלח ללקוח לחתימה.'
-    : request.status === 'awaiting_stamp' ? 'הלקוח חתם — חתמו והוסיפו חותמת (כפתור למעלה).'
-    : request.status === 'awaiting_authorities' ? 'נשלח לשע"מ, ממתין לאישור.'
-    : request.status === 'active' ? 'הלקוח מיוצג פעיל ✓'
-    : 'הפרטים נכתבו לכרטיס הלקוח.';
+  // הסבר השלב ומה לעשות בו עברו כולם ל-RepresentationNextStep.
 
   const fmt = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -403,6 +411,7 @@ export default function RepresentationRequestReview({
             {request.clientName || request.clientEmail} · נוצרה {new Date(request.createdAt).toLocaleDateString('he-IL')}
           </p>
         </div>
+        {/* הפעולה הראשית עברה לכרטיס "מה עכשיו"; כאן נשארו רק ניווט ופעולות נדירות */}
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={onBack}>← חזרה</button>
           {!isNewOnboarding && request.status === 'pending_fill' && (
@@ -415,34 +424,14 @@ export default function RepresentationRequestReview({
               ✍️ חתום ויצור ייפוי כוח חתום
             </button>
           )}
-          {isNewOnboarding && request.status === 'awaiting_accountant' && onboardingSubmitted && (
-            <button className="btn btn-green btn-lg" onClick={() => setShowProduceEditor(true)}>
-              📄 העלה טופס וסמן אזורי חתימה
-            </button>
-          )}
-          {request.status === 'awaiting_stamp' && setup && !request.signedPdfStoredId && (
-            <button className="btn btn-green btn-lg" onClick={() => void openStampRoom()}>
-              ✍️ חתום + הוסף חותמת
-            </button>
-          )}
-          {request.status === 'awaiting_stamp' && setup && request.signedPdfStoredId && (
-            <>
-              <button className="btn btn-secondary" onClick={() => void openStampRoom()} title="פתיחת חדר החתימה מחדש — מייצר PDF סופי חדש">
-                ↺ חתום מחדש
-              </button>
-              <button className="btn btn-green btn-lg" onClick={() => void onMarkSentToShaam(request)}>
-                📤 נשלח לשע"ם
-              </button>
-            </>
-          )}
           {isNewOnboarding && request.status === 'awaiting_stamp' && !setup && !signMode && (
             <button className="btn btn-green btn-lg" onClick={() => setSignMode(true)}>
               ✍️ חתום + הוסף חותמת
             </button>
           )}
-          {request.status === 'awaiting_authorities' && (
-            <button className="btn btn-green" onClick={() => onMarkActive(request)}>
-              ✓ סמן כמיוצג פעיל (אושר בשע"ם)
+          {request.status === 'awaiting_stamp' && setup && request.signedPdfStoredId && (
+            <button className="btn btn-secondary" onClick={() => void openStampRoom()} title="פתיחת חדר החתימה מחדש — מייצר PDF סופי חדש">
+              ↺ חתום מחדש
             </button>
           )}
           <button
@@ -453,6 +442,20 @@ export default function RepresentationRequestReview({
           >🗑️ מחק</button>
         </div>
       </div>
+
+      {isNewOnboarding && (
+        <RepresentationNextStep
+          request={request}
+          niIncluded={niIncluded}
+          onboardingLink={onboardingLink}
+          onProduce={() => setShowProduceEditor(true)}
+          onStamp={() => void openStampRoom()}
+          onMarkSentToShaam={() => void onMarkSentToShaam(request)}
+          onMarkActive={() => onMarkActive(request)}
+          onSendToSigner={sendSignatureEmail}
+          onSaveExecution={(execution) => onSaveExecution(request, execution)}
+        />
+      )}
 
       {/* סטטוס חתימות — נישום + בן/בת זוג */}
       {isSpouseRequest(request) && (
@@ -630,21 +633,8 @@ export default function RepresentationRequestReview({
       {isNewOnboarding ? (
         onboardingSubmitted ? (
           <>
-            {ident && (
-              <div className="card" style={{ marginBottom: '1rem' }}>
-                <div className="card-header"><div className="card-title">👤 פרטי הזדהות שהלקוח מילא</div></div>
-                <div className="card-body">
-                  <div className="form-grid form-grid-2">
-                    <Field label="תעודת זהות" value={ident.idNumber || ''} ltr />
-                    <Field label="תאריך לידה" value={ident.birthDate || ''} ltr />
-                    <Field label={ident.secondaryType ? ONBOARDING_SECONDARY_LABELS[ident.secondaryType] : 'מזהה משני'} value={ident.secondaryValue || ''} ltr />
-                    <Field label="נשלח בתאריך" value={request.onboardingSubmittedAt ? new Date(request.onboardingSubmittedAt).toLocaleString('he-IL') : ''} />
-                  </div>
-                  <div style={{ marginTop: '.75rem', fontSize: '.8rem', color: 'var(--gray-500)' }}>✓ {newFlowNote}</div>
-                </div>
-              </div>
-            )}
-
+            {/* אין כאן כרטיס "פרטי הזדהות" נפרד — אותם שדות בדיוק מוצגים בכרטיס
+                הנתונים שמתחת, שם הם גם ניתנים להעתקה. */}
             <RepresentationAuthorityData request={request} />
 
             <RepresentationExecutionCenter

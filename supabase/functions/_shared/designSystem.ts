@@ -330,12 +330,17 @@ export function emailHeaderRow(brand: ResolvedBrand, tag?: string): string {
     : `<table role="presentation" cellpadding="0" cellspacing="0" border="0" dir="rtl"><tr>`
       + `<td style="width:38px;height:38px;border:1.5px solid ${brand.ink};border-radius:50%;text-align:center;vertical-align:middle;color:${brand.ink};font-family:${f};font-size:15px;font-weight:600;">${esc(brand.monogram)}</td>`
       + `<td style="padding-right:10px;color:${brand.ink};font-family:${f};font-size:17px;font-weight:600;">${esc(brand.firmName)}</td></tr></table>`;
-  // ברצועה כהה משתמשים רק בלוגו שהוגדר במפורש לרקע כהה. באתר אפשר להלבין לוגו
-  // כהה עם filter:invert, אבל תוכנות מייל אינן תומכות ב-CSS filters — ולכן לוגו
-  // כהה היה נשלח כמות שהוא ונעלם לגמרי על הרצועה. שם המשרד בלבן תמיד קריא.
+  // ברצועה כהה: לוגו שיועד לרקע כהה מוצג כמו שהוא. אחרת — הלוגו הרגיל (כהה)
+  // היה נבלע ברקע, כי תוכנות מייל אינן תומכות ב-filter:invert שמלבין אותו באתר.
+  // הפתרון: מניחים אותו על ריבוע לבן. אוטומטי, בלי שצריך להעלות גרסה בהירה.
   const markDark = brandDarkLogo
     ? `<img src="${esc(brandDarkLogo)}" alt="${esc(brand.firmName)}" style="max-height:${hDark}px;max-width:${w}px;border:0;" />`
-    : `<span style="color:#ffffff;font-family:${f};font-size:17px;font-weight:600;">${esc(brand.firmName)}</span>`;
+    : emailLogo
+      ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>`
+        + `<td style="background:#ffffff;border-radius:${Math.max(brand.radius, 8)}px;padding:10px 14px;line-height:0;">`
+        + `<img src="${esc(emailLogo)}" alt="${esc(brand.firmName)}" style="max-height:${hDark}px;max-width:${w}px;border:0;display:block;" />`
+        + `</td></tr></table>`
+      : `<span style="color:#ffffff;font-family:${f};font-size:17px;font-weight:600;">${esc(brand.firmName)}</span>`;
   const tagHtml = tag ? `<span style="font-family:${f};font-size:11.5px;color:${brand.muted};">${esc(tag)}</span>` : '';
 
   // dir על כל td — ג'ימייל מסיר את <html>/<body> ואיתם את כיוון ברירת המחדל.
