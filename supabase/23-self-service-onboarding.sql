@@ -205,3 +205,9 @@ grant execute on function public.submit_onboarding_full(
 -- מתי נשלחו ההוראות ללקוח ומתי הוא אישר. ראה RepresentationExecution.
 alter table public.representation_requests
   add column if not exists execution jsonb not null default '{}'::jsonb;
+
+
+-- ─── (ה) שמירת גוף המייל שנשלח ─────────────────────────────────────────────
+-- בלי זה אין דרך לראות מה הלקוח קיבל: הטבלה שמרה רק מטא-דאטה, ומפתח ה-API של
+-- Resend מוגבל לשליחה ואינו מאפשר לשלוף תוכן בדיעבד.
+alter table public.email_messages add column if not exists html text;

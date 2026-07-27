@@ -26,6 +26,8 @@ export interface EmailMessage {
   clickedAt?: string;
   meta?: Record<string, unknown>;
   createdAt?: string;
+  /** גוף המייל כפי שנשלח. חסר במיילים שנשלחו לפני שהשמירה נוספה. */
+  html?: string;
 }
 
 export const EMAIL_STATUS_LABEL: Record<EmailStatus, string> = {

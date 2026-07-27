@@ -243,7 +243,9 @@ Deno.serve(async (req: Request) => {
     const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const body = await r.json();
 
-    const logBase = { user_id: user.id, client_id: logClientId, request_id: logRequestId, to_email: toEmail, subject: copy.subject, kind: stage };
+    // ה-HTML נשמר יחד עם הרשומה: מפתח ה-API של Resend מוגבל לשליחה, ולכן אין
+    // דרך לשלוף בדיעבד מה הלקוח קיבל אם לא נשמור עותק כאן.
+    const logBase = { user_id: user.id, client_id: logClientId, request_id: logRequestId, to_email: toEmail, subject: copy.subject, kind: stage, html };
     if (!r.ok) {
       await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
       return json({ error: "resend_failed", detail: body }, 502);
