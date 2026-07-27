@@ -2,6 +2,7 @@
 // למסך עליון מלא בלי שינוי: פשוט לרנדר <EmailActivityModule userId={...} /> במקום אחר.
 import { useMemo, useState } from 'react';
 import { useEmailMessages } from '../../hooks/useEmailMessages';
+import { supabase } from '../../lib/supabase';
 import { EmailMessage, EmailStatus, EMAIL_STATUS_LABEL, EMAIL_STATUS_STYLE } from '../../types/emailActivity';
 
 interface Props {
@@ -65,6 +66,33 @@ function SentEmailViewer({ message, onClose }: { message: EmailMessage; onClose:
 export default function EmailActivityModule({ userId, clientId }: Props) {
   const { messages, loading, error, reload } = useEmailMessages(userId);
   const [viewing, setViewing] = useState<EmailMessage | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillNote, setBackfillNote] = useState<{ ok: boolean; text: string } | null>(null);
+
+  /** מושך מ-Resend את גוף המיילים שנשלחו לפני שהמערכת התחילה לשמור עותק. */
+  async function handleBackfill() {
+    setBackfilling(true);
+    setBackfillNote(null);
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke('backfill-email-html', { body: { limit: 200 } });
+      if (fnErr || !data?.ok) {
+        const detail = data?.error === 'missing_read_key'
+          ? 'חסר מפתח קריאה של Resend בהגדרות השרת.'
+          : (data?.detail || data?.error || fnErr?.message || 'הפעולה נכשלה');
+        setBackfillNote({ ok: false, text: detail });
+        return;
+      }
+      const parts = [`שוחזרו ${data.filled} מיילים`];
+      if (data.remaining > 0) parts.push(`נותרו ${data.remaining} — אפשר להריץ שוב`);
+      if (data.failures?.length) parts.push(`${data.failures.length} לא נמצאו ב-Resend`);
+      setBackfillNote({ ok: true, text: parts.join(' · ') });
+      await reload();
+    } catch (e) {
+      setBackfillNote({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBackfilling(false);
+    }
+  }
 
   const rows = useMemo(
     () => (clientId ? messages.filter(m => m.clientId === clientId) : messages),
@@ -82,6 +110,9 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
       failed: rows.filter(isFailed).length,
     };
   }, [rows]);
+
+  // כמה מהמיילים ברשימה עדיין בלי עותק שמור
+  const missingHtml = useMemo(() => rows.filter(m => !m.html && m.resendId).length, [rows]);
 
   const stat = (label: string, val: number, color?: string) => (
     <div style={{ background: 'var(--gray-50, #F1EFE8)', borderRadius: 8, padding: '10px 14px', minWidth: 84 }}>
@@ -101,6 +132,25 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
       </div>
 
       {error && <div style={{ padding: '.6rem .8rem', background: 'var(--red-light)', color: 'var(--red)', borderRadius: 8, fontSize: '.85rem', marginBottom: 12 }}>{error}</div>}
+
+      {/* מיילים שנשלחו לפני שהמערכת התחילה לשמור עותק — ניתן למשוך אותם מ-Resend */}
+      {missingHtml > 0 && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '.6rem .8rem', background: 'var(--gray-50, #F1EFE8)', borderRadius: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 12.5, color: 'var(--gray-700)', flex: 1, minWidth: 200 }}>
+            ל-{missingHtml} מיילים ישנים אין עותק שמור. אפשר למשוך אותם מ-Resend.
+          </span>
+          <button className="btn btn-secondary btn-sm" onClick={handleBackfill} disabled={backfilling}>
+            {backfilling ? 'מושך…' : '⤓ שחזור תוכן'}
+          </button>
+        </div>
+      )}
+      {backfillNote && (
+        <div style={{ padding: '.55rem .8rem', borderRadius: 8, fontSize: '.85rem', marginBottom: 12,
+                      background: backfillNote.ok ? 'var(--green-light, #eaf6f1)' : 'var(--red-light)',
+                      color: backfillNote.ok ? 'var(--ok, #17845b)' : 'var(--red)' }}>
+          {backfillNote.ok ? '✓ ' : '⚠ '}{backfillNote.text}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         {stat('נשלחו', stats.total)}
