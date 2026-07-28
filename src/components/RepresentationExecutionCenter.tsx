@@ -14,6 +14,9 @@ import {
 } from '../types';
 import { useDocumentDB } from '../hooks/useIndexedDB';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
+import { useEmailMessages } from '../hooks/useEmailMessages';
+import EmailStatusRow from './EmailActivity/EmailStatusRow';
+import type { RepSigner } from '../types';
 
 interface Props {
   request: RepresentationRequest;
@@ -26,6 +29,12 @@ interface Props {
   onStamp: () => void;
   /** סימון שהטופס החתום הוגש בשע"ם. */
   onMarkSentToShaam: () => void;
+  /** סימון שהייצוג אושר בשע"ם. */
+  onMarkActive: () => void;
+  /** שולח מייל חתימה לחותם. null = הצלחה. */
+  onSendToSigner: (s: RepSigner) => Promise<string | null>;
+  /** בעל החשבון — לטעינת יומן המיילים של הבקשה. */
+  userId: string | undefined;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -103,7 +112,7 @@ function Track({ title, subtitle, done, total, tone, children }: {
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, onSaveExecution, onProduce, onStamp, onMarkSentToShaam }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId }: Props) {
   const db = useDocumentDB();
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
@@ -118,14 +127,55 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
 
   const status = request.status;
   const signers = getRequestSigners(request);
+  const pendingSigners = signers.filter(s => effectiveSignStatus(request, s) === 'pending');
   const signed = ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(status);
   const sentToShaam = ['awaiting_authorities', 'active'].includes(status);
   const formReady = !!request.signatureSetup || signed;
   // ה-PDF הסופי (חתימות + חותמת המשרד) נוצר ונשמר
   const stamped = !!request.signedPdfStoredId || sentToShaam;
-  // בקשת החתימה יצאה ללקוח (או שכבר עברנו את השלב הזה)
-  const signatureSent = status === 'pending_signature' || signed;
   const sentWithSignature = ni.instructionsSentWith === 'signature';
+  // בלי אסמכתא המייל ייצא בלי חלק הב"ל, והלקוח יזדקק למייל שני
+  const niRefMissing = niIncluded && !ni.referenceNumber;
+
+  // המיילים של הבקשה — מוצגים בתוך השלב שהם שייכים אליו
+  const { messages, reload: reloadEmails } = useEmailMessages(userId);
+  const signatureEmails = messages.filter(m => m.requestId === request.id && m.kind === 'sign');
+
+  /** שולח לכל החותמים שטרם חתמו, ומתעד שההוראות לב"ל יצאו עם אותו מייל. */
+  async function handleSendAll() {
+    setBusy('send');
+    setNote(null);
+    const failures: string[] = [];
+    for (const s of pendingSigners) {
+      const err = await onSendToSigner(s);
+      if (err) failures.push(`${s.name || s.email}: ${err}`);
+    }
+    if (failures.length > 0) {
+      setNote({ kind: 'err', text: failures.join(' · ') });
+      setBusy(null);
+      return;
+    }
+    const now = new Date().toISOString();
+    await onSaveExecution({
+      ...exec,
+      signatureEmailSentAt: now,
+      ...(niIncluded && ni.referenceNumber && !ni.instructionsSentAt
+        ? { nationalInsurance: { ...ni, instructionsSentAt: now, instructionsSentWith: 'signature' as const } }
+        : {}),
+    });
+    setNote({ kind: 'ok', text: `נשלח ל-${pendingSigners.map(s => s.email).join(', ')}` });
+    setBusy(null);
+    void reloadEmails();
+  }
+
+  /** תזכורת = אותו מייל שוב, לאותו חותם. בלי גרסה חלקית שתבלבל את הלקוח. */
+  async function handleRemind(m: { toEmail: string }) {
+    const signer = signers.find(s => s.email === m.toEmail) || signers[0];
+    if (!signer) return 'לא נמצא חותם לשליחה';
+    const err = await onSendToSigner(signer);
+    if (!err) void reloadEmails();
+    return err;
+  }
 
   async function patch(next: RepresentationExecution, label: string) {
     setBusy(label);
@@ -222,7 +272,29 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
             </Step>
 
             <Step n={3} title="נשלח לחתימת הלקוח" done={!!exec.signatureEmailSentAt}
-              hint={exec.signatureEmailSentAt ? `נשלח ב-${fmt(exec.signatureEmailSentAt)}` : 'בכפתור "שלח ללקוח" שבראש המסך'} />
+              hint={exec.signatureEmailSentAt ? undefined
+                : formReady ? (niIncluded
+                    ? 'מייל אחד: קישור לחתימה, ומתחתיו האסמכתא והוראות הביטוח הלאומי.'
+                    : 'מייל עם קישור אישי לחתימה לכל חותם.')
+                  : 'אפשרי אחרי הפקת הטופס'}>
+              {formReady && !exec.signatureEmailSentAt && (
+                <>
+                  <button className="btn btn-green btn-sm" disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0}
+                    onClick={handleSendAll}>
+                    {busy === 'send' ? 'שולח…' : `📧 שלח ללקוח${pendingSigners.length > 1 ? ` (${pendingSigners.length} חותמים)` : ''}`}
+                  </button>
+                  {niRefMissing && (
+                    <div style={{ marginTop: '.45rem', padding: '.45rem .6rem', background: 'var(--orange-light)', borderRadius: 'var(--radius)', fontSize: '.76rem', color: 'var(--gray-800)', lineHeight: 1.6 }}>
+                      ⚠ חסום עד להזנת מספר האסמכתא במשבצת הביטוח הלאומי — אחרת הלקוח יקבל מייל בלי חלק הב״ל.
+                    </div>
+                  )}
+                </>
+              )}
+              {/* המייל שיצא, עם מצב המסירה והפתיחה — צמוד לשלב שהוא שייך אליו */}
+              {signatureEmails.map(m => (
+                <EmailStatusRow key={m.id} message={m} onRemind={() => handleRemind(m)} onChanged={reloadEmails} />
+              ))}
+            </Step>
 
             <Step n={4} title="כל החותמים חתמו" done={signed}>
               {signers.length > 0 && !signed && (
@@ -253,7 +325,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
               )}
             </Step>
 
-            <Step n={7} title="הייצוג פעיל" done={status === 'active'} />
+            <Step n={7} title="הייצוג פעיל" done={status === 'active'}
+              hint={status === 'awaiting_authorities' ? 'כשהייצוג יאושר בשע״ם — סמנו כאן' : undefined}>
+              {status === 'awaiting_authorities' && (
+                <button className="btn btn-green btn-sm" onClick={onMarkActive}>✓ סמן כמיוצג פעיל</button>
+              )}
+            </Step>
           </Track>
 
           {/* ─────────── ביטוח לאומי ─────────── */}
@@ -320,17 +397,21 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
                 }>
                 {/* ‼ אין כאן כפתור שליחה. ההוראות תמיד יוצאות עם מייל החתימה —
                     שליחה נפרדת גורמת ללקוח לקבל שני מיילים על אותו תהליך. */}
-                {!sentWithSignature && !ni.instructionsSentAt && (
+                {!signatureEmails.length && (
                   <div style={{
                     fontSize: '.78rem', lineHeight: 1.6, padding: '.45rem .6rem', borderRadius: 'var(--radius)',
-                    background: signatureSent ? 'var(--orange-light)' : 'var(--gray-50)',
-                    color: signatureSent ? 'var(--gray-800)' : 'var(--gray-600)',
+                    background: 'var(--gray-50)', color: 'var(--gray-600)',
                   }}>
-                    {signatureSent
-                      ? '⚠ בקשת החתימה נשלחה לפני שהוזנה האסמכתא, ולכן הלקוח לא קיבל את חלק הביטוח הלאומי. שלחו שוב מהכפתור שבראש המסך — הפעם המייל יכלול את שתי הפעולות.'
-                      : 'ℹ האסמכתא נשמרה. כששולחים את הטופס לחתימה — היא נכללת באותו מייל.'}
+                    {ni.referenceNumber
+                      ? 'ℹ האסמכתא נשמרה. היא תיכלל במייל שנשלח מהמשבצת של מס הכנסה.'
+                      : `ℹ ההוראות נשלחות יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}.`}
                   </div>
                 )}
+                {/* אותו מייל בדיוק שמוצג במשבצת מס הכנסה — מצוין כדי שלא ייראה כשני מיילים */}
+                {signatureEmails.map(m => (
+                  <EmailStatusRow key={m.id} message={m} note="אותו מייל שנשלח לחתימה — הוא כולל את שתי הפעולות"
+                    onRemind={() => handleRemind(m)} onChanged={reloadEmails} />
+                ))}
               </Step>
 
               <Step n={4} title="הלקוח אישר — הייצוג בב״ל פעיל" done={!!ni.confirmedAt}

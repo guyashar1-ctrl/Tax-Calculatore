@@ -20,7 +20,6 @@ import RepSignersStatus from './RepSignersStatus';
 import RepresentationAuthorityData from './RepresentationAuthorityData';
 import RepresentationExecutionCenter from './RepresentationExecutionCenter';
 import RepresentationNextStep from './RepresentationNextStep';
-import RequestEmailTimeline from './EmailActivity/RequestEmailTimeline';
 import { isSpouseRequest, getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { SignatureSetup, SignatureValue } from '../types';
 import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
@@ -431,17 +430,7 @@ export default function RepresentationRequestReview({
       </div>
 
       {isNewOnboarding && (
-        <RepresentationNextStep
-          request={request}
-          niIncluded={niIncluded}
-          onboardingLink={onboardingLink}
-          onProduce={() => setShowProduceEditor(true)}
-          onStamp={() => void openStampRoom()}
-          onMarkSentToShaam={() => void onMarkSentToShaam(request)}
-          onMarkActive={() => onMarkActive(request)}
-          onSendToSigner={sendSignatureEmail}
-          onSaveExecution={(execution) => onSaveExecution(request, execution)}
-        />
+        <RepresentationNextStep request={request} niIncluded={niIncluded} />
       )}
 
       {/* סטטוס חתימות — נישום + בן/בת זוג */}
@@ -624,15 +613,16 @@ export default function RepresentationRequestReview({
                 הנתונים שמתחת, שם הם גם ניתנים להעתקה. */}
             <RepresentationAuthorityData request={request} />
 
-            <RequestEmailTimeline userId={user?.id} requestId={request.id} />
-
             <RepresentationExecutionCenter
               request={request}
               niIncluded={niIncluded}
+              userId={user?.id}
               onSaveExecution={(execution) => onSaveExecution(request, execution)}
               onProduce={() => setShowProduceEditor(true)}
               onStamp={() => void openStampRoom()}
               onMarkSentToShaam={() => void onMarkSentToShaam(request)}
+              onMarkActive={() => onMarkActive(request)}
+              onSendToSigner={sendSignatureEmail}
             />
 
             {request.status === 'pending_signature' && setup && (

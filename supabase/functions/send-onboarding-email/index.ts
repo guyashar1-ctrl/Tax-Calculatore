@@ -195,7 +195,20 @@ Deno.serve(async (req: Request) => {
       ctaHref = NI_SITE;
       ctaLabel = copy.cta;
       extraHtml = niBlock(niData);
-    } else if (stage === "sign" && niData.referenceNumber) {
+    } else if (stage === "sign" && !niData.referenceNumber) {
+      // ‼ שער: אם התבקש ייצוג בב"ל אך אין אסמכתא, מייל החתימה ייצא בלי חלק
+      // הב"ל — והלקוח יקבל אחריו מייל שני. עדיף להיכשל מאשר לפצל את התהליך.
+      const { data: cli } = await admin
+        .from("clients").select("authority_representations")
+        .eq("id", reqRow.linked_client_id).maybeSingle();
+      if (cli?.authority_representations?.nationalInsurance) {
+        return json({
+          error: "ni_reference_missing",
+          detail: { message: "התבקש ייצוג בביטוח לאומי — יש להזין את מספר האסמכתא לפני השליחה, כדי שהלקוח יקבל מייל אחד." },
+        }, 400);
+      }
+      ctaLabel = copy.cta;
+    } else if (stage === "sign") {
       // ★ שתי פעולות במייל אחד. הן נבנות ככרטיסים ממוספרים ולא ככפתור אחד עם
       //   נספח, כדי שלא ניתן יהיה לפספס את השנייה. לכן אין כאן CTA סטנדרטי.
       copy = COPY.sign_with_ni;
