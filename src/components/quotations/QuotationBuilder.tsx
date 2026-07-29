@@ -12,7 +12,7 @@ import {
 import { businessDaysExpiry } from '../../utils/businessDays';
 import {
   calcTotals, formatILS, itemFinalPrice, itemDisplayName,
-  monthlyPlan, monthlyFromAnnual, clampInstallments,
+  monthlyPlan, clampInstallments,
   currentMonthKey, monthsLeftInYear, formatMonth, formatMonthRange, addMonths,
 } from '../../utils/quotationCalc';
 import { deriveQuotationBrand } from './quotationBranding';
@@ -71,11 +71,11 @@ const YEAR_OPTIONS: number[] = (() => {
   return Array.from({ length: 8 }, (_, i) => current - i);
 })();
 
-// פריסת התשלומים חלה על כל השורות החודשיות יחד — ללקוח יש תאריך התחלה אחד.
+// ברירת המחדל לפריסה — תאריך התחלה ומספר תשלומים אחידים לכל השורות.
+// את מספר התשלומים אפשר לשנות גם בכל שורה בנפרד.
 interface BillingPlan {
   startMonth: string;                 // 'YYYY-MM'
   installments: number;
-  mode: 'prorata' | 'full';
 }
 
 function catalogToItem(svc: ServiceCatalogItem, overrides?: Partial<QuotationItem>): QuotationItem {
@@ -97,6 +97,7 @@ function catalogToItem(svc: ServiceCatalogItem, overrides?: Partial<QuotationIte
 
 // החלת הפריסה על שורה. שורה שהמחיר החודשי שלה נקבע ידנית לא נדרסת — זו
 // החלטה של הרו"ח, לא תוצאה של נוסחה.
+// החישוב הוא תמיד מחיר שנתי ÷ מספר תשלומים — כמו שגיא חושב על זה.
 function applyPlanToItem(it: QuotationItem, plan: BillingPlan): QuotationItem {
   if (it.category !== 'monthly') return it;
   const next: QuotationItem = {
@@ -106,11 +107,15 @@ function applyPlanToItem(it: QuotationItem, plan: BillingPlan): QuotationItem {
     installments: plan.installments,
   };
   if (it.prorationMode === 'manual') return next;
-  next.prorationMode = plan.mode;
+  next.prorationMode = 'full';
   if (next.priceBasis === 'annual' && it.annualPrice != null) {
-    next.clientPrice = monthlyFromAnnual(it.annualPrice, plan.installments, plan.mode);
+    next.clientPrice = r2(it.annualPrice / plan.installments);
   }
   return next;
+}
+
+function r2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 
@@ -154,7 +159,6 @@ export default function QuotationBuilder({
     return {
       startMonth: m?.billingStartMonth ?? currentMonthKey(),
       installments: clampInstallments(m?.installments),
-      mode: m?.prorationMode === 'full' ? 'full' : 'prorata',
     };
   })();
   const [plan, setPlan] = useState<BillingPlan>(initialPlan);
@@ -514,18 +518,8 @@ export default function QuotationBuilder({
                 </PlanChip>
               </div>
 
-              <label style={{ ...miniLabel, marginTop: 10 }}>איך מתרגמים מחיר שנתי לתשלום חודשי
-                <select value={plan.mode} style={miniInput}
-                  onChange={e => updatePlan({ mode: e.target.value as 'prorata' | 'full' })}>
-                  <option value="prorata">יחסי — רק על החודשים שנותרו</option>
-                  <option value="full">פריסת המחיר השנתי המלא</option>
-                </select>
-              </label>
-              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
-                {plan.mode === 'prorata'
-                  ? 'התשלום החודשי נשאר המחיר הרגיל (שנתי ÷ 12) — הלקוח פשוט משלם פחות פעמים.'
-                  : 'המחיר השנתי המלא מתחלק במספר התשלומים — התשלום החודשי יוצא גבוה יותר. כאן בדרך כלל נותנים הנחה.'}
-                {' '}בכל שורה אפשר לדרוס את התשלום החודשי ידנית.
+              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 8, lineHeight: 1.55 }}>
+                שינוי כאן מתעדכן בכל השורות. אפשר גם לקבוע מספר תשלומים שונה לכל שורה בנפרד.
               </div>
             </div>
           )}
@@ -834,30 +828,50 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
   const isMonthly = item.category === 'monthly';
   const basis: PriceBasis = item.priceBasis ?? 'monthly';
   const isManual = item.prorationMode === 'manual';
+  const installments = clampInstallments(item.installments ?? plan.installments);
+  const qty = item.quantity || 1;
 
-  // מעבר בין תמחור חודשי לשנתי: המחיר השנתי מאותחל מהחודשי (×12) כדי שהמספר
-  // שעל המסך לא יקפוץ לאפס, ואז התשלום החודשי נגזר ממנו מחדש.
+  // מעבר בין תמחור חודשי לשנתי: המחיר השנתי מאותחל מהחודשי (× מספר התשלומים)
+  // כדי שהמספר שעל המסך לא יקפוץ לאפס, ואז התשלום החודשי נגזר ממנו מחדש.
   function switchBasis(next: PriceBasis) {
     if (next === 'monthly') {
-      onChange({ priceBasis: 'monthly', annualPrice: undefined, prorationMode: plan.mode });
+      onChange({ priceBasis: 'monthly', annualPrice: undefined, prorationMode: 'full' });
       return;
     }
-    const annual = item.annualPrice ?? Math.round(item.clientPrice * DEFAULT_INSTALLMENTS);
+    const annual = item.annualPrice ?? Math.round(item.clientPrice * installments);
     onChange({
-      priceBasis: 'annual', annualPrice: annual, prorationMode: plan.mode,
-      clientPrice: monthlyFromAnnual(annual, plan.installments, plan.mode),
+      priceBasis: 'annual', annualPrice: annual, prorationMode: 'full',
+      clientPrice: r2(annual / installments),
     });
   }
 
   function setAnnual(annual: number) {
     onChange(isManual
       ? { annualPrice: annual }
-      : { annualPrice: annual, clientPrice: monthlyFromAnnual(annual, plan.installments, plan.mode) });
+      : { annualPrice: annual, clientPrice: r2(annual / installments) });
+  }
+
+  // מספר התשלומים נערך בתוך השורה — המחיר השנתי מתחלק מחדש מיד
+  function setInstallments(value: number) {
+    const n = clampInstallments(value);
+    onChange(basis === 'annual' && !isManual && item.annualPrice != null
+      ? { installments: n, clientPrice: r2(item.annualPrice / n) }
+      : { installments: n });
   }
 
   // עריכה ידנית של התשלום החודשי מנתקת את השורה מהנוסחה — זו כוונה, לא טעות
   function setMonthly(value: number) {
     onChange(basis === 'annual' ? { clientPrice: value, prorationMode: 'manual' } : { clientPrice: value });
+  }
+
+  // מחיר יעד: בוחרים כמה זה יעלה בסוף, והמערכת גוזרת את ההנחה. הבסיס הוא
+  // המחיר שהוזן (שנתי או ליחידה) — כך ההנחה מוצגת ביחס אליו וגם נרשמת כהנחה.
+  const targetBase = basis === 'annual' ? (item.annualPrice ?? 0) * qty : item.clientPrice * qty;
+
+  function pickTarget(target: number | null) {
+    if (target == null) { onChange({ discountPercent: 0 }); return; }
+    if (targetBase <= 0) return;
+    onChange({ discountPercent: Math.min(100, Math.max(0, (1 - target / targetBase) * 100)) });
   }
 
   return (
@@ -885,7 +899,7 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
           </select>
         </label>
       </div>
-      {/* שורה חודשית: אפשר לתמחר לפי סכום שנתי, והתשלום החודשי נגזר מהפריסה */}
+      {/* שורה חודשית: מחיר שנתי ← מספר תשלומים ← תשלום חודשי, הכול באותה שורה */}
       {isMonthly && (
         <div style={{ display: 'grid', gridTemplateColumns: basis === 'annual' ? '1fr 1fr' : '1fr', gap: 6, marginBottom: 6 }}>
           <label style={miniLabel}>תמחור
@@ -895,33 +909,46 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
             </select>
           </label>
           {basis === 'annual' && (
-            <label style={miniLabel}>מחיר שנתי מלא
+            <label style={miniLabel}>מחיר שנתי
               <input type="number" min={0} value={item.annualPrice ?? 0} style={miniInput}
                 onChange={e => setAnnual(Math.max(0, Number(e.target.value) || 0))} />
             </label>
           )}
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: item.billingType === 'per_unit' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${(item.billingType === 'per_unit' ? 1 : 0) + (isMonthly ? 3 : 2)}, 1fr)`, gap: 6 }}>
         {item.billingType === 'per_unit' && (
           <label style={miniLabel}>{item.unitLabel || 'כמות'}
             <input type="number" min={1} value={item.quantity} onChange={e => onChange({ quantity: Math.max(1, Number(e.target.value) || 1) })} style={miniInput} />
           </label>
         )}
-        <label style={miniLabel}>{isMonthly ? 'תשלום חודשי' : 'מחיר ליחידה'}
+        {isMonthly && (
+          <label style={miniLabel}>מס׳ תשלומים
+            <input type="number" min={1} max={60} value={installments} style={miniInput}
+              onChange={e => setInstallments(Number(e.target.value) || 1)} />
+          </label>
+        )}
+        <label style={miniLabel}>{isMonthly ? (basis === 'annual' ? `תשלום חודשי${isManual ? ' (ידני)' : ''}` : 'תשלום חודשי') : 'מחיר ליחידה'}
           <input type="number" min={0} value={item.clientPrice} onChange={e => setMonthly(Math.max(0, Number(e.target.value) || 0))} style={miniInput} />
         </label>
         <label style={miniLabel}>הנחה %
-          <input type="number" min={0} max={100} value={item.discountPercent ?? 0} onChange={e => onChange({ discountPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} style={miniInput} />
+          <input type="number" min={0} max={100} value={Math.round((item.discountPercent ?? 0) * 10) / 10}
+            onChange={e => onChange({ discountPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} style={miniInput} />
         </label>
       </div>
+      {item.category !== 'included' && targetBase > 0 && (
+        <TargetPriceSelect base={targetBase} discountPercent={item.discountPercent ?? 0} onPick={pickTarget}
+          label={basis === 'annual' ? 'מחיר יעד לשנה (קובע את ההנחה)' : 'מחיר יעד (קובע את ההנחה)'} />
+      )}
       {/* הדרך הקצרה מ"דוח שנתי 6,000 ₪" ל"5 תשלומים של 1,200 ₪": בלי זה צריך
           לדעת שקודם משנים את תדירות החיוב לחודשי, וזה לא מובן מאליו. */}
       {!isMonthly && item.category !== 'included' && item.clientPrice > 0 && (
         <button className="btn btn-sm btn-secondary" style={{ marginTop: 6, fontSize: 11.5, padding: '3px 8px' }}
           onClick={() => onChange({
             category: 'monthly', priceBasis: 'annual',
-            annualPrice: item.clientPrice, prorationMode: plan.mode,
+            annualPrice: item.clientPrice, prorationMode: 'full',
+            installments: plan.installments, billingStartMonth: plan.startMonth,
+            clientPrice: r2(item.clientPrice / plan.installments),
           })}>
           ⤶ לפרוס לתשלומים חודשיים
         </button>
@@ -929,10 +956,10 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
       {isMonthly && basis === 'annual' && isManual && (
         <button className="btn btn-sm btn-ghost" style={{ marginTop: 4, fontSize: 11, padding: '2px 6px' }}
           onClick={() => onChange({
-            prorationMode: plan.mode,
-            clientPrice: monthlyFromAnnual(item.annualPrice ?? 0, plan.installments, plan.mode),
+            prorationMode: 'full',
+            clientPrice: r2((item.annualPrice ?? 0) / installments),
           })}>
-          ↺ חזרה לחישוב אוטומטי
+          ↺ חזרה לחישוב אוטומטי (שנתי ÷ {installments})
         </button>
       )}
       <PlanHint item={item} />
@@ -941,6 +968,36 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
         {item.category === 'included' ? 'כלול' : <>סה״כ שורה: <b>{formatILS(withVat)}</b> <span style={{ color: 'var(--gray-400)' }}>כולל מע״מ</span></>}
       </div>
     </div>
+  );
+}
+
+// רשימת מחירי יעד עגולים מתחת למחיר שהוזן. בוחרים "כמה זה יעלה בסוף" —
+// וההנחה מחושבת לבד, במקום לנחש אחוזים עד שיוצא מספר יפה.
+function TargetPriceSelect({ base, discountPercent, onPick, label }: {
+  base: number; discountPercent: number; onPick: (target: number | null) => void; label: string;
+}) {
+  const step = base >= 4000 ? 250 : base >= 1500 ? 100 : base >= 500 ? 50 : 10;
+  const targets: number[] = [];
+  for (let t = Math.floor((base - 1) / step) * step; t >= base * 0.65 && targets.length < 9; t -= step) {
+    if (t > 0) targets.push(t);
+  }
+  if (targets.length === 0) return null;
+
+  const current = base * (1 - discountPercent / 100);
+  const match = targets.find(t => Math.abs(t - current) < 0.5);
+
+  return (
+    <label style={{ ...miniLabel, marginTop: 6 }}>{label}
+      <select value={match ?? ''} style={miniInput}
+        onChange={e => onPick(e.target.value ? Number(e.target.value) : null)}>
+        <option value="">{discountPercent > 0 && !match ? `לפי הנחה % — ${formatILS(Math.round(current))}` : `מחיר מלא — ${formatILS(Math.round(base))}`}</option>
+        {targets.map(t => (
+          <option key={t} value={t}>
+            {formatILS(t)} · {Math.round((1 - t / base) * 100)}% הנחה
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
