@@ -6,7 +6,7 @@
 import type { QuotationItem, ServiceCategory, FutureService } from '../../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../../types/quotations';
 import type { QuotationBrand } from './quotationBranding';
-import { calcTotals, itemFinalPrice, formatILS } from '../../utils/quotationCalc';
+import { calcTotals, itemFinalPrice, formatILS, itemDisplayName } from '../../utils/quotationCalc';
 
 export interface QuotationWebViewData {
   quotationNumber: string;
@@ -150,7 +150,7 @@ export default function QuotationWebView({
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
                   {included.map(item => (
                     <div key={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: brand.pageBg, borderRadius: 999, padding: '7px 14px', fontSize: 12.5, color: brand.ink, fontWeight: 500, border: `1px solid ${brand.border}` }}>
-                      <span style={{ color: brand.accent, fontWeight: 700 }}>✓</span>{item.name}
+                      <span style={{ color: brand.accent, fontWeight: 700 }}>✓</span>{itemDisplayName(item)}
                     </div>
                   ))}
                 </div>
@@ -281,7 +281,7 @@ function ServiceCard({ item, brand, compact }: { item: QuotationItem; brand: Quo
   return (
     <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: compact ? 14 : 16, display: 'flex', gap: 12, alignItems: 'flex-start', background: brand.cardBg }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: compact ? 14.5 : 15.5, fontWeight: 600, marginBottom: 3, color: brand.ink }}>{item.name}</div>
+        <div style={{ fontSize: compact ? 14.5 : 15.5, fontWeight: 600, marginBottom: 3, color: brand.ink }}>{itemDisplayName(item)}</div>
         {item.description && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.description}</div>}
         {item.clientNote && <div style={{ fontSize: 12, color: brand.accent, marginTop: 5 }}>{item.clientNote}</div>}
         <div style={{ fontSize: 11, color: brand.muted, marginTop: 6, opacity: .8 }}>

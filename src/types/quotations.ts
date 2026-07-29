@@ -126,6 +126,9 @@ export interface QuotationItem {
   billingType: ServiceBillingType;
   unitLabel?: string;
   quantity: number;
+  // שנת המס שאליה השורה מתייחסת — לדוחות שנתיים, ובמיוחד לשנים פתוחות שטרם
+  // הוגשו. כל שנה היא שורה נפרדת עם מחיר ותדירות חיוב משלה.
+  year?: number;
   catalogPrice: number;       // המחיר בקטלוג ברגע ההוספה — לתיעוד הנחות
   clientPrice: number;        // מחיר ליחידה אחרי דריסה ידנית (לפני הנחה)
   discountPercent?: number;

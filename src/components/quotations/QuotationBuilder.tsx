@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react';
 import type { FirmProfile } from '../../types/firmProfile';
 import type { Client } from '../../types';
 import type {
-  Lead, ServiceCatalogItem, QuotationTemplate, Quotation, QuotationItem, FutureService,
+  Lead, ServiceCatalogItem, ServiceCategory, QuotationTemplate, Quotation, QuotationItem, FutureService,
 } from '../../types/quotations';
 import {
-  SERVICE_CATEGORY_LABELS,
+  SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ORDER,
   DEFAULT_VAT_RATE, DEFAULT_EXPIRY_BUSINESS_DAYS,
 } from '../../types/quotations';
 import { businessDaysExpiry } from '../../utils/businessDays';
-import { calcTotals, formatILS, itemFinalPrice } from '../../utils/quotationCalc';
+import { calcTotals, formatILS, itemFinalPrice, itemDisplayName } from '../../utils/quotationCalc';
 import { deriveQuotationBrand } from './quotationBranding';
 import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
 import { generateQuotationPdf, downloadPdf } from '../../utils/quotationPdf';
@@ -60,7 +60,13 @@ export interface SaveDraftPayload {
   expiresAt: string;
 }
 
-function catalogToItem(svc: ServiceCatalogItem): QuotationItem {
+// שמונה שנות מס אחרונות — מכסה כל לקוח שמגיע עם שנים פתוחות
+const YEAR_OPTIONS: number[] = (() => {
+  const current = new Date().getFullYear();
+  return Array.from({ length: 8 }, (_, i) => current - i);
+})();
+
+function catalogToItem(svc: ServiceCatalogItem, overrides?: Partial<QuotationItem>): QuotationItem {
   return {
     id: crypto.randomUUID(),
     serviceId: svc.id,
@@ -73,6 +79,7 @@ function catalogToItem(svc: ServiceCatalogItem): QuotationItem {
     catalogPrice: svc.defaultPrice,
     clientPrice: svc.defaultPrice,
     vatFlag: svc.vatFlag,
+    ...overrides,
   };
 }
 
@@ -118,6 +125,11 @@ export default function QuotationBuilder({
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recipientPicker, setRecipientPicker] = useState(false);
+  // דוחות לשנים פתוחות — לקוח שלא הגיש בשנים האחרונות
+  const [priorServiceId, setPriorServiceId] = useState('');
+  const [priorYears, setPriorYears] = useState<Set<number>>(new Set());
+  const [priorPrice, setPriorPrice] = useState<number | ''>('');
+  const [priorCategory, setPriorCategory] = useState<ServiceCategory>('one_time');
   const [sending, setSending] = useState<'test' | 'send' | null>(null);
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -142,7 +154,7 @@ export default function QuotationBuilder({
     const svc = tpl.serviceIds
       .map(sid => services.find(s => s.id === sid))
       .filter((s): s is ServiceCatalogItem => Boolean(s));
-    setItems(svc.map(catalogToItem));
+    setItems(svc.map(s => catalogToItem(s)));
   }
 
   function addService(svc: ServiceCatalogItem) {
@@ -153,6 +165,37 @@ export default function QuotationBuilder({
   }
   function removeItem(id: string) {
     setItems(prev => prev.filter(it => it.id !== id));
+  }
+
+  // ─── דוחות לשנים פתוחות ───
+  // כל שנה נוספת כשורה נפרדת: מחיר משלה, הנחה משלה ותדירות חיוב משלה.
+  const annualServices = services.filter(s => s.active && s.category === 'annual');
+  const priorService = annualServices.find(s => s.id === priorServiceId) ?? annualServices[0];
+  const priorPriceValue = priorPrice === '' ? (priorService?.defaultPrice ?? 0) : priorPrice;
+
+  function yearTaken(year: number): boolean {
+    return items.some(it => it.year === year && it.serviceId === priorService?.id);
+  }
+
+  function togglePriorYear(year: number) {
+    setPriorYears(prev => {
+      const next = new Set(prev);
+      next.has(year) ? next.delete(year) : next.add(year);
+      return next;
+    });
+  }
+
+  function addPriorYearReports() {
+    if (!priorService) return;
+    const added = [...priorYears]
+      .sort((a, b) => a - b)
+      .filter(y => !yearTaken(y))
+      .map(y => catalogToItem(priorService, {
+        year: y, category: priorCategory, clientPrice: priorPriceValue,
+      }));
+    if (added.length === 0) return;
+    setItems(prev => [...prev, ...added]);
+    setPriorYears(new Set());
   }
 
   // מועמדים לשירותים עתידיים: שירותים פעילים בתשלום שאינם כבר בהצעה
@@ -348,6 +391,71 @@ export default function QuotationBuilder({
                     onChange={p => updateItem(item.id, p)} onRemove={() => removeItem(item.id)} />
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* דוחות לשנים פתוחות — לקוח שלא הגיש בשנים האחרונות */}
+          <div style={card}>
+            <div style={{ ...cardTitle, marginBottom: 6 }}>📅 דוחות לשנים פתוחות</div>
+            <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
+              בוחרים את השנים שטרם דווחו — כל שנה נוספת כשורה נפרדת בהצעה, עם מחיר, הנחה ותדירות חיוב משלה.
+            </div>
+
+            {annualServices.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>
+                אין שירות בקטגוריית "שנתי" בקטלוג. הוסף אחד בהגדרות המשרד ← הצעות מחיר.
+              </div>
+            ) : (
+              <>
+                <select value={priorService?.id ?? ''} onChange={e => { setPriorServiceId(e.target.value); setPriorPrice(''); }}>
+                  {annualServices.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '10px 0' }}>
+                  {YEAR_OPTIONS.map(y => {
+                    const taken = yearTaken(y);
+                    const on = priorYears.has(y);
+                    return (
+                      <button key={y} onClick={() => togglePriorYear(y)} disabled={taken}
+                        title={taken ? 'כבר נוספה להצעה' : undefined}
+                        style={{
+                          padding: '5px 11px', borderRadius: 999, fontFamily: 'inherit', fontSize: 12.5,
+                          fontVariantNumeric: 'tabular-nums',
+                          cursor: taken ? 'default' : 'pointer',
+                          border: `1px solid ${on ? 'var(--blue)' : 'var(--gray-200)'}`,
+                          background: taken ? 'var(--gray-100)' : on ? 'var(--blue)' : 'var(--card)',
+                          color: taken ? 'var(--gray-400)' : on ? '#fff' : 'var(--gray-700)',
+                          fontWeight: on ? 600 : 400,
+                        }}>
+                        {y}{taken ? ' ✓' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <label style={miniLabel}>מחיר לדוח
+                    <input type="number" min={0} value={priorPriceValue} style={miniInput}
+                      onChange={e => setPriorPrice(Math.max(0, Number(e.target.value) || 0))} />
+                  </label>
+                  <label style={miniLabel}>תדירות חיוב
+                    <select value={priorCategory} style={miniInput}
+                      onChange={e => setPriorCategory(e.target.value as ServiceCategory)}>
+                      {SERVICE_CATEGORY_ORDER.map(c => (
+                        <option key={c} value={c}>{SERVICE_CATEGORY_LABELS[c]}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <MonthlyHint category={priorCategory} price={priorPriceValue} />
+
+                <button className="btn btn-sm btn-primary" disabled={priorYears.size === 0}
+                  onClick={addPriorYearReports} style={{ marginTop: 10 }}>
+                  {priorYears.size === 0 ? '+ בחר שנים להוספה'
+                    : priorYears.size === 1 ? '+ הוספת דוח אחד'
+                    : `+ הוספת ${priorYears.size} דוחות`}
+                </button>
+              </>
             )}
           </div>
 
@@ -553,9 +661,27 @@ function LineItem({ item, vatRate, onChange, onRemove }: {
   return (
     <div style={{ border: '1px solid var(--gray-200)', borderRadius: 10, padding: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ flex: 1, fontWeight: 600, fontSize: 13.5 }}>{item.name}</span>
-        <span style={{ fontSize: 10.5, color: 'var(--gray-400)' }}>{SERVICE_CATEGORY_LABELS[item.category]}</span>
+        <span style={{ flex: 1, fontWeight: 600, fontSize: 13.5 }}>{itemDisplayName(item)}</span>
         <button className="btn btn-icon btn-ghost" onClick={onRemove} title="הסרה" style={{ color: 'var(--red)' }}>✕</button>
+      </div>
+      {/* תדירות החיוב ושנת המס נבחרות פר שורה — אותו שירות יכול להיות חודשי
+          ללקוח אחד וחד־פעמי לאחר, ודוח לכל שנה פתוחה מתומחר בנפרד. */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
+        <label style={miniLabel}>תדירות חיוב
+          <select value={item.category} style={miniInput}
+            onChange={e => onChange({ category: e.target.value as ServiceCategory })}>
+            {SERVICE_CATEGORY_ORDER.map(c => (
+              <option key={c} value={c}>{SERVICE_CATEGORY_LABELS[c]}</option>
+            ))}
+          </select>
+        </label>
+        <label style={miniLabel}>שנת מס
+          <select value={item.year ?? ''} style={miniInput}
+            onChange={e => onChange({ year: e.target.value ? Number(e.target.value) : undefined })}>
+            <option value="">— ללא —</option>
+            {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </label>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: item.billingType === 'per_unit' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 6 }}>
         {item.billingType === 'per_unit' && (
@@ -570,6 +696,7 @@ function LineItem({ item, vatRate, onChange, onRemove }: {
           <input type="number" min={0} max={100} value={item.discountPercent ?? 0} onChange={e => onChange({ discountPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} style={miniInput} />
         </label>
       </div>
+      <MonthlyHint category={item.category} price={final} />
       <input placeholder="הערה שתוצג ללקוח (אופציונלי)" value={item.clientNote ?? ''} onChange={e => onChange({ clientNote: e.target.value })} style={{ marginTop: 6, fontSize: 12 }} />
       <div style={{ textAlign: 'end', marginTop: 6, fontSize: 12, color: 'var(--gray-600)' }}>
         {item.category === 'included' ? 'כלול' : <>סה״כ שורה: <b>{formatILS(withVat)}</b> <span style={{ color: 'var(--gray-400)' }}>כולל מע״מ</span></>}
@@ -578,7 +705,19 @@ function LineItem({ item, vatRate, onChange, onRemove }: {
   );
 }
 
-const card: React.CSSProperties = { border: '1px solid var(--gray-200)', borderRadius: 12, padding: 16, background: 'var(--card)' };
+// המחיר בשורה חודשית הוא הסכום לחודש. החיווי מזכיר כמה זה יוצא לשנה מלאה, כדי
+// שסכום שנתי לא ייכתב בטעות בשדה חודשי — וזו הערכה בלבד: לקוח שנכנס באמצע שנה
+// משלם פחות חודשים.
+function MonthlyHint({ category, price }: { category: ServiceCategory; price: number }) {
+  if (category !== 'monthly' || price <= 0) return null;
+  return (
+    <div style={{ marginTop: 5, fontSize: 11, color: 'var(--gray-500)' }}>
+      {formatILS(price)} לחודש · {formatILS(Math.round(price * 12))} ל־12 חודשים מלאים
+    </div>
+  );
+}
+
+const card: React.CSSProperties ={ border: '1px solid var(--gray-200)', borderRadius: 12, padding: 16, background: 'var(--card)' };
 const cardTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 600, marginBottom: 12 };
 const fieldLabel: React.CSSProperties = { fontSize: 12, color: 'var(--gray-600)', display: 'block' };
 const miniLabel: React.CSSProperties = { fontSize: 11, color: 'var(--gray-500)', display: 'flex', flexDirection: 'column', gap: 2 };

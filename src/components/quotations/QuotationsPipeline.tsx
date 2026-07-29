@@ -18,6 +18,17 @@ interface Props {
 
 const STATUSES_WITH_ACTIONS = ['approved', 'sent', 'viewed'];
 
+// הצעה אחת יכולה להחזיק כמה תדירויות בבת אחת — ליווי חודשי לצד דוחות לשנים
+// פתוחות שהם חד־פעמיים. הצגת סכום אחד בלבד מסתירה את הגדול מביניהם.
+function rowAmounts(q: Quotation): { label: string; value: number }[] {
+  const t = calcTotals(q.items, q.vatRate);
+  return [
+    { label: 'לחודש', value: t.monthly.withVat },
+    { label: 'לשנה', value: t.annual.withVat },
+    { label: 'חד־פעמי', value: t.oneTime.withVat },
+  ].filter(a => a.value > 0).map(a => ({ ...a, value: Math.round(a.value) }));
+}
+
 // סדר תצוגה של קבוצות הסטטוס + צבע הפס
 const GROUP_ORDER: { status: QuotationStatus; badge: string; strip: string }[] = [
   { status: 'draft', badge: 'badge-gray', strip: 'var(--gray-400)' },
@@ -156,8 +167,7 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
                     </thead>
                     <tbody>
                       {list.map(q => {
-                        const t = calcTotals(q.items, q.vatRate);
-                        const headline = t.monthly.withVat || t.annual.withVat || t.oneTime.withVat;
+                        const amounts = rowAmounts(q);
                         const converted = isConverted(q);
                         const days = bizDaysToExpiry(q);
                         const expiringSoon = (g.status === 'sent' || g.status === 'viewed') && days !== null && days <= REMINDER_BUSINESS_DAYS_BEFORE;
@@ -165,7 +175,13 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
                           <tr key={q.id} className="client-row" style={{ cursor: 'pointer', borderInlineStart: `3px solid ${g.strip}` }} onClick={() => onOpen(q)}>
                             <td className="mono-text">{q.quotationNumber}{q.revision > 1 ? ` · גרסה ${q.revision}` : ''}</td>
                             <td style={{ fontWeight: 600, color: 'var(--gray-900)' }}>{recipientName(q)}</td>
-                            <td className="number">{headline > 0 ? formatILS(Math.round(headline)) : '—'}</td>
+                            <td className="number">
+                              {amounts.length === 0 ? '—' : amounts.map((a, i) => (
+                                <div key={a.label} style={i === 0 ? undefined : { fontSize: 11.5, color: 'var(--gray-500)', fontWeight: 400 }}>
+                                  {formatILS(a.value)} {a.label}
+                                </div>
+                              ))}
+                            </td>
                             <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>
                               {q.expiresAt ? new Date(q.expiresAt).toLocaleDateString('he-IL') : '—'}
                               {expiringSoon && <span className="badge badge-orange" style={{ marginInlineStart: 6, fontSize: 10 }}>{days === 0 ? 'פג היום' : days === 1 ? 'פג ביום עסקים הבא' : `פג בעוד ${days} ימי עסקים`}</span>}

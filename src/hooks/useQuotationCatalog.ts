@@ -5,7 +5,9 @@ import {
   serviceCatalogFromDb, serviceCatalogToDb,
   quotationTemplateFromDb, quotationTemplateToDb,
 } from '../lib/dbMappers';
-import { DEFAULT_SERVICES, DEFAULT_TEMPLATES, buildTemplateRows } from '../data/defaultServiceCatalog';
+import {
+  DEFAULT_SERVICES, DEFAULT_TEMPLATES, TOP_UP_SEED_KEYS, buildTemplateRows,
+} from '../data/defaultServiceCatalog';
 
 // קטלוג שירותים + תבניות הצעה. נטענים יחד כי הזריעה הראשונית תלויה בשניהם:
 // התבניות מפנות למזהי שירותים, ולכן חייבות להיזרע אחרי שהשירותים קיבלו id.
@@ -49,6 +51,18 @@ export function useQuotationCatalog(userId: string | undefined) {
           tplRows = seeded.templates;
         } catch (e: any) {
           if (!cancelled) setError(e.message ?? String(e));
+        }
+      } else if (svcRows.length > 0 && !seedingRef.current && !topUpDone(userId)) {
+        // משתמש שכבר נזרע לא עובר זריעה חוזרת, ולכן שירותים שנוספו לקטלוג
+        // מאוחר יותר לא יגיעו אליו לעולם. השלמה חד־פעמית סוגרת את הפער.
+        seedingRef.current = true;
+        try {
+          const topped = await topUpCatalog(userId, svcRows, tplRows);
+          svcRows = topped.services;
+          tplRows = topped.templates;
+          markTopUpDone(userId);
+        } catch {
+          // השלמה שנכשלה לא חוסמת את טעינת המודול — ננסה שוב בטעינה הבאה
         }
       }
 
@@ -128,6 +142,77 @@ export function useQuotationCatalog(userId: string | undefined) {
     addService, updateService, deleteService,
     addTemplate, updateTemplate, deleteTemplate,
   };
+}
+
+// ─── השלמת קטלוג למשתמש קיים ────────────────────────────────────────────────
+// הסימון נשמר מקומית ולא ב-DB: ההשלמה רצה פעם אחת, וכך שירות שגיא מחק במכוון
+// לא יחזור בכל טעינה. במכשיר חדש היא תרוץ שוב, אבל רק על שירותים שחסרים.
+const TOP_UP_KEY_PREFIX = 'quotationCatalogTopUp:v2:';
+
+function topUpDone(userId: string): boolean {
+  try {
+    return localStorage.getItem(TOP_UP_KEY_PREFIX + userId) === '1';
+  } catch {
+    return true;   // אין גישה ל-localStorage — לא נוגעים בקטלוג
+  }
+}
+
+function markTopUpDone(userId: string): void {
+  try {
+    localStorage.setItem(TOP_UP_KEY_PREFIX + userId, '1');
+  } catch {
+    // אין localStorage — ההשלמה תרוץ שוב, אך היא מוסיפה רק מה שחסר
+  }
+}
+
+// שם השירות הוא המפתח להשוואה — הקטלוג ב-DB לא שומר seedKey
+function seedName(key: string): string | undefined {
+  return DEFAULT_SERVICES.find(s => s.seedKey === key)?.name;
+}
+
+// תבניות הליווי השוטף — רק אליהן משויכים פייפרלס וטיפול בקנסות
+const ONGOING_TEMPLATE_KINDS = ['exempt_dealer', 'licensed_dealer', 'company'];
+
+async function topUpCatalog(
+  userId: string,
+  services: ServiceCatalogItem[],
+  templates: QuotationTemplate[],
+): Promise<{ services: ServiceCatalogItem[]; templates: QuotationTemplate[] }> {
+  const existingNames = new Set(services.map(s => s.name));
+  const missing = DEFAULT_SERVICES.filter(
+    s => TOP_UP_SEED_KEYS.includes(s.seedKey) && !existingNames.has(s.name));
+
+  let nextServices = services;
+  if (missing.length > 0) {
+    const rows = missing.map(({ seedKey: _key, ...svc }) => serviceCatalogToDb(svc, userId));
+    const { data, error } = await supabase.from('service_catalog').insert(rows).select();
+    if (error) throw error;
+    nextServices = [...services, ...(data ?? []).map(serviceCatalogFromDb)]
+      .sort((a, b) => a.displayOrder - b.displayOrder);
+  }
+
+  // שיוך לתבניות הקיימות — אחרת "כלול אוטומטית" לא יתבטא בהצעה חדשה
+  const idByName = new Map(nextServices.map(s => [s.name, s.id]));
+  const attachIds = ['paperless', 'fines_handling']
+    .map(key => seedName(key))
+    .map(name => (name ? idByName.get(name) : undefined))
+    .filter((id): id is string => Boolean(id));
+
+  const nextTemplates = [...templates];
+  for (let i = 0; i < nextTemplates.length; i++) {
+    const tpl = nextTemplates[i];
+    if (!ONGOING_TEMPLATE_KINDS.includes(tpl.kind)) continue;
+    const toAdd = attachIds.filter(id => !tpl.serviceIds.includes(id));
+    if (toAdd.length === 0) continue;
+    const { data, error } = await supabase
+      .from('quotation_templates')
+      .update({ service_ids: [...tpl.serviceIds, ...toAdd] })
+      .eq('id', tpl.id).select().single();
+    if (error) throw error;
+    nextTemplates[i] = quotationTemplateFromDb(data);
+  }
+
+  return { services: nextServices, templates: nextTemplates };
 }
 
 async function seedDefaults(userId: string): Promise<{

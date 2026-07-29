@@ -35,6 +35,14 @@ export const DEFAULT_SERVICES: SeedService[] = [
     defaultPrice: 80, vatFlag: true, billingType: 'per_unit', unitLabel: 'עובד',
     includeByDefault: false, active: true, displayOrder: 30,
   },
+  {
+    seedKey: 'paperless',
+    name: 'שימוש במערכת פייפרלס',
+    category: 'monthly',
+    description: 'סריקה, שמירה וניהול דיגיטלי של החשבוניות והקבלות — ללא ניירת',
+    defaultPrice: 10, vatFlag: true, billingType: 'fixed',
+    includeByDefault: true, active: true, displayOrder: 35,
+  },
   // ─── שנתי ───
   {
     seedKey: 'annual_exempt',
@@ -51,6 +59,15 @@ export const DEFAULT_SERVICES: SeedService[] = [
     description: 'הכנה והגשה של הדוח השנתי למס הכנסה',
     defaultPrice: 1800, vatFlag: true, billingType: 'fixed',
     includeByDefault: false, active: true, displayOrder: 50,
+  },
+  {
+    // לקוח שמגיע עם שנים פתוחות — כל שנה מתומחרת כשורה נפרדת בבונה ההצעות
+    seedKey: 'annual_prior_year',
+    name: 'דוח שנתי — שנה פתוחה',
+    category: 'annual',
+    description: 'הכנה והגשה של דוח שנתי לשנה שטרם דווחה',
+    defaultPrice: 1800, vatFlag: true, billingType: 'fixed',
+    includeByDefault: false, active: true, displayOrder: 55,
   },
   // ─── חד־פעמי ───
   {
@@ -134,11 +151,24 @@ export const DEFAULT_SERVICES: SeedService[] = [
     defaultPrice: 0, vatFlag: false, billingType: 'fixed',
     includeByDefault: true, active: true, displayOrder: 150,
   },
+  {
+    seedKey: 'fines_handling',
+    name: 'טיפול בקנסות',
+    category: 'included',
+    description: 'טיפול בכל הנוגע לקנסות מול הרשויות, לרבות פנייה לביטולם או להקטנתם במידת הצורך',
+    defaultPrice: 0, vatFlag: false, billingType: 'fixed',
+    includeByDefault: true, active: true, displayOrder: 160,
+  },
 ];
 
 const INCLUDED_KEYS = [
-  'quarterly_tax_planning', 'business_guidance', 'pension_recommendation', 'ongoing_consultation',
+  'quarterly_tax_planning', 'business_guidance', 'pension_recommendation',
+  'ongoing_consultation', 'fines_handling',
 ];
+
+// שירותים שנוספו לקטלוג אחרי הגרסה הראשונה. משתמש שכבר נזרע לא עובר זריעה
+// חוזרת, ולכן אלה מתווספים לו בהשלמה חד־פעמית (ראה useQuotationCatalog).
+export const TOP_UP_SEED_KEYS = ['paperless', 'fines_handling', 'annual_prior_year'];
 
 export interface SeedTemplate {
   name: string;
@@ -151,19 +181,19 @@ export const DEFAULT_TEMPLATES: SeedTemplate[] = [
   {
     name: 'עוסק פטור',
     kind: 'exempt_dealer',
-    serviceSeedKeys: ['bookkeeping_exempt', 'annual_exempt', 'open_files', ...INCLUDED_KEYS],
+    serviceSeedKeys: ['bookkeeping_exempt', 'paperless', 'annual_exempt', 'open_files', ...INCLUDED_KEYS],
     displayOrder: 10,
   },
   {
     name: 'עוסק מורשה',
     kind: 'licensed_dealer',
-    serviceSeedKeys: ['bookkeeping_licensed', 'annual_licensed', 'open_files', ...INCLUDED_KEYS],
+    serviceSeedKeys: ['bookkeeping_licensed', 'paperless', 'annual_licensed', 'open_files', ...INCLUDED_KEYS],
     displayOrder: 20,
   },
   {
     name: 'חברה',
     kind: 'company',
-    serviceSeedKeys: ['bookkeeping_licensed', 'payroll', 'annual_licensed', ...INCLUDED_KEYS],
+    serviceSeedKeys: ['bookkeeping_licensed', 'paperless', 'payroll', 'annual_licensed', ...INCLUDED_KEYS],
     displayOrder: 30,
   },
   {

@@ -8,7 +8,7 @@ import fontkit from '@pdf-lib/fontkit';
 import { embedPdfFonts, layoutMixed, measureMixed, type PdfFonts } from './pdfHebrew';
 import type { QuotationItem, FutureService } from '../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../types/quotations';
-import { calcTotals, itemFinalPrice } from './quotationCalc';
+import { calcTotals, itemFinalPrice, itemDisplayName } from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
 
 export interface QuotationPdfData {
@@ -85,7 +85,7 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   sectionLine('השירותים שלנו');
   for (const item of priced) {
     ensureSpace(38);
-    rtl(item.name, 11.5, ink, y);
+    rtl(itemDisplayName(item), 11.5, ink, y);
     ltr(`${money(itemFinalPrice(item))}${item.vatFlag ? ' + מע״מ' : ''}`, 11.5, ink, y);
     y -= 15;
     const meta = `${SERVICE_CATEGORY_LABELS[item.category]}${item.billingType === 'per_unit' && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}${item.description ? ` · ${item.description}` : ''}`;
@@ -98,7 +98,7 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     sectionLine('כלול במחיר — ללא תוספת');
     for (const item of included) {
       ensureSpace(16);
-      rtl(`•  ${item.name}`, 10.5, bodyGray, y);
+      rtl(`•  ${itemDisplayName(item)}`, 10.5, bodyGray, y);
       y -= 15;
     }
   }
