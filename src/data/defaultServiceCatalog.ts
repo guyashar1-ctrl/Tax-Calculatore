@@ -37,7 +37,7 @@ export const DEFAULT_SERVICES: SeedService[] = [
   },
   {
     seedKey: 'paperless',
-    name: 'שימוש במערכת פייפרלס',
+    name: 'תוכנת הנהלת חשבונות',
     category: 'monthly',
     description: 'סריקה, שמירה וניהול דיגיטלי של החשבוניות והקבלות — ללא ניירת',
     defaultPrice: 10, vatFlag: true, billingType: 'fixed',

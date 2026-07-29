@@ -519,7 +519,7 @@ export default function QuotationBuilder({
               </div>
 
               <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 8, lineHeight: 1.55 }}>
-                שינוי כאן מתעדכן בכל השורות. אפשר גם לקבוע מספר תשלומים שונה לכל שורה בנפרד.
+                בוחרים פעם אחת — וזה חל על כל השורות החודשיות בהצעה.
               </div>
             </div>
           )}
@@ -851,22 +851,14 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
       : { annualPrice: annual, clientPrice: r2(annual / installments) });
   }
 
-  // מספר התשלומים נערך בתוך השורה — המחיר השנתי מתחלק מחדש מיד
-  function setInstallments(value: number) {
-    const n = clampInstallments(value);
-    onChange(basis === 'annual' && !isManual && item.annualPrice != null
-      ? { installments: n, clientPrice: r2(item.annualPrice / n) }
-      : { installments: n });
-  }
-
   // עריכה ידנית של התשלום החודשי מנתקת את השורה מהנוסחה — זו כוונה, לא טעות
   function setMonthly(value: number) {
     onChange(basis === 'annual' ? { clientPrice: value, prorationMode: 'manual' } : { clientPrice: value });
   }
 
-  // מחיר יעד: בוחרים כמה זה יעלה בסוף, והמערכת גוזרת את ההנחה. הבסיס הוא
-  // המחיר שהוזן (שנתי או ליחידה) — כך ההנחה מוצגת ביחס אליו וגם נרשמת כהנחה.
-  const targetBase = basis === 'annual' ? (item.annualPrice ?? 0) * qty : item.clientPrice * qty;
+  // מחיר יעד: בוחרים כמה זה יעלה בסוף, והמערכת גוזרת את ההנחה. גיא חושב
+  // במחיר לחודש — לכן היעד הוא תמיד על התשלום הבודד, גם כשהוזן מחיר שנתי.
+  const targetBase = item.clientPrice * qty;
 
   function pickTarget(target: number | null) {
     if (target == null) { onChange({ discountPercent: 0 }); return; }
@@ -916,16 +908,10 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
           )}
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${(item.billingType === 'per_unit' ? 1 : 0) + (isMonthly ? 3 : 2)}, 1fr)`, gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: item.billingType === 'per_unit' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 6 }}>
         {item.billingType === 'per_unit' && (
           <label style={miniLabel}>{item.unitLabel || 'כמות'}
             <input type="number" min={1} value={item.quantity} onChange={e => onChange({ quantity: Math.max(1, Number(e.target.value) || 1) })} style={miniInput} />
-          </label>
-        )}
-        {isMonthly && (
-          <label style={miniLabel}>מס׳ תשלומים
-            <input type="number" min={1} max={60} value={installments} style={miniInput}
-              onChange={e => setInstallments(Number(e.target.value) || 1)} />
           </label>
         )}
         <label style={miniLabel}>{isMonthly ? (basis === 'annual' ? `תשלום חודשי${isManual ? ' (ידני)' : ''}` : 'תשלום חודשי') : 'מחיר ליחידה'}
@@ -938,7 +924,7 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
       </div>
       {item.category !== 'included' && targetBase > 0 && (
         <TargetPriceSelect base={targetBase} discountPercent={item.discountPercent ?? 0} onPick={pickTarget}
-          label={basis === 'annual' ? 'מחיר יעד לשנה (קובע את ההנחה)' : 'מחיר יעד (קובע את ההנחה)'} />
+          label={isMonthly ? 'מחיר יעד לחודש (קובע את ההנחה)' : 'מחיר יעד (קובע את ההנחה)'} />
       )}
       {/* הדרך הקצרה מ"דוח שנתי 6,000 ₪" ל"5 תשלומים של 1,200 ₪": בלי זה צריך
           לדעת שקודם משנים את תדירות החיוב לחודשי, וזה לא מובן מאליו. */}
@@ -976,7 +962,7 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
 function TargetPriceSelect({ base, discountPercent, onPick, label }: {
   base: number; discountPercent: number; onPick: (target: number | null) => void; label: string;
 }) {
-  const step = base >= 4000 ? 250 : base >= 1500 ? 100 : base >= 500 ? 50 : 10;
+  const step = base >= 4000 ? 250 : base >= 1500 ? 100 : base >= 500 ? 50 : base >= 150 ? 10 : 5;
   const targets: number[] = [];
   for (let t = Math.floor((base - 1) / step) * step; t >= base * 0.65 && targets.length < 9; t -= step) {
     if (t > 0) targets.push(t);

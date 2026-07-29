@@ -170,7 +170,7 @@ function seedName(key: string): string | undefined {
   return DEFAULT_SERVICES.find(s => s.seedKey === key)?.name;
 }
 
-// תבניות הליווי השוטף — רק אליהן משויכים פייפרלס וטיפול בקנסות
+// תבניות הליווי השוטף — רק אליהן משויכים תוכנת הנה"ח וטיפול בקנסות
 const ONGOING_TEMPLATE_KINDS = ['exempt_dealer', 'licensed_dealer', 'company'];
 
 async function topUpCatalog(
