@@ -1,0 +1,3399 @@
+<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="utf-8"><title>System UI Snapshot</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Heebo:wght@300;400;500;600;700&family=Assistant:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;700;900&family=Secular+One&display=swap" rel="stylesheet"><style>*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* ── Yashar brand palette (מדריך מותג v1.0) ─────────────────────────────── */
+  --graphite: #1d1d1f;   /* ראשי · טקסט */
+  --slate: #3a3f45;      /* טקסט משני */
+  --steel: #33556f;      /* אקסנט · קישורים · כפתורים */
+  --steel-dark: #264155;
+  --steel-deep: #22384a;
+  --steel-tint: #dbe4ec; /* רקע אקסנט בהיר */
+  --steel-wash: #eef2f6;
+  --steel-border: #c3d3de;
+  --silver: #a7adb4;     /* גבול · משני */
+  --mist: #e4e7ea;       /* גבול · רקע */
+  --paper: #f5f5f7;      /* רקע ראשי */
+  --light-blue: #7a9ab3; /* אקסנט לרקע כהה */
+
+  /* אקסנט המותג ממופה לשמות הישנים כדי שכל האפליקציה תתעדכן בבת אחת */
+  --blue: #33556f;
+  --blue-dark: #264155;
+  --blue-light: #eef2f6;
+  --blue-border: #c3d3de;
+  --green: #059669;
+  --green-light: #ecfdf5;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --orange: #d97706;
+  --orange-light: #fffbeb;
+  --purple: #7c3aed;
+  --purple-light: #f5f3ff;
+  --gray-50: #f5f5f7;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1d1d1f;
+  --gray-900: #111213;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05);
+}
+
+html { direction: rtl; font-size: 16px; }
+
+body {
+  font-family: 'Heebo', system-ui, sans-serif;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.header {
+  background: white;
+  border-bottom: 1px solid var(--gray-200);
+  padding: 0 1.5rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-logo {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+.brand-wordmark {
+  direction: ltr;
+  display: inline-flex;
+  align-items: flex-end;
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-weight: 300;
+  font-size: 1.2rem;
+  letter-spacing: .14em;
+  line-height: 1;
+  color: var(--graphite);
+}
+.brand-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--steel);
+  margin-inline-start: 2px;
+  margin-bottom: 4px;
+}
+.brand-sub {
+  font-family: 'Frank Ruhl Libre', serif;
+  font-weight: 500;
+  font-size: .82rem;
+  line-height: 1.15;
+  color: var(--slate);
+  border-inline-start: 1px solid var(--mist);
+  padding-inline-start: .6rem;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: var(--gray-400);
+  font-size: .875rem;
+}
+
+.header-breadcrumb {
+  color: var(--gray-600);
+  font-weight: 500;
+}
+
+.main { flex: 1; padding: 1.5rem; max-width: 1300px; margin: 0 auto; width: 100%; }
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+.card {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.card-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--gray-100);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.card-body { padding: 1.25rem; }
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .5rem 1rem;
+  border-radius: var(--radius);
+  font-size: .875rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background .15s, border-color .15s, color .15s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.btn-primary { background: var(--blue); color: white; border-color: var(--blue); }
+.btn-primary:hover:not(:disabled) { background: var(--blue-dark); border-color: var(--blue-dark); }
+
+.btn-secondary { background: white; color: var(--gray-700); border-color: var(--gray-300); }
+.btn-secondary:hover:not(:disabled) { background: var(--gray-50); }
+
+.btn-danger { background: white; color: var(--red); border-color: var(--red); }
+.btn-danger:hover:not(:disabled) { background: var(--red-light); }
+
+.btn-ghost { background: transparent; color: var(--gray-600); border-color: transparent; }
+.btn-ghost:hover:not(:disabled) { background: var(--gray-100); }
+
+.btn-green { background: var(--green); color: white; border-color: var(--green); }
+.btn-green:hover:not(:disabled) { background: #047857; }
+
+.btn-sm { padding: .3rem .75rem; font-size: .8125rem; }
+.btn-lg { padding: .75rem 1.5rem; font-size: 1rem; }
+.btn-icon { padding: .5rem; width: 2rem; height: 2rem; justify-content: center; }
+
+/* ── Form ───────────────────────────────────────────────────────────────── */
+.form-grid { display: grid; gap: 1rem; }
+.form-grid-2 { grid-template-columns: 1fr 1fr; }
+.form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+.form-group { display: flex; flex-direction: column; gap: .3rem; }
+.form-group.span-2 { grid-column: span 2; }
+.form-group.span-3 { grid-column: span 3; }
+.form-group.span-full { grid-column: 1 / -1; }
+
+label {
+  font-size: .8125rem;
+  font-weight: 500;
+  color: var(--gray-600);
+}
+
+.required::after { content: ' *'; color: var(--red); }
+
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="email"],
+input[type="tel"],
+select,
+textarea {
+  padding: .5rem .75rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: .9rem;
+  font-family: inherit;
+  color: var(--gray-800);
+  background: white;
+  transition: border-color .15s;
+  width: 100%;
+  direction: rtl;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+
+textarea { resize: vertical; min-height: 80px; }
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  cursor: pointer;
+  font-size: .875rem;
+  color: var(--gray-700);
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: var(--blue);
+}
+
+/* ── Section ────────────────────────────────────────────────────────────── */
+.section { margin-bottom: 1.5rem; }
+
+.section-title {
+  font-size: .9375rem;
+  font-weight: 600;
+  color: var(--gray-800);
+  padding-bottom: .5rem;
+  border-bottom: 2px solid var(--blue-light);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.section-icon { font-size: 1.1rem; }
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--gray-100);
+  padding: 4px;
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: .4rem .85rem;
+  border-radius: 6px;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--gray-600);
+  font-family: inherit;
+  transition: all .15s;
+  white-space: nowrap;
+}
+
+.tab.active {
+  background: white;
+  color: var(--blue);
+  box-shadow: var(--shadow);
+}
+
+.tab:hover:not(.active) { background: var(--gray-200); }
+
+/* ── Badges ─────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .2rem .6rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-blue { background: var(--blue-light); color: var(--blue); }
+.badge-green { background: var(--green-light); color: var(--green); }
+.badge-orange { background: var(--orange-light); color: var(--orange); }
+.badge-purple { background: var(--purple-light); color: var(--purple); }
+.badge-gray { background: var(--gray-100); color: var(--gray-600); }
+.badge-red { background: var(--red-light); color: var(--red); }
+
+/* ── Client table ──────────────────────────────────────────────────────── */
+.client-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+
+.client-table thead th {
+  text-align: right;
+  padding: .65rem 1rem;
+  background: var(--gray-50);
+  border-bottom: 2px solid var(--gray-200);
+  font-weight: 600;
+  color: var(--gray-600);
+  font-size: .8125rem;
+  white-space: nowrap;
+}
+
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background .15s;
+}
+
+.th-sortable:hover { background: var(--gray-100) !important; }
+
+.th-sortable span:first-child { margin-left: .35rem; }
+
+.sort-icon { font-size: .65rem; vertical-align: middle; }
+.sort-icon.inactive { color: var(--silver); }
+.sort-icon.active { color: var(--blue); }
+
+.client-table tbody .client-row {
+  cursor: pointer;
+  transition: background .12s;
+}
+
+.client-row:hover { background: var(--blue-light); }
+
+.client-table tbody td {
+  padding: .6rem 1rem;
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--gray-700);
+  vertical-align: middle;
+}
+
+.client-avatar-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--blue-light);
+  color: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.client-table-name {
+  font-weight: 600;
+  color: var(--gray-900);
+  font-size: .875rem;
+}
+
+.client-table-badges {
+  display: flex;
+  gap: .25rem;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.mono-text { font-variant-numeric: tabular-nums; font-size: .8125rem; }
+
+/* ── Document manager ─────────────────────────────────────────────────── */
+.doc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+
+.doc-back-link {
+  cursor: pointer;
+  color: var(--blue);
+  transition: color .15s;
+}
+
+.doc-back-link:hover { color: var(--blue-dark); }
+
+.doc-title { font-size: 1.4rem; font-weight: 700; }
+
+.doc-upload-card {
+  margin-bottom: 1.25rem;
+  border: 2px solid var(--blue-border);
+  animation: slideDown .2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Stats strip */
+.doc-stats-strip {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: .75rem 1.25rem;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+}
+
+.doc-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .1rem;
+}
+
+.doc-stat-number {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--blue);
+}
+
+.doc-stat-label {
+  font-size: .75rem;
+  color: var(--gray-500);
+  font-weight: 500;
+}
+
+.doc-stat-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--gray-200);
+}
+
+/* Filters */
+.doc-filters {
+  display: flex;
+  gap: .6rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.doc-filter-search {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.doc-filter-search input {
+  padding: .45rem .75rem .45rem .75rem;
+  padding-right: 2.25rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: .875rem;
+  font-family: inherit;
+  width: 100%;
+  transition: border-color .15s;
+}
+
+.doc-filter-search input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+
+.doc-filter-icon {
+  position: absolute;
+  right: .65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: .875rem;
+}
+
+.doc-filter-select {
+  padding: .45rem .75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-300);
+  font-size: .875rem;
+  font-family: inherit;
+  background: white;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+
+.doc-filter-select:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+/* Document table */
+.doc-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+
+.doc-table thead th {
+  text-align: right;
+  padding: .65rem .75rem;
+  background: var(--gray-50);
+  border-bottom: 2px solid var(--gray-200);
+  font-weight: 600;
+  color: var(--gray-600);
+  font-size: .8125rem;
+  white-space: nowrap;
+}
+
+.doc-table tbody td {
+  padding: .55rem .75rem;
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--gray-700);
+  vertical-align: middle;
+}
+
+.doc-row { transition: background .12s; }
+.doc-row:hover { background: var(--gray-50); }
+.doc-row-selected { background: var(--blue-light) !important; }
+
+.doc-cell-desc {
+  font-weight: 600;
+  font-size: .875rem;
+  color: var(--gray-800);
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-cell-notes {
+  font-size: .75rem;
+  color: var(--gray-500);
+  margin-top: 2px;
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-cell-filename {
+  font-size: .8125rem;
+  color: var(--gray-500);
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-cat-pill {
+  display: inline-flex;
+  padding: .15rem .55rem;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid;
+}
+
+/* Bulk actions bar */
+.doc-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .5rem 1rem;
+  background: var(--blue-light);
+  border: 1px solid var(--blue-border);
+  border-radius: var(--radius);
+  margin-bottom: .75rem;
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--blue);
+  animation: slideDown .2s ease-out;
+}
+
+/* Preview panel */
+.doc-preview-panel {
+  animation: slideDown .2s ease-out;
+}
+
+/* Copy modal */
+.doc-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn .15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.doc-modal {
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 90%;
+  max-width: 560px;
+  animation: slideDown .2s ease-out;
+}
+
+.doc-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.doc-modal-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+.doc-modal-body {
+  padding: 1.25rem;
+}
+
+.doc-copy-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .5rem;
+  padding: 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--green);
+}
+
+/* Loading */
+.doc-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  padding: 3rem;
+  color: var(--gray-500);
+}
+
+.doc-loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--gray-200);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Search ─────────────────────────────────────────────────────────────── */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1.25rem;
+}
+
+.search-input-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 400px;
+}
+
+.search-icon {
+  position: absolute;
+  right: .75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray-400);
+  pointer-events: none;
+}
+
+.search-input-wrap input {
+  padding-right: 2.5rem;
+}
+
+/* ── Stat cards (calculator results) ───────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card {
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+}
+
+.stat-card.blue { background: var(--blue-light); border-color: var(--blue-border); }
+.stat-card.green { background: var(--green-light); border-color: #a7f3d0; }
+.stat-card.orange { background: var(--orange-light); border-color: #fde68a; }
+.stat-card.red { background: var(--red-light); border-color: #fecaca; }
+.stat-card.purple { background: var(--purple-light); border-color: #ddd6fe; }
+
+.stat-label {
+  font-size: .8125rem;
+  font-weight: 500;
+  color: var(--gray-600);
+  margin-bottom: .25rem;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  letter-spacing: -.02em;
+}
+
+.stat-sub {
+  font-size: .75rem;
+  color: var(--gray-500);
+  margin-top: .2rem;
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .875rem;
+}
+
+th {
+  text-align: right;
+  padding: .6rem 1rem;
+  background: var(--gray-50);
+  border-bottom: 2px solid var(--gray-200);
+  font-weight: 600;
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+
+td {
+  padding: .55rem 1rem;
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--gray-700);
+}
+
+tr:last-child td { border-bottom: none; }
+tr.total td { background: var(--blue-light); font-weight: 700; color: var(--blue-dark); }
+tr.subtotal td { background: var(--gray-50); font-weight: 600; }
+
+td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
+
+/* ── Explanation box ────────────────────────────────────────────────────── */
+.explanation-block {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  font-size: .875rem;
+  color: var(--gray-700);
+  line-height: 1.7;
+}
+
+.explanation-block ul { padding-right: 1.25rem; }
+.explanation-block li { margin-bottom: .3rem; }
+
+/* ── Children list ──────────────────────────────────────────────────────── */
+.children-list { display: flex; flex-direction: column; gap: .5rem; }
+
+.child-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: .6rem .75rem;
+  flex-wrap: wrap;
+}
+
+/* ── Alert ──────────────────────────────────────────────────────────────── */
+.alert {
+  padding: .75rem 1rem;
+  border-radius: var(--radius);
+  font-size: .875rem;
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+}
+
+.alert-warning {
+  background: var(--orange-light);
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.alert-info {
+  background: var(--blue-light);
+  border: 1px solid var(--blue-border);
+  color: #22384a;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--gray-500);
+}
+
+.empty-state-icon { font-size: 3rem; margin-bottom: 1rem; }
+.empty-state-title { font-size: 1.125rem; font-weight: 600; margin-bottom: .5rem; color: var(--gray-700); }
+.empty-state-desc { font-size: .9rem; }
+
+/* ── Divider ────────────────────────────────────────────────────────────── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--gray-200);
+  margin: 1.25rem 0;
+}
+
+/* ── Input group ────────────────────────────────────────────────────────── */
+.input-group { display: flex; }
+.input-group input { border-radius: var(--radius) 0 0 var(--radius); flex: 1; }
+.input-group .input-addon {
+  padding: .5rem .75rem;
+  background: var(--gray-100);
+  border: 1px solid var(--gray-300);
+  border-right: none;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: .85rem;
+  color: var(--gray-600);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   משימות — Main navigation, MyDesk, TasksPage, TaskCard, TaskForm
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Main navigation tabs (header) ──────────────────────────────────────── */
+.main-nav {
+  display: flex;
+  gap: .25rem;
+  margin-inline-start: 1.5rem;
+  flex: 1;
+}
+
+.nav-tab {
+  padding: .45rem .9rem;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--gray-600);
+  font-family: inherit;
+  font-size: .875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.nav-tab:hover { background: var(--gray-100); }
+
+.nav-tab.active {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 .35rem;
+  background: var(--red);
+  color: white;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 700;
+}
+
+.nav-tab.active .nav-badge { background: var(--blue); }
+
+/* ── Desk / Tasks page headers ──────────────────────────────────────────── */
+.desk-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.desk-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+  letter-spacing: -.01em;
+}
+
+.desk-subtitle {
+  font-size: .82rem;
+  color: #94a3b8;
+  margin-top: .3rem;
+}
+
+/* ── Desk sections (buckets) ────────────────────────────────────────────── */
+.desk-section { margin-bottom: 1.75rem; }
+
+.desk-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: .6rem;
+  padding-bottom: .4rem;
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.desk-section-count {
+  color: var(--gray-400);
+  font-weight: 500;
+  font-size: .875rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Task groups (Monday-inspired)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.task-group {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow);
+  position: relative;
+}
+
+.task-group::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;  /* צד שמאל ב-RTL = ימין ויזואלית? לא, ב-RTL inline-start = ימין */
+  width: 4px;
+}
+
+/* שימוש ב-border-inline-start כדי שיעבוד נכון ב-RTL */
+.task-group { border-inline-start: 4px solid var(--gray-300); }
+
+.task-group-red    { border-inline-start-color: var(--red); }
+.task-group-orange { border-inline-start-color: var(--orange); }
+.task-group-blue   { border-inline-start-color: var(--blue); }
+.task-group-purple { border-inline-start-color: var(--purple); }
+.task-group-green  { border-inline-start-color: var(--green); }
+
+.task-group-header {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .75rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  background: white;
+  border-bottom: 1px solid var(--gray-100);
+  transition: background .12s;
+}
+
+.task-group-header:hover { background: var(--gray-50); }
+
+.task-group-arrow {
+  color: var(--gray-400);
+  font-size: .875rem;
+  transition: transform .15s;
+  display: inline-block;
+}
+
+.task-group-arrow.collapsed { transform: rotate(-90deg); }
+
+.task-group-icon { font-size: 1rem; }
+
+.task-group-title {
+  font-weight: 700;
+  color: var(--gray-800);
+  font-size: .9375rem;
+  flex: 1;
+}
+
+.task-group-count {
+  background: var(--gray-100);
+  color: var(--gray-600);
+  padding: .15rem .55rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-group-red .task-group-count    { background: var(--red-light);    color: var(--red); }
+.task-group-orange .task-group-count { background: var(--orange-light); color: var(--orange); }
+.task-group-blue .task-group-count   { background: var(--blue-light);   color: var(--blue); }
+.task-group-purple .task-group-count { background: var(--purple-light); color: var(--purple); }
+.task-group-green .task-group-count  { background: var(--green-light);  color: var(--green); }
+
+.task-group-body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Task list (fallback for non-grouped places) ───────────────────────── */
+.task-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Task row (the main element)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .6rem 1rem;
+  padding-inline-start: 0;
+  background: white;
+  border-bottom: 1px solid var(--gray-100);
+  cursor: pointer;
+  outline: none;
+  transition: background .1s;
+  position: relative;
+}
+
+.task-row:last-child { border-bottom: none; }
+
+.task-row:hover { background: var(--blue-light); }
+
+.task-row:focus-visible {
+  background: var(--blue-light);
+  box-shadow: inset 0 0 0 2px var(--blue);
+}
+
+.task-row.task-done { background: var(--gray-50); }
+.task-row.task-done .task-title {
+  text-decoration: line-through;
+  color: var(--gray-400);
+}
+.task-row.task-done:hover { background: var(--gray-100); }
+
+/* strip קו צבע בצד ההתחלה */
+.task-strip {
+  align-self: stretch;
+  width: 4px;
+  background: var(--gray-300);
+  flex-shrink: 0;
+  margin-inline-end: .6rem;
+}
+
+.task-strip-me        { background: var(--blue); }
+.task-strip-client    { background: var(--orange); }
+.task-strip-authority { background: var(--purple); }
+.task-strip-stuck     { background: var(--red); }
+.task-strip-urgent    { background: #b91c1c; }
+.task-strip-done      { background: var(--green); }
+
+/* ── Check circle ──────────────────────────────────────────────────────── */
+.task-check {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  border: 2px solid var(--gray-300);
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .12s;
+  padding: 0;
+}
+
+.task-check:hover {
+  border-color: var(--blue);
+  background: var(--blue-light);
+}
+
+.task-done .task-check,
+.row-done .task-check {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.check-mark {
+  color: white;
+  font-size: .85rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* ── Priority flag ─────────────────────────────────────────────────────── */
+.priority-flag {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* ── Title column ──────────────────────────────────────────────────────── */
+.task-title-col {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+
+.task-title {
+  font-weight: 600;
+  color: var(--gray-900);
+  font-size: .9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-desc {
+  font-size: .75rem;
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Client column ─────────────────────────────────────────────────────── */
+.task-client-col {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  min-width: 0;
+  max-width: 160px;
+}
+
+.task-avatar {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: -.5px;
+}
+
+.task-client-name {
+  font-size: .8125rem;
+  color: var(--gray-700);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Category pill ─────────────────────────────────────────────────────── */
+.category-pill {
+  padding: .2rem .65rem;
+  border-radius: 4px;
+  font-size: .7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: .01em;
+}
+
+/* ── Ball-with pill — refined, soft background + colored text ─────────── */
+.ball-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  padding: .3rem .7rem;
+  border-radius: 6px;
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: filter .1s;
+}
+.ball-pill:hover { filter: brightness(.97); }
+
+.ball-pill-me        { background: #e0ecff; color: #22384a; border-color: #c7d7f7; }
+.ball-pill-client    { background: #ffedd5; color: #9a3412; border-color: #fed7aa; }
+.ball-pill-authority { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
+.ball-pill-stuck     { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+
+/* ── Date pill ─────────────────────────────────────────────────────────── */
+.task-date-col {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 5.5rem;
+}
+
+.date-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .2rem .55rem;
+  border-radius: 4px;
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-pill-due {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.date-pill-overdue {
+  background: #fee2e2;
+  color: #b91c1c;
+  animation: pulse-overdue 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse-overdue {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .7; }
+}
+
+.date-pill-created {
+  color: var(--gray-500);
+  background: transparent;
+  font-weight: 500;
+}
+
+/* ── Quick-add inline row ──────────────────────────────────────────────── */
+.task-quick-add {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .55rem 1rem .55rem 2.5rem;
+  border: none;
+  background: white;
+  color: var(--gray-400);
+  font-family: inherit;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: start;
+  border-top: 1px solid var(--gray-100);
+  transition: background .1s, color .1s;
+}
+
+.task-quick-add:hover {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.task-quick-add span:first-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: var(--gray-100);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.task-quick-add:hover span:first-child {
+  background: var(--blue);
+  color: white;
+}
+
+/* ── Task filters ───────────────────────────────────────────────────────── */
+.tasks-filters {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  padding: 1rem;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin-bottom: 1.25rem;
+}
+
+.tasks-search {
+  width: 100%;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.filter-group > label {
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  min-width: 4rem;
+}
+
+.filter-chips {
+  display: flex;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: .3rem .75rem;
+  border: 1px solid var(--gray-300);
+  border-radius: 999px;
+  background: white;
+  color: var(--gray-700);
+  font-family: inherit;
+  font-size: .8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .12s;
+}
+
+.chip:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+}
+
+.chip.active {
+  background: var(--blue);
+  color: white;
+  border-color: var(--blue);
+}
+
+.filter-select {
+  padding: .35rem .6rem !important;
+  font-size: .8125rem !important;
+  width: auto !important;
+  min-width: 10rem;
+}
+
+/* ── Modal (task form) ──────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, .55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: fadeIn .12s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* פעימה עדינה על מקום חתימה שממתין לחתימה — לכוון את עין החותם */
+@keyframes sigPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .0); }
+  50% { box-shadow: 0 0 0 4px rgba(37, 99, 235, .18); }
+}
+
+.modal {
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-height: 90vh;
+  overflow: auto;
+  animation: slideUp .18s ease-out;
+  direction: rtl;
+}
+
+.task-modal {
+  width: 100%;
+  max-width: 640px;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.modal-body { padding: 1.25rem; }
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--gray-200);
+  background: var(--gray-50);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* ── Ball-with picker (inside task form) ────────────────────────────────── */
+.ball-select {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .4rem;
+}
+
+.ball-option {
+  padding: .5rem .75rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  background: white;
+  color: var(--gray-700);
+  font-family: inherit;
+  font-size: .875rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  transition: all .12s;
+}
+
+.ball-option:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+}
+
+.ball-option.active {
+  background: var(--blue);
+  color: white;
+  border-color: var(--blue);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+.hide-mobile {}
+
+@media (max-width: 768px) {
+  .form-grid-2, .form-grid-3, .form-grid-4 { grid-template-columns: 1fr; }
+  .form-group.span-2, .form-group.span-3 { grid-column: span 1; }
+  .main { padding: 1rem; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .hide-mobile { display: none; }
+  .doc-filter-search { max-width: 100%; }
+  .doc-modal { width: 95%; }
+
+  .main-nav {
+    margin-inline-start: 0;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: .25rem;
+  }
+  .nav-tab { font-size: .8125rem; padding: .4rem .7rem; white-space: nowrap; }
+
+  .task-card { flex-wrap: wrap; }
+  .task-meta { width: 100%; justify-content: flex-start; }
+
+  .ball-select { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TASK BOARD (Monday-style) — טבלת משימות עם קבוצות וגרירה
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.migration-banner {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #854d0e;
+  padding: .7rem 1rem;
+  border-radius: 10px;
+  margin-bottom: .9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: .85rem;
+}
+
+.board-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: .9rem;
+  padding: .8rem 1rem;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 1px 2px rgba(20,25,40,.03);
+}
+
+.board-filters .tasks-search {
+  flex: 1 1 260px;
+  max-width: 360px;
+  padding: .5rem .75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: .85rem;
+  background: #fafbfc;
+  transition: all .15s;
+}
+.board-filters .tasks-search:focus {
+  outline: none;
+  background: white;
+  border-color: #a5b4fc;
+  box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+}
+
+.board-filters .chip {
+  padding: .28rem .7rem;
+  font-size: .78rem;
+  font-weight: 500;
+  background: #fafbfc;
+  border-color: #e5e7eb;
+  color: #64748b;
+}
+.board-filters .chip:hover {
+  background: white;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+.board-filters .chip.active {
+  background: #e0ecff;
+  color: #22384a;
+  border-color: #c7d7f7;
+}
+
+.board-filters .filter-group > label {
+  font-size: .78rem;
+  font-weight: 500;
+  color: #64748b;
+  min-width: auto;
+}
+
+.board-filters .filter-select {
+  padding: .4rem .65rem !important;
+  font-size: .8rem !important;
+  background: #fafbfc;
+  border-color: #e5e7eb !important;
+  border-radius: 8px !important;
+}
+
+.board-group {
+  background: white;
+  border-radius: 10px;
+  margin-bottom: .9rem;
+  border: 1px solid #e9ecef;
+  border-top: 3px solid #cbd5e1;        /* פס עליון בצבע — להבחנה ויזואלית */
+  box-shadow: 0 1px 2px rgba(20,25,40,.03);
+  /* no overflow:hidden — would clip the pill-menu dropdowns */
+}
+
+/* צבע פס עליון + צבע כותרת לפי סטטוס הקבוצה */
+.board-group-new          { border-top-color: #33556f; }
+.board-group-new          .board-group-title { color: #22384a; }
+.board-group-in_progress  { border-top-color: #d97706; }
+.board-group-in_progress  .board-group-title { color: #854d0e; }
+.board-group-done         { border-top-color: #059669; }
+.board-group-done         .board-group-title { color: #065f46; }
+
+.board-group-header {
+  border-radius: 10px 10px 0 0;
+}
+
+.board-group-drop {
+  outline: 2px dashed #a5b4fc;
+  outline-offset: -2px;
+}
+
+.board-group-header {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .7rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid #f1f3f6;
+}
+
+.board-group-header:hover { background: #fafbfc; }
+
+.board-group-arrow {
+  display: inline-block;
+  color: #94a3b8;
+  transition: transform .15s;
+  font-size: .7rem;
+}
+.board-group-arrow.collapsed { transform: rotate(-90deg); }
+
+.board-group-title {
+  padding: .3rem .75rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: .82rem;
+  /* override status-pill width:100% when used as group header */
+  width: auto !important;
+  display: inline-block;
+  text-align: start;
+}
+
+.board-group-count {
+  margin-inline-start: auto;
+  color: #94a3b8;
+  font-size: .78rem;
+  font-weight: 500;
+  padding: .1rem .5rem;
+  background: #f1f5f9;
+  border-radius: 999px;
+}
+
+/* ── Board table ───────────────────────────────────────────────────────── */
+.board-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.board-row {
+  display: grid;
+  grid-template-columns:
+    24px /* handle */
+    30px /* checkbox */
+    minmax(180px, 2fr) /* title */
+    115px /* status */
+    minmax(140px, 1.2fr) /* client */
+    90px /* date */
+    minmax(120px, 1.5fr) /* desc */
+    135px /* ball */
+    135px /* category */
+    28px /* actions */;
+  align-items: center;
+  gap: .6rem;
+  padding: .6rem .9rem;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background .1s;
+}
+
+.board-row:last-child { border-bottom: none; }
+.board-row:hover:not(.board-row-header) { background: #fafbfc; }
+
+.board-row-header {
+  background: #f9fafb;
+  font-size: .7rem;
+  font-weight: 600;
+  color: #6b7280;
+  letter-spacing: .02em;
+  cursor: default;
+  padding: .55rem .9rem;
+}
+.board-row-header:hover { background: #f9fafb; }
+
+.board-row.row-done .task-title-text {
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+.board-row.row-done { opacity: .88; }
+
+.board-row.row-dragging {
+  opacity: 0.4;
+}
+
+.board-row.row-drop-before {
+  box-shadow: 0 -2px 0 0 var(--blue) inset;
+}
+.board-row.row-drop-after {
+  box-shadow: 0 2px 0 0 var(--blue) inset;
+}
+
+.board-empty-row {
+  padding: 1rem;
+  text-align: center;
+  color: var(--gray-500);
+  font-size: .8rem;
+  font-style: italic;
+}
+
+/* ── Columns ───────────────────────────────────────────────────────────── */
+.bc {
+  min-width: 0;
+}
+
+.bc-title, .bc-desc, .bc-client, .bc-date {
+  overflow: hidden;
+}
+
+/* עמודות עם dropdown — צריכות overflow: visible */
+.bc-status, .bc-ball, .bc-cat {
+  overflow: visible;
+}
+
+.bc-handle {
+  color: #cbd5e1;
+  cursor: grab;
+  text-align: center;
+  font-size: .8rem;
+  letter-spacing: -3px;
+  user-select: none;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.board-row:hover .bc-handle { opacity: 1; }
+.bc-handle:active { cursor: grabbing; }
+.bc-handle:hover { color: #64748b; }
+
+.bc-title {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  font-weight: 500;
+  font-size: .9rem;
+  color: #111827;
+}
+
+.task-title-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.urgent-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  flex-shrink: 0;
+  font-size: 0;
+}
+
+.bc-desc {
+  color: #6b7280;
+  font-size: .8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bc-desc .muted { color: #cbd5e1; }
+
+.bc-status, .bc-ball, .bc-cat, .bc-client {
+  position: relative;
+}
+
+/* ── Status pills (progress) — refined, soft background + colored text ── */
+.status-pill {
+  display: inline-block;
+  padding: .3rem .7rem;
+  border-radius: 6px;
+  font-size: .75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  letter-spacing: 0;
+  transition: filter .1s;
+}
+.status-pill:hover { filter: brightness(.97); }
+
+/* בטבלת הלוח — הפילים תופסים את כל רוחב העמודה */
+.bc-status > .status-pill,
+.bc-ball   > .ball-pill,
+.bc-cat    > .category-pill {
+  width: 100%;
+}
+
+.status-pill-new           { background: #e0ecff; color: #22384a; border-color: #c7d7f7; }
+.status-pill-in_progress   { background: #fef3c7; color: #854d0e; border-color: #fde68a; }
+.status-pill-done          { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+
+/* ── Client chip ───────────────────────────────────────────────────────── */
+.client-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: .2rem .4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  transition: all .12s;
+}
+.client-chip:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+.client-chip-name {
+  font-size: .82rem;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.client-chip-missing {
+  color: #cbd5e1;
+  font-style: italic;
+  cursor: default;
+}
+.client-chip-missing:hover { background: transparent; border-color: transparent; }
+
+/* ── Date chip — refined ───────────────────────────────────────────────── */
+.date-chip {
+  display: inline-block;
+  padding: .22rem .55rem;
+  border-radius: 6px;
+  font-size: .75rem;
+  font-weight: 500;
+  background: #f1f5f9;
+  color: #475569;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid #e2e8f0;
+}
+.date-chip-overdue {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+.date-chip-none {
+  background: transparent;
+  color: #cbd5e1;
+  font-weight: 400;
+  border-color: transparent;
+}
+
+/* ── Category pills — refined, soft palette ────────────────────────────── */
+.category-pill {
+  display: inline-block;
+  padding: .3rem .7rem;
+  border-radius: 6px;
+  font-size: .75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition: filter .1s;
+}
+.category-pill:hover { filter: brightness(.97); }
+
+.category-pill.cat-green   { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+.category-pill.cat-red     { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.category-pill.cat-yellow  { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
+.category-pill.cat-orange  { background: #ffedd5; color: #9a3412; border-color: #fed7aa; }
+.category-pill.cat-amber   { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.category-pill.cat-blue    { background: #dbe4ec; color: #22384a; border-color: #c3d3de; }
+.category-pill.cat-brown   { background: #f5eadd; color: #78350f; border-color: #e7d4b5; }
+.category-pill.cat-purple  { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
+.category-pill.cat-pink    { background: #fce7f3; color: #9d174d; border-color: #fbcfe8; }
+.category-pill.cat-black   { background: #e5e7eb; color: #1f2937; border-color: #d1d5db; }
+.category-pill.cat-gray    { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+
+/* ── In-row dropdown menu (status/ball/cat) ────────────────────────────── */
+.pill-menu {
+  position: absolute;
+  top: 100%;
+  inset-inline-start: 0;
+  margin-top: 6px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20,25,40,.10), 0 2px 6px rgba(20,25,40,.04);
+  z-index: 50;
+  padding: .4rem;
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  min-width: 140px;
+}
+.pill-menu-wide { min-width: 190px; }
+
+.pill-menu-item {
+  cursor: pointer;
+  padding: .4rem .7rem;
+  font-size: .75rem;
+  font-weight: 500;
+  border-radius: 6px;
+  text-align: center;
+  width: 100%;
+}
+.pill-menu-item:hover { filter: brightness(.95); }
+
+/* ── Actions column ────────────────────────────────────────────────────── */
+.row-delete {
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  font-size: .9rem;
+  padding: .2rem .35rem;
+  border-radius: 4px;
+  transition: all .1s;
+  opacity: 0;
+}
+.board-row:hover .row-delete {
+  opacity: 1;
+}
+.row-delete:hover {
+  color: var(--red);
+  background: var(--red-light);
+}
+
+/* ── Responsive: hide some columns on narrow screens ───────────────────── */
+@media (max-width: 1200px) {
+  .board-row {
+    grid-template-columns:
+      24px 28px
+      minmax(140px, 1.5fr)
+      100px
+      minmax(100px, 1fr)
+      80px
+      110px
+      110px
+      24px;
+  }
+  .bc-desc { display: none; }
+}
+
+@media (max-width: 900px) {
+  .board-row {
+    grid-template-columns:
+      24px 28px
+      minmax(130px, 1.5fr)
+      90px
+      minmax(100px, 1fr)
+      100px
+      24px;
+  }
+  .bc-ball, .bc-cat, .bc-date { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ── Client area — list, workspace, tabs, alerts ──
+   ════════════════════════════════════════════════════════════════════════ */
+
+.cl-list-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1rem; flex-wrap: wrap; gap: .75rem;
+}
+.cl-list-title { font-size: 1.5rem; font-weight: 700; color: var(--gray-900); }
+.cl-list-sub   { font-size: .875rem; color: var(--gray-500); margin-top: 2px; }
+
+.tab-count {
+  margin-right: 6px;
+  background: var(--gray-200); color: var(--gray-600);
+  padding: .05rem .4rem; border-radius: 999px;
+  font-size: .7rem; font-weight: 700;
+}
+.tab-count.active { background: var(--blue-light); color: var(--blue); }
+
+.cl-search-row {
+  display: flex; gap: .5rem; align-items: center;
+  margin-bottom: .75rem; flex-wrap: wrap;
+}
+
+.cl-advanced {
+  background: white; border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 1rem; margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+}
+.cl-adv-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: .75rem;
+}
+.cl-adv-row label {
+  display: flex; flex-direction: column; gap: .25rem;
+  font-size: .75rem; color: var(--gray-600); font-weight: 600;
+}
+.cl-adv-row select {
+  font-size: .8rem; padding: .35rem .5rem;
+}
+.cl-adv-toggles {
+  display: flex; gap: 1.25rem; flex-wrap: wrap;
+  margin-top: .75rem; padding-top: .75rem;
+  border-top: 1px solid var(--gray-100);
+}
+
+.client-table-dense thead th { padding: .5rem .75rem; }
+.client-table-dense tbody td { padding: .45rem .75rem; }
+
+.cl-mini-badge {
+  font-size: .65rem !important;
+  padding: .1rem .4rem !important;
+}
+
+/* סימון 🔑 ליד טלפון/אימייל בטבלת לקוחות — כשאיש הקשר הראשי הוא לא הנישום */
+.cl-primary-mark {
+  margin-inline-start: .25rem;
+  font-size: .7rem;
+  vertical-align: middle;
+}
+
+/* ─── Signature request editor ──────────────────────────────────────── */
+.sig-modal {
+  width: min(1100px, 96vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+.sig-modal .modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+.sig-steps {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--gray-200);
+  background: var(--gray-50);
+}
+.sig-step {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: .75rem 1rem;
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--gray-500);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+}
+.sig-step.active { color: var(--blue); border-bottom-color: var(--blue); background: white; }
+.sig-step:disabled { cursor: not-allowed; opacity: .5; }
+.sig-step-count {
+  background: var(--blue); color: white; font-size: .7rem;
+  padding: .1rem .45rem; border-radius: 999px;
+}
+
+.sig-body { padding: 1rem 1.25rem; }
+
+/* Signers panel */
+.sig-section { margin-bottom: 1.25rem; }
+.sig-section h4 { font-size: .9rem; color: var(--gray-700); margin-bottom: .5rem; }
+.sig-section-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; flex-wrap: wrap; gap: .5rem; }
+
+.sig-candidates {
+  display: flex; flex-direction: column; gap: .35rem;
+}
+.sig-candidate {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .5rem .75rem;
+  background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius);
+  cursor: pointer;
+}
+.sig-candidate:hover { background: white; border-color: var(--gray-300); }
+.sig-candidate.selected { background: var(--blue-light); border-color: var(--blue-border); }
+.sig-candidate.no-email { opacity: .55; cursor: not-allowed; }
+.sig-candidate-text { flex: 1; min-width: 0; }
+.sig-candidate-name { font-weight: 600; font-size: .85rem; color: var(--gray-800); }
+.sig-candidate-meta { font-size: .75rem; color: var(--gray-600); }
+
+.sig-manual-form {
+  background: var(--gray-50); padding: .75rem;
+  border: 1px dashed var(--gray-300); border-radius: var(--radius);
+}
+
+.sig-signers-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: .35rem;
+}
+.sig-signer-row {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .55rem .75rem;
+  background: white; border: 1px solid var(--gray-200); border-radius: var(--radius);
+}
+.sig-signer-num {
+  background: var(--blue); color: white;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .75rem;
+  flex: 0 0 auto;
+}
+.sig-signer-info { flex: 1; min-width: 0; }
+.sig-signer-name { font-weight: 600; font-size: .85rem; }
+.sig-signer-meta { font-size: .75rem; color: var(--gray-600); }
+.sig-signer-order { display: flex; gap: .15rem; }
+
+/* Fields panel */
+.sig-fields { display: flex; flex-direction: column; gap: .75rem; }
+
+/* פס הוראה — מסביר במצב הסימון מה לעשות */
+.sig-instruction {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .65rem .85rem;
+  background: white;
+  border: 2px solid;
+  border-radius: var(--radius);
+  position: sticky; top: 0; z-index: 6;
+  box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+.sig-instruction-icon {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: white; font-size: 1rem;
+  flex: 0 0 auto;
+}
+.sig-instruction-text { font-size: .9rem; line-height: 1.3; flex: 1; min-width: 0; }
+
+.sig-toolbar {
+  display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;
+  background: var(--gray-50); padding: .6rem .75rem;
+  border: 1px solid var(--gray-200); border-radius: var(--radius);
+  position: sticky; top: 56px; z-index: 5;
+}
+.sig-toolbar-group { display: flex; align-items: center; gap: .5rem; }
+.sig-toolbar-label { font-size: .8rem; color: var(--gray-600); font-weight: 600; }
+
+.sig-kind-toggle { display: flex; gap: 0; border: 1px solid var(--gray-300); border-radius: var(--radius); overflow: hidden; }
+.sig-kind-toggle button {
+  background: white; border: none; padding: .35rem .75rem;
+  font-size: .8rem; cursor: pointer;
+}
+.sig-kind-toggle button:not(:last-child) { border-inline-end: 1px solid var(--gray-300); }
+.sig-kind-toggle button.active { background: var(--blue); color: white; }
+
+.sig-pdf-canvas-wrap {
+  display: flex; flex-direction: column; gap: 1rem;
+  background: var(--gray-100); padding: 1rem;
+  border-radius: var(--radius);
+  min-height: 400px;
+}
+.sig-pdf-page {
+  background: white; border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+  align-self: center;
+  max-width: 100%;
+}
+.sig-pdf-page-label {
+  background: var(--gray-50); padding: .35rem .75rem;
+  font-size: .75rem; color: var(--gray-500);
+  border-bottom: 1px solid var(--gray-200);
+}
+.sig-pdf-page-inner {
+  position: relative;
+  cursor: crosshair;
+  line-height: 0;
+  direction: ltr;
+}
+.sig-pdf-page-inner:hover {
+  outline: 2px solid rgba(37, 99, 235, .25);
+}
+.sig-pdf-page-inner canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  pointer-events: none;  /* קליקים יעברו לאלמנט ההורה */
+}
+
+.sig-marker {
+  position: absolute;
+  border: 2px solid;
+  border-radius: 4px;
+  cursor: move;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.7);
+  transition: box-shadow .15s;
+  user-select: none;
+}
+.sig-marker:hover { box-shadow: 0 0 0 2px rgba(255,255,255,.7), 0 4px 12px rgba(0,0,0,.15); z-index: 2; }
+.sig-marker:active { cursor: grabbing; }
+.sig-marker-signature { border-style: solid; }
+.sig-marker-text { border-style: dashed; }
+
+/* select בראש התיבה — מחליף את הלייבל הסטטי, לחיצה פותחת בחירת חותם */
+.sig-marker-select {
+  position: absolute;
+  top: -22px; right: 0;
+  color: white; font-size: .7rem;
+  padding: .15rem 1.4rem .15rem .4rem;
+  border-radius: 3px 3px 0 0;
+  white-space: nowrap;
+  font-weight: 600;
+  direction: rtl;
+  box-shadow: 0 1px 3px rgba(0,0,0,.15);
+  border: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='white' d='M2 4l3 3 3-3z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left .35rem center;
+  height: 22px;
+  line-height: 1;
+}
+.sig-marker-select option { color: var(--gray-900); background: white; }
+
+.sig-marker-x {
+  position: absolute;
+  top: -22px; left: 0;          /* באותה שורה של ה-select (מעל התיבה) — לא חוסם פינה NW */
+  width: 22px; height: 22px;
+  border-radius: 3px 3px 0 0;
+  background: var(--red); color: white;
+  border: none;
+  font-size: .9rem; line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,.15);
+  z-index: 4;
+}
+.sig-marker-x:hover { background: #b91c1c; }
+
+/* ─── ידיות שינוי גודל — 8 כיוונים ─── */
+.sig-marker-handle {
+  position: absolute;
+  background: white;
+  border: 2px solid;
+  z-index: 3;
+  user-select: none;
+  box-shadow: 0 1px 2px rgba(0,0,0,.1);
+}
+.sig-marker-handle:hover { background: #fffbe6; }
+
+/* פינות — ריבועים קטנים, חציים בתוך התיבה וחציים החוצה */
+.sig-marker-handle-nw,
+.sig-marker-handle-ne,
+.sig-marker-handle-se,
+.sig-marker-handle-sw {
+  width: 14px; height: 14px;
+  border-radius: 3px;
+}
+.sig-marker-handle-nw { top: -7px; left: -7px;    cursor: nwse-resize; }
+.sig-marker-handle-ne { top: -7px; right: -7px;   cursor: nesw-resize; }
+.sig-marker-handle-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+.sig-marker-handle-sw { bottom: -7px; left: -7px;  cursor: nesw-resize; }
+
+/* קצוות — פסים דקים לאורך/רוחב הצלעות (בין פינה לפינה) */
+.sig-marker-handle-n,
+.sig-marker-handle-s {
+  height: 8px;
+  left: 14px; right: 14px;
+  cursor: ns-resize;
+  border-left: none; border-right: none;
+  background: rgba(255,255,255,.85);
+}
+.sig-marker-handle-n { top: -5px; }
+.sig-marker-handle-s { bottom: -5px; }
+
+.sig-marker-handle-e,
+.sig-marker-handle-w {
+  width: 8px;
+  top: 14px; bottom: 14px;
+  cursor: ew-resize;
+  border-top: none; border-bottom: none;
+  background: rgba(255,255,255,.85);
+}
+.sig-marker-handle-e { right: -5px; }
+.sig-marker-handle-w { left: -5px; }
+
+/* תיבות מאוד קטנות — מסתיר את הידיות הקצוות (אין מקום ביניהן) */
+.sig-marker:not(:hover) .sig-marker-handle-n,
+.sig-marker:not(:hover) .sig-marker-handle-s,
+.sig-marker:not(:hover) .sig-marker-handle-e,
+.sig-marker:not(:hover) .sig-marker-handle-w {
+  opacity: .55;
+}
+.sig-marker:hover .sig-marker-handle { background: white; }
+
+.sig-upload-area { padding: 2rem; }
+
+/* כפתור מחיקה במקבץ בסרגל הבחירה */
+.doc-bulk-delete {
+  background: var(--red);
+  color: white;
+  border: 1px solid var(--red);
+}
+.doc-bulk-delete:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+.doc-bulk-delete:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ─── באנר הגירה חד-פעמי לענן ─── */
+.legacy-migration-banner {
+  display: flex; align-items: center; gap: 1rem;
+  padding: .75rem 1rem;
+  margin: 1rem 1.5rem;
+  background: var(--blue-light);
+  border: 1px solid var(--blue-border);
+  border-radius: var(--radius);
+  flex-wrap: wrap;
+}
+.legacy-migration-banner.error { background: var(--red-light); border-color: #fecaca; }
+.legacy-migration-banner .lmb-icon { font-size: 1.5rem; flex: 0 0 auto; }
+.legacy-migration-banner .lmb-text { flex: 1; min-width: 200px; font-size: .85rem; }
+.legacy-migration-banner .lmb-sub { color: var(--gray-600); font-size: .75rem; margin-top: .15rem; }
+.legacy-migration-banner .lmb-progressbar {
+  margin-top: .35rem;
+  background: white; border: 1px solid var(--blue-border);
+  border-radius: 999px; height: 8px; overflow: hidden;
+}
+.legacy-migration-banner .lmb-progressbar-fill {
+  height: 100%; background: var(--blue);
+  transition: width .25s;
+}
+
+/* סיכום בקשת חתימה בתוך TaskForm */
+.task-sig-summary {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .65rem .85rem;
+  background: var(--blue-light);
+  border: 1px solid var(--blue-border);
+  border-radius: var(--radius);
+  flex-wrap: wrap;
+}
+.task-sig-line { flex: 1; min-width: 0; }
+.task-sig-line strong { display: block; font-size: .9rem; }
+.task-sig-meta { font-size: .75rem; color: var(--gray-600); }
+.task-sig-actions { display: flex; gap: .35rem; }
+
+.cl-tax-chips {
+  display: flex; gap: .25rem; flex-wrap: wrap;
+}
+
+.cl-emp-chip {
+  display: inline-flex; align-items: center; gap: .35rem;
+}
+.cl-emp-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: white; font-size: .65rem; font-weight: 700;
+}
+
+.cl-metric-cell { display: flex; align-items: center; gap: .35rem; }
+.cl-metric-num {
+  display: inline-block; min-width: 24px; text-align: center;
+  font-weight: 700; color: var(--gray-800);
+  background: var(--gray-100); padding: .15rem .5rem; border-radius: 999px;
+  font-size: .8rem;
+}
+.cl-metric-num.warn { background: var(--orange-light); color: var(--orange); }
+.cl-metric-tag {
+  font-size: .65rem; color: var(--orange);
+  background: var(--orange-light); padding: .05rem .35rem; border-radius: 4px;
+}
+.cl-metric-zero { color: var(--gray-300); }
+
+/* ─── Client Workspace ──────────────────────────────────────────────────── */
+.cw-root { display: flex; flex-direction: column; gap: 0; }
+
+.cw-header {
+  background: white; border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.cw-header-top {
+  display: flex; align-items: center; gap: 1rem;
+  padding: .75rem 1.25rem;
+  border-bottom: 1px solid var(--gray-100);
+  flex-wrap: wrap;
+}
+
+.cw-identity {
+  display: flex; align-items: center; gap: .75rem;
+  flex: 1; min-width: 200px;
+}
+
+.cw-avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--blue-light); color: var(--blue);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1.05rem; flex-shrink: 0;
+}
+
+.cw-name {
+  font-size: 1.15rem; font-weight: 700; color: var(--gray-900);
+  line-height: 1.2;
+}
+.cw-id-row {
+  display: flex; gap: .75rem; flex-wrap: wrap;
+  font-size: .8rem; color: var(--gray-500); margin-top: 2px;
+}
+
+.cw-header-actions {
+  display: flex; gap: .4rem; align-items: center; flex-wrap: wrap;
+}
+
+.cw-dirty-flag {
+  font-size: .75rem; color: var(--orange);
+  background: var(--orange-light);
+  padding: .15rem .5rem; border-radius: 999px;
+  font-weight: 600;
+}
+
+.cw-header-chips {
+  display: flex; gap: .4rem; flex-wrap: wrap;
+  padding: .65rem 1.25rem;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-100);
+  align-items: center;
+}
+
+.cw-emp-chip {
+  display: inline-flex; align-items: center; gap: .4rem;
+  background: white; border: 1px solid var(--gray-200);
+  padding: .15rem .5rem .15rem .15rem;
+  border-radius: 999px;
+  font-size: .75rem; color: var(--gray-700);
+}
+.cw-emp-chip.muted { color: var(--gray-400); }
+.cw-emp-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: white; font-size: .65rem; font-weight: 700;
+}
+
+.cw-tax-chip {
+  display: inline-flex; align-items: center; gap: .25rem;
+  background: white; border: 1px solid var(--gray-200);
+  padding: .2rem .55rem; border-radius: 999px;
+  font-size: .73rem; color: var(--gray-700);
+}
+
+.cw-tag {
+  display: inline-flex; align-items: center; gap: .25rem;
+  background: var(--purple-light); color: var(--purple);
+  padding: .15rem .55rem; border-radius: 6px;
+  font-size: .72rem; font-weight: 600;
+}
+.cw-tag.interactive button {
+  background: transparent; border: 0; color: var(--purple);
+  cursor: pointer; font-size: .9rem; padding: 0 .15rem; line-height: 1;
+}
+.cw-tag.interactive button:hover { color: var(--red); }
+.cw-tag-input {
+  border: 1px dashed var(--gray-300); background: white;
+  padding: .25rem .6rem; border-radius: 6px; font-size: .75rem;
+  width: 140px;
+}
+
+.cw-alerts {
+  display: flex; gap: .4rem; flex-wrap: wrap;
+  padding: .55rem 1.25rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.cw-alert {
+  display: inline-flex; align-items: center;
+  padding: .2rem .65rem; border-radius: 6px;
+  font-size: .75rem; font-weight: 600;
+}
+.cw-alert-info    { background: var(--blue-light);   color: var(--blue); }
+.cw-alert-warning { background: var(--orange-light); color: var(--orange); }
+.cw-alert-danger  { background: var(--red-light);    color: var(--red); }
+
+.cw-tabs {
+  display: flex; gap: 0;
+  padding: 0 1rem;
+  background: white;
+}
+.cw-tab {
+  display: flex; align-items: center; gap: .35rem;
+  padding: .75rem 1.1rem;
+  border: 0; background: transparent;
+  font-family: inherit; font-size: .9rem; font-weight: 500;
+  color: var(--gray-500);
+  cursor: pointer; position: relative;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+  white-space: nowrap;
+}
+.cw-tab:hover { color: var(--gray-800); background: var(--gray-50); }
+.cw-tab.active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+}
+.cw-tab-badge {
+  background: var(--gray-200); color: var(--gray-700);
+  font-size: .65rem; padding: .05rem .4rem; border-radius: 999px;
+  font-weight: 700; min-width: 18px; text-align: center;
+}
+.cw-tab-badge.warn { background: var(--orange-light); color: var(--orange); }
+.cw-tab.active .cw-tab-badge {
+  background: var(--blue-light); color: var(--blue);
+}
+
+.cw-body {
+  padding: 0;
+}
+
+/* ─── Tab content shared ───────────────────────────────────────────────── */
+/* align-items: stretch מבטל את ה-center שמגיע מההגדרה של כפתורי ה-nav (.cw-tab),
+   כדי שכל .cw-section יתפוס את מלוא הרוחב של ה-pane */
+.cw-tab { display: flex; flex-direction: column; align-items: stretch; gap: 1rem; }
+
+.cw-section {
+  background: white; border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg); padding: 1rem 1.25rem;
+  box-shadow: var(--shadow);
+}
+.cw-section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: .9rem; font-weight: 700; color: var(--gray-800);
+  margin-bottom: .75rem;
+}
+.cw-section-count {
+  background: var(--gray-100); color: var(--gray-600);
+  padding: .1rem .55rem; border-radius: 999px;
+  font-size: .7rem; font-weight: 700;
+}
+.cw-empty {
+  color: var(--gray-400); font-size: .85rem; padding: .5rem 0;
+  text-align: center; font-style: italic;
+}
+
+/* ─── Overview tab ──────────────────────────────────────────────────────── */
+.cw-overview { display: flex; flex-direction: column; gap: 1rem; }
+
+.cw-stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: .75rem;
+}
+.cw-stat-card {
+  background: white; border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg); padding: 1rem;
+  display: flex; flex-direction: column; gap: .25rem;
+  cursor: pointer; transition: all .15s;
+  text-align: right; font-family: inherit;
+  box-shadow: var(--shadow);
+}
+.cw-stat-card:hover:not(:disabled) { border-color: var(--blue); transform: translateY(-1px); }
+.cw-stat-card:disabled { opacity: .55; cursor: default; }
+.cw-stat-card.warn { border-color: var(--orange-light); }
+.cw-stat-card.warn .cw-stat-num { color: var(--orange); }
+.cw-stat-num { font-size: 1.85rem; font-weight: 700; color: var(--gray-900); line-height: 1; }
+.cw-stat-label { font-size: .8rem; color: var(--gray-500); }
+
+.cw-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+@media (max-width: 900px) {
+  .cw-grid-2 { grid-template-columns: 1fr; }
+}
+
+.pin-section { background: #fffbe7; border-color: #fde68a; }
+.cw-pin-text {
+  font-size: .9rem; color: var(--gray-800);
+  white-space: pre-wrap; line-height: 1.5;
+}
+.cw-pin-edit { display: flex; flex-direction: column; gap: .5rem; }
+
+.cw-task-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 0;
+}
+.cw-task-row {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .45rem .25rem;
+  border-bottom: 1px solid var(--gray-100);
+  cursor: pointer;
+  transition: background .12s;
+  font-size: .85rem;
+}
+.cw-task-row:last-child { border-bottom: 0; }
+.cw-task-row:hover { background: var(--blue-light); }
+.cw-task-title { flex: 1; color: var(--gray-800); }
+.cw-task-due { font-size: .72rem; color: var(--gray-500); font-variant-numeric: tabular-nums; }
+.cw-task-done { text-decoration: line-through; color: var(--gray-400); }
+
+.cw-missing-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: .35rem;
+  font-size: .85rem; color: var(--gray-700);
+}
+
+.cw-activity-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: .15rem;
+}
+.cw-activity-row {
+  display: flex; gap: .6rem;
+  padding: .4rem .25rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+.cw-activity-row:last-child { border-bottom: 0; }
+.cw-act-icon { font-size: 1.1rem; flex-shrink: 0; }
+.cw-act-body { flex: 1; min-width: 0; }
+.cw-act-text { font-size: .85rem; color: var(--gray-800); }
+.cw-act-meta { font-size: .7rem; color: var(--gray-500); margin-top: 1px; }
+
+.cw-alert-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: .5rem;
+}
+.cw-alert-card {
+  padding: .55rem .75rem; border-radius: var(--radius);
+  font-size: .8rem; font-weight: 600;
+}
+.cw-alert-card.cw-alert-info    { background: var(--blue-light);   color: var(--blue); }
+.cw-alert-card.cw-alert-warning { background: var(--orange-light); color: var(--orange); }
+.cw-alert-card.cw-alert-danger  { background: var(--red-light);    color: var(--red); }
+
+/* ─── Personal & contacts ─────────────────────────────────────────────── */
+.cw-tags { display: flex; gap: .35rem; flex-wrap: wrap; align-items: center; }
+
+.cw-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  margin-bottom: 1rem;
+}
+.cw-contact-card {
+  background: var(--gray-50); border: 1px solid var(--gray-200);
+  padding: .55rem .75rem; border-radius: var(--radius);
+  display: flex; align-items: center; gap: .75rem;
+  flex-wrap: wrap;
+}
+.cw-contact-head {
+  display: flex; align-items: center; gap: .4rem;
+  flex: 1 1 220px; min-width: 0;
+}
+.cw-contact-meta {
+  display: flex; flex-direction: row; gap: 1rem; flex-wrap: wrap;
+  font-size: .8rem; color: var(--gray-700);
+  flex: 2 1 320px;
+}
+.cw-contact-notes {
+  font-size: .75rem; color: var(--gray-600); font-style: italic;
+  flex: 1 1 100%;
+  margin-top: .15rem;
+  padding-top: .35rem;
+  border-top: 1px dashed var(--gray-200);
+}
+.cw-contact-actions {
+  display: flex; gap: .25rem; justify-content: flex-end;
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+.cw-contact-form {
+  background: var(--gray-50); padding: .75rem;
+  border: 1px dashed var(--gray-300); border-radius: var(--radius);
+}
+
+/* כפתור מפתח לסימון איש הקשר הראשי */
+.cw-contact-key {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 1rem; padding: 0 .15rem; line-height: 1;
+  opacity: .55; transition: opacity .15s, transform .15s;
+}
+.cw-contact-key:hover { opacity: 1; transform: scale(1.15); }
+.cw-contact-key[aria-pressed="true"] { opacity: 1; }
+
+/* כרטיס איש הקשר הראשי — מודגש */
+.cw-contact-card.cw-contact-primary {
+  background: #fff7e6;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b inset;
+}
+
+/* כרטיס הנישום עצמו — צבע רקע עדין כדי להבדיל ש"זה לא לערוך כאן" */
+.cw-contact-card.cw-contact-self {
+  background: var(--blue-light);
+  border-color: var(--blue-border);
+}
+.cw-contact-card.cw-contact-self.cw-contact-primary {
+  background: #fff7e6;
+  border-color: #f59e0b;
+}
+
+/* ─── Tax & NI tab ─────────────────────────────────────────────────────── */
+.cw-field-meta {
+  font-size: .7rem; color: var(--gray-500); margin-top: .25rem;
+}
+.cw-field-meta .warn { color: var(--orange); font-weight: 600; }
+
+/* מקטע צבעוני: פס עליון בצבע הרשות + כותרת בצבע תואם */
+.cw-colored-section {
+  border-top-width: 3px !important;
+  border-top-style: solid !important;
+}
+.cw-colored-section .cw-section-head {
+  font-weight: 700;
+}
+
+/* תת-קבוצה בתוך אזור רשות */
+.cw-subsection {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius);
+  padding: .75rem 1rem;
+  margin-top: .75rem;
+}
+.cw-subsection:first-of-type { margin-top: 0; }
+.cw-subsection-title {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  margin-bottom: .6rem;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.cw-info-line { padding-top: 1.4rem; }
+
+/* ─── Properties editor (residential properties) ───────────────────── */
+.cw-prop-count {
+  background: var(--green-light); color: var(--green);
+  font-size: .7rem; font-weight: 700;
+  padding: .1rem .55rem; border-radius: 999px;
+  margin-right: auto;
+}
+
+.cw-properties-list {
+  display: flex; flex-direction: column; gap: .75rem;
+}
+
+.cw-property-card {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-right: 3px solid #059669;
+  border-radius: var(--radius);
+  padding: .75rem 1rem .9rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.03);
+}
+
+.cw-property-head {
+  display: flex; align-items: center; gap: .5rem;
+  margin-bottom: .6rem; padding-bottom: .5rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.cw-property-num {
+  background: var(--green-light); color: var(--green);
+  font-weight: 700; font-size: .85rem;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.cw-property-title {
+  font-weight: 600; color: var(--gray-800);
+  font-size: .9rem;
+  display: flex; align-items: center; gap: .4rem;
+}
+
+.cw-property-type-badge {
+  background: var(--gray-100); color: var(--gray-600);
+  font-size: .7rem; font-weight: 500;
+  padding: .1rem .5rem; border-radius: 4px;
+}
+
+.cw-add-property-btn {
+  align-self: flex-start;
+  border-style: dashed !important;
+}
+
+/* ─── Linked docs widget ──────────────────────────────────────────── */
+.cw-linked-docs {
+  margin-top: .65rem;
+  padding-top: .6rem;
+  border-top: 1px dashed var(--gray-200);
+  display: flex; flex-direction: column; gap: .35rem;
+}
+.cw-linked-docs--compact { gap: .25rem; }
+
+.cw-linked-docs-empty {
+  padding: .35rem 0;
+  font-size: .75rem;
+}
+
+.cw-linked-docs-list {
+  display: flex; flex-direction: column; gap: .25rem;
+}
+
+.cw-linked-doc-row {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .35rem .55rem;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: .8rem;
+}
+
+.cw-linked-doc-icon {
+  color: var(--blue);
+  font-size: .9rem;
+  flex-shrink: 0;
+}
+
+.cw-linked-doc-name {
+  flex: 1; min-width: 0;
+  background: transparent; border: 0;
+  text-align: right; cursor: pointer;
+  color: var(--blue); font-weight: 500;
+  font-family: inherit; font-size: inherit;
+  text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+}
+.cw-linked-doc-name:hover { text-decoration: underline; }
+
+.cw-linked-doc-cat {
+  font-size: .65rem; font-weight: 500;
+  color: var(--blue);
+  background: var(--blue-light);
+  padding: .1rem .4rem; border-radius: 4px;
+  white-space: nowrap;
+}
+
+.cw-linked-doc-year {
+  font-size: .7rem; color: var(--gray-600);
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cw-linked-doc-size {
+  color: var(--gray-500); font-size: .7rem;
+  white-space: nowrap;
+}
+
+/* טופס מטא-נתונים פנימי לרכיב */
+.cw-linked-upload-form {
+  background: var(--blue-light);
+  border: 1px solid var(--blue-border);
+  border-radius: 8px;
+  padding: .75rem .85rem;
+  display: flex; flex-direction: column; gap: .55rem;
+  margin-top: .35rem;
+}
+
+.cw-linked-upload-head {
+  display: flex; align-items: center; gap: .5rem;
+  font-size: .85rem; font-weight: 600; color: var(--gray-800);
+}
+
+.cw-linked-upload-form .form-group label {
+  font-size: .72rem;
+}
+.cw-linked-upload-form input,
+.cw-linked-upload-form select {
+  font-size: .8rem; padding: .35rem .5rem;
+}
+
+.cw-linked-upload-errors {
+  background: var(--red-light); color: var(--red);
+  padding: .4rem .65rem; border-radius: 6px;
+  font-size: .75rem;
+  display: flex; flex-direction: column; gap: .15rem;
+}
+
+.cw-linked-upload-actions {
+  display: flex; justify-content: flex-end; gap: .35rem;
+}
+
+.cw-linked-doc-remove {
+  background: transparent; border: 0;
+  color: var(--gray-400); cursor: pointer;
+  font-size: 1.2rem; line-height: 1;
+  padding: 0 .25rem;
+  flex-shrink: 0;
+}
+.cw-linked-doc-remove:hover { color: var(--red); }
+
+.cw-linked-docs-actions {
+  display: flex; gap: .35rem; flex-wrap: wrap;
+}
+
+.cw-linked-docs-upload,
+.cw-linked-docs-link-btn {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .35rem .75rem;
+  background: white;
+  border: 1px dashed var(--gray-300);
+  border-radius: 6px;
+  font-size: .75rem;
+  color: var(--gray-600);
+  cursor: pointer;
+  align-self: flex-start;
+  font-family: inherit;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.cw-linked-docs-upload:hover,
+.cw-linked-docs-link-btn:hover {
+  border-color: var(--blue);
+  background: var(--blue-light);
+  color: var(--blue);
+}
+.cw-linked-docs-link-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* בורר מסמכים קיימים */
+.cw-linked-picker {
+  background: white;
+  border: 1px solid var(--blue-border);
+  border-radius: 8px;
+  padding: .65rem .8rem;
+  margin-top: .35rem;
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.cw-linked-picker-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: .85rem; font-weight: 600; color: var(--gray-800);
+}
+.cw-linked-picker-search {
+  font-size: .8rem; padding: .35rem .55rem;
+  width: 100%;
+}
+.cw-linked-picker-empty {
+  text-align: center; padding: 1rem;
+  color: var(--gray-400); font-size: .8rem; font-style: italic;
+}
+.cw-linked-picker-list {
+  display: flex; flex-direction: column; gap: .25rem;
+  max-height: 240px; overflow-y: auto;
+}
+.cw-linked-picker-row {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .45rem .6rem;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit; text-align: right;
+  transition: background .12s, border-color .12s;
+}
+.cw-linked-picker-row:hover {
+  background: var(--blue-light);
+  border-color: var(--blue);
+}
+.cw-linked-picker-text { flex: 1; min-width: 0; }
+.cw-linked-picker-title {
+  font-size: .85rem; font-weight: 600; color: var(--gray-800);
+  text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+}
+.cw-linked-picker-meta {
+  display: flex; gap: .4rem; flex-wrap: wrap; align-items: center;
+  font-size: .7rem; color: var(--gray-500);
+  margin-top: .15rem;
+}
+.cw-linked-picker-warn {
+  color: var(--orange);
+  font-weight: 600;
+}
+.cw-linked-picker-action {
+  font-size: .8rem; color: var(--blue); font-weight: 600;
+  white-space: nowrap;
+}
+
+/* באנר "מקושר" בתוך DocumentManager */
+.doc-cell-linked {
+  font-size: .7rem;
+  color: var(--blue);
+  background: var(--blue-light);
+  padding: .1rem .45rem;
+  border-radius: 4px;
+  display: inline-block;
+  margin-top: .2rem;
+}
+
+/* ─── Foreign accounts editor ─────────────────────────────────────── */
+.cw-foreign-list {
+  display: flex; flex-direction: column; gap: .65rem;
+  margin-top: .5rem;
+}
+
+.cw-foreign-card {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-right: 3px solid #0891b2;     /* טורקיז — חו״ל */
+  border-radius: var(--radius);
+  padding: .75rem 1rem .9rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.03);
+}
+
+.cw-foreign-head {
+  display: flex; align-items: center; gap: .5rem;
+  margin-bottom: .6rem; padding-bottom: .5rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.cw-foreign-num {
+  background: #cffafe; color: #0e7490;
+  font-weight: 700; font-size: .85rem;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.cw-foreign-title {
+  font-weight: 600; color: var(--gray-800);
+  font-size: .9rem;
+  display: flex; align-items: center; gap: .5rem;
+}
+
+.cw-foreign-country {
+  background: var(--blue-light); color: var(--blue);
+  font-size: .7rem; font-weight: 500;
+  padding: .1rem .5rem; border-radius: 4px;
+}
+
+/* ─── Children editor ───────────────────────────────────────────────── */
+.cw-children-list {
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.cw-child-row {
+  display: flex; gap: .65rem; align-items: flex-end;
+  padding: .6rem; background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  flex-wrap: wrap;
+}
+.cw-child-num {
+  background: var(--blue-light); color: var(--blue);
+  font-weight: 700; font-size: .85rem;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-bottom: .35rem;
+}
+.cw-child-age {
+  font-size: .8rem; color: var(--gray-500);
+  padding-bottom: .55rem;
+  white-space: nowrap;
+}
+
+/* ─── Documents tab ────────────────────────────────────────────────────── */
+.cw-missing-banner {
+  background: var(--orange-light); color: var(--orange);
+  border: 1px solid #fed7aa;
+  padding: .75rem 1rem; border-radius: var(--radius-lg);
+  margin-bottom: 1rem;
+  font-size: .85rem;
+}
+.cw-missing-banner ul {
+  margin: .5rem 0 0 0; padding-right: 1.25rem;
+}
+.cw-missing-banner li { padding: .1rem 0; }
+.cw-doc-wrap {
+  /* DocumentManager הקיים מוצב כאן בלי back button */
+}
+
+/* ─── Tasks & activity tab ─────────────────────────────────────────────── */
+.cw-task-filters {
+  display: flex; gap: .75rem; align-items: center;
+  margin-bottom: .75rem; flex-wrap: wrap;
+}
+
+.cw-timeline {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column;
+  position: relative;
+}
+.cw-timeline::before {
+  content: '';
+  position: absolute;
+  right: 14px; top: 8px; bottom: 8px;
+  width: 2px; background: var(--gray-200);
+}
+.cw-timeline-row {
+  display: flex; gap: .75rem; padding: .55rem 0;
+  position: relative;
+}
+.cw-timeline-icon {
+  width: 30px; height: 30px;
+  border-radius: 50%; background: white;
+  border: 2px solid var(--gray-200);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .9rem; flex-shrink: 0; z-index: 1;
+}
+.cw-timeline-body { flex: 1; min-width: 0; }
+.cw-timeline-text { font-size: .87rem; color: var(--gray-800); }
+.cw-timeline-meta { font-size: .7rem; color: var(--gray-500); margin-top: 2px; }
+
+/* ── Tasks tab uses TaskBoard — slim wrapper ── */
+.cw-tasks-activity { gap: 1.25rem; }
+
+/* ── Quick note input in Overview activity section ── */
+.cw-quick-note {
+  display: flex; gap: .5rem;
+  margin-bottom: .75rem;
+}
+.cw-quick-note input {
+  flex: 1;
+  font-size: .85rem;
+}
+
+/* ─── Employees panel ──────────────────────────────────────────────────── */
+.emp-page { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.emp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: .75rem;
+}
+
+.emp-card {
+  background: white; border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  display: flex; flex-direction: column; gap: .6rem;
+  box-shadow: var(--shadow);
+  transition: border-color .15s, transform .12s;
+}
+.emp-card:hover { border-color: var(--gray-300); }
+
+.emp-card-head {
+  display: flex; align-items: center; gap: .65rem;
+}
+.emp-card-avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-weight: 700; font-size: .9rem;
+  flex-shrink: 0;
+}
+.emp-card-name { display: flex; flex-direction: column; min-width: 0; }
+.emp-card-fullname { font-weight: 600; color: var(--gray-900); font-size: .95rem; }
+.emp-card-role { font-size: .75rem; color: var(--gray-500); }
+
+.emp-card-meta {
+  display: flex; gap: .35rem; flex-wrap: wrap;
+}
+.emp-count-pill {
+  background: var(--blue-light); color: var(--blue);
+  font-size: .7rem; font-weight: 600;
+  padding: .15rem .55rem; border-radius: 999px;
+}
+
+.emp-card-actions {
+  display: flex; gap: .25rem; justify-content: flex-end;
+  border-top: 1px solid var(--gray-100); padding-top: .5rem;
+}
+
+.emp-card-add {
+  border: 2px dashed var(--gray-300);
+  background: var(--gray-50);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: .25rem;
+  cursor: pointer; min-height: 130px;
+  box-shadow: none;
+}
+.emp-card-add:hover { border-color: var(--blue); background: var(--blue-light); }
+.emp-add-plus { font-size: 1.6rem; color: var(--gray-400); font-weight: 300; }
+.emp-card-add:hover .emp-add-plus,
+.emp-card-add:hover .emp-add-text { color: var(--blue); }
+.emp-add-text { font-size: .85rem; color: var(--gray-500); font-weight: 600; }
+
+.emp-form-card { background: var(--gray-50); }
+
+.emp-color-row { display: flex; gap: .35rem; flex-wrap: wrap; }
+.emp-color-swatch {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid white; cursor: pointer;
+  box-shadow: 0 0 0 1px var(--gray-300);
+  transition: transform .12s, box-shadow .12s;
+}
+.emp-color-swatch.sel { box-shadow: 0 0 0 2px var(--gray-800); transform: scale(1.15); }
+.emp-color-swatch:hover { transform: scale(1.1); }
+
+/* ── Login screen ───────────────────────────────────────────────────────── */
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--blue-light) 0%, var(--gray-50) 100%);
+  padding: 2rem 1rem;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 2.5rem 2rem;
+  text-align: center;
+}
+
+.login-logo {
+  font-size: 3rem;
+  margin-bottom: .75rem;
+}
+
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .55rem;
+  margin-bottom: 1.1rem;
+}
+.login-wordmark {
+  font-size: 2rem;
+  letter-spacing: .16em;
+}
+.login-wordmark .brand-dot {
+  width: 10px;
+  height: 10px;
+  margin-bottom: 6px;
+}
+.login-brand-sub {
+  font-family: 'Frank Ruhl Libre', serif;
+  font-weight: 500;
+  font-size: 1.05rem;
+  color: var(--slate);
+}
+
+.login-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--blue);
+  margin-bottom: .5rem;
+}
+
+.login-subtitle {
+  color: var(--gray-600);
+  font-size: .95rem;
+  margin-bottom: 2rem;
+  line-height: 1.5;
+}
+
+.login-google-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  padding: .85rem 1.25rem;
+  background: white;
+  color: var(--gray-800);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, box-shadow .12s;
+}
+.login-google-btn:hover:not(:disabled) {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+  box-shadow: var(--shadow);
+}
+.login-google-btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.login-error {
+  margin-top: 1rem;
+  padding: .75rem;
+  background: var(--red-light);
+  color: var(--red);
+  border-radius: var(--radius);
+  font-size: .875rem;
+}
+
+.login-footnote {
+  margin-top: 1.5rem;
+  color: var(--gray-500);
+  font-size: .8rem;
+}
+
+/* ── Header user menu ───────────────────────────────────────────────────── */
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .35rem .65rem .35rem .35rem;
+  border-radius: 999px;
+  background: var(--gray-100);
+  cursor: default;
+}
+
+.header-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--blue);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: .85rem;
+  flex-shrink: 0;
+}
+
+.header-user-name {
+  font-size: .85rem;
+  color: var(--gray-700);
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-logout-btn {
+  background: transparent;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  padding: .35rem .75rem;
+  font-size: .85rem;
+  color: var(--gray-600);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.header-logout-btn:hover {
+  background: var(--red-light);
+  color: var(--red);
+  border-color: var(--red);
+}
+
+/* ── Loading screen (initial auth check) ────────────────────────────────── */
+.app-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gray-500);
+  font-size: 1rem;
+}
+
+
+
+/* ── שאלון 1301 — פריסת פרקים רספונסיבית ─────────────────────────────── */
+.ar-qlayout {
+  display: grid;
+  grid-template-columns: 215px 1fr;
+  gap: 1.4rem;
+  align-items: start;
+}
+.ar-chnav { position: sticky; top: 1rem; }
+.ar-treemap-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.1rem;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .ar-qlayout { grid-template-columns: 1fr; }
+  .ar-chnav { position: static; }
+  .ar-chnav > div { flex-direction: row !important; flex-wrap: wrap; }
+  .ar-treemap-layout { grid-template-columns: 1fr; }
+  .ar-treemap-layout .card { position: static !important; }
+}
+</style><style>body{background:#e9eaee;margin:0}.snapwrap{max-width:1320px;margin:0 auto;padding:28px}.snaphead{font-family:Manrope,Heebo,sans-serif;padding:8px 4px 20px}.snaphead h1{font-family:Heebo,sans-serif;font-weight:300;font-size:30px;color:#1d1d1f;margin:0 0 6px}.snaphead p{color:#6e6e73;font-size:14px;margin:0;line-height:1.6}.snapcap{font-family:Manrope,Heebo,sans-serif;font-weight:600;font-size:13px;color:#fff;background:#33556f;display:inline-block;padding:6px 14px;border-radius:8px 8px 0 0;margin-top:34px}.snapframe{border:1px solid #c3d3de;border-radius:0 12px 12px 12px;overflow:hidden;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.08)}.snapframe .app{min-height:auto!important}.snapframe .header{position:static!important}</style></head><body><div class="snapwrap"><div class="snaphead"><h1>System UI Snapshot — CRM לרואי חשבון</h1><p>צילום עיצוב מלא של המערכת הקיימת (נתוני דוגמה בלבד), עם ה-CSS האמיתי. נועד לקלוד דיזיין כדי לראות את מראה המערכת ולעצב לה מותג-מוצר, נפרד מזהות המשרד.</p></div><div class="snapcap">על השולחן / משימות</div><div class="snapframe"><div class="app"><header class="header"><div class="header-logo" title="גיא ישר · רואה חשבון"><span class="brand-wordmark">YASHAR<span class="brand-dot"></span></span><span class="brand-sub">גיא ישר · רואה חשבון</span></div><nav class="main-nav"><button class="nav-tab active">✓ משימות<span class="nav-badge">26</span></button><button class="nav-tab ">👥 לקוחות</button><button class="nav-tab ">📝 הצעות ולידים</button><button class="nav-tab ">📋 דוח שנתי 1301</button><button class="nav-tab ">🧭 מרכז ידע מס</button></nav><div style="display: flex; align-items: center; gap: 1rem; margin-right: auto;"><div class="header-user" title="e2e-test@firm.local"><span class="header-user-avatar">E</span><span class="header-user-name">e2e-test@firm.local</span></div><button type="button" class="header-logout-btn " title="פרופיל המשרד">⚙ המשרד</button><button type="button" class="header-logout-btn">התנתק</button></div></header><main class="main"><div class="tasks-page"><div class="desk-header"><div><h2 class="desk-title">משימות</h2><div class="desk-subtitle">45 משימות</div></div><button class="btn btn-primary">+ משימה חדשה</button></div><div class="board-filters"><input type="text" placeholder="🔍 חיפוש משימה, לקוח, תיאור..." class="tasks-search" value=""><div class="filter-group"><label>כדור:</label><div class="filter-chips"><button class="chip active">הכל</button><button class="chip ">אצלי</button><button class="chip ">אצל הלקוח</button><button class="chip ">אצל הרשות</button><button class="chip ">תקועה</button></div></div><div class="filter-group"><label>סוג:</label><select class="filter-select"><option value="all">כל הסוגים</option><option value="annual_report">דוח שנתי</option><option value="institutions">מוסדות</option><option value="management">ניהול</option><option value="economic_work">עבודות כלכליות</option><option value="personal_report">דוח אישי</option><option value="cutoff">חיתוך</option><option value="wealth_declaration">הצהרות הון</option><option value="ongoing">שוטף</option><option value="discussions">דיונים</option><option value="special_approval">אישור מיוחד</option><option value="not_selected">טרם נבחר</option></select></div></div><div class="board-group board-group-new "><div class="board-group-header"><span class="board-group-arrow ">▾</span><span class="board-group-title status-pill status-pill-new">משימות חדשות</span><span class="board-group-count">18</span></div><div class="board-table"><div class="board-row board-row-header"><div class="bc bc-handle"></div><div class="bc bc-check"></div><div class="bc bc-title">משימה</div><div class="bc bc-status">סטטוס</div><div class="bc bc-client">לקוח</div><div class="bc bc-date">דד-ליין</div><div class="bc bc-desc">תיאור</div><div class="bc bc-ball">הכדור אצל</div><div class="bc bc-cat">סוג</div><div class="bc bc-actions"></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="urgent-dot" title="דחוף" aria-label="דחוף"></span><span class="task-title-text">לטפל במכתב שהתקבל ממ"ה</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מיכל לוי"><span class="task-avatar" style="background: rgb(204, 251, 241); color: rgb(15, 118, 110);">מל</span><span class="client-chip-name">מיכל לוי</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 22/04</span></div><div class="bc bc-desc" title="דרישה לשומה 2022 — דחוף לענות עד 22/04">דרישה לשומה 2022 — דחוף לענות עד 22/04</div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-red">מוסדות</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="urgent-dot" title="דחוף" aria-label="דחוף"></span><span class="task-title-text">תיאום מס עם פ"ש ירושלים</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס נטשה גולדברג"><span class="task-avatar" style="background: rgb(252, 231, 243); color: rgb(190, 24, 93);">נג</span><span class="client-chip-name">נטשה גולדברג</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 24/04</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-red">מוסדות</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="urgent-dot" title="דחוף" aria-label="דחוף"></span><span class="task-title-text">לענות למכתב מהרשות — דרישת חומר</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס דוד כהן"><span class="task-avatar" style="background: rgb(243, 232, 255); color: rgb(126, 34, 206);">דכ</span><span class="client-chip-name">דוד כהן</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 26/04</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-red">מוסדות</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">דיווח מע"מ מרץ-אפריל 2026</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס יוסי אברהם"><span class="task-avatar" style="background: rgb(219, 228, 236); color: rgb(38, 65, 85);">יא</span><span class="client-chip-name">יוסי אברהם</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 25/04</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-purple">שוטף</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">דיווח מע"מ ראשון — להסביר ללקוחה</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס אורית שפירא"><span class="task-avatar" style="background: rgb(254, 243, 199); color: rgb(180, 83, 9);">אש</span><span class="client-chip-name">אורית שפירא</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 28/04</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-purple">שוטף</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">קליטת לקוח חדש — פתיחת תיקים ברשויות</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס אורית שפירא"><span class="task-avatar" style="background: rgb(254, 243, 199); color: rgb(180, 83, 9);">אש</span><span class="client-chip-name">אורית שפירא</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 30/04</span></div><div class="bc bc-desc" title="פתיחה במ&quot;ה + ב&quot;ל + מע&quot;מ">פתיחה במ"ה + ב"ל + מע"מ</div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-yellow">ניהול</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">שכר 04/2026 — עיבוד תלושים</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס דוד כהן"><span class="task-avatar" style="background: rgb(243, 232, 255); color: rgb(126, 34, 206);">דכ</span><span class="client-chip-name">דוד כהן</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 09/05</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-purple">שוטף</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">סגירת כרטיס ניכויים 2025</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס דוד כהן"><span class="task-avatar" style="background: rgb(243, 232, 255); color: rgb(126, 34, 206);">דכ</span><span class="client-chip-name">דוד כהן</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 10/05</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-purple">שוטף</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">דיון שומה 2022 עם רפרנט מ"ה</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מיכל לוי"><span class="task-avatar" style="background: rgb(204, 251, 241); color: rgb(15, 118, 110);">מל</span><span class="client-chip-name">מיכל לוי</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 10/05</span></div><div class="bc bc-desc" title="נקבע ל-10/05, להכין טיעונים">נקבע ל-10/05, להכין טיעונים</div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-pink">דיונים</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">תחזית תזרים 12 חודשים</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מוחמד חוסין"><span class="task-avatar" style="background: rgb(220, 252, 231); color: rgb(21, 128, 61);">מח</span><span class="client-chip-name">מוחמד חוסין</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 12/05</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-orange">עבודות כלכליות</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">דיווח ניכויים 04/2026</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס אורית שפירא"><span class="task-avatar" style="background: rgb(254, 243, 199); color: rgb(180, 83, 9);">אש</span><span class="client-chip-name">אורית שפירא</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 15/05</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-purple">שוטף</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">חיתוך שנתי 2025</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס נטשה גולדברג"><span class="task-avatar" style="background: rgb(252, 231, 243); color: rgb(190, 24, 93);">נג</span><span class="client-chip-name">נטשה גולדברג</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 30/06</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-blue">חיתוך</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">לברר סיווג ב"ל — עצמאי או לא עונה?</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס נטשה גולדברג"><span class="task-avatar" style="background: rgb(252, 231, 243); color: rgb(190, 24, 93);">נג</span><span class="client-chip-name">נטשה גולדברג</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-purple">שוטף</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">פגישה שנתית עם הלקוחה</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מיכל לוי"><span class="task-avatar" style="background: rgb(204, 251, 241); color: rgb(15, 118, 110);">מל</span><span class="client-chip-name">מיכל לוי</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title="סקירת תוצאות 2025 ותכנון 2026">סקירת תוצאות 2025 ותכנון 2026</div><div class="bc bc-ball"><button class="ball-pill ball-pill-client"><span>🧑</span><span>אצל הלקוח</span></button></div><div class="bc bc-cat"><button class="category-pill cat-yellow">ניהול</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">בדיקת הסכם שכ"ט</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס אורית שפירא"><span class="task-avatar" style="background: rgb(254, 243, 199); color: rgb(180, 83, 9);">אש</span><span class="client-chip-name">אורית שפירא</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-client"><span>🧑</span><span>אצל הלקוח</span></button></div><div class="bc bc-cat"><button class="category-pill cat-yellow">ניהול</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">בדיקת מקדמות לרבעון הקרוב</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מוחמד חוסין"><span class="task-avatar" style="background: rgb(220, 252, 231); color: rgb(21, 128, 61);">מח</span><span class="client-chip-name">מוחמד חוסין</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-purple">שוטף</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">דוח שנתי 2025 — הכנה ראשונית</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס יוסי אברהם"><span class="task-avatar" style="background: rgb(219, 228, 236); color: rgb(38, 65, 85);">יא</span><span class="client-chip-name">יוסי אברהם</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-green">דוח שנתי</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">חיתוך 2025 — הלקוחה</span></div><div class="bc bc-status"><button class="status-pill status-pill-new">חדשה</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מיכל לוי"><span class="task-avatar" style="background: rgb(204, 251, 241); color: rgb(15, 118, 110);">מל</span><span class="client-chip-name">מיכל לוי</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-blue">חיתוך</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div></div></div><div class="board-group board-group-in_progress "><div class="board-group-header"><span class="board-group-arrow ">▾</span><span class="board-group-title status-pill status-pill-in_progress">משימות בתהליך</span><span class="board-group-count">20</span></div><div class="board-table"><div class="board-row board-row-header"><div class="bc bc-handle"></div><div class="bc bc-check"></div><div class="bc bc-title">משימה</div><div class="bc bc-status">סטטוס</div><div class="bc bc-client">לקוח</div><div class="bc bc-date">דד-ליין</div><div class="bc bc-desc">תיאור</div><div class="bc bc-ball">הכדור אצל</div><div class="bc bc-cat">סוג</div><div class="bc bc-actions"></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="urgent-dot" title="דחוף" aria-label="דחוף"></span><span class="task-title-text">דיווח ניכויים מרץ 2026</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מוחמד חוסין"><span class="task-avatar" style="background: rgb(220, 252, 231); color: rgb(21, 128, 61);">מח</span><span class="client-chip-name">מוחמד חוסין</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 15/04</span></div><div class="bc bc-desc" title="באיחור! יש קנס אם לא מדווחים השבוע">באיחור! יש קנס אם לא מדווחים השבוע</div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-purple">שוטף</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="urgent-dot" title="דחוף" aria-label="דחוף"></span><span class="task-title-text">החזר מס 2023 — הגשה אחרונה</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מיכל לוי"><span class="task-avatar" style="background: rgb(204, 251, 241); color: rgb(15, 118, 110);">מל</span><span class="client-chip-name">מיכל לוי</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 20/04</span></div><div class="bc bc-desc" title="חישבנו החזר של כ-4,200₪. להגיש דחוף.">חישבנו החזר של כ-4,200₪. להגיש דחוף.</div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-amber">דוח אישי</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="urgent-dot" title="דחוף" aria-label="דחוף"></span><span class="task-title-text">הכנת תיק מסמכים לביקורת</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס רון בר-לב"><span class="task-avatar" style="background: rgb(224, 231, 255); color: rgb(67, 56, 202);">רב</span><span class="client-chip-name">רון בר-לב</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 20/04</span></div><div class="bc bc-desc" title="יום ראשון הקרוב. לאסוף את כל הדפים ולסדר.">יום ראשון הקרוב. לאסוף את כל הדפים ולסדר.</div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-yellow">ניהול</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">לקבל חומרים חסרים — אישור פנסיה</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מוחמד חוסין"><span class="task-avatar" style="background: rgb(220, 252, 231); color: rgb(21, 128, 61);">מח</span><span class="client-chip-name">מוחמד חוסין</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 22/04</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-client"><span>🧑</span><span>אצל הלקוח</span></button></div><div class="bc bc-cat"><button class="category-pill cat-amber">דוח אישי</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">טופס 101 — ממתינה לחתימה</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס אורית שפירא"><span class="task-avatar" style="background: rgb(254, 243, 199); color: rgb(180, 83, 9);">אש</span><span class="client-chip-name">אורית שפירא</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 25/04</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-client"><span>🧑</span><span>אצל הלקוח</span></button></div><div class="bc bc-cat"><button class="category-pill cat-yellow">ניהול</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">הכנת דוח רווח והפסד לרבעון</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס יוסי אברהם"><span class="task-avatar" style="background: rgb(219, 228, 236); color: rgb(38, 65, 85);">יא</span><span class="client-chip-name">יוסי אברהם</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 05/05</span></div><div class="bc bc-desc" title="ללקוח נדרש למשכנתא">ללקוח נדרש למשכנתא</div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-orange">עבודות כלכליות</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">הערכת שווי עסק למשכנתא</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מוחמד חוסין"><span class="task-avatar" style="background: rgb(220, 252, 231); color: rgb(21, 128, 61);">מח</span><span class="client-chip-name">מוחמד חוסין</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 08/05</span></div><div class="bc bc-desc" title="הבנק ביקש דו&quot;ח רו&quot;ח חתום">הבנק ביקש דו"ח רו"ח חתום</div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-orange">עבודות כלכליות</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">להכין דוח שנתי 2025</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס דוד כהן"><span class="task-avatar" style="background: rgb(243, 232, 255); color: rgb(126, 34, 206);">דכ</span><span class="client-chip-name">דוד כהן</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 15/05</span></div><div class="bc bc-desc" title="צריך לאסוף 106, תלושים ושבלול הוצאות פנסיה">צריך לאסוף 106, תלושים ושבלול הוצאות פנסיה</div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-green">דוח שנתי</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">דיון עם פקיד שומה — שומה 2023</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס רון בר-לב"><span class="task-avatar" style="background: rgb(224, 231, 255); color: rgb(67, 56, 202);">רב</span><span class="client-chip-name">רון בר-לב</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 18/05</span></div><div class="bc bc-desc" title="הוזמנו לדיון ב-18/05">הוזמנו לדיון ב-18/05</div><div class="bc bc-ball"><button class="ball-pill ball-pill-authority"><span>🏛</span><span>אצל הרשות</span></button></div><div class="bc bc-cat"><button class="category-pill cat-pink">דיונים</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">חיתוך מלאי סוף שנה</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס רון בר-לב"><span class="task-avatar" style="background: rgb(224, 231, 255); color: rgb(67, 56, 202);">רב</span><span class="client-chip-name">רון בר-לב</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 20/05</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-client"><span>🧑</span><span>אצל הלקוח</span></button></div><div class="bc bc-cat"><button class="category-pill cat-blue">חיתוך</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">הצהרת הון 2024 — סיום ובדיקה</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס נטשה גולדברג"><span class="task-avatar" style="background: rgb(252, 231, 243); color: rgb(190, 24, 93);">נג</span><span class="client-chip-name">נטשה גולדברג</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 30/05</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-me"><span>👤</span><span>אצלי</span></button></div><div class="bc bc-cat"><button class="category-pill cat-brown">הצהרות הון</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">הצהרת הון 2024 — איסוף חומר</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס דוד כהן"><span class="task-avatar" style="background: rgb(243, 232, 255); color: rgb(126, 34, 206);">דכ</span><span class="client-chip-name">דוד כהן</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-overdue">📅 פג 30/06</span></div><div class="bc bc-desc" title="יתרות בנק, קופות גמל, השקעות ני&quot;ע, רכבים">יתרות בנק, קופות גמל, השקעות ני"ע, רכבים</div><div class="bc bc-ball"><button class="ball-pill ball-pill-client"><span>🧑</span><span>אצל הלקוח</span></button></div><div class="bc bc-cat"><button class="category-pill cat-brown">הצהרות הון</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">ביקורת רשויות בתיק</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס רון בר-לב"><span class="task-avatar" style="background: rgb(224, 231, 255); color: rgb(67, 56, 202);">רב</span><span class="client-chip-name">רון בר-לב</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title="ממתין להחלטה של רפרנט מ&quot;ה">ממתין להחלטה של רפרנט מ"ה</div><div class="bc bc-ball"><button class="ball-pill ball-pill-authority"><span>🏛</span><span>אצל הרשות</span></button></div><div class="bc bc-cat"><button class="category-pill cat-yellow">ניהול</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">פנייה לפ"ש — שומה 2023 לא ברורה</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס נטשה גולדברג"><span class="task-avatar" style="background: rgb(252, 231, 243); color: rgb(190, 24, 93);">נג</span><span class="client-chip-name">נטשה גולדברג</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title="לא מבין איך הגיעו לסכום. צריך להתייעץ עם רו&quot;ח בכיר.">לא מבין איך הגיעו לסכום. צריך להתייעץ עם רו"ח בכיר.</div><div class="bc bc-ball"><button class="ball-pill ball-pill-stuck"><span>🟡</span><span>תקועה</span></button></div><div class="bc bc-cat"><button class="category-pill cat-pink">דיונים</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">בקשת אישור ניכוי מוגבל</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס יוסי אברהם"><span class="task-avatar" style="background: rgb(219, 228, 236); color: rgb(38, 65, 85);">יא</span><span class="client-chip-name">יוסי אברהם</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title="פטור חלקי לשנה הקרובה">פטור חלקי לשנה הקרובה</div><div class="bc bc-ball"><button class="ball-pill ball-pill-stuck"><span>🟡</span><span>תקועה</span></button></div><div class="bc bc-cat"><button class="category-pill cat-black">אישור מיוחד</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">פתיחת תיק במע"מ</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס מיכל לוי"><span class="task-avatar" style="background: rgb(204, 251, 241); color: rgb(15, 118, 110);">מל</span><span class="client-chip-name">מיכל לוי</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title="נשלח לרשות, ממתין לאישור">נשלח לרשות, ממתין לאישור</div><div class="bc bc-ball"><button class="ball-pill ball-pill-authority"><span>🏛</span><span>אצל הרשות</span></button></div><div class="bc bc-cat"><button class="category-pill cat-purple">שוטף</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">עבודה כלכלית — הכנת תזרים</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס רון בר-לב"><span class="task-avatar" style="background: rgb(224, 231, 255); color: rgb(67, 56, 202);">רב</span><span class="client-chip-name">רון בר-לב</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title="הלקוח ביקש תחזית מזומן ל-12 חודשים. לא בטוח איזה מודל מתאים.">הלקוח ביקש תחזית מזומן ל-12 חודשים. לא בטוח איזה מודל מתאים.</div><div class="bc bc-ball"><button class="ball-pill ball-pill-stuck"><span>🟡</span><span>תקועה</span></button></div><div class="bc bc-cat"><button class="category-pill cat-orange">עבודות כלכליות</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">אישור ניהול ספרים — בקשה</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס אורית שפירא"><span class="task-avatar" style="background: rgb(254, 243, 199); color: rgb(180, 83, 9);">אש</span><span class="client-chip-name">אורית שפירא</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title="ללקוח חדש, צריך להגיש טופס 1301">ללקוח חדש, צריך להגיש טופס 1301</div><div class="bc bc-ball"><button class="ball-pill ball-pill-authority"><span>🏛</span><span>אצל הרשות</span></button></div><div class="bc bc-cat"><button class="category-pill cat-black">אישור מיוחד</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">בדיקת פטור מניכוי במקור לב"ל</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס יוסי אברהם"><span class="task-avatar" style="background: rgb(219, 228, 236); color: rgb(38, 65, 85);">יא</span><span class="client-chip-name">יוסי אברהם</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title=""><span class="muted">—</span></div><div class="bc bc-ball"><button class="ball-pill ball-pill-authority"><span>🏛</span><span>אצל הרשות</span></button></div><div class="bc bc-cat"><button class="category-pill cat-purple">שוטף</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div><div class="board-row   " draggable="true"><div class="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div><div class="bc bc-check"><button class="task-check" aria-label="סימון כהושלמה" title="סימון כהושלמה"></button></div><div class="bc bc-title"><span class="task-title-text">לבקש אישורי יתרות בנק</span></div><div class="bc bc-status"><button class="status-pill status-pill-in_progress">בתהליך</button></div><div class="bc bc-client"><button class="client-chip" title="פתח את כרטיס דוד כהן"><span class="task-avatar" style="background: rgb(243, 232, 255); color: rgb(126, 34, 206);">דכ</span><span class="client-chip-name">דוד כהן</span></button></div><div class="bc bc-date"><span class="date-chip date-chip-none">—</span></div><div class="bc bc-desc" title="דיסקונט ומזרחי, נכון ל-31/12/2025">דיסקונט ומזרחי, נכון ל-31/12/2025</div><div class="bc bc-ball"><button class="ball-pill ball-pill-client"><span>🧑</span><span>אצל הלקוח</span></button></div><div class="bc bc-cat"><button class="category-pill cat-amber">דוח אישי</button></div><div class="bc bc-actions"><button class="row-delete" title="מחיקה">✕</button></div></div></div></div><div class="board-group board-group-done "><div class="board-group-header"><span class="board-group-arrow collapsed">▾</span><span class="board-group-title status-pill status-pill-done">הושלמו</span><span class="board-group-count">7</span></div></div></div></main></div></div><div class="snapcap">לקוחות</div><div class="snapframe"><div class="app"><header class="header"><div class="header-logo" title="גיא ישר · רואה חשבון"><span class="brand-wordmark">YASHAR<span class="brand-dot"></span></span><span class="brand-sub">גיא ישר · רואה חשבון</span></div><nav class="main-nav"><button class="nav-tab ">✓ משימות<span class="nav-badge">26</span></button><button class="nav-tab active">👥 לקוחות</button><button class="nav-tab ">📝 הצעות ולידים</button><button class="nav-tab ">📋 דוח שנתי 1301</button><button class="nav-tab ">🧭 מרכז ידע מס</button></nav><div style="display: flex; align-items: center; gap: 1rem; margin-right: auto;"><div class="header-user" title="e2e-test@firm.local"><span class="header-user-avatar">E</span><span class="header-user-name">e2e-test@firm.local</span></div><button type="button" class="header-logout-btn " title="פרופיל המשרד">⚙ המשרד</button><button type="button" class="header-logout-btn">התנתק</button></div></header><main class="main"><div><div class="cl-list-header"><div><h1 class="cl-list-title">לקוחות</h1><p class="cl-list-sub">7 מיוצגים · 0 בתהליך ייצוג</p></div><div style="display: flex; gap: 0.5rem; flex-wrap: wrap;"><button class="btn btn-secondary">טען לקוחות לדוגמה</button><button class="btn btn-secondary">📨 בקשת ייצוג</button><button class="btn btn-primary btn-lg">+ לקוח חדש</button></div></div><div class="cl-search-row"><div class="search-input-wrap" style="flex: 1 1 0%;"><span class="search-icon">🔍</span><input type="text" placeholder="חיפוש לפי שם, ת.ז., עיר, טלפון, אימייל..." value=""></div><button class="btn btn-secondary">🎯 פילטרים מתקדמים</button></div><div style="display: flex; align-items: baseline; gap: 8px; margin: 0px 0px 0.6rem;"><span style="font-size: 1.05rem; font-weight: 500;">לקוחות מיוצגים</span><span style="font-size: 0.8rem; color: var(--gray-500);">· 7</span></div><div class="card" style="overflow: hidden;"><div class="table-wrap"><table class="client-table client-table-dense"><thead><tr><th class="th-sortable"><span>שם</span> <span class="sort-icon inactive">⇅</span></th><th class="th-sortable"><span>ת.ז.</span> <span class="sort-icon inactive">⇅</span></th><th class="th-sortable hide-mobile"><span>עיר</span> <span class="sort-icon inactive">⇅</span></th><th class="th-sortable hide-mobile"><span>טלפון</span> <span class="sort-icon inactive">⇅</span></th><th class="th-sortable hide-mobile"><span>אימייל</span> <span class="sort-icon inactive">⇅</span></th><th class="hide-mobile"><span>מס וייצוג</span></th><th class="th-sortable hide-mobile"><span>מטפל</span> <span class="sort-icon inactive">⇅</span></th><th class="th-sortable" style="width: 80px;"><span>משימות</span> <span class="sort-icon inactive">⇅</span></th><th class="hide-mobile" style="width: 60px;">שע״ם</th><th style="width: 60px;"></th></tr></thead><tbody><tr class="client-row"><td><div style="display: flex; align-items: center; gap: 0.6rem;"><div class="client-avatar-sm">דכ</div><div><div class="client-table-name">דוד כהן</div><div class="client-table-badges"></div></div></div></td><td class="mono-text">123456789</td><td class="hide-mobile">תל אביב</td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">050-1234567</span></td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">david@example.com</span></td><td class="hide-mobile"><div class="cl-tax-chips" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;"><span style="font-size: 0.6rem; color: var(--gray-400);">סיווג</span><span class="badge badge-blue cl-mini-badge">מ״ה: שכיר</span><span class="badge badge-blue cl-mini-badge">ב״ל: שכיר</span><span class="badge badge-gray cl-mini-badge">מע״מ: פטור</span></div></td><td class="hide-mobile"><span style="color: var(--gray-400); font-size: 0.75rem;">לא הוקצה</span></td><td><div class="cl-metric-cell"><span class="cl-metric-num warn">6</span><span class="cl-metric-tag">⏰ 3</span></div></td><td class="hide-mobile" style="text-align: center;"><span title="שע״ם פעיל">🟢</span></td><td><button class="btn btn-ghost btn-icon" title="מחיקה" style="color: var(--red);">🗑</button></td></tr><tr class="client-row"><td><div style="display: flex; align-items: center; gap: 0.6rem;"><div class="client-avatar-sm">מל</div><div><div class="client-table-name">מיכל לוי</div><div class="client-table-badges"></div></div></div></td><td class="mono-text">234567890</td><td class="hide-mobile">ירושלים</td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">052-2345678</span></td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">michal@example.com</span></td><td class="hide-mobile"><div class="cl-tax-chips" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;"><span style="font-size: 0.6rem; color: var(--gray-400);">סיווג</span><span class="badge badge-blue cl-mini-badge">מ״ה: שכיר</span><span class="badge badge-blue cl-mini-badge">ב״ל: שכיר</span><span class="badge badge-gray cl-mini-badge">מע״מ: פטור</span></div></td><td class="hide-mobile"><span style="color: var(--gray-400); font-size: 0.75rem;">לא הוקצה</span></td><td><div class="cl-metric-cell"><span class="cl-metric-num warn">6</span><span class="cl-metric-tag">⏰ 1</span></div></td><td class="hide-mobile" style="text-align: center;"><span title="שע״ם פעיל">🟢</span></td><td><button class="btn btn-ghost btn-icon" title="מחיקה" style="color: var(--red);">🗑</button></td></tr><tr class="client-row"><td><div style="display: flex; align-items: center; gap: 0.6rem;"><div class="client-avatar-sm">יא</div><div><div class="client-table-name">יוסי אברהם</div><div class="client-table-badges"></div></div></div></td><td class="mono-text">345678901</td><td class="hide-mobile">חיפה</td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">054-3456789</span></td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">yossi@example.com</span></td><td class="hide-mobile"><div class="cl-tax-chips" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;"><span style="font-size: 0.6rem; color: var(--gray-400);">סיווג</span><span class="badge badge-green cl-mini-badge">מ״ה: עצמאי</span><span class="badge badge-green cl-mini-badge">ב״ל: עצמאי</span><span class="badge badge-green cl-mini-badge">מע״מ: עוסק מורשה</span></div></td><td class="hide-mobile"><span style="color: var(--gray-400); font-size: 0.75rem;">לא הוקצה</span></td><td><div class="cl-metric-cell"><span class="cl-metric-num warn">5</span><span class="cl-metric-tag">⏰ 1</span></div></td><td class="hide-mobile" style="text-align: center;"><span title="שע״ם פעיל">🟢</span></td><td><button class="btn btn-ghost btn-icon" title="מחיקה" style="color: var(--red);">🗑</button></td></tr><tr class="client-row"><td><div style="display: flex; align-items: center; gap: 0.6rem;"><div class="client-avatar-sm">אש</div><div><div class="client-table-name">אורית שפירא</div><div class="client-table-badges"></div></div></div></td><td class="mono-text">456789012</td><td class="hide-mobile">רעננה</td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">058-4567890</span></td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">orit@example.com</span></td><td class="hide-mobile"><div class="cl-tax-chips" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;"><span style="font-size: 0.6rem; color: var(--gray-400);">סיווג</span><span class="badge badge-purple cl-mini-badge">מ״ה: שכיר + עצמאי</span><span class="badge badge-purple cl-mini-badge">ב״ל: שכיר+עצמאי</span><span class="badge badge-blue cl-mini-badge">מע״מ: עוסק פטור</span></div></td><td class="hide-mobile"><span style="color: var(--gray-400); font-size: 0.75rem;">לא הוקצה</span></td><td><div class="cl-metric-cell"><span class="cl-metric-num warn">6</span><span class="cl-metric-tag">⏰ 2</span></div></td><td class="hide-mobile" style="text-align: center;"><span title="שע״ם פעיל">🟢</span></td><td><button class="btn btn-ghost btn-icon" title="מחיקה" style="color: var(--red);">🗑</button></td></tr><tr class="client-row"><td><div style="display: flex; align-items: center; gap: 0.6rem;"><div class="client-avatar-sm">נג</div><div><div class="client-table-name">נטשה גולדברג</div><div class="client-table-badges"><span class="badge badge-blue cl-mini-badge">עולה</span></div></div></div></td><td class="mono-text">567890123</td><td class="hide-mobile">נתניה</td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">053-5678901</span></td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">natasha@example.com</span></td><td class="hide-mobile"><div class="cl-tax-chips" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;"><span style="font-size: 0.6rem; color: var(--gray-400);">סיווג</span><span class="badge badge-blue cl-mini-badge">מ״ה: שכיר</span><span class="badge badge-blue cl-mini-badge">ב״ל: שכיר</span><span class="badge badge-gray cl-mini-badge">מע״מ: פטור</span></div></td><td class="hide-mobile"><span style="color: var(--gray-400); font-size: 0.75rem;">לא הוקצה</span></td><td><div class="cl-metric-cell"><span class="cl-metric-num warn">5</span><span class="cl-metric-tag">⏰ 1</span></div></td><td class="hide-mobile" style="text-align: center;"><span title="שע״ם בטיפול">🟠</span></td><td><button class="btn btn-ghost btn-icon" title="מחיקה" style="color: var(--red);">🗑</button></td></tr><tr class="client-row"><td><div style="display: flex; align-items: center; gap: 0.6rem;"><div class="client-avatar-sm">מח</div><div><div class="client-table-name">מוחמד חוסין</div><div class="client-table-badges"><span class="badge badge-purple cl-mini-badge">ישוב מזכה</span><span class="badge badge-orange cl-mini-badge">נכות 35%</span></div></div></div></td><td class="mono-text">678901234</td><td class="hide-mobile">שדרות</td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">050-6789012</span></td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">mohammad@example.com</span></td><td class="hide-mobile"><div class="cl-tax-chips" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;"><span style="font-size: 0.6rem; color: var(--gray-400);">סיווג</span><span class="badge badge-blue cl-mini-badge">מ״ה: שכיר</span><span class="badge badge-blue cl-mini-badge">ב״ל: שכיר</span><span class="badge badge-gray cl-mini-badge">מע״מ: פטור</span></div></td><td class="hide-mobile"><span style="color: var(--gray-400); font-size: 0.75rem;">לא הוקצה</span></td><td><div class="cl-metric-cell"><span class="cl-metric-num warn">5</span><span class="cl-metric-tag">⏰ 2</span></div></td><td class="hide-mobile" style="text-align: center;"><span title="שע״ם פעיל">🟢</span></td><td><button class="btn btn-ghost btn-icon" title="מחיקה" style="color: var(--red);">🗑</button></td></tr><tr class="client-row"><td><div style="display: flex; align-items: center; gap: 0.6rem;"><div class="client-avatar-sm">רב</div><div><div class="client-table-name">רון בר-לב</div><div class="client-table-badges"></div></div></div></td><td class="mono-text">789012345</td><td class="hide-mobile">הרצליה</td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">054-7890123</span></td><td class="mono-text hide-mobile" dir="ltr" style="text-align: right;"><span title="">ron@example.com</span></td><td class="hide-mobile"><div class="cl-tax-chips" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;"><span style="font-size: 0.6rem; color: var(--gray-400);">סיווג</span><span class="badge badge-green cl-mini-badge">מ״ה: עצמאי</span><span class="badge badge-green cl-mini-badge">ב״ל: עצמאי</span><span class="badge badge-green cl-mini-badge">מע״מ: עוסק מורשה</span></div></td><td class="hide-mobile"><span style="color: var(--gray-400); font-size: 0.75rem;">לא הוקצה</span></td><td><div class="cl-metric-cell"><span class="cl-metric-num warn">5</span><span class="cl-metric-tag">⏰ 1</span></div></td><td class="hide-mobile" style="text-align: center;"><span title="שע״ם לא פעיל">🔴</span></td><td><button class="btn btn-ghost btn-icon" title="מחיקה" style="color: var(--red);">🗑</button></td></tr></tbody></table></div></div></div></main></div></div><div class="snapcap">הצעות ולידים</div><div class="snapframe"><div class="app"><header class="header"><div class="header-logo" title="גיא ישר · רואה חשבון"><span class="brand-wordmark">YASHAR<span class="brand-dot"></span></span><span class="brand-sub">גיא ישר · רואה חשבון</span></div><nav class="main-nav"><button class="nav-tab ">✓ משימות<span class="nav-badge">26</span></button><button class="nav-tab ">👥 לקוחות</button><button class="nav-tab active">📝 הצעות ולידים</button><button class="nav-tab ">📋 דוח שנתי 1301</button><button class="nav-tab ">🧭 מרכז ידע מס</button></nav><div style="display: flex; align-items: center; gap: 1rem; margin-right: auto;"><div class="header-user" title="e2e-test@firm.local"><span class="header-user-avatar">E</span><span class="header-user-name">e2e-test@firm.local</span></div><button type="button" class="header-logout-btn " title="פרופיל המשרד">⚙ המשרד</button><button type="button" class="header-logout-btn">התנתק</button></div></header><main class="main"><div dir="rtl"><div class="desk-header"><div><h1 class="desk-title">הצעות מחיר ולידים</h1><div class="desk-subtitle">מהשיחה הראשונה ועד הפיכת הליד ללקוח</div></div><button class="btn btn-primary">+ הצעה חדשה</button></div><div class="doc-stats-strip" style="margin-bottom: 16px;"><div class="doc-stat"><span class="doc-stat-number">0</span><span class="doc-stat-label">לידים פעילים</span></div><div class="doc-stat-divider"></div><div class="doc-stat"><span class="doc-stat-number">0</span><span class="doc-stat-label">טיוטות</span></div><div class="doc-stat-divider"></div><div class="doc-stat"><span class="doc-stat-number">0</span><span class="doc-stat-label">ממתינות לתשובה</span></div><div class="doc-stat-divider"></div><div class="doc-stat"><span class="doc-stat-number">0</span><span class="doc-stat-label">אושרו</span></div></div><div class="filter-chips" style="margin-bottom: 16px;"><button class="chip active">הכול</button><button class="chip ">טיוטה</button><button class="chip ">נשלחה</button><button class="chip ">נצפתה</button><button class="chip ">אושרה</button><button class="chip ">בוטלה</button><button class="chip ">פג תוקף</button></div><div class="empty-state"><div class="empty-state-icon">📝</div><div class="empty-state-title">אין עדיין הצעות מחיר</div><div class="empty-state-desc">צור הצעה ראשונה — ההצעה תופק, תישלח, והליד יהפוך ללקוח עם האישור.</div><button class="btn btn-primary" style="margin-top: 16px;">+ הצעה חדשה</button></div></div></main></div></div><div class="snapcap">דוח שנתי 1301</div><div class="snapframe"><div class="app"><header class="header"><div class="header-logo" title="גיא ישר · רואה חשבון"><span class="brand-wordmark">YASHAR<span class="brand-dot"></span></span><span class="brand-sub">גיא ישר · רואה חשבון</span></div><nav class="main-nav"><button class="nav-tab ">✓ משימות<span class="nav-badge">26</span></button><button class="nav-tab ">👥 לקוחות</button><button class="nav-tab ">📝 הצעות ולידים</button><button class="nav-tab active">📋 דוח שנתי 1301</button><button class="nav-tab ">🧭 מרכז ידע מס</button></nav><div style="display: flex; align-items: center; gap: 1rem; margin-right: auto;"><div class="header-user" title="e2e-test@firm.local"><span class="header-user-avatar">E</span><span class="header-user-name">e2e-test@firm.local</span></div><button type="button" class="header-logout-btn " title="פרופיל המשרד">⚙ המשרד</button><button type="button" class="header-logout-btn">התנתק</button></div></header><main class="main"><div><div style="background: var(--gray-50); border-bottom: 1px solid var(--gray-200); padding: 0.6rem 1.5rem;"><div style="max-width: 1200px; margin: 0px auto; display: flex; gap: 0.5rem; align-items: center;"><button type="button" class="tab active">🏠 התחל</button><button type="button" class="tab " disabled="" style="opacity: 0.4;">📝 שאלון</button><button type="button" class="tab " disabled="" style="opacity: 0.4;">✏ ערוך תשובות</button><button type="button" class="tab " disabled="" style="opacity: 0.4;">🚦 מאזן כיסוי</button><button type="button" class="tab " disabled="" style="opacity: 0.4;">📋 פלט ומיפוי</button><div style="flex: 1 1 0%;"></div><button type="button" class="tab ">🌳 מפת העץ</button><button type="button" class="tab ">📚 מסד נתוני מס</button></div></div><div style="max-width: 1100px; margin: 0px auto; padding: 1.5rem;"><div class="card" style="margin-bottom: 1.5rem;"><div class="card-header"><h2 class="card-title">📋 דוח שנתי 1301 — התחלת תהליך</h2></div><div class="card-body" style="display: flex; flex-direction: column; gap: 1.25rem;"><div><p style="margin: 0px; color: var(--gray-700); line-height: 1.6;">המערכת תוביל אותך בשאלון מובנה שמתאים את עצמו לפרופיל הלקוח — ובסופו תוכל לראות בשקיפות מלאה: אילו מסמכים נדרשים, אילו נספחים יש לצרף, ואילו ערכים יוזנו לטופס 1301 — שדה אחרי שדה, עם הסבר מאיפה כל ערך הגיע.</p></div><div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-end;"><div style="flex: 1 1 350px; min-width: 280px;"><label style="display: block; font-weight: 600; margin-bottom: 0.4rem;">בחר לקוח</label><input type="text" class="input" placeholder="חיפוש לפי שם או ת.ז..." value="" style="width: 100%; margin-bottom: 0.5rem;"><div style="max-height: 280px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: 6px;"><button type="button" class="nav-tab " style="width: 100%; text-align: right; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--gray-100); border-radius: 0px; background: white;"><span style="font-weight: 600;">דוד כהן</span><span style="color: var(--gray-500); margin-right: 8px; font-size: 0.85rem;">· 123456789</span></button><button type="button" class="nav-tab " style="width: 100%; text-align: right; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--gray-100); border-radius: 0px; background: white;"><span style="font-weight: 600;">מיכל לוי</span><span style="color: var(--gray-500); margin-right: 8px; font-size: 0.85rem;">· 234567890</span></button><button type="button" class="nav-tab " style="width: 100%; text-align: right; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--gray-100); border-radius: 0px; background: white;"><span style="font-weight: 600;">יוסי אברהם</span><span style="color: var(--gray-500); margin-right: 8px; font-size: 0.85rem;">· 345678901</span></button><button type="button" class="nav-tab " style="width: 100%; text-align: right; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--gray-100); border-radius: 0px; background: white;"><span style="font-weight: 600;">אורית שפירא</span><span style="color: var(--gray-500); margin-right: 8px; font-size: 0.85rem;">· 456789012</span></button><button type="button" class="nav-tab " style="width: 100%; text-align: right; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--gray-100); border-radius: 0px; background: white;"><span style="font-weight: 600;">נטשה גולדברג</span><span style="color: var(--gray-500); margin-right: 8px; font-size: 0.85rem;">· 567890123</span></button><button type="button" class="nav-tab " style="width: 100%; text-align: right; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--gray-100); border-radius: 0px; background: white;"><span style="font-weight: 600;">מוחמד חוסין</span><span style="color: var(--gray-500); margin-right: 8px; font-size: 0.85rem;">· 678901234</span></button><button type="button" class="nav-tab " style="width: 100%; text-align: right; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--gray-100); border-radius: 0px; background: white;"><span style="font-weight: 600;">רון בר-לב</span><span style="color: var(--gray-500); margin-right: 8px; font-size: 0.85rem;">· 789012345</span></button></div></div><div style="flex: 0 0 200px;"><label style="display: block; font-weight: 600; margin-bottom: 0.4rem;">שנת מס</label><select class="input" style="width: 100%;"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="2023">2023</option><option value="2022">2022</option></select></div><div style="flex: 0 0 auto;"><button class="btn btn-primary btn-lg" disabled="">התחל תהליך חדש</button></div></div></div></div></div></div></main></div></div><div class="snapcap">מרכז ידע מס</div><div class="snapframe"><div class="app"><header class="header"><div class="header-logo" title="גיא ישר · רואה חשבון"><span class="brand-wordmark">YASHAR<span class="brand-dot"></span></span><span class="brand-sub">גיא ישר · רואה חשבון</span></div><nav class="main-nav"><button class="nav-tab ">✓ משימות<span class="nav-badge">26</span></button><button class="nav-tab ">👥 לקוחות</button><button class="nav-tab ">📝 הצעות ולידים</button><button class="nav-tab ">📋 דוח שנתי 1301</button><button class="nav-tab active">🧭 מרכז ידע מס</button></nav><div style="display: flex; align-items: center; gap: 1rem; margin-right: auto;"><div class="header-nav"><span style="cursor: pointer; color: var(--gray-400);">לקוחות</span><span>›</span><span class="header-breadcrumb">מרכז ידע מס</span></div><div class="header-user" title="e2e-test@firm.local"><span class="header-user-avatar">E</span><span class="header-user-name">e2e-test@firm.local</span></div><button type="button" class="header-logout-btn " title="פרופיל המשרד">⚙ המשרד</button><button type="button" class="header-logout-btn">התנתק</button></div></header><main class="main"><div><div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;"><div><div style="font-size: 0.875rem; color: var(--gray-500); margin-bottom: 0.25rem;"><span style="cursor: pointer; color: var(--blue);">← חזרה</span></div><h1 style="font-size: 1.4rem; font-weight: 700;">🧭 מרכז ידע מס</h1><p style="font-size: 0.875rem; color: var(--gray-500);">כלי החלטה, מחשבונים ונתונים מאומתים — לא עוד דפדוף בטבלאות</p></div><div style="display: flex; align-items: center; gap: 0.5rem;"><label style="font-size: 0.875rem; font-weight: 600;">שנת מס:</label><select style="padding: 0.4rem 0.75rem; border-radius: var(--radius); border: 1px solid var(--gray-300); font-size: 0.9375rem; font-weight: 700; color: var(--blue);"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="2023">2023</option><option value="2022">2022</option></select></div></div><div style="display: flex; gap: 0.35rem; margin-bottom: 1.25rem; border-bottom: 2px solid var(--gray-200); padding-bottom: 0.5rem; flex-wrap: wrap;"><button style="padding: 0.45rem 0.9rem; border-radius: var(--radius); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; cursor: pointer; font-family: inherit; font-size: 0.875rem; font-weight: 700; background: var(--blue); color: white;">🧭 סקירה</button><button style="padding: 0.45rem 0.9rem; border-radius: var(--radius); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; cursor: pointer; font-family: inherit; font-size: 0.875rem; font-weight: 400; background: transparent; color: var(--gray-600);">💼 הוצאות מוכרות</button><button style="padding: 0.45rem 0.9rem; border-radius: var(--radius); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; cursor: pointer; font-family: inherit; font-size: 0.875rem; font-weight: 400; background: transparent; color: var(--gray-600);">📖 ניהול ספרים</button><button style="padding: 0.45rem 0.9rem; border-radius: var(--radius); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; cursor: pointer; font-family: inherit; font-size: 0.875rem; font-weight: 400; background: transparent; color: var(--gray-600);">⭐ אשף נקודות זיכוי</button><button style="padding: 0.45rem 0.9rem; border-radius: var(--radius); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; cursor: pointer; font-family: inherit; font-size: 0.875rem; font-weight: 400; background: transparent; color: var(--gray-600);">🏠 מחשבון שכר דירה</button><button style="padding: 0.45rem 0.9rem; border-radius: var(--radius); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; cursor: pointer; font-family: inherit; font-size: 0.875rem; font-weight: 400; background: transparent; color: var(--gray-600);">📊 מדרגות ומס יסף</button><button style="padding: 0.45rem 0.9rem; border-radius: var(--radius); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; cursor: pointer; font-family: inherit; font-size: 0.875rem; font-weight: 400; background: transparent; color: var(--gray-600);">🏥 ביטוח לאומי</button><button style="padding: 0.45rem 0.9rem; border-radius: var(--radius); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; cursor: pointer; font-family: inherit; font-size: 0.875rem; font-weight: 400; background: transparent; color: var(--gray-600);">🏡 יישובים מוטבים</button><button style="padding: 0.45rem 0.9rem; border-radius: var(--radius); border-width: medium; border-style: none; border-color: currentcolor; border-image: initial; cursor: pointer; font-family: inherit; font-size: 0.875rem; font-weight: 400; background: transparent; color: var(--gray-600);">📚 נושאים מקצועיים</button></div><div style="display: flex; flex-direction: column; gap: 1.25rem;"><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 0.75rem;"><div class="card" style="padding: 0.75rem 1rem; text-align: center;"><div style="font-size: 1.1rem; font-weight: 700; color: var(--blue-dark);">₪2,904</div><div style="font-size: 0.68rem; color: var(--gray-400);">לשנה · 🧊 מוקפא עד 2027</div><div style="font-size: 0.75rem; color: var(--gray-600); margin-top: 0.2rem;">ערך נקודת זיכוי</div></div><div class="card" style="padding: 0.75rem 1rem; text-align: center;"><div style="font-size: 1.1rem; font-weight: 700; color: var(--blue-dark);">₪721,560</div><div style="font-size: 0.68rem; color: var(--gray-400);">3% + 2% על הוני</div><div style="font-size: 0.75rem; color: var(--gray-600); margin-top: 0.2rem;">סף מס יסף</div></div><div class="card" style="padding: 0.75rem 1rem; text-align: center;"><div style="font-size: 1.1rem; font-weight: 700; color: var(--blue-dark);">₪5,654</div><div style="font-size: 0.68rem; color: var(--gray-400);">לחודש · 🧊 מוקפא</div><div style="font-size: 0.75rem; color: var(--gray-600); margin-top: 0.2rem;">פטור שכר דירה</div></div><div class="card" style="padding: 0.75rem 1rem; text-align: center;"><div style="font-size: 1.1rem; font-weight: 700; color: var(--blue-dark);">₪13,769</div><div style="font-size: 0.68rem; color: var(--gray-400);">לחודש</div><div style="font-size: 0.75rem; color: var(--gray-600); margin-top: 0.2rem;">שכר ממוצע (ב"ל)</div></div><div class="card" style="padding: 0.75rem 1rem; text-align: center;"><div style="font-size: 1.1rem; font-weight: 700; color: var(--blue-dark);">₪51,910</div><div style="font-size: 0.68rem; color: var(--gray-400);">לחודש</div><div style="font-size: 0.75rem; color: var(--gray-600); margin-top: 0.2rem;">תקרת ב"ל חודשית</div></div><div class="card" style="padding: 0.75rem 1rem; text-align: center;"><div style="font-size: 1.1rem; font-weight: 700; color: var(--blue-dark);">₪7,703</div><div style="font-size: 0.68rem; color: var(--gray-400);">צמודת מדד (לא עוד 60%)</div><div style="font-size: 0.75rem; color: var(--gray-600); margin-top: 0.2rem;">מדרגת גבייה מופחתת</div></div><div class="card" style="padding: 0.75rem 1rem; text-align: center;"><div style="font-size: 1.1rem; font-weight: 700; color: var(--blue-dark);">₪33,840</div><div style="font-size: 0.68rem; color: var(--gray-400);">לזכייה</div><div style="font-size: 0.75rem; color: var(--gray-600); margin-top: 0.2rem;">פטור הגרלות</div></div></div><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.9rem;"><div class="card" style="cursor: pointer; transition: box-shadow 0.15s;"><div class="card-body" style="display: flex; gap: 0.9rem; align-items: flex-start;"><span style="font-size: 1.8rem;">💼</span><div><div style="font-weight: 700; margin-bottom: 0.2rem;">הוצאות מוכרות</div><div style="font-size: 0.8rem; color: var(--gray-500);">"אפשר לנכות את זה?" — תשובה בשניות: מס הכנסה, מע"מ, מקורות ופסיקה</div></div></div></div><div class="card" style="cursor: pointer; transition: box-shadow 0.15s;"><div class="card-body" style="display: flex; gap: 0.9rem; align-items: flex-start;"><span style="font-size: 1.8rem;">📖</span><div><div style="font-weight: 700; margin-bottom: 0.2rem;">ניהול ספרים</div><div style="font-size: 0.8rem; color: var(--gray-500);">איזו תוספת ואילו ספרים כל עוסק חייב — אשף, 15 התוספות ומילון הספרים</div></div></div></div><div class="card" style="cursor: pointer; transition: box-shadow 0.15s;"><div class="card-body" style="display: flex; gap: 0.9rem; align-items: flex-start;"><span style="font-size: 1.8rem;">⭐</span><div><div style="font-weight: 700; margin-bottom: 0.2rem;">אשף נקודות זיכוי</div><div style="font-size: 0.8rem; color: var(--gray-500);">עונים על שאלות — המערכת קובעת את הנקודות ומסבירה למה</div></div></div></div><div class="card" style="cursor: pointer; transition: box-shadow 0.15s;"><div class="card-body" style="display: flex; gap: 0.9rem; align-items: flex-start;"><span style="font-size: 1.8rem;">🏠</span><div><div style="font-weight: 700; margin-bottom: 0.2rem;">מחשבון שכר דירה</div><div style="font-size: 0.8rem; color: var(--gray-500);">השוואת פטור / 10% / שולי, כולל הפטור המתקפל ו-122(ו)</div></div></div></div><div class="card" style="cursor: pointer; transition: box-shadow 0.15s;"><div class="card-body" style="display: flex; gap: 0.9rem; align-items: flex-start;"><span style="font-size: 1.8rem;">📊</span><div><div style="font-weight: 700; margin-bottom: 0.2rem;">מדרגות ומס יסף</div><div style="font-size: 0.8rem; color: var(--gray-500);">מדרגות עדכניות, מס יסף דו-שכבתי וחישוב מהיר</div></div></div></div><div class="card" style="cursor: pointer; transition: box-shadow 0.15s;"><div class="card-body" style="display: flex; gap: 0.9rem; align-items: flex-start;"><span style="font-size: 1.8rem;">🏥</span><div><div style="font-weight: 700; margin-bottom: 0.2rem;">ביטוח לאומי</div><div style="font-size: 0.8rem; color: var(--gray-500);">שיעורים, תקרות ומחשבון לכל סוגי המבוטחים</div></div></div></div><div class="card" style="cursor: pointer; transition: box-shadow 0.15s;"><div class="card-body" style="display: flex; gap: 0.9rem; align-items: flex-start;"><span style="font-size: 1.8rem;">🏡</span><div><div style="font-weight: 700; margin-bottom: 0.2rem;">יישובים מוטבים</div><div style="font-size: 0.8rem; color: var(--gray-500);">הרשימה הרשמית המלאה + מחשבון זיכוי</div></div></div></div><div class="card" style="cursor: pointer; transition: box-shadow 0.15s;"><div class="card-body" style="display: flex; gap: 0.9rem; align-items: flex-start;"><span style="font-size: 1.8rem;">📚</span><div><div style="font-weight: 700; margin-bottom: 0.2rem;">נושאים מקצועיים</div><div style="font-size: 0.8rem; color: var(--gray-500);">פנסיה, פרישה, מע"מ, חברות, מקרקעין, מועדים ועוד</div></div></div></div></div><div style="background: white; border: 1px solid var(--gray-200); border-radius: 12px; padding: 1rem 1.15rem;"><div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.6rem;"><div><span style="font-weight: 700;">🔄 עדכניות הנתונים</span><span style="font-size: 0.78rem; color: var(--gray-500); margin-right: 0.5rem;">בדיקה רבעונית: ינואר · אפריל · יולי · אוקטובר</span></div><button style="padding: 0.35rem 0.8rem; border-radius: 8px; font-family: inherit; font-size: 0.8rem; font-weight: 600; border: 1px solid var(--gray-300); cursor: pointer; background: white; color: var(--blue);">+ צור משימת בדיקה עכשיו</button></div><table style="width: 100%; font-size: 0.82rem; border-collapse: collapse;"><tbody><tr style="border-bottom: 1px solid var(--gray-100);"><td style="padding: 0.4rem 0.3rem; white-space: nowrap;">📊 <b>נתוני מס ליבה</b></td><td style="padding: 0.4rem 0.3rem; color: var(--gray-500); font-size: 0.76rem;">מדרגות מס, ערך נקודת זיכוי, מס יסף, תקרות ושיעורי ביטוח לאומי, פטור שכר דירה, שווי שימוש, פטור הגרלות</td><td style="padding: 0.4rem 0.3rem; white-space: nowrap; text-align: left;"><span style="color: rgb(21, 128, 61); font-weight: 600;">✓ 07/2026</span></td></tr><tr style="border-bottom: 1px solid var(--gray-100);"><td style="padding: 0.4rem 0.3rem; white-space: nowrap;">🏡 <b>יישובים מוטבים</b></td><td style="padding: 0.4rem 0.3rem; color: var(--gray-500); font-size: 0.76rem;">רשימת היישובים המזכים, אחוזי הזיכוי והתקרות לכל יישוב</td><td style="padding: 0.4rem 0.3rem; white-space: nowrap; text-align: left;"><span style="color: rgb(21, 128, 61); font-weight: 600;">✓ 07/2026</span></td></tr><tr style="border-bottom: 1px solid var(--gray-100);"><td style="padding: 0.4rem 0.3rem; white-space: nowrap;">💼 <b>הוצאות מוכרות</b></td><td style="padding: 0.4rem 0.3rem; color: var(--gray-500); font-size: 0.76rem;">54 נושאי הוצאות: ורדיקטים מס הכנסה ומע"מ, תקרות (נסיעות חו"ל, מתנות, אש"ל), שיעורי קיזוז</td><td style="padding: 0.4rem 0.3rem; white-space: nowrap; text-align: left;"><span style="color: rgb(21, 128, 61); font-weight: 600;">✓ 07/2026</span></td></tr><tr style="border-bottom: 1px solid var(--gray-100);"><td style="padding: 0.4rem 0.3rem; white-space: nowrap;">📖 <b>ניהול ספרים</b></td><td style="padding: 0.4rem 0.3rem; color: var(--gray-500); font-size: 0.76rem;">ספי המחזור והמועסקים ב-15 התוספות, רשימות הספרים, סכומי הסף (710/2,150/3,400 ₪ וכו')</td><td style="padding: 0.4rem 0.3rem; white-space: nowrap; text-align: left;"><span style="color: rgb(21, 128, 61); font-weight: 600;">✓ 07/2026</span></td></tr><tr style="border-bottom: 1px solid var(--gray-100);"><td style="padding: 0.4rem 0.3rem; white-space: nowrap;">📚 <b>נושאים מקצועיים</b></td><td style="padding: 0.4rem 0.3rem; color: var(--gray-500); font-size: 0.76rem;">פנסיה (תקרות הפקדה), פרישה, מע"מ (סף עוסק פטור), חברות, מקרקעין, מועדי דיווח</td><td style="padding: 0.4rem 0.3rem; white-space: nowrap; text-align: left;"><span style="color: rgb(21, 128, 61); font-weight: 600;">✓ 07/2026</span></td></tr></tbody></table><div style="font-size: 0.74rem; color: var(--gray-500); margin-top: 0.55rem; line-height: 1.55;">כל המאגרים אומתו ברבעון הנוכחי מול מקורות רשמיים. הבדיקה הבאה: 10/2026 — המערכת תיצור אז משימת בדיקה אוטומטית. שום נתון לא מתעדכן ללא דוח שינויים (ערך קודם ← חדש + מקור) ואישור מפורש שלך.</div></div><div class="alert alert-info" style="margin-bottom: 0px; font-size: 0.83rem;">שנים 2025–2027: רוב התקרות מוקפאות (חוק ההתייעלות — הקפאת עדכוני מס).</div></div></div></main></div></div><div class="snapcap">כרטיס לקוח (מרכז שליטה)</div><div class="snapframe"><div class="app"><header class="header"><div class="header-logo" title="גיא ישר · רואה חשבון"><span class="brand-wordmark">YASHAR<span class="brand-dot"></span></span><span class="brand-sub">גיא ישר · רואה חשבון</span></div><nav class="main-nav"><button class="nav-tab ">✓ משימות<span class="nav-badge">26</span></button><button class="nav-tab ">👥 לקוחות</button><button class="nav-tab ">📝 הצעות ולידים</button><button class="nav-tab ">📋 דוח שנתי 1301</button><button class="nav-tab ">🧭 מרכז ידע מס</button></nav><div style="display: flex; align-items: center; gap: 1rem; margin-right: auto;"><div class="header-nav"><span style="cursor: pointer; color: var(--gray-400);">לקוחות</span><span>›</span><span class="header-breadcrumb">דוד כהן</span></div><div class="header-user" title="e2e-test@firm.local"><span class="header-user-avatar">E</span><span class="header-user-name">e2e-test@firm.local</span></div><button type="button" class="header-logout-btn " title="פרופיל המשרד">⚙ המשרד</button><button type="button" class="header-logout-btn">התנתק</button></div></header><main class="main"><div class="cw-root"><div class="cw-header"><div class="cw-header-top"><button class="btn btn-ghost btn-sm">← לקוחות</button><div class="cw-identity"><div class="cw-avatar">דכ</div><div><div class="cw-name">דוד כהן</div><div class="cw-id-row"><span class="mono-text">ת.ז. 123456789</span><span class="mono-text" dir="ltr">050-1234567</span><span>תל אביב</span></div></div></div><div class="cw-header-actions"><button class="btn btn-secondary btn-sm" title="שליחת קישור שאלון היכרות/עדכון למייל הלקוח">📨 שלח שאלון</button><button class="btn btn-secondary btn-sm" title="פתיחת הדוח השנתי של הלקוח">📋 דוח שנתי</button><button class="btn btn-secondary btn-sm" title="משימה חדשה ללקוח">➕ משימה</button><button class="btn btn-primary" disabled="">שמור</button><button class="btn btn-danger btn-sm" title="מחיקה">🗑</button></div></div><div class="cw-header-chips"><span class="badge badge-green">מיוצג פעיל</span><span class="cw-emp-chip muted">ללא מטפל</span><span class="cw-tax-chip">💼 שכיר</span><span class="cw-tax-chip">📊 אין מע״מ</span><span class="cw-tax-chip">🏥 ב״ל שכיר</span><span class="badge badge-green">שע״ם: פעיל</span><span class="cw-tag">#שכיר</span><span class="cw-tag">#הייטק</span><span class="cw-tag">#משלם מס מקסימלי</span></div><div class="cw-alerts"><span class="cw-alert cw-alert-info">6 משימות פתוחות</span><span class="cw-alert cw-alert-warning">3 חובות קרובים (21 יום)</span></div><div class="cw-tabs"><button class="cw-tab active"><span>🎛️</span><span>מרכז שליטה</span></button><button class="cw-tab "><span>👤</span><span>התיק</span></button><button class="cw-tab "><span>📁</span><span>מסמכים</span></button><button class="cw-tab "><span>✅</span><span>משימות</span><span class="cw-tab-badge">6</span></button></div></div><div class="cw-body"><div class="cw-overview" style="display: flex; flex-direction: column; gap: 0.8rem;"><div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.55rem;"><button type="button" style="text-align: right; background: rgb(255, 255, 255); font-family: inherit; border-top: 3px solid rgb(192, 57, 43); border-right-color: ; border-right-style: ; border-right-width: ; border-bottom-color: ; border-bottom-style: ; border-bottom-width: ; border-left-color: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; border-radius: 10px; padding: 0.6rem 0.8rem; cursor: pointer;"><b style="font-size: 0.86rem; display: block;">📎 חסרים 2 מסמכים</b><span style="font-size: 0.75rem; color: var(--gray-500);">תעודת זהות + ספח · אישור קרן פנסיה שנתי</span></button><button type="button" disabled="" style="text-align: right; background: rgb(255, 255, 255); font-family: inherit; border-top: 3px solid rgb(224, 178, 90); border-right-color: ; border-right-style: ; border-right-width: ; border-bottom-color: ; border-bottom-style: ; border-bottom-width: ; border-left-color: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; border-radius: 10px; padding: 0.6rem 0.8rem; cursor: default;"><b style="font-size: 0.86rem; display: block;">📋 אין תיק דוח שנתי</b><span style="font-size: 0.75rem; color: var(--gray-500);">אפשר לפתוח מכפתור "דוח שנתי" למעלה</span></button><button type="button" style="text-align: right; background: rgb(255, 255, 255); font-family: inherit; border-top: 3px solid rgb(224, 178, 90); border-right-color: ; border-right-style: ; border-right-width: ; border-bottom-color: ; border-bottom-style: ; border-bottom-width: ; border-left-color: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; border-radius: 10px; padding: 0.6rem 0.8rem; cursor: pointer;"><b style="font-size: 0.86rem; display: block;">✅ 6 משימות פתוחות</b><span style="font-size: 0.75rem; color: var(--gray-500);">3 עם מועד קרוב</span></button></div><div class="cw-cockpit-row" style="display: grid; grid-template-columns: minmax(280px, 1.3fr) minmax(260px, 1fr); gap: 0.7rem;"><div class="cw-section"><div class="cw-section-head"><span>📅 מה הבא בתור — חובות הגשה</span></div><div><div style="display: flex; justify-content: space-between; gap: 0.6rem; font-size: 0.86rem; padding: 0.35rem 0px; border-bottom: 1px dashed var(--gray-100);"><span>הצהרת הון</span><span style="font-weight: 700; color: var(--green, #1F7A4D); white-space: nowrap;">הוגשה 2020 ✓</span></div></div><div style="margin-top: 0.5rem;"><button type="button" style="display: flex; justify-content: space-between; width: 100%; gap: 0.6rem; background: rgb(251, 242, 226); border: 1px solid rgb(242, 212, 146); border-radius: 7px; padding: 0.3rem 0.6rem; font-size: 0.8rem; margin-bottom: 0.3rem; cursor: pointer; font-family: inherit; text-align: right;"><span>⏰ שכר 04/2026 — עיבוד תלושים</span><span style="font-weight: 700; white-space: nowrap;">09.05.2026</span></button><button type="button" style="display: flex; justify-content: space-between; width: 100%; gap: 0.6rem; background: rgb(251, 242, 226); border: 1px solid rgb(242, 212, 146); border-radius: 7px; padding: 0.3rem 0.6rem; font-size: 0.8rem; margin-bottom: 0.3rem; cursor: pointer; font-family: inherit; text-align: right;"><span>⏰ סגירת כרטיס ניכויים 2025</span><span style="font-weight: 700; white-space: nowrap;">10.05.2026</span></button><button type="button" style="display: flex; justify-content: space-between; width: 100%; gap: 0.6rem; background: rgb(251, 242, 226); border: 1px solid rgb(242, 212, 146); border-radius: 7px; padding: 0.3rem 0.6rem; font-size: 0.8rem; margin-bottom: 0.3rem; cursor: pointer; font-family: inherit; text-align: right;"><span>⏰ להכין דוח שנתי 2025</span><span style="font-weight: 700; white-space: nowrap;">15.05.2026</span></button></div></div><div class="cw-section"><div class="cw-section-head"><span>🕐 מה זז לאחרונה</span></div><div><div style="display: flex; gap: 0.45rem; font-size: 0.8rem; padding: 0.28rem 0px; color: var(--gray-600); align-items: baseline;"><span style="flex: 0 0 auto;">➕</span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">נוצרה משימה: דיווח שנתי 2025</span><span style="margin-right: auto; color: var(--gray-400); font-size: 0.72rem; white-space: nowrap; flex: 0 0 auto;">לפני 5 ימים</span></div><div style="display: flex; gap: 0.45rem; font-size: 0.8rem; padding: 0.28rem 0px; color: var(--gray-600); align-items: baseline;"><span style="flex: 0 0 auto;">📎</span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">הועלה: טופס 106 — חברת הייטק</span><span style="margin-right: auto; color: var(--gray-400); font-size: 0.72rem; white-space: nowrap; flex: 0 0 auto;">לפני 1 שבועות</span></div><div style="display: flex; gap: 0.45rem; font-size: 0.8rem; padding: 0.28rem 0px; color: var(--gray-600); align-items: baseline;"><span style="flex: 0 0 auto;">📝</span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">שיחה עם דוד — מאשר את החזר המס. מעדכן בהמשך.</span><span style="margin-right: auto; color: var(--gray-400); font-size: 0.72rem; white-space: nowrap; flex: 0 0 auto;">לפני 2 שבועות</span></div><div style="display: flex; gap: 0.45rem; font-size: 0.8rem; padding: 0.28rem 0px; color: var(--gray-600); align-items: baseline;"><span style="flex: 0 0 auto;">🔄</span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">שע״ם — חודש בהצלחה לשנה הקרובה</span><span style="margin-right: auto; color: var(--gray-400); font-size: 0.72rem; white-space: nowrap; flex: 0 0 auto;">07.06.2026</span></div></div></div></div><div class="cw-section"><div class="cw-section-head"><span>🗂️ דוחות שנתיים</span></div><div class="cw-empty" style="">עדיין לא נפתח תיק דוח שנתי — אפשר מכפתור "📋 דוח שנתי" למעלה.</div></div><div class="cw-section pin-section"><div class="cw-section-head"><span>📌 הערה מוצמדת</span><button class="btn btn-ghost btn-sm">עריכה</button></div><div style="font-size: 0.88rem; white-space: pre-wrap;">מבקש לקבל סיכום שנתי בתחילת מרץ. קשר ישיר במייל.</div><div style="display: flex; gap: 0.4rem; margin-top: 0.55rem;"><input type="text" placeholder="הוסף רישום מהיר ליומן... (Enter לשמירה)" value="" style="flex: 1 1 0%; padding: 0.4rem 0.6rem; border-radius: 7px; border: 1px solid var(--gray-200);"></div></div></div></div></div></main></div></div></div></body></html>

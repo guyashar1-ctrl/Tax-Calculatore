@@ -12,6 +12,11 @@ dist/
 
 # Personal study/reference materials — not part of the app
 חומרים/
+wikisource_raw.txt
+מדריך רשות המיסים למילוי דוח שנתי ליחיד (טופס 1301) לשנת 2025.pdf
+
+# תוכן שיווקי שמיוצר בתיקייה הזאת אבל אינו חלק מהאפליקציה
+podcast-production/
 
 # Temporary working dirs
 tmp_letter/
