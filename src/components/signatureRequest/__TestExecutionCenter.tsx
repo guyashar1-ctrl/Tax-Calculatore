@@ -3,7 +3,15 @@
 
 import { useState } from 'react';
 import { RepresentationRequest, RepresentationExecution } from '../../types';
+import { EmailMessage } from '../../types/emailActivity';
 import RepresentationExecutionCenter from '../RepresentationExecutionCenter';
+import EmailStatusRow from '../EmailActivity/EmailStatusRow';
+
+const MAIL_STATES: { label: string; msg: EmailMessage }[] = [
+  { label: 'הגיע בלבד', msg: { id: 'm1', toEmail: 'ruti@example.com', kind: 'sign', status: 'delivered', sentAt: '2026-07-03T10:00:00.000Z', deliveredAt: '2026-07-03T10:00:05.000Z' } },
+  { label: 'נכנס לחתום', msg: { id: 'm2', toEmail: 'ruti@example.com', kind: 'sign', status: 'clicked', sentAt: '2026-07-03T10:00:00.000Z', deliveredAt: '2026-07-03T10:00:05.000Z', openedAt: '2026-07-03T12:00:00.000Z', clickedAt: '2026-07-03T12:00:00.000Z' } },
+  { label: 'מייל שאינו חתימה (הצעת מחיר)', msg: { id: 'm3', toEmail: 'ruti@example.com', kind: 'quotation', status: 'delivered', sentAt: '2026-07-03T10:00:00.000Z', deliveredAt: '2026-07-03T10:00:05.000Z' } },
+];
 
 const BASE: RepresentationRequest = {
   id: 'test-exec-1',
@@ -76,6 +84,14 @@ export default function TestExecutionCenter() {
         onSendToSigner={async () => null}
         userId={undefined}
       />
+
+      <h2 style={{ marginTop: '2rem' }}>שורת מצב המייל</h2>
+      {MAIL_STATES.map(m => (
+        <div key={m.msg.id} style={{ marginBottom: '.6rem' }}>
+          <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginBottom: 3 }}>{m.label}</div>
+          <EmailStatusRow message={m.msg} />
+        </div>
+      ))}
     </div>
   );
 }
