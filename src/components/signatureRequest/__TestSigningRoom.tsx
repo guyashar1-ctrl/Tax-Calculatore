@@ -10,6 +10,7 @@ const TEMPLATE_URL = '/templates/poa_2279a5.pdf';
 
 const SIGNERS: Signer[] = [
   { id: 'client', source: 'client_self', name: 'רותי לקוח', email: 'ruti@example.com', order: 1 },
+  { id: 'accountant', source: 'manual', name: 'אני — רו"ח', email: '', order: 2 },
 ];
 
 // שדות דמה על עמוד 0 של טופס 2279 — חתימה, חותמת וטקסט תאריך
@@ -17,17 +18,31 @@ const FIELDS: SignatureField[] = [
   { id: 'sig1', signerId: 'client', kind: 'signature', pageIndex: 0, xPct: 0.06, yPct: 0.60, widthPct: 0.22, heightPct: 0.05 },
   { id: 'stamp1', signerId: 'client', kind: 'stamp', pageIndex: 0, xPct: 0.30, yPct: 0.58, widthPct: 0.12, heightPct: 0.09 },
   { id: 'date1', signerId: 'client', kind: 'text', pageIndex: 0, xPct: 0.72, yPct: 0.60, widthPct: 0.18, heightPct: 0.03, placeholder: 'תאריך' },
-  // תוכן קבוע — נצרב בלי ערך מחותם
+  // חתימת הרו"ח — הלקוח לא אמור לראות אותה בכלל
+  { id: 'accSig', signerId: 'accountant', kind: 'signature', pageIndex: 0, xPct: 0.06, yPct: 0.80, widthPct: 0.22, heightPct: 0.05 },
+  { id: 'accStamp', signerId: 'accountant', kind: 'stamp', pageIndex: 0, xPct: 0.32, yPct: 0.78, widthPct: 0.12, heightPct: 0.09 },
+  // תוכן קבוע — נצרב בלי ערך מחותם, ומוצג לכולם
   { id: 'lbl1', signerId: 'static', kind: 'label', pageIndex: 0, xPct: 0.10, yPct: 0.30, widthPct: 0.20, heightPct: 0.03, staticText: 'רישום מיוצג — בדיקה' },
   { id: 'chk1', signerId: 'static', kind: 'check', pageIndex: 0, xPct: 0.85, yPct: 0.44, widthPct: 0.035, heightPct: 0.025 },
   { id: 'x1', signerId: 'static', kind: 'cross', pageIndex: 0, xPct: 0.12, yPct: 0.72, widthPct: 0.035, heightPct: 0.025 },
 ];
+
+const TINY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+/** ערכי הלקוח, כפי שהם מגיעים לרו"ח אחרי שהלקוח חתם. */
+const CLIENT_VALUES: Record<string, SignatureValue> = {
+  sig1: { fieldId: 'sig1', imageDataUrl: TINY_PNG, signedAt: '2026-07-29T10:00:00.000Z' },
+  stamp1: { fieldId: 'stamp1', imageDataUrl: TINY_PNG, signedAt: '2026-07-29T10:00:00.000Z' },
+  date1: { fieldId: 'date1', text: '29/07/2026', signedAt: '2026-07-29T10:00:00.000Z' },
+};
 
 export default function TestSigningRoom() {
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
   const [result, setResult] = useState<string>('');
   const [pdfUrl, setPdfUrl] = useState<string>('');
   const [open, setOpen] = useState(true);
+  // 'client' = מה שהלקוח רואה · 'accountant' = חדר החתימה שלי, עם גרירה ושינוי גודל
+  const [mode, setMode] = useState<'client' | 'accountant'>('client');
 
   useEffect(() => {
     fetch(TEMPLATE_URL).then(r => r.arrayBuffer()).then(setBytes).catch(e => setResult('template load failed: ' + e));
@@ -51,10 +66,10 @@ export default function TestSigningRoom() {
     };
   }, [bytes]);
 
-  async function handleComplete(values: Record<string, SignatureValue>) {
+  async function handleComplete(values: Record<string, SignatureValue>, fields: SignatureField[]) {
     if (!bytes) return;
     try {
-      const out = await burnSignaturesIntoPdf(bytes.slice(0), FIELDS, values);
+      const out = await burnSignaturesIntoPdf(bytes.slice(0), fields, values);
       const head = new TextDecoder().decode(out.slice(0, 5));
       const buf = new ArrayBuffer(out.byteLength);
       new Uint8Array(buf).set(out);
@@ -71,19 +86,28 @@ export default function TestSigningRoom() {
     <div style={{ padding: '1.5rem', fontFamily: 'Heebo, sans-serif' }}>
       <h1>🧪 בדיקה: חדר החתימה + הטבעת PDF</h1>
       <p style={{ color: 'var(--tx2)' }}>הוסיפו <code>?test-signroom=1</code> לכתובת.</p>
-      <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem' }}>
-        <button className="btn btn-primary" onClick={() => setOpen(true)} disabled={!bytes}>פתח חדר חתימה</button>
+      <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <button className="btn btn-secondary" onClick={() => { setMode('client'); setOpen(true); }} disabled={!bytes}>
+          👤 תצוגת הלקוח (בלי החתימות שלי)
+        </button>
+        <button className="btn btn-primary" onClick={() => { setMode('accountant'); setOpen(true); }} disabled={!bytes}>
+          ✍ חדר החתימה שלי (גרירה + שינוי גודל)
+        </button>
       </div>
       {result && <div style={{ background: 'var(--chip-green-bg)', border: '1px solid var(--ok)', padding: '.75rem', borderRadius: 8, direction: 'ltr', textAlign: 'left' }}>{result}</div>}
       {pdfUrl && <iframe title="out" src={pdfUrl} style={{ width: '100%', height: 500, marginTop: '1rem', border: '1px solid #ddd' }} />}
       {open && bytes && (
         <SigningRoom
+          key={mode}
           pdfBytes={bytes.slice(0)}
           pdfFileName="poa_2279a5.pdf"
           fields={FIELDS}
           signers={SIGNERS}
-          activeSignerId="client"
-          title="חתימה על ייפוי כוח (בדיקה)"
+          activeSignerId={mode === 'client' ? 'client' : 'accountant'}
+          hiddenSignerIds={mode === 'client' ? ['accountant'] : undefined}
+          adjustable={mode === 'accountant'}
+          initialValues={mode === 'accountant' ? CLIENT_VALUES : undefined}
+          title={mode === 'client' ? 'חתימה על ייפוי כוח (בדיקה)' : 'חתימה + חותמת המשרד (בדיקה)'}
           onComplete={handleComplete}
           onCancel={() => setOpen(false)}
         />

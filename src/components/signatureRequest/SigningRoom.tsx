@@ -29,9 +29,26 @@ interface Props {
   savedMarks?: SavedMarks;                      // חתימה/חותמת שמורות (רו"ח) — הוספה בלחיצה
   initialValues?: Record<string, SignatureValue>; // ערכים שכבר מולאו (חותם קודם)
   title?: string;
-  onComplete: (values: Record<string, SignatureValue>) => void;
+  /**
+   * חותמים שמקומות החתימה שלהם לא יוצגו כלל. הלקוח לא אמור לראות איפה הרו"ח
+   * חותם — זה מבלבל אותו ומעלה שאלות על טופס שאינו שלם. תוכן קבוע (טקסט,
+   * ✓/✗ שהרו"ח הניח בהפקה) תמיד מוצג, כי הוא חלק מהטופס עצמו.
+   */
+  hiddenSignerIds?: string[];
+  /** מאפשר לגרור ולשנות גודל של חתימות שכבר מולאו — לפני שה-PDF הסופי נצרב. */
+  adjustable?: boolean;
+  onComplete: (values: Record<string, SignatureValue>, fields: SignatureField[]) => void;
   onCancel: () => void;
 }
+
+/** תוכן שהרו"ח הניח בהפקה — נצרב תמיד, לא שייך לאף חותם. */
+const STATIC_KINDS: SignatureFieldKind[] = ['label', 'check', 'cross'];
+const isStatic = (k: SignatureFieldKind) => STATIC_KINDS.includes(k);
+
+/** מלבן יחסי (0..1) של שדה על העמוד. */
+export interface FieldRect { xPct: number; yPct: number; widthPct: number; heightPct: number }
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 // צבעי החותמים מסומנים על דף PDF לבן — ערכים קבועים, לא תלויי ערכה
 const SIGNER_COLORS = ['#3f5f8f', '#2e7d5b', '#b07515', '#6b4a87', '#a4406a', '#17767c'];
@@ -73,9 +90,22 @@ export default function SigningRoom(p: Props) {
   const activeColor = colorForSigner(p.signers, p.activeSignerId);
   const activeSigner = p.signers.find(s => s.id === p.activeSignerId);
 
+  // גאומטריה מעודכנת של שדות שהוזזו/שונו בגודלם בחדר הזה. מוחלת על ה-PDF
+  // הסופי, ולכן היא הצורה האמיתית של הטופס מרגע השינוי.
+  const [geom, setGeom] = useState<Record<string, FieldRect>>({});
+  const fields = useMemo(
+    () => p.fields.map(f => (geom[f.id] ? { ...f, ...geom[f.id] } : f)),
+    [p.fields, geom],
+  );
+
+  const visibleFields = useMemo(() => {
+    const hidden = new Set(p.hiddenSignerIds || []);
+    return fields.filter(f => isStatic(f.kind) || !hidden.has(f.signerId));
+  }, [fields, p.hiddenSignerIds]);
+
   const myFields = useMemo(
-    () => p.fields.filter(f => f.signerId === p.activeSignerId),
-    [p.fields, p.activeSignerId],
+    () => visibleFields.filter(f => f.signerId === p.activeSignerId),
+    [visibleFields, p.activeSignerId],
   );
   const doneCount = myFields.filter(f => !!values[f.id]).length;
   const allDone = myFields.length > 0 && doneCount === myFields.length;
@@ -156,6 +186,11 @@ export default function SigningRoom(p: Props) {
             {allDone
               ? 'כל מקומות החתימה מולאו. אפשר לסיים.'
               : <>לחצו על מקום החתימה המסומן כדי לחתום. נותרו <strong>{myFields.length - doneCount}</strong> מקומות.</>}
+            {p.adjustable && (
+              <div style={{ fontSize: '.76rem', color: 'var(--gray-600)', marginTop: 2 }}>
+                כל חתימה על הטופס — שלכם ושל הלקוח — ניתנת לגרירה, ולשינוי גודל מהפינה. כך היא תיצרב ב-PDF.
+              </div>
+            )}
           </div>
           {!allDone && nextUnfilled && (
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => scrollToField(nextUnfilled.id)}>
@@ -175,11 +210,13 @@ export default function SigningRoom(p: Props) {
                   key={idx}
                   pdfDoc={pdfDoc}
                   pageIndex={idx}
-                  fields={p.fields.filter(f => f.pageIndex === idx)}
+                  fields={visibleFields.filter(f => f.pageIndex === idx)}
                   signers={p.signers}
                   activeSignerId={p.activeSignerId}
                   values={values}
+                  adjustable={!!p.adjustable}
                   onClickField={clickField}
+                  onAdjustField={(id, rect) => setGeom(prev => ({ ...prev, [id]: rect }))}
                   registerRef={(fid, el) => { markerRefs.current[fid] = el; }}
                 />
               ))}
@@ -195,7 +232,7 @@ export default function SigningRoom(p: Props) {
             type="button"
             className="btn btn-primary"
             disabled={!allDone}
-            onClick={() => p.onComplete(values)}
+            onClick={() => p.onComplete(values, fields)}
           >
             {allDone ? '✓ סיום וחתימה' : `נותרו ${myFields.length - doneCount} מקומות`}
           </button>
@@ -263,13 +300,66 @@ interface PageProps {
   signers: Signer[];
   activeSignerId: string;
   values: Record<string, SignatureValue>;
+  adjustable: boolean;
   onClickField: (f: SignatureField) => void;
+  onAdjustField: (fieldId: string, rect: FieldRect) => void;
   registerRef: (fieldId: string, el: HTMLDivElement | null) => void;
 }
 
 function SigningPage(p: PageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
+
+  // גרירה/מתיחה פעילה. moved מבדיל בין לחיצה (=החלפת חתימה) לגרירה.
+  const drag = useRef<
+    | { id: string; mode: 'move' | 'resize'; x0: number; y0: number; rect: FieldRect; pw: number; ph: number; moved: boolean }
+    | null
+  >(null);
+  const justDragged = useRef(false);
+
+  function beginDrag(e: React.PointerEvent, f: SignatureField, mode: 'move' | 'resize') {
+    const wrap = wrapRef.current;
+    if (!p.adjustable || !wrap) return;
+    const r = wrap.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    drag.current = {
+      id: f.id, mode, x0: e.clientX, y0: e.clientY, pw: r.width, ph: r.height, moved: false,
+      rect: { xPct: f.xPct, yPct: f.yPct, widthPct: f.widthPct, heightPct: f.heightPct },
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    e.stopPropagation();
+  }
+
+  function moveDrag(e: React.PointerEvent) {
+    const d = drag.current;
+    if (!d) return;
+    if (!d.moved && Math.abs(e.clientX - d.x0) < 3 && Math.abs(e.clientY - d.y0) < 3) return;
+    d.moved = true;
+    const dx = (e.clientX - d.x0) / d.pw;
+    const dy = (e.clientY - d.y0) / d.ph;
+    if (d.mode === 'move') {
+      p.onAdjustField(d.id, {
+        ...d.rect,
+        xPct: clamp(d.rect.xPct + dx, 0, 1 - d.rect.widthPct),
+        yPct: clamp(d.rect.yPct + dy, 0, 1 - d.rect.heightPct),
+      });
+    } else {
+      p.onAdjustField(d.id, {
+        ...d.rect,
+        widthPct: clamp(d.rect.widthPct + dx, 0.02, 1 - d.rect.xPct),
+        heightPct: clamp(d.rect.heightPct + dy, 0.01, 1 - d.rect.yPct),
+      });
+    }
+  }
+
+  function endDrag() {
+    if (drag.current?.moved) {
+      justDragged.current = true;
+      setTimeout(() => { justDragged.current = false; }, 0);
+    }
+    drag.current = null;
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -287,7 +377,7 @@ function SigningPage(p: PageProps) {
   }, [p.pdfDoc, p.pageIndex]);
 
   return (
-    <div style={{ position: 'relative', boxShadow: '0 2px 10px rgba(0,0,0,.12)', background: 'white', lineHeight: 0 }}>
+    <div ref={wrapRef} style={{ position: 'relative', boxShadow: '0 2px 10px rgba(0,0,0,.12)', background: 'white', lineHeight: 0 }}>
       <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%' }} />
       {ready && p.fields.map(f => {
         // תוכן קבוע שהרו"ח הניח בהפקה — מוצג כפי שיודפס, לא אינטראקטיבי
@@ -318,12 +408,19 @@ function SigningPage(p: PageProps) {
         const color = colorForSigner(p.signers, f.signerId);
         const signer = p.signers.find(s => s.id === f.signerId);
         const label = SIGNATURE_FIELD_KIND_LABELS[f.kind];
+        // גרירה מותרת רק על מה שכבר נחתם — מלבן ריק אין טעם להזיז
+        const movable = p.adjustable && filled;
         return (
           <div
             key={f.id}
             ref={el => p.registerRef(f.id, el)}
-            onClick={() => mine && !filled && p.onClickField(f)}
-            title={mine ? (filled ? `${label} — לחץ להחלפה` : `לחץ ל${label}`) : `${label} של ${signer?.name || 'חותם אחר'}`}
+            onClick={() => { if (justDragged.current) return; if (mine && !filled) p.onClickField(f); }}
+            onPointerDown={movable ? e => beginDrag(e, f, 'move') : undefined}
+            onPointerMove={movable ? moveDrag : undefined}
+            onPointerUp={movable ? endDrag : undefined}
+            onPointerCancel={movable ? endDrag : undefined}
+            title={movable ? `${label} של ${signer?.name || ''} — גררו להזזה, מהפינה לשינוי גודל`
+              : mine ? (filled ? `${label} — לחץ להחלפה` : `לחץ ל${label}`) : `${label} של ${signer?.name || 'חותם אחר'}`}
             style={{
               position: 'absolute',
               left: `${f.xPct * 100}%`,
@@ -331,20 +428,24 @@ function SigningPage(p: PageProps) {
               width: `${f.widthPct * 100}%`,
               height: `${f.heightPct * 100}%`,
               boxSizing: 'border-box',
-              border: filled ? `2px solid var(--green, var(--ok))` : (mine ? `2px dashed ${color}` : `1.5px dotted ${color}99`),
+              border: filled
+                ? (movable ? '2px dashed var(--blue, #3f5f8f)' : '2px solid var(--green, var(--ok))')
+                : (mine ? `2px dashed ${color}` : `1.5px dotted ${color}99`),
               background: filled ? 'transparent' : (mine ? `${color}18` : `${color}0d`),
               borderRadius: 4,
-              cursor: mine && !filled ? 'pointer' : 'default',
+              cursor: movable ? 'move' : (mine && !filled ? 'pointer' : 'default'),
+              touchAction: movable ? 'none' : undefined,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              overflow: 'hidden',
+              overflow: movable ? 'visible' : 'hidden',
               animation: mine && !filled ? 'sigPulse 1.6s ease-in-out infinite' : undefined,
             }}
           >
             {filled ? (
               val.imageDataUrl
-                ? <img src={val.imageDataUrl} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                ? <img src={val.imageDataUrl} alt="" draggable={false}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', userSelect: 'none' }} />
                 : <span style={{ fontSize: '.7rem', color: '#111', lineHeight: 1.1, padding: '0 2px', textAlign: 'center' }}>{val.text}</span>
             ) : (
               <span style={{ fontSize: '.68rem', fontWeight: 600, color, lineHeight: 1.1, textAlign: 'center', pointerEvents: 'none' }}>
@@ -354,10 +455,27 @@ function SigningPage(p: PageProps) {
             {mine && filled && (
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); p.onClickField(f); }}
+                onClick={(e) => { e.stopPropagation(); if (!justDragged.current) p.onClickField(f); }}
+                onPointerDown={(e) => e.stopPropagation()}
                 style={{ position: 'absolute', top: -9, insetInlineEnd: -9, width: 18, height: 18, borderRadius: '50%', border: 'none', background: 'var(--gray-700)', color: 'white', fontSize: 10, cursor: 'pointer', lineHeight: '18px', padding: 0 }}
                 title="החלף"
               >↺</button>
+            )}
+            {/* ידית שינוי גודל — פינה תחתונה, מחוץ למלבן כדי שלא תכסה את החתימה */}
+            {movable && (
+              <div
+                onPointerDown={e => beginDrag(e, f, 'resize')}
+                onPointerMove={moveDrag}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                onClick={e => e.stopPropagation()}
+                title="גררו לשינוי גודל"
+                style={{
+                  position: 'absolute', right: -7, bottom: -7, width: 14, height: 14,
+                  borderRadius: 3, background: 'var(--blue, #3f5f8f)', border: '2px solid #fff',
+                  boxShadow: '0 1px 3px rgba(0,0,0,.3)', cursor: 'nwse-resize', touchAction: 'none',
+                }}
+              />
             )}
           </div>
         );

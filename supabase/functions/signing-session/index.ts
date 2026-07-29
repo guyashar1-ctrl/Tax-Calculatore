@@ -56,6 +56,23 @@ Deno.serve(async (req: Request) => {
 
       const { data: profile } = await admin.from("profiles").select("firm_name, branding").eq("id", reqRow.user_id).maybeSingle();
 
+      // ‼ חיווי "נפתח" לא מגיע מ-Resend (מעקב פתיחות אינו פעיל, וגם כשהוא פעיל
+      // הוא תלוי בטעינת תמונות). הכניסה לדף החתימה היא ההוכחה החזקה יותר —
+      // הלקוח לא רק ראה את המייל, הוא לחץ והגיע. מסמנים אותה כאן.
+      if (me.email) {
+        const seenAt = new Date().toISOString();
+        const mine = (patch: Record<string, unknown>) => admin.from("email_messages")
+          .update({ ...patch, updated_at: seenAt })
+          .eq("request_id", reqRow.id).eq("kind", "sign").eq("to_email", me.email);
+        try {
+          await mine({ opened_at: seenAt }).is("opened_at", null);
+          await mine({ clicked_at: seenAt }).is("clicked_at", null);
+          await mine({ status: "clicked" }).in("status", ["sent", "delivered", "delivery_delayed", "opened"]);
+        } catch (_e) {
+          // חיווי בלבד — לעולם לא לחסום את החתימה בגללו
+        }
+      }
+
       return json({
         ok: true,
         signerId: me.id,

@@ -1,0 +1,81 @@
+// ⚠ דף בדיקה — מרכז ביצוע הייצוג בכל מצביו, בלי לגעת בנתוני אמת.
+// נטען רק כש-URL כולל ?test-exec=1.
+
+import { useState } from 'react';
+import { RepresentationRequest, RepresentationExecution } from '../../types';
+import RepresentationExecutionCenter from '../RepresentationExecutionCenter';
+
+const BASE: RepresentationRequest = {
+  id: 'test-exec-1',
+  clientName: 'רותי לקוח',
+  status: 'awaiting_accountant',
+  createdAt: '2026-07-01T08:00:00.000Z',
+  linkedClientId: 'client-1',
+  signers: [
+    { id: 'client', source: 'client_self', name: 'רותי לקוח', email: 'ruti@example.com', order: 1, signStatus: 'pending' },
+  ],
+} as unknown as RepresentationRequest;
+
+type Scenario = { key: string; label: string; req: RepresentationRequest };
+
+const withSetup = {
+  signatureSetup: { pdfFileName: 'ייפוי כוח 2279.pdf', pdfDocId: 'doc-1', fields: [], createdAt: '2026-07-02T10:00:00.000Z' },
+};
+const ni = (exec: RepresentationExecution) => exec;
+
+const SCENARIOS: Scenario[] = [
+  {
+    key: 'no-form',
+    label: '1. הטופס עוד לא הופק',
+    req: { ...BASE, execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' } }) },
+  },
+  {
+    key: 'blocked',
+    label: '2. הטופס מוכן, חסרה אסמכתא ב״ל (חסום)',
+    req: { ...BASE, ...withSetup, execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' }, nationalInsurance: { enteredAt: '2026-07-02T09:00:00.000Z' } }) } as RepresentationRequest,
+  },
+  {
+    key: 'ready',
+    label: '3. מוכן לשליחה',
+    req: { ...BASE, ...withSetup, execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' }, nationalInsurance: { enteredAt: '2026-07-02T09:00:00.000Z', referenceNumber: '73882698', deadline: '2028-01-01' } }) } as RepresentationRequest,
+  },
+  {
+    key: 'sent',
+    label: '4. נשלח ללקוח',
+    req: { ...BASE, ...withSetup, execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' }, signatureEmailSentAt: '2026-07-03T10:00:00.000Z', nationalInsurance: { enteredAt: '2026-07-02T09:00:00.000Z', referenceNumber: '73882698', deadline: '2028-01-01', instructionsSentAt: '2026-07-03T10:00:00.000Z', instructionsSentWith: 'signature' } }) } as RepresentationRequest,
+  },
+];
+
+export default function TestExecutionCenter() {
+  const [key, setKey] = useState('ready');
+  const [niIncluded, setNiIncluded] = useState(true);
+  const sc = SCENARIOS.find(s => s.key === key)!;
+
+  return (
+    <div style={{ padding: '1.5rem', fontFamily: 'Heebo, sans-serif', direction: 'rtl' }}>
+      <h1>🧪 בדיקה: מרכז ביצוע הייצוג</h1>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        {SCENARIOS.map(s => (
+          <button key={s.key} className={`btn ${s.key === key ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setKey(s.key)}>
+            {s.label}
+          </button>
+        ))}
+        <button className="btn btn-secondary btn-sm" onClick={() => setNiIncluded(v => !v)}>
+          ב״ל: {niIncluded ? 'כן' : 'לא'}
+        </button>
+      </div>
+      <RepresentationExecutionCenter
+        key={`${key}-${niIncluded}`}
+        request={sc.req}
+        niIncluded={niIncluded}
+        onSaveExecution={() => {}}
+        onProduce={() => {}}
+        onStamp={() => {}}
+        onMarkSentToShaam={() => {}}
+        onMarkActive={() => {}}
+        onSendToSigner={async () => null}
+        userId={undefined}
+      />
+    </div>
+  );
+}

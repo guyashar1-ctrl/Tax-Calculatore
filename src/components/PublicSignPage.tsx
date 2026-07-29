@@ -91,6 +91,9 @@ export default function PublicSignPage({ token }: { token: string }) {
       fields={session.fields}
       signers={signers}
       activeSignerId={session.signerId}
+      // הלקוח רואה רק איפה הוא (ובן/בת זוגו) חותמים. מקום החתימה של הרו"ח
+      // אינו עניינו, ורק מעלה שאלות על טופס שנראה חסר.
+      hiddenSignerIds={['accountant']}
       initialValues={session.values}
       title={`✍ חתימה על ייפוי כוח — ${session.signerName}`}
       onComplete={handleComplete}

@@ -21,7 +21,7 @@ import RepresentationAuthorityData from './RepresentationAuthorityData';
 import RepresentationExecutionCenter from './RepresentationExecutionCenter';
 import RepresentationNextStep from './RepresentationNextStep';
 import { isSpouseRequest, getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
-import { SignatureSetup, SignatureValue } from '../types';
+import { SignatureField, SignatureSetup, SignatureValue } from '../types';
 import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
 import SigningRoom, { SavedMarks } from './signatureRequest/SigningRoom';
 import { burnSignaturesIntoPdf } from '../utils/signaturePdf';
@@ -260,12 +260,13 @@ export default function RepresentationRequestReview({
     }
   }
 
-  async function handleStampComplete(values: Record<string, SignatureValue>) {
+  /** fields = השדות כפי שהם אחרי גרירה/שינוי גודל בחדר החתימה, ולכן הם שנצרבים. */
+  async function handleStampComplete(values: Record<string, SignatureValue>, fields?: SignatureField[]) {
     if (!setup || !stampRoom) return;
     setFinalizing(true);
     try {
       const merged = { ...(request.signatureValues || {}), ...values };
-      const burned = await burnSignaturesIntoPdf(stampRoom.pdfBytes.slice(0), setup.fields, merged);
+      const burned = await burnSignaturesIntoPdf(stampRoom.pdfBytes.slice(0), fields || setup.fields, merged);
       const storedId = `signed-poa-${request.id}`;
       await db.saveDoc({
         id: storedId,
@@ -861,7 +862,8 @@ export default function RepresentationRequestReview({
           savedMarks={stampRoom.marks}
           initialValues={request.signatureValues || {}}
           title={finalizing ? 'מייצר PDF סופי…' : '✍ חתימה + חותמת המשרד'}
-          onComplete={v => void handleStampComplete(v)}
+          adjustable
+          onComplete={(v, f) => void handleStampComplete(v, f)}
           onCancel={() => setStampRoom(null)}
         />
       )}

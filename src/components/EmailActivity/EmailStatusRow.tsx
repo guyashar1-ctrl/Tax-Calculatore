@@ -29,6 +29,9 @@ export default function EmailStatusRow({ message, note, onRemind, onChanged }: P
   const failed = ['bounced', 'complained', 'failed'].includes(message.status);
   const delivered = !!message.deliveredAt;
   const opened = !!message.openedAt || ['opened', 'clicked'].includes(message.status);
+  // במייל חתימה "נלחץ" נרשם כשהלקוח באמת נחת בדף החתימה — חיווי ודאי, בניגוד
+  // לפתיחה שמסתמכת על טעינת תמונה. לכן הוא מוצג כשלב נפרד ומדויק יותר.
+  const entered = !!message.clickedAt || message.status === 'clicked';
 
   /** אין עותק שמור ⇒ נמשך מ-Resend ונפתח מיד, באותה לחיצה. */
   async function view() {
@@ -79,6 +82,7 @@ export default function EmailStatusRow({ message, note, onRemind, onChanged }: P
           <>
             {chip('הגיע', delivered)}
             {chip('נפתח', opened)}
+            {message.kind === 'sign' && chip('נכנס לחתום', entered)}
           </>
         )}
         <span style={{ flex: 1 }} />

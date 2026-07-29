@@ -296,10 +296,11 @@ export default function OnboardingPage({ token }: Props) {
               המייל הבא, הייצוג לא נכנס לתוקף — ולכן זה החלק הכי בולט במסך. */}
           <div style={{ background: accent, color: '#fff', borderRadius: '10px 10px 0 0', padding: '13px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 17, fontWeight: 700 }}>עוד לא סיימנו — יגיעו אליכם {niSteps} פעולות במייל</div>
+            <div style={{ fontSize: 13, fontWeight: 500, opacity: .92, marginTop: 3 }}>המייל יישלח בשעות הקרובות</div>
           </div>
           <div style={{ border: `2px solid ${accent}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '16px', marginBottom: 20 }}>
             <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.7 }}>
-              אחרי שנזין את הפרטים ברשויות נשלח מייל אל:
+              בשעות הקרובות, אחרי שנזין את הפרטים ברשויות, יישלח מייל אל:
             </div>
             {/* הצגת הכתובת נותנת ללקוח הזדמנות אחרונה לתפוס טעות הקלדה */}
             <div dir="ltr" style={{
@@ -428,8 +429,8 @@ export default function OnboardingPage({ token }: Props) {
    */
   function ProcessMap({ current }: { current: 1 | 3 }) {
     const niStep = info?.niIncluded
-      ? 'לחתום על ייפוי הכוח למס הכנסה, ולאשר את ייפוי הכוח בביטוח הלאומי'
-      : 'לחתום על ייפוי הכוח למס הכנסה';
+      ? 'בשעות הקרובות — לחתום על ייפוי הכוח למס הכנסה, ולאשר את ייפוי הכוח בביטוח הלאומי'
+      : 'בשעות הקרובות — לחתום על ייפוי הכוח למס הכנסה';
     const steps = [
       { n: 1, title: 'הפרטים שלכם', text: 'ממלאים כאן — כדקה' },
       { n: 2, title: `${info?.firmName || 'המשרד'} מזין ברשויות`, text: 'אנחנו פותחים את בקשות הייצוג' },
@@ -572,8 +573,16 @@ export default function OnboardingPage({ token }: Props) {
         {step === 3 && (
           <>
             <div style={{ fontSize: 24, fontWeight: 500, color: '#111', marginBottom: 6 }}>מצב משפחתי</div>
-            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: '#6B6B68', marginBottom: 22 }}>
+            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: '#6B6B68', marginBottom: 14 }}>
               המצב המשפחתי קובע איך מתנהל תיק המס שלכם ברשויות.
+            </div>
+            {/* הרשויות עובדות מול מרשם האוכלוסין. מצב שנרשם כאן ולא תואם לת"ז
+                מפיל את בקשת הייצוג, ולכן זו הבהרה ולא הצעה. */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: '#F7F6F3', borderRadius: 9, padding: '10px 12px', marginBottom: 22 }}>
+              <span style={{ marginTop: 1 }}>{'\u{1FAAA}'}</span>
+              <span style={{ fontSize: 12.5, lineHeight: 1.55, color: '#6B6B68' }}>
+                <strong style={{ color: '#111' }}>לפי מה שרשום בתעודת הזהות שלכם</strong> — הרשויות בודקות מול מרשם האוכלוסין, ופרט שאינו תואם מעכב את הייצוג.
+              </span>
             </div>
 
             <div style={{ marginBottom: 18 }}>

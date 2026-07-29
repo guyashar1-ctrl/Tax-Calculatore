@@ -6,13 +6,12 @@
 //     ומי שמאשר בסוף הוא הלקוח. כל השלבים כאן נשמרים ב-execution.
 // המטרה: להיכנס לבקשה ולדעת בשנייה מה נשאר לעשות ואצל מי הכדור.
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   RepresentationRequest,
   RepresentationExecution,
   NI_APPROVAL_PHONE,
 } from '../types';
-import { useDocumentDB } from '../hooks/useIndexedDB';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { useEmailMessages } from '../hooks/useEmailMessages';
 import EmailStatusRow from './EmailActivity/EmailStatusRow';
@@ -113,7 +112,6 @@ function Track({ title, subtitle, done, total, tone, children }: {
 }
 
 export default function RepresentationExecutionCenter({ request, niIncluded, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId }: Props) {
-  const db = useDocumentDB();
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
@@ -122,8 +120,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
   const [deadline, setDeadline] = useState(ni.deadline || '');
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [docName, setDocName] = useState<string | null>(null);
 
   const status = request.status;
   const signers = getRequestSigners(request);
@@ -192,37 +188,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
   const patchNi = (p: Partial<NonNullable<RepresentationExecution['nationalInsurance']>>, label: string) =>
     patch({ ...exec, nationalInsurance: { ...ni, ...p } }, label);
 
-  async function handleUpload(file: File) {
-    if (!request.linkedClientId) {
-      setNote({ kind: 'err', text: 'הבקשה אינה מקושרת ללקוח — לא ניתן לשמור קובץ.' });
-      return;
-    }
-    setBusy('upload');
-    setNote(null);
-    try {
-      const bytes = await file.arrayBuffer();
-      await db.saveDoc({
-        id: `ni-poa-${request.id}`,
-        clientId: request.linkedClientId,
-        fileName: file.name,
-        fileType: file.type || 'application/pdf',
-        fileSize: file.size,
-        category: 'other',
-        year: 'general',
-        uploadedAt: new Date().toISOString(),
-        description: 'אסמכתא והוראות אישור — ייפוי כוח ביטוח לאומי',
-        notes: ni.referenceNumber ? `אסמכתא ${ni.referenceNumber}` : '',
-        fileData: bytes,
-      });
-      setDocName(file.name);
-      setNote({ kind: 'ok', text: `הקובץ "${file.name}" נשמר במסמכי הלקוח.` });
-    } catch (e) {
-      setNote({ kind: 'err', text: e instanceof Error ? e.message : 'ההעלאה נכשלה' });
-    } finally {
-      setBusy(null);
-    }
-  }
-
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
   const itSteps = [!!it.enteredAt, formReady, !!exec.signatureEmailSentAt, signed, stamped, sentToShaam, status === 'active'];
   const niSteps = [!!ni.enteredAt, !!ni.referenceNumber, !!ni.instructionsSentAt, !!ni.confirmedAt];
@@ -271,30 +236,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
               </button>
             </Step>
 
+            {/* ‼ אין כאן כפתור. השליחה שייכת לשתי הרשויות גם יחד ולכן היא יושבת
+                בפס המשותף שמתחת לשתי המשבצות — כפתור אחד, במקום אחד. */}
             <Step n={3} title="נשלח לחתימת הלקוח" done={!!exec.signatureEmailSentAt}
               hint={exec.signatureEmailSentAt ? undefined
-                : formReady ? (niIncluded
-                    ? 'מייל אחד: קישור לחתימה, ומתחתיו האסמכתא והוראות הביטוח הלאומי.'
-                    : 'מייל עם קישור אישי לחתימה לכל חותם.')
-                  : 'אפשרי אחרי הפקת הטופס'}>
-              {formReady && !exec.signatureEmailSentAt && (
-                <>
-                  <button className="btn btn-green btn-sm" disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0}
-                    onClick={handleSendAll}>
-                    {busy === 'send' ? 'שולח…' : `📧 שלח ללקוח${pendingSigners.length > 1 ? ` (${pendingSigners.length} חותמים)` : ''}`}
-                  </button>
-                  {niRefMissing && (
-                    <div style={{ marginTop: '.45rem', padding: '.45rem .6rem', background: 'var(--orange-light)', borderRadius: 'var(--radius)', fontSize: '.76rem', color: 'var(--gray-800)', lineHeight: 1.6 }}>
-                      ⚠ חסום עד להזנת מספר האסמכתא במשבצת הביטוח הלאומי — אחרת הלקוח יקבל מייל בלי חלק הב״ל.
-                    </div>
-                  )}
-                </>
-              )}
-              {/* המייל שיצא, עם מצב המסירה והפתיחה — צמוד לשלב שהוא שייך אליו */}
-              {signatureEmails.map(m => (
-                <EmailStatusRow key={m.id} message={m} onRemind={() => handleRemind(m)} onChanged={reloadEmails} />
-              ))}
-            </Step>
+                : formReady ? 'השליחה בפס המשותף שמתחת — מייל אחד לשתי הרשויות'
+                  : 'אפשרי אחרי הפקת הטופס'} />
 
             <Step n={4} title="כל החותמים חתמו" done={signed}>
               {signers.length > 0 && !signed && (
@@ -376,17 +323,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
                     {deadlineTone.text} {ni.deadline && `(${fmt(ni.deadline)})`}
                   </div>
                 )}
-
-                {/* צירוף האסמכתא המודפסת מב"ל למסמכי הלקוח */}
-                <div style={{ marginTop: '.55rem' }}>
-                  <input ref={fileRef} type="file" accept="application/pdf,image/*" style={{ display: 'none' }}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }} />
-                  <button className="btn btn-secondary btn-sm" disabled={busy === 'upload'}
-                    onClick={() => fileRef.current?.click()}>
-                    {busy === 'upload' ? 'מעלה…' : '📎 צרף אסמכתא מב״ל'}
-                  </button>
-                  {docName && <span style={{ marginRight: '.5rem', fontSize: '.78rem', color: 'var(--ok)' }}>✓ {docName}</span>}
-                </div>
               </Step>
 
               <Step n={3} title="ההוראות הגיעו ללקוח" done={sentWithSignature || !!ni.instructionsSentAt}
@@ -403,15 +339,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
                     background: 'var(--gray-50)', color: 'var(--gray-600)',
                   }}>
                     {ni.referenceNumber
-                      ? 'ℹ האסמכתא נשמרה. היא תיכלל במייל שנשלח מהמשבצת של מס הכנסה.'
+                      ? 'ℹ האסמכתא נשמרה. היא תיכלל במייל שנשלח מהפס המשותף שמתחת.'
                       : `ℹ ההוראות נשלחות יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}.`}
                   </div>
                 )}
-                {/* אותו מייל בדיוק שמוצג במשבצת מס הכנסה — מצוין כדי שלא ייראה כשני מיילים */}
-                {signatureEmails.map(m => (
-                  <EmailStatusRow key={m.id} message={m} note="אותו מייל שנשלח לחתימה — הוא כולל את שתי הפעולות"
-                    onRemind={() => handleRemind(m)} onChanged={reloadEmails} />
-                ))}
               </Step>
 
               <Step n={4} title="הלקוח אישר — הייצוג בב״ל פעיל" done={!!ni.confirmedAt}
@@ -427,6 +358,64 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
           ) : (
             <div style={{ flex: '1 1 320px', minWidth: 0, border: '1px dashed var(--gray-200)', borderRadius: 'var(--radius)', padding: '1rem', color: 'var(--gray-500)', fontSize: '.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
               🛡 לא התבקש ייצוג בביטוח לאומי עבור לקוח זה.
+            </div>
+          )}
+        </div>
+
+        {/* ─────────── השליחה ללקוח — משותפת לשתי הרשויות ─────────── */}
+        {/* מייל אחד נושא את שתי הפעולות, ולכן הוא לא שייך לאף אחת מהעמודות.
+            פס רוחב מלא ביניהן, ממורכז, כדי שיהיה ברור שהוא של שתיהן. */}
+        <div style={{
+          marginTop: '1rem',
+          border: `1px ${exec.signatureEmailSentAt ? 'solid var(--ok, #17845b)' : formReady ? 'solid var(--blue, #3f5f8f)' : 'dashed var(--gray-200)'}`,
+          borderRadius: 'var(--radius)',
+          background: exec.signatureEmailSentAt ? 'var(--green-light, #eaf6f1)' : formReady ? 'var(--gray-50)' : 'transparent',
+          padding: '.9rem 1rem',
+          textAlign: 'center',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '1.05rem' }}>{exec.signatureEmailSentAt ? '✓' : '✉'}</span>
+            <span style={{ fontWeight: 700, fontSize: '.92rem' }}>
+              {exec.signatureEmailSentAt ? 'המייל נשלח ללקוח' : 'שליחה ללקוח'}
+            </span>
+          </div>
+          <div style={{ fontSize: '.78rem', color: 'var(--gray-600)', marginTop: 3, lineHeight: 1.6 }}>
+            {niIncluded
+              ? 'מייל אחד לשתי הרשויות — קישור אישי לחתימה על ייפוי הכוח, ומתחתיו האסמכתא והוראות האישור בביטוח הלאומי.'
+              : 'מייל עם קישור אישי לחתימה על ייפוי הכוח, לכל חותם.'}
+          </div>
+
+          {!formReady && (
+            <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.5rem' }}>
+              יתאפשר אחרי שהטופס יופק ואזורי החתימה יסומנו (שלב 2 במס הכנסה).
+            </div>
+          )}
+
+          {formReady && !exec.signatureEmailSentAt && (
+            <div style={{ marginTop: '.7rem' }}>
+              <button className="btn btn-green" disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0}
+                onClick={handleSendAll}>
+                {busy === 'send' ? 'שולח…' : `📧 שלח ללקוח${pendingSigners.length > 1 ? ` (${pendingSigners.length} חותמים)` : ''}`}
+              </button>
+              {pendingSigners.length > 0 && !niRefMissing && (
+                <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.4rem' }} dir="ltr">
+                  {pendingSigners.map(s => s.email).join(' · ')}
+                </div>
+              )}
+              {niRefMissing && (
+                <div style={{ margin: '.55rem auto 0', maxWidth: 460, padding: '.45rem .6rem', background: 'var(--orange-light)', borderRadius: 'var(--radius)', fontSize: '.76rem', color: 'var(--gray-800)', lineHeight: 1.6 }}>
+                  ⚠ חסום עד להזנת מספר האסמכתא במשבצת הביטוח הלאומי — אחרת הלקוח יקבל מייל בלי חלק הב״ל.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* המייל שיצא — מוצג פעם אחת בלבד, כאן */}
+          {signatureEmails.length > 0 && (
+            <div style={{ marginTop: '.7rem', display: 'flex', flexDirection: 'column', gap: '.4rem', textAlign: 'start' }}>
+              {signatureEmails.map(m => (
+                <EmailStatusRow key={m.id} message={m} onRemind={() => handleRemind(m)} onChanged={reloadEmails} />
+              ))}
             </div>
           )}
         </div>

@@ -406,6 +406,9 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                     <option key={f} value={f}>{FAMILY_STATUS_LABELS[f]}</option>
                   ))}
                 </select>
+                <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: 4 }}>
+                  כפי שרשום בתעודת הזהות — הרשויות בודקות מול מרשם האוכלוסין.
+                </div>
               </div>
 
               {yearLabel && (
