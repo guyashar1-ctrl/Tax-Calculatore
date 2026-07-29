@@ -117,6 +117,24 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   expired: 'פג תוקף',
 };
 
+// לקוח שנכנס באמצע שנה משלם פחות מ-12 תשלומים, וצריך להכריע מה זה עושה למחיר:
+//   prorata — משלם רק על החודשים שקיבל; התשלום החודשי נשאר המחיר הרגיל.
+//   full    — המחיר השנתי המלא נפרס על פחות חודשים; התשלום החודשי עולה
+//             (הדוח השנתי מכסה שנה שלמה גם אם הליווי התחיל באוגוסט).
+//   manual  — הרו"ח קבע סכום חודשי בעצמו; המערכת לא נוגעת בו.
+export type ProrationMode = 'prorata' | 'full' | 'manual';
+
+export const PRORATION_MODE_LABELS: Record<ProrationMode, string> = {
+  prorata: 'יחסי — רק על החודשים שנותרו',
+  full: 'פריסת המחיר השנתי המלא',
+  manual: 'סכום חודשי שקבעתי',
+};
+
+// איך הוזן המחיר בשורה חודשית — סכום לחודש, או סכום לשנה שמתחלק לתשלומים
+export type PriceBasis = 'monthly' | 'annual';
+
+export const DEFAULT_INSTALLMENTS = 12;
+
 export interface QuotationItem {
   id: string;                 // מזהה שורה בתוך ההצעה (לא מזהה קטלוג)
   serviceId?: string;         // קישור לקטלוג; ריק = שירות חד־פעמי מותאם
@@ -133,6 +151,15 @@ export interface QuotationItem {
   clientPrice: number;        // מחיר ליחידה אחרי דריסה ידנית (לפני הנחה)
   discountPercent?: number;
   vatFlag: boolean;
+  // ─── פריסת תשלומים (רלוונטי רק לשורה חודשית) ───
+  // clientPrice נשאר תמיד הסכום של תשלום בודד, גם כשמתמחרים לפי מחיר שנתי.
+  // כל החישובים, המייל וה-PDF נשענים עליו — ולכן הצעות שנוצרו לפני הפריסה
+  // ממשיכות לעבוד בדיוק כמו קודם, בלי המרה.
+  priceBasis?: PriceBasis;
+  annualPrice?: number;       // מחיר ליחידה לשנה מלאה, כשמתמחרים שנתית
+  installments?: number;      // מספר תשלומים בפועל (ברירת מחדל 12)
+  billingStartMonth?: string; // 'YYYY-MM' — חודש התשלום הראשון
+  prorationMode?: ProrationMode;
   clientNote?: string;        // מוצג ללקוח
   internalNote?: string;      // פנימי בלבד — לא נשלח ולא מודפס
 }

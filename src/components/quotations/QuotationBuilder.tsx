@@ -1,15 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { FirmProfile } from '../../types/firmProfile';
 import type { Client } from '../../types';
 import type {
   Lead, ServiceCatalogItem, ServiceCategory, QuotationTemplate, Quotation, QuotationItem, FutureService,
+  PriceBasis,
 } from '../../types/quotations';
 import {
   SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ORDER,
-  DEFAULT_VAT_RATE, DEFAULT_EXPIRY_BUSINESS_DAYS,
+  DEFAULT_VAT_RATE, DEFAULT_EXPIRY_BUSINESS_DAYS, DEFAULT_INSTALLMENTS,
 } from '../../types/quotations';
 import { businessDaysExpiry } from '../../utils/businessDays';
-import { calcTotals, formatILS, itemFinalPrice, itemDisplayName } from '../../utils/quotationCalc';
+import {
+  calcTotals, formatILS, itemFinalPrice, itemDisplayName,
+  monthlyPlan, monthlyFromAnnual, clampInstallments,
+  currentMonthKey, monthsLeftInYear, formatMonth, formatMonthRange, addMonths,
+} from '../../utils/quotationCalc';
 import { deriveQuotationBrand } from './quotationBranding';
 import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
 import { generateQuotationPdf, downloadPdf } from '../../utils/quotationPdf';
@@ -66,6 +71,13 @@ const YEAR_OPTIONS: number[] = (() => {
   return Array.from({ length: 8 }, (_, i) => current - i);
 })();
 
+// פריסת התשלומים חלה על כל השורות החודשיות יחד — ללקוח יש תאריך התחלה אחד.
+interface BillingPlan {
+  startMonth: string;                 // 'YYYY-MM'
+  installments: number;
+  mode: 'prorata' | 'full';
+}
+
 function catalogToItem(svc: ServiceCatalogItem, overrides?: Partial<QuotationItem>): QuotationItem {
   return {
     id: crypto.randomUUID(),
@@ -81,6 +93,24 @@ function catalogToItem(svc: ServiceCatalogItem, overrides?: Partial<QuotationIte
     vatFlag: svc.vatFlag,
     ...overrides,
   };
+}
+
+// החלת הפריסה על שורה. שורה שהמחיר החודשי שלה נקבע ידנית לא נדרסת — זו
+// החלטה של הרו"ח, לא תוצאה של נוסחה.
+function applyPlanToItem(it: QuotationItem, plan: BillingPlan): QuotationItem {
+  if (it.category !== 'monthly') return it;
+  const next: QuotationItem = {
+    ...it,
+    priceBasis: it.priceBasis ?? 'monthly',
+    billingStartMonth: plan.startMonth,
+    installments: plan.installments,
+  };
+  if (it.prorationMode === 'manual') return next;
+  next.prorationMode = plan.mode;
+  if (next.priceBasis === 'annual' && it.annualPrice != null) {
+    next.clientPrice = monthlyFromAnnual(it.annualPrice, plan.installments, plan.mode);
+  }
+  return next;
 }
 
 
@@ -117,6 +147,18 @@ export default function QuotationBuilder({
   const [internalNotes, setInternalNotes] = useState(existing?.internalNotes ?? '');
   const [expiresAt, setExpiresAt] = useState(existing?.expiresAt ?? businessDaysExpiry(DEFAULT_EXPIRY_BUSINESS_DAYS));
 
+  // פריסת התשלומים נגזרת מהשורות הקיימות בעריכת טיוטה, ומתחילה מהחודש הנוכחי
+  // ב-12 תשלומים בהצעה חדשה.
+  const initialPlan: BillingPlan = (() => {
+    const m = (existing?.items ?? []).find(i => i.category === 'monthly' && !!i.billingStartMonth);
+    return {
+      startMonth: m?.billingStartMonth ?? currentMonthKey(),
+      installments: clampInstallments(m?.installments),
+      mode: m?.prorationMode === 'full' ? 'full' : 'prorata',
+    };
+  })();
+  const [plan, setPlan] = useState<BillingPlan>(initialPlan);
+
   const [tab, setTab] = useState<PreviewTab>('web');
   const [device, setDevice] = useState<Device>('desktop');
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -135,6 +177,18 @@ export default function QuotationBuilder({
   const [pdfBusy, setPdfBusy] = useState(false);
 
   const totals = calcTotals(items, vatRate);
+  const hasMonthly = items.some(i => i.category === 'monthly');
+  // הכרטיס מוצג גם כשאין עדיין שורה חודשית — אחרת אי אפשר לגלות שהפריסה קיימת
+  const hasPriced = items.some(i => i.category !== 'included');
+
+  // "יש שינויים שלא נשמרו" — נגזר מהשוואה לתמונת המצב האחרונה שנשמרה, כדי
+  // שהכפתור לא ייתקע על "✓ נשמר" בזמן שממשיכים לערוך.
+  const stateKey = JSON.stringify([
+    recipient, items, [...futureIds].sort(), emailSubject, emailMessage,
+    notesForClient, internalNotes, templateId, expiresAt,
+  ]);
+  const savedKey = useRef<string | null>(null);
+  const dirty = savedKey.current !== stateKey;
 
   // אזהרה: כבר קיימת הצעה פתוחה לאותו נמען
   const openWarning = useMemo(() => {
@@ -154,17 +208,35 @@ export default function QuotationBuilder({
     const svc = tpl.serviceIds
       .map(sid => services.find(s => s.id === sid))
       .filter((s): s is ServiceCatalogItem => Boolean(s));
-    setItems(svc.map(s => catalogToItem(s)));
+    setItems(svc.map(s => applyPlanToItem(catalogToItem(s), plan)));
   }
 
   function addService(svc: ServiceCatalogItem) {
-    setItems(prev => [...prev, catalogToItem(svc)]);
+    setItems(prev => [...prev, applyPlanToItem(catalogToItem(svc), plan)]);
   }
   function updateItem(id: string, patch: Partial<QuotationItem>) {
-    setItems(prev => prev.map(it => it.id === id ? { ...it, ...patch } : it));
+    setItems(prev => prev.map(it => {
+      if (it.id !== id) return it;
+      const next = { ...it, ...patch };
+      // שורה שהפכה לחודשית מקבלת את הפריסה הנוכחית; שורה שיצאה מחודשי
+      // משילה אותה, כדי שסכום חד־פעמי לא יגרור איתו "5 תשלומים".
+      if (patch.category !== undefined && patch.category !== it.category) {
+        return next.category === 'monthly'
+          ? applyPlanToItem(next, plan)
+          : { ...next, priceBasis: undefined, annualPrice: undefined, installments: undefined, billingStartMonth: undefined, prorationMode: undefined };
+      }
+      return next;
+    }));
   }
   function removeItem(id: string) {
     setItems(prev => prev.filter(it => it.id !== id));
+  }
+
+  // שינוי בפריסה מחיל את עצמו על כל השורות החודשיות בבת אחת
+  function updatePlan(patch: Partial<BillingPlan>) {
+    const next: BillingPlan = { ...plan, ...patch, installments: clampInstallments(patch.installments ?? plan.installments) };
+    setPlan(next);
+    setItems(prev => prev.map(it => applyPlanToItem(it, next)));
   }
 
   // ─── דוחות לשנים פתוחות ───
@@ -190,9 +262,9 @@ export default function QuotationBuilder({
     const added = [...priorYears]
       .sort((a, b) => a - b)
       .filter(y => !yearTaken(y))
-      .map(y => catalogToItem(priorService, {
+      .map(y => applyPlanToItem(catalogToItem(priorService, {
         year: y, category: priorCategory, clientPrice: priorPriceValue,
-      }));
+      }), plan));
     if (added.length === 0) return;
     setItems(prev => [...prev, ...added]);
     setPriorYears(new Set());
@@ -231,6 +303,7 @@ export default function QuotationBuilder({
     setSaving(true);
     try {
       await onSaveDraft(buildPayload());
+      savedKey.current = stateKey;
       setSavedAt(Date.now());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'שמירה נכשלה');
@@ -258,6 +331,7 @@ export default function QuotationBuilder({
     try {
       const res = await onSend(buildPayload(), isTest);
       if (res.ok) {
+        savedKey.current = stateKey;
         setNotice({ kind: 'ok', text: isTest ? 'מייל בדיקה נשלח אליך.' : 'ההצעה נשלחה ללקוח.' });
         if (!isTest) { setTimeout(onBack, 900); }
       } else {
@@ -285,6 +359,13 @@ export default function QuotationBuilder({
     }
   }
 
+  // יציאה עם עריכות פתוחות מאבדת אותן — לכן שואלים לפני
+  function handleBack() {
+    const worthSaving = items.length > 0 || recipient.fullName.trim().length > 0;
+    if (dirty && worthSaving && !window.confirm('יש שינויים שלא נשמרו בהצעה. לצאת בלי לשמור?')) return;
+    onBack();
+  }
+
   const catalogFiltered = services.filter(s =>
     s.active && (!catalogSearch.trim() || s.name.includes(catalogSearch.trim())));
   const usedServiceIds = new Set(items.map(i => i.serviceId).filter(Boolean));
@@ -293,16 +374,18 @@ export default function QuotationBuilder({
     <div dir="rtl">
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button className="btn btn-ghost" onClick={onBack}>→ חזרה</button>
+        <button className="btn btn-ghost" onClick={handleBack}>→ חזרה</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 20, fontWeight: 600 }}>{existing ? `עריכת הצעה ${existing.quotationNumber}` : 'הצעת מחיר חדשה'}</div>
-          <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>בונים, מציגים תצוגה מקדימה ושומרים — הכל במסך אחד</div>
+          <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>
+            {dirty && savedAt ? 'יש שינויים שלא נשמרו' : 'בונים, מציגים תצוגה מקדימה ושומרים — הכל במסך אחד'}
+          </div>
         </div>
         <button className="btn btn-secondary" onClick={() => handleSend(true)} disabled={sending !== null || saving}>
           {sending === 'test' ? 'שולח…' : 'מייל בדיקה'}
         </button>
         <button className="btn btn-secondary" onClick={handleSave} disabled={saving || sending !== null}>
-          {saving ? 'שומר…' : savedAt ? '✓ נשמר' : 'שמירת טיוטה'}
+          {saving ? 'שומר…' : !dirty && savedAt ? '✓ נשמר' : 'שמירת טיוטה'}
         </button>
         <button className="btn btn-primary" onClick={() => handleSend(false)} disabled={sending !== null || saving}>
           {sending === 'send' ? 'שולח…' : 'שליחה ללקוח'}
@@ -387,12 +470,65 @@ export default function QuotationBuilder({
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {items.map(item => (
-                  <LineItem key={item.id} item={item} vatRate={vatRate}
+                  <LineItem key={item.id} item={item} vatRate={vatRate} plan={plan}
                     onChange={p => updateItem(item.id, p)} onRemove={() => removeItem(item.id)} />
                 ))}
               </div>
             )}
           </div>
+
+          {/* פריסת תשלומים — חלה על כל השורות החודשיות יחד */}
+          {hasPriced && (
+            <div style={card}>
+              <div style={{ ...cardTitle, marginBottom: 6 }}>🗓 פריסת תשלומים</div>
+              <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
+                לקוח שמתחיל באמצע שנה לא משלם 12 תשלומים. כאן קובעים מתי מתחילים וכמה תשלומים — והשורות החודשיות מתעדכנות יחד.
+              </div>
+
+              {!hasMonthly && (
+                <div className="alert alert-info" style={{ fontSize: 12, marginBottom: 10, lineHeight: 1.55 }}>
+                  אין עדיין שורה שמשולמת בתשלומים חודשיים. בשורה שרוצים לפרוס — לחץ
+                  {' '}<b>«⤶ לפרוס לתשלומים חודשיים»</b>, והמחיר שלה יהפוך למחיר שנתי שמתחלק כאן.
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <label style={miniLabel}>חודש התשלום הראשון
+                  <input type="month" value={plan.startMonth} style={miniInput}
+                    onChange={e => e.target.value && updatePlan({ startMonth: e.target.value })} />
+                </label>
+                <label style={miniLabel}>מספר תשלומים
+                  <input type="number" min={1} max={60} value={plan.installments} style={miniInput}
+                    onChange={e => updatePlan({ installments: Number(e.target.value) || 1 })} />
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                <PlanChip active={plan.installments === DEFAULT_INSTALLMENTS}
+                  onClick={() => updatePlan({ installments: DEFAULT_INSTALLMENTS })}>
+                  שנה מלאה · 12
+                </PlanChip>
+                <PlanChip active={plan.installments === monthsLeftInYear(plan.startMonth)}
+                  onClick={() => updatePlan({ installments: monthsLeftInYear(plan.startMonth) })}>
+                  עד סוף השנה · {monthsLeftInYear(plan.startMonth)}
+                </PlanChip>
+              </div>
+
+              <label style={{ ...miniLabel, marginTop: 10 }}>איך מתרגמים מחיר שנתי לתשלום חודשי
+                <select value={plan.mode} style={miniInput}
+                  onChange={e => updatePlan({ mode: e.target.value as 'prorata' | 'full' })}>
+                  <option value="prorata">יחסי — רק על החודשים שנותרו</option>
+                  <option value="full">פריסת המחיר השנתי המלא</option>
+                </select>
+              </label>
+              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
+                {plan.mode === 'prorata'
+                  ? 'התשלום החודשי נשאר המחיר הרגיל (שנתי ÷ 12) — הלקוח פשוט משלם פחות פעמים.'
+                  : 'המחיר השנתי המלא מתחלק במספר התשלומים — התשלום החודשי יוצא גבוה יותר. כאן בדרך כלל נותנים הנחה.'}
+                {' '}בכל שורה אפשר לדרוס את התשלום החודשי ידנית.
+              </div>
+            </div>
+          )}
 
           {/* דוחות לשנים פתוחות — לקוח שלא הגיש בשנים האחרונות */}
           <div style={card}>
@@ -447,7 +583,11 @@ export default function QuotationBuilder({
                     </select>
                   </label>
                 </div>
-                <MonthlyHint category={priorCategory} price={priorPriceValue} />
+                {priorCategory === 'monthly' && priorPriceValue > 0 && (
+                  <div style={{ marginTop: 5, fontSize: 11, color: 'var(--gray-500)' }}>
+                    יתווסף כשורה חודשית ויקבל את פריסת התשלומים שלמעלה ({plan.installments} תשלומים).
+                  </div>
+                )}
 
                 <button className="btn btn-sm btn-primary" disabled={priorYears.size === 0}
                   onClick={addPriorYearReports} style={{ marginTop: 10 }}>
@@ -511,6 +651,39 @@ export default function QuotationBuilder({
                 onChange={e => { const d = new Date(e.target.value); d.setHours(23, 59, 0, 0); setExpiresAt(d.toISOString()); }}
                 style={{ marginTop: 4 }} />
             </label>
+          </div>
+
+          {/* פס סיכום דביק — לאן זה מסתכם, בלי לעזוב את פאנל העריכה */}
+          <div style={{
+            position: 'sticky', bottom: 0, zIndex: 2,
+            background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 12,
+            padding: '10px 14px', boxShadow: '0 -4px 16px rgba(0,0,0,.07)',
+          }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'baseline' }}>
+              <TotalChip label="חודשי" value={totals.monthly.withVat}
+                suffix={totals.installments && totals.installments !== DEFAULT_INSTALLMENTS ? `× ${totals.installments}` : 'לחודש'} />
+              <TotalChip label="שנתי" value={totals.annual.withVat} suffix="לשנה" />
+              <TotalChip label="חד־פעמי" value={totals.oneTime.withVat} />
+              {totals.totalDiscount > 0 && (
+                <span style={{ fontSize: 11.5, color: 'var(--green, #059669)', marginInlineStart: 'auto' }}>
+                  הנחה {formatILS(Math.round(totals.totalDiscount))}
+                </span>
+              )}
+            </div>
+            {totals.monthly.withVat > 0 && (totals.hasPartialTerm || totals.changesAfterPeriod) && (
+              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.5 }}>
+                {totals.hasPartialTerm && totals.installments && (
+                  <>סה״כ בתקופה: <b>{formatILS(Math.round(totals.monthlyPeriod.withVat))}</b>
+                    {plan.startMonth ? ` · ${formatMonthRange(plan.startMonth, addMonths(plan.startMonth, totals.installments - 1))}` : ''}</>
+                )}
+                {totals.changesAfterPeriod && (
+                  <> · אחר כך: <b>{formatILS(Math.round(totals.monthlyOngoing.withVat))}</b> לחודש</>
+                )}
+              </div>
+            )}
+            {items.length === 0 && (
+              <div style={{ fontSize: 11.5, color: 'var(--gray-400)', marginTop: 4 }}>אין עדיין שירותים בהצעה.</div>
+            )}
           </div>
         </div>
 
@@ -652,12 +825,41 @@ function RecipientEditor({ leads, clients, value, onPick }: {
   );
 }
 
-function LineItem({ item, vatRate, onChange, onRemove }: {
-  item: QuotationItem; vatRate: number;
+function LineItem({ item, vatRate, plan, onChange, onRemove }: {
+  item: QuotationItem; vatRate: number; plan: BillingPlan;
   onChange: (p: Partial<QuotationItem>) => void; onRemove: () => void;
 }) {
   const final = itemFinalPrice(item);
   const withVat = item.vatFlag ? Math.round(final * (1 + vatRate / 100)) : final;
+  const isMonthly = item.category === 'monthly';
+  const basis: PriceBasis = item.priceBasis ?? 'monthly';
+  const isManual = item.prorationMode === 'manual';
+
+  // מעבר בין תמחור חודשי לשנתי: המחיר השנתי מאותחל מהחודשי (×12) כדי שהמספר
+  // שעל המסך לא יקפוץ לאפס, ואז התשלום החודשי נגזר ממנו מחדש.
+  function switchBasis(next: PriceBasis) {
+    if (next === 'monthly') {
+      onChange({ priceBasis: 'monthly', annualPrice: undefined, prorationMode: plan.mode });
+      return;
+    }
+    const annual = item.annualPrice ?? Math.round(item.clientPrice * DEFAULT_INSTALLMENTS);
+    onChange({
+      priceBasis: 'annual', annualPrice: annual, prorationMode: plan.mode,
+      clientPrice: monthlyFromAnnual(annual, plan.installments, plan.mode),
+    });
+  }
+
+  function setAnnual(annual: number) {
+    onChange(isManual
+      ? { annualPrice: annual }
+      : { annualPrice: annual, clientPrice: monthlyFromAnnual(annual, plan.installments, plan.mode) });
+  }
+
+  // עריכה ידנית של התשלום החודשי מנתקת את השורה מהנוסחה — זו כוונה, לא טעות
+  function setMonthly(value: number) {
+    onChange(basis === 'annual' ? { clientPrice: value, prorationMode: 'manual' } : { clientPrice: value });
+  }
+
   return (
     <div style={{ border: '1px solid var(--gray-200)', borderRadius: 10, padding: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -683,20 +885,57 @@ function LineItem({ item, vatRate, onChange, onRemove }: {
           </select>
         </label>
       </div>
+      {/* שורה חודשית: אפשר לתמחר לפי סכום שנתי, והתשלום החודשי נגזר מהפריסה */}
+      {isMonthly && (
+        <div style={{ display: 'grid', gridTemplateColumns: basis === 'annual' ? '1fr 1fr' : '1fr', gap: 6, marginBottom: 6 }}>
+          <label style={miniLabel}>תמחור
+            <select value={basis} style={miniInput} onChange={e => switchBasis(e.target.value as PriceBasis)}>
+              <option value="monthly">לפי מחיר חודשי</option>
+              <option value="annual">לפי מחיר שנתי</option>
+            </select>
+          </label>
+          {basis === 'annual' && (
+            <label style={miniLabel}>מחיר שנתי מלא
+              <input type="number" min={0} value={item.annualPrice ?? 0} style={miniInput}
+                onChange={e => setAnnual(Math.max(0, Number(e.target.value) || 0))} />
+            </label>
+          )}
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: item.billingType === 'per_unit' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 6 }}>
         {item.billingType === 'per_unit' && (
           <label style={miniLabel}>{item.unitLabel || 'כמות'}
             <input type="number" min={1} value={item.quantity} onChange={e => onChange({ quantity: Math.max(1, Number(e.target.value) || 1) })} style={miniInput} />
           </label>
         )}
-        <label style={miniLabel}>מחיר ליחידה
-          <input type="number" min={0} value={item.clientPrice} onChange={e => onChange({ clientPrice: Math.max(0, Number(e.target.value) || 0) })} style={miniInput} />
+        <label style={miniLabel}>{isMonthly ? 'תשלום חודשי' : 'מחיר ליחידה'}
+          <input type="number" min={0} value={item.clientPrice} onChange={e => setMonthly(Math.max(0, Number(e.target.value) || 0))} style={miniInput} />
         </label>
         <label style={miniLabel}>הנחה %
           <input type="number" min={0} max={100} value={item.discountPercent ?? 0} onChange={e => onChange({ discountPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} style={miniInput} />
         </label>
       </div>
-      <MonthlyHint category={item.category} price={final} />
+      {/* הדרך הקצרה מ"דוח שנתי 6,000 ₪" ל"5 תשלומים של 1,200 ₪": בלי זה צריך
+          לדעת שקודם משנים את תדירות החיוב לחודשי, וזה לא מובן מאליו. */}
+      {!isMonthly && item.category !== 'included' && item.clientPrice > 0 && (
+        <button className="btn btn-sm btn-secondary" style={{ marginTop: 6, fontSize: 11.5, padding: '3px 8px' }}
+          onClick={() => onChange({
+            category: 'monthly', priceBasis: 'annual',
+            annualPrice: item.clientPrice, prorationMode: plan.mode,
+          })}>
+          ⤶ לפרוס לתשלומים חודשיים
+        </button>
+      )}
+      {isMonthly && basis === 'annual' && isManual && (
+        <button className="btn btn-sm btn-ghost" style={{ marginTop: 4, fontSize: 11, padding: '2px 6px' }}
+          onClick={() => onChange({
+            prorationMode: plan.mode,
+            clientPrice: monthlyFromAnnual(item.annualPrice ?? 0, plan.installments, plan.mode),
+          })}>
+          ↺ חזרה לחישוב אוטומטי
+        </button>
+      )}
+      <PlanHint item={item} />
       <input placeholder="הערה שתוצג ללקוח (אופציונלי)" value={item.clientNote ?? ''} onChange={e => onChange({ clientNote: e.target.value })} style={{ marginTop: 6, fontSize: 12 }} />
       <div style={{ textAlign: 'end', marginTop: 6, fontSize: 12, color: 'var(--gray-600)' }}>
         {item.category === 'included' ? 'כלול' : <>סה״כ שורה: <b>{formatILS(withVat)}</b> <span style={{ color: 'var(--gray-400)' }}>כולל מע״מ</span></>}
@@ -705,15 +944,49 @@ function LineItem({ item, vatRate, onChange, onRemove }: {
   );
 }
 
-// המחיר בשורה חודשית הוא הסכום לחודש. החיווי מזכיר כמה זה יוצא לשנה מלאה, כדי
-// שסכום שנתי לא ייכתב בטעות בשדה חודשי — וזו הערכה בלבד: לקוח שנכנס באמצע שנה
-// משלם פחות חודשים.
-function MonthlyHint({ category, price }: { category: ServiceCategory; price: number }) {
-  if (category !== 'monthly' || price <= 0) return null;
+// תרגום הפריסה למילים: כמה משלמים, כמה פעמים, מתי זה נגמר וכמה זה יעלה אחר כך.
+// הסכום שאחרי התקופה הוא הנקודה החשובה — בלעדיו הלקוח מניח שהמחיר קבוע לתמיד.
+function PlanHint({ item }: { item: QuotationItem }) {
+  if (item.category !== 'monthly') return null;
+  const p = monthlyPlan(item);
+  if (p.perPayment <= 0) return null;
   return (
-    <div style={{ marginTop: 5, fontSize: 11, color: 'var(--gray-500)' }}>
-      {formatILS(price)} לחודש · {formatILS(Math.round(price * 12))} ל־12 חודשים מלאים
+    <div style={{ marginTop: 5, fontSize: 11, color: 'var(--gray-500)', lineHeight: 1.55 }}>
+      {formatILS(p.perPayment)} לחודש × {p.installments} תשלומים
+      {p.startMonth && p.endMonth ? ` · ${formatMonthRange(p.startMonth, p.endMonth)}` : ''}
+      {' · '}סה״כ {formatILS(Math.round(p.periodTotal))}
+      {p.changesAfter && (
+        <div style={{ color: 'var(--orange, #b45309)' }}>
+          {p.nextMonth ? `מ־${formatMonth(p.nextMonth)}: ` : 'אחר כך: '}
+          {formatILS(Math.round(p.ongoingPerMonth))} לחודש
+        </div>
+      )}
     </div>
+  );
+}
+
+function PlanChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '4px 11px', borderRadius: 999, fontFamily: 'inherit', fontSize: 12, cursor: 'pointer',
+      border: `1px solid ${active ? 'var(--blue)' : 'var(--gray-200)'}`,
+      background: active ? 'var(--blue)' : 'var(--card)',
+      color: active ? '#fff' : 'var(--gray-700)', fontWeight: active ? 600 : 400,
+      fontVariantNumeric: 'tabular-nums',
+    }}>{children}</button>
+  );
+}
+
+function TotalChip({ label, value, suffix }: { label: string; value: number; suffix?: string }) {
+  if (value <= 0) return null;
+  return (
+    <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+      {label}{' '}
+      <b style={{ fontSize: 14.5, color: 'var(--gray-800)', fontVariantNumeric: 'tabular-nums' }}>
+        {formatILS(Math.round(value))}
+      </b>
+      {suffix ? <span style={{ fontSize: 11, marginInlineStart: 3 }}>{suffix}</span> : null}
+    </span>
   );
 }
 

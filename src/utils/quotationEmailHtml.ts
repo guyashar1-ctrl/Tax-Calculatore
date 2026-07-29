@@ -4,7 +4,7 @@
 // משתנה במלואו יחד עם תבנית העיצוב שנבחרה בסטודיו.
 
 import type { QuotationItem } from '../types/quotations';
-import { calcTotals, formatILS } from './quotationCalc';
+import { calcTotals, formatILS, monthlyPlan, formatMonth, formatMonthRange } from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
 
 export interface QuotationEmailData {
@@ -65,8 +65,25 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
     ? `${ctaInner}color:${brand.accent};border:2px solid ${brand.accent};">צפייה ואישור ההצעה</a>`
     : `${ctaInner}color:#ffffff;background:${brand.accent};">צפייה ואישור ההצעה</a>`;
 
+  // פריסת תשלומים חלקית מוזכרת כבר במייל — הלקוח לא אמור לגלות בעמוד ההצעה
+  // שהמספר שראה במייל תקף רק לחמישה חודשים.
+  const monthlyTerms = (() => {
+    if (totals.monthly.withVat <= 0 || (!totals.hasPartialTerm && !totals.changesAfterPeriod)) return '';
+    const first = data.items.filter(i => i.category === 'monthly').map(monthlyPlan)[0];
+    const parts: string[] = [];
+    if (totals.hasPartialTerm && totals.installments) {
+      const range = first ? formatMonthRange(first.startMonth, first.endMonth) : '';
+      parts.push(`${totals.installments} תשלומים${range ? ` (${range})` : ''} · סה״כ ${formatILS(Math.round(totals.monthlyPeriod.withVat))}`);
+    }
+    if (totals.changesAfterPeriod) {
+      const from = first?.nextMonth ? `החל מ${formatMonth(first.nextMonth)}` : 'לאחר מכן';
+      parts.push(`${from}: ${formatILS(Math.round(totals.monthlyOngoing.withVat))} לחודש`);
+    }
+    return parts.join(' · ');
+  })();
+
   const summaryRows: string[] = [];
-  if (totals.monthly.withVat > 0) summaryRows.push(priceBlock('חודשי', totals.monthly, 'לחודש', data.vatRate, brand));
+  if (totals.monthly.withVat > 0) summaryRows.push(priceBlock('חודשי', totals.monthly, 'לחודש', data.vatRate, brand, monthlyTerms));
   if (totals.annual.withVat > 0) summaryRows.push(priceBlock('שנתי', totals.annual, 'לשנה', data.vatRate, brand));
   if (totals.oneTime.withVat > 0) summaryRows.push(priceBlock('חד־פעמי', totals.oneTime, '', data.vatRate, brand));
 
@@ -135,6 +152,7 @@ function priceBlock(
   suffix: string,
   vatRate: number,
   brand: QuotationBrand,
+  terms?: string,
 ): string {
   const small = (l: string, v: number) => `<tr>
       <td style="font-size:12.5px;color:${brand.muted};padding:2px 0;">${l}</td>
@@ -149,6 +167,7 @@ function priceBlock(
         <td style="font-size:14px;font-weight:600;color:${brand.ink};border-top:1px solid ${brand.border};padding-top:5px;">${suffix ? `סה״כ ${suffix}` : 'סה״כ לתשלום'}</td>
         <td align="left" style="font-size:17px;font-weight:700;color:${brand.accent};direction:ltr;border-top:1px solid ${brand.border};padding-top:5px;">${formatILS(Math.round(t.withVat))}</td>
       </tr>
+      ${terms ? `<tr><td colspan="2" style="font-size:11.5px;color:${brand.muted};padding-top:6px;line-height:1.6;">${esc(terms)}</td></tr>` : ''}
     </table>
   </td></tr>`;
 }

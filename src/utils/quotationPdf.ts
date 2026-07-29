@@ -8,7 +8,7 @@ import fontkit from '@pdf-lib/fontkit';
 import { embedPdfFonts, layoutMixed, measureMixed, type PdfFonts } from './pdfHebrew';
 import type { QuotationItem, FutureService } from '../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../types/quotations';
-import { calcTotals, itemFinalPrice, itemDisplayName } from './quotationCalc';
+import { calcTotals, itemFinalPrice, itemDisplayName, monthlyPlan, formatMonth, formatMonthRange } from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
 
 export interface QuotationPdfData {
@@ -117,7 +117,16 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     rtl(`מע״מ (${data.vatRate}%)`, 9.5, gray, y); ltr(money(t.vat), 9.5, gray, y); y -= 13;
     rtl(suffix ? `סה״כ ${suffix}` : 'סה״כ לתשלום', 11.5, ink, y);
     ltr(money(t.withVat), 12.5, accent, y);
-    y -= 20;
+    y -= 16;
+    // תנאי הפריסה מודפסים מתחת לסכום החודשי — זה מה שיישאר בידי הלקוח
+    if (label === 'חודשי') {
+      for (const line of monthlyTermLines(data, totals)) {
+        ensureSpace(16);
+        rtl(line, 9, gray, y);
+        y -= 13;
+      }
+    }
+    y -= 4;
   }
   rtl('חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד ואינם מאוחדים.', 8.5, gray, y);
   y -= 20;
@@ -169,6 +178,22 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     page.drawRectangle({ x: LEFT, y: y, width: A4.w - MARGIN * 2, height: 0.6, color: lineGray });
     y -= 16;
   }
+}
+
+// שורות תנאי הפריסה: כמה תשלומים, עד מתי, וכמה יעלה אחרי התקופה
+function monthlyTermLines(data: QuotationPdfData, totals: ReturnType<typeof calcTotals>): string[] {
+  if (!totals.hasPartialTerm && !totals.changesAfterPeriod) return [];
+  const first = data.items.filter(i => i.category === 'monthly').map(monthlyPlan)[0];
+  const out: string[] = [];
+  if (totals.hasPartialTerm && totals.installments) {
+    const range = first ? formatMonthRange(first.startMonth, first.endMonth) : '';
+    out.push(`${totals.installments} תשלומים${range ? ` · ${range}` : ''} · סה״כ ${money(totals.monthlyPeriod.withVat)}`);
+  }
+  if (totals.changesAfterPeriod) {
+    const from = first?.nextMonth ? `החל מ${formatMonth(first.nextMonth)}` : 'לאחר מכן';
+    out.push(`${from}: ${money(totals.monthlyOngoing.withVat)} לחודש (12 תשלומים בשנה).`);
+  }
+  return out;
 }
 
 // גרסה צבעונית של drawMixedVisual (המקורי מצייר בשחור בלבד)

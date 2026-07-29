@@ -6,7 +6,10 @@
 import type { QuotationItem, ServiceCategory, FutureService } from '../../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../../types/quotations';
 import type { QuotationBrand } from './quotationBranding';
-import { calcTotals, itemFinalPrice, formatILS, itemDisplayName } from '../../utils/quotationCalc';
+import {
+  calcTotals, itemFinalPrice, formatILS, itemDisplayName,
+  monthlyPlan, formatMonth, formatMonthRange,
+} from '../../utils/quotationCalc';
 
 export interface QuotationWebViewData {
   quotationNumber: string;
@@ -162,7 +165,10 @@ export default function QuotationWebView({
           <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, background: tint(brand.pageBg), borderTop: `1px solid ${brand.border}`, borderBottom: `1px solid ${brand.border}` }}>
             <SectionLabel brand={brand}>סיכום התמחור</SectionLabel>
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {totals.monthly.withVat > 0 && <PriceBlock brand={brand} label="חודשי" t={totals.monthly} vatRate={data.vatRate} suffix="לחודש" compact={compact} />}
+              {totals.monthly.withVat > 0 && (
+                <PriceBlock brand={brand} label="חודשי" t={totals.monthly} vatRate={data.vatRate} suffix="לחודש" compact={compact}
+                  footnote={<MonthlyTerms data={data} totals={totals} brand={brand} />} />
+              )}
               {totals.annual.withVat > 0 && <PriceBlock brand={brand} label="שנתי" t={totals.annual} vatRate={data.vatRate} suffix="לשנה" compact={compact} />}
               {totals.oneTime.withVat > 0 && <PriceBlock brand={brand} label="חד־פעמי" t={totals.oneTime} vatRate={data.vatRate} suffix="" compact={compact} />}
               {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>—</div>}
@@ -297,9 +303,41 @@ function ServiceCard({ item, brand, compact }: { item: QuotationItem; brand: Quo
   );
 }
 
+// פריסת התשלומים כפי שהלקוח צריך להבין אותה: כמה תשלומים, עד מתי, כמה בסך
+// הכול — ובעיקר מה יקרה כשהתקופה תיגמר. בלי השורה האחרונה הלקוח מניח שהתשלום
+// החודשי שראה הוא המחיר לתמיד, וזה מקור לוויכוח בהמשך.
+function MonthlyTerms({ data, totals, brand }: {
+  data: QuotationWebViewData; totals: ReturnType<typeof calcTotals>; brand: QuotationBrand;
+}) {
+  if (!totals.hasPartialTerm && !totals.changesAfterPeriod) return null;
+  const monthlyItems = data.items.filter(i => i.category === 'monthly');
+  const plans = monthlyItems.map(monthlyPlan);
+  const first = plans[0];
+  const range = first ? formatMonthRange(first.startMonth, first.endMonth) : '';
+
+  return (
+    <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${brand.border}`, fontSize: 12.5, color: brand.muted, lineHeight: 1.65 }}>
+      {totals.hasPartialTerm && totals.installments && (
+        <div>
+          <b style={{ color: brand.ink }}>{totals.installments} תשלומים</b>
+          {range ? ` · ${range}` : ''}
+          {' · '}סה״כ {formatILS(Math.round(totals.monthlyPeriod.withVat))}
+        </div>
+      )}
+      {totals.changesAfterPeriod && (
+        <div style={{ marginTop: 3 }}>
+          {first?.nextMonth ? `החל מ${formatMonth(first.nextMonth)}` : 'לאחר מכן'}:{' '}
+          <b style={{ color: brand.ink }}>{formatILS(Math.round(totals.monthlyOngoing.withVat))} לחודש</b> (12 תשלומים בשנה).
+        </div>
+      )}
+    </div>
+  );
+}
+
 // סיכום לפי תדירות — לפני מע"מ, מע"מ בנפרד, וסה"כ לתשלום
-function PriceBlock({ label, t, vatRate, suffix, brand, compact }: {
+function PriceBlock({ label, t, vatRate, suffix, brand, compact, footnote }: {
   label: string; t: { beforeVat: number; vat: number; withVat: number }; vatRate: number; suffix: string; brand: QuotationBrand; compact?: boolean;
+  footnote?: React.ReactNode;
 }) {
   const line = (l: string, v: number, strong?: boolean) => (
     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '3px 0' }}>
@@ -318,6 +356,7 @@ function PriceBlock({ label, t, vatRate, suffix, brand, compact }: {
         <div style={{ borderTop: `1px solid ${brand.border}`, marginTop: 5, paddingTop: 5 }}>
           {line(suffix ? `סה״כ ${suffix}` : 'סה״כ לתשלום', t.withVat, true)}
         </div>
+        {footnote}
       </div>
     </div>
   );
