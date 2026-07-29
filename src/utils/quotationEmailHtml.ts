@@ -145,31 +145,63 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
 </body></html>`;
 }
 
-// סיכום לפי תדירות — לפני מע"מ, מע"מ בנפרד, וסה"כ (זהה לעמוד ההצעה ול-PDF)
+// עוגן התנהגותי זהה לעמוד ההצעה: מחיר מלא (מחוק) ← הנחה (שורה ירוקה) ←
+// מחיר אחרי הנחה ← מע"מ ← שורת "סה״כ לתשלום" גדולה על רקע צבע המותג.
+// הכול table-based עם צבעי רקע ישירים — לתאימות Gmail/Outlook.
 function priceBlock(
   label: string,
-  t: { beforeVat: number; vat: number; withVat: number },
+  t: { fullBeforeVat: number; discount: number; beforeVat: number; vat: number; withVat: number },
   suffix: string,
   vatRate: number,
   brand: QuotationBrand,
   terms?: string,
 ): string {
-  const small = (l: string, v: number) => `<tr>
-      <td style="font-size:12.5px;color:${brand.muted};padding:2px 0;">${l}</td>
-      <td align="left" style="font-size:12.5px;color:${brand.muted};direction:ltr;padding:2px 0;">${formatILS(Math.round(v))}</td>
+  const hasDiscount = t.discount >= 1;
+  const pct = hasDiscount ? Math.round((t.discount / t.fullBeforeVat) * 100) : 0;
+  const row = (l: string, v: string, lStyle = '', vStyle = '') => `<tr>
+      <td style="font-size:12.5px;color:${brand.muted};padding:3px 0;${lStyle}">${l}</td>
+      <td align="left" style="font-size:13px;color:${brand.muted};direction:ltr;padding:3px 0;${vStyle}">${v}</td>
     </tr>`;
-  return `<tr><td style="padding:10px 18px 4px;">
-    <div style="font-size:13px;font-weight:700;color:${brand.ink};padding-bottom:4px;">${label}</div>
-    <table role="presentation" width="100%" style="border-top:1px solid ${brand.border};">
-      ${small('לפני מע״מ', t.beforeVat)}
-      ${small(`מע״מ (${vatRate}%)`, t.vat)}
-      <tr>
-        <td style="font-size:14px;font-weight:600;color:${brand.ink};border-top:1px solid ${brand.border};padding-top:5px;">${suffix ? `סה״כ ${suffix}` : 'סה״כ לתשלום'}</td>
-        <td align="left" style="font-size:17px;font-weight:700;color:${brand.accent};direction:ltr;border-top:1px solid ${brand.border};padding-top:5px;">${formatILS(Math.round(t.withVat))}</td>
-      </tr>
-      ${terms ? `<tr><td colspan="2" style="font-size:11.5px;color:${brand.muted};padding-top:6px;line-height:1.6;">${esc(terms)}</td></tr>` : ''}
+  const discountRows = hasDiscount
+    ? row('מחיר מלא', formatILS(Math.round(t.fullBeforeVat)),
+        '', 'text-decoration:line-through;font-size:14px;')
+      + `<tr>
+          <td style="background:#e6f7f0;border-radius:8px 0 0 8px;padding:6px 10px;font-size:13px;font-weight:700;color:#047857;">🎁 הנחה ${pct}%</td>
+          <td align="left" style="background:#e6f7f0;border-radius:0 8px 8px 0;padding:6px 10px;font-size:14px;font-weight:800;color:#047857;direction:ltr;">−${formatILS(Math.round(t.discount))}</td>
+        </tr>`
+      + row('מחיר אחרי הנחה', formatILS(Math.round(t.beforeVat)),
+        `font-weight:600;color:${brand.ink};`, `font-weight:700;color:${brand.ink};font-size:14px;`)
+    : row('מחיר', formatILS(Math.round(t.beforeVat)), '', `font-weight:600;color:${brand.ink};`);
+  const accentBg = mixWithWhite(brand.accent, 0.9);
+  return `<tr><td style="padding:10px 18px 12px;">
+    <div style="font-size:11.5px;font-weight:700;letter-spacing:.06em;color:${brand.muted};padding-bottom:4px;">${label}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${brand.border};">
+      ${discountRows}
+      ${row(`+ מע״מ (${vatRate}%)`, formatILS(Math.round(t.vat)))}
     </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;">
+      <tr>
+        <td style="background:${accentBg};border:1px solid ${brand.accent};border-left:none;border-radius:0 10px 10px 0;padding:10px 14px;">
+          <div style="font-size:14px;font-weight:700;color:${brand.ink};">סה״כ לתשלום${suffix ? ` ${suffix}` : ''}</div>
+          <div style="font-size:10.5px;color:${brand.muted};">כולל מע״מ</div>
+        </td>
+        <td align="left" style="background:${accentBg};border:1px solid ${brand.accent};border-right:none;border-radius:10px 0 0 10px;padding:10px 14px;font-size:24px;font-weight:800;color:${brand.accent};direction:ltr;">
+          ${formatILS(Math.round(t.withVat))}
+        </td>
+      </tr>
+    </table>
+    ${terms ? `<div style="font-size:11.5px;color:${brand.muted};padding-top:6px;line-height:1.6;">${esc(terms)}</div>` : ''}
   </td></tr>`;
+}
+
+// ערבוב צבע המותג עם לבן — רקע בהיר לשורת הסה"כ שעובד בכל תוכנת מייל
+function mixWithWhite(hex: string, ratio: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
+  if (!m) return '#f4f4f2';
+  const n = parseInt(m[1], 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * ratio);
+  const r = mix((n >> 16) & 255), g = mix((n >> 8) & 255), b = mix(n & 255);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
 // גוון עדין כהה יותר מרקע העמוד — לכרטיסי הסיכום/ההודעה בתוך המייל

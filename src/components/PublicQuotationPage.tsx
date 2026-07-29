@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import type { FirmProfile } from '../types/firmProfile';
 import type { QuotationItem, FutureService } from '../types/quotations';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
-import QuotationWebView, { type QuotationWebViewData } from './quotations/QuotationWebView';
+import QuotationWebView, { type QuotationWebViewData, type ApprovalSignature } from './quotations/QuotationWebView';
 import { generateQuotationPdf, downloadPdf } from '../utils/quotationPdf';
 
 interface Props { token: string; }
@@ -73,10 +73,14 @@ export default function PublicQuotationPage({ token }: Props) {
     return deriveQuotationBrand(pseudo);
   }, [info]);
 
-  async function handleApprove() {
+  async function handleApprove(sig: ApprovalSignature) {
     setApproving(true);
     try {
-      const { data } = await supabase.rpc('approve_quotation', { p_token: token });
+      const { data } = await supabase.rpc('approve_quotation', {
+        p_token: token,
+        p_signature: sig.signatureDataUrl,
+        p_signer_name: sig.signerName,
+      });
       if (typeof data === 'string') setStatus(data);
     } finally {
       setApproving(false);

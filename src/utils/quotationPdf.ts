@@ -8,7 +8,7 @@ import fontkit from '@pdf-lib/fontkit';
 import { embedPdfFonts, layoutMixed, measureMixed, type PdfFonts } from './pdfHebrew';
 import type { QuotationItem, FutureService } from '../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../types/quotations';
-import { calcTotals, itemFinalPrice, itemDisplayName, monthlyPlan, formatMonth, formatMonthRange } from './quotationCalc';
+import { calcTotals, itemFinalPrice, itemOriginalPrice, itemDisplayName, monthlyPlan, formatMonth, formatMonthRange } from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
 
 export interface QuotationPdfData {
@@ -86,7 +86,11 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   for (const item of priced) {
     ensureSpace(38);
     rtl(itemDisplayName(item), 11.5, ink, y);
-    ltr(`${money(itemFinalPrice(item))}${item.vatFlag ? ' + מע״מ' : ''}`, 11.5, ink, y);
+    // עוגן מחיר: כשיש הנחה מציינים את המחיר המלא לצד המחיר שאחרי ההנחה
+    const orig = itemOriginalPrice(item);
+    const finalP = itemFinalPrice(item);
+    const before = orig - finalP >= 1 ? ` (במקום ${money(orig)})` : '';
+    ltr(`${money(finalP)}${item.vatFlag ? ' + מע״מ' : ''}${before}`, 11.5, ink, y);
     y -= 15;
     const meta = `${SERVICE_CATEGORY_LABELS[item.category]}${item.billingType === 'per_unit' && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}${item.description ? ` · ${item.description}` : ''}`;
     rtl(meta, 8.5, gray, y);
@@ -110,14 +114,24 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   if (totals.monthly.withVat > 0) blocks.push(['חודשי', totals.monthly, 'לחודש']);
   if (totals.annual.withVat > 0) blocks.push(['שנתי', totals.annual, 'לשנה']);
   if (totals.oneTime.withVat > 0) blocks.push(['חד־פעמי', totals.oneTime, '']);
+  const green = rgb(0.02, 0.47, 0.34);
   for (const [label, t, suffix] of blocks) {
-    ensureSpace(62);
+    ensureSpace(88);
     rtl(label, 11.5, ink, y); y -= 15;
-    rtl('לפני מע״מ', 9.5, gray, y); ltr(money(t.beforeVat), 9.5, gray, y); y -= 13;
-    rtl(`מע״מ (${data.vatRate}%)`, 9.5, gray, y); ltr(money(t.vat), 9.5, gray, y); y -= 13;
-    rtl(suffix ? `סה״כ ${suffix}` : 'סה״כ לתשלום', 11.5, ink, y);
-    ltr(money(t.withVat), 12.5, accent, y);
-    y -= 16;
+    // סדר קבוע כמו בעמוד ובמייל: מחיר מלא ← הנחה ← אחרי הנחה ← מע"מ ← סה"כ
+    if (t.discount >= 1) {
+      rtl('מחיר מלא', 9.5, gray, y); ltr(money(t.fullBeforeVat), 9.5, gray, y); y -= 13;
+      rtl(`הנחה ${Math.round((t.discount / t.fullBeforeVat) * 100)}%`, 10.5, green, y); ltr(`${money(t.discount)}-`, 10.5, green, y); y -= 14;
+      rtl('מחיר אחרי הנחה', 10, ink, y); ltr(money(t.beforeVat), 10, ink, y); y -= 13;
+    } else {
+      rtl('מחיר', 9.5, gray, y); ltr(money(t.beforeVat), 9.5, gray, y); y -= 13;
+    }
+    rtl(`+ מע״מ (${data.vatRate}%)`, 9.5, gray, y); ltr(money(t.vat), 9.5, gray, y); y -= 15;
+    // שורת הסה"כ — פס מודגש בצבע המותג, המספר הגדול בעמוד
+    page.drawRectangle({ x: LEFT, y: y - 5, width: A4.w - MARGIN * 2, height: 22, color: accent, opacity: 0.09 });
+    rtl(suffix ? `סה״כ לתשלום ${suffix} (כולל מע״מ)` : 'סה״כ לתשלום (כולל מע״מ)', 11.5, ink, y);
+    ltr(money(t.withVat), 15, accent, y);
+    y -= 22;
     // תנאי הפריסה מודפסים מתחת לסכום החודשי — זה מה שיישאר בידי הלקוח
     if (label === 'חודשי') {
       for (const line of monthlyTermLines(data, totals)) {

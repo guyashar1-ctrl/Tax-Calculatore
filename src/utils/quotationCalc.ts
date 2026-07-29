@@ -6,6 +6,9 @@ import type { Quotation, QuotationItem, ServiceCategory } from '../types/quotati
 import { DEFAULT_INSTALLMENTS } from '../types/quotations';
 
 export interface CategoryTotal {
+  // "המחיר המלא" לפני הנחות — העוגן שמוצג ללקוח לצד המחיר שאחרי ההנחה
+  fullBeforeVat: number;
+  discount: number;          // סך ההנחה בקטגוריה, לפני מע"מ, בסקאלת התצוגה
   beforeVat: number;
   vat: number;
   withVat: number;
@@ -46,8 +49,25 @@ export function itemDiscountAmount(item: QuotationItem): number {
   return round2(Math.max(0, catalogGross - comparable));
 }
 
+// המחיר "המלא" של שורה בסקאלת התצוגה (לתשלום/ליחידה) — העוגן שלפני ההנחה.
+// כולל גם דריסת מחיר ידנית מתחת לקטלוג. בשורה שנפרסה ממחיר שנתי, המחיר המלא
+// הוא השנתי (או הקטלוג — הגבוה מביניהם, כי בקטלוג של שורה שנפרסה שמור המחיר
+// השנתי) חלקי מספר התשלומים — כך העוגן והמחיר הסופי באותה סקאלה.
+export function itemOriginalPrice(item: QuotationItem): number {
+  const qty = item.quantity || 1;
+  // עוגן שנקבע ידנית על ידי הרו"ח גובר על כל חישוב אוטומטי
+  if (item.displayFullPrice != null && item.displayFullPrice > 0) {
+    return round2(item.displayFullPrice * qty);
+  }
+  if (item.priceBasis === 'annual' && item.annualPrice != null) {
+    const n = clampInstallments(item.installments);
+    return round2((Math.max(item.annualPrice, item.catalogPrice) * qty) / n);
+  }
+  return round2(Math.max(item.clientPrice, item.catalogPrice) * qty);
+}
+
 export function calcTotals(items: QuotationItem[], vatRate: number): QuotationTotals {
-  const empty = (): CategoryTotal => ({ beforeVat: 0, vat: 0, withVat: 0 });
+  const empty = (): CategoryTotal => ({ fullBeforeVat: 0, discount: 0, beforeVat: 0, vat: 0, withVat: 0 });
   const buckets: Record<'monthly' | 'annual' | 'oneTime', CategoryTotal> = {
     monthly: empty(), annual: empty(), oneTime: empty(),
   };
@@ -56,7 +76,9 @@ export function calcTotals(items: QuotationItem[], vatRate: number): QuotationTo
   const termsSeen = new Set<number>();
   let totalDiscount = 0;
 
-  const add = (t: CategoryTotal, price: number, vat: number) => {
+  const add = (t: CategoryTotal, price: number, vat: number, full = price) => {
+    t.fullBeforeVat = round2(t.fullBeforeVat + Math.max(full, price));
+    t.discount = round2(t.discount + Math.max(0, full - price));
     t.beforeVat = round2(t.beforeVat + price);
     t.vat = round2(t.vat + vat);
     t.withVat = round2(t.withVat + price + vat);
@@ -66,14 +88,15 @@ export function calcTotals(items: QuotationItem[], vatRate: number): QuotationTo
     const bucket = bucketFor(item.category);
     if (!bucket) continue;    // שירותים "כלולים" (0 ₪) אינם משתתפים בסיכום
     const price = itemFinalPrice(item);
+    const full = itemOriginalPrice(item);
     const vat = item.vatFlag ? round2(price * (vatRate / 100)) : 0;
-    add(buckets[bucket], price, vat);
+    add(buckets[bucket], price, vat, full);
     totalDiscount = round2(totalDiscount + itemDiscountAmount(item));
 
     if (bucket === 'monthly') {
       const plan = monthlyPlan(item);
       termsSeen.add(plan.installments);
-      add(monthlyPeriod, round2(price * plan.installments), round2(vat * plan.installments));
+      add(monthlyPeriod, round2(price * plan.installments), round2(vat * plan.installments), round2(full * plan.installments));
       const ongoingVat = item.vatFlag ? round2(plan.ongoingPerMonth * (vatRate / 100)) : 0;
       add(monthlyOngoing, plan.ongoingPerMonth, ongoingVat);
     }

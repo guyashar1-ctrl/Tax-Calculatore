@@ -6,12 +6,12 @@ import type {
   PriceBasis,
 } from '../../types/quotations';
 import {
-  SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ORDER,
+  SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ORDER, QUOTATION_EVENT_LABELS, QUOTATION_STATUS_LABELS,
   DEFAULT_VAT_RATE, DEFAULT_EXPIRY_BUSINESS_DAYS, DEFAULT_INSTALLMENTS,
 } from '../../types/quotations';
 import { businessDaysExpiry } from '../../utils/businessDays';
 import {
-  calcTotals, formatILS, itemFinalPrice, itemDisplayName,
+  calcTotals, formatILS, itemFinalPrice, itemOriginalPrice, itemDisplayName,
   monthlyPlan, clampInstallments,
   currentMonthKey, monthsLeftInYear, formatMonth, formatMonthRange, addMonths,
 } from '../../utils/quotationCalc';
@@ -20,7 +20,7 @@ import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
 import { generateQuotationPdf, downloadPdf } from '../../utils/quotationPdf';
 import QuotationWebView, { type QuotationWebViewData } from './QuotationWebView';
 
-type PreviewTab = 'web' | 'email' | 'pdf';
+type PreviewTab = 'web' | 'email' | 'pdf' | 'track';
 type Device = 'desktop' | 'mobile';
 
 interface RecipientDraft {
@@ -163,7 +163,9 @@ export default function QuotationBuilder({
   })();
   const [plan, setPlan] = useState<BillingPlan>(initialPlan);
 
-  const [tab, setTab] = useState<PreviewTab>('web');
+  // הצעה שכבר נשלחה נפתחת ישר על המעקב — זה מה שמעניין אחרי השליחה
+  const hasTracking = !!existing && existing.status !== 'draft';
+  const [tab, setTab] = useState<PreviewTab>(hasTracking ? 'track' : 'web');
   const [device, setDevice] = useState<Device>('desktop');
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
@@ -217,6 +219,21 @@ export default function QuotationBuilder({
 
   function addService(svc: ServiceCatalogItem) {
     setItems(prev => [...prev, applyPlanToItem(catalogToItem(svc), plan)]);
+  }
+
+  // משבצת חופשית — שירות שלא קיים בקטלוג וממציאים אותו תוך כדי שיחה.
+  // serviceId ריק מסמן שהשם נערך ישירות בשורה.
+  function addCustomItem() {
+    setItems(prev => [...prev, {
+      id: crypto.randomUUID(),
+      name: '',
+      category: 'one_time' as ServiceCategory,
+      billingType: 'fixed' as const,
+      quantity: 1,
+      catalogPrice: 0,
+      clientPrice: 0,
+      vatFlag: true,
+    }]);
   }
   function updateItem(id: string, patch: Partial<QuotationItem>) {
     setItems(prev => prev.map(it => {
@@ -331,6 +348,7 @@ export default function QuotationBuilder({
     if (!recipient.fullName.trim()) { setError('יש להזין נמען לפני שליחה.'); return; }
     if (!isTest && !recipient.email?.trim()) { setError('לנמען אין כתובת מייל — לא ניתן לשלוח ללקוח.'); return; }
     if (items.length === 0) { setError('אין שירותים בהצעה.'); return; }
+    if (items.some(i => !i.name.trim())) { setError('יש שורה חופשית בלי שם — יש לתת לה שם או להסיר אותה לפני שליחה.'); return; }
     setSending(isTest ? 'test' : 'send');
     try {
       const res = await onSend(buildPayload(), isTest);
@@ -443,9 +461,10 @@ export default function QuotationBuilder({
 
           {/* שירותים */}
           <div style={card}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <div style={{ ...cardTitle, marginBottom: 0, flex: 1 }}>🧾 שירותים</div>
-              <button className="btn btn-sm btn-primary" onClick={() => setCatalogOpen(o => !o)}>+ הוספת שירות</button>
+              <button className="btn btn-sm btn-secondary" onClick={addCustomItem} title="שורה ריקה עם שם ומחיר חופשיים — למה שלא קיים בקטלוג">+ שורה חופשית</button>
+              <button className="btn btn-sm btn-primary" onClick={() => setCatalogOpen(o => !o)}>+ מהקטלוג</button>
             </div>
 
             {catalogOpen && (
@@ -525,8 +544,8 @@ export default function QuotationBuilder({
           )}
 
           {/* דוחות לשנים פתוחות — לקוח שלא הגיש בשנים האחרונות */}
-          <div style={card}>
-            <div style={{ ...cardTitle, marginBottom: 6 }}>📅 דוחות לשנים פתוחות</div>
+          <Section icon="📅" title="דוחות לשנים פתוחות"
+            summary={(() => { const n = items.filter(i => i.year != null).length; return n ? `נוספו ${n} דוחות` : 'לא נדרש? דלג'; })()}>
             <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
               בוחרים את השנים שטרם דווחו — כל שנה נוספת כשורה נפרדת בהצעה, עם מחיר, הנחה ותדירות חיוב משלה.
             </div>
@@ -591,11 +610,11 @@ export default function QuotationBuilder({
                 </button>
               </>
             )}
-          </div>
+          </Section>
 
           {/* שירותים עתידיים — שקיפות מחירים מראש */}
-          <div style={card}>
-            <div style={{ ...cardTitle, marginBottom: 6 }}>🔮 שירותים עתידיים (מחירון מראש)</div>
+          <Section icon="🔮" title="שירותים עתידיים"
+            summary={futureServices.length ? `${futureServices.length} במחירון` : 'ללא'}>
             <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
               יוצגו ללקוח כמחירון "אם וכאשר", כדי שלא יופתע ממחיר בעתיד. לא נכלל בסכומי ההצעה.
             </div>
@@ -618,22 +637,22 @@ export default function QuotationBuilder({
                 ))}
               </div>
             )}
-          </div>
+          </Section>
 
           {/* מייל */}
-          <div style={card}>
-            <div style={cardTitle}>✉️ מייל</div>
+          <Section icon="✉️" title="מייל"
+            summary={emailMessage.trim() ? 'נושא + הודעה אישית' : emailSubject}>
             <label style={fieldLabel}>נושא
               <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={{ marginTop: 4 }} />
             </label>
             <label style={{ ...fieldLabel, marginTop: 10 }}>הודעה אישית (אופציונלי)
               <textarea rows={3} value={emailMessage} onChange={e => setEmailMessage(e.target.value)} placeholder="כמה מילים אישיות שילוו את ההצעה…" style={{ marginTop: 4 }} />
             </label>
-          </div>
+          </Section>
 
           {/* הגדרות */}
-          <div style={card}>
-            <div style={cardTitle}>⚙️ פרטי ההצעה</div>
+          <Section icon="⚙️" title="פרטי ההצעה"
+            summary={`תוקף עד ${new Date(expiresAt).toLocaleDateString('he-IL')}${notesForClient.trim() || internalNotes.trim() ? ' · יש הערות' : ''}`}>
             <label style={fieldLabel}>הערה ללקוח בעמוד ההצעה (אופציונלי)
               <textarea rows={2} value={notesForClient} onChange={e => setNotesForClient(e.target.value)} style={{ marginTop: 4 }} />
             </label>
@@ -645,7 +664,7 @@ export default function QuotationBuilder({
                 onChange={e => { const d = new Date(e.target.value); d.setHours(23, 59, 0, 0); setExpiresAt(d.toISOString()); }}
                 style={{ marginTop: 4 }} />
             </label>
-          </div>
+          </Section>
 
           {/* פס סיכום דביק — לאן זה מסתכם, בלי לעזוב את פאנל העריכה */}
           <div style={{
@@ -685,11 +704,12 @@ export default function QuotationBuilder({
         <div style={{ position: 'sticky', top: 76 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <div className="tabs" style={{ margin: 0 }}>
+              {hasTracking && <button className={`tab ${tab === 'track' ? 'active' : ''}`} onClick={() => setTab('track')}>📊 מעקב</button>}
               <button className={`tab ${tab === 'web' ? 'active' : ''}`} onClick={() => setTab('web')}>עמוד ההצעה</button>
               <button className={`tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>מייל</button>
               <button className={`tab ${tab === 'pdf' ? 'active' : ''}`} onClick={() => setTab('pdf')}>PDF</button>
             </div>
-            {tab !== 'pdf' && (
+            {tab !== 'pdf' && tab !== 'track' && (
               <div className="tabs" style={{ margin: 0, marginInlineStart: 'auto' }}>
                 <button className={`tab ${device === 'desktop' ? 'active' : ''}`} onClick={() => setDevice('desktop')}>🖥️ דסקטופ</button>
                 <button className={`tab ${device === 'mobile' ? 'active' : ''}`} onClick={() => setDevice('mobile')}>📱 מובייל</button>
@@ -700,7 +720,8 @@ export default function QuotationBuilder({
           {/* תצוגה מקדימה של מסמך שהלקוח יקבל — נשארת בהירה גם במצב כהה */}
           <div className="pivo-light" style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', background: '#F4F3EF', height: 'calc(100vh - 180px)', minHeight: 520 }}>
             <div style={{ height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
-              <div style={{ width: device === 'mobile' && tab !== 'pdf' ? 390 : '100%', maxWidth: '100%', transition: 'width .2s' }}>
+              <div style={{ width: device === 'mobile' && tab !== 'pdf' && tab !== 'track' ? 390 : '100%', maxWidth: '100%', transition: 'width .2s' }}>
+                {tab === 'track' && existing && <TrackingPanel quotation={existing} brand={brand} />}
                 {tab === 'web' && <QuotationWebView data={webData} brand={brand} compact={device === 'mobile'} />}
                 {tab === 'email' && (
                   <iframe title="preview-email" srcDoc={emailHtml} style={{ width: '100%', height: '100%', border: 'none', minHeight: 520 }} />
@@ -730,6 +751,144 @@ export default function QuotationBuilder({
 }
 
 function q_num(q: Quotation): string { return q.quotationNumber; }
+
+// ─── פאנל מעקב להצעה שנשלחה ─────────────────────────────────────────────────
+// עונה על שלוש שאלות בלי לצאת מהמסך: איפה זה עומד (אבני דרך + יומן אירועים),
+// מה בדיוק הלקוח קיבל (העתק המייל שנבנה מה-snapshot הקפוא), ומי חתם.
+function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: ReturnType<typeof deriveQuotationBrand> }) {
+  const [copied, setCopied] = useState(false);
+  const snap = quotation.snapshot;
+  const link = quotation.publicToken ? `${window.location.origin}/?quote=${quotation.publicToken}` : null;
+
+  const applyPlaceholders = (s: string) => {
+    if (!snap || !link) return s;
+    const ctx: Record<string, string> = {
+      '{{clientName}}': snap.recipientName,
+      '{{businessName}}': snap.businessName || snap.recipientName,
+      '{{quotationNumber}}': snap.quotationNumber,
+      '{{quotationLink}}': link,
+    };
+    return Object.entries(ctx).reduce((acc, [k, v]) => acc.split(k).join(v ?? ''), s);
+  };
+
+  // המייל משוחזר מה-snapshot שהוקפא ברגע השליחה — לא מהשדות החיים,
+  // כדי שמה שמוצג כאן יהיה באמת מה שנשלח.
+  const sentEmailHtml = useMemo(() => {
+    if (!snap || !link) return null;
+    return buildQuotationEmailHtml({
+      quotationNumber: snap.quotationNumber,
+      recipientName: snap.recipientName,
+      businessName: snap.businessName,
+      items: snap.items,
+      vatRate: snap.vatRate,
+      message: applyPlaceholders(snap.emailMessage || ''),
+      quotationLink: link,
+      expiresAt: quotation.expiresAt,
+    }, brand);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snap, link, brand, quotation.expiresAt]);
+
+  const fmt = (iso?: string) => iso
+    ? new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  const events = [...quotation.events].sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+  const reminders = quotation.events.filter(e => e.type === 'reminder_sent' || e.type === 'sent').length - 1;
+
+  const milestones = [
+    { label: 'נשלחה ללקוח', at: quotation.sentAt, icon: '📤' },
+    { label: 'נצפתה לראשונה', at: quotation.firstViewedAt, icon: '👀' },
+    { label: 'אושרה ונחתמה', at: quotation.approvedAt, icon: '✅' },
+  ];
+
+  const panel: React.CSSProperties = { background: 'var(--card, #fff)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 14 };
+
+  async function copyLink() {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* דפדפן חוסם — הקישור מוצג וניתן להעתקה ידנית */ }
+  }
+
+  return (
+    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, direction: 'rtl' }}>
+
+      {/* אבני דרך */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {milestones.map(m => (
+          <div key={m.label} style={{ ...panel, padding: '10px 12px', opacity: m.at ? 1 : .55 }}>
+            <div style={{ fontSize: 12, fontWeight: 600 }}>{m.icon} {m.label}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginTop: 3 }}>{fmt(m.at) ?? 'עדיין לא'}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+        סטטוס נוכחי: <b style={{ color: 'var(--gray-800)' }}>{QUOTATION_STATUS_LABELS[quotation.status]}</b>
+        {reminders > 0 ? ` · נשלחו ${reminders} תזכורות` : ''}
+      </div>
+
+      {/* קישור ההצעה */}
+      {link && (
+        <div style={{ ...panel, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>🔗 הקישור שנשלח ללקוח</div>
+          <div dir="ltr" style={{ flex: 1, minWidth: 160, fontSize: 11.5, color: 'var(--gray-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link}</div>
+          <button className="btn btn-sm btn-secondary" onClick={copyLink}>{copied ? '✓ הועתק' : 'העתקה'}</button>
+          <a className="btn btn-sm btn-ghost" href={link} target="_blank" rel="noreferrer">פתיחה ↗</a>
+        </div>
+      )}
+
+      {/* חתימת הלקוח */}
+      {quotation.approvalSignature && (
+        <div style={panel}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>✍️ חתימת הלקוח</div>
+          <div style={{ background: '#fff', border: '1px solid var(--gray-200)', borderRadius: 8, padding: 8, display: 'inline-block' }}>
+            <img src={quotation.approvalSignature} alt="חתימת הלקוח" style={{ maxHeight: 90, maxWidth: '100%', display: 'block' }} />
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 6 }}>
+            {quotation.approvalSignerName ? `נחתם על ידי ${quotation.approvalSignerName}` : 'נחתם'}
+            {quotation.approvedAt ? ` · ${fmt(quotation.approvedAt)}` : ''}
+          </div>
+        </div>
+      )}
+
+      {/* יומן אירועים */}
+      <div style={panel}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>🕘 יומן אירועים</div>
+        {events.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>אין אירועים עדיין.</div>
+        ) : events.map((e, i) => (
+          <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 0', borderTop: i ? '1px solid var(--gray-100)' : 'none', fontSize: 12.5, alignItems: 'baseline' }}>
+            <span style={{ flex: 1 }}>
+              {QUOTATION_EVENT_LABELS[e.type] ?? e.type}
+              {e.note ? <span style={{ color: 'var(--gray-500)' }}> — {e.note}</span> : null}
+            </span>
+            <span style={{ color: 'var(--gray-500)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{fmt(e.at)}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* המייל שנשלח */}
+      <div style={{ ...panel, padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--gray-200)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>✉️ המייל שנשלח ללקוח</div>
+          <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+            נושא: {applyPlaceholders(snap?.emailSubject || quotation.emailSubject || '') || '—'}
+          </div>
+        </div>
+        {sentEmailHtml ? (
+          <iframe title="sent-email" srcDoc={sentEmailHtml} style={{ width: '100%', height: 480, border: 'none', background: '#fff' }} />
+        ) : (
+          <div style={{ padding: 14, fontSize: 12.5, color: 'var(--gray-500)' }}>
+            ההצעה טרם נשלחה ללקוח — אין העתק שמור של מייל.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function RecipientEditor({ leads, clients, value, onPick }: {
   leads: Lead[]; clients: Client[]; value: RecipientDraft;
@@ -869,7 +1028,14 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
   return (
     <div style={{ border: '1px solid var(--gray-200)', borderRadius: 10, padding: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ flex: 1, fontWeight: 600, fontSize: 13.5 }}>{itemDisplayName(item)}</span>
+        {/* שורה חופשית (בלי serviceId) — השם נערך ישירות כאן */}
+        {item.serviceId ? (
+          <span style={{ flex: 1, fontWeight: 600, fontSize: 13.5 }}>{itemDisplayName(item)}</span>
+        ) : (
+          <input value={item.name} placeholder="שם השירות (שורה חופשית) *" autoFocus={!item.name}
+            onChange={e => onChange({ name: e.target.value })}
+            style={{ flex: 1, fontWeight: 600, fontSize: 13.5, padding: '.3rem .5rem' }} />
+        )}
         <button className="btn btn-icon btn-ghost" onClick={onRemove} title="הסרה" style={{ color: 'var(--red)' }}>✕</button>
       </div>
       {/* תדירות החיוב ושנת המס נבחרות פר שורה — אותו שירות יכול להיות חודשי
@@ -926,6 +1092,18 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
         <TargetPriceSelect base={targetBase} discountPercent={item.discountPercent ?? 0} onPick={pickTarget}
           label={isMonthly ? 'מחיר יעד לחודש (קובע את ההנחה)' : 'מחיר יעד (קובע את ההנחה)'} />
       )}
+      {/* העוגן ההתנהגותי בידי הרו"ח: המחיר שיוצג מחוק ללקוח. ריק = אוטומטי
+          (הגבוה מבין מחיר הקטלוג למחיר שהוזן). */}
+      {item.category !== 'included' && (
+        <label style={{ ...miniLabel, marginTop: 6 }}>
+          {isMonthly ? 'מחיר לפני הנחה לחודש — יוצג מחוק ללקוח (ריק = אוטומטי)' : 'מחיר לפני הנחה — יוצג מחוק ללקוח (ריק = אוטומטי)'}
+          <input type="number" min={0} style={miniInput}
+            placeholder={String(Math.round(itemOriginalPrice(item) / qty))}
+            value={item.displayFullPrice ?? ''}
+            onChange={e => onChange({ displayFullPrice: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })} />
+        </label>
+      )}
+      <ClientPriceHint item={item} />
       {/* הדרך הקצרה מ"דוח שנתי 6,000 ₪" ל"5 תשלומים של 1,200 ₪": בלי זה צריך
           לדעת שקודם משנים את תדירות החיוב לחודשי, וזה לא מובן מאליו. */}
       {!isMonthly && item.category !== 'included' && item.clientPrice > 0 && (
@@ -953,6 +1131,37 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
       <div style={{ textAlign: 'end', marginTop: 6, fontSize: 12, color: 'var(--gray-600)' }}>
         {item.category === 'included' ? 'כלול' : <>סה״כ שורה: <b>{formatILS(withVat)}</b> <span style={{ color: 'var(--gray-400)' }}>כולל מע״מ</span></>}
       </div>
+    </div>
+  );
+}
+
+// שורת אמת מול הלקוח: בדיוק מה שיופיע בכרטיס השירות בעמוד ההצעה. ירוק כשיש
+// עוגן והנחה, אפור עם רמז לפעולה כשאין — כדי שאי-הצגת הנחה לא תפתיע אף אחד.
+function ClientPriceHint({ item }: { item: QuotationItem }) {
+  if (item.category === 'included') return null;
+  const original = itemOriginalPrice(item);
+  const final = itemFinalPrice(item);
+  if (final <= 0 && original <= 0) return null;
+  const hasDiscount = original - final >= 1;
+  return (
+    <div style={{
+      marginTop: 6, fontSize: 11.5, borderRadius: 8, padding: '5px 9px', lineHeight: 1.6,
+      background: hasDiscount ? 'rgba(16,185,129,.09)' : 'var(--gray-50)',
+      color: hasDiscount ? '#047857' : 'var(--gray-500)',
+      border: `1px solid ${hasDiscount ? 'rgba(16,185,129,.25)' : 'var(--gray-200)'}`,
+    }}>
+      👁 הלקוח יראה:{' '}
+      {hasDiscount ? (
+        <>
+          <s>{formatILS(Math.round(original))}</s>{' ← '}
+          <b>{formatILS(Math.round(final))}</b>
+          {' · '}הנחה {Math.round((1 - final / original) * 100)}%
+        </>
+      ) : (
+        <>
+          <b>{formatILS(Math.round(final))}</b> בלי הנחה מוצגת — למילוי עוגן: "מחיר לפני הנחה" או הנחה %.
+        </>
+      )}
     </div>
   );
 }
@@ -1004,6 +1213,27 @@ function PlanHint({ item }: { item: QuotationItem }) {
           {formatILS(Math.round(p.ongoingPerMonth))} לחודש
         </div>
       )}
+    </div>
+  );
+}
+
+// כרטיס מתקפל — הסעיפים המשניים מתחילים סגורים עם שורת סיכום בכותרת, כדי
+// שהמסך יתמקד בעיקר: נמען, שירותים ופריסת תשלומים. לחיצה על הכותרת פותחת.
+function Section({ icon, title, summary, defaultOpen = false, children }: {
+  icon: string; title: string; summary?: string; defaultOpen?: boolean; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={card}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'start' }}>
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--gray-800, inherit)', flex: 1 }}>{icon} {title}</span>
+        {!open && summary ? (
+          <span style={{ fontSize: 11.5, color: 'var(--gray-500)', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>
+        ) : null}
+        <span style={{ color: 'var(--gray-400)', fontSize: 10 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && <div style={{ marginTop: 12 }}>{children}</div>}
     </div>
   );
 }

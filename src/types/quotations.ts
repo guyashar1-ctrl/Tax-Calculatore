@@ -150,6 +150,9 @@ export interface QuotationItem {
   catalogPrice: number;       // המחיר בקטלוג ברגע ההוספה — לתיעוד הנחות
   clientPrice: number;        // מחיר ליחידה אחרי דריסה ידנית (לפני הנחה)
   discountPercent?: number;
+  // "מחיר לפני הנחה" שהרו"ח קובע במפורש — העוגן שמוצג מחוק ללקוח. דורס את
+  // החישוב האוטומטי מהקטלוג. ליחידה, באותה סקאלה של clientPrice (לתשלום).
+  displayFullPrice?: number;
   vatFlag: boolean;
   // ─── פריסת תשלומים (רלוונטי רק לשורה חודשית) ───
   // clientPrice נשאר תמיד הסכום של תשלום בודד, גם כשמתמחרים לפי מחיר שנתי.
@@ -246,6 +249,9 @@ export interface Quotation {
   sentAt?: string;
   firstViewedAt?: string;
   approvedAt?: string;
+  // חתימת הלקוח שניתנה באישור — PNG dataURL + שם החותם, נשמרות כראיה
+  approvalSignature?: string;
+  approvalSignerName?: string;
   cancelledAt?: string;
   snapshot?: QuotationSnapshot;
   events: QuotationEvent[];

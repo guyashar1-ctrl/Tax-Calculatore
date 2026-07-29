@@ -3,13 +3,15 @@
 // כל הצבעים/פינות/כותרת/כפתור/פונט מגיעים מ-brand (טוקני עיצוב) — כך שהסטודיו
 // שולט במראה בזמן אמת בלי לגעת בקוד.
 
+import { useState } from 'react';
 import type { QuotationItem, ServiceCategory, FutureService } from '../../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../../types/quotations';
 import type { QuotationBrand } from './quotationBranding';
 import {
-  calcTotals, itemFinalPrice, formatILS, itemDisplayName,
+  calcTotals, itemFinalPrice, itemOriginalPrice, formatILS, itemDisplayName,
   monthlyPlan, formatMonth, formatMonthRange,
 } from '../../utils/quotationCalc';
+import SignaturePad from '../SignaturePad';
 
 export interface QuotationWebViewData {
   quotationNumber: string;
@@ -22,13 +24,19 @@ export interface QuotationWebViewData {
   expiresAt?: string;
 }
 
+// חתימת הלקוח שמאשרת את ההצעה — נשלחת יחד עם האישור ונשמרת כראיה
+export interface ApprovalSignature {
+  signatureDataUrl: string;
+  signerName: string;
+}
+
 interface Props {
   data: QuotationWebViewData;
   brand: QuotationBrand;
   compact?: boolean;
   interactive?: boolean;
   status?: string;
-  onApprove?: () => void;
+  onApprove?: (sig: ApprovalSignature) => void;
   approving?: boolean;
   onDownloadPdf?: () => void;
 }
@@ -44,6 +52,8 @@ export default function QuotationWebView({
   data, brand, compact, interactive, status, onApprove, approving, onDownloadPdf,
 }: Props) {
   const totals = calcTotals(data.items, data.vatRate);
+  const [signature, setSignature] = useState('');
+  const [signerName, setSignerName] = useState('');
   const pad = compact ? 22 : 44;
   const maxW = compact ? '100%' : 640;
   const cardRadius = brand.radius + 4;
@@ -173,8 +183,23 @@ export default function QuotationWebView({
               {totals.oneTime.withVat > 0 && <PriceBlock brand={brand} label="חד־פעמי" t={totals.oneTime} vatRate={data.vatRate} suffix="" compact={compact} />}
               {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>—</div>}
             </div>
+            {(() => {
+              // סך ההטבה — כל תדירות בסקאלה שלה, בלי לאחד למספר אחד מטעה
+              const parts = [
+                totals.monthly.discount >= 1 ? `${formatILS(Math.round(totals.monthly.discount))} בכל חודש` : '',
+                totals.annual.discount >= 1 ? `${formatILS(Math.round(totals.annual.discount))} בשנה` : '',
+                totals.oneTime.discount >= 1 ? `${formatILS(Math.round(totals.oneTime.discount))} חד־פעמי` : '',
+              ].filter(Boolean);
+              if (parts.length === 0) return null;
+              return (
+                <div style={{ marginTop: 14, background: 'rgba(16,185,129,.12)', border: '1px solid rgba(16,185,129,.3)', color: '#047857', borderRadius: brand.radius, padding: '12px 16px', fontSize: compact ? 13.5 : 14.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: compact ? 18 : 20 }}>🎁</span>
+                  <span>החיסכון שלך בהצעה הזו: {parts.join(' · ')} <span style={{ fontWeight: 400, fontSize: 11.5 }}>(לפני מע״מ)</span></span>
+                </div>
+              );
+            })()}
             <div style={{ marginTop: 14, fontSize: 11.5, color: brand.muted, lineHeight: 1.6 }}>
-              חיובים חודשיים, שנתיים וחד־פעמיים מוצגים בנפרד ואינם מאוחדים.
+              חיובים חודשיים, שנתיים וחד־פעמיים מוצגים בנפרד ואינם מאוחדים. כל הסכומים הסופיים כוללים מע״מ.
             </div>
           </div>
 
@@ -222,17 +247,38 @@ export default function QuotationWebView({
             </ol>
           </div>
 
-          {/* אישור */}
+          {/* אישור + חתימה */}
           <div style={{ padding: pad, background: brand.ink }}>
             <div style={{ color: '#fff', fontSize: compact ? 16 : 19, fontWeight: 600, marginBottom: 4 }}>מוכנים להתחיל?</div>
             <div style={{ color: 'rgba(255,255,255,.68)', fontSize: 13, marginBottom: 16 }}>
-              {expiryLabel ? `ההצעה בתוקף עד ${expiryLabel}.` : 'לאישור ההצעה — לחיצה אחת.'}
+              {expiryLabel ? `ההצעה בתוקף עד ${expiryLabel}.` : 'חתימה קצרה — וההצעה מאושרת.'}
             </div>
+
+            {!isApproved && !isDead && (
+              <div style={{ background: '#fff', borderRadius: brand.radius + 2, padding: compact ? 14 : 18, marginBottom: 14, textAlign: 'start' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 10 }}>אישור וחתימה</div>
+                <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
+                  שם מלא של החותם
+                  <input
+                    value={signerName}
+                    onChange={e => setSignerName(e.target.value)}
+                    placeholder={data.recipientName}
+                    style={{ display: 'block', width: '100%', marginTop: 4, padding: '9px 11px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  />
+                </label>
+                <SignaturePad value={signature} onChange={setSignature} height={compact ? 110 : 140} />
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 8, lineHeight: 1.6 }}>
+                  החתימה מהווה אישור להצעת המחיר ולתנאיה כפי שמפורטים בעמוד זה.
+                </div>
+              </div>
+            )}
+
             <ApproveButton
               brand={brand} compact={compact}
               isApproved={isApproved} isDead={isDead} approving={approving}
-              enabled={!!interactive && !isApproved && !isDead && !approving}
-              onClick={onApprove}
+              enabled={!!interactive && !isApproved && !isDead && !approving && !!signature}
+              needsSignature={!isApproved && !isDead && !signature}
+              onClick={() => onApprove?.({ signatureDataUrl: signature, signerName: (signerName.trim() || data.recipientName).trim() })}
             />
             {onDownloadPdf && (
               <button onClick={onDownloadPdf} style={{ width: '100%', marginTop: 10, padding: '11px', borderRadius: brand.buttonStyle === 'pill' ? 999 : brand.radius, border: '1px solid rgba(255,255,255,.28)', background: 'transparent', color: '#fff', fontSize: 13.5, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer' }}>
@@ -255,16 +301,16 @@ export default function QuotationWebView({
   );
 }
 
-function ApproveButton({ brand, compact, isApproved, isDead, approving, enabled, onClick }: {
-  brand: QuotationBrand; compact?: boolean; isApproved: boolean; isDead: boolean; approving?: boolean; enabled: boolean; onClick?: () => void;
+function ApproveButton({ brand, compact, isApproved, isDead, approving, enabled, needsSignature, onClick }: {
+  brand: QuotationBrand; compact?: boolean; isApproved: boolean; isDead: boolean; approving?: boolean; enabled: boolean; needsSignature?: boolean; onClick?: () => void;
 }) {
   const radius = brand.buttonStyle === 'pill' ? 999 : brand.radius;
   const base: React.CSSProperties = {
     width: '100%', padding: compact ? '13px' : '15px', borderRadius: radius,
     fontSize: compact ? 15 : 16, fontWeight: 700, fontFamily: 'inherit',
-    cursor: enabled ? 'pointer' : 'default', opacity: isDead ? .5 : 1,
+    cursor: enabled ? 'pointer' : 'default', opacity: isDead ? .5 : needsSignature ? .65 : 1,
   };
-  const label = isApproved ? '✓ ההצעה אושרה' : approving ? 'מאשר…' : 'אישור ההצעה';
+  const label = isApproved ? '✓ ההצעה אושרה' : approving ? 'מאשר…' : needsSignature ? 'חתמו למעלה כדי לאשר' : 'חתימה ואישור ההצעה';
   const style: React.CSSProperties = isApproved
     ? { ...base, background: '#10b981', color: '#fff', border: 'none' }
     : brand.buttonStyle === 'outline'
@@ -283,6 +329,10 @@ function SectionLabel({ children, brand }: { children: React.ReactNode; brand: Q
 
 function ServiceCard({ item, brand, compact }: { item: QuotationItem; brand: QuotationBrand; compact?: boolean }) {
   const finalBeforeVat = itemFinalPrice(item);
+  const original = itemOriginalPrice(item);
+  // עוגן מחיר: מציגים את המחיר המלא מחוק לצד המחיר שאחרי ההנחה
+  const hasDiscount = original - finalBeforeVat >= 1;
+  const discountPct = hasDiscount ? Math.round((1 - finalBeforeVat / original) * 100) : 0;
   const perUnit = item.billingType === 'per_unit';
   return (
     <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: compact ? 14 : 16, display: 'flex', gap: 12, alignItems: 'flex-start', background: brand.cardBg }}>
@@ -295,8 +345,21 @@ function ServiceCard({ item, brand, compact }: { item: QuotationItem; brand: Quo
           {perUnit && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}
         </div>
       </div>
+      {/* סדר קריאה קבוע: מחיר מלא מחוק ← תגית הנחה ← מחיר סופי גדול */}
       <div style={{ textAlign: 'end', whiteSpace: 'nowrap' }}>
-        <div style={{ fontSize: compact ? 15 : 16.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: brand.ink }}>{formatILS(Math.round(finalBeforeVat))}</div>
+        {hasDiscount && (
+          <>
+            <div style={{ fontSize: 13, color: brand.muted, textDecoration: 'line-through', textDecorationColor: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>
+              {formatILS(Math.round(original))}
+            </div>
+            <div style={{ display: 'inline-block', margin: '3px 0', background: 'rgba(16,185,129,.12)', color: '#047857', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 800 }}>
+              הנחה {discountPct}%
+            </div>
+          </>
+        )}
+        <div style={{ fontSize: compact ? 17 : 19, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: hasDiscount ? '#047857' : brand.ink, letterSpacing: '-.01em' }}>
+          {formatILS(Math.round(finalBeforeVat))}
+        </div>
         <div style={{ fontSize: 10.5, color: brand.muted }}>{item.vatFlag ? '+ מע״מ' : 'ללא מע״מ'}</div>
       </div>
     </div>
@@ -334,32 +397,73 @@ function MonthlyTerms({ data, totals, brand }: {
   );
 }
 
-// סיכום לפי תדירות — לפני מע"מ, מע"מ בנפרד, וסה"כ לתשלום
+// עוגן התנהגותי בסדר קבוע ובלתי ניתן לפספוס: מחיר מלא (מחוק) ← הנחה (שורה
+// ירוקה בולטת) ← מחיר אחרי הנחה ← מע"מ ← "סה״כ לתשלום" ענק על רקע צבע המותג.
+// ההנחה צריכה להרגיש כמו רווח של הלקוח, והמחיר הסופי — כמו השורה התחתונה.
 function PriceBlock({ label, t, vatRate, suffix, brand, compact, footnote }: {
-  label: string; t: { beforeVat: number; vat: number; withVat: number }; vatRate: number; suffix: string; brand: QuotationBrand; compact?: boolean;
+  label: string; t: { fullBeforeVat: number; discount: number; beforeVat: number; vat: number; withVat: number };
+  vatRate: number; suffix: string; brand: QuotationBrand; compact?: boolean;
   footnote?: React.ReactNode;
 }) {
-  const line = (l: string, v: number, strong?: boolean) => (
-    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '3px 0' }}>
-      <span style={{ fontSize: strong ? 14 : 12.5, color: strong ? brand.ink : brand.muted, fontWeight: strong ? 600 : 400 }}>{l}</span>
-      <span style={{ fontSize: strong ? (compact ? 16 : 17.5) : 12.5, fontWeight: strong ? 700 : 500, color: strong ? brand.accent : brand.muted, fontVariantNumeric: 'tabular-nums' }}>
-        {formatILS(Math.round(v))}
-      </span>
-    </div>
-  );
+  const hasDiscount = t.discount >= 1;
+  const pct = hasDiscount ? Math.round((t.discount / t.fullBeforeVat) * 100) : 0;
   return (
-    <div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: brand.ink, marginBottom: 4 }}>{label}</div>
-      <div style={{ borderTop: `1px solid ${brand.border}`, paddingTop: 6 }}>
-        {line('לפני מע״מ', t.beforeVat)}
-        {line(`מע״מ (${vatRate}%)`, t.vat)}
-        <div style={{ borderTop: `1px solid ${brand.border}`, marginTop: 5, paddingTop: 5 }}>
-          {line(suffix ? `סה״כ ${suffix}` : 'סה״כ לתשלום', t.withVat, true)}
+    <div style={{ background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
+      <div style={{ padding: `${compact ? 10 : 12}px 16px 0`, fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', color: brand.muted }}>{label}</div>
+
+      <div style={{ padding: `6px 16px ${compact ? 10 : 12}px` }}>
+        {hasDiscount && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0' }}>
+              <span style={{ fontSize: 13, color: brand.muted }}>מחיר מלא</span>
+              <span style={{ fontSize: 15, color: brand.muted, textDecoration: 'line-through', textDecorationColor: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>
+                {formatILS(Math.round(t.fullBeforeVat))}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16,185,129,.1)', borderRadius: 8, padding: '6px 10px', margin: '3px -10px' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#047857' }}>🎁 הנחה {pct}%</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>−{formatILS(Math.round(t.discount))}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 2px' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: brand.ink }}>מחיר אחרי הנחה</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.beforeVat))}</span>
+            </div>
+          </>
+        )}
+        {!hasDiscount && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0' }}>
+            <span style={{ fontSize: 13, color: brand.muted }}>מחיר</span>
+            <span style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.beforeVat))}</span>
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '2px 0' }}>
+          <span style={{ fontSize: 12, color: brand.muted }}>+ מע״מ ({vatRate}%)</span>
+          <span style={{ fontSize: 12.5, color: brand.muted, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.vat))}</span>
         </div>
-        {footnote}
       </div>
+
+      {/* השורה התחתונה — הכי גדולה בעמוד, על רקע צבע המותג */}
+      <div style={{ background: alpha(brand.accent, .1), borderTop: `1.5px solid ${alpha(brand.accent, .35)}`, padding: `${compact ? 10 : 12}px 16px`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+        <div>
+          <div style={{ fontSize: compact ? 13.5 : 14.5, fontWeight: 700, color: brand.ink }}>סה״כ לתשלום{suffix ? ` ${suffix}` : ''}</div>
+          <div style={{ fontSize: 10.5, color: brand.muted }}>כולל מע״מ</div>
+        </div>
+        <div style={{ fontSize: compact ? 22 : 26, fontWeight: 800, color: brand.accent, fontVariantNumeric: 'tabular-nums', letterSpacing: '-.01em' }}>
+          {formatILS(Math.round(t.withVat))}
+        </div>
+      </div>
+
+      {footnote && <div style={{ padding: `0 16px ${compact ? 10 : 12}px` }}>{footnote}</div>}
     </div>
   );
+}
+
+// גוון שקוף של צבע המותג — לרקע שורת הסה"כ
+function alpha(hex: string, a: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
 // גוון עדין כהה יותר מרקע העמוד — לאזור הסיכום
