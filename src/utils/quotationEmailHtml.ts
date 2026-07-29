@@ -71,9 +71,10 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
     if (totals.monthly.withVat <= 0 || (!totals.hasPartialTerm && !totals.changesAfterPeriod)) return '';
     const first = data.items.filter(i => i.category === 'monthly').map(monthlyPlan)[0];
     const parts: string[] = [];
+    // בלי סה"כ לתקופה — סכום מצטבר רק מגדיל את המספר בראש של הלקוח
     if (totals.hasPartialTerm && totals.installments) {
       const range = first ? formatMonthRange(first.startMonth, first.endMonth) : '';
-      parts.push(`${totals.installments} תשלומים${range ? ` (${range})` : ''} · סה״כ ${formatILS(Math.round(totals.monthlyPeriod.withVat))}`);
+      parts.push(`${totals.installments} תשלומים${range ? ` (${range})` : ''}`);
     }
     if (totals.changesAfterPeriod) {
       const from = first?.nextMonth ? `החל מ${formatMonth(first.nextMonth)}` : 'לאחר מכן';

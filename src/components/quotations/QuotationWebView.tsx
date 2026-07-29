@@ -380,11 +380,11 @@ function MonthlyTerms({ data, totals, brand }: {
 
   return (
     <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${brand.border}`, fontSize: 12.5, color: brand.muted, lineHeight: 1.65 }}>
+      {/* בלי סה"כ לתקופה — סכום שנתי מצטבר רק מגדיל את המספר בראש של הלקוח */}
       {totals.hasPartialTerm && totals.installments && (
         <div>
           <b style={{ color: brand.ink }}>{totals.installments} תשלומים</b>
           {range ? ` · ${range}` : ''}
-          {' · '}סה״כ {formatILS(Math.round(totals.monthlyPeriod.withVat))}
         </div>
       )}
       {totals.changesAfterPeriod && (

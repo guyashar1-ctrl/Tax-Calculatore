@@ -20,6 +20,12 @@ export interface QuotationPdfData {
   vatRate: number;
   notesForClient?: string;
   expiresAt?: string;
+  // כשההצעה אושרה ונחתמה — ה-PDF כולל את החתימה והופך להסכם התקשרות
+  approval?: {
+    signatureDataUrl?: string;
+    signerName?: string;
+    approvedAt?: string;
+  };
 }
 
 const A4 = { w: 595.28, h: 841.89 };
@@ -173,9 +179,36 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     y -= 6;
   }
 
+  // ── אישור וחתימת הלקוח — הופך את המסמך להסכם התקשרות ──
+  if (data.approval && (data.approval.signatureDataUrl || data.approval.signerName)) {
+    ensureSpace(60);
+    sectionLine('אישור וחתימת הלקוח');
+    const when = data.approval.approvedAt
+      ? new Date(data.approval.approvedAt).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
+    rtl(
+      `ההצעה אושרה ונחתמה${data.approval.signerName ? ` על ידי ${data.approval.signerName}` : ''}${when ? ` בתאריך ${when}` : ''}.`,
+      10.5, bodyGray, y,
+    );
+    y -= 16;
+    rtl('מסמך זה, בצירוף החתימה, מהווה הסכם התקשרות בין הצדדים.', 9, gray, y);
+    y -= 18;
+    if (data.approval.signatureDataUrl) {
+      try {
+        const png = await doc.embedPng(data.approval.signatureDataUrl);
+        const w = 150;
+        const h = (png.height / png.width) * w;
+        ensureSpace(h + 12);
+        page.drawRectangle({ x: RIGHT - w - 10, y: y - h - 8, width: w + 20, height: h + 16, borderColor: lineGray, borderWidth: 0.8 });
+        page.drawImage(png, { x: RIGHT - w, y: y - h, width: w, height: h });
+        y -= h + 22;
+      } catch { /* חתימה שאינה PNG תקין — הטקסט לבדו מתעד את האישור */ }
+    }
+  }
+
   // ── תוקף + פרטי קשר בתחתית ──
   ensureSpace(46);
-  if (data.expiresAt) {
+  if (data.expiresAt && !data.approval) {
     const d = new Date(data.expiresAt).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
     rtl(`ההצעה בתוקף עד ${d}.`, 9.5, gray, y);
     y -= 20;
@@ -199,9 +232,10 @@ function monthlyTermLines(data: QuotationPdfData, totals: ReturnType<typeof calc
   if (!totals.hasPartialTerm && !totals.changesAfterPeriod) return [];
   const first = data.items.filter(i => i.category === 'monthly').map(monthlyPlan)[0];
   const out: string[] = [];
+  // בלי סה"כ לתקופה — סכום מצטבר רק מגדיל את המספר בראש של הלקוח
   if (totals.hasPartialTerm && totals.installments) {
     const range = first ? formatMonthRange(first.startMonth, first.endMonth) : '';
-    out.push(`${totals.installments} תשלומים${range ? ` · ${range}` : ''} · סה״כ ${money(totals.monthlyPeriod.withVat)}`);
+    out.push(`${totals.installments} תשלומים${range ? ` · ${range}` : ''}`);
   }
   if (totals.changesAfterPeriod) {
     const from = first?.nextMonth ? `החל מ${formatMonth(first.nextMonth)}` : 'לאחר מכן';

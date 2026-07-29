@@ -26,6 +26,7 @@ export type DocCategory =
   | 'business_document'    // מסמך עסקי
   | 'tax_assessment'       // שומת מס
   | 'ni_document'          // מסמך ביטוח לאומי
+  | 'engagement_contract'  // הסכם התקשרות (הצעת מחיר חתומה)
   | 'other';               // אחר
 
 export const DOC_CATEGORY_LABELS: Record<DocCategory, string> = {
@@ -38,6 +39,7 @@ export const DOC_CATEGORY_LABELS: Record<DocCategory, string> = {
   business_document: 'מסמך עסקי',
   tax_assessment: 'שומת מס',
   ni_document: 'מסמך ביטוח לאומי',
+  engagement_contract: 'הסכם התקשרות',
   other: 'אחר',
 };
 

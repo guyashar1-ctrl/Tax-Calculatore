@@ -23,6 +23,7 @@ const CATEGORY_COLORS: Record<DocCategory, CatPalette> = {
   business_document:     { fg: 'var(--chip-violet-tx)', bg: 'var(--chip-violet-bg)', bd: 'var(--chip-violet-bd)' },
   tax_assessment:        { fg: 'var(--chip-pink-tx)',   bg: 'var(--chip-pink-bg)',   bd: 'var(--chip-pink-bd)' },
   ni_document:           { fg: 'var(--chip-teal-tx)',   bg: 'var(--chip-teal-bg)',   bd: 'var(--chip-teal-bd)' },
+  engagement_contract:   { fg: 'var(--chip-green-tx)',  bg: 'var(--chip-green-bg)',  bd: 'var(--chip-green-bd)' },
   other:                 { fg: 'var(--chip-slate-tx)',  bg: 'var(--chip-slate-bg)',  bd: 'var(--chip-slate-bd)' },
 };
 

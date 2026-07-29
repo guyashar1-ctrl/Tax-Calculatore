@@ -37,6 +37,7 @@ import QuotationBuilder, { type SaveDraftPayload } from './components/quotations
 import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
+import { generateQuotationPdf } from './utils/quotationPdf';
 import type { Quotation } from './types/quotations';
 import FirmProfileConsole from './components/FirmProfileConsole';
 import type { FirmProfile } from './types/firmProfile';
@@ -992,8 +993,51 @@ export default function App() {
         ...q, clientId: res.clientId,
         events: [...q.events, { type: 'lead_converted', at: new Date().toISOString() }],
       });
+      await saveEngagementContract(q, res.clientId);
     }
     return res;
+  }
+
+  /**
+   * ההצעה החתומה נשמרת כ"הסכם התקשרות" במסמכי הלקוח החדש — PDF שכולל את חתימת
+   * הלקוח, שם החותם ומועד האישור. כישלון כאן לא עוצר את ההמרה — ההסכם ניתן
+   * להורדה ידנית מטאב המעקב של ההצעה.
+   */
+  async function saveEngagementContract(q: Quotation, clientId: string) {
+    if (q.status !== 'approved') return;
+    try {
+      const snap = q.snapshot;
+      const bytes = await generateQuotationPdf({
+        quotationNumber: q.quotationNumber,
+        recipientName: snap?.recipientName ?? '',
+        businessName: snap?.businessName,
+        items: snap?.items ?? q.items,
+        futureServices: snap?.futureServices ?? q.futureServices,
+        vatRate: snap?.vatRate ?? q.vatRate,
+        notesForClient: snap?.notesForClient ?? q.notesForClient,
+        approval: {
+          signatureDataUrl: q.approvalSignature,
+          signerName: q.approvalSignerName,
+          approvedAt: q.approvedAt,
+        },
+      }, deriveQuotationBrand(firmProfile));
+      await db.saveDoc({
+        id: `engagement-${q.id}`,
+        clientId,
+        fileName: `הסכם התקשרות — הצעה ${q.quotationNumber}.pdf`,
+        fileType: 'application/pdf',
+        fileSize: bytes.byteLength,
+        category: 'engagement_contract',
+        year: 'general',
+        uploadedAt: new Date().toISOString(),
+        description: `הצעת מחיר ${q.quotationNumber} שאושרה ונחתמה${q.approvalSignerName ? ` על ידי ${q.approvalSignerName}` : ''} — נשמרה אוטומטית עם פתיחת הלקוח`,
+        notes: '',
+        fileData: bytes.slice().buffer,
+      });
+    } catch (e) {
+      // ההמרה עצמה הצליחה — רק שמירת ההסכם נכשלה; לא חוסמים את הזרימה
+      console.warn('שמירת הסכם ההתקשרות במסמכי הלקוח נכשלה:', e);
+    }
   }
 
   const breadcrumb =
