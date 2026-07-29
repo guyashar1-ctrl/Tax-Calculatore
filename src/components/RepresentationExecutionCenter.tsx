@@ -10,6 +10,7 @@ import { useState } from 'react';
 import {
   RepresentationRequest,
   RepresentationExecution,
+  NiTracking,
   NI_APPROVAL_PHONE,
 } from '../types';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
@@ -21,6 +22,8 @@ interface Props {
   request: RepresentationRequest;
   /** האם התבקש ייצוג בביטוח לאומי — נגזר ממרשם הייצוג של הלקוח. */
   niIncluded: boolean;
+  /** הייצוג בב"ל נלקח גם לבן/בת הזוג — שני מסלולים, שתי אסמכתאות. */
+  niCoversSpouse?: boolean;
   onSaveExecution: (execution: RepresentationExecution) => Promise<void> | void;
   /** פותח את עורך הפקת הטופס — העלאת PDF של ייפוי הכוח וסימון אזורי החתימה. */
   onProduce: () => void;
@@ -111,13 +114,12 @@ function Track({ title, subtitle, done, total, tone, children }: {
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId }: Props) {
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
+  const niSpouse = exec.nationalInsuranceSpouse || {};
 
-  const [refNumber, setRefNumber] = useState(ni.referenceNumber || '');
-  const [deadline, setDeadline] = useState(ni.deadline || '');
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
@@ -129,9 +131,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
   const formReady = !!request.signatureSetup || signed;
   // ה-PDF הסופי (חתימות + חותמת המשרד) נוצר ונשמר
   const stamped = !!request.signedPdfStoredId || sentToShaam;
-  const sentWithSignature = ni.instructionsSentWith === 'signature';
-  // בלי אסמכתא המייל ייצא בלי חלק הב"ל, והלקוח יזדקק למייל שני
-  const niRefMissing = niIncluded && !ni.referenceNumber;
+  // בלי אסמכתא המייל ייצא בלי חלק הב"ל, והמבוטח יזדקק למייל שני. כשגם בן/בת
+  // הזוג מיוצג — חסרה אסמכתא אחת מספיקה כדי לעצור, אחרת אחד מהם יקבל מייל חסר.
+  const niRefMissing = niIncluded && (!ni.referenceNumber || (!!niCoversSpouse && !niSpouse.referenceNumber));
 
   // המיילים של הבקשה — מוצגים בתוך השלב שהם שייכים אליו
   const { messages, reload: reloadEmails } = useEmailMessages(userId);
@@ -152,12 +154,17 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
       return;
     }
     const now = new Date().toISOString();
+    // כל מבוטח מקבל את האסמכתא שלו במייל האישי שלו, ולכן מסמנים "ההוראות יצאו"
+    // בנפרד לכל מסלול — אחרת מסלול אחד ייראה שהושלם בזכות המייל של השני.
+    const stampSent = (t: NiTracking): NiTracking =>
+      t.referenceNumber && !t.instructionsSentAt
+        ? { ...t, instructionsSentAt: now, instructionsSentWith: 'signature' as const }
+        : t;
     await onSaveExecution({
       ...exec,
       signatureEmailSentAt: now,
-      ...(niIncluded && ni.referenceNumber && !ni.instructionsSentAt
-        ? { nationalInsurance: { ...ni, instructionsSentAt: now, instructionsSentWith: 'signature' as const } }
-        : {}),
+      ...(niIncluded ? { nationalInsurance: stampSent(ni) } : {}),
+      ...(niIncluded && niCoversSpouse ? { nationalInsuranceSpouse: stampSent(niSpouse) } : {}),
     });
     setNote({ kind: 'ok', text: `נשלח ל-${pendingSigners.map(s => s.email).join(', ')}` });
     setBusy(null);
@@ -185,18 +192,18 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
     }
   }
 
-  const patchNi = (p: Partial<NonNullable<RepresentationExecution['nationalInsurance']>>, label: string) =>
-    patch({ ...exec, nationalInsurance: { ...ni, ...p } }, label);
-
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
   const itSteps = [!!it.enteredAt, formReady, !!exec.signatureEmailSentAt, signed, stamped, sentToShaam, status === 'active'];
-  const niSteps = [!!ni.enteredAt, !!ni.referenceNumber, !!ni.instructionsSentAt, !!ni.confirmedAt];
 
-  const dLeft = daysUntil(ni.deadline);
-  const deadlineTone = dLeft === null ? null
-    : dLeft < 0 ? { bg: 'var(--red-light)', fg: 'var(--red)', text: `⚠ המועד עבר לפני ${Math.abs(dLeft)} ימים — יש להזין מחדש בב"ל` }
-    : dLeft <= 14 ? { bg: 'var(--orange-light)', fg: 'var(--gray-800)', text: `⏳ נותרו ${dLeft} ימים לאישור הלקוח` }
-    : { bg: 'var(--gray-50)', fg: 'var(--gray-600)', text: `נותרו ${dLeft} ימים לאישור` };
+  // שמות המבוטחים לכותרות המסלולים — כשיש שניים, "ביטוח לאומי" לבדו לא מספיק
+  const nameOf = (role: 'client' | 'spouse') =>
+    signers.find(s => s.role === role)?.name?.trim();
+  const clientNiTitle = niCoversSpouse ? `ב״ל — ${nameOf('client') || 'הנישום'}` : 'ביטוח לאומי';
+  // מי מבין השניים תקוע בלי אסמכתא — כדי שהחסימה תגיד לאן ללכת, ולא רק שנחסם
+  const missingRefFor = !niCoversSpouse ? '' : [
+    !ni.referenceNumber && (nameOf('client') || 'הנישום'),
+    !niSpouse.referenceNumber && (nameOf('spouse') || 'בן/בת הזוג'),
+  ].filter(Boolean).join(' ו-');
 
   return (
     <div id="rep-execution" className="card" style={{ marginBottom: '1rem' }}>
@@ -281,80 +288,29 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
           </Track>
 
           {/* ─────────── ביטוח לאומי ─────────── */}
+          {/* מסלול לכל מבוטח: בב"ל לכל אחד תיק ואסמכתא נפרדים, ואיחוד שלהם
+              לעמודה אחת היה מסתיר איזה מהשניים עדיין לא אושר. */}
           {niIncluded ? (
-            <Track
-              title="ביטוח לאומי"
-              subtitle="הזנה ידנית · הלקוח מאשר את האסמכתא"
-              done={niSteps.filter(Boolean).length}
-              total={niSteps.length}
-              tone="🛡"
-            >
-              <Step n={1} title="ייפוי הכוח הוזן באתר ב״ל" done={!!ni.enteredAt}
-                hint={ni.enteredAt ? `סומן ב-${fmt(ni.enteredAt)}` : 'מסך "הוספת ייפוי כח מבוטח" — ארבעת השדות מהבלוק שמעל'}>
-                {!ni.enteredAt && (
-                  <button className="btn btn-secondary btn-sm" disabled={busy === 'ni-entered'}
-                    onClick={() => patchNi({ enteredAt: new Date().toISOString() }, 'ni-entered')}>
-                    {busy === 'ni-entered' ? 'שומר…' : '✓ סמן כהוזן'}
-                  </button>
-                )}
-              </Step>
-
-              <Step n={2} title="מספר אסמכתא ומועד אחרון לאישור" done={!!ni.referenceNumber}
-                hint="ב״ל מציג אותם במסך שאחרי ההזנה">
-                <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                  <div style={{ flex: '1 1 130px' }}>
-                    <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>מספר אסמכתא</div>
-                    <input value={refNumber} dir="ltr" inputMode="numeric" placeholder="73882698"
-                      onChange={e => setRefNumber(e.target.value.replace(/\D/g, ''))}
-                      style={{ width: '100%', textAlign: 'left' }} />
-                  </div>
-                  <div style={{ flex: '1 1 130px' }}>
-                    <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>מועד אחרון</div>
-                    <input type="date" value={deadline} min={todayISO()}
-                      onChange={e => setDeadline(e.target.value)} style={{ width: '100%' }} />
-                  </div>
-                  <button className="btn btn-primary btn-sm" disabled={busy === 'ni-ref' || !refNumber.trim()}
-                    onClick={() => patchNi({ referenceNumber: refNumber.trim(), deadline: deadline || undefined }, 'ni-ref')}>
-                    {busy === 'ni-ref' ? 'שומר…' : 'שמירה'}
-                  </button>
-                </div>
-                {deadlineTone && (
-                  <div style={{ marginTop: '.45rem', padding: '.35rem .6rem', borderRadius: 'var(--radius)', background: deadlineTone.bg, color: deadlineTone.fg, fontSize: '.78rem' }}>
-                    {deadlineTone.text} {ni.deadline && `(${fmt(ni.deadline)})`}
-                  </div>
-                )}
-              </Step>
-
-              <Step n={3} title="ההוראות הגיעו ללקוח" done={sentWithSignature || !!ni.instructionsSentAt}
-                hint={
-                  sentWithSignature ? 'נכללו במייל בקשת החתימה — מייל אחד לשתי הפעולות'
-                  : ni.instructionsSentAt ? `נשלחו בנפרד ב-${fmt(ni.instructionsSentAt)}`
-                  : `יישלחו יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}`
-                }>
-                {/* ‼ אין כאן כפתור שליחה. ההוראות תמיד יוצאות עם מייל החתימה —
-                    שליחה נפרדת גורמת ללקוח לקבל שני מיילים על אותו תהליך. */}
-                {!signatureEmails.length && (
-                  <div style={{
-                    fontSize: '.78rem', lineHeight: 1.6, padding: '.45rem .6rem', borderRadius: 'var(--radius)',
-                    background: 'var(--gray-50)', color: 'var(--gray-600)',
-                  }}>
-                    {ni.referenceNumber
-                      ? 'ℹ האסמכתא נשמרה. היא תיכלל במייל שנשלח מהפס המשותף שמתחת.'
-                      : `ℹ ההוראות נשלחות יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}.`}
-                  </div>
-                )}
-              </Step>
-
-              <Step n={4} title="הלקוח אישר — הייצוג בב״ל פעיל" done={!!ni.confirmedAt}
-                hint={ni.confirmedAt ? `אושר ב-${fmt(ni.confirmedAt)}` : 'בדקו באתר ב״ל שהאישור נקלט'}>
-                {!ni.confirmedAt && (
-                  <button className="btn btn-secondary btn-sm" disabled={busy === 'ni-conf'}
-                    onClick={() => patchNi({ confirmedAt: new Date().toISOString() }, 'ni-conf')}>
-                    {busy === 'ni-conf' ? 'שומר…' : '✓ סמן כאושר'}
-                  </button>
-                )}
-              </Step>
-            </Track>
+            <>
+              <NiTrack
+                title={clientNiTitle}
+                ni={ni}
+                busy={busy}
+                busyPrefix="ni"
+                hasSignatureEmails={signatureEmails.length > 0}
+                onPatch={(p, label) => patch({ ...exec, nationalInsurance: { ...ni, ...p } }, label)}
+              />
+              {niCoversSpouse && (
+                <NiTrack
+                  title={`ב״ל — ${nameOf('spouse') || 'בן/בת הזוג'}`}
+                  ni={niSpouse}
+                  busy={busy}
+                  busyPrefix="nis"
+                  hasSignatureEmails={signatureEmails.length > 0}
+                  onPatch={(p, label) => patch({ ...exec, nationalInsuranceSpouse: { ...niSpouse, ...p } }, label)}
+                />
+              )}
+            </>
           ) : (
             <div style={{ flex: '1 1 320px', minWidth: 0, border: '1px dashed var(--gray-200)', borderRadius: 'var(--radius)', padding: '1rem', color: 'var(--gray-500)', fontSize: '.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
               🛡 לא התבקש ייצוג בביטוח לאומי עבור לקוח זה.
@@ -404,7 +360,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
               )}
               {niRefMissing && (
                 <div style={{ margin: '.55rem auto 0', maxWidth: 460, padding: '.45rem .6rem', background: 'var(--orange-light)', borderRadius: 'var(--radius)', fontSize: '.76rem', color: 'var(--gray-800)', lineHeight: 1.6 }}>
-                  ⚠ חסום עד להזנת מספר האסמכתא במשבצת הביטוח הלאומי — אחרת הלקוח יקבל מייל בלי חלק הב״ל.
+                  ⚠ חסום עד להזנת מספר האסמכתא{missingRefFor ? ` של ${missingRefFor}` : ''} במשבצת הביטוח הלאומי —
+                  אחרת {niCoversSpouse ? 'מי שחסרה לו אסמכתא יקבל מייל בלי חלק הב״ל' : 'הלקוח יקבל מייל בלי חלק הב״ל'}.
                 </div>
               )}
             </div>
@@ -431,5 +388,108 @@ export default function RepresentationExecutionCenter({ request, niIncluded, onS
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * מסלול הביטוח הלאומי של מבוטח אחד. בב"ל לכל אדם תיק נפרד, ולכן זוג שמיוצג
+ * בב"ל מקבל שני מסלולים כאלה — לכל אחד אסמכתא, מועד תפוגה ואישור משלו.
+ */
+function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
+  title: string;
+  ni: NiTracking;
+  busy: string | null;
+  /** מבדיל בין מצבי ה"שומר…" של שני המסלולים, שלא יידלקו יחד */
+  busyPrefix: string;
+  hasSignatureEmails: boolean;
+  onPatch: (p: Partial<NiTracking>, label: string) => void;
+}) {
+  const [refNumber, setRefNumber] = useState(ni.referenceNumber || '');
+  const [deadline, setDeadline] = useState(ni.deadline || '');
+
+  const steps = [!!ni.enteredAt, !!ni.referenceNumber, !!ni.instructionsSentAt, !!ni.confirmedAt];
+  const sentWithSignature = ni.instructionsSentWith === 'signature';
+  const k = (suffix: string) => `${busyPrefix}-${suffix}`;
+
+  const dLeft = daysUntil(ni.deadline);
+  const deadlineTone = dLeft === null ? null
+    : dLeft < 0 ? { bg: 'var(--red-light)', fg: 'var(--red)', text: `⚠ המועד עבר לפני ${Math.abs(dLeft)} ימים — יש להזין מחדש בב"ל` }
+    : dLeft <= 14 ? { bg: 'var(--orange-light)', fg: 'var(--gray-800)', text: `⏳ נותרו ${dLeft} ימים לאישור` }
+    : { bg: 'var(--gray-50)', fg: 'var(--gray-600)', text: `נותרו ${dLeft} ימים לאישור` };
+
+  return (
+    <Track
+      title={title}
+      subtitle="הזנה ידנית · המבוטח מאשר את האסמכתא"
+      done={steps.filter(Boolean).length}
+      total={steps.length}
+      tone="🛡"
+    >
+      <Step n={1} title="ייפוי הכוח הוזן באתר ב״ל" done={!!ni.enteredAt}
+        hint={ni.enteredAt ? `סומן ב-${fmt(ni.enteredAt)}` : 'מסך "הוספת ייפוי כח מבוטח" — ארבעת השדות מהבלוק שמעל'}>
+        {!ni.enteredAt && (
+          <button className="btn btn-secondary btn-sm" disabled={busy === k('entered')}
+            onClick={() => onPatch({ enteredAt: new Date().toISOString() }, k('entered'))}>
+            {busy === k('entered') ? 'שומר…' : '✓ סמן כהוזן'}
+          </button>
+        )}
+      </Step>
+
+      <Step n={2} title="מספר אסמכתא ומועד אחרון לאישור" done={!!ni.referenceNumber}
+        hint="ב״ל מציג אותם במסך שאחרי ההזנה">
+        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: '1 1 130px' }}>
+            <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>מספר אסמכתא</div>
+            <input value={refNumber} dir="ltr" inputMode="numeric" placeholder="73882698"
+              onChange={e => setRefNumber(e.target.value.replace(/\D/g, ''))}
+              style={{ width: '100%', textAlign: 'left' }} />
+          </div>
+          <div style={{ flex: '1 1 130px' }}>
+            <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>מועד אחרון</div>
+            <input type="date" value={deadline} min={todayISO()}
+              onChange={e => setDeadline(e.target.value)} style={{ width: '100%' }} />
+          </div>
+          <button className="btn btn-primary btn-sm" disabled={busy === k('ref') || !refNumber.trim()}
+            onClick={() => onPatch({ referenceNumber: refNumber.trim(), deadline: deadline || undefined }, k('ref'))}>
+            {busy === k('ref') ? 'שומר…' : 'שמירה'}
+          </button>
+        </div>
+        {deadlineTone && (
+          <div style={{ marginTop: '.45rem', padding: '.35rem .6rem', borderRadius: 'var(--radius)', background: deadlineTone.bg, color: deadlineTone.fg, fontSize: '.78rem' }}>
+            {deadlineTone.text} {ni.deadline && `(${fmt(ni.deadline)})`}
+          </div>
+        )}
+      </Step>
+
+      <Step n={3} title="ההוראות הגיעו למבוטח" done={sentWithSignature || !!ni.instructionsSentAt}
+        hint={
+          sentWithSignature ? 'נכללו במייל בקשת החתימה — מייל אחד לשתי הפעולות'
+          : ni.instructionsSentAt ? `נשלחו בנפרד ב-${fmt(ni.instructionsSentAt)}`
+          : `יישלחו יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}`
+        }>
+        {/* ‼ אין כאן כפתור שליחה. ההוראות תמיד יוצאות עם מייל החתימה —
+            שליחה נפרדת גורמת למבוטח לקבל שני מיילים על אותו תהליך. */}
+        {!hasSignatureEmails && (
+          <div style={{
+            fontSize: '.78rem', lineHeight: 1.6, padding: '.45rem .6rem', borderRadius: 'var(--radius)',
+            background: 'var(--gray-50)', color: 'var(--gray-600)',
+          }}>
+            {ni.referenceNumber
+              ? 'ℹ האסמכתא נשמרה. היא תיכלל במייל שנשלח מהפס המשותף שמתחת.'
+              : `ℹ ההוראות נשלחות יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}.`}
+          </div>
+        )}
+      </Step>
+
+      <Step n={4} title="אושר — הייצוג בב״ל פעיל" done={!!ni.confirmedAt}
+        hint={ni.confirmedAt ? `אושר ב-${fmt(ni.confirmedAt)}` : 'בדקו באתר ב״ל שהאישור נקלט'}>
+        {!ni.confirmedAt && (
+          <button className="btn btn-secondary btn-sm" disabled={busy === k('conf')}
+            onClick={() => onPatch({ confirmedAt: new Date().toISOString() }, k('conf'))}>
+            {busy === k('conf') ? 'שומר…' : '✓ סמן כאושר'}
+          </button>
+        )}
+      </Step>
+    </Track>
   );
 }

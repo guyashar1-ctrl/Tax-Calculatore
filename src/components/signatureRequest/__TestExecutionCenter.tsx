@@ -20,7 +20,8 @@ const BASE: RepresentationRequest = {
   createdAt: '2026-07-01T08:00:00.000Z',
   linkedClientId: 'client-1',
   signers: [
-    { id: 'client', source: 'client_self', name: 'רותי לקוח', email: 'ruti@example.com', order: 1, signStatus: 'pending' },
+    { id: 'client', role: 'client', source: 'client_self', name: 'רותי לקוח', email: 'ruti@example.com', order: 1, signStatus: 'pending' },
+    { id: 'spouse', role: 'spouse', source: 'spouse', name: 'דני לקוח', email: 'dani@example.com', order: 2, signStatus: 'pending' },
   ],
 } as unknown as RepresentationRequest;
 
@@ -57,6 +58,7 @@ const SCENARIOS: Scenario[] = [
 export default function TestExecutionCenter() {
   const [key, setKey] = useState('ready');
   const [niIncluded, setNiIncluded] = useState(true);
+  const [niSpouse, setNiSpouse] = useState(false);
   const sc = SCENARIOS.find(s => s.key === key)!;
 
   return (
@@ -71,11 +73,15 @@ export default function TestExecutionCenter() {
         <button className="btn btn-secondary btn-sm" onClick={() => setNiIncluded(v => !v)}>
           ב״ל: {niIncluded ? 'כן' : 'לא'}
         </button>
+        <button className="btn btn-secondary btn-sm" onClick={() => setNiSpouse(v => !v)}>
+          ב״ל גם לבן/בת הזוג: {niSpouse ? 'כן' : 'לא'}
+        </button>
       </div>
       <RepresentationExecutionCenter
-        key={`${key}-${niIncluded}`}
+        key={`${key}-${niIncluded}-${niSpouse}`}
         request={sc.req}
         niIncluded={niIncluded}
+        niCoversSpouse={niSpouse}
         onSaveExecution={() => {}}
         onProduce={() => {}}
         onStamp={() => {}}

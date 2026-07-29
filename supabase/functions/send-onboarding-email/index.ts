@@ -126,6 +126,9 @@ Deno.serve(async (req: Request) => {
       toEmail = reqRow.client_email;
       clientFirst = String(reqRow.client_name || "").trim().split(/\s+/)[0] || "";
     }
+    // ‼ בב"ל לכל מבוטח תיק ואסמכתא נפרדים. כשגם בן/בת הזוג מיוצג, המייל של כל
+    //   אחד חייב לשאת את האסמכתא שלו — אסמכתא של השני פשוט לא תאשר לו כלום.
+    let niKey: "nationalInsurance" | "nationalInsuranceSpouse" = "nationalInsurance";
     if (stage === "sign" && signerId) {
       const signers: any[] = Array.isArray(reqRow.signers) ? reqRow.signers : [];
       const signer = signers.find((s) => s?.id === signerId);
@@ -133,6 +136,7 @@ Deno.serve(async (req: Request) => {
       link = `${APP_URL}/?sign=${signer.signToken}`;
       toEmail = signer.email;
       clientFirst = String(signer.name || "").trim().split(/\s+/)[0] || clientFirst;
+      if (signer.role === "spouse") niKey = "nationalInsuranceSpouse";
     }
 
     const f = "Arial, sans-serif";
@@ -184,7 +188,7 @@ Deno.serve(async (req: Request) => {
     const niBlock = (ni: any): string =>
       `<tr><td dir="rtl" align="right" style="text-align:right;padding:6px 40px 0;">${niCardInner(ni)}</td></tr>`;
 
-    const niData = (reqRow?.execution || {}).nationalInsurance || {};
+    const niData = (reqRow?.execution || {})[niKey] || {};
     let extraHtml: string | undefined;
     let ctaHref = link;
     let ctaLabel: string | undefined;

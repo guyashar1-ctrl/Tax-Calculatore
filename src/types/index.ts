@@ -822,6 +822,25 @@ export interface OnboardingIdentification {
  * מספר אסמכתא עם מועד תפוגה, והלקוח הוא זה שמאשר אותו מול הביטוח הלאומי.
  * כל שדה תאריך = "בוצע ומתי". ריק = טרם בוצע.
  */
+/**
+ * מעקב ייפוי כוח בביטוח לאומי של אדם אחד. בב"ל לכל מבוטח תיק נפרד, ולכן זוג
+ * נשוי שמיוצג בב"ל מקבל שתי אסמכתאות — כל אחד מאשר את שלו בנפרד.
+ */
+export interface NiTracking {
+  /** ייפוי הכוח הוזן באתר הביטוח הלאומי */
+  enteredAt?: string;
+  /** מספר האסמכתא שהביטוח הלאומי הנפיק — המבוטח מאשר באמצעותו */
+  referenceNumber?: string;
+  /** המועד האחרון לאישור הטופס (YYYY-MM-DD). אחריו האסמכתא פגה. */
+  deadline?: string;
+  /** נשלחו למבוטח הוראות האישור */
+  instructionsSentAt?: string;
+  /** איך הן הגיעו: יחד עם בקשת החתימה (רצוי), או במייל נפרד (השלמה בדיעבד). */
+  instructionsSentWith?: 'signature' | 'standalone';
+  /** המבוטח אישר את ייפוי הכוח — הייצוג בב"ל פעיל עבורו */
+  confirmedAt?: string;
+}
+
 export interface RepresentationExecution {
   /**
    * מתי יצא ללקוח מייל החתימה. פעולה מפורשת ונפרדת מהפקת הטופס, כדי שלא ייצא
@@ -832,21 +851,17 @@ export interface RepresentationExecution {
     /** הפרטים הוזנו בשע"ם ונפתחה בקשת ייצוג */
     enteredAt?: string;
   };
-  nationalInsurance?: {
-    /** ייפוי הכוח הוזן באתר הביטוח הלאומי */
-    enteredAt?: string;
-    /** מספר האסמכתא שהביטוח הלאומי הנפיק — הלקוח מאשר באמצעותו */
-    referenceNumber?: string;
-    /** המועד האחרון לאישור הטופס (YYYY-MM-DD). אחריו האסמכתא פגה. */
-    deadline?: string;
-    /** נשלחו ללקוח הוראות האישור */
-    instructionsSentAt?: string;
-    /** איך הן הגיעו: יחד עם בקשת החתימה (רצוי), או במייל נפרד (השלמה בדיעבד). */
-    instructionsSentWith?: 'signature' | 'standalone';
-    /** הלקוח אישר את ייפוי הכוח — הייצוג בב"ל פעיל */
-    confirmedAt?: string;
-  };
+  /** ב"ל של הנישום עצמו */
+  nationalInsurance?: NiTracking;
+  /** ב"ל של בן/בת הזוג — קיים רק כשנלקח ייצוג ב"ל גם עבורו/ה */
+  nationalInsuranceSpouse?: NiTracking;
 }
+
+/** מפתח מעקב הב"ל לפי החותם — כדי שכל אחד יקבל את האסמכתא שלו ולא של השני. */
+export const NI_EXEC_KEY: Record<RepSignerRole, 'nationalInsurance' | 'nationalInsuranceSpouse'> = {
+  client: 'nationalInsurance',
+  spouse: 'nationalInsuranceSpouse',
+};
 
 /** טלפון המענה הקולי לאישור ייפוי כוח בביטוח לאומי (מופיע גם במייל ללקוח). */
 export const NI_APPROVAL_PHONE = '02-5393740';
@@ -864,6 +879,8 @@ export interface OnboardingPrefill {
   familyStatusYear?: number;
   spouseName?: string;
   spouseIdNumber?: string;
+  /** טופס "הוספת ייפוי כח מבוטח" בב"ל דורש שנת לידה — נאסף כשגם בן/בת הזוג מיוצג */
+  spouseBirthYear?: number;
 }
 
 export type OnboardingSecondaryType = 'parentId' | 'driverLicense' | 'passport';
@@ -950,6 +967,12 @@ export type RepLevel = 'primary' | 'secondary';
 export interface AuthorityRepresentation {
   status: RepAreaStatus;
   level?: RepLevel;
+  /**
+   * הייצוג נלקח גם עבור בן/בת הזוג. רלוונטי לביטוח לאומי בלבד: שם לכל אדם
+   * תיק נפרד, ולכן זוג נשוי דורש שני ייפויי כוח ושתי אסמכתאות. במס הכנסה זוג
+   * נשוי מדווח כתא משפחתי וייצוג אחד מכסה את שניהם, ובמע"מ התיק על שם העוסק.
+   */
+  coversSpouse?: boolean;
 }
 
 export type AuthorityRepresentations = Partial<Record<RepAuthorityKind, AuthorityRepresentation>>;

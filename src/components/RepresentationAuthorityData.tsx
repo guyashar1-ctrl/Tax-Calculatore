@@ -96,7 +96,11 @@ function Block({ title, subtitle, rows }: { title: string; subtitle: string; row
   );
 }
 
-export default function RepresentationAuthorityData({ request }: { request: RepresentationRequest }) {
+export default function RepresentationAuthorityData({ request, niCoversSpouse }: {
+  request: RepresentationRequest;
+  /** הייצוג בב"ל נלקח גם לבן/בת הזוג — צריך גם את ארבעת השדות שלו/ה */
+  niCoversSpouse?: boolean;
+}) {
   const id = request.identification;
   if (!id) return null;
 
@@ -146,6 +150,17 @@ export default function RepresentationAuthorityData({ request }: { request: Repr
     { label: 'שם משפחה', value: lastName },
   ];
 
+  // ייפוי כוח שני בב"ל, על שם בן/בת הזוג. השם מגיע כמחרוזת אחת ולכן מפוצל כאן
+  // לשם פרטי ומשפחה — ב"ל דורש כל אחד בשדה נפרד.
+  const spouseFull = (id.spouseName || pre.spouseName || '').trim();
+  const spouseParts = spouseFull.split(/\s+/).filter(Boolean);
+  const niSpouseRows: Row[] = [
+    { label: 'תעודת זהות', value: id.spouseIdNumber || pre.spouseIdNumber || '' },
+    { label: 'שנת לידה', value: pre.spouseBirthYear ? String(pre.spouseBirthYear) : '' },
+    { label: 'שם פרטי', value: spouseParts[0] || '' },
+    { label: 'שם משפחה', value: spouseParts.slice(1).join(' ') },
+  ];
+
   return (
     <div id="rep-authority-data" className="card" style={{ marginBottom: '1rem' }}>
       <div className="card-header">
@@ -158,10 +173,17 @@ export default function RepresentationAuthorityData({ request }: { request: Repr
           rows={incomeTaxRows}
         />
         <Block
-          title="ביטוח לאומי"
+          title={niCoversSpouse ? `ביטוח לאומי — ${firstName || 'הנישום'}` : 'ביטוח לאומי'}
           subtitle="בדיוק ארבעת השדות של ״הוספת ייפוי כח מבוטח״, לפי הסדר"
           rows={niRows}
         />
+        {niCoversSpouse && (
+          <Block
+            title={`ביטוח לאומי — ${spouseParts[0] || 'בן/בת הזוג'}`}
+            subtitle="ייפוי כוח שני, נפרד — בב״ל לכל מבוטח תיק משלו"
+            rows={niSpouseRows}
+          />
+        )}
       </div>
     </div>
   );

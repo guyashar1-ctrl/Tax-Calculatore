@@ -8,12 +8,19 @@ import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 interface Props {
   request: RepresentationRequest;
   niIncluded: boolean;
+  /** הייצוג בב"ל נלקח גם לבן/בת הזוג — שני תיקים, שני אישורים. */
+  niCoversSpouse?: boolean;
 }
 
-export default function RepresentationNextStep({ request, niIncluded }: Props) {
+export default function RepresentationNextStep({ request, niIncluded, niCoversSpouse }: Props) {
   const exec = request.execution || {};
   const ni = exec.nationalInsurance || {};
+  const niSpouse = exec.nationalInsuranceSpouse || {};
   const it = exec.incomeTax || {};
+  // "הוזן בב"ל" / "אושר בב"ל" נכונים רק כששני התיקים סגורים — אחרת שורת המצב
+  // מכריזה שהב"ל הושלם בזמן שהתיק של בן/בת הזוג עדיין פתוח.
+  const niEntered = !!ni.enteredAt && (!niCoversSpouse || !!niSpouse.enteredAt);
+  const niConfirmed = !!ni.confirmedAt && (!niCoversSpouse || !!niSpouse.confirmedAt);
   const status = request.status;
   const pending = getRequestSigners(request).filter(s => effectiveSignStatus(request, s) === 'pending');
 
@@ -25,9 +32,12 @@ export default function RepresentationNextStep({ request, niIncluded }: Props) {
     ball = 'client';
     title = 'ממתינים שהלקוח ימלא את פרטיו';
     sub = 'הקישור נשלח. כשימלא — הפרטים ייכנסו אוטומטית לכרטיס.';
-  } else if (status === 'awaiting_accountant' && !(it.enteredAt && (!niIncluded || ni.enteredAt))) {
+  } else if (status === 'awaiting_accountant' && !(it.enteredAt && (!niIncluded || niEntered))) {
     title = 'להזין את פרטי הלקוח ברשויות';
-    const left = [!it.enteredAt && 'מס הכנסה', niIncluded && !ni.enteredAt && 'ביטוח לאומי'].filter(Boolean);
+    const niLeft = niIncluded && !niEntered
+      ? (niCoversSpouse ? 'ביטוח לאומי (שני בני הזוג)' : 'ביטוח לאומי')
+      : false;
+    const left = [!it.enteredAt && 'מס הכנסה', niLeft].filter(Boolean);
     sub = `נשאר להזין ב: ${left.join(' ו-')}. הפרטים להעתקה בכרטיס שמתחת.`;
   } else if (status === 'awaiting_accountant') {
     title = 'להפיק את טופס ייפוי הכוח';
@@ -51,8 +61,10 @@ export default function RepresentationNextStep({ request, niIncluded }: Props) {
   } else if (status === 'active') {
     ball = 'done';
     title = 'הייצוג פעיל';
-    sub = niIncluded && !ni.confirmedAt
-      ? 'מס הכנסה הושלם. בביטוח לאומי — ודאו שהלקוח אישר את האסמכתא.'
+    sub = niIncluded && !niConfirmed
+      ? (niCoversSpouse
+          ? `מס הכנסה הושלם. בביטוח לאומי ממתינים לאישור: ${[!ni.confirmedAt && 'הנישום', !niSpouse.confirmedAt && 'בן/בת הזוג'].filter(Boolean).join(' ו-')}.`
+          : 'מס הכנסה הושלם. בביטוח לאומי — ודאו שהלקוח אישר את האסמכתא.')
       : 'הלקוח מיוצג מול כל הרשויות שנבחרו.';
   }
 

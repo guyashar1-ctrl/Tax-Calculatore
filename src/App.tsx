@@ -707,8 +707,11 @@ export default function App() {
   async function handleSaveExecution(req: RepresentationRequest, execution: RepresentationExecution) {
     await updateRequest({ ...req, execution });
     const linkedClient = clients.find(c => c.id === req.linkedClientId);
-    const niConfirmed = !!execution.nationalInsurance?.confirmedAt;
     const niRegistered = linkedClient?.authorityRepresentations?.nationalInsurance;
+    // כשהייצוג נלקח גם לבן/בת הזוג, הוא פעיל רק אחרי ששניהם אישרו — אישור אחד
+    // מותיר את התיק השני בלי ייצוג בפועל, וסימון "פעיל" היה מסתיר את זה.
+    const niConfirmed = !!execution.nationalInsurance?.confirmedAt
+      && (!niRegistered?.coversSpouse || !!execution.nationalInsuranceSpouse?.confirmedAt);
     if (linkedClient && niConfirmed && niRegistered && niRegistered.status !== 'active') {
       await updateClient({
         ...linkedClient,
@@ -1304,6 +1307,7 @@ export default function App() {
               onDelete={handleDeleteRequest}
               onOpenFill={handleOpenFill}
               niIncluded={!!clients.find(c => c.id === selectedRequest.linkedClientId)?.authorityRepresentations?.nationalInsurance}
+              niCoversSpouse={!!clients.find(c => c.id === selectedRequest.linkedClientId)?.authorityRepresentations?.nationalInsurance?.coversSpouse}
               onSaveExecution={handleSaveExecution}
             />
           ) : (

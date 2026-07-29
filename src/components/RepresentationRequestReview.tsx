@@ -40,6 +40,8 @@ interface Props {
   onOpenFill: (id: string) => void;
   /** האם התבקש ייצוג בב"ל — נגזר ממרשם הייצוג של הלקוח המקושר. */
   niIncluded: boolean;
+  /** הייצוג בב"ל נלקח גם לבן/בת הזוג — שני מסלולים, שתי אסמכתאות. */
+  niCoversSpouse?: boolean;
   onSaveExecution: (req: RepresentationRequest, execution: RepresentationExecution) => Promise<void> | void;
 }
 
@@ -60,6 +62,7 @@ export default function RepresentationRequestReview({
   onDelete,
   onOpenFill,
   niIncluded,
+  niCoversSpouse,
   onSaveExecution,
 }: Props) {
   const db = useDocumentDB();
@@ -431,7 +434,7 @@ export default function RepresentationRequestReview({
       </div>
 
       {isNewOnboarding && (
-        <RepresentationNextStep request={request} niIncluded={niIncluded} />
+        <RepresentationNextStep request={request} niIncluded={niIncluded} niCoversSpouse={niCoversSpouse} />
       )}
 
       {/* סטטוס חתימות — נישום + בן/בת זוג */}
@@ -612,11 +615,12 @@ export default function RepresentationRequestReview({
           <>
             {/* אין כאן כרטיס "פרטי הזדהות" נפרד — אותם שדות בדיוק מוצגים בכרטיס
                 הנתונים שמתחת, שם הם גם ניתנים להעתקה. */}
-            <RepresentationAuthorityData request={request} />
+            <RepresentationAuthorityData request={request} niCoversSpouse={niCoversSpouse} />
 
             <RepresentationExecutionCenter
               request={request}
               niIncluded={niIncluded}
+              niCoversSpouse={niCoversSpouse}
               userId={user?.id}
               onSaveExecution={(execution) => onSaveExecution(request, execution)}
               onProduce={() => setShowProduceEditor(true)}
