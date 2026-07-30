@@ -167,9 +167,22 @@ export function leadFromDb(row: Record<string, any>): Lead {
   return rowToObject<Lead>(row);
 }
 
+// שדות אופציונליים של ליד. objectToRow מדלג על ''/undefined כדי לא לשלוח
+// מחרוזת ריקה לעמודת תאריך/מספר — אבל בעדכון זה אומר שהעמודה כלל לא נכללת
+// ב-UPDATE, ולכן ניקוי שדה בטופס "לא נשמר" והערך הישן חוזר למסך.
+// כאן ריק מתורגם ל-NULL מפורש, אך ורק לשדות שנמסרו במפורש באובייקט.
+const LEAD_NULLABLE = [
+  'phone', 'email', 'businessName', 'dealerType', 'notes',
+  'prevAccountantName', 'prevAccountantEmail', 'prevAccountantPhone',
+] as const;
+
 export function leadToDb(lead: Partial<Lead>, userId?: string): Record<string, any> {
   const row = objectToRow(lead, ['updatedAt']);
   if (userId) row.user_id = userId;
+  const src = lead as Record<string, unknown>;
+  for (const key of LEAD_NULLABLE) {
+    if (key in src && (src[key] === undefined || src[key] === '')) row[toSnake(key)] = null;
+  }
   return row;
 }
 
