@@ -175,8 +175,12 @@ export default function QuotationBuilder({
   const [vatRate] = useState<number>(existing?.vatRate ?? DEFAULT_VAT_RATE);
   const [templateId, setTemplateId] = useState<string | undefined>(existing?.templateId);
   const [emailSubject, setEmailSubject] = useState(existing?.emailSubject ?? 'הצעת מחיר מהמשרד');
-  const [emailMessage, setEmailMessage] = useState(existing?.emailMessage ?? '');
-  const [notesForClient, setNotesForClient] = useState(existing?.notesForClient ?? '');
+  // הודעה אישית אחת שנכנסת גם למייל וגם לעמוד ההצעה. עד 2026-07-30 היו שני
+  // שדות נפרדים, וגיא כתב בשניהם את אותו דבר. טיוטה ישנה שיש בה רק הערת עמוד
+  // נפתחת איתה, כדי שהטקסט שנכתב לא ייעלם.
+  const [emailMessage, setEmailMessage] = useState(
+    existing?.emailMessage || existing?.notesForClient || '');
+  const notesForClient = emailMessage;
   const [internalNotes, setInternalNotes] = useState(existing?.internalNotes ?? '');
   const [expiresAt, setExpiresAt] = useState(existing?.expiresAt ?? businessDaysExpiry(DEFAULT_EXPIRY_BUSINESS_DAYS));
   // הצעה ללקוח קיים היא לרוב שירות נוסף למי שכבר מיוצג — ולכן ברירת המחדל שם
@@ -741,13 +745,14 @@ export default function QuotationBuilder({
             <label style={fieldLabel}>נושא
               <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={{ marginTop: 4 }} />
             </label>
-            <label style={{ ...fieldLabel, marginTop: 10 }}>הודעה אישית (אופציונלי)
+            <label style={{ ...fieldLabel, marginTop: 10 }}>הודעה אישית ללקוח (אופציונלי)
               <textarea rows={3} value={emailMessage} onChange={e => setEmailMessage(e.target.value)}
                 placeholder="למשל: אחרי שדיברנו הבנתי שהדבר הכי דחוף אצלך הוא לסגור את השנים הפתוחות — התחלתי מזה." style={{ marginTop: 4 }} />
             </label>
             <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
-              זה החלק הכי חזק במייל: שתי שורות אמיתיות מהשיחה מוכיחות שההצעה לא נשלחה בהעתק-הדבק.
-              המייל עצמו כבר לא מציג מחירים — הם מחכים בעמוד ההצעה.
+              נכתבת פעם אחת ומופיעה בשני המקומות: במייל, ובעמוד ההצעה מעל המחיר.
+              שתי שורות אמיתיות מהשיחה מוכיחות שההצעה לא נשלחה בהעתק-הדבק.
+              המייל עצמו לא מציג מחירים — הם מחכים בעמוד ההצעה.
             </div>
           </Section>
 
@@ -766,16 +771,8 @@ export default function QuotationBuilder({
 
           {/* הגדרות */}
           <Section icon="⚙️" title="פרטי ההצעה"
-            summary={`תוקף עד ${new Date(expiresAt).toLocaleDateString('he-IL')}${notesForClient.trim() || internalNotes.trim() ? ' · יש הערות' : ''}`}>
-            <label style={fieldLabel}>הערה ללקוח בעמוד ההצעה (אופציונלי)
-              <textarea rows={3} value={notesForClient} onChange={e => setNotesForClient(e.target.value)}
-                placeholder="למשל: נתחיל בעשיית סדר — נבדוק את הדיווחים ל-2024–2025 ונשלים כל מה שנדרש, ניישר קו ל-2026, ומשם ליווי שוטף."
-                style={{ marginTop: 4 }} />
-            </label>
-            <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
-              מופיעה בעמוד ההצעה מעל המחיר — המקום לכתוב מאיפה מתחילים אצל הלקוח הזה.
-            </div>
-            <label style={{ ...fieldLabel, marginTop: 10 }}>הערה פנימית (לא נשלחת ללקוח)
+            summary={`תוקף עד ${new Date(expiresAt).toLocaleDateString('he-IL')}${internalNotes.trim() ? ' · יש הערה פנימית' : ''}`}>
+            <label style={fieldLabel}>הערה פנימית (לא נשלחת ללקוח)
               <textarea rows={2} value={internalNotes} onChange={e => setInternalNotes(e.target.value)} style={{ marginTop: 4 }} />
             </label>
             <label style={{ ...fieldLabel, marginTop: 10 }}>תוקף ההצעה
