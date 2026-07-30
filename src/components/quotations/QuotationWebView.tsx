@@ -60,7 +60,6 @@ export default function QuotationWebView({
   data, brand, compact, interactive, status, onApprove, approving, onDownloadPdf,
 }: Props) {
   const totals = calcTotals(data.items, data.vatRate);
-  const thisYear = new Date().getFullYear();
   const [signature, setSignature] = useState('');
   const [signerName, setSignerName] = useState('');
   const pad = compact ? 22 : 44;
@@ -180,17 +179,19 @@ export default function QuotationWebView({
             )}
           </div>
 
-          {/* איך זה מתחיל ואיך זה עובד — הליבה של "ליווי, לא רשימת שירותים".
-              השנים נגזרות מהשנה הנוכחית ולא כתובות קשיח, כדי שהטקסט יישאר נכון
-              גם בשנה הבאה. */}
+          {/* הערה אישית + ההבטחה הקבועה.
+              מה שנכון ללקוח מסוים ("נתחיל מ-2024 שטרם הוגשה") נכתב בהערה
+              האישית פר-הצעה, ולכן היא יושבת כאן — לפני המחיר, במקום שבו היא
+              נותנת הקשר. רק ההבטחה שנכונה לכל לקוח כתובה בקוד. */}
           <div style={{ padding: `${compact ? 4 : 6}px ${pad}px ${compact ? 18 : 24}px`, display: 'flex', flexDirection: 'column', gap: compact ? 16 : 18 }}>
-            <div>
-              <SectionLabel brand={brand}>מתחילים בעשיית סדר</SectionLabel>
-              <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
-                נתחיל בבדיקת הדיווחים לשנים {thisYear - 2}–{thisYear - 1} ונשלים כל מה שנדרש.
-                משם ניישר קו לשנת {thisYear}, וימשיך ליווי שוטף לאורך כל השנה.
+            {data.notesForClient?.trim() && (
+              <div>
+                <SectionLabel brand={brand}>הערה אישית</SectionLabel>
+                <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75, whiteSpace: 'pre-line' }}>
+                  {data.notesForClient}
+                </div>
               </div>
-            </div>
+            )}
             <div>
               <SectionLabel brand={brand}>ליווי אישי, מקצה לקצה</SectionLabel>
               <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
@@ -245,14 +246,6 @@ export default function QuotationWebView({
               נשאר פתוח; לקפל שלוש שורות זו התחכמות מיותרת. */}
           {(data.futureServices?.length ?? 0) > 0 && (
             <FutureServices services={data.futureServices!} brand={brand} compact={compact} pad={pad} />
-          )}
-
-          {/* הערה */}
-          {data.notesForClient?.trim() && (
-            <div style={{ padding: `${compact ? 18 : 22}px ${pad}px` }}>
-              <SectionLabel brand={brand}>הערה אישית</SectionLabel>
-              <div style={{ marginTop: 10, fontSize: 14, color: brand.ink, lineHeight: 1.75, whiteSpace: 'pre-line', opacity: .85 }}>{data.notesForClient}</div>
-            </div>
           )}
 
           {/* צעדים הבאים */}

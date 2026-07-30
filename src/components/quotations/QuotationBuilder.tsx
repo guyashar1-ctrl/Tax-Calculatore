@@ -682,8 +682,13 @@ export default function QuotationBuilder({
           <Section icon="⚙️" title="פרטי ההצעה"
             summary={`תוקף עד ${new Date(expiresAt).toLocaleDateString('he-IL')}${notesForClient.trim() || internalNotes.trim() ? ' · יש הערות' : ''}`}>
             <label style={fieldLabel}>הערה ללקוח בעמוד ההצעה (אופציונלי)
-              <textarea rows={2} value={notesForClient} onChange={e => setNotesForClient(e.target.value)} style={{ marginTop: 4 }} />
+              <textarea rows={3} value={notesForClient} onChange={e => setNotesForClient(e.target.value)}
+                placeholder="למשל: נתחיל בעשיית סדר — נבדוק את הדיווחים ל-2024–2025 ונשלים כל מה שנדרש, ניישר קו ל-2026, ומשם ליווי שוטף."
+                style={{ marginTop: 4 }} />
             </label>
+            <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
+              מופיעה בעמוד ההצעה מעל המחיר — המקום לכתוב מאיפה מתחילים אצל הלקוח הזה.
+            </div>
             <label style={{ ...fieldLabel, marginTop: 10 }}>הערה פנימית (לא נשלחת ללקוח)
               <textarea rows={2} value={internalNotes} onChange={e => setInternalNotes(e.target.value)} style={{ marginTop: 4 }} />
             </label>
