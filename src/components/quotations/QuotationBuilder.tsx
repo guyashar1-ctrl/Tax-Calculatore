@@ -20,6 +20,7 @@ import { deriveQuotationBrand } from './quotationBranding';
 import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
 import { generateQuotationPdf, downloadPdf } from '../../utils/quotationPdf';
 import QuotationWebView, { type QuotationWebViewData } from './QuotationWebView';
+import QuotationEmailsPanel from './QuotationEmailsPanel';
 import QuotationRepresentationEditor, {
   validateQuotationRepresentation, representationSummary,
 } from './QuotationRepresentationEditor';
@@ -87,7 +88,7 @@ interface BillingPlan {
 }
 
 function catalogToItem(svc: ServiceCatalogItem, overrides?: Partial<QuotationItem>): QuotationItem {
-  return {
+  const item: QuotationItem = {
     id: crypto.randomUUID(),
     serviceId: svc.id,
     name: svc.name,
@@ -101,6 +102,19 @@ function catalogToItem(svc: ServiceCatalogItem, overrides?: Partial<QuotationIte
     vatFlag: svc.vatFlag,
     ...overrides,
   };
+  // ברירת המחדל של המשרד לדוח שנתי: המחיר שנתי, הגבייה חודשית. הרו"ח ממשיך
+  // לחשוב ב"1,800 ₪ לשנה" והלקוח רואה 12 תשלומים. השורה ניתנת להחזרה לחיוב
+  // שנתי חד־פעמי דרך "תדירות חיוב" בשורה עצמה.
+  if (item.category === 'annual' && overrides?.priceBasis === undefined) {
+    return {
+      ...item,
+      category: 'monthly',
+      priceBasis: 'annual',
+      annualPrice: item.clientPrice,
+      prorationMode: 'full',
+    };
+  }
+  return item;
 }
 
 // החלת הפריסה על שורה. שורה שהמחיר החודשי שלה נקבע ידנית לא נדרסת — זו
@@ -989,6 +1003,12 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
           </div>
         </div>
       )}
+
+      {/* מיילים ללקוח — מה יצא, אם הגיע, ואם נפתח */}
+      <QuotationEmailsPanel
+        quotationId={quotation.id}
+        representationRequestId={quotation.representationRequestId}
+      />
 
       {/* יומן אירועים */}
       <div style={panel}>

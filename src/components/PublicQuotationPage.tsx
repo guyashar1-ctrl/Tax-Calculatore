@@ -12,6 +12,9 @@ import { generateQuotationPdf, downloadPdf } from '../utils/quotationPdf';
 
 interface Props { token: string; }
 
+/** כמה זמן להשהות על מסך "אושר" לפני המעבר האוטומטי להשלמת הפרטים */
+const AUTO_ADVANCE_MS = 2200;
+
 interface QuotationInfo {
   quotationNumber: string;
   status: string;
@@ -44,6 +47,9 @@ export default function PublicQuotationPage({ token }: Props) {
   const [approving, setApproving] = useState(false);
   // הצעד הבא של הלקוח — נחשף רק לאחר אישור, ומוצג מיד באותו מסך
   const [nextStepLink, setNextStepLink] = useState<string | null>(null);
+  // מעבר אוטומטי רץ רק אחרי אישור חי. לקוח שחזר לקישור מקבל את הקישור בלבד,
+  // בלי שהמסך ייחטף לו מתחת לידיים.
+  const [autoAdvancing, setAutoAdvancing] = useState(false);
   const [compact, setCompact] = useState(typeof window !== 'undefined' && window.innerWidth < 640);
 
   useEffect(() => {
@@ -84,9 +90,10 @@ export default function PublicQuotationPage({ token }: Props) {
 
   /**
    * האישור. השרת מסמן "אושרה" וגם פותח את תהליך הייצוג (לקוח, בקשה, חותמים,
-   * משימה) בטרנזקציה אחת, ומחזיר את הקישור להשלמת הפרטים. הקישור מוצג מיד —
-   * הלקוח עוד מול המסך, וזה הרגע שבו הוא ימלא. המייל נשלח במקביל כגיבוי,
-   * ולא חוסם: אם השליחה תיכשל, הרו"ח יראה זאת וישלים בכניסה הבאה שלו.
+   * משימה) בטרנזקציה אחת, ומחזיר את הקישור להשלמת הפרטים. מיד לאחר מכן המסך
+   * מודיע שאושר ומעביר את הלקוח לעמוד השלמת הפרטים — הוא לא צריך ללחוץ ולא
+   * לחפש מייל. המייל נשלח במקביל כגיבוי, ולא חוסם: אם השליחה תיכשל, הרו"ח
+   * יראה זאת וישלים בכניסה הבאה שלו.
    */
   async function handleApprove(sig: ApprovalSignature) {
     setApproving(true);
@@ -100,8 +107,12 @@ export default function PublicQuotationPage({ token }: Props) {
         { status?: string; onboardingToken?: string } | null;
       if (result?.status) setStatus(result.status);
       if (result?.status === 'approved' && result.onboardingToken) {
-        setNextStepLink(onboardingUrl(result.onboardingToken));
+        const url = onboardingUrl(result.onboardingToken);
+        setNextStepLink(url);
+        setAutoAdvancing(true);
         void supabase.functions.invoke('send-onboarding-email', { body: { quotationToken: token } });
+        // שהייה קצרה כדי שהלקוח יספיק לראות ש"אושר" לפני שהמסך מתחלף
+        window.setTimeout(() => { window.location.href = url; }, AUTO_ADVANCE_MS);
       }
     } finally {
       setApproving(false);
@@ -155,6 +166,7 @@ export default function PublicQuotationPage({ token }: Props) {
       approving={approving}
       onDownloadPdf={handleDownloadPdf}
       nextStepLink={nextStepLink ?? undefined}
+      nextStepAuto={autoAdvancing}
     />
   );
 }

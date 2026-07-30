@@ -35,14 +35,6 @@ export const DEFAULT_SERVICES: SeedService[] = [
     defaultPrice: 80, vatFlag: true, billingType: 'per_unit', unitLabel: 'עובד',
     includeByDefault: false, active: true, displayOrder: 30,
   },
-  {
-    seedKey: 'paperless',
-    name: 'תוכנת הנהלת חשבונות',
-    category: 'monthly',
-    description: 'סריקה, שמירה וניהול דיגיטלי של החשבוניות והקבלות — ללא ניירת',
-    defaultPrice: 10, vatFlag: true, billingType: 'fixed',
-    includeByDefault: true, active: true, displayOrder: 35,
-  },
   // ─── שנתי ───
   {
     seedKey: 'annual_exempt',
@@ -118,7 +110,17 @@ export const DEFAULT_SERVICES: SeedService[] = [
     defaultPrice: 200, vatFlag: true, billingType: 'fixed',
     includeByDefault: false, active: true, displayOrder: 110,
   },
-  // ─── כלול במחיר (0 ₪) ───
+  // ─── כלול בליווי — ללא חיוב ───
+  {
+    // עולה למשרד 30 ₪ לחודש, וניתן ללקוח בלי תוספת תשלום. המחיר רשום כדי
+    // שהערך יהיה גלוי ללקוח, ושאפשר יהיה לגבות אותו בשורה אחת אם יוחלט אחרת.
+    seedKey: 'paperless',
+    name: 'תוכנת הנהלת חשבונות',
+    category: 'included',
+    description: 'סריקה, שמירה וניהול דיגיטלי של החשבוניות והקבלות — ללא ניירת',
+    defaultPrice: 30, vatFlag: true, billingType: 'fixed',
+    includeByDefault: true, active: true, displayOrder: 118,
+  },
   {
     seedKey: 'quarterly_tax_planning',
     name: 'תכנון מס רבעוני',
