@@ -514,7 +514,16 @@ export default function QuotationBuilder({
             ) : (
               <RecipientEditor
                 leads={leads} clients={clients} value={recipient}
-                onPick={(r) => { setRecipient(r); setRecipientPicker(false); }}
+                onPick={(r) => {
+                  setRecipient(r);
+                  setRecipientPicker(false);
+                  // לקוח שכבר בייצוג — אין מה לפתוח לו ייצוג שני. כיבוי בלבד:
+                  // אם הרו"ח הדליק ידנית, לא נדרוס את הבחירה שלו בכיוון השני.
+                  const picked = r.kind === 'client' ? clients.find(c => c.id === r.id) : undefined;
+                  if (picked?.representationStatus) {
+                    setRepresentation(prev => prev.enabled ? { ...prev, enabled: false } : prev);
+                  }
+                }}
               />
             )}
             {openWarning && <div className="alert alert-info" style={{ marginTop: 10, fontSize: 12.5 }}>{openWarning}</div>}
@@ -1017,31 +1026,74 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
   );
 }
 
+/**
+ * רשימת הנמענים לבחירה — לידים ולקוחות, כל אחד פעם אחת.
+ *
+ * ליד שהפך ללקוח לא מוצג פעמיים: הלקוח גובר עליו, כי הוא הרשומה שנושאת את
+ * הייצוג ואת התיק. הזיהוי הוא לפי הקישור המפורש, ואם אין — לפי מייל או שם.
+ *
+ * ליד שמסומן "הומר" אך אין מאחוריו לקוח כן מוצג. זה לא מצב תקין, אבל הסתרתו
+ * הפכה אותו לבלתי-נגיש לחלוטין — אי אפשר היה להוציא לו הצעה ואי אפשר היה
+ * להבין למה הוא נעלם.
+ */
+export function buildRecipientOptions(leads: Lead[], clients: Client[]) {
+  const norm = (s?: string) => (s ?? '').trim().toLowerCase();
+  const clientIds = new Set(clients.map(c => c.id));
+  const clientEmails = new Set(clients.map(c => norm(c.email)).filter(Boolean));
+  const clientNames = new Set(clients.map(c => norm(`${c.firstName} ${c.lastName}`)).filter(Boolean));
+
+  const leadOptions = leads
+    .filter(l => {
+      if (l.status === 'closed') return false;
+      if (l.convertedClientId && clientIds.has(l.convertedClientId)) return false;
+      if (norm(l.email) && clientEmails.has(norm(l.email))) return false;
+      if (clientNames.has(norm(l.fullName))) return false;
+      return true;
+    })
+    .map(l => ({
+      kind: 'lead' as const, id: l.id, fullName: l.fullName, businessName: l.businessName,
+      email: l.email, phone: l.phone, dealerType: l.dealerType,
+    }));
+
+  const clientOptions = clients
+    .map(c => ({
+      kind: 'client' as const, id: c.id,
+      fullName: `${c.firstName} ${c.lastName}`.trim(),
+      email: c.email, phone: c.phone,
+      repStatus: c.representationStatus,
+    }))
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, 'he'));
+
+  return { leadOptions, clientOptions };
+}
+
 function RecipientEditor({ leads, clients, value, onPick }: {
   leads: Lead[]; clients: Client[]; value: RecipientDraft;
   onPick: (r: RecipientDraft) => void;
 }) {
-  const [mode, setMode] = useState<'existing' | 'new'>(value.kind === 'client' ? 'existing' : 'new');
-  const [search, setSearch] = useState('');
+  const { leadOptions, clientOptions } = buildRecipientOptions(leads, clients);
+  const hasExisting = leadOptions.length + clientOptions.length > 0;
+  const [mode, setMode] = useState<'existing' | 'new'>(
+    value.kind === 'client' || value.kind === 'lead' ? 'existing' : hasExisting ? 'existing' : 'new');
   const [nl, setNl] = useState({ fullName: value.fullName, phone: value.phone ?? '', email: value.email ?? '', businessName: value.businessName ?? '' });
   const [hasPrev, setHasPrev] = useState(!!value.hasPreviousAccountant);
   const [prev, setPrev] = useState({ name: value.prevAccountantName ?? '', email: value.prevAccountantEmail ?? '', phone: value.prevAccountantPhone ?? '' });
 
-  // הלידים הפתוחים מוצגים מיד, בלי להקליד — הם קומץ, וזו הרשימה שממנה בוחרים
-  // ברוב המקרים. לקוחות קיימים הם רבים, ולכן נכנסים לרשימה רק בחיפוש.
-  const openLeads = leads
-    .filter(l => l.status !== 'converted' && l.status !== 'closed')
-    .map(l => ({ kind: 'lead' as const, id: l.id, fullName: l.fullName, businessName: l.businessName, email: l.email, phone: l.phone, dealerType: l.dealerType }));
+  // תווית שמאפשרת להבדיל בין שני אנשים עם אותו שם, בלי להעמיס את השורה
+  const optionLabel = (o: { fullName: string; businessName?: string; phone?: string; email?: string }) =>
+    [o.fullName || '(ללא שם)', o.businessName, o.phone || o.email].filter(Boolean).join(' · ');
 
-  const q = search.trim();
-  const matches = q
-    ? [
-        ...leads.filter(l => l.status !== 'converted' && (l.fullName.includes(q) || (l.phone ?? '').includes(q) || (l.email ?? '').includes(q)))
-          .map(l => ({ kind: 'lead' as const, id: l.id, fullName: l.fullName, businessName: l.businessName, email: l.email, phone: l.phone, dealerType: l.dealerType })),
-        ...clients.filter(c => `${c.firstName} ${c.lastName}`.includes(q) || (c.phone ?? '').includes(q) || (c.email ?? '').includes(q))
-          .map(c => ({ kind: 'client' as const, id: c.id, fullName: `${c.firstName} ${c.lastName}`.trim(), email: c.email, phone: c.phone })),
-      ].slice(0, 8)
-    : openLeads;
+  function handleSelect(key: string) {
+    if (!key) return;
+    const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+    const picked = kind === 'lead'
+      ? leadOptions.find(o => o.id === id)
+      : clientOptions.find(o => o.id === id);
+    if (!picked) return;
+    const { ...rest } = picked;
+    delete (rest as Record<string, unknown>).repStatus;   // לא חלק מהנמען
+    onPick(rest as RecipientDraft);
+  }
 
   return (
     <div>
@@ -1052,36 +1104,40 @@ function RecipientEditor({ leads, clients, value, onPick }: {
 
       {mode === 'existing' ? (
         <>
-          <input placeholder="חיפוש ליד או לקוח לפי שם / טלפון…" value={search} onChange={e => setSearch(e.target.value)} />
-          <div style={{ fontSize: 11, color: 'var(--gray-500)', margin: '8px 2px 4px' }}>
-            {q
-              ? `${matches.length} תוצאות`
-              : openLeads.length > 0
-                ? `${openLeads.length} לידים פתוחים · ללקוח קיים — חפש בשמו`
-                : ''}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
-            {matches.map(m => (
-              <button key={`${m.kind}-${m.id}`} onClick={() => onPick(m)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--gray-200)', borderRadius: 8, background: 'var(--card)', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ fontWeight: 500, fontSize: 13.5 }}>{m.fullName || '(ללא שם)'}</span>
-                  <span style={{ fontSize: 11, color: 'var(--gray-400)', marginInlineStart: 6 }}>{m.kind === 'lead' ? 'ליד' : 'לקוח'}</span>
-                  {'businessName' in m && m.businessName && (
-                    <span style={{ display: 'block', fontSize: 11, color: 'var(--gray-500)' }}>{m.businessName}</span>
-                  )}
-                </span>
-                <span style={{ fontSize: 11.5, color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{m.phone || m.email}</span>
-              </button>
-            ))}
-            {matches.length === 0 && (
-              <div style={{ fontSize: 12.5, color: 'var(--gray-500)', padding: 6, lineHeight: 1.6 }}>
-                {q
-                  ? 'לא נמצאו תוצאות.'
-                  : 'אין לידים פתוחים. אפשר לחפש לקוח קיים בשמו, או לפתוח ליד חדש בטאב שלצד.'}
+          {hasExisting ? (
+            <>
+              <select
+                value={value.id ? `${value.kind}:${value.id}` : ''}
+                onChange={e => handleSelect(e.target.value)}
+              >
+                <option value="">{'—'} בחר ליד או לקוח {'—'}</option>
+                {leadOptions.length > 0 && (
+                  <optgroup label={`לידים (${leadOptions.length})`}>
+                    {leadOptions.map(o => (
+                      <option key={`lead:${o.id}`} value={`lead:${o.id}`}>{optionLabel(o)}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {clientOptions.length > 0 && (
+                  <optgroup label={`לקוחות (${clientOptions.length})`}>
+                    {clientOptions.map(o => (
+                      <option key={`client:${o.id}`} value={`client:${o.id}`}>
+                        {optionLabel(o)}
+                        {o.repStatus === 'active' ? ' · מיוצג' : o.repStatus ? ' · ייצוג בתהליך' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
+                ליד שכבר הפך ללקוח מופיע פעם אחת בלבד — ברשימת הלקוחות.
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 12.5, color: 'var(--gray-500)', padding: 6, lineHeight: 1.6 }}>
+              אין עדיין לידים או לקוחות. אפשר לפתוח ליד חדש בטאב שלצד.
+            </div>
+          )}
         </>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
