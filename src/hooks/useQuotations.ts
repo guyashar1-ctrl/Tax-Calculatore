@@ -99,15 +99,16 @@ export function useQuotations(userId: string | undefined) {
     });
   }
 
-  // מחיקה מותרת רק לטיוטות — הצעה שנשלחה נשארת בהיסטוריה (מבטלים במקום)
-  async function deleteDraft(q: Quotation): Promise<void> {
-    if (q.status !== 'draft') throw new Error('רק טיוטה ניתנת למחיקה — הצעה שנשלחה מבטלים');
+  // מחיקה סופית של הצעה. הדרך המומלצת להצעה שנשלחה היא ביטול (נשאר תיעוד),
+  // אבל הרו"ח רשאי למחוק גם אותה — למשל הצעות בדיקה. הסכם ההתקשרות שנשמר
+  // במסמכי הלקוח אינו נמחק יחד איתה; הוא מסמך של הלקוח.
+  async function deleteQuotation(q: Quotation): Promise<void> {
     const { error } = await supabase.from('quotations').delete().eq('id', q.id);
     if (error) throw error;
     setQuotations(prev => prev.filter(x => x.id !== q.id));
   }
 
-  return { quotations, loading, error, addQuotation, updateQuotation, cancelQuotation, deleteDraft };
+  return { quotations, loading, error, addQuotation, updateQuotation, cancelQuotation, deleteQuotation };
 }
 
 function event(type: QuotationEventType, note?: string): QuotationEvent {

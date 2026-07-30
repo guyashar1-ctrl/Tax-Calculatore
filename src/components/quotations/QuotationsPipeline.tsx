@@ -14,9 +14,9 @@ interface Props {
   onConvert: (q: Quotation) => void;
   onRelease: (q: Quotation) => void;
   onRemind: (q: Quotation) => Promise<{ ok: boolean; error?: string }>;
+  onCancel: (q: Quotation) => Promise<void>;
+  onDelete: (q: Quotation) => Promise<void>;
 }
-
-const STATUSES_WITH_ACTIONS = ['approved', 'sent', 'viewed'];
 
 // הצעה אחת יכולה להחזיק כמה תדירויות בבת אחת — ליווי חודשי לצד דוחות לשנים
 // פתוחות שהם חד־פעמיים. הצגת סכום אחד בלבד מסתירה את הגדול מביניהם.
@@ -39,9 +39,10 @@ const GROUP_ORDER: { status: QuotationStatus; badge: string; strip: string }[] =
   { status: 'expired', badge: 'badge-orange', strip: 'var(--orange)' },
 ];
 
-export default function QuotationsPipeline({ quotations, leads, clients, onNew, onOpen, onConvert, onRelease, onRemind }: Props) {
+export default function QuotationsPipeline({ quotations, leads, clients, onNew, onOpen, onConvert, onRelease, onRemind, onCancel, onDelete }: Props) {
   const [filter, setFilter] = useState<QuotationStatus | 'all'>('all');
   const [remindBusy, setRemindBusy] = useState<string | null>(null);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const leadOf = (q: Quotation): Lead | undefined => q.leadId ? leads.find(x => x.id === q.leadId) : undefined;
@@ -63,6 +64,41 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
       setToast(res.ok ? { kind: 'ok', text: 'תזכורת נשלחה.' } : { kind: 'err', text: `שליחת תזכורת נכשלה: ${res.error ?? ''}` });
     } finally {
       setRemindBusy(null);
+    }
+  }
+
+  // מחיקה סופית. לטיוטה — אישור קצר; להצעה שכבר יצאה ללקוח — אזהרה מפורטת
+  // על מה נמחק, כי זו רשומה עם היסטוריה, חתימה ומעקב.
+  async function remove(q: Quotation) {
+    const name = `${q.quotationNumber} (${recipientName(q)})`;
+    const message = q.status === 'draft'
+      ? `למחוק את טיוטת הצעה ${name}?\n\nלא ניתן לשחזר.`
+      : `למחוק לצמיתות את הצעה ${name}?\n\nיימחקו גם המעקב, יומן האירועים${q.approvalSignature ? ' וחתימת הלקוח' : ''} — ולא ניתן לשחזר.\n\n(אם ההצעה כבר הפכה ללקוח — הלקוח והסכם ההתקשרות שבמסמכיו יישארו.)`;
+    if (!window.confirm(message)) return;
+    setRowBusy(q.id);
+    setToast(null);
+    try {
+      await onDelete(q);
+      setToast({ kind: 'ok', text: `הצעה ${q.quotationNumber} נמחקה.` });
+    } catch (e) {
+      setToast({ kind: 'err', text: `המחיקה נכשלה: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  // ביטול — הדרך המומלצת להצעה שנשלחה: ההיסטוריה נשמרת והלקוח רואה שבוטלה
+  async function cancel(q: Quotation) {
+    if (!window.confirm(`לבטל את הצעה ${q.quotationNumber} (${recipientName(q)})?\n\nההצעה תישאר בהיסטוריה, והלקוח שייכנס לקישור יראה שהיא בוטלה.`)) return;
+    setRowBusy(q.id);
+    setToast(null);
+    try {
+      await onCancel(q);
+      setToast({ kind: 'ok', text: `הצעה ${q.quotationNumber} בוטלה.` });
+    } catch (e) {
+      setToast({ kind: 'err', text: `הביטול נכשל: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setRowBusy(null);
     }
   }
 
@@ -162,7 +198,7 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
                     <thead>
                       <tr>
                         <th>מס׳</th><th>נמען</th><th className="number">סכום</th><th>תוקף</th><th>עודכן</th>
-                        {STATUSES_WITH_ACTIONS.includes(g.status) && <th></th>}
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -187,27 +223,33 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
                               {expiringSoon && <span className="badge badge-orange" style={{ marginInlineStart: 6, fontSize: 10 }}>{days === 0 ? 'פג היום' : days === 1 ? 'פג ביום עסקים הבא' : `פג בעוד ${days} ימי עסקים`}</span>}
                             </td>
                             <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>{q.updatedAt ? new Date(q.updatedAt).toLocaleDateString('he-IL') : '—'}</td>
-                            {STATUSES_WITH_ACTIONS.includes(g.status) && (
-                              <td style={{ textAlign: 'end', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
-                                {(g.status === 'sent' || g.status === 'viewed') && (
+                            <td style={{ textAlign: 'end', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                              {(g.status === 'sent' || g.status === 'viewed') && (
+                                <>
                                   <button className={`btn btn-sm ${expiringSoon ? 'btn-primary' : 'btn-ghost'}`} disabled={remindBusy === q.id} onClick={() => remind(q)}>
                                     {remindBusy === q.id ? 'שולח…' : 'תזכורת'}
                                   </button>
-                                )}
-                                {g.status === 'approved' && (
-                                  <>
-                                    {converted ? (
-                                      <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>לקוח ✓ — לכרטיס ←</button>
-                                    ) : (
-                                      <button className="btn btn-sm btn-green" onClick={() => onConvert(q)}>הפוך ללקוח והתחל ייצוג ←</button>
-                                    )}
-                                    {converted && hasPrevAccountant(q) && (
-                                      <button className="btn btn-sm btn-secondary" style={{ marginInlineStart: 6 }} onClick={() => onRelease(q)}>מכתב שחרור</button>
-                                    )}
-                                  </>
-                                )}
-                              </td>
-                            )}
+                                  <button className="btn btn-sm btn-ghost" style={{ marginInlineStart: 6 }} disabled={rowBusy === q.id} onClick={() => cancel(q)}>ביטול</button>
+                                </>
+                              )}
+                              {g.status === 'approved' && (
+                                <>
+                                  {converted ? (
+                                    <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>לקוח ✓ — לכרטיס ←</button>
+                                  ) : (
+                                    <button className="btn btn-sm btn-green" onClick={() => onConvert(q)}>הפוך ללקוח והתחל ייצוג ←</button>
+                                  )}
+                                  {converted && hasPrevAccountant(q) && (
+                                    <button className="btn btn-sm btn-secondary" style={{ marginInlineStart: 6 }} onClick={() => onRelease(q)}>מכתב שחרור</button>
+                                  )}
+                                </>
+                              )}
+                              <button className="btn btn-icon btn-ghost" title="מחיקת ההצעה"
+                                style={{ marginInlineStart: 6, color: 'var(--red)' }}
+                                disabled={rowBusy === q.id} onClick={() => remove(q)}>
+                                {rowBusy === q.id ? '…' : '🗑'}
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}

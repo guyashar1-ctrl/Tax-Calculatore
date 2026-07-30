@@ -211,7 +211,7 @@ export default function App() {
   const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
   const { leads, addLead, updateLead } = useLeads(user?.id);
-  const { quotations, addQuotation, updateQuotation } = useQuotations(user?.id);
+  const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation } = useQuotations(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
 
   const { theme, toggleTheme } = useTheme();
@@ -1306,6 +1306,12 @@ export default function App() {
             onConvert={handleConvertQuotation}
             onRelease={handleReleaseLetter}
             onRemind={handleRemindQuotation}
+            onCancel={async q => { await cancelQuotation(q); }}
+            onDelete={async q => {
+              await deleteQuotation(q);
+              // ההצעה שנמחקה עלולה להיות זו שפתוחה בבונה — מנקים את הבחירה
+              if (editingQuotationId === q.id) setEditingQuotationId(null);
+            }}
           />
         )}
 
