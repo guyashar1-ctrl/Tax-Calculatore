@@ -160,6 +160,9 @@ export interface QuotationItem {
   // ממשיכות לעבוד בדיוק כמו קודם, בלי המרה.
   priceBasis?: PriceBasis;
   annualPrice?: number;       // מחיר ליחידה לשנה מלאה, כשמתמחרים שנתית
+  // התשלום החודשי החל מהשנה הבאה (ליחידה, לפני מע"מ, אחרי הנחה) — כשהרו"ח
+  // קובע אותו במפורש. ריק = אוטומטי: שנתי ÷ 12, או המחיר הנוכחי בשורה ידנית.
+  ongoingPrice?: number;
   installments?: number;      // מספר תשלומים בפועל (ברירת מחדל 12)
   billingStartMonth?: string; // 'YYYY-MM' — חודש התשלום הראשון
   prorationMode?: ProrationMode;

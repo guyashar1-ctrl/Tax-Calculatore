@@ -31,7 +31,9 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
   // ודילוג על SVG — תוכנות מייל אינן מציגות אותו.
   const emailSafe = (...c: (string | undefined)[]) => c.find(u => !!u && !/\.svg(\?|#|$)/i.test(u));
   const emailLogo = emailSafe(brand.emailLogoUrl, brand.logoUrl);
-  const darkLogo = emailSafe(brand.logoOnDarkUrl, brand.emailLogoUrl, brand.logoUrl);
+  // רצועה כהה: רק לוגו שיועד לרקע כהה. תוכנות מייל לא תומכות ב-filter:invert,
+  // ולכן נפילה ללוגו הרגיל = לוגו כהה על רקע כהה (בלתי קריא). אין → שם בלבן.
+  const darkLogo = emailSafe(brand.logoOnDarkUrl);
   const logoH = Math.round(40 * brand.logoScale);
   const logoHDark = Math.round(38 * brand.logoScale);
   const logoW = Math.round(180 * brand.logoScale);
@@ -159,39 +161,41 @@ function priceBlock(
 ): string {
   const hasDiscount = t.discount >= 1;
   const pct = hasDiscount ? Math.round((t.discount / t.fullBeforeVat) * 100) : 0;
+  // dir כמאפיין HTML (לא רק CSS) — ג'ימייל מכבד אותו גם כשהוא מקצץ סגנונות
   const row = (l: string, v: string, lStyle = '', vStyle = '') => `<tr>
-      <td style="font-size:12.5px;color:${brand.muted};padding:3px 0;${lStyle}">${l}</td>
-      <td align="left" style="font-size:13px;color:${brand.muted};direction:ltr;padding:3px 0;${vStyle}">${v}</td>
+      <td dir="rtl" align="right" style="font-size:12.5px;color:${brand.muted};padding:3px 0;text-align:right;${lStyle}">${l}</td>
+      <td dir="ltr" align="left" style="font-size:13px;color:${brand.muted};padding:3px 0;text-align:left;${vStyle}">${v}</td>
     </tr>`;
+  // שורות "קופסה" (הנחה / סה"כ) — td אחד ברוחב מלא עם טבלה פנימית, כדי שלא
+  // ייראו כשתי קופסאות מנותקות בג'ימייל (שני td עם פינות עגולות לא מתחברים).
+  const boxRow = (inner: string, boxStyle: string, padTop = '3px') => `<tr><td colspan="2" style="padding-top:${padTop};">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="rtl" style="${boxStyle}"><tr>${inner}</tr></table>
+    </td></tr>`;
   const discountRows = hasDiscount
     ? row('מחיר מלא', formatILS(Math.round(t.fullBeforeVat)),
         '', 'text-decoration:line-through;font-size:14px;')
-      + `<tr>
-          <td style="background:#e6f7f0;border-radius:8px 0 0 8px;padding:6px 10px;font-size:13px;font-weight:700;color:#047857;">🎁 הנחה ${pct}%</td>
-          <td align="left" style="background:#e6f7f0;border-radius:0 8px 8px 0;padding:6px 10px;font-size:14px;font-weight:800;color:#047857;direction:ltr;">−${formatILS(Math.round(t.discount))}</td>
-        </tr>`
+      + boxRow(
+        `<td dir="rtl" align="right" style="padding:6px 10px;font-size:13px;font-weight:700;color:#047857;text-align:right;">🎁 הנחה ${pct}%</td>
+         <td dir="ltr" align="left" style="padding:6px 10px;font-size:14px;font-weight:800;color:#047857;text-align:left;white-space:nowrap;">−${formatILS(Math.round(t.discount))}</td>`,
+        'background:#e6f7f0;border-radius:8px;')
       + row('מחיר אחרי הנחה', formatILS(Math.round(t.beforeVat)),
         `font-weight:600;color:${brand.ink};`, `font-weight:700;color:${brand.ink};font-size:14px;`)
     : row('מחיר', formatILS(Math.round(t.beforeVat)), '', `font-weight:600;color:${brand.ink};`);
   const accentBg = mixWithWhite(brand.accent, 0.9);
-  return `<tr><td style="padding:10px 18px 12px;">
-    <div style="font-size:11.5px;font-weight:700;letter-spacing:.06em;color:${brand.muted};padding-bottom:4px;">${label}</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${brand.border};">
+  return `<tr><td dir="rtl" style="padding:10px 18px 12px;">
+    <div dir="rtl" style="font-size:11.5px;font-weight:700;letter-spacing:.06em;color:${brand.muted};padding-bottom:4px;text-align:right;">${label}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="rtl" style="border-top:1px solid ${brand.border};">
       ${discountRows}
       ${row(`+ מע״מ (${vatRate}%)`, formatILS(Math.round(t.vat)))}
+      ${boxRow(
+        `<td dir="rtl" align="right" style="padding:10px 14px;text-align:right;">
+           <div style="font-size:14px;font-weight:700;color:${brand.ink};text-align:right;">סה״כ לתשלום${suffix ? ` ${suffix}` : ''}</div>
+           <div style="font-size:10.5px;color:${brand.muted};text-align:right;">כולל מע״מ</div>
+         </td>
+         <td dir="ltr" align="left" style="padding:10px 14px;font-size:24px;font-weight:800;color:${brand.accent};text-align:left;white-space:nowrap;">${formatILS(Math.round(t.withVat))}</td>`,
+        `background:${accentBg};border:1.5px solid ${brand.accent};border-radius:10px;`, '6px')}
     </table>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;">
-      <tr>
-        <td style="background:${accentBg};border:1px solid ${brand.accent};border-left:none;border-radius:0 10px 10px 0;padding:10px 14px;">
-          <div style="font-size:14px;font-weight:700;color:${brand.ink};">סה״כ לתשלום${suffix ? ` ${suffix}` : ''}</div>
-          <div style="font-size:10.5px;color:${brand.muted};">כולל מע״מ</div>
-        </td>
-        <td align="left" style="background:${accentBg};border:1px solid ${brand.accent};border-right:none;border-radius:10px 0 0 10px;padding:10px 14px;font-size:24px;font-weight:800;color:${brand.accent};direction:ltr;">
-          ${formatILS(Math.round(t.withVat))}
-        </td>
-      </tr>
-    </table>
-    ${terms ? `<div style="font-size:11.5px;color:${brand.muted};padding-top:6px;line-height:1.6;">${esc(terms)}</div>` : ''}
+    ${terms ? `<div dir="rtl" style="font-size:11.5px;color:${brand.muted};padding-top:6px;line-height:1.6;text-align:right;">${esc(terms)}</div>` : ''}
   </td></tr>`;
 }
 

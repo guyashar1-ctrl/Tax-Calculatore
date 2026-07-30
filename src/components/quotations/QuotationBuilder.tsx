@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FirmProfile } from '../../types/firmProfile';
 import type { Client } from '../../types';
 import type {
@@ -166,6 +166,15 @@ export default function QuotationBuilder({
   // הצעה שכבר נשלחה נפתחת ישר על המעקב — זה מה שמעניין אחרי השליחה
   const hasTracking = !!existing && existing.status !== 'draft';
   const [tab, setTab] = useState<PreviewTab>(hasTracking ? 'track' : 'web');
+
+  // בטלפון אין מקום לשתי עמודות — עוברים לעמודה אחת עם מתג עריכה/תצוגה
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 920);
+  const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit');
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < 920);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [device, setDevice] = useState<Device>('desktop');
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
@@ -419,10 +428,18 @@ export default function QuotationBuilder({
         <div className={`alert ${notice.kind === 'ok' ? 'alert-info' : 'alert-warning'}`} style={{ marginBottom: 12 }}>{notice.text}</div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(360px, 460px) 1fr', gap: 18, alignItems: 'start' }}>
+      {/* מתג עריכה/תצוגה — רק במסך צר (טלפון) */}
+      {narrow && (
+        <div className="tabs" style={{ marginBottom: 12 }}>
+          <button className={`tab ${mobilePane === 'edit' ? 'active' : ''}`} onClick={() => setMobilePane('edit')}>📝 עריכה</button>
+          <button className={`tab ${mobilePane === 'preview' ? 'active' : ''}`} onClick={() => setMobilePane('preview')}>👁 תצוגה מקדימה</button>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'minmax(360px, 460px) 1fr', gap: 18, alignItems: 'start' }}>
 
         {/* ── פאנל בקרה ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: narrow && mobilePane === 'preview' ? 'none' : 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* נמען */}
           <div style={card}>
@@ -701,7 +718,7 @@ export default function QuotationBuilder({
         </div>
 
         {/* ── תצוגה מקדימה חיה ── */}
-        <div style={{ position: 'sticky', top: 76 }}>
+        <div style={{ position: narrow ? 'static' : 'sticky', top: 76, display: narrow && mobilePane === 'edit' ? 'none' : undefined }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <div className="tabs" style={{ margin: 0 }}>
               {hasTracking && <button className={`tab ${tab === 'track' ? 'active' : ''}`} onClick={() => setTab('track')}>📊 מעקב</button>}
@@ -722,7 +739,7 @@ export default function QuotationBuilder({
             <div style={{ height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
               <div style={{ width: device === 'mobile' && tab !== 'pdf' && tab !== 'track' ? 390 : '100%', maxWidth: '100%', transition: 'width .2s' }}>
                 {tab === 'track' && existing && <TrackingPanel quotation={existing} brand={brand} />}
-                {tab === 'web' && <QuotationWebView data={webData} brand={brand} compact={device === 'mobile'} />}
+                {tab === 'web' && <QuotationWebView data={webData} brand={brand} compact={device === 'mobile' || narrow} />}
                 {tab === 'email' && (
                   <iframe title="preview-email" srcDoc={emailHtml} style={{ width: '100%', height: '100%', border: 'none', minHeight: 520 }} />
                 )}
@@ -757,7 +774,32 @@ function q_num(q: Quotation): string { return q.quotationNumber; }
 // מה בדיוק הלקוח קיבל (העתק המייל שנבנה מה-snapshot הקפוא), ומי חתם.
 function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: ReturnType<typeof deriveQuotationBrand> }) {
   const [copied, setCopied] = useState(false);
+  const [contractBusy, setContractBusy] = useState(false);
   const snap = quotation.snapshot;
+
+  // הורדה ידנית של ההסכם החתום — אותו PDF שנשמר במסמכי הלקוח בהמרה
+  async function downloadContract() {
+    setContractBusy(true);
+    try {
+      const bytes = await generateQuotationPdf({
+        quotationNumber: quotation.quotationNumber,
+        recipientName: snap?.recipientName ?? '',
+        businessName: snap?.businessName,
+        items: snap?.items ?? quotation.items,
+        futureServices: snap?.futureServices ?? quotation.futureServices,
+        vatRate: snap?.vatRate ?? quotation.vatRate,
+        notesForClient: snap?.notesForClient ?? quotation.notesForClient,
+        approval: {
+          signatureDataUrl: quotation.approvalSignature,
+          signerName: quotation.approvalSignerName,
+          approvedAt: quotation.approvedAt,
+        },
+      }, brand);
+      downloadPdf(bytes, `הסכם התקשרות — הצעה ${quotation.quotationNumber}.pdf`);
+    } finally {
+      setContractBusy(false);
+    }
+  }
   const link = quotation.publicToken ? `${window.location.origin}/?quote=${quotation.publicToken}` : null;
 
   const applyPlaceholders = (s: string) => {
@@ -850,6 +892,12 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
           <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 6 }}>
             {quotation.approvalSignerName ? `נחתם על ידי ${quotation.approvalSignerName}` : 'נחתם'}
             {quotation.approvedAt ? ` · ${fmt(quotation.approvedAt)}` : ''}
+          </div>
+          <button className="btn btn-sm btn-secondary" style={{ marginTop: 8 }} disabled={contractBusy} onClick={downloadContract}>
+            {contractBusy ? 'מפיק…' : '⬇ הורדת ההסכם החתום (PDF)'}
+          </button>
+          <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
+            ההסכם נשמר אוטומטית במסמכי הלקוח כשהופכים את הליד ללקוח.
           </div>
         </div>
       )}
@@ -1101,6 +1149,17 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
             placeholder={String(Math.round(itemOriginalPrice(item) / qty))}
             value={item.displayFullPrice ?? ''}
             onChange={e => onChange({ displayFullPrice: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })} />
+        </label>
+      )}
+      {/* המחיר של השנה הבאה בשליטת הרו"ח: ריק = אוטומטי (שנתי ÷ 12, ובשורה
+          ידנית — אותו מחיר שנקבע). מילוי — קובע בדיוק כמה יופיע "החל מינואר". */}
+      {isMonthly && (
+        <label style={{ ...miniLabel, marginTop: 6 }}>
+          תשלום חודשי מהשנה הבאה (ריק = אוטומטי)
+          <input type="number" min={0} style={miniInput}
+            placeholder={String(Math.round(monthlyPlan({ ...item, ongoingPrice: undefined }).ongoingPerMonth / qty))}
+            value={item.ongoingPrice ?? ''}
+            onChange={e => onChange({ ongoingPrice: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })} />
         </label>
       )}
       <ClientPriceHint item={item} />

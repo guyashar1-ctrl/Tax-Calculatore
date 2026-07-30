@@ -924,11 +924,14 @@ export default function App() {
   function handleConvertQuotation(q: Quotation) {
     const lead = q.leadId ? leads.find(l => l.id === q.leadId) : undefined;
     if (lead?.convertedClientId) {
+      // רשת ביטחון: אם ההסכם לא נשמר בהמרה (למשל כשל רגעי) — ניסיון חוזר שקט
+      if (q.status === 'approved') void saveEngagementContract(q, lead.convertedClientId);
       setSelectedId(lead.convertedClientId);
       setView('form');
       return;
     }
-    if (q.clientId) {   // הצעה ללקוח קיים — כבר לקוח, ישר לכרטיס
+    if (q.clientId) {   // הצעה ללקוח קיים — כבר לקוח; שומרים הסכם וישר לכרטיס
+      if (q.status === 'approved') void saveEngagementContract(q, q.clientId);
       setSelectedId(q.clientId);
       setView('form');
       return;
@@ -1006,6 +1009,10 @@ export default function App() {
   async function saveEngagementContract(q: Quotation, clientId: string) {
     if (q.status !== 'approved') return;
     try {
+      // כבר נשמר בעבר — לא מפיקים ומעלים שוב (הקריאה זולה, ההפקה יקרה)
+      const { data: already } = await supabase
+        .from('documents').select('id').eq('id', `engagement-${q.id}`).maybeSingle();
+      if (already) return;
       const snap = q.snapshot;
       const bytes = await generateQuotationPdf({
         quotationNumber: q.quotationNumber,

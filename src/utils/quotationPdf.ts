@@ -37,6 +37,18 @@ function money(n: number): string {
   return Math.round(n).toLocaleString('he-IL') + ' ש״ח';
 }
 
+// תווים שאין להם גליף בפונטים של ה-PDF מוחלפים בשקילים שקיימים —
+// מקף ארוך/נקודה-אמצעית ← מקף עברי, סימון וי ← מוסר, סוגריים ← מוסרים
+// (מנוע ה-bidi הפשוט שלנו ממקם אותם הפוך בטקסט מעורב).
+function pdfSafe(s: string): string {
+  return s
+    .replace(/[—–]/g, '־')
+    .replace(/\s*[·•]\s*/g, ' ־ ')
+    .replace(/[✓✔]\s*/g, '')
+    .replace(/−/g, '-')
+    .replace(/[()]/g, '');
+}
+
 function hexToRgb(hex: string): RGB {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return rgb(0.1, 0.1, 0.1);
@@ -59,13 +71,13 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
 
   // ציור טקסט מיושר לימין (הטקסט מסתיים ב-RIGHT)
   const rtl = (text: string, size: number, color: RGB, yy: number, rightX = RIGHT) => {
-    const segs = layoutMixed(text);
+    const segs = layoutMixed(pdfSafe(text));
     const w = measureMixed(segs, size, fonts);
     drawColored(page, segs, rightX - w, yy, size, fonts, color);
   };
   // ציור טקסט מיושר לשמאל (מתחיל ב-LEFT) — למספרים
   const ltr = (text: string, size: number, color: RGB, yy: number, leftX = LEFT) => {
-    const segs = layoutMixed(text);
+    const segs = layoutMixed(pdfSafe(text));
     drawColored(page, segs, leftX, yy, size, fonts, color);
   };
   const ensureSpace = (needed: number) => {
@@ -158,10 +170,11 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     sectionLine('שירותים נוספים — אם וכאשר תצטרכו');
     rtl('אינם כלולים בהצעה. תחויבו רק אם וכאשר תבקשו אותם בפועל.', 8.5, gray, y);
     y -= 16;
+    const fsSuffix: Record<string, string> = { monthly: ' לחודש', annual: ' לשנה', one_time: ' חד־פעמי', included: '' };
     for (const fs of future) {
       ensureSpace(16);
       rtl(fs.name, 10.5, bodyGray, y);
-      ltr(`${money(fs.price)}${fs.vatFlag ? ' + מע״מ' : ''}${fs.billingType === 'per_unit' ? ` / ${fs.unitLabel || 'יחידה'}` : ''}`, 10.5, bodyGray, y);
+      ltr(`${money(fs.price)}${fsSuffix[fs.category] ?? ''}${fs.vatFlag ? ' + מע״מ' : ''}${fs.billingType === 'per_unit' ? ` / ${fs.unitLabel || 'יחידה'}` : ''}`, 10.5, bodyGray, y);
       y -= 15;
     }
     y -= 6;
@@ -238,8 +251,10 @@ function monthlyTermLines(data: QuotationPdfData, totals: ReturnType<typeof calc
     out.push(`${totals.installments} תשלומים${range ? ` · ${range}` : ''}`);
   }
   if (totals.changesAfterPeriod) {
+    // בלי נקודתיים בין שני מספרים ("2027: 162") — מנוע ה-bidi מדביק אותם;
+    // מקף עברי מפריד בין הרצפים ושומר על הסדר הנכון.
     const from = first?.nextMonth ? `החל מ${formatMonth(first.nextMonth)}` : 'לאחר מכן';
-    out.push(`${from}: ${money(totals.monthlyOngoing.withVat)} לחודש (12 תשלומים בשנה).`);
+    out.push(`${from} ־ ${money(totals.monthlyOngoing.withVat)} לחודש, 12 תשלומים בשנה.`);
   }
   return out;
 }

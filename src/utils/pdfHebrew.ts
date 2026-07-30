@@ -36,34 +36,42 @@ export interface TextSegment { rtl: boolean; text: string; }
 /**
  * פירוק טקסט למקטעים בסדר ויזואלי (לציור משמאל לימין):
  * fontkit כבר הופך בעצמו רצף עברי בתוך drawText — לכן רצף עברי נשאר בסדר
- * הלוגי שלו (ההיפוך הידני גרם להיפוך כפול!). אנחנו הופכים רק את סדר הרצפים,
- * כדי שבטקסט מעורב ("תיק 123 רו״ח") המילים והמספרים ינחתו במקום הנכון.
- * גרש/גרשיים ASCII מוחלפים בתווים העבריים (״ ׳) שקיימים בפונט העברי.
+ * הלוגי שלו, ואנחנו הופכים רק את סדר הרצפים.
+ *
+ * שני לקחים מהשטח (הצעת מחיר 2026-002 שיצאה מלאה ריבועים):
+ * 1. סימני פיסוק (פסיק, פלוס, סוגריים, נקודה-אמצעית) שהודבקו לרצף העברי צוירו
+ *    בפונט העברי — שאינו מכיל אותם. לכן פיסוק ורווחים הם עכשיו מקטעים עצמאיים
+ *    שמצוירים בפונט הלטיני (שמכיל את כולם), והם משתתפים בהיפוך כך שהמיקום נשמר.
+ * 2. שני מספרים שהודבקו דרך פיסוק ("2027: 162") הפכו לרצף לטיני אחד והתערבבו.
+ *    עכשיו רק סיומות מספר (אחוז, נקודה, פסיק-אלפים, נקודתיים) נצמדות לספרות.
  */
 export function layoutMixed(text: string): TextSegment[] {
-  const cls = (ch: string) => isHebChar(ch) ? 'R' : /[A-Za-z0-9]/.test(ch) ? 'L' : 'N';
   if (!hasHebrew(text)) return [{ rtl: false, text }];
-  const runs: TextSegment[] = [];
-  let cur: TextSegment | null = null;
-  let neutrals = '';
+  type Cls = 'R' | 'L' | 'N';
+  const cls = (ch: string): Cls => isHebChar(ch) ? 'R' : /[A-Za-z0-9@]/.test(ch) ? 'L' : 'N';
+  const NUM_TRAIL = /[%,.:]/;   // 30% · 1,800 · 3.5 · 12:30 — נשארים מקשה אחת
+  const runs: { cls: Cls; text: string }[] = [];
   for (const ch of [...text]) {
     const c = cls(ch);
-    if (c === 'N') { neutrals += ch; continue; }
-    const rtl = c === 'R';
-    if (cur && cur.rtl === rtl) {
-      cur.text += neutrals + ch;
-    } else {
-      if (cur) { cur.text += neutrals; runs.push(cur); }
-      else if (neutrals) runs.push({ rtl: true, text: neutrals });
-      cur = { rtl, text: ch };
+    const prev = runs[runs.length - 1];
+    if (c === 'N' && NUM_TRAIL.test(ch) && prev?.cls === 'L' && /[0-9]$/.test(prev.text)) {
+      prev.text += ch;
+      continue;
     }
-    neutrals = '';
+    if (prev && prev.cls === c) prev.text += ch;
+    else runs.push({ cls: c, text: ch });
   }
-  if (cur) { cur.text += neutrals; runs.push(cur); }
-  else if (neutrals) runs.push({ rtl: true, text: neutrals });
-  return runs.reverse().map(r => r.rtl
-    ? { ...r, text: r.text.replace(/"/g, '״').replace(/'/g, '׳') }
-    : r);
+  return runs.reverse().map(r => {
+    if (r.cls === 'R') {
+      return { rtl: true, text: r.text.replace(/"/g, '״').replace(/'/g, '׳') };
+    }
+    if (r.cls === 'N') {
+      // מקטע ניטרלי מתהפך תו-תו יחד עם היפוך הרצפים — כדי ש"." שאחרי ")"
+      // יישאר בקצה השמאלי של המשפט ולא באמצעו
+      return { rtl: false, text: [...r.text].reverse().join('') };
+    }
+    return { rtl: false, text: r.text };
+  });
 }
 
 const segFont = (seg: TextSegment, fonts: PdfFonts): PDFFont => seg.rtl ? fonts.hebrew : fonts.latin;

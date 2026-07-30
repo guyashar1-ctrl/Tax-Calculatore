@@ -155,14 +155,19 @@ export interface MonthlyPlan {
 
 // שורה חודשית שאין לה מחיר שנתי מוגדר מתנהגת כמו קודם: המחיר הוא המחיר,
 // 12 תשלומים, שום דבר לא משתנה בינואר.
+// המחיר "מהשנה הבאה": קביעה ידנית (ongoingPrice) גוברת על הכול; שורה שהרו"ח
+// קבע בה את התשלום החודשי בעצמו (manual) שומרת על אותו מחיר גם בהמשך —
+// "הינדסתי 250 לחודש" אומר 250 גם בינואר, לא שנתי ÷ 12.
 export function monthlyPlan(item: QuotationItem): MonthlyPlan {
   const installments = clampInstallments(item.installments);
   const perPayment = itemFinalPrice(item);
   const qty = item.quantity || 1;
   const discount = item.discountPercent ? 1 - item.discountPercent / 100 : 1;
-  const ongoingPerMonth = item.annualPrice != null && item.priceBasis === 'annual'
-    ? round2((item.annualPrice * qty * discount) / DEFAULT_INSTALLMENTS)
-    : perPayment;
+  const ongoingPerMonth = item.ongoingPrice != null && item.ongoingPrice > 0
+    ? round2(item.ongoingPrice * qty)
+    : item.annualPrice != null && item.priceBasis === 'annual' && item.prorationMode !== 'manual'
+      ? round2((item.annualPrice * qty * discount) / DEFAULT_INSTALLMENTS)
+      : perPayment;
 
   const startMonth = item.billingStartMonth;
   const endMonth = startMonth ? addMonths(startMonth, installments - 1) : undefined;

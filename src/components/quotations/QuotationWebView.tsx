@@ -48,6 +48,14 @@ const CATEGORY_BLURB: Record<ServiceCategory, string> = {
   included: 'כלול ללא תוספת תשלום',
 };
 
+// תדירות ליד מחיר בשירותים העתידיים — בלי זה "₪350" נקרא כמחיר חד־פעמי
+const CATEGORY_PRICE_SUFFIX: Record<ServiceCategory, string> = {
+  monthly: 'לחודש',
+  annual: 'לשנה',
+  one_time: 'חד־פעמי',
+  included: '',
+};
+
 export default function QuotationWebView({
   data, brand, compact, interactive, status, onApprove, approving, onDownloadPdf,
 }: Props) {
@@ -219,7 +227,10 @@ export default function QuotationWebView({
                     </div>
                     <div style={{ textAlign: 'end', whiteSpace: 'nowrap' }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(fs.price)}</span>
-                      <span style={{ fontSize: 10.5, color: brand.muted, marginInlineStart: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: brand.ink, marginInlineStart: 4 }}>
+                        {CATEGORY_PRICE_SUFFIX[fs.category] ? `${CATEGORY_PRICE_SUFFIX[fs.category]} ` : ''}
+                      </span>
+                      <span style={{ fontSize: 10.5, color: brand.muted }}>
                         {fs.vatFlag ? '+ מע״מ' : ''}{fs.billingType === 'per_unit' ? ` / ${fs.unitLabel || 'יחידה'}` : ''}
                       </span>
                     </div>
