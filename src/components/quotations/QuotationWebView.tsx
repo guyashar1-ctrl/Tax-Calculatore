@@ -211,33 +211,12 @@ export default function QuotationWebView({
             </div>
           </div>
 
-          {/* מחירון שירותים עתידיים — שקיפות מלאה, בלי הפתעות */}
+          {/* מחירון שירותים עתידיים — מקופל כברירת מחדל.
+              השקיפות מסופקת ע"י עצם קיום השורה ("מחירון · N שירותים"), בלי
+              שקיר של מחירים שלא ביקשו ידרוך על רגע ההחלטה. עד 3 שירותים —
+              נשאר פתוח; לקפל שלוש שורות זו התחכמות מיותרת. */}
           {(data.futureServices?.length ?? 0) > 0 && (
-            <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
-              <SectionLabel brand={brand}>שירותים נוספים — אם וכאשר תצטרכו</SectionLabel>
-              <div style={{ marginTop: 8, fontSize: 12.5, color: brand.muted, lineHeight: 1.6 }}>
-                השירותים הבאים אינם כלולים בהצעה. אין צורך לעשות איתם דבר עכשיו — אבל כדי שלא תהיו מופתעים בהמשך, אלה המחירים הידועים מראש. תחויבו רק אם וכאשר תבקשו אותם בפועל.
-              </div>
-              <div style={{ marginTop: 12, borderRadius: brand.radius, border: `1px solid ${brand.border}`, overflow: 'hidden' }}>
-                {data.futureServices!.map((fs, i) => (
-                  <div key={fs.id} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: compact ? '10px 12px' : '11px 14px', borderTop: i ? `1px solid ${brand.border}` : 'none', background: i % 2 ? tint(brand.cardBg) : brand.cardBg }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 500, color: brand.ink }}>{fs.name}</div>
-                      {fs.description && <div style={{ fontSize: 11.5, color: brand.muted, marginTop: 2 }}>{fs.description}</div>}
-                    </div>
-                    <div style={{ textAlign: 'end', whiteSpace: 'nowrap' }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(fs.price)}</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: brand.ink, marginInlineStart: 4 }}>
-                        {CATEGORY_PRICE_SUFFIX[fs.category] ? `${CATEGORY_PRICE_SUFFIX[fs.category]} ` : ''}
-                      </span>
-                      <span style={{ fontSize: 10.5, color: brand.muted }}>
-                        {fs.vatFlag ? '+ מע״מ' : ''}{fs.billingType === 'per_unit' ? ` / ${fs.unitLabel || 'יחידה'}` : ''}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <FutureServices services={data.futureServices!} brand={brand} compact={compact} pad={pad} />
           )}
 
           {/* הערה */}
@@ -332,6 +311,73 @@ function ApproveButton({ brand, compact, isApproved, isDead, approving, enabled,
 
 function greetingName(fullName: string): string {
   return (fullName || '').trim().split(/\s+/)[0] || '';
+}
+
+// מחירון "אם וכאשר" — שורה מתקפלת. שם השירות הוא הבולט בשורה והמחיר רגוע
+// לצידו: הסעיף נועד להרגיע ("לא תופתע"), לא להציג עוד מחירים.
+function FutureServices({ services, brand, compact, pad }: {
+  services: FutureService[]; brand: QuotationBrand; compact?: boolean; pad: number;
+}) {
+  const alwaysOpen = services.length <= 3;
+  const [open, setOpen] = useState(alwaysOpen);
+
+  const list = (
+    <div style={{ marginTop: 12, borderRadius: brand.radius, border: `1px solid ${brand.border}`, overflow: 'hidden' }}>
+      {services.map((fs, i) => (
+        <div key={fs.id} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: compact ? '10px 12px' : '11px 14px', borderTop: i ? `1px solid ${brand.border}` : 'none', background: i % 2 ? tint(brand.cardBg) : brand.cardBg }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: brand.ink }}>{fs.name}</div>
+            {fs.description && <div style={{ fontSize: 11.5, color: brand.muted, marginTop: 2 }}>{fs.description}</div>}
+          </div>
+          <div style={{ textAlign: 'end', whiteSpace: 'nowrap', color: brand.muted }}>
+            <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatILS(fs.price)}</span>
+            <span style={{ fontSize: 11, marginInlineStart: 4 }}>
+              {CATEGORY_PRICE_SUFFIX[fs.category] ? `${CATEGORY_PRICE_SUFFIX[fs.category]} ` : ''}
+              {fs.vatFlag ? '+ מע״מ' : ''}{fs.billingType === 'per_unit' ? ` / ${fs.unitLabel || 'יחידה'}` : ''}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
+      {alwaysOpen ? (
+        <>
+          <SectionLabel brand={brand}>שירותים נוספים — אם וכאשר תצטרכו</SectionLabel>
+          <div style={{ marginTop: 8, fontSize: 12.5, color: brand.muted, lineHeight: 1.6 }}>
+            אינם כלולים בהצעה. תחויבו רק אם וכאשר תבקשו אותם בפועל.
+          </div>
+          {list}
+        </>
+      ) : (
+        <>
+          <button
+            onClick={() => setOpen(o => !o)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'start',
+              background: open ? 'transparent' : tint(brand.pageBg), cursor: 'pointer',
+              border: `1px solid ${brand.border}`, borderRadius: brand.radius,
+              padding: compact ? '12px 14px' : '14px 16px', fontFamily: 'inherit', color: brand.ink,
+            }}
+          >
+            <span style={{ fontSize: compact ? 15 : 16 }}>🔎</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: compact ? 13.5 : 14.5, fontWeight: 600 }}>
+                מחירון שירותים נוספים · {services.length} שירותים
+              </span>
+              <span style={{ display: 'block', fontSize: 11.5, color: brand.muted, marginTop: 2, lineHeight: 1.5 }}>
+                אינם חלק מההצעה. פתוח לעיונכם — כדי שלא תופתעו ממחיר בעתיד.
+              </span>
+            </span>
+            <span style={{ fontSize: 11, color: brand.muted }}>{open ? '▲' : '▼'}</span>
+          </button>
+          {open && list}
+        </>
+      )}
+    </div>
+  );
 }
 
 function SectionLabel({ children, brand }: { children: React.ReactNode; brand: QuotationBrand }) {
