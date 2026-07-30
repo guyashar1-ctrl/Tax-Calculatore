@@ -6,11 +6,20 @@ import { RepresentationRequest, RepresentationExecution } from '../../types';
 import { EmailMessage } from '../../types/emailActivity';
 import RepresentationExecutionCenter from '../RepresentationExecutionCenter';
 import EmailStatusRow from '../EmailActivity/EmailStatusRow';
+import { ClientEmailsList } from '../EmailActivity/ClientEmailsSection';
 
 const MAIL_STATES: { label: string; msg: EmailMessage }[] = [
   { label: 'הגיע בלבד', msg: { id: 'm1', toEmail: 'ruti@example.com', kind: 'sign', status: 'delivered', sentAt: '2026-07-03T10:00:00.000Z', deliveredAt: '2026-07-03T10:00:05.000Z' } },
   { label: 'נכנס לחתום', msg: { id: 'm2', toEmail: 'ruti@example.com', kind: 'sign', status: 'clicked', sentAt: '2026-07-03T10:00:00.000Z', deliveredAt: '2026-07-03T10:00:05.000Z', openedAt: '2026-07-03T12:00:00.000Z', clickedAt: '2026-07-03T12:00:00.000Z' } },
   { label: 'מייל שאינו חתימה (הצעת מחיר)', msg: { id: 'm3', toEmail: 'ruti@example.com', kind: 'quotation', status: 'delivered', sentAt: '2026-07-03T10:00:00.000Z', deliveredAt: '2026-07-03T10:00:05.000Z' } },
+];
+
+// רשימת המיילים כפי שהיא נראית בכרטיס הלקוח — כולל מייל עם עותק שמור,
+// מייל ישן בלי עותק, ומייל שחזר.
+const CLIENT_MAILS: EmailMessage[] = [
+  { id: 'c1', toEmail: 'ruti@example.com', kind: 'active', subject: 'הייצוג אושר — נתחיל לעבוד', status: 'opened', sentAt: '2026-07-20T09:30:00.000Z', deliveredAt: '2026-07-20T09:30:07.000Z', openedAt: '2026-07-20T11:02:00.000Z', html: '<html><body dir="rtl" style="font-family:Arial"><h1>הכול מוכן, רותי</h1><p>הייצוג שלכם מול רשויות המס אושר בהצלחה.</p></body></html>' },
+  { id: 'c2', toEmail: 'ruti@example.com', kind: 'sign', subject: 'הטופס מוכן — נשאר רק לחתום', status: 'clicked', sentAt: '2026-07-03T10:00:00.000Z', deliveredAt: '2026-07-03T10:00:05.000Z', openedAt: '2026-07-03T12:00:00.000Z', clickedAt: '2026-07-03T12:01:00.000Z' },
+  { id: 'c3', toEmail: 'ruti@old-address.com', kind: 'onboard', subject: 'ברוכים הבאים — נשאר רק לאמת את הזהות', status: 'bounced', sentAt: '2026-07-01T08:00:00.000Z' },
 ];
 
 const BASE: RepresentationRequest = {
@@ -53,6 +62,17 @@ const SCENARIOS: Scenario[] = [
     label: '4. נשלח ללקוח',
     req: { ...BASE, ...withSetup, execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' }, signatureEmailSentAt: '2026-07-03T10:00:00.000Z', nationalInsurance: { enteredAt: '2026-07-02T09:00:00.000Z', referenceNumber: '73882698', deadline: '2028-01-01', instructionsSentAt: '2026-07-03T10:00:00.000Z', instructionsSentWith: 'signature' } }) } as RepresentationRequest,
   },
+  {
+    key: 'awaiting',
+    label: '5. הוגש לשע״ם — ממתין לאישור',
+    req: { ...BASE, ...withSetup, status: 'awaiting_authorities', signedPdfStoredId: 'doc-signed', execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' }, signatureEmailSentAt: '2026-07-03T10:00:00.000Z', nationalInsurance: { enteredAt: '2026-07-02T09:00:00.000Z', referenceNumber: '73882698', deadline: '2028-01-01', instructionsSentAt: '2026-07-03T10:00:00.000Z', instructionsSentWith: 'signature', confirmedAt: '2026-07-05T10:00:00.000Z' } }) } as unknown as RepresentationRequest,
+  },
+  {
+    // אחרי הסימון — כאן נבדק שהמייל ללקוח אינו יוצא מעצמו אלא בכפתור
+    key: 'active',
+    label: '6. הייצוג פעיל (עדכון ללקוח בבחירה)',
+    req: { ...BASE, ...withSetup, status: 'active', signedPdfStoredId: 'doc-signed', execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' }, signatureEmailSentAt: '2026-07-03T10:00:00.000Z', nationalInsurance: { enteredAt: '2026-07-02T09:00:00.000Z', referenceNumber: '73882698', deadline: '2028-01-01', instructionsSentAt: '2026-07-03T10:00:00.000Z', instructionsSentWith: 'signature', confirmedAt: '2026-07-05T10:00:00.000Z' } }) } as unknown as RepresentationRequest,
+  },
 ];
 
 export default function TestExecutionCenter() {
@@ -90,6 +110,9 @@ export default function TestExecutionCenter() {
         onSendToSigner={async () => null}
         userId={undefined}
       />
+
+      <h2 style={{ marginTop: '2rem' }}>מיילים בכרטיס הלקוח</h2>
+      <ClientEmailsList rows={CLIENT_MAILS} onChanged={() => {}} />
 
       <h2 style={{ marginTop: '2rem' }}>שורת מצב המייל</h2>
       {MAIL_STATES.map(m => (

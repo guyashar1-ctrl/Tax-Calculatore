@@ -779,7 +779,12 @@ export default function App() {
     }
   }
 
-  /** הרשויות אישרו — הלקוח הופך למיוצג פעיל: כל הרשויות במרשם → active, ונשלח מייל המשך */
+  /**
+   * הרשויות אישרו — הלקוח הופך למיוצג פעיל: כל הרשויות במרשם → active.
+   * ‼ בכוונה לא נשלח מייל כאן. עד היום יצא ללקוח מייל "הייצוג אושר" מעצם
+   * הסימון, בלי שהרו"ח ידע שנשלח ובלי שראה אותו. השליחה עברה לכפתור מפורש
+   * בשלב 7 של מרכז הביצוע, עם תצוגה מקדימה לפניה.
+   */
   async function handleMarkActive(req: RepresentationRequest) {
     await updateRequest({ ...req, status: 'active' });
     const linkedClient = clients.find(c => c.id === req.linkedClientId);
@@ -791,10 +796,6 @@ export default function App() {
       }
       await updateClient({ ...linkedClient, representationStatus: 'active', authorityRepresentations: reps });
     }
-    // מייל המשך ללקוח (לא חוסם)
-    try {
-      await supabase.functions.invoke('send-onboarding-email', { body: { requestId: req.id, stage: 'active' } });
-    } catch { /* ignore */ }
   }
 
   async function handleDeleteRequest(id: string) {

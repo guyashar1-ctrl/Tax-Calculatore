@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useEmailMessages } from '../../hooks/useEmailMessages';
 import { supabase } from '../../lib/supabase';
 import { EmailMessage, EmailStatus, EMAIL_STATUS_LABEL, EMAIL_STATUS_STYLE } from '../../types/emailActivity';
+import SentEmailViewer from './SentEmailViewer';
 
 interface Props {
   userId: string;
@@ -23,43 +24,6 @@ function StatusChip({ status }: { status: EmailStatus }) {
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot }} />
       {EMAIL_STATUS_LABEL[status]}
     </span>
-  );
-}
-
-/**
- * צפייה במייל שנשלח. מרונדר ב-iframe מבודד (sandbox ריק) — הגוף הוא HTML
- * שנשלח לצד שלישי, ואין סיבה לתת לו לגעת באפליקציה או לטעון סקריפטים.
- */
-function SentEmailViewer({ message, onClose }: { message: EmailMessage; onClose: () => void }) {
-  return (
-    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" style={{ width: 760, maxWidth: '100%', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
-        <div className="modal-header">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h3 style={{ margin: 0, fontSize: '1rem' }}>{message.subject || 'מייל שנשלח'}</h3>
-            <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: 2 }}>
-              אל <span dir="ltr">{message.toEmail}</span> · {fmtTime(message.sentAt)}
-            </div>
-          </div>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
-        </div>
-        <div style={{ flex: 1, overflow: 'hidden', background: 'var(--gray-100, #eee)' }}>
-          <iframe
-            title="תצוגת המייל שנשלח"
-            srcDoc={message.html}
-            sandbox=""
-            style={{ width: '100%', height: '70vh', border: 'none', background: '#fff' }}
-          />
-        </div>
-        <div className="modal-footer">
-          <button type="button" className="btn btn-secondary" onClick={() => {
-            const w = window.open('', '_blank');
-            if (w) { w.document.write(message.html || ''); w.document.close(); }
-          }}>פתיחה בכרטיסייה חדשה</button>
-          <button type="button" className="btn btn-primary" onClick={onClose}>סגירה</button>
-        </div>
-      </div>
-    </div>
   );
 }
 

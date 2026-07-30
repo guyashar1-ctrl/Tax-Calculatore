@@ -10,6 +10,10 @@
 //
 // אבטחה: verify_jwt=false בשער + אימות פנימי מה-JWT.
 //
+// preview:true — בונה בדיוק את אותו מייל ומחזיר אותו בלי לשלוח ובלי לתעד. כך
+// מה שרואים לפני השליחה הוא המייל עצמו ולא שחזור שלו בצד הדפדפן, שהיה נפרד
+// מהקוד הזה ומתיישן בלי שאיש ישים לב.
+//
 // שני מסלולי הרשאה:
 //   (א) JWT של הרו"ח — כל שליחה יזומה מתוך המערכת.
 //   (ב) quotationToken — הלקוח בעצמו אישר הצעת מחיר, ואין אף אחד מחובר. הטוקן
@@ -73,7 +77,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
   try {
-    const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken } = await req.json();
+    const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken, preview } = await req.json();
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
@@ -291,6 +295,12 @@ Deno.serve(async (req: Request) => {
       showLinkFallback: !!ctaLabel,
       footerTagline: stage === "ni_approve" ? "אישור מול הביטוח הלאומי · כדקה" : "מאובטח · פחות מדקה",
     });
+
+    // תצוגה מקדימה — אותו HTML בדיוק, רק בלי Resend ובלי רישום ביומן. המסלול
+    // הציבורי (טוקן הצעה) לא מקבל אותה: אין סיבה שהלקוח ישלוף ממנה תוכן.
+    if (preview && !quotationToken) {
+      return json({ ok: true, preview: true, subject: copy.subject, to: toEmail, from: `${brand.firmName} <${fromAddress}>`, html });
+    }
 
     const payload: Record<string, unknown> = { from: `${brand.firmName} <${fromAddress}>`, to: [toEmail], subject: copy.subject, html };
     if (replyTo) payload.reply_to = replyTo;

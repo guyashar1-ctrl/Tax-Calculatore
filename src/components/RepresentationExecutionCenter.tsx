@@ -16,6 +16,7 @@ import {
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { useEmailMessages } from '../hooks/useEmailMessages';
 import EmailStatusRow from './EmailActivity/EmailStatusRow';
+import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
 
 interface Props {
@@ -138,6 +139,13 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // המיילים של הבקשה — מוצגים בתוך השלב שהם שייכים אליו
   const { messages, reload: reloadEmails } = useEmailMessages(userId);
   const signatureEmails = messages.filter(m => m.requestId === request.id && m.kind === 'sign');
+  const activeEmails = messages.filter(m => m.requestId === request.id && m.kind === 'active');
+
+  // מייל "הייצוג אושר" — נשלח רק מכאן, ורק אחרי שראו אותו
+  const [previewActive, setPreviewActive] = useState(false);
+  // תצוגה מקדימה של מייל החתימה. השליחה עצמה נשארת בכפתור המשותף, שגם מסמן
+  // שההוראות לב"ל יצאו — ולכן כאן צפייה בלבד.
+  const [previewSignerId, setPreviewSignerId] = useState<string | null>(null);
 
   /** שולח לכל החותמים שטרם חתמו, ומתעד שההוראות לב"ל יצאו עם אותו מייל. */
   async function handleSendAll() {
@@ -284,6 +292,28 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               {status === 'awaiting_authorities' && (
                 <button className="btn btn-green btn-sm" onClick={onMarkActive}>✓ סמן כמיוצג פעיל</button>
               )}
+
+              {/* ‼ הסימון לבדו לא שולח דבר. עד היום יצא כאן מייל אוטומטית והרו"ח
+                  לא ידע שיצא — עכשיו זו פעולה נפרדת, אחרי שרואים את המייל. */}
+              {status === 'active' && (
+                activeEmails.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+                    {activeEmails.map(m => (
+                      <EmailStatusRow key={m.id} message={m} note="עדכון ללקוח: הייצוג אושר" onChanged={reloadEmails} />
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '.78rem', color: 'var(--gray-600)', lineHeight: 1.6 }}>
+                    <div style={{ marginBottom: '.4rem' }}>
+                      ℹ הלקוח לא עודכן במייל. המערכת לא שולחת מעצמה — אפשר לשלוח עדכון,
+                      אחרי שרואים בדיוק מה ייצא.
+                    </div>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setPreviewActive(true)}>
+                      ✉ עדכון ללקוח — תצוגה מקדימה
+                    </button>
+                  </div>
+                )
+              )}
             </Step>
           </Track>
 
@@ -354,9 +384,21 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 {busy === 'send' ? 'שולח…' : `📧 שלח ללקוח${pendingSigners.length > 1 ? ` (${pendingSigners.length} חותמים)` : ''}`}
               </button>
               {pendingSigners.length > 0 && !niRefMissing && (
-                <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.4rem' }} dir="ltr">
-                  {pendingSigners.map(s => s.email).join(' · ')}
-                </div>
+                <>
+                  <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.4rem' }} dir="ltr">
+                    {pendingSigners.map(s => s.email).join(' · ')}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSignerId(pendingSigners[0].id)}
+                    style={{
+                      background: 'none', border: 'none', padding: 0, marginTop: '.3rem', font: 'inherit',
+                      fontSize: '.76rem', color: 'var(--blue)', textDecoration: 'underline', cursor: 'pointer',
+                    }}
+                  >
+                    👁 לראות מה ייצא ללקוח
+                  </button>
+                </>
               )}
               {niRefMissing && (
                 <div style={{ margin: '.55rem auto 0', maxWidth: 460, padding: '.45rem .6rem', background: 'var(--orange-light)', borderRadius: 'var(--radius)', fontSize: '.76rem', color: 'var(--gray-800)', lineHeight: 1.6 }}>
@@ -387,6 +429,25 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           </div>
         )}
       </div>
+
+      {previewActive && (
+        <EmailPreviewDialog
+          heading="עדכון ללקוח — הייצוג אושר"
+          body={{ requestId: request.id, stage: 'active' }}
+          onSent={reloadEmails}
+          onClose={() => setPreviewActive(false)}
+        />
+      )}
+
+      {previewSignerId && (
+        <EmailPreviewDialog
+          readOnly
+          heading="תצוגה מקדימה — מייל החתימה"
+          body={{ requestId: request.id, stage: 'sign', signerId: previewSignerId }}
+          onSent={reloadEmails}
+          onClose={() => setPreviewSignerId(null)}
+        />
+      )}
     </div>
   );
 }

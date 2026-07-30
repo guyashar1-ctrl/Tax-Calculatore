@@ -10,6 +10,7 @@ import { ACTIVITY_ICON } from '../../types/clientWorkspace';
 import { getMissingDocs, relativeTime, shortDate } from '../../utils/clientDerived';
 import type { AnnualReportSession } from '../../features/annualReport/types';
 import { summarizeYearFile, SESSION_STATUS_META, buildKeyAmounts } from '../../features/annualReport/profile';
+import ClientEmailsSection from '../EmailActivity/ClientEmailsSection';
 
 type TabId = 'overview' | 'dossier' | 'docs' | 'tasks';
 
@@ -296,6 +297,9 @@ export default function ClientCockpitTab({
           </div>
         )}
       </div>
+
+      {/* ── מיילים שיצאו ללקוח ── */}
+      {client.id && <ClientEmailsSection clientId={client.id} emails={[client.email]} />}
 
       {/* ── הערה מוצמדת + הוספה מהירה ── */}
       <div className="cw-section pin-section">
