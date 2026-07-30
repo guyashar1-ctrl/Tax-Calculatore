@@ -76,6 +76,9 @@ const SCENARIOS: Scenario[] = [
 ];
 
 export default function TestExecutionCenter() {
+  // ?req=<id> — מריץ את התרחישים מול בקשה אמיתית, כדי לבדוק את התצוגה המקדימה
+  // של המייל (שנבנית בשרת מהבקשה עצמה) בלי לשלוח דבר.
+  const realRequestId = new URLSearchParams(window.location.search).get('req');
   const [key, setKey] = useState('ready');
   const [niIncluded, setNiIncluded] = useState(true);
   const [niSpouse, setNiSpouse] = useState(false);
@@ -99,7 +102,7 @@ export default function TestExecutionCenter() {
       </div>
       <RepresentationExecutionCenter
         key={`${key}-${niIncluded}-${niSpouse}`}
-        request={sc.req}
+        request={realRequestId ? { ...sc.req, id: realRequestId } : sc.req}
         niIncluded={niIncluded}
         niCoversSpouse={niSpouse}
         onSaveExecution={() => {}}
