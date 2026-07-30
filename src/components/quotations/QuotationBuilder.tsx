@@ -475,6 +475,25 @@ export default function QuotationBuilder({
     s.active && (!catalogSearch.trim() || s.name.includes(catalogSearch.trim())));
   const usedServiceIds = new Set(items.map(i => i.serviceId).filter(Boolean));
 
+  // אותן שלוש פעולות מוצגות פעמיים — בראש המסך ובסוף פאנל העריכה. מי שגלל
+  // עד סוף המילוי סיים בדיוק שם, ולשלוח אותו חזרה לראש המסך זה מסע מיותר.
+  const actionButtons = (full = false) => (
+    <>
+      <button className="btn btn-secondary" style={full ? { flex: 1 } : undefined}
+        onClick={() => handleSend(true)} disabled={sending !== null || saving}>
+        {sending === 'test' ? 'שולח…' : 'מייל בדיקה'}
+      </button>
+      <button className="btn btn-secondary" style={full ? { flex: 1 } : undefined}
+        onClick={handleSave} disabled={saving || sending !== null}>
+        {saving ? 'שומר…' : !dirty && savedAt ? '✓ נשמר' : 'שמירת טיוטה'}
+      </button>
+      <button className="btn btn-primary" style={full ? { flex: 2 } : undefined}
+        onClick={() => handleSend(false)} disabled={sending !== null || saving}>
+        {sending === 'send' ? 'שולח…' : 'שליחה ללקוח'}
+      </button>
+    </>
+  );
+
   return (
     <div dir="rtl">
       {/* header */}
@@ -486,15 +505,7 @@ export default function QuotationBuilder({
             {dirty && savedAt ? 'יש שינויים שלא נשמרו' : 'בונים, מציגים תצוגה מקדימה ושומרים — הכל במסך אחד'}
           </div>
         </div>
-        <button className="btn btn-secondary" onClick={() => handleSend(true)} disabled={sending !== null || saving}>
-          {sending === 'test' ? 'שולח…' : 'מייל בדיקה'}
-        </button>
-        <button className="btn btn-secondary" onClick={handleSave} disabled={saving || sending !== null}>
-          {saving ? 'שומר…' : !dirty && savedAt ? '✓ נשמר' : 'שמירת טיוטה'}
-        </button>
-        <button className="btn btn-primary" onClick={() => handleSend(false)} disabled={sending !== null || saving}>
-          {sending === 'send' ? 'שולח…' : 'שליחה ללקוח'}
-        </button>
+        {actionButtons()}
       </div>
 
       {error && <div className="alert alert-warning" style={{ marginBottom: 12 }}>{error}</div>}
@@ -813,6 +824,11 @@ export default function QuotationBuilder({
             {items.length === 0 && (
               <div style={{ fontSize: 11.5, color: 'var(--gray-400)', marginTop: 4 }}>אין עדיין שירותים בהצעה.</div>
             )}
+          </div>
+
+          {/* סוף המילוי — הפעולות כאן, בלי לחזור לראש המסך */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+            {actionButtons(true)}
           </div>
         </div>
 

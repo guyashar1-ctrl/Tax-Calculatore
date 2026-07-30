@@ -472,8 +472,8 @@ function ServiceCard({ item, brand, compact }: { item: QuotationItem; brand: Quo
   const hasDiscount = original - finalBeforeVat >= 1;
   const discountPct = hasDiscount ? Math.round((1 - finalBeforeVat / original) * 100) : 0;
   const perUnit = item.billingType === 'per_unit';
-  // שורה שתומחרה שנתית ונגבית חודשית — הלקוח צריך לראות את שני המספרים,
-  // אחרת "₪150" נראה כמו המחיר של הדוח השנתי במקום כמו תשלום אחד מתוך שנה.
+  // שורה שתומחרה שנתית ונגבית חודשית — מציינים כמה תשלומים, ולא את הסכום
+  // השנתי. החלטת גיא: הלקוח רואה מחיר אחד, מה שהוא משלם בחודש.
   const spread = item.category === 'monthly' && item.priceBasis === 'annual' ? monthlyPlan(item) : null;
   return (
     <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: compact ? 14 : 16, display: 'flex', gap: 12, alignItems: 'flex-start', background: brand.cardBg }}>
@@ -483,7 +483,7 @@ function ServiceCard({ item, brand, compact }: { item: QuotationItem; brand: Quo
         {item.clientNote && <div style={{ fontSize: 12, color: brand.accent, marginTop: 5 }}>{item.clientNote}</div>}
         <div style={{ fontSize: 11, color: brand.muted, marginTop: 6, opacity: .8 }}>
           {SERVICE_CATEGORY_LABELS[item.category]} · {spread
-            ? `${spread.installments} תשלומים · ${formatILS(Math.round(spread.periodTotal))} לשנה`
+            ? `${spread.installments} תשלומים`
             : CATEGORY_BLURB[item.category]}
           {perUnit && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}
         </div>
