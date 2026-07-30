@@ -91,7 +91,7 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   ltr(`הצעה מס׳ ${data.quotationNumber}`, 9, gray, y + 2, LEFT);
   y -= 34;
 
-  rtl(data.recipientName ? `${data.recipientName}, ההצעה האישית שהכנתי עבורך` : 'הצעת מחיר', 18, ink, y);
+  rtl(data.recipientName ? `${data.recipientName}, זו ההצעה שהכנתי עבורך.` : 'הצעת מחיר', 18, ink, y);
   y -= 20;
   if (data.businessName) { rtl(data.businessName, 11, gray, y); y -= 16; }
   y -= 8;
@@ -161,15 +161,15 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     }
     y -= 4;
   }
-  rtl('חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד ואינם מאוחדים.', 8.5, gray, y);
+  rtl('חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד. הסכומים הסופיים כוללים מע״מ.', 8.5, gray, y);
   y -= 20;
 
   // ── שירותים עתידיים (מחירון ידוע מראש) ──
   const future = data.futureServices ?? [];
   if (future.length > 0) {
     ensureSpace(50);
-    sectionLine('שירותים נוספים — אם וכאשר תצטרכו');
-    rtl('אינם כלולים בהצעה. תחויבו רק אם וכאשר תבקשו אותם בפועל.', 8.5, gray, y);
+    sectionLine('שירותים נוספים');
+    rtl('אינם כלולים בהצעה. תחויב רק אם תבקש אותם.', 8.5, gray, y);
     y -= 16;
     const fsSuffix: Record<string, string> = { monthly: ' לחודש', annual: ' לשנה', one_time: ' חד־פעמי', included: '' };
     for (const fs of future) {

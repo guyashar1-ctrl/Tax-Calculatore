@@ -68,18 +68,14 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
   const phoneText = brand.phone ? esc(brand.phone) : '';
   const availability = `<tr><td dir="rtl" align="right" style="text-align:right;padding:16px 40px 4px;">
     <div dir="rtl" style="font-family:${f};font-size:14px;color:${brand.ink};line-height:1.75;text-align:right;">
-      הליווי מתבצע על ידי באופן אישי — ללא מוקד שירות וללא מעבר בין נציגים.
-      ${phoneText ? `אני זמין בוואטסאפ ובטלפון${wa ? ` <a href="${wa}" style="color:${brand.accent};font-weight:600;text-decoration:none;">${phoneText}</a>` : ` <span style="font-weight:600;" dir="ltr">${phoneText}</span>`} לאורך כל הדרך.` : 'אני זמין בוואטסאפ ובטלפון לאורך כל הדרך.'}
-    </div>
-    <div dir="rtl" style="font-family:${f};font-size:14px;color:${brand.ink};line-height:1.75;text-align:right;padding-top:10px;">
-      המטרה שלי היא שלא תצטרך להתעסק בבירוקרטיה: אני אחראי לדיווחים, לתזכורות,
-      ללוחות הזמנים ולטיפול מול הרשויות — כדי שתוכל להתמקד בניהול העסק שלך.
+      אני אהיה איש הקשר שלך לאורך כל הדרך.
+      ${phoneText ? `לכל שאלה אפשר לפנות אליי ישירות בטלפון או בוואטסאפ${wa ? ` <a href="${wa}" style="color:${brand.accent};font-weight:600;text-decoration:none;">${phoneText}</a>` : ` <span style="font-weight:600;" dir="ltr">${phoneText}</span>`}.` : 'לכל שאלה אפשר לפנות אליי ישירות בטלפון או בוואטסאפ.'}
     </div>
   </td></tr>`;
 
   const pricePointer = `<tr><td dir="rtl" align="right" style="text-align:right;padding:14px 40px 0;">
     <div dir="rtl" style="font-family:${f};font-size:14px;font-weight:600;color:${brand.ink};line-height:1.7;text-align:right;">
-      המחיר שסיכמנו מופיע בעמוד ההצעה — ללא עלויות נסתרות וללא הפתעות.
+      המחיר שסיכמנו מופיע בעמוד ההצעה.
     </div>
   </td></tr>`;
 
@@ -88,8 +84,8 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
     : null;
 
   return buildBrandedEmail(brand, {
-    heading: `${firstName ? esc(firstName) + ', ' : ''}זו ההצעה האישית שהכנתי עבורך`,
-    bodyHtml: `בניתי אותה במיוחד עבור ${data.businessName ? esc(data.businessName) : 'העסק שלך'}, מתוך היכרות עם מה שהוא צריך — ליווי מלא לאורך כל השנה, ושקט נפשי שהכול מטופל. לפרטים המלאים ולאישור, המשך לעמוד ההצעה.`,
+    heading: `${firstName ? esc(firstName) + ', ' : ''}זו ההצעה שהכנתי עבורך.`,
+    bodyHtml: `ההצעה מבוססת על מה שסיכמנו ומותאמת לצרכים של ${data.businessName ? esc(data.businessName) : 'העסק שלך'}. הפרטים המלאים והאישור נמצאים בעמוד ההצעה.`,
     tag: `הצעה מס׳ ${data.quotationNumber}`,
     extraHtml: servicesCard + messageBlock + availability + pricePointer,
     ctaLabel: 'צפייה ואישור ההצעה',

@@ -137,21 +137,20 @@ export default function QuotationWebView({
           {/* פתיח */}
           <div style={{ padding: `${introPadTop}px ${pad}px ${compact ? 20 : 28}px` }}>
             <div style={{ fontSize: compact ? 23 : 30, fontWeight: 700, letterSpacing: '-.02em', marginBottom: 7, lineHeight: 1.15 }}>
-              {firstName ? `${firstName}, זו ההצעה האישית שהכנתי עבורך` : 'ההצעה האישית שהכנתי עבורך'}
+              {firstName ? `${firstName}, זו ההצעה שהכנתי עבורך.` : 'ההצעה שהכנתי עבורך.'}
             </div>
             <div style={{ fontSize: compact ? 14 : 15.5, color: brand.muted, lineHeight: 1.7 }}>
-              בניתי אותה במיוחד עבור {data.businessName || 'העסק שלך'}, מתוך היכרות עם מה שהוא צריך —
-              ליווי מלא לאורך כל השנה, ושקט נפשי שהכול מטופל.
+              ההצעה מבוססת על מה שסיכמנו ומותאמת לצרכים של {data.businessName || 'העסק שלך'}.
             </div>
 
             {isApproved && (
               <div style={{ marginTop: 16, background: 'rgba(16,185,129,.1)', color: '#065f46', borderRadius: brand.radius, padding: '11px 15px', fontSize: 13.5, fontWeight: 600 }}>
-                ✓ ההצעה אושרה. תודה — אצור קשר להמשך התהליך.
+                ההצעה אושרה. תודה — אצור איתך קשר להמשך.
               </div>
             )}
             {isDead && (
               <div style={{ marginTop: 16, background: 'rgba(0,0,0,.04)', color: brand.muted, borderRadius: brand.radius, padding: '11px 15px', fontSize: 13.5, fontWeight: 600 }}>
-                {status === 'expired' ? 'תוקף ההצעה פג. אשמח לחדש אותה — פשוט צור קשר.' : 'ההצעה בוטלה. לפרטים נוספים אפשר לפנות אליי.'}
+                {status === 'expired' ? 'תוקף ההצעה פג. אפשר לפנות אליי לחידוש.' : 'ההצעה בוטלה. אפשר לפנות אליי לפרטים.'}
               </div>
             )}
           </div>
@@ -179,11 +178,15 @@ export default function QuotationWebView({
             )}
           </div>
 
-          {/* הערה אישית + ההבטחה הקבועה.
-              מה שנכון ללקוח מסוים ("נתחיל מ-2024 שטרם הוגשה") נכתב בהערה
-              האישית פר-הצעה, ולכן היא יושבת כאן — לפני המחיר, במקום שבו היא
-              נותנת הקשר. רק ההבטחה שנכונה לכל לקוח כתובה בקוד. */}
+          {/* שני משפטים בלבד: איך מתחילים, ומי איש הקשר. ההערה האישית פר-לקוח
+              נכנסת ביניהם כשהיא קיימת. בלי סיסמאות ובלי הבטחות שיווקיות. */}
           <div style={{ padding: `${compact ? 4 : 6}px ${pad}px ${compact ? 18 : 24}px`, display: 'flex', flexDirection: 'column', gap: compact ? 16 : 18 }}>
+            <div>
+              <SectionLabel brand={brand}>איך מתחילים</SectionLabel>
+              <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
+                בתחילת הדרך אבדוק את התיק שלך, אשלים כל מה שנדרש ואוודא שהכול מסודר להמשך.
+              </div>
+            </div>
             {data.notesForClient?.trim() && (
               <div>
                 <SectionLabel brand={brand}>הערה אישית</SectionLabel>
@@ -193,14 +196,10 @@ export default function QuotationWebView({
               </div>
             )}
             <div>
-              <SectionLabel brand={brand}>ליווי אישי, מקצה לקצה</SectionLabel>
+              <SectionLabel brand={brand}>איש הקשר שלך</SectionLabel>
               <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
-                הליווי מתבצע על ידי באופן אישי — ללא מוקד שירות וללא מעבר בין נציגים.
-                אני זמין בוואטסאפ ובטלפון לאורך כל הדרך.
-              </div>
-              <div style={{ marginTop: 10, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
-                המטרה שלי היא שלא תצטרך להתעסק בבירוקרטיה: אני אחראי לדיווחים, לתזכורות,
-                ללוחות הזמנים ולטיפול מול הרשויות — כדי שתוכל להתמקד בניהול העסק שלך.
+                אני אהיה איש הקשר שלך לאורך כל הדרך.
+                לכל שאלה או התלבטות אפשר לפנות אליי ישירות בטלפון או בוואטסאפ.
               </div>
             </div>
           </div>
@@ -209,7 +208,7 @@ export default function QuotationWebView({
           <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, background: tint(brand.pageBg), borderTop: `1px solid ${brand.border}`, borderBottom: `1px solid ${brand.border}` }}>
             <SectionLabel brand={brand}>סיכום התמחור</SectionLabel>
             <div style={{ marginTop: 9, fontSize: compact ? 13 : 14, color: brand.ink, opacity: .88, lineHeight: 1.7 }}>
-              המחיר שלהלן הוא המחיר הסופי שסיכמנו — ללא עלויות נסתרות וללא הפתעות.
+              זה המחיר שסיכמנו, והוא כולל את כל השירותים המפורטים בהצעה.
             </div>
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
               {totals.monthly.withVat > 0 && (
@@ -229,14 +228,13 @@ export default function QuotationWebView({
               ].filter(Boolean);
               if (parts.length === 0) return null;
               return (
-                <div style={{ marginTop: 14, background: 'rgba(16,185,129,.12)', border: '1px solid rgba(16,185,129,.3)', color: '#047857', borderRadius: brand.radius, padding: '12px 16px', fontSize: compact ? 13.5 : 14.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: compact ? 18 : 20 }}>🎁</span>
-                  <span>ההנחה שסיכמנו בהצעה זו: {parts.join(' · ')} <span style={{ fontWeight: 400, fontSize: 11.5 }}>(לפני מע״מ)</span></span>
+                <div style={{ marginTop: 14, background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.25)', color: '#047857', borderRadius: brand.radius, padding: '11px 15px', fontSize: compact ? 13 : 14, fontWeight: 600 }}>
+                  ההנחה שסיכמנו: {parts.join(' · ')} <span style={{ fontWeight: 400, fontSize: 11.5 }}>(לפני מע״מ)</span>
                 </div>
               );
             })()}
             <div style={{ marginTop: 14, fontSize: 11.5, color: brand.muted, lineHeight: 1.6 }}>
-              חיובים חודשיים, שנתיים וחד־פעמיים מוצגים בנפרד ואינם מאוחדים. כל הסכומים הסופיים כוללים מע״מ.
+              חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד. הסכומים הסופיים כוללים מע״מ.
             </div>
           </div>
 
@@ -252,17 +250,17 @@ export default function QuotationWebView({
           <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
             <SectionLabel brand={brand}>מה קורה אחרי האישור</SectionLabel>
             <ol style={{ marginTop: 12, paddingInlineStart: 18, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5, color: brand.ink, opacity: .85, lineHeight: 1.65 }}>
-              <li>אפתח עבורך את התיק ואתחיל בהליך הייצוג מול הרשויות.</li>
-              <li>אבקש כמה מסמכי זיהוי בסיסיים — הכול דיגיטלי, בלי ניירת.</li>
-              <li>משם הטיפול עליי, ואהיה זמין לכל שאלה שתעלה.</li>
+              <li>אפתח את התיק ואתחיל בהליך הייצוג מול הרשויות.</li>
+              <li>אבקש ממך כמה מסמכי זיהוי בסיסיים.</li>
+              <li>משם הטיפול עליי.</li>
             </ol>
           </div>
 
           {/* אישור + חתימה */}
           <div style={{ padding: pad, background: brand.ink }}>
-            <div style={{ color: '#fff', fontSize: compact ? 16 : 19, fontWeight: 600, marginBottom: 4 }}>מתחילים?</div>
+            <div style={{ color: '#fff', fontSize: compact ? 16 : 19, fontWeight: 600, marginBottom: 4 }}>לאישור ההצעה</div>
             <div style={{ color: 'rgba(255,255,255,.68)', fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>
-              {expiryLabel ? `חתימה אחת כאן, ואני מתחיל לעבוד. ההצעה בתוקף עד ${expiryLabel}.` : 'חתימה אחת כאן, ואני מתחיל לעבוד.'}
+              {expiryLabel ? `ההצעה בתוקף עד ${expiryLabel}.` : 'חתימה כאן, ואתחיל בעבודה.'}
             </div>
 
             {!isApproved && !isDead && (
@@ -321,7 +319,7 @@ function ApproveButton({ brand, compact, isApproved, isDead, approving, enabled,
     fontSize: compact ? 15 : 16, fontWeight: 700, fontFamily: 'inherit',
     cursor: enabled ? 'pointer' : 'default', opacity: isDead ? .5 : needsSignature ? .65 : 1,
   };
-  const label = isApproved ? '✓ ההצעה אושרה' : approving ? 'מאשר…' : needsSignature ? 'חתמו למעלה כדי לאשר' : 'חתימה ואישור ההצעה';
+  const label = isApproved ? 'ההצעה אושרה' : approving ? 'מאשר…' : needsSignature ? 'יש לחתום למעלה' : 'אישור ההצעה';
   const style: React.CSSProperties = isApproved
     ? { ...base, background: '#10b981', color: '#fff', border: 'none' }
     : brand.buttonStyle === 'outline'
@@ -366,9 +364,9 @@ function FutureServices({ services, brand, compact, pad }: {
     <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
       {alwaysOpen ? (
         <>
-          <SectionLabel brand={brand}>שירותים נוספים — אם וכאשר תצטרך</SectionLabel>
+          <SectionLabel brand={brand}>שירותים נוספים</SectionLabel>
           <div style={{ marginTop: 8, fontSize: 12.5, color: brand.muted, lineHeight: 1.6 }}>
-            אינם כלולים בהצעה. תחויב רק אם וכאשר תבקש אותם בפועל.
+            אינם כלולים בהצעה. תחויב רק אם תבקש אותם.
           </div>
           {list}
         </>
@@ -383,13 +381,12 @@ function FutureServices({ services, brand, compact, pad }: {
               padding: compact ? '12px 14px' : '14px 16px', fontFamily: 'inherit', color: brand.ink,
             }}
           >
-            <span style={{ fontSize: compact ? 15 : 16 }}>🔎</span>
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: compact ? 13.5 : 14.5, fontWeight: 600 }}>
                 מחירון שירותים נוספים · {services.length} שירותים
               </span>
               <span style={{ display: 'block', fontSize: 11.5, color: brand.muted, marginTop: 2, lineHeight: 1.5 }}>
-                אינם חלק מההצעה. פתוח לעיונך — כדי שתדע מראש ולא תופתע בהמשך.
+                אינם כלולים בהצעה. המחירים ידועים מראש, למקרה שתצטרך.
               </span>
             </span>
             <span style={{ fontSize: 11, color: brand.muted }}>{open ? '▲' : '▼'}</span>
@@ -499,7 +496,7 @@ function PriceBlock({ label, t, vatRate, suffix, brand, compact, footnote }: {
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16,185,129,.1)', borderRadius: 8, padding: '6px 10px', margin: '3px -10px' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#047857' }}>🎁 הנחה {pct}%</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#047857' }}>הנחה {pct}%</span>
               <span style={{ fontSize: 15, fontWeight: 800, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>−{formatILS(Math.round(t.discount))}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 2px' }}>
