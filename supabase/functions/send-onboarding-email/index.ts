@@ -9,6 +9,13 @@
 // שינוי תבנית/צבע/פונט בסטודיו מתעדכן כאן אוטומטית.
 //
 // אבטחה: verify_jwt=false בשער + אימות פנימי מה-JWT.
+//
+// שני מסלולי הרשאה:
+//   (א) JWT של הרו"ח — כל שליחה יזומה מתוך המערכת.
+//   (ב) quotationToken — הלקוח בעצמו אישר הצעת מחיר, ואין אף אחד מחובר. הטוקן
+//       הציבורי של ההצעה הוא ההרשאה: הוא מזהה הצעה אחת שכבר במצב approved,
+//       וממנה נגזרים הרו"ח והבקשה. בלי המסלול הזה הלקוח היה מחכה לקישור עד
+//       שהרו"ח ייכנס למערכת — וזו כל הנקודה של האוטומציה.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resolveBrand, buildBrandedEmail, emailButton, esc } from "../_shared/designSystem.ts";
 
@@ -66,18 +73,37 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
   try {
-    const { requestId, stage: rawStage, signerId, clientId, email } = await req.json();
-    const stage: Stage = (rawStage === "sign" || rawStage === "active" || rawStage === "intake" || rawStage === "ni_approve") ? rawStage : "onboard";
-    if (stage === "intake" ? !clientId : !requestId) return json({ error: "missing requestId" }, 400);
+    const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken } = await req.json();
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
     const APP_URL = Deno.env.get("APP_URL") || "https://crm.yasharcpa.co.il";
-    const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
-    const { data: userData } = await admin.auth.getUser(token);
-    const user = userData?.user;
-    if (!user) return json({ error: "unauthorized" }, 401);
+
+    // ── מסלול (ב): אישור הצעת מחיר. הטוקן הציבורי מזהה הצעה מאושרת אחת ──
+    let userId: string | null = null;
+    let requestId: string | undefined = rawRequestId;
+    let stage: Stage = (rawStage === "sign" || rawStage === "active" || rawStage === "intake" || rawStage === "ni_approve") ? rawStage : "onboard";
+    let quotationId: string | null = null;
+    if (quotationToken) {
+      const { data: quote } = await admin
+        .from("quotations")
+        .select("id,user_id,status,representation_request_id")
+        .eq("public_token", String(quotationToken))
+        .maybeSingle();
+      if (!quote || quote.status !== "approved") return json({ error: "quotation_not_approved" }, 403);
+      if (!quote.representation_request_id) return json({ error: "no_representation" }, 400);
+      userId = quote.user_id;
+      requestId = quote.representation_request_id;
+      quotationId = quote.id;
+      stage = "onboard";   // המסלול הציבורי שולח את קישור הייצוג ולא שום דבר אחר
+    } else {
+      const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      const { data: userData } = await admin.auth.getUser(token);
+      userId = userData?.user?.id ?? null;
+      if (!userId) return json({ error: "unauthorized" }, 401);
+    }
+    if (stage === "intake" ? !clientId : !requestId) return json({ error: "missing requestId" }, 400);
 
     let link = "";
     let toEmail = "";
@@ -87,7 +113,7 @@ Deno.serve(async (req: Request) => {
     let reqRow: any = null;
     if (stage === "intake") {
       const { data: clientRow } = await admin.from("clients").select("id,user_id,first_name,last_name,email,intake_token").eq("id", clientId).single();
-      if (!clientRow || clientRow.user_id !== user.id) return json({ error: "not found" }, 404);
+      if (!clientRow || clientRow.user_id !== userId) return json({ error: "not found" }, 404);
       toEmail = (email && String(email).trim()) || clientRow.email || "";
       if (!toEmail) return json({ error: "no client email" }, 400);
       let intakeToken = clientRow.intake_token;
@@ -102,13 +128,13 @@ Deno.serve(async (req: Request) => {
     } else {
       const { data } = await admin.from("representation_requests").select("*").eq("id", requestId).single();
       reqRow = data;
-      if (!reqRow || reqRow.user_id !== user.id) return json({ error: "not found" }, 404);
+      if (!reqRow || reqRow.user_id !== userId) return json({ error: "not found" }, 404);
       if (!reqRow.client_email) return json({ error: "no client email" }, 400);
       logClientId = reqRow.linked_client_id;
       logRequestId = reqRow.id;
     }
 
-    const { data: profile } = await admin.from("profiles").select("*").eq("id", user.id).single();
+    const { data: profile } = await admin.from("profiles").select("*").eq("id", userId).single();
     // ★ אותו פענוח בדיוק של האתר — מהקובץ המשותף
     const brand = resolveBrand({
       firmName: profile?.firm_name,
@@ -194,6 +220,17 @@ Deno.serve(async (req: Request) => {
     let ctaLabel: string | undefined;
     let copy = COPY[stage];
 
+    // הלקוח בדיוק אישר וחתם על ההצעה — המייל צריך להמשיך את הרגע הזה ולא
+    // לפתוח מחדש ב"שמחים שבחרתם בנו", שנקרא כמו מייל גנרי שלא קשור למה שעשה.
+    if (quotationId) {
+      copy = {
+        ...copy,
+        subject: "תודה על האישור — נשאר לאמת את הזהות",
+        heading: "קיבלתי את האישור",
+        body: "תודה! ההצעה אושרה ונחתמה. כדי שאוכל להתחיל לייצג אתכם מול רשויות המס נשאר רק לאמת כמה פרטי זיהוי — פחות מדקה, מאובטח. אם כבר מילאתם את הפרטים מיד לאחר האישור, אין צורך לעשות דבר.",
+      };
+    }
+
     if (stage === "ni_approve") {
       if (!niData.referenceNumber) return json({ error: "missing_reference_number" }, 400);
       ctaHref = NI_SITE;
@@ -262,12 +299,23 @@ Deno.serve(async (req: Request) => {
 
     // ה-HTML נשמר יחד עם הרשומה: מפתח ה-API של Resend מוגבל לשליחה, ולכן אין
     // דרך לשלוף בדיעבד מה הלקוח קיבל אם לא נשמור עותק כאן.
-    const logBase = { user_id: user.id, client_id: logClientId, request_id: logRequestId, to_email: toEmail, subject: copy.subject, kind: stage, html };
+    const logBase = { user_id: userId, client_id: logClientId, request_id: logRequestId, to_email: toEmail, subject: copy.subject, kind: stage, html };
     if (!r.ok) {
       await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
+      // כשל בשליחה האוטומטית נרשם על ההצעה — אחרת הרו"ח מגלה אותו מהלקוח
+      if (quotationId) {
+        await admin.from("quotations")
+          .update({ representation_error: JSON.stringify(body).slice(0, 300) })
+          .eq("id", quotationId);
+      }
       return json({ error: "resend_failed", detail: body }, 502);
     }
     await admin.from("email_messages").insert({ ...logBase, resend_id: body.id, status: "sent" });
+    if (quotationId) {
+      await admin.from("quotations")
+        .update({ representation_sent_at: new Date().toISOString(), representation_error: null })
+        .eq("id", quotationId);
+    }
     return json({ ok: true, id: body.id });
   } catch (e) {
     return json({ error: String(e) }, 500);

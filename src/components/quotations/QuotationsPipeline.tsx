@@ -136,6 +136,11 @@ export default function QuotationsPipeline({
 
   const reminderFailures = quotations.filter(q => q.autoReminderError && ['sent', 'viewed'].includes(q.status));
 
+  // הצעות שאושרו, הייצוג נפתח — אבל מייל קישור הייצוג לא יצא ללקוח. בלי
+  // ההתראה הזו הרו"ח חושב שהכל אוטומטי, והלקוח מחכה לקישור שלא הגיע.
+  const repEmailFailures = quotations.filter(q =>
+    q.status === 'approved' && q.representationRequestId && !q.representationSentAt);
+
   const stats = {
     open: quotations.filter(q => ['sent', 'viewed'].includes(q.status)).length,
     drafts: quotations.filter(q => q.status === 'draft').length,
@@ -183,6 +188,18 @@ export default function QuotationsPipeline({
           <div style={{ fontWeight: 600 }}>⚠ תזכורת אוטומטית נכשלה ל־{reminderFailures.length} הצעות — נדרש טיפול:</div>
           {reminderFailures.map(q => (
             <div key={q.id} style={{ fontSize: 12.5 }}>• {q.quotationNumber} ({recipientName(q)}) — {q.autoReminderError}. אפשר לשלוח תזכורת ידנית מהשורה.</div>
+          ))}
+        </div>
+      )}
+
+      {repEmailFailures.length > 0 && (
+        <div className="alert alert-warning" style={{ marginBottom: 12, flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+          <div style={{ fontWeight: 600 }}>⚠ ב־{repEmailFailures.length} הצעות הייצוג נפתח אך מייל הקישור טרם יצא ללקוח:</div>
+          {repEmailFailures.map(q => (
+            <div key={q.id} style={{ fontSize: 12.5 }}>
+              • {q.quotationNumber} ({recipientName(q)}){q.representationError ? ` — ${q.representationError}` : ''}.
+              המערכת מנסה שוב אוטומטית בכל כניסה; אפשר גם לשלוח מכרטיס הלקוח.
+            </div>
           ))}
         </div>
       )}
@@ -266,7 +283,12 @@ export default function QuotationsPipeline({
                               )}
                               {g.status === 'approved' && (
                                 <>
-                                  {converted ? (
+                                  {q.representationRequestId ? (
+                                    // האוטומציה כבר עשתה את העבודה — אין מה "להפוך"
+                                    <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>
+                                      {q.representationSentAt ? 'ייצוג נפתח ✓ — לכרטיס ←' : 'ייצוג נפתח — לכרטיס ←'}
+                                    </button>
+                                  ) : converted ? (
                                     <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>לקוח ✓ — לכרטיס ←</button>
                                   ) : (
                                     <button className="btn btn-sm btn-green" onClick={() => onConvert(q)}>הפוך ללקוח והתחל ייצוג ←</button>

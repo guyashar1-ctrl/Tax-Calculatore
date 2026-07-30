@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Client,
   RepresentationRequest,
@@ -217,6 +217,37 @@ export default function App() {
   const { leads, addLead, updateLead, deleteLead } = useLeads(user?.id);
   const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation } = useQuotations(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
+
+  /**
+   * רשת ביטחון לאוטומציה של אישור ההצעה. האישור עצמו יוצר את הלקוח ואת בקשת
+   * הייצוג בצד השרת, אבל שני דברים תלויים בדפדפן ועלולים להיכשל שם: שליחת
+   * המייל (הלקוח סגר את הטאב לפני שהבקשה יצאה) והפקת הסכם ההתקשרות (PDF).
+   * שניהם מושלמים כאן בכניסה הבאה של הרו"ח, ושניהם אידמפוטנטיים.
+   */
+  const autoRepHandled = useRef(new Set<string>());
+  useEffect(() => {
+    if (!user) return;
+    for (const q of quotations) {
+      if (q.status !== 'approved' || !q.representationRequestId) continue;
+      if (autoRepHandled.current.has(q.id)) continue;
+      autoRepHandled.current.add(q.id);
+      if (q.clientId) void saveEngagementContract(q, q.clientId);
+      if (q.representationSentAt) continue;
+      void (async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke('send-onboarding-email', {
+            body: { requestId: q.representationRequestId },
+          });
+          const failure = error?.message || (data?.ok ? null : (data?.detail?.message || data?.error || 'שגיאה לא ידועה'));
+          await updateQuotation({
+            ...q,
+            ...(failure ? { representationError: failure } : { representationSentAt: new Date().toISOString(), representationError: undefined }),
+          });
+        } catch { /* יימשך בכניסה הבאה */ }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, quotations]);
 
   const { theme, toggleTheme } = useTheme();
   const [view, setView] = useState<View>('tasks');
@@ -850,6 +881,7 @@ export default function App() {
         internalNotes: payload.internalNotes,
         templateId: payload.templateId,
         expiresAt: payload.expiresAt,
+        representation: payload.representation,
         events: [...existing.events, { type: 'edited', at: new Date().toISOString() }],
       });
     }
@@ -864,6 +896,7 @@ export default function App() {
       internalNotes: payload.internalNotes,
       templateId: payload.templateId,
       expiresAt: payload.expiresAt,
+      representation: payload.representation,
       events: [],
     });
   }
@@ -925,6 +958,9 @@ export default function App() {
       futureServices: payload.futureServices, vatRate: payload.vatRate,
       notesForClient: payload.notesForClient, emailSubject: payload.emailSubject,
       emailMessage: payload.emailMessage, firmName: firmProfile?.firmName,
+      // ההגדרה מוקפאת יחד עם ההצעה: מה שהלקוח ראה ואישר הוא הייצוג שייפתח,
+      // גם אם הטיוטה תיערך אחר כך.
+      representation: payload.representation,
     };
     if (!isTest) {
       await updateQuotation({
@@ -1046,6 +1082,7 @@ export default function App() {
         futureServices: snap?.futureServices ?? q.futureServices,
         vatRate: snap?.vatRate ?? q.vatRate,
         notesForClient: snap?.notesForClient ?? q.notesForClient,
+        representation: snap?.representation ?? q.representation,
         approval: {
           signatureDataUrl: q.approvalSignature,
           signerName: q.approvalSignerName,
@@ -1354,6 +1391,7 @@ export default function App() {
             existing={editingQuotation}
             initialLeadId={newQuotationLeadId ?? undefined}
             existingQuotations={quotations}
+            checkRepEmailConflict={repEmailConflictMessage}
             onSaveDraft={handleSaveQuotationDraft}
             onSend={handleSendQuotation}
             onBack={() => { setEditingQuotationId(null); setView('quotations'); }}

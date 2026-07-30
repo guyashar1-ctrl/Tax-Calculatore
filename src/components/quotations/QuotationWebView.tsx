@@ -4,8 +4,10 @@
 // שולט במראה בזמן אמת בלי לגעת בקוד.
 
 import { useState } from 'react';
-import type { QuotationItem, ServiceCategory, FutureService } from '../../types/quotations';
+import type { QuotationItem, ServiceCategory, FutureService, QuotationRepresentation } from '../../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../../types/quotations';
+import type { RepAuthorityKind } from '../../types';
+import { REP_AUTHORITY_LABELS, REP_AUTHORITY_ORDER } from '../../types';
 import type { QuotationBrand } from './quotationBranding';
 import {
   calcTotals, itemFinalPrice, itemOriginalPrice, formatILS, itemDisplayName,
@@ -22,6 +24,14 @@ export interface QuotationWebViewData {
   vatRate: number;
   notesForClient?: string;
   expiresAt?: string;
+  /** הייצוג שהאישור יפתח. מכתיב את סעיף ההסבר ואת נוסח ההסכמה שליד החתימה. */
+  representation?: QuotationRepresentation;
+}
+
+/** הרשויות שנבחרו, בסדר התצוגה הקבוע */
+export function representationAuthorities(rep?: QuotationRepresentation): RepAuthorityKind[] {
+  if (!rep?.enabled) return [];
+  return REP_AUTHORITY_ORDER.filter(a => !!rep.areas?.[a]);
 }
 
 // חתימת הלקוח שמאשרת את ההצעה — נשלחת יחד עם האישור ונשמרת כראיה
@@ -39,6 +49,8 @@ interface Props {
   onApprove?: (sig: ApprovalSignature) => void;
   approving?: boolean;
   onDownloadPdf?: () => void;
+  /** קישור השלמת פרטי הייצוג — מוצג מיד לאחר האישור, כשהלקוח עוד מול המסך. */
+  nextStepLink?: string;
 }
 
 const CATEGORY_BLURB: Record<ServiceCategory, string> = {
@@ -57,9 +69,11 @@ const CATEGORY_PRICE_SUFFIX: Record<ServiceCategory, string> = {
 };
 
 export default function QuotationWebView({
-  data, brand, compact, interactive, status, onApprove, approving, onDownloadPdf,
+  data, brand, compact, interactive, status, onApprove, approving, onDownloadPdf, nextStepLink,
 }: Props) {
   const totals = calcTotals(data.items, data.vatRate);
+  const repAuthorities = representationAuthorities(data.representation);
+  const hasRep = repAuthorities.length > 0;
   const [signature, setSignature] = useState('');
   const [signerName, setSignerName] = useState('');
   const pad = compact ? 22 : 44;
@@ -145,7 +159,9 @@ export default function QuotationWebView({
 
             {isApproved && (
               <div style={{ marginTop: 16, background: 'rgba(16,185,129,.1)', color: '#065f46', borderRadius: brand.radius, padding: '11px 15px', fontSize: 13.5, fontWeight: 600 }}>
-                ההצעה אושרה. תודה — אצור איתך קשר להמשך.
+                {hasRep
+                  ? 'ההצעה אושרה. תודה — נשאר צעד אחד קצר להשלמת הייצוג.'
+                  : 'ההצעה אושרה. תודה — אצור איתך קשר להמשך.'}
               </div>
             )}
             {isDead && (
@@ -250,11 +266,31 @@ export default function QuotationWebView({
           <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
             <SectionLabel brand={brand}>מה קורה אחרי האישור</SectionLabel>
             <ol style={{ marginTop: 12, paddingInlineStart: 18, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5, color: brand.ink, opacity: .85, lineHeight: 1.65 }}>
-              <li>אפתח את התיק ואתחיל בהליך הייצוג מול הרשויות.</li>
-              <li>אבקש ממך כמה מסמכי זיהוי בסיסיים.</li>
-              <li>משם הטיפול עליי.</li>
+              {hasRep ? (
+                <>
+                  <li>מיד עם האישור יישלח אליך קישור להשלמת פרטי הזיהוי.</li>
+                  <li>אכין את ייפוי הכוח, ותחתום עליו דיגיטלית.</li>
+                  <li>אזין את הייצוג ברשויות, ומשם הטיפול עליי.</li>
+                </>
+              ) : (
+                <>
+                  <li>אפתח את התיק ואתחיל בטיפול.</li>
+                  <li>אבקש ממך כמה מסמכי זיהוי בסיסיים.</li>
+                  <li>משם הטיפול עליי.</li>
+                </>
+              )}
             </ol>
           </div>
+
+          {/* ייצוג מול הרשויות — מה זה, למה זה נדרש, ומה גבולותיו.
+              החתימה על ההצעה היא גם ההסכמה לפתוח את הייצוג, ולכן ההסבר חייב
+              להיות בעמוד שהלקוח חותם עליו — לא רק במייל שיגיע אחרי. */}
+          {hasRep && (
+            <RepresentationSection
+              rep={data.representation!} authorities={repAuthorities}
+              brand={brand} compact={compact} pad={pad}
+            />
+          )}
 
           {/* אישור + חתימה */}
           <div style={{ padding: pad, background: brand.ink }}>
@@ -277,8 +313,36 @@ export default function QuotationWebView({
                 </label>
                 <SignaturePad value={signature} onChange={setSignature} height={compact ? 110 : 140} />
                 <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 8, lineHeight: 1.6 }}>
-                  החתימה מהווה אישור להצעת המחיר ולתנאיה כפי שמפורטים בעמוד זה.
+                  החתימה מהווה אישור להצעת המחיר ולתנאיה כפי שמפורטים בעמוד זה
+                  {hasRep && ', ולפתיחת הליך הייצוג מול הרשויות המפורטות למעלה'}.
+                  {hasRep && ' ייפוי הכוח עצמו נחתם בנפרד, בשלב הבא.'}
                 </div>
+              </div>
+            )}
+
+            {/* ★ הצעד הבא, מיד ובאותו מסך. לקוח שנשלח לחפש מייל נושר — כאן הוא
+                עוד מול המסך ובמומנטום. המייל נשלח במקביל, כגיבוי ולתיעוד. */}
+            {isApproved && nextStepLink && (
+              <div style={{ background: '#fff', borderRadius: brand.radius + 2, padding: compact ? 14 : 18, marginBottom: 14, textAlign: 'start' }}>
+                <div style={{ fontSize: compact ? 14.5 : 15.5, fontWeight: 700, color: '#1f2937', marginBottom: 5 }}>
+                  נשאר צעד אחד — פרטי הזיהוי
+                </div>
+                <div style={{ fontSize: 12.5, color: '#6b7280', lineHeight: 1.65, marginBottom: 12 }}>
+                  כדי לפתוח את הייצוג אני צריך את פרטי הזיהוי שלך. אפשר להשלים עכשיו —
+                  לוקח פחות מדקה. שלחתי לך את הקישור גם במייל, אם נוח לך לחזור לזה אחר כך.
+                </div>
+                <a
+                  href={nextStepLink}
+                  style={{
+                    display: 'block', textAlign: 'center', textDecoration: 'none',
+                    padding: compact ? '12px' : '14px',
+                    borderRadius: brand.buttonStyle === 'pill' ? 999 : brand.radius,
+                    background: brand.accent, color: '#fff',
+                    fontSize: compact ? 14.5 : 15.5, fontWeight: 700,
+                  }}
+                >
+                  להשלמת הפרטים ←
+                </a>
               </div>
             )}
 
@@ -394,6 +458,77 @@ function FutureServices({ services, brand, compact, pad }: {
           {open && list}
         </>
       )}
+    </div>
+  );
+}
+
+// למה צריך ייצוג, מול מי, ומה הלקוח יידרש לעשות. הסעיף הזה קיים כי לקוח
+// שמקבל פתאום בקשה ל"ייפוי כוח" חושד — והחשד הזה עוצר את התהליך בדיוק ברגע
+// שבו הוא הכי מוכן. ההסבר הוא עובדתי ומגודר: מה כן ומה לא.
+function RepresentationSection({ rep, authorities, brand, compact, pad }: {
+  rep: QuotationRepresentation; authorities: RepAuthorityKind[];
+  brand: QuotationBrand; compact?: boolean; pad: number;
+}) {
+  const hasNi = authorities.includes('nationalInsurance');
+  const shaam = authorities.filter(a => a !== 'nationalInsurance');
+  const niCoversSpouse = !!rep.areas?.nationalInsurance?.coversSpouse;
+  const twoSigners = rep.prefill?.familyStatus === 'married' || !!rep.spouse;
+
+  const step = (n: number, title: string, body: string) => (
+    <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
+      <span style={{
+        flex: '0 0 auto', width: 24, height: 24, borderRadius: '50%',
+        background: brand.accent, color: '#fff', fontSize: 12, fontWeight: 700,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginTop: 1,
+      }}>{n}</span>
+      <span>
+        <span style={{ display: 'block', fontSize: compact ? 13.5 : 14.5, fontWeight: 600, color: brand.ink }}>{title}</span>
+        <span style={{ display: 'block', fontSize: 12.5, color: brand.muted, lineHeight: 1.65, marginTop: 2 }}>{body}</span>
+      </span>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
+      <SectionLabel brand={brand}>ייצוג מול רשויות המס</SectionLabel>
+      <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
+        כדי שאוכל לדווח, להגיש ולטפל בתיק שלך מול הרשויות, אני צריך להיות רשום
+        אצלן כמייצג שלך. בלי הרישום הזה אין לי גישה לתיק ואי אפשר להתחיל לעבוד.
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
+        {authorities.map(a => (
+          <span key={a} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: brand.pageBg, border: `1px solid ${brand.border}`, borderRadius: 999, padding: '6px 13px', fontSize: 12.5, fontWeight: 500, color: brand.ink }}>
+            <span style={{ color: brand.accent, fontWeight: 700 }}>✓</span>{REP_AUTHORITY_LABELS[a]}
+          </span>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 13 }}>
+        {step(1, 'פרטי זיהוי', 'שם, ת.ז., תאריך לידה, כתובת ומצב משפחתי — בטופס אחד קצר.')}
+        {step(
+          2,
+          twoSigners ? 'חתימה דיגיטלית על ייפוי הכוח — שני בני הזוג' : 'חתימה דיגיטלית על ייפוי הכוח',
+          twoSigners
+            ? 'רשויות המס דורשות את חתימת שני בני הזוג על ייפוי הכוח. כל אחד מקבל קישור חתימה נפרד.'
+            : 'החתימה נעשית מהטלפון או מהמחשב. בלי הדפסה ובלי סריקה.',
+        )}
+        {hasNi && step(
+          3,
+          niCoversSpouse ? 'אישור בביטוח הלאומי — לכל אחד מבני הזוג' : 'אישור בביטוח הלאומי',
+          'הביטוח הלאומי דורש שהמבוטח יאשר את ייפוי הכוח בעצמו — באתר או בטלפון. אשלח אליך את מספר האסמכתא ואת ההוראות המדויקות.'
+          + (niCoversSpouse ? ' בביטוח הלאומי לכל אחד תיק נפרד, ולכן כל אחד מאשר את שלו.' : ''),
+        )}
+      </div>
+
+      {/* גידור מפורש. "ייפוי כוח" נשמע רחב בהרבה ממה שהוא, וזו הסיבה
+          המרכזית שלקוחות נתקעים בשלב הזה. */}
+      <div style={{ marginTop: 16, background: brand.pageBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: compact ? '12px 14px' : '14px 16px', fontSize: 12.5, color: brand.muted, lineHeight: 1.75 }}>
+        ייפוי הכוח מוגבל לייצוג מול {shaam.length > 0 ? shaam.map(a => REP_AUTHORITY_LABELS[a]).join(', ') : 'הרשויות'}
+        {hasNi ? ' ומול הביטוח הלאומי' : ''} בענייני מס בלבד. אין בו הרשאה לגשת
+        לחשבון הבנק שלך או לבצע פעולות כספיות בשמך, וניתן לבטל אותו בכל עת.
+        {shaam.length > 0 && hasNi && ' טכנית מדובר בשני טפסים נפרדים — אחד לרשות המסים ואחד לביטוח הלאומי — ושניהם מטופלים באותו תהליך.'}
+      </div>
     </div>
   );
 }

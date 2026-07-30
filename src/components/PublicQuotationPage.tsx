@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { FirmProfile } from '../types/firmProfile';
-import type { QuotationItem, FutureService } from '../types/quotations';
+import type { QuotationItem, FutureService, QuotationRepresentation } from '../types/quotations';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import QuotationWebView, { type QuotationWebViewData, type ApprovalSignature } from './quotations/QuotationWebView';
 import { generateQuotationPdf, downloadPdf } from '../utils/quotationPdf';
@@ -22,6 +22,9 @@ interface QuotationInfo {
   notesForClient?: string;
   items: QuotationItem[];
   futureServices?: FutureService[];
+  representation?: QuotationRepresentation;
+  /** קיים רק לאחר אישור — הצעד הבא של הלקוח (השלמת פרטי הייצוג) */
+  onboardingToken?: string;
   firm: {
     firmName?: string;
     branding?: Record<string, unknown>;
@@ -39,6 +42,8 @@ export default function PublicQuotationPage({ token }: Props) {
   const [info, setInfo] = useState<QuotationInfo | null>(null);
   const [status, setStatus] = useState<string>('');
   const [approving, setApproving] = useState(false);
+  // הצעד הבא של הלקוח — נחשף רק לאחר אישור, ומוצג מיד באותו מסך
+  const [nextStepLink, setNextStepLink] = useState<string | null>(null);
   const [compact, setCompact] = useState(typeof window !== 'undefined' && window.innerWidth < 640);
 
   useEffect(() => {
@@ -56,6 +61,10 @@ export default function PublicQuotationPage({ token }: Props) {
       const row = data as QuotationInfo;
       setInfo(row);
       setStatus(row.status);
+      // לקוח שחזר לקישור אחרי שאישר — הצעד הבא ממתין לו גם עכשיו
+      if (row.status === 'approved' && row.onboardingToken) {
+        setNextStepLink(onboardingUrl(row.onboardingToken));
+      }
       setPhase('ready');
       // סימון "נצפתה" — לא חוסם, לא מעניין אם נכשל
       supabase.rpc('mark_quotation_viewed', { p_token: token }).then(() => {});
@@ -73,6 +82,12 @@ export default function PublicQuotationPage({ token }: Props) {
     return deriveQuotationBrand(pseudo);
   }, [info]);
 
+  /**
+   * האישור. השרת מסמן "אושרה" וגם פותח את תהליך הייצוג (לקוח, בקשה, חותמים,
+   * משימה) בטרנזקציה אחת, ומחזיר את הקישור להשלמת הפרטים. הקישור מוצג מיד —
+   * הלקוח עוד מול המסך, וזה הרגע שבו הוא ימלא. המייל נשלח במקביל כגיבוי,
+   * ולא חוסם: אם השליחה תיכשל, הרו"ח יראה זאת וישלים בכניסה הבאה שלו.
+   */
   async function handleApprove(sig: ApprovalSignature) {
     setApproving(true);
     try {
@@ -81,7 +96,13 @@ export default function PublicQuotationPage({ token }: Props) {
         p_signature: sig.signatureDataUrl,
         p_signer_name: sig.signerName,
       });
-      if (typeof data === 'string') setStatus(data);
+      const result = (typeof data === 'string' ? { status: data } : data) as
+        { status?: string; onboardingToken?: string } | null;
+      if (result?.status) setStatus(result.status);
+      if (result?.status === 'approved' && result.onboardingToken) {
+        setNextStepLink(onboardingUrl(result.onboardingToken));
+        void supabase.functions.invoke('send-onboarding-email', { body: { quotationToken: token } });
+      }
     } finally {
       setApproving(false);
     }
@@ -95,6 +116,7 @@ export default function PublicQuotationPage({ token }: Props) {
       businessName: info.businessName,
       items: info.items, futureServices: info.futureServices, vatRate: info.vatRate,
       notesForClient: info.notesForClient, expiresAt: info.expiresAt,
+      representation: info.representation,
     }, brand);
     downloadPdf(bytes, `הצעת מחיר ${info.quotationNumber}.pdf`);
   }
@@ -119,6 +141,7 @@ export default function PublicQuotationPage({ token }: Props) {
     businessName: info.businessName,
     items: info.items, futureServices: info.futureServices, vatRate: info.vatRate,
     notesForClient: info.notesForClient, expiresAt: info.expiresAt,
+    representation: info.representation,
   };
 
   return (
@@ -131,8 +154,13 @@ export default function PublicQuotationPage({ token }: Props) {
       onApprove={handleApprove}
       approving={approving}
       onDownloadPdf={handleDownloadPdf}
+      nextStepLink={nextStepLink ?? undefined}
     />
   );
+}
+
+function onboardingUrl(onboardingToken: string): string {
+  return `${window.location.origin}/?onboard=${onboardingToken}`;
 }
 
 function Centered({ children }: { children: React.ReactNode }) {

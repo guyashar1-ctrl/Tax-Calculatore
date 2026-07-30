@@ -2,6 +2,8 @@
 // הזרימה: ליד → הצעת מחיר → אישור → המרה ללקוח → ייצוג (SPEC של גיא, PRD 2026-07).
 // אין דחייה/בקשת שינויים מצד הלקוח — שינוי מטופל בביטול והוצאת הצעה חדשה.
 
+import type { AuthorityRepresentations, OnboardingPrefill } from './index';
+
 // ─── לידים ──────────────────────────────────────────────────────────────────
 
 export type LeadStatus = 'new' | 'quoted' | 'converted' | 'closed';
@@ -184,6 +186,36 @@ export interface FutureService {
   unitLabel?: string;
 }
 
+// ─── הייצוג שנפתח עם אישור ההצעה ────────────────────────────────────────────
+// הרו"ח מגדיר את הייצוג כבר בהצעה, כי ברגע שהלקוח מאשר אין אף אחד שיגדיר אותו:
+// האישור פותח את הלקוח, את בקשת הייצוג ואת החותמים — ושולח את הקישור מיד.
+// זה בדיוק המידע שדיאלוג "קישור ייצוג חדש" אוסף (CreateRepresentationInput),
+// מוקפא יחד עם ההצעה כדי שעריכה מאוחרת של הקטלוג לא תשנה ייצוג שכבר אושר.
+export interface QuotationRepresentation {
+  /** false ⇒ ההצעה היא שירות בלבד; האישור לא יפתח ייצוג. */
+  enabled: boolean;
+  /** רשות → סטטוס ורמת ייצוג. אותו מבנה של מרשם הייצוג בכרטיס הלקוח. */
+  areas: AuthorityRepresentations;
+  /** מה שהרו"ח כבר יודע. שדה שמופיע כאן לא יישאל שוב מהלקוח בקישור. */
+  prefill: OnboardingPrefill;
+  /** חותם שני. null ⇒ ייווצר רק אם הלקוח יצהיר בקישור שהוא נשוי. */
+  spouse: { name: string; email: string; idNumber?: string } | null;
+}
+
+/** ברירת המחדל — זהה לדיאלוג הייצוג: מ"ה, מע"מ וב"ל כמייצג ראשי. */
+export function defaultQuotationRepresentation(): QuotationRepresentation {
+  return {
+    enabled: true,
+    areas: {
+      incomeTax: { status: 'in_process', level: 'primary' },
+      vat: { status: 'in_process', level: 'primary' },
+      nationalInsurance: { status: 'in_process' },
+    },
+    prefill: {},
+    spouse: null,
+  };
+}
+
 export type QuotationEventType =
   | 'created'
   | 'edited'
@@ -194,7 +226,8 @@ export type QuotationEventType =
   | 'approved'
   | 'cancelled'
   | 'expired'
-  | 'lead_converted';
+  | 'lead_converted'
+  | 'representation_opened';
 
 export interface QuotationEvent {
   type: QuotationEventType;
@@ -213,6 +246,7 @@ export const QUOTATION_EVENT_LABELS: Record<QuotationEventType, string> = {
   cancelled: 'בוטלה',
   expired: 'פג תוקפה',
   lead_converted: 'הליד הומר ללקוח',
+  representation_opened: 'נפתח תהליך ייצוג אוטומטית',
 };
 
 // העתק קפוא של ההצעה ברגע השליחה — לא משתנה גם אם המחירון או הפרטים ישתנו
@@ -230,6 +264,7 @@ export interface QuotationSnapshot {
   emailSubject?: string;
   emailMessage?: string;
   firmName?: string;
+  representation?: QuotationRepresentation;
 }
 
 export interface Quotation {
@@ -256,6 +291,15 @@ export interface Quotation {
   approvalSignature?: string;
   approvalSignerName?: string;
   cancelledAt?: string;
+  // ─── ייצוג ───
+  /** הגדרת הייצוג שתיפתח אוטומטית עם האישור. */
+  representation?: QuotationRepresentation;
+  /** הבקשה שנפתחה בפועל באישור. קיומה = האוטומציה רצה (ומונעת כפילות). */
+  representationRequestId?: string;
+  /** מתי יצא ללקוח מייל קישור הייצוג. ריק + יש בקשה ⇒ נדרשת שליחה חוזרת. */
+  representationSentAt?: string;
+  /** למה המייל לא יצא — כדי שהרו"ח יראה את זה ולא יגלה מהלקוח. */
+  representationError?: string;
   snapshot?: QuotationSnapshot;
   events: QuotationEvent[];
   // תזכורת אוטומטית לפני פקיעה (מנוהל בצד-שרת ע"י ה-cron)

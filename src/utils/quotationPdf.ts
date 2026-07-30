@@ -6,8 +6,9 @@
 import { PDFDocument, PDFPage, rgb, type RGB } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { embedPdfFonts, layoutMixed, measureMixed, type PdfFonts } from './pdfHebrew';
-import type { QuotationItem, FutureService } from '../types/quotations';
+import type { QuotationItem, FutureService, QuotationRepresentation } from '../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../types/quotations';
+import { REP_AUTHORITY_LABELS, REP_AUTHORITY_ORDER } from '../types';
 import { calcTotals, itemFinalPrice, itemOriginalPrice, itemDisplayName, monthlyPlan, formatMonth, formatMonthRange } from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
 
@@ -20,6 +21,8 @@ export interface QuotationPdfData {
   vatRate: number;
   notesForClient?: string;
   expiresAt?: string;
+  /** הייצוג שהאישור פותח — נדפס כסעיף בהסכם, כי החתימה מאשרת גם אותו */
+  representation?: QuotationRepresentation;
   // כשההצעה אושרה ונחתמה — ה-PDF כולל את החתימה והופך להסכם התקשרות
   approval?: {
     signatureDataUrl?: string;
@@ -191,6 +194,35 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
       y -= 15;
     }
     y -= 6;
+  }
+
+  // ── ייצוג מול הרשויות ──
+  // סעיף בהסכם, לא קישוט: החתימה על ההצעה היא גם ההסכמה לפתוח את הייצוג,
+  // ולכן היקפו והגבלותיו חייבים להיות כתובים במסמך שנחתם.
+  const repAuthorities = data.representation?.enabled
+    ? REP_AUTHORITY_ORDER.filter(a => !!data.representation!.areas?.[a])
+    : [];
+  if (repAuthorities.length > 0) {
+    ensureSpace(70);
+    sectionLine('ייצוג מול רשויות המס');
+    const hasNi = repAuthorities.includes('nationalInsurance');
+    const names = repAuthorities.map(a => REP_AUTHORITY_LABELS[a]).join(', ');
+    const lines = [
+      `אישור ההצעה כולל פתיחת הליך ייצוג מול: ${names}.`,
+      'לצורך הרישום כמייצג נדרשים פרטי זיהוי וחתימה על ייפוי כוח, שיישלחו בקישור מאובטח.',
+      hasNi
+        ? 'ייצוג בביטוח הלאומי מחייב טופס נפרד ואישור של המבוטח עצמו מול הביטוח הלאומי.'
+        : '',
+      'ייפוי הכוח מוגבל לייצוג בענייני מס בלבד. אין בו הרשאה לגשת לחשבון הבנק או לבצע פעולות כספיות, וניתן לבטלו בכל עת.',
+    ].filter(Boolean);
+    for (const line of lines) {
+      for (const wrapped of wrapText(line, 95)) {
+        ensureSpace(16);
+        rtl(wrapped, 9.5, bodyGray, y);
+        y -= 13;
+      }
+    }
+    y -= 8;
   }
 
   // ── אישור וחתימת הלקוח — הופך את המסמך להסכם התקשרות ──

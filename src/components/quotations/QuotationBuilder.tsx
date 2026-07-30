@@ -3,11 +3,12 @@ import type { FirmProfile } from '../../types/firmProfile';
 import type { Client } from '../../types';
 import type {
   Lead, ServiceCatalogItem, ServiceCategory, QuotationTemplate, Quotation, QuotationItem, FutureService,
-  PriceBasis,
+  PriceBasis, QuotationRepresentation,
 } from '../../types/quotations';
 import {
   SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ORDER, QUOTATION_EVENT_LABELS, QUOTATION_STATUS_LABELS,
   DEFAULT_VAT_RATE, DEFAULT_EXPIRY_BUSINESS_DAYS, DEFAULT_INSTALLMENTS,
+  defaultQuotationRepresentation,
 } from '../../types/quotations';
 import { businessDaysExpiry } from '../../utils/businessDays';
 import {
@@ -19,6 +20,9 @@ import { deriveQuotationBrand } from './quotationBranding';
 import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
 import { generateQuotationPdf, downloadPdf } from '../../utils/quotationPdf';
 import QuotationWebView, { type QuotationWebViewData } from './QuotationWebView';
+import QuotationRepresentationEditor, {
+  validateQuotationRepresentation, representationSummary,
+} from './QuotationRepresentationEditor';
 
 type PreviewTab = 'web' | 'email' | 'pdf' | 'track';
 type Device = 'desktop' | 'mobile';
@@ -47,6 +51,8 @@ interface Props {
   existing?: Quotation | null;               // עריכת טיוטה קיימת
   initialLeadId?: string;                    // הצעה חדשה שנפתחה מתוך ליד קיים
   existingQuotations: Quotation[];           // לאזהרת "כבר יש הצעה פתוחה"
+  /** כבר קיים ייצוג פעיל/בתהליך למייל הזה? מחזיר הודעת חסימה, או null. */
+  checkRepEmailConflict?: (email: string) => string | null;
   onSaveDraft: (payload: SaveDraftPayload) => Promise<void>;
   onSend: (payload: SaveDraftPayload, isTest: boolean) => Promise<{ ok: boolean; error?: string; link?: string }>;
   onBack: () => void;
@@ -64,6 +70,7 @@ export interface SaveDraftPayload {
   internalNotes: string;
   templateId?: string;
   expiresAt: string;
+  representation: QuotationRepresentation;
 }
 
 // שמונה שנות מס אחרונות — מכסה כל לקוח שמגיע עם שנים פתוחות
@@ -121,7 +128,8 @@ function r2(n: number): number {
 
 
 export default function QuotationBuilder({
-  profile, services, templates, leads, clients, existing, initialLeadId, existingQuotations, onSaveDraft, onSend, onBack,
+  profile, services, templates, leads, clients, existing, initialLeadId, existingQuotations,
+  checkRepEmailConflict, onSaveDraft, onSend, onBack,
 }: Props) {
   const brand = useMemo(() => deriveQuotationBrand(profile), [profile]);
 
@@ -157,6 +165,13 @@ export default function QuotationBuilder({
   const [notesForClient, setNotesForClient] = useState(existing?.notesForClient ?? '');
   const [internalNotes, setInternalNotes] = useState(existing?.internalNotes ?? '');
   const [expiresAt, setExpiresAt] = useState(existing?.expiresAt ?? businessDaysExpiry(DEFAULT_EXPIRY_BUSINESS_DAYS));
+  // הצעה ללקוח קיים היא לרוב שירות נוסף למי שכבר מיוצג — ולכן ברירת המחדל שם
+  // היא לא לפתוח ייצוג. הצעה לליד חדש כן פותחת, שזה כל העניין.
+  const [representation, setRepresentation] = useState<QuotationRepresentation>(() => {
+    if (existing?.representation) return existing.representation;
+    const base = defaultQuotationRepresentation();
+    return initialRecipient.kind === 'client' ? { ...base, enabled: false } : base;
+  });
 
   // פריסת התשלומים נגזרת מהשורות הקיימות בעריכת טיוטה, ומתחילה מהחודש הנוכחי
   // ב-12 תשלומים בהצעה חדשה.
@@ -206,10 +221,20 @@ export default function QuotationBuilder({
   // שהכפתור לא ייתקע על "✓ נשמר" בזמן שממשיכים לערוך.
   const stateKey = JSON.stringify([
     recipient, items, [...futureIds].sort(), emailSubject, emailMessage,
-    notesForClient, internalNotes, templateId, expiresAt,
+    notesForClient, internalNotes, templateId, expiresAt, representation,
   ]);
   const savedKey = useRef<string | null>(null);
   const dirty = savedKey.current !== stateKey;
+
+  // התנגשות מייל בייצוג — רק כשהאישור אכן עתיד לפתוח ייצוג חדש
+  const repEmailConflict = useMemo(() => {
+    if (!representation.enabled || !checkRepEmailConflict) return null;
+    const email = recipient.email?.trim();
+    if (!email) return null;
+    // לקוח קיים שכבר בתהליך אינו "התנגשות" — זו אותה רשומה
+    if (recipient.kind === 'client') return null;
+    return checkRepEmailConflict(email);
+  }, [representation.enabled, recipient.email, recipient.kind, checkRepEmailConflict]);
 
   // אזהרה: כבר קיימת הצעה פתוחה לאותו נמען
   const openWarning = useMemo(() => {
@@ -322,6 +347,7 @@ export default function QuotationBuilder({
     recipientName: recipient.fullName || 'הלקוח',
     businessName: recipient.businessName,
     items, futureServices, vatRate, notesForClient, expiresAt,
+    representation,
   };
   const emailHtml = useMemo(() => buildQuotationEmailHtml({
     quotationNumber: existing?.quotationNumber ?? 'טיוטה',
@@ -354,6 +380,26 @@ export default function QuotationBuilder({
       recipient, items, futureServices, vatRate,
       emailSubject, emailMessage, notesForClient, internalNotes,
       templateId, expiresAt,
+      representation: representationWithRecipient(),
+    };
+  }
+
+  /**
+   * שם ומייל הנמען נכתבים ל-prefill רק ברגע השמירה, ולא בזמן העריכה: הנמען
+   * עשוי להתחלף אחרי שהייצוג הוגדר, ואז prefill היה נשאר על השם הקודם.
+   */
+  function representationWithRecipient(): QuotationRepresentation {
+    if (!representation.enabled) return representation;
+    const parts = recipient.fullName.trim().split(/\s+/).filter(Boolean);
+    const email = recipient.email?.trim();
+    return {
+      ...representation,
+      prefill: {
+        ...representation.prefill,
+        ...(parts[0] ? { firstName: parts[0] } : {}),
+        ...(parts.length > 1 ? { lastName: parts.slice(1).join(' ') } : {}),
+        ...(email ? { email } : {}),
+      },
     };
   }
 
@@ -364,6 +410,10 @@ export default function QuotationBuilder({
     if (!isTest && !recipient.email?.trim()) { setError('לנמען אין כתובת מייל — לא ניתן לשלוח ללקוח.'); return; }
     if (items.length === 0) { setError('אין שירותים בהצעה.'); return; }
     if (items.some(i => !i.name.trim())) { setError('יש שורה חופשית בלי שם — יש לתת לה שם או להסיר אותה לפני שליחה.'); return; }
+    // הייצוג נפתח אוטומטית עם האישור, ואז אין הזדמנות לתקן — ולכן נבדק כאן
+    const repError = validateQuotationRepresentation(representation);
+    if (repError) { setError(`ייצוג: ${repError}`); return; }
+    if (!isTest && repEmailConflict) { setError(`ייצוג: ${repEmailConflict}`); return; }
     setSending(isTest ? 'test' : 'send');
     try {
       const res = await onSend(buildPayload(), isTest);
@@ -386,7 +436,7 @@ export default function QuotationBuilder({
         quotationNumber: existing?.quotationNumber ?? 'טיוטה',
         recipientName: recipient.fullName || 'הלקוח',
         businessName: recipient.businessName,
-        items, vatRate, notesForClient, expiresAt,
+        items, vatRate, notesForClient, expiresAt, representation,
       }, brand);
       downloadPdf(bytes, `הצעת מחיר ${existing?.quotationNumber ?? 'טיוטה'}.pdf`);
     } catch (e) {
@@ -676,6 +726,19 @@ export default function QuotationBuilder({
               זה החלק הכי חזק במייל: שתי שורות אמיתיות מהשיחה מוכיחות שההצעה לא נשלחה בהעתק-הדבק.
               המייל עצמו כבר לא מציג מחירים — הם מחכים בעמוד ההצעה.
             </div>
+          </Section>
+
+          {/* ייצוג — מה שיקרה ברגע שהלקוח יאשר */}
+          <Section icon="⚖️" title="ייצוג מול הרשויות"
+            summary={representationSummary(representation)}
+            defaultOpen={!!repEmailConflict || !!validateQuotationRepresentation(representation)}>
+            <QuotationRepresentationEditor
+              value={representation}
+              onChange={setRepresentation}
+              recipientName={recipient.fullName}
+              recipientEmail={recipient.email}
+              emailConflict={repEmailConflict}
+            />
           </Section>
 
           {/* הגדרות */}
