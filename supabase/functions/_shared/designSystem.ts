@@ -400,9 +400,15 @@ export function buildBrandedEmail(brand: ResolvedBrand, c: BrandedEmailContent):
   const rtl = 'dir="rtl"';
   const rtlText = 'text-align:right;';
 
+  // ‼ מצב כהה: אפליקציות המייל (ג'ימייל בטלפון בראש) הופכות מעצמן את הצבעים
+  // של מייל שלא הצהיר מה הוא תומך בו. אצל גיא זה נראה כך: הרצועה הכהה הפכה
+  // לתכלת, הכרטיס הלבן הפך לשחור, והריבוע הלבן שמאחורי הלוגו הפך לשחור —
+  // ובלע לתוכו לוגו כהה. ההצהרה הזו מבקשת מהלקוח להשאיר את המייל כמו שהוא.
   return `<!DOCTYPE html>
-<html dir="rtl" lang="he"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
-<body style="margin:0;padding:0;background:${brand.pageBg};font-family:${f};color:${brand.ink};">
+<html dir="rtl" lang="he"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="color-scheme" content="light" /><meta name="supported-color-schemes" content="light" />
+<style>:root{color-scheme:light;supported-color-schemes:light;}</style></head>
+<body style="margin:0;padding:0;background:${brand.pageBg};font-family:${f};color:${brand.ink};color-scheme:light;">
   <table ${rtl} role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${brand.pageBg};padding:24px 0;"><tr><td align="center">
     <table ${rtl} role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${brand.cardBg};border:1px solid ${brand.border};border-radius:${rad + 4}px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.06);">
       ${emailHeaderRow(brand, c.tag)}
