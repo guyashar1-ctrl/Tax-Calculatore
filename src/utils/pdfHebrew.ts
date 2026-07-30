@@ -31,6 +31,11 @@ export async function embedPdfFonts(doc: PDFDocument): Promise<PdfFonts> {
 export const hasHebrew = (s: string) => /[֐-׿]/.test(s);
 const isHebChar = (ch: string) => /[֐-׿]/.test(ch);
 
+// רצפים לטיניים שאסור לפרק לתווים ניטרליים: כתובות מייל, אתרים, ומספרים
+// מחוברים במקף — "2026-003" (מספר הצעה) ו-"050-1234567" (טלפון). בלי זה המקף
+// נחשב ניטרלי, שני חלקי המספר מתחלפים, והמסמך מציג מספר הצעה הפוך.
+const ATOMIC_LTR = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|https?:\/\/[^\s]+|www\.[^\s]+|\d+(?:-\d+)+/g;
+
 export interface TextSegment { rtl: boolean; text: string; }
 
 /**
@@ -50,17 +55,30 @@ export function layoutMixed(text: string): TextSegment[] {
   type Cls = 'R' | 'L' | 'N';
   const cls = (ch: string): Cls => isHebChar(ch) ? 'R' : /[A-Za-z0-9@]/.test(ch) ? 'L' : 'N';
   const NUM_TRAIL = /[%,.:]/;   // 30% · 1,800 · 3.5 · 12:30 — נשארים מקשה אחת
-  const runs: { cls: Cls; text: string }[] = [];
-  for (const ch of [...text]) {
+  const runs: { cls: Cls; text: string; atomic?: boolean }[] = [];
+
+  const pushChar = (ch: string) => {
     const c = cls(ch);
     const prev = runs[runs.length - 1];
-    if (c === 'N' && NUM_TRAIL.test(ch) && prev?.cls === 'L' && /[0-9]$/.test(prev.text)) {
+    if (c === 'N' && NUM_TRAIL.test(ch) && prev?.cls === 'L' && !prev.atomic && /[0-9]$/.test(prev.text)) {
       prev.text += ch;
-      continue;
+      return;
     }
-    if (prev && prev.cls === c) prev.text += ch;
+    if (prev && prev.cls === c && !prev.atomic) prev.text += ch;
     else runs.push({ cls: c, text: ch });
+  };
+
+  // כתובת מייל / אתר היא יחידה אחת ואסור לפרק אותה: "guy@yasharcpa.co.il"
+  // מכיל נקודות שהן תווים ניטרליים, ופירוקן הפך את הכתובת ל"il.co.guy@..."
+  // בכל שורה שהיה בה גם טקסט עברי (למשל כתובת המשרד לצד המייל).
+  let last = 0;
+  for (const m of text.matchAll(ATOMIC_LTR)) {
+    for (const ch of text.slice(last, m.index)) pushChar(ch);
+    runs.push({ cls: 'L', text: m[0], atomic: true });
+    last = (m.index ?? 0) + m[0].length;
   }
+  for (const ch of text.slice(last)) pushChar(ch);
+
   return runs.reverse().map(r => {
     if (r.cls === 'R') {
       return { rtl: true, text: r.text.replace(/"/g, '״').replace(/'/g, '׳') };
