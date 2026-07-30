@@ -669,8 +669,13 @@ export default function QuotationBuilder({
               <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={{ marginTop: 4 }} />
             </label>
             <label style={{ ...fieldLabel, marginTop: 10 }}>הודעה אישית (אופציונלי)
-              <textarea rows={3} value={emailMessage} onChange={e => setEmailMessage(e.target.value)} placeholder="כמה מילים אישיות שילוו את ההצעה…" style={{ marginTop: 4 }} />
+              <textarea rows={3} value={emailMessage} onChange={e => setEmailMessage(e.target.value)}
+                placeholder="למשל: אחרי שדיברנו הבנתי שהדבר הכי דחוף אצלך הוא לסגור את השנים הפתוחות — התחלתי מזה." style={{ marginTop: 4 }} />
             </label>
+            <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
+              זה החלק הכי חזק במייל: שתי שורות אמיתיות מהשיחה מוכיחות שההצעה לא נשלחה בהעתק-הדבק.
+              המייל עצמו כבר לא מציג מחירים — הם מחכים בעמוד ההצעה.
+            </div>
           </Section>
 
           {/* הגדרות */}
