@@ -38,6 +38,8 @@ interface Props {
   onMarkActive: (req: RepresentationRequest) => void;
   onDelete: (id: string) => void;
   onOpenFill: (id: string) => void;
+  /** פותח את כרטיס הלקוח המקושר בלשונית המסמכים. */
+  onOpenClientDocs: (clientId: string) => void;
   /** האם התבקש ייצוג בב"ל — נגזר ממרשם הייצוג של הלקוח המקושר. */
   niIncluded: boolean;
   /** הייצוג בב"ל נלקח גם לבן/בת הזוג — שני מסלולים, שתי אסמכתאות. */
@@ -61,6 +63,7 @@ export default function RepresentationRequestReview({
   onMarkActive,
   onDelete,
   onOpenFill,
+  onOpenClientDocs,
   niIncluded,
   niCoversSpouse,
   onSaveExecution,
@@ -404,6 +407,14 @@ export default function RepresentationRequestReview({
         {/* הפעולה הראשית עברה לכרטיס "מה עכשיו"; כאן נשארו רק ניווט ופעולות נדירות */}
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={onBack}>← חזרה</button>
+          {/* גם לפני שהייצוג אושר יש ללקוח מסמכים — ייפוי כוח והסכם התקשרות */}
+          {request.linkedClientId && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => onOpenClientDocs(request.linkedClientId)}
+              title="כרטיס הלקוח — מסמכים, פרטים ומשימות"
+            >📁 מסמכי הלקוח</button>
+          )}
           {!isNewOnboarding && request.status === 'pending_fill' && (
             <button className="btn btn-primary" onClick={() => onOpenFill(request.id)}>
               🧪 הדמיית מילוי

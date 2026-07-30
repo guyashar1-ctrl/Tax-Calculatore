@@ -66,6 +66,7 @@ import PublicQuotationPage from './components/PublicQuotationPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import TestExecutionCenter from './components/signatureRequest/__TestExecutionCenter';
+import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
@@ -173,6 +174,9 @@ export default function App() {
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-exec')) {
     return <TestExecutionCenter />;
   }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-repdocs')) {
+    return <TestRepDocs />;
+  }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {
     // הדפים שהלקוח רואה נשארים תמיד בהירים — הם נושאים את מיתוג המשרד,
@@ -218,6 +222,8 @@ export default function App() {
   const [view, setView] = useState<View>('tasks');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  // לשונית הפתיחה של כרטיס הלקוח — נקבעת רק כשהגיעו אליו בשביל דבר מסוים
+  const [clientInitialTab, setClientInitialTab] = useState<'overview' | 'dossier' | 'docs' | 'tasks' | undefined>(undefined);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
   const [newQuotationLeadId, setNewQuotationLeadId] = useState<string | null>(null);
   const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
@@ -329,6 +335,14 @@ export default function App() {
 
   function handleSelectClient(id: string) {
     setSelectedId(id);
+    setClientInitialTab(undefined);
+    setView('form');
+  }
+
+  /** כרטיס הלקוח ישר על המסמכים — מהמסך של בקשת הייצוג. */
+  function handleOpenClientDocs(clientId: string) {
+    setSelectedId(clientId);
+    setClientInitialTab('docs');
     setView('form');
   }
 
@@ -1255,6 +1269,7 @@ export default function App() {
               setAnnualReportSelection({ clientId, taxYear });
               setView('annualReport');
             }}
+            initialTab={clientInitialTab}
           />
         )}
 
@@ -1378,6 +1393,7 @@ export default function App() {
               onMarkActive={handleMarkActive}
               onDelete={handleDeleteRequest}
               onOpenFill={handleOpenFill}
+              onOpenClientDocs={handleOpenClientDocs}
               niIncluded={!!clients.find(c => c.id === selectedRequest.linkedClientId)?.authorityRepresentations?.nationalInsurance}
               niCoversSpouse={!!clients.find(c => c.id === selectedRequest.linkedClientId)?.authorityRepresentations?.nationalInsurance?.coversSpouse}
               onSaveExecution={handleSaveExecution}

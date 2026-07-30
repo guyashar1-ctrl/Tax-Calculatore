@@ -574,8 +574,11 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={busy}>
             ביטול
           </button>
+          {/* בשליחה במייל הכפתור גם מפיק וגם שולח — הכתוב מתאר את הפעולה שתקרה */}
           <button type="submit" className="btn btn-primary" disabled={busy || !!emailConflict || selectedKeys.length === 0}>
-            {busy ? 'מפיק…' : '\u{1F517} הפקת קישור'}
+            {sendBy === 'email'
+              ? (busy ? 'שולח…' : '\u{1F4E7} שליחה ללקוח במייל')
+              : (busy ? 'מפיק…' : '\u{1F517} הפקת קישור')}
           </button>
         </div>
       </form>

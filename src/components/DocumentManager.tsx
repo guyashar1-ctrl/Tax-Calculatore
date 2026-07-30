@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Client } from '../types';
-import { useDocumentDB, StoredDoc, DocCategory, DOC_CATEGORY_LABELS, isPlaceholderDoc } from '../hooks/useIndexedDB';
+import { useDocumentDB, StoredDoc, DocCategory, DOC_CATEGORY_LABELS, isPlaceholderDoc, withoutSupersededPoa } from '../hooks/useIndexedDB';
 import { AVAILABLE_YEARS } from '../data/taxData';
 import { analyzeDocument, isGeminiAvailable, AnalysisResult, DocAnalysisType, ExtractedClientData } from '../utils/geminiVision';
 
@@ -201,10 +201,10 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
   function loadDocs() {
     db.getDocsByClient(client.id).then(d => {
       console.log('[DocumentManager] loaded', d.length, 'docs for client', client.id);
-      let allDocs = d;
+      let allDocs = withoutSupersededPoa(d);
       if (d.length === 0 && client.id.startsWith('sample-')) {
         const fakes = generateSampleDocs(client.id);
-        allDocs = [...d, ...fakes];
+        allDocs = [...allDocs, ...fakes];
         fakes.forEach(doc => db.saveDoc(doc));
       }
       setDocs(allDocs);

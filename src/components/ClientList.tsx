@@ -460,6 +460,13 @@ export default function ClientList({
                       )}
                     </div>
                     <span className={`badge ${stage.ballClass}`} style={{ fontSize: '.65rem' }}>{stage.ball}</span>
+                    {/* השורה מובילה למסך הביצוע — אבל גם לקוח בתהליך צריך כרטיס
+                        נגיש (מסמכים, ייפוי כוח, הסכם התקשרות), ולכן קישור נפרד. */}
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      title="כרטיס הלקוח והמסמכים שלו"
+                      onClick={e => { e.stopPropagation(); onSelect(c.id); }}
+                    >📁 כרטיס</button>
                     <span style={{ color: 'var(--gray-300)', fontSize: '1.1rem' }}>‹</span>
                   </div>
                 );

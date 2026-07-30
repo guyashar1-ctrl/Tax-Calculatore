@@ -120,7 +120,21 @@
       "Bash(git commit -m ' *)",
       "Bash(cp -r \"C:/Users/גיא ישר/code Projects/Tax Calculator/node_modules/pdfjs-dist/cmaps\" \"C:/Users/גיא ישר/code Projects/Tax Calculator/public/\")",
       "Bash(cp -r \"C:/Users/גיא ישר/code Projects/Tax Calculator/node_modules/pdfjs-dist/standard_fonts\" \"C:/Users/גיא ישר/code Projects/Tax Calculator/public/\")",
-      "Bash(python3)"
+      "Bash(python3)",
+      "Bash(npm --version)",
+      "Bash(git --version)",
+      "PowerShell(Write-Output \"=== node ===\"; \\(Get-Command node -ErrorAction SilentlyContinue\\).Source; node --version 2>&1; Write-Output \"=== npm ===\"; \\(Get-Command npm -ErrorAction SilentlyContinue\\).Source; npm --version 2>&1)",
+      "PowerShell($env:Path = \"C:\\\\Program Files\\\\nodejs;\" + $env:Path; & \"C:\\\\Program Files\\\\nodejs\\\\npm.cmd\" install 2>&1 | Select-Object -Last 25)",
+      "Bash(cd \"C:/Users/guyas/Desktop/פרויקטים בקוד/code Projects/Tax Calculator\" && cp .claude/launch.json .claude/launch.json.bak && echo \"backed up\")",
+      "Bash(cd \"C:/Users/guyas/Desktop/פרויקטים בקוד/code Projects\" && echo \"=== LOCAL .env names \\(not values\\) ===\" && ls -la \"Tax Calculator\"/.env* 2>&1; echo \"=== does clone have .env? ===\" && ls -la _recover_clone/.env* 2>&1; echo \"=== LOCAL .claude ===\" && ls -la \"Tax Calculator\"/.claude/ 2>&1; echo \"=== CLONE .claude ===\" && ls -la _recover_clone/.claude/ 2>&1; echo \"=== clone .gitignore ===\" && cat _recover_clone/.gitignore)",
+      "PowerShell($src = \"C:\\\\Users\\\\guyas\\\\Desktop\\\\פרויקטים בקוד\\\\code Projects\\\\_recover_clone\"; $dst = \"C:\\\\Users\\\\guyas\\\\Desktop\\\\פרויקטים בקוד\\\\code Projects\\\\Tax Calculator\"; robocopy $src $dst /E /NFL /NDL /NJH /NJS /NP; $code = $LASTEXITCODE; if \\($code -lt 8\\) { Write-Output \"ROBOCOPY OK \\(exit $code\\)\" } else { Write-Output \"ROBOCOPY FAILED \\(exit $code\\)\" })",
+      "Bash(cd \"C:/Users/guyas/Desktop/פרויקטים בקוד/code Projects/Tax Calculator\" && cp .claude/launch.json .claude/launch.json.repobak && echo \"backed up repo version\")",
+      "Bash(sed -E 's/=.*/=********/' .env.local)",
+      "Bash(sed -E 's/=.*/=********/' .env)",
+      "mcp__09bf3b56-7dba-49d2-abca-634ebfe50f1e__list_teams",
+      "mcp__09bf3b56-7dba-49d2-abca-634ebfe50f1e__list_projects",
+      "mcp__09bf3b56-7dba-49d2-abca-634ebfe50f1e__list_deployments",
+      "mcp__09bf3b56-7dba-49d2-abca-634ebfe50f1e__get_project"
     ]
   }
 }

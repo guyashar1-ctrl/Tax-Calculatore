@@ -250,6 +250,21 @@ export function useDocumentStore() {
   return { saveDoc, getDocsByClient, getDoc, deleteDoc };
 }
 
+// ─── ייפוי כוח: רק הגרסה העדכנית מוצגת ────────────────────────────────
+// בזרימת הייצוג נשמרים שני קבצים: 'poa-pdf-<reqId>' (הטופס שהועלה לחתימה)
+// ו-'signed-poa-<reqId>' (אותו טופס אחרי כל החתימות והחותמת). הלא-חתום נשאר
+// באחסון כי "חתום מחדש" צורב את החתימות דווקא עליו — אבל ברשימת המסמכים אין
+// טעם בשניהם, ולכן ברגע שיש חתום, הלא-חתום מוסתר.
+export function withoutSupersededPoa(docs: StoredDoc[]): StoredDoc[] {
+  const signedRequestIds = new Set(
+    docs.filter(d => d.id.startsWith('signed-poa-')).map(d => d.id.slice('signed-poa-'.length))
+  );
+  if (signedRequestIds.size === 0) return docs;
+  return docs.filter(d =>
+    !(d.id.startsWith('poa-pdf-') && signedRequestIds.has(d.id.slice('poa-pdf-'.length)))
+  );
+}
+
 // ─── עזר לסניף "האם המסמך הזה הוא דמה (אין לו קובץ אמיתי)?" ───────────
 // קודם השתמשנו ב-fileData.byteLength === 0. זה לא עובד יותר כי מטא-נתונים
 // מוחזרים בלי בייטים. עכשיו: דמה = id מתחיל ב-'fake-' (סמפלים) או _remote=false.

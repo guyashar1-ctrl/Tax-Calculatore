@@ -8,6 +8,7 @@
 export {
   useDocumentStore as useDocumentDB,
   isPlaceholderDoc,
+  withoutSupersededPoa,
   DOC_CATEGORY_LABELS,
 } from './useDocumentStore';
 export type { StoredDoc, DocCategory } from './useDocumentStore';

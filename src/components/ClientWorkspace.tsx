@@ -60,6 +60,8 @@ interface Props {
   onDeleteTask: (id: string) => void;
   // פתיחת הדוח השנתי לשנה מסוימת (מתוך תמונת המס בכרטיס)
   onOpenAnnualReport?: (clientId: string, taxYear: number) => void;
+  // לשונית הפתיחה — למי שהגיע לכאן בשביל דבר מסוים (למשל מסמכי הייצוג)
+  initialTab?: TabId;
 }
 
 function newEmptyClient(): Client {
@@ -110,11 +112,12 @@ export default function ClientWorkspace({
   onReorderTask,
   onDeleteTask,
   onOpenAnnualReport,
+  initialTab,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
   // לקוח חדש נוחת ישר ב"תיק" — שם ממלאים את הפרטים
-  const [tab, setTab] = useState<TabId>(initialClient ? 'overview' : 'dossier');
+  const [tab, setTab] = useState<TabId>(initialTab ?? (initialClient ? 'overview' : 'dossier'));
   const [docCategories, setDocCategories] = useState<Set<string>>(new Set());
   const [dirty, setDirty] = useState(false);
   const [intakeModalOpen, setIntakeModalOpen] = useState(false);
