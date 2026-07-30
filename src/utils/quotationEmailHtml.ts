@@ -46,7 +46,7 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
 
   const servicesCard = data.items.length > 0 ? `<tr><td dir="rtl" align="right" style="text-align:right;padding:20px 40px 4px;">
     <table dir="rtl" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${brand.border};border-radius:${rad}px;background:${cardTint};">
-      <tr><td dir="rtl" align="right" style="text-align:right;padding:16px 18px 8px;font-family:${f};font-size:11px;font-weight:700;letter-spacing:.08em;color:${brand.muted};">מה נכנס לליווי</td></tr>
+      <tr><td dir="rtl" align="right" style="text-align:right;padding:16px 18px 8px;font-family:${f};font-size:11px;font-weight:700;letter-spacing:.08em;color:${brand.muted};">מה תקבל במסגרת הליווי</td></tr>
       <tr><td dir="rtl" align="right" style="text-align:right;padding:0 18px 14px;">
         <table dir="rtl" role="presentation" width="100%" cellpadding="0" cellspacing="0">
           ${priced.map(i => serviceRow(itemDisplayName(i))).join('')}
@@ -68,14 +68,18 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
   const phoneText = brand.phone ? esc(brand.phone) : '';
   const availability = `<tr><td dir="rtl" align="right" style="text-align:right;padding:16px 40px 4px;">
     <div dir="rtl" style="font-family:${f};font-size:14px;color:${brand.ink};line-height:1.75;text-align:right;">
-      אני מטפל בתיק שלך בעצמי — לא דרך מוקד ולא דרך מזכירה.
-      ${phoneText ? `זמין בוואטסאפ ובנייד${wa ? ` <a href="${wa}" style="color:${brand.accent};font-weight:600;text-decoration:none;">${phoneText}</a>` : ` <span style="font-weight:600;" dir="ltr">${phoneText}</span>`}, גם באמצע השבוע.` : 'זמין בוואטסאפ ובנייד, גם באמצע השבוע.'}
+      הליווי מתבצע על ידי באופן אישי — ללא מוקד שירות וללא מעבר בין נציגים.
+      ${phoneText ? `אני זמין בוואטסאפ ובטלפון${wa ? ` <a href="${wa}" style="color:${brand.accent};font-weight:600;text-decoration:none;">${phoneText}</a>` : ` <span style="font-weight:600;" dir="ltr">${phoneText}</span>`} לאורך כל הדרך.` : 'אני זמין בוואטסאפ ובטלפון לאורך כל הדרך.'}
+    </div>
+    <div dir="rtl" style="font-family:${f};font-size:14px;color:${brand.ink};line-height:1.75;text-align:right;padding-top:10px;">
+      המטרה שלי היא שלא תצטרך להתעסק בבירוקרטיה: אני אחראי לדיווחים, לתזכורות,
+      ללוחות הזמנים ולטיפול מול הרשויות — כדי שתוכל להתמקד בניהול העסק שלך.
     </div>
   </td></tr>`;
 
   const pricePointer = `<tr><td dir="rtl" align="right" style="text-align:right;padding:14px 40px 0;">
     <div dir="rtl" style="font-family:${f};font-size:14px;font-weight:600;color:${brand.ink};line-height:1.7;text-align:right;">
-      המחיר המלא, כולל ההנחה שסיכמנו, נמצא בעמוד ההצעה.
+      המחיר שסיכמנו מופיע בעמוד ההצעה — ללא עלויות נסתרות וללא הפתעות.
     </div>
   </td></tr>`;
 
@@ -84,8 +88,8 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
     : null;
 
   return buildBrandedEmail(brand, {
-    heading: `${firstName ? esc(firstName) + ', ' : ''}הכנתי לך הצעה אישית`,
-    bodyHtml: `הצעה שמותאמת לתיק שלך${data.businessName ? ' עבור ' + esc(data.businessName) : ''} — לא חבילה גנרית. הנה מה שנכנס לליווי, ולפרטים המלאים ולאישור המשך לעמוד ההצעה.`,
+    heading: `${firstName ? esc(firstName) + ', ' : ''}זו ההצעה האישית שהכנתי עבורך`,
+    bodyHtml: `בניתי אותה במיוחד עבור ${data.businessName ? esc(data.businessName) : 'העסק שלך'}, מתוך היכרות עם מה שהוא צריך — ליווי מלא לאורך כל השנה, ושקט נפשי שהכול מטופל. לפרטים המלאים ולאישור, המשך לעמוד ההצעה.`,
     tag: `הצעה מס׳ ${data.quotationNumber}`,
     extraHtml: servicesCard + messageBlock + availability + pricePointer,
     ctaLabel: 'צפייה ואישור ההצעה',

@@ -60,6 +60,7 @@ export default function QuotationWebView({
   data, brand, compact, interactive, status, onApprove, approving, onDownloadPdf,
 }: Props) {
   const totals = calcTotals(data.items, data.vatRate);
+  const thisYear = new Date().getFullYear();
   const [signature, setSignature] = useState('');
   const [signerName, setSignerName] = useState('');
   const pad = compact ? 22 : 44;
@@ -137,28 +138,28 @@ export default function QuotationWebView({
           {/* פתיח */}
           <div style={{ padding: `${introPadTop}px ${pad}px ${compact ? 20 : 28}px` }}>
             <div style={{ fontSize: compact ? 23 : 30, fontWeight: 700, letterSpacing: '-.02em', marginBottom: 7, lineHeight: 1.15 }}>
-              {firstName ? `${firstName}, נעים להכיר` : 'הצעת מחיר'}
+              {firstName ? `${firstName}, זו ההצעה האישית שהכנתי עבורך` : 'ההצעה האישית שהכנתי עבורך'}
             </div>
-            <div style={{ fontSize: compact ? 14 : 15.5, color: brand.muted, lineHeight: 1.65 }}>
-              הכנו עבורך הצעה אישית לליווי חשבונאי ומקצועי{data.businessName ? ` עבור ${data.businessName}` : ''}.
-              כל הפרטים כאן למטה — שקוף, בלי אותיות קטנות.
+            <div style={{ fontSize: compact ? 14 : 15.5, color: brand.muted, lineHeight: 1.7 }}>
+              בניתי אותה במיוחד עבור {data.businessName || 'העסק שלך'}, מתוך היכרות עם מה שהוא צריך —
+              ליווי מלא לאורך כל השנה, ושקט נפשי שהכול מטופל.
             </div>
 
             {isApproved && (
               <div style={{ marginTop: 16, background: 'rgba(16,185,129,.1)', color: '#065f46', borderRadius: brand.radius, padding: '11px 15px', fontSize: 13.5, fontWeight: 600 }}>
-                ✓ ההצעה אושרה. תודה! ניצור קשר להמשך התהליך.
+                ✓ ההצעה אושרה. תודה — אצור קשר להמשך התהליך.
               </div>
             )}
             {isDead && (
               <div style={{ marginTop: 16, background: 'rgba(0,0,0,.04)', color: brand.muted, borderRadius: brand.radius, padding: '11px 15px', fontSize: 13.5, fontWeight: 600 }}>
-                {status === 'expired' ? 'תוקף ההצעה פג. ניתן לפנות אלינו לחידוש.' : 'ההצעה בוטלה. לפרטים נוספים ניתן לפנות אלינו.'}
+                {status === 'expired' ? 'תוקף ההצעה פג. אשמח לחדש אותה — פשוט צור קשר.' : 'ההצעה בוטלה. לפרטים נוספים אפשר לפנות אליי.'}
               </div>
             )}
           </div>
 
           {/* שירותים */}
           <div style={{ padding: `0 ${pad}px ${compact ? 18 : 24}px` }}>
-            <SectionLabel brand={brand}>השירותים שלנו</SectionLabel>
+            <SectionLabel brand={brand}>מה תקבל במסגרת הליווי</SectionLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
               {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>טרם נוספו שירותים להצעה.</div>}
               {priced.map(item => <ServiceCard key={item.id} item={item} brand={brand} compact={compact} />)}
@@ -167,7 +168,7 @@ export default function QuotationWebView({
             {included.length > 0 && (
               <>
                 <div style={{ height: 18 }} />
-                <SectionLabel brand={brand}>כלול במחיר — ללא תוספת</SectionLabel>
+                <SectionLabel brand={brand}>כלול בליווי — ללא תוספת תשלום</SectionLabel>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
                   {included.map(item => (
                     <div key={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: brand.pageBg, borderRadius: 999, padding: '7px 14px', fontSize: 12.5, color: brand.ink, fontWeight: 500, border: `1px solid ${brand.border}` }}>
@@ -179,9 +180,36 @@ export default function QuotationWebView({
             )}
           </div>
 
+          {/* איך זה מתחיל ואיך זה עובד — הליבה של "ליווי, לא רשימת שירותים".
+              השנים נגזרות מהשנה הנוכחית ולא כתובות קשיח, כדי שהטקסט יישאר נכון
+              גם בשנה הבאה. */}
+          <div style={{ padding: `${compact ? 4 : 6}px ${pad}px ${compact ? 18 : 24}px`, display: 'flex', flexDirection: 'column', gap: compact ? 16 : 18 }}>
+            <div>
+              <SectionLabel brand={brand}>מתחילים בעשיית סדר</SectionLabel>
+              <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
+                נתחיל בבדיקת הדיווחים לשנים {thisYear - 2}–{thisYear - 1} ונשלים כל מה שנדרש.
+                משם ניישר קו לשנת {thisYear}, וימשיך ליווי שוטף לאורך כל השנה.
+              </div>
+            </div>
+            <div>
+              <SectionLabel brand={brand}>ליווי אישי, מקצה לקצה</SectionLabel>
+              <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
+                הליווי מתבצע על ידי באופן אישי — ללא מוקד שירות וללא מעבר בין נציגים.
+                אני זמין בוואטסאפ ובטלפון לאורך כל הדרך.
+              </div>
+              <div style={{ marginTop: 10, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
+                המטרה שלי היא שלא תצטרך להתעסק בבירוקרטיה: אני אחראי לדיווחים, לתזכורות,
+                ללוחות הזמנים ולטיפול מול הרשויות — כדי שתוכל להתמקד בניהול העסק שלך.
+              </div>
+            </div>
+          </div>
+
           {/* תמחור */}
           <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, background: tint(brand.pageBg), borderTop: `1px solid ${brand.border}`, borderBottom: `1px solid ${brand.border}` }}>
             <SectionLabel brand={brand}>סיכום התמחור</SectionLabel>
+            <div style={{ marginTop: 9, fontSize: compact ? 13 : 14, color: brand.ink, opacity: .88, lineHeight: 1.7 }}>
+              המחיר שלהלן הוא המחיר הסופי שסיכמנו — ללא עלויות נסתרות וללא הפתעות.
+            </div>
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
               {totals.monthly.withVat > 0 && (
                 <PriceBlock brand={brand} label="חודשי" t={totals.monthly} vatRate={data.vatRate} suffix="לחודש" compact={compact}
@@ -202,7 +230,7 @@ export default function QuotationWebView({
               return (
                 <div style={{ marginTop: 14, background: 'rgba(16,185,129,.12)', border: '1px solid rgba(16,185,129,.3)', color: '#047857', borderRadius: brand.radius, padding: '12px 16px', fontSize: compact ? 13.5 : 14.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: compact ? 18 : 20 }}>🎁</span>
-                  <span>החיסכון שלך בהצעה הזו: {parts.join(' · ')} <span style={{ fontWeight: 400, fontSize: 11.5 }}>(לפני מע״מ)</span></span>
+                  <span>ההנחה שסיכמנו בהצעה זו: {parts.join(' · ')} <span style={{ fontWeight: 400, fontSize: 11.5 }}>(לפני מע״מ)</span></span>
                 </div>
               );
             })()}
@@ -230,18 +258,18 @@ export default function QuotationWebView({
           {/* צעדים הבאים */}
           <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
             <SectionLabel brand={brand}>מה קורה אחרי האישור</SectionLabel>
-            <ol style={{ marginTop: 12, paddingInlineStart: 18, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5, color: brand.ink, opacity: .85, lineHeight: 1.6 }}>
-              <li>נפתח עבורך את התיק ונתחיל בהליך ייצוג מול הרשויות.</li>
-              <li>נבקש כמה מסמכי זיהוי בסיסיים — הכל דיגיטלי, בלי ניירת.</li>
-              <li>משם אנחנו מטפלים בהכול. נהיה זמינים לכל שאלה.</li>
+            <ol style={{ marginTop: 12, paddingInlineStart: 18, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5, color: brand.ink, opacity: .85, lineHeight: 1.65 }}>
+              <li>אפתח עבורך את התיק ואתחיל בהליך הייצוג מול הרשויות.</li>
+              <li>אבקש כמה מסמכי זיהוי בסיסיים — הכול דיגיטלי, בלי ניירת.</li>
+              <li>משם הטיפול עליי, ואהיה זמין לכל שאלה שתעלה.</li>
             </ol>
           </div>
 
           {/* אישור + חתימה */}
           <div style={{ padding: pad, background: brand.ink }}>
-            <div style={{ color: '#fff', fontSize: compact ? 16 : 19, fontWeight: 600, marginBottom: 4 }}>מוכנים להתחיל?</div>
-            <div style={{ color: 'rgba(255,255,255,.68)', fontSize: 13, marginBottom: 16 }}>
-              {expiryLabel ? `ההצעה בתוקף עד ${expiryLabel}.` : 'חתימה קצרה — וההצעה מאושרת.'}
+            <div style={{ color: '#fff', fontSize: compact ? 16 : 19, fontWeight: 600, marginBottom: 4 }}>מתחילים?</div>
+            <div style={{ color: 'rgba(255,255,255,.68)', fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>
+              {expiryLabel ? `חתימה אחת כאן, ואני מתחיל לעבוד. ההצעה בתוקף עד ${expiryLabel}.` : 'חתימה אחת כאן, ואני מתחיל לעבוד.'}
             </div>
 
             {!isApproved && !isDead && (
@@ -345,9 +373,9 @@ function FutureServices({ services, brand, compact, pad }: {
     <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
       {alwaysOpen ? (
         <>
-          <SectionLabel brand={brand}>שירותים נוספים — אם וכאשר תצטרכו</SectionLabel>
+          <SectionLabel brand={brand}>שירותים נוספים — אם וכאשר תצטרך</SectionLabel>
           <div style={{ marginTop: 8, fontSize: 12.5, color: brand.muted, lineHeight: 1.6 }}>
-            אינם כלולים בהצעה. תחויבו רק אם וכאשר תבקשו אותם בפועל.
+            אינם כלולים בהצעה. תחויב רק אם וכאשר תבקש אותם בפועל.
           </div>
           {list}
         </>
@@ -368,7 +396,7 @@ function FutureServices({ services, brand, compact, pad }: {
                 מחירון שירותים נוספים · {services.length} שירותים
               </span>
               <span style={{ display: 'block', fontSize: 11.5, color: brand.muted, marginTop: 2, lineHeight: 1.5 }}>
-                אינם חלק מההצעה. פתוח לעיונכם — כדי שלא תופתעו ממחיר בעתיד.
+                אינם חלק מההצעה. פתוח לעיונך — כדי שתדע מראש ולא תופתע בהמשך.
               </span>
             </span>
             <span style={{ fontSize: 11, color: brand.muted }}>{open ? '▲' : '▼'}</span>

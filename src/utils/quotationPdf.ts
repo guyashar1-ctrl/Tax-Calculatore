@@ -91,7 +91,7 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   ltr(`הצעה מס׳ ${data.quotationNumber}`, 9, gray, y + 2, LEFT);
   y -= 34;
 
-  rtl(data.recipientName ? `${data.recipientName}, הצעת מחיר עבורך` : 'הצעת מחיר', 20, ink, y);
+  rtl(data.recipientName ? `${data.recipientName}, ההצעה האישית שהכנתי עבורך` : 'הצעת מחיר', 18, ink, y);
   y -= 20;
   if (data.businessName) { rtl(data.businessName, 11, gray, y); y -= 16; }
   y -= 8;
@@ -101,7 +101,7 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   const included = data.items.filter(i => i.category === 'included');
 
   // ── שירותים ──
-  sectionLine('השירותים שלנו');
+  sectionLine('מה תקבל במסגרת הליווי');
   for (const item of priced) {
     ensureSpace(38);
     rtl(itemDisplayName(item), 11.5, ink, y);
@@ -118,7 +118,7 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
 
   if (included.length > 0) {
     y -= 6;
-    sectionLine('כלול במחיר — ללא תוספת');
+    sectionLine('כלול בליווי — ללא תוספת תשלום');
     for (const item of included) {
       ensureSpace(16);
       rtl(`•  ${itemDisplayName(item)}`, 10.5, bodyGray, y);
