@@ -948,14 +948,21 @@ function RecipientEditor({ leads, clients, value, onPick }: {
   const [hasPrev, setHasPrev] = useState(!!value.hasPreviousAccountant);
   const [prev, setPrev] = useState({ name: value.prevAccountantName ?? '', email: value.prevAccountantEmail ?? '', phone: value.prevAccountantPhone ?? '' });
 
-  const matches = search.trim()
+  // הלידים הפתוחים מוצגים מיד, בלי להקליד — הם קומץ, וזו הרשימה שממנה בוחרים
+  // ברוב המקרים. לקוחות קיימים הם רבים, ולכן נכנסים לרשימה רק בחיפוש.
+  const openLeads = leads
+    .filter(l => l.status !== 'converted' && l.status !== 'closed')
+    .map(l => ({ kind: 'lead' as const, id: l.id, fullName: l.fullName, businessName: l.businessName, email: l.email, phone: l.phone, dealerType: l.dealerType }));
+
+  const q = search.trim();
+  const matches = q
     ? [
-        ...leads.filter(l => l.status !== 'converted' && (l.fullName.includes(search) || (l.phone ?? '').includes(search) || (l.email ?? '').includes(search)))
+        ...leads.filter(l => l.status !== 'converted' && (l.fullName.includes(q) || (l.phone ?? '').includes(q) || (l.email ?? '').includes(q)))
           .map(l => ({ kind: 'lead' as const, id: l.id, fullName: l.fullName, businessName: l.businessName, email: l.email, phone: l.phone, dealerType: l.dealerType })),
-        ...clients.filter(c => `${c.firstName} ${c.lastName}`.includes(search) || (c.phone ?? '').includes(search) || (c.email ?? '').includes(search))
+        ...clients.filter(c => `${c.firstName} ${c.lastName}`.includes(q) || (c.phone ?? '').includes(q) || (c.email ?? '').includes(q))
           .map(c => ({ kind: 'client' as const, id: c.id, fullName: `${c.firstName} ${c.lastName}`.trim(), email: c.email, phone: c.phone })),
-      ].slice(0, 6)
-    : [];
+      ].slice(0, 8)
+    : openLeads;
 
   return (
     <div>
@@ -967,18 +974,34 @@ function RecipientEditor({ leads, clients, value, onPick }: {
       {mode === 'existing' ? (
         <>
           <input placeholder="חיפוש ליד או לקוח לפי שם / טלפון…" value={search} onChange={e => setSearch(e.target.value)} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--gray-500)', margin: '8px 2px 4px' }}>
+            {q
+              ? `${matches.length} תוצאות`
+              : openLeads.length > 0
+                ? `${openLeads.length} לידים פתוחים · ללקוח קיים — חפש בשמו`
+                : ''}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
             {matches.map(m => (
               <button key={`${m.kind}-${m.id}`} onClick={() => onPick(m)}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--gray-200)', borderRadius: 8, background: 'var(--card)', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
-                <span style={{ flex: 1 }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontWeight: 500, fontSize: 13.5 }}>{m.fullName || '(ללא שם)'}</span>
                   <span style={{ fontSize: 11, color: 'var(--gray-400)', marginInlineStart: 6 }}>{m.kind === 'lead' ? 'ליד' : 'לקוח'}</span>
+                  {'businessName' in m && m.businessName && (
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--gray-500)' }}>{m.businessName}</span>
+                  )}
                 </span>
-                <span style={{ fontSize: 11.5, color: 'var(--gray-500)' }}>{m.phone || m.email}</span>
+                <span style={{ fontSize: 11.5, color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{m.phone || m.email}</span>
               </button>
             ))}
-            {search.trim() && matches.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--gray-500)', padding: 6 }}>לא נמצאו תוצאות.</div>}
+            {matches.length === 0 && (
+              <div style={{ fontSize: 12.5, color: 'var(--gray-500)', padding: 6, lineHeight: 1.6 }}>
+                {q
+                  ? 'לא נמצאו תוצאות.'
+                  : 'אין לידים פתוחים. אפשר לחפש לקוח קיים בשמו, או לפתוח ליד חדש בטאב שלצד.'}
+              </div>
+            )}
           </div>
         </>
       ) : (
