@@ -305,6 +305,22 @@ export function emailTint(hex: string): string {
 }
 
 /**
+ * ‼ רקע שעמיד למצב כהה של ג'ימייל.
+ *
+ * ג'ימייל בטלפון הופך את הצבעים של המייל, אבל אינו נוגע ב-background-image.
+ * לכן אותו צבע נכתב פעמיים: פעם כ-background-color (לכל שאר התוכנות) ופעם
+ * כמילוי אחיד — וזה מה שמנצח בג'ימייל ומשאיר את המשטח בצבע שנבחר.
+ *
+ * ‼ להשתמש רק על משטח שאין בו טקסט. ג'ימייל הופך רקע וטקסט יחד; אם ננעל רק
+ * את הרקע, הטקסט יתהפך לבדו ונקבל לבן על לבן — גרוע מהמצב הנוכחי. המשטח
+ * היחיד שעונה לתנאי הוא הריבוע שמתחת ללוגו: הוא צבע (והתהפך לשחור), בעוד
+ * שהלוגו עצמו הוא תמונה (ונשאר כהה) — ולכן הוא נעלם.
+ */
+function solidBg(color: string): string {
+  return `background-color:${color};background-image:linear-gradient(${color},${color});`;
+}
+
+/**
  * בוחר לוגו למייל מתוך רשימת מועמדים לפי סדר עדיפות, ומדלג על SVG.
  * תוכנות מייל אינן מציגות SVG — עדיף לרדת למונוגרמה מאשר לשלוח תמונה שבורה.
  * הבדיקה נחוצה גם לפרופילים שהוגדרו לפני שההמרה האוטומטית ל-PNG נוספה.
@@ -337,7 +353,7 @@ export function emailHeaderRow(brand: ResolvedBrand, tag?: string): string {
     ? `<img src="${esc(brandDarkLogo)}" alt="${esc(brand.firmName)}" style="max-height:${hDark}px;max-width:${w}px;border:0;" />`
     : emailLogo
       ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>`
-        + `<td style="background:#ffffff;border-radius:${Math.max(brand.radius, 8)}px;padding:10px 14px;line-height:0;">`
+        + `<td style="${solidBg('#ffffff')}border-radius:${Math.max(brand.radius, 8)}px;padding:10px 14px;line-height:0;">`
         + `<img src="${esc(emailLogo)}" alt="${esc(brand.firmName)}" style="max-height:${hDark}px;max-width:${w}px;border:0;display:block;" />`
         + `</td></tr></table>`
       : `<span style="color:#ffffff;font-family:${f};font-size:17px;font-weight:600;">${esc(brand.firmName)}</span>`;

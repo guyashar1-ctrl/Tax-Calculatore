@@ -66,6 +66,10 @@ Deno.serve(async (req: Request) => {
     });
     const body = await r.json();
 
+    // ‼ עותק ה-HTML נשמר יחד עם הרשומה, כמו בשאר המיילים. בלעדיו אי אפשר
+    // לדעת בדיעבד מה הלקוח קיבל בפועל — מפתח ה-API של Resend מוגבל לשליחה.
+    // (עד 2026-07-30 מייל ההצעה היה היחיד בלי עותק, ובדיקה של תקלת תצוגה
+    // בטלפון נאלצה להסתמך על הסקה במקום על המייל עצמו.)
     const logBase = {
       user_id: user.id,
       client_id: q.client_id || null,
@@ -73,6 +77,7 @@ Deno.serve(async (req: Request) => {
       subject: finalSubject,
       kind: isTest ? "quotation_test" : "quotation",
       meta: { quotationId, quotationNumber: q.quotation_number, isTest: !!isTest },
+      html,
     };
     if (!r.ok) {
       await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
