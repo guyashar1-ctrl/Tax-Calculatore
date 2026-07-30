@@ -6,10 +6,13 @@ import { useState } from 'react';
 import type { Lead, LeadStatus, LeadDealerType, Quotation } from '../../types/quotations';
 import { LEAD_STATUS_LABELS, LEAD_DEALER_TYPE_LABELS } from '../../types/quotations';
 
+/** עדכון ליד — רק השדות שהשתנו, לצד המזהה. ראה ההערה ב-LeadForm.submit. */
+export type LeadPatch = Partial<Lead> & { id: string };
+
 interface Props {
   leads: Lead[];
   quotations: Quotation[];
-  onSave: (lead: Lead) => Promise<void>;
+  onSave: (lead: LeadPatch) => Promise<void>;
   onCreate: (lead: Omit<Lead, 'id'>) => Promise<void>;
   onDelete: (lead: Lead) => Promise<void>;
   onNewQuotation: (lead: Lead) => void;
@@ -23,6 +26,20 @@ const STATUS_BADGE: Record<LeadStatus, string> = {
 };
 
 const STATUS_ORDER: LeadStatus[] = ['new', 'quoted', 'converted', 'closed'];
+
+/**
+ * שגיאות של Supabase אינן Error אלא אובייקט רגיל, ולכן String(e) הפיק
+ * "[object Object]" — הודעה שמסתירה בדיוק את מה שצריך כדי להבין מה נפל.
+ */
+function errorText(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object') {
+    const o = e as Record<string, unknown>;
+    const parts = [o.message, o.details, o.hint].filter(v => typeof v === 'string' && v.trim());
+    if (parts.length > 0) return parts.join(' · ');
+  }
+  return String(e);
+}
 
 export default function LeadsPanel({ leads, quotations, onSave, onCreate, onDelete, onNewQuotation }: Props) {
   const [filter, setFilter] = useState<LeadStatus | 'all'>('all');
@@ -59,21 +76,21 @@ export default function LeadsPanel({ leads, quotations, onSave, onCreate, onDele
       await onDelete(lead);
       setToast({ kind: 'ok', text: `הליד ${lead.fullName} נמחק.` });
     } catch (e) {
-      setToast({ kind: 'err', text: `המחיקה נכשלה: ${e instanceof Error ? e.message : String(e)}` });
+      setToast({ kind: 'err', text: `המחיקה נכשלה: ${errorText(e)}` });
     } finally {
       setBusy(null);
     }
   }
 
-  async function save(draft: Lead | Omit<Lead, 'id'>) {
+  async function save(draft: LeadPatch | Omit<Lead, 'id'>) {
     setToast(null);
     try {
-      if ('id' in draft && draft.id) await onSave(draft as Lead);
+      if ('id' in draft && draft.id) await onSave(draft as LeadPatch);
       else await onCreate(draft as Omit<Lead, 'id'>);
       setEditing(null);
       setToast({ kind: 'ok', text: 'הליד נשמר.' });
     } catch (e) {
-      setToast({ kind: 'err', text: `השמירה נכשלה: ${e instanceof Error ? e.message : String(e)}` });
+      setToast({ kind: 'err', text: `השמירה נכשלה: ${errorText(e)}` });
     }
   }
 
@@ -166,7 +183,7 @@ export default function LeadsPanel({ leads, quotations, onSave, onCreate, onDele
 
 function LeadForm({ lead, onSave, onCancel }: {
   lead: Lead | null;
-  onSave: (l: Lead | Omit<Lead, 'id'>) => Promise<void>;
+  onSave: (l: LeadPatch | Omit<Lead, 'id'>) => Promise<void>;
   onCancel: () => void;
 }) {
   const [v, setV] = useState({
@@ -203,7 +220,11 @@ function LeadForm({ lead, onSave, onCancel }: {
         prevAccountantEmail: v.hasPreviousAccountant ? v.prevAccountantEmail.trim() || undefined : undefined,
         prevAccountantPhone: v.hasPreviousAccountant ? v.prevAccountantPhone.trim() || undefined : undefined,
       };
-      await onSave(lead ? { ...lead, ...base } : base);
+      // ‼ נשלחים רק השדות שהטופס באמת עורך, ולא כל הליד. שליחת הליד המלא
+      // החזירה לשרת גם שדות שהמסך לא נגע בהם — ביניהם converted_client_id.
+      // די בכך שהעותק בדפדפן התיישן (למשל לקוח שנמחק, או המרה שקרתה מאז
+      // בלשונית אחרת) כדי שעריכת טלפון תיפול על הפרת מפתח זר.
+      await onSave(lead ? { id: lead.id, ...base } : base);
     } finally {
       setSaving(false);
     }

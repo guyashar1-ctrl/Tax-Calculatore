@@ -44,7 +44,12 @@ export function useLeads(userId: string | undefined) {
     return inserted;
   }
 
-  async function updateLead(lead: Lead): Promise<Lead> {
+  /**
+   * עדכון חלקי — נכתבות רק העמודות שנמסרו. מסך שמחזיר את הליד המלא מסכן
+   * את עצמו: עותק מיושן בדפדפן (למשל converted_client_id של לקוח שנמחק)
+   * נשלח בחזרה ומפיל את השמירה על מפתח זר, גם כשהמשתמש רק תיקן טלפון.
+   */
+  async function updateLead(lead: Partial<Lead> & { id: string }): Promise<Lead> {
     const row = leadToDb(lead);
     delete row.id;
     delete row.user_id;

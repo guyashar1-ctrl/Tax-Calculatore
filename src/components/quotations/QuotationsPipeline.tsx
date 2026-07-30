@@ -4,7 +4,7 @@ import type { Lead, Quotation, QuotationStatus } from '../../types/quotations';
 import { QUOTATION_STATUS_LABELS, REMINDER_BUSINESS_DAYS_BEFORE } from '../../types/quotations';
 import { calcTotals, formatILS } from '../../utils/quotationCalc';
 import { businessDaysUntil } from '../../utils/businessDays';
-import LeadsPanel from './LeadsPanel';
+import LeadsPanel, { type LeadPatch } from './LeadsPanel';
 
 interface Props {
   quotations: Quotation[];
@@ -17,7 +17,7 @@ interface Props {
   onRemind: (q: Quotation) => Promise<{ ok: boolean; error?: string }>;
   onCancel: (q: Quotation) => Promise<void>;
   onDelete: (q: Quotation) => Promise<void>;
-  onSaveLead: (lead: Lead) => Promise<void>;
+  onSaveLead: (lead: LeadPatch) => Promise<void>;
   onCreateLead: (lead: Omit<Lead, 'id'>) => Promise<void>;
   onDeleteLead: (lead: Lead) => Promise<void>;
   onNewQuotationForLead: (lead: Lead) => void;
