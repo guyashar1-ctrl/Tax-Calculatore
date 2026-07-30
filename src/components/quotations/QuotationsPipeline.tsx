@@ -4,6 +4,7 @@ import type { Lead, Quotation, QuotationStatus } from '../../types/quotations';
 import { QUOTATION_STATUS_LABELS, REMINDER_BUSINESS_DAYS_BEFORE } from '../../types/quotations';
 import { calcTotals, formatILS } from '../../utils/quotationCalc';
 import { businessDaysUntil } from '../../utils/businessDays';
+import LeadsPanel from './LeadsPanel';
 
 interface Props {
   quotations: Quotation[];
@@ -16,7 +17,13 @@ interface Props {
   onRemind: (q: Quotation) => Promise<{ ok: boolean; error?: string }>;
   onCancel: (q: Quotation) => Promise<void>;
   onDelete: (q: Quotation) => Promise<void>;
+  onSaveLead: (lead: Lead) => Promise<void>;
+  onCreateLead: (lead: Omit<Lead, 'id'>) => Promise<void>;
+  onDeleteLead: (lead: Lead) => Promise<void>;
+  onNewQuotationForLead: (lead: Lead) => void;
 }
+
+type PageTab = 'quotations' | 'leads';
 
 // הצעה אחת יכולה להחזיק כמה תדירויות בבת אחת — ליווי חודשי לצד דוחות לשנים
 // פתוחות שהם חד־פעמיים. הצגת סכום אחד בלבד מסתירה את הגדול מביניהם.
@@ -39,7 +46,11 @@ const GROUP_ORDER: { status: QuotationStatus; badge: string; strip: string }[] =
   { status: 'expired', badge: 'badge-orange', strip: 'var(--orange)' },
 ];
 
-export default function QuotationsPipeline({ quotations, leads, clients, onNew, onOpen, onConvert, onRelease, onRemind, onCancel, onDelete }: Props) {
+export default function QuotationsPipeline({
+  quotations, leads, clients, onNew, onOpen, onConvert, onRelease, onRemind, onCancel, onDelete,
+  onSaveLead, onCreateLead, onDeleteLead, onNewQuotationForLead,
+}: Props) {
+  const [page, setPage] = useState<PageTab>('quotations');
   const [filter, setFilter] = useState<QuotationStatus | 'all'>('all');
   const [remindBusy, setRemindBusy] = useState<string | null>(null);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
@@ -139,8 +150,29 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
           <h1 className="desk-title">הצעות מחיר ולידים</h1>
           <div className="desk-subtitle">מהשיחה הראשונה ועד הפיכת הליד ללקוח</div>
         </div>
-        <button className="btn btn-primary" onClick={onNew}>+ הצעה חדשה</button>
+        {page === 'quotations' && <button className="btn btn-primary" onClick={onNew}>+ הצעה חדשה</button>}
       </div>
+
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        <button className={`tab ${page === 'quotations' ? 'active' : ''}`} onClick={() => setPage('quotations')}>
+          📝 הצעות מחיר{quotations.length ? ` (${quotations.length})` : ''}
+        </button>
+        <button className={`tab ${page === 'leads' ? 'active' : ''}`} onClick={() => setPage('leads')}>
+          👤 לידים{leads.length ? ` (${leads.length})` : ''}
+        </button>
+      </div>
+
+      {page === 'leads' ? (
+        <LeadsPanel
+          leads={leads}
+          quotations={quotations}
+          onSave={onSaveLead}
+          onCreate={onCreateLead}
+          onDelete={onDeleteLead}
+          onNewQuotation={onNewQuotationForLead}
+        />
+      ) : (
+      <>
 
       {toast && (
         <div className={`alert ${toast.kind === 'ok' ? 'alert-info' : 'alert-warning'}`} style={{ marginBottom: 12 }}>{toast.text}</div>
@@ -260,6 +292,9 @@ export default function QuotationsPipeline({ quotations, leads, clients, onNew, 
             );
           })}
         </div>
+      )}
+
+      </>
       )}
     </div>
   );

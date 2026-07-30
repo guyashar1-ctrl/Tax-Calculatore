@@ -38,7 +38,7 @@ import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
 import { generateQuotationPdf } from './utils/quotationPdf';
-import type { Quotation } from './types/quotations';
+import type { Lead, Quotation } from './types/quotations';
 import FirmProfileConsole from './components/FirmProfileConsole';
 import type { FirmProfile } from './types/firmProfile';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
@@ -210,7 +210,7 @@ export default function App() {
   }, [user?.id, tasksLoading]);
   const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
-  const { leads, addLead, updateLead } = useLeads(user?.id);
+  const { leads, addLead, updateLead, deleteLead } = useLeads(user?.id);
   const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation } = useQuotations(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
 
@@ -219,6 +219,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
+  const [newQuotationLeadId, setNewQuotationLeadId] = useState<string | null>(null);
   const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
   const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; prevAccountant: { name?: string; email?: string; phone?: string } } | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
@@ -775,11 +776,20 @@ export default function App() {
 
   function handleNewQuotation() {
     setEditingQuotationId(null);
+    setNewQuotationLeadId(null);
     setView('quotationBuilder');
   }
 
   function handleOpenQuotation(q: Quotation) {
     setEditingQuotationId(q.id);
+    setNewQuotationLeadId(null);
+    setView('quotationBuilder');
+  }
+
+  /** הצעה חדשה שנפתחת מכרטיס ליד — הנמען ממולא מראש */
+  function handleNewQuotationForLead(lead: Lead) {
+    setEditingQuotationId(null);
+    setNewQuotationLeadId(lead.id);
     setView('quotationBuilder');
   }
 
@@ -1312,6 +1322,10 @@ export default function App() {
               // ההצעה שנמחקה עלולה להיות זו שפתוחה בבונה — מנקים את הבחירה
               if (editingQuotationId === q.id) setEditingQuotationId(null);
             }}
+            onSaveLead={async l => { await updateLead(l); }}
+            onCreateLead={async l => { await addLead(l); }}
+            onDeleteLead={async l => { await deleteLead(l.id); }}
+            onNewQuotationForLead={handleNewQuotationForLead}
           />
         )}
 
@@ -1323,6 +1337,7 @@ export default function App() {
             leads={leads}
             clients={clients}
             existing={editingQuotation}
+            initialLeadId={newQuotationLeadId ?? undefined}
             existingQuotations={quotations}
             onSaveDraft={handleSaveQuotationDraft}
             onSend={handleSendQuotation}

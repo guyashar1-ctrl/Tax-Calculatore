@@ -45,6 +45,7 @@ interface Props {
   leads: Lead[];
   clients: Client[];
   existing?: Quotation | null;               // עריכת טיוטה קיימת
+  initialLeadId?: string;                    // הצעה חדשה שנפתחה מתוך ליד קיים
   existingQuotations: Quotation[];           // לאזהרת "כבר יש הצעה פתוחה"
   onSaveDraft: (payload: SaveDraftPayload) => Promise<void>;
   onSend: (payload: SaveDraftPayload, isTest: boolean) => Promise<{ ok: boolean; error?: string; link?: string }>;
@@ -120,7 +121,7 @@ function r2(n: number): number {
 
 
 export default function QuotationBuilder({
-  profile, services, templates, leads, clients, existing, existingQuotations, onSaveDraft, onSend, onBack,
+  profile, services, templates, leads, clients, existing, initialLeadId, existingQuotations, onSaveDraft, onSend, onBack,
 }: Props) {
   const brand = useMemo(() => deriveQuotationBrand(profile), [profile]);
 
@@ -132,6 +133,11 @@ export default function QuotationBuilder({
     if (existing?.clientId) {
       const c = clients.find(x => x.id === existing.clientId);
       if (c) return { kind: 'client', id: c.id, fullName: `${c.firstName} ${c.lastName}`.trim(), email: c.email, phone: c.phone };
+    }
+    // הצעה חדשה שנפתחה מכרטיס ליד — הנמען כבר ידוע
+    if (initialLeadId) {
+      const l = leads.find(x => x.id === initialLeadId);
+      if (l) return { kind: 'lead', id: l.id, fullName: l.fullName, businessName: l.businessName, email: l.email, phone: l.phone, dealerType: l.dealerType };
     }
     return { kind: 'new', fullName: '' };
   })();
