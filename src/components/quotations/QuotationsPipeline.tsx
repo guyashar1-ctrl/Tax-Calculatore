@@ -138,8 +138,12 @@ export default function QuotationsPipeline({
 
   // הצעות שאושרו, הייצוג נפתח — אבל מייל קישור הייצוג לא יצא ללקוח. בלי
   // ההתראה הזו הרו"ח חושב שהכל אוטומטי, והלקוח מחכה לקישור שלא הגיע.
+  // הצעה שנצמדה לתהליך ייצוג קיים אינה כשל: אין ללקוח מה להשלים, ובמכוון לא
+  // יצא אליו מייל. היא מוצגת בנפרד — אחרת היא נראית כתקלה שאין לה תיקון.
   const repEmailFailures = quotations.filter(q =>
-    q.status === 'approved' && q.representationRequestId && !q.representationSentAt);
+    q.status === 'approved' && q.representationRequestId && !q.representationSentAt
+    && !reusedRepresentation(q));
+  const repReused = quotations.filter(q => q.status === 'approved' && reusedRepresentation(q));
 
   const stats = {
     open: quotations.filter(q => ['sent', 'viewed'].includes(q.status)).length,
@@ -199,6 +203,20 @@ export default function QuotationsPipeline({
             <div key={q.id} style={{ fontSize: 12.5 }}>
               • {q.quotationNumber} ({recipientName(q)}){q.representationError ? ` — ${q.representationError}` : ''}.
               המערכת מנסה שוב אוטומטית בכל כניסה; אפשר גם לשלוח מכרטיס הלקוח.
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* לא תקלה — אבל חייב להיות גלוי. הרו"ח מניח שאישור פותח ייצוג חדש,
+          וכאן זה לא קרה. אם ההצעה הוסיפה רשויות, הן נרשמו בכרטיס הקיים. */}
+      {repReused.length > 0 && (
+        <div className="alert alert-info" style={{ marginBottom: 12, flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+          <div style={{ fontWeight: 600 }}>ℹ ב־{repReused.length} הצעות לא נפתחה בקשת ייצוג חדשה — ללקוח כבר קיים תהליך ייצוג:</div>
+          {repReused.map(q => (
+            <div key={q.id} style={{ fontSize: 12.5 }}>
+              • {q.quotationNumber} ({recipientName(q)}) — {reuseNote(q) || 'נצמדה לתהליך הקיים'}.
+              <button className="btn btn-sm btn-ghost" style={{ marginInlineStart: 6 }} onClick={() => onConvert(q)}>לכרטיס הלקוח ←</button>
             </div>
           ))}
         </div>
@@ -320,6 +338,17 @@ export default function QuotationsPipeline({
       )}
     </div>
   );
+}
+
+// ההערה שהשרת רושם כשאישור נצמד לתהליך ייצוג קיים במקום לפתוח חדש
+const REUSE_MARK = 'לא נפתחה בקשה חדשה';
+
+function reuseNote(q: Quotation): string | undefined {
+  return q.events?.find(e => e.type === 'representation_opened' && e.note?.includes(REUSE_MARK))?.note;
+}
+
+function reusedRepresentation(q: Quotation): boolean {
+  return !!reuseNote(q);
 }
 
 function Stat({ n, label }: { n: number; label: string }) {

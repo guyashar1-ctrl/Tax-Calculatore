@@ -161,7 +161,9 @@ export default function QuotationWebView({
 
             {isApproved && (
               <div style={{ marginTop: 16, background: 'rgba(16,185,129,.1)', color: '#065f46', borderRadius: brand.radius, padding: '11px 15px', fontSize: 13.5, fontWeight: 600 }}>
-                {hasRep
+                {/* בלי קישור השלמה אין צעד נוסף ללקוח — למשל כשכבר השלים
+                    את פרטי הזיהוי בתהליך ייצוג קודם. */}
+                {hasRep && nextStepLink
                   ? 'ההצעה אושרה. תודה — נשאר צעד אחד קצר.'
                   : 'ההצעה אושרה. תודה — אצור איתך קשר להמשך.'}
               </div>

@@ -103,8 +103,10 @@ export default function PublicQuotationPage({ token }: Props) {
         p_signature: sig.signatureDataUrl,
         p_signer_name: sig.signerName,
       });
+      // אין onboardingToken ⇒ אין מה להשלים: ללקוח כבר קיים תהליך ייצוג שמולא.
+      // אסור לשלוח לו "נשאר לאמת את הזהות" ולהעביר אותו לטופס שכבר מילא.
       const result = (typeof data === 'string' ? { status: data } : data) as
-        { status?: string; onboardingToken?: string } | null;
+        { status?: string; onboardingToken?: string; repReused?: boolean } | null;
       if (result?.status) setStatus(result.status);
       if (result?.status === 'approved' && result.onboardingToken) {
         const url = onboardingUrl(result.onboardingToken);
