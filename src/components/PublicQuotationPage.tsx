@@ -108,6 +108,11 @@ export default function PublicQuotationPage({ token }: Props) {
       const result = (typeof data === 'string' ? { status: data } : data) as
         { status?: string; onboardingToken?: string; repReused?: boolean } | null;
       if (result?.status) setStatus(result.status);
+      // ההתראה לרו"ח נרשמה בתור ע"י השרת; כאן רק מבקשים לרוקן אותו מיד.
+      // לא חוסם ולא נבדק: אם ייכשל, הריקון יקרה בכניסה הבאה של הרו"ח.
+      if (result?.status === 'approved') {
+        void supabase.functions.invoke('notify-accountant', { body: { token } });
+      }
       if (result?.status === 'approved' && result.onboardingToken) {
         const url = onboardingUrl(result.onboardingToken);
         setNextStepLink(url);

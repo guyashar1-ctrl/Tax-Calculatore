@@ -214,6 +214,8 @@ export default function OnboardingPage({ token }: Props) {
       return;
     }
     // בקשת הייצוג הושלמה. השאלון אינו חלק מהקישור הזה.
+    // ההתראה לרו"ח כבר בתור; כאן רק מבקשים לרוקן אותו מיד. לא חוסם.
+    void supabase.functions.invoke('notify-accountant', { body: { token } });
     setBusy(false);
     setPhase('submitted');
   }

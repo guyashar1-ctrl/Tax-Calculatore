@@ -56,6 +56,8 @@ export default function PublicSignPage({ token }: { token: string }) {
       for (const [k, v] of Object.entries(values)) if (myFieldIds.has(k)) mine[k] = v;
       const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'submit', token, values: mine } });
       if (error || !data?.ok) throw new Error(error?.message || data?.error || 'שליחה נכשלה');
+      // ההתראה לרו"ח כבר בתור; כאן רק מבקשים לרוקן אותו מיד. לא חוסם.
+      void supabase.functions.invoke('notify-accountant', { body: { token } });
       setPhase('done');
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : String(e));

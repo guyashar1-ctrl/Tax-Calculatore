@@ -23,6 +23,11 @@ verify_jwt = false
 [functions.signing-session]
 verify_jwt = false
 
+# מופעלת גם מהדפדפן של הלקוח (עם טוקן ציבורי) וגם מהמערכת (עם JWT של הרו"ח).
+# מזהה את הרו"ח בשני המסלולים בעצמה, ומחזירה מונה בלבד — בלי מידע.
+[functions.notify-accountant]
+verify_jwt = false
+
 # ── נקראות ע"י שירותים חיצוניים / מתזמן, עם סוד משלהן ───────────────────────
 [functions.resend-webhook]
 verify_jwt = false

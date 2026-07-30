@@ -219,6 +219,19 @@ export default function App() {
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
 
   /**
+   * רשת הביטחון של התראות ההתקדמות. השרת רושם כל אירוע אצל הלקוח (חתימה על
+   * הצעה, מילוי פרטי ייצוג, חתימה על ייפוי כוח) בתור, והדפדפן של הלקוח מבקש
+   * לרוקן אותו מיד. לקוח שסגר את החלון באותה שנייה משאיר את ההתראה בתור —
+   * וכאן היא נשלחת. רץ פעם אחת בכל טעינה, ואינו חוסם כלום.
+   */
+  const notifyFlushed = useRef(false);
+  useEffect(() => {
+    if (!user || !authorized || notifyFlushed.current) return;
+    notifyFlushed.current = true;
+    void supabase.functions.invoke('notify-accountant', { body: {} });
+  }, [user, authorized]);
+
+  /**
    * רשת ביטחון לאוטומציה של אישור ההצעה. האישור עצמו יוצר את הלקוח ואת בקשת
    * הייצוג בצד השרת, אבל שני דברים תלויים בדפדפן ועלולים להיכשל שם: שליחת
    * המייל (הלקוח סגר את הטאב לפני שהבקשה יצאה) והפקת הסכם ההתקשרות (PDF).
