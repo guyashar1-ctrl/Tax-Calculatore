@@ -60,7 +60,7 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
   ];
 
   return (
-    <div>
+    <div className="tax-center">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '.75rem' }}>
         <div>
@@ -84,31 +84,16 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
         </div>
       </div>
 
-      {/* ניווט כלים */}
-      <div style={{ display: 'flex', gap: '.35rem', marginBottom: '1.25rem', borderBottom: '2px solid var(--gray-200)', paddingBottom: '.5rem', flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setTool('overview')}
-          style={{
-            padding: '.45rem .9rem', borderRadius: 'var(--radius)', border: 'none', cursor: 'pointer',
-            fontFamily: 'inherit', fontSize: '14px',
-            fontWeight: tool === 'overview' ? 600 : 400,
-            background: tool === 'overview' ? 'var(--blue)' : 'transparent',
-            color: tool === 'overview' ? 'var(--card)' : 'var(--gray-600)',
-          }}
-        >
+      {/* ניווט כלים — קו תחתון על הפעיל, כמו כל טאב אחר במערכת */}
+      <div className="tabs tc-tools">
+        <button className={tool === 'overview' ? 'active' : ''} onClick={() => setTool('overview')}>
           סקירה
         </button>
         {TOOLS.map(t => (
           <button
             key={t.key}
+            className={tool === t.key ? 'active' : ''}
             onClick={() => setTool(t.key)}
-            style={{
-              padding: '.45rem .9rem', borderRadius: 'var(--radius)', border: 'none', cursor: 'pointer',
-              fontFamily: 'inherit', fontSize: '14px',
-              fontWeight: tool === t.key ? 600 : 400,
-              background: tool === t.key ? 'var(--blue)' : 'transparent',
-              color: tool === t.key ? 'var(--card)' : 'var(--gray-600)',
-            }}
           >
             {t.label}
           </button>

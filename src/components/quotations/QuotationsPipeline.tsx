@@ -154,7 +154,7 @@ export default function QuotationsPipeline({
   };
 
   return (
-    <div dir="rtl">
+    <div dir="rtl" className="quotations-page">
       <div className="desk-header">
         <div>
           <h1 className="desk-title">הצעות מחיר ולידים</h1>

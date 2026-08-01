@@ -312,14 +312,17 @@ export default function ClientList({
   }
 
   return (
-    <div>
+    <div className="client-list-page">
+      {/* הכותרת "לקוחות" ירדה — הטאב הפעיל בסרגל כבר אומר אותה, והספירה
+          חוזרת בכותרת "לקוחות מיוצגים · N" שמתחת. מספר אחד במסך. */}
       <div className="cl-list-header">
-        <div>
-          <h1 className="cl-list-title">לקוחות</h1>
-          <p className="cl-list-sub">{activeList.length} מיוצגים · {pipelineList.length} בתהליך ייצוג</p>
-        </div>
+        <div />
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
+          {/* טעינת דוגמאות היא כלי פיתוח ולא פעולה של רואה חשבון —
+              מוצגת רק כשאין לקוחות בכלל, וכקישור שקט */}
+          {clients.length === 0 && (
+            <button className="ui-linkbtn" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
+          )}
           <button className="btn btn-secondary" onClick={onAddRequest}>בקשת ייצוג</button>
           <button className="btn btn-primary btn-lg" onClick={onAdd}>+ לקוח חדש</button>
         </div>
@@ -493,7 +496,7 @@ export default function ClientList({
                   <th className="th-sortable" onClick={() => toggleSort('name')}>
                     <span>שם</span> {sortIcon('name')}
                   </th>
-                  <th className="th-sortable" onClick={() => toggleSort('idNumber')}>
+                  <th className="th-sortable col-id" onClick={() => toggleSort('idNumber')}>
                     <span>ת.ז.</span> {sortIcon('idNumber')}
                   </th>
                   <th className="th-sortable hide-mobile" onClick={() => toggleSort('city')}>
@@ -502,19 +505,19 @@ export default function ClientList({
                   <th className="th-sortable hide-mobile" onClick={() => toggleSort('phone')}>
                     <span>טלפון</span> {sortIcon('phone')}
                   </th>
-                  <th className="th-sortable hide-mobile" onClick={() => toggleSort('email')}>
+                  <th className="th-sortable hide-mobile col-email" onClick={() => toggleSort('email')}>
                     <span>אימייל</span> {sortIcon('email')}
                   </th>
                   <th className="hide-mobile">
                     <span>מס וייצוג</span>
                   </th>
-                  <th className="th-sortable hide-mobile" onClick={() => toggleSort('assignee')}>
+                  <th className="th-sortable hide-mobile col-owner" onClick={() => toggleSort('assignee')}>
                     <span>מטפל</span> {sortIcon('assignee')}
                   </th>
                   <th className="th-sortable" onClick={() => toggleSort('tasks')} style={{ width: 80 }}>
                     <span>משימות</span> {sortIcon('tasks')}
                   </th>
-                  <th className="hide-mobile" style={{ width: 60 }}>שע״ם</th>
+                  <th className="hide-mobile col-shaam" style={{ width: 60 }}>שע״ם</th>
                   <th style={{ width: 60 }}></th>
                 </tr>
               </thead>
@@ -563,7 +566,7 @@ export default function ClientList({
                           </div>
                         </div>
                       </td>
-                      <td className="mono-text">{client.idNumber || '—'}</td>
+                      <td className="mono-text col-id">{client.idNumber || '—'}</td>
                       <td className="hide-mobile">{client.city || '—'}</td>
                       <td className="mono-text hide-mobile" dir="ltr" style={{ textAlign: 'right' }}>
                         {pc.phone ? (
@@ -573,7 +576,7 @@ export default function ClientList({
                           </span>
                         ) : '—'}
                       </td>
-                      <td className="mono-text hide-mobile" dir="ltr" style={{ textAlign: 'right' }}>
+                      <td className="mono-text hide-mobile col-email" dir="ltr" style={{ textAlign: 'right' }}>
                         {pc.email ? (
                           <span title={primaryNote ? `איש קשר ראשי: ${primaryNote}` : ''}>{pc.email}</span>
                         ) : '—'}
@@ -607,7 +610,7 @@ export default function ClientList({
                           </div>
                         )}
                       </td>
-                      <td className="hide-mobile">
+                      <td className="hide-mobile col-owner">
                         {employee ? (
                           <div className="cl-emp-chip" title={employee.role}>
                             <span className="cl-emp-dot" style={{ background: employee.color }}>{employee.initials}</span>
@@ -625,7 +628,7 @@ export default function ClientList({
                           </div>
                         ) : <span className="cl-metric-zero">—</span>}
                       </td>
-                      <td className="hide-mobile" style={{ textAlign: 'center' }}>
+                      <td className="hide-mobile col-shaam" style={{ textAlign: 'center' }}>
                         {/* רק חריגה מסומנת. "פעיל" הוא המצב הצפוי ולא צריך סימן (§4.5) */}
                         {client.shaamStatus === 'inactive' && <span className="cl-flag">לא פעיל</span>}
                         {client.shaamStatus === 'pending' && <span className="cl-flag cl-flag-warn">בטיפול</span>}

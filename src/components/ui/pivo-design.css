@@ -1,0 +1,423 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PIVO · שכבת העיצוב
+   מקור: פרויקט Claude Design → export/pivo-final.css + export/pivo-clients.css
+   נטענת אחרונה, מעל index.css ו-ui.css.
+
+   העיקרון של השכבה הזו, כלשון המקור: "צבע = מידע".
+   איחור, תקיעות וחריגה מקבלים צבע. סוג, קטגוריה וזהות הם טקסט.
+   מסגרות וכרטיסים יורדים; מה שמפריד בין שורות הוא אוויר וקו שערה אחד.
+
+   הבוררים כאן מכוונים לשמות המחלקות של הקוד בפועל — לא למוקאפ —
+   כי חלק מהרכיבים נבנו מחדש בדרך (‎.due במקום ‎.date-chip‏, ‎.ball-word
+   במקום ‎.ball-pill‏, ‎.ui-group-* במקום ‎.board-group-*‎).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── מסך · פחות אוויר בין קבוצות, יותר בין שורה לקצה ─────────────────────── */
+.main { padding: 1.1rem 1.5rem 3rem; }
+
+/* קו אנכי אחד לכל המסך — הכל מיושר לאותו אינסט */
+.tasks-page .board-row,
+.tasks-page .ui-group-head,
+.tasks-page .board-filters { padding-inline: .7rem; }
+
+/* ── קבוצות · לא כרטיסים, ובלי מסגרת ─────────────────────────────────────── */
+.board-group {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 0;
+}
+.board-group + .board-group { margin-top: 1.9rem; }
+
+/* כותרת הקבוצה נשארת בעין בגלילה — היא הכותרת היחידה במסך */
+.tasks-page .ui-group-head {
+  position: sticky;
+  top: 54px;
+  z-index: 20;
+  background: var(--page);
+  border-bottom: 1px solid var(--hairline-1);
+  padding-block: .25rem .4rem;
+  margin-bottom: .1rem;
+}
+.ui-group-title { font-size: var(--fs-14); letter-spacing: -.01em; }
+.ui-group-count { font-size: var(--fs-13); }
+
+/* ── שורה · hover הוא הסימון היחיד. אין פסים ואין קווים בין שורות ────────── */
+.board-table { border: 0; }
+.board-row { border-bottom: 0; }
+.board-row:hover,
+.board-row:focus-within { background: var(--surface-2); }
+
+/* שם המשימה הוא הכבד ביותר במסך; המטא-דאטה נסוגה שני צעדים */
+.task-title-text { font-size: var(--fs-15); font-weight: 500; line-height: 1.4; color: var(--ink-1); }
+.board-row:hover .task-title-text { color: var(--ink-1); }
+.client-chip-name { font-size: var(--fs-13); font-weight: 400; color: var(--ink-2); }
+.board-row:hover .client-chip-name { text-decoration: underline; }
+.client-chip {
+  padding: .15rem 0;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+/* הספרות מתיישרות לעמודה, והמסילות השקטות נצמדות לקצה השורה */
+.board-row .bc-date { justify-self: end; }
+.board-row .bc-ball { justify-self: end; }
+.ball-word { font-size: var(--fs-13); }
+.due { letter-spacing: .01em; white-space: nowrap; }
+
+/* ── שקט עד מעבר עכבר: הידית והפעולות ────────────────────────────────────── */
+.bc-handle, .bc-actions { opacity: 0; transition: opacity .1s; }
+.board-row:hover .bc-handle,
+.board-row:hover .bc-actions,
+.board-row:focus-within .bc-handle,
+.board-row:focus-within .bc-actions { opacity: 1; }
+.bc-handle { color: var(--ink-quiet); cursor: grab; }
+
+/* עיגול הסימון: קו דק ואפור, מתמלא רק כשנוגעים */
+.task-check {
+  width: 17px; height: 17px;
+  border: 2px solid var(--ink-quiet);
+  background: transparent;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0;
+  color: var(--surface-0);
+  transition: border-color .12s, background-color .15s;
+}
+.board-row:hover .task-check { border-color: var(--ink-3); }
+.task-check:hover { border-color: var(--success); }
+.task-check.is-done { background: var(--success); border-color: var(--success); }
+
+/* ── סרגל הסינון · שורה אחת, בלי כרטיס ובלי תוויות ───────────────────────── */
+.board-filters {
+  padding-block: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  gap: .45rem;
+  align-items: center;
+  min-height: 2rem;
+  margin-bottom: 1.1rem;
+}
+.board-filters .tasks-search {
+  flex: 0 1 280px;
+  background: var(--surface-2);
+  border-color: transparent;
+  padding-block: .35rem;
+  font-size: var(--fs-13);
+}
+.board-filters .filter-select {
+  background: transparent;
+  border-color: transparent;
+  font-size: var(--fs-13);
+  color: var(--ink-2);
+  min-width: 0;
+}
+.board-filter-count { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+
+/* רק המסנן הפעיל מוצג; השאר נפתחים במעבר עכבר או בפוקוס מקלדת.
+   שורת סינון שמראה חמש אפשרויות כל הזמן היא חמש שאלות פתוחות. */
+.board-filters .filter-chips { gap: .2rem; }
+.board-filters .filter-chips .ui-chip:not(.is-active) {
+  max-width: 0;
+  padding-inline: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width .14s, opacity .14s, padding .14s;
+}
+.board-filters .filter-chips:hover .ui-chip:not(.is-active),
+.board-filters .filter-chips:focus-within .ui-chip:not(.is-active) {
+  max-width: 10rem;
+  padding-inline: .55rem;
+  opacity: 1;
+}
+
+.desk-header { margin-bottom: .35rem; align-items: center; padding-inline: .7rem; }
+.desk-title, .desk-subtitle { display: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   מסך לקוחות — אותה שפה: קו שערה אחד, מספרים בעמודה, אוויר במקום קווים
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* עשר עמודות → שש. נשארו: שם · עיר · טלפון · מס וייצוג · משימות · מחיקה.
+   ת.ז. — תשע ספרות שאף פעם לא סורקים בעין; החיפוש כבר מוצא לפיהן.
+   אימייל — שני ערוצי קשר באותה שורה; הטלפון הוא זה שפועלים בו.
+   מטפל — "לא הוקצה" בכל השורות; עמודה קבועה אינה מידע.
+   שע״ם — היה זהה בכל שורה; עכשיו מסומן רק כשהוא חריג.
+   כל ארבעתם קיימים בכרטיס הלקוח. */
+.client-table .col-id,
+.client-table .col-email,
+.client-table .col-owner { display: none; }
+
+/* הטבלה יוצאת מהכרטיס */
+.client-list-page .card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.client-table tbody td { border-bottom: 0; }
+.client-table tbody tr + tr td { border-top: 1px solid var(--hairline-2); }
+.client-table thead th {
+  background: transparent;
+  border-bottom: 1px solid var(--hairline-1);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  letter-spacing: .02em;
+  color: var(--ink-4);
+  padding: .35rem .75rem;
+}
+.client-table-dense tbody td { padding: .5rem .75rem; }
+
+/* hover אפור-ניטרלי — כחול הוא צבע פעולה, לא צבע קריאה */
+.client-row:hover,
+.client-row:focus-within { background: var(--surface-2); }
+.th-sortable:hover { background: var(--surface-2) !important; }
+
+/* חיצי המיון נגלים רק כשעוברים על הכותרת */
+.sort-icon.inactive { opacity: 0; transition: opacity .1s; }
+.th-sortable:hover .sort-icon.inactive { opacity: 1; }
+
+/* ראשי התיבות הצבועים יורדים — השם כתוב לידם */
+.client-avatar-sm { display: none; }
+.client-table-name { font-weight: 500; font-size: var(--fs-14); color: var(--ink-1); }
+.client-table-badges:empty { display: none; }
+
+.mono-text { font-variant-numeric: tabular-nums; letter-spacing: .01em; color: var(--ink-2); }
+
+/* הסיווג: טקסט במקום שלושה כתמי צבע בכל שורה */
+.cl-tax-chips > span:first-child { display: none; }
+.cl-mini-badge {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--ink-2) !important;
+  padding: 0 !important;
+  font-size: var(--fs-12) !important;
+  font-weight: 400 !important;
+}
+.cl-tax-chips { gap: .5rem !important; }
+
+/* עמודת המשימות: מספר אחד. הצבע שמור למספר האיחורים בלבד */
+.cl-metric-num {
+  min-width: 0;
+  padding: 0;
+  background: transparent !important;
+  border-radius: 0;
+  font-weight: 500;
+  font-size: var(--fs-14);
+  color: var(--ink-2) !important;
+  font-variant-numeric: tabular-nums;
+}
+.cl-metric-tag {
+  background: transparent;
+  padding: 0;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+.cl-metric-cell { gap: .55rem; }
+.cl-metric-zero { color: var(--ink-4) !important; }
+
+/* פעולה הרסנית לא נושאת משקל של פעולה יומיומית */
+.client-row .ui-icon-btn { opacity: 0; transition: opacity .1s; }
+.client-row:hover .ui-icon-btn,
+.client-row:focus-within .ui-icon-btn { opacity: 1; }
+
+.table-wrap { overflow-x: visible; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   כרטיס הלקוח — אותה שפה: קו שערה, אוויר, צבע רק כמידע
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* הכותרת היא כותרת, לא קופסה */
+.cw-root > .card,
+.cw-header {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.cw-header { border-bottom: 1px solid var(--hairline-1); padding-bottom: .7rem; }
+
+/* שם הלקוח הוא הדבר הכבד היחיד באזור הזהות */
+.cw-avatar { display: none; }
+.cw-name { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.015em; }
+.cw-id-row { font-size: var(--fs-13); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* הסיווגים והתגיות: טקסט בשורה אחת, בלי ארבע מסגרות */
+.cw-tax-chip,
+.cw-tag {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--ink-2) !important;
+  padding: 0 !important;
+  font-size: var(--fs-13) !important;
+  font-weight: 400 !important;
+}
+.cw-tag { color: var(--ink-3) !important; font-size: var(--fs-12) !important; }
+.cw-header-chips { gap: .7rem !important; align-items: center; }
+.cw-tags { gap: .55rem !important; }
+.cw-emp-chip.muted { display: none; }
+
+/* התראות: רק אזהרה נראית כאזהרה */
+.cw-alert-info {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-2);
+  padding-inline: 0;
+}
+.cw-alerts { gap: .9rem; }
+
+/* טאבים של הכרטיס: קו תחתון, לא כפתורים בשורה */
+.cw-tabs { border-bottom: 1px solid var(--hairline-1); gap: 1.4rem; padding-inline: 0; }
+.cw-tab {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: .5rem 0 !important;
+  color: var(--ink-2);
+  font-weight: 400;
+  border-bottom: 2px solid transparent !important;
+}
+.cw-tab:hover { color: var(--ink-1); }
+.cw-tab.active {
+  color: var(--ink-1) !important;
+  font-weight: 600;
+  border-bottom-color: var(--accent) !important;
+}
+.cw-tab-badge {
+  background: transparent !important;
+  color: var(--ink-4) !important;
+  padding: 0 !important;
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+}
+
+/* סקציות: כותרת עם קו, לא כרטיס עם רקע צבוע */
+.cw-section,
+.cw-colored-section {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding-inline: 0 !important;
+}
+.cw-section-head { border-bottom: 1px solid var(--hairline-2); padding-bottom: .35rem; }
+.cw-section-count { color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.cw-empty { color: var(--ink-4); font-style: normal; }
+
+/* כרטיסי משנה: קו מפריד במקום מסגרת לכל אחד */
+.cw-property-card,
+.cw-contact-card,
+.cw-child-row {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  border-top: 1px solid var(--hairline-2);
+}
+.cw-contact-primary { border-top-color: var(--hairline-1); }
+.cw-property-type-badge {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--ink-4) !important;
+  padding: 0 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   המשך השפה למסכים שלא קיבלו שכבת CSS משלהם
+   (הצעות, ייצוג, מרכז ידע, דוח 1301)
+
+   פרויקט העיצוב סיפק CSS לשלושה מסכים בלבד. האפיון קובע שמסך חסר ממשיך
+   באותה שפה — אז אלה בדיוק אותם כללים, מנוסחים פעם אחת לכל המערכת.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* כרטיס = קיבוץ, לא קופסה. מסגרת וצל יורדים; מה שמפריד הוא אוויר וקו אחד. */
+.quotations-page .card,
+.tax-center .card,
+.rep-page .card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding-inline: 0;
+}
+
+/* טאבים משניים בכל המערכת: קו תחתון, לא גלולה צבועה */
+.tabs .tab,
+.tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-2);
+  font-weight: 400;
+  padding: .5rem .1rem;
+}
+.tabs { border-bottom: 1px solid var(--hairline-1); gap: 1.4rem; }
+.tabs .tab.active,
+.tabs button.active {
+  background: transparent;
+  color: var(--ink-1);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+/* תגיות מצב: הצבע נשמר למה שדורש פעולה. השאר טקסט.
+   badge-gray/blue/purple מתארים סוג וזהות — לא דחיפות. */
+.badge-gray,
+.badge-blue,
+.badge-purple {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-3);
+  padding-inline: 0;
+  font-weight: 500;
+}
+
+/* כפתור משני מאבד מסגרת — הוא לא פעולה ראשית */
+.btn-secondary,
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-2);
+}
+.btn-secondary:hover,
+.btn-ghost:hover { background: var(--surface-2); border-color: transparent; color: var(--ink-1); }
+
+/* כפתור ראשי אחד בגודל אחד בכל המערכת */
+.btn-primary {
+  padding: .42rem .95rem;
+  font-size: var(--fs-13);
+  font-weight: 500;
+  border-radius: var(--r-input);
+}
+
+/* שורות טבלה בכל המערכת: קו שערה ו-hover ניטרלי, בלי פסים */
+table tbody tr:hover { background: var(--surface-2); }
+table tbody td { border-bottom-color: var(--hairline-2); }
+table thead th {
+  background: transparent;
+  border-bottom: 1px solid var(--hairline-1);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--ink-4);
+  letter-spacing: .02em;
+}
+
+/* סרגל הכלים של מרכז הידע — שמונה כלים, אז הוא נשבר לשורות בלי לדחוס */
+.tc-tools { flex-wrap: wrap; gap: 1.1rem; margin-bottom: 1.25rem; }
+.tc-tools button { font-size: var(--fs-13); cursor: pointer; font-family: inherit; white-space: nowrap; }
+
+/* כרטיסי הנתונים בסקירה — קו מפריד במקום מסגרת לכל אחד */
+.tax-center .card {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-top: 1px solid var(--hairline-2) !important;
+  border-radius: 0 !important;
+}
