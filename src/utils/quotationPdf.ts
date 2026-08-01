@@ -259,7 +259,13 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     rtl(`ההצעה בתוקף עד ${d}.`, 9.5, gray, y);
     y -= 20;
   }
-  const contact = [brand.phone, brand.email, brand.address].filter(Boolean).join(' · ');
+  // מי אחראי על ההצעה ומה מספר הרישיון — נדרש על מסמך שיוצא ללקוח
+  const who = [
+    brand.accountantName && `${brand.representativeType || 'רואה חשבון'} ${brand.accountantName}`,
+    brand.licenseNumber && `מספר מייצג ${brand.licenseNumber}`,
+  ].filter(Boolean).join(' · ');
+  if (who) { rtl(who, 9, gray, y); y -= 13; }
+  const contact = [brand.phone, brand.email, brand.address, brand.website].filter(Boolean).join(' · ');
   if (contact) { rtl(contact, 9, gray, y); y -= 14; }
 
   return doc.save();

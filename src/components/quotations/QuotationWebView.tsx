@@ -367,8 +367,19 @@ export default function QuotationWebView({
 
         <div style={{ textAlign: 'center', padding: '18px 12px', fontSize: 12, color: brand.muted, lineHeight: 1.7 }}>
           <div style={{ fontWeight: 600 }}>{brand.firmName}</div>
+          {/* מי אחראי על ההצעה ומה מספר הרישיון שלו — זו זהות המשרד מול
+              הלקוח, ועד עכשיו היא לא הגיעה לשום מסמך שנשלח החוצה. */}
+          {(brand.accountantName || brand.licenseNumber) && (
+            <div>
+              {[
+                brand.accountantName && `${brand.representativeType || 'רואה חשבון'} ${brand.accountantName}`,
+                brand.licenseNumber && `מספר מייצג ${brand.licenseNumber}`,
+              ].filter(Boolean).join(' · ')}
+            </div>
+          )}
           <div>{[brand.phone, brand.email].filter(Boolean).join(' · ')}</div>
           {brand.address && <div>{brand.address}</div>}
+          {brand.website && <div dir="ltr">{brand.website}</div>}
         </div>
       </div>
     </div>

@@ -71,6 +71,11 @@ export interface BrandingJson {
 /** קלט מנורמל ל-resolveBrand — כל סביבה ממפה אליו את המבנה שלה */
 export interface BrandInput {
   firmName?: string;
+  /** שם רואה החשבון עצמו — נפרד משם המשרד */
+  accountantName?: string;
+  /** מספר מייצג / רישיון — נדרש על מסמכים שנשלחים ללקוח */
+  licenseNumber?: string;
+  representativeType?: string;
   branding?: BrandingJson;
   email?: string;
   phone?: string;
@@ -82,6 +87,9 @@ export interface BrandInput {
 /** המותג המלא אחרי פענוח — זהות + טוקני עיצוב מוכנים לשימוש */
 export interface ResolvedBrand {
   firmName: string;
+  accountantName?: string;
+  licenseNumber?: string;
+  representativeType?: string;
   monogram: string;
   logoUrl?: string;
   logoOnDarkUrl?: string;
@@ -257,6 +265,9 @@ export function resolveBrand(input: BrandInput): ResolvedBrand {
 
   return {
     firmName: (input.firmName || '').trim() || 'משרד רואי חשבון',
+    accountantName: (input.accountantName || '').trim() || undefined,
+    licenseNumber: (input.licenseNumber || '').trim() || undefined,
+    representativeType: (input.representativeType || '').trim() || undefined,
     monogram: (branding.monogram || deriveMonogram(input.firmName)).slice(0, 2),
     logoUrl: branding.logoUrl,
     logoOnDarkUrl: branding.logoOnDarkUrl,
