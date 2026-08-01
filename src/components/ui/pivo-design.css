@@ -458,6 +458,44 @@
 }
 .pin-section .cw-section-head { border-bottom: 0; padding-bottom: 0; color: var(--note-text); }
 
+/* ── לשונית משימות הלקוח · מסך 10 במוקאפ ─────────────────────────────────────
+   שלוש עמודות בלבד. בתוך כרטיס לקוח כבר יודעים מי הלקוח, אז מה שנשאר
+   הוא מה לעשות ועד מתי. */
+.ct-tasks { display: flex; flex-direction: column; gap: 20px; }
+.ct-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 20px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--hairline-1);
+}
+.ct-head-title { display: flex; align-items: baseline; gap: 10px; }
+.ct-title { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.015em; color: var(--ink-1); }
+.ct-count { font-size: var(--fs-13); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+
+.ct-group { display: flex; flex-direction: column; gap: 2px; }
+.ct-group-head { display: flex; align-items: baseline; gap: 9px; padding-bottom: 5px; }
+.ct-group-title { font-size: var(--fs-13); font-weight: 600; }
+.ct-group-count { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.ct-group-hint { font-size: var(--fs-12); color: var(--ink-4); }
+
+.ct-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 82px;
+  gap: 14px;
+  align-items: center;
+  padding: 9px 2px;
+  border-top: 1px solid var(--hairline-2);
+  cursor: pointer;
+}
+.ct-row:hover, .ct-row:focus-within { background: var(--surface-1); }
+.ct-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ct-row-title { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+/* ההערה נחתכת בשורה אחת — היא רמז, לא תוכן */
+.ct-row-note {
+  font-size: var(--fs-12); color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ct-date { font-size: var(--fs-13); text-align: end; font-variant-numeric: tabular-nums; }
+.ct-row.is-done .ct-row-title { text-decoration: line-through; opacity: .6; }
+
 /* כרטיסי משנה: קו מפריד במקום מסגרת לכל אחד */
 .cw-property-card,
 .cw-contact-card,
