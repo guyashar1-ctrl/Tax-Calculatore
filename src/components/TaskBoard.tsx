@@ -13,6 +13,7 @@ import {
 import {
   formatDueDate, dueTone, lateLabel,
   taskGroupOf, groupTasks, TASK_GROUP_ORDER, TASK_GROUP_LABELS, TaskGroupKey,
+  groupTasksByStage, TASK_STAGE_ORDER, TASK_STAGE_LABELS, TASK_STAGE_HINTS, TaskStageKey,
 } from '../utils/taskUtils';
 import { FilterChip } from './ui/Chips';
 import { GroupHeader, EmptyState, CalmEmpty } from './ui/States';
@@ -118,6 +119,9 @@ export default function TaskBoard({
 
   // הקיבוץ מגיע מ-taskUtils — אותו קיבוץ בדיוק משמש גם את לשונית המשימות בכרטיס הלקוח
   const byGroup = useMemo(() => groupTasks(filtered), [filtered]);
+  // תצוגה שנייה — קיבוץ לפי שלב. שלוש קבוצות קבועות שתמיד מוצגות.
+  const [boardView, setBoardView] = useState<'urgency' | 'stage'>('urgency');
+  const byStage = useMemo(() => groupTasksByStage(filtered), [filtered]);
 
   const totalCount = tasks.length;
 
@@ -212,6 +216,24 @@ export default function TaskBoard({
   return (
     <div className="tasks-page">
       <div className="board-filters">
+        {/* שתי דרכים להסתכל על אותן משימות: "מה דחוף" ו"איפה זה עומד".
+            מתג, לא טאבים — זו אותה רשימה, רק מסודרת אחרת. */}
+        <div className="qp-switch board-view-switch" role="tablist" aria-label="סידור המשימות">
+          <button
+            type="button" role="tab" aria-selected={boardView === 'urgency'}
+            className={boardView === 'urgency' ? 'is-active' : ''}
+            onClick={() => setBoardView('urgency')}
+          >
+            דחיפות
+          </button>
+          <button
+            type="button" role="tab" aria-selected={boardView === 'stage'}
+            className={boardView === 'stage' ? 'is-active' : ''}
+            onClick={() => setBoardView('stage')}
+          >
+            שלב
+          </button>
+        </div>
         <div className="board-search-wrap">
           <Icon name="search" size={14} className="board-search-icon" />
           <input
@@ -261,24 +283,30 @@ export default function TaskBoard({
         />
       )}
 
-      {!nothingMatches && TASK_GROUP_ORDER.map(key => {
-        const items = byGroup[key];
-        // קבוצה ריקה לא מציגה כותרת מעל כלום — חוץ מיעד גרירה פעיל
-        if (items.length === 0 && !draggedId) return null;
+      {!nothingMatches && (boardView === 'stage'
+        ? TASK_STAGE_ORDER as readonly string[]
+        : TASK_GROUP_ORDER as readonly string[]
+      ).map(k => {
+        const stage = boardView === 'stage';
+        const key = k as TaskGroupKey & TaskStageKey;
+        const items = stage ? byStage[k as TaskStageKey] : byGroup[k as TaskGroupKey];
+        // בתצוגת שלבים כל הקבוצות מוצגות תמיד, גם ריקות: "בתהליך: ריק"
+        // הוא מידע, וקבוצה שנעלמת שוברת את המפה שהעין בנתה.
+        if (!stage && items.length === 0 && !draggedId) return null;
         const isCollapsed = collapsed.has(key);
         const isDragTarget = dragOverGroup === key && items.length === 0;
 
         return (
           <div
-            key={key}
-            className={`board-group board-group-${key} ${isDragTarget ? 'board-group-drop' : ''}`}
-            onDragOver={(e) => { if (draggedId) { e.preventDefault(); setDragOverGroup(key); } }}
-            onDrop={(e) => items.length === 0 && handleGroupDrop(e, key)}
+            key={k}
+            className={`board-group board-group-${k} ${isDragTarget ? 'board-group-drop' : ''}`}
+            onDragOver={(e) => { if (draggedId && !stage) { e.preventDefault(); setDragOverGroup(key); } }}
+            onDrop={(e) => !stage && items.length === 0 && handleGroupDrop(e, key)}
           >
             <GroupHeader
-              title={TASK_GROUP_LABELS[key]}
+              title={stage ? TASK_STAGE_LABELS[k as TaskStageKey] : TASK_GROUP_LABELS[k as TaskGroupKey]}
               count={items.length}
-              hint={items.length ? GROUP_HINT[key] : undefined}
+              hint={stage ? TASK_STAGE_HINTS[k as TaskStageKey] : (items.length ? GROUP_HINT[key] : undefined)}
               collapsed={isCollapsed}
               onToggle={() => toggleCollapse(key)}
             />

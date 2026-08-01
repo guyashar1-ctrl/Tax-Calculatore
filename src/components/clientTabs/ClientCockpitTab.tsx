@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import type { Client, Task } from '../../types';
 import { BALL_WITH_LABELS, BALL_WITH_COLOR } from '../../types';
 import type { ClientAlert } from '../../types/clientWorkspace';
-import { getMissingDocs, relativeTime } from '../../utils/clientDerived';
+import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
 import { dueTone } from '../../utils/taskUtils';
 import type { AnnualReportSession } from '../../features/annualReport/types';
@@ -22,7 +22,6 @@ interface Props {
   alerts: ClientAlert[];
   openTasks: Task[];
   upcomingDebts: Task[];
-  docCategories: Set<string>;
   onPinNote: (text: string) => void;
   onAddNote: (text: string) => void;
   onGotoTab: (tab: TabId) => void;
@@ -93,7 +92,7 @@ function buildCalendar(client: Client, latest: AnnualReportSession | null): CalI
 }
 
 export default function ClientCockpitTab({
-  client, alerts, openTasks, upcomingDebts, docCategories,
+  client, alerts, openTasks, upcomingDebts,
   onPinNote, onAddNote, onGotoTab, onSelectTask,
   taxSessions, taxSessionsLoading, onOpenYear,
 }: Props) {
@@ -105,15 +104,14 @@ export default function ClientCockpitTab({
   const signals = useMemo<Signal[]>(() => {
     const out: Signal[] = [];
 
-    // מסמכים חסרים: קבועים (לפי הכרטיס) + של תיק השנה
-    const missingFixed = getMissingDocs(client, docCategories);
-    const missingYear = latestSummary ? latestSummary.docsTotal - latestSummary.docsReceived : 0;
-    const totalMissing = missingFixed.length + Math.max(0, missingYear);
-    if (totalMissing > 0) {
+    // מסמכים חסרים = רק מה שתיק השנה באמת דורש (נגזר מהשאלון).
+    // אין ציפייה אוטומטית לפי סוג הלקוח — דרישה למסמך מוגדרת במשימה.
+    const missingYear = latestSummary ? Math.max(0, latestSummary.docsTotal - latestSummary.docsReceived) : 0;
+    if (missingYear > 0) {
       out.push({
         key: 'docs', level: 'crit',
-        title: `חסרים ${totalMissing} מסמכים`,
-        subtitle: missingFixed.slice(0, 2).map((d) => d.label).join(' · ') || `בתיק ${latest?.taxYear}`,
+        title: `חסרים ${missingYear} מסמכים`,
+        subtitle: `בתיק ${latest?.taxYear}`,
         onClick: () => onGotoTab('docs'),
       });
     } else {
@@ -165,7 +163,7 @@ export default function ClientCockpitTab({
     }
 
     return out.sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level]);
-  }, [client, docCategories, latest, latestSummary, openTasks, upcomingDebts, alerts, taxSessionsLoading, onGotoTab, onOpenYear]);
+  }, [client, latest, latestSummary, openTasks, upcomingDebts, alerts, taxSessionsLoading, onGotoTab, onOpenYear]);
 
   const calendar = useMemo(() => buildCalendar(client, latest), [client, latest]);
   const recentActivity = (client.activity ?? []).slice(0, 8);

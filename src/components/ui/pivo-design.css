@@ -140,6 +140,35 @@
 .ui-group-title { font-size: var(--fs-14); letter-spacing: -.01em; }
 .ui-group-count { font-size: var(--fs-13); }
 
+/* ── פס הצבע של הקבוצה ──────────────────────────────────────────────────────
+   מה שמונדיי עושה נכון הוא צבע אחד לכל קבוצה, על הכותרת — לא על השורות.
+   ברגע שהשורות נצבעות, המסך הופך לקשת בענן והאדום של "באיחור" מפסיק
+   לעבוד; והאדום הזה הוא הסימן היחיד כאן שעולה כסף. לכן פס קצר לפני שם
+   הקבוצה, וזהו. */
+.tasks-page .ui-group-toggle::before {
+  content: '';
+  width: 3px;
+  align-self: stretch;
+  min-height: 14px;
+  border-radius: 2px;
+  background: var(--group-tone, var(--hairline-1));
+  flex-shrink: 0;
+  margin-inline-end: 2px;
+}
+.board-group-now      { --group-tone: var(--danger); }
+.board-group-stuck    { --group-tone: var(--stuck); }
+.board-group-later    { --group-tone: var(--ink-quiet); }
+.board-group-done     { --group-tone: var(--success); }
+/* תצוגת השלבים: חדשה → בתהליך → הושלמה, מכהה לבהיר */
+.board-group-new         { --group-tone: var(--accent); }
+.board-group-in_progress { --group-tone: var(--progress-partial); }
+
+/* בתצוגת שלבים קבוצה ריקה נשארת על המסך, ולכן היא צריכה להיראות
+   שקטה — לא כמו קבוצה שיש בה משהו */
+.board-group:has(.ui-empty-calm) .ui-group-title { color: var(--ink-3); }
+
+.board-view-switch { margin-inline-end: .3rem; }
+
 /* ── שורה · hover הוא הסימון היחיד. אין פסים ואין קווים בין שורות ────────── */
 .board-table { border: 0; }
 .board-row { border-bottom: 0; }

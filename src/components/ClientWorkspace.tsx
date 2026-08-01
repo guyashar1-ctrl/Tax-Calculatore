@@ -389,7 +389,6 @@ export default function ClientWorkspace({
             alerts={alerts}
             openTasks={openTasks}
             upcomingDebts={upcomingDebts}
-            docCategories={docCategories}
             onPinNote={(note) => update('pinnedNote', note)}
             onAddNote={(text) => appendActivity({ kind: 'note', text })}
             onGotoTab={(t) => setTab(t)}

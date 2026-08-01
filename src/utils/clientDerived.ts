@@ -32,42 +32,10 @@ export function getUpcomingDebts(clientId: string, tasks: Task[]): Task[] {
   }).sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
 }
 
-/**
- * "מסמכים חסרים" — heuristic מהיר:
- * - לעוסק מורשה צריך אישור עוסק מורשה
- * - לכל לקוח צריך תעודת זהות
- * - לעצמאי צריך דוח רווח והפסד שנתי
- * המימוש האמיתי דורש מסמכים מ-IndexedDB; כאן מחזירים רק את הציפיות הקבועות,
- * וב-OverviewTab מחברים את זה למה שבאמת קיים ב-DB.
- */
-export interface MissingDocItem { id: string; label: string; }
-
-export function getExpectedDocs(client: ClientExt): MissingDocItem[] {
-  const list: MissingDocItem[] = [
-    { id: 'id_card', label: 'תעודת זהות + ספח' },
-  ];
-  if (client.vatStatus === 'authorizedDealer') {
-    list.push({ id: 'vat_cert', label: 'אישור עוסק מורשה' });
-  }
-  if (client.incomeTaxType === 'selfEmployed' || client.incomeTaxType === 'both') {
-    list.push({ id: 'business_pnl', label: 'רווח והפסד שנתי אחרון' });
-  }
-  if (client.qualifyingSettlementId) {
-    list.push({ id: 'residence_certificate', label: 'אישור תושבות ביישוב מוטב (טופס 1312א)' });
-  }
-  if (client.hasPension) {
-    list.push({ id: 'pension_statement', label: 'אישור קרן פנסיה שנתי' });
-  }
-  return list;
-}
-
-/**
- * מחזיר אילו מסמכים מהציפיה חסרים (לפי קטגוריות שכבר הועלו).
- * `existingCategories` מגיע מהמסמכים הקיימים ב-IndexedDB.
- */
-export function getMissingDocs(client: ClientExt, existingCategories: Set<string>): MissingDocItem[] {
-  return getExpectedDocs(client).filter(d => !existingCategories.has(d.id));
-}
+// אין "מסמכים מצופים" נגזרים מסוג הלקוח. ת.ז., אישור עוסק מורשה, אישור תושבות
+// ואישור פנסיה אינם נדרשים מכל לקוח — דרישה למסמך נולדת רק כשגיא מגדיר אותה,
+// והכלי לכך הוא משימת "בקש מסמכים מלקוח". מה שכן נדרש באמת מגיע מתיק השנה
+// (רשימת המסמכים שנגזרת מהשאלון) — ראה summarizeYearFile.
 
 /** האם ניכוי במקור פג תוקף (או בקרוב יפוג) */
 export function isWithholdingExpired(client: ClientExt): { expired: boolean; daysLeft: number | null } {

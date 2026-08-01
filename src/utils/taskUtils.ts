@@ -144,6 +144,44 @@ export function groupTasks(tasks: Task[]): Record<TaskGroupKey, Task[]> {
   return out;
 }
 
+/* ─── תצוגה שנייה: קיבוץ לפי שלב ─────────────────────────────────────────────
+ * "איפה כל דבר עומד" במקום "מה דחוף עכשיו". שלוש קבוצות קבועות שתמיד
+ * מוצגות — גם ריקות: "בתהליך: ריק" הוא מידע, וקבוצה שנעלמת שוברת את
+ * המפה שהעין בנתה. הדחיפות לא הולכת לאיבוד — התאריך האדום נשאר בשורה.
+ */
+export type TaskStageKey = 'new' | 'in_progress' | 'done';
+
+export const TASK_STAGE_ORDER: TaskStageKey[] = ['new', 'in_progress', 'done'];
+
+export const TASK_STAGE_LABELS: Record<TaskStageKey, string> = {
+  new: 'חדשה',
+  in_progress: 'בתהליך',
+  done: 'הושלמה',
+};
+
+/** רמז קצר לכל שלב — נכתב פעם אחת, כמו בשאר הקבוצות */
+export const TASK_STAGE_HINTS: Record<TaskStageKey, string> = {
+  new: 'טרם התחלת',
+  in_progress: 'התחלת ולא סיימת',
+  done: 'סגורות',
+};
+
+export function taskStageOf(task: Task): TaskStageKey {
+  if (task.status === 'done') return 'done';
+  return task.progress === 'in_progress' ? 'in_progress' : 'new';
+}
+
+export function groupTasksByStage(tasks: Task[]): Record<TaskStageKey, Task[]> {
+  const out: Record<TaskStageKey, Task[]> = { new: [], in_progress: [], done: [] };
+  for (const t of tasks) out[taskStageOf(t)].push(t);
+  for (const k of TASK_STAGE_ORDER) {
+    out[k].sort(k === 'done'
+      ? (a, b) => (b.completedAt || b.updatedAt || '').localeCompare(a.completedAt || a.updatedAt || '')
+      : compareTasks);
+  }
+  return out;
+}
+
 /** הבא את הכדור "הבא" בהיגיון לאחר פעולה */
 export const NEXT_BALL_WITH: Record<BallWith, BallWith> = {
   me: 'client',
