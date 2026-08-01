@@ -131,35 +131,13 @@ export default function TaskBoard({
 
   // הקיבוץ מגיע מ-taskUtils — אותו קיבוץ בדיוק משמש גם את לשונית המשימות בכרטיס הלקוח
   const byGroup = useMemo(() => groupTasks(filtered), [filtered]);
-  // תצוגה שנייה — קיבוץ לפי שלב. שלוש קבוצות קבועות שתמיד מוצגות.
-  const [boardView, setBoardView] = useState<'stage' | 'client'>('stage');
+  /* הקיבוץ היחיד: שלב. שלוש קבוצות קבועות שתמיד מוצגות — גם ריקות.
+     "בתהליך: ריק" הוא מידע, וקבוצה שנעלמת שוברת את המפה שהעין בנתה. */
   const byStage = useMemo(() => groupTasksByStage(filtered), [filtered]);
 
-  /* מוצמדות — מקטע קבוע בראש המסך, בכל תצוגה. הצמדה עונה על "מה אני
-     עושה היום"; הקיבוץ עונה על "איך אני מעיין בשאר". שתי שאלות נפרדות,
-     ולכן המקטע לא מתחלף עם התצוגה. */
+  /* מוצמדות — מקטע קבוע בראש המסך. ההצמדה עונה על "מה אני עושה היום",
+     והקיבוץ עונה על "איפה כל דבר עומד". שתי שאלות נפרדות. */
   const pinned = useMemo(() => filtered.filter(t => pinnedIds.has(t.id) && t.status !== 'done').sort(compareTasks), [filtered, pinnedIds]);
-
-  /* קיבוץ לפי לקוח — ככה העבודה מתקבצת בפועל: מתיישבים ועושים את כל
-     מה שיש לדוד כהן, כי התיק שלו כבר פתוח. הלקוח עם הכי הרבה פתוחות
-     ראשון; לקוח בלי משימות לא מופיע בכלל. */
-  const byClient = useMemo(() => {
-    const m = new Map<string, Task[]>();
-    for (const t of filtered) {
-      const arr = m.get(t.clientId); if (arr) arr.push(t); else m.set(t.clientId, [t]);
-    }
-    return [...m.entries()]
-      .map(([id, list]) => ({
-        id,
-        label: (() => {
-          const c = clientMap.get(id);
-          return c ? `${c.firstName} ${c.lastName}`.trim() || c.idNumber : (id === 'system' ? 'משימות מערכת' : 'לקוח לא ידוע');
-        })(),
-        open: list.filter(t => t.status !== 'done').length,
-        list: [...list].sort(compareTasks),
-      }))
-      .sort((a, b) => b.open - a.open || a.label.localeCompare(b.label, 'he'));
-  }, [filtered, clientMap]);
 
   /* רשימת הלקוחות למסנן — נגזרת מכלל המשימות ולא מהמסוננות, אחרת
      בחירת לקוח הייתה מרוקנת את הרשימה שממנה בחרת אותו. */
@@ -325,25 +303,6 @@ export default function TaskBoard({
   return (
     <div className="tasks-page">
       <div className="board-filters">
-        {/* שתי דרכים להסתכל על אותן משימות: "מה דחוף" ו"איפה זה עומד".
-            מתג, לא טאבים — זו אותה רשימה, רק מסודרת אחרת. */}
-        <div className="qp-switch board-view-switch" role="tablist" aria-label="סידור המשימות">
-          <button
-            type="button" role="tab" aria-selected={boardView === 'stage'}
-            className={boardView === 'stage' ? 'is-active' : ''}
-            onClick={() => setBoardView('stage')}
-          >
-            שלב
-          </button>
-          <button
-            type="button" role="tab" aria-selected={boardView === 'client'}
-            className={boardView === 'client' ? 'is-active' : ''}
-            onClick={() => setBoardView('client')}
-          >
-            לקוח
-          </button>
-        </div>
-
         {/* סינון לפי לקוח — כמו מסנן האדם במונדיי. מוצגים רק לקוחות
             שיש להם משימות, כדי שהרשימה לא תתארך עם כל לקוח חדש. */}
         <select
@@ -415,9 +374,7 @@ export default function TaskBoard({
           hint: pinned.length > 7 ? 'הרבה מוצמדות — שווה לשחרר כמה' : 'מה שאני עושה היום',
           items: pinned,
         }] : []),
-        ...(boardView === 'stage'
-          ? TASK_STAGE_ORDER.map(k => ({ k: k as string, label: TASK_STAGE_LABELS[k], hint: TASK_STAGE_HINTS[k], items: byStage[k] }))
-          : byClient.map(c => ({ k: c.id, label: c.label, hint: `${c.open} פתוחות`, items: c.list }))),
+        ...TASK_STAGE_ORDER.map(k => ({ k: k as string, label: TASK_STAGE_LABELS[k], hint: TASK_STAGE_HINTS[k], items: byStage[k] })),
       ].map(({ k, label, hint, items }) => {
         // בתצוגת השלבים כל הקבוצות מוצגות תמיד, גם ריקות: "בתהליך: ריק"
         // הוא מידע, וקבוצה שנעלמת שוברת את המפה שהעין בנתה.

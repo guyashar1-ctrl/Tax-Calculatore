@@ -167,8 +167,6 @@
    שקטה — לא כמו קבוצה שיש בה משהו */
 .board-group:has(.ui-empty-calm) .ui-group-title { color: var(--ink-3); }
 
-.board-view-switch { margin-inline-end: .3rem; }
-
 /* מוצמדות — הקבוצה היחידה שהמשתמש בונה בעצמו, ולכן הפס שלה הוא הדיו
    עצמו: לא סטטוס, אלא "אני בחרתי את זה" */
 .board-group-pinned { --group-tone: var(--ink-1); }
