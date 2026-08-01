@@ -53,7 +53,7 @@ function EditorShell({
     >
       <div
         style={{
-          background: 'var(--card)', borderRadius: 8, padding: '1.5rem',
+          background: 'var(--surface-0)', borderRadius: 'var(--r-modal)', padding: '1.5rem',
           maxWidth: 640, width: '100%', maxHeight: '90vh', overflowY: 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -321,20 +321,20 @@ function ChildrenEditor({ client, onPatch, onClose }: { client: Client; onPatch:
               value={c.firstName ?? ''}
               onChange={(ev) => updateRow(c.id, { firstName: ev.target.value })}
               placeholder="שם"
-              style={{ flex: 1, minWidth: 110, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ flex: 1, minWidth: 110 }}
             />
             <input
               type="date"
               value={c.birthDate ?? ''}
               onChange={(ev) => updateRow(c.id, { birthDate: ev.target.value })}
               dir="ltr"
-              style={{ padding: '.45rem .6rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field"
             />
             <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '14px' }}>
               <input type="checkbox" checked={c.hasDisability} onChange={(ev) => updateRow(c.id, { hasDisability: ev.target.checked })} />
               נכות
             </label>
-            <button type="button" onClick={() => removeRow(c.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+            <button type="button" onClick={() => removeRow(c.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>🗑</button>
           </div>
         ))}
       </div>
@@ -384,13 +384,13 @@ function PensionFundsEditor({ client, onPatch, onClose }: { client: Client; onPa
               value={p.institutionName}
               onChange={(ev) => updateRow(p.id, { institutionName: ev.target.value })}
               placeholder="מנורה, הראל, אלטשולר..."
-              style={{ flex: 1, minWidth: 130, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ flex: 1, minWidth: 130 }}
             />
             <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '14px' }}>
               <input type="checkbox" checked={p.hasSelfDeposits ?? false} onChange={(ev) => updateRow(p.id, { hasSelfDeposits: ev.target.checked })} />
               הפקדה עצמאית
             </label>
-            <button type="button" onClick={() => removeRow(p.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+            <button type="button" onClick={() => removeRow(p.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>🗑</button>
           </div>
         ))}
       </div>
@@ -438,7 +438,7 @@ function EmployersEditor({ client, onPatch, onClose }: { client: Client; onPatch
               value={e.name}
               onChange={(ev) => updateRow(e.id, 'name', ev.target.value)}
               placeholder="שם המעביד"
-              style={{ flex: 1, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ flex: 1 }}
             />
             <input
               type="text"
@@ -446,9 +446,9 @@ function EmployersEditor({ client, onPatch, onClose }: { client: Client; onPatch
               onChange={(ev) => updateRow(e.id, 'taxId', ev.target.value)}
               placeholder="ע.מ (אופציונלי)"
               dir="ltr"
-              style={{ width: 120, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ width: 120 }}
             />
-            <button type="button" onClick={() => removeRow(e.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+            <button type="button" onClick={() => removeRow(e.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>🗑</button>
           </div>
         ))}
       </div>
@@ -498,13 +498,13 @@ function InvestmentAccountsEditor({ client, onPatch, onClose }: { client: Client
               value={a.institutionName}
               onChange={(ev) => updateRow(a.id, 'institutionName', ev.target.value)}
               placeholder="מיטב דש, IBI, אקסלנס..."
-              style={{ flex: 1, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ flex: 1 }}
             />
             <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '14px' }}>
               <input type="checkbox" checked={a.isClosed ?? false} onChange={() => toggleClosed(a.id)} />
               נסגר
             </label>
-            <button type="button" onClick={() => removeRow(a.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+            <button type="button" onClick={() => removeRow(a.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>🗑</button>
           </div>
         ))}
       </div>
@@ -555,13 +555,13 @@ function BankAccountsEditor({ client, onPatch, onClose }: { client: Client; onPa
               value={b.bankName}
               onChange={(ev) => updateRow(b.id, 'bankName', ev.target.value)}
               placeholder="בנק הפועלים, מזרחי..."
-              style={{ flex: 1, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ flex: 1 }}
             />
             <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '14px' }}>
               <input type="radio" name="primaryBank" checked={b.isPrimary ?? false} onChange={() => togglePrimary(b.id)} />
               ראשי
             </label>
-            <button type="button" onClick={() => removeRow(b.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+            <button type="button" onClick={() => removeRow(b.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>🗑</button>
           </div>
         ))}
       </div>

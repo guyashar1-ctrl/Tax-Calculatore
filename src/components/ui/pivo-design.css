@@ -25,7 +25,12 @@
   background: var(--canvas);
   padding: 28px 32px 56px;
   display: block;
+  /* ‎html‎ מגדיר 16px, ו-16 אינו בסקאלה. כל טקסט שלא קיבל מידה מפורשת ירש
+     אותו — ולכן עשרות כותרות ופסקאות במערכת נפלו מחוץ לסולם בלי שאיש
+     כתב אותן. גודל הגוף הוא 14; מי שצריך אחרת מצהיר על כך. */
+  font-size: var(--fs-14);
 }
+.ui-modal, .ui-toast { font-size: var(--fs-14); }
 .app > .header,
 .app > .main {
   max-width: 1280px;
@@ -917,3 +922,277 @@ table thead th {
 
 /* המסך כולו כתב תוויות בלי גודל, וירש 16px מברירת המחדל של הדפדפן */
 .ni-section label, .ni-calc-body label { font-size: var(--fs-13); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   כרטיס לקוח · לשונית התיק — מסך 08
+   התיק הוא רשימה ארוכה של שדות בשמונה קבוצות. כשכל קבוצה היא קופסה,
+   וכל תת-קבוצה בתוכה קופסה נוספת, נוצרת ערימה. קו אחד לכל רמה מספיק.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.dg { border-top: 1px solid var(--hairline-1); }
+.dg-head {
+  display: flex; align-items: baseline; gap: .6rem; width: 100%;
+  background: none; border: 0; cursor: pointer; text-align: start;
+  padding: .7rem 0 .6rem; font-family: inherit; color: inherit;
+}
+.dg-head:hover .dg-title { color: var(--ink-1); }
+.dg-icon { font-size: var(--fs-14); }
+.dg-title { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); letter-spacing: -.01em; }
+.dg-hint { font-size: var(--fs-12); color: var(--ink-4); }
+.dg-caret { margin-inline-start: auto; font-size: var(--fs-12); color: var(--ink-4); transition: transform .15s; }
+.dg-caret.is-open { transform: rotate(180deg); }
+.dg-body { padding: .1rem 0 1.1rem; }
+
+.dossier-anchor { padding-bottom: .9rem; }
+.dossier-spouse-note { font-size: var(--fs-13); font-weight: 500; margin-top: .35rem; }
+
+/* תת-קבוצה: כותרת זעירה וקו, לא משטח אפור בתוך משטח אפור */
+.app .cw-subsection {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--hairline-2);
+  border-radius: 0;
+  padding: .7rem 0 .2rem;
+  margin-top: .5rem;
+}
+.app .cw-subsection-title { font-size: var(--fs-12); font-weight: 500; color: var(--ink-4); letter-spacing: .02em; }
+
+/* מונים וספרות ילד: מספר, לא עיגול צבוע */
+.app .cw-prop-count,
+.app .cw-child-num {
+  background: transparent;
+  color: var(--ink-4);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  border-radius: 0;
+  padding: 0;
+  width: auto; height: auto;
+  font-variant-numeric: tabular-nums;
+}
+.app .cw-child-num { color: var(--ink-3); font-size: var(--fs-13); }
+
+/* ── תיקים ברשויות ────────────────────────────────────────────────────────── */
+.tf-row {
+  display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+  padding: .5rem 0;
+}
+.tf-row + .tf-row { border-top: 1px solid var(--hairline-2); }
+.tf-select {
+  padding: .3rem .5rem; border: 0; border-radius: var(--r-chip);
+  background: var(--surface-2); color: var(--ink-1);
+  font-family: inherit; font-size: var(--fs-13);
+}
+.tf-select-strong { font-weight: 500; }
+/* מצב הייצוג: "פעיל" הוא המצב הרגיל ולכן הוא שקט. "ממתין" נושא צבע
+   כי הוא היחיד שדורש שמישהו יעשה משהו. */
+.tf-rep {
+  padding: .3rem .45rem; border: 0; border-radius: var(--r-chip);
+  background: transparent; font-size: var(--fs-12); font-weight: 500;
+  font-family: inherit; color: var(--ink-3);
+}
+.tf-rep-pending { color: var(--warn); }
+.tf-spouse-warn {
+  margin: .3rem 0 .6rem; font-size: var(--fs-13); font-weight: 500; color: var(--warn);
+  border-inline-start: 2px solid var(--warn); padding-inline-start: .8rem; line-height: 1.55;
+}
+
+/* ── אנשי קשר ונכסים ────────────────────────────────────────────────────────
+   "איש הקשר הראשי" ו"הנישום עצמו" סומנו בשני רקעים צבועים שונים.
+   זהות אינה דחיפות: המפתח 🔑 והתווית כבר אומרים מי זה, והמשקל מספיק. */
+.app .cw-contact-card.cw-contact-primary,
+.app .cw-contact-card.cw-contact-self,
+.app .cw-contact-card.cw-contact-self.cw-contact-primary {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.app .cw-contact-card.cw-contact-primary { border-top-color: var(--hairline-1); }
+.app .cw-contact-primary .cw-contact-name { font-weight: 600; }
+
+.app .cw-contact-form {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--hairline-2);
+  border-radius: 0;
+  padding: .75rem 0 .2rem;
+}
+
+.app .cw-property-num {
+  background: transparent; color: var(--ink-3);
+  font-size: var(--fs-13); font-weight: 500;
+  width: auto; height: auto; border-radius: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* מקטרת ההעלאה: קו מקווקו הוא הרמז ל"אפשר לגרור לכאן" — הוא נשאר,
+   אבל בעובי ובצבע של קו שערה ובלי משטח לבן מתחתיו */
+.app .cw-linked-docs-upload,
+.app .cw-linked-docs-link-btn {
+  background: transparent;
+  border: 1px dashed var(--hairline-1);
+  color: var(--ink-3);
+}
+.app .cw-linked-docs-upload:hover,
+.app .cw-linked-docs-link-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--ink-4);
+  color: var(--ink-1);
+}
+
+.ctd-hint {
+  margin-bottom: 8px; font-size: var(--fs-12); color: var(--ink-3); line-height: 1.55;
+  border-inline-start: 2px solid var(--hairline-1); padding-inline-start: .7rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   כרטיס לקוח · לשונית מסמכים — מסך 09
+   "6 מסמכים · 3 שנים · 5 קטגוריות" הוא משפט, לא לוח מחוונים. שלושה
+   מספרים שלא דורשים פעולה לא צריכים כרטיס צף עם צל ומספרים כחולים.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.app .doc-stats-strip {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--hairline-2);
+  border-radius: 0;
+  box-shadow: none;
+  padding: .2rem 0 .7rem;
+  gap: 1.4rem;
+  margin-bottom: .9rem;
+}
+.app .doc-stat { flex-direction: row; align-items: baseline; gap: .35rem; }
+.app .doc-stat-number { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.app .doc-stat-label { font-size: var(--fs-12); font-weight: 400; color: var(--ink-4); }
+.app .doc-stat-divider { display: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   דוח שנתי 1301 · מפת העץ — מסך 16
+   כל פרק היה כרטיס, וכל שאלה גלולה צבועה בתוכו — אחת עשרה קופסאות
+   שמכילות מאתיים גלולות. הפרק יורד לשורה עם קו; הגלולה נשארת, כי
+   מצב השאלה (חיה · נגזמה · נענתה · נבחרה) הוא בדיוק מה שהמפה באה להראות.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.tm-chapter { display: flex; gap: .8rem; align-items: flex-start; padding: .7rem 0; border-top: 1px solid var(--hairline-2); }
+.tm-chapter.is-pruned { opacity: .45; }
+.tm-chapter-label { min-width: 118px; padding-top: 2px; }
+.tm-chapter-name { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.tm-chapter.is-pruned .tm-chapter-name { color: var(--ink-4); }
+.tm-chapter-count { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.tm-nodes { display: flex; flex-wrap: wrap; gap: .35rem; flex: 1; }
+
+.tm-node {
+  font-family: inherit; font-size: var(--fs-12); font-weight: 400; cursor: pointer;
+  padding: .28rem .55rem; border-radius: var(--r-chip); max-width: 190px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border: 1px solid var(--hairline-1); background: transparent; color: var(--ink-2);
+}
+.tm-node.is-pruned { border-style: dashed; color: var(--ink-4); }
+.tm-node.is-visited { border-color: var(--success); color: var(--ink-1); font-weight: 500; }
+.tm-node.is-selected { border-color: var(--accent); color: var(--ink-1); font-weight: 600; }
+
+.tm-key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; border: 1px solid var(--hairline-1); }
+.tm-key.is-pruned { border-style: dashed; }
+.tm-key.is-visited { border-color: var(--success); }
+
+/* אריחי הסימולציה: מתג דו-מצבי. הפעיל מסומן במשקל ובקו — לא במילוי כחול. */
+.tm-tile {
+  font-family: inherit; font-size: var(--fs-13); cursor: pointer;
+  padding: .3rem .7rem; border-radius: var(--r-chip);
+  border: 1px solid var(--hairline-1); background: transparent; color: var(--ink-3);
+}
+.tm-tile.is-on { border-color: var(--ink-3); color: var(--ink-1); font-weight: 500; }
+.tm-tile:hover { color: var(--ink-1); }
+
+/* גלולות מטא במפה: קוד שדה, סוג שכבה, שם טופס — זהות, ולכן טקסט */
+.tm-pill { font-size: var(--fs-12); color: var(--ink-3); }
+.tm-code { font-size: var(--fs-13); font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.tm-layer { font-size: var(--fs-12); font-weight: 500; }
+
+/* ── מסד נתוני מס · מסך 17 ─────────────────────────────────────────────────── */
+.tcd-rate { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.tcd-lede { font-size: var(--fs-13); color: var(--ink-3); line-height: 1.65; max-width: 84ch; margin: .3rem 0 1rem; }
+.tcd-warn {
+  margin-bottom: 1rem; font-size: var(--fs-13); color: var(--ink-2); line-height: 1.6;
+  border-inline-start: 2px solid var(--warn); padding-inline-start: .9rem;
+}
+.tcd-note {
+  margin-top: .75rem; font-size: var(--fs-13); color: var(--ink-2); line-height: 1.65;
+  border-inline-start: 2px solid var(--hairline-1); padding-inline-start: .9rem;
+}
+.tcd-foot {
+  margin-top: 2rem; padding-top: .9rem; border-top: 1px solid var(--hairline-2);
+  font-size: var(--fs-12); color: var(--ink-4); line-height: 1.65;
+}
+.tcd-panel { padding: .75rem 0; border-top: 1px solid var(--hairline-2); font-size: var(--fs-13); color: var(--ink-2); }
+
+/* ── מסך הפתיחה של הדוח השנתי ──────────────────────────────────────────────── */
+.are-lede { font-size: var(--fs-14); color: var(--ink-2); line-height: 1.7; max-width: 78ch; margin: 0; }
+.are-warn {
+  font-size: var(--fs-13); color: var(--ink-2); line-height: 1.6;
+  border-inline-start: 2px solid var(--warn); padding-inline-start: .9rem;
+}
+.are-exists { margin-inline-start: 8px; font-size: var(--fs-12); color: var(--ink-4); }
+
+/* ── שפה משותפת למסכי הדוח השנתי ────────────────────────────────────────────
+   השאלון, מאזן הכיסוי והפלט נכתבו כל אחד בנפרד, וכל אחד המציא לעצמו
+   גלולה צבועה ותיבת הודעה משלו. שלושה רכיבים כאן מחליפים את כולם. */
+
+/* גלולה → טקסט. "התיק ע"ש", "מתעדכן: כרטיס הלקוח", "שדות 1301" —
+   כל אלה זהות ושיוך, ולכן הם נקראים ולא נצבעים. */
+.ar-pill { font-size: var(--fs-12); color: var(--ink-3); white-space: nowrap; }
+.ar-pill.is-warn { color: var(--warn); font-weight: 500; }
+.ar-pill.num { font-variant-numeric: tabular-nums; }
+
+/* הודעה בתוך זרימה — קו אנכי במקום מלבן צבוע */
+.ar-note {
+  border-inline-start: 2px solid var(--hairline-1); padding: .1rem 0 .1rem .9rem;
+  font-size: var(--fs-13); line-height: 1.6; color: var(--ink-2);
+}
+.ar-note.is-danger { border-inline-start-color: var(--danger); }
+.ar-note.is-warn { border-inline-start-color: var(--warn); }
+.ar-note.is-ok { border-inline-start-color: var(--success); }
+.ar-note strong, .ar-note b { color: var(--ink-1); }
+
+/* קיבוץ בתוך מסך — קו עליון במקום מסגרת מלאה */
+.ar-panel { border-top: 1px solid var(--hairline-2); padding: .85rem 0 .9rem; }
+.ar-panel-title { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); margin-bottom: .5rem; }
+
+/* מסילת הכיסוי — הייתה בגרדיאנט ובהקסה קבועה, שנשארו בהירים בערכה הכהה */
+.cr-rail {
+  border: 1px solid var(--hairline-1); border-radius: var(--r-panel);
+  background: var(--surface-1); padding: .75rem .8rem; font-size: var(--fs-13);
+}
+
+/* מצב מסמך במאזן הכיסוי: מתג בשלושה מצבים. המילה נושאת את הצבע. */
+.cg-doc-status {
+  font-family: inherit; cursor: pointer; border: 0; background: transparent;
+  font-size: var(--fs-12); font-weight: 500; padding: .2rem 0;
+}
+.cg-doc-status:hover { text-decoration: underline; }
+
+/* פס הסיום של שער הכיסוי: "חסום" הוא המצב שדורש פעולה ולכן הוא היחיד
+   שנושא צבע. "פנוי" הוא פשוט סוף הרשימה. */
+.cg-finish {
+  margin-top: 1rem; padding: .8rem 0 .2rem; display: flex;
+  justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .6rem;
+  border-top: 1px solid var(--hairline-1);
+}
+.cg-finish.is-blocked { border-top-color: var(--warn); }
+
+/* תמונת המצב של הלקוח: "מי רשום" ורשימת התיקים */
+.ts-reg {
+  padding: .5rem 0; font-size: var(--fs-14); font-weight: 500; color: var(--ink-1);
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  border-block: 1px solid var(--hairline-2);
+}
+.ts-reg.is-spouse { color: var(--warn); border-block-color: var(--warn); }
+.ts-file {
+  padding: .4rem 0; font-size: var(--fs-13);
+  display: flex; align-items: center; gap: .45rem;
+}
+.ts-file + .ts-file { border-top: 1px solid var(--hairline-2); }
+
+/* שדות עורך מקטעי הכרטיס — משטח רך, כמו כל שדה במערכת */
+.cse-field {
+  padding: .5rem .75rem; border: 0; border-radius: var(--r-input);
+  background: var(--surface-2); color: var(--ink-1);
+  font-family: inherit; font-size: var(--fs-14); outline: none;
+}
+.cse-field:focus { box-shadow: 0 0 0 2px var(--focus-ring); }

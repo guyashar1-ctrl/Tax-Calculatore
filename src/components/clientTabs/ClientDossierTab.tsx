@@ -35,22 +35,16 @@ function DossierGroup({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden', background: 'var(--card)' }}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '.6rem', width: '100%',
-          background: 'var(--gray-50)', border: 'none', cursor: 'pointer', textAlign: 'right',
-          padding: '.75rem 1rem', fontFamily: 'inherit',
-        }}
-      >
-        <span style={{ fontSize: '17px' }}>{icon}</span>
-        <b style={{ fontSize: '15px' }}>{title}</b>
-        <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{hint}</span>
-        <span style={{ marginRight: 'auto', color: 'var(--gray-400)' }}>{open ? '▴' : '▾'}</span>
+    /* קבוצה = קו וכותרת. התיק הוא רשימה ארוכה של שדות, ושמונה קופסאות
+       זו על גבי זו הופכות אותו לערימה — קו אחד לכל קבוצה מספיק להפריד. */
+    <div className="dg">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="dg-head" aria-expanded={open}>
+        <span className="dg-icon">{icon}</span>
+        <span className="dg-title">{title}</span>
+        <span className="dg-hint">{hint}</span>
+        <span className={`dg-caret ${open ? 'is-open' : ''}`}>▾</span>
       </button>
-      {open && <div style={{ padding: '.4rem .8rem .8rem' }}>{children}</div>}
+      {open && <div className="dg-body">{children}</div>}
     </div>
   );
 }
@@ -61,10 +55,12 @@ export default function ClientDossierTab({ client, update, patch, employees, isN
   return (
     <div className="cw-tab" style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
       {/* ── העוגן: תיקים ברשויות — פעם אחת, תמיד למעלה ── */}
-      <div style={{ border: '1.5px solid var(--chip-amber-bd)', borderRadius: 12, background: 'var(--chip-amber-bg)', padding: '.6rem .9rem' }}>
+      {/* העוגן של התיק. הוא ראשון ובלתי-מתקפל, ולכן מיקומו כבר אומר
+          שהוא העיקר — אין צורך במלבן ענברי מסביבו. */}
+      <div className="dossier-anchor">
         <TaxFilesSection client={client} update={update} />
         {regFile && client.familyStatus === 'married' && (
-          <div style={{ fontSize: '13px', fontWeight: 600, color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-600)', marginTop: '.35rem' }}>
+          <div className="dossier-spouse-note" style={{ color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--ink-3)' }}>
             {regFile.owner === 'spouse' ? '⚠' : '🗄️'} בן/בת הזוג הרשום/ה: {regFile.name}
             {regFile.idNumber ? ` · ת.ז. ${regFile.idNumber}` : ''} — כל ההתנהלות מול מ"ה בת.ז. הזו
           </div>

@@ -58,7 +58,7 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
         </div>
         <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div>
-            <p style={{ margin: 0, color: 'var(--gray-700)', lineHeight: 1.6 }}>
+            <p className="are-lede">
               המערכת תוביל אותך בשאלון מובנה שמתאים את עצמו לפרופיל הלקוח —
               ובסופו תוכל לראות בשקיפות מלאה: אילו מסמכים נדרשים, אילו נספחים יש לצרף,
               ואילו ערכים יוזנו לטופס 1301 — שדה אחרי שדה, עם הסבר מאיפה כל ערך הגיע.
@@ -66,7 +66,7 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
           </div>
 
           {inProgressSessions.length > 0 && (
-            <div style={{ background: 'var(--chip-amber-bg)', border: '1px solid var(--warn)', borderRadius: 8, padding: '0.75rem 1rem' }}>
+            <div className="are-warn">
               <strong>תהליכים פתוחים:</strong>{' '}
               {inProgressSessions.length} {inProgressSessions.length === 1 ? 'תהליך' : 'תהליכים'} בעבודה.
               <ul style={{ margin: '.5rem 0 0', padding: 0, listStyle: 'none' }}>
@@ -126,7 +126,7 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ width: '100%', marginBottom: '.5rem' }}
               />
-              <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--gray-200)', borderRadius: 6 }}>
+              <div style={{ maxHeight: 280, overflowY: 'auto' }}>
                 {filteredClients.length === 0 ? (
                   <div style={{ padding: '1rem', color: 'var(--gray-500)' }}>אין לקוחות תואמים</div>
                 ) : (
@@ -150,7 +150,7 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
                       >
                         <span style={{ fontWeight: 600 }}>{c.firstName} {c.lastName}</span>
                         {c.idNumber && <span style={{ color: 'var(--gray-500)', marginRight: 8, fontSize: '14px' }}>· {c.idNumber}</span>}
-                        {exists && <span style={{ marginRight: 8, fontSize: '12px', background: 'var(--blue-light)', color: 'var(--blue)', padding: '2px 8px', borderRadius: 999 }}>קיים תהליך</span>}
+                        {exists && <span className="are-exists">קיים תהליך</span>}
                       </button>
                     );
                   })

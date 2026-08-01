@@ -176,12 +176,8 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
           מאזן כיסוי 1301 — {clientName} · {session.taxYear}
           {regFile && (
             <span
-              style={{
-                fontSize: '12px', fontWeight: 600, borderRadius: 99, padding: '.15rem .6rem', verticalAlign: 'middle',
-                background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
-                color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-600)',
-                marginRight: '.6rem', whiteSpace: 'nowrap',
-              }}
+              className={`ar-pill ${regFile.owner === 'spouse' ? 'is-warn' : ''}`}
+              style={{ marginInlineEnd: '.6rem', verticalAlign: 'middle' }}
               title="על שם מי מתנהל תיק מס הכנסה — נקבע בכרטיס הלקוח"
             >
               התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
@@ -200,7 +196,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
 
       {/* ─── החלטות רו"ח פתוחות ─── */}
       {pendingDecisions.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem', border: '1.5px solid var(--chip-amber-bd)' }}>
+        <div className="card" style={{ marginBottom: '1rem' }}>
           <div className="card-body">
             <h3 style={{ marginTop: 0 }}>🧑‍💼 החלטות מקצועיות פתוחות ({pendingDecisions.length})</h3>
             <p style={{ fontSize: '14px', color: 'var(--gray-600)', marginTop: 0 }}>
@@ -232,7 +228,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
 
       {/* ─── בירורים מול הלקוח ("לא בטוח") ─── */}
       {unknownNodes.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem', border: '1.5px solid var(--chip-blue-bd)' }}>
+        <div className="card" style={{ marginBottom: '1rem' }}>
           <div className="card-body">
             <h3 style={{ marginTop: 0 }}>לוודא מול הלקוח ({unknownNodes.length})</h3>
             <p style={{ fontSize: '14px', color: 'var(--gray-600)', marginTop: 0 }}>
@@ -284,11 +280,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
                   <button
                     type="button"
                     onClick={() => void cycleDocStatus(d.code)}
-                    style={{
-                      fontFamily: 'inherit', cursor: 'pointer', border: 'none',
-                      fontSize: '12px', fontWeight: 600, borderRadius: 99, padding: '.2rem .7rem',
-                      color: meta.color, background: meta.bg,
-                    }}
+                    className="cg-doc-status" style={{ color: meta.color }}
                   >
                     {meta.label}
                   </button>
@@ -344,12 +336,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
       </div>
 
       {/* ─── פס הסיום ─── */}
-      <div style={{
-        marginTop: '1rem', padding: '.8rem 1.1rem', borderRadius: 10, display: 'flex',
-        justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.6rem',
-        background: blocked ? 'var(--chip-amber-bg)' : 'var(--chip-green-bg)',
-        border: blocked ? '1.5px solid var(--chip-amber-bd)' : '1.5px solid var(--chip-green-bd)',
-      }}>
+      <div className={`cg-finish ${blocked ? 'is-blocked' : ''}`}>
         <span style={{ fontWeight: 600, fontSize: '14px', color: blocked ? 'var(--warn)' : 'var(--green)' }}>
           {blocked
             ? `המאזן לא סגור: ${totals.pending} סעיפים פתוחים · ${pendingDecisions.length} החלטות · ${unknownNodes.length} בירורים מול הלקוח.`

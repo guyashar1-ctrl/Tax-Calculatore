@@ -68,7 +68,7 @@ export default function AnswersReview({ session, clientName, onStartEdit, onBack
         <button className="btn btn-secondary" onClick={onBackToOutput}>חזרה לפלט ולמיפוי</button>
       </div>
 
-      <div style={{ background: 'var(--blue-light)', padding: '1rem 1.25rem', borderRadius: 8, marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+      <div style={{ background: 'transparent', padding: '1rem 1.25rem', borderRadius: 8, marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontWeight: 600, color: 'var(--blue-dark, var(--chip-blue-tx))', marginBottom: '.25rem' }}>ערוך תשובות בעץ ההחלטות</div>
           <div style={{ fontSize: '14px', color: 'var(--gray-700)' }}>
@@ -85,7 +85,7 @@ export default function AnswersReview({ session, clientName, onStartEdit, onBack
       </div>
 
       {error && (
-        <div style={{ background: 'var(--chip-red-bg)', color: 'var(--err)', padding: '.75rem 1rem', borderRadius: 6, marginBottom: '1rem' }}>
+        <div style={{ background: 'transparent', color: 'var(--err)', padding: '.75rem 1rem', borderRadius: 6, marginBottom: '1rem' }}>
           שגיאה: {error}
         </div>
       )}

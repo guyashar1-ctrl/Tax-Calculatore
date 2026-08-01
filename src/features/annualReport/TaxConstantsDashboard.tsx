@@ -103,7 +103,7 @@ export default function TaxConstantsDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '24px' }}>מסד נתוני מס {year}</h2>
-          <p style={{ margin: '.3rem 0 0', color: 'var(--gray-600)', fontSize: '14px' }}>
+          <p className="tcd-lede">
             כל קבועי החישוב שעליהם המערכת מתבססת. עבור על הכרטיסיות — כל כרטיסייה מציגה גם את הציטוט מהמקור הרשמי.
           </p>
         </div>
@@ -122,7 +122,7 @@ export default function TaxConstantsDashboard() {
       </div>
 
       {!isCurrent2025 && (
-        <div style={{ background: 'var(--chip-amber-bg)', border: '1px solid var(--warn)', borderRadius: 6, padding: '.5rem 1rem', marginBottom: '1rem', fontSize: '14px' }}>
+        <div className="tcd-warn">
           ℹ הציטוטים בכרטיסיות מתייחסים לחוברת 2025 הרשמית; ערכי הנתונים — לשנת המס {year}.
         </div>
       )}
@@ -133,13 +133,13 @@ export default function TaxConstantsDashboard() {
           <h3 className="card-title">מדרגות מס הכנסה — {year}</h3>
         </div>
         <div className="card-body">
-          <p style={{ margin: '0 0 1rem', color: 'var(--gray-600)' }}>
+          <p className="tcd-lede">
             מדרגות מס שולי על יגיעה אישית. הכנסה מעל המדרגה האחרונה — חייבת ב-50% מס, וגם במס יסף נוסף.
           </p>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
+                <tr style={{ borderBottom: '1px solid var(--hairline-1)' }}>
                   <th style={{ textAlign: 'right', padding: '.6rem' }}>מ-</th>
                   <th style={{ textAlign: 'right', padding: '.6rem' }}>עד</th>
                   <th style={{ textAlign: 'right', padding: '.6rem' }}>שיעור מס</th>
@@ -153,14 +153,7 @@ export default function TaxConstantsDashboard() {
                       <td style={{ padding: '.6rem' }}>{fmtCurrency(from)}</td>
                       <td style={{ padding: '.6rem' }}>{fmtCurrency(b.upTo)}</td>
                       <td style={{ padding: '.6rem' }}>
-                        <span style={{
-                          background: bracketColor(b.rate),
-                          color: 'var(--card)',
-                          padding: '2px 10px',
-                          borderRadius: 999,
-                          fontWeight: 600,
-                          fontSize: '14px',
-                        }}>
+                        <span className="tcd-rate">
                           {b.rate}%
                         </span>
                       </td>
@@ -172,7 +165,7 @@ export default function TaxConstantsDashboard() {
           </div>
           <details style={{ marginTop: '1rem', fontSize: '14px' }}>
             <summary style={{ cursor: 'pointer', color: 'var(--blue)', fontWeight: 600 }}>הצג מקור</summary>
-            <div style={{ marginTop: '.75rem', padding: '.75rem 1rem', background: 'var(--gray-50)', borderRight: '3px solid var(--blue)', borderRadius: 4 }}>
+            <div className="tcd-note">
               <strong>מקור:</strong> דע את זכויותיך 2025, פרק ז — "המס המצטבר לפי מדרגות המס".
               <br />
               <em style={{ color: 'var(--gray-600)' }}>
@@ -190,7 +183,7 @@ export default function TaxConstantsDashboard() {
         ))}
       </div>
 
-      <div style={{ marginTop: '2rem', padding: '1rem 1.25rem', background: 'var(--gray-50)', borderRadius: 6, fontSize: '14px', color: 'var(--gray-600)' }}>
+      <div className="tcd-foot">
         כל הנתונים מנוהלים בקובץ <code>src/data/taxData.ts</code>. עדכון שנתי של ערכים נעשה שם בלבד — אין שום ערך hard-coded ב-UI או בלוגיקה של הדוח.
       </div>
     </div>
@@ -228,7 +221,7 @@ function DashboardCardView({ card }: { card: DashboardCard }) {
           {open ? '▲ הסתר ציטוט מהמקור' : '▼ הצג ציטוט מהמקור'}
         </button>
         {open && (
-          <div style={{ padding: '.75rem 1rem', background: 'var(--gray-50)', borderTop: '1px solid var(--gray-100)', fontSize: '14px' }}>
+          <div className="tcd-panel">
             <div style={{ fontWeight: 600, marginBottom: '.4rem', color: 'var(--gray-700)' }}>{card.citation.documentLabel}</div>
             <div style={{ borderRight: '3px solid var(--blue)', paddingRight: '.75rem', color: 'var(--gray-700)', fontStyle: 'italic', lineHeight: 1.5 }}>
               "{card.citation.quote}"
@@ -240,12 +233,3 @@ function DashboardCardView({ card }: { card: DashboardCard }) {
   );
 }
 
-function bracketColor(rate: number): string {
-  if (rate <= 10) return 'var(--ok)';
-  if (rate <= 14) return 'var(--chip-green-bd)';
-  if (rate <= 20) return 'var(--warn)';
-  if (rate <= 31) return 'var(--chip-orange-tx)';
-  if (rate <= 35) return 'var(--err)';
-  if (rate <= 47) return 'var(--err)';
-  return 'var(--chip-red-tx)';
-}

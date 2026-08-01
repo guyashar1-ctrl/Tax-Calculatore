@@ -129,12 +129,8 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
   const regFile = client ? registeredFileInfo(client) : null;
   const regChip = regFile && (
     <span
-      style={{
-        fontSize: '12px', fontWeight: 600, borderRadius: 99, padding: '.12rem .6rem',
-        background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
-        color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-600)',
-        marginRight: '.5rem', whiteSpace: 'nowrap',
-      }}
+      className={`ar-pill ${regFile.owner === 'spouse' ? 'is-warn' : ''}`}
+      style={{ marginInlineEnd: '.5rem' }}
       title="על שם מי מתנהל תיק מס הכנסה — נקבע בכרטיס הלקוח"
     >
       התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
@@ -324,7 +320,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
                       </div>
                     )}
                     {priorAnswers.has(node.id) && (
-                      <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light, var(--chip-blue-bg))', borderRadius: 4, fontSize: '14px', color: 'var(--gray-700)' }}>
+                      <div className="ar-note" style={{ marginBottom: '.75rem' }}>
                         ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת — לחץ "המשך" לאישור, או שנה לפי הצורך.
                       </div>
                     )}
@@ -363,10 +359,10 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
           {uniqueCodes.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', marginTop: '.7rem', fontSize: '12px', color: 'var(--gray-500)', flexWrap: 'wrap' }}>
               מתעדכן:
-              <span style={{ background: 'var(--blue-light, var(--chip-blue-bg))', color: 'var(--blue)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }}>
+              <span className="ar-pill">
                 כרטיס הלקוח
               </span>
-              <span style={{ background: 'var(--gray-100)', color: 'var(--gray-600)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }} className="num">
+              <span className="ar-pill num">
                 טופס 1301 · שדות {uniqueCodes.join(', ')}
               </span>
             </div>
@@ -387,7 +383,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
 
 function ErrorBox({ message }: { message: string }) {
   return (
-    <div style={{ marginTop: '1rem', padding: '.75rem 1rem', background: 'var(--chip-red-bg)', color: 'var(--err)', borderRadius: 6 }}>
+    <div className="ar-note is-danger" style={{ marginTop: '1rem' }}>
       שגיאה בשמירה: {message}
     </div>
   );
@@ -398,13 +394,7 @@ function ErrorBox({ message }: { message: string }) {
 function DataPreviewBox({ items }: { items: QuestionPreviewItem[] }) {
   return (
     <div
-      style={{
-        background: 'var(--gray-50)',
-        border: '1px solid var(--gray-200)',
-        borderRadius: 8,
-        padding: '.85rem 1rem',
-        marginBottom: '1rem',
-      }}
+      className="ar-panel" style={{ marginBottom: '1rem' }}
     >
       <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)', marginBottom: '.6rem' }}>
         הנתונים הקיימים בכרטיס הלקוח

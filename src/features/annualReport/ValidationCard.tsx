@@ -95,8 +95,8 @@ function ValidationPreview({
   return (
     <div
       style={{
-        background: 'var(--chip-green-bg)',
-        border: '1px solid var(--chip-green-bd)',
+        background: 'transparent',
+        borderTop: '1px solid var(--hairline-2)',
         borderRadius: 8,
         padding: '1rem',
         marginTop: '1.25rem',

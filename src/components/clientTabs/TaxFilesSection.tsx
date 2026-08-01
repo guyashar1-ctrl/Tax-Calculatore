@@ -93,10 +93,7 @@ export default function TaxFilesSection({ client, update }: Props) {
       </div>
 
       {itOnSpouse && (
-        <div style={{
-          margin: '.3rem 0 .6rem', padding: '.5rem .8rem', borderRadius: 8, fontSize: '14px', fontWeight: 600,
-          background: 'var(--chip-amber-bg)', border: '1.5px solid var(--chip-amber-bd)', color: 'var(--warn)',
-        }}>
+        <div className="tf-spouse-warn">
           בן/בת הזוג הרשום/ה במס הכנסה: {spouseDisplayName(client)}
           {itFile?.fileNumber ? ` — ת.ז. ${itFile.fileNumber}` : ''}. כל התנהלות מול מ"ה בת.ז. הזו.
         </div>
@@ -111,15 +108,12 @@ export default function TaxFilesSection({ client, update }: Props) {
           {AUTHORITY_ORDER.flatMap((auth) => files.filter((f) => f.authority === auth)).map((f) => (
             <div
               key={f.id}
-              style={{
-                display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap',
-                border: '1px solid var(--gray-200)', borderRadius: 9, padding: '.5rem .7rem',
-              }}
+              className="tf-row"
             >
               <select
                 value={f.authority}
                 onChange={(e) => patchFile(f.id, { authority: e.target.value as TaxAuthority })}
-                style={{ padding: '.35rem .5rem', borderRadius: 6, border: '1px solid var(--gray-200)', fontWeight: 600 }}
+                className="tf-select tf-select-strong"
               >
                 {AUTHORITY_ORDER.map((a) => <option key={a} value={a}>{TAX_AUTHORITY_LABELS[a]}</option>)}
               </select>
@@ -129,14 +123,14 @@ export default function TaxFilesSection({ client, update }: Props) {
                 onChange={(e) => patchFile(f.id, { fileNumber: e.target.value })}
                 placeholder="מספר תיק"
                 dir="ltr"
-                style={{ width: 130, padding: '.35rem .55rem', borderRadius: 6, border: '1px solid var(--gray-200)' }}
+                className="tf-select" style={{ width: 130 }}
               />
               <label style={{ fontSize: '13px', color: 'var(--gray-500)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 {f.authority === 'national_insurance' ? 'של' : 'ע"ש'}
                 <select
                   value={f.owner}
                   onChange={(e) => patchFile(f.id, { owner: e.target.value as TaxFileOwner })}
-                  style={{ padding: '.3rem .45rem', borderRadius: 6, border: '1px solid var(--gray-200)' }}
+                  className="tf-select"
                 >
                   {(['client', 'spouse', 'joint'] as TaxFileOwner[]).map((o) => (
                     <option key={o} value={o}>{ownerOptionLabel(client, f.authority, o)}</option>
@@ -151,11 +145,7 @@ export default function TaxFilesSection({ client, update }: Props) {
               <select
                 value={f.repStatus}
                 onChange={(e) => patchFile(f.id, { repStatus: e.target.value as TaxFileRepStatus })}
-                style={{
-                  padding: '.3rem .45rem', borderRadius: 99, border: 'none', fontSize: '12px', fontWeight: 600,
-                  background: f.repStatus === 'active' ? 'var(--chip-green-bg)' : f.repStatus === 'pending' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
-                  color: f.repStatus === 'active' ? 'var(--ok)' : f.repStatus === 'pending' ? 'var(--warn)' : 'var(--gray-500)',
-                }}
+                className={`tf-rep tf-rep-${f.repStatus}`}
               >
                 {(Object.keys(TAX_FILE_REP_STATUS_LABELS) as TaxFileRepStatus[]).map((s) => (
                   <option key={s} value={s}>{TAX_FILE_REP_STATUS_LABELS[s]}</option>

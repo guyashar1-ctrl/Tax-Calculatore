@@ -49,13 +49,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
       {/* ── בן הזוג הרשום — תמיד מוצג כשיש תיק מ"ה; מודגש כשהתיק על בן הזוג.
              כשיש onUpdateTaxFiles אפשר להחליף את הרשום ישירות מכאן. ── */}
       {regFile && (
-        <div style={{
-          padding: '.55rem .9rem', borderRadius: 9, fontSize: '14px', fontWeight: 600,
-          background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-50, var(--s2))',
-          border: regFile.owner === 'spouse' ? '1.5px solid var(--chip-amber-bd)' : '1px solid var(--gray-200)',
-          color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-700, #333)',
-          display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap',
-        }}>
+        <div className={`ts-reg ${regFile.owner === 'spouse' ? 'is-spouse' : ''}`}>
           <span>
             {regFile.owner === 'spouse' ? '⚠ ' : '🗄️ '}
             תיק מס הכנסה ע"ש <b>{regFile.name}</b>
@@ -69,8 +63,9 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
               onChange={(e) => changeItOwner(e.target.value as TaxFileOwner)}
               title="החלפת בן הזוג הרשום — נשמר מיד ומעדכן את הת.ז. של התיק"
               style={{
-                padding: '.2rem .45rem', borderRadius: 6, border: '1px solid var(--gray-300, #ccc)',
-                fontSize: '13px', fontWeight: 600, background: 'var(--card)', marginRight: 'auto',
+                padding: '.2rem .45rem', borderRadius: 'var(--r-chip)', border: 0,
+                fontSize: 'var(--fs-13)', fontWeight: 500, background: 'var(--surface-2)',
+                color: 'var(--ink-1)', marginInlineStart: 'auto',
               }}
             >
               <option value="client">{clientDisplayName(client)}</option>
@@ -86,25 +81,14 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
           <div className="cw-section-head"><span>תיקים ברשויות</span></div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.45rem' }}>
             {taxFiles.map((f) => (
-              <div key={f.id} style={{
-                border: '1px solid var(--gray-200)', borderRadius: 9, padding: '.4rem .7rem',
-                fontSize: '13px', display: 'flex', alignItems: 'center', gap: '.45rem',
-              }}>
+              <div key={f.id} className="ts-file">
                 <b>{TAX_AUTHORITY_LABELS[f.authority]}</b>
                 {f.fileNumber && <span className="num" dir="ltr" style={{ color: 'var(--gray-500)' }}>{f.fileNumber}</span>}
-                <span style={{
-                  fontSize: '12px', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 600,
-                  background: f.authority === 'income_tax' && f.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
-                  color: f.authority === 'income_tax' && f.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-500)',
-                }}>
+                <span className={`ar-pill ${f.authority === 'income_tax' && f.owner === 'spouse' ? 'is-warn' : ''}`}>
                   {f.authority === 'national_insurance' ? 'של ' : 'ע"ש '}
                   {taxFileOwnerLabel(client, f.authority, f.owner)}
                 </span>
-                <span style={{
-                  fontSize: '12px', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 600,
-                  background: f.repStatus === 'active' ? 'var(--chip-green-bg)' : f.repStatus === 'pending' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
-                  color: f.repStatus === 'active' ? 'var(--ok)' : f.repStatus === 'pending' ? 'var(--warn)' : 'var(--gray-500)',
-                }}>
+                <span className={`ar-pill ${f.repStatus === 'pending' ? 'is-warn' : ''}`}>
                   {TAX_FILE_REP_STATUS_LABELS[f.repStatus]}
                 </span>
               </div>
@@ -131,17 +115,17 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
                 <div
                   key={s.id}
                   style={{
-                    border: '1px solid var(--gray-200)', borderRadius: 10, padding: '.65rem .8rem',
+                    borderTop: '1px solid var(--hairline-2)', padding: '.65rem 0',
                     display: 'flex', alignItems: 'center', gap: '.7rem', flexWrap: 'wrap',
                   }}
                 >
                   <span className="num" style={{ fontWeight: 600, fontSize: '17px', minWidth: 52 }}>{y.taxYear}</span>
-                  <span style={{ fontSize: '12px', fontWeight: 600, borderRadius: 99, padding: '.12rem .6rem', color: meta.color, background: meta.bg }}>
+                  <span className="ar-pill" style={{ color: meta.color }}>
                     {meta.label}
                   </span>
                   <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', flex: 1 }}>
                     {y.sourceLabels.map((l, i) => (
-                      <span key={i} style={{ fontSize: '12px', background: 'var(--gray-100)', borderRadius: 99, padding: '.1rem .5rem' }}>{l}</span>
+                      <span key={i} className="ar-pill">{l}</span>
                     ))}
                   </div>
                   {y.docsTotal > 0 && (
@@ -170,7 +154,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
           <div className="cw-section-head"><span>סכומי מפתח שנאספו</span></div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '.5rem' }}>
             {amounts.map((a, i) => (
-              <div key={i} style={{ border: '1px solid var(--gray-100)', borderRadius: 9, padding: '.5rem .7rem', background: 'var(--gray-50)' }}>
+              <div key={i} style={{ borderTop: '1px solid var(--hairline-2)', padding: '.5rem 0' }}>
                 <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{a.label}{a.year ? ` · ${a.year}` : ''}</div>
                 <div className="num" style={{ fontWeight: 600, fontSize: '15px' }}>{a.value}</div>
               </div>
@@ -189,12 +173,12 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
                 {b.rows.map((row, i) => {
                   const prov = provenanceLabel(client, row.metaKey);
                   return (
-                    <tr key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--gray-100)' }}>
+                    <tr key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--hairline-2)' }}>
                       <td style={{ padding: '.4rem .2rem', color: 'var(--gray-500)', fontSize: '13px', width: '40%', verticalAlign: 'top' }}>{row.label}</td>
                       <td style={{ padding: '.4rem .2rem', fontSize: '14px', fontWeight: 600 }}>
                         {row.missing ? <span style={{ color: 'var(--orange, var(--warn))', fontWeight: 500 }}>{row.value}</span> : row.value}
                         {prov && (
-                          <span style={{ display: 'inline-block', marginRight: 6, fontSize: '.64rem', fontWeight: 600, background: 'var(--blue-light, var(--chip-blue-bg))', color: 'var(--blue)', borderRadius: 99, padding: '.02rem .5rem', verticalAlign: 'middle' }}>
+                          <span className="ar-pill" style={{ display: 'inline-block', marginInlineStart: 6, verticalAlign: 'middle' }}>
                             {prov}
                           </span>
                         )}
@@ -218,7 +202,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
                 {docs.map((d, i) => (
-                  <tr key={d.code} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--gray-100)' }}>
+                  <tr key={d.code} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--hairline-2)' }}>
                     <td style={{ padding: '.35rem .2rem', fontSize: '14px' }}>{d.name}</td>
                     <td style={{ padding: '.35rem .2rem', fontSize: '12px', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{d.from}</td>
                   </tr>

@@ -190,8 +190,8 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
               key={c.key}
               style={{
                 display: 'flex', alignItems: 'center', gap: '.7rem', flexWrap: 'wrap',
-                border: '1.5px solid var(--gray-200)', borderRadius: 11,
-                padding: '.7rem .9rem', marginBottom: '.55rem', background: 'var(--card)',
+                border: '1px solid var(--hairline-2)', borderRadius: 'var(--r-panel)',
+                padding: '.7rem .9rem', marginBottom: '.55rem', background: 'transparent',
               }}
             >
               <span style={{ fontSize: '20px' }}>{c.icon}</span>
@@ -230,7 +230,7 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
         })}
 
         {availableNewTiles.length > 0 && (
-          <div style={{ border: '1.5px dashed var(--gray-300)', borderRadius: 11, padding: '.8rem .9rem', marginTop: '.8rem' }}>
+          <div style={{ border: '1px dashed var(--hairline-1)', borderRadius: 'var(--r-panel)', padding: '.8rem .9rem', marginTop: '.8rem' }}>
             <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '.45rem' }}>משהו חדש ב-{taxYear}?</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
               {availableNewTiles.map((t) => {

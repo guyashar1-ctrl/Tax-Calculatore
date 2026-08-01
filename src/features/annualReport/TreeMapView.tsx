@@ -137,14 +137,9 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
               <button
                 key={t.value}
                 type="button"
-                className="btn btn-sm"
+                className={`tm-tile ${on ? 'is-on' : ''}`}
+                aria-pressed={on}
                 onClick={() => setSimTiles((prev) => on ? prev.filter((v) => v !== t.value) : [...prev, t.value])}
-                style={{
-                  border: on ? '1.5px solid var(--blue)' : '1.5px solid var(--gray-200)',
-                  background: on ? 'var(--blue-light, var(--chip-blue-bg))' : 'var(--card)',
-                  color: on ? 'var(--blue)' : 'var(--gray-500)',
-                  fontWeight: 600,
-                }}
               >
                 {t.label}
               </button>
@@ -196,46 +191,28 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
             if (nodes.length === 0) return null;
             const chapterAlive = liveChapters.includes(ch);
             return (
-              <div
-                key={ch}
-                style={{
-                  display: 'flex', gap: '.6rem', alignItems: 'flex-start',
-                  opacity: chapterAlive ? 1 : 0.45,
-                  background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 10,
-                  padding: '.6rem .8rem',
-                }}
-              >
-                <div style={{ minWidth: 118, paddingTop: 4 }}>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: chapterAlive ? 'var(--gray-800)' : 'var(--gray-400)' }}>
-                    {CHAPTER_LABELS[ch]}
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--gray-400)' }} className="num">
+              /* פרק = שורה עם קו, לא כרטיס. הצומת עצמו נשאר גלולה, כי
+                 שם המצב (חיה / נגזמה / נענתה / נבחרה) הוא-הוא המידע. */
+              <div key={ch} className={`tm-chapter ${chapterAlive ? '' : 'is-pruned'}`}>
+                <div className="tm-chapter-label">
+                  <div className="tm-chapter-name">{CHAPTER_LABELS[ch]}</div>
+                  <div className="tm-chapter-count num">
                     {nodes.length} שאלות{!chapterAlive && ' · נגזם'}
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.35rem', flex: 1 }}>
+                <div className="tm-nodes">
                   {nodes.map((node) => {
                     const alive = nodeAlive(node);
                     const selected = node.id === selectedNodeId;
                     const visited = overlayAnswered.has(node.id);
+                    const state = selected ? 'selected' : visited ? 'visited' : alive ? 'alive' : 'pruned';
                     return (
                       <button
                         key={node.id}
                         type="button"
                         onClick={() => setSelectedNodeId(node.id)}
                         title={node.question}
-                        style={{
-                          fontFamily: 'inherit', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-                          padding: '.3rem .55rem', borderRadius: 7, maxWidth: 190,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          border: selected ? '2px solid var(--blue)'
-                            : visited ? '2px solid var(--green)'
-                            : alive ? '1.5px solid var(--gray-300)' : '1.5px dashed var(--gray-200)',
-                          background: selected ? 'var(--blue-light, var(--chip-blue-bg))'
-                            : visited ? 'var(--chip-green-bg)'
-                            : alive ? 'var(--card)' : 'var(--gray-50)',
-                          color: alive ? 'var(--gray-700)' : 'var(--gray-400)',
-                        }}
+                        className={`tm-node is-${state}`}
                       >
                         {visited && '✓ '}{shortLabel(node)}
                       </button>
@@ -246,9 +223,9 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
             );
           })}
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '.2rem .2rem' }}>
-            <span><span style={{ display: 'inline-block', width: 10, height: 10, border: '1.5px solid var(--gray-300)', borderRadius: 3, verticalAlign: -1 }} /> שאלה חיה בסימולציה</span>
-            <span><span style={{ display: 'inline-block', width: 10, height: 10, border: '1.5px dashed var(--gray-300)', borderRadius: 3, background: 'var(--gray-50)', verticalAlign: -1 }} /> נגזמת (לא תישאל)</span>
-            <span><span style={{ display: 'inline-block', width: 10, height: 10, border: '2px solid var(--green)', borderRadius: 3, background: 'var(--chip-green-bg)', verticalAlign: -1 }} /> נענתה במסלול הלקוח</span>
+            <span><span className="tm-key is-alive" /> שאלה חיה בסימולציה</span>
+            <span><span className="tm-key is-pruned" /> נגזמת (לא תישאל)</span>
+            <span><span className="tm-key is-visited" /> נענתה במסלול הלקוח</span>
           </div>
         </div>
 
@@ -287,7 +264,7 @@ function NodeInspector({ node }: { node: QuestionNode }) {
       <div style={{ fontSize: '12px', fontWeight: 600, letterSpacing: '.05em', color: 'var(--gray-400)' }}>
         {node.chapter ? CHAPTER_LABELS[node.chapter] : ''} · {node.id}
       </div>
-      <div style={{ fontWeight: 600, fontSize: '.98rem', lineHeight: 1.45, margin: '.3rem 0 .6rem' }}>
+      <div style={{ fontWeight: 600, fontSize: 'var(--fs-15)', lineHeight: 1.45, margin: '.3rem 0 .6rem' }}>
         {node.question}
       </div>
       {node.helpText && (
@@ -299,7 +276,7 @@ function NodeInspector({ node }: { node: QuestionNode }) {
           <InspectorTitle>תשובות אפשריות</InspectorTitle>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem', marginBottom: '.4rem' }}>
             {answers.slice(0, 8).map((a, i) => (
-              <span key={i} style={{ fontSize: '12px', background: 'var(--gray-100)', borderRadius: 99, padding: '.1rem .55rem' }}>{a}</span>
+              <span key={i} className="tm-pill">{a}</span>
             ))}
           </div>
         </>
@@ -313,8 +290,8 @@ function NodeInspector({ node }: { node: QuestionNode }) {
         return (
           <div key={f.fieldNumber} style={{ padding: '.4rem 0', borderBottom: '1px dashed var(--gray-100)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
-              <span className="num" style={{ fontWeight: 600, fontSize: '13px', background: 'var(--gray-100)', borderRadius: 4, padding: '0 .4rem' }}>{codes}</span>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: layer.color, background: layer.bg, borderRadius: 99, padding: '.05rem .5rem' }}>{layer.label}</span>
+              <span className="num tm-code">{codes}</span>
+              <span className="tm-layer" style={{ color: layer.color }}>{layer.label}</span>
             </div>
             <div style={{ fontSize: '13px', marginTop: 2 }}>{f.hebrewLabel}</div>
             {f.officialRef && <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>{f.officialRef}</div>}
@@ -337,7 +314,7 @@ function NodeInspector({ node }: { node: QuestionNode }) {
           <InspectorTitle>מתעדכן בפרופיל הלקוח</InspectorTitle>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
             {Array.from(crmPaths).slice(0, 6).map((p) => (
-              <span key={p} style={{ fontSize: '12px', direction: 'ltr', background: 'var(--chip-blue-bg)', color: 'var(--chip-blue-tx)', fontWeight: 600, borderRadius: 99, padding: '.08rem .55rem' }}>{p}</span>
+              <span key={p} className="tm-pill" style={{ direction: 'ltr' }}>{p}</span>
             ))}
           </div>
         </>

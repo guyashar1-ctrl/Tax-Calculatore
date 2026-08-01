@@ -81,9 +81,10 @@ export default function QuestionCard({
                 key={opt.value}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '.6rem .9rem', border: '1px solid var(--gray-200)',
-                  borderRadius: 6, cursor: 'pointer',
-                  background: singleValue === opt.value ? 'var(--blue-light)' : 'var(--card)',
+                  padding: '.6rem .9rem',
+                  border: '1px solid ' + (singleValue === opt.value ? 'var(--ink-3)' : 'var(--hairline-1)'),
+                  borderRadius: 'var(--r-input)', cursor: 'pointer',
+                  background: 'transparent',
                 }}
               >
                 <input
@@ -120,16 +121,16 @@ export default function QuestionCard({
                   aria-pressed={checked}
                   style={{
                     textAlign: 'right', fontFamily: 'inherit', cursor: 'pointer',
-                    padding: '.85rem .95rem', borderRadius: 10,
-                    border: checked ? '2px solid var(--blue)' : '1.5px solid var(--gray-200)',
-                    background: checked ? 'var(--blue-light, var(--chip-blue-bg))' : 'var(--card)',
+                    padding: '.85rem .95rem', borderRadius: 'var(--r-input)',
+                    border: checked ? '1px solid var(--ink-2)' : '1px solid var(--hairline-1)',
+                    background: 'transparent',
                     position: 'relative', transition: 'border-color .12s, background .12s',
                   }}
                 >
                   <span style={{
                     position: 'absolute', top: 8, left: 10, width: 20, height: 20, borderRadius: '50%',
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px',
-                    background: checked ? 'var(--blue)' : 'var(--gray-100)',
+                    background: checked ? 'var(--ink-1)' : 'var(--surface-2)',
                     color: checked ? 'var(--card)' : 'transparent',
                   }}>✓</span>
                   <span style={{ fontSize: '24px', display: 'block' }}>{icon}</span>
@@ -150,9 +151,10 @@ export default function QuestionCard({
                   key={opt.value}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '.6rem .9rem', border: '1px solid var(--gray-200)',
-                    borderRadius: 6, cursor: 'pointer',
-                    background: checked ? 'var(--blue-light)' : 'var(--card)',
+                    padding: '.6rem .9rem',
+                    border: '1px solid ' + (checked ? 'var(--ink-3)' : 'var(--hairline-1)'),
+                    borderRadius: 'var(--r-input)', cursor: 'pointer',
+                    background: 'transparent',
                   }}
                 >
                   <input

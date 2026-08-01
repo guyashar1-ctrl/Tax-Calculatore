@@ -391,11 +391,11 @@ function FilterButton({ current, value, onChange, children }: {
       type="button"
       onClick={() => onChange(value)}
       style={{
-        padding: '.35rem .8rem',
-        borderRadius: 999,
-        border: '1px solid ' + (active ? 'var(--blue)' : 'var(--gray-300)'),
-        background: active ? 'var(--blue)' : 'var(--card)',
-        color: active ? 'var(--card)' : 'var(--gray-700)',
+        padding: '.3rem .7rem',
+        borderRadius: 'var(--r-chip)',
+        border: '1px solid ' + (active ? 'var(--ink-3)' : 'var(--hairline-1)'),
+        background: 'transparent',
+        color: active ? 'var(--ink-1)' : 'var(--ink-3)',
         cursor: 'pointer',
         fontSize: '14px',
         fontWeight: active ? 600 : 400,
@@ -429,13 +429,7 @@ function FieldRow({ fws }: { fws: FieldWithStatus }) {
           ) : field.value ?? <span style={{ color: 'var(--gray-400)' }}>—</span>}
         </td>
         <td style={{ padding: '.6rem' }}>
-          <span style={{
-            fontSize: '12px',
-            padding: '2px 8px',
-            borderRadius: 999,
-            background: traceBg(field.trace.kind),
-            color: traceColor(field.trace.kind),
-          }}>
+          <span className="ar-pill" style={{ color: traceColor(field.trace.kind) }}>
             {traceLabel(field.trace.kind)}
           </span>
           <button
@@ -494,13 +488,13 @@ function TaxView({ tax }: { tax: ReturnType<typeof computeTransparentTax> }) {
         <h3 className="card-title">חישוב מס שקוף — אומדן</h3>
       </div>
       <div className="card-body">
-        <p style={{ background: 'var(--chip-amber-bg)', border: '1px solid var(--warn)', borderRadius: 6, padding: '.6rem 1rem', margin: '0 0 1rem', fontSize: '14px' }}>
+        <p className="ar-note is-warn" style={{ margin: '0 0 1rem' }}>
           זהו אומדן בלבד המבוסס על תשובות השאלון. החישוב המלא יבוצע במחשבון המס לאחר העלאת טפסי 106/867 בפאזה הבאה.
         </p>
 
         {tax.warnings.length > 0 && (
-          <ul style={{ background: 'var(--chip-red-bg)', border: '1px solid var(--chip-red-bd)', borderRadius: 6, padding: '.6rem 1.5rem', margin: '0 0 1rem' }}>
-            {tax.warnings.map((w, i) => <li key={i} style={{ color: 'var(--err)' }}>{w}</li>)}
+          <ul className="ar-note is-danger" style={{ margin: '0 0 1rem', paddingInlineStart: '2rem' }}>
+            {tax.warnings.map((w, i) => <li key={i} style={{ color: 'var(--danger)' }}>{w}</li>)}
           </ul>
         )}
 
@@ -543,7 +537,4 @@ function traceLabel(k: string): string {
 }
 function traceColor(k: string): string {
   return ({ questionnaire: 'var(--chip-blue-tx)', computed: 'var(--chip-green-tx)', default: 'var(--chip-amber-tx)', empty: 'var(--tx2)' } as Record<string, string>)[k] ?? 'var(--tx2)';
-}
-function traceBg(k: string): string {
-  return ({ questionnaire: 'var(--chip-blue-bg)', computed: 'var(--chip-green-bg)', default: 'var(--chip-amber-bg)', empty: 'var(--s2)' } as Record<string, string>)[k] ?? 'var(--s2)';
 }
