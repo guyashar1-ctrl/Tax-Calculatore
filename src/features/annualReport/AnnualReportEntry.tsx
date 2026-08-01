@@ -115,8 +115,12 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <div style={{ flex: '1 1 350px', minWidth: 280 }}>
+          {/* בחירת הלקוח תופסת שורה שלמה, ושנת המס וההתחלה יורדות מתחתיה.
+              קודם הן ישבו לצידה ב-‎align-items: flex-end‎, ולכן רשימת
+              הלקוחות הארוכה דחפה אותן להיצמד לשורה האחרונה שלה — שני
+              פקדים שמפעילים את הבחירה, מנותקים ממנה ויזואלית. */}
+          <div style={{ display: 'flex', gap: '1.25rem 1.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: '1 1 100%', minWidth: 280 }}>
               <label style={{ display: 'block', fontWeight: 600, marginBottom: '.4rem' }}>בחר לקוח</label>
               <input
                 type="text"

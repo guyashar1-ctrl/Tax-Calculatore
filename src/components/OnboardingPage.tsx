@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ClientPageState from './ui/ClientPageState';
 import { supabase } from '../lib/supabase';
 import {
   OnboardingSecondaryType,
@@ -265,17 +266,18 @@ export default function OnboardingPage({ token }: Props) {
   }
 
   if (phase === 'loading') {
-    return <div style={page}><div style={{ ...card, textAlign: 'center', color: '#6B6B68' }}>טוען…</div></div>;
+    return <ClientPageState quiet body="טוען…" />;
   }
 
   if (phase === 'invalid') {
     return (
-      <div style={page}>
-        <div style={{ ...card, textAlign: 'center' }}>
-          <div style={{ fontSize: 18, fontWeight: 500, marginBottom: 6, color: '#111' }}>הקישור אינו תקין</div>
-          <div style={{ fontSize: 13.5, color: '#6B6B68', lineHeight: 1.6 }}>ייתכן שהקישור פג או שגוי. אנא פנו למשרד לקבלת קישור חדש.</div>
-        </div>
-      </div>
+      /* אותו מסך מצב של עמוד ההצעה ועמוד החתימה — הלקוח עובר בין
+         שלושתם באותו תהליך ולא אמור לראות שלושה כרטיסים שונים. */
+      <ClientPageState
+        mark="🔗"
+        title="הקישור אינו תקין"
+        body="ייתכן שהקישור פג או שגוי. אנא פנו למשרד לקבלת קישור חדש."
+      />
     );
   }
 
