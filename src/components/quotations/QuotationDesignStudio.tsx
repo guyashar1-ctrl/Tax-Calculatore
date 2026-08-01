@@ -82,17 +82,18 @@ export default function QuotationDesignStudio({ profile, onChange }: Props) {
                   key={p.id} onClick={() => applyPreset(p.id)} title={p.description}
                   aria-pressed={selected}
                   style={{
-                    textAlign: 'start', padding: 9, borderRadius: 10, cursor: 'pointer',
-                    background: 'white', fontFamily: 'inherit',
-                    border: selected ? `1.5px solid ${p.accent}` : '1px solid var(--gray-200)',
-                    boxShadow: selected ? `0 0 0 3px ${p.accent}22` : 'none',
-                    transition: 'box-shadow .12s, border-color .12s',
+                    textAlign: 'start', padding: 9, borderRadius: 'var(--r-input)', cursor: 'pointer',
+                    background: 'transparent', fontFamily: 'inherit',
+                    /* שלוש משבצות הצבע הן התצוגה של התבנית — הן שנושאות
+                       את הזהות. הכפתור עצמו נשאר שקוף, והבחירה מסומנת בקו. */
+                    border: selected ? '1px solid var(--ink-2)' : '1px solid var(--hairline-1)',
+                    transition: 'border-color .12s',
                   }}
                 >
                   <span style={{ display: 'flex', gap: 4, marginBottom: 7 }}>
                     <span style={{ width: 20, height: 20, borderRadius: 5, background: p.ink }} />
                     <span style={{ width: 20, height: 20, borderRadius: 5, background: p.accent }} />
-                    <span style={{ width: 20, height: 20, borderRadius: 5, background: p.pageBg, border: '1px solid var(--gray-200)' }} />
+                    <span style={{ width: 20, height: 20, borderRadius: 5, background: p.pageBg, border: '1px solid var(--hairline-1)' }} />
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 600, display: 'block' }}>{p.label}</span>
                 </button>
@@ -130,7 +131,7 @@ export default function QuotationDesignStudio({ profile, onChange }: Props) {
           </Field>
         </Group>
 
-        <p style={{ fontSize: 11.5, color: 'var(--gray-500)', lineHeight: 1.65, margin: 0 }}>
+        <p className="ds-hint">
           העיצוב חל על עמוד ההצעה, בקשת הייצוג וכל מייל ללקוח. הלוגו והחתימה נערכים
           בלשוניות <b>מותג</b> ו<b>חתימת מייל</b>. השינויים נשמרים עם כפתור השמירה למעלה.
         </p>
@@ -178,9 +179,9 @@ function cornerOf(d: FirmDocDesign, radius: number): CornerStyle {
 
 function Group({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section style={{ border: '1px solid var(--gray-200)', borderRadius: 12, padding: 14, background: 'white' }}>
+    <section className="ds-panel">
       <h3 style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--gray-700)', margin: 0 }}>{title}</h3>
-      {hint && <p style={{ fontSize: 11, color: 'var(--gray-500)', margin: '3px 0 0' }}>{hint}</p>}
+      {hint && <p className="ds-hint">{hint}</p>}
       <div style={{ marginTop: 12 }}>{children}</div>
     </section>
   );
@@ -200,7 +201,7 @@ function ColorField({ label, value, onChange, last }: { label: string; value: st
     <Field label={label} last={last}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <input type="color" value={toHex(value)} onChange={e => onChange(e.target.value)}
-          style={{ width: 38, height: 32, padding: 2, cursor: 'pointer', border: '1px solid var(--gray-300)', borderRadius: 6, flexShrink: 0 }} />
+          style={{ width: 38, height: 32, padding: 2, cursor: 'pointer', border: '1px solid var(--hairline-1)', borderRadius: 'var(--r-chip)', flexShrink: 0 }} />
         <input value={value} onChange={e => onChange(e.target.value)} dir="ltr"
           style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }} />
       </div>

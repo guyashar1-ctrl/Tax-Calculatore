@@ -1196,3 +1196,71 @@ table thead th {
   font-family: inherit; font-size: var(--fs-14); outline: none;
 }
 .cse-field:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   פרופיל המשרד · מסילת הניווט
+   הפריטים היו ‎<div onClick>‎ ולא היו נגישים במקלדת, והפעיל נצבע בסגול
+   שאינו קיים בשום מקום אחר במוצר. עכשיו: כפתורים, וסימון בקו ובמשקל.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fp-rail { padding-inline-end: 14px; border-inline-end: 1px solid var(--hairline-2); }
+.fp-rail-group {
+  font-size: var(--fs-12); letter-spacing: .06em; color: var(--ink-4);
+  padding: 14px 0 5px;
+}
+.fp-rail-item {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 7px 0; margin-bottom: 1px;
+  background: none; border: 0; border-inline-start: 2px solid transparent;
+  padding-inline-start: 9px; margin-inline-start: -11px;
+  cursor: pointer; font-family: inherit; font-size: var(--fs-13);
+  color: var(--ink-3); text-align: start;
+}
+.fp-rail-item:hover { color: var(--ink-1); }
+.fp-rail-item.is-active {
+  color: var(--ink-1); font-weight: 500;
+  border-inline-start-color: var(--accent);
+}
+.fp-rail-soon {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 0; color: var(--ink-quiet); font-size: var(--fs-12);
+}
+.fp-rail-soon-tag { margin-inline-start: auto; font-size: var(--fs-12); color: var(--ink-quiet); }
+
+/* ── סטודיו העיצוב ──────────────────────────────────────────────────────────
+   הפאנלים היו ‎background: 'white'‎ קבוע ולכן נשארו לבנים בערכה הכהה.
+   התצוגה המקדימה מימין נשארת ב-‎.pivo-light‎ — היא המסמך שהלקוח יראה. */
+.ds-panel { border-top: 1px solid var(--hairline-2); padding: 14px 0; }
+.ds-hint { font-size: var(--fs-12); color: var(--ink-4); line-height: 1.6; margin: 3px 0 0; }
+
+/* ── עובדים ─────────────────────────────────────────────────────────────────
+   כרטיס עובד הוא זהות אדם, לא סטטוס. המסגרת והצל יורדים; מה שמפריד
+   בין הכרטיסים הוא אוויר, ומה שמחזיק אותם יחד הוא הרשת. */
+.app .emp-card {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--hairline-2);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1rem 0;
+}
+.app .emp-card:hover { border-top-color: var(--hairline-1); }
+.app .emp-card-fullname { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); }
+.app .emp-card-role { font-size: var(--fs-12); color: var(--ink-4); }
+.app .emp-count-pill {
+  background: transparent; color: var(--ink-4);
+  font-size: var(--fs-12); font-weight: 400; padding: 0; border-radius: 0;
+  font-variant-numeric: tabular-nums;
+}
+.app .emp-card-actions { border-top: 1px solid var(--hairline-2); }
+/* "הוסף עובד" נשאר מקווקו — הקו המקווקו הוא הרמז ל"יש כאן מקום פנוי" */
+.app .emp-card-add {
+  border: 1px dashed var(--hairline-1);
+  border-radius: var(--r-panel);
+  background: transparent;
+}
+.app .emp-card-add:hover { border-color: var(--ink-4); background: var(--surface-2); }
+.app .emp-add-plus { font-size: var(--fs-24); color: var(--ink-4); font-weight: 400; }
+.app .emp-add-text { font-size: var(--fs-13); color: var(--ink-3); font-weight: 400; }
+.app .emp-card-add:hover .emp-add-plus,
+.app .emp-card-add:hover .emp-add-text { color: var(--ink-1); }
+.app .emp-form-card { background: transparent; }

@@ -13,9 +13,11 @@ import CoverageGate from './features/annualReport/CoverageGate';
 import AnnualReportOutput from './features/annualReport/AnnualReportOutput';
 import AnswersReview from './features/annualReport/AnswersReview';
 import TaxSnapshot from './features/annualReport/TaxSnapshot';
+import FirmProfileConsole from './components/FirmProfileConsole';
 import type { AnnualReportSession } from './features/annualReport/types';
 import { emptyModel } from './features/annualReport/types';
 import type { Client } from './types';
+import type { FirmProfile } from './types/firmProfile';
 
 const client = {
   id: 'harness-1', idNumber: '123456789', firstName: 'דוד', lastName: 'כהן',
@@ -35,7 +37,16 @@ const session: AnnualReportSession = {
   createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', completedAt: null,
 };
 
-const SCREENS = ['שאלון', 'מאזן כיסוי', 'פלט ומיפוי', 'סקירת תשובות', 'תמונת מצב'] as const;
+const profile: FirmProfile = {
+  id: 'harness-firm', email: 'guy@firm.co.il', fullName: 'גיא ישר', firmName: 'גיא ישר · רואה חשבון',
+  legalName: 'גיא ישר רואה חשבון בע"מ', representativeNumber: '12345', representativeType: 'רואה חשבון',
+  phone: '03-1234567', website: 'https://example.co.il', address: 'הרצל 1, תל אביב',
+  branding: { theme: 'navy', accentColor: '#3f5f8f', font: 'Heebo', monogram: 'גי', logoScale: 1 },
+  communication: { senderEmail: 'guy@firm.co.il', replyTo: 'guy@firm.co.il', preferredLanguage: 'he', emailSignature: 'בברכה,\nגיא' },
+  settings: {},
+};
+
+const SCREENS = ['שאלון', 'מאזן כיסוי', 'פלט ומיפוי', 'סקירת תשובות', 'תמונת מצב', 'פרופיל המשרד'] as const;
 
 function Harness() {
   const [screen, setScreen] = useState<(typeof SCREENS)[number]>('שאלון');
@@ -65,6 +76,9 @@ function Harness() {
           <AnswersReview session={session} clientName="דוד כהן" onStartEdit={anoop} onBackToOutput={noop} />
         )}
         {screen === 'תמונת מצב' && <TaxSnapshot client={client} sessions={[session]} />}
+        {screen === 'פרופיל המשרד' && (
+          <FirmProfileConsole profile={profile} clients={[client]} onSave={anoop} />
+        )}
       </main>
     </div>
   );

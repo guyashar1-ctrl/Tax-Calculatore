@@ -340,8 +340,8 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
         borderBottom: '1px solid var(--gray-200)',
       }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0, letterSpacing: '-.01em' }}>המשרד</h1>
-          <p style={{ fontSize: 12.5, color: 'var(--gray-500)', margin: '2px 0 0' }}>
+          <h1 style={{ fontSize: 'var(--fs-20)', fontWeight: 600, margin: 0, letterSpacing: '-.01em' }}>המשרד</h1>
+          <p style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', margin: '2px 0 0' }}>
             מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח
           </p>
         </div>
@@ -361,57 +361,48 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 
       <div style={{ display: 'grid', gridTemplateColumns: '184px 1fr', gap: 18, alignItems: 'start' }}>
 
-        {/* nav rail */}
-        <div style={{ border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 10, background: 'var(--card)' }}>
-          <div style={navGroupLabel}>המשרד</div>
-          {ACTIVE_NAV.map(item => {
-            const active = section === item.id;
-            return (
-              <div
-                key={item.id}
-                onClick={() => setSection(item.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 9, padding: '8px 9px', borderRadius: 8,
-                  cursor: 'pointer', fontSize: 13, marginBottom: 2,
-                  background: active ? 'rgba(79,70,229,.10)' : 'transparent',
-                  color: active ? ACCENT : 'var(--gray-600)',
-                  fontWeight: active ? 500 : 400,
-                }}
-              >
-                <NavIcon name={item.icon} />
-                {item.label}
-              </div>
-            );
-          })}
+        {/* מסילת הניווט. הפריטים היו ‎<div onClick>‎ ולכן לא היו נגישים
+            במקלדת; עכשיו הם כפתורים. הסימון הפעיל הוא קו וּמשקל — לא
+            רחצה בסגול שלא קיים בשום מקום אחר במוצר. */}
+        <nav className="fp-rail" aria-label="ניווט בפרופיל המשרד">
+          <div className="fp-rail-group">המשרד</div>
+          {ACTIVE_NAV.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setSection(item.id)}
+              aria-current={section === item.id ? 'page' : undefined}
+              className={`fp-rail-item ${section === item.id ? 'is-active' : ''}`}
+            >
+              <NavIcon name={item.icon} />
+              {item.label}
+            </button>
+          ))}
 
-          <div style={navGroupLabel}>צוות</div>
-          <div
+          <div className="fp-rail-group">צוות</div>
+          <button
+            type="button"
             onClick={() => setSection('employees')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 9, padding: '8px 9px', borderRadius: 8,
-              cursor: 'pointer', fontSize: 13, marginBottom: 2,
-              background: section === 'employees' ? 'rgba(79,70,229,.10)' : 'transparent',
-              color: section === 'employees' ? ACCENT : 'var(--gray-600)',
-              fontWeight: section === 'employees' ? 500 : 400,
-            }}
+            aria-current={section === 'employees' ? 'page' : undefined}
+            className={`fp-rail-item ${section === 'employees' ? 'is-active' : ''}`}
           >
             <NavIcon name="employees" />
             עובדים
-          </div>
+          </button>
 
           {SOON_GROUPS.map(g => (
             <div key={g.group}>
-              <div style={navGroupLabel}>{g.group}</div>
+              <div className="fp-rail-group">{g.group}</div>
               {g.items.map(it => (
-                <div key={it.label} title="בקרוב — עדיין לא פעיל" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 9px', color: 'var(--gray-400)', fontSize: 12.5 }}>
+                <div key={it.label} title="בקרוב — עדיין לא פעיל" className="fp-rail-soon">
                   <NavIcon name={it.icon} />
                   {it.label}
-                  <span style={{ marginInlineStart: 'auto', fontSize: 9, background: 'var(--gray-100)', color: 'var(--gray-500)', padding: '1px 5px', borderRadius: 6 }}>בקרוב</span>
+                  <span className="fp-rail-soon-tag">בקרוב</span>
                 </div>
               ))}
             </div>
           ))}
-        </div>
+        </nav>
 
         {/* content */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -423,15 +414,15 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   {logoUrl ? (
                     <img src={logoUrl} alt="לוגו המשרד" style={{ width: 58, height: 58, borderRadius: 10, objectFit: 'contain', border: '1px solid var(--gray-200)', background: 'var(--card)' }} />
                   ) : (
-                    <div style={{ width: 58, height: 58, borderRadius: '50%', border: `1.5px solid ${clientBrand.ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 500, color: clientBrand.ink }}>{monogram}</div>
+                    <div style={{ width: 58, height: 58, borderRadius: '50%', border: `1.5px solid ${clientBrand.ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--fs-17)', fontWeight: 500, color: clientBrand.ink }}>{monogram}</div>
                   )}
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 16, fontWeight: 500 }}>{draft.firmName || 'שם המשרד'}</div>
-                    <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+                    <div style={{ fontSize: 'var(--fs-15)', fontWeight: 500 }}>{draft.firmName || 'שם המשרד'}</div>
+                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2 }}>
                       {draft.representativeNumber ? `מספר מייצג ${draft.representativeNumber}` : 'מספר מייצג —'} · {draft.representativeType || 'רואה חשבון'}
                     </div>
                   </div>
-                  <button className="btn" onClick={() => setSection('branding')} style={{ fontSize: 11.5, padding: '5px 10px' }}>
+                  <button className="btn" onClick={() => setSection('branding')} style={{ fontSize: 'var(--fs-12)', padding: '5px 10px' }}>
                     <NavIcon name="photo" size={14} />{logoUrl ? 'החלף לוגו' : 'הוסף לוגו'}
                   </button>
                 </div>
@@ -470,11 +461,11 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 
               <div style={card}>
                 <div style={cardTitle}>חותמת המשרד</div>
-                <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
                   תוטבע על טפסי ייפוי הכוח החתומים, באזור החתימה של המייצג. מומלץ PNG עם רקע שקוף.
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ width: 96, height: 96, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                  <div style={{ width: 96, height: 96, borderRadius: 'var(--r-panel)', border: '1px dashed var(--hairline-1)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                     {stampSrc
                       ? <img src={stampSrc} alt="חותמת" style={{ maxWidth: '86%', maxHeight: '86%', objectFit: 'contain' }} />
                       : <span style={{ color: 'var(--gray-400)', display: 'inline-flex' }}><NavIcon name="stamp" size={26} /></span>}
@@ -491,11 +482,11 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                       />
                     </label>
                     {stampPath && (
-                      <button className="btn" onClick={() => void handleStampRemove()} disabled={stampBusy} style={{ fontSize: 12.5 }}>
+                      <button className="btn" onClick={() => void handleStampRemove()} disabled={stampBusy} style={{ fontSize: 'var(--fs-13)' }}>
                         <NavIcon name="trash" size={14} />הסר חותמת
                       </button>
                     )}
-                    <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>PNG · JPG · SVG · WEBP · עד 2MB</div>
+                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }}>PNG · JPG · SVG · WEBP · עד 2MB</div>
                   </div>
                 </div>
               </div>
@@ -505,7 +496,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   ערכים שלא תאמו את מה שהלקוח באמת רואה.) */}
               <div style={card}>
                 <div style={cardTitle}>מונוגרמה</div>
-                <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
                   ראשי התיבות שמוצגים ללקוח כשאין לוגו. אם ריק — נגזר משם המשרד.
                 </div>
                 <div style={{ maxWidth: 220 }}>
@@ -532,11 +523,11 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
             <>
             <div style={card}>
               <div style={cardTitle}>החתימה הדיגיטלית שלי</div>
-              <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
                 תמונת החתימה שלך (סריקה או צילום, רצוי PNG עם רקע שקוף). בחדר החתימה תוכל להוסיף אותה בלחיצה על כל מקום שדורש את חתימתך — בלי לצייר מחדש.
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ width: 150, height: 80, borderRadius: 12, border: '1px dashed var(--gray-300)', background: 'var(--gray-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                <div style={{ width: 150, height: 80, borderRadius: 'var(--r-panel)', border: '1px dashed var(--hairline-1)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                   {sigSrc
                     ? <img src={sigSrc} alt="חתימה" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }} />
                     : <span style={{ color: 'var(--gray-400)', display: 'inline-flex' }}><NavIcon name="signature" size={26} /></span>}
@@ -553,17 +544,17 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                     />
                   </label>
                   {signaturePath && (
-                    <button className="btn" onClick={() => void handleSignatureRemove()} disabled={sigBusy} style={{ fontSize: 12.5 }}>
+                    <button className="btn" onClick={() => void handleSignatureRemove()} disabled={sigBusy} style={{ fontSize: 'var(--fs-13)' }}>
                       <NavIcon name="trash" size={14} />הסר חתימה
                     </button>
                   )}
-                  <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>החותמת נשמרת בלשונית "מותג".</div>
+                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }}>החותמת נשמרת בלשונית "מותג".</div>
                 </div>
               </div>
             </div>
             <div style={card}>
               <div style={cardTitle}>חתימת מייל</div>
-              <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 8 }}>תופיע בתחתית כל מייל שנשלח ללקוח.</div>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 8 }}>תופיע בתחתית כל מייל שנשלח ללקוח.</div>
               <textarea
                 rows={4}
                 value={draft.communication.emailSignature ?? ''}
@@ -573,8 +564,8 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
               />
               {draft.communication.emailSignature?.trim() && (
                 <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 10.5, letterSpacing: '.05em', color: 'var(--gray-400)', marginBottom: 6 }}>תצוגה מקדימה</div>
-                  <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '12px 14px', fontSize: 12.5, lineHeight: 1.7, color: 'var(--gray-700)', whiteSpace: 'pre-line' }}>
+                  <div style={{ fontSize: 'var(--fs-12)', letterSpacing: '.05em', color: 'var(--gray-400)', marginBottom: 6 }}>תצוגה מקדימה</div>
+                  <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '12px 14px', fontSize: 'var(--fs-13)', lineHeight: 1.7, color: 'var(--gray-700)', whiteSpace: 'pre-line' }}>
                     {draft.communication.emailSignature}
                   </div>
                 </div>
@@ -586,7 +577,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
           {section === 'communication' && (
             <div style={card}>
               <div style={cardTitle}>ערוצי תקשורת</div>
-              <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
                 מכאן נשלחים המיילים ללקוחות. השם שיוצג הוא שם המשרד; התשובות יגיעו לכתובת ה-Reply-To.
               </div>
               <div style={grid2}>
@@ -597,7 +588,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   <input value={draft.communication.replyTo ?? ''} onChange={e => updComm('replyTo', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} placeholder={draft.email || 'office@example.co.il'} />
                 </Field>
               </div>
-              <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 11.5, color: 'var(--gray-600)', lineHeight: 1.6 }}>
+              <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 'var(--fs-12)', color: 'var(--gray-600)', lineHeight: 1.6 }}>
                 <NavIcon name="info" size={14} />
                 כדי לשלוח מכתובת שולח משלך צריך לאמת את הדומיין אצל ספק המייל. עד אז נשלח מכתובת מערכת עם שם המשרד שלך והתשובות אליך. כשתאמת דומיין — פשוט עדכן כאן, בלי שינוי קוד.
               </div>
@@ -632,7 +623,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 /** מצב השמירה של המסך — נקרא במבט: יש שינויים / נשמר / כמה מוגדר */
 function SaveState({ dirty, busy, savedAt, completeness }: { dirty: boolean; busy: boolean; savedAt: number | null; completeness: number }) {
   const chip: React.CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5,
+    display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-12)',
     padding: '5px 11px', borderRadius: 20, whiteSpace: 'nowrap', fontWeight: 500,
   };
   if (busy) return <span style={{ ...chip, background: 'var(--gray-100)', color: 'var(--gray-600)' }}>שומר…</span>;
@@ -653,7 +644,7 @@ function SaveState({ dirty, busy, savedAt, completeness }: { dirty: boolean; bus
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block' }}>
+    <label style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-600)', display: 'block' }}>
       {label}
       <div style={{ marginTop: 4 }}>{children}</div>
     </label>
@@ -666,27 +657,27 @@ function DesignStudioPointer({ brand, onOpen }: { brand: ReturnType<typeof deriv
   return (
     <div
       onClick={onOpen}
-      style={{ border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: '14px 16px', background: 'var(--card)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}
+      style={{ borderTop: '1px solid var(--hairline-2)', padding: '14px 0', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, width: '100%', textAlign: 'start', fontFamily: 'inherit' }}
     >
       <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
         <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.ink }} />
         <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.accent }} />
-        <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.pageBg, border: '1px solid var(--gray-200)' }} />
+        <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.pageBg, border: '1px solid var(--hairline-1)' }} />
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 500 }}>עיצוב עמודי הלקוח והמיילים</div>
-        <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginTop: 2 }}>
+        <div style={{ fontSize: 'var(--fs-13)', fontWeight: 500 }}>עיצוב עמודי הלקוח והמיילים</div>
+        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2 }}>
           תצוגה מקדימה חיה ועריכה מלאה — תבניות, צבעים, פונטים וכפתורים
         </div>
       </div>
-      <span style={{ color: ACCENT, fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>לסטודיו ←</span>
+      <span style={{ color: ACCENT, fontSize: 'var(--fs-13)', fontWeight: 500, whiteSpace: 'nowrap' }}>לסטודיו ←</span>
     </div>
   );
 }
 
-const navGroupLabel: React.CSSProperties = { fontSize: 10.5, letterSpacing: '.06em', color: 'var(--gray-400)', padding: '12px 8px 4px' };
-const card: React.CSSProperties = { border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 18, background: 'var(--card)' };
-const cardTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 500, marginBottom: 14 };
+
+const card: React.CSSProperties = { borderTop: '1px solid var(--hairline-2)', padding: '16px 0 18px' };
+const cardTitle: React.CSSProperties = { fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)', marginBottom: 14 };
 const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 };
 
 /** JSON יציב — ממיין מפתחות רקורסיבית, כדי שהשוואת שינוי לא תושפע מסדר מפתחות של jsonb. */

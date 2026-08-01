@@ -500,8 +500,8 @@ export default function QuotationBuilder({
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <button className="btn btn-ghost" onClick={handleBack}>→ חזרה</button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 20, fontWeight: 600 }}>{existing ? `עריכת הצעה ${existing.quotationNumber}` : 'הצעת מחיר חדשה'}</div>
-          <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>
+          <div style={{ fontSize: 'var(--fs-20)', fontWeight: 600 }}>{existing ? `עריכת הצעה ${existing.quotationNumber}` : 'הצעת מחיר חדשה'}</div>
+          <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', marginTop: 2 }}>
             {dirty && savedAt ? 'יש שינויים שלא נשמרו' : 'בונים, מציגים תצוגה מקדימה ושומרים — הכל במסך אחד'}
           </div>
         </div>
@@ -532,8 +532,8 @@ export default function QuotationBuilder({
             {recipient.fullName && !recipientPicker ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14.5 }}>{recipient.fullName}</div>
-                  <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+                  <div style={{ fontWeight: 600, fontSize: 'var(--fs-15)' }}>{recipient.fullName}</div>
+                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
                     {recipient.kind === 'lead' ? 'ליד' : recipient.kind === 'client' ? 'לקוח קיים' : 'ליד חדש'}
                     {recipient.email ? ` · ${recipient.email}` : ''}{recipient.phone ? ` · ${recipient.phone}` : ''}
                   </div>
@@ -555,7 +555,7 @@ export default function QuotationBuilder({
                 }}
               />
             )}
-            {openWarning && <div className="alert alert-info" style={{ marginTop: 10, fontSize: 12.5 }}>{openWarning}</div>}
+            {openWarning && <div className="alert alert-info" style={{ marginTop: 10, fontSize: 'var(--fs-13)' }}>{openWarning}</div>}
           </div>
 
           {/* תבנית */}
@@ -567,7 +567,7 @@ export default function QuotationBuilder({
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
-            <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginTop: 6 }}>בחירת תבנית טוענת שירותים מומלצים. אפשר לערוך הכל אחר כך.</div>
+            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6 }}>בחירת תבנית טוענת שירותים מומלצים. אפשר לערוך הכל אחר כך.</div>
           </div>
 
           {/* שירותים */}
@@ -582,15 +582,15 @@ export default function QuotationBuilder({
               <div style={{ border: '1px solid var(--gray-200)', borderRadius: 10, padding: 10, marginBottom: 12, background: 'var(--gray-50)' }}>
                 <input placeholder="חיפוש בקטלוג…" value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} style={{ marginBottom: 8 }} />
                 <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {catalogFiltered.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--gray-500)', padding: 8 }}>הקטלוג ריק — הגדר שירותים בהגדרות המשרד ← הצעות מחיר.</div>}
+                  {catalogFiltered.length === 0 && <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', padding: 8 }}>הקטלוג ריק — הגדר שירותים בהגדרות המשרד ← הצעות מחיר.</div>}
                   {catalogFiltered.map(s => (
                     <button key={s.id} onClick={() => addService(s)}
                       style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', border: '1px solid var(--gray-200)', borderRadius: 8, background: 'var(--card)', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
                       <span style={{ flex: 1 }}>
-                        <span style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</span>
-                        <span style={{ fontSize: 11, color: 'var(--gray-400)', marginInlineStart: 6 }}>{SERVICE_CATEGORY_LABELS[s.category]}</span>
+                        <span style={{ fontWeight: 500, fontSize: 'var(--fs-13)' }}>{s.name}</span>
+                        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)', marginInlineStart: 6 }}>{SERVICE_CATEGORY_LABELS[s.category]}</span>
                       </span>
-                      <span style={{ fontSize: 12, color: 'var(--gray-600)', fontVariantNumeric: 'tabular-nums' }}>
+                      <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-600)', fontVariantNumeric: 'tabular-nums' }}>
                         {s.defaultPrice > 0 ? formatILS(s.defaultPrice) : 'כלול'}{usedServiceIds.has(s.id) ? ' ✓' : ''}
                       </span>
                     </button>
@@ -600,7 +600,7 @@ export default function QuotationBuilder({
             )}
 
             {items.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--gray-500)', textAlign: 'center', padding: '16px 0' }}>טרם נוספו שירותים. בחר תבנית או הוסף שירות.</div>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', textAlign: 'center', padding: '16px 0' }}>טרם נוספו שירותים. בחר תבנית או הוסף שירות.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {items.map(item => (
@@ -615,12 +615,12 @@ export default function QuotationBuilder({
           {hasPriced && (
             <div style={card}>
               <div style={{ ...cardTitle, marginBottom: 6 }}>פריסת תשלומים</div>
-              <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
                 לקוח שמתחיל באמצע שנה לא משלם 12 תשלומים. כאן קובעים מתי מתחילים וכמה תשלומים — והשורות החודשיות מתעדכנות יחד.
               </div>
 
               {!hasMonthly && (
-                <div className="alert alert-info" style={{ fontSize: 12, marginBottom: 10, lineHeight: 1.55 }}>
+                <div className="alert alert-info" style={{ fontSize: 'var(--fs-12)', marginBottom: 10, lineHeight: 1.55 }}>
                   אין עדיין שורה שמשולמת בתשלומים חודשיים. בשורה שרוצים לפרוס — לחץ
                   {' '}<b>«⤶ לפרוס לתשלומים חודשיים»</b>, והמחיר שלה יהפוך למחיר שנתי שמתחלק כאן.
                 </div>
@@ -648,7 +648,7 @@ export default function QuotationBuilder({
                 </PlanChip>
               </div>
 
-              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 8, lineHeight: 1.55 }}>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 8, lineHeight: 1.55 }}>
                 בוחרים פעם אחת — וזה חל על כל השורות החודשיות בהצעה.
               </div>
             </div>
@@ -657,12 +657,12 @@ export default function QuotationBuilder({
           {/* דוחות לשנים פתוחות — לקוח שלא הגיש בשנים האחרונות */}
           <Section icon="📅" title="דוחות לשנים פתוחות"
             summary={(() => { const n = items.filter(i => i.year != null).length; return n ? `נוספו ${n} דוחות` : 'לא נדרש? דלג'; })()}>
-            <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
               בוחרים את השנים שטרם דווחו — כל שנה נוספת כשורה נפרדת בהצעה, עם מחיר, הנחה ותדירות חיוב משלה.
             </div>
 
             {annualServices.length === 0 ? (
-              <div style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)' }}>
                 אין שירות בקטגוריית "שנתי" בקטלוג. הוסף אחד בהגדרות המשרד ← הצעות מחיר.
               </div>
             ) : (
@@ -679,7 +679,7 @@ export default function QuotationBuilder({
                       <button key={y} onClick={() => togglePriorYear(y)} disabled={taken}
                         title={taken ? 'כבר נוספה להצעה' : undefined}
                         style={{
-                          padding: '5px 11px', borderRadius: 999, fontFamily: 'inherit', fontSize: 12.5,
+                          padding: '5px 11px', borderRadius: 999, fontFamily: 'inherit', fontSize: 'var(--fs-13)',
                           fontVariantNumeric: 'tabular-nums',
                           cursor: taken ? 'default' : 'pointer',
                           border: `1px solid ${on ? 'var(--blue)' : 'var(--gray-200)'}`,
@@ -708,7 +708,7 @@ export default function QuotationBuilder({
                   </label>
                 </div>
                 {priorCategory === 'monthly' && priorPriceValue > 0 && (
-                  <div style={{ marginTop: 5, fontSize: 11, color: 'var(--gray-500)' }}>
+                  <div style={{ marginTop: 5, fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
                     יתווסף כשורה חודשית ויקבל את פריסת התשלומים שלמעלה ({plan.installments} תשלומים).
                   </div>
                 )}
@@ -726,22 +726,22 @@ export default function QuotationBuilder({
           {/* שירותים עתידיים — שקיפות מחירים מראש */}
           <Section icon="🔮" title="שירותים עתידיים"
             summary={futureServices.length ? `${futureServices.length} במחירון` : 'ללא'}>
-            <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
               יוצגו ללקוח כמחירון "אם וכאשר", כדי שלא יופתע ממחיר בעתיד. לא נכלל בסכומי ההצעה.
             </div>
             {futureCandidates.length === 0 ? (
-              <div style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>כל השירותים בתשלום כבר כלולים בהצעה.</div>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)' }}>כל השירותים בתשלום כבר כלולים בהצעה.</div>
             ) : (
               <div style={{ maxHeight: 190, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {futureCandidates.map(s => (
-                  <label key={s.id} className="checkbox-row" style={{ padding: '4px 0', fontSize: 12.5 }}>
+                  <label key={s.id} className="checkbox-row" style={{ padding: '4px 0', fontSize: 'var(--fs-13)' }}>
                     <input type="checkbox" checked={futureIds.has(s.id)} onChange={() => setFutureIds(prev => {
                       const next = new Set(prev);
                       next.has(s.id) ? next.delete(s.id) : next.add(s.id);
                       return next;
                     })} />
                     <span style={{ flex: 1 }}>{s.name}</span>
-                    <span style={{ color: 'var(--gray-500)', fontSize: 11.5, whiteSpace: 'nowrap' }}>
+                    <span style={{ color: 'var(--gray-500)', fontSize: 'var(--fs-12)', whiteSpace: 'nowrap' }}>
                       {formatILS(s.defaultPrice)}{s.vatFlag ? ' + מע״מ' : ''}
                     </span>
                   </label>
@@ -760,7 +760,7 @@ export default function QuotationBuilder({
               <textarea rows={3} value={emailMessage} onChange={e => setEmailMessage(e.target.value)}
                 placeholder="למשל: אחרי שדיברנו הבנתי שהדבר הכי דחוף אצלך הוא לסגור את השנים הפתוחות — התחלתי מזה." style={{ marginTop: 4 }} />
             </label>
-            <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
+            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
               נכתבת פעם אחת ומופיעה בשני המקומות: במייל, ובעמוד ההצעה מעל המחיר.
               שתי שורות אמיתיות מהשיחה מוכיחות שההצעה לא נשלחה בהעתק-הדבק.
               המייל עצמו לא מציג מחירים — הם מחכים בעמוד ההצעה.
@@ -796,8 +796,8 @@ export default function QuotationBuilder({
           {/* פס סיכום דביק — לאן זה מסתכם, בלי לעזוב את פאנל העריכה */}
           <div style={{
             position: 'sticky', bottom: 0, zIndex: 2,
-            background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 12,
-            padding: '10px 14px', boxShadow: '0 -4px 16px rgba(0,0,0,.07)',
+            background: 'var(--surface-0)', borderTop: '1px solid var(--hairline-1)',
+            padding: '10px 0',
           }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'baseline' }}>
               <TotalChip label="חודשי" value={totals.monthly.withVat}
@@ -805,13 +805,13 @@ export default function QuotationBuilder({
               <TotalChip label="שנתי" value={totals.annual.withVat} suffix="לשנה" />
               <TotalChip label="חד־פעמי" value={totals.oneTime.withVat} />
               {totals.totalDiscount > 0 && (
-                <span style={{ fontSize: 11.5, color: 'var(--green, #059669)', marginInlineStart: 'auto' }}>
+                <span style={{ fontSize: 'var(--fs-12)', color: 'var(--green, #059669)', marginInlineStart: 'auto' }}>
                   הנחה {formatILS(Math.round(totals.totalDiscount))}
                 </span>
               )}
             </div>
             {totals.monthly.withVat > 0 && (totals.hasPartialTerm || totals.changesAfterPeriod) && (
-              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.5 }}>
                 {totals.hasPartialTerm && totals.installments && (
                   <>סה״כ בתקופה: <b>{formatILS(Math.round(totals.monthlyPeriod.withVat))}</b>
                     {plan.startMonth ? ` · ${formatMonthRange(plan.startMonth, addMonths(plan.startMonth, totals.installments - 1))}` : ''}</>
@@ -822,7 +822,7 @@ export default function QuotationBuilder({
               </div>
             )}
             {items.length === 0 && (
-              <div style={{ fontSize: 11.5, color: 'var(--gray-400)', marginTop: 4 }}>אין עדיין שירותים בהצעה.</div>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)', marginTop: 4 }}>אין עדיין שירותים בהצעה.</div>
             )}
           </div>
 
@@ -862,7 +862,7 @@ export default function QuotationBuilder({
                   <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-500)' }}>
                     <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
                     <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--gray-700)' }}>ה-PDF של ההצעה</div>
-                    <div style={{ fontSize: 13, marginBottom: 16 }}>מופק אוטומטית ותואם לעמוד ההצעה. אפשר להוריד ולבדוק:</div>
+                    <div style={{ fontSize: 'var(--fs-13)', marginBottom: 16 }}>מופק אוטומטית ותואם לעמוד ההצעה. אפשר להוריד ולבדוק:</div>
                     <button className="btn btn-primary" disabled={pdfBusy || items.length === 0} onClick={handleDownloadPdf}>
                       {pdfBusy ? 'מפיק…' : 'הורדת PDF לבדיקה'}
                     </button>
@@ -958,7 +958,7 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
     { label: 'אושרה ונחתמה', at: quotation.approvedAt, icon: '✅' },
   ];
 
-  const panel: React.CSSProperties = { background: 'var(--card, #fff)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: 14 };
+  const panel: React.CSSProperties = { borderTop: '1px solid var(--hairline-2)', padding: '14px 0' };
 
   async function copyLink() {
     if (!link) return;
@@ -976,13 +976,13 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
         {milestones.map(m => (
           <div key={m.label} style={{ ...panel, padding: '10px 12px', opacity: m.at ? 1 : .55 }}>
-            <div style={{ fontSize: 12, fontWeight: 600 }}>{m.icon} {m.label}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginTop: 3 }}>{fmt(m.at) ?? 'עדיין לא'}</div>
+            <div style={{ fontSize: 'var(--fs-12)', fontWeight: 600 }}>{m.icon} {m.label}</div>
+            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 3 }}>{fmt(m.at) ?? 'עדיין לא'}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
         סטטוס נוכחי: <b style={{ color: 'var(--gray-800)' }}>{QUOTATION_STATUS_LABELS[quotation.status]}</b>
         {reminders > 0 ? ` · נשלחו ${reminders} תזכורות` : ''}
       </div>
@@ -990,8 +990,8 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
       {/* קישור ההצעה */}
       {link && (
         <div style={{ ...panel, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>הקישור שנשלח ללקוח</div>
-          <div dir="ltr" style={{ flex: 1, minWidth: 160, fontSize: 11.5, color: 'var(--gray-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link}</div>
+          <div style={{ fontSize: 'var(--fs-12)', fontWeight: 600 }}>הקישור שנשלח ללקוח</div>
+          <div dir="ltr" style={{ flex: 1, minWidth: 160, fontSize: 'var(--fs-12)', color: 'var(--gray-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link}</div>
           <button className="btn btn-sm btn-secondary" onClick={copyLink}>{copied ? 'הועתק' : 'העתקה'}</button>
           <a className="btn btn-sm btn-ghost" href={link} target="_blank" rel="noreferrer">פתיחה ↗</a>
         </div>
@@ -1000,18 +1000,18 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
       {/* חתימת הלקוח */}
       {quotation.approvalSignature && (
         <div style={panel}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>חתימת הלקוח</div>
+          <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600, marginBottom: 8 }}>חתימת הלקוח</div>
           <div style={{ background: '#fff', border: '1px solid var(--gray-200)', borderRadius: 8, padding: 8, display: 'inline-block' }}>
             <img src={quotation.approvalSignature} alt="חתימת הלקוח" style={{ maxHeight: 90, maxWidth: '100%', display: 'block' }} />
           </div>
-          <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 6 }}>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6 }}>
             {quotation.approvalSignerName ? `נחתם על ידי ${quotation.approvalSignerName}` : 'נחתם'}
             {quotation.approvedAt ? ` · ${fmt(quotation.approvedAt)}` : ''}
           </div>
           <button className="btn btn-sm btn-secondary" style={{ marginTop: 8 }} disabled={contractBusy} onClick={downloadContract}>
             {contractBusy ? 'מפיק…' : 'הורדת ההסכם החתום (PDF)'}
           </button>
-          <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 4 }}>
             ההסכם נשמר אוטומטית במסמכי הלקוח כשהופכים את הליד ללקוח.
           </div>
         </div>
@@ -1025,11 +1025,11 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
 
       {/* יומן אירועים */}
       <div style={panel}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>יומן אירועים</div>
+        <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600, marginBottom: 6 }}>יומן אירועים</div>
         {events.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>אין אירועים עדיין.</div>
+          <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)' }}>אין אירועים עדיין.</div>
         ) : events.map((e, i) => (
-          <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 0', borderTop: i ? '1px solid var(--gray-100)' : 'none', fontSize: 12.5, alignItems: 'baseline' }}>
+          <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 0', borderTop: i ? '1px solid var(--gray-100)' : 'none', fontSize: 'var(--fs-13)', alignItems: 'baseline' }}>
             <span style={{ flex: 1 }}>
               {QUOTATION_EVENT_LABELS[e.type] ?? e.type}
               {e.note ? <span style={{ color: 'var(--gray-500)' }}> — {e.note}</span> : null}
@@ -1042,15 +1042,15 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
       {/* המייל שנשלח */}
       <div style={{ ...panel, padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--gray-200)' }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>המייל שנשלח ללקוח</div>
-          <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+          <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600 }}>המייל שנשלח ללקוח</div>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2 }}>
             נושא: {applyPlaceholders(snap?.emailSubject || quotation.emailSubject || '') || '—'}
           </div>
         </div>
         {sentEmailHtml ? (
           <iframe title="sent-email" srcDoc={sentEmailHtml} style={{ width: '100%', height: 480, border: 'none', background: '#fff' }} />
         ) : (
-          <div style={{ padding: 14, fontSize: 12.5, color: 'var(--gray-500)' }}>
+          <div style={{ padding: 14, fontSize: 'var(--fs-13)', color: 'var(--gray-500)' }}>
             ההצעה טרם נשלחה ללקוח — אין העתק שמור של מייל.
           </div>
         )}
@@ -1162,12 +1162,12 @@ function RecipientEditor({ leads, clients, value, onPick }: {
                   </optgroup>
                 )}
               </select>
-              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
                 ליד שכבר הפך ללקוח מופיע פעם אחת בלבד — ברשימת הלקוחות.
               </div>
             </>
           ) : (
-            <div style={{ fontSize: 12.5, color: 'var(--gray-500)', padding: 6, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', padding: 6, lineHeight: 1.6 }}>
               אין עדיין לידים או לקוחות. אפשר לפתוח ליד חדש בטאב שלצד.
             </div>
           )}
@@ -1193,7 +1193,7 @@ function RecipientEditor({ leads, clients, value, onPick }: {
                   <input placeholder="מייל הרו״ח הקודם" value={prev.email} onChange={e => setPrev(v => ({ ...v, email: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
                   <input placeholder="טלפון" value={prev.phone} onChange={e => setPrev(v => ({ ...v, phone: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר, נכין מכתב שחרור לרו״ח הקודם.</div>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר, נכין מכתב שחרור לרו״ח הקודם.</div>
               </div>
             )}
           </div>
@@ -1269,11 +1269,11 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         {/* שורה חופשית (בלי serviceId) — השם נערך ישירות כאן */}
         {item.serviceId ? (
-          <span style={{ flex: 1, fontWeight: 600, fontSize: 13.5 }}>{itemDisplayName(item)}</span>
+          <span style={{ flex: 1, fontWeight: 600, fontSize: 'var(--fs-14)' }}>{itemDisplayName(item)}</span>
         ) : (
           <input value={item.name} placeholder="שם השירות (שורה חופשית) *" autoFocus={!item.name}
             onChange={e => onChange({ name: e.target.value })}
-            style={{ flex: 1, fontWeight: 600, fontSize: 13.5, padding: '.3rem .5rem' }} />
+            style={{ flex: 1, fontWeight: 600, fontSize: 'var(--fs-14)', padding: '.3rem .5rem' }} />
         )}
         <button className="btn btn-icon btn-ghost" onClick={onRemove} title="הסרה" style={{ color: 'var(--red)' }}>✕</button>
       </div>
@@ -1357,7 +1357,7 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
       {/* הדרך הקצרה מ"דוח שנתי 6,000 ₪" ל"5 תשלומים של 1,200 ₪": בלי זה צריך
           לדעת שקודם משנים את תדירות החיוב לחודשי, וזה לא מובן מאליו. */}
       {!isMonthly && item.category !== 'included' && item.clientPrice > 0 && (
-        <button className="btn btn-sm btn-secondary" style={{ marginTop: 6, fontSize: 11.5, padding: '3px 8px' }}
+        <button className="btn btn-sm btn-secondary" style={{ marginTop: 6, fontSize: 'var(--fs-12)', padding: '3px 8px' }}
           onClick={() => onChange({
             category: 'monthly', priceBasis: 'annual',
             annualPrice: item.clientPrice, prorationMode: 'full',
@@ -1368,7 +1368,7 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
         </button>
       )}
       {isMonthly && basis === 'annual' && isManual && (
-        <button className="btn btn-sm btn-ghost" style={{ marginTop: 4, fontSize: 11, padding: '2px 6px' }}
+        <button className="btn btn-sm btn-ghost" style={{ marginTop: 4, fontSize: 'var(--fs-12)', padding: '2px 6px' }}
           onClick={() => onChange({
             prorationMode: 'full',
             clientPrice: r2((item.annualPrice ?? 0) / installments),
@@ -1377,8 +1377,8 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
         </button>
       )}
       <PlanHint item={item} />
-      <input placeholder="הערה שתוצג ללקוח (אופציונלי)" value={item.clientNote ?? ''} onChange={e => onChange({ clientNote: e.target.value })} style={{ marginTop: 6, fontSize: 12 }} />
-      <div style={{ textAlign: 'end', marginTop: 6, fontSize: 12, color: 'var(--gray-600)' }}>
+      <input placeholder="הערה שתוצג ללקוח (אופציונלי)" value={item.clientNote ?? ''} onChange={e => onChange({ clientNote: e.target.value })} style={{ marginTop: 6, fontSize: 'var(--fs-12)' }} />
+      <div style={{ textAlign: 'end', marginTop: 6, fontSize: 'var(--fs-12)', color: 'var(--gray-600)' }}>
         {item.category === 'included' ? 'כלול' : <>סה״כ שורה: <b>{formatILS(withVat)}</b> <span style={{ color: 'var(--gray-400)' }}>כולל מע״מ</span></>}
       </div>
     </div>
@@ -1395,7 +1395,7 @@ function ClientPriceHint({ item }: { item: QuotationItem }) {
   const hasDiscount = original - final >= 1;
   return (
     <div style={{
-      marginTop: 6, fontSize: 11.5, borderRadius: 8, padding: '5px 9px', lineHeight: 1.6,
+      marginTop: 6, fontSize: 'var(--fs-12)', borderRadius: 8, padding: '5px 9px', lineHeight: 1.6,
       background: hasDiscount ? 'rgba(16,185,129,.09)' : 'var(--gray-50)',
       color: hasDiscount ? '#047857' : 'var(--gray-500)',
       border: `1px solid ${hasDiscount ? 'rgba(16,185,129,.25)' : 'var(--gray-200)'}`,
@@ -1453,7 +1453,7 @@ function PlanHint({ item }: { item: QuotationItem }) {
   const p = monthlyPlan(item);
   if (p.perPayment <= 0) return null;
   return (
-    <div style={{ marginTop: 5, fontSize: 11, color: 'var(--gray-500)', lineHeight: 1.55 }}>
+    <div style={{ marginTop: 5, fontSize: 'var(--fs-12)', color: 'var(--gray-500)', lineHeight: 1.55 }}>
       {formatILS(p.perPayment)} לחודש × {p.installments} תשלומים
       {p.startMonth && p.endMonth ? ` · ${formatMonthRange(p.startMonth, p.endMonth)}` : ''}
       {' · '}סה״כ {formatILS(Math.round(p.periodTotal))}
@@ -1477,11 +1477,11 @@ function Section({ icon, title, summary, defaultOpen = false, children }: {
     <div style={card}>
       <button onClick={() => setOpen(o => !o)}
         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'start' }}>
-        <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--gray-800, inherit)', flex: 1 }}>{icon} {title}</span>
+        <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)', flex: 1 }}>{icon} {title}</span>
         {!open && summary ? (
-          <span style={{ fontSize: 11.5, color: 'var(--gray-500)', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>
+          <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>
         ) : null}
-        <span style={{ color: 'var(--gray-400)', fontSize: 10 }}>{open ? '▲' : '▼'}</span>
+        <span className={`ed-section-caret ${open ? 'is-open' : ''}`}>▾</span>
       </button>
       {open && <div style={{ marginTop: 12 }}>{children}</div>}
     </div>
@@ -1490,11 +1490,12 @@ function Section({ icon, title, summary, defaultOpen = false, children }: {
 
 function PlanChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} style={{
-      padding: '4px 11px', borderRadius: 999, fontFamily: 'inherit', fontSize: 12, cursor: 'pointer',
-      border: `1px solid ${active ? 'var(--blue)' : 'var(--gray-200)'}`,
-      background: active ? 'var(--blue)' : 'var(--card)',
-      color: active ? '#fff' : 'var(--gray-700)', fontWeight: active ? 600 : 400,
+    <button onClick={onClick} aria-pressed={active} style={{
+      padding: '4px 11px', borderRadius: 'var(--r-chip)', fontFamily: 'inherit',
+      fontSize: 'var(--fs-12)', cursor: 'pointer',
+      border: `1px solid ${active ? 'var(--ink-3)' : 'var(--hairline-1)'}`,
+      background: 'transparent',
+      color: active ? 'var(--ink-1)' : 'var(--ink-3)', fontWeight: active ? 600 : 400,
       fontVariantNumeric: 'tabular-nums',
     }}>{children}</button>
   );
@@ -1503,18 +1504,21 @@ function PlanChip({ active, onClick, children }: { active: boolean; onClick: () 
 function TotalChip({ label, value, suffix }: { label: string; value: number; suffix?: string }) {
   if (value <= 0) return null;
   return (
-    <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+    <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
       {label}{' '}
-      <b style={{ fontSize: 14.5, color: 'var(--gray-800)', fontVariantNumeric: 'tabular-nums' }}>
+      <b style={{ fontSize: 'var(--fs-15)', color: 'var(--gray-800)', fontVariantNumeric: 'tabular-nums' }}>
         {formatILS(Math.round(value))}
       </b>
-      {suffix ? <span style={{ fontSize: 11, marginInlineStart: 3 }}>{suffix}</span> : null}
+      {suffix ? <span style={{ fontSize: 'var(--fs-12)', marginInlineStart: 3 }}>{suffix}</span> : null}
     </span>
   );
 }
 
-const card: React.CSSProperties ={ border: '1px solid var(--gray-200)', borderRadius: 12, padding: 16, background: 'var(--card)' };
-const cardTitle: React.CSSProperties = { fontSize: 13.5, fontWeight: 600, marginBottom: 12 };
-const fieldLabel: React.CSSProperties = { fontSize: 12, color: 'var(--gray-600)', display: 'block' };
-const miniLabel: React.CSSProperties = { fontSize: 11, color: 'var(--gray-500)', display: 'flex', flexDirection: 'column', gap: 2 };
-const miniInput: React.CSSProperties = { fontSize: 12.5, padding: '.35rem .5rem' };
+/* קבועי הסגנון של צד העריכה בלבד. הפאנל הימני (‎QuotationWebView‎) הוא
+   המסמך שהלקוח מקבל, והוא נשאר כפי שהוא — כדי שהצעות שכבר נשלחו ונחתמו
+   ייראו בדיוק כמו ביום שנשלחו. חצאי-פיקסלים הוצאו משימוש (אפיון §2). */
+const card: React.CSSProperties = { borderTop: '1px solid var(--hairline-2)', padding: '14px 0 16px' };
+const cardTitle: React.CSSProperties = { fontSize: 'var(--fs-14)', fontWeight: 600, marginBottom: 12, color: 'var(--ink-1)' };
+const fieldLabel: React.CSSProperties = { fontSize: 'var(--fs-12)', color: 'var(--ink-3)', display: 'block' };
+const miniLabel: React.CSSProperties = { fontSize: 'var(--fs-12)', color: 'var(--ink-4)', display: 'flex', flexDirection: 'column', gap: 2 };
+const miniInput: React.CSSProperties = { fontSize: 'var(--fs-13)', padding: '.35rem .5rem' };
