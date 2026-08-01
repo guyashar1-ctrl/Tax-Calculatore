@@ -699,6 +699,78 @@ table thead th {
 
 /* כותרת המשרד נשארת דביקה — השמירה חייבת להיות בהישג יד בכל מקטע */
 .fp-head { position: sticky; top: 0; z-index: 20; background: var(--surface-0); margin-bottom: 20px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   מסך מצב שהלקוח רואה
+   הרגע היחיד שבו הלקוח פוגש את המערכת בלי מיתוג המשרד — "הקישור פג"
+   קורה עוד לפני שידוע איזה משרד זה. לכן אין כאן כרטיס צף עם צל, ואין
+   מסגרת: יש נייר, עמודה אחת ממורכזת, ושלוש רמות טקסט בלבד.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cps {
+  min-height: 100vh;
+  background: var(--page);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  direction: rtl;
+  font-family: 'Heebo', system-ui, sans-serif;
+}
+.cps-inner { max-width: 44ch; text-align: center; }
+.cps-mark { font-size: var(--fs-34); line-height: 1; margin-bottom: 14px; }
+.cps-title {
+  font-size: var(--fs-20); font-weight: 600; letter-spacing: -.015em;
+  color: var(--ink-1); margin: 0 0 8px;
+}
+.cps-body { font-size: var(--fs-14); line-height: 1.7; color: var(--ink-2); text-wrap: pretty; }
+.cps-body.is-quiet { color: var(--ink-3); }
+.cps-action { margin-top: 22px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   מסך הכניסה ומסך אין-הגישה
+   זה המסך הראשון שרואים, ולכן הוא קובע מה המוצר הזה. הוא היה גרדיאנט
+   כחול־אפור עם כרטיס לבן צף וצל גדול — הניסוח הוויזואלי של 2015.
+   עכשיו: קנבס, עמודה אחת ממורכזת, ופעולה אחת. אין קופסה, כי אין ממה
+   להפריד — במסך הזה אין שום דבר אחר.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.login-screen {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--canvas);
+  padding: 2rem 1rem;
+  /* מחוץ ל-‎.app‎, ולכן צריך את גודל הגוף במפורש — אחרת יורש 16 מ-html */
+  font-size: var(--fs-14);
+}
+.login-card {
+  width: 100%; max-width: 340px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  text-align: center;
+}
+.login-brand { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 34px; }
+.login-brand-sub { font-size: var(--fs-13); color: var(--ink-3); }
+.login-logo { font-size: var(--fs-34); margin-bottom: .6rem; }
+.login-title { font-size: var(--fs-20); font-weight: 600; color: var(--ink-1); letter-spacing: -.015em; margin-bottom: .4rem; }
+.login-subtitle { font-size: var(--fs-14); line-height: 1.7; color: var(--ink-2); margin-bottom: 22px; }
+
+/* הכפתור נושא את כל המשקל של המסך, ולכן הוא מלא ורחב */
+.login-google-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 11px 16px;
+  border: 1px solid var(--hairline-1); border-radius: var(--r-input);
+  background: var(--surface-0); color: var(--ink-1);
+  font-family: inherit; font-size: var(--fs-14); font-weight: 500; cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.login-google-btn:hover:not(:disabled) { border-color: var(--ink-4); background: var(--surface-1); }
+.login-google-btn:disabled { opacity: .55; cursor: default; }
+
+.login-error {
+  margin-top: 14px; font-size: var(--fs-13); color: var(--danger);
+  border-inline-start: 2px solid var(--danger); padding-inline-start: .8rem; text-align: start;
+}
+.login-footnote { margin-top: 26px; font-size: var(--fs-12); color: var(--ink-4); line-height: 1.6; }
 /* התוכן הפנימי כבר לא צף במרכז החלון — הפאנל הוא שקובע את רוחבו */
 .annual-report-page .pg-pane > div[style*="margin"] { margin-inline: 0 !important; }
 

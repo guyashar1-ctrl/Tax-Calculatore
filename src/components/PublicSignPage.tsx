@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { SignatureField, SignatureValue, Signer } from '../types';
 import { supabase } from '../lib/supabase';
 import SigningRoom from './signatureRequest/SigningRoom';
+import ClientPageState from './ui/ClientPageState';
 
 interface Session {
   signerId: string;
@@ -65,20 +66,37 @@ export default function PublicSignPage({ token }: { token: string }) {
     }
   }
 
-  const wrap = (inner: React.ReactNode) => (
-    <div style={{ minHeight: '100vh', background: 'var(--gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-      <div style={{ background: 'white', borderRadius: 16, padding: '2rem 2.25rem', maxWidth: 460, width: '100%', textAlign: 'center', boxShadow: '0 4px 18px rgba(0,0,0,.08)' }}>
-        {inner}
-      </div>
-    </div>
+  if (phase === 'loading') return <ClientPageState quiet body="טוען את המסמך…" />;
+  if (phase === 'submitting') return <ClientPageState quiet body="שולח את החתימה…" />;
+  if (phase === 'invalid') return (
+    <ClientPageState
+      mark="🔗"
+      title="הקישור אינו תקף"
+      body="ייתכן שהקישור שגוי או שהתהליך הסתיים. פנו למשרד לקבלת קישור חדש."
+    />
   );
-
-  if (phase === 'loading') return wrap(<div style={{ color: 'var(--gray-500)' }}>טוען את המסמך…</div>);
-  if (phase === 'invalid') return wrap(<><div style={{ fontSize: '2rem' }}>🔗</div><h2 style={{ margin: '.5rem 0' }}>הקישור אינו תקף</h2><p style={{ color: 'var(--gray-600)', fontSize: '.9rem' }}>ייתכן שהקישור שגוי או שהתהליך הסתיים. פנו למשרד לקבלת קישור חדש.</p></>);
-  if (phase === 'already') return wrap(<><div style={{ fontSize: '2rem' }}>✅</div><h2 style={{ margin: '.5rem 0' }}>החתימה כבר התקבלה</h2><p style={{ color: 'var(--gray-600)', fontSize: '.9rem' }}>תודה{session?.signerName ? `, ${session.signerName}` : ''}! אין צורך בפעולה נוספת.</p></>);
-  if (phase === 'done') return wrap(<><div style={{ fontSize: '2rem' }}>🎉</div><h2 style={{ margin: '.5rem 0' }}>החתימה נשלחה בהצלחה</h2><p style={{ color: 'var(--gray-600)', fontSize: '.9rem' }}>תודה{session?.signerName ? `, ${session.signerName}` : ''}! {session?.firmName || 'המשרד'} ימשיך את הטיפול ויעדכן אתכם.</p></>);
-  if (phase === 'error') return wrap(<><div style={{ fontSize: '2rem' }}>⚠</div><h2 style={{ margin: '.5rem 0' }}>משהו השתבש</h2><p style={{ color: 'var(--gray-600)', fontSize: '.9rem' }}>{errMsg}</p><button className="btn btn-primary" onClick={() => window.location.reload()}>נסו שוב</button></>);
-  if (phase === 'submitting') return wrap(<div style={{ color: 'var(--gray-500)' }}>שולח את החתימה…</div>);
+  if (phase === 'already') return (
+    <ClientPageState
+      mark="✅"
+      title="החתימה כבר התקבלה"
+      body={`תודה${session?.signerName ? `, ${session.signerName}` : ''}! אין צורך בפעולה נוספת.`}
+    />
+  );
+  if (phase === 'done') return (
+    <ClientPageState
+      mark="🎉"
+      title="החתימה נשלחה בהצלחה"
+      body={`תודה${session?.signerName ? `, ${session.signerName}` : ''}! ${session?.firmName || 'המשרד'} ימשיך את הטיפול ויעדכן אתכם.`}
+    />
+  );
+  if (phase === 'error') return (
+    <ClientPageState
+      mark="⚠"
+      title="משהו השתבש"
+      body={errMsg}
+      action={<button className="btn btn-primary" onClick={() => window.location.reload()}>נסו שוב</button>}
+    />
+  );
 
   // phase === 'sign'
   if (!session || !pdfBytes) return null;
