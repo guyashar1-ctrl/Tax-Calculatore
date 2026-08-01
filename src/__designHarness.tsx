@@ -14,6 +14,8 @@ import AnnualReportOutput from './features/annualReport/AnnualReportOutput';
 import AnswersReview from './features/annualReport/AnswersReview';
 import TaxSnapshot from './features/annualReport/TaxSnapshot';
 import FirmProfileConsole from './components/FirmProfileConsole';
+import ClientForm from './components/ClientForm';
+import TaxCalculator from './components/TaxCalculator';
 import type { AnnualReportSession } from './features/annualReport/types';
 import { emptyModel } from './features/annualReport/types';
 import type { Client } from './types';
@@ -46,7 +48,7 @@ const profile: FirmProfile = {
   settings: {},
 };
 
-const SCREENS = ['שאלון', 'מאזן כיסוי', 'פלט ומיפוי', 'סקירת תשובות', 'תמונת מצב', 'פרופיל המשרד'] as const;
+const SCREENS = ['שאלון', 'מאזן כיסוי', 'פלט ומיפוי', 'סקירת תשובות', 'תמונת מצב', 'פרופיל המשרד', 'טופס לקוח', 'מחשבון'] as const;
 
 function Harness() {
   const [screen, setScreen] = useState<(typeof SCREENS)[number]>('שאלון');
@@ -79,6 +81,10 @@ function Harness() {
         {screen === 'פרופיל המשרד' && (
           <FirmProfileConsole profile={profile} clients={[client]} onSave={anoop} />
         )}
+        {screen === 'טופס לקוח' && (
+          <ClientForm client={client} onSave={noop} onCancel={noop} onOpenCalculator={noop} onOpenDocuments={noop} />
+        )}
+        {screen === 'מחשבון' && <TaxCalculator client={client} onBack={noop} />}
       </main>
     </div>
   );

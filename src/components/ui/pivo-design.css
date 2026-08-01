@@ -671,6 +671,18 @@ table thead th {
 
 /* דוח שנתי — אותה רשת של מרכז הידע */
 .annual-report-page.pg-split { grid-template-columns: 206px 1fr; gap: 32px; }
+
+/* טופס לקוח — מסילת מקטעים ופאנל, כמו התיק */
+.cf-split { display: grid; grid-template-columns: 206px 1fr; gap: 32px; align-items: start; margin-top: 20px; }
+@media (max-width: 900px) { .cf-split { grid-template-columns: 1fr; gap: 20px; } }
+
+/* בורר שנת המס בכותרת — תווית קטנה מעל, שדה רך מתחת */
+.calc-year { display: flex; align-items: center; gap: 8px; font-size: var(--fs-12); color: var(--ink-4); }
+.calc-year select {
+  border: 0; border-radius: var(--r-input); background: var(--surface-2);
+  padding: 6px 10px; font-family: inherit; font-size: var(--fs-13);
+  color: var(--ink-1); font-variant-numeric: tabular-nums;
+}
 /* התוכן הפנימי כבר לא צף במרכז החלון — הפאנל הוא שקובע את רוחבו */
 .annual-report-page .pg-pane > div[style*="margin"] { margin-inline: 0 !important; }
 

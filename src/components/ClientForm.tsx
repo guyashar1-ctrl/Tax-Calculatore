@@ -49,15 +49,15 @@ interface Props {
 
 function getTabs(isMarried: boolean, isExisting: boolean) {
   const tabs = [
-    { id: 'personal',  label: '\u{1F464} אישי' },
-    { id: 'taxType',   label: '\u{1F3E2} סיווג מס' },
-    { id: 'family',    label: '\u{1F468}\u200D\u{1F469}\u200D\u{1F467} משפחה' },
-    ...(isMarried ? [{ id: 'spouse', label: '\u{1F491} בן/בת זוג' }] : []),
-    { id: 'children',  label: '\u{1F476} ילדים' },
-    { id: 'credits',   label: '\u2B50 זיכויים' },
-    { id: 'assets',    label: '\u{1F3E0} נכסים' },
-    { id: 'notes',     label: '\u{1F4DD} הערות' },
-    ...(isExisting ? [{ id: 'tasks', label: '\u2705 משימות' }] : []),
+    { id: 'personal',  label: 'אישי' },
+    { id: 'taxType',   label: 'סיווג מס' },
+    { id: 'family',    label: 'משפחה' },
+    ...(isMarried ? [{ id: 'spouse', label: 'בן/בת זוג' }] : []),
+    { id: 'children',  label: 'ילדים' },
+    { id: 'credits',   label: 'זיכויים' },
+    { id: 'assets',    label: 'נכסים' },
+    { id: 'notes',     label: 'הערות' },
+    ...(isExisting ? [{ id: 'tasks', label: 'משימות' }] : []),
   ];
   return tabs;
 }
@@ -182,21 +182,20 @@ export default function ClientForm({
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '.75rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--gray-900)' }}>
-            {isNew ? 'לקוח חדש' : `${fullName}`}
-          </h1>
+      {/* כותרת אחת: השם, ות.ז./עיר כמשפט המצב מתחתיו.
+          פעולה ראשית אחת — "שמור". השאר משניות ולכן בלי מסגרת. */}
+      <div className="pg-head">
+        <div className="pg-head-main">
+          <div className="pg-title pg-title-lg">{isNew ? 'לקוח חדש' : fullName}</div>
           {!isNew && data.idNumber && (
-            <p style={{ fontSize: '.875rem', color: 'var(--gray-500)' }}>ת.ז. {data.idNumber} · {data.city}</p>
+            <div className="pg-status">ת.ז. {data.idNumber}{data.city ? ` · ${data.city}` : ''}</div>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+        <div className="pg-actions">
           {!isNew && (
             <>
               <button className="btn btn-secondary" onClick={() => onOpenDocuments(data)}>מסמכים</button>
-              <button className="btn btn-green btn-lg" onClick={() => onOpenCalculator(data)}>מחשבון מס</button>
+              <button className="btn btn-secondary" onClick={() => onOpenCalculator(data)}>מחשבון מס</button>
             </>
           )}
           <button className="btn btn-secondary" onClick={onCancel}>ביטול</button>
@@ -204,14 +203,22 @@ export default function ClientForm({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="tabs">
-        {TABS.map(t => (
-          <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* מסילת המקטעים — אותה שפה של התיק ושל מרכז הידע */}
+      <div className="cf-split">
+        <nav className="pg-rail" aria-label="מקטעי טופס הלקוח">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              className={`pg-rail-item ${tab === t.id ? 'is-active' : ''}`}
+              onClick={() => setTab(t.id)}
+              aria-current={tab === t.id ? 'true' : undefined}
+            >
+              <span className="pg-rail-name">{t.label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="pg-pane">
 
       {/* ── TAB: פרטים אישיים ─────────────────────────────────────────────── */}
       {tab === 'personal' && (
@@ -906,13 +913,12 @@ export default function ClientForm({
         </div>
       )}
 
-      {/* Bottom bar */}
-      <div style={{ position: 'sticky', bottom: 0, background: 'var(--card)', padding: '.75rem 1.25rem', borderTop: '1px solid var(--gray-200)', display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '1rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)' }}>
-        {!isNew && <button className="btn btn-secondary" onClick={() => onOpenDocuments(data)}>מסמכים</button>}
-        {!isNew && <button className="btn btn-green" onClick={() => onOpenCalculator(data)}>מחשבון מס</button>}
-        <button className="btn btn-secondary" onClick={onCancel}>ביטול</button>
-        <button className="btn btn-primary" onClick={handleSave}>שמור</button>
+        </div>
       </div>
+
+      {/* פס הפעולות הדביק ירד: ארבע הפעולות כבר יושבות בכותרת העמוד,
+          וכל פעולה מופיעה פעם אחת במסך. הפאנלים קצרים עכשיו, כי כל
+          מקטע נפתח לבדו — אין גלילה ארוכה שדורשת עוגן תחתון. */}
     </div>
   );
 }

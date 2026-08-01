@@ -152,29 +152,25 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '.75rem' }}>
-        <div>
-          <div style={{ fontSize: '.875rem', color: 'var(--gray-500)', marginBottom: '.25rem' }}>
-            <span style={{ cursor: 'pointer', color: 'var(--blue)' }} onClick={onBack}>← חזרה לפרטי לקוח</span>
-          </div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 600 }}>מחשבון מס — {client.firstName} {client.lastName}</h1>
-          <p style={{ fontSize: '.875rem', color: 'var(--gray-500)' }}>
-            מ"ה: <strong>{IT_LABELS[type]}</strong> · ב"ל: <strong>{NI_LABELS[client.niType]}</strong>
+      {/* כותרת אחת: שם המסך ומשפט הפרופיל מתחתיו. הפרופיל (מ"ה · ב"ל ·
+          מגדר · ילדים) הוא ההקשר שקובע כל מספר במסך, ולכן הוא משפט המצב. */}
+      <div className="pg-head">
+        <div className="pg-head-main">
+          <div className="pg-title pg-title-lg">מחשבון מס — {client.firstName} {client.lastName}</div>
+          <div className="pg-status">
+            מ"ה: {IT_LABELS[type]} · ב"ל: {NI_LABELS[client.niType]}
             {client.gender === 'female' ? ' · נקבה' : ' · זכר'}
             {client.children.length > 0 ? ` · ${client.children.length} ילדים` : ''}
-          </p>
+          </div>
+          <button type="button" className="doc-back-link" onClick={onBack}>← חזרה לפרטי לקוח</button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-          <label style={{ fontWeight: 600, color: 'var(--gray-700)' }}>שנת מס:</label>
-          <select
-            style={{ padding: '.4rem .75rem', borderRadius: 'var(--radius)', border: '1px solid var(--gray-300)', fontWeight: 600, fontSize: '1rem', color: 'var(--blue)' }}
-            value={year}
-            onChange={e => handleYearChange(+e.target.value)}
-          >
-            {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y}{taxData?.isEstimated && y === year ? ' ★' : ''}</option>)}
-          </select>
-          {taxData?.isEstimated && <span className="badge badge-orange">מוערך</span>}
+        <div className="pg-actions">
+          <label className="calc-year">
+            שנת מס
+            <select value={year} onChange={e => handleYearChange(+e.target.value)}>
+              {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y}{taxData?.isEstimated && y === year ? ' ★' : ''}</option>)}
+            </select>
+          </label>
         </div>
       </div>
 
@@ -184,7 +180,8 @@ export default function TaxCalculator({ client, onBack }: Props) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+      {/* קלט משמאל, תוצאה מימין — 30px, כמו כל מאסטר-דיטייל במערכת */}
+      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 30, alignItems: 'start' }}>
         {/* ── LEFT: Inputs ─────────────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
