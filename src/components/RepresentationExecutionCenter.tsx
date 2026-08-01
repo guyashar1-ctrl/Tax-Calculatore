@@ -67,7 +67,7 @@ function Step({ n, title, done, hint, children }: {
       <div style={{
         flex: '0 0 auto', width: 22, height: 22, borderRadius: '50%', marginTop: 1,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '.72rem', fontWeight: 700,
+        fontSize: '.72rem', fontWeight: 600,
         background: done ? 'var(--ok, #17845b)' : 'var(--gray-200)',
         color: done ? '#fff' : 'var(--gray-600)',
       }}>
@@ -98,7 +98,7 @@ function Track({ title, subtitle, done, total, tone, children }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
           <span style={{ fontSize: '1.05rem' }}>{tone}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: '.92rem' }}>{title}</div>
+            <div style={{ fontWeight: 600, fontSize: '.92rem' }}>{title}</div>
             <div style={{ fontSize: '.73rem', color: 'var(--gray-500)' }}>{subtitle}</div>
           </div>
           <span style={{
@@ -216,7 +216,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   return (
     <div id="rep-execution" className="card" style={{ marginBottom: '1rem' }}>
       <div className="card-header">
-        <div className="card-title">🎯 ביצוע הייצוג מול הרשויות</div>
+        <div className="card-title">ביצוע הייצוג מול הרשויות</div>
       </div>
       <div className="card-body">
         <p style={{ marginTop: 0, fontSize: '.83rem', color: 'var(--gray-600)', lineHeight: 1.6 }}>
@@ -237,7 +237,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               {!it.enteredAt && (
                 <button className="btn btn-secondary btn-sm" disabled={busy === 'it'}
                   onClick={() => patch({ ...exec, incomeTax: { ...it, enteredAt: new Date().toISOString() } }, 'it')}>
-                  {busy === 'it' ? 'שומר…' : '✓ סמן כהוזן'}
+                  {busy === 'it' ? 'שומר…' : 'סמן כהוזן'}
                 </button>
               )}
             </Step>
@@ -247,7 +247,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 ? `${request.signatureSetup?.pdfFileName || 'הטופס'} — מוכן לשליחה`
                 : 'העלו את קובץ ייפוי הכוח וסמנו איפה כל אחד חותם'}>
               <button className="btn btn-secondary btn-sm" onClick={onProduce}>
-                {formReady ? '↺ החלף טופס או ערוך אזורים' : '📄 העלה טופס וסמן אזורי חתימה'}
+                {formReady ? '↺ החלף טופס או ערוך אזורים' : 'העלה טופס וסמן אזורי חתימה'}
               </button>
             </Step>
 
@@ -276,21 +276,21 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 ? 'הטופס החתום מוכן להגשה'
                 : signed ? 'הלקוח חתם — נשארה החתימה והחותמת שלכם' : 'אפשרי אחרי שכל החותמים חתמו'}>
               {signed && !stamped && (
-                <button className="btn btn-green btn-sm" onClick={onStamp}>✍️ חתום + הוסף חותמת</button>
+                <button className="btn btn-green btn-sm" onClick={onStamp}>חתום + הוסף חותמת</button>
               )}
             </Step>
 
             <Step n={6} title="נשלח לשע״ם" done={sentToShaam}
               hint={stamped && !sentToShaam ? 'הגישו את הטופס החתום בשע״ם, ואז סמנו' : undefined}>
               {stamped && !sentToShaam && (
-                <button className="btn btn-green btn-sm" onClick={onMarkSentToShaam}>📤 נשלח לשע"ם</button>
+                <button className="btn btn-green btn-sm" onClick={onMarkSentToShaam}>נשלח לשע"ם</button>
               )}
             </Step>
 
             <Step n={7} title="הייצוג פעיל" done={status === 'active'}
               hint={status === 'awaiting_authorities' ? 'כשהייצוג יאושר בשע״ם — סמנו כאן' : undefined}>
               {status === 'awaiting_authorities' && (
-                <button className="btn btn-green btn-sm" onClick={onMarkActive}>✓ סמן כמיוצג פעיל</button>
+                <button className="btn btn-green btn-sm" onClick={onMarkActive}>סמן כמיוצג פעיל</button>
               )}
 
               {/* ‼ הסימון לבדו לא שולח דבר. עד היום יצא כאן מייל אוטומטית והרו"ח
@@ -309,7 +309,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                       אחרי שרואים בדיוק מה ייצא.
                     </div>
                     <button className="btn btn-secondary btn-sm" onClick={() => setPreviewActive(true)}>
-                      ✉ עדכון ללקוח — תצוגה מקדימה
+                      עדכון ללקוח — תצוגה מקדימה
                     </button>
                   </div>
                 )
@@ -343,7 +343,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             </>
           ) : (
             <div style={{ flex: '1 1 320px', minWidth: 0, border: '1px dashed var(--gray-200)', borderRadius: 'var(--radius)', padding: '1rem', color: 'var(--gray-500)', fontSize: '.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-              🛡 לא התבקש ייצוג בביטוח לאומי עבור לקוח זה.
+              לא התבקש ייצוג בביטוח לאומי עבור לקוח זה.
             </div>
           )}
         </div>
@@ -361,7 +361,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '1.05rem' }}>{exec.signatureEmailSentAt ? '✓' : '✉'}</span>
-            <span style={{ fontWeight: 700, fontSize: '.92rem' }}>
+            <span style={{ fontWeight: 600, fontSize: '.92rem' }}>
               {exec.signatureEmailSentAt ? 'המייל נשלח ללקוח' : 'שליחה ללקוח'}
             </span>
           </div>
@@ -381,7 +381,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             <div style={{ marginTop: '.7rem' }}>
               <button className="btn btn-green" disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0}
                 onClick={handleSendAll}>
-                {busy === 'send' ? 'שולח…' : `📧 שלח ללקוח${pendingSigners.length > 1 ? ` (${pendingSigners.length} חותמים)` : ''}`}
+                {busy === 'send' ? 'שולח…' : `שלח ללקוח${pendingSigners.length > 1 ? ` (${pendingSigners.length} חותמים)` : ''}`}
               </button>
               {pendingSigners.length > 0 && !niRefMissing && (
                 <>
@@ -396,13 +396,13 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                       fontSize: '.76rem', color: 'var(--blue)', textDecoration: 'underline', cursor: 'pointer',
                     }}
                   >
-                    👁 לראות מה ייצא ללקוח
+                    לראות מה ייצא ללקוח
                   </button>
                 </>
               )}
               {niRefMissing && (
                 <div style={{ margin: '.55rem auto 0', maxWidth: 460, padding: '.45rem .6rem', background: 'var(--orange-light)', borderRadius: 'var(--radius)', fontSize: '.76rem', color: 'var(--gray-800)', lineHeight: 1.6 }}>
-                  ⚠ חסום עד להזנת מספר האסמכתא{missingRefFor ? ` של ${missingRefFor}` : ''} במשבצת הביטוח הלאומי —
+                  חסום עד להזנת מספר האסמכתא{missingRefFor ? ` של ${missingRefFor}` : ''} במשבצת הביטוח הלאומי —
                   אחרת {niCoversSpouse ? 'מי שחסרה לו אסמכתא יקבל מייל בלי חלק הב״ל' : 'הלקוח יקבל מייל בלי חלק הב״ל'}.
                 </div>
               )}
@@ -474,7 +474,7 @@ function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
 
   const dLeft = daysUntil(ni.deadline);
   const deadlineTone = dLeft === null ? null
-    : dLeft < 0 ? { bg: 'var(--red-light)', fg: 'var(--red)', text: `⚠ המועד עבר לפני ${Math.abs(dLeft)} ימים — יש להזין מחדש בב"ל` }
+    : dLeft < 0 ? { bg: 'var(--red-light)', fg: 'var(--red)', text: `המועד עבר לפני ${Math.abs(dLeft)} ימים — יש להזין מחדש בב"ל` }
     : dLeft <= 14 ? { bg: 'var(--orange-light)', fg: 'var(--gray-800)', text: `⏳ נותרו ${dLeft} ימים לאישור` }
     : { bg: 'var(--gray-50)', fg: 'var(--gray-600)', text: `נותרו ${dLeft} ימים לאישור` };
 
@@ -491,7 +491,7 @@ function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
         {!ni.enteredAt && (
           <button className="btn btn-secondary btn-sm" disabled={busy === k('entered')}
             onClick={() => onPatch({ enteredAt: new Date().toISOString() }, k('entered'))}>
-            {busy === k('entered') ? 'שומר…' : '✓ סמן כהוזן'}
+            {busy === k('entered') ? 'שומר…' : 'סמן כהוזן'}
           </button>
         )}
       </Step>
@@ -547,7 +547,7 @@ function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
         {!ni.confirmedAt && (
           <button className="btn btn-secondary btn-sm" disabled={busy === k('conf')}
             onClick={() => onPatch({ confirmedAt: new Date().toISOString() }, k('conf'))}>
-            {busy === k('conf') ? 'שומר…' : '✓ סמן כאושר'}
+            {busy === k('conf') ? 'שומר…' : 'סמן כאושר'}
           </button>
         )}
       </Step>

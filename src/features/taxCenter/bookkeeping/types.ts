@@ -85,7 +85,7 @@ export interface BookkeepingAddendum {
   specialBooks?: SpecialBook[];
   /** הערות מיוחדות (הקלות פנימיות, חריגים, מסלולים מיוחדים) */
   specialNotes?: string[];
-  /** ⚠ פריטים שדורשים אימות ידני נוסף */
+  /** פריטים שדורשים אימות ידני נוסף */
   needsReview?: string[];
 }
 

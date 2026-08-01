@@ -236,7 +236,7 @@ export default function QuotationBuilder({
   const hasPriced = items.some(i => i.category !== 'included');
 
   // "יש שינויים שלא נשמרו" — נגזר מהשוואה לתמונת המצב האחרונה שנשמרה, כדי
-  // שהכפתור לא ייתקע על "✓ נשמר" בזמן שממשיכים לערוך.
+  // שהכפתור לא ייתקע על "נשמר" בזמן שממשיכים לערוך.
   const stateKey = JSON.stringify([
     recipient, items, [...futureIds].sort(), emailSubject, emailMessage,
     notesForClient, internalNotes, templateId, expiresAt, representation,
@@ -485,7 +485,7 @@ export default function QuotationBuilder({
       </button>
       <button className="btn btn-secondary" style={full ? { flex: 1 } : undefined}
         onClick={handleSave} disabled={saving || sending !== null}>
-        {saving ? 'שומר…' : !dirty && savedAt ? '✓ נשמר' : 'שמירת טיוטה'}
+        {saving ? 'שומר…' : !dirty && savedAt ? 'נשמר' : 'שמירת טיוטה'}
       </button>
       <button className="btn btn-primary" style={full ? { flex: 2 } : undefined}
         onClick={() => handleSend(false)} disabled={sending !== null || saving}>
@@ -516,8 +516,8 @@ export default function QuotationBuilder({
       {/* מתג עריכה/תצוגה — רק במסך צר (טלפון) */}
       {narrow && (
         <div className="tabs" style={{ marginBottom: 12 }}>
-          <button className={`tab ${mobilePane === 'edit' ? 'active' : ''}`} onClick={() => setMobilePane('edit')}>📝 עריכה</button>
-          <button className={`tab ${mobilePane === 'preview' ? 'active' : ''}`} onClick={() => setMobilePane('preview')}>👁 תצוגה מקדימה</button>
+          <button className={`tab ${mobilePane === 'edit' ? 'active' : ''}`} onClick={() => setMobilePane('edit')}>עריכה</button>
+          <button className={`tab ${mobilePane === 'preview' ? 'active' : ''}`} onClick={() => setMobilePane('preview')}>תצוגה מקדימה</button>
         </div>
       )}
 
@@ -528,7 +528,7 @@ export default function QuotationBuilder({
 
           {/* נמען */}
           <div style={card}>
-            <div style={cardTitle}>👤 נמען ההצעה</div>
+            <div style={cardTitle}>נמען ההצעה</div>
             {recipient.fullName && !recipientPicker ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1 }}>
@@ -560,7 +560,7 @@ export default function QuotationBuilder({
 
           {/* תבנית */}
           <div style={card}>
-            <div style={cardTitle}>📄 תבנית</div>
+            <div style={cardTitle}>תבנית</div>
             <select value={templateId ?? ''} onChange={e => applyTemplate(e.target.value)}>
               <option value="">בחירת תבנית — טעינת שירותים מומלצים…</option>
               {templates.filter(t => t.active).map(t => (
@@ -573,7 +573,7 @@ export default function QuotationBuilder({
           {/* שירותים */}
           <div style={card}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-              <div style={{ ...cardTitle, marginBottom: 0, flex: 1 }}>🧾 שירותים</div>
+              <div style={{ ...cardTitle, marginBottom: 0, flex: 1 }}>שירותים</div>
               <button className="btn btn-sm btn-secondary" onClick={addCustomItem} title="שורה ריקה עם שם ומחיר חופשיים — למה שלא קיים בקטלוג">+ שורה חופשית</button>
               <button className="btn btn-sm btn-primary" onClick={() => setCatalogOpen(o => !o)}>+ מהקטלוג</button>
             </div>
@@ -614,7 +614,7 @@ export default function QuotationBuilder({
           {/* פריסת תשלומים — חלה על כל השורות החודשיות יחד */}
           {hasPriced && (
             <div style={card}>
-              <div style={{ ...cardTitle, marginBottom: 6 }}>🗓 פריסת תשלומים</div>
+              <div style={{ ...cardTitle, marginBottom: 6 }}>פריסת תשלומים</div>
               <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
                 לקוח שמתחיל באמצע שנה לא משלם 12 תשלומים. כאן קובעים מתי מתחילים וכמה תשלומים — והשורות החודשיות מתעדכנות יחד.
               </div>
@@ -836,15 +836,15 @@ export default function QuotationBuilder({
         <div style={{ position: narrow ? 'static' : 'sticky', top: 76, display: narrow && mobilePane === 'edit' ? 'none' : undefined }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <div className="tabs" style={{ margin: 0 }}>
-              {hasTracking && <button className={`tab ${tab === 'track' ? 'active' : ''}`} onClick={() => setTab('track')}>📊 מעקב</button>}
+              {hasTracking && <button className={`tab ${tab === 'track' ? 'active' : ''}`} onClick={() => setTab('track')}>מעקב</button>}
               <button className={`tab ${tab === 'web' ? 'active' : ''}`} onClick={() => setTab('web')}>עמוד ההצעה</button>
               <button className={`tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>מייל</button>
               <button className={`tab ${tab === 'pdf' ? 'active' : ''}`} onClick={() => setTab('pdf')}>PDF</button>
             </div>
             {tab !== 'pdf' && tab !== 'track' && (
               <div className="tabs" style={{ margin: 0, marginInlineStart: 'auto' }}>
-                <button className={`tab ${device === 'desktop' ? 'active' : ''}`} onClick={() => setDevice('desktop')}>🖥️ דסקטופ</button>
-                <button className={`tab ${device === 'mobile' ? 'active' : ''}`} onClick={() => setDevice('mobile')}>📱 מובייל</button>
+                <button className={`tab ${device === 'desktop' ? 'active' : ''}`} onClick={() => setDevice('desktop')}>דסקטופ</button>
+                <button className={`tab ${device === 'mobile' ? 'active' : ''}`} onClick={() => setDevice('mobile')}>מובייל</button>
               </div>
             )}
           </div>
@@ -864,7 +864,7 @@ export default function QuotationBuilder({
                     <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--gray-700)' }}>ה-PDF של ההצעה</div>
                     <div style={{ fontSize: 13, marginBottom: 16 }}>מופק אוטומטית ותואם לעמוד ההצעה. אפשר להוריד ולבדוק:</div>
                     <button className="btn btn-primary" disabled={pdfBusy || items.length === 0} onClick={handleDownloadPdf}>
-                      {pdfBusy ? 'מפיק…' : '⬇ הורדת PDF לבדיקה'}
+                      {pdfBusy ? 'מפיק…' : 'הורדת PDF לבדיקה'}
                     </button>
                     <div style={{ marginTop: 18, display: 'inline-flex', flexDirection: 'column', gap: 4, textAlign: 'start', background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 10, padding: 16 }}>
                       {totals.monthly.withVat > 0 && <span>חודשי: <b>{formatILS(Math.round(totals.monthly.withVat))}</b></span>}
@@ -990,9 +990,9 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
       {/* קישור ההצעה */}
       {link && (
         <div style={{ ...panel, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>🔗 הקישור שנשלח ללקוח</div>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>הקישור שנשלח ללקוח</div>
           <div dir="ltr" style={{ flex: 1, minWidth: 160, fontSize: 11.5, color: 'var(--gray-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link}</div>
-          <button className="btn btn-sm btn-secondary" onClick={copyLink}>{copied ? '✓ הועתק' : 'העתקה'}</button>
+          <button className="btn btn-sm btn-secondary" onClick={copyLink}>{copied ? 'הועתק' : 'העתקה'}</button>
           <a className="btn btn-sm btn-ghost" href={link} target="_blank" rel="noreferrer">פתיחה ↗</a>
         </div>
       )}
@@ -1000,7 +1000,7 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
       {/* חתימת הלקוח */}
       {quotation.approvalSignature && (
         <div style={panel}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>✍️ חתימת הלקוח</div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>חתימת הלקוח</div>
           <div style={{ background: '#fff', border: '1px solid var(--gray-200)', borderRadius: 8, padding: 8, display: 'inline-block' }}>
             <img src={quotation.approvalSignature} alt="חתימת הלקוח" style={{ maxHeight: 90, maxWidth: '100%', display: 'block' }} />
           </div>
@@ -1009,7 +1009,7 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
             {quotation.approvedAt ? ` · ${fmt(quotation.approvedAt)}` : ''}
           </div>
           <button className="btn btn-sm btn-secondary" style={{ marginTop: 8 }} disabled={contractBusy} onClick={downloadContract}>
-            {contractBusy ? 'מפיק…' : '⬇ הורדת ההסכם החתום (PDF)'}
+            {contractBusy ? 'מפיק…' : 'הורדת ההסכם החתום (PDF)'}
           </button>
           <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>
             ההסכם נשמר אוטומטית במסמכי הלקוח כשהופכים את הליד ללקוח.
@@ -1025,7 +1025,7 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
 
       {/* יומן אירועים */}
       <div style={panel}>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>🕘 יומן אירועים</div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>יומן אירועים</div>
         {events.length === 0 ? (
           <div style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>אין אירועים עדיין.</div>
         ) : events.map((e, i) => (
@@ -1042,7 +1042,7 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
       {/* המייל שנשלח */}
       <div style={{ ...panel, padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--gray-200)' }}>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>✉️ המייל שנשלח ללקוח</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>המייל שנשלח ללקוח</div>
           <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
             נושא: {applyPlaceholders(snap?.emailSubject || quotation.emailSubject || '') || '—'}
           </div>
@@ -1400,7 +1400,7 @@ function ClientPriceHint({ item }: { item: QuotationItem }) {
       color: hasDiscount ? '#047857' : 'var(--gray-500)',
       border: `1px solid ${hasDiscount ? 'rgba(16,185,129,.25)' : 'var(--gray-200)'}`,
     }}>
-      👁 הלקוח יראה:{' '}
+      הלקוח יראה:{' '}
       {hasDiscount ? (
         <>
           <s>{formatILS(Math.round(original))}</s>{' ← '}

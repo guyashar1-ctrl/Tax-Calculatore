@@ -50,7 +50,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
              כשיש onUpdateTaxFiles אפשר להחליף את הרשום ישירות מכאן. ── */}
       {regFile && (
         <div style={{
-          padding: '.55rem .9rem', borderRadius: 9, fontSize: '.88rem', fontWeight: 700,
+          padding: '.55rem .9rem', borderRadius: 9, fontSize: '14px', fontWeight: 600,
           background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-50, var(--s2))',
           border: regFile.owner === 'spouse' ? '1.5px solid var(--chip-amber-bd)' : '1px solid var(--gray-200)',
           color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-700, #333)',
@@ -70,7 +70,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
               title="החלפת בן הזוג הרשום — נשמר מיד ומעדכן את הת.ז. של התיק"
               style={{
                 padding: '.2rem .45rem', borderRadius: 6, border: '1px solid var(--gray-300, #ccc)',
-                fontSize: '.78rem', fontWeight: 700, background: 'var(--card)', marginRight: 'auto',
+                fontSize: '13px', fontWeight: 600, background: 'var(--card)', marginRight: 'auto',
               }}
             >
               <option value="client">{clientDisplayName(client)}</option>
@@ -83,17 +83,17 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
       {/* ── תיקים ברשויות ── */}
       {taxFiles.length > 0 && (
         <div className="cw-section">
-          <div className="cw-section-head"><span>🗄️ תיקים ברשויות</span></div>
+          <div className="cw-section-head"><span>תיקים ברשויות</span></div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.45rem' }}>
             {taxFiles.map((f) => (
               <div key={f.id} style={{
                 border: '1px solid var(--gray-200)', borderRadius: 9, padding: '.4rem .7rem',
-                fontSize: '.8rem', display: 'flex', alignItems: 'center', gap: '.45rem',
+                fontSize: '13px', display: 'flex', alignItems: 'center', gap: '.45rem',
               }}>
                 <b>{TAX_AUTHORITY_LABELS[f.authority]}</b>
                 {f.fileNumber && <span className="num" dir="ltr" style={{ color: 'var(--gray-500)' }}>{f.fileNumber}</span>}
                 <span style={{
-                  fontSize: '.7rem', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 700,
+                  fontSize: '12px', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 600,
                   background: f.authority === 'income_tax' && f.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
                   color: f.authority === 'income_tax' && f.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-500)',
                 }}>
@@ -101,7 +101,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
                   {taxFileOwnerLabel(client, f.authority, f.owner)}
                 </span>
                 <span style={{
-                  fontSize: '.7rem', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 700,
+                  fontSize: '12px', borderRadius: 99, padding: '.05rem .45rem', fontWeight: 600,
                   background: f.repStatus === 'active' ? 'var(--chip-green-bg)' : f.repStatus === 'pending' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
                   color: f.repStatus === 'active' ? 'var(--ok)' : f.repStatus === 'pending' ? 'var(--warn)' : 'var(--gray-500)',
                 }}>
@@ -116,8 +116,8 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
       {/* ── תיקי שנה ── */}
       <div className="cw-section">
         <div className="cw-section-head">
-          <span>🗂️ תיקי מס לפי שנה</span>
-          {loading && <span style={{ fontSize: '.75rem', color: 'var(--gray-400)' }}>טוען…</span>}
+          <span>תיקי מס לפי שנה</span>
+          {loading && <span style={{ fontSize: '12px', color: 'var(--gray-400)' }}>טוען…</span>}
         </div>
         {sessions.length === 0 && !loading ? (
           <div className="cw-empty">עדיין לא נפתח תיק דוח שנתי ללקוח זה.</div>
@@ -135,22 +135,22 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
                     display: 'flex', alignItems: 'center', gap: '.7rem', flexWrap: 'wrap',
                   }}
                 >
-                  <span className="num" style={{ fontWeight: 800, fontSize: '1.05rem', minWidth: 52 }}>{y.taxYear}</span>
-                  <span style={{ fontSize: '.72rem', fontWeight: 700, borderRadius: 99, padding: '.12rem .6rem', color: meta.color, background: meta.bg }}>
+                  <span className="num" style={{ fontWeight: 600, fontSize: '17px', minWidth: 52 }}>{y.taxYear}</span>
+                  <span style={{ fontSize: '12px', fontWeight: 600, borderRadius: 99, padding: '.12rem .6rem', color: meta.color, background: meta.bg }}>
                     {meta.label}
                   </span>
                   <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', flex: 1 }}>
                     {y.sourceLabels.map((l, i) => (
-                      <span key={i} style={{ fontSize: '.72rem', background: 'var(--gray-100)', borderRadius: 99, padding: '.1rem .5rem' }}>{l}</span>
+                      <span key={i} style={{ fontSize: '12px', background: 'var(--gray-100)', borderRadius: 99, padding: '.1rem .5rem' }}>{l}</span>
                     ))}
                   </div>
                   {y.docsTotal > 0 && (
-                    <span className="num" style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>
-                      📎 {y.docsReceived}/{y.docsTotal} ({docPct}%)
+                    <span className="num" style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+                      {y.docsReceived}/{y.docsTotal} ({docPct}%)
                     </span>
                   )}
                   {y.openUnknowns > 0 && (
-                    <span style={{ fontSize: '.72rem', color: 'var(--warn)' }}>🤷 {y.openUnknowns} לבירור</span>
+                    <span style={{ fontSize: '12px', color: 'var(--warn)' }}>{y.openUnknowns} לבירור</span>
                   )}
                   {onOpenYear && (
                     <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenYear(y.taxYear)}>
@@ -167,12 +167,12 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
       {/* ── סכומי מפתח ── */}
       {amounts.length > 0 && (
         <div className="cw-section">
-          <div className="cw-section-head"><span>💰 סכומי מפתח שנאספו</span></div>
+          <div className="cw-section-head"><span>סכומי מפתח שנאספו</span></div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '.5rem' }}>
             {amounts.map((a, i) => (
               <div key={i} style={{ border: '1px solid var(--gray-100)', borderRadius: 9, padding: '.5rem .7rem', background: 'var(--gray-50)' }}>
-                <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>{a.label}{a.year ? ` · ${a.year}` : ''}</div>
-                <div className="num" style={{ fontWeight: 800, fontSize: '1rem' }}>{a.value}</div>
+                <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{a.label}{a.year ? ` · ${a.year}` : ''}</div>
+                <div className="num" style={{ fontWeight: 600, fontSize: '15px' }}>{a.value}</div>
               </div>
             ))}
           </div>
@@ -183,18 +183,18 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
       <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(300px, 1fr))', gap: '.9rem' }}>
         {blocks.map((b) => (
           <div key={b.key} className="cw-section" style={{ margin: 0 }}>
-            <div className="cw-section-head" style={{ fontSize: '.9rem' }}>{b.icon} {b.title}</div>
+            <div className="cw-section-head" style={{ fontSize: '14px' }}>{b.icon} {b.title}</div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
                 {b.rows.map((row, i) => {
                   const prov = provenanceLabel(client, row.metaKey);
                   return (
                     <tr key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--gray-100)' }}>
-                      <td style={{ padding: '.4rem .2rem', color: 'var(--gray-500)', fontSize: '.82rem', width: '40%', verticalAlign: 'top' }}>{row.label}</td>
-                      <td style={{ padding: '.4rem .2rem', fontSize: '.88rem', fontWeight: 600 }}>
-                        {row.missing ? <span style={{ color: 'var(--orange, var(--warn))', fontWeight: 500 }}>⚠ {row.value}</span> : row.value}
+                      <td style={{ padding: '.4rem .2rem', color: 'var(--gray-500)', fontSize: '13px', width: '40%', verticalAlign: 'top' }}>{row.label}</td>
+                      <td style={{ padding: '.4rem .2rem', fontSize: '14px', fontWeight: 600 }}>
+                        {row.missing ? <span style={{ color: 'var(--orange, var(--warn))', fontWeight: 500 }}>{row.value}</span> : row.value}
                         {prov && (
-                          <span style={{ display: 'inline-block', marginRight: 6, fontSize: '.64rem', fontWeight: 700, background: 'var(--blue-light, var(--chip-blue-bg))', color: 'var(--blue)', borderRadius: 99, padding: '.02rem .5rem', verticalAlign: 'middle' }}>
+                          <span style={{ display: 'inline-block', marginRight: 6, fontSize: '.64rem', fontWeight: 600, background: 'var(--blue-light, var(--chip-blue-bg))', color: 'var(--blue)', borderRadius: 99, padding: '.02rem .5rem', verticalAlign: 'middle' }}>
                             {prov}
                           </span>
                         )}
@@ -211,7 +211,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
       {/* ── מסמכים קבועים ── */}
       {!compact && (
         <div className="cw-section">
-          <div className="cw-section-head"><span>📎 מסמכים קבועים — נדרש כל שנה ({docs.length})</span></div>
+          <div className="cw-section-head"><span>מסמכים קבועים — נדרש כל שנה ({docs.length})</span></div>
           {docs.length === 0 ? (
             <div className="cw-empty">הרשימה תיבנה אוטומטית ככל שהפרופיל יתמלא (מעסיקים, חשבונות, נכסים...).</div>
           ) : (
@@ -219,8 +219,8 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
               <tbody>
                 {docs.map((d, i) => (
                   <tr key={d.code} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--gray-100)' }}>
-                    <td style={{ padding: '.35rem .2rem', fontSize: '.85rem' }}>{d.name}</td>
-                    <td style={{ padding: '.35rem .2rem', fontSize: '.73rem', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{d.from}</td>
+                    <td style={{ padding: '.35rem .2rem', fontSize: '14px' }}>{d.name}</td>
+                    <td style={{ padding: '.35rem .2rem', fontSize: '12px', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{d.from}</td>
                   </tr>
                 ))}
               </tbody>

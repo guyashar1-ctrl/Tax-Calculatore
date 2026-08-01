@@ -136,7 +136,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
           );
           if (result.success && result.data) {
             applyOcrToFields(result.data);
-            setOcrStatus(`✓ הפרטים חולצו ומולאו אוטומטית מ${docItemId === 'id_card' ? 'תעודת הזהות' : 'רישיון הנהיגה'}`);
+            setOcrStatus(`הפרטים חולצו ומולאו אוטומטית מ${docItemId === 'id_card' ? 'תעודת הזהות' : 'רישיון הנהיגה'}`);
             setTimeout(() => setOcrStatus(''), 4000);
           } else {
             setOcrStatus(`לא הצלחנו לחלץ פרטים אוטומטית — אנא מלא ידנית`);
@@ -216,8 +216,8 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
           <div>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--gray-900)' }}>
-              📨 בקשת ייצוג — מילוי פרטים
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--gray-900)' }}>
+              בקשת ייצוג — מילוי פרטים
             </h1>
             <p style={{ fontSize: '.875rem', color: 'var(--gray-500)', marginTop: 2 }}>
               ייפוי כוח ראשי (השעמ) מול: {authorityList}
@@ -259,12 +259,12 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
       {/* פרטים אישיים */}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div className="card-header">
-          <div className="card-title">👤 פרטים אישיים</div>
+          <div className="card-title">פרטים אישיים</div>
         </div>
         <div className="card-body">
           {geminiAvailable && (
             <div style={{ fontSize: '.8rem', color: 'var(--gray-500)', marginBottom: '.75rem' }}>
-              💡 העלאת תעודת זהות או רישיון נהיגה תמלא חלק מהפרטים אוטומטית
+              העלאת תעודת זהות או רישיון נהיגה תמלא חלק מהפרטים אוטומטית
             </div>
           )}
           <div className="form-grid form-grid-2">
@@ -323,7 +323,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
       {/* העלאת מסמכים */}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div className="card-header">
-          <div className="card-title">📎 העלאת מסמכים</div>
+          <div className="card-title">העלאת מסמכים</div>
         </div>
         <div className="card-body">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
@@ -365,7 +365,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
                       className="btn btn-ghost btn-sm"
                       onClick={() => removeUpload(doc.id)}
                       style={{ color: 'var(--red)' }}
-                    >🗑️ הסר</button>
+                    >הסר</button>
                   ) : (
                     <label className="btn btn-secondary btn-sm" style={{ margin: 0 }}>
                       {uploading === doc.id ? 'מעלה...' : '+ העלה קובץ'}
@@ -387,7 +387,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
 
       {/* ייפוי כוח + חתימה */}
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="card-header"><div className="card-title">⚖️ ייפוי כוח (טופס 2279א'5 — השעמ)</div></div>
+        <div className="card-header"><div className="card-title">ייפוי כוח (טופס 2279א'5 — השעמ)</div></div>
         <div className="card-body">
           <div
             style={{
@@ -455,7 +455,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
       {/* שליחה */}
       <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button className="btn btn-secondary" onClick={onCancel}>ביטול</button>
-        <button className="btn btn-primary btn-lg" onClick={handleSubmit}>📤 שלח את הבקשה</button>
+        <button className="btn btn-primary btn-lg" onClick={handleSubmit}>שלח את הבקשה</button>
       </div>
     </div>
   );

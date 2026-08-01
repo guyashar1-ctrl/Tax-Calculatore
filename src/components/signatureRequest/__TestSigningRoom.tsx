@@ -1,4 +1,4 @@
-// ⚠ דף בדיקה זמני — אימות "חדר החתימה" + הטבעת ה-PDF, ללא התחברות.
+// דף בדיקה זמני — אימות "חדר החתימה" + הטבעת ה-PDF, ללא התחברות.
 // נטען רק כש-URL כולל ?test-signroom=1. יוסר לאחר אימות.
 
 import { useEffect, useState } from 'react';
@@ -75,7 +75,7 @@ export default function TestSigningRoom() {
       new Uint8Array(buf).set(out);
       const blob = new Blob([buf], { type: 'application/pdf' });
       setPdfUrl(URL.createObjectURL(blob));
-      setResult(`✓ הוטבע. תקין=${head === '%PDF-'} · ${bytes.byteLength}→${out.byteLength} bytes`);
+      setResult(`הוטבע. תקין=${head === '%PDF-'} · ${bytes.byteLength}→${out.byteLength} bytes`);
       setOpen(false);
     } catch (e: any) {
       setResult('embed failed: ' + (e?.message || e));
@@ -84,14 +84,14 @@ export default function TestSigningRoom() {
 
   return (
     <div style={{ padding: '1.5rem', fontFamily: 'Heebo, sans-serif' }}>
-      <h1>🧪 בדיקה: חדר החתימה + הטבעת PDF</h1>
+      <h1>בדיקה: חדר החתימה + הטבעת PDF</h1>
       <p style={{ color: 'var(--tx2)' }}>הוסיפו <code>?test-signroom=1</code> לכתובת.</p>
       <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <button className="btn btn-secondary" onClick={() => { setMode('client'); setOpen(true); }} disabled={!bytes}>
-          👤 תצוגת הלקוח (בלי החתימות שלי)
+          תצוגת הלקוח (בלי החתימות שלי)
         </button>
         <button className="btn btn-primary" onClick={() => { setMode('accountant'); setOpen(true); }} disabled={!bytes}>
-          ✍ חדר החתימה שלי (גרירה + שינוי גודל)
+          חדר החתימה שלי (גרירה + שינוי גודל)
         </button>
       </div>
       {result && <div style={{ background: 'var(--chip-green-bg)', border: '1px solid var(--ok)', padding: '.75rem', borderRadius: 8, direction: 'ltr', textAlign: 'left' }}>{result}</div>}

@@ -163,7 +163,7 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
     <div className="modal-backdrop" style={{ alignItems: 'stretch' }}>
       <div className="modal sig-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 1060, width: '100%', display: 'flex', flexDirection: 'column', maxHeight: '96vh' }}>
         <div className="modal-header">
-          <h3>📄 הפקת טופס — סימון אזורי חתימה</h3>
+          <h3>הפקת טופס — סימון אזורי חתימה</h3>
           <button type="button" className="btn btn-ghost btn-icon" onClick={onCancel} disabled={busy}>✕</button>
         </div>
 
@@ -180,7 +180,7 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
                 borderRadius: 8,
               }}
             >
-              {c.done ? '✓' : '⚠ חסר:'} {c.label}
+              {c.done ? '✓' : 'חסר:'} {c.label}
             </span>
           ))}
         </div>
@@ -207,7 +207,7 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
         </div>
 
         {error && (
-          <div style={{ padding: '.5rem 1rem', color: 'var(--red)', fontSize: '.85rem' }}>⚠ {error}</div>
+          <div style={{ padding: '.5rem 1rem', color: 'var(--red)', fontSize: '.85rem' }}>{error}</div>
         )}
 
         <div className="modal-footer">
@@ -217,8 +217,8 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
             {busy
               ? 'שולח…'
               : ready
-              ? '📨 המשך ושלח לחתימה'
-              : `⚠ חסר: ${checklist.filter(c => !c.done).map(c => c.label).join(' · ')}`}
+              ? 'המשך ושלח לחתימה'
+              : `חסר: ${checklist.filter(c => !c.done).map(c => c.label).join(' · ')}`}
           </button>
         </div>
       </div>
@@ -228,7 +228,7 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
         <div className="modal-backdrop" style={{ zIndex: 1100 }} onClick={e => { if (e.target === e.currentTarget) setLabelDraft(null); }}>
           <div className="modal" style={{ maxWidth: 440 }}>
             <div className="modal-header">
-              <h3>🅰 טקסט על הטופס</h3>
+              <h3>טקסט על הטופס</h3>
               <button type="button" className="btn btn-ghost btn-icon" onClick={() => setLabelDraft(null)}>✕</button>
             </div>
             <div className="modal-body">

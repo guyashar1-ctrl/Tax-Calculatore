@@ -185,8 +185,8 @@ export default function ClientForm({
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '.75rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--gray-900)' }}>
-            {isNew ? '➕ לקוח חדש' : `✏️ ${fullName}`}
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--gray-900)' }}>
+            {isNew ? 'לקוח חדש' : `${fullName}`}
           </h1>
           {!isNew && data.idNumber && (
             <p style={{ fontSize: '.875rem', color: 'var(--gray-500)' }}>ת.ז. {data.idNumber} · {data.city}</p>
@@ -195,12 +195,12 @@ export default function ClientForm({
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           {!isNew && (
             <>
-              <button className="btn btn-secondary" onClick={() => onOpenDocuments(data)}>📁 מסמכים</button>
-              <button className="btn btn-green btn-lg" onClick={() => onOpenCalculator(data)}>🧮 מחשבון מס</button>
+              <button className="btn btn-secondary" onClick={() => onOpenDocuments(data)}>מסמכים</button>
+              <button className="btn btn-green btn-lg" onClick={() => onOpenCalculator(data)}>מחשבון מס</button>
             </>
           )}
           <button className="btn btn-secondary" onClick={onCancel}>ביטול</button>
-          <button className="btn btn-primary" onClick={handleSave}>💾 שמור</button>
+          <button className="btn btn-primary" onClick={handleSave}>שמור</button>
         </div>
       </div>
 
@@ -216,7 +216,7 @@ export default function ClientForm({
       {/* ── TAB: פרטים אישיים ─────────────────────────────────────────────── */}
       {tab === 'personal' && (
         <div className="card">
-          <div className="card-header"><span className="card-title">👤 פרטים אישיים</span></div>
+          <div className="card-header"><span className="card-title">פרטים אישיים</span></div>
           <div className="card-body">
             <div className="form-grid form-grid-4">
               <div className="form-group">
@@ -272,7 +272,7 @@ export default function ClientForm({
             {settlementInfo && (
               <div className="alert alert-info" style={{ marginTop: '1rem' }}>
                 <div>
-                  <strong>🏘️ זוהה יישוב מוטב אוטומטית:</strong> {settlementInfo.name} —
+                  <strong>זוהה יישוב מוטב אוטומטית:</strong> {settlementInfo.name} —
                   {' '}זיכוי {settlementInfo.ratePercent}% מההכנסה מיגיעה אישית, עד תקרה ₪{settlementInfo.ceilingAnnual.toLocaleString('he-IL')} לשנה.
                   {' '}ניתן לשנות בלשונית "זיכויים".
                 </div>
@@ -288,7 +288,7 @@ export default function ClientForm({
           {/* מס הכנסה */}
           <div className="card">
             <div className="card-header">
-              <span className="card-title">📊 סיווג מס הכנסה</span>
+              <span className="card-title">סיווג מס הכנסה</span>
               <span className="badge badge-blue">מס הכנסה</span>
             </div>
             <div className="card-body">
@@ -348,7 +348,7 @@ export default function ClientForm({
           {/* ביטוח לאומי */}
           <div className="card">
             <div className="card-header">
-              <span className="card-title">🏥 סיווג ביטוח לאומי</span>
+              <span className="card-title">סיווג ביטוח לאומי</span>
               <span className="badge badge-orange">ביטוח לאומי</span>
             </div>
             <div className="card-body">
@@ -370,7 +370,7 @@ export default function ClientForm({
               </div>
               <div className="alert alert-warning" style={{ marginTop: '1rem' }}>
                 <div>
-                  <strong>⚠️ הבדל בין הסיווגים:</strong><br />
+                  <strong>הבדל בין הסיווגים:</strong><br />
                   <strong>עצמאי (עונה להגדרה)</strong> — עובד 20+ שעות/שבוע בעסקו, או מרוויח 50%+ משכר ממוצע ממנו.<br />
                   <strong>שאינו עונה להגדרה</strong> — יש הכנסה מעסק אך אינו עומד בתנאים לעיל → משלם ב"ל מינימלי בלבד.
                 </div>
@@ -381,7 +381,7 @@ export default function ClientForm({
           {/* פנסיה לשכיר */}
           {isEmp && (
             <div className="card">
-              <div className="card-header"><span className="card-title">🏦 פנסיה (שכיר)</span></div>
+              <div className="card-header"><span className="card-title">פנסיה (שכיר)</span></div>
               <div className="card-body">
                 <div className="form-grid form-grid-3">
                   <div className="form-group">
@@ -424,7 +424,7 @@ export default function ClientForm({
           )}
           {isSE && (
             <div className="card">
-              <div className="card-header"><span className="card-title">🏦 חיסכון פנסיוני (עצמאי)</span></div>
+              <div className="card-header"><span className="card-title">חיסכון פנסיוני (עצמאי)</span></div>
               <div className="card-body">
                 <div className="form-grid form-grid-3">
                   <div className="form-group">
@@ -669,7 +669,7 @@ export default function ClientForm({
           <div style={{ display: 'grid', gridTemplateColumns: isMarried ? '1fr 1fr' : '1fr', gap: '1rem', alignItems: 'start' }}>
             {/* ──── טור ראשי ──── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--blue)', padding: '.25rem 0' }}>
+              <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--blue)', padding: '.25rem 0' }}>
                 {'\u{1F464}'} {data.firstName || 'נישום ראשי'}
               </div>
 
@@ -746,7 +746,7 @@ export default function ClientForm({
             {/* ──── טור בן/בת זוג (רק כשנשוי) ──── */}
             {isMarried && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--purple)', padding: '.25rem 0' }}>
+                <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--purple)', padding: '.25rem 0' }}>
                   {'\u{1F491}'} {sp.firstName || 'בן/בת זוג'}
                 </div>
 
@@ -822,7 +822,7 @@ export default function ClientForm({
       {/* ── TAB: נכסים ────────────────────────────────────────────────────── */}
       {tab === 'assets' && (
         <div className="card">
-          <div className="card-header"><span className="card-title">🏠 נכסי מקרקעין</span></div>
+          <div className="card-header"><span className="card-title">נכסי מקרקעין</span></div>
           <div className="card-body">
             <div className="form-grid form-grid-3">
               <div className="form-group">
@@ -851,7 +851,7 @@ export default function ClientForm({
       {/* ── TAB: הערות ────────────────────────────────────────────────────── */}
       {tab === 'notes' && (
         <div className="card">
-          <div className="card-header"><span className="card-title">📝 הערות</span></div>
+          <div className="card-header"><span className="card-title">הערות</span></div>
           <div className="card-body">
             <div className="form-group">
               <textarea rows={8} value={data.notes} onChange={e => upd('notes', e.target.value)} placeholder="הערות, תזכורות, מצבים מיוחדים..." />
@@ -865,7 +865,7 @@ export default function ClientForm({
         <div className="card">
           <div className="card-header">
             <span className="card-title">
-              ✅ משימות
+              משימות
               {openTasksCount > 0 && (
                 <span className="badge badge-blue" style={{ marginInlineStart: '.5rem' }}>
                   {openTasksCount} פתוחות
@@ -908,10 +908,10 @@ export default function ClientForm({
 
       {/* Bottom bar */}
       <div style={{ position: 'sticky', bottom: 0, background: 'var(--card)', padding: '.75rem 1.25rem', borderTop: '1px solid var(--gray-200)', display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '1rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)' }}>
-        {!isNew && <button className="btn btn-secondary" onClick={() => onOpenDocuments(data)}>📁 מסמכים</button>}
-        {!isNew && <button className="btn btn-green" onClick={() => onOpenCalculator(data)}>🧮 מחשבון מס</button>}
+        {!isNew && <button className="btn btn-secondary" onClick={() => onOpenDocuments(data)}>מסמכים</button>}
+        {!isNew && <button className="btn btn-green" onClick={() => onOpenCalculator(data)}>מחשבון מס</button>}
         <button className="btn btn-secondary" onClick={onCancel}>ביטול</button>
-        <button className="btn btn-primary" onClick={handleSave}>💾 שמור</button>
+        <button className="btn btn-primary" onClick={handleSave}>שמור</button>
       </div>
     </div>
   );
@@ -1105,7 +1105,7 @@ function CreditSummary({ client, isMarried, sp, currentYear }: {
       <div className="card-body">
         <div style={{ display: 'grid', gridTemplateColumns: isMarried ? '1fr 1fr' : '1fr', gap: '1.25rem' }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '.875rem', marginBottom: '.5rem', color: 'var(--gray-800)' }}>
+            <div style={{ fontWeight: 600, fontSize: '.875rem', marginBottom: '.5rem', color: 'var(--gray-800)' }}>
               {'\u{1F464}'} {client.firstName || 'נישום ראשי'} ({client.gender === 'female' ? 'נקבה' : 'זכר'})
             </div>
             <div className="table-wrap">
@@ -1130,7 +1130,7 @@ function CreditSummary({ client, isMarried, sp, currentYear }: {
 
           {isMarried && (
             <div>
-              <div style={{ fontWeight: 700, fontSize: '.875rem', marginBottom: '.5rem', color: 'var(--gray-800)' }}>
+              <div style={{ fontWeight: 600, fontSize: '.875rem', marginBottom: '.5rem', color: 'var(--gray-800)' }}>
                 {'\u{1F491}'} {sp.firstName || 'בן/בת זוג'} ({sp.gender === 'female' ? 'נקבה' : 'זכר'})
               </div>
               <div className="table-wrap">

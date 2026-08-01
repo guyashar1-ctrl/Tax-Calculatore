@@ -125,7 +125,7 @@ const PATHS: Array<{ label: string; answers: Record<string, AnswerValue> }> = [
 let pathReport = '';
 for (const p of PATHS) {
   const steps = walkPath(p.label, p.answers);
-  pathReport += `  ✓ ${p.label}: ${steps} שאלות (כולל מדולגות)\n`;
+  pathReport += `  ${p.label}: ${steps} שאלות (כולל מדולגות)\n`;
 }
 
 // ─── פלט ───────────────────────────────────────────────────────────────────
@@ -136,9 +136,9 @@ console.log(`\n═══ בדיקת שלמות 1301 ═══`);
 console.log(`שאלות בעץ: ${nodeIds.size} | שדות ברישום: ${fieldNumbers.size}`);
 console.log(`צפי לשכיר פשוט: ~${estimateTotalQuestions({ ...emptyModel(2025), income: { sources: ['salary'] } } as TaxpayerModel)} שאלות`);
 console.log(pathReport);
-if (warns.length) { console.log(`⚠ אזהרות (${warns.length}):`); warns.forEach((w) => console.log('  - ' + w.msg)); }
+if (warns.length) { console.log(`אזהרות (${warns.length}):`); warns.forEach((w) => console.log('  - ' + w.msg)); }
 if (errors.length) {
-  console.log(`✗ שגיאות (${errors.length}):`); errors.forEach((e) => console.log('  - ' + e.msg));
+  console.log(`שגיאות (${errors.length}):`); errors.forEach((e) => console.log('  - ' + e.msg));
   process.exit(1);
 }
-console.log('✓ אין שגיאות עקביות');
+console.log('אין שגיאות עקביות');

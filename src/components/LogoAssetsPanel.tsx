@@ -182,7 +182,7 @@ function LogoSizeControl({ scale, disabled, onChange }: { scale: number; disable
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, minWidth: 58, textAlign: 'center', color: 'var(--br)' }}>
+          <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 600, minWidth: 58, textAlign: 'center', color: 'var(--br)' }}>
             {pct}%
           </span>
           {pct !== 100 && (

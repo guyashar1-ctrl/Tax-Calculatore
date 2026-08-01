@@ -255,7 +255,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                 style={{ flex: '1 1 130px', justifyContent: 'center' }}
                 onClick={async () => { try { await navigator.clipboard.writeText(result.link); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ } }}
               >
-                {copied ? '✓ הועתק' : '\u{1F517} העתקת קישור'}
+                {copied ? 'הועתק' : '\u{1F517} העתקת קישור'}
               </button>
             </div>
 

@@ -120,7 +120,7 @@ export default function SignaturePad({ value, onChange, height = 180 }: Props) {
               pointerEvents: 'none',
             }}
           >
-            ✍️ חתום כאן
+            חתום כאן
           </div>
         )}
       </div>

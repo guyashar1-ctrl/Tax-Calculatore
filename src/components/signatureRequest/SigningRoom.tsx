@@ -153,7 +153,7 @@ export default function SigningRoom(p: Props) {
       <div className="modal-backdrop" onClick={p.onCancel}>
         <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
           <div className="modal-header"><h3>שגיאה בטעינת המסמך</h3></div>
-          <div className="modal-body"><div style={{ color: 'var(--red)' }}>⚠ {loadError}</div></div>
+          <div className="modal-body"><div style={{ color: 'var(--red)' }}>{loadError}</div></div>
           <div className="modal-footer"><button className="btn btn-secondary" onClick={p.onCancel}>סגור</button></div>
         </div>
       </div>
@@ -167,7 +167,7 @@ export default function SigningRoom(p: Props) {
         {/* כותרת + התקדמות */}
         <div className="modal-header" style={{ borderBottom: `3px solid ${activeColor}` }}>
           <div>
-            <h3 style={{ margin: 0 }}>{p.title || '✍ חתימה על המסמך'}</h3>
+            <h3 style={{ margin: 0 }}>{p.title || 'חתימה על המסמך'}</h3>
             <div style={{ fontSize: '.82rem', color: 'var(--gray-600)', marginTop: 2 }}>
               {activeSigner?.name ? <>חותם/ת: <strong style={{ color: activeColor }}>{activeSigner.name}</strong> · </> : null}
               נחתמו {doneCount} מתוך {myFields.length}
@@ -234,7 +234,7 @@ export default function SigningRoom(p: Props) {
             disabled={!allDone}
             onClick={() => p.onComplete(values, fields)}
           >
-            {allDone ? '✓ סיום וחתימה' : `נותרו ${myFields.length - doneCount} מקומות`}
+            {allDone ? 'סיום וחתימה' : `נותרו ${myFields.length - doneCount} מקומות`}
           </button>
         </div>
       </div>
@@ -393,7 +393,7 @@ function SigningPage(p: PageProps) {
                 height: `${f.heightPct * 100}%`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 pointerEvents: 'none',
-                fontWeight: 700, color: '#111',
+                fontWeight: 600, color: '#111',
                 fontSize: f.kind === 'label' ? '.72rem' : '1rem',
                 lineHeight: 1.1, overflow: 'hidden', textAlign: 'center',
               }}
@@ -449,7 +449,7 @@ function SigningPage(p: PageProps) {
                 : <span style={{ fontSize: '.7rem', color: '#111', lineHeight: 1.1, padding: '0 2px', textAlign: 'center' }}>{val.text}</span>
             ) : (
               <span style={{ fontSize: '.68rem', fontWeight: 600, color, lineHeight: 1.1, textAlign: 'center', pointerEvents: 'none' }}>
-                {mine ? `✍ ${label}` : `${label} · ${signer?.name?.split(' ')[0] || ''}`}
+                {mine ? `${label}` : `${label} · ${signer?.name?.split(' ')[0] || ''}`}
               </span>
             )}
             {mine && filled && (
@@ -531,8 +531,8 @@ function SignCaptureModal(props: {
           )}
 
           <div className="sig-kind-toggle" style={{ marginBottom: '.85rem' }}>
-            <button type="button" className={tab === 'draw' ? 'active' : ''} onClick={() => setTab('draw')}>✍ ציור</button>
-            <button type="button" className={tab === 'upload' ? 'active' : ''} onClick={() => setTab('upload')}>📤 העלאת תמונה</button>
+            <button type="button" className={tab === 'draw' ? 'active' : ''} onClick={() => setTab('draw')}>ציור</button>
+            <button type="button" className={tab === 'upload' ? 'active' : ''} onClick={() => setTab('upload')}>העלאת תמונה</button>
           </div>
 
           {tab === 'draw' ? (
@@ -551,7 +551,7 @@ function SignCaptureModal(props: {
               )}
               <div style={{ marginTop: '.7rem' }}>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => fileRef.current?.click()}>
-                  {uploaded ? 'בחר תמונה אחרת' : '📤 בחר תמונה'}
+                  {uploaded ? 'בחר תמונה אחרת' : 'בחר תמונה'}
                 </button>
               </div>
             </div>

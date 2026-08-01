@@ -152,7 +152,7 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
                     <td style={{ padding: '10px 8px', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{fmtTime(m.sentAt)}</td>
                     <td style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
                       {m.html ? (
-                        <button className="btn btn-secondary btn-sm" onClick={() => setViewing(m)}>👁 צפייה</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => setViewing(m)}>צפייה</button>
                       ) : (
                         <span style={{ fontSize: 11, color: 'var(--gray-400)' }} title="נשלח לפני שהמערכת התחילה לשמור עותק">—</span>
                       )}

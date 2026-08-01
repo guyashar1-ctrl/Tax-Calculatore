@@ -1,4 +1,4 @@
-// ⚠ דף בדיקה זמני — לא חלק מהמוצר. משמש לאימות העורך בלי לעבור התחברות.
+// דף בדיקה זמני — לא חלק מהמוצר. משמש לאימות העורך בלי לעבור התחברות.
 // יוסר לאחר אימות. נטען רק כש-URL כולל ?test-sig=1.
 
 import { useState } from 'react';
@@ -57,7 +57,7 @@ export default function TestSignaturePage() {
 
   return (
     <div style={{ padding: '2rem', fontFamily: 'Heebo, sans-serif' }}>
-      <h1>🧪 בדיקה: עורך מסמך לחתימה</h1>
+      <h1>בדיקה: עורך מסמך לחתימה</h1>
       <p style={{ color: 'var(--tx2)' }}>
         דף בדיקה זמני (ללא התחברות). הוסיפו <code>?test-sig=1</code> לכתובת.
       </p>

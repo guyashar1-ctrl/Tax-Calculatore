@@ -157,7 +157,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
   }, [annualIncome, taxData, result, settlementResult]);
 
   const secStyle: React.CSSProperties = { borderTop: '1px solid var(--gray-100)', paddingTop: '1rem', marginTop: '1rem' };
-  const secTitle: React.CSSProperties = { fontWeight: 700, fontSize: '.95rem', marginBottom: '.6rem' };
+  const secTitle: React.CSSProperties = { fontWeight: 600, fontSize: '15px', marginBottom: '.6rem' };
 
   return (
     <div className="tc-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '1.25rem', alignItems: 'start' }}>
@@ -165,10 +165,10 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
       <div className="card">
         <div className="card-body">
           <div style={{ marginBottom: '1rem' }}>
-            <div style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: '.25rem' }}>
+            <div style={{ fontWeight: 600, fontSize: '17px', marginBottom: '.25rem' }}>
               מה מתאר את הנישום? סמנו את כל מה שרלוונטי
             </div>
-            <div style={{ fontSize: '.85rem', color: 'var(--gray-500)' }}>
+            <div style={{ fontSize: '14px', color: 'var(--gray-500)' }}>
               המערכת שואלת רק את השאלות הנדרשות וקובעת את הנקודות אוטומטית — כמו במערכת תיאום מס
             </div>
           </div>
@@ -207,9 +207,9 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                     background: on ? 'var(--blue-light)' : 'var(--card)',
                     boxShadow: on ? 'none' : '0 1px 2px rgba(0,0,0,.04)',
                   }}>
-                  <div style={{ fontSize: '1.3rem' }}>{c.icon}</div>
-                  <div style={{ fontWeight: 700, fontSize: '.85rem', color: on ? 'var(--blue-dark)' : 'var(--gray-800)' }}>{c.label}</div>
-                  <div style={{ fontSize: '.7rem', color: 'var(--gray-500)' }}>{c.hint}</div>
+                  <div style={{ fontSize: '20px' }}>{c.icon}</div>
+                  <div style={{ fontWeight: 600, fontSize: '14px', color: on ? 'var(--blue-dark)' : 'var(--gray-800)' }}>{c.label}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{c.hint}</div>
                 </button>
               );
             })}
@@ -219,7 +219,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
           {active.has('children') && (
             <div style={secStyle}>
-              <div style={secTitle}>👶 ילדים</div>
+              <div style={secTitle}>ילדים</div>
               <div className="form-group" style={{ maxWidth: 320 }}>
                 <label>מי ההורה שמקבל את קצבת הילדים / הילדים בחזקתו?</label>
                 <select value={parentRole} onChange={e => setParentRole(e.target.value as typeof parentRole)}>
@@ -278,7 +278,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
           {active.has('service') && (
             <div style={secStyle}>
-              <div style={secTitle}>🎖️ שירות צבאי / לאומי</div>
+              <div style={secTitle}>שירות צבאי / לאומי</div>
               <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>סוג שירות</label>
@@ -302,7 +302,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                   </select>
                 </div>
               </div>
-              <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.4rem' }}>
+              <div style={{ fontSize: '13px', color: 'var(--gray-500)', marginTop: '.4rem' }}>
                 שירות מלא (23+ חודשים לגבר, 22+ לאישה, 24 בשירות לאומי) = 2 נקודות לשנה · שירות חלקי (12+) = נקודה · למשך 36 חודשים מהחודש שאחרי השחרור
               </div>
             </div>
@@ -310,7 +310,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
           {active.has('reserve') && (
             <div style={secStyle}>
-              <div style={secTitle}>🪖 מילואים — לוחם/ת (סעיף 39ב)</div>
+              <div style={secTitle}>מילואים — לוחם/ת (סעיף 39ב)</div>
               <div className="form-group" style={{ maxWidth: 260 }}>
                 <label>ימי מילואים כלוחם/ת בשנת {year - 1}</label>
                 <input type="number" min={0} max={365} value={reserveDays || ''} placeholder="0" onChange={e => setReserveDays(+e.target.value)} />
@@ -318,7 +318,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
               {year < 2026 ? (
                 <div className="alert alert-warning" style={{ marginBottom: 0 }}>הזיכוי חל רק משנת המס 2026 ואילך</div>
               ) : (
-                <div style={{ fontSize: '.78rem', color: 'var(--gray-500)' }}>
+                <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
                   30–39 ימים = 0.5 נק' · 40–49 = 0.75 · מ-50: נקודה + רבע לכל 5 ימים · עד 4 נקודות
                 </div>
               )}
@@ -327,7 +327,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
           {active.has('degree') && (
             <div style={secStyle}>
-              <div style={secTitle}>🎓 תארים ולימודי מקצוע</div>
+              <div style={secTitle}>תארים ולימודי מקצוע</div>
               {degrees.map((d, i) => (
                 <div key={d.key} style={{ display: 'flex', gap: '.6rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '.5rem' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
@@ -356,7 +356,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 onClick={() => setDegrees(arr => [...arr, { key: ++childSeq, kind: 'bachelor', endYear: year - 1, studyYears: 3 }])}>
                 + הוספת תואר/תעודה
               </button>
-              <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.4rem' }}>
+              <div style={{ fontSize: '13px', color: 'var(--gray-500)', marginTop: '.4rem' }}>
                 מסיימי 2023 ואילך: נקודה לכל שנת לימוד (עד 3) · מסיימי 2014–2022: שנה אחת בלבד
               </div>
             </div>
@@ -364,7 +364,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
           {active.has('immigrant') && (
             <div style={secStyle}>
-              <div style={secTitle}>🆕 עולה חדש</div>
+              <div style={secTitle}>עולה חדש</div>
               <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>שנת עלייה</label>
@@ -377,7 +377,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                   </select>
                 </div>
               </div>
-              <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.4rem' }}>
+              <div style={{ fontSize: '13px', color: 'var(--gray-500)', marginTop: '.4rem' }}>
                 עלייה מ-2022: מסלול 54 חודשים (עד 8.5 נק') · לפני 2022: מסלול 42 חודשים (עד 7.5 נק')
               </div>
             </div>
@@ -385,8 +385,8 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
           {active.has('disability') && (
             <div style={secStyle}>
-              <div style={secTitle}>♿ נכות / עיוורון — פטור סעיף 9(5)</div>
-              <div className="alert alert-info" style={{ fontSize: '.83rem' }}>
+              <div style={secTitle}>נכות / עיוורון — פטור סעיף 9(5)</div>
+              <div className="alert alert-info" style={{ fontSize: '13px' }}>
                 בניגוד לתפיסה נפוצה — <strong>אין נקודות זיכוי לפי אחוזי נכות</strong>. ההטבה היא פטור ממס על ההכנסה, לעיוור או נכה 100% (או 90%+ משוקלל) שנקבעה ל-185 ימים ומעלה.
               </div>
               <label className="checkbox-row">
@@ -410,7 +410,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
           {active.has('settlement') && (
             <div style={secStyle}>
-              <div style={secTitle}>🏡 יישוב מוטב (סעיף 11)</div>
+              <div style={secTitle}>יישוב מוטב (סעיף 11)</div>
               <div className="form-group" style={{ maxWidth: 320, position: 'relative' }}>
                 <label>שם היישוב</label>
                 <input type="text" value={settlement ? settlement.name : settlementQuery}
@@ -426,13 +426,13 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                       <div key={s.name} onClick={() => { setSettlement(s); setSettlementQuery(''); }}
                         style={{ padding: '.45rem .75rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--gray-100)' }}>
                         <span>{s.name}</span>
-                        <span style={{ color: 'var(--green-dark)', fontWeight: 700, fontSize: '.8rem' }}>
+                        <span style={{ color: 'var(--green-dark)', fontWeight: 600, fontSize: '13px' }}>
                           {s.ratePercent}% עד {fmt(s.ceilingAnnual)}
                         </span>
                       </div>
                     ))}
                     {searchSettlements(settlementQuery, year).length === 0 && (
-                      <div style={{ padding: '.45rem .75rem', color: 'var(--gray-500)', fontSize: '.85rem' }}>
+                      <div style={{ padding: '.45rem .75rem', color: 'var(--gray-500)', fontSize: '14px' }}>
                         לא נמצא ברשימת {year} — ייתכן שהיישוב אינו זכאי
                       </div>
                     )}
@@ -440,7 +440,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 )}
               </div>
               {settlement && (
-                <div className="alert alert-info" style={{ fontSize: '.83rem', marginBottom: 0 }}>
+                <div className="alert alert-info" style={{ fontSize: '13px', marginBottom: 0 }}>
                   {settlement.name}: זיכוי <strong>{settlement.ratePercent}%</strong> מההכנסה מיגיעה אישית, עד תקרה <strong>{fmt(settlement.ceilingAnnual)}</strong> לשנה.
                   {annualIncome <= 0 && ' הזינו הכנסה שנתית למעלה כדי לראות את שווי הזיכוי.'}
                 </div>
@@ -450,8 +450,8 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
           {active.has('spouse') && (
             <div style={secStyle}>
-              <div style={secTitle}>💑 בן/בת זוג ללא הכנסה (סעיף 37)</div>
-              <div className="alert alert-warning" style={{ fontSize: '.83rem' }}>
+              <div style={secTitle}>בן/בת זוג ללא הכנסה (סעיף 37)</div>
+              <div className="alert alert-warning" style={{ fontSize: '13px' }}>
                 הנקודה ניתנת רק לנשואים, ורק כאשר אחד מבני הזוג הגיע לגיל פרישה או שהוא עיוור/נכה. אין נקודה על "בן זוג לא עובד" סתם.
               </div>
               <label className="checkbox-row">
@@ -467,14 +467,14 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
       <div style={{ position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
         <div className="card" style={{ border: '2px solid var(--blue-border)' }}>
           <div className="card-header" style={{ background: 'var(--blue-light)' }}>
-            <span className="card-title" style={{ color: 'var(--blue-dark)' }}>⭐ סיכום — {year}</span>
+            <span className="card-title" style={{ color: 'var(--blue-dark)' }}>סיכום — {year}</span>
           </div>
           <div className="card-body">
             <div style={{ textAlign: 'center', marginBottom: '.75rem' }}>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--blue-dark)' }}>
-                {result.totalPoints.toFixed(2)} <span style={{ fontSize: '1rem', fontWeight: 600 }}>נקודות</span>
+              <div style={{ fontSize: '34px', fontWeight: 600, color: 'var(--blue-dark)' }}>
+                {result.totalPoints.toFixed(2)} <span style={{ fontSize: '15px', fontWeight: 600 }}>נקודות</span>
               </div>
-              <div style={{ fontSize: '1rem', color: 'var(--green-dark)', fontWeight: 700 }}>
+              <div style={{ fontSize: '15px', color: 'var(--green-dark)', fontWeight: 600 }}>
                 {fmt(result.totalValueNIS)} לשנה · {fmt(result.totalValueNIS / 12)} לחודש
               </div>
             </div>
@@ -482,11 +482,11 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
               {result.lines.map((l, i) => (
                 <div key={i} style={{ borderBottom: '1px solid var(--gray-100)', paddingBottom: '.35rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.83rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                     <span style={{ fontWeight: 600 }}>{l.description}</span>
-                    <span style={{ color: 'var(--blue)', fontWeight: 700, whiteSpace: 'nowrap' }}>{l.points}</span>
+                    <span style={{ color: 'var(--blue)', fontWeight: 600, whiteSpace: 'nowrap' }}>{l.points}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', color: 'var(--gray-500)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--gray-500)' }}>
                     <span>{l.explanation ?? ''}</span>
                     <span style={{ whiteSpace: 'nowrap' }}>{l.legalBasis}</span>
                   </div>
@@ -495,32 +495,32 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
             </div>
 
             {settlementResult && (
-              <div style={{ marginTop: '.6rem', padding: '.5rem .7rem', background: 'var(--green-light, var(--chip-green-bg))', borderRadius: 8, fontSize: '.8rem' }}>
+              <div style={{ marginTop: '.6rem', padding: '.5rem .7rem', background: 'var(--green-light, var(--chip-green-bg))', borderRadius: 8, fontSize: '13px' }}>
                 <strong>+ זיכוי יישוב מוטב: {fmt(settlementResult.credit)}</strong>
-                <div style={{ fontSize: '.72rem', color: 'var(--gray-600)', marginTop: '.2rem' }}>{settlementResult.explanation}</div>
+                <div style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '.2rem' }}>{settlementResult.explanation}</div>
               </div>
             )}
 
             {result.disabilityExemption && (
-              <div style={{ marginTop: '.6rem', padding: '.5rem .7rem', background: 'var(--chip-yellow-bg)', borderRadius: 8, fontSize: '.78rem' }}>
+              <div style={{ marginTop: '.6rem', padding: '.5rem .7rem', background: 'var(--chip-yellow-bg)', borderRadius: 8, fontSize: '13px' }}>
                 <strong>פטור נכה/עיוור (9(5)):</strong> {result.disabilityExemption.explanation}
               </div>
             )}
 
             {taxAnalysis && (
-              <div style={{ marginTop: '.75rem', borderTop: '2px solid var(--gray-100)', paddingTop: '.6rem', fontSize: '.85rem' }}>
+              <div style={{ marginTop: '.75rem', borderTop: '2px solid var(--gray-100)', paddingTop: '.6rem', fontSize: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>מס לפני זיכויים:</span><strong>{fmt(taxAnalysis.taxBefore)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--green-dark)' }}>
                   <span>סך זיכויים:</span><strong>−{fmt(Math.min(taxAnalysis.credits, taxAnalysis.taxBefore))}</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '.95rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '15px' }}>
                   <span>מס לתשלום:</span><span>{fmt(taxAnalysis.final)}</span>
                 </div>
                 {taxAnalysis.unused > 0 && (
-                  <div style={{ marginTop: '.4rem', fontSize: '.75rem', color: 'var(--warn)' }}>
-                    ⚠ {fmt(taxAnalysis.unused)} מהזיכויים לא מנוצלים — נקודות זיכוי אינן מוחזרות ואינן נצברות
+                  <div style={{ marginTop: '.4rem', fontSize: '12px', color: 'var(--warn)' }}>
+                    {fmt(taxAnalysis.unused)} מהזיכויים לא מנוצלים — נקודות זיכוי אינן מוחזרות ואינן נצברות
                   </div>
                 )}
               </div>
@@ -530,8 +530,8 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
         {result.notes.length > 0 && (
           <div className="card">
-            <div className="card-body" style={{ fontSize: '.78rem', color: 'var(--gray-600)' }}>
-              <div style={{ fontWeight: 700, marginBottom: '.4rem' }}>📌 הערות מקצועיות</div>
+            <div className="card-body" style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
+              <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>הערות מקצועיות</div>
               <ul style={{ paddingRight: '1.1rem', display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
                 {result.notes.map((n, i) => <li key={i}>{n}</li>)}
               </ul>

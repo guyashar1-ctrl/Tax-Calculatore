@@ -37,7 +37,7 @@ export default function RepSignersStatus({ request, compact }: Props) {
             <span>👤</span>
             <span>{s.name}</span>
             <span>—</span>
-            <span>{signed ? '✅ חתם/ה' : '⏳ ממתין/ה לחתימה'}</span>
+            <span>{signed ? 'חתם/ה' : '⏳ ממתין/ה לחתימה'}</span>
           </span>
         );
       })}

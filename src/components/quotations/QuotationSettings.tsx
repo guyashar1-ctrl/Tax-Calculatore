@@ -71,7 +71,7 @@ function CatalogTab({ catalog }: { catalog: ReturnType<typeof useQuotationCatalo
         if (rows.length === 0) return null;
         return (
           <div key={cat} style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.04em', color: 'var(--gray-400)', marginBottom: 6 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '.04em', color: 'var(--gray-400)', marginBottom: 6 }}>
               {SERVICE_CATEGORY_LABELS[cat]}
             </div>
             <div style={{ border: '1px solid var(--gray-200)', borderRadius: 10, overflow: 'hidden' }}>

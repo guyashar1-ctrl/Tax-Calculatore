@@ -9,6 +9,8 @@ import { useDocumentDB } from '../hooks/useIndexedDB';
 import { computeClientAlerts, getClientOpenTasks, getUpcomingDebts } from '../utils/clientDerived';
 // הלשוניות הישנות (OverviewTab/PersonalContactsTab/TaxNITab/TaxProfileTab) הוחלפו
 // ב-ClientCockpitTab + ClientDossierTab; הטפסים המלאים נגישים מתוך "התיק".
+import Icon from './ui/Icon';
+import ConfirmDialog from './ui/ConfirmDialog';
 import DocumentsTab from './clientTabs/DocumentsTab';
 import { useClientTaxSessions } from '../features/annualReport/useClientTaxSessions';
 import { registeredFileInfo } from '../features/annualReport/profile';
@@ -35,11 +37,12 @@ const IT_LABELS: Record<IncomeTaxType, string> = {
 // במרכז השליטה, אף פעם לא כלשונית (ראה הצעת הארכיטקטורה שאושרה 15.07.2026).
 type TabId = 'overview' | 'dossier' | 'docs' | 'tasks';
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'overview', label: 'מרכז שליטה', icon: '🎛️' },
-  { id: 'dossier',  label: 'התיק',        icon: '👤' },
-  { id: 'docs',     label: 'מסמכים',      icon: '📁' },
-  { id: 'tasks',    label: 'משימות',      icon: '✅' },
+// שמות הלשוניות נושאים את המשמעות; האייקון ירד (§3.16)
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'overview', label: 'מרכז שליטה' },
+  { id: 'dossier',  label: 'התיק' },
+  { id: 'docs',     label: 'מסמכים' },
+  { id: 'tasks',    label: 'משימות' },
 ];
 
 interface Props {
@@ -125,6 +128,20 @@ export default function ClientWorkspace({
   const db = useDocumentDB();
   const { employees, findEmployee } = useEmployees();
   const { sessions: taxSessions, loading: taxSessionsLoading } = useClientTaxSessions(client.id || undefined);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  /**
+   * קריאה אחת לדוח השנתי — והיא אומרת גם מה מצבו (D13).
+   * "התחל" כשאין דוח, "המשך {שנה}" כשיש דוח פתוח, "פתח {שנה}" כשהוא סגור.
+   */
+  const annualCta = (() => {
+    const defaultYear = new Date().getFullYear() - 1;
+    const open = taxSessions.find(s => s.status === 'in_progress' || s.status === 'review');
+    if (open) return { year: open.taxYear, label: `המשך דוח ${open.taxYear}` };
+    const latest = taxSessions[0];
+    if (latest) return { year: latest.taxYear, label: `פתח דוח ${latest.taxYear}` };
+    return { year: defaultYear, label: 'התחל דוח שנתי' };
+  })();
 
   const openYear = onOpenAnnualReport && client.id
     ? (taxYear: number) => onOpenAnnualReport(client.id, taxYear)
@@ -219,7 +236,9 @@ export default function ClientWorkspace({
       {/* ─── Header קבוע ───────────────────────────────────────── */}
       <div className="cw-header">
         <div className="cw-header-top">
-          <button className="btn btn-ghost btn-sm" onClick={onCancel}>← לקוחות</button>
+          <button className="ui-linkbtn cw-back" onClick={onCancel}>
+            <Icon name="chevron-start" size={13} /> לקוחות
+          </button>
 
           <div className="cw-identity">
             <div className="cw-avatar">
@@ -229,42 +248,57 @@ export default function ClientWorkspace({
               <div className="cw-name">{fullName}</div>
               <div className="cw-id-row">
                 {client.idNumber && <span className="mono-text">ת.ז. {client.idNumber}</span>}
-                {client.phone && <span className="mono-text" dir="ltr">{client.phone}</span>}
+                {client.phone && <span className="mono-text ltr-isolate">{client.phone}</span>}
                 {client.city && <span>{client.city}</span>}
               </div>
+              {/* בקשת ייצוג בתהליך — שורה שקטה אחת, לא כרטיס ולא לוח מחוונים (§4.13).
+                  "ממתין לבדיקתך" נצבע כי אז הכדור אצלי ואף אחד לא יזכיר לי. */}
+              {status !== 'active' && (
+                <div className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' ? 'is-mine' : ''}`}>
+                  בקשת ייצוג · {REPRESENTATION_STATUS_LABELS[status]}
+                </div>
+              )}
             </div>
           </div>
 
           <div className="cw-header-actions">
             {dirty && <span className="cw-dirty-flag">שינויים לא שמורים</span>}
+
+            {/* שליחת השאלון ירדה מדרגת "כפתור" — היא מסלול משנה ולא צריכה
+                להתחרות עם הדוח השנתי על תשומת הלב (D13) */}
             {!isNew && (
               <button
-                className="btn btn-secondary btn-sm"
+                className="ui-linkbtn"
                 onClick={() => setIntakeModalOpen(true)}
                 title="שליחת קישור שאלון היכרות/עדכון למייל הלקוח"
-              >📨 שלח שאלון</button>
+              >שלח שאלון</button>
             )}
+
+            {!isNew && (
+              <button
+                className="ui-btn ui-btn-ghost"
+                onClick={() => onAddTaskForClient(client.id)}
+              >+ משימה</button>
+            )}
+
+            {/* קריאה אחת לדוח השנתי, והיא אומרת גם איפה הוא עומד (D13) */}
             {!isNew && openYear && (
               <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => openYear(taxSessions[0]?.taxYear ?? new Date().getFullYear() - 1)}
+                className="ui-btn ui-btn-primary"
+                onClick={() => openYear(annualCta.year)}
                 title="פתיחת הדוח השנתי של הלקוח"
-              >📋 דוח שנתי</button>
+              >{annualCta.label}</button>
             )}
+
+            <button className="ui-btn ui-btn-ghost" onClick={handleSave} disabled={!dirty}>שמור</button>
+
             {!isNew && (
               <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => onAddTaskForClient(client.id)}
-                title="משימה חדשה ללקוח"
-              >➕ משימה</button>
-            )}
-            <button className="btn btn-primary" onClick={handleSave} disabled={!dirty}>שמור</button>
-            {!isNew && (
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={() => { if (confirm(`למחוק את ${fullName}?`)) onDelete(client.id); }}
+                className="ui-icon-btn is-danger"
+                onClick={() => setConfirmDelete(true)}
+                aria-label={`מחיקת ${fullName}`}
                 title="מחיקה"
-              >🗑</button>
+              ><Icon name="close" size={14} /></button>
             )}
           </div>
         </div>
@@ -281,13 +315,13 @@ export default function ClientWorkspace({
               className="cw-tax-chip"
               title="בן/בת הזוג הרשום/ה — כל ההתנהלות מול מס הכנסה בת.ז. הזו. ניתן לשינוי בלשונית התיק."
               style={{
-                fontWeight: 700,
+                fontWeight: 600,
                 background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : undefined,
                 color: regFile.owner === 'spouse' ? 'var(--warn)' : undefined,
                 border: regFile.owner === 'spouse' ? '1px solid var(--chip-amber-bd)' : undefined,
               }}
             >
-              🗄️ תיק מ"ה ע"ש {regFile.name}
+              תיק מ"ה ע"ש {regFile.name}
               {regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
             </span>
           )}
@@ -301,9 +335,9 @@ export default function ClientWorkspace({
             <span className="cw-emp-chip muted">ללא מטפל</span>
           )}
 
-          <span className="cw-tax-chip">💼 {IT_LABELS[client.incomeTaxType]}</span>
-          <span className="cw-tax-chip">📊 {VAT_LABELS[client.vatStatus]}</span>
-          <span className="cw-tax-chip">🏥 ב״ל {client.niType === 'employee' ? 'שכיר' : client.niType === 'selfEmployed' ? 'עצמאי' : client.niType === 'employeeAndSE' ? 'משולב' : client.niType}</span>
+          <span className="cw-tax-chip">{IT_LABELS[client.incomeTaxType]}</span>
+          <span className="cw-tax-chip">{VAT_LABELS[client.vatStatus]}</span>
+          <span className="cw-tax-chip">ב״ל {client.niType === 'employee' ? 'שכיר' : client.niType === 'selfEmployed' ? 'עצמאי' : client.niType === 'employeeAndSE' ? 'משולב' : client.niType}</span>
 
           {client.shaamStatus && (
             <span className={`badge ${SHAAM_STATUS_BADGE[client.shaamStatus]}`}>
@@ -333,7 +367,6 @@ export default function ClientWorkspace({
               className={`cw-tab ${tab === t.id ? 'active' : ''}`}
               onClick={() => setTab(t.id)}
             >
-              <span>{t.icon}</span>
               <span>{t.label}</span>
               {t.id === 'tasks' && openTasks.length > 0 && (
                 <span className="cw-tab-badge">{openTasks.length}</span>
@@ -409,7 +442,17 @@ export default function ClientWorkspace({
         <SendIntakeModal
           client={client}
           onClose={() => setIntakeModalOpen(false)}
-          onSent={(email) => appendActivity({ kind: 'manual', text: `📨 נשלח שאלון עדכון אל ${email}` })}
+          onSent={(email) => appendActivity({ kind: 'manual', text: `נשלח שאלון עדכון אל ${email}` })}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="מחיקת לקוח"
+          message={<>למחוק את ״{fullName}״? התיק, המסמכים והמשימות שלו יימחקו איתו. הפעולה אינה הפיכה.</>}
+          confirmLabel="מחיקה"
+          onConfirm={() => { setConfirmDelete(false); onDelete(client.id); }}
+          onCancel={() => setConfirmDelete(false)}
         />
       )}
     </div>

@@ -151,11 +151,11 @@ export default function RepresentationRequestReview({
     setEmailStatus(null);
     try {
       const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: request.id, stage } });
-      if (error) setEmailStatus(`⚠ ${error.message}`);
-      else if (data?.ok) setEmailStatus(`✓ מייל נשלח ל-${request.clientEmail}`);
-      else setEmailStatus(`⚠ ${data?.detail?.message || data?.error || 'שליחה נכשלה'}`);
+      if (error) setEmailStatus(`${error.message}`);
+      else if (data?.ok) setEmailStatus(`מייל נשלח ל-${request.clientEmail}`);
+      else setEmailStatus(`${data?.detail?.message || data?.error || 'שליחה נכשלה'}`);
     } catch (e) {
-      setEmailStatus(`⚠ ${e instanceof Error ? e.message : String(e)}`);
+      setEmailStatus(`${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setSendingEmail(false);
     }
@@ -393,8 +393,8 @@ export default function RepresentationRequestReview({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '.75rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: 4 }}>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--gray-900)' }}>
-              📨 בקשת ייצוג
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--gray-900)' }}>
+              בקשת ייצוג
             </h1>
             <span className={`badge ${REPRESENTATION_STATUS_BADGE[request.status]}`}>
               {REPRESENTATION_STATUS_LABELS[request.status]}
@@ -413,21 +413,21 @@ export default function RepresentationRequestReview({
               className="btn btn-secondary"
               onClick={() => onOpenClientDocs(request.linkedClientId)}
               title="כרטיס הלקוח — מסמכים, פרטים ומשימות"
-            >📁 מסמכי הלקוח</button>
+            >מסמכי הלקוח</button>
           )}
           {!isNewOnboarding && request.status === 'pending_fill' && (
             <button className="btn btn-primary" onClick={() => onOpenFill(request.id)}>
-              🧪 הדמיית מילוי
+              הדמיית מילוי
             </button>
           )}
           {!isNewOnboarding && request.status === 'awaiting_accountant' && !signMode && (
             <button className="btn btn-green btn-lg" onClick={() => setSignMode(true)}>
-              ✍️ חתום ויצור ייפוי כוח חתום
+              חתום ויצור ייפוי כוח חתום
             </button>
           )}
           {isNewOnboarding && request.status === 'awaiting_stamp' && !setup && !signMode && (
             <button className="btn btn-green btn-lg" onClick={() => setSignMode(true)}>
-              ✍️ חתום + הוסף חותמת
+              חתום + הוסף חותמת
             </button>
           )}
           {request.status === 'awaiting_stamp' && setup && request.signedPdfStoredId && (
@@ -440,7 +440,7 @@ export default function RepresentationRequestReview({
             onClick={() => {
               if (confirm('למחוק את הבקשה? פעולה זו תמחק גם את הקבצים שהועלו ואת הלקוח שנוצר.')) onDelete(request.id);
             }}
-          >🗑️ מחק</button>
+          >מחק</button>
         </div>
       </div>
 
@@ -451,7 +451,7 @@ export default function RepresentationRequestReview({
       {/* סטטוס חתימות — נישום + בן/בת זוג */}
       {isSpouseRequest(request) && (
         <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="card-header"><div className="card-title">✍ סטטוס חתימות</div></div>
+          <div className="card-header"><div className="card-title">סטטוס חתימות</div></div>
           <div className="card-body">
             <RepSignersStatus request={request} />
           </div>
@@ -460,7 +460,7 @@ export default function RepresentationRequestReview({
 
       {/* פרטי הבקשה */}
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="card-header"><div className="card-title">⚙️ הגדרות הבקשה</div></div>
+        <div className="card-header"><div className="card-title">הגדרות הבקשה</div></div>
         <div className="card-body">
           <div className="form-grid form-grid-2">
             <div>
@@ -493,7 +493,7 @@ export default function RepresentationRequestReview({
       {signMode && (
         <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--green)' }}>
           <div className="card-header" style={{ background: 'var(--green-light)' }}>
-            <div className="card-title">✍️ חתימת המייצג + מילוי חלק ב' של הטופס</div>
+            <div className="card-title">חתימת המייצג + מילוי חלק ב' של הטופס</div>
           </div>
           <div className="card-body">
             {signErrors.length > 0 && (
@@ -552,7 +552,7 @@ export default function RepresentationRequestReview({
                 ביטול
               </button>
               <button className="btn btn-green btn-lg" onClick={handleSignAndGenerate} disabled={generating}>
-                {generating ? 'יוצר PDF...' : '✓ חתום ויצור PDF סופי'}
+                {generating ? 'יוצר PDF...' : 'חתום ויצור PDF סופי'}
               </button>
             </div>
           </div>
@@ -563,16 +563,16 @@ export default function RepresentationRequestReview({
       {request.signedPdfStoredId && generatedPdfUrl && !signMode && (
         <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--green)' }}>
           <div className="card-header" style={{ background: 'var(--green-light)' }}>
-            <div className="card-title">📄 ייפוי כוח חתום (טופס 2279א'5)</div>
+            <div className="card-title">ייפוי כוח חתום (טופס 2279א'5)</div>
           </div>
           <div className="card-body">
             <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.75rem', flexWrap: 'wrap' }}>
-              <button className="btn btn-primary" onClick={handleDownloadPdf}>⬇️ הורד PDF</button>
+              <button className="btn btn-primary" onClick={handleDownloadPdf}>הורד PDF</button>
               <button className="btn btn-secondary" onClick={handleRegeneratePdf} disabled={generating}>
-                {generating ? 'מעדכן...' : '🔄 צור מחדש'}
+                {generating ? 'מעדכן...' : 'צור מחדש'}
               </button>
               <a href={generatedPdfUrl} target="_blank" rel="noreferrer" className="btn btn-secondary">
-                👁️ פתח בכרטיסייה חדשה
+                פתח בכרטיסייה חדשה
               </a>
             </div>
             <iframe
@@ -587,7 +587,7 @@ export default function RepresentationRequestReview({
       {/* רשימת מסמכים שנדרשו — רק בזרימה הישנה */}
       {!isNewOnboarding && (
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="card-header"><div className="card-title">📋 מסמכים שנדרשו ({request.requestedDocs.length})</div></div>
+        <div className="card-header"><div className="card-title">מסמכים שנדרשו ({request.requestedDocs.length})</div></div>
         <div className="card-body">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
             {request.requestedDocs.map(doc => {
@@ -654,7 +654,7 @@ export default function RepresentationRequestReview({
                     return (
                       <div key={s.id} style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '.5rem' }}>
                         <span style={{ minWidth: 150, fontSize: '.85rem', fontWeight: signed ? 600 : 400, color: signed ? 'var(--ok)' : 'var(--gray-700)' }}>
-                          👤 {s.name} — {signed ? '✅ חתם/ה' : '⏳ ממתין/ה'}
+                          {s.name} — {signed ? 'חתם/ה' : '⏳ ממתין/ה'}
                         </span>
                         {/* ‼ אין כאן כפתור שליחה. השליחה נעשית ממקום אחד בלבד —
                             הכפתור בכרטיס "מה עכשיו" — ששולח לכל החותמים יחד ומצרף
@@ -674,7 +674,7 @@ export default function RepresentationRequestReview({
 
             {request.status === 'awaiting_stamp' && request.identification?.signatureDataUrl && (
               <div className="card" style={{ marginBottom: '1rem' }}>
-                <div className="card-header"><div className="card-title">✍️ חתימת הלקוח התקבלה</div></div>
+                <div className="card-header"><div className="card-title">חתימת הלקוח התקבלה</div></div>
                 <div className="card-body">
                   <div style={{ border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', background: 'var(--card)', padding: '.5rem', display: 'inline-block' }}>
                     <img src={request.identification.signatureDataUrl} alt="חתימת לקוח" style={{ maxHeight: 120, display: 'block' }} />
@@ -700,7 +700,7 @@ export default function RepresentationRequestReview({
                 <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, minWidth: 180, fontSize: '.8rem' }} onFocus={e => e.currentTarget.select()} />
                 <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(onboardingLink).catch(() => {}); }}>העתק קישור</button>
                 <button className="btn btn-primary btn-sm" onClick={() => resendEmail('onboard')} disabled={sendingEmail}>
-                  {sendingEmail ? 'שולח…' : '📧 שלח מייל שוב'}
+                  {sendingEmail ? 'שולח…' : 'שלח מייל שוב'}
                 </button>
               </div>
               {emailStatus && (
@@ -713,7 +713,7 @@ export default function RepresentationRequestReview({
         <>
           <div className="card" style={{ marginBottom: '1rem' }}>
             <div className="card-header">
-              <div className="card-title">👤 הפרטים שמולאו על ידי הלקוח</div>
+              <div className="card-title">הפרטים שמולאו על ידי הלקוח</div>
             </div>
             <div className="card-body">
               <div className="form-grid form-grid-2">
@@ -738,7 +738,7 @@ export default function RepresentationRequestReview({
 
           {/* קבצים שהועלו */}
           <div className="card" style={{ marginBottom: '1rem' }}>
-            <div className="card-header"><div className="card-title">📎 קבצים שהועלו ({docs.length})</div></div>
+            <div className="card-header"><div className="card-title">קבצים שהועלו ({docs.length})</div></div>
             <div className="card-body">
               {docs.length === 0 ? (
                 <div style={{ color: 'var(--gray-500)', fontSize: '.875rem' }}>אין קבצים</div>
@@ -763,7 +763,7 @@ export default function RepresentationRequestReview({
                           {doc.fileName} · {fmt(doc.fileSize)}
                         </div>
                       </div>
-                      <button className="btn btn-secondary btn-sm" onClick={() => openPreview(doc)}>👁️ צפייה</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => openPreview(doc)}>צפייה</button>
                     </div>
                   ))}
                 </div>
@@ -774,7 +774,7 @@ export default function RepresentationRequestReview({
           {/* חתימת לקוח */}
           {submission.signatureDataUrl && (
             <div className="card" style={{ marginBottom: '1rem' }}>
-              <div className="card-header"><div className="card-title">✍️ חתימת הלקוח</div></div>
+              <div className="card-header"><div className="card-title">חתימת הלקוח</div></div>
               <div className="card-body">
                 <div style={{
                   border: '1px solid var(--gray-200)',
@@ -876,7 +876,7 @@ export default function RepresentationRequestReview({
           activeSignerId="accountant"
           savedMarks={stampRoom.marks}
           initialValues={request.signatureValues || {}}
-          title={finalizing ? 'מייצר PDF סופי…' : '✍ חתימה + חותמת המשרד'}
+          title={finalizing ? 'מייצר PDF סופי…' : 'חתימה + חותמת המשרד'}
           adjustable
           onComplete={(v, f) => void handleStampComplete(v, f)}
           onCancel={() => setStampRoom(null)}
@@ -884,7 +884,7 @@ export default function RepresentationRequestReview({
       )}
       {stampError && (
         <div style={{ position: 'fixed', bottom: 16, insetInlineStart: 16, background: 'var(--red-light)', color: 'var(--red)', padding: '.6rem .9rem', borderRadius: 8, zIndex: 1200, fontSize: '.85rem' }}>
-          ⚠ {stampError}
+          {stampError}
         </div>
       )}
     </div>

@@ -60,8 +60,8 @@ export default function AnswersReview({ session, clientName, onStartEdit, onBack
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '1rem 1.5rem 2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.4rem' }}>📝 התשובות שניתנו — {clientName}, שנת {session.taxYear}</h2>
-          <p style={{ margin: '.3rem 0 0', color: 'var(--gray-600)', fontSize: '.9rem' }}>
+          <h2 style={{ margin: 0, fontSize: '24px' }}>התשובות שניתנו — {clientName}, שנת {session.taxYear}</h2>
+          <p style={{ margin: '.3rem 0 0', color: 'var(--gray-600)', fontSize: '14px' }}>
             צפייה בלבד. לעריכה — לחץ על "ערוך תשובות בעץ ההחלטות" למטה. השאלון ירוץ מההתחלה, התשובות הקיימות יהיו מסומנות מראש, ותוכל לשנות כל אחת — וגם להישאל שאלות חדשות אם השינוי פותח ענף חדש.
           </p>
         </div>
@@ -70,8 +70,8 @@ export default function AnswersReview({ session, clientName, onStartEdit, onBack
 
       <div style={{ background: 'var(--blue-light)', padding: '1rem 1.25rem', borderRadius: 8, marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontWeight: 600, color: 'var(--blue-dark, var(--chip-blue-tx))', marginBottom: '.25rem' }}>✏ ערוך תשובות בעץ ההחלטות</div>
-          <div style={{ fontSize: '.85rem', color: 'var(--gray-700)' }}>
+          <div style={{ fontWeight: 600, color: 'var(--blue-dark, var(--chip-blue-tx))', marginBottom: '.25rem' }}>ערוך תשובות בעץ ההחלטות</div>
+          <div style={{ fontSize: '14px', color: 'var(--gray-700)' }}>
             השאלון יתחיל מהשורש. בכל שאלה תראה את התשובה הקודמת מסומנת. לחיצה על "המשך" משאירה אותה, או שנה לפני שתמשיך.
           </div>
         </div>
@@ -80,7 +80,7 @@ export default function AnswersReview({ session, clientName, onStartEdit, onBack
           onClick={() => void handleEdit()}
           disabled={starting || loading}
         >
-          {starting ? 'מתחיל…' : '✏ ערוך תשובות'}
+          {starting ? 'מתחיל…' : 'ערוך תשובות'}
         </button>
       </div>
 
@@ -109,7 +109,7 @@ export default function AnswersReview({ session, clientName, onStartEdit, onBack
                   <li key={a.questionId} style={{ borderBottom: '1px solid var(--gray-100)', padding: '.75rem 1rem' }}>
                     <div style={{ fontWeight: 600 }}>{node.question}</div>
                     <div style={{ marginTop: '.25rem', color: 'var(--gray-700)' }}>
-                      <span style={{ color: 'var(--gray-500)', fontSize: '.85rem' }}>תשובה: </span>
+                      <span style={{ color: 'var(--gray-500)', fontSize: '14px' }}>תשובה: </span>
                       <span style={{ fontWeight: 500 }}>{display}</span>
                     </div>
                   </li>

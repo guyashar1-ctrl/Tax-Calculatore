@@ -229,9 +229,9 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
     'כל המסלולים פטורים מדמי ביטוח לאומי (סעיף 350(א)(7)) — כל עוד ההשכרה אינה מגיעה כדי עסק.',
   ];
   if (input.propertyCount >= 10) {
-    generalWarnings.unshift('⚠ 10 דירות ומעלה — חזקת עסק לפי הפסיקה (לשם/בירן): אין פטור ואין מסלול 10%, ההכנסה חייבת במס שולי מלא + ביטוח לאומי.');
+    generalWarnings.unshift('10 דירות ומעלה — חזקת עסק לפי הפסיקה (לשם/בירן): אין פטור ואין מסלול 10%, ההכנסה חייבת במס שולי מלא + ביטוח לאומי.');
   } else if (input.propertyCount >= 6) {
-    generalWarnings.unshift('⚠ 6–9 דירות — אזור אפור לפי הפסיקה: ייתכן סיווג כעסק. נדרשת בחינה פרטנית.');
+    generalWarnings.unshift('6–9 דירות — אזור אפור לפי הפסיקה: ייתכן סיווג כעסק. נדרשת בחינה פרטנית.');
   }
 
   return {

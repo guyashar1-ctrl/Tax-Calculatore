@@ -316,8 +316,8 @@ export const SESSION_STATUS_META: Record<AnnualReportSession['status'], { label:
 };
 
 const SOURCE_LABELS: Record<IncomeSourceKind, string> = {
-  salary: '💼 שכר', business: '🧾 עסק', rental: '🏠 שכירות', capital: '📈 שוק ההון',
-  interest: '💰 ריבית', dividend: '📊 דיבידנד', pension: '🌅 קצבאות', foreign: '✈️ חו"ל', other: '⭐ אחר',
+  salary: 'שכר', business: 'עסק', rental: 'שכירות', capital: 'שוק ההון',
+  interest: 'ריבית', dividend: 'דיבידנד', pension: 'קצבאות', foreign: 'חו"ל', other: 'אחר',
 };
 
 export interface YearFileSummary {

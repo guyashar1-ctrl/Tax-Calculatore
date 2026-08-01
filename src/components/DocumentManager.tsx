@@ -783,7 +783,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                         <div className="doc-cell-desc">{doc.description || doc.fileName}</div>
                         {doc.linkedTo && (
                           <div className="doc-cell-linked">
-                            🔗 {doc.linkedLabel || 'מקושר'}
+                            {doc.linkedLabel || 'מקושר'}
                           </div>
                         )}
                         {doc.notes && <div className="doc-cell-notes">{doc.notes}</div>}

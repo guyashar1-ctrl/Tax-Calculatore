@@ -1,6 +1,6 @@
 // סטודיו העיצוב — עורך את מראה עמודי הלקוח והמיילים עם תצוגה מקדימה חיה.
 //
-// ★ ארכיטקטורה: הסטודיו הוא עורך *מבוקר* (controlled). אין לו טיוטה משלו ואין
+// ארכיטקטורה: הסטודיו הוא עורך *מבוקר* (controlled). אין לו טיוטה משלו ואין
 // לו כפתור שמירה — הוא קורא וכותב אל הטיוטה היחידה של מסך "המשרד", והשמירה
 // המרכזית שם מטפלת בכל. כך אי אפשר שהעיצוב ייצא מסנכרון או יידרס.
 
@@ -146,8 +146,8 @@ export default function QuotationDesignStudio({ profile, onChange }: Props) {
           </div>
           {surface !== 'email' && (
             <div className="tabs" style={{ margin: 0, marginInlineStart: 'auto' }}>
-              <button className={`tab ${device === 'desktop' ? 'active' : ''}`} onClick={() => setDevice('desktop')}>🖥️ דסקטופ</button>
-              <button className={`tab ${device === 'mobile' ? 'active' : ''}`} onClick={() => setDevice('mobile')}>📱 מובייל</button>
+              <button className={`tab ${device === 'desktop' ? 'active' : ''}`} onClick={() => setDevice('desktop')}>דסקטופ</button>
+              <button className={`tab ${device === 'mobile' ? 'active' : ''}`} onClick={() => setDevice('mobile')}>מובייל</button>
             </div>
           )}
         </div>

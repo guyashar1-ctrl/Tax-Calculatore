@@ -110,12 +110,12 @@ export default function ClientCockpitTab({
     if (totalMissing > 0) {
       out.push({
         key: 'docs', level: 'crit',
-        title: `📎 חסרים ${totalMissing} מסמכים`,
+        title: `חסרים ${totalMissing} מסמכים`,
         subtitle: missingFixed.slice(0, 2).map((d) => d.label).join(' · ') || `בתיק ${latest?.taxYear}`,
         onClick: () => onGotoTab('docs'),
       });
     } else {
-      out.push({ key: 'docs', level: 'ok', title: '📎 מסמכים', subtitle: 'אין חוסרים ידועים', onClick: () => onGotoTab('docs') });
+      out.push({ key: 'docs', level: 'ok', title: 'מסמכים', subtitle: 'אין חוסרים ידועים', onClick: () => onGotoTab('docs') });
     }
 
     // דוח שנתי אחרון
@@ -124,20 +124,20 @@ export default function ClientCockpitTab({
       out.push({
         key: 'report',
         level: latest.status === 'review' ? 'warn' : latest.status === 'in_progress' ? 'warn' : 'ok',
-        title: `📋 דוח ${latest.taxYear} — ${meta.label}`,
+        title: `דוח ${latest.taxYear} — ${meta.label}`,
         subtitle: latest.status === 'review' ? 'ממתין לבדיקה שלך' : latest.status === 'in_progress' ? 'שאלון באמצע' : 'מיפוי הושלם',
         onClick: onOpenYear ? () => onOpenYear(latest.taxYear) : undefined,
       });
       if (latestSummary.openUnknowns > 0) {
         out.push({
           key: 'unknowns', level: 'warn',
-          title: `🤷 ${latestSummary.openUnknowns} תשובות "לא בטוח"`,
+          title: `${latestSummary.openUnknowns} תשובות "לא בטוח"`,
           subtitle: 'לוודא מול הלקוח בשיחה הבאה',
           onClick: onOpenYear ? () => onOpenYear(latest.taxYear) : undefined,
         });
       }
     } else if (!taxSessionsLoading) {
-      out.push({ key: 'report', level: 'warn', title: '📋 אין תיק דוח שנתי', subtitle: 'אפשר לפתוח מכפתור "דוח שנתי" למעלה' });
+      out.push({ key: 'report', level: 'warn', title: 'אין תיק דוח שנתי', subtitle: 'אפשר לפתוח מכפתור "דוח שנתי" למעלה' });
     }
 
     // משימות
@@ -145,7 +145,7 @@ export default function ClientCockpitTab({
     out.push({
       key: 'tasks',
       level: stuck > 0 ? 'crit' : upcomingDebts.length > 0 ? 'warn' : 'ok',
-      title: `✅ ${openTasks.length} משימות פתוחות`,
+      title: `${openTasks.length} משימות פתוחות`,
       subtitle: stuck > 0 ? `${stuck} תקועות!` : upcomingDebts.length > 0 ? `${upcomingDebts.length} עם מועד קרוב` : openTasks.length > 0 ? 'אף אחת לא תקועה' : 'הכל סגור',
       onClick: () => onGotoTab('tasks'),
     });
@@ -156,7 +156,7 @@ export default function ClientCockpitTab({
       out.push({
         key: a.kind,
         level: a.level === 'danger' ? 'crit' : 'warn',
-        title: `⚠ ${a.text}`,
+        title: `${a.text}`,
         subtitle: 'טיפול בלשונית התיק',
         onClick: () => onGotoTab('dossier'),
       });
@@ -190,8 +190,8 @@ export default function ClientCockpitTab({
               borderRadius: 10, padding: '.6rem .8rem', cursor: s.onClick ? 'pointer' : 'default',
             }}
           >
-            <b style={{ fontSize: '.86rem', display: 'block' }}>{s.title}</b>
-            <span style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>{s.subtitle}</span>
+            <b style={{ fontSize: '13px', display: 'block' }}>{s.title}</b>
+            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{s.subtitle}</span>
           </button>
         ))}
       </div>
@@ -199,18 +199,18 @@ export default function ClientCockpitTab({
       {/* ── לוח הגשות + מה זז ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1.3fr) minmax(260px, 1fr)', gap: '.7rem' }} className="cw-cockpit-row">
         <div className="cw-section">
-          <div className="cw-section-head"><span>📅 מה הבא בתור — חובות הגשה</span></div>
+          <div className="cw-section-head"><span>מה הבא בתור — חובות הגשה</span></div>
           {calendar.length === 0 ? (
             <div className="cw-empty">אין חובות דיווח שוטפות לפי הכרטיס.</div>
           ) : (
             <div>
               {calendar.map((c) => (
                 <div key={c.label} style={{
-                  display: 'flex', justifyContent: 'space-between', gap: '.6rem', fontSize: '.86rem',
+                  display: 'flex', justifyContent: 'space-between', gap: '.6rem', fontSize: '13px',
                   padding: '.35rem 0', borderBottom: '1px dashed var(--gray-100)',
                 }}>
                   <span>{c.label}</span>
-                  <span style={{ fontWeight: 700, color: c.ok ? 'var(--green, var(--ok))' : 'var(--warn)', whiteSpace: 'nowrap' }}>{c.due}</span>
+                  <span style={{ fontWeight: 600, color: c.ok ? 'var(--green, var(--ok))' : 'var(--warn)', whiteSpace: 'nowrap' }}>{c.due}</span>
                 </div>
               ))}
             </div>
@@ -223,12 +223,12 @@ export default function ClientCockpitTab({
                   style={{
                     display: 'flex', justifyContent: 'space-between', width: '100%', gap: '.6rem',
                     background: 'var(--chip-amber-bg)', border: '1px solid var(--chip-amber-bd)', borderRadius: 7,
-                    padding: '.3rem .6rem', fontSize: '.8rem', marginBottom: '.3rem',
+                    padding: '.3rem .6rem', fontSize: '13px', marginBottom: '.3rem',
                     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right',
                   }}
                 >
                   <span>⏰ {t.title}</span>
-                  <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{shortDate(t.dueDate)}</span>
+                  <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{shortDate(t.dueDate)}</span>
                 </button>
               ))}
             </div>
@@ -236,16 +236,16 @@ export default function ClientCockpitTab({
         </div>
 
         <div className="cw-section">
-          <div className="cw-section-head"><span>🕐 מה זז לאחרונה</span></div>
+          <div className="cw-section-head"><span>מה זז לאחרונה</span></div>
           {recentActivity.length === 0 ? (
             <div className="cw-empty">עדיין אין פעילות רשומה.</div>
           ) : (
             <div>
               {recentActivity.map((a) => (
-                <div key={a.id} style={{ display: 'flex', gap: '.45rem', fontSize: '.8rem', padding: '.28rem 0', color: 'var(--gray-600)', alignItems: 'baseline' }}>
+                <div key={a.id} style={{ display: 'flex', gap: '.45rem', fontSize: '13px', padding: '.28rem 0', color: 'var(--gray-600)', alignItems: 'baseline' }}>
                   <span style={{ flex: 'none' }}>{ACTIVITY_ICON[a.kind] ?? '•'}</span>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.text}</span>
-                  <span style={{ marginRight: 'auto', color: 'var(--gray-400)', fontSize: '.72rem', whiteSpace: 'nowrap', flex: 'none' }}>{relativeTime(a.at)}</span>
+                  <span style={{ marginRight: 'auto', color: 'var(--gray-400)', fontSize: '12px', whiteSpace: 'nowrap', flex: 'none' }}>{relativeTime(a.at)}</span>
                 </div>
               ))}
             </div>
@@ -256,11 +256,11 @@ export default function ClientCockpitTab({
       {/* ── תיקי שנה + סכומי מפתח ── */}
       <div className="cw-section">
         <div className="cw-section-head">
-          <span>🗂️ דוחות שנתיים</span>
-          {taxSessionsLoading && <span style={{ fontSize: '.75rem', color: 'var(--gray-400)' }}>טוען…</span>}
+          <span>דוחות שנתיים</span>
+          {taxSessionsLoading && <span style={{ fontSize: '12px', color: 'var(--gray-400)' }}>טוען…</span>}
         </div>
         {taxSessions.length === 0 && !taxSessionsLoading ? (
-          <div className="cw-empty">עדיין לא נפתח תיק דוח שנתי — אפשר מכפתור "📋 דוח שנתי" למעלה.</div>
+          <div className="cw-empty">עדיין לא נפתח תיק דוח שנתי — אפשר מכפתור "דוח שנתי" למעלה.</div>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
             {taxSessions.map((s) => {
@@ -269,13 +269,13 @@ export default function ClientCockpitTab({
               return (
                 <div key={s.id} style={{
                   border: '1px solid var(--gray-200)', borderRadius: 10, padding: '.5rem .8rem',
-                  display: 'flex', alignItems: 'center', gap: '.55rem', fontSize: '.82rem',
+                  display: 'flex', alignItems: 'center', gap: '.55rem', fontSize: '13px',
                 }}>
-                  <b className="num" style={{ fontSize: '1rem' }}>{y.taxYear}</b>
-                  <span style={{ fontSize: '.72rem', fontWeight: 700, borderRadius: 99, padding: '.1rem .5rem', color: meta.color, background: meta.bg }}>{meta.label}</span>
+                  <b className="num" style={{ fontSize: '15px' }}>{y.taxYear}</b>
+                  <span style={{ fontSize: '12px', fontWeight: 600, borderRadius: 99, padding: '.1rem .5rem', color: meta.color, background: meta.bg }}>{meta.label}</span>
                   {y.sourceLabels.length > 0 && <span style={{ color: 'var(--gray-500)' }}>{y.sourceLabels.join(' · ')}</span>}
-                  {y.docsTotal > 0 && <span style={{ color: 'var(--gray-500)' }}>📎 {y.docsReceived}/{y.docsTotal}</span>}
-                  {y.openUnknowns > 0 && <span style={{ color: 'var(--warn)', fontWeight: 700 }}>🤷 {y.openUnknowns}</span>}
+                  {y.docsTotal > 0 && <span style={{ color: 'var(--gray-500)' }}>{y.docsReceived}/{y.docsTotal}</span>}
+                  {y.openUnknowns > 0 && <span style={{ color: 'var(--warn)', fontWeight: 600 }}>{y.openUnknowns}</span>}
                   {onOpenYear && (
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => onOpenYear(y.taxYear)}>פתח ←</button>
                   )}
@@ -287,7 +287,7 @@ export default function ClientCockpitTab({
         {amounts.length > 0 && (
           <div style={{
             display: 'flex', flexWrap: 'wrap', gap: '.4rem 1.2rem', marginTop: '.6rem',
-            fontSize: '.82rem', color: 'var(--gray-600)',
+            fontSize: '13px', color: 'var(--gray-600)',
           }}>
             {amounts.map((a) => (
               <span key={a.label}>
@@ -304,7 +304,7 @@ export default function ClientCockpitTab({
       {/* ── הערה מוצמדת + הוספה מהירה ── */}
       <div className="cw-section pin-section">
         <div className="cw-section-head">
-          <span>📌 הערה מוצמדת</span>
+          <span>הערה מוצמדת</span>
           {!editingNote && (
             <button className="btn btn-ghost btn-sm" onClick={() => { setNoteDraft(client.pinnedNote ?? ''); setEditingNote(true); }}>
               {client.pinnedNote ? 'עריכה' : 'הוסף'}
@@ -320,7 +320,7 @@ export default function ClientCockpitTab({
             </div>
           </div>
         ) : client.pinnedNote ? (
-          <div style={{ fontSize: '.88rem', whiteSpace: 'pre-wrap' }}>{client.pinnedNote}</div>
+          <div style={{ fontSize: '14px', whiteSpace: 'pre-wrap' }}>{client.pinnedNote}</div>
         ) : (
           <div className="cw-empty">אין הערה מוצמדת.</div>
         )}

@@ -29,9 +29,9 @@ export default function ValidationCard({
 
   return (
     <div>
-      <h3 style={{ margin: 0, fontSize: '1.15rem', lineHeight: 1.5 }}>{node.question}</h3>
+      <h3 style={{ margin: 0, fontSize: '17px', lineHeight: 1.5 }}>{node.question}</h3>
       {node.helpText && (
-        <p style={{ marginTop: '.5rem', marginBottom: 0, color: 'var(--gray-600)', fontSize: '.9rem', lineHeight: 1.5 }}>
+        <p style={{ marginTop: '.5rem', marginBottom: 0, color: 'var(--gray-600)', fontSize: '14px', lineHeight: 1.5 }}>
           {node.helpText}
         </p>
       )}
@@ -46,7 +46,7 @@ export default function ValidationCard({
           disabled={disabled}
           style={{ background: 'var(--ok)' }}
         >
-          ✓ מאשר ונכון, המשך
+          מאשר ונכון, המשך
         </button>
 
         {canEdit && (
@@ -56,7 +56,7 @@ export default function ValidationCard({
             onClick={() => setEditorOpen(true)}
             disabled={disabled}
           >
-            ✏ ערוך בכרטיס
+            ערוך בכרטיס
           </button>
         )}
 
@@ -102,14 +102,14 @@ function ValidationPreview({
         marginTop: '1.25rem',
       }}
     >
-      <div style={{ fontWeight: 600, fontSize: '.9rem', color: 'var(--chip-green-tx)', marginBottom: '.6rem' }}>
-        📇 הנתונים הקיימים בכרטיס הלקוח
+      <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--chip-green-tx)', marginBottom: '.6rem' }}>
+        הנתונים הקיימים בכרטיס הלקוח
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <tbody>
           {items.map((item, i) => (
             <tr key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--chip-green-bg)' }}>
-              <td style={{ padding: '.4rem 0', color: 'var(--ok)', width: '35%', fontSize: '.9rem' }}>
+              <td style={{ padding: '.4rem 0', color: 'var(--ok)', width: '35%', fontSize: '14px' }}>
                 {item.label}
               </td>
               <td style={{ padding: '.4rem 0', fontWeight: 500 }}>
@@ -124,7 +124,7 @@ function ValidationPreview({
         </tbody>
       </table>
 
-      <div style={{ marginTop: '.85rem', padding: '.5rem .75rem', background: 'var(--card)', borderRadius: 6, fontSize: '.85rem' }}>
+      <div style={{ marginTop: '.85rem', padding: '.5rem .75rem', background: 'var(--card)', borderRadius: 6, fontSize: '14px' }}>
         <span style={{ color: 'var(--gray-600)' }}>אם תאשר, התשובה תהיה: </span>
         <strong style={{ color: 'var(--chip-green-tx)' }}>{formatAnswer(derivedAnswer, node)}</strong>
       </div>

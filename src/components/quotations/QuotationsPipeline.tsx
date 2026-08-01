@@ -5,6 +5,7 @@ import { QUOTATION_STATUS_LABELS, REMINDER_BUSINESS_DAYS_BEFORE } from '../../ty
 import { calcTotals, formatILS } from '../../utils/quotationCalc';
 import { businessDaysUntil } from '../../utils/businessDays';
 import LeadsPanel, { type LeadPatch } from './LeadsPanel';
+import { EmptyState } from '../ui/States';
 
 interface Props {
   quotations: Quotation[];
@@ -159,15 +160,19 @@ export default function QuotationsPipeline({
           <h1 className="desk-title">הצעות מחיר ולידים</h1>
           <div className="desk-subtitle">מהשיחה הראשונה ועד הפיכת הליד ללקוח</div>
         </div>
-        {page === 'quotations' && <button className="btn btn-primary" onClick={onNew}>+ הצעה חדשה</button>}
+        {/* במצב ריק הכפתור הראשי חי בגוף המסך בלבד — שני כפתורים כחולים
+            על אותו מסך מפצלים את ההחלטה במקום להוביל אותה (D14) */}
+        {page === 'quotations' && quotations.length > 0 && (
+          <button className="ui-btn ui-btn-primary" onClick={onNew}>+ הצעה חדשה</button>
+        )}
       </div>
 
       <div className="tabs" style={{ marginBottom: 16 }}>
         <button className={`tab ${page === 'quotations' ? 'active' : ''}`} onClick={() => setPage('quotations')}>
-          📝 הצעות מחיר{quotations.length ? ` (${quotations.length})` : ''}
+          הצעות מחיר{quotations.length ? ` (${quotations.length})` : ''}
         </button>
         <button className={`tab ${page === 'leads' ? 'active' : ''}`} onClick={() => setPage('leads')}>
-          👤 לידים{leads.length ? ` (${leads.length})` : ''}
+          לידים{leads.length ? ` (${leads.length})` : ''}
         </button>
       </div>
 
@@ -189,7 +194,7 @@ export default function QuotationsPipeline({
 
       {reminderFailures.length > 0 && (
         <div className="alert alert-warning" style={{ marginBottom: 12, flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
-          <div style={{ fontWeight: 600 }}>⚠ תזכורת אוטומטית נכשלה ל־{reminderFailures.length} הצעות — נדרש טיפול:</div>
+          <div style={{ fontWeight: 600 }}>תזכורת אוטומטית נכשלה ל־{reminderFailures.length} הצעות — נדרש טיפול:</div>
           {reminderFailures.map(q => (
             <div key={q.id} style={{ fontSize: 12.5 }}>• {q.quotationNumber} ({recipientName(q)}) — {q.autoReminderError}. אפשר לשלוח תזכורת ידנית מהשורה.</div>
           ))}
@@ -198,7 +203,7 @@ export default function QuotationsPipeline({
 
       {repEmailFailures.length > 0 && (
         <div className="alert alert-warning" style={{ marginBottom: 12, flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
-          <div style={{ fontWeight: 600 }}>⚠ ב־{repEmailFailures.length} הצעות הייצוג נפתח אך מייל הקישור טרם יצא ללקוח:</div>
+          <div style={{ fontWeight: 600 }}>ב־{repEmailFailures.length} הצעות הייצוג נפתח אך מייל הקישור טרם יצא ללקוח:</div>
           {repEmailFailures.map(q => (
             <div key={q.id} style={{ fontSize: 12.5 }}>
               • {q.quotationNumber} ({recipientName(q)}){q.representationError ? ` — ${q.representationError}` : ''}.
@@ -244,12 +249,17 @@ export default function QuotationsPipeline({
       </div>
 
       {quotations.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">📝</div>
-          <div className="empty-state-title">אין עדיין הצעות מחיר</div>
-          <div className="empty-state-desc">צור הצעה ראשונה — ההצעה תופק, תישלח, והליד יהפוך ללקוח עם האישור.</div>
-          <button className="btn btn-primary" onClick={onNew} style={{ marginTop: 16 }}>+ הצעה חדשה</button>
-        </div>
+        /* מצב ריק · D14 — כפתור כחול אחד בדיוק, והשלבים מלמדים את המחזור */
+        <EmptyState
+          headline="עוד לא הפקת הצעת מחיר"
+          sentence="ההצעה נשלחת לנמען, והליד נוצר אוטומטית — גם אם הוא לא קיים במערכת."
+          steps={[
+            'בונים את ההצעה',
+            'שולחים לנמען — הליד נוצר מעצמו',
+            'הלקוח חותם — הליד הופך ללקוח',
+          ]}
+          action={{ label: 'צור הצעה ראשונה', onClick: onNew }}
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {visibleGroups.map(g => {
@@ -304,10 +314,10 @@ export default function QuotationsPipeline({
                                   {q.representationRequestId ? (
                                     // האוטומציה כבר עשתה את העבודה — אין מה "להפוך"
                                     <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>
-                                      {q.representationSentAt ? 'ייצוג נפתח ✓ — לכרטיס ←' : 'ייצוג נפתח — לכרטיס ←'}
+                                      {q.representationSentAt ? 'ייצוג נפתח — לכרטיס ←' : 'ייצוג נפתח — לכרטיס ←'}
                                     </button>
                                   ) : converted ? (
-                                    <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>לקוח ✓ — לכרטיס ←</button>
+                                    <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>לקוח — לכרטיס ←</button>
                                   ) : (
                                     <button className="btn btn-sm btn-green" onClick={() => onConvert(q)}>הפוך ללקוח והתחל ייצוג ←</button>
                                   )}

@@ -46,7 +46,7 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
           <div style={{ fontSize: 11, letterSpacing: '.08em', color: brand.muted, marginBottom: 8, textAlign: 'start' }}>
             שלב 1 מתוך 3 · הפרטים שלכם
           </div>
-          <div style={{ fontSize: compact ? 21 : 25, fontWeight: 700, color: brand.ink, marginBottom: 8, letterSpacing: '-.02em' }}>נעים להכיר</div>
+          <div style={{ fontSize: compact ? 21 : 25, fontWeight: 600, color: brand.ink, marginBottom: 8, letterSpacing: '-.02em' }}>נעים להכיר</div>
           <div style={{ fontSize: 14, color: brand.muted, lineHeight: 1.7, marginBottom: 18 }}>
             כדי ש{brand.firmName} יוכל לייצג אתכם מול רשויות המס, נאסוף את הפרטים הנדרשים. לוקח כדקה.
           </div>
@@ -63,7 +63,7 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
               <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', paddingBottom: i < 3 ? 8 : 0 }}>
                 <div style={{
                   flex: '0 0 auto', width: 17, height: 17, borderRadius: '50%', marginTop: 1,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9.5, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9.5, fontWeight: 600,
                   background: i === 0 ? brand.ink : brand.border, color: i === 0 ? '#fff' : brand.muted,
                 }}>{i + 1}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -91,7 +91,7 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
             ))}
           </div>
 
-          <button disabled style={{ width: '100%', padding: compact ? '13px' : '15px', borderRadius: btnRadius, fontSize: compact ? 15 : 16, fontWeight: 700, fontFamily: 'inherit', cursor: 'default', ...btnStyle }}>
+          <button disabled style={{ width: '100%', padding: compact ? '13px' : '15px', borderRadius: btnRadius, fontSize: compact ? 15 : 16, fontWeight: 600, fontFamily: 'inherit', cursor: 'default', ...btnStyle }}>
             המשך&nbsp;&nbsp;←
           </button>
           <div style={{ marginTop: 14, textAlign: 'center', fontSize: 11, color: brand.muted }}>מאובטח · פחות מדקה</div>

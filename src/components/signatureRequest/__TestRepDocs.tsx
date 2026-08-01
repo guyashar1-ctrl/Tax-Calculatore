@@ -1,10 +1,10 @@
-// ⚠ דף בדיקה — הנגישות למסמכים של לקוח שנמצא בתהליך ייצוג, בלי לגעת בנתוני אמת.
+// דף בדיקה — הנגישות למסמכים של לקוח שנמצא בתהליך ייצוג, בלי לגעת בנתוני אמת.
 // נטען רק כש-URL כולל ?test-repdocs=1.
 //
 // שלושה דברים נבדקים כאן:
-//   1. שורת "בתהליך ייצוג" ברשימת הלקוחות — כפתור "📁 כרטיס" פותח את הכרטיס
+//   1. שורת "בתהליך ייצוג" ברשימת הלקוחות — כפתור "כרטיס" פותח את הכרטיס
 //      ולא את מסך הבקשה.
-//   2. מסך בקשת הייצוג — כפתור "📁 מסמכי הלקוח" מוביל לכרטיס עם לשונית המסמכים.
+//   2. מסך בקשת הייצוג — כפתור "מסמכי הלקוח" מוביל לכרטיס עם לשונית המסמכים.
 //   3. הכלל "רק ייפוי הכוח העדכני מוצג" — withoutSupersededPoa.
 
 import { useState } from 'react';
@@ -96,7 +96,7 @@ export default function TestRepDocs() {
 
   return (
     <div style={{ padding: '1.5rem', fontFamily: 'Heebo, sans-serif', direction: 'rtl' }}>
-      <h1>🧪 בדיקה: מסמכים של לקוח בתהליך ייצוג</h1>
+      <h1>בדיקה: מסמכים של לקוח בתהליך ייצוג</h1>
 
       <div style={{ display: 'flex', gap: '.5rem', marginBottom: '1rem' }}>
         <button className={`btn btn-sm ${screen === 'list' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setScreen('list')}>
@@ -112,21 +112,21 @@ export default function TestRepDocs() {
 
       {/* 3. כלל ההחלפה — לפני ואחרי שנוצר ייפוי כוח חתום */}
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="card-header"><div className="card-title">📁 מה מוצג ברשימת המסמכים</div></div>
+        <div className="card-header"><div className="card-title">מה מוצג ברשימת המסמכים</div></div>
         <div className="card-body" style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
           <div id="docs-before">
-            <div style={{ fontWeight: 700, fontSize: '.85rem', marginBottom: '.3rem' }}>לפני החתימה</div>
+            <div style={{ fontWeight: 600, fontSize: '.85rem', marginBottom: '.3rem' }}>לפני החתימה</div>
             {withoutSupersededPoa(beforeSign).map(d => <div key={d.id} style={{ fontSize: '.8rem' }}>• {d.description}</div>)}
           </div>
           <div id="docs-after">
-            <div style={{ fontWeight: 700, fontSize: '.85rem', marginBottom: '.3rem' }}>אחרי שנוצר ייפוי כוח חתום</div>
+            <div style={{ fontWeight: 600, fontSize: '.85rem', marginBottom: '.3rem' }}>אחרי שנוצר ייפוי כוח חתום</div>
             {withoutSupersededPoa(afterSign).map(d => <div key={d.id} style={{ fontSize: '.8rem' }}>• {d.description}</div>)}
           </div>
         </div>
       </div>
 
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="card-header"><div className="card-title">📋 מה נלחץ</div></div>
+        <div className="card-header"><div className="card-title">מה נלחץ</div></div>
         <div className="card-body" style={{ fontSize: '.82rem', minHeight: 40 }}>
           {log.length === 0 ? <span style={{ color: 'var(--gray-500)' }}>עדיין לא נלחץ דבר</span> : log.map((l, i) => <div key={i}>{l}</div>)}
         </div>

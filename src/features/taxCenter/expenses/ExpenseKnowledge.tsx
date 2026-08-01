@@ -40,7 +40,7 @@ export default function ExpenseKnowledge() {
   const badge = (meta: { label: string; color: string; bg: string }, shortLabel: string) => (
     <span style={{
       display: 'inline-block', padding: '.15rem .55rem', borderRadius: 999,
-      background: meta.bg, color: meta.color, fontWeight: 700, fontSize: '.72rem',
+      background: meta.bg, color: meta.color, fontWeight: 600, fontSize: '12px',
       whiteSpace: 'nowrap',
     }}>
       {meta.label}{shortLabel && shortLabel !== meta.label ? ` · ${shortLabel}` : ''}
@@ -54,7 +54,7 @@ export default function ExpenseKnowledge() {
         <div className="card-body">
           <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div className="form-group" style={{ marginBottom: 0, flex: '2 1 260px' }}>
-              <label style={{ fontWeight: 700 }}>🔍 מה הלקוח שאל?</label>
+              <label style={{ fontWeight: 600 }}>מה הלקוח שאל?</label>
               <input
                 type="text"
                 value={query}
@@ -62,7 +62,7 @@ export default function ExpenseKnowledge() {
                 placeholder='נסו: "חליפה", "מסעדה", "עובד מהבית", "קפה", "אייפון", "כביש 6"...'
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSearchEnter(); }}
-                style={{ fontSize: '1rem' }}
+                style={{ fontSize: '15px' }}
               />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -94,7 +94,7 @@ export default function ExpenseKnowledge() {
             </div>
           </div>
           {query.trim() && filtered.length > 0 && (
-            <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.4rem' }}>
+            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '.4rem' }}>
               Enter יפתח את ההתאמה הראשונה: <strong>{filtered[0].icon} {filtered[0].title}</strong>
             </div>
           )}
@@ -104,12 +104,12 @@ export default function ExpenseKnowledge() {
       {/* טבלת עיון מהיר */}
       <div className="card">
         <div className="card-header">
-          <span className="card-title">💼 עיון מהיר — האם ההוצאה מוכרת?</span>
-          <span style={{ fontSize: '.8rem', color: 'var(--gray-500)' }}>{filtered.length} נושאים</span>
+          <span className="card-title">עיון מהיר — האם ההוצאה מוכרת?</span>
+          <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{filtered.length} נושאים</span>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           <div className="table-wrap">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.875rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
               <thead>
                 <tr style={{ background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
                   <th style={{ padding: '.55rem .9rem', textAlign: 'right' }}>הוצאה</th>
@@ -141,10 +141,10 @@ export default function ExpenseKnowledge() {
                     <td style={{ padding: '.55rem .9rem', textAlign: 'center' }} title={t.riskNote ?? ''}>
                       {RISK_META[t.riskLevel].icon}
                     </td>
-                    <td style={{ padding: '.55rem .9rem', fontSize: '.78rem', color: 'var(--gray-500)' }}>
+                    <td style={{ padding: '.55rem .9rem', fontSize: '13px', color: 'var(--gray-500)' }}>
                       {t.mainSource}
                     </td>
-                    <td style={{ padding: '.55rem .9rem', color: 'var(--blue)', fontWeight: 700, fontSize: '.8rem', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '.55rem .9rem', color: 'var(--blue)', fontWeight: 600, fontSize: '13px', whiteSpace: 'nowrap' }}>
                       פתח ←
                     </td>
                   </tr>
@@ -162,9 +162,9 @@ export default function ExpenseKnowledge() {
         </div>
       </div>
 
-      <div className="alert alert-info" style={{ marginBottom: 0, fontSize: '.8rem' }}>
+      <div className="alert alert-info" style={{ marginBottom: 0, fontSize: '13px' }}>
         התוכן אומת מול פקודת מס הכנסה, חוק מע"מ, התקנות, חוזרי רשות המסים ופסיקה מעשית (יולי 2026).
-        הוא כלי עזר מקצועי — לא תחליף לשיקול דעת במקרה קונקרטי. פריטים המסומנים "⚠ לאמת" דורשים בדיקה נוספת.
+        הוא כלי עזר מקצועי — לא תחליף לשיקול דעת במקרה קונקרטי. פריטים המסומנים "לאמת" דורשים בדיקה נוספת.
       </div>
     </div>
   );

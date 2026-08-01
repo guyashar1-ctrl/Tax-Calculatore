@@ -104,7 +104,7 @@ export default function LegacyMigrationBanner({ knownClientIds }: Props) {
             </div>
           </div>
           <button className="btn btn-primary btn-sm" onClick={startMigration}>
-            ☁️ העלה {count} קבצים לענן
+            העלה {count} קבצים לענן
           </button>
         </>
       )}

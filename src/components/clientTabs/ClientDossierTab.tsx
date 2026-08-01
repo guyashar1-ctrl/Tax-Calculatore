@@ -45,9 +45,9 @@ function DossierGroup({
           padding: '.75rem 1rem', fontFamily: 'inherit',
         }}
       >
-        <span style={{ fontSize: '1.1rem' }}>{icon}</span>
-        <b style={{ fontSize: '1rem' }}>{title}</b>
-        <span style={{ fontSize: '.78rem', color: 'var(--gray-500)' }}>{hint}</span>
+        <span style={{ fontSize: '17px' }}>{icon}</span>
+        <b style={{ fontSize: '15px' }}>{title}</b>
+        <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{hint}</span>
         <span style={{ marginRight: 'auto', color: 'var(--gray-400)' }}>{open ? '▴' : '▾'}</span>
       </button>
       {open && <div style={{ padding: '.4rem .8rem .8rem' }}>{children}</div>}
@@ -64,7 +64,7 @@ export default function ClientDossierTab({ client, update, patch, employees, isN
       <div style={{ border: '1.5px solid var(--chip-amber-bd)', borderRadius: 12, background: 'var(--chip-amber-bg)', padding: '.6rem .9rem' }}>
         <TaxFilesSection client={client} update={update} />
         {regFile && client.familyStatus === 'married' && (
-          <div style={{ fontSize: '.8rem', fontWeight: 700, color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-600)', marginTop: '.35rem' }}>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-600)', marginTop: '.35rem' }}>
             {regFile.owner === 'spouse' ? '⚠' : '🗄️'} בן/בת הזוג הרשום/ה: {regFile.name}
             {regFile.idNumber ? ` · ת.ז. ${regFile.idNumber}` : ''} — כל ההתנהלות מול מ"ה בת.ז. הזו
           </div>

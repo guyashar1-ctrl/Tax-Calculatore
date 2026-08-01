@@ -120,7 +120,7 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
             className={`tab ${mode === 'entry' ? 'active' : ''}`}
             onClick={() => { setCurrentSession(null); setMode('entry'); }}
           >
-            🏠 התחל
+            התחל
           </button>
           <button
             type="button"
@@ -129,7 +129,7 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
             onClick={() => setMode('questionnaire')}
             style={{ opacity: currentSession ? 1 : 0.4 }}
           >
-            📝 שאלון
+            שאלון
           </button>
           <button
             type="button"
@@ -138,7 +138,7 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
             onClick={handleOpenAnswersReview}
             style={{ opacity: currentSession ? 1 : 0.4 }}
           >
-            ✏ ערוך תשובות
+            ערוך תשובות
           </button>
           <button
             type="button"
@@ -147,7 +147,7 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
             onClick={() => setMode('gate')}
             style={{ opacity: currentSession ? 1 : 0.4 }}
           >
-            🚦 מאזן כיסוי
+            מאזן כיסוי
           </button>
           <button
             type="button"
@@ -156,7 +156,7 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
             onClick={() => setMode('output')}
             style={{ opacity: currentSession ? 1 : 0.4 }}
           >
-            📋 פלט ומיפוי
+            פלט ומיפוי
           </button>
           <div style={{ flex: 1 }} />
           <button
@@ -164,14 +164,14 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
             className={`tab ${mode === 'treemap' ? 'active' : ''}`}
             onClick={() => setMode('treemap')}
           >
-            🌳 מפת העץ
+            מפת העץ
           </button>
           <button
             type="button"
             className={`tab ${mode === 'dashboard' ? 'active' : ''}`}
             onClick={() => setMode('dashboard')}
           >
-            📚 מסד נתוני מס
+            מסד נתוני מס
           </button>
         </div>
       </div>

@@ -1,12 +1,12 @@
 // ─── לשונית מיסוי וביטוח לאומי ────────────────────────────────────────────
 // 6 סעיפים בעלי מבנה זהה (אותו רוחב, אותו עיצוב), כל אחד עם נקודת צבע בכותרת
 // שמסמנת את הרשות:
-//   1. 🏛 מס הכנסה
-//   2. 📥 ניכויים
-//   3. 📊 מע״מ
-//   4. 🏥 ביטוח לאומי
-//   5. 🔐 הרשאת שע״ם
-//   6. 📅 הצהרת הון
+//   1. מס הכנסה
+//   2. ניכויים
+//   3. מע״מ
+//   4. ביטוח לאומי
+//   5. הרשאת שע״ם
+//   6. הצהרת הון
 //
 // שדות זיכויים (ילדים, ישוב מזכה, עלייה, נכות, השכלה, צבא/לאומי) נמצאים
 // בלשונית "פרטים אישיים וקשרים".
@@ -92,7 +92,7 @@ export default function TaxNITab({ client, update, hideFiles }: Props) {
       {!hideFiles && <TaxFilesSection client={client} update={update} />}
 
       {/* ════════════════════════════════════════════════════════════
-          1. 🏛 מס הכנסה
+          1. מס הכנסה
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_PIT} icon="🏛" label="מס הכנסה">
         <div className="cw-subsection">
@@ -156,7 +156,7 @@ export default function TaxNITab({ client, update, hideFiles }: Props) {
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          2. 📥 ניכויים
+          2. ניכויים
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_NIKUYIM} icon="📥" label="ניכויים">
         <div className="form-grid form-grid-3">
@@ -198,7 +198,7 @@ export default function TaxNITab({ client, update, hideFiles }: Props) {
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          3. 📊 מע״מ
+          3. מע״מ
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_VAT} icon="📊" label='מע״מ'>
         <div className="form-grid form-grid-3">
@@ -248,7 +248,7 @@ export default function TaxNITab({ client, update, hideFiles }: Props) {
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          4. 🏥 ביטוח לאומי
+          4. ביטוח לאומי
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_NI} icon="🏥" label="ביטוח לאומי">
         <div className="form-grid form-grid-3">
@@ -275,7 +275,7 @@ export default function TaxNITab({ client, update, hideFiles }: Props) {
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          5. 🔐 הרשאת שע״ם
+          5. הרשאת שע״ם
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_SHAAM} icon="🔐" label='הרשאת שע״ם'>
         <div className="form-grid form-grid-4">
@@ -309,7 +309,7 @@ export default function TaxNITab({ client, update, hideFiles }: Props) {
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          6. 📅 הצהרת הון
+          6. הצהרת הון
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_WEALTH} icon="📅" label="הצהרת הון">
         <div className="form-grid form-grid-3">

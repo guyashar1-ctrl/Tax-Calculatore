@@ -15,7 +15,7 @@ const greenHeader: React.CSSProperties = {
   background: 'var(--chip-green-tx)',
   color: 'var(--card)',
   padding: '8px 12px',
-  fontWeight: 700,
+  fontWeight: 600,
   fontSize: '.8125rem',
   textAlign: 'right',
   borderBottom: '2px solid var(--chip-green-tx)',
@@ -47,7 +47,7 @@ const rowLabelStyle: React.CSSProperties = {
 
 const totalRowStyle: React.CSSProperties = {
   background: 'var(--chip-green-bg)',
-  fontWeight: 700,
+  fontWeight: 600,
 };
 
 const tableStyle: React.CSSProperties = {
@@ -60,7 +60,7 @@ const tableStyle: React.CSSProperties = {
 
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: '1.1rem',
-  fontWeight: 700,
+  fontWeight: 600,
   color: 'var(--chip-green-tx)',
   marginBottom: '.75rem',
   paddingBottom: '.5rem',
@@ -97,7 +97,7 @@ function AxisDiagram({ zones }: {
               textAlign: 'center',
             }}>
               <div style={{
-                fontSize: '.8rem', fontWeight: 700,
+                fontSize: '.8rem', fontWeight: 600,
                 color: z.rate === '0%' || z.label === 'פטור' ? 'var(--tx3)' : 'var(--tx)',
               }}>
                 {z.rate || '0%'}
@@ -683,7 +683,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
           background: 'var(--info)', color: 'var(--card)', padding: '.9rem 1.25rem',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-          <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>🧮 מחשבון ביטוח לאומי — {year}</span>
+          <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>מחשבון ביטוח לאומי — {year}</span>
           <span style={{
             background: 'rgba(255,255,255,.2)', padding: '.2rem .7rem',
             borderRadius: 20, fontSize: '.8rem', fontWeight: 600,
@@ -796,15 +796,15 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                       <th style={{ padding: '.6rem .75rem', textAlign: 'right', fontWeight: 600 }}></th>
                       <th style={{ padding: '.6rem .75rem', textAlign: 'center', fontWeight: 600 }}>ביטוח לאומי</th>
                       <th style={{ padding: '.6rem .75rem', textAlign: 'center', fontWeight: 600 }}>מס בריאות</th>
-                      <th style={{ padding: '.6rem .75rem', textAlign: 'center', fontWeight: 700 }}>סה"כ</th>
+                      <th style={{ padding: '.6rem .75rem', textAlign: 'center', fontWeight: 600 }}>סה"כ</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr style={{ borderBottom: '1px solid var(--s2)' }}>
                       <td style={{ padding: '.5rem .75rem', fontWeight: 600 }}>חודשי (חלק עובד)</td>
-                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: 'var(--br)' }}>{fmt(calcResult.ni)}</td>
-                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: 'var(--chip-teal-tx)' }}>{fmt(calcResult.health)}</td>
-                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 700, color: 'var(--info)', fontSize: '1rem' }}>{fmt(calcResult.total)}</td>
+                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 600, color: 'var(--br)' }}>{fmt(calcResult.ni)}</td>
+                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 600, color: 'var(--chip-teal-tx)' }}>{fmt(calcResult.health)}</td>
+                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 600, color: 'var(--info)', fontSize: '1rem' }}>{fmt(calcResult.total)}</td>
                     </tr>
                     {(calcResult.employerNI > 0 || calcResult.employerHealth > 0) && (
                       <tr style={{ borderBottom: '1px solid var(--s2)', background: 'var(--s2)' }}>
@@ -814,7 +814,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                         <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: 'var(--tx2)', fontWeight: 600 }}>{fmt(calcResult.employerNI + calcResult.employerHealth)}</td>
                       </tr>
                     )}
-                    <tr style={{ background: 'var(--chip-teal-bg)', fontWeight: 700 }}>
+                    <tr style={{ background: 'var(--chip-teal-bg)', fontWeight: 600 }}>
                       <td style={{ padding: '.6rem .75rem' }}>שנתי (עובד × {(calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12})</td>
                       <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--br)' }}>{fmt(calcResult.ni * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
                       <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--chip-teal-tx)' }}>{fmt(calcResult.health * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>

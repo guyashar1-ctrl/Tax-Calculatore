@@ -73,13 +73,13 @@ export default function AnnualReportOutput({ session, clientName, client, onBack
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '1rem 1.5rem 2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.4rem' }}>📋 תוצאות תהליך — {clientName}, שנת {session.taxYear}</h2>
-          <p style={{ margin: '.3rem 0 0', color: 'var(--gray-600)', fontSize: '.9rem' }}>
+          <h2 style={{ margin: 0, fontSize: '24px' }}>תוצאות תהליך — {clientName}, שנת {session.taxYear}</h2>
+          <p style={{ margin: '.3rem 0 0', color: 'var(--gray-600)', fontSize: '14px' }}>
             סטטוס: <strong>{statusLabel(session.status)}</strong> · עודכן: {new Date(session.updatedAt).toLocaleString('he-IL')}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '.5rem' }}>
-          <button className="btn btn-primary" onClick={onOpenAnswersReview}>✏ צפה / ערוך תשובות</button>
+          <button className="btn btn-primary" onClick={onOpenAnswersReview}>צפה / ערוך תשובות</button>
           {!isFinished && (
             <button className="btn btn-secondary" onClick={onBackToQuestionnaire}>המשך שאלון</button>
           )}
@@ -89,10 +89,10 @@ export default function AnnualReportOutput({ session, clientName, client, onBack
 
       <div className="tabs" style={{ marginBottom: '1rem' }}>
         {[
-          { id: 'summary' as const, label: '📊 סיכום' },
-          { id: 'checklist' as const, label: `📎 דרישות (${docs.length + missingClientFields.length})` },
-          { id: 'mapping' as const, label: `🗺 מיפוי 1301 (🟢${statusCounts.active} · 🔴${statusCounts.pruned} · 🟡${statusCounts.pending})` },
-          { id: 'tax' as const, label: '💰 חישוב מס שקוף' },
+          { id: 'summary' as const, label: 'סיכום' },
+          { id: 'checklist' as const, label: `דרישות (${docs.length + missingClientFields.length})` },
+          { id: 'mapping' as const, label: `מיפוי 1301 (🟢${statusCounts.active} · 🔴${statusCounts.pruned} · 🟡${statusCounts.pending})` },
+          { id: 'tax' as const, label: 'חישוב מס שקוף' },
         ].map((t) => (
           <button
             key={t.id}
@@ -121,7 +121,7 @@ export default function AnnualReportOutput({ session, clientName, client, onBack
       {session.status !== 'mapping_done' && (
         <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
           <button className="btn btn-primary btn-lg" onClick={() => void onMarkDone()}>
-            ✓ סמן כתהליך מוכן
+            סמן כתהליך מוכן
           </button>
         </div>
       )}
@@ -133,7 +133,7 @@ function statusLabel(s: AnnualReportSession['status']): string {
   switch (s) {
     case 'in_progress': return 'בעבודה';
     case 'review': return 'מוכן לבדיקה';
-    case 'mapping_done': return '✓ מוכן להגשה';
+    case 'mapping_done': return 'מוכן להגשה';
     case 'archived': return 'בארכיון';
   }
 }
@@ -180,18 +180,18 @@ function SummaryView({ session, attachments, docs, mapped, tax }: {
         </ul>
       </SummaryCard>
       <SummaryCard title="מסמכים ונספחים">
-        <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--blue)' }}>{docs.length}</div>
+        <div style={{ fontSize: '34px', fontWeight: 600, color: 'var(--blue)' }}>{docs.length}</div>
         <div style={{ color: 'var(--gray-600)' }}>מסמכים נדרשים</div>
-        <div style={{ marginTop: '.5rem', fontSize: '2rem', fontWeight: 700, color: 'var(--green)' }}>{attachments.length}</div>
+        <div style={{ marginTop: '.5rem', fontSize: '34px', fontWeight: 600, color: 'var(--green)' }}>{attachments.length}</div>
         <div style={{ color: 'var(--gray-600)' }}>נספחים לטופס 1301</div>
       </SummaryCard>
       <SummaryCard title="שדות במיפוי 1301">
-        <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--green)' }}>{filledFields} / {mapped.length}</div>
+        <div style={{ fontSize: '34px', fontWeight: 600, color: 'var(--green)' }}>{filledFields} / {mapped.length}</div>
         <div style={{ color: 'var(--gray-600)' }}>שדות מולאו אוטומטית</div>
       </SummaryCard>
       <SummaryCard title="אומדן מס לתשלום">
-        <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--gray-800)' }}>{tax.netTax.toLocaleString('he-IL')} ₪</div>
-        <div style={{ color: 'var(--gray-600)', fontSize: '.85rem', marginTop: '.3rem' }}>אומדן בלבד — לפני נתוני 106/867</div>
+        <div style={{ fontSize: '24px', fontWeight: 600, color: 'var(--gray-800)' }}>{tax.netTax.toLocaleString('he-IL')} ₪</div>
+        <div style={{ color: 'var(--gray-600)', fontSize: '14px', marginTop: '.3rem' }}>אומדן בלבד — לפני נתוני 106/867</div>
       </SummaryCard>
     </div>
   );
@@ -227,10 +227,10 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
       {missingClientFields.length > 0 && (
         <div className="card" style={{ borderRight: '4px solid var(--warn)' }}>
           <div className="card-header" style={{ background: 'var(--chip-amber-bg)' }}>
-            <h3 className="card-title">📇 פרטים להשלים בכרטיס הלקוח ({missingClientFields.length})</h3>
+            <h3 className="card-title">פרטים להשלים בכרטיס הלקוח ({missingClientFields.length})</h3>
           </div>
           <div className="card-body">
-            <p style={{ margin: '0 0 .75rem', fontSize: '.9rem', color: 'var(--gray-700)' }}>
+            <p style={{ margin: '0 0 .75rem', fontSize: '14px', color: 'var(--gray-700)' }}>
               שדות שלא נמצאו בכרטיס הלקוח כשהוצגה השאלה הראשונה. כדאי להשלים אותם בכרטיס לפני הגשת הדוח.
             </p>
             <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
@@ -247,8 +247,8 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
         </div>
       )}
 
-      <div style={{ background: 'var(--gray-50)', padding: '.75rem 1rem', borderRadius: 6, fontSize: '.9rem', color: 'var(--gray-700)' }}>
-        <strong>📋 רכז דרישות:</strong> {docs.length} מסמכים, {attachments.length} נספחים. כל מסמך מקוטלג לפי מי שצריך לספק אותו.
+      <div style={{ background: 'var(--gray-50)', padding: '.75rem 1rem', borderRadius: 6, fontSize: '14px', color: 'var(--gray-700)' }}>
+        <strong>רכז דרישות:</strong> {docs.length} מסמכים, {attachments.length} נספחים. כל מסמך מקוטלג לפי מי שצריך לספק אותו.
       </div>
 
       {/* מסמכים מקובצים לפי source */}
@@ -267,9 +267,9 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
                     <div style={{ flex: '0 0 24px', color: 'var(--blue)' }}>☐</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600 }}>{d.name}</div>
-                      <div style={{ fontSize: '.85rem', color: 'var(--gray-600)' }}>{d.reason}</div>
+                      <div style={{ fontSize: '14px', color: 'var(--gray-600)' }}>{d.reason}</div>
                       {d.forFields && d.forFields.length > 0 && (
-                        <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: 2 }}>
+                        <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: 2 }}>
                           שדות 1301: {d.forFields.join(', ')}
                         </div>
                       )}
@@ -283,7 +283,7 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
       })}
 
       <div className="card">
-        <div className="card-header"><h3 className="card-title">📄 נספחים לטופס 1301 ({attachments.length})</h3></div>
+        <div className="card-header"><h3 className="card-title">נספחים לטופס 1301 ({attachments.length})</h3></div>
         <div className="card-body">
           {attachments.length === 0 ? (
             <p style={{ color: 'var(--gray-500)', margin: 0 }}>אין נספחים חובה — דוח רגיל מספיק.</p>
@@ -294,7 +294,7 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
                   <div style={{ flex: '0 0 100px', color: 'var(--blue)', fontWeight: 600 }}>{a.formNumber}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600 }}>{a.name}</div>
-                    <div style={{ fontSize: '.85rem', color: 'var(--gray-600)' }}>{a.reason}</div>
+                    <div style={{ fontSize: '14px', color: 'var(--gray-600)' }}>{a.reason}</div>
                   </div>
                 </li>
               ))}
@@ -335,15 +335,15 @@ function MappingView({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <div style={{ background: 'var(--gray-50)', padding: '.75rem 1rem', borderRadius: 6, fontSize: '.9rem', color: 'var(--gray-700)' }}>
+      <div style={{ background: 'var(--gray-50)', padding: '.75rem 1rem', borderRadius: 6, fontSize: '14px', color: 'var(--gray-700)' }}>
         <div style={{ marginBottom: '.5rem' }}>
-          כל 44 שדות הטופס נראים כאן עם סטטוס דינמי: 🟢 פעיל לפרופיל הלקוח, 🔴 נפסל אוטומטית, 🟡 ממתין להחלטה בשאלון.
+          כל 44 שדות הטופס נראים כאן עם סטטוס דינמי: פעיל לפרופיל הלקוח, נפסל אוטומטית, ממתין להחלטה בשאלון.
         </div>
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           <FilterButton current={filter} value="all"     onChange={setFilter}>הכל ({statusCounts.active + statusCounts.pruned + statusCounts.pending})</FilterButton>
-          <FilterButton current={filter} value="active"  onChange={setFilter}>🟢 רלוונטיים ({statusCounts.active})</FilterButton>
-          <FilterButton current={filter} value="pruned"  onChange={setFilter}>🔴 מנוטרלים ({statusCounts.pruned})</FilterButton>
-          <FilterButton current={filter} value="pending" onChange={setFilter}>🟡 ממתינים ({statusCounts.pending})</FilterButton>
+          <FilterButton current={filter} value="active"  onChange={setFilter}>רלוונטיים ({statusCounts.active})</FilterButton>
+          <FilterButton current={filter} value="pruned"  onChange={setFilter}>מנוטרלים ({statusCounts.pruned})</FilterButton>
+          <FilterButton current={filter} value="pending" onChange={setFilter}>ממתינים ({statusCounts.pending})</FilterButton>
         </div>
       </div>
       {sections.map(([section, fields]) => {
@@ -397,7 +397,7 @@ function FilterButton({ current, value, onChange, children }: {
         background: active ? 'var(--blue)' : 'var(--card)',
         color: active ? 'var(--card)' : 'var(--gray-700)',
         cursor: 'pointer',
-        fontSize: '.85rem',
+        fontSize: '14px',
         fontWeight: active ? 600 : 400,
       }}
     >
@@ -413,14 +413,14 @@ function FieldRow({ fws }: { fws: FieldWithStatus }) {
   return (
     <>
       <tr style={{ borderBottom: '1px solid var(--gray-100)', ...rowStyle }}>
-        <td style={{ padding: '.6rem', fontSize: '1.1rem', textAlign: 'center' }} title={statusLabelFor(fws.status)}>
+        <td style={{ padding: '.6rem', fontSize: '17px', textAlign: 'center' }} title={statusLabelFor(fws.status)}>
           {statusIcon(fws.status)}
         </td>
         <td style={{ padding: '.6rem', fontFamily: 'monospace', color: 'var(--blue)' }}>{field.fieldNumber}</td>
         <td style={{ padding: '.6rem', textDecoration: fws.status === 'pruned' ? 'line-through' : 'none' }}>
           {field.hebrewLabel}
           {field.legalReference && (
-            <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>{field.legalReference}</div>
+            <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{field.legalReference}</div>
           )}
         </td>
         <td style={{ padding: '.6rem', fontWeight: field.value ? 600 : 400 }}>
@@ -430,7 +430,7 @@ function FieldRow({ fws }: { fws: FieldWithStatus }) {
         </td>
         <td style={{ padding: '.6rem' }}>
           <span style={{
-            fontSize: '.75rem',
+            fontSize: '12px',
             padding: '2px 8px',
             borderRadius: 999,
             background: traceBg(field.trace.kind),
@@ -441,7 +441,7 @@ function FieldRow({ fws }: { fws: FieldWithStatus }) {
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            style={{ marginRight: 8, background: 'transparent', border: 'none', color: 'var(--blue)', cursor: 'pointer', fontSize: '.85rem' }}
+            style={{ marginRight: 8, background: 'transparent', border: 'none', color: 'var(--blue)', cursor: 'pointer', fontSize: '14px' }}
           >
             {open ? 'הסתר' : 'פרטים'}
           </button>
@@ -450,18 +450,18 @@ function FieldRow({ fws }: { fws: FieldWithStatus }) {
       {open && (
         <tr>
           <td colSpan={5} style={{ padding: '0 .6rem .75rem' }}>
-            <div style={{ background: 'var(--gray-50)', borderRight: '3px solid var(--blue)', padding: '.75rem 1rem', fontSize: '.85rem', color: 'var(--gray-700)' }}>
+            <div style={{ background: 'var(--gray-50)', borderRight: '3px solid var(--blue)', padding: '.75rem 1rem', fontSize: '14px', color: 'var(--gray-700)' }}>
               <div style={{ marginBottom: '.4rem' }}>
                 <strong>סטטוס:</strong> {statusLabelFor(fws.status)}
               </div>
               <strong>{traceLabel(field.trace.kind)}:</strong> {field.trace.detail}
               {field.trace.questionIds && field.trace.questionIds.length > 0 && (
-                <div style={{ marginTop: '.4rem', fontSize: '.8rem', color: 'var(--gray-500)' }}>
+                <div style={{ marginTop: '.4rem', fontSize: '13px', color: 'var(--gray-500)' }}>
                   מבוסס על שאלות: {field.trace.questionIds.join(', ')}
                 </div>
               )}
               {field.trace.formula && (
-                <div style={{ marginTop: '.4rem', fontFamily: 'monospace', fontSize: '.8rem' }}>
+                <div style={{ marginTop: '.4rem', fontFamily: 'monospace', fontSize: '13px' }}>
                   נוסחה: {field.trace.formula}
                 </div>
               )}
@@ -491,11 +491,11 @@ function TaxView({ tax }: { tax: ReturnType<typeof computeTransparentTax> }) {
   return (
     <div className="card">
       <div className="card-header">
-        <h3 className="card-title">💰 חישוב מס שקוף — אומדן</h3>
+        <h3 className="card-title">חישוב מס שקוף — אומדן</h3>
       </div>
       <div className="card-body">
-        <p style={{ background: 'var(--chip-amber-bg)', border: '1px solid var(--warn)', borderRadius: 6, padding: '.6rem 1rem', margin: '0 0 1rem', fontSize: '.875rem' }}>
-          ⚠ זהו אומדן בלבד המבוסס על תשובות השאלון. החישוב המלא יבוצע במחשבון המס לאחר העלאת טפסי 106/867 בפאזה הבאה.
+        <p style={{ background: 'var(--chip-amber-bg)', border: '1px solid var(--warn)', borderRadius: 6, padding: '.6rem 1rem', margin: '0 0 1rem', fontSize: '14px' }}>
+          זהו אומדן בלבד המבוסס על תשובות השאלון. החישוב המלא יבוצע במחשבון המס לאחר העלאת טפסי 106/867 בפאזה הבאה.
         </p>
 
         {tax.warnings.length > 0 && (

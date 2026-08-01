@@ -66,9 +66,9 @@ export default function QuestionCard({
 
   return (
     <div>
-      <h3 style={{ margin: 0, fontSize: '1.15rem', lineHeight: 1.5 }}>{node.question}</h3>
+      <h3 style={{ margin: 0, fontSize: '17px', lineHeight: 1.5 }}>{node.question}</h3>
       {node.helpText && (
-        <p style={{ marginTop: '.5rem', marginBottom: 0, color: 'var(--gray-600)', fontSize: '.9rem', lineHeight: 1.5 }}>
+        <p style={{ marginTop: '.5rem', marginBottom: 0, color: 'var(--gray-600)', fontSize: '14px', lineHeight: 1.5 }}>
           {node.helpText}
         </p>
       )}
@@ -128,13 +128,13 @@ export default function QuestionCard({
                 >
                   <span style={{
                     position: 'absolute', top: 8, left: 10, width: 20, height: 20, borderRadius: '50%',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '.7rem',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px',
                     background: checked ? 'var(--blue)' : 'var(--gray-100)',
                     color: checked ? 'var(--card)' : 'transparent',
                   }}>✓</span>
-                  <span style={{ fontSize: '1.4rem', display: 'block' }}>{icon}</span>
-                  <span style={{ fontWeight: 700, fontSize: '.92rem', display: 'block', marginTop: 4 }}>{title}</span>
-                  {sub && <span style={{ fontSize: '.76rem', color: 'var(--gray-500)', display: 'block', lineHeight: 1.35 }}>{sub}</span>}
+                  <span style={{ fontSize: '24px', display: 'block' }}>{icon}</span>
+                  <span style={{ fontWeight: 600, fontSize: '14px', display: 'block', marginTop: 4 }}>{title}</span>
+                  {sub && <span style={{ fontSize: '12px', color: 'var(--gray-500)', display: 'block', lineHeight: 1.35 }}>{sub}</span>}
                 </button>
               );
             })}
@@ -195,7 +195,7 @@ export default function QuestionCard({
                 style={{ color: 'var(--gray-500)' }}
                 title="נמשיך הלאה — רואה החשבון יבדוק את זה איתך"
               >
-                🤷 לא בטוח/ה
+                לא בטוח/ה
               </button>
             )}
           </div>
@@ -207,7 +207,7 @@ export default function QuestionCard({
             className="input"
             value={numberValue}
             onChange={(e) => setNumberValue(e.target.value)}
-            style={{ maxWidth: 300, padding: '.6rem .9rem', fontSize: '1rem' }}
+            style={{ maxWidth: 300, padding: '.6rem .9rem', fontSize: '15px' }}
             placeholder="הזן מספר"
           />
         )}

@@ -75,7 +75,7 @@ export default function ReleaseLetterDialog({ clientId, clientName, businessName
     <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal task-modal" style={{ maxWidth: 620, width: '100%' }}>
         <div className="modal-header">
-          <h3>📄 מכתב שחרור לרו״ח הקודם</h3>
+          <h3>מכתב שחרור לרו״ח הקודם</h3>
           <button className="btn btn-icon btn-ghost" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -102,7 +102,7 @@ export default function ReleaseLetterDialog({ clientId, clientName, businessName
           ) : (
             <>
               <button className="btn btn-secondary" onClick={onClose} disabled={busy}>ביטול</button>
-              <button className="btn btn-primary" onClick={handleSend} disabled={busy}>{busy ? 'שולח…' : '📨 שליחה לרו״ח הקודם'}</button>
+              <button className="btn btn-primary" onClick={handleSend} disabled={busy}>{busy ? 'שולח…' : 'שליחה לרו״ח הקודם'}</button>
             </>
           )}
         </div>

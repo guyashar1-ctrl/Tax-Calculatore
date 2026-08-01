@@ -130,14 +130,14 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
   const regChip = regFile && (
     <span
       style={{
-        fontSize: '.74rem', fontWeight: 700, borderRadius: 99, padding: '.12rem .6rem',
+        fontSize: '12px', fontWeight: 600, borderRadius: 99, padding: '.12rem .6rem',
         background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
         color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-600)',
         marginRight: '.5rem', whiteSpace: 'nowrap',
       }}
       title="על שם מי מתנהל תיק מס הכנסה — נקבע בכרטיס הלקוח"
     >
-      🗄️ התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
+      התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
     </span>
   );
 
@@ -203,7 +203,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
           <div style={{ color: 'var(--gray-600)' }}>
             <strong>{clientName}</strong> · שנת מס <strong>{session.taxYear}</strong>{regChip}
-            {prior && <span style={{ fontSize: '.8rem' }}> · סקירה שנתית על בסיס {prior.session.taxYear}</span>}
+            {prior && <span style={{ fontSize: '13px' }}> · סקירה שנתית על בסיס {prior.session.taxYear}</span>}
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onExit}>שמור וצא</button>
         </div>
@@ -262,7 +262,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
 
         {/* ─── אזור השאלה ─── */}
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.6rem', fontSize: '.83rem', color: 'var(--gray-500)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.6rem', fontSize: '13px', color: 'var(--gray-500)' }}>
             <button
               type="button"
               className="btn btn-ghost btn-sm"
@@ -317,14 +317,14 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
                               className="btn btn-secondary btn-sm"
                               onClick={() => setCardEditorOpen(true)}
                             >
-                              ✏ השלם / עדכן בכרטיס
+                              השלם / עדכן בכרטיס
                             </button>
                           </div>
                         )}
                       </div>
                     )}
                     {priorAnswers.has(node.id) && (
-                      <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light, var(--chip-blue-bg))', borderRadius: 4, fontSize: '.85rem', color: 'var(--gray-700)' }}>
+                      <div style={{ marginBottom: '.75rem', padding: '.4rem .75rem', background: 'var(--blue-light, var(--chip-blue-bg))', borderRadius: 4, fontSize: '14px', color: 'var(--gray-700)' }}>
                         ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת — לחץ "המשך" לאישור, או שנה לפי הצורך.
                       </div>
                     )}
@@ -341,7 +341,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
                           className="btn btn-ghost btn-sm"
                           onClick={() => setCardEditorOpen(true)}
                         >
-                          ✏ עדכן בכרטיס הלקוח
+                          עדכן בכרטיס הלקוח
                         </button>
                       </div>
                     )}
@@ -361,8 +361,8 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
 
           {/* ─── שקיפות: מה השאלה מזינה ─── */}
           {uniqueCodes.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', marginTop: '.7rem', fontSize: '.76rem', color: 'var(--gray-500)', flexWrap: 'wrap' }}>
-              🔄 מתעדכן:
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', marginTop: '.7rem', fontSize: '12px', color: 'var(--gray-500)', flexWrap: 'wrap' }}>
+              מתעדכן:
               <span style={{ background: 'var(--blue-light, var(--chip-blue-bg))', color: 'var(--blue)', fontWeight: 600, borderRadius: 99, padding: '.05rem .6rem' }}>
                 כרטיס הלקוח
               </span>
@@ -406,14 +406,14 @@ function DataPreviewBox({ items }: { items: QuestionPreviewItem[] }) {
         marginBottom: '1rem',
       }}
     >
-      <div style={{ fontWeight: 600, fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.6rem' }}>
-        📇 הנתונים הקיימים בכרטיס הלקוח
+      <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-700)', marginBottom: '.6rem' }}>
+        הנתונים הקיימים בכרטיס הלקוח
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <tbody>
           {items.map((item, i) => (
             <tr key={i} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--gray-100)' }}>
-              <td style={{ padding: '.4rem 0', color: 'var(--gray-500)', width: '35%', fontSize: '.9rem' }}>
+              <td style={{ padding: '.4rem 0', color: 'var(--gray-500)', width: '35%', fontSize: '14px' }}>
                 {item.label}
               </td>
               <td style={{ padding: '.4rem 0', fontWeight: 500 }}>

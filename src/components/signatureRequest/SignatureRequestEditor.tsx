@@ -331,7 +331,7 @@ export default function SignatureRequestEditor({
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal sig-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>📝 מסמך לחתימה {initial ? '— עריכה' : ''}</h3>
+          <h3>מסמך לחתימה {initial ? '— עריכה' : ''}</h3>
           <button type="button" className="btn btn-ghost btn-icon" onClick={onCancel}>✕</button>
         </div>
 
@@ -622,12 +622,12 @@ export function FieldsPanel(p: FieldsPanelProps) {
                 padding: '.6rem .8rem', borderRadius: 'var(--radius)',
                 margin: '.75rem auto', maxWidth: 500, fontSize: '.85rem',
               }}>
-                ⚠ {p.pdfLoadError}
+                {p.pdfLoadError}
               </div>
             )}
             <br />
             <button type="button" className="btn btn-primary" onClick={openPicker}>
-              📤 העלאת PDF
+              העלאת PDF
             </button>
           </div>
         </div>
@@ -654,7 +654,7 @@ export function FieldsPanel(p: FieldsPanelProps) {
 
           <div className="sig-toolbar">
             <div className="sig-toolbar-group">
-              <span className="sig-toolbar-label">📄 {p.pdfFileName || 'PDF'}</span>
+              <span className="sig-toolbar-label">{p.pdfFileName || 'PDF'}</span>
               <button type="button" className="btn btn-ghost btn-sm" onClick={openPicker}>
                 החלף קובץ
               </button>
@@ -898,7 +898,7 @@ function PdfPageWithMarkers({
                 <span style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: '100%', height: '100%', pointerEvents: 'none',
-                  fontWeight: 700, color: '#111',
+                  fontWeight: 600, color: '#111',
                   fontSize: f.kind === 'label' ? '.72rem' : '1rem',
                   lineHeight: 1.1, overflow: 'hidden', textAlign: 'center',
                 }}>

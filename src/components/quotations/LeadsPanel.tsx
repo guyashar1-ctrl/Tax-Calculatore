@@ -97,7 +97,7 @@ export default function LeadsPanel({ leads, quotations, onSave, onCreate, onDele
   return (
     <div dir="rtl">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <input placeholder="🔍 חיפוש לפי שם, עסק, טלפון או מייל…" value={search}
+        <input placeholder="חיפוש לפי שם, עסק, טלפון או מייל…" value={search}
           onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
         <button className="btn btn-primary" onClick={() => setEditing('new')}>+ ליד חדש</button>
       </div>

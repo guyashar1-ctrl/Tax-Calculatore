@@ -642,7 +642,7 @@ function SaveState({ dirty, busy, savedAt, completeness }: { dirty: boolean; bus
       שינויים שלא נשמרו
     </span>
   );
-  if (savedAt) return <span style={{ ...chip, background: 'var(--green-light)', color: 'var(--chip-green-tx)' }}>✓ נשמר</span>;
+  if (savedAt) return <span style={{ ...chip, background: 'var(--green-light)', color: 'var(--chip-green-tx)' }}>נשמר</span>;
   return (
     <span style={{ ...chip, background: 'var(--gray-100)', color: 'var(--gray-600)' }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT }} />

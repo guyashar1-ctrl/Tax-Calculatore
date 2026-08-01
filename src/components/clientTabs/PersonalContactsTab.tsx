@@ -1,13 +1,13 @@
 // ─── לשונית פרטים אישיים וקשרים ───────────────────────────────────────────
 // הסעיפים:
-//   1. 👤 פרטי נישום + ישוב מזכה (משפיע על נקודות זיכוי)
+//   1. פרטי נישום + ישוב מזכה (משפיע על נקודות זיכוי)
 //   2. 👨‍👩‍👧 מצב משפחתי + בן/בת זוג
-//   3. 👶 ילדים — עורך מלא (שם פרטי, תאריך לידה, נכות)
-//   4. ⭐ זכאויות לזיכוי מס (עלייה, נכות, השכלה, צבא/לאומי)
-//   5. 🏠 נכסים והשקעות (מגורים, שכירות, שוק ההון)
-//   6. 👥 עובד מטפל
-//   7. 🏷 תגיות
-//   8. 📞 אנשי קשר — הנישום עצמו + אנשי קשר נוספים, עם סימון ראשי 🔑
+//   3. ילדים — עורך מלא (שם פרטי, תאריך לידה, נכות)
+//   4. זכאויות לזיכוי מס (עלייה, נכות, השכלה, צבא/לאומי)
+//   5. נכסים והשקעות (מגורים, שכירות, שוק ההון)
+//   6. עובד מטפל
+//   7. תגיות
+//   8. אנשי קשר — הנישום עצמו + אנשי קשר נוספים, עם סימון ראשי 🔑
 
 import React, { useState } from 'react';
 import {
@@ -478,7 +478,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
     <div className="cw-tab">
 
       {/* ════════════════════════════════════════════════════════════
-          1. 👤 פרטי נישום
+          1. פרטי נישום
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_IDENTITY} icon="👤" label="פרטי נישום">
         <div className="form-grid form-grid-3">
@@ -525,7 +525,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
 
         {/* ── יישוב מוטב ── */}
         <div className="cw-subsection" style={{ marginTop: '.75rem' }}>
-          <div className="cw-subsection-title">🏘 יישוב מוטב (זיכוי באחוזים מההכנסה — סעיף 11)</div>
+          <div className="cw-subsection-title">יישוב מוטב (זיכוי באחוזים מההכנסה — סעיף 11)</div>
           <div className="form-grid form-grid-3">
             <div className="form-group">
               <label>יישוב מוטב</label>
@@ -571,8 +571,8 @@ export default function PersonalContactsTab({ client, update, patch, employees }
 
         {/* ── אזרחויות נוספות (FATCA / CRS / אמנות מס) ── */}
         <div className="cw-subsection">
-          <div className="cw-subsection-title">🌐 אזרחויות נוספות</div>
-          <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .5rem' }}>
+          <div className="cw-subsection-title">אזרחויות נוספות</div>
+          <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .5rem' }}>
             אם יש אזרחות זרה — חשוב לדיווח FATCA/CRS ולשימוש באמנות מס. ישראלית נרשמת אוטומטית, אין צורך להוסיף.
           </p>
           <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -593,13 +593,13 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   background: 'var(--chip-blue-bg)', color: 'var(--chip-blue-tx)',
                   padding: '.25rem .6rem', borderRadius: 999,
                   display: 'inline-flex', alignItems: 'center', gap: '.4rem',
-                  fontSize: '.85rem',
+                  fontSize: '14px',
                 }}>
                   {c}
                   <button
                     type="button"
                     onClick={() => removeCitizenship(c)}
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--chip-blue-tx)', padding: 0, fontSize: '1rem', lineHeight: 1 }}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--chip-blue-tx)', padding: 0, fontSize: '15px', lineHeight: 1 }}
                     title="הסר"
                   >×</button>
                 </span>
@@ -649,7 +649,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          3. 👶 ילדים — עורך מלא
+          3. ילדים — עורך מלא
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection
         color={COLOR_CHILDREN}
@@ -695,13 +695,13 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          4. 📋 פרטים הקשורים למס הכנסה
+          4. פרטים הקשורים למס הכנסה
              כולל: עלייה/נכות/השכלה/צבא + הכנסות חו"ל + הגרלות + הון + תרומות
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_CREDITS} icon="📋" label="פרטים הקשורים למס הכנסה">
         {/* עלייה / תושב חוזר */}
         <div className="cw-subsection">
-          <div className="cw-subsection-title">✈ עלייה / תושבות</div>
+          <div className="cw-subsection-title">עלייה / תושבות</div>
           <div className="form-grid form-grid-4">
             <div className="form-group">
               <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
@@ -750,7 +750,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
 
         {/* נכות */}
         <div className="cw-subsection">
-          <div className="cw-subsection-title">♿ נכות</div>
+          <div className="cw-subsection-title">נכות</div>
           <div className="form-grid form-grid-3">
             <div className="form-group">
               <label>אחוז נכות</label>
@@ -776,7 +776,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
 
         {/* השכלה */}
         <div className="cw-subsection">
-          <div className="cw-subsection-title">🎓 השכלה</div>
+          <div className="cw-subsection-title">השכלה</div>
           <div className="form-grid form-grid-3">
             <div className="form-group">
               <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
@@ -815,7 +815,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
 
         {/* שירות צבאי / לאומי */}
         <div className="cw-subsection">
-          <div className="cw-subsection-title">🎖 שירות צבאי / לאומי</div>
+          <div className="cw-subsection-title">שירות צבאי / לאומי</div>
           <div className="form-grid form-grid-4">
             <div className="form-group">
               <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
@@ -862,11 +862,11 @@ export default function PersonalContactsTab({ client, update, patch, employees }
           )}
         </div>
 
-        {/* ── 🌍 חשבונות והשקעות בחו"ל (חובת דיווח CRS/FATCA) ── */}
+        {/* ── חשבונות והשקעות בחו"ל (חובת דיווח CRS/FATCA) ── */}
         <div className="cw-subsection">
           <div className="cw-subsection-title">
-            <span>🌍 חשבונות והשקעות בחו״ל</span>
-            <span style={{ fontSize: '.7rem', color: 'var(--gray-500)', fontWeight: 400 }}>· חובת דיווח לפי CRS/FATCA</span>
+            <span>חשבונות והשקעות בחו״ל</span>
+            <span style={{ fontSize: '12px', color: 'var(--gray-500)', fontWeight: 400 }}>· חובת דיווח לפי CRS/FATCA</span>
           </div>
           <div className="form-grid form-grid-3">
             <div className="form-group">
@@ -903,7 +903,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                     <span className="cw-foreign-num">{idx + 1}</span>
                     <span className="cw-foreign-title">
                       {a.institutionName || `חשבון ${idx + 1}`}
-                      {a.country && <span className="cw-foreign-country">📍 {a.country}</span>}
+                      {a.country && <span className="cw-foreign-country">{a.country}</span>}
                     </span>
                     <button
                       className="btn btn-ghost btn-sm"
@@ -965,11 +965,11 @@ export default function PersonalContactsTab({ client, update, patch, employees }
           )}
         </div>
 
-        {/* ── 🎰 הגרלות, הימורים ופרסים (מס מיוחד 35%) ── */}
+        {/* ── הגרלות, הימורים ופרסים (מס מיוחד 35%) ── */}
         <div className="cw-subsection">
           <div className="cw-subsection-title">
-            <span>🎰 הגרלות, הימורים ופרסים</span>
-            <span style={{ fontSize: '.7rem', color: 'var(--gray-500)', fontWeight: 400 }}>· מס 35% מעל סף 32,310 ש״ח</span>
+            <span>הגרלות, הימורים ופרסים</span>
+            <span style={{ fontSize: '12px', color: 'var(--gray-500)', fontWeight: 400 }}>· מס 35% מעל סף 32,310 ש״ח</span>
           </div>
           <div className="form-grid form-grid-3">
             <div className="form-group">
@@ -1012,11 +1012,11 @@ export default function PersonalContactsTab({ client, update, patch, employees }
           )}
         </div>
 
-        {/* ── 📈 הכנסות הון מקומיות (מס 25%/30%) ── */}
+        {/* ── הכנסות הון מקומיות (מס 25%/30%) ── */}
         <div className="cw-subsection">
           <div className="cw-subsection-title">
-            <span>📈 הכנסות הון מקומיות</span>
-            <span style={{ fontSize: '.7rem', color: 'var(--gray-500)', fontWeight: 400 }}>· מס 25% (30% לבעל מניות מהותי)</span>
+            <span>הכנסות הון מקומיות</span>
+            <span style={{ fontSize: '12px', color: 'var(--gray-500)', fontWeight: 400 }}>· מס 25% (30% לבעל מניות מהותי)</span>
           </div>
           <div className="form-grid form-grid-3">
             <div className="form-group">
@@ -1063,10 +1063,10 @@ export default function PersonalContactsTab({ client, update, patch, employees }
           )}
         </div>
 
-        {/* ── 💝 תרומות וזיכויים נוספים ── */}
+        {/* ── תרומות וזיכויים נוספים ── */}
         <div className="cw-subsection">
           <div className="cw-subsection-title">
-            <span>💝 תרומות וזיכויים נוספים</span>
+            <span>תרומות וזיכויים נוספים</span>
           </div>
           <div className="form-grid form-grid-3">
             <div className="form-group">
@@ -1160,13 +1160,13 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          5. 🏠 נכסים והשקעות
+          5. נכסים והשקעות
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_ASSETS} icon="🏠" label="נכסים והשקעות">
         {/* דירת מגורים — עורך נכסים */}
         <div className="cw-subsection">
           <div className="cw-subsection-title">
-            <span>🏡 נכסי דיור</span>
+            <span>נכסי דיור</span>
             {(() => {
               const props = getProperties();
               return props.length > 0 && <span className="cw-prop-count">{props.length} נכסים</span>;
@@ -1299,7 +1299,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
 
         {/* הכנסה משכירות */}
         <div className="cw-subsection">
-          <div className="cw-subsection-title">🏘 הכנסה משכירות</div>
+          <div className="cw-subsection-title">הכנסה משכירות</div>
           <div className="form-grid form-grid-3">
             <div className="form-group">
               <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
@@ -1333,14 +1333,14 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         {/* שוק ההון — רשימת חשבונות */}
         <div className="cw-subsection">
           <div className="cw-subsection-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>📈 חשבונות השקעה בארץ ({getInvestmentAccounts().length})</span>
+            <span>חשבונות השקעה בארץ ({getInvestmentAccounts().length})</span>
             <button type="button" className="btn btn-secondary btn-sm" onClick={addInvestmentAccount}>+ הוסף חשבון</button>
           </div>
-          <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+          <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
             כל חשבון = אישור 867 נפרד שיופיע בצ'ק-ליסט של הדוח השנתי.
           </p>
           {getInvestmentAccounts().length === 0 ? (
-            <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין חשבונות השקעה. לחץ "+ הוסף חשבון" כדי להוסיף.</p>
+            <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '14px' }}>אין חשבונות השקעה. לחץ "+ הוסף חשבון" כדי להוסיף.</p>
           ) : (
             <div className="cw-properties-list">
               {getInvestmentAccounts().map((a, idx) => (
@@ -1397,7 +1397,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          5b. 💼 מעבידים — כל מעביד = 106 נפרד בצ'ק-ליסט
+          5b. מעבידים — כל מעביד = 106 נפרד בצ'ק-ליסט
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection
         color={COLOR_EMPLOYERS}
@@ -1406,11 +1406,11 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         count={getEmployers().length}
         action={<button type="button" className="btn btn-secondary btn-sm" onClick={addEmployer}>+ הוסף מעביד</button>}
       >
-        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+        <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
           רשימת המעבידים של הנישום. כל מעביד = טופס 106 נפרד שיופיע בצ'ק-ליסט הדוח השנתי.
         </p>
         {getEmployers().length === 0 ? (
-          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין מעבידים. לחץ "+ הוסף מעביד" כדי להוסיף.</p>
+          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '14px' }}>אין מעבידים. לחץ "+ הוסף מעביד" כדי להוסיף.</p>
         ) : (
           <div className="cw-properties-list">
             {getEmployers().map((e, idx) => (
@@ -1475,7 +1475,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          5c. 🏦 חשבונות בנק — חשבון ראשי לקבלת החזרי מס + 867 לריבית
+          5c. חשבונות בנק — חשבון ראשי לקבלת החזרי מס + 867 לריבית
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection
         color={COLOR_BANK}
@@ -1484,11 +1484,11 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         count={getBankAccounts().length}
         action={<button type="button" className="btn btn-secondary btn-sm" onClick={addBankAccount}>+ הוסף חשבון</button>}
       >
-        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+        <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
           סמן חשבון אחד כ"ראשי" — לשם זה יועברו החזרי מס. כל חשבון עם ריבית מחייב 867 מהבנק.
         </p>
         {getBankAccounts().length === 0 ? (
-          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין חשבונות בנק. לחץ "+ הוסף חשבון" כדי להוסיף.</p>
+          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '14px' }}>אין חשבונות בנק. לחץ "+ הוסף חשבון" כדי להוסיף.</p>
         ) : (
           <div className="cw-properties-list">
             {getBankAccounts().map((b, idx) => (
@@ -1497,7 +1497,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <span className="cw-property-num">{idx + 1}</span>
                   <span className="cw-property-title">
                     {b.bankName || `חשבון ${idx + 1}`}
-                    {b.isPrimary && <span className="cw-property-type-badge" style={{ background: 'var(--chip-amber-bg)', color: 'var(--chip-amber-tx)' }}>🔑 ראשי</span>}
+                    {b.isPrimary && <span className="cw-property-type-badge" style={{ background: 'var(--chip-amber-bg)', color: 'var(--chip-amber-tx)' }}>ראשי</span>}
                     {b.kind && <span className="cw-property-type-badge">{BANK_ACCOUNT_KIND_LABELS[b.kind]}</span>}
                   </span>
                   <button className="btn btn-ghost btn-sm" onClick={() => removeBankAccount(b.id)} style={{ color: 'var(--red)', marginRight: 'auto' }} title="הסר">🗑</button>
@@ -1530,7 +1530,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <div className="form-group">
                     <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
                       <input type="checkbox" checked={b.isPrimary ?? false} onChange={e => updateBankAccount(b.id, 'isPrimary', e.target.checked)} />
-                      🔑 חשבון ראשי (לקבלת החזרי מס)
+                      חשבון ראשי (לקבלת החזרי מס)
                     </label>
                   </div>
                   <div className="form-group span-full">
@@ -1545,7 +1545,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          5d. 🛡 קופות פנסיה / השתלמות / קופ"ג
+          5d. קופות פנסיה / השתלמות / קופ"ג
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection
         color={COLOR_PENSION}
@@ -1554,11 +1554,11 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         count={getPensionFunds().length}
         action={<button type="button" className="btn btn-secondary btn-sm" onClick={addPensionFund}>+ הוסף קופה</button>}
       >
-        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+        <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
           רשימת קופות פנסיה, השתלמות וקופ"ג. כל קופה = אישור הפקדות נפרד שיופיע בצ'ק-ליסט הדוח.
         </p>
         {getPensionFunds().length === 0 ? (
-          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין קופות. לחץ "+ הוסף קופה" כדי להוסיף.</p>
+          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '14px' }}>אין קופות. לחץ "+ הוסף קופה" כדי להוסיף.</p>
         ) : (
           <div className="cw-properties-list">
             {getPensionFunds().map((f, idx) => (
@@ -1622,11 +1622,11 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         count={getDependents().length}
         action={<button type="button" className="btn btn-secondary btn-sm" onClick={addDependent}>+ הוסף קרוב</button>}
       >
-        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+        <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
           החזקה של הורה / בן זוג / אח נטול יכולת במוסד מיוחד — מקנה זיכוי של 35% מסכום ההוצאה (סעיף 44ב לפקודה).
         </p>
         {getDependents().length === 0 ? (
-          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין קרובים תלויים. לחץ "+ הוסף קרוב" אם רלוונטי.</p>
+          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '14px' }}>אין קרובים תלויים. לחץ "+ הוסף קרוב" אם רלוונטי.</p>
         ) : (
           <div className="cw-properties-list">
             {getDependents().map((d, idx) => (
@@ -1687,7 +1687,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          5f. 🏢 עסקים (לעצמאי עם 2+ עסקים — כל אחד = נספח א' 1320)
+          5f. עסקים (לעצמאי עם 2+ עסקים — כל אחד = נספח א' 1320)
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection
         color={COLOR_BUSINESS}
@@ -1696,12 +1696,12 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         count={getBusinesses().length}
         action={<button type="button" className="btn btn-secondary btn-sm" onClick={addBusiness}>+ הוסף עסק</button>}
       >
-        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+        <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
           רשימה לעצמאי עם <strong>2 עסקים או יותר</strong> (חנות + שותפות + פרילנס וכו'). כל עסק = נספח א' (1320) נפרד בדוח 1301.
           לעצמאי עם עסק יחיד — די בשדות businessDescription/vatStatus ברמת הלקוח.
         </p>
         {getBusinesses().length === 0 ? (
-          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '.9rem' }}>אין עסקים נוספים. לחץ "+ הוסף עסק" אם רלוונטי.</p>
+          <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '14px' }}>אין עסקים נוספים. לחץ "+ הוסף עסק" אם רלוונטי.</p>
         ) : (
           <div className="cw-properties-list">
             {getBusinesses().map((b, idx) => (
@@ -1791,10 +1791,10 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          5g. 📋 דיווחי חובה ומצבים מיוחדים
+          5g. דיווחי חובה ומצבים מיוחדים
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_SPECIAL} icon="📋" label="דיווחי חובה ומצבים מיוחדים">
-        <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+        <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
           דגלי "כן/לא" למקרים מיוחדים. סמן רק אם רלוונטי — כל אחד מהם מחייב התייחסות נפרדת בדוח 1301.
         </p>
         <div className="form-grid form-grid-2">
@@ -1870,7 +1870,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          6. 👥 עובד מטפל
+          6. עובד מטפל
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_EMPLOYEE} icon="👥" label="עובד מטפל">
         <div className="form-grid form-grid-2">
@@ -1885,7 +1885,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          7. 🏷 תגיות
+          7. תגיות
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_TAGS} icon="🏷" label="תגיות">
         <div className="cw-tags">
@@ -1907,11 +1907,10 @@ export default function PersonalContactsTab({ client, update, patch, employees }
       </ColoredSection>
 
       {/* ════════════════════════════════════════════════════════════
-          8. 📞 אנשי קשר — הנישום + אנשי קשר נוספים, עם סימון ראשי 🔑
-          ════════════════════════════════════════════════════════════ */}
+          8. אנשי קשר — הנישום + אנשי קשר נוספים, עם סימון ראשי ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_CONTACTS} icon="📞" label="אנשי קשר">
-        <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginBottom: '.6rem' }}>
-          לחיצה על 🔑 מסמנת את איש הקשר הראשי — זה מי שמופיע בטבלת הלקוחות וזה אליו פונים בפועל.
+        <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '.6rem' }}>
+          לחיצה על מסמנת את איש הקשר הראשי — זה מי שמופיע בטבלת הלקוחות וזה אליו פונים בפועל.
         </div>
 
         {/* כרטיס הנישום עצמו — נמשך מהפרטים האישיים, לא ניתן לעריכה כאן */}
@@ -1933,8 +1932,8 @@ export default function PersonalContactsTab({ client, update, patch, employees }
               <span className="badge badge-blue cl-mini-badge">הנישום</span>
             </div>
             <div className="cw-contact-meta">
-              {client.phone ? <span dir="ltr">📞 {client.phone}</span> : <span style={{ color: 'var(--gray-400)' }}>📞 — אין טלפון</span>}
-              {client.email ? <span dir="ltr">✉ {client.email}</span> : <span style={{ color: 'var(--gray-400)' }}>✉ — אין אימייל</span>}
+              {client.phone ? <span dir="ltr">{client.phone}</span> : <span style={{ color: 'var(--gray-400)' }}>— אין טלפון</span>}
+              {client.email ? <span dir="ltr">{client.email}</span> : <span style={{ color: 'var(--gray-400)' }}>— אין אימייל</span>}
             </div>
             <div className="cw-contact-notes" style={{ fontStyle: 'normal', color: 'var(--gray-500)' }}>
               לעריכה: גלילה ל"פרטי נישום" למעלה.
@@ -1957,8 +1956,8 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                 <span className="badge badge-gray cl-mini-badge">{c.role}</span>
               </div>
               <div className="cw-contact-meta">
-                {c.phone && <span dir="ltr">📞 {c.phone}</span>}
-                {c.email && <span dir="ltr">✉ {c.email}</span>}
+                {c.phone && <span dir="ltr">{c.phone}</span>}
+                {c.email && <span dir="ltr">{c.email}</span>}
               </div>
               {c.notes && <div className="cw-contact-notes">{c.notes}</div>}
               <div className="cw-contact-actions">
@@ -1970,7 +1969,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         </div>
 
         <div className="cw-contact-form">
-          <h4 style={{ fontSize: '.85rem', color: 'var(--gray-600)', marginBottom: '.5rem' }}>
+          <h4 style={{ fontSize: '14px', color: 'var(--gray-600)', marginBottom: '.5rem' }}>
             {editingContactId ? 'עריכת איש קשר' : '+ הוסף איש קשר נוסף (בן/בת זוג, רו״ח, עו״ד...)'}
           </h4>
           <div className="form-grid form-grid-4">

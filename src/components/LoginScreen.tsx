@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth, DEV_AUTO_LOGIN_ENABLED } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -37,7 +37,7 @@ export default function LoginScreen() {
           <span className="brand-wordmark login-wordmark">YASHAR<span className="brand-dot" /></span>
           <span className="login-brand-sub">גיא ישר · רואה חשבון</span>
         </div>
-        <p className="login-subtitle">היכנס כדי לגשת ללקוחות, למשימות ולמסמכים שלך</p>
+        {/* מסך עם מטרה אחת לא צריך משפט שמסביר מה יקרה אחרי ההתחברות (§4.2) */}
 
         <button
           type="button"
@@ -60,21 +60,10 @@ export default function LoginScreen() {
             type="button"
             onClick={handleDevLogin}
             disabled={busy}
-            style={{
-              marginTop: 12,
-              padding: '10px 16px',
-              background: 'var(--chip-amber-bg)',
-              color: 'var(--chip-amber-tx)',
-              border: '1px dashed var(--warn)',
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: busy ? 'not-allowed' : 'pointer',
-              width: '100%',
-            }}
+            className="ui-linkbtn"
+            style={{ marginTop: 12, display: 'block', width: '100%' }}
           >
-            🧪 כניסה כמשתמש בדיקה (DEV בלבד)
-            {DEV_AUTO_LOGIN_ENABLED && <span style={{ fontSize: 11, opacity: 0.7, display: 'block' }}>auto-login פעיל — אמור להיכנס אוטומטית</span>}
+            כניסה כמשתמש בדיקה
           </button>
         )}
 

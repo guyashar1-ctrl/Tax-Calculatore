@@ -86,7 +86,7 @@ function Block({ title, subtitle, rows }: { title: string; subtitle: string; row
             } catch { /* ראה CopyRow */ }
           }}
         >
-          {copiedAll ? '✓ הועתק' : 'העתק הכל'}
+          {copiedAll ? 'הועתק' : 'העתק הכל'}
         </button>
       </div>
       <div>
@@ -164,7 +164,7 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse }:
   return (
     <div id="rep-authority-data" className="card" style={{ marginBottom: '1rem' }}>
       <div className="card-header">
-        <div className="card-title">📋 נתונים לביצוע הייצוג</div>
+        <div className="card-title">נתונים לביצוע הייצוג</div>
       </div>
       <div className="card-body">
         <Block

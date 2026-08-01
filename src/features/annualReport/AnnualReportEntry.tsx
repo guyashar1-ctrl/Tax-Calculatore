@@ -54,7 +54,7 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div className="card-header">
-          <h2 className="card-title">📋 דוח שנתי 1301 — התחלת תהליך</h2>
+          <h2 className="card-title">דוח שנתי 1301 — התחלת תהליך</h2>
         </div>
         <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div>
@@ -76,7 +76,7 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
                   const statusLabel = ({
                     in_progress: 'באמצע השאלון',
                     review: 'מוכן לבדיקה',
-                    mapping_done: '✓ מוכן להגשה',
+                    mapping_done: 'מוכן להגשה',
                     archived: 'בארכיון',
                   } as Record<string, string>)[s.status] ?? s.status;
                   return (
@@ -149,8 +149,8 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
                         }}
                       >
                         <span style={{ fontWeight: 600 }}>{c.firstName} {c.lastName}</span>
-                        {c.idNumber && <span style={{ color: 'var(--gray-500)', marginRight: 8, fontSize: '.85rem' }}>· {c.idNumber}</span>}
-                        {exists && <span style={{ marginRight: 8, fontSize: '.75rem', background: 'var(--blue-light)', color: 'var(--blue)', padding: '2px 8px', borderRadius: 999 }}>קיים תהליך</span>}
+                        {c.idNumber && <span style={{ color: 'var(--gray-500)', marginRight: 8, fontSize: '14px' }}>· {c.idNumber}</span>}
+                        {exists && <span style={{ marginRight: 8, fontSize: '12px', background: 'var(--blue-light)', color: 'var(--blue)', padding: '2px 8px', borderRadius: 999 }}>קיים תהליך</span>}
                       </button>
                     );
                   })
@@ -171,8 +171,8 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
                 ))}
               </select>
               {existingForSelection && (
-                <div style={{ marginTop: '.75rem', fontSize: '.85rem', color: 'var(--blue)' }}>
-                  ✓ קיים תהליך — לחיצה תמשיך מהמקום בו עצרת.
+                <div style={{ marginTop: '.75rem', fontSize: '14px', color: 'var(--blue)' }}>
+                  קיים תהליך — לחיצה תמשיך מהמקום בו עצרת.
                 </div>
               )}
             </div>

@@ -83,7 +83,7 @@ export default function RepresentationNextStep({ request, niIncluded, niCoversSp
       background: 'var(--gray-50)', borderRadius: 'var(--radius)',
     }}>
       <span style={{
-        fontSize: '.7rem', fontWeight: 700, color: '#fff', background: tone.c,
+        fontSize: '.7rem', fontWeight: 600, color: '#fff', background: tone.c,
         padding: '.1rem .5rem', borderRadius: 999, whiteSpace: 'nowrap',
       }}>{tone.label}</span>
       <strong style={{ fontSize: '.95rem', color: 'var(--gray-900, #111)' }}>{title}</strong>

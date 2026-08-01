@@ -53,14 +53,14 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
   return (
     <div style={{
       border: '1px solid var(--gray-200)', borderRadius: 12,
-      background: 'linear-gradient(180deg,#FBFBF8,#F4F5F2)', padding: '.75rem .8rem', fontSize: '.78rem',
+      background: 'linear-gradient(180deg,#FBFBF8,#F4F5F2)', padding: '.75rem .8rem', fontSize: '13px',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 800, marginBottom: '.5rem' }}>
-        <span>🌳 עץ הראיון</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600, marginBottom: '.5rem' }}>
+        <span>עץ הראיון</span>
         <button
           type="button"
           className="btn btn-ghost btn-sm"
-          style={{ fontSize: '.7rem', padding: '.1rem .4rem' }}
+          style={{ fontSize: '12px', padding: '.1rem .4rem' }}
           onClick={() => setMapOpen(true)}
         >
           הרחב מפה ⤢
@@ -75,7 +75,7 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
         const isNow = states.includes('now');
         return (
           <div key={ch} style={{ marginBottom: '.45rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '.74rem', color: isNow ? 'var(--blue)' : 'var(--gray-600)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '12px', color: isNow ? 'var(--blue)' : 'var(--gray-600)' }}>
               <span>{CHAPTER_ICONS[ch]} {CHAPTER_LABELS[ch]}</span>
               <span>{isDone ? <span style={{ color: 'var(--green)' }}>✓</span> : isNow ? '●' : ''}</span>
             </div>
@@ -101,7 +101,7 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
       })}
 
       <div style={{ marginTop: '.55rem', borderTop: '1px dashed var(--gray-200)', paddingTop: '.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }} className="num">
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }} className="num">
           <span>כיסוי 1301</span>
           <span>
             <span style={{ color: 'var(--green)' }}>{meter.active}🟢</span>
@@ -114,8 +114,8 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
           <i style={{ width: pct(meter.pruned), background: 'var(--chip-red-bd)' }} />
           <i style={{ width: pct(meter.pending), background: 'var(--chip-amber-bd)' }} />
         </div>
-        <div style={{ fontSize: '.66rem', color: 'var(--gray-500)' }}>
-          🟡 = סעיפים שטרם הוכרעו. בסוף הראיון המונה חייב לרדת ל-0 (שער הכיסוי).
+        <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+          = סעיפים שטרם הוכרעו. בסוף הראיון המונה חייב לרדת ל-0 (שער הכיסוי).
         </div>
       </div>
 
@@ -129,8 +129,8 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
         >
           <div style={{ background: 'var(--gray-50)', maxWidth: 1320, margin: '0 auto', borderRadius: 14, padding: '1rem 0 2rem', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 1.5rem' }}>
-              <strong>🌳 מפת העץ המלאה — המסלול הנוכחי מודגש</strong>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setMapOpen(false)}>✕ סגור</button>
+              <strong>מפת העץ המלאה — המסלול הנוכחי מודגש</strong>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setMapOpen(false)}>סגור</button>
             </div>
             <TreeMapView
               clients={client ? [client] : []}

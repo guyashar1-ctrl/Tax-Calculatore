@@ -158,7 +158,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           <div style={{ fontSize: '.875rem', color: 'var(--gray-500)', marginBottom: '.25rem' }}>
             <span style={{ cursor: 'pointer', color: 'var(--blue)' }} onClick={onBack}>← חזרה לפרטי לקוח</span>
           </div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 700 }}>🧮 מחשבון מס — {client.firstName} {client.lastName}</h1>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 600 }}>מחשבון מס — {client.firstName} {client.lastName}</h1>
           <p style={{ fontSize: '.875rem', color: 'var(--gray-500)' }}>
             מ"ה: <strong>{IT_LABELS[type]}</strong> · ב"ל: <strong>{NI_LABELS[client.niType]}</strong>
             {client.gender === 'female' ? ' · נקבה' : ' · זכר'}
@@ -168,7 +168,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
           <label style={{ fontWeight: 600, color: 'var(--gray-700)' }}>שנת מס:</label>
           <select
-            style={{ padding: '.4rem .75rem', borderRadius: 'var(--radius)', border: '1px solid var(--gray-300)', fontWeight: 700, fontSize: '1rem', color: 'var(--blue)' }}
+            style={{ padding: '.4rem .75rem', borderRadius: 'var(--radius)', border: '1px solid var(--gray-300)', fontWeight: 600, fontSize: '1rem', color: 'var(--blue)' }}
             value={year}
             onChange={e => handleYearChange(+e.target.value)}
           >
@@ -180,7 +180,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
       {taxData?.isEstimated && (
         <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
-          ⚠️ נתוני שנת המס {year} הם הערכה — יש לאמת מול פרסומי רשות המיסים.
+          נתוני שנת המס {year} הם הערכה — יש לאמת מול פרסומי רשות המיסים.
         </div>
       )}
 
@@ -190,7 +190,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
           {showSalary && (
             <div className="card">
-              <div className="card-header"><span className="card-title">💼 הכנסות משכר</span></div>
+              <div className="card-header"><span className="card-title">הכנסות משכר</span></div>
               <div className="card-body">
                 <div className="form-group" style={{ marginBottom: '.75rem' }}>
                   <label>ברוטו שנתי ₪</label>
@@ -206,7 +206,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
           {showSE && (
             <div className="card">
-              <div className="card-header"><span className="card-title">🏪 הכנסות מעסק</span></div>
+              <div className="card-header"><span className="card-title">הכנסות מעסק</span></div>
               <div className="card-body">
                 <div className="form-group" style={{ marginBottom: '.75rem' }}>
                   <label>ברוטו שנתי ₪</label>
@@ -237,7 +237,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
           {showRental && (
             <div className="card">
-              <div className="card-header"><span className="card-title">🏠 הכנסות שכירות</span></div>
+              <div className="card-header"><span className="card-title">הכנסות שכירות</span></div>
               <div className="card-body">
                 <div className="form-group" style={{ marginBottom: '.75rem' }}>
                   <label>ברוטו שנתי ₪</label>
@@ -271,7 +271,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           )}
 
           <div className="card">
-            <div className="card-header"><span className="card-title">➕ הכנסות ונקודות נוספות</span></div>
+            <div className="card-header"><span className="card-title">הכנסות ונקודות נוספות</span></div>
             <div className="card-body">
               <div className="form-group" style={{ marginBottom: '.75rem' }}>
                 <label>הכנסות אחרות ₪</label>
@@ -302,7 +302,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                     </div>
                   ))}
                   {previewCredits.length > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', fontWeight: 700, color: 'var(--blue-dark)', marginTop: '.3rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', fontWeight: 600, color: 'var(--blue-dark)', marginTop: '.3rem' }}>
                       <span>סה"כ</span>
                       <span>{previewCredits.reduce((s, l) => s + l.points, 0)} נקודות
                         {taxData && ` = ₪${fmt(Math.round(previewCredits.reduce((s, l) => s + l.points, 0) * taxData.creditPointValue))}`}
@@ -315,7 +315,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           </div>
 
           <button className="btn btn-primary btn-lg" onClick={() => setCalculated(true)} style={{ width: '100%', fontSize: '1rem', padding: '.85rem' }}>
-            🧮 חשב חבות מס
+            חשב חבות מס
           </button>
         </div>
 
@@ -392,7 +392,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
               )}
 
               <button className="btn btn-secondary" onClick={() => setShowExplanation(s => !s)} style={{ width: '100%' }}>
-                {showExplanation ? '🔼 הסתר הסבר מלא' : '🔽 הצג הסבר מלא + גרפים'}
+                {showExplanation ? 'הסתר הסבר מלא' : 'הצג הסבר מלא + גרפים'}
               </button>
             </>
           )}
@@ -405,7 +405,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
           {/* PIE: income breakdown */}
           <div className="card">
-            <div className="card-header"><span className="card-title">📊 חלוקת ההכנסה</span></div>
+            <div className="card-header"><span className="card-title">חלוקת ההכנסה</span></div>
             <div className="card-body">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '1.5rem', alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
@@ -413,14 +413,14 @@ export default function TaxCalculator({ client, onBack }: Props) {
                     <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>
                       <div style={{ width: 14, height: 14, borderRadius: 3, background: d.color, flexShrink: 0 }} />
                       <span style={{ flex: 1, fontSize: '.9rem' }}>{d.name}</span>
-                      <span style={{ fontWeight: 700, color: d.color }}>₪{fmt(d.value)}</span>
+                      <span style={{ fontWeight: 600, color: d.color }}>₪{fmt(d.value)}</span>
                       <span style={{ fontSize: '.8rem', color: 'var(--gray-500)' }}>
                         ({result.grossIncome > 0 ? (d.value / result.grossIncome * 100).toFixed(1) : 0}%)
                       </span>
                     </div>
                   ))}
                   <hr className="divider" />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
                     <span>סה"כ ברוטו</span>
                     <span>₪{fmt(Math.round(result.grossIncome))}</span>
                   </div>
@@ -440,7 +440,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           {/* Deductions */}
           {result.deductionBreakdown.length > 0 && (
             <div className="card">
-              <div className="card-header"><span className="card-title">📉 ניכויים מהכנסה</span></div>
+              <div className="card-header"><span className="card-title">ניכויים מהכנסה</span></div>
               <div className="card-body">
                 <div className="explanation-block">
                   <ul>{result.deductionBreakdown.map((l, i) => <li key={i}>{l}</li>)}</ul>
@@ -449,7 +449,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                   </div>
                 </div>
                 {result.rentalExplanation && (
-                  <div className="alert alert-info" style={{ marginTop: '.75rem' }}>🏠 {result.rentalExplanation}</div>
+                  <div className="alert alert-info" style={{ marginTop: '.75rem' }}>{result.rentalExplanation}</div>
                 )}
               </div>
             </div>
@@ -458,7 +458,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           {/* BAR: Tax brackets */}
           <div className="card">
             <div className="card-header">
-              <span className="card-title">📊 מדרגות מס הכנסה — {year}</span>
+              <span className="card-title">מדרגות מס הכנסה — {year}</span>
               <span style={{ fontSize: '.8125rem', color: 'var(--gray-500)' }}>הכנסה חייבת: ₪{fmt(Math.round(result.taxableIncome))}</span>
             </div>
             <div className="card-body">
@@ -513,7 +513,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           {/* Credit points */}
           <div className="card">
             <div className="card-header">
-              <span className="card-title">⭐ נקודות זיכוי</span>
+              <span className="card-title">נקודות זיכוי</span>
               {taxData && <span style={{ fontSize: '.8125rem', color: 'var(--gray-500)' }}>ערך נקודה {year}: ₪{fmt(taxData.creditPointValue)}/שנה</span>}
             </div>
             <div className="card-body">
@@ -581,7 +581,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                   </div>
                 )}
                 <hr style={{ margin: '.3rem 0', borderColor: 'var(--blue-border)' }} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1rem', color: 'var(--blue-dark)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '1rem', color: 'var(--blue-dark)' }}>
                   <span>מס הכנסה סופי:</span><span>₪{fmt(Math.round(result.totalIncomeTax))}</span>
                 </div>
                 {result.settlementCreditExplanation && (
@@ -594,7 +594,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           {/* BAR: National Insurance breakdown */}
           {niChartData.length > 0 && (
             <div className="card">
-              <div className="card-header"><span className="card-title">🏥 ביטוח לאומי — פירוט מדרגות</span></div>
+              <div className="card-header"><span className="card-title">ביטוח לאומי — פירוט מדרגות</span></div>
               <div className="card-body">
                 {taxData && (
                   <div className="alert alert-info" style={{ marginBottom: '1rem', fontSize: '.875rem' }}>
@@ -660,7 +660,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
           {/* Final summary */}
           <div className="card">
-            <div className="card-header"><span className="card-title">📋 סיכום מלא</span></div>
+            <div className="card-header"><span className="card-title">סיכום מלא</span></div>
             <div className="card-body">
               <div className="table-wrap">
                 <table>
@@ -677,11 +677,11 @@ export default function TaxCalculator({ client, onBack }: Props) {
                     <tr><td>מס הכנסה</td><td className="number">₪{fmt(Math.round(result.totalIncomeTax))}</td></tr>
                     <tr><td>ביטוח לאומי + בריאות</td><td className="number">₪{fmt(Math.round(result.totalNI))}</td></tr>
                     <tr className="total"><td>סה"כ חבות מס</td><td className="number">₪{fmt(Math.round(result.totalTaxBurden))}</td></tr>
-                    <tr><td>הכנסה נטו לשנה</td><td className="number" style={{ color: 'var(--green)', fontWeight: 700 }}>₪{fmt(Math.round(result.netAnnualIncome))}</td></tr>
+                    <tr><td>הכנסה נטו לשנה</td><td className="number" style={{ color: 'var(--green)', fontWeight: 600 }}>₪{fmt(Math.round(result.netAnnualIncome))}</td></tr>
                     <tr><td>≈ לחודש</td><td className="number" style={{ color: 'var(--green)' }}>₪{fmt(Math.round(result.netAnnualIncome / 12))}</td></tr>
                     <tr><td>שיעור מס הכנסה אפקטיבי</td><td className="number">{fmtR(result.effectiveIncomeTaxRate)}</td></tr>
                     <tr><td>שיעור מס שולי</td><td className="number">{result.marginalRate}%</td></tr>
-                    <tr><td>שיעור מס כולל (כולל ב"ל)</td><td className="number" style={{ fontWeight: 700 }}>{fmtR(result.effectiveTotalRate)}</td></tr>
+                    <tr><td>שיעור מס כולל (כולל ב"ל)</td><td className="number" style={{ fontWeight: 600 }}>{fmtR(result.effectiveTotalRate)}</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -705,7 +705,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                         <th></th>
                         <th className="number">{client.firstName} {client.lastName}</th>
                         <th className="number">{client.spouse!.firstName} {client.spouse!.lastName}</th>
-                        <th className="number" style={{ color: 'var(--purple)', fontWeight: 700 }}>תא משפחתי</th>
+                        <th className="number" style={{ color: 'var(--purple)', fontWeight: 600 }}>תא משפחתי</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -713,38 +713,38 @@ export default function TaxCalculator({ client, onBack }: Props) {
                         <td>הכנסה ברוטו</td>
                         <td className="number">{'\u20AA'}{fmt(Math.round(result.grossIncome))}</td>
                         <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.grossIncome))}</td>
-                        <td className="number" style={{ fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedGrossIncome))}</td>
+                        <td className="number" style={{ fontWeight: 600 }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedGrossIncome))}</td>
                       </tr>
                       <tr>
                         <td>הכנסה חייבת</td>
                         <td className="number">{'\u20AA'}{fmt(Math.round(result.taxableIncome))}</td>
                         <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.taxableIncome))}</td>
-                        <td className="number" style={{ fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(result.taxableIncome + spouseResult.taxableIncome))}</td>
+                        <td className="number" style={{ fontWeight: 600 }}>{'\u20AA'}{fmt(Math.round(result.taxableIncome + spouseResult.taxableIncome))}</td>
                       </tr>
                       <tr>
                         <td>נקודות זיכוי</td>
                         <td className="number">{result.totalCreditPoints.toFixed(1)}</td>
                         <td className="number">{spouseResult.totalCreditPoints.toFixed(1)}</td>
-                        <td className="number" style={{ fontWeight: 700 }}>{(result.totalCreditPoints + spouseResult.totalCreditPoints).toFixed(1)}</td>
+                        <td className="number" style={{ fontWeight: 600 }}>{(result.totalCreditPoints + spouseResult.totalCreditPoints).toFixed(1)}</td>
                       </tr>
                       <tr>
                         <td>מס הכנסה</td>
                         <td className="number">{'\u20AA'}{fmt(Math.round(result.totalIncomeTax))}</td>
                         <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.totalIncomeTax))}</td>
-                        <td className="number" style={{ fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(result.totalIncomeTax + spouseResult.totalIncomeTax))}</td>
+                        <td className="number" style={{ fontWeight: 600 }}>{'\u20AA'}{fmt(Math.round(result.totalIncomeTax + spouseResult.totalIncomeTax))}</td>
                       </tr>
                       <tr>
                         <td>{`ביטוח לאומי + בריאות`}</td>
                         <td className="number">{'\u20AA'}{fmt(Math.round(result.totalNI))}</td>
                         <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.totalNI))}</td>
-                        <td className="number" style={{ fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(result.totalNI + spouseResult.totalNI))}</td>
+                        <td className="number" style={{ fontWeight: 600 }}>{'\u20AA'}{fmt(Math.round(result.totalNI + spouseResult.totalNI))}</td>
                       </tr>
                       {familyResult.combinedSurtax > 0 && (
                         <tr>
                           <td>מס יסף (לכל יחיד בנפרד)</td>
                           <td className="number">{'\u20AA'}{fmt(Math.round(result.surtax + result.surtaxCapitalExtra))}</td>
                           <td className="number">{'\u20AA'}{fmt(Math.round(spouseResult.surtax + spouseResult.surtaxCapitalExtra))}</td>
-                          <td className="number" style={{ fontWeight: 700, color: 'var(--red)' }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedSurtax))}</td>
+                          <td className="number" style={{ fontWeight: 600, color: 'var(--red)' }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedSurtax))}</td>
                         </tr>
                       )}
                       <tr className="total">
@@ -755,21 +755,21 @@ export default function TaxCalculator({ client, onBack }: Props) {
                       </tr>
                       <tr>
                         <td>הכנסה נטו לשנה</td>
-                        <td className="number" style={{ color: 'var(--green)', fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(result.netAnnualIncome))}</td>
-                        <td className="number" style={{ color: 'var(--green)', fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(spouseResult.netAnnualIncome))}</td>
-                        <td className="number" style={{ color: 'var(--green)', fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedNetIncome))}</td>
+                        <td className="number" style={{ color: 'var(--green)', fontWeight: 600 }}>{'\u20AA'}{fmt(Math.round(result.netAnnualIncome))}</td>
+                        <td className="number" style={{ color: 'var(--green)', fontWeight: 600 }}>{'\u20AA'}{fmt(Math.round(spouseResult.netAnnualIncome))}</td>
+                        <td className="number" style={{ color: 'var(--green)', fontWeight: 600 }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedNetIncome))}</td>
                       </tr>
                       <tr>
                         <td>{'\u2248'} נטו לחודש</td>
                         <td className="number" style={{ color: 'var(--green)' }}>{'\u20AA'}{fmt(Math.round(result.netAnnualIncome / 12))}</td>
                         <td className="number" style={{ color: 'var(--green)' }}>{'\u20AA'}{fmt(Math.round(spouseResult.netAnnualIncome / 12))}</td>
-                        <td className="number" style={{ color: 'var(--green)', fontWeight: 700 }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedNetIncome / 12))}</td>
+                        <td className="number" style={{ color: 'var(--green)', fontWeight: 600 }}>{'\u20AA'}{fmt(Math.round(familyResult.combinedNetIncome / 12))}</td>
                       </tr>
                       <tr>
                         <td>שיעור מס אפקטיבי</td>
                         <td className="number">{fmtR(result.effectiveTotalRate)}</td>
                         <td className="number">{fmtR(spouseResult.effectiveTotalRate)}</td>
-                        <td className="number" style={{ fontWeight: 700 }}>{fmtR(familyResult.combinedEffectiveRate)}</td>
+                        <td className="number" style={{ fontWeight: 600 }}>{fmtR(familyResult.combinedEffectiveRate)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -786,7 +786,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                 {/* Spouse credit points breakdown */}
                 {spouseResult.creditPointLines.length > 0 && (
                   <div style={{ marginTop: '1rem' }}>
-                    <div style={{ fontSize: '.875rem', fontWeight: 700, color: 'var(--gray-700)', marginBottom: '.5rem' }}>
+                    <div style={{ fontSize: '.875rem', fontWeight: 600, color: 'var(--gray-700)', marginBottom: '.5rem' }}>
                       {'\u2B50'} נקודות זיכוי — {client.spouse!.firstName}:
                     </div>
                     <div className="table-wrap">

@@ -65,7 +65,7 @@ export default function SendIntakeModal({ client, onClose, onSent }: Props) {
           </div>
         ) : (
           <>
-            <h3 style={{ marginTop: 0 }}>📨 שליחת שאלון ללקוח</h3>
+            <h3 style={{ marginTop: 0 }}>שליחת שאלון ללקוח</h3>
             <p style={{ color: 'var(--gray-600)', fontSize: '.88rem' }}>
               הלקוח יקבל מייל עם קישור אישי לשאלון ההיכרות/עדכון. הוא עונה רק על מה
               שרלוונטי, והתשובות נכנסות ישירות לכרטיס — שימושי כשידוע שהיה שינוי אצל הלקוח.

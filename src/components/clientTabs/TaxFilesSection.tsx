@@ -79,11 +79,11 @@ export default function TaxFilesSection({ client, update }: Props) {
   return (
     <div className="cw-section">
       <div className="cw-section-head">
-        <span>🗄️ תיקים ברשויות</span>
+        <span>תיקים ברשויות</span>
         <div style={{ display: 'flex', gap: '.4rem' }}>
           {files.length === 0 && (
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => setFiles(suggestFiles(client))}>
-              ✨ צור מבנה מומלץ
+              צור מבנה מומלץ
             </button>
           )}
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFiles([...files, newFile('income_tax')])}>
@@ -94,10 +94,10 @@ export default function TaxFilesSection({ client, update }: Props) {
 
       {itOnSpouse && (
         <div style={{
-          margin: '.3rem 0 .6rem', padding: '.5rem .8rem', borderRadius: 8, fontSize: '.85rem', fontWeight: 700,
+          margin: '.3rem 0 .6rem', padding: '.5rem .8rem', borderRadius: 8, fontSize: '14px', fontWeight: 600,
           background: 'var(--chip-amber-bg)', border: '1.5px solid var(--chip-amber-bd)', color: 'var(--warn)',
         }}>
-          ⚠ בן/בת הזוג הרשום/ה במס הכנסה: {spouseDisplayName(client)}
+          בן/בת הזוג הרשום/ה במס הכנסה: {spouseDisplayName(client)}
           {itFile?.fileNumber ? ` — ת.ז. ${itFile.fileNumber}` : ''}. כל התנהלות מול מ"ה בת.ז. הזו.
         </div>
       )}
@@ -119,7 +119,7 @@ export default function TaxFilesSection({ client, update }: Props) {
               <select
                 value={f.authority}
                 onChange={(e) => patchFile(f.id, { authority: e.target.value as TaxAuthority })}
-                style={{ padding: '.35rem .5rem', borderRadius: 6, border: '1px solid var(--gray-200)', fontWeight: 700 }}
+                style={{ padding: '.35rem .5rem', borderRadius: 6, border: '1px solid var(--gray-200)', fontWeight: 600 }}
               >
                 {AUTHORITY_ORDER.map((a) => <option key={a} value={a}>{TAX_AUTHORITY_LABELS[a]}</option>)}
               </select>
@@ -131,7 +131,7 @@ export default function TaxFilesSection({ client, update }: Props) {
                 dir="ltr"
                 style={{ width: 130, padding: '.35rem .55rem', borderRadius: 6, border: '1px solid var(--gray-200)' }}
               />
-              <label style={{ fontSize: '.78rem', color: 'var(--gray-500)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <label style={{ fontSize: '13px', color: 'var(--gray-500)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 {f.authority === 'national_insurance' ? 'של' : 'ע"ש'}
                 <select
                   value={f.owner}
@@ -143,7 +143,7 @@ export default function TaxFilesSection({ client, update }: Props) {
                   ))}
                 </select>
                 {f.authority === 'income_tax' && f.owner !== 'joint' && client.familyStatus === 'married' && (
-                  <span style={{ fontSize: '.72rem', fontWeight: 700, color: 'var(--warn)', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--warn)', whiteSpace: 'nowrap' }}>
                     ← בן/בת הזוג הרשום/ה
                   </span>
                 )}
@@ -152,7 +152,7 @@ export default function TaxFilesSection({ client, update }: Props) {
                 value={f.repStatus}
                 onChange={(e) => patchFile(f.id, { repStatus: e.target.value as TaxFileRepStatus })}
                 style={{
-                  padding: '.3rem .45rem', borderRadius: 99, border: 'none', fontSize: '.76rem', fontWeight: 700,
+                  padding: '.3rem .45rem', borderRadius: 99, border: 'none', fontSize: '12px', fontWeight: 600,
                   background: f.repStatus === 'active' ? 'var(--chip-green-bg)' : f.repStatus === 'pending' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
                   color: f.repStatus === 'active' ? 'var(--ok)' : f.repStatus === 'pending' ? 'var(--warn)' : 'var(--gray-500)',
                 }}
@@ -166,8 +166,8 @@ export default function TaxFilesSection({ client, update }: Props) {
           ))}
         </div>
       )}
-      <div style={{ fontSize: '.73rem', color: 'var(--gray-400)', marginTop: '.5rem' }}>
-        💡 במס הכנסה תיק אחד לתא המשפחתי — מי שעליו התיק הוא בן/בת הזוג הרשום/ה. במע"מ/ניכויים ייתכן תיק לכל בן זוג. בב"ל התיק אישי — שורה לכל בן זוג, ועוד שורה לייצוג בתיק הניכויים אם קיים.
+      <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '.5rem' }}>
+        במס הכנסה תיק אחד לתא המשפחתי — מי שעליו התיק הוא בן/בת הזוג הרשום/ה. במע"מ/ניכויים ייתכן תיק לכל בן זוג. בב"ל התיק אישי — שורה לכל בן זוג, ועוד שורה לייצוג בתיק הניכויים אם קיים.
       </div>
     </div>
   );

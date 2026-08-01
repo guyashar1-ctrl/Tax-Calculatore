@@ -6,12 +6,19 @@ import {
   TaskProgress,
   BallWith,
   TASK_CATEGORY_LABELS,
-  TASK_CATEGORY_BADGE,
   TASK_PROGRESS_LABELS,
   BALL_WITH_LABELS,
-  BALL_WITH_ICON,
+  BALL_WITH_COLOR,
 } from '../types';
-import { formatDueDate, isOverdue } from '../utils/taskUtils';
+import {
+  formatDueDate, dueTone, lateLabel,
+  taskGroupOf, groupTasks, TASK_GROUP_ORDER, TASK_GROUP_LABELS, TaskGroupKey,
+} from '../utils/taskUtils';
+import { FilterChip } from './ui/Chips';
+import { GroupHeader, EmptyState, CalmEmpty } from './ui/States';
+import ConfirmDialog from './ui/ConfirmDialog';
+import { useToast } from './ui/Toast';
+import Icon from './ui/Icon';
 
 interface Props {
   tasks: Task[];
@@ -28,14 +35,6 @@ interface Props {
   onLoadSampleTasks?: () => void;
 }
 
-type GroupKey = 'new' | 'in_progress' | 'done';
-
-const GROUPS: { key: GroupKey; label: string }[] = [
-  { key: 'new', label: 'משימות חדשות' },
-  { key: 'in_progress', label: 'משימות בתהליך' },
-  { key: 'done', label: 'הושלמו' },
-];
-
 const CATEGORY_OPTIONS: TaskCategory[] = [
   'annual_report', 'institutions', 'management', 'economic_work',
   'personal_report', 'cutoff', 'wealth_declaration', 'ongoing',
@@ -44,31 +43,13 @@ const CATEGORY_OPTIONS: TaskCategory[] = [
 
 const BALL_OPTIONS: BallWith[] = ['me', 'client', 'authority', 'stuck'];
 
-function groupOf(t: Task): GroupKey {
-  if (t.status === 'done') return 'done';
-  return t.progress === 'in_progress' ? 'in_progress' : 'new';
-}
+/** רמז קצר לכל קבוצה — מה עושים איתה, לא מה היא */
+const GROUP_HINT: Partial<Record<TaskGroupKey, string>> = {
+  now: 'באיחור או בשבוע הקרוב',
+  stuck: 'ממתינות להחלטה',
+};
 
-const AVATAR_COLORS = [
-  { bg: 'var(--chip-blue-bg)', fg: 'var(--chip-blue-tx)' },
-  { bg: 'var(--chip-amber-bg)', fg: 'var(--warn)' },
-  { bg: 'var(--chip-pink-bg)', fg: 'var(--chip-pink-tx)' },
-  { bg: 'var(--chip-green-bg)', fg: 'var(--chip-green-tx)' },
-  { bg: 'var(--chip-violet-bg)', fg: 'var(--info)' },
-  { bg: 'var(--chip-red-bg)', fg: 'var(--err)' },
-  { bg: 'var(--chip-violet-bg)', fg: 'var(--info)' },
-  { bg: 'var(--chip-teal-bg)', fg: 'var(--chip-teal-tx)' },
-];
-function avatarColor(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
-function initials(firstName: string, lastName: string): string {
-  const a = (firstName || '').trim().charAt(0);
-  const b = (lastName || '').trim().charAt(0);
-  return (a + b) || '?';
-}
+const COLLAPSE_KEY = 'pivo_tasks_collapsed';
 
 export default function TaskBoard({
   tasks, clients,
@@ -76,25 +57,37 @@ export default function TaskBoard({
   onChangeStatus, onChangeBall, onChangeCategory,
   onReorder, onSelectClient, onDeleteTask, onLoadSampleTasks,
 }: Props) {
+  const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [ballFilter, setBallFilter] = useState<BallWith | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
-  const [collapsed, setCollapsed] = useState<Set<GroupKey>>(new Set(['done']));
-  const [openMenu, setOpenMenu] = useState<{ taskId: string; kind: 'status' | 'ball' | 'cat' } | null>(null);
+  // "הושלמו" מקופלת כברירת מחדל (D24) — היא תיעוד, לא עבודה
+  const [collapsed, setCollapsed] = useState<Set<TaskGroupKey>>(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      if (raw) return new Set(JSON.parse(raw) as TaskGroupKey[]);
+    } catch { /* ברירת מחדל */ }
+    return new Set<TaskGroupKey>(['done']);
+  });
+  const [openMenu, setOpenMenu] = useState<{ taskId: string; kind: 'ball' | 'row' } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<{ taskId: string; position: 'before' | 'after' } | null>(null);
-  const [dragOverGroup, setDragOverGroup] = useState<GroupKey | null>(null);
+  const [dragOverGroup, setDragOverGroup] = useState<TaskGroupKey | null>(null);
+
+  useEffect(() => {
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...collapsed])); } catch { /* אחסון חסום */ }
+  }, [collapsed]);
 
   // סגירת תפריטים בלחיצה מחוץ — בעזרת document listener, לא דרך bubbling
   useEffect(() => {
     if (!openMenu) return;
     function onDocClick(e: MouseEvent) {
       const target = e.target as Element;
-      if (!target.closest('.pill-menu') && !target.closest('button.status-pill') && !target.closest('button.ball-pill') && !target.closest('button.category-pill')) {
+      if (!target.closest('.pill-menu') && !target.closest('button.ball-pill') && !target.closest('button.row-menu-btn')) {
         setOpenMenu(null);
       }
     }
-    // רישום בטיק הבא כדי לא לתפוס את הקליק הפותח
     const t = setTimeout(() => document.addEventListener('click', onDocClick), 0);
     return () => { clearTimeout(t); document.removeEventListener('click', onDocClick); };
   }, [openMenu]);
@@ -123,44 +116,51 @@ export default function TaskBoard({
     });
   }, [tasks, search, ballFilter, categoryFilter, clientMap]);
 
-  const byGroup = useMemo(() => {
-    const map: Record<GroupKey, Task[]> = { new: [], in_progress: [], done: [] };
-    for (const t of filtered) map[groupOf(t)].push(t);
-    const sortFn = (a: Task, b: Task): number => {
-      const ao = a.sortOrder, bo = b.sortOrder;
-      if (ao !== undefined && bo !== undefined) return ao - bo;
-      if (ao !== undefined) return -1;
-      if (bo !== undefined) return 1;
-      if (a.priority !== b.priority) return a.priority === 'urgent' ? -1 : 1;
-      if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
-      return a.createdAt.localeCompare(b.createdAt);
-    };
-    map.new.sort(sortFn);
-    map.in_progress.sort(sortFn);
-    map.done.sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
-    return map;
-  }, [filtered]);
+  // הקיבוץ מגיע מ-taskUtils — אותו קיבוץ בדיוק משמש גם את לשונית המשימות בכרטיס הלקוח
+  const byGroup = useMemo(() => groupTasks(filtered), [filtered]);
 
-  function toggleCollapse(g: GroupKey) {
+  const totalCount = tasks.length;
+
+  function clearFilters() {
+    setSearch(''); setBallFilter('all'); setCategoryFilter('all');
+  }
+
+  function toggleCollapse(g: TaskGroupKey) {
     setCollapsed(prev => {
       const next = new Set(prev);
-      if (next.has(g)) next.delete(g);
-      else next.add(g);
+      if (next.has(g)) next.delete(g); else next.add(g);
       return next;
     });
   }
 
+  /** השלמה הפיכה — במקום לשאול "בטוח?" לפני, נותנים "ביטול" אחרי (§5.5) */
+  function completeTask(t: Task) {
+    onToggleDone(t.id);
+    showToast(t.status === 'done'
+      ? { message: 'המשימה הוחזרה לפתוחות' }
+      : { message: 'המשימה הושלמה', actionLabel: 'ביטול', onAction: () => onToggleDone(t.id) });
+  }
+
+  // ─── גרירה ───────────────────────────────────────────────────────────────
+  // הקבוצות החדשות נגזרות מהנתונים (תאריך יעד, מצב הכדור) ולא נשמרות כשדה,
+  // ולכן גרירה בין קבוצות מתורגמת לשינוי הנתון שבאמת קובע את השיוך:
+  // "הושלמו" → סטטוס, "תקועות" → מצב הכדור. בתוך קבוצה — סדר ידני, כמו קודם.
   function handleDragStart(e: React.DragEvent, id: string) {
     setDraggedId(id);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', id);
   }
   function handleDragEnd() {
-    setDraggedId(null);
-    setDragOver(null);
-    setDragOverGroup(null);
+    setDraggedId(null); setDragOver(null); setDragOverGroup(null);
+  }
+  function applyGroupChange(task: Task, target: TaskGroupKey) {
+    const from = taskGroupOf(task);
+    if (from === target) return;
+    if (target === 'done') { onChangeStatus(task.id, 'done'); return; }
+    if (target === 'stuck') { onChangeBall(task.id, 'stuck'); return; }
+    // חזרה לקבוצת עבודה: אם הייתה סגורה — לפתוח; אם הייתה תקועה — הכדור חוזר אליי
+    if (from === 'done') onChangeStatus(task.id, task.progress || 'new');
+    if (from === 'stuck') onChangeBall(task.id, 'me');
   }
   function handleRowDragOver(e: React.DragEvent, t: Task) {
     if (!draggedId || draggedId === t.id) return;
@@ -169,207 +169,168 @@ export default function TaskBoard({
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const position: 'before' | 'after' = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
     setDragOver({ taskId: t.id, position });
-    setDragOverGroup(groupOf(t));
+    setDragOverGroup(taskGroupOf(t));
   }
   function handleRowDrop(e: React.DragEvent, t: Task) {
     e.preventDefault();
-    if (!draggedId || draggedId === t.id) { handleDragEnd(); return; }
-    const targetGroup = groupOf(t);
-    const position = dragOver?.taskId === t.id ? dragOver.position : 'after';
-    const groupTasks = byGroup[targetGroup].filter(x => x.id !== draggedId);
-    const idx = groupTasks.findIndex(x => x.id === t.id);
-    const insertBeforeId = position === 'before'
-      ? groupTasks[idx]?.id ?? null
-      : groupTasks[idx + 1]?.id ?? null;
-    onReorder(draggedId, targetGroup, insertBeforeId);
+    const dragged = tasks.find(x => x.id === draggedId);
+    if (!dragged || dragged.id === t.id) { handleDragEnd(); return; }
+    const targetGroup = taskGroupOf(t);
+    applyGroupChange(dragged, targetGroup);
+    if (taskGroupOf(dragged) === targetGroup) {
+      const position = dragOver?.taskId === t.id ? dragOver.position : 'after';
+      const list = byGroup[targetGroup].filter(x => x.id !== dragged.id);
+      const idx = list.findIndex(x => x.id === t.id);
+      const beforeId = position === 'before' ? list[idx]?.id ?? null : list[idx + 1]?.id ?? null;
+      onReorder(dragged.id, dragged.status === 'done' ? 'done' : (dragged.progress || 'new'), beforeId);
+    }
     handleDragEnd();
   }
-  function handleGroupDragOver(e: React.DragEvent, g: GroupKey) {
-    if (!draggedId) return;
+  function handleGroupDrop(e: React.DragEvent, g: TaskGroupKey) {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverGroup(g);
-  }
-  function handleGroupDrop(e: React.DragEvent, g: GroupKey) {
-    e.preventDefault();
-    if (!draggedId) return;
-    onReorder(draggedId, g, null);
+    const dragged = tasks.find(x => x.id === draggedId);
+    if (dragged) applyGroupChange(dragged, g);
     handleDragEnd();
   }
 
-  const totalCount = tasks.length;
+  // ─── מצב ריק אמיתי — עוד לא נוצרה אף משימה ───────────────────────────────
+  if (totalCount === 0) {
+    return (
+      <div className="tasks-page">
+        <EmptyState
+          headline="עוד אין משימות"
+          sentence="משימה קושרת אותך ללקוח ומסמנת אצל מי הכדור — אצלך, אצלו, או אצל הרשות."
+          action={{ label: '+ משימה חדשה', onClick: onAddTask }}
+          quietLink={onLoadSampleTasks ? { label: 'טען משימות לדוגמה', onClick: onLoadSampleTasks } : undefined}
+        />
+      </div>
+    );
+  }
+
+  const nothingMatches = filtered.length === 0;
 
   return (
     <div className="tasks-page">
-      <div className="desk-header">
-        <div>
-          <h2 className="desk-title">משימות</h2>
-          <div className="desk-subtitle">
-            {filtered.length} {filtered.length === 1 ? 'משימה' : 'משימות'}
-            {filtered.length !== totalCount && ` מתוך ${totalCount}`}
-          </div>
-        </div>
-        <button className="btn btn-primary" onClick={onAddTask}>+ משימה חדשה</button>
-      </div>
-
       <div className="board-filters">
-        <input
-          type="text"
-          placeholder="🔍 חיפוש משימה, לקוח, תיאור..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="tasks-search"
-        />
-
-        <div className="filter-group">
-          <label>כדור:</label>
-          <div className="filter-chips">
-            <button
-              className={`chip ${ballFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setBallFilter('all')}
-            >הכל</button>
-            {BALL_OPTIONS.map(b => (
-              <button
-                key={b}
-                className={`chip ${ballFilter === b ? 'active' : ''}`}
-                onClick={() => setBallFilter(b)}
-              >
-                {BALL_WITH_LABELS[b]}
-              </button>
-            ))}
-          </div>
+        <div className="board-search-wrap">
+          <Icon name="search" size={14} className="board-search-icon" />
+          <input
+            type="text"
+            placeholder="חיפוש משימה, לקוח, תיאור…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="tasks-search"
+            aria-label="חיפוש משימות"
+          />
         </div>
 
-        <div className="filter-group">
-          <label>סוג:</label>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value as TaskCategory | 'all')}
-            className="filter-select"
-          >
-            <option value="all">כל הסוגים</option>
-            {CATEGORY_OPTIONS.map(c => (
-              <option key={c} value={c}>{TASK_CATEGORY_LABELS[c]}</option>
-            ))}
-          </select>
+        <div className="filter-chips" role="group" aria-label="סינון לפי מצב הכדור">
+          <FilterChip active={ballFilter === 'all'} onClick={() => setBallFilter('all')}>הכל</FilterChip>
+          {BALL_OPTIONS.map(b => (
+            <FilterChip key={b} active={ballFilter === b} onClick={() => setBallFilter(b)} removable>
+              {BALL_WITH_LABELS[b]}
+            </FilterChip>
+          ))}
         </div>
+
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value as TaskCategory | 'all')}
+          className="filter-select"
+          aria-label="סינון לפי סוג משימה"
+        >
+          <option value="all">כל הסוגים</option>
+          {CATEGORY_OPTIONS.map(c => (
+            <option key={c} value={c}>{TASK_CATEGORY_LABELS[c]}</option>
+          ))}
+        </select>
+
+        {/* הספירה מופיעה רק כשהיא אומרת משהו — כלומר כשמשהו סונן */}
+        {filtered.length !== totalCount && (
+          <span className="board-filter-count">{filtered.length} מתוך {totalCount}</span>
+        )}
+
+        <button className="ui-btn ui-btn-primary board-add" onClick={onAddTask}>+ משימה חדשה</button>
       </div>
 
-      {totalCount === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-title">אין עדיין משימות במערכת</div>
-          <div className="empty-state-subtitle">צור משימה חדשה או טען דוגמאות</div>
-          <div style={{ display: 'flex', gap: '.5rem', marginTop: '1rem', justifyContent: 'center' }}>
-            <button className="btn btn-primary" onClick={onAddTask}>+ משימה חדשה</button>
-            {onLoadSampleTasks && (
-              <button className="btn btn-secondary" onClick={onLoadSampleTasks}>📥 טען דוגמאות</button>
-            )}
-          </div>
-        </div>
+      {nothingMatches && (
+        <EmptyState
+          headline="אין משימות שמתאימות"
+          sentence={search.trim() ? `לא נמצאה משימה שתואמת ל״${search.trim()}״.` : undefined}
+          quietLink={{ label: 'נקה סינון', onClick: clearFilters }}
+        />
       )}
 
-      {GROUPS.map(g => {
-        const items = byGroup[g.key];
-        const isCollapsed = collapsed.has(g.key);
-        const isDragTarget = dragOverGroup === g.key && items.length === 0;
+      {!nothingMatches && TASK_GROUP_ORDER.map(key => {
+        const items = byGroup[key];
+        // קבוצה ריקה לא מציגה כותרת מעל כלום — חוץ מיעד גרירה פעיל
+        if (items.length === 0 && !draggedId) return null;
+        const isCollapsed = collapsed.has(key);
+        const isDragTarget = dragOverGroup === key && items.length === 0;
+
         return (
           <div
-            key={g.key}
-            className={`board-group board-group-${g.key} ${isDragTarget ? 'board-group-drop' : ''}`}
-            onDragOver={(e) => items.length === 0 && handleGroupDragOver(e, g.key)}
-            onDrop={(e) => items.length === 0 && handleGroupDrop(e, g.key)}
+            key={key}
+            className={`board-group board-group-${key} ${isDragTarget ? 'board-group-drop' : ''}`}
+            onDragOver={(e) => { if (draggedId) { e.preventDefault(); setDragOverGroup(key); } }}
+            onDrop={(e) => items.length === 0 && handleGroupDrop(e, key)}
           >
-            <div className="board-group-header" onClick={() => toggleCollapse(g.key)}>
-              <span className={`board-group-arrow ${isCollapsed ? 'collapsed' : ''}`}>▾</span>
-              <span className={`board-group-title status-pill status-pill-${g.key}`}>{g.label}</span>
-              <span className="board-group-count">{items.length}</span>
-            </div>
+            <GroupHeader
+              title={TASK_GROUP_LABELS[key]}
+              count={items.length}
+              hint={items.length ? GROUP_HINT[key] : undefined}
+              collapsed={isCollapsed}
+              onToggle={() => toggleCollapse(key)}
+            />
 
             {!isCollapsed && (
               <div className="board-table">
-                <div className="board-row board-row-header">
-                  <div className="bc bc-handle"></div>
-                  <div className="bc bc-check"></div>
-                  <div className="bc bc-title">משימה</div>
-                  <div className="bc bc-status">סטטוס</div>
-                  <div className="bc bc-client">לקוח</div>
-                  <div className="bc bc-date">דד-ליין</div>
-                  <div className="bc bc-desc">תיאור</div>
-                  <div className="bc bc-ball">הכדור אצל</div>
-                  <div className="bc bc-cat">סוג</div>
-                  <div className="bc bc-actions"></div>
-                </div>
-
                 {items.length === 0 ? (
-                  <div className="board-empty-row">אין משימות בקבוצה זו{draggedId ? ' — גרור לכאן כדי להעביר' : ''}</div>
+                  <CalmEmpty text={draggedId ? 'שחרר כאן כדי להעביר' : 'אין משימות בקבוצה זו'} />
                 ) : (
                   items.map(t => {
                     const client = clientMap.get(t.clientId) ?? null;
-                    const overdue = isOverdue(t);
                     const isSystemTask = t.clientId === 'system';
                     const clientLabel = client
                       ? `${client.firstName} ${client.lastName}`.trim() || client.idNumber
                       : isSystemTask ? 'משימת מערכת' : 'לקוח לא ידוע';
-                    const av = client ? avatarColor(client.id) : AVATAR_COLORS[0];
-                    const initialsLabel = client ? initials(client.firstName, client.lastName) : isSystemTask ? '🛠' : '?';
                     const done = t.status === 'done';
                     const currentStatus: TaskProgress | 'done' = done ? 'done' : (t.progress || 'new');
+                    const tone = dueTone(t);
+                    const late = tone === 'late' ? lateLabel(t.dueDate) : null;
                     const isDragging = draggedId === t.id;
-                    const isDropTarget = dragOver?.taskId === t.id;
+                    const dropHere = dragOver?.taskId === t.id;
                     const menuForThis = openMenu?.taskId === t.id ? openMenu.kind : null;
 
                     return (
                       <div
                         key={t.id}
-                        className={`board-row ${done ? 'row-done' : ''} ${isDragging ? 'row-dragging' : ''} ${isDropTarget ? `row-drop-${dragOver?.position}` : ''}`}
+                        className={`board-row ${done ? 'row-done' : ''} ${isDragging ? 'row-dragging' : ''} ${dropHere ? `row-drop-${dragOver!.position}` : ''}`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, t.id)}
                         onDragEnd={handleDragEnd}
                         onDragOver={(e) => handleRowDragOver(e, t)}
                         onDrop={(e) => handleRowDrop(e, t)}
                         onClick={() => onSelectTask(t.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter') onSelectTask(t.id); }}
                       >
-                        <div className="bc bc-handle" title="גרור כדי להעביר">⋮⋮</div>
+                        <div className="bc bc-handle" title="גרירה לשינוי סדר"><Icon name="drag" size={14} /></div>
 
-                        <div className="bc bc-check">
+                        <div className="bc bc-check" onClick={(e) => e.stopPropagation()}>
                           <button
-                            className="task-check"
-                            onClick={(e) => { e.stopPropagation(); onToggleDone(t.id); }}
+                            className={`task-check ${done ? 'is-done' : ''}`}
+                            onClick={() => completeTask(t)}
                             aria-label={done ? 'סימון כלא הושלמה' : 'סימון כהושלמה'}
-                            title={done ? 'סימון כלא הושלמה' : 'סימון כהושלמה'}
+                            title={done ? 'החזרה לפתוחות' : 'סימון כהושלמה'}
                           >
-                            {done && <span className="check-mark">✓</span>}
+                            {done && <Icon name="check" size={12} />}
                           </button>
                         </div>
 
                         <div className="bc bc-title">
-                          {t.priority === 'urgent' && !done && <span className="urgent-dot" title="דחוף" aria-label="דחוף" />}
                           <span className="task-title-text">{t.title}</span>
-                        </div>
-
-                        <div className="bc bc-status" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            className={`status-pill status-pill-${currentStatus}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenu(menuForThis === 'status' ? null : { taskId: t.id, kind: 'status' });
-                            }}
-                          >
-                            {currentStatus === 'done' ? 'הושלמה' : TASK_PROGRESS_LABELS[currentStatus]}
-                          </button>
-                          {menuForThis === 'status' && (
-                            <div className="pill-menu" onClick={(e) => e.stopPropagation()}>
-                              {(['new', 'in_progress', 'done'] as const).map(s => (
-                                <button
-                                  key={s}
-                                  className={`pill-menu-item status-pill status-pill-${s}`}
-                                  onClick={() => { onChangeStatus(t.id, s); setOpenMenu(null); }}
-                                >
-                                  {s === 'done' ? 'הושלמה' : TASK_PROGRESS_LABELS[s]}
-                                </button>
-                              ))}
-                            </div>
-                          )}
                         </div>
 
                         <div className="bc bc-client" onClick={(e) => e.stopPropagation()}>
@@ -379,94 +340,99 @@ export default function TaskBoard({
                               onClick={() => onSelectClient(client.id)}
                               title={`פתח את כרטיס ${clientLabel}`}
                             >
-                              <span className="task-avatar" style={{ background: av.bg, color: av.fg }}>
-                                {initialsLabel}
-                              </span>
                               <span className="client-chip-name">{clientLabel}</span>
                             </button>
                           ) : (
-                            <span className="client-chip client-chip-missing">{isSystemTask ? '🛠 משימת מערכת' : 'לקוח לא ידוע'}</span>
+                            <span className="client-chip client-chip-missing">{clientLabel}</span>
                           )}
                         </div>
 
+                        {/* התאריך לבדו נושא את האיחור — אין נקודה, אין שורה שנייה (D2/D5) */}
                         <div className="bc bc-date">
                           {t.dueDate ? (
-                            <span className={`date-chip ${overdue && !done ? 'date-chip-overdue' : ''}`}>
-                              📅 {formatDueDate(t.dueDate)}
+                            <span className={`due due-${tone}`} title={late || undefined}>
+                              {formatDueDate(t.dueDate)}
                             </span>
                           ) : (
-                            <span className="date-chip date-chip-none">—</span>
+                            <span className="due due-none">ללא תאריך</span>
                           )}
-                        </div>
-
-                        <div className="bc bc-desc" title={t.description || ''}>
-                          {t.description || <span className="muted">—</span>}
                         </div>
 
                         <div className="bc bc-ball" onClick={(e) => e.stopPropagation()}>
                           <button
-                            className={`ball-pill ball-pill-${t.ballWith}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenu(menuForThis === 'ball' ? null : { taskId: t.id, kind: 'ball' });
-                            }}
+                            className="ball-word"
+                            style={{ color: BALL_WITH_COLOR[t.ballWith] }}
+                            onClick={() => setOpenMenu(menuForThis === 'ball' ? null : { taskId: t.id, kind: 'ball' })}
+                            title="שינוי מצב הכדור"
                           >
-                            <span>{BALL_WITH_ICON[t.ballWith]}</span>
-                            <span>{BALL_WITH_LABELS[t.ballWith]}</span>
+                            {BALL_WITH_LABELS[t.ballWith]}
                           </button>
                           {menuForThis === 'ball' && (
                             <div className="pill-menu" onClick={(e) => e.stopPropagation()}>
                               {BALL_OPTIONS.map(b => (
                                 <button
                                   key={b}
-                                  className={`pill-menu-item ball-pill ball-pill-${b}`}
+                                  className={`pill-menu-item ${t.ballWith === b ? 'is-current' : ''}`}
+                                  style={{ color: BALL_WITH_COLOR[b] }}
                                   onClick={() => { onChangeBall(t.id, b); setOpenMenu(null); }}
                                 >
-                                  <span>{BALL_WITH_ICON[b]}</span>
-                                  <span>{BALL_WITH_LABELS[b]}</span>
+                                  {BALL_WITH_LABELS[b]}
                                 </button>
                               ))}
                             </div>
                           )}
                         </div>
 
-                        <div className="bc bc-cat" onClick={(e) => e.stopPropagation()}>
+                        <div className="bc bc-actions ui-hover-actions" onClick={(e) => e.stopPropagation()}>
                           <button
-                            className={`category-pill ${TASK_CATEGORY_BADGE[t.category]}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenu(menuForThis === 'cat' ? null : { taskId: t.id, kind: 'cat' });
-                            }}
+                            className="ui-icon-btn"
+                            onClick={() => onSelectTask(t.id)}
+                            aria-label="עריכת המשימה"
+                            title="עריכה"
                           >
-                            {TASK_CATEGORY_LABELS[t.category]}
+                            <Icon name="edit" size={14} />
                           </button>
-                          {menuForThis === 'cat' && (
-                            <div className="pill-menu pill-menu-wide" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className="ui-icon-btn row-menu-btn"
+                            aria-label="סטטוס וסוג"
+                            title="סטטוס וסוג"
+                            onClick={() => setOpenMenu(menuForThis === 'row' ? null : { taskId: t.id, kind: 'row' })}
+                          >
+                            <Icon name="chevron-down" size={14} />
+                          </button>
+                          {onDeleteTask && (
+                            <button
+                              className="ui-icon-btn is-danger"
+                              onClick={() => setPendingDelete(t)}
+                              aria-label="מחיקת המשימה"
+                              title="מחיקה"
+                            >
+                              <Icon name="close" size={14} />
+                            </button>
+                          )}
+                          {menuForThis === 'row' && (
+                            <div className="pill-menu row-menu" onClick={(e) => e.stopPropagation()}>
+                              <div className="row-menu-label">סטטוס</div>
+                              {(['new', 'in_progress', 'done'] as const).map(s => (
+                                <button
+                                  key={s}
+                                  className={`pill-menu-item ${currentStatus === s ? 'is-current' : ''}`}
+                                  onClick={() => { onChangeStatus(t.id, s); setOpenMenu(null); }}
+                                >
+                                  {s === 'done' ? 'הושלמה' : TASK_PROGRESS_LABELS[s]}
+                                </button>
+                              ))}
+                              <div className="row-menu-label">סוג</div>
                               {CATEGORY_OPTIONS.map(c => (
                                 <button
                                   key={c}
-                                  className={`pill-menu-item category-pill ${TASK_CATEGORY_BADGE[c]}`}
+                                  className={`pill-menu-item ${t.category === c ? 'is-current' : ''}`}
                                   onClick={() => { onChangeCategory(t.id, c); setOpenMenu(null); }}
                                 >
                                   {TASK_CATEGORY_LABELS[c]}
                                 </button>
                               ))}
                             </div>
-                          )}
-                        </div>
-
-                        <div className="bc bc-actions">
-                          {onDeleteTask && (
-                            <button
-                              className="row-delete"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm('למחוק את המשימה?')) onDeleteTask(t.id);
-                              }}
-                              title="מחיקה"
-                            >
-                              ✕
-                            </button>
                           )}
                         </div>
                       </div>
@@ -478,6 +444,16 @@ export default function TaskBoard({
           </div>
         );
       })}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="מחיקת משימה"
+          message={<>למחוק את ״{pendingDelete.title}״? הפעולה אינה הפיכה.</>}
+          confirmLabel="מחיקה"
+          onConfirm={() => { onDeleteTask?.(pendingDelete.id); setPendingDelete(null); showToast('המשימה נמחקה'); }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

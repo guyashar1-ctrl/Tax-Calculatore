@@ -1189,8 +1189,8 @@ export type SignatureFieldKind =
   | 'stamp'      // חותמת — ממולאת ע"י חותם (בפועל: הרו"ח)
   | 'text'       // טקסט שהחותם מקליד (תאריך, שם...)
   | 'label'      // טקסט קבוע שהרו"ח כותב על הטופס בעת ההפקה
-  | 'check'      // סימן ✓ קבוע שהרו"ח מוסיף בעת ההפקה
-  | 'cross';     // סימן ✗ קבוע שהרו"ח מוסיף בעת ההפקה
+  | 'check'      // סימן קבוע שהרו"ח מוסיף בעת ההפקה
+  | 'cross';     // סימן קבוע שהרו"ח מוסיף בעת ההפקה
 
 /** סוגים "סטטיים" — תוכן קבוע שהרו"ח מניח בעת ההפקה; לא דורשים חותם */
 export const STATIC_FIELD_KINDS: SignatureFieldKind[] = ['label', 'check', 'cross'];
@@ -1314,25 +1314,34 @@ export const TASK_PROGRESS_LABELS: Record<TaskProgress, string> = {
   in_progress: 'בתהליך',
 };
 
+/**
+ * לשון אחידה לכל המוצר — אפיון D7. שם המצב נכתב פעם אחת כאן;
+ * שום מסך לא כותב וריאציה משלו ("אני", "תקוע", "אצל הרשות").
+ */
 export const BALL_WITH_LABELS: Record<BallWith, string> = {
   me: 'אצלי',
-  client: 'אצל הלקוח',
-  authority: 'אצל הרשות',
+  client: 'הלקוח',
+  authority: 'רשויות',
   stuck: 'תקועה',
 };
 
-export const BALL_WITH_ICON: Record<BallWith, string> = {
-  me: '👤',
-  client: '🧑',
-  authority: '🏛',
-  stuck: '🟡',
+/**
+ * צבע לכל מצב כדור — אפיון D4. "תקועה" הוא המצב היחיד עם גוון ייחודי,
+ * כי הוא היחיד שדורש החלטה ולא המתנה. אצלי נשאר ניטרלי: זה מצב ברירת המחדל,
+ * וצביעה שלו הייתה הופכת את כל הרשימה לצבעונית ומאבדת את המשמעות.
+ */
+export const BALL_WITH_COLOR: Record<BallWith, string> = {
+  me: 'var(--ink-3)',
+  client: 'var(--warn)',
+  authority: 'var(--warn)',
+  stuck: 'var(--stuck)',
 };
 
 export const BALL_WITH_BADGE: Record<BallWith, string> = {
-  me: 'badge-blue',
+  me: 'badge-gray',
   client: 'badge-orange',
-  authority: 'badge-purple',
-  stuck: 'badge-red',
+  authority: 'badge-orange',
+  stuck: 'badge-purple',
 };
 
 // ─── מחשבון מס (ממשיך) ──────────────────────────────────────────────────────
