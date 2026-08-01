@@ -90,6 +90,8 @@ export default function RepresentationRequestReview({
     }
   );
   const [signErrors, setSignErrors] = useState<string[]>([]);
+  // החתימה השמורה בפרופיל המשרד — נטענת מהדלי הפרטי ומוצעת ככפתור
+  const [savedSignature, setSavedSignature] = useState<string | undefined>(undefined);
   const [generating, setGenerating] = useState(false);
 
   // Generated PDF preview
@@ -242,6 +244,17 @@ export default function RepresentationRequestReview({
     return downloadPrivateDataUrl(path);
   }
   const loadStampDataUrl = () => loadBrandingImage(profile?.branding?.stampPath);
+
+  // טעינת החתימה השמורה פעם אחת, כדי שתהיה זמינה ככפתור בטופס חלק ב'
+  useEffect(() => {
+    let cancelled = false;
+    const path = profile?.branding?.signaturePath;
+    if (!path) { setSavedSignature(undefined); return; }
+    loadBrandingImage(path)
+      .then(src => { if (!cancelled) setSavedSignature(src); })
+      .catch(() => { if (!cancelled) setSavedSignature(undefined); });
+    return () => { cancelled = true; };
+  }, [profile?.branding?.signaturePath]);
 
   // ── זרימת החתימה החדשה: עורך הפקה + חדר חתימה של הרו"ח ──
   const setup = request.signatureSetup;
@@ -544,6 +557,19 @@ export default function RepresentationRequestReview({
             <div className="form-group" style={{ marginTop: '1rem' }}>
               <label style={{ marginBottom: '.5rem' }}>חתימה וחותמת המייצג <span style={{ color: 'var(--danger)' }}>*</span></label>
               <SignaturePad value={partB.signatureDataUrl} onChange={s => setPartB(p => ({ ...p, signatureDataUrl: s }))} />
+              {/* החתימה השמורה בפרופיל המשרד מוצעת כקיצור — אבל היא לא
+                  נכנסת מעצמה. ייפוי כוח הוא מסמך משפטי, וההחתמה עליו
+                  צריכה להישאר מעשה מכוון בכל מסמך ומסמך. */}
+              {savedSignature && !partB.signatureDataUrl && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ marginTop: '.5rem' }}
+                  onClick={() => setPartB(p => ({ ...p, signatureDataUrl: savedSignature }))}
+                >
+                  השתמש בחתימה השמורה בפרופיל המשרד
+                </button>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '1rem', flexWrap: 'wrap' }}>
