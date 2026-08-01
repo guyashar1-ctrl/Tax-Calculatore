@@ -575,7 +575,10 @@ export default function QuotationBuilder({
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <div style={{ ...cardTitle, marginBottom: 0, flex: 1 }}>שירותים</div>
               <button className="btn btn-sm btn-secondary" onClick={addCustomItem} title="שורה ריקה עם שם ומחיר חופשיים — למה שלא קיים בקטלוג">+ שורה חופשית</button>
-              <button className="btn btn-sm btn-primary" onClick={() => setCatalogOpen(o => !o)}>+ מהקטלוג</button>
+              {/* שתי דרכים להוסיף שירות הן שתי דרכים, לא ראשית ומשנית.
+                  הכחול המלא כאן התחרה עם "שליחה ללקוח" — הפעולה הראשית
+                  היחידה במסך. שתיהן משניות עכשיו, באותו משקל. */}
+              <button className="btn btn-sm btn-secondary" onClick={() => setCatalogOpen(o => !o)}>+ מהקטלוג</button>
             </div>
 
             {catalogOpen && (
