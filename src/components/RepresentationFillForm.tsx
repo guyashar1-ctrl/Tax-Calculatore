@@ -212,18 +212,13 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
-          <div>
-            <h1 style={{ fontSize: 'var(--fs-24)', fontWeight: 600, color: 'var(--ink-1)' }}>
-              בקשת ייצוג — מילוי פרטים
-            </h1>
-            <p style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-3)', marginTop: 2 }}>
-              ייפוי כוח ראשי (השעמ) מול: {authorityList}
-            </p>
-          </div>
-          <button className="btn btn-ghost" onClick={onCancel}>← חזרה</button>
+      <div className="pg-head">
+        <div className="pg-head-main">
+          <div className="pg-title pg-title-lg">בקשת ייצוג — מילוי פרטים</div>
+          <div className="pg-status">ייפוי כוח ראשי (השעמ) מול: {authorityList}</div>
+        </div>
+        <div className="pg-actions">
+          <button className="btn btn-secondary" onClick={onCancel}>← חזרה</button>
         </div>
       </div>
 

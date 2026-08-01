@@ -390,22 +390,21 @@ export default function RepresentationRequestReview({
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '.75rem' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: 4 }}>
-            <h1 style={{ fontSize: 'var(--fs-24)', fontWeight: 600, color: 'var(--ink-1)' }}>
-              בקשת ייצוג
-            </h1>
+      <div className="pg-head">
+        <div className="pg-head-main">
+          <div className="doc-title-row">
+            <span className="pg-title pg-title-lg">בקשת ייצוג</span>
+            {/* הסטטוס הוא המידע היחיד שדורש מבט — הוא נשאר תגית */}
             <span className={`badge ${REPRESENTATION_STATUS_BADGE[request.status]}`}>
               {REPRESENTATION_STATUS_LABELS[request.status]}
             </span>
           </div>
-          <p style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-3)' }}>
+          <div className="pg-status">
             {request.clientName || request.clientEmail} · נוצרה {new Date(request.createdAt).toLocaleDateString('he-IL')}
-          </p>
+          </div>
         </div>
         {/* הפעולה הראשית עברה לכרטיס "מה עכשיו"; כאן נשארו רק ניווט ופעולות נדירות */}
-        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+        <div className="pg-actions" style={{ flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={onBack}>← חזרה</button>
           {/* גם לפני שהייצוג אושר יש ללקוח מסמכים — ייפוי כוח והסכם התקשרות */}
           {request.linkedClientId && (

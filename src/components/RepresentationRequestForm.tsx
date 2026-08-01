@@ -133,16 +133,12 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '.75rem' }}>
-        <div>
-          <h1 style={{ fontSize: 'var(--fs-24)', fontWeight: 600, color: 'var(--ink-1)' }}>
-            {isNew ? 'בקשת ייצוג חדשה' : 'עריכת בקשת ייצוג'}
-          </h1>
-          <p style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-3)', marginTop: 2 }}>
-            הגדר אילו פרטים, מסמכים וייפויי כוח אתה רוצה לקבל מהלקוח
-          </p>
+      <div className="pg-head">
+        <div className="pg-head-main">
+          <div className="pg-title pg-title-lg">{isNew ? 'בקשת ייצוג חדשה' : 'עריכת בקשת ייצוג'}</div>
+          <div className="pg-status">הגדר אילו פרטים, מסמכים וייפויי כוח אתה רוצה לקבל מהלקוח</div>
         </div>
-        <div style={{ display: 'flex', gap: '.5rem' }}>
+        <div className="pg-actions">
           <button className="btn btn-secondary" onClick={onCancel}>ביטול</button>
           <button className="btn btn-primary" onClick={handleSave}>שמור</button>
         </div>

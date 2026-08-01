@@ -332,18 +332,11 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 
   return (
     <div dir="rtl">
-      {/* סרגל פעולה דביק — הכותרת, מצב השמירה והשמירה עצמה תמיד נגישים */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 20, background: 'var(--gray-50)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 12, flexWrap: 'wrap', padding: '10px 0 12px', marginBottom: 6,
-        borderBottom: '1px solid var(--gray-200)',
-      }}>
-        <div>
-          <h1 style={{ fontSize: 'var(--fs-20)', fontWeight: 600, margin: 0, letterSpacing: '-.01em' }}>המשרד</h1>
-          <p style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', margin: '2px 0 0' }}>
-            מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח
-          </p>
+      {/* כותרת דביקה — מצב השמירה והשמירה עצמה תמיד בהישג יד */}
+      <div className="pg-head fp-head">
+        <div className="pg-head-main">
+          <div className="pg-title pg-title-lg">המשרד</div>
+          <div className="pg-status">מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח</div>
         </div>
         {editsProfile && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
