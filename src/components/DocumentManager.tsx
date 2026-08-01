@@ -273,6 +273,21 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
 
   const activeFilters = (filterYear !== 'all' ? 1 : 0) + (filterCat !== 'all' ? 1 : 0) + (filterText ? 1 : 0);
 
+  // פילטר מוצג רק כשיש בו ברירה — שנה אחת או קטגוריה אחת הן לא סינון.
+  const yearOptions = useMemo(() => {
+    const keys = Object.keys(yearCounts);
+    const years = keys.filter(k => k !== 'general').sort((a, b) => Number(b) - Number(a));
+    return keys.includes('general') ? [...years, 'general'] : years;
+  }, [yearCounts]);
+
+  const catOptions = useMemo(
+    () => (Object.keys(DOC_CATEGORY_LABELS) as DocCategory[]).filter(k => catCounts[k]),
+    [catCounts],
+  );
+
+  const showSearch = docs.length >= 5;
+  const showFilterBar = showSearch || yearOptions.length > 1 || catOptions.length > 1 || activeFilters > 0;
+
   // Upload
   function validateUpload(): string[] {
     const errors: string[] = [];
@@ -619,8 +634,9 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
       )}
 
       {/* Filters */}
-      {docs.length > 0 && (
+      {showFilterBar && (
         <div className="doc-filters">
+          {showSearch && (
           <div className="doc-filter-search">
             <span className="doc-filter-icon">{'\uD83D\uDD0D'}</span>
             <input
@@ -630,17 +646,23 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
               onChange={e => setFilterText(e.target.value)}
             />
           </div>
-          <select className="doc-filter-select" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
-            <option value="all">כל השנים</option>
-            <option value="general">כללי</option>
-            {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y} {yearCounts[y] ? `(${yearCounts[y]})` : ''}</option>)}
-          </select>
-          <select className="doc-filter-select" value={filterCat} onChange={e => setFilterCat(e.target.value)}>
-            <option value="all">כל הקטגוריות</option>
-            {(Object.entries(DOC_CATEGORY_LABELS) as [DocCategory, string][]).map(([k, v]) => (
-              <option key={k} value={k}>{v} {catCounts[k] ? `(${catCounts[k]})` : ''}</option>
-            ))}
-          </select>
+          )}
+          {yearOptions.length > 1 && (
+            <select className="doc-filter-select" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+              <option value="all">כל השנים</option>
+              {yearOptions.map(y => (
+                <option key={y} value={y}>{y === 'general' ? 'כללי' : y} ({yearCounts[y]})</option>
+              ))}
+            </select>
+          )}
+          {catOptions.length > 1 && (
+            <select className="doc-filter-select" value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+              <option value="all">כל הקטגוריות</option>
+              {catOptions.map(k => (
+                <option key={k} value={k}>{DOC_CATEGORY_LABELS[k]} ({catCounts[k]})</option>
+              ))}
+            </select>
+          )}
           {activeFilters > 0 && (
             <button className="btn btn-ghost btn-sm" onClick={() => { setFilterYear('all'); setFilterCat('all'); setFilterText(''); }}>
               {'\u2715'} נקה סינון ({activeFilters})

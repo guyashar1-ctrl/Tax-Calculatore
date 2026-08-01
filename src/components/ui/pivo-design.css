@@ -1428,7 +1428,7 @@ table thead th {
 
 /* סרגל הסינון — שורה אחת של חיפוש ושבבים, בלי כרטיס מסביב */
 .app .doc-filters {
-  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   background: transparent; border: 0; box-shadow: none; padding: 0;
 }
 .app .doc-filter-search input,
@@ -1436,6 +1436,10 @@ table thead th {
   border: 0; border-radius: var(--r-input); background: var(--surface-2);
   padding: 7px 12px; font-family: inherit; font-size: var(--fs-13); color: var(--ink-1);
 }
+/* בלי זה כלל ה-select הגלובלי (width:100%) מותח כל שבב לרוחב מלא ומפרק
+   את השורה לשלוש שורות */
+.app .doc-filter-select { width: auto; max-width: 15rem; }
+.app .doc-filter-search { flex: 0 1 15rem; min-width: 9rem; }
 
 /* טבלת המסמכים — קווי שערה ו-hover ניטרלי; המחיקה שקטה עד מעבר עכבר */
 .app .doc-table { border: 0; }
