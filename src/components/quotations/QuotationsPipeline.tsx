@@ -52,6 +52,9 @@ export default function QuotationsPipeline({
   onSaveLead, onCreateLead, onDeleteLead, onNewQuotationForLead,
 }: Props) {
   const [page, setPage] = useState<PageTab>('quotations');
+  // פתיחת "ליד חדש" יושבת כאן ולא ב-LeadsPanel, כי הכפתור הראשי של שני
+  // המצבים חייב לחיות באותה משבצת בכותרת — אחרת הוא קופץ בין השורות.
+  const [creatingLead, setCreatingLead] = useState(false);
   const [filter, setFilter] = useState<QuotationStatus | 'all'>('all');
   const [remindBusy, setRemindBusy] = useState<string | null>(null);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
@@ -153,6 +156,27 @@ export default function QuotationsPipeline({
     leads: leads.filter(l => l.status !== 'converted' && l.status !== 'closed').length,
   };
 
+  // המתג נבנה כאן ומוצג בתוך שורת הפקדים של המצב הפעיל — כך הוא נשאר
+  // באותה נקודה בדיוק גם אחרי המעבר בין הצעות ללידים.
+  const viewSwitch = (
+    <div className="qp-switch" role="tablist" aria-label="הצעות או לידים">
+      <button
+        type="button" role="tab" aria-selected={page === 'quotations'}
+        className={page === 'quotations' ? 'is-active' : ''}
+        onClick={() => setPage('quotations')}
+      >
+        הצעות
+      </button>
+      <button
+        type="button" role="tab" aria-selected={page === 'leads'}
+        className={page === 'leads' ? 'is-active' : ''}
+        onClick={() => setPage('leads')}
+      >
+        לידים
+      </button>
+    </div>
+  );
+
   return (
     <div dir="rtl" className="quotations-page">
       {/* כותרת אחת עם משפט מצב אחד. המספרים שהיו פזורים בין הטאבים
@@ -170,28 +194,17 @@ export default function QuotationsPipeline({
                 : `${quotations.length} הצעות · ${stats.drafts} טיוטות · ${stats.open} ממתינות לתשובה · ${stats.approved} אושרו`}
           </div>
         </div>
+        {/* משבצת אחת לפעולה הראשית של שני המצבים — אותו גודל, אותו מקום.
+            במצב ריק הכפתור חי בגוף המסך בלבד — שני כפתורים כחולים על אותו
+            מסך מפצלים את ההחלטה במקום להוביל אותה (D14) */}
         <div className="pg-actions">
-          <div className="qp-switch" role="tablist" aria-label="הצעות או לידים">
-            <button
-              type="button" role="tab" aria-selected={page === 'quotations'}
-              className={page === 'quotations' ? 'is-active' : ''}
-              onClick={() => setPage('quotations')}
-            >
-              הצעות
-            </button>
-            <button
-              type="button" role="tab" aria-selected={page === 'leads'}
-              className={page === 'leads' ? 'is-active' : ''}
-              onClick={() => setPage('leads')}
-            >
-              לידים
-            </button>
-          </div>
-          {/* במצב ריק הכפתור הראשי חי בגוף המסך בלבד — שני כפתורים כחולים
-              על אותו מסך מפצלים את ההחלטה במקום להוביל אותה (D14) */}
-          {page === 'quotations' && quotations.length > 0 && (
-            <button className="ui-btn ui-btn-primary" onClick={onNew}>+ הצעה חדשה</button>
-          )}
+          {page === 'quotations'
+            ? quotations.length > 0 && (
+              <button className="ui-btn ui-btn-primary" onClick={onNew}>+ הצעה חדשה</button>
+            )
+            : leads.length > 0 && (
+              <button className="ui-btn ui-btn-primary" onClick={() => setCreatingLead(true)}>+ ליד חדש</button>
+            )}
         </div>
       </div>
 
@@ -199,6 +212,9 @@ export default function QuotationsPipeline({
         <LeadsPanel
           leads={leads}
           quotations={quotations}
+          viewSwitch={viewSwitch}
+          creating={creatingLead}
+          onCreatingChange={setCreatingLead}
           onSave={onSaveLead}
           onCreate={onCreateLead}
           onDelete={onDeleteLead}
@@ -206,6 +222,25 @@ export default function QuotationsPipeline({
         />
       ) : (
       <>
+
+      {/* שורת הפקדים צמודה לכותרת בשני המצבים — המתג ואז הסינון של המצב
+          הפעיל. הודעות המערכת מתחתיה, כדי שהמתג לא יירד בשורה כשיש התראה. */}
+      <div className="qp-controls">
+        {viewSwitch}
+        {quotations.length > 0 && (
+          <>
+            <span className="qp-controls-sep" aria-hidden="true" />
+            <div className="filter-chips">
+              <button className={`chip ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>הכול</button>
+              {GROUP_ORDER.map(g => (
+                <button key={g.status} className={`chip ${filter === g.status ? 'active' : ''}`} onClick={() => setFilter(g.status)}>
+                  {QUOTATION_STATUS_LABELS[g.status]}{grouped[g.status]?.length ? ` (${grouped[g.status].length})` : ''}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       {toast && (
         <div className={`alert ${toast.kind === 'ok' ? 'alert-info' : 'alert-warning'}`} style={{ marginBottom: 12 }}>{toast.text}</div>
@@ -248,16 +283,6 @@ export default function QuotationsPipeline({
 
       {/* פס ארבעת המחוונים ירד — אותם ארבעה מספרים כבר כתובים במשפט
           המצב בכותרת, וגם בשמות הקבוצות למטה. כל מספר פעם אחת במסך. */}
-
-      {/* פילטר */}
-      <div className="filter-chips" style={{ marginBottom: 16 }}>
-        <button className={`chip ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>הכול</button>
-        {GROUP_ORDER.map(g => (
-          <button key={g.status} className={`chip ${filter === g.status ? 'active' : ''}`} onClick={() => setFilter(g.status)}>
-            {QUOTATION_STATUS_LABELS[g.status]}{grouped[g.status]?.length ? ` (${grouped[g.status].length})` : ''}
-          </button>
-        ))}
-      </div>
 
       {quotations.length === 0 ? (
         /* מצב ריק · D14 — כפתור כחול אחד בדיוק, והשלבים מלמדים את המחזור */

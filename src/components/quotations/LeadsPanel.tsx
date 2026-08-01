@@ -2,9 +2,10 @@
 // עד היום ליד נוצר רק כתופעת לוואי של הצעת מחיר, ולא הייתה דרך לפתוח אותו,
 // לתקן טלפון שהוקלד לא נכון או למחוק פנייה שלא הבשילה. כאן זה קורה.
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Lead, LeadStatus, LeadDealerType, Quotation } from '../../types/quotations';
 import { LEAD_STATUS_LABELS, LEAD_DEALER_TYPE_LABELS } from '../../types/quotations';
+import { EmptyState, CalmEmpty } from '../ui/States';
 
 /** עדכון ליד — רק השדות שהשתנו, לצד המזהה. ראה ההערה ב-LeadForm.submit. */
 export type LeadPatch = Partial<Lead> & { id: string };
@@ -12,6 +13,11 @@ export type LeadPatch = Partial<Lead> & { id: string };
 interface Props {
   leads: Lead[];
   quotations: Quotation[];
+  /** מתג הצעות/לידים — נבנה בעמוד האב ומוצג כאן, בראש שורת הפקדים */
+  viewSwitch?: ReactNode;
+  /** פתיחת "ליד חדש" מגיעה מהכפתור הראשי שבכותרת העמוד */
+  creating?: boolean;
+  onCreatingChange?: (v: boolean) => void;
   onSave: (lead: LeadPatch) => Promise<void>;
   onCreate: (lead: Omit<Lead, 'id'>) => Promise<void>;
   onDelete: (lead: Lead) => Promise<void>;
@@ -41,10 +47,13 @@ function errorText(e: unknown): string {
   return String(e);
 }
 
-export default function LeadsPanel({ leads, quotations, onSave, onCreate, onDelete, onNewQuotation }: Props) {
+export default function LeadsPanel({
+  leads, quotations, viewSwitch, creating = false, onCreatingChange,
+  onSave, onCreate, onDelete, onNewQuotation,
+}: Props) {
   const [filter, setFilter] = useState<LeadStatus | 'all'>('all');
   const [search, setSearch] = useState('');
-  const [editing, setEditing] = useState<Lead | 'new' | null>(null);
+  const [editing, setEditing] = useState<Lead | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
@@ -82,12 +91,17 @@ export default function LeadsPanel({ leads, quotations, onSave, onCreate, onDele
     }
   }
 
+  function closeForm() {
+    setEditing(null);
+    onCreatingChange?.(false);
+  }
+
   async function save(draft: LeadPatch | Omit<Lead, 'id'>) {
     setToast(null);
     try {
       if ('id' in draft && draft.id) await onSave(draft as LeadPatch);
       else await onCreate(draft as Omit<Lead, 'id'>);
-      setEditing(null);
+      closeForm();
       setToast({ kind: 'ok', text: 'הליד נשמר.' });
     } catch (e) {
       setToast({ kind: 'err', text: `השמירה נכשלה: ${errorText(e)}` });
@@ -96,36 +110,43 @@ export default function LeadsPanel({ leads, quotations, onSave, onCreate, onDele
 
   return (
     <div dir="rtl">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <input placeholder="חיפוש לפי שם, עסק, טלפון או מייל…" value={search}
-          onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
-        <button className="btn btn-primary" onClick={() => setEditing('new')}>+ ליד חדש</button>
+      {/* אותה שורת פקדים בדיוק כמו במצב "הצעות": המתג פותח, אחריו קו,
+          אחריו הסינון, והחיפוש בקצה. במסך ריק אין מה לסנן ואין מה לחפש. */}
+      <div className="qp-controls">
+        {viewSwitch}
+        {leads.length > 0 && (
+          <>
+            <span className="qp-controls-sep" aria-hidden="true" />
+            <div className="filter-chips">
+              <button className={`chip ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>הכול ({leads.length})</button>
+              {STATUS_ORDER.map(s => (
+                <button key={s} className={`chip ${filter === s ? 'active' : ''}`} onClick={() => setFilter(s)}>
+                  {LEAD_STATUS_LABELS[s]}{counts[s] ? ` (${counts[s]})` : ''}
+                </button>
+              ))}
+            </div>
+            <input className="pg-search" placeholder="חיפוש שם, עסק, טלפון…" title="חיפוש לפי שם, עסק, טלפון או מייל"
+              value={search} onChange={e => setSearch(e.target.value)} />
+          </>
+        )}
       </div>
 
       {toast && (
         <div className={`alert ${toast.kind === 'ok' ? 'alert-info' : 'alert-warning'}`} style={{ marginBottom: 12 }}>{toast.text}</div>
       )}
 
-      <div className="filter-chips" style={{ marginBottom: 16 }}>
-        <button className={`chip ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>הכול ({leads.length})</button>
-        {STATUS_ORDER.map(s => (
-          <button key={s} className={`chip ${filter === s ? 'active' : ''}`} onClick={() => setFilter(s)}>
-            {LEAD_STATUS_LABELS[s]}{counts[s] ? ` (${counts[s]})` : ''}
-          </button>
-        ))}
-      </div>
-
-      {visible.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">👤</div>
-          <div className="empty-state-title">{leads.length === 0 ? 'אין עדיין לידים' : 'אין לידים שתואמים לסינון'}</div>
-          <div className="empty-state-desc">
-            {leads.length === 0
-              ? 'ליד נוצר אוטומטית כשמפיקים הצעת מחיר לנמען חדש — או ידנית כאן.'
-              : 'אפשר לנקות את החיפוש או לבחור סטטוס אחר.'}
-          </div>
-          {leads.length === 0 && <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setEditing('new')}>+ ליד חדש</button>}
-        </div>
+      {leads.length === 0 ? (
+        /* אותו מצב ריק של העמוד — טקסט שמלמד, וכפתור כחול אחד (D14) */
+        <EmptyState
+          headline="אין עדיין לידים"
+          sentence="ליד נוצר אוטומטית כשמפיקים הצעת מחיר לנמען חדש — או ידנית כאן, אחרי שיחת טלפון."
+          action={{ label: '+ ליד חדש', onClick: () => onCreatingChange?.(true) }}
+        />
+      ) : visible.length === 0 ? (
+        <CalmEmpty
+          text="אין לידים שתואמים לסינון."
+          action={{ label: 'נקה סינון', onClick: () => { setFilter('all'); setSearch(''); } }}
+        />
       ) : (
         <div className="card">
           <table>
@@ -168,11 +189,11 @@ export default function LeadsPanel({ leads, quotations, onSave, onCreate, onDele
         </div>
       )}
 
-      {editing && (
+      {(editing || creating) && (
         <LeadForm
-          lead={editing === 'new' ? null : editing}
+          lead={editing}
           onSave={save}
-          onCancel={() => setEditing(null)}
+          onCancel={closeForm}
         />
       )}
     </div>

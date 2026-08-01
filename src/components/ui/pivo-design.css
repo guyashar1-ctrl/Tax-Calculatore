@@ -789,8 +789,18 @@ table thead th {
 }
 
 /* מתג "הצעות / לידים" — שני מצבים של אותו מסך, ולכן מתג ולא שני טאבים
-   שמתחרים על הכותרת. הוא יושב באזור הפעולות, לצד הפעולה הראשית. */
-.qp-switch { display: inline-flex; background: var(--surface-2); border-radius: var(--r-input); padding: 2px; }
+   שמתחרים על הכותרת.
+
+   המתג ירד מאזור הפעולות: שם הוא חלק אשכול עם הכפתור הראשי, וכשהכפתור
+   הופיע או נעלם (מעבר בין המצבים, מסך ריק) המתג החליק הצידה — הפקד זז
+   בדיוק מתחת לאצבע שלחצה עליו. עכשיו הוא פותח את שורת הפקדים, קבוע
+   בתחילת השורה, ולידו — אחרי קו הפרדה — הסינון של המצב הנוכחי. */
+.qp-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.qp-controls .filter-chips { flex: 0 1 auto; min-width: 0; }
+.qp-controls-sep { flex: none; width: 1px; height: 18px; background: var(--hairline-1); }
+.qp-controls input.pg-search { flex: none; margin-inline-start: auto; }
+
+.qp-switch { display: inline-flex; background: var(--surface-2); border-radius: var(--r-input); padding: 2px; flex: none; }
 .qp-switch button {
   border: 0; background: transparent; border-radius: var(--r-chip);
   padding: 5px 12px; font-family: inherit; font-size: var(--fs-13);
@@ -929,13 +939,15 @@ table thead th {
 .pg-status { font-size: var(--fs-13); color: var(--ink-3); }
 .pg-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
-/* שדה חיפוש בכותרת עמוד — משטח רך, בלי מסגרת */
-.pg-search {
+/* שדה חיפוש בכותרת עמוד — משטח רך, בלי מסגרת.
+   ‎input.pg-search‎ ולא ‎.pg-search‎: כלל הבסיס של השדות ב-index.css נכתב
+   ‎input[type="text"]‎, ומחלקה לבדה מפסידה לו — השדה נמתח לרוחב מלא. */
+input.pg-search {
   width: 200px; padding: 7px 12px; border: 0; border-radius: var(--r-input);
   background: var(--surface-2); font-family: inherit; font-size: var(--fs-13);
   color: var(--ink-1); outline: none;
 }
-.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: transparent; }
 
 /* פס התקדמות מקטעי — מקטע לכל קבוצה. הוא מחליף תשע תוויות מצב. */
 .pg-bars { display: flex; align-items: center; gap: 2px; height: 5px; border-radius: 3px; overflow: hidden; background: var(--hairline-1); }
