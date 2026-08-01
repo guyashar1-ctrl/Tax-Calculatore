@@ -561,6 +561,41 @@ table thead th {
   letter-spacing: .02em;
 }
 
+/* ── מצב ריק · מסך 12 במוקאפ ─────────────────────────────────────────────────
+   מיושר לימין ולא ממורכז: זה מסך שמלמד מחזור חיים, וטקסט שמלמד נקרא
+   בעמודה — לא במרכז המסך. רוחב 62ch הוא גבול הקריאוּת. */
+.quotations-page .ui-empty {
+  align-items: flex-start;
+  text-align: start;
+  max-width: 62ch;
+  padding: 26px 0 34px;
+  gap: 26px;
+}
+.quotations-page .ui-empty-headline { font-size: var(--fs-17); }
+.quotations-page .ui-empty-sentence { font-size: var(--fs-15); line-height: 1.75; }
+.quotations-page .ui-empty-steps { min-width: 0; max-width: none; margin: 0; }
+
+.ui-empty-steps li { grid-template-columns: 22px 1fr; display: grid; gap: 14px; padding: 11px 0; }
+.ui-empty-steps li:last-child { border-block-end: 0; }
+.ui-empty-step { display: flex; flex-direction: column; gap: 2px; }
+.ui-empty-step-t { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.ui-empty-step-p { font-size: var(--fs-13); color: var(--ink-3); line-height: 1.6; }
+.ui-empty-actions { gap: 16px; margin-block-start: 0; }
+
+/* כותרת המסך עם קו מפריד — כאן היא לא מיותרת, כי הטאב אומר
+   "הצעות ולידים" וזה המסך של ההצעות בלבד */
+.quotations-page .desk-header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--hairline-1);
+  align-items: baseline;
+}
+.quotations-page .desk-title {
+  display: block;
+  font-size: var(--fs-20);
+  font-weight: 600;
+  letter-spacing: -.015em;
+}
+
 /* סרגל הכלים של מרכז הידע — שמונה כלים, אז הוא נשבר לשורות בלי לדחוס */
 .tc-tools { flex-wrap: wrap; gap: 1.1rem; margin-bottom: 1.25rem; }
 .tc-tools button { font-size: var(--fs-13); cursor: pointer; font-family: inherit; white-space: nowrap; }

@@ -12,8 +12,9 @@ interface EmptyStateProps {
   headline: string;
   /** משפט אחד. לא פסקה. */
   sentence?: string;
-  /** שלבים ממוספרים — רק כשיש מחזור חיים שכדאי ללמד */
-  steps?: string[];
+  /** שלבים ממוספרים — רק כשיש מחזור חיים שכדאי ללמד.
+   *  מחרוזת = שורה אחת; אובייקט = כותרת השלב + מה קורה בו. */
+  steps?: (string | { t: string; p: string })[];
   action?: { label: string; onClick: () => void };
   /** קישור טקסט שקט — מסלול המשנה, לא הפעולה הראשית */
   quietLink?: { label: string; onClick: () => void };
@@ -29,7 +30,14 @@ export function EmptyState({ headline, sentence, steps, action, quietLink }: Emp
           {steps.map((s, i) => (
             <li key={i}>
               <span className="ui-empty-num">{String(i + 1).padStart(2, '0')}</span>
-              <span>{s}</span>
+              {typeof s === 'string' ? (
+                <span className="ui-empty-step-t">{s}</span>
+              ) : (
+                <span className="ui-empty-step">
+                  <span className="ui-empty-step-t">{s.t}</span>
+                  <span className="ui-empty-step-p">{s.p}</span>
+                </span>
+              )}
             </li>
           ))}
         </ol>
