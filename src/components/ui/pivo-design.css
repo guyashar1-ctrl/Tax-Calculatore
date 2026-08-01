@@ -12,13 +12,105 @@
    במקום ‎.ball-pill‏, ‎.ui-group-* במקום ‎.board-group-*‎).
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── מסך · פחות אוויר בין קבוצות, יותר בין שורה לקצה ─────────────────────── */
-.main { padding: 1.1rem 1.5rem 3rem; }
+/* ═══════════════════════════════════════════════════════════════════════════
+   מסגרת האפליקציה · המבנה שקובע את כל השאר
+   מקור: "משימות · מינימלי.dc.html" בפרויקט העיצוב, ואפיון §3.1.
+
+   האפליקציה כולה יושבת בכרטיס לבן אחד, ממורכז, עם פינות מעוגלות וצל רך,
+   שצף על קנבס אפור. זה מה שמפריד בין "מסך מלא של דפדפן" לבין מוצר —
+   הקנבס מסביב הוא שנותן לתוכן גבול, והגבול הוא שנותן לו נשימה.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.app {
+  min-height: 100vh;
+  background: var(--canvas);
+  padding: 28px 32px 56px;
+  display: block;
+}
+.app > .header,
+.app > .main {
+  max-width: 1280px;
+  margin-inline: auto;
+  width: 100%;
+  background: var(--surface-0);
+}
+.app > .header {
+  border: 1px solid var(--hairline-1);
+  border-bottom-color: var(--hairline-1);
+  border-radius: var(--r-modal) var(--r-modal) 0 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  position: sticky;
+  top: 0;
+  padding-inline: 20px;
+  gap: 26px;
+}
+.app > .main {
+  border: 1px solid var(--hairline-1);
+  border-top: 0;
+  border-radius: 0 0 var(--r-modal) var(--r-modal);
+  box-shadow: 0 8px 28px rgba(0,0,0,.05);
+  padding: 14px 22px 40px;
+  max-width: 1280px;
+  flex: none;
+}
+
+/* בתוך הכרטיס הכותרת הדביקה נצמדת לראשו, לא לראש החלון */
+.tasks-page .ui-group-head { top: 0; }
+
+@media (max-width: 1100px) {
+  .app { padding: 0; }
+  .app > .header,
+  .app > .main { border-radius: 0; border-inline: 0; max-width: none; }
+  .app > .main { border-bottom: 0; }
+}
 
 /* קו אנכי אחד לכל המסך — הכל מיושר לאותו אינסט */
 .tasks-page .board-row,
 .tasks-page .ui-group-head,
 .tasks-page .board-filters { padding-inline: .7rem; }
+
+/* ── הסרגל · טאבים בלי גלולות ובלי מסגרות ────────────────────────────────── */
+.app > .header { height: 52px; border-bottom: 1px solid var(--hairline-1); }
+.main-nav { gap: 22px; }
+.main-nav .nav-tab {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 0;
+  font-size: var(--fs-14);
+  font-weight: 400;
+  color: var(--ink-3);
+  /* הקו התחתון נשאר כסימן שני לצד המשקל — צבע לבדו אינו סימון נגיש */
+  border-bottom: 2px solid transparent;
+  line-height: 52px;
+}
+.main-nav .nav-tab:hover { background: none; color: var(--ink-1); }
+.main-nav .nav-tab.active {
+  background: none;
+  color: var(--ink-1);
+  font-weight: 500;
+  border-bottom-color: var(--accent);
+}
+.nav-badge {
+  background: none;
+  color: var(--ink-3);
+  padding: 0 0 0 4px;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.header-actions { margin-inline-start: auto; gap: 14px; }
+.header-user-avatar { width: 26px; height: 26px; font-size: var(--fs-12); }
+
+/* שדה החיפוש: משטח רך בלי מסגרת. מסגרת אומרת "מלא אותי" — חיפוש לא. */
+.tasks-search,
+.search-input-wrap input {
+  border: 0;
+  border-radius: var(--r-input);
+  background: var(--surface-2);
+  padding: 7px 12px;
+  font-size: var(--fs-13);
+  outline: none;
+}
 
 /* ── קבוצות · לא כרטיסים, ובלי מסגרת ─────────────────────────────────────── */
 .board-group {
