@@ -5,9 +5,11 @@
 
 import { useMemo, useState } from 'react';
 import type { Client, Task } from '../../types';
+import { BALL_WITH_LABELS, BALL_WITH_COLOR } from '../../types';
 import type { ClientAlert } from '../../types/clientWorkspace';
-import { ACTIVITY_ICON } from '../../types/clientWorkspace';
-import { getMissingDocs, relativeTime, shortDate } from '../../utils/clientDerived';
+import { getMissingDocs, relativeTime } from '../../utils/clientDerived';
+import { formatDate } from '../../utils/dateFormat';
+import { dueTone } from '../../utils/taskUtils';
 import type { AnnualReportSession } from '../../features/annualReport/types';
 import { summarizeYearFile, SESSION_STATUS_META, buildKeyAmounts } from '../../features/annualReport/profile';
 import ClientEmailsSection from '../EmailActivity/ClientEmailsSection';
@@ -197,7 +199,9 @@ export default function ClientCockpitTab({
       </div>
 
       {/* ── לוח הגשות + מה זז ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1.3fr) minmax(260px, 1fr)', gap: '.7rem' }} className="cw-cockpit-row">
+      {/* פריסת המרכז לפי מסך 07 במוקאפ: עמודה רחבה למה שדורש טיפול,
+          ומסילה צרה לצידה למה שחוסם, למה שזז, ולהערה. */}
+      <div className="cw-hub-grid cw-cockpit-row">
         <div className="cw-section">
           <div className="cw-section-head"><span>מה הבא בתור — חובות הגשה</span></div>
           {calendar.length === 0 ? (
@@ -216,21 +220,21 @@ export default function ClientCockpitTab({
             </div>
           )}
           {upcomingDebts.length > 0 && (
-            <div style={{ marginTop: '.5rem' }}>
-              {upcomingDebts.slice(0, 3).map((t) => (
-                <button
-                  key={t.id} type="button" onClick={() => onSelectTask(t.id)}
-                  style={{
-                    display: 'flex', justifyContent: 'space-between', width: '100%', gap: '.6rem',
-                    background: 'var(--chip-amber-bg)', border: '1px solid var(--chip-amber-bd)', borderRadius: 7,
-                    padding: '.3rem .6rem', fontSize: '13px', marginBottom: '.3rem',
-                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right',
-                  }}
-                >
-                  <span>⏰ {t.title}</span>
-                  <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{shortDate(t.dueDate)}</span>
-                </button>
-              ))}
+            <div className="cw-due-list">
+              {upcomingDebts.slice(0, 5).map((t) => {
+                const tone = dueTone(t);
+                return (
+                  <button key={t.id} type="button" className="cw-due-row" onClick={() => onSelectTask(t.id)}>
+                    <span className={`cw-due-date due due-${tone}`}>{formatDate(t.dueDate, 'list')}</span>
+                    <span className="cw-due-main">
+                      <span className="cw-due-title">{t.title}</span>
+                    </span>
+                    <span className="cw-due-ball" style={{ color: BALL_WITH_COLOR[t.ballWith] }}>
+                      {BALL_WITH_LABELS[t.ballWith]}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -242,10 +246,9 @@ export default function ClientCockpitTab({
           ) : (
             <div>
               {recentActivity.map((a) => (
-                <div key={a.id} style={{ display: 'flex', gap: '.45rem', fontSize: '13px', padding: '.28rem 0', color: 'var(--gray-600)', alignItems: 'baseline' }}>
-                  <span style={{ flex: 'none' }}>{ACTIVITY_ICON[a.kind] ?? '•'}</span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.text}</span>
-                  <span style={{ marginRight: 'auto', color: 'var(--gray-400)', fontSize: '12px', whiteSpace: 'nowrap', flex: 'none' }}>{relativeTime(a.at)}</span>
+                <div key={a.id} className="cw-activity-row">
+                  <span className="cw-activity-text">{a.text}</span>
+                  <span className="cw-activity-when">{relativeTime(a.at)}</span>
                 </div>
               ))}
             </div>

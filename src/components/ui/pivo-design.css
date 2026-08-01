@@ -402,6 +402,62 @@
 .cw-section-count { color: var(--ink-4); font-variant-numeric: tabular-nums; }
 .cw-empty { color: var(--ink-4); font-style: normal; }
 
+/* ── מרכז השליטה · מסך 07 במוקאפ ─────────────────────────────────────────────
+   עמודה רחבה למה שדורש טיפול, ומסילה צרה לצידה. התאריך ראשון בשורה
+   ובעמודה ברוחב קבוע — כך העין סורקת מועדים ולא מחפשת אותם בין המילים. */
+.cw-hub-grid {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 34px;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  .cw-hub-grid { grid-template-columns: 1fr; gap: 22px; }
+}
+
+.cw-due-list { display: flex; flex-direction: column; }
+.cw-due-row {
+  display: grid;
+  grid-template-columns: 82px 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 11px 2px;
+  border-top: 1px solid var(--hairline-2);
+  background: none;
+  border-inline: 0;
+  border-bottom: 0;
+  width: 100%;
+  text-align: start;
+  font-family: inherit;
+  cursor: pointer;
+}
+.cw-due-row:hover { background: var(--surface-1); }
+.cw-due-date { font-size: var(--fs-13); font-variant-numeric: tabular-nums; }
+.cw-due-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cw-due-title { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+/* מה חוסם את המשימה — אדום, כי בלעדיו היא לא זזה */
+.cw-due-blocker { font-size: var(--fs-12); color: var(--danger); }
+.cw-due-ball { font-size: var(--fs-12); white-space: nowrap; }
+
+.cw-activity-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px solid var(--hairline-2);
+}
+.cw-activity-text { font-size: var(--fs-13); color: var(--ink-2); line-height: 1.5; }
+.cw-activity-when { font-size: var(--fs-12); color: var(--ink-4); white-space: nowrap; }
+
+/* ההערה המוצמדת — הכרטיס הצבוע היחיד במוצר */
+.pin-section {
+  background: var(--note-bg) !important;
+  border-radius: var(--r-panel) !important;
+  padding: 13px 15px !important;
+}
+.pin-section .cw-section-head { border-bottom: 0; padding-bottom: 0; color: var(--note-text); }
+
 /* כרטיסי משנה: קו מפריד במקום מסגרת לכל אחד */
 .cw-property-card,
 .cw-contact-card,
