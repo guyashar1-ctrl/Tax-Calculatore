@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { PivoMark } from './PivoMark';
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -33,9 +34,13 @@ export default function LoginScreen() {
   return (
     <div className="login-screen">
       <div className="login-card">
+        {/* מסך הכניסה הוא הדלת של התוכנה, לא של המשרד. בשלב הזה עוד לא
+            ידוע מי מתחבר ולאיזה משרד הוא שייך, ולכן מה שמופיע כאן הוא
+            PIVO — שם המוצר. מיתוג המשרד מתחיל אחרי ההזדהות, ובכל מה
+            שהלקוח רואה הוא נגזר מפרופיל המשרד. */}
         <div className="login-brand">
-          <span className="brand-wordmark login-wordmark">YASHAR<span className="brand-dot" /></span>
-          <span className="login-brand-sub">גיא ישר · רואה חשבון</span>
+          <PivoMark size={34} />
+          <span className="brand-wordmark login-wordmark">PIVO</span>
         </div>
         {/* מסך עם מטרה אחת לא צריך משפט שמסביר מה יקרה אחרי ההתחברות (§4.2) */}
 
