@@ -641,9 +641,39 @@ table thead th {
   letter-spacing: -.015em;
 }
 
-/* סרגל הכלים של מרכז הידע — שמונה כלים, אז הוא נשבר לשורות בלי לדחוס */
-.tc-tools { flex-wrap: wrap; gap: 1.1rem; margin-bottom: 1.25rem; }
-.tc-tools button { font-size: var(--fs-13); cursor: pointer; font-family: inherit; white-space: nowrap; }
+/* מרכז ידע מס · מסך 18 — מסילה 206px ופאנל, במרווח 32px */
+.tax-center.pg-split { grid-template-columns: 206px 1fr; gap: 32px; }
+.pg-rail-eyebrow {
+  font-size: var(--fs-12); font-weight: 600; letter-spacing: .05em;
+  color: var(--ink-4); padding: 0 8px 8px;
+}
+.pg-rail-foot { margin-top: 12px; padding: 0 8px; font-size: var(--fs-12); line-height: 1.6; color: var(--ink-4); }
+.pg-rail-foot .tc-fresh { justify-content: flex-start; }
+.pg-rail-year {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-top: 16px; padding: 0 8px;
+  font-size: var(--fs-12); color: var(--ink-4);
+}
+.pg-rail-year select {
+  border: 0; border-radius: var(--r-input); background: var(--surface-2);
+  padding: 6px 9px; font-family: inherit; font-size: var(--fs-13); color: var(--ink-1);
+}
+.pg-rail-back {
+  margin-top: 18px; padding: 0 8px; background: none; border: 0;
+  font-family: inherit; font-size: var(--fs-13); color: var(--ink-4);
+  cursor: pointer; text-align: start;
+}
+.pg-rail-back:hover { color: var(--ink-1); }
+
+/* כותרת גדולה — במסך שיש בו מסילה, הכותרת נושאת את המשקל של העמוד */
+.pg-title-lg { font-size: var(--fs-20); }
+
+/* ערכי המפתח של השנה: שורת מספרים במרווח, לא תשעה כרטיסים ממורכזים */
+.tc-keyvals { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 22px 30px; }
+.tc-keyval { display: flex; flex-direction: column; gap: 1px; }
+.tc-keyval-num { font-size: var(--fs-20); font-weight: 600; letter-spacing: -.02em; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.tc-keyval-label { font-size: var(--fs-13); color: var(--ink-2); }
+.tc-keyval-sub { font-size: var(--fs-12); color: var(--ink-4); }
 
 /* כרטיסי הנתונים בסקירה — קו מפריד במקום מסגרת לכל אחד */
 .tax-center .card {
@@ -847,21 +877,28 @@ table thead th {
 .ek-hint { font-size: var(--fs-12); color: var(--ink-4); margin-top: .45rem; }
 .ek-count { font-size: var(--fs-13); color: var(--ink-4); font-variant-numeric: tabular-nums; }
 
-.ek-table { width: 100%; border-collapse: collapse; font-size: var(--fs-14); table-layout: fixed; }
-.ek-table th { text-align: start; padding: .4rem .8rem .4rem 0; }
-.ek-table td { padding: .55rem .8rem .55rem 0; vertical-align: top; }
-.ek-table tbody tr + tr td { border-top: 1px solid var(--hairline-2); }
-.ek-table th:nth-child(1), .ek-table td:nth-child(1) { width: 20%; }
-.ek-table th:nth-child(2), .ek-table td:nth-child(2),
-.ek-table th:nth-child(3), .ek-table td:nth-child(3) { width: 17%; }
-.ek-table th:nth-child(4), .ek-table td:nth-child(4) { width: 8%; }
-.ek-table th:nth-child(6), .ek-table td:nth-child(6) { width: 6%; }
-
-.ek-row { cursor: pointer; }
+.ek-grid { display: flex; flex-direction: column; }
+.ek-head, .ek-row {
+  display: grid;
+  grid-template-columns: minmax(0,1.6fr) 118px 118px 92px;
+  gap: 18px;
+}
+.ek-head {
+  padding: 0 2px 6px;
+  font-size: var(--fs-12); font-weight: 500; letter-spacing: .02em;
+  color: var(--ink-4); border-bottom: 1px solid var(--hairline-1);
+}
+.ek-row {
+  align-items: baseline; padding: 10px 2px; width: 100%;
+  border: 0; border-top: 1px solid var(--hairline-2);
+  background: none; font-family: inherit; text-align: start; cursor: pointer;
+}
+.ek-row:hover, .ek-row:focus-visible { background: var(--surface-1); }
 .ek-row:hover .ek-name { text-decoration: underline; }
-.ek-name { font-weight: 500; color: var(--ink-1); }
-.ek-source { font-size: var(--fs-12); color: var(--ink-4); line-height: 1.5; }
-.ek-none { padding: 1.6rem 0 !important; text-align: center; color: var(--ink-4); }
+.ek-cell-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ek-name { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.ek-source { font-size: var(--fs-12); color: var(--ink-4); line-height: 1.45; }
+.ek-none { padding: 1.6rem 0; text-align: center; color: var(--ink-4); border-top: 1px solid var(--hairline-2); }
 
 .ek-verdict { display: flex; flex-direction: column; gap: 1px; }
 .ek-verdict-word { font-size: var(--fs-13); font-weight: 500; color: var(--ink-2); }

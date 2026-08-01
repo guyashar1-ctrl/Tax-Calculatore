@@ -59,92 +59,89 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
     ...(data.gamblingExemptionCeiling ? [{ label: 'פטור הגרלות', value: fmt(data.gamblingExemptionCeiling), sub: 'לזכייה' }] : []),
   ];
 
-  return (
-    <div className="tax-center">
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '.75rem' }}>
-        <div>
-          <div style={{ fontSize: '14px', color: 'var(--gray-500)', marginBottom: '.25rem' }}>
-            <span style={{ cursor: 'pointer', color: 'var(--blue)' }} onClick={onBack}>← חזרה</span>
-          </div>
-          <h1 style={{ fontSize: '24px', fontWeight: 600 }}>מרכז ידע מס</h1>
-          <p style={{ fontSize: '14px', color: 'var(--gray-500)' }}>
-            כלי החלטה, מחשבונים ונתונים מאומתים — לא עוד דפדוף בטבלאות
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-          <label style={{ fontSize: '14px', fontWeight: 600 }}>שנת מס:</label>
-          <select
-            value={year}
-            onChange={e => setYear(+e.target.value)}
-            style={{ padding: '.4rem .75rem', borderRadius: 'var(--radius)', border: '1px solid var(--gray-300)', fontSize: '15px', fontWeight: 600, color: 'var(--blue)' }}
-          >
-            {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
-      </div>
+  const current = TOOLS.find(t => t.key === tool);
 
-      {/* ניווט כלים — קו תחתון על הפעיל, כמו כל טאב אחר במערכת */}
-      <div className="tabs tc-tools">
-        <button className={tool === 'overview' ? 'active' : ''} onClick={() => setTool('overview')}>
-          סקירה
+  return (
+    /* מסילה ופאנל, לפי מסך 18. הסרגל האופקי של תשעה כלים הוחלף במסילה:
+       שמונה שמות בשורה אחת נקראים כטאבים ("איפה אני"), ובעמודה הם
+       נקראים כמה שהם — תוכן עניינים של ספר עיון. */
+    <div className="tax-center pg-split">
+      <nav className="pg-rail" aria-label="כלי ידע המס">
+        <div className="pg-rail-eyebrow">ידע מס · {year}</div>
+        <button type="button" className={`pg-rail-item ${tool === 'overview' ? 'is-active' : ''}`} onClick={() => setTool('overview')}>
+          <span className="pg-rail-name">סקירה</span>
         </button>
         {TOOLS.map(t => (
           <button
             key={t.key}
-            className={tool === t.key ? 'active' : ''}
+            type="button"
+            className={`pg-rail-item ${tool === t.key ? 'is-active' : ''}`}
             onClick={() => setTool(t.key)}
+            aria-current={tool === t.key ? 'true' : undefined}
           >
-            {t.label}
+            <span className="pg-rail-name">{t.label}</span>
           </button>
         ))}
-      </div>
 
-      {/* ── סקירה ── */}
-      {tool === 'overview' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: '.75rem' }}>
-            {keyValues.map(card => (
-              <div key={card.label} className="card" style={{ padding: '.75rem 1rem', textAlign: 'center' }}>
-                <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--blue-dark)' }}>{card.value}</div>
-                <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>{card.sub}</div>
-                <div style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '.2rem' }}>{card.label}</div>
-              </div>
-            ))}
-          </div>
+        {/* עדכניות הנתונים היא תכונה של המאגר כולו, לא של הכלי הפתוח.
+            מקומה בתחתית המסילה, פעם אחת — ולא כתג מעל כל אחד מתשעת הכלים. */}
+        <div className="pg-rail-foot">
+          {tool !== 'overview' && TOOL_DATASET[tool]
+            ? <FreshnessBadge datasetId={TOOL_DATASET[tool]!} />
+            : null}
+        </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '.9rem' }}>
-            {TOOLS.map(t => (
-              <div key={t.key} className="card" onClick={() => setTool(t.key)}
-                style={{ cursor: 'pointer', transition: 'box-shadow .15s' }}>
-                <div className="card-body" style={{ display: 'flex', gap: '.9rem', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>{t.label}</div>
-                    <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{t.desc}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        <label className="pg-rail-year">
+          שנת מס
+          <select value={year} onChange={e => setYear(+e.target.value)}>
+            {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </label>
 
-          <FreshnessPanel checkTaskExists={freshnessTaskExists} onCreateCheckTask={onCreateFreshnessTask} />
+        <button type="button" className="pg-rail-back" onClick={onBack}>← חזרה</button>
+      </nav>
 
-          <div className="alert alert-info" style={{ marginBottom: 0, fontSize: '13px' }}>
-            שנים 2025–2027: רוב התקרות מוקפאות (חוק ההתייעלות — הקפאת עדכוני מס).
+      <div className="pg-pane">
+        <div className="pg-head">
+          <div className="pg-head-main">
+            <div className="pg-title pg-title-lg">{current ? current.label : 'מרכז ידע מס'}</div>
+            <div className="pg-status">
+              {current ? current.desc : 'כלי החלטה, מחשבונים ונתונים מאומתים — לא עוד דפדוף בטבלאות'}
+            </div>
           </div>
         </div>
-      )}
 
-      {tool !== 'overview' && TOOL_DATASET[tool] && <FreshnessBadge datasetId={TOOL_DATASET[tool]!} />}
+        {/* ── סקירה ── */}
+        {tool === 'overview' && (
+          <>
+            {/* ערכי המפתח של השנה — שורת מספרים, לא תשעה כרטיסים ממורכזים */}
+            <div className="tc-keyvals">
+              {keyValues.map(card => (
+                <div key={card.label} className="tc-keyval">
+                  <div className="tc-keyval-num">{card.value}</div>
+                  <div className="tc-keyval-label">{card.label}</div>
+                  <div className="tc-keyval-sub">{card.sub}</div>
+                </div>
+              ))}
+            </div>
 
-      {tool === 'expenses' && <ExpenseKnowledge />}
-      {tool === 'bookkeeping' && <BookkeepingKnowledge />}
-      {tool === 'wizard' && <CreditPointsWizard taxData={data} year={year} />}
-      {tool === 'rental' && <RentalRouteCalculator taxData={data} year={year} />}
-      {tool === 'incomeTax' && <IncomeTaxPanel taxData={data} year={year} />}
-      {tool === 'ni' && <NIReferenceSection taxData={data} year={year} />}
-      {tool === 'settlements' && <SettlementLookup year={year} />}
-      {tool === 'topics' && <KnowledgeTopics year={year} />}
+            <FreshnessPanel checkTaskExists={freshnessTaskExists} onCreateCheckTask={onCreateFreshnessTask} />
+
+            <div className="alert alert-info">
+              שנים 2025–2027: רוב התקרות מוקפאות (חוק ההתייעלות — הקפאת עדכוני מס).
+            </div>
+          </>
+        )}
+
+        {tool === 'expenses' && <ExpenseKnowledge />}
+        {tool === 'bookkeeping' && <BookkeepingKnowledge />}
+        {tool === 'wizard' && <CreditPointsWizard taxData={data} year={year} />}
+        {tool === 'rental' && <RentalRouteCalculator taxData={data} year={year} />}
+        {tool === 'incomeTax' && <IncomeTaxPanel taxData={data} year={year} />}
+        {tool === 'ni' && <NIReferenceSection taxData={data} year={year} />}
+        {tool === 'settlements' && <SettlementLookup year={year} />}
+        {tool === 'topics' && <KnowledgeTopics year={year} />}
+      </div>
     </div>
   );
 }

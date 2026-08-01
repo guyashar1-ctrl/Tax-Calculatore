@@ -107,41 +107,33 @@ export default function ExpenseKnowledge() {
           <span className="ek-count">{filtered.length} נושאים</span>
         </div>
         <div className="card-body">
-          <div className="table-wrap">
-            <table className="ek-table">
-              <thead>
-                <tr>
-                  <th>הוצאה</th>
-                  <th>מס הכנסה</th>
-                  <th>מע"מ</th>
-                  <th>סיכון</th>
-                  <th>מקור מרכזי</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(t => (
-                  <tr key={t.id} onClick={() => setSelectedId(t.id)} className="ek-row">
-                    <td className="ek-name">{t.icon} {t.title}</td>
-                    <td>{verdict(INCOME_TAX_VERDICT_META[t.incomeTax.verdict], t.incomeTax.shortLabel)}</td>
-                    <td>{verdict(VAT_VERDICT_META[t.vat.verdict], t.vat.shortLabel)}</td>
-                    <td className={`ek-risk tone-${RISK_META[t.riskLevel].tone}`} title={t.riskNote ?? ''}>
-                      {RISK_META[t.riskLevel].short}
-                    </td>
-                    <td className="ek-source">{t.mainSource}</td>
-                    {/* הפעולה שקטה עד מעבר עכבר — כמו בכל שורה במערכת */}
-                    <td className="ek-open">פתח ←</td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="ek-none">
-                      לא נמצא נושא מתאים — נסו מילה אחרת ("רכב", "ביגוד", "השתלמות"...)
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          {/* ארבע עמודות, לפי מסך 18. המקור עבר לשורה שנייה מתחת לשם:
+              הוא מלווה את ההוצאה ולא נסרק כעמודה בפני עצמה. */}
+          <div className="ek-grid">
+            <div className="ek-head">
+              <div>הוצאה</div>
+              <div>מס הכנסה</div>
+              <div>מע"מ</div>
+              <div>סיכון</div>
+            </div>
+            {filtered.map(t => (
+              <button key={t.id} type="button" onClick={() => setSelectedId(t.id)} className="ek-row">
+                <div className="ek-cell-name">
+                  <span className="ek-name">{t.icon} {t.title}</span>
+                  <span className="ek-source">{t.mainSource}</span>
+                </div>
+                {verdict(INCOME_TAX_VERDICT_META[t.incomeTax.verdict], t.incomeTax.shortLabel)}
+                {verdict(VAT_VERDICT_META[t.vat.verdict], t.vat.shortLabel)}
+                <span className={`ek-risk tone-${RISK_META[t.riskLevel].tone}`} title={t.riskNote ?? ''}>
+                  {RISK_META[t.riskLevel].short}
+                </span>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <div className="ek-none">
+                לא נמצא נושא מתאים — נסו מילה אחרת ("רכב", "ביגוד", "השתלמות"...)
+              </div>
+            )}
           </div>
         </div>
       </div>
