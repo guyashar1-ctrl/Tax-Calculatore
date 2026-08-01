@@ -25,10 +25,10 @@ export default function KnowledgeTopics({ year }: Props) {
             >
               <span style={{ fontSize: '24px' }}>{topic.icon}</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>{topic.title}</div>
+                <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{topic.title}</div>
                 <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{topic.subtitle}</div>
               </div>
-              <span style={{ color: 'var(--gray-400)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>▼</span>
+              <span className={`ed-section-caret ${open ? 'is-open' : ''}`}>▾</span>
             </div>
             {open && (
               <div className="card-body" style={{ borderTop: '1px solid var(--gray-100)' }}>
@@ -45,7 +45,7 @@ export default function KnowledgeTopics({ year }: Props) {
                       {topic.values.map((v, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid var(--gray-100)' }}>
                           <td style={{ padding: '.45rem .8rem' }}>
-                            <div style={{ fontWeight: 600 }}>
+                            <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>
                               {v.label}
                               {v.frozen && <span className="badge badge-gray" style={{ fontSize: '12px', marginRight: '.35rem' }}>מוקפא</span>}
                               {v.needsReview && <span className="badge badge-orange" style={{ fontSize: '12px', marginRight: '.35rem' }}>לאימות</span>}
@@ -65,7 +65,7 @@ export default function KnowledgeTopics({ year }: Props) {
                 </div>
                 {topic.insights && topic.insights.length > 0 && (
                   <div style={{ marginTop: '.75rem', background: 'var(--blue-light)', borderRadius: 8, padding: '.6rem .9rem', fontSize: '13px' }}>
-                    <div style={{ fontWeight: 600, marginBottom: '.3rem' }}>תובנות עבודה</div>
+                    <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, marginBottom: '.3rem' }}>תובנות עבודה</div>
                     <ul style={{ paddingRight: '1.1rem', display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
                       {topic.insights.map((ins, i) => <li key={i}>{ins}</li>)}
                     </ul>

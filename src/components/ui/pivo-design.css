@@ -648,3 +648,272 @@ table thead th {
   border-top: 1px solid var(--hairline-2) !important;
   border-radius: 0 !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   פרימיטיבים משותפים · alert · card-header · stat-card
+   שלושת אלה חוזרים בעשרות מסכים. הם נכתבו בשפה הישנה — קופסה צבועה,
+   מסגרת ורדיוס — ולכן כל מסך שמשתמש בהם נראה ישן גם אחרי שנבנה מחדש.
+   התיקון כאן הוא בפרימיטיב עצמו, בגבול ‎.app‎ בלבד.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* התראה = משפט, לא קופסה. הקו האנכי מסמן "זו הערה" בלי למלא שטח בצבע.
+   info אינו מידע דחוף — הוא נסוג לאפור. warning ו-error שומרים על הגוון,
+   כי שם הצבע הוא-הוא המידע. */
+.app .alert {
+  background: transparent;
+  border: 0;
+  border-inline-start: 2px solid var(--hairline-1);
+  border-radius: 0;
+  padding: .1rem 0 .1rem .9rem;
+  font-size: var(--fs-13);
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.app .alert-info { background: transparent; border-color: var(--hairline-1); color: var(--ink-3); }
+.app .alert-warning { background: transparent; border-inline-start-color: var(--warn); color: var(--ink-2); }
+.app .alert-error,
+.app .alert-danger { background: transparent; border-inline-start-color: var(--danger); color: var(--ink-2); }
+.app .alert-success { background: transparent; border-inline-start-color: var(--success); color: var(--ink-2); }
+.app .alert strong,
+.app .alert b { color: var(--ink-1); font-weight: 600; }
+
+/* ראש כרטיס = כותרת עם קו, לא פס צבוע. הריפוד האופקי יורד כי הכרטיס
+   שמסביבו כבר איבד את המסגרת שלו. */
+.app .card-header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--hairline-2);
+  border-radius: 0;
+  padding: .85rem 0 .5rem;
+}
+.app .card-title { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); letter-spacing: -.01em; }
+.app .card-body { padding: .9rem 0 1.1rem; }
+
+/* כרטיס נתון: מספר עם תווית. חמישה גוונים לחמישה ערכי ייחוס אינם מידע —
+   הם קישוט. נשאר המספר, והמפריד הוא קו. */
+.app .stat-card,
+.app .stat-card.blue,
+.app .stat-card.green,
+.app .stat-card.orange,
+.app .stat-card.red,
+.app .stat-card.purple {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--hairline-2);
+  border-radius: 0;
+  padding: .7rem 0 .8rem;
+}
+.app .stats-grid { gap: 0 2rem; }
+.app .stat-label { font-size: var(--fs-12); font-weight: 400; color: var(--ink-4); margin-bottom: .15rem; }
+.app .stat-value { font-size: var(--fs-20); font-weight: 600; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.app .stat-sub { font-size: var(--fs-12); color: var(--ink-4); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   מרכז ידע מס · מסך 18
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* עדכניות: שורת מטא ימנית ושקטה. ⚠ בלבד כשמאגר פספס בדיקה. */
+.tc-fresh { display: flex; justify-content: flex-end; margin-bottom: .45rem; }
+.tc-fresh-ok { font-size: var(--fs-12); color: var(--ink-4); }
+.tc-fresh-stale { font-size: var(--fs-12); font-weight: 500; color: var(--warn); }
+
+.tc-fresh-panel { padding-block: .2rem .4rem; }
+.tc-fresh-panel-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  flex-wrap: wrap; gap: .5rem;
+  padding-bottom: .45rem; border-bottom: 1px solid var(--hairline-1); margin-bottom: .2rem;
+}
+.tc-fresh-panel-title { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); }
+.tc-fresh-panel-sub { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: .55rem; }
+.tc-fresh-table { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
+.tc-fresh-table tr + tr td { border-top: 1px solid var(--hairline-2); }
+.tc-fresh-table td { padding: .4rem 0; }
+.tc-fresh-name { white-space: nowrap; color: var(--ink-1); font-weight: 500; }
+.tc-fresh-covers { color: var(--ink-4); font-size: var(--fs-12); padding-inline: .9rem !important; }
+.tc-fresh-when { white-space: nowrap; text-align: end; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.tc-fresh-when.is-stale { color: var(--warn); font-weight: 500; }
+.tc-fresh-note { font-size: var(--fs-12); color: var(--ink-4); margin-top: .6rem; line-height: 1.6; max-width: 82ch; }
+
+/* ── הוצאות מוכרות ──────────────────────────────────────────────────────────
+   הפסק המקצועי הוא המידע, ולכן הוא נושא צבע — אבל כטקסט, לא כגלולה.
+   ‎.tone-ok‎ היא התשובה הרגילה ולכן היא נשארת דיו רגיל: אילו כל השורות
+   היו ירוקות, הירוק היה חוזר 60 פעם ולא היה אומר דבר. */
+.ek-page { display: flex; flex-direction: column; }
+.ek-hint { font-size: var(--fs-12); color: var(--ink-4); margin-top: .45rem; }
+.ek-count { font-size: var(--fs-13); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+
+.ek-table { width: 100%; border-collapse: collapse; font-size: var(--fs-14); table-layout: fixed; }
+.ek-table th { text-align: start; padding: .4rem .8rem .4rem 0; }
+.ek-table td { padding: .55rem .8rem .55rem 0; vertical-align: top; }
+.ek-table tbody tr + tr td { border-top: 1px solid var(--hairline-2); }
+.ek-table th:nth-child(1), .ek-table td:nth-child(1) { width: 20%; }
+.ek-table th:nth-child(2), .ek-table td:nth-child(2),
+.ek-table th:nth-child(3), .ek-table td:nth-child(3) { width: 17%; }
+.ek-table th:nth-child(4), .ek-table td:nth-child(4) { width: 8%; }
+.ek-table th:nth-child(6), .ek-table td:nth-child(6) { width: 6%; }
+
+.ek-row { cursor: pointer; }
+.ek-row:hover .ek-name { text-decoration: underline; }
+.ek-name { font-weight: 500; color: var(--ink-1); }
+.ek-source { font-size: var(--fs-12); color: var(--ink-4); line-height: 1.5; }
+.ek-none { padding: 1.6rem 0 !important; text-align: center; color: var(--ink-4); }
+
+.ek-verdict { display: flex; flex-direction: column; gap: 1px; }
+.ek-verdict-word { font-size: var(--fs-13); font-weight: 500; color: var(--ink-2); }
+.ek-verdict-note {
+  font-size: var(--fs-12); color: var(--ink-4); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ek-risk { font-size: var(--fs-13); color: var(--ink-4); }
+
+.tone-ok { color: var(--ink-2); }
+.tone-limit { color: var(--warn); }
+.tone-no { color: var(--danger); }
+.tone-check { color: var(--ink-2); }
+.tone-na { color: var(--ink-4); }
+
+/* "פתח ←" קיים תמיד למקלדת, נראה רק במעבר עכבר */
+.ek-open {
+  font-size: var(--fs-13); color: var(--accent); white-space: nowrap;
+  opacity: 0; transition: opacity .1s;
+}
+.ek-row:hover .ek-open, .ek-row:focus-within .ek-open { opacity: 1; }
+
+/* ── כרטיס ההוצאה · תשובה אחת ומתחתיה הראיות ────────────────────────────────
+   המסך נקרא בשיחה עם לקוח, ולכן הסדר הוא: מה התשובה → מה אומרים →
+   ואז המקורות, שנפתחים רק כשמישהו מבקש לראות אותם. */
+.ed-page { display: flex; flex-direction: column; }
+.ed-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--hairline-1);
+}
+.ed-head-main { min-width: 0; }
+.ed-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ed-emoji { font-size: var(--fs-20); }
+.ed-title { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.015em; color: var(--ink-1); margin: 0; }
+.ed-risk { font-size: var(--fs-12); font-weight: 500; }
+.ed-summary { font-size: var(--fs-14); color: var(--ink-2); line-height: 1.65; margin: .4rem 0 0; max-width: 78ch; }
+.ed-meta { font-size: var(--fs-12); color: var(--ink-4); margin-top: .3rem; line-height: 1.55; max-width: 78ch; }
+
+/* שלושת הפסקים בשורה אחת. אין רקע — הקו העליון הוא שמפריד ביניהם. */
+.ed-verdicts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0 30px; margin: 18px 0 4px;
+}
+.ed-verdict { border-top: 1px solid var(--hairline-2); padding: 10px 0 12px; }
+.ed-verdict-label { font-size: var(--fs-12); color: var(--ink-4); }
+.ed-verdict-value { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.01em; margin-top: 1px; }
+.ed-verdict-note { font-size: var(--fs-12); color: var(--ink-4); margin-top: 2px; line-height: 1.5; }
+
+/* המשפט שנאמר ללקוח — הכרטיס הצבוע היחיד במסך, באותו צהוב של ההערה המוצמדת */
+.ed-say {
+  background: var(--note-bg); border-radius: var(--r-panel);
+  padding: 13px 16px; margin: 16px 0 22px;
+}
+.ed-say-label { font-size: var(--fs-12); font-weight: 500; color: var(--note-text); margin-bottom: 3px; }
+.ed-say-text { font-size: var(--fs-15); line-height: 1.75; color: var(--ink-1); margin: 0; max-width: 76ch; }
+
+.ed-section { border-top: 1px solid var(--hairline-2); }
+.ed-section-head {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 11px 0; background: none; border: 0; cursor: pointer;
+  font-family: inherit; text-align: start; color: inherit;
+}
+.ed-section-icon { font-size: var(--fs-14); }
+.ed-section-title { flex: 1; font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); letter-spacing: -.01em; }
+.ed-section-caret { font-size: var(--fs-12); color: var(--ink-4); transition: transform .15s; }
+.ed-section-caret.is-open { transform: rotate(180deg); }
+.ed-section-body { padding: 0 0 18px; font-size: var(--fs-14); line-height: 1.7; color: var(--ink-2); max-width: 88ch; }
+
+.ed-bullets { padding-inline-start: 1.15rem; display: flex; flex-direction: column; gap: .35rem; }
+.ed-bullets li { line-height: 1.65; }
+.ed-questions { padding-inline-start: 1.15rem; display: flex; flex-direction: column; gap: .4rem; color: var(--ink-2); }
+.ed-basis { font-size: var(--fs-13); color: var(--ink-3); margin-bottom: .6rem; }
+.ed-lead { font-weight: 600; color: var(--ink-1); }
+.ed-sub { margin-top: .7rem; }
+.ed-sub-title { font-size: var(--fs-13); font-weight: 600; color: var(--ink-1); margin-bottom: .25rem; }
+.ed-sub-title.is-danger { color: var(--danger); }
+
+.ed-list { display: flex; flex-direction: column; }
+.ed-item { padding: 9px 0; }
+.ed-item + .ed-item { border-top: 1px solid var(--hairline-2); }
+.ed-item-head { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); }
+.ed-item-body { font-size: var(--fs-13); color: var(--ink-2); line-height: 1.65; margin-top: 2px; }
+.ed-ref { font-weight: 400; color: var(--ink-4); }
+
+.ed-warn-title { font-weight: 600; color: var(--ink-1); margin-bottom: .3rem; }
+.ed-keywords { font-size: var(--fs-12); color: var(--ink-4); margin-top: 20px; }
+
+/* ── ניהול ספרים ───────────────────────────────────────────────────────────── */
+.bk-intro { padding-bottom: .2rem; }
+.bk-intro-title { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); margin-bottom: .2rem; }
+.bk-intro-text { font-size: var(--fs-13); color: var(--ink-3); line-height: 1.65; max-width: 92ch; }
+
+/* שדה חיפוש: משטח רך בלי מסגרת — מסגרת אומרת "מלא אותי", חיפוש לא */
+.bk-field {
+  border: 0; border-radius: var(--r-input); background: var(--surface-2);
+  padding: .5rem .8rem; font-size: var(--fs-14); font-family: inherit;
+  color: var(--ink-1); outline: none;
+}
+.bk-field:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+.bk-field-wide { width: 100%; }
+
+.bk-q { border-inline-start: 2px solid var(--hairline-1); padding-inline-start: .7rem; }
+.bk-link { cursor: pointer; color: var(--accent); background: none; border: 0; font-family: inherit; padding: 0; }
+.bk-link:hover { text-decoration: underline; }
+.bk-link-strong { font-size: var(--fs-14); font-weight: 600; }
+.bk-caveat {
+  font-size: var(--fs-13); color: var(--ink-2); margin-top: .4rem;
+  border-inline-start: 2px solid var(--warn); padding-inline-start: .7rem;
+}
+.bk-notes {
+  border-top: 1px solid var(--hairline-2); padding: .85rem 0 .95rem;
+  font-size: var(--fs-13); color: var(--ink-2); line-height: 1.6;
+}
+
+/* ── מחשבון שכר דירה · השוואת מסלולים ───────────────────────────────────────
+   שלושה מסלולים זה לצד זה. ההבדל בין המספרים הוא התשובה, ולכן המספר
+   הוא הדבר הגדול בכל עמודה, והמנצח מסומן במילה — לא במסגרת ובתג צף. */
+.rr-route { border-top: 1px solid var(--hairline-2); padding-top: 2px; }
+.rr-route.is-best { border-top: 2px solid var(--ink-1); }
+.rr-route-head { display: flex; align-items: baseline; gap: 8px; padding: 9px 0 2px; flex-wrap: wrap; }
+.rr-route-title { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.rr-route-best { font-size: var(--fs-12); color: var(--ink-4); }
+.rr-route.is-best .rr-route-title { font-weight: 600; }
+.rr-route-body { display: flex; flex-direction: column; gap: .55rem; padding-bottom: 14px; }
+.rr-amount { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.02em; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.rr-route.is-best .rr-amount { color: var(--ink-1); }
+.rr-amount-sub { font-size: var(--fs-12); color: var(--ink-4); line-height: 1.5; }
+.rr-deduction { font-size: var(--fs-12); color: var(--ink-3); }
+.rr-how summary { cursor: pointer; font-size: var(--fs-13); color: var(--accent); }
+.rr-how ul { padding-inline-start: 1rem; font-size: var(--fs-12); color: var(--ink-3); margin-top: .3rem; display: flex; flex-direction: column; gap: .25rem; }
+.rr-pc { font-size: var(--fs-12); line-height: 1.6; }
+.rr-pro { color: var(--ink-3); }
+.rr-con { color: var(--ink-3); }
+/* אזהרה על מסלול = משהו שעלול להיכשל בביקורת. זה מידע, אז הוא נשאר אדום — כטקסט. */
+.rr-warn { font-size: var(--fs-12); color: var(--danger); line-height: 1.55; }
+.rr-total-row { font-weight: 600; }
+.rr-total-row td { border-top: 1px solid var(--hairline-1) !important; }
+.rr-stat { padding: .55rem 0; border-top: 1px solid var(--hairline-2); }
+.rr-stat > div:last-child { font-size: var(--fs-12); color: var(--ink-4); }
+
+/* ── ביטוח לאומי · מסך 24 ───────────────────────────────────────────────────
+   המחשבון היה קופסה סגולה עם ראש סגול מלא. עכשיו הוא מקטע ככל מקטע אחר;
+   מה שמייחד אותו הוא שיש בו שדות, וזה נראה בלי שצריך לצבוע אותו. */
+.ni-calc { margin-bottom: 2rem; border-top: 1px solid var(--hairline-1); }
+.ni-calc-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; padding: .8rem 0 .5rem; border-bottom: 1px solid var(--hairline-2);
+}
+.ni-calc-head > span:first-child { font-size: var(--fs-17); font-weight: 600; color: var(--ink-1); letter-spacing: -.015em; }
+.ni-calc-tag { font-size: var(--fs-12); color: var(--ink-4); font-weight: 400; }
+.ni-calc-body { padding: 1.1rem 0 .4rem; }
+
+/* הערה מודגשת בתוך מקטע — קו אנכי, לא מלבן צבוע */
+.ni-note {
+  border-inline-start: 2px solid var(--hairline-1); padding: .1rem 0 .1rem .9rem;
+  margin-bottom: .75rem; font-size: var(--fs-13); line-height: 1.65; color: var(--ink-2);
+}
+.ni-note strong { color: var(--ink-1); font-weight: 600; }
+
+/* המסך כולו כתב תוויות בלי גודל, וירש 16px מברירת המחדל של הדפדפן */
+.ni-section label, .ni-calc-body label { font-size: var(--fs-13); }

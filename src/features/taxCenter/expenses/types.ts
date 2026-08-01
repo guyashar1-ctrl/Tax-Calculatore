@@ -82,35 +82,42 @@ export interface ExpenseTopic {
   warnings: string[];
 }
 
-// ─── תוויות וצבעים לוורדיקטים ───────────────────────────────────────────────
+// ─── תוויות וטון לוורדיקטים ─────────────────────────────────────────────────
+// `tone` הוא מה שהמסך מצייר לפיו. `color`/`bg` נשארים כי מודולים אחרים
+// עדיין קוראים אותם; הטבלה עצמה כבר לא ממלאת רקע — הפסק הוא טקסט.
+// המשמעות של הטון: ok = התשובה הרגילה · limit = מוכר אך מוגבל ·
+// no = אסור · check = תלוי בתנאי שצריך לבדוק.
 
-export const INCOME_TAX_VERDICT_META: Record<IncomeTaxVerdict, { label: string; color: string; bg: string }> = {
-  full:        { label: 'מוכר',          color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
-  partial:     { label: 'מוכר חלקית',    color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
-  conditional: { label: 'מוכר בתנאים',   color: 'var(--chip-blue-tx)', bg: 'var(--soft)' },
-  denied:      { label: 'לא מוכר',       color: 'var(--err)', bg: 'var(--chip-red-bg)' },
-  special:     { label: 'מנגנון מיוחד',  color: 'var(--info)', bg: 'var(--chip-violet-bg)' },
+export type VerdictTone = 'ok' | 'limit' | 'no' | 'check' | 'na';
+
+export const INCOME_TAX_VERDICT_META: Record<IncomeTaxVerdict, { label: string; color: string; bg: string; tone: VerdictTone }> = {
+  full:        { label: 'מוכר',          tone: 'ok',    color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
+  partial:     { label: 'מוכר חלקית',    tone: 'limit', color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
+  conditional: { label: 'מוכר בתנאים',   tone: 'check', color: 'var(--chip-blue-tx)', bg: 'var(--soft)' },
+  denied:      { label: 'לא מוכר',       tone: 'no',    color: 'var(--err)', bg: 'var(--chip-red-bg)' },
+  special:     { label: 'מנגנון מיוחד',  tone: 'check', color: 'var(--info)', bg: 'var(--chip-violet-bg)' },
 };
 
-export const VAT_VERDICT_META: Record<VatVerdict, { label: string; color: string; bg: string }> = {
-  full:          { label: 'קיזוז מלא',    color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
-  twoThirds:     { label: '2/3',          color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
-  quarter:       { label: '1/4',          color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
-  conditional:   { label: 'בתנאים',       color: 'var(--chip-blue-tx)', bg: 'var(--soft)' },
-  denied:        { label: 'אסור בקיזוז',  color: 'var(--err)', bg: 'var(--chip-red-bg)' },
-  notApplicable: { label: 'לא רלוונטי',   color: 'var(--tx2)', bg: 'var(--s2)' },
+export const VAT_VERDICT_META: Record<VatVerdict, { label: string; color: string; bg: string; tone: VerdictTone }> = {
+  full:          { label: 'קיזוז מלא',    tone: 'ok',    color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
+  twoThirds:     { label: '2/3',          tone: 'limit', color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
+  quarter:       { label: '1/4',          tone: 'limit', color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
+  conditional:   { label: 'בתנאים',       tone: 'check', color: 'var(--chip-blue-tx)', bg: 'var(--soft)' },
+  denied:        { label: 'אסור בקיזוז',  tone: 'no',    color: 'var(--err)', bg: 'var(--chip-red-bg)' },
+  notApplicable: { label: 'לא רלוונטי',   tone: 'na',    color: 'var(--tx2)', bg: 'var(--s2)' },
 };
 
-export const RISK_META: Record<RiskLevel, { label: string; color: string; icon: string }> = {
-  low:    { label: 'סיכון נמוך',   color: 'var(--chip-green-tx)', icon: '🟢' },
-  medium: { label: 'סיכון בינוני', color: 'var(--warn)', icon: '🟡' },
-  high:   { label: 'סיכון גבוה',   color: 'var(--err)', icon: '🔴' },
+// הסיכון מסומן במילה, לא בעיגול צבעוני — עיגול אינו נקרא בסריקה מהירה
+export const RISK_META: Record<RiskLevel, { label: string; short: string; tone: VerdictTone; color: string; icon: string }> = {
+  low:    { label: 'סיכון נמוך',   short: 'נמוך',  tone: 'na',    color: 'var(--chip-green-tx)', icon: '🟢' },
+  medium: { label: 'סיכון בינוני', short: 'בינוני', tone: 'limit', color: 'var(--warn)', icon: '🟡' },
+  high:   { label: 'סיכון גבוה',   short: 'גבוה',  tone: 'no',    color: 'var(--err)', icon: '🔴' },
 };
 
-export const CONFIDENCE_META: Record<ConfidenceLevel, { label: string; color: string; bg: string }> = {
-  high:   { label: 'ודאות גבוהה — דין מיושב',          color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
-  medium: { label: 'ודאות בינונית — תלוי נסיבות',       color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
-  low:    { label: 'ודאות נמוכה — נדרש שיקול דעת',      color: 'var(--err)', bg: 'var(--chip-red-bg)' },
+export const CONFIDENCE_META: Record<ConfidenceLevel, { label: string; color: string; bg: string; tone: VerdictTone }> = {
+  high:   { label: 'ודאות גבוהה — דין מיושב',          tone: 'na',    color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
+  medium: { label: 'ודאות בינונית — תלוי נסיבות',       tone: 'limit', color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
+  low:    { label: 'ודאות נמוכה — נדרש שיקול דעת',      tone: 'no',    color: 'var(--err)', bg: 'var(--chip-red-bg)' },
 };
 
 // ─── חיפוש חכם ───────────────────────────────────────────────────────────────

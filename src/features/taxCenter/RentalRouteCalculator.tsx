@@ -96,7 +96,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
           <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '.75rem' }}>
             {apartments.map((rent, i) => (
               <div key={i} className="form-group" style={{ marginBottom: 0 }}>
-                <label style={{ fontWeight: 600 }}>
+                <label style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>
                   {propertyCount === 1 ? 'שכ"ד חודשי ₪' : `דירה ${i + 1} — שכ"ד חודשי ₪`}
                 </label>
                 <input
@@ -150,7 +150,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
           </div>
 
           <div style={{ marginTop: '.75rem', padding: '.6rem .8rem', background: 'var(--gray-50)', borderRadius: 8 }}>
-            <label className="checkbox-row" style={{ fontWeight: 600 }}>
+            <label className="checkbox-row" style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>
               <input type="checkbox" checked={eligible122f} onChange={e => setEligible122f(e.target.checked)} />
               סעיף 122(ו): למשכיר דירה יחידה שגר בעצמו בשכירות או משלם על בית אבות
             </label>
@@ -242,14 +242,14 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
                 { label: 'חייב במס לחודש (2×החריגה)', value: fmt(m.taxableMonthly), color: 'var(--err)' },
                 { label: 'חייב במס לשנה', value: fmt(m.taxableMonthly * 12), color: 'var(--err)' },
               ].map(c => (
-                <div key={c.label} style={{ padding: '.55rem', background: 'var(--gray-50)', borderRadius: 8, textAlign: 'center' }}>
-                  <div style={{ fontWeight: 600, color: c.color }}>{c.value}</div>
+                <div key={c.label} className="rr-stat">
+                  <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, color: c.color }}>{c.value}</div>
                   <div style={{ fontSize: '12px', color: 'var(--gray-600)' }}>{c.label}</div>
                 </div>
               ))}
             </div>
           )}
-          <div className="alert alert-info" style={{ marginTop: '.75rem', marginBottom: 0, fontSize: '13px' }}>
+          <div className="alert alert-info" style={{ marginTop: '.75rem' }}>
             כל שקל חריגה מהתקרה מקטין את הפטור בשקל — כלומר מוסיף <strong>2 ₪</strong> להכנסה החייבת. זו הנקודה שהכי קשה להסביר ללקוחות, והגרף למעלה עושה את זה.
           </div>
         </div>
@@ -257,9 +257,9 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
 
       {/* ── ריבוי דירות: שיוך מסלולים חכם ── */}
       {mixed && (
-        <div className="card" style={{ border: '2px solid var(--info)' }}>
-          <div className="card-header" style={{ background: 'var(--chip-violet-bg)' }}>
-            <span className="card-title" style={{ color: 'var(--info)' }}>שיוך מסלולים חכם — {propertyCount} דירות</span>
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">שיוך מסלולים חכם — {propertyCount} דירות</span>
             <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
               הבחירה במסלול היא לכל דירה בנפרד — והשיוך הנכון חוסך מס
             </span>
@@ -280,7 +280,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
                 <tbody>
                   {mixed.apartments.map((a, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid var(--gray-100)' }}>
-                      <td style={{ padding: '.45rem .8rem', fontWeight: 600 }}>דירה {i + 1}</td>
+                      <td style={{ padding: '.45rem .8rem', fontSize: 'var(--fs-14)', fontWeight: 600 }}>דירה {i + 1}</td>
                       <td style={{ padding: '.45rem .8rem', textAlign: 'center' }}>{fmt(a.monthlyRent)}</td>
                       <td style={{ padding: '.45rem .8rem', textAlign: 'center' }}>
                         <span className={a.route === 'exempt' ? 'badge badge-green' : 'badge badge-blue'}>
@@ -293,10 +293,10 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
                       <td style={{ padding: '.45rem .8rem', textAlign: 'center' }}>
                         {a.taxableMonthly > 0 ? fmt(a.taxableMonthly) + '/חודש' : '—'}
                       </td>
-                      <td style={{ padding: '.45rem .8rem', textAlign: 'center', fontWeight: 600 }}>{fmt(a.taxAnnual)}</td>
+                      <td style={{ padding: '.45rem .8rem', textAlign: 'center', fontSize: 'var(--fs-14)', fontWeight: 600 }}>{fmt(a.taxAnnual)}</td>
                     </tr>
                   ))}
-                  <tr style={{ background: 'var(--chip-violet-bg)', fontWeight: 600 }}>
+                  <tr className="rr-total-row">
                     <td colSpan={5} style={{ padding: '.55rem .8rem' }}>
                       סה"כ בשיוך המומלץ (פטור זמין: {fmt(mixed.adjustedExemptionMonthly)}/חודש)
                     </td>
@@ -338,54 +338,30 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
             ? Math.min(rentPaidMonthly * 12, 90_000, annualRent)
             : 0;
           return (
-            <div key={r.key} className="card" style={{
-              border: isBest ? '2px solid var(--ok)' : '1px solid var(--gray-200)',
-              position: 'relative',
-            }}>
-              {isBest && (
-                <div style={{
-                  position: 'absolute', top: -12, right: 12, background: 'var(--ok)', color: 'var(--card)',
-                  padding: '.15rem .7rem', borderRadius: 999, fontSize: '12px', fontWeight: 600,
-                }}>
-                  המס הנמוך ביותר
-                </div>
-              )}
-              <div className="card-header">
-                <span className="card-title" style={{ fontSize: '15px' }}>{r.title}</span>
+            /* המסלול המנצח מסומן במילה ובמשקל, לא במסגרת ירוקה ותג צף:
+               ההשוואה היא בין מספרים, וההבדל ביניהם הוא שאמור לבלוט */
+            <div key={r.key} className={`rr-route ${isBest ? 'is-best' : ''}`}>
+              <div className="rr-route-head">
+                <span className="rr-route-title">{r.title}</span>
+                {isBest && <span className="rr-route-best">המס הנמוך ביותר</span>}
               </div>
-              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 600, color: isBest ? 'var(--chip-green-tx)' : 'var(--gray-800)' }}>
-                    {fmt(r.taxAnnual)}
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-                    מס שנתי · {r.effectiveRatePct.toFixed(1)}% מהשכירות · חייב: {fmt(r.taxableAnnual)}
-                  </div>
-                  {deduction122 > 0 && (
-                    <div style={{
-                      marginTop: '.35rem', display: 'inline-block', padding: '.2rem .6rem',
-                      background: 'var(--chip-green-bg)', border: '1px solid var(--chip-green-bd)', borderRadius: 999,
-                      fontSize: '12px', fontWeight: 600, color: 'var(--chip-green-tx)',
-                    }}>
-                      הופעל ניכוי 122(ו): −{fmt(deduction122)} מהבסיס
-                    </div>
-                  )}
+              <div className="rr-route-body">
+                <div className="rr-amount">{fmt(r.taxAnnual)}</div>
+                <div className="rr-amount-sub">
+                  מס שנתי · {r.effectiveRatePct.toFixed(1)}% מהשכירות · חייב: {fmt(r.taxableAnnual)}
                 </div>
-                <details>
-                  <summary style={{ cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: 'var(--blue)' }}>איך חושב?</summary>
-                  <ul style={{ paddingRight: '1rem', fontSize: '12px', color: 'var(--gray-600)', marginTop: '.3rem', display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
-                    {r.steps.map((s, i) => <li key={i}>{s}</li>)}
-                  </ul>
+                {deduction122 > 0 && (
+                  <div className="rr-deduction">הופעל ניכוי 122(ו): −{fmt(deduction122)} מהבסיס</div>
+                )}
+                <details className="rr-how">
+                  <summary>איך חושב?</summary>
+                  <ul>{r.steps.map((s, i) => <li key={i}>{s}</li>)}</ul>
                 </details>
-                <div style={{ fontSize: '12px' }}>
-                  {r.pros.map((p, i) => <div key={i} style={{ color: 'var(--chip-green-tx)' }}>+ {p}</div>)}
-                  {r.cons.map((c, i) => <div key={i} style={{ color: 'var(--warn)' }}>− {c}</div>)}
+                <div className="rr-pc">
+                  {r.pros.map((p, i) => <div key={i} className="rr-pro">+ {p}</div>)}
+                  {r.cons.map((c, i) => <div key={i} className="rr-con">− {c}</div>)}
                 </div>
-                {r.warnings.map((w, i) => (
-                  <div key={i} style={{ fontSize: '12px', background: 'var(--chip-red-bg)', border: '1px solid var(--chip-red-bd)', borderRadius: 6, padding: '.4rem .6rem', color: 'var(--chip-red-tx)' }}>
-                    {w}
-                  </div>
-                ))}
+                {r.warnings.map((w, i) => <div key={i} className="rr-warn">{w}</div>)}
               </div>
             </div>
           );

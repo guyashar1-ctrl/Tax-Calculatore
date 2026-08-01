@@ -11,60 +11,62 @@ function getEmployerRates(year: number) {
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
+// המסך הזה נבנה בירוק משלו — ראשי טבלה ירוקים מלאים, מסגרות ירוקות וכותרות
+// ירוקות. ירוק אינו מידע כאן: אין שום שיעור ביטוח לאומי שהוא "טוב" או "רע".
+// לכן הכרומה כולה יורדת לדיו ולקווי שערה, והמספרים נשארים הדבר היחיד שנקרא.
 const greenHeader: React.CSSProperties = {
-  background: 'var(--chip-green-tx)',
-  color: 'var(--card)',
-  padding: '8px 12px',
-  fontWeight: 600,
-  fontSize: '.8125rem',
+  padding: '8px 12px 6px',
+  fontWeight: 500,
+  fontSize: 'var(--fs-12)',
+  color: 'var(--ink-4)',
+  letterSpacing: '.02em',
   textAlign: 'right',
-  borderBottom: '2px solid var(--chip-green-tx)',
+  borderBottom: '1px solid var(--hairline-1)',
 };
 
 const greenSubHeader: React.CSSProperties = {
-  background: 'var(--chip-green-tx)',
-  color: 'var(--card)',
   padding: '6px 12px',
-  fontWeight: 600,
-  fontSize: '.8rem',
+  fontWeight: 500,
+  fontSize: 'var(--fs-12)',
+  color: 'var(--ink-4)',
   textAlign: 'center',
-  borderBottom: '1px solid var(--chip-green-tx)',
+  borderBottom: '1px solid var(--hairline-1)',
 };
 
 const cellStyle: React.CSSProperties = {
-  padding: '6px 12px',
-  fontSize: '.85rem',
+  padding: '7px 12px',
+  fontSize: 'var(--fs-13)',
   textAlign: 'center',
-  borderBottom: '1px solid var(--gray-200)',
+  borderBottom: '1px solid var(--hairline-2)',
+  fontVariantNumeric: 'tabular-nums',
 };
 
 const rowLabelStyle: React.CSSProperties = {
   ...cellStyle,
   textAlign: 'right',
-  fontWeight: 600,
-  background: 'var(--gray-50)',
+  fontWeight: 500,
+  color: 'var(--ink-1)',
 };
 
+// שורת הסיכום מסומנת במשקל ובקו — לא ברקע צבוע
 const totalRowStyle: React.CSSProperties = {
-  background: 'var(--chip-green-bg)',
   fontWeight: 600,
+  borderTop: '1px solid var(--hairline-1)',
 };
 
 const tableStyle: React.CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
-  border: '1px solid var(--chip-green-tx)',
-  borderRadius: '8px',
-  overflow: 'hidden',
 };
 
 const sectionTitleStyle: React.CSSProperties = {
-  fontSize: '1.1rem',
+  fontSize: 'var(--fs-17)',
   fontWeight: 600,
-  color: 'var(--chip-green-tx)',
-  marginBottom: '.75rem',
-  paddingBottom: '.5rem',
-  borderBottom: '2px solid var(--chip-green-bd)',
+  color: 'var(--ink-1)',
+  letterSpacing: '-.015em',
+  marginBottom: '.7rem',
+  paddingBottom: '.4rem',
+  borderBottom: '1px solid var(--hairline-1)',
   display: 'flex',
   alignItems: 'center',
   gap: '.5rem',
@@ -97,12 +99,12 @@ function AxisDiagram({ zones }: {
               textAlign: 'center',
             }}>
               <div style={{
-                fontSize: '.8rem', fontWeight: 600,
+                fontSize: 'var(--fs-13)', fontWeight: 600,
                 color: z.rate === '0%' || z.label === 'פטור' ? 'var(--tx3)' : 'var(--tx)',
               }}>
                 {z.rate || '0%'}
               </div>
-              <div style={{ fontSize: '.65rem', color: 'var(--tx2)', fontWeight: 500 }}>{z.label}</div>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--tx2)', fontWeight: 500 }}>{z.label}</div>
             </div>
           );
         })}
@@ -145,7 +147,7 @@ function AxisDiagram({ zones }: {
             <div key={i} style={{
               flex: z.to === null ? '0 0 15%' : `0 0 ${width}%`,
               textAlign: 'center',
-              fontSize: '.65rem', color: 'var(--tx3)',
+              fontSize: 'var(--fs-12)', color: 'var(--tx3)',
             }}>
               {fmt(z.from)}{z.to ? ` – ${fmt(z.to)}` : '+'}
             </div>
@@ -166,12 +168,12 @@ function InfoSection({ title, children, defaultOpen = false }: {
   return (
     <div className="card" style={{ marginBottom: '1rem' }}>
       <div style={collapsibleHeaderStyle} onClick={() => setOpen(!open)}>
-        <span style={{ fontWeight: 600, fontSize: '.95rem', color: 'var(--gray-800)' }}>{title}</span>
-        <span style={{ fontSize: '1.1rem', color: 'var(--gray-400)', transition: 'transform .2s', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}>
+        <span style={{ fontWeight: 600, fontSize: 'var(--fs-15)', color: 'var(--gray-800)' }}>{title}</span>
+        <span style={{ fontSize: 'var(--fs-17)', color: 'var(--gray-400)', transition: 'transform .2s', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}>
           &#9660;
         </span>
       </div>
-      {open && <div className="card-body" style={{ fontSize: '.875rem', lineHeight: 1.8, color: 'var(--gray-700)' }}>{children}</div>}
+      {open && <div className="card-body" style={{ fontSize: 'var(--fs-14)', lineHeight: 1.8, color: 'var(--gray-700)' }}>{children}</div>}
     </div>
   );
 }
@@ -427,27 +429,27 @@ export default function NIReferenceSection({ taxData, year }: Props) {
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
         <div className="stat-card blue">
           <div className="stat-label">שכר ממוצע חודשי</div>
-          <div className="stat-value" style={{ fontSize: '1.25rem' }}>{fmt(avgWage)}</div>
+          <div className="stat-value" style={{ fontSize: 'var(--fs-20)' }}>{fmt(avgWage)}</div>
           <div className="stat-sub">{year}</div>
         </div>
         <div className="stat-card green">
           <div className="stat-label">60% מהשכר הממוצע</div>
-          <div className="stat-value" style={{ fontSize: '1.25rem' }}>{fmt(threshold60)}</div>
+          <div className="stat-value" style={{ fontSize: 'var(--fs-20)' }}>{fmt(threshold60)}</div>
           <div className="stat-sub">סף שיעור מופחת</div>
         </div>
         <div className="stat-card orange">
           <div className="stat-label">הכנסה מרבית חייבת</div>
-          <div className="stat-value" style={{ fontSize: '1.25rem' }}>{fmt(maxIncome)}</div>
+          <div className="stat-value" style={{ fontSize: 'var(--fs-20)' }}>{fmt(maxIncome)}</div>
           <div className="stat-sub">תקרת ב"ל חודשית</div>
         </div>
         <div className="stat-card purple">
           <div className="stat-label">מינימום עצמאי (חודשי)</div>
-          <div className="stat-value" style={{ fontSize: '1.25rem' }}>{fmt(Math.round(threshold25 * (taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) / 100))}</div>
+          <div className="stat-value" style={{ fontSize: 'var(--fs-20)' }}>{fmt(Math.round(threshold25 * (taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) / 100))}</div>
           <div className="stat-sub">על בסיס {fmt(threshold25)}</div>
         </div>
         <div className="stat-card blue">
           <div className="stat-label">מינימום לא-עובד (חודשי)</div>
-          <div className="stat-value" style={{ fontSize: '1.25rem' }}>{fmt(minNI)}</div>
+          <div className="stat-value" style={{ fontSize: 'var(--fs-20)' }}>{fmt(minNI)}</div>
           <div className="stat-sub">סכום קבוע</div>
         </div>
       </div>
@@ -672,24 +674,12 @@ export default function NIReferenceSection({ taxData, year }: Props) {
       </div>
 
       {/* ═══════════════ PART 3: NI Calculator ═══════════════ */}
-      <div style={{
-        marginBottom: '2rem',
-        border: '2px solid var(--info)',
-        borderRadius: 12,
-        background: 'linear-gradient(135deg, var(--chip-violet-bg) 0%, var(--chip-violet-bg) 100%)',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          background: 'var(--info)', color: 'var(--card)', padding: '.9rem 1.25rem',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>מחשבון ביטוח לאומי — {year}</span>
-          <span style={{
-            background: 'rgba(255,255,255,.2)', padding: '.2rem .7rem',
-            borderRadius: 20, fontSize: '.8rem', fontWeight: 600,
-          }}>חישוב מיידי</span>
+      <div className="ni-calc">
+        <div className="ni-calc-head">
+          <span style={{ fontSize: 'var(--fs-17)', fontWeight: 600 }}>מחשבון ביטוח לאומי — {year}</span>
+          <span className="ni-calc-tag">חישוב מיידי</span>
         </div>
-        <div style={{ padding: '1.25rem' }}>
+        <div className="ni-calc-body">
           <div className="form-grid form-grid-3" style={{ marginBottom: '1.25rem' }}>
             <div className="form-group">
               <label style={{ fontWeight: 600 }}>סוג מבוטח</label>
@@ -708,8 +698,8 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                 {calcType === 'employeeAndSE' || calcType === 'employeeAndNonQual' || calcType === 'combined'
                   ? 'הכנסה (שכיר) ₪' : 'הכנסה ₪'}
                 <span style={{
-                  display: 'inline-flex', borderRadius: 6, overflow: 'hidden',
-                  border: '1px solid var(--bd-strong)', fontSize: '.7rem', fontWeight: 500,
+                  display: 'inline-flex', borderRadius: 'var(--r-chip)', overflow: 'hidden',
+                  background: 'var(--surface-2)', fontSize: 'var(--fs-12)', fontWeight: 500,
                 }}>
                   <button type="button" onClick={() => { if (incomeMode === 'annual') { setIncomeMode('monthly'); setIncomeInput(Math.round(incomeInput / 12)); } }}
                     style={{ padding: '.15rem .5rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -728,10 +718,10 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                 value={incomeInput || ''}
                 onChange={e => setIncomeInput(Number(e.target.value) || 0)}
                 placeholder="0"
-                style={{ fontSize: '1.05rem' }}
+                style={{ fontSize: 'var(--fs-17)' }}
               />
               {incomeInput > 0 && (
-                <span style={{ fontSize: '.7rem', color: 'var(--tx2)' }}>
+                <span style={{ fontSize: 'var(--fs-12)', color: 'var(--tx2)' }}>
                   = {incomeMode === 'monthly' ? `${fmt(incomeInput * 12)}/שנה` : `${fmt(Math.round(incomeInput / 12))}/חודש`}
                 </span>
               )}
@@ -753,8 +743,8 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                     : calcType === 'employeeAndNonQual' ? 'הכנסה (לא עונה להגדרה) ₪'
                     : 'הכנסה פסיבית ₪'}
                   <span style={{
-                    display: 'inline-flex', borderRadius: 6, overflow: 'hidden',
-                    border: '1px solid var(--bd-strong)', fontSize: '.7rem', fontWeight: 500,
+                    display: 'inline-flex', borderRadius: 'var(--r-chip)', overflow: 'hidden',
+                    background: 'var(--surface-2)', fontSize: 'var(--fs-12)', fontWeight: 500,
                   }}>
                     <button type="button" onClick={() => { if (incomeModeSecondary === 'annual') { setIncomeModeSecondary('monthly'); setSecondaryInput(Math.round(secondaryInput / 12)); } }}
                       style={{ padding: '.15rem .5rem', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -775,7 +765,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                   placeholder="0"
                 />
                 {secondaryInput > 0 && (
-                  <span style={{ fontSize: '.7rem', color: 'var(--tx2)' }}>
+                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--tx2)' }}>
                     = {incomeModeSecondary === 'monthly' ? `${fmt(secondaryInput * 12)}/שנה` : `${fmt(Math.round(secondaryInput / 12))}/חודש`}
                   </span>
                 )}
@@ -786,13 +776,10 @@ export default function NIReferenceSection({ taxData, year }: Props) {
           {calcResult && (
             <div>
               {/* Results table */}
-              <div style={{
-                background: 'var(--card)', borderRadius: 8, overflow: 'hidden',
-                border: '1px solid var(--bd)', marginBottom: '1rem',
-              }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.875rem' }}>
+              <div style={{ marginBottom: '1rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-14)' }}>
                   <thead>
-                    <tr style={{ background: 'var(--s2)', borderBottom: '2px solid var(--bd)' }}>
+                    <tr style={{ borderBottom: '1px solid var(--hairline-1)' }}>
                       <th style={{ padding: '.6rem .75rem', textAlign: 'right', fontWeight: 600 }}></th>
                       <th style={{ padding: '.6rem .75rem', textAlign: 'center', fontWeight: 600 }}>ביטוח לאומי</th>
                       <th style={{ padding: '.6rem .75rem', textAlign: 'center', fontWeight: 600 }}>מס בריאות</th>
@@ -804,7 +791,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                       <td style={{ padding: '.5rem .75rem', fontWeight: 600 }}>חודשי (חלק עובד)</td>
                       <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 600, color: 'var(--br)' }}>{fmt(calcResult.ni)}</td>
                       <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 600, color: 'var(--chip-teal-tx)' }}>{fmt(calcResult.health)}</td>
-                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 600, color: 'var(--info)', fontSize: '1rem' }}>{fmt(calcResult.total)}</td>
+                      <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 600, color: 'var(--info)', fontSize: 'var(--fs-15)' }}>{fmt(calcResult.total)}</td>
                     </tr>
                     {(calcResult.employerNI > 0 || calcResult.employerHealth > 0) && (
                       <tr style={{ borderBottom: '1px solid var(--s2)', background: 'var(--s2)' }}>
@@ -818,7 +805,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                       <td style={{ padding: '.6rem .75rem' }}>שנתי (עובד × {(calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12})</td>
                       <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--br)' }}>{fmt(calcResult.ni * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
                       <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--chip-teal-tx)' }}>{fmt(calcResult.health * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
-                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--info)', fontSize: '1.05rem' }}>{fmt(calcResult.annual)}</td>
+                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--info)', fontSize: 'var(--fs-17)' }}>{fmt(calcResult.annual)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -826,18 +813,15 @@ export default function NIReferenceSection({ taxData, year }: Props) {
 
               {/* 52% deduction highlight */}
               {calcResult.deduction52 !== undefined && (
-                <div style={{
-                  background: 'var(--chip-green-bg)', border: '1px solid var(--chip-green-bd)', borderRadius: 8,
-                  padding: '.75rem 1rem', marginBottom: '.75rem', fontSize: '.875rem',
-                }}>
-                  <strong style={{ color: 'var(--chip-green-tx)' }}>ניכוי 52% מב"ל:</strong> {fmt(calcResult.deduction52)}/חודש | {fmt(calcResult.deduction52 * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}/שנה — ניתן לניכוי ממס הכנסה (סעיף 17(5))
+                <div className="ni-note">
+                  <strong>ניכוי 52% מב"ל:</strong> {fmt(calcResult.deduction52)}/חודש | {fmt(calcResult.deduction52 * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}/שנה — ניתן לניכוי ממס הכנסה (סעיף 17(5))
                 </div>
               )}
 
               {/* Steps */}
               {calcResult.steps.length > 0 && (
                 <details style={{ marginTop: '.5rem' }}>
-                  <summary style={{ cursor: 'pointer', fontSize: '.85rem', fontWeight: 600, color: 'var(--txc)' }}>
+                  <summary style={{ cursor: 'pointer', fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--txc)' }}>
                     פירוט החישוב ({calcResult.steps.length} שלבים)
                   </summary>
                   <div className="explanation-block" style={{ marginTop: '.5rem' }}>
@@ -919,7 +903,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
           <li>למעשה, אם שיעור המס השולי הוא 47%, החיסכון בפועל הוא 52% * 47% = כ-24.4% מדמי הב"ל</li>
           <li>הניכוי מתבצע בדו"ח השנתי (מקדמות לא מביאות זאת בחשבון)</li>
         </ul>
-        <div style={{ background: 'var(--green-light)', padding: '.75rem 1rem', borderRadius: 'var(--radius)', border: '1px solid var(--chip-green-bd)' }}>
+        <div className="ni-note">
           <strong>דוגמה:</strong> עצמאי ששילם {fmt(1000)} דמי ב"ל בחודש, יכול לנכות {fmt(520)} מההכנסה החייבת.
           בשיעור מס שולי 47%, החיסכון: {fmt(244)} בחודש.
         </div>
@@ -965,12 +949,12 @@ export default function NIReferenceSection({ taxData, year }: Props) {
           <li><strong>מעל גיל זכאות (70):</strong> פטור מדמי ביטוח לאומי. חובת דמי בריאות בלבד (על הכנסה מעבודה)</li>
         </ul>
         <div className="table-wrap" style={{ marginTop: '.75rem' }}>
-          <table style={{ ...tableStyle, border: '1px solid var(--gray-300)' }}>
+          <table style={tableStyle}>
             <thead>
               <tr>
-                <th style={{ ...greenHeader, background: 'var(--blue)' }}>קבוצת גיל</th>
-                <th style={{ ...greenHeader, background: 'var(--blue)' }}>ביטוח לאומי</th>
-                <th style={{ ...greenHeader, background: 'var(--blue)' }}>ביטוח בריאות</th>
+                <th style={greenHeader}>קבוצת גיל</th>
+                <th style={greenHeader}>ביטוח לאומי</th>
+                <th style={greenHeader}>ביטוח בריאות</th>
               </tr>
             </thead>
             <tbody>
@@ -1007,7 +991,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
           <li><strong>שנת הלידה:</strong> הכנסה חייבת בדמי ביטוח ב-3 החודשים שקדמו ללידה (חלקי 3)</li>
           <li><strong>השנה הקודמת:</strong> הכנסה חייבת בדמי ביטוח ב-12 החודשים שקדמו ל-3 החודשים האחרונים (חלקי 12)</li>
         </ul>
-        <div style={{ background: 'var(--blue-light)', padding: '.75rem 1rem', borderRadius: 'var(--radius)', border: '1px solid var(--blue-border)' }}>
+        <div className="ni-note">
           <strong>טיפ מקסום:</strong> ניתן להגדיל את דמי הלידה על ידי הגדלת המקדמות לביטוח לאומי ב-3 החודשים שלפני הלידה.
           המוסד לביטוח לאומי יחשב לפי הגבוה מבין שתי התקופות, כך שהגדלה זמנית לא תפגע.
           יש לוודא שהמקדמות משולמות בזמן ושההכנסה המדווחת תואמת.

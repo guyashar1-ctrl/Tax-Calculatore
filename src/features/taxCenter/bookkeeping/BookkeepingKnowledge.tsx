@@ -13,8 +13,10 @@ import {
 } from './generalData';
 import { BUSINESS_TYPES, DECISION_QUESTIONS } from './businessTypes';
 
-const card: React.CSSProperties = { background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '1rem 1.15rem' };
-const chip = (bg: string, color: string): React.CSSProperties => ({ display: 'inline-block', padding: '.15rem .6rem', borderRadius: 999, fontSize: '12px', fontWeight: 600, background: bg, color });
+/* קיבוץ = קו ואוויר, לא קופסה. שני הקבועים האלה מוזרקים בעשרות מקומות
+   בקובץ הזה, ולכן הם המקום היחיד שצריך לשנות כדי שכל המסך ידבר את השפה. */
+const card: React.CSSProperties = { borderTop: '1px solid var(--hairline-2)', padding: '.85rem 0 .95rem' };
+const chip = (_bg: string, color: string): React.CSSProperties => ({ display: 'inline-block', fontSize: 'var(--fs-12)', fontWeight: 500, color });
 
 type View = 'wizard' | 'addenda' | 'dictionary' | 'rules';
 
@@ -31,18 +33,18 @@ export default function BookkeepingKnowledge() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div style={{ ...card, background: 'var(--gray-50)' }}>
-        <div style={{ fontWeight: 600, marginBottom: '.25rem' }}>הוראות ניהול ספרים</div>
-        <div style={{ fontSize: '14px', color: 'var(--gray-600)', lineHeight: 1.6 }}>
+      <div className="bk-intro">
+        <div className="bk-intro-title">הוראות ניהול ספרים</div>
+        <div className="bk-intro-text">
           כל עוסק חייב להשתייך לאחת מ-15 התוספות של הוראות ניהול פנקסי חשבונות (תשל"ג-1973) — לפי סוג העסק.
           בתוך התוספת, רשימת הספרים נקבעת לפי מדרגה (מחזור / מועסקים). מי שלא נכנס לאף תוספת ייעודית — שייך לתוספת יא' (סעיף הסל).
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', borderBottom: '2px solid var(--gray-200)', paddingBottom: '.5rem' }}>
+      <div className="tabs">
         {tabs.map(t => (
           <button key={t.key} onClick={() => { setView(t.key); setOpenAddendum(null); }}
-            style={{ padding: '.4rem .8rem', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px', fontWeight: view === t.key ? 700 : 400, background: view === t.key ? 'var(--blue)' : 'transparent', color: view === t.key ? 'var(--card)' : 'var(--gray-600)' }}>
+            className={view === t.key ? 'active' : ''}>
             {t.label}
           </button>
         ))}
@@ -86,12 +88,12 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
         <div style={card}>
-          <div style={{ fontWeight: 600, marginBottom: '.5rem' }}>מה העסק עושה?</div>
+          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.5rem' }}>מה העסק עושה?</div>
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder='הקלד סוג עסק: "מסעדה", "שיפוצניק", "עורך דין", "חנות אונליין"…'
-            style={{ width: '100%', padding: '.65rem .9rem', borderRadius: 10, border: '1.5px solid var(--gray-300)', fontSize: '15px', fontFamily: 'inherit' }}
+            className="bk-field bk-field-wide"
             autoFocus
           />
         </div>
@@ -119,13 +121,13 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
         )}
 
         <div style={card}>
-          <div onClick={() => setShowQuestions(!showQuestions)} style={{ cursor: 'pointer', fontWeight: 600, fontSize: '14px', color: 'var(--blue)' }}>
+          <div onClick={() => setShowQuestions(!showQuestions)} className="bk-link bk-link-strong">
             {showQuestions ? '▾' : '◂'} העסק לא ברשימה? שאלות הכרעה
           </div>
           {showQuestions && (
             <div style={{ marginTop: '.7rem', display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
               {DECISION_QUESTIONS.map((q, i) => (
-                <div key={i} style={{ borderRight: '3px solid var(--gray-200)', paddingRight: '.7rem' }}>
+                <div key={i} className="bk-q">
                   <div style={{ fontWeight: 600, fontSize: '14px' }}>{i + 1}. {q.question}</div>
                   <div style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: '.15rem' }}>{q.answer}</div>
                 </div>
@@ -133,7 +135,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
               <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginTop: '.3rem' }}>
                 {ADDENDA.map(a => (
                   <button key={a.id} onClick={() => setPicked({ label: a.title, keywords: [], addendumId: a.id, confidence: 'high' })}
-                    style={{ padding: '.3rem .6rem', borderRadius: 8, border: '1px solid var(--gray-300)', background: 'var(--card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>
+                    className="btn btn-secondary btn-sm">
                     {a.icon} {a.letter}
                   </button>
                 ))}
@@ -150,15 +152,15 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '.5rem' }}>
         <div style={{ fontSize: '14px' }}>
-          <span style={{ cursor: 'pointer', color: 'var(--blue)' }} onClick={reset}>← חיפוש חדש</span>
+          <span className="bk-link" onClick={reset}>← חיפוש חדש</span>
         </div>
         <button onClick={() => onOpenAddendum(addendum!.id)}
-          style={{ padding: '.35rem .8rem', borderRadius: 8, border: '1px solid var(--gray-300)', background: 'var(--card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>
+          className="btn btn-secondary btn-sm">
           לדף המלא של התוספת ←
         </button>
       </div>
 
-      <div style={{ ...card, borderColor: 'var(--blue)', borderWidth: 1.5 }}>
+      <div style={{ ...card, borderTopColor: 'var(--accent)' }}>
         <div style={{ display: 'flex', gap: '.8rem', alignItems: 'flex-start' }}>
           <span style={{ fontSize: '34px' }}>{addendum!.icon}</span>
           <div>
@@ -166,7 +168,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
             <div style={{ fontWeight: 600, fontSize: '17px' }}>תוספת {addendum!.letter} — {addendum!.title}</div>
             {picked.reasoning && <div style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: '.2rem' }}>{picked.reasoning}</div>}
             {picked.caveat && (
-              <div style={{ fontSize: '13px', color: 'var(--warn)', background: 'var(--chip-yellow-bg)', borderRadius: 8, padding: '.4rem .6rem', marginTop: '.4rem' }}>
+              <div className="bk-caveat">
                 מקרה גבול: {picked.caveat}
               </div>
             )}
@@ -183,14 +185,14 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
               <label style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
                 מחזור שנתי (כולל מע"מ!)
                 <input value={turnover} onChange={e => { setTurnover(e.target.value); setManualTier(null); }} placeholder="למשל 950000" dir="ltr"
-                  style={{ display: 'block', marginTop: '.25rem', padding: '.45rem .7rem', borderRadius: 8, border: '1px solid var(--gray-300)', fontFamily: 'inherit', width: 160 }} />
+                  className="bk-field" style={{ display: 'block', marginTop: '.25rem', width: 160 }} />
               </label>
             )}
             {addendum!.wizard.askEmployees && (
               <label style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
                 מספר מועסקים (כולל הבעלים!)
                 <input value={employees} onChange={e => { setEmployees(e.target.value); setManualTier(null); }} placeholder="למשל 3" dir="ltr"
-                  style={{ display: 'block', marginTop: '.25rem', padding: '.45rem .7rem', borderRadius: 8, border: '1px solid var(--gray-300)', fontFamily: 'inherit', width: 110 }} />
+                  className="bk-field" style={{ display: 'block', marginTop: '.25rem', width: 110 }} />
               </label>
             )}
           </div>
@@ -228,7 +230,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
       )}
 
       {addendum!.specialNotes && addendum!.specialNotes.length > 0 && (
-        <div style={{ ...card, background: 'var(--gray-50)' }}>
+        <div style={card}>
           <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '.3rem' }}>שימו לב</div>
           {addendum!.specialNotes.map((n, i) => <div key={i} style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: '.2rem' }}>• {n}</div>)}
         </div>
@@ -292,7 +294,7 @@ function AddendaGrid({ onOpen }: { onOpen: (id: string) => void }) {
           <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', marginBottom: '.35rem' }}>
             <span style={{ fontSize: '24px' }}>{a.icon}</span>
             <div>
-              <div style={{ fontWeight: 600 }}>תוספת {a.letter}</div>
+              <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>תוספת {a.letter}</div>
               <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}>{a.title}</div>
             </div>
           </div>
@@ -309,7 +311,7 @@ function AddendumDetail({ addendum, onBack }: { addendum: BookkeepingAddendum; o
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
       <div style={{ fontSize: '14px' }}>
-        <span style={{ cursor: 'pointer', color: 'var(--blue)' }} onClick={onBack}>← כל התוספות</span>
+        <span className="bk-link" onClick={onBack}>← כל התוספות</span>
       </div>
       <div style={card}>
         <div style={{ display: 'flex', gap: '.7rem', alignItems: 'center' }}>
@@ -333,7 +335,7 @@ function AddendumDetail({ addendum, onBack }: { addendum: BookkeepingAddendum; o
       {addendum.tiers.map(tier => (
         <div key={tier.id} style={card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', flexWrap: 'wrap' }}>
-            <div style={{ fontWeight: 600 }}>{tier.label}</div>
+            <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{tier.label}</div>
             {tier.doubleEntry && <span style={chip('var(--chip-violet-bg)', 'var(--info)')}>חשבונאות כפולה</span>}
           </div>
           <div style={{ fontSize: '13px', color: 'var(--gray-500)', marginTop: '.15rem' }}>{tier.condition.asWritten}</div>
@@ -343,7 +345,7 @@ function AddendumDetail({ addendum, onBack }: { addendum: BookkeepingAddendum; o
 
       {addendum.specialBooks && addendum.specialBooks.length > 0 && (
         <div style={card}>
-          <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>הספרים הייחודיים לתוספת</div>
+          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem' }}>הספרים הייחודיים לתוספת</div>
           {addendum.specialBooks.map((b, i) => (
             <div key={i} style={{ marginTop: '.4rem', borderRight: '3px solid var(--blue)', paddingRight: '.6rem' }}>
               <div style={{ fontWeight: 600, fontSize: '14px' }}>{b.name}</div>
@@ -354,15 +356,15 @@ function AddendumDetail({ addendum, onBack }: { addendum: BookkeepingAddendum; o
       )}
 
       {(addendum.cashRegister || addendum.inventoryRules) && (
-        <div style={{ ...card, background: 'var(--gray-50)' }}>
+        <div style={card}>
           {addendum.cashRegister && <div style={{ fontSize: '13px', color: 'var(--gray-600)' }}><b>קופה רושמת:</b> {addendum.cashRegister}</div>}
           {addendum.inventoryRules && <div style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: '.3rem' }}><b>מלאי:</b> {addendum.inventoryRules}</div>}
         </div>
       )}
 
       {addendum.specialNotes && addendum.specialNotes.length > 0 && (
-        <div style={{ ...card, background: 'var(--chip-amber-bg)', borderColor: 'var(--chip-amber-bd)' }}>
-          {addendum.specialNotes.map((n, i) => <div key={i} style={{ fontSize: '13px', color: 'var(--chip-amber-tx)', marginTop: i ? '.25rem' : 0 }}>• {n}</div>)}
+        <div className="bk-notes">
+          {addendum.specialNotes.map((n, i) => <div key={i} style={{ fontSize: '13px', color: 'var(--ink-2)', marginTop: i ? '.25rem' : 0 }}>• {n}</div>)}
         </div>
       )}
       {addendum.needsReview && addendum.needsReview.length > 0 && (
@@ -382,12 +384,12 @@ function Dictionary() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.7rem' }}>
       <input value={q} onChange={e => setQ(e.target.value)} placeholder='חיפוש: "ספר הזמנות", "תעודת משלוח"…'
-        style={{ padding: '.55rem .9rem', borderRadius: 10, border: '1.5px solid var(--gray-300)', fontSize: '15px', fontFamily: 'inherit' }} />
+        className="bk-field" />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '.7rem' }}>
         {items.map(d => (
           <div key={d.id} style={card}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontWeight: 600 }}>{d.icon} {d.name}</div>
+              <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{d.icon} {d.name}</div>
               <span style={chip(d.kind === 'book' ? 'var(--soft)' : 'var(--chip-green-bg)', d.kind === 'book' ? 'var(--chip-blue-tx)' : 'var(--chip-green-tx)')}>
                 {d.kind === 'book' ? 'ספר חשבון' : 'תיעוד'}
               </span>
@@ -414,7 +416,7 @@ function GeneralRules() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
       <div style={card}>
-        <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>שלוש הגדרות שהכול תלוי בהן</div>
+        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem' }}>שלוש הגדרות שהכול תלוי בהן</div>
         {KEY_DEFINITIONS.map((d, i) => (
           <div key={i} style={{ marginTop: '.5rem', borderRight: '3px solid var(--blue)', paddingRight: '.6rem' }}>
             <div style={{ fontWeight: 600, fontSize: '14px' }}>"{d.term}" <span style={{ fontSize: '12px', color: 'var(--gray-400)', fontWeight: 400 }}>{d.sectionRef}</span></div>
@@ -425,7 +427,7 @@ function GeneralRules() {
       </div>
 
       <div style={card}>
-        <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>⏱️ מתי רושמים</div>
+        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem' }}>⏱️ מתי רושמים</div>
         <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
           <tbody>
             {RECORDING_RULES.timing.map((r, i) => (
@@ -440,7 +442,7 @@ function GeneralRules() {
       </div>
 
       <div style={card}>
-        <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>שמירת הספרים</div>
+        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem' }}>שמירת הספרים</div>
         <div style={{ fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.6 }}>
           <div>{RECORDING_RULES.retention}</div>
           <div style={{ marginTop: '.3rem' }}>{RECORDING_RULES.location}</div>
@@ -449,7 +451,7 @@ function GeneralRules() {
       </div>
 
       <div style={card}>
-        <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>הקלות — סעיף 3</div>
+        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem' }}>הקלות — סעיף 3</div>
         <div style={{ fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.6 }}>{RELIEFS.mechanism}</div>
         <div style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: '.4rem' }}>
           <b>אישור אוטומטי ("שתיקה כהסכמה"):</b>
@@ -462,7 +464,7 @@ function GeneralRules() {
       </div>
 
       <div style={{ ...card, borderColor: 'var(--chip-red-bd)' }}>
-        <div style={{ fontWeight: 600, marginBottom: '.4rem', color: 'var(--err)' }}>פסילת ספרים</div>
+        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem', color: 'var(--err)' }}>פסילת ספרים</div>
         <div style={{ fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.6 }}>{DISQUALIFICATION.what}</div>
         <div style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: '.4rem' }}>
           {DISQUALIFICATION.consequences.map((c, i) => <div key={i} style={{ marginTop: '.15rem' }}>• {c}</div>)}
@@ -472,7 +474,7 @@ function GeneralRules() {
       </div>
 
       <div style={card}>
-        <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>מסלול "נישום זכאי" — יומן העסק</div>
+        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem' }}>מסלול "נישום זכאי" — יומן העסק</div>
         <div style={{ fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.6 }}>
           <div><b>למי:</b> {ELIGIBLE_TAXPAYER.who}</div>
           <div style={{ marginTop: '.3rem' }}>{ELIGIBLE_TAXPAYER.what}</div>
@@ -480,8 +482,8 @@ function GeneralRules() {
         </div>
       </div>
 
-      <div style={{ ...card, background: 'var(--gray-50)' }}>
-        <div style={{ fontWeight: 600, marginBottom: '.3rem' }}>ומה עם מע"מ?</div>
+      <div style={card}>
+        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.3rem' }}>ומה עם מע"מ?</div>
         <div style={{ fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.6 }}>{VAT_NOTE}</div>
       </div>
 

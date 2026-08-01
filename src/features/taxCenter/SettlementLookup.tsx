@@ -62,7 +62,7 @@ export default function SettlementLookup({ year }: Props) {
             </div>
           </div>
 
-          <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid var(--gray-100)', borderRadius: 8 }}>
+          <div style={{ maxHeight: 420, overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
               <thead>
                 <tr style={{ background: 'var(--gray-50)', position: 'sticky', top: 0 }}>
@@ -77,11 +77,11 @@ export default function SettlementLookup({ year }: Props) {
                 {filtered.slice(0, 200).map(s => (
                   <tr key={s.name} style={{ borderBottom: '1px solid var(--gray-100)' }}>
                     <td style={{ padding: '.45rem .8rem', fontWeight: 600 }}>{s.name}</td>
-                    <td style={{ padding: '.45rem .8rem', textAlign: 'center', fontWeight: 600, color: 'var(--blue-dark)' }}>{s.ratePercent}%</td>
+                    <td style={{ padding: '.45rem .8rem', textAlign: 'center', fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)' }}>{s.ratePercent}%</td>
                     <td style={{ padding: '.45rem .8rem', textAlign: 'center' }}>{fmt(s.ceilingAnnual)}</td>
                     <td style={{ padding: '.45rem .8rem', textAlign: 'center', color: 'var(--gray-500)' }}>{fmt(s.ceilingAnnual * s.ratePercent / 100)}</td>
                     {income > 0 && (
-                      <td style={{ padding: '.45rem .8rem', textAlign: 'center', fontWeight: 600, color: 'var(--green-dark)' }}>
+                      <td style={{ padding: '.45rem .8rem', textAlign: 'center', fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-2)' }}>
                         {fmt(calcSettlementCredit(s.ratePercent, s.ceilingAnnual, income, s.name).credit)}
                       </td>
                     )}
@@ -125,7 +125,7 @@ export default function SettlementLookup({ year }: Props) {
 
       <div className="card">
         <div className="card-body" style={{ fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-          <div style={{ fontWeight: 600 }}>מקרים מיוחדים שחשוב להכיר</div>
+          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>מקרים מיוחדים שחשוב להכיר</div>
           <div>
             🌴 <strong>אילת אינה ברשימת סעיף 11</strong> — ההטבה שלה נקבעת בחוק אזור סחר חופשי באילת:
             {' '}{EILAT_BENEFIT.ratePercent}% מההכנסה מיגיעה אישית שהופקה באזור אילת, עד {fmt(EILAT_BENEFIT.ceilingAnnual)} לשנה (בתוקף עד 2027).
