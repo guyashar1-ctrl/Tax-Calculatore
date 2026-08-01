@@ -665,6 +665,15 @@ table thead th {
 }
 .pg-rail-back:hover { color: var(--ink-1); }
 
+/* שלב שעדיין לא נפתח — קיים במסילה כדי שרואים את כל הרצף, אבל מושבת */
+.pg-rail-item:disabled { cursor: default; opacity: .4; }
+.pg-rail-item:disabled:hover { background: transparent; }
+
+/* דוח שנתי — אותה רשת של מרכז הידע */
+.annual-report-page.pg-split { grid-template-columns: 206px 1fr; gap: 32px; }
+/* התוכן הפנימי כבר לא צף במרכז החלון — הפאנל הוא שקובע את רוחבו */
+.annual-report-page .pg-pane > div[style*="margin"] { margin-inline: 0 !important; }
+
 /* כותרת גדולה — במסך שיש בו מסילה, הכותרת נושאת את המשקל של העמוד */
 .pg-title-lg { font-size: var(--fs-20); }
 

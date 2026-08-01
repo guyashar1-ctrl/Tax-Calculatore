@@ -111,70 +111,50 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
 
   // ─── סרגל ניווט פנימי ─────────────────────────────────────────────
   return (
-    <div className="annual-report-page">
-      <div style={{ background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-200)', padding: '.6rem 1.5rem' }}>
-        {/* בטלפון הסרגל ארוך מהמסך — נגלל לצדדים במקום למתוח את הדף */}
-        <div className="ar-wizard-nav" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+    <div className="annual-report-page pg-split">
+      {/* מסילה, לא סרגל טאבים. חמשת השלבים הראשונים הם רצף שעוברים בו לפי
+          סדר — בעמודה, עם מספר לכל שלב, הם נקראים כרצף; בשורה הם נקראו
+          כחמישה יעדים שווי-ערך. שני הכלים אינם חלק מהרצף ולכן מקובצים בנפרד. */}
+      <nav className="pg-rail" aria-label="שלבי הדוח השנתי">
+        <div className="pg-rail-eyebrow">הדוח</div>
+        {([
+          { id: 'entry', label: 'התחל', needsSession: false, go: () => { setCurrentSession(null); setMode('entry'); } },
+          { id: 'questionnaire', label: 'שאלון', needsSession: true, go: () => setMode('questionnaire') },
+          { id: 'answers_review', label: 'ערוך תשובות', needsSession: true, go: handleOpenAnswersReview },
+          { id: 'gate', label: 'מאזן כיסוי', needsSession: true, go: () => setMode('gate') },
+          { id: 'output', label: 'פלט ומיפוי', needsSession: true, go: () => setMode('output') },
+        ] as const).map((step, i) => (
           <button
+            key={step.id}
             type="button"
-            className={`tab ${mode === 'entry' ? 'active' : ''}`}
-            onClick={() => { setCurrentSession(null); setMode('entry'); }}
+            className={`pg-rail-item ${mode === step.id ? 'is-active' : ''}`}
+            disabled={step.needsSession && !currentSession}
+            onClick={step.go}
+            aria-current={mode === step.id ? 'true' : undefined}
           >
-            התחל
+            <span className="pg-rail-name">{step.label}</span>
+            <span className="pg-rail-state">{i + 1}</span>
           </button>
-          <button
-            type="button"
-            className={`tab ${mode === 'questionnaire' ? 'active' : ''}`}
-            disabled={!currentSession}
-            onClick={() => setMode('questionnaire')}
-            style={{ opacity: currentSession ? 1 : 0.4 }}
-          >
-            שאלון
-          </button>
-          <button
-            type="button"
-            className={`tab ${mode === 'answers_review' ? 'active' : ''}`}
-            disabled={!currentSession}
-            onClick={handleOpenAnswersReview}
-            style={{ opacity: currentSession ? 1 : 0.4 }}
-          >
-            ערוך תשובות
-          </button>
-          <button
-            type="button"
-            className={`tab ${mode === 'gate' ? 'active' : ''}`}
-            disabled={!currentSession}
-            onClick={() => setMode('gate')}
-            style={{ opacity: currentSession ? 1 : 0.4 }}
-          >
-            מאזן כיסוי
-          </button>
-          <button
-            type="button"
-            className={`tab ${mode === 'output' ? 'active' : ''}`}
-            disabled={!currentSession}
-            onClick={() => setMode('output')}
-            style={{ opacity: currentSession ? 1 : 0.4 }}
-          >
-            פלט ומיפוי
-          </button>
-          <div style={{ flex: 1 }} />
-          <button
-            type="button"
-            className={`tab ${mode === 'treemap' ? 'active' : ''}`}
-            onClick={() => setMode('treemap')}
-          >
-            מפת העץ
-          </button>
-          <button
-            type="button"
-            className={`tab ${mode === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setMode('dashboard')}
-          >
-            מסד נתוני מס
-          </button>
-        </div>
-      </div>
+        ))}
+
+        <div className="pg-rail-eyebrow">כלים</div>
+        <button
+          type="button"
+          className={`pg-rail-item ${mode === 'treemap' ? 'is-active' : ''}`}
+          onClick={() => setMode('treemap')}
+        >
+          <span className="pg-rail-name">מפת העץ</span>
+        </button>
+        <button
+          type="button"
+          className={`pg-rail-item ${mode === 'dashboard' ? 'is-active' : ''}`}
+          onClick={() => setMode('dashboard')}
+        >
+          <span className="pg-rail-name">מסד נתוני מס</span>
+        </button>
+      </nav>
+
+      <div className="pg-pane">
 
       {mode === 'entry' && (
         <AnnualReportEntry
@@ -258,6 +238,7 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
       {mode === 'treemap' && <TreeMapView clients={clients} sessions={sessions} />}
 
       {mode === 'dashboard' && <TaxConstantsDashboard />}
+      </div>
     </div>
   );
 }
