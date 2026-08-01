@@ -339,13 +339,17 @@
 /* כרטיס = קיבוץ, לא קופסה. מסגרת וצל יורדים; מה שמפריד הוא אוויר וקו אחד. */
 .quotations-page .card,
 .tax-center .card,
-.rep-page .card {
+.rep-page .card,
+.annual-report-page .card {
   border: 0;
   border-radius: 0;
   box-shadow: none;
   background: transparent;
   padding-inline: 0;
 }
+/* קיבוץ עוקב מקבל קו מפריד — האוויר לבדו לא מספיק כשיש הרבה מקטעים */
+.annual-report-page .card + .card,
+.quotations-page .card + .card { border-top: 1px solid var(--hairline-2); }
 
 /* טאבים משניים בכל המערכת: קו תחתון, לא גלולה צבועה */
 .tabs .tab,
