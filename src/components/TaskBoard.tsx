@@ -50,6 +50,11 @@ const BALL_OPTIONS: BallWith[] = ['me', 'client', 'authority', 'stuck'];
 const COLLAPSE_KEY = 'pivo_tasks_collapsed';
 const PIN_KEY = 'pivo_tasks_pinned';
 
+type SortKey = 'title' | 'client' | 'due' | 'ball';
+type SortDir = 'asc' | 'desc';
+/** סדר הכדור: מי שאצלי קודם, תקוע אחרון — הסדר שבו מטפלים בפועל */
+const BALL_ORDER: BallWith[] = ['me', 'client', 'authority', 'stuck'];
+
 export default function TaskBoard({
   tasks, clients,
   onSelectTask, onAddTask, onToggleDone,
@@ -62,6 +67,7 @@ export default function TaskBoard({
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
   // סינון לפי לקוח — כמו מסנן האדם במונדיי
   const [clientFilter, setClientFilter] = useState<string>('all');
+  const [sort, setSort] = useState<{ key: SortKey | null; dir: SortDir }>({ key: null, dir: 'asc' });
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => {
     try { const raw = localStorage.getItem(PIN_KEY); if (raw) return new Set(JSON.parse(raw) as string[]); } catch { /* default */ }
     return new Set<string>();
@@ -166,6 +172,52 @@ export default function TaskBoard({
   }, [tasks, clientMap]);
 
   const totalCount = tasks.length;
+
+  /* ── מיון עמודות ────────────────────────────────────────────────────────────
+     המסך נבנה כרשימה מקובצת ולא כטבלה, ולכן לא הייתה בו שורת כותרות
+     בכלל — אי אפשר היה ללחוץ על "לקוח" כי לא היה על מה. עכשיו יש
+     כותרות, והן ממיינות *בתוך* כל קבוצה: הקיבוץ נשאר הארגון, והמיון
+     הוא הסדר בתוכו. */
+  const SORT_LABELS: Record<SortKey, string> = {
+    title: 'משימה', client: 'לקוח', due: 'תאריך יעד', ball: 'אצל מי',
+  };
+
+  function toggleSort(k: SortKey) {
+    setSort(prev => prev.key === k
+      ? { key: k, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      : { key: k, dir: 'asc' });
+  }
+
+  const clientNameOf = (t: Task) => {
+    const c = clientMap.get(t.clientId);
+    return c ? `${c.firstName} ${c.lastName}`.trim() || c.idNumber : '';
+  };
+
+  /** ממיין רשימה לפי העמודה הפעילה. ריק תמיד בסוף, בשני הכיוונים. */
+  const applySort = useMemo(() => (list: Task[]): Task[] => {
+    const { key, dir } = sort;
+    if (!key) return list;
+    const sign = dir === 'asc' ? 1 : -1;
+    const blankLast = (a: string, b: string) => (!a && !b ? 0 : !a ? 1 : !b ? -1 : 0);
+    return [...list].sort((x, y) => {
+      let cmp = 0;
+      switch (key) {
+        case 'title': cmp = x.title.localeCompare(y.title, 'he'); break;
+        case 'client': {
+          const a = clientNameOf(x), b = clientNameOf(y);
+          const bl = blankLast(a, b); if (bl) return bl;
+          cmp = a.localeCompare(b, 'he'); break;
+        }
+        case 'due': {
+          const a = x.dueDate || '', b = y.dueDate || '';
+          const bl = blankLast(a, b); if (bl) return bl;
+          cmp = a.localeCompare(b); break;
+        }
+        case 'ball': cmp = BALL_ORDER.indexOf(x.ballWith) - BALL_ORDER.indexOf(y.ballWith); break;
+      }
+      return cmp * sign;
+    });
+  }, [sort, clientMap]);
 
   function clearFilters() {
     setSearch(''); setBallFilter('all'); setCategoryFilter('all'); setClientFilter('all');
@@ -384,10 +436,21 @@ export default function TaskBoard({
 
             {!isCollapsed && (
               <div className="board-table">
+                {/* שורת הכותרות — אותה רשת בדיוק של השורה, כדי שהכותרת
+                    תשב מעל העמודה שלה ולא לידה */}
+                <div className="board-row board-colhead" role="row">
+                  <span className="bc bc-handle" />
+                  <span className="bc bc-check" />
+                  <SortTh label={SORT_LABELS.title} k="title" sort={sort} onSort={toggleSort} className="bc bc-title" />
+                  <SortTh label={SORT_LABELS.client} k="client" sort={sort} onSort={toggleSort} className="bc bc-client" />
+                  <SortTh label={SORT_LABELS.due} k="due" sort={sort} onSort={toggleSort} className="bc bc-date" />
+                  <SortTh label={SORT_LABELS.ball} k="ball" sort={sort} onSort={toggleSort} className="bc bc-ball" />
+                  <span className="bc bc-actions" />
+                </div>
                 {items.length === 0 ? (
                   <CalmEmpty text={draggedId ? 'שחרר כאן כדי להעביר' : 'אין משימות בקבוצה זו'} />
                 ) : (
-                  items.map(t => {
+                  applySort(items).map(t => {
                     const client = clientMap.get(t.clientId) ?? null;
                     const isSystemTask = t.clientId === 'system';
                     const clientLabel = client
@@ -566,6 +629,35 @@ export default function TaskBoard({
           onCancel={() => setPendingDelete(null)}
         />
       )}
+    </div>
+  );
+}
+
+/* כותרת עמודה שאפשר ללחוץ עליה. החץ מופיע רק על העמודה הפעילה —
+   כותרת שכל אחת מהן נושאת חץ אפור היא רעש, לא מידע. */
+function SortTh({ label, k, sort, onSort, className }: {
+  label: string;
+  k: 'title' | 'client' | 'due' | 'ball';
+  sort: { key: string | null; dir: 'asc' | 'desc' };
+  onSort: (k: 'title' | 'client' | 'due' | 'ball') => void;
+  className: string;
+}) {
+  const active = sort.key === k;
+  return (
+    <div
+      className={className}
+      role="columnheader"
+      aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <button
+        type="button"
+        className={`th-sort${active ? ' is-active' : ''}`}
+        onClick={() => onSort(k)}
+        title={active ? 'לחיצה נוספת להיפוך הסדר' : `מיון לפי ${label}`}
+      >
+        {label}
+        <span className="th-sort-arrow" aria-hidden="true">{active ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</span>
+      </button>
     </div>
   );
 }

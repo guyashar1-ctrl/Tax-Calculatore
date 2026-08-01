@@ -1672,3 +1672,40 @@ table thead th {
 .app .emp-card-add:hover .emp-add-plus,
 .app .emp-card-add:hover .emp-add-text { color: var(--ink-1); }
 .app .emp-form-card { background: transparent; }
+
+/* ── שורת כותרות עמודה במסך המשימות ─────────────────────────────────────────
+   יורשת את רשת ‎.board-row‎ עצמה, ולכן כל כותרת יושבת בדיוק מעל העמודה
+   שלה. היא לא שורה — אין ריחוף, אין קליק על כולה, ואין קו מפריד עבה:
+   קו שיער אחד מתחת מספיק כדי לומר "מכאן מתחילים הנתונים". */
+.tasks-page .board-colhead {
+  cursor: default;
+  padding-block: 4px;
+  border-bottom: 1px solid var(--hairline-1);
+  margin-bottom: 2px;
+}
+.tasks-page .board-colhead:hover { background: none; }
+
+.tasks-page .th-sort {
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  margin-inline-start: -4px;
+  font: inherit;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--ink-4);
+  cursor: pointer;
+  border-radius: var(--r-chip);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.tasks-page .th-sort:hover { color: var(--ink-2); background: var(--surface-2); }
+.tasks-page .th-sort.is-active { color: var(--ink-1); font-weight: 600; }
+.tasks-page .th-sort-arrow { font-size: 8px; line-height: 1; }
+
+@media (max-width: 760px) {
+  /* בטלפון השורה נפרסת לשתי שורות ואין עמודות למיין לפיהן */
+  .tasks-page .board-colhead { display: none; }
+}
