@@ -186,14 +186,14 @@ export default function ClientCockpitTab({
             type="button"
             onClick={s.onClick}
             disabled={!s.onClick}
-            style={{
-              textAlign: 'right', background: 'var(--card)', fontFamily: 'inherit',
-              border: '1px solid var(--gray-200)', borderTop: `3px solid ${LEVEL_COLOR[s.level]}`,
-              borderRadius: 10, padding: '.6rem .8rem', cursor: s.onClick ? 'pointer' : 'default',
-            }}
+            /* היו שלוש קופסאות ממוסגרות עם פס צבע עליון — שלוש קופסאות
+               בשורה אחת, בדיוק מעל שתי עמודות של תוכן. עכשיו קו אחד
+               נושא את הרמה, והקופסה יורדת. */
+            className="cw-signal"
+            style={{ borderTopColor: LEVEL_COLOR[s.level], cursor: s.onClick ? 'pointer' : 'default' }}
           >
-            <b style={{ fontSize: '13px', display: 'block' }}>{s.title}</b>
-            <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{s.subtitle}</span>
+            <b className="cw-signal-title">{s.title}</b>
+            <span className="cw-signal-sub">{s.subtitle}</span>
           </button>
         ))}
       </div>

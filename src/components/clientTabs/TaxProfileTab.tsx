@@ -16,7 +16,7 @@ interface Props {
 
 export default function TaxProfileTab({ client, sessions, loading, onOpenYear, onUpdateTaxFiles }: Props) {
   return (
-    <div className="cw-tab">
+    <div className="cw-tabpanel">
       <TaxSnapshot client={client} sessions={sessions} loading={loading} variant="full" onOpenYear={onOpenYear} onUpdateTaxFiles={onUpdateTaxFiles} />
       <div style={{
         marginTop: '1rem', padding: '.7rem 1rem', borderRadius: 8, fontSize: '13px',

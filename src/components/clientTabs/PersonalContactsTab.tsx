@@ -481,7 +481,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
     : undefined;
 
   return (
-    <div className="cw-tab">
+    <div className="cw-tabpanel">
 
       {/* ════════════════════════════════════════════════════════════
           1. פרטי נישום

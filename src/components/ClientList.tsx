@@ -509,7 +509,7 @@ export default function ClientList({
                     <span>אימייל</span> {sortIcon('email')}
                   </th>
                   <th className="hide-mobile">
-                    <span>מס וייצוג</span>
+                    <span>מ״ה · ב״ל · מע״מ</span>
                   </th>
                   <th className="th-sortable hide-mobile col-owner" onClick={() => toggleSort('assignee')}>
                     <span>מטפל</span> {sortIcon('assignee')}
@@ -582,11 +582,15 @@ export default function ClientList({
                         ) : '—'}
                       </td>
                       <td className="hide-mobile">
+                        {/* התוויות "מ״ה: · ב״ל: · מע״מ:" חזרו בכל שורה — 21 פעמים
+                            על מסך של שבעה לקוחות. הן עברו לכותרת העמודה, וסדר
+                            הערכים הוא שנושא את המשמעות. */}
                         <div className="cl-tax-chips" style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '12px', color: 'var(--gray-400)' }}>סיווג</span>
-                          <span className={`badge ${IT_BADGE[client.incomeTaxType]} cl-mini-badge`}>מ״ה: {IT_LABELS[client.incomeTaxType]}</span>
-                          <span className={`badge ${NI_BADGE[client.niType]} cl-mini-badge`}>ב״ל: {NI_LABELS[client.niType]}</span>
-                          <span className={`badge ${VAT_BADGE[client.vatStatus]} cl-mini-badge`}>מע״מ: {VAT_LABELS[client.vatStatus]}</span>
+                          <span className={`badge ${IT_BADGE[client.incomeTaxType]} cl-mini-badge`}>{IT_LABELS[client.incomeTaxType]}</span>
+                          <span className="cl-tax-sep">·</span>
+                          <span className={`badge ${NI_BADGE[client.niType]} cl-mini-badge`}>{NI_LABELS[client.niType]}</span>
+                          <span className="cl-tax-sep">·</span>
+                          <span className={`badge ${VAT_BADGE[client.vatStatus]} cl-mini-badge`}>{VAT_LABELS[client.vatStatus]}</span>
                         </div>
                         {client.authorityRepresentations && Object.keys(client.authorityRepresentations).length > 0 && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>

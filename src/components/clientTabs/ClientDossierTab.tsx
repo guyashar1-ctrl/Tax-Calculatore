@@ -84,7 +84,7 @@ export default function ClientDossierTab({ client, update, patch, employees, isN
   const showTax = searching || activeGroup.pane === 'tax';
 
   return (
-    <div className="pg cw-tab">
+    <div className="pg cw-tabpanel">
       <div className="pg-head">
         <div className="pg-head-main">
           <div className="pg-title">התיק</div>

@@ -348,8 +348,12 @@ export default function ClientWorkspace({
           {(client.tags ?? []).map(t => <span key={t} className="cw-tag">#{t}</span>)}
         </div>
 
-        {/* Header — alerts strip */}
-        {alerts.length > 0 && (
+        {/* Header — alerts strip.
+            במרכז השליטה אותם מספרים כבר מופיעים בסימני המצב, ובפירוט רב
+            יותר. "6 משימות פתוחות" שלוש פעמים באותו מסך — בשורה הזו,
+            בסימן, ובבאדג' של הטאב — הוא בדיוק מה שהכלל "כל מספר פעם אחת"
+            בא למנוע. ולכן כאן היא מוצגת רק כשהמרכז לא פתוח. */}
+        {alerts.length > 0 && tab !== 'overview' && (
           <div className="cw-alerts">
             {alerts.map(a => (
               <span key={a.kind} className={`cw-alert cw-alert-${a.level}`}>

@@ -285,7 +285,8 @@
 .mono-text { font-variant-numeric: tabular-nums; letter-spacing: .01em; color: var(--ink-2); }
 
 /* הסיווג: טקסט במקום שלושה כתמי צבע בכל שורה */
-.cl-tax-chips > span:first-child { display: none; }
+/* התווית "סיווג" הוסרה מהמקור עצמו — הכלל שהסתיר אותה ירד, אחרת הוא
+   היה מסתיר עכשיו את ערך מס ההכנסה שתפס את מקומה. */
 .cl-mini-badge {
   background: transparent !important;
   border-color: transparent !important;
@@ -294,7 +295,8 @@
   font-size: var(--fs-12) !important;
   font-weight: 400 !important;
 }
-.cl-tax-chips { gap: .5rem !important; }
+.cl-tax-chips { gap: .35rem !important; }
+.cl-tax-sep { font-size: var(--fs-12); color: var(--ink-quiet); }
 
 /* עמודת המשימות: מספר אחד. הצבע שמור למספר האיחורים בלבד */
 .cl-metric-num {
@@ -356,16 +358,69 @@
 }
 .cw-tag { color: var(--ink-3) !important; font-size: var(--fs-12) !important; }
 .cw-header-chips { gap: .7rem !important; align-items: center; }
+
+/* ── שורת הזהות בראש כרטיס הלקוח ────────────────────────────────────────────
+   היו כאן שתי גלולות ירוקות מלאות — "מיוצג פעיל" ו"שע״ם: פעיל". שתיהן
+   מתארות את המצב ה*רגיל* של לקוח: אם כל לקוח פעיל נושא שני כתמים
+   ירוקים, הירוק אומר "לקוח", לא "שים לב". לכן המצב התקין הוא טקסט,
+   והצבע נשמר למצב שדורש פעולה — "לא פעיל" או "בטיפול". */
+.cw-header-chips .badge,
+.cw-rep-status {
+  background: transparent !important;
+  border-color: transparent !important;
+  padding-inline: 0 !important;
+  font-size: var(--fs-12) !important;
+  font-weight: 400 !important;
+  color: var(--ink-3) !important;
+}
+.cw-header-chips .badge-orange,
+.cw-header-chips .badge-amber { color: var(--warn) !important; font-weight: 500 !important; }
+.cw-header-chips .badge-red { color: var(--danger) !important; font-weight: 500 !important; }
+
+/* סימני המצב במרכז השליטה — קו עליון בלבד נושא את הרמה */
+.cw-signal {
+  text-align: start; background: transparent; font-family: inherit;
+  border: 0; border-top: 2px solid var(--hairline-1); border-radius: 0;
+  padding: .6rem 0 .7rem;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.cw-signal:hover:not(:disabled) { background: var(--surface-1); }
+.cw-signal-title { font-size: var(--fs-13); font-weight: 600; color: var(--ink-1); }
+.cw-signal-sub { font-size: var(--fs-12); color: var(--ink-4); line-height: 1.5; }
+
+/* ── שבב סינון פעיל ─────────────────────────────────────────────────────────
+   היה ממולא בכחול המותג — אותו כחול של הפעולה הראשית. במסך אחד יש אז
+   שני גושים כחולים שמתחרים על העין, ואחד מהם הוא רק "איפה אני".
+   מצב נבחר הוא מיקום, לא פעולה: משטח אפור ומשקל, כמו במסילות. */
+.app .chip.active,
+.app .ui-chip.is-active {
+  background: var(--surface-2-active);
+  color: var(--ink-1);
+  border-color: transparent;
+  font-weight: 500;
+}
 .cw-tags { gap: .55rem !important; }
 .cw-emp-chip.muted { display: none; }
 
-/* התראות: רק אזהרה נראית כאזהרה */
+/* התראות: רק אזהרה נראית כאזהרה — אבל כטקסט, לא כגלולה ממולאת.
+   אחרי שכל השאר בכרטיס ירד לקווים ולטקסט, גלולה ענברית מלאה נשארה
+   הדבר הכבד ביותר במסך, וגררה את העין לפריט שאינו הכי דחוף בו. */
 .cw-alert-info {
   background: transparent;
   border-color: transparent;
   color: var(--ink-2);
   padding-inline: 0;
 }
+.app .cw-alert {
+  background: transparent !important;
+  border-color: transparent !important;
+  padding-inline: 0 !important;
+  font-size: var(--fs-12);
+  font-weight: 500;
+}
+.app .cw-alert-warning { color: var(--warn) !important; }
+.app .cw-alert-danger,
+.app .cw-alert-error { color: var(--danger) !important; }
 .cw-alerts { gap: .9rem; }
 
 /* טאבים של הכרטיס: קו תחתון, לא כפתורים בשורה */
@@ -586,13 +641,24 @@
 .btn-secondary:hover,
 .btn-ghost:hover { background: var(--surface-2); border-color: transparent; color: var(--ink-1); }
 
-/* כפתור ראשי אחד בגודל אחד בכל המערכת */
-.btn-primary {
+/* כפתור ראשי אחד בגודל אחד בכל המערכת.
+   המילוי מגיע מ-‎--accent-fill‎ ולא מ-‎--accent‎: בערכה הכהה ה-accent
+   הוא כחול בהיר (כדי שייקרא כטקסט), ומילוי כפתור בו יוצר גוש תכלת
+   זוהר על כמעט-שחור. */
+.btn-primary,
+.ui-btn-primary {
   padding: .42rem .95rem;
   font-size: var(--fs-13);
   font-weight: 500;
   border-radius: var(--r-input);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--on-accent-fill);
 }
+.btn-primary:hover:not(:disabled),
+.ui-btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+:root[data-theme='dark'] .btn-primary:hover:not(:disabled),
+:root[data-theme='dark'] .ui-btn-primary:hover:not(:disabled) { background: #4a80d6; border-color: #4a80d6; color: #fff; }
 
 /* שורות טבלה בכל המערכת: קו שערה ו-hover ניטרלי, בלי פסים */
 table tbody tr:hover { background: var(--surface-2); }

@@ -107,6 +107,9 @@
   --accent: var(--br);           /* הכחול היחיד */
   --accent-hover: var(--br-strong);
   --on-accent-text: var(--on-br);
+  /* בערכה הבהירה המילוי והדיו הם אותו כחול; בכהה הם נפרדים (ראה שם) */
+  --accent-fill: var(--br);
+  --on-accent-fill: var(--on-br);
 
   --danger: var(--err);          /* איחור / חוסם / חובה־וריק / הרסני — ותו לא (D2) */
   --danger-bg: var(--err-bg);
@@ -171,10 +174,15 @@
   --tx2: #9c9ca4;
   --tx3: #78787f;
 
+  /* ‎--br‎ הוא הכחול שנקרא על רקע כהה — ולכן הוא בהיר. אבל כחול בהיר
+     כמילוי של כפתור יוצר גוש תכלת זוהר על כמעט-שחור. לכן המילוי הוא
+     טוקן נפרד: כחול רווי שנושא טקסט לבן, בדיוק כמו בערכה הבהירה. */
   --br: #9ab6e6;
   --br-strong: #b4c9ee;
   --on-br: #0e0e10;
   --on-accent: #0e0e10;
+  --accent-fill: #3a6fc4;
+  --on-accent-fill: #ffffff;
   --soft: #1e2734;
   --soft-bd: #35455c;
 
@@ -2817,7 +2825,7 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
 /* ─── Tab content shared ───────────────────────────────────────────────── */
 /* align-items: stretch מבטל את ה-center שמגיע מההגדרה של כפתורי ה-nav (.cw-tab),
    כדי שכל .cw-section יתפוס את מלוא הרוחב של ה-pane */
-.cw-tab { display: flex; flex-direction: column; align-items: stretch; gap: 1rem; }
+.cw-tabpanel { display: flex; flex-direction: column; align-items: stretch; gap: 1rem; }
 
 .cw-section {
   background: var(--card); border: 1px solid var(--gray-200);
