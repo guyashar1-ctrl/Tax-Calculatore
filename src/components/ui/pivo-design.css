@@ -523,16 +523,18 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* כרטיס = קיבוץ, לא קופסה. מסגרת וצל יורדים; מה שמפריד הוא אוויר וקו אחד. */
-.quotations-page .card,
-.tax-center .card,
-.rep-page .card,
-.annual-report-page .card {
+/* מוחל על כל מסך בתוך האפליקציה — לא על רשימת מסכים.
+   הגבול `.app` מגן על הדפים שהלקוח רואה: הם יושבים מחוץ למעטפת,
+   ב-`.public-page-shell`, ושומרים על העיצוב שנשלח ללקוחות. */
+.app .card {
   border: 0;
   border-radius: 0;
   box-shadow: none;
   background: transparent;
   padding-inline: 0;
 }
+/* קיבוץ עוקב מקבל קו מפריד — אוויר לבדו לא מספיק כשיש הרבה מקטעים */
+.app .card + .card { border-top: 1px solid var(--hairline-2); }
 /* קיבוץ עוקב מקבל קו מפריד — האוויר לבדו לא מספיק כשיש הרבה מקטעים */
 .annual-report-page .card + .card,
 .quotations-page .card + .card { border-top: 1px solid var(--hairline-2); }
