@@ -135,10 +135,10 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '.75rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--gray-900)' }}>
+          <h1 style={{ fontSize: 'var(--fs-24)', fontWeight: 600, color: 'var(--ink-1)' }}>
             {isNew ? 'בקשת ייצוג חדשה' : 'עריכת בקשת ייצוג'}
           </h1>
-          <p style={{ fontSize: '.875rem', color: 'var(--gray-500)', marginTop: 2 }}>
+          <p style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-3)', marginTop: 2 }}>
             הגדר אילו פרטים, מסמכים וייפויי כוח אתה רוצה לקבל מהלקוח
           </p>
         </div>
@@ -149,8 +149,8 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
       </div>
 
       {errors.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--red)', background: 'var(--red-light)' }}>
-          <div className="card-body" style={{ color: 'var(--red)' }}>
+        <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--danger)', background: 'transparent' }}>
+          <div className="card-body" style={{ color: 'var(--danger)' }}>
             {errors.map((e, i) => <div key={i}>• {e}</div>)}
           </div>
         </div>
@@ -171,7 +171,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
               />
             </div>
             <div className="form-group">
-              <label>מייל הלקוח <span style={{ color: 'var(--red)' }}>*</span></label>
+              <label>מייל הלקוח <span style={{ color: 'var(--danger)' }}>*</span></label>
               <input
                 type="email"
                 value={data.clientEmail}
@@ -189,7 +189,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
         <div className="card-header"><div className="card-title">רשויות מס לייצוג (השעמ — ייצוג ראשי)</div></div>
         <div className="card-body">
           <div className="form-group">
-            <label>סמן את הרשויות שמולן מבקשים ייצוג <span style={{ color: 'var(--red)' }}>*</span></label>
+            <label>סמן את הרשויות שמולן מבקשים ייצוג <span style={{ color: 'var(--danger)' }}>*</span></label>
             <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
               {(['incomeTax', 'vat', 'withholding'] as AuthorityKind[]).map(a => {
                 const active = data.authorities.includes(a);
@@ -205,7 +205,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
                 );
               })}
             </div>
-            <small style={{ color: 'var(--gray-500)', marginTop: 6, display: 'block' }}>
+            <small style={{ color: 'var(--ink-3)', marginTop: 6, display: 'block' }}>
               טופס 2279א'5 הוא לייצוג ראשי במערכת השעמ ומכסה רק רשויות אלה.
               ייצוג בביטוח לאומי דורש טופס נפרד ולא נכלל כאן.
             </small>
@@ -220,7 +220,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
         </div>
         <div className="card-body">
           {data.requestedDocs.length === 0 ? (
-            <div style={{ color: 'var(--gray-500)', fontSize: '.875rem' }}>אין מסמכים. הוסף מהקטלוג למטה.</div>
+            <div style={{ color: 'var(--ink-3)', fontSize: 'var(--fs-14)' }}>אין מסמכים. הוסף מהקטלוג למטה.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
               {data.requestedDocs.map(doc => (
@@ -231,19 +231,19 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
                     alignItems: 'center',
                     gap: '.75rem',
                     padding: '.6rem .8rem',
-                    border: '1px solid var(--gray-200)',
+                    border: '1px solid var(--hairline-1)',
                     borderRadius: 'var(--radius)',
-                    background: doc.isDefault ? 'var(--gray-50)' : 'var(--card)',
+                    background: doc.isDefault ? 'var(--surface-2)' : 'var(--card)',
                   }}
                 >
-                  <span style={{ fontSize: '1.1rem' }}>📄</span>
+                  <span style={{ fontSize: 'var(--fs-17)' }}>📄</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '.9rem', fontWeight: 500 }}>{doc.label}</div>
+                    <div style={{ fontSize: 'var(--fs-14)', fontWeight: 500 }}>{doc.label}</div>
                     {doc.isDefault && (
-                      <div style={{ fontSize: '.7rem', color: 'var(--gray-500)' }}>ברירת מחדל</div>
+                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>ברירת מחדל</div>
                     )}
                   </div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.8rem', color: 'var(--gray-600)', cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: 'var(--fs-13)', color: 'var(--ink-3)', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={doc.required}
@@ -257,7 +257,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
                       className="btn btn-ghost btn-icon"
                       onClick={() => removeDoc(doc.id)}
                       title="הסר"
-                      style={{ color: 'var(--red)' }}
+                      style={{ color: 'var(--danger)' }}
                     >🗑️</button>
                   )}
                 </div>
@@ -268,7 +268,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
           {/* הוספה מקטלוג */}
           {catalogAvailable.length > 0 && (
             <div style={{ marginTop: '1rem' }}>
-              <div style={{ fontSize: '.8rem', color: 'var(--gray-600)', marginBottom: '.4rem', fontWeight: 600 }}>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginBottom: '.4rem', fontWeight: 600 }}>
                 הוסף מהקטלוג:
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
@@ -288,7 +288,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
 
           {/* הוספה מותאמת אישית */}
           <div style={{ marginTop: '1rem' }}>
-            <div style={{ fontSize: '.8rem', color: 'var(--gray-600)', marginBottom: '.4rem', fontWeight: 600 }}>
+            <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginBottom: '.4rem', fontWeight: 600 }}>
               או הוסף מסמך מותאם אישית:
             </div>
             <div style={{ display: 'flex', gap: '.5rem' }}>
@@ -321,13 +321,13 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
       </div>
 
       {/* פעולות */}
-      <div className="card" style={{ background: 'var(--blue-light)', borderColor: 'var(--blue)' }}>
+      <div className="card" style={{ background: 'transparent', borderColor: 'var(--accent)' }}>
         <div className="card-body">
           <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
-            <span style={{ fontSize: '1.2rem' }}>💡</span>
+            <span style={{ fontSize: 'var(--fs-20)' }}>💡</span>
             <strong style={{ color: 'var(--blue-dark)' }}>הדגמה מקומית</strong>
           </div>
-          <div style={{ fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.75rem' }}>
+          <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginBottom: '.75rem' }}>
             במצב הדגמה — השמירה תיצור בקשה במערכת ותוכל לפתוח את טופס המילוי באופן מקומי כדי לראות מה הלקוח יראה.
             כשתחבר backend בעתיד, השליחה תתבצע במייל.
           </div>

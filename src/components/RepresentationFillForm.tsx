@@ -216,10 +216,10 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
           <div>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--gray-900)' }}>
+            <h1 style={{ fontSize: 'var(--fs-24)', fontWeight: 600, color: 'var(--ink-1)' }}>
               בקשת ייצוג — מילוי פרטים
             </h1>
-            <p style={{ fontSize: '.875rem', color: 'var(--gray-500)', marginTop: 2 }}>
+            <p style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-3)', marginTop: 2 }}>
               ייפוי כוח ראשי (השעמ) מול: {authorityList}
             </p>
           </div>
@@ -229,9 +229,9 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
 
       {/* OCR status banner */}
       {ocrStatus && (
-        <div className="card" style={{ marginBottom: '1rem', background: 'var(--blue-light)', borderColor: 'var(--blue)' }}>
+        <div className="card" style={{ marginBottom: '1rem', background: 'transparent', borderColor: 'var(--accent)' }}>
           <div className="card-body" style={{ display: 'flex', alignItems: 'center', gap: '.6rem', color: 'var(--blue-dark)' }}>
-            <span style={{ fontSize: '1.1rem' }}>🤖</span>
+            <span style={{ fontSize: 'var(--fs-17)' }}>🤖</span>
             <span>{ocrStatus}</span>
           </div>
         </div>
@@ -239,18 +239,18 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
 
       {/* תזכורת מהמייצג */}
       {request.notes && (
-        <div className="card" style={{ marginBottom: '1rem', background: 'var(--blue-light)', borderColor: 'var(--blue)' }}>
+        <div className="card" style={{ marginBottom: '1rem', background: 'transparent', borderColor: 'var(--accent)' }}>
           <div className="card-body">
-            <div style={{ fontSize: '.75rem', color: 'var(--blue-dark)', fontWeight: 600, marginBottom: 4 }}>הודעה מהמייצג:</div>
-            <div style={{ fontSize: '.875rem', color: 'var(--gray-700)', whiteSpace: 'pre-wrap' }}>{request.notes}</div>
+            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--blue-dark)', fontWeight: 600, marginBottom: 4 }}>הודעה מהמייצג:</div>
+            <div style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-2)', whiteSpace: 'pre-wrap' }}>{request.notes}</div>
           </div>
         </div>
       )}
 
       {/* שגיאות */}
       {errors.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--red)', background: 'var(--red-light)' }}>
-          <div className="card-body" style={{ color: 'var(--red)' }}>
+        <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--danger)', background: 'transparent' }}>
+          <div className="card-body" style={{ color: 'var(--danger)' }}>
             {errors.map((e, i) => <div key={i}>• {e}</div>)}
           </div>
         </div>
@@ -263,21 +263,21 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
         </div>
         <div className="card-body">
           {geminiAvailable && (
-            <div style={{ fontSize: '.8rem', color: 'var(--gray-500)', marginBottom: '.75rem' }}>
+            <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginBottom: '.75rem' }}>
               העלאת תעודת זהות או רישיון נהיגה תמלא חלק מהפרטים אוטומטית
             </div>
           )}
           <div className="form-grid form-grid-2">
             <div className="form-group">
-              <label>שם פרטי <span style={{ color: 'var(--red)' }}>*</span></label>
+              <label>שם פרטי <span style={{ color: 'var(--danger)' }}>*</span></label>
               <input value={fields.firstName} onChange={e => upd('firstName', e.target.value)} />
             </div>
             <div className="form-group">
-              <label>שם משפחה <span style={{ color: 'var(--red)' }}>*</span></label>
+              <label>שם משפחה <span style={{ color: 'var(--danger)' }}>*</span></label>
               <input value={fields.lastName} onChange={e => upd('lastName', e.target.value)} />
             </div>
             <div className="form-group">
-              <label>תעודת זהות <span style={{ color: 'var(--red)' }}>*</span></label>
+              <label>תעודת זהות <span style={{ color: 'var(--danger)' }}>*</span></label>
               <input value={fields.idNumber} onChange={e => upd('idNumber', e.target.value)} dir="ltr" />
             </div>
             <div className="form-group">
@@ -292,11 +292,11 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
               </select>
             </div>
             <div className="form-group">
-              <label>טלפון <span style={{ color: 'var(--red)' }}>*</span></label>
+              <label>טלפון <span style={{ color: 'var(--danger)' }}>*</span></label>
               <input value={fields.phone} onChange={e => upd('phone', e.target.value)} dir="ltr" placeholder="050-1234567" />
             </div>
             <div className="form-group">
-              <label>מייל <span style={{ color: 'var(--red)' }}>*</span></label>
+              <label>מייל <span style={{ color: 'var(--danger)' }}>*</span></label>
               <input type="email" value={fields.email} onChange={e => upd('email', e.target.value)} dir="ltr" />
             </div>
             <div className="form-group">
@@ -337,24 +337,24 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
                     alignItems: 'center',
                     gap: '.75rem',
                     padding: '.75rem',
-                    border: `1px solid ${uploaded ? 'var(--green)' : 'var(--gray-200)'}`,
+                    border: `1px solid ${uploaded ? 'var(--green)' : 'var(--hairline-1)'}`,
                     borderRadius: 'var(--radius)',
                     background: uploaded ? 'var(--green-light)' : 'var(--card)',
                     flexWrap: 'wrap',
                   }}
                 >
-                  <span style={{ fontSize: '1.2rem' }}>{uploaded ? '✅' : '📄'}</span>
+                  <span style={{ fontSize: 'var(--fs-20)' }}>{uploaded ? '✅' : '📄'}</span>
                   <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ fontSize: '.9rem', fontWeight: 500 }}>
+                    <div style={{ fontSize: 'var(--fs-14)', fontWeight: 500 }}>
                       {doc.label}
-                      {doc.required && <span style={{ color: 'var(--red)', marginRight: 4 }}>*</span>}
+                      {doc.required && <span style={{ color: 'var(--danger)', marginRight: 4 }}>*</span>}
                     </div>
                     {uploaded ? (
-                      <div style={{ fontSize: '.75rem', color: 'var(--gray-600)' }}>
+                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
                         {uploaded.fileName} · {fmt(uploaded.fileSize)}
                       </div>
                     ) : (
-                      <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>
+                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
                         {doc.required ? 'חובה' : 'לא חובה'}
                       </div>
                     )}
@@ -364,7 +364,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
                       type="button"
                       className="btn btn-ghost btn-sm"
                       onClick={() => removeUpload(doc.id)}
-                      style={{ color: 'var(--red)' }}
+                      style={{ color: 'var(--danger)' }}
                     >הסר</button>
                   ) : (
                     <label className="btn btn-secondary btn-sm" style={{ margin: 0 }}>
@@ -392,11 +392,11 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
           <div
             style={{
               padding: '1rem',
-              background: 'var(--gray-50)',
-              border: '1px solid var(--gray-200)',
+              background: 'var(--surface-2)',
+              border: '1px solid var(--hairline-1)',
               borderRadius: 'var(--radius)',
-              fontSize: '.85rem',
-              color: 'var(--gray-700)',
+              fontSize: 'var(--fs-13)',
+              color: 'var(--ink-2)',
               lineHeight: 1.7,
               marginBottom: '1rem',
             }}
@@ -416,7 +416,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
             <p>
               הייצוג כולל סמכות לפעול מול הרשויות הבאות: <strong>{authorityList}</strong>.
             </p>
-            <p style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>
+            <p style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
               * חתימתך תיחתם דיגיטלית על טופס 2279א'5. לאחר ההגשה, רואה החשבון יחתום ויוסיף את חותמת המשרד.
             </p>
           </div>
@@ -428,7 +428,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
               onChange={e => setAgreed(e.target.checked)}
               style={{ marginTop: 4 }}
             />
-            <span style={{ fontSize: '.875rem' }}>
+            <span style={{ fontSize: 'var(--fs-14)' }}>
               אני מאשר/ת את האמור לעיל ונותן/ת ייפוי כוח למייצג כמתואר.
             </span>
           </label>
@@ -440,13 +440,13 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
               onChange={e => setAllowSmsEmail(e.target.checked)}
               style={{ marginTop: 4 }}
             />
-            <span style={{ fontSize: '.875rem' }}>
+            <span style={{ fontSize: 'var(--fs-14)' }}>
               אני מאשר/ת לרשות המסים לשלוח אליי הודעות באמצעות SMS או דואר אלקטרוני.
             </span>
           </label>
 
           <div className="form-group">
-            <label style={{ marginBottom: '.5rem' }}>חתימה <span style={{ color: 'var(--red)' }}>*</span></label>
+            <label style={{ marginBottom: '.5rem' }}>חתימה <span style={{ color: 'var(--danger)' }}>*</span></label>
             <SignaturePad value={signature} onChange={setSignature} />
           </div>
         </div>

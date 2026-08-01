@@ -30,11 +30,11 @@ function CopyRow({ row }: { row: Row }) {
       display: 'flex', alignItems: 'center', gap: '.6rem',
       padding: '.45rem .6rem', borderBottom: '1px solid var(--gray-100, #eee)',
     }}>
-      <span style={{ fontSize: '.78rem', color: 'var(--gray-500)', minWidth: 120 }}>{row.label}</span>
+      <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', minWidth: 120 }}>{row.label}</span>
       <span
         dir="ltr"
         style={{
-          flex: 1, textAlign: 'right', fontWeight: 500, fontSize: '.9rem',
+          flex: 1, textAlign: 'right', fontWeight: 500, fontSize: 'var(--fs-14)',
           color: empty ? 'var(--gray-400, #aaa)' : 'var(--gray-900, #111)',
           fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word',
         }}
@@ -65,14 +65,14 @@ function Block({ title, subtitle, rows }: { title: string; subtitle: string; row
   const [copiedAll, setCopiedAll] = useState(false);
   const filled = rows.filter(r => r.value);
   return (
-    <div style={{ border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: '1rem' }}>
+    <div style={{ border: '1px solid var(--hairline-1)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: '1rem' }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap',
-        padding: '.6rem .75rem', background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-200)',
+        padding: '.6rem .75rem', background: 'var(--surface-2)', borderBottom: '1px solid var(--hairline-1)',
       }}>
         <div style={{ flex: 1, minWidth: 180 }}>
-          <div style={{ fontWeight: 600, fontSize: '.9rem' }}>{title}</div>
-          <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>{subtitle}</div>
+          <div style={{ fontWeight: 600, fontSize: 'var(--fs-14)' }}>{title}</div>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{subtitle}</div>
         </div>
         <button
           type="button"

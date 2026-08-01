@@ -465,7 +465,7 @@ function SignersPanel(p: SignersPanelProps) {
                     <div className="sig-candidate-text">
                       <div className="sig-candidate-name">{cand.label}</div>
                       <div className="sig-candidate-meta" dir="ltr">
-                        {cand.signer.email || <span style={{ color: 'var(--red)' }}>חסר אימייל</span>}
+                        {cand.signer.email || <span style={{ color: 'var(--danger)' }}>חסר אימייל</span>}
                         {cand.signer.phone && <span> · {cand.signer.phone}</span>}
                       </div>
                     </div>
@@ -544,7 +544,7 @@ function SignersPanel(p: SignersPanelProps) {
                         <button type="button" className="btn btn-ghost btn-sm" disabled={i === p.signers.length - 1} onClick={() => p.moveSigner(s.id, 1)}>↓</button>
                       </div>
                     )}
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => p.removeSigner(s.id)} style={{ color: 'var(--red)' }}>הסר</button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => p.removeSigner(s.id)} style={{ color: 'var(--danger)' }}>הסר</button>
                   </li>
                 ))}
               </ol>
@@ -587,7 +587,7 @@ export function FieldsPanel(p: FieldsPanelProps) {
   const totalFields = p.fields.length;
 
   // צבע של החותם הנוכחי — כדי לתת פידבק חזותי בסרגל ובמרקרים
-  const activeColor = activeSigner ? colorForSigner(p.signers, activeSigner.id) : 'var(--blue)';
+  const activeColor = activeSigner ? colorForSigner(p.signers, activeSigner.id) : 'var(--accent)';
 
   // input קובץ נסתר עם ref — תבנית אמינה יותר מ-label-wraps-input. גם מאפסים את ה-value
   // אחרי בחירה כדי שאותו קובץ יוכל להיבחר שוב.
@@ -618,9 +618,9 @@ export function FieldsPanel(p: FieldsPanelProps) {
             <div className="empty-state-desc">לאחר ההעלאה — לחץ על מקום בעמוד כדי לסמן איפה כל חותם יחתום או יכתוב טקסט.</div>
             {p.pdfLoadError && (
               <div style={{
-                background: 'var(--red-light)', color: 'var(--red)',
+                background: 'transparent', color: 'var(--danger)',
                 padding: '.6rem .8rem', borderRadius: 'var(--radius)',
-                margin: '.75rem auto', maxWidth: 500, fontSize: '.85rem',
+                margin: '.75rem auto', maxWidth: 500, fontSize: 'var(--fs-13)',
               }}>
                 {p.pdfLoadError}
               </div>
@@ -646,7 +646,7 @@ export function FieldsPanel(p: FieldsPanelProps) {
                 צריך {p.activeKind === 'signature' ? 'לחתום' : p.activeKind === 'stamp' ? 'להטביע חותמת' : 'לכתוב טקסט'}.</>
               )}
               {' '}
-              <span style={{ color: 'var(--gray-600)', fontSize: '.8rem' }}>
+              <span style={{ color: 'var(--ink-3)', fontSize: 'var(--fs-13)' }}>
                 (סימונים: {myFieldsCount} עבור החותם, {totalFields} בסה"כ)
               </span>
             </div>
@@ -871,7 +871,7 @@ function PdfPageWithMarkers({
     <div className="sig-pdf-page">
       <div className="sig-pdf-page-label">
         עמוד {pageIndex + 1}
-        {renderError && <span style={{ color: 'var(--red)', marginInlineStart: '.5rem' }}>· שגיאה ברינדור: {renderError}</span>}
+        {renderError && <span style={{ color: 'var(--danger)', marginInlineStart: '.5rem' }}>· שגיאה ברינדור: {renderError}</span>}
       </div>
       <div ref={wrapRef} className="sig-pdf-page-inner" onClick={handleClick}>
         <canvas ref={canvasRef} />

@@ -30,7 +30,7 @@ export default function RepSignersStatus({ request, compact }: Props) {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               fontSize: compact ? '.72rem' : '.82rem',
-              color: signed ? 'var(--green-dark, var(--ok))' : 'var(--gray-600)',
+              color: signed ? 'var(--green-dark, var(--ok))' : 'var(--ink-3)',
               fontWeight: signed ? 600 : 400,
             }}
           >

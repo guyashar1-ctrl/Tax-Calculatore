@@ -655,6 +655,107 @@ table thead th {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   שכבת המבנה · הרכב העמוד
+   מקור: ‎מסך08.dc.html‎ ואחיו בפרויקט העיצוב.
+
+   זו לא שכבת צבע — זו שכבת קומפוזיציה. מה שמבדיל את המוקאפים מהמוצר
+   הישן אינו הגוונים אלא הסדר: לכל מסך יש כותרת אחת עם משפט-מצב אחד,
+   פעולה ראשית אחת בקצה, ואז תוכן בקצב רחב. אין קופסה בתוך קופסה,
+   ואין שתי רמות של כותרות שמתחרות זו בזו.
+
+   שלושה מרווחים בלבד בכל המערכת:
+     20px  בין בלוקים ברמת העמוד
+     30px  בין מסילה לפאנל (מאסטר-דיטייל)
+     16px  בין מקטעים בתוך פאנל
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.pg { display: flex; flex-direction: column; gap: 20px; }
+
+/* כותרת עמוד: שם + משפט מצב אחד משמאל, פעולות מימין, קו אחד מתחת.
+   משפט המצב הוא היחיד שמדווח מספרים — כך המספר לא חוזר שלוש פעמים. */
+.pg-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 24px; padding-bottom: 13px; border-bottom: 1px solid var(--hairline-1);
+}
+.pg-head-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pg-title { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.015em; color: var(--ink-1); }
+.pg-status { font-size: var(--fs-13); color: var(--ink-3); }
+.pg-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* שדה חיפוש בכותרת עמוד — משטח רך, בלי מסגרת */
+.pg-search {
+  width: 200px; padding: 7px 12px; border: 0; border-radius: var(--r-input);
+  background: var(--surface-2); font-family: inherit; font-size: var(--fs-13);
+  color: var(--ink-1); outline: none;
+}
+.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+
+/* פס התקדמות מקטעי — מקטע לכל קבוצה. הוא מחליף תשע תוויות מצב. */
+.pg-bars { display: flex; align-items: center; gap: 2px; height: 5px; border-radius: 3px; overflow: hidden; background: var(--hairline-1); }
+.pg-bar { flex: 1; height: 5px; }
+.pg-bar.is-done { background: var(--success); }
+.pg-bar.is-todo { background: var(--progress-partial); }
+
+/* מאסטר-דיטייל: מסילה צרה ופאנל אחד פתוח. זה מה שמחליף ערימה של
+   אקורדיונים — במקום לגלול דרך הכול, בוחרים קבוצה ורואים רק אותה. */
+.pg-split { display: grid; grid-template-columns: 236px 1fr; gap: 30px; align-items: start; }
+@media (max-width: 900px) { .pg-split { grid-template-columns: 1fr; gap: 20px; } }
+
+.pg-rail { display: flex; flex-direction: column; gap: 2px; }
+.pg-rail-item {
+  display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: baseline;
+  width: 100%; padding: 9px 11px; border: 0; border-radius: var(--r-input);
+  background: transparent; cursor: pointer; font-family: inherit; text-align: start;
+}
+.pg-rail-item:hover { background: var(--surface-2); }
+.pg-rail-item.is-active { background: var(--surface-2-active); }
+.pg-rail-name { font-size: var(--fs-13); font-weight: 400; color: var(--ink-2); }
+.pg-rail-item.is-active .pg-rail-name { font-weight: 600; color: var(--ink-1); }
+/* מצב הקבוצה: אפור כשהיא סגורה, ענברי כשחסר בה משהו */
+.pg-rail-state { font-size: var(--fs-12); color: var(--ink-4); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pg-rail-state.is-todo { color: var(--warn); }
+
+.pg-pane { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pg-pane-head { display: flex; flex-direction: column; gap: 5px; }
+.pg-pane-title { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.01em; color: var(--ink-1); }
+/* טקסט העזר נעצר ב-74ch — מעבר לזה העין מאבדת את תחילת השורה */
+.pg-pane-help { font-size: var(--fs-13); line-height: 1.7; color: var(--ink-3); max-width: 74ch; text-wrap: pretty; }
+.pg-pane-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding-top: 14px; border-top: 1px solid var(--hairline-2);
+}
+.pg-pane-meta { font-size: var(--fs-12); color: var(--ink-4); }
+
+/* רשת שדות: תווית מעל ערך, שתי עמודות. הערך יושב במשטח רך — כך רואים
+   מיד מה מולא ומה לא, בלי מסגרת סביב כל שדה. */
+.pg-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+@media (max-width: 640px) { .pg-fields { grid-template-columns: 1fr; } }
+.pg-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pg-field-label { display: flex; align-items: baseline; gap: 7px; }
+.pg-field-label > span:first-child { font-size: var(--fs-12); color: var(--ink-3); }
+.pg-field-req { font-size: var(--fs-12); color: var(--danger); }
+.pg-field-value {
+  padding: 8px 11px; border-radius: var(--r-input); background: var(--field-read);
+  font-size: var(--fs-14); color: var(--ink-1); min-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+/* שדה חובה שריק הוא הדבר היחיד במסך שנצבע — כי בלעדיו הדוח לא זז */
+.pg-field-value.is-missing { background: var(--field-missing-bg); color: var(--danger); }
+
+/* תוצאות חיפוש בתוך מסך — שורות שטוחות, בלי כותרות ובלי קיבוץ */
+.pg-results { display: flex; flex-direction: column; }
+.pg-results-count { font-size: var(--fs-13); color: var(--ink-3); padding-bottom: 6px; }
+.pg-result {
+  display: grid; grid-template-columns: minmax(0,1fr) 200px 108px; gap: 18px;
+  align-items: center; padding: 10px 2px; border-top: 1px solid var(--hairline-2);
+}
+.pg-result:hover { background: var(--surface-1); }
+.pg-result-label { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.pg-result-value { font-size: var(--fs-13); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-result-value.is-missing { color: var(--danger); }
+.pg-result-group { font-size: var(--fs-12); color: var(--ink-4); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
    פרימיטיבים משותפים · alert · card-header · stat-card
    שלושת אלה חוזרים בעשרות מסכים. הם נכתבו בשפה הישנה — קופסה צבועה,
    מסגרת ורדיוס — ולכן כל מסך שמשתמש בהם נראה ישן גם אחרי שנבנה מחדש.
@@ -944,6 +1045,14 @@ table thead th {
 
 .dossier-anchor { padding-bottom: .9rem; }
 .dossier-spouse-note { font-size: var(--fs-13); font-weight: 500; margin-top: .35rem; }
+
+/* קבוצת שדות בתוך הפאנל. אין מסגרת ואין פס צבע לרשות — שם הקבוצה
+   כתוב, והפאנל כבר מראה קבוצה אחת, אז אין ממה להפריד אותה. */
+.ds-group { display: flex; flex-direction: column; gap: 10px; }
+.ds-group + .ds-group { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--hairline-2); }
+.ds-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ds-group-title { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.01em; color: var(--ink-1); margin: 0; }
+.ds-group-count { font-size: var(--fs-13); color: var(--ink-4); font-variant-numeric: tabular-nums; }
 
 /* תת-קבוצה: כותרת זעירה וקו, לא משטח אפור בתוך משטח אפור */
 .app .cw-subsection {

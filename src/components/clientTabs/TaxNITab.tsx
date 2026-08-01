@@ -18,6 +18,7 @@ import {
   FieldMeta, FIELD_SOURCE_LABELS,
 } from '../../types/clientWorkspace';
 import { shortDate } from '../../utils/clientDerived';
+import { useSectionVisible } from './dossierSection';
 import TaxFilesSection from './TaxFilesSection';
 
 interface Props {
@@ -62,15 +63,17 @@ function MetaPill({ meta }: { meta?: FieldMeta }) {
   );
 }
 
-/** מקטע צבעוני: פס עליון + כותרת בצבע תואם — להבחנה ויזואלית בין רשויות */
+/** מקטע של רשות. שש רשויות בשישה גוונים אינן מידע — שם הרשות כתוב. */
 function ColoredSection({ color, icon, label, children }: { color: string; icon: string; label: string; children: React.ReactNode }) {
+  void color; void icon;
+  if (!useSectionVisible(label)) return null;
   return (
-    <div className="cw-section cw-colored-section" style={{ borderTopColor: color }}>
-      <div className="cw-section-head" style={{ color }}>
-        <span>{icon} {label}</span>
-      </div>
+    <section className="ds-group">
+      <header className="ds-group-head">
+        <h3 className="ds-group-title">{label}</h3>
+      </header>
       {children}
-    </div>
+    </section>
   );
 }
 

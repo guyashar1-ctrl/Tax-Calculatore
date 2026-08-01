@@ -393,14 +393,14 @@ export default function RepresentationRequestReview({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '.75rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: 4 }}>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--gray-900)' }}>
+            <h1 style={{ fontSize: 'var(--fs-24)', fontWeight: 600, color: 'var(--ink-1)' }}>
               בקשת ייצוג
             </h1>
             <span className={`badge ${REPRESENTATION_STATUS_BADGE[request.status]}`}>
               {REPRESENTATION_STATUS_LABELS[request.status]}
             </span>
           </div>
-          <p style={{ fontSize: '.875rem', color: 'var(--gray-500)' }}>
+          <p style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-3)' }}>
             {request.clientName || request.clientEmail} · נוצרה {new Date(request.createdAt).toLocaleDateString('he-IL')}
           </p>
         </div>
@@ -464,24 +464,24 @@ export default function RepresentationRequestReview({
         <div className="card-body">
           <div className="form-grid form-grid-2">
             <div>
-              <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>שם לקוח</div>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>שם לקוח</div>
               <div style={{ fontWeight: 500 }}>{request.clientName || '—'}</div>
             </div>
             <div>
-              <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>מייל</div>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>מייל</div>
               <div style={{ fontWeight: 500 }} dir="ltr">{request.clientEmail}</div>
             </div>
             <div>
-              <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>סוג ייפוי כוח</div>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>סוג ייפוי כוח</div>
               <div style={{ fontWeight: 500 }}>ייפוי כוח ראשי (השעמ)</div>
             </div>
             <div>
-              <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>רשויות</div>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>רשויות</div>
               <div style={{ fontWeight: 500 }}>{authorityList}</div>
             </div>
             {request.notes && (
               <div className="span-2">
-                <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>הערות שנשלחו ללקוח</div>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>הערות שנשלחו ללקוח</div>
                 <div style={{ fontWeight: 500, whiteSpace: 'pre-wrap' }}>{request.notes}</div>
               </div>
             )}
@@ -492,23 +492,23 @@ export default function RepresentationRequestReview({
       {/* ─── מסך החתמה של המייצג ──────────────────────────────────────── */}
       {signMode && (
         <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--green)' }}>
-          <div className="card-header" style={{ background: 'var(--green-light)' }}>
+          <div className="card-header" style={{ background: 'transparent' }}>
             <div className="card-title">חתימת המייצג + מילוי חלק ב' של הטופס</div>
           </div>
           <div className="card-body">
             {signErrors.length > 0 && (
-              <div style={{ marginBottom: '1rem', padding: '.75rem', background: 'var(--red-light)', borderRadius: 'var(--radius)', color: 'var(--red)' }}>
+              <div style={{ marginBottom: '1rem', padding: '.75rem', background: 'transparent', borderRadius: 'var(--radius)', color: 'var(--danger)' }}>
                 {signErrors.map((e, i) => <div key={i}>• {e}</div>)}
               </div>
             )}
 
             <div className="form-grid form-grid-2">
               <div className="form-group">
-                <label>שם המשרד המייצג <span style={{ color: 'var(--red)' }}>*</span></label>
+                <label>שם המשרד המייצג <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <input value={partB.firmName} onChange={e => setPartB(p => ({ ...p, firmName: e.target.value }))} />
               </div>
               <div className="form-group">
-                <label>מספר מייצג <span style={{ color: 'var(--red)' }}>*</span></label>
+                <label>מספר מייצג <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <input value={partB.representativeNumber} onChange={e => setPartB(p => ({ ...p, representativeNumber: e.target.value }))} dir="ltr" />
               </div>
               <div className="form-group">
@@ -543,7 +543,7 @@ export default function RepresentationRequestReview({
             </div>
 
             <div className="form-group" style={{ marginTop: '1rem' }}>
-              <label style={{ marginBottom: '.5rem' }}>חתימה וחותמת המייצג <span style={{ color: 'var(--red)' }}>*</span></label>
+              <label style={{ marginBottom: '.5rem' }}>חתימה וחותמת המייצג <span style={{ color: 'var(--danger)' }}>*</span></label>
               <SignaturePad value={partB.signatureDataUrl} onChange={s => setPartB(p => ({ ...p, signatureDataUrl: s }))} />
             </div>
 
@@ -562,7 +562,7 @@ export default function RepresentationRequestReview({
       {/* ─── PDF סופי שנוצר ──────────────────────────────────────────── */}
       {request.signedPdfStoredId && generatedPdfUrl && !signMode && (
         <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--green)' }}>
-          <div className="card-header" style={{ background: 'var(--green-light)' }}>
+          <div className="card-header" style={{ background: 'transparent' }}>
             <div className="card-title">ייפוי כוח חתום (טופס 2279א'5)</div>
           </div>
           <div className="card-body">
@@ -578,7 +578,7 @@ export default function RepresentationRequestReview({
             <iframe
               src={generatedPdfUrl}
               title="ייפוי כוח חתום"
-              style={{ width: '100%', height: '600px', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)' }}
+              style={{ width: '100%', height: '600px', border: '1px solid var(--hairline-1)', borderRadius: 'var(--radius)' }}
             />
           </div>
         </div>
@@ -599,18 +599,17 @@ export default function RepresentationRequestReview({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '.6rem',
-                    padding: '.5rem .75rem',
-                    border: '1px solid var(--gray-200)',
-                    borderRadius: 'var(--radius)',
+                    padding: '.5rem 0',
+                    borderTop: '1px solid var(--hairline-2)',
                   }}
                 >
                   <span>{uploaded ? '✅' : doc.required ? '❌' : '⚪'}</span>
-                  <div style={{ flex: 1, fontSize: '.875rem' }}>
+                  <div style={{ flex: 1, fontSize: 'var(--fs-14)' }}>
                     {doc.label}
-                    {doc.required && <span className="badge badge-red" style={{ marginRight: 6, fontSize: '.65rem' }}>חובה</span>}
+                    {doc.required && <span className="badge badge-red" style={{ marginRight: 6, fontSize: 'var(--fs-12)' }}>חובה</span>}
                   </div>
                   {uploaded && (
-                    <span style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>{uploaded.fileName}</span>
+                    <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{uploaded.fileName}</span>
                   )}
                 </div>
               );
@@ -642,10 +641,10 @@ export default function RepresentationRequestReview({
             />
 
             {request.status === 'pending_signature' && setup && (
-              <div className="card" style={{ background: 'var(--orange-light)', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
+              <div className="card" style={{ background: 'transparent', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
                 <div className="card-body">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
-                    <span style={{ fontSize: '1.5rem' }}>✍️</span>
+                    <span style={{ fontSize: 'var(--fs-24)' }}>✍️</span>
                     <strong style={{ color: 'var(--orange)' }}>נשלח לחתימה — קישור אישי לכל חותם</strong>
                   </div>
                   {getRequestSigners(request).map(s => {
@@ -653,7 +652,7 @@ export default function RepresentationRequestReview({
                     const link = s.signToken ? `${window.location.origin}/?sign=${s.signToken}` : '';
                     return (
                       <div key={s.id} style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '.5rem' }}>
-                        <span style={{ minWidth: 150, fontSize: '.85rem', fontWeight: signed ? 600 : 400, color: signed ? 'var(--ok)' : 'var(--gray-700)' }}>
+                        <span style={{ minWidth: 150, fontSize: 'var(--fs-13)', fontWeight: signed ? 600 : 400, color: signed ? 'var(--ok)' : 'var(--ink-2)' }}>
                           {s.name} — {signed ? 'חתם/ה' : '⏳ ממתין/ה'}
                         </span>
                         {/* ‼ אין כאן כפתור שליחה. השליחה נעשית ממקום אחד בלבד —
@@ -661,7 +660,7 @@ export default function RepresentationRequestReview({
                             את הביטוח הלאומי. כפתורים נוספים כאן גרמו לשליחה כפולה. */}
                         {!signed && link && (
                           <>
-                            <input readOnly value={link} dir="ltr" style={{ flex: 1, minWidth: 160, fontSize: '.75rem' }} onFocus={e => e.currentTarget.select()} />
+                            <input readOnly value={link} dir="ltr" style={{ flex: 1, minWidth: 160, fontSize: 'var(--fs-12)' }} onFocus={e => e.currentTarget.select()} />
                             <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(link).catch(() => {}); }}>העתק קישור אישי</button>
                           </>
                         )}
@@ -676,10 +675,10 @@ export default function RepresentationRequestReview({
               <div className="card" style={{ marginBottom: '1rem' }}>
                 <div className="card-header"><div className="card-title">חתימת הלקוח התקבלה</div></div>
                 <div className="card-body">
-                  <div style={{ border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', background: 'var(--card)', padding: '.5rem', display: 'inline-block' }}>
+                  <div style={{ border: '1px solid var(--hairline-1)', borderRadius: 'var(--radius)', background: 'var(--card)', padding: '.5rem', display: 'inline-block' }}>
                     <img src={request.identification.signatureDataUrl} alt="חתימת לקוח" style={{ maxHeight: 120, display: 'block' }} />
                   </div>
-                  <div style={{ fontSize: '.8rem', color: 'var(--gray-600)', marginTop: '.6rem' }}>
+                  <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: '.6rem' }}>
                     לחצו "חתום + הוסף חותמת" למעלה כדי לחתום, להטביע את חותמת המשרד, וליצור את ה-PDF הסופי.
                   </div>
                 </div>
@@ -687,24 +686,24 @@ export default function RepresentationRequestReview({
             )}
           </>
         ) : (
-          <div className="card" style={{ background: 'var(--orange-light)', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
+          <div className="card" style={{ background: 'transparent', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
             <div className="card-body">
               <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
-                <span style={{ fontSize: '1.5rem' }}>⏳</span>
+                <span style={{ fontSize: 'var(--fs-24)' }}>⏳</span>
                 <strong style={{ color: 'var(--orange)' }}>ממתין למילוי הלקוח</strong>
               </div>
-              <div style={{ fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.6rem' }}>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginBottom: '.6rem' }}>
                 שלחו ללקוח את קישור ההזדהות. כשימלא — הפרטים יופיעו כאן.
               </div>
               <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-                <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, minWidth: 180, fontSize: '.8rem' }} onFocus={e => e.currentTarget.select()} />
+                <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, minWidth: 180, fontSize: 'var(--fs-13)' }} onFocus={e => e.currentTarget.select()} />
                 <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(onboardingLink).catch(() => {}); }}>העתק קישור</button>
                 <button className="btn btn-primary btn-sm" onClick={() => resendEmail('onboard')} disabled={sendingEmail}>
                   {sendingEmail ? 'שולח…' : 'שלח מייל שוב'}
                 </button>
               </div>
               {emailStatus && (
-                <div style={{ marginTop: '.5rem', fontSize: '.8rem', color: emailStatus.startsWith('✓') ? 'var(--green-dark, var(--ok))' : 'var(--red)' }}>{emailStatus}</div>
+                <div style={{ marginTop: '.5rem', fontSize: 'var(--fs-13)', color: emailStatus.startsWith('✓') ? 'var(--success-text)' : 'var(--danger)' }}>{emailStatus}</div>
               )}
             </div>
           </div>
@@ -728,7 +727,7 @@ export default function RepresentationRequestReview({
                 <Field label="אישור SMS / מייל" value={submission.allowSmsEmail ? 'אושר' : 'לא אושר'} />
                 {submission.notes && (
                   <div className="span-2">
-                    <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>הערות הלקוח</div>
+                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>הערות הלקוח</div>
                     <div style={{ whiteSpace: 'pre-wrap' }}>{submission.notes}</div>
                   </div>
                 )}
@@ -741,7 +740,7 @@ export default function RepresentationRequestReview({
             <div className="card-header"><div className="card-title">קבצים שהועלו ({docs.length})</div></div>
             <div className="card-body">
               {docs.length === 0 ? (
-                <div style={{ color: 'var(--gray-500)', fontSize: '.875rem' }}>אין קבצים</div>
+                <div style={{ color: 'var(--ink-3)', fontSize: 'var(--fs-14)' }}>אין קבצים</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
                   {docs.map(doc => (
@@ -751,15 +750,14 @@ export default function RepresentationRequestReview({
                         display: 'flex',
                         alignItems: 'center',
                         gap: '.75rem',
-                        padding: '.6rem .8rem',
-                        border: '1px solid var(--gray-200)',
-                        borderRadius: 'var(--radius)',
+                        padding: '.6rem 0',
+                        borderTop: '1px solid var(--hairline-2)',
                       }}
                     >
-                      <span style={{ fontSize: '1.1rem' }}>📄</span>
+                      <span style={{ fontSize: 'var(--fs-17)' }}>📄</span>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '.875rem', fontWeight: 500 }}>{doc.description}</div>
-                        <div style={{ fontSize: '.7rem', color: 'var(--gray-500)' }}>
+                        <div style={{ fontSize: 'var(--fs-14)', fontWeight: 500 }}>{doc.description}</div>
+                        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
                           {doc.fileName} · {fmt(doc.fileSize)}
                         </div>
                       </div>
@@ -777,7 +775,7 @@ export default function RepresentationRequestReview({
               <div className="card-header"><div className="card-title">חתימת הלקוח</div></div>
               <div className="card-body">
                 <div style={{
-                  border: '1px solid var(--gray-200)',
+                  border: '1px solid var(--hairline-1)',
                   borderRadius: 'var(--radius)',
                   background: 'var(--card)',
                   padding: '.5rem',
@@ -789,7 +787,7 @@ export default function RepresentationRequestReview({
                     style={{ maxHeight: 150, display: 'block' }}
                   />
                 </div>
-                <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.5rem' }}>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.5rem' }}>
                   נחתם בתאריך: {new Date(submission.signedAt).toLocaleString('he-IL')}
                 </div>
               </div>
@@ -797,13 +795,13 @@ export default function RepresentationRequestReview({
           )}
         </>
       ) : (
-        <div className="card" style={{ background: 'var(--orange-light)', borderColor: 'var(--orange)' }}>
+        <div className="card" style={{ background: 'transparent', borderColor: 'var(--orange)' }}>
           <div className="card-body">
             <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
-              <span style={{ fontSize: '1.5rem' }}>⏳</span>
+              <span style={{ fontSize: 'var(--fs-24)' }}>⏳</span>
               <div>
                 <strong style={{ color: 'var(--orange)' }}>הלקוח עדיין לא מילא את הטופס</strong>
-                <div style={{ fontSize: '.85rem', color: 'var(--gray-700)', marginTop: 4 }}>
+                <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginTop: 4 }}>
                   במצב הדגמה — לחץ על "הדמיית מילוי" כדי לפתוח את הטופס מנקודת המבט של הלקוח.
                 </div>
               </div>
@@ -848,7 +846,7 @@ export default function RepresentationRequestReview({
             ) : preview.doc.fileType === 'application/pdf' ? (
               <iframe src={preview.url} style={{ width: '80vw', height: '75vh', border: 'none' }} title={preview.doc.fileName} />
             ) : (
-              <div style={{ padding: '2rem', color: 'var(--gray-600)' }}>לא ניתן להציג קובץ מסוג זה.</div>
+              <div style={{ padding: '2rem', color: 'var(--ink-3)' }}>לא ניתן להציג קובץ מסוג זה.</div>
             )}
           </div>
         </div>
@@ -883,7 +881,7 @@ export default function RepresentationRequestReview({
         />
       )}
       {stampError && (
-        <div style={{ position: 'fixed', bottom: 16, insetInlineStart: 16, background: 'var(--red-light)', color: 'var(--red)', padding: '.6rem .9rem', borderRadius: 8, zIndex: 1200, fontSize: '.85rem' }}>
+        <div style={{ position: 'fixed', bottom: 16, insetInlineStart: 16, background: 'transparent', color: 'var(--danger)', padding: '.6rem .9rem', borderRadius: 8, zIndex: 1200, fontSize: 'var(--fs-13)' }}>
           {stampError}
         </div>
       )}
@@ -894,7 +892,7 @@ export default function RepresentationRequestReview({
 function Field({ label, value, ltr }: { label: string; value: string; ltr?: boolean }) {
   return (
     <div>
-      <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>{label}</div>
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{label}</div>
       <div style={{ fontWeight: 500 }} dir={ltr ? 'ltr' : undefined}>{value || '—'}</div>
     </div>
   );

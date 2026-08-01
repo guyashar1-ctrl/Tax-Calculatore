@@ -214,17 +214,17 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           </div>
           <div className="modal-body">
             {result.emailSent && (
-              <div style={{ padding: '.7rem .9rem', background: 'var(--green-light)', borderRadius: 'var(--radius)', color: 'var(--green-dark, var(--ok))', fontSize: '.9rem', marginBottom: '1rem' }}>
+              <div style={{ padding: '.7rem .9rem', background: 'transparent', borderRadius: 'var(--radius)', color: 'var(--success-text)', fontSize: 'var(--fs-14)', marginBottom: '1rem' }}>
                 {'\u{1F4E7}'} הקישור גם נשלח במייל אל <span dir="ltr">{email.trim()}</span>.
               </div>
             )}
             {!result.emailSent && result.emailError && (
-              <div style={{ padding: '.7rem .9rem', background: 'var(--orange-light)', borderRadius: 'var(--radius)', color: 'var(--gray-800)', fontSize: '.85rem', marginBottom: '1rem', lineHeight: 1.6 }}>
+              <div style={{ padding: '.7rem .9rem', background: 'transparent', borderRadius: 'var(--radius)', color: 'var(--ink-1)', fontSize: 'var(--fs-13)', marginBottom: '1rem', lineHeight: 1.6 }}>
                 {'⚠'} המייל לא נשלח ({result.emailError}). אפשר לשלוח את הקישור בוואטסאפ.
               </div>
             )}
 
-            <p style={{ fontSize: '.88rem', color: 'var(--gray-700)', lineHeight: 1.6, marginTop: 0 }}>
+            <p style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 0 }}>
               שלחו את הקישור ללקוח. הוא ימלא שם, ת.ז., תאריך לידה, טלפון, מייל, כתובת ומצב משפחתי —
               והכל ייכנס אוטומטית לכרטיס שלו.
             </p>
@@ -263,10 +263,10 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
               readOnly
               value={result.link}
               dir="ltr"
-              style={{ width: '100%', textAlign: 'left', fontSize: '.78rem', fontFamily: 'var(--font-mono, monospace)' }}
+              style={{ width: '100%', textAlign: 'left', fontSize: 'var(--fs-13)', fontFamily: 'var(--font-mono, monospace)' }}
               onFocus={e => e.currentTarget.select()}
             />
-            <p style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginBottom: 0 }}>הקישור ייחודי ללקוח זה ומאובטח.</p>
+            <p style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: 0 }}>הקישור ייחודי ללקוח זה ומאובטח.</p>
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-primary" onClick={onCancel}>סיום</button>
@@ -287,8 +287,8 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
 
         <div className="modal-body">
           {/* רשויות — הבחירה היחידה שנדרשת */}
-          <label style={{ display: 'block', fontWeight: 600, fontSize: '.85rem', color: 'var(--gray-700)', marginBottom: '.5rem' }}>
-            אילו רשויות לייצג? <span style={{ color: 'var(--red)' }}>*</span>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginBottom: '.5rem' }}>
+            אילו רשויות לייצג? <span style={{ color: 'var(--danger)' }}>*</span>
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
             {REP_AUTHORITY_ORDER.map(a => {
@@ -302,8 +302,8 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                     alignItems: 'center',
                     gap: '.75rem',
                     padding: '.7rem .8rem',
-                    border: `1px solid ${st.selected ? 'var(--blue)' : 'var(--gray-200)'}`,
-                    background: st.selected ? 'var(--blue-light)' : 'var(--card)',
+                    border: `1px solid ${st.selected ? 'var(--accent)' : 'var(--hairline-1)'}`,
+                    background: 'transparent',
                     borderRadius: 'var(--radius)',
                     cursor: busy ? 'default' : 'pointer',
                   }}
@@ -315,7 +315,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                     onClick={(e) => e.stopPropagation()}
                     disabled={busy}
                   />
-                  <span style={{ flex: 1, fontSize: '.95rem', fontWeight: st.selected ? 600 : 400 }}>
+                  <span style={{ flex: 1, fontSize: 'var(--fs-15)', fontWeight: st.selected ? 600 : 400 }}>
                     {REP_AUTHORITY_LABELS[a]}
                   </span>
                   {hasLevel(a) ? (
@@ -330,7 +330,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                       <option value="secondary">{REP_LEVEL_LABELS.secondary}</option>
                     </select>
                   ) : (
-                    <span style={{ fontSize: '.78rem', color: 'var(--gray-500)' }}>{'ℹ'} ייצוג יחיד</span>
+                    <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>{'ℹ'} ייצוג יחיד</span>
                   )}
                 </div>
               );
@@ -338,7 +338,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           </div>
 
           {/* איך הקישור מגיע ללקוח — הבחירה קובעת אם המייל נדרש */}
-          <label style={{ display: 'block', fontWeight: 600, fontSize: '.85rem', color: 'var(--gray-700)', margin: '1.25rem 0 .5rem' }}>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', margin: '1.25rem 0 .5rem' }}>
             איך לשלוח ללקוח?
           </label>
           <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap' }}>
@@ -353,13 +353,13 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                   onClick={() => !busy && setSendBy(opt.key)}
                   style={{
                     flex: '1 1 200px', padding: '.7rem .8rem', cursor: busy ? 'default' : 'pointer',
-                    border: `1px solid ${sel ? 'var(--blue)' : 'var(--gray-200)'}`,
-                    background: sel ? 'var(--blue-light)' : 'var(--card)',
+                    border: `1px solid ${sel ? 'var(--accent)' : 'var(--hairline-1)'}`,
+                    background: 'transparent',
                     borderRadius: 'var(--radius)',
                   }}
                 >
-                  <div style={{ fontSize: '.92rem', fontWeight: sel ? 700 : 500 }}>{opt.icon} {opt.title}</div>
-                  <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: 2 }}>{opt.sub}</div>
+                  <div style={{ fontSize: 'var(--fs-14)', fontWeight: sel ? 600 : 400 }}>{opt.icon} {opt.title}</div>
+                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>{opt.sub}</div>
                 </div>
               );
             })}
@@ -376,14 +376,14 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                 dir="ltr"
                 disabled={busy}
                 autoFocus
-                style={emailConflict ? { borderColor: 'var(--red)' } : undefined}
+                style={emailConflict ? { borderColor: 'var(--danger)' } : undefined}
               />
               {emailConflict && (
-                <div style={{ marginTop: '.4rem', fontSize: '.8rem', color: 'var(--red)', lineHeight: 1.5 }}>
+                <div style={{ marginTop: '.4rem', fontSize: 'var(--fs-13)', color: 'var(--danger)', lineHeight: 1.5 }}>
                   {'⛔'} {emailConflict}
                 </div>
               )}
-              <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.35rem' }}>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: '.35rem' }}>
                 הקישור יוצג גם כאן בסוף, כדי שתוכל לשלוח אותו גם בוואטסאפ.
               </div>
             </div>
@@ -399,12 +399,12 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           >
             {showDetails ? '▾' : '▸'} פרטים שכבר ידועים לי (לא חובה)
           </button>
-          <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginTop: '.25rem', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: '.25rem', lineHeight: 1.5 }}>
             כל מה שלא תמלא כאן — הלקוח ימלא בעצמו בקישור.
           </div>
 
           {showDetails && (
-            <div style={{ marginTop: '.9rem', padding: '.85rem .9rem', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', background: 'var(--gray-50)' }}>
+            <div style={{ marginTop: '.9rem', padding: '.85rem .9rem', border: '1px solid var(--hairline-1)', borderRadius: 'var(--radius)', background: 'var(--surface-2)' }}>
               <div className="form-group">
                 <label>שם הלקוח</label>
                 <input
@@ -428,7 +428,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                     <option key={f} value={f}>{FAMILY_STATUS_LABELS[f]}</option>
                   ))}
                 </select>
-                <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: 4 }}>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 4 }}>
                   כפי שרשום בתעודת הזהות — הרשויות בודקות מול מרשם האוכלוסין.
                 </div>
               </div>
@@ -450,7 +450,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
               )}
 
               {married && (
-                <div style={{ marginTop: '.75rem', paddingTop: '.75rem', borderTop: '1px solid var(--gray-200)' }}>
+                <div style={{ marginTop: '.75rem', paddingTop: '.75rem', borderTop: '1px solid var(--hairline-1)' }}>
                   <div className="form-grid form-grid-2">
                     <div className="form-group">
                       <label>שם בן/בת הזוג</label>
@@ -470,7 +470,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                       />
                     </div>
                   </div>
-                  <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginBottom: '.5rem' }}>
+                  <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginBottom: '.5rem' }}>
                     נשוי/אה {'←'} שני בני הזוג חותמים על ייפוי הכוח. מה שלא תמלא — הלקוח ימלא בקישור.
                   </div>
 
@@ -479,17 +479,17 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                   {areas.nationalInsurance.selected && (
                     <div style={{
                       padding: '.6rem .7rem', marginBottom: '.5rem', borderRadius: 'var(--radius)',
-                      border: `1px solid ${niCoversSpouse ? 'var(--blue)' : 'var(--gray-200)'}`,
-                      background: niCoversSpouse ? 'var(--blue-light)' : 'var(--gray-50)',
+                      border: `1px solid ${niCoversSpouse ? 'var(--accent)' : 'var(--hairline-1)'}`,
+                      background: 'transparent',
                     }}>
                       <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', cursor: busy ? 'default' : 'pointer' }}>
                         <input type="checkbox" checked={niCoversSpouse} disabled={busy}
                           onChange={e => setNiCoversSpouse(e.target.checked)} style={{ marginTop: 3 }} />
                         <span>
-                          <span style={{ fontSize: '.88rem', fontWeight: 600 }}>
+                          <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>
                             {'🛡'} לקחת ייצוג בביטוח לאומי גם לבן/בת הזוג
                           </span>
-                          <span style={{ display: 'block', fontSize: '.76rem', color: 'var(--gray-600)', lineHeight: 1.6, marginTop: 2 }}>
+                          <span style={{ display: 'block', fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 2 }}>
                             בביטוח לאומי לכל אחד תיק נפרד: יוזנו שני ייפויי כוח, יתקבלו שתי אסמכתאות,
                             וכל אחד יאשר את שלו. במס הכנסה ובמע"מ אין צורך — שם ייצוג אחד מכסה את התא המשפחתי.
                           </span>
@@ -507,7 +507,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                             placeholder={`לדוגמה: ${CURRENT_YEAR - 40}`}
                             min={1900} max={CURRENT_YEAR} disabled={busy}
                           />
-                          <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: 3 }}>
+                          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 3 }}>
                             נדרשת בטופס ייפוי הכוח של הביטוח הלאומי.
                           </div>
                         </div>
@@ -517,7 +517,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
 
                   {spouseName.trim() && (
                     <>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: busy ? 'default' : 'pointer', fontSize: '.85rem', color: 'var(--gray-700)', margin: '.6rem 0' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: busy ? 'default' : 'pointer', fontSize: 'var(--fs-13)', color: 'var(--ink-2)', margin: '.6rem 0' }}>
                         <input type="checkbox" checked={sameSigningEmail} onChange={e => setSameSigningEmail(e.target.checked)} disabled={busy || !email.trim()} />
                         {'✉'} שלח את שתי בקשות החתימה לאותו מייל
                       </label>
@@ -538,10 +538,10 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           <div style={{
             marginTop: '1.25rem',
             padding: '.75rem .9rem',
-            background: 'var(--gray-50)',
+            background: 'var(--surface-2)',
             borderRadius: 'var(--radius)',
-            fontSize: '.83rem',
-            color: 'var(--gray-700)',
+            fontSize: 'var(--fs-13)',
+            color: 'var(--ink-2)',
           }}>
             <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>{'✨'} מה ייווצר</div>
             <div>{'✓'} קישור אישי {sendBy === 'email' ? '— וגם יישלח במייל אוטומטית' : 'לשליחה בוואטסאפ'}</div>
@@ -560,10 +560,10 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             <div style={{
               marginTop: '1rem',
               padding: '.65rem .85rem',
-              background: 'var(--red-light)',
-              color: 'var(--red)',
+              background: 'transparent',
+              color: 'var(--danger)',
               borderRadius: 'var(--radius)',
-              fontSize: '.875rem',
+              fontSize: 'var(--fs-14)',
             }}>
               {error}
             </div>

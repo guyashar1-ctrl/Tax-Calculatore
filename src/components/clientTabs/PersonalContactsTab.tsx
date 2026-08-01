@@ -10,6 +10,7 @@
 //   8. אנשי קשר — הנישום עצמו + אנשי קשר נוספים, עם סימון ראשי 🔑
 
 import React, { useState } from 'react';
+import { useSectionVisible } from './dossierSection';
 import {
   Client, Child, FamilyStatus, Gender, RentalTaxTrack,
   ResidentialProperty, PropertyType, PROPERTY_TYPE_LABELS,
@@ -55,19 +56,24 @@ function ColoredSection({ color, icon, label, count, action, children }: {
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  // color/icon נשארים בחתימה כי כל הקריאות מעבירות אותם; הפס הצבעוני
+  // והאייקון ירדו — שם הקבוצה כתוב, ופאנל אחד לא צריך צבע כדי להיבדל.
+  void color; void icon;
+  // כשהתיק במצב מאסטר-דיטייל, רק הקבוצה שנבחרה במסילה מצוירת
+  if (!useSectionVisible(label)) return null;
   return (
-    <div className="cw-section cw-colored-section" style={{ borderTopColor: color }}>
-      <div className="cw-section-head" style={{ color }}>
-        <span>{icon} {label}</span>
+    <section className="ds-group">
+      <header className="ds-group-head">
+        <h3 className="ds-group-title">{label}</h3>
         {(count !== undefined || action) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-            {count !== undefined && <span className="cw-section-count">{count}</span>}
+            {count !== undefined && <span className="ds-group-count">{count}</span>}
             {action}
           </div>
         )}
-      </div>
+      </header>
       {children}
-    </div>
+    </section>
   );
 }
 
