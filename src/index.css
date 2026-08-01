@@ -429,6 +429,11 @@ label {
 
 .required::after { content: ' *'; color: var(--red); }
 
+/* ‎input‎ בלי ‎type‎ הוא ‎text‎ מבחינת הדפדפן — אבל בורר תכונה
+   ‎[type="text"]‎ לא מתאים לו, כי התכונה פשוט אינה שם. עשרות שדות
+   בפרופיל המשרד נכתבו ‎<input value=… />‎ ולכן קיבלו את עיצוב ברירת
+   המחדל של הדפדפן: מסגרת ‎inset‎ אפורה ופינות חדות, באמצע מוצר מעוצב. */
+input:not([type]),
 input[type="text"],
 input[type="number"],
 input[type="date"],
