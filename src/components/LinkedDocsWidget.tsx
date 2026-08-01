@@ -213,7 +213,7 @@ export default function LinkedDocsWidget({
     return (
       <div className="cw-linked-docs-empty">
         <span style={{ color: 'var(--gray-400)', fontSize: '.75rem' }}>
-          📎 ניתן לצרף מסמכים אחרי שמירת הלקוח
+          ניתן לצרף מסמכים אחרי שמירת הלקוח
         </span>
       </div>
     );
@@ -257,7 +257,7 @@ export default function LinkedDocsWidget({
       {pending ? (
         <div className="cw-linked-upload-form">
           <div className="cw-linked-upload-head">
-            <span>📎 {pending.file.name}</span>
+            <span>{pending.file.name}</span>
             <span className="cw-linked-doc-size">{fmt(pending.file.size)}</span>
           </div>
           <div className="form-grid form-grid-3" style={{ gap: '.5rem' }}>
@@ -303,7 +303,7 @@ export default function LinkedDocsWidget({
 
           {errors.length > 0 && (
             <div className="cw-linked-upload-errors">
-              {errors.map((err, i) => <div key={i}>⚠ {err}</div>)}
+              {errors.map((err, i) => <div key={i}>{err}</div>)}
             </div>
           )}
 
@@ -312,21 +312,21 @@ export default function LinkedDocsWidget({
               בטל
             </button>
             <button type="button" className="btn btn-primary btn-sm" onClick={confirmUpload} disabled={loading}>
-              {loading ? '⏳ שומר...' : '💾 שמור מסמך'}
+              {loading ? '⏳ שומר...' : 'שמור מסמך'}
             </button>
           </div>
         </div>
       ) : pickerOpen ? (
         <div className="cw-linked-picker">
           <div className="cw-linked-picker-head">
-            <span>🔗 בחר מסמך מהתיק לקישור</span>
+            <span>בחר מסמך מהתיק לקישור</span>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPickerOpen(false)}>סגור</button>
           </div>
           <input
             type="text"
             value={pickerSearch}
             onChange={e => setPickerSearch(e.target.value)}
-            placeholder="🔍 חיפוש לפי שם, תיאור, קטגוריה..."
+            placeholder="חיפוש לפי שם, תיאור, קטגוריה..."
             className="cw-linked-picker-search"
             autoFocus
           />
@@ -363,7 +363,7 @@ export default function LinkedDocsWidget({
                         <span className="cw-linked-doc-cat">{DOC_CATEGORY_LABELS[d.category]}</span>
                         <span className="cw-linked-doc-year">{d.year === 'general' ? 'כללי' : d.year}</span>
                         {d.linkedTo && d.linkedTo !== linkKey && (
-                          <span className="cw-linked-picker-warn">⚠ מקושר כרגע למקום אחר</span>
+                          <span className="cw-linked-picker-warn">מקושר כרגע למקום אחר</span>
                         )}
                       </div>
                     </div>
@@ -385,10 +385,10 @@ export default function LinkedDocsWidget({
               style={{ display: 'none' }}
               disabled={loading}
             />
-            <span>📎 {docs.length === 0 ? 'צרף מסמך חדש' : 'צרף מסמך חדש'}</span>
+            <span>{docs.length === 0 ? 'צרף מסמך חדש' : 'צרף מסמך חדש'}</span>
           </label>
           <button type="button" className="cw-linked-docs-link-btn" onClick={openPicker} disabled={loading}>
-            🔗 קשר מסמך מהתיק
+            קשר מסמך מהתיק
           </button>
         </div>
       )}

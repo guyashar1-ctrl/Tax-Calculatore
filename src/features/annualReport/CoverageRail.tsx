@@ -51,16 +51,13 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
   const pct = (n: number) => `${Math.round((n / Math.max(1, meter.total)) * 100)}%`;
 
   return (
-    <div style={{
-      border: '1px solid var(--gray-200)', borderRadius: 12,
-      background: 'linear-gradient(180deg,#FBFBF8,#F4F5F2)', padding: '.75rem .8rem', fontSize: '.78rem',
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 800, marginBottom: '.5rem' }}>
-        <span>🌳 עץ הראיון</span>
+    <div className="cr-rail">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600, marginBottom: '.5rem' }}>
+        <span>עץ הראיון</span>
         <button
           type="button"
           className="btn btn-ghost btn-sm"
-          style={{ fontSize: '.7rem', padding: '.1rem .4rem' }}
+          style={{ fontSize: '12px', padding: '.1rem .4rem' }}
           onClick={() => setMapOpen(true)}
         >
           הרחב מפה ⤢
@@ -75,7 +72,7 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
         const isNow = states.includes('now');
         return (
           <div key={ch} style={{ marginBottom: '.45rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '.74rem', color: isNow ? 'var(--blue)' : 'var(--gray-600)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '12px', color: isNow ? 'var(--blue)' : 'var(--gray-600)' }}>
               <span>{CHAPTER_ICONS[ch]} {CHAPTER_LABELS[ch]}</span>
               <span>{isDone ? <span style={{ color: 'var(--green)' }}>✓</span> : isNow ? '●' : ''}</span>
             </div>
@@ -88,7 +85,7 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
                     title={n.question}
                     style={{
                       width: 9, height: 9, borderRadius: 3, display: 'inline-block',
-                      background: s === 'done' ? 'var(--green)' : s === 'now' ? 'var(--blue)' : s === 'cut' ? '#EDEBE4' : 'var(--card)',
+                      background: s === 'done' ? 'var(--green)' : s === 'now' ? 'var(--blue)' : s === 'cut' ? 'var(--surface-2)' : 'var(--card)',
                       border: s === 'todo' ? '1.5px solid var(--bd-strong)' : s === 'cut' ? '1px dashed var(--bd-strong)' : 'none',
                       outline: s === 'now' ? '2px solid var(--chip-blue-bg)' : 'none',
                     }}
@@ -101,7 +98,7 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
       })}
 
       <div style={{ marginTop: '.55rem', borderTop: '1px dashed var(--gray-200)', paddingTop: '.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }} className="num">
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }} className="num">
           <span>כיסוי 1301</span>
           <span>
             <span style={{ color: 'var(--green)' }}>{meter.active}🟢</span>
@@ -109,13 +106,13 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
             {' · '}<span style={{ color: 'var(--warn)' }}>{meter.pending}🟡</span>
           </span>
         </div>
-        <div style={{ height: 7, borderRadius: 99, background: '#E8E6DF', overflow: 'hidden', display: 'flex', margin: '.3rem 0' }}>
+        <div style={{ height: 7, borderRadius: 99, background: 'var(--surface-2)', overflow: 'hidden', display: 'flex', margin: '.3rem 0' }}>
           <i style={{ width: pct(meter.active), background: 'var(--green)' }} />
           <i style={{ width: pct(meter.pruned), background: 'var(--chip-red-bd)' }} />
           <i style={{ width: pct(meter.pending), background: 'var(--chip-amber-bd)' }} />
         </div>
-        <div style={{ fontSize: '.66rem', color: 'var(--gray-500)' }}>
-          🟡 = סעיפים שטרם הוכרעו. בסוף הראיון המונה חייב לרדת ל-0 (שער הכיסוי).
+        <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+          = סעיפים שטרם הוכרעו. בסוף הראיון המונה חייב לרדת ל-0 (שער הכיסוי).
         </div>
       </div>
 
@@ -127,10 +124,10 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setMapOpen(false); }}
         >
-          <div style={{ background: 'var(--gray-50)', maxWidth: 1320, margin: '0 auto', borderRadius: 14, padding: '1rem 0 2rem', position: 'relative' }}>
+          <div style={{ background: 'var(--surface-0)', maxWidth: 1320, margin: '0 auto', borderRadius: 14, padding: '1rem 0 2rem', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 1.5rem' }}>
-              <strong>🌳 מפת העץ המלאה — המסלול הנוכחי מודגש</strong>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setMapOpen(false)}>✕ סגור</button>
+              <strong>מפת העץ המלאה — המסלול הנוכחי מודגש</strong>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setMapOpen(false)}>סגור</button>
             </div>
             <TreeMapView
               clients={client ? [client] : []}

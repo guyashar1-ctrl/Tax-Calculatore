@@ -1,0 +1,284 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PIVO · ספריית הרכיבים המשותפים
+   אפיון §3. כל רכיב מוגדר כאן פעם אחת; מסך לא בונה גרסה מקומית משלו.
+   הקובץ נטען אחרי index.css ולכן גובר עליו בשוויון ספציפיות.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── כפתורים ─────────────────────────────────────────────────────────────── */
+.ui-btn {
+  font-family: inherit;
+  font-size: var(--fs-13);
+  font-weight: 500;
+  line-height: 1;
+  padding: 9px 16px;
+  border-radius: var(--r-input);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, color .15s;
+  white-space: nowrap;
+}
+.ui-btn-primary { background: var(--accent); color: var(--on-accent-text); }
+.ui-btn-primary:hover { background: var(--accent-hover); }
+.ui-btn-ghost { background: var(--surface-2); color: var(--ink-2); }
+.ui-btn-ghost:hover { background: var(--surface-2-active); color: var(--ink-1); }
+.ui-btn-danger { background: var(--danger); color: #fff; }
+.ui-btn-danger:hover { filter: brightness(.92); }
+.ui-btn:disabled { opacity: .5; cursor: default; }
+
+/* קישור-כפתור — מסלול משני שלא מתחרה על תשומת הלב */
+.ui-linkbtn {
+  background: none; border: none; padding: 2px 4px; cursor: pointer;
+  font-family: inherit; font-size: var(--fs-13); color: var(--ink-3);
+  text-decoration: none; border-radius: var(--r-chip);
+}
+.ui-linkbtn:hover { color: var(--accent); text-decoration: underline; }
+
+.ui-icon-btn {
+  background: none; border: none; cursor: pointer; color: var(--ink-3);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: var(--r-chip); flex: none;
+}
+.ui-icon-btn:hover { background: var(--surface-2); color: var(--ink-1); }
+.ui-icon-btn.is-danger:hover { background: var(--danger-bg); color: var(--danger); }
+
+/* ── צ'יפ סינון · אפור · §3.4 ────────────────────────────────────────────── */
+.ui-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: var(--r-chip); border: none;
+  background: transparent; color: var(--ink-3);
+  font-family: inherit; font-size: var(--fs-13); font-weight: 400;
+  cursor: pointer; transition: background-color .12s, color .12s;
+  white-space: nowrap;
+}
+.ui-chip:hover { background: var(--surface-2); color: var(--ink-2); }
+.ui-chip.is-active { background: var(--surface-2-active); color: var(--ink-1); font-weight: 500; }
+.ui-chip-count { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.ui-chip.is-active .ui-chip-count { color: var(--ink-3); }
+.ui-chip-x { opacity: .55; }
+.ui-chip:hover .ui-chip-x { opacity: 1; }
+
+/* ── גלולת בחירה · שחור · §3.5 ───────────────────────────────────────────── */
+.ui-pills { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.ui-pill {
+  padding: 6px 14px; border-radius: var(--r-input); border: none;
+  background: var(--surface-2); color: var(--ink-2);
+  font-family: inherit; font-size: var(--fs-14); font-weight: 400;
+  cursor: pointer; transition: background-color .12s, color .12s;
+  white-space: nowrap;
+}
+.ui-pills-sm .ui-pill { padding: 4px 11px; font-size: var(--fs-13); }
+.ui-pill:hover { background: var(--surface-2-active); }
+.ui-pill.is-selected {
+  background: var(--ink-1); color: var(--surface-0); font-weight: 500;
+}
+
+/* ── חלון · §3.11 ────────────────────────────────────────────────────────── */
+.ui-modal-scrim {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: var(--sp-5);
+  background: rgba(20,20,22,.28);
+  backdrop-filter: blur(2.5px);
+  -webkit-backdrop-filter: blur(2.5px);
+  animation: ui-fade .12s ease-out;
+}
+@keyframes ui-fade { from { opacity: 0 } to { opacity: 1 } }
+
+.ui-modal {
+  width: 100%; max-height: calc(100vh - 2 * var(--sp-5));
+  display: flex; flex-direction: column;
+  background: var(--surface-0); border-radius: var(--r-modal);
+  box-shadow: var(--shadow-lg);
+  animation: ui-rise .14s ease-out;
+}
+@keyframes ui-rise { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+
+.ui-modal-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--hairline-1);
+}
+.ui-modal-title { flex: 1; font-size: var(--fs-17); font-weight: 600; color: var(--ink-1); margin: 0; letter-spacing: -.01em; }
+.ui-modal-body { padding: var(--sp-5); overflow-y: auto; flex: 1; }
+.ui-modal-foot {
+  display: flex; align-items: center; gap: var(--sp-2); justify-content: flex-end;
+  padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--hairline-1);
+}
+/* פעולה הרסנית בחלון עריכה יושבת בקצה הנגדי, רחוק מ"שמור" */
+.ui-modal-foot .ui-foot-start { margin-inline-end: auto; }
+
+.ui-confirm-text { font-size: var(--fs-14); color: var(--ink-2); line-height: 1.6; margin: 0; }
+
+/* ── הודעה חולפת · §3.17 ─────────────────────────────────────────────────── */
+.ui-toast {
+  position: fixed; inset-block-end: var(--sp-5); inset-inline-start: var(--sp-5); z-index: 1200;
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 10px var(--sp-4); border-radius: var(--r-input);
+  background: var(--ink-1); color: var(--surface-0);
+  font-size: var(--fs-13); box-shadow: var(--shadow-lg);
+  animation: ui-toast-in .16s ease-out;
+  max-width: min(420px, calc(100vw - 2 * var(--sp-5)));
+}
+@keyframes ui-toast-in { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+.ui-toast-action {
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  font-size: var(--fs-13); font-weight: 500; color: inherit;
+  text-decoration: underline; padding: 2px 4px; border-radius: 4px; flex: none;
+}
+
+/* ── מצב ריק · §3.13 ─────────────────────────────────────────────────────── */
+.ui-empty {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 64px var(--sp-5); gap: var(--sp-3);
+}
+.ui-empty-headline { font-size: var(--fs-17); font-weight: 600; color: var(--ink-1); margin: 0; }
+.ui-empty-sentence { font-size: var(--fs-14); color: var(--ink-2); margin: 0; max-width: 62ch; line-height: 1.6; }
+.ui-empty-steps {
+  list-style: none; margin: var(--sp-3) 0 0; padding: 0;
+  text-align: start; min-width: 300px; max-width: 420px; width: 100%;
+}
+.ui-empty-steps li {
+  display: flex; align-items: baseline; gap: var(--sp-3);
+  padding: 10px 0; border-block-start: 1px solid var(--hairline-2);
+  font-size: var(--fs-13); color: var(--ink-2);
+}
+.ui-empty-steps li:last-child { border-block-end: 1px solid var(--hairline-2); }
+.ui-empty-num {
+  font-family: 'Space Mono', ui-monospace, monospace;
+  font-size: var(--fs-12); color: var(--ink-4); flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.ui-empty-actions { display: flex; align-items: center; gap: var(--sp-4); margin-block-start: var(--sp-2); }
+
+.ui-calm-empty {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4) 0; font-size: var(--fs-13); color: var(--ink-3);
+}
+
+/* ── טעינה · §5.1 ────────────────────────────────────────────────────────── */
+.ui-skel-list { display: flex; flex-direction: column; }
+.ui-skel-row {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-3) 0; border-block-end: 1px solid var(--hairline-2);
+}
+.ui-skel-bar {
+  height: 10px; border-radius: 5px; background: var(--surface-2);
+  animation: ui-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ui-pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+
+/* ── שגיאה · §5.3 ────────────────────────────────────────────────────────── */
+.ui-error-banner {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  padding: var(--sp-4); border-radius: var(--r-panel);
+  background: var(--danger-bg); color: var(--danger);
+  font-size: var(--fs-14); margin: var(--sp-4) 0;
+}
+.ui-error-banner .ui-linkbtn { color: inherit; font-weight: 500; }
+
+/* ── כותרת קבוצה · §3.7 ──────────────────────────────────────────────────── */
+.ui-group-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding-block: var(--sp-4) var(--sp-2);
+}
+.ui-group-toggle {
+  display: flex; align-items: center; gap: var(--sp-2);
+  background: none; border: none; padding: 4px 6px; margin-inline-start: -6px;
+  cursor: pointer; font-family: inherit; border-radius: var(--r-chip); flex: 1;
+  text-align: start;
+}
+.ui-group-toggle:disabled { cursor: default; }
+.ui-group-arrow { display: inline-flex; color: var(--ink-4); transition: transform .15s; }
+.ui-group-arrow.is-collapsed { transform: rotate(-90deg); }
+.ui-group-title { font-size: var(--fs-13); font-weight: 600; color: var(--ink-1); }
+.ui-group-count { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.ui-group-hint { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: var(--sp-2); }
+.ui-group-end { display: flex; align-items: center; gap: var(--sp-2); }
+
+/* ── מקטעי התקדמות · §3.9 ────────────────────────────────────────────────── */
+.ui-progress { display: flex; gap: 2px; height: 5px; border-radius: 3px; overflow: hidden; }
+.ui-progress-seg { border-radius: 3px; background: var(--hairline-1); }
+.ui-progress-seg.is-complete { background: var(--success); }
+.ui-progress-seg.is-partial { background: var(--progress-partial); }
+
+/* ── מעטפת · אשכול הכלים בקצה הכותרת · §4.1 ──────────────────────────────── */
+.header-tool-link {
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  font-size: var(--fs-13); font-weight: 400; color: var(--ink-3);
+  padding: 6px 10px; border-radius: var(--r-chip); white-space: nowrap;
+}
+.header-tool-link:hover { color: var(--ink-1); background: var(--surface-2); }
+.header-tool-link.is-active { color: var(--ink-1); font-weight: 500; }
+
+/* הקו שמפריד בין הכלים לחשבון — הרמז היחיד שאלה שתי קטגוריות שונות */
+.header-divider {
+  width: 1px; height: 18px; background: var(--hairline-1);
+  margin-inline: var(--sp-2); flex: none;
+}
+
+/* מתג מצב כהה בתוך תפריט החשבון */
+.account-menu-toggle { display: flex; align-items: center; gap: var(--sp-2); }
+.account-menu-toggle > span:nth-of-type(1) { flex: 1; text-align: start; }
+.account-switch {
+  width: 28px; height: 16px; border-radius: 8px; background: var(--ink-quiet);
+  position: relative; flex: none; transition: background .15s;
+}
+.account-switch::after {
+  content: ''; position: absolute; top: 2px; inset-inline-start: 2px;
+  width: 12px; height: 12px; border-radius: 50%; background: var(--surface-0);
+  transition: transform .15s;
+}
+.account-switch.is-on { background: var(--accent); }
+.account-switch.is-on::after { transform: translateX(-12px); }
+
+/* ── בסיס טיפוגרפי · §2 ──────────────────────────────────────────────────────
+   ברירות המחדל של הדפדפן ל-strong/b ולכותרות נופלות מחוץ לסולם (16px, 700).
+   מיישרים אותן פעם אחת כאן, במקום לתקן כל מופע בנפרד. */
+strong, b { font-weight: 600; }
+h1, h2, h3, h4, h5, h6 { font-weight: 600; letter-spacing: -.01em; }
+h1 { font-size: var(--fs-24); }
+h2 { font-size: var(--fs-20); }
+h3 { font-size: var(--fs-17); }
+h4, h5, h6 { font-size: var(--fs-15); }
+
+/* ── כרטיס לקוח · מסגרת · §4.7 ───────────────────────────────────────────── */
+.cw-back { display: inline-flex; align-items: center; gap: 4px; }
+
+/* בקשת ייצוג בתהליך — שורה אחת שקטה מתחת לזיהוי הלקוח (§4.13) */
+.cw-rep-line {
+  margin-block-start: 4px;
+  font-size: var(--fs-12); color: var(--ink-3);
+}
+/* כשהכדור אצלי — אין מי שיזכיר לי, אז זה נצבע */
+.cw-rep-line.is-mine { color: var(--warn); font-weight: 500; }
+
+/* ── שדה חובה שריק · §4.4 / §2 ───────────────────────────────────────────── */
+input.field-missing, select.field-missing, textarea.field-missing {
+  background: var(--field-missing-bg);
+  border-color: var(--danger);
+}
+.field-error {
+  display: block; margin-block-start: 4px;
+  font-size: var(--fs-12); font-weight: 500; color: var(--danger);
+}
+
+/* שורת המטא בתחתית חלון המשימה — נוכחת אך לא מתחרה על תשומת הלב */
+.task-meta-line {
+  font-size: var(--fs-12); color: var(--ink-4);
+  margin-inline-end: var(--sp-3); font-variant-numeric: tabular-nums;
+}
+.task-delete-link:hover { color: var(--danger); }
+
+/* ── דגל חריגה ברשימת הלקוחות · §4.5 ─────────────────────────────────────── */
+.cl-flag {
+  font-size: var(--fs-12); font-weight: 500; color: var(--danger);
+  white-space: nowrap;
+}
+.cl-flag-warn { color: var(--warn); }
+.cl-primary-mark { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: 4px; }
+
+/* ── פעולות שמתגלות במעבר עכבר · §6.3 ────────────────────────────────────── */
+.ui-hover-actions { opacity: 0; transition: opacity .12s; }
+:hover > .ui-hover-actions,
+:focus-within > .ui-hover-actions { opacity: 1; }
+@media (hover: none) {
+  .ui-hover-actions { opacity: .6; }
+}

@@ -259,7 +259,7 @@ export default function OnboardingPage({ token }: Props) {
             <span style={{ fontSize: 12.5, color: ink }}>{info?.firmName}</span>
           </>
         )}
-        <span style={{ marginInlineStart: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#6B6B68' }}>🔒 מאובטח</span>
+        <span style={{ marginInlineStart: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#6B6B68' }}>מאובטח</span>
       </div>
     );
   }
@@ -286,7 +286,7 @@ export default function OnboardingPage({ token }: Props) {
           <Header />
           <div style={{ textAlign: 'center', padding: '4px 0 20px' }}>
             <div style={{ width: 46, height: 46, borderRadius: '50%', background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: '#fff', fontSize: 24 }}>✓</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#111', marginBottom: 6, letterSpacing: '-.02em' }}>
+            <div style={{ fontSize: 26, fontWeight: 600, color: '#111', marginBottom: 6, letterSpacing: '-.02em' }}>
               קיבלנו הכול{greetName ? `, ${greetName}` : ''}!
             </div>
             <div style={{ fontSize: 14, color: '#6B6B68', lineHeight: 1.6 }}>
@@ -297,7 +297,7 @@ export default function OnboardingPage({ token }: Props) {
           {/* ‼ הלקוח חייב לצאת מכאן ביודעו שנשארו לו פעולות. אם הוא מפספס את
               המייל הבא, הייצוג לא נכנס לתוקף — ולכן זה החלק הכי בולט במסך. */}
           <div style={{ background: accent, color: '#fff', borderRadius: '10px 10px 0 0', padding: '13px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>עוד לא סיימנו — יגיעו אליכם {niSteps} פעולות במייל</div>
+            <div style={{ fontSize: 17, fontWeight: 600 }}>עוד לא סיימנו — יגיעו אליכם {niSteps} פעולות במייל</div>
             <div style={{ fontSize: 13, fontWeight: 500, opacity: .92, marginTop: 3 }}>המייל יישלח בשעות הקרובות</div>
           </div>
           <div style={{ border: `2px solid ${accent}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '16px', marginBottom: 20 }}>
@@ -307,7 +307,7 @@ export default function OnboardingPage({ token }: Props) {
             {/* הצגת הכתובת נותנת ללקוח הזדמנות אחרונה לתפוס טעות הקלדה */}
             <div dir="ltr" style={{
               margin: '8px 0 16px', padding: '11px 12px', background: '#F7F6F3', borderRadius: 8,
-              fontSize: 15, fontWeight: 700, color: '#111', textAlign: 'center', wordBreak: 'break-all',
+              fontSize: 15, fontWeight: 600, color: '#111', textAlign: 'center', wordBreak: 'break-all',
             }}>
               {email.trim() || info?.knownEmail || '—'}
             </div>
@@ -320,7 +320,7 @@ export default function OnboardingPage({ token }: Props) {
             )}
 
             <div style={{ fontSize: 12.5, color: '#8A4B00', background: '#FFF4E0', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6, marginTop: 14, textAlign: 'center' }}>
-              ⚠ עד להשלמת {info?.niIncluded ? 'שתי הפעולות' : 'הפעולה'} — הייצוג אינו בתוקף מול הרשויות.
+              עד להשלמת {info?.niIncluded ? 'שתי הפעולות' : 'הפעולה'} — הייצוג אינו בתוקף מול הרשויות.
             </div>
           </div>
 
@@ -415,10 +415,10 @@ export default function OnboardingPage({ token }: Props) {
         <div style={{
           flex: '0 0 auto', width: 28, height: 28, borderRadius: '50%', background: tone,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontSize: 14, fontWeight: 700, marginTop: 1,
+          color: '#fff', fontSize: 14, fontWeight: 600, marginTop: 1,
         }}>{n}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#111', marginBottom: 2 }}>{title}</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#111', marginBottom: 2 }}>{title}</div>
           <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>{text}</div>
         </div>
       </div>
@@ -450,7 +450,7 @@ export default function OnboardingPage({ token }: Props) {
               <div style={{
                 flex: '0 0 auto', width: 19, height: 19, borderRadius: '50%', marginTop: 1,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10.5, fontWeight: 700,
+                fontSize: 10.5, fontWeight: 600,
                 background: done || now ? ink : '#E3E2DD',
                 color: done || now ? '#fff' : '#8A8A85',
               }}>

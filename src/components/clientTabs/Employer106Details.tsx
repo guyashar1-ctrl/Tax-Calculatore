@@ -99,11 +99,11 @@ export default function Employer106Details({
           userSelect: 'none',
         }}
       >
-        📄 {summary}
+        {summary}
       </summary>
 
       <div style={{ marginTop: 12 }}>
-        <div style={{ fontSize: '.85rem', color: 'var(--gray-600)', marginBottom: 8 }}>
+        <div style={{ fontSize: '14px', color: 'var(--gray-600)', marginBottom: 8 }}>
           סכומים שנתיים מטופס 106 של המעביד. הסכומים מסוכמים אוטומטית לדוח השנתי 1301.
         </div>
 
@@ -138,7 +138,7 @@ export default function Employer106Details({
 function FieldGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: '.8rem', fontWeight: 600, color: 'var(--gray-700)', marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)', marginBottom: 4 }}>{title}</div>
       <div className="form-grid form-grid-4">{children}</div>
     </div>
   );

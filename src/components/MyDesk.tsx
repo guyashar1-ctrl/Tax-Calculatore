@@ -47,7 +47,7 @@ export default function MyDesk({ tasks, clients, onSelectTask, onAddTask, onTogg
           <div style={{ display: 'flex', gap: '.5rem', marginTop: '1rem', justifyContent: 'center' }}>
             <button className="btn btn-primary" onClick={onAddTask}>+ משימה חדשה</button>
             {onLoadSampleTasks && (
-              <button className="btn btn-secondary" onClick={onLoadSampleTasks}>📥 טען דוגמאות</button>
+              <button className="btn btn-secondary" onClick={onLoadSampleTasks}>טען דוגמאות</button>
             )}
           </div>
         </div>

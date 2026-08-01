@@ -20,14 +20,14 @@ export interface DeltaCardDef {
 }
 
 const NEW_TILES = [
-  { value: 'salary', label: '💼 עבודה כשכיר/ה' },
-  { value: 'business', label: '🧾 עסק עצמאי' },
-  { value: 'rental', label: '🏠 נכס מושכר' },
-  { value: 'capital', label: '📈 שוק ההון' },
-  { value: 'pension_ni', label: '🌅 קצבאות / ביטוח לאומי' },
-  { value: 'foreign', label: '✈️ חו"ל' },
-  { value: 'companies', label: '🏢 חברות / משיכות' },
-  { value: 'other', label: '⭐ אחר (הגרלות, תמלוגים)' },
+  { value: 'salary', label: 'עבודה כשכיר/ה' },
+  { value: 'business', label: 'עסק עצמאי' },
+  { value: 'rental', label: 'נכס מושכר' },
+  { value: 'capital', label: 'שוק ההון' },
+  { value: 'pension_ni', label: 'קצבאות / ביטוח לאומי' },
+  { value: 'foreign', label: 'חו"ל' },
+  { value: 'companies', label: 'חברות / משיכות' },
+  { value: 'other', label: 'אחר (הגרלות, תמלוגים)' },
 ];
 
 const fmt = (n?: number) => (n && n > 0 ? `${n.toLocaleString('he-IL')} ₪` : '');
@@ -176,10 +176,10 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
   return (
     <div className="card">
       <div className="card-body" style={{ padding: '1.6rem' }}>
-        <div style={{ fontSize: '1.25rem', fontWeight: 800 }}>
-          היי {clientName} 👋 בואו נעדכן את {taxYear}
+        <div style={{ fontSize: '20px', fontWeight: 600 }}>
+          היי {clientName} בואו נעדכן את {taxYear}
         </div>
-        <div style={{ fontSize: '.88rem', color: 'var(--gray-600)', margin: '.2rem 0 1.1rem' }}>
+        <div style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '.2rem 0 1.1rem' }}>
           זה מה שידוע לנו מ-{priorYear}. סמנו "ללא שינוי" על מה שנשאר אותו דבר — נשאל רק על מה שהשתנה.
         </div>
 
@@ -190,14 +190,14 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
               key={c.key}
               style={{
                 display: 'flex', alignItems: 'center', gap: '.7rem', flexWrap: 'wrap',
-                border: '1.5px solid var(--gray-200)', borderRadius: 11,
-                padding: '.7rem .9rem', marginBottom: '.55rem', background: 'var(--card)',
+                border: '1px solid var(--hairline-2)', borderRadius: 'var(--r-panel)',
+                padding: '.7rem .9rem', marginBottom: '.55rem', background: 'transparent',
               }}
             >
-              <span style={{ fontSize: '1.25rem' }}>{c.icon}</span>
+              <span style={{ fontSize: '20px' }}>{c.icon}</span>
               <div style={{ flex: 1, minWidth: 180 }}>
-                <div style={{ fontWeight: 700, fontSize: '.92rem' }}>{c.title}</div>
-                <div style={{ fontSize: '.78rem', color: 'var(--gray-500)' }}>{c.summary}</div>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>{c.title}</div>
+                <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{c.summary}</div>
               </div>
               <div style={{ display: 'flex', gap: '.4rem' }}>
                 <button
@@ -207,10 +207,10 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
                   style={{
                     border: d === 'same' ? '1.5px solid var(--green)' : '1.5px solid var(--gray-200)',
                     background: d === 'same' ? 'var(--chip-green-bg)' : 'var(--card)',
-                    color: d === 'same' ? 'var(--green)' : 'var(--gray-600)', fontWeight: 700,
+                    color: d === 'same' ? 'var(--green)' : 'var(--gray-600)', fontWeight: 600,
                   }}
                 >
-                  ✓ ללא שינוי
+                  ללא שינוי
                 </button>
                 <button
                   type="button"
@@ -219,7 +219,7 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
                   style={{
                     border: d === 'changed' ? '1.5px solid var(--blue)' : '1.5px solid var(--gray-200)',
                     background: d === 'changed' ? 'var(--blue-light, var(--chip-blue-bg))' : 'var(--card)',
-                    color: d === 'changed' ? 'var(--blue)' : 'var(--gray-600)', fontWeight: 700,
+                    color: d === 'changed' ? 'var(--blue)' : 'var(--gray-600)', fontWeight: 600,
                   }}
                 >
                   השתנה
@@ -230,8 +230,8 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
         })}
 
         {availableNewTiles.length > 0 && (
-          <div style={{ border: '1.5px dashed var(--gray-300)', borderRadius: 11, padding: '.8rem .9rem', marginTop: '.8rem' }}>
-            <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: '.45rem' }}>➕ משהו חדש ב-{taxYear}?</div>
+          <div style={{ border: '1px dashed var(--hairline-1)', borderRadius: 'var(--r-panel)', padding: '.8rem .9rem', marginTop: '.8rem' }}>
+            <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '.45rem' }}>משהו חדש ב-{taxYear}?</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
               {availableNewTiles.map((t) => {
                 const on = newTiles.includes(t.value);
@@ -265,7 +265,7 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
           >
             {saving ? 'מעבד…' : 'המשך ←'}
           </button>
-          {!allDecided && <span style={{ fontSize: '.8rem', color: 'var(--gray-500)' }}>יש להכריע על כל הכרטיסים</span>}
+          {!allDecided && <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>יש להכריע על כל הכרטיסים</span>}
         </div>
       </div>
     </div>

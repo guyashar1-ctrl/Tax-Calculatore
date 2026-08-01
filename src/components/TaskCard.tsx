@@ -4,7 +4,7 @@ import {
   TASK_CATEGORY_LABELS,
   TASK_CATEGORY_BADGE,
   BALL_WITH_LABELS,
-  BALL_WITH_ICON,
+
 } from '../types';
 import { formatDueDate, formatCreatedAt, isOverdue } from '../utils/taskUtils';
 
@@ -121,7 +121,6 @@ export default function TaskCard({
 
       {showBallWith && (
         <span className={`ball-pill ball-pill-${task.ballWith}`}>
-          <span>{BALL_WITH_ICON[task.ballWith]}</span>
           <span>{BALL_WITH_LABELS[task.ballWith]}</span>
         </span>
       )}
@@ -129,7 +128,7 @@ export default function TaskCard({
       <div className="task-date-col">
         {task.dueDate ? (
           <span className={`date-pill ${overdue ? 'date-pill-overdue' : 'date-pill-due'}`}>
-            📅 {formatDueDate(task.dueDate)}
+            {formatDueDate(task.dueDate)}
           </span>
         ) : (
           <span className="date-pill date-pill-created">

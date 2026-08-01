@@ -163,24 +163,24 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
     <div className="modal-backdrop" style={{ alignItems: 'stretch' }}>
       <div className="modal sig-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 1060, width: '100%', display: 'flex', flexDirection: 'column', maxHeight: '96vh' }}>
         <div className="modal-header">
-          <h3>📄 הפקת טופס — סימון אזורי חתימה</h3>
+          <h3>הפקת טופס — סימון אזורי חתימה</h3>
           <button type="button" className="btn btn-ghost btn-icon" onClick={onCancel} disabled={busy}>✕</button>
         </div>
 
         {/* צ'קליסט שלמות — מה שחסר בולט בכתום */}
-        <div style={{ display: 'flex', gap: '.9rem', flexWrap: 'wrap', padding: '.55rem 1rem', borderBottom: '1px solid var(--gray-200)', background: 'var(--gray-50)', fontSize: '.78rem' }}>
+        <div style={{ display: 'flex', gap: '.9rem', flexWrap: 'wrap', padding: '.55rem 1rem', borderBottom: '1px solid var(--hairline-1)', background: 'var(--surface-2)', fontSize: 'var(--fs-13)' }}>
           {checklist.map(c => (
             <span
               key={c.label}
               style={{
-                color: c.done ? 'var(--green-dark, var(--ok))' : 'var(--warn)',
+                color: c.done ? 'var(--success-text)' : 'var(--warn)',
                 fontWeight: 600,
                 background: c.done ? 'transparent' : 'var(--chip-amber-bg)',
                 padding: c.done ? undefined : '2px 8px',
                 borderRadius: 8,
               }}
             >
-              {c.done ? '✓' : '⚠ חסר:'} {c.label}
+              {c.done ? '✓' : 'חסר:'} {c.label}
             </span>
           ))}
         </div>
@@ -207,7 +207,7 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
         </div>
 
         {error && (
-          <div style={{ padding: '.5rem 1rem', color: 'var(--red)', fontSize: '.85rem' }}>⚠ {error}</div>
+          <div style={{ padding: '.5rem 1rem', color: 'var(--danger)', fontSize: 'var(--fs-13)' }}>{error}</div>
         )}
 
         <div className="modal-footer">
@@ -217,8 +217,8 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
             {busy
               ? 'שולח…'
               : ready
-              ? '📨 המשך ושלח לחתימה'
-              : `⚠ חסר: ${checklist.filter(c => !c.done).map(c => c.label).join(' · ')}`}
+              ? 'המשך ושלח לחתימה'
+              : `חסר: ${checklist.filter(c => !c.done).map(c => c.label).join(' · ')}`}
           </button>
         </div>
       </div>
@@ -228,11 +228,11 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
         <div className="modal-backdrop" style={{ zIndex: 1100 }} onClick={e => { if (e.target === e.currentTarget) setLabelDraft(null); }}>
           <div className="modal" style={{ maxWidth: 440 }}>
             <div className="modal-header">
-              <h3>🅰 טקסט על הטופס</h3>
+              <h3>טקסט על הטופס</h3>
               <button type="button" className="btn btn-ghost btn-icon" onClick={() => setLabelDraft(null)}>✕</button>
             </div>
             <div className="modal-body">
-              <div style={{ fontSize: '.85rem', color: 'var(--gray-600)', marginBottom: '.6rem' }}>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginBottom: '.6rem' }}>
                 הטקסט ייכתב על הטופס במקום שלחצת, לפני השליחה לחתימה. אפשר לגרור ולשנות גודל אחר כך.
               </div>
               <input

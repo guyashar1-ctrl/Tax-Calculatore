@@ -142,12 +142,12 @@ export type DocSource =
   | 'self';            // רואה החשבון מכין (נספח א', 6111, הצהרת הון)
 
 export const DOC_SOURCE_LABELS: Record<DocSource, string> = {
-  client:           '📨 לבקש מהלקוח',
-  employer:         '🏢 לבקש מהמעביד/ים',
-  investment_house: '📈 לבקש מבית ההשקעות / בנק',
-  authority_ni:     '🏛 לקבל מביטוח לאומי',
-  authority_tax:    '🏛 לקבל מרשות המסים / שע"ם',
-  self:             '🧮 לבנות (רואה החשבון)',
+  client:           'לבקש מהלקוח',
+  employer:         'לבקש מהמעביד/ים',
+  investment_house: 'לבקש מבית ההשקעות / בנק',
+  authority_ni:     'לקבל מביטוח לאומי',
+  authority_tax:    'לקבל מרשות המסים / שע"ם',
+  self:             'לבנות (רואה החשבון)',
 };
 
 export interface RequiredDoc {
@@ -288,9 +288,9 @@ export function mapModelToForm1301(model: TaxpayerModel): MappedField[] {
 
 /**
  * סטטוס של שדה ב-1301:
- * - 🟢 active: רלוונטי לפרופיל הלקוח. ייכנס לטופס.
- * - 🔴 pruned: נפסל אוטומטית ע"י תשובות השאלון (לא רלוונטי לפרופיל).
- * - 🟡 pending: השאלון עוד לא הגיע לשאלות שמכריעות לגבי השדה.
+ * - active: רלוונטי לפרופיל הלקוח. ייכנס לטופס.
+ * - pruned: נפסל אוטומטית ע"י תשובות השאלון (לא רלוונטי לפרופיל).
+ * - pending: השאלון עוד לא הגיע לשאלות שמכריעות לגבי השדה.
  */
 export type FieldStatus = 'active' | 'pruned' | 'pending';
 

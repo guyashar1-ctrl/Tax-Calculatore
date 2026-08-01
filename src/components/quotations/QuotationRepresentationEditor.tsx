@@ -177,7 +177,7 @@ export default function QuotationRepresentationEditor({
 
           {emailConflict && (
             <div style={{ padding: '.6rem .8rem', background: 'var(--red-light)', color: 'var(--red)', borderRadius: 8, fontSize: 12, lineHeight: 1.6, marginBottom: 10 }}>
-              ⛔ {emailConflict}
+              {emailConflict}
             </div>
           )}
 
@@ -347,20 +347,20 @@ export default function QuotationRepresentationEditor({
 
           {validation && (
             <div style={{ marginTop: 10, padding: '.55rem .8rem', background: 'var(--orange-light, #fff7ed)', color: 'var(--gray-800)', borderRadius: 8, fontSize: 11.5, lineHeight: 1.6 }}>
-              ⚠ {validation}
+              {validation}
             </div>
           )}
 
           {/* מה ייווצר — אותו סיכום של דיאלוג הייצוג, כדי שלא תהיה הפתעה */}
           <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 9, fontSize: 11.5, color: 'var(--gray-700)', lineHeight: 1.8 }}>
             <div style={{ fontWeight: 600, marginBottom: 2 }}>מה ייווצר עם האישור</div>
-            <div>✓ כרטיס לקוח — {recipientName || 'נמען ההצעה'}</div>
-            <div>✓ {selected.length > 0 ? `${selected.length} סטטוסי ייצוג "בתהליך": ${selected.map(a => REP_AUTHORITY_LABELS[a]).join(', ')}` : 'בחר רשויות'}</div>
-            <div>✓ בקשת ייצוג + קישור השלמת פרטים ללקוח</div>
-            <div>✓ משימה פנימית למעקב</div>
-            <div>✓ ההצעה החתומה נשמרת כהסכם התקשרות במסמכי הלקוח</div>
-            {value.spouse?.name && <div>✓ חותם שני — {value.spouse.name}</div>}
-            {forSpouse && <div>✓ ייצוג נפרד בב"ל לבן/בת הזוג — שתי אסמכתאות</div>}
+            <div>כרטיס לקוח — {recipientName || 'נמען ההצעה'}</div>
+            <div>{selected.length > 0 ? `${selected.length} סטטוסי ייצוג "בתהליך": ${selected.map(a => REP_AUTHORITY_LABELS[a]).join(', ')}` : 'בחר רשויות'}</div>
+            <div>בקשת ייצוג + קישור השלמת פרטים ללקוח</div>
+            <div>משימה פנימית למעקב</div>
+            <div>ההצעה החתומה נשמרת כהסכם התקשרות במסמכי הלקוח</div>
+            {value.spouse?.name && <div>חותם שני — {value.spouse.name}</div>}
+            {forSpouse && <div>ייצוג נפרד בב"ל לבן/בת הזוג — שתי אסמכתאות</div>}
           </div>
         </>
       )}

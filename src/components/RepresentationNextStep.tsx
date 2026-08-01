@@ -69,9 +69,9 @@ export default function RepresentationNextStep({ request, niIncluded, niCoversSp
   }
 
   const tone = {
-    me: { c: 'var(--blue)', label: 'הכדור אצלי' },
-    client: { c: 'var(--gray-500)', label: 'הכדור אצל הלקוח' },
-    authority: { c: 'var(--gray-500)', label: 'הכדור אצל הרשות' },
+    me: { c: 'var(--accent)', label: 'הכדור אצלי' },
+    client: { c: 'var(--ink-3)', label: 'הכדור אצל הלקוח' },
+    authority: { c: 'var(--ink-3)', label: 'הכדור אצל הרשות' },
     done: { c: 'var(--ok, #17845b)', label: 'הושלם' },
   }[ball];
 
@@ -80,14 +80,14 @@ export default function RepresentationNextStep({ request, niIncluded, niCoversSp
       display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap',
       padding: '.7rem .9rem', marginBottom: '1rem',
       borderInlineStart: `3px solid ${tone.c}`,
-      background: 'var(--gray-50)', borderRadius: 'var(--radius)',
+      background: 'var(--surface-2)', borderRadius: 'var(--radius)',
     }}>
       <span style={{
-        fontSize: '.7rem', fontWeight: 700, color: '#fff', background: tone.c,
+        fontSize: 'var(--fs-12)', fontWeight: 600, color: '#fff', background: tone.c,
         padding: '.1rem .5rem', borderRadius: 999, whiteSpace: 'nowrap',
       }}>{tone.label}</span>
-      <strong style={{ fontSize: '.95rem', color: 'var(--gray-900, #111)' }}>{title}</strong>
-      <span style={{ fontSize: '.82rem', color: 'var(--gray-600)' }}>{sub}</span>
+      <strong style={{ fontSize: 'var(--fs-15)', color: 'var(--gray-900, #111)' }}>{title}</strong>
+      <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>{sub}</span>
     </div>
   );
 }

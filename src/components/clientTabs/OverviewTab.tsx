@@ -78,7 +78,7 @@ export default function OverviewTab({
       {/* ── תמונת מס — מה שנאסף על הלקוח במבט אחד ── */}
       <div className="cw-section" style={{ borderTop: '3px solid var(--blue)' }}>
         <div className="cw-section-head">
-          <span>🧬 תמונת מס</span>
+          <span>תמונת מס</span>
           <button className="btn btn-ghost btn-sm" onClick={() => onGotoTab('taxProfile')}>לפרופיל המלא ←</button>
         </div>
         <TaxSnapshot
@@ -94,7 +94,7 @@ export default function OverviewTab({
       {/* ── הערה מוצמדת ── */}
       <div className="cw-section pin-section">
         <div className="cw-section-head">
-          <span>📌 הערה מוצמדת</span>
+          <span>הערה מוצמדת</span>
           {!editingNote && (
             <button className="btn btn-ghost btn-sm" onClick={() => { setNoteDraft(client.pinnedNote ?? ''); setEditingNote(true); }}>
               {client.pinnedNote ? 'עריכה' : 'הוסף'}
@@ -147,7 +147,7 @@ export default function OverviewTab({
       <div className="cw-grid-2">
         <div className="cw-section">
           <div className="cw-section-head">
-            <span>✅ משימות פתוחות</span>
+            <span>משימות פתוחות</span>
             <span className="cw-section-count">{openTasks.length}</span>
           </div>
           {openTasks.length === 0 ? (
@@ -173,7 +173,7 @@ export default function OverviewTab({
 
         <div className="cw-section">
           <div className="cw-section-head">
-            <span>📜 פעילות אחרונה</span>
+            <span>פעילות אחרונה</span>
           </div>
 
           {/* הוספת הערה מהירה — נכנסת לציר הפעילות */}
@@ -183,7 +183,7 @@ export default function OverviewTab({
               value={quickNote}
               onChange={e => setQuickNote(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') submitQuickNote(); }}
-              placeholder="📝 כתוב הערה ולחץ Enter..."
+              placeholder="כתוב הערה ולחץ Enter..."
               disabled={!client.id}
             />
             <button
@@ -216,7 +216,7 @@ export default function OverviewTab({
       {/* ── התראות מסכמות ── */}
       {alerts.length > 0 && (
         <div className="cw-section">
-          <div className="cw-section-head"><span>🚨 התראות</span></div>
+          <div className="cw-section-head"><span>התראות</span></div>
           <div className="cw-alert-grid">
             {alerts.map(a => (
               <div key={a.kind} className={`cw-alert-card cw-alert-${a.level}`}>

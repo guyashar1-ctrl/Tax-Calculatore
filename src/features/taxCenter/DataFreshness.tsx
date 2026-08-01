@@ -11,18 +11,14 @@ export function FreshnessBadge({ datasetId }: { datasetId: string }) {
   if (!ds) return null;
   const fresh = isVerifiedThisQuarter(ds);
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '.5rem' }}>
+    /* עדכניות היא מטא-דאטה, לא סטטוס: כשהנתון טרי הוא טקסט שקט.
+       הצבע נשמר למקרה היחיד שדורש פעולה — מאגר שפספס את הבדיקה הרבעונית. */
+    <div className="tc-fresh">
       <span
         title={`מקורות: ${ds.officialSources.join(' · ')}`}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: '.35rem',
-          padding: '.2rem .65rem', borderRadius: 999, fontSize: '.72rem', fontWeight: 600,
-          background: fresh ? 'var(--chip-green-bg)' : 'var(--chip-yellow-bg)',
-          color: fresh ? 'var(--chip-green-tx)' : 'var(--warn)',
-          border: `1px solid ${fresh ? 'var(--chip-green-bd)' : 'var(--chip-amber-bd)'}`,
-        }}
+        className={fresh ? 'tc-fresh-ok' : 'tc-fresh-stale'}
       >
-        {fresh ? '✓' : '⚠'} הנתונים אומתו {fmtMonth(ds.lastVerified)}
+        {fresh ? '' : '⚠ '}הנתונים אומתו {fmtMonth(ds.lastVerified)}
         {fresh ? ` · בדיקה הבאה ${fmtNextCheck()}` : ' · ממתין לבדיקה הרבעונית'}
       </span>
     </div>
@@ -36,40 +32,33 @@ export function FreshnessPanel({ onCreateCheckTask, checkTaskExists }: {
 }) {
   const allFresh = DATASETS.every(d => isVerifiedThisQuarter(d));
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '1rem 1.15rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.5rem', marginBottom: '.6rem' }}>
+    <div className="tc-fresh-panel">
+      <div className="tc-fresh-panel-head">
         <div>
-          <span style={{ fontWeight: 700 }}>🔄 עדכניות הנתונים</span>
-          <span style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginRight: '.5rem' }}>
+          <span className="tc-fresh-panel-title">עדכניות הנתונים</span>
+          <span className="tc-fresh-panel-sub">
             בדיקה רבעונית: ינואר · אפריל · יולי · אוקטובר
           </span>
         </div>
         <button
           onClick={onCreateCheckTask}
           disabled={checkTaskExists}
-          style={{
-            padding: '.35rem .8rem', borderRadius: 8, fontFamily: 'inherit', fontSize: '.8rem', fontWeight: 600,
-            border: '1px solid var(--gray-300)', cursor: checkTaskExists ? 'default' : 'pointer',
-            background: checkTaskExists ? 'var(--gray-100)' : 'var(--card)',
-            color: checkTaskExists ? 'var(--gray-400)' : 'var(--blue)',
-          }}
+          className="btn btn-secondary btn-sm"
         >
-          {checkTaskExists ? '✓ משימת הבדיקה הרבעונית קיימת' : '+ צור משימת בדיקה עכשיו'}
+          {checkTaskExists ? 'משימת הבדיקה הרבעונית קיימת' : '+ צור משימת בדיקה עכשיו'}
         </button>
       </div>
 
-      <table style={{ width: '100%', fontSize: '.82rem', borderCollapse: 'collapse' }}>
+      <table className="tc-fresh-table">
         <tbody>
           {DATASETS.map((ds: DatasetFreshness) => {
             const fresh = isVerifiedThisQuarter(ds);
             return (
-              <tr key={ds.id} style={{ borderBottom: '1px solid var(--gray-100)' }}>
-                <td style={{ padding: '.4rem .3rem', whiteSpace: 'nowrap' }}>{ds.icon} <b>{ds.label}</b></td>
-                <td style={{ padding: '.4rem .3rem', color: 'var(--gray-500)', fontSize: '.76rem' }}>{ds.covers}</td>
-                <td style={{ padding: '.4rem .3rem', whiteSpace: 'nowrap', textAlign: 'left' }}>
-                  <span style={{ color: fresh ? 'var(--chip-green-tx)' : 'var(--warn)', fontWeight: 600 }}>
-                    {fresh ? '✓' : '⚠'} {fmtMonth(ds.lastVerified)}
-                  </span>
+              <tr key={ds.id}>
+                <td className="tc-fresh-name">{ds.icon} {ds.label}</td>
+                <td className="tc-fresh-covers">{ds.covers}</td>
+                <td className={`tc-fresh-when ${fresh ? '' : 'is-stale'}`}>
+                  {fresh ? '' : '⚠ '}{fmtMonth(ds.lastVerified)}
                 </td>
               </tr>
             );
@@ -77,7 +66,7 @@ export function FreshnessPanel({ onCreateCheckTask, checkTaskExists }: {
         </tbody>
       </table>
 
-      <div style={{ fontSize: '.74rem', color: 'var(--gray-500)', marginTop: '.55rem', lineHeight: 1.55 }}>
+      <div className="tc-fresh-note">
         {allFresh
           ? `כל המאגרים אומתו ברבעון הנוכחי מול מקורות רשמיים. הבדיקה הבאה: ${fmtNextCheck()} — המערכת תיצור אז משימת בדיקה אוטומטית.`
           : 'יש מאגרים שממתינים לבדיקה הרבעונית — משימת הבדיקה ממתינה במשימות.'}

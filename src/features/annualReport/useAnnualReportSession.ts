@@ -83,7 +83,7 @@ export function useAnnualReportFlow(
     try {
       setHistory((prev) => [...prev, { questionId: qid, model: session.model }]);
       // "לא בטוח": ממשיכים כאילו "לא" (לא פותחים תת-ענף), אבל השאלה מסומנת
-      // לבירור רו"ח והסעיפים שלה נשארים 🟡 פתוחים בשער הכיסוי.
+      // לבירור רו"ח והסעיפים שלה נשארים פתוחים בשער הכיסוי.
       const isUnknown = answer === 'unknown';
       const effectiveAnswer: AnswerValue = isUnknown ? false : answer;
       let { model: newModel, nextQuestionId } = answerAndAdvance(session.model, qid, effectiveAnswer);

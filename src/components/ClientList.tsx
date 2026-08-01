@@ -19,6 +19,9 @@ import {
 } from '../types';
 import { ShaamStatus } from '../types/clientWorkspace';
 import RepSignersStatus from './RepSignersStatus';
+import Icon from './ui/Icon';
+import ConfirmDialog from './ui/ConfirmDialog';
+import { EmptyState } from './ui/States';
 import { useEmployees } from '../hooks/useEmployees';
 import {
   getClientOpenTasks,
@@ -132,6 +135,7 @@ export default function ClientList({
   onSelectRequest,
 }: Props) {
   const [search, setSearch] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<Client | null>(null);
   const [sortField, setSortField] = useState<SortField>('status');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
@@ -308,15 +312,18 @@ export default function ClientList({
   }
 
   return (
-    <div>
+    <div className="client-list-page">
+      {/* הכותרת "לקוחות" ירדה — הטאב הפעיל בסרגל כבר אומר אותה, והספירה
+          חוזרת בכותרת "לקוחות מיוצגים · N" שמתחת. מספר אחד במסך. */}
       <div className="cl-list-header">
-        <div>
-          <h1 className="cl-list-title">לקוחות</h1>
-          <p className="cl-list-sub">{activeList.length} מיוצגים · {pipelineList.length} בתהליך ייצוג</p>
-        </div>
+        <div />
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
-          <button className="btn btn-secondary" onClick={onAddRequest}>📨 בקשת ייצוג</button>
+          {/* טעינת דוגמאות היא כלי פיתוח ולא פעולה של רואה חשבון —
+              מוצגת רק כשאין לקוחות בכלל, וכקישור שקט */}
+          {clients.length === 0 && (
+            <button className="ui-linkbtn" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
+          )}
+          <button className="btn btn-secondary" onClick={onAddRequest}>בקשת ייצוג</button>
           <button className="btn btn-primary btn-lg" onClick={onAdd}>+ לקוח חדש</button>
         </div>
       </div>
@@ -324,7 +331,7 @@ export default function ClientList({
       {/* Search + advanced toggle */}
       <div className="cl-search-row">
         <div className="search-input-wrap" style={{ flex: 1 }}>
-          <span className="search-icon">🔍</span>
+          <span className="search-icon"><Icon name="search" size={14} /></span>
           <input
             type="text"
             placeholder="חיפוש לפי שם, ת.ז., עיר, טלפון, אימייל..."
@@ -336,7 +343,7 @@ export default function ClientList({
           className={`btn ${showAdvanced || activeAdvancedCount > 0 ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setShowAdvanced(s => !s)}
         >
-          🎯 פילטרים מתקדמים{activeAdvancedCount > 0 ? ` (${activeAdvancedCount})` : ''}
+          פילטרים מתקדמים{activeAdvancedCount > 0 ? ` (${activeAdvancedCount})` : ''}
         </button>
         {activeAdvancedCount > 0 && (
           <button className="btn btn-ghost btn-sm" onClick={clearAdvanced}>נקה</button>
@@ -405,33 +412,28 @@ export default function ClientList({
       )}
 
       {clients.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">👥</div>
-          <div className="empty-state-title">אין לקוחות עדיין</div>
-          <div className="empty-state-desc">הוסף לקוח חדש, צור בקשת ייצוג, או טען לקוחות לדוגמה</div>
-          <br />
-          <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button className="btn btn-secondary" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
-            <button className="btn btn-secondary" onClick={onAddRequest}>📨 בקשת ייצוג</button>
-            <button className="btn btn-primary" onClick={onAdd}>+ לקוח חדש</button>
-          </div>
-        </div>
+        <EmptyState
+          headline="עוד אין לקוחות"
+          sentence="לקוח חדש נפתח עם חמישה פרטים בלבד — את שאר התיק משלימים אחר כך."
+          action={{ label: '+ לקוח חדש', onClick: onAdd }}
+          quietLink={{ label: 'טען לקוחות לדוגמה', onClick: onLoadSamples }}
+        />
       ) : (
         <>
           {pipelineList.length > 0 && (
             <div className="card" style={{ padding: '1rem 1.1rem', marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
-                <span style={{ fontSize: '1.05rem', fontWeight: 500 }}>בתהליך ייצוג</span>
-                <span style={{ fontSize: '.8rem', color: 'var(--gray-500)' }}>· {pipelineList.length}</span>
+                <span style={{ fontSize: '17px', fontWeight: 500 }}>בתהליך ייצוג</span>
+                <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>· {pipelineList.length}</span>
               </div>
-              <div style={{ fontSize: '.78rem', color: 'var(--gray-500)', marginBottom: 12 }}>כל בקשה, השלב שבו היא, ואצל מי הכדור.</div>
+              <div style={{ fontSize: '13px', color: 'var(--gray-500)', marginBottom: 12 }}>כל בקשה, השלב שבו היא, ואצל מי הכדור.</div>
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 4 }}>
                 {PIPELINE_STAGES.map(s => {
                   const n = pipelineList.filter(c => getStatus(c) === s.id).length;
                   return (
                     <div key={s.id} style={{ flex: '0 0 auto', minWidth: 108, textAlign: 'center', background: 'var(--gray-50)', borderRadius: 10, padding: '8px 12px' }}>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 500 }}>{n}</div>
-                      <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>{s.label}</div>
+                      <div style={{ fontSize: '20px', fontWeight: 500 }}>{n}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{s.label}</div>
                     </div>
                   );
                 })}
@@ -449,9 +451,9 @@ export default function ClientList({
                   >
                     <div className="client-avatar-sm">{`${(c.firstName || '').charAt(0) || '?'}${(c.lastName || '').charAt(0) || ''}`}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '.9rem' }}>{fullName}</div>
-                      <div style={{ fontSize: '.72rem', color: 'var(--gray-500)' }}>
-                        {stage.label}{idSubmitted ? ' · ✓ פרטי זיהוי התקבלו' : ''}
+                      <div style={{ fontSize: '14px' }}>{fullName}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+                        {stage.label}{idSubmitted ? ' · פרטי זיהוי התקבלו' : ''}
                       </div>
                       {linkedReq && (
                         <div style={{ marginTop: 3 }}>
@@ -459,15 +461,15 @@ export default function ClientList({
                         </div>
                       )}
                     </div>
-                    <span className={`badge ${stage.ballClass}`} style={{ fontSize: '.65rem' }}>{stage.ball}</span>
+                    <span className={`badge ${stage.ballClass}`} style={{ fontSize: '12px' }}>{stage.ball}</span>
                     {/* השורה מובילה למסך הביצוע — אבל גם לקוח בתהליך צריך כרטיס
                         נגיש (מסמכים, ייפוי כוח, הסכם התקשרות), ולכן קישור נפרד. */}
                     <button
                       className="btn btn-ghost btn-sm"
                       title="כרטיס הלקוח והמסמכים שלו"
                       onClick={e => { e.stopPropagation(); onSelect(c.id); }}
-                    >📁 כרטיס</button>
-                    <span style={{ color: 'var(--gray-300)', fontSize: '1.1rem' }}>‹</span>
+                    >כרטיס</button>
+                    <span style={{ color: 'var(--gray-300)', fontSize: '17px' }}>‹</span>
                   </div>
                 );
               })}
@@ -475,13 +477,13 @@ export default function ClientList({
           )}
 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '0 0 .6rem' }}>
-            <span style={{ fontSize: '1.05rem', fontWeight: 500 }}>לקוחות מיוצגים</span>
-            <span style={{ fontSize: '.8rem', color: 'var(--gray-500)' }}>· {activeList.length}</span>
+            <span style={{ fontSize: '17px', fontWeight: 500 }}>לקוחות מיוצגים</span>
+            <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>· {activeList.length}</span>
           </div>
 
           {activeList.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">✓</div>
+              
               <div className="empty-state-title">אין עדיין לקוחות מיוצגים</div>
               <div className="empty-state-desc">בקשות בתהליך מופיעות למעלה. כשרשות מאשרת ייצוג — הלקוח עובר לכאן.</div>
             </div>
@@ -494,7 +496,7 @@ export default function ClientList({
                   <th className="th-sortable" onClick={() => toggleSort('name')}>
                     <span>שם</span> {sortIcon('name')}
                   </th>
-                  <th className="th-sortable" onClick={() => toggleSort('idNumber')}>
+                  <th className="th-sortable col-id" onClick={() => toggleSort('idNumber')}>
                     <span>ת.ז.</span> {sortIcon('idNumber')}
                   </th>
                   <th className="th-sortable hide-mobile" onClick={() => toggleSort('city')}>
@@ -503,19 +505,19 @@ export default function ClientList({
                   <th className="th-sortable hide-mobile" onClick={() => toggleSort('phone')}>
                     <span>טלפון</span> {sortIcon('phone')}
                   </th>
-                  <th className="th-sortable hide-mobile" onClick={() => toggleSort('email')}>
+                  <th className="th-sortable hide-mobile col-email" onClick={() => toggleSort('email')}>
                     <span>אימייל</span> {sortIcon('email')}
                   </th>
                   <th className="hide-mobile">
-                    <span>מס וייצוג</span>
+                    <span>מ״ה · ב״ל · מע״מ</span>
                   </th>
-                  <th className="th-sortable hide-mobile" onClick={() => toggleSort('assignee')}>
+                  <th className="th-sortable hide-mobile col-owner" onClick={() => toggleSort('assignee')}>
                     <span>מטפל</span> {sortIcon('assignee')}
                   </th>
                   <th className="th-sortable" onClick={() => toggleSort('tasks')} style={{ width: 80 }}>
                     <span>משימות</span> {sortIcon('tasks')}
                   </th>
-                  <th className="hide-mobile" style={{ width: 60 }}>שע״ם</th>
+                  <th className="hide-mobile col-shaam" style={{ width: 60 }}>שע״ם</th>
                   <th style={{ width: 60 }}></th>
                 </tr>
               </thead>
@@ -544,18 +546,18 @@ export default function ClientList({
                             <div className="client-table-name">{fullName}</div>
                             <div className="client-table-badges">
                               {overallRep === 'in_process' && (
-                                <span className="badge badge-orange" style={{ fontSize: '.65rem', padding: '.05rem .35rem' }}>טרם מיוצג</span>
+                                <span className="badge badge-orange" style={{ fontSize: '12px', padding: '.05rem .35rem' }}>טרם מיוצג</span>
                               )}
                               {overallRep === 'active' && (
-                                <span className="badge badge-green" style={{ fontSize: '.65rem', padding: '.05rem .35rem' }}>מיוצג</span>
+                                <span className="badge badge-green" style={{ fontSize: '12px', padding: '.05rem .35rem' }}>מיוצג</span>
                               )}
                               {overallRep === null && repBadgeForNonActive && (
-                                <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`} style={{ fontSize: '.65rem', padding: '.05rem .35rem' }}>
+                                <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`} style={{ fontSize: '12px', padding: '.05rem .35rem' }}>
                                   {REPRESENTATION_STATUS_LABELS[status]}
                                 </span>
                               )}
                               {idSubmitted && (
-                                <span className="badge badge-green cl-mini-badge" title="הלקוח השלים את פרטי ההזדהות">✓ פרטי זיהוי התקבלו</span>
+                                <span className="badge badge-green cl-mini-badge" title="הלקוח השלים את פרטי ההזדהות">פרטי זיהוי התקבלו</span>
                               )}
                               {client.qualifyingSettlementId && <span className="badge badge-purple cl-mini-badge">ישוב מזכה</span>}
                               {client.disabilityPercentage > 0 && <span className="badge badge-orange cl-mini-badge">נכות {client.disabilityPercentage}%</span>}
@@ -564,31 +566,35 @@ export default function ClientList({
                           </div>
                         </div>
                       </td>
-                      <td className="mono-text">{client.idNumber || '—'}</td>
+                      <td className="mono-text col-id">{client.idNumber || '—'}</td>
                       <td className="hide-mobile">{client.city || '—'}</td>
                       <td className="mono-text hide-mobile" dir="ltr" style={{ textAlign: 'right' }}>
                         {pc.phone ? (
                           <span title={primaryNote ? `איש קשר ראשי: ${primaryNote}` : ''}>
                             {pc.phone}
-                            {primaryNote && <span className="cl-primary-mark" title={`איש קשר ראשי: ${primaryNote}`}>🔑</span>}
+                            {primaryNote && <span className="cl-primary-mark">· {primaryNote}</span>}
                           </span>
                         ) : '—'}
                       </td>
-                      <td className="mono-text hide-mobile" dir="ltr" style={{ textAlign: 'right' }}>
+                      <td className="mono-text hide-mobile col-email" dir="ltr" style={{ textAlign: 'right' }}>
                         {pc.email ? (
                           <span title={primaryNote ? `איש קשר ראשי: ${primaryNote}` : ''}>{pc.email}</span>
                         ) : '—'}
                       </td>
                       <td className="hide-mobile">
+                        {/* התוויות "מ״ה: · ב״ל: · מע״מ:" חזרו בכל שורה — 21 פעמים
+                            על מסך של שבעה לקוחות. הן עברו לכותרת העמודה, וסדר
+                            הערכים הוא שנושא את המשמעות. */}
                         <div className="cl-tax-chips" style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '.6rem', color: 'var(--gray-400)' }}>סיווג</span>
-                          <span className={`badge ${IT_BADGE[client.incomeTaxType]} cl-mini-badge`}>מ״ה: {IT_LABELS[client.incomeTaxType]}</span>
-                          <span className={`badge ${NI_BADGE[client.niType]} cl-mini-badge`}>ב״ל: {NI_LABELS[client.niType]}</span>
-                          <span className={`badge ${VAT_BADGE[client.vatStatus]} cl-mini-badge`}>מע״מ: {VAT_LABELS[client.vatStatus]}</span>
+                          <span className={`badge ${IT_BADGE[client.incomeTaxType]} cl-mini-badge`}>{IT_LABELS[client.incomeTaxType]}</span>
+                          <span className="cl-tax-sep">·</span>
+                          <span className={`badge ${NI_BADGE[client.niType]} cl-mini-badge`}>{NI_LABELS[client.niType]}</span>
+                          <span className="cl-tax-sep">·</span>
+                          <span className={`badge ${VAT_BADGE[client.vatStatus]} cl-mini-badge`}>{VAT_LABELS[client.vatStatus]}</span>
                         </div>
                         {client.authorityRepresentations && Object.keys(client.authorityRepresentations).length > 0 && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
-                            <span style={{ fontSize: '.6rem', color: 'var(--gray-400)' }}>ייצוג</span>
+                            <span style={{ fontSize: '12px', color: 'var(--gray-400)' }}>ייצוג</span>
                             {REP_AUTHORITY_ORDER.map(a => {
                               const rep = client.authorityRepresentations?.[a];
                               const st: RepAreaStatus = rep?.status ?? 'none';
@@ -598,7 +604,7 @@ export default function ClientList({
                                 <span
                                   key={a}
                                   title={title}
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '.62rem', padding: '1px 6px', borderRadius: 20, background: c.bg, color: c.fg }}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '12px', padding: '1px 6px', borderRadius: 20, background: c.bg, color: c.fg }}
                                 >
                                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: st === 'none' ? 'transparent' : c.dot, border: st === 'none' ? '1.5px solid #B4B2A9' : 'none' }} />
                                   {REP_AUTHORITY_SHORT[a]}
@@ -608,37 +614,36 @@ export default function ClientList({
                           </div>
                         )}
                       </td>
-                      <td className="hide-mobile">
+                      <td className="hide-mobile col-owner">
                         {employee ? (
                           <div className="cl-emp-chip" title={employee.role}>
                             <span className="cl-emp-dot" style={{ background: employee.color }}>{employee.initials}</span>
-                            <span style={{ fontSize: '.75rem' }}>{employee.name}</span>
+                            <span style={{ fontSize: '12px' }}>{employee.name}</span>
                           </div>
                         ) : (
-                          <span style={{ color: 'var(--gray-400)', fontSize: '.75rem' }}>לא הוקצה</span>
+                          <span style={{ color: 'var(--gray-400)', fontSize: '12px' }}>לא הוקצה</span>
                         )}
                       </td>
                       <td>
                         {m && m.openTasksCount > 0 ? (
                           <div className="cl-metric-cell">
                             <span className={`cl-metric-num ${m.upcomingDebtsCount > 0 ? 'warn' : ''}`}>{m.openTasksCount}</span>
-                            {m.upcomingDebtsCount > 0 && <span className="cl-metric-tag">⏰ {m.upcomingDebtsCount}</span>}
+                            {m.upcomingDebtsCount > 0 && <span className="cl-metric-tag">{m.upcomingDebtsCount}</span>}
                           </div>
                         ) : <span className="cl-metric-zero">—</span>}
                       </td>
-                      <td className="hide-mobile" style={{ textAlign: 'center' }}>
-                        {client.shaamStatus === 'active' && <span title="שע״ם פעיל">🟢</span>}
-                        {client.shaamStatus === 'inactive' && <span title="שע״ם לא פעיל">🔴</span>}
-                        {client.shaamStatus === 'pending' && <span title="שע״ם בטיפול">🟠</span>}
-                        {(!client.shaamStatus || client.shaamStatus === 'unknown') && <span title="לא ידוע" style={{ color: 'var(--gray-300)' }}>○</span>}
+                      <td className="hide-mobile col-shaam" style={{ textAlign: 'center' }}>
+                        {/* רק חריגה מסומנת. "פעיל" הוא המצב הצפוי ולא צריך סימן (§4.5) */}
+                        {client.shaamStatus === 'inactive' && <span className="cl-flag">לא פעיל</span>}
+                        {client.shaamStatus === 'pending' && <span className="cl-flag cl-flag-warn">בטיפול</span>}
                       </td>
                       <td onClick={e => e.stopPropagation()}>
                         <button
-                          className="btn btn-ghost btn-icon"
-                          onClick={() => { if (confirm(`למחוק את ${fullName}?`)) onDelete(client.id); }}
+                          className="ui-icon-btn is-danger ui-hover-actions"
+                          onClick={() => setPendingDelete(client)}
                           title="מחיקה"
-                          style={{ color: 'var(--red)' }}
-                        >🗑</button>
+                          aria-label={`מחיקת ${fullName}`}
+                        ><Icon name="close" size={14} /></button>
                       </td>
                     </tr>
                   );
@@ -649,6 +654,19 @@ export default function ClientList({
           </div>
           )}
         </>
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="מחיקת לקוח"
+          message={
+            <>למחוק את ״{`${pendingDelete.firstName} ${pendingDelete.lastName}`.trim() || pendingDelete.idNumber}״?
+            {' '}התיק, המסמכים והמשימות שלו יימחקו איתו. הפעולה אינה הפיכה.</>
+          }
+          confirmLabel="מחיקה"
+          onConfirm={() => { onDelete(pendingDelete.id); setPendingDelete(null); }}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
     </div>
   );

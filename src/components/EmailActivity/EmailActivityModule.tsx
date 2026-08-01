@@ -20,7 +20,7 @@ function fmtTime(iso?: string): string {
 function StatusChip({ status }: { status: EmailStatus }) {
   const s = EMAIL_STATUS_STYLE[status];
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: s.bg, color: s.fg, fontSize: 11, padding: '2px 9px', borderRadius: 20 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: s.fg, fontSize: 'var(--fs-12)' }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot }} />
       {EMAIL_STATUS_LABEL[status]}
     </span>
@@ -80,18 +80,18 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
 
   const stat = (label: string, val: number, color?: string) => (
     <div style={{ background: 'var(--gray-50, #F1EFE8)', borderRadius: 8, padding: '10px 14px', minWidth: 84 }}>
-      <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 500, color: color || 'inherit' }}>{val}</div>
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>{label}</div>
+      <div style={{ fontSize: 'var(--fs-20)', fontWeight: 500, color: color || 'inherit' }}>{val}</div>
     </div>
   );
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-        <div style={{ fontSize: 14, fontWeight: 500 }}>פעילות מייל</div>
+        <div style={{ fontSize: 'var(--fs-14)', fontWeight: 500 }}>פעילות מייל</div>
         <button className="btn btn-ghost btn-sm" onClick={reload} disabled={loading}>{loading ? '…' : '↻ רענון'}</button>
       </div>
-      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 14 }}>
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
         כל מייל שנשלח מהמערכת. סטטוסי מסירה/פתיחה מתעדכנים בזמן אמת מ-Resend.
       </div>
 
@@ -100,7 +100,7 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
       {/* מיילים שנשלחו לפני שהמערכת התחילה לשמור עותק — ניתן למשוך אותם מ-Resend */}
       {missingHtml > 0 && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '.6rem .8rem', background: 'var(--gray-50, #F1EFE8)', borderRadius: 8, marginBottom: 12 }}>
-          <span style={{ fontSize: 12.5, color: 'var(--gray-700)', flex: 1, minWidth: 200 }}>
+          <span style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-700)', flex: 1, minWidth: 200 }}>
             ל-{missingHtml} מיילים ישנים אין עותק שמור. אפשר למשוך אותם מ-Resend.
           </span>
           <button className="btn btn-secondary btn-sm" onClick={handleBackfill} disabled={backfilling}>
@@ -124,15 +124,15 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
       </div>
 
       {rows.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--gray-500)', border: '1px dashed var(--gray-200)', borderRadius: 12, fontSize: '.9rem' }}>
+        <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--ink-4)', borderTop: '1px solid var(--hairline-2)', fontSize: 'var(--fs-13)' }}>
           {loading ? 'טוען…' : 'עדיין לא נשלחו מיילים.'}
         </div>
       ) : (
         <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-13)' }}>
               <thead>
-                <tr style={{ borderBottom: '0.5px solid var(--gray-200)', color: 'var(--gray-500)', fontSize: 11.5 }}>
+                <tr style={{ borderBottom: '1px solid var(--hairline-1)', color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
                   <th style={{ textAlign: 'right', padding: '9px 12px', fontWeight: 500 }}>נמען</th>
                   <th style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 500 }}>נושא</th>
                   <th style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 500 }}>סטטוס</th>
@@ -147,14 +147,14 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
                     <td style={{ padding: '10px 8px' }}>{m.subject || '—'}</td>
                     <td style={{ padding: '10px 8px' }}>
                       <StatusChip status={m.status} />
-                      {m.error && <div style={{ fontSize: 11, color: 'var(--err)', marginTop: 3 }}>{m.error}</div>}
+                      {m.error && <div style={{ fontSize: 'var(--fs-12)', color: 'var(--err)', marginTop: 3 }}>{m.error}</div>}
                     </td>
                     <td style={{ padding: '10px 8px', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{fmtTime(m.sentAt)}</td>
                     <td style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
                       {m.html ? (
-                        <button className="btn btn-secondary btn-sm" onClick={() => setViewing(m)}>👁 צפייה</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => setViewing(m)}>צפייה</button>
                       ) : (
-                        <span style={{ fontSize: 11, color: 'var(--gray-400)' }} title="נשלח לפני שהמערכת התחילה לשמור עותק">—</span>
+                        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }} title="נשלח לפני שהמערכת התחילה לשמור עותק">—</span>
                       )}
                     </td>
                   </tr>
@@ -165,7 +165,7 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
         </div>
       )}
 
-      <div style={{ marginTop: 10, fontSize: 11, color: 'var(--gray-400)' }}>
+      <div style={{ marginTop: 10, fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }}>
         ↩ עמודת "תשובות" תתווסף כשנחבר את Gmail (שלב עתידי).
       </div>
 

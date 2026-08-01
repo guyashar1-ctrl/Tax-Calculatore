@@ -1,6 +1,6 @@
 // ─── שער הכיסוי — "מאזן 1301" ────────────────────────────────────────────────
-// הרגע שבו יודעים שלא פספסנו: כל סעיף בטופס חייב להיות 🟢 (מכוסה) או
-// 🔴 (נבדק ולא רלוונטי). 🟡 (טרם הוכרע) חוסם את המעבר להכנת הדוח.
+// הרגע שבו יודעים שלא פספסנו: כל סעיף בטופס חייב להיות (מכוסה) או
+// (נבדק ולא רלוונטי). (טרם הוכרע) חוסם את המעבר להכנת הדוח.
 // כאן גם מתקבלות החלטות הרו"ח (מסלול שכירות, חישוב נפרד, פריסות...).
 
 import { useEffect, useMemo, useState } from 'react';
@@ -173,37 +173,33 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
     <div style={{ maxWidth: 980, margin: '1.5rem auto', padding: '0 1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '.5rem' }}>
         <h2 style={{ margin: 0 }}>
-          🚦 מאזן כיסוי 1301 — {clientName} · {session.taxYear}
+          מאזן כיסוי 1301 — {clientName} · {session.taxYear}
           {regFile && (
             <span
-              style={{
-                fontSize: '.72rem', fontWeight: 700, borderRadius: 99, padding: '.15rem .6rem', verticalAlign: 'middle',
-                background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : 'var(--gray-100)',
-                color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--gray-600)',
-                marginRight: '.6rem', whiteSpace: 'nowrap',
-              }}
+              className={`ar-pill ${regFile.owner === 'spouse' ? 'is-warn' : ''}`}
+              style={{ marginInlineEnd: '.6rem', verticalAlign: 'middle' }}
               title="על שם מי מתנהל תיק מס הכנסה — נקבע בכרטיס הלקוח"
             >
-              🗄️ התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
+              התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
             </span>
           )}
         </h2>
-        <span className="num" style={{ fontWeight: 700 }}>
-          <span style={{ color: 'var(--green)' }}>{totals.active} 🟢 מכוסים</span>
-          {' · '}<span style={{ color: 'var(--red)' }}>{totals.pruned} 🔴 לא רלוונטיים</span>
-          {' · '}<span style={{ color: 'var(--warn)' }}>{totals.pending} 🟡 טרם הוכרעו</span>
+        <span className="num" style={{ fontWeight: 600 }}>
+          <span style={{ color: 'var(--green)' }}>{totals.active} מכוסים</span>
+          {' · '}<span style={{ color: 'var(--red)' }}>{totals.pruned} לא רלוונטיים</span>
+          {' · '}<span style={{ color: 'var(--warn)' }}>{totals.pending} טרם הוכרעו</span>
         </span>
       </div>
-      <p style={{ color: 'var(--gray-600)', fontSize: '.9rem' }}>
+      <p style={{ color: 'var(--gray-600)', fontSize: '14px' }}>
         כל סעיף חייב להיות ירוק (רלוונטי ומכוסה) או אדום (נבדק ולא רלוונטי). צהוב = השאלון טרם הכריע לגביו.
       </p>
 
       {/* ─── החלטות רו"ח פתוחות ─── */}
       {pendingDecisions.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem', border: '1.5px solid var(--chip-amber-bd)' }}>
+        <div className="card" style={{ marginBottom: '1rem' }}>
           <div className="card-body">
             <h3 style={{ marginTop: 0 }}>🧑‍💼 החלטות מקצועיות פתוחות ({pendingDecisions.length})</h3>
-            <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', marginTop: 0 }}>
+            <p style={{ fontSize: '14px', color: 'var(--gray-600)', marginTop: 0 }}>
               אלה הכרעות שלך, לא של הלקוח — למשל בחירת מסלול שכירות אחרי הרצת מחשבון האופטימיזציה.
             </p>
             {pendingDecisions.map((n) => (
@@ -218,7 +214,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
                   />
                 ) : (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.6rem' }}>
-                    <span style={{ fontSize: '.9rem', fontWeight: 600 }}>{n.question}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>{n.question}</span>
                     <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpenDecision(n.id)}>
                       הכרע עכשיו
                     </button>
@@ -232,10 +228,10 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
 
       {/* ─── בירורים מול הלקוח ("לא בטוח") ─── */}
       {unknownNodes.length > 0 && (
-        <div className="card" style={{ marginBottom: '1rem', border: '1.5px solid var(--chip-blue-bd)' }}>
+        <div className="card" style={{ marginBottom: '1rem' }}>
           <div className="card-body">
-            <h3 style={{ marginTop: 0 }}>🤷 לוודא מול הלקוח ({unknownNodes.length})</h3>
-            <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', marginTop: 0 }}>
+            <h3 style={{ marginTop: 0 }}>לוודא מול הלקוח ({unknownNodes.length})</h3>
+            <p style={{ fontSize: '14px', color: 'var(--gray-600)', marginTop: 0 }}>
               הלקוח ענה "לא בטוח" — שיחה קצרה סוגרת את זה, והתשובה נקלטת כאן.
             </p>
             {unknownNodes.map((n) => (
@@ -250,7 +246,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
                   />
                 ) : (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.6rem' }}>
-                    <span style={{ fontSize: '.9rem', fontWeight: 600 }}>{n.question}</span>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>{n.question}</span>
                     <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpenDecision(n.id)}>
                       עדכן תשובה
                     </button>
@@ -267,28 +263,24 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
         <div className="card" style={{ marginBottom: '1rem' }}>
           <div className="card-body">
             <h3 style={{ marginTop: 0 }}>
-              📎 מעקב מסמכים ({requiredDocs.length - docsMissing}/{requiredDocs.length} טופלו)
+              מעקב מסמכים ({requiredDocs.length - docsMissing}/{requiredDocs.length} טופלו)
             </h3>
-            <p style={{ fontSize: '.82rem', color: 'var(--gray-600)', marginTop: 0 }}>
+            <p style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: 0 }}>
               לחיצה על הסטטוס מקדמת אותו: טרם טופל ← נשלחה בקשה ← התקבל ← לא רלוונטי.
             </p>
             {requiredDocs.map((d) => {
               const st = (docStatuses[d.code] ?? 'pending') as DocStatus;
               const meta = DOC_STATUS_META[st];
               return (
-                <div key={d.code} style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.4rem 0', borderTop: '1px solid var(--gray-100)', fontSize: '.86rem' }}>
+                <div key={d.code} style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.4rem 0', borderTop: '1px solid var(--gray-100)', fontSize: '13px' }}>
                   <span style={{ flex: 1 }}>
                     {d.name}
-                    <span style={{ display: 'block', fontSize: '.7rem', color: 'var(--gray-400)' }}>{DOC_SOURCE_LABELS[d.source]}</span>
+                    <span style={{ display: 'block', fontSize: '12px', color: 'var(--gray-400)' }}>{DOC_SOURCE_LABELS[d.source]}</span>
                   </span>
                   <button
                     type="button"
                     onClick={() => void cycleDocStatus(d.code)}
-                    style={{
-                      fontFamily: 'inherit', cursor: 'pointer', border: 'none',
-                      fontSize: '.74rem', fontWeight: 700, borderRadius: 99, padding: '.2rem .7rem',
-                      color: meta.color, background: meta.bg,
-                    }}
+                    className="cg-doc-status" style={{ color: meta.color }}
                   >
                     {meta.label}
                   </button>
@@ -308,10 +300,10 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
             const icon = pend.length > 0 ? '🟡' : act.length > 0 ? '🟢' : '🔴';
             return (
               <details key={section} open={pend.length > 0} style={{ borderBottom: '1px solid var(--gray-100)', padding: '.45rem 0' }}>
-                <summary style={{ cursor: 'pointer', fontWeight: 700, fontSize: '.92rem', display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: '14px', display: 'flex', gap: '.5rem', alignItems: 'center' }}>
                   <span>{icon}</span>
                   <span style={{ flex: 1 }}>{SECTION_LABELS[section]}</span>
-                  <span className="num" style={{ fontSize: '.78rem', color: 'var(--gray-500)' }}>
+                  <span className="num" style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
                     {act.length} פעילים · {pend.length} פתוחים · {fields.length - act.length - pend.length} לא רלוונטיים
                   </span>
                 </summary>
@@ -322,13 +314,13 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
                         .map((q) => getQuestionById(q)?.question ?? q)
                       : [];
                     return (
-                      <div key={f.field.fieldNumber} style={{ display: 'flex', gap: '.5rem', fontSize: '.82rem', padding: '.2rem 0', alignItems: 'baseline' }}>
+                      <div key={f.field.fieldNumber} style={{ display: 'flex', gap: '.5rem', fontSize: '13px', padding: '.2rem 0', alignItems: 'baseline' }}>
                         <span>{f.status === 'active' ? '🟢' : f.status === 'pruned' ? '🔴' : '🟡'}</span>
-                        <span className="num" style={{ fontWeight: 700, minWidth: 74 }}>{f.field.fieldNumber}</span>
+                        <span className="num" style={{ fontWeight: 600, minWidth: 74 }}>{f.field.fieldNumber}</span>
                         <span style={{ flex: 1 }}>
                           {f.field.hebrewLabel}
                           {missingQs.length > 0 && (
-                            <span style={{ display: 'block', fontSize: '.72rem', color: 'var(--warn)' }}>
+                            <span style={{ display: 'block', fontSize: '12px', color: 'var(--warn)' }}>
                               ממתין ל: {missingQs.slice(0, 2).join(' · ')}
                             </span>
                           )}
@@ -344,16 +336,11 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
       </div>
 
       {/* ─── פס הסיום ─── */}
-      <div style={{
-        marginTop: '1rem', padding: '.8rem 1.1rem', borderRadius: 10, display: 'flex',
-        justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.6rem',
-        background: blocked ? 'var(--chip-amber-bg)' : 'var(--chip-green-bg)',
-        border: blocked ? '1.5px solid var(--chip-amber-bd)' : '1.5px solid var(--chip-green-bd)',
-      }}>
-        <span style={{ fontWeight: 700, fontSize: '.9rem', color: blocked ? 'var(--warn)' : 'var(--green)' }}>
+      <div className={`cg-finish ${blocked ? 'is-blocked' : ''}`}>
+        <span style={{ fontWeight: 600, fontSize: '14px', color: blocked ? 'var(--warn)' : 'var(--green)' }}>
           {blocked
-            ? `⛔ המאזן לא סגור: ${totals.pending} סעיפים פתוחים · ${pendingDecisions.length} החלטות · ${unknownNodes.length} בירורים מול הלקוח.`
-            : '✓ המאזן סגור: כל סעיפי הטופס הוכרעו. אפשר לעבור להכנת הדוח.'}
+            ? `המאזן לא סגור: ${totals.pending} סעיפים פתוחים · ${pendingDecisions.length} החלטות · ${unknownNodes.length} בירורים מול הלקוח.`
+            : 'המאזן סגור: כל סעיפי הטופס הוכרעו. אפשר לעבור להכנת הדוח.'}
         </span>
         <div style={{ display: 'flex', gap: '.5rem' }}>
           {blocked && (
@@ -368,7 +355,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
             style={{ opacity: blocked ? 0.5 : 1 }}
             onClick={() => void markReady(false)}
           >
-            ✓ סמן כמוכן להכנה
+            סמן כמוכן להכנה
           </button>
         </div>
       </div>

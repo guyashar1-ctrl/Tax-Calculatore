@@ -117,12 +117,12 @@ export default function EmailPreviewDialog({ body, heading, onClose, onSent, rea
 
         {error && (
           <div style={{ padding: '.6rem .9rem', background: 'var(--red-light)', color: 'var(--red)', fontSize: '.85rem' }}>
-            ⚠ {error}
+            {error}
           </div>
         )}
         {sent && (
           <div style={{ padding: '.6rem .9rem', background: 'var(--green-light, #eaf6f1)', color: 'var(--ok, #17845b)', fontSize: '.85rem' }}>
-            ✓ המייל נשלח{loaded ? <> אל <span dir="ltr">{loaded.to}</span></> : ''}. הוא מופיע ברשימת המיילים של הלקוח.
+            המייל נשלח{loaded ? <> אל <span dir="ltr">{loaded.to}</span></> : ''}. הוא מופיע ברשימת המיילים של הלקוח.
           </div>
         )}
 
@@ -136,7 +136,7 @@ export default function EmailPreviewDialog({ body, heading, onClose, onSent, rea
           <button type="button" className="btn btn-ghost" onClick={onClose}>{sent || readOnly ? 'סגירה' : 'ביטול'}</button>
           {!sent && !readOnly && (
             <button type="button" className="btn btn-primary" disabled={!loaded || sending} onClick={send}>
-              {sending ? 'שולח…' : '📧 שלח ללקוח'}
+              {sending ? 'שולח…' : 'שלח ללקוח'}
             </button>
           )}
         </div>

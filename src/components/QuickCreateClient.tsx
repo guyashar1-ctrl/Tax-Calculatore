@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isValidIsraeliId } from '../utils/israeliId';
 
 export interface QuickClientBasics {
   firstName: string;
@@ -13,8 +14,12 @@ interface Props {
   onCancel: () => void;
 }
 
+/**
+ * ת.ז. נבדקת בספרת ביקורת ולא רק באורך (§4.6) — מספר בן 9 ספרות שאינו תקין
+ * מתגלגל אחר כך לטפסי הרשויות ולייפוי הכוח, ושם כבר יקר לתקן אותו.
+ */
 function isValidIdNumber(id: string): boolean {
-  return /^\d{9}$/.test(id.trim());
+  return isValidIsraeliId(id.trim());
 }
 
 function isValidEmail(email: string): boolean {
@@ -34,7 +39,8 @@ export default function QuickCreateClient({ onSave, onCancel }: Props) {
     if (!firstName.trim()) return 'יש להזין שם פרטי';
     if (!lastName.trim()) return 'יש להזין שם משפחה';
     if (!idNumber.trim()) return 'יש להזין תעודת זהות';
-    if (!isValidIdNumber(idNumber)) return 'תעודת זהות חייבת להכיל 9 ספרות';
+    if (!/^\d{9}$/.test(idNumber.trim())) return 'תעודת זהות חייבת להכיל 9 ספרות';
+    if (!isValidIdNumber(idNumber)) return 'תעודת הזהות אינה תקינה — כדאי לבדוק את הספרות';
     if (!phone.trim()) return 'יש להזין טלפון';
     if (!email.trim()) return 'יש להזין כתובת אימייל';
     if (!isValidEmail(email)) return 'כתובת אימייל לא תקינה';
@@ -85,7 +91,7 @@ export default function QuickCreateClient({ onSave, onCancel }: Props) {
         </div>
 
         <div className="modal-body">
-          <p style={{ color: 'var(--gray-600)', fontSize: '.9rem', marginBottom: '1rem' }}>
+          <p style={{ color: 'var(--gray-600)', fontSize: '14px', marginBottom: '1rem' }}>
             מלא את הפרטים הבסיסיים. אחרי השמירה תוכל להיכנס לכרטיס ולהשלים את שאר השדות.
           </p>
 
@@ -154,7 +160,7 @@ export default function QuickCreateClient({ onSave, onCancel }: Props) {
               background: 'var(--red-light)',
               color: 'var(--red)',
               borderRadius: 'var(--radius)',
-              fontSize: '.875rem',
+              fontSize: '14px',
             }}>
               {error}
             </div>
@@ -162,10 +168,12 @@ export default function QuickCreateClient({ onSave, onCancel }: Props) {
         </div>
 
         <div className="modal-footer">
-          <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={busy}>
+          <span className="task-meta-line">את שאר הפרטים משלימים בתיק הלקוח.</span>
+          <div style={{ flex: 1 }} />
+          <button type="button" className="ui-btn ui-btn-ghost" onClick={onCancel} disabled={busy}>
             ביטול
           </button>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
+          <button type="submit" className="ui-btn ui-btn-primary" disabled={busy}>
             {busy ? 'שומר…' : 'שמור והמשך לכרטיס'}
           </button>
         </div>

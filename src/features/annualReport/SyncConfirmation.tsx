@@ -59,7 +59,7 @@ export default function SyncConfirmation({ session, client, onUpdateClient, onCo
       <div style={{ maxWidth: 700, margin: '2rem auto', padding: '0 1rem' }}>
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '2rem' }}>
-            <div style={{ fontSize: '3rem' }}>✅</div>
+            <div style={{ fontSize: '34px' }}>✅</div>
             <h2 style={{ margin: '.5rem 0' }}>הפרופיל מסונכרן</h2>
             <p style={{ color: 'var(--gray-600)' }}>
               כל התשובות בשאלון תואמות את הנתונים בכרטיס. אין מה לעדכן.
@@ -74,8 +74,8 @@ export default function SyncConfirmation({ session, client, onUpdateClient, onCo
   return (
     <div style={{ maxWidth: 800, margin: '1.5rem auto', padding: '0 1rem' }}>
       <div style={{ marginBottom: '1.25rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.4rem' }}>🔄 סנכרון פרופיל הלקוח</h2>
-        <p style={{ margin: '.4rem 0 0', color: 'var(--gray-600)', fontSize: '.9rem' }}>
+        <h2 style={{ margin: 0, fontSize: '24px' }}>סנכרון פרופיל הלקוח</h2>
+        <p style={{ margin: '.4rem 0 0', color: 'var(--gray-600)', fontSize: '14px' }}>
           זוהו {diffs.length} שינויים בין התשובות בשאלון לבין הפרופיל בכרטיס.
           סמן אילו לעדכן בכרטיס. סימון ↔ הפרופיל מעודכן, ביטול סימון ↔ הנתון נשאר רק בשאלון השנה.
         </p>
@@ -136,7 +136,7 @@ export default function SyncConfirmation({ session, client, onUpdateClient, onCo
             נקה הכל
           </button>
           <button className="btn btn-primary btn-lg" onClick={handleApply} disabled={saving}>
-            {saving ? 'מעדכן...' : `✓ עדכן ${selected.size} שינויים והמשך`}
+            {saving ? 'מעדכן...' : `עדכן ${selected.size} שינויים והמשך`}
           </button>
         </div>
       </div>

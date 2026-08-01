@@ -10,8 +10,13 @@ import {
   TASK_CATEGORY_LABELS,
   TASK_PROGRESS_LABELS,
   BALL_WITH_LABELS,
-  BALL_WITH_ICON,
+  BALL_WITH_COLOR,
+
 } from '../types';
+import { SelectPills } from './ui/Chips';
+import Icon from './ui/Icon';
+import ConfirmDialog from './ui/ConfirmDialog';
+import { formatDate } from '../utils/dateFormat';
 import LinkedDocsWidget from './LinkedDocsWidget';
 import SignatureRequestEditor from './signatureRequest/SignatureRequestEditor';
 
@@ -57,10 +62,32 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
     task ?? blankTask(presetClientId ?? clients[0]?.id ?? '')
   );
   const [showSignatureEditor, setShowSignatureEditor] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [errors, setErrors] = useState<{ title?: string; client?: string }>({});
+  const [confirmState, setConfirmState] = useState<'delete' | 'discard' | 'removeSig' | null>(null);
 
   useEffect(() => {
     if (task) setData(task);
   }, [task]);
+
+  // יציאה עם שינויים שלא נשמרו שואלת לפני שהיא מוחקת עבודה (§3.11)
+  function requestClose() {
+    if (dirty) { setConfirmState('discard'); return; }
+    onCancel();
+  }
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { e.stopPropagation(); requestClose(); }
+      // ⌘/Ctrl+Enter שומר בלי לחפש את הכפתור בעכבר (§6.4)
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        (document.getElementById('task-form') as HTMLFormElement | null)?.requestSubmit();
+      }
+    }
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  });
 
   const isEditing = !!task;
   const isLocked = !!presetClientId;
@@ -68,19 +95,18 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
   const sigReq = data.signatureRequest;
 
   function upd<K extends keyof Task>(key: K, val: Task[K]) {
+    setDirty(true);
     setData(d => ({ ...d, [key]: val, updatedAt: new Date().toISOString() }));
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!data.clientId) {
-      alert('יש לבחור לקוח');
-      return;
-    }
-    if (!data.title.trim()) {
-      alert('יש למלא כותרת למשימה');
-      return;
-    }
+    // שגיאה נכתבת ליד השדה שגרם לה, לא בחלונית של הדפדפן (§4.4)
+    const next: { title?: string; client?: string } = {};
+    if (!data.clientId) next.client = 'חובה';
+    if (!data.title.trim()) next.title = 'חובה';
+    setErrors(next);
+    if (Object.keys(next).length) return;
     onSave({ ...data, title: data.title.trim() });
   }
 
@@ -89,12 +115,16 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
   );
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
-      <div className="modal task-modal" onClick={(e) => e.stopPropagation()}>
-        <form onSubmit={handleSubmit}>
+    <div className="modal-backdrop" onClick={requestClose}>
+      <div className="modal task-modal" role="dialog" aria-modal="true"
+           aria-label={isEditing ? 'עריכת משימה' : 'משימה חדשה'}
+           onClick={(e) => e.stopPropagation()}>
+        <form id="task-form" onSubmit={handleSubmit}>
           <div className="modal-header">
             <h3>{isEditing ? 'עריכת משימה' : 'משימה חדשה'}</h3>
-            <button type="button" className="btn btn-ghost btn-icon" onClick={onCancel}>✕</button>
+            <button type="button" className="ui-icon-btn" onClick={requestClose} aria-label="סגירה">
+              <Icon name="close" />
+            </button>
           </div>
 
           <div className="modal-body">
@@ -103,11 +133,14 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                 <label className="required">כותרת</label>
                 <input
                   type="text"
+                  className={errors.title ? 'field-missing' : ''}
                   value={data.title}
                   onChange={(e) => upd('title', e.target.value)}
                   placeholder="לדוגמה: להכין דוח שנתי 2024"
+                  aria-invalid={!!errors.title}
                   autoFocus
                 />
+                {errors.title && <span className="field-error">{errors.title}</span>}
               </div>
 
               <div className="form-group">
@@ -142,6 +175,7 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                   onChange={(e) => {
                     const v = e.target.value;
                     const now = new Date().toISOString();
+                    setDirty(true);
                     if (v === 'done') {
                       setData(d => ({ ...d, status: 'done', completedAt: d.completedAt || now, updatedAt: now }));
                     } else {
@@ -157,20 +191,19 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
               </div>
 
               <div className="form-group">
-                <label>אצל מי הכדור</label>
-                <div className="ball-select">
-                  {BALL_OPTIONS.map(b => (
-                    <button
-                      type="button"
-                      key={b}
-                      className={`ball-option ${data.ballWith === b ? 'active' : ''}`}
-                      onClick={() => upd('ballWith', b)}
-                    >
-                      <span>{BALL_WITH_ICON[b]}</span>
-                      <span>{BALL_WITH_LABELS[b]}</span>
-                    </button>
-                  ))}
-                </div>
+                <label>הכדור אצל</label>
+                {/* גלולה שחורה — הבחירה משנה את מה שנשמר, לא את מה שמוצג (D1) */}
+                <SelectPills
+                  label="הכדור אצל"
+                  size="sm"
+                  value={data.ballWith}
+                  onChange={(b) => upd('ballWith', b)}
+                  options={BALL_OPTIONS.map(b => ({
+                    value: b,
+                    label: BALL_WITH_LABELS[b],
+                    color: BALL_WITH_COLOR[b],
+                  }))}
+                />
               </div>
 
               <div className="form-group">
@@ -182,7 +215,7 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
               </div>
 
               <div className="form-group span-full">
-                <label>דד-ליין (אופציונלי)</label>
+                <label>תאריך יעד</label>
                 <input
                   type="date"
                   value={data.dueDate || ''}
@@ -202,7 +235,7 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
 
               {/* מסמכים מקושרים למשימה — נשמרים בתיק המסמכים של הלקוח */}
               <div className="form-group span-full">
-                <label>📎 מסמכים מקושרים</label>
+                <label>מסמכים מקושרים</label>
                 <LinkedDocsWidget
                   clientId={data.clientId}
                   linkKey={`task:${data.id}`}
@@ -214,11 +247,11 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
 
               {/* בקשת חתימה על PDF — שלב 1 (ללא שליחה אמיתית עדיין) */}
               <div className="form-group span-full">
-                <label>📝 מסמך לחתימה</label>
+                <label>מסמך לחתימה</label>
                 {sigReq ? (
                   <div className="task-sig-summary">
                     <div className="task-sig-line">
-                      <strong>📄 {sigReq.pdfFileName || '(אין PDF)'}</strong>
+                      <strong>{sigReq.pdfFileName || '(אין PDF)'}</strong>
                       <span className="task-sig-meta">
                         {sigReq.signers.length} חותמים · {sigReq.fields.length} סימונים
                         {sigReq.requireOrder ? ' · בסדר חתימה' : ' · במקביל'}
@@ -235,11 +268,7 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                         type="button"
                         className="btn btn-ghost btn-sm"
                         style={{ color: 'var(--red)' }}
-                        onClick={() => {
-                          if (confirm('להסיר את בקשת החתימה מהמשימה?')) {
-                            setData(d => ({ ...d, signatureRequest: undefined, updatedAt: new Date().toISOString() }));
-                          }
-                        }}
+                        onClick={() => setConfirmState('removeSig')}
                       >הסר</button>
                     </div>
                   </div>
@@ -250,11 +279,11 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                     onClick={() => setShowSignatureEditor(true)}
                     disabled={!data.clientId}
                   >
-                    📝 הוסף מסמך לחתימה
+                    הוסף מסמך לחתימה
                   </button>
                 )}
                 {!data.clientId && (
-                  <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.25rem' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '.25rem' }}>
                     יש לבחור לקוח לפני הוספת בקשת חתימה.
                   </div>
                 )}
@@ -264,21 +293,20 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
 
           <div className="modal-footer">
             {isEditing && onDelete && (
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={() => {
-                  if (confirm('למחוק את המשימה?')) {
-                    onDelete(data.id);
-                  }
-                }}
-              >
-                מחיקה
+              <button type="button" className="ui-linkbtn task-delete-link" onClick={() => setConfirmState('delete')}>
+                מחיקת המשימה
               </button>
             )}
             <div style={{ flex: 1 }} />
-            <button type="button" className="btn btn-secondary" onClick={onCancel}>ביטול</button>
-            <button type="submit" className="btn btn-primary">
+            {/* מתי נוצרה ומתי נסגרה — שורה שקטה, לא שדה בטופס (§4.4) */}
+            {isEditing && (
+              <span className="task-meta-line">
+                נוצרה {formatDate(data.createdAt, 'form')}
+                {data.completedAt ? ` · הושלמה ${formatDate(data.completedAt, 'form')}` : ''}
+              </span>
+            )}
+            <button type="button" className="ui-btn ui-btn-ghost" onClick={requestClose}>ביטול</button>
+            <button type="submit" className="ui-btn ui-btn-primary">
               {isEditing ? 'שמירה' : 'יצירה'}
             </button>
           </div>
@@ -296,6 +324,41 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
             setShowSignatureEditor(false);
           }}
           onCancel={() => setShowSignatureEditor(false)}
+        />
+      )}
+
+      {confirmState === 'delete' && (
+        <ConfirmDialog
+          title="מחיקת משימה"
+          message={<>למחוק את ״{data.title || 'המשימה'}״? הפעולה אינה הפיכה.</>}
+          confirmLabel="מחיקה"
+          onConfirm={() => { setConfirmState(null); onDelete?.(data.id); }}
+          onCancel={() => setConfirmState(null)}
+        />
+      )}
+
+      {confirmState === 'discard' && (
+        <ConfirmDialog
+          title="לצאת בלי לשמור?"
+          message="השינויים שעשית במשימה יאבדו."
+          confirmLabel="צא בלי לשמור"
+          cancelLabel="הישאר"
+          onConfirm={() => { setConfirmState(null); onCancel(); }}
+          onCancel={() => setConfirmState(null)}
+        />
+      )}
+
+      {confirmState === 'removeSig' && (
+        <ConfirmDialog
+          title="הסרת בקשת חתימה"
+          message="להסיר את בקשת החתימה מהמשימה? הסימונים שהגדרת על המסמך יימחקו."
+          confirmLabel="הסרה"
+          onConfirm={() => {
+            setConfirmState(null);
+            setDirty(true);
+            setData(d => ({ ...d, signatureRequest: undefined, updatedAt: new Date().toISOString() }));
+          }}
+          onCancel={() => setConfirmState(null)}
         />
       )}
     </div>

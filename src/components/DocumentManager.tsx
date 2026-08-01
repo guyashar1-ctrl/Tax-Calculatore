@@ -10,23 +10,6 @@ const fmt = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-// שלישיית צבע לכל סוג מסמך (טקסט / רקע / גבול) — לא ניתן לגזור שקיפות מטוקן,
-// לכן כל סוג מצביע על משפחת התגיות המתאימה שמוגדרת גם לערכה הבהירה וגם לכהה.
-type CatPalette = { fg: string; bg: string; bd: string };
-const CATEGORY_COLORS: Record<DocCategory, CatPalette> = {
-  id_card:               { fg: 'var(--chip-blue-tx)',   bg: 'var(--chip-blue-bg)',   bd: 'var(--chip-blue-bd)' },
-  drivers_license:       { fg: 'var(--chip-violet-tx)', bg: 'var(--chip-violet-bg)', bd: 'var(--chip-violet-bd)' },
-  form_1301:             { fg: 'var(--chip-red-tx)',    bg: 'var(--chip-red-bg)',    bd: 'var(--chip-red-bd)' },
-  residence_certificate: { fg: 'var(--chip-green-tx)',  bg: 'var(--chip-green-bg)',  bd: 'var(--chip-green-bd)' },
-  salary_slip:           { fg: 'var(--chip-amber-tx)',  bg: 'var(--chip-amber-bg)',  bd: 'var(--chip-amber-bd)' },
-  pension_statement:     { fg: 'var(--chip-teal-tx)',   bg: 'var(--chip-teal-bg)',   bd: 'var(--chip-teal-bd)' },
-  business_document:     { fg: 'var(--chip-violet-tx)', bg: 'var(--chip-violet-bg)', bd: 'var(--chip-violet-bd)' },
-  tax_assessment:        { fg: 'var(--chip-pink-tx)',   bg: 'var(--chip-pink-bg)',   bd: 'var(--chip-pink-bd)' },
-  ni_document:           { fg: 'var(--chip-teal-tx)',   bg: 'var(--chip-teal-bg)',   bd: 'var(--chip-teal-bd)' },
-  engagement_contract:   { fg: 'var(--chip-green-tx)',  bg: 'var(--chip-green-bg)',  bd: 'var(--chip-green-bd)' },
-  other:                 { fg: 'var(--chip-slate-tx)',  bg: 'var(--chip-slate-bg)',  bd: 'var(--chip-slate-bd)' },
-};
-
 const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx';
 
 type SortField = 'description' | 'category' | 'year' | 'fileName' | 'uploadedAt' | 'fileSize';
@@ -568,18 +551,22 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
 
   return (
     <div>
-      {/* Header */}
-      <div className="doc-header">
-        <div>
-          <div style={{ fontSize: '.875rem', color: 'var(--gray-500)', marginBottom: '.25rem' }}>
-            <span className="doc-back-link" onClick={onBack}>{'\u2190'} חזרה לפרטי לקוח</span>
+      {/* כותרת אחת, לפי מסך 09: השם והמונה באותה שורה, הפעולה הראשית בקצה.
+          קודם היו כאן שלוש שורות — קישור חזרה, כותרת עם אמוג'י ושורת מונה —
+          שלוש רמות היררכיה על מסך שיש בו דבר אחד. */}
+      <div className="pg-head">
+        <div className="pg-head-main">
+          <div className="doc-title-row">
+            <span className="pg-title">מסמכי {client.firstName} {client.lastName}</span>
+            <span className="pg-count">{docs.length}</span>
           </div>
-          <h1 className="doc-title">{'\uD83D\uDCC1'} מסמכי {client.firstName} {client.lastName}</h1>
-          <p style={{ fontSize: '.875rem', color: 'var(--gray-500)' }}>{docs.length} מסמכים</p>
+          <button type="button" className="doc-back-link" onClick={onBack}>{'←'} חזרה לפרטי לקוח</button>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowUploadForm(s => !s)}>
-          {showUploadForm ? '\u2715 ביטול' : '\u2B06\uFE0F העלאת מסמך'}
-        </button>
+        <div className="pg-actions">
+          <button className="btn btn-primary" onClick={() => setShowUploadForm(s => !s)}>
+            {showUploadForm ? 'ביטול' : 'העלאת מסמך'}
+          </button>
+        </div>
       </div>
 
       {/* Upload form */}
@@ -627,26 +614,6 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
               </button>
               <button className="btn btn-secondary" onClick={() => setShowUploadForm(false)}>ביטול</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Stats strip */}
-      {docs.length > 0 && (
-        <div className="doc-stats-strip">
-          <div className="doc-stat">
-            <span className="doc-stat-number">{docs.length}</span>
-            <span className="doc-stat-label">מסמכים</span>
-          </div>
-          <div className="doc-stat-divider" />
-          <div className="doc-stat">
-            <span className="doc-stat-number">{Object.keys(yearCounts).length}</span>
-            <span className="doc-stat-label">שנים</span>
-          </div>
-          <div className="doc-stat-divider" />
-          <div className="doc-stat">
-            <span className="doc-stat-number">{Object.keys(catCounts).length}</span>
-            <span className="doc-stat-label">קטגוריות</span>
           </div>
         </div>
       )}
@@ -751,9 +718,6 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                   <th className="th-sortable" onClick={() => toggleSort('year')}>
                     <span>שנה</span> {sortIcon('year')}
                   </th>
-                  <th className="th-sortable hide-mobile" onClick={() => toggleSort('fileName')}>
-                    <span>קובץ</span> {sortIcon('fileName')}
-                  </th>
                   <th className="th-sortable" onClick={() => toggleSort('uploadedAt')}>
                     <span>תאריך העלאה</span> {sortIcon('uploadedAt')}
                   </th>
@@ -766,7 +730,6 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
               <tbody>
                 {filtered.map(doc => {
                   const isFake = isPlaceholderDoc(doc);
-                  const catColor = CATEGORY_COLORS[doc.category];
                   const canPreview = !isFake && (doc.fileType.startsWith('image/') || doc.fileType === 'application/pdf');
 
                   return (
@@ -781,25 +744,23 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                       </td>
                       <td>
                         <div className="doc-cell-desc">{doc.description || doc.fileName}</div>
+                        <div className="doc-file-sub">{doc.fileName}</div>
                         {doc.linkedTo && (
                           <div className="doc-cell-linked">
-                            🔗 {doc.linkedLabel || 'מקושר'}
+                            {doc.linkedLabel || 'מקושר'}
                           </div>
                         )}
                         {doc.notes && <div className="doc-cell-notes">{doc.notes}</div>}
                       </td>
                       <td>
-                        <span className="doc-cat-pill" style={{ background: catColor.bg, color: catColor.fg, borderColor: catColor.bd }}>
+                        <span className="doc-cat-text">
                           {DOC_CATEGORY_LABELS[doc.category]}
                         </span>
                       </td>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                      <td className="doc-year-cell">
                         {doc.year === 'general' ? (
                           <span style={{ color: 'var(--gray-400)', fontSize: '.8rem' }}>כללי</span>
                         ) : doc.year}
-                      </td>
-                      <td className="hide-mobile">
-                        <div className="doc-cell-filename">{doc.fileName}</div>
                       </td>
                       <td style={{ fontSize: '.8125rem', whiteSpace: 'nowrap' }}>
                         {new Date(doc.uploadedAt).toLocaleDateString('he-IL')}

@@ -37,24 +37,23 @@ export default function ExpenseKnowledge() {
     if (query.trim() && filtered.length > 0) setSelectedId(filtered[0].id);
   }
 
-  const badge = (meta: { label: string; color: string; bg: string }, shortLabel: string) => (
-    <span style={{
-      display: 'inline-block', padding: '.15rem .55rem', borderRadius: 999,
-      background: meta.bg, color: meta.color, fontWeight: 700, fontSize: '.72rem',
-      whiteSpace: 'nowrap',
-    }}>
-      {meta.label}{shortLabel && shortLabel !== meta.label ? ` · ${shortLabel}` : ''}
+  /* הפסק הוא טקסט. הטון קובע את הצבע — לא מילוי. התוספת ("shortLabel")
+     היא ניסוח מלא של אותה תשובה, ולכן היא יורדת לשורה שנייה ואפורה. */
+  const verdict = (meta: { label: string; tone: string }, shortLabel: string) => (
+    <span className="ek-verdict">
+      <span className={`ek-verdict-word tone-${meta.tone}`}>{meta.label}</span>
+      {shortLabel && shortLabel !== meta.label && <span className="ek-verdict-note">{shortLabel}</span>}
     </span>
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <div className="ek-page">
       {/* חיפוש */}
       <div className="card">
         <div className="card-body">
           <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div className="form-group" style={{ marginBottom: 0, flex: '2 1 260px' }}>
-              <label style={{ fontWeight: 700 }}>🔍 מה הלקוח שאל?</label>
+              <label style={{ fontWeight: 600 }}>מה הלקוח שאל?</label>
               <input
                 type="text"
                 value={query}
@@ -62,7 +61,7 @@ export default function ExpenseKnowledge() {
                 placeholder='נסו: "חליפה", "מסעדה", "עובד מהבית", "קפה", "אייפון", "כביש 6"...'
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSearchEnter(); }}
-                style={{ fontSize: '1rem' }}
+                style={{ fontSize: '15px' }}
               />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -94,7 +93,7 @@ export default function ExpenseKnowledge() {
             </div>
           </div>
           {query.trim() && filtered.length > 0 && (
-            <div style={{ fontSize: '.75rem', color: 'var(--gray-500)', marginTop: '.4rem' }}>
+            <div className="ek-hint">
               Enter יפתח את ההתאמה הראשונה: <strong>{filtered[0].icon} {filtered[0].title}</strong>
             </div>
           )}
@@ -104,67 +103,44 @@ export default function ExpenseKnowledge() {
       {/* טבלת עיון מהיר */}
       <div className="card">
         <div className="card-header">
-          <span className="card-title">💼 עיון מהיר — האם ההוצאה מוכרת?</span>
-          <span style={{ fontSize: '.8rem', color: 'var(--gray-500)' }}>{filtered.length} נושאים</span>
+          <span className="card-title">עיון מהיר — האם ההוצאה מוכרת?</span>
+          <span className="ek-count">{filtered.length} נושאים</span>
         </div>
-        <div className="card-body" style={{ padding: 0 }}>
-          <div className="table-wrap">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.875rem' }}>
-              <thead>
-                <tr style={{ background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
-                  <th style={{ padding: '.55rem .9rem', textAlign: 'right' }}>הוצאה</th>
-                  <th style={{ padding: '.55rem .9rem', textAlign: 'right' }}>מס הכנסה</th>
-                  <th style={{ padding: '.55rem .9rem', textAlign: 'right' }}>מע"מ</th>
-                  <th style={{ padding: '.55rem .9rem', textAlign: 'center' }}>סיכון</th>
-                  <th style={{ padding: '.55rem .9rem', textAlign: 'right' }}>מקור מרכזי</th>
-                  <th style={{ padding: '.55rem .9rem' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(t => (
-                  <tr
-                    key={t.id}
-                    onClick={() => setSelectedId(t.id)}
-                    style={{ borderBottom: '1px solid var(--gray-100)', cursor: 'pointer' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--blue-light)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '')}
-                  >
-                    <td style={{ padding: '.55rem .9rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                      {t.icon} {t.title}
-                    </td>
-                    <td style={{ padding: '.55rem .9rem' }}>
-                      {badge(INCOME_TAX_VERDICT_META[t.incomeTax.verdict], t.incomeTax.shortLabel)}
-                    </td>
-                    <td style={{ padding: '.55rem .9rem' }}>
-                      {badge(VAT_VERDICT_META[t.vat.verdict], t.vat.shortLabel)}
-                    </td>
-                    <td style={{ padding: '.55rem .9rem', textAlign: 'center' }} title={t.riskNote ?? ''}>
-                      {RISK_META[t.riskLevel].icon}
-                    </td>
-                    <td style={{ padding: '.55rem .9rem', fontSize: '.78rem', color: 'var(--gray-500)' }}>
-                      {t.mainSource}
-                    </td>
-                    <td style={{ padding: '.55rem .9rem', color: 'var(--blue)', fontWeight: 700, fontSize: '.8rem', whiteSpace: 'nowrap' }}>
-                      פתח ←
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--gray-500)' }}>
-                      לא נמצא נושא מתאים — נסו מילה אחרת ("רכב", "ביגוד", "השתלמות"...)
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+        <div className="card-body">
+          {/* ארבע עמודות, לפי מסך 18. המקור עבר לשורה שנייה מתחת לשם:
+              הוא מלווה את ההוצאה ולא נסרק כעמודה בפני עצמה. */}
+          <div className="ek-grid">
+            <div className="ek-head">
+              <div>הוצאה</div>
+              <div>מס הכנסה</div>
+              <div>מע"מ</div>
+              <div>סיכון</div>
+            </div>
+            {filtered.map(t => (
+              <button key={t.id} type="button" onClick={() => setSelectedId(t.id)} className="ek-row">
+                <div className="ek-cell-name">
+                  <span className="ek-name">{t.icon} {t.title}</span>
+                  <span className="ek-source">{t.mainSource}</span>
+                </div>
+                {verdict(INCOME_TAX_VERDICT_META[t.incomeTax.verdict], t.incomeTax.shortLabel)}
+                {verdict(VAT_VERDICT_META[t.vat.verdict], t.vat.shortLabel)}
+                <span className={`ek-risk tone-${RISK_META[t.riskLevel].tone}`} title={t.riskNote ?? ''}>
+                  {RISK_META[t.riskLevel].short}
+                </span>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <div className="ek-none">
+                לא נמצא נושא מתאים — נסו מילה אחרת ("רכב", "ביגוד", "השתלמות"...)
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="alert alert-info" style={{ marginBottom: 0, fontSize: '.8rem' }}>
+      <div className="alert alert-info">
         התוכן אומת מול פקודת מס הכנסה, חוק מע"מ, התקנות, חוזרי רשות המסים ופסיקה מעשית (יולי 2026).
-        הוא כלי עזר מקצועי — לא תחליף לשיקול דעת במקרה קונקרטי. פריטים המסומנים "⚠ לאמת" דורשים בדיקה נוספת.
+        הוא כלי עזר מקצועי — לא תחליף לשיקול דעת במקרה קונקרטי. פריטים המסומנים "לאמת" דורשים בדיקה נוספת.
       </div>
     </div>
   );

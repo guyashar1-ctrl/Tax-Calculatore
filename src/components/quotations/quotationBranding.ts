@@ -16,6 +16,11 @@ export type QuotationBrand = ResolvedBrand;
 export function deriveQuotationBrand(profile: FirmProfile | null | undefined): QuotationBrand {
   return resolveBrand({
     firmName: profile?.firmName,
+    // שם רואה החשבון ומספר המייצג הם חלק מזהות המשרד מול הלקוח —
+    // בלעדיהם הצעה או ייפוי כוח יוצאים בלי מי שאחראי עליהם.
+    accountantName: profile?.fullName,
+    licenseNumber: profile?.representativeNumber,
+    representativeType: profile?.representativeType,
     branding: (profile?.branding ?? {}) as BrandingJson,
     email: profile?.email,
     phone: profile?.phone,

@@ -9,6 +9,7 @@ import type { QuotationItem, FutureService, QuotationRepresentation } from '../t
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import QuotationWebView, { type QuotationWebViewData, type ApprovalSignature } from './quotations/QuotationWebView';
 import { generateQuotationPdf, downloadPdf } from '../utils/quotationPdf';
+import ClientPageState from './ui/ClientPageState';
 
 interface Props { token: string; }
 
@@ -140,16 +141,15 @@ export default function PublicQuotationPage({ token }: Props) {
   }
 
   if (phase === 'loading') {
-    return <Centered>טוען…</Centered>;
+    return <ClientPageState quiet body="טוען…" />;
   }
   if (phase === 'invalid' || !info) {
     return (
-      <Centered>
-        <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>הקישור אינו תקין</div>
-        <div style={{ fontSize: 13.5, color: '#6b6a63', lineHeight: 1.6, maxWidth: 340 }}>
-          ייתכן שהקישור הועתק חלקית או שאינו פעיל עוד. אפשר לפנות למשרד לקבלת קישור חדש.
-        </div>
-      </Centered>
+      <ClientPageState
+        mark="🔗"
+        title="הקישור אינו תקין"
+        body="ייתכן שהקישור הועתק חלקית או שאינו פעיל עוד. אפשר לפנות למשרד לקבלת קישור חדש."
+      />
     );
   }
 
@@ -182,10 +182,3 @@ function onboardingUrl(onboardingToken: string): string {
   return `${window.location.origin}/?onboard=${onboardingToken}`;
 }
 
-function Centered({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ minHeight: '100vh', background: '#F4F3EF', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: "'Heebo', sans-serif", direction: 'rtl', textAlign: 'center' }}>
-      <div style={{ background: '#fff', borderRadius: 16, padding: '32px 28px', boxShadow: '0 6px 24px rgba(0,0,0,.06)', color: '#6b6a63' }}>{children}</div>
-    </div>
-  );
-}

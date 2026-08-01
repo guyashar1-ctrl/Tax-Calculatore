@@ -1,0 +1,1630 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PIVO · שכבת העיצוב
+   מקור: פרויקט Claude Design → export/pivo-final.css + export/pivo-clients.css
+   נטענת אחרונה, מעל index.css ו-ui.css.
+
+   העיקרון של השכבה הזו, כלשון המקור: "צבע = מידע".
+   איחור, תקיעות וחריגה מקבלים צבע. סוג, קטגוריה וזהות הם טקסט.
+   מסגרות וכרטיסים יורדים; מה שמפריד בין שורות הוא אוויר וקו שערה אחד.
+
+   הבוררים כאן מכוונים לשמות המחלקות של הקוד בפועל — לא למוקאפ —
+   כי חלק מהרכיבים נבנו מחדש בדרך (‎.due במקום ‎.date-chip‏, ‎.ball-word
+   במקום ‎.ball-pill‏, ‎.ui-group-* במקום ‎.board-group-*‎).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   מסגרת האפליקציה · המבנה שקובע את כל השאר
+   מקור: "משימות · מינימלי.dc.html" בפרויקט העיצוב, ואפיון §3.1.
+
+   האפליקציה כולה יושבת בכרטיס לבן אחד, ממורכז, עם פינות מעוגלות וצל רך,
+   שצף על קנבס אפור. זה מה שמפריד בין "מסך מלא של דפדפן" לבין מוצר —
+   הקנבס מסביב הוא שנותן לתוכן גבול, והגבול הוא שנותן לו נשימה.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.app {
+  min-height: 100vh;
+  background: var(--canvas);
+  padding: 28px 32px 56px;
+  display: block;
+  /* ‎html‎ מגדיר 16px, ו-16 אינו בסקאלה. כל טקסט שלא קיבל מידה מפורשת ירש
+     אותו — ולכן עשרות כותרות ופסקאות במערכת נפלו מחוץ לסולם בלי שאיש
+     כתב אותן. גודל הגוף הוא 14; מי שצריך אחרת מצהיר על כך. */
+  font-size: var(--fs-14);
+}
+.ui-modal, .ui-toast { font-size: var(--fs-14); }
+.app > .header,
+.app > .main {
+  max-width: 1280px;
+  margin-inline: auto;
+  width: 100%;
+  background: var(--surface-0);
+}
+.app > .header {
+  border: 1px solid var(--hairline-1);
+  border-bottom-color: var(--hairline-1);
+  border-radius: var(--r-modal) var(--r-modal) 0 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  position: sticky;
+  top: 0;
+  padding-inline: 20px;
+  gap: 26px;
+}
+.app > .main {
+  border: 1px solid var(--hairline-1);
+  border-top: 0;
+  border-radius: 0 0 var(--r-modal) var(--r-modal);
+  box-shadow: 0 8px 28px rgba(0,0,0,.05);
+  padding: 14px 22px 40px;
+  max-width: 1280px;
+  flex: none;
+}
+
+/* בתוך הכרטיס הכותרת הדביקה נצמדת לראשו, לא לראש החלון */
+.tasks-page .ui-group-head { top: 0; }
+
+@media (max-width: 1100px) {
+  .app { padding: 0; }
+  .app > .header,
+  .app > .main { border-radius: 0; border-inline: 0; max-width: none; }
+  .app > .main { border-bottom: 0; }
+}
+
+/* קו אנכי אחד לכל המסך — הכל מיושר לאותו אינסט */
+.tasks-page .board-row,
+.tasks-page .ui-group-head,
+.tasks-page .board-filters { padding-inline: .7rem; }
+
+/* ── הסרגל · טאבים בלי גלולות ובלי מסגרות ────────────────────────────────── */
+.app > .header { height: 52px; border-bottom: 1px solid var(--hairline-1); }
+.main-nav { gap: 22px; }
+.main-nav .nav-tab {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 0;
+  font-size: var(--fs-14);
+  font-weight: 400;
+  color: var(--ink-3);
+  /* הקו התחתון נשאר כסימן שני לצד המשקל — צבע לבדו אינו סימון נגיש */
+  border-bottom: 2px solid transparent;
+  line-height: 52px;
+}
+.main-nav .nav-tab:hover { background: none; color: var(--ink-1); }
+.main-nav .nav-tab.active {
+  background: none;
+  color: var(--ink-1);
+  font-weight: 500;
+  border-bottom-color: var(--accent);
+}
+.nav-badge {
+  background: none;
+  color: var(--ink-3);
+  padding: 0 0 0 4px;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.header-actions { margin-inline-start: auto; gap: 14px; }
+.header-user-avatar { width: 26px; height: 26px; font-size: var(--fs-12); }
+
+/* שדה החיפוש: משטח רך בלי מסגרת. מסגרת אומרת "מלא אותי" — חיפוש לא. */
+.tasks-search,
+.search-input-wrap input {
+  border: 0;
+  border-radius: var(--r-input);
+  background: var(--surface-2);
+  padding: 7px 12px;
+  font-size: var(--fs-13);
+  outline: none;
+}
+
+/* ── קבוצות · לא כרטיסים, ובלי מסגרת ─────────────────────────────────────── */
+.board-group {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 0;
+}
+.board-group + .board-group { margin-top: 1.9rem; }
+
+/* כותרת הקבוצה נשארת בעין בגלילה — היא הכותרת היחידה במסך */
+.tasks-page .ui-group-head {
+  position: sticky;
+  top: 54px;
+  z-index: 20;
+  background: var(--page);
+  border-bottom: 1px solid var(--hairline-1);
+  padding-block: .25rem .4rem;
+  margin-bottom: .1rem;
+}
+.ui-group-title { font-size: var(--fs-14); letter-spacing: -.01em; }
+.ui-group-count { font-size: var(--fs-13); }
+
+/* ── שורה · hover הוא הסימון היחיד. אין פסים ואין קווים בין שורות ────────── */
+.board-table { border: 0; }
+.board-row { border-bottom: 0; }
+.board-row:hover,
+.board-row:focus-within { background: var(--surface-2); }
+
+/* שם המשימה הוא הכבד ביותר במסך; המטא-דאטה נסוגה שני צעדים */
+.task-title-text { font-size: var(--fs-15); font-weight: 500; line-height: 1.4; color: var(--ink-1); }
+.board-row:hover .task-title-text { color: var(--ink-1); }
+.client-chip-name { font-size: var(--fs-13); font-weight: 400; color: var(--ink-2); }
+.board-row:hover .client-chip-name { text-decoration: underline; }
+.client-chip {
+  padding: .15rem 0;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+/* הספרות מתיישרות לעמודה, והמסילות השקטות נצמדות לקצה השורה */
+.board-row .bc-date { justify-self: end; }
+.board-row .bc-ball { justify-self: end; }
+.ball-word { font-size: var(--fs-13); }
+.due { letter-spacing: .01em; white-space: nowrap; }
+
+/* ── שקט עד מעבר עכבר: הידית והפעולות ────────────────────────────────────── */
+.bc-handle, .bc-actions { opacity: 0; transition: opacity .1s; }
+.board-row:hover .bc-handle,
+.board-row:hover .bc-actions,
+.board-row:focus-within .bc-handle,
+.board-row:focus-within .bc-actions { opacity: 1; }
+.bc-handle { color: var(--ink-quiet); cursor: grab; }
+
+/* עיגול הסימון: קו דק ואפור, מתמלא רק כשנוגעים */
+.task-check {
+  width: 17px; height: 17px;
+  border: 2px solid var(--ink-quiet);
+  background: transparent;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0;
+  color: var(--surface-0);
+  transition: border-color .12s, background-color .15s;
+}
+.board-row:hover .task-check { border-color: var(--ink-3); }
+.task-check:hover { border-color: var(--success); }
+.task-check.is-done { background: var(--success); border-color: var(--success); }
+
+/* ── סרגל הסינון · שורה אחת, בלי כרטיס ובלי תוויות ───────────────────────── */
+.board-filters {
+  padding-block: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  gap: .45rem;
+  align-items: center;
+  min-height: 2rem;
+  margin-bottom: 1.1rem;
+}
+.board-filters .tasks-search {
+  flex: 0 1 280px;
+  background: var(--surface-2);
+  border-color: transparent;
+  padding-block: .35rem;
+  font-size: var(--fs-13);
+}
+.board-filters .filter-select {
+  background: transparent;
+  border-color: transparent;
+  font-size: var(--fs-13);
+  color: var(--ink-2);
+  min-width: 0;
+}
+.board-filter-count { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+
+/* רק המסנן הפעיל מוצג; השאר נפתחים במעבר עכבר או בפוקוס מקלדת.
+   שורת סינון שמראה חמש אפשרויות כל הזמן היא חמש שאלות פתוחות. */
+.board-filters .filter-chips { gap: .2rem; }
+.board-filters .filter-chips .ui-chip:not(.is-active) {
+  max-width: 0;
+  padding-inline: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width .14s, opacity .14s, padding .14s;
+}
+.board-filters .filter-chips:hover .ui-chip:not(.is-active),
+.board-filters .filter-chips:focus-within .ui-chip:not(.is-active) {
+  max-width: 10rem;
+  padding-inline: .55rem;
+  opacity: 1;
+}
+
+.desk-header { margin-bottom: .35rem; align-items: center; padding-inline: .7rem; }
+.desk-title, .desk-subtitle { display: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   מסך לקוחות — אותה שפה: קו שערה אחד, מספרים בעמודה, אוויר במקום קווים
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* עשר עמודות → שש. נשארו: שם · עיר · טלפון · מס וייצוג · משימות · מחיקה.
+   ת.ז. — תשע ספרות שאף פעם לא סורקים בעין; החיפוש כבר מוצא לפיהן.
+   אימייל — שני ערוצי קשר באותה שורה; הטלפון הוא זה שפועלים בו.
+   מטפל — "לא הוקצה" בכל השורות; עמודה קבועה אינה מידע.
+   שע״ם — היה זהה בכל שורה; עכשיו מסומן רק כשהוא חריג.
+   כל ארבעתם קיימים בכרטיס הלקוח. */
+.client-table .col-id,
+.client-table .col-email,
+.client-table .col-owner { display: none; }
+
+/* הטבלה יוצאת מהכרטיס */
+.client-list-page .card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.client-table tbody td { border-bottom: 0; }
+.client-table tbody tr + tr td { border-top: 1px solid var(--hairline-2); }
+.client-table thead th {
+  background: transparent;
+  border-bottom: 1px solid var(--hairline-1);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  letter-spacing: .02em;
+  color: var(--ink-4);
+  padding: .35rem .75rem;
+}
+.client-table-dense tbody td { padding: .5rem .75rem; }
+
+/* hover אפור-ניטרלי — כחול הוא צבע פעולה, לא צבע קריאה */
+.client-row:hover,
+.client-row:focus-within { background: var(--surface-2); }
+.th-sortable:hover { background: var(--surface-2) !important; }
+
+/* חיצי המיון נגלים רק כשעוברים על הכותרת */
+.sort-icon.inactive { opacity: 0; transition: opacity .1s; }
+.th-sortable:hover .sort-icon.inactive { opacity: 1; }
+
+/* ראשי התיבות הצבועים יורדים — השם כתוב לידם */
+.client-avatar-sm { display: none; }
+.client-table-name { font-weight: 500; font-size: var(--fs-14); color: var(--ink-1); }
+.client-table-badges:empty { display: none; }
+
+.mono-text { font-variant-numeric: tabular-nums; letter-spacing: .01em; color: var(--ink-2); }
+
+/* הסיווג: טקסט במקום שלושה כתמי צבע בכל שורה */
+/* התווית "סיווג" הוסרה מהמקור עצמו — הכלל שהסתיר אותה ירד, אחרת הוא
+   היה מסתיר עכשיו את ערך מס ההכנסה שתפס את מקומה. */
+.cl-mini-badge {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--ink-2) !important;
+  padding: 0 !important;
+  font-size: var(--fs-12) !important;
+  font-weight: 400 !important;
+}
+.cl-tax-chips { gap: .35rem !important; }
+.cl-tax-sep { font-size: var(--fs-12); color: var(--ink-quiet); }
+
+/* עמודת המשימות: מספר אחד. הצבע שמור למספר האיחורים בלבד */
+.cl-metric-num {
+  min-width: 0;
+  padding: 0;
+  background: transparent !important;
+  border-radius: 0;
+  font-weight: 500;
+  font-size: var(--fs-14);
+  color: var(--ink-2) !important;
+  font-variant-numeric: tabular-nums;
+}
+.cl-metric-tag {
+  background: transparent;
+  padding: 0;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+.cl-metric-cell { gap: .55rem; }
+.cl-metric-zero { color: var(--ink-4) !important; }
+
+/* פעולה הרסנית לא נושאת משקל של פעולה יומיומית */
+.client-row .ui-icon-btn { opacity: 0; transition: opacity .1s; }
+.client-row:hover .ui-icon-btn,
+.client-row:focus-within .ui-icon-btn { opacity: 1; }
+
+.table-wrap { overflow-x: visible; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   כרטיס הלקוח — אותה שפה: קו שערה, אוויר, צבע רק כמידע
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* הכותרת היא כותרת, לא קופסה */
+.cw-root > .card,
+.cw-header {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.cw-header { border-bottom: 1px solid var(--hairline-1); padding-bottom: .7rem; }
+
+/* שם הלקוח הוא הדבר הכבד היחיד באזור הזהות */
+.cw-avatar { display: none; }
+.cw-name { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.015em; }
+.cw-id-row { font-size: var(--fs-13); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* הסיווגים והתגיות: טקסט בשורה אחת, בלי ארבע מסגרות */
+.cw-tax-chip,
+.cw-tag {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--ink-2) !important;
+  padding: 0 !important;
+  font-size: var(--fs-13) !important;
+  font-weight: 400 !important;
+}
+.cw-tag { color: var(--ink-3) !important; font-size: var(--fs-12) !important; }
+.cw-header-chips { gap: .7rem !important; align-items: center; }
+
+/* ── שורת הזהות בראש כרטיס הלקוח ────────────────────────────────────────────
+   היו כאן שתי גלולות ירוקות מלאות — "מיוצג פעיל" ו"שע״ם: פעיל". שתיהן
+   מתארות את המצב ה*רגיל* של לקוח: אם כל לקוח פעיל נושא שני כתמים
+   ירוקים, הירוק אומר "לקוח", לא "שים לב". לכן המצב התקין הוא טקסט,
+   והצבע נשמר למצב שדורש פעולה — "לא פעיל" או "בטיפול". */
+.cw-header-chips .badge,
+.cw-rep-status {
+  background: transparent !important;
+  border-color: transparent !important;
+  padding-inline: 0 !important;
+  font-size: var(--fs-12) !important;
+  font-weight: 400 !important;
+  color: var(--ink-3) !important;
+}
+.cw-header-chips .badge-orange,
+.cw-header-chips .badge-amber { color: var(--warn) !important; font-weight: 500 !important; }
+.cw-header-chips .badge-red { color: var(--danger) !important; font-weight: 500 !important; }
+
+/* סימני המצב במרכז השליטה — קו עליון בלבד נושא את הרמה */
+.cw-signal {
+  text-align: start; background: transparent; font-family: inherit;
+  border: 0; border-top: 2px solid var(--hairline-1); border-radius: 0;
+  padding: .6rem 0 .7rem;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.cw-signal:hover:not(:disabled) { background: var(--surface-1); }
+.cw-signal-title { font-size: var(--fs-13); font-weight: 600; color: var(--ink-1); }
+.cw-signal-sub { font-size: var(--fs-12); color: var(--ink-4); line-height: 1.5; }
+
+/* ── שבב סינון פעיל ─────────────────────────────────────────────────────────
+   היה ממולא בכחול המותג — אותו כחול של הפעולה הראשית. במסך אחד יש אז
+   שני גושים כחולים שמתחרים על העין, ואחד מהם הוא רק "איפה אני".
+   מצב נבחר הוא מיקום, לא פעולה: משטח אפור ומשקל, כמו במסילות. */
+.app .chip.active,
+.app .ui-chip.is-active {
+  background: var(--surface-2-active);
+  color: var(--ink-1);
+  border-color: transparent;
+  font-weight: 500;
+}
+.cw-tags { gap: .55rem !important; }
+.cw-emp-chip.muted { display: none; }
+
+/* התראות: רק אזהרה נראית כאזהרה — אבל כטקסט, לא כגלולה ממולאת.
+   אחרי שכל השאר בכרטיס ירד לקווים ולטקסט, גלולה ענברית מלאה נשארה
+   הדבר הכבד ביותר במסך, וגררה את העין לפריט שאינו הכי דחוף בו. */
+.cw-alert-info {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-2);
+  padding-inline: 0;
+}
+.app .cw-alert {
+  background: transparent !important;
+  border-color: transparent !important;
+  padding-inline: 0 !important;
+  font-size: var(--fs-12);
+  font-weight: 500;
+}
+.app .cw-alert-warning { color: var(--warn) !important; }
+.app .cw-alert-danger,
+.app .cw-alert-error { color: var(--danger) !important; }
+.cw-alerts { gap: .9rem; }
+
+/* טאבים של הכרטיס: קו תחתון, לא כפתורים בשורה */
+.cw-tabs { border-bottom: 1px solid var(--hairline-1); gap: 1.4rem; padding-inline: 0; }
+.cw-tab {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: .5rem 0 !important;
+  color: var(--ink-2);
+  font-weight: 400;
+  border-bottom: 2px solid transparent !important;
+}
+.cw-tab:hover { color: var(--ink-1); }
+.cw-tab.active {
+  color: var(--ink-1) !important;
+  font-weight: 600;
+  border-bottom-color: var(--accent) !important;
+}
+.cw-tab-badge {
+  background: transparent !important;
+  color: var(--ink-4) !important;
+  padding: 0 !important;
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+}
+
+/* סקציות: כותרת עם קו, לא כרטיס עם רקע צבוע */
+.cw-section,
+.cw-colored-section {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding-inline: 0 !important;
+}
+.cw-section-head { border-bottom: 1px solid var(--hairline-2); padding-bottom: .35rem; }
+.cw-section-count { color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.cw-empty { color: var(--ink-4); font-style: normal; }
+
+/* ── מרכז השליטה · מסך 07 במוקאפ ─────────────────────────────────────────────
+   עמודה רחבה למה שדורש טיפול, ומסילה צרה לצידה. התאריך ראשון בשורה
+   ובעמודה ברוחב קבוע — כך העין סורקת מועדים ולא מחפשת אותם בין המילים. */
+.cw-hub-grid {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 34px;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  .cw-hub-grid { grid-template-columns: 1fr; gap: 22px; }
+}
+
+.cw-due-list { display: flex; flex-direction: column; }
+.cw-due-row {
+  display: grid;
+  grid-template-columns: 82px 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 11px 2px;
+  border-top: 1px solid var(--hairline-2);
+  background: none;
+  border-inline: 0;
+  border-bottom: 0;
+  width: 100%;
+  text-align: start;
+  font-family: inherit;
+  cursor: pointer;
+}
+.cw-due-row:hover { background: var(--surface-1); }
+.cw-due-date { font-size: var(--fs-13); font-variant-numeric: tabular-nums; }
+.cw-due-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cw-due-title { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+/* מה חוסם את המשימה — אדום, כי בלעדיו היא לא זזה */
+.cw-due-blocker { font-size: var(--fs-12); color: var(--danger); }
+.cw-due-ball { font-size: var(--fs-12); white-space: nowrap; }
+
+.cw-activity-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px solid var(--hairline-2);
+}
+.cw-activity-text { font-size: var(--fs-13); color: var(--ink-2); line-height: 1.5; }
+.cw-activity-when { font-size: var(--fs-12); color: var(--ink-4); white-space: nowrap; }
+
+/* ההערה המוצמדת — הכרטיס הצבוע היחיד במוצר */
+.pin-section {
+  background: var(--note-bg) !important;
+  border-radius: var(--r-panel) !important;
+  padding: 13px 15px !important;
+}
+.pin-section .cw-section-head { border-bottom: 0; padding-bottom: 0; color: var(--note-text); }
+
+/* ── לשונית משימות הלקוח · מסך 10 במוקאפ ─────────────────────────────────────
+   שלוש עמודות בלבד. בתוך כרטיס לקוח כבר יודעים מי הלקוח, אז מה שנשאר
+   הוא מה לעשות ועד מתי. */
+.ct-tasks { display: flex; flex-direction: column; gap: 20px; }
+.ct-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 20px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--hairline-1);
+}
+.ct-head-title { display: flex; align-items: baseline; gap: 10px; }
+.ct-title { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.015em; color: var(--ink-1); }
+.ct-count { font-size: var(--fs-13); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+
+.ct-group { display: flex; flex-direction: column; gap: 2px; }
+.ct-group-head { display: flex; align-items: baseline; gap: 9px; padding-bottom: 5px; }
+.ct-group-title { font-size: var(--fs-13); font-weight: 600; }
+.ct-group-count { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.ct-group-hint { font-size: var(--fs-12); color: var(--ink-4); }
+
+.ct-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 82px;
+  gap: 14px;
+  align-items: center;
+  padding: 9px 2px;
+  border-top: 1px solid var(--hairline-2);
+  cursor: pointer;
+}
+.ct-row:hover, .ct-row:focus-within { background: var(--surface-1); }
+.ct-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ct-row-title { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+/* ההערה נחתכת בשורה אחת — היא רמז, לא תוכן */
+.ct-row-note {
+  font-size: var(--fs-12); color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ct-date { font-size: var(--fs-13); text-align: end; font-variant-numeric: tabular-nums; }
+.ct-row.is-done .ct-row-title { text-decoration: line-through; opacity: .6; }
+
+/* כרטיסי משנה: קו מפריד במקום מסגרת לכל אחד */
+.cw-property-card,
+.cw-contact-card,
+.cw-child-row {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  border-top: 1px solid var(--hairline-2);
+}
+.cw-contact-primary { border-top-color: var(--hairline-1); }
+.cw-property-type-badge {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--ink-4) !important;
+  padding: 0 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   המשך השפה למסכים שלא קיבלו שכבת CSS משלהם
+   (הצעות, ייצוג, מרכז ידע, דוח 1301)
+
+   פרויקט העיצוב סיפק CSS לשלושה מסכים בלבד. האפיון קובע שמסך חסר ממשיך
+   באותה שפה — אז אלה בדיוק אותם כללים, מנוסחים פעם אחת לכל המערכת.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* כרטיס = קיבוץ, לא קופסה. מסגרת וצל יורדים; מה שמפריד הוא אוויר וקו אחד. */
+/* מוחל על כל מסך בתוך האפליקציה — לא על רשימת מסכים.
+   הגבול `.app` מגן על הדפים שהלקוח רואה: הם יושבים מחוץ למעטפת,
+   ב-`.public-page-shell`, ושומרים על העיצוב שנשלח ללקוחות. */
+.app .card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding-inline: 0;
+}
+/* קיבוץ עוקב מקבל קו מפריד — אוויר לבדו לא מספיק כשיש הרבה מקטעים */
+.app .card + .card { border-top: 1px solid var(--hairline-2); }
+/* קיבוץ עוקב מקבל קו מפריד — האוויר לבדו לא מספיק כשיש הרבה מקטעים */
+.annual-report-page .card + .card,
+.quotations-page .card + .card { border-top: 1px solid var(--hairline-2); }
+
+/* טאבים משניים בכל המערכת: קו תחתון, לא גלולה צבועה */
+.tabs .tab,
+.tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-2);
+  font-weight: 400;
+  padding: .5rem .1rem;
+}
+.tabs { border-bottom: 1px solid var(--hairline-1); gap: 1.4rem; }
+.tabs .tab.active,
+.tabs button.active {
+  background: transparent;
+  color: var(--ink-1);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+/* תגיות מצב: הצבע נשמר למה שדורש פעולה. השאר טקסט.
+   badge-gray/blue/purple מתארים סוג וזהות — לא דחיפות. */
+.badge-gray,
+.badge-blue,
+.badge-purple {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-3);
+  padding-inline: 0;
+  font-weight: 500;
+}
+
+/* כפתור משני מאבד מסגרת — הוא לא פעולה ראשית */
+.btn-secondary,
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-2);
+}
+.btn-secondary:hover,
+.btn-ghost:hover { background: var(--surface-2); border-color: transparent; color: var(--ink-1); }
+
+/* כפתור ראשי אחד בגודל אחד בכל המערכת.
+   המילוי מגיע מ-‎--accent-fill‎ ולא מ-‎--accent‎: בערכה הכהה ה-accent
+   הוא כחול בהיר (כדי שייקרא כטקסט), ומילוי כפתור בו יוצר גוש תכלת
+   זוהר על כמעט-שחור. */
+.btn-primary,
+.ui-btn-primary {
+  padding: .42rem .95rem;
+  font-size: var(--fs-13);
+  font-weight: 500;
+  border-radius: var(--r-input);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+  color: var(--on-accent-fill);
+}
+.btn-primary:hover:not(:disabled),
+.ui-btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+:root[data-theme='dark'] .btn-primary:hover:not(:disabled),
+:root[data-theme='dark'] .ui-btn-primary:hover:not(:disabled) { background: #4a80d6; border-color: #4a80d6; color: #fff; }
+
+/* שורות טבלה בכל המערכת: קו שערה ו-hover ניטרלי, בלי פסים */
+table tbody tr:hover { background: var(--surface-2); }
+table tbody td { border-bottom-color: var(--hairline-2); }
+table thead th {
+  background: transparent;
+  border-bottom: 1px solid var(--hairline-1);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--ink-4);
+  letter-spacing: .02em;
+}
+
+/* ── מצב ריק · מסך 12 במוקאפ ─────────────────────────────────────────────────
+   מיושר לימין ולא ממורכז: זה מסך שמלמד מחזור חיים, וטקסט שמלמד נקרא
+   בעמודה — לא במרכז המסך. רוחב 62ch הוא גבול הקריאוּת. */
+.quotations-page .ui-empty {
+  align-items: flex-start;
+  text-align: start;
+  max-width: 62ch;
+  padding: 26px 0 34px;
+  gap: 26px;
+}
+.quotations-page .ui-empty-headline { font-size: var(--fs-17); }
+.quotations-page .ui-empty-sentence { font-size: var(--fs-15); line-height: 1.75; }
+.quotations-page .ui-empty-steps { min-width: 0; max-width: none; margin: 0; }
+
+.ui-empty-steps li { grid-template-columns: 22px 1fr; display: grid; gap: 14px; padding: 11px 0; }
+.ui-empty-steps li:last-child { border-block-end: 0; }
+.ui-empty-step { display: flex; flex-direction: column; gap: 2px; }
+.ui-empty-step-t { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.ui-empty-step-p { font-size: var(--fs-13); color: var(--ink-3); line-height: 1.6; }
+.ui-empty-actions { gap: 16px; margin-block-start: 0; }
+
+/* כותרת המסך עם קו מפריד — כאן היא לא מיותרת, כי הטאב אומר
+   "הצעות ולידים" וזה המסך של ההצעות בלבד */
+.quotations-page .desk-header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--hairline-1);
+  align-items: baseline;
+}
+.quotations-page .desk-title {
+  display: block;
+  font-size: var(--fs-20);
+  font-weight: 600;
+  letter-spacing: -.015em;
+}
+
+/* מרכז ידע מס · מסך 18 — מסילה 206px ופאנל, במרווח 32px */
+.tax-center.pg-split { grid-template-columns: 206px 1fr; gap: 32px; }
+.pg-rail-eyebrow {
+  font-size: var(--fs-12); font-weight: 600; letter-spacing: .05em;
+  color: var(--ink-4); padding: 0 8px 8px;
+}
+.pg-rail-foot { margin-top: 12px; padding: 0 8px; font-size: var(--fs-12); line-height: 1.6; color: var(--ink-4); }
+.pg-rail-foot .tc-fresh { justify-content: flex-start; }
+.pg-rail-year {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-top: 16px; padding: 0 8px;
+  font-size: var(--fs-12); color: var(--ink-4);
+}
+.pg-rail-year select {
+  border: 0; border-radius: var(--r-input); background: var(--surface-2);
+  padding: 6px 9px; font-family: inherit; font-size: var(--fs-13); color: var(--ink-1);
+}
+.pg-rail-back {
+  margin-top: 18px; padding: 0 8px; background: none; border: 0;
+  font-family: inherit; font-size: var(--fs-13); color: var(--ink-4);
+  cursor: pointer; text-align: start;
+}
+.pg-rail-back:hover { color: var(--ink-1); }
+
+/* שלב שעדיין לא נפתח — קיים במסילה כדי שרואים את כל הרצף, אבל מושבת */
+.pg-rail-item:disabled { cursor: default; opacity: .4; }
+.pg-rail-item:disabled:hover { background: transparent; }
+
+/* דוח שנתי — אותה רשת של מרכז הידע */
+.annual-report-page.pg-split { grid-template-columns: 206px 1fr; gap: 32px; }
+
+/* טופס לקוח — מסילת מקטעים ופאנל, כמו התיק */
+.cf-split { display: grid; grid-template-columns: 206px 1fr; gap: 32px; align-items: start; margin-top: 20px; }
+@media (max-width: 900px) { .cf-split { grid-template-columns: 1fr; gap: 20px; } }
+
+/* בורר שנת המס בכותרת — תווית קטנה מעל, שדה רך מתחת */
+.calc-year { display: flex; align-items: center; gap: 8px; font-size: var(--fs-12); color: var(--ink-4); }
+.calc-year select {
+  border: 0; border-radius: var(--r-input); background: var(--surface-2);
+  padding: 6px 10px; font-family: inherit; font-size: var(--fs-13);
+  color: var(--ink-1); font-variant-numeric: tabular-nums;
+}
+
+/* מתג "הצעות / לידים" — שני מצבים של אותו מסך, ולכן מתג ולא שני טאבים
+   שמתחרים על הכותרת. הוא יושב באזור הפעולות, לצד הפעולה הראשית. */
+.qp-switch { display: inline-flex; background: var(--surface-2); border-radius: var(--r-input); padding: 2px; }
+.qp-switch button {
+  border: 0; background: transparent; border-radius: var(--r-chip);
+  padding: 5px 12px; font-family: inherit; font-size: var(--fs-13);
+  color: var(--ink-3); cursor: pointer;
+}
+.qp-switch button.is-active { background: var(--surface-0); color: var(--ink-1); font-weight: 500; }
+
+/* כותרת המסך מגיעה מ-‎.pg-head‎ עכשיו; הישנה יורדת כדי שלא תהיינה שתיים */
+.quotations-page .desk-header { display: none; }
+
+/* כותרת המשרד נשארת דביקה — השמירה חייבת להיות בהישג יד בכל מקטע */
+.fp-head { position: sticky; top: 0; z-index: 20; background: var(--surface-0); margin-bottom: 20px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   מסך מצב שהלקוח רואה
+   הרגע היחיד שבו הלקוח פוגש את המערכת בלי מיתוג המשרד — "הקישור פג"
+   קורה עוד לפני שידוע איזה משרד זה. לכן אין כאן כרטיס צף עם צל, ואין
+   מסגרת: יש נייר, עמודה אחת ממורכזת, ושלוש רמות טקסט בלבד.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cps {
+  min-height: 100vh;
+  background: var(--page);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  direction: rtl;
+  font-family: 'Heebo', system-ui, sans-serif;
+}
+.cps-inner { max-width: 44ch; text-align: center; }
+.cps-mark { font-size: var(--fs-34); line-height: 1; margin-bottom: 14px; }
+.cps-title {
+  font-size: var(--fs-20); font-weight: 600; letter-spacing: -.015em;
+  color: var(--ink-1); margin: 0 0 8px;
+}
+.cps-body { font-size: var(--fs-14); line-height: 1.7; color: var(--ink-2); text-wrap: pretty; }
+.cps-body.is-quiet { color: var(--ink-3); }
+.cps-action { margin-top: 22px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   מסך הכניסה ומסך אין-הגישה
+   זה המסך הראשון שרואים, ולכן הוא קובע מה המוצר הזה. הוא היה גרדיאנט
+   כחול־אפור עם כרטיס לבן צף וצל גדול — הניסוח הוויזואלי של 2015.
+   עכשיו: קנבס, עמודה אחת ממורכזת, ופעולה אחת. אין קופסה, כי אין ממה
+   להפריד — במסך הזה אין שום דבר אחר.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.login-screen {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--canvas);
+  padding: 2rem 1rem;
+  /* מחוץ ל-‎.app‎, ולכן צריך את גודל הגוף במפורש — אחרת יורש 16 מ-html */
+  font-size: var(--fs-14);
+}
+.login-card {
+  width: 100%; max-width: 340px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  text-align: center;
+}
+.login-brand { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 34px; }
+.login-brand-sub { font-size: var(--fs-13); color: var(--ink-3); }
+.login-logo { font-size: var(--fs-34); margin-bottom: .6rem; }
+.login-title { font-size: var(--fs-20); font-weight: 600; color: var(--ink-1); letter-spacing: -.015em; margin-bottom: .4rem; }
+.login-subtitle { font-size: var(--fs-14); line-height: 1.7; color: var(--ink-2); margin-bottom: 22px; }
+
+/* הכפתור נושא את כל המשקל של המסך, ולכן הוא מלא ורחב */
+.login-google-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 11px 16px;
+  border: 1px solid var(--hairline-1); border-radius: var(--r-input);
+  background: var(--surface-0); color: var(--ink-1);
+  font-family: inherit; font-size: var(--fs-14); font-weight: 500; cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.login-google-btn:hover:not(:disabled) { border-color: var(--ink-4); background: var(--surface-1); }
+.login-google-btn:disabled { opacity: .55; cursor: default; }
+
+.login-error {
+  margin-top: 14px; font-size: var(--fs-13); color: var(--danger);
+  border-inline-start: 2px solid var(--danger); padding-inline-start: .8rem; text-align: start;
+}
+.login-footnote { margin-top: 26px; font-size: var(--fs-12); color: var(--ink-4); line-height: 1.6; }
+/* התוכן הפנימי כבר לא צף במרכז החלון — הפאנל הוא שקובע את רוחבו */
+.annual-report-page .pg-pane > div[style*="margin"] { margin-inline: 0 !important; }
+
+/* כותרת גדולה — במסך שיש בו מסילה, הכותרת נושאת את המשקל של העמוד */
+.pg-title-lg { font-size: var(--fs-20); }
+
+/* ערכי המפתח של השנה: שורת מספרים במרווח, לא תשעה כרטיסים ממורכזים */
+.tc-keyvals { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 22px 30px; }
+.tc-keyval { display: flex; flex-direction: column; gap: 1px; }
+.tc-keyval-num { font-size: var(--fs-20); font-weight: 600; letter-spacing: -.02em; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.tc-keyval-label { font-size: var(--fs-13); color: var(--ink-2); }
+.tc-keyval-sub { font-size: var(--fs-12); color: var(--ink-4); }
+
+/* כרטיסי הנתונים בסקירה — קו מפריד במקום מסגרת לכל אחד */
+.tax-center .card {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-top: 1px solid var(--hairline-2) !important;
+  border-radius: 0 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   שכבת המבנה · הרכב העמוד
+   מקור: ‎מסך08.dc.html‎ ואחיו בפרויקט העיצוב.
+
+   זו לא שכבת צבע — זו שכבת קומפוזיציה. מה שמבדיל את המוקאפים מהמוצר
+   הישן אינו הגוונים אלא הסדר: לכל מסך יש כותרת אחת עם משפט-מצב אחד,
+   פעולה ראשית אחת בקצה, ואז תוכן בקצב רחב. אין קופסה בתוך קופסה,
+   ואין שתי רמות של כותרות שמתחרות זו בזו.
+
+   שלושה מרווחים בלבד בכל המערכת:
+     20px  בין בלוקים ברמת העמוד
+     30px  בין מסילה לפאנל (מאסטר-דיטייל)
+     16px  בין מקטעים בתוך פאנל
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ‎.cw-tab‎ משמשת גם ככפתור הטאב וגם כמעטפת התוכן שלו, והכפתור מגדיר
+   ‎white-space: nowrap‎. מעטפת עמוד תמיד עוטפת שורות — אחרת פסקה ארוכה
+   דוחפת גלילה אופקית לכל המסך. */
+.pg { display: flex; flex-direction: column; gap: 20px; white-space: normal; min-width: 0; }
+.pg-split > * { min-width: 0; }
+
+/* כותרת עמוד: שם + משפט מצב אחד משמאל, פעולות מימין, קו אחד מתחת.
+   משפט המצב הוא היחיד שמדווח מספרים — כך המספר לא חוזר שלוש פעמים. */
+.pg-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 24px; padding-bottom: 13px; border-bottom: 1px solid var(--hairline-1);
+}
+.pg-head-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pg-title { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.015em; color: var(--ink-1); }
+.pg-status { font-size: var(--fs-13); color: var(--ink-3); }
+.pg-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* שדה חיפוש בכותרת עמוד — משטח רך, בלי מסגרת */
+.pg-search {
+  width: 200px; padding: 7px 12px; border: 0; border-radius: var(--r-input);
+  background: var(--surface-2); font-family: inherit; font-size: var(--fs-13);
+  color: var(--ink-1); outline: none;
+}
+.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+
+/* פס התקדמות מקטעי — מקטע לכל קבוצה. הוא מחליף תשע תוויות מצב. */
+.pg-bars { display: flex; align-items: center; gap: 2px; height: 5px; border-radius: 3px; overflow: hidden; background: var(--hairline-1); }
+.pg-bar { flex: 1; height: 5px; }
+.pg-bar.is-done { background: var(--success); }
+.pg-bar.is-todo { background: var(--progress-partial); }
+
+/* מאסטר-דיטייל: מסילה צרה ופאנל אחד פתוח. זה מה שמחליף ערימה של
+   אקורדיונים — במקום לגלול דרך הכול, בוחרים קבוצה ורואים רק אותה. */
+.pg-split { display: grid; grid-template-columns: 236px 1fr; gap: 30px; align-items: start; }
+@media (max-width: 900px) { .pg-split { grid-template-columns: 1fr; gap: 20px; } }
+
+.pg-rail { display: flex; flex-direction: column; gap: 2px; }
+.pg-rail-item {
+  display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: baseline;
+  width: 100%; padding: 9px 11px; border: 0; border-radius: var(--r-input);
+  background: transparent; cursor: pointer; font-family: inherit; text-align: start;
+}
+.pg-rail-item:hover { background: var(--surface-2); }
+.pg-rail-item.is-active { background: var(--surface-2-active); }
+.pg-rail-name { font-size: var(--fs-13); font-weight: 400; color: var(--ink-2); }
+.pg-rail-item.is-active .pg-rail-name { font-weight: 600; color: var(--ink-1); }
+/* מצב הקבוצה: אפור כשהיא סגורה, ענברי כשחסר בה משהו */
+.pg-rail-state { font-size: var(--fs-12); color: var(--ink-4); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pg-rail-state.is-todo { color: var(--warn); }
+
+.pg-pane { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pg-pane-head { display: flex; flex-direction: column; gap: 5px; }
+.pg-pane-title { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.01em; color: var(--ink-1); }
+/* טקסט העזר נעצר ב-74ch — מעבר לזה העין מאבדת את תחילת השורה */
+.pg-pane-help { font-size: var(--fs-13); line-height: 1.7; color: var(--ink-3); max-width: 74ch; text-wrap: pretty; }
+.pg-pane-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding-top: 14px; border-top: 1px solid var(--hairline-2);
+}
+.pg-pane-meta { font-size: var(--fs-12); color: var(--ink-4); }
+
+/* רשת שדות: תווית מעל ערך, שתי עמודות. הערך יושב במשטח רך — כך רואים
+   מיד מה מולא ומה לא, בלי מסגרת סביב כל שדה. */
+.pg-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+@media (max-width: 640px) { .pg-fields { grid-template-columns: 1fr; } }
+.pg-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pg-field-label { display: flex; align-items: baseline; gap: 7px; }
+.pg-field-label > span:first-child { font-size: var(--fs-12); color: var(--ink-3); }
+.pg-field-req { font-size: var(--fs-12); color: var(--danger); }
+.pg-field-value {
+  padding: 8px 11px; border-radius: var(--r-input); background: var(--field-read);
+  font-size: var(--fs-14); color: var(--ink-1); min-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+/* שדה חובה שריק הוא הדבר היחיד במסך שנצבע — כי בלעדיו הדוח לא זז */
+.pg-field-value.is-missing { background: var(--field-missing-bg); color: var(--danger); }
+
+/* תוצאות חיפוש בתוך מסך — שורות שטוחות, בלי כותרות ובלי קיבוץ */
+.pg-results { display: flex; flex-direction: column; }
+.pg-results-count { font-size: var(--fs-13); color: var(--ink-3); padding-bottom: 6px; }
+.pg-result {
+  display: grid; grid-template-columns: minmax(0,1fr) 200px 108px; gap: 18px;
+  align-items: center; padding: 10px 2px; border-top: 1px solid var(--hairline-2);
+}
+.pg-result:hover { background: var(--surface-1); }
+.pg-result-label { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.pg-result-value { font-size: var(--fs-13); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-result-value.is-missing { color: var(--danger); }
+.pg-result-group { font-size: var(--fs-12); color: var(--ink-4); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   פרימיטיבים משותפים · alert · card-header · stat-card
+   שלושת אלה חוזרים בעשרות מסכים. הם נכתבו בשפה הישנה — קופסה צבועה,
+   מסגרת ורדיוס — ולכן כל מסך שמשתמש בהם נראה ישן גם אחרי שנבנה מחדש.
+   התיקון כאן הוא בפרימיטיב עצמו, בגבול ‎.app‎ בלבד.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* התראה = משפט, לא קופסה. הקו האנכי מסמן "זו הערה" בלי למלא שטח בצבע.
+   info אינו מידע דחוף — הוא נסוג לאפור. warning ו-error שומרים על הגוון,
+   כי שם הצבע הוא-הוא המידע. */
+.app .alert {
+  background: transparent;
+  border: 0;
+  border-inline-start: 2px solid var(--hairline-1);
+  border-radius: 0;
+  padding: .1rem 0 .1rem .9rem;
+  font-size: var(--fs-13);
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+.app .alert-info { background: transparent; border-color: var(--hairline-1); color: var(--ink-3); }
+.app .alert-warning { background: transparent; border-inline-start-color: var(--warn); color: var(--ink-2); }
+.app .alert-error,
+.app .alert-danger { background: transparent; border-inline-start-color: var(--danger); color: var(--ink-2); }
+.app .alert-success { background: transparent; border-inline-start-color: var(--success); color: var(--ink-2); }
+.app .alert strong,
+.app .alert b { color: var(--ink-1); font-weight: 600; }
+
+/* ראש כרטיס = כותרת עם קו, לא פס צבוע. הריפוד האופקי יורד כי הכרטיס
+   שמסביבו כבר איבד את המסגרת שלו. */
+.app .card-header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--hairline-2);
+  border-radius: 0;
+  padding: .85rem 0 .5rem;
+}
+.app .card-title { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); letter-spacing: -.01em; }
+.app .card-body { padding: .9rem 0 1.1rem; }
+
+/* כרטיס נתון: מספר עם תווית. חמישה גוונים לחמישה ערכי ייחוס אינם מידע —
+   הם קישוט. נשאר המספר, והמפריד הוא קו. */
+.app .stat-card,
+.app .stat-card.blue,
+.app .stat-card.green,
+.app .stat-card.orange,
+.app .stat-card.red,
+.app .stat-card.purple {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--hairline-2);
+  border-radius: 0;
+  padding: .7rem 0 .8rem;
+}
+.app .stats-grid { gap: 0 2rem; }
+.app .stat-label { font-size: var(--fs-12); font-weight: 400; color: var(--ink-4); margin-bottom: .15rem; }
+.app .stat-value { font-size: var(--fs-20); font-weight: 600; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.app .stat-sub { font-size: var(--fs-12); color: var(--ink-4); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   מרכז ידע מס · מסך 18
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* עדכניות: שורת מטא ימנית ושקטה. ⚠ בלבד כשמאגר פספס בדיקה. */
+.tc-fresh { display: flex; justify-content: flex-end; margin-bottom: .45rem; }
+.tc-fresh-ok { font-size: var(--fs-12); color: var(--ink-4); }
+.tc-fresh-stale { font-size: var(--fs-12); font-weight: 500; color: var(--warn); }
+
+.tc-fresh-panel { padding-block: .2rem .4rem; }
+.tc-fresh-panel-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  flex-wrap: wrap; gap: .5rem;
+  padding-bottom: .45rem; border-bottom: 1px solid var(--hairline-1); margin-bottom: .2rem;
+}
+.tc-fresh-panel-title { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); }
+.tc-fresh-panel-sub { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: .55rem; }
+.tc-fresh-table { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
+.tc-fresh-table tr + tr td { border-top: 1px solid var(--hairline-2); }
+.tc-fresh-table td { padding: .4rem 0; }
+.tc-fresh-name { white-space: nowrap; color: var(--ink-1); font-weight: 500; }
+.tc-fresh-covers { color: var(--ink-4); font-size: var(--fs-12); padding-inline: .9rem !important; }
+.tc-fresh-when { white-space: nowrap; text-align: end; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.tc-fresh-when.is-stale { color: var(--warn); font-weight: 500; }
+.tc-fresh-note { font-size: var(--fs-12); color: var(--ink-4); margin-top: .6rem; line-height: 1.6; max-width: 82ch; }
+
+/* ── הוצאות מוכרות ──────────────────────────────────────────────────────────
+   הפסק המקצועי הוא המידע, ולכן הוא נושא צבע — אבל כטקסט, לא כגלולה.
+   ‎.tone-ok‎ היא התשובה הרגילה ולכן היא נשארת דיו רגיל: אילו כל השורות
+   היו ירוקות, הירוק היה חוזר 60 פעם ולא היה אומר דבר. */
+.ek-page { display: flex; flex-direction: column; }
+.ek-hint { font-size: var(--fs-12); color: var(--ink-4); margin-top: .45rem; }
+.ek-count { font-size: var(--fs-13); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+
+.ek-grid { display: flex; flex-direction: column; }
+.ek-head, .ek-row {
+  display: grid;
+  grid-template-columns: minmax(0,1.6fr) 118px 118px 92px;
+  gap: 18px;
+}
+.ek-head {
+  padding: 0 2px 6px;
+  font-size: var(--fs-12); font-weight: 500; letter-spacing: .02em;
+  color: var(--ink-4); border-bottom: 1px solid var(--hairline-1);
+}
+.ek-row {
+  align-items: baseline; padding: 10px 2px; width: 100%;
+  border: 0; border-top: 1px solid var(--hairline-2);
+  background: none; font-family: inherit; text-align: start; cursor: pointer;
+}
+.ek-row:hover, .ek-row:focus-visible { background: var(--surface-1); }
+.ek-row:hover .ek-name { text-decoration: underline; }
+.ek-cell-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ek-name { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.ek-source { font-size: var(--fs-12); color: var(--ink-4); line-height: 1.45; }
+.ek-none { padding: 1.6rem 0; text-align: center; color: var(--ink-4); border-top: 1px solid var(--hairline-2); }
+
+.ek-verdict { display: flex; flex-direction: column; gap: 1px; }
+.ek-verdict-word { font-size: var(--fs-13); font-weight: 500; color: var(--ink-2); }
+.ek-verdict-note {
+  font-size: var(--fs-12); color: var(--ink-4); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ek-risk { font-size: var(--fs-13); color: var(--ink-4); }
+
+.tone-ok { color: var(--ink-2); }
+.tone-limit { color: var(--warn); }
+.tone-no { color: var(--danger); }
+.tone-check { color: var(--ink-2); }
+.tone-na { color: var(--ink-4); }
+
+/* "פתח ←" קיים תמיד למקלדת, נראה רק במעבר עכבר */
+.ek-open {
+  font-size: var(--fs-13); color: var(--accent); white-space: nowrap;
+  opacity: 0; transition: opacity .1s;
+}
+.ek-row:hover .ek-open, .ek-row:focus-within .ek-open { opacity: 1; }
+
+/* ── כרטיס ההוצאה · תשובה אחת ומתחתיה הראיות ────────────────────────────────
+   המסך נקרא בשיחה עם לקוח, ולכן הסדר הוא: מה התשובה → מה אומרים →
+   ואז המקורות, שנפתחים רק כשמישהו מבקש לראות אותם. */
+.ed-page { display: flex; flex-direction: column; }
+.ed-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--hairline-1);
+}
+.ed-head-main { min-width: 0; }
+.ed-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ed-emoji { font-size: var(--fs-20); }
+.ed-title { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.015em; color: var(--ink-1); margin: 0; }
+.ed-risk { font-size: var(--fs-12); font-weight: 500; }
+.ed-summary { font-size: var(--fs-14); color: var(--ink-2); line-height: 1.65; margin: .4rem 0 0; max-width: 78ch; }
+.ed-meta { font-size: var(--fs-12); color: var(--ink-4); margin-top: .3rem; line-height: 1.55; max-width: 78ch; }
+
+/* שלושת הפסקים בשורה אחת. אין רקע — הקו העליון הוא שמפריד ביניהם. */
+.ed-verdicts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0 30px; margin: 18px 0 4px;
+}
+.ed-verdict { border-top: 1px solid var(--hairline-2); padding: 10px 0 12px; }
+.ed-verdict-label { font-size: var(--fs-12); color: var(--ink-4); }
+.ed-verdict-value { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.01em; margin-top: 1px; }
+.ed-verdict-note { font-size: var(--fs-12); color: var(--ink-4); margin-top: 2px; line-height: 1.5; }
+
+/* המשפט שנאמר ללקוח — הכרטיס הצבוע היחיד במסך, באותו צהוב של ההערה המוצמדת */
+.ed-say {
+  background: var(--note-bg); border-radius: var(--r-panel);
+  padding: 13px 16px; margin: 16px 0 22px;
+}
+.ed-say-label { font-size: var(--fs-12); font-weight: 500; color: var(--note-text); margin-bottom: 3px; }
+.ed-say-text { font-size: var(--fs-15); line-height: 1.75; color: var(--ink-1); margin: 0; max-width: 76ch; }
+
+.ed-section { border-top: 1px solid var(--hairline-2); }
+.ed-section-head {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 11px 0; background: none; border: 0; cursor: pointer;
+  font-family: inherit; text-align: start; color: inherit;
+}
+.ed-section-icon { font-size: var(--fs-14); }
+.ed-section-title { flex: 1; font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); letter-spacing: -.01em; }
+.ed-section-caret { font-size: var(--fs-12); color: var(--ink-4); transition: transform .15s; }
+.ed-section-caret.is-open { transform: rotate(180deg); }
+.ed-section-body { padding: 0 0 18px; font-size: var(--fs-14); line-height: 1.7; color: var(--ink-2); max-width: 88ch; }
+
+.ed-bullets { padding-inline-start: 1.15rem; display: flex; flex-direction: column; gap: .35rem; }
+.ed-bullets li { line-height: 1.65; }
+.ed-questions { padding-inline-start: 1.15rem; display: flex; flex-direction: column; gap: .4rem; color: var(--ink-2); }
+.ed-basis { font-size: var(--fs-13); color: var(--ink-3); margin-bottom: .6rem; }
+.ed-lead { font-weight: 600; color: var(--ink-1); }
+.ed-sub { margin-top: .7rem; }
+.ed-sub-title { font-size: var(--fs-13); font-weight: 600; color: var(--ink-1); margin-bottom: .25rem; }
+.ed-sub-title.is-danger { color: var(--danger); }
+
+.ed-list { display: flex; flex-direction: column; }
+.ed-item { padding: 9px 0; }
+.ed-item + .ed-item { border-top: 1px solid var(--hairline-2); }
+.ed-item-head { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); }
+.ed-item-body { font-size: var(--fs-13); color: var(--ink-2); line-height: 1.65; margin-top: 2px; }
+.ed-ref { font-weight: 400; color: var(--ink-4); }
+
+.ed-warn-title { font-weight: 600; color: var(--ink-1); margin-bottom: .3rem; }
+.ed-keywords { font-size: var(--fs-12); color: var(--ink-4); margin-top: 20px; }
+
+/* ── ניהול ספרים ───────────────────────────────────────────────────────────── */
+.bk-intro { padding-bottom: .2rem; }
+.bk-intro-title { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); margin-bottom: .2rem; }
+.bk-intro-text { font-size: var(--fs-13); color: var(--ink-3); line-height: 1.65; max-width: 92ch; }
+
+/* שדה חיפוש: משטח רך בלי מסגרת — מסגרת אומרת "מלא אותי", חיפוש לא */
+.bk-field {
+  border: 0; border-radius: var(--r-input); background: var(--surface-2);
+  padding: .5rem .8rem; font-size: var(--fs-14); font-family: inherit;
+  color: var(--ink-1); outline: none;
+}
+.bk-field:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+.bk-field-wide { width: 100%; }
+
+.bk-q { border-inline-start: 2px solid var(--hairline-1); padding-inline-start: .7rem; }
+.bk-link { cursor: pointer; color: var(--accent); background: none; border: 0; font-family: inherit; padding: 0; }
+.bk-link:hover { text-decoration: underline; }
+.bk-link-strong { font-size: var(--fs-14); font-weight: 600; }
+.bk-caveat {
+  font-size: var(--fs-13); color: var(--ink-2); margin-top: .4rem;
+  border-inline-start: 2px solid var(--warn); padding-inline-start: .7rem;
+}
+.bk-notes {
+  border-top: 1px solid var(--hairline-2); padding: .85rem 0 .95rem;
+  font-size: var(--fs-13); color: var(--ink-2); line-height: 1.6;
+}
+
+/* ── מחשבון שכר דירה · השוואת מסלולים ───────────────────────────────────────
+   שלושה מסלולים זה לצד זה. ההבדל בין המספרים הוא התשובה, ולכן המספר
+   הוא הדבר הגדול בכל עמודה, והמנצח מסומן במילה — לא במסגרת ובתג צף. */
+.rr-route { border-top: 1px solid var(--hairline-2); padding-top: 2px; }
+.rr-route.is-best { border-top: 2px solid var(--ink-1); }
+.rr-route-head { display: flex; align-items: baseline; gap: 8px; padding: 9px 0 2px; flex-wrap: wrap; }
+.rr-route-title { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.rr-route-best { font-size: var(--fs-12); color: var(--ink-4); }
+.rr-route.is-best .rr-route-title { font-weight: 600; }
+.rr-route-body { display: flex; flex-direction: column; gap: .55rem; padding-bottom: 14px; }
+.rr-amount { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.02em; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.rr-route.is-best .rr-amount { color: var(--ink-1); }
+.rr-amount-sub { font-size: var(--fs-12); color: var(--ink-4); line-height: 1.5; }
+.rr-deduction { font-size: var(--fs-12); color: var(--ink-3); }
+.rr-how summary { cursor: pointer; font-size: var(--fs-13); color: var(--accent); }
+.rr-how ul { padding-inline-start: 1rem; font-size: var(--fs-12); color: var(--ink-3); margin-top: .3rem; display: flex; flex-direction: column; gap: .25rem; }
+.rr-pc { font-size: var(--fs-12); line-height: 1.6; }
+.rr-pro { color: var(--ink-3); }
+.rr-con { color: var(--ink-3); }
+/* אזהרה על מסלול = משהו שעלול להיכשל בביקורת. זה מידע, אז הוא נשאר אדום — כטקסט. */
+.rr-warn { font-size: var(--fs-12); color: var(--danger); line-height: 1.55; }
+.rr-total-row { font-weight: 600; }
+.rr-total-row td { border-top: 1px solid var(--hairline-1) !important; }
+.rr-stat { padding: .55rem 0; border-top: 1px solid var(--hairline-2); }
+.rr-stat > div:last-child { font-size: var(--fs-12); color: var(--ink-4); }
+
+/* ── ביטוח לאומי · מסך 24 ───────────────────────────────────────────────────
+   המחשבון היה קופסה סגולה עם ראש סגול מלא. עכשיו הוא מקטע ככל מקטע אחר;
+   מה שמייחד אותו הוא שיש בו שדות, וזה נראה בלי שצריך לצבוע אותו. */
+.ni-calc { margin-bottom: 2rem; border-top: 1px solid var(--hairline-1); }
+.ni-calc-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; padding: .8rem 0 .5rem; border-bottom: 1px solid var(--hairline-2);
+}
+.ni-calc-head > span:first-child { font-size: var(--fs-17); font-weight: 600; color: var(--ink-1); letter-spacing: -.015em; }
+.ni-calc-tag { font-size: var(--fs-12); color: var(--ink-4); font-weight: 400; }
+.ni-calc-body { padding: 1.1rem 0 .4rem; }
+
+/* הערה מודגשת בתוך מקטע — קו אנכי, לא מלבן צבוע */
+.ni-note {
+  border-inline-start: 2px solid var(--hairline-1); padding: .1rem 0 .1rem .9rem;
+  margin-bottom: .75rem; font-size: var(--fs-13); line-height: 1.65; color: var(--ink-2);
+}
+.ni-note strong { color: var(--ink-1); font-weight: 600; }
+
+/* המסך כולו כתב תוויות בלי גודל, וירש 16px מברירת המחדל של הדפדפן */
+.ni-section label, .ni-calc-body label { font-size: var(--fs-13); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   כרטיס לקוח · לשונית התיק — מסך 08
+   התיק הוא רשימה ארוכה של שדות בשמונה קבוצות. כשכל קבוצה היא קופסה,
+   וכל תת-קבוצה בתוכה קופסה נוספת, נוצרת ערימה. קו אחד לכל רמה מספיק.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.dg { border-top: 1px solid var(--hairline-1); }
+.dg-head {
+  display: flex; align-items: baseline; gap: .6rem; width: 100%;
+  background: none; border: 0; cursor: pointer; text-align: start;
+  padding: .7rem 0 .6rem; font-family: inherit; color: inherit;
+}
+.dg-head:hover .dg-title { color: var(--ink-1); }
+.dg-icon { font-size: var(--fs-14); }
+.dg-title { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); letter-spacing: -.01em; }
+.dg-hint { font-size: var(--fs-12); color: var(--ink-4); }
+.dg-caret { margin-inline-start: auto; font-size: var(--fs-12); color: var(--ink-4); transition: transform .15s; }
+.dg-caret.is-open { transform: rotate(180deg); }
+.dg-body { padding: .1rem 0 1.1rem; }
+
+.dossier-anchor { padding-bottom: .9rem; }
+.dossier-spouse-note { font-size: var(--fs-13); font-weight: 500; margin-top: .35rem; }
+
+/* קבוצת שדות בתוך הפאנל. אין מסגרת ואין פס צבע לרשות — שם הקבוצה
+   כתוב, והפאנל כבר מראה קבוצה אחת, אז אין ממה להפריד אותה. */
+.ds-group { display: flex; flex-direction: column; gap: 10px; }
+.ds-group + .ds-group { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--hairline-2); }
+.ds-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ds-group-title { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.01em; color: var(--ink-1); margin: 0; }
+.ds-group-count { font-size: var(--fs-13); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+
+/* תת-קבוצה: כותרת זעירה וקו, לא משטח אפור בתוך משטח אפור */
+.app .cw-subsection {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--hairline-2);
+  border-radius: 0;
+  padding: .7rem 0 .2rem;
+  margin-top: .5rem;
+}
+.app .cw-subsection-title { font-size: var(--fs-12); font-weight: 500; color: var(--ink-4); letter-spacing: .02em; }
+
+/* מונים וספרות ילד: מספר, לא עיגול צבוע */
+.app .cw-prop-count,
+.app .cw-child-num {
+  background: transparent;
+  color: var(--ink-4);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  border-radius: 0;
+  padding: 0;
+  width: auto; height: auto;
+  font-variant-numeric: tabular-nums;
+}
+.app .cw-child-num { color: var(--ink-3); font-size: var(--fs-13); }
+
+/* ── תיקים ברשויות ────────────────────────────────────────────────────────── */
+.tf-row {
+  display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+  padding: .5rem 0;
+}
+.tf-row + .tf-row { border-top: 1px solid var(--hairline-2); }
+.tf-select {
+  padding: .3rem .5rem; border: 0; border-radius: var(--r-chip);
+  background: var(--surface-2); color: var(--ink-1);
+  font-family: inherit; font-size: var(--fs-13);
+}
+.tf-select-strong { font-weight: 500; }
+/* מצב הייצוג: "פעיל" הוא המצב הרגיל ולכן הוא שקט. "ממתין" נושא צבע
+   כי הוא היחיד שדורש שמישהו יעשה משהו. */
+.tf-rep {
+  padding: .3rem .45rem; border: 0; border-radius: var(--r-chip);
+  background: transparent; font-size: var(--fs-12); font-weight: 500;
+  font-family: inherit; color: var(--ink-3);
+}
+.tf-rep-pending { color: var(--warn); }
+.tf-spouse-warn {
+  margin: .3rem 0 .6rem; font-size: var(--fs-13); font-weight: 500; color: var(--warn);
+  border-inline-start: 2px solid var(--warn); padding-inline-start: .8rem; line-height: 1.55;
+}
+
+/* ── אנשי קשר ונכסים ────────────────────────────────────────────────────────
+   "איש הקשר הראשי" ו"הנישום עצמו" סומנו בשני רקעים צבועים שונים.
+   זהות אינה דחיפות: המפתח 🔑 והתווית כבר אומרים מי זה, והמשקל מספיק. */
+.app .cw-contact-card.cw-contact-primary,
+.app .cw-contact-card.cw-contact-self,
+.app .cw-contact-card.cw-contact-self.cw-contact-primary {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.app .cw-contact-card.cw-contact-primary { border-top-color: var(--hairline-1); }
+.app .cw-contact-primary .cw-contact-name { font-weight: 600; }
+
+.app .cw-contact-form {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--hairline-2);
+  border-radius: 0;
+  padding: .75rem 0 .2rem;
+}
+
+.app .cw-property-num {
+  background: transparent; color: var(--ink-3);
+  font-size: var(--fs-13); font-weight: 500;
+  width: auto; height: auto; border-radius: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* מקטרת ההעלאה: קו מקווקו הוא הרמז ל"אפשר לגרור לכאן" — הוא נשאר,
+   אבל בעובי ובצבע של קו שערה ובלי משטח לבן מתחתיו */
+.app .cw-linked-docs-upload,
+.app .cw-linked-docs-link-btn {
+  background: transparent;
+  border: 1px dashed var(--hairline-1);
+  color: var(--ink-3);
+}
+.app .cw-linked-docs-upload:hover,
+.app .cw-linked-docs-link-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--ink-4);
+  color: var(--ink-1);
+}
+
+.ctd-hint {
+  margin-bottom: 8px; font-size: var(--fs-12); color: var(--ink-3); line-height: 1.55;
+  border-inline-start: 2px solid var(--hairline-1); padding-inline-start: .7rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   כרטיס לקוח · לשונית מסמכים — מסך 09
+   "6 מסמכים · 3 שנים · 5 קטגוריות" הוא משפט, לא לוח מחוונים. שלושה
+   מספרים שלא דורשים פעולה לא צריכים כרטיס צף עם צל ומספרים כחולים.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.app .doc-stats-strip {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--hairline-2);
+  border-radius: 0;
+  box-shadow: none;
+  padding: .2rem 0 .7rem;
+  gap: 1.4rem;
+  margin-bottom: .9rem;
+}
+.app .doc-stat { flex-direction: row; align-items: baseline; gap: .35rem; }
+.app .doc-stat-number { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.app .doc-stat-label { font-size: var(--fs-12); font-weight: 400; color: var(--ink-4); }
+.app .doc-stat-divider { display: none; }
+
+/* כותרת מסך המסמכים: שם ומונה באותה שורה, קישור החזרה מתחתיהם וקטן */
+.doc-title-row { display: flex; align-items: baseline; gap: 10px; }
+.pg-count { font-size: var(--fs-13); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.app .doc-back-link {
+  background: none; border: 0; padding: 0; font-family: inherit;
+  font-size: var(--fs-12); color: var(--ink-4); cursor: pointer; text-align: start;
+}
+.app .doc-back-link:hover { color: var(--ink-1); }
+
+/* סרגל הסינון — שורה אחת של חיפוש ושבבים, בלי כרטיס מסביב */
+.app .doc-filters {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  background: transparent; border: 0; box-shadow: none; padding: 0;
+}
+.app .doc-filter-search input,
+.app .doc-filter-select {
+  border: 0; border-radius: var(--r-input); background: var(--surface-2);
+  padding: 7px 12px; font-family: inherit; font-size: var(--fs-13); color: var(--ink-1);
+}
+
+/* טבלת המסמכים — קווי שערה ו-hover ניטרלי; המחיקה שקטה עד מעבר עכבר */
+.app .doc-table { border: 0; }
+.app .doc-table thead th {
+  background: transparent; border-bottom: 1px solid var(--hairline-1);
+  font-size: var(--fs-12); font-weight: 500; letter-spacing: .02em; color: var(--ink-4);
+  padding: .4rem .6rem;
+}
+.app .doc-table tbody td { border-bottom: 0; border-top: 1px solid var(--hairline-2); padding: .55rem .6rem; }
+.app .doc-table tbody tr:hover { background: var(--surface-1); }
+.app .doc-table .doc-row-actions { opacity: 0; transition: opacity .1s; }
+.app .doc-table tr:hover .doc-row-actions,
+.app .doc-table tr:focus-within .doc-row-actions { opacity: 1; }
+/* שם הקובץ יושב מתחת לתיאור, ב-LTR — הוא מלווה את המסמך ולא עמודה */
+.doc-file-sub { font-size: var(--fs-12); color: var(--ink-4); direction: ltr; text-align: end; }
+/* הקטגוריה היא סוג, לא דחיפות — אחת עשרה גלולות בגוונים שונים בעמודה
+   אחת הן קשת בענן, לא מידע. */
+.doc-cat-text { font-size: var(--fs-13); color: var(--ink-2); }
+.app .doc-year-cell { text-align: center; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   דוח שנתי 1301 · מפת העץ — מסך 16
+   כל פרק היה כרטיס, וכל שאלה גלולה צבועה בתוכו — אחת עשרה קופסאות
+   שמכילות מאתיים גלולות. הפרק יורד לשורה עם קו; הגלולה נשארת, כי
+   מצב השאלה (חיה · נגזמה · נענתה · נבחרה) הוא בדיוק מה שהמפה באה להראות.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.tm-chapter { display: flex; gap: .8rem; align-items: flex-start; padding: .7rem 0; border-top: 1px solid var(--hairline-2); }
+.tm-chapter.is-pruned { opacity: .45; }
+.tm-chapter-label { min-width: 118px; padding-top: 2px; }
+.tm-chapter-name { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.tm-chapter.is-pruned .tm-chapter-name { color: var(--ink-4); }
+.tm-chapter-count { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.tm-nodes { display: flex; flex-wrap: wrap; gap: .35rem; flex: 1; }
+
+.tm-node {
+  font-family: inherit; font-size: var(--fs-12); font-weight: 400; cursor: pointer;
+  padding: .28rem .55rem; border-radius: var(--r-chip); max-width: 190px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border: 1px solid var(--hairline-1); background: transparent; color: var(--ink-2);
+}
+.tm-node.is-pruned { border-style: dashed; color: var(--ink-4); }
+.tm-node.is-visited { border-color: var(--success); color: var(--ink-1); font-weight: 500; }
+.tm-node.is-selected { border-color: var(--accent); color: var(--ink-1); font-weight: 600; }
+
+.tm-key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; border: 1px solid var(--hairline-1); }
+.tm-key.is-pruned { border-style: dashed; }
+.tm-key.is-visited { border-color: var(--success); }
+
+/* אריחי הסימולציה: מתג דו-מצבי. הפעיל מסומן במשקל ובקו — לא במילוי כחול. */
+.tm-tile {
+  font-family: inherit; font-size: var(--fs-13); cursor: pointer;
+  padding: .3rem .7rem; border-radius: var(--r-chip);
+  border: 1px solid var(--hairline-1); background: transparent; color: var(--ink-3);
+}
+.tm-tile.is-on { border-color: var(--ink-3); color: var(--ink-1); font-weight: 500; }
+.tm-tile:hover { color: var(--ink-1); }
+
+/* גלולות מטא במפה: קוד שדה, סוג שכבה, שם טופס — זהות, ולכן טקסט */
+.tm-pill { font-size: var(--fs-12); color: var(--ink-3); }
+.tm-code { font-size: var(--fs-13); font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.tm-layer { font-size: var(--fs-12); font-weight: 500; }
+
+/* ── מסד נתוני מס · מסך 17 ─────────────────────────────────────────────────── */
+.tcd-rate { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.tcd-lede { font-size: var(--fs-13); color: var(--ink-3); line-height: 1.65; max-width: 84ch; margin: .3rem 0 1rem; }
+.tcd-warn {
+  margin-bottom: 1rem; font-size: var(--fs-13); color: var(--ink-2); line-height: 1.6;
+  border-inline-start: 2px solid var(--warn); padding-inline-start: .9rem;
+}
+.tcd-note {
+  margin-top: .75rem; font-size: var(--fs-13); color: var(--ink-2); line-height: 1.65;
+  border-inline-start: 2px solid var(--hairline-1); padding-inline-start: .9rem;
+}
+.tcd-foot {
+  margin-top: 2rem; padding-top: .9rem; border-top: 1px solid var(--hairline-2);
+  font-size: var(--fs-12); color: var(--ink-4); line-height: 1.65;
+}
+.tcd-panel { padding: .75rem 0; border-top: 1px solid var(--hairline-2); font-size: var(--fs-13); color: var(--ink-2); }
+
+/* ── מסך הפתיחה של הדוח השנתי ──────────────────────────────────────────────── */
+.are-lede { font-size: var(--fs-14); color: var(--ink-2); line-height: 1.7; max-width: 78ch; margin: 0; }
+.are-warn {
+  font-size: var(--fs-13); color: var(--ink-2); line-height: 1.6;
+  border-inline-start: 2px solid var(--warn); padding-inline-start: .9rem;
+}
+.are-exists { margin-inline-start: 8px; font-size: var(--fs-12); color: var(--ink-4); }
+
+/* ── שפה משותפת למסכי הדוח השנתי ────────────────────────────────────────────
+   השאלון, מאזן הכיסוי והפלט נכתבו כל אחד בנפרד, וכל אחד המציא לעצמו
+   גלולה צבועה ותיבת הודעה משלו. שלושה רכיבים כאן מחליפים את כולם. */
+
+/* גלולה → טקסט. "התיק ע"ש", "מתעדכן: כרטיס הלקוח", "שדות 1301" —
+   כל אלה זהות ושיוך, ולכן הם נקראים ולא נצבעים. */
+.ar-pill { font-size: var(--fs-12); color: var(--ink-3); white-space: nowrap; }
+.ar-pill.is-warn { color: var(--warn); font-weight: 500; }
+.ar-pill.num { font-variant-numeric: tabular-nums; }
+
+/* הודעה בתוך זרימה — קו אנכי במקום מלבן צבוע */
+.ar-note {
+  border-inline-start: 2px solid var(--hairline-1); padding: .1rem 0 .1rem .9rem;
+  font-size: var(--fs-13); line-height: 1.6; color: var(--ink-2);
+}
+.ar-note.is-danger { border-inline-start-color: var(--danger); }
+.ar-note.is-warn { border-inline-start-color: var(--warn); }
+.ar-note.is-ok { border-inline-start-color: var(--success); }
+.ar-note strong, .ar-note b { color: var(--ink-1); }
+
+/* קיבוץ בתוך מסך — קו עליון במקום מסגרת מלאה */
+.ar-panel { border-top: 1px solid var(--hairline-2); padding: .85rem 0 .9rem; }
+.ar-panel-title { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); margin-bottom: .5rem; }
+
+/* מסילת הכיסוי — הייתה בגרדיאנט ובהקסה קבועה, שנשארו בהירים בערכה הכהה */
+.cr-rail {
+  border: 1px solid var(--hairline-1); border-radius: var(--r-panel);
+  background: var(--surface-1); padding: .75rem .8rem; font-size: var(--fs-13);
+}
+
+/* מצב מסמך במאזן הכיסוי: מתג בשלושה מצבים. המילה נושאת את הצבע. */
+.cg-doc-status {
+  font-family: inherit; cursor: pointer; border: 0; background: transparent;
+  font-size: var(--fs-12); font-weight: 500; padding: .2rem 0;
+}
+.cg-doc-status:hover { text-decoration: underline; }
+
+/* פס הסיום של שער הכיסוי: "חסום" הוא המצב שדורש פעולה ולכן הוא היחיד
+   שנושא צבע. "פנוי" הוא פשוט סוף הרשימה. */
+.cg-finish {
+  margin-top: 1rem; padding: .8rem 0 .2rem; display: flex;
+  justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .6rem;
+  border-top: 1px solid var(--hairline-1);
+}
+.cg-finish.is-blocked { border-top-color: var(--warn); }
+
+/* תמונת המצב של הלקוח: "מי רשום" ורשימת התיקים */
+.ts-reg {
+  padding: .5rem 0; font-size: var(--fs-14); font-weight: 500; color: var(--ink-1);
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  border-block: 1px solid var(--hairline-2);
+}
+.ts-reg.is-spouse { color: var(--warn); border-block-color: var(--warn); }
+.ts-file {
+  padding: .4rem 0; font-size: var(--fs-13);
+  display: flex; align-items: center; gap: .45rem;
+}
+.ts-file + .ts-file { border-top: 1px solid var(--hairline-2); }
+
+/* שדות עורך מקטעי הכרטיס — משטח רך, כמו כל שדה במערכת */
+.cse-field {
+  padding: .5rem .75rem; border: 0; border-radius: var(--r-input);
+  background: var(--surface-2); color: var(--ink-1);
+  font-family: inherit; font-size: var(--fs-14); outline: none;
+}
+.cse-field:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   פרופיל המשרד · מסילת הניווט
+   הפריטים היו ‎<div onClick>‎ ולא היו נגישים במקלדת, והפעיל נצבע בסגול
+   שאינו קיים בשום מקום אחר במוצר. עכשיו: כפתורים, וסימון בקו ובמשקל.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fp-rail { padding-inline-end: 14px; border-inline-end: 1px solid var(--hairline-2); }
+.fp-rail-group {
+  font-size: var(--fs-12); letter-spacing: .06em; color: var(--ink-4);
+  padding: 14px 0 5px;
+}
+.fp-rail-item {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 7px 0; margin-bottom: 1px;
+  background: none; border: 0; border-inline-start: 2px solid transparent;
+  padding-inline-start: 9px; margin-inline-start: -11px;
+  cursor: pointer; font-family: inherit; font-size: var(--fs-13);
+  color: var(--ink-3); text-align: start;
+}
+.fp-rail-item:hover { color: var(--ink-1); }
+.fp-rail-item.is-active {
+  color: var(--ink-1); font-weight: 500;
+  border-inline-start-color: var(--accent);
+}
+.fp-rail-soon {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 0; color: var(--ink-quiet); font-size: var(--fs-12);
+}
+.fp-rail-soon-tag { margin-inline-start: auto; font-size: var(--fs-12); color: var(--ink-quiet); }
+
+/* ── סטודיו העיצוב ──────────────────────────────────────────────────────────
+   הפאנלים היו ‎background: 'white'‎ קבוע ולכן נשארו לבנים בערכה הכהה.
+   התצוגה המקדימה מימין נשארת ב-‎.pivo-light‎ — היא המסמך שהלקוח יראה. */
+.ds-panel { border-top: 1px solid var(--hairline-2); padding: 14px 0; }
+.ds-hint { font-size: var(--fs-12); color: var(--ink-4); line-height: 1.6; margin: 3px 0 0; }
+
+/* ── עובדים ─────────────────────────────────────────────────────────────────
+   כרטיס עובד הוא זהות אדם, לא סטטוס. המסגרת והצל יורדים; מה שמפריד
+   בין הכרטיסים הוא אוויר, ומה שמחזיק אותם יחד הוא הרשת. */
+.app .emp-card {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--hairline-2);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1rem 0;
+}
+.app .emp-card:hover { border-top-color: var(--hairline-1); }
+.app .emp-card-fullname { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); }
+.app .emp-card-role { font-size: var(--fs-12); color: var(--ink-4); }
+.app .emp-count-pill {
+  background: transparent; color: var(--ink-4);
+  font-size: var(--fs-12); font-weight: 400; padding: 0; border-radius: 0;
+  font-variant-numeric: tabular-nums;
+}
+.app .emp-card-actions { border-top: 1px solid var(--hairline-2); }
+/* "הוסף עובד" נשאר מקווקו — הקו המקווקו הוא הרמז ל"יש כאן מקום פנוי" */
+.app .emp-card-add {
+  border: 1px dashed var(--hairline-1);
+  border-radius: var(--r-panel);
+  background: transparent;
+}
+.app .emp-card-add:hover { border-color: var(--ink-4); background: var(--surface-2); }
+.app .emp-add-plus { font-size: var(--fs-24); color: var(--ink-4); font-weight: 400; }
+.app .emp-add-text { font-size: var(--fs-13); color: var(--ink-3); font-weight: 400; }
+.app .emp-card-add:hover .emp-add-plus,
+.app .emp-card-add:hover .emp-add-text { color: var(--ink-1); }
+.app .emp-form-card { background: transparent; }

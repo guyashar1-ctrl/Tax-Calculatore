@@ -24,14 +24,14 @@ export const annualReportTree: QuestionTree = {
       type: 'multi_select',
       required: true,
       options: [
-        { value: 'salary', label: '💼 עבודה כשכיר/ה (משכורת, טופס 106)' },
-        { value: 'business', label: '🧾 עסק עצמאי / משלח יד' },
-        { value: 'rental', label: '🏠 נכס מושכר (דירה / נכס אחר)' },
-        { value: 'capital', label: '📈 שוק ההון וחסכונות (ני"ע, קריפטו, ריבית, דיבידנד)' },
-        { value: 'pension_ni', label: '🌅 קצבאות: פנסיה, פרישה, ביטוח לאומי (לידה/אבטלה/מילואים)' },
-        { value: 'foreign', label: '✈️ הכנסות או נכסים בחו"ל' },
-        { value: 'companies', label: '🏢 חברה בבעלותי / שותפות / משיכות בעלים' },
-        { value: 'other', label: '⭐ אחר: הגרלות, תמלוגים, פרסים' },
+        { value: 'salary', label: 'עבודה כשכיר/ה (משכורת, טופס 106)' },
+        { value: 'business', label: 'עסק עצמאי / משלח יד' },
+        { value: 'rental', label: 'נכס מושכר (דירה / נכס אחר)' },
+        { value: 'capital', label: 'שוק ההון וחסכונות (ני"ע, קריפטו, ריבית, דיבידנד)' },
+        { value: 'pension_ni', label: 'קצבאות: פנסיה, פרישה, ביטוח לאומי (לידה/אבטלה/מילואים)' },
+        { value: 'foreign', label: 'הכנסות או נכסים בחו"ל' },
+        { value: 'companies', label: 'חברה בבעלותי / שותפות / משיכות בעלים' },
+        { value: 'other', label: 'אחר: הגרלות, תמלוגים, פרסים' },
       ],
       applyToModel: (m, a) => {
         const tiles = (Array.isArray(a) ? a : []) as string[];
@@ -778,7 +778,7 @@ export const annualReportTree: QuestionTree = {
         }
         return banks.map((b) => ({
           label: b.bankName,
-          value: b.isPrimary ? '🔑 ראשי' : 'חשבון',
+          value: b.isPrimary ? 'ראשי' : 'חשבון',
           missing: !b.bankName,
         }));
       },
@@ -805,7 +805,7 @@ export const annualReportTree: QuestionTree = {
       dataPreview: ({ client }) => {
         const banks = client?.bankAccounts ?? [];
         if (banks.length === 0) return [{ label: 'חשבונות בנק בכרטיס', value: 'אין', missing: true }];
-        return banks.map((b) => ({ label: b.bankName, value: b.isPrimary ? '🔑 ראשי' : 'חשבון', missing: !b.bankName }));
+        return banks.map((b) => ({ label: b.bankName, value: b.isPrimary ? 'ראשי' : 'חשבון', missing: !b.bankName }));
       },
     },
 

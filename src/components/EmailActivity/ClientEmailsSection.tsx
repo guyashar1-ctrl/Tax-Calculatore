@@ -53,7 +53,7 @@ function Row({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) {
         <span style={{ flex: 1 }} />
         <span style={{ display: 'flex', gap: '.5rem', fontSize: '.75rem' }}>
           {failed
-            ? <span style={{ color: 'var(--red)' }}>⚠ {m.status === 'bounced' ? 'חזר — כתובת שגויה' : 'השליחה נכשלה'}</span>
+            ? <span style={{ color: 'var(--red)' }}>{m.status === 'bounced' ? 'חזר — כתובת שגויה' : 'השליחה נכשלה'}</span>
             : <>{chip('הגיע', delivered)}{chip('נפתח', opened)}</>}
         </span>
         <button
@@ -62,11 +62,11 @@ function Row({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) {
           disabled={busy}
           style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: '.78rem', color: 'var(--blue)', textDecoration: 'underline', cursor: 'pointer' }}
         >
-          {busy ? 'פותח…' : '👁 צפייה במייל'}
+          {busy ? 'פותח…' : 'צפייה במייל'}
         </button>
       </div>
       {m.subject && <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>{m.subject}</div>}
-      {err && <div style={{ fontSize: '.75rem', color: 'var(--red)' }}>⚠ {err}</div>}
+      {err && <div style={{ fontSize: '.75rem', color: 'var(--red)' }}>{err}</div>}
       {viewing && <SentEmailViewer message={viewing} onClose={() => setViewing(null)} />}
     </div>
   );
@@ -98,7 +98,7 @@ export function ClientEmailsList({ rows, loading, onChanged }: { rows: EmailMess
   return (
     <div className="cw-section">
       <div className="cw-section-head">
-        <span>📧 מיילים שנשלחו ללקוח</span>
+        <span>מיילים שנשלחו ללקוח</span>
         {rows.length > 0 && <span style={{ fontSize: '.75rem', color: 'var(--gray-400)' }}>{rows.length}</span>}
       </div>
       {rows.length === 0 ? (

@@ -53,14 +53,14 @@ function EditorShell({
     >
       <div
         style={{
-          background: 'var(--card)', borderRadius: 8, padding: '1.5rem',
+          background: 'var(--surface-0)', borderRadius: 'var(--r-modal)', padding: '1.5rem',
           maxWidth: 640, width: '100%', maxHeight: '90vh', overflowY: 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1.15rem' }}>{title}</h3>
-          <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.5rem' }}>✕</button>
+          <h3 style={{ margin: 0, fontSize: '17px' }}>{title}</h3>
+          <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '24px' }}>✕</button>
         </div>
         <div style={{ marginBottom: onSave ? '1.25rem' : 0 }}>{children}</div>
         {onSave && (
@@ -129,11 +129,11 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
   }
 
   const sub = (t: string) => (
-    <div style={{ gridColumn: '1 / -1', fontWeight: 700, fontSize: '.82rem', color: 'var(--gray-500)', borderBottom: '1px solid var(--gray-100)', paddingBottom: 4, marginTop: 8 }}>{t}</div>
+    <div style={{ gridColumn: '1 / -1', fontWeight: 600, fontSize: '13px', color: 'var(--gray-500)', borderBottom: '1px solid var(--gray-100)', paddingBottom: 4, marginTop: 8 }}>{t}</div>
   );
 
   return (
-    <EditorShell title="✏ עריכת פרטי הלקוח" onClose={onClose} onSave={handleSave} saving={saving}>
+    <EditorShell title="עריכת פרטי הלקוח" onClose={onClose} onSave={handleSave} saving={saving}>
       <div className="form-grid form-grid-2">
         {sub('פרטי זיהוי')}
         <div className="form-group">
@@ -308,11 +308,11 @@ function ChildrenEditor({ client, onPatch, onClose }: { client: Client; onPatch:
   }
 
   return (
-    <EditorShell title="✏ עריכת רשימת ילדים" onClose={onClose} onSave={handleSave} saving={saving}>
-      <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+    <EditorShell title="עריכת רשימת ילדים" onClose={onClose} onSave={handleSave} saving={saving}>
+      <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
         תאריך הלידה קובע את נקודות הזיכוי. סמנו נכות אם קיימת (זיכוי לפי סעיף 45).
       </p>
-      {list.length === 0 && <p style={{ color: 'var(--gray-500)', fontSize: '.9rem' }}>אין ילדים ברשימה. לחץ "+ הוסף" כדי להוסיף.</p>}
+      {list.length === 0 && <p style={{ color: 'var(--gray-500)', fontSize: '14px' }}>אין ילדים ברשימה. לחץ "+ הוסף" כדי להוסיף.</p>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
         {list.map((c) => (
           <div key={c.id} style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -321,20 +321,20 @@ function ChildrenEditor({ client, onPatch, onClose }: { client: Client; onPatch:
               value={c.firstName ?? ''}
               onChange={(ev) => updateRow(c.id, { firstName: ev.target.value })}
               placeholder="שם"
-              style={{ flex: 1, minWidth: 110, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ flex: 1, minWidth: 110 }}
             />
             <input
               type="date"
               value={c.birthDate ?? ''}
               onChange={(ev) => updateRow(c.id, { birthDate: ev.target.value })}
               dir="ltr"
-              style={{ padding: '.45rem .6rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field"
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '.85rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '14px' }}>
               <input type="checkbox" checked={c.hasDisability} onChange={(ev) => updateRow(c.id, { hasDisability: ev.target.checked })} />
               נכות
             </label>
-            <button type="button" onClick={() => removeRow(c.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+            <button type="button" onClick={() => removeRow(c.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>🗑</button>
           </div>
         ))}
       </div>
@@ -372,8 +372,8 @@ function PensionFundsEditor({ client, onPatch, onClose }: { client: Client; onPa
   }
 
   return (
-    <EditorShell title="✏ עריכת קופות פנסיה" onClose={onClose} onSave={handleSave} saving={saving}>
-      <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+    <EditorShell title="עריכת קופות פנסיה" onClose={onClose} onSave={handleSave} saving={saving}>
+      <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
         קופה עם "הפקדה עצמאית" מייצרת דרישת אישור הפקדות שנתי.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
@@ -384,13 +384,13 @@ function PensionFundsEditor({ client, onPatch, onClose }: { client: Client; onPa
               value={p.institutionName}
               onChange={(ev) => updateRow(p.id, { institutionName: ev.target.value })}
               placeholder="מנורה, הראל, אלטשולר..."
-              style={{ flex: 1, minWidth: 130, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ flex: 1, minWidth: 130 }}
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '.85rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '14px' }}>
               <input type="checkbox" checked={p.hasSelfDeposits ?? false} onChange={(ev) => updateRow(p.id, { hasSelfDeposits: ev.target.checked })} />
               הפקדה עצמאית
             </label>
-            <button type="button" onClick={() => removeRow(p.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+            <button type="button" onClick={() => removeRow(p.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>🗑</button>
           </div>
         ))}
       </div>
@@ -425,11 +425,11 @@ function EmployersEditor({ client, onPatch, onClose }: { client: Client; onPatch
   }
 
   return (
-    <EditorShell title="✏ עריכת רשימת מעבידים" onClose={onClose} onSave={handleSave} saving={saving}>
-      <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+    <EditorShell title="עריכת רשימת מעבידים" onClose={onClose} onSave={handleSave} saving={saving}>
+      <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
         רק שם המעביד נדרש כאן. סכומי 106 (ברוטו, ניכוי, פנסיה) נערכים בסקציה המלאה בכרטיס.
       </p>
-      {list.length === 0 && <p style={{ color: 'var(--gray-500)', fontSize: '.9rem' }}>אין מעבידים. לחץ "+ הוסף" כדי להוסיף.</p>}
+      {list.length === 0 && <p style={{ color: 'var(--gray-500)', fontSize: '14px' }}>אין מעבידים. לחץ "+ הוסף" כדי להוסיף.</p>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
         {list.map((e) => (
           <div key={e.id} style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
@@ -438,7 +438,7 @@ function EmployersEditor({ client, onPatch, onClose }: { client: Client; onPatch
               value={e.name}
               onChange={(ev) => updateRow(e.id, 'name', ev.target.value)}
               placeholder="שם המעביד"
-              style={{ flex: 1, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ flex: 1 }}
             />
             <input
               type="text"
@@ -446,9 +446,9 @@ function EmployersEditor({ client, onPatch, onClose }: { client: Client; onPatch
               onChange={(ev) => updateRow(e.id, 'taxId', ev.target.value)}
               placeholder="ע.מ (אופציונלי)"
               dir="ltr"
-              style={{ width: 120, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ width: 120 }}
             />
-            <button type="button" onClick={() => removeRow(e.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+            <button type="button" onClick={() => removeRow(e.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>🗑</button>
           </div>
         ))}
       </div>
@@ -486,8 +486,8 @@ function InvestmentAccountsEditor({ client, onPatch, onClose }: { client: Client
   }
 
   return (
-    <EditorShell title="✏ עריכת חשבונות השקעה" onClose={onClose} onSave={handleSave} saving={saving}>
-      <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+    <EditorShell title="עריכת חשבונות השקעה" onClose={onClose} onSave={handleSave} saving={saving}>
+      <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
         כל חשבון = 867 נפרד בצ'ק-ליסט. סכומי ריבית/דיבידנד/רווחי הון נערכים בסקציה המלאה בכרטיס.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
@@ -498,13 +498,13 @@ function InvestmentAccountsEditor({ client, onPatch, onClose }: { client: Client
               value={a.institutionName}
               onChange={(ev) => updateRow(a.id, 'institutionName', ev.target.value)}
               placeholder="מיטב דש, IBI, אקסלנס..."
-              style={{ flex: 1, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ flex: 1 }}
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '.85rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '14px' }}>
               <input type="checkbox" checked={a.isClosed ?? false} onChange={() => toggleClosed(a.id)} />
               נסגר
             </label>
-            <button type="button" onClick={() => removeRow(a.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+            <button type="button" onClick={() => removeRow(a.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>🗑</button>
           </div>
         ))}
       </div>
@@ -543,8 +543,8 @@ function BankAccountsEditor({ client, onPatch, onClose }: { client: Client; onPa
   }
 
   return (
-    <EditorShell title="✏ עריכת חשבונות בנק" onClose={onClose} onSave={handleSave} saving={saving}>
-      <p style={{ fontSize: '.85rem', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
+    <EditorShell title="עריכת חשבונות בנק" onClose={onClose} onSave={handleSave} saving={saving}>
+      <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
         סמן חשבון אחד כראשי (לקבלת החזרי מס).
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
@@ -555,13 +555,13 @@ function BankAccountsEditor({ client, onPatch, onClose }: { client: Client; onPa
               value={b.bankName}
               onChange={(ev) => updateRow(b.id, 'bankName', ev.target.value)}
               placeholder="בנק הפועלים, מזרחי..."
-              style={{ flex: 1, padding: '.5rem .75rem', border: '1px solid var(--gray-200)', borderRadius: 6 }}
+              className="cse-field" style={{ flex: 1 }}
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '.85rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '14px' }}>
               <input type="radio" name="primaryBank" checked={b.isPrimary ?? false} onChange={() => togglePrimary(b.id)} />
-              🔑 ראשי
+              ראשי
             </label>
-            <button type="button" onClick={() => removeRow(b.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }}>🗑</button>
+            <button type="button" onClick={() => removeRow(b.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>🗑</button>
           </div>
         ))}
       </div>

@@ -1,4 +1,4 @@
-// ⚠ דף בדיקה — מרכז ביצוע הייצוג בכל מצביו, בלי לגעת בנתוני אמת.
+// דף בדיקה — מרכז ביצוע הייצוג בכל מצביו, בלי לגעת בנתוני אמת.
 // נטען רק כש-URL כולל ?test-exec=1.
 
 import { useState } from 'react';
@@ -86,7 +86,7 @@ export default function TestExecutionCenter() {
 
   return (
     <div style={{ padding: '1.5rem', fontFamily: 'Heebo, sans-serif', direction: 'rtl' }}>
-      <h1>🧪 בדיקה: מרכז ביצוע הייצוג</h1>
+      <h1>בדיקה: מרכז ביצוע הייצוג</h1>
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
         {SCENARIOS.map(s => (
           <button key={s.key} className={`btn ${s.key === key ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setKey(s.key)}>

@@ -24,6 +24,7 @@ import { ExtractedClientData } from './utils/geminiVision';
 import { useDocumentDB } from './hooks/useIndexedDB';
 import { useTheme } from './hooks/useTheme';
 import { PivoMark } from './components/PivoMark';
+import Icon from './components/ui/Icon';
 import { supabase } from './lib/supabase';
 import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
@@ -277,7 +278,19 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   // בחירה מוקדמת לדוח השנתי (מתוך "פתח ←" בתמונת המס של הכרטיס)
   const [annualReportSelection, setAnnualReportSelection] = useState<{ clientId: string; taxYear: number } | null>(null);
+  // תפריט החשבון נפתח מהאווטאר — כדי ש"המשרד" ו"התנתק" לא יתפסו מקום בסרגל
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const db = useDocumentDB();
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as Element;
+      if (!target.closest('.header-account')) setAccountMenuOpen(false);
+    }
+    const t = setTimeout(() => document.addEventListener('click', onDocClick), 0);
+    return () => { clearTimeout(t); document.removeEventListener('click', onDocClick); };
+  }, [accountMenuOpen]);
 
   // ── ניהול משימות ───────────────────────────────────────────────────────
   async function handleSaveTask(task: Task) {
@@ -1122,22 +1135,8 @@ export default function App() {
     }
   }
 
-  const breadcrumb =
-    view === 'form'
-      ? selectedClient ? `${selectedClient.firstName} ${selectedClient.lastName}` : 'לקוח חדש'
-      : view === 'calculator' && selectedClient
-      ? `${selectedClient.firstName} ${selectedClient.lastName} — מחשבון מס`
-      : view === 'documents' && selectedClient
-      ? `${selectedClient.firstName} ${selectedClient.lastName} — מסמכים`
-      : view === 'reference'
-      ? 'מרכז ידע מס'
-      : view === 'requestNew'
-      ? selectedRequest ? 'עריכת בקשת ייצוג' : 'בקשת ייצוג חדשה'
-      : view === 'requestReview'
-      ? `בקשת ייצוג — ${selectedRequest?.clientName || selectedRequest?.clientEmail || ''}`
-      : view === 'requestFill'
-      ? 'מילוי בקשת ייצוג'
-      : null;
+  // פירורי הלחם ירדו מהמעטפת (§4.1) — כל מסך נושא בעצמו את ההקשר שלו,
+  // וכרטיס הלקוח מציג קישור חזרה משלו.
 
   function goHome() {
     setView('tasks');
@@ -1162,24 +1161,26 @@ export default function App() {
 
   const openTasksCount = tasks.filter(t => t.status === 'open' && (t.ballWith === 'me' || t.ballWith === 'stuck')).length;
 
-  const navTabs: { id: View; label: string; icon: string; shortLabel: string; badge?: number }[] = [
-    { id: 'tasks', label: '✓ משימות', icon: '✓', shortLabel: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
-    { id: 'list', label: '👥 לקוחות', icon: '👥', shortLabel: 'לקוחות' },
-    { id: 'quotations', label: '📝 הצעות ולידים', icon: '📝', shortLabel: 'הצעות' },
-    { id: 'annualReport', label: '📋 דוח שנתי 1301', icon: '📋', shortLabel: 'דוח 1301' },
-    { id: 'reference', label: '🧭 מרכז ידע מס', icon: '🧭', shortLabel: 'ידע מס' },
+  // הסרגל נושא רק את שלושת המקומות שבהם העבודה חיה (§4.1).
+  // "ידע מס" יושב באשכול הכלים בקצה, מופרד בקו — הוא עזר, לא מקום עבודה (D9).
+  // דוח 1301 ירד מהסרגל לגמרי: נכנסים אליו מכרטיס הלקוח, כי דוח תמיד שייך
+  // ללקוח מסוים ואין משמעות לפתוח אותו "סתם" (D13).
+  const navTabs: { id: View; label: string; badge?: number }[] = [
+    { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
+    { id: 'list', label: 'לקוחות' },
+    { id: 'quotations', label: 'הצעות ולידים' },
   ];
 
   return (
     <div className="app">
       <header className="header">
-        <div className="header-logo" onClick={goHome} title="PIVO">
+        {/* אלמנט שאפשר ללחוץ עליו חייב להיות נגיש גם במקלדת (§6.4) */}
+        <button type="button" className="header-logo" onClick={goHome} aria-label="חזרה למשימות">
           <span className="brand-lockup">
             <PivoMark size={28} />
             <span className="brand-wordmark">PIVO</span>
           </span>
-          <span className="brand-sub">{firmProfile?.firmName || 'גיא ישר · רואה חשבון'}</span>
-        </div>
+        </button>
 
         <nav className="main-nav">
           {navTabs.map(t => (
@@ -1192,6 +1193,7 @@ export default function App() {
                 setEditingQuotationId(null);
               }}
               className={`nav-tab ${view === t.id ? 'active' : ''}`}
+              aria-current={view === t.id ? 'page' : undefined}
             >
               {t.label}
               {t.badge !== undefined && (
@@ -1201,57 +1203,81 @@ export default function App() {
           ))}
         </nav>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginRight: 'auto' }}>
-          {breadcrumb && (
-            <div className="header-nav">
-              <span
-                style={{ cursor: 'pointer', color: 'var(--gray-400)' }}
-                onClick={() => { setView('list'); setSelectedId(null); setSelectedRequestId(null); }}
-              >
-                לקוחות
-              </span>
-              <span>›</span>
-              <span className="header-breadcrumb">{breadcrumb}</span>
-            </div>
-          )}
+        <div className="header-actions">
+          {/* אשכול הכלים — מופרד מהניווט בקו, כדי שיהיה ברור שזה לא מקום עבודה */}
+          <button
+            type="button"
+            className={`header-tool-link ${view === 'reference' ? 'is-active' : ''}`}
+            onClick={() => {
+              setView('reference');
+              setSelectedId(null);
+              setSelectedRequestId(null);
+              setEditingQuotationId(null);
+            }}
+          >
+            ידע מס
+          </button>
 
-          <div className="header-user" title={user.email ?? ''}>
-            {avatarUrl ? (
-              <img className="header-user-avatar" src={avatarUrl} alt="" />
-            ) : (
-              <span className="header-user-avatar">
-                {(displayName || user.email || '?').slice(0, 1).toUpperCase()}
-              </span>
+          <span className="header-divider" aria-hidden="true" />
+
+          <div className="header-account">
+            <button
+              type="button"
+              className={`header-user ${accountMenuOpen ? 'is-open' : ''}`}
+              title={displayName || user.email || ''}
+              aria-label="חשבון והגדרות"
+              aria-expanded={accountMenuOpen}
+              onClick={() => setAccountMenuOpen(v => !v)}
+            >
+              {avatarUrl ? (
+                <img className="header-user-avatar" src={avatarUrl} alt="" />
+              ) : (
+                <span className="header-user-avatar">
+                  {(displayName || user.email || '?').slice(0, 1).toUpperCase()}
+                </span>
+              )}
+            </button>
+
+            {accountMenuOpen && (
+              <div className="account-menu">
+                <div className="account-menu-id">
+                  <div className="account-menu-name">{displayName || user.email}</div>
+                  <div className="account-menu-firm">{firmProfile?.firmName || 'גיא ישר · רואה חשבון'}</div>
+                </div>
+                <button
+                  type="button"
+                  className="account-menu-item"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setView('firmProfile');
+                    setSelectedId(null);
+                    setSelectedRequestId(null);
+                  }}
+                >
+                  פרופיל המשרד
+                </button>
+                {/* מצב כהה הוא העדפה, לא פעולה — מקומו בתפריט ולא בסרגל (§4.1) */}
+                <button
+                  type="button"
+                  className="account-menu-item account-menu-toggle"
+                  role="menuitemcheckbox"
+                  aria-checked={theme === 'dark'}
+                  onClick={toggleTheme}
+                >
+                  <Icon name="moon" size={14} />
+                  <span>מצב כהה</span>
+                  <span className={`account-switch ${theme === 'dark' ? 'is-on' : ''}`} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="account-menu-item"
+                  onClick={async () => { setAccountMenuOpen(false); await signOut(); }}
+                >
+                  התנתקות
+                </button>
+              </div>
             )}
-            <span className="header-user-name">{displayName || user.email}</span>
           </div>
-
-          <button
-            type="button"
-            className="header-theme-btn"
-            title={theme === 'dark' ? 'מעבר לתצוגה בהירה' : 'מעבר לתצוגה כהה'}
-            aria-label={theme === 'dark' ? 'מעבר לתצוגה בהירה' : 'מעבר לתצוגה כהה'}
-            onClick={toggleTheme}
-          >
-            {theme === 'dark' ? '☀' : '☾'}
-          </button>
-
-          <button
-            type="button"
-            className={`header-logout-btn ${view === 'firmProfile' ? 'active' : ''}`}
-            title="פרופיל המשרד"
-            onClick={() => { setView('firmProfile'); setSelectedId(null); setSelectedRequestId(null); }}
-          >
-            ⚙ המשרד
-          </button>
-
-          <button
-            type="button"
-            className="header-logout-btn"
-            onClick={async () => { await signOut(); }}
-          >
-            התנתק
-          </button>
         </div>
       </header>
 
@@ -1489,8 +1515,7 @@ export default function App() {
               setEditingQuotationId(null);
             }}
           >
-            <span className="mobile-nav-icon">{t.icon}</span>
-            <span className="mobile-nav-label">{t.shortLabel}</span>
+            <span className="mobile-nav-label">{t.label}</span>
             {t.badge !== undefined && <span className="mobile-nav-badge">{t.badge}</span>}
           </button>
         ))}

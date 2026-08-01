@@ -61,14 +61,14 @@ export default function QuotationEmailsPanel({ quotationId, representationReques
   return (
     <div style={panel}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 700 }}>✉️ מיילים ללקוח</div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>מיילים ללקוח</div>
         <span style={{ flex: 1 }} />
         <button type="button" className="btn btn-sm btn-ghost" onClick={() => void load()} disabled={loading}>
           {loading ? 'טוען…' : 'רענון'}
         </button>
       </div>
 
-      {error && <div style={{ fontSize: 12, color: 'var(--red)' }}>⚠ {error}</div>}
+      {error && <div style={{ fontSize: 12, color: 'var(--red)' }}>{error}</div>}
       {!loading && !error && messages.length === 0 && (
         <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>עדיין לא יצא מייל בהצעה הזו.</div>
       )}
@@ -117,7 +117,7 @@ function EmailRow({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) 
         <span style={{ flex: 1 }} />
         <span style={{ display: 'flex', gap: '.5rem', fontSize: '.75rem' }}>
           {failed
-            ? <span style={{ color: 'var(--red)' }}>⚠ {m.status === 'bounced' ? 'חזר — כתובת שגויה' : 'השליחה נכשלה'}</span>
+            ? <span style={{ color: 'var(--red)' }}>{m.status === 'bounced' ? 'חזר — כתובת שגויה' : 'השליחה נכשלה'}</span>
             : <>{chip('הגיע', delivered)}{chip('נפתח', opened)}</>}
         </span>
         <button
@@ -128,8 +128,8 @@ function EmailRow({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) 
           {busy ? 'פותח…' : 'צפייה'}
         </button>
       </div>
-      {m.error && <div style={{ color: 'var(--red)', fontSize: '.72rem' }}>⚠ {m.error}</div>}
-      {err && <div style={{ color: 'var(--red)', fontSize: '.72rem' }}>⚠ {err}</div>}
+      {m.error && <div style={{ color: 'var(--red)', fontSize: '.72rem' }}>{m.error}</div>}
+      {err && <div style={{ color: 'var(--red)', fontSize: '.72rem' }}>{err}</div>}
       {viewing && <SentEmailViewer message={viewing} onClose={() => setViewing(null)} />}
     </div>
   );

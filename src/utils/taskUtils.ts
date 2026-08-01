@@ -1,19 +1,7 @@
 import { Task, BallWith } from '../types';
+import { daysBetween, todayIso, formatDate, daysLate } from './dateFormat';
 
-/** מספר הימים בין שני תאריכי ISO (YYYY-MM-DD). חיובי = dateA אחרי dateB. */
-function daysBetween(dateA: string, dateB: string): number {
-  const a = new Date(dateA + 'T00:00:00').getTime();
-  const b = new Date(dateB + 'T00:00:00').getTime();
-  return Math.round((a - b) / (1000 * 60 * 60 * 24));
-}
-
-function todayIso(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+export { daysLate, lateLabel } from './dateFormat';
 
 export type DeskBucket = 'urgent' | 'thisWeek' | 'stuck' | 'backlog';
 
@@ -81,28 +69,79 @@ export function isDueThisWeek(task: Task): boolean {
   return d >= 0 && d <= 7;
 }
 
-/** פורמט תאריך לתצוגה — DD/MM או "היום"/"מחר"/"אתמול" */
+/**
+ * פורמט תאריך יעד לרשימות — dd.mm.yy (D8).
+ * "היום"/"מחר" נשארו כי הם קריאים יותר ממספר, אבל המילה "פג" הוסרה:
+ * האיחור מסומן בצבע ובטולטיפ, לא בטקסט שני ליד התאריך (D2/§4.3).
+ */
 export function formatDueDate(iso: string): string {
   const diff = daysBetween(iso, todayIso());
   if (diff === 0) return 'היום';
   if (diff === 1) return 'מחר';
   if (diff === -1) return 'אתמול';
-  const d = new Date(iso + 'T00:00:00');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  if (diff < 0) return `פג ${dd}/${mm}`;
-  return `${dd}/${mm}`;
+  return formatDate(iso, 'list');
 }
 
-/** פורמט תאריך יצירה — DD/MM (אם השנה הנוכחית) או DD/MM/YY */
+/** פורמט תאריך יצירה — dd.mm.yy */
 export function formatCreatedAt(iso: string): string {
-  const d = new Date(iso);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yy = String(d.getFullYear()).slice(-2);
-  const currentYear = new Date().getFullYear();
-  if (d.getFullYear() === currentYear) return `${dd}/${mm}`;
-  return `${dd}/${mm}/${yy}`;
+  return formatDate(iso, 'list');
+}
+
+/**
+ * דחיפות התאריך — קובעת את הצבע, ורק אותו (D2).
+ * אדום = איחור בלבד. שבוע קרוב = הדגשה בלי צבע. כל השאר = רגיל.
+ */
+export type DueTone = 'late' | 'soon' | 'normal' | 'none';
+
+export function dueTone(task: Task): DueTone {
+  if (!task.dueDate) return 'none';
+  if (task.status === 'done') return 'normal';
+  if (daysLate(task.dueDate) > 0) return 'late';
+  const d = daysBetween(task.dueDate, todayIso());
+  return d <= 7 ? 'soon' : 'normal';
+}
+
+/** ─── קיבוץ משימות · אפיון D6 / L8 ──────────────────────────────────────
+ * ארבע קבוצות, בסדר קבוע, זהות במסך המשימות ובלשונית המשימות של הלקוח.
+ * "תקועות" היא קבוצה בפני עצמה ולא נבלעת בתוך קבוצה בריאה — משימה תקועה
+ * שמסתתרת בין משימות רגילות היא בדיוק המשימה שנשכחת.
+ */
+export type TaskGroupKey = 'now' | 'stuck' | 'later' | 'done';
+
+export const TASK_GROUP_ORDER: TaskGroupKey[] = ['now', 'stuck', 'later', 'done'];
+
+export const TASK_GROUP_LABELS: Record<TaskGroupKey, string> = {
+  now: 'לטיפול מיידי',
+  stuck: 'תקועות',
+  later: 'בהמשך',
+  done: 'הושלמו',
+};
+
+export function taskGroupOf(task: Task): TaskGroupKey {
+  if (task.status === 'done') return 'done';
+  if (task.ballWith === 'stuck') return 'stuck';
+  const tone = dueTone(task);
+  return tone === 'late' || tone === 'soon' ? 'now' : 'later';
+}
+
+/** ממיין בתוך קבוצה: תאריך יעד עולה, ואז ותק (FIFO). חסרי תאריך בסוף. */
+export function compareTasks(a: Task, b: Task): number {
+  if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+  if (a.dueDate && !b.dueDate) return -1;
+  if (!a.dueDate && b.dueDate) return 1;
+  return (a.createdAt || '').localeCompare(b.createdAt || '');
+}
+
+export function groupTasks(tasks: Task[]): Record<TaskGroupKey, Task[]> {
+  const out: Record<TaskGroupKey, Task[]> = { now: [], stuck: [], later: [], done: [] };
+  for (const t of tasks) out[taskGroupOf(t)].push(t);
+  for (const k of TASK_GROUP_ORDER) {
+    // הושלמו יורדות מהחדשה לישנה — מה שסגרת עכשיו הוא מה שרלוונטי לבדוק
+    out[k].sort(k === 'done'
+      ? (a, b) => (b.completedAt || b.updatedAt || '').localeCompare(a.completedAt || a.updatedAt || '')
+      : compareTasks);
+  }
+  return out;
 }
 
 /** הבא את הכדור "הבא" בהיגיון לאחר פעולה */

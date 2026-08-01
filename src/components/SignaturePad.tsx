@@ -91,7 +91,7 @@ export default function SignaturePad({ value, onChange, height = 180 }: Props) {
     <div>
       <div
         style={{
-          border: '2px dashed var(--gray-300)',
+          border: '2px dashed var(--hairline-1)',
           borderRadius: 'var(--radius)',
           background: 'white',
           position: 'relative',
@@ -115,17 +115,17 @@ export default function SignaturePad({ value, onChange, height = 180 }: Props) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--gray-400)',
-              fontSize: '.875rem',
+              color: 'var(--ink-4)',
+              fontSize: 'var(--fs-14)',
               pointerEvents: 'none',
             }}
           >
-            ✍️ חתום כאן
+            חתום כאן
           </div>
         )}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '.5rem' }}>
-        <small style={{ color: 'var(--gray-500)' }}>חתום בעזרת העכבר או האצבע</small>
+        <small style={{ color: 'var(--ink-3)' }}>חתום בעזרת העכבר או האצבע</small>
         <button type="button" className="btn btn-ghost btn-sm" onClick={handleClear}>נקה חתימה</button>
       </div>
     </div>

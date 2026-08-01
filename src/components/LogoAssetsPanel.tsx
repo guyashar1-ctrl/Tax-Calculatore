@@ -99,7 +99,7 @@ export default function LogoAssetsPanel({
         </div>
 
         {note && (
-          <div style={{ margin: '14px 0 0', padding: '.6rem .8rem', borderRadius: 8, background: 'var(--chip-green-bg)', color: 'var(--chip-green-tx)', fontSize: 12.5, lineHeight: 1.6 }}>
+          <div style={{ margin: '14px 0 0', padding: '.6rem .8rem', borderRadius: 8, background: 'var(--chip-green-bg)', color: 'var(--chip-green-tx)', fontSize: 'var(--fs-13)', lineHeight: 1.6 }}>
             {note}
           </div>
         )}
@@ -115,7 +115,7 @@ export default function LogoAssetsPanel({
               <div key={id} style={slot}>
                 <div style={{
                   width: 128, height: 78, borderRadius: 10, flexShrink: 0,
-                  border: '1px dashed var(--gray-300)',
+                  border: '1px dashed var(--hairline-1)',
                   background: onDark ? darkBg : 'var(--gray-50)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                 }}>
@@ -128,15 +128,15 @@ export default function LogoAssetsPanel({
                           filter: onDark && !branding.logoOnDarkUrl ? 'brightness(0) invert(1)' : undefined,
                         }}
                       />
-                    : <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>אין לוגו</span>}
+                    : <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }}>אין לוגו</span>}
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 600, fontSize: 14 }}>{LOGO_SURFACE_LABELS[id]}</span>
+                    <span style={{ fontWeight: 600, fontSize: 'var(--fs-14)' }}>{LOGO_SURFACE_LABELS[id]}</span>
                     {inherited && <span style={tag}>יורש מהראשי</span>}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4, lineHeight: 1.6 }}>{hint}</div>
+                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 4, lineHeight: 1.6 }}>{hint}</div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                     <label className="btn btn-primary btn-sm" style={{ cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}>
                       {busy ? 'מעלה…' : own ? 'החלף' : 'העלה'}
@@ -176,17 +176,17 @@ function LogoSizeControl({ scale, disabled, onChange }: { scale: number; disable
     <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--gray-200)', opacity: disabled ? 0.5 : 1 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>גודל הלוגו</div>
-          <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 600, fontSize: 'var(--fs-14)' }}>גודל הלוגו</div>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
             חל על כל המקומות יחד. התצוגה למטה מתעדכנת מיד.
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, minWidth: 58, textAlign: 'center', color: 'var(--br)' }}>
+          <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 'var(--fs-15)', fontWeight: 600, minWidth: 58, textAlign: 'center', color: 'var(--br)' }}>
             {pct}%
           </span>
           {pct !== 100 && (
-            <button className="btn btn-sm" disabled={disabled} onClick={() => onChange(1)} style={{ fontSize: 11.5 }}>
+            <button className="btn btn-sm" disabled={disabled} onClick={() => onChange(1)} style={{ fontSize: 'var(--fs-12)' }}>
               אפס
             </button>
           )}
@@ -203,7 +203,7 @@ function LogoSizeControl({ scale, disabled, onChange }: { scale: number; disable
         onChange={e => onChange(Number(e.target.value) / 100)}
         style={{ width: '100%', marginTop: 12, accentColor: 'var(--br)', cursor: disabled ? 'default' : 'pointer' }}
       />
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-12)', color: 'var(--gray-400)', marginTop: 2 }}>
         <span>{Math.round(LOGO_SCALE_MAX * 100)}% · גדול</span>
         <span>{Math.round(LOGO_SCALE_MIN * 100)}% · קטן</span>
       </div>
@@ -232,7 +232,7 @@ function LogoPreviewCard({ branding, darkBg, firmName }: { branding: FirmBrandin
           <div style={{ background: '#ffffff', padding: '18px 20px', borderBottom: '1px solid #E8E5E0' }}>
             {emailLogo
               ? <img src={emailLogo} alt="" style={{ maxHeight: 34 * s, maxWidth: 150 * s, objectFit: 'contain' }} />
-              : <span style={{ fontSize: 15, fontWeight: 600, color: '#1B1F24' }}>{firmName}</span>}
+              : <span style={{ fontSize: 'var(--fs-15)', fontWeight: 600, color: '#1B1F24' }}>{firmName}</span>}
           </div>
           <div style={{ background: '#ffffff', padding: '14px 20px 20px' }}>
             <div style={{ height: 8, width: '62%', borderRadius: 4, background: '#EFEDE9' }} />
@@ -248,7 +248,7 @@ function LogoPreviewCard({ branding, darkBg, firmName }: { branding: FirmBrandin
                   alt=""
                   style={{ maxHeight: 34 * s, maxWidth: 150 * s, objectFit: 'contain', filter: darkIsFallback ? 'brightness(0) invert(1)' : undefined }}
                 />
-              : <span style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>{firmName}</span>}
+              : <span style={{ fontSize: 'var(--fs-15)', fontWeight: 600, color: '#fff' }}>{firmName}</span>}
           </div>
           <div style={{ background: '#ffffff', padding: '14px 20px 20px' }}>
             <div style={{ height: 8, width: '70%', borderRadius: 4, background: '#EFEDE9' }} />
@@ -266,7 +266,7 @@ function LogoPreviewCard({ branding, darkBg, firmName }: { branding: FirmBrandin
       </div>
 
       {darkIsFallback && (
-        <div style={{ marginTop: 14, padding: '.65rem .85rem', borderRadius: 8, background: 'var(--chip-amber-bg)', color: 'var(--chip-amber-tx)', fontSize: 12.5, lineHeight: 1.65 }}>
+        <div style={{ marginTop: 14, padding: '.65rem .85rem', borderRadius: 8, background: 'var(--chip-amber-bg)', color: 'var(--chip-amber-tx)', fontSize: 'var(--fs-13)', lineHeight: 1.65 }}>
           לרצועה הכהה אין עדיין לוגו משלה, ולכן הלוגו הראשי מוצג כצללית לבנה אחידה.
           אם יש בערכה גרסה לבנה של הלוגו — כדאי להעלות אותה למקום «לוגו לרקע כהה».
         </div>
@@ -278,14 +278,14 @@ function LogoPreviewCard({ branding, darkBg, firmName }: { branding: FirmBrandin
 function PreviewFrame({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginBottom: 6 }}>{label}</div>
-      <div style={{ border: '1px solid var(--gray-200)', borderRadius: 10, overflow: 'hidden' }}>{children}</div>
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 6 }}>{label}</div>
+      <div style={{ border: '1px solid var(--hairline-1)', borderRadius: 'var(--r-input)', overflow: 'hidden' }}>{children}</div>
     </div>
   );
 }
 
-const card: React.CSSProperties = { border: '0.5px solid var(--gray-200)', borderRadius: 12, padding: 18, background: 'var(--card)', marginBottom: 14 };
-const cardTitle: React.CSSProperties = { fontSize: 15, fontWeight: 600, color: 'var(--gray-800)' };
-const sub: React.CSSProperties = { fontSize: 12, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 };
-const slot: React.CSSProperties = { display: 'flex', gap: 14, alignItems: 'flex-start', padding: 12, border: '1px solid var(--gray-200)', borderRadius: 10, flexWrap: 'wrap' };
-const tag: React.CSSProperties = { fontSize: 10.5, fontWeight: 600, padding: '.1rem .45rem', borderRadius: 5, background: 'var(--chip-slate-bg)', color: 'var(--chip-slate-tx)' };
+const card: React.CSSProperties = { borderTop: '1px solid var(--hairline-2)', padding: '16px 0 18px', marginBottom: 0 };
+const cardTitle: React.CSSProperties = { fontSize: 'var(--fs-15)', fontWeight: 600, color: 'var(--gray-800)' };
+const sub: React.CSSProperties = { fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 };
+const slot: React.CSSProperties = { display: 'flex', gap: 14, alignItems: 'flex-start', padding: '12px 0', borderTop: '1px solid var(--hairline-2)', flexWrap: 'wrap' };
+const tag: React.CSSProperties = { fontSize: 'var(--fs-12)', fontWeight: 600, padding: '.1rem .45rem', borderRadius: 5, background: 'var(--chip-slate-bg)', color: 'var(--chip-slate-tx)' };
