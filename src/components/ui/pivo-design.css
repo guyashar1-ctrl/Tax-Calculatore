@@ -683,6 +683,19 @@ table thead th {
   padding: 6px 10px; font-family: inherit; font-size: var(--fs-13);
   color: var(--ink-1); font-variant-numeric: tabular-nums;
 }
+
+/* מתג "הצעות / לידים" — שני מצבים של אותו מסך, ולכן מתג ולא שני טאבים
+   שמתחרים על הכותרת. הוא יושב באזור הפעולות, לצד הפעולה הראשית. */
+.qp-switch { display: inline-flex; background: var(--surface-2); border-radius: var(--r-input); padding: 2px; }
+.qp-switch button {
+  border: 0; background: transparent; border-radius: var(--r-chip);
+  padding: 5px 12px; font-family: inherit; font-size: var(--fs-13);
+  color: var(--ink-3); cursor: pointer;
+}
+.qp-switch button.is-active { background: var(--surface-0); color: var(--ink-1); font-weight: 500; }
+
+/* כותרת המסך מגיעה מ-‎.pg-head‎ עכשיו; הישנה יורדת כדי שלא תהיינה שתיים */
+.quotations-page .desk-header { display: none; }
 /* התוכן הפנימי כבר לא צף במרכז החלון — הפאנל הוא שקובע את רוחבו */
 .annual-report-page .pg-pane > div[style*="margin"] { margin-inline: 0 !important; }
 

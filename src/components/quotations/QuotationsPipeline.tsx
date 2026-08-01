@@ -155,25 +155,44 @@ export default function QuotationsPipeline({
 
   return (
     <div dir="rtl" className="quotations-page">
-      <div className="desk-header">
-        <div>
-          <h1 className="desk-title">הצעות מחיר ולידים</h1>
-          <div className="desk-subtitle">מהשיחה הראשונה ועד הפיכת הליד ללקוח</div>
+      {/* כותרת אחת עם משפט מצב אחד. המספרים שהיו פזורים בין הטאבים
+          ובין ארבעת המחוונים מתרכזים כאן — כל מספר מופיע פעם אחת. */}
+      <div className="pg-head">
+        <div className="pg-head-main">
+          <div className="pg-title pg-title-lg">
+            {page === 'leads' ? 'לידים' : 'הצעות מחיר'}
+          </div>
+          <div className="pg-status">
+            {page === 'leads'
+              ? `${leads.length} לידים · מהשיחה הראשונה ועד הפיכת הליד ללקוח`
+              : quotations.length === 0
+                ? 'מהשיחה הראשונה ועד הפיכת הליד ללקוח'
+                : `${quotations.length} הצעות · ${stats.drafts} טיוטות · ${stats.open} ממתינות לתשובה · ${stats.approved} אושרו`}
+          </div>
         </div>
-        {/* במצב ריק הכפתור הראשי חי בגוף המסך בלבד — שני כפתורים כחולים
-            על אותו מסך מפצלים את ההחלטה במקום להוביל אותה (D14) */}
-        {page === 'quotations' && quotations.length > 0 && (
-          <button className="ui-btn ui-btn-primary" onClick={onNew}>+ הצעה חדשה</button>
-        )}
-      </div>
-
-      <div className="tabs" style={{ marginBottom: 16 }}>
-        <button className={`tab ${page === 'quotations' ? 'active' : ''}`} onClick={() => setPage('quotations')}>
-          הצעות מחיר{quotations.length ? ` (${quotations.length})` : ''}
-        </button>
-        <button className={`tab ${page === 'leads' ? 'active' : ''}`} onClick={() => setPage('leads')}>
-          לידים{leads.length ? ` (${leads.length})` : ''}
-        </button>
+        <div className="pg-actions">
+          <div className="qp-switch" role="tablist" aria-label="הצעות או לידים">
+            <button
+              type="button" role="tab" aria-selected={page === 'quotations'}
+              className={page === 'quotations' ? 'is-active' : ''}
+              onClick={() => setPage('quotations')}
+            >
+              הצעות
+            </button>
+            <button
+              type="button" role="tab" aria-selected={page === 'leads'}
+              className={page === 'leads' ? 'is-active' : ''}
+              onClick={() => setPage('leads')}
+            >
+              לידים
+            </button>
+          </div>
+          {/* במצב ריק הכפתור הראשי חי בגוף המסך בלבד — שני כפתורים כחולים
+              על אותו מסך מפצלים את ההחלטה במקום להוביל אותה (D14) */}
+          {page === 'quotations' && quotations.length > 0 && (
+            <button className="ui-btn ui-btn-primary" onClick={onNew}>+ הצעה חדשה</button>
+          )}
+        </div>
       </div>
 
       {page === 'leads' ? (
@@ -227,16 +246,8 @@ export default function QuotationsPipeline({
         </div>
       )}
 
-      {/* strip סטטיסטיקה */}
-      <div className="doc-stats-strip" style={{ marginBottom: 16 }}>
-        <Stat n={stats.leads} label="לידים פעילים" />
-        <div className="doc-stat-divider" />
-        <Stat n={stats.drafts} label="טיוטות" />
-        <div className="doc-stat-divider" />
-        <Stat n={stats.open} label="ממתינות לתשובה" />
-        <div className="doc-stat-divider" />
-        <Stat n={stats.approved} label="אושרו" />
-      </div>
+      {/* פס ארבעת המחוונים ירד — אותם ארבעה מספרים כבר כתובים במשפט
+          המצב בכותרת, וגם בשמות הקבוצות למטה. כל מספר פעם אחת במסך. */}
 
       {/* פילטר */}
       <div className="filter-chips" style={{ marginBottom: 16 }}>
@@ -361,11 +372,3 @@ function reusedRepresentation(q: Quotation): boolean {
   return !!reuseNote(q);
 }
 
-function Stat({ n, label }: { n: number; label: string }) {
-  return (
-    <div className="doc-stat">
-      <span className="doc-stat-number">{n}</span>
-      <span className="doc-stat-label">{label}</span>
-    </div>
-  );
-}
