@@ -1209,6 +1209,45 @@ table thead th {
 .app .doc-stat-label { font-size: var(--fs-12); font-weight: 400; color: var(--ink-4); }
 .app .doc-stat-divider { display: none; }
 
+/* כותרת מסך המסמכים: שם ומונה באותה שורה, קישור החזרה מתחתיהם וקטן */
+.doc-title-row { display: flex; align-items: baseline; gap: 10px; }
+.pg-count { font-size: var(--fs-13); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.app .doc-back-link {
+  background: none; border: 0; padding: 0; font-family: inherit;
+  font-size: var(--fs-12); color: var(--ink-4); cursor: pointer; text-align: start;
+}
+.app .doc-back-link:hover { color: var(--ink-1); }
+
+/* סרגל הסינון — שורה אחת של חיפוש ושבבים, בלי כרטיס מסביב */
+.app .doc-filters {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  background: transparent; border: 0; box-shadow: none; padding: 0;
+}
+.app .doc-filter-search input,
+.app .doc-filter-select {
+  border: 0; border-radius: var(--r-input); background: var(--surface-2);
+  padding: 7px 12px; font-family: inherit; font-size: var(--fs-13); color: var(--ink-1);
+}
+
+/* טבלת המסמכים — קווי שערה ו-hover ניטרלי; המחיקה שקטה עד מעבר עכבר */
+.app .doc-table { border: 0; }
+.app .doc-table thead th {
+  background: transparent; border-bottom: 1px solid var(--hairline-1);
+  font-size: var(--fs-12); font-weight: 500; letter-spacing: .02em; color: var(--ink-4);
+  padding: .4rem .6rem;
+}
+.app .doc-table tbody td { border-bottom: 0; border-top: 1px solid var(--hairline-2); padding: .55rem .6rem; }
+.app .doc-table tbody tr:hover { background: var(--surface-1); }
+.app .doc-table .doc-row-actions { opacity: 0; transition: opacity .1s; }
+.app .doc-table tr:hover .doc-row-actions,
+.app .doc-table tr:focus-within .doc-row-actions { opacity: 1; }
+/* שם הקובץ יושב מתחת לתיאור, ב-LTR — הוא מלווה את המסמך ולא עמודה */
+.doc-file-sub { font-size: var(--fs-12); color: var(--ink-4); direction: ltr; text-align: end; }
+/* הקטגוריה היא סוג, לא דחיפות — אחת עשרה גלולות בגוונים שונים בעמודה
+   אחת הן קשת בענן, לא מידע. */
+.doc-cat-text { font-size: var(--fs-13); color: var(--ink-2); }
+.app .doc-year-cell { text-align: center; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
 /* ═══════════════════════════════════════════════════════════════════════════
    דוח שנתי 1301 · מפת העץ — מסך 16
    כל פרק היה כרטיס, וכל שאלה גלולה צבועה בתוכו — אחת עשרה קופסאות
