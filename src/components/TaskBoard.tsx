@@ -12,8 +12,8 @@ import {
 } from '../types';
 import {
   formatDueDate, dueTone, lateLabel,
-  taskGroupOf, groupTasks, TASK_GROUP_ORDER, TASK_GROUP_LABELS, TaskGroupKey,
-  groupTasksByStage, TASK_STAGE_ORDER, TASK_STAGE_LABELS, TASK_STAGE_HINTS, TaskStageKey,
+  taskGroupOf, groupTasks, TaskGroupKey,
+  groupTasksByStage, TASK_STAGE_ORDER, TASK_STAGE_LABELS, TASK_STAGE_HINTS, compareTasks,
 } from '../utils/taskUtils';
 import { FilterChip } from './ui/Chips';
 import { GroupHeader, EmptyState, CalmEmpty } from './ui/States';
@@ -33,6 +33,8 @@ interface Props {
   onReorder: (id: string, targetProgress: TaskProgress | 'done', beforeId: string | null) => void;
   onSelectClient: (id: string) => void;
   onDeleteTask?: (id: string) => void;
+  /** עדכון משימה שלם — משמש להצמדה (priority) */
+  onUpdateTask?: (task: Task) => void;
   onLoadSampleTasks?: () => void;
 }
 
@@ -45,12 +47,8 @@ const CATEGORY_OPTIONS: TaskCategory[] = [
 const BALL_OPTIONS: BallWith[] = ['me', 'client', 'authority', 'stuck'];
 
 /** רמז קצר לכל קבוצה — מה עושים איתה, לא מה היא */
-const GROUP_HINT: Partial<Record<TaskGroupKey, string>> = {
-  now: 'באיחור או בשבוע הקרוב',
-  stuck: 'ממתינות להחלטה',
-};
-
 const COLLAPSE_KEY = 'pivo_tasks_collapsed';
+const PIN_KEY = 'pivo_tasks_pinned';
 
 export default function TaskBoard({
   tasks, clients,
@@ -62,6 +60,12 @@ export default function TaskBoard({
   const [search, setSearch] = useState('');
   const [ballFilter, setBallFilter] = useState<BallWith | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
+  // סינון לפי לקוח — כמו מסנן האדם במונדיי
+  const [clientFilter, setClientFilter] = useState<string>('all');
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => {
+    try { const raw = localStorage.getItem(PIN_KEY); if (raw) return new Set(JSON.parse(raw) as string[]); } catch { /* default */ }
+    return new Set<string>();
+  });
   // "הושלמו" מקופלת כברירת מחדל (D24) — היא תיעוד, לא עבודה
   const [collapsed, setCollapsed] = useState<Set<TaskGroupKey>>(() => {
     try {
@@ -75,6 +79,7 @@ export default function TaskBoard({
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<{ taskId: string; position: 'before' | 'after' } | null>(null);
   const [dragOverGroup, setDragOverGroup] = useState<TaskGroupKey | null>(null);
+  void dragOverGroup;
 
   useEffect(() => {
     try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...collapsed])); } catch { /* אחסון חסום */ }
@@ -104,6 +109,7 @@ export default function TaskBoard({
     return tasks.filter(t => {
       if (ballFilter !== 'all' && t.ballWith !== ballFilter) return false;
       if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
+      if (clientFilter !== 'all' && t.clientId !== clientFilter) return false;
       if (q) {
         const client = clientMap.get(t.clientId);
         const clientName = client ? `${client.firstName} ${client.lastName}`.toLowerCase() : '';
@@ -115,18 +121,67 @@ export default function TaskBoard({
       }
       return true;
     });
-  }, [tasks, search, ballFilter, categoryFilter, clientMap]);
+  }, [tasks, search, ballFilter, categoryFilter, clientFilter, clientMap]);
 
   // הקיבוץ מגיע מ-taskUtils — אותו קיבוץ בדיוק משמש גם את לשונית המשימות בכרטיס הלקוח
   const byGroup = useMemo(() => groupTasks(filtered), [filtered]);
   // תצוגה שנייה — קיבוץ לפי שלב. שלוש קבוצות קבועות שתמיד מוצגות.
-  const [boardView, setBoardView] = useState<'urgency' | 'stage'>('urgency');
+  const [boardView, setBoardView] = useState<'stage' | 'client'>('stage');
   const byStage = useMemo(() => groupTasksByStage(filtered), [filtered]);
+
+  /* מוצמדות — מקטע קבוע בראש המסך, בכל תצוגה. הצמדה עונה על "מה אני
+     עושה היום"; הקיבוץ עונה על "איך אני מעיין בשאר". שתי שאלות נפרדות,
+     ולכן המקטע לא מתחלף עם התצוגה. */
+  const pinned = useMemo(() => filtered.filter(t => pinnedIds.has(t.id) && t.status !== 'done').sort(compareTasks), [filtered, pinnedIds]);
+
+  /* קיבוץ לפי לקוח — ככה העבודה מתקבצת בפועל: מתיישבים ועושים את כל
+     מה שיש לדוד כהן, כי התיק שלו כבר פתוח. הלקוח עם הכי הרבה פתוחות
+     ראשון; לקוח בלי משימות לא מופיע בכלל. */
+  const byClient = useMemo(() => {
+    const m = new Map<string, Task[]>();
+    for (const t of filtered) {
+      const arr = m.get(t.clientId); if (arr) arr.push(t); else m.set(t.clientId, [t]);
+    }
+    return [...m.entries()]
+      .map(([id, list]) => ({
+        id,
+        label: (() => {
+          const c = clientMap.get(id);
+          return c ? `${c.firstName} ${c.lastName}`.trim() || c.idNumber : (id === 'system' ? 'משימות מערכת' : 'לקוח לא ידוע');
+        })(),
+        open: list.filter(t => t.status !== 'done').length,
+        list: [...list].sort(compareTasks),
+      }))
+      .sort((a, b) => b.open - a.open || a.label.localeCompare(b.label, 'he'));
+  }, [filtered, clientMap]);
+
+  /* רשימת הלקוחות למסנן — נגזרת מכלל המשימות ולא מהמסוננות, אחרת
+     בחירת לקוח הייתה מרוקנת את הרשימה שממנה בחרת אותו. */
+  const clientsWithTasks = useMemo(() => {
+    const ids = new Set(tasks.map(t => t.clientId));
+    return [...ids].map(id => {
+      const c = clientMap.get(id);
+      return { id, label: c ? `${c.firstName} ${c.lastName}`.trim() || c.idNumber : (id === 'system' ? 'משימות מערכת' : 'לקוח לא ידוע') };
+    }).sort((a, b) => a.label.localeCompare(b.label, 'he'));
+  }, [tasks, clientMap]);
 
   const totalCount = tasks.length;
 
   function clearFilters() {
-    setSearch(''); setBallFilter('all'); setCategoryFilter('all');
+    setSearch(''); setBallFilter('all'); setCategoryFilter('all'); setClientFilter('all');
+  }
+
+  /** הצמדה/ביטול — קליק אחד, בלי דיאלוג.
+      נשמר מקומית ולא במסד: השדה priority אינו ממופה כלל ב-dbMappers, ולכן
+      הצמדה דרכו הייתה נראית עובדת ונעלמת ברענון. וגם לגופו של עניין —
+      "מה אני עושה היום" הוא עניין אישי ליום ולמכשיר, לא נתון של המשימה. */
+  function togglePin(t: Task) {
+    setPinnedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
+      try { localStorage.setItem(PIN_KEY, JSON.stringify([...next])); } catch { /* אחסון חסום */ }
+      return next;
+    });
   }
 
   function toggleCollapse(g: TaskGroupKey) {
@@ -190,6 +245,8 @@ export default function TaskBoard({
     }
     handleDragEnd();
   }
+  // גרירה בין קבוצות תחזור כשהקיבוץ לפי לקוח יתמוך בהעברה
+  // @ts-expect-error שמור לשימוש עתידי
   function handleGroupDrop(e: React.DragEvent, g: TaskGroupKey) {
     e.preventDefault();
     const dragged = tasks.find(x => x.id === draggedId);
@@ -220,20 +277,34 @@ export default function TaskBoard({
             מתג, לא טאבים — זו אותה רשימה, רק מסודרת אחרת. */}
         <div className="qp-switch board-view-switch" role="tablist" aria-label="סידור המשימות">
           <button
-            type="button" role="tab" aria-selected={boardView === 'urgency'}
-            className={boardView === 'urgency' ? 'is-active' : ''}
-            onClick={() => setBoardView('urgency')}
-          >
-            דחיפות
-          </button>
-          <button
             type="button" role="tab" aria-selected={boardView === 'stage'}
             className={boardView === 'stage' ? 'is-active' : ''}
             onClick={() => setBoardView('stage')}
           >
             שלב
           </button>
+          <button
+            type="button" role="tab" aria-selected={boardView === 'client'}
+            className={boardView === 'client' ? 'is-active' : ''}
+            onClick={() => setBoardView('client')}
+          >
+            לקוח
+          </button>
         </div>
+
+        {/* סינון לפי לקוח — כמו מסנן האדם במונדיי. מוצגים רק לקוחות
+            שיש להם משימות, כדי שהרשימה לא תתארך עם כל לקוח חדש. */}
+        <select
+          value={clientFilter}
+          onChange={(e) => setClientFilter(e.target.value)}
+          className="filter-select"
+          aria-label="סינון לפי לקוח"
+        >
+          <option value="all">כל הלקוחות</option>
+          {clientsWithTasks.map(c => (
+            <option key={c.id} value={c.id}>{c.label}</option>
+          ))}
+        </select>
         <div className="board-search-wrap">
           <Icon name="search" size={14} className="board-search-icon" />
           <input
@@ -283,30 +354,30 @@ export default function TaskBoard({
         />
       )}
 
-      {!nothingMatches && (boardView === 'stage'
-        ? TASK_STAGE_ORDER as readonly string[]
-        : TASK_GROUP_ORDER as readonly string[]
-      ).map(k => {
-        const stage = boardView === 'stage';
-        const key = k as TaskGroupKey & TaskStageKey;
-        const items = stage ? byStage[k as TaskStageKey] : byGroup[k as TaskGroupKey];
-        // בתצוגת שלבים כל הקבוצות מוצגות תמיד, גם ריקות: "בתהליך: ריק"
+      {/* "מוצמדות" נכנס כקבוצה ראשונה בתוך אותה לולאה — כך השורה מצוירת
+          פעם אחת בקוד, וכל מה שנכון לשורה רגילה נכון גם למוצמדת. */}
+      {!nothingMatches && [
+        ...(pinned.length > 0 ? [{
+          k: 'pinned',
+          label: 'מוצמדות',
+          hint: pinned.length > 7 ? 'הרבה מוצמדות — שווה לשחרר כמה' : 'מה שאני עושה היום',
+          items: pinned,
+        }] : []),
+        ...(boardView === 'stage'
+          ? TASK_STAGE_ORDER.map(k => ({ k: k as string, label: TASK_STAGE_LABELS[k], hint: TASK_STAGE_HINTS[k], items: byStage[k] }))
+          : byClient.map(c => ({ k: c.id, label: c.label, hint: `${c.open} פתוחות`, items: c.list }))),
+      ].map(({ k, label, hint, items }) => {
+        // בתצוגת השלבים כל הקבוצות מוצגות תמיד, גם ריקות: "בתהליך: ריק"
         // הוא מידע, וקבוצה שנעלמת שוברת את המפה שהעין בנתה.
-        if (!stage && items.length === 0 && !draggedId) return null;
+        const key = k as TaskGroupKey;
         const isCollapsed = collapsed.has(key);
-        const isDragTarget = dragOverGroup === key && items.length === 0;
 
         return (
-          <div
-            key={k}
-            className={`board-group board-group-${k} ${isDragTarget ? 'board-group-drop' : ''}`}
-            onDragOver={(e) => { if (draggedId && !stage) { e.preventDefault(); setDragOverGroup(key); } }}
-            onDrop={(e) => !stage && items.length === 0 && handleGroupDrop(e, key)}
-          >
+          <div key={k} className={`board-group board-group-${k}`}>
             <GroupHeader
-              title={stage ? TASK_STAGE_LABELS[k as TaskStageKey] : TASK_GROUP_LABELS[k as TaskGroupKey]}
+              title={label}
               count={items.length}
-              hint={stage ? TASK_STAGE_HINTS[k as TaskStageKey] : (items.length ? GROUP_HINT[key] : undefined)}
+              hint={hint}
               collapsed={isCollapsed}
               onToggle={() => toggleCollapse(key)}
             />
@@ -412,6 +483,19 @@ export default function TaskBoard({
                         </div>
 
                         <div className="bc bc-actions ui-hover-actions" onClick={(e) => e.stopPropagation()}>
+                          {/* הצמדה — קליק אחד. מוצמדת נשארת גלויה גם בלי
+                              מעבר עכבר, אחרת אי אפשר לראות מה מוצמד. */}
+                          {!done && (
+                            <button
+                              className={`ui-icon-btn pin-btn ${pinnedIds.has(t.id) ? 'is-pinned' : ''}`}
+                              onClick={() => togglePin(t)}
+                              aria-pressed={pinnedIds.has(t.id)}
+                              aria-label={pinnedIds.has(t.id) ? 'ביטול הצמדה' : 'הצמדה'}
+                              title={pinnedIds.has(t.id) ? 'ביטול הצמדה' : 'הצמדה'}
+                            >
+                              📌
+                            </button>
+                          )}
                           <button
                             className="ui-icon-btn"
                             onClick={() => onSelectTask(t.id)}

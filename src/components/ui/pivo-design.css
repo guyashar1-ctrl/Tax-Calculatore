@@ -169,6 +169,17 @@
 
 .board-view-switch { margin-inline-end: .3rem; }
 
+/* מוצמדות — הקבוצה היחידה שהמשתמש בונה בעצמו, ולכן הפס שלה הוא הדיו
+   עצמו: לא סטטוס, אלא "אני בחרתי את זה" */
+.board-group-pinned { --group-tone: var(--ink-1); }
+
+/* סיכת ההצמדה: שקטה כמו שאר פעולות השורה, אבל מוצמדת נשארת גלויה
+   תמיד — אחרת אי אפשר לראות מה מוצמד בלי לרחף מעל כל שורה */
+.pin-btn { opacity: 0; filter: grayscale(1); font-size: var(--fs-13); }
+.board-row:hover .pin-btn,
+.board-row:focus-within .pin-btn { opacity: .55; }
+.pin-btn.is-pinned { opacity: 1 !important; filter: none; }
+
 /* ── שורה · hover הוא הסימון היחיד. אין פסים ואין קווים בין שורות ────────── */
 .board-table { border: 0; }
 .board-row { border-bottom: 0; }

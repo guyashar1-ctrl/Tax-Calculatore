@@ -1308,6 +1308,7 @@ export default function App() {
             onReorder={handleReorderTask}
             onSelectClient={handleSelectClient}
             onDeleteTask={handleDeleteTask}
+            onUpdateTask={updateTask}
             onLoadSampleTasks={handleLoadSampleTasks}
           />
         )}

@@ -171,6 +171,18 @@ export function taskStageOf(task: Task): TaskStageKey {
   return task.progress === 'in_progress' ? 'in_progress' : 'new';
 }
 
+/* ─── מוצמדות ────────────────────────────────────────────────────────────────
+ * הדחיפות המחושבת (תאריך יעד) שמה 24 מתוך 45 משימות ב"לטיפול מיידי" —
+ * קבוצה שמחזיקה חצי מהרשימה היא הרשימה, לא סינון. מה שדחוף באמת יושב
+ * בראש של רואה החשבון, לא בתאריך; ולכן ההצמדה ידנית.
+ *
+ * השדה ‎priority‎ כבר קיים על המשימה ולא היה בשימוש בשום מסך — הוא
+ * מגויס לכאן, ולכן אין שינוי סכמה ואין מיגרציה.
+ */
+export function isPinned(task: Task): boolean {
+  return task.priority === 'urgent' && task.status !== 'done';
+}
+
 export function groupTasksByStage(tasks: Task[]): Record<TaskStageKey, Task[]> {
   const out: Record<TaskStageKey, Task[]> = { new: [], in_progress: [], done: [] };
   for (const t of tasks) out[taskStageOf(t)].push(t);
