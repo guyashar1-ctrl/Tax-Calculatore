@@ -201,7 +201,7 @@ export default function App() {
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
 
   const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients } = useClients(user?.id);
-  const { tasks, loading: tasksLoading, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks } = useTasks(user?.id);
+  const { tasks, loading: tasksLoading, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks, reloadTasks } = useTasks(user?.id);
 
   // בתחילת כל רבעון (ינואר/אפריל/יולי/אוקטובר) נוצרת אוטומטית משימת בדיקת
   // עדכניות של מרכז הידע — פעם אחת לרבעון (זיהוי לפי תגית בכותרת + נעילת מודול
@@ -733,6 +733,7 @@ export default function App() {
 
     // ── עדכון Request ──
     await updateRequest({ ...req, submission, status: 'awaiting_accountant', submittedAt: now });
+    await reloadTasks();
     setView('requestReview');
   }
 
@@ -745,6 +746,7 @@ export default function App() {
     if (linkedClient) {
       await updateClient({ ...linkedClient, representationStatus: 'awaiting_authorities' });
     }
+    await reloadTasks();
   }
 
   /**
@@ -763,6 +765,7 @@ export default function App() {
     if (linkedClient) {
       await updateClient({ ...linkedClient, representationStatus: 'pending_signature' });
     }
+    await reloadTasks();
     // ‼ בכוונה לא נשלח מייל כאן. הפקת הטופס והשליחה ללקוח הן שתי פעולות נפרדות:
     // שליחה אוטומטית בשלב הזה יצאה לפני שהוזנה אסמכתת ב"ל, והלקוח קיבל מייל
     // חלקי ואז עוד אחד מלא. השליחה נעשית מכפתור אחד מפורש במסך הבקשה.
@@ -803,6 +806,7 @@ export default function App() {
     if (linkedClient) {
       await updateClient({ ...linkedClient, representationStatus: 'awaiting_authorities' });
     }
+    await reloadTasks();
   }
 
   /**
@@ -822,6 +826,7 @@ export default function App() {
       }
       await updateClient({ ...linkedClient, representationStatus: 'active', authorityRepresentations: reps });
     }
+    await reloadTasks();
   }
 
   async function handleDeleteRequest(id: string) {

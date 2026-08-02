@@ -39,6 +39,20 @@ export function useTasks(userId: string | undefined) {
     return () => { cancelled = true; };
   }, [userId]);
 
+  /**
+   * טעינה מחדש מהמסד. נדרשת כשהמסד עצמו משנה משימות מאחורי הקלעים —
+   * "אצל מי הכדור" של משימת הייצוג מתעדכן שם בטריגר (28-rep-task-ball).
+   */
+  async function reloadTasks(): Promise<void> {
+    if (DEV_SEED || !userId) return;
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) return;
+    setTasks((data ?? []).map(taskFromDb));
+  }
+
   async function addTask(task: Task): Promise<Task> {
     if (!userId) throw new Error('Not signed in');
     const row = taskToDb(task, userId);
@@ -105,5 +119,5 @@ export function useTasks(userId: string | undefined) {
     return inserted;
   }
 
-  return { tasks, loading, error, addTask, updateTask, bulkUpdateTasks, deleteTask, bulkAddTasks };
+  return { tasks, loading, error, addTask, updateTask, bulkUpdateTasks, deleteTask, bulkAddTasks, reloadTasks };
 }
