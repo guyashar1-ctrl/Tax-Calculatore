@@ -129,10 +129,10 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
         y -= 12;
       }
     }
-    // פירוט היתרה — חמש שורות, אותו נוסח כמו בעמוד ההצעה
+    // פירוט היתרה — אותו נוסח בדיוק כמו בעמוד ההצעה
     const def = itemDeferred(item, data.vatRate);
     if (def) {
-      for (const r of deferredDetailLines(def)) {
+      for (const r of deferredDetailLines(def, item.name)) {
         ensureSpace(14);
         const size = r.strong ? 9.5 : 9;
         const color = r.strong ? ink : gray;
@@ -159,21 +159,59 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   // ── סיכום: לפני מע"מ, מע"מ בנפרד, סה"כ ──
   y -= 10;
   sectionLine('סיכום התמחור');
-  const blocks: [string, typeof totals.monthly, string, string?][] = [];
-  if (totals.monthly.withVat > 0) blocks.push(['חודשי', totals.monthly, 'לחודש']);
-  if (totals.annual.withVat > 0) blocks.push(['שנתי', totals.annual, 'לשנה']);
-  if (totals.oneTime.withVat > 0) blocks.push(['חד־פעמי', totals.oneTime, '']);
+  interface SummaryBlock {
+    label: string;
+    t: typeof totals.monthly;
+    suffix: string;
+    /** פס עליון — העובדה הכי חשובה על הבלוק, לפני כל מספר */
+    strip?: string;
+    /** פירוט חלופי במקום מחיר מלא/הנחה/אחרי הנחה */
+    rows?: { label: string; amount: number; negative?: boolean; strike?: boolean; strong?: boolean }[];
+    /** גוון ענבר מאופק — כסף שלא נגבה עכשיו, כדי שלא ייקרא כתשלום נוסף היום */
+    deferredTone?: boolean;
+  }
+  const blocks: SummaryBlock[] = [];
+  if (totals.monthly.withVat > 0) blocks.push({ label: 'חודשי', t: totals.monthly, suffix: 'לחודש' });
+  if (totals.annual.withVat > 0) blocks.push({ label: 'שנתי', t: totals.annual, suffix: 'לשנה' });
+  if (totals.oneTime.withVat > 0) blocks.push({ label: 'חד־פעמי', t: totals.oneTime, suffix: '' });
   // ‼ בלוק נפרד לכל מועד גבייה, אחרון ברשימה ולעולם לא מאוחד עם "חד־פעמי" —
   // חד־פעמי נקרא כמשהו שמשלמים עכשיו, והיתרה היא בדיוק ההפך
   for (const g of deferredGroups(data.items, data.vatRate)) {
-    blocks.push([`לתשלום ${g.trigger}`, g.total, '', `לא נגבה עכשיו. הסכום ייגבה ${g.trigger}, ואינו חלק מהתשלום החודשי.`]);
+    blocks.push({
+      label: `לתשלום ${g.trigger}`, t: g.total, suffix: '', deferredTone: true,
+      strip: `לא נגבה עכשיו · ייגבה ${g.trigger} · אינו חלק מהתשלום החודשי`,
+      // לאן הלך המחיר המלא: 1,800 פחות ההנחה פחות מה שכבר משולם בחודשי
+      rows: g.totalDiscount < 1 && g.includedInMonthly < 1 ? undefined : [
+        { label: 'מחיר מלא', amount: g.listPrice, strike: true },
+        ...(g.totalDiscount >= 1 ? [{ label: 'הנחה', amount: g.totalDiscount, negative: true }] : []),
+        ...(g.includedInMonthly >= 1 ? [{ label: 'כלול בשכר החודשי', amount: g.includedInMonthly, negative: true }] : []),
+        { label: 'נותר לתשלום', amount: g.total.beforeVat, strong: true },
+      ],
+    });
   }
   const green = rgb(0.02, 0.47, 0.34);
-  for (const [label, t, suffix, note] of blocks) {
-    ensureSpace(88);
-    rtl(label, 11.5, ink, y); y -= 15;
-    // סדר קבוע כמו בעמוד ובמייל: מחיר מלא ← הנחה ← אחרי הנחה ← מע"מ ← סה"כ
-    if (t.discount >= 1) {
+  const amber = rgb(0.573, 0.251, 0.055);
+  for (const { label, t, suffix, strip, rows, deferredTone } of blocks) {
+    ensureSpace(strip ? 106 : 88);
+    const barColor = deferredTone ? amber : accent;
+    if (strip) {
+      // פס עליון בגוון הבלוק — מה שהלקוח חייב לדעת עוד לפני שהוא רואה סכום
+      page.drawRectangle({ x: LEFT, y: y - 5, width: A4.w - MARGIN * 2, height: 18, color: amber, opacity: 0.14 });
+      rtl(strip, 9.5, amber, y);
+      y -= 22;
+    }
+    rtl(label, 11.5, deferredTone ? amber : ink, y); y -= 15;
+    // סדר קבוע כמו בעמוד: מחיר מלא ← הנחה ← אחרי הנחה ← מע"מ ← סה"כ
+    if (rows) {
+      for (const r of rows) {
+        const size = r.strong || r.negative ? 10.5 : 9.5;
+        const color = r.negative ? green : r.strong ? ink : gray;
+        // מחיר מחוק אינו אפשרי בקו טקסט פשוט — מסומן במילה "במקור"
+        rtl(r.strike ? `${r.label} במקור` : r.label, size, color, y);
+        ltr(r.negative ? `${money(r.amount)}-` : money(r.amount), size, color, y);
+        y -= 13;
+      }
+    } else if (t.discount >= 1) {
       rtl('מחיר מלא', 9.5, gray, y); ltr(money(t.fullBeforeVat), 9.5, gray, y); y -= 13;
       rtl(`הנחה ${Math.round((t.discount / t.fullBeforeVat) * 100)}%`, 10.5, green, y); ltr(`${money(t.discount)}-`, 10.5, green, y); y -= 14;
       rtl('מחיר אחרי הנחה', 10, ink, y); ltr(money(t.beforeVat), 10, ink, y); y -= 13;
@@ -182,20 +220,18 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     }
     rtl(`+ מע״מ (${data.vatRate}%)`, 9.5, gray, y); ltr(money(t.vat), 9.5, gray, y); y -= 15;
     // שורת הסה"כ — פס מודגש בצבע המותג, המספר הגדול בעמוד
-    page.drawRectangle({ x: LEFT, y: y - 5, width: A4.w - MARGIN * 2, height: 22, color: accent, opacity: 0.09 });
-    rtl(suffix ? `סה״כ לתשלום ${suffix} (כולל מע״מ)` : 'סה״כ לתשלום (כולל מע״מ)', 11.5, ink, y);
-    ltr(money(t.withVat), 15, accent, y);
+    page.drawRectangle({ x: LEFT, y: y - 5, width: A4.w - MARGIN * 2, height: 22, color: barColor, opacity: deferredTone ? 0.13 : 0.09 });
+    rtl(
+      deferredTone
+        ? 'סכום שייגבה במועד (כולל מע״מ)'
+        : suffix ? `סה״כ לתשלום ${suffix} (כולל מע״מ)` : 'סה״כ לתשלום (כולל מע״מ)',
+      11.5, deferredTone ? amber : ink, y,
+    );
+    ltr(money(t.withVat), 15, barColor, y);
     y -= 22;
     // תנאי הפריסה מודפסים מתחת לסכום החודשי — זה מה שיישאר בידי הלקוח
     if (label === 'חודשי') {
       for (const line of monthlyTermLines(data, totals)) {
-        ensureSpace(16);
-        rtl(line, 9, gray, y);
-        y -= 13;
-      }
-    }
-    if (note) {
-      for (const line of wrapText(note, 95)) {
         ensureSpace(16);
         rtl(line, 9, gray, y);
         y -= 13;

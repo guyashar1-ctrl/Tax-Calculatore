@@ -16,7 +16,7 @@ import {
   calcTotals, formatILS, itemFinalPrice, itemOriginalPrice, itemDisplayName,
   monthlyPlan, clampInstallments,
   currentMonthKey, monthsLeftInYear, formatMonth, formatMonthRange, addMonths,
-  itemDeferred, deferredBase, deferredDetailLines, discountSummaryParts, DEFAULT_DEFERRED_TRIGGER,
+  itemDeferred, deferredBase, deferredDetailLines, DEFAULT_DEFERRED_TRIGGER,
 } from '../../utils/quotationCalc';
 import { deriveQuotationBrand } from './quotationBranding';
 import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
@@ -842,17 +842,6 @@ export default function QuotationBuilder({
               <TotalChip label="חד־פעמי" value={totals.oneTime.withVat} />
               {totals.deferred.withVat > 0 && <TotalChip label="יתרה במועד" value={totals.deferred.withVat} />}
             </div>
-            {/* אותו משפט בדיוק שהלקוח יראה בעמוד ההצעה — כולל ההנחה על היתרה.
-                סכום הנחה אחד ומעורפל לא איפשר לדעת על מה בכלל ההנחה. */}
-            {(() => {
-              const parts = discountSummaryParts(totals);
-              if (parts.length === 0) return null;
-              return (
-                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--green, #059669)', marginTop: 6, lineHeight: 1.5 }}>
-                  ההנחה שסיכמנו: {parts.join(' · ')} <span style={{ color: 'var(--gray-400)' }}>(לפני מע״מ)</span>
-                </div>
-              );
-            })()}
             {totals.monthly.withVat > 0 && (totals.hasPartialTerm || totals.changesAfterPeriod) && (
               <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.5 }}>
                 {totals.hasPartialTerm && totals.installments && (
@@ -1587,8 +1576,8 @@ function DeferredEditor({ item, vatRate, base, customTrigger, onCustomTrigger, o
   );
 }
 
-// חמש השורות שהלקוח יראה, בזמן שגיא מתמחר. בלי זה הוא צריך להחזיק בראש
-// 1,800 פחות 5×150 פחות 450 — וזו בדיוק החשבונאות שהוא בא לתת ללקוח בכתב.
+// השורות שהלקוח יראה, בזמן שגיא מתמחר. בלי זה הוא צריך להחזיק בראש
+// 1,800 פחות 20% פחות 5×120 פחות 340 — וזו בדיוק החשבונאות שהוא בא לתת בכתב.
 // מצב "אין מה לגבות" מוסבר בעורך היתרה עצמו (DeferredEditor) ולא כאן.
 function DeferredHint({ item, vatRate }: { item: QuotationItem; vatRate: number }) {
   if (item.prorationMode !== 'deferred') return null;
@@ -1596,7 +1585,7 @@ function DeferredHint({ item, vatRate }: { item: QuotationItem; vatRate: number 
   if (!b) return null;
   return (
     <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', borderRadius: 8, padding: '6px 9px', lineHeight: 1.7, background: 'var(--blue-light, var(--gray-50))', border: '1px solid var(--gray-200)', color: 'var(--gray-600)' }}>
-      {deferredDetailLines(b).map(r => (
+      {deferredDetailLines(b, item.name).map(r => (
         <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontWeight: r.strong ? 600 : 400, color: r.strong ? 'var(--ink-1)' : undefined }}>
           <span>{r.label}</span>
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.negative ? '−' : ''}{formatILS(Math.round(r.amount))}</span>

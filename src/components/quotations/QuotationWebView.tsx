@@ -12,7 +12,7 @@ import type { QuotationBrand } from './quotationBranding';
 import {
   calcTotals, itemFinalPrice, itemOriginalPrice, formatILS, itemDisplayName,
   monthlyPlan, formatMonth, formatMonthRange,
-  itemDeferred, deferredGroups, deferredDetailLines, discountSummaryParts,
+  itemDeferred, deferredGroups, deferredDetailLines,
 } from '../../utils/quotationCalc';
 import SignaturePad from '../SignaturePad';
 
@@ -251,24 +251,12 @@ export default function QuotationWebView({
               {deferredGroups(data.items, data.vatRate).map(g => (
                 <PriceBlock key={g.trigger} brand={brand} label={`לתשלום ${g.trigger}`} t={g.total}
                   vatRate={data.vatRate} suffix="" compact={compact}
-                  footnote={
-                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${brand.border}`, fontSize: 12.5, color: brand.muted, lineHeight: 1.65 }}>
-                      לא נגבה עכשיו. הסכום ייגבה {g.trigger}, ואינו חלק מהתשלום החודשי.
-                    </div>
-                  } />
+                  tone="deferred"
+                  headerStrip={`לא נגבה עכשיו · ייגבה ${g.trigger}`}
+                  rows={deferredSummaryRows(g)} />
               ))}
               {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>—</div>}
             </div>
-            {(() => {
-              // סך ההטבה — כל תדירות בסקאלה שלה, בלי לאחד למספר אחד מטעה
-              const parts = discountSummaryParts(totals);
-              if (parts.length === 0) return null;
-              return (
-                <div style={{ marginTop: 14, background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.25)', color: '#047857', borderRadius: brand.radius, padding: '11px 15px', fontSize: compact ? 13 : 14, fontWeight: 600 }}>
-                  ההנחה שסיכמנו: {parts.join(' · ')} <span style={{ fontWeight: 400, fontSize: 11.5 }}>(לפני מע״מ)</span>
-                </div>
-              );
-            })()}
             <div style={{ marginTop: 14, fontSize: 11.5, color: brand.muted, lineHeight: 1.6 }}>
               חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד{totals.deferred.withVat > 0 ? ', וכך גם סכום שנגבה במועד מאוחר' : ''}. הסכומים הסופיים כוללים מע״מ.
             </div>
@@ -530,17 +518,17 @@ function ServiceCard({ item, brand, compact, vatRate }: { item: QuotationItem; b
           <div style={{ fontSize: 10.5, color: brand.muted }}>{item.vatFlag ? '+ מע״מ' : 'ללא מע״מ'}</div>
         </div>
       </div>
-      {deferred && <DeferredDetail b={deferred} brand={brand} compact={compact} />}
+      {deferred && <DeferredDetail b={deferred} itemName={item.name} brand={brand} compact={compact} />}
     </div>
   );
 }
 
-// פירוט היתרה מתחת לשורת השירות: מה שווה השירות, מה כבר כלול בחודשי, ומה
-// נשאר לתשלום. חמש שורות בדיוק — זה הנוסח שגיא מקריא ללקוח בטלפון.
-function DeferredDetail({ b, brand, compact }: {
-  b: NonNullable<ReturnType<typeof itemDeferred>>; brand: QuotationBrand; compact?: boolean;
+// פירוט היתרה מתחת לשורת השירות: מה מחיר השירות, איזו הנחה ניתנה עליו, מה
+// כבר כלול בחודשי, ומה נשאר לתשלום. זה הנוסח שגיא מקריא ללקוח בטלפון.
+function DeferredDetail({ b, itemName, brand, compact }: {
+  b: NonNullable<ReturnType<typeof itemDeferred>>; itemName?: string; brand: QuotationBrand; compact?: boolean;
 }) {
-  const rows = deferredDetailLines(b);
+  const rows = deferredDetailLines(b, itemName);
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${brand.border}` }}>
       {rows.map(r => (
@@ -593,45 +581,113 @@ function MonthlyTerms({ data, totals, brand }: {
   );
 }
 
+// שורת פירוט בבלוק סיכום. amount שלילי מוצג עם מינוס ובירוק; strike מוחק את
+// המספר (העוגן שלפני ההנחה); strong הוא השורה שמסכמת את החישוב.
+interface PriceRow { label: string; amount: number; negative?: boolean; strike?: boolean; strong?: boolean }
+
+// לאן הלכו 1,800 ₪ — לקוח שקורא רק את הסיכום חייב לראות את כל המסלול:
+// מחיר מלא ← ההנחה שקיבל (האחוזים + ההנחה על היתרה גם יחד) ← מה שכבר משולם
+// בשכר החודשי ← מה שנשאר. "מחיר מלא 840" היה היתרה, לא המחיר.
+function deferredSummaryRows(g: { listPrice: number; totalDiscount: number; includedInMonthly: number; total: { beforeVat: number } }): PriceRow[] | undefined {
+  if (g.totalDiscount < 1 && g.includedInMonthly < 1) return undefined;
+  return [
+    { label: 'מחיר מלא', amount: g.listPrice, strike: true },
+    ...(g.totalDiscount >= 1 ? [{ label: 'הנחה', amount: g.totalDiscount, negative: true }] : []),
+    ...(g.includedInMonthly >= 1 ? [{ label: 'כלול בשכר החודשי', amount: g.includedInMonthly, negative: true }] : []),
+    { label: 'נותר לתשלום', amount: g.total.beforeVat, strong: true },
+  ];
+}
+
+// גוון הבלוק. 'accent' — כסף שנגבה עכשיו, בצבע המותג. 'deferred' — כסף שלא
+// נגבה עכשיו, בגוון ענבר מאופק: אותו רכיב בדיוק, רק שהוא לא מתחרה על העין
+// עם הסכומים שכן משלמים היום.
+type BlockTone = 'accent' | 'deferred';
+const DEFERRED_TONE = {
+  ink: '#92400e',
+  cardBg: 'rgba(180,120,20,.05)',
+  border: 'rgba(180,120,20,.32)',
+  barBg: 'rgba(180,120,20,.13)',
+  barBorder: 'rgba(180,120,20,.4)',
+  stripBg: 'rgba(180,120,20,.16)',
+};
+
 // עוגן התנהגותי בסדר קבוע ובלתי ניתן לפספוס: מחיר מלא (מחוק) ← הנחה (שורה
 // ירוקה בולטת) ← מחיר אחרי הנחה ← מע"מ ← "סה״כ לתשלום" ענק על רקע צבע המותג.
 // ההנחה צריכה להרגיש כמו רווח של הלקוח, והמחיר הסופי — כמו השורה התחתונה.
-function PriceBlock({ label, t, vatRate, suffix, brand, compact, footnote }: {
+function PriceBlock({ label, t, vatRate, suffix, brand, compact, footnote, tone = 'accent', headerStrip, rows }: {
   label: string; t: { fullBeforeVat: number; discount: number; beforeVat: number; vat: number; withVat: number };
   vatRate: number; suffix: string; brand: QuotationBrand; compact?: boolean;
   footnote?: React.ReactNode;
+  tone?: BlockTone;
+  /** פס עליון — העובדה הכי חשובה על הבלוק, לפני כל מספר */
+  headerStrip?: string;
+  /** פירוט חלופי במקום מחיר מלא/הנחה/אחרי הנחה */
+  rows?: PriceRow[];
 }) {
+  const muted = tone === 'deferred';
+  const barColor = muted ? DEFERRED_TONE.ink : brand.accent;
   const hasDiscount = t.discount >= 1;
   const pct = hasDiscount ? Math.round((t.discount / t.fullBeforeVat) * 100) : 0;
   return (
-    <div style={{ background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
-      <div style={{ padding: `${compact ? 10 : 12}px 16px 0`, fontSize: 11.5, fontWeight: 600, letterSpacing: '.06em', color: brand.muted }}>{label}</div>
+    <div style={{
+      background: muted ? DEFERRED_TONE.cardBg : brand.cardBg,
+      border: `1px solid ${muted ? DEFERRED_TONE.border : brand.border}`,
+      borderRadius: brand.radius, overflow: 'hidden',
+      boxShadow: muted ? 'none' : '0 1px 4px rgba(0,0,0,.04)',
+    }}>
+      {headerStrip && (
+        <div style={{ background: DEFERRED_TONE.stripBg, padding: `${compact ? 8 : 9}px 16px`, display: 'flex', alignItems: 'center', gap: 7, fontSize: compact ? 12.5 : 13, fontWeight: 600, color: DEFERRED_TONE.ink, lineHeight: 1.4 }}>
+          <span aria-hidden style={{ fontSize: 14 }}>⏳</span>{headerStrip}
+        </div>
+      )}
+      <div style={{ padding: `${compact ? 10 : 12}px 16px 0`, fontSize: 11.5, fontWeight: 600, letterSpacing: '.06em', color: muted ? DEFERRED_TONE.ink : brand.muted }}>{label}</div>
 
       <div style={{ padding: `6px 16px ${compact ? 10 : 12}px` }}>
-        {hasDiscount && (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0' }}>
-              <span style={{ fontSize: 13, color: brand.muted }}>מחיר מלא</span>
-              <span style={{ fontSize: 15, color: brand.muted, textDecoration: 'line-through', textDecorationColor: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>
-                {formatILS(Math.round(t.fullBeforeVat))}
-              </span>
+        {rows
+          ? rows.map(r => (
+            <div key={r.label} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+              padding: r.negative ? '6px 10px' : '3px 0',
+              margin: r.negative ? '3px -10px' : undefined,
+              background: r.negative ? 'rgba(16,185,129,.1)' : undefined,
+              borderRadius: r.negative ? 8 : undefined,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: r.strong || r.negative ? 600 : 400, color: r.negative ? '#047857' : r.strong ? brand.ink : brand.muted }}>{r.label}</span>
+              <span style={{
+                fontSize: 15, fontWeight: r.strong || r.negative ? 600 : 400,
+                fontVariantNumeric: 'tabular-nums',
+                color: r.negative ? '#047857' : r.strong ? brand.ink : brand.muted,
+                textDecoration: r.strike ? 'line-through' : undefined,
+                textDecorationColor: r.strike ? '#dc2626' : undefined,
+              }}>{r.negative ? '−' : ''}{formatILS(Math.round(r.amount))}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16,185,129,.1)', borderRadius: 8, padding: '6px 10px', margin: '3px -10px' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#047857' }}>הנחה {pct}%</span>
-              <span style={{ fontSize: 15, fontWeight: 600, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>−{formatILS(Math.round(t.discount))}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 2px' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: brand.ink }}>מחיר אחרי הנחה</span>
-              <span style={{ fontSize: 15, fontWeight: 600, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.beforeVat))}</span>
-            </div>
-          </>
-        )}
-        {!hasDiscount && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0' }}>
-            <span style={{ fontSize: 13, color: brand.muted }}>מחיר</span>
-            <span style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.beforeVat))}</span>
-          </div>
-        )}
+          ))
+          : <>
+            {hasDiscount && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0' }}>
+                  <span style={{ fontSize: 13, color: brand.muted }}>מחיר מלא</span>
+                  <span style={{ fontSize: 15, color: brand.muted, textDecoration: 'line-through', textDecorationColor: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatILS(Math.round(t.fullBeforeVat))}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16,185,129,.1)', borderRadius: 8, padding: '6px 10px', margin: '3px -10px' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#047857' }}>הנחה {pct}%</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>−{formatILS(Math.round(t.discount))}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 2px' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: brand.ink }}>מחיר אחרי הנחה</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.beforeVat))}</span>
+                </div>
+              </>
+            )}
+            {!hasDiscount && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0' }}>
+                <span style={{ fontSize: 13, color: brand.muted }}>מחיר</span>
+                <span style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.beforeVat))}</span>
+              </div>
+            )}
+          </>}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '2px 0' }}>
           <span style={{ fontSize: 12, color: brand.muted }}>+ מע״מ ({vatRate}%)</span>
           <span style={{ fontSize: 12.5, color: brand.muted, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.vat))}</span>
@@ -639,12 +695,18 @@ function PriceBlock({ label, t, vatRate, suffix, brand, compact, footnote }: {
       </div>
 
       {/* השורה התחתונה — הכי גדולה בעמוד, על רקע צבע המותג */}
-      <div style={{ background: alpha(brand.accent, .1), borderTop: `1.5px solid ${alpha(brand.accent, .35)}`, padding: `${compact ? 10 : 12}px 16px`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+      <div style={{
+        background: muted ? DEFERRED_TONE.barBg : alpha(brand.accent, .1),
+        borderTop: `1.5px solid ${muted ? DEFERRED_TONE.barBorder : alpha(brand.accent, .35)}`,
+        padding: `${compact ? 10 : 12}px 16px`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+      }}>
         <div>
-          <div style={{ fontSize: compact ? 13.5 : 14.5, fontWeight: 600, color: brand.ink }}>סה״כ לתשלום{suffix ? ` ${suffix}` : ''}</div>
-          <div style={{ fontSize: 10.5, color: brand.muted }}>כולל מע״מ</div>
+          <div style={{ fontSize: compact ? 13.5 : 14.5, fontWeight: 600, color: muted ? DEFERRED_TONE.ink : brand.ink }}>
+            {muted ? 'סכום שייגבה' : 'סה״כ לתשלום'}{suffix ? ` ${suffix}` : ''}
+          </div>
+          <div style={{ fontSize: 10.5, color: brand.muted }}>{muted ? 'כולל מע״מ · אינו חלק מהתשלום החודשי' : 'כולל מע״מ'}</div>
         </div>
-        <div style={{ fontSize: compact ? 22 : 26, fontWeight: 600, color: brand.accent, fontVariantNumeric: 'tabular-nums', letterSpacing: '-.01em' }}>
+        <div style={{ fontSize: compact ? 22 : 26, fontWeight: 600, color: barColor, fontVariantNumeric: 'tabular-nums', letterSpacing: '-.01em' }}>
           {formatILS(Math.round(t.withVat))}
         </div>
       </div>
