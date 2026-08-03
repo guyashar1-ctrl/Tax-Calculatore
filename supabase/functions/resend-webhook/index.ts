@@ -1,6 +1,9 @@
 // Edge Function: resend-webhook
 // מקבל אירועי Resend (delivered/bounced/opened/clicked/...) ומעדכן את email_messages
-// בזמן אמת לפי resend_id. מאמת חתימת Svix אם RESEND_WEBHOOK_SECRET מוגדר.
+// בזמן אמת לפי resend_id. מאמת חתימת Svix מול RESEND_WEBHOOK_SECRET.
+//
+// ‼ בלי סוד מוגדר הפונקציה דוחה הכול. עד 2026-08 היא קיבלה גם פניות לא חתומות,
+// כלומר כל אחד שידע את הכתובת יכול היה לסמן מיילים כ"נמסר" או כ"הוקפץ".
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 async function verifySvix(secret: string, id: string, ts: string, sig: string, payload: string): Promise<boolean> {
@@ -19,13 +22,14 @@ async function verifySvix(secret: string, id: string, ts: string, sig: string, p
 }
 
 Deno.serve(async (req: Request) => {
+  const SECRET = Deno.env.get("RESEND_WEBHOOK_SECRET") || "";
+  if (!SECRET) return new Response(JSON.stringify({ error: "webhook secret not configured" }), { status: 401 });
   if (req.method !== "POST") return new Response("ok");
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const SECRET = Deno.env.get("RESEND_WEBHOOK_SECRET") || "";
   const raw = await req.text();
 
-  if (SECRET) {
+  {
     const id = req.headers.get("svix-id") || "";
     const ts = req.headers.get("svix-timestamp") || "";
     const sig = req.headers.get("svix-signature") || "";

@@ -5,6 +5,9 @@
 // אבטחה: verify_jwt=false בשער + אימות פנימי; שולח רק על הצעות של המשתמש.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
+const MAX_SUBJECT_CHARS = 300;
+const MAX_HTML_BYTES = 200 * 1024;
+
 Deno.serve(async (req: Request) => {
   const cors: Record<string, string> = {
     "Access-Control-Allow-Origin": "*",
@@ -17,6 +20,15 @@ Deno.serve(async (req: Request) => {
   try {
     const { quotationId, isTest, html, subject } = await req.json();
     if (!quotationId || !html || !subject) return json({ error: "missing quotationId/html/subject" }, 400);
+
+    // ‼ הגוף וההנדסה מגיעים מהדפדפן. תקרות בצד השרת — כדי שגוף שנבנה לא נכון
+    // (או מי שיקרא לפונקציה ישירות) לא יהפוך אותה למשגר תוכן חופשי.
+    if (String(subject).length > MAX_SUBJECT_CHARS) {
+      return json({ error: "subject_too_long", detail: { message: `נושא המייל ארוך מ-${MAX_SUBJECT_CHARS} תווים.` } }, 400);
+    }
+    if (new TextEncoder().encode(String(html)).length > MAX_HTML_BYTES) {
+      return json({ error: "html_too_large", detail: { message: `גוף המייל גדול מ-${MAX_HTML_BYTES / 1024}KB.` } }, 400);
+    }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

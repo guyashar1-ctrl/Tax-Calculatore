@@ -30,6 +30,7 @@ import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
 import { useFirmProfile } from './hooks/useFirmProfile';
+import { useFailedNotifications } from './hooks/useFailedNotifications';
 import { useLeads } from './hooks/useLeads';
 import { useQuotations } from './hooks/useQuotations';
 import { useQuotationCatalog } from './hooks/useQuotationCatalog';
@@ -71,6 +72,7 @@ import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
+import FailedNotificationsBanner from './components/FailedNotificationsBanner';
 import { useAuth } from './hooks/useAuth';
 import AnnualReport from './features/annualReport/AnnualReport';
 
@@ -218,6 +220,7 @@ export default function App() {
   const { leads, addLead, updateLead, deleteLead } = useLeads(user?.id);
   const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation } = useQuotations(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
+  const failedNotifications = useFailedNotifications(user?.id);
 
   /**
    * רשת הביטחון של התראות ההתקדמות. השרת רושם כל אירוע אצל הלקוח (חתימה על
@@ -237,6 +240,10 @@ export default function App() {
    * הייצוג בצד השרת, אבל שני דברים תלויים בדפדפן ועלולים להיכשל שם: שליחת
    * המייל (הלקוח סגר את הטאב לפני שהבקשה יצאה) והפקת הסכם ההתקשרות (PDF).
    * שניהם מושלמים כאן בכניסה הבאה של הרו"ח, ושניהם אידמפוטנטיים.
+   *
+   * ‼ הסימון "נשלח" כבר לא נעשה כאן. השרת תובע את השליחה על ההצעה עצמה לפני
+   * שהוא פונה לרסנד, ולכן שני מסלולים שרצים יחד לא יכולים לשלוח פעמיים. כשהשרת
+   * מחזיר alreadySent הוא אומר שמישהו הקדים — אין מה לכתוב, הערך כבר במסד.
    */
   const autoRepHandled = useRef(new Set<string>());
   useEffect(() => {
@@ -253,10 +260,11 @@ export default function App() {
             body: { requestId: q.representationRequestId },
           });
           const failure = error?.message || (data?.ok ? null : (data?.detail?.message || data?.error || 'שגיאה לא ידועה'));
-          await updateQuotation({
-            ...q,
-            ...(failure ? { representationError: failure } : { representationSentAt: new Date().toISOString(), representationError: undefined }),
-          });
+          if (failure) {
+            await updateQuotation({ ...q, representationError: failure });
+          } else if (!data?.alreadySent) {
+            await updateQuotation({ ...q, representationSentAt: new Date().toISOString(), representationError: undefined });
+          }
         } catch { /* יימשך בכניסה הבאה */ }
       })();
     }
@@ -625,7 +633,8 @@ export default function App() {
     let emailError: string | undefined;
     try {
       // מגבלת זמן — שהחלון לא ייתקע על "יוצר…" אם שרת המייל איטי/לא מגיב.
-      const invoke = supabase.functions.invoke('send-onboarding-email', { body: { requestId: reqId } });
+      // force — שליחה יזומה מהחלון. אין לה מה להתנגש בתביעה האוטומטית של השרת.
+      const invoke = supabase.functions.invoke('send-onboarding-email', { body: { requestId: reqId, force: true } });
       const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('פג הזמן לשליחת המייל')), 12000));
       const { data: res, error } = await Promise.race([invoke, timeout]);
       if (error) emailError = error.message;
@@ -1289,6 +1298,7 @@ export default function App() {
       <main className="main">
         <ErrorBoundary resetKey={view}>
         <LegacyMigrationBanner knownClientIds={new Set(clients.map(c => c.id))} />
+        <FailedNotificationsBanner failures={failedNotifications} />
         {view === 'myDesk' && (
           <MyDesk
             tasks={tasks}

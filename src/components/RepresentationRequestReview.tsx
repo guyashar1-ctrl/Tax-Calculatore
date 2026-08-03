@@ -152,7 +152,9 @@ export default function RepresentationRequestReview({
     setSendingEmail(true);
     setEmailStatus(null);
     try {
-      const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: request.id, stage } });
+      // force — הרו"ח ביקש במפורש לשלוח שוב, ולכן התביעה האוטומטית של השרת
+      // (שנועדה למנוע שליחה כפולה בין הדפדפן של הלקוח לרשת הביטחון) לא חלה.
+      const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: request.id, stage, force: true } });
       if (error) setEmailStatus(`${error.message}`);
       else if (data?.ok) setEmailStatus(`מייל נשלח ל-${request.clientEmail}`);
       else setEmailStatus(`${data?.detail?.message || data?.error || 'שליחה נכשלה'}`);

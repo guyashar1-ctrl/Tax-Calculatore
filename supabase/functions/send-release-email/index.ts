@@ -3,6 +3,9 @@
 // verify_jwt=false בשער + אימות פנימי; שולח רק בהקשר לקוח של המשתמש.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
+const MAX_SUBJECT_CHARS = 300;
+const MAX_HTML_BYTES = 200 * 1024;
+
 Deno.serve(async (req: Request) => {
   const cors: Record<string, string> = {
     "Access-Control-Allow-Origin": "*",
@@ -15,6 +18,15 @@ Deno.serve(async (req: Request) => {
   try {
     const { clientId, to, subject, html } = await req.json();
     if (!clientId || !to || !subject || !html) return json({ error: "missing clientId/to/subject/html" }, 400);
+
+    // ‼ הנמען כאן חופשי בכוונה (הרו"ח הקודם), ולכן התקרות הן מה שמונע מהפונקציה
+    // להפוך למשגר תוכן חופשי לכל כתובת.
+    if (String(subject).length > MAX_SUBJECT_CHARS) {
+      return json({ error: "subject_too_long", detail: { message: `נושא המייל ארוך מ-${MAX_SUBJECT_CHARS} תווים.` } }, 400);
+    }
+    if (new TextEncoder().encode(String(html)).length > MAX_HTML_BYTES) {
+      return json({ error: "html_too_large", detail: { message: `גוף המייל גדול מ-${MAX_HTML_BYTES / 1024}KB.` } }, 400);
+    }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -45,7 +57,9 @@ Deno.serve(async (req: Request) => {
     });
     const body = await r.json();
 
-    const logBase = { user_id: user.id, client_id: clientId, to_email: to, subject, kind: "release", meta: { from: `${firmName} <${fromAddress}>` } };
+    // עותק הגוף נשמר יחד עם הרשומה, כמו בשאר המיילים. מכתב שחרור הוא המסמך
+    // שמעביר את התיק — בלי עותק אין דרך להוכיח בדיעבד מה בדיוק נשלח.
+    const logBase = { user_id: user.id, client_id: clientId, to_email: to, subject, kind: "release", html, meta: { from: `${firmName} <${fromAddress}>` } };
     if (!r.ok) {
       await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
       return json({ error: "resend_failed", detail: body }, 502);

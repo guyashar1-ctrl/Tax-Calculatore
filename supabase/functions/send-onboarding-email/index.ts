@@ -28,7 +28,10 @@ type Stage = "onboard" | "sign" | "active" | "intake" | "ni_approve" | "sign_wit
 
 // אישור ייפוי כוח בביטוח לאומי נעשה מול הביטוח הלאומי עצמו, לא אצלנו — ולכן
 // הקישור חיצוני והמייל מפרט את שתי הדרכים שהב"ל מאפשר.
-const NI_SITE = "https://www.btl.gov.il";
+// הקישור מוביל ישירות למסך האישור. מדף הבית של הב"ל הלקוח צריך לחפש את
+// השירות בעצמו, וזו הנקודה שבה הוא נוטש.
+const NI_SITE = "https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx";
+const NI_SITE_LABEL = "מסך אישור ייפוי כוח למייצג";
 const NI_PHONE = "02-5393740";
 
 const COPY: Record<Stage, { subject: string; heading: string; body: string; cta: string }> = {
@@ -77,7 +80,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
   try {
-    const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken, preview } = await req.json();
+    const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken, preview, force } = await req.json();
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
@@ -89,6 +92,9 @@ Deno.serve(async (req: Request) => {
     let requestId: string | undefined = rawRequestId;
     let stage: Stage = (rawStage === "sign" || rawStage === "active" || rawStage === "intake" || rawStage === "ni_approve") ? rawStage : "onboard";
     let quotationId: string | null = null;
+    // ההצעה שעליה נתבעת השליחה. במסלול הציבורי היא הטוקן עצמו, ובמסלול ה-JWT
+    // היא נמצאת דרך בקשת הייצוג — כדי ששני המסלולים יתחרו על אותה תביעה.
+    let claimQuotationId: string | null = null;
     if (quotationToken) {
       const { data: quote } = await admin
         .from("quotations")
@@ -100,12 +106,25 @@ Deno.serve(async (req: Request) => {
       userId = quote.user_id;
       requestId = quote.representation_request_id;
       quotationId = quote.id;
+      claimQuotationId = quote.id;
       stage = "onboard";   // המסלול הציבורי שולח את קישור הייצוג ולא שום דבר אחר
     } else {
       const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
       const { data: userData } = await admin.auth.getUser(token);
       userId = userData?.user?.id ?? null;
       if (!userId) return json({ error: "unauthorized" }, 401);
+      if (stage === "onboard" && requestId) {
+        const { data: linked } = await admin
+          .from("quotations")
+          .select("id,representation_sent_at")
+          .eq("representation_request_id", requestId)
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false });
+        // ללקוח קיים אפשר שיהיו כמה הצעות על אותה בקשת ייצוג. התביעה נעשית על
+        // הראשונה שטרם נשלחה — אם כולן נשלחו, אין מה לשלוח שוב.
+        const target = (linked ?? []).find((q) => !q.representation_sent_at) ?? (linked ?? [])[0];
+        claimQuotationId = target?.id ?? null;
+      }
     }
     if (stage === "intake" ? !clientId : !requestId) return json({ error: "missing requestId" }, 400);
 
@@ -210,7 +229,7 @@ Deno.serve(async (req: Request) => {
           <div dir="ltr" style="font-family:${f};text-align:center;font-size:40px;font-weight:700;letter-spacing:.06em;color:${brand.accent};padding-top:4px;">${esc(String(ni.referenceNumber))}</div>
           ${deadlineRow}
         </div>
-        ${option("א.", "באתר הביטוח הלאומי", `נכנסים ל-<a href="${esc(NI_SITE)}" style="color:${brand.accent};font-weight:700;">${esc(NI_SITE)}</a> ← בפעולות מקישים "אישור ייפוי כח למייצג" ← מקלידים את מספר תעודת הזהות ואת מספר האסמכתא שלמעלה ← מזדהים בכרטיס אשראי או בסיסמה לטלפון הנייד ← מאשרים במסך. <strong style="color:${brand.ink};">הייצוג נכנס לתוקף מיד.</strong>`)}
+        ${option("א.", "באתר הביטוח הלאומי", `נכנסים ל<a href="${esc(NI_SITE)}" style="color:${brand.accent};font-weight:700;">${esc(NI_SITE_LABEL)}</a> ← מקלידים את מספר תעודת הזהות ואת מספר האסמכתא שלמעלה ← מזדהים בכרטיס אשראי על שמכם, או בטלפון/מייל המעודכנים בביטוח הלאומי ← מאשרים במסך. <strong style="color:${brand.ink};">הייצוג נכנס לתוקף מיד.</strong>`)}
         ${option("ב.", "בטלפון", `מתקשרים ל-<strong dir="ltr" style="color:${brand.ink};font-size:16px;">${esc(NI_PHONE)}</strong> (מענה קולי) ומאשרים באמצעות מספר האסמכתא ובאמצעות קוד בן 6 ספרות שהביטוח הלאומי ישלח אליכם בדואר או במייל. מתאים למי שאין לו כרטיס אשראי או מייל מאומת בביטוח הלאומי.`)}`;
     };
 
@@ -302,6 +321,40 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, preview: true, subject: copy.subject, to: toEmail, from: `${brand.firmName} <${fromAddress}>`, html });
     }
 
+    // ── תביעת השליחה ─────────────────────────────────────────────────────────
+    // ‼ מייל קישור הייצוג יוצא משני מקומות שאינם יודעים זה על זה: הדפדפן של
+    // הלקוח מיד אחרי אישור ההצעה, ורשת הביטחון בכניסת הרו"ח. הסימון "נשלח"
+    // נעשה כאן, בעדכון אחד ולפני הקריאה ל-Resend: שורה אחת שהתעדכנה = אנחנו
+    // ששולחים, אפס שורות = מישהו הקדים אותנו והמייל כבר בדרך.
+    // שליחה יזומה (force) עוקפת את התביעה — הרו"ח ביקש במפורש לשלוח שוב.
+    let claimed = false;
+    if (stage === "onboard" && claimQuotationId && !force) {
+      const { data: claimRows } = await admin
+        .from("quotations")
+        .update({ representation_sent_at: new Date().toISOString(), representation_error: null })
+        .eq("id", claimQuotationId)
+        .is("representation_sent_at", null)
+        .select("id");
+      if (!claimRows || claimRows.length === 0) return json({ ok: true, alreadySent: true });
+      claimed = true;
+    }
+
+    // מפתח ייחודי לשורת היומן — שכבת ההגנה השנייה מפני רישום כפול (מיגרציה 29).
+    // שליחה יזומה מקבלת מספר רץ, כי היא אמורה להיות שורה נוספת ולא כפילות.
+    let idempotencyKey: string | undefined;
+    if (stage === "onboard" && logRequestId) {
+      if (force) {
+        const { count } = await admin
+          .from("email_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("request_id", logRequestId)
+          .eq("kind", "onboard");
+        idempotencyKey = `onboard:${logRequestId}:r${(count ?? 0) + 1}`;
+      } else {
+        idempotencyKey = `onboard:${logRequestId}`;
+      }
+    }
+
     const payload: Record<string, unknown> = { from: `${brand.firmName} <${fromAddress}>`, to: [toEmail], subject: copy.subject, html };
     if (replyTo) payload.reply_to = replyTo;
     const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -311,20 +364,29 @@ Deno.serve(async (req: Request) => {
     // דרך לשלוף בדיעבד מה הלקוח קיבל אם לא נשמור עותק כאן.
     const logBase = { user_id: userId, client_id: logClientId, request_id: logRequestId, to_email: toEmail, subject: copy.subject, kind: stage, html };
     if (!r.ok) {
+      // ‼ שורת הכישלון נרשמת בלי המפתח הייחודי: אחרת הניסיון החוזר המוצלח היה
+      // מתנגש בה, נחשב ל"כבר נשלח" — והמייל לא היה יוצא לעולם.
       await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
-      // כשל בשליחה האוטומטית נרשם על ההצעה — אחרת הרו"ח מגלה אותו מהלקוח
-      if (quotationId) {
+      // כשל בשליחה נרשם על ההצעה — אחרת הרו"ח מגלה אותו מהלקוח. התביעה
+      // משוחררת, כי רק כישלון אמיתי ראוי לניסיון חוזר.
+      if (claimQuotationId) {
         await admin.from("quotations")
-          .update({ representation_error: JSON.stringify(body).slice(0, 300) })
-          .eq("id", quotationId);
+          .update({
+            ...(claimed ? { representation_sent_at: null } : {}),
+            representation_error: JSON.stringify(body).slice(0, 300),
+          })
+          .eq("id", claimQuotationId);
       }
       return json({ error: "resend_failed", detail: body }, 502);
     }
-    await admin.from("email_messages").insert({ ...logBase, resend_id: body.id, status: "sent" });
-    if (quotationId) {
+    const { error: logErr } = await admin.from("email_messages")
+      .insert({ ...logBase, resend_id: body.id, status: "sent", ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}) });
+    // התנגשות במפתח = השורה כבר קיימת, כלומר השליחה הזו כבר תועדה. לא שגיאה.
+    if (logErr && logErr.code === "23505") return json({ ok: true, alreadySent: true });
+    if (claimQuotationId && !claimed) {
       await admin.from("quotations")
         .update({ representation_sent_at: new Date().toISOString(), representation_error: null })
-        .eq("id", quotationId);
+        .eq("id", claimQuotationId);
     }
     return json({ ok: true, id: body.id });
   } catch (e) {

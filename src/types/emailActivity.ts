@@ -55,6 +55,10 @@ export const EMAIL_KIND_LABEL: Record<string, string> = {
   quotation_reminder: 'תזכורת להצעת מחיר',
   release: 'מכתב שחרור לרו״ח הקודם',
   weekly_backup: 'גיבוי שבועי',
+  // התראות פנימיות — נשלחות לרו"ח עצמו, לא ללקוח
+  notify_quotation_approved: 'התראה — הצעה אושרה',
+  notify_onboarding_submitted: 'התראה — מולאו פרטי ייצוג',
+  notify_poa_signed: 'התראה — נחתם ייפוי כוח',
 };
 
 export const emailKindLabel = (kind?: string): string =>
