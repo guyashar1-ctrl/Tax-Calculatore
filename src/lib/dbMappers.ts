@@ -78,6 +78,9 @@ export function clientFromDb(row: Record<string, any>): Client {
   return c;
 }
 
+// שדות הליד שהועתקו ללקוח (שם עסק, סוג עוסק, פרטי הרו"ח הקודם, מקור ההפניה,
+// עסק חדש/העברה) נוסעים על המיפוי הגנרי camel↔snake, כמו כל שדה אופציונלי אחר:
+// ערך undefined פשוט לא נכלל ב-UPDATE, ולכן שמירה חלקית לא מאפסת אותו.
 export function clientToDb(client: Partial<Client>, userId?: string): Record<string, any> {
   const row = objectToRow(client, CLIENT_OMIT_ON_WRITE);
   if (userId) row.user_id = userId;
@@ -175,6 +178,7 @@ export function leadFromDb(row: Record<string, any>): Lead {
 const LEAD_NULLABLE = [
   'phone', 'email', 'businessName', 'dealerType', 'notes',
   'prevAccountantName', 'prevAccountantEmail', 'prevAccountantPhone',
+  'referralSource', 'businessTransfer',
 ] as const;
 
 export function leadToDb(lead: Partial<Lead>, userId?: string): Record<string, any> {

@@ -16,10 +16,12 @@ interface Props {
   businessName?: string;
   prevAccountant: { name?: string; email?: string; phone?: string };
   brand: QuotationBrand;
+  /** נקרא רק אחרי שליחה מוצלחת — מקדם את שלב הקליטה ל"נשלח". */
+  onSent?: () => void;
   onClose: () => void;
 }
 
-export default function ReleaseLetterDialog({ clientId, clientName, businessName, prevAccountant, brand, onClose }: Props) {
+export default function ReleaseLetterDialog({ clientId, clientName, businessName, prevAccountant, brand, onSent, onClose }: Props) {
   const { saveDoc } = useDocumentStore();
   const ctx = { clientName, businessName, prevAccountantName: prevAccountant.name };
   const [toEmail, setToEmail] = useState(prevAccountant.email ?? '');
@@ -64,6 +66,7 @@ export default function ReleaseLetterDialog({ clientId, clientName, businessName
       });
       setDone(true);
       setNotice({ kind: 'ok', text: 'המכתב נשלח ונשמר במסמכי הלקוח.' });
+      onSent?.();
     } catch (e) {
       setNotice({ kind: 'err', text: `שגיאה: ${e instanceof Error ? e.message : String(e)}` });
     } finally {

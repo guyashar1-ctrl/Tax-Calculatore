@@ -81,6 +81,8 @@ interface Props {
   advanceOnboardingStep?: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
   /** טעינה מחדש של הקליטה — אחרי פעולות שאינן עוברות דרך advance. */
   refreshOnboarding?: () => void;
+  /** פתיחת חלון מכתב השחרור לרו"ח הקודם, משלב הקליטה של הלקוח. */
+  onOpenReleaseLetter?: (clientId: string, stepId?: string) => void;
 }
 
 function newEmptyClient(): Client {
@@ -139,6 +141,7 @@ export default function ClientWorkspace({
   onboardingLoading,
   advanceOnboardingStep,
   refreshOnboarding,
+  onOpenReleaseLetter,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
@@ -457,6 +460,14 @@ export default function ClientWorkspace({
             loading={onboardingLoading}
             advance={advanceOnboardingStep}
             refresh={refreshOnboarding}
+            prevAccountant={{
+              name: client.prevAccountantName,
+              email: client.prevAccountantEmail,
+              phone: client.prevAccountantPhone,
+            }}
+            onPrepareReleaseLetter={onOpenReleaseLetter
+              ? (stepId) => onOpenReleaseLetter(client.id, stepId)
+              : undefined}
           />
         )}
 

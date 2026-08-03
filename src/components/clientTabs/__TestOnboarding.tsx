@@ -88,12 +88,19 @@ const EVENTS: OnboardingEvent[] = [
 
 export default function TestOnboarding() {
   const [msg, setMsg] = useState('');
+  // שני המצבים של מכתב השחרור: עם מייל לרו"ח הקודם (הכפתור פעיל) ובלעדיו
+  // (הכפתור חסום עם הסיבה) — המצב השני הוא מקרה הקצה של המסלול.
+  const [hasPrevEmail, setHasPrevEmail] = useState(true);
   return (
     <div style={{ padding: '1.5rem', maxWidth: 980, margin: '0 auto' }} dir="rtl">
       <h2 style={{ marginBottom: '.3rem' }}>בדיקת לשונית הקליטה — נתונים מדומים</h2>
       <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: '1rem' }}>
         לא מחובר למסד. פעולות מדפיסות את מה שהיה נשלח לשרת. {msg && <strong> · {msg}</strong>}
       </div>
+      <button type="button" className="btn btn-sm btn-secondary" style={{ marginBottom: '1rem' }}
+        onClick={() => setHasPrevEmail(v => !v)}>
+        {hasPrevEmail ? 'הסתר את מייל הרו״ח הקודם' : 'החזר את מייל הרו״ח הקודם'}
+      </button>
       <OnboardingTab
         clientId={CLIENT_ID}
         engagements={ENGAGEMENTS}
@@ -104,6 +111,12 @@ export default function TestOnboarding() {
           return { ok: true };
         }}
         refresh={() => setMsg('refresh()')}
+        prevAccountant={{
+          name: 'רו״ח דנה כהן',
+          email: hasPrevEmail ? 'dana@prev-firm.example' : undefined,
+          phone: '03-1234567',
+        }}
+        onPrepareReleaseLetter={(stepId) => setMsg(`פתיחת מכתב שחרור לשלב ${stepId}`)}
       />
     </div>
   );

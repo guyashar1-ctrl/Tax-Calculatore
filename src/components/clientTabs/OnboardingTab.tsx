@@ -18,6 +18,9 @@ import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
 import { formatILS } from '../../utils/quotationCalc';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
+import { useEmailMessages } from '../../hooks/useEmailMessages';
+import { EMAIL_STATUS_LABEL } from '../../types/emailActivity';
 import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
 
@@ -30,6 +33,10 @@ interface Props {
   advance: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
   /** טעינה מחדש אחרי פעולה שלא עברה דרך advance (מסלול פייפרלס, שליחת מייל). */
   refresh?: () => void;
+  /** פרטי הרו"ח הקודם מכרטיס הלקוח — בלי מייל אי אפשר להכין מכתב שחרור. */
+  prevAccountant?: { name?: string; email?: string; phone?: string };
+  /** פתיחת חלון מכתב השחרור. חסר ⇒ הכפתור לא מוצג (מסך הבדיקה). */
+  onPrepareReleaseLetter?: (stepId: string) => void;
 }
 
 const TONE_COLOR: Record<string, string> = {
@@ -120,7 +127,10 @@ function monthLabel(v?: string): string {
 
 const isHttps = (v: string) => v.trim().startsWith('https://');
 
-export default function OnboardingTab({ clientId, engagements, steps, events, loading, advance, refresh }: Props) {
+export default function OnboardingTab({
+  clientId, engagements, steps, events, loading, advance, refresh,
+  prevAccountant, onPrepareReleaseLetter,
+}: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busyStepId, setBusyStepId] = useState<string | null>(null);
   const [menuStepId, setMenuStepId] = useState<string | null>(null);
@@ -159,6 +169,17 @@ export default function OnboardingTab({ clientId, engagements, steps, events, lo
       .slice()
       .sort((a, b) => (b.at || '').localeCompare(a.at || ''));
   }, [events, clientSteps, clientEngagements]);
+
+  // סיבת החסימה נשמרת ביומן ולא על השלב, ולכן מחלצים אותה משם כדי להציג
+  // "חסום — למה" ולא רק "חסום".
+  const blockNoteByStep = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const ev of clientEvents) {
+      if (!ev.stepId || !ev.note || ev.meta?.to !== 'blocked') continue;
+      if (!m.has(ev.stepId)) m.set(ev.stepId, ev.note);
+    }
+    return m;
+  }, [clientEvents]);
 
   const nextStep = useMemo(() => {
     const open = clientSteps.filter(s => isStepOpen(s.status));
@@ -380,6 +401,25 @@ export default function OnboardingTab({ clientId, engagements, steps, events, lo
                     })}
                     onConfirm={(title, message, confirmLabel) =>
                       setConfirmState({ stepId: step.id, title, message, confirmLabel })}
+                    onRun={(action, payload) => void run(step, action, payload)}
+                    menu={menu}
+                  />
+                );
+              }
+
+              if (step.stepType === 'release_letter') {
+                return (
+                  <ReleaseStepCard
+                    key={step.id}
+                    step={step}
+                    stepById={stepById}
+                    clientId={clientId}
+                    busy={busy}
+                    highlight={highlightStepId === step.id}
+                    prevAccountant={prevAccountant}
+                    blockNote={blockNoteByStep.get(step.id)}
+                    onPrepare={onPrepareReleaseLetter ? () => onPrepareReleaseLetter(step.id) : undefined}
+                    onBlock={() => handleBlock(step)}
                     onRun={(action, payload) => void run(step, action, payload)}
                     menu={menu}
                   />
@@ -865,13 +905,139 @@ function RetainerStepCard(p: RetainerCardProps) {
   );
 }
 
+// ═══════════════ כרטיס מכתב השחרור ═══════════════════════════════════════
+// ‼ מסלול הרו"ח הקודם מדבר בשפה שלו — טיוטה, מוכן, נשלח, נמסר, התקבלה
+// תשובה, הושלם — אבל אין לו מכונת מצבים משלו: כל אחד מהמצבים האלה הוא
+// סטטוס גנרי קיים של שלב. הכדור אצל הרו"ח הקודם הוא שהופך "ממתין" ל"נשלח".
+
+/** תרגום הסטטוס הגנרי לשפה של מסלול השחרור. */
+function releaseStatusLabel(step: OnboardingStep, hasEmail: boolean): string {
+  switch (step.status) {
+    case 'pending':        return hasEmail ? 'מוכן לשליחה' : 'טיוטה';
+    case 'in_progress':    return 'מוכן לשליחה';
+    case 'waiting_client': return 'נשלח';
+    case 'completed':      return 'התקבלה תשובה';
+    case 'verified':       return 'הושלם';
+    default:               return STEP_STATUS_LABELS[step.status];
+  }
+}
+
+interface ReleaseCardProps {
+  step: OnboardingStep;
+  stepById: Map<string, OnboardingStep>;
+  clientId: string;
+  busy: boolean;
+  highlight: boolean;
+  prevAccountant?: { name?: string; email?: string; phone?: string };
+  blockNote?: string;
+  onPrepare?: () => void;
+  onBlock: () => void;
+  onRun: (action: string, payload?: Record<string, unknown>) => void;
+  menu: React.ReactNode;
+}
+
+function ReleaseStepCard(p: ReleaseCardProps) {
+  const { step, stepById, busy, highlight, prevAccountant } = p;
+  const email = (prevAccountant?.email ?? '').trim();
+  const open = isStepOpen(step.status);
+  const sent = step.status === 'waiting_client';
+  // שלב נעול/חסום/דולג אינו מציע להכין מכתב — קודם פותחים אותו מחדש.
+  const actionable = step.status === 'pending' || step.status === 'in_progress' || sent;
+  const canPrepare = !!p.onPrepare && email !== '';
+
+  return (
+    <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={p.menu}
+      statusLabel={releaseStatusLabel(step, email !== '')}>
+      <div style={cardNote}>
+        {prevAccountant?.name
+          ? <>הרו״ח הקודם: <strong style={{ color: 'var(--ink-2)' }}>{prevAccountant.name}</strong>{email && <> · <span dir="ltr">{email}</span></>}</>
+          : email
+            ? <>הרו״ח הקודם: <span dir="ltr">{email}</span></>
+            : 'המכתב מבקש מהרו״ח הקודם את החומרים ואת שחרור הייצוג. הוא נפתח לעריכה ונשלח רק אחרי אישור.'}
+      </div>
+
+      {!email && step.status !== 'completed' && step.status !== 'verified' && (
+        <div style={{ marginTop: '.4rem', fontSize: 'var(--fs-13)', color: 'var(--err)' }}>
+          חסרה כתובת מייל של הרו״ח הקודם — יש להשלים אותה בתיק הלקוח, בקבוצה "עסקים".
+        </div>
+      )}
+
+      {step.status === 'blocked' && p.blockNote && (
+        <div style={{ marginTop: '.4rem', fontSize: 'var(--fs-13)', color: 'var(--err)' }}>
+          חסום: {p.blockNote}
+        </div>
+      )}
+
+      {(sent || step.status === 'completed' || step.status === 'verified') && (
+        <ReleaseDelivery clientId={p.clientId} />
+      )}
+
+      <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
+        {actionable && (
+          <button type="button" className="btn btn-sm btn-primary"
+            disabled={busy || !canPrepare}
+            title={email ? undefined : 'חסרה כתובת מייל של הרו״ח הקודם'}
+            onClick={() => p.onPrepare?.()}>
+            {sent ? 'שלח מכתב שוב' : 'הכן מכתב שחרור'}
+          </button>
+        )}
+        {actionable && !sent && (
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+            onClick={() => p.onRun('wait_client', { ball: 'prev_accountant', note: 'המכתב נשלח מחוץ למערכת' })}>
+            סמן שנשלח
+          </button>
+        )}
+        {sent && (
+          <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+            onClick={() => p.onRun('complete', { completionMethod: 'manual', note: 'התקבלה תשובה מהרו״ח הקודם' })}>
+            התקבלה תשובה
+          </button>
+        )}
+        {step.status === 'completed' && (
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+            onClick={() => p.onRun('verify')}>סמן כהושלם</button>
+        )}
+        {(step.status === 'blocked' || step.status === 'failed') && (
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+            onClick={() => p.onRun('reopen')}>פתח מחדש</button>
+        )}
+        {open && step.status !== 'blocked' && (
+          <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={p.onBlock}>חסום</button>
+        )}
+      </div>
+    </StepCardShell>
+  );
+}
+
+/** מה קרה למכתב אחרי השליחה — נמסר, נפתח, הוקפץ. מהיומן של המיילים היוצאים. */
+function ReleaseDelivery({ clientId }: { clientId: string }) {
+  const { user } = useAuth();
+  const { messages } = useEmailMessages(user?.id);
+  const last = useMemo(
+    () => messages
+      .filter(m => m.kind === 'release' && m.clientId === clientId)
+      .slice()
+      .sort((a, b) => (b.sentAt || '').localeCompare(a.sentAt || ''))[0],
+    [messages, clientId]);
+
+  if (!last) return null;
+  return (
+    <div style={{ ...cardNote, marginTop: '.4rem' }}>
+      מכתב אחרון אל <span dir="ltr">{last.toEmail}</span> · {relativeTime(last.sentAt)} · {EMAIL_STATUS_LABEL[last.status] ?? last.status}
+      {last.openedAt && <> · נפתח {relativeTime(last.openedAt)}</>}
+    </div>
+  );
+}
+
 // ═══════════════ מעטפת משותפת לכרטיסים ═══════════════════════════════════
 
-function StepCardShell({ step, stepById, highlight, danger, menu, children }: {
+function StepCardShell({ step, stepById, highlight, danger, statusLabel, menu, children }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
   danger?: boolean;
+  /** ניסוח הסטטוס בשפת המסלול, כשהיא שונה מהניסוח הגנרי. */
+  statusLabel?: string;
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -903,7 +1069,7 @@ function StepCardShell({ step, stepById, highlight, danger, menu, children }: {
               display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center',
               fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2,
             }}>
-              <span style={{ color: tone, fontWeight: 600 }}>{STEP_STATUS_LABELS[step.status]}</span>
+              <span style={{ color: tone, fontWeight: 600 }}>{statusLabel ?? STEP_STATUS_LABELS[step.status]}</span>
               <span>· הכדור {STEP_BALL_LABELS[step.ball]}</span>
               {step.dueDate && <span>· עד {formatDate(step.dueDate, 'list')}</span>}
               {locked && <span>· {lockHint(step, stepById)}</span>}

@@ -293,7 +293,9 @@ export default function App() {
   const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
   // תצוגה מקדימה של מייל תזכורת להצעה — נפתחת לפני כל שליחה חוזרת
   const [remindPreview, setRemindPreview] = useState<{ quotation: Quotation; subject: string; to: string; html: string } | null>(null);
-  const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; prevAccountant: { name?: string; email?: string; phone?: string } } | null>(null);
+  // מכתב שחרור לרו"ח הקודם. stepId מגיע כשפתחו אותו משלב הקליטה — אחרי
+  // שליחה מוצלחת השלב עובר ל"נשלח" והכדור עובר לרו"ח הקודם.
+  const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; prevAccountant: { name?: string; email?: string; phone?: string }; stepId?: string } | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -1060,18 +1062,33 @@ export default function App() {
     setConvertingQuotation(q);
   }
 
-  /** פתיחת מכתב שחרור לרו"ח קודם — רק אם לליד יש רו"ח קודם והוא כבר הומר ללקוח. */
+  /**
+   * פתיחת מכתב שחרור לרו"ח קודם.
+   * ‼ הפרטים נקראים מכרטיס הלקוח, והליד הוא רק גיבוי לרשומות ישנות שטרם
+   * הועתקו: מכתב השחרור שייך לאדם, ולכן מחיקת הליד אחרי ההמרה לא מבטלת אותו.
+   */
+  function openReleaseLetter(clientId: string, opts: { stepId?: string; lead?: Lead } = {}) {
+    const client = clients.find(c => c.id === clientId);
+    const lead = opts.lead ?? leads.find(l => l.convertedClientId === clientId);
+    if (!client && !lead) return;
+    setReleaseFor({
+      clientId,
+      clientName: client ? `${client.firstName} ${client.lastName}`.trim() : (lead?.fullName ?? ''),
+      businessName: client?.businessName || lead?.businessName,
+      prevAccountant: {
+        name: client?.prevAccountantName || lead?.prevAccountantName,
+        email: client?.prevAccountantEmail || lead?.prevAccountantEmail,
+        phone: client?.prevAccountantPhone || lead?.prevAccountantPhone,
+      },
+      stepId: opts.stepId,
+    });
+  }
+
   function handleReleaseLetter(q: Quotation) {
     const lead = q.leadId ? leads.find(l => l.id === q.leadId) : undefined;
     const clientId = lead?.convertedClientId || q.clientId;
     if (!clientId) return;
-    const client = clients.find(c => c.id === clientId);
-    setReleaseFor({
-      clientId,
-      clientName: client ? `${client.firstName} ${client.lastName}`.trim() : (lead?.fullName ?? ''),
-      businessName: lead?.businessName,
-      prevAccountant: { name: lead?.prevAccountantName, email: lead?.prevAccountantEmail, phone: lead?.prevAccountantPhone },
-    });
+    openReleaseLetter(clientId, { lead });
   }
 
   /**
@@ -1413,6 +1430,7 @@ export default function App() {
             onboardingLoading={onboarding.loading}
             advanceOnboardingStep={onboarding.advance}
             refreshOnboarding={onboarding.refresh}
+            onOpenReleaseLetter={(clientId, stepId) => openReleaseLetter(clientId, { stepId })}
           />
         )}
 
@@ -1631,6 +1649,15 @@ export default function App() {
           businessName={releaseFor.businessName}
           prevAccountant={releaseFor.prevAccountant}
           brand={deriveQuotationBrand(firmProfile)}
+          onSent={() => {
+            const stepId = releaseFor.stepId;
+            if (stepId) {
+              void onboarding.advance(stepId, 'wait_client', {
+                ball: 'prev_accountant',
+                note: 'מכתב השחרור נשלח לרו״ח הקודם',
+              });
+            }
+          }}
           onClose={() => setReleaseFor(null)}
         />
       )}

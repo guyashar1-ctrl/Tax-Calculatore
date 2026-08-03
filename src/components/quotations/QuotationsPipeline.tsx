@@ -62,7 +62,14 @@ export default function QuotationsPipeline({
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const leadOf = (q: Quotation): Lead | undefined => q.leadId ? leads.find(x => x.id === q.leadId) : undefined;
-  const hasPrevAccountant = (q: Quotation): boolean => !!leadOf(q)?.hasPreviousAccountant;
+  // ‼ העובדה "בא מרו״ח קודם" נשמרת על הלקוח, והליד הוא רק גיבוי: אחרי ההמרה
+  // הליד עשוי להימחק, ואז הכפתור נעלם למרות שהמכתב עוד לא נשלח.
+  const hasPrevAccountant = (q: Quotation): boolean => {
+    const lead = leadOf(q);
+    const clientId = lead?.convertedClientId || q.clientId;
+    const client = clientId ? clients.find(c => c.id === clientId) : undefined;
+    return !!(client?.hasPreviousAccountant || client?.prevAccountantEmail || lead?.hasPreviousAccountant);
+  };
 
   // ימי עסקים עד פקיעה. null אם אין תוקף או שכבר פג.
   const bizDaysToExpiry = (q: Quotation): number | null => {

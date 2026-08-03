@@ -219,6 +219,9 @@ function LeadForm({ lead, onSave, onCancel }: {
     prevAccountantName: lead?.prevAccountantName ?? '',
     prevAccountantEmail: lead?.prevAccountantEmail ?? '',
     prevAccountantPhone: lead?.prevAccountantPhone ?? '',
+    referralSource: lead?.referralSource ?? '',
+    // undefined = לא נשאל. שיחת ליד אינה חקירה, ולכן אין ברירת מחדל.
+    businessTransfer: lead?.businessTransfer,
   });
   const [saving, setSaving] = useState(false);
 
@@ -240,6 +243,8 @@ function LeadForm({ lead, onSave, onCancel }: {
         prevAccountantName: v.hasPreviousAccountant ? v.prevAccountantName.trim() || undefined : undefined,
         prevAccountantEmail: v.hasPreviousAccountant ? v.prevAccountantEmail.trim() || undefined : undefined,
         prevAccountantPhone: v.hasPreviousAccountant ? v.prevAccountantPhone.trim() || undefined : undefined,
+        referralSource: v.referralSource.trim() || undefined,
+        businessTransfer: v.businessTransfer,
       };
       // ‼ נשלחים רק השדות שהטופס באמת עורך, ולא כל הליד. שליחת הליד המלא
       // החזירה לשרת גם שדות שהמסך לא נגע בהם — ביניהם converted_client_id.
@@ -292,6 +297,28 @@ function LeadForm({ lead, onSave, onCancel }: {
               ))}
             </select>
           </label>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+          <label style={label}>מקור ההפניה
+            <input value={v.referralSource} onChange={e => set({ referralSource: e.target.value })}
+              placeholder="המלצה, גוגל, לקוח קיים…" style={{ marginTop: 4 }} />
+          </label>
+          <div>
+            <div style={label}>עסק חדש או העברה?</div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              <button type="button"
+                className={`btn btn-sm ${v.businessTransfer === false ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => set({ businessTransfer: v.businessTransfer === false ? undefined : false })}>
+                עסק חדש
+              </button>
+              <button type="button"
+                className={`btn btn-sm ${v.businessTransfer === true ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => set({ businessTransfer: v.businessTransfer === true ? undefined : true })}>
+                העברה מרו״ח אחר
+              </button>
+            </div>
+          </div>
         </div>
 
         <label style={{ ...label, marginTop: 10, display: 'block' }}>הערות פנימיות

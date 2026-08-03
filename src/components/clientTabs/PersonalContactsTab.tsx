@@ -1702,6 +1702,57 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         count={getBusinesses().length}
         action={<button type="button" className="btn btn-secondary btn-sm" onClick={addBusiness}>+ הוסף עסק</button>}
       >
+        {/* ‼ פרטי הרו"ח הקודם יושבים על הלקוח ולא על הליד: מכתב השחרור נשלח
+            מכרטיס הלקוח, וליד שנמחק אחרי ההמרה השאיר אותו בלי נמען. */}
+        <div className="cw-subsection">
+          <div className="cw-subsection-title">פרטי העסק והרו״ח הקודם</div>
+          <div className="form-grid form-grid-3">
+            <div className="form-group span-2">
+              <label>שם העסק</label>
+              <input type="text" value={client.businessName ?? ''}
+                onChange={e => update('businessName', e.target.value || undefined)}
+                placeholder="השם שבו העסק מוכר — מופיע במכתב לרו״ח הקודם" />
+            </div>
+            <div className="form-group">
+              <label>מקור ההפניה</label>
+              <input type="text" value={client.referralSource ?? ''}
+                onChange={e => update('referralSource', e.target.value || undefined)}
+                placeholder="המלצה, גוגל, לקוח קיים…" />
+            </div>
+            <div className="form-group span-full">
+              <label className="checkbox-row">
+                <input type="checkbox" checked={client.hasPreviousAccountant ?? false}
+                  onChange={e => update('hasPreviousAccountant', e.target.checked)} />
+                הלקוח הגיע מרו״ח אחר
+              </label>
+            </div>
+            {client.hasPreviousAccountant && (
+              <>
+                <div className="form-group">
+                  <label>שם הרו״ח הקודם</label>
+                  <input type="text" value={client.prevAccountantName ?? ''}
+                    onChange={e => update('prevAccountantName', e.target.value || undefined)} />
+                </div>
+                <div className="form-group">
+                  <label>מייל הרו״ח הקודם</label>
+                  <input type="text" value={client.prevAccountantEmail ?? ''}
+                    onChange={e => update('prevAccountantEmail', e.target.value || undefined)}
+                    dir="ltr" style={{ textAlign: 'right' }} />
+                </div>
+                <div className="form-group">
+                  <label>טלפון הרו״ח הקודם</label>
+                  <input type="text" value={client.prevAccountantPhone ?? ''}
+                    onChange={e => update('prevAccountantPhone', e.target.value || undefined)}
+                    dir="ltr" style={{ textAlign: 'right' }} />
+                </div>
+                <div className="form-group span-full" style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+                  מכתב השחרור לרו״ח הקודם נשלח מלשונית "קליטה", ונשען על המייל הזה.
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
           רשימה לעצמאי עם <strong>2 עסקים או יותר</strong> (חנות + שותפות + פרילנס וכו'). כל עסק = נספח א' (1320) נפרד בדוח 1301.
           לעצמאי עם עסק יחיד — די בשדות businessDescription/vatStatus ברמת הלקוח.

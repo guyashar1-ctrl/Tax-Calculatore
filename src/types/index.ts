@@ -588,6 +588,19 @@ export interface Client {
   section14Elected?: boolean;
   section14StartYear?: number;
 
+  // ── עובדות שנאספו בשיחת הליד ונשמרות על הלקוח ──
+  // ‼ מכתב השחרור נשען על השדות האלה ולא על הליד: ליד שנמחק אחרי ההמרה
+  // השאיר את זרימת השחרור בלי נמען ובלי שם עסק.
+  businessName?: string;
+  dealerType?: import('./quotations').LeadDealerType;
+  hasPreviousAccountant?: boolean;
+  prevAccountantName?: string;
+  prevAccountantEmail?: string;
+  prevAccountantPhone?: string;
+  /** true = העברה מרו"ח אחר, false = עסק חדש. undefined = לא נשאל. */
+  businessTransfer?: boolean;
+  referralSource?: string;
+
   // ── הערות ──
   notes: string;
 

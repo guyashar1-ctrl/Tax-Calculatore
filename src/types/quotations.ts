@@ -25,6 +25,10 @@ export interface Lead {
   prevAccountantName?: string;
   prevAccountantEmail?: string;
   prevAccountantPhone?: string;
+  /** איך הגיע אלינו — טקסט חופשי; שיחת ליד אינה חקירה, והשדה תמיד רשות. */
+  referralSource?: string;
+  /** true = העברה מרו"ח אחר, false = עסק חדש. undefined = לא נשאל. */
+  businessTransfer?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
