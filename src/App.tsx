@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Client,
   RepresentationRequest,
@@ -208,7 +208,7 @@ export default function App() {
 
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
 
-  const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients } = useClients(user?.id);
+  const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients, setClientLifecycleStage } = useClients(user?.id);
   const { tasks, loading: tasksLoading, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks, reloadTasks } = useTasks(user?.id);
 
   // בתחילת כל רבעון (ינואר/אפריל/יולי/אוקטובר) נוצרת אוטומטית משימת בדיקת
@@ -229,6 +229,12 @@ export default function App() {
     ((firmProfile?.settings?.flags as { onboardingTab?: boolean } | undefined)?.onboardingTab) !== false;
   const onboarding = useOnboarding(onboardingEnabled ? user?.id : undefined);
   const { leads, addLead, updateLead, deleteLead } = useLeads(user?.id);
+  // כרטיס לקוח ↔ הליד שממנו הוא בא. שורה בשלב "ליד" במסך הלקוחות מובילה לשם.
+  const leadIdByClient = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of leads) if (l.convertedClientId) map.set(l.convertedClientId, l.id);
+    return map;
+  }, [leads]);
   const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation } = useQuotations(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
   const failedNotifications = useFailedNotifications(user?.id);
@@ -289,6 +295,8 @@ export default function App() {
   // לשונית הפתיחה של כרטיס הלקוח — נקבעת רק כשהגיעו אליו בשביל דבר מסוים
   const [clientInitialTab, setClientInitialTab] = useState<ClientTabId | undefined>(undefined);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
+  // ליד שהגיעו אליו מחיפוש במסך הלקוחות — מסך הלידים נפתח עליו
+  const [focusLeadId, setFocusLeadId] = useState<string | null>(null);
   const [newQuotationLeadId, setNewQuotationLeadId] = useState<string | null>(null);
   const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
   // תצוגה מקדימה של מייל תזכורת להצעה — נפתחת לפני כל שליחה חוזרת
@@ -1399,6 +1407,8 @@ export default function App() {
             onLoadSamples={handleLoadSamples}
             onAddRequest={handleAddRequest}
             onSelectRequest={handleSelectRequest}
+            leadIdByClient={leadIdByClient}
+            onOpenLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
           />
         )}
 
@@ -1410,6 +1420,7 @@ export default function App() {
             onSave={handleSave}
             onCancel={handleCancelForm}
             onDelete={handleDelete}
+            onSetLifecycleStage={async (id, stage) => { await setClientLifecycleStage(id, stage); }}
             onAddTaskForClient={(clientId) => openNewTaskModal(clientId)}
             onSelectTask={openEditTaskModal}
             onToggleTaskDone={handleToggleTaskDone}
@@ -1487,6 +1498,9 @@ export default function App() {
             quotations={quotations}
             leads={leads}
             clients={clients}
+            engagements={onboarding.engagements}
+            focusLeadId={focusLeadId ?? undefined}
+            onFocusLeadConsumed={() => setFocusLeadId(null)}
             onNew={handleNewQuotation}
             onOpen={handleOpenQuotation}
             onConvert={handleConvertQuotation}

@@ -2,7 +2,7 @@
 // עד היום ליד נוצר רק כתופעת לוואי של הצעת מחיר, ולא הייתה דרך לפתוח אותו,
 // לתקן טלפון שהוקלד לא נכון או למחוק פנייה שלא הבשילה. כאן זה קורה.
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { Lead, LeadStatus, LeadDealerType, Quotation } from '../../types/quotations';
 import { LEAD_STATUS_LABELS, LEAD_DEALER_TYPE_LABELS } from '../../types/quotations';
 import { EmptyState, CalmEmpty } from '../ui/States';
@@ -22,6 +22,9 @@ interface Props {
   onCreate: (lead: Omit<Lead, 'id'>) => Promise<void>;
   onDelete: (lead: Lead) => Promise<void>;
   onNewQuotation: (lead: Lead) => void;
+  /** ליד שהגיעו אליו ממסך אחר (למשל חיפוש בלקוחות) — נפתח מיד לעריכה */
+  focusLeadId?: string;
+  onFocusConsumed?: () => void;
 }
 
 const STATUS_BADGE: Record<LeadStatus, string> = {
@@ -49,13 +52,22 @@ function errorText(e: unknown): string {
 
 export default function LeadsPanel({
   leads, quotations, viewSwitch, creating = false, onCreatingChange,
-  onSave, onCreate, onDelete, onNewQuotation,
+  onSave, onCreate, onDelete, onNewQuotation, focusLeadId, onFocusConsumed,
 }: Props) {
   const [filter, setFilter] = useState<LeadStatus | 'all'>('all');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Lead | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  // הגעה מחיפוש בלקוחות: הליד נפתח לעריכה, ולא רק "איפשהו ברשימה"
+  useEffect(() => {
+    if (!focusLeadId) return;
+    const lead = leads.find(l => l.id === focusLeadId);
+    if (lead) setEditing(lead);
+    onFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusLeadId, leads.length]);
 
   const quotationsOf = (leadId: string) => quotations.filter(q => q.leadId === leadId);
 

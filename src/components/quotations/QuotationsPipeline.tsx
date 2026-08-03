@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Client } from '../../types';
 import type { Lead, Quotation, QuotationStatus } from '../../types/quotations';
+import type { Engagement } from '../../types/onboarding';
 import { QUOTATION_STATUS_LABELS, REMINDER_BUSINESS_DAYS_BEFORE } from '../../types/quotations';
 import { calcTotals, formatILS } from '../../utils/quotationCalc';
 import { businessDaysUntil } from '../../utils/businessDays';
@@ -11,6 +12,11 @@ interface Props {
   quotations: Quotation[];
   leads: Lead[];
   clients: Client[];
+  /** ההתקשרויות של המשרד — מהן נגזר אילו הצעות כבר הפכו להתקשרות בפועל */
+  engagements?: Engagement[];
+  /** פתיחה ישירה במצב "לידים", עם ליד מסוים פתוח לעריכה */
+  focusLeadId?: string;
+  onFocusLeadConsumed?: () => void;
   onNew: () => void;
   onOpen: (q: Quotation) => void;
   onConvert: (q: Quotation) => void;
@@ -49,10 +55,11 @@ const GROUP_ORDER: { status: QuotationStatus; badge: string; strip: string }[] =
 ];
 
 export default function QuotationsPipeline({
-  quotations, leads, clients, onNew, onOpen, onConvert, onRelease, onRemind, onCancel, onDelete,
+  quotations, leads, clients, engagements, focusLeadId, onFocusLeadConsumed,
+  onNew, onOpen, onConvert, onRelease, onRemind, onCancel, onDelete,
   onSaveLead, onCreateLead, onDeleteLead, onNewQuotationForLead,
 }: Props) {
-  const [page, setPage] = useState<PageTab>('quotations');
+  const [page, setPage] = useState<PageTab>(focusLeadId ? 'leads' : 'quotations');
   // פתיחת "ליד חדש" יושבת כאן ולא ב-LeadsPanel, כי הכפתור הראשי של שני
   // המצבים חייב לחיות באותה משבצת בכותרת — אחרת הוא קופץ בין השורות.
   const [creatingLead, setCreatingLead] = useState(false);
@@ -132,12 +139,18 @@ export default function QuotationsPipeline({
     return q.snapshot?.recipientName || '—';
   };
 
-  // האם הליד של ההצעה כבר הומר ללקוח?
-  const isConverted = (q: Quotation): boolean => {
-    if (q.clientId) return true;
-    const l = q.leadId ? leads.find(x => x.id === q.leadId) : undefined;
-    return !!l?.convertedClientId;
-  };
+  // ‼ "הומר" = נפתחה התקשרות להצעה הזו. קיום clientId על ההצעה כבר לא מעיד
+  // על כלום: מרגע שכל אדם מחזיק כרטיס אחד לאורך כל הדרך, גם הצעה שרק נשלחה
+  // לליד נושאת מזהה לקוח.
+  const engagedQuotationIds = useMemo(
+    () => new Set((engagements ?? []).map(e => e.quotationId).filter((id): id is string => !!id)),
+    [engagements],
+  );
+  // ‼ נפילה אחורה לבקשת ייצוג: הצעות שאושרו לפני שמנוע הקליטה קיים אין להן
+  // התקשרות, וגם כשדגל הקליטה כבוי לא נטענות התקשרויות כלל. בלי זה הן היו
+  // מציגות "הפוך ללקוח" על לקוח שכבר קיים.
+  const isConverted = (q: Quotation): boolean =>
+    engagedQuotationIds.has(q.id) || !!q.representationRequestId;
 
   const grouped = useMemo(() => {
     const byStatus: Record<string, Quotation[]> = {};
@@ -228,6 +241,8 @@ export default function QuotationsPipeline({
           onCreate={onCreateLead}
           onDelete={onDeleteLead}
           onNewQuotation={onNewQuotationForLead}
+          focusLeadId={focusLeadId}
+          onFocusConsumed={onFocusLeadConsumed}
         />
       ) : (
       <>

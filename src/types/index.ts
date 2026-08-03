@@ -604,6 +604,13 @@ export interface Client {
   // ── הערות ──
   notes: string;
 
+  // ── שלב חיים של הכרטיס (אדם אחד = כרטיס אחד) ──
+  // ‼ נגזר בשרת (refresh_lifecycle_stages) — המסך לא כותב אותו, חוץ מהעברה
+  // לארכיון והחזרה ממנו, שהן ההחלטה האנושית היחידה כאן.
+  lifecycleStage?: LifecycleStage;
+  /** הליד שממנו נוצר הכרטיס, אם היה כזה */
+  mergedFromLeadId?: string;
+
   // ── סטטוס ייצוג (lifecycle של תהליך הייצוג) ──
   representationStatus?: RepresentationStatus; // ברירת מחדל: 'active' (לקוח שנוצר ידנית)
   representationRequestId?: string;            // קישור ל-RepresentationRequest אם הלקוח נוצר מבקשה
@@ -944,6 +951,20 @@ export const AUTHORITY_LABELS: Record<AuthorityKind, string> = {
   incomeTax: 'מס הכנסה',
   vat: 'מע"מ',
   withholding: 'ניכויים',
+};
+
+// ─── שלב חיים של הכרטיס ─────────────────────────────────────────────────────
+// אדם אחד, כרטיס אחד: אותו אדם עובר ליד → הצעה → קליטה → לקוח פעיל בלי
+// שמוקם לו כרטיס נוסף. השלב נגזר בשרת מהליד, ההצעה, הקליטה והייצוג —
+// 'archived' הוא היחיד שנקבע ידנית, והוא הסתרה בלבד (שום נתון לא נמחק).
+export type LifecycleStage = 'lead' | 'quoted' | 'onboarding' | 'active' | 'archived';
+
+export const LIFECYCLE_STAGE_LABELS: Record<LifecycleStage, string> = {
+  lead: 'ליד',
+  quoted: 'בהצעה',
+  onboarding: 'בקליטה',
+  active: 'לקוח פעיל',
+  archived: 'בארכיון',
 };
 
 export const REPRESENTATION_STATUS_LABELS: Record<RepresentationStatus, string> = {

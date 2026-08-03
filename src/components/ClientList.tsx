@@ -16,6 +16,8 @@ import {
   REP_AUTHORITY_LABELS,
   REP_AREA_STATUS_LABELS,
   REP_LEVEL_LABELS,
+  LifecycleStage,
+  LIFECYCLE_STAGE_LABELS,
 } from '../types';
 import { ShaamStatus } from '../types/clientWorkspace';
 import RepSignersStatus from './RepSignersStatus';
@@ -90,6 +92,15 @@ function deriveOverallRep(reps?: AuthorityRepresentations): 'active' | 'in_proce
   return entries.every(e => e.status === 'active') ? 'active' : 'in_process';
 }
 
+// שלב הכרטיס כתווית קטנה. "לקוח פעיל" הוא המצב הצפוי ולכן חסר תווית —
+// צבע וסימן רק כשהם אומרים משהו (§4.5).
+const STAGE_BADGE: Partial<Record<LifecycleStage, string>> = {
+  lead: 'badge-gray',
+  quoted: 'badge-purple',
+  onboarding: 'badge-blue',
+  archived: 'badge-gray',
+};
+
 type SortField = 'name' | 'idNumber' | 'city' | 'phone' | 'email' | 'status' | 'assignee' | 'tasks';
 type SortDir = 'asc' | 'desc';
 
@@ -103,6 +114,10 @@ interface Props {
   onLoadSamples: () => void;
   onAddRequest: () => void;
   onSelectRequest: (id: string) => void;
+  /** מזהה הליד לפי מזהה הלקוח — לכרטיס שעדיין בשלב "ליד" */
+  leadIdByClient?: Map<string, string>;
+  /** פתיחת הליד במסך הלידים */
+  onOpenLead?: (leadId: string) => void;
 }
 
 const STATUS_ORDER: Record<RepresentationStatus, number> = {
@@ -133,6 +148,8 @@ export default function ClientList({
   onLoadSamples,
   onAddRequest,
   onSelectRequest,
+  leadIdByClient,
+  onOpenLead,
 }: Props) {
   const [search, setSearch] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Client | null>(null);
@@ -145,6 +162,8 @@ export default function ClientList({
   const [itFilter, setItFilter] = useState<'all' | IncomeTaxType>('all');
   const [niFilter, setNiFilter] = useState<'all' | NIType>('all');
   const [shaamFilter, setShaamFilter] = useState<'all' | ShaamStatus>('all');
+  // 'default' = רשימת העבודה: כל מי שאינו ליד ואינו בארכיון.
+  const [stageFilter, setStageFilter] = useState<'default' | LifecycleStage>('default');
   const [openTasksOnly, setOpenTasksOnly] = useState(false);
   const [upcomingDebtsOnly, setUpcomingDebtsOnly] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -152,6 +171,7 @@ export default function ClientList({
   const { employees, findEmployee } = useEmployees();
 
   const getStatus = (c: Client): RepresentationStatus => c.representationStatus ?? 'active';
+  const getStage = (c: Client): LifecycleStage => c.lifecycleStage ?? 'active';
 
   function toggleSort(field: SortField) {
     if (sortField === field) {
@@ -211,6 +231,16 @@ export default function ClientList({
       if (upcomingDebtsOnly && (!m || m.upcomingDebtsCount === 0)) return false;
 
       const q = search.toLowerCase().trim();
+      const stage = getStage(c);
+
+      if (stageFilter === 'default') {
+        // ליד וארכיון אינם חלק מרשימת העבודה — אבל כשמחפשים אדם מפורשות
+        // הוא כן נמצא, בכל שלב שהוא. אדם אחד, כרטיס אחד, חיפוש אחד.
+        if ((stage === 'lead' || stage === 'archived') && !q) return false;
+      } else if (stage !== stageFilter) {
+        return false;
+      }
+
       if (!q) return true;
       const pc = getPrimaryContact(c);
       return (
@@ -263,7 +293,7 @@ export default function ClientList({
     return list;
   }, [
     clients, search, sortField, sortDir,
-    employeeFilter, vatFilter, itFilter, niFilter, shaamFilter,
+    employeeFilter, vatFilter, itFilter, niFilter, shaamFilter, stageFilter,
     openTasksOnly, upcomingDebtsOnly, metricsByClient,
   ]);
 
@@ -282,6 +312,11 @@ export default function ClientList({
   const activeList = useMemo(() => filtered.filter(c => getStatus(c) === 'active'), [filtered]);
 
   function handleRowClick(c: Client) {
+    // כרטיס שעדיין ליד — מקומו במסך הלידים, שם יושבת כל השיחה איתו
+    if (getStage(c) === 'lead' && onOpenLead) {
+      const leadId = leadIdByClient?.get(c.id);
+      if (leadId) { onOpenLead(leadId); return; }
+    }
     const status = getStatus(c);
     if (status !== 'active' && c.representationRequestId) {
       onSelectRequest(c.representationRequestId);
@@ -298,6 +333,7 @@ export default function ClientList({
     (itFilter !== 'all' ? 1 : 0) +
     (niFilter !== 'all' ? 1 : 0) +
     (shaamFilter !== 'all' ? 1 : 0) +
+    (stageFilter !== 'default' ? 1 : 0) +
     (openTasksOnly ? 1 : 0) +
     (upcomingDebtsOnly ? 1 : 0);
 
@@ -307,6 +343,7 @@ export default function ClientList({
     setItFilter('all');
     setNiFilter('all');
     setShaamFilter('all');
+    setStageFilter('default');
     setOpenTasksOnly(false);
     setUpcomingDebtsOnly(false);
   }
@@ -353,6 +390,16 @@ export default function ClientList({
       {showAdvanced && (
         <div className="cl-advanced">
           <div className="cl-adv-row">
+            <label>שלב
+              <select value={stageFilter} onChange={e => setStageFilter(e.target.value as 'default' | LifecycleStage)}>
+                <option value="default">ללא לידים וארכיון</option>
+                <option value="lead">{LIFECYCLE_STAGE_LABELS.lead}</option>
+                <option value="quoted">{LIFECYCLE_STAGE_LABELS.quoted}</option>
+                <option value="onboarding">{LIFECYCLE_STAGE_LABELS.onboarding}</option>
+                <option value="active">{LIFECYCLE_STAGE_LABELS.active}</option>
+                <option value="archived">{LIFECYCLE_STAGE_LABELS.archived}</option>
+              </select>
+            </label>
             <label>עובד מטפל
               <select value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)}>
                 <option value="all">הכל</option>
@@ -524,6 +571,7 @@ export default function ClientList({
               <tbody>
                 {activeList.map(client => {
                   const status = getStatus(client);
+                  const lifeStage = getStage(client);
                   const fullName = `${client.firstName} ${client.lastName}`.trim() || '(ללא שם)';
                   const m = metricsByClient.get(client.id);
                   const employee = findEmployee(client.assignedAccountantId);
@@ -554,6 +602,14 @@ export default function ClientList({
                               {overallRep === null && repBadgeForNonActive && (
                                 <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`} style={{ fontSize: '12px', padding: '.05rem .35rem' }}>
                                   {REPRESENTATION_STATUS_LABELS[status]}
+                                </span>
+                              )}
+                              {/* שלב הכרטיס. "לקוח פעיל" הוא המצב הצפוי ואינו מסומן;
+                                  ליד וארכיון מגיעים לכאן רק דרך חיפוש מפורש, והתווית
+                                  מסבירה מיד למה השורה נראית אחרת. */}
+                              {STAGE_BADGE[lifeStage] && (
+                                <span className={`badge ${STAGE_BADGE[lifeStage]} cl-mini-badge`}>
+                                  {LIFECYCLE_STAGE_LABELS[lifeStage]}
                                 </span>
                               )}
                               {idSubmitted && (

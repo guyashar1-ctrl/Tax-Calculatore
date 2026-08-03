@@ -2,7 +2,7 @@
 // Header קבוע + 5 לשוניות. החלפה מלאה ל-ClientForm הישן.
 
 import { useState, useEffect, useMemo } from 'react';
-import { Client, Task, REPRESENTATION_STATUS_LABELS, REPRESENTATION_STATUS_BADGE, VATStatus, IncomeTaxType } from '../types';
+import { Client, Task, REPRESENTATION_STATUS_LABELS, REPRESENTATION_STATUS_BADGE, VATStatus, IncomeTaxType, LifecycleStage, LIFECYCLE_STAGE_LABELS } from '../types';
 import { ActivityEntry, ClientAlert, SHAAM_STATUS_BADGE } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
 import { useDocumentDB } from '../hooks/useIndexedDB';
@@ -58,6 +58,8 @@ interface Props {
   onSave: (client: Client) => void;
   onCancel: () => void;
   onDelete: (id: string) => void;
+  /** העברה לארכיון והחזרה ממנו — הכתיבה היחידה של שלב הכרטיס מהמסך */
+  onSetLifecycleStage?: (id: string, stage: LifecycleStage) => Promise<void>;
   onAddTaskForClient: (clientId: string) => void;
   onSelectTask: (id: string) => void;
   onToggleTaskDone: (id: string) => void;
@@ -124,6 +126,7 @@ export default function ClientWorkspace({
   onSave,
   onCancel,
   onDelete,
+  onSetLifecycleStage,
   onAddTaskForClient,
   onSelectTask,
   onToggleTaskDone,
@@ -155,6 +158,25 @@ export default function ClientWorkspace({
   const { employees, findEmployee } = useEmployees();
   const { sessions: taxSessions, loading: taxSessionsLoading } = useClientTaxSessions(client.id || undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+
+  const isArchived = (client.lifecycleStage ?? 'active') === 'archived';
+
+  async function toggleArchive() {
+    if (!onSetLifecycleStage || !client.id) return;
+    // החזרה מארכיון נכתבת כ'לקוח פעיל'; חישוב השלב היומי בשרת ידייק אותה
+    // אם האדם בעצם בקליטה או בהצעה.
+    const next: LifecycleStage = isArchived ? 'active' : 'archived';
+    setArchiveBusy(true);
+    try {
+      await onSetLifecycleStage(client.id, next);
+      setClient(c => ({ ...c, lifecycleStage: next }));
+      setConfirmArchive(false);
+    } finally {
+      setArchiveBusy(false);
+    }
+  }
 
   /**
    * קריאה אחת לדוח השנתי — והיא אומרת גם מה מצבו (D13).
@@ -332,6 +354,17 @@ export default function ClientWorkspace({
 
             <button className="ui-btn ui-btn-ghost" onClick={handleSave} disabled={!dirty}>שמור</button>
 
+            {/* פעולה נדירה — ולכן שקטה, ליד המחיקה ולא לצדה של פעולה יומיומית */}
+            {!isNew && onSetLifecycleStage && (
+              <button
+                className="ui-linkbtn"
+                onClick={() => setConfirmArchive(true)}
+                title={isArchived
+                  ? 'החזרת הכרטיס לרשימת הלקוחות'
+                  : 'הסתרת הכרטיס מרשימת הלקוחות — בלי למחוק כלום'}
+              >{isArchived ? 'החזר מארכיון' : 'העבר לארכיון'}</button>
+            )}
+
             {!isNew && (
               <button
                 className="ui-icon-btn is-danger"
@@ -345,6 +378,12 @@ export default function ClientWorkspace({
 
         {/* Header — chips & meta */}
         <div className="cw-header-chips">
+          {isArchived && (
+            <span className="badge badge-gray" title="הכרטיס מוסתר מרשימת הלקוחות. שום נתון לא נמחק.">
+              {LIFECYCLE_STAGE_LABELS.archived}
+            </span>
+          )}
+
           <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`}>
             {REPRESENTATION_STATUS_LABELS[status]}
           </span>
@@ -506,6 +545,21 @@ export default function ClientWorkspace({
           client={client}
           onClose={() => setIntakeModalOpen(false)}
           onSent={(email) => appendActivity({ kind: 'manual', text: `נשלח שאלון עדכון אל ${email}` })}
+        />
+      )}
+
+      {confirmArchive && (
+        <ConfirmDialog
+          title={isArchived ? 'החזרה מארכיון' : 'העברה לארכיון'}
+          message={isArchived
+            ? <>להחזיר את ״{fullName}״ לרשימת הלקוחות?</>
+            : <>להעביר את ״{fullName}״ לארכיון? הכרטיס יוסתר מהרשימה. שום נתון לא נמחק.</>}
+          confirmLabel={archiveBusy
+            ? 'רגע…'
+            : isArchived ? 'החזר מארכיון' : 'העבר לארכיון'}
+          tone="normal"
+          onConfirm={() => { void toggleArchive(); }}
+          onCancel={() => setConfirmArchive(false)}
         />
       )}
 
