@@ -5,7 +5,8 @@
 //
 // פתיחה:  http://localhost:5173/?test-deferred   (DEV בלבד)
 //
-// התרחיש: לקוח שנכנס בספטמבר. ריטיינר 450 ₪, דוח שנתי ששווה 1,800 ₪.
+// התרחיש: לקוח שנכנס באוגוסט. ריטיינר 450 ₪, דוח שנתי ששווה 1,800 ₪ שנגבה
+// 150 ₪ בחודש על פני 5 תשלומים — יתרה 1,050 ₪, שממנה סוכם שייגבו 600 ₪.
 // השורה השלישית היא אותה שורה בדיוק בשנה הבאה (12 תשלומים) — היא חייבת
 // להיראות בלי שום סעיף יתרה. זו ההוכחה שהסעיף נעלם מעצמו.
 
@@ -26,8 +27,8 @@ const RETAINER: QuotationItem = {
   catalogPrice: 450,
   clientPrice: 450,
   vatFlag: true,
-  installments: 4,
-  billingStartMonth: '2026-09',
+  installments: 5,
+  billingStartMonth: '2026-08',
 };
 
 const DEFERRED: QuotationItem = {
@@ -43,10 +44,11 @@ const DEFERRED: QuotationItem = {
   year: 2026,
   priceBasis: 'annual',
   annualPrice: 1800,
-  installments: 4,
-  billingStartMonth: '2026-09',
+  installments: 5,
+  billingStartMonth: '2026-08',
   prorationMode: 'deferred',
-  deferredDiscount: 200,
+  // הרו"ח הזין את התוצאה — "שישלם 600" — וההנחה (450 ₪) נגזרת ממנה
+  deferredChargeAmount: 600,
   clientNote: 'היתרה נגבית פעם אחת, עם ההגשה.',
 };
 
@@ -98,12 +100,13 @@ export default function TestDeferred() {
       <div style={{ padding: '1rem 1.5rem', maxWidth: 980, margin: '0 auto' }}>
         <h2 style={{ marginBottom: '.3rem' }}>בדיקת יתרה לתשלום מאוחר — נתונים מדומים</h2>
         <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: '.8rem', lineHeight: 1.7 }}>
-          לקוח שנכנס בספטמבר: ריטיינר 450 ₪ × 4, דוח שנתי ששווה 1,800 ₪ שממנו 600 ₪ כלולים בחודשי.
+          לקוח שנכנס באוגוסט: ריטיינר 450 ₪ × 5, דוח שנתי ששווה 1,800 ₪ שממנו 750 ₪ כלולים בחודשי.
+          היתרה 1,050 ₪, וסוכם שייגבו ממנה 600 ₪ — כלומר הנחה של 450 ₪.
           שורת 2027 היא אותה שורה ב-12 תשלומים — ולכן אסור שיופיע לה סעיף יתרה.
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, fontSize: 13, marginBottom: '1rem' }}>
           <div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>שורת 2026 (4 תשלומים)</div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>שורת 2026 (5 תשלומים)</div>
             {rows.map(([label, amount]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, minWidth: 240 }}>
                 <span style={{ color: 'var(--ink-3)' }}>{label}</span>

@@ -147,6 +147,19 @@ export function formatILS(n: number): string {
   return '₪' + n.toLocaleString('he-IL', { maximumFractionDigits: 2 });
 }
 
+// פירוט ההנחה לפי תדירות — כל סקאלה בנפרד, כי "135 בחודש" ו-"450 על היתרה"
+// אינם אותו סוג של כסף. נוסח אחד, כדי שהרו"ח בבונה והלקוח בעמוד יקראו בדיוק
+// את אותו משפט. היתרה חייבת להופיע כאן: בלעדיה הפס מדבר על הנחה שלא מוסבר
+// למה היא ניתנה.
+export function discountSummaryParts(totals: QuotationTotals): string[] {
+  return [
+    totals.monthly.discount >= 1 ? `${formatILS(Math.round(totals.monthly.discount))} בכל חודש` : '',
+    totals.annual.discount >= 1 ? `${formatILS(Math.round(totals.annual.discount))} בשנה` : '',
+    totals.oneTime.discount >= 1 ? `${formatILS(Math.round(totals.oneTime.discount))} חד־פעמי` : '',
+    totals.deferred.discount >= 1 ? `${formatILS(Math.round(totals.deferred.discount))} על היתרה` : '',
+  ].filter(Boolean);
+}
+
 // שם השורה כפי שהוא מוצג ללקוח. שורה עם שנת מס מקבלת את השנה בשמה, כדי
 // שכמה דוחות של שנים פתוחות ייקראו כשורות נפרדות ולא כשכפול של אותו שירות.
 export function itemDisplayName(item: { name: string; year?: number }): string {
@@ -229,18 +242,45 @@ export interface DeferredBreakdown {
   trigger: string;           // הטריגר, עם ברירת המחדל כבר מוחלת
 }
 
-export function itemDeferred(item: QuotationItem, vatRate: number): DeferredBreakdown | null {
+export interface DeferredBase {
+  installments: number;      // מספר התשלומים שממנו נגזרת היתרה
+  perPayment: number;        // התשלום החודשי שנבלע בריטיינר
+  totalValue: number;
+  includedInMonthly: number;
+  balance: number;
+}
+
+// בסיס היתרה — גם כשאין מה לגבות בסופו של דבר. הבונה חייב להציג את היתרה
+// על המסך תמיד (זה המספר שהרו"ח חישב בראש), גם כשהיא אפס וגם כשכולה הנחה,
+// ולכן הוא לא יכול להסתמך על itemDeferred שמחזיר null בדיוק במקרים האלה.
+export function deferredBase(item: QuotationItem): DeferredBase | null {
   if (item.prorationMode !== 'deferred') return null;
   if (item.priceBasis !== 'annual' || item.annualPrice == null) return null;
 
   const qty = item.quantity || 1;
   const afterPercent = item.discountPercent ? 1 - item.discountPercent / 100 : 1;
   const totalValue = round2(item.annualPrice * qty * afterPercent);
+  const installments = clampInstallments(item.installments);
   // itemFinalPrice כבר כולל כמות והנחה באחוזים — אסור להכפיל אותן שוב
-  const includedInMonthly = round2(itemFinalPrice(item) * clampInstallments(item.installments));
-  const balance = Math.max(0, round2(totalValue - includedInMonthly));
-  const discount = Math.min(Math.max(0, item.deferredDiscount ?? 0), balance);
-  const finalAmount = round2(balance - discount);
+  const perPayment = itemFinalPrice(item);
+  const includedInMonthly = round2(perPayment * installments);
+  return {
+    installments, perPayment, totalValue, includedInMonthly,
+    balance: Math.max(0, round2(totalValue - includedInMonthly)),
+  };
+}
+
+export function itemDeferred(item: QuotationItem, vatRate: number): DeferredBreakdown | null {
+  const base = deferredBase(item);
+  if (!base) return null;
+  const { totalValue, includedInMonthly, balance } = base;
+
+  // הרו"ח מזין את התוצאה — "שישלם 600" — וההנחה נגזרת ממנה. deferredDiscount
+  // נשאר בתוקף להצעות שנשמרו לפני כן, ומשמש רק כשאין סכום גבייה מפורש.
+  const finalAmount = item.deferredChargeAmount != null
+    ? round2(Math.min(Math.max(0, item.deferredChargeAmount), balance))
+    : round2(balance - Math.min(Math.max(0, item.deferredDiscount ?? 0), balance));
+  const discount = round2(balance - finalAmount);
   if (finalAmount <= 0) return null;
 
   const vat = item.vatFlag ? round2(finalAmount * (vatRate / 100)) : 0;

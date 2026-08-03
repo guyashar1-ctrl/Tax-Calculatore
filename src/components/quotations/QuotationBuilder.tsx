@@ -11,11 +11,12 @@ import {
   defaultQuotationRepresentation, applySecondaryLevels,
 } from '../../types/quotations';
 import { businessDaysExpiry } from '../../utils/businessDays';
+import type { DeferredBase } from '../../utils/quotationCalc';
 import {
   calcTotals, formatILS, itemFinalPrice, itemOriginalPrice, itemDisplayName,
   monthlyPlan, clampInstallments,
   currentMonthKey, monthsLeftInYear, formatMonth, formatMonthRange, addMonths,
-  itemDeferred, deferredDetailLines, DEFAULT_DEFERRED_TRIGGER,
+  itemDeferred, deferredBase, deferredDetailLines, discountSummaryParts, DEFAULT_DEFERRED_TRIGGER,
 } from '../../utils/quotationCalc';
 import { deriveQuotationBrand } from './quotationBranding';
 import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
@@ -87,6 +88,15 @@ const YEAR_OPTIONS: number[] = (() => {
   const current = new Date().getFullYear();
   return Array.from({ length: 8 }, (_, i) => current - i);
 })();
+
+// מועדי הגבייה הנפוצים ליתרה. הבחירה היא רשימה ולא שדה חופשי — שדה חופשי
+// שנקרא "מתי נגבית היתרה" הזמין להקליד בו סכום, וזה בדיוק מה שקרה.
+// "אחר…" נשאר, כי גיא ביקש במפורש שאפשר יהיה לנסח מועד שאינו ברשימה.
+const DEFERRED_TRIGGER_PRESETS = [
+  DEFAULT_DEFERRED_TRIGGER,
+  'עם הגשת הצהרת ההון',
+  'עם סיום הביקורת',
+];
 
 // ברירת המחדל לפריסה — תאריך התחלה ומספר תשלומים אחידים לכל השורות.
 // את מספר התשלומים אפשר לשנות גם בכל שורה בנפרד.
@@ -831,12 +841,18 @@ export default function QuotationBuilder({
               <TotalChip label="שנתי" value={totals.annual.withVat} suffix="לשנה" />
               <TotalChip label="חד־פעמי" value={totals.oneTime.withVat} />
               {totals.deferred.withVat > 0 && <TotalChip label="יתרה במועד" value={totals.deferred.withVat} />}
-              {totals.totalDiscount > 0 && (
-                <span style={{ fontSize: 'var(--fs-12)', color: 'var(--green, #059669)', marginInlineStart: 'auto' }}>
-                  הנחה {formatILS(Math.round(totals.totalDiscount))}
-                </span>
-              )}
             </div>
+            {/* אותו משפט בדיוק שהלקוח יראה בעמוד ההצעה — כולל ההנחה על היתרה.
+                סכום הנחה אחד ומעורפל לא איפשר לדעת על מה בכלל ההנחה. */}
+            {(() => {
+              const parts = discountSummaryParts(totals);
+              if (parts.length === 0) return null;
+              return (
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--green, #059669)', marginTop: 6, lineHeight: 1.5 }}>
+                  ההנחה שסיכמנו: {parts.join(' · ')} <span style={{ color: 'var(--gray-400)' }}>(לפני מע״מ)</span>
+                </div>
+              );
+            })()}
             {totals.monthly.withVat > 0 && (totals.hasPartialTerm || totals.changesAfterPeriod) && (
               <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.5 }}>
                 {totals.hasPartialTerm && totals.installments && (
@@ -1256,14 +1272,18 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
   const isDeferred = item.prorationMode === 'deferred';
   const installments = clampInstallments(item.installments ?? plan.installments);
   const qty = item.quantity || 1;
+  const deferredBaseView = deferredBase(item);
+  // "אחר…" צריך להישאר פתוח גם לפני שהוקלד בו משהו — ולכן זה מצב מסך ולא נתון
+  const [triggerCustom, setTriggerCustom] = useState(false);
 
   // מעבר בין תמחור חודשי לשנתי: המחיר השנתי מאותחל מהחודשי (× מספר התשלומים)
   // כדי שהמספר שעל המסך לא יקפוץ לאפס, ואז התשלום החודשי נגזר ממנו מחדש.
   function switchBasis(next: PriceBasis) {
     if (next === 'monthly') {
+      setTriggerCustom(false);
       onChange({
         priceBasis: 'monthly', annualPrice: undefined, prorationMode: 'full',
-        deferredTrigger: undefined, deferredDiscount: undefined,
+        deferredTrigger: undefined, deferredDiscount: undefined, deferredChargeAmount: undefined,
       });
       return;
     }
@@ -1295,9 +1315,10 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
       onChange({ prorationMode: 'deferred', clientPrice: r2(annual / DEFAULT_INSTALLMENTS) });
       return;
     }
+    setTriggerCustom(false);
     onChange({
       prorationMode: 'full', clientPrice: r2(annual / installments),
-      deferredTrigger: undefined, deferredDiscount: undefined,
+      deferredTrigger: undefined, deferredDiscount: undefined, deferredChargeAmount: undefined,
     });
   }
 
@@ -1371,17 +1392,9 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
           </select>
         </label>
       )}
-      {isMonthly && basis === 'annual' && isDeferred && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
-          <label style={miniLabel}>מתי נגבית היתרה
-            <input value={item.deferredTrigger ?? ''} placeholder={DEFAULT_DEFERRED_TRIGGER} style={miniInput}
-              onChange={e => onChange({ deferredTrigger: e.target.value || undefined })} />
-          </label>
-          <label style={miniLabel}>הנחה על היתרה (₪)
-            <input type="number" min={0} value={item.deferredDiscount ?? ''} style={miniInput}
-              onChange={e => onChange({ deferredDiscount: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })} />
-          </label>
-        </div>
+      {isMonthly && basis === 'annual' && isDeferred && deferredBaseView && (
+        <DeferredEditor item={item} vatRate={vatRate} base={deferredBaseView}
+          customTrigger={triggerCustom} onCustomTrigger={setTriggerCustom} onChange={onChange} />
       )}
       <div style={{ display: 'grid', gridTemplateColumns: item.billingType === 'per_unit' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 6 }}>
         {item.billingType === 'per_unit' && (
@@ -1487,18 +1500,100 @@ function ClientPriceHint({ item }: { item: QuotationItem }) {
   );
 }
 
+// ─── עריכת היתרה ────────────────────────────────────────────────────────────
+// ‼ למה זה נראה ככה: גיא תמחר דוח שנתי ב-1,800 ₪, 150 ₪ בחודש, 5 תשלומים,
+// ורצה שהלקוח ישלם 600 ₪ מהיתרה. הוא הקליד 1050 בשדה "מתי נגבית היתרה"
+// (טקסט חופשי עם שם שמזמין מספר) ו-500 בשדה ההנחה — כי כדי לגבות 600 היה
+// עליו להזין הנחה של 450, כלומר לחשב אחורה יתרה שמעולם לא הופיעה על המסך.
+// לכן: היתרה מוצגת ראשונה וגלויה, הקלט הוא התוצאה ("כמה ייגבה") וההנחה נגזרת,
+// והמועד הוא רשימה סגורה שאי אפשר להקליד לתוכה סכום.
+function DeferredEditor({ item, vatRate, base, customTrigger, onCustomTrigger, onChange }: {
+  item: QuotationItem; vatRate: number; base: DeferredBase;
+  customTrigger: boolean; onCustomTrigger: (v: boolean) => void;
+  onChange: (p: Partial<QuotationItem>) => void;
+}) {
+  const b = itemDeferred(item, vatRate);
+  const trigger = item.deferredTrigger?.trim() ?? '';
+  const isCustom = customTrigger || (trigger !== '' && !DEFERRED_TRIGGER_PRESETS.includes(trigger));
+  const legacyDiscount = item.deferredChargeAmount == null && (item.deferredDiscount ?? 0) > 0;
+  const charged = b ? b.finalAmount : 0;
+  const balanceDiscount = b ? b.discount : base.balance;
+
+  return (
+    <div style={{ marginBottom: 6, border: '1px solid var(--gray-200)', borderRadius: 8, padding: '8px 9px', background: 'var(--gray-50)' }}>
+      {/* המספר שגיא חישב בראש — עכשיו הוא על המסך */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+        <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-1)' }}>יתרה</span>
+        <b style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums', color: 'var(--ink-1)' }}>
+          {formatILS(Math.round(base.balance))}
+        </b>
+      </div>
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', lineHeight: 1.5, marginTop: 1 }}>
+        {formatILS(Math.round(base.totalValue))} ערך השירות − {base.installments} × {formatILS(Math.round(base.perPayment))} שנגבים חודשית
+      </div>
+      {/* מצב האפס — כאן, ליד השדות, ולא שלוש שורות מתחת */}
+      {!b && (
+        <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', lineHeight: 1.6, borderRadius: 8, padding: '5px 9px', background: 'var(--surface-0, #fff)', border: '1px solid var(--gray-200)', color: 'var(--gray-600)' }}>
+          {base.balance <= 0
+            ? `אין יתרה — התשלום החודשי מכסה את מלוא ערך השירות (${base.installments} תשלומים × ${formatILS(Math.round(base.perPayment))} = ${formatILS(Math.round(base.totalValue))}). הסעיף לא יוצג ללקוח.`
+            : 'כל היתרה ניתנה כהנחה — הסעיף לא יוצג ללקוח.'}
+        </div>
+      )}
+      {base.balance > 0 && (
+        <>
+          <label style={{ ...miniLabel, marginTop: 8 }}>כמה ייגבה מהיתרה (₪)
+            <input type="number" min={0} max={base.balance} style={miniInput}
+              placeholder={String(Math.round(legacyDiscount ? charged : base.balance))}
+              value={item.deferredChargeAmount ?? ''}
+              onChange={e => onChange({
+                deferredChargeAmount: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0),
+              })} />
+          </label>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2, lineHeight: 1.5 }}>
+            {legacyDiscount
+              ? `ריק = לפי ההנחה שנשמרה (${formatILS(Math.round(item.deferredDiscount ?? 0))}) — כלומר ${formatILS(Math.round(charged))}`
+              : 'ריק = היתרה במלואה'}
+          </div>
+          {balanceDiscount >= 1 && b && (
+            <div style={{
+              marginTop: 5, fontSize: 'var(--fs-12)', borderRadius: 8, padding: '5px 9px', lineHeight: 1.6,
+              background: 'rgba(16,185,129,.09)', color: '#047857', border: '1px solid rgba(16,185,129,.25)',
+            }}>
+              הנחה על היתרה: <b>{formatILS(Math.round(balanceDiscount))}</b>
+            </div>
+          )}
+        </>
+      )}
+      <label style={{ ...miniLabel, marginTop: 8 }}>מתי ייגבה
+        <select style={miniInput} value={isCustom ? '__custom' : (trigger || DEFAULT_DEFERRED_TRIGGER)}
+          onChange={e => {
+            if (e.target.value === '__custom') { onCustomTrigger(true); return; }
+            onCustomTrigger(false);
+            onChange({ deferredTrigger: e.target.value === DEFAULT_DEFERRED_TRIGGER ? undefined : e.target.value });
+          }}>
+          {DEFERRED_TRIGGER_PRESETS.map(t => <option key={t} value={t}>{t}</option>)}
+          <option value="__custom">אחר…</option>
+        </select>
+      </label>
+      {isCustom && (
+        <input value={trigger} placeholder="מתי ייגבה — נוסח חופשי" autoFocus style={{ ...miniInput, marginTop: 4 }}
+          onChange={e => onChange({ deferredTrigger: e.target.value || undefined })} />
+      )}
+      {/* מספר התשלומים נערך למעלה, בפריסת התשלומים — והיתרה תלויה בו לגמרי */}
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)', marginTop: 6, lineHeight: 1.5 }}>
+        לפי {base.installments} תשלומים · לשינוי — פריסת התשלומים למעלה
+      </div>
+    </div>
+  );
+}
+
 // חמש השורות שהלקוח יראה, בזמן שגיא מתמחר. בלי זה הוא צריך להחזיק בראש
-// 1,800 פחות 4×150 פחות 200 — וזו בדיוק החשבונאות שהוא בא לתת ללקוח בכתב.
+// 1,800 פחות 5×150 פחות 450 — וזו בדיוק החשבונאות שהוא בא לתת ללקוח בכתב.
+// מצב "אין מה לגבות" מוסבר בעורך היתרה עצמו (DeferredEditor) ולא כאן.
 function DeferredHint({ item, vatRate }: { item: QuotationItem; vatRate: number }) {
   if (item.prorationMode !== 'deferred') return null;
   const b = itemDeferred(item, vatRate);
-  if (!b) {
-    return (
-      <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', borderRadius: 8, padding: '5px 9px', lineHeight: 1.6, background: 'var(--gray-50)', color: 'var(--gray-500)', border: '1px solid var(--gray-200)' }}>
-        אין יתרה — התשלום החודשי מכסה את מלוא ערך השירות. סעיף היתרה לא יוצג ללקוח.
-      </div>
-    );
-  }
+  if (!b) return null;
   return (
     <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', borderRadius: 8, padding: '6px 9px', lineHeight: 1.7, background: 'var(--blue-light, var(--gray-50))', border: '1px solid var(--gray-200)', color: 'var(--gray-600)' }}>
       {deferredDetailLines(b).map(r => (

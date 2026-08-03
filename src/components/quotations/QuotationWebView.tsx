@@ -12,7 +12,7 @@ import type { QuotationBrand } from './quotationBranding';
 import {
   calcTotals, itemFinalPrice, itemOriginalPrice, formatILS, itemDisplayName,
   monthlyPlan, formatMonth, formatMonthRange,
-  itemDeferred, deferredGroups, deferredDetailLines,
+  itemDeferred, deferredGroups, deferredDetailLines, discountSummaryParts,
 } from '../../utils/quotationCalc';
 import SignaturePad from '../SignaturePad';
 
@@ -261,12 +261,7 @@ export default function QuotationWebView({
             </div>
             {(() => {
               // סך ההטבה — כל תדירות בסקאלה שלה, בלי לאחד למספר אחד מטעה
-              const parts = [
-                totals.monthly.discount >= 1 ? `${formatILS(Math.round(totals.monthly.discount))} בכל חודש` : '',
-                totals.annual.discount >= 1 ? `${formatILS(Math.round(totals.annual.discount))} בשנה` : '',
-                totals.oneTime.discount >= 1 ? `${formatILS(Math.round(totals.oneTime.discount))} חד־פעמי` : '',
-                totals.deferred.discount >= 1 ? `${formatILS(Math.round(totals.deferred.discount))} על היתרה` : '',
-              ].filter(Boolean);
+              const parts = discountSummaryParts(totals);
               if (parts.length === 0) return null;
               return (
                 <div style={{ marginTop: 14, background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.25)', color: '#047857', borderRadius: brand.radius, padding: '11px 15px', fontSize: compact ? 13 : 14, fontWeight: 600 }}>
