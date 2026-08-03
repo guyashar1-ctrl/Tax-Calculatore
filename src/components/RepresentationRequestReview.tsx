@@ -20,6 +20,7 @@ import RepSignersStatus from './RepSignersStatus';
 import RepresentationAuthorityData from './RepresentationAuthorityData';
 import RepresentationExecutionCenter from './RepresentationExecutionCenter';
 import RepresentationNextStep from './RepresentationNextStep';
+import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import { isSpouseRequest, getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { SignatureField, SignatureSetup, SignatureValue } from '../types';
 import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
@@ -146,24 +147,9 @@ export default function RepresentationRequestReview({
   // בקשות אונבורדינג חדשות (Phase 2): מזוהות ע"י טוקן; הזרימה הישנה (מסמכים/הדמיה/חתימה) לא רלוונטית להן.
   const isNewOnboarding = !!request.onboardingToken;
   const [emailStatus, setEmailStatus] = useState<string | null>(null);
-  const [sendingEmail, setSendingEmail] = useState(false);
-
-  async function resendEmail(stage: 'onboard' | 'sign' = 'onboard') {
-    setSendingEmail(true);
-    setEmailStatus(null);
-    try {
-      // force — הרו"ח ביקש במפורש לשלוח שוב, ולכן התביעה האוטומטית של השרת
-      // (שנועדה למנוע שליחה כפולה בין הדפדפן של הלקוח לרשת הביטחון) לא חלה.
-      const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body: { requestId: request.id, stage, force: true } });
-      if (error) setEmailStatus(`${error.message}`);
-      else if (data?.ok) setEmailStatus(`מייל נשלח ל-${request.clientEmail}`);
-      else setEmailStatus(`${data?.detail?.message || data?.error || 'שליחה נכשלה'}`);
-    } catch (e) {
-      setEmailStatus(`${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setSendingEmail(false);
-    }
-  }
+  // שליחה חוזרת של קישור ההזדהות עוברת דרך תצוגה מקדימה — שום מייל ללקוח
+  // לא יוצא מלחיצה אחת בלי שנראה קודם מה הוא אומר.
+  const [resendPreview, setResendPreview] = useState(false);
   /** מייל חתימה לחותם יחיד (כולל בלוק הב"ל אם יש אסמכתא). null = הצלחה. */
   async function sendSignatureEmail(signer: RepSigner): Promise<string | null> {
     try {
@@ -725,8 +711,8 @@ export default function RepresentationRequestReview({
               <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
                 <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, minWidth: 180, fontSize: 'var(--fs-13)' }} onFocus={e => e.currentTarget.select()} />
                 <button className="btn btn-secondary btn-sm" onClick={() => { navigator.clipboard.writeText(onboardingLink).catch(() => {}); }}>העתק קישור</button>
-                <button className="btn btn-primary btn-sm" onClick={() => resendEmail('onboard')} disabled={sendingEmail}>
-                  {sendingEmail ? 'שולח…' : 'שלח מייל שוב'}
+                <button className="btn btn-primary btn-sm" onClick={() => { setEmailStatus(null); setResendPreview(true); }}>
+                  שלח מייל שוב
                 </button>
               </div>
               {emailStatus && (
@@ -911,6 +897,18 @@ export default function RepresentationRequestReview({
         <div style={{ position: 'fixed', bottom: 16, insetInlineStart: 16, background: 'transparent', color: 'var(--danger)', padding: '.6rem .9rem', borderRadius: 8, zIndex: 1200, fontSize: 'var(--fs-13)' }}>
           {stampError}
         </div>
+      )}
+
+      {/* שליחה חוזרת של קישור ההזדהות — תצוגה מקדימה, והשליחה מתוכה.
+          force=true: הרו"ח ביקש במפורש, ולכן התביעה של השרת נגד שליחה כפולה
+          (בין הדפדפן של הלקוח לרשת הביטחון) אינה חלה כאן. */}
+      {resendPreview && (
+        <EmailPreviewDialog
+          heading="שליחה חוזרת — קישור ההזדהות ללקוח"
+          body={{ requestId: request.id, stage: 'onboard', force: true }}
+          onSent={() => setEmailStatus(`✓ מייל נשלח ל-${request.clientEmail}`)}
+          onClose={() => setResendPreview(false)}
+        />
       )}
     </div>
   );

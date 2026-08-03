@@ -18,6 +18,9 @@ import TasksActivityTab from './clientTabs/TasksActivityTab';
 import SendIntakeModal from './SendIntakeModal';
 import ClientDossierTab from './clientTabs/ClientDossierTab';
 import ClientCockpitTab from './clientTabs/ClientCockpitTab';
+import OnboardingTab from './clientTabs/OnboardingTab';
+import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboarding';
+import type { AdvanceResult } from '../hooks/useOnboarding';
 
 const VAT_LABELS: Record<VATStatus, string> = {
   authorizedDealer: 'עוסק מורשה',
@@ -35,14 +38,17 @@ const IT_LABELS: Record<IncomeTaxType, string> = {
 
 // ארבע לשוניות קבועות — יכולת חדשה בעתיד נכנסת כקטע בתוך "התיק" או אות
 // במרכז השליטה, אף פעם לא כלשונית (ראה הצעת הארכיטקטורה שאושרה 15.07.2026).
-type TabId = 'overview' | 'dossier' | 'docs' | 'tasks';
+// "קליטה" היא היוצא מן הכלל: היא מופיעה רק כשיש ללקוח קליטה בפועל, ונעלמת
+// כשהיא נגמרת — לשונית מתה בכל לקוח היא בדיוק מה שהכלל הזה בא למנוע.
+export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding';
 
 // שמות הלשוניות נושאים את המשמעות; האייקון ירד (§3.16)
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'overview', label: 'מרכז שליטה' },
-  { id: 'dossier',  label: 'התיק' },
-  { id: 'docs',     label: 'מסמכים' },
-  { id: 'tasks',    label: 'משימות' },
+  { id: 'overview',   label: 'מרכז שליטה' },
+  { id: 'dossier',    label: 'התיק' },
+  { id: 'onboarding', label: 'קליטה' },
+  { id: 'docs',       label: 'מסמכים' },
+  { id: 'tasks',      label: 'משימות' },
 ];
 
 interface Props {
@@ -65,6 +71,14 @@ interface Props {
   onOpenAnnualReport?: (clientId: string, taxYear: number) => void;
   // לשונית הפתיחה — למי שהגיע לכאן בשביל דבר מסוים (למשל מסמכי הייצוג)
   initialTab?: TabId;
+  // ─── קליטה ───
+  /** כבוי ⇒ הלשונית לא קיימת (settings.flags.onboardingTab=false). */
+  onboardingEnabled?: boolean;
+  engagements?: Engagement[];
+  onboardingSteps?: OnboardingStep[];
+  onboardingEvents?: OnboardingEvent[];
+  onboardingLoading?: boolean;
+  advanceOnboardingStep?: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
 }
 
 function newEmptyClient(): Client {
@@ -116,6 +130,12 @@ export default function ClientWorkspace({
   onDeleteTask,
   onOpenAnnualReport,
   initialTab,
+  onboardingEnabled,
+  engagements,
+  onboardingSteps,
+  onboardingEvents,
+  onboardingLoading,
+  advanceOnboardingStep,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
@@ -225,6 +245,20 @@ export default function ClientWorkspace({
   );
   const openTasks = useMemo(() => getClientOpenTasks(client.id, tasks), [client.id, tasks]);
   const upcomingDebts = useMemo(() => getUpcomingDebts(client.id, tasks), [client.id, tasks]);
+
+  // הלשונית "קליטה" קיימת רק ללקוח שיש לו התקשרות או שלבי קליטה בפועל
+  const hasOnboarding = !!onboardingEnabled && !!advanceOnboardingStep && !!client.id && (
+    (engagements ?? []).some(e => e.clientId === client.id) ||
+    (onboardingSteps ?? []).some(s => s.clientId === client.id && s.status !== 'cancelled')
+  );
+  const visibleTabs = useMemo(
+    () => TABS.filter(t => t.id !== 'onboarding' || hasOnboarding),
+    [hasOnboarding]);
+
+  useEffect(() => {
+    // בזמן טעינה עוד לא יודעים אם יש קליטה — לא מפילים את הלשונית מוקדם מדי
+    if (tab === 'onboarding' && !hasOnboarding && !onboardingLoading) setTab('overview');
+  }, [tab, hasOnboarding, onboardingLoading]);
 
   const fullName = `${client.firstName} ${client.lastName}`.trim() || (isNew ? 'לקוח חדש' : '(ללא שם)');
   const status = client.representationStatus ?? 'active';
@@ -365,7 +399,7 @@ export default function ClientWorkspace({
 
         {/* Header — tabs */}
         <div className="cw-tabs">
-          {TABS.map(t => (
+          {visibleTabs.map(t => (
             <button
               key={t.id}
               className={`cw-tab ${tab === t.id ? 'active' : ''}`}
@@ -408,6 +442,17 @@ export default function ClientWorkspace({
             employees={employees}
             sessions={taxSessions}
             isNew={isNew}
+          />
+        )}
+
+        {tab === 'onboarding' && hasOnboarding && advanceOnboardingStep && (
+          <OnboardingTab
+            clientId={client.id}
+            engagements={engagements ?? []}
+            steps={onboardingSteps ?? []}
+            events={onboardingEvents ?? []}
+            loading={onboardingLoading}
+            advance={advanceOnboardingStep}
           />
         )}
 

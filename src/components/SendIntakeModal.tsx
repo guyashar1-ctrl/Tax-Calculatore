@@ -3,8 +3,8 @@
 // (?intake=TOKEN) — בלי הליך ייצוג. הטוקן נוצר בצד השרת בשליחה הראשונה.
 
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
 import type { Client } from '../types';
+import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 
 interface Props {
   client: Client;
@@ -14,34 +14,20 @@ interface Props {
 
 export default function SendIntakeModal({ client, onClose, onSent }: Props) {
   const [email, setEmail] = useState(client.email || '');
-  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  // ‼ הכפתור פותח תצוגה מקדימה ולא שולח: המייל יוצא רק מתוך החלון, אחרי
+  // שהרו"ח ראה בדיוק מה הלקוח יקבל.
+  const [previewTo, setPreviewTo] = useState<string | null>(null);
 
-  async function handleSend() {
+  function handlePreview() {
     const to = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
       setError('כתובת המייל לא תקינה');
       return;
     }
-    setSending(true);
     setError(null);
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke('send-onboarding-email', {
-        body: { stage: 'intake', clientId: client.id, email: to },
-      });
-      if (fnError || !data?.ok) {
-        setError('השליחה נכשלה. בדוק את הכתובת ונסה שוב, או פנה לתמיכה.');
-        setSending(false);
-        return;
-      }
-      setSentTo(to);
-      onSent(to);
-    } catch {
-      setError('השליחה נכשלה. בדוק את החיבור ונסה שוב.');
-    } finally {
-      setSending(false);
-    }
+    setPreviewTo(to);
   }
 
   return (
@@ -83,14 +69,23 @@ export default function SendIntakeModal({ client, onClose, onSent }: Props) {
             />
             {error && <div style={{ color: 'var(--red)', fontSize: '.85rem', marginTop: '.4rem' }}>{error}</div>}
             <div style={{ display: 'flex', gap: '.6rem', justifyContent: 'flex-start', marginTop: '1.1rem' }}>
-              <button className="btn btn-primary" onClick={handleSend} disabled={sending || !email.trim()}>
-                {sending ? 'שולח…' : 'שלח שאלון'}
+              <button className="btn btn-primary" onClick={handlePreview} disabled={!email.trim()}>
+                תצוגה מקדימה ושליחה
               </button>
-              <button className="btn btn-secondary" onClick={onClose} disabled={sending}>ביטול</button>
+              <button className="btn btn-secondary" onClick={onClose}>ביטול</button>
             </div>
           </>
         )}
       </div>
+
+      {previewTo && (
+        <EmailPreviewDialog
+          heading="שאלון ללקוח — תצוגה מקדימה"
+          body={{ stage: 'intake', clientId: client.id, email: previewTo }}
+          onSent={() => { setSentTo(previewTo); onSent(previewTo); }}
+          onClose={() => setPreviewTo(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Task, Client } from '../types';
+import type { OnboardingStep } from '../types/onboarding';
 import { bucketMyDeskTasks } from '../utils/taskUtils';
 import TaskCard from './TaskCard';
+import OnboardingWaitingSection from './OnboardingWaitingSection';
 
 interface Props {
   tasks: Task[];
@@ -10,9 +12,16 @@ interface Props {
   onAddTask: () => void;
   onToggleDone: (id: string) => void;
   onLoadSampleTasks?: () => void;
+  /** שלבי קליטה מכל הלקוחות — למקטע "ממתינים לאישורך". */
+  onboardingSteps?: OnboardingStep[];
+  /** פתיחת כרטיס הלקוח ישר בלשונית הקליטה. */
+  onOpenOnboarding?: (clientId: string) => void;
 }
 
-export default function MyDesk({ tasks, clients, onSelectTask, onAddTask, onToggleDone, onLoadSampleTasks }: Props) {
+export default function MyDesk({
+  tasks, clients, onSelectTask, onAddTask, onToggleDone, onLoadSampleTasks,
+  onboardingSteps, onOpenOnboarding,
+}: Props) {
   const buckets = useMemo(() => bucketMyDeskTasks(tasks), [tasks]);
   const clientMap = useMemo(() => {
     const m = new Map<string, Client>();
@@ -60,6 +69,12 @@ export default function MyDesk({ tasks, clients, onSelectTask, onAddTask, onTogg
         </div>
       )}
 
+      <OnboardingWaitingSection
+        steps={onboardingSteps ?? []}
+        clients={clients}
+        onOpen={onOpenOnboarding}
+      />
+
       <DeskGroup
         title="דחוף — טפל עכשיו"
         color="red"
@@ -106,6 +121,7 @@ export default function MyDesk({ tasks, clients, onSelectTask, onAddTask, onTogg
     </div>
   );
 }
+
 
 interface DeskGroupProps {
   title: string;

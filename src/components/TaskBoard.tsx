@@ -20,6 +20,8 @@ import { GroupHeader, EmptyState, CalmEmpty } from './ui/States';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { useToast } from './ui/Toast';
 import Icon from './ui/Icon';
+import OnboardingWaitingSection from './OnboardingWaitingSection';
+import type { OnboardingStep } from '../types/onboarding';
 
 interface Props {
   tasks: Task[];
@@ -36,6 +38,10 @@ interface Props {
   /** עדכון משימה שלם — משמש להצמדה (priority) */
   onUpdateTask?: (task: Task) => void;
   onLoadSampleTasks?: () => void;
+  /** שלבי קליטה מכל הלקוחות — למקטע "ממתינים לאישורך" שמעל הלוח. */
+  onboardingSteps?: OnboardingStep[];
+  /** פתיחת כרטיס הלקוח ישר בלשונית הקליטה. */
+  onOpenOnboarding?: (clientId: string) => void;
 }
 
 const CATEGORY_OPTIONS: TaskCategory[] = [
@@ -60,6 +66,7 @@ export default function TaskBoard({
   onSelectTask, onAddTask, onToggleDone,
   onChangeStatus, onChangeBall, onChangeCategory,
   onReorder, onSelectClient, onDeleteTask, onLoadSampleTasks,
+  onboardingSteps, onOpenOnboarding,
 }: Props) {
   const { showToast } = useToast();
   const [search, setSearch] = useState('');
@@ -302,6 +309,14 @@ export default function TaskBoard({
 
   return (
     <div className="tasks-page">
+      {/* קליטה שנתקעה מופיעה מעל המשימות — זה המסך שנפתח, וזה המקום היחיד
+          שבו היא לא תישכח. ריק ⇒ לא מוצג כלום. */}
+      <OnboardingWaitingSection
+        steps={onboardingSteps ?? []}
+        clients={clients}
+        onOpen={onOpenOnboarding}
+      />
+
       <div className="board-filters">
         {/* סינון לפי לקוח — כמו מסנן האדם במונדיי. מוצגים רק לקוחות
             שיש להם משימות, כדי שהרשימה לא תתארך עם כל לקוח חדש. */}

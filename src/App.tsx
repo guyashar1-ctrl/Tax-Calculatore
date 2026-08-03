@@ -46,7 +46,9 @@ import type { FirmProfile } from './types/firmProfile';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
 import { SAMPLE_TASKS } from './data/sampleTasks';
 import ClientList from './components/ClientList';
-import ClientWorkspace from './components/ClientWorkspace';
+import ClientWorkspace, { type TabId as ClientTabId } from './components/ClientWorkspace';
+import { useOnboarding } from './hooks/useOnboarding';
+import EmailPreviewDialog from './components/EmailActivity/EmailPreviewDialog';
 import TaxCalculator from './components/TaxCalculator';
 import DocumentManager from './components/DocumentManager';
 import { enrichClientsWithWorkspace } from './data/sampleClientWorkspace';
@@ -69,6 +71,7 @@ import TestSignaturePage from './components/signatureRequest/__TestSignaturePage
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import TestExecutionCenter from './components/signatureRequest/__TestExecutionCenter';
 import TestRepDocs from './components/signatureRequest/__TestRepDocs';
+import TestOnboarding from './components/clientTabs/__TestOnboarding';
 import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
@@ -180,6 +183,9 @@ export default function App() {
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-repdocs')) {
     return <TestRepDocs />;
   }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-onboarding')) {
+    return <TestOnboarding />;
+  }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {
     // הדפים שהלקוח רואה נשארים תמיד בהירים — הם נושאים את מיתוג המשרד,
@@ -217,6 +223,11 @@ export default function App() {
   }, [user?.id, tasksLoading]);
   const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
+  // ‼ ברירת המחדל דלוקה: הנתונים כבר במסד, והדגל קיים כדי לכבות את המסך
+  // (לשונית הקליטה + המקטע בשולחן) בלי שינוי קוד — settings.flags.onboardingTab=false.
+  const onboardingEnabled =
+    ((firmProfile?.settings?.flags as { onboardingTab?: boolean } | undefined)?.onboardingTab) !== false;
+  const onboarding = useOnboarding(onboardingEnabled ? user?.id : undefined);
   const { leads, addLead, updateLead, deleteLead } = useLeads(user?.id);
   const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation } = useQuotations(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
@@ -276,10 +287,12 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   // לשונית הפתיחה של כרטיס הלקוח — נקבעת רק כשהגיעו אליו בשביל דבר מסוים
-  const [clientInitialTab, setClientInitialTab] = useState<'overview' | 'dossier' | 'docs' | 'tasks' | undefined>(undefined);
+  const [clientInitialTab, setClientInitialTab] = useState<ClientTabId | undefined>(undefined);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
   const [newQuotationLeadId, setNewQuotationLeadId] = useState<string | null>(null);
   const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
+  // תצוגה מקדימה של מייל תזכורת להצעה — נפתחת לפני כל שליחה חוזרת
+  const [remindPreview, setRemindPreview] = useState<{ quotation: Quotation; subject: string; to: string; html: string } | null>(null);
   const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; prevAccountant: { name?: string; email?: string; phone?: string } } | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
@@ -401,6 +414,13 @@ export default function App() {
   function handleSelectClient(id: string) {
     setSelectedId(id);
     setClientInitialTab(undefined);
+    setView('form');
+  }
+
+  /** כרטיס הלקוח ישר על לשונית הקליטה — מהמקטע "ממתינים לאישורך". */
+  function handleOpenClientOnboarding(clientId: string) {
+    setSelectedId(clientId);
+    setClientInitialTab('onboarding');
     setView('form');
   }
 
@@ -1054,9 +1074,13 @@ export default function App() {
     });
   }
 
-  /** תזכורת — שליחה חוזרת של אותה הצעה שנשלחה, עם אותו קישור ותוכן. */
-  async function handleRemindQuotation(q: Quotation): Promise<{ ok: boolean; error?: string }> {
-    if (!q.publicToken) return { ok: false, error: 'להצעה אין קישור ציבורי — שלח אותה קודם.' };
+  /**
+   * תזכורת — שליחה חוזרת של אותה הצעה שנשלחה, עם אותו קישור ותוכן.
+   * ‼ המייל לא יוצא מהלחיצה: הכפתור פותח תצוגה מקדימה, והשליחה קורית שם —
+   * שום מייל ללקוח אינו יוצא בלי שנראה קודם (מדיניות התקשורת).
+   */
+  function handleRemindQuotation(q: Quotation): Promise<{ ok: boolean; error?: string; deferred?: boolean }> {
+    if (!q.publicToken) return Promise.resolve({ ok: false, error: 'להצעה אין קישור ציבורי — שלח אותה קודם.' });
     const link = `${window.location.origin}/?quote=${q.publicToken}`;
     const brand = deriveQuotationBrand(firmProfile);
     const snap = q.snapshot;
@@ -1071,16 +1095,31 @@ export default function App() {
       expiresAt: q.expiresAt,
     }, brand);
     const subject = q.emailSubject || snap?.emailSubject || 'תזכורת — הצעת מחיר';
+    // הנמען נקבע בשרת מהליד/הלקוח של ההצעה; כאן מוצג אותו מקור, לידיעה.
+    const lead = q.leadId ? leads.find(l => l.id === q.leadId) : undefined;
+    const client = q.clientId ? clients.find(c => c.id === q.clientId) : undefined;
+    const to = (client?.email || lead?.email || q.snapshot?.recipientEmail || '').trim();
+    setRemindPreview({ quotation: q, subject, to, html });
+    return Promise.resolve({ ok: true, deferred: true });
+  }
+
+  /** השליחה בפועל של התזכורת, מתוך התצוגה המקדימה. null = הצליח. */
+  async function sendQuotationReminder(): Promise<string | null> {
+    const p = remindPreview;
+    if (!p) return 'התזכורת לא נטענה.';
     try {
       const { data: res, error } = await supabase.functions.invoke('send-quotation-email', {
-        body: { quotationId: q.id, isTest: false, html, subject },
+        body: { quotationId: p.quotation.id, isTest: false, html: p.html, subject: p.subject },
       });
-      if (error) return { ok: false, error: error.message };
-      if (!res?.ok) return { ok: false, error: res?.detail?.message || res?.error || 'שגיאה' };
-      await updateQuotation({ ...q, events: [...q.events, { type: 'reminder_sent', at: new Date().toISOString() }] });
-      return { ok: true };
+      if (error) return error.message;
+      if (!res?.ok) return res?.detail?.message || res?.error || 'שגיאה';
+      await updateQuotation({
+        ...p.quotation,
+        events: [...p.quotation.events, { type: 'reminder_sent', at: new Date().toISOString() }],
+      });
+      return null;
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      return e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -1307,6 +1346,8 @@ export default function App() {
             onAddTask={() => openNewTaskModal()}
             onToggleDone={handleToggleTaskDone}
             onLoadSampleTasks={handleLoadSampleTasks}
+            onboardingSteps={onboarding.steps}
+            onOpenOnboarding={handleOpenClientOnboarding}
           />
         )}
 
@@ -1325,6 +1366,8 @@ export default function App() {
             onDeleteTask={handleDeleteTask}
             onUpdateTask={updateTask}
             onLoadSampleTasks={handleLoadSampleTasks}
+            onboardingSteps={onboarding.steps}
+            onOpenOnboarding={handleOpenClientOnboarding}
           />
         )}
 
@@ -1363,6 +1406,12 @@ export default function App() {
               setView('annualReport');
             }}
             initialTab={clientInitialTab}
+            onboardingEnabled={onboardingEnabled}
+            engagements={onboarding.engagements}
+            onboardingSteps={onboarding.steps}
+            onboardingEvents={onboarding.events}
+            onboardingLoading={onboarding.loading}
+            advanceOnboardingStep={onboarding.advance}
           />
         )}
 
@@ -1561,6 +1610,16 @@ export default function App() {
           onCreate={handleCreateRepresentation}
           onCancel={() => setShowOnboarding(false)}
           checkEmailConflict={repEmailConflictMessage}
+        />
+      )}
+
+      {remindPreview && (
+        <EmailPreviewDialog
+          heading={`תזכורת ללקוח — הצעה ${remindPreview.quotation.quotationNumber}`}
+          preloaded={{ subject: remindPreview.subject, to: remindPreview.to, html: remindPreview.html }}
+          sendVia={sendQuotationReminder}
+          onSent={() => { /* החלון מציג את האישור; ההצעה כבר עודכנה */ }}
+          onClose={() => setRemindPreview(null)}
         />
       )}
 

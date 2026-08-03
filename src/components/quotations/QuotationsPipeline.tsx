@@ -15,7 +15,8 @@ interface Props {
   onOpen: (q: Quotation) => void;
   onConvert: (q: Quotation) => void;
   onRelease: (q: Quotation) => void;
-  onRemind: (q: Quotation) => Promise<{ ok: boolean; error?: string }>;
+  // deferred=true ⇒ נפתחה תצוגה מקדימה והשליחה תקרה שם; אין מה לבשר כאן.
+  onRemind: (q: Quotation) => Promise<{ ok: boolean; error?: string; deferred?: boolean }>;
   onCancel: (q: Quotation) => Promise<void>;
   onDelete: (q: Quotation) => Promise<void>;
   onSaveLead: (lead: LeadPatch) => Promise<void>;
@@ -76,6 +77,7 @@ export default function QuotationsPipeline({
     setToast(null);
     try {
       const res = await onRemind(q);
+      if (res.deferred) return;
       setToast(res.ok ? { kind: 'ok', text: 'תזכורת נשלחה.' } : { kind: 'err', text: `שליחת תזכורת נכשלה: ${res.error ?? ''}` });
     } finally {
       setRemindBusy(null);

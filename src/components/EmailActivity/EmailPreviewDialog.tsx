@@ -8,7 +8,14 @@ import { supabase } from '../../lib/supabase';
 
 interface Props {
   /** גוף הבקשה ל-send-onboarding-email (requestId/stage/signerId/clientId…). */
-  body: Record<string, unknown>;
+  body?: Record<string, unknown>;
+  /**
+   * מייל שנבנה כבר בדפדפן (תזכורת הצעת מחיר) — מוצג כמו שהוא, בלי קריאת
+   * תצוגה מקדימה לשרת. הולך יד ביד עם sendVia.
+   */
+  preloaded?: Loaded;
+  /** שליחה חלופית, כשהמייל לא יוצא דרך send-onboarding-email. null = הצליח. */
+  sendVia?: () => Promise<string | null>;
   /** כותרת החלון — מה המייל הזה. */
   heading: string;
   onClose: () => void;
@@ -46,13 +53,14 @@ async function errText(data: any, error: any): Promise<string> {
   return body?.detail?.message || (code && (ERROR_TEXT[code] || code)) || error?.message || 'הפעולה נכשלה';
 }
 
-export default function EmailPreviewDialog({ body, heading, onClose, onSent, readOnly }: Props) {
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
+export default function EmailPreviewDialog({ body, preloaded, sendVia, heading, onClose, onSent, readOnly }: Props) {
+  const [loaded, setLoaded] = useState<Loaded | null>(preloaded ?? null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
+    if (preloaded || !body) return;
     let alive = true;
     (async () => {
       try {
@@ -74,6 +82,14 @@ export default function EmailPreviewDialog({ body, heading, onClose, onSent, rea
     setSending(true);
     setError(null);
     try {
+      if (sendVia) {
+        const failure = await sendVia();
+        if (failure) { setError(failure); return; }
+        setSent(true);
+        onSent();
+        return;
+      }
+      if (!body) { setError('אין מה לשלוח.'); return; }
       const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body });
       if (error || !data?.ok) { setError(await errText(data, error)); return; }
       setSent(true);

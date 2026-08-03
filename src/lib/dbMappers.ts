@@ -11,6 +11,7 @@ import type {
   QuotationTemplate,
   Quotation,
 } from '../types/quotations';
+import type { Engagement, OnboardingStep, OnboardingEvent } from '../types/onboarding';
 
 function toSnake(s: string): string {
   // Convert camelCase / PascalCase to snake_case, treating runs of uppercase
@@ -222,4 +223,28 @@ export function quotationToDb(q: Partial<Quotation>, userId?: string, forInsert 
   const row = objectToRow(q, forInsert ? QUOTATION_OMIT_ON_INSERT : ['updatedAt']);
   if (userId) row.user_id = userId;
   return row;
+}
+
+// ──────────────────────────────── מודול הקליטה ─────────────────────────────
+// קריאה בלבד מהדפדפן: התקשרויות ושלבים נוצרים ומתקדמים אך ורק דרך פונקציות
+// השרת (create_engagement_for_quotation / advance_onboarding_step), ולכן אין
+// כאן מיפוי לכיוון הכתיבה.
+
+export function engagementFromDb(row: Record<string, any>): Engagement {
+  const e = rowToObject<Engagement>(row);
+  if (e.monthlyTotal !== undefined) e.monthlyTotal = Number(e.monthlyTotal);
+  return e;
+}
+
+export function stepFromDb(row: Record<string, any>): OnboardingStep {
+  const s = rowToObject<OnboardingStep>(row);
+  if (!s.payload) s.payload = {};
+  if (s.needsAttention === undefined) s.needsAttention = false;
+  return s;
+}
+
+export function eventFromDb(row: Record<string, any>): OnboardingEvent {
+  const ev = rowToObject<OnboardingEvent>(row);
+  if (!ev.meta) ev.meta = {};
+  return ev;
 }
