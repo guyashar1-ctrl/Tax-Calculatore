@@ -227,17 +227,30 @@ function LeadForm({ lead, onSave, onCancel }: {
     dealerType: lead?.dealerType ?? ('' as LeadDealerType | ''),
     status: lead?.status ?? ('new' as LeadStatus),
     notes: lead?.notes ?? '',
-    hasPreviousAccountant: !!lead?.hasPreviousAccountant,
+    hasPreviousAccountant: lead?.hasPreviousAccountant,
     prevAccountantName: lead?.prevAccountantName ?? '',
     prevAccountantEmail: lead?.prevAccountantEmail ?? '',
     prevAccountantPhone: lead?.prevAccountantPhone ?? '',
     referralSource: lead?.referralSource ?? '',
     // undefined = לא נשאל. שיחת ליד אינה חקירה, ולכן אין ברירת מחדל.
-    businessTransfer: lead?.businessTransfer,
+    // ליד ישן שנשמר כשהשאלה עוד נשאלה פעמיים — הסימון "עובר מרו״ח אחר" מכריע.
+    businessTransfer: lead?.businessTransfer ?? (lead?.hasPreviousAccountant ? true : undefined),
   });
   const [saving, setSaving] = useState(false);
 
   const set = (patch: Partial<typeof v>) => setV(prev => ({ ...prev, ...patch }));
+
+  // ‼ "עסק חדש או העברה?" ו"עובר מרו״ח אחר?" הן אותה עובדה, ולכן פקד אחד כותב
+  // את שני השדות: businessTransfer מפעיל את מסלול העסק החדש, ו-hasPreviousAccountant
+  // מרכיב את מסלול הרו"ח הקודם בקליטה.
+  function setTransfer(next: boolean | undefined) {
+    if (next === true) { set({ businessTransfer: true, hasPreviousAccountant: true }); return; }
+    set({
+      businessTransfer: next,
+      hasPreviousAccountant: next === false ? false : undefined,
+      prevAccountantName: '', prevAccountantEmail: '', prevAccountantPhone: '',
+    });
+  }
 
   async function submit() {
     if (!v.fullName.trim()) return;
@@ -251,7 +264,8 @@ function LeadForm({ lead, onSave, onCancel }: {
         dealerType: (v.dealerType || undefined) as LeadDealerType | undefined,
         status: v.status,
         notes: v.notes.trim() || undefined,
-        hasPreviousAccountant: v.hasPreviousAccountant,
+        // העמודה במסד אינה מקבלת ריק, ולכן "לא נשאל" נשמר כ"לא עובר מרו״ח אחר".
+        hasPreviousAccountant: v.hasPreviousAccountant === true,
         prevAccountantName: v.hasPreviousAccountant ? v.prevAccountantName.trim() || undefined : undefined,
         prevAccountantEmail: v.hasPreviousAccountant ? v.prevAccountantEmail.trim() || undefined : undefined,
         prevAccountantPhone: v.hasPreviousAccountant ? v.prevAccountantPhone.trim() || undefined : undefined,
@@ -321,28 +335,21 @@ function LeadForm({ lead, onSave, onCancel }: {
             <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
               <button type="button"
                 className={`btn btn-sm ${v.businessTransfer === false ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => set({ businessTransfer: v.businessTransfer === false ? undefined : false })}>
+                onClick={() => setTransfer(v.businessTransfer === false ? undefined : false)}>
                 עסק חדש
               </button>
               <button type="button"
                 className={`btn btn-sm ${v.businessTransfer === true ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => set({ businessTransfer: v.businessTransfer === true ? undefined : true })}>
+                onClick={() => setTransfer(v.businessTransfer === true ? undefined : true)}>
                 העברה מרו״ח אחר
               </button>
             </div>
           </div>
         </div>
 
-        <label style={{ ...label, marginTop: 10, display: 'block' }}>הערות פנימיות
-          <textarea rows={2} value={v.notes} onChange={e => set({ notes: e.target.value })} style={{ marginTop: 4 }} />
-        </label>
-
-        <div style={{ border: '1px solid var(--gray-200)', borderRadius: 8, padding: 10, marginTop: 12, background: v.hasPreviousAccountant ? 'var(--blue-light)' : 'var(--gray-50)' }}>
-          <label className="checkbox-row" style={{ fontWeight: 500 }}>
-            <input type="checkbox" checked={v.hasPreviousAccountant} onChange={e => set({ hasPreviousAccountant: e.target.checked })} />
-            עובר מרו״ח אחר?
-          </label>
-          {v.hasPreviousAccountant && (
+        {v.businessTransfer === true && (
+          <div style={{ border: '1px solid var(--gray-200)', borderRadius: 8, padding: 10, marginTop: 10, background: 'var(--blue-light)' }}>
+            <div style={{ ...label, fontWeight: 500, color: 'var(--gray-700)' }}>פרטי הרו״ח הקודם</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
               <input placeholder="שם הרו״ח הקודם" value={v.prevAccountantName} onChange={e => set({ prevAccountantName: e.target.value })} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -351,8 +358,12 @@ function LeadForm({ lead, onSave, onCancel }: {
               </div>
               <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר הצעה, נכין מכתב שחרור לרו״ח הקודם.</div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        <label style={{ ...label, marginTop: 10, display: 'block' }}>הערות פנימיות
+          <textarea rows={2} value={v.notes} onChange={e => set({ notes: e.target.value })} style={{ marginTop: 4 }} />
+        </label>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
           <button className="btn btn-secondary" onClick={onCancel}>ביטול</button>

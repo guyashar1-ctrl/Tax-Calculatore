@@ -30,6 +30,8 @@ export const ENGAGEMENT_STATUS_LABELS: Record<EngagementStatus, string> = {
 
 export type OnboardingStepType =
   | 'representation'
+  // נפתח אוטומטית כשקיים ייצוג ברמת "משני", ונסגר מעצמו כשלא נותר אף אחד כזה.
+  | 'representation_upgrade'
   | 'file_opening'
   | 'release_letter'
   | 'materials_received'
@@ -44,6 +46,7 @@ export type OnboardingStepType =
 
 export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   representation: 'ייצוג מול הרשויות',
+  representation_upgrade: 'שדרוג לייצוג ראשי',
   file_opening: 'פתיחת תיקים ברשויות',
   release_letter: 'מכתב שחרור לרו״ח הקודם',
   materials_received: 'קבלת חומרים מהרו״ח הקודם',
@@ -138,6 +141,8 @@ export interface StepPayload {
   billingStartMonth?: string;
   authUrl?: string;
   providerRef?: string;
+  /** מפתחות הרשויות שעדיין רשומות כמייצג משני (RepAuthorityKind). */
+  secondaryAuthorities?: string[];
   skipReason?: string;
   [key: string]: unknown;
 }

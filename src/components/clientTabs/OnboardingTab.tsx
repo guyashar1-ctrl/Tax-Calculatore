@@ -13,6 +13,8 @@ import {
   STEP_STATUS_LABELS, STEP_STATUS_TONE, STEP_TYPE_LABELS, TRACK_LABELS, TRACK_ORDER,
   isStepOpen,
 } from '../../types/onboarding';
+import type { RepAuthorityKind } from '../../types';
+import { REP_AUTHORITY_LABELS } from '../../types';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
@@ -49,6 +51,7 @@ const TONE_COLOR: Record<string, string> = {
 // מה הפעולה הבאה כשהכדור אצלי — ניסוח של עשייה, לא של סטטוס
 const NEXT_ACTION: Record<OnboardingStepType, string> = {
   representation: 'להמשיך את תהליך הייצוג',
+  representation_upgrade: 'לשדרג את הייצוג למייצג ראשי',
   file_opening: 'לפתוח את התיקים ברשויות',
   release_letter: 'לשלוח מכתב שחרור לרו״ח הקודם',
   materials_received: 'לאסוף את החומרים מהרו״ח הקודם',
@@ -401,6 +404,20 @@ export default function OnboardingTab({
                     })}
                     onConfirm={(title, message, confirmLabel) =>
                       setConfirmState({ stepId: step.id, title, message, confirmLabel })}
+                    onRun={(action, payload) => void run(step, action, payload)}
+                    menu={menu}
+                  />
+                );
+              }
+
+              if (step.stepType === 'representation_upgrade') {
+                return (
+                  <RepresentationUpgradeCard
+                    key={step.id}
+                    step={step}
+                    stepById={stepById}
+                    busy={busy}
+                    highlight={highlightStepId === step.id}
                     onRun={(action, payload) => void run(step, action, payload)}
                     menu={menu}
                   />
@@ -900,6 +917,65 @@ function RetainerStepCard(p: RetainerCardProps) {
             </div>
           )}
         </>
+      )}
+    </StepCardShell>
+  );
+}
+
+// ═══════════════ כרטיס שדרוג הייצוג ══════════════════════════════════════
+// ‼ אין כאן כפתור "סיימתי": השלב נסגר מעצמו ברגע שאין יותר רשות שרשומה
+// כמייצג משני. כל מה שהרו"ח עושה כאן הוא לקבוע מתי להזכיר לו לבדוק.
+
+interface UpgradeCardProps {
+  step: OnboardingStep;
+  stepById: Map<string, OnboardingStep>;
+  busy: boolean;
+  highlight: boolean;
+  onRun: (action: string, payload?: Record<string, unknown>) => void;
+  menu: React.ReactNode;
+}
+
+function RepresentationUpgradeCard(p: UpgradeCardProps) {
+  const { step, stepById, busy, highlight } = p;
+  const [due, setDue] = useState(step.dueDate ?? '');
+
+  const secondary = (step.payload.secondaryAuthorities ?? [])
+    .filter((k): k is RepAuthorityKind => k in REP_AUTHORITY_LABELS)
+    .map(k => REP_AUTHORITY_LABELS[k]);
+
+  return (
+    <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={p.menu}
+      danger={step.needsAttention}>
+      {step.needsAttention && (
+        <div style={{ marginTop: '.35rem', fontSize: 'var(--fs-13)', color: 'var(--err)', fontWeight: 600 }}>
+          הגיע מועד התזכורת
+        </div>
+      )}
+
+      {secondary.length > 0 && (
+        <div style={{ marginTop: '.45rem', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
+          רשום כמייצג משני ב: <strong>{secondary.join(', ')}</strong>
+        </div>
+      )}
+
+      <div style={cardNote}>
+        הרו״ח הקודם עדיין רשום כמייצג הראשי. כשהוא ישוחרר — לשנות את רמת הייצוג
+        בכרטיס ל״מייצג ראשי״, והשלב ייסגר מעצמו.
+      </div>
+
+      {isStepOpen(step.status) && (
+        <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'flex-end' }}>
+          <label style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+            להזכיר לי בתאריך
+            <input type="date" value={due} onChange={e => setDue(e.target.value)}
+              disabled={busy} style={{ marginTop: 3, display: 'block' }} />
+          </label>
+          <button type="button" className="btn btn-sm btn-secondary"
+            disabled={busy || !due || due === (step.dueDate ?? '')}
+            onClick={() => p.onRun('set_due', { dueDate: due })}>
+            עדכן תזכורת
+          </button>
+        </div>
       )}
     </StepCardShell>
   );

@@ -8,7 +8,7 @@ import type {
 import {
   SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ORDER, QUOTATION_EVENT_LABELS, QUOTATION_STATUS_LABELS,
   DEFAULT_VAT_RATE, DEFAULT_EXPIRY_BUSINESS_DAYS, DEFAULT_INSTALLMENTS,
-  defaultQuotationRepresentation,
+  defaultQuotationRepresentation, applySecondaryLevels,
 } from '../../types/quotations';
 import { businessDaysExpiry } from '../../utils/businessDays';
 import {
@@ -41,6 +41,13 @@ interface RecipientDraft {
   prevAccountantName?: string;
   prevAccountantEmail?: string;
   prevAccountantPhone?: string;
+}
+
+/** האם הנמען עובר מרו"ח אחר — העובדה שקובעת שהייצוג נפתח כמייצג משני. */
+function isTransferRecipient(r: RecipientDraft, leads: Lead[], clients: Client[]): boolean {
+  if (r.kind === 'lead') return !!leads.find(l => l.id === r.id)?.hasPreviousAccountant;
+  if (r.kind === 'client') return !!clients.find(c => c.id === r.id)?.hasPreviousAccountant;
+  return !!r.hasPreviousAccountant;
 }
 
 interface Props {
@@ -187,7 +194,7 @@ export default function QuotationBuilder({
   // היא לא לפתוח ייצוג. הצעה לליד חדש כן פותחת, שזה כל העניין.
   const [representation, setRepresentation] = useState<QuotationRepresentation>(() => {
     if (existing?.representation) return existing.representation;
-    const base = defaultQuotationRepresentation();
+    const base = defaultQuotationRepresentation(isTransferRecipient(initialRecipient, leads, clients));
     return initialRecipient.kind === 'client' ? { ...base, enabled: false } : base;
   });
 
@@ -552,6 +559,11 @@ export default function QuotationBuilder({
                   if (picked?.representationStatus) {
                     setRepresentation(prev => prev.enabled ? { ...prev, enabled: false } : prev);
                   }
+                  // נמען שעובר מרו"ח אחר — הייצוג יורד למשני. כיוון אחד בלבד:
+                  // העלאה חזרה לראשי היא החלטה של הרו"ח, לא של החלפת נמען.
+                  if (isTransferRecipient(r, leads, clients)) {
+                    setRepresentation(prev => ({ ...prev, areas: applySecondaryLevels(prev.areas) }));
+                  }
                 }}
               />
             )}
@@ -780,6 +792,7 @@ export default function QuotationBuilder({
               recipientName={recipient.fullName}
               recipientEmail={recipient.email}
               emailConflict={repEmailConflict}
+              isTransfer={isTransferRecipient(recipient, leads, clients)}
             />
           </Section>
 

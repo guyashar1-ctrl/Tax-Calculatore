@@ -37,6 +37,11 @@ interface Props {
   /** ערכי פתיחה — לזרימת "הפוך ליד ללקוח" מהצעת מחיר מאושרת. */
   initialName?: string;
   initialEmail?: string;
+  /**
+   * הלקוח עובר מרו"ח אחר. הרו"ח הקודם עדיין תופס את מקום המייצג הראשי
+   * ברשויות, ולכן הייצוג נפתח כמייצג משני עד לשחרורו.
+   */
+  isTransfer?: boolean;
 }
 
 interface AreaState {
@@ -54,7 +59,7 @@ const FAMILY_ORDER: FamilyStatus[] = ['single', 'married', 'divorced', 'widowed'
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict, initialName, initialEmail }: Props) {
+export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict, initialName, initialEmail, isTransfer = false }: Props) {
   const [name, setName] = useState(initialName ?? '');
   const [email, setEmail] = useState(initialEmail ?? '');
   // הגעה עם מייל ידוע (הפיכת ליד ללקוח) ⇒ שליחה במייל היא ברירת המחדל ההגיונית
@@ -70,11 +75,15 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   const [sameSigningEmail, setSameSigningEmail] = useState(false);
   const [niCoversSpouse, setNiCoversSpouse] = useState(false);
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
-  const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>({
-    incomeTax: { selected: true, level: 'primary' },
-    withholding: { selected: false, level: 'primary' },
-    vat: { selected: true, level: 'primary' },
-    nationalInsurance: { selected: true, level: 'primary' },
+  // מעבר מרו"ח אחר ⇒ הרשויות שנושאות רמה נפתחות כמייצג משני (ב"ל ללא רמה).
+  const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>(() => {
+    const level: RepLevel = isTransfer ? 'secondary' : 'primary';
+    return {
+      incomeTax: { selected: true, level },
+      withholding: { selected: false, level },
+      vat: { selected: true, level },
+      nationalInsurance: { selected: true, level: 'primary' },
+    };
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -290,6 +299,11 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginBottom: '.5rem' }}>
             אילו רשויות לייצג? <span style={{ color: 'var(--danger)' }}>*</span>
           </label>
+          {isTransfer && (
+            <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginBottom: '.5rem', lineHeight: 1.55 }}>
+              הלקוח עובר מרו״ח אחר — הייצוג נפתח כמייצג משני. אפשר לשנות.
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
             {REP_AUTHORITY_ORDER.map(a => {
               const st = areas[a];

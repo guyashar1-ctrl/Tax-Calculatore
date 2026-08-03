@@ -3,6 +3,7 @@
 // אין דחייה/בקשת שינויים מצד הלקוח — שינוי מטופל בביטול והוצאת הצעה חדשה.
 
 import type { AuthorityRepresentations, OnboardingPrefill } from './index';
+import { REP_AUTHORITIES_WITH_LEVEL } from './index';
 
 // ─── לידים ──────────────────────────────────────────────────────────────────
 
@@ -206,15 +207,33 @@ export interface QuotationRepresentation {
   spouse: { name: string; email: string; idNumber?: string } | null;
 }
 
-/** ברירת המחדל — זהה לדיאלוג הייצוג: מ"ה, מע"מ וב"ל כמייצג ראשי. */
-export function defaultQuotationRepresentation(): QuotationRepresentation {
+/**
+ * מוריד ל"מייצג משני" את הרשויות שנושאות רמת ייצוג (מ"ה, ניכויים, מע"מ).
+ * ביטוח לאומי הוא ייצוג יחיד ואין לו רמה — ולכן לא נוגעים בו.
+ */
+export function applySecondaryLevels(areas: AuthorityRepresentations): AuthorityRepresentations {
+  const next: AuthorityRepresentations = { ...areas };
+  for (const a of REP_AUTHORITIES_WITH_LEVEL) {
+    const area = next[a];
+    if (area) next[a] = { ...area, level: 'secondary' };
+  }
+  return next;
+}
+
+/**
+ * ברירת המחדל — זהה לדיאלוג הייצוג: מ"ה, מע"מ וב"ל.
+ * ‼ לקוח שעובר מרו"ח אחר נפתח כמייצג משני: הרו"ח הקודם עדיין תופס את מקום
+ * המייצג הראשי ברשויות, ואי אפשר להירשם ראשי לפני שהוא משחרר אותו.
+ */
+export function defaultQuotationRepresentation(isTransfer = false): QuotationRepresentation {
+  const areas: AuthorityRepresentations = {
+    incomeTax: { status: 'in_process', level: 'primary' },
+    vat: { status: 'in_process', level: 'primary' },
+    nationalInsurance: { status: 'in_process' },
+  };
   return {
     enabled: true,
-    areas: {
-      incomeTax: { status: 'in_process', level: 'primary' },
-      vat: { status: 'in_process', level: 'primary' },
-      nationalInsurance: { status: 'in_process' },
-    },
+    areas: isTransfer ? applySecondaryLevels(areas) : areas,
     prefill: {},
     spouse: null,
   };

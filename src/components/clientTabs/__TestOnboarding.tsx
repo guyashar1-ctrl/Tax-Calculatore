@@ -47,6 +47,13 @@ function step(p: Partial<OnboardingStep> & Pick<OnboardingStep, 'id' | 'stepType
 
 const STEPS: OnboardingStep[] = [
   step({ id: 's1', stepType: 'representation', track: 'authorities', scope: 'person', status: 'waiting_client', ball: 'client' }),
+  // ── שדרוג לייצוג ראשי: תזכורת שהגיע מועדה, ותזכורת שעוד לפניה ──
+  step({ id: 's1b', stepType: 'representation_upgrade', track: 'authorities', scope: 'person', status: 'pending', ball: 'me',
+         dueDate: '2026-07-15', needsAttention: true,
+         payload: { secondaryAuthorities: ['incomeTax', 'vat'] } }),
+  step({ id: 's1c', stepType: 'representation_upgrade', track: 'authorities', scope: 'person', status: 'pending', ball: 'me',
+         dueDate: '2026-11-01',
+         payload: { secondaryAuthorities: ['withholding'] } }),
   step({ id: 's2', stepType: 'release_letter', track: 'prev_accountant', scope: 'person', status: 'pending', ball: 'me' }),
   step({ id: 's3', stepType: 'materials_received', track: 'prev_accountant', scope: 'person', status: 'locked', ball: 'prev_accountant', dependsOnStepId: 's2',
          payload: { checklist: [

@@ -1678,10 +1678,12 @@ export default function App() {
 
       {convertingQuotation && (() => {
         const lead = convertingQuotation.leadId ? leads.find(l => l.id === convertingQuotation.leadId) : undefined;
+        const client = convertingQuotation.clientId ? clients.find(c => c.id === convertingQuotation.clientId) : undefined;
         return (
           <RepresentationOnboardingDialog
             initialName={lead?.fullName ?? convertingQuotation.snapshot?.recipientName ?? ''}
             initialEmail={lead?.email ?? convertingQuotation.snapshot?.recipientEmail ?? ''}
+            isTransfer={!!(lead?.hasPreviousAccountant || client?.hasPreviousAccountant)}
             onCreate={handleCreateRepresentationFromQuotation}
             onCancel={() => setConvertingQuotation(null)}
             checkEmailConflict={repEmailConflictMessage}

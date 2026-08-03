@@ -81,10 +81,12 @@ interface Props {
   recipientEmail?: string;
   /** התנגשות מייל: כבר קיים ייצוג פעיל/בתהליך לכתובת הזו. */
   emailConflict?: string | null;
+  /** הנמען עובר מרו"ח אחר ⇒ רמת הייצוג נפתחת כמשנית, וזה נאמר על המסך. */
+  isTransfer?: boolean;
 }
 
 export default function QuotationRepresentationEditor({
-  value, onChange, recipientName, recipientEmail, emailConflict,
+  value, onChange, recipientName, recipientEmail, emailConflict, isTransfer = false,
 }: Props) {
   const [showKnown, setShowKnown] = useState(false);
   const [separateSpouseEmail, setSeparateSpouseEmail] = useState(!!value.spouse?.email);
@@ -102,7 +104,9 @@ export default function QuotationRepresentationEditor({
   function toggleArea(a: RepAuthorityKind) {
     const areas = { ...(value.areas ?? {}) };
     if (areas[a]) delete areas[a];
-    else areas[a] = hasLevel(a) ? { status: 'in_process', level: 'primary' } : { status: 'in_process' };
+    else areas[a] = hasLevel(a)
+      ? { status: 'in_process', level: isTransfer ? 'secondary' : 'primary' }
+      : { status: 'in_process' };
     patch({ areas });
   }
 
@@ -185,6 +189,11 @@ export default function QuotationRepresentationEditor({
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-700)', marginBottom: 6 }}>
             אילו רשויות לייצג?
           </div>
+          {isTransfer && (
+            <div style={{ fontSize: 11.5, color: 'var(--gray-600)', marginBottom: 6, lineHeight: 1.55 }}>
+              הלקוח עובר מרו״ח אחר — הייצוג נפתח כמייצג משני. אפשר לשנות.
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {REP_AUTHORITY_ORDER.map(a => {
               const on = !!value.areas?.[a];
