@@ -16,6 +16,12 @@ import QuotationDesignStudio from './quotations/QuotationDesignStudio';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import { supabase } from '../lib/supabase';
 import { FIRM_PRIVATE_BUCKET, downloadPrivateDataUrl } from '../utils/privateAsset';
+import {
+  defaultTemplate,
+  PLACEHOLDERS_BY_KIND,
+  STEP_EMAIL_KIND_LABELS,
+  type StepEmailKind,
+} from '../../supabase/functions/_shared/stepTemplates.ts';
 
 const LOGO_BUCKET = 'firm-logos';           // לוגו — ציבורי (מוטבע במיילים ללקוחות)
 const SIGN_BUCKET = FIRM_PRIVATE_BUCKET;     // חתימה/חותמת — פרטי, גישה מאומתת בלבד
@@ -28,7 +34,7 @@ interface Props {
   onSave: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'emailActivity' | 'quotations' | 'employees';
+type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'paperless' | 'emailActivity' | 'quotations' | 'employees';
 
 // אייקוני הניווט כ-SVG מוטמע. (הפרויקט לא טוען את פונט Tabler, ולכן ה-<i class="ti">
 // שהיו כאן קודם פשוט לא הוצגו — זה מחליף אותם באייקונים שבאמת נראים.)
@@ -70,6 +76,7 @@ const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'contact', label: 'פרטי קשר', icon: 'contact' },
   { id: 'signature', label: 'חתימת מייל', icon: 'signature' },
   { id: 'communication', label: 'ערוצי תקשורת', icon: 'communication' },
+  { id: 'paperless', label: 'פייפרלס ותקשורת', icon: 'mailCog' },
   { id: 'emailActivity', label: 'פעילות מייל', icon: 'emailActivity' },
   { id: 'quotations', label: 'הצעות מחיר', icon: 'quotations' },
 ];
@@ -588,6 +595,10 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
             </div>
           )}
 
+          {section === 'paperless' && (
+            <PaperlessCommSection profile={draft} onChangeProfile={setDraft} />
+          )}
+
           {section === 'emailActivity' && (
             <div style={card}><EmailActivityModule userId={profile.id} /></div>
           )}
@@ -610,6 +621,123 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
         </div>
       </div>
     </div>
+  );
+}
+
+// ───────────────────────── פייפרלס ותקשורת הקליטה ─────────────────────────
+// ‼ קישור ההזמנה הוא הגדרה של המשרד ולא קבוע בקוד: הוא נושא את מזהה המייצג,
+// והוא מה שמקשר את החשבון החדש של הלקוח אלינו. משרד אחר — קישור אחר.
+//
+// עורך מבוקר על אותה טיוטה של המסך — בלי שמירה משלו, כמו לשונית ההצעות.
+
+const TEMPLATE_EDITORS: StepEmailKind[] = ['paperless_invite', 'retainer_request'];
+
+const TEMPLATE_HINT: Record<string, string> = {
+  paperless_invite: 'נשלח מכרטיס הלקוח, בשלב "הזמנה לפייפרלס". הקישור עצמו נוסף ככפתור בסוף המייל.',
+  retainer_request: 'נשלח בשלב "הרשאה לתשלום חודשי", אחרי שהוזן קישור ההרשאה מפייפרלס.',
+};
+
+interface CommTemplate { subject?: string; body?: string }
+
+function PaperlessCommSection({ profile, onChangeProfile }: { profile: FirmProfile; onChangeProfile: (p: FirmProfile) => void }) {
+  const settings = profile.settings ?? {};
+  const paperless = (settings.paperless as { inviteUrl?: string } | undefined) ?? {};
+  const templates = (settings.commTemplates as Record<string, CommTemplate> | undefined) ?? {};
+  const inviteUrl = paperless.inviteUrl ?? '';
+  const urlInvalid = inviteUrl.trim() !== '' && !inviteUrl.trim().startsWith('https://');
+
+  const patchSettings = (patch: Record<string, unknown>) =>
+    onChangeProfile({ ...profile, settings: { ...settings, ...patch } });
+
+  const setTemplate = (kind: StepEmailKind, patch: CommTemplate) =>
+    patchSettings({ commTemplates: { ...templates, [kind]: { ...(templates[kind] ?? {}), ...patch } } });
+
+  const resetTemplate = (kind: StepEmailKind) => {
+    const next = { ...templates };
+    delete next[kind];
+    patchSettings({ commTemplates: next });
+  };
+
+  return (
+    <>
+      <div style={card}>
+        <div style={cardTitle}>קישור ההזמנה לפייפרלס</div>
+        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
+          הקישור מהחשבון שלך בפייפרלס, שדרכו לקוח חדש פותח חשבון ומתחבר אליך כמייצג. הוא מוטמע במייל ההזמנה שנשלח מכרטיס הלקוח.
+        </div>
+        <div style={{ maxWidth: 460 }}>
+          <input
+            value={inviteUrl}
+            onChange={e => patchSettings({ paperless: { ...paperless, inviteUrl: e.target.value } })}
+            dir="ltr"
+            style={{ textAlign: 'left', width: '100%' }}
+            placeholder="https://www.paperless.tax/invite?rid=Rtb0kamvcs7"
+          />
+          {urlInvalid && (
+            <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: 'var(--red)' }}>
+              הקישור חייב להתחיל ב-https://
+            </div>
+          )}
+        </div>
+      </div>
+
+      {TEMPLATE_EDITORS.map(kind => {
+        const base = defaultTemplate(kind);
+        const saved = templates[kind] ?? {};
+        const overridden = saved.subject !== undefined || saved.body !== undefined;
+        return (
+          <div key={kind} style={card}>
+            <details>
+              <summary style={{ cursor: 'pointer' }}>
+                <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)' }}>
+                  {STEP_EMAIL_KIND_LABELS[kind]}
+                </span>
+                <span style={{ fontSize: 'var(--fs-12)', color: overridden ? 'var(--chip-amber-tx)' : 'var(--gray-400)', marginInlineStart: 8 }}>
+                  {overridden ? 'נוסח מותאם' : 'נוסח ברירת מחדל'}
+                </span>
+              </summary>
+
+              <div style={{ marginTop: 14, maxWidth: 640 }}>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10 }}>
+                  {TEMPLATE_HINT[kind]} אפשר לערוך גם לכל שליחה בנפרד, בחלון התצוגה המקדימה.
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                  {PLACEHOLDERS_BY_KIND[kind].map(p => (
+                    <span key={p} style={{ fontSize: 11.5, background: 'var(--gray-100)', color: 'var(--gray-600)', padding: '3px 8px', borderRadius: 6, fontFamily: 'monospace', direction: 'ltr' }}>{p}</span>
+                  ))}
+                </div>
+
+                <Field label="נושא המייל">
+                  <input
+                    value={saved.subject ?? base.subject}
+                    onChange={e => setTemplate(kind, { subject: e.target.value })}
+                  />
+                </Field>
+                <div style={{ marginTop: 12 }}>
+                  <Field label="גוף המייל">
+                    <textarea
+                      rows={10}
+                      value={saved.body ?? base.body}
+                      onChange={e => setTemplate(kind, { body: e.target.value })}
+                      style={{ width: '100%', resize: 'vertical' }}
+                    />
+                  </Field>
+                </div>
+
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button className="btn" disabled={!overridden} onClick={() => resetTemplate(kind)} style={{ fontSize: 'var(--fs-13)' }}>
+                    שחזר ברירת מחדל
+                  </button>
+                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
+                    השינויים נשמרים עם כפתור השמירה למעלה.
+                  </span>
+                </div>
+              </div>
+            </details>
+          </div>
+        );
+      })}
+    </>
   );
 }
 

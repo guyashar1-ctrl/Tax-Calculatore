@@ -1412,6 +1412,7 @@ export default function App() {
             onboardingEvents={onboarding.events}
             onboardingLoading={onboarding.loading}
             advanceOnboardingStep={onboarding.advance}
+            refreshOnboarding={onboarding.refresh}
           />
         )}
 

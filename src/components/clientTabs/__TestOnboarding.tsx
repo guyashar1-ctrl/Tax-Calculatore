@@ -54,12 +54,23 @@ const STEPS: OnboardingStep[] = [
            { key: 'trial_balance', label: 'מאזן בוחן', done: false },
            { key: 'uniform_file', label: 'קובץ מבנה אחיד', done: false },
          ] } }),
+  // ── פייפרלס: טריאז' שטרם נענה (השאלות מוצגות על השלב הזה) ──
   step({ id: 's4', stepType: 'paperless_invite', track: 'tools', scope: 'person', status: 'pending', ball: 'me',
          payload: { paperlessStatus: 'unknown', dataSource: 'unknown' } }),
   step({ id: 's5', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'locked', ball: 'client', dependsOnStepId: 's4' }),
+  // ── פייפרלס: מסלול העברה ממייצג אחר, אחרי טריאז' — כרטיס ההוראות ──
+  step({ id: 's5b', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'pending', ball: 'me',
+         payload: { paperlessStatus: 'other_rep', dataSource: 'paperless' } }),
+  // ── הרשאת תשלום: נעולה, עם דגל "דורש טיפול" ──
   step({ id: 's6', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'locked', ball: 'me', dependsOnStepId: 's5',
          needsAttention: true, dueDate: '2026-08-20',
          payload: { amount: 450, billingStartMonth: '2026-09' } }),
+  // ── הרשאת תשלום: פתוחה, בלי קישור — "הכן מייל" חסום ──
+  step({ id: 's6b', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'pending', ball: 'me',
+         payload: { amount: 780, billingStartMonth: '2026-10' } }),
+  // ── הרשאת תשלום: פתוחה, עם קישור — "הכן מייל" פעיל ──
+  step({ id: 's6c', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'in_progress', ball: 'me',
+         payload: { amount: 1200, billingStartMonth: '2026-09', authUrl: 'https://www.paperless.tax/authorize/demo-123' } }),
   step({ id: 's7', stepType: 'internal_setup', track: 'internal', scope: 'engagement', status: 'pending', ball: 'me',
          payload: { checklist: [
            { key: 'file_numbers', label: 'מספרי תיקים בכרטיס', done: false },
@@ -92,6 +103,7 @@ export default function TestOnboarding() {
           setMsg(`advance(${stepId}, ${action}, ${JSON.stringify(payload ?? {})})`);
           return { ok: true };
         }}
+        refresh={() => setMsg('refresh()')}
       />
     </div>
   );

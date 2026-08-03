@@ -38,6 +38,11 @@ verify_jwt = false
 [functions.weekly-backup]
 verify_jwt = false
 
+# מיילים של שלבי הקליטה (הזמנה לפייפרלס, הרשאת תשלום, תזכורת). אין לה מסלול
+# ציבורי — האימות נעשה בתוכה מה-JWT של הרו"ח, ובלעדיו היא מחזירה 401.
+[functions.send-step-email]
+verify_jwt = false
+
 # ── נקראת מתוך המערכת ע"י משתמש מחובר בלבד ─────────────────────────────────
 [functions.ocr-document]
 verify_jwt = true

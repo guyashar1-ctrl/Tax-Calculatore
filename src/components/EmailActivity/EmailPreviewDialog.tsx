@@ -7,8 +7,15 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 
 interface Props {
-  /** גוף הבקשה ל-send-onboarding-email (requestId/stage/signerId/clientId…). */
+  /** גוף הבקשה לפונקציה (requestId/stage/signerId/clientId/stepId…). */
   body?: Record<string, unknown>;
+  /** פונקציית השרת שבונה ושולחת. ברירת מחדל — מייל הייצוג. */
+  fn?: string;
+  /**
+   * עריכה לפני שליחה — נושא וגוף. התצוגה נבנית מחדש בשרת אחרי כל עריכה,
+   * ולכן מה שרואים אחרי "עדכון התצוגה" הוא בדיוק מה שיישלח.
+   */
+  editable?: boolean;
   /**
    * מייל שנבנה כבר בדפדפן (תזכורת הצעת מחיר) — מוצג כמו שהוא, בלי קריאת
    * תצוגה מקדימה לשרת. הולך יד ביד עם sendVia.
@@ -28,7 +35,7 @@ interface Props {
   readOnly?: boolean;
 }
 
-interface Loaded { subject: string; to: string; from?: string; html: string; }
+interface Loaded { subject: string; to: string; from?: string; html: string; bodyText?: string; }
 
 const ERROR_TEXT: Record<string, string> = {
   'no client email': 'אין כתובת מייל ללקוח בבקשה הזו.',
@@ -37,6 +44,7 @@ const ERROR_TEXT: Record<string, string> = {
   'signer not found': 'לא נמצא חותם עם כתובת מייל.',
   missing_reference_number: 'חסר מספר אסמכתא של הביטוח הלאומי.',
   resend_failed: 'שרת המייל דחה את השליחה.',
+  bad_kind: 'סוג המייל אינו מוכר.',
 };
 
 /**
@@ -53,23 +61,54 @@ async function errText(data: any, error: any): Promise<string> {
   return body?.detail?.message || (code && (ERROR_TEXT[code] || code)) || error?.message || 'הפעולה נכשלה';
 }
 
-export default function EmailPreviewDialog({ body, preloaded, sendVia, heading, onClose, onSent, readOnly }: Props) {
+export default function EmailPreviewDialog({ body, fn, editable, preloaded, sendVia, heading, onClose, onSent, readOnly }: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(preloaded ?? null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  // הטיוטה נטענת מהתצוגה המקדימה הראשונה — הנוסח שהשרת באמת מייצר.
+  const [draftSubject, setDraftSubject] = useState('');
+  const [draftBody, setDraftBody] = useState('');
+  const [dirty, setDirty] = useState(false);
+
+  const fnName = fn ?? 'send-onboarding-email';
+  const overrides = editable ? { subject: draftSubject, body: draftBody } : undefined;
+
+  async function loadPreview(withOverrides?: { subject: string; body: string }) {
+    if (!body) return;
+    try {
+      const { data, error } = await supabase.functions.invoke(fnName, {
+        body: { ...body, preview: true, ...(withOverrides ? { overrides: withOverrides } : {}) },
+      });
+      if (error || !data?.ok) { setError(await errText(data, error)); return; }
+      setError(null);
+      setLoaded({ subject: data.subject, to: data.to, from: data.from, html: data.html, bodyText: data.bodyText });
+      if (!withOverrides) {
+        setDraftSubject(data.subjectText ?? data.subject ?? '');
+        setDraftBody(data.bodyText ?? '');
+      }
+      setDirty(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   useEffect(() => {
     if (preloaded || !body) return;
     let alive = true;
     (async () => {
       try {
-        const { data, error } = await supabase.functions.invoke('send-onboarding-email', {
+        const { data, error } = await supabase.functions.invoke(fnName, {
           body: { ...body, preview: true },
         });
         if (!alive) return;
         if (error || !data?.ok) setError(await errText(data, error));
-        else setLoaded({ subject: data.subject, to: data.to, from: data.from, html: data.html });
+        else {
+          setLoaded({ subject: data.subject, to: data.to, from: data.from, html: data.html, bodyText: data.bodyText });
+          setDraftSubject(data.subjectText ?? data.subject ?? '');
+          setDraftBody(data.bodyText ?? '');
+        }
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : String(e));
       }
@@ -77,6 +116,12 @@ export default function EmailPreviewDialog({ body, preloaded, sendVia, heading, 
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function refreshPreview() {
+    setRefreshing(true);
+    await loadPreview({ subject: draftSubject, body: draftBody });
+    setRefreshing(false);
+  }
 
   async function send() {
     setSending(true);
@@ -90,7 +135,9 @@ export default function EmailPreviewDialog({ body, preloaded, sendVia, heading, 
         return;
       }
       if (!body) { setError('אין מה לשלוח.'); return; }
-      const { data, error } = await supabase.functions.invoke('send-onboarding-email', { body });
+      const { data, error } = await supabase.functions.invoke(fnName, {
+        body: { ...body, ...(overrides ? { overrides } : {}) },
+      });
       if (error || !data?.ok) { setError(await errText(data, error)); return; }
       setSent(true);
       onSent();
@@ -115,6 +162,37 @@ export default function EmailPreviewDialog({ body, preloaded, sendVia, heading, 
           </div>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
         </div>
+
+        {editable && loaded && !sent && (
+          <div style={{ padding: '.7rem .9rem', borderBottom: '1px solid var(--hairline-2)', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+            <label style={{ fontSize: '.78rem', color: 'var(--gray-600)' }}>
+              נושא המייל
+              <input
+                value={draftSubject}
+                onChange={e => { setDraftSubject(e.target.value); setDirty(true); }}
+                style={{ marginTop: 3, width: '100%' }}
+              />
+            </label>
+            <label style={{ fontSize: '.78rem', color: 'var(--gray-600)' }}>
+              גוף המייל
+              <textarea
+                rows={7}
+                value={draftBody}
+                onChange={e => { setDraftBody(e.target.value); setDirty(true); }}
+                style={{ marginTop: 3, width: '100%', resize: 'vertical' }}
+              />
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={refreshing || !dirty}
+                onClick={() => void refreshPreview()}>
+                {refreshing ? 'מרענן…' : 'עדכון התצוגה'}
+              </button>
+              <span style={{ fontSize: '.75rem', color: dirty ? 'var(--warn, #b26a00)' : 'var(--gray-500)' }}>
+                {dirty ? 'התצוגה למטה עדיין מציגה את הנוסח הקודם.' : 'התצוגה למטה היא המייל שיישלח.'}
+              </span>
+            </div>
+          </div>
+        )}
 
         <div style={{ flex: 1, overflow: 'hidden', background: 'var(--gray-100, #eee)', minHeight: 220 }}>
           {loaded ? (

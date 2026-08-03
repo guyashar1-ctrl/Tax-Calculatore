@@ -79,6 +79,8 @@ interface Props {
   onboardingEvents?: OnboardingEvent[];
   onboardingLoading?: boolean;
   advanceOnboardingStep?: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
+  /** טעינה מחדש של הקליטה — אחרי פעולות שאינן עוברות דרך advance. */
+  refreshOnboarding?: () => void;
 }
 
 function newEmptyClient(): Client {
@@ -136,6 +138,7 @@ export default function ClientWorkspace({
   onboardingEvents,
   onboardingLoading,
   advanceOnboardingStep,
+  refreshOnboarding,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
@@ -453,6 +456,7 @@ export default function ClientWorkspace({
             events={onboardingEvents ?? []}
             loading={onboardingLoading}
             advance={advanceOnboardingStep}
+            refresh={refreshOnboarding}
           />
         )}
 
