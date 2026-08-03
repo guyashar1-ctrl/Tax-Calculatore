@@ -18,6 +18,8 @@ export interface QuotationTotals {
   monthly: CategoryTotal;
   annual: CategoryTotal;
   oneTime: CategoryTotal;
+  // יתרות שהריטיינר החודשי לא בלע ונגבות במועד מאוחר (הגשת הדוח וכו')
+  deferred: CategoryTotal;
   // מה שהלקוח באמת ישלם בתקופת הפריסה — 5 תשלומים ולא 12, אם נכנס באוגוסט
   monthlyPeriod: CategoryTotal;
   // התשלום החודשי אחרי תום התקופה (שנה מלאה) — כדי שהלקוח לא יופתע בינואר
@@ -60,7 +62,10 @@ export function itemOriginalPrice(item: QuotationItem): number {
     return round2(item.displayFullPrice * qty);
   }
   if (item.priceBasis === 'annual' && item.annualPrice != null) {
-    const n = clampInstallments(item.installments);
+    // בשורת יתרה העוגן החודשי הוא שנתי ÷ 12 ולא ÷ מספר התשלומים: מה שלא נגבה
+    // בחודשי אינו הנחה אלא יתרה שתיגבה במועד. בלי זה העמוד מציג "הנחה 67%"
+    // ובנשימה הבאה דורש את אותו סכום — וזה בדיוק מה שהמסלול הזה בא למנוע.
+    const n = item.prorationMode === 'deferred' ? DEFAULT_INSTALLMENTS : clampInstallments(item.installments);
     return round2((Math.max(item.annualPrice, item.catalogPrice) * qty) / n);
   }
   return round2(Math.max(item.clientPrice, item.catalogPrice) * qty);
@@ -73,6 +78,7 @@ export function calcTotals(items: QuotationItem[], vatRate: number): QuotationTo
   };
   const monthlyPeriod = empty();
   const monthlyOngoing = empty();
+  const deferred = empty();
   const termsSeen = new Set<number>();
   let totalDiscount = 0;
 
@@ -100,11 +106,19 @@ export function calcTotals(items: QuotationItem[], vatRate: number): QuotationTo
       const ongoingVat = item.vatFlag ? round2(plan.ongoingPerMonth * (vatRate / 100)) : 0;
       add(monthlyOngoing, plan.ongoingPerMonth, ongoingVat);
     }
+
+    // היתרה נוספת מעל החישוב החודשי ולא במקומו: החיוב החודשי נשאר בדיוק כפי
+    // שהיה, ורק מה שנמחל עד היום הופך לסכום גלוי במועד מאוחר.
+    const def = itemDeferred(item, vatRate);
+    if (def) {
+      add(deferred, def.finalAmount, def.vat, def.balance);
+      totalDiscount = round2(totalDiscount + def.discount);
+    }
   }
 
   const installments = termsSeen.size === 1 ? [...termsSeen][0] : null;
   return {
-    ...buckets, monthlyPeriod, monthlyOngoing, installments,
+    ...buckets, monthlyPeriod, monthlyOngoing, deferred, installments,
     hasPartialTerm: [...termsSeen].some(n => n !== DEFAULT_INSTALLMENTS),
     changesAfterPeriod: Math.abs(monthlyOngoing.withVat - buckets.monthly.withVat) >= 1,
     totalDiscount, vatRate,
@@ -191,6 +205,92 @@ export function monthlyFromAnnual(annualPrice: number, installments: number, mod
 export function clampInstallments(n: number | undefined): number {
   if (!n || !Number.isFinite(n)) return DEFAULT_INSTALLMENTS;
   return Math.min(60, Math.max(1, Math.round(n)));
+}
+
+// ─── יתרה לתשלום מאוחר ──────────────────────────────────────────────────────
+// לקוח שנכנס בספטמבר משלם 4 תשלומים על דוח שנתי ששווה 1,800 ₪. "יחסי" גובה
+// 600 ₪ ומוחל על 1,200 ₪ בלי שאיש יראה את זה; "פריסה מלאה" הופכת את החודשי
+// ל-900 ₪ ומבריחה את הלקוח. כאן החודשי נשאר 150 ₪, והיתרה נגבית במועד —
+// עם אפשרות להנחה בשקלים על היתרה בלבד.
+//
+// ‼ התכונה שמצדיקה את כל המבנה: בשנה הבאה אותה שורה היא 12 תשלומים, היתרה
+// יוצאת אפס והסעיף נעלם לבדו — בלי אף הגדרה ובלי שיזכרו לכבות אותו.
+
+export const DEFAULT_DEFERRED_TRIGGER = 'עם הגשת הדוח השנתי';
+
+export interface DeferredBreakdown {
+  totalValue: number;        // ערך השירות — אחרי ההנחה באחוזים של השורה
+  includedInMonthly: number; // מה שהריטיינר בולע
+  balance: number;           // יתרה לפני הנחה
+  discount: number;          // הנחה על היתרה (₪)
+  finalAmount: number;       // לתשלום במועד
+  vat: number;
+  withVat: number;
+  trigger: string;           // הטריגר, עם ברירת המחדל כבר מוחלת
+}
+
+export function itemDeferred(item: QuotationItem, vatRate: number): DeferredBreakdown | null {
+  if (item.prorationMode !== 'deferred') return null;
+  if (item.priceBasis !== 'annual' || item.annualPrice == null) return null;
+
+  const qty = item.quantity || 1;
+  const afterPercent = item.discountPercent ? 1 - item.discountPercent / 100 : 1;
+  const totalValue = round2(item.annualPrice * qty * afterPercent);
+  // itemFinalPrice כבר כולל כמות והנחה באחוזים — אסור להכפיל אותן שוב
+  const includedInMonthly = round2(itemFinalPrice(item) * clampInstallments(item.installments));
+  const balance = Math.max(0, round2(totalValue - includedInMonthly));
+  const discount = Math.min(Math.max(0, item.deferredDiscount ?? 0), balance);
+  const finalAmount = round2(balance - discount);
+  if (finalAmount <= 0) return null;
+
+  const vat = item.vatFlag ? round2(finalAmount * (vatRate / 100)) : 0;
+  return {
+    totalValue, includedInMonthly, balance, discount, finalAmount,
+    vat, withVat: round2(finalAmount + vat),
+    trigger: item.deferredTrigger?.trim() || DEFAULT_DEFERRED_TRIGGER,
+  };
+}
+
+export interface DeferredGroup {
+  trigger: string;
+  lines: { item: QuotationItem; breakdown: DeferredBreakdown }[];
+  total: CategoryTotal;
+}
+
+// קיבוץ לפי מועד הגבייה: כמה שורות שנגבות באותו מועד הן סכום אחד ללקוח,
+// ומועדים שונים הם סכומים נפרדים — אחרת נוצר סכום שלא נגבה אף פעם כמות שהוא.
+export function deferredGroups(items: QuotationItem[], vatRate: number): DeferredGroup[] {
+  const groups: DeferredGroup[] = [];
+  for (const item of items) {
+    if (item.category === 'included') continue;
+    const breakdown = itemDeferred(item, vatRate);
+    if (!breakdown) continue;
+    let g = groups.find(x => x.trigger === breakdown.trigger);
+    if (!g) {
+      g = { trigger: breakdown.trigger, lines: [], total: { fullBeforeVat: 0, discount: 0, beforeVat: 0, vat: 0, withVat: 0 } };
+      groups.push(g);
+    }
+    g.lines.push({ item, breakdown });
+    g.total.fullBeforeVat = round2(g.total.fullBeforeVat + breakdown.balance);
+    g.total.discount = round2(g.total.discount + breakdown.discount);
+    g.total.beforeVat = round2(g.total.beforeVat + breakdown.finalAmount);
+    g.total.vat = round2(g.total.vat + breakdown.vat);
+    g.total.withVat = round2(g.total.withVat + breakdown.withVat);
+  }
+  return groups;
+}
+
+// חמש השורות שהלקוח רואה מתחת לשורת השירות — אותו נוסח בעמוד וב-PDF.
+// שורת ההנחה מופיעה רק כשיש הנחה. הסכומים מוחזרים כמספרים: ה-PDF מנסח מטבע
+// אחרת (ש״ח, כי ל-₪ אין גליף בפונט העברי).
+export function deferredDetailLines(b: DeferredBreakdown): { label: string; amount: number; negative?: boolean; strong?: boolean }[] {
+  return [
+    { label: 'ערך השירות', amount: b.totalValue },
+    { label: 'כלול בשכר החודשי', amount: b.includedInMonthly },
+    { label: 'יתרה', amount: b.balance },
+    ...(b.discount >= 1 ? [{ label: 'הנחה על היתרה', amount: b.discount, negative: true }] : []),
+    { label: `לתשלום ${b.trigger}`, amount: b.finalAmount, strong: true },
+  ];
 }
 
 // ─── עבודה עם חודשים בפורמט 'YYYY-MM' ───

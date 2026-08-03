@@ -15,6 +15,7 @@ import {
   calcTotals, formatILS, itemFinalPrice, itemOriginalPrice, itemDisplayName,
   monthlyPlan, clampInstallments,
   currentMonthKey, monthsLeftInYear, formatMonth, formatMonthRange, addMonths,
+  itemDeferred, deferredDetailLines, DEFAULT_DEFERRED_TRIGGER,
 } from '../../utils/quotationCalc';
 import { deriveQuotationBrand } from './quotationBranding';
 import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
@@ -136,6 +137,15 @@ function applyPlanToItem(it: QuotationItem, plan: BillingPlan): QuotationItem {
     installments: plan.installments,
   };
   if (it.prorationMode === 'manual') return next;
+  // שורת יתרה: התשלום החודשי הוא שנתי ÷ 12 ואינו מושפע ממספר התשלומים —
+  // מה שלא נגבה חודשית הופך ליתרה. זו גם הסיבה שהיתרה מתאפסת לבדה כשהפריסה
+  // מגיעה ל-12 תשלומים, בלי שאיש צריך לכבות משהו.
+  if (it.prorationMode === 'deferred') {
+    if (next.priceBasis === 'annual' && it.annualPrice != null) {
+      next.clientPrice = r2(it.annualPrice / DEFAULT_INSTALLMENTS);
+    }
+    return next;
+  }
   next.prorationMode = 'full';
   if (next.priceBasis === 'annual' && it.annualPrice != null) {
     next.clientPrice = r2(it.annualPrice / plan.installments);
@@ -820,6 +830,7 @@ export default function QuotationBuilder({
                 suffix={totals.installments && totals.installments !== DEFAULT_INSTALLMENTS ? `× ${totals.installments}` : 'לחודש'} />
               <TotalChip label="שנתי" value={totals.annual.withVat} suffix="לשנה" />
               <TotalChip label="חד־פעמי" value={totals.oneTime.withVat} />
+              {totals.deferred.withVat > 0 && <TotalChip label="יתרה במועד" value={totals.deferred.withVat} />}
               {totals.totalDiscount > 0 && (
                 <span style={{ fontSize: 'var(--fs-12)', color: 'var(--green, #059669)', marginInlineStart: 'auto' }}>
                   הנחה {formatILS(Math.round(totals.totalDiscount))}
@@ -1242,6 +1253,7 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
   const isMonthly = item.category === 'monthly';
   const basis: PriceBasis = item.priceBasis ?? 'monthly';
   const isManual = item.prorationMode === 'manual';
+  const isDeferred = item.prorationMode === 'deferred';
   const installments = clampInstallments(item.installments ?? plan.installments);
   const qty = item.quantity || 1;
 
@@ -1249,7 +1261,10 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
   // כדי שהמספר שעל המסך לא יקפוץ לאפס, ואז התשלום החודשי נגזר ממנו מחדש.
   function switchBasis(next: PriceBasis) {
     if (next === 'monthly') {
-      onChange({ priceBasis: 'monthly', annualPrice: undefined, prorationMode: 'full' });
+      onChange({
+        priceBasis: 'monthly', annualPrice: undefined, prorationMode: 'full',
+        deferredTrigger: undefined, deferredDiscount: undefined,
+      });
       return;
     }
     const annual = item.annualPrice ?? Math.round(item.clientPrice * installments);
@@ -1260,14 +1275,30 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
   }
 
   function setAnnual(annual: number) {
-    onChange(isManual
-      ? { annualPrice: annual }
-      : { annualPrice: annual, clientPrice: r2(annual / installments) });
+    if (isManual) { onChange({ annualPrice: annual }); return; }
+    // בשורת יתרה החודשי נגזר משנתי ÷ 12, וההפרש נכנס ליתרה
+    onChange({ annualPrice: annual, clientPrice: r2(annual / (isDeferred ? DEFAULT_INSTALLMENTS : installments)) });
   }
 
-  // עריכה ידנית של התשלום החודשי מנתקת את השורה מהנוסחה — זו כוונה, לא טעות
+  // עריכה ידנית של התשלום החודשי מנתקת את השורה מהנוסחה — זו כוונה, לא טעות.
+  // בשורת יתרה זו לא ניתוק אלא הקלט העיקרי: כמה הריטיינר בולע, והשאר יתרה.
   function setMonthly(value: number) {
+    if (isDeferred) { onChange({ clientPrice: value }); return; }
     onChange(basis === 'annual' ? { clientPrice: value, prorationMode: 'manual' } : { clientPrice: value });
+  }
+
+  // מעבר בין "פריסת המחיר השנתי" ל"יתרה לתשלום מאוחר". החודשי נגזר מחדש בכל
+  // מעבר, כי זה בדיוק ההבדל בין השניים: 1,800 ÷ 4 מול 1,800 ÷ 12.
+  function switchProration(mode: 'full' | 'deferred') {
+    const annual = item.annualPrice ?? 0;
+    if (mode === 'deferred') {
+      onChange({ prorationMode: 'deferred', clientPrice: r2(annual / DEFAULT_INSTALLMENTS) });
+      return;
+    }
+    onChange({
+      prorationMode: 'full', clientPrice: r2(annual / installments),
+      deferredTrigger: undefined, deferredDiscount: undefined,
+    });
   }
 
   // מחיר יעד: בוחרים כמה זה יעלה בסוף, והמערכת גוזרת את ההנחה. גיא חושב
@@ -1327,6 +1358,29 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
                 onChange={e => setAnnual(Math.max(0, Number(e.target.value) || 0))} />
             </label>
           )}
+        </div>
+      )}
+      {/* מה קורה עם ההפרש בין המחיר השנתי למה שייגבה בפועל: לפרוס הכול על
+          פחות חודשים (החודשי עולה), או להשאיר את החודשי נמוך ולגבות יתרה. */}
+      {isMonthly && basis === 'annual' && !isManual && (
+        <label style={{ ...miniLabel, marginBottom: 6 }}>מה עם ההפרש עד המחיר השנתי
+          <select value={isDeferred ? 'deferred' : 'full'} style={miniInput}
+            onChange={e => switchProration(e.target.value as 'full' | 'deferred')}>
+            <option value="full">פריסת המחיר השנתי המלא על {installments} תשלומים</option>
+            <option value="deferred">יתרה לתשלום במועד מאוחר</option>
+          </select>
+        </label>
+      )}
+      {isMonthly && basis === 'annual' && isDeferred && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
+          <label style={miniLabel}>מתי נגבית היתרה
+            <input value={item.deferredTrigger ?? ''} placeholder={DEFAULT_DEFERRED_TRIGGER} style={miniInput}
+              onChange={e => onChange({ deferredTrigger: e.target.value || undefined })} />
+          </label>
+          <label style={miniLabel}>הנחה על היתרה (₪)
+            <input type="number" min={0} value={item.deferredDiscount ?? ''} style={miniInput}
+              onChange={e => onChange({ deferredDiscount: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })} />
+          </label>
         </div>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: item.billingType === 'per_unit' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 6 }}>
@@ -1393,6 +1447,7 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
         </button>
       )}
       <PlanHint item={item} />
+      <DeferredHint item={item} vatRate={vatRate} />
       <input placeholder="הערה שתוצג ללקוח (אופציונלי)" value={item.clientNote ?? ''} onChange={e => onChange({ clientNote: e.target.value })} style={{ marginTop: 6, fontSize: 'var(--fs-12)' }} />
       <div style={{ textAlign: 'end', marginTop: 6, fontSize: 'var(--fs-12)', color: 'var(--gray-600)' }}>
         {item.category === 'included' ? 'כלול' : <>סה״כ שורה: <b>{formatILS(withVat)}</b> <span style={{ color: 'var(--gray-400)' }}>כולל מע״מ</span></>}
@@ -1428,6 +1483,33 @@ function ClientPriceHint({ item }: { item: QuotationItem }) {
           <b>{formatILS(Math.round(final))}</b> בלי הנחה מוצגת — למילוי עוגן: "מחיר לפני הנחה" או הנחה %.
         </>
       )}
+    </div>
+  );
+}
+
+// חמש השורות שהלקוח יראה, בזמן שגיא מתמחר. בלי זה הוא צריך להחזיק בראש
+// 1,800 פחות 4×150 פחות 200 — וזו בדיוק החשבונאות שהוא בא לתת ללקוח בכתב.
+function DeferredHint({ item, vatRate }: { item: QuotationItem; vatRate: number }) {
+  if (item.prorationMode !== 'deferred') return null;
+  const b = itemDeferred(item, vatRate);
+  if (!b) {
+    return (
+      <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', borderRadius: 8, padding: '5px 9px', lineHeight: 1.6, background: 'var(--gray-50)', color: 'var(--gray-500)', border: '1px solid var(--gray-200)' }}>
+        אין יתרה — התשלום החודשי מכסה את מלוא ערך השירות. סעיף היתרה לא יוצג ללקוח.
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', borderRadius: 8, padding: '6px 9px', lineHeight: 1.7, background: 'var(--blue-light, var(--gray-50))', border: '1px solid var(--gray-200)', color: 'var(--gray-600)' }}>
+      {deferredDetailLines(b).map(r => (
+        <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontWeight: r.strong ? 600 : 400, color: r.strong ? 'var(--ink-1)' : undefined }}>
+          <span>{r.label}</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.negative ? '−' : ''}{formatILS(Math.round(r.amount))}</span>
+        </div>
+      ))}
+      <div style={{ color: 'var(--gray-400)', marginTop: 2 }}>
+        {item.vatFlag ? `+ מע״מ ${formatILS(Math.round(b.vat))} · סה״כ ${formatILS(Math.round(b.withVat))}` : 'ללא מע״מ'}
+      </div>
     </div>
   );
 }

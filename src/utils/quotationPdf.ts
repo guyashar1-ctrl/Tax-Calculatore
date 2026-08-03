@@ -9,7 +9,10 @@ import { embedPdfFonts, layoutMixed, measureMixed, type PdfFonts } from './pdfHe
 import type { QuotationItem, FutureService, QuotationRepresentation } from '../types/quotations';
 import { SERVICE_CATEGORY_LABELS } from '../types/quotations';
 import { REP_AUTHORITY_LABELS, REP_AUTHORITY_ORDER } from '../types';
-import { calcTotals, itemFinalPrice, itemOriginalPrice, itemDisplayName, monthlyPlan, formatMonth, formatMonthRange } from './quotationCalc';
+import {
+  calcTotals, itemFinalPrice, itemOriginalPrice, itemDisplayName, monthlyPlan, formatMonth, formatMonthRange,
+  itemDeferred, deferredGroups, deferredDetailLines,
+} from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
 
 export interface QuotationPdfData {
@@ -116,7 +119,31 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     y -= 15;
     const meta = `${SERVICE_CATEGORY_LABELS[item.category]}${item.billingType === 'per_unit' && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}${item.description ? ` · ${item.description}` : ''}`;
     rtl(meta, 8.5, gray, y);
-    y -= 18;
+    y -= 15;
+    // ההערה שהרו"ח כתב לשורה מוצגת בעמוד ההצעה — ולכן חייבת להופיע גם במסמך
+    // שנחתם, אחרת נחתם משהו אחר ממה שנקרא.
+    if (item.clientNote?.trim()) {
+      for (const line of wrapText(item.clientNote, 95)) {
+        ensureSpace(14);
+        rtl(line, 9, accent, y);
+        y -= 12;
+      }
+    }
+    // פירוט היתרה — חמש שורות, אותו נוסח כמו בעמוד ההצעה
+    const def = itemDeferred(item, data.vatRate);
+    if (def) {
+      for (const r of deferredDetailLines(def)) {
+        ensureSpace(14);
+        const size = r.strong ? 9.5 : 9;
+        const color = r.strong ? ink : gray;
+        rtl(r.label, size, color, y);
+        // המינוס בסוף ולא בהתחלה — כמו בשורת ההנחה בסיכום; מנוע ה-bidi הפשוט
+        // מזיז סימן שפותח שורה מעורבת
+        ltr(r.negative ? `${money(r.amount)}-` : money(r.amount), size, color, y);
+        y -= 12;
+      }
+    }
+    y -= 3;
   }
 
   if (included.length > 0) {
@@ -132,12 +159,17 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   // ── סיכום: לפני מע"מ, מע"מ בנפרד, סה"כ ──
   y -= 10;
   sectionLine('סיכום התמחור');
-  const blocks: [string, typeof totals.monthly, string][] = [];
+  const blocks: [string, typeof totals.monthly, string, string?][] = [];
   if (totals.monthly.withVat > 0) blocks.push(['חודשי', totals.monthly, 'לחודש']);
   if (totals.annual.withVat > 0) blocks.push(['שנתי', totals.annual, 'לשנה']);
   if (totals.oneTime.withVat > 0) blocks.push(['חד־פעמי', totals.oneTime, '']);
+  // ‼ בלוק נפרד לכל מועד גבייה, אחרון ברשימה ולעולם לא מאוחד עם "חד־פעמי" —
+  // חד־פעמי נקרא כמשהו שמשלמים עכשיו, והיתרה היא בדיוק ההפך
+  for (const g of deferredGroups(data.items, data.vatRate)) {
+    blocks.push([`לתשלום ${g.trigger}`, g.total, '', `לא נגבה עכשיו. הסכום ייגבה ${g.trigger}, ואינו חלק מהתשלום החודשי.`]);
+  }
   const green = rgb(0.02, 0.47, 0.34);
-  for (const [label, t, suffix] of blocks) {
+  for (const [label, t, suffix, note] of blocks) {
     ensureSpace(88);
     rtl(label, 11.5, ink, y); y -= 15;
     // סדר קבוע כמו בעמוד ובמייל: מחיר מלא ← הנחה ← אחרי הנחה ← מע"מ ← סה"כ
@@ -162,9 +194,18 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
         y -= 13;
       }
     }
+    if (note) {
+      for (const line of wrapText(note, 95)) {
+        ensureSpace(16);
+        rtl(line, 9, gray, y);
+        y -= 13;
+      }
+    }
     y -= 4;
   }
-  rtl('חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד. הסכומים הסופיים כוללים מע״מ.', 8.5, gray, y);
+  rtl(totals.deferred.withVat > 0
+    ? 'חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד, וכך גם סכום שנגבה במועד מאוחר. הסכומים הסופיים כוללים מע״מ.'
+    : 'חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד. הסכומים הסופיים כוללים מע״מ.', 8.5, gray, y);
   y -= 20;
 
   // ── שירותים עתידיים (מחירון ידוע מראש) ──

@@ -38,9 +38,12 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
   // ה"כלול במחיר" מסומן ככזה: זו הטבה, ושווה שתיראה כבר כאן.
   const priced = data.items.filter(i => i.category !== 'included');
   const included = data.items.filter(i => i.category === 'included');
-  const serviceRow = (label: string, tag?: string) => `<tr>
+  // ההערה לשורה מופיעה בעמוד ההצעה, ולכן גם כאן — הלקוח קורא את המייל קודם,
+  // ו"כולל שנתיים אחורה" ליד שם השירות הוא לרוב בדיוק מה שסגר את העסקה.
+  const serviceRow = (label: string, tag?: string, note?: string) => `<tr>
       <td dir="rtl" align="right" style="text-align:right;padding:5px 0;font-family:${f};font-size:14px;color:${brand.ink};line-height:1.5;">
         <span style="color:${brand.accent};font-weight:700;">✓</span>&nbsp;${esc(label)}${tag ? `<span style="font-size:11.5px;color:${brand.muted};">&nbsp;·&nbsp;${esc(tag)}</span>` : ''}
+        ${note ? `<div dir="rtl" style="text-align:right;font-family:${f};font-size:12px;color:${brand.accent};line-height:1.5;padding:2px 18px 0 0;">${esc(note)}</div>` : ''}
       </td>
     </tr>`;
 
@@ -49,8 +52,8 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
       <tr><td dir="rtl" align="right" style="text-align:right;padding:16px 18px 8px;font-family:${f};font-size:11px;font-weight:700;letter-spacing:.08em;color:${brand.muted};">מה תקבל במסגרת הליווי</td></tr>
       <tr><td dir="rtl" align="right" style="text-align:right;padding:0 18px 14px;">
         <table dir="rtl" role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          ${priced.map(i => serviceRow(itemDisplayName(i))).join('')}
-          ${included.map(i => serviceRow(itemDisplayName(i), 'כלול ללא תוספת')).join('')}
+          ${priced.map(i => serviceRow(itemDisplayName(i), undefined, i.clientNote?.trim() || undefined)).join('')}
+          ${included.map(i => serviceRow(itemDisplayName(i), 'כלול ללא תוספת', i.clientNote?.trim() || undefined)).join('')}
         </table>
       </td></tr>
     </table>

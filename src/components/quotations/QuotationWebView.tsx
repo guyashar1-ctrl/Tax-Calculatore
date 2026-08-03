@@ -12,6 +12,7 @@ import type { QuotationBrand } from './quotationBranding';
 import {
   calcTotals, itemFinalPrice, itemOriginalPrice, formatILS, itemDisplayName,
   monthlyPlan, formatMonth, formatMonthRange,
+  itemDeferred, deferredGroups, deferredDetailLines,
 } from '../../utils/quotationCalc';
 import SignaturePad from '../SignaturePad';
 
@@ -180,7 +181,7 @@ export default function QuotationWebView({
             <SectionLabel brand={brand}>מה תקבל במסגרת הליווי</SectionLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
               {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>טרם נוספו שירותים להצעה.</div>}
-              {priced.map(item => <ServiceCard key={item.id} item={item} brand={brand} compact={compact} />)}
+              {priced.map(item => <ServiceCard key={item.id} item={item} brand={brand} compact={compact} vatRate={data.vatRate} />)}
             </div>
 
             {included.length > 0 && (
@@ -244,6 +245,18 @@ export default function QuotationWebView({
               )}
               {totals.annual.withVat > 0 && <PriceBlock brand={brand} label="שנתי" t={totals.annual} vatRate={data.vatRate} suffix="לשנה" compact={compact} />}
               {totals.oneTime.withVat > 0 && <PriceBlock brand={brand} label="חד־פעמי" t={totals.oneTime} vatRate={data.vatRate} suffix="" compact={compact} />}
+              {/* ‼ יתרה לתשלום מאוחר היא בלוק נפרד ולעולם לא חלק מ"חד־פעמי":
+                  "חד־פעמי" נקרא כמשהו שמשלמים עכשיו, וזה בדיוק מה שזה לא.
+                  קבוצה לכל מועד גבייה — הדוח השנתי והצהרת ההון אינם אותו תשלום. */}
+              {deferredGroups(data.items, data.vatRate).map(g => (
+                <PriceBlock key={g.trigger} brand={brand} label={`לתשלום ${g.trigger}`} t={g.total}
+                  vatRate={data.vatRate} suffix="" compact={compact}
+                  footnote={
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${brand.border}`, fontSize: 12.5, color: brand.muted, lineHeight: 1.65 }}>
+                      לא נגבה עכשיו. הסכום ייגבה {g.trigger}, ואינו חלק מהתשלום החודשי.
+                    </div>
+                  } />
+              ))}
               {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>—</div>}
             </div>
             {(() => {
@@ -252,6 +265,7 @@ export default function QuotationWebView({
                 totals.monthly.discount >= 1 ? `${formatILS(Math.round(totals.monthly.discount))} בכל חודש` : '',
                 totals.annual.discount >= 1 ? `${formatILS(Math.round(totals.annual.discount))} בשנה` : '',
                 totals.oneTime.discount >= 1 ? `${formatILS(Math.round(totals.oneTime.discount))} חד־פעמי` : '',
+                totals.deferred.discount >= 1 ? `${formatILS(Math.round(totals.deferred.discount))} על היתרה` : '',
               ].filter(Boolean);
               if (parts.length === 0) return null;
               return (
@@ -261,7 +275,7 @@ export default function QuotationWebView({
               );
             })()}
             <div style={{ marginTop: 14, fontSize: 11.5, color: brand.muted, lineHeight: 1.6 }}>
-              חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד. הסכומים הסופיים כוללים מע״מ.
+              חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד{totals.deferred.withVat > 0 ? ', וכך גם סכום שנגבה במועד מאוחר' : ''}. הסכומים הסופיים כוללים מע״מ.
             </div>
           </div>
 
@@ -478,8 +492,9 @@ function SectionLabel({ children, brand }: { children: React.ReactNode; brand: Q
   return <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.08em', color: brand.muted }}>{children}</div>;
 }
 
-function ServiceCard({ item, brand, compact }: { item: QuotationItem; brand: QuotationBrand; compact?: boolean }) {
+function ServiceCard({ item, brand, compact, vatRate }: { item: QuotationItem; brand: QuotationBrand; compact?: boolean; vatRate: number }) {
   const finalBeforeVat = itemFinalPrice(item);
+  const deferred = itemDeferred(item, vatRate);
   const original = itemOriginalPrice(item);
   // עוגן מחיר: מציגים את המחיר המלא מחוק לצד המחיר שאחרי ההנחה
   const hasDiscount = original - finalBeforeVat >= 1;
@@ -489,35 +504,65 @@ function ServiceCard({ item, brand, compact }: { item: QuotationItem; brand: Quo
   // השנתי. החלטת גיא: הלקוח רואה מחיר אחד, מה שהוא משלם בחודש.
   const spread = item.category === 'monthly' && item.priceBasis === 'annual' ? monthlyPlan(item) : null;
   return (
-    <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: compact ? 14 : 16, display: 'flex', gap: 12, alignItems: 'flex-start', background: brand.cardBg }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: compact ? 14.5 : 15.5, fontWeight: 600, marginBottom: 3, color: brand.ink }}>{itemDisplayName(item)}</div>
-        {item.description && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.description}</div>}
-        {item.clientNote && <div style={{ fontSize: 12, color: brand.accent, marginTop: 5 }}>{item.clientNote}</div>}
-        <div style={{ fontSize: 11, color: brand.muted, marginTop: 6, opacity: .8 }}>
-          {SERVICE_CATEGORY_LABELS[item.category]} · {spread
-            ? `${spread.installments} תשלומים`
-            : CATEGORY_BLURB[item.category]}
-          {perUnit && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}
+    <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: compact ? 14 : 16, background: brand.cardBg }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: compact ? 14.5 : 15.5, fontWeight: 600, marginBottom: 3, color: brand.ink }}>{itemDisplayName(item)}</div>
+          {item.description && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.description}</div>}
+          {item.clientNote && <div style={{ fontSize: 12, color: brand.accent, marginTop: 5 }}>{item.clientNote}</div>}
+          <div style={{ fontSize: 11, color: brand.muted, marginTop: 6, opacity: .8 }}>
+            {SERVICE_CATEGORY_LABELS[item.category]} · {spread
+              ? `${spread.installments} תשלומים`
+              : CATEGORY_BLURB[item.category]}
+            {perUnit && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}
+          </div>
+        </div>
+        {/* סדר קריאה קבוע: מחיר מלא מחוק ← תגית הנחה ← מחיר סופי גדול */}
+        <div style={{ textAlign: 'end', whiteSpace: 'nowrap' }}>
+          {hasDiscount && (
+            <>
+              <div style={{ fontSize: 13, color: brand.muted, textDecoration: 'line-through', textDecorationColor: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>
+                {formatILS(Math.round(original))}
+              </div>
+              <div style={{ display: 'inline-block', margin: '3px 0', background: 'rgba(16,185,129,.12)', color: '#047857', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>
+                הנחה {discountPct}%
+              </div>
+            </>
+          )}
+          <div style={{ fontSize: compact ? 17 : 19, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: hasDiscount ? '#047857' : brand.ink, letterSpacing: '-.01em' }}>
+            {formatILS(Math.round(finalBeforeVat))}
+          </div>
+          <div style={{ fontSize: 10.5, color: brand.muted }}>{item.vatFlag ? '+ מע״מ' : 'ללא מע״מ'}</div>
         </div>
       </div>
-      {/* סדר קריאה קבוע: מחיר מלא מחוק ← תגית הנחה ← מחיר סופי גדול */}
-      <div style={{ textAlign: 'end', whiteSpace: 'nowrap' }}>
-        {hasDiscount && (
-          <>
-            <div style={{ fontSize: 13, color: brand.muted, textDecoration: 'line-through', textDecorationColor: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>
-              {formatILS(Math.round(original))}
-            </div>
-            <div style={{ display: 'inline-block', margin: '3px 0', background: 'rgba(16,185,129,.12)', color: '#047857', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>
-              הנחה {discountPct}%
-            </div>
-          </>
-        )}
-        <div style={{ fontSize: compact ? 17 : 19, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: hasDiscount ? '#047857' : brand.ink, letterSpacing: '-.01em' }}>
-          {formatILS(Math.round(finalBeforeVat))}
+      {deferred && <DeferredDetail b={deferred} brand={brand} compact={compact} />}
+    </div>
+  );
+}
+
+// פירוט היתרה מתחת לשורת השירות: מה שווה השירות, מה כבר כלול בחודשי, ומה
+// נשאר לתשלום. חמש שורות בדיוק — זה הנוסח שגיא מקריא ללקוח בטלפון.
+function DeferredDetail({ b, brand, compact }: {
+  b: NonNullable<ReturnType<typeof itemDeferred>>; brand: QuotationBrand; compact?: boolean;
+}) {
+  const rows = deferredDetailLines(b);
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${brand.border}` }}>
+      {rows.map(r => (
+        <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, padding: '2px 0' }}>
+          <span style={{
+            fontSize: compact ? 12 : 12.5,
+            fontWeight: r.strong ? 600 : 400,
+            color: r.strong ? brand.ink : r.negative ? '#047857' : brand.muted,
+          }}>{r.label}</span>
+          <span style={{
+            fontSize: compact ? 12.5 : 13,
+            fontWeight: r.strong ? 600 : 400,
+            fontVariantNumeric: 'tabular-nums',
+            color: r.strong ? brand.ink : r.negative ? '#047857' : brand.muted,
+          }}>{r.negative ? '−' : ''}{formatILS(Math.round(r.amount))}</span>
         </div>
-        <div style={{ fontSize: 10.5, color: brand.muted }}>{item.vatFlag ? '+ מע״מ' : 'ללא מע״מ'}</div>
-      </div>
+      ))}
     </div>
   );
 }

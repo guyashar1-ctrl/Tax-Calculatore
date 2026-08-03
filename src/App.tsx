@@ -72,6 +72,7 @@ import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import TestExecutionCenter from './components/signatureRequest/__TestExecutionCenter';
 import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
+import TestDeferred from './components/quotations/__TestDeferred';
 import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
@@ -185,6 +186,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-onboarding')) {
     return <TestOnboarding />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-deferred')) {
+    return <TestDeferred />;
   }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {
