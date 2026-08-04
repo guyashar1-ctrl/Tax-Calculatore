@@ -86,6 +86,8 @@ interface Props {
   refreshOnboarding?: () => void;
   /** פתיחת חלון מכתב השחרור לרו"ח הקודם, משלב הקליטה של הלקוח. */
   onOpenReleaseLetter?: (clientId: string, stepId?: string) => void;
+  /** קפיצה למרכז הייצוג של הלקוח — מהכרטיס, בלי לעבור דרך מסך הלקוחות. */
+  onOpenRepresentation?: (clientId: string) => void;
 }
 
 function newEmptyClient(): Client {
@@ -146,6 +148,7 @@ export default function ClientWorkspace({
   advanceOnboardingStep,
   refreshOnboarding,
   onOpenReleaseLetter,
+  onOpenRepresentation,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
@@ -315,11 +318,25 @@ export default function ClientWorkspace({
                 {client.city && <span>{client.city}</span>}
               </div>
               {/* בקשת ייצוג בתהליך — שורה שקטה אחת, לא כרטיס ולא לוח מחוונים (§4.13).
-                  "ממתין לבדיקתך" נצבע כי אז הכדור אצלי ואף אחד לא יזכיר לי. */}
+                  "ממתין לבדיקתך" נצבע כי אז הכדור אצלי ואף אחד לא יזכיר לי.
+                  ‼ כשיש לאן — השורה היא קישור למרכז הייצוג. סטטוס שרק מדווח
+                  ולא מוביל לפעולה שולח את הרו"ח לחפש את הדרך במסך אחר. */}
               {status !== 'active' && (
-                <div className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' ? 'is-mine' : ''}`}>
-                  בקשת ייצוג · {REPRESENTATION_STATUS_LABELS[status]}
-                </div>
+                onOpenRepresentation ? (
+                  <button
+                    type="button"
+                    className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' ? 'is-mine' : ''}`}
+                    onClick={() => onOpenRepresentation(client.id)}
+                    style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer', textAlign: 'start' }}
+                    title="למרכז הייצוג"
+                  >
+                    בקשת ייצוג · {REPRESENTATION_STATUS_LABELS[status]} ←
+                  </button>
+                ) : (
+                  <div className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' ? 'is-mine' : ''}`}>
+                    בקשת ייצוג · {REPRESENTATION_STATUS_LABELS[status]}
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -507,6 +524,12 @@ export default function ClientWorkspace({
             }}
             onPrepareReleaseLetter={onOpenReleaseLetter
               ? (stepId) => onOpenReleaseLetter(client.id, stepId)
+              : undefined}
+            repStatusLabel={client.representationStatus
+              ? `בקשת ייצוג · ${REPRESENTATION_STATUS_LABELS[status]}`
+              : undefined}
+            onOpenRepresentation={onOpenRepresentation
+              ? () => onOpenRepresentation(client.id)
               : undefined}
           />
         )}

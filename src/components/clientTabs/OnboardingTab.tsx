@@ -43,6 +43,10 @@ interface Props {
   prevAccountant?: { name?: string; email?: string; phone?: string };
   /** פתיחת חלון מכתב השחרור. חסר ⇒ הכפתור לא מוצג (מסך הבדיקה). */
   onPrepareReleaseLetter?: (stepId: string) => void;
+  /** מצב בקשת הייצוג בשפת הייצוג ("ממתין למילוי הלקוח") — לא בשפת השלב הגנרי. */
+  repStatusLabel?: string;
+  /** קפיצה למרכז הייצוג — המסך שבו העבודה באמת נעשית. */
+  onOpenRepresentation?: () => void;
 }
 
 const TONE_COLOR: Record<string, string> = {
@@ -109,7 +113,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 
 export default function OnboardingTab({
   clientId, engagements, steps, events, loading, advance, refresh,
-  prevAccountant, onPrepareReleaseLetter,
+  prevAccountant, onPrepareReleaseLetter, repStatusLabel, onOpenRepresentation,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busyStepId, setBusyStepId] = useState<string | null>(null);
@@ -362,8 +366,14 @@ export default function OnboardingTab({
                   )}
                   {menuStepId === step.id && (
                     <>
-                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleSkip(step)}>דלג</button>
-                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleBlock(step)}>חסום</button>
+                      {/* ‼ שלב הייצוג מסונכרן מהשרת — "דלג" ו"חסום" ידניים היו
+                          נדרסים בטריגר הבא ומשקרים עד אז. נשארת רק הערה. */}
+                      {step.stepType !== 'representation' && (
+                        <>
+                          <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleSkip(step)}>דלג</button>
+                          <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleBlock(step)}>חסום</button>
+                        </>
+                      )}
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleNote(step)}>הערה</button>
                     </>
                   )}
@@ -423,6 +433,20 @@ export default function OnboardingTab({
                     onPrepare={onPrepareReleaseLetter ? () => onPrepareReleaseLetter(step.id) : undefined}
                     onBlock={() => handleBlock(step)}
                     onRun={(action, payload) => void run(step, action, payload)}
+                    menu={menu}
+                  />
+                );
+              }
+
+              if (step.stepType === 'representation') {
+                return (
+                  <RepresentationStepCard
+                    key={step.id}
+                    step={step}
+                    stepById={stepById}
+                    highlight={highlightStepId === step.id}
+                    statusLabel={repStatusLabel}
+                    onOpen={onOpenRepresentation}
                     menu={menu}
                   />
                 );
@@ -1048,6 +1072,44 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
             disabled={busy || !due || due === (step.dueDate ?? '')}
             onClick={() => p.onRun('set_due', { dueDate: due })}>
             עדכן תזכורת
+          </button>
+        </div>
+      )}
+    </StepCardShell>
+  );
+}
+
+// ═══════════════ כרטיס הייצוג ════════════════════════════════════════════
+// ‼ השלב הזה הוא מראה, לא מתג: הוא מסונכרן אוטומטית מבקשת הייצוג (טריגר
+// sync_representation_step), ולכן אין עליו אף כפתור סימון ידני. הכפתור הגנרי
+// "הלקוח השלים" שהיה כאן היה משקר — צובע את השלב ירוק בזמן שהבקשה עוד
+// ממתינה, עד שהטריגר היה דורס אותו בשקט.
+// מה שכן יש: הדלת למרכז הייצוג, כי משם עושים את העבודה — וגיא צדק שלא
+// הגיוני לצאת למסך הלקוחות כדי למצוא אותה.
+
+function RepresentationStepCard({ step, stepById, highlight, statusLabel, onOpen, menu }: {
+  step: OnboardingStep;
+  stepById: Map<string, OnboardingStep>;
+  highlight: boolean;
+  statusLabel?: string;
+  onOpen?: () => void;
+  menu: React.ReactNode;
+}) {
+  const open = isStepOpen(step.status);
+  return (
+    <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}
+      statusLabel={statusLabel}>
+      <div style={cardNote}>
+        {open
+          ? 'השלב מתעדכן מעצמו לפי התקדמות בקשת הייצוג — אין כאן מה לסמן ידנית. הבדיקה, החתימה וההגשה נעשות במרכז הייצוג.'
+          : 'הייצוג הושלם. הפירוט המלא — במרכז הייצוג.'}
+      </div>
+      {onOpen && (
+        <div style={{ marginTop: '.55rem' }}>
+          <button type="button"
+            className={`btn btn-sm ${open && step.ball === 'me' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={onOpen}>
+            למרכז הייצוג ←
           </button>
         </div>
       )}

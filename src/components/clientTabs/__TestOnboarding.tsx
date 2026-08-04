@@ -124,6 +124,8 @@ export default function TestOnboarding() {
           phone: '03-1234567',
         }}
         onPrepareReleaseLetter={(stepId) => setMsg(`פתיחת מכתב שחרור לשלב ${stepId}`)}
+        repStatusLabel="בקשת ייצוג · ממתין למילוי הלקוח"
+        onOpenRepresentation={() => setMsg('קפיצה למרכז הייצוג')}
       />
     </div>
   );

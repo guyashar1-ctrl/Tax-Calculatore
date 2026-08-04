@@ -523,6 +523,17 @@ export default function App() {
     setStepReminder({ stepId: step.id, clientId });
   }
 
+  /**
+   * ממסך הקליטה של הלקוח למרכז הייצוג שלו. הבקשה נמצאת דרך הכרטיס, ואם
+   * הקישור שם ריק (לקוחות ותיקים) — דרך הבקשה שמצביעה על הלקוח.
+   */
+  function handleOpenClientRepresentation(clientId: string) {
+    const c = clients.find(x => x.id === clientId);
+    const reqId = c?.representationRequestId
+      ?? requests.find(r => r.linkedClientId === clientId)?.id;
+    if (reqId) handleSelectRequest(reqId);
+  }
+
   /** כרטיס הלקוח ישר על המסמכים — מהמסך של בקשת הייצוג. */
   function handleOpenClientDocs(clientId: string) {
     setSelectedId(clientId);
@@ -1530,6 +1541,7 @@ export default function App() {
             advanceOnboardingStep={onboarding.advance}
             refreshOnboarding={onboarding.refresh}
             onOpenReleaseLetter={(clientId, stepId) => openReleaseLetter(clientId, { stepId })}
+            onOpenRepresentation={handleOpenClientRepresentation}
           />
         )}
 
