@@ -269,6 +269,26 @@ export default function OnboardingTab({
     }
   }
 
+  // ─── הקישור האחיד ללקוח ──────────────────────────────────────────────────
+  const [portalCopied, setPortalCopied] = useState(false);
+  async function copyPortalLink() {
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc('mint_portal_token', { p_client_id: clientId });
+    const token = (data as string | null) ?? null;
+    if (rpcError || !token) {
+      setError('לא הצלחתי להנפיק קישור ללקוח.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/?portal=${token}`);
+      setPortalCopied(true);
+      window.setTimeout(() => setPortalCopied(false), 2200);
+    } catch {
+      // הדפדפן חסם גישה ללוח — מציגים את הקישור כדי שאפשר להעתיק ידנית
+      window.prompt('העתק את הקישור:', `${window.location.origin}/?portal=${token}`);
+    }
+  }
+
   /** קפיצה לשלב אחר בעמוד, עם הדגשה קצרה — כדי שברור לאן הגענו. */
   function gotoStep(stepId: string) {
     setHighlightStepId(stepId);
@@ -334,7 +354,14 @@ export default function OnboardingTab({
           padding: '.1rem .5rem', borderRadius: 999, whiteSpace: 'nowrap',
         }}>{ballTone.label}</span>
         <strong style={{ fontSize: 'var(--fs-15)', color: 'var(--gray-900, #111)' }}>{ballTitle}</strong>
-        <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>{ballSub}</span>
+        <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', flex: 1 }}>{ballSub}</span>
+        {/* ‼ הקישור האחיד ללקוח — אותו קישור תמיד, גם בוואטסאפ. הדף מציג את
+            המצב העדכני, ולכן אין "איזה קישור שלחתי" — יש קישור אחד. */}
+        <button type="button" className="btn btn-sm btn-ghost"
+          onClick={() => void copyPortalLink()}
+          title="קישור לדף האישי של הלקוח — מציג לו מה הושלם ומה ממתין">
+          {portalCopied ? '✓ הועתק' : 'קישור ללקוח'}
+        </button>
       </div>
 
       {clientSteps.length > 0 && (

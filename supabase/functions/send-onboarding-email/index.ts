@@ -243,6 +243,23 @@ Deno.serve(async (req: Request) => {
     let ctaLabel: string | undefined;
     let copy = COPY[stage];
 
+    // ‼ הקישור האחיד (הכרעת גיא): מייל קישור-הייצוג מוביל לדף האישי של הלקוח,
+    // שמציג את הפעולה הנוכחית — וגם את כל השאר. נשארים ישירים בכוונה:
+    // חתימות (טוקן אישי לכל חותם — לבן/בת הזוג אין דף), אישור ב"ל (אתר חיצוני
+    // עם אסמכתא), ושאלון שנשלח ללקוח ותיק בלי קליטה (אין לו מה לראות בדף).
+    if (stage === "onboard" && logClientId) {
+      const { data: pc } = await admin.from("clients")
+        .select("portal_token").eq("id", logClientId).maybeSingle();
+      let portalToken = String(pc?.portal_token || "").trim();
+      if (!portalToken) {
+        portalToken = crypto.randomUUID().replace(/-/g, "");
+        const { error: portalErr } = await admin.from("clients")
+          .update({ portal_token: portalToken }).eq("id", logClientId);
+        if (portalErr) portalToken = "";
+      }
+      if (portalToken) ctaHref = `${APP_URL}/?portal=${portalToken}`;
+    }
+
     // הלקוח בדיוק אישר וחתם על ההצעה — המייל צריך להמשיך את הרגע הזה ולא
     // לפתוח מחדש ב"שמחים שבחרתם בנו", שנקרא כמו מייל גנרי שלא קשור למה שעשה.
     if (quotationId) {

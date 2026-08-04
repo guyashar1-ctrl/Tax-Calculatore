@@ -121,7 +121,7 @@ Deno.serve(async (req: Request) => {
 
     // ── הנמען — מהכרטיס של הלקוח, לא מהבקשה ───────────────────────────────
     const { data: client } = await admin
-      .from("clients").select("id,user_id,first_name,last_name,email,intake_token")
+      .from("clients").select("id,user_id,first_name,last_name,email,intake_token,portal_token")
       .eq("id", step.client_id).maybeSingle();
     if (!client || client.user_id !== userId) return json({ error: "not found" }, 404);
     const toEmail = String(client.email || "").trim();
@@ -157,21 +157,29 @@ Deno.serve(async (req: Request) => {
       }, 400);
     }
 
-    // ‼ קישור השאלון נבנה כאן ולא מגיע מהדפדפן — אותה לוגיקה בדיוק של
-    // send-onboarding-email stage='intake'. הטוקן מונפק פעם אחת ונשמר, כדי
-    // שקישור שכבר נשלח לא ייפסל בשליחה חוזרת.
-    let intakeUrl = "";
-    if (kind === "intake_questionnaire") {
-      const APP_URL = Deno.env.get("APP_URL") || "https://crm.yasharcpa.co.il";
-      let token = String(client.intake_token || "").trim();
-      if (!token) {
-        token = crypto.randomUUID().replace(/-/g, "");
-        const { error: tokErr } = await admin.from("clients")
-          .update({ intake_token: token }).eq("id", client.id);
-        if (tokErr) return json({ error: "token_save_failed" }, 500);
-      }
-      intakeUrl = `${APP_URL}/?intake=${token}`;
+    // ‼ קישור השאלון נבנה כאן ולא מגיע מהדפדפן. הטוקן מונפק פעם אחת ונשמר,
+    // כדי שקישור שכבר נשלח לא ייפסל בשליחה חוזרת.
+    const APP_URL = Deno.env.get("APP_URL") || "https://crm.yasharcpa.co.il";
+    if (kind === "intake_questionnaire" && !String(client.intake_token || "").trim()) {
+      const token = crypto.randomUUID().replace(/-/g, "");
+      const { error: tokErr } = await admin.from("clients")
+        .update({ intake_token: token }).eq("id", client.id);
+      if (tokErr) return json({ error: "token_save_failed" }, 500);
     }
+
+    // ‼ הקישור האחיד (הכרעת גיא): כפתור המייל מוביל תמיד לדף האישי של הלקוח,
+    // והדף מציג את הפעולה. כך כל מייל — הזמנה, הרשאה, שאלון, תזכורת — נושא
+    // את אותו קישור, והלקוח לא צריך לזכור איזה מהם עדכני. הבדיקות שלמעלה
+    // (inviteUrl, authUrl) נשארות: הן מוודאות שכשהלקוח יגיע לדף, הפעולה
+    // באמת תחכה לו שם ולא ימצא עמוד בלי כפתור.
+    let portalToken = String((client as { portal_token?: string }).portal_token || "").trim();
+    if (!portalToken) {
+      portalToken = crypto.randomUUID().replace(/-/g, "");
+      const { error: portalErr } = await admin.from("clients")
+        .update({ portal_token: portalToken }).eq("id", client.id);
+      if (portalErr) return json({ error: "token_save_failed" }, 500);
+    }
+    const portalUrl = `${APP_URL}/?portal=${portalToken}`;
 
     // ── הנוסח: ברירת מחדל ⊕ הגדרות המשרד ⊕ עריכה לשליחה הזו ───────────────
     const base = defaultTemplate(kind);
@@ -192,10 +200,8 @@ Deno.serve(async (req: Request) => {
       authUrl,
     });
 
-    const ctaHref = kind === "paperless_invite" ? inviteUrl
-      : kind === "retainer_request" ? authUrl
-      : kind === "intake_questionnaire" ? intakeUrl : "";
-    const ctaLabel = ctaHref ? CTA_LABEL[kind] : "";
+    const ctaHref = portalUrl;
+    const ctaLabel = CTA_LABEL[kind] || "למצב ההצטרפות שלך";
     const html = buildBrandedEmail(brand, {
       heading: HEADING[kind] + (clientFirst ? ", " + clientFirst : ""),
       bodyHtml: esc(rendered.body).replace(/\n/g, "<br />"),

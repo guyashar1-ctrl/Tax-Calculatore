@@ -67,6 +67,7 @@ import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateCl
 import RepresentationOnboardingDialog, { CreateRepresentationInput } from './components/RepresentationOnboardingDialog';
 import OnboardingPage from './components/OnboardingPage';
 import PublicIntakePage from './components/PublicIntakePage';
+import PublicPortalPage from './components/PublicPortalPage';
 import PublicQuotationPage from './components/PublicQuotationPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
@@ -200,6 +201,9 @@ export default function App() {
     // שאלון עצמאי — נשלח יזום מכרטיס הלקוח, בלי הליך ייצוג.
     const intakeToken = new URLSearchParams(window.location.search).get('intake');
     if (intakeToken) return asClientPage(<PublicIntakePage token={intakeToken} />);
+    // הדף האישי — קישור אחד קבוע לכל תקופת הקליטה, תמיד מציג את המצב העדכני.
+    const portalToken = new URLSearchParams(window.location.search).get('portal');
+    if (portalToken) return asClientPage(<PublicPortalPage token={portalToken} />);
     // עמוד הצעת מחיר ציבורי — קישור מאובטח לפי טוקן.
     const quoteToken = new URLSearchParams(window.location.search).get('quote');
     if (quoteToken) return asClientPage(<PublicQuotationPage token={quoteToken} />);
