@@ -25,7 +25,13 @@ interface Props {
   prevAccountant: { name?: string; email?: string; phone?: string };
   brand: QuotationBrand;
   /** נקרא רק אחרי שליחה מוצלחת — מקדם את שלב הקליטה ל"נשלח". */
-  onSent?: (sent: { materialKeys: string[]; objectionDueDate: string }) => void;
+  onSent?: (sent: {
+    materialKeys: string[]; objectionDueDate: string;
+    /** הנוסח הסופי והטוקן — כדי שדף הרו"ח הקודם יציג בדיוק את מה שנשלח. */
+    subject?: string; body?: string; releaseToken?: string;
+  }) => void;
+  /** שלב מכתב השחרור. קיים ⇒ נטבע טוקן ולמכתב יתווסף קישור לדף החתימה. */
+  stepId?: string;
   onClose: () => void;
 }
 
@@ -44,7 +50,7 @@ function addBusinessDays(from: Date, days: number): string {
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function ReleaseLetterDialog({
-  clientId, clientName, businessName, clientEmail, prevAccountant, brand, onSent, onClose,
+  clientId, clientName, businessName, clientEmail, prevAccountant, brand, onSent, onClose, stepId,
 }: Props) {
   const { saveDoc } = useDocumentStore();
   const ctx = { clientName, businessName, prevAccountantName: prevAccountant.name };
@@ -95,7 +101,19 @@ export default function ReleaseLetterDialog({
       // ‼ שולחים דגל ולא כתובת — השרת לוקח את המייל מהכרטיס, כדי שהפונקציה
       // לא תוכל לשמש לשליחת עותק לכתובת שרירותית.
       const wantsCc = ccClient && !!clientEmail?.trim();
-      const html = buildReleaseEmailHtml(body, brand);
+
+      // ‼ הרו"ח הקודם חותם ומעלה את החומרים בדף משלו. בלי הקישור הזה המכתב
+      // יוצא בלי הדרך היחידה לענות עליו (הכרעת גיא 2026-08-05).
+      let releaseToken: string | undefined;
+      if (stepId) {
+        const { data: mint } = await supabase.rpc('mint_release_token', { p_step_id: stepId });
+        releaseToken = (mint as { ok?: boolean; token?: string } | null)?.token;
+      }
+      const finalBody = releaseToken
+        ? `${body}\n\nלחתימה על השחרור ולהעלאת החומרים:\n${window.location.origin}/?release=${releaseToken}`
+        : body;
+
+      const html = buildReleaseEmailHtml(finalBody, brand);
       const { data: res, error } = await supabase.functions.invoke('send-release-email', {
         body: { clientId, to: toEmail.trim(), ccClient: wantsCc, subject, html },
       });
@@ -105,7 +123,7 @@ export default function ReleaseLetterDialog({
       }
       const dateStr = new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
       const pdf = await generateReleaseEmailPdf({
-        from: res.from || fromLabel, to: toEmail.trim(), date: dateStr, subject, bodyText: body,
+        from: res.from || fromLabel, to: toEmail.trim(), date: dateStr, subject, bodyText: finalBody,
       }, brand);
       const docId = crypto.randomUUID();
       await saveDoc({
@@ -125,6 +143,7 @@ export default function ReleaseLetterDialog({
       onSent?.({
         materialKeys: materials.filter(m => m.checked).map(m => m.key),
         objectionDueDate: addBusinessDays(new Date(), 3),
+        subject, body: finalBody, releaseToken,
       });
     } catch (e) {
       setNotice({ kind: 'err', text: `שגיאה: ${e instanceof Error ? e.message : String(e)}` });

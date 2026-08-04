@@ -69,6 +69,7 @@ import RepresentationOnboardingDialog, { CreateRepresentationInput } from './com
 import OnboardingPage from './components/OnboardingPage';
 import PublicIntakePage from './components/PublicIntakePage';
 import PublicPortalPage from './components/PublicPortalPage';
+import PublicReleasePage from './components/PublicReleasePage';
 import PublicQuotationPage from './components/PublicQuotationPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
@@ -212,6 +213,10 @@ export default function App() {
     // עמוד הצעת מחיר ציבורי — קישור מאובטח לפי טוקן.
     const quoteToken = new URLSearchParams(window.location.search).get('quote');
     if (quoteToken) return asClientPage(<PublicQuotationPage token={quoteToken} />);
+    // דף הרו"ח הקודם — הוא חותם על מכתב השחרור ומעלה את החומרים.
+    // גורם חיצוני ולא לקוח, אבל אותו כלל: מיתוג המשרד ותצוגה בהירה.
+    const releaseToken = new URLSearchParams(window.location.search).get('release');
+    if (releaseToken) return asClientPage(<PublicReleasePage token={releaseToken} />);
   }
 
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
@@ -1866,7 +1871,8 @@ export default function App() {
           clientEmail={releaseFor.clientEmail}
           prevAccountant={releaseFor.prevAccountant}
           brand={deriveQuotationBrand(firmProfile)}
-          onSent={({ materialKeys, objectionDueDate }) => {
+          stepId={releaseFor.stepId}
+          onSent={({ materialKeys, objectionDueDate, subject, body }) => {
             const stepId = releaseFor.stepId;
             if (stepId) {
               // ‼ תאריך היעד הוא חלון ההתנגדות של כלל 16, לא מועד קבלת החומרים.
@@ -1877,6 +1883,10 @@ export default function App() {
                 note: 'מכתב השחרור נשלח לרו״ח הקודם · הלקוח מכותב',
                 objectionDueDate,
                 requestedMaterials: materialKeys,
+                // הנוסח שנשלח בפועל — דף הרו"ח הקודם מציג אותו, לא נוסח שנבנה מחדש.
+                releaseSubject: subject,
+                releaseBody: body,
+                releaseSentAt: new Date().toISOString(),
               });
             }
             // רשימת החומרים שנתבקשו בפועל הופכת לצ'קליסט המעקב — אחרת עוקבים
