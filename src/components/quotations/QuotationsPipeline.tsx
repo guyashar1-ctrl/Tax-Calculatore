@@ -98,13 +98,20 @@ export default function QuotationsPipeline({
     }
   }
 
+  // ‼ הצעה שהפכה ללקוח אינה נמחקת מכאן בכלל. מחיקה שלה הייתה משאירה את
+  // הלקוח, הקליטה ובקשת הייצוג שנולדו ממנה — בלי המסמך שממנו נולדו (בדיוק
+  // מה שקרה עם לקוח הבדיקה). המסלול היחיד: מחיקת כרטיס הלקוח, שמנתקת את
+  // ההצעה — ורק אז היא חוזרת להיות ניתנת למחיקה. נאכף גם במסד (מיגרציה 50).
+  const deletionLockedByClient = (q: Quotation): boolean =>
+    !!q.clientId && clients.some(c => c.id === q.clientId);
+
   // מחיקה סופית. לטיוטה — אישור קצר; להצעה שכבר יצאה ללקוח — אזהרה מפורטת
   // על מה נמחק, כי זו רשומה עם היסטוריה, חתימה ומעקב.
   async function remove(q: Quotation) {
     const name = `${q.quotationNumber} (${recipientName(q)})`;
     const message = q.status === 'draft'
       ? `למחוק את טיוטת הצעה ${name}?\n\nלא ניתן לשחזר.`
-      : `למחוק לצמיתות את הצעה ${name}?\n\nיימחקו גם המעקב, יומן האירועים${q.approvalSignature ? ' וחתימת הלקוח' : ''} — ולא ניתן לשחזר.\n\n(אם ההצעה כבר הפכה ללקוח — הלקוח והסכם ההתקשרות שבמסמכיו יישארו.)`;
+      : `למחוק לצמיתות את הצעה ${name}?\n\nיימחקו גם המעקב, יומן האירועים${q.approvalSignature ? ' וחתימת הלקוח' : ''} — ולא ניתן לשחזר.`;
     if (!window.confirm(message)) return;
     setRowBusy(q.id);
     setToast(null);
@@ -386,11 +393,13 @@ export default function QuotationsPipeline({
                                   )}
                                 </>
                               )}
-                              <button className="btn btn-icon btn-ghost" title="מחיקת ההצעה"
-                                style={{ marginInlineStart: 6, color: 'var(--red)' }}
-                                disabled={rowBusy === q.id} onClick={() => remove(q)}>
-                                {rowBusy === q.id ? '…' : '🗑'}
-                              </button>
+                              {!deletionLockedByClient(q) && (
+                                <button className="btn btn-icon btn-ghost" title="מחיקת ההצעה"
+                                  style={{ marginInlineStart: 6, color: 'var(--red)' }}
+                                  disabled={rowBusy === q.id} onClick={() => remove(q)}>
+                                  {rowBusy === q.id ? '…' : '🗑'}
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
