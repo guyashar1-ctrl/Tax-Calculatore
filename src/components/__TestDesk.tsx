@@ -10,7 +10,7 @@ import { useState } from 'react';
 import type { Client } from '../types';
 import type { Engagement, OnboardingStep, OnboardingStepType, OnboardingTrack, OnboardingBall, OnboardingStepStatus } from '../types/onboarding';
 import OnboardingWaitingSection from './OnboardingWaitingSection';
-import OnboardingClientsTable from './OnboardingClientsTable';
+import OnboardingGrid from './OnboardingGrid';
 
 let seq = 0;
 function step(
@@ -125,7 +125,7 @@ export default function TestDesk() {
         תצוגת המעקב — "בקליטה" במסך הלקוחות
       </h3>
       <div className="card" style={{ overflow: 'hidden', padding: '.4rem .6rem' }}>
-        <OnboardingClientsTable
+        <OnboardingGrid
           clients={CLIENTS}
           steps={STEPS}
           engagements={ENGAGEMENTS}

@@ -10,6 +10,7 @@ import { useState } from 'react';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
 import OnboardingTab from './OnboardingTab';
 import ReleaseLetterDialog from '../quotations/ReleaseLetterDialog';
+import OnboardingGrid from '../OnboardingGrid';
 
 const CLIENT_ID = 'fixture-client';
 const ENG_ID = 'fixture-eng';
@@ -118,6 +119,44 @@ const EVENTS: OnboardingEvent[] = [
   { id: 'e3', userId: 'fixture-user', engagementId: ENG_ID, type: 'created', actor: 'system', note: 'מסלול הקליטה הורכב מההצעה שאושרה', meta: { stepsCreated: 9 }, at: '2026-08-01T09:00:00Z' },
 ];
 
+// ── נתונים לרשת: שלושה לקוחות בשלושה מצבים שונים ──
+const GRID_CLIENTS = [
+  { id: CLIENT_ID, firstName: 'שרון', lastName: 'מזרחי' },
+  { id: 'grid-2', firstName: 'אבי', lastName: 'דהן' },
+  { id: 'grid-3', firstName: 'תמר', lastName: 'בן-חיים' },
+] as never[];
+
+const GRID_ENGAGEMENTS: Engagement[] = [
+  ENGAGEMENTS[0],
+  { ...ENGAGEMENTS[0], id: 'eng-2', clientId: 'grid-2', approvedAt: '2026-07-01T09:00:00Z' },
+  { ...ENGAGEMENTS[0], id: 'eng-3', clientId: 'grid-3', approvedAt: '2026-08-03T09:00:00Z' },
+];
+
+function gstep(clientId: string, engagementId: string, p: Partial<OnboardingStep> & Pick<OnboardingStep, 'id' | 'stepType' | 'track' | 'scope' | 'status' | 'ball'>): OnboardingStep {
+  return { ...step(p), clientId, engagementId } as OnboardingStep;
+}
+
+const OLD = '2026-07-20T09:00:00Z';   // עברו יותר משבוע ⇒ צהוב
+const NEW = '2026-08-04T09:00:00Z';
+
+const GRID_STEPS: OnboardingStep[] = [
+  ...STEPS,
+  // אבי — תקוע אצל הרו"ח הקודם, ומסמכים חלקיים
+  gstep('grid-2', 'eng-2', { id: 'g2a', stepType: 'release_letter', track: 'prev_accountant', scope: 'person', status: 'waiting_client', ball: 'prev_accountant', needsAttention: true, updatedAt: OLD }),
+  gstep('grid-2', 'eng-2', { id: 'g2b', stepType: 'client_documents', track: 'tools', scope: 'person', status: 'waiting_client', ball: 'client', updatedAt: OLD,
+    payload: { checklist: [
+      { key: 'a', label: 'אישור ניהול חשבון', done: true },
+      { key: 'b', label: 'דוח שנתי', done: true },
+      { key: 'c', label: 'טופס 106', done: false }] } }),
+  gstep('grid-2', 'eng-2', { id: 'g2c', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'completed', ball: 'client' }),
+  gstep('grid-2', 'eng-2', { id: 'g2d', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'waiting_client', ball: 'client', updatedAt: OLD }),
+  // תמר — נרשמה לפייפרלס, הכדור עבר אליי
+  gstep('grid-3', 'eng-3', { id: 'g3a', stepType: 'client_documents', track: 'tools', scope: 'person', status: 'completed', ball: 'client' }),
+  gstep('grid-3', 'eng-3', { id: 'g3b', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'pending', ball: 'me', updatedAt: NEW }),
+  gstep('grid-3', 'eng-3', { id: 'g3c', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'locked', ball: 'me', dependsOnStepId: 'g3b' }),
+  gstep('grid-3', 'eng-3', { id: 'g3d', stepType: 'release_letter', track: 'prev_accountant', scope: 'person', status: 'skipped', ball: 'me' }),
+];
+
 export default function TestOnboarding() {
   const [msg, setMsg] = useState('');
   // שני המצבים של מכתב השחרור: עם מייל לרו"ח הקודם (הכפתור פעיל) ובלעדיו
@@ -162,6 +201,16 @@ export default function TestOnboarding() {
         repStatusLabel="בקשת ייצוג · ממתין למילוי הלקוח"
         onOpenRepresentation={() => setMsg('קפיצה למרכז הייצוג')}
       />
+      <h3 style={{ marginTop: '2rem' }}>הרשת — מסך הבוקר</h3>
+      <div className="card" style={{ padding: '.5rem .7rem' }}>
+        <OnboardingGrid
+          clients={GRID_CLIENTS}
+          steps={GRID_STEPS}
+          engagements={GRID_ENGAGEMENTS}
+          onOpen={(id) => setMsg(`פתיחת מרכז השליטה של ${id}`)}
+        />
+      </div>
+
       {showRelease && (
         <ReleaseLetterDialog
           clientId={CLIENT_ID}

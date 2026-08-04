@@ -1583,7 +1583,6 @@ export default function App() {
             engagements={onboarding.engagements}
             onOpenOnboarding={handleOpenClientOnboarding}
             leads={leads}
-            quotations={quotations}
             onNewLead={() => { setOpenNewLead(true); setView('quotations'); }}
             onNewQuotation={handleNewQuotation}
           />

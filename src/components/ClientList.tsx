@@ -22,9 +22,8 @@ import {
 import { ShaamStatus } from '../types/clientWorkspace';
 import type { Engagement, OnboardingStep } from '../types/onboarding';
 import { isStepOpen } from '../types/onboarding';
-import OnboardingClientsTable from './OnboardingClientsTable';
-import ClientsFunnel from './ClientsFunnel';
-import type { Lead, Quotation } from '../types/quotations';
+import OnboardingGrid from './OnboardingGrid';
+import type { Lead } from '../types/quotations';
 import RepSignersStatus from './RepSignersStatus';
 import Icon from './ui/Icon';
 import ClientDeleteDialog from './ClientDeleteDialog';
@@ -130,9 +129,8 @@ interface Props {
   engagements?: Engagement[];
   /** פתיחת כרטיס הלקוח ישר בלשונית הקליטה. */
   onOpenOnboarding?: (clientId: string) => void;
-  /** ── המשפך: כל מי שעדיין לא לקוח חי כאן ולא במסך נפרד ── */
+  /** ליד שטרם קיבל הצעה — אין לו כרטיס, ולכן הוא מוצג מכאן בטאב הלידים. */
   leads?: Lead[];
-  quotations?: Quotation[];
   onNewLead?: () => void;
   onNewQuotation?: () => void;
 }
@@ -172,21 +170,9 @@ export default function ClientList({
   engagements,
   onOpenOnboarding,
   leads,
-  quotations,
   onNewLead,
   onNewQuotation,
 }: Props) {
-  // ברירת המחדל היא המשפך: השאלה היומיומית היא "מי זז ומי תקוע", ורק אחריה
-  // "איפה הלקוח הזה". הבחירה נזכרת כדי שהמסך לא יתאפס בכל כניסה.
-  const [board, setBoard] = useState<'funnel' | 'list'>(() =>
-    (localStorage.getItem('crm_clients_view') === 'list' ? 'list' : 'funnel'));
-  const [showClosedLeads, setShowClosedLeads] = useState(false);
-  const funnelAvailable = !!leads && !!quotations;
-  const showFunnel = funnelAvailable && board === 'funnel';
-  function switchBoard(next: 'funnel' | 'list') {
-    setBoard(next);
-    localStorage.setItem('crm_clients_view', next);
-  }
   const [search, setSearch] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Client | null>(null);
   const [sortField, setSortField] = useState<SortField>('status');
@@ -198,8 +184,17 @@ export default function ClientList({
   const [itFilter, setItFilter] = useState<'all' | IncomeTaxType>('all');
   const [niFilter, setNiFilter] = useState<'all' | NIType>('all');
   const [shaamFilter, setShaamFilter] = useState<'all' | ShaamStatus>('all');
-  // 'default' = רשימת העבודה: כל מי שאינו ליד ואינו בארכיון.
-  const [stageFilter, setStageFilter] = useState<'default' | LifecycleStage>('default');
+  // ‼ הטאב הוא הסינון. 'default' = רשימת העבודה: כל מי שאינו ליד ואינו בארכיון.
+  // הבחירה נזכרת כדי שהמסך לא יתאפס בכל כניסה.
+  const [stageFilter, setStageFilter] = useState<'default' | LifecycleStage>(() => {
+    const saved = localStorage.getItem('crm_clients_tab');
+    return saved === 'quoted' || saved === 'onboarding' || saved === 'active' || saved === 'lead'
+      ? saved : 'default';
+  });
+  function switchTab(next: 'default' | LifecycleStage) {
+    setStageFilter(next);
+    localStorage.setItem('crm_clients_tab', next);
+  }
   const [openTasksOnly, setOpenTasksOnly] = useState(false);
   const [upcomingDebtsOnly, setUpcomingDebtsOnly] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -218,6 +213,31 @@ export default function ClientList({
     return open.size;
   }, [onboardingSteps]);
   const showOnboardingView = stageFilter === 'onboarding' && !!onboardingSteps && !!onOpenOnboarding;
+
+  // ‼ מונה לכל טאב. נספר מהמקור היחיד — שלב החיים על הכרטיס — חוץ מ"בקליטה"
+  // שנספר לפי שלבים פתוחים בפועל, כדי שקליטה שנסגרה לא תמשיך להיספר.
+  const stageCounts = useMemo(() => {
+    const m: Record<string, number> = { quoted: 0, onboarding: onboardingCount, active: 0, lead: 0 };
+    for (const c of clients) {
+      const st = c.lifecycleStage ?? 'active';
+      if (st === 'quoted' || st === 'active' || st === 'lead') m[st] += 1;
+    }
+    return m;
+  }, [clients, onboardingCount]);
+
+  // ‼ ליד שטרם קיבל הצעה אין לו כרטיס לקוח, ולכן הוא לא יופיע בטבלה. בלי
+  // הרשימה הזו הוא היה נעלם מהמסך לגמרי כשהמשפך ירד.
+  const cardlessLeads = useMemo(
+    () => (leads ?? []).filter(l => !l.convertedClientId && l.status !== 'closed'),
+    [leads]);
+
+  const TABS: { key: 'default' | LifecycleStage; label: string; count?: number }[] = [
+    { key: 'quoted', label: 'בהצעה', count: stageCounts.quoted },
+    { key: 'onboarding', label: 'בקליטה', count: stageCounts.onboarding },
+    { key: 'active', label: 'לקוחות פעילים', count: stageCounts.active },
+    { key: 'lead', label: 'לידים', count: stageCounts.lead + cardlessLeads.length },
+    { key: 'default', label: 'הכל' },
+  ];
 
   function toggleSort(field: SortField) {
     if (sortField === field) {
@@ -399,19 +419,27 @@ export default function ClientList({
       {/* הכותרת "לקוחות" ירדה — הטאב הפעיל בסרגל כבר אומר אותה, והספירה
           חוזרת בכותרת "לקוחות מיוצגים · N" שמתחת. מספר אחד במסך. */}
       <div className="cl-list-header">
-        <div style={{ display: 'flex', gap: '.4rem' }}>
-          {funnelAvailable && (
-            <>
+        <div style={{ display: 'flex', gap: '.15rem', flexWrap: 'wrap' }}>
+          {TABS.map(t => {
+            const on = stageFilter === t.key;
+            return (
               <button
-                className={`btn ${showFunnel ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => switchBoard('funnel')}
-              >משפך</button>
-              <button
-                className={`btn ${showFunnel ? 'btn-secondary' : 'btn-primary'}`}
-                onClick={() => switchBoard('list')}
-              >רשימה</button>
-            </>
-          )}
+                key={t.key}
+                type="button"
+                onClick={() => switchTab(t.key)}
+                aria-pressed={on}
+                style={{
+                  padding: '.45rem .7rem', border: 'none', background: 'transparent',
+                  borderBottom: `2px solid ${on ? 'var(--accent)' : 'transparent'}`,
+                  color: on ? 'var(--ink)' : 'var(--ink-3)',
+                  fontWeight: on ? 600 : 500, fontSize: 'var(--fs-14)',
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                {t.label}{t.count !== undefined ? ` · ${t.count}` : ''}
+              </button>
+            );
+          })}
         </div>
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           {/* טעינת דוגמאות היא כלי פיתוח ולא פעולה של רואה חשבון —
@@ -428,22 +456,7 @@ export default function ClientList({
         </div>
       </div>
 
-      {showFunnel && (
-        <ClientsFunnel
-          clients={clients}
-          leads={leads!}
-          quotations={quotations!}
-          onboardingSteps={onboardingSteps ?? []}
-          engagements={engagements ?? []}
-          showClosed={showClosedLeads}
-          onToggleClosed={() => setShowClosedLeads(v => !v)}
-          onOpenClient={onSelect}
-          onOpenOnboarding={onOpenOnboarding ?? onSelect}
-          onOpenLead={id => onOpenLead?.(id)}
-        />
-      )}
-
-      {!showFunnel && (<>
+      {(<>
       {/* Search + advanced toggle */}
       <div className="cl-search-row">
         <div className="search-input-wrap" style={{ flex: 1 }}>
@@ -612,6 +625,31 @@ export default function ClientList({
             </div>
           )}
 
+          {/* ליד שאין לו עדיין כרטיס לקוח — מוצג רק בטאב שלו, ומוביל לעריכה. */}
+          {stageFilter === 'lead' && cardlessLeads.length > 0 && (
+            <div className="card" style={{ padding: '.5rem .7rem', marginBottom: '.6rem', display: 'grid', gap: '.3rem' }}>
+              <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
+                לידים שטרם נשלחה להם הצעה · {cardlessLeads.length}
+              </span>
+              {cardlessLeads.map(l => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => onOpenLead?.(l.id)}
+                  style={{
+                    display: 'flex', gap: '.5rem', alignItems: 'baseline', textAlign: 'start',
+                    border: 'none', background: 'transparent', cursor: 'pointer', padding: '.2rem 0',
+                  }}
+                >
+                  <strong style={{ fontSize: 'var(--fs-14)' }}>{l.fullName}</strong>
+                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                    {[l.businessName, l.phone].filter(Boolean).join(' · ')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '0 0 .6rem' }}>
             <span style={{ fontSize: '17px', fontWeight: 500 }}>
               {showOnboardingView ? 'קליטות פתוחות' : 'לקוחות'}
@@ -625,7 +663,7 @@ export default function ClientList({
               בהתקדמות ובאצל-מי — לא בסטטוס מע"מ ותיק ניכויים. */}
           {showOnboardingView ? (
             <div className="card" style={{ overflow: 'hidden', padding: '.4rem .6rem' }}>
-              <OnboardingClientsTable
+              <OnboardingGrid
                 clients={clients}
                 steps={onboardingSteps ?? []}
                 engagements={engagements ?? []}
