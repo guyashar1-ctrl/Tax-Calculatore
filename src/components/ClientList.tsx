@@ -22,7 +22,7 @@ import {
 import { ShaamStatus } from '../types/clientWorkspace';
 import RepSignersStatus from './RepSignersStatus';
 import Icon from './ui/Icon';
-import ConfirmDialog from './ui/ConfirmDialog';
+import ClientDeleteDialog from './ClientDeleteDialog';
 import { EmptyState } from './ui/States';
 import { useEmployees } from '../hooks/useEmployees';
 import {
@@ -111,6 +111,8 @@ interface Props {
   onSelect: (id: string) => void;
   onAdd: () => void;
   onDelete: (id: string) => void;
+  /** העברה לארכיון — האלטרנטיבה שמוצעת ראשונה בדיאלוג המחיקה */
+  onArchive?: (id: string) => Promise<void>;
   onLoadSamples: () => void;
   onAddRequest: () => void;
   onSelectRequest: (id: string) => void;
@@ -145,6 +147,7 @@ export default function ClientList({
   onSelect,
   onAdd,
   onDelete,
+  onArchive,
   onLoadSamples,
   onAddRequest,
   onSelectRequest,
@@ -713,14 +716,13 @@ export default function ClientList({
       )}
 
       {pendingDelete && (
-        <ConfirmDialog
-          title="מחיקת לקוח"
-          message={
-            <>למחוק את ״{`${pendingDelete.firstName} ${pendingDelete.lastName}`.trim() || pendingDelete.idNumber}״?
-            {' '}התיק, המסמכים והמשימות שלו יימחקו איתו. הפעולה אינה הפיכה.</>
-          }
-          confirmLabel="מחיקה"
-          onConfirm={() => { onDelete(pendingDelete.id); setPendingDelete(null); }}
+        <ClientDeleteDialog
+          client={pendingDelete}
+          tasks={tasks}
+          onArchive={onArchive && getStage(pendingDelete) !== 'archived'
+            ? async () => { await onArchive(pendingDelete.id); setPendingDelete(null); }
+            : undefined}
+          onDelete={() => { onDelete(pendingDelete.id); setPendingDelete(null); }}
           onCancel={() => setPendingDelete(null)}
         />
       )}

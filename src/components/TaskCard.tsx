@@ -54,7 +54,7 @@ export default function TaskCard({
   const isSystemTask = task.clientId === 'system';
   const clientLabel = client
     ? `${client.firstName} ${client.lastName}`.trim() || client.idNumber
-    : isSystemTask ? 'משימת מערכת' : 'לקוח לא ידוע';
+    : isSystemTask ? 'משימה פנימית' : 'לקוח לא ידוע';
   const avatar = client ? avatarColor(client.id) : AVATAR_COLORS[0];
   const initialsLabel = client ? initials(client.firstName, client.lastName) : isSystemTask ? '🛠' : '?';
 

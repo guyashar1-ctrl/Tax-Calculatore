@@ -57,10 +57,15 @@ const CATEGORIES: TaskCategory[] = [
 const BALL_OPTIONS: BallWith[] = ['me', 'client', 'authority', 'stuck'];
 const PROGRESS_OPTIONS: TaskProgress[] = ['new', 'in_progress'];
 
+// משימה בלי לקוח היא לגיטימית (חידוש רישיון, דיווח של המשרד עצמו), אבל היא
+// חייבת להיות בחירה ולא שכחה — ולכן ערך נפרד בתפריט ולא סתם "ריק".
+// 'system' הוא המזהה שהאפליקציה נותנת ל-client_id ריק במסד (ראה dbMappers).
+const INTERNAL = 'system';
+
 export default function TaskForm({ task, clients, presetClientId, onSave, onCancel, onDelete, onUpdateClient }: Props) {
-  const [data, setData] = useState<Task>(
-    task ?? blankTask(presetClientId ?? clients[0]?.id ?? '')
-  );
+  // ‼ בלי ברירת מחדל ללקוח הראשון ברשימה: משימה שנשמרת על לקוח אקראי גרועה
+  // ממשימה שדורשת בחירה.
+  const [data, setData] = useState<Task>(task ?? blankTask(presetClientId ?? ''));
   const [showSignatureEditor, setShowSignatureEditor] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<{ title?: string; client?: string }>({});
@@ -92,6 +97,8 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
   const isEditing = !!task;
   const isLocked = !!presetClientId;
   const linkedClient = clients.find(c => c.id === data.clientId);
+  // משימה פנימית אינה תלויה בלקוח — ולכן גם אין לה תיק מסמכים או מסמך לחתימה
+  const hasClient = !!data.clientId && data.clientId !== INTERNAL;
   const sigReq = data.signatureRequest;
 
   function upd<K extends keyof Task>(key: K, val: Task[K]) {
@@ -146,9 +153,14 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
               <div className="form-group">
                 <label className="required">לקוח</label>
                 <select
+                  className={errors.client ? 'field-missing' : ''}
                   value={data.clientId}
-                  onChange={(e) => upd('clientId', e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value) setErrors(prev => ({ ...prev, client: undefined }));
+                    upd('clientId', e.target.value);
+                  }}
                   disabled={isLocked}
+                  aria-invalid={!!errors.client}
                 >
                   {!isLocked && <option value="">— בחר —</option>}
                   {clientOptions.map(c => (
@@ -156,7 +168,14 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                       {`${c.lastName} ${c.firstName}`.trim() || c.idNumber || 'ללא שם'}
                     </option>
                   ))}
+                  {!isLocked && <option value={INTERNAL}>— משימה פנימית (ללא לקוח) —</option>}
                 </select>
+                {errors.client && <span className="field-error">חובה לבחור לקוח, או לסמן שזו משימה פנימית</span>}
+                {!errors.client && data.clientId === INTERNAL && (
+                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                    לא תופיע בכרטיס של אף לקוח.
+                  </span>
+                )}
               </div>
 
               <div className="form-group">
@@ -234,6 +253,7 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
               </div>
 
               {/* מסמכים מקושרים למשימה — נשמרים בתיק המסמכים של הלקוח */}
+              {hasClient && (
               <div className="form-group span-full">
                 <label>מסמכים מקושרים</label>
                 <LinkedDocsWidget
@@ -244,8 +264,10 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                   compact
                 />
               </div>
+              )}
 
               {/* בקשת חתימה על PDF — שלב 1 (ללא שליחה אמיתית עדיין) */}
+              {hasClient && (
               <div className="form-group span-full">
                 <label>מסמך לחתימה</label>
                 {sigReq ? (
@@ -282,12 +304,8 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                     הוסף מסמך לחתימה
                   </button>
                 )}
-                {!data.clientId && (
-                  <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '.25rem' }}>
-                    יש לבחור לקוח לפני הוספת בקשת חתימה.
-                  </div>
-                )}
               </div>
+              )}
             </div>
           </div>
 

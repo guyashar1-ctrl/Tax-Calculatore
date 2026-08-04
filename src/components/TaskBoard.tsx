@@ -152,7 +152,7 @@ export default function TaskBoard({
     const ids = new Set(tasks.map(t => t.clientId));
     return [...ids].map(id => {
       const c = clientMap.get(id);
-      return { id, label: c ? `${c.firstName} ${c.lastName}`.trim() || c.idNumber : (id === 'system' ? 'משימות מערכת' : 'לקוח לא ידוע') };
+      return { id, label: c ? `${c.firstName} ${c.lastName}`.trim() || c.idNumber : (id === 'system' ? 'משימות פנימיות' : 'לקוח לא ידוע') };
     }).sort((a, b) => a.label.localeCompare(b.label, 'he'));
   }, [tasks, clientMap]);
 
@@ -427,7 +427,7 @@ export default function TaskBoard({
                     const isSystemTask = t.clientId === 'system';
                     const clientLabel = client
                       ? `${client.firstName} ${client.lastName}`.trim() || client.idNumber
-                      : isSystemTask ? 'משימת מערכת' : 'לקוח לא ידוע';
+                      : isSystemTask ? 'משימה פנימית' : 'לקוח לא ידוע';
                     const done = t.status === 'done';
                     const currentStatus: TaskProgress | 'done' = done ? 'done' : (t.progress || 'new');
                     const tone = dueTone(t);

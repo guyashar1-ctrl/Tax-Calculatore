@@ -11,6 +11,7 @@ import { computeClientAlerts, getClientOpenTasks, getUpcomingDebts } from '../ut
 // ב-ClientCockpitTab + ClientDossierTab; הטפסים המלאים נגישים מתוך "התיק".
 import Icon from './ui/Icon';
 import ConfirmDialog from './ui/ConfirmDialog';
+import ClientDeleteDialog from './ClientDeleteDialog';
 import DocumentsTab from './clientTabs/DocumentsTab';
 import { useClientTaxSessions } from '../features/annualReport/useClientTaxSessions';
 import { registeredFileInfo } from '../features/annualReport/profile';
@@ -564,11 +565,13 @@ export default function ClientWorkspace({
       )}
 
       {confirmDelete && (
-        <ConfirmDialog
-          title="מחיקת לקוח"
-          message={<>למחוק את ״{fullName}״? התיק, המסמכים והמשימות שלו יימחקו איתו. הפעולה אינה הפיכה.</>}
-          confirmLabel="מחיקה"
-          onConfirm={() => { setConfirmDelete(false); onDelete(client.id); }}
+        <ClientDeleteDialog
+          client={client}
+          tasks={tasks}
+          onArchive={onSetLifecycleStage && !isArchived
+            ? async () => { await toggleArchive(); setConfirmDelete(false); }
+            : undefined}
+          onDelete={() => { setConfirmDelete(false); onDelete(client.id); }}
           onCancel={() => setConfirmDelete(false)}
         />
       )}
