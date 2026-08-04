@@ -40,6 +40,8 @@ order by version;
 
 | 49 | `client_born_at_quote_49` + `precreated_client_has_no_representation_49b` | `ensure_client_for_quotation()` — כרטיס לקוח וטוקן דף אישי נולדים בשליחת ההצעה, עם דדופליקציה לפי אימייל/טלפון. `derive_lifecycle_stage()` ככלל יחיד, `refresh_lifecycle_stage_for()` וטריגרים על `quotations`/`engagements` — כי עד כה השלב התעדכן רק ב-05:15. הכרטיס שנולד מהצעה נוצר עם `representation_status = null`. הנוסח המלא גם ב-`49-client-born-at-quote.sql` |
 | 50 | `portal_knows_whole_journey_50` | `get_client_portal()` מכיר גם לקוח שטרם חתם: מציג את ההצעה כפעולה, ומחזיר `journeyStage` (quote / identity / setup / active) לפס השלבים בדף האישי |
+| 51 | `request_catalog_51a_step_types` + `request_catalog_51b_composer` + `portal_request_catalog_51c` | קטלוג הבקשות: שני סוגי שלב חדשים — `client_documents` (רשימת מסמכים עם ספירה) ו-`prev_accountant_details` (הלקוח מוסר את פרטי הקודם, ומכתב השחרור תלוי בזה). ניסוח דו-קולי ב-`payload.clientTitle/clientSub/clientCta`, ו-`payload.published=false` מסתיר בקשה מהלקוח. רשימת החומרים מהרו"ח הקודם הורחבה לשמונה פריטים. הנוסח: `51-request-catalog.sql`, `51b-portal-request-catalog.sql` |
+| 52 | `process_publish_gate_52` + `portal_publish_gate_52b` | שער הפרסום: `engagements.process_published_at` ו-`publish_onboarding_process()`. עד שהרו"ח פותח את התהליך בבונה, הדף האישי מציג רק את מסלול הזהות (ייפוי הכוח נפתח מיד בחתימה) ושורת "אנחנו מכינים את המשך התהליך". התקשרויות קיימות מולאו-לאחור כמפורסמות |
 
 > 41–43 שייכות למהלך "יתרה לתשלום בהצעות" ולא לקליטה.
 

@@ -22,6 +22,8 @@ export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   kyc_identification: 'להשלים את הכרת הלקוח',
   first_month_review: 'לבצע את ביקורת החודש הראשון',
   intake_questionnaire: 'לשלוח ללקוח את שאלון פתיחת התיק',
+  client_documents: 'לאסוף את המסמכים מהלקוח',
+  prev_accountant_details: 'לקבל מהלקוח את פרטי הרו״ח הקודם',
 };
 
 /** תאריך יעד רק אם הוא בטווח שבועיים — אחרת הוא אינו שיקול דחיפות. */

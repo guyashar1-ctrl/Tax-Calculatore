@@ -22,9 +22,15 @@ const ENGAGEMENTS: Engagement[] = [{
   monthlyTotal: 450,
   billingStartMonth: '2026-09',
   approvedAt: '2026-08-01T09:00:00Z',
+  processPublishedAt: '2026-08-01T09:05:00Z',
   createdAt: '2026-08-01T09:00:00Z',
   updatedAt: '2026-08-01T09:00:00Z',
 }];
+
+/** אותה התקשרות לפני שהרו"ח פתח את התהליך — כאן הלשונית נכנסת למצב בנייה. */
+const ENGAGEMENTS_UNPUBLISHED: Engagement[] = [
+  { ...ENGAGEMENTS[0], processPublishedAt: undefined },
+];
 
 function step(p: Partial<OnboardingStep> & Pick<OnboardingStep, 'id' | 'stepType' | 'track' | 'scope' | 'status' | 'ball'>): OnboardingStep {
   return {
@@ -85,6 +91,24 @@ const STEPS: OnboardingStep[] = [
          ] } }),
   step({ id: 's8', stepType: 'kyc_identification', track: 'internal', scope: 'person', status: 'completed', ball: 'me', completedAt: '2026-08-02T10:00:00Z' }),
   step({ id: 's9', stepType: 'first_month_review', track: 'review', scope: 'engagement', status: 'pending', ball: 'me', dueDate: '2026-09-01' }),
+  // ── שתי הבקשות החדשות: מסמכים מהלקוח, ופרטי הרו"ח הקודם ──
+  step({ id: 's10', stepType: 'client_documents', track: 'tools', scope: 'person', status: 'waiting_client', ball: 'client',
+         payload: {
+           checklist: [
+             { key: 'bank_confirm', label: 'אישור ניהול חשבון בנק', done: true },
+             { key: 'last_return', label: 'דוח שנתי אחרון', done: false },
+             { key: 'form106', label: 'טופס 106', done: false },
+           ],
+           clientTitle: 'להעלות 3 מסמכים',
+           clientSub: 'אישור ניהול חשבון בנק · דוח שנתי אחרון · טופס 106',
+           clientCta: 'להעלאה',
+         } }),
+  step({ id: 's11', stepType: 'prev_accountant_details', track: 'prev_accountant', scope: 'person', status: 'waiting_client', ball: 'client',
+         payload: {
+           clientTitle: 'פרטי רואה החשבון הקודם שלך',
+           clientSub: 'שם, אימייל וטלפון — כדי שנפנה אליו בשמך',
+           clientCta: 'למילוי',
+         } }),
 ];
 
 const EVENTS: OnboardingEvent[] = [
@@ -98,19 +122,28 @@ export default function TestOnboarding() {
   // שני המצבים של מכתב השחרור: עם מייל לרו"ח הקודם (הכפתור פעיל) ובלעדיו
   // (הכפתור חסום עם הסיבה) — המצב השני הוא מקרה הקצה של המסלול.
   const [hasPrevEmail, setHasPrevEmail] = useState(true);
+  // מצב בנייה מול מצב ניהול — אותה לשונית, לפני ואחרי פתיחת התהליך ללקוח.
+  const [published, setPublished] = useState(true);
   return (
     <div style={{ padding: '1.5rem', maxWidth: 980, margin: '0 auto' }} dir="rtl">
       <h2 style={{ marginBottom: '.3rem' }}>בדיקת לשונית הקליטה — נתונים מדומים</h2>
       <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: '1rem' }}>
         לא מחובר למסד. פעולות מדפיסות את מה שהיה נשלח לשרת. {msg && <strong> · {msg}</strong>}
       </div>
-      <button type="button" className="btn btn-sm btn-secondary" style={{ marginBottom: '1rem' }}
-        onClick={() => setHasPrevEmail(v => !v)}>
-        {hasPrevEmail ? 'הסתר את מייל הרו״ח הקודם' : 'החזר את מייל הרו״ח הקודם'}
-      </button>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <button type="button" className="btn btn-sm btn-secondary"
+          onClick={() => setHasPrevEmail(v => !v)}>
+          {hasPrevEmail ? 'הסתר את מייל הרו״ח הקודם' : 'החזר את מייל הרו״ח הקודם'}
+        </button>
+        <button type="button" className="btn btn-sm btn-secondary"
+          onClick={() => setPublished(v => !v)}>
+          {published ? 'הצג את מצב הבנייה (לפני פתיחה ללקוח)' : 'חזרה למצב ניהול'}
+        </button>
+      </div>
       <OnboardingTab
         clientId={CLIENT_ID}
-        engagements={ENGAGEMENTS}
+        clientDisplayName="שרון מזרחי"
+        engagements={published ? ENGAGEMENTS : ENGAGEMENTS_UNPUBLISHED}
         steps={STEPS}
         events={EVENTS}
         advance={async (stepId, action, payload) => {

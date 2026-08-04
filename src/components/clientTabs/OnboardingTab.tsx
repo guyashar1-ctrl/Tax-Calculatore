@@ -29,6 +29,7 @@ import { EMAIL_STATUS_LABEL } from '../../types/emailActivity';
 import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import OnboardingJourneyMap from './OnboardingJourneyMap';
+import OnboardingProcessBuilder from './OnboardingProcessBuilder';
 
 interface Props {
   clientId: string;
@@ -47,6 +48,8 @@ interface Props {
   repStatusLabel?: string;
   /** קפיצה למרכז הייצוג — המסך שבו העבודה באמת נעשית. */
   onOpenRepresentation?: () => void;
+  /** שם הלקוח לכותרת בונה התהליך. */
+  clientDisplayName?: string;
 }
 
 const TONE_COLOR: Record<string, string> = {
@@ -114,6 +117,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 export default function OnboardingTab({
   clientId, engagements, steps, events, loading, advance, refresh,
   prevAccountant, onPrepareReleaseLetter, repStatusLabel, onOpenRepresentation,
+  clientDisplayName,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busyStepId, setBusyStepId] = useState<string | null>(null);
@@ -332,6 +336,22 @@ export default function OnboardingTab({
   const tracks = TRACK_ORDER
     .map(track => ({ track, list: clientSteps.filter(s => s.track === track) }))
     .filter(g => g.list.length > 0);   // מסלול בלי שלבים לא מקבל קופסה ריקה
+
+  // ‼ אותו מסך, שני מצבים. כל עוד התהליך לא נפתח ללקוח — מצב בנייה: מרכיבים
+  // מה מבקשים ממנו. אחרי הפתיחה — מצב ניהול. אין כאן שני מסכים שסותרים.
+  if (activeEngagement && !activeEngagement.processPublishedAt) {
+    return (
+      <div className="cw-tabpanel">
+        <OnboardingProcessBuilder
+          clientName={clientDisplayName ?? 'הלקוח'}
+          engagement={activeEngagement}
+          steps={steps.filter(s => s.clientId === clientId)}
+          advance={advance}
+          refresh={refresh}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="cw-tabpanel">

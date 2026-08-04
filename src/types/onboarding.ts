@@ -16,6 +16,8 @@ export interface Engagement {
   billingStartMonth?: string;   // 'YYYY-MM'
   approvedAt?: string;
   activatedAt?: string;
+  /** מתי התהליך נפתח ללקוח בבונה. ריק ⇒ הלקוח רואה רק את ייפוי הכוח. */
+  processPublishedAt?: string;
   endedAt?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -43,7 +45,9 @@ export type OnboardingStepType =
   | 'internal_setup'
   | 'kyc_identification'
   | 'first_month_review'
-  | 'intake_questionnaire';
+  | 'intake_questionnaire'
+  | 'client_documents'
+  | 'prev_accountant_details';
 
 export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   representation: 'ייצוג מול הרשויות',
@@ -60,6 +64,8 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   kyc_identification: 'הכרת הלקוח',
   first_month_review: 'ביקורת חודש ראשון',
   intake_questionnaire: 'שאלון פתיחת תיק',
+  client_documents: 'מסמכים מהלקוח',
+  prev_accountant_details: 'פרטי הרו״ח הקודם',
 };
 
 export type OnboardingTrack =
@@ -146,6 +152,15 @@ export interface StepPayload {
   /** מפתחות הרשויות שעדיין רשומות כמייצג משני (RepAuthorityKind). */
   secondaryAuthorities?: string[];
   skipReason?: string;
+  /**
+   * קול-הלקוח. אותה עובדה, ניסוח שני: מה שהרו״ח רואה נגזר מ-STEP_TYPE_LABELS,
+   * ומה שהלקוח רואה בדף האישי נלקח מכאן. חסר ⇒ השרת נופל לניסוח ברירת מחדל.
+   */
+  clientTitle?: string;
+  clientSub?: string;
+  clientCta?: string;
+  /** false ⇒ הבקשה מוכנה אצל הרו״ח אך אינה מוצגת ללקוח. היעדר השדה = מפורסמת. */
+  published?: boolean;
   [key: string]: unknown;
 }
 
