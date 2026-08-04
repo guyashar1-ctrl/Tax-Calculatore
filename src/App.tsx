@@ -38,6 +38,7 @@ import { useQuotationCatalog } from './hooks/useQuotationCatalog';
 import QuotationsPipeline from './components/quotations/QuotationsPipeline';
 import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
 import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
+import { RELEASE_MATERIALS } from './utils/releaseLetter';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
 import { generateQuotationPdf } from './utils/quotationPdf';
@@ -331,7 +332,7 @@ export default function App() {
   const [remindPreview, setRemindPreview] = useState<{ quotation: Quotation; subject: string; to: string; html: string } | null>(null);
   // מכתב שחרור לרו"ח הקודם. stepId מגיע כשפתחו אותו משלב הקליטה — אחרי
   // שליחה מוצלחת השלב עובר ל"נשלח" והכדור עובר לרו"ח הקודם.
-  const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; prevAccountant: { name?: string; email?: string; phone?: string }; stepId?: string } | null>(null);
+  const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; clientEmail?: string; prevAccountant: { name?: string; email?: string; phone?: string }; stepId?: string } | null>(null);
   /** תזכורת שהוכנה לשלב תקוע — נפתחת לעריכה, נשלחת רק בלחיצה. */
   const [stepReminder, setStepReminder] = useState<{ stepId: string; clientId: string } | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
@@ -538,6 +539,7 @@ export default function App() {
         clientId,
         clientName: `${c.firstName} ${c.lastName}`.trim(),
         businessName: c.businessName,
+        clientEmail: c.email,
         prevAccountant: {
           name: c.prevAccountantName, email: c.prevAccountantEmail, phone: c.prevAccountantPhone,
         },
@@ -1229,12 +1231,32 @@ export default function App() {
       clientId,
       clientName: client ? `${client.firstName} ${client.lastName}`.trim() : (lead?.fullName ?? ''),
       businessName: client?.businessName || lead?.businessName,
+      clientEmail: client?.email || lead?.email,
       prevAccountant: {
         name: client?.prevAccountantName || lead?.prevAccountantName,
         email: client?.prevAccountantEmail || lead?.prevAccountantEmail,
         phone: client?.prevAccountantPhone || lead?.prevAccountantPhone,
       },
       stepId: opts.stepId,
+    });
+  }
+
+  /**
+   * מיישר את צ'קליסט "קבלת חומרים" לפי מה שבאמת נתבקש במכתב.
+   * ‼ בלי זה עוקבים אחרי רשימה שנוצרה בהרכבה ולא אחרי מה שנשלח — ואז "חסר
+   * טופס פחת" מופיע גם כשלא ביקשנו אותו.
+   */
+  function syncRequestedMaterials(clientId: string, materialKeys: string[]) {
+    const step = onboarding.steps.find(
+      s => s.clientId === clientId && s.stepType === 'materials_received' && s.status !== 'cancelled');
+    if (!step || materialKeys.length === 0) return;
+    const wasDone = new Map((step.payload?.checklist ?? []).map(i => [i.key, i.done]));
+    const checklist = RELEASE_MATERIALS
+      .filter(m => materialKeys.includes(m.key))
+      .map(m => ({ key: m.key, label: m.label, done: wasDone.get(m.key) ?? false }));
+    void onboarding.advance(step.id, 'note', {
+      checklist,
+      note: `רשימת החומרים עודכנה לפי המכתב שנשלח (${checklist.length} פריטים)`,
     });
   }
 
@@ -1831,16 +1853,25 @@ export default function App() {
           clientId={releaseFor.clientId}
           clientName={releaseFor.clientName}
           businessName={releaseFor.businessName}
+          clientEmail={releaseFor.clientEmail}
           prevAccountant={releaseFor.prevAccountant}
           brand={deriveQuotationBrand(firmProfile)}
-          onSent={() => {
+          onSent={({ materialKeys, objectionDueDate }) => {
             const stepId = releaseFor.stepId;
             if (stepId) {
+              // ‼ תאריך היעד הוא חלון ההתנגדות של כלל 16, לא מועד קבלת החומרים.
+              // עברו שלושת ימי העסקים בלי תשובה — אין התנגדות, וממשיכים.
               void onboarding.advance(stepId, 'wait_client', {
                 ball: 'prev_accountant',
-                note: 'מכתב השחרור נשלח לרו״ח הקודם',
+                dueDate: objectionDueDate,
+                note: 'מכתב השחרור נשלח לרו״ח הקודם · הלקוח מכותב',
+                objectionDueDate,
+                requestedMaterials: materialKeys,
               });
             }
+            // רשימת החומרים שנתבקשו בפועל הופכת לצ'קליסט המעקב — אחרת עוקבים
+            // אחרי רשימה גנרית שאינה מה שביקשנו.
+            syncRequestedMaterials(releaseFor.clientId, materialKeys);
           }}
           onClose={() => setReleaseFor(null)}
         />

@@ -15,28 +15,97 @@ export interface ReleaseContext {
   prevAccountantName?: string;
 }
 
-export function defaultReleaseSubject(ctx: ReleaseContext): string {
-  return `בקשת העברת חומרים — ${ctx.clientName}`;
+/** פריט חומר שאפשר לבקש מהרו"ח הקודם. `key` תואם לצ'קליסט של שלב קבלת החומרים. */
+export interface ReleaseMaterial {
+  key: string;
+  label: string;
+  checked: boolean;
 }
 
-export function defaultReleaseBody(ctx: ReleaseContext, firmName: string): string {
+/** ברירת המחדל — הרשימה שגיא מבקש בפועל. כרטסות ראשונות כי הן העיקר. */
+export const RELEASE_MATERIALS: ReleaseMaterial[] = [
+  { key: 'ledgers', label: 'כרטסות הנהלת חשבונות', checked: true },
+  { key: 'uniform_file', label: 'קובץ מבנה אחיד', checked: true },
+  { key: 'excel_ledger', label: 'כרטסת בפורמט אקסל', checked: true },
+  { key: 'depreciation', label: 'טופס פחת', checked: true },
+  { key: 'last_return', label: 'דוח שנתי אחרון', checked: true },
+  { key: 'capital_declaration', label: 'הצהרת הון אחרונה', checked: true },
+  { key: 'pnl_current', label: 'כרטסת רווח והפסד לשנה השוטפת', checked: true },
+  { key: 'trial_balance', label: 'מאזן בוחן', checked: false },
+];
+
+export interface ReleaseOptions {
+  /** מתי ההתקשרות עם הרו"ח הקודם מסתיימת. חובה — בלעדיו המכתב חסר תוקף. */
+  serviceEndDate: string;              // 'YYYY-MM-DD'
+  materials: ReleaseMaterial[];
+  /**
+   * הלקוח כבר שילם לקודם על דוחות שטרם הוגשו: הקודם נשאר מייצג ראשי עד ההגשה,
+   * ואנחנו נרשמים כמשני. ראה את מכתב הדוגמה של רו"ח נדב צייגר.
+   */
+  paidThroughLabel?: string;           // "דוחות שנתיים לשנת 2025 והנהלת חשבונות עד פברואר 2026"
+  /** דיווחים או דוחות שהקודם עדיין חייב ללקוח — שורות חופשיות. */
+  outstanding?: string[];
+}
+
+export function defaultReleaseSubject(ctx: ReleaseContext): string {
+  return `שחרור תיק — ${ctx.clientName}`;
+}
+
+function formatHebrewDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
+export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: ReleaseOptions): string {
   const to = ctx.prevAccountantName?.trim() ? ctx.prevAccountantName.trim() : 'רו״ח הנכבד';
   const who = ctx.businessName?.trim() ? `${ctx.clientName} (${ctx.businessName})` : ctx.clientName;
-  return [
+  const picked = opts.materials.filter(m => m.checked);
+
+  const lines: string[] = [
     `לכבוד ${to},`,
     '',
-    `הלקוח ${who} עבר לטיפול משרדנו.`,
-    'נודה להעברת החומרים הרלוונטיים לצורך המשך הטיפול השוטף, ובכללם:',
-    '• מאזני בוחן ודוחות כספיים אחרונים',
-    '• דוחות שהוגשו לרשויות (מס הכנסה, מע״מ, ניכויים)',
-    '• כרטסות הנהלת חשבונות',
-    '• כל מסמך נוסף הדרוש להמשך הייצוג',
+    `הנדון: שחרור תיק — ${ctx.clientName}`,
     '',
-    'תודה על שיתוף הפעולה.',
+    `${who} פנה אלינו לייצוגו כרואי חשבון, לרבות ייצוג מול הרשויות, הנהלת חשבונות ודוחות שנתיים.`,
+    `לפיכך, הלקוח מפסיק את ההתקשרות עמך החל מתאריך ${formatHebrewDate(opts.serviceEndDate)}.`,
+    '',
+  ];
+
+  if (picked.length) {
+    lines.push('נודה לקבלת החומרים הבאים:');
+    picked.forEach(m => lines.push(`• ${m.label}`));
+    lines.push('• כל מסמך נוסף הדרוש להמשך הייצוג');
+    lines.push('');
+  }
+
+  if (opts.outstanding?.length) {
+    lines.push('כמו כן, למיטב ידיעתנו טרם הושלמו מול הלקוח:');
+    opts.outstanding.filter(t => t.trim()).forEach(t => lines.push(`• ${t.trim()}`));
+    lines.push('נודה לעדכון לגבי מועד ההשלמה.');
+    lines.push('');
+  }
+
+  // ‼ הפסקה הזו היא הסיבה שהלקוח לא נשאר בלי מייצג באמצע: כשהוא כבר שילם
+  // על דוחות שטרם הוגשו, מי שקיבל את הכסף נשאר הראשי עד שיגיש.
+  if (opts.paidThroughLabel?.trim()) {
+    lines.push(
+      `להבנתנו, כיוון שהלקוח כבר ביצע תשלום עבור ${opts.paidThroughLabel.trim()}, ` +
+      'משרדך יישאר מייצג ראשי עד להגשתם. נירשם כמייצג משני, ולאחר ההגשה נעבור להיות המייצג הראשי.');
+    lines.push('');
+  }
+
+  lines.push(
+    'בהתאם לכלל 16 לכללי ההתנהגות המקצועית של לשכת רואי חשבון בישראל, ' +
+    'אנא השב/י לנו במייל בתוך כ-3 ימי עסקים אם קיימת התנגדות למעבר.',
+    '',
+    'הלקוח מכותב למכתב זה.',
     '',
     'בברכה,',
     firmName,
-  ].join('\n');
+  );
+
+  return lines.join('\n');
 }
 
 // HTML ממותג לשליחה בפועל — נגזר במלואו מטוקני העיצוב (אותה שפה של כל המיילים).

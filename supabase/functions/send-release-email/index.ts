@@ -16,7 +16,7 @@ Deno.serve(async (req: Request) => {
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
   try {
-    const { clientId, to, subject, html } = await req.json();
+    const { clientId, to, subject, html, ccClient } = await req.json();
     if (!clientId || !to || !subject || !html) return json({ error: "missing clientId/to/subject/html" }, 400);
 
     // ‼ הנמען כאן חופשי בכוונה (הרו"ח הקודם), ולכן התקרות הן מה שמונע מהפונקציה
@@ -38,7 +38,7 @@ Deno.serve(async (req: Request) => {
     const user = userData?.user;
     if (!user) return json({ error: "unauthorized" }, 401);
 
-    const { data: client } = await admin.from("clients").select("id,user_id").eq("id", clientId).single();
+    const { data: client } = await admin.from("clients").select("id,user_id,email").eq("id", clientId).single();
     if (!client || client.user_id !== user.id) return json({ error: "not found" }, 404);
 
     const { data: profile } = await admin.from("profiles").select("*").eq("id", user.id).single();
@@ -47,7 +47,14 @@ Deno.serve(async (req: Request) => {
     const fromAddress = (comm.senderEmail && String(comm.senderEmail).trim()) || "onboarding@resend.dev";
     const replyTo = (comm.replyTo && String(comm.replyTo).trim()) || profile?.email || undefined;
 
+    // ‼ כתובת העותק נלקחת מהכרטיס בשרת ולא מהבקשה. הנמען הראשי חייב להיות
+    // חופשי (הרו"ח הקודם אינו במסד), אבל עותק לכתובת שרירותית היה הופך את
+    // הפונקציה למשגר לכל מקום — ולכן הלקוח שולח דגל, לא כתובת.
+    const ccAddress = ccClient && client.email && String(client.email).trim()
+      ? String(client.email).trim() : null;
+
     const payload: Record<string, unknown> = { from: `${firmName} <${fromAddress}>`, to: [to], subject, html };
+    if (ccAddress) payload.cc = [ccAddress];
     if (replyTo) payload.reply_to = replyTo;
 
     const r = await fetch("https://api.resend.com/emails", {
@@ -59,13 +66,13 @@ Deno.serve(async (req: Request) => {
 
     // עותק הגוף נשמר יחד עם הרשומה, כמו בשאר המיילים. מכתב שחרור הוא המסמך
     // שמעביר את התיק — בלי עותק אין דרך להוכיח בדיעבד מה בדיוק נשלח.
-    const logBase = { user_id: user.id, client_id: clientId, to_email: to, subject, kind: "release", html, meta: { from: `${firmName} <${fromAddress}>` } };
+    const logBase = { user_id: user.id, client_id: clientId, to_email: to, subject, kind: "release", html, meta: { from: `${firmName} <${fromAddress}>`, cc: ccAddress } };
     if (!r.ok) {
       await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
       return json({ error: "resend_failed", detail: body }, 502);
     }
     await admin.from("email_messages").insert({ ...logBase, resend_id: body.id, status: "sent" });
-    return json({ ok: true, id: body.id, from: `${firmName} <${fromAddress}>` });
+    return json({ ok: true, id: body.id, from: `${firmName} <${fromAddress}>`, cc: ccAddress });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
 import OnboardingTab from './OnboardingTab';
+import ReleaseLetterDialog from '../quotations/ReleaseLetterDialog';
 
 const CLIENT_ID = 'fixture-client';
 const ENG_ID = 'fixture-eng';
@@ -124,6 +125,7 @@ export default function TestOnboarding() {
   const [hasPrevEmail, setHasPrevEmail] = useState(true);
   // מצב בנייה מול מצב ניהול — אותה לשונית, לפני ואחרי פתיחת התהליך ללקוח.
   const [published, setPublished] = useState(true);
+  const [showRelease, setShowRelease] = useState(false);
   return (
     <div style={{ padding: '1.5rem', maxWidth: 980, margin: '0 auto' }} dir="rtl">
       <h2 style={{ marginBottom: '.3rem' }}>בדיקת לשונית הקליטה — נתונים מדומים</h2>
@@ -156,10 +158,26 @@ export default function TestOnboarding() {
           email: hasPrevEmail ? 'dana@prev-firm.example' : undefined,
           phone: '03-1234567',
         }}
-        onPrepareReleaseLetter={(stepId) => setMsg(`פתיחת מכתב שחרור לשלב ${stepId}`)}
+        onPrepareReleaseLetter={(stepId) => { setMsg(`פתיחת מכתב שחרור לשלב ${stepId}`); setShowRelease(true); }}
         repStatusLabel="בקשת ייצוג · ממתין למילוי הלקוח"
         onOpenRepresentation={() => setMsg('קפיצה למרכז הייצוג')}
       />
+      {showRelease && (
+        <ReleaseLetterDialog
+          clientId={CLIENT_ID}
+          clientName="שרון מזרחי"
+          businessName="שרון מזרחי — ייעוץ"
+          clientEmail="sharon@example.com"
+          prevAccountant={{ name: 'רו״ח דנה כהן', email: 'dana@prev-firm.example', phone: '03-1234567' }}
+          brand={{
+            firmName: 'גיא ישר · רואה חשבון', email: 'guy@example.com', phone: '03-0000000',
+            pageBg: '#f8f7f5', cardBg: '#ffffff', border: '#e2e4e7', ink: '#25282d',
+            muted: '#63686f', accent: '#3f5f8f', radius: 8, headerStyle: 'minimal',
+          } as never}
+          onSent={(x) => setMsg(`נשלח · ${x.materialKeys.length} חומרים · התנגדות עד ${x.objectionDueDate}`)}
+          onClose={() => setShowRelease(false)}
+        />
+      )}
     </div>
   );
 }
