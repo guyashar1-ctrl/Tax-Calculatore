@@ -89,6 +89,11 @@ const STEPS: OnboardingStep[] = [
   // c6 — ממתין לאחרים: הרו"ח הקודם
   step('c6', 'release_letter', 'prev_accountant', 'waiting_client', 'prev_accountant'),
   step('c6', 'materials_received', 'prev_accountant', 'locked', 'prev_accountant'),
+
+  // ‼ ghost — שלבים של כרטיס שנמחק (אין c9 ברשימת הלקוחות). פעם הם הופיעו
+  // כשורה בשם "לקוח". אסור שיופיעו כאן בכלל.
+  step('c9', 'representation_upgrade', 'authorities', 'pending', 'me'),
+  step('c9', 'internal_setup', 'internal', 'pending', 'me'),
 ];
 
 // התקשרות לכל לקוח, עם ותק שונה — כדי שעמודת "בקליטה" תראה טווח אמיתי.

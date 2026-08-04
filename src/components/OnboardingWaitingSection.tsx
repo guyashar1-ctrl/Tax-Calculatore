@@ -36,12 +36,16 @@ export default function OnboardingWaitingSection({ steps, clients, onOpen, onRem
   const [collapsed, setCollapsed] = useState(false);
   const [othersOpen, setOthersOpen] = useState(false);
 
-  const summaries = summarizeClientOnboarding(steps);
+  // ‼ שורה שאין לה כרטיס לקוח היא רוח רפאים — שאריות של קליטה שכרטיסה נמחק
+  // ועוד לא נטענו מחדש. פעם היא הוצגה בשם "לקוח", וזה נראה כמו לקוח אמיתי
+  // בלי שם. עדיף לא להציג אותה בכלל.
+  const known = new Set(clients.map(c => c.id));
+  const summaries = summarizeClientOnboarding(steps).filter(s => known.has(s.clientId));
   if (summaries.length === 0) return null;
 
   const nameOf = (clientId: string) => {
     const c = clients.find(x => x.id === clientId);
-    return c ? `${c.firstName} ${c.lastName}`.trim() || 'לקוח' : 'לקוח';
+    return c ? `${c.firstName} ${c.lastName}`.trim() || 'לקוח ללא שם' : '';
   };
 
   const stuck = summaries.filter(s => s.bucket === 'stuck');

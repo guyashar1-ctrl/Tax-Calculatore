@@ -39,6 +39,8 @@ export default function OnboardingClientsTable({ clients, steps, engagements, on
 
   // תקוע קודם, ואז לפי ותק — קליטה שיושבת שלושה שבועות דורשת מבט לפני אחת מאתמול.
   const rows = summaries
+    // ‼ אותה רוח רפאים כמו בשולחן: שלבים ששרדו מחיקת כרטיס אינם שורה בטבלה.
+    .filter(s => byClient.has(s.clientId))
     .map(s => ({ s, days: daysInOnboarding(engByClient.get(s.clientId)) }))
     .sort((a, b) => {
       const stuckDiff = Number(!!b.s.stuck) - Number(!!a.s.stuck);
@@ -71,7 +73,7 @@ export default function OnboardingClientsTable({ clients, steps, engagements, on
         <tbody>
           {rows.map(({ s, days }) => {
             const c = byClient.get(s.clientId);
-            const name = c ? `${c.firstName} ${c.lastName}`.trim() || 'לקוח' : 'לקוח';
+            const name = `${c?.firstName ?? ''} ${c?.lastName ?? ''}`.trim() || 'לקוח ללא שם';
             const step = s.stuck ?? s.next;
             return (
               <tr key={s.clientId} onClick={() => onOpen(s.clientId)} style={{ cursor: 'pointer' }}>

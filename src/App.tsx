@@ -578,13 +578,15 @@ export default function App() {
     const client = clients.find(c => c.id === id);
     if (client?.representationRequestId) {
       try { await removeRequest(client.representationRequestId); } catch { /* ignore */ }
-      // ‼ ממתינים למחיקת הקבצים ולא שולחים אותה "לדרך". הרענון שבסוף היה קוטע
-      // אותה באמצע ומשאיר קבצים יתומים באחסון.
-      try {
-        const docs = await db.getDocsByClient(id);
-        await Promise.all(docs.map(d => db.deleteDoc(d.id)));
-      } catch { /* ignore */ }
     }
+    // ‼ מחיקת הקבצים היא לכל לקוח, ולא רק למי שיש לו בקשת ייצוג ישנה. המסד מוחק
+    // בגרירה את *שורות* המסמכים, אבל הקבצים עצמם יושבים ב-storage ואף אחד לא
+    // נוגע בהם — כך נשארו באחסון ייפויי כוח חתומים של לקוחות שנמחקו. ממתינים
+    // ולא שולחים "לדרך": הרענון שבסוף היה קוטע את המחיקה באמצע.
+    try {
+      const docs = await db.getDocsByClient(id);
+      await Promise.all(docs.map(d => db.deleteDoc(d.id)));
+    } catch { /* ignore */ }
     await removeClient(id);
     // ‼ טעינה מחדש מלאה, ולא רק ניקוי הרשימה. המסד מוחק בגרירה גם משימות,
     // מסמכים, התקשרות ושלבי קליטה — וכל אחד מהם יושב בזיכרון של מסך אחר.
@@ -975,12 +977,20 @@ export default function App() {
     } catch {
       // ignore
     }
+    const deletesClient = !!req?.linkedClientId;
     if (req?.linkedClientId) {
       try { await removeClient(req.linkedClientId); } catch { /* ignore */ }
     }
     await removeRequest(id);
     setSelectedRequestId(null);
     setView('list');
+    // ‼ מחיקת בקשה שמוחקת גם את כרטיס הלקוח היא מחיקת לקוח לכל דבר: המסד מוריד
+    // איתה בגרירה משימות, קליטה והתקשרות. בלי הטעינה מחדש שלבי הקליטה נשארו
+    // בזיכרון בלי כרטיס להתאים — וזה מה שהופיע על השולחן בשם "לקוח".
+    if (deletesClient) {
+      window.location.hash = formatRoute({ view: 'list' });
+      window.location.reload();
+    }
   }
 
   // ─── הצעות מחיר ולידים ─────────────────────────────────────────────────────
