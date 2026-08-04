@@ -20,6 +20,7 @@ import {
   REPRESENTATION_STATUS_LABELS,
   DEFAULT_REQUESTED_DOCS,
 } from './types';
+import type { OnboardingStep } from './types/onboarding';
 import { ExtractedClientData } from './utils/geminiVision';
 import { useDocumentDB } from './hooks/useIndexedDB';
 import { useTheme } from './hooks/useTheme';
@@ -306,6 +307,8 @@ export default function App() {
   // מכתב שחרור לרו"ח הקודם. stepId מגיע כשפתחו אותו משלב הקליטה — אחרי
   // שליחה מוצלחת השלב עובר ל"נשלח" והכדור עובר לרו"ח הקודם.
   const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; prevAccountant: { name?: string; email?: string; phone?: string }; stepId?: string } | null>(null);
+  /** תזכורת שהוכנה לשלב תקוע — נפתחת לעריכה, נשלחת רק בלחיצה. */
+  const [stepReminder, setStepReminder] = useState<{ stepId: string; clientId: string } | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -493,6 +496,31 @@ export default function App() {
     setSelectedId(clientId);
     setClientInitialTab('onboarding');
     setView('form');
+  }
+
+  /**
+   * "הכן תזכורת" על שלב תקוע — מהשולחן.
+   * ‼ מכין ולא שולח. נפתחת תצוגה מקדימה שאפשר לערוך, והמייל יוצא רק בלחיצה.
+   * ‼ שלב שהכדור בו אצל הרו"ח הקודם אינו מקבל תזכורת ללקוח: שם הפנייה היא
+   * מכתב לעמית, וזה דיאלוג אחר לגמרי.
+   */
+  function handleRemindStep(step: OnboardingStep, clientId: string) {
+    if (step.ball === 'prev_accountant' || step.stepType === 'release_letter'
+        || step.stepType === 'materials_received') {
+      const c = clients.find(x => x.id === clientId);
+      if (!c) return;
+      setReleaseFor({
+        clientId,
+        clientName: `${c.firstName} ${c.lastName}`.trim(),
+        businessName: c.businessName,
+        prevAccountant: {
+          name: c.prevAccountantName, email: c.prevAccountantEmail, phone: c.prevAccountantPhone,
+        },
+        stepId: step.id,
+      });
+      return;
+    }
+    setStepReminder({ stepId: step.id, clientId });
   }
 
   /** כרטיס הלקוח ישר על המסמכים — מהמסך של בקשת הייצוג. */
@@ -1447,6 +1475,7 @@ export default function App() {
             onLoadSampleTasks={handleLoadSampleTasks}
             onboardingSteps={onboarding.steps}
             onOpenOnboarding={handleOpenClientOnboarding}
+            onRemindStep={handleRemindStep}
           />
         )}
 
@@ -1712,6 +1741,17 @@ export default function App() {
           sendVia={sendQuotationReminder}
           onSent={() => { /* החלון מציג את האישור; ההצעה כבר עודכנה */ }}
           onClose={() => setRemindPreview(null)}
+        />
+      )}
+
+      {stepReminder && (
+        <EmailPreviewDialog
+          heading="תזכורת ללקוח"
+          fn="send-step-email"
+          editable
+          body={{ stepId: stepReminder.stepId, kind: 'step_reminder' }}
+          onSent={() => onboarding.refresh()}
+          onClose={() => setStepReminder(null)}
         />
       )}
 

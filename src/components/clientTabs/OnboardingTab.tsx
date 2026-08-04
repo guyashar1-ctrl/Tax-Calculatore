@@ -107,7 +107,7 @@ export default function OnboardingTab({
   const [busyStepId, setBusyStepId] = useState<string | null>(null);
   const [menuStepId, setMenuStepId] = useState<string | null>(null);
   // חלון המייל של שלב — נפתח מהכרטיס, נשלח דרך send-step-email
-  const [emailDialog, setEmailDialog] = useState<{ stepId: string; kind: 'paperless_invite' | 'retainer_request'; heading: string } | null>(null);
+  const [emailDialog, setEmailDialog] = useState<{ stepId: string; kind: 'paperless_invite' | 'retainer_request' | 'step_reminder'; heading: string } | null>(null);
   const [confirmState, setConfirmState] = useState<{ stepId: string; title: string; message: string; confirmLabel: string } | null>(null);
   // "שנה מסלול" — פותח מחדש את הטריאז' על שלב שכבר נענה
   const [retriageStepId, setRetriageStepId] = useState<string | null>(null);
@@ -523,6 +523,15 @@ export default function OnboardingTab({
                     {(step.status === 'blocked' || step.status === 'failed') && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
                         onClick={() => void run(step, 'reopen')}>פתח מחדש</button>
+                    )}
+
+                    {/* ‼ תזכורת מוצעת רק כשהכדור בחוץ. שלב שהכדור בו אצלי
+                        לא צריך תזכורת — הוא צריך שאעשה אותו. */}
+                    {step.needsAttention && isStepOpen(step.status) && step.ball === 'client' && (
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+                        onClick={() => setEmailDialog({
+                          stepId: step.id, kind: 'step_reminder', heading: 'תזכורת ללקוח',
+                        })}>הכן תזכורת</button>
                     )}
 
                     {menu}

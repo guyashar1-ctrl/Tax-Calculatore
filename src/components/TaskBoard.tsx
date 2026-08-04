@@ -42,6 +42,8 @@ interface Props {
   onboardingSteps?: OnboardingStep[];
   /** פתיחת כרטיס הלקוח ישר בלשונית הקליטה. */
   onOpenOnboarding?: (clientId: string) => void;
+  /** הכנת מייל תזכורת לשלב תקוע. חסר ⇒ הכפתור לא מוצג. */
+  onRemindStep?: (step: OnboardingStep, clientId: string) => void;
 }
 
 const CATEGORY_OPTIONS: TaskCategory[] = [
@@ -66,7 +68,7 @@ export default function TaskBoard({
   onSelectTask, onAddTask, onToggleDone,
   onChangeStatus, onChangeBall, onChangeCategory,
   onReorder, onSelectClient, onDeleteTask, onLoadSampleTasks,
-  onboardingSteps, onOpenOnboarding,
+  onboardingSteps, onOpenOnboarding, onRemindStep,
 }: Props) {
   const { showToast } = useToast();
   const [search, setSearch] = useState('');
@@ -317,6 +319,7 @@ export default function TaskBoard({
         steps={onboardingSteps ?? []}
         clients={clients}
         onOpen={onOpenOnboarding}
+        onRemind={onRemindStep}
       />
 
       <div className="board-filters">
