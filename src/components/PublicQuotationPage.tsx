@@ -93,8 +93,8 @@ export default function PublicQuotationPage({ token }: Props) {
    * האישור. השרת מסמן "אושרה" וגם פותח את תהליך הייצוג (לקוח, בקשה, חותמים,
    * משימה) בטרנזקציה אחת, ומחזיר את הקישור להשלמת הפרטים. מיד לאחר מכן המסך
    * מודיע שאושר ומעביר את הלקוח לעמוד השלמת הפרטים — הוא לא צריך ללחוץ ולא
-   * לחפש מייל. המייל נשלח במקביל כגיבוי, ולא חוסם: אם השליחה תיכשל, הרו"ח
-   * יראה זאת וישלים בכניסה הבאה שלו.
+   * לחפש מייל, ולכן גם לא נשלח כאן מייל: הקישור הקבוע לדף האישי כבר בידיו
+   * מהמייל של ההצעה.
    */
   async function handleApprove(sig: ApprovalSignature) {
     setApproving(true);
@@ -118,7 +118,9 @@ export default function PublicQuotationPage({ token }: Props) {
         const url = onboardingUrl(result.onboardingToken);
         setNextStepLink(url);
         setAutoAdvancing(true);
-        void supabase.functions.invoke('send-onboarding-email', { body: { quotationToken: token } });
+        // ‼ אין כאן מייל. הקישור הקבוע לדף האישי כבר נשלח עם הצעת המחיר,
+        // והמסך ממשיך מיד לצעד הבא — מייל "תודה שחתמת" רק היה חוזר על מה
+        // שהלקוח כבר רואה. מי שנוטש באמצע יקבל תזכורת מהרו"ח (App.tsx).
         // שהייה קצרה כדי שהלקוח יספיק לראות ש"אושר" לפני שהמסך מתחלף
         window.setTimeout(() => { window.location.href = url; }, AUTO_ADVANCE_MS);
       }

@@ -126,9 +126,19 @@ Deno.serve(async (req: Request) => {
       const link = `${APP_URL}/?quote=${q.public_token}`;
       const expiry = new Date(q.expires_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
       const subject = `תזכורת — הצעת המחיר שלך בתוקף עד ${expiry}`;
+      // אותו קישור קבוע שנשלח עם ההצעה. הלקוח מקבל דלת אחת בלבד לכל התהליך,
+      // ולכן גם התזכורת מזכירה אותה ולא ממציאה מסלול חדש.
+      let portalNote = "";
+      if (q.client_id) {
+        const { data: pc } = await admin.from("clients").select("portal_token").eq("id", q.client_id).maybeSingle();
+        const pt = String(pc?.portal_token || "").trim();
+        if (pt) {
+          portalNote = `<br><br>אפשר גם להיכנס ל<a href="${APP_URL}/?portal=${pt}" style="color:${brand.accent};font-weight:600;text-decoration:none;">דף האישי שלכם</a> — כל התהליך מרוכז בו.`;
+        }
+      }
       const html = buildBrandedEmail(brand, {
         heading: "תזכורת קטנה" + (firstName ? ", " + firstName : ""),
-        bodyHtml: esc(`הצעת המחיר שהכנו עבורך עדיין ממתינה לאישורך. ההצעה בתוקף עד ${expiry}. נשמח לצרף אתכם.`),
+        bodyHtml: esc(`הצעת המחיר שהכנו עבורך עדיין ממתינה לאישורך. ההצעה בתוקף עד ${expiry}. נשמח לצרף אתכם.`) + portalNote,
         ctaLabel: "צפייה ואישור ההצעה",
         ctaHref: link,
         ctaArrow: true,

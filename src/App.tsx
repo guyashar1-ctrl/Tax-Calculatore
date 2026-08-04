@@ -260,24 +260,40 @@ export default function App() {
   }, [user, authorized]);
 
   /**
-   * רשת ביטחון לאוטומציה של אישור ההצעה. האישור עצמו יוצר את הלקוח ואת בקשת
-   * הייצוג בצד השרת, אבל שני דברים תלויים בדפדפן ועלולים להיכשל שם: שליחת
-   * המייל (הלקוח סגר את הטאב לפני שהבקשה יצאה) והפקת הסכם ההתקשרות (PDF).
-   * שניהם מושלמים כאן בכניסה הבאה של הרו"ח, ושניהם אידמפוטנטיים.
+   * שני דברים נשארים פתוחים אחרי אישור הצעה: הפקת הסכם ההתקשרות (PDF), ומי
+   * שחתם ונעלם באמצע מבלי להשלים את פרטי הייצוג. שניהם מושלמים כאן בכניסה
+   * הבאה של הרו"ח, ושניהם אידמפוטנטיים.
    *
-   * ‼ הסימון "נשלח" כבר לא נעשה כאן. השרת תובע את השליחה על ההצעה עצמה לפני
+   * ‼ אין יותר מייל אוטומטי מיד אחרי החתימה. הקישור הקבוע לדף האישי נשלח כבר
+   * עם ההצעה, והמסך ממשיך לצעד הבא מעצמו — מייל נוסף באותו רגע הוא רעש. מה
+   * שנשאר הוא תזכורת אחת, ורק למי שבאמת נתקע: חלף יום מהאישור והפרטים עדיין
+   * לא מולאו.
+   *
+   * ‼ הסימון "נשלח" לא נעשה כאן. השרת תובע את השליחה על ההצעה עצמה לפני
    * שהוא פונה לרסנד, ולכן שני מסלולים שרצים יחד לא יכולים לשלוח פעמיים. כשהשרת
    * מחזיר alreadySent הוא אומר שמישהו הקדים — אין מה לכתוב, הערך כבר במסד.
    */
+  const contractSaved = useRef(new Set<string>());
   const autoRepHandled = useRef(new Set<string>());
   useEffect(() => {
     if (!user) return;
+    const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
     for (const q of quotations) {
       if (q.status !== 'approved' || !q.representationRequestId) continue;
+      if (q.clientId && !contractSaved.current.has(q.id)) {
+        contractSaved.current.add(q.id);
+        void saveEngagementContract(q, q.clientId);
+      }
       if (autoRepHandled.current.has(q.id)) continue;
-      autoRepHandled.current.add(q.id);
-      if (q.clientId) void saveEngagementContract(q, q.clientId);
       if (q.representationSentAt) continue;
+      // ‼ הסימון "טופל" נעשה רק כשבאמת שולחים. בקשות הייצוג נטענות אחרי
+      // ההצעות, ואם נסמן מוקדם — הבדיקה תרוץ פעם אחת על מידע חסר ולא תחזור.
+      const linkedReq = requests.find(r => r.id === q.representationRequestId);
+      if (!linkedReq) continue;
+      if (linkedReq.onboardingStatus !== 'pending') continue;   // הלקוח כבר מילא
+      const approvedAt = q.approvedAt ? new Date(q.approvedAt).getTime() : 0;
+      if (!approvedAt || Date.now() - approvedAt < NUDGE_AFTER_MS) continue;
+      autoRepHandled.current.add(q.id);
       void (async () => {
         try {
           const { data, error } = await supabase.functions.invoke('send-onboarding-email', {
@@ -293,7 +309,7 @@ export default function App() {
       })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, quotations]);
+  }, [user?.id, quotations, requests]);
 
   const { theme, toggleTheme } = useTheme();
   // המסך שבו נמצאים נקרא מהכתובת, כדי שרענון (F5) יחזיר לאותו מקום
