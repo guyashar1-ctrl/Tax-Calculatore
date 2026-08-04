@@ -31,6 +31,8 @@ interface Props {
   onChangeCategory: (id: string, category: TaskCategory) => void;
   onReorder: (id: string, target: TaskProgress | 'done', beforeId: string | null) => void;
   onDeleteTask: (id: string) => void;
+  /** בדף המסע הן נקראות "עבודה שוטפת", כדי להבדילן מבקשות שממתינות לאחרים. */
+  title?: string;
 }
 
 /** הקבוצות ותוויות הפעולה שלהן — מה עושים עם קבוצה, לא מה היא */
@@ -43,7 +45,7 @@ const GROUPS: { key: BallWith | 'done'; title: string; hint?: string }[] = [
 ];
 
 export default function TasksActivityTab({
-  client, tasks, onAddTask, onSelectTask, onToggleTaskDone,
+  client, tasks, onAddTask, onSelectTask, onToggleTaskDone, title,
 }: Props) {
   const clientTasks = useMemo(
     () => tasks.filter(t => t.clientId === client.id),
@@ -75,7 +77,7 @@ export default function TasksActivityTab({
     <div className="cw-tab cw-tasks-activity ct-tasks">
       <div className="ct-head">
         <div className="ct-head-title">
-          <span className="ct-title">משימות</span>
+          <span className="ct-title">{title ?? 'משימות'}</span>
           <span className="ct-count">{openCount}</span>
         </div>
         <button className="ui-btn ui-btn-primary" onClick={onAddTask}>+ משימה</button>

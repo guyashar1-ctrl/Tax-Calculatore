@@ -235,6 +235,10 @@ export default function App() {
   // (לשונית הקליטה + המקטע בשולחן) בלי שינוי קוד — settings.flags.onboardingTab=false.
   const onboardingEnabled =
     ((firmProfile?.settings?.flags as { onboardingTab?: boolean } | undefined)?.onboardingTab) !== false;
+  // ‼ מתג החזרה של מהלך "המסע הוא הכרטיס": כבוי ⇒ הניווט הישן (3 טאבים) וחמש
+  // לשוניות הכרטיס חוזרים במלואם. שום נתון לא תלוי בו — הוא תצוגה בלבד.
+  const journeyUi =
+    ((firmProfile?.settings?.flags as { journeyUi?: boolean } | undefined)?.journeyUi) !== false;
   const onboarding = useOnboarding(onboardingEnabled ? user?.id : undefined);
   const { leads, addLead, updateLead, deleteLead } = useLeads(user?.id);
   // כרטיס לקוח ↔ הליד שממנו הוא בא. שורה בשלב "ליד" במסך הלקוחות מובילה לשם.
@@ -1620,6 +1624,13 @@ export default function App() {
             refreshOnboarding={onboarding.refresh}
             onOpenReleaseLetter={(clientId, stepId) => openReleaseLetter(clientId, { stepId })}
             onOpenRepresentation={handleOpenClientRepresentation}
+            journeyUi={journeyUi}
+            quotations={quotations}
+            onOpenQuotation={(id) => {
+              const q = quotations.find(x => x.id === id);
+              if (q) handleOpenQuotation(q);
+            }}
+            onNewQuotation={() => handleNewQuotation()}
           />
         )}
 

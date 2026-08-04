@@ -4,13 +4,13 @@
 // ‼ שלב נעול מוצג ולא מוסתר: התלות ("הרשאת תשלום רק אחרי חיבור פייפרלס")
 // היא כלל עסקי שהרו"ח צריך לראות, אחרת הוא מחפש שלב שנעלם.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   Engagement, OnboardingEvent, OnboardingStep, StepChecklistItem,
 } from '../../types/onboarding';
 import {
-  ENGAGEMENT_STATUS_LABELS, EVENT_ACTOR_LABELS, EVENT_TYPE_LABELS, STEP_BALL_LABELS,
-  STEP_STATUS_LABELS, STEP_STATUS_TONE, STEP_TYPE_LABELS, TRACK_LABELS, TRACK_ORDER,
+  ENGAGEMENT_STATUS_LABELS, EVENT_ACTOR_LABELS, EVENT_TYPE_LABELS, REQUIREMENT_KIND_LABELS,
+  STEP_BALL_LABELS, STEP_STATUS_LABELS, STEP_STATUS_TONE, STEP_TYPE_LABELS, TRACK_LABELS,
   isStepOpen,
 } from '../../types/onboarding';
 import type { RepAuthorityKind } from '../../types';
@@ -50,6 +50,37 @@ interface Props {
   onOpenRepresentation?: () => void;
   /** שם הלקוח לכותרת בונה התהליך. */
   clientDisplayName?: string;
+  /**
+   * מוטמע בדף המסע: פס הכדור, מפת המסע וציר הזמן מגיעים מהדף העוטף,
+   * וכאן נשארות רק שורות הבקשות. בלי זה היו שתי כותרות שאומרות אותו דבר.
+   */
+  embedded?: boolean;
+  /** סינון לפי אצל-מי-הכדור, מרצועת המונים בדף המסע. null = הכול. */
+  ballFilter?: 'me' | 'client' | 'third' | 'stuck' | 'done' | null;
+}
+
+/**
+ * איזו שורה פתוחה כרגע. דרך context ולא props, כי המעטפת נקראת מתוך שישה
+ * כרטיסים מתמחים — העברה ידנית הייתה מוסיפה שני props לכל אחד מהם בלי סיבה.
+ */
+const RowOpenContext = createContext<{ openId: string | null; toggle: (id: string) => void }>({
+  openId: null, toggle: () => {},
+});
+
+/** כמה זמן השורה עומדת במצב הזה — "9 ימים" ולא תאריך שצריך לחשב בראש. */
+function ageLabel(step: OnboardingStep): string | null {
+  const from = step.updatedAt ?? step.createdAt;
+  if (!from) return null;
+  const days = Math.floor((Date.now() - new Date(from).getTime()) / 86400000);
+  if (!Number.isFinite(days) || days < 1) return null;
+  return days === 1 ? 'יום אחד' : `${days} ימים`;
+}
+
+/** "2/3" — התקדמות פנימית של בקשה, כשיש לה פריטים. */
+function progressLabel(step: OnboardingStep): string | null {
+  const list = step.payload.requirements ?? step.payload.checklist;
+  if (!Array.isArray(list) || list.length === 0) return null;
+  return `${list.filter(i => i.done).length}/${list.length}`;
 }
 
 const TONE_COLOR: Record<string, string> = {
@@ -117,7 +148,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 export default function OnboardingTab({
   clientId, engagements, steps, events, loading, advance, refresh,
   prevAccountant, onPrepareReleaseLetter, repStatusLabel, onOpenRepresentation,
-  clientDisplayName,
+  clientDisplayName, embedded, ballFilter,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
@@ -131,6 +162,10 @@ export default function OnboardingTab({
   const [triageBusy, setTriageBusy] = useState(false);
   const [triageError, setTriageError] = useState<string | null>(null);
   const [highlightStepId, setHighlightStepId] = useState<string | null>(null);
+  // מה שהושלם לא נעלם, אבל גם לא תופס את המסך — הוא מקופל עד שמבקשים אותו.
+  const [showDone, setShowDone] = useState(false);
+  // שורה סגורה מראה שם, מצב ופעולה; פתיחה חושפת את הפרטים וההיסטוריה שלה.
+  const [openRowId, setOpenRowId] = useState<string | null>(null);
   const highlightTimer = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -369,9 +404,20 @@ export default function OnboardingTab({
     ? activeEngagement ? `ההתקשרות ${ENGAGEMENT_STATUS_LABELS[activeEngagement.status]}.` : ''
     : `${TRACK_LABELS[nextStep.track]} · נותרו ${openCount} שלבים פתוחים${nextStep.dueDate ? ` · עד ${formatDate(nextStep.dueDate, 'list')}` : ''}`;
 
-  const tracks = TRACK_ORDER
-    .map(track => ({ track, list: clientSteps.filter(s => s.track === track) }))
-    .filter(g => g.list.length > 0);   // מסלול בלי שלבים לא מקבל קופסה ריקה
+  // ‼ רשימה אחת בסדר שהרו"ח קבע, לא קיבוץ למסלולים. הקיבוץ הישן פיזר בקשה
+  // אחת לשש קופסאות ואילץ לקרוא את כולן כדי לדעת מה הדבר הבא; המסע הוא רצף.
+  const matchesBall = (s: OnboardingStep) => {
+    if (!ballFilter) return true;
+    if (ballFilter === 'done') return !isStepOpen(s.status);
+    if (!isStepOpen(s.status)) return false;
+    if (ballFilter === 'stuck') return s.status === 'blocked' || s.status === 'failed' || s.needsAttention;
+    if (ballFilter === 'third') return s.ball === 'authority' || s.ball === 'prev_accountant';
+    return s.ball === ballFilter;
+  };
+
+  const visibleSteps = clientSteps.filter(matchesBall);
+  const openSteps = visibleSteps.filter(s => isStepOpen(s.status));
+  const doneSteps = visibleSteps.filter(s => !isStepOpen(s.status));
 
   // ‼ אותו מסך, שני מצבים. כל עוד התהליך לא נפתח ללקוח — מצב בנייה: מרכיבים
   // מה מבקשים ממנו. אחרי הפתיחה — מצב ניהול. אין כאן שני מסכים שסותרים.
@@ -390,6 +436,10 @@ export default function OnboardingTab({
   }
 
   return (
+    <RowOpenContext.Provider value={{
+      openId: openRowId,
+      toggle: (id: string) => setOpenRowId(cur => (cur === id ? null : id)),
+    }}>
     <div className="cw-tabpanel">
       {error && (
         <div style={{
@@ -398,8 +448,9 @@ export default function OnboardingTab({
         }}>⚠ {error}</div>
       )}
 
-      {/* ── שורת הכדור — אותו מבט של שורת המצב בייצוג ── */}
-      <div style={{
+      {/* ── שורת הכדור — אותו מבט של שורת המצב בייצוג ──
+          מוטמע בדף המסע: רצועת המונים שם אומרת את אותו הדבר, ולכן היא יורדת. */}
+      {!embedded && <div style={{
         display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap',
         padding: '.7rem .9rem',
         borderInlineStart: `3px solid ${ballTone.c}`,
@@ -427,23 +478,37 @@ export default function OnboardingTab({
             {closing ? 'סוגר…' : 'סגור קליטה'}
           </button>
         )}
-      </div>
+      </div>}
 
-      {clientSteps.length > 0 && (
+      {!embedded && clientSteps.length > 0 && (
         <OnboardingJourneyMap steps={clientSteps} onSelect={gotoStep} />
       )}
 
       {loading && clientSteps.length === 0 && <div className="cw-empty">טוען…</div>}
 
-      {tracks.map(({ track, list }) => (
-        <div key={track} className="cw-section">
+      {[
+        { key: 'open', title: 'מה ביקשתי', list: openSteps },
+        { key: 'done', title: 'הושלם', list: showDone ? doneSteps : [] },
+      ].filter(g => g.key === 'open' ? true : doneSteps.length > 0).map(({ key, title, list }) => (
+        <div key={key} className="cw-section">
           <div className="cw-section-head">
-            <span>{TRACK_LABELS[track]}</span>
-            <span className="cw-section-count">{list.filter(s => isStepOpen(s.status)).length}/{list.length}</span>
+            {key === 'done' ? (
+              <button type="button" onClick={() => setShowDone(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '.35rem', color: 'inherit', font: 'inherit',
+                  background: 'none', border: 'none', appearance: 'none', padding: 0, cursor: 'pointer',
+                }}>
+                <span aria-hidden="true">{showDone ? '▾' : '▸'}</span>
+                <span>{title}</span>
+              </button>
+            ) : <span>{title}</span>}
+            <span className="cw-section-count">{key === 'done' ? doneSteps.length : list.length}</span>
           </div>
+          {key === 'open' && list.length === 0 && (
+            <div className="cw-empty">{ballFilter ? 'אין בקשות שמתאימות לסינון.' : 'כל הבקשות הושלמו.'}</div>
+          )}
           <div>
             {list.map(step => {
-              const tone = TONE_COLOR[STEP_STATUS_TONE[step.status]];
               const locked = step.status === 'locked';
               const busy = busyStepId === step.id;
               const checklist = step.payload.checklist ?? [];
@@ -596,50 +661,12 @@ export default function OnboardingTab({
               }
 
               return (
-                <div key={step.id} id={`ob-step-${step.id}`} style={{
-                  display: 'flex', gap: '.6rem', alignItems: 'flex-start', flexWrap: 'wrap',
-                  padding: '.55rem 0', borderTop: '1px solid var(--hairline-2)',
-                }}>
-                  <span aria-hidden="true" style={{
-                    width: 8, height: 8, borderRadius: 999, background: tone,
-                    marginTop: '.4rem', flexShrink: 0,
-                  }} />
-                  <div style={{ flex: 1, minWidth: 180 }}>
-                    <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: locked ? 'var(--ink-3)' : 'var(--ink-1)' }}>
-                      {locked && '🔒 '}{STEP_TYPE_LABELS[step.stepType]}
-                      {step.needsAttention && <span style={{ color: 'var(--err)', marginInlineStart: '.4rem' }}>· דורש טיפול</span>}
-                    </div>
-                    <div style={{
-                      display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center',
-                      fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2,
-                    }}>
-                      <span style={{ color: tone, fontWeight: 600 }}>{STEP_STATUS_LABELS[step.status]}</span>
-                      <span>· הכדור {STEP_BALL_LABELS[step.ball]}</span>
-                      {step.dueDate && <span>· עד {formatDate(step.dueDate, 'list')}</span>}
-                      {locked && <span>· {lockHint(step, stepById)}</span>}
-                    </div>
-
-                    {checklist.length > 0 && (
-                      <div style={{ marginTop: '.4rem', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
-                        {checklist.map(item => (
-                          <label key={item.key} style={{
-                            display: 'flex', alignItems: 'center', gap: '.4rem',
-                            fontSize: 'var(--fs-13)', color: item.done ? 'var(--ink-3)' : 'var(--ink-2)',
-                          }}>
-                            <input
-                              type="checkbox"
-                              checked={item.done}
-                              disabled={busy || locked}
-                              onChange={() => toggleChecklistItem(step, item)}
-                            />
-                            <span style={{ textDecoration: item.done ? 'line-through' : undefined }}>{item.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <JourneyRow
+                  key={step.id}
+                  step={step}
+                  stepById={stepById}
+                  highlight={highlightStepId === step.id}
+                  menu={<>
                     {locked && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled>התחל</button>
                     )}
@@ -655,9 +682,15 @@ export default function OnboardingTab({
                           onClick={() => void run(step, 'wait_client')}>ממתין ללקוח</button>
                       </>
                     )}
+                    {/* ‼ הכפתור נקרא על שם מי שבאמת מחזיק את הכדור. "הלקוח השלים"
+                        על שלב שממתין לרו״ח הקודם או לרשות הוא פשוט לא נכון. */}
                     {step.status === 'waiting_client' && (
                       <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-                        onClick={() => void run(step, 'complete')}>הלקוח השלים</button>
+                        onClick={() => void run(step, 'complete')}>
+                        {step.ball === 'prev_accountant' ? 'החומרים הגיעו'
+                          : step.ball === 'authority' ? 'התקבל מהרשות'
+                          : 'הלקוח השלים'}
+                      </button>
                     )}
                     {step.status === 'completed' && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
@@ -678,8 +711,34 @@ export default function OnboardingTab({
                     )}
 
                     {menu}
-                  </div>
-                </div>
+                  </>}
+                >
+                  {/* ‼ הסימון הידני נשאר גם כשהלקוח או הרו״ח הקודם מעלים בעצמם:
+                      חומרים מגיעים גם בוואטסאפ ובמייל, ואי אפשר לתלות את המעקב
+                      בערוץ אחד בלבד (הכרעת גיא 2026-08-05). */}
+                  {checklist.length > 0 && (
+                    <div style={{ marginTop: '.4rem', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
+                      {checklist.map(item => (
+                        <label key={item.key} style={{
+                          display: 'flex', alignItems: 'center', gap: '.4rem',
+                          fontSize: 'var(--fs-13)', color: item.done ? 'var(--ink-3)' : 'var(--ink-2)',
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={item.done}
+                            disabled={busy || locked}
+                            onChange={() => toggleChecklistItem(step, item)}
+                          />
+                          <span style={{ textDecoration: item.done ? 'line-through' : undefined }}>{item.label}</span>
+                          {item.documentId && (
+                            <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>· הועלה</span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {step.stepType === 'custom_request' && <CustomRequestBody step={step} />}
+                </JourneyRow>
               );
             })}
           </div>
@@ -731,6 +790,41 @@ export default function OnboardingTab({
           }}
         />
       )}
+    </div>
+    </RowOpenContext.Provider>
+  );
+}
+
+/**
+ * גוף הבקשה החופשית אצל הרו"ח — מה בדיוק ביקשתי ומה הלקוח כבר מסר.
+ * לקריאה בלבד: התשובות מגיעות מהדף האישי, ולא נערכות מכאן.
+ */
+function CustomRequestBody({ step }: { step: OnboardingStep }) {
+  const reqs = step.payload.requirements ?? [];
+  if (reqs.length === 0) return null;
+  return (
+    <div style={{ marginTop: '.45rem', display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+      {step.payload.clientTitle && (
+        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
+          הלקוח רואה: “{step.payload.clientTitle}”
+        </div>
+      )}
+      {reqs.map(r => (
+        <div key={r.key} style={{
+          display: 'flex', gap: '.4rem', alignItems: 'baseline',
+          fontSize: 'var(--fs-13)', color: r.done ? 'var(--ink-3)' : 'var(--ink-2)',
+        }}>
+          <span aria-hidden="true" style={{ color: r.done ? 'var(--ok, #17845b)' : 'var(--ink-4)' }}>
+            {r.done ? '✓' : '○'}
+          </span>
+          <span>{r.label}</span>
+          <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
+            · {REQUIREMENT_KIND_LABELS[r.kind]}
+          </span>
+          {r.value && <span style={{ color: 'var(--ink-1)', fontWeight: 600 }}>· {r.value}</span>}
+          {r.documentId && <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>· קובץ הועלה</span>}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1475,15 +1569,43 @@ function StepCardShell({ step, stepById, highlight, danger, statusLabel, menu, c
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
+  return (
+    <JourneyRow step={step} stepById={stepById} highlight={highlight} danger={danger}
+      statusLabel={statusLabel} menu={menu}>
+      {children}
+    </JourneyRow>
+  );
+}
+
+/**
+ * שורת תהליך — הצורה האחידה של כל בקשה במסע.
+ * סגורה: שם · מצב · התקדמות · אצל מי הכדור וכמה זמן · הפעולה הבאה.
+ * פתוחה: כל הפרטים של אותה בקשה. פותחים אחת בכל פעם, כדי שהמסך יישאר קריא.
+ */
+function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, children }: {
+  step: OnboardingStep;
+  stepById: Map<string, OnboardingStep>;
+  highlight: boolean;
+  danger?: boolean;
+  statusLabel?: string;
+  menu: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const { openId, toggle } = useContext(RowOpenContext);
+  const open = openId === step.id;
   const tone = TONE_COLOR[STEP_STATUS_TONE[step.status]];
   const locked = step.status === 'locked';
+  const age = ageLabel(step);
+  const progress = progressLabel(step);
+  const hasBody = Boolean(children);
+
   return (
     <div id={`ob-step-${step.id}`} style={{
       display: 'flex', gap: '.6rem', alignItems: 'flex-start',
-      padding: danger || highlight ? '.55rem .6rem' : '.55rem 0',
+      padding: danger || highlight || open ? '.55rem .6rem' : '.55rem 0',
       borderTop: '1px solid var(--hairline-2)',
-      background: danger ? 'var(--red-light)' : highlight ? 'var(--surface-2)' : undefined,
-      borderRadius: danger || highlight ? 'var(--radius)' : undefined,
+      background: danger ? 'var(--red-light)' : (highlight || open) ? 'var(--surface-2)' : undefined,
+      borderRadius: danger || highlight || open ? 'var(--radius)' : undefined,
       transition: 'background .3s ease',
     }}>
       <span aria-hidden="true" style={{
@@ -1492,8 +1614,18 @@ function StepCardShell({ step, stepById, highlight, danger, statusLabel, menu, c
       }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', gap: '.4rem', alignItems: 'flex-start' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <button
+            type="button"
+            onClick={() => hasBody && toggle(step.id)}
+            aria-expanded={hasBody ? open : undefined}
+            style={{
+              flex: 1, minWidth: 0, textAlign: 'start', font: 'inherit', color: 'inherit',
+              cursor: hasBody ? 'pointer' : 'default', padding: 0,
+              background: 'none', border: 'none', appearance: 'none',
+            }}
+          >
             <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: locked ? 'var(--ink-3)' : 'var(--ink-1)' }}>
+              {hasBody && <span aria-hidden="true" style={{ color: 'var(--ink-4)', marginInlineEnd: '.3rem' }}>{open ? '▾' : '▸'}</span>}
               {locked && '🔒 '}{STEP_TYPE_LABELS[step.stepType]}
               {step.needsAttention && !danger && (
                 <span style={{ color: 'var(--err)', marginInlineStart: '.4rem' }}>· דורש טיפול</span>
@@ -1504,14 +1636,16 @@ function StepCardShell({ step, stepById, highlight, danger, statusLabel, menu, c
               fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2,
             }}>
               <span style={{ color: tone, fontWeight: 600 }}>{statusLabel ?? STEP_STATUS_LABELS[step.status]}</span>
+              {progress && <span>· {progress}</span>}
               <span>· הכדור {STEP_BALL_LABELS[step.ball]}</span>
+              {age && <span>· {age}</span>}
               {step.dueDate && <span>· עד {formatDate(step.dueDate, 'list')}</span>}
               {locked && <span>· {lockHint(step, stepById)}</span>}
             </div>
-          </div>
+          </button>
           <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>{menu}</div>
         </div>
-        {children}
+        {open && children}
       </div>
     </div>
   );

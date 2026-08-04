@@ -1,7 +1,7 @@
 // ─── תיק לקוח — Workspace ─────────────────────────────────────────────────
 // Header קבוע + 5 לשוניות. החלפה מלאה ל-ClientForm הישן.
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Client, Task, REPRESENTATION_STATUS_LABELS, REPRESENTATION_STATUS_BADGE, VATStatus, IncomeTaxType, LifecycleStage, LIFECYCLE_STAGE_LABELS } from '../types';
 import { ActivityEntry, ClientAlert, SHAAM_STATUS_BADGE } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
@@ -19,6 +19,7 @@ import TasksActivityTab from './clientTabs/TasksActivityTab';
 import SendIntakeModal from './SendIntakeModal';
 import ClientDossierTab from './clientTabs/ClientDossierTab';
 import ClientCockpitTab from './clientTabs/ClientCockpitTab';
+import JourneyTab from './clientTabs/JourneyTab';
 import OnboardingTab from './clientTabs/OnboardingTab';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboarding';
 import type { AdvanceResult } from '../hooks/useOnboarding';
@@ -41,7 +42,7 @@ const IT_LABELS: Record<IncomeTaxType, string> = {
 // במרכז השליטה, אף פעם לא כלשונית (ראה הצעת הארכיטקטורה שאושרה 15.07.2026).
 // "קליטה" היא היוצא מן הכלל: היא מופיעה רק כשיש ללקוח קליטה בפועל, ונעלמת
 // כשהיא נגמרת — לשונית מתה בכל לקוח היא בדיוק מה שהכלל הזה בא למנוע.
-export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding';
+export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding' | 'journey';
 
 // שמות הלשוניות נושאים את המשמעות; האייקון ירד (§3.16)
 const TABS: { id: TabId; label: string }[] = [
@@ -50,6 +51,15 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'onboarding', label: 'קליטה' },
   { id: 'docs',       label: 'מסמכים' },
   { id: 'tasks',      label: 'משימות' },
+];
+
+// ‼ המבנה החדש: שלוש לשוניות. "המסע" בולע את מרכז השליטה, הקליטה והמשימות —
+// שלושתן ענו על אותה שאלה במקומות שונים. "התיק" ו"מסמכים" נשארים כי הם
+// מחסני עובדות, לא תהליך. הישן חי מאחורי settings.flags.journeyUi=false.
+const JOURNEY_TABS: { id: TabId; label: string }[] = [
+  { id: 'journey',  label: 'המסע' },
+  { id: 'dossier',  label: 'התיק' },
+  { id: 'docs',     label: 'מסמכים' },
 ];
 
 interface Props {
@@ -88,6 +98,12 @@ interface Props {
   onOpenReleaseLetter?: (clientId: string, stepId?: string) => void;
   /** קפיצה למרכז הייצוג של הלקוח — מהכרטיס, בלי לעבור דרך מסך הלקוחות. */
   onOpenRepresentation?: (clientId: string) => void;
+  // ─── דף המסע ───
+  /** כבוי ⇒ חמש הלשוניות הישנות חוזרות (settings.flags.journeyUi=false). */
+  journeyUi?: boolean;
+  quotations?: import('../types/quotations').Quotation[];
+  onOpenQuotation?: (quotationId: string) => void;
+  onNewQuotation?: (clientId: string) => void;
 }
 
 function newEmptyClient(): Client {
@@ -149,11 +165,20 @@ export default function ClientWorkspace({
   refreshOnboarding,
   onOpenReleaseLetter,
   onOpenRepresentation,
+  journeyUi,
+  quotations,
+  onOpenQuotation,
+  onNewQuotation,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
   // לקוח חדש נוחת ישר ב"תיק" — שם ממלאים את הפרטים
   const [tab, setTab] = useState<TabId>(initialTab ?? (initialClient ? 'overview' : 'dossier'));
+  // ‼ ברענון ישיר של הכתובת הלקוח עוד לא נטען מהמסד ברינדור הראשון, ולכן
+  // ברירת המחדל נפלה על "התיק" כאילו זה לקוח חדש. מתקנים פעם אחת כשהוא מגיע,
+  // ורק אם המשתמש עוד לא בחר לשונית בעצמו.
+  const tabPickedByUser = useRef(!!initialTab);
+  const correctedDefaultTab = useRef(false);
   const [docCategories, setDocCategories] = useState<Set<string>>(new Set());
   const [dirty, setDirty] = useState(false);
   const [intakeModalOpen, setIntakeModalOpen] = useState(false);
@@ -284,13 +309,29 @@ export default function ClientWorkspace({
     (onboardingSteps ?? []).some(s => s.clientId === client.id && s.status !== 'cancelled')
   );
   const visibleTabs = useMemo(
-    () => TABS.filter(t => t.id !== 'onboarding' || hasOnboarding),
-    [hasOnboarding]);
+    () => journeyUi
+      ? JOURNEY_TABS
+      : TABS.filter(t => t.id !== 'onboarding' || hasOnboarding),
+    [journeyUi, hasOnboarding]);
 
   useEffect(() => {
     // בזמן טעינה עוד לא יודעים אם יש קליטה — לא מפילים את הלשונית מוקדם מדי
-    if (tab === 'onboarding' && !hasOnboarding && !onboardingLoading) setTab('overview');
-  }, [tab, hasOnboarding, onboardingLoading]);
+    if (!journeyUi && tab === 'onboarding' && !hasOnboarding && !onboardingLoading) setTab('overview');
+  }, [journeyUi, tab, hasOnboarding, onboardingLoading]);
+
+  // ‼ קישורי עומק ישנים (#/client/x/overview, /onboarding, /tasks) ממשיכים
+  // לעבוד — הם נוחתים על המסע, שבלע את שלושתם. בלי זה כל קישור שמור נשבר.
+  useEffect(() => {
+    if (journeyUi && (tab === 'overview' || tab === 'onboarding' || tab === 'tasks')) setTab('journey');
+    if (!journeyUi && tab === 'journey') setTab('overview');
+  }, [journeyUi, tab]);
+
+  useEffect(() => {
+    if (correctedDefaultTab.current || tabPickedByUser.current) return;
+    if (!initialClient?.id) return;         // עוד לא נטען — מחכים
+    correctedDefaultTab.current = true;
+    setTab(journeyUi ? 'journey' : 'overview');
+  }, [initialClient?.id, journeyUi]);
 
   const fullName = `${client.firstName} ${client.lastName}`.trim() || (isNew ? 'לקוח חדש' : '(ללא שם)');
   const status = client.representationStatus ?? 'active';
@@ -474,7 +515,7 @@ export default function ClientWorkspace({
             <button
               key={t.id}
               className={`cw-tab ${tab === t.id ? 'active' : ''}`}
-              onClick={() => setTab(t.id)}
+              onClick={() => { tabPickedByUser.current = true; setTab(t.id); }}
             >
               <span>{t.label}</span>
               {t.id === 'tasks' && openTasks.length > 0 && (
@@ -487,6 +528,44 @@ export default function ClientWorkspace({
 
       {/* ─── תוכן הלשונית ─────────────────────────────────────── */}
       <div className="cw-body">
+        {tab === 'journey' && (
+          <JourneyTab
+            client={client}
+            clients={clients}
+            tasks={tasks}
+            alerts={alerts}
+            openTasks={openTasks}
+            upcomingDebts={upcomingDebts}
+            quotations={quotations ?? []}
+            engagements={engagements ?? []}
+            steps={onboardingSteps ?? []}
+            events={onboardingEvents ?? []}
+            onboardingLoading={onboardingLoading}
+            onboardingEnabled={onboardingEnabled}
+            advance={advanceOnboardingStep ?? (async () => ({ ok: false, message: 'הקליטה מכובה.' }))}
+            refreshOnboarding={refreshOnboarding}
+            onOpenQuotation={onOpenQuotation}
+            onNewQuotation={onNewQuotation ? () => onNewQuotation(client.id) : undefined}
+            onOpenRepresentation={onOpenRepresentation ? () => onOpenRepresentation(client.id) : undefined}
+            onPrepareReleaseLetter={onOpenReleaseLetter ? (stepId) => onOpenReleaseLetter(client.id, stepId) : undefined}
+            repStatusLabel={client.representationStatus ? REPRESENTATION_STATUS_LABELS[client.representationStatus] : undefined}
+            onPinNote={(note) => update('pinnedNote', note)}
+            onAddNote={(text) => appendActivity({ kind: 'note', text })}
+            onGotoTab={(t) => setTab(t)}
+            taxSessions={taxSessions}
+            taxSessionsLoading={taxSessionsLoading}
+            onOpenYear={openYear}
+            onAddTask={() => onAddTaskForClient(client.id)}
+            onSelectTask={onSelectTask}
+            onToggleTaskDone={onToggleTaskDone}
+            onChangeStatus={onChangeTaskStatus}
+            onChangeBall={onChangeTaskBall}
+            onChangeCategory={onChangeTaskCategory}
+            onReorder={onReorderTask}
+            onDeleteTask={onDeleteTask}
+          />
+        )}
+
         {tab === 'overview' && (
           <ClientCockpitTab
             client={client}
