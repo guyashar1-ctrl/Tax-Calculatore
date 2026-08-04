@@ -9,7 +9,7 @@
 // מחכה לו מאדם אחר — ערבוב שלהן היה מוחק את המשמעות של "אצל מי הכדור".
 
 import { useMemo, useState } from 'react';
-import type { Client, Task, TaskProgress, BallWith, TaskCategory } from '../../types';
+import type { Client, Task } from '../../types';
 import { LIFECYCLE_STAGE_LABELS } from '../../types';
 import type { ClientAlert } from '../../types/clientWorkspace';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
@@ -21,13 +21,11 @@ import type { AnnualReportSession } from '../../features/annualReport/types';
 import { formatDate } from '../../utils/dateFormat';
 import OnboardingTab from './OnboardingTab';
 import ClientCockpitTab from './ClientCockpitTab';
-import TasksActivityTab from './TasksActivityTab';
 
 type BallFilter = 'me' | 'client' | 'third' | 'stuck' | 'done';
 
 interface Props {
   client: Client;
-  clients: Client[];
   tasks: Task[];
   alerts: ClientAlert[];
   openTasks: Task[];
@@ -53,15 +51,8 @@ interface Props {
   taxSessions: AnnualReportSession[];
   taxSessionsLoading?: boolean;
   onOpenYear?: (taxYear: number) => void;
-  // ── משימות ──
-  onAddTask: () => void;
+  /** פתיחת משימה מתוך התמונה המקצועית. המשימות עצמן חיות בלשונית "משימות". */
   onSelectTask: (id: string) => void;
-  onToggleTaskDone: (id: string) => void;
-  onChangeStatus: (id: string, status: TaskProgress | 'done') => void;
-  onChangeBall: (id: string, ball: BallWith) => void;
-  onChangeCategory: (id: string, category: TaskCategory) => void;
-  onReorder: (id: string, target: TaskProgress | 'done', beforeId: string | null) => void;
-  onDeleteTask: (id: string) => void;
 }
 
 const CHAPTERS = [
@@ -90,28 +81,22 @@ export default function JourneyTab(p: Props) {
     [p.quotations, p.client.id],
   );
   const liveQuotation = clientQuotations.find(q => q.status === 'sent' || q.status === 'viewed');
-  const clientTasks = useMemo(
-    () => p.tasks.filter(t => t.clientId === p.client.id),
-    [p.tasks, p.client.id],
-  );
-
   const stage = p.client.lifecycleStage ?? 'active';
   const stageIndex = Math.max(0, CHAPTERS.findIndex(c => c.key === stage));
 
-  // ── המונים. סופרים גם בקשות וגם משימות — שתיהן "אצל מישהו". ──
+  // ‼ המונים סופרים בקשות מסע בלבד — לא משימות. משימות המשרד חיות בלשונית
+  // משלהן (הכרעת גיא 2026-08-05), ומונה שמפנה למשהו שאינו בדף הזה הוא מונה
+  // שמשקר: לוחצים עליו, הרשימה מסתננת, והפריט שנספר לא מופיע בה.
   const counts = useMemo(() => {
     const open = clientSteps.filter(s => isStepOpen(s.status));
-    const openTasks = clientTasks.filter(t => t.status === 'open');
     return {
-      me: open.filter(s => s.ball === 'me').length + openTasks.filter(t => t.ballWith === 'me').length,
-      client: open.filter(s => s.ball === 'client').length + openTasks.filter(t => t.ballWith === 'client').length,
-      third: open.filter(s => s.ball === 'authority' || s.ball === 'prev_accountant').length
-           + openTasks.filter(t => t.ballWith === 'authority').length,
-      stuck: open.filter(s => s.status === 'blocked' || s.status === 'failed' || s.needsAttention).length
-           + openTasks.filter(t => t.ballWith === 'stuck').length,
+      me: open.filter(s => s.ball === 'me').length,
+      client: open.filter(s => s.ball === 'client').length,
+      third: open.filter(s => s.ball === 'authority' || s.ball === 'prev_accountant').length,
+      stuck: open.filter(s => s.status === 'blocked' || s.status === 'failed' || s.needsAttention).length,
       done: clientSteps.filter(s => !isStepOpen(s.status)).length,
     };
-  }, [clientSteps, clientTasks]);
+  }, [clientSteps]);
 
   const showRequests = p.onboardingEnabled !== false && (clientSteps.length > 0 || !!engagement);
   const dateFor = (key: string): string | undefined => {
@@ -273,24 +258,6 @@ export default function JourneyTab(p: Props) {
           onOpenRepresentation={p.onOpenRepresentation}
         />
       )}
-
-      {/* ── עבודה שוטפת — המשימות, בנפרד מהבקשות ── */}
-      <div className="cw-section">
-        <TasksActivityTab
-          title="עבודה שוטפת"
-          client={p.client}
-          clients={p.clients}
-          tasks={p.tasks}
-          onAddTask={p.onAddTask}
-          onSelectTask={p.onSelectTask}
-          onToggleTaskDone={p.onToggleTaskDone}
-          onChangeStatus={p.onChangeStatus}
-          onChangeBall={p.onChangeBall}
-          onChangeCategory={p.onChangeCategory}
-          onReorder={p.onReorder}
-          onDeleteTask={p.onDeleteTask}
-        />
-      </div>
 
       {/* ── התמונה המקצועית: התראות, לוח הגשות, תיקי שנה, מיילים ── */}
       <ClientCockpitTab

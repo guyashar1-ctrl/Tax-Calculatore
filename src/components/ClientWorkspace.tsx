@@ -53,13 +53,15 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'tasks',      label: 'משימות' },
 ];
 
-// ‼ המבנה החדש: שלוש לשוניות. "המסע" בולע את מרכז השליטה, הקליטה והמשימות —
-// שלושתן ענו על אותה שאלה במקומות שונים. "התיק" ו"מסמכים" נשארים כי הם
-// מחסני עובדות, לא תהליך. הישן חי מאחורי settings.flags.journeyUi=false.
+// ‼ המבנה החדש: ארבע לשוניות. "המסע" בולע את מרכז השליטה ואת הקליטה — שתיהן
+// ענו על אותה שאלה במקומות שונים. "משימות" נשארת בנפרד בכוונה (הכרעת גיא
+// 2026-08-05): עבודת משרד היא לא בקשת-מסע, ולכל אחת מסך משלה. "התיק" ו"מסמכים"
+// נשארים כי הם מחסני עובדות ולא תהליך. הישן חי מאחורי flags.journeyUi=false.
 const JOURNEY_TABS: { id: TabId; label: string }[] = [
   { id: 'journey',  label: 'המסע' },
   { id: 'dossier',  label: 'התיק' },
   { id: 'docs',     label: 'מסמכים' },
+  { id: 'tasks',    label: 'משימות' },
 ];
 
 interface Props {
@@ -322,7 +324,7 @@ export default function ClientWorkspace({
   // ‼ קישורי עומק ישנים (#/client/x/overview, /onboarding, /tasks) ממשיכים
   // לעבוד — הם נוחתים על המסע, שבלע את שלושתם. בלי זה כל קישור שמור נשבר.
   useEffect(() => {
-    if (journeyUi && (tab === 'overview' || tab === 'onboarding' || tab === 'tasks')) setTab('journey');
+    if (journeyUi && (tab === 'overview' || tab === 'onboarding')) setTab('journey');
     if (!journeyUi && tab === 'journey') setTab('overview');
   }, [journeyUi, tab]);
 
@@ -531,7 +533,6 @@ export default function ClientWorkspace({
         {tab === 'journey' && (
           <JourneyTab
             client={client}
-            clients={clients}
             tasks={tasks}
             alerts={alerts}
             openTasks={openTasks}
@@ -555,14 +556,7 @@ export default function ClientWorkspace({
             taxSessions={taxSessions}
             taxSessionsLoading={taxSessionsLoading}
             onOpenYear={openYear}
-            onAddTask={() => onAddTaskForClient(client.id)}
             onSelectTask={onSelectTask}
-            onToggleTaskDone={onToggleTaskDone}
-            onChangeStatus={onChangeTaskStatus}
-            onChangeBall={onChangeTaskBall}
-            onChangeCategory={onChangeTaskCategory}
-            onReorder={onReorderTask}
-            onDeleteTask={onDeleteTask}
           />
         )}
 
