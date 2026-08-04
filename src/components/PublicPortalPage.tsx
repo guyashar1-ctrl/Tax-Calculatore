@@ -25,9 +25,19 @@ interface PortalItem {
   key: string;
   label: string;
   sub?: string;
-  actionKind?: 'onboard' | 'sign' | 'intake' | 'external';
+  actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote';
   actionValue?: string;
 }
+
+/** תחנות המסע כפי שהלקוח מבין אותן. השרת מחזיר את התחנה הנוכחית. */
+type JourneyStage = 'quote' | 'identity' | 'setup' | 'active';
+
+const JOURNEY: { id: JourneyStage; label: string }[] = [
+  { id: 'quote',    label: 'הצעה' },
+  { id: 'identity', label: 'אימות וייצוג' },
+  { id: 'setup',    label: 'התחברות' },
+  { id: 'active',   label: 'עובדים ביחד' },
+];
 
 interface PortalData {
   clientFirstName: string;
@@ -35,6 +45,7 @@ interface PortalData {
   branding: FirmBranding;
   done: number;
   total: number;
+  journeyStage?: JourneyStage;
   items: PortalItem[];
 }
 
@@ -47,6 +58,7 @@ function actionHref(item: PortalItem): string | null {
     case 'onboard':  return `${window.location.origin}/?onboard=${item.actionValue}`;
     case 'sign':     return `${window.location.origin}/?sign=${item.actionValue}`;
     case 'intake':   return `${window.location.origin}/?intake=${item.actionValue}`;
+    case 'quote':    return `${window.location.origin}/?quote=${item.actionValue}`;
     case 'external': return item.actionValue;
     default: return null;
   }
@@ -131,7 +143,11 @@ export default function PublicPortalPage({ token }: Props) {
   const future  = data.items.filter(i => i.bucket === 'future');
   const allDone = actions.length === 0 && office.length === 0 && data.total > 0;
   const firstName = data.clientFirstName;
-  const pct = data.total > 0 ? Math.round((data.done / data.total) * 100) : 0;
+  const stage: JourneyStage = data.journeyStage ?? 'identity';
+  const stageIdx = Math.max(0, JOURNEY.findIndex(s => s.id === stage));
+  // הספירה המפורטת מדברת על שלבי הקליטה. לפני החתימה אין עדיין שלבים,
+  // ו"0 מתוך 1" רק מרעיש.
+  const showCount = stage !== 'quote' && data.total > 0;
 
   return (
     <div style={page}>
@@ -141,16 +157,47 @@ export default function PublicPortalPage({ token }: Props) {
         <div style={{ fontSize: 20, fontWeight: 600, color: brand.ink, marginBottom: 3 }}>
           {allDone
             ? <>הכול הושלם{firstName ? `, ${firstName}` : ''} 🎉</>
-            : <>שלום{firstName ? ` ${firstName}` : ''}, הנה מצב ההצטרפות שלך</>}
+            : stage === 'quote'
+              ? <>שלום{firstName ? ` ${firstName}` : ''}, זה הדף האישי שלך</>
+              : <>שלום{firstName ? ` ${firstName}` : ''}, הנה מצב ההצטרפות שלך</>}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0 4px' }}>
-          <div style={{ flex: 1, height: 6, background: brand.pageBg, borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{ width: `${pct}%`, height: '100%', background: accent, borderRadius: 999 }} />
-          </div>
-          <span style={{ fontSize: 12, color: brand.muted, whiteSpace: 'nowrap' }}>
+        {/* המפה הגדולה: איפה אני במסע. מחליפה את פס ההתקדמות הדק — שני
+            מדדי התקדמות זה על זה רק מבלבלים. */}
+        <div style={{ display: 'flex', margin: '16px 0 2px' }}>
+          {JOURNEY.map((st, i) => {
+            const passed = i < stageIdx;
+            const current = i === stageIdx;
+            const on = passed || current;
+            return (
+              <div key={st.id} style={{ flex: 1, minWidth: 0, textAlign: 'center', position: 'relative' }}>
+                {i > 0 && (
+                  <span aria-hidden="true" style={{
+                    // ‼ בעברית התחנה הקודמת נמצאת מימין, אבל left/right ב-CSS
+                    // אינם מתהפכים. הקו חייב לצאת מהנקודה ימינה: left:50%.
+                    position: 'absolute', top: 6, left: '50%', width: '100%', height: 2,
+                    background: on ? accent : brand.border,
+                  }} />
+                )}
+                <span aria-hidden="true" style={{
+                  position: 'relative', display: 'block', width: 14, height: 14, margin: '0 auto',
+                  borderRadius: 999, boxSizing: 'border-box',
+                  background: on ? accent : brand.cardBg,
+                  border: on ? `2px solid ${accent}` : `2px solid ${brand.border}`,
+                }} />
+                <div style={{
+                  marginTop: 6, fontSize: 11, lineHeight: 1.35,
+                  fontWeight: current ? 700 : 400,
+                  color: current ? ink : brand.muted,
+                }}>{st.label}</div>
+              </div>
+            );
+          })}
+        </div>
+        {showCount && (
+          <div style={{ fontSize: 12, color: brand.muted, textAlign: 'center', marginTop: 8 }}>
             {data.done} מתוך {data.total} הושלמו
-          </span>
-        </div>
+          </div>
+        )}
 
         {actions.length > 0 && (
           <>

@@ -38,6 +38,9 @@ order by version;
 | 47 | `intake_questionnaire_step_47` + `intake_closes_step_47b` | שלב "שאלון פתיחת תיק" (מסלול פנימי, scope=person), `add_intake_questionnaire_step()`, ו-`close_intake_step_for_client()` שנקראת מ-`save_intake_answer` כשהלקוח מסיים |
 | 48 | `client_portal_48a_token_and_mint` + `client_portal_48b_get_portal` | הדף האישי (`?portal=`): `clients.portal_token`, `mint_portal_token()` לרו"ח, ו-`get_client_portal()` ציבורית שמחזירה תמונה מסוננת — פעולות הלקוח, מה שבטיפול המשרד, והושלם. המסלול הפנימי לעולם לא נחשף |
 
+| 49 | `client_born_at_quote_49` + `precreated_client_has_no_representation_49b` | `ensure_client_for_quotation()` — כרטיס לקוח וטוקן דף אישי נולדים בשליחת ההצעה, עם דדופליקציה לפי אימייל/טלפון. `derive_lifecycle_stage()` ככלל יחיד, `refresh_lifecycle_stage_for()` וטריגרים על `quotations`/`engagements` — כי עד כה השלב התעדכן רק ב-05:15. הכרטיס שנולד מהצעה נוצר עם `representation_status = null`. הנוסח המלא גם ב-`49-client-born-at-quote.sql` |
+| 50 | `portal_knows_whole_journey_50` | `get_client_portal()` מכיר גם לקוח שטרם חתם: מציג את ההצעה כפעולה, ומחזיר `journeyStage` (quote / identity / setup / active) לפס השלבים בדף האישי |
+
 > 41–43 שייכות למהלך "יתרה לתשלום בהצעות" ולא לקליטה.
 
 ## כללי הבטיחות שנשמרו בכולן
