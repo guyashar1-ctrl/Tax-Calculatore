@@ -30,6 +30,7 @@ order by version;
 | 39 | `representation_upgrade_step_39` | `sync_representation_upgrade_step()` — שלב "שדרוג לייצוג ראשי" נפתח ונסגר מעצמו |
 | 40 | `rep_upgrade_trigger_on_insert_40` | הטריגר של 39 חל גם ביצירת כרטיס, לא רק בעדכון |
 | 44 | `onboarding_autofill_44` | `autofill_internal_setup()` — מספרי תיקים ושיוך מטפל נסגרים לבד ממה שכבר ידוע. אינה נוגעת ב-`kyc_identification` (חתימה רגולטורית נשארת ידנית) |
+| 45 | `onboarding_not_a_task_45` | `open_quotation_representation()` כבר לא יוצרת את המשימה "להשלים ייצוג" — שלב הייצוג בקליטה הוא מקור האמת. משימות קיימות לא נגעו |
 
 > 41–43 שייכות למהלך "יתרה לתשלום בהצעות" ולא לקליטה.
 

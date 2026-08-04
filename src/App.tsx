@@ -19,7 +19,6 @@ import {
   RepresentationStatus,
   REPRESENTATION_STATUS_LABELS,
   DEFAULT_REQUESTED_DOCS,
-  REP_AUTHORITY_LABELS,
 } from './types';
 import { ExtractedClientData } from './utils/geminiVision';
 import { useDocumentDB } from './hooks/useIndexedDB';
@@ -706,22 +705,9 @@ export default function App() {
     };
     await addRequest(request);
 
-    // 3. משימה פנימית למעקב התהליך
-    const areaLabels = selectedKeys.map(a => REP_AUTHORITY_LABELS[a]).join(', ');
-    const task: Task = {
-      id: crypto.randomUUID(),
-      clientId,
-      category: 'institutions',
-      title: name.trim() ? `להשלים ייצוג — ${name.trim()}` : 'להשלים ייצוג — ממתין שהלקוח ימלא',
-      description: `בקשת ייצוג חדשה. רשויות: ${areaLabels}.`,
-      ballWith: 'me',
-      status: 'open',
-      progress: 'new',
-      priority: 'normal',
-      createdAt: now,
-      updatedAt: now,
-    };
-    await addTask(task);
+    // ‼ כאן נוצרה משימת "להשלים ייצוג — <שם>". היא ירדה (2026-08-04): מסלול
+    // הקליטה כבר מציג את שלב הייצוג ומסנכרן אותו מהשרת, ושתי רשימות לאותה
+    // עבודה פירושן שני מקומות לסמן ואחד שנשכח. ראה supabase/45-…sql.
 
     // שליחת מייל אוטומטית ללקוח (הכל נקרא מ-Firm Profile בצד-שרת). לא חוסם — אם נכשל, הקישור הידני זמין.
     // בלי כתובת מייל מדלגים בשקט: הקישור נשלח בוואטסאפ, וזו אינה תקלה.
