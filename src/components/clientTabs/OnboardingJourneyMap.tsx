@@ -174,6 +174,37 @@ export default function OnboardingJourneyMap({ steps, onSelect }: Props) {
   );
 }
 
+/**
+ * מפה מוקטנת לשורת טבלה — אותם צבעים, בלי תוויות ובלי מסלולים.
+ * ‼ אותה שפה ויזואלית בדיוק כמו המפה המלאה. מסך מעקב שמדבר "טקסט" בזמן
+ * שהכרטיס מדבר "מפה" מכריח את העין ללמוד שתי שפות לאותו מידע.
+ */
+export function MiniJourney({ steps }: { steps: OnboardingStep[] }) {
+  const live = steps.filter(s => s.status !== 'cancelled');
+  if (live.length === 0) return null;
+
+  const ordered = TRACK_ORDER.flatMap(t => live.filter(s => s.track === t));
+  const nextId = ordered.filter(s => isStepOpen(s.status) && s.ball === 'me' && s.status !== 'locked')
+    .slice().sort((a, b) => urgency(a) - urgency(b))[0]?.id;
+
+  return (
+    <span style={{ display: 'inline-flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+      {ordered.map(s => {
+        const tone = toneOf(s, s.id === nextId);
+        const st = NODE_STYLE[tone];
+        return (
+          <span key={s.id} aria-hidden="true"
+            title={`${STEP_TYPE_LABELS[s.stepType]} — ${STEP_STATUS_LABELS[s.status]}`}
+            style={{
+              width: 10, height: 10, borderRadius: 999, borderWidth: 1.5, borderStyle: st.borderStyle ?? 'solid',
+              display: 'inline-block', background: st.background, borderColor: st.borderColor,
+            }} />
+        );
+      })}
+    </span>
+  );
+}
+
 function Legend({ tone, label }: { tone: NodeTone; label: string }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.3rem' }}>

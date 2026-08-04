@@ -8,8 +8,9 @@
 
 import { useState } from 'react';
 import type { Client } from '../types';
-import type { OnboardingStep, OnboardingStepType, OnboardingTrack, OnboardingBall, OnboardingStepStatus } from '../types/onboarding';
+import type { Engagement, OnboardingStep, OnboardingStepType, OnboardingTrack, OnboardingBall, OnboardingStepStatus } from '../types/onboarding';
 import OnboardingWaitingSection from './OnboardingWaitingSection';
+import OnboardingClientsTable from './OnboardingClientsTable';
 
 let seq = 0;
 function step(
@@ -90,6 +91,16 @@ const STEPS: OnboardingStep[] = [
   step('c6', 'materials_received', 'prev_accountant', 'locked', 'prev_accountant'),
 ];
 
+// התקשרות לכל לקוח, עם ותק שונה — כדי שעמודת "בקליטה" תראה טווח אמיתי.
+const ENGAGEMENTS: Engagement[] = CLIENTS.map((c, i) => ({
+  id: `eng-${c.id}`,
+  userId: 'fixture-user',
+  clientId: c.id,
+  status: 'onboarding',
+  approvedAt: new Date(Date.now() - (i * 6 + 2) * 86400000).toISOString(),
+  createdAt: new Date(Date.now() - (i * 6 + 2) * 86400000).toISOString(),
+}));
+
 export default function TestDesk() {
   const [msg, setMsg] = useState('');
   return (
@@ -104,6 +115,18 @@ export default function TestDesk() {
         onOpen={id => setMsg(`פתיחת קליטה של ${id}`)}
         onRemind={(s, id) => setMsg(`הכנת תזכורת — ${s.stepType} של ${id}`)}
       />
+
+      <h3 style={{ margin: '2rem 0 .5rem', fontSize: 17, fontWeight: 500 }}>
+        תצוגת המעקב — "בקליטה" במסך הלקוחות
+      </h3>
+      <div className="card" style={{ overflow: 'hidden', padding: '.4rem .6rem' }}>
+        <OnboardingClientsTable
+          clients={CLIENTS}
+          steps={STEPS}
+          engagements={ENGAGEMENTS}
+          onOpen={id => setMsg(`פתיחת קליטה של ${id}`)}
+        />
+      </div>
     </div>
   );
 }

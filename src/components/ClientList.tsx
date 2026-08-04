@@ -20,6 +20,9 @@ import {
   LIFECYCLE_STAGE_LABELS,
 } from '../types';
 import { ShaamStatus } from '../types/clientWorkspace';
+import type { Engagement, OnboardingStep } from '../types/onboarding';
+import { isStepOpen } from '../types/onboarding';
+import OnboardingClientsTable from './OnboardingClientsTable';
 import RepSignersStatus from './RepSignersStatus';
 import Icon from './ui/Icon';
 import ClientDeleteDialog from './ClientDeleteDialog';
@@ -120,6 +123,11 @@ interface Props {
   leadIdByClient?: Map<string, string>;
   /** פתיחת הליד במסך הלידים */
   onOpenLead?: (leadId: string) => void;
+  /** שלבי הקליטה של כל הלקוחות — לתצוגת המעקב "בקליטה". */
+  onboardingSteps?: OnboardingStep[];
+  engagements?: Engagement[];
+  /** פתיחת כרטיס הלקוח ישר בלשונית הקליטה. */
+  onOpenOnboarding?: (clientId: string) => void;
 }
 
 const STATUS_ORDER: Record<RepresentationStatus, number> = {
@@ -153,6 +161,9 @@ export default function ClientList({
   onSelectRequest,
   leadIdByClient,
   onOpenLead,
+  onboardingSteps,
+  engagements,
+  onOpenOnboarding,
 }: Props) {
   const [search, setSearch] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Client | null>(null);
@@ -175,6 +186,16 @@ export default function ClientList({
 
   const getStatus = (c: Client): RepresentationStatus => c.representationStatus ?? 'active';
   const getStage = (c: Client): LifecycleStage => c.lifecycleStage ?? 'active';
+
+  // כמה קליטות פתוחות — נספר לפי שלבים פתוחים בפועל, לא לפי שלב החיים, כדי
+  // שהמונה לא יראה לקוחות שהקליטה שלהם כבר נסגרה.
+  const onboardingCount = useMemo(() => {
+    if (!onboardingSteps) return 0;
+    const open = new Set<string>();
+    for (const s of onboardingSteps) if (isStepOpen(s.status) && s.status !== 'cancelled') open.add(s.clientId);
+    return open.size;
+  }, [onboardingSteps]);
+  const showOnboardingView = stageFilter === 'onboarding' && !!onboardingSteps && !!onOpenOnboarding;
 
   function toggleSort(field: SortField) {
     if (sortField === field) {
@@ -379,6 +400,16 @@ export default function ClientList({
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        {/* ‼ "בקליטה" יושב כאן ולא רק בפילטרים המתקדמים: זה מבט יומיומי על
+            מי שבתהליך, לא סינון נדיר. פריט תפריט חדש היה עומס — זה לא. */}
+        {onboardingCount > 0 && (
+          <button
+            className={`btn ${stageFilter === 'onboarding' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setStageFilter(s => s === 'onboarding' ? 'default' : 'onboarding')}
+          >
+            בקליטה ({onboardingCount})
+          </button>
+        )}
         <button
           className={`btn ${showAdvanced || activeAdvancedCount > 0 ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setShowAdvanced(s => !s)}
@@ -527,11 +558,26 @@ export default function ClientList({
           )}
 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '0 0 .6rem' }}>
-            <span style={{ fontSize: '17px', fontWeight: 500 }}>לקוחות מיוצגים</span>
-            <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>· {activeList.length}</span>
+            <span style={{ fontSize: '17px', fontWeight: 500 }}>
+              {showOnboardingView ? 'קליטות פתוחות' : 'לקוחות מיוצגים'}
+            </span>
+            <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
+              · {showOnboardingView ? onboardingCount : activeList.length}
+            </span>
           </div>
 
-          {activeList.length === 0 ? (
+          {/* ‼ במצב "בקליטה" הטבלה מחליפה עמודות לגמרי: מי שבתהליך נמדד בימים,
+              בהתקדמות ובאצל-מי — לא בסטטוס מע"מ ותיק ניכויים. */}
+          {showOnboardingView ? (
+            <div className="card" style={{ overflow: 'hidden', padding: '.4rem .6rem' }}>
+              <OnboardingClientsTable
+                clients={clients}
+                steps={onboardingSteps ?? []}
+                engagements={engagements ?? []}
+                onOpen={onOpenOnboarding!}
+              />
+            </div>
+          ) : activeList.length === 0 ? (
             <div className="empty-state">
               
               <div className="empty-state-title">אין עדיין לקוחות מיוצגים</div>

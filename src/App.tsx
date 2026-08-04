@@ -1464,6 +1464,9 @@ export default function App() {
             onSelectRequest={handleSelectRequest}
             leadIdByClient={leadIdByClient}
             onOpenLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
+            onboardingSteps={onboarding.steps}
+            engagements={onboarding.engagements}
+            onOpenOnboarding={handleOpenClientOnboarding}
           />
         )}
 
