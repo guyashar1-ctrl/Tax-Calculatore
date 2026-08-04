@@ -263,6 +263,22 @@ Deno.serve(async (req: Request) => {
       .insert({ ...logBase, resend_id: body.id, status: "sent", idempotency_key: idempotencyKey });
     if (logErr && logErr.code === "23505") return json({ ok: true, alreadySent: true });
 
+    // ‼ המייל כבר יצא לספק הדואר — אי אפשר להחזיר אותו, ולכן כשל רישום אינו
+    // כשל שליחה. אבל שורה שלא נרשמה היא מייל שאין לו עקבה: הוא לא יופיע
+    // ביומן הלקוח, ואיש לא ידע שהוא נשלח. לכן: ניסיון שני מצומצם (בלי ה-html,
+    // שהוא החשוד המרכזי בכשל גודל/קידוד), ודיווח מפורש חזרה למסך.
+    let logged = !logErr;
+    if (logErr) {
+      const { error: minErr } = await admin.from("email_messages").insert({
+        user_id: userId, client_id: client.id, to_email: toEmail,
+        subject: rendered.subject, kind, status: "sent", resend_id: body.id,
+        error: `log_failed: ${logErr.code ?? ""} ${String(logErr.message ?? "").slice(0, 200)}`,
+      });
+      logged = !minErr;
+      console.error("[send-step-email] email_messages insert failed",
+        logErr.code, logErr.message, minErr ? `retry failed: ${minErr.code}` : "retry ok");
+    }
+
     // ── קידום השלב ────────────────────────────────────────────────────────
     // ‼ advance_onboarding_step בודק את auth.uid(), שהוא null תחת מפתח השירות,
     // ולכן הקריאה אליו מכאן הייתה נכשלת. במקומה נעשות כאן בדיוק שתי הכתיבות
@@ -279,11 +295,14 @@ Deno.serve(async (req: Request) => {
       engagement_id: step.engagement_id,
       type: "email_sent",
       actor: "accountant",
-      note: `נשלח מייל: ${rendered.subject}`,
-      meta: { kind, to: toEmail, resend_id: body.id },
+      note: `נשלח מייל: ${rendered.subject}`
+        + (logged ? "" : " (לא נרשם ביומן הדואר — ראה לוג השרת)"),
+      meta: { kind, to: toEmail, resend_id: body.id, logged },
     });
 
-    return json({ ok: true, id: body.id });
+    // ‼ logged=false אומר "נשלח, אבל לא תועד". המסך מציג את זה — אחרת גיא
+    // יחפש את המייל ביומן ולא ימצא, ויסיק שהוא לא נשלח.
+    return json({ ok: true, id: body.id, logged });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

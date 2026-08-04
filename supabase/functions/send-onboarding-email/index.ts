@@ -383,12 +383,29 @@ Deno.serve(async (req: Request) => {
       .insert({ ...logBase, resend_id: body.id, status: "sent", ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}) });
     // התנגשות במפתח = השורה כבר קיימת, כלומר השליחה הזו כבר תועדה. לא שגיאה.
     if (logErr && logErr.code === "23505") return json({ ok: true, alreadySent: true });
+
+    // ‼ כל כשל רישום אחר: המייל כבר יצא ואי אפשר להחזיר אותו, ולכן זו אינה
+    // שגיאת שליחה — אבל מייל בלי שורה ביומן הוא מייל שאיש לא יודע שנשלח.
+    // ניסיון שני מצומצם (בלי ה-html, החשוד המרכזי), ואז דיווח מפורש.
+    let logged = !logErr;
+    if (logErr) {
+      const { error: minErr } = await admin.from("email_messages").insert({
+        user_id: userId, client_id: logClientId, request_id: logRequestId,
+        to_email: toEmail, subject: copy.subject, kind: logBase.kind,
+        status: "sent", resend_id: body.id,
+        error: `log_failed: ${logErr.code ?? ""} ${String(logErr.message ?? "").slice(0, 200)}`,
+      });
+      logged = !minErr;
+      console.error("[send-onboarding-email] email_messages insert failed",
+        logErr.code, logErr.message, minErr ? `retry failed: ${minErr.code}` : "retry ok");
+    }
+
     if (claimQuotationId && !claimed) {
       await admin.from("quotations")
         .update({ representation_sent_at: new Date().toISOString(), representation_error: null })
         .eq("id", claimQuotationId);
     }
-    return json({ ok: true, id: body.id });
+    return json({ ok: true, id: body.id, logged });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
