@@ -67,13 +67,17 @@ function lockHint(step: OnboardingStep, byId: Map<string, OnboardingStep>): stri
 // כל השלבים. הן נשמרות פעם אחת, דרך set_paperless_path — אותה פונקציה בשרת
 // שגם מרכיבה ומבטלת את שלבי הייבוא והאימות.
 
-export type PaperlessStatus = 'none' | 'other_rep' | 'self';
+// ‼ 'not_applicable' אינו "עדיין לא" אלא "לא יהיה": שכיר להחזר מס, בעל שליטה,
+// לקוח שגובים ממנו בהוראת קבע. בלי המצב הזה נפתחו לו שלבי הזמנה וחיבור
+// שלעולם לא ייסגרו, והכסף נשאר נעול מאחוריהם.
+export type PaperlessStatus = 'none' | 'other_rep' | 'self' | 'not_applicable';
 export type PaperlessDataSource = 'none' | 'other_software';
 
 const PAPERLESS_STATUS_OPTIONS: { value: PaperlessStatus; label: string }[] = [
   { value: 'none', label: 'לא' },
   { value: 'other_rep', label: 'כן, אצל מייצג אחר' },
   { value: 'self', label: 'כן, עצמאית' },
+  { value: 'not_applicable', label: 'לא יעבוד עם פייפרלס' },
 ];
 
 const DATA_SOURCE_OPTIONS: { value: PaperlessDataSource; label: string }[] = [
@@ -98,6 +102,10 @@ function monthLabel(v?: string): string {
 }
 
 const isHttps = (v: string) => v.trim().startsWith('https://');
+
+/** איך גובים מלקוח שאינו בפייפרלס. רשימה סגורה — טקסט חופשי כאן היה הופך
+ *  את השדה לבלתי ניתן לסינון בעוד שנה. */
+const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי', 'העברה בנקאית חודשית', 'המחאות', 'אחר'];
 
 export default function OnboardingTab({
   clientId, engagements, steps, events, loading, advance, refresh,
@@ -239,7 +247,9 @@ export default function OnboardingTab({
         p_client_id: clientId,
         p_paperless_status: answers.paperlessStatus,
         // לקוח שכבר בפייפרלס — ההיסטוריה שלו שם, ואין שאלה שנייה.
-        p_data_source: answers.paperlessStatus === 'none' ? answers.dataSource : 'paperless',
+        // ‼ מי שלא יעבוד עם פייפרלס — אין לו "היסטוריה בפייפרלס" לאמת.
+        p_data_source: answers.paperlessStatus === 'none' ? answers.dataSource
+          : answers.paperlessStatus === 'not_applicable' ? 'none' : 'paperless',
         p_software_name: answers.softwareName.trim() || null,
       });
       if (rpcError) { setTriageError(rpcError.message); return; }
@@ -626,6 +636,8 @@ function PaperlessStepCard(p: PaperlessCardProps) {
   const path = (step.payload.paperlessStatus as PaperlessStatus | undefined);
   const open = isStepOpen(step.status);
   const canSubmit = status !== '' && (status !== 'none' || source !== '');
+  // "לא יעבוד עם פייפרלס" מייתר את שאלת ההיסטוריה — אין לאן לייבא אותה.
+  const asksHistory = status === 'none';
 
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={p.menu}>
@@ -643,7 +655,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
             onChange={v => setStatus(v as PaperlessStatus)}
           />
 
-          {status === 'none' && (
+          {asksHistory && (
             <RadioRow
               label="יש היסטוריה לייבא?"
               name={`pl-source-${step.id}`}
@@ -653,7 +665,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
             />
           )}
 
-          {status === 'none' && source === 'other_software' && (
+          {asksHistory && source === 'other_software' && (
             <label style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', maxWidth: 320 }}>
               שם התוכנה
               <input value={softwareName} onChange={e => setSoftwareName(e.target.value)}
@@ -732,6 +744,14 @@ function PaperlessStepCard(p: PaperlessCardProps) {
 
 /** מה קורה בשלב ההזמנה, לפי המסלול שנבחר. */
 function InviteBody({ path, status }: { path?: PaperlessStatus; status: string }) {
+  if (path === 'not_applicable') {
+    return (
+      <div style={cardNote}>
+        הלקוח לא יעבוד עם פייפרלס. שלבי ההזמנה והחיבור ירדו מהמסלול, והגבייה
+        החודשית מוסדרת ידנית בשלב התשלום.
+      </div>
+    );
+  }
   if (path === 'other_rep' || path === 'self') {
     return (
       <div style={cardNote}>
@@ -750,6 +770,14 @@ function InviteBody({ path, status }: { path?: PaperlessStatus; status: string }
 
 /** הוראות החיבור, לפי המסלול. */
 function ConnectionBody({ path, softwareName }: { path?: PaperlessStatus; softwareName: string }) {
+  if (path === 'not_applicable') {
+    return (
+      <div style={cardNote}>
+        אין חיבור לפייפרלס ללקוח הזה. אם זה ישתנה — "שנה מסלול" יחזיר את
+        ההזמנה והחיבור, והתשלום יחזור להיות תלוי בהם.
+      </div>
+    );
+  }
   if (path === 'other_rep') {
     return (
       <div style={cardNote}>
@@ -815,6 +843,10 @@ function RetainerStepCard(p: RetainerCardProps) {
   const amount = typeof step.payload.amount === 'number' ? step.payload.amount : undefined;
   const month = monthLabel(step.payload.billingStartMonth as string | undefined);
   const urlInvalid = url.trim() !== '' && !isHttps(url);
+  // ‼ לקוח שאינו עובד עם פייפרלס: אין קישור הרשאה, אין מייל, ואין מנעול —
+  // אבל יש כסף. הכרטיס מתעד איך גובים במקום.
+  const manual = step.payload.method === 'manual_arrangement';
+  const [method, setMethod] = useState(String(step.payload.collectionMethod ?? ''));
 
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={p.menu}
@@ -836,7 +868,33 @@ function RetainerStepCard(p: RetainerCardProps) {
         </div>
       </div>
 
-      {locked ? (
+      {manual ? (
+        <>
+          <div style={cardNote}>
+            הלקוח לא עובד עם פייפרלס — אין כאן הרשאה דיגיטלית ואין מייל ללקוח.
+            רושמים איך גובים בפועל, ומסמנים כשההסדר הוקם.
+          </div>
+          {isStepOpen(step.status) && (
+            <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
+              <select value={method} onChange={e => setMethod(e.target.value)} style={{ maxWidth: 220 }}>
+                <option value="">אופן הגבייה…</option>
+                {COLLECTION_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <button type="button" className="btn btn-sm btn-primary" disabled={busy || !method}
+                onClick={() => p.onRun('complete', {
+                  completionMethod: 'manual', collectionMethod: method,
+                  note: `הסדר גבייה הוקם — ${method}`,
+                })}>ההסדר הוקם</button>
+            </div>
+          )}
+          {step.status === 'completed' && (
+            <div style={{ marginTop: '.5rem' }}>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+                onClick={() => p.onRun('verify')}>אומת</button>
+            </div>
+          )}
+        </>
+      ) : locked ? (
         <>
           <div style={cardNote}>
             ההרשאה הקבועה נוצרת בתוך חשבון הפייפרלס של הלקוח, ולכן היא לא יכולה להיווצר לפני שהחשבון קיים ומחובר אליך.

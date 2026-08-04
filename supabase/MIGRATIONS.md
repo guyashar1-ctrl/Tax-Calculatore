@@ -31,6 +31,10 @@ order by version;
 | 40 | `rep_upgrade_trigger_on_insert_40` | הטריגר של 39 חל גם ביצירת כרטיס, לא רק בעדכון |
 | 44 | `onboarding_autofill_44` | `autofill_internal_setup()` — מספרי תיקים ושיוך מטפל נסגרים לבד ממה שכבר ידוע. אינה נוגעת ב-`kyc_identification` (חתימה רגולטורית נשארת ידנית) |
 | 45 | `onboarding_not_a_task_45` | `open_quotation_representation()` כבר לא יוצרת את המשימה "להשלים ייצוג" — שלב הייצוג בקליטה הוא מקור האמת. משימות קיימות לא נגעו |
+| 46a | `paperless_not_applicable_46a_column_and_dep` | `clients.paperless_status` + `onboarding_dependency_met` מכיר בסיבה `not_applicable` |
+| 46b | `paperless_not_applicable_46b_set_path` | `set_paperless_path` — המסלול הרביעי "לא יעבוד עם פייפרלס", והרשאת התשלום הופכת להסדר ידני בלי תלות |
+| 46c | `paperless_not_applicable_46c_advance` | `advance_onboarding_step` — דילוג בסיבה `not_applicable` מותר גם כשיש הרשאה פתוחה |
+| 46d | `composer_reads_paperless_fact_46d` | המרכיב קורא את `clients.paperless_status`; שלב שנוצר עם תלות שכבר הושלמה נולד `pending` ולא `locked` |
 
 > 41–43 שייכות למהלך "יתרה לתשלום בהצעות" ולא לקליטה.
 
