@@ -1,0 +1,60 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 57 — הדף האישי מכיר בקשות חופשיות, מכבד סדר, ומסמן מה ניתן להעלאה
+-- 58 — הלקוח עונה על בקשה חופשית מהדף האישי
+-- הוחלו 2026-08-05 כ-journey_portal_custom_and_uploads_57 ו-journey_portal_submit_custom_58
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- שתי המיגרציות האלה הן CREATE OR REPLACE על שתי פונקציות ארוכות וקיימות.
+-- הנוסח המלא שרץ בפועל שמור, byte-for-byte, ב:
+--     supabase/live-2026-08-05/get_client_portal.sql
+--     supabase/live-2026-08-05/portal_submit_step.sql
+-- (נמשך מהמסד ב-pg_get_functiondef, ראה scripts/dump-live-functions.mjs).
+-- הקובץ הזה מתעד מה בדיוק השתנה, כדי שלא צריך יהיה להשוות 400 שורות.
+--
+-- ── 57 · get_client_portal ─────────────────────────────────────────────────
+--
+-- 1. סדר השורות. הלולאה הראשית עברה מ:
+--        order by st.created_at
+--    אל:
+--        order by coalesce(st.sort_order, 0), st.created_at
+--    כדי שהסדר שהרו"ח קבע בבונה יגבר על סדר היצירה.
+--
+-- 2. `client_documents` — הצ'קליסט מחזיר עכשיו גם את `key` של כל פריט (לא רק
+--    label ו-done), ונוסף `'canUpload', true`. בלי המפתח אין כנגד מה להעלות.
+--    הסדר בתוך הצ'קליסט נשמר ב-`with ordinality`.
+--
+-- 3. ענף חדש `when 'custom_request'` — מחזיר את הבקשה החופשית עם:
+--        kind='custom' · cta · canUpload (אם יש דרישת kind='file')
+--        requirements[] = [{ key, kind, label, done, value }]
+--    שלושת המצבים: הושלם ⇒ done · נעול ⇒ future · אחרת ⇒ action.
+--    ה-sub מציג "N מתוך M הושלמו" רק כשיש יותר מדרישה אחת.
+--
+-- שום פריט קיים לא שינה מבנה, ולכן הדף האישי של לקוחות קיימים מציג בדיוק
+-- את מה שהציג קודם (אומת מול הפורטל של שמוליק הבודק לפני ואחרי).
+--
+-- ── 58 · portal_submit_step ────────────────────────────────────────────────
+--
+-- 1. הרשימה הסגורה הורחבה מ-`prev_accountant_details` בלבד אל:
+--        ('prev_accountant_details', 'custom_request')
+--    כל סוג אחר עדיין נדחה ב-`not_client_editable`.
+--
+-- 2. שתי הגנות חדשות שחלות על שני הסוגים:
+--        payload.published='false'  ⇒  שגיאה `not_published`
+--        status='locked'            ⇒  שגיאה `locked`
+--    כדי שניחוש מזהה שלב לא יעקוף את שער הפרסום או מנעול תלות.
+--
+-- 3. ענף `custom_request`: מקבל { key, value? }, מסמן את הדרישה כ-done,
+--    שומר את הערך, ורושם אירוע. מותר לסמן רק דרישות kind ∈ (confirm, text) —
+--    דרישת `file` נסגרת אך ורק דרך ה-Edge Function ‏portal-upload-document.
+--    דרישת טקסט בלי ערך נדחית ב-`missing_value`.
+--    השלב נסגר (completed, ball=me, unlock_dependent_steps) רק כשכל הדרישות
+--    הושלמו; עד אז הוא נשאר waiting_client עם הכדור אצל הלקוח.
+--
+-- מסלול `prev_accountant_details` לא שונה כלל.
+--
+-- ── בדיקות שרצו על משתמש הבדיקה (2026-08-05) ───────────────────────────────
+--   אישור קריאה ⇒ done · טקסט בלי ערך ⇒ missing_value · טקסט עם ערך ⇒ done
+--   דרישת file דרך submit ⇒ לא סומנה · מפתח לא קיים ⇒ requirement_not_found
+--   טוקן שגוי ⇒ invalid · שלב kyc ⇒ not_client_editable
+--   העלאה תקינה ⇒ ok · exe ⇒ type_not_allowed · טוקן שגוי ⇒ invalid_token
+--   טוקן שחרור מול שלב של הלקוח ⇒ step_not_uploadable

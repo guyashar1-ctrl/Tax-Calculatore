@@ -46,6 +46,22 @@ order by version;
 | 54 | `quotation_view_tracking_54` | `mark_quotation_viewed()` רושמת **כל** פתיחה ולא רק את הראשונה — עם חלון של 30 דקות, כדי שרענון דף לא ינפח את הציר. הצעה שאושרה/פגה כבר לא נספרת כנצפית |
 | 55 | `close_onboarding_55` + `long_tail_steps_dont_block_activation_55b` | `onboarding_close_readiness()` בודקת ריטיינר / מכתב שחרור (כולל חלון כלל 16) / שאלון, ו-`close_onboarding()` סוגרת — או כופה עם סיבה ביומן. `advance_onboarding_step()` כבר לא נחסמת מהפעלת ההתקשרות ע"י `representation_upgrade` ו-`first_month_review`, שהם זנב ארוך שיכול להימשך חודשים |
 
+## מהלך "המסע הוא הכרטיס" (2026-08-05) — `docs/PLAN-JOURNEY-CENTER.md`
+
+| # | שם המיגרציה | מה היא עושה |
+|---|---|---|
+| 56 | `journey_custom_request_and_order_56` | סוג שלב `custom_request` (בקשה חופשית: `payload.requirements[]` עם `kind` ∈ confirm/text/file), מסלול `custom`, ועמודת `sort_order` עם מילוי-לאחור לפי סדר היצירה — עד כה לא היה ניתן לסדר בקשות. הנוסח: `56-journey-foundation.sql` |
+| 57 | `journey_portal_custom_and_uploads_57` | `get_client_portal()` מכבד `sort_order`, מחזיר בקשות חופשיות, ומסמן `canUpload` + `key` לכל פריט מסמך כדי שיהיה כנגד מה להעלות. תיעוד השינוי: `57-portal-custom-and-uploads.sql` |
+| 58 | `journey_portal_submit_custom_58` | `portal_submit_step()` מקבל תשובות לבקשה חופשית (אישור/טקסט), ונחסם על שלב לא-מפורסם או נעול. דרישת `file` נסגרת רק דרך ה-Edge Function |
+| 59 | `journey_release_portal_59` | דף הרו"ח הקודם: `mint_release_token()`, `get_release_portal()`, `release_portal_sign()`. **הכרעת גיא: הלקוח אינו חותם על מכתב השחרור — הרו"ח הקודם חותם ומעלה את החומרים, הלקוח מכותב.** טביעת הטוקן גם פותחת את שלב החומרים, שעד כה נשאר נעול ולא היה לאן להעלות. הנוסח: `59-release-portal.sql` |
+| 60 | `journey_link_health_covers_portal_and_release_60` | `public_link_health()` מכסה שישה סוגי קישורים במקום ארבעה — נוספו `portal` ו-`release` |
+| 61 | `dump_function_defs_helper_61` | `__dump_function_defs()` — עזר קריאה בלבד ל-`scripts/dump-live-functions.mjs`, כדי שהארכיון המקומי לא ייפול שוב מאחורי המסד |
+
+**Edge Function חדשה:** `portal-upload-document` (verify_jwt=false) — העלאת קובץ
+מדף ציבורי. `tokenKind=portal` ללקוח, `tokenKind=release` לרו"ח הקודם. מגבילה
+10MB ורשימת סוגים סגורה, כותבת ל-bucket `client-documents`, יוצרת רשומת מסמך,
+מסמנת את הפריט, רושמת ביומן, ומעבירה כדור כשהכול הגיע.
+
 > 41–43 שייכות למהלך "יתרה לתשלום בהצעות" ולא לקליטה.
 
 ## כללי הבטיחות שנשמרו בכולן

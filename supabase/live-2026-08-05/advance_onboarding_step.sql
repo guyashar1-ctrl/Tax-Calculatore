@@ -1,5 +1,5 @@
--- נמשך חי 2026-08-05 מ-uoweoqtuiettozagwgdw (pg_get_functiondef). לפני מהלך "המסע הוא הכרטיס".
--- כולל את 46c (דילוג not_applicable) ו-55b (זנב ארוך לא חוסם הפעלת התקשרות).
+-- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- ארגומנטים: p_step_id text, p_action text, p_payload jsonb
 CREATE OR REPLACE FUNCTION public.advance_onboarding_step(p_step_id text, p_action text, p_payload jsonb DEFAULT '{}'::jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -98,3 +98,4 @@ begin
   return jsonb_build_object('ok', true, 'stepId', s.id, 'from', s.status, 'to', v_new);
 end;
 $function$
+

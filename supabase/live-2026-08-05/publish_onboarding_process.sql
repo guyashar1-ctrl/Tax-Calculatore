@@ -1,4 +1,5 @@
--- נמשך חי 2026-08-05 מ-uoweoqtuiettozagwgdw (pg_get_functiondef). נולד במיגרציה 52.
+-- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- ארגומנטים: p_engagement_id text
 CREATE OR REPLACE FUNCTION public.publish_onboarding_process(p_engagement_id text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -31,3 +32,4 @@ begin
   return jsonb_build_object('ok', true, 'publishedAt', now(), 'openSteps', v_open);
 end;
 $function$
+

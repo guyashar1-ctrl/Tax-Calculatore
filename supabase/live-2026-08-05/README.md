@@ -1,33 +1,41 @@
 # צילום ההגדרות החיות — 2026-08-05
 
-נמשך מהפרויקט החי `uoweoqtuiettozagwgdw` בפתיחת מהלך "המסע הוא הכרטיס"
-(`docs/PLAN-JOURNEY-CENTER.md`, שלב 0), באמצעות `pg_get_functiondef`.
+**57 הפונקציות של סכימת `public`, כפי שהן רצות במסד `uoweoqtuiettozagwgdw`
+אחרי מיגרציות 56–61** (מהלך "המסע הוא הכרטיס", `docs/PLAN-JOURNEY-CENTER.md`).
+
+נוצר אוטומטית ב-`node scripts/dump-live-functions.mjs supabase/live-2026-08-05`.
+מעכשיו זה המנגנון — לא העתקה ידנית. הרץ אותו שוב אחרי כל מהלך SQL, והריפו
+יישאר מסונכרן עם המסד.
 
 ## למה התיקייה הזאת נוצרה
 
-התיקייה הקודמת `live-2026-08-04/` נכתבה ב-18:28–18:35 UTC, **לפני** שרצו
-מיגרציות 51–55b (18:42–19:19 UTC). לכן העותקים שם של הפונקציות הבאות
-מיושנים ואינם משקפים את מה שרץ היום:
+`live-2026-08-04/` נכתבה ידנית ב-18:28–18:35 UTC, **לפני** שרצו מיגרציות 51–55b
+(18:42–19:19 UTC). כתוצאה מכך היא הציגה מצב שלא היה קיים כבר באותו ערב:
+`get_client_portal`, `generate_onboarding_steps` ו-`advance_onboarding_step` היו
+בגרסה מיושנת, ו-`portal_submit_step` / `publish_onboarding_process` /
+`close_onboarding` חסרו לגמרי. היא מכסה 23 פונקציות מתוך 57.
 
-| פונקציה | מצב העותק ב-live-2026-08-04 |
-|---|---|
-| `get_client_portal` | מיושן — לפני קטלוג הבקשות (51c), שער הפרסום (52b) ו-53b |
-| `generate_onboarding_steps` | מיושן — לפני המרכיב של 51b |
-| `advance_onboarding_step` | מיושן — לפני 55b (זנב ארוך לא חוסם הפעלה) |
-| `portal_submit_step` | **לא קיים** — נולד ב-53 |
-| `publish_onboarding_process` | **לא קיים** — נולד ב-52 |
-| `close_onboarding` | **לא קיים** — נולד ב-55 |
+**אל תסתמך על `live-2026-08-04/`.** התיקייה הזאת מחליפה אותה.
 
-הקבצים כאן הם הנוסח שרץ בפועל ב-2026-08-05, לפני כל שינוי של המהלך הנוכחי.
+## שחזור נוסח קודם של פונקציה
 
-**`generate_onboarding_steps` לא הועתק לכאן בכוונה:** נבדק מול טבלת המיגרציות
-שאף מיגרציה אחרי `request_catalog_51b_composer` לא נגעה בה, ולכן הקובץ המקומי
-`supabase/51-request-catalog.sql` הוא הנוסח החי המדויק. העותק ב-`live-2026-08-04/`
-הוא הגרסה שלפני 51b — לא להסתמך עליו.
+הנוסח המדויק של כל מיגרציה שרצה שמור במסד עצמו:
 
-## מצב הבסיס שנמדד
+```sql
+select name, array_to_string(statements, E'\n;\n')
+from supabase_migrations.schema_migrations
+where name like '%portal%' order by version;
+```
 
-- מיגרציה אחרונה: `20260804191955` (`long_tail_steps_dont_block_activation_55b`), 83 בסך הכול.
-- `public_link_health()` — ירוק: sign 6/6, quote 3/3, intake 2/2, onboard 10/10.
+הנוסח שקדם למהלך הנוכחי:
+`get_client_portal` — מיגרציה `portal_publish_gate_52b` (וקודמותיה 51c, 50).
+`portal_submit_step` — מיגרציה `portal_submit_step_53`.
+`public_link_health` — מיגרציה `public_link_health_check` (32).
+
+## מצב הבסיס שנמדד בתחילת המהלך
+
+- מיגרציה אחרונה לפני המהלך: `20260804191955` (`long_tail_steps_dont_block_activation_55b`).
+- `public_link_health()` — ירוק, 21 קישורים. אחרי המהלך: 24, בשישה סוגים
+  (נוספו `portal` ו-`release`).
 - 17 לקוחות, 3 התקשרויות, 28 שלבי קליטה, 10 בקשות ייצוג, 4 הצעות, 3 לידים,
   14 משימות, 11 מסמכים.

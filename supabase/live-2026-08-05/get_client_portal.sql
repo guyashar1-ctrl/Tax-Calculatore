@@ -1,5 +1,5 @@
--- נמשך חי 2026-08-05 מ-uoweoqtuiettozagwgdw (pg_get_functiondef). לפני מהלך "המסע הוא הכרטיס".
--- כולל את מיגרציות 50 (journeyStage), 51c (קטלוג הבקשות), 52b (שער הפרסום), 53b (טפסים בדף).
+-- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- ארגומנטים: p_token text
 CREATE OR REPLACE FUNCTION public.get_client_portal(p_token text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -28,6 +28,9 @@ declare
   v_label  text;
   v_sub    text;
   v_published boolean := true;
+  v_reqs   jsonb;
+  v_rq_done int;
+  v_rq_total int;
 begin
   select * into c from public.clients where portal_token = p_token limit 1;
   if c.id is null then return jsonb_build_object('ok', false, 'error', 'invalid'); end if;
@@ -37,8 +40,6 @@ begin
 
   v_has_eng := exists (select 1 from public.engagements e where e.client_id = c.id);
 
-  -- שער הפרסום. כל עוד הרו"ח לא פתח את התהליך בבונה, הלקוח רואה רק את
-  -- מסלול הזהות — ייפוי הכוח נפתח מיד אחרי החתימה ואינו ממתין לאיש.
   select coalesce(bool_or(e.process_published_at is not null), true)
     into v_published from public.engagements e where e.client_id = c.id;
 
@@ -69,11 +70,10 @@ begin
   for s in
     select * from public.onboarding_steps st
     where st.client_id = c.id and st.status <> 'cancelled'
-      -- בקשה שהרו"ח כיבה בבונה אינה קיימת מבחינת הלקוח.
       and coalesce(st.payload->>'published', 'true') <> 'false'
-      -- ולפני שהתהליך נפתח — רק מסלול הזהות עובר.
       and (v_published or st.step_type = 'representation')
-    order by st.created_at
+    -- הסדר שהרו"ח קבע בבונה גובר על סדר היצירה.
+    order by coalesce(st.sort_order, 0), st.created_at
   loop
     case s.step_type
 
@@ -121,9 +121,44 @@ begin
                       else v_sub end,
           'actionKind','portal','actionValue', s.id,
           'kind','documents',
-          -- הרשימה עצמה, כדי שהלקוח יראה מה בדיוק עוד חסר ולא רק מספר.
-          'checklist', (select jsonb_agg(jsonb_build_object('label', x->>'label', 'done', (x->>'done')::boolean))
-                          from jsonb_array_elements(coalesce(s.payload->'checklist','[]'::jsonb)) x)));
+          -- הלקוח מעלה בעצמו, ולכן כל פריט חייב מפתח שאפשר להעלות כנגדו.
+          'canUpload', true,
+          'checklist', (select jsonb_agg(jsonb_build_object(
+                            'key', x->>'key', 'label', x->>'label', 'done', (x->>'done')::boolean)
+                          order by ord)
+                          from jsonb_array_elements(coalesce(s.payload->'checklist','[]'::jsonb))
+                               with ordinality t(x, ord))));
+      end if;
+
+    -- ── בקשה חופשית ──────────────────────────────────────────────────────────
+    when 'custom_request' then
+      v_reqs := coalesce(s.payload->'requirements', '[]'::jsonb);
+      select count(*) filter (where (x->>'done')::boolean), count(*)
+        into v_rq_done, v_rq_total
+        from jsonb_array_elements(v_reqs) x;
+      v_label := coalesce(nullif(s.payload->>'clientTitle',''), 'בקשה מהמשרד');
+
+      if s.status in ('completed','verified','skipped') then
+        v_items := v_items || jsonb_build_object('bucket','done','key','custom_'||s.id,'label', v_label);
+      elsif s.status = 'locked' then
+        v_items := v_items || jsonb_strip_nulls(jsonb_build_object(
+          'bucket','future','key','custom_'||s.id,'label', v_label,
+          'sub', nullif(s.payload->>'clientSub','')));
+      else
+        v_items := v_items || jsonb_strip_nulls(jsonb_build_object(
+          'bucket','action','key','custom_'||s.id,'label', v_label,
+          'sub', case when coalesce(v_rq_total,0) > 1
+                      then v_rq_done || ' מתוך ' || v_rq_total || ' הושלמו'
+                      else nullif(s.payload->>'clientSub','') end,
+          'actionKind','portal','actionValue', s.id,
+          'kind','custom',
+          'cta', nullif(s.payload->>'clientCta',''),
+          'canUpload', exists (select 1 from jsonb_array_elements(v_reqs) x where x->>'kind' = 'file'),
+          'requirements', (select jsonb_agg(jsonb_build_object(
+                              'key', x->>'key', 'kind', x->>'kind', 'label', x->>'label',
+                              'done', coalesce((x->>'done')::boolean, false),
+                              'value', x->>'value') order by ord)
+                            from jsonb_array_elements(v_reqs) with ordinality t(x, ord))));
       end if;
 
     -- ── פרטי הרו"ח הקודם ─────────────────────────────────────────────────────
@@ -208,7 +243,6 @@ begin
     v_items := v_items || jsonb_build_object('bucket','done','key','prev_accountant','label','החומרים מרואה החשבון הקודם התקבלו');
   end if;
 
-  -- התהליך טרם נפתח: אומרים ללקוח שהכדור אצלנו, ולא משאירים דף ריק.
   if v_has_eng and not v_published then
     v_items := v_items || jsonb_build_object('bucket','office','key','process_pending',
       'label','אנחנו מכינים את המשך התהליך','sub','נעדכן אותך כאן ברגע שיהיה מה לעשות');
@@ -239,3 +273,4 @@ begin
     'items', v_items);
 end;
 $function$
+
