@@ -30,6 +30,7 @@ import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import OnboardingJourneyMap from './OnboardingJourneyMap';
 import OnboardingProcessBuilder from './OnboardingProcessBuilder';
+import AddRequestDialog from './AddRequestDialog';
 
 interface Props {
   clientId: string;
@@ -63,9 +64,23 @@ interface Props {
  * איזו שורה פתוחה כרגע. דרך context ולא props, כי המעטפת נקראת מתוך שישה
  * כרטיסים מתמחים — העברה ידנית הייתה מוסיפה שני props לכל אחד מהם בלי סיבה.
  */
-const RowOpenContext = createContext<{ openId: string | null; toggle: (id: string) => void }>({
-  openId: null, toggle: () => {},
-});
+const RowOpenContext = createContext<{
+  openId: string | null;
+  toggle: (id: string) => void;
+  /** הזזת השורה בסדר התצוגה. null ⇒ אין סידור במסך הזה. */
+  onMove?: (id: string, dir: -1 | 1) => void;
+  /** פתיחת בקשה שנשמרה כטיוטה, אל הדף האישי של הלקוח. */
+  onPublish?: (id: string) => void;
+}>({ openId: null, toggle: () => {} });
+
+/** שם השורה. בקשה חופשית נושאת את השם שהרו"ח נתן לה, לא תווית גנרית. */
+function rowTitle(step: OnboardingStep): string {
+  if (step.stepType === 'custom_request') {
+    const t = String(step.payload.title ?? '').trim();
+    if (t) return t;
+  }
+  return STEP_TYPE_LABELS[step.stepType];
+}
 
 /** כמה זמן השורה עומדת במצב הזה — "9 ימים" ולא תאריך שצריך לחשב בראש. */
 function ageLabel(step: OnboardingStep): string | null {
@@ -166,6 +181,8 @@ export default function OnboardingTab({
   const [showDone, setShowDone] = useState(false);
   // שורה סגורה מראה שם, מצב ופעולה; פתיחה חושפת את הפרטים וההיסטוריה שלה.
   const [openRowId, setOpenRowId] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [ordering, setOrdering] = useState(false);
   const highlightTimer = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -419,6 +436,31 @@ export default function OnboardingTab({
   const openSteps = visibleSteps.filter(s => isStepOpen(s.status));
   const doneSteps = visibleSteps.filter(s => !isStepOpen(s.status));
 
+  /** הזזת שורה בסדר התצוגה. מסדרים את כל הפתוחות, לא רק את מה שמסונן. */
+  async function moveRow(id: string, dir: -1 | 1) {
+    const list = clientSteps.filter(s => isStepOpen(s.status)).map(s => s.id);
+    const i = list.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    setOrdering(true);
+    const { error: rpcError } = await supabase.rpc('reorder_onboarding_steps', {
+      p_client_id: clientId, p_ids: list,
+    });
+    setOrdering(false);
+    if (rpcError) { setError(rpcError.message); return; }
+    refresh?.();
+  }
+
+  async function publishRequest(id: string) {
+    const { data, error: rpcError } = await supabase.rpc('publish_onboarding_request', { p_step_id: id });
+    const res = data as { ok?: boolean; error?: string } | null;
+    if (rpcError || !res?.ok) { setError(rpcError?.message ?? 'פתיחת הבקשה נכשלה.'); return; }
+    refresh?.();
+    // הבקשה נחשפה — עכשיו אפשר להציע את המייל שמודיע עליה.
+    setEmailDialog({ stepId: id, kind: 'step_reminder', heading: 'הודעה ללקוח על הבקשה' });
+  }
+
   // ‼ אותו מסך, שני מצבים. כל עוד התהליך לא נפתח ללקוח — מצב בנייה: מרכיבים
   // מה מבקשים ממנו. אחרי הפתיחה — מצב ניהול. אין כאן שני מסכים שסותרים.
   if (activeEngagement && !activeEngagement.processPublishedAt) {
@@ -439,6 +481,8 @@ export default function OnboardingTab({
     <RowOpenContext.Provider value={{
       openId: openRowId,
       toggle: (id: string) => setOpenRowId(cur => (cur === id ? null : id)),
+      onMove: ordering ? undefined : (id, dir) => void moveRow(id, dir),
+      onPublish: (id) => void publishRequest(id),
     }}>
     <div className="cw-tabpanel">
       {error && (
@@ -502,7 +546,14 @@ export default function OnboardingTab({
                 <span>{title}</span>
               </button>
             ) : <span>{title}</span>}
-            <span className="cw-section-count">{key === 'done' ? doneSteps.length : list.length}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <span className="cw-section-count">{key === 'done' ? doneSteps.length : list.length}</span>
+              {key === 'open' && (
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>
+                  + בקשה
+                </button>
+              )}
+            </span>
           </div>
           {key === 'open' && list.length === 0 && (
             <div className="cw-empty">{ballFilter ? 'אין בקשות שמתאימות לסינון.' : 'כל הבקשות הושלמו.'}</div>
@@ -788,6 +839,16 @@ export default function OnboardingTab({
             setConfirmState(null);
             if (step) void run(step, 'complete', { completionMethod: 'manual' });
           }}
+        />
+      )}
+
+      {addOpen && (
+        <AddRequestDialog
+          clientId={clientId}
+          steps={clientSteps}
+          processPublished={!!activeEngagement?.processPublishedAt}
+          onClose={() => setAddOpen(false)}
+          onCreated={() => refresh?.()}
         />
       )}
     </div>
@@ -1591,13 +1652,14 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { openId, toggle } = useContext(RowOpenContext);
+  const { openId, toggle, onMove, onPublish } = useContext(RowOpenContext);
   const open = openId === step.id;
   const tone = TONE_COLOR[STEP_STATUS_TONE[step.status]];
   const locked = step.status === 'locked';
   const age = ageLabel(step);
   const progress = progressLabel(step);
   const hasBody = Boolean(children);
+  const isDraft = String(step.payload.published ?? 'true') === 'false';
 
   return (
     <div id={`ob-step-${step.id}`} style={{
@@ -1626,7 +1688,16 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
           >
             <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: locked ? 'var(--ink-3)' : 'var(--ink-1)' }}>
               {hasBody && <span aria-hidden="true" style={{ color: 'var(--ink-4)', marginInlineEnd: '.3rem' }}>{open ? '▾' : '▸'}</span>}
-              {locked && '🔒 '}{STEP_TYPE_LABELS[step.stepType]}
+              {locked && '🔒 '}{rowTitle(step)}
+              {/* ‼ טיוטה = הבקשה מוכנה אצלי והלקוח עוד לא רואה אותה. בלי הסימון
+                  הזה אין דרך לדעת אם ביקשתי בפועל או רק הכנתי. */}
+              {isDraft && (
+                <span style={{
+                  marginInlineStart: '.4rem', fontSize: 'var(--fs-12)', fontWeight: 600,
+                  color: 'var(--warn)', border: '1px solid var(--warn)', borderRadius: 999,
+                  padding: '0 .35rem',
+                }}>טיוטה</span>
+              )}
               {step.needsAttention && !danger && (
                 <span style={{ color: 'var(--err)', marginInlineStart: '.4rem' }}>· דורש טיפול</span>
               )}
@@ -1643,7 +1714,22 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
               {locked && <span>· {lockHint(step, stepById)}</span>}
             </div>
           </button>
-          <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>{menu}</div>
+          <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {isDraft && onPublish && (
+              <button type="button" className="btn btn-sm btn-primary"
+                onClick={() => onPublish(step.id)}
+                title="הבקשה תופיע בדף האישי של הלקוח">שלח ללקוח</button>
+            )}
+            {menu}
+            {onMove && (
+              <span style={{ display: 'inline-flex', gap: 2 }}>
+                <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למעלה"
+                  onClick={() => onMove(step.id, -1)} style={{ padding: '0 .3rem' }}>↑</button>
+                <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למטה"
+                  onClick={() => onMove(step.id, 1)} style={{ padding: '0 .3rem' }}>↓</button>
+              </span>
+            )}
+          </div>
         </div>
         {open && children}
       </div>
