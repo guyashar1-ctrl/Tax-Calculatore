@@ -324,6 +324,7 @@ export default function App() {
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(initialRoute.quotationId ?? null);
   // ליד שהגיעו אליו מחיפוש במסך הלקוחות — מסך הלידים נפתח עליו
   const [focusLeadId, setFocusLeadId] = useState<string | null>(null);
+  const [openNewLead, setOpenNewLead] = useState(false);
   const [newQuotationLeadId, setNewQuotationLeadId] = useState<string | null>(null);
   const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
   // תצוגה מקדימה של מייל תזכורת להצעה — נפתחת לפני כל שליחה חוזרת
@@ -1559,6 +1560,10 @@ export default function App() {
             onboardingSteps={onboarding.steps}
             engagements={onboarding.engagements}
             onOpenOnboarding={handleOpenClientOnboarding}
+            leads={leads}
+            quotations={quotations}
+            onNewLead={() => { setOpenNewLead(true); setView('quotations'); }}
+            onNewQuotation={handleNewQuotation}
           />
         )}
 
@@ -1653,6 +1658,8 @@ export default function App() {
             engagements={onboarding.engagements}
             focusLeadId={focusLeadId ?? undefined}
             onFocusLeadConsumed={() => setFocusLeadId(null)}
+            openNewLead={openNewLead}
+            onOpenNewLeadConsumed={() => setOpenNewLead(false)}
             onNew={handleNewQuotation}
             onOpen={handleOpenQuotation}
             onConvert={handleConvertQuotation}

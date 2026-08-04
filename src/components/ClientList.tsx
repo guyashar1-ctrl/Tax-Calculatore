@@ -23,6 +23,8 @@ import { ShaamStatus } from '../types/clientWorkspace';
 import type { Engagement, OnboardingStep } from '../types/onboarding';
 import { isStepOpen } from '../types/onboarding';
 import OnboardingClientsTable from './OnboardingClientsTable';
+import ClientsFunnel from './ClientsFunnel';
+import type { Lead, Quotation } from '../types/quotations';
 import RepSignersStatus from './RepSignersStatus';
 import Icon from './ui/Icon';
 import ClientDeleteDialog from './ClientDeleteDialog';
@@ -128,6 +130,11 @@ interface Props {
   engagements?: Engagement[];
   /** פתיחת כרטיס הלקוח ישר בלשונית הקליטה. */
   onOpenOnboarding?: (clientId: string) => void;
+  /** ── המשפך: כל מי שעדיין לא לקוח חי כאן ולא במסך נפרד ── */
+  leads?: Lead[];
+  quotations?: Quotation[];
+  onNewLead?: () => void;
+  onNewQuotation?: () => void;
 }
 
 const STATUS_ORDER: Record<RepresentationStatus, number> = {
@@ -164,7 +171,22 @@ export default function ClientList({
   onboardingSteps,
   engagements,
   onOpenOnboarding,
+  leads,
+  quotations,
+  onNewLead,
+  onNewQuotation,
 }: Props) {
+  // ברירת המחדל היא המשפך: השאלה היומיומית היא "מי זז ומי תקוע", ורק אחריה
+  // "איפה הלקוח הזה". הבחירה נזכרת כדי שהמסך לא יתאפס בכל כניסה.
+  const [board, setBoard] = useState<'funnel' | 'list'>(() =>
+    (localStorage.getItem('crm_clients_view') === 'list' ? 'list' : 'funnel'));
+  const [showClosedLeads, setShowClosedLeads] = useState(false);
+  const funnelAvailable = !!leads && !!quotations;
+  const showFunnel = funnelAvailable && board === 'funnel';
+  function switchBoard(next: 'funnel' | 'list') {
+    setBoard(next);
+    localStorage.setItem('crm_clients_view', next);
+  }
   const [search, setSearch] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Client | null>(null);
   const [sortField, setSortField] = useState<SortField>('status');
@@ -377,18 +399,51 @@ export default function ClientList({
       {/* הכותרת "לקוחות" ירדה — הטאב הפעיל בסרגל כבר אומר אותה, והספירה
           חוזרת בכותרת "לקוחות מיוצגים · N" שמתחת. מספר אחד במסך. */}
       <div className="cl-list-header">
-        <div />
+        <div style={{ display: 'flex', gap: '.4rem' }}>
+          {funnelAvailable && (
+            <>
+              <button
+                className={`btn ${showFunnel ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => switchBoard('funnel')}
+              >משפך</button>
+              <button
+                className={`btn ${showFunnel ? 'btn-secondary' : 'btn-primary'}`}
+                onClick={() => switchBoard('list')}
+              >רשימה</button>
+            </>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           {/* טעינת דוגמאות היא כלי פיתוח ולא פעולה של רואה חשבון —
               מוצגת רק כשאין לקוחות בכלל, וכקישור שקט */}
           {clients.length === 0 && (
             <button className="ui-linkbtn" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
           )}
+          {/* ‼ הכניסה למשפך היא גם הכניסה ליצירה: ליד והצעה נפתחים מכאן ולא
+              ממסך אחר, אחרת הריכוז נשבר במקום הראשון שבו הוא נדרש. */}
+          {onNewLead && <button className="btn btn-secondary" onClick={onNewLead}>+ ליד</button>}
+          {onNewQuotation && <button className="btn btn-secondary" onClick={onNewQuotation}>+ הצעה</button>}
           <button className="btn btn-secondary" onClick={onAddRequest}>בקשת ייצוג</button>
           <button className="btn btn-primary btn-lg" onClick={onAdd}>+ לקוח חדש</button>
         </div>
       </div>
 
+      {showFunnel && (
+        <ClientsFunnel
+          clients={clients}
+          leads={leads!}
+          quotations={quotations!}
+          onboardingSteps={onboardingSteps ?? []}
+          engagements={engagements ?? []}
+          showClosed={showClosedLeads}
+          onToggleClosed={() => setShowClosedLeads(v => !v)}
+          onOpenClient={onSelect}
+          onOpenOnboarding={onOpenOnboarding ?? onSelect}
+          onOpenLead={id => onOpenLead?.(id)}
+        />
+      )}
+
+      {!showFunnel && (<>
       {/* Search + advanced toggle */}
       <div className="cl-search-row">
         <div className="search-input-wrap" style={{ flex: 1 }}>
@@ -760,6 +815,7 @@ export default function ClientList({
           )}
         </>
       )}
+      </>)}
 
       {pendingDelete && (
         <ClientDeleteDialog

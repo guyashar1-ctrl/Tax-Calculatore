@@ -17,6 +17,9 @@ interface Props {
   /** פתיחה ישירה במצב "לידים", עם ליד מסוים פתוח לעריכה */
   focusLeadId?: string;
   onFocusLeadConsumed?: () => void;
+  /** נכנסו לכאן מהמשפך בלחיצה על "+ ליד" — הדיאלוג נפתח מיד */
+  openNewLead?: boolean;
+  onOpenNewLeadConsumed?: () => void;
   onNew: () => void;
   onOpen: (q: Quotation) => void;
   onConvert: (q: Quotation) => void;
@@ -56,13 +59,14 @@ const GROUP_ORDER: { status: QuotationStatus; badge: string; strip: string }[] =
 
 export default function QuotationsPipeline({
   quotations, leads, clients, engagements, focusLeadId, onFocusLeadConsumed,
+  openNewLead, onOpenNewLeadConsumed,
   onNew, onOpen, onConvert, onRelease, onRemind, onCancel, onDelete,
   onSaveLead, onCreateLead, onDeleteLead, onNewQuotationForLead,
 }: Props) {
-  const [page, setPage] = useState<PageTab>(focusLeadId ? 'leads' : 'quotations');
+  const [page, setPage] = useState<PageTab>(focusLeadId || openNewLead ? 'leads' : 'quotations');
   // פתיחת "ליד חדש" יושבת כאן ולא ב-LeadsPanel, כי הכפתור הראשי של שני
   // המצבים חייב לחיות באותה משבצת בכותרת — אחרת הוא קופץ בין השורות.
-  const [creatingLead, setCreatingLead] = useState(false);
+  const [creatingLead, setCreatingLead] = useState(!!openNewLead);
   const [filter, setFilter] = useState<QuotationStatus | 'all'>('all');
   const [remindBusy, setRemindBusy] = useState<string | null>(null);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
@@ -243,7 +247,7 @@ export default function QuotationsPipeline({
           quotations={quotations}
           viewSwitch={viewSwitch}
           creating={creatingLead}
-          onCreatingChange={setCreatingLead}
+          onCreatingChange={next => { setCreatingLead(next); if (!next) onOpenNewLeadConsumed?.(); }}
           onSave={onSaveLead}
           onCreate={onCreateLead}
           onDelete={onDeleteLead}

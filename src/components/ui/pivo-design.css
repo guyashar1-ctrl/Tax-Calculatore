@@ -1755,3 +1755,49 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   /* בטלפון השורה נפרסת לשתי שורות ואין עמודות למיין לפיהן */
   .tasks-page .board-colhead { display: none; }
 }
+
+/* ── המשפך במסך הלקוחות ─────────────────────────────────────────────────────
+   ארבע עמודות, כרטיס לכל אדם. בלי מסגרות לעמודות ובלי צבע שאינו אומר משהו:
+   צבע מופיע רק כשיש מה לעשות (הכדור אצלי), כשהזמן נגמר, או כשמשהו תקוע. */
+.funnel-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.funnel-col { min-width: 0; }
+
+.funnel-col-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 6px;
+  padding: 0 2px 6px;
+  border-bottom: 1px solid var(--hairline-1);
+  margin-bottom: 8px;
+  font-size: var(--fs-13); color: var(--ink-2);
+}
+.funnel-count { font-size: var(--fs-12); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.funnel-card {
+  display: block; width: 100%; text-align: start;
+  background: none; border: 0; border-radius: var(--radius);
+  padding: 7px 8px; margin-bottom: 2px; cursor: pointer;
+  border-inline-start: 2px solid transparent;
+}
+.funnel-card:hover, .funnel-card:focus-visible { background: var(--surface-1); }
+.funnel-card.is-mine  { border-inline-start-color: var(--accent); }
+.funnel-card.is-warn  { border-inline-start-color: var(--warn); }
+.funnel-card.is-stuck { border-inline-start-color: var(--danger); }
+
+.funnel-card-name { display: block; font-size: var(--fs-14); color: var(--ink-1); }
+.funnel-card-line { display: block; font-size: var(--fs-12); color: var(--ink-2); line-height: 1.45; }
+.funnel-card-ball { display: block; font-size: var(--fs-12); color: var(--ink-3); }
+.funnel-card.is-stuck .funnel-card-line { color: var(--danger); }
+.funnel-card.is-warn  .funnel-card-ball { color: var(--warn); }
+
+.funnel-empty { margin: 2px 8px; font-size: var(--fs-13); color: var(--ink-quiet); }
+.funnel-more  { margin: 6px 8px 0; font-size: var(--fs-12); color: var(--ink-3); }
+
+@media (max-width: 900px) {
+  /* בטלפון ארבע עמודות זו גלילה אופקית שבורה — העמודות נערמות זו מעל זו */
+  .funnel-grid { grid-template-columns: 1fr; gap: 18px; }
+}
