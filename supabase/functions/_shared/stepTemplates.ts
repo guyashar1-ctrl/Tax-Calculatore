@@ -13,7 +13,7 @@
 //  ועריכה לפני שליחה דורסת את שתיהן. הנוסח כאן הוא מה שיוצא כשלא נגעו בכלום.
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const STEP_EMAIL_KINDS = ['paperless_invite', 'retainer_request', 'step_reminder'] as const;
+export const STEP_EMAIL_KINDS = ['paperless_invite', 'retainer_request', 'step_reminder', 'intake_questionnaire'] as const;
 
 export type StepEmailKind = typeof STEP_EMAIL_KINDS[number];
 
@@ -27,6 +27,7 @@ export const STEP_EMAIL_KIND_LABELS: Record<StepEmailKind, string> = {
   paperless_invite: 'הזמנה לפייפרלס',
   retainer_request: 'בקשת הרשאת תשלום',
   step_reminder: 'תזכורת קליטה',
+  intake_questionnaire: 'שאלון פתיחת תיק',
 };
 
 /** השדות שיוחלפו בערכים אמיתיים. מוצג כמקרא במסך ההגדרות. */
@@ -44,6 +45,7 @@ export const PLACEHOLDERS_BY_KIND: Record<StepEmailKind, string[]> = {
   paperless_invite: ['{{clientName}}', '{{firmName}}', '{{paperlessInviteUrl}}'],
   retainer_request: ['{{clientName}}', '{{firmName}}', '{{amount}}', '{{billingStartMonth}}', '{{authUrl}}'],
   step_reminder: ['{{clientName}}', '{{firmName}}'],
+  intake_questionnaire: ['{{clientName}}', '{{firmName}}'],
 };
 
 // ‼ הנוסחים נכתבים בגוף שני רבים ("אתם") כמו שאר המיילים ללקוחות במערכת.
@@ -80,6 +82,24 @@ const TEMPLATES: Record<StepEmailKind, StepEmailTemplate> = {
       'רצינו להזכיר שהפעולה האחרונה שביקשנו עדיין ממתינה להשלמה.\n' +
       '\n' +
       'אם כבר טיפלתם בה — תודה, אפשר להתעלם מהמייל הזה. אם משהו לא ברור או לא עובד, אפשר להשיב למייל ונעזור.',
+  },
+  // ‼ השאלון אינו טופס גיוס אלא מיפוי: כל שאלה שהלקוח עונה עליה כאן היא
+  // שאלה שלא נשאל אותו בטלפון בדצמבר. הנוסח מסביר את זה, כי לקוח שלא מבין
+  // למה הוא ממלא — לא ממלא.
+  intake_questionnaire: {
+    subject: 'שאלון קצר — כדי שנכיר את התמונה המלאה',
+    body:
+      'כדי שנוכל לטפל בענייני המס שלכם נכון, נשמח להכיר כמה פרטים על המצב שלכם.\n' +
+      '\n' +
+      'השאלון מתאים את עצמו לתשובות שלכם — עונים רק על מה שרלוונטי, ואפשר לסמן "לא בטוח" בכל שאלה ולהשאיר אותה לבירור איתנו.\n' +
+      '\n' +
+      'מה נשאל:\n' +
+      '· מצב משפחתי וילדים — קובע נקודות זיכוי\n' +
+      '· מקורות ההכנסה שלכם\n' +
+      '· הפקדות לפנסיה, קרן השתלמות וביטוחים — מזכות בהטבות מס\n' +
+      '· נכסים והלוואות — נדרשים להצהרת הון\n' +
+      '\n' +
+      'מה שתמלאו כאן יישמר בתיק, ולא נצטרך לחזור על השאלות בכל דוח שנתי.',
   },
 };
 

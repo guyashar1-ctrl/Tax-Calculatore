@@ -115,7 +115,7 @@ export default function OnboardingTab({
   const [busyStepId, setBusyStepId] = useState<string | null>(null);
   const [menuStepId, setMenuStepId] = useState<string | null>(null);
   // חלון המייל של שלב — נפתח מהכרטיס, נשלח דרך send-step-email
-  const [emailDialog, setEmailDialog] = useState<{ stepId: string; kind: 'paperless_invite' | 'retainer_request' | 'step_reminder'; heading: string } | null>(null);
+  const [emailDialog, setEmailDialog] = useState<{ stepId: string; kind: 'paperless_invite' | 'retainer_request' | 'step_reminder' | 'intake_questionnaire'; heading: string } | null>(null);
   const [confirmState, setConfirmState] = useState<{ stepId: string; title: string; message: string; confirmLabel: string } | null>(null);
   // "שנה מסלול" — פותח מחדש את הטריאז' על שלב שכבר נענה
   const [retriageStepId, setRetriageStepId] = useState<string | null>(null);
@@ -422,6 +422,23 @@ export default function OnboardingTab({
                     blockNote={blockNoteByStep.get(step.id)}
                     onPrepare={onPrepareReleaseLetter ? () => onPrepareReleaseLetter(step.id) : undefined}
                     onBlock={() => handleBlock(step)}
+                    onRun={(action, payload) => void run(step, action, payload)}
+                    menu={menu}
+                  />
+                );
+              }
+
+              if (step.stepType === 'intake_questionnaire') {
+                return (
+                  <IntakeStepCard
+                    key={step.id}
+                    step={step}
+                    stepById={stepById}
+                    busy={busy}
+                    highlight={highlightStepId === step.id}
+                    onPrepareEmail={() => setEmailDialog({
+                      stepId: step.id, kind: 'intake_questionnaire', heading: 'מייל שאלון פתיחת תיק',
+                    })}
                     onRun={(action, payload) => void run(step, action, payload)}
                     menu={menu}
                   />
@@ -1032,6 +1049,56 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
             onClick={() => p.onRun('set_due', { dueDate: due })}>
             עדכן תזכורת
           </button>
+        </div>
+      )}
+    </StepCardShell>
+  );
+}
+
+// ═══════════════ כרטיס שאלון פתיחת התיק ══════════════════════════════════
+// ‼ במסלול הפנימי ולא ב"כלים": העיתוי הוא החלטה של הרו"ח. לקוח שמקבל שאלון
+// באותו יום שבו הוא חתם על ההצעה מרגיש שנפל עליו טופס; מי ששולח אותו יודע
+// מתי הרגע הנכון, והמערכת לא מנחשת במקומו.
+// ‼ נסגר לבד כשהלקוח מסיים למלא (close_intake_step_for_client) — אין צורך
+// לשאול "האם הוא כבר מילא" ואין מה לסמן ידנית.
+
+function IntakeStepCard({ step, stepById, busy, highlight, onPrepareEmail, onRun, menu }: {
+  step: OnboardingStep;
+  stepById: Map<string, OnboardingStep>;
+  busy: boolean;
+  highlight: boolean;
+  onPrepareEmail: () => void;
+  onRun: (action: string, payload?: Record<string, unknown>) => void;
+  menu: React.ReactNode;
+}) {
+  const open = isStepOpen(step.status);
+  const sent = step.status === 'waiting_client';
+  return (
+    <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}>
+      <div style={cardNote}>
+        {sent
+          ? 'השאלון נשלח. ברגע שהלקוח יסיים למלא — השלב ייסגר מעצמו והתשובות יופיעו בכרטיס.'
+          : 'שאלון שממפה את מצב המס של הלקוח: מצב משפחתי וילדים, מקורות הכנסה, הפקדות לפנסיה וקרן השתלמות, ונכסים להצהרת הון. מה שיענה כאן לא ייאסף שוב בדוח השנתי.'}
+      </div>
+
+      {open && (
+        <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
+          <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+            onClick={onPrepareEmail}>
+            {sent ? 'שלח שוב' : 'הכן מייל שאלון'}
+          </button>
+          {sent && (
+            <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+              onClick={() => onRun('complete', { completionMethod: 'manual', note: 'סומן ידנית כמולא' })}>
+              הלקוח מילא
+            </button>
+          )}
+        </div>
+      )}
+      {step.status === 'completed' && (
+        <div style={{ marginTop: '.5rem' }}>
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+            onClick={() => onRun('verify')}>עברתי על התשובות</button>
         </div>
       )}
     </StepCardShell>

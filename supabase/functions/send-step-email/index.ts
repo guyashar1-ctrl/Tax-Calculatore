@@ -31,24 +31,28 @@ import {
 const KIND_FOR_STEP: Record<string, StepEmailKind[]> = {
   paperless_invite: ["paperless_invite", "step_reminder"],
   retainer_authorization: ["retainer_request", "step_reminder"],
+  intake_questionnaire: ["intake_questionnaire", "step_reminder"],
 };
 
 const HEADING: Record<StepEmailKind, string> = {
   paperless_invite: "ברוכים הבאים",
   retainer_request: "הרשאה לתשלום החודשי",
   step_reminder: "תזכורת קצרה",
+  intake_questionnaire: "נשמח להכיר",
 };
 
 const CTA_LABEL: Record<StepEmailKind, string> = {
   paperless_invite: "לפתיחת החשבון בפייפרלס",
   retainer_request: "לאישור ההרשאה",
   step_reminder: "",
+  intake_questionnaire: "למילוי השאלון",
 };
 
 const FOOTER_TAGLINE: Record<StepEmailKind, string> = {
   paperless_invite: "פתיחת החשבון · כדקה",
   retainer_request: "מאובטח · פחות מדקה",
   step_reminder: "",
+  intake_questionnaire: "עונים רק על מה שרלוונטי",
 };
 
 /** סכום בשקלים בפורמט שהלקוח קורא, בלי תלות בספריות. */
@@ -117,7 +121,7 @@ Deno.serve(async (req: Request) => {
 
     // ── הנמען — מהכרטיס של הלקוח, לא מהבקשה ───────────────────────────────
     const { data: client } = await admin
-      .from("clients").select("id,user_id,first_name,last_name,email")
+      .from("clients").select("id,user_id,first_name,last_name,email,intake_token")
       .eq("id", step.client_id).maybeSingle();
     if (!client || client.user_id !== userId) return json({ error: "not found" }, 404);
     const toEmail = String(client.email || "").trim();
@@ -153,6 +157,22 @@ Deno.serve(async (req: Request) => {
       }, 400);
     }
 
+    // ‼ קישור השאלון נבנה כאן ולא מגיע מהדפדפן — אותה לוגיקה בדיוק של
+    // send-onboarding-email stage='intake'. הטוקן מונפק פעם אחת ונשמר, כדי
+    // שקישור שכבר נשלח לא ייפסל בשליחה חוזרת.
+    let intakeUrl = "";
+    if (kind === "intake_questionnaire") {
+      const APP_URL = Deno.env.get("APP_URL") || "https://crm.yasharcpa.co.il";
+      let token = String(client.intake_token || "").trim();
+      if (!token) {
+        token = crypto.randomUUID().replace(/-/g, "");
+        const { error: tokErr } = await admin.from("clients")
+          .update({ intake_token: token }).eq("id", client.id);
+        if (tokErr) return json({ error: "token_save_failed" }, 500);
+      }
+      intakeUrl = `${APP_URL}/?intake=${token}`;
+    }
+
     // ── הנוסח: ברירת מחדל ⊕ הגדרות המשרד ⊕ עריכה לשליחה הזו ───────────────
     const base = defaultTemplate(kind);
     const saved = (settings?.commTemplates || {})[kind] || {};
@@ -172,7 +192,9 @@ Deno.serve(async (req: Request) => {
       authUrl,
     });
 
-    const ctaHref = kind === "paperless_invite" ? inviteUrl : kind === "retainer_request" ? authUrl : "";
+    const ctaHref = kind === "paperless_invite" ? inviteUrl
+      : kind === "retainer_request" ? authUrl
+      : kind === "intake_questionnaire" ? intakeUrl : "";
     const ctaLabel = ctaHref ? CTA_LABEL[kind] : "";
     const html = buildBrandedEmail(brand, {
       heading: HEADING[kind] + (clientFirst ? ", " + clientFirst : ""),

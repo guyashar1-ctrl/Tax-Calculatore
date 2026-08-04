@@ -1450,7 +1450,7 @@ export const annualReportTree: QuestionTree = {
         ...m,
         specialSituations: { ...m.specialSituations, isKibbutzMember: a as boolean },
       }),
-      next: () => 'final_declaration',
+      next: () => 'has_pension_deposits',
       targetFieldCodes: ['kibbutz'],
       validationMode: true,
       editTarget: 'identity',
@@ -1459,6 +1459,118 @@ export const annualReportTree: QuestionTree = {
         label: 'חבר קיבוץ',
         value: client?.isKibbutzMember ? 'כן (מסומן בכרטיס)' : 'לא מסומן',
       }],
+    },
+
+    // ═══ ח2. הפקדות ונכסים — נשאלות בקליטה, נשמרות בפרופיל ═══════════════════
+    // ‼ הפרק הזה נוסף לשאלון הקליטה (2026-08): עד היום השאלון מיפה נקודות
+    // זיכוי ובני זוג, אבל לא את ההפקדות שמזכות בהטבה ולא את הנכסים שיידרשו
+    // בהצהרת הון. שתי החסרות האלה חזרו כשאלות טלפון בכל דוח שנתי.
+    // כולן lifetime='permanent' — נשאלות פעם אחת ומלוות את התיק.
+
+    has_pension_deposits: {
+      id: 'has_pension_deposits',
+      question: 'האם את/ה מפקיד/ה באופן עצמאי לקרן פנסיה, ביטוח מנהלים או קופת גמל?',
+      helpText: 'הפקדה שאת/ה מבצע/ת בעצמך, לא דרך תלוש שכר. מזכה בהטבת מס.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        deductionsCredits: { ...m.deductionsCredits, hasSelfPensionDeposits: a as boolean },
+      }),
+      next: (a) => (a ? 'pension_provider_names' : 'has_keren_hishtalmut'),
+      targetFieldCodes: ['135', '136'],
+    },
+
+    pension_provider_names: {
+      id: 'pension_provider_names',
+      question: 'באילו חברות או קרנות מתנהלות ההפקדות?',
+      helpText: 'שמות בלבד — מגדל, כלל, הראל, אלטשולר וכד׳. האישורים השנתיים יגיעו מהן.',
+      type: 'text',
+      required: false,
+      applyToModel: (m, a) => ({
+        ...m,
+        deductionsCredits: { ...m.deductionsCredits, pensionProviders: String(a ?? '') },
+      }),
+      next: () => 'has_keren_hishtalmut',
+    },
+
+    has_keren_hishtalmut: {
+      id: 'has_keren_hishtalmut',
+      question: 'יש לך קרן השתלמות פעילה?',
+      helpText: 'לעצמאים ההפקדה מוכרת כניכוי; לשכירים היא בעיקר חיסכון פטור.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        deductionsCredits: { ...m.deductionsCredits, hasKerenHashtalmutSelf: a as boolean },
+      }),
+      next: () => 'has_disability_insurance',
+      targetFieldCodes: ['134'],
+    },
+
+    has_disability_insurance: {
+      id: 'has_disability_insurance',
+      question: 'יש לך ביטוח אובדן כושר עבודה?',
+      helpText: 'הפרמיה מוכרת כניכוי — שדות 112/113 לעצמאי, 206/207 לשכיר.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        deductionsCredits: { ...m.deductionsCredits, hasDisabilityInsurance: a as boolean },
+      }),
+      next: () => 'owns_real_estate',
+      targetFieldCodes: ['112', '113'],
+    },
+
+    owns_real_estate: {
+      id: 'owns_real_estate',
+      question: 'יש בבעלותך נכסי נדל״ן (דירה, מגרש, נכס מסחרי)?',
+      helpText: 'כולל דירת מגורים. נדרש להצהרת הון, ולבדיקת חבות במס שבח בעתיד.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        wealthAssets: { ...(m.wealthAssets ?? {}), hasRealEstate: a as boolean },
+      }),
+      next: (a) => (a ? 'real_estate_count' : 'owns_vehicles'),
+    },
+
+    real_estate_count: {
+      id: 'real_estate_count',
+      question: 'כמה נכסים?',
+      type: 'number',
+      required: false,
+      applyToModel: (m, a) => ({
+        ...m,
+        wealthAssets: { ...(m.wealthAssets ?? {}), realEstateCount: Number(a) || undefined },
+      }),
+      next: () => 'owns_vehicles',
+    },
+
+    owns_vehicles: {
+      id: 'owns_vehicles',
+      question: 'יש בבעלותך רכב או כלי רכב אחר?',
+      helpText: 'נדרש להצהרת הון. רכב ליסינג או רכב חברה — לא נחשב בבעלות.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        wealthAssets: { ...(m.wealthAssets ?? {}), hasVehicles: a as boolean },
+      }),
+      next: () => 'has_loans',
+    },
+
+    has_loans: {
+      id: 'has_loans',
+      question: 'יש לך משכנתא או הלוואות פתוחות?',
+      helpText: 'משכנתא, הלוואת בנק, הלוואה מקרוב משפחה. נדרש להצהרת הון.',
+      type: 'boolean',
+      required: true,
+      applyToModel: (m, a) => ({
+        ...m,
+        wealthAssets: { ...(m.wealthAssets ?? {}), hasLoans: a as boolean },
+      }),
+      next: () => 'final_declaration',
     },
 
     // ═══ ט. חתימה ════════════════════════════════════════════════════════════
@@ -1580,6 +1692,11 @@ const PERMANENT_NODES: string[] = [
   'is_discharged_soldier', 'soldier_service_months', 'has_academic_degree',
   'is_family_company_member', 'is_foreign_controlling_shareholder', 'is_kibbutz_member',
   'trust_role',
+
+  // הפקדות ונכסים — נשאלים בקליטה ומלווים את התיק (ראה פרק ח2)
+  'has_pension_deposits', 'pension_provider_names', 'has_keren_hishtalmut',
+  'has_disability_insurance',
+  'owns_real_estate', 'real_estate_count', 'owns_vehicles', 'has_loans',
 ];
 
 for (const node of Object.values(annualReportTree.nodes)) {

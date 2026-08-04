@@ -630,11 +630,13 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 //
 // עורך מבוקר על אותה טיוטה של המסך — בלי שמירה משלו, כמו לשונית ההצעות.
 
-const TEMPLATE_EDITORS: StepEmailKind[] = ['paperless_invite', 'retainer_request'];
+const TEMPLATE_EDITORS: StepEmailKind[] = ['paperless_invite', 'retainer_request', 'intake_questionnaire', 'step_reminder'];
 
 const TEMPLATE_HINT: Record<string, string> = {
   paperless_invite: 'נשלח מכרטיס הלקוח, בשלב "הזמנה לפייפרלס". הקישור עצמו נוסף ככפתור בסוף המייל.',
   retainer_request: 'נשלח בשלב "הרשאה לתשלום חודשי", אחרי שהוזן קישור ההרשאה מפייפרלס.',
+  intake_questionnaire: 'נשלח בשלב "שאלון פתיחת תיק". קישור השאלון האישי נוסף ככפתור בסוף המייל.',
+  step_reminder: 'נשלח בלחיצה על "הכן תזכורת", בשלב שממתין ללקוח יותר מדי זמן.',
 };
 
 interface CommTemplate { subject?: string; body?: string }

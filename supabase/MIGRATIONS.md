@@ -35,6 +35,7 @@ order by version;
 | 46b | `paperless_not_applicable_46b_set_path` | `set_paperless_path` — המסלול הרביעי "לא יעבוד עם פייפרלס", והרשאת התשלום הופכת להסדר ידני בלי תלות |
 | 46c | `paperless_not_applicable_46c_advance` | `advance_onboarding_step` — דילוג בסיבה `not_applicable` מותר גם כשיש הרשאה פתוחה |
 | 46d | `composer_reads_paperless_fact_46d` | המרכיב קורא את `clients.paperless_status`; שלב שנוצר עם תלות שכבר הושלמה נולד `pending` ולא `locked` |
+| 47 | `intake_questionnaire_step_47` + `intake_closes_step_47b` | שלב "שאלון פתיחת תיק" (מסלול פנימי, scope=person), `add_intake_questionnaire_step()`, ו-`close_intake_step_for_client()` שנקראת מ-`save_intake_answer` כשהלקוח מסיים |
 
 > 41–43 שייכות למהלך "יתרה לתשלום בהצעות" ולא לקליטה.
 

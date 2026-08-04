@@ -229,6 +229,8 @@ export interface TaxpayerModel {
     selfPensionDeposits?: number;
     /** יש הפקדות עצמאיות לקצבה — הסכום נקרא מאישור הקופה. */
     hasSelfPensionDeposits?: boolean;
+    /** איפה מתנהלות ההפקדות — שמות בלבד. משם יגיעו האישורים השנתיים. */
+    pensionProviders?: string;
     selfStudyFundDeposits?: number;
     hasKerenHashtalmutSelf?: boolean;
     isDischargedSoldier?: boolean;
@@ -261,6 +263,19 @@ export interface TaxpayerModel {
     degreeTypeCode?: number;
     /** חודשי שירות סדיר (לחישוב מדויק של זיכוי חייל משוחרר) — שדות 024/124. */
     soldierServiceMonths?: number;
+  };
+
+  /**
+   * נכסים והתחייבויות — נאספים בשאלון הקליטה ומלווים את התיק.
+   * ‼ אלה עובדות קבע ולא נתוני שנה: הן נועדו להצהרת הון שתידרש בעתיד, ולכן
+   * נשאלות פעם אחת בכניסה ולא בכל דוח מחדש. סכומים אינם נאספים כאן —
+   * הצהרת הון דורשת שערוך ליום מסוים, וזו עבודה של רואה חשבון ולא של טופס.
+   */
+  wealthAssets?: {
+    hasRealEstate?: boolean;
+    realEstateCount?: number;
+    hasVehicles?: boolean;
+    hasLoans?: boolean;
   };
 
   /** הפסדים — פירוט לפי סוג (מדריך 2025 עמ' 26–27). מחליף את הדגל הבודד. */

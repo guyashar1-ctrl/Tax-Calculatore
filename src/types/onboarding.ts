@@ -42,7 +42,8 @@ export type OnboardingStepType =
   | 'retainer_authorization'
   | 'internal_setup'
   | 'kyc_identification'
-  | 'first_month_review';
+  | 'first_month_review'
+  | 'intake_questionnaire';
 
 export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   representation: 'ייצוג מול הרשויות',
@@ -58,6 +59,7 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   internal_setup: 'הקמה פנימית',
   kyc_identification: 'הכרת הלקוח',
   first_month_review: 'ביקורת חודש ראשון',
+  intake_questionnaire: 'שאלון פתיחת תיק',
 };
 
 export type OnboardingTrack =
