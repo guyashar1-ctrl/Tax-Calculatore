@@ -27,6 +27,11 @@ order by version;
 | 36 | `composer_reads_client_facts_36` | המרכיב קורא מהכרטיס ולא מהליד; מסלול "פתיחת תיקים" לעסק חדש |
 | 37 | `copy_lead_facts_on_engagement_37` | `copy_lead_facts_to_client()` — העתקה בכל המרה חדשה, לא רק במילוי-לאחור |
 | 38 | `one_person_one_record_38` | `clients.lifecycle_stage` + `merged_from_lead_id`, `refresh_lifecycle_stages()`, `merge_leads_into_people()` |
+| 39 | `representation_upgrade_step_39` | `sync_representation_upgrade_step()` — שלב "שדרוג לייצוג ראשי" נפתח ונסגר מעצמו |
+| 40 | `rep_upgrade_trigger_on_insert_40` | הטריגר של 39 חל גם ביצירת כרטיס, לא רק בעדכון |
+| 44 | `onboarding_autofill_44` | `autofill_internal_setup()` — מספרי תיקים ושיוך מטפל נסגרים לבד ממה שכבר ידוע. אינה נוגעת ב-`kyc_identification` (חתימה רגולטורית נשארת ידנית) |
+
+> 41–43 שייכות למהלך "יתרה לתשלום בהצעות" ולא לקליטה.
 
 ## כללי הבטיחות שנשמרו בכולן
 

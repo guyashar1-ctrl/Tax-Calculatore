@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  Engagement, OnboardingEvent, OnboardingStep, OnboardingStepType, StepChecklistItem,
+  Engagement, OnboardingEvent, OnboardingStep, StepChecklistItem,
 } from '../../types/onboarding';
 import {
   ENGAGEMENT_STATUS_LABELS, EVENT_ACTOR_LABELS, EVENT_TYPE_LABELS, STEP_BALL_LABELS,
@@ -16,15 +16,19 @@ import {
 import type { RepAuthorityKind } from '../../types';
 import { REP_AUTHORITY_LABELS } from '../../types';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
+import { NEXT_ACTION, nextStepForClient } from '../../utils/onboardingNext';
 import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
 import { formatILS } from '../../utils/quotationCalc';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import type { DocCategory } from '../../hooks/useDocumentStore';
+import { DOC_CATEGORY_LABELS, useDocumentStore } from '../../hooks/useDocumentStore';
 import { useEmailMessages } from '../../hooks/useEmailMessages';
 import { EMAIL_STATUS_LABEL } from '../../types/emailActivity';
 import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import OnboardingJourneyMap from './OnboardingJourneyMap';
 
 interface Props {
   clientId: string;
@@ -48,23 +52,6 @@ const TONE_COLOR: Record<string, string> = {
   muted: 'var(--ink-3)',
 };
 
-// מה הפעולה הבאה כשהכדור אצלי — ניסוח של עשייה, לא של סטטוס
-const NEXT_ACTION: Record<OnboardingStepType, string> = {
-  representation: 'להמשיך את תהליך הייצוג',
-  representation_upgrade: 'לשדרג את הייצוג למייצג ראשי',
-  file_opening: 'לפתוח את התיקים ברשויות',
-  release_letter: 'לשלוח מכתב שחרור לרו״ח הקודם',
-  materials_received: 'לאסוף את החומרים מהרו״ח הקודם',
-  paperless_invite: 'להזמין את הלקוח לפייפרלס',
-  paperless_connection: 'לאשר את חיבור הלקוח לפייפרלס',
-  data_import: 'לייבא את ההיסטוריה לפייפרלס',
-  data_verification: 'לאמת את הנתונים בפייפרלס',
-  retainer_authorization: 'להקים את הרשאת התשלום החודשי',
-  internal_setup: 'להשלים את ההקמה הפנימית',
-  kyc_identification: 'להשלים את הכרת הלקוח',
-  first_month_review: 'לבצע את ביקורת החודש הראשון',
-};
-
 /** למה השלב נעול ומה יפתח אותו — במילים של הרו"ח, לא של המסד. */
 function lockHint(step: OnboardingStep, byId: Map<string, OnboardingStep>): string {
   if (step.stepType === 'retainer_authorization') {
@@ -73,24 +60,6 @@ function lockHint(step: OnboardingStep, byId: Map<string, OnboardingStep>): stri
   const dep = step.dependsOnStepId ? byId.get(step.dependsOnStepId) : undefined;
   if (dep) return `ייפתח אחרי ${STEP_TYPE_LABELS[dep.stepType]}`;
   return 'ייפתח אחרי השלב שהוא תלוי בו';
-}
-
-/** דירוג דחיפות לשורת הכדור. נמוך = דחוף יותר. */
-/** תאריך יעד רק אם הוא בטווח שבועיים — אחרת הוא אינו שיקול דחיפות. */
-const SOON_DAYS = 14;
-function soonDue(due?: string | null): string | null {
-  if (!due) return null;
-  const days = (new Date(due).getTime() - Date.now()) / 86400000;
-  return days <= SOON_DAYS ? due : null;
-}
-
-function urgency(step: OnboardingStep): number {
-  if (step.status === 'blocked' || step.status === 'failed') return 0;
-  if (step.needsAttention) return 1;
-  if (step.status === 'locked') return 5;
-  if (step.ball === 'me') return 2;
-  if (step.ball === 'client') return 3;
-  return 4;
 }
 
 // ─── מסלול הפייפרלס ────────────────────────────────────────────────────────
@@ -151,6 +120,24 @@ export default function OnboardingTab({
     if (highlightTimer.current) window.clearTimeout(highlightTimer.current);
   }, []);
 
+  // ─── מילוי אוטומטי של ההקמה הפנימית ──────────────────────────────────────
+  // ‼ מספרי התיקים והמטפל כבר ידועים למערכת מרגע הייצוג. לבקש מהרו"ח לסמן
+  // אותם ביד זו בקשה לאשר מה שכבר נכון. הפונקציה בשרת אידמפוטנטית, ולכן
+  // ה-ref כאן חוסך רק קריאת רשת מיותרת — לא מגן על נכונות.
+  const autofilled = useRef(new Set<string>());
+  useEffect(() => {
+    if (!clientId || loading || autofilled.current.has(clientId)) return;
+    if (!steps.some(s => s.clientId === clientId && s.stepType === 'internal_setup'
+                    && isStepOpen(s.status))) return;
+    autofilled.current.add(clientId);
+    void (async () => {
+      const { data } = await supabase.rpc('autofill_internal_setup', { p_client_id: clientId });
+      const res = data as { ok?: boolean; noop?: boolean } | null;
+      if (res?.ok && !res.noop) refresh?.();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, loading, steps]);
+
   const clientEngagements = useMemo(
     () => engagements.filter(e => e.clientId === clientId),
     [engagements, clientId]);
@@ -184,25 +171,9 @@ export default function OnboardingTab({
     return m;
   }, [clientEvents]);
 
-  const nextStep = useMemo(() => {
-    const open = clientSteps.filter(s => isStepOpen(s.status));
-    if (open.length === 0) return null;
-    // ‼ שורת הכדור מכריזה על הפעולה הבאה, ולכן היא לא יכולה להצביע על שלב
-    // נעול — אין מה לעשות איתו. שלב נעול נבחר רק כשאין שום שלב פתיח, ואז
-    // המסר הוא "הכול ממתין למשהו אחר".
-    const actionable = open.filter(s => s.status !== 'locked');
-    return (actionable.length > 0 ? actionable : open).slice().sort((a, b) => {
-      const u = urgency(a) - urgency(b);
-      if (u !== 0) return u;
-      // ‼ תאריך יעד רחוק אינו דוחק. שלב בלי תאריך הוא העבודה של עכשיו, ואילו
-      // "ביקורת חודש ראשון" בעוד חודש לא אמורה לדחוק את מכתב השחרור להיום.
-      // רק יעד קרוב (שבועיים) מקפיץ שלב לראש.
-      const ad = soonDue(a.dueDate) ?? '';
-      const bd = soonDue(b.dueDate) ?? '';
-      if (ad !== bd) return ad === '' ? 1 : bd === '' ? -1 : ad.localeCompare(bd);
-      return (a.createdAt || '').localeCompare(b.createdAt || '');
-    })[0];
-  }, [clientSteps]);
+  // ‼ אותה פונקציה בדיוק שמניעה את השולחן ואת מסך הלקוחות — ראה
+  // utils/onboardingNext.ts. שני מסכים שמחשבים "הבא בתור" אחרת סותרים זה את זה.
+  const nextStep = useMemo(() => nextStepForClient(clientSteps), [clientSteps]);
 
   async function run(step: OnboardingStep, action: string, payload: Record<string, unknown> = {}) {
     setBusyStepId(step.id);
@@ -352,6 +323,10 @@ export default function OnboardingTab({
         <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>{ballSub}</span>
       </div>
 
+      {clientSteps.length > 0 && (
+        <OnboardingJourneyMap steps={clientSteps} onSelect={gotoStep} />
+      )}
+
       {loading && clientSteps.length === 0 && <div className="cw-empty">טוען…</div>}
 
       {tracks.map(({ track, list }) => (
@@ -437,6 +412,21 @@ export default function OnboardingTab({
                     blockNote={blockNoteByStep.get(step.id)}
                     onPrepare={onPrepareReleaseLetter ? () => onPrepareReleaseLetter(step.id) : undefined}
                     onBlock={() => handleBlock(step)}
+                    onRun={(action, payload) => void run(step, action, payload)}
+                    menu={menu}
+                  />
+                );
+              }
+
+              if (step.stepType === 'kyc_identification') {
+                return (
+                  <KycStepCard
+                    key={step.id}
+                    step={step}
+                    stepById={stepById}
+                    clientId={clientId}
+                    busy={busy}
+                    highlight={highlightStepId === step.id}
                     onRun={(action, payload) => void run(step, action, payload)}
                     menu={menu}
                   />
@@ -975,6 +965,86 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
             onClick={() => p.onRun('set_due', { dueDate: due })}>
             עדכן תזכורת
           </button>
+        </div>
+      )}
+    </StepCardShell>
+  );
+}
+
+// ═══════════════ כרטיס הכרת הלקוח ════════════════════════════════════════
+// ‼ מסמכי הזיהוי כבר בתיק — הלקוח העלה אותם כשמילא את טופס הייצוג. השלב הזה
+// אינו איסוף אלא אישור: הרו"ח מסתכל ומאשר. לכן הכרטיס מביא את המסמכים אליו
+// במקום לשלוח אותו לחפש אותם בלשונית אחרת.
+// ‼ הלחיצה נשארת ידנית בכוונה. זו חובה רגולטורית (איסור הלבנת הון) — המערכת
+// לא חותמת עליה במקום רואה החשבון, גם כשכל החומר לפניה.
+
+const KYC_DOC_CATEGORIES: DocCategory[] = ['id_card', 'drivers_license'];
+
+function KycStepCard({ step, stepById, clientId, busy, highlight, onRun, menu }: {
+  step: OnboardingStep;
+  stepById: Map<string, OnboardingStep>;
+  clientId: string;
+  busy: boolean;
+  highlight: boolean;
+  onRun: (action: string, payload?: Record<string, unknown>) => void;
+  menu: React.ReactNode;
+}) {
+  const { getDocsByClient } = useDocumentStore();
+  const [docs, setDocs] = useState<{ id: string; name: string; category: DocCategory }[]>([]);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const all = await getDocsByClient(clientId);
+        if (cancelled) return;
+        setDocs(all
+          .filter(d => KYC_DOC_CATEGORIES.includes(d.category))
+          .map(d => ({ id: d.id, name: d.fileName, category: d.category })));
+      } catch { /* אין מסמכים / אין הרשאה — הכרטיס פשוט לא יציג רשימה */ }
+      if (!cancelled) setChecked(true);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
+
+  const open = isStepOpen(step.status);
+
+  return (
+    <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}>
+      <div style={cardNote}>
+        {docs.length > 0 ? (
+          <>נאספו בתהליך הייצוג — נשאר לוודא שהם קריאים ותואמים לפרטי הלקוח:</>
+        ) : checked ? (
+          <>לא נמצאו מסמכי זיהוי בתיק. אפשר להעלות אותם בלשונית המסמכים, או לאשר
+            אם הזיהוי נעשה בדרך אחרת.</>
+        ) : 'טוען מסמכים…'}
+      </div>
+
+      {docs.length > 0 && (
+        <ul style={{
+          margin: '.35rem 0 0', paddingInlineStart: '1.1rem',
+          fontSize: 'var(--fs-13)', color: 'var(--ink-2)',
+        }}>
+          {docs.map(d => (
+            <li key={d.id}>{DOC_CATEGORY_LABELS[d.category]} — {d.name}</li>
+          ))}
+        </ul>
+      )}
+
+      {open && (
+        <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem' }}>
+          <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+            onClick={() => onRun('complete', { completionMethod: 'manual', note: 'הזיהוי נבדק ואושר' })}>
+            בדקתי — מאושר
+          </button>
+        </div>
+      )}
+      {step.status === 'completed' && (
+        <div style={{ marginTop: '.5rem' }}>
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+            onClick={() => onRun('verify')}>אמת</button>
         </div>
       )}
     </StepCardShell>
