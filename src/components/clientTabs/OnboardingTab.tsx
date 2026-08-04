@@ -120,6 +120,7 @@ export default function OnboardingTab({
   clientDisplayName,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
   const [busyStepId, setBusyStepId] = useState<string | null>(null);
   const [menuStepId, setMenuStepId] = useState<string | null>(null);
   // חלון המייל של שלב — נפתח מהכרטיס, נשלח דרך send-step-email
@@ -190,6 +191,41 @@ export default function OnboardingTab({
   // ‼ אותה פונקציה בדיוק שמניעה את השולחן ואת מסך הלקוחות — ראה
   // utils/onboardingNext.ts. שני מסכים שמחשבים "הבא בתור" אחרת סותרים זה את זה.
   const nextStep = useMemo(() => nextStepForClient(clientSteps), [clientSteps]);
+
+  /** תוויות התנאים — בלשון "מה חסר", לא בשמות השדות של השרת. */
+  const CLOSE_BLOCKERS: Record<string, string> = {
+    retainer: 'הרשאת התשלום או הסדר הגבייה טרם הוקמו',
+    releaseLetter: 'מכתב השחרור לרו״ח הקודם טרם נשלח או שחלון ההתנגדות לא עבר',
+    intake: 'שאלון פתיחת התיק טרם נשלח',
+  };
+
+  async function closeOnboarding(force: boolean) {
+    const eng = clientEngagements[0];
+    if (!eng) return;
+    setClosing(true);
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc('close_onboarding', {
+      p_engagement_id: eng.id, p_force: force, p_reason: null,
+    });
+    const res = data as { ok?: boolean; error?: string; readiness?: Record<string, string> } | null;
+    setClosing(false);
+
+    if (rpcError) { setError('לא הצלחתי לסגור את הקליטה.'); return; }
+    if (res?.ok) { refresh?.(); return; }
+
+    if (res?.error === 'not_ready') {
+      const missing = Object.keys(CLOSE_BLOCKERS)
+        .filter(k => !['done', 'not_required', 'no_objection', 'sent'].includes(res.readiness?.[k] ?? ''))
+        .map(k => CLOSE_BLOCKERS[k]);
+      const blocking = Number((res.readiness as unknown as { blocking?: unknown[] })?.blocking?.length ?? 0);
+      if (blocking > 0) missing.push(`${blocking} שלבים עדיין פתוחים`);
+      const ok = window.confirm(
+        `הקליטה עדיין לא סגורה:\n\n• ${missing.join('\n• ')}\n\nלסגור בכל זאת? הסיבה תירשם ביומן.`);
+      if (ok) void closeOnboarding(true);
+      return;
+    }
+    setError('לא הצלחתי לסגור את הקליטה.');
+  }
 
   async function run(step: OnboardingStep, action: string, payload: Record<string, unknown> = {}) {
     setBusyStepId(step.id);
@@ -382,6 +418,15 @@ export default function OnboardingTab({
           title="קישור לדף האישי של הלקוח — מציג לו מה הושלם ומה ממתין">
           {portalCopied ? '✓ הועתק' : 'קישור ללקוח'}
         </button>
+        {/* ‼ סגירת קליטה היא החלטה ולא תוצר לוואי. השרת בודק את התנאים
+            ואומר מה חסר; לכפות אפשר, אבל עם סיבה שנרשמת ביומן. */}
+        {activeEngagement?.status === 'onboarding' && (
+          <button type="button" className="btn btn-sm btn-ghost" disabled={closing}
+            onClick={() => void closeOnboarding(false)}
+            title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
+            {closing ? 'סוגר…' : 'סגור קליטה'}
+          </button>
+        )}
       </div>
 
       {clientSteps.length > 0 && (

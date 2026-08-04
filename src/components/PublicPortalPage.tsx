@@ -25,8 +25,13 @@ interface PortalItem {
   key: string;
   label: string;
   sub?: string;
-  actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote';
+  /** 'portal' = הפעולה נעשית כאן בעמוד, בלי לנווט לטוקן אחר. */
+  actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote' | 'portal';
   actionValue?: string;
+  /** מה בדיוק הפעולה בתוך העמוד. */
+  kind?: 'documents' | 'prev_accountant';
+  /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
+  checklist?: { label: string; done: boolean }[];
 }
 
 /** תחנות המסע כפי שהלקוח מבין אותן. השרת מחזיר את התחנה הנוכחית. */
@@ -60,13 +65,64 @@ function actionHref(item: PortalItem): string | null {
     case 'intake':   return `${window.location.origin}/?intake=${item.actionValue}`;
     case 'quote':    return `${window.location.origin}/?quote=${item.actionValue}`;
     case 'external': return item.actionValue;
+    // 'portal' מטופל בעמוד עצמו ואין לו כתובת.
     default: return null;
   }
+}
+
+/** טופס פרטי הרו"ח הקודם — הדבר היחיד שהלקוח כותב ישירות מהדף האישי. */
+function PrevAccountantForm({ token, stepId, brand, accent, onDone }: {
+  token: string; stepId: string;
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string; onDone: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    setErr(null);
+    if (!name.trim() && !email.trim()) { setErr('צריך לפחות שם או אימייל.'); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc('portal_submit_step', {
+      p_token: token, p_step_id: stepId, p_data: { name, email, phone },
+    });
+    setBusy(false);
+    const res = data as { ok?: boolean } | null;
+    if (error || !res?.ok) { setErr('לא הצלחנו לשמור. אפשר לנסות שוב.'); return; }
+    onDone();
+  }
+
+  const field = {
+    width: '100%', padding: '8px 10px', fontSize: 14, color: brand.ink,
+    border: `1px solid ${brand.border}`, borderRadius: brand.radius, background: '#fff',
+  } as const;
+
+  return (
+    <div style={{ display: 'grid', gap: 8, marginTop: 10, maxWidth: 420 }}>
+      <input style={field} value={name} onChange={e => setName(e.target.value)}
+        placeholder="שם רואה החשבון או המשרד" disabled={busy} />
+      <input style={{ ...field, direction: 'ltr', textAlign: 'right' }} value={email} type="email"
+        onChange={e => setEmail(e.target.value)} placeholder="אימייל" disabled={busy} />
+      <input style={{ ...field, direction: 'ltr', textAlign: 'right' }} value={phone} type="tel"
+        onChange={e => setPhone(e.target.value)} placeholder="טלפון (אופציונלי)" disabled={busy} />
+      {err && <span style={{ fontSize: 12.5, color: '#a63a3a' }}>{err}</span>}
+      <button type="button" onClick={() => void submit()} disabled={busy} style={{
+        justifySelf: 'start', border: 'none', cursor: 'pointer',
+        fontSize: 13.5, fontWeight: 600, padding: '9px 20px',
+        color: '#fff', background: accent, borderRadius: brand.radius,
+      }}>{busy ? 'שומר…' : 'שליחה'}</button>
+    </div>
+  );
 }
 
 export default function PublicPortalPage({ token }: Props) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [data, setData] = useState<PortalData | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = () => setReloadKey(k => k + 1);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +135,7 @@ export default function PublicPortalPage({ token }: Props) {
       setPhase('ready');
     })();
     return () => { cancelled = true; };
-  }, [token]);
+  }, [token, reloadKey]);
 
   const brand = deriveQuotationBrand({
     id: '', firmName: data?.firmName, branding: data?.branding ?? {},
@@ -206,24 +262,54 @@ export default function PublicPortalPage({ token }: Props) {
             </div>
             {actions.map(item => {
               const href = actionHref(item);
+              const inPage = item.actionKind === 'portal';
               return (
                 <div key={item.key} style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0',
-                  borderBottom: `1px solid ${brand.border}`,
+                  padding: '11px 0', borderBottom: `1px solid ${brand.border}`,
                 }}>
-                  <span aria-hidden="true" style={{
-                    width: 10, height: 10, borderRadius: 999, background: accent, flexShrink: 0,
-                  }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink }}>{item.label}</div>
-                    {item.sub && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.sub}</div>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span aria-hidden="true" style={{
+                      width: 10, height: 10, borderRadius: 999, background: accent, flexShrink: 0,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink }}>{item.label}</div>
+                      {item.sub && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.sub}</div>}
+                    </div>
+                    {href && (
+                      <a href={href} style={{
+                        flexShrink: 0, textDecoration: 'none', fontSize: 13.5, fontWeight: 600,
+                        padding: '8px 18px', color: '#fff', background: accent,
+                        borderRadius: brand.buttonStyle === 'pill' ? 999 : brand.radius,
+                      }}>להמשך ←</a>
+                    )}
                   </div>
-                  {href && (
-                    <a href={href} style={{
-                      flexShrink: 0, textDecoration: 'none', fontSize: 13.5, fontWeight: 600,
-                      padding: '8px 18px', color: '#fff', background: accent,
-                      borderRadius: brand.buttonStyle === 'pill' ? 999 : brand.radius,
-                    }}>להמשך ←</a>
+
+                  {/* ‼ מסמכים: מראים בדיוק מה התקבל ומה חסר. אין כאן העלאה —
+                      החומרים מגיעים במייל/וואטסאפ, והרשימה היא מה שמסנכרן ציפיות. */}
+                  {inPage && item.kind === 'documents' && !!item.checklist?.length && (
+                    <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+                      {item.checklist.map(ci => (
+                        <li key={ci.label} style={{
+                          fontSize: 13, color: ci.done ? brand.muted : brand.ink,
+                          display: 'flex', gap: 8, alignItems: 'center',
+                        }}>
+                          <span aria-hidden="true" style={{ color: ci.done ? accent : brand.muted }}>
+                            {ci.done ? '✓' : '○'}
+                          </span>
+                          <span style={{ textDecoration: ci.done ? 'line-through' : 'none' }}>{ci.label}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {inPage && item.kind === 'prev_accountant' && item.actionValue && (
+                    <PrevAccountantForm
+                      token={token}
+                      stepId={item.actionValue}
+                      brand={brand}
+                      accent={accent}
+                      onDone={reload}
+                    />
                   )}
                 </div>
               );

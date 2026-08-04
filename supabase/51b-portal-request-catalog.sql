@@ -127,9 +127,13 @@ begin
         v_items := v_items || jsonb_strip_nulls(jsonb_build_object(
           'bucket','action','key','docs','label', v_label,
           'sub', case when coalesce(v_ck_total,0) > 0
-                      then coalesce(v_sub || ' · ', '') || v_ck_done || ' מתוך ' || v_ck_total || ' התקבלו'
+                      then v_ck_done || ' מתוך ' || v_ck_total || ' התקבלו'
                       else v_sub end,
-          'actionKind','portal','actionValue', s.id));
+          'actionKind','portal','actionValue', s.id,
+          'kind','documents',
+          -- הרשימה עצמה, כדי שהלקוח יראה מה בדיוק עוד חסר ולא רק מספר.
+          'checklist', (select jsonb_agg(jsonb_build_object('label', x->>'label', 'done', (x->>'done')::boolean))
+                          from jsonb_array_elements(coalesce(s.payload->'checklist','[]'::jsonb)) x)));
       end if;
 
     -- ── פרטי הרו"ח הקודם ─────────────────────────────────────────────────────
@@ -142,7 +146,7 @@ begin
           'bucket','action','key','prev_details',
           'label', coalesce(nullif(s.payload->>'clientTitle',''), 'פרטי רואה החשבון הקודם שלך'),
           'sub', coalesce(nullif(s.payload->>'clientSub',''), 'שם, אימייל וטלפון — כדי שנפנה אליו בשמך'),
-          'actionKind','portal','actionValue', s.id));
+          'actionKind','portal','actionValue', s.id, 'kind','prev_accountant'));
       end if;
 
     when 'paperless_invite' then
