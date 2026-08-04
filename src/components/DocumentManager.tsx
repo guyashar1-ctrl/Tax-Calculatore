@@ -188,7 +188,10 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
       if (d.length === 0 && client.id.startsWith('sample-')) {
         const fakes = generateSampleDocs(client.id);
         allDocs = [...allDocs, ...fakes];
-        fakes.forEach(doc => db.saveDoc(doc));
+        // מסמכי דמה לנתוני הדוגמה בלבד. אם השמירה נכשלת (למשל כשנכנסים ישר
+        // לכתובת של לשונית המסמכים והחיבור עוד לא הסתיים) — הם עדיין מוצגים,
+        // ואין טעם להפיל על זה שגיאה.
+        fakes.forEach(doc => { void db.saveDoc(doc).catch(() => {}); });
       }
       setDocs(allDocs);
       setLoading(false);

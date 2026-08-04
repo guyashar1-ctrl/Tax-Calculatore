@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatRoute, parseHash, type View as AppRouteView } from './lib/appRoute';
 import {
   Client,
   RepresentationRequest,
@@ -81,21 +82,7 @@ import FailedNotificationsBanner from './components/FailedNotificationsBanner';
 import { useAuth } from './hooks/useAuth';
 import AnnualReport from './features/annualReport/AnnualReport';
 
-type View =
-  | 'myDesk'
-  | 'tasks'
-  | 'list'
-  | 'form'
-  | 'calculator'
-  | 'documents'
-  | 'reference'
-  | 'annualReport'
-  | 'firmProfile'
-  | 'requestNew'
-  | 'requestReview'
-  | 'requestFill'
-  | 'quotations'
-  | 'quotationBuilder';
+type View = AppRouteView;
 
 /** יוצר Client חדש עם ערכי ברירת מחדל */
 function makeEmptyClient(id: string, partial: Partial<Client> = {}): Client {
@@ -297,12 +284,16 @@ export default function App() {
   }, [user?.id, quotations]);
 
   const { theme, toggleTheme } = useTheme();
-  const [view, setView] = useState<View>('tasks');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  // המסך שבו נמצאים נקרא מהכתובת, כדי שרענון (F5) יחזיר לאותו מקום
+  const initialRoute = useRef(parseHash(window.location.hash)).current;
+  const [view, setView] = useState<View>(initialRoute.view);
+  const [selectedId, setSelectedId] = useState<string | null>(initialRoute.clientId ?? null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(initialRoute.requestId ?? null);
   // לשונית הפתיחה של כרטיס הלקוח — נקבעת רק כשהגיעו אליו בשביל דבר מסוים
-  const [clientInitialTab, setClientInitialTab] = useState<ClientTabId | undefined>(undefined);
-  const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
+  const [clientInitialTab, setClientInitialTab] = useState<ClientTabId | undefined>(
+    initialRoute.clientTab as ClientTabId | undefined
+  );
+  const [editingQuotationId, setEditingQuotationId] = useState<string | null>(initialRoute.quotationId ?? null);
   // ליד שהגיעו אליו מחיפוש במסך הלקוחות — מסך הלידים נפתח עליו
   const [focusLeadId, setFocusLeadId] = useState<string | null>(null);
   const [newQuotationLeadId, setNewQuotationLeadId] = useState<string | null>(null);
@@ -316,10 +307,69 @@ export default function App() {
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   // בחירה מוקדמת לדוח השנתי (מתוך "פתח ←" בתמונת המס של הכרטיס)
-  const [annualReportSelection, setAnnualReportSelection] = useState<{ clientId: string; taxYear: number } | null>(null);
+  const [annualReportSelection, setAnnualReportSelection] = useState<{ clientId: string; taxYear: number } | null>(
+    initialRoute.annualClientId && initialRoute.annualTaxYear
+      ? { clientId: initialRoute.annualClientId, taxYear: initialRoute.annualTaxYear }
+      : null
+  );
+  // ‼ עותק שני של אותה בחירה, רק בשביל הכתובת. המסך "צורך" את הבחירה שלמעלה
+  // ומאפס אותה מיד — ובלי העותק הזה הכתובת הייתה מאבדת את הלקוח והשנה.
+  const [annualRoute, setAnnualRoute] = useState<{ clientId: string; taxYear: number } | null>(
+    initialRoute.annualClientId && initialRoute.annualTaxYear
+      ? { clientId: initialRoute.annualClientId, taxYear: initialRoute.annualTaxYear }
+      : null
+  );
   // תפריט החשבון נפתח מהאווטאר — כדי ש"המשרד" ו"התנתק" לא יתפסו מקום בסרגל
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const db = useDocumentDB();
+
+  // ── הכתובת בשורת הכתובת ↔ המסך שמוצג ──────────────────────────────────────
+  // כל מעבר מסך נרשם בהיסטוריית הדפדפן, ולכן "אחורה" חוזר למסך הקודם במערכת
+  // במקום לצאת ממנה. הרענון (F5) קורא את הכתובת ומחזיר לאותו מקום.
+  const currentPath = formatRoute({
+    view,
+    clientId: selectedId ?? undefined,
+    clientTab: clientInitialTab,
+    requestId: selectedRequestId ?? undefined,
+    quotationId: editingQuotationId ?? undefined,
+    annualClientId: annualRoute?.clientId,
+    annualTaxYear: annualRoute?.taxYear,
+  });
+  const syncedPath = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (syncedPath.current === currentPath) return;
+    const first = syncedPath.current === null;
+    syncedPath.current = currentPath;
+    // הכניסה הראשונה מחליפה את הרשומה הקיימת; משם והלאה כל מסך הוא צעד חדש
+    window.history[first ? 'replaceState' : 'pushState'](null, '', '#' + currentPath);
+  }, [currentPath]);
+
+  useEffect(() => {
+    function onPop() {
+      const route = parseHash(window.location.hash);
+      // ‼ מסמנים כמסונכרן לפני העדכון, אחרת האפקט שלמעלה היה דוחף את אותו
+      // מסך שוב להיסטוריה ו"אחורה" היה נתקע במקום
+      syncedPath.current = formatRoute(route);
+      setView(route.view);
+      setSelectedId(route.clientId ?? null);
+      setClientInitialTab(route.clientTab as ClientTabId | undefined);
+      setSelectedRequestId(route.requestId ?? null);
+      setEditingQuotationId(route.quotationId ?? null);
+      setAnnualRoute(
+        route.annualClientId && route.annualTaxYear
+          ? { clientId: route.annualClientId, taxYear: route.annualTaxYear }
+          : null
+      );
+      setAnnualReportSelection(
+        route.annualClientId && route.annualTaxYear
+          ? { clientId: route.annualClientId, taxYear: route.annualTaxYear }
+          : null
+      );
+    }
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   useEffect(() => {
     if (!accountMenuOpen) return;
@@ -482,15 +532,21 @@ export default function App() {
     const client = clients.find(c => c.id === id);
     if (client?.representationRequestId) {
       try { await removeRequest(client.representationRequestId); } catch { /* ignore */ }
-      db.getDocsByClient(id).then(docs => {
-        docs.forEach(d => db.deleteDoc(d.id));
-      });
+      // ‼ ממתינים למחיקת הקבצים ולא שולחים אותה "לדרך". הרענון שבסוף היה קוטע
+      // אותה באמצע ומשאיר קבצים יתומים באחסון.
+      try {
+        const docs = await db.getDocsByClient(id);
+        await Promise.all(docs.map(d => db.deleteDoc(d.id)));
+      } catch { /* ignore */ }
     }
     await removeClient(id);
-    if (selectedId === id) {
-      setSelectedId(null);
-      setView('list');
-    }
+    // ‼ טעינה מחדש מלאה, ולא רק ניקוי הרשימה. המסד מוחק בגרירה גם משימות,
+    // מסמכים, התקשרות ושלבי קליטה — וכל אחד מהם יושב בזיכרון של מסך אחר.
+    // ניקוי ידני של כולם היה משאיר תמיד עוד אחד מאחור (כמו שלבי הקליטה
+    // שנשארו מוצגים תחת השם "לקוח"). הכתובת נקבעת לפני הרענון כדי לנחות
+    // ברשימת הלקוחות ולא בכרטיס שכבר לא קיים.
+    window.location.hash = formatRoute({ view: 'list' });
+    window.location.reload();
   }
 
   async function handleApplyExtractedData(data: ExtractedClientData) {
@@ -1412,6 +1468,7 @@ export default function App() {
             onSelect={handleSelectClient}
             onAdd={handleAddNew}
             onDelete={handleDelete}
+            onArchive={async (id) => { await setClientLifecycleStage(id, 'archived'); }}
             onLoadSamples={handleLoadSamples}
             onAddRequest={handleAddRequest}
             onSelectRequest={handleSelectRequest}
@@ -1439,6 +1496,7 @@ export default function App() {
             onDeleteTask={handleDeleteTask}
             onOpenAnnualReport={(clientId, taxYear) => {
               setAnnualReportSelection({ clientId, taxYear });
+              setAnnualRoute({ clientId, taxYear });
               setView('annualReport');
             }}
             initialTab={clientInitialTab}
