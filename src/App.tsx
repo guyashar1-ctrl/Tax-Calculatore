@@ -1099,6 +1099,20 @@ export default function App() {
     const link = `${window.location.origin}/?quote=${token}`;
     const now = new Date().toISOString();
 
+    // הכרטיס והקישור הקבוע נולדים כאן — לפני המייל, כדי שהמייל הראשון כבר
+    // ישא את הדף האישי. מייל בדיקה לא יוצר אדם חדש במערכת.
+    let ensuredClientId: string | undefined;
+    let portalLink: string | undefined;
+    if (!isTest) {
+      const { data: ensured, error: ensureError } = await supabase.rpc('ensure_client_for_quotation', {
+        p_quotation_id: saved.id,
+      });
+      if (ensureError) return { ok: false, error: ensureError.message, link };
+      if (!ensured?.ok) return { ok: false, error: ensured?.error || 'לא הצלחתי להכין את כרטיס הלקוח', link };
+      ensuredClientId = ensured.clientId as string;
+      if (ensured.portalToken) portalLink = `${window.location.origin}/?portal=${ensured.portalToken}`;
+    }
+
     const brand = deriveQuotationBrand(firmProfile);
     const ctx: Record<string, string> = {
       '{{clientName}}': payload.recipient.fullName,
@@ -1117,6 +1131,7 @@ export default function App() {
       message: applyPlaceholders(payload.emailMessage || ''),
       quotationLink: link,
       expiresAt: payload.expiresAt,
+      portalLink,
     }, brand);
 
     // שולחים קודם — ורק אם המייל יצא בהצלחה מסמנים "נשלחה" ומקפיאים snapshot.
@@ -1146,7 +1161,10 @@ export default function App() {
     };
     if (!isTest) {
       await updateQuotation({
-        ...saved, status: 'sent', sentAt: now, publicToken: token, snapshot,
+        // ‼ clientId מהשרת חייב להיכנס לאובייקט — אחרת העדכון הזה ידרוס בחזרה
+        // את הקישור לכרטיס שנוצר לפני רגע.
+        ...saved, clientId: ensuredClientId ?? saved.clientId,
+        status: 'sent', sentAt: now, publicToken: token, snapshot,
         events: [...saved.events, { type: 'sent', at: now }],
       });
     } else if (!saved.publicToken) {

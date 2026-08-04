@@ -266,7 +266,9 @@ export type QuotationEventType =
   | 'cancelled'
   | 'expired'
   | 'lead_converted'
-  | 'representation_opened';
+  | 'representation_opened'
+  | 'client_precreated'
+  | 'client_linked';
 
 export interface QuotationEvent {
   type: QuotationEventType;
@@ -286,6 +288,8 @@ export const QUOTATION_EVENT_LABELS: Record<QuotationEventType, string> = {
   expired: 'פג תוקפה',
   lead_converted: 'הליד הומר ללקוח',
   representation_opened: 'נפתח תהליך ייצוג אוטומטית',
+  client_precreated: 'נפתח כרטיס לקוח ודף אישי',
+  client_linked: 'שויכה לכרטיס לקוח קיים',
 };
 
 // העתק קפוא של ההצעה ברגע השליחה — לא משתנה גם אם המחירון או הפרטים ישתנו

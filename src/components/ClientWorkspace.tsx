@@ -294,6 +294,10 @@ export default function ClientWorkspace({
 
   const fullName = `${client.firstName} ${client.lastName}`.trim() || (isNew ? 'לקוח חדש' : '(ללא שם)');
   const status = client.representationStatus ?? 'active';
+  // מי שרק קיבל הצעה עדיין לא נמצא בשום תהליך ייצוג — תג "מיוצג פעיל" עליו
+  // יסתור את שלב החיים שמוצג לידו.
+  const stage = client.lifecycleStage ?? 'active';
+  const showRepBadge = !!client.representationStatus || (stage !== 'lead' && stage !== 'quoted');
   const employee = findEmployee(client.assignedAccountantId);
   const regFile = registeredFileInfo(client);
 
@@ -402,9 +406,13 @@ export default function ClientWorkspace({
             </span>
           )}
 
-          <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`}>
-            {REPRESENTATION_STATUS_LABELS[status]}
-          </span>
+          {showRepBadge ? (
+            <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`}>
+              {REPRESENTATION_STATUS_LABELS[status]}
+            </span>
+          ) : (
+            <span className="badge badge-gray">{LIFECYCLE_STAGE_LABELS[stage]}</span>
+          )}
 
           {/* העוגן: על שם מי רץ תיק מס הכנסה — תמיד מול העיניים, בכל לשונית */}
           {regFile && (

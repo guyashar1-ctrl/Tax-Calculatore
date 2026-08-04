@@ -559,7 +559,7 @@ export default function ClientList({
 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '0 0 .6rem' }}>
             <span style={{ fontSize: '17px', fontWeight: 500 }}>
-              {showOnboardingView ? 'קליטות פתוחות' : 'לקוחות מיוצגים'}
+              {showOnboardingView ? 'קליטות פתוחות' : 'לקוחות'}
             </span>
             <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
               · {showOnboardingView ? onboardingCount : activeList.length}
@@ -580,8 +580,8 @@ export default function ClientList({
           ) : activeList.length === 0 ? (
             <div className="empty-state">
               
-              <div className="empty-state-title">אין עדיין לקוחות מיוצגים</div>
-              <div className="empty-state-desc">בקשות בתהליך מופיעות למעלה. כשרשות מאשרת ייצוג — הלקוח עובר לכאן.</div>
+              <div className="empty-state-title">אין עדיין לקוחות ברשימה</div>
+              <div className="empty-state-desc">בקשות ייצוג בתהליך מופיעות למעלה. אדם שנשלחה לו הצעה מופיע כאן עם התווית "בהצעה".</div>
             </div>
           ) : (
           <div className="card" style={{ overflow: 'hidden' }}>

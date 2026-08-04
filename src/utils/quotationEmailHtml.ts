@@ -26,6 +26,7 @@ export interface QuotationEmailData {
   message?: string;
   quotationLink: string;
   expiresAt?: string;
+  portalLink?: string;
 }
 
 export function buildQuotationEmailHtml(data: QuotationEmailData, brand: QuotationBrand): string {
@@ -82,6 +83,16 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
     </div>
   </td></tr>`;
 
+  // הקישור הקבוע כבר במייל הראשון: מכאן ואילך זו הדלת היחידה של הלקוח לתהליך,
+  // ולכן אין צורך לשלוח לו קישור חדש אחרי כל שלב.
+  const portalPointer = data.portalLink
+    ? `<tr><td dir="rtl" align="right" style="text-align:right;padding:14px 40px 0;">
+        <div dir="rtl" style="font-family:${f};font-size:13.5px;color:${brand.ink};opacity:0.85;line-height:1.7;text-align:right;">
+          זה גם <a href="${esc(data.portalLink)}" style="color:${brand.accent};font-weight:600;text-decoration:none;">הדף האישי שלך</a>${brand.firmName ? ` אצל ${esc(brand.firmName)}` : ''} — כל התהליך מרוכז בו. שווה לשמור את הקישור.
+        </div>
+      </td></tr>`
+    : '';
+
   const expiryLabel = data.expiresAt
     ? new Date(data.expiresAt).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
@@ -90,7 +101,7 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
     heading: `${firstName ? esc(firstName) + ', ' : ''}זו ההצעה שהכנתי עבורך.`,
     bodyHtml: `ההצעה מבוססת על מה שסיכמנו ומותאמת לצרכים של ${data.businessName ? esc(data.businessName) : 'העסק שלך'}. הפרטים המלאים והאישור נמצאים בעמוד ההצעה.`,
     tag: `הצעה מס׳ ${data.quotationNumber}`,
-    extraHtml: servicesCard + messageBlock + availability + pricePointer,
+    extraHtml: servicesCard + messageBlock + availability + pricePointer + portalPointer,
     ctaLabel: 'צפייה ואישור ההצעה',
     ctaHref: data.quotationLink,
     footerNote: expiryLabel ? `ההצעה בתוקף עד ${expiryLabel}.` : 'לצפייה בפרטים המלאים ולאישור — לחיצה אחת.',
