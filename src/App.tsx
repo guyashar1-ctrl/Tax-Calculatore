@@ -487,9 +487,6 @@ export default function App() {
       });
     }
     await removeClient(id);
-    // המסד מוחק בגרירה גם את ההתקשרות ואת שלבי הקליטה. בלי הרענון הזה הם
-    // נשארים בזיכרון המסך ומופיעים ב"ממתינים לאישורך" תחת השם "לקוח".
-    onboarding.refresh();
     if (selectedId === id) {
       setSelectedId(null);
       setView('list');
@@ -1415,7 +1412,6 @@ export default function App() {
             onSelect={handleSelectClient}
             onAdd={handleAddNew}
             onDelete={handleDelete}
-            onArchive={async (id) => { await setClientLifecycleStage(id, 'archived'); }}
             onLoadSamples={handleLoadSamples}
             onAddRequest={handleAddRequest}
             onSelectRequest={handleSelectRequest}
