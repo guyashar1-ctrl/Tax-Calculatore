@@ -887,6 +887,14 @@ export const NI_EXEC_KEY: Record<RepSignerRole, 'nationalInsurance' | 'nationalI
 export const NI_APPROVAL_PHONE = '02-5393740';
 
 /**
+ * מסך אישור ייפוי הכוח באתר הביטוח הלאומי. קישור ישיר למסך עצמו ולא לדף
+ * הבית — משם הלקוח צריך לחפש את השירות בעצמו, וזו הנקודה שבה הוא נוטש.
+ * מופיע גם במייל (send-onboarding-email), שם הוא כפול כי Deno אינו מייבא מכאן.
+ */
+export const NI_APPROVAL_SITE = 'https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx';
+export const NI_APPROVAL_SITE_LABEL = 'מסך אישור ייפוי כוח למייצג';
+
+/**
  * מה שהרו"ח בחר במפורש בעת הפקת קישור הייצוג. שדה שמופיע כאן לא ייבחר שוב
  * ע"י הלקוח. נשמר בנפרד מכרטיס הלקוח כי שם לשדות יש ברירות מחדל, ואי אפשר
  * להבחין בין "הרו"ח בחר רווק" ל"אף אחד לא נגע בשדה".

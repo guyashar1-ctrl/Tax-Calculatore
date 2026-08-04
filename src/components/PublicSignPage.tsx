@@ -7,8 +7,11 @@ import { SignatureField, SignatureValue, Signer } from '../types';
 import { supabase } from '../lib/supabase';
 import SigningRoom from './signatureRequest/SigningRoom';
 import ClientPageState from './ui/ClientPageState';
+import NiApprovalNotice from './ui/NiApprovalNotice';
 
 interface Session {
+  /** ממתין לחותם הזה אישור ייפוי כוח בב"ל — null כשאין, או כשכבר אישר. */
+  ni: { referenceNumber: string; deadline: string | null } | null;
   signerId: string;
   signerName: string;
   alreadySigned: boolean;
@@ -75,18 +78,42 @@ export default function PublicSignPage({ token }: { token: string }) {
       body="ייתכן שהקישור שגוי או שהתהליך הסתיים. פנו למשרד לקבלת קישור חדש."
     />
   );
-  if (phase === 'already') return (
+  // ‼ שני מסכי הסיום מתפצלים לפי אישור הב"ל. כשהוא עוד ממתין אסור שייאמר כאן
+  //   "אין צורך בפעולה נוספת" או "נמשיך מכאן" — זה בדיוק הרגע שבו הלקוח סוגר
+  //   את החלון ומשאיר את הייצוג בב"ל ללא תוקף בלי לדעת.
+  const hi = session?.signerName ? `, ${session.signerName}` : '';
+  if (phase === 'already') return session?.ni ? (
+    <ClientPageState
+      wide
+      mark="✓"
+      title="החתימה כבר התקבלה"
+      body={<>
+        <div>תודה{hi}! נשאר צעד אחד — אישור בביטוח הלאומי.</div>
+        <NiApprovalNotice referenceNumber={session.ni.referenceNumber} deadline={session.ni.deadline} />
+      </>}
+    />
+  ) : (
     <ClientPageState
       mark="✅"
       title="החתימה כבר התקבלה"
-      body={`תודה${session?.signerName ? `, ${session.signerName}` : ''}! אין צורך בפעולה נוספת.`}
+      body={`תודה${hi}! אין צורך בפעולה נוספת.`}
     />
   );
-  if (phase === 'done') return (
+  if (phase === 'done') return session?.ni ? (
+    <ClientPageState
+      wide
+      mark="✓"
+      title="החתימה התקבלה — נשאר צעד אחד"
+      body={<>
+        <div>תודה{hi}! {session.firmName || 'המשרד'} ימשיך מכאן מול מס הכנסה. הפעולה האחרונה שנשארה היא שלכם:</div>
+        <NiApprovalNotice referenceNumber={session.ni.referenceNumber} deadline={session.ni.deadline} />
+      </>}
+    />
+  ) : (
     <ClientPageState
       mark="🎉"
       title="החתימה נשלחה בהצלחה"
-      body={`תודה${session?.signerName ? `, ${session.signerName}` : ''}! ${session?.firmName || 'המשרד'} ימשיך את הטיפול ויעדכן אתכם.`}
+      body={`תודה${hi}! ${session?.firmName || 'המשרד'} ימשיך את הטיפול ויעדכן אתכם.`}
     />
   );
   if (phase === 'error') return (

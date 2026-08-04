@@ -837,6 +837,42 @@ table thead th {
 .cps-body { font-size: var(--fs-14); line-height: 1.7; color: var(--ink-2); text-wrap: pretty; }
 .cps-body.is-quiet { color: var(--ink-3); }
 .cps-action { margin-top: 22px; }
+/* כשנשארה פעולה — המסך נושא הוראות ולא משפט, ו-44ch צר מדי להן */
+.cps-inner.is-wide { max-width: 30rem; }
+
+/* ── אישור ייפוי כוח בביטוח לאומי ─────────────────────────────────────────
+   הפעולה היחידה שנשארה ללקוח אחרי החתימה, והיא לא אצלנו אלא מול הביטוח
+   הלאומי. הכתום הוא ההיתר היחיד לצבע כאן: הוא מסמן שמשהו עוד פתוח. */
+.nia { text-align: right; margin-top: 20px; }
+.nia-lead { font-size: var(--fs-14); line-height: 1.75; color: var(--ink-2); }
+.nia-lead strong { color: var(--ink-1); font-weight: 600; }
+.nia-ref {
+  margin: 16px 0 4px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-lg);
+  background: var(--surface-0);
+  padding: 14px 16px 16px;
+  text-align: center;
+}
+.nia-ref-label { font-size: var(--fs-13); color: var(--ink-3); }
+.nia-ref-num {
+  font-size: 34px; font-weight: 600; letter-spacing: .04em;
+  color: var(--ink-1); font-variant-numeric: tabular-nums; padding-top: 2px;
+}
+.nia-deadline {
+  margin-top: 12px; display: inline-block;
+  font-size: var(--fs-13); color: var(--warn);
+  background: var(--warn-bg); border-radius: var(--radius); padding: 6px 11px;
+}
+.nia-opt-title {
+  font-size: var(--fs-14); font-weight: 600; color: var(--ink-1);
+  padding: 18px 0 5px;
+}
+.nia-opt-title span { color: var(--warn); }
+.nia-opt-body { font-size: var(--fs-14); line-height: 1.75; color: var(--ink-2); }
+.nia-opt-body strong { color: var(--ink-1); font-weight: 600; }
+.nia-cta { margin-top: 12px; }
+.nia-tel { color: var(--ink-1); font-weight: 600; text-decoration: none; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    מסך הכניסה ומסך אין-הגישה

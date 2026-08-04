@@ -73,8 +73,19 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      // ‼ תחושת ה"סיימתי" נולדת כאן, לא במייל: הלקוח חותם, המסך מודה לו,
+      //   והוא סוגר את החלון — גם כשאישור ייפוי הכוח בב"ל עוד ממתין לו.
+      //   לכן מסך הסיום מקבל את האסמכתא שלו. בב"ל לכל מבוטח תיק נפרד, ולכן
+      //   בן/בת הזוג מקבל/ת את האסמכתא שלו/ה ולא של הנישום.
+      const niKey = me.role === "spouse" ? "nationalInsuranceSpouse" : "nationalInsurance";
+      const niRow = (reqRow.execution || {})[niKey] || {};
+      const ni = niRow.referenceNumber && !niRow.confirmedAt
+        ? { referenceNumber: String(niRow.referenceNumber), deadline: niRow.deadline || null }
+        : null;
+
       return json({
         ok: true,
+        ni,
         signerId: me.id,
         signerName: me.name,
         alreadySigned: me.signStatus === "signed",

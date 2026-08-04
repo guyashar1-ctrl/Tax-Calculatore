@@ -20,12 +20,14 @@ interface Props {
   action?: React.ReactNode;
   /** מצב טעינה — בלי סימן ובלי כותרת, רק משפט שקט. */
   quiet?: boolean;
+  /** עמודה רחבה יותר — כשהמסך נושא הוראות ולא משפט אחד. */
+  wide?: boolean;
 }
 
-export default function ClientPageState({ mark, title, body, action, quiet }: Props) {
+export default function ClientPageState({ mark, title, body, action, quiet, wide }: Props) {
   return (
     <div className="cps">
-      <div className="cps-inner">
+      <div className={`cps-inner ${wide ? 'is-wide' : ''}`}>
         {mark && <div className="cps-mark" aria-hidden="true">{mark}</div>}
         {title && <h1 className="cps-title">{title}</h1>}
         {body && <div className={`cps-body ${quiet ? 'is-quiet' : ''}`}>{body}</div>}

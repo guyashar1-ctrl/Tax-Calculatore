@@ -73,6 +73,7 @@ import TestExecutionCenter from './components/signatureRequest/__TestExecutionCe
 import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
 import TestDeferred from './components/quotations/__TestDeferred';
+import TestSignDone from './components/ui/__TestSignDone';
 import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
@@ -189,6 +190,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-deferred')) {
     return <TestDeferred />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-signdone')) {
+    return <TestSignDone />;
   }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {
@@ -483,6 +487,9 @@ export default function App() {
       });
     }
     await removeClient(id);
+    // המסד מוחק בגרירה גם את ההתקשרות ואת שלבי הקליטה. בלי הרענון הזה הם
+    // נשארים בזיכרון המסך ומופיעים ב"ממתינים לאישורך" תחת השם "לקוח".
+    onboarding.refresh();
     if (selectedId === id) {
       setSelectedId(null);
       setView('list');
@@ -1408,6 +1415,7 @@ export default function App() {
             onSelect={handleSelectClient}
             onAdd={handleAddNew}
             onDelete={handleDelete}
+            onArchive={async (id) => { await setClientLifecycleStage(id, 'archived'); }}
             onLoadSamples={handleLoadSamples}
             onAddRequest={handleAddRequest}
             onSelectRequest={handleSelectRequest}
