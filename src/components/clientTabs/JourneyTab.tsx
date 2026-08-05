@@ -98,7 +98,9 @@ export default function JourneyTab(p: Props) {
     };
   }, [clientSteps]);
 
-  const showRequests = p.onboardingEnabled !== false && (clientSteps.length > 0 || !!engagement);
+  // ‼ מקטע הבקשות מוצג תמיד (כשהקליטה דלוקה), גם ללקוח ותיק בלי התקשרות.
+  // בקשה אינה שייכת רק לקליטה — אפשר לבקש מסמך מלקוח פעיל בכל רגע.
+  const showRequests = p.onboardingEnabled !== false;
   const dateFor = (key: string): string | undefined => {
     if (key === 'lead') return p.client.createdAt;
     if (key === 'quoted') return clientQuotations[0]?.sentAt ?? clientQuotations[0]?.createdAt;

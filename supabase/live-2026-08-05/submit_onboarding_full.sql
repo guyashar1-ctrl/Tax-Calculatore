@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_token text, p_first_name text, p_last_name text, p_id_number text, p_birth_date text, p_secondary_type text, p_secondary_value text, p_phone text, p_email text, p_city text, p_address text, p_family_status text, p_family_status_year integer, p_spouse_name text, p_spouse_email text, p_spouse_id_number text
 CREATE OR REPLACE FUNCTION public.submit_onboarding_full(p_token text, p_first_name text, p_last_name text, p_id_number text, p_birth_date text, p_secondary_type text, p_secondary_value text, p_phone text, p_email text, p_city text, p_address text, p_family_status text, p_family_status_year integer, p_spouse_name text, p_spouse_email text, p_spouse_id_number text)
  RETURNS boolean

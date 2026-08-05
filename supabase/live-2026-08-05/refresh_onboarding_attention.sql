@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_billing_days integer, p_client_wait_days integer
 CREATE OR REPLACE FUNCTION public.refresh_onboarding_attention(p_billing_days integer DEFAULT 10, p_client_wait_days integer DEFAULT 7)
  RETURNS jsonb

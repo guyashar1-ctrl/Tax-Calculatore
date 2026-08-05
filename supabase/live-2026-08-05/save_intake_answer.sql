@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_token text, p_session_id uuid, p_question_id text, p_answer jsonb, p_model jsonb, p_current_question_id text, p_done boolean
 CREATE OR REPLACE FUNCTION public.save_intake_answer(p_token text, p_session_id uuid, p_question_id text, p_answer jsonb, p_model jsonb, p_current_question_id text, p_done boolean)
  RETURNS boolean

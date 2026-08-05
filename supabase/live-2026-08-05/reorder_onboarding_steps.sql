@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_client_id text, p_ids text[]
 CREATE OR REPLACE FUNCTION public.reorder_onboarding_steps(p_client_id text, p_ids text[])
  RETURNS jsonb

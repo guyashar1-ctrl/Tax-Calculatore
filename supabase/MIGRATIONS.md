@@ -59,6 +59,9 @@ order by version;
 | 62 | `journey_create_reorder_publish_request_62` | `create_onboarding_request()` (הוספת בקשה ידנית, רשימת סוגים סגורה — הייצוג אינו בה כי הוא מסונכרן מהטריגר), `reorder_onboarding_steps()` (הסדר שהרו"ח קובע הוא מה שהלקוח רואה), `publish_onboarding_request()` (חשיפת טיוטה ללקוח), ו-`onboarding_track_for()` כמיפוי יחיד. הנוסח: `62-add-reorder-publish-request.sql` |
 | 63 | `journey_custom_request_is_multi_instance_63` | שני האינדקסים הייחודיים החריגו את `custom_request`. הם אכפו "שלב אחד מכל סוג" כדי שהמרכיב לא ייצור כפילויות — אבל בקשה חופשית היא רב-פעמית מעצם טבעה. **התגלה בבדיקה בדפדפן**, כשהבקשה החופשית השנייה נדחתה ב-duplicate key |
 
+| 64 | `journey_templates_64` | טבלת `journey_templates` + `save_journey_template()` / `apply_journey_template()`. **הכרעת גיא: מערכת תבניות אחת ולא שתיים** — תבנית מסע היא סט של בקשות, וכל בקשה נושאת את הניסוח שלה. מסך "תבניות מייל" הנפרד בוטל, והמייל נגזר מ-`clientTitle`/`clientSub`/`clientCta` של הבקשה. הנוסח: `64-journey-templates.sql` |
+| 65 | `journey_template_dedupes_custom_by_title_65` | החלה חוזרת של תבנית מזהה בקשה חופשית לפי הכותרת ולא לפי הסוג. **התגלה בבדיקה בדפדפן**: `custom_request` רב-פעמי (63), ולכן בדיקת "קיים לפי סוג" עקפה אותו והחלה שנייה שכפלה את הבקשה |
+
 **Edge Function חדשה:** `portal-upload-document` (verify_jwt=false) — העלאת קובץ
 מדף ציבורי. `tokenKind=portal` ללקוח, `tokenKind=release` לרו"ח הקודם. מגבילה
 10MB ורשימת סוגים סגורה, כותבת ל-bucket `client-documents`, יוצרת רשומת מסמך,

@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_token text
 CREATE OR REPLACE FUNCTION public.get_intake(p_token text)
  RETURNS TABLE(session_id uuid, tax_year integer, model jsonb, current_question_id text, session_status text, client_name text, identified boolean, firm_name text, branding jsonb)

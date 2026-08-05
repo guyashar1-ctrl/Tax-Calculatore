@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_client_id text, p_paperless_status text, p_data_source text, p_software_name text
 CREATE OR REPLACE FUNCTION public.set_paperless_path(p_client_id text, p_paperless_status text, p_data_source text, p_software_name text DEFAULT NULL::text)
  RETURNS jsonb

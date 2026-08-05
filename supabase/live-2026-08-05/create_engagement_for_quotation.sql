@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_quotation_id text, p_dry_run boolean
 CREATE OR REPLACE FUNCTION public.create_engagement_for_quotation(p_quotation_id text, p_dry_run boolean DEFAULT false)
  RETURNS jsonb

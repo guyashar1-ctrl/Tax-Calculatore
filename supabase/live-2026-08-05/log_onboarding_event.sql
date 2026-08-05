@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_user_id uuid, p_step_id text, p_engagement_id text, p_type text, p_actor text, p_note text, p_meta jsonb
 CREATE OR REPLACE FUNCTION public.log_onboarding_event(p_user_id uuid, p_step_id text, p_engagement_id text, p_type text, p_actor text DEFAULT 'system'::text, p_note text DEFAULT NULL::text, p_meta jsonb DEFAULT '{}'::jsonb)
  RETURNS void

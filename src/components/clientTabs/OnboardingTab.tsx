@@ -31,6 +31,7 @@ import ConfirmDialog from '../ui/ConfirmDialog';
 import OnboardingJourneyMap from './OnboardingJourneyMap';
 import OnboardingProcessBuilder from './OnboardingProcessBuilder';
 import AddRequestDialog from './AddRequestDialog';
+import JourneyTemplatesDialog from './JourneyTemplatesDialog';
 
 interface Props {
   clientId: string;
@@ -182,6 +183,7 @@ export default function OnboardingTab({
   // שורה סגורה מראה שם, מצב ופעולה; פתיחה חושפת את הפרטים וההיסטוריה שלה.
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [ordering, setOrdering] = useState(false);
   const highlightTimer = useRef<number | null>(null);
 
@@ -389,14 +391,43 @@ export default function OnboardingTab({
     highlightTimer.current = window.setTimeout(() => setHighlightStepId(null), 2600);
   }
 
+  // ‼ ללקוח ותיק אין התקשרות ואין שלבים — וזה הרוב אצל רו"ח שכבר עובד שנים.
+  // המסך הזה היה מבוי סתום: הודעה שאומרת "אין קליטה" ואפס דרך לבקש ממנו משהו.
+  // בקשה אינה שייכת רק לקליטה; אפשר לבקש מסמך מלקוח פעיל בכל רגע.
   if (clientEngagements.length === 0 && clientSteps.length === 0) {
     return (
       <div className="cw-tabpanel">
         <div className="cw-section">
+          <div className="cw-section-head">
+            <span>בקשות</span>
+            <span style={{ display: 'flex', gap: '.4rem' }}>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>תבניות</button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>+ בקשה</button>
+            </span>
+          </div>
           <div className="cw-empty">
-            עוד לא נפתחה קליטה ללקוח הזה. קליטה נפתחת אוטומטית כשהלקוח מאשר הצעת מחיר.
+            אין בקשות פתוחות. אפשר לבקש מסמך או לשלוח בקשה חופשית בכל שלב —
+            הלקוח יראה אותה בדף האישי שלו.
           </div>
         </div>
+
+        {addOpen && (
+          <AddRequestDialog
+            clientId={clientId}
+            steps={clientSteps}
+            processPublished
+            onClose={() => setAddOpen(false)}
+            onCreated={() => refresh?.()}
+          />
+        )}
+        {templatesOpen && (
+          <JourneyTemplatesDialog
+            clientId={clientId}
+            clientName={clientDisplayName ?? 'הלקוח'}
+            onClose={() => setTemplatesOpen(false)}
+            onApplied={() => refresh?.()}
+          />
+        )}
       </div>
     );
   }
@@ -549,9 +580,14 @@ export default function OnboardingTab({
             <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
               <span className="cw-section-count">{key === 'done' ? doneSteps.length : list.length}</span>
               {key === 'open' && (
-                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>
-                  + בקשה
-                </button>
+                <>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>
+                    תבניות
+                  </button>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>
+                    + בקשה
+                  </button>
+                </>
               )}
             </span>
           </div>
@@ -849,6 +885,15 @@ export default function OnboardingTab({
           processPublished={!!activeEngagement?.processPublishedAt}
           onClose={() => setAddOpen(false)}
           onCreated={() => refresh?.()}
+        />
+      )}
+
+      {templatesOpen && (
+        <JourneyTemplatesDialog
+          clientId={clientId}
+          clientName={clientDisplayName ?? 'הלקוח'}
+          onClose={() => setTemplatesOpen(false)}
+          onApplied={() => refresh?.()}
         />
       )}
     </div>

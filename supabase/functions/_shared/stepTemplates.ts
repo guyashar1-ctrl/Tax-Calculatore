@@ -44,7 +44,7 @@ export const STEP_TEMPLATE_PLACEHOLDERS = [
 export const PLACEHOLDERS_BY_KIND: Record<StepEmailKind, string[]> = {
   paperless_invite: ['{{clientName}}', '{{firmName}}', '{{paperlessInviteUrl}}'],
   retainer_request: ['{{clientName}}', '{{firmName}}', '{{amount}}', '{{billingStartMonth}}', '{{authUrl}}'],
-  step_reminder: ['{{clientName}}', '{{firmName}}'],
+  step_reminder: ['{{clientName}}', '{{firmName}}', '{{requestTitle}}', '{{requestSub}}'],
   intake_questionnaire: ['{{clientName}}', '{{firmName}}'],
 };
 
@@ -76,12 +76,20 @@ const TEMPLATES: Record<StepEmailKind, StepEmailTemplate> = {
       '\n' +
       'האישור נעשה בקישור שלמטה ולוקח פחות מדקה.',
   },
+  // ‼ הנוסח נגזר מהבקשה עצמה ({{requestTitle}} / {{requestSub}}) ולא נכתב
+  // בנפרד. הכרעת גיא 2026-08-05: מערכת תבניות אחת. נוסח שיושב גם על הבקשה
+  // וגם בתבנית מייל נפרדת סותר את עצמו ביום שמשנים אחד מהם.
+  // ‼ הכותרת עומדת בשורה משלה ולא משובצת באמצע משפט. הניסוחים של הבקשות הם
+  // ציוויים ("להעלות 3 מסמכים"), ושיבוץ אחרי ש' נותן "רצינו להזכיר שלהעלות".
   step_reminder: {
-    subject: 'תזכורת קצרה',
+    subject: '{{requestTitle}}',
     body:
-      'רצינו להזכיר שהפעולה האחרונה שביקשנו עדיין ממתינה להשלמה.\n' +
+      'רצינו להזכיר שהבקשה הבאה עדיין ממתינה:\n' +
       '\n' +
-      'אם כבר טיפלתם בה — תודה, אפשר להתעלם מהמייל הזה. אם משהו לא ברור או לא עובד, אפשר להשיב למייל ונעזור.',
+      '{{requestTitle}}\n' +
+      '{{requestSub}}\n' +
+      '\n' +
+      'אם כבר טיפלתם בזה — תודה, אפשר להתעלם מהמייל הזה. אם משהו לא ברור או לא עובד, אפשר להשיב למייל ונעזור.',
   },
   // ‼ השאלון אינו טופס גיוס אלא מיפוי: כל שאלה שהלקוח עונה עליה כאן היא
   // שאלה שלא נשאל אותו בטלפון בדצמבר. הנוסח מסביר את זה, כי לקוח שלא מבין
@@ -122,5 +130,8 @@ export function renderTemplate(
       const v = vars[key];
       return v === undefined || v === null ? '' : String(v);
     });
-  return { subject: fill(tpl.subject).trim(), body: fill(tpl.body) };
+  // שדה ריק משאיר שורה ריקה באמצע הפסקה. מכווצים, אחרת המייל נראה שבור
+  // בדיוק כשהרו"ח לא מילא ניסוח משנה לבקשה.
+  const body = fill(tpl.body).replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n');
+  return { subject: fill(tpl.subject).trim(), body };
 }

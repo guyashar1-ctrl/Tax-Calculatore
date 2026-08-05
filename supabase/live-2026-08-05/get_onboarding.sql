@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_token text
 CREATE OR REPLACE FUNCTION public.get_onboarding(p_token text)
  RETURNS TABLE(client_name text, firm_name text, branding jsonb, already_submitted boolean, status text, authorities text[], already_signed boolean, has_setup boolean, known_first_name text, known_last_name text, known_email text, known_family_status text, known_family_status_year integer, ni_included boolean, prefill jsonb)

@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: (ללא)
 CREATE OR REPLACE FUNCTION public.notify_poa_signed()
  RETURNS trigger

@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_client_id text, p_step_type text, p_payload jsonb, p_due_date date, p_depends_on text, p_published boolean
 CREATE OR REPLACE FUNCTION public.create_onboarding_request(p_client_id text, p_step_type text, p_payload jsonb DEFAULT '{}'::jsonb, p_due_date date DEFAULT NULL::date, p_depends_on text DEFAULT NULL::text, p_published boolean DEFAULT true)
  RETURNS jsonb

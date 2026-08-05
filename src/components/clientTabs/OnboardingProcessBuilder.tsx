@@ -10,6 +10,7 @@ import { STEP_BALL_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import { supabase } from '../../lib/supabase';
 import AddRequestDialog from './AddRequestDialog';
+import JourneyTemplatesDialog from './JourneyTemplatesDialog';
 
 interface Props {
   clientName: string;
@@ -53,6 +54,7 @@ export default function OnboardingProcessBuilder({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   const mine = useMemo(
     () => steps.filter(s => s.engagementId === engagement.id || s.clientId === engagement.clientId),
@@ -243,8 +245,10 @@ export default function OnboardingProcessBuilder({
             );
           })}
 
-          <button type="button" className="btn btn-secondary" style={{ justifySelf: 'start' }}
-            onClick={() => setAddOpen(true)}>+ בקשה</button>
+          <div style={{ display: 'flex', gap: '.4rem', justifySelf: 'start' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setAddOpen(true)}>+ בקשה</button>
+            <button type="button" className="btn btn-ghost" onClick={() => setTemplatesOpen(true)}>תבניות מסע</button>
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem', flexWrap: 'wrap', paddingTop: '.2rem' }}>
             <button type="button" className="btn btn-primary" onClick={() => void publish()} disabled={publishing}>
@@ -305,6 +309,15 @@ export default function OnboardingProcessBuilder({
           processPublished={false}
           onClose={() => setAddOpen(false)}
           onCreated={() => refresh?.()}
+        />
+      )}
+
+      {templatesOpen && (
+        <JourneyTemplatesDialog
+          clientId={engagement.clientId}
+          clientName={clientName}
+          onClose={() => setTemplatesOpen(false)}
+          onApplied={() => refresh?.()}
         />
       )}
     </section>

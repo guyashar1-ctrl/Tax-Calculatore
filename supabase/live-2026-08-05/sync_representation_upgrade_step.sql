@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_client_id text, p_reminder_days integer
 CREATE OR REPLACE FUNCTION public.sync_representation_upgrade_step(p_client_id text, p_reminder_days integer DEFAULT 90)
  RETURNS jsonb

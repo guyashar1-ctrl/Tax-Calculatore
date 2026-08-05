@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_quotation_id text
 CREATE OR REPLACE FUNCTION public.create_deferred_collection_tasks(p_quotation_id text)
  RETURNS jsonb

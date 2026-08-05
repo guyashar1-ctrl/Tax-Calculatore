@@ -1,4 +1,4 @@
--- נמשך חי 2026-08-04 מהמסד (pg_get_functiondef).
+-- נמשך חי 2026-08-05 מהמסד (pg_get_functiondef).
 -- ארגומנטים: p_token text, p_signature text, p_signer_name text
 CREATE OR REPLACE FUNCTION public.release_portal_sign(p_token text, p_signature text, p_signer_name text DEFAULT NULL::text)
  RETURNS jsonb
