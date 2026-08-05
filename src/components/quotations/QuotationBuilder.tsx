@@ -858,7 +858,16 @@ export default function QuotationBuilder({
             )}
           </div>
 
-          {/* סוף המילוי — הפעולות כאן, בלי לחזור לראש המסך */}
+          {/* סוף המילוי — הפעולות כאן, בלי לחזור לראש המסך.
+              ‼ ההודעה חוזרת גם כאן. שלוש הפעולות נעצרות על אותן בדיקות (נמען,
+              שירותים, ייצוג), וההודעה שמסבירה למה הן נעצרו הוצגה רק בראש המסך —
+              מחוץ לשדה הראייה של מי שגלל עד לכאן. התוצאה: הכפתור "לא עובד". */}
+          {(error || notice) && (
+            <div className={`alert ${error || notice?.kind === 'err' ? 'alert-warning' : 'alert-info'}`}
+              style={{ marginTop: 4 }} role="status">
+              {error ?? notice?.text}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
             {actionButtons(true)}
           </div>
