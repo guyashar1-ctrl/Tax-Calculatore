@@ -666,13 +666,17 @@ export default function ClientList({
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '0 0 .6rem' }}>
-            <span style={{ fontSize: '17px', fontWeight: 500 }}>
-              {showOnboardingView ? 'קליטות פתוחות' : 'לקוחות'}
-            </span>
-            <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
-              · {showOnboardingView ? onboardingCount : activeList.length}
-            </span>
+          {/* ראש עמוד אחד בשפה אחת — אותה כותרת של המשימות, המסמכים והתיק.
+              המשפט מתחת הוא מה שהמסך הזה מבטיח: אדם אחד לכל אורך המסע. */}
+          <div className="pg-head">
+            <div className="pg-head-main">
+              <div className="pg-title">{showOnboardingView ? 'קליטות פתוחות' : 'לקוחות'}</div>
+              <div className="pg-status">
+                {showOnboardingView
+                  ? `${onboardingCount} בתהליך קליטה`
+                  : `${activeList.length} אנשים · אדם אחד לכל אורך המסע`}
+              </div>
+            </div>
           </div>
 
           {/* ‼ במצב "בקליטה" הטבלה מחליפה עמודות לגמרי: מי שבתהליך נמדד בימים,
