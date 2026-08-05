@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import type { FirmProfile } from '../types/firmProfile';
 import type { QuotationItem, FutureService, QuotationRepresentation } from '../types/quotations';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
@@ -112,7 +113,7 @@ export default function PublicQuotationPage({ token }: Props) {
       // ההתראה לרו"ח נרשמה בתור ע"י השרת; כאן רק מבקשים לרוקן אותו מיד.
       // לא חוסם ולא נבדק: אם ייכשל, הריקון יקרה בכניסה הבאה של הרו"ח.
       if (result?.status === 'approved') {
-        void supabase.functions.invoke('notify-accountant', { body: { token } });
+        flushAccountantNotifications(token);
       }
       if (result?.status === 'approved' && result.onboardingToken) {
         const url = onboardingUrl(result.onboardingToken);

@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import SignaturePad from './SignaturePad';
@@ -100,6 +101,7 @@ export default function PublicReleasePage({ token }: Props) {
     setSigning(false);
     const r = res as { ok?: boolean } | null;
     if (error || !r?.ok) { setSignErr('לא הצלחנו לשמור את החתימה. אפשר לנסות שוב.'); return; }
+    flushAccountantNotifications(token);
     reload();
   }
 
@@ -231,6 +233,7 @@ function ReleaseUploadItem({ token, stepId, itemKey, label, done, brand, accent,
       setErr(UPLOAD_ERRORS[res?.error ?? ''] ?? 'ההעלאה נכשלה. אפשר לנסות שוב.');
       return;
     }
+    flushAccountantNotifications(token);
     onDone();
   }
 

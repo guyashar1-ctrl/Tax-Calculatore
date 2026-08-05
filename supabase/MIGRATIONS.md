@@ -62,6 +62,23 @@ order by version;
 | 64 | `journey_templates_64` | טבלת `journey_templates` + `save_journey_template()` / `apply_journey_template()`. **הכרעת גיא: מערכת תבניות אחת ולא שתיים** — תבנית מסע היא סט של בקשות, וכל בקשה נושאת את הניסוח שלה. מסך "תבניות מייל" הנפרד בוטל, והמייל נגזר מ-`clientTitle`/`clientSub`/`clientCta` של הבקשה. הנוסח: `64-journey-templates.sql` |
 | 65 | `journey_template_dedupes_custom_by_title_65` | החלה חוזרת של תבנית מזהה בקשה חופשית לפי הכותרת ולא לפי הסוג. **התגלה בבדיקה בדפדפן**: `custom_request` רב-פעמי (63), ולכן בדיקת "קיים לפי סוג" עקפה אותו והחלה שנייה שכפלה את הבקשה |
 
+## התראות למשרד (2026-08-05)
+
+| # | שם המיגרציה | מה היא עושה |
+|---|---|---|
+| 66 | `office_notifications_66_gate_and_queue` | `accountant_notifications.suppressed_at` (התראה שנרשמה וההגדרה כיבתה — נשארת כתיעוד, לא נשלפת שוב) ו-`step_id` עם FK מדורג; האינדקס החלקי מדלג על מושתקות. `queue_accountant_notification()` — נקודת הכניסה היחידה לרישום התראה, ולכן אירוע עתידי הוא קריאה אחת. `user_id_for_public_token()` מכירה גם את טוקן הדף האישי ואת טוקן דף השחרור, כדי שהתראה תצא מיד ולא רק בכניסה הבאה של הרו"ח |
+| 66b | `office_notifications_66b_new_events` | `portal_submit_step` / `release_portal_sign` / `close_onboarding` רושמות התראה בסוף פעולה מוצלחת: `client_request_completed`, `release_letter_signed`, `onboarding_closed`. שאר הגוף לא נגע |
+
+**מי מחליט אם המייל יוצא:** `supabase/functions/_shared/accountantNotifications.ts` —
+קטלוג משותף לאתר ולשרת. הוא מייצר את תיבות הסימון בלשונית "התראות למשרד"
+במסך המשרד, והוא גם השער ב-`notify-accountant`. ההגדרות נשמרות ב-
+`profiles.settings.accountantNotifications`, ורק סטיות מברירת המחדל נשמרות —
+כך שינוי ברירת מחדל בעתיד יחול גם על מי שלא נגע בה.
+
+**להוסיף אירוע התראה חדש:** רשומה בקטלוג + קריאה ל-`queue_accountant_notification`
+מהמקום שבו האירוע קורה + בונה מייל ב-`notify-accountant` לפי אותו `kind`.
+תיבת הסימון נולדת לבד. אין קוד UI להוסיף.
+
 **Edge Function חדשה:** `portal-upload-document` (verify_jwt=false) — העלאת קובץ
 מדף ציבורי. `tokenKind=portal` ללקוח, `tokenKind=release` לרו"ח הקודם. מגבילה
 10MB ורשימת סוגים סגורה, כותבת ל-bucket `client-documents`, יוצרת רשומת מסמך,

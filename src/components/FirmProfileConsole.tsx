@@ -22,6 +22,13 @@ import {
   STEP_EMAIL_KIND_LABELS,
   type StepEmailKind,
 } from '../../supabase/functions/_shared/stepTemplates.ts';
+import {
+  ACCOUNTANT_NOTIFICATIONS,
+  NOTIFICATION_GROUPS,
+  NOTIFICATION_SETTINGS_KEY,
+  readNotificationPrefs,
+  isNotificationEnabled,
+} from '../../supabase/functions/_shared/accountantNotifications.ts';
 
 const LOGO_BUCKET = 'firm-logos';           // לוגו — ציבורי (מוטבע במיילים ללקוחות)
 const SIGN_BUCKET = FIRM_PRIVATE_BUCKET;     // חתימה/חותמת — פרטי, גישה מאומתת בלבד
@@ -34,7 +41,7 @@ interface Props {
   onSave: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'paperless' | 'emailActivity' | 'quotations' | 'employees';
+type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'notifications' | 'paperless' | 'emailActivity' | 'quotations' | 'employees';
 
 // אייקוני הניווט כ-SVG מוטמע. (הפרויקט לא טוען את פונט Tabler, ולכן ה-<i class="ti">
 // שהיו כאן קודם פשוט לא הוצגו — זה מחליף אותם באייקונים שבאמת נראים.)
@@ -45,6 +52,7 @@ const ICON_PATHS: Record<string, string> = {
   contact: 'M6 3h13v18H6z M6 3v18 M11 10a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M10.5 16c.3-1.1 1.4-1.7 2.5-1.7s2.2.6 2.5 1.7',
   signature: 'M3 19c3 0 5-2 6-5s2-6 4-6 2 3 0 6-4 4-6 4c3 0 6 1 8 1s3-1 3-1',
   communication: 'M8 9h8 M8 13h5 M4 5h16v11H9l-5 4z',
+  bell: 'M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6 M9 17v1a3 3 0 0 0 6 0v-1',
   emailActivity: 'M3 6h18v12H3z M3 7l9 6 9-6',
   quotations: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4',
   employees: 'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M17.5 5.2a3 3 0 0 1 0 5.6 M21 20v-1a4 4 0 0 0-3-3.85',
@@ -76,6 +84,7 @@ const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'contact', label: 'פרטי קשר', icon: 'contact' },
   { id: 'signature', label: 'חתימת מייל', icon: 'signature' },
   { id: 'communication', label: 'ערוצי תקשורת', icon: 'communication' },
+  { id: 'notifications', label: 'התראות למשרד', icon: 'bell' },
   { id: 'paperless', label: 'פייפרלס ותקשורת', icon: 'mailCog' },
   { id: 'emailActivity', label: 'פעילות מייל', icon: 'emailActivity' },
   { id: 'quotations', label: 'הצעות מחיר', icon: 'quotations' },
@@ -597,6 +606,10 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
             </div>
           )}
 
+          {section === 'notifications' && (
+            <OfficeNotificationsSection profile={draft} onChangeProfile={setDraft} />
+          )}
+
           {section === 'paperless' && (
             <PaperlessCommSection profile={draft} onChangeProfile={setDraft} />
           )}
@@ -621,6 +634,79 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
           )}
 
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── התראות למשרד ─────────────────────────
+// ‼ המסך נגזר מהקטלוג המשותף ולא מרשימה שכתובה כאן. אירוע חדש שנוסף לקטלוג
+// מקבל תיבת סימון לבד, בלי לגעת בקובץ הזה — וזו בדיוק הנקודה: מקום אחד
+// שמחליט מה קיים, מה כתוב עליו, ומה ברירת המחדל שלו.
+//
+// נשמר רק מה שגיא שינה בפועל: תיבה שחוזרת לברירת המחדל נמחקת מההגדרות. כך
+// שינוי ברירת מחדל בעתיד יחול גם על מי שלא נגע בה.
+
+function OfficeNotificationsSection({ profile, onChangeProfile }: { profile: FirmProfile; onChangeProfile: (p: FirmProfile) => void }) {
+  const settings = profile.settings ?? {};
+  const prefs = readNotificationPrefs(settings);
+
+  const toggle = (kind: string, on: boolean) => {
+    const def = ACCOUNTANT_NOTIFICATIONS.find(n => n.kind === kind);
+    const next = { ...prefs };
+    if (def && on === def.defaultOn) delete next[kind];
+    else next[kind] = on;
+    onChangeProfile({ ...profile, settings: { ...settings, [NOTIFICATION_SETTINGS_KEY]: next } });
+  };
+
+  const onCount = ACCOUNTANT_NOTIFICATIONS.filter(n => isNotificationEnabled(settings, n.kind)).length;
+  const destination = (profile.email ?? '').trim();
+
+  return (
+    <div style={card}>
+      <div style={cardTitle}>התראות למשרד</div>
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 18, lineHeight: 1.7 }}>
+        אילו אירועים שולחים לך מייל. אלה ההתראות אליך בלבד — המיילים ללקוחות
+        אינם מושפעים מכאן.
+        {destination
+          ? <> נשלחות אל <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{destination}</span>, מהלשונית "פרטי קשר".</>
+          : <> <span style={{ color: 'var(--red)' }}>אין כתובת אימייל במשרד — בלעדיה שום התראה לא תישלח. יש למלא אותה בלשונית "פרטי קשר".</span></>}
+        {' '}דולקות כרגע: {onCount} מתוך {ACCOUNTANT_NOTIFICATIONS.length}.
+      </div>
+
+      {NOTIFICATION_GROUPS.map(group => {
+        const items = ACCOUNTANT_NOTIFICATIONS.filter(n => n.group === group);
+        if (items.length === 0) return null;
+        return (
+          <div key={group} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 'var(--fs-12)', fontWeight: 600, color: 'var(--gray-500)', marginBottom: 8 }}>{group}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {items.map(n => {
+                const on = isNotificationEnabled(settings, n.kind);
+                return (
+                  <label key={n.kind} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={e => toggle(n.kind, e.target.checked)}
+                      style={{ marginTop: 3, width: 15, height: 15, flexShrink: 0, accentColor: ACCENT }}
+                    />
+                    <span>
+                      <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-1)' }}>{n.label}</span>
+                      <span style={{ display: 'block', fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2, lineHeight: 1.6 }}>{n.hint}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      <div style={{ padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 'var(--fs-12)', color: 'var(--gray-600)', lineHeight: 1.6 }}>
+        <NavIcon name="info" size={14} />
+        אירוע שכיביתָ עדיין נרשם ביומן ההתקדמות של הלקוח — רק המייל לא יוצא.
+        השינויים נשמרים עם כפתור השמירה למעלה.
       </div>
     </div>
   );

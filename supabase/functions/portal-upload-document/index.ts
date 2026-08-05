@@ -179,6 +179,24 @@ Deno.serve(async (req: Request) => {
       await admin.rpc("unlock_dependent_steps", { p_step_id: stepId });
     }
 
+    // התראה למשרד. נרשמת תמיד; אם גיא כיבה אותה בהגדרות, notify-accountant
+    // מסמן אותה כמושתקת ולא שולח. ההחלטה נמצאת במקום אחד בלבד.
+    const { data: cli } = await admin
+      .from("clients").select("first_name, last_name").eq("id", clientId).maybeSingle();
+    await admin.rpc("queue_accountant_notification", {
+      p_user_id: step.user_id,
+      p_kind: tokenKind === "release" ? "prev_accountant_document_uploaded" : "client_document_uploaded",
+      p_client_id: clientId,
+      p_step_id: stepId,
+      p_payload: {
+        clientName: `${cli?.first_name ?? ""} ${cli?.last_name ?? ""}`.trim(),
+        prevAccountantName: step.payload?.prevAccountantName ?? null,
+        itemLabel,
+        fileName: file.name || null,
+        remaining,
+      },
+    });
+
     return json({ ok: true, documentId: docId, remaining, completed: remaining === 0 });
   } catch (e) {
     return json({ error: String(e) }, 500);

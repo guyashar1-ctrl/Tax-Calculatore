@@ -1,12 +1,17 @@
 // Edge Function: notify-accountant
 // מרוקנת את תור ההתראות של הרו"ח (accountant_notifications) ושולחת מייל על
-// כל אירוע שקרה אצל הלקוח: חתימה על הצעה, מילוי פרטי ייצוג, חתימה על ייפוי כוח.
+// כל אירוע שקרה אצל הלקוח או אצל הרו"ח הקודם.
+//
+// ‼ שער יחיד. כל מייל שיוצא *אל* המשרד עובר כאן, ולכן כאן — ורק כאן — נבדקות
+// ההגדרות של גיא (profiles.settings.accountantNotifications). התראה שכבויה
+// מסומנת suppressed_at ולא נשלפת שוב; היא נשארת בטבלה כתיעוד שהאירוע קרה.
 //
 // שני מסלולי הפעלה, שניהם רק *מפעילים* ולא מקבלים מידע:
 //   (א) JWT של הרו"ח — רשת הביטחון. בכל כניסה למערכת מרוקנים מה שלא יצא.
-//   (ב) token ציבורי (הצעה / השלמת פרטים / חתימה) — הדפדפן של הלקוח מפעיל
-//       שליחה מיד עם האירוע, בלי להתחבר. הטוקן מזהה רו"ח אחד בדיוק, ולכן
-//       אי אפשר להפעיל שליחה של מישהו אחר. התשובה היא מונה בלבד.
+//   (ב) token ציבורי (הצעה / השלמת פרטים / חתימה / דף אישי / דף שחרור) —
+//       הדפדפן של הלקוח מפעיל שליחה מיד עם האירוע, בלי להתחבר. הטוקן מזהה
+//       רו"ח אחד בדיוק, ולכן אי אפשר להפעיל שליחה של מישהו אחר. התשובה היא
+//       מונה בלבד.
 //
 // למה תור ולא שליחה מהטריגר: שליחת מייל מתוך הטריגר הייתה קושרת את החתימה
 // של הלקוח לזמינות שרת המייל — תקלה ברסנד הייתה מפילה את הפעולה עצמה.
@@ -14,11 +19,10 @@
 // אבטחה: verify_jwt=false בשער + אימות פנימי בשני המסלולים.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
+import { isNotificationEnabled } from "../_shared/accountantNotifications.ts";
 
 const MAX_ATTEMPTS = 3;
 const BATCH = 20;
-
-type Kind = "quotation_approved" | "onboarding_submitted" | "poa_signed";
 
 const AUTHORITY_LABELS: Record<string, string> = {
   incomeTax: 'מס הכנסה',
@@ -90,6 +94,7 @@ Deno.serve(async (req: Request) => {
       .select("*")
       .eq("user_id", userId)
       .is("sent_at", null)
+      .is("suppressed_at", null)
       .lt("attempts", MAX_ATTEMPTS)
       .order("created_at", { ascending: true })
       .limit(BATCH);
@@ -111,7 +116,17 @@ Deno.serve(async (req: Request) => {
     const fromAddress = (comm.senderEmail && String(comm.senderEmail).trim()) || "onboarding@resend.dev";
 
     let sent = 0;
+    let suppressed = 0;
     for (const n of pending) {
+      // ── השער: מה שגיא כיבה במסך "המשרד" לא יוצא ────────────────────────────
+      // נבדק לפני התפיסה כדי שלא ננפח attempts על משהו שלא ננסה לשלוח.
+      if (!isNotificationEnabled(profile?.settings, String(n.kind))) {
+        await admin.from("accountant_notifications")
+          .update({ suppressed_at: new Date().toISOString() }).eq("id", n.id);
+        suppressed++;
+        continue;
+      }
+
       // תפיסה אטומית: מעלים attempts לפני השליחה. שתי הפעלות במקביל (הלקוח
       // לוחץ, והרו"ח נכנס באותו רגע) לא ישלחו את אותה התראה פעמיים.
       const { data: claimed } = await admin
@@ -161,7 +176,7 @@ Deno.serve(async (req: Request) => {
       sent++;
     }
 
-    return json({ ok: true, sent });
+    return json({ ok: true, sent, suppressed });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
@@ -174,7 +189,7 @@ async function buildEmail(
   appUrl: string,
   n: Record<string, any>,
 ): Promise<{ subject: string; html: string } | null> {
-  const kind = n.kind as Kind;
+  const kind = String(n.kind);
   const p = n.payload || {};
 
   if (kind === "quotation_approved") {
@@ -276,6 +291,116 @@ async function buildEmail(
         ctaHref: `${appUrl}/`,
         ctaArrow: true,
         footerTagline: "התראה אוטומטית ממערכת הייצוג",
+      }),
+    };
+  }
+
+  // ── האירועים שמקורם בשלב קליטה ────────────────────────────────────────────
+  // כולם נשענים על step_id. שלב שנמחק מוחק את ההתראה איתו (FK cascade), ולכן
+  // הבדיקה כאן היא רשת ביטחון בלבד.
+  const name = String(p.clientName || "הלקוח").trim();
+
+  if (kind === "client_document_uploaded" || kind === "prev_accountant_document_uploaded") {
+    const byPrev = kind === "prev_accountant_document_uploaded";
+    const who = byPrev ? String(p.prevAccountantName || "רואה החשבון הקודם").trim() : name;
+    const item = String(p.itemLabel || "מסמך").trim();
+    const remaining = Number(p.remaining ?? 0);
+    const rows = [
+      row(brand, "לקוח", name),
+      byPrev ? row(brand, "העלה", who) : "",
+      row(brand, "הפריט", item),
+      p.fileName ? row(brand, "קובץ", String(p.fileName)) : "",
+      row(brand, "נותרו", remaining === 0 ? "הכול הגיע" : `${remaining} פריטים`),
+    ].join("");
+
+    return {
+      subject: `📎 ${name} — התקבל ${item}`,
+      html: buildBrandedEmail(brand, {
+        heading: byPrev ? "הרו״ח הקודם העלה חומר" : "הלקוח העלה מסמך",
+        bodyHtml: esc(remaining === 0
+          ? `${who} העלה את "${item}", וזה היה הפריט האחרון — הרשימה הושלמה והכדור חזר אליך.`
+          : `${who} העלה את "${item}". ממתינים לעוד ${remaining} פריטים.`),
+        extraHtml: card(brand, rows),
+        ctaLabel: "לכרטיס הלקוח",
+        ctaHref: `${appUrl}/`,
+        ctaArrow: true,
+        footerTagline: "התראה אוטומטית ממערכת הקליטה",
+      }),
+    };
+  }
+
+  if (kind === "client_request_completed") {
+    const { data: s } = await admin.from("onboarding_steps").select("*").eq("id", n.step_id).maybeSingle();
+    if (!s) return null;
+    const title = String(p.requestTitle || "בקשה מהמשרד").trim();
+    // מציגים את מה שהלקוח באמת מסר, ולא רק שהוא סיים — כדי שלא צריך להיכנס
+    // למערכת רק כדי לראות מה נכתב.
+    const answers: string[] = [];
+    for (const r of (s.payload?.requirements ?? []) as Record<string, unknown>[]) {
+      if (r?.value) answers.push(row(brand, String(r.label || ""), String(r.value)));
+    }
+    const rows = [
+      row(brand, "לקוח", name),
+      row(brand, "הבקשה", title),
+      ...answers,
+    ].join("");
+
+    return {
+      subject: `✔️ ${name} השלים: ${title}`,
+      html: buildBrandedEmail(brand, {
+        heading: "הבקשה הושלמה",
+        bodyHtml: esc(`${name} השלים את כל מה שהתבקש ב"${title}". הכדור חזר אליך.`),
+        extraHtml: card(brand, rows),
+        ctaLabel: "לדף המסע",
+        ctaHref: `${appUrl}/`,
+        ctaArrow: true,
+        footerTagline: "התראה אוטומטית ממערכת הקליטה",
+      }),
+    };
+  }
+
+  if (kind === "release_letter_signed") {
+    const signer = String(p.signerName || p.prevAccountantName || "").trim();
+    const rows = [
+      row(brand, "לקוח", name),
+      signer ? row(brand, "חתם", signer) : "",
+    ].join("");
+
+    return {
+      subject: `📝 ${name} — מכתב השחרור נחתם`,
+      html: buildBrandedEmail(brand, {
+        heading: "הרו״ח הקודם חתם על מכתב השחרור",
+        bodyHtml: esc(signer
+          ? `${signer} חתם על מכתב השחרור של ${name}. השלבים שהיו תלויים בו נפתחו.`
+          : `מכתב השחרור של ${name} נחתם. השלבים שהיו תלויים בו נפתחו.`),
+        extraHtml: card(brand, rows),
+        ctaLabel: "לדף המסע",
+        ctaHref: `${appUrl}/`,
+        ctaArrow: true,
+        footerTagline: "התראה אוטומטית ממערכת הקליטה",
+      }),
+    };
+  }
+
+  if (kind === "onboarding_closed") {
+    const forced = Boolean(p.forced);
+    const reason = String(p.reason || "").trim();
+    const rows = [
+      row(brand, "לקוח", name),
+      row(brand, "סגירה", forced ? "נסגר עם פריטים פתוחים" : "כל הפריטים הושלמו"),
+      forced && reason ? row(brand, "סיבה", reason) : "",
+    ].join("");
+
+    return {
+      subject: `🏁 ${name} — הקליטה הושלמה`,
+      html: buildBrandedEmail(brand, {
+        heading: "תהליך הקליטה הושלם",
+        bodyHtml: esc(`${name} עבר מקליטה לטיפול שוטף.`),
+        extraHtml: card(brand, rows),
+        ctaLabel: "לכרטיס הלקוח",
+        ctaHref: `${appUrl}/`,
+        ctaArrow: true,
+        footerTagline: "התראה אוטומטית ממערכת הקליטה",
       }),
     };
   }

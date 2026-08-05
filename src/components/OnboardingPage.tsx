@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import ClientPageState from './ui/ClientPageState';
 import { supabase } from '../lib/supabase';
+import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import {
   OnboardingSecondaryType,
   ONBOARDING_SECONDARY_LABELS,
@@ -216,7 +217,7 @@ export default function OnboardingPage({ token }: Props) {
     }
     // בקשת הייצוג הושלמה. השאלון אינו חלק מהקישור הזה.
     // ההתראה לרו"ח כבר בתור; כאן רק מבקשים לרוקן אותו מיד. לא חוסם.
-    void supabase.functions.invoke('notify-accountant', { body: { token } });
+    flushAccountantNotifications(token);
     setBusy(false);
     setPhase('submitted');
   }

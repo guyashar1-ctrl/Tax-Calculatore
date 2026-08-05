@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 
@@ -120,6 +121,7 @@ function UploadItem({ token, tokenKind, stepId, itemKey, label, done, brand, acc
       setErr(UPLOAD_ERRORS[res?.error ?? ''] ?? 'ההעלאה נכשלה. אפשר לנסות שוב.');
       return;
     }
+    flushAccountantNotifications(token);
     onDone();
   }
 
@@ -179,6 +181,7 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
       setErr(res?.error === 'missing_value' ? 'צריך למלא תשובה.' : 'לא הצלחנו לשמור. אפשר לנסות שוב.');
       return;
     }
+    flushAccountantNotifications(token);
     onDone();
   }
 
@@ -269,6 +272,7 @@ function PrevAccountantForm({ token, stepId, brand, accent, onDone }: {
     setBusy(false);
     const res = data as { ok?: boolean } | null;
     if (error || !res?.ok) { setErr('לא הצלחנו לשמור. אפשר לנסות שוב.'); return; }
+    flushAccountantNotifications(token);
     onDone();
   }
 

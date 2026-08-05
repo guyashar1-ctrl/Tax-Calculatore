@@ -20,6 +20,7 @@ import { NEXT_ACTION, nextStepForClient } from '../../utils/onboardingNext';
 import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
 import { formatILS } from '../../utils/quotationCalc';
+import { flushAccountantNotifications } from '../../lib/notifyAccountant';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import type { DocCategory } from '../../hooks/useDocumentStore';
@@ -265,7 +266,7 @@ export default function OnboardingTab({
     setClosing(false);
 
     if (rpcError) { setError('לא הצלחתי לסגור את הקליטה.'); return; }
-    if (res?.ok) { refresh?.(); return; }
+    if (res?.ok) { flushAccountantNotifications(); refresh?.(); return; }
 
     if (res?.error === 'not_ready') {
       const missing = Object.keys(CLOSE_BLOCKERS)

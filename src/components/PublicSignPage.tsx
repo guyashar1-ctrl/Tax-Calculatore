@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { SignatureField, SignatureValue, Signer } from '../types';
 import { supabase } from '../lib/supabase';
+import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import SigningRoom from './signatureRequest/SigningRoom';
 import ClientPageState from './ui/ClientPageState';
 import NiApprovalNotice from './ui/NiApprovalNotice';
@@ -61,7 +62,7 @@ export default function PublicSignPage({ token }: { token: string }) {
       const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'submit', token, values: mine } });
       if (error || !data?.ok) throw new Error(error?.message || data?.error || 'שליחה נכשלה');
       // ההתראה לרו"ח כבר בתור; כאן רק מבקשים לרוקן אותו מיד. לא חוסם.
-      void supabase.functions.invoke('notify-accountant', { body: { token } });
+      flushAccountantNotifications(token);
       setPhase('done');
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : String(e));

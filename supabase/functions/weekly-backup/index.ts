@@ -9,6 +9,7 @@
 //
 // אימות: x-cron-secret (מה-cron) או Authorization: Bearer <service_role> (ידני).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { isNotificationEnabled } from "../_shared/accountantNotifications.ts";
 
 // כל טבלאות המידע שנכללות בגיבוי.
 const TABLES = [
@@ -45,9 +46,12 @@ Deno.serve(async (req: Request) => {
 
     // הנמענים הם בעלי הפרופילים במערכת — לא כתובת קשיחה בקוד. משרד שמחליף
     // כתובת מעדכן אותה במקום אחד, והדיווח ממשיך להגיע.
+    // ‼ מי שכיבה את "דוח הגיבוי השבועי" במסך "המשרד" אינו מקבל את המייל.
+    // הגיבוי עצמו נוצר ונשמר בכל מקרה — הכיבוי נוגע לדיווח בלבד.
     const { data: profileRows } = await admin
-      .from("profiles").select("id,email,communication").limit(50);
-    const recipients = (profileRows ?? []).filter((p) => p.email && String(p.email).trim());
+      .from("profiles").select("id,email,communication,settings").limit(50);
+    const recipients = (profileRows ?? []).filter((p) =>
+      p.email && String(p.email).trim() && isNotificationEnabled(p.settings, "weekly_backup"));
 
     // ── איסוף כל הטבלאות (עם עימוד — ברירת המחדל מוגבלת ל-1000 שורות) ──
     const dump: Record<string, unknown[]> = {};
