@@ -768,6 +768,74 @@ textarea { resize: vertical; min-height: 80px; }
 .doc-row:hover { background: var(--gray-50); }
 .doc-row-selected { background: var(--blue-light) !important; }
 
+/* ── תיקיות ────────────────────────────────────────────────────────────── */
+.doc-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .15rem;
+  margin-bottom: .75rem;
+  font-size: 14px;
+}
+
+.doc-crumb-wrap { display: inline-flex; align-items: center; gap: .15rem; }
+
+.doc-crumb {
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--blue);
+  cursor: pointer;
+  padding: .2rem .35rem;
+  border-radius: var(--radius);
+}
+.doc-crumb:hover { background: var(--gray-100); }
+.doc-crumb.is-current { color: var(--gray-800); font-weight: 600; cursor: default; }
+.doc-crumb-sep { color: var(--gray-400); }
+
+.doc-folder-row td { background: var(--gray-50); }
+.doc-folder-row:hover td { background: var(--gray-100); }
+
+.doc-folder-open {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  width: 100%;
+  text-align: right;
+}
+
+.doc-folder-icon { font-size: 16px; }
+.doc-folder-name { font-weight: 600; color: var(--gray-800); }
+.doc-folder-count { font-size: 12px; color: var(--gray-500); }
+
+.doc-cell-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  margin-top: 2px;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--blue);
+  cursor: pointer;
+}
+.doc-cell-folder:hover { text-decoration: underline; }
+
+.doc-upload-target {
+  padding: .5rem .9rem;
+  font-size: 13px;
+  color: var(--gray-600);
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-100);
+}
+
 .doc-cell-desc {
   font-weight: 600;
   font-size: 14px;

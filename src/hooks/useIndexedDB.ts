@@ -11,4 +11,4 @@ export {
   withoutSupersededPoa,
   DOC_CATEGORY_LABELS,
 } from './useDocumentStore';
-export type { StoredDoc, DocCategory } from './useDocumentStore';
+export type { StoredDoc, DocCategory, DocFolder } from './useDocumentStore';

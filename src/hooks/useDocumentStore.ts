@@ -67,6 +67,27 @@ export interface StoredDoc {
   _remote?: boolean;
   linkedTo?: string;
   linkedLabel?: string;
+  /** התיקייה שבה יושב המסמך. null/undefined = הרמה הראשית של הלקוח. */
+  folderId?: string | null;
+}
+
+/** תיקייה בתוך מסמכי לקוח. ארגון לוגי בלבד — הקובץ ב-Storage לא זז. */
+export interface DocFolder {
+  id: string;
+  clientId: string;
+  parentId: string | null;
+  name: string;
+  createdAt: string;
+}
+
+function rowToFolder(row: any): DocFolder {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    parentId: row.parent_id ?? null,
+    name: row.name,
+    createdAt: row.created_at,
+  };
 }
 
 function storagePath(userId: string, clientId: string, docId: string): string {
@@ -92,6 +113,7 @@ function rowToStoredDoc(row: any, withBytes?: ArrayBuffer): StoredDoc {
     _remote: true,
     linkedTo: row.linked_to ?? undefined,
     linkedLabel: row.linked_label ?? undefined,
+    folderId: row.folder_id ?? null,
   };
 }
 
@@ -146,6 +168,7 @@ export function useDocumentStore() {
       notes: doc.notes ?? '',
       linked_to: doc.linkedTo ?? null,
       linked_label: doc.linkedLabel ?? null,
+      folder_id: doc.folderId ?? null,
       uploaded_at: doc.uploadedAt,
     };
     console.log('[useDocumentStore.saveDoc] inserting row:', row);
@@ -247,7 +270,103 @@ export function useDocumentStore() {
     }
   }
 
-  return { saveDoc, getDocsByClient, getDoc, deleteDoc };
+  // ─── תיקיות ─────────────────────────────────────────────────────────────
+  async function getFoldersByClient(clientId: string): Promise<DocFolder[]> {
+    const { data, error } = await supabase
+      .from('document_folders')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('name', { ascending: true });
+    if (error) {
+      console.error('[useDocumentStore.getFoldersByClient] FAILED', error);
+      return [];
+    }
+    return (data ?? []).map(rowToFolder);
+  }
+
+  /**
+   * יוצרת תיקייה — ואם כבר קיימת תיקייה באותו שם תחת אותו הורה, מחזירה אותה.
+   * העלאת תיקייה מהמחשב נשענת על זה: מסלול קבצים חוזר על אותם שמות תיקיות.
+   */
+  async function createFolder(clientId: string, name: string, parentId: string | null): Promise<DocFolder> {
+    if (!userId) throw new Error('אינך מחובר/ת. נסה להיכנס שוב לאפליקציה.');
+    const clean = name.trim();
+    if (!clean) throw new Error('שם התיקייה לא יכול להיות ריק');
+
+    const existing = await supabase
+      .from('document_folders')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('name', clean);
+    const match = (existing.data ?? []).find((r: any) => (r.parent_id ?? null) === parentId);
+    if (match) return rowToFolder(match);
+
+    const row = {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      client_id: clientId,
+      parent_id: parentId,
+      name: clean,
+    };
+    const { data, error } = await supabase.from('document_folders').insert(row).select().single();
+    if (error) {
+      // מרוץ מול יצירה מקבילה (העלאת תיקייה מרובת קבצים) — נשלוף את הקיימת
+      const retry = await supabase
+        .from('document_folders')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('name', clean);
+      const found = (retry.data ?? []).find((r: any) => (r.parent_id ?? null) === parentId);
+      if (found) return rowToFolder(found);
+      console.error('[useDocumentStore.createFolder] FAILED', error);
+      throw new Error(`יצירת התיקייה נכשלה: ${error.message || JSON.stringify(error)}`);
+    }
+    window.dispatchEvent(new CustomEvent('crm:docs-changed', { detail: { clientId } }));
+    return rowToFolder(data);
+  }
+
+  async function renameFolder(id: string, name: string): Promise<void> {
+    if (!userId) throw new Error('אינך מחובר/ת.');
+    const clean = name.trim();
+    if (!clean) throw new Error('שם התיקייה לא יכול להיות ריק');
+    const { error } = await supabase
+      .from('document_folders')
+      .update({ name: clean })
+      .eq('id', id)
+      .eq('user_id', userId);
+    if (error) throw new Error(`שינוי שם התיקייה נכשל: ${error.message || JSON.stringify(error)}`);
+  }
+
+  /**
+   * מוחקת תיקייה. תת-התיקיות נמחקות איתה (cascade), והקבצים שהיו בהן
+   * עוברים לרמה הראשית (on delete set null) — קובץ לא נמחק בטעות.
+   */
+  async function deleteFolder(id: string): Promise<void> {
+    if (!userId) throw new Error('אינך מחובר/ת.');
+    const { error } = await supabase
+      .from('document_folders')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+    if (error) throw new Error(`מחיקת התיקייה נכשלה: ${error.message || JSON.stringify(error)}`);
+  }
+
+  /** מעביר מסמכים קיימים לתיקייה (או לרמה הראשית כש-folderId=null). */
+  async function moveDocsToFolder(docIds: string[], folderId: string | null): Promise<void> {
+    if (!userId) throw new Error('אינך מחובר/ת.');
+    if (docIds.length === 0) return;
+    const { error } = await supabase
+      .from('documents')
+      .update({ folder_id: folderId })
+      .in('id', docIds)
+      .eq('user_id', userId);
+    if (error) throw new Error(`העברת המסמכים נכשלה: ${error.message || JSON.stringify(error)}`);
+  }
+
+  return {
+    saveDoc, getDocsByClient, getDoc, deleteDoc,
+    getFoldersByClient, createFolder, renameFolder, deleteFolder, moveDocsToFolder,
+  };
 }
 
 // ─── ייפוי כוח: רק הגרסה העדכנית מוצגת ────────────────────────────────

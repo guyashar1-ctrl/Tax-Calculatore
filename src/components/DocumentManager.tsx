@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Client } from '../types';
-import { useDocumentDB, StoredDoc, DocCategory, DOC_CATEGORY_LABELS, isPlaceholderDoc, withoutSupersededPoa } from '../hooks/useIndexedDB';
+import { useDocumentDB, StoredDoc, DocFolder, DocCategory, DOC_CATEGORY_LABELS, isPlaceholderDoc, withoutSupersededPoa } from '../hooks/useIndexedDB';
 import { AVAILABLE_YEARS } from '../data/taxData';
 import { analyzeDocument, isGeminiAvailable, AnalysisResult, DocAnalysisType, ExtractedClientData } from '../utils/geminiVision';
 
@@ -105,12 +105,32 @@ function generateSampleDocs(clientId: string): StoredDoc[] {
   }));
 }
 
+const baseName = (fileName: string) => fileName.replace(/\.[^./\\]+$/, '') || fileName;
+
 export default function DocumentManager({ client, allClients, onBack, onApplyExtractedData }: Props) {
   const db = useDocumentDB();
   const [docs, setDocs] = useState<StoredDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showUploadForm, setShowUploadForm] = useState(false);
+
+  // ── תיקיות ──
+  const [folders, setFolders] = useState<DocFolder[]>([]);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [renameFolderTarget, setRenameFolderTarget] = useState<DocFolder | null>(null);
+  const [renameFolderName, setRenameFolderName] = useState('');
+  const [folderBusy, setFolderBusy] = useState(false);
+  const [folderError, setFolderError] = useState('');
+  const [moveModal, setMoveModal] = useState<{ docIds: string[] } | null>(null);
+  const [moveTarget, setMoveTarget] = useState<string>('');
+  const [moving, setMoving] = useState(false);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const [folderUpload, setFolderUpload] = useState<{ rootName: string; files: File[] } | null>(null);
+  const [folderUpCat, setFolderUpCat] = useState<DocCategory>('other');
+  const [folderUpYear, setFolderUpYear] = useState<number | 'general'>('general');
+  const [folderProgress, setFolderProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Filters
   const [filterYear, setFilterYear] = useState<string>('all');
@@ -140,6 +160,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
   const [editCat, setEditCat] = useState<DocCategory>('other');
   const [editYear, setEditYear] = useState<number | 'general'>('general');
   const [editNotes, setEditNotes] = useState('');
+  const [editFolderId, setEditFolderId] = useState<string>('');
   const [editReplaceFile, setEditReplaceFile] = useState<File | null>(null);
   const editFileRef = useRef<HTMLInputElement>(null);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -162,7 +183,9 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
 
   // טעינה רגילה כשהלקוח משתנה
   useEffect(() => {
+    setCurrentFolderId(null);
     loadDocs();
+    loadFolders();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id]);
 
@@ -174,12 +197,21 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
       // נטען מחדש אם זה הלקוח שלנו (או אם לא צוין clientId)
       if (!ce.detail?.clientId || ce.detail.clientId === client.id) {
         loadDocs();
+        loadFolders();
       }
     }
     window.addEventListener('crm:docs-changed', handleChange);
     return () => window.removeEventListener('crm:docs-changed', handleChange);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id]);
+
+  function loadFolders() {
+    db.getFoldersByClient(client.id).then(f => {
+      setFolders(f);
+      // אם התיקייה שהיינו בתוכה נמחקה (או שייכת ללקוח אחר) — חוזרים לרמה הראשית
+      setCurrentFolderId(prev => (prev && !f.some(x => x.id === prev) ? null : prev));
+    });
+  }
 
   function loadDocs() {
     db.getDocsByClient(client.id).then(d => {
@@ -213,9 +245,96 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
     return <span className="sort-icon active">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>;
   };
 
+  // ── עזרי תיקיות ──
+  const foldersById = useMemo(() => {
+    const m = new Map<string, DocFolder>();
+    folders.forEach(f => m.set(f.id, f));
+    return m;
+  }, [folders]);
+
+  // הנתיב מהרמה הראשית ועד התיקייה הנוכחית — לפירורי הלחם
+  const breadcrumb = useMemo(() => {
+    const path: DocFolder[] = [];
+    let id = currentFolderId;
+    const guard = new Set<string>();
+    while (id && !guard.has(id)) {
+      guard.add(id);
+      const f = foldersById.get(id);
+      if (!f) break;
+      path.unshift(f);
+      id = f.parentId;
+    }
+    return path;
+  }, [currentFolderId, foldersById]);
+
+  const folderPathText = (folderId: string | null | undefined): string => {
+    const names: string[] = [];
+    let id = folderId ?? null;
+    const guard = new Set<string>();
+    while (id && !guard.has(id)) {
+      guard.add(id);
+      const f = foldersById.get(id);
+      if (!f) break;
+      names.unshift(f.name);
+      id = f.parentId;
+    }
+    return names.join(' / ');
+  };
+
+  const childFolders = useMemo(
+    () => folders
+      .filter(f => (f.parentId ?? null) === currentFolderId)
+      .sort((a, b) => a.name.localeCompare(b.name, 'he')),
+    [folders, currentFolderId],
+  );
+
+  // רשימה שטוחה של כל התיקיות, בסדר היררכי — לתפריטי "העבר לתיקייה"
+  const folderOptions = useMemo(() => {
+    const out: { id: string; label: string }[] = [];
+    const walk = (parentId: string | null, depth: number) => {
+      folders
+        .filter(f => (f.parentId ?? null) === parentId)
+        .sort((a, b) => a.name.localeCompare(b.name, 'he'))
+        .forEach(f => {
+          out.push({ id: f.id, label: `${'  '.repeat(depth)}${depth ? '↳ ' : ''}${f.name}` });
+          walk(f.id, depth + 1);
+        });
+    };
+    walk(null, 0);
+    return out;
+  }, [folders]);
+
+  // כמה פריטים יש בתוך תיקייה, כולל תת-תיקיות — כדי שהשורה תגיד משהו
+  const folderItemCount = useMemo(() => {
+    const childrenOf = new Map<string, string[]>();
+    folders.forEach(f => {
+      const key = f.parentId ?? '';
+      childrenOf.set(key, [...(childrenOf.get(key) || []), f.id]);
+    });
+    const docsIn = new Map<string, number>();
+    docs.forEach(d => {
+      const key = d.folderId ?? '';
+      docsIn.set(key, (docsIn.get(key) || 0) + 1);
+    });
+    const counts = new Map<string, number>();
+    const walk = (id: string): number => {
+      if (counts.has(id)) return counts.get(id)!;
+      counts.set(id, 0); // שובר לולאה אם איכשהו נוצר מעגל
+      const total = (docsIn.get(id) || 0) + (childrenOf.get(id) || []).reduce((s, c) => s + walk(c), 0);
+      counts.set(id, total);
+      return total;
+    };
+    folders.forEach(f => walk(f.id));
+    return counts;
+  }, [folders, docs]);
+
+  // חיפוש חוצה תיקיות: כשמחפשים, מציגים תוצאות מכל התיקיות ולא רק מהנוכחית
+  const searching = filterText.trim().length > 0;
+
   // Filter + sort
   const filtered = useMemo(() => {
     let list = docs.filter(d => {
+      if (!searching && (d.folderId ?? null) !== currentFolderId) return false;
       if (filterYear !== 'all' && String(d.year) !== filterYear) return false;
       if (filterCat !== 'all' && d.category !== filterCat) return false;
       if (filterText) {
@@ -259,7 +378,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
     });
 
     return list;
-  }, [docs, filterYear, filterCat, filterText, sortField, sortDir]);
+  }, [docs, filterYear, filterCat, filterText, sortField, sortDir, currentFolderId, searching]);
 
   // Stats
   const yearCounts = useMemo(() => {
@@ -320,6 +439,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
         description: upDescription.trim(),
         notes: upNotes,
         fileData: buf,
+        folderId: currentFolderId,
       };
       await db.saveDoc(doc);
       setDocs(prev => [...prev, doc]);
@@ -331,6 +451,184 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
     setUpCategory('other');
     setUpYear('general');
     if (fileRef.current) fileRef.current.value = '';
+  }
+
+  // ─── פעולות תיקייה ────────────────────────────────────────────────────
+  async function submitNewFolder() {
+    const name = newFolderName.trim();
+    if (!name) { setFolderError('יש להזין שם לתיקייה'); return; }
+    setFolderBusy(true);
+    setFolderError('');
+    try {
+      const created = await db.createFolder(client.id, name, currentFolderId);
+      setFolders(prev => (prev.some(f => f.id === created.id) ? prev : [...prev, created]));
+      setNewFolderOpen(false);
+      setNewFolderName('');
+    } catch (err: any) {
+      setFolderError(err?.message || 'יצירת התיקייה נכשלה');
+    } finally {
+      setFolderBusy(false);
+    }
+  }
+
+  async function submitRenameFolder() {
+    if (!renameFolderTarget) return;
+    const name = renameFolderName.trim();
+    if (!name) { setFolderError('שם התיקייה לא יכול להיות ריק'); return; }
+    setFolderBusy(true);
+    setFolderError('');
+    try {
+      await db.renameFolder(renameFolderTarget.id, name);
+      setFolders(prev => prev.map(f => (f.id === renameFolderTarget.id ? { ...f, name } : f)));
+      setRenameFolderTarget(null);
+    } catch (err: any) {
+      setFolderError(err?.message || 'שינוי השם נכשל');
+    } finally {
+      setFolderBusy(false);
+    }
+  }
+
+  async function handleDeleteFolder(folder: DocFolder) {
+    const count = folderItemCount.get(folder.id) || 0;
+    const msg = count > 0
+      ? `למחוק את התיקייה "${folder.name}"?\n\n${count} המסמכים שבתוכה לא יימחקו — הם יעברו לרמה הראשית של המסמכים.`
+      : `למחוק את התיקייה "${folder.name}"?`;
+    if (!confirm(msg)) return;
+    try {
+      await db.deleteFolder(folder.id);
+      loadFolders();
+      loadDocs();
+    } catch (err: any) {
+      alert(err?.message || 'מחיקת התיקייה נכשלה');
+    }
+  }
+
+  // ─── העלאת תיקייה שלמה מהמחשב ─────────────────────────────────────────
+  function handleFolderPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files || []);
+    // מדלגים על קבצים נסתרים (.DS_Store, Thumbs.db וכו') — הם רק רעש ברשימה
+    const files = picked.filter(f => !f.name.startsWith('.') && f.name !== 'Thumbs.db');
+    if (files.length === 0) {
+      if (picked.length > 0) alert('לא נמצאו קבצים להעלאה בתיקייה שנבחרה');
+      return;
+    }
+    const relPath = (files[0] as any).webkitRelativePath as string | undefined;
+    const rootName = relPath ? relPath.split('/')[0] : 'תיקייה חדשה';
+    setFolderUpCat('other');
+    setFolderUpYear('general');
+    setFolderProgress(null);
+    setFolderUpload({ rootName, files });
+  }
+
+  async function executeFolderUpload() {
+    if (!folderUpload) return;
+    setFolderBusy(true);
+    setFolderError('');
+    const pathToId = new Map<string, string>();
+    const created: DocFolder[] = [];
+
+    async function ensurePath(segments: string[]): Promise<string | null> {
+      let parent = currentFolderId;
+      let key = '';
+      for (const seg of segments) {
+        key = key ? `${key}/${seg}` : seg;
+        const known = pathToId.get(key);
+        if (known) { parent = known; continue; }
+        const folder = await db.createFolder(client.id, seg, parent);
+        pathToId.set(key, folder.id);
+        created.push(folder);
+        parent = folder.id;
+      }
+      return parent;
+    }
+
+    const total = folderUpload.files.length;
+    let done = 0;
+    const failedFiles: string[] = [];
+    const newDocs: StoredDoc[] = [];
+
+    try {
+      for (const file of folderUpload.files) {
+        setFolderProgress({ done, total });
+        const relPath = ((file as any).webkitRelativePath as string) || file.name;
+        const segments = relPath.split('/').filter(Boolean);
+        const dirSegments = segments.slice(0, -1);
+        try {
+          const folderId = await ensurePath(dirSegments);
+          const buf = await file.arrayBuffer();
+          const doc: StoredDoc = {
+            id: crypto.randomUUID(),
+            clientId: client.id,
+            fileName: file.name,
+            fileType: file.type || 'application/octet-stream',
+            fileSize: file.size,
+            category: folderUpCat,
+            year: folderUpYear,
+            uploadedAt: new Date().toISOString(),
+            description: baseName(file.name),
+            notes: '',
+            fileData: buf,
+            folderId,
+          };
+          await db.saveDoc(doc);
+          newDocs.push({ ...doc, fileData: new ArrayBuffer(0), _remote: true });
+        } catch (err) {
+          console.error('folder upload failed for', relPath, err);
+          failedFiles.push(file.name);
+        }
+        done++;
+        setFolderProgress({ done, total });
+      }
+
+      setFolders(prev => {
+        const known = new Set(prev.map(f => f.id));
+        return [...prev, ...created.filter(f => !known.has(f.id))];
+      });
+      setDocs(prev => [...prev, ...newDocs]);
+      // נכנסים לתיקייה שנוצרה — כדי שרואים מיד את מה שעלה
+      const rootId = pathToId.get(folderUpload.rootName);
+      if (rootId) setCurrentFolderId(rootId);
+
+      setFolderUpload(null);
+      setFolderProgress(null);
+      if (folderInputRef.current) folderInputRef.current.value = '';
+      if (failedFiles.length > 0) {
+        alert(`הועלו ${newDocs.length} קבצים. ${failedFiles.length} נכשלו:\n${failedFiles.slice(0, 10).join('\n')}`);
+      }
+    } catch (err: any) {
+      setFolderError(err?.message || 'העלאת התיקייה נכשלה');
+    } finally {
+      setFolderBusy(false);
+    }
+  }
+
+  // ─── העברת מסמכים לתיקייה ─────────────────────────────────────────────
+  function openMoveModal(docIds: string[]) {
+    const first = docs.find(d => d.id === docIds[0]);
+    setMoveTarget(docIds.length === 1 ? (first?.folderId ?? '') : (currentFolderId ?? ''));
+    setMoveModal({ docIds });
+  }
+
+  async function executeMove() {
+    if (!moveModal) return;
+    const target = moveTarget === '' ? null : moveTarget;
+    // מסמכי דמה (sample) לא קיימים באמת בשרת — אין מה להעביר
+    const ids = moveModal.docIds.filter(id => {
+      const d = docs.find(x => x.id === id);
+      return d && !isPlaceholderDoc(d);
+    });
+    if (ids.length === 0) { setMoveModal(null); return; }
+    setMoving(true);
+    try {
+      await db.moveDocsToFolder(ids, target);
+      setDocs(prev => prev.map(d => (ids.includes(d.id) ? { ...d, folderId: target } : d)));
+      setSelected(new Set());
+      setMoveModal(null);
+    } catch (err: any) {
+      alert(err?.message || 'ההעברה נכשלה');
+    } finally {
+      setMoving(false);
+    }
   }
 
   async function handleDelete(id: string) {
@@ -383,6 +681,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
     setEditCat(doc.category);
     setEditYear(doc.year);
     setEditNotes(doc.notes || '');
+    setEditFolderId(doc.folderId ?? '');
     setEditReplaceFile(null);
     if (editFileRef.current) editFileRef.current.value = '';
   }
@@ -429,6 +728,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
         category: editCat,
         year: editYear,
         notes: editNotes,
+        folderId: editFolderId === '' ? null : editFolderId,
         fileType,
         fileSize,
         uploadedAt,
@@ -533,18 +833,22 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
     setCopying(true);
     const docsToClone = copyModal.docIds.map(id => docs.find(d => d.id === id)).filter(Boolean) as StoredDoc[];
     const newDocs: StoredDoc[] = [];
-    for (const doc of docsToClone) {
+    for (const docMeta of docsToClone) {
+      // הרשימה מחזיקה מטא-נתונים בלבד; בלי הבייטים ההעתק היה נוצר בלי קובץ
+      const doc = (await ensureBytes(docMeta)) ?? docMeta;
       const newDoc: StoredDoc = {
         ...doc,
         id: crypto.randomUUID(),
         clientId: copyTargetId,
+        // תיקייה שייכת ללקוח מסוים — העתקה ללקוח אחר נוחתת אצלו ברמה הראשית
+        folderId: copyTargetId === client.id ? (doc.folderId ?? null) : null,
         uploadedAt: new Date().toISOString(),
         description: copyModal.docIds.length === 1 ? copyEditDesc || doc.description : doc.description,
         category: copyModal.docIds.length === 1 ? copyEditCat : doc.category,
         year: copyModal.docIds.length === 1 ? copyEditYear : doc.year,
       };
       await db.saveDoc(newDoc);
-      newDocs.push(newDoc);
+      newDocs.push({ ...newDoc, fileData: new ArrayBuffer(0), _remote: true });
     }
     // If copied to same client, add to current docs list
     if (copyTargetId === client.id) {
@@ -581,15 +885,63 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
           <button type="button" className="doc-back-link" onClick={onBack}>{'←'} חזרה לפרטי לקוח</button>
         </div>
         <div className="pg-actions">
+          <button className="btn btn-secondary" onClick={() => { setFolderError(''); setNewFolderName(''); setNewFolderOpen(true); }}>
+            {'📁'} תיקייה חדשה
+          </button>
+          <button className="btn btn-secondary" onClick={() => folderInputRef.current?.click()}>
+            {'⬆️'} העלאת תיקייה
+          </button>
           <button className="btn btn-primary" onClick={() => setShowUploadForm(s => !s)}>
             {showUploadForm ? 'ביטול' : 'העלאת מסמך'}
           </button>
         </div>
       </div>
 
+      {/* בורר תיקייה מהמחשב — מוסתר, נפתח מהכפתור למעלה.
+          webkitdirectory הוא התכונה שמאפשרת לבחור תיקייה שלמה; React לא מכיר
+          אותה בטיפוסים ולכן היא מוזרקת כאן. */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        style={{ display: 'none' }}
+        onChange={handleFolderPicked}
+        {...({ webkitdirectory: '', directory: '' } as any)}
+      />
+
+      {/* פירורי לחם — הנתיב בתוך התיקיות */}
+      {(breadcrumb.length > 0 || childFolders.length > 0) && (
+        <div className="doc-breadcrumb">
+          <button
+            type="button"
+            className={`doc-crumb ${currentFolderId === null ? 'is-current' : ''}`}
+            onClick={() => setCurrentFolderId(null)}
+          >
+            {'📂'} כל המסמכים
+          </button>
+          {breadcrumb.map((f, i) => (
+            <span key={f.id} className="doc-crumb-wrap">
+              <span className="doc-crumb-sep">{'›'}</span>
+              <button
+                type="button"
+                className={`doc-crumb ${i === breadcrumb.length - 1 ? 'is-current' : ''}`}
+                onClick={() => setCurrentFolderId(f.id)}
+              >
+                {f.name}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Upload form */}
       {showUploadForm && (
         <div className="card doc-upload-card">
+          {currentFolderId && (
+            <div className="doc-upload-target">
+              {'📁'} המסמך ייכנס לתיקייה: <strong>{folderPathText(currentFolderId)}</strong>
+            </div>
+          )}
           <div className="card-header"><span className="card-title">{'\u2B06\uFE0F'} העלאת מסמך חדש</span></div>
           <div className="card-body">
             {formErrors.length > 0 && (
@@ -678,6 +1030,9 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
       {selected.size > 0 && (
         <div className="doc-bulk-bar">
           <span>{selected.size} מסמכים נבחרו</span>
+          <button className="btn btn-secondary btn-sm" onClick={() => openMoveModal(Array.from(selected))} disabled={bulkDeleting}>
+            {'📁'} העברה לתיקייה
+          </button>
           <button className="btn btn-secondary btn-sm" onClick={() => openCopyModal(Array.from(selected))} disabled={bulkDeleting}>
             {'\uD83D\uDCCB'} שכפול / העתקה
           </button>
@@ -708,17 +1063,23 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
           <div className="doc-loading-spinner" />
           <span>טוען מסמכים...</span>
         </div>
-      ) : docs.length === 0 ? (
+      ) : docs.length === 0 && folders.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">{'\uD83D\uDCC4'}</div>
           <div className="empty-state-title">אין מסמכים עדיין</div>
-          <div className="empty-state-desc">לחץ "העלאת מסמך" להוספת המסמך הראשון</div>
+          <div className="empty-state-desc">לחץ "העלאת מסמך" להוספת המסמך הראשון, או "תיקייה חדשה" כדי לארגן מראש</div>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && (searching || activeFilters > 0 || childFolders.length === 0) ? (
         <div className="empty-state">
           <div className="empty-state-icon">{'\uD83D\uDD0D'}</div>
-          <div className="empty-state-title">לא נמצאו מסמכים</div>
-          <div className="empty-state-desc">נסה לשנות את הסינון</div>
+          <div className="empty-state-title">
+            {searching || activeFilters > 0 ? 'לא נמצאו מסמכים' : 'התיקייה ריקה'}
+          </div>
+          <div className="empty-state-desc">
+            {searching || activeFilters > 0
+              ? 'נסה לשנות את הסינון'
+              : 'העלה לכאן מסמך, או סמן מסמכים קיימים והעבר אותם לתיקייה'}
+          </div>
         </div>
       ) : (
         <div className="card" style={{ overflow: 'hidden' }}>
@@ -753,6 +1114,43 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                 </tr>
               </thead>
               <tbody>
+                {/* תיקיות ראשונות — ובחיפוש מוותרים עליהן, כי אז מציגים תוצאות מכל התיקיות */}
+                {!searching && childFolders.map(folder => (
+                  <tr key={`folder-${folder.id}`} className="doc-row doc-folder-row">
+                    <td />
+                    <td colSpan={4} onClick={() => setCurrentFolderId(folder.id)}>
+                      <button type="button" className="doc-folder-open">
+                        <span className="doc-folder-icon">{'📁'}</span>
+                        <span className="doc-folder-name">{folder.name}</span>
+                        <span className="doc-folder-count">
+                          {(folderItemCount.get(folder.id) || 0) === 0
+                            ? 'ריקה'
+                            : `${folderItemCount.get(folder.id)} מסמכים`}
+                        </span>
+                      </button>
+                    </td>
+                    <td className="hide-mobile" />
+                    <td onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: '.2rem' }}>
+                        <button
+                          className="btn btn-ghost btn-icon btn-sm"
+                          title="שינוי שם התיקייה"
+                          onClick={() => { setFolderError(''); setRenameFolderName(folder.name); setRenameFolderTarget(folder); }}
+                        >
+                          {'✏️'}
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-icon btn-sm"
+                          title="מחיקת התיקייה (המסמכים יעברו לרמה הראשית)"
+                          style={{ color: 'var(--red)' }}
+                          onClick={() => handleDeleteFolder(folder)}
+                        >
+                          {'🗑️'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
                 {filtered.map(doc => {
                   const isFake = isPlaceholderDoc(doc);
                   const canPreview = !isFake && (doc.fileType.startsWith('image/') || doc.fileType === 'application/pdf');
@@ -770,6 +1168,16 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                       <td>
                         <div className="doc-cell-desc">{doc.description || doc.fileName}</div>
                         <div className="doc-file-sub">{doc.fileName}</div>
+                        {searching && doc.folderId && (
+                          <button
+                            type="button"
+                            className="doc-cell-folder"
+                            onClick={() => { setFilterText(''); setCurrentFolderId(doc.folderId!); }}
+                            title="פתיחת התיקייה"
+                          >
+                            {'📁'} {folderPathText(doc.folderId)}
+                          </button>
+                        )}
                         {doc.linkedTo && (
                           <div className="doc-cell-linked">
                             {doc.linkedLabel || 'מקושר'}
@@ -866,6 +1274,164 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
             ) : isPDF ? (
               <iframe src={preview.url} title={previewDoc?.fileName} style={{ width: '100%', height: 480, border: 'none' }} />
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* תיקייה חדשה */}
+      {newFolderOpen && (
+        <div className="doc-modal-overlay" onClick={() => !folderBusy && setNewFolderOpen(false)}>
+          <div className="doc-modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+            <div className="doc-modal-header">
+              <h3>{'📁'} תיקייה חדשה</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setNewFolderOpen(false)} disabled={folderBusy}>{'✕'}</button>
+            </div>
+            <div className="doc-modal-body">
+              {currentFolderId && (
+                <div style={{ fontSize: '.8125rem', color: 'var(--gray-500)', marginBottom: '.5rem' }}>
+                  תיפתח בתוך: <strong>{folderPathText(currentFolderId)}</strong>
+                </div>
+              )}
+              <div className="form-group">
+                <label className="required">שם התיקייה</label>
+                <input
+                  autoFocus
+                  value={newFolderName}
+                  onChange={e => setNewFolderName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') submitNewFolder(); }}
+                  placeholder="למשל: התאמת מס 2026"
+                />
+              </div>
+              {folderError && <div className="alert alert-warning" style={{ marginTop: '.5rem' }}>{folderError}</div>}
+              <div style={{ display: 'flex', gap: '.5rem', marginTop: '1rem' }}>
+                <button className="btn btn-primary" onClick={submitNewFolder} disabled={folderBusy}>
+                  {folderBusy ? 'יוצר...' : 'צור תיקייה'}
+                </button>
+                <button className="btn btn-secondary" onClick={() => setNewFolderOpen(false)} disabled={folderBusy}>ביטול</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* שינוי שם תיקייה */}
+      {renameFolderTarget && (
+        <div className="doc-modal-overlay" onClick={() => !folderBusy && setRenameFolderTarget(null)}>
+          <div className="doc-modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+            <div className="doc-modal-header">
+              <h3>{'✏️'} שינוי שם תיקייה</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setRenameFolderTarget(null)} disabled={folderBusy}>{'✕'}</button>
+            </div>
+            <div className="doc-modal-body">
+              <div className="form-group">
+                <label className="required">שם התיקייה</label>
+                <input
+                  autoFocus
+                  value={renameFolderName}
+                  onChange={e => setRenameFolderName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') submitRenameFolder(); }}
+                />
+              </div>
+              {folderError && <div className="alert alert-warning" style={{ marginTop: '.5rem' }}>{folderError}</div>}
+              <div style={{ display: 'flex', gap: '.5rem', marginTop: '1rem' }}>
+                <button className="btn btn-primary" onClick={submitRenameFolder} disabled={folderBusy}>
+                  {folderBusy ? 'שומר...' : 'שמור'}
+                </button>
+                <button className="btn btn-secondary" onClick={() => setRenameFolderTarget(null)} disabled={folderBusy}>ביטול</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* אישור העלאת תיקייה מהמחשב */}
+      {folderUpload && (
+        <div className="doc-modal-overlay" onClick={() => !folderBusy && setFolderUpload(null)}>
+          <div className="doc-modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div className="doc-modal-header">
+              <h3>{'📁'} העלאת תיקייה</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setFolderUpload(null)} disabled={folderBusy}>{'✕'}</button>
+            </div>
+            <div className="doc-modal-body">
+              <div style={{ marginBottom: '.9rem', fontSize: '.9rem' }}>
+                תיקייה <strong>{folderUpload.rootName}</strong> — {folderUpload.files.length} קבצים
+                {' '}({fmt(folderUpload.files.reduce((s, f) => s + f.size, 0))})
+                {currentFolderId && <> תיכנס אל <strong>{folderPathText(currentFolderId)}</strong></>}
+              </div>
+              <div style={{ fontSize: '.8125rem', color: 'var(--gray-500)', marginBottom: '.9rem' }}>
+                מבנה תת-התיקיות יישמר. התיאור של כל מסמך יהיה שם הקובץ — אפשר לערוך אחר כך.
+              </div>
+              <div className="form-grid form-grid-2">
+                <div className="form-group">
+                  <label>קטגוריה לכל הקבצים</label>
+                  <select value={folderUpCat} onChange={e => setFolderUpCat(e.target.value as DocCategory)} disabled={folderBusy}>
+                    {(Object.keys(DOC_CATEGORY_LABELS) as DocCategory[]).map(k => (
+                      <option key={k} value={k}>{DOC_CATEGORY_LABELS[k]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>שנה לכל הקבצים</label>
+                  <select value={String(folderUpYear)} onChange={e => setFolderUpYear(e.target.value === 'general' ? 'general' : +e.target.value)} disabled={folderBusy}>
+                    <option value="general">כללי (לא תלוי שנה)</option>
+                    {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+              </div>
+              {folderProgress && (
+                <div style={{ marginTop: '.75rem', fontSize: '.875rem', color: 'var(--blue)' }}>
+                  מעלה {folderProgress.done} מתוך {folderProgress.total}...
+                </div>
+              )}
+              {folderError && <div className="alert alert-warning" style={{ marginTop: '.5rem' }}>{folderError}</div>}
+              <div style={{ display: 'flex', gap: '.5rem', marginTop: '1rem' }}>
+                <button className="btn btn-primary" onClick={executeFolderUpload} disabled={folderBusy}>
+                  {folderBusy ? 'מעלה...' : `העלה ${folderUpload.files.length} קבצים`}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => { setFolderUpload(null); if (folderInputRef.current) folderInputRef.current.value = ''; }}
+                  disabled={folderBusy}
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* העברת מסמכים לתיקייה */}
+      {moveModal && (
+        <div className="doc-modal-overlay" onClick={() => !moving && setMoveModal(null)}>
+          <div className="doc-modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+            <div className="doc-modal-header">
+              <h3>{'📁'} העברה לתיקייה</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setMoveModal(null)} disabled={moving}>{'✕'}</button>
+            </div>
+            <div className="doc-modal-body">
+              <div style={{ marginBottom: '.75rem', fontSize: '.875rem', color: 'var(--gray-600)' }}>
+                {moveModal.docIds.length === 1 ? 'מעביר מסמך אחד' : `מעביר ${moveModal.docIds.length} מסמכים`}
+              </div>
+              <div className="form-group">
+                <label>תיקיית יעד</label>
+                <select value={moveTarget} onChange={e => setMoveTarget(e.target.value)}>
+                  <option value="">{'📂'} כל המסמכים (רמה ראשית)</option>
+                  {folderOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+              </div>
+              {folderOptions.length === 0 && (
+                <div style={{ fontSize: '.8125rem', color: 'var(--gray-500)' }}>
+                  אין עדיין תיקיות. סגור וצור תיקייה חדשה קודם.
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '.5rem', marginTop: '1rem' }}>
+                <button className="btn btn-primary" onClick={executeMove} disabled={moving}>
+                  {moving ? 'מעביר...' : 'העבר'}
+                </button>
+                <button className="btn btn-secondary" onClick={() => setMoveModal(null)} disabled={moving}>ביטול</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -985,6 +1551,13 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                   <select value={String(editYear)} onChange={e => setEditYear(e.target.value === 'general' ? 'general' : +e.target.value)}>
                     <option value="general">כללי / רב-שנתי</option>
                     {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+                <div className="form-group span-full">
+                  <label>תיקייה</label>
+                  <select value={editFolderId} onChange={e => setEditFolderId(e.target.value)}>
+                    <option value="">{'📂'} כל המסמכים (רמה ראשית)</option>
+                    {folderOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                   </select>
                 </div>
                 <div className="form-group span-full">
