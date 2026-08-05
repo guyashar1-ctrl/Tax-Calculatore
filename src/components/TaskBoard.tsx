@@ -160,6 +160,30 @@ export default function TaskBoard({
 
   const totalCount = tasks.length;
 
+  /* ספירת הכדור לכל שבב — נגזרת מהמשימות שעברו את שאר המסננים, אבל לא
+     את מסנן הכדור עצמו. אחרת בחירת "אצלי" הייתה מאפסת את שאר המספרים
+     ומסתירה בדיוק את המידע שבגללו לוחצים על שבב אחר. */
+  const ballCounts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const counts: Record<BallWith, number> = { me: 0, client: 0, authority: 0, stuck: 0 };
+    tasks.forEach(t => {
+      if (t.status === 'done') return;
+      if (categoryFilter !== 'all' && t.category !== categoryFilter) return;
+      if (clientFilter !== 'all' && t.clientId !== clientFilter) return;
+      if (q) {
+        const client = clientMap.get(t.clientId);
+        const clientName = client ? `${client.firstName} ${client.lastName}`.toLowerCase() : '';
+        if (
+          !t.title.toLowerCase().includes(q) &&
+          !(t.description || '').toLowerCase().includes(q) &&
+          !clientName.includes(q)
+        ) return;
+      }
+      counts[t.ballWith] += 1;
+    });
+    return counts;
+  }, [tasks, search, categoryFilter, clientFilter, clientMap]);
+
   /* ── מיון עמודות ────────────────────────────────────────────────────────────
      המסך נבנה כרשימה מקובצת ולא כטבלה, ולכן לא הייתה בו שורת כותרות
      בכלל — אי אפשר היה ללחוץ על "לקוח" כי לא היה על מה. עכשיו יש
@@ -322,6 +346,20 @@ export default function TaskBoard({
         onRemind={onRemindStep}
       />
 
+      {/* ראש עמוד אחד בשפה אחת — אותה כותרת שיש במסמכים ובתיק (§10).
+          המספר הימני הוא מה שדורש ממני פעולה, ולכן הוא זה שמופיע ליד הסך. */}
+      <div className="pg-head">
+        <div className="pg-head-main">
+          <div className="pg-title">משימות</div>
+          <div className="pg-status">
+            {totalCount} משימות{ballCounts.me > 0 ? ` · ${ballCounts.me} אצלי` : ''}
+          </div>
+        </div>
+        <div className="pg-actions">
+          <button className="ui-btn ui-btn-primary" onClick={onAddTask}>+ משימה חדשה</button>
+        </div>
+      </div>
+
       <div className="board-filters">
         {/* סינון לפי לקוח — כמו מסנן האדם במונדיי. מוצגים רק לקוחות
             שיש להם משימות, כדי שהרשימה לא תתארך עם כל לקוח חדש. */}
@@ -351,7 +389,14 @@ export default function TaskBoard({
         <div className="filter-chips" role="group" aria-label="סינון לפי מצב הכדור">
           <FilterChip active={ballFilter === 'all'} onClick={() => setBallFilter('all')}>הכל</FilterChip>
           {BALL_OPTIONS.map(b => (
-            <FilterChip key={b} active={ballFilter === b} onClick={() => setBallFilter(b)} removable>
+            <FilterChip
+              key={b}
+              active={ballFilter === b}
+              onClick={() => setBallFilter(b)}
+              removable
+              count={ballCounts[b]}
+              className={ballCounts[b] === 0 ? 'is-empty' : ''}
+            >
               {BALL_WITH_LABELS[b]}
             </FilterChip>
           ))}
@@ -373,8 +418,6 @@ export default function TaskBoard({
         {filtered.length !== totalCount && (
           <span className="board-filter-count">{filtered.length} מתוך {totalCount}</span>
         )}
-
-        <button className="ui-btn ui-btn-primary board-add" onClick={onAddTask}>+ משימה חדשה</button>
       </div>
 
       {nothingMatches && (
@@ -422,6 +465,7 @@ export default function TaskBoard({
                   <SortTh label={SORT_LABELS.client} k="client" sort={sort} onSort={toggleSort} className="bc bc-client" />
                   <SortTh label={SORT_LABELS.due} k="due" sort={sort} onSort={toggleSort} className="bc bc-date" />
                   <SortTh label={SORT_LABELS.ball} k="ball" sort={sort} onSort={toggleSort} className="bc bc-ball" />
+                  <span className="bc bc-cat">סוג</span>
                   <span className="bc bc-actions" />
                 </div>
                 {items.length === 0 ? (
@@ -521,6 +565,8 @@ export default function TaskBoard({
                             </div>
                           )}
                         </div>
+
+                        <span className="bc bc-cat">{t.category ? TASK_CATEGORY_LABELS[t.category] : ''}</span>
 
                         <div className="bc bc-actions ui-hover-actions" onClick={(e) => e.stopPropagation()}>
                           {/* הצמדה — קליק אחד. מוצמדת נשארת גלויה גם בלי

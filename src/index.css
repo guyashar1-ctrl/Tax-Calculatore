@@ -1994,12 +1994,23 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
     minmax(150px, 1.2fr)  /* לקוח */
     96px                  /* תאריך יעד */
     104px                 /* הכדור אצל */
+    92px                  /* סוג המשימה */
     96px;                 /* פעולות השורה — מופיעות במעבר עכבר */
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
   cursor: pointer;
   transition: background .1s;
+}
+
+/* ── סוג המשימה · הקשר שקט, בלי גלולה ובלי צבע ──────────────────────────
+   הסוג עונה על "איזו עבודה זו", לא על "מה מצבה". לכן טקסט אפור ולא תגית. */
+.bc-cat {
+  font-size: var(--fs-13);
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── תאריך יעד · דקדוק צבע יחיד (D2) ──────────────────────────────────────
@@ -2318,7 +2329,15 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
 }
 .row-menu-danger:hover { background: var(--chip-red-bg); }
 
-/* ── מסך צר: "הכדור אצל" יורד ראשון — הוא המידע הכי נסבל לוותר עליו ─────── */
+/* ── מסך צר: העמודות יורדות לפי סדר חשיבות, לא נגללות הצידה ──────────────
+   "סוג" יורד ראשון — הוא הקשר, לא מצב. אחריו "הכדור אצל". */
+@media (max-width: 1080px) {
+  .board-row {
+    grid-template-columns:
+      18px 26px minmax(220px, 2.6fr) minmax(140px, 1.2fr) 96px 104px 96px;
+  }
+  .bc-cat { display: none; }
+}
 @media (max-width: 1000px) {
   .board-row {
     grid-template-columns: 18px 26px minmax(160px, 2.1fr) minmax(130px, 1.15fr) 88px 24px;

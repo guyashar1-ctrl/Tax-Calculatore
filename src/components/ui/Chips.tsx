@@ -19,13 +19,14 @@ interface FilterChipProps {
   removable?: boolean;
   count?: number;
   title?: string;
+  className?: string;
 }
 
-export function FilterChip({ active, onClick, children, removable, count, title }: FilterChipProps) {
+export function FilterChip({ active, onClick, children, removable, count, title, className }: FilterChipProps) {
   return (
     <button
       type="button"
-      className={`ui-chip ${active ? 'is-active' : ''}`}
+      className={`ui-chip ${active ? 'is-active' : ''} ${className ?? ''}`}
       onClick={onClick}
       aria-pressed={!!active}
       title={title}

@@ -251,10 +251,11 @@
 }
 .board-filter-count { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
 
-/* רק המסנן הפעיל מוצג; השאר נפתחים במעבר עכבר או בפוקוס מקלדת.
-   שורת סינון שמראה חמש אפשרויות כל הזמן היא חמש שאלות פתוחות. */
+/* שבב שנושא מספר נשאר גלוי — "אצלי · 12" הוא התשובה, לא השאלה, והוא
+   שווה משהו רק אם רואים אותו בלי לרחף. שבב ריק (0) מתקפל כמו קודם:
+   שורת סינון שמראה אפשרויות בלי תוכן היא שאלות פתוחות לחינם. */
 .board-filters .filter-chips { gap: .2rem; }
-.board-filters .filter-chips .ui-chip:not(.is-active) {
+.board-filters .filter-chips .ui-chip:not(.is-active).is-empty {
   max-width: 0;
   padding-inline: 0;
   opacity: 0;
