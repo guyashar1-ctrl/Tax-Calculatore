@@ -17,6 +17,8 @@ interface Props {
   /** פתיחה ישירה במצב "לידים", עם ליד מסוים פתוח לעריכה */
   focusLeadId?: string;
   onFocusLeadConsumed?: () => void;
+  /** דלוק ⇒ הלידים חיים במסך הלקוחות, והמסך הזה הוא כלי הצעות בלבד. */
+  journeyUi?: boolean;
   /** נכנסו לכאן מהמשפך בלחיצה על "+ ליד" — הדיאלוג נפתח מיד */
   openNewLead?: boolean;
   onOpenNewLeadConsumed?: () => void;
@@ -59,11 +61,12 @@ const GROUP_ORDER: { status: QuotationStatus; badge: string; strip: string }[] =
 
 export default function QuotationsPipeline({
   quotations, leads, clients, engagements, focusLeadId, onFocusLeadConsumed,
-  openNewLead, onOpenNewLeadConsumed,
+  openNewLead, onOpenNewLeadConsumed, journeyUi,
   onNew, onOpen, onConvert, onRelease, onRemind, onCancel, onDelete,
   onSaveLead, onCreateLead, onDeleteLead, onNewQuotationForLead,
 }: Props) {
-  const [page, setPage] = useState<PageTab>(focusLeadId || openNewLead ? 'leads' : 'quotations');
+  const [page, setPage] = useState<PageTab>(
+    !journeyUi && (focusLeadId || openNewLead) ? 'leads' : 'quotations');
   // פתיחת "ליד חדש" יושבת כאן ולא ב-LeadsPanel, כי הכפתור הראשי של שני
   // המצבים חייב לחיות באותה משבצת בכותרת — אחרת הוא קופץ בין השורות.
   const [creatingLead, setCreatingLead] = useState(!!openNewLead);
@@ -191,7 +194,10 @@ export default function QuotationsPipeline({
 
   // המתג נבנה כאן ומוצג בתוך שורת הפקדים של המצב הפעיל — כך הוא נשאר
   // באותה נקודה בדיוק גם אחרי המעבר בין הצעות ללידים.
-  const viewSwitch = (
+  // ‼ במבנה "המסע הוא הכרטיס" המסך הזה הוא כלי לבניית הצעות בלבד, והלידים
+  // חיים במסך הלקוחות (הם שלב במסע). המתג נשאר רק כשהמתג journeyUi כבוי,
+  // שאז המסך הזה עדיין הבית של הלידים.
+  const viewSwitch = journeyUi ? null : (
     <div className="qp-switch" role="tablist" aria-label="הצעות או לידים">
       <button
         type="button" role="tab" aria-selected={page === 'quotations'}

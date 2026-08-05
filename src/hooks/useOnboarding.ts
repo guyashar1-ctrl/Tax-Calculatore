@@ -38,7 +38,10 @@ export function useOnboarding(userId: string | undefined, clientId?: string) {
     setLoading(true);
     (async () => {
       const engQuery = supabase.from('engagements').select('*').order('created_at', { ascending: false });
-      const stepQuery = supabase.from('onboarding_steps').select('*').order('created_at', { ascending: true });
+      // הסדר שהרו״ח קבע בבונה גובר; סדר היצירה הוא רק שובר שוויון.
+      const stepQuery = supabase.from('onboarding_steps').select('*')
+        .order('sort_order', { ascending: true, nullsFirst: true })
+        .order('created_at', { ascending: true });
       if (clientId) {
         engQuery.eq('client_id', clientId);
         stepQuery.eq('client_id', clientId);

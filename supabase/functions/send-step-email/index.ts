@@ -191,6 +191,12 @@ Deno.serve(async (req: Request) => {
 
     const clientFirst = String(client.first_name || "").trim();
     const clientFull = [client.first_name, client.last_name].filter(Boolean).join(" ").trim();
+    // ‼ המייל מדבר בשפת הבקשה עצמה. הניסוח שהרו"ח כתב בבונה ("להעלות 3
+    // מסמכים") הוא מה שהלקוח כבר רואה בדף האישי, ולכן זה גם מה שהמייל אומר —
+    // אין נוסח שני לתחזק (הכרעת גיא 2026-08-05).
+    const requestTitle = String(payload.clientTitle || "").trim();
+    const requestSub = String(payload.clientSub || "").trim();
+
     const rendered = renderTemplate(merged, {
       clientName: clientFull || clientFirst,
       firmName: brand.firmName,
@@ -198,10 +204,13 @@ Deno.serve(async (req: Request) => {
       amount: formatAmount(payload.amount),
       billingStartMonth: formatMonth(payload.billingStartMonth),
       authUrl,
+      requestTitle: requestTitle || "מה שביקשנו",
+      requestSub,
     });
 
     const ctaHref = portalUrl;
-    const ctaLabel = CTA_LABEL[kind] || "למצב ההצטרפות שלך";
+    const requestCta = String(payload.clientCta || "").trim();
+    const ctaLabel = CTA_LABEL[kind] || requestCta || "למצב ההצטרפות שלך";
     const html = buildBrandedEmail(brand, {
       heading: HEADING[kind] + (clientFirst ? ", " + clientFirst : ""),
       bodyHtml: esc(rendered.body).replace(/\n/g, "<br />"),

@@ -46,6 +46,27 @@ order by version;
 | 54 | `quotation_view_tracking_54` | `mark_quotation_viewed()` רושמת **כל** פתיחה ולא רק את הראשונה — עם חלון של 30 דקות, כדי שרענון דף לא ינפח את הציר. הצעה שאושרה/פגה כבר לא נספרת כנצפית |
 | 55 | `close_onboarding_55` + `long_tail_steps_dont_block_activation_55b` | `onboarding_close_readiness()` בודקת ריטיינר / מכתב שחרור (כולל חלון כלל 16) / שאלון, ו-`close_onboarding()` סוגרת — או כופה עם סיבה ביומן. `advance_onboarding_step()` כבר לא נחסמת מהפעלת ההתקשרות ע"י `representation_upgrade` ו-`first_month_review`, שהם זנב ארוך שיכול להימשך חודשים |
 
+## מהלך "המסע הוא הכרטיס" (2026-08-05) — `docs/PLAN-JOURNEY-CENTER.md`
+
+| # | שם המיגרציה | מה היא עושה |
+|---|---|---|
+| 56 | `journey_custom_request_and_order_56` | סוג שלב `custom_request` (בקשה חופשית: `payload.requirements[]` עם `kind` ∈ confirm/text/file), מסלול `custom`, ועמודת `sort_order` עם מילוי-לאחור לפי סדר היצירה — עד כה לא היה ניתן לסדר בקשות. הנוסח: `56-journey-foundation.sql` |
+| 57 | `journey_portal_custom_and_uploads_57` | `get_client_portal()` מכבד `sort_order`, מחזיר בקשות חופשיות, ומסמן `canUpload` + `key` לכל פריט מסמך כדי שיהיה כנגד מה להעלות. תיעוד השינוי: `57-portal-custom-and-uploads.sql` |
+| 58 | `journey_portal_submit_custom_58` | `portal_submit_step()` מקבל תשובות לבקשה חופשית (אישור/טקסט), ונחסם על שלב לא-מפורסם או נעול. דרישת `file` נסגרת רק דרך ה-Edge Function |
+| 59 | `journey_release_portal_59` | דף הרו"ח הקודם: `mint_release_token()`, `get_release_portal()`, `release_portal_sign()`. **הכרעת גיא: הלקוח אינו חותם על מכתב השחרור — הרו"ח הקודם חותם ומעלה את החומרים, הלקוח מכותב.** טביעת הטוקן גם פותחת את שלב החומרים, שעד כה נשאר נעול ולא היה לאן להעלות. הנוסח: `59-release-portal.sql` |
+| 60 | `journey_link_health_covers_portal_and_release_60` | `public_link_health()` מכסה שישה סוגי קישורים במקום ארבעה — נוספו `portal` ו-`release` |
+| 61 | `dump_function_defs_helper_61` | `__dump_function_defs()` — עזר קריאה בלבד ל-`scripts/dump-live-functions.mjs`, כדי שהארכיון המקומי לא ייפול שוב מאחורי המסד |
+| 62 | `journey_create_reorder_publish_request_62` | `create_onboarding_request()` (הוספת בקשה ידנית, רשימת סוגים סגורה — הייצוג אינו בה כי הוא מסונכרן מהטריגר), `reorder_onboarding_steps()` (הסדר שהרו"ח קובע הוא מה שהלקוח רואה), `publish_onboarding_request()` (חשיפת טיוטה ללקוח), ו-`onboarding_track_for()` כמיפוי יחיד. הנוסח: `62-add-reorder-publish-request.sql` |
+| 63 | `journey_custom_request_is_multi_instance_63` | שני האינדקסים הייחודיים החריגו את `custom_request`. הם אכפו "שלב אחד מכל סוג" כדי שהמרכיב לא ייצור כפילויות — אבל בקשה חופשית היא רב-פעמית מעצם טבעה. **התגלה בבדיקה בדפדפן**, כשהבקשה החופשית השנייה נדחתה ב-duplicate key |
+
+| 64 | `journey_templates_64` | טבלת `journey_templates` + `save_journey_template()` / `apply_journey_template()`. **הכרעת גיא: מערכת תבניות אחת ולא שתיים** — תבנית מסע היא סט של בקשות, וכל בקשה נושאת את הניסוח שלה. מסך "תבניות מייל" הנפרד בוטל, והמייל נגזר מ-`clientTitle`/`clientSub`/`clientCta` של הבקשה. הנוסח: `64-journey-templates.sql` |
+| 65 | `journey_template_dedupes_custom_by_title_65` | החלה חוזרת של תבנית מזהה בקשה חופשית לפי הכותרת ולא לפי הסוג. **התגלה בבדיקה בדפדפן**: `custom_request` רב-פעמי (63), ולכן בדיקת "קיים לפי סוג" עקפה אותו והחלה שנייה שכפלה את הבקשה |
+
+**Edge Function חדשה:** `portal-upload-document` (verify_jwt=false) — העלאת קובץ
+מדף ציבורי. `tokenKind=portal` ללקוח, `tokenKind=release` לרו"ח הקודם. מגבילה
+10MB ורשימת סוגים סגורה, כותבת ל-bucket `client-documents`, יוצרת רשומת מסמך,
+מסמנת את הפריט, רושמת ביומן, ומעבירה כדור כשהכול הגיע.
+
 > 41–43 שייכות למהלך "יתרה לתשלום בהצעות" ולא לקליטה.
 
 ## כללי הבטיחות שנשמרו בכולן

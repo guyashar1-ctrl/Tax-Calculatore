@@ -29,10 +29,27 @@ interface PortalItem {
   actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote' | 'portal';
   actionValue?: string;
   /** מה בדיוק הפעולה בתוך העמוד. */
-  kind?: 'documents' | 'prev_accountant';
+  kind?: 'documents' | 'prev_accountant' | 'custom';
   /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
-  checklist?: { label: string; done: boolean }[];
+  checklist?: { key: string; label: string; done: boolean }[];
+  /** דרישות של בקשה חופשית: אישור, תשובת טקסט, או קובץ. */
+  requirements?: { key: string; kind: 'confirm' | 'text' | 'file'; label: string; done: boolean; value?: string }[];
+  /** יש כאן פריט שאפשר להעלות אליו קובץ. */
+  canUpload?: boolean;
+  /** טקסט הכפתור שהרו"ח בחר לבקשה החופשית. */
+  cta?: string;
 }
+
+/** מה שהדף מרשה להעלות. אותה רשימה נאכפת שוב בשרת — כאן זה רק כדי לחסוך
+ *  ללקוח העלאה שתידחה, ולא כהגנה. */
+const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.xls,.xlsx,.csv,.doc,.docx';
+
+const UPLOAD_ERRORS: Record<string, string> = {
+  too_large: 'הקובץ גדול מדי — עד 10MB.',
+  type_not_allowed: 'סוג הקובץ הזה לא נתמך. אפשר PDF, תמונה, אקסל או וורד.',
+  rate_limited: 'הועלו הרבה קבצים בזמן קצר. אפשר לנסות שוב בעוד כמה דקות.',
+  not_published: 'הבקשה הזאת עדיין לא נפתחה.',
+};
 
 /** תחנות המסע כפי שהלקוח מבין אותן. השרת מחזיר את התחנה הנוכחית. */
 type JourneyStage = 'quote' | 'identity' | 'setup' | 'active';
@@ -68,6 +85,166 @@ function actionHref(item: PortalItem): string | null {
     // 'portal' מטופל בעמוד עצמו ואין לו כתובת.
     default: return null;
   }
+}
+
+/**
+ * העלאת קובץ כנגד פריט אחד. משרתת גם את הלקוח (?portal=) וגם את הרו"ח הקודם
+ * (?release=) — אותה פונקציית שרת, רק tokenKind אחר.
+ *
+ * ‼ הקובץ נכנס ישירות לתיק של הלקוח אצל הרו"ח ומסמן את הפריט. אין שלב ביניים
+ * של "ממתין לאישור" — מה שהגיע, הגיע, וההחלטה אם הוא תקין נשארת אצל הרו"ח.
+ */
+function UploadItem({ token, tokenKind, stepId, itemKey, label, done, brand, accent, onDone }: {
+  token: string; tokenKind: 'portal' | 'release';
+  stepId: string; itemKey: string; label: string; done: boolean;
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string; onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const inputId = `up-${stepId}-${itemKey}`;
+
+  async function upload(file: File) {
+    setErr(null);
+    setBusy(true);
+    const form = new FormData();
+    form.append('token', token);
+    form.append('tokenKind', tokenKind);
+    form.append('stepId', stepId);
+    form.append('itemKey', itemKey);
+    form.append('file', file);
+    const { data, error } = await supabase.functions.invoke('portal-upload-document', { body: form });
+    setBusy(false);
+    const res = data as { ok?: boolean; error?: string } | null;
+    if (error || !res?.ok) {
+      setErr(UPLOAD_ERRORS[res?.error ?? ''] ?? 'ההעלאה נכשלה. אפשר לנסות שוב.');
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <li style={{ display: 'grid', gap: 4, padding: '3px 0' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span aria-hidden="true" style={{ color: done ? accent : brand.muted }}>{done ? '✓' : '○'}</span>
+        <span style={{
+          flex: 1, minWidth: 120, fontSize: 13,
+          color: done ? brand.muted : brand.ink,
+          textDecoration: done ? 'line-through' : 'none',
+        }}>{label}</span>
+        {!done && (
+          <>
+            <input id={inputId} type="file" accept={ACCEPT} disabled={busy}
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
+            <label htmlFor={inputId} style={{
+              flexShrink: 0, cursor: busy ? 'default' : 'pointer',
+              fontSize: 12.5, fontWeight: 600, padding: '5px 14px',
+              color: busy ? brand.muted : accent,
+              border: `1px solid ${busy ? brand.border : accent}`,
+              borderRadius: brand.radius, opacity: busy ? .6 : 1,
+            }}>{busy ? 'מעלה…' : 'העלאה'}</label>
+          </>
+        )}
+      </div>
+      {err && (
+        <span style={{ fontSize: 12, color: '#a63a3a', paddingInlineStart: 18 }}>
+          {err}
+        </span>
+      )}
+    </li>
+  );
+}
+
+/** בקשה חופשית — כל דרישה והפעולה שלה. */
+function CustomRequestBlock({ token, item, brand, accent, onDone }: {
+  token: string; item: PortalItem;
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string; onDone: () => void;
+}) {
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [text, setText] = useState<Record<string, string>>({});
+  const [err, setErr] = useState<string | null>(null);
+  const stepId = item.actionValue!;
+
+  async function submit(key: string, value?: string) {
+    setErr(null);
+    setBusyKey(key);
+    const { data, error } = await supabase.rpc('portal_submit_step', {
+      p_token: token, p_step_id: stepId, p_data: value !== undefined ? { key, value } : { key },
+    });
+    setBusyKey(null);
+    const res = data as { ok?: boolean; error?: string } | null;
+    if (error || !res?.ok) {
+      setErr(res?.error === 'missing_value' ? 'צריך למלא תשובה.' : 'לא הצלחנו לשמור. אפשר לנסות שוב.');
+      return;
+    }
+    onDone();
+  }
+
+  const field = {
+    flex: 1, minWidth: 140, padding: '7px 10px', fontSize: 13.5, color: brand.ink,
+    border: `1px solid ${brand.border}`, borderRadius: brand.radius, background: '#fff',
+  } as const;
+
+  return (
+    <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+      {(item.requirements ?? []).map(r => {
+        if (r.done) {
+          return (
+            <div key={r.key} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: brand.muted }}>
+              <span aria-hidden="true" style={{ color: accent }}>✓</span>
+              <span style={{ textDecoration: 'line-through' }}>{r.label}</span>
+              {r.value && <span style={{ color: brand.ink }}>· {r.value}</span>}
+            </div>
+          );
+        }
+        if (r.kind === 'file') {
+          return (
+            <ul key={r.key} style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+              <UploadItem token={token} tokenKind="portal" stepId={stepId} itemKey={r.key}
+                label={r.label} done={false} brand={brand} accent={accent} onDone={onDone} />
+            </ul>
+          );
+        }
+        if (r.kind === 'text') {
+          return (
+            <div key={r.key} style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 13, color: brand.ink }}>{r.label}</span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <input style={field} value={text[r.key] ?? ''} disabled={busyKey === r.key}
+                  onChange={e => setText(t => ({ ...t, [r.key]: e.target.value }))} />
+                <button type="button" disabled={busyKey === r.key || !(text[r.key] ?? '').trim()}
+                  onClick={() => void submit(r.key, text[r.key])}
+                  style={btn(accent, brand.radius, busyKey === r.key)}>
+                  {busyKey === r.key ? 'שומר…' : 'שליחה'}
+                </button>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div key={r.key} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span aria-hidden="true" style={{ color: brand.muted }}>○</span>
+            <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: brand.ink }}>{r.label}</span>
+            <button type="button" disabled={busyKey === r.key} onClick={() => void submit(r.key)}
+              style={btn(accent, brand.radius, busyKey === r.key)}>
+              {busyKey === r.key ? 'שומר…' : (item.cta || 'מאשר/ת')}
+            </button>
+          </div>
+        );
+      })}
+      {err && <span style={{ fontSize: 12, color: '#a63a3a' }}>{err}</span>}
+    </div>
+  );
+}
+
+function btn(accent: string, radius: number, busy: boolean): React.CSSProperties {
+  return {
+    flexShrink: 0, border: 'none', cursor: busy ? 'default' : 'pointer',
+    fontSize: 12.5, fontWeight: 600, padding: '7px 16px',
+    color: '#fff', background: accent, borderRadius: radius, opacity: busy ? .6 : 1,
+  };
 }
 
 /** טופס פרטי הרו"ח הקודם — הדבר היחיד שהלקוח כותב ישירות מהדף האישי. */
@@ -284,22 +461,36 @@ export default function PublicPortalPage({ token }: Props) {
                     )}
                   </div>
 
-                  {/* ‼ מסמכים: מראים בדיוק מה התקבל ומה חסר. אין כאן העלאה —
-                      החומרים מגיעים במייל/וואטסאפ, והרשימה היא מה שמסנכרן ציפיות. */}
-                  {inPage && item.kind === 'documents' && !!item.checklist?.length && (
-                    <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+                  {/* ‼ מסמכים: הלקוח מעלה כאן, במקום. הקובץ נכנס ישר לתיק שלו
+                      אצל הרו"ח ומסמן את הפריט. מה שמגיע בוואטסאפ או במייל עדיין
+                      מסומן ידנית על ידי הרו"ח — שני הערוצים חיים זה לצד זה. */}
+                  {inPage && item.kind === 'documents' && !!item.checklist?.length && item.actionValue && (
+                    <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 2 }}>
                       {item.checklist.map(ci => (
-                        <li key={ci.label} style={{
-                          fontSize: 13, color: ci.done ? brand.muted : brand.ink,
-                          display: 'flex', gap: 8, alignItems: 'center',
-                        }}>
-                          <span aria-hidden="true" style={{ color: ci.done ? accent : brand.muted }}>
-                            {ci.done ? '✓' : '○'}
-                          </span>
-                          <span style={{ textDecoration: ci.done ? 'line-through' : 'none' }}>{ci.label}</span>
-                        </li>
+                        <UploadItem
+                          key={ci.key ?? ci.label}
+                          token={token}
+                          tokenKind="portal"
+                          stepId={item.actionValue!}
+                          itemKey={ci.key}
+                          label={ci.label}
+                          done={ci.done}
+                          brand={brand}
+                          accent={accent}
+                          onDone={reload}
+                        />
                       ))}
                     </ul>
+                  )}
+
+                  {inPage && item.kind === 'custom' && item.actionValue && (
+                    <CustomRequestBlock
+                      token={token}
+                      item={item}
+                      brand={brand}
+                      accent={accent}
+                      onDone={reload}
+                    />
                   )}
 
                   {inPage && item.kind === 'prev_accountant' && item.actionValue && (

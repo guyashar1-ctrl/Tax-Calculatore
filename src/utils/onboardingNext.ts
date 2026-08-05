@@ -24,6 +24,7 @@ export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   intake_questionnaire: 'לשלוח ללקוח את שאלון פתיחת התיק',
   client_documents: 'לאסוף את המסמכים מהלקוח',
   prev_accountant_details: 'לקבל מהלקוח את פרטי הרו״ח הקודם',
+  custom_request: 'לטפל בבקשה שהגדרת',
 };
 
 /** תאריך יעד רק אם הוא בטווח שבועיים — אחרת הוא אינו שיקול דחיפות. */

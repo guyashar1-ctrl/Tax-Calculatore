@@ -47,7 +47,9 @@ export type OnboardingStepType =
   | 'first_month_review'
   | 'intake_questionnaire'
   | 'client_documents'
-  | 'prev_accountant_details';
+  | 'prev_accountant_details'
+  // בקשה שהרו"ח הרכיב בעצמו. מה נדרש מהלקוח נקבע ב-payload.requirements.
+  | 'custom_request';
 
 export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   representation: 'ייצוג מול הרשויות',
@@ -66,6 +68,7 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   intake_questionnaire: 'שאלון פתיחת תיק',
   client_documents: 'מסמכים מהלקוח',
   prev_accountant_details: 'פרטי הרו״ח הקודם',
+  custom_request: 'בקשה מהמשרד',
 };
 
 export type OnboardingTrack =
@@ -74,7 +77,8 @@ export type OnboardingTrack =
   | 'tools'
   | 'payment'
   | 'internal'
-  | 'review';
+  | 'review'
+  | 'custom';
 
 export const TRACK_LABELS: Record<OnboardingTrack, string> = {
   authorities: 'רשויות',
@@ -83,10 +87,11 @@ export const TRACK_LABELS: Record<OnboardingTrack, string> = {
   payment: 'תשלום',
   internal: 'הקמה פנימית',
   review: 'מעקב',
+  custom: 'בקשות נוספות',
 };
 
 export const TRACK_ORDER: OnboardingTrack[] = [
-  'authorities', 'prev_accountant', 'tools', 'payment', 'internal', 'review',
+  'authorities', 'prev_accountant', 'tools', 'payment', 'custom', 'internal', 'review',
 ];
 
 export type OnboardingStepStatus =
@@ -138,10 +143,48 @@ export interface StepChecklistItem {
   key: string;
   label: string;
   done: boolean;
+  /** נכתב כשהפריט נסגר בהעלאת קובץ מדף ציבורי — ולא בסימון ידני. */
+  documentId?: string;
+  doneAt?: string;
+}
+
+/** מה נדרש מהלקוח בבקשה חופשית. שילובים מותרים באותה בקשה. */
+export type CustomRequirementKind = 'confirm' | 'text' | 'file';
+
+export const REQUIREMENT_KIND_LABELS: Record<CustomRequirementKind, string> = {
+  confirm: 'לקרוא ולאשר',
+  text: 'לענות בטקסט',
+  file: 'להעלות קובץ',
+};
+
+export interface CustomRequirement {
+  key: string;
+  kind: CustomRequirementKind;
+  label: string;
+  done: boolean;
+  /** תשובת הטקסט של הלקוח (kind='text'). */
+  value?: string;
+  /** המסמך שנוצר בהעלאה (kind='file'). */
+  documentId?: string;
+  doneAt?: string;
 }
 
 export interface StepPayload {
   checklist?: StepChecklistItem[];
+  /** בקשה חופשית בלבד — הדרישות שהרו״ח הרכיב. */
+  requirements?: CustomRequirement[];
+  /**
+   * מכתב השחרור: הנוסח שנשלח, והטוקן של דף הרו״ח הקודם (?release=).
+   * הרו״ח הקודם חותם ומעלה שם את החומרים — הלקוח מכותב בלבד ואינו חותם.
+   */
+  releaseToken?: string;
+  releaseSubject?: string;
+  releaseBody?: string;
+  releaseSentAt?: string;
+  objectionDueDate?: string;
+  prevAccountantSignature?: string;
+  prevAccountantSignedAt?: string;
+  prevAccountantSignerName?: string;
   paperlessStatus?: string;
   dataSource?: string;
   softwareName?: string;
@@ -176,6 +219,8 @@ export interface OnboardingStep {
   ball: OnboardingBall;
   dependsOnStepId?: string;
   dueDate?: string;
+  /** סדר התצוגה שהרו״ח קבע בבונה. גובר על סדר היצירה בכל מסך ובדף האישי. */
+  sortOrder?: number;
   needsAttention: boolean;
   payload: StepPayload;
   completionMethod: StepCompletionMethod;

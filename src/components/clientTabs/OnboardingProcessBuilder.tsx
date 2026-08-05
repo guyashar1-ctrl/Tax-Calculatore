@@ -9,6 +9,8 @@ import type { Engagement, OnboardingStep } from '../../types/onboarding';
 import { STEP_BALL_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import { supabase } from '../../lib/supabase';
+import AddRequestDialog from './AddRequestDialog';
+import JourneyTemplatesDialog from './JourneyTemplatesDialog';
 
 interface Props {
   clientName: string;
@@ -51,6 +53,8 @@ export default function OnboardingProcessBuilder({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   const mine = useMemo(
     () => steps.filter(s => s.engagementId === engagement.id || s.clientId === engagement.clientId),
@@ -60,12 +64,13 @@ export default function OnboardingProcessBuilder({
     () => mine.filter(s => AUTOMATIC.includes(s.stepType) && s.status !== 'cancelled'),
     [mine]);
 
-  // סדר היצירה הוא סדר התהליך. לא ממציאים מיון חדש שיסתור את המפה.
+  // הסדר שהרו"ח קבע גובר; סדר היצירה הוא רק שובר שוויון.
   const rows = useMemo(
     () => mine
       .filter(s => !AUTOMATIC.includes(s.stepType))
       .slice()
-      .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? '')),
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+                   || (a.createdAt ?? '').localeCompare(b.createdAt ?? '')),
     [mine]);
 
   const active = rows.filter(s => s.status !== 'cancelled');
@@ -85,6 +90,22 @@ export default function OnboardingProcessBuilder({
       on ? { note: 'הוחזר לתהליך בבונה' } : { note: 'הוסר מהתהליך בבונה' });
     if (!res.ok) setError(res.message || 'לא הצלחתי לשנות את הבקשה.');
     setBusyId(null);
+  }
+
+  /** סידור השורות. הסדר הזה הוא מה שהלקוח יראה בדף האישי. */
+  async function move(id: string, dir: -1 | 1) {
+    const list = rows.map(s => s.id);
+    const i = list.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    setBusyId(id);
+    const { error: rpcError } = await supabase.rpc('reorder_onboarding_steps', {
+      p_client_id: engagement.clientId, p_ids: list,
+    });
+    setBusyId(null);
+    if (rpcError) { setError(rpcError.message); return; }
+    refresh?.();
   }
 
   async function publish() {
@@ -208,10 +229,26 @@ export default function OnboardingProcessBuilder({
                     🔒 בתור
                   </span>
                 )}
+
+                {/* ‼ הסדר כאן הוא הסדר שהלקוח יראה בדף האישי, ולכן הוא חלק
+                    מההרכבה ולא קישוט. חצים ולא גרירה — בלי ספריות חדשות. */}
+                <span style={{ display: 'inline-flex', gap: 2, flexShrink: 0 }}>
+                  <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למעלה"
+                    disabled={busyId === s.id} onClick={() => void move(s.id, -1)}
+                    style={{ padding: '0 .3rem' }}>↑</button>
+                  <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למטה"
+                    disabled={busyId === s.id} onClick={() => void move(s.id, 1)}
+                    style={{ padding: '0 .3rem' }}>↓</button>
+                </span>
               </div>
               </div>
             );
           })}
+
+          <div style={{ display: 'flex', gap: '.4rem', justifySelf: 'start' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setAddOpen(true)}>+ בקשה</button>
+            <button type="button" className="btn btn-ghost" onClick={() => setTemplatesOpen(true)}>תבניות מסע</button>
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem', flexWrap: 'wrap', paddingTop: '.2rem' }}>
             <button type="button" className="btn btn-primary" onClick={() => void publish()} disabled={publishing}>
@@ -264,6 +301,25 @@ export default function OnboardingProcessBuilder({
           })}
         </aside>
       </div>
+
+      {addOpen && (
+        <AddRequestDialog
+          clientId={engagement.clientId}
+          steps={mine}
+          processPublished={false}
+          onClose={() => setAddOpen(false)}
+          onCreated={() => refresh?.()}
+        />
+      )}
+
+      {templatesOpen && (
+        <JourneyTemplatesDialog
+          clientId={engagement.clientId}
+          clientName={clientName}
+          onClose={() => setTemplatesOpen(false)}
+          onApplied={() => refresh?.()}
+        />
+      )}
     </section>
   );
 }
