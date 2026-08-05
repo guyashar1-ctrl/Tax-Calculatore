@@ -36,6 +36,7 @@ import { useLeads } from './hooks/useLeads';
 import { useQuotations } from './hooks/useQuotations';
 import { useQuotationCatalog } from './hooks/useQuotationCatalog';
 import QuotationsPipeline from './components/quotations/QuotationsPipeline';
+import LeadsPanel from './components/quotations/LeadsPanel';
 import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
 import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
 import { RELEASE_MATERIALS } from './utils/releaseLetter';
@@ -59,7 +60,6 @@ import { buildQuarterlyFreshnessTask, markFreshnessCreationAttempted, quarterlyT
 import RepresentationRequestForm from './components/RepresentationRequestForm';
 import RepresentationFillForm from './components/RepresentationFillForm';
 import RepresentationRequestReview from './components/RepresentationRequestReview';
-import MyDesk from './components/MyDesk';
 import TaskBoard from './components/TaskBoard';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
@@ -76,7 +76,6 @@ import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import TestExecutionCenter from './components/signatureRequest/__TestExecutionCenter';
 import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
-import TestDesk from './components/__TestDesk';
 import TestQuotations from './components/__TestQuotations';
 import TestDeferred from './components/quotations/__TestDeferred';
 import TestSignDone from './components/ui/__TestSignDone';
@@ -179,9 +178,6 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-onboarding')) {
     return <TestOnboarding />;
-  }
-  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-desk')) {
-    return <TestDesk />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-quotations')) {
     return <TestQuotations />;
@@ -1420,11 +1416,20 @@ export default function App() {
   // "ידע מס" יושב באשכול הכלים בקצה, מופרד בקו — הוא עזר, לא מקום עבודה (D9).
   // דוח 1301 ירד מהסרגל לגמרי: נכנסים אליו מכרטיס הלקוח, כי דוח תמיד שייך
   // ללקוח מסוים ואין משמעות לפתוח אותו "סתם" (D13).
-  const navTabs: { id: View; label: string; badge?: number }[] = [
-    { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
-    { id: 'list', label: 'לקוחות' },
-    { id: 'quotations', label: 'הצעות ולידים' },
-  ];
+  // ‼ במבנה "המסע הוא הכרטיס" נשארים שני מקומות שבהם העבודה חיה: המשימות
+  // (עבודת המשרד) והלקוחות (המסעות). "הצעות ולידים" ירד מהסרגל — הלידים הם
+  // שלב במסע וחיים במסך הלקוחות, ובניית ההצעות היא כלי שנכנסים אליו מהמסע
+  // או מאשכול הכלים בכותרת. הישן חוזר במלואו כש-journeyUi כבוי.
+  const navTabs: { id: View; label: string; badge?: number }[] = journeyUi
+    ? [
+        { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
+        { id: 'list', label: 'לקוחות' },
+      ]
+    : [
+        { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
+        { id: 'list', label: 'לקוחות' },
+        { id: 'quotations', label: 'הצעות ולידים' },
+      ];
 
   return (
     <div className="app">
@@ -1460,6 +1465,21 @@ export default function App() {
 
         <div className="header-actions">
           {/* אשכול הכלים — מופרד מהניווט בקו, כדי שיהיה ברור שזה לא מקום עבודה */}
+          {journeyUi && (
+            <button
+              type="button"
+              className={`header-tool-link ${view === 'quotations' || view === 'quotationBuilder' ? 'is-active' : ''}`}
+              onClick={() => {
+                setView('quotations');
+                setSelectedId(null);
+                setSelectedRequestId(null);
+                setEditingQuotationId(null);
+              }}
+              title="בניית הצעות ומעקב תוקף. אנשים חיים במסך הלקוחות."
+            >
+              הצעות מחיר
+            </button>
+          )}
           <button
             type="button"
             className={`header-tool-link ${view === 'reference' ? 'is-active' : ''}`}
@@ -1540,18 +1560,6 @@ export default function App() {
         <ErrorBoundary resetKey={view}>
         <LegacyMigrationBanner knownClientIds={new Set(clients.map(c => c.id))} />
         <FailedNotificationsBanner failures={failedNotifications} />
-        {view === 'myDesk' && (
-          <MyDesk
-            tasks={tasks}
-            clients={clients}
-            onSelectTask={openEditTaskModal}
-            onAddTask={() => openNewTaskModal()}
-            onToggleDone={handleToggleTaskDone}
-            onLoadSampleTasks={handleLoadSampleTasks}
-            onboardingSteps={onboarding.steps}
-            onOpenOnboarding={handleOpenClientOnboarding}
-          />
-        )}
 
         {view === 'tasks' && (
           <TaskBoard
@@ -1588,6 +1596,19 @@ export default function App() {
             onSelectRequest={handleSelectRequest}
             leadIdByClient={leadIdByClient}
             onOpenLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
+            journeyUi={journeyUi}
+            leadsPanel={journeyUi ? (
+              <LeadsPanel
+                leads={leads}
+                quotations={quotations}
+                onSave={async l => { await updateLead(l); }}
+                onCreate={async l => { await addLead(l); }}
+                onDelete={async l => { await deleteLead(l.id); }}
+                onNewQuotation={handleNewQuotationForLead}
+                focusLeadId={focusLeadId ?? undefined}
+                onFocusConsumed={() => setFocusLeadId(null)}
+              />
+            ) : undefined}
             onboardingSteps={onboarding.steps}
             engagements={onboarding.engagements}
             onOpenOnboarding={handleOpenClientOnboarding}
@@ -1689,6 +1710,7 @@ export default function App() {
 
         {view === 'quotations' && (
           <QuotationsPipeline
+            journeyUi={journeyUi}
             quotations={quotations}
             leads={leads}
             clients={clients}

@@ -124,6 +124,10 @@ interface Props {
   leadIdByClient?: Map<string, string>;
   /** פתיחת הליד במסך הלידים */
   onOpenLead?: (leadId: string) => void;
+  /** דלוק ⇒ כל שורה פותחת את דף המסע, והלידים חיים כאן ולא במסך ההצעות. */
+  journeyUi?: boolean;
+  /** פאנל הלידים, מוזרק מהאב — כדי שהוא יחיה במסך הלקוחות ולא במסך ההצעות. */
+  leadsPanel?: React.ReactNode;
   /** שלבי הקליטה של כל הלקוחות — לתצוגת המעקב "בקליטה". */
   onboardingSteps?: OnboardingStep[];
   engagements?: Engagement[];
@@ -166,6 +170,8 @@ export default function ClientList({
   onSelectRequest,
   leadIdByClient,
   onOpenLead,
+  journeyUi,
+  leadsPanel,
   onboardingSteps,
   engagements,
   onOpenOnboarding,
@@ -378,6 +384,12 @@ export default function ClientList({
   const activeList = useMemo(() => filtered.filter(c => getStatus(c) === 'active'), [filtered]);
 
   function handleRowClick(c: Client) {
+    // ‼ כניסה אחת: לחיצה על אדם פותחת את המסע שלו, בכל שלב חיים. עד כה
+    // אותה לחיצה נחתה בשלושה מקומות שונים — מסך הלידים, מרכז הייצוג או
+    // הכרטיס — וגיא היה צריך לזכור לאן כל לקוח לוקח אותו. שני היעדים
+    // האחרים נגישים מתוך המסע בלחיצה אחת.
+    if (journeyUi) { onSelect(c.id); return; }
+
     // כרטיס שעדיין ליד — מקומו במסך הלידים, שם יושבת כל השיחה איתו
     if (getStage(c) === 'lead' && onOpenLead) {
       const leadId = leadIdByClient?.get(c.id);
@@ -625,8 +637,12 @@ export default function ClientList({
             </div>
           )}
 
+          {/* ‼ הלידים חיים כאן, במסך הלקוחות — הם שלב במסע ולא עולם נפרד.
+              הפאנל עצמו מוזרק מהאב כדי לא לשכפל את לוגיקת העריכה שלו. */}
+          {journeyUi && stageFilter === 'lead' && leadsPanel}
+
           {/* ליד שאין לו עדיין כרטיס לקוח — מוצג רק בטאב שלו, ומוביל לעריכה. */}
-          {stageFilter === 'lead' && cardlessLeads.length > 0 && (
+          {!journeyUi && stageFilter === 'lead' && cardlessLeads.length > 0 && (
             <div className="card" style={{ padding: '.5rem .7rem', marginBottom: '.6rem', display: 'grid', gap: '.3rem' }}>
               <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
                 לידים שטרם נשלחה להם הצעה · {cardlessLeads.length}

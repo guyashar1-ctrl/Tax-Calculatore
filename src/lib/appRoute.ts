@@ -5,7 +5,7 @@
 // שנבדקים לפני הכניסה למערכת ונשארים ב-query.
 
 export type View =
-  | 'myDesk'
+
   | 'tasks'
   | 'list'
   | 'form'
@@ -33,7 +33,7 @@ export interface AppRoute {
 }
 
 const SLUG_BY_VIEW: Record<View, string> = {
-  myDesk: 'desk',
+
   tasks: 'tasks',
   list: 'clients',
   form: 'client',
@@ -52,6 +52,11 @@ const SLUG_BY_VIEW: Record<View, string> = {
 const VIEW_BY_SLUG = Object.fromEntries(
   Object.entries(SLUG_BY_VIEW).map(([view, slug]) => [slug, view as View]),
 ) as Record<string, View>;
+
+// ‼ "על השולחן שלי" (#/desk) היה מסך יתום — קיים בקוד, בלי שום כפתור אליו.
+// התוכן שלו חי במסך המשימות. הכתובת הישנה ממשיכה לעבוד ונוחתת שם, כדי
+// שקישור שמור לא ייפול.
+VIEW_BY_SLUG.desk = 'tasks';
 
 export const DEFAULT_ROUTE: AppRoute = { view: 'tasks' };
 
