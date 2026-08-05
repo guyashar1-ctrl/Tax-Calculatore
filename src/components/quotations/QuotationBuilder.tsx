@@ -316,6 +316,16 @@ export default function QuotationBuilder({
     if (fixed) { setInvalidField(null); setError(null); }
   }, [invalidField, recipient.fullName, items, representation]);
 
+  /**
+   * סימון על תיבת הקלט עצמה. מסגרת סביב הכרטיס אומרת "באזור הזה" — היא לא
+   * אומרת באיזו שורה. כשיש בכרטיס כמה שדות, זה ההבדל בין רמז לתשובה.
+   */
+  const invalidInput: React.CSSProperties = {
+    borderColor: 'var(--err)',
+    boxShadow: '0 0 0 1px var(--err)',
+    background: 'var(--red-light)',
+  };
+
   /** מסגרת + רקע עדין על הכרטיס שחסר בו משהו. */
   const invalidStyle = (which: FieldKey): React.CSSProperties =>
     invalidField === which
@@ -327,12 +337,9 @@ export default function QuotationBuilder({
         }
       : {};
 
-  /** כוכבית אדומה — מסמנת שדה חובה, ומתחזקת כשהוא באמת חסר. */
-  const Req = ({ on }: { on: boolean }) => (
-    <span aria-hidden="true" style={{
-      color: 'var(--err)', marginInlineStart: 3,
-      fontWeight: on ? 700 : 400, opacity: on ? 1 : .55,
-    }}>*</span>
+  /** כוכבית אדומה — מסמנת שדה חובה מהרגע הראשון, לפני שמישהו לחץ על כלום. */
+  const Req = () => (
+    <span title="שדה חובה" style={{ color: 'var(--err)', marginInlineStart: 3, fontWeight: 700 }}>*</span>
   );
   const dirty = savedKey.current !== stateKey;
 
@@ -623,7 +630,7 @@ export default function QuotationBuilder({
           {/* נמען */}
           <div ref={fieldRefs.recipient} style={{ ...card, ...invalidStyle('recipient') }}>
             <div style={cardTitle}>
-              נמען ההצעה<Req on={!recipient.fullName.trim()} />
+              נמען ההצעה<Req />
             </div>
             {recipient.fullName && !recipientPicker ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -638,6 +645,7 @@ export default function QuotationBuilder({
               </div>
             ) : (
               <RecipientEditor
+                invalidStyle={invalidField === 'recipient' ? invalidInput : undefined}
                 leads={leads} clients={clients} value={recipient}
                 onPick={(r) => {
                   setRecipient(r);
@@ -675,7 +683,7 @@ export default function QuotationBuilder({
           <div ref={fieldRefs.services} style={{ ...card, ...invalidStyle('services') }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <div style={{ ...cardTitle, marginBottom: 0, flex: 1 }}>
-                שירותים<Req on={items.length === 0 || items.some(i => !i.name.trim())} />
+                שירותים<Req />
               </div>
               <button className="btn btn-sm btn-secondary" onClick={addCustomItem} title="שורה ריקה עם שם ומחיר חופשיים — למה שלא קיים בקטלוג">+ שורה חופשית</button>
               {/* שתי דרכים להוסיף שירות הן שתי דרכים, לא ראשית ומשנית.
@@ -711,6 +719,7 @@ export default function QuotationBuilder({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {items.map(item => (
                   <LineItem key={item.id} item={item} vatRate={vatRate} plan={plan}
+                    flagEmptyName={invalidField === 'services'}
                     onChange={p => updateItem(item.id, p)} onRemove={() => removeItem(item.id)} />
                 ))}
               </div>
@@ -1214,9 +1223,11 @@ export function buildRecipientOptions(leads: Lead[], clients: Client[]) {
   return { leadOptions, clientOptions };
 }
 
-function RecipientEditor({ leads, clients, value, onPick }: {
+function RecipientEditor({ leads, clients, value, onPick, invalidStyle }: {
   leads: Lead[]; clients: Client[]; value: RecipientDraft;
   onPick: (r: RecipientDraft) => void;
+  /** סגנון הסימון האדום, כשהנמען הוא מה שחוסם את השליחה. undefined = תקין. */
+  invalidStyle?: React.CSSProperties;
 }) {
   const { leadOptions, clientOptions } = buildRecipientOptions(leads, clients);
   const hasExisting = leadOptions.length + clientOptions.length > 0;
@@ -1256,6 +1267,8 @@ function RecipientEditor({ leads, clients, value, onPick }: {
               <select
                 value={value.id ? `${value.kind}:${value.id}` : ''}
                 onChange={e => handleSelect(e.target.value)}
+                style={invalidStyle}
+                aria-invalid={!!invalidStyle}
               >
                 <option value="">{'—'} בחר ליד או לקוח {'—'}</option>
                 {leadOptions.length > 0 && (
@@ -1288,7 +1301,10 @@ function RecipientEditor({ leads, clients, value, onPick }: {
         </>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input placeholder="שם מלא *" value={nl.fullName} onChange={e => setNl(v => ({ ...v, fullName: e.target.value }))} />
+          <input placeholder="שם מלא *" value={nl.fullName}
+            onChange={e => setNl(v => ({ ...v, fullName: e.target.value }))}
+            style={!nl.fullName.trim() ? invalidStyle : undefined}
+            aria-invalid={!!invalidStyle && !nl.fullName.trim()} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <input placeholder="טלפון" value={nl.phone} onChange={e => setNl(v => ({ ...v, phone: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
             <input placeholder="אימייל" value={nl.email} onChange={e => setNl(v => ({ ...v, email: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
@@ -1331,9 +1347,11 @@ function RecipientEditor({ leads, clients, value, onPick }: {
   );
 }
 
-function LineItem({ item, vatRate, plan, onChange, onRemove }: {
+function LineItem({ item, vatRate, plan, onChange, onRemove, flagEmptyName }: {
   item: QuotationItem; vatRate: number; plan: BillingPlan;
   onChange: (p: Partial<QuotationItem>) => void; onRemove: () => void;
+  /** דלוק ⇒ שורה חופשית בלי שם מסומנת באדום. נדלק כשהשליחה נעצרה בגללה. */
+  flagEmptyName?: boolean;
 }) {
   const final = itemFinalPrice(item);
   const withVat = item.vatFlag ? Math.round(final * (1 + vatRate / 100)) : final;
@@ -1412,7 +1430,15 @@ function LineItem({ item, vatRate, plan, onChange, onRemove }: {
         ) : (
           <input value={item.name} placeholder="שם השירות (שורה חופשית) *" autoFocus={!item.name}
             onChange={e => onChange({ name: e.target.value })}
-            style={{ flex: 1, fontWeight: 600, fontSize: 'var(--fs-14)', padding: '.3rem .5rem' }} />
+            aria-invalid={flagEmptyName && !item.name.trim()}
+            style={{
+              flex: 1, fontWeight: 600, fontSize: 'var(--fs-14)', padding: '.3rem .5rem',
+              // ‼ מסמנים את השורה החסרה עצמה. ברשימה של חמישה שירותים, מסגרת
+              // סביב הכרטיס כולו לא אומרת באיזו מהן חסר השם.
+              ...(flagEmptyName && !item.name.trim()
+                ? { borderColor: 'var(--err)', boxShadow: '0 0 0 1px var(--err)', background: 'var(--red-light)' }
+                : {}),
+            }} />
         )}
         <button className="btn btn-icon btn-ghost" onClick={onRemove} title="הסרה" style={{ color: 'var(--red)' }}>✕</button>
       </div>
