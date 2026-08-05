@@ -1802,3 +1802,145 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   /* בטלפון ארבע עמודות זו גלילה אופקית שבורה — העמודות נערמות זו מעל זו */
   .funnel-grid { grid-template-columns: 1fr; gap: 18px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   דף המסע · מסכים 03 · 04 · 06 במוקאפ
+   הכלל שחוזר בכל המקטעים כאן: משפט אחד, מספר אחד שמניע פעולה, וצבע רק
+   כשמשהו חורג. מה שתקין הוא אפור, ולא כרטיס ירוק לצד כרטיס אדום.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.jt-panel {
+  border: 1px solid var(--hairline-1);
+  border-radius: var(--r-panel);
+  padding: .7rem .85rem;
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+}
+.jt-panel-head { display: flex; align-items: baseline; gap: .5rem; }
+.jt-panel-eyebrow {
+  font-size: var(--fs-12); font-weight: 600; color: var(--ink-4);
+  letter-spacing: .02em;
+}
+.jt-panel-title { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); }
+.jt-panel-meta { font-size: var(--fs-12); color: var(--ink-4); }
+.jt-panel-body { font-size: var(--fs-13); color: var(--ink-2); line-height: 1.55; }
+.jt-panel-actions { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .25rem; }
+
+/* הפעולה הבאה — הקו הימני נושא את הדחיפות; אין קופסה צבועה */
+.jt-next { border-inline-start: 3px solid var(--hairline-1); }
+.jt-next-urgent { border-inline-start-color: var(--danger); }
+.jt-next-normal { border-inline-start-color: var(--accent); }
+.jt-next-calm   { border-inline-start-color: var(--hairline-1); }
+.jt-next-headline {
+  font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); line-height: 1.4;
+}
+.jt-next-detail { font-size: var(--fs-13); color: var(--ink-3); }
+.jt-panel-quiet { background: var(--surface-2); }
+
+/* מה ידוע עליו — זוגות תווית/ערך, לא טופס */
+.jt-facts { display: grid; gap: .1rem; margin: .1rem 0 0; }
+.jt-fact {
+  display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: .6rem;
+  padding: .4rem 0; border-top: 1px solid var(--hairline-2);
+}
+.jt-fact-label { font-size: var(--fs-13); color: var(--ink-4); }
+.jt-fact-value { font-size: var(--fs-13); color: var(--ink-1); line-height: 1.5; }
+.jt-footnote {
+  font-size: var(--fs-12); color: var(--ink-4); line-height: 1.6; margin-top: .5rem;
+}
+
+/* לוח האירועים של ההצעה */
+.jt-timeline { list-style: none; margin: .35rem 0 0; padding: 0; display: grid; gap: .05rem; }
+.jt-tl-row {
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center; gap: .5rem; padding: .3rem 0;
+  font-size: var(--fs-13);
+}
+.jt-tl-dot {
+  width: 6px; height: 6px; border-radius: 999px; background: var(--ink-3); justify-self: center;
+}
+.jt-tl-row.is-pending .jt-tl-dot { background: transparent; border: 1px solid var(--ink-quiet); }
+.jt-tl-label { color: var(--ink-2); }
+.jt-tl-row.is-pending .jt-tl-label { color: var(--ink-4); }
+.jt-tl-when { color: var(--ink-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* מה יקרה כשהיא תאושר — רשימה ממוספרת שקטה */
+.jt-consequences {
+  margin: .2rem 0 0; padding-inline-start: 1.15rem;
+  display: grid; gap: .3rem;
+  font-size: var(--fs-13); color: var(--ink-2); line-height: 1.55;
+}
+.jt-past-summary { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: auto; }
+
+/* ── חריגות מקצועיות ─────────────────────────────────────────────────────── */
+.cw-exc-row {
+  display: grid; grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: start; gap: .6rem; width: 100%;
+  padding: .5rem 0; border-top: 1px solid var(--hairline-2);
+  background: none; border-inline: 0; border-bottom: 0; text-align: start;
+  font: inherit; color: inherit;
+}
+.cw-exc-row:hover:not(:disabled) { background: var(--surface-1); }
+.cw-exc-dot { width: 7px; height: 7px; border-radius: 999px; margin-top: .35rem; }
+.cw-exc-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cw-exc-title { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.cw-exc-sub { font-size: var(--fs-12); color: var(--ink-3); }
+.cw-exc-go { color: var(--ink-quiet); align-self: center; }
+.cw-exc-settled {
+  display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin-top: .55rem;
+  font-size: var(--fs-12); color: var(--ink-4);
+}
+
+/* ── לוח הגשות ───────────────────────────────────────────────────────────── */
+.cw-section-hint { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: auto; }
+.cw-cal { display: grid; }
+.cw-cal-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 84px 62px 108px;
+  gap: .6rem; align-items: baseline; padding: .4rem 0;
+  border-top: 1px solid var(--hairline-2); font-size: var(--fs-13);
+}
+.cw-cal-head {
+  border-top: 0; font-size: var(--fs-12); color: var(--ink-4); font-weight: 500;
+}
+.cw-cal-label { color: var(--ink-1); }
+.cw-cal-period, .cw-cal-due { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cw-cal-state { font-weight: 500; }
+.cw-cal-state.is-late { color: var(--danger); }
+.cw-cal-state.is-soon { color: var(--warn); }
+.cw-cal-state.is-ok   { color: var(--ink-3); }
+.cw-cal-state.is-idle { color: var(--ink-4); }
+
+/* ── תיקי שנה ────────────────────────────────────────────────────────────── */
+.cw-years { display: grid; }
+.cw-year-row {
+  display: grid; grid-template-columns: 52px 118px minmax(0, 1fr) auto;
+  gap: .6rem; align-items: baseline; padding: .45rem 0;
+  border-top: 1px solid var(--hairline-2); font-size: var(--fs-13);
+}
+.cw-year-num { font-size: var(--fs-15); color: var(--ink-1); }
+.cw-year-state { font-weight: 500; }
+.cw-year-meta { color: var(--ink-4); font-size: var(--fs-12); }
+
+/* ── מסך צר: הטבלאות מתקפלות לשתי שורות, לא נגללות הצידה ─────────────────── */
+@media (max-width: 700px) {
+  .jt-fact { grid-template-columns: 1fr; gap: .1rem; }
+  .cw-cal-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "label state" "period due";
+    row-gap: .15rem;
+  }
+  .cw-cal-head { display: none; }
+  .cw-cal-label { grid-area: label; }
+  .cw-cal-state { grid-area: state; text-align: end; }
+  .cw-cal-period { grid-area: period; font-size: var(--fs-12); }
+  .cw-cal-due { grid-area: due; text-align: end; font-size: var(--fs-12); }
+  .cw-year-row {
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    grid-template-areas: "num state action" "num meta meta";
+    row-gap: .1rem;
+  }
+  .cw-year-num { grid-area: num; }
+  .cw-year-state { grid-area: state; }
+  .cw-year-meta { grid-area: meta; }
+}
