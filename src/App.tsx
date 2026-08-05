@@ -76,6 +76,7 @@ import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import TestExecutionCenter from './components/signatureRequest/__TestExecutionCenter';
 import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
+import TestJourney from './components/clientTabs/__TestJourney';
 import TestQuotations from './components/__TestQuotations';
 import TestDeferred from './components/quotations/__TestDeferred';
 import TestSignDone from './components/ui/__TestSignDone';
@@ -179,6 +180,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-onboarding')) {
     return <TestOnboarding />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-journey')) {
+    return <TestJourney />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-quotations')) {
     return <TestQuotations />;
@@ -1672,6 +1676,8 @@ export default function App() {
               if (q) handleOpenQuotation(q);
             }}
             onNewQuotation={() => handleNewQuotation()}
+            lead={leads.find(l => l.convertedClientId === selectedClient?.id)}
+            onEditLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
           />
         )}
 

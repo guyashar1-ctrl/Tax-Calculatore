@@ -22,6 +22,7 @@ import ClientCockpitTab from './clientTabs/ClientCockpitTab';
 import JourneyTab from './clientTabs/JourneyTab';
 import OnboardingTab from './clientTabs/OnboardingTab';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboarding';
+import type { Lead } from '../types/quotations';
 import type { AdvanceResult } from '../hooks/useOnboarding';
 
 const VAT_LABELS: Record<VATStatus, string> = {
@@ -106,6 +107,9 @@ interface Props {
   quotations?: import('../types/quotations').Quotation[];
   onOpenQuotation?: (quotationId: string) => void;
   onNewQuotation?: (clientId: string) => void;
+  /** רשומת הליד שממנה נולד הכרטיס — «מה ידוע עליו» ומצב «לא רלוונטי». */
+  lead?: Lead;
+  onEditLead?: (leadId: string) => void;
 }
 
 function newEmptyClient(): Client {
@@ -171,6 +175,8 @@ export default function ClientWorkspace({
   quotations,
   onOpenQuotation,
   onNewQuotation,
+  lead,
+  onEditLead,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
@@ -547,6 +553,8 @@ export default function ClientWorkspace({
             refreshOnboarding={refreshOnboarding}
             onOpenQuotation={onOpenQuotation}
             onNewQuotation={onNewQuotation ? () => onNewQuotation(client.id) : undefined}
+            lead={lead}
+            onEditLead={onEditLead}
             onOpenRepresentation={onOpenRepresentation ? () => onOpenRepresentation(client.id) : undefined}
             onPrepareReleaseLetter={onOpenReleaseLetter ? (stepId) => onOpenReleaseLetter(client.id, stepId) : undefined}
             repStatusLabel={client.representationStatus ? REPRESENTATION_STATUS_LABELS[client.representationStatus] : undefined}
