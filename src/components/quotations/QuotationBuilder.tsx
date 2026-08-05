@@ -269,6 +269,71 @@ export default function QuotationBuilder({
     notesForClient, internalNotes, templateId, expiresAt, representation,
   ]);
   const savedKey = useRef<string | null>(null);
+
+  // ─── סימון השדה החסר ──────────────────────────────────────────────────────
+  // ‼ הודעת שגיאה ליד הכפתור היא פסיבית: היא אומרת שמשהו חסר, ומשאירה את
+  // החיפוש למשתמש. שלוש הפעולות נעצרות על שדות שיושבים בראש פאנל העריכה,
+  // ומי שגלל עד לתחתית לא רואה אותם בכלל. לכן: כוכבית אדומה על מה שחסר,
+  // גלילה אוטומטית אליו, והדגשה שנשארת עד שהוא מתוקן.
+  type FieldKey = 'recipient' | 'services' | 'representation';
+  const [invalidField, setInvalidField] = useState<FieldKey | null>(null);
+  const fieldRefs = {
+    recipient: useRef<HTMLDivElement>(null),
+    services: useRef<HTMLDivElement>(null),
+    representation: useRef<HTMLDivElement>(null),
+  };
+
+  /** מסמן שדה כחסר, גולל אליו, ומציג את ההודעה. מחזיר false כדי לעצור זרימה. */
+  function flagField(which: FieldKey, message: string): false {
+    setError(message);
+    setInvalidField(which);
+    // ‼ בטלפון פאנל העריכה מוסתר כשמסתכלים על התצוגה המקדימה. גלילה אל שדה
+    // שאינו על המסך לא עושה כלום, ולכן קודם מחזירים את המשתמש לעריכה.
+    setMobilePane('edit');
+    // ‼ קפיצה מיידית ולא גלילה חלקה. behavior:'smooth' פשוט לא זז בחלק
+    // מהדפדפנים והסביבות (נמדד: 565 → 565), ואז הכפתור "לא עושה כלום" בדיוק
+    // כמו קודם. עדיף קפיצה ודאית על אנימציה שלפעמים קורית.
+    // setTimeout ולא requestAnimationFrame: מחכים שהמעבר לפאנל העריכה יסתיים,
+    // אחרת גוללים אל אלמנט שעדיין מוסתר.
+    setTimeout(() => {
+      const el = fieldRefs[which].current;
+      if (!el) return;
+      el.scrollIntoView({ block: 'center' });
+      // מקבע את המיקוד שם, כדי שגם ניווט במקלדת ימשיך מהשדה החסר.
+      el.querySelector<HTMLElement>('input, select, textarea, button')?.focus({ preventScroll: true });
+    }, 0);
+    return false;
+  }
+
+  // ההדגשה יורדת ברגע שהשדה תוקן — סימון אדום שנשאר אחרי התיקון מלמד
+  // להתעלם ממנו.
+  useEffect(() => {
+    if (!invalidField) return;
+    const fixed =
+      invalidField === 'recipient' ? !!recipient.fullName.trim()
+      : invalidField === 'services' ? items.length > 0 && items.every(i => i.name.trim())
+      : !validateQuotationRepresentation(representation);
+    if (fixed) { setInvalidField(null); setError(null); }
+  }, [invalidField, recipient.fullName, items, representation]);
+
+  /** מסגרת + רקע עדין על הכרטיס שחסר בו משהו. */
+  const invalidStyle = (which: FieldKey): React.CSSProperties =>
+    invalidField === which
+      ? {
+          boxShadow: '0 0 0 2px var(--err)',
+          borderRadius: 'var(--radius)',
+          padding: '14px 12px 16px',
+          transition: 'box-shadow .25s ease',
+        }
+      : {};
+
+  /** כוכבית אדומה — מסמנת שדה חובה, ומתחזקת כשהוא באמת חסר. */
+  const Req = ({ on }: { on: boolean }) => (
+    <span aria-hidden="true" style={{
+      color: 'var(--err)', marginInlineStart: 3,
+      fontWeight: on ? 700 : 400, opacity: on ? 1 : .55,
+    }}>*</span>
+  );
   const dirty = savedKey.current !== stateKey;
 
   // התנגשות מייל בייצוג — רק כשהאישור אכן עתיד לפתוח ייצוג חדש
@@ -403,8 +468,9 @@ export default function QuotationBuilder({
 
   async function handleSave() {
     setError(null);
+    setInvalidField(null);
     if (!recipient.fullName.trim()) {
-      setError('יש להזין שם נמען (ליד או לקוח) לפני שמירה.');
+      flagField('recipient', 'יש לבחור נמען (ליד או לקוח) לפני שמירה.');
       return;
     }
     setSaving(true);
@@ -451,14 +517,15 @@ export default function QuotationBuilder({
   async function handleSend(isTest: boolean) {
     setError(null);
     setNotice(null);
-    if (!recipient.fullName.trim()) { setError('יש להזין נמען לפני שליחה.'); return; }
-    if (!isTest && !recipient.email?.trim()) { setError('לנמען אין כתובת מייל — לא ניתן לשלוח ללקוח.'); return; }
-    if (items.length === 0) { setError('אין שירותים בהצעה.'); return; }
-    if (items.some(i => !i.name.trim())) { setError('יש שורה חופשית בלי שם — יש לתת לה שם או להסיר אותה לפני שליחה.'); return; }
+    setInvalidField(null);
+    if (!recipient.fullName.trim()) { flagField('recipient', 'יש לבחור נמען להצעה לפני שליחה.'); return; }
+    if (!isTest && !recipient.email?.trim()) { flagField('recipient', 'לנמען אין כתובת מייל — לא ניתן לשלוח ללקוח.'); return; }
+    if (items.length === 0) { flagField('services', 'אין שירותים בהצעה — יש להוסיף לפחות שירות אחד.'); return; }
+    if (items.some(i => !i.name.trim())) { flagField('services', 'יש שורה חופשית בלי שם — יש לתת לה שם או להסיר אותה לפני שליחה.'); return; }
     // הייצוג נפתח אוטומטית עם האישור, ואז אין הזדמנות לתקן — ולכן נבדק כאן
     const repError = validateQuotationRepresentation(representation);
-    if (repError) { setError(`ייצוג: ${repError}`); return; }
-    if (!isTest && repEmailConflict) { setError(`ייצוג: ${repEmailConflict}`); return; }
+    if (repError) { flagField('representation', `ייצוג: ${repError}`); return; }
+    if (!isTest && repEmailConflict) { flagField('representation', `ייצוג: ${repEmailConflict}`); return; }
     setSending(isTest ? 'test' : 'send');
     try {
       const res = await onSend(buildPayload(), isTest);
@@ -554,8 +621,10 @@ export default function QuotationBuilder({
         <div style={{ display: narrow && mobilePane === 'preview' ? 'none' : 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* נמען */}
-          <div style={card}>
-            <div style={cardTitle}>נמען ההצעה</div>
+          <div ref={fieldRefs.recipient} style={{ ...card, ...invalidStyle('recipient') }}>
+            <div style={cardTitle}>
+              נמען ההצעה<Req on={!recipient.fullName.trim()} />
+            </div>
             {recipient.fullName && !recipientPicker ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1 }}>
@@ -603,9 +672,11 @@ export default function QuotationBuilder({
           </div>
 
           {/* שירותים */}
-          <div style={card}>
+          <div ref={fieldRefs.services} style={{ ...card, ...invalidStyle('services') }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-              <div style={{ ...cardTitle, marginBottom: 0, flex: 1 }}>שירותים</div>
+              <div style={{ ...cardTitle, marginBottom: 0, flex: 1 }}>
+                שירותים<Req on={items.length === 0 || items.some(i => !i.name.trim())} />
+              </div>
               <button className="btn btn-sm btn-secondary" onClick={addCustomItem} title="שורה ריקה עם שם ומחיר חופשיים — למה שלא קיים בקטלוג">+ שורה חופשית</button>
               {/* שתי דרכים להוסיף שירות הן שתי דרכים, לא ראשית ומשנית.
                   הכחול המלא כאן התחרה עם "שליחה ללקוח" — הפעולה הראשית
@@ -803,9 +874,10 @@ export default function QuotationBuilder({
           </Section>
 
           {/* ייצוג — מה שיקרה ברגע שהלקוח יאשר */}
+          <div ref={fieldRefs.representation} style={invalidStyle('representation')}>
           <Section icon="⚖️" title="ייצוג מול הרשויות"
             summary={representationSummary(representation)}
-            defaultOpen={!!repEmailConflict || !!validateQuotationRepresentation(representation)}>
+            defaultOpen={invalidField === 'representation' || !!repEmailConflict || !!validateQuotationRepresentation(representation)}>
             <QuotationRepresentationEditor
               value={representation}
               onChange={setRepresentation}
@@ -815,6 +887,7 @@ export default function QuotationBuilder({
               isTransfer={isTransferRecipient(recipient, leads, clients)}
             />
           </Section>
+          </div>
 
           {/* הגדרות */}
           <Section icon="⚙️" title="פרטי ההצעה"
