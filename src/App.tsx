@@ -1480,20 +1480,8 @@ export default function App() {
               הצעות מחיר
             </button>
           )}
-          <button
-            type="button"
-            className={`header-tool-link ${view === 'reference' ? 'is-active' : ''}`}
-            onClick={() => {
-              setView('reference');
-              setSelectedId(null);
-              setSelectedRequestId(null);
-              setEditingQuotationId(null);
-            }}
-          >
-            ידע מס
-          </button>
 
-          <span className="header-divider" aria-hidden="true" />
+          {journeyUi && <span className="header-divider" aria-hidden="true" />}
 
           <div className="header-account">
             <button
@@ -1519,9 +1507,12 @@ export default function App() {
                   <div className="account-menu-name">{displayName || user.email}</div>
                   <div className="account-menu-firm">{firmProfile?.firmName || 'גיא ישר · רואה חשבון'}</div>
                 </div>
+                {/* כלי המערכת — המשרד וידע מס. שניהם שלי ולא של לקוח מסוים,
+                    ולכן הם לא תופסים מקום בסרגל שבו העבודה היומיומית חיה. */}
                 <button
                   type="button"
-                  className="account-menu-item"
+                  className={`account-menu-item ${view === 'firmProfile' ? 'is-active' : ''}`}
+                  aria-current={view === 'firmProfile' ? 'page' : undefined}
                   onClick={() => {
                     setAccountMenuOpen(false);
                     setView('firmProfile');
@@ -1529,8 +1520,27 @@ export default function App() {
                     setSelectedRequestId(null);
                   }}
                 >
-                  פרופיל המשרד
+                  <Icon name="building" size={14} />
+                  <span>המשרד</span>
                 </button>
+                <button
+                  type="button"
+                  className={`account-menu-item ${view === 'reference' ? 'is-active' : ''}`}
+                  aria-current={view === 'reference' ? 'page' : undefined}
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setView('reference');
+                    setSelectedId(null);
+                    setSelectedRequestId(null);
+                    setEditingQuotationId(null);
+                  }}
+                >
+                  <Icon name="book" size={14} />
+                  <span>ידע מס</span>
+                </button>
+
+                <span className="account-menu-sep" aria-hidden="true" />
+
                 {/* מצב כהה הוא העדפה, לא פעולה — מקומו בתפריט ולא בסרגל (§4.1) */}
                 <button
                   type="button"
@@ -1548,7 +1558,8 @@ export default function App() {
                   className="account-menu-item"
                   onClick={async () => { setAccountMenuOpen(false); await signOut(); }}
                 >
-                  התנתקות
+                  <Icon name="logout" size={14} />
+                  <span>התנתק</span>
                 </button>
               </div>
             )}

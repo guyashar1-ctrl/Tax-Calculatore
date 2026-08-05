@@ -7,7 +7,8 @@ import { SVGProps } from 'react';
 
 export type IconName =
   | 'close' | 'chevron-down' | 'chevron-start' | 'check' | 'plus'
-  | 'search' | 'edit' | 'external' | 'drag' | 'moon' | 'phone';
+  | 'search' | 'edit' | 'external' | 'drag' | 'moon' | 'phone'
+  | 'building' | 'book' | 'logout';
 
 const PATHS: Record<IconName, JSX.Element> = {
   'close': <path d="M4 4l8 8M12 4l-8 8" />,
@@ -25,6 +26,22 @@ const PATHS: Record<IconName, JSX.Element> = {
   </g>,
   'moon': <path d="M13 9.4A5.2 5.2 0 016.6 3 5.4 5.4 0 108 13.4a5.4 5.4 0 005-4z" />,
   'phone': <path d="M3.2 4.3c0-.6.5-1.1 1.1-1.1h1.5c.5 0 .9.3 1 .8l.5 1.9c.1.4 0 .8-.4 1l-1 .7a7.6 7.6 0 003.5 3.5l.7-1c.2-.3.6-.5 1-.4l1.9.5c.5.1.8.5.8 1v1.5c0 .6-.5 1.1-1.1 1.1A11.4 11.4 0 013.2 4.3z" />,
+  'building': <g>
+    <path d="M3.6 13.8V3a.6.6 0 01.6-.6h5a.6.6 0 01.6.6v10.8" />
+    <path d="M9.8 6.6h2.6a.6.6 0 01.6.6v6.6" />
+    <path d="M2.2 13.8h11.6" />
+    <path d="M5.6 5.1h2M5.6 7.6h2M5.6 10.1h2" />
+  </g>,
+  'book': <g>
+    <path d="M13 2H4.5A1.5 1.5 0 003 3.5v9A1.5 1.5 0 014.5 11H13z" />
+    <path d="M4.5 11H13v3H4.5A1.5 1.5 0 013 12.5" />
+  </g>,
+  // היציאה מצוירת שמאלה — בממשק ימין-לשמאל "החוצה" הוא לכיוון סוף השורה
+  'logout': <g>
+    <path d="M10 13.8h2.4a1.4 1.4 0 001.4-1.4V3.6a1.4 1.4 0 00-1.4-1.4H10" />
+    <path d="M5.5 11.2L2.3 8l3.2-3.2" />
+    <path d="M2.3 8H10" />
+  </g>,
 };
 
 interface Props extends Omit<SVGProps<SVGSVGElement>, 'name'> {

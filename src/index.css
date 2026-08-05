@@ -3644,7 +3644,9 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
 }
 .account-menu-firm { font-size: 12px; color: var(--tx3); margin-top: .15rem; }
 .account-menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
   width: 100%;
   text-align: start;
   padding: .45rem .6rem;
@@ -3656,7 +3658,19 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
   font-size: 13px;
   cursor: pointer;
 }
+.account-menu-item > svg { flex: none; color: var(--tx3); }
 .account-menu-item:hover { background: var(--s2); color: var(--tx); }
+.account-menu-item:hover > svg { color: inherit; }
+/* המסך שפתוח כרגע מסומן — אחרת אין שום רמז איפה אני */
+.account-menu-item.is-active { color: var(--tx); font-weight: 600; }
+.account-menu-item.is-active > svg { color: inherit; }
+/* מפריד בין כלי המערכת להעדפות ולפעולה */
+.account-menu-sep {
+  display: block;
+  height: 1px;
+  background: var(--s3);
+  margin: .35rem .35rem;
+}
 
 .header-user-avatar {
   width: 30px;
