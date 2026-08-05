@@ -526,7 +526,13 @@ export default function QuotationBuilder({
     setNotice(null);
     setInvalidField(null);
     if (!recipient.fullName.trim()) { flagField('recipient', 'יש לבחור נמען להצעה לפני שליחה.'); return; }
-    if (!isTest && !recipient.email?.trim()) { flagField('recipient', 'לנמען אין כתובת מייל — לא ניתן לשלוח ללקוח.'); return; }
+    if (!isTest && !recipient.email?.trim()) {
+      // ‼ נמען שנבחר מוצג כשורת סיכום, בלי שדות. בלי פתיחת העורך אין מה
+      // לסמן באדום, והמשתמש רואה הודעה על שדה שלא נמצא על המסך.
+      setRecipientPicker(true);
+      flagField('recipient', 'לנמען אין כתובת מייל — לא ניתן לשלוח ללקוח.');
+      return;
+    }
     if (items.length === 0) { flagField('services', 'אין שירותים בהצעה — יש להוסיף לפחות שירות אחד.'); return; }
     if (items.some(i => !i.name.trim())) { flagField('services', 'יש שורה חופשית בלי שם — יש לתת לה שם או להסיר אותה לפני שליחה.'); return; }
     // הייצוג נפתח אוטומטית עם האישור, ואז אין הזדמנות לתקן — ולכן נבדק כאן
@@ -1307,7 +1313,12 @@ function RecipientEditor({ leads, clients, value, onPick, invalidStyle }: {
             aria-invalid={!!invalidStyle && !nl.fullName.trim()} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <input placeholder="טלפון" value={nl.phone} onChange={e => setNl(v => ({ ...v, phone: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
-            <input placeholder="אימייל" value={nl.email} onChange={e => setNl(v => ({ ...v, email: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
+            {/* ‼ האימייל הוא שדה חובה לשליחה: בלעדיו אין לאן לשלוח את ההצעה.
+                הוא לא סומן ככזה, ולכן מי שמילא שם בלבד לא הבין מה חסר. */}
+            <input placeholder="אימייל *" value={nl.email} onChange={e => setNl(v => ({ ...v, email: e.target.value }))}
+              dir="ltr" type="email"
+              aria-invalid={!!invalidStyle && !nl.email.trim()}
+              style={{ textAlign: 'right', ...(!nl.email.trim() ? invalidStyle : undefined) }} />
           </div>
           <input placeholder="שם העסק (אופציונלי)" value={nl.businessName} onChange={e => setNl(v => ({ ...v, businessName: e.target.value }))} />
 
@@ -1328,6 +1339,15 @@ function RecipientEditor({ leads, clients, value, onPick, invalidStyle }: {
             )}
           </div>
 
+          {/* ‼ הפרטים שמוקלדים כאן אינם הנמען עד שלוחצים. מי שמילא שם ולחץ
+              "שליחה" קיבל "יש לבחור נמען" והסתכל על שם שהוא בדיוק כתב — ההודעה
+              נשמעה כמו באג. כשזה בדיוק המצב, הכפתור הזה הוא מה שחסר, והוא
+              נצבע ואומר את זה במפורש. */}
+          {!!invalidStyle && !!nl.fullName.trim() && (
+            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--err)', fontWeight: 600 }}>
+              הפרטים עדיין לא נקבעו כנמען — יש ללחוץ על הכפתור שמתחת.
+            </div>
+          )}
           <button className="btn btn-sm btn-primary" disabled={!nl.fullName.trim()}
             onClick={() => onPick({
               kind: 'new', fullName: nl.fullName.trim(),
@@ -1338,7 +1358,11 @@ function RecipientEditor({ leads, clients, value, onPick, invalidStyle }: {
               prevAccountantEmail: hasPrev ? prev.email.trim() || undefined : undefined,
               prevAccountantPhone: hasPrev ? prev.phone.trim() || undefined : undefined,
             })}
-            style={{ alignSelf: 'flex-start' }}>
+            style={{
+              alignSelf: 'flex-start',
+              ...(!!invalidStyle && !!nl.fullName.trim()
+                ? { boxShadow: '0 0 0 2px var(--err)' } : {}),
+            }}>
             שימוש בליד זה
           </button>
         </div>
