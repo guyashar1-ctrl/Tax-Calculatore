@@ -149,7 +149,11 @@ export default function JourneyTab(p: Props) {
         </span>
       </div>
 
-      {/* ── רצועת המונים. צבע רק למה שדורש החלטה. ── */}
+      {/* ── רצועת המונים. צבע רק למה שדורש החלטה. ──
+          ללקוח שאין לו אף בקשה הרצועה כולה יורדת: "אצלי 0" הוא מונה שמצביע
+          על כלום, וזה הרוב — לקוח ותיק בלי התקשרות. כשיש בקשות "אצלי" נשאר
+          גם באפס, כי אז הוא תשובה ("שום דבר לא מחכה לי") ולא רעש. */}
+      {clientSteps.length > 0 && (
       <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
         {([
           { key: 'me', label: 'אצלי', n: counts.me, tone: 'var(--accent)' },
@@ -187,6 +191,7 @@ export default function JourneyTab(p: Props) {
           </button>
         )}
       </div>
+      )}
 
       {/* ── שורת ההצעה. בפרק ההצעה היא הראשית; אחריו היא היסטוריה. ── */}
       {liveQuotation && (
