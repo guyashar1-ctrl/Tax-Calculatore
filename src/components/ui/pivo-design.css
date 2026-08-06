@@ -1947,3 +1947,10 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .cw-year-state { grid-area: state; }
   .cw-year-meta { grid-area: meta; }
 }
+
+/* ── תפריט השורה במסך הלקוחות · מסך 02 ──────────────────────────────────────
+   פעולה ראשית אחת בשורה (הפתיחה), וכל השאר מתחת ל-⋯. */
+.cl-row-menu-wrap { position: relative; display: inline-flex; }
+.cl-row-menu-wrap .row-menu { inset-inline-end: 0; inset-inline-start: auto; }
+.client-table tbody tr:hover .row-menu-btn,
+.client-table tbody tr:focus-within .row-menu-btn { opacity: 1; }

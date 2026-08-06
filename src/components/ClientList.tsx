@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Client,
   IncomeTaxType,
@@ -201,7 +201,20 @@ export default function ClientList({
     setStageFilter(next);
     localStorage.setItem('crm_clients_tab', next);
   }
+  const [openRowMenu, setOpenRowMenu] = useState<string | null>(null);
   const [openTasksOnly, setOpenTasksOnly] = useState(false);
+
+  // לחיצה מחוץ לתפריט השורה סוגרת אותו — אחרת הוא נשאר פתוח על שורה
+  // אחת בזמן שקוראים שורה אחרת.
+  useEffect(() => {
+    if (!openRowMenu) return;
+    function onDocClick(e: MouseEvent) {
+      const t = e.target as HTMLElement;
+      if (!t.closest('.cl-row-menu-wrap')) setOpenRowMenu(null);
+    }
+    const id = setTimeout(() => document.addEventListener('click', onDocClick), 0);
+    return () => { clearTimeout(id); document.removeEventListener('click', onDocClick); };
+  }, [openRowMenu]);
   const [upcomingDebtsOnly, setUpcomingDebtsOnly] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -436,7 +449,10 @@ export default function ClientList({
           <div className="pg-status">
             {showOnboardingView
               ? `${onboardingCount} בתהליך קליטה`
-              : `${activeList.length} אנשים · אדם אחד לכל אורך המסע`}
+              /* ‼ נספרים כל מי שמופיע על המסך — גם מי שהייצוג שלו עדיין
+                 בתהליך ויושב בפאנל שמעל הטבלה. הכותרת אומרת "אנשים",
+                 ומספר שסופר רק חלק מהם הוא מספר ששוקר. */
+              : `${filtered.length} אנשים · אדם אחד לכל אורך המסע`}
           </div>
         </div>
         <div className="pg-actions">
@@ -854,13 +870,49 @@ export default function ClientList({
                         {client.shaamStatus === 'inactive' && <span className="cl-flag">לא פעיל</span>}
                         {client.shaamStatus === 'pending' && <span className="cl-flag cl-flag-warn">בטיפול</span>}
                       </td>
+                      {/* ‼ פעולה ראשית אחת בשורה — הפתיחה — וכל השאר מתחת ל-⋯.
+                          עד כה ישבה כאן רק מחיקה: הפעולה ההרסנית הייתה היחידה
+                          שאפשר היה להגיע אליה מהשורה, וכל השאר דרשו כניסה לכרטיס. */}
                       <td onClick={e => e.stopPropagation()}>
-                        <button
-                          className="ui-icon-btn is-danger ui-hover-actions"
-                          onClick={() => setPendingDelete(client)}
-                          title="מחיקה"
-                          aria-label={`מחיקת ${fullName}`}
-                        ><Icon name="close" size={14} /></button>
+                        <div className="cl-row-menu-wrap">
+                          <button
+                            className="ui-icon-btn row-menu-btn ui-hover-actions"
+                            onClick={() => setOpenRowMenu(openRowMenu === client.id ? null : client.id)}
+                            title="פעולות נוספות"
+                            aria-label={`פעולות עבור ${fullName}`}
+                            aria-expanded={openRowMenu === client.id}
+                          >⋯</button>
+
+                          {openRowMenu === client.id && (
+                            <div className="row-menu" onClick={e => e.stopPropagation()}>
+                              <button className="pill-menu-item" onClick={() => { setOpenRowMenu(null); onSelect(client.id); }}>
+                                פתח את המסע
+                              </button>
+                              {leadIdByClient?.get(client.id) && onOpenLead && (
+                                <button className="pill-menu-item" onClick={() => { setOpenRowMenu(null); onOpenLead(leadIdByClient.get(client.id)!); }}>
+                                  פתח את פרטי הליד
+                                </button>
+                              )}
+                              {client.representationRequestId && (
+                                <button className="pill-menu-item" onClick={() => { setOpenRowMenu(null); onSelectRequest(client.representationRequestId!); }}>
+                                  מרכז הייצוג
+                                </button>
+                              )}
+                              <span className="row-menu-sep" aria-hidden="true" />
+                              {onArchive && getStage(client) !== 'archived' && (
+                                <button className="pill-menu-item" onClick={async () => { setOpenRowMenu(null); await onArchive(client.id); }}>
+                                  העבר לארכיון
+                                </button>
+                              )}
+                              <button
+                                className="pill-menu-item row-menu-danger"
+                                onClick={() => { setOpenRowMenu(null); setPendingDelete(client); }}
+                              >
+                                מחיקת כרטיס
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
