@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PIVO · סקירה ויזואלית · נתונים סינתטיים</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#55337d" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Heebo:wght@300;400;500;600;700;800&family=Assistant:wght@300;400;500;600;700&family=Rubik:wght@300;400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;700;900&family=Space+Mono:wght@400;700&family=Secular+One&display=swap" rel="stylesheet" />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('pivo_theme');
+          var theme = saved === 'light' || saved === 'dark'
+            ? saved
+            : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.dataset.theme = theme;
+        } catch (e) { /* ללא אחסון — נשארים בבהיר */ }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/review/main.review.tsx"></script>
+  </body>
+</html>

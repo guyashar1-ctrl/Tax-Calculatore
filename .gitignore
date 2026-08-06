@@ -26,3 +26,6 @@ tmp/
 .claude/worktrees/
 
 .vercel
+
+# בנייה של סביבת הסקירה (ענף הסקירה בלבד)
+dist-review

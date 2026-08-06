@@ -1,0 +1,46 @@
+/* סגנונות סביבת הסקירה בלבד — ענף הסקירה, לא ממוזג ל-master. */
+
+.rv-banner {
+  position: sticky; top: 0; z-index: 9999;
+  display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+  padding: .5rem .9rem;
+  background: #55337d; color: #fff;
+  font-family: Heebo, sans-serif; font-size: 13px; font-weight: 600; letter-spacing: .02em;
+}
+.rv-banner-btn {
+  font: inherit; font-weight: 600; cursor: pointer;
+  background: rgba(255,255,255,.16); color: #fff;
+  border: 1px solid rgba(255,255,255,.35); border-radius: 6px; padding: .2rem .6rem;
+}
+
+.rv-shortcuts {
+  display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
+  padding: .55rem .9rem;
+  border-bottom: 1px solid var(--hairline-1);
+  background: var(--surface-2);
+}
+.rv-shortcuts-sep { width: 1px; height: 18px; background: var(--hairline-1); margin-inline: .3rem; }
+
+.rv-client-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; padding-bottom: .7rem; margin-bottom: .2rem;
+  border-bottom: 1px solid var(--hairline-1);
+}
+.rv-client-name { font-size: var(--fs-20); font-weight: 700; color: var(--ink-1); }
+.rv-client-meta { font-size: var(--fs-13); color: var(--ink-3); margin-top: 2px; }
+
+.rv-client-head { justify-content: space-between; }
+.rv-client-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.rv-card-tabs { margin-bottom: .6rem; }
+
+.rv-toast {
+  position: fixed; inset-block-end: 74px; inset-inline-start: 50%;
+  transform: translateX(50%);
+  z-index: 10000; max-width: min(90vw, 460px);
+  display: flex; align-items: center; gap: .6rem;
+  padding: .6rem .9rem; border-radius: var(--r-panel);
+  background: var(--ink-1); color: var(--surface-0);
+  font-size: var(--fs-13); line-height: 1.5; cursor: pointer;
+  box-shadow: var(--shadow-lg);
+}
+.rv-toast-x { opacity: .6; }
