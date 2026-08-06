@@ -974,7 +974,9 @@ table thead th {
 .pg-head-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .pg-title { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.015em; color: var(--ink-1); }
 .pg-status { font-size: var(--fs-13); color: var(--ink-3); }
-.pg-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+/* max-width מונע מהשורה להישאר רחבה מהראש כשהיא כבר ירדה לשורה משלה —
+   flex-shrink: 0 לבדו השאיר אותה 369px בתוך מסך של 360. */
+.pg-actions { display: flex; align-items: center; gap: 8px 10px; flex-shrink: 0; flex-wrap: wrap; max-width: 100%; }
 
 /* שדה חיפוש בכותרת עמוד — משטח רך, בלי מסגרת.
    ‎input.pg-search‎ ולא ‎.pg-search‎: כלל הבסיס של השדות ב-index.css נכתב
