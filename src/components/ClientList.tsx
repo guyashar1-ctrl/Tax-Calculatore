@@ -428,8 +428,32 @@ export default function ClientList({
 
   return (
     <div className="client-list-page">
-      {/* הכותרת "לקוחות" ירדה — הטאב הפעיל בסרגל כבר אומר אותה, והספירה
-          חוזרת בכותרת "לקוחות מיוצגים · N" שמתחת. מספר אחד במסך. */}
+      {/* ראש עמוד אחד בשפה אחת — אותה כותרת של המשימות, המסמכים והתיק,
+          ובראש המסך ולא באמצעו. המשפט מתחת הוא מה שהמסך מבטיח. */}
+      <div className="pg-head">
+        <div className="pg-head-main">
+          <div className="pg-title">{showOnboardingView ? 'קליטות פתוחות' : 'לקוחות'}</div>
+          <div className="pg-status">
+            {showOnboardingView
+              ? `${onboardingCount} בתהליך קליטה`
+              : `${activeList.length} אנשים · אדם אחד לכל אורך המסע`}
+          </div>
+        </div>
+        <div className="pg-actions">
+          {/* טעינת דוגמאות היא כלי פיתוח ולא פעולה של רואה חשבון —
+              מוצגת רק כשאין לקוחות בכלל, וכקישור שקט */}
+          {clients.length === 0 && (
+            <button className="ui-linkbtn" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
+          )}
+          {/* ‼ הכניסה למשפך היא גם הכניסה ליצירה: ליד והצעה נפתחים מכאן ולא
+              ממסך אחר, אחרת הריכוז נשבר במקום הראשון שבו הוא נדרש. */}
+          {onNewLead && <button className="btn btn-secondary" onClick={onNewLead}>+ ליד</button>}
+          {onNewQuotation && <button className="btn btn-secondary" onClick={onNewQuotation}>+ הצעה</button>}
+          <button className="btn btn-secondary" onClick={onAddRequest}>בקשת ייצוג</button>
+          <button className="btn btn-primary" onClick={onAdd}>+ לקוח חדש</button>
+        </div>
+      </div>
+
       <div className="cl-list-header">
         <div style={{ display: 'flex', gap: '.15rem', flexWrap: 'wrap' }}>
           {TABS.map(t => {
@@ -452,19 +476,6 @@ export default function ClientList({
               </button>
             );
           })}
-        </div>
-        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-          {/* טעינת דוגמאות היא כלי פיתוח ולא פעולה של רואה חשבון —
-              מוצגת רק כשאין לקוחות בכלל, וכקישור שקט */}
-          {clients.length === 0 && (
-            <button className="ui-linkbtn" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
-          )}
-          {/* ‼ הכניסה למשפך היא גם הכניסה ליצירה: ליד והצעה נפתחים מכאן ולא
-              ממסך אחר, אחרת הריכוז נשבר במקום הראשון שבו הוא נדרש. */}
-          {onNewLead && <button className="btn btn-secondary" onClick={onNewLead}>+ ליד</button>}
-          {onNewQuotation && <button className="btn btn-secondary" onClick={onNewQuotation}>+ הצעה</button>}
-          <button className="btn btn-secondary" onClick={onAddRequest}>בקשת ייצוג</button>
-          <button className="btn btn-primary btn-lg" onClick={onAdd}>+ לקוח חדש</button>
         </div>
       </div>
 
@@ -666,18 +677,6 @@ export default function ClientList({
             </div>
           )}
 
-          {/* ראש עמוד אחד בשפה אחת — אותה כותרת של המשימות, המסמכים והתיק.
-              המשפט מתחת הוא מה שהמסך הזה מבטיח: אדם אחד לכל אורך המסע. */}
-          <div className="pg-head">
-            <div className="pg-head-main">
-              <div className="pg-title">{showOnboardingView ? 'קליטות פתוחות' : 'לקוחות'}</div>
-              <div className="pg-status">
-                {showOnboardingView
-                  ? `${onboardingCount} בתהליך קליטה`
-                  : `${activeList.length} אנשים · אדם אחד לכל אורך המסע`}
-              </div>
-            </div>
-          </div>
 
           {/* ‼ במצב "בקליטה" הטבלה מחליפה עמודות לגמרי: מי שבתהליך נמדד בימים,
               בהתקדמות ובאצל-מי — לא בסטטוס מע"מ ותיק ניכויים. */}

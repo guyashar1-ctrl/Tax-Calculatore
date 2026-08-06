@@ -352,7 +352,7 @@ export default function TaskBoard({
         <div className="pg-head-main">
           <div className="pg-title">משימות</div>
           <div className="pg-status">
-            {totalCount} משימות{ballCounts.me > 0 ? ` · ${ballCounts.me} אצלי` : ''}
+            {totalCount}{ballCounts.me > 0 ? ` · ${ballCounts.me} אצלי` : ''}
           </div>
         </div>
         <div className="pg-actions">
