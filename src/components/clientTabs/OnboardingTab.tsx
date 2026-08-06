@@ -76,11 +76,11 @@ const RowOpenContext = createContext<{
 }>({ openId: null, toggle: () => {} });
 
 /** שם השורה. בקשה חופשית נושאת את השם שהרו"ח נתן לה, לא תווית גנרית. */
+/* שם שניתן לבקשה גובר על השם הגנרי של הסוג — בכל סוג, לא רק בבקשה חופשית.
+   בקשה ששמה לא מוצג היא בקשה שאי אפשר לזהות ברשימה של עשר שורות. */
 function rowTitle(step: OnboardingStep): string {
-  if (step.stepType === 'custom_request') {
-    const t = String(step.payload.title ?? '').trim();
-    if (t) return t;
-  }
+  const named = String(step.payload?.title ?? '').trim();
+  if (named) return named;
   return STEP_TYPE_LABELS[step.stepType];
 }
 
@@ -113,8 +113,15 @@ function lockHint(step: OnboardingStep, byId: Map<string, OnboardingStep>): stri
     return 'ייפתח אחרי שתאשר את חיבור הלקוח לפייפרלס';
   }
   const dep = step.dependsOnStepId ? byId.get(step.dependsOnStepId) : undefined;
-  if (dep) return `ייפתח אחרי ${STEP_TYPE_LABELS[dep.stepType]}`;
-  return 'ייפתח אחרי השלב שהוא תלוי בו';
+  if (dep) return `ייפתח אחרי «${STEP_TYPE_LABELS[dep.stepType]}»`;
+  /* ‼ בלי תלות מפורשת נופלים לשלב הפתוח שקודם לו בסדר — זה מה שחוסם אותו
+     בפועל. "ייפתח אחרי השלב שהוא תלוי בו" הוא משפט שלא אומר כלום למי
+     שמסתכל על המסך ומנסה להבין מה לעשות עכשיו. */
+  const before = [...byId.values()]
+    .filter(s => (s.sortOrder ?? 0) < (step.sortOrder ?? 0) && isStepOpen(s.status))
+    .sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))[0];
+  if (before) return `ייפתח אחרי «${STEP_TYPE_LABELS[before.stepType]}»`;
+  return 'ייפתח כשהשלב שלפניו יושלם';
 }
 
 // ─── מסלול הפייפרלס ────────────────────────────────────────────────────────
@@ -558,6 +565,65 @@ export default function OnboardingTab({
 
       {!embedded && clientSteps.length > 0 && (
         <OnboardingJourneyMap steps={clientSteps} onSelect={gotoStep} />
+      )}
+
+      {/* ── התקדמות הקליטה · מוטמע בדף המסע ────────────────────────────────
+          רצועת המונים של הדף אומרת "כמה אצל מי"; היא אינה אומרת מה הסדר,
+          מה נעשה, מה עכשיו, ומה חוסם. זה המסך שעונה על זה — ובראשו שתי
+          הפעולות שעד כה לא היו נגישות מדף המסע בכלל: הקישור ללקוח
+          וסגירת הקליטה. רצועת הכדור הכפולה נשארת מוסתרת בכוונה. */}
+      {embedded && clientSteps.length > 0 && (
+        <div className="ob-prog">
+          <div className="ob-prog-head">
+            <span className="ob-prog-title">התקדמות הקליטה</span>
+            <span className="ob-prog-count">
+              {clientSteps.filter(s => !isStepOpen(s.status)).length} מתוך {clientSteps.length} הושלמו
+              {activeEngagement?.approvedAt && (() => {
+                const d = Math.floor((Date.now() - new Date(activeEngagement.approvedAt!).getTime()) / 86400000);
+                return Number.isFinite(d) && d >= 1 ? ` · יום ${d}` : '';
+              })()}
+            </span>
+            <span style={{ flex: 1 }} />
+            <button type="button" className="btn btn-sm btn-ghost"
+              onClick={() => void copyPortalLink()}
+              title="קישור לדף האישי של הלקוח — מציג לו מה הושלם ומה ממתין">
+              {portalCopied ? '✓ הועתק' : 'קישור ללקוח'}
+            </button>
+            {activeEngagement?.status === 'onboarding' && (
+              <button type="button" className="btn btn-sm btn-secondary" disabled={closing}
+                onClick={() => void closeOnboarding(false)}
+                title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
+                {closing ? 'סוגר…' : 'סגור קליטה'}
+              </button>
+            )}
+          </div>
+
+          <ol className="ob-stages">
+            {[...clientSteps]
+              .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+              .map(s => {
+                const closed = !isStepOpen(s.status);
+                const locked = s.status === 'locked';
+                const stuck = s.status === 'blocked' || s.status === 'failed' || s.needsAttention;
+                const state = closed ? 'done' : stuck ? 'stuck' : locked ? 'locked' : 'now';
+                return (
+                  <li key={s.id} className={`ob-stage is-${state}`}>
+                    <span className="ob-stage-mark" aria-hidden="true">
+                      {closed ? '✓' : locked ? '🔒' : stuck ? '!' : '●'}
+                    </span>
+                    <span className="ob-stage-name">{rowTitle(s)}</span>
+                    <span className="ob-stage-state">
+                      {closed
+                        ? STEP_STATUS_LABELS[s.status]
+                        : locked
+                          ? lockHint(s, stepById)
+                          : `${STEP_STATUS_LABELS[s.status]} · הכדור ${STEP_BALL_LABELS[s.ball]}`}
+                    </span>
+                  </li>
+                );
+              })}
+          </ol>
+        </div>
       )}
 
       {loading && clientSteps.length === 0 && <div className="cw-empty">טוען…</div>}

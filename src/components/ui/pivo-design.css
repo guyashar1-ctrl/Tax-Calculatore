@@ -1956,3 +1956,56 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .cl-row-menu-wrap .row-menu { inset-inline-end: 0; inset-inline-start: auto; }
 .client-table tbody tr:hover .row-menu-btn,
 .client-table tbody tr:focus-within .row-menu-btn { opacity: 1; }
+
+/* ── התקדמות הקליטה בדף המסע · דרישה 3 ─────────────────────────────────────
+   סדר השלבים, מה נעשה, מה עכשיו, ומה חוסם — ובראש שתי הפעולות שקודם
+   לא היו נגישות מדף המסע: הקישור ללקוח וסגירת הקליטה. */
+.ob-prog {
+  border: 1px solid var(--hairline-1);
+  border-radius: var(--r-panel);
+  padding: .7rem .85rem;
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.ob-prog-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.ob-prog-title { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); }
+.ob-prog-count { font-size: var(--fs-12); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.ob-stages { list-style: none; margin: 0; padding: 0; display: grid; }
+.ob-stage {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: baseline; gap: .55rem; padding: .38rem 0;
+  border-top: 1px solid var(--hairline-2); font-size: var(--fs-13);
+}
+.ob-stage:first-child { border-top: 0; }
+.ob-stage-mark { justify-self: center; font-size: var(--fs-12); color: var(--ink-quiet); }
+.ob-stage-name { color: var(--ink-2); }
+.ob-stage-state { color: var(--ink-4); font-size: var(--fs-12); text-align: end; }
+
+/* הושלם = אפור. צבע רק למה שחורג או למה שעכשיו. */
+.ob-stage.is-done .ob-stage-name,
+.ob-stage.is-done .ob-stage-state { color: var(--ink-4); }
+.ob-stage.is-done .ob-stage-mark { color: var(--ink-3); }
+.ob-stage.is-now .ob-stage-name { color: var(--ink-1); font-weight: 600; }
+.ob-stage.is-now .ob-stage-mark { color: var(--accent); }
+.ob-stage.is-stuck .ob-stage-mark,
+.ob-stage.is-stuck .ob-stage-state { color: var(--danger); }
+.ob-stage.is-locked .ob-stage-name { color: var(--ink-3); }
+
+@media (max-width: 700px) {
+  .ob-stage {
+    grid-template-columns: 18px minmax(0, 1fr);
+    grid-template-areas: "mark name" ". state";
+    row-gap: .1rem;
+  }
+  .ob-stage-mark { grid-area: mark; }
+  .ob-stage-name { grid-area: name; }
+  .ob-stage-state { grid-area: state; text-align: start; }
+}
+
+/* ── המבט התפעולי במסך הלקוחות · דרישה 12 ───────────────────────────────── */
+.cl-ops-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin: .5rem 0 .2rem; }
+.cl-ops-label { font-size: var(--fs-12); font-weight: 600; color: var(--ink-4); letter-spacing: .02em; }
+.cl-ops-hint { font-size: var(--fs-12); color: var(--ink-4); }
+/* אדם בארכיון — נשאר קריא, אך מעומעם. הוא לא עבודה פעילה. */
+.client-table tbody tr.is-archived { opacity: .55; }
+.client-table tbody tr.is-archived:hover { opacity: 1; }

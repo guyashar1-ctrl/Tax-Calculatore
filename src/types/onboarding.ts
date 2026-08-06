@@ -170,6 +170,12 @@ export interface CustomRequirement {
 }
 
 export interface StepPayload {
+  /**
+   * שם הבקשה כפי שהרו״ח נתן לה. עד כה השדה הזה נכתב ונקרא בלי שהוגדר
+   * בחוזה, ובקשה ששמה נשמר במקום אחר "נעלמה" והוצגה בשם הגנרי של הסוג
+   * («בקשה מהמשרד»). בקשה שאיבדה את שמה היא בקשה שאי אפשר לזהות ברשימה.
+   */
+  title?: string;
   checklist?: StepChecklistItem[];
   /** בקשה חופשית בלבד — הדרישות שהרו״ח הרכיב. */
   requirements?: CustomRequirement[];

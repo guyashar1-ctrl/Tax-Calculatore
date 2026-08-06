@@ -202,6 +202,8 @@ export default function ClientList({
     localStorage.setItem('crm_clients_tab', next);
   }
   const [openRowMenu, setOpenRowMenu] = useState<string | null>(null);
+  /** המבט התפעולי — בקשות קליטה פתוחות. אינו שלב חיים ואינו לשונית. */
+  const [opsOnboarding, setOpsOnboarding] = useState(false);
   const [openTasksOnly, setOpenTasksOnly] = useState(false);
 
   // לחיצה מחוץ לתפריט השורה סוגרת אותו — אחרת הוא נשאר פתוח על שורה
@@ -231,18 +233,21 @@ export default function ClientList({
     for (const s of onboardingSteps) if (isStepOpen(s.status) && s.status !== 'cancelled') open.add(s.clientId);
     return open.size;
   }, [onboardingSteps]);
-  const showOnboardingView = stageFilter === 'onboarding' && !!onboardingSteps && !!onOpenOnboarding;
+  const showOnboardingView = opsOnboarding && !!onboardingSteps && !!onOpenOnboarding;
 
-  // ‼ מונה לכל טאב. נספר מהמקור היחיד — שלב החיים על הכרטיס — חוץ מ"בקליטה"
-  // שנספר לפי שלבים פתוחים בפועל, כדי שקליטה שנסגרה לא תמשיך להיספר.
+  /* ‼ ציר אחד לכל הלשוניות הראשיות: שלב החיים שעל הכרטיס, ותו לא.
+     קודם "בקליטה" נספר לפי שלבים פתוחים בפועל — ציר אחר לגמרי — ולכן אותו
+     אדם נספר פעמיים (פעיל *וגם* בקליטה), והלשוניות לא חילקו את האוכלוסייה.
+     הצורך התפעולי ("למי יש בקשה פתוחה") לא נעלם: הוא יושב בשורה נפרדת
+     מתחת ללשוניות, ומסומן במפורש כתצוגה תפעולית ולא כשלב חיים. */
   const stageCounts = useMemo(() => {
-    const m: Record<string, number> = { quoted: 0, onboarding: onboardingCount, active: 0, lead: 0 };
+    const m: Record<string, number> = { quoted: 0, onboarding: 0, active: 0, lead: 0, archived: 0 };
     for (const c of clients) {
       const st = c.lifecycleStage ?? 'active';
-      if (st === 'quoted' || st === 'active' || st === 'lead') m[st] += 1;
+      if (st in m) m[st] += 1;
     }
     return m;
-  }, [clients, onboardingCount]);
+  }, [clients]);
 
   // ‼ ליד שטרם קיבל הצעה אין לו כרטיס לקוח, ולכן הוא לא יופיע בטבלה. בלי
   // הרשימה הזו הוא היה נעלם מהמסך לגמרי כשהמשפך ירד.
@@ -250,12 +255,18 @@ export default function ClientList({
     () => (leads ?? []).filter(l => !l.convertedClientId && l.status !== 'closed'),
     [leads]);
 
+  /* חמש לשוניות שמחלקות את האוכלוסייה בלי חפיפה, ו"הכל" שסוכם אותן.
+     ארכיון מופיע רק כשיש בו מישהו — לשונית ריקה קבועה היא רעש. */
+  const totalPeople = clients.length + cardlessLeads.length;
   const TABS: { key: 'default' | LifecycleStage; label: string; count?: number }[] = [
+    { key: 'lead', label: 'לידים', count: stageCounts.lead + cardlessLeads.length },
     { key: 'quoted', label: 'בהצעה', count: stageCounts.quoted },
     { key: 'onboarding', label: 'בקליטה', count: stageCounts.onboarding },
     { key: 'active', label: 'לקוחות פעילים', count: stageCounts.active },
-    { key: 'lead', label: 'לידים', count: stageCounts.lead + cardlessLeads.length },
-    { key: 'default', label: 'הכל' },
+    ...(stageCounts.archived > 0
+      ? [{ key: 'archived' as LifecycleStage, label: 'ארכיון', count: stageCounts.archived }]
+      : []),
+    { key: 'default', label: 'הכל', count: totalPeople },
   ];
 
   function toggleSort(field: SortField) {
@@ -319,9 +330,9 @@ export default function ClientList({
       const stage = getStage(c);
 
       if (stageFilter === 'default') {
-        // ליד וארכיון אינם חלק מרשימת העבודה — אבל כשמחפשים אדם מפורשות
-        // הוא כן נמצא, בכל שלב שהוא. אדם אחד, כרטיס אחד, חיפוש אחד.
-        if ((stage === 'lead' || stage === 'archived') && !q) return false;
+        /* ‼ "הכל" פירושו כל האנשים במערכת — כולל לידים וארכיון. עד כה הוא
+           החריג את שניהם, ולכן הראה 11 בזמן שבמערכת 13 אנשים והלשוניות
+           סיכמו למספר אחר. לשונית ששמה "הכל" ומראה חלק היא לשונית ששקרה. */
       } else if (stage !== stageFilter) {
         return false;
       }
@@ -424,7 +435,8 @@ export default function ClientList({
     (itFilter !== 'all' ? 1 : 0) +
     (niFilter !== 'all' ? 1 : 0) +
     (shaamFilter !== 'all' ? 1 : 0) +
-    (stageFilter !== 'default' ? 1 : 0) +
+    /* ‼ בחירת לשונית אינה "פילטר מתקדם" — היא הניווט הראשי של המסך.
+       ספירתה כאן צבעה את הכפתור והציגה "(1)" בכל לשונית שאינה "הכל". */
     (openTasksOnly ? 1 : 0) +
     (upcomingDebtsOnly ? 1 : 0);
 
@@ -495,6 +507,24 @@ export default function ClientList({
         </div>
       </div>
 
+      {/* ── מבט תפעולי · לא שלב חיים ────────────────────────────────────────
+          "למי יש בקשה פתוחה" חוצה שלבי חיים: גם לקוח פעיל יכול לחכות לבקשה.
+          לכן הוא לא לשונית — הלשוניות מחלקות את האוכלוסייה בלי חפיפה — אלא
+          שורה נפרדת שמסומנת ככזו. */}
+      {onboardingCount > 0 && onOpenOnboarding && (
+        <div className="cl-ops-row">
+          <span className="cl-ops-label">מבט תפעולי</span>
+          <button
+            type="button"
+            className={`btn btn-sm ${opsOnboarding ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setOpsOnboarding(v => !v)}
+          >
+            בקשות קליטה פתוחות · {onboardingCount}
+          </button>
+          <span className="cl-ops-hint">חוצה שלבי חיים — כולל לקוחות פעילים שממתינים לבקשה</span>
+        </div>
+      )}
+
       {(<>
       {/* Search + advanced toggle */}
       <div className="cl-search-row">
@@ -507,16 +537,9 @@ export default function ClientList({
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        {/* ‼ "בקליטה" יושב כאן ולא רק בפילטרים המתקדמים: זה מבט יומיומי על
-            מי שבתהליך, לא סינון נדיר. פריט תפריט חדש היה עומס — זה לא. */}
-        {onboardingCount > 0 && (
-          <button
-            className={`btn ${stageFilter === 'onboarding' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setStageFilter(s => s === 'onboarding' ? 'default' : 'onboarding')}
-          >
-            בקליטה ({onboardingCount})
-          </button>
-        )}
+        {/* ‼ הכפתור "בקליטה (N)" ירד: הוא שכפל את הלשונית שלידו והציג אותו
+            מספר בשני מקומות. המבט התפעולי עצמו לא נעלם — הוא יושב מתחת
+            ללשוניות, מסומן במפורש כתצוגה תפעולית ולא כשלב חיים. */}
         <button
           className={`btn ${showAdvanced || activeAdvancedCount > 0 ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setShowAdvanced(s => !s)}
@@ -761,7 +784,7 @@ export default function ClientList({
                   const primaryNote = !pc.isClient ? pc.name : '';
 
                   return (
-                    <tr key={client.id} className="client-row" onClick={() => handleRowClick(client)}>
+                    <tr key={client.id} className={`client-row ${getStage(client) === 'archived' ? 'is-archived' : ''}`} onClick={() => handleRowClick(client)}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
                           <div className="client-avatar-sm">

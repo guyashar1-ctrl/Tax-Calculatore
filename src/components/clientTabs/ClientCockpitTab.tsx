@@ -167,7 +167,7 @@ export default function ClientCockpitTab({
         });
       }
     } else if (!taxSessionsLoading) {
-      out.push({ key: 'report', level: 'warn', title: 'אין תיק דוח שנתי', subtitle: 'אפשר לפתוח מכפתור "דוח שנתי" למעלה' });
+      out.push({ key: 'report', level: 'warn', title: 'אין תיק דוח שנתי', subtitle: 'נפתח מכפתור «התחל דוח שנתי» בראש כרטיס הלקוח' });
     }
 
     // משימות
@@ -344,7 +344,7 @@ export default function ClientCockpitTab({
           {taxSessionsLoading && <span style={{ fontSize: '12px', color: 'var(--gray-400)' }}>טוען…</span>}
         </div>
         {taxSessions.length === 0 && !taxSessionsLoading ? (
-          <div className="cw-empty">עדיין לא נפתח תיק דוח שנתי — אפשר מכפתור "דוח שנתי" למעלה.</div>
+          <div className="cw-empty">עדיין לא נפתח תיק דוח שנתי — מכפתור «התחל דוח שנתי» בראש כרטיס הלקוח.</div>
         ) : (
           /* שורה לשנה, לא גלולה: השנים נקראות זו מתחת לזו כרשימה
              כרונולוגית, ובכל שורה מצב אחד ופעולה אחת. */
