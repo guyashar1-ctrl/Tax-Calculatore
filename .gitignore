@@ -26,3 +26,7 @@ tmp/
 .claude/worktrees/
 
 .vercel
+
+# מבנה המסד שנמשך מהפרודקשן לבניית ה-staging. נוצר מחדש בכל פעם ע"י
+# scripts/staging-schema-extract.mjs, ולכן אינו נשמר בגיט ואינו מתיישן בו.
+supabase/staging/schema-from-prod.sql

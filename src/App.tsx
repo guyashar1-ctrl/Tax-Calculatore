@@ -1918,8 +1918,9 @@ export default function App() {
           onSent={({ materialKeys, objectionDueDate, subject, body }) => {
             const stepId = releaseFor.stepId;
             if (stepId) {
-              // ‼ תאריך היעד הוא חלון ההתנגדות של כלל 16, לא מועד קבלת החומרים.
+              // ‼ תאריך היעד הוא חלון ההתנגדות, לא מועד קבלת החומרים.
               // עברו שלושת ימי העסקים בלי תשובה — אין התנגדות, וממשיכים.
+              // שלושת הימים הם כלל עבודה פנימי של המשרד, לא חוק או תקנה.
               void onboarding.advance(stepId, 'wait_client', {
                 ball: 'prev_accountant',
                 dueDate: objectionDueDate,

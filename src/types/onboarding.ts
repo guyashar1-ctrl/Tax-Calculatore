@@ -320,12 +320,24 @@ export function isStepRequiredForClose(step: OnboardingStep): boolean {
  * עד שדולג במפורש, או עד שהוגדר כרשות. מי שרוצה לסגור בלי תשובה מסמן את
  * השלב כרשות — החלטה גלויה, במקום הקלה שקטה שאיש לא ביקש.
  *
- * ההקלה שנשארה היא חוקית ולא שיקול דעת: מכתב שחרור שחלון ההתנגדות שלו עבר
- * נחשב מסופק (תקנה 16 — שתיקת הרו״ח הקודם היא הסכמה).
+ * ההקלה שנשארה: מכתב שחרור שחלון ההתנגדות שלו עבר נחשב מסופק — שתיקת הרו״ח
+ * הקודם היא הסכמה. ‼ זהו **כלל עבודה פנימי של המשרד**, לא חוק, לא תקנה ולא
+ * כלל מקצועי מאומת. אין לו מקור מצוטט, ואין לתאר אותו ככזה בשום מקום.
+ *
+ * ‼ שתיקה נחשבת הסכמה רק אחרי ששאלנו. תאריך יעד אפשר לקבוע לכל שלב ידנית,
+ * ולכן מכתב שמעולם לא נשלח ותאריכו עבר היה "מספק" את הסגירה בלי שאיש ראה
+ * אותו. לכן החלון תקף רק אחרי שהשלב יצא מהכנה (לא pending ולא locked).
+ * זהה לתנאי שב-onboarding_close_readiness (מיגרציה 68).
  */
 export function isStepSatisfiedForClose(step: OnboardingStep): boolean {
   if (SATISFIED_STATUSES.includes(step.status)) return true;
-  if (step.stepType === 'release_letter' && step.dueDate && new Date(step.dueDate) <= new Date()) return true;
+  if (
+    step.stepType === 'release_letter' &&
+    step.status !== 'pending' &&
+    step.status !== 'locked' &&
+    step.dueDate &&
+    new Date(step.dueDate) <= new Date()
+  ) return true;
   return false;
 }
 
