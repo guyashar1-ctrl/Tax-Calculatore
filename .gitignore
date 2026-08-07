@@ -30,3 +30,11 @@ tmp/
 # מבנה המסד שנמשך מהפרודקשן לבניית ה-staging. נוצר מחדש בכל פעם ע"י
 # scripts/staging-schema-extract.mjs, ולכן אינו נשמר בגיט ואינו מתיישן בו.
 supabase/staging/schema-from-prod.sql
+
+# ‼ סודות סביבת הבדיקות. הכלל .env.*.local לא תופס את השם הזה, ובלי השורה
+# הזאת מפתח service_role של ה-staging היה נכנס לגיט.
+.env.staging
+STAGING_USER_ID
+
+# טיוטות עבודה זמניות של סשן Claude
+.tmp-claude/

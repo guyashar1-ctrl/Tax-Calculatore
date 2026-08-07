@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:staging": "vite --mode staging",
+    "staging:check": "node scripts/staging-check.mjs",
+    "staging:verify": "node scripts/staging-verify-schema.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test:setup": "node scripts/setup-test-env.mjs",
