@@ -1,5 +1,8 @@
 // ─── תיק לקוח — Workspace ─────────────────────────────────────────────────
-// Header קבוע + 5 לשוניות. החלפה מלאה ל-ClientForm הישן.
+// Header קבוע + לשוניות. החלפה מלאה ל-ClientForm הישן.
+//
+// ‼ מספר הלשוניות תלוי בקילל-סוויץ': עם journeyUi דלוק (ברירת המחדל) —
+// ארבע לשוניות סביב "המסע"; כבוי — חמש הלשוניות הישנות חוזרות, כולל "קליטה".
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Client, Task, REPRESENTATION_STATUS_LABELS, REPRESENTATION_STATUS_BADGE, VATStatus, IncomeTaxType, LifecycleStage, LIFECYCLE_STAGE_LABELS } from '../types';
@@ -7,8 +10,8 @@ import { ActivityEntry, ClientAlert, SHAAM_STATUS_BADGE } from '../types/clientW
 import { useEmployees } from '../hooks/useEmployees';
 import { useDocumentDB } from '../hooks/useIndexedDB';
 import { computeClientAlerts, getClientOpenTasks, getUpcomingDebts } from '../utils/clientDerived';
-// הלשוניות הישנות (OverviewTab/PersonalContactsTab/TaxNITab/TaxProfileTab) הוחלפו
-// ב-ClientCockpitTab + ClientDossierTab; הטפסים המלאים נגישים מתוך "התיק".
+// הלשוניות הישנות הוחלפו ב-ClientCockpitTab + ClientDossierTab; הטפסים
+// המלאים נגישים מתוך "התיק". הקבצים עצמם נמחקו — לא היה להם אף מייבא.
 import Icon from './ui/Icon';
 import ConfirmDialog from './ui/ConfirmDialog';
 import ClientDeleteDialog from './ClientDeleteDialog';
