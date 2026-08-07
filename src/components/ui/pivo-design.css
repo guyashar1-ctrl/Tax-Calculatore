@@ -978,6 +978,16 @@ table thead th {
    flex-shrink: 0 לבדו השאיר אותה 369px בתוך מסך של 360. */
 .pg-actions { display: flex; align-items: center; gap: 8px 10px; flex-shrink: 0; flex-wrap: wrap; max-width: 100%; }
 
+/* ‼ במסך צר הפעולות יורדות לשורה משלהן במקום להידחס לצד הכותרת.
+   בלי זה: ‎.pg-actions‎ עם ‎flex-shrink: 0‎ תפס את כל הרוחב, ‎.pg-head-main‎
+   נמעך כמעט לאפס, ו-"7 אנשים · אדם אחד לכל אורך המסע" נשבר מילה בשורה
+   והתנגש בכפתורים. נראה במסך הלקוחות ב-375, בהיר וכהה. */
+@media (max-width: 700px) {
+  .pg-head { flex-wrap: wrap; gap: 12px 16px; }
+  .pg-head-main { flex: 1 1 100%; }
+  .pg-actions { flex: 1 1 100%; }
+}
+
 /* שדה חיפוש בכותרת עמוד — משטח רך, בלי מסגרת.
    ‎input.pg-search‎ ולא ‎.pg-search‎: כלל הבסיס של השדות ב-index.css נכתב
    ‎input[type="text"]‎, ומחלקה לבדה מפסידה לו — השדה נמתח לרוחב מלא. */
