@@ -4,6 +4,11 @@
  *
  * שרשרת אחת: תבנית ⇢ שלב שנוצר ⇢ עריכה אחרי כן ⇢ נשמר ⇢ והמוכנות מכבדת אותו
  * בדיוק אותו דבר במסך וב-RPC. מריץ מול ה-RPC האמיתי, על לקוחות דמה בלבד.
+ *
+ * ‼ דורש זריעה טרייה לפני כל הרצה — הבדיקות משנות מצב בכוונה (מסמנות רשות,
+ *   שומרות תבנית, מחילות אותה). הרצה שנייה ברצף תיפול, וזה נכון: היא הייתה
+ *   בודקת מצב שכבר אינו נקודת המוצא.
+ *     node scripts/seed-staging.mjs && node scripts/staging-test-required-model.mjs
  */
 import { createClient } from '@supabase/supabase-js';
 import { STAGING_REF, loadEnv, writeStaging, assertTriggersEnabled } from './staging-lib.mjs';
@@ -41,6 +46,38 @@ console.log('— המחולל —');
   const r = await one(`select public.onboarding_close_readiness('${eng.id}') as r`);
   const blocksReview = r.r.blocking.some((b) => b.stepType === 'first_month_review');
   ok('ביקורת החודש הראשון אינה ברשימת החוסמים', !blocksReview);
+}
+
+// ── א2 · שאלון פתיחת התיק (הכרעת גיא, מיגרציה 73) ──────────────────────────
+// תזכורת אופציונלית בסוף הקליטה — נוצר אוטומטית, אבל אינו חוסם, אינו נחשף
+// ללקוח, ואינו שולח דבר. חשיפה = פעולה מפורשת של הרו"ח.
+console.log('\n— שאלון פתיחת התיק —');
+{
+  const st = await one(`select id, status, required_for_close, payload->>'published' as pub
+     from public.onboarding_steps where client_id = '${F3}' and step_type = 'intake_questionnaire'`);
+  ok('השאלון נוצר אוטומטית', !!st?.id);
+  ok('נולד כרשות', st?.required_for_close === false, String(st?.required_for_close));
+  ok('נולד כטיוטה — לא מפורסם ללקוח', st?.pub === 'false', String(st?.pub));
+
+  const tok = (await one(`select portal_token from public.clients where id = '${F3}'`)).portal_token;
+  const portal = (await one(`select public.get_client_portal('${tok}') as p`)).p;
+  ok('אינו מופיע בדף האישי של הלקוח', !JSON.stringify(portal).includes('שאלון'));
+
+  const eng = await one(`select id from public.engagements where client_id = '${F3}' limit 1`);
+  const r = await one(`select public.onboarding_close_readiness('${eng.id}') as r`);
+  ok('אינו חוסם סגירת קליטה',
+    !r.r.blocking.some((b) => b.stepType === 'intake_questionnaire'));
+
+  const before = await one(`select count(*)::int as n from public.email_messages`);
+  const { data: up } = await user.rpc('set_onboarding_step_required',
+    { p_step_id: st.id, p_required: true });
+  ok('אפשר לסמן אותו ידנית כנדרש', up?.ok === true && up?.requiredForClose === true, JSON.stringify(up));
+  const r2 = await one(`select public.onboarding_close_readiness('${eng.id}') as r`);
+  ok('אחרי הסימון הידני הוא כן חוסם',
+    r2.r.blocking.some((b) => b.stepType === 'intake_questionnaire'));
+  const after = await one(`select count(*)::int as n from public.email_messages`);
+  ok('שום מייל לא נשלח בעקבות השינוי', after.n === before.n, `${before.n} → ${after.n}`);
+  await user.rpc('set_onboarding_step_required', { p_step_id: st.id, p_required: false });
 }
 
 // ── ב · שדרוג לייצוג ראשי — גם הוא זנב ארוך ────────────────────────────────

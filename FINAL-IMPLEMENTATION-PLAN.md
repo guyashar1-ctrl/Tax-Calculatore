@@ -207,8 +207,14 @@ Add an explicit `required_for_close` value to each of its 12 `insert` statements
 ## 9. Questionnaire completion rules
 
 - The questionnaire blocks closure iff its step exists, is `required_for_close`, and its status ∉ {completed, verified, skipped, cancelled}. The live "waiting_client = satisfied" leniency is **removed** by migration 68 — and verified to affect zero live rows (no `intake_questionnaire` steps exist in the DB at all, 2026-08-07).
-- The questionnaire is **not** auto-generated (closed decision): it enters via + בקשה, where the checkbox decides required/optional; born `published=false` when the process is already published.
-- Making it non-blocking without cancelling: uncheck at creation, or the §8.2 toggle, or `advance … skip` with a reason.
+- **REVISED 2026-08-07 (Guy's ruling, "option 2") — supersedes the earlier "not auto-generated" wording.** Implementation found that `create_engagement_for_quotation` calls `add_intake_questionnaire_step` unconditionally on all three exit paths, so the questionnaire *is* auto-generated on every approval. Production showed zero such steps only because its three engagements predate that call. The approved behaviour is now:
+  - The questionnaire **is** created automatically as part of onboarding, but **born optional** (`required_for_close = false`) — an optional reminder at the end of onboarding, never a condition for closing it.
+  - **Creating the step is not sending or publishing.** It is born `payload.published = false`, so the client does not see it in the portal. This mattered: `get_client_portal` treats a step with no `published` key as *published* (`coalesce(...,'true') <> 'false'`), so the previous empty payload would have exposed it immediately.
+  - **No email, message or link is ever sent automatically.** Exposure requires an explicit accountant action — the existing `publish_onboarding_request`, which is also what offers the email.
+  - It remains switchable to required per client, via the §8.2 toggle.
+  - Existing clients: the migration writes only the column and the payload. It sends nothing. (Matches **zero rows** in production — verified 2026-08-07.)
+  - Delivered by **migration 73**; covered by 8 acceptance tests in `scripts/staging-test-required-model.mjs`.
+- Making it non-blocking without cancelling: it is optional by default; otherwise the §8.2 toggle, or `advance … skip` with a reason.
 
 ## 10. Previous-accountant flow
 
