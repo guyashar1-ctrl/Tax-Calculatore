@@ -410,6 +410,24 @@ body {
 .btn-lg { padding: .75rem 1.5rem; font-size: 15px; }
 .btn-icon { padding: .5rem; width: 2rem; height: 2rem; justify-content: center; }
 
+/* ‼ שטח נגיעה במסך מגע. במדידה על מסך 390 רוב הכפתורים יצאו 28–34 פיקסלים
+   גובה — אפשר ללחוץ, אבל לא נוח, וקל לפספס באגודל אחד. ההנחיות של אפל
+   וגוגל הן 44 ו-48. כאן: 44 לכפתור רגיל וללשונית, 38 לכפתורי השורות
+   הצפופות (btn-sm) כדי שרשימת הבקשות לא תתנפח לאורך מסך שלם.
+   הרוחב לא נכפה — כפתור צר עם טקסט קצר עדיין נוח כשגובהו מספיק. */
+@media (max-width: 700px) {
+  /* ‼ שתי משפחות כפתורים חיות במקביל בפרויקט — .btn מ-index.css ו-.ui-btn
+     מ-pivo-design.css — וכן שבבי הסינון .chip וקישורי הכלים בכותרת. כלל
+     שמכסה רק אחת מהן נראה כאילו הוא עובד ולא נוגע ברוב המסכים. */
+  .btn, .tab, .ui-btn, .chip, .header-tool-link, .cl-stage-tab { min-height: 44px; }
+  .btn-sm, .ui-btn-sm { min-height: 38px; }
+  .btn-icon { width: 2.5rem; height: 2.5rem; }
+  /* תפריט השורה (⋯) — 28 פיקסלים הוא כפתור שמפספסים באגודל */
+  .ui-icon-btn { min-width: 38px; min-height: 38px; }
+  /* שבבים וכפתורים מיישרים את התוכן למרכז כשהגובה נכפה עליהם */
+  .chip, .ui-btn, .header-tool-link { display: inline-flex; align-items: center; justify-content: center; }
+}
+
 /* ── Form ───────────────────────────────────────────────────────────────── */
 .form-grid { display: grid; gap: 1rem; }
 .form-grid-2 { grid-template-columns: 1fr 1fr; }
@@ -3877,6 +3895,11 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
     font-weight: 600;
     color: var(--tx3);
     cursor: pointer;
+    /* ‼ זה הניווט הראשי בטלפון. הוא היה 22 פיקסלים גובה בתוך סרגל של 39 —
+       פחות מחצי ממה שסרגל תחתון צריך, ובדיוק במקום שבו האגודל הכי פחות
+       מדויק. 48 הוא המינימום המקובל, והוא גם מרכז את התווית והאייקון. */
+    min-height: 48px;
+    justify-content: center;
     padding: .15rem 0;
     min-width: 0;
   }

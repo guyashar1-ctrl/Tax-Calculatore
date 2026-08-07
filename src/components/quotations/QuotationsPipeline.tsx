@@ -347,7 +347,10 @@ export default function QuotationsPipeline({
                   <span className={`badge ${g.badge}`}>{QUOTATION_STATUS_LABELS[g.status]}</span>
                   <span style={{ fontSize: 12.5, color: 'var(--gray-400)' }}>{list.length}</span>
                 </div>
-                <div className="card">
+                {/* ‼ הטבלה רחבה מהמסך בטלפון (שש עמודות, ~670 פיקסלים). בלי
+                    המעטפת הזאת כל **העמוד** נגלל לצדדים, והכותרת והניווט
+                    נעלמים מהמסך. עכשיו רק הטבלה נגללת, והשאר נשאר במקום. */}
+                <div className="card" style={{ overflowX: 'auto', maxWidth: '100%' }}>
                   <table>
                     <thead>
                       <tr>

@@ -492,6 +492,9 @@ export default function ClientList({
                 type="button"
                 onClick={() => switchTab(t.key)}
                 aria-pressed={on}
+                /* ‼ cl-stage-tab ולא רק inline: זו לשונית הניווט הראשית של
+                   המסך, והיא צריכה שטח נגיעה הגון בטלפון (ראה index.css). */
+                className="cl-stage-tab"
                 style={{
                   padding: '.45rem .7rem', border: 'none', background: 'transparent',
                   borderBottom: `2px solid ${on ? 'var(--accent)' : 'transparent'}`,
