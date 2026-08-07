@@ -70,8 +70,9 @@ await writeStaging(`
  * כרטיסים לפי מייל או לפי ספרות הטלפון, ולכן כשכולם היו delivered@resend.dev
  * עם אותו טלפון — כל לקוחות הדמה התמזגו לכרטיס אחד עם ערימת שלבים משותפת.
  * הכתובות הן plus-addressing על דומיין הבדיקה של Resend, כלומר אינן מגיעות
- * לאף אדם. רק F3 — הלקוח שעליו נבדקת שליחת מייל הייצוג — מקבל את הכתובת
- * המדויקת delivered@resend.dev, שמחזירה הצלחה אמיתית מ-Resend.
+ * לאף אדם. הכתובת המדויקת delivered@resend.dev — היחידה שמחזירה הצלחה
+ * אמיתית מ-Resend — שמורה ללקוח שנוצר במבחני המייל
+ * (staging-test-email-policy.mjs), כדי שהוא לא יתמזג עם אף לקוח דמה אחר.
  */
 async function makeQuotation({ key, name, withPrevAccountant, monthly, withRep, expiresInDays, email, phone }) {
   const leadId = `fx-lead-${key}`;
@@ -138,7 +139,7 @@ const f2 = await makeQuotation({ key: 'quote', name: 'בהצעה', withPrevAccou
 console.log('· F2 הצעה נשלחה — טוקן לבדיקות ידניות:', f2.token);
 
 // ── F3 · קליטה מלאה: פייפרלס + הרשאת תשלום + רו"ח קודם + ייצוג ─────────────
-const f3 = await makeQuotation({ key: 'onb', name: 'בקליטה', withPrevAccountant: true, monthly: true, withRep: true, expiresInDays: 30, email: EMAIL, phone: '050-0000003' });
+const f3 = await makeQuotation({ key: 'onb', name: 'בקליטה', withPrevAccountant: true, monthly: true, withRep: true, expiresInDays: 30, email: 'delivered+onb@resend.dev', phone: '050-0000003' });
 await approve(f3.token, 'בקליטה דמה');
 const f3id = await clientOf(f3.quoteId);
 made.push(['F3 קליטה מלאה', f3id]);

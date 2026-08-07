@@ -677,9 +677,23 @@ function OfficeNotificationsSection({ profile, onChangeProfile }: { profile: Fir
       {NOTIFICATION_GROUPS.map(group => {
         const items = ACCOUNTANT_NOTIFICATIONS.filter(n => n.group === group);
         if (items.length === 0) return null;
+        // ‼ קבוצה שהנמען שלה הוא הלקוח מסומנת אחרת. כל השאר במסך הזה הם
+        // מיילים אלייך; מתג ששולח ללקוח בלי שתאשר כל פעם חייב להיראות
+        // שונה, אחרת הוא נדלק בטעות בתוך רשימה של התראות פנימיות.
+        const toClient = items.some(n => n.audience === 'client');
         return (
           <div key={group} style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 'var(--fs-12)', fontWeight: 600, color: 'var(--gray-500)', marginBottom: 8 }}>{group}</div>
+            {toClient && (
+              <div style={{
+                padding: '8px 10px', marginBottom: 8, borderRadius: 8,
+                background: 'var(--amber-50, #FFF8EC)', border: '1px solid var(--warn)',
+                fontSize: 'var(--fs-12)', color: 'var(--ink-2)', lineHeight: 1.6,
+              }}>
+                ‼ המתגים כאן שולחים מייל <strong>ללקוח עצמו</strong>, אוטומטית ובלי לשאול אותך בכל פעם.
+                כבויים כברירת מחדל.
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {items.map(n => {
                 const on = isNotificationEnabled(settings, n.kind);

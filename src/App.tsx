@@ -274,56 +274,31 @@ export default function App() {
   }, [user, authorized]);
 
   /**
-   * שני דברים נשארים פתוחים אחרי אישור הצעה: הפקת הסכם ההתקשרות (PDF), ומי
-   * שחתם ונעלם באמצע מבלי להשלים את פרטי הייצוג. שניהם מושלמים כאן בכניסה
-   * הבאה של הרו"ח, ושניהם אידמפוטנטיים.
+   * מה שנשאר פתוח אחרי אישור הצעה: הפקת הסכם ההתקשרות (PDF). אידמפוטנטי.
    *
-   * ‼ אין יותר מייל אוטומטי מיד אחרי החתימה. הקישור הקבוע לדף האישי נשלח כבר
-   * עם ההצעה, והמסך ממשיך לצעד הבא מעצמו — מייל נוסף באותו רגע הוא רעש. מה
-   * שנשאר הוא תזכורת אחת, ורק למי שבאמת נתקע: חלף יום מהאישור והפרטים עדיין
-   * לא מולאו.
+   * ‼ מייל הייצוג כבר **לא נשלח מכאן**. עד 2026-08-07 ישב כאן אפקט שבדק אם
+   * חלפו 24 שעות מהאישור בלי שהקישור יצא — ואם כן, שלח מייל **ללקוח** מתוך
+   * הדפדפן של גיא. המשמעות: לקוח שאישר בשישי בערב חיכה לקישור עד שגיא נכנס
+   * למערכת. הכרעת גיא D1 העבירה את השליחה לשרת: `approve_quotation` מפעילה
+   * אותה מיד עם האישור (מיגרציה 72), בלי תלות בדפדפן של אף אחד.
    *
-   * ‼ הסימון "נשלח" לא נעשה כאן. השרת תובע את השליחה על ההצעה עצמה לפני
-   * שהוא פונה לרסנד, ולכן שני מסלולים שרצים יחד לא יכולים לשלוח פעמיים. כשהשרת
-   * מחזיר alreadySent הוא אומר שמישהו הקדים — אין מה לכתוב, הערך כבר במסד.
+   * ‼ מה שקרה כאן הפך להתראה פנימית בלבד: `flag_missing_representation_links`
+   * מסמנת הצעה שאושרה לפני יותר מיממה והקישור לא יצא, וגיא מקבל התראה
+   * (`representation_link_missing`). **אף מייל ללקוח אינו יוצא ממנגנון 24
+   * השעות יותר.** ראה docs/EMAIL-POLICY.md.
    */
   const contractSaved = useRef(new Set<string>());
-  const autoRepHandled = useRef(new Set<string>());
   useEffect(() => {
     if (!user) return;
-    const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
     for (const q of quotations) {
       if (q.status !== 'approved' || !q.representationRequestId) continue;
       if (q.clientId && !contractSaved.current.has(q.id)) {
         contractSaved.current.add(q.id);
         void saveEngagementContract(q, q.clientId);
       }
-      if (autoRepHandled.current.has(q.id)) continue;
-      if (q.representationSentAt) continue;
-      // ‼ הסימון "טופל" נעשה רק כשבאמת שולחים. בקשות הייצוג נטענות אחרי
-      // ההצעות, ואם נסמן מוקדם — הבדיקה תרוץ פעם אחת על מידע חסר ולא תחזור.
-      const linkedReq = requests.find(r => r.id === q.representationRequestId);
-      if (!linkedReq) continue;
-      if (linkedReq.onboardingStatus !== 'pending') continue;   // הלקוח כבר מילא
-      const approvedAt = q.approvedAt ? new Date(q.approvedAt).getTime() : 0;
-      if (!approvedAt || Date.now() - approvedAt < NUDGE_AFTER_MS) continue;
-      autoRepHandled.current.add(q.id);
-      void (async () => {
-        try {
-          const { data, error } = await supabase.functions.invoke('send-onboarding-email', {
-            body: { requestId: q.representationRequestId },
-          });
-          const failure = error?.message || (data?.ok ? null : (data?.detail?.message || data?.error || 'שגיאה לא ידועה'));
-          if (failure) {
-            await updateQuotation({ ...q, representationError: failure });
-          } else if (!data?.alreadySent) {
-            await updateQuotation({ ...q, representationSentAt: new Date().toISOString(), representationError: undefined });
-          }
-        } catch { /* יימשך בכניסה הבאה */ }
-      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, quotations, requests]);
+  }, [user?.id, quotations]);
 
   const { theme, toggleTheme } = useTheme();
   // המסך שבו נמצאים נקרא מהכתובת, כדי שרענון (F5) יחזיר לאותו מקום
