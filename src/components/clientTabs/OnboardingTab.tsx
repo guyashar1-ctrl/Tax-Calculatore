@@ -610,13 +610,11 @@ export default function OnboardingTab({
               type="button"
               className="ui-linkbtn ob-gate-force"
               disabled={closing}
-              onClick={() => {
-                if (!window.confirm('לסגור את הקליטה למרות שנותרו שלבים נדרשים פתוחים? הם יישארו כבקשות פתוחות, והסגירה תירשם ביומן.')) return;
-                setCloseGate(null);
-                void closeOnboarding(true);
-              }}
+              /* ‼ אין אישור שני. החלון עצמו הוא האישור: מי שקרא את הרשימה
+                 ולחץ כאן — החליט. שני חלונות ברצף מלמדים ללחוץ בלי לקרוא. */
+              onClick={() => { setCloseGate(null); void closeOnboarding(true); }}
             >
-              סגור בכל זאת
+              סגור בכל זאת · {closeGate.steps.length} נדרשים יישארו פתוחים
             </button>
           </div>
         </Modal>

@@ -224,6 +224,13 @@ export interface OnboardingStep {
   status: OnboardingStepStatus;
   ball: OnboardingBall;
   dependsOnStepId?: string;
+  /**
+   * האם השלב חוסם סגירת קליטה. נקבע לכל שלב בנפרד — לא לפי סוג בלבד —
+   * כי אותו סוג יכול להיות חובה במסע אחד ורשות במסע אחר (ייבוא היסטוריה,
+   * שאלון, בקשה חופשית). חסר ⇒ נופלים לברירת המחדל לפי סוג, עבור שורות
+   * שנוצרו לפני שהעמודה קיימת.
+   */
+  requiredForClose?: boolean;
   dueDate?: string;
   /** סדר התצוגה שהרו״ח קבע בבונה. גובר על סדר היצירה בכל מסך ובדף האישי. */
   sortOrder?: number;
@@ -279,34 +286,45 @@ export function isStepOpen(status: OnboardingStepStatus): boolean {
 // — הוא זה שחוסם סגירה — והעתק הכללים כאן קיים כדי שהמסך יוכל לומר *מראש*
 // מה חוסם, בלי לנחש ובלי להמציא כלל משלו. כל שינוי כאן חייב להיעשות גם שם.
 
-/** סוגים שלעולם אינם חוסמים סגירה: עבודה שממשיכה ברקע אחרי שהלקוח כבר שוטף. */
-export const OPTIONAL_STEP_TYPES: OnboardingStepType[] = [
+/**
+ * ברירת מחדל לפי סוג — משמשת אך ורק כשאין לשלב ערך משלו, כלומר לשורות
+ * שנוצרו לפני שהעמודה required_for_close קיימת. שני הסוגים האלה הם עבודה
+ * שממשיכה ברקע אחרי שהלקוח כבר שוטף, ומעולם לא חסמו סגירה גם בשרת.
+ */
+export const DEFAULT_OPTIONAL_STEP_TYPES: OnboardingStepType[] = [
   'representation_upgrade',
   'first_month_review',
-  'custom_request',
-  'data_import',
-  'data_verification',
 ];
 
 /** מצבים שנחשבים "סגור" לצורך הסגירה. */
 export const SATISFIED_STATUSES: OnboardingStepStatus[] = ['completed', 'verified', 'skipped'];
 
 /**
- * שלב קיים = התנאי שלו מתקיים. המחולל יוצר מכתב שחרור רק כשיש רו״ח קודם,
- * הרשאת תשלום רק כשיש חיוב חודשי, וכן הלאה — ולכן אין צורך בבדיקת תנאי
- * נפרדת במסך. מה שקיים ואינו ברשימת הרשות — נדרש.
+ * האם השלב חוסם סגירה. הערך שעל השלב גובר תמיד; ברירת המחדל לפי סוג היא
+ * רשת ביטחון לשורות ישנות בלבד.
+ *
+ * ‼ שלב מותנה אינו זקוק לבדיקת תנאי כאן: המחולל יוצר מכתב שחרור רק כשיש
+ * רו״ח קודם, הרשאת תשלום רק כשיש חיוב חודשי, וחיבור פייפרלס רק כשהוא חלק
+ * מהמסע. קיום השלב הוא התנאי — ולכן שלב מותנה שקיים הוא נדרש.
  */
 export function isStepRequiredForClose(step: OnboardingStep): boolean {
   if (step.status === 'cancelled') return false;
-  return !OPTIONAL_STEP_TYPES.includes(step.stepType);
+  if (typeof step.requiredForClose === 'boolean') return step.requiredForClose;
+  return !DEFAULT_OPTIONAL_STEP_TYPES.includes(step.stepType);
 }
 
-/** האם השלב מסופק — כולל שתי ההקלות שהשרת מכיר. */
+/**
+ * האם השלב מסופק.
+ *
+ * ‼ ההקלה "השאלון נשלח ⇒ מספיק" הוסרה. שאלון שהוגדר כנדרש חוסם עד שנענה,
+ * עד שדולג במפורש, או עד שהוגדר כרשות. מי שרוצה לסגור בלי תשובה מסמן את
+ * השלב כרשות — החלטה גלויה, במקום הקלה שקטה שאיש לא ביקש.
+ *
+ * ההקלה שנשארה היא חוקית ולא שיקול דעת: מכתב שחרור שחלון ההתנגדות שלו עבר
+ * נחשב מסופק (תקנה 16 — שתיקת הרו״ח הקודם היא הסכמה).
+ */
 export function isStepSatisfiedForClose(step: OnboardingStep): boolean {
   if (SATISFIED_STATUSES.includes(step.status)) return true;
-  // שאלון שנשלח ללקוח מספיק — אין טעם לעכב שוטף עד שיענה.
-  if (step.stepType === 'intake_questionnaire' && step.status === 'waiting_client') return true;
-  // מכתב שחרור שחלון ההתנגדות שלו עבר — שתיקה היא הסכמה (תקנה 16).
   if (step.stepType === 'release_letter' && step.dueDate && new Date(step.dueDate) <= new Date()) return true;
   return false;
 }
