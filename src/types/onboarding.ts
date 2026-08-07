@@ -273,3 +273,45 @@ const CLOSED_STATUSES: OnboardingStepStatus[] = ['completed', 'verified', 'skipp
 export function isStepOpen(status: OnboardingStepStatus): boolean {
   return !CLOSED_STATUSES.includes(status);
 }
+
+// ─── כללי סגירת הקליטה · מקור אחד ────────────────────────────────────────────
+// ‼ הכללים האלה הם בבואה של onboarding_close_readiness בשרת. השרת הוא הסמכות
+// — הוא זה שחוסם סגירה — והעתק הכללים כאן קיים כדי שהמסך יוכל לומר *מראש*
+// מה חוסם, בלי לנחש ובלי להמציא כלל משלו. כל שינוי כאן חייב להיעשות גם שם.
+
+/** סוגים שלעולם אינם חוסמים סגירה: עבודה שממשיכה ברקע אחרי שהלקוח כבר שוטף. */
+export const OPTIONAL_STEP_TYPES: OnboardingStepType[] = [
+  'representation_upgrade',
+  'first_month_review',
+  'custom_request',
+  'data_import',
+  'data_verification',
+];
+
+/** מצבים שנחשבים "סגור" לצורך הסגירה. */
+export const SATISFIED_STATUSES: OnboardingStepStatus[] = ['completed', 'verified', 'skipped'];
+
+/**
+ * שלב קיים = התנאי שלו מתקיים. המחולל יוצר מכתב שחרור רק כשיש רו״ח קודם,
+ * הרשאת תשלום רק כשיש חיוב חודשי, וכן הלאה — ולכן אין צורך בבדיקת תנאי
+ * נפרדת במסך. מה שקיים ואינו ברשימת הרשות — נדרש.
+ */
+export function isStepRequiredForClose(step: OnboardingStep): boolean {
+  if (step.status === 'cancelled') return false;
+  return !OPTIONAL_STEP_TYPES.includes(step.stepType);
+}
+
+/** האם השלב מסופק — כולל שתי ההקלות שהשרת מכיר. */
+export function isStepSatisfiedForClose(step: OnboardingStep): boolean {
+  if (SATISFIED_STATUSES.includes(step.status)) return true;
+  // שאלון שנשלח ללקוח מספיק — אין טעם לעכב שוטף עד שיענה.
+  if (step.stepType === 'intake_questionnaire' && step.status === 'waiting_client') return true;
+  // מכתב שחרור שחלון ההתנגדות שלו עבר — שתיקה היא הסכמה (תקנה 16).
+  if (step.stepType === 'release_letter' && step.dueDate && new Date(step.dueDate) <= new Date()) return true;
+  return false;
+}
+
+/** מה חוסם סגירה רגילה — ורק זה. הרשימה שמוצגת בחלון הסגירה. */
+export function blockingStepsForClose(steps: OnboardingStep[]): OnboardingStep[] {
+  return steps.filter(s => isStepRequiredForClose(s) && !isStepSatisfiedForClose(s));
+}

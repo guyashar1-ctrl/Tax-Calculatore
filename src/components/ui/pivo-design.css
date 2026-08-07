@@ -2009,3 +2009,13 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 /* אדם בארכיון — נשאר קריא, אך מעומעם. הוא לא עבודה פעילה. */
 .client-table tbody tr.is-archived { opacity: .55; }
 .client-table tbody tr.is-archived:hover { opacity: 1; }
+
+/* ── חלון סגירת הקליטה · הרשימה קצרה, והעקיפה משנית ─────────────────────── */
+.ob-gate-lead { font-size: var(--fs-13); color: var(--ink-2); margin-bottom: .5rem; }
+.ob-gate-list { margin: 0 0 1rem; padding-inline-start: 1.15rem; display: grid; gap: .25rem;
+  font-size: var(--fs-13); color: var(--ink-1); }
+.ob-gate-actions { display: flex; align-items: center; gap: 1rem; }
+.ob-gate-force { color: var(--ink-3); font-size: var(--fs-13); }
+.ob-gate-force:hover { color: var(--danger); }
+/* סימון "רשות" — הקל ביותר האפשרי: מילה אחת אפורה, בלי גלולה */
+.ob-optional { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: .35rem; }

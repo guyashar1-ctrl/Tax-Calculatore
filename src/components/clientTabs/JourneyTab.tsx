@@ -13,7 +13,7 @@ import type { Client, Task } from '../../types';
 import { LIFECYCLE_STAGE_LABELS } from '../../types';
 import type { ClientAlert } from '../../types/clientWorkspace';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
-import { isStepOpen } from '../../types/onboarding';
+import { isStepOpen, STEP_TYPE_LABELS, STEP_BALL_LABELS } from '../../types/onboarding';
 import type { Quotation, Lead } from '../../types/quotations';
 import { QUOTATION_STATUS_LABELS } from '../../types/quotations';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
@@ -135,7 +135,14 @@ export default function JourneyTab(p: Props) {
     latestQuotation: clientQuotations[0],
     openTasks: p.openTasks,
     latestSession: p.taxSessions[0] ?? null,
-  }), [p.client, stage, p.lead, liveQuotation, clientQuotations, p.openTasks, p.taxSessions]);
+    openRequests: clientSteps.filter(s => isStepOpen(s.status)).map(s => ({
+      title: String(s.payload?.title ?? '').trim() || STEP_TYPE_LABELS[s.stepType],
+      stuck: s.status === 'blocked' || s.status === 'failed' || !!s.needsAttention,
+      ball: STEP_BALL_LABELS[s.ball],
+    })),
+    representationPending: p.repStatusLabel && p.repStatusLabel !== 'מיוצג פעיל' ? p.repStatusLabel : null,
+  }), [p.client, stage, p.lead, liveQuotation, clientQuotations, p.openTasks, p.taxSessions,
+    clientSteps, p.repStatusLabel]);
 
   const timeline = useMemo(
     () => (liveQuotation ? buildQuotationTimeline(liveQuotation, clientEmails) : []),

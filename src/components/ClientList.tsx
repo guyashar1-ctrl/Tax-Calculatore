@@ -890,8 +890,10 @@ export default function ClientList({
                       </td>
                       <td className="hide-mobile col-shaam" style={{ textAlign: 'center' }}>
                         {/* רק חריגה מסומנת. "פעיל" הוא המצב הצפוי ולא צריך סימן (§4.5) */}
-                        {client.shaamStatus === 'inactive' && <span className="cl-flag">לא פעיל</span>}
-                        {client.shaamStatus === 'pending' && <span className="cl-flag cl-flag-warn">בטיפול</span>}
+                        {/* ‼ הטקסט נושא את הנושא שלו. "לא פעיל" בעמודה צרה נקרא כשלב חיים של
+                            האדם, בזמן שהוא מדבר על הרשאת שע"ם בלבד. */}
+                        {client.shaamStatus === 'inactive' && <span className="cl-flag">שע״ם לא פעיל</span>}
+                        {client.shaamStatus === 'pending' && <span className="cl-flag cl-flag-warn">שע״ם בטיפול</span>}
                       </td>
                       {/* ‼ פעולה ראשית אחת בשורה — הפתיחה — וכל השאר מתחת ל-⋯.
                           עד כה ישבה כאן רק מחיקה: הפעולה ההרסנית הייתה היחידה

@@ -59,6 +59,10 @@ interface NextActionCtx {
   latestQuotation?: Quotation;
   openTasks: Task[];
   latestSession?: AnnualReportSession | null;
+  /** בקשות פתוחות של הלקוח — כולל אחרי סגירת הקליטה. */
+  openRequests?: { title: string; stuck: boolean; ball: string }[];
+  /** ייצוג שטרם הושלם — לא מציגים "הכול מסודר" בזמן שהוא פתוח. */
+  representationPending?: string | null;
 }
 
 const displayName = (c: Client) => `${c.firstName} ${c.lastName ?? ''}`.trim() || c.idNumber;
@@ -80,7 +84,8 @@ function mostUrgentTask(openTasks: Task[]): { task: Task; lateDays: number } | n
 }
 
 export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
-  const { client, stage, lead, liveQuotation, latestQuotation, openTasks, latestSession } = ctx;
+  const { client, stage, lead, liveQuotation, latestQuotation, openTasks, latestSession,
+    openRequests = [], representationPending } = ctx;
   const name = displayName(client);
 
   // ── ליד ────────────────────────────────────────────────────────────────────
@@ -181,6 +186,36 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
       detail: 'התיק נפתח וממתין להמשך.',
       tone: 'normal',
       buttons: [{ label: 'פתח את הדוח', kind: 'secondary', action: 'openYear', taxYear: latestSession.taxYear }],
+    };
+  }
+
+  /* ‼ "הכול מסודר" נאמר רק כשבאמת אין כלום. בקשה תקועה, בקשה פתוחה או
+     ייצוג שלא הושלם — כל אחד מהם מבטל את המשפט הזה. משפט שקט על מסך שיש
+     בו עבודה פתוחה הוא בדיוק סוג המסך שהמוצר הזה בא למנוע. */
+  const stuckRequest = openRequests.find(r => r.stuck);
+  if (stuckRequest) {
+    return {
+      headline: stuckRequest.title,
+      detail: `בקשה תקועה · ${stuckRequest.ball}`,
+      tone: 'urgent',
+      buttons: [],
+    };
+  }
+  if (representationPending) {
+    return {
+      headline: 'הייצוג טרם הושלם',
+      detail: representationPending,
+      tone: 'normal',
+      buttons: [{ label: 'מרכז הייצוג', kind: 'secondary', action: 'openRepresentation' }],
+    };
+  }
+  if (openRequests.length > 0) {
+    const first = openRequests[0];
+    return {
+      headline: openRequests.length === 1 ? first.title : `${openRequests.length} בקשות פתוחות`,
+      detail: openRequests.length === 1 ? `בקשה פתוחה · ${first.ball}` : `הראשונה: ${first.title}`,
+      tone: 'normal',
+      buttons: [],
     };
   }
 
