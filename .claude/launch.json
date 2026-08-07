@@ -7,6 +7,12 @@
       "runtimeArgs": [],
       "port": 5173,
       "autoPort": true
+    },
+    {
+      "name": "staging",
+      "runtimeExecutable": "node_modules\\.bin\\vite.cmd",
+      "runtimeArgs": ["--mode", "staging", "--port", "5174", "--strictPort"],
+      "port": 5174
     }
   ]
 }

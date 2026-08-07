@@ -15,7 +15,16 @@ export interface JourneyTemplate {
   id: string;
   name: string;
   description?: string;
-  entries: { stepType: OnboardingStep['stepType']; payload?: Record<string, unknown> }[];
+  /**
+   * ‼ requiredForClose נוסע עם הבקשה. בלעדיו בקשה שהוגדרה כרשות אצל לקוח אחד
+   * הייתה חוזרת כ"נדרש" אצל כל מי שהתבנית מוחלת עליו. חסר ⇒ נדרש, כדי
+   * שתבניות שנשמרו לפני השינוי ימשיכו להתנהג כמו קודם.
+   */
+  entries: {
+    stepType: OnboardingStep['stepType'];
+    payload?: Record<string, unknown>;
+    requiredForClose?: boolean;
+  }[];
 }
 
 interface Props {
@@ -131,11 +140,23 @@ export default function JourneyTemplatesDialog({ clientId, clientName, onClose, 
                     {t.description && (
                       <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{t.description}</div>
                     )}
-                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginTop: 2 }}>
-                      {(t.entries ?? []).map(e =>
-                        e.stepType === 'custom_request'
-                          ? String(e.payload?.title ?? 'בקשה מהמשרד')
-                          : STEP_TYPE_LABELS[e.stepType]).join(' · ')}
+                    {/* ‼ הבקשות מוצגות אחת-אחת ולא כשורה מחוברת, כדי שאפשר
+                        יהיה לסמן ליד כל אחת אם היא רשות. מי שרוצה לשנות —
+                        משנה על השלב עצמו במסע ושומר את התבנית מחדש. */}
+                    <div style={{
+                      fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginTop: 2,
+                      display: 'flex', flexWrap: 'wrap', gap: '.2rem .5rem',
+                    }}>
+                      {(t.entries ?? []).map((e, i) => (
+                        <span key={i} style={{ whiteSpace: 'nowrap' }}>
+                          {e.stepType === 'custom_request'
+                            ? String(e.payload?.title ?? 'בקשה מהמשרד')
+                            : STEP_TYPE_LABELS[e.stepType]}
+                          {e.requiredForClose === false && (
+                            <span className="ob-optional" style={{ marginInlineStart: '.25rem' }}>רשות</span>
+                          )}
+                        </span>
+                      ))}
                     </div>
                   </div>
                   <button type="button" className="btn btn-sm btn-primary" disabled={busy}

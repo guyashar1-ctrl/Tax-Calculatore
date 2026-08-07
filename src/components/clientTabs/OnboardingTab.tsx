@@ -75,6 +75,13 @@ const RowOpenContext = createContext<{
   onMove?: (id: string, dir: -1 | 1) => void;
   /** פתיחת בקשה שנשמרה כטיוטה, אל הדף האישי של הלקוח. */
   onPublish?: (id: string) => void;
+  /**
+   * שינוי "נדרש לסגירת הקליטה" על שלב קיים.
+   * ‼ ההחלטה הזאת מתבררת תוך כדי — בקשה שנראתה קריטית מתגלה כלא רלוונטית.
+   * בלי הכפתור הזה הדרך היחידה לשחרר שלב הייתה לבטל אותו, כלומר למחוק מידע
+   * כדי לעקוף חוק.
+   */
+  onSetRequired?: (id: string, required: boolean) => void;
 }>({ openId: null, toggle: () => {} });
 
 /** שם השורה. בקשה חופשית נושאת את השם שהרו"ח נתן לה, לא תווית גנרית. */
@@ -492,6 +499,20 @@ export default function OnboardingTab({
     setEmailDialog({ stepId: id, kind: 'step_reminder', heading: 'הודעה ללקוח על הבקשה' });
   }
 
+  async function setStepRequired(id: string, required: boolean) {
+    const { data, error: rpcError } = await supabase.rpc('set_onboarding_step_required', {
+      p_step_id: id, p_required: required,
+    });
+    const res = data as { ok?: boolean; error?: string } | null;
+    if (rpcError || !res?.ok) {
+      setError(res?.error === 'step_closed'
+        ? 'השלב כבר נסגר — אי אפשר לשנות אם הוא נדרש.'
+        : (rpcError?.message ?? 'עדכון הבקשה נכשל.'));
+      return;
+    }
+    refresh?.();
+  }
+
   // ‼ אותו מסך, שני מצבים. כל עוד התהליך לא נפתח ללקוח — מצב בנייה: מרכיבים
   // מה מבקשים ממנו. אחרי הפתיחה — מצב ניהול. אין כאן שני מסכים שסותרים.
   if (activeEngagement && !activeEngagement.processPublishedAt) {
@@ -514,6 +535,7 @@ export default function OnboardingTab({
       toggle: (id: string) => setOpenRowId(cur => (cur === id ? null : id)),
       onMove: ordering ? undefined : (id, dir) => void moveRow(id, dir),
       onPublish: (id) => void publishRequest(id),
+      onSetRequired: (id, required) => void setStepRequired(id, required),
     }}>
     <div className="cw-tabpanel">
       {error && (
@@ -1758,7 +1780,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { openId, toggle, onMove, onPublish } = useContext(RowOpenContext);
+  const { openId, toggle, onMove, onPublish, onSetRequired } = useContext(RowOpenContext);
   const open = openId === step.id;
   const tone = TONE_COLOR[STEP_STATUS_TONE[step.status]];
   const locked = step.status === 'locked';
@@ -1828,6 +1850,20 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
               <button type="button" className="btn btn-sm btn-primary"
                 onClick={() => onPublish(step.id)}
                 title="הבקשה תופיע בדף האישי של הלקוח">שלח ללקוח</button>
+            )}
+            {/* ‼ רק על שלב שעדיין פתוח. שלב שהושלם או בוטל כבר יצא מהמשחק,
+                והשרת ממילא מסרב לשנות אותו (set_onboarding_step_required). */}
+            {onSetRequired && !['completed', 'verified', 'cancelled'].includes(step.status) && (
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => onSetRequired(step.id, !isStepRequiredForClose(step))}
+                title={isStepRequiredForClose(step)
+                  ? 'השלב חוסם היום את סגירת הקליטה. סימון כרשות ישחרר אותה.'
+                  : 'השלב אינו חוסם היום את סגירת הקליטה.'}
+              >
+                {isStepRequiredForClose(step) ? 'סמן כרשות' : 'סמן כנדרש'}
+              </button>
             )}
             {menu}
             {onMove && (

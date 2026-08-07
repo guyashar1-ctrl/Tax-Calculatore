@@ -69,9 +69,9 @@ await writeStaging(`
  * ‼ לכל לקוח דמה מייל וטלפון **שונים**. `ensure_client_for_quotation` מאחדת
  * כרטיסים לפי מייל או לפי ספרות הטלפון, ולכן כשכולם היו delivered@resend.dev
  * עם אותו טלפון — כל לקוחות הדמה התמזגו לכרטיס אחד עם ערימת שלבים משותפת.
- * הכתובות שאינן delivered@ הן plus-addressing על אותו דומיין בדיקה של Resend,
- * כלומר עדיין לא מגיעות לאף אדם. הלקוחות ששולחים מייל בפועל (F3, F5) מקבלים
- * את הכתובת המדויקת delivered@resend.dev.
+ * הכתובות הן plus-addressing על דומיין הבדיקה של Resend, כלומר אינן מגיעות
+ * לאף אדם. רק F3 — הלקוח שעליו נבדקת שליחת מייל הייצוג — מקבל את הכתובת
+ * המדויקת delivered@resend.dev, שמחזירה הצלחה אמיתית מ-Resend.
  */
 async function makeQuotation({ key, name, withPrevAccountant, monthly, withRep, expiresInDays, email, phone }) {
   const leadId = `fx-lead-${key}`;
@@ -94,6 +94,13 @@ async function makeQuotation({ key, name, withPrevAccountant, monthly, withRep, 
     values (${q(quoteId)}, '${USER_ID}', ${q(leadId)}, ${q('FX-' + key)}, 'sent', ${q(token)},
             ${q(JSON.stringify(items))}::jsonb, ${q(JSON.stringify(rep))}::jsonb, 18,
             ${expiresInDays == null ? 'null' : `now() + interval '${expiresInDays} days'`}, now());`);
+  // ‼ כרטיס הלקוח נולד בשליחת ההצעה, לא באישורה (מיגרציה 49). כאן ההצעה
+  //   נכתבת ישירות במצב "נשלחה", ולכן צריך להריץ את הפונקציה בעצמנו — אחרת
+  //   הצעה בלי ייצוג נשארת בלי כרטיס, והחלת תבנית עליה נופלת ב-client_not_found.
+  // ‼ דרך המשתמש המחובר ולא ב-SQL ישיר: הפונקציה בודקת auth.uid() ומחזירה
+  //   forbidden כשמריצים אותה כ-postgres.
+  const { data: ens } = await user.rpc('ensure_client_for_quotation', { p_quotation_id: quoteId });
+  if (ens?.ok === false) throw new Error(`ensure_client_for_quotation(${quoteId}): ${JSON.stringify(ens)}`);
   return { token, quoteId, leadId };
 }
 
@@ -142,8 +149,29 @@ await approve(f4.token, 'לסגירה דמה');
 const f4id = await clientOf(f4.quoteId);
 made.push(['F4 קליטה לבדיקות סגירה', f4id]);
 
+// ‼ פתיחת התהליך ללקוח. בלעדיה מסך הקליטה נשאר במצב "בנייה", ושם רוב פעולות
+//   הניהול פשוט לא קיימות — אז בדיקה על מסך הבנייה לא הייתה מוכיחה כלום על
+//   המסך שגיא עובד בו בפועל.
+for (const cid of [f3id, f4id]) {
+  const eng = (await writeStaging(
+    `select id from public.engagements where client_id = ${q(cid)} order by created_at desc limit 1`))[0];
+  if (eng) {
+    const { data: pub } = await user.rpc('publish_onboarding_process', { p_engagement_id: eng.id });
+    if (pub?.ok === false) console.log('  ⚠ פתיחת התהליך נכשלה:', JSON.stringify(pub));
+  }
+}
+console.log('· התהליך נפתח ללקוח ב-F3 ו-F4');
+
+// ── F6 · קליטה נקייה — יעד להחלת תבנית מסע ─────────────────────────────────
+// ‼ בלי לקוח ייעודי, בדיקת התבנית הייתה מזהמת את F3 או F4 ומשנה את התוצאה
+//   של בדיקות אחרות.
+const f6 = await makeQuotation({ key: 'tpl', name: 'תבנית', withPrevAccountant: false, monthly: false, withRep: false, expiresInDays: 30, email: 'delivered+tpl@resend.dev', phone: '050-0000006' });
+await approve(f6.token, 'תבנית דמה');
+const f6id = await clientOf(f6.quoteId);
+made.push(['F6 יעד לתבנית', f6id]);
+
 // ── F5 · הצעה שפוקעת מחר — לבדיקת תזכורת הפקיעה (AT-5) ─────────────────────
-const f5 = await makeQuotation({ key: 'exp', name: 'פוקעת', withPrevAccountant: false, monthly: false, withRep: false, expiresInDays: 1, email: EMAIL, phone: '050-0000005' });
+const f5 = await makeQuotation({ key: 'exp', name: 'פוקעת', withPrevAccountant: false, monthly: false, withRep: false, expiresInDays: 1, email: 'delivered+exp@resend.dev', phone: '050-0000005' });
 console.log('· F5 הצעה פוקעת מחר — טוקן:', f5.token);
 
 // ── בקשה חופשית על F3, דרך ה-RPC האמיתי ────────────────────────────────────
