@@ -52,6 +52,25 @@ export const readProd = (query) => sql(PROD_REF, query, { allowProd: true });
 /** כתיבה לסביבת הבדיקות. */
 export const writeStaging = (query) => sql(STAGING_REF, query);
 
+/**
+ * ‼ שער חובה לפני כל בדיקה. סקריפט טעינה שמנטרל טריגרים ונופל באמצע משאיר
+ * אותם מנוטרלים — והמסד ממשיך להיראות תקין בזמן שהוא כבר לא מתנהג כמו
+ * הפרודקשן. זה קרה בפועל: שלב מחזור־החיים נשאר "פעיל" במקום "בקליטה", ורק
+ * ההשוואה גילתה. מאז — בודקים, ולא מניחים.
+ */
+export async function assertTriggersEnabled() {
+  const r = await sql(STAGING_REF, `
+    select coalesce(string_agg(distinct c.relname, ', '), '') as t
+      from pg_trigger tg
+      join pg_class c on c.oid = tg.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and not tg.tgisinternal and tg.tgenabled = 'D'`);
+  if (r[0].t) {
+    console.error(`✋ יש טריגרים מנוטרלים ב-staging (${r[0].t}). הרץ enable trigger user לפני שממשיכים.`);
+    process.exit(1);
+  }
+}
+
 export async function api(path, init = {}) {
   const r = await fetch(`https://api.supabase.com/v1${path}`, {
     ...init,

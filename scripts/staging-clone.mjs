@@ -120,6 +120,12 @@ console.log(`יעד: ${STAGING_REF}  ·  משתמש ${USER_ID}\n`);
 const LOADED = ['clients', 'leads', 'quotations', 'representation_requests',
   'engagements', 'onboarding_steps', 'journey_templates'];
 
+// ‼ נרשם לפני הנטרול: אם התהליך ייפול באמצע, ההודעה הזאת היא מה שמסביר
+//   למה המסד מתנהג אחרת — ומה להריץ כדי לתקן.
+process.on('exit', (code) => {
+  if (code !== 0) console.error('\n‼ ייתכן שנשארו טריגרים מנוטרלים. הרץ:' +
+    '\n  alter table public.<טבלה> enable trigger user;  — לכל אחת מ:' + LOADED.join(', '));
+});
 for (const t of LOADED) await writeStaging(`alter table public.${t} disable trigger user;`);
 // טעינה חוזרת מתחילה מדף נקי, אחרת on conflict do nothing היה משמר טעות קודמת.
 for (const t of ['onboarding_events', 'onboarding_steps', 'engagements',
@@ -128,10 +134,16 @@ for (const t of ['onboarding_events', 'onboarding_steps', 'engagements',
   await writeStaging(`delete from public.${t};`);
 }
 
+// ‼ מייל וטלפון **ייחודיים לכל שורה**, ולא אותה כתובת לכולם.
+//   `ensure_client_for_quotation` מאחדת כרטיסים לפי מייל או לפי ספרות הטלפון.
+//   כשכל 16 הלקוחות קיבלו delivered@resend.dev, אישור הצעה של לקוח דמה נדבק
+//   לאחד מהם — ומחיקת לקוחות הדמה מחקה אתו שתי התקשרויות אמיתיות מהעותק.
+//   התגלה כשמבחן ההתאמה הראה שתי התקשרויות חסרות.
+//   כל הכתובות עדיין על resend.dev ואינן מגיעות לאף אדם.
 const clients = await structural('clients');
 await ins('clients', clients, (_r, i) => ({
   first_name: `לקוח${i + 1}`, last_name: 'בדיקה',
-  email: 'delivered@resend.dev', phone: `050-000${String(i + 1).padStart(4, '0')}`,
+  email: `delivered+c${i + 1}@resend.dev`, phone: `052-2${String(i + 1).padStart(6, '0')}`,
   id_number: String(100000000 + i * 7).slice(0, 9),
   city: 'עיר בדיקה', address: 'רחוב הבדיקה 1',
   business_name: `עסק בדיקה ${i + 1}`,
@@ -142,8 +154,8 @@ await ins('clients', clients, (_r, i) => ({
 
 const leads = await structural('leads');
 await ins('leads', leads, (_r, i) => ({
-  full_name: `ליד בדיקה ${i + 1}`, email: 'delivered@resend.dev',
-  phone: `050-100${String(i + 1).padStart(4, '0')}`,
+  full_name: `ליד בדיקה ${i + 1}`, email: `delivered+l${i + 1}@resend.dev`,
+  phone: `052-3${String(i + 1).padStart(6, '0')}`,
 }));
 
 const quotations = await structural('quotations');
@@ -174,8 +186,15 @@ await ins('engagements', await structural('engagements'));
 const steps = await structural('onboarding_steps');
 const rawPayloads = await readProd(`select id, payload from public.onboarding_steps`);
 const payloadById = new Map(rawPayloads.map((r) => [r.id, cleanPayload(r.payload)]));
+// ‼ required_for_close נמסר תמיד. לפני מיגרציה 68 העמודה אינה קיימת ו-
+//   jsonb_populate_record פשוט מתעלם מהמפתח; אחריה היא NOT NULL וחייבת ערך.
+//   כך אותו סקריפט עובד בשני הכיוונים, והערך זהה למה שהמילוי לאחור היה כותב.
+const backfilled = (s) =>
+  ['representation_upgrade', 'first_month_review'].includes(s.step_type) ? false
+  : (s.step_type === 'intake_questionnaire' && s.status === 'waiting_client') ? false
+  : true;
 await ins('onboarding_steps', steps.map((s) => ({ ...s, depends_on_step_id: null })),
-  (r) => ({ payload: payloadById.get(r.id) ?? {} }));
+  (r) => ({ payload: payloadById.get(r.id) ?? {}, required_for_close: backfilled(r) }));
 let deps = 0;
 for (const s of await readProd(`select id, depends_on_step_id from public.onboarding_steps
                                  where depends_on_step_id is not null`)) {
@@ -207,12 +226,14 @@ if (stillOff[0].n !== 0) { console.log(`✗ נשארו ${stillOff[0].n} טריג
 console.log('· כל הטריגרים פעילים שוב');
 
 // ── שער אימות: אסור שיישאר טקסט אמיתי ─────────────────────────────────────
+// ‼ הקריטריון הוא הדומיין, לא כתובת אחת: לכל שורה כתובת ייחודית משלה
+//   (plus-addressing) כדי שאיחוד הכרטיסים לא ידביק שורות זו לזו.
 const leak = await writeStaging(`
   select
-    (select count(*) from public.clients where email <> 'delivered@resend.dev') as c_email,
-    (select count(*) from public.leads  where email is not null and email <> 'delivered@resend.dev') as l_email,
+    (select count(*) from public.clients where email is null or email not like '%@resend.dev') as c_email,
+    (select count(*) from public.leads  where email is not null and email not like '%@resend.dev') as l_email,
     (select count(*) from public.representation_requests
-      where client_email is not null and client_email <> 'delivered@resend.dev') as r_email,
+      where client_email is not null and client_email not like '%@resend.dev') as r_email,
     (select count(*) from public.quotations where approval_signature is not null) as sigs,
     (select count(*) from public.email_messages) as emails,
     (select count(*) from public.documents) as docs,

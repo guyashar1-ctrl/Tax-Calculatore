@@ -64,6 +64,16 @@ alter table public.onboarding_steps
 --   התלות ולידה במצב locked, sort_order = max+10 ו-status בערך המוחזר —
 --   נשמר מילה במילה. גרסה קודמת של הקובץ הזה שכתבה את הפונקציה מחדש
 --   והשמיטה את כולם.
+--
+-- ‼‼ הפלה לפני היצירה — לא קישוט. `create or replace` מחליף פונקציה רק כשחתימת
+--    הארגומנטים זהה. הוספת פרמטר, גם עם ברירת מחדל, יוצרת פונקציה **נוספת**
+--    ולא מחליפה את הקיימת. אז שתיהן חיות זו לצד זו, וכל קריאה בשישה ארגומנטים
+--    — כלומר כל קריאה קיימת במערכת — נכשלת ב-
+--    "Could not choose the best candidate function".
+--    התגלה בסביבת הבדיקות: הוספת בקשה נשברה לחלוטין. בלי השורה הזאת המיגרציה
+--    הייתה שוברת בפרודקשן את "הוספת בקשה" ואת החלת תבנית המסע.
+drop function if exists public.create_onboarding_request(text, text, jsonb, date, text, boolean);
+
 create or replace function public.create_onboarding_request(
   p_client_id text,
   p_step_type text,
@@ -196,7 +206,21 @@ $function$;
 --   נקראות ע"י אף קורא: המסך בענף מתעלם מהן ומחשב לבד, והמסך ב-master רק
 --   סופר את blocking. נבדק קובץ-קובץ ב-2026-08-07.
 
+-- ── שער אימות · אסור שתישאר יותר מחתימה אחת ─────────────────────────────────
+-- שתי חתימות = כל קריאה קיימת נכשלת. נבדק כאן ולא רק בעין.
+do $$
+declare n int;
+begin
+  select count(*) into n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+   where ns.nspname = 'public' and p.proname = 'create_onboarding_request';
+  if n <> 1 then
+    raise exception 'create_onboarding_request קיימת ב-% חתימות — חייבת להיות אחת בלבד', n;
+  end if;
+end $$;
+
 -- ── רולבק ────────────────────────────────────────────────────────────────────
--- 1. שחזור שתי הפונקציות מ-supabase/live-2026-08-07/ (העותק החי שנשמר לפני).
--- 2. alter table public.onboarding_steps drop column required_for_close;
+-- 1. הפלת החתימה החדשה:
+--    drop function if exists public.create_onboarding_request(text,text,jsonb,date,text,boolean,boolean);
+-- 2. שחזור שתי הפונקציות מ-supabase/live-2026-08-07/ (העותק החי שנשמר לפני).
+-- 3. alter table public.onboarding_steps drop column required_for_close;
 -- העמודה אינה נקראת בשום מקום אחר, ולכן הפלת העמודה בטוחה אחרי שחזור הפונקציות.
