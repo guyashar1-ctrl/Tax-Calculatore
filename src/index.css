@@ -419,11 +419,23 @@ body {
   /* ‼ שתי משפחות כפתורים חיות במקביל בפרויקט — .btn מ-index.css ו-.ui-btn
      מ-pivo-design.css — וכן שבבי הסינון .chip וקישורי הכלים בכותרת. כלל
      שמכסה רק אחת מהן נראה כאילו הוא עובד ולא נוגע ברוב המסכים. */
-  .btn, .tab, .ui-btn, .chip, .header-tool-link, .cl-stage-tab { min-height: 44px; }
-  .btn-sm, .ui-btn-sm { min-height: 38px; }
-  .btn-icon { width: 2.5rem; height: 2.5rem; }
-  /* תפריט השורה (⋯) — 28 פיקסלים הוא כפתור שמפספסים באגודל */
-  .ui-icon-btn { min-width: 38px; min-height: 38px; }
+  /* ‼ מסך המשימות: task-check היה 17 פיקסלים — הסימון "בוצע", הפעולה הכי
+     נפוצה במסך הזה. ui-chip 27, ui-group-toggle 28, filter-select 34,
+     ball-word 23. כולם פעולות אמיתיות שנלחצות באגודל. */
+  .btn, .tab, .ui-btn, .chip, .header-tool-link, .cl-stage-tab,
+  .btn-sm, .ui-btn-sm, .cw-tab, .ui-linkbtn, .cw-rep-line,
+  .ui-chip, .ui-group-toggle, .filter-select, .ball-word { min-height: 44px; }
+  .task-check { min-width: 44px; min-height: 44px; }
+  .ui-chip, .ui-group-toggle, .ball-word, .task-check { display: inline-flex; align-items: center; justify-content: center; }
+  .btn-icon, .ui-icon-btn { min-width: 44px; min-height: 44px; }
+  /* ‼ קישורי טקסט וכותרות מתקפלות נשארו 19–23 פיקסלים כי הם לא כפתורים
+     "אמיתיים" — אבל באגודל אין הבדל בין קישור לכפתור. */
+  .ui-linkbtn, .cw-rep-line, .cw-tab { display: inline-flex; align-items: center; }
+  summary { min-height: 44px; display: flex; align-items: center; }
+  /* ‼ תיבות סימון היו 13 פיקסלים — למשל תשעת פריטי החומרים במכתב השחרור.
+     זה סימון שמפספסים, ובמכתב הזה כל פריט שנשכח הוא חומר שלא ביקשנו. */
+  input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; }
+  label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { min-height: 44px; }
   /* שבבים וכפתורים מיישרים את התוכן למרכז כשהגובה נכפה עליהם */
   .chip, .ui-btn, .header-tool-link { display: inline-flex; align-items: center; justify-content: center; }
 }

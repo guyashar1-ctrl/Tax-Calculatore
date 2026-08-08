@@ -471,6 +471,8 @@ export default function JourneyTab(p: Props) {
               style={{
                 display: 'flex', alignItems: 'center', gap: '.35rem', color: 'inherit', font: 'inherit',
                 background: 'none', border: 'none', appearance: 'none', padding: 0, cursor: 'pointer',
+                // ‼ 19 פיקסלים באגודל זה פספוס. גם קישור־טקסט צריך שטח נגיעה.
+                minHeight: 44,
               }}>
               <span aria-hidden="true">{showPast ? '▾' : '▸'}</span>
               <span>מה היה עד כה</span>

@@ -13,6 +13,7 @@
 
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { edgeFunctionError } from '../../utils/functionError';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { QuotationBrand } from './quotationBranding';
 import type { ReleaseMaterial } from '../../utils/releaseLetter';
@@ -125,7 +126,12 @@ export default function ReleaseLetterDialog({
         body: { clientId, to: toEmail.trim(), ccClient: wantsCc, subject, html },
       });
       if (error || !res?.ok) {
-        setNotice({ kind: 'err', text: `השליחה נכשלה: ${error?.message || res?.detail?.message || res?.error || 'שגיאה'}` });
+        // ‼ error.message הוא תמיד "non-2xx status code" — משפט שאי אפשר
+        // לפעול לפיו. הסיבה האמיתית יושבת בגוף התשובה.
+        const why = error
+          ? await edgeFunctionError(error)
+          : (res?.detail?.message || res?.error || 'שגיאה');
+        setNotice({ kind: 'err', text: `השליחה נכשלה: ${why}` });
         return;
       }
       const dateStr = new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });

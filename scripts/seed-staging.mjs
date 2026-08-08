@@ -198,6 +198,12 @@ const types = await writeStaging(`
 console.log('\nשלבי F3:');
 for (const t of types) console.log(`  ${t.step_type.padEnd(24)} ${String(t.status).padEnd(14)} נדרש=${t.required_for_close}`);
 
-const mails = await writeStaging(`select count(*)::int as n from public.email_messages where to_email is not null and to_email not like '%@resend.dev'`);
+// ‼ שני נמענים מותרים ותו לא: תיבת הבדיקה של Resend (מיילים ללקוח), וכתובת
+//   המשרד הבדיוני של הסביבה (התראות פנימיות אל הרו"ח — אינן מיילים ללקוח).
+//   כל כתובת אחרת פירושה שמייל בבדיקה יצא למקום שלא התכוונו אליו.
+const mails = await writeStaging(`select count(*)::int as n from public.email_messages
+   where to_email is not null
+     and to_email not like '%@resend.dev'
+     and to_email <> 'staging@pivo.test'`);
 if (mails[0].n !== 0) { console.log(`\n✗ ${mails[0].n} מיילים לכתובת שאינה ${EMAIL}`); process.exit(1); }
 console.log(`\n✓ לקוחות הדמה מוכנים. כל המיילים בסביבה מופנים ל-${EMAIL} בלבד.`);
