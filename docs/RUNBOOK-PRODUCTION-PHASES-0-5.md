@@ -12,9 +12,15 @@
 ```bash
 npm run verify:close-rules          # חייב: 29/29
 npx tsc --noEmit                    # חייב: נקי
-npx vite build                      # חייב: עובר
+npm run build                       # חייב: עובר
+npm run staging:check               # חייב: evdfxjqrkgugssfrdoxd (לא פרודקשן)
+npm run staging:test                # חייב: 33 · 31 · 32 · 37 — אפס כשלים
 git rev-parse HEAD                  # לרשום — זו נקודת החזרה
 ```
+
+‼ `staging:test` יסתיים תקין וידפיס **"2 חוליות נדחו במכוון"**. זה תקין
+ומכוון — מסירת המייל החיצונית לא נבדקה, ראה סעיף 6.5 והמסמך
+`docs/EMAIL-POLICY.md §8.2`.
 
 **גיבוי:** להוריד גיבוי מלא של המסד מלוח הבקרה של Supabase
 (Database → Backups) **לפני** ההרצה הראשונה. זו רשת הביטחון היחידה
@@ -189,6 +195,37 @@ delete from vault.secrets where name in ('internal_send_secret','functions_base_
 5. שער §19.3a (סעיף 4 למעלה).
 6. קונסול נקי; הקילל-סוויץ' `journeyUi` כבוי ודלוק — שניהם עובדים.
 7. השוואה סופית: 16 לקוחות · 3 התקשרויות · 33 שלבים · 101 מיילים — **ללא שינוי**.
+
+### 6.5 · החוליה שלא נבדקה — מה לעשות עם האישור האמיתי הראשון
+
+מסירת המייל בפועל דרך Resend **לא נבדקה בסביבת הבדיקות** (הפרדת סודות
+מכוונת). זה הסיכון השיורי היחיד שנשאר פתוח בעלייה הזאת, ולכן **האישור
+האמיתי הראשון אחרי מיגרציה 72 נצפה בזמן אמת**:
+
+```sql
+-- מיד אחרי האישור הראשון (עד דקה):
+select id, representation_sent_at, left(representation_error, 200) as err
+  from public.quotations where approved_at > now() - interval '1 hour';
+
+select to_email, kind, status, left(error, 200) as err, created_at
+  from public.email_messages order by created_at desc limit 3;
+
+select status_code, left(content::text, 200) as body
+  from net._http_response order by id desc limit 3;
+```
+
+**מה תקין:** `representation_sent_at` מלא · `representation_error` ריק ·
+שורת מייל אחת `status='sent'` · `status_code = 200`.
+
+**אם `representation_error` מלא ו-`representation_sent_at` ריק** — המסירה
+נכשלה, התביעה שוחררה, והמייל **לא יצא**. זה בדיוק המצב שהמנגנון מתוכנן
+אליו: אין כפילות, אין נזק, והרו"ח רואה את הכשל בכרטיס. הפעולה: לשלוח ידנית
+מכרטיס הלקוח. אין צורך ברולבק.
+
+**אם שני השדות מלאים** — סתירה שלא אמורה לקרות. לעצור, לבצע רולבק 1
+(סעיף 5), ולדווח.
+
+‼ **גם כאן: אין ליזום אישור ניסיון.** ממתינים לאישור אמיתי שמגיע מעצמו.
 
 ---
 

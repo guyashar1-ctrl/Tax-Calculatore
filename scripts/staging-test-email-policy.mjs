@@ -21,7 +21,7 @@ const anon = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } });
 
 let pass = 0, fail = 0;
-const blocked = [];
+const deferred = [];
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`✓ ${n}`); } else { fail++; console.log(`✗ ${n}${d ? ' — ' + d : ''}`); } };
 const one = async (q) => (await writeStaging(q))[0];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -87,14 +87,15 @@ const tok = randomBytes(16).toString('hex');
     const sent = await one(`select representation_sent_at from public.quotations where id = 'fx-q-at1'`);
     ok('AT-1 · ההצעה סומנה כ"נשלח"', !!sent?.representation_sent_at);
   } else if (String(resp?.body ?? '').includes('API key is invalid')) {
-    // ‼ אין מפתח Resend בסביבת הבדיקות. זו אינה "הצלחה" ואינה כישלון של
-    //   המוצר — זו חוליה שלא נבדקה, והיא נספרת ככזו ולא נבלעת בשקט.
-    //   ברגע ש-RESEND_API_KEY יוגדר כסוד של פונקציות ה-staging, הענף
-    //   העליון ירוץ ויאמת את מסלול ההצלחה במלואו — בלי לגעת בקובץ הזה.
-    blocked.push('AT-1 · מסירה בפועל');
-    blocked.push('AT-3 · ניסיון חוזר שמצליח');
-    console.log('   ⛔ חסום: אין מפתח Resend בסביבת הבדיקות. רגל המסירה לא נבדקה.');
-    console.log('      להשלמה: להוסיף RESEND_API_KEY לסודות הפונקציות של ה-staging.');
+    // ‼ אין מפתח Resend בסביבת הבדיקות — בהחלטה מכוונת, כדי לא להעתיק סוד
+    //   פרודקשן. המסירה החיצונית בפועל נדחתה ומתועדת כסיכון שיורי
+    //   (docs/EMAIL-POLICY.md). היא אינה חוסמת מיזוג, אבל גם לא מדווחת כ-PASS.
+    //   כל מה שאינו תלוי ב-Resend — התביעה, האידמפוטנטיות, הכשל והניסיון
+    //   החוזר — נבדק במלואו ב-AT-3b למטה.
+    deferred.push('AT-1 · מסירה חיצונית בפועל');
+    deferred.push('AT-3 · תשובת 200 מ-Resend בניסיון חוזר');
+    console.log('   ↷ נדחה: אין מפתח Resend בסביבת הבדיקות (הפרדת סודות מכוונת).');
+    console.log('      מסלול האפליקציה נבדק במלואו; המסירה החיצונית = סיכון שיורי.');
     ok('AT-3 · כשל אינו מפיל את האישור', true);
     const qq = await one(`select representation_sent_at, representation_error from public.quotations where id = 'fx-q-at1'`);
     ok('AT-3 · התביעה שוחררה (אפשר לנסות שוב)', qq?.representation_sent_at === null,
@@ -144,6 +145,85 @@ console.log('\n— AT-3 · ניסיון חוזר בטוח —');
     body: JSON.stringify({ internalSecret: 'not-the-secret', quotationId: 'fx-q-at1' }),
   });
   ok('AT-3 · סוד שגוי נדחה', bad.status === 403, String(bad.status));
+}
+
+// ── AT-3b · "בדיוק פעם אחת" — כל מה שאינו תלוי ב-Resend ────────────────────
+// ‼ הסעיף הזה קיים כי מסירת המייל החיצונית נדחתה. שתי ההגנות מפני מייל כפול
+//   הן שלנו, לא של Resend, ולכן אפשר להוכיח אותן כאן במלואן: התביעה המותנית
+//   על ההצעה (index.ts:376) והמפתח הייחודי ביומן (index.ts:429).
+console.log('\n— AT-3b · בדיוק פעם אחת, בלי תלות ב-Resend —');
+{
+  const secret = (await one(`select decrypted_secret as s from vault.decrypted_secrets
+                              where name = 'internal_send_secret'`)).s;
+
+  // 1 · ההגנה השנייה אמיתית: בלי אינדקס ייחודי, הטיפול ב-23505 הוא קוד מת.
+  const idx = await one(`select count(*)::int as n from pg_indexes
+                          where schemaname = 'public' and tablename = 'email_messages'
+                            and indexdef ilike '%unique%' and indexdef ilike '%idempotency_key%'`);
+  ok('AT-3b · קיים אינדקס ייחודי על מפתח האידמפוטנטיות', idx.n >= 1, String(idx.n));
+
+  // 2 · המפתח באמת דוחה כפילות — הוכחה, לא הסתמכות על קיום האינדקס.
+  let dupRejected = true;
+  try {
+    await writeStaging(`
+      do $probe$
+      declare k text := 'onboard:fx-idem-probe';
+      begin
+        delete from public.email_messages where idempotency_key = k;
+        insert into public.email_messages (user_id, to_email, subject, kind, status, idempotency_key)
+          values ('${USER_ID}', 'delivered@resend.dev', 'probe', 'onboard', 'sent', k);
+        begin
+          insert into public.email_messages (user_id, to_email, subject, kind, status, idempotency_key)
+            values ('${USER_ID}', 'delivered@resend.dev', 'probe', 'onboard', 'sent', k);
+          raise exception 'DUPLICATE_ALLOWED';
+        exception when unique_violation then null;
+        end;
+        raise exception 'ROLLBACK_PROBE';
+      end $probe$;`);
+    dupRejected = false;
+  } catch (e) {
+    dupRejected = String(e?.message ?? e).includes('ROLLBACK_PROBE');
+  }
+  ok('AT-3b · שורה שנייה עם אותו מפתח נדחית (23505)', dupRejected);
+  const leftover = await one(`select count(*)::int as n from public.email_messages
+                               where idempotency_key = 'onboard:fx-idem-probe'`);
+  ok('AT-3b · בדיקת המפתח לא השאירה שאריות', leftover.n === 0, String(leftover.n));
+
+  // 3 · התביעה המותנית מודה בזוכה אחד בלבד תחת מרוץ אמיתי. זה בדיוק הפרדיקט
+  //    שהפונקציה מריצה לפני הקריאה ל-Resend.
+  await writeStaging(`update public.quotations set representation_sent_at = null where id = 'fx-q-at1';`);
+  const racers = await Promise.all(Array.from({ length: 5 }, () =>
+    writeStaging(`update public.quotations set representation_sent_at = now()
+                   where id = 'fx-q-at1' and representation_sent_at is null
+                   returning id;`).then((r) => r.length).catch(() => 0)));
+  ok('AT-3b · חמש תביעות מקבילות — בדיוק אחת זוכה',
+    racers.reduce((a, b) => a + b, 0) === 1, racers.join(','));
+
+  // 4 · חמש קריאות מקבילות על הצעה שכבר נשלחה: אף אחת אינה שולחת שוב, אף אחת
+  //    אינה כותבת ליומן, וחותמת השליחה המקורית אינה נדרסת.
+  const stamp = (await one(`select representation_sent_at::text as t from public.quotations where id = 'fx-q-at1'`)).t;
+  const mailsBefore = (await one(`select count(*)::int as n from public.email_messages`)).n;
+  const calls = await Promise.all(Array.from({ length: 5 }, () =>
+    fetch(`${env.VITE_SUPABASE_URL}/functions/v1/send-onboarding-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: env.SUPABASE_SERVICE_ROLE_KEY },
+      body: JSON.stringify({ internalSecret: secret, quotationId: 'fx-q-at1' }),
+    }).then((r) => r.json()).catch(() => ({}))));
+  ok('AT-3b · כל חמש הקריאות המקבילות החזירו "כבר נשלח"',
+    calls.every((c) => c?.alreadySent === true), JSON.stringify(calls).slice(0, 200));
+  const mailsAfter = (await one(`select count(*)::int as n from public.email_messages`)).n;
+  ok('AT-3b · אפס שורות מייל נוספו', mailsAfter === mailsBefore, `${mailsBefore} → ${mailsAfter}`);
+  const stamp2 = (await one(`select representation_sent_at::text as t from public.quotations where id = 'fx-q-at1'`)).t;
+  ok('AT-3b · חותמת השליחה לא נדרסה', stamp2 === stamp, `${stamp} → ${stamp2}`);
+
+  // 5 · התנאי שמאפשר לניסיון החוזר להצליח: שורת הכשל נרשמת בלי מפתח ייחודי.
+  //    אילו נרשמה עם מפתח, השליחה המוצלחת הבאה הייתה מתנגשת בה, נחשבת
+  //    ל"כבר נשלח" — והמייל לא היה יוצא לעולם.
+  const failRow = await one(`select idempotency_key from public.email_messages
+                              where status = 'failed' and kind = 'onboard'
+                              order by created_at desc limit 1`);
+  ok('AT-3b · שורת כשל נרשמת בלי מפתח ייחודי (אחרת ניסיון חוזר ייחסם לנצח)',
+    failRow !== undefined && failRow?.idempotency_key === null, JSON.stringify(failRow));
 }
 
 // ── AT-4 · מנגנון 24 השעות — התראה פנימית, אפס מיילים ללקוח ────────────────
@@ -212,12 +292,13 @@ console.log('\n— AT-5 · תזכורת פקיעת הצעה —');
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} עברו ${pass} · נכשלו ${fail}`);
-if (blocked.length) {
-  // ‼ חוליה חסומה אינה כישלון של המוצר — אבל היא גם לא PASS. היא מודפסת
-  //   בנפרד כדי שלא תיעלם בין השורות הירוקות, ושלא ידווח "הכול עבר" על
-  //   מסלול שלא נבדק מעולם.
-  console.log(`\n⛔ ${blocked.length} חוליות לא נבדקו — חסר מפתח Resend בסביבת הבדיקות:`);
-  for (const b of blocked) console.log('   · ' + b);
-  console.log('   להשלמה: RESEND_API_KEY בסודות הפונקציות של ה-staging, ואז להריץ שוב.');
+if (deferred.length) {
+  // ‼ חוליה נדחית אינה כישלון ואינה PASS. היא מודפסת בנפרד כדי שלא ידווח
+  //   "הכול עבר" על מסלול שלא רץ מעולם — גם אחרי שהוסכם שאינו חוסם מיזוג.
+  console.log(`\n↷ ${deferred.length} חוליות נדחו במכוון — סיכון שיורי לפרודקשן:`);
+  for (const b of deferred) console.log('   · ' + b);
+  console.log('   הסיבה: הפרדת סודות. אין מפתח Resend ב-staging ואין להעתיק את של הפרודקשן.');
+  console.log('   הכיסוי החלופי: AT-3b מוכיח את שתי הגנות "בדיוק פעם אחת" בלי Resend.');
+  console.log('   ראה docs/EMAIL-POLICY.md · "מה לא נבדק".');
 }
 process.exit(fail === 0 ? 0 : 1);
