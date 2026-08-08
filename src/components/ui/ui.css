@@ -279,6 +279,15 @@ input.field-missing, select.field-missing, textarea.field-missing {
 .ui-hover-actions { opacity: 0; transition: opacity .12s; }
 :hover > .ui-hover-actions,
 :focus-within > .ui-hover-actions { opacity: 1; }
-@media (hover: none) {
-  .ui-hover-actions { opacity: .6; }
+
+/* ‼ במכשיר מגע אין "מעבר עכבר", ולכן פעולה שמתגלה בריחוף היא פעולה שלא
+   קיימת. הכלל הקודם היה `@media (hover: none) { .ui-hover-actions {…} }`
+   באותה ספציפיות בדיוק כמו כלל הבסיס — ובפועל נמדד opacity: 0 באמולציית
+   מכשיר אמיתית (Pixel 8, hover:none, pointer:coarse). כלומר תפריט השורה
+   במסך הלקוחות היה **בלתי נראה בטלפון**.
+   הכפלת המחלקה מעלה את הספציפיות ומנצחת ללא תלות בסדר הקבצים, ו-pointer:
+   coarse נוסף כדי לתפוס גם מסכי מגע היברידיים. opacity מלא ולא .6: בטלפון
+   אין רמז ריחוף שיסביר למה הכפתור דהוי. */
+@media (hover: none), (pointer: coarse) {
+  .ui-hover-actions.ui-hover-actions { opacity: 1; }
 }

@@ -364,6 +364,16 @@
 .client-row:hover .ui-icon-btn,
 .client-row:focus-within .ui-icon-btn { opacity: 1; }
 
+/* ‼ במכשיר מגע אין ריחוף, ולכן תפריט השורה של מסך הלקוחות היה **בלתי נראה
+   לחלוטין** בטלפון — נמדד opacity: 0 באמולציית Pixel 8 (hover:none,
+   pointer:coarse). אותו כלל כבר קיים ללוח המשימות (.board-row ב-index.css),
+   ופשוט לא הוחל על טבלת הלקוחות.
+   ‼ חייב לשבת כאן ולא ב-index.css: index.css נטען ראשון, וכלל הבסיס שכאן
+   היה גובר עליו באותה ספציפיות. */
+@media (hover: none), (pointer: coarse) {
+  .client-row .ui-icon-btn { opacity: 1; }
+}
+
 .table-wrap { overflow-x: visible; }
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -1809,6 +1809,9 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
             onClick={() => hasBody && toggle(step.id)}
             aria-expanded={hasBody ? open : undefined}
             style={{
+              // ‼ 41 פיקסלים — קרוב, אבל זה הכפתור שפותח את הבקשה, והוא
+              // הפעולה הראשונה בכל שורה. 44 הוא המינימום.
+              minHeight: 44,
               flex: 1, minWidth: 0, textAlign: 'start', font: 'inherit', color: 'inherit',
               cursor: hasBody ? 'pointer' : 'default', padding: 0,
               background: 'none', border: 'none', appearance: 'none',

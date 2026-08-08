@@ -424,7 +424,10 @@ body {
      ball-word 23. כולם פעולות אמיתיות שנלחצות באגודל. */
   .btn, .tab, .ui-btn, .chip, .header-tool-link, .cl-stage-tab,
   .btn-sm, .ui-btn-sm, .cw-tab, .ui-linkbtn, .cw-rep-line,
-  .ui-chip, .ui-group-toggle, .filter-select, .ball-word { min-height: 44px; }
+  .ui-chip, .ui-group-toggle, .filter-select, .ball-word,
+  /* ‼ פריטי תפריט השורה — 30 פיקסלים, וביניהם "מחיקת כרטיס". פריט מחיקה
+     שקטן מדי הוא בדיוק מה שנלחץ בטעות. נמדד באמולציית מכשיר אמיתית. */
+  .pill-menu-item { min-height: 44px; }
   .task-check { min-width: 44px; min-height: 44px; }
   .ui-chip, .ui-group-toggle, .ball-word, .task-check { display: inline-flex; align-items: center; justify-content: center; }
   .btn-icon, .ui-icon-btn { min-width: 44px; min-height: 44px; }
