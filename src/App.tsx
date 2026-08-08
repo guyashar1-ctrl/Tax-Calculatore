@@ -27,6 +27,7 @@ import { useTheme } from './hooks/useTheme';
 import { PivoMark } from './components/PivoMark';
 import Icon from './components/ui/Icon';
 import { supabase } from './lib/supabase';
+import { edgeFunctionError } from './utils/functionError';
 import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
@@ -1148,7 +1149,7 @@ export default function App() {
       const { data, error } = await supabase.functions.invoke('send-quotation-email', {
         body: { quotationId: saved.id, isTest, html, subject },
       });
-      if (error) return { ok: false, error: error.message, link };
+      if (error) return { ok: false, error: await edgeFunctionError(error), link };
       res = data;
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e), link };
@@ -1292,7 +1293,7 @@ export default function App() {
       const { data: res, error } = await supabase.functions.invoke('send-quotation-email', {
         body: { quotationId: p.quotation.id, isTest: false, html: p.html, subject: p.subject },
       });
-      if (error) return error.message;
+      if (error) return await edgeFunctionError(error);
       if (!res?.ok) return res?.detail?.message || res?.error || 'שגיאה';
       await updateQuotation({
         ...p.quotation,
