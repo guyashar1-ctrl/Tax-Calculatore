@@ -1601,13 +1601,20 @@ export default function App() {
                 onNewQuotation={handleNewQuotationForLead}
                 focusLeadId={focusLeadId ?? undefined}
                 onFocusConsumed={() => setFocusLeadId(null)}
+                /* ‼ בלי שני אלה "+ ליד" לא פתח כלום: הוא הדליק את openNewLead
+                   וניווט למסך ההצעות — אבל שם, כש-journeyUi דלוק, לוח הלידים
+                   כלל אינו מוצג. הלידים עברו למסך הלקוחות ומתג הפתיחה נשאר
+                   מאחור. עכשיו הכפתור פותח את הטופס במקום שבו הלידים חיים. */
+                creating={openNewLead}
+                onCreatingChange={setOpenNewLead}
               />
             ) : undefined}
             onboardingSteps={onboarding.steps}
             engagements={onboarding.engagements}
             onOpenOnboarding={handleOpenClientOnboarding}
             leads={leads}
-            onNewLead={() => { setOpenNewLead(true); setView('quotations'); }}
+            onNewLead={() => { setOpenNewLead(true); if (!journeyUi) setView("quotations"); }}
+            newLeadRequested={openNewLead}
             onNewQuotation={handleNewQuotation}
           />
         )}

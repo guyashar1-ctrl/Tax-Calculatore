@@ -128,6 +128,11 @@ interface Props {
   journeyUi?: boolean;
   /** פאנל הלידים, מוזרק מהאב — כדי שהוא יחיה במסך הלקוחות ולא במסך ההצעות. */
   leadsPanel?: React.ReactNode;
+  /**
+   * דלוק ⇒ המשתמש ביקש "ליד חדש". ‼ הפאנל מוצג רק בלשונית הלידים, ולכן בלי
+   * המעבר הזה הכפתור פותח טופס במקום שאינו על המסך — נראה כאילו לא קרה כלום.
+   */
+  newLeadRequested?: boolean;
   /** שלבי הקליטה של כל הלקוחות — לתצוגת המעקב "בקליטה". */
   onboardingSteps?: OnboardingStep[];
   engagements?: Engagement[];
@@ -171,7 +176,7 @@ export default function ClientList({
   leadIdByClient,
   onOpenLead,
   journeyUi,
-  leadsPanel,
+  leadsPanel, newLeadRequested,
   onboardingSteps,
   engagements,
   onOpenOnboarding,
@@ -201,6 +206,10 @@ export default function ClientList({
     setStageFilter(next);
     localStorage.setItem('crm_clients_tab', next);
   }
+  useEffect(() => {
+    if (newLeadRequested && journeyUi) switchTab('lead');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newLeadRequested, journeyUi]);
   const [openRowMenu, setOpenRowMenu] = useState<string | null>(null);
   /** המבט התפעולי — בקשות קליטה פתוחות. אינו שלב חיים ואינו לשונית. */
   const [opsOnboarding, setOpsOnboarding] = useState(false);
