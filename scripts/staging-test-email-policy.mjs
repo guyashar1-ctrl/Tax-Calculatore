@@ -21,6 +21,7 @@ const anon = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } });
 
 let pass = 0, fail = 0;
+const blocked = [];
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`✓ ${n}`); } else { fail++; console.log(`✗ ${n}${d ? ' — ' + d : ''}`); } };
 const one = async (q) => (await writeStaging(q))[0];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -85,10 +86,15 @@ const tok = randomBytes(16).toString('hex');
     ok('AT-1 · הסוג הוא onboard', row?.kind === 'onboard', String(row?.kind));
     const sent = await one(`select representation_sent_at from public.quotations where id = 'fx-q-at1'`);
     ok('AT-1 · ההצעה סומנה כ"נשלח"', !!sent?.representation_sent_at);
-  } else {
-    // ‼ אין מפתח Resend בסביבת הבדיקות (הכרעת גיא: לא מעתיקים סודות
-    //   מהפרודקשן). לכן השליחה עצמה נכשלת — וזה בדיוק תרחיש AT-3.
-    console.log('   ⚠ אין מפתח Resend בסביבה — רגל המסירה של AT-1 אינה נבדקת כאן.');
+  } else if (String(resp?.body ?? '').includes('API key is invalid')) {
+    // ‼ אין מפתח Resend בסביבת הבדיקות. זו אינה "הצלחה" ואינה כישלון של
+    //   המוצר — זו חוליה שלא נבדקה, והיא נספרת ככזו ולא נבלעת בשקט.
+    //   ברגע ש-RESEND_API_KEY יוגדר כסוד של פונקציות ה-staging, הענף
+    //   העליון ירוץ ויאמת את מסלול ההצלחה במלואו — בלי לגעת בקובץ הזה.
+    blocked.push('AT-1 · מסירה בפועל');
+    blocked.push('AT-3 · ניסיון חוזר שמצליח');
+    console.log('   ⛔ חסום: אין מפתח Resend בסביבת הבדיקות. רגל המסירה לא נבדקה.');
+    console.log('      להשלמה: להוסיף RESEND_API_KEY לסודות הפונקציות של ה-staging.');
     ok('AT-3 · כשל אינו מפיל את האישור', true);
     const qq = await one(`select representation_sent_at, representation_error from public.quotations where id = 'fx-q-at1'`);
     ok('AT-3 · התביעה שוחררה (אפשר לנסות שוב)', qq?.representation_sent_at === null,
@@ -206,4 +212,12 @@ console.log('\n— AT-5 · תזכורת פקיעת הצעה —');
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} עברו ${pass} · נכשלו ${fail}`);
+if (blocked.length) {
+  // ‼ חוליה חסומה אינה כישלון של המוצר — אבל היא גם לא PASS. היא מודפסת
+  //   בנפרד כדי שלא תיעלם בין השורות הירוקות, ושלא ידווח "הכול עבר" על
+  //   מסלול שלא נבדק מעולם.
+  console.log(`\n⛔ ${blocked.length} חוליות לא נבדקו — חסר מפתח Resend בסביבת הבדיקות:`);
+  for (const b of blocked) console.log('   · ' + b);
+  console.log('   להשלמה: RESEND_API_KEY בסודות הפונקציות של ה-staging, ואז להריץ שוב.');
+}
 process.exit(fail === 0 ? 0 : 1);
