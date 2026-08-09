@@ -124,11 +124,13 @@ const EVENTS: OnboardingEvent[] = [
 /* ‼ חמישה לקוחות ולא שלושה — כדי שמקטע "לקוחות בתהליך" ייבדק על **כל ארבע**
    דרגות העדיפות. ארבע מהן לא היו מיוצגות כאן קודם, ובלעדיהן המיון נבדק על
    מחצית מהמקרים. grid-6 הוא לקוח שהקליטה שלו נסגרה — הוא חייב **לא** להופיע. */
+/* ‼ סוג התיק מכוסה בכל חמשת הענפים: מורשה · פטור · חברה · ללא רישום מע״מ ·
+   בלי שדה בכלל. שני האחרונים חייבים לא להציג כלום. */
 const GRID_CLIENTS = [
-  { id: CLIENT_ID, firstName: 'שרון', lastName: 'מזרחי', representationStatus: 'awaiting_authorities' },
-  { id: 'grid-2', firstName: 'אבי', lastName: 'דהן', representationStatus: 'pending_fill' },
-  { id: 'grid-3', firstName: 'תמר', lastName: 'בן-חיים', representationStatus: 'active' },
-  { id: 'grid-4', firstName: 'דנה', lastName: 'אלמוג', representationStatus: 'active' },
+  { id: CLIENT_ID, firstName: 'שרון', lastName: 'מזרחי', representationStatus: 'awaiting_authorities', vatStatus: 'authorizedDealer' },
+  { id: 'grid-2', firstName: 'אבי', lastName: 'דהן', representationStatus: 'pending_fill', type: 'company', vatStatus: 'authorizedDealer' },
+  { id: 'grid-3', firstName: 'תמר', lastName: 'בן-חיים', representationStatus: 'active', vatStatus: 'exemptDealer' },
+  { id: 'grid-4', firstName: 'דנה', lastName: 'אלמוג', representationStatus: 'active', vatStatus: 'none' },
   { id: 'grid-5', firstName: 'יוסי', lastName: 'קרן', representationStatus: 'active' },
   { id: 'grid-6', firstName: 'נועה', lastName: 'שגב', representationStatus: 'active' },
 ] as never[];

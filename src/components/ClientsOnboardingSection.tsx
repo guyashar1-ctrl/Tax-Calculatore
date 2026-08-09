@@ -31,6 +31,18 @@ interface Props {
 /** כמה שורות לפני ש"הצג הכל" נדרש. מעבר לזה המקטע בולע את המסך. */
 const COLLAPSED_ROWS = 5;
 
+/**
+ * סוג התיק — מידע משני קצר ליד השם (אפיון §5.1).
+ * ‼ מחזיר null כשאין סיווג. "לא רשום במע״מ" אינו סוג תיק, ו-placeholder
+ * במקומו הוא רעש שחוזר על עצמו בכל שורה.
+ */
+function fileTypeLabel(c: Client): string | null {
+  if (c.type === 'company') return 'חברה';
+  if (c.vatStatus === 'authorizedDealer') return 'עוסק מורשה';
+  if (c.vatStatus === 'exemptDealer') return 'עוסק פטור';
+  return null;
+}
+
 function daysSince(iso?: string | null): number | null {
   if (!iso) return null;
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
@@ -162,9 +174,16 @@ export default function ClientsOnboardingSection({ clients, steps, engagements, 
                   title={r.stuck ? 'תקוע' : r.overdue ? 'עבר תאריך היעד' : undefined}
                 />
 
-                <button type="button" className="cob-name" onClick={() => onOpen(r.clientId)}>
-                  {name}
-                </button>
+                {/* ‼ השם וסוג התיק חולקים תא אחד — סוג התיק אינו עמודה. עמודה
+                    נוספת הייתה מרחיבה את הרשת ומקצרת את הפעולה הבאה. */}
+                <span className="cob-who">
+                  <button type="button" className="cob-name" onClick={() => onOpen(r.clientId)}>
+                    {name}
+                  </button>
+                  {fileTypeLabel(r.client) && (
+                    <span className="cob-type">{fileTypeLabel(r.client)}</span>
+                  )}
+                </span>
 
                 <span className="cob-meta">
                   {r.days === null ? '' : r.days === 0 ? 'נפתחה היום' : `יום ${r.days}`}

@@ -2048,11 +2048,15 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .cob-dot.is-stuck { background: var(--err); }
 .cob-dot.is-late { background: var(--warn); }
 
+/* השם וסוג התיק בתא אחד. baseline ולא center — שני גדלי גופן על אותו קו. */
+.cob-who { grid-column: 2; display: flex; align-items: baseline; gap: .4rem; min-width: 0; }
 .cob-name {
   padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-14); font-weight: 500;
   color: var(--ink-1); cursor: pointer; text-align: start;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto;
 }
+/* ‼ flex-shrink 0: סוג התיק קצר וקבוע, והשם הוא שנחתך כשצר. */
+.cob-type { flex: 0 0 auto; font-size: var(--fs-12); color: var(--ink-3); white-space: nowrap; }
 .cob-name:hover { color: var(--accent); text-decoration: underline; }
 .cob-meta { font-size: var(--fs-12); color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cob-action { font-size: var(--fs-13); color: var(--ink-3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2096,7 +2100,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
     grid-template-columns: 10px minmax(0, 1fr) 44px;
     gap: .15rem .5rem; padding: .6rem 0;
   }
-  .cob-name { grid-column: 2; }
+  .cob-who { grid-column: 2; }
   .cob-toggle { grid-column: 3; grid-row: 1 / span 2; width: 44px; height: 44px; justify-self: end; }
   .cob-meta { grid-column: 2; grid-row: 2; }
   .cob-action { grid-column: 2 / span 2; white-space: normal; }
