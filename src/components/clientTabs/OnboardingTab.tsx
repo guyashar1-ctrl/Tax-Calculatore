@@ -11,6 +11,7 @@ import type {
 import {
   ENGAGEMENT_STATUS_LABELS, EVENT_ACTOR_LABELS, EVENT_TYPE_LABELS, REQUIREMENT_KIND_LABELS,
   STEP_BALL_LABELS, STEP_STATUS_LABELS, STEP_STATUS_TONE, STEP_TYPE_LABELS, TRACK_LABELS,
+  blockingStepsForClose, isStepRequiredForClose,
   isStepOpen,
 } from '../../types/onboarding';
 import type { RepAuthorityKind } from '../../types';
@@ -31,6 +32,7 @@ import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import OnboardingJourneyMap from './OnboardingJourneyMap';
 import OnboardingProcessBuilder from './OnboardingProcessBuilder';
+import Modal from '../ui/Modal';
 import AddRequestDialog from './AddRequestDialog';
 import JourneyTemplatesDialog from './JourneyTemplatesDialog';
 
@@ -73,14 +75,21 @@ const RowOpenContext = createContext<{
   onMove?: (id: string, dir: -1 | 1) => void;
   /** פתיחת בקשה שנשמרה כטיוטה, אל הדף האישי של הלקוח. */
   onPublish?: (id: string) => void;
+  /**
+   * שינוי "נדרש לסגירת הקליטה" על שלב קיים.
+   * ‼ ההחלטה הזאת מתבררת תוך כדי — בקשה שנראתה קריטית מתגלה כלא רלוונטית.
+   * בלי הכפתור הזה הדרך היחידה לשחרר שלב הייתה לבטל אותו, כלומר למחוק מידע
+   * כדי לעקוף חוק.
+   */
+  onSetRequired?: (id: string, required: boolean) => void;
 }>({ openId: null, toggle: () => {} });
 
 /** שם השורה. בקשה חופשית נושאת את השם שהרו"ח נתן לה, לא תווית גנרית. */
+/* שם שניתן לבקשה גובר על השם הגנרי של הסוג — בכל סוג, לא רק בבקשה חופשית.
+   בקשה ששמה לא מוצג היא בקשה שאי אפשר לזהות ברשימה של עשר שורות. */
 function rowTitle(step: OnboardingStep): string {
-  if (step.stepType === 'custom_request') {
-    const t = String(step.payload.title ?? '').trim();
-    if (t) return t;
-  }
+  const named = String(step.payload?.title ?? '').trim();
+  if (named) return named;
   return STEP_TYPE_LABELS[step.stepType];
 }
 
@@ -113,8 +122,15 @@ function lockHint(step: OnboardingStep, byId: Map<string, OnboardingStep>): stri
     return 'ייפתח אחרי שתאשר את חיבור הלקוח לפייפרלס';
   }
   const dep = step.dependsOnStepId ? byId.get(step.dependsOnStepId) : undefined;
-  if (dep) return `ייפתח אחרי ${STEP_TYPE_LABELS[dep.stepType]}`;
-  return 'ייפתח אחרי השלב שהוא תלוי בו';
+  if (dep) return `ייפתח אחרי «${STEP_TYPE_LABELS[dep.stepType]}»`;
+  /* ‼ בלי תלות מפורשת נופלים לשלב הפתוח שקודם לו בסדר — זה מה שחוסם אותו
+     בפועל. "ייפתח אחרי השלב שהוא תלוי בו" הוא משפט שלא אומר כלום למי
+     שמסתכל על המסך ומנסה להבין מה לעשות עכשיו. */
+  const before = [...byId.values()]
+    .filter(s => (s.sortOrder ?? 0) < (step.sortOrder ?? 0) && isStepOpen(s.status))
+    .sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))[0];
+  if (before) return `ייפתח אחרי «${STEP_TYPE_LABELS[before.stepType]}»`;
+  return 'ייפתח כשהשלב שלפניו יושלם';
 }
 
 // ─── מסלול הפייפרלס ────────────────────────────────────────────────────────
@@ -247,13 +263,6 @@ export default function OnboardingTab({
   // utils/onboardingNext.ts. שני מסכים שמחשבים "הבא בתור" אחרת סותרים זה את זה.
   const nextStep = useMemo(() => nextStepForClient(clientSteps), [clientSteps]);
 
-  /** תוויות התנאים — בלשון "מה חסר", לא בשמות השדות של השרת. */
-  const CLOSE_BLOCKERS: Record<string, string> = {
-    retainer: 'הרשאת התשלום או הסדר הגבייה טרם הוקמו',
-    releaseLetter: 'מכתב השחרור לרו״ח הקודם טרם נשלח או שחלון ההתנגדות לא עבר',
-    intake: 'שאלון פתיחת התיק טרם נשלח',
-  };
-
   async function closeOnboarding(force: boolean) {
     const eng = clientEngagements[0];
     if (!eng) return;
@@ -268,15 +277,10 @@ export default function OnboardingTab({
     if (rpcError) { setError('לא הצלחתי לסגור את הקליטה.'); return; }
     if (res?.ok) { flushAccountantNotifications(); refresh?.(); return; }
 
+    /* ‼ השרת הוא שחוסם. המסך רק מציג מה חסר — ובחלון קטן שנפתח בלחיצה,
+       לא כאזהרה קבועה על העמוד. */
     if (res?.error === 'not_ready') {
-      const missing = Object.keys(CLOSE_BLOCKERS)
-        .filter(k => !['done', 'not_required', 'no_objection', 'sent'].includes(res.readiness?.[k] ?? ''))
-        .map(k => CLOSE_BLOCKERS[k]);
-      const blocking = Number((res.readiness as unknown as { blocking?: unknown[] })?.blocking?.length ?? 0);
-      if (blocking > 0) missing.push(`${blocking} שלבים עדיין פתוחים`);
-      const ok = window.confirm(
-        `הקליטה עדיין לא סגורה:\n\n• ${missing.join('\n• ')}\n\nלסגור בכל זאת? הסיבה תירשם ביומן.`);
-      if (ok) void closeOnboarding(true);
+      setCloseGate({ steps: blockingStepsForClose(clientSteps) });
       return;
     }
     setError('לא הצלחתי לסגור את הקליטה.');
@@ -366,6 +370,8 @@ export default function OnboardingTab({
 
   // ─── הקישור האחיד ללקוח ──────────────────────────────────────────────────
   const [portalCopied, setPortalCopied] = useState(false);
+  /** חלון הסגירה — נפתח רק כשהשרת חוסם, ונסגר איתו. */
+  const [closeGate, setCloseGate] = useState<{ steps: OnboardingStep[] } | null>(null);
   async function copyPortalLink() {
     setError(null);
     const { data, error: rpcError } = await supabase.rpc('mint_portal_token', { p_client_id: clientId });
@@ -493,6 +499,20 @@ export default function OnboardingTab({
     setEmailDialog({ stepId: id, kind: 'step_reminder', heading: 'הודעה ללקוח על הבקשה' });
   }
 
+  async function setStepRequired(id: string, required: boolean) {
+    const { data, error: rpcError } = await supabase.rpc('set_onboarding_step_required', {
+      p_step_id: id, p_required: required,
+    });
+    const res = data as { ok?: boolean; error?: string } | null;
+    if (rpcError || !res?.ok) {
+      setError(res?.error === 'step_closed'
+        ? 'השלב כבר נסגר — אי אפשר לשנות אם הוא נדרש.'
+        : (rpcError?.message ?? 'עדכון הבקשה נכשל.'));
+      return;
+    }
+    refresh?.();
+  }
+
   // ‼ אותו מסך, שני מצבים. כל עוד התהליך לא נפתח ללקוח — מצב בנייה: מרכיבים
   // מה מבקשים ממנו. אחרי הפתיחה — מצב ניהול. אין כאן שני מסכים שסותרים.
   if (activeEngagement && !activeEngagement.processPublishedAt) {
@@ -515,6 +535,7 @@ export default function OnboardingTab({
       toggle: (id: string) => setOpenRowId(cur => (cur === id ? null : id)),
       onMove: ordering ? undefined : (id, dir) => void moveRow(id, dir),
       onPublish: (id) => void publishRequest(id),
+      onSetRequired: (id, required) => void setStepRequired(id, required),
     }}>
     <div className="cw-tabpanel">
       {error && (
@@ -558,6 +579,67 @@ export default function OnboardingTab({
 
       {!embedded && clientSteps.length > 0 && (
         <OnboardingJourneyMap steps={clientSteps} onSelect={gotoStep} />
+      )}
+
+      {/* ── התקדמות הקליטה · מוטמע בדף המסע ────────────────────────────────
+          רצועת המונים של הדף אומרת "כמה אצל מי"; היא אינה אומרת מה הסדר,
+          מה נעשה, מה עכשיו, ומה חוסם. זה המסך שעונה על זה — ובראשו שתי
+          הפעולות שעד כה לא היו נגישות מדף המסע בכלל: הקישור ללקוח
+          וסגירת הקליטה. רצועת הכדור הכפולה נשארת מוסתרת בכוונה. */}
+      {/* ‼ נעלם ברגע שההתקשרות אינה בקליטה: אחרי הסגירה אין "התקדמות קליטה",
+          יש לקוח פעיל שאולי נותרו לו בקשות פתוחות — והן מוצגות כבקשות. */}
+      {embedded && clientSteps.length > 0 && activeEngagement?.status === 'onboarding' && (
+        <div className="ob-prog">
+          <div className="ob-prog-head">
+            <span className="ob-prog-title">התקדמות הקליטה</span>
+            <span className="ob-prog-count">
+              {clientSteps.filter(s => !isStepOpen(s.status)).length} מתוך {clientSteps.length} הושלמו
+              {activeEngagement?.approvedAt && (() => {
+                const d = Math.floor((Date.now() - new Date(activeEngagement.approvedAt!).getTime()) / 86400000);
+                return Number.isFinite(d) && d >= 1 ? ` · יום ${d}` : '';
+              })()}
+            </span>
+            <span style={{ flex: 1 }} />
+            <button type="button" className="btn btn-sm btn-ghost"
+              onClick={() => void copyPortalLink()}
+              title="קישור לדף האישי של הלקוח — מציג לו מה הושלם ומה ממתין">
+              {portalCopied ? '✓ הועתק' : 'קישור ללקוח'}
+            </button>
+            {activeEngagement?.status === 'onboarding' && (
+              <button type="button" className="btn btn-sm btn-secondary" disabled={closing}
+                onClick={() => void closeOnboarding(false)}
+                title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
+                {closing ? 'סוגר…' : 'סגור קליטה'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── חלון הסגירה — נפתח רק כשהשרת חסם, ונסגר איתו ─────────────────── */}
+      {closeGate && (
+        <Modal title="סגירת הקליטה" onClose={() => setCloseGate(null)} width={440}>
+          <p className="ob-gate-lead">עדיין נדרש להשלים:</p>
+          <ul className="ob-gate-list">
+            {closeGate.steps.map(s => <li key={s.id}>{rowTitle(s)}</li>)}
+          </ul>
+          <div className="ob-gate-actions">
+            <button type="button" className="btn btn-primary" onClick={() => setCloseGate(null)}>
+              חזרה להשלמה
+            </button>
+            {/* ‼ עקיפה — משנית בכוונה, ודורשת אישור נוסף. נרשמת ביומן. */}
+            <button
+              type="button"
+              className="ui-linkbtn ob-gate-force"
+              disabled={closing}
+              /* ‼ אין אישור שני. החלון עצמו הוא האישור: מי שקרא את הרשימה
+                 ולחץ כאן — החליט. שני חלונות ברצף מלמדים ללחוץ בלי לקרוא. */
+              onClick={() => { setCloseGate(null); void closeOnboarding(true); }}
+            >
+              סגור בכל זאת · {closeGate.steps.length} נדרשים יישארו פתוחים
+            </button>
+          </div>
+        </Modal>
       )}
 
       {loading && clientSteps.length === 0 && <div className="cw-empty">טוען…</div>}
@@ -1698,7 +1780,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { openId, toggle, onMove, onPublish } = useContext(RowOpenContext);
+  const { openId, toggle, onMove, onPublish, onSetRequired } = useContext(RowOpenContext);
   const open = openId === step.id;
   const tone = TONE_COLOR[STEP_STATUS_TONE[step.status]];
   const locked = step.status === 'locked';
@@ -1727,6 +1809,9 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
             onClick={() => hasBody && toggle(step.id)}
             aria-expanded={hasBody ? open : undefined}
             style={{
+              // ‼ 41 פיקסלים — קרוב, אבל זה הכפתור שפותח את הבקשה, והוא
+              // הפעולה הראשונה בכל שורה. 44 הוא המינימום.
+              minHeight: 44,
               flex: 1, minWidth: 0, textAlign: 'start', font: 'inherit', color: 'inherit',
               cursor: hasBody ? 'pointer' : 'default', padding: 0,
               background: 'none', border: 'none', appearance: 'none',
@@ -1735,6 +1820,9 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
             <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: locked ? 'var(--ink-3)' : 'var(--ink-1)' }}>
               {hasBody && <span aria-hidden="true" style={{ color: 'var(--ink-4)', marginInlineEnd: '.3rem' }}>{open ? '▾' : '▸'}</span>}
               {locked && '🔒 '}{rowTitle(step)}
+              {/* ‼ מילה אחת אפורה, ורק על מה שאינו נדרש. הנדרש אינו מסומן —
+                  סימון על הרוב הוא רעש, וסימון על המיעוט הוא מידע. */}
+              {!isStepRequiredForClose(step) && <span className="ob-optional">רשות</span>}
               {/* ‼ טיוטה = הבקשה מוכנה אצלי והלקוח עוד לא רואה אותה. בלי הסימון
                   הזה אין דרך לדעת אם ביקשתי בפועל או רק הכנתי. */}
               {isDraft && (
@@ -1765,6 +1853,20 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
               <button type="button" className="btn btn-sm btn-primary"
                 onClick={() => onPublish(step.id)}
                 title="הבקשה תופיע בדף האישי של הלקוח">שלח ללקוח</button>
+            )}
+            {/* ‼ רק על שלב שעדיין פתוח. שלב שהושלם או בוטל כבר יצא מהמשחק,
+                והשרת ממילא מסרב לשנות אותו (set_onboarding_step_required). */}
+            {onSetRequired && !['completed', 'verified', 'cancelled'].includes(step.status) && (
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => onSetRequired(step.id, !isStepRequiredForClose(step))}
+                title={isStepRequiredForClose(step)
+                  ? 'השלב חוסם היום את סגירת הקליטה. סימון כרשות ישחרר אותה.'
+                  : 'השלב אינו חוסם היום את סגירת הקליטה.'}
+              >
+                {isStepRequiredForClose(step) ? 'סמן כרשות' : 'סמן כנדרש'}
+              </button>
             )}
             {menu}
             {onMove && (

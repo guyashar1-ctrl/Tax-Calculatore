@@ -80,7 +80,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
   try {
-    const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken, preview, force } = await req.json();
+    const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken, preview, force,
+            internalSecret, quotationId: rawQuotationId } = await req.json();
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
@@ -95,7 +96,29 @@ Deno.serve(async (req: Request) => {
     // ההצעה שעליה נתבעת השליחה. במסלול הציבורי היא הטוקן עצמו, ובמסלול ה-JWT
     // היא נמצאת דרך בקשת הייצוג — כדי ששני המסלולים יתחרו על אותה תביעה.
     let claimQuotationId: string | null = null;
-    if (quotationToken) {
+    // ── מסלול (ג): המסד עצמו, מיד עם אישור ההצעה ────────────────────────────
+    // ‼ ההבדל ממסלול (ב) אינו טכני אלא מהותי: כאן אין דפדפן בכלל. הבקשה
+    // נשלחת מתוך `approve_quotation` דרך pg_net, אחרי שהטרנזקציה נסגרה, ולכן
+    // המייל יוצא גם אם הלקוח סגר את הכרטיסייה מיד ואפילו אם הרו"ח לא נכנס
+    // למערכת שבוע. ההרשאה היא סוד פנימי מה-Vault — לא טוקן של לקוח, כדי
+    // שמזהה ציבורי לא יישב בתור של pg_net.
+    if (internalSecret) {
+      const { data: okSecret } = await admin.rpc("verify_internal_send_secret", { p: String(internalSecret) });
+      if (okSecret !== true) return json({ error: "bad_internal_secret" }, 403);
+      if (!rawQuotationId) return json({ error: "missing quotationId" }, 400);
+      const { data: quote } = await admin
+        .from("quotations")
+        .select("id,user_id,status,representation_request_id")
+        .eq("id", String(rawQuotationId))
+        .maybeSingle();
+      if (!quote || quote.status !== "approved") return json({ error: "quotation_not_approved" }, 403);
+      if (!quote.representation_request_id) return json({ error: "no_representation" }, 400);
+      userId = quote.user_id;
+      requestId = quote.representation_request_id;
+      quotationId = quote.id;
+      claimQuotationId = quote.id;
+      stage = "onboard";   // המסלול הזה שולח את קישור הייצוג ולא שום דבר אחר
+    } else if (quotationToken) {
       const { data: quote } = await admin
         .from("quotations")
         .select("id,user_id,status,representation_request_id")
@@ -336,7 +359,9 @@ Deno.serve(async (req: Request) => {
 
     // תצוגה מקדימה — אותו HTML בדיוק, רק בלי Resend ובלי רישום ביומן. המסלול
     // הציבורי (טוקן הצעה) לא מקבל אותה: אין סיבה שהלקוח ישלוף ממנה תוכן.
-    if (preview && !quotationToken) {
+    // ‼ גם המסלול הפנימי אינו מקבל תצוגה מקדימה: הוא נקרא מהמסד כדי לשלוח,
+    //   ובקשה שמחזירה HTML במקום לשלוח הייתה משאירה את הלקוח בלי מייל.
+    if (preview && !quotationToken && !internalSecret) {
       return json({ ok: true, preview: true, subject: copy.subject, to: toEmail, from: `${brand.firmName} <${fromAddress}>`, html });
     }
 

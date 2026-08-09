@@ -160,7 +160,9 @@ export default function LeadsPanel({
           action={{ label: 'נקה סינון', onClick: () => { setFilter('all'); setSearch(''); } }}
         />
       ) : (
-        <div className="card">
+        <div className="card" style={{ overflowX: 'auto', maxWidth: '100%' }}>
+          {/* ‼ overflowX למעלה: שש עמודות רחבות מהמסך בטלפון, ובלעדיו כל
+              העמוד נגלל לצדדים והכותרת יוצאת מהמסך. */}
           <table>
             <thead>
               <tr>

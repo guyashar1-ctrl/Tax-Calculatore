@@ -3,9 +3,20 @@
 // מניעת כפילות מוחלטת: תפיסה אטומית של auto_reminder_sent_at לפני השליחה.
 // כישלון: משחררים את התפיסה + מתעדים שגיאה (לא מסמנים שנשלח) → מוצג לרו"ח.
 // אימות: x-cron-secret (מה-cron) או Authorization: Bearer <service_role> (הרצה ידנית).
+//
+// ‼‼ שער ההגדרה (הכרעת גיא D2, 2026-08-07). המייל הזה יוצא **ללקוח** בלי
+// שהרו"ח מאשר כל פעם, ולכן הוא אינו מאושר כאוטומטי כברירת מחדל. המשימה
+// היומית ממשיכה לרוץ, אבל למשרד שלא הדליק את המתג היא לא שולחת דבר —
+// ולא תופסת תביעה. השער נבדק **לפני** התפיסה האטומית: תפיסה בלי שליחה
+// הייתה שורפת את ההזדמנות היחידה לשלוח, ואז גם הדלקת המתג לא הייתה עוזרת.
+// ראה docs/EMAIL-POLICY.md.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 // ★ מערכת העיצוב המשותפת — אותו קובץ שהאתר צורך. אין כאן צבעים/מעטפת משלנו.
 import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
+import { isNotificationEnabled } from "../_shared/accountantNotifications.ts";
+
+/** מפתח ההגדרה של תזכורת הפקיעה — חייב להיות זהה לקטלוג. */
+const REMINDER_KIND = "quotation_expiry_reminder";
 
 // ימי עסקים בישראל: ראשון–חמישי. שישי(5)/שבת(6) = סוף שבוע. חגים לא מטופלים.
 function businessDaysUntil(target: Date, now: Date): number {
@@ -76,10 +87,20 @@ Deno.serve(async (req: Request) => {
       return profileCache.get(uid);
     }
 
-    let sent = 0, failed = 0, skipped = 0;
+    let sent = 0, failed = 0, skipped = 0, disabled = 0;
     const results: any[] = [];
 
     for (const q of candidates ?? []) {
+      // ‼ השער לפני התפיסה. המשרד שלא הדליק את המתג — מדלגים בלי לגעת
+      //   ב-auto_reminder_sent_at, כך שאם ידליק אותו מחר ההצעה עדיין תזכה
+      //   לתזכורת. תפיסה כאן הייתה שקטה, סופית, ולא ניתנת לתיקון.
+      const gateProfile = await getProfile(q.user_id);
+      if (!isNotificationEnabled(gateProfile?.settings, REMINDER_KIND)) {
+        disabled++;
+        results.push({ id: q.id, status: "disabled_by_setting" });
+        continue;
+      }
+
       // תפיסה אטומית — מונע כפילות מוחלטת גם בהרצות חופפות
       const { data: claimed } = await admin
         .from("quotations")
@@ -167,7 +188,10 @@ Deno.serve(async (req: Request) => {
       sent++; results.push({ id: q.id, status: "sent", to: toEmail });
     }
 
-    return json({ ok: true, processed: (candidates ?? []).length, sent, failed, skipped, results });
+    // ‼ disabled נספר ומוחזר במפורש. הרצה שלא שלחה כלום כי המתג כבוי חייבת
+    //   להיראות אחרת מהרצה שלא מצאה מועמדים — אחרת אי אפשר לדעת אם השער
+    //   עובד או שפשוט לא היה מה לשלוח.
+    return json({ ok: true, processed: (candidates ?? []).length, sent, failed, skipped, disabled, results });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

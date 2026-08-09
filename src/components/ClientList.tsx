@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Client,
   IncomeTaxType,
@@ -128,6 +128,11 @@ interface Props {
   journeyUi?: boolean;
   /** פאנל הלידים, מוזרק מהאב — כדי שהוא יחיה במסך הלקוחות ולא במסך ההצעות. */
   leadsPanel?: React.ReactNode;
+  /**
+   * דלוק ⇒ המשתמש ביקש "ליד חדש". ‼ הפאנל מוצג רק בלשונית הלידים, ולכן בלי
+   * המעבר הזה הכפתור פותח טופס במקום שאינו על המסך — נראה כאילו לא קרה כלום.
+   */
+  newLeadRequested?: boolean;
   /** שלבי הקליטה של כל הלקוחות — לתצוגת המעקב "בקליטה". */
   onboardingSteps?: OnboardingStep[];
   engagements?: Engagement[];
@@ -171,7 +176,7 @@ export default function ClientList({
   leadIdByClient,
   onOpenLead,
   journeyUi,
-  leadsPanel,
+  leadsPanel, newLeadRequested,
   onboardingSteps,
   engagements,
   onOpenOnboarding,
@@ -201,7 +206,26 @@ export default function ClientList({
     setStageFilter(next);
     localStorage.setItem('crm_clients_tab', next);
   }
+  useEffect(() => {
+    if (newLeadRequested && journeyUi) switchTab('lead');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newLeadRequested, journeyUi]);
+  const [openRowMenu, setOpenRowMenu] = useState<string | null>(null);
+  /** המבט התפעולי — בקשות קליטה פתוחות. אינו שלב חיים ואינו לשונית. */
+  const [opsOnboarding, setOpsOnboarding] = useState(false);
   const [openTasksOnly, setOpenTasksOnly] = useState(false);
+
+  // לחיצה מחוץ לתפריט השורה סוגרת אותו — אחרת הוא נשאר פתוח על שורה
+  // אחת בזמן שקוראים שורה אחרת.
+  useEffect(() => {
+    if (!openRowMenu) return;
+    function onDocClick(e: MouseEvent) {
+      const t = e.target as HTMLElement;
+      if (!t.closest('.cl-row-menu-wrap')) setOpenRowMenu(null);
+    }
+    const id = setTimeout(() => document.addEventListener('click', onDocClick), 0);
+    return () => { clearTimeout(id); document.removeEventListener('click', onDocClick); };
+  }, [openRowMenu]);
   const [upcomingDebtsOnly, setUpcomingDebtsOnly] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -218,18 +242,21 @@ export default function ClientList({
     for (const s of onboardingSteps) if (isStepOpen(s.status) && s.status !== 'cancelled') open.add(s.clientId);
     return open.size;
   }, [onboardingSteps]);
-  const showOnboardingView = stageFilter === 'onboarding' && !!onboardingSteps && !!onOpenOnboarding;
+  const showOnboardingView = opsOnboarding && !!onboardingSteps && !!onOpenOnboarding;
 
-  // ‼ מונה לכל טאב. נספר מהמקור היחיד — שלב החיים על הכרטיס — חוץ מ"בקליטה"
-  // שנספר לפי שלבים פתוחים בפועל, כדי שקליטה שנסגרה לא תמשיך להיספר.
+  /* ‼ ציר אחד לכל הלשוניות הראשיות: שלב החיים שעל הכרטיס, ותו לא.
+     קודם "בקליטה" נספר לפי שלבים פתוחים בפועל — ציר אחר לגמרי — ולכן אותו
+     אדם נספר פעמיים (פעיל *וגם* בקליטה), והלשוניות לא חילקו את האוכלוסייה.
+     הצורך התפעולי ("למי יש בקשה פתוחה") לא נעלם: הוא יושב בשורה נפרדת
+     מתחת ללשוניות, ומסומן במפורש כתצוגה תפעולית ולא כשלב חיים. */
   const stageCounts = useMemo(() => {
-    const m: Record<string, number> = { quoted: 0, onboarding: onboardingCount, active: 0, lead: 0 };
+    const m: Record<string, number> = { quoted: 0, onboarding: 0, active: 0, lead: 0, archived: 0 };
     for (const c of clients) {
       const st = c.lifecycleStage ?? 'active';
-      if (st === 'quoted' || st === 'active' || st === 'lead') m[st] += 1;
+      if (st in m) m[st] += 1;
     }
     return m;
-  }, [clients, onboardingCount]);
+  }, [clients]);
 
   // ‼ ליד שטרם קיבל הצעה אין לו כרטיס לקוח, ולכן הוא לא יופיע בטבלה. בלי
   // הרשימה הזו הוא היה נעלם מהמסך לגמרי כשהמשפך ירד.
@@ -237,12 +264,18 @@ export default function ClientList({
     () => (leads ?? []).filter(l => !l.convertedClientId && l.status !== 'closed'),
     [leads]);
 
+  /* חמש לשוניות שמחלקות את האוכלוסייה בלי חפיפה, ו"הכל" שסוכם אותן.
+     ארכיון מופיע רק כשיש בו מישהו — לשונית ריקה קבועה היא רעש. */
+  const totalPeople = clients.length + cardlessLeads.length;
   const TABS: { key: 'default' | LifecycleStage; label: string; count?: number }[] = [
+    { key: 'lead', label: 'לידים', count: stageCounts.lead + cardlessLeads.length },
     { key: 'quoted', label: 'בהצעה', count: stageCounts.quoted },
     { key: 'onboarding', label: 'בקליטה', count: stageCounts.onboarding },
     { key: 'active', label: 'לקוחות פעילים', count: stageCounts.active },
-    { key: 'lead', label: 'לידים', count: stageCounts.lead + cardlessLeads.length },
-    { key: 'default', label: 'הכל' },
+    ...(stageCounts.archived > 0
+      ? [{ key: 'archived' as LifecycleStage, label: 'ארכיון', count: stageCounts.archived }]
+      : []),
+    { key: 'default', label: 'הכל', count: totalPeople },
   ];
 
   function toggleSort(field: SortField) {
@@ -306,9 +339,9 @@ export default function ClientList({
       const stage = getStage(c);
 
       if (stageFilter === 'default') {
-        // ליד וארכיון אינם חלק מרשימת העבודה — אבל כשמחפשים אדם מפורשות
-        // הוא כן נמצא, בכל שלב שהוא. אדם אחד, כרטיס אחד, חיפוש אחד.
-        if ((stage === 'lead' || stage === 'archived') && !q) return false;
+        /* ‼ "הכל" פירושו כל האנשים במערכת — כולל לידים וארכיון. עד כה הוא
+           החריג את שניהם, ולכן הראה 11 בזמן שבמערכת 13 אנשים והלשוניות
+           סיכמו למספר אחר. לשונית ששמה "הכל" ומראה חלק היא לשונית ששקרה. */
       } else if (stage !== stageFilter) {
         return false;
       }
@@ -411,7 +444,8 @@ export default function ClientList({
     (itFilter !== 'all' ? 1 : 0) +
     (niFilter !== 'all' ? 1 : 0) +
     (shaamFilter !== 'all' ? 1 : 0) +
-    (stageFilter !== 'default' ? 1 : 0) +
+    /* ‼ בחירת לשונית אינה "פילטר מתקדם" — היא הניווט הראשי של המסך.
+       ספירתה כאן צבעה את הכפתור והציגה "(1)" בכל לשונית שאינה "הכל". */
     (openTasksOnly ? 1 : 0) +
     (upcomingDebtsOnly ? 1 : 0);
 
@@ -428,8 +462,35 @@ export default function ClientList({
 
   return (
     <div className="client-list-page">
-      {/* הכותרת "לקוחות" ירדה — הטאב הפעיל בסרגל כבר אומר אותה, והספירה
-          חוזרת בכותרת "לקוחות מיוצגים · N" שמתחת. מספר אחד במסך. */}
+      {/* ראש עמוד אחד בשפה אחת — אותה כותרת של המשימות, המסמכים והתיק,
+          ובראש המסך ולא באמצעו. המשפט מתחת הוא מה שהמסך מבטיח. */}
+      <div className="pg-head">
+        <div className="pg-head-main">
+          <div className="pg-title">{showOnboardingView ? 'קליטות פתוחות' : 'לקוחות'}</div>
+          <div className="pg-status">
+            {showOnboardingView
+              ? `${onboardingCount} בתהליך קליטה`
+              /* ‼ נספרים כל מי שמופיע על המסך — גם מי שהייצוג שלו עדיין
+                 בתהליך ויושב בפאנל שמעל הטבלה. הכותרת אומרת "אנשים",
+                 ומספר שסופר רק חלק מהם הוא מספר ששוקר. */
+              : `${filtered.length} אנשים · אדם אחד לכל אורך המסע`}
+          </div>
+        </div>
+        <div className="pg-actions">
+          {/* טעינת דוגמאות היא כלי פיתוח ולא פעולה של רואה חשבון —
+              מוצגת רק כשאין לקוחות בכלל, וכקישור שקט */}
+          {clients.length === 0 && (
+            <button className="ui-linkbtn" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
+          )}
+          {/* ‼ הכניסה למשפך היא גם הכניסה ליצירה: ליד והצעה נפתחים מכאן ולא
+              ממסך אחר, אחרת הריכוז נשבר במקום הראשון שבו הוא נדרש. */}
+          {onNewLead && <button className="btn btn-secondary" onClick={onNewLead}>+ ליד</button>}
+          {onNewQuotation && <button className="btn btn-secondary" onClick={onNewQuotation}>+ הצעה</button>}
+          <button className="btn btn-secondary" onClick={onAddRequest}>בקשת ייצוג</button>
+          <button className="btn btn-primary" onClick={onAdd}>+ לקוח חדש</button>
+        </div>
+      </div>
+
       <div className="cl-list-header">
         <div style={{ display: 'flex', gap: '.15rem', flexWrap: 'wrap' }}>
           {TABS.map(t => {
@@ -440,6 +501,9 @@ export default function ClientList({
                 type="button"
                 onClick={() => switchTab(t.key)}
                 aria-pressed={on}
+                /* ‼ cl-stage-tab ולא רק inline: זו לשונית הניווט הראשית של
+                   המסך, והיא צריכה שטח נגיעה הגון בטלפון (ראה index.css). */
+                className="cl-stage-tab"
                 style={{
                   padding: '.45rem .7rem', border: 'none', background: 'transparent',
                   borderBottom: `2px solid ${on ? 'var(--accent)' : 'transparent'}`,
@@ -453,20 +517,25 @@ export default function ClientList({
             );
           })}
         </div>
-        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-          {/* טעינת דוגמאות היא כלי פיתוח ולא פעולה של רואה חשבון —
-              מוצגת רק כשאין לקוחות בכלל, וכקישור שקט */}
-          {clients.length === 0 && (
-            <button className="ui-linkbtn" onClick={onLoadSamples}>טען לקוחות לדוגמה</button>
-          )}
-          {/* ‼ הכניסה למשפך היא גם הכניסה ליצירה: ליד והצעה נפתחים מכאן ולא
-              ממסך אחר, אחרת הריכוז נשבר במקום הראשון שבו הוא נדרש. */}
-          {onNewLead && <button className="btn btn-secondary" onClick={onNewLead}>+ ליד</button>}
-          {onNewQuotation && <button className="btn btn-secondary" onClick={onNewQuotation}>+ הצעה</button>}
-          <button className="btn btn-secondary" onClick={onAddRequest}>בקשת ייצוג</button>
-          <button className="btn btn-primary btn-lg" onClick={onAdd}>+ לקוח חדש</button>
-        </div>
       </div>
+
+      {/* ── מבט תפעולי · לא שלב חיים ────────────────────────────────────────
+          "למי יש בקשה פתוחה" חוצה שלבי חיים: גם לקוח פעיל יכול לחכות לבקשה.
+          לכן הוא לא לשונית — הלשוניות מחלקות את האוכלוסייה בלי חפיפה — אלא
+          שורה נפרדת שמסומנת ככזו. */}
+      {onboardingCount > 0 && onOpenOnboarding && (
+        <div className="cl-ops-row">
+          <span className="cl-ops-label">מבט תפעולי</span>
+          <button
+            type="button"
+            className={`btn btn-sm ${opsOnboarding ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setOpsOnboarding(v => !v)}
+          >
+            בקשות קליטה פתוחות · {onboardingCount}
+          </button>
+          <span className="cl-ops-hint">חוצה שלבי חיים — כולל לקוחות פעילים שממתינים לבקשה</span>
+        </div>
+      )}
 
       {(<>
       {/* Search + advanced toggle */}
@@ -480,16 +549,9 @@ export default function ClientList({
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        {/* ‼ "בקליטה" יושב כאן ולא רק בפילטרים המתקדמים: זה מבט יומיומי על
-            מי שבתהליך, לא סינון נדיר. פריט תפריט חדש היה עומס — זה לא. */}
-        {onboardingCount > 0 && (
-          <button
-            className={`btn ${stageFilter === 'onboarding' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setStageFilter(s => s === 'onboarding' ? 'default' : 'onboarding')}
-          >
-            בקליטה ({onboardingCount})
-          </button>
-        )}
+        {/* ‼ הכפתור "בקליטה (N)" ירד: הוא שכפל את הלשונית שלידו והציג אותו
+            מספר בשני מקומות. המבט התפעולי עצמו לא נעלם — הוא יושב מתחת
+            ללשוניות, מסומן במפורש כתצוגה תפעולית ולא כשלב חיים. */}
         <button
           className={`btn ${showAdvanced || activeAdvancedCount > 0 ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setShowAdvanced(s => !s)}
@@ -666,14 +728,6 @@ export default function ClientList({
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '0 0 .6rem' }}>
-            <span style={{ fontSize: '17px', fontWeight: 500 }}>
-              {showOnboardingView ? 'קליטות פתוחות' : 'לקוחות'}
-            </span>
-            <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
-              · {showOnboardingView ? onboardingCount : activeList.length}
-            </span>
-          </div>
 
           {/* ‼ במצב "בקליטה" הטבלה מחליפה עמודות לגמרי: מי שבתהליך נמדד בימים,
               בהתקדמות ובאצל-מי — לא בסטטוס מע"מ ותיק ניכויים. */}
@@ -742,7 +796,7 @@ export default function ClientList({
                   const primaryNote = !pc.isClient ? pc.name : '';
 
                   return (
-                    <tr key={client.id} className="client-row" onClick={() => handleRowClick(client)}>
+                    <tr key={client.id} className={`client-row ${getStage(client) === 'archived' ? 'is-archived' : ''}`} onClick={() => handleRowClick(client)}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
                           <div className="client-avatar-sm">
@@ -848,16 +902,54 @@ export default function ClientList({
                       </td>
                       <td className="hide-mobile col-shaam" style={{ textAlign: 'center' }}>
                         {/* רק חריגה מסומנת. "פעיל" הוא המצב הצפוי ולא צריך סימן (§4.5) */}
-                        {client.shaamStatus === 'inactive' && <span className="cl-flag">לא פעיל</span>}
-                        {client.shaamStatus === 'pending' && <span className="cl-flag cl-flag-warn">בטיפול</span>}
+                        {/* ‼ הטקסט נושא את הנושא שלו. "לא פעיל" בעמודה צרה נקרא כשלב חיים של
+                            האדם, בזמן שהוא מדבר על הרשאת שע"ם בלבד. */}
+                        {client.shaamStatus === 'inactive' && <span className="cl-flag">שע״ם לא פעיל</span>}
+                        {client.shaamStatus === 'pending' && <span className="cl-flag cl-flag-warn">שע״ם בטיפול</span>}
                       </td>
+                      {/* ‼ פעולה ראשית אחת בשורה — הפתיחה — וכל השאר מתחת ל-⋯.
+                          עד כה ישבה כאן רק מחיקה: הפעולה ההרסנית הייתה היחידה
+                          שאפשר היה להגיע אליה מהשורה, וכל השאר דרשו כניסה לכרטיס. */}
                       <td onClick={e => e.stopPropagation()}>
-                        <button
-                          className="ui-icon-btn is-danger ui-hover-actions"
-                          onClick={() => setPendingDelete(client)}
-                          title="מחיקה"
-                          aria-label={`מחיקת ${fullName}`}
-                        ><Icon name="close" size={14} /></button>
+                        <div className="cl-row-menu-wrap">
+                          <button
+                            className="ui-icon-btn row-menu-btn ui-hover-actions"
+                            onClick={() => setOpenRowMenu(openRowMenu === client.id ? null : client.id)}
+                            title="פעולות נוספות"
+                            aria-label={`פעולות עבור ${fullName}`}
+                            aria-expanded={openRowMenu === client.id}
+                          >⋯</button>
+
+                          {openRowMenu === client.id && (
+                            <div className="row-menu" onClick={e => e.stopPropagation()}>
+                              <button className="pill-menu-item" onClick={() => { setOpenRowMenu(null); onSelect(client.id); }}>
+                                פתח את המסע
+                              </button>
+                              {leadIdByClient?.get(client.id) && onOpenLead && (
+                                <button className="pill-menu-item" onClick={() => { setOpenRowMenu(null); onOpenLead(leadIdByClient.get(client.id)!); }}>
+                                  פתח את פרטי הליד
+                                </button>
+                              )}
+                              {client.representationRequestId && (
+                                <button className="pill-menu-item" onClick={() => { setOpenRowMenu(null); onSelectRequest(client.representationRequestId!); }}>
+                                  מרכז הייצוג
+                                </button>
+                              )}
+                              <span className="row-menu-sep" aria-hidden="true" />
+                              {onArchive && getStage(client) !== 'archived' && (
+                                <button className="pill-menu-item" onClick={async () => { setOpenRowMenu(null); await onArchive(client.id); }}>
+                                  העבר לארכיון
+                                </button>
+                              )}
+                              <button
+                                className="pill-menu-item row-menu-danger"
+                                onClick={() => { setOpenRowMenu(null); setPendingDelete(client); }}
+                              >
+                                מחיקת כרטיס
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

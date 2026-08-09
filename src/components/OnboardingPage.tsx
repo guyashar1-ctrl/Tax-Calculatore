@@ -591,18 +591,24 @@ export default function OnboardingPage({ token }: Props) {
             </div>
 
             <div style={{ marginBottom: 18 }}>
-              <div style={{ ...label, marginBottom: 8 }}>אני</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+              <div style={{ ...label, marginBottom: 8 }} id="family-status-label">אני</div>
+              <div role="radiogroup" aria-labelledby="family-status-label"
+                style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                {/* ‼ כפתורי בחירה אמיתיים ולא div עם onClick. הלקוח ממלא את
+                    זה מהטלפון, ו-div אינו נגיש למקלדת, אינו מוכרז כבחירה,
+                    ולא היה לו שטח נגיעה מספיק (38 פיקסלים). role=radio נותן
+                    לקורא מסך את מה שהעין רואה. */}
                 {FAMILY_ORDER.map(f => {
                   const sel = familyStatus === f;
                   return (
-                    <div key={f} onClick={() => { setFamilyStatus(f); setFamilyYear(''); }}
-                      style={{ cursor: 'pointer', fontSize: 12.5, fontWeight: sel ? 500 : 400,
-                        padding: '9px 14px', borderRadius: 8,
+                    <button key={f} type="button" role="radio" aria-checked={sel}
+                      onClick={() => { setFamilyStatus(f); setFamilyYear(''); }}
+                      style={{ cursor: 'pointer', fontSize: 13, fontWeight: sel ? 500 : 400,
+                        minHeight: 44, padding: '9px 16px', borderRadius: 8, font: 'inherit',
                         background: sel ? ink : '#fff', color: sel ? '#fff' : '#6B6B68',
                         border: sel ? `1px solid ${ink}` : '1px solid #E3E2DD' }}>
                       {FAMILY_STATUS_LABELS[f]}
-                    </div>
+                    </button>
                   );
                 })}
               </div>

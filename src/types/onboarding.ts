@@ -170,6 +170,12 @@ export interface CustomRequirement {
 }
 
 export interface StepPayload {
+  /**
+   * שם הבקשה כפי שהרו״ח נתן לה. עד כה השדה הזה נכתב ונקרא בלי שהוגדר
+   * בחוזה, ובקשה ששמה נשמר במקום אחר "נעלמה" והוצגה בשם הגנרי של הסוג
+   * («בקשה מהמשרד»). בקשה שאיבדה את שמה היא בקשה שאי אפשר לזהות ברשימה.
+   */
+  title?: string;
   checklist?: StepChecklistItem[];
   /** בקשה חופשית בלבד — הדרישות שהרו״ח הרכיב. */
   requirements?: CustomRequirement[];
@@ -218,6 +224,13 @@ export interface OnboardingStep {
   status: OnboardingStepStatus;
   ball: OnboardingBall;
   dependsOnStepId?: string;
+  /**
+   * האם השלב חוסם סגירת קליטה. נקבע לכל שלב בנפרד — לא לפי סוג בלבד —
+   * כי אותו סוג יכול להיות חובה במסע אחד ורשות במסע אחר (ייבוא היסטוריה,
+   * שאלון, בקשה חופשית). חסר ⇒ נופלים לברירת המחדל לפי סוג, עבור שורות
+   * שנוצרו לפני שהעמודה קיימת.
+   */
+  requiredForClose?: boolean;
   dueDate?: string;
   /** סדר התצוגה שהרו״ח קבע בבונה. גובר על סדר היצירה בכל מסך ובדף האישי. */
   sortOrder?: number;
@@ -266,4 +279,69 @@ const CLOSED_STATUSES: OnboardingStepStatus[] = ['completed', 'verified', 'skipp
 /** שלב פתוח = עוד דורש טיפול של מישהו. */
 export function isStepOpen(status: OnboardingStepStatus): boolean {
   return !CLOSED_STATUSES.includes(status);
+}
+
+// ─── כללי סגירת הקליטה · מקור אחד ────────────────────────────────────────────
+// ‼ הכללים האלה הם בבואה של onboarding_close_readiness בשרת. השרת הוא הסמכות
+// — הוא זה שחוסם סגירה — והעתק הכללים כאן קיים כדי שהמסך יוכל לומר *מראש*
+// מה חוסם, בלי לנחש ובלי להמציא כלל משלו. כל שינוי כאן חייב להיעשות גם שם.
+
+/**
+ * ברירת מחדל לפי סוג — משמשת אך ורק כשאין לשלב ערך משלו, כלומר לשורות
+ * שנוצרו לפני שהעמודה required_for_close קיימת. שני הסוגים האלה הם עבודה
+ * שממשיכה ברקע אחרי שהלקוח כבר שוטף, ומעולם לא חסמו סגירה גם בשרת.
+ */
+export const DEFAULT_OPTIONAL_STEP_TYPES: OnboardingStepType[] = [
+  'representation_upgrade',
+  'first_month_review',
+];
+
+/** מצבים שנחשבים "סגור" לצורך הסגירה. */
+export const SATISFIED_STATUSES: OnboardingStepStatus[] = ['completed', 'verified', 'skipped'];
+
+/**
+ * האם השלב חוסם סגירה. הערך שעל השלב גובר תמיד; ברירת המחדל לפי סוג היא
+ * רשת ביטחון לשורות ישנות בלבד.
+ *
+ * ‼ שלב מותנה אינו זקוק לבדיקת תנאי כאן: המחולל יוצר מכתב שחרור רק כשיש
+ * רו״ח קודם, הרשאת תשלום רק כשיש חיוב חודשי, וחיבור פייפרלס רק כשהוא חלק
+ * מהמסע. קיום השלב הוא התנאי — ולכן שלב מותנה שקיים הוא נדרש.
+ */
+export function isStepRequiredForClose(step: OnboardingStep): boolean {
+  if (step.status === 'cancelled') return false;
+  if (typeof step.requiredForClose === 'boolean') return step.requiredForClose;
+  return !DEFAULT_OPTIONAL_STEP_TYPES.includes(step.stepType);
+}
+
+/**
+ * האם השלב מסופק.
+ *
+ * ‼ ההקלה "השאלון נשלח ⇒ מספיק" הוסרה. שאלון שהוגדר כנדרש חוסם עד שנענה,
+ * עד שדולג במפורש, או עד שהוגדר כרשות. מי שרוצה לסגור בלי תשובה מסמן את
+ * השלב כרשות — החלטה גלויה, במקום הקלה שקטה שאיש לא ביקש.
+ *
+ * ההקלה שנשארה: מכתב שחרור שחלון ההתנגדות שלו עבר נחשב מסופק — שתיקת הרו״ח
+ * הקודם היא הסכמה. ‼ זהו **כלל עבודה פנימי של המשרד**, לא חוק, לא תקנה ולא
+ * כלל מקצועי מאומת. אין לו מקור מצוטט, ואין לתאר אותו ככזה בשום מקום.
+ *
+ * ‼ שתיקה נחשבת הסכמה רק אחרי ששאלנו. תאריך יעד אפשר לקבוע לכל שלב ידנית,
+ * ולכן מכתב שמעולם לא נשלח ותאריכו עבר היה "מספק" את הסגירה בלי שאיש ראה
+ * אותו. לכן החלון תקף רק אחרי שהשלב יצא מהכנה (לא pending ולא locked).
+ * זהה לתנאי שב-onboarding_close_readiness (מיגרציה 68).
+ */
+export function isStepSatisfiedForClose(step: OnboardingStep): boolean {
+  if (SATISFIED_STATUSES.includes(step.status)) return true;
+  if (
+    step.stepType === 'release_letter' &&
+    step.status !== 'pending' &&
+    step.status !== 'locked' &&
+    step.dueDate &&
+    new Date(step.dueDate) <= new Date()
+  ) return true;
+  return false;
+}
+
+/** מה חוסם סגירה רגילה — ורק זה. הרשימה שמוצגת בחלון הסגירה. */
+export function blockingStepsForClose(steps: OnboardingStep[]): OnboardingStep[] {
+  return steps.filter(s => isStepRequiredForClose(s) && !isStepSatisfiedForClose(s));
 }

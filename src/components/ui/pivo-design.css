@@ -251,10 +251,11 @@
 }
 .board-filter-count { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
 
-/* רק המסנן הפעיל מוצג; השאר נפתחים במעבר עכבר או בפוקוס מקלדת.
-   שורת סינון שמראה חמש אפשרויות כל הזמן היא חמש שאלות פתוחות. */
+/* שבב שנושא מספר נשאר גלוי — "אצלי · 12" הוא התשובה, לא השאלה, והוא
+   שווה משהו רק אם רואים אותו בלי לרחף. שבב ריק (0) מתקפל כמו קודם:
+   שורת סינון שמראה אפשרויות בלי תוכן היא שאלות פתוחות לחינם. */
 .board-filters .filter-chips { gap: .2rem; }
-.board-filters .filter-chips .ui-chip:not(.is-active) {
+.board-filters .filter-chips .ui-chip:not(.is-active).is-empty {
   max-width: 0;
   padding-inline: 0;
   opacity: 0;
@@ -362,6 +363,16 @@
 .client-row .ui-icon-btn { opacity: 0; transition: opacity .1s; }
 .client-row:hover .ui-icon-btn,
 .client-row:focus-within .ui-icon-btn { opacity: 1; }
+
+/* ‼ במכשיר מגע אין ריחוף, ולכן תפריט השורה של מסך הלקוחות היה **בלתי נראה
+   לחלוטין** בטלפון — נמדד opacity: 0 באמולציית Pixel 8 (hover:none,
+   pointer:coarse). אותו כלל כבר קיים ללוח המשימות (.board-row ב-index.css),
+   ופשוט לא הוחל על טבלת הלקוחות.
+   ‼ חייב לשבת כאן ולא ב-index.css: index.css נטען ראשון, וכלל הבסיס שכאן
+   היה גובר עליו באותה ספציפיות. */
+@media (hover: none), (pointer: coarse) {
+  .client-row .ui-icon-btn { opacity: 1; }
+}
 
 .table-wrap { overflow-x: visible; }
 
@@ -973,7 +984,19 @@ table thead th {
 .pg-head-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .pg-title { font-size: var(--fs-17); font-weight: 600; letter-spacing: -.015em; color: var(--ink-1); }
 .pg-status { font-size: var(--fs-13); color: var(--ink-3); }
-.pg-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+/* max-width מונע מהשורה להישאר רחבה מהראש כשהיא כבר ירדה לשורה משלה —
+   flex-shrink: 0 לבדו השאיר אותה 369px בתוך מסך של 360. */
+.pg-actions { display: flex; align-items: center; gap: 8px 10px; flex-shrink: 0; flex-wrap: wrap; max-width: 100%; }
+
+/* ‼ במסך צר הפעולות יורדות לשורה משלהן במקום להידחס לצד הכותרת.
+   בלי זה: ‎.pg-actions‎ עם ‎flex-shrink: 0‎ תפס את כל הרוחב, ‎.pg-head-main‎
+   נמעך כמעט לאפס, ו-"7 אנשים · אדם אחד לכל אורך המסע" נשבר מילה בשורה
+   והתנגש בכפתורים. נראה במסך הלקוחות ב-375, בהיר וכהה. */
+@media (max-width: 700px) {
+  .pg-head { flex-wrap: wrap; gap: 12px 16px; }
+  .pg-head-main { flex: 1 1 100%; }
+  .pg-actions { flex: 1 1 100%; }
+}
 
 /* שדה חיפוש בכותרת עמוד — משטח רך, בלי מסגרת.
    ‎input.pg-search‎ ולא ‎.pg-search‎: כלל הבסיס של השדות ב-index.css נכתב
@@ -1801,3 +1824,218 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   /* בטלפון ארבע עמודות זו גלילה אופקית שבורה — העמודות נערמות זו מעל זו */
   .funnel-grid { grid-template-columns: 1fr; gap: 18px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   דף המסע · מסכים 03 · 04 · 06 במוקאפ
+   הכלל שחוזר בכל המקטעים כאן: משפט אחד, מספר אחד שמניע פעולה, וצבע רק
+   כשמשהו חורג. מה שתקין הוא אפור, ולא כרטיס ירוק לצד כרטיס אדום.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.jt-panel {
+  border: 1px solid var(--hairline-1);
+  border-radius: var(--r-panel);
+  padding: .7rem .85rem;
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+}
+.jt-panel-head { display: flex; align-items: baseline; gap: .5rem; }
+.jt-panel-eyebrow {
+  font-size: var(--fs-12); font-weight: 600; color: var(--ink-4);
+  letter-spacing: .02em;
+}
+.jt-panel-title { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); }
+.jt-panel-meta { font-size: var(--fs-12); color: var(--ink-4); }
+.jt-panel-body { font-size: var(--fs-13); color: var(--ink-2); line-height: 1.55; }
+.jt-panel-actions { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .25rem; }
+
+/* הפעולה הבאה — הקו הימני נושא את הדחיפות; אין קופסה צבועה */
+.jt-next { border-inline-start: 3px solid var(--hairline-1); }
+.jt-next-urgent { border-inline-start-color: var(--danger); }
+.jt-next-normal { border-inline-start-color: var(--accent); }
+.jt-next-calm   { border-inline-start-color: var(--hairline-1); }
+.jt-next-headline {
+  font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); line-height: 1.4;
+}
+.jt-next-detail { font-size: var(--fs-13); color: var(--ink-3); }
+.jt-panel-quiet { background: var(--surface-2); }
+
+/* מה ידוע עליו — זוגות תווית/ערך, לא טופס */
+.jt-facts { display: grid; gap: .1rem; margin: .1rem 0 0; }
+.jt-fact {
+  display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: .6rem;
+  padding: .4rem 0; border-top: 1px solid var(--hairline-2);
+}
+.jt-fact-label { font-size: var(--fs-13); color: var(--ink-4); }
+.jt-fact-value { font-size: var(--fs-13); color: var(--ink-1); line-height: 1.5; }
+.jt-footnote {
+  font-size: var(--fs-12); color: var(--ink-4); line-height: 1.6; margin-top: .5rem;
+}
+
+/* לוח האירועים של ההצעה */
+.jt-timeline { list-style: none; margin: .35rem 0 0; padding: 0; display: grid; gap: .05rem; }
+/* התווית והחותמת צמודות זו לזו — לוח אירועים נקרא כרצף, לא כטבלה
+   שנמתחת לרוחב המסך עם חלל באמצע. */
+.jt-tl-row {
+  display: grid; grid-template-columns: 10px minmax(132px, max-content) auto;
+  justify-content: start;
+  align-items: center; gap: .5rem; padding: .3rem 0;
+  font-size: var(--fs-13);
+}
+.jt-tl-dot {
+  width: 6px; height: 6px; border-radius: 999px; background: var(--ink-3); justify-self: center;
+}
+.jt-tl-row.is-pending .jt-tl-dot { background: transparent; border: 1px solid var(--ink-quiet); }
+.jt-tl-label { color: var(--ink-2); }
+.jt-tl-row.is-pending .jt-tl-label { color: var(--ink-4); }
+.jt-tl-when { color: var(--ink-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* מה יקרה כשהיא תאושר — רשימה ממוספרת שקטה */
+.jt-consequences {
+  margin: .2rem 0 0; padding-inline-start: 1.15rem;
+  display: grid; gap: .3rem;
+  font-size: var(--fs-13); color: var(--ink-2); line-height: 1.55;
+}
+.jt-past-summary { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: auto; }
+
+/* ── חריגות מקצועיות ─────────────────────────────────────────────────────── */
+.cw-exc-row {
+  display: grid; grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: start; gap: .6rem; width: 100%;
+  padding: .5rem 0; border-top: 1px solid var(--hairline-2);
+  background: none; border-inline: 0; border-bottom: 0; text-align: start;
+  font: inherit; color: inherit;
+}
+.cw-exc-row:hover:not(:disabled) { background: var(--surface-1); }
+.cw-exc-dot { width: 7px; height: 7px; border-radius: 999px; margin-top: .35rem; }
+.cw-exc-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cw-exc-title { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.cw-exc-sub { font-size: var(--fs-12); color: var(--ink-3); }
+.cw-exc-go { color: var(--ink-quiet); align-self: center; }
+.cw-exc-settled {
+  display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin-top: .55rem;
+  font-size: var(--fs-12); color: var(--ink-4);
+}
+
+/* ── לוח הגשות ───────────────────────────────────────────────────────────── */
+.cw-section-hint { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: auto; }
+.cw-cal { display: grid; }
+.cw-cal-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 84px 62px 108px;
+  gap: .6rem; align-items: baseline; padding: .4rem 0;
+  border-top: 1px solid var(--hairline-2); font-size: var(--fs-13);
+}
+.cw-cal-head {
+  border-top: 0; font-size: var(--fs-12); color: var(--ink-4); font-weight: 500;
+}
+.cw-cal-label { color: var(--ink-1); }
+.cw-cal-period, .cw-cal-due { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cw-cal-state { font-weight: 500; }
+.cw-cal-state.is-late { color: var(--danger); }
+.cw-cal-state.is-soon { color: var(--warn); }
+.cw-cal-state.is-ok   { color: var(--ink-3); }
+.cw-cal-state.is-idle { color: var(--ink-4); }
+
+/* ── תיקי שנה ────────────────────────────────────────────────────────────── */
+.cw-years { display: grid; }
+.cw-year-row {
+  display: grid; grid-template-columns: 52px 118px minmax(0, 1fr) auto;
+  gap: .6rem; align-items: baseline; padding: .45rem 0;
+  border-top: 1px solid var(--hairline-2); font-size: var(--fs-13);
+}
+.cw-year-num { font-size: var(--fs-15); color: var(--ink-1); }
+.cw-year-state { font-weight: 500; }
+.cw-year-meta { color: var(--ink-4); font-size: var(--fs-12); }
+
+/* ── מסך צר: הטבלאות מתקפלות לשתי שורות, לא נגללות הצידה ─────────────────── */
+@media (max-width: 700px) {
+  .jt-fact { grid-template-columns: 1fr; gap: .1rem; }
+  .cw-cal-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "label state" "period due";
+    row-gap: .15rem;
+  }
+  .cw-cal-head { display: none; }
+  .cw-cal-label { grid-area: label; }
+  .cw-cal-state { grid-area: state; text-align: end; }
+  .cw-cal-period { grid-area: period; font-size: var(--fs-12); }
+  .cw-cal-due { grid-area: due; text-align: end; font-size: var(--fs-12); }
+  .cw-year-row {
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    grid-template-areas: "num state action" "num meta meta";
+    row-gap: .1rem;
+  }
+  .cw-year-num { grid-area: num; }
+  .cw-year-state { grid-area: state; }
+  .cw-year-meta { grid-area: meta; }
+}
+
+/* ── תפריט השורה במסך הלקוחות · מסך 02 ──────────────────────────────────────
+   פעולה ראשית אחת בשורה (הפתיחה), וכל השאר מתחת ל-⋯. */
+.cl-row-menu-wrap { position: relative; display: inline-flex; }
+.cl-row-menu-wrap .row-menu { inset-inline-end: 0; inset-inline-start: auto; }
+.client-table tbody tr:hover .row-menu-btn,
+.client-table tbody tr:focus-within .row-menu-btn { opacity: 1; }
+
+/* ── התקדמות הקליטה בדף המסע · דרישה 3 ─────────────────────────────────────
+   סדר השלבים, מה נעשה, מה עכשיו, ומה חוסם — ובראש שתי הפעולות שקודם
+   לא היו נגישות מדף המסע: הקישור ללקוח וסגירת הקליטה. */
+.ob-prog {
+  border: 1px solid var(--hairline-1);
+  border-radius: var(--r-panel);
+  padding: .7rem .85rem;
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.ob-prog-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.ob-prog-title { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); }
+.ob-prog-count { font-size: var(--fs-12); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.ob-stages { list-style: none; margin: 0; padding: 0; display: grid; }
+.ob-stage {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: baseline; gap: .55rem; padding: .38rem 0;
+  border-top: 1px solid var(--hairline-2); font-size: var(--fs-13);
+}
+.ob-stage:first-child { border-top: 0; }
+.ob-stage-mark { justify-self: center; font-size: var(--fs-12); color: var(--ink-quiet); }
+.ob-stage-name { color: var(--ink-2); }
+.ob-stage-state { color: var(--ink-4); font-size: var(--fs-12); text-align: end; }
+
+/* הושלם = אפור. צבע רק למה שחורג או למה שעכשיו. */
+.ob-stage.is-done .ob-stage-name,
+.ob-stage.is-done .ob-stage-state { color: var(--ink-4); }
+.ob-stage.is-done .ob-stage-mark { color: var(--ink-3); }
+.ob-stage.is-now .ob-stage-name { color: var(--ink-1); font-weight: 600; }
+.ob-stage.is-now .ob-stage-mark { color: var(--accent); }
+.ob-stage.is-stuck .ob-stage-mark,
+.ob-stage.is-stuck .ob-stage-state { color: var(--danger); }
+.ob-stage.is-locked .ob-stage-name { color: var(--ink-3); }
+
+@media (max-width: 700px) {
+  .ob-stage {
+    grid-template-columns: 18px minmax(0, 1fr);
+    grid-template-areas: "mark name" ". state";
+    row-gap: .1rem;
+  }
+  .ob-stage-mark { grid-area: mark; }
+  .ob-stage-name { grid-area: name; }
+  .ob-stage-state { grid-area: state; text-align: start; }
+}
+
+/* ── המבט התפעולי במסך הלקוחות · דרישה 12 ───────────────────────────────── */
+.cl-ops-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin: .5rem 0 .2rem; }
+.cl-ops-label { font-size: var(--fs-12); font-weight: 600; color: var(--ink-4); letter-spacing: .02em; }
+.cl-ops-hint { font-size: var(--fs-12); color: var(--ink-4); }
+/* אדם בארכיון — נשאר קריא, אך מעומעם. הוא לא עבודה פעילה. */
+.client-table tbody tr.is-archived { opacity: .55; }
+.client-table tbody tr.is-archived:hover { opacity: 1; }
+
+/* ── חלון סגירת הקליטה · הרשימה קצרה, והעקיפה משנית ─────────────────────── */
+.ob-gate-lead { font-size: var(--fs-13); color: var(--ink-2); margin-bottom: .5rem; }
+.ob-gate-list { margin: 0 0 1rem; padding-inline-start: 1.15rem; display: grid; gap: .25rem;
+  font-size: var(--fs-13); color: var(--ink-1); }
+.ob-gate-actions { display: flex; align-items: center; gap: 1rem; }
+.ob-gate-force { color: var(--ink-3); font-size: var(--fs-13); }
+.ob-gate-force:hover { color: var(--danger); }
+/* סימון "רשות" — הקל ביותר האפשרי: מילה אחת אפורה, בלי גלולה */
+.ob-optional { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: .35rem; }

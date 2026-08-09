@@ -1,14 +1,19 @@
 // מכתב שחרור לרו"ח קודם — הרו"ח מרכיב, בודק, ושולח. לא נשלח אוטומטית.
 //
 // ‼ שלושה דברים שהופכים את זה ממייל לבקשה מקצועית: תאריך הפסקת ההתקשרות
-// (בלעדיו למכתב אין תוקף), רשימת החומרים המבוקשים, וכלל 16 — חלון ההתנגדות
-// של הרו"ח הקודם. הלקוח מכותב תמיד: הוא זה שמפסיק את ההתקשרות, ולא נכון
-// שיגלה על כך אחר כך.
+// (בלעדיו למכתב אין תוקף), רשימת החומרים המבוקשים, וחלון ההתנגדות של הרו"ח
+// הקודם. הלקוח מכותב תמיד: הוא זה שמפסיק את ההתקשרות, ולא נכון שיגלה על כך
+// אחר כך.
+//
+// ‼ חלון ההתנגדות (שלושה ימי עסקים) הוא **כלל עבודה פנימי של המשרד** ולא
+// חוק, תקנה או כלל מקצועי מאומת. נוסח המכתב עצמו — שגיא אישר — נשאר כפי
+// שהוא; ההבהרה הזאת נוגעת לאופן שבו הקוד והתיעוד מתארים את הכלל.
 //
 // אחרי שליחה מוצלחת המייל נשמר כ-PDF במסמכי הלקוח — רואים בדיוק מה נשלח ולמי.
 
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { edgeFunctionError } from '../../utils/functionError';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { QuotationBrand } from './quotationBranding';
 import type { ReleaseMaterial } from '../../utils/releaseLetter';
@@ -35,7 +40,10 @@ interface Props {
   onClose: () => void;
 }
 
-/** חלון ההתנגדות של כלל 16 — שלושה ימי עסקים, בלי שישי-שבת. */
+/**
+ * חלון ההתנגדות — שלושה ימי עסקים, בלי שישי-שבת.
+ * ‼ כלל עבודה פנימי של המשרד. אינו סופר חגים.
+ */
 function addBusinessDays(from: Date, days: number): string {
   const d = new Date(from);
   let left = days;
@@ -118,7 +126,12 @@ export default function ReleaseLetterDialog({
         body: { clientId, to: toEmail.trim(), ccClient: wantsCc, subject, html },
       });
       if (error || !res?.ok) {
-        setNotice({ kind: 'err', text: `השליחה נכשלה: ${error?.message || res?.detail?.message || res?.error || 'שגיאה'}` });
+        // ‼ error.message הוא תמיד "non-2xx status code" — משפט שאי אפשר
+        // לפעול לפיו. הסיבה האמיתית יושבת בגוף התשובה.
+        const why = error
+          ? await edgeFunctionError(error)
+          : (res?.detail?.message || res?.error || 'שגיאה');
+        setNotice({ kind: 'err', text: `השליחה נכשלה: ${why}` });
         return;
       }
       const dateStr = new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });

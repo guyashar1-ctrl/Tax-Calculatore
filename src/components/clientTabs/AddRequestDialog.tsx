@@ -45,6 +45,8 @@ export default function AddRequestDialog({ clientId, steps, processPublished, on
   const [clientTitle, setClientTitle] = useState('');
   const [clientSub, setClientSub] = useState('');
   const [clientCta, setClientCta] = useState('למילוי');
+  /** האם הבקשה חוסמת סגירת קליטה. ברירת מחדל: כן — בקשה שביקשתי היא עבודה. */
+  const [requiredForClose, setRequiredForClose] = useState(true);
   const [reqs, setReqs] = useState<{ kind: CustomRequirementKind; label: string }[]>([
     { kind: 'confirm', label: '' },
   ]);
@@ -72,6 +74,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, on
       p_due_date: dueDate || null,
       p_depends_on: dependsOn || null,
       p_published: processPublished ? sendNow : true,
+      p_required_for_close: requiredForClose,
     });
     setBusy(false);
     const res = data as { ok?: boolean; error?: string } | null;
@@ -169,7 +172,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, on
                 <textarea rows={5} value={docLines} onChange={e => setDocLines(e.target.value)}
                   className="input" style={{ resize: 'vertical' }} />
               </label>
-              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow }} />
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
             </>
           )}
 
@@ -226,7 +229,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, on
                 </button>
               </div>
 
-              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow }} />
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
             </>
           )}
         </div>
@@ -256,13 +259,14 @@ export default function AddRequestDialog({ clientId, steps, processPublished, on
 /** שדות שמשותפים לכל סוגי הבקשות — יעד, תלות, ומתי הלקוח יראה. */
 function Shared({
   dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions,
-  processPublished, sendNow, setSendNow,
+  processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose,
 }: {
   dueDate: string; setDueDate: (v: string) => void;
   dependsOn: string; setDependsOn: (v: string) => void;
   dependencyOptions: OnboardingStep[];
   processPublished: boolean;
   sendNow: boolean; setSendNow: (v: boolean) => void;
+  requiredForClose: boolean; setRequiredForClose: (v: boolean) => void;
 }) {
   return (
     <>
@@ -281,6 +285,16 @@ function Shared({
           </select>
         </label>
       </div>
+
+      {/* ‼ בקרה אחת, שורה אחת: האם הבקשה חוסמת סגירת קליטה. אותו סוג בקשה
+          יכול להיות חובה במסע אחד ורשות במסע אחר, ולכן זו החלטה לכל בקשה. */}
+      <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)' }}>
+        <input type="checkbox" checked={requiredForClose} onChange={e => setRequiredForClose(e.target.checked)} />
+        נדרש לסגירת הקליטה
+        <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
+          (לא מסומן ⇒ רשות — לא יחסום את הסגירה)
+        </span>
+      </label>
 
       {processPublished && (
         <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)' }}>

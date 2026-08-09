@@ -27,6 +27,7 @@ import { useTheme } from './hooks/useTheme';
 import { PivoMark } from './components/PivoMark';
 import Icon from './components/ui/Icon';
 import { supabase } from './lib/supabase';
+import { edgeFunctionError } from './utils/functionError';
 import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
@@ -76,6 +77,7 @@ import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import TestExecutionCenter from './components/signatureRequest/__TestExecutionCenter';
 import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
+import TestJourney from './components/clientTabs/__TestJourney';
 import TestQuotations from './components/__TestQuotations';
 import TestDeferred from './components/quotations/__TestDeferred';
 import TestSignDone from './components/ui/__TestSignDone';
@@ -180,6 +182,9 @@ export default function App() {
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-onboarding')) {
     return <TestOnboarding />;
   }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-journey')) {
+    return <TestJourney />;
+  }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-quotations')) {
     return <TestQuotations />;
   }
@@ -270,56 +275,31 @@ export default function App() {
   }, [user, authorized]);
 
   /**
-   * שני דברים נשארים פתוחים אחרי אישור הצעה: הפקת הסכם ההתקשרות (PDF), ומי
-   * שחתם ונעלם באמצע מבלי להשלים את פרטי הייצוג. שניהם מושלמים כאן בכניסה
-   * הבאה של הרו"ח, ושניהם אידמפוטנטיים.
+   * מה שנשאר פתוח אחרי אישור הצעה: הפקת הסכם ההתקשרות (PDF). אידמפוטנטי.
    *
-   * ‼ אין יותר מייל אוטומטי מיד אחרי החתימה. הקישור הקבוע לדף האישי נשלח כבר
-   * עם ההצעה, והמסך ממשיך לצעד הבא מעצמו — מייל נוסף באותו רגע הוא רעש. מה
-   * שנשאר הוא תזכורת אחת, ורק למי שבאמת נתקע: חלף יום מהאישור והפרטים עדיין
-   * לא מולאו.
+   * ‼ מייל הייצוג כבר **לא נשלח מכאן**. עד 2026-08-07 ישב כאן אפקט שבדק אם
+   * חלפו 24 שעות מהאישור בלי שהקישור יצא — ואם כן, שלח מייל **ללקוח** מתוך
+   * הדפדפן של גיא. המשמעות: לקוח שאישר בשישי בערב חיכה לקישור עד שגיא נכנס
+   * למערכת. הכרעת גיא D1 העבירה את השליחה לשרת: `approve_quotation` מפעילה
+   * אותה מיד עם האישור (מיגרציה 72), בלי תלות בדפדפן של אף אחד.
    *
-   * ‼ הסימון "נשלח" לא נעשה כאן. השרת תובע את השליחה על ההצעה עצמה לפני
-   * שהוא פונה לרסנד, ולכן שני מסלולים שרצים יחד לא יכולים לשלוח פעמיים. כשהשרת
-   * מחזיר alreadySent הוא אומר שמישהו הקדים — אין מה לכתוב, הערך כבר במסד.
+   * ‼ מה שקרה כאן הפך להתראה פנימית בלבד: `flag_missing_representation_links`
+   * מסמנת הצעה שאושרה לפני יותר מיממה והקישור לא יצא, וגיא מקבל התראה
+   * (`representation_link_missing`). **אף מייל ללקוח אינו יוצא ממנגנון 24
+   * השעות יותר.** ראה docs/EMAIL-POLICY.md.
    */
   const contractSaved = useRef(new Set<string>());
-  const autoRepHandled = useRef(new Set<string>());
   useEffect(() => {
     if (!user) return;
-    const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
     for (const q of quotations) {
       if (q.status !== 'approved' || !q.representationRequestId) continue;
       if (q.clientId && !contractSaved.current.has(q.id)) {
         contractSaved.current.add(q.id);
         void saveEngagementContract(q, q.clientId);
       }
-      if (autoRepHandled.current.has(q.id)) continue;
-      if (q.representationSentAt) continue;
-      // ‼ הסימון "טופל" נעשה רק כשבאמת שולחים. בקשות הייצוג נטענות אחרי
-      // ההצעות, ואם נסמן מוקדם — הבדיקה תרוץ פעם אחת על מידע חסר ולא תחזור.
-      const linkedReq = requests.find(r => r.id === q.representationRequestId);
-      if (!linkedReq) continue;
-      if (linkedReq.onboardingStatus !== 'pending') continue;   // הלקוח כבר מילא
-      const approvedAt = q.approvedAt ? new Date(q.approvedAt).getTime() : 0;
-      if (!approvedAt || Date.now() - approvedAt < NUDGE_AFTER_MS) continue;
-      autoRepHandled.current.add(q.id);
-      void (async () => {
-        try {
-          const { data, error } = await supabase.functions.invoke('send-onboarding-email', {
-            body: { requestId: q.representationRequestId },
-          });
-          const failure = error?.message || (data?.ok ? null : (data?.detail?.message || data?.error || 'שגיאה לא ידועה'));
-          if (failure) {
-            await updateQuotation({ ...q, representationError: failure });
-          } else if (!data?.alreadySent) {
-            await updateQuotation({ ...q, representationSentAt: new Date().toISOString(), representationError: undefined });
-          }
-        } catch { /* יימשך בכניסה הבאה */ }
-      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, quotations, requests]);
+  }, [user?.id, quotations]);
 
   const { theme, toggleTheme } = useTheme();
   // המסך שבו נמצאים נקרא מהכתובת, כדי שרענון (F5) יחזיר לאותו מקום
@@ -1169,7 +1149,7 @@ export default function App() {
       const { data, error } = await supabase.functions.invoke('send-quotation-email', {
         body: { quotationId: saved.id, isTest, html, subject },
       });
-      if (error) return { ok: false, error: error.message, link };
+      if (error) return { ok: false, error: await edgeFunctionError(error), link };
       res = data;
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e), link };
@@ -1313,7 +1293,7 @@ export default function App() {
       const { data: res, error } = await supabase.functions.invoke('send-quotation-email', {
         body: { quotationId: p.quotation.id, isTest: false, html: p.html, subject: p.subject },
       });
-      if (error) return error.message;
+      if (error) return await edgeFunctionError(error);
       if (!res?.ok) return res?.detail?.message || res?.error || 'שגיאה';
       await updateQuotation({
         ...p.quotation,
@@ -1622,13 +1602,20 @@ export default function App() {
                 onNewQuotation={handleNewQuotationForLead}
                 focusLeadId={focusLeadId ?? undefined}
                 onFocusConsumed={() => setFocusLeadId(null)}
+                /* ‼ בלי שני אלה "+ ליד" לא פתח כלום: הוא הדליק את openNewLead
+                   וניווט למסך ההצעות — אבל שם, כש-journeyUi דלוק, לוח הלידים
+                   כלל אינו מוצג. הלידים עברו למסך הלקוחות ומתג הפתיחה נשאר
+                   מאחור. עכשיו הכפתור פותח את הטופס במקום שבו הלידים חיים. */
+                creating={openNewLead}
+                onCreatingChange={setOpenNewLead}
               />
             ) : undefined}
             onboardingSteps={onboarding.steps}
             engagements={onboarding.engagements}
             onOpenOnboarding={handleOpenClientOnboarding}
             leads={leads}
-            onNewLead={() => { setOpenNewLead(true); setView('quotations'); }}
+            onNewLead={() => { setOpenNewLead(true); if (!journeyUi) setView("quotations"); }}
+            newLeadRequested={openNewLead}
             onNewQuotation={handleNewQuotation}
           />
         )}
@@ -1672,6 +1659,8 @@ export default function App() {
               if (q) handleOpenQuotation(q);
             }}
             onNewQuotation={() => handleNewQuotation()}
+            lead={leads.find(l => l.convertedClientId === selectedClient?.id)}
+            onEditLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
           />
         )}
 
@@ -1912,8 +1901,9 @@ export default function App() {
           onSent={({ materialKeys, objectionDueDate, subject, body }) => {
             const stepId = releaseFor.stepId;
             if (stepId) {
-              // ‼ תאריך היעד הוא חלון ההתנגדות של כלל 16, לא מועד קבלת החומרים.
+              // ‼ תאריך היעד הוא חלון ההתנגדות, לא מועד קבלת החומרים.
               // עברו שלושת ימי העסקים בלי תשובה — אין התנגדות, וממשיכים.
+              // שלושת הימים הם כלל עבודה פנימי של המשרד, לא חוק או תקנה.
               void onboarding.advance(stepId, 'wait_client', {
                 ball: 'prev_accountant',
                 dueDate: objectionDueDate,

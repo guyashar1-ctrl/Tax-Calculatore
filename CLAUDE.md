@@ -116,6 +116,12 @@ CRM אישי לרו"ח. כולל:
 
 ## 5. מצב הפרויקט נכון ל-2026-04-20
 
+> **‼ הסעיף הזה מיושן ואינו משקף את המצב.** הוא נכתב כשהאפליקציה עבדה מול
+> `localStorage` בלבד ולא היה `package.json`. מאז יש Supabase (מסד, אימות,
+> Edge Functions), פריסה לוורסל, ו-`package.json` תקין. **אל תסתמך עליו.**
+> המצב העדכני: `PROJECT-HANDOFF.md`, `FINAL-IMPLEMENTATION-PLAN.md`,
+> ו-`docs/` (במיוחד `STAGING.md`, `EMAIL-POLICY.md`, `FINDINGS-PHASES-0-5.md`).
+
 ### 5.1 ⚠ בעיות שחשוב לטפל בהן
 
 | # | מה | חומרה | למה זה חשוב |

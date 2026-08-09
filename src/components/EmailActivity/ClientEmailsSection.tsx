@@ -60,7 +60,7 @@ function Row({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) {
           type="button"
           onClick={view}
           disabled={busy}
-          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: '.78rem', color: 'var(--blue)', textDecoration: 'underline', cursor: 'pointer' }}
+          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: '.78rem', color: 'var(--blue)', textDecoration: 'underline', cursor: 'pointer', minHeight: 44 }}
         >
           {busy ? 'פותח…' : 'צפייה במייל'}
         </button>

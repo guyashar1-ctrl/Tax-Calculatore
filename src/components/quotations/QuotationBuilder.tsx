@@ -606,7 +606,10 @@ export default function QuotationBuilder({
       {/* header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <button className="btn btn-ghost" onClick={handleBack}>→ חזרה</button>
-        <div style={{ flex: 1 }}>
+        {/* ‼ בטלפון הכותרת תופסת שורה שלמה. עם flex:1 בלבד היא נדחסה לעמודה
+            צרה בין "חזרה" לכפתורי הפעולה, "הצעת מחיר חדשה" נשבר לשתי שורות
+            והמשפט שמתחת התפרק לארבע. הכפתורים יורדים לשורה משלהם. */}
+        <div style={{ flex: narrow ? '1 1 100%' : 1, minWidth: 0 }}>
           <div style={{ fontSize: 'var(--fs-20)', fontWeight: 600 }}>{existing ? `עריכת הצעה ${existing.quotationNumber}` : 'הצעת מחיר חדשה'}</div>
           <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', marginTop: 2 }}>
             {dirty && savedAt ? 'יש שינויים שלא נשמרו' : 'בונים, מציגים תצוגה מקדימה ושומרים — הכל במסך אחד'}

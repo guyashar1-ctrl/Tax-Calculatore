@@ -301,8 +301,13 @@ export default function QuotationsPipeline({
           <div style={{ fontWeight: 600 }}>ב־{repEmailFailures.length} הצעות הייצוג נפתח אך מייל הקישור טרם יצא ללקוח:</div>
           {repEmailFailures.map(q => (
             <div key={q.id} style={{ fontSize: 12.5 }}>
+              {/* ‼ הטקסט הקודם הבטיח "המערכת מנסה שוב אוטומטית בכל כניסה" —
+                  זה תיאר את אפקט 24 השעות שרץ בדפדפן וירד בהכרעת D1. השליחה
+                  היום יוצאת מהשרת פעם אחת עם אישור ההצעה; אם היא נכשלה, אין
+                  ניסיון חוזר אוטומטי, ומי שלא ישלח ידנית — הלקוח לא יקבל
+                  קישור. הבטחה שאינה מתקיימת גרועה מהיעדר הבטחה. */}
               • {q.quotationNumber} ({recipientName(q)}){q.representationError ? ` — ${q.representationError}` : ''}.
-              המערכת מנסה שוב אוטומטית בכל כניסה; אפשר גם לשלוח מכרטיס הלקוח.
+              אין ניסיון חוזר אוטומטי — יש לשלוח מכרטיס הלקוח.
             </div>
           ))}
         </div>
@@ -347,7 +352,10 @@ export default function QuotationsPipeline({
                   <span className={`badge ${g.badge}`}>{QUOTATION_STATUS_LABELS[g.status]}</span>
                   <span style={{ fontSize: 12.5, color: 'var(--gray-400)' }}>{list.length}</span>
                 </div>
-                <div className="card">
+                {/* ‼ הטבלה רחבה מהמסך בטלפון (שש עמודות, ~670 פיקסלים). בלי
+                    המעטפת הזאת כל **העמוד** נגלל לצדדים, והכותרת והניווט
+                    נעלמים מהמסך. עכשיו רק הטבלה נגללת, והשאר נשאר במקום. */}
+                <div className="card" style={{ overflowX: 'auto', maxWidth: '100%' }}>
                   <table>
                     <thead>
                       <tr>
