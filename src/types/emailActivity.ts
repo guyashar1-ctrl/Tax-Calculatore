@@ -49,6 +49,7 @@ export const EMAIL_KIND_LABEL: Record<string, string> = {
   sign: 'בקשת חתימה על ייפוי הכוח',
   active: 'הייצוג אושר',
   intake: 'שאלון עדכון פרטים',
+  intake_questionnaire: 'שאלון פתיחת תיק',
   ni_approve: 'אישור ייפוי כוח בביטוח לאומי',
   quotation: 'הצעת מחיר',
   quotation_test: 'הצעת מחיר — שליחת בדיקה',
