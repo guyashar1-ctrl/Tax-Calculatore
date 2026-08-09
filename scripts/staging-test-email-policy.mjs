@@ -104,6 +104,15 @@ const tok = randomBytes(16).toString('hex');
       String(qq?.representation_error ?? '').slice(0, 120));
     ok('AT-3 · נרשמה שורת כשל ביומן המיילים', mailsAfter === mailsBefore + 1 && row?.status === 'failed',
       `${mailsBefore} → ${mailsAfter} · ${row?.status}`);
+
+    /* ‼ השיוך ללקוח הוא מה שמפריד בין "המיילים של הלקוח הזה" לבין "כל מייל
+       שנשלח אי־פעם לכתובת הזאת". כשהוא חסר, כרטיס הלקוח נאלץ לנחש לפי
+       כתובת — וזה בדיוק מה שגרם ל-45 מיילים זרים בכרטיס אחד בפרודקשן.
+       הבדיקה הזו נכשלת ברגע שמסלול שליחה מפסיק לרשום אותו. */
+    const linked = await one(`select client_id, kind from public.email_messages
+                               order by created_at desc limit 1`);
+    ok('AT-1 · שורת המייל נושאת את מזהה הלקוח', !!linked?.client_id,
+      `kind=${linked?.kind} client_id=${linked?.client_id}`);
   }
 }
 
@@ -243,6 +252,14 @@ console.log('\n— AT-4 · מנגנון 24 השעות —');
   ok('AT-4 · אפס מיילים ללקוח מהמנגנון הזה', after === before, `${before} → ${after}`);
   const again = await one(`select public.flag_missing_representation_links() as n`);
   ok('AT-4 · הרצה שנייה אינה מציפה בהתראות', Number(again.n) === 0, String(again.n));
+
+  /* ‼ התראה פנימית שנושאת client_id נכנסת לכרטיס הלקוח דרך ההתאמה הראשית,
+     לא רק דרך הכתובת — ולכן הסינון לפי סוג המייל הוא השער היחיד שעוצר אותה.
+     הכלל עצמו נבדק בדפדפן; כאן רק מודדים כמה שורות היו דולפות בלעדיו, כדי
+     שהמספר לא יגדל בשקט. אין כאן טענה שעוברת תמיד. */
+  const leak = await one(`select count(*)::int as n from public.email_messages
+     where (kind like 'notify_%' or kind = 'weekly_backup') and client_id is not null`);
+  console.log(`   · דואר משרד שנושא מזהה לקוח: ${leak.n} שורות — היו מופיעות בכרטיס בלי הסינון לפי סוג`);
 }
 
 // ── AT-5 · תזכורת הפקיעה שותקת כשהמתג כבוי ─────────────────────────────────

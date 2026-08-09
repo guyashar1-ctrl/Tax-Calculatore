@@ -68,6 +68,17 @@ export const EMAIL_KIND_LABEL: Record<string, string> = {
 export const emailKindLabel = (kind?: string): string =>
   (kind && EMAIL_KIND_LABEL[kind]) || 'מייל';
 
+/**
+ * מייל שנשלח לרו״ח עצמו ולא ללקוח.
+ *
+ * ‼ אסור שיופיע תחת "מיילים שנשלחו ללקוח". חלק מההתראות **כן** נושאות
+ * `client_id` (הן יודעות על איזה לקוח הן מדווחות), ולכן הן נכנסו לכרטיס דרך
+ * ההתאמה הראשית ולא רק דרך הכתובת — הסינון הזה הוא השער היחיד שעוצר אותן.
+ * מקומן ביומן המיילים של המשרד.
+ */
+export const isInternalEmailKind = (kind?: string): boolean =>
+  !!kind && (kind.startsWith('notify_') || kind === 'weekly_backup');
+
 // bg/fg/dot — צבעים תואמי כהה/בהיר דרך ערכים מפורשים
 export const EMAIL_STATUS_STYLE: Record<EmailStatus, { bg: string; fg: string; dot: string }> = {
   sent: { bg: 'var(--chip-blue-bg)', fg: 'var(--chip-blue-tx)', dot: 'var(--br)' },
