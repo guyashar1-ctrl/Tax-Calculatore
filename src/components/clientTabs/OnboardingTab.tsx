@@ -37,6 +37,7 @@ import Modal from '../ui/Modal';
 import AddRequestDialog from './AddRequestDialog';
 import JourneyTemplatesDialog from './JourneyTemplatesDialog';
 import SendPortalDialog from './SendPortalDialog';
+import ClientPagePreviewDialog from './ClientPagePreviewDialog';
 
 interface Props {
   clientId: string;
@@ -378,6 +379,8 @@ export default function OnboardingTab({
   // ‼ "העתק קישור" לבדו הכריח את הרו"ח להרכיב את ההודעה בעצמו בכל פעם. אותו
   // קישור עדיין כאן — אבל כאפשרות בתוך שליחה, לצד המייל שמפרט מה ממתין.
   const [sendOpen, setSendOpen] = useState(false);
+  /** תצוגה מקדימה של הדף האישי — הדף האמיתי, לא חיקוי. */
+  const [previewOpen, setPreviewOpen] = useState(false);
   /** חלון הסגירה — נפתח רק כשהשרת חוסם, ונסגר איתו. */
   const [closeGate, setCloseGate] = useState<{ steps: OnboardingStep[] } | null>(null);
 
@@ -399,6 +402,7 @@ export default function OnboardingTab({
           <div className="cw-section-head">
             <span>בקשות</span>
             <span style={{ display: 'flex', gap: '.4rem' }}>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPreviewOpen(true)}>הדף של הלקוח</button>
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>תבניות</button>
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>+ בקשה</button>
             </span>
@@ -409,6 +413,13 @@ export default function OnboardingTab({
           </div>
         </div>
 
+        {previewOpen && (
+          <ClientPagePreviewDialog
+            clientId={clientId}
+            clientName={clientDisplayName ?? 'הלקוח'}
+            onClose={() => setPreviewOpen(false)}
+          />
+        )}
         {addOpen && (
           <AddRequestDialog
             clientId={clientId}
@@ -559,6 +570,11 @@ export default function OnboardingTab({
         {/* ‼ הקישור האחיד ללקוח — אותו קישור תמיד, גם בוואטסאפ. הדף מציג את
             המצב העדכני, ולכן אין "איזה קישור שלחתי" — יש קישור אחד. */}
         <button type="button" className="btn btn-sm btn-ghost"
+          onClick={() => setPreviewOpen(true)}
+          title="הדף האישי כפי שהלקוח רואה אותו — כולל טיוטות שטרם פורסמו">
+          הדף של הלקוח
+        </button>
+        <button type="button" className="btn btn-sm btn-ghost"
           onClick={() => setSendOpen(true)}
           title="מייל עם מה שממתין לו, או קישור לדף האישי לשליחה בוואטסאפ">
           שלח ללקוח
@@ -597,6 +613,11 @@ export default function OnboardingTab({
               })()}
             </span>
             <span style={{ flex: 1 }} />
+            <button type="button" className="btn btn-sm btn-ghost"
+              onClick={() => setPreviewOpen(true)}
+              title="הדף האישי כפי שהלקוח רואה אותו — כולל טיוטות שטרם פורסמו">
+              הדף של הלקוח
+            </button>
             <button type="button" className="btn btn-sm btn-ghost"
               onClick={() => setSendOpen(true)}
               title="מייל עם מה שממתין לו, או קישור לדף האישי לשליחה בוואטסאפ">
@@ -985,6 +1006,13 @@ export default function OnboardingTab({
           clientEmail={clientEmail}
           onClose={() => setSendOpen(false)}
           onSent={() => refresh?.()}
+        />
+      )}
+      {previewOpen && (
+        <ClientPagePreviewDialog
+          clientId={clientId}
+          clientName={clientDisplayName ?? 'הלקוח'}
+          onClose={() => setPreviewOpen(false)}
         />
       )}
     </div>

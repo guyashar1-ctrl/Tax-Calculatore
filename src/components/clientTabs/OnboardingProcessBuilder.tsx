@@ -21,6 +21,7 @@ import { supabase } from '../../lib/supabase';
 import AddRequestDialog from './AddRequestDialog';
 import JourneyTemplatesDialog from './JourneyTemplatesDialog';
 import SendPortalDialog from './SendPortalDialog';
+import ClientPagePreviewDialog from './ClientPagePreviewDialog';
 
 interface Props {
   clientName: string;
@@ -90,6 +91,7 @@ export default function OnboardingProcessBuilder({
   const [addOpen, setAddOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [sendOpen, setSendOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const mine = useMemo(
     () => steps.filter(s => s.engagementId === engagement.id || s.clientId === engagement.clientId),
@@ -414,6 +416,8 @@ export default function OnboardingProcessBuilder({
           <div style={{ display: 'flex', gap: '.4rem', justifySelf: 'start' }}>
             <button type="button" className="btn btn-secondary" onClick={() => setAddOpen(true)}>+ בקשה</button>
             <button type="button" className="btn btn-ghost" onClick={() => setTemplatesOpen(true)}>תבניות מסע</button>
+            {/* הדף האמיתי, מהשרת — הפאנל שמימין הוא רק תקציר. */}
+            <button type="button" className="btn btn-ghost" onClick={() => setPreviewOpen(true)}>תצוגה מקדימה</button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem', flexWrap: 'wrap', paddingTop: '.2rem' }}>
@@ -503,6 +507,14 @@ export default function OnboardingProcessBuilder({
           beforeSend={publish}
           onClose={() => { setSendOpen(false); refresh?.(); }}
           onSent={() => refresh?.()}
+        />
+      )}
+
+      {previewOpen && (
+        <ClientPagePreviewDialog
+          clientId={engagement.clientId}
+          clientName={clientName}
+          onClose={() => setPreviewOpen(false)}
         />
       )}
     </section>

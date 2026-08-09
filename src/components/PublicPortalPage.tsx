@@ -9,7 +9,7 @@
 //
 // ‼ מיתוג המשרד, לא PIVO — כמו כל מה שהלקוח רואה.
 
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import { FirmBranding } from '../types/firmProfile';
@@ -21,7 +21,21 @@ interface Props {
 
 type Bucket = 'action' | 'office' | 'done' | 'future';
 
-interface PortalItem {
+/** תצוגה מקדימה לרו"ח: אותו עמוד בדיוק, בלי פעולות חיות. */
+const PreviewCtx = createContext(false);
+
+/** תג טיוטה — מופיע רק בתצוגה המקדימה, על בקשות שטרם פורסמו. */
+function DraftChip() {
+  return (
+    <span style={{
+      flexShrink: 0, fontSize: 11, fontWeight: 700, lineHeight: 1.6,
+      padding: '0 7px', borderRadius: 999, whiteSpace: 'nowrap',
+      color: '#b45309', background: '#fff7ed', border: '1px solid #fbbf77',
+    }}>טיוטה</span>
+  );
+}
+
+export interface PortalItem {
   bucket: Bucket;
   key: string;
   label: string;
@@ -39,6 +53,8 @@ interface PortalItem {
   canUpload?: boolean;
   /** טקסט הכפתור שהרו"ח בחר לבקשה החופשית. */
   cta?: string;
+  /** מסומן רק בתצוגה המקדימה של הרו"ח — בקשה שטרם פורסמה ללקוח. */
+  draft?: boolean;
 }
 
 /** מה שהדף מרשה להעלות. אותה רשימה נאכפת שוב בשרת — כאן זה רק כדי לחסוך
@@ -62,7 +78,7 @@ const JOURNEY: { id: JourneyStage; label: string }[] = [
   { id: 'active',   label: 'עובדים ביחד' },
 ];
 
-interface PortalData {
+export interface PortalData {
   clientFirstName: string;
   firmName: string;
   branding: FirmBranding;
@@ -101,6 +117,7 @@ function UploadItem({ token, tokenKind, stepId, itemKey, label, done, brand, acc
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
+  const previewMode = useContext(PreviewCtx);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const inputId = `up-${stepId}-${itemKey}`;
@@ -134,7 +151,7 @@ function UploadItem({ token, tokenKind, stepId, itemKey, label, done, brand, acc
           color: done ? brand.muted : brand.ink,
           textDecoration: done ? 'line-through' : 'none',
         }}>{label}</span>
-        {!done && (
+        {!done && !previewMode && (
           <>
             <input id={inputId} type="file" accept={ACCEPT} disabled={busy}
               style={{ display: 'none' }}
@@ -162,6 +179,7 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
+  const previewMode = useContext(PreviewCtx);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [text, setText] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
@@ -213,11 +231,12 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
             <div key={r.key} style={{ display: 'grid', gap: 4 }}>
               <span style={{ fontSize: 13, color: brand.ink }}>{r.label}</span>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <input style={field} value={text[r.key] ?? ''} disabled={busyKey === r.key}
+                <input style={field} value={text[r.key] ?? ''} disabled={busyKey === r.key || previewMode}
                   onChange={e => setText(t => ({ ...t, [r.key]: e.target.value }))} />
-                <button type="button" disabled={busyKey === r.key || !(text[r.key] ?? '').trim()}
+                <button type="button"
+                  disabled={previewMode || busyKey === r.key || !(text[r.key] ?? '').trim()}
                   onClick={() => void submit(r.key, text[r.key])}
-                  style={btn(accent, brand.radius, busyKey === r.key)}>
+                  style={btn(accent, brand.radius, busyKey === r.key || previewMode)}>
                   {busyKey === r.key ? 'שומר…' : 'שליחה'}
                 </button>
               </div>
@@ -228,8 +247,9 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
           <div key={r.key} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span aria-hidden="true" style={{ color: brand.muted }}>○</span>
             <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: brand.ink }}>{r.label}</span>
-            <button type="button" disabled={busyKey === r.key} onClick={() => void submit(r.key)}
-              style={btn(accent, brand.radius, busyKey === r.key)}>
+            <button type="button" disabled={busyKey === r.key || previewMode}
+              onClick={() => void submit(r.key)}
+              style={btn(accent, brand.radius, busyKey === r.key || previewMode)}>
               {busyKey === r.key ? 'שומר…' : (item.cta || 'מאשר/ת')}
             </button>
           </div>
@@ -260,6 +280,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
+  const previewMode = useContext(PreviewCtx);
   const [open, setOpen] = useState(false);
   const href = actionHref(item);
   const inPage = item.actionKind === 'portal';
@@ -268,17 +289,26 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
     fontSize: 13, fontWeight: 600, padding: '6px 15px', color: accent,
     border: `1px solid ${accent}`, borderRadius: brand.radius,
   };
+  // בתצוגה המקדימה הכפתורים נראים אבל לא חיים — הרו"ח מסתכל, לא פועל בשם הלקוח.
+  const inertBtn: React.CSSProperties = { ...quietBtn, opacity: .55, cursor: 'default', pointerEvents: 'none' };
 
   return (
     <div style={{ padding: '12px 0', borderBottom: last ? 'none' : `1px solid ${brand.border}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink }}>{item.label}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink }}>{item.label}</span>
+            {previewMode && item.draft && <DraftChip />}
+          </div>
           {item.sub && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.sub}</div>}
         </div>
-        {href && <a href={href} style={quietBtn}>להמשך ←</a>}
+        {href && (previewMode
+          ? <span style={inertBtn}>להמשך ←</span>
+          : <a href={href} style={quietBtn}>להמשך ←</a>)}
         {inPage && item.kind === 'prev_accountant' && !open && (
-          <button type="button" onClick={() => setOpen(true)} style={quietBtn}>למילוי</button>
+          previewMode
+            ? <span style={inertBtn}>למילוי</span>
+            : <button type="button" onClick={() => setOpen(true)} style={quietBtn}>למילוי</button>
         )}
       </div>
 
@@ -356,27 +386,21 @@ function PrevAccountantForm({ token, stepId, brand, accent, onDone }: {
   );
 }
 
-export default function PublicPortalPage({ token }: Props) {
-  const [phase, setPhase] = useState<Phase>('loading');
-  const [data, setData] = useState<PortalData | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const reload = () => setReloadKey(k => k + 1);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data: res, error } = await supabase.rpc('get_client_portal', { p_token: token });
-      if (cancelled) return;
-      const row = res as (PortalData & { ok?: boolean }) | null;
-      if (error || !row?.ok) { setPhase('invalid'); return; }
-      setData(row);
-      setPhase('ready');
-    })();
-    return () => { cancelled = true; };
-  }, [token, reloadKey]);
-
+/**
+ * גוף הדף — מפריד בין "מאיפה הנתונים" ל"איך זה נראה", כדי שהתצוגה המקדימה
+ * של הרו"ח תרנדר את אותו עמוד בדיוק (get_client_portal_preview) ולא חיקוי.
+ * preview=true: הפעולות כבויות, טיוטות מסומנות. embed=true: בלי גובה עמוד מלא.
+ */
+export function PortalView({ data, token = '', preview = false, embed = false, onReload = () => {} }: {
+  data: PortalData;
+  token?: string;
+  preview?: boolean;
+  embed?: boolean;
+  onReload?: () => void;
+}) {
+  const reload = onReload;
   const brand = deriveQuotationBrand({
-    id: '', firmName: data?.firmName, branding: data?.branding ?? {},
+    id: '', firmName: data.firmName, branding: data.branding ?? {},
     communication: {}, settings: {},
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
@@ -384,8 +408,10 @@ export default function PublicPortalPage({ token }: Props) {
   const accent = brand.accent;
 
   const page: React.CSSProperties = {
-    minHeight: '100vh', background: brand.pageBg, display: 'flex', alignItems: 'flex-start',
-    justifyContent: 'center', padding: '40px 16px', fontFamily: `'${brand.font}', sans-serif`, direction: 'rtl',
+    minHeight: embed ? undefined : '100vh', background: brand.pageBg,
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+    padding: embed ? '18px 12px' : '40px 16px',
+    fontFamily: `'${brand.font}', sans-serif`, direction: 'rtl',
   };
   const card: React.CSSProperties = {
     width: 560, maxWidth: '100%', background: brand.cardBg, border: `1px solid ${brand.border}`,
@@ -399,7 +425,7 @@ export default function PublicPortalPage({ token }: Props) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
         {brand.logoUrl ? (
-          <img src={brand.logoUrl} alt={data?.firmName}
+          <img src={brand.logoUrl} alt={data.firmName}
             style={{ maxHeight: 40 * brand.logoScale, maxWidth: 180 * brand.logoScale, objectFit: 'contain' }} />
         ) : (
           <>
@@ -407,26 +433,9 @@ export default function PublicPortalPage({ token }: Props) {
               width: 34, height: 34, borderRadius: '50%', border: `1.5px solid ${ink}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: ink,
             }}>{brand.monogram}</div>
-            <div style={{ fontSize: 14, color: ink }}>{data?.firmName}</div>
+            <div style={{ fontSize: 14, color: ink }}>{data.firmName}</div>
           </>
         )}
-      </div>
-    );
-  }
-
-  if (phase === 'loading') {
-    return <div style={page}><div style={{ ...card, textAlign: 'center', color: brand.muted }}>טוען…</div></div>;
-  }
-
-  if (phase === 'invalid' || !data) {
-    return (
-      <div style={page}>
-        <div style={{ ...card, textAlign: 'center' }}>
-          <div style={{ fontSize: 18, fontWeight: 500, color: brand.ink, marginBottom: 5 }}>הקישור אינו תקין</div>
-          <div style={{ fontSize: 13, color: brand.muted, lineHeight: 1.6 }}>
-            ייתכן שהקישור הועתק חלקית או שאינו פעיל עוד. פנו למשרד לקבלת קישור חדש.
-          </div>
-        </div>
       </div>
     );
   }
@@ -443,6 +452,7 @@ export default function PublicPortalPage({ token }: Props) {
   const stageIdx = Math.max(0, JOURNEY.findIndex(s => s.id === stage));
 
   return (
+    <PreviewCtx.Provider value={preview}>
     <div style={page}>
       <div style={card}>
         <Header />
@@ -519,7 +529,10 @@ export default function PublicPortalPage({ token }: Props) {
                     fontSize: isDone ? 13 : 11, color: isDone ? '#1e7a55' : brand.muted,
                   }}>{isDone ? '✓' : '○'}</span>
                   <div>
-                    <span style={{ fontSize: 13.5, color: isDone ? brand.muted : brand.ink }}>{item.label}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13.5, color: isDone ? brand.muted : brand.ink }}>{item.label}</span>
+                      {preview && item.draft && <DraftChip />}
+                    </span>
                     {item.sub && (
                       <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.sub}</div>
                     )}
@@ -535,7 +548,10 @@ export default function PublicPortalPage({ token }: Props) {
             display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0', color: brand.muted,
           }}>
             <span aria-hidden="true" style={{ flexShrink: 0, width: 14, textAlign: 'center', fontSize: 11 }}>·</span>
-            <span style={{ fontSize: 12.5 }}>{item.label} — {item.sub}</span>
+            <span style={{ fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>{item.label}{item.sub ? ` — ${item.sub}` : ''}</span>
+              {preview && item.draft && <DraftChip />}
+            </span>
           </div>
         ))}
 
@@ -547,5 +563,60 @@ export default function PublicPortalPage({ token }: Props) {
         </div>
       </div>
     </div>
+    </PreviewCtx.Provider>
   );
+}
+
+export default function PublicPortalPage({ token }: Props) {
+  const [phase, setPhase] = useState<Phase>('loading');
+  const [data, setData] = useState<PortalData | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = () => setReloadKey(k => k + 1);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: res, error } = await supabase.rpc('get_client_portal', { p_token: token });
+      if (cancelled) return;
+      const row = res as (PortalData & { ok?: boolean }) | null;
+      if (error || !row?.ok) { setPhase('invalid'); return; }
+      setData(row);
+      setPhase('ready');
+    })();
+    return () => { cancelled = true; };
+  }, [token, reloadKey]);
+
+  // מצבי הביניים משתמשים במיתוג ברירת המחדל — המיתוג האמיתי מגיע עם הנתונים.
+  const brand = deriveQuotationBrand({
+    id: '', firmName: undefined, branding: {},
+    communication: {}, settings: {},
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
+  const page: React.CSSProperties = {
+    minHeight: '100vh', background: brand.pageBg, display: 'flex', alignItems: 'flex-start',
+    justifyContent: 'center', padding: '40px 16px', fontFamily: `'${brand.font}', sans-serif`, direction: 'rtl',
+  };
+  const card: React.CSSProperties = {
+    width: 560, maxWidth: '100%', background: brand.cardBg, border: `1px solid ${brand.border}`,
+    borderRadius: brand.radius + 4, padding: '30px 30px 22px', borderTop: `4px solid ${brand.accent}`,
+  };
+
+  if (phase === 'loading') {
+    return <div style={page}><div style={{ ...card, textAlign: 'center', color: brand.muted }}>טוען…</div></div>;
+  }
+
+  if (phase === 'invalid' || !data) {
+    return (
+      <div style={page}>
+        <div style={{ ...card, textAlign: 'center' }}>
+          <div style={{ fontSize: 18, fontWeight: 500, color: brand.ink, marginBottom: 5 }}>הקישור אינו תקין</div>
+          <div style={{ fontSize: 13, color: brand.muted, lineHeight: 1.6 }}>
+            ייתכן שהקישור הועתק חלקית או שאינו פעיל עוד. פנו למשרד לקבלת קישור חדש.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <PortalView data={data} token={token} onReload={reload} />;
 }

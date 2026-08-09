@@ -79,6 +79,7 @@ import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
 import TestJourney from './components/clientTabs/__TestJourney';
 import TestJourneyBall from './components/clientTabs/__TestJourneyBall';
+import TestPortalPreview from './components/clientTabs/__TestPortalPreview';
 import TestQuotations from './components/__TestQuotations';
 import TestDeferred from './components/quotations/__TestDeferred';
 import TestSignDone from './components/ui/__TestSignDone';
@@ -189,6 +190,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-journey')) {
     return <TestJourney />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-portal-preview')) {
+    return <TestPortalPreview />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-quotations')) {
     return <TestQuotations />;
