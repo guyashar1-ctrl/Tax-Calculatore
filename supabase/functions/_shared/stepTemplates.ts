@@ -13,7 +13,7 @@
 //  ועריכה לפני שליחה דורסת את שתיהן. הנוסח כאן הוא מה שיוצא כשלא נגעו בכלום.
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const STEP_EMAIL_KINDS = ['paperless_invite', 'retainer_request', 'step_reminder', 'intake_questionnaire'] as const;
+export const STEP_EMAIL_KINDS = ['paperless_invite', 'retainer_request', 'step_reminder', 'intake_questionnaire', 'process_open'] as const;
 
 export type StepEmailKind = typeof STEP_EMAIL_KINDS[number];
 
@@ -28,6 +28,7 @@ export const STEP_EMAIL_KIND_LABELS: Record<StepEmailKind, string> = {
   retainer_request: 'בקשת הרשאת תשלום',
   step_reminder: 'תזכורת קליטה',
   intake_questionnaire: 'שאלון פתיחת תיק',
+  process_open: 'פתיחת התהליך — הדף האישי',
 };
 
 /** השדות שיוחלפו בערכים אמיתיים. מוצג כמקרא במסך ההגדרות. */
@@ -38,6 +39,7 @@ export const STEP_TEMPLATE_PLACEHOLDERS = [
   '{{amount}}',
   '{{billingStartMonth}}',
   '{{authUrl}}',
+  '{{requestList}}',
 ] as const;
 
 /** השדות הרלוונטיים לכל סוג מייל — מקרא ממוקד במקום רשימה שכולה לא רלוונטית. */
@@ -46,6 +48,7 @@ export const PLACEHOLDERS_BY_KIND: Record<StepEmailKind, string[]> = {
   retainer_request: ['{{clientName}}', '{{firmName}}', '{{amount}}', '{{billingStartMonth}}', '{{authUrl}}'],
   step_reminder: ['{{clientName}}', '{{firmName}}', '{{requestTitle}}', '{{requestSub}}'],
   intake_questionnaire: ['{{clientName}}', '{{firmName}}'],
+  process_open: ['{{clientName}}', '{{firmName}}', '{{requestList}}'],
 };
 
 // ‼ הנוסחים נכתבים בגוף שני רבים ("אתם") כמו שאר המיילים ללקוחות במערכת.
@@ -108,6 +111,20 @@ const TEMPLATES: Record<StepEmailKind, StepEmailTemplate> = {
       '· נכסים והלוואות — נדרשים להצהרת הון\n' +
       '\n' +
       'מה שתמלאו כאן יישמר בתיק, ולא נצטרך לחזור על השאלות בכל דוח שנתי.',
+  },
+  // ‼ המייל היחיד שמדבר על כל התהליך ולא על בקשה אחת. {{requestList}} נבנה
+  // בשרת מהדף האישי עצמו — מאותם פריטים בדיוק שהלקוח יראה כשילחץ. רשימה
+  // שנכתבת כאן ביד הייתה מתיישנת ביום הראשון שמוסיפים או מסירים בקשה.
+  process_open: {
+    subject: 'פתחנו לכם דף אישי — הנה מה שנשאר',
+    body:
+      'שמחים להתחיל לעבוד יחד.\n' +
+      'ריכזנו את כל תהליך ההצטרפות בדף אישי אחד: מה כבר הושלם, מה בטיפולנו, ומה ממתין לכם.\n' +
+      '\n' +
+      'מה ממתין לכם כרגע:\n' +
+      '{{requestList}}\n' +
+      '\n' +
+      'אין צורך לשמור את המייל הזה — הדף מתעדכן מעצמו, ואפשר לחזור אליו מאותו קישור בכל שלב.',
   },
 };
 

@@ -732,9 +732,10 @@ function OfficeNotificationsSection({ profile, onChangeProfile }: { profile: Fir
 //
 // עורך מבוקר על אותה טיוטה של המסך — בלי שמירה משלו, כמו לשונית ההצעות.
 
-const TEMPLATE_EDITORS: StepEmailKind[] = ['paperless_invite', 'retainer_request', 'intake_questionnaire', 'step_reminder'];
+const TEMPLATE_EDITORS: StepEmailKind[] = ['process_open', 'paperless_invite', 'retainer_request', 'intake_questionnaire', 'step_reminder'];
 
 const TEMPLATE_HINT: Record<string, string> = {
+  process_open: 'נשלח בלחיצה על "שלח ללקוח" בכרטיס הלקוח. רשימת מה שממתין ללקוח נבנית מהדף האישי עצמו — אין צורך לפרט אותה בנוסח.',
   paperless_invite: 'נשלח מכרטיס הלקוח, בשלב "הזמנה לפייפרלס". הקישור עצמו נוסף ככפתור בסוף המייל.',
   retainer_request: 'נשלח בשלב "הרשאה לתשלום חודשי", אחרי שהוזן קישור ההרשאה מפייפרלס.',
   intake_questionnaire: 'נשלח בשלב "שאלון פתיחת תיק". קישור השאלון האישי נוסף ככפתור בסוף המייל.',
