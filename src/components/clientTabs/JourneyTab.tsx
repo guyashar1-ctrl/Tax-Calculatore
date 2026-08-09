@@ -9,11 +9,11 @@
 // מחכה לו מאדם אחר — ערבוב שלהן היה מוחק את המשמעות של "אצל מי הכדור".
 
 import { useMemo, useState } from 'react';
-import type { Client, Task } from '../../types';
+import type { Client, Task, RepresentationStatus } from '../../types';
 import { LIFECYCLE_STAGE_LABELS } from '../../types';
 import type { ClientAlert } from '../../types/clientWorkspace';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
-import { isStepOpen, STEP_TYPE_LABELS, STEP_BALL_LABELS } from '../../types/onboarding';
+import { isStepOpen, stepAwaitsMe, STEP_TYPE_LABELS, STEP_BALL_LABELS } from '../../types/onboarding';
 import type { Quotation, Lead } from '../../types/quotations';
 import { QUOTATION_STATUS_LABELS } from '../../types/quotations';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
@@ -56,6 +56,8 @@ interface Props {
   onOpenRepresentation?: () => void;
   onPrepareReleaseLetter?: (stepId: string) => void;
   repStatusLabel?: string;
+  /** אותו מצב, גולמי — כדי לגזור ממנו את הפעולה עצמה ולא רק את שמו. */
+  repStatus?: RepresentationStatus;
   // ── מרכז השליטה ──
   onPinNote: (text: string) => void;
   onAddNote: (text: string) => void;
@@ -102,7 +104,8 @@ export default function JourneyTab(p: Props) {
   const counts = useMemo(() => {
     const open = clientSteps.filter(s => isStepOpen(s.status));
     return {
-      me: open.filter(s => s.ball === 'me').length,
+      // ‼ שלב נעול אינו "אצלי" — הוא ממתין למה שהוא תלוי בו. ראה stepAwaitsMe.
+      me: open.filter(stepAwaitsMe).length,
       client: open.filter(s => s.ball === 'client').length,
       third: open.filter(s => s.ball === 'authority' || s.ball === 'prev_accountant').length,
       stuck: open.filter(s => s.status === 'blocked' || s.status === 'failed' || s.needsAttention).length,
@@ -426,6 +429,7 @@ export default function JourneyTab(p: Props) {
           ballFilter={ballFilter}
           clientId={p.client.id}
           clientDisplayName={`${p.client.firstName} ${p.client.lastName ?? ''}`.trim()}
+          clientEmail={p.client.email}
           engagements={p.engagements}
           steps={p.steps}
           events={p.events}
@@ -439,6 +443,7 @@ export default function JourneyTab(p: Props) {
           }}
           onPrepareReleaseLetter={p.onPrepareReleaseLetter}
           repStatusLabel={p.repStatusLabel}
+          repStatus={p.repStatus}
           onOpenRepresentation={p.onOpenRepresentation}
         />
       )}

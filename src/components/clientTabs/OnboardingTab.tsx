@@ -12,12 +12,13 @@ import {
   ENGAGEMENT_STATUS_LABELS, EVENT_ACTOR_LABELS, EVENT_TYPE_LABELS, REQUIREMENT_KIND_LABELS,
   STEP_BALL_LABELS, STEP_STATUS_LABELS, STEP_STATUS_TONE, STEP_TYPE_LABELS, TRACK_LABELS,
   blockingStepsForClose, isStepRequiredForClose,
-  isStepOpen,
+  isStepOpen, stepAwaitsMe,
 } from '../../types/onboarding';
-import type { RepAuthorityKind } from '../../types';
+import type { RepAuthorityKind, RepresentationStatus } from '../../types';
 import { REP_AUTHORITY_LABELS } from '../../types';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import { NEXT_ACTION, nextStepForClient } from '../../utils/onboardingNext';
+import { representationAction } from '../../utils/representationAction';
 import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
 import { formatILS } from '../../utils/quotationCalc';
@@ -35,6 +36,7 @@ import OnboardingProcessBuilder from './OnboardingProcessBuilder';
 import Modal from '../ui/Modal';
 import AddRequestDialog from './AddRequestDialog';
 import JourneyTemplatesDialog from './JourneyTemplatesDialog';
+import SendPortalDialog from './SendPortalDialog';
 
 interface Props {
   clientId: string;
@@ -51,10 +53,14 @@ interface Props {
   onPrepareReleaseLetter?: (stepId: string) => void;
   /** מצב בקשת הייצוג בשפת הייצוג ("ממתין למילוי הלקוח") — לא בשפת השלב הגנרי. */
   repStatusLabel?: string;
+  /** אותו מצב, גולמי — כדי לגזור ממנו את הפעולה עצמה ולא רק את שמו. */
+  repStatus?: RepresentationStatus;
   /** קפיצה למרכז הייצוג — המסך שבו העבודה באמת נעשית. */
   onOpenRepresentation?: () => void;
   /** שם הלקוח לכותרת בונה התהליך. */
   clientDisplayName?: string;
+  /** בלי מייל בכרטיס — השליחה ללקוח מציעה קישור בלבד. */
+  clientEmail?: string;
   /**
    * מוטמע בדף המסע: פס הכדור, מפת המסע וציר הזמן מגיעים מהדף העוטף,
    * וכאן נשארות רק שורות הבקשות. בלי זה היו שתי כותרות שאומרות אותו דבר.
@@ -180,8 +186,8 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 
 export default function OnboardingTab({
   clientId, engagements, steps, events, loading, advance, refresh,
-  prevAccountant, onPrepareReleaseLetter, repStatusLabel, onOpenRepresentation,
-  clientDisplayName, embedded, ballFilter,
+  prevAccountant, onPrepareReleaseLetter, repStatusLabel, repStatus, onOpenRepresentation,
+  clientDisplayName, clientEmail, embedded, ballFilter,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
@@ -369,26 +375,11 @@ export default function OnboardingTab({
   }
 
   // ─── הקישור האחיד ללקוח ──────────────────────────────────────────────────
-  const [portalCopied, setPortalCopied] = useState(false);
+  // ‼ "העתק קישור" לבדו הכריח את הרו"ח להרכיב את ההודעה בעצמו בכל פעם. אותו
+  // קישור עדיין כאן — אבל כאפשרות בתוך שליחה, לצד המייל שמפרט מה ממתין.
+  const [sendOpen, setSendOpen] = useState(false);
   /** חלון הסגירה — נפתח רק כשהשרת חוסם, ונסגר איתו. */
   const [closeGate, setCloseGate] = useState<{ steps: OnboardingStep[] } | null>(null);
-  async function copyPortalLink() {
-    setError(null);
-    const { data, error: rpcError } = await supabase.rpc('mint_portal_token', { p_client_id: clientId });
-    const token = (data as string | null) ?? null;
-    if (rpcError || !token) {
-      setError('לא הצלחתי להנפיק קישור ללקוח.');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/?portal=${token}`);
-      setPortalCopied(true);
-      window.setTimeout(() => setPortalCopied(false), 2200);
-    } catch {
-      // הדפדפן חסם גישה ללוח — מציגים את הקישור כדי שאפשר להעתיק ידנית
-      window.prompt('העתק את הקישור:', `${window.location.origin}/?portal=${token}`);
-    }
-  }
 
   /** קפיצה לשלב אחר בעמוד, עם הדגשה קצרה — כדי שברור לאן הגענו. */
   function gotoStep(stepId: string) {
@@ -467,6 +458,8 @@ export default function OnboardingTab({
     if (!isStepOpen(s.status)) return false;
     if (ballFilter === 'stuck') return s.status === 'blocked' || s.status === 'failed' || s.needsAttention;
     if (ballFilter === 'third') return s.ball === 'authority' || s.ball === 'prev_accountant';
+    // הסינון חייב להחזיר בדיוק את מה שהמונה ספר, אחרת "אצלי 7" מציג 9 שורות
+    if (ballFilter === 'me') return stepAwaitsMe(s);
     return s.ball === ballFilter;
   };
 
@@ -520,10 +513,13 @@ export default function OnboardingTab({
       <div className="cw-tabpanel">
         <OnboardingProcessBuilder
           clientName={clientDisplayName ?? 'הלקוח'}
+          clientEmail={clientEmail}
           engagement={activeEngagement}
           steps={steps.filter(s => s.clientId === clientId)}
           advance={advance}
           refresh={refresh}
+          repStatus={repStatus}
+          onOpenRepresentation={onOpenRepresentation}
         />
       </div>
     );
@@ -562,9 +558,9 @@ export default function OnboardingTab({
         {/* ‼ הקישור האחיד ללקוח — אותו קישור תמיד, גם בוואטסאפ. הדף מציג את
             המצב העדכני, ולכן אין "איזה קישור שלחתי" — יש קישור אחד. */}
         <button type="button" className="btn btn-sm btn-ghost"
-          onClick={() => void copyPortalLink()}
-          title="קישור לדף האישי של הלקוח — מציג לו מה הושלם ומה ממתין">
-          {portalCopied ? '✓ הועתק' : 'קישור ללקוח'}
+          onClick={() => setSendOpen(true)}
+          title="מייל עם מה שממתין לו, או קישור לדף האישי לשליחה בוואטסאפ">
+          שלח ללקוח
         </button>
         {/* ‼ סגירת קליטה היא החלטה ולא תוצר לוואי. השרת בודק את התנאים
             ואומר מה חסר; לכפות אפשר, אבל עם סיבה שנרשמת ביומן. */}
@@ -584,7 +580,7 @@ export default function OnboardingTab({
       {/* ── התקדמות הקליטה · מוטמע בדף המסע ────────────────────────────────
           רצועת המונים של הדף אומרת "כמה אצל מי"; היא אינה אומרת מה הסדר,
           מה נעשה, מה עכשיו, ומה חוסם. זה המסך שעונה על זה — ובראשו שתי
-          הפעולות שעד כה לא היו נגישות מדף המסע בכלל: הקישור ללקוח
+          הפעולות שעד כה לא היו נגישות מדף המסע בכלל: השליחה ללקוח
           וסגירת הקליטה. רצועת הכדור הכפולה נשארת מוסתרת בכוונה. */}
       {/* ‼ נעלם ברגע שההתקשרות אינה בקליטה: אחרי הסגירה אין "התקדמות קליטה",
           יש לקוח פעיל שאולי נותרו לו בקשות פתוחות — והן מוצגות כבקשות. */}
@@ -601,9 +597,9 @@ export default function OnboardingTab({
             </span>
             <span style={{ flex: 1 }} />
             <button type="button" className="btn btn-sm btn-ghost"
-              onClick={() => void copyPortalLink()}
-              title="קישור לדף האישי של הלקוח — מציג לו מה הושלם ומה ממתין">
-              {portalCopied ? '✓ הועתק' : 'קישור ללקוח'}
+              onClick={() => setSendOpen(true)}
+              title="מייל עם מה שממתין לו, או קישור לדף האישי לשליחה בוואטסאפ">
+              שלח ללקוח
             </button>
             {activeEngagement?.status === 'onboarding' && (
               <button type="button" className="btn btn-sm btn-secondary" disabled={closing}
@@ -773,6 +769,7 @@ export default function OnboardingTab({
                     stepById={stepById}
                     highlight={highlightStepId === step.id}
                     statusLabel={repStatusLabel}
+                    repStatus={repStatus}
                     onOpen={onOpenRepresentation}
                     menu={menu}
                   />
@@ -977,6 +974,16 @@ export default function OnboardingTab({
           clientName={clientDisplayName ?? 'הלקוח'}
           onClose={() => setTemplatesOpen(false)}
           onApplied={() => refresh?.()}
+        />
+      )}
+
+      {sendOpen && (
+        <SendPortalDialog
+          clientId={clientId}
+          clientName={clientDisplayName ?? 'הלקוח'}
+          clientEmail={clientEmail}
+          onClose={() => setSendOpen(false)}
+          onSent={() => refresh?.()}
         />
       )}
     </div>
@@ -1462,27 +1469,36 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
 // מה שכן יש: הדלת למרכז הייצוג, כי משם עושים את העבודה — וגיא צדק שלא
 // הגיוני לצאת למסך הלקוחות כדי למצוא אותה.
 
-function RepresentationStepCard({ step, stepById, highlight, statusLabel, onOpen, menu }: {
+function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, onOpen, menu }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
   statusLabel?: string;
+  repStatus?: RepresentationStatus;
   onOpen?: () => void;
   menu: React.ReactNode;
 }) {
   const open = isStepOpen(step.status);
+  // ‼ הסטטוס אומר במה השלב נמצא; הפעולה אומרת מה לעשות. "אין כאן מה לסמן
+  // ידנית" נכון לגבי השלב, ונקרא בטעות כ"אין מה לעשות" — ואז מחפשים במסכים.
+  const act = open && repStatus ? representationAction(repStatus) : null;
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}
       statusLabel={statusLabel}>
+      {act && (
+        <div style={{ fontSize: 'var(--fs-14)', fontWeight: act.mine ? 600 : 500, color: 'var(--ink-1)' }}>
+          {act.action}
+        </div>
+      )}
       <div style={cardNote}>
-        {open
-          ? 'השלב מתעדכן מעצמו לפי התקדמות בקשת הייצוג — אין כאן מה לסמן ידנית. הבדיקה, החתימה וההגשה נעשות במרכז הייצוג.'
-          : 'הייצוג הושלם. הפירוט המלא — במרכז הייצוג.'}
+        {act ? act.why
+          : open ? 'הבדיקה, החתימה וההגשה נעשות במרכז הייצוג.'
+            : 'הייצוג הושלם. הפירוט המלא — במרכז הייצוג.'}
       </div>
       {onOpen && (
         <div style={{ marginTop: '.55rem' }}>
           <button type="button"
-            className={`btn btn-sm ${open && step.ball === 'me' ? 'btn-primary' : 'btn-secondary'}`}
+            className={`btn btn-sm ${act?.mine ? 'btn-primary' : 'btn-secondary'}`}
             onClick={onOpen}>
             למרכז הייצוג ←
           </button>

@@ -25,6 +25,7 @@ import ClientCockpitTab from './clientTabs/ClientCockpitTab';
 import JourneyTab from './clientTabs/JourneyTab';
 import OnboardingTab from './clientTabs/OnboardingTab';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboarding';
+import { isStepOpen, stepAwaitsMe } from '../types/onboarding';
 import type { Lead } from '../types/quotations';
 import type { AdvanceResult } from '../hooks/useOnboarding';
 
@@ -325,6 +326,18 @@ export default function ClientWorkspace({
       : TABS.filter(t => t.id !== 'onboarding' || hasOnboarding),
     [journeyUi, hasOnboarding]);
 
+  // ── התג על לשונית «המסע» ──────────────────────────────────────────────────
+  // ‼ סופר רק מה שאפשר לעשות עכשיו. תג שסופר גם שלבים נעולים מבטיח עבודה
+  // שהמסך עצמו חוסם, ואז לומדים להתעלם ממנו — וזה בדיוק מה שהתג בא למנוע.
+  const journeyBadge = useMemo(() => {
+    const mine = (onboardingSteps ?? []).filter(s => s.clientId === client.id);
+    return {
+      n: mine.filter(stepAwaitsMe).length,
+      stuck: mine.some(s => isStepOpen(s.status)
+        && (s.status === 'blocked' || s.status === 'failed' || !!s.needsAttention)),
+    };
+  }, [onboardingSteps, client.id]);
+
   useEffect(() => {
     // בזמן טעינה עוד לא יודעים אם יש קליטה — לא מפילים את הלשונית מוקדם מדי
     if (!journeyUi && tab === 'onboarding' && !hasOnboarding && !onboardingLoading) setTab('overview');
@@ -532,6 +545,16 @@ export default function ClientWorkspace({
               {t.id === 'tasks' && openTasks.length > 0 && (
                 <span className="cw-tab-badge">{openTasks.length}</span>
               )}
+              {/* ‼ העיגול המלא הוא היחיד במסך. הוא שמור למה שדורש אותי עכשיו
+                  — תג המשימות נשאר שטוח ואפור, אחרת שוב אין לעין לאן ללכת. */}
+              {t.id === 'journey' && journeyBadge.n > 0 && (
+                <span
+                  className={`cw-tab-dot ${journeyBadge.stuck ? 'is-stuck' : ''}`}
+                  title={journeyBadge.stuck
+                    ? `${journeyBadge.n} דברים אצלך · יש משהו תקוע`
+                    : `${journeyBadge.n} דברים מחכים לך`}
+                >{journeyBadge.n}</span>
+              )}
             </button>
           ))}
         </div>
@@ -561,6 +584,7 @@ export default function ClientWorkspace({
             onOpenRepresentation={onOpenRepresentation ? () => onOpenRepresentation(client.id) : undefined}
             onPrepareReleaseLetter={onOpenReleaseLetter ? (stepId) => onOpenReleaseLetter(client.id, stepId) : undefined}
             repStatusLabel={client.representationStatus ? REPRESENTATION_STATUS_LABELS[client.representationStatus] : undefined}
+            repStatus={client.representationStatus ?? undefined}
             onPinNote={(note) => update('pinnedNote', note)}
             onAddNote={(text) => appendActivity({ kind: 'note', text })}
             onGotoTab={(t) => setTab(t)}
@@ -620,9 +644,12 @@ export default function ClientWorkspace({
             repStatusLabel={client.representationStatus
               ? `בקשת ייצוג · ${REPRESENTATION_STATUS_LABELS[status]}`
               : undefined}
+            repStatus={client.representationStatus ?? undefined}
             onOpenRepresentation={onOpenRepresentation
               ? () => onOpenRepresentation(client.id)
               : undefined}
+            clientDisplayName={`${client.firstName} ${client.lastName ?? ''}`.trim()}
+            clientEmail={client.email}
           />
         )}
 

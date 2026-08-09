@@ -6,22 +6,34 @@
 
 import { useMemo, useState } from 'react';
 import type { Engagement, OnboardingStep } from '../../types/onboarding';
-import { STEP_BALL_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
+import { STEP_BALL_LABELS, STEP_TYPE_LABELS, isStepOpen } from '../../types/onboarding';
+import type { RepresentationStatus } from '../../types';
+import { representationAction } from '../../utils/representationAction';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import { supabase } from '../../lib/supabase';
 import AddRequestDialog from './AddRequestDialog';
 import JourneyTemplatesDialog from './JourneyTemplatesDialog';
+import SendPortalDialog from './SendPortalDialog';
 
 interface Props {
   clientName: string;
+  /** בלי מייל בכרטיס — פתיחת התהליך תציע קישור בלבד. */
+  clientEmail?: string;
   engagement: Engagement;
   /** כל השלבים של הלקוח — כולל מבוטלים, כי כאן "מבוטל" הוא פשוט מתג כבוי. */
   steps: OnboardingStep[];
   advance: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
   refresh?: () => void;
+  /** מצב בקשת הייצוג — מקורו בכרטיס הלקוח, לא בשלב הקליטה. */
+  repStatus?: RepresentationStatus;
+  onOpenRepresentation?: () => void;
 }
 
-/** מה שקורה בלי שביקשו — מוצג כדי שהרו"ח לא יחפש אותו ברשימה. */
+/**
+ * מה שהסטטוס שלו מתעדכן בלי שנוגעים בו — לא מה שנעשה לבד.
+ * ‼ הייצוג יצא מכאן: הפס הזה הוא טקסט מת, ומי שראה בו "ייצוג מול הרשויות"
+ * הבין שאין לו מה לעשות — בזמן שהכדור היה אצלו וייפוי הכוח חיכה להפקה.
+ */
 const AUTOMATIC: OnboardingStep['stepType'][] = ['representation', 'representation_upgrade'];
 
 /** בקשות שהלקוח רואה בדף האישי. השאר הוא עבודה פנימית. */
@@ -48,20 +60,27 @@ function clientVoice(s: OnboardingStep): { title: string; sub: string } {
 }
 
 export default function OnboardingProcessBuilder({
-  clientName, engagement, steps, advance, refresh,
+  clientName, clientEmail, engagement, steps, advance, refresh, repStatus, onOpenRepresentation,
 }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
 
   const mine = useMemo(
     () => steps.filter(s => s.engagementId === engagement.id || s.clientId === engagement.clientId),
     [steps, engagement]);
 
+  // הייצוג יוצא מהפס האפור לשורה משלו — הוא הדבר היחיד שכבר רץ בזמן שמרכיבים
+  // את השאר, והוא היחיד כאן שיש בו מה לעשות.
+  const repStep = useMemo(
+    () => mine.find(s => s.stepType === 'representation' && s.status !== 'cancelled'),
+    [mine]);
+
   const autoSteps = useMemo(
-    () => mine.filter(s => AUTOMATIC.includes(s.stepType) && s.status !== 'cancelled'),
+    () => mine.filter(s => AUTOMATIC.includes(s.stepType)
+      && s.stepType !== 'representation' && s.status !== 'cancelled'),
     [mine]);
 
   // הסדר שהרו"ח קבע גובר; סדר היצירה הוא רק שובר שוויון.
@@ -108,16 +127,18 @@ export default function OnboardingProcessBuilder({
     refresh?.();
   }
 
-  async function publish() {
-    setPublishing(true);
-    setError(null);
+  /**
+   * פתיחת התהליך. רצה כשלב הראשון של השליחה ולא ככפתור בפני עצמו — הכרעת גיא:
+   * "אני לוחץ שלח, וזה שולח". החזרת מחרוזת = תקלה שנעצרת לפני שהמייל יוצא.
+   * ‼ הפונקציה בשרת אידמפוטנטית (alreadyPublished), ולכן ניסיון חוזר בטוח.
+   */
+  async function publish(): Promise<string | null> {
     const { data, error: rpcError } = await supabase.rpc('publish_onboarding_process', {
       p_engagement_id: engagement.id,
     });
     const res = data as { ok?: boolean; error?: string } | null;
-    if (rpcError || !res?.ok) setError('לא הצלחתי לפתוח את התהליך. נסה שוב.');
-    else refresh?.();
-    setPublishing(false);
+    if (rpcError || !res?.ok) return 'לא הצלחתי לפתוח את התהליך. נסה שוב.';
+    return null;
   }
 
   return (
@@ -135,7 +156,7 @@ export default function OnboardingProcessBuilder({
         </span>
         <h3 style={{ margin: 0 }}>מה אתה צריך ממנו, ובאיזה סדר?</h3>
         <p style={{ margin: 0, fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
-          ייפוי הכוח כבר נפתח לו. שאר הבקשות יופיעו בדף האישי שלו רק אחרי שתלחץ "פתח ללקוח".
+          ייפוי הכוח כבר נפתח לו. שאר הבקשות יגיעו אליו כשתלחץ "שלח ללקוח" — לא לפני.
         </p>
       </header>
 
@@ -145,6 +166,46 @@ export default function OnboardingProcessBuilder({
           background: 'var(--err-bg, #fdeaea)', color: 'var(--err)', fontSize: 'var(--fs-13)',
         }}>{error}</div>
       )}
+
+      {/* ── ייפוי הכוח — כבר רץ, ולכן שורה עם פעולה ולא פריט ברשימת "קורה מעצמו" ── */}
+      {repStep && isStepOpen(repStep.status) && repStatus && (() => {
+        const a = representationAction(repStatus);
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: '.7rem',
+            padding: '.65rem 0', borderTop: '1px solid var(--hairline-2)',
+          }}>
+            {/* פס דק בקצה במקום מסגרת וכרטיס — צבע רק כשהכדור אצלי */}
+            <span aria-hidden="true" style={{
+              alignSelf: 'stretch', width: 3, flexShrink: 0, borderRadius: 999,
+              background: a.mine ? 'var(--accent)' : 'var(--hairline-2)',
+            }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.45rem', flexWrap: 'wrap' }}>
+                <span style={{
+                  fontSize: 'var(--fs-12)', fontWeight: 600, borderRadius: 999, padding: '.05rem .45rem',
+                  background: a.mine ? 'var(--chip-blue-bg)' : 'var(--surface-2)',
+                  color: a.mine ? 'var(--chip-blue-tx)' : 'var(--ink-3)',
+                }}>{a.ball}</span>
+                <span style={{ fontSize: 'var(--fs-14)', fontWeight: a.mine ? 600 : 500, color: 'var(--ink-1)' }}>
+                  {STEP_TYPE_LABELS[repStep.stepType]} — {a.action}
+                </span>
+              </div>
+              {a.why && (
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>{a.why}</div>
+              )}
+            </div>
+            {onOpenRepresentation && (
+              <button type="button"
+                className={`btn btn-sm ${a.mine ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                onClick={onOpenRepresentation}>
+                למרכז הייצוג ←
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {autoSteps.length > 0 && (
         <div style={{
@@ -251,10 +312,15 @@ export default function OnboardingProcessBuilder({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem', flexWrap: 'wrap', paddingTop: '.2rem' }}>
-            <button type="button" className="btn btn-primary" onClick={() => void publish()} disabled={publishing}>
-              {publishing ? 'פותח…' : 'צור את התהליך ופתח ללקוח'}
+            {/* ‼ כפתור אחד: פותח את התהליך *ומוציא אותו* ללקוח. "פתח ללקוח"
+                שרק הדליק דגל בשרת השאיר את הלקוח מול דף שהוא לא יודע עליו,
+                ואת הרו"ח מחפש כפתור שליחה שלא היה קיים. */}
+            <button type="button" className="btn btn-primary" onClick={() => setSendOpen(true)}>
+              שלח ללקוח
             </button>
-            <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>אפשר לשנות הכל אחר כך.</span>
+            <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
+              נבחר איך שולחים — מייל או קישור לוואטסאפ. אפשר לשנות הכל אחר כך.
+            </span>
           </div>
         </div>
 
@@ -318,6 +384,18 @@ export default function OnboardingProcessBuilder({
           clientName={clientName}
           onClose={() => setTemplatesOpen(false)}
           onApplied={() => refresh?.()}
+        />
+      )}
+
+      {sendOpen && (
+        <SendPortalDialog
+          clientId={engagement.clientId}
+          clientName={clientName}
+          clientEmail={clientEmail}
+          heading="פתיחת התהליך ללקוח"
+          beforeSend={publish}
+          onClose={() => { setSendOpen(false); refresh?.(); }}
+          onSent={() => refresh?.()}
         />
       )}
     </section>

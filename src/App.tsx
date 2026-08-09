@@ -78,6 +78,7 @@ import TestExecutionCenter from './components/signatureRequest/__TestExecutionCe
 import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
 import TestJourney from './components/clientTabs/__TestJourney';
+import TestJourneyBall from './components/clientTabs/__TestJourneyBall';
 import TestQuotations from './components/__TestQuotations';
 import TestDeferred from './components/quotations/__TestDeferred';
 import TestSignDone from './components/ui/__TestSignDone';
@@ -181,6 +182,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-onboarding')) {
     return <TestOnboarding />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-journeyball')) {
+    return <TestJourneyBall />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-journey')) {
     return <TestJourney />;

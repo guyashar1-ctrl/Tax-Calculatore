@@ -2943,6 +2943,20 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
   background: var(--blue-light); color: var(--blue);
 }
 
+/* עיגול מלא על «המסע» — כמה דברים מחכים לי אצל הלקוח הזה */
+.cw-tab-dot {
+  /* ‼ on-accent-fill ולא on-accent: במצב כהה השני הוא כמעט שחור, והמספר
+     נעלם על העיגול הכחול. */
+  background: var(--accent-fill); color: var(--on-accent-fill);
+  font-size: 11px; line-height: 1; font-weight: 600;
+  min-width: 17px; height: 17px; padding: 0 5px;
+  border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+/* err מתהפך בין המצבים (כהה בבהיר, בהיר בכהה), ולכן on-accent הוא ההיפוך שלו */
+.cw-tab-dot.is-stuck { background: var(--err); color: var(--on-accent); }
+
 .cw-body {
   padding: 0;
 }

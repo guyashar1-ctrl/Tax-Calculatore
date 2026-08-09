@@ -281,6 +281,15 @@ export function isStepOpen(status: OnboardingStepStatus): boolean {
   return !CLOSED_STATUSES.includes(status);
 }
 
+/**
+ * שלב שמחכה לרו"ח *עכשיו* — מה שנספר בתג של לשונית המסע ובמונה "אצלי".
+ * ‼ שלב נעול נושא ball='me' אף שהוא ממתין לתלות שלו (מכתב שחרור מחכה
+ * לפרטי הרו"ח הקודם מהלקוח). ספירה שלו כ"אצלי" מבטיחה עבודה שאי אפשר לעשות.
+ */
+export function stepAwaitsMe(s: Pick<OnboardingStep, 'status' | 'ball'>): boolean {
+  return s.ball === 'me' && isStepOpen(s.status) && s.status !== 'locked';
+}
+
 // ─── כללי סגירת הקליטה · מקור אחד ────────────────────────────────────────────
 // ‼ הכללים האלה הם בבואה של onboarding_close_readiness בשרת. השרת הוא הסמכות
 // — הוא זה שחוסם סגירה — והעתק הכללים כאן קיים כדי שהמסך יוכל לומר *מראש*
