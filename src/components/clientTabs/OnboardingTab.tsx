@@ -38,6 +38,8 @@ import AddRequestDialog from './AddRequestDialog';
 import JourneyTemplatesDialog from './JourneyTemplatesDialog';
 import SendPortalDialog from './SendPortalDialog';
 import ClientPagePreviewDialog from './ClientPagePreviewDialog';
+import CaseStageSections from './CaseStageSections';
+import type { JourneyStageRow } from './CaseStageSections';
 
 interface Props {
   clientId: string;
@@ -381,6 +383,23 @@ export default function OnboardingTab({
   const [sendOpen, setSendOpen] = useState(false);
   /** תצוגה מקדימה של הדף האישי — הדף האמיתי, לא חיקוי. */
   const [previewOpen, setPreviewOpen] = useState(false);
+  /** שלבי-העל של התיק (journey_stages). ריק ⇒ דליי ברירת-המחדל בלבד. */
+  const [stageRows, setStageRows] = useState<JourneyStageRow[]>([]);
+
+  useEffect(() => {
+    if (!embedded) return;
+    let cancelled = false;
+    supabase.from('journey_stages')
+      .select('id, title, sort_order')
+      .eq('client_id', clientId)
+      .order('sort_order')
+      .then(({ data }) => {
+        if (cancelled) return;
+        setStageRows((data ?? []).map(r => ({ id: r.id, title: r.title, sortOrder: r.sort_order ?? 0 })));
+      });
+    return () => { cancelled = true; };
+    // steps כטריגר: שיוך/יצירת שלב-על מגיעים עם אותו refresh של הבקשות.
+  }, [clientId, embedded, steps]);
   /** חלון הסגירה — נפתח רק כשהשרת חוסם, ונסגר איתו. */
   const [closeGate, setCloseGate] = useState<{ steps: OnboardingStep[] } | null>(null);
 
@@ -537,166 +556,8 @@ export default function OnboardingTab({
     );
   }
 
-  return (
-    <RowOpenContext.Provider value={{
-      openId: openRowId,
-      toggle: (id: string) => setOpenRowId(cur => (cur === id ? null : id)),
-      onMove: ordering ? undefined : (id, dir) => void moveRow(id, dir),
-      onPublish: (id) => void publishRequest(id),
-      onSetRequired: (id, required) => void setStepRequired(id, required),
-    }}>
-    <div className="cw-tabpanel">
-      {error && (
-        <div style={{
-          padding: '.55rem .8rem', borderRadius: 'var(--radius)',
-          background: 'var(--red-light)', color: 'var(--err)', fontSize: 'var(--fs-13)',
-        }}>⚠ {error}</div>
-      )}
-
-      {/* ── שורת הכדור — אותו מבט של שורת המצב בייצוג ──
-          מוטמע בדף המסע: רצועת המונים שם אומרת את אותו הדבר, ולכן היא יורדת. */}
-      {!embedded && <div style={{
-        display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap',
-        padding: '.7rem .9rem',
-        borderInlineStart: `3px solid ${ballTone.c}`,
-        background: 'var(--surface-2)', borderRadius: 'var(--radius)',
-      }}>
-        <span style={{
-          fontSize: 'var(--fs-12)', fontWeight: 600, color: '#fff', background: ballTone.c,
-          padding: '.1rem .5rem', borderRadius: 999, whiteSpace: 'nowrap',
-        }}>{ballTone.label}</span>
-        <strong style={{ fontSize: 'var(--fs-15)', color: 'var(--gray-900, #111)' }}>{ballTitle}</strong>
-        <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', flex: 1 }}>{ballSub}</span>
-        {/* ‼ הקישור האחיד ללקוח — אותו קישור תמיד, גם בוואטסאפ. הדף מציג את
-            המצב העדכני, ולכן אין "איזה קישור שלחתי" — יש קישור אחד. */}
-        <button type="button" className="btn btn-sm btn-ghost"
-          onClick={() => setPreviewOpen(true)}
-          title="הדף האישי כפי שהלקוח רואה אותו — כולל טיוטות שטרם פורסמו">
-          הדף של הלקוח
-        </button>
-        <button type="button" className="btn btn-sm btn-ghost"
-          onClick={() => setSendOpen(true)}
-          title="מייל עם מה שממתין לו, או קישור לדף האישי לשליחה בוואטסאפ">
-          שלח ללקוח
-        </button>
-        {/* ‼ סגירת קליטה היא החלטה ולא תוצר לוואי. השרת בודק את התנאים
-            ואומר מה חסר; לכפות אפשר, אבל עם סיבה שנרשמת ביומן. */}
-        {activeEngagement?.status === 'onboarding' && (
-          <button type="button" className="btn btn-sm btn-ghost" disabled={closing}
-            onClick={() => void closeOnboarding(false)}
-            title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
-            {closing ? 'סוגר…' : 'סגור קליטה'}
-          </button>
-        )}
-      </div>}
-
-      {!embedded && clientSteps.length > 0 && (
-        <OnboardingJourneyMap steps={clientSteps} onSelect={gotoStep} />
-      )}
-
-      {/* ── התקדמות הקליטה · מוטמע בדף המסע ────────────────────────────────
-          רצועת המונים של הדף אומרת "כמה אצל מי"; היא אינה אומרת מה הסדר,
-          מה נעשה, מה עכשיו, ומה חוסם. זה המסך שעונה על זה — ובראשו שתי
-          הפעולות שעד כה לא היו נגישות מדף המסע בכלל: השליחה ללקוח
-          וסגירת הקליטה. רצועת הכדור הכפולה נשארת מוסתרת בכוונה. */}
-      {/* ‼ נעלם ברגע שההתקשרות אינה בקליטה: אחרי הסגירה אין "התקדמות קליטה",
-          יש לקוח פעיל שאולי נותרו לו בקשות פתוחות — והן מוצגות כבקשות. */}
-      {embedded && clientSteps.length > 0 && activeEngagement?.status === 'onboarding' && (
-        <div className="ob-prog">
-          <div className="ob-prog-head">
-            <span className="ob-prog-title">התקדמות הקליטה</span>
-            <span className="ob-prog-count">
-              {clientSteps.filter(s => !isStepOpen(s.status)).length} מתוך {clientSteps.length} הושלמו
-              {activeEngagement?.approvedAt && (() => {
-                const d = Math.floor((Date.now() - new Date(activeEngagement.approvedAt!).getTime()) / 86400000);
-                return Number.isFinite(d) && d >= 1 ? ` · יום ${d}` : '';
-              })()}
-            </span>
-            <span style={{ flex: 1 }} />
-            <button type="button" className="btn btn-sm btn-ghost"
-              onClick={() => setPreviewOpen(true)}
-              title="הדף האישי כפי שהלקוח רואה אותו — כולל טיוטות שטרם פורסמו">
-              הדף של הלקוח
-            </button>
-            <button type="button" className="btn btn-sm btn-ghost"
-              onClick={() => setSendOpen(true)}
-              title="מייל עם מה שממתין לו, או קישור לדף האישי לשליחה בוואטסאפ">
-              שלח ללקוח
-            </button>
-            {activeEngagement?.status === 'onboarding' && (
-              <button type="button" className="btn btn-sm btn-secondary" disabled={closing}
-                onClick={() => void closeOnboarding(false)}
-                title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
-                {closing ? 'סוגר…' : 'סגור קליטה'}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── חלון הסגירה — נפתח רק כשהשרת חסם, ונסגר איתו ─────────────────── */}
-      {closeGate && (
-        <Modal title="סגירת הקליטה" onClose={() => setCloseGate(null)} width={440}>
-          <p className="ob-gate-lead">עדיין נדרש להשלים:</p>
-          <ul className="ob-gate-list">
-            {closeGate.steps.map(s => <li key={s.id}>{rowTitle(s)}</li>)}
-          </ul>
-          <div className="ob-gate-actions">
-            <button type="button" className="btn btn-primary" onClick={() => setCloseGate(null)}>
-              חזרה להשלמה
-            </button>
-            {/* ‼ עקיפה — משנית בכוונה, ודורשת אישור נוסף. נרשמת ביומן. */}
-            <button
-              type="button"
-              className="ui-linkbtn ob-gate-force"
-              disabled={closing}
-              /* ‼ אין אישור שני. החלון עצמו הוא האישור: מי שקרא את הרשימה
-                 ולחץ כאן — החליט. שני חלונות ברצף מלמדים ללחוץ בלי לקרוא. */
-              onClick={() => { setCloseGate(null); void closeOnboarding(true); }}
-            >
-              סגור בכל זאת · {closeGate.steps.length} נדרשים יישארו פתוחים
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {loading && clientSteps.length === 0 && <div className="cw-empty">טוען…</div>}
-
-      {[
-        { key: 'open', title: 'מה ביקשתי', list: openSteps },
-        { key: 'done', title: 'הושלם', list: showDone ? doneSteps : [] },
-      ].filter(g => g.key === 'open' ? true : doneSteps.length > 0).map(({ key, title, list }) => (
-        <div key={key} className="cw-section">
-          <div className="cw-section-head">
-            {key === 'done' ? (
-              <button type="button" onClick={() => setShowDone(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '.35rem', color: 'inherit', font: 'inherit',
-                  background: 'none', border: 'none', appearance: 'none', padding: 0, cursor: 'pointer',
-                }}>
-                <span aria-hidden="true">{showDone ? '▾' : '▸'}</span>
-                <span>{title}</span>
-              </button>
-            ) : <span>{title}</span>}
-            <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-              <span className="cw-section-count">{key === 'done' ? doneSteps.length : list.length}</span>
-              {key === 'open' && (
-                <>
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>
-                    תבניות
-                  </button>
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>
-                    + בקשה
-                  </button>
-                </>
-              )}
-            </span>
-          </div>
-          {key === 'open' && list.length === 0 && (
-            <div className="cw-empty">{ballFilter ? 'אין בקשות שמתאימות לסינון.' : 'כל הבקשות הושלמו.'}</div>
-          )}
-          <div>
-            {list.map(step => {
+  /** רינדור בקשה אחת — משותף לרשימה השטוחה (המסך הישן) ולשלבי-העל של מרכז התיק. */
+  const renderStep = (step: OnboardingStep) => {
               const locked = step.status === 'locked';
               const busy = busyStepId === step.id;
               const checklist = step.payload.checklist ?? [];
@@ -929,7 +790,190 @@ export default function OnboardingTab({
                   {step.stepType === 'custom_request' && <CustomRequestBody step={step} />}
                 </JourneyRow>
               );
-            })}
+            };
+
+  return (
+    <RowOpenContext.Provider value={{
+      openId: openRowId,
+      toggle: (id: string) => setOpenRowId(cur => (cur === id ? null : id)),
+      onMove: ordering ? undefined : (id, dir) => void moveRow(id, dir),
+      onPublish: (id) => void publishRequest(id),
+      onSetRequired: (id, required) => void setStepRequired(id, required),
+    }}>
+    <div className="cw-tabpanel">
+      {error && (
+        <div style={{
+          padding: '.55rem .8rem', borderRadius: 'var(--radius)',
+          background: 'var(--red-light)', color: 'var(--err)', fontSize: 'var(--fs-13)',
+        }}>⚠ {error}</div>
+      )}
+
+      {/* ── שורת הכדור — אותו מבט של שורת המצב בייצוג ──
+          מוטמע בדף המסע: רצועת המונים שם אומרת את אותו הדבר, ולכן היא יורדת. */}
+      {!embedded && <div style={{
+        display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap',
+        padding: '.7rem .9rem',
+        borderInlineStart: `3px solid ${ballTone.c}`,
+        background: 'var(--surface-2)', borderRadius: 'var(--radius)',
+      }}>
+        <span style={{
+          fontSize: 'var(--fs-12)', fontWeight: 600, color: '#fff', background: ballTone.c,
+          padding: '.1rem .5rem', borderRadius: 999, whiteSpace: 'nowrap',
+        }}>{ballTone.label}</span>
+        <strong style={{ fontSize: 'var(--fs-15)', color: 'var(--gray-900, #111)' }}>{ballTitle}</strong>
+        <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', flex: 1 }}>{ballSub}</span>
+        {/* ‼ הקישור האחיד ללקוח — אותו קישור תמיד, גם בוואטסאפ. הדף מציג את
+            המצב העדכני, ולכן אין "איזה קישור שלחתי" — יש קישור אחד. */}
+        <button type="button" className="btn btn-sm btn-ghost"
+          onClick={() => setPreviewOpen(true)}
+          title="הדף האישי כפי שהלקוח רואה אותו — כולל טיוטות שטרם פורסמו">
+          הדף של הלקוח
+        </button>
+        <button type="button" className="btn btn-sm btn-ghost"
+          onClick={() => setSendOpen(true)}
+          title="מייל עם מה שממתין לו, או קישור לדף האישי לשליחה בוואטסאפ">
+          שלח ללקוח
+        </button>
+        {/* ‼ סגירת קליטה היא החלטה ולא תוצר לוואי. השרת בודק את התנאים
+            ואומר מה חסר; לכפות אפשר, אבל עם סיבה שנרשמת ביומן. */}
+        {activeEngagement?.status === 'onboarding' && (
+          <button type="button" className="btn btn-sm btn-ghost" disabled={closing}
+            onClick={() => void closeOnboarding(false)}
+            title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
+            {closing ? 'סוגר…' : 'סגור קליטה'}
+          </button>
+        )}
+      </div>}
+
+      {!embedded && clientSteps.length > 0 && (
+        <OnboardingJourneyMap steps={clientSteps} onSelect={gotoStep} />
+      )}
+
+      {/* ── התקדמות הקליטה · מוטמע בדף המסע ────────────────────────────────
+          רצועת המונים של הדף אומרת "כמה אצל מי"; היא אינה אומרת מה הסדר,
+          מה נעשה, מה עכשיו, ומה חוסם. זה המסך שעונה על זה — ובראשו שתי
+          הפעולות שעד כה לא היו נגישות מדף המסע בכלל: השליחה ללקוח
+          וסגירת הקליטה. רצועת הכדור הכפולה נשארת מוסתרת בכוונה. */}
+      {/* ‼ נעלם ברגע שההתקשרות אינה בקליטה: אחרי הסגירה אין "התקדמות קליטה",
+          יש לקוח פעיל שאולי נותרו לו בקשות פתוחות — והן מוצגות כבקשות. */}
+      {embedded && clientSteps.length > 0 && activeEngagement?.status === 'onboarding' && (
+        <div className="ob-prog">
+          <div className="ob-prog-head">
+            <span className="ob-prog-title">התקדמות הקליטה</span>
+            <span className="ob-prog-count">
+              {clientSteps.filter(s => !isStepOpen(s.status)).length} מתוך {clientSteps.length} הושלמו
+              {activeEngagement?.approvedAt && (() => {
+                const d = Math.floor((Date.now() - new Date(activeEngagement.approvedAt!).getTime()) / 86400000);
+                return Number.isFinite(d) && d >= 1 ? ` · יום ${d}` : '';
+              })()}
+            </span>
+            <span style={{ flex: 1 }} />
+            <button type="button" className="btn btn-sm btn-ghost"
+              onClick={() => setPreviewOpen(true)}
+              title="הדף האישי כפי שהלקוח רואה אותו — כולל טיוטות שטרם פורסמו">
+              הדף של הלקוח
+            </button>
+            <button type="button" className="btn btn-sm btn-ghost"
+              onClick={() => setSendOpen(true)}
+              title="מייל עם מה שממתין לו, או קישור לדף האישי לשליחה בוואטסאפ">
+              שלח ללקוח
+            </button>
+            {activeEngagement?.status === 'onboarding' && (
+              <button type="button" className="btn btn-sm btn-secondary" disabled={closing}
+                onClick={() => void closeOnboarding(false)}
+                title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
+                {closing ? 'סוגר…' : 'סגור קליטה'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── חלון הסגירה — נפתח רק כשהשרת חסם, ונסגר איתו ─────────────────── */}
+      {closeGate && (
+        <Modal title="סגירת הקליטה" onClose={() => setCloseGate(null)} width={440}>
+          <p className="ob-gate-lead">עדיין נדרש להשלים:</p>
+          <ul className="ob-gate-list">
+            {closeGate.steps.map(s => <li key={s.id}>{rowTitle(s)}</li>)}
+          </ul>
+          <div className="ob-gate-actions">
+            <button type="button" className="btn btn-primary" onClick={() => setCloseGate(null)}>
+              חזרה להשלמה
+            </button>
+            {/* ‼ עקיפה — משנית בכוונה, ודורשת אישור נוסף. נרשמת ביומן. */}
+            <button
+              type="button"
+              className="ui-linkbtn ob-gate-force"
+              disabled={closing}
+              /* ‼ אין אישור שני. החלון עצמו הוא האישור: מי שקרא את הרשימה
+                 ולחץ כאן — החליט. שני חלונות ברצף מלמדים ללחוץ בלי לקרוא. */
+              onClick={() => { setCloseGate(null); void closeOnboarding(true); }}
+            >
+              סגור בכל זאת · {closeGate.steps.length} נדרשים יישארו פתוחים
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {loading && clientSteps.length === 0 && <div className="cw-empty">טוען…</div>}
+
+      {/* ── מרכז התיק: היררכיית שלבי-על (המודל המאושר) ─────────────────────
+          מוטמע בדף המסע בלבד; המסך הישן (מאחורי journeyUi=false) נשאר רשימה
+          שטוחה כדי שמתג החירום יחזיר בדיוק את מה שהיה. */}
+      {embedded && (
+        <CaseStageSections
+          steps={clientSteps}
+          visibleSteps={visibleSteps}
+          stages={stageRows}
+          renderStep={renderStep}
+          ballFilterActive={!!ballFilter}
+          clientBucketTitle={activeEngagement?.status === 'onboarding' ? 'קליטת הלקוח' : 'בקשות'}
+          headActions={<>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>
+              תבניות
+            </button>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>
+              + בקשה
+            </button>
+          </>}
+        />
+      )}
+
+      {!embedded && [
+        { key: 'open', title: 'מה ביקשתי', list: openSteps },
+        { key: 'done', title: 'הושלם', list: showDone ? doneSteps : [] },
+      ].filter(g => g.key === 'open' ? true : doneSteps.length > 0).map(({ key, title, list }) => (
+        <div key={key} className="cw-section">
+          <div className="cw-section-head">
+            {key === 'done' ? (
+              <button type="button" onClick={() => setShowDone(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '.35rem', color: 'inherit', font: 'inherit',
+                  background: 'none', border: 'none', appearance: 'none', padding: 0, cursor: 'pointer',
+                }}>
+                <span aria-hidden="true">{showDone ? '▾' : '▸'}</span>
+                <span>{title}</span>
+              </button>
+            ) : <span>{title}</span>}
+            <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <span className="cw-section-count">{key === 'done' ? doneSteps.length : list.length}</span>
+              {key === 'open' && (
+                <>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>
+                    תבניות
+                  </button>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>
+                    + בקשה
+                  </button>
+                </>
+              )}
+            </span>
+          </div>
+          {key === 'open' && list.length === 0 && (
+            <div className="cw-empty">{ballFilter ? 'אין בקשות שמתאימות לסינון.' : 'כל הבקשות הושלמו.'}</div>
+          )}
+          <div>
+            {list.map(renderStep)}
           </div>
         </div>
       ))}

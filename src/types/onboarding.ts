@@ -234,6 +234,12 @@ export interface OnboardingStep {
   dueDate?: string;
   /** סדר התצוגה שהרו״ח קבע בבונה. גובר על סדר היצירה בכל מסך ובדף האישי. */
   sortOrder?: number;
+  /** שלב-העל בתיק (journey_stages, מיגרציה 79). חסר ⇒ דלי ברירת-מחדל בתצוגה. */
+  stageId?: string | null;
+  /** מקור האמת לפרסום פר-בקשה (מיגרציה 77). null = טיוטה שהלקוח אינו רואה. */
+  publishedAt?: string | null;
+  /** עריכות ממתינות לבקשה שפורסמה — הלקוח רואה את payload עד הפרסום הבא. */
+  draftPayload?: StepPayload | null;
   needsAttention: boolean;
   payload: StepPayload;
   completionMethod: StepCompletionMethod;
