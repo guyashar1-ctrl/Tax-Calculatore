@@ -16,6 +16,12 @@ import ClientsOnboardingSection from '../ClientsOnboardingSection';
 const CLIENT_ID = 'fixture-client';
 const ENG_ID = 'fixture-eng';
 
+// ?theme=light|dark — קיבוע ערכה לצילומי מסך ללא-ראש (אין App שמפעיל useTheme).
+{
+  const t = /[?&]theme=(light|dark)/.exec(window.location.search)?.[1];
+  if (t) document.documentElement.dataset.theme = t;
+}
+
 const ENGAGEMENTS: Engagement[] = [{
   id: ENG_ID,
   userId: 'fixture-user',
@@ -186,7 +192,8 @@ export default function TestOnboarding() {
   // (הכפתור חסום עם הסיבה) — המצב השני הוא מקרה הקצה של המסלול.
   const [hasPrevEmail, setHasPrevEmail] = useState(true);
   // מצב בנייה מול מצב ניהול — אותה לשונית, לפני ואחרי פתיחת התהליך ללקוח.
-  const [published, setPublished] = useState(true);
+  // ?test-onboarding&builder פותח ישר במצב הבנייה — לצילום מסך ללא-ראש.
+  const [published, setPublished] = useState(!window.location.search.includes('builder'));
   const [showRelease, setShowRelease] = useState(false);
   return (
     <div style={{ padding: '1.5rem', maxWidth: 980, margin: '0 auto' }} dir="rtl">
@@ -233,7 +240,9 @@ export default function TestOnboarding() {
       />
 
       <h3 style={{ marginTop: '2rem' }}>הרשת — מסך הבוקר</h3>
-      <div className="card" style={{ padding: '.5rem .7rem' }}>
+      {/* overflow-x — הטבלה רחבה מ-375px, ובלעדיו היא גוררת את כל העמוד
+          לגלילה אופקית ושוברת צילומי מובייל של החלקים שמעליה. */}
+      <div className="card" style={{ padding: '.5rem .7rem', overflowX: 'auto' }}>
         <OnboardingGrid
           clients={GRID_CLIENTS}
           steps={GRID_STEPS}

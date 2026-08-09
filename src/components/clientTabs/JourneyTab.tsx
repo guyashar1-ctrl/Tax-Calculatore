@@ -28,6 +28,7 @@ import {
 } from '../../utils/journeyPresentation';
 import OnboardingTab from './OnboardingTab';
 import ClientCockpitTab from './ClientCockpitTab';
+import { ClientEmailsList } from '../EmailActivity/ClientEmailsSection';
 
 type BallFilter = 'me' | 'client' | 'third' | 'stuck' | 'done';
 
@@ -79,6 +80,7 @@ const CHAPTERS = [
 export default function JourneyTab(p: Props) {
   const [ballFilter, setBallFilter] = useState<BallFilter | null>(null);
   const [showPast, setShowPast] = useState(false);
+  const [showEmails, setShowEmails] = useState(false);
 
   const clientSteps = useMemo(
     () => p.steps.filter(s => s.clientId === p.client.id && s.status !== 'cancelled'),
@@ -448,24 +450,78 @@ export default function JourneyTab(p: Props) {
         />
       )}
 
-      {/* ── התמונה המקצועית: התראות, לוח הגשות, תיקי שנה, מיילים ── */}
-      <ClientCockpitTab
-        client={p.client}
-        tasks={p.tasks}
-        alerts={p.alerts}
-        openTasks={p.openTasks}
-        upcomingDebts={p.upcomingDebts}
-        onPinNote={p.onPinNote}
-        onAddNote={p.onAddNote}
-        onGotoTab={p.onGotoTab}
-        onSelectTask={p.onSelectTask}
-        taxSessions={p.taxSessions}
-        taxSessionsLoading={p.taxSessionsLoading}
-        onOpenYear={p.onOpenYear}
-        emails={clientEmails}
-        emailsLoading={emailsLoading}
-        onEmailsChanged={reloadEmails}
-      />
+      {/* ── התמונה המקצועית: התראות, לוח הגשות, תיקי שנה, מיילים ──────────
+          ‼ שייכת ללקוח פעיל. בליד/הצעה/קליטה כמעט כולה מקטעים ריקים
+          ("אין תיק דוח שנתי", "אין פעילות") שהאריכו את העמוד למסך שלם של
+          גלילה — הכרעת גיא 2026-08-09: עד שהלקוח פעיל היא לא מוצגת, ורק
+          המיילים וההערה המוצמדת נשארים, מקופלים. */}
+      {stage === 'lead' || stage === 'quoted' || stage === 'onboarding' ? (
+        <>
+          <div className="cw-section">
+            <div className="cw-section-head">
+              <button type="button"
+                onClick={() => setShowEmails(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '.35rem', color: 'inherit', font: 'inherit',
+                  background: 'none', border: 'none', appearance: 'none', padding: 0, cursor: 'pointer',
+                  minHeight: 44,
+                }}>
+                <span aria-hidden="true">{showEmails ? '▾' : '▸'}</span>
+                <span>מיילים שנשלחו ללקוח</span>
+              </button>
+              <span className="jt-past-summary">
+                {emailsLoading && clientEmails.length === 0 ? 'טוען…'
+                  : clientEmails.length === 0 ? 'עדיין לא נשלח מייל'
+                  : clientEmails.length === 1 ? 'מייל אחד' : `${clientEmails.length} מיילים`}
+              </span>
+            </div>
+            {showEmails && (
+              <ClientEmailsList bare rows={clientEmails} loading={emailsLoading} onChanged={reloadEmails} />
+            )}
+          </div>
+
+          {/* הערה מוצמדת — שורה שקטה כשיש, כפתור קטן כשאין. לא מקטע שלם. */}
+          {p.client.pinnedNote ? (
+            <div className="jt-panel jt-panel-quiet">
+              <div className="jt-panel-head">
+                <span className="jt-panel-title">הערה מוצמדת</span>
+                <button type="button" className="btn btn-sm btn-ghost"
+                  onClick={() => {
+                    const next = window.prompt('הערה מוצמדת:', p.client.pinnedNote ?? '');
+                    if (next !== null) p.onPinNote(next.trim());
+                  }}>עריכה</button>
+              </div>
+              <p className="jt-panel-body" style={{ whiteSpace: 'pre-wrap' }}>{p.client.pinnedNote}</p>
+            </div>
+          ) : (
+            <div>
+              <button type="button" className="btn btn-sm btn-ghost"
+                onClick={() => {
+                  const next = window.prompt('הערה מוצמדת:');
+                  if (next && next.trim()) p.onPinNote(next.trim());
+                }}>+ הערה מוצמדת</button>
+            </div>
+          )}
+        </>
+      ) : (
+        <ClientCockpitTab
+          client={p.client}
+          tasks={p.tasks}
+          alerts={p.alerts}
+          openTasks={p.openTasks}
+          upcomingDebts={p.upcomingDebts}
+          onPinNote={p.onPinNote}
+          onAddNote={p.onAddNote}
+          onGotoTab={p.onGotoTab}
+          onSelectTask={p.onSelectTask}
+          taxSessions={p.taxSessions}
+          taxSessionsLoading={p.taxSessionsLoading}
+          onOpenYear={p.onOpenYear}
+          emails={clientEmails}
+          emailsLoading={emailsLoading}
+          onEmailsChanged={reloadEmails}
+        />
+      )}
 
       {/* ── פרקים קודמים — מקופלים, אבל לא נעלמים ── */}
       {(clientQuotations.length > 0 || doneSteps > 0) && (

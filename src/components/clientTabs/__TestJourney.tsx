@@ -16,6 +16,12 @@ import JourneyTab from './JourneyTab';
 
 const CLIENT_ID = 'fixture-journey-client';
 
+// ?theme=light|dark — קיבוע ערכה לצילומי מסך ללא-ראש (אין App שמפעיל useTheme).
+{
+  const t = /[?&]theme=(light|dark)/.exec(window.location.search)?.[1];
+  if (t) document.documentElement.dataset.theme = t;
+}
+
 const baseClient: Client = {
   id: CLIENT_ID,
   firstName: 'אילן',
@@ -140,7 +146,11 @@ const SCENARIOS: { key: Scenario; label: string }[] = [
 ];
 
 export default function TestJourney() {
-  const [sc, setSc] = useState<Scenario>('lead');
+  // ?test-journey&sc=onboarding פותח ישר בתרחיש — לצילום מסך ללא-ראש.
+  const [sc, setSc] = useState<Scenario>(() => {
+    const m = /[?&]sc=([a-zA-Z]+)/.exec(window.location.search);
+    return m && SCENARIOS.some(s => s.key === m[1]) ? (m[1] as Scenario) : 'lead';
+  });
 
   const isLead = sc === 'lead' || sc === 'leadClosed';
   const isQuoted = sc === 'quoted' || sc === 'quotedExpired';

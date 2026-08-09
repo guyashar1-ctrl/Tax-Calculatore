@@ -520,6 +520,7 @@ export default function OnboardingTab({
           refresh={refresh}
           repStatus={repStatus}
           onOpenRepresentation={onOpenRepresentation}
+          prevAccountantEmail={prevAccountant?.email}
         />
       </div>
     );

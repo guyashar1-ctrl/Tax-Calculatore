@@ -2,11 +2,18 @@
 // ‼ המסך הזה קיים כדי שהלקוח לא יקבל רשימת מטלות שהרו"ח לא ראה. ייפוי הכוח
 // כבר נפתח לו מיד בחתימה (הרגע החם); כל השאר ממתין ללחיצה אחת כאן.
 //
-// ‼ אותה שפה של מרכז השליטה, במצב בנייה. מי שלמד מסך אחד יודע גם את השני.
+// ‼ שרשרת של שלבים תלויים מוצגת כשורה אחת (הכרעת גיא 2026-08-09): "הזמנה
+// לפייפרלס"+"חיבור לפייפרלס" הם בעיני הרו"ח תהליך אחד של הלקוח, וכך גם
+// פרטי-רו"ח-קודם → מכתב שחרור → קבלת חומרים. בשרת הם נשארים שלבים נפרדים —
+// האיחוד הוא בתצוגה ובמתג בלבד.
+//
+// ‼ אין כאן תגי "אצלי"/"אצל הלקוח": לפני השליחה שום כדור עוד לא רץ, והתג
+// התנגש עם כותרות הקבוצות ("הרשאה לתשלום" ישבה תחת "מה אני מבקש ממנו" עם
+// תג "אצלי"). מי-עושה-מה נאמר במילים, על השורה.
 
 import { useMemo, useState } from 'react';
 import type { Engagement, OnboardingStep } from '../../types/onboarding';
-import { STEP_BALL_LABELS, STEP_TYPE_LABELS, isStepOpen } from '../../types/onboarding';
+import { STEP_TYPE_LABELS, isStepOpen } from '../../types/onboarding';
 import type { RepresentationStatus } from '../../types';
 import { representationAction } from '../../utils/representationAction';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
@@ -27,20 +34,31 @@ interface Props {
   /** מצב בקשת הייצוג — מקורו בכרטיס הלקוח, לא בשלב הקליטה. */
   repStatus?: RepresentationStatus;
   onOpenRepresentation?: () => void;
+  /** מייל הרו"ח הקודם מהכרטיס — כשהוא קיים, ללקוח אין מה למלא ואומרים לאן יישלח המכתב. */
+  prevAccountantEmail?: string;
 }
-
-/**
- * מה שהסטטוס שלו מתעדכן בלי שנוגעים בו — לא מה שנעשה לבד.
- * ‼ הייצוג יצא מכאן: הפס הזה הוא טקסט מת, ומי שראה בו "ייצוג מול הרשויות"
- * הבין שאין לו מה לעשות — בזמן שהכדור היה אצלו וייפוי הכוח חיכה להפקה.
- */
-const AUTOMATIC: OnboardingStep['stepType'][] = ['representation', 'representation_upgrade'];
 
 /** בקשות שהלקוח רואה בדף האישי. השאר הוא עבודה פנימית. */
 const CLIENT_FACING: OnboardingStep['stepType'][] = [
   'client_documents', 'prev_accountant_details', 'paperless_connection',
-  'retainer_authorization', 'intake_questionnaire',
+  'retainer_authorization', 'intake_questionnaire', 'custom_request',
 ];
+
+/** שורת תצוגה בבונה. שרשרת שלבים = שורה אחת, מתג אחד, סיפור אחד. */
+interface ViewRow {
+  key: string;
+  /** כל שלבי השרשרת בסדר הפנימי שלהם — המתג והסידור פועלים על כולם יחד. */
+  members: OnboardingStep[];
+  title: string;
+  sub?: string;
+  /** ההשתלשלות במילים: "שולחים קישור ← הלקוח נרשם ← ...". */
+  flow?: string;
+  /** "ייפתח אוטומטית אחרי..." — מחליף את "🔒 בתור" הסתום. */
+  lockText?: string;
+  /** חובה רגולטורית — אין מתג. */
+  fixed?: boolean;
+  clientFacing: boolean;
+}
 
 function GroupTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -54,15 +72,20 @@ function GroupTitle({ children }: { children: React.ReactNode }) {
 function clientVoice(s: OnboardingStep): { title: string; sub: string } {
   const p = s.payload ?? {};
   return {
-    title: p.clientTitle || STEP_TYPE_LABELS[s.stepType],
-    sub: p.clientSub || '',
+    title: String(p.clientTitle || p.title || STEP_TYPE_LABELS[s.stepType]),
+    sub: String(p.clientSub || ''),
   };
 }
 
+const rowOff = (r: ViewRow) => r.members.every(m => m.status === 'cancelled');
+const sortKey = (r: ViewRow) =>
+  Math.min(...r.members.map(m => m.sortOrder ?? 0));
+
 export default function OnboardingProcessBuilder({
-  clientName, clientEmail, engagement, steps, advance, refresh, repStatus, onOpenRepresentation,
+  clientName, clientEmail, engagement, steps, advance, refresh, repStatus,
+  onOpenRepresentation, prevAccountantEmail,
 }: Props) {
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -72,57 +95,150 @@ export default function OnboardingProcessBuilder({
     () => steps.filter(s => s.engagementId === engagement.id || s.clientId === engagement.clientId),
     [steps, engagement]);
 
-  // הייצוג יוצא מהפס האפור לשורה משלו — הוא הדבר היחיד שכבר רץ בזמן שמרכיבים
-  // את השאר, והוא היחיד כאן שיש בו מה לעשות.
+  // הייצוג כבר רץ בזמן שמרכיבים את השאר — שורה משלו, עם פעולה.
   const repStep = useMemo(
     () => mine.find(s => s.stepType === 'representation' && s.status !== 'cancelled'),
     [mine]);
-
-  const autoSteps = useMemo(
-    () => mine.filter(s => AUTOMATIC.includes(s.stepType)
-      && s.stepType !== 'representation' && s.status !== 'cancelled'),
+  const hasUpgrade = useMemo(
+    () => mine.some(s => s.stepType === 'representation_upgrade' && s.status !== 'cancelled'),
     [mine]);
 
-  // הסדר שהרו"ח קבע גובר; סדר היצירה הוא רק שובר שוויון.
-  const rows = useMemo(
-    () => mine
-      .filter(s => !AUTOMATIC.includes(s.stepType))
-      .slice()
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-                   || (a.createdAt ?? '').localeCompare(b.createdAt ?? '')),
-    [mine]);
+  const { clientRows, officeRows } = useMemo(() => {
+    const pool = mine.filter(s =>
+      s.stepType !== 'representation' && s.stepType !== 'representation_upgrade');
+    const one = (t: OnboardingStep['stepType']) => pool.find(s => s.stepType === t);
 
-  const active = rows.filter(s => s.status !== 'cancelled');
-  const askRows = rows.filter(s => CLIENT_FACING.includes(s.stepType));
-  const officeRows = rows.filter(s => !CLIENT_FACING.includes(s.stepType));
+    const invite = one('paperless_invite');
+    const conn = one('paperless_connection');
+    const prevDet = one('prev_accountant_details');
+    const release = one('release_letter');
+    const materials = one('materials_received');
+    const retainer = one('retainer_authorization');
+    const merged = new Set(
+      [invite, conn, prevDet, release, materials, retainer]
+        .filter((s): s is OnboardingStep => !!s).map(s => s.id));
+
+    const rows: ViewRow[] = [];
+
+    // ── פייפרלס: תהליך אחד של הלקוח. הקישור קבוע, המערכת שולחת אותו,
+    //    והחיבור נסגר כשהלקוח נרשם — ואז נפתחת ההרשאה לתשלום.
+    if (invite || conn) {
+      const members = [invite, conn].filter((s): s is OnboardingStep => !!s);
+      rows.push({
+        key: 'paperless',
+        members,
+        title: 'חיבור לפייפרלס',
+        sub: 'שתי דקות, ומשם רק מצלמים קבלות מהטלפון',
+        flow: 'שולחים לו את הקישור הקבוע ← הלקוח נרשם ומתחבר'
+          + (retainer ? ' ← נפתחת ההרשאה לתשלום' : ''),
+        clientFacing: true,
+      });
+    }
+
+    // ── רו"ח קודם: שרשרת אחת. אם המייל כבר בכרטיס — אין ללקוח מה למלא,
+    //    והשורה כולה עוברת ל"עבודה שלי".
+    if (prevDet || release || materials) {
+      const members = [prevDet, release, materials].filter((s): s is OnboardingStep => !!s);
+      const nItems = Array.isArray(materials?.payload?.checklist)
+        ? materials!.payload.checklist!.length : 0;
+      const tail = nItems > 0 ? ` (${nItems} פריטים במעקב)` : '';
+      rows.push({
+        key: 'prev-accountant',
+        members,
+        title: 'מעבר מהרו״ח הקודם',
+        flow: prevDet
+          ? `הלקוח ממלא את פרטי הרו״ח ← שולחים מכתב שחרור ← מקבלים את החומרים${tail}`
+          : `${prevAccountantEmail
+              ? `מכתב השחרור יישלח אל ${prevAccountantEmail}`
+              : 'שולחים מכתב שחרור'} ← מקבלים את החומרים${tail}`,
+        clientFacing: !!prevDet,
+      });
+    }
+
+    // ── הרשאה לתשלום: הסכום מההצעה מוצג על השורה, והמנעול מוסבר במילים.
+    if (retainer) {
+      const amount = Number(retainer.payload?.amount ?? engagement.monthlyTotal ?? 0);
+      rows.push({
+        key: 'retainer',
+        members: [retainer],
+        title: STEP_TYPE_LABELS.retainer_authorization,
+        sub: amount > 0
+          ? `${amount.toLocaleString('he-IL')} ₪ בחודש — הסכום שסוכם בהצעה, כהרשאה קבועה`
+          : clientVoice(retainer).sub,
+        lockText: retainer.dependsOnStepId
+          ? 'ייפתח ללקוח אוטומטית אחרי החיבור לפייפרלס'
+          : undefined,
+        clientFacing: true,
+      });
+    }
+
+    // ── כל השאר — שורה לשלב, כמו קודם, בלי תגים.
+    for (const s of pool) {
+      if (merged.has(s.id)) continue;
+      const facing = CLIENT_FACING.includes(s.stepType);
+      rows.push({
+        key: s.id,
+        members: [s],
+        title: String(s.payload?.title ?? '').trim() || STEP_TYPE_LABELS[s.stepType],
+        sub: facing ? clientVoice(s).sub : undefined,
+        fixed: s.stepType === 'kyc_identification',
+        clientFacing: facing,
+      });
+    }
+
+    const bySort = (a: ViewRow, b: ViewRow) => sortKey(a) - sortKey(b)
+      || (a.members[0].createdAt ?? '').localeCompare(b.members[0].createdAt ?? '');
+    return {
+      clientRows: rows.filter(r => r.clientFacing).sort(bySort),
+      officeRows: rows.filter(r => !r.clientFacing).sort(bySort),
+    };
+  }, [mine, engagement.monthlyTotal, prevAccountantEmail]);
+
+  const allRows = clientRows.length + officeRows.length;
 
   // ‼ התצוגה המקדימה חייבת להתנהג כמו הדף האישי, אחרת היא מבטיחה משהו אחר:
   // שלב נעול אינו פעולה ממוספרת אצל הלקוח אלא שורת "ייפתח בהמשך".
-  const preview = active.filter(s => CLIENT_FACING.includes(s.stepType) && s.status !== 'locked');
-  const previewLocked = active.filter(s => CLIENT_FACING.includes(s.stepType) && s.status === 'locked');
+  const activeSteps = useMemo(
+    () => mine.filter(s =>
+      s.status !== 'cancelled'
+      && s.stepType !== 'representation' && s.stepType !== 'representation_upgrade'
+      && CLIENT_FACING.includes(s.stepType))
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
+    [mine]);
+  const preview = activeSteps.filter(s => s.status !== 'locked');
+  const previewLocked = activeSteps.filter(s => s.status === 'locked');
 
-  async function toggle(step: OnboardingStep) {
-    setBusyId(step.id);
+  /** מתג של שורה — מכבה/מדליק את כל שלבי השרשרת יחד. */
+  async function toggleRow(row: ViewRow) {
+    setBusyKey(row.key);
     setError(null);
-    const on = step.status === 'cancelled';
-    const res = await advance(step.id, on ? 'reopen' : 'cancel',
-      on ? { note: 'הוחזר לתהליך בבונה' } : { note: 'הוסר מהתהליך בבונה' });
-    if (!res.ok) setError(res.message || 'לא הצלחתי לשנות את הבקשה.');
-    setBusyId(null);
+    const turnOn = rowOff(row);
+    const targets = row.members.filter(m =>
+      turnOn ? m.status === 'cancelled' : m.status !== 'cancelled');
+    for (const m of targets) {
+      const res = await advance(m.id, turnOn ? 'reopen' : 'cancel',
+        turnOn ? { note: 'הוחזר לתהליך בבונה' } : { note: 'הוסר מהתהליך בבונה' });
+      if (!res.ok) { setError(res.message || 'לא הצלחתי לשנות את הבקשה.'); break; }
+    }
+    setBusyKey(null);
   }
 
-  /** סידור השורות. הסדר הזה הוא מה שהלקוח יראה בדף האישי. */
-  async function move(id: string, dir: -1 | 1) {
-    const list = rows.map(s => s.id);
-    const i = list.indexOf(id);
+  /**
+   * סידור השורות — הסדר שהלקוח יראה בדף האישי. שרשרת זזה כגוש אחד,
+   * ושורות המשרד נשארות אחרי כולן (הסדר שלהן לא מוצג ללקוח).
+   */
+  async function moveRow(key: string, dir: -1 | 1) {
+    const i = clientRows.findIndex(r => r.key === key);
     const j = i + dir;
-    if (i < 0 || j < 0 || j >= list.length) return;
-    [list[i], list[j]] = [list[j], list[i]];
-    setBusyId(id);
+    if (i < 0 || j < 0 || j >= clientRows.length) return;
+    const next = clientRows.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    const ids = [...next, ...officeRows].flatMap(r => r.members.map(m => m.id));
+    setBusyKey(key);
     const { error: rpcError } = await supabase.rpc('reorder_onboarding_steps', {
-      p_client_id: engagement.clientId, p_ids: list,
+      p_client_id: engagement.clientId, p_ids: ids,
     });
-    setBusyId(null);
+    setBusyKey(null);
     if (rpcError) { setError(rpcError.message); return; }
     refresh?.();
   }
@@ -139,6 +255,75 @@ export default function OnboardingProcessBuilder({
     const res = data as { ok?: boolean; error?: string } | null;
     if (rpcError || !res?.ok) return 'לא הצלחתי לפתוח את התהליך. נסה שוב.';
     return null;
+  }
+
+  function renderRow(row: ViewRow, movable: boolean) {
+    const off = rowOff(row);
+    const busy = busyKey === row.key;
+    return (
+      <div key={row.key} style={{
+        display: 'flex', alignItems: 'flex-start', gap: '.7rem',
+        padding: '.6rem .75rem', borderRadius: '.55rem',
+        border: `1px solid ${off ? 'var(--bd)' : 'var(--bd-strong, var(--bd))'}`,
+        background: off ? 'transparent' : 'var(--card, #fff)',
+        opacity: off ? .6 : 1,
+      }}>
+        {row.fixed ? (
+          <span
+            title="חובה רגולטורית — לא ניתן להסיר"
+            style={{
+              flexShrink: 0, width: '2.1rem', textAlign: 'center', paddingTop: '.1rem',
+              fontSize: 'var(--fs-12)', color: 'var(--ink-3)',
+            }}>חובה</span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void toggleRow(row)}
+            disabled={busy}
+            aria-pressed={!off}
+            aria-label={`${off ? 'להוסיף' : 'להסיר'} — ${row.title}`}
+            style={{
+              flexShrink: 0, width: '2.1rem', height: '1.2rem', padding: '.12rem',
+              marginTop: '.1rem',
+              display: 'inline-flex', alignItems: 'center', border: 'none',
+              borderRadius: '999px', cursor: 'pointer',
+              background: off ? 'var(--bd-strong, #d3d6da)' : 'var(--accent)',
+              justifyContent: off ? 'flex-start' : 'flex-end',
+            }}
+          >
+            <span style={{ width: '.95rem', height: '.95rem', borderRadius: '999px', background: '#fff' }} />
+          </button>
+        )}
+
+        <span style={{ display: 'grid', gap: '.15rem', flex: 1, minWidth: 0 }}>
+          <span style={{ fontWeight: 600, color: off ? 'var(--ink-3)' : 'var(--ink)' }}>
+            {row.title}
+          </span>
+          {row.sub && (
+            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{row.sub}</span>
+          )}
+          {row.flow && (
+            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{row.flow}</span>
+          )}
+          {row.lockText && !off && (
+            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
+              🔒 {row.lockText}
+            </span>
+          )}
+        </span>
+
+        {movable && (
+          <span style={{ display: 'inline-flex', gap: 2, flexShrink: 0 }}>
+            <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למעלה"
+              disabled={busy} onClick={() => void moveRow(row.key, -1)}
+              style={{ padding: '0 .3rem' }}>↑</button>
+            <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למטה"
+              disabled={busy} onClick={() => void moveRow(row.key, 1)}
+              style={{ padding: '0 .3rem' }}>↓</button>
+          </span>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -167,7 +352,7 @@ export default function OnboardingProcessBuilder({
         }}>{error}</div>
       )}
 
-      {/* ── ייפוי הכוח — כבר רץ, ולכן שורה עם פעולה ולא פריט ברשימת "קורה מעצמו" ── */}
+      {/* ── ייפוי הכוח — כבר רץ, ולכן שורה עם פעולה ולא מתג ── */}
       {repStep && isStepOpen(repStep.status) && repStatus && (() => {
         const a = representationAction(repStatus);
         return (
@@ -194,6 +379,11 @@ export default function OnboardingProcessBuilder({
               {a.why && (
                 <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>{a.why}</div>
               )}
+              {hasUpgrade && (
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginTop: 2 }}>
+                  שדרוג לייצוג ראשי ממתין ברקע — יקודם מעצמו אחרי אישור הרשויות.
+                </div>
+              )}
             </div>
             {onOpenRepresentation && (
               <button type="button"
@@ -207,104 +397,19 @@ export default function OnboardingProcessBuilder({
         );
       })()}
 
-      {autoSteps.length > 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap',
-          padding: '.55rem .75rem', borderRadius: '.55rem', background: 'var(--bg-2, #f3f2f0)',
-        }}>
-          <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-2)' }}>קורה מעצמו</span>
-          <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
-            {[...new Set(autoSteps.map(s => STEP_TYPE_LABELS[s.stepType]))].join(' · ')}
-          </span>
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'minmax(0,1fr) minmax(0,22rem)', alignItems: 'start' }}>
+      <div className="ob-builder-grid">
         <div style={{ display: 'grid', gap: '.5rem' }}>
-          {rows.length === 0 && (
+          {allRows === 0 && (
             <p style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', margin: 0 }}>
               אין בקשות להרכיב — ההצעה לא יצרה שלבים שדורשים משהו מהלקוח.
             </p>
           )}
 
-          {askRows.length > 0 && <GroupTitle>מה אני מבקש ממנו</GroupTitle>}
-          {[...askRows, ...officeRows].map((s, idx) => {
-            const off = s.status === 'cancelled';
-            const locked = !!s.dependsOnStepId;
-            // ‼ הכרת הלקוח היא חתימה רגולטורית — אין מתג שמכבה אותה.
-            const fixed = s.stepType === 'kyc_identification';
-            const officeHead = idx === askRows.length && officeRows.length > 0;
-            return (
-              <div key={s.id} style={{ display: 'grid', gap: '.5rem' }}>
-              {officeHead && <GroupTitle>אצלי במשרד</GroupTitle>}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '.7rem',
-                padding: '.6rem .75rem', borderRadius: '.55rem',
-                border: `1px solid ${off ? 'var(--bd)' : 'var(--bd-strong, var(--bd))'}`,
-                background: off ? 'transparent' : 'var(--card, #fff)',
-                opacity: off ? .6 : 1,
-              }}>
-                {fixed ? (
-                  <span
-                    title="חובה רגולטורית — לא ניתן להסיר"
-                    style={{
-                      flexShrink: 0, width: '2.1rem', textAlign: 'center',
-                      fontSize: 'var(--fs-12)', color: 'var(--ink-3)',
-                    }}>חובה</span>
-                ) : (
-                <button
-                  type="button"
-                  onClick={() => void toggle(s)}
-                  disabled={busyId === s.id}
-                  aria-pressed={!off}
-                  aria-label={`${off ? 'להוסיף' : 'להסיר'} — ${STEP_TYPE_LABELS[s.stepType]}`}
-                  style={{
-                    flexShrink: 0, width: '2.1rem', height: '1.2rem', padding: '.12rem',
-                    display: 'inline-flex', alignItems: 'center', border: 'none',
-                    borderRadius: '999px', cursor: 'pointer',
-                    background: off ? 'var(--bd-strong, #d3d6da)' : 'var(--accent)',
-                    justifyContent: off ? 'flex-start' : 'flex-end',
-                  }}
-                >
-                  <span style={{ width: '.95rem', height: '.95rem', borderRadius: '999px', background: '#fff' }} />
-                </button>
-                )}
+          {clientRows.length > 0 && <GroupTitle>מה הלקוח יראה בדף האישי</GroupTitle>}
+          {clientRows.map(r => renderRow(r, true))}
 
-                <span style={{ display: 'grid', gap: '.1rem', flex: 1, minWidth: 0 }}>
-                  <span style={{ fontWeight: 600, color: off ? 'var(--ink-3)' : 'var(--ink)' }}>
-                    {STEP_TYPE_LABELS[s.stepType]}
-                  </span>
-                  {clientVoice(s).sub && (
-                    <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{clientVoice(s).sub}</span>
-                  )}
-                </span>
-
-                <span style={{
-                  flexShrink: 0, fontSize: 'var(--fs-12)', color: 'var(--ink-3)',
-                  padding: '.15rem .45rem', borderRadius: '.35rem', background: 'var(--bg-2, #f3f2f0)',
-                  whiteSpace: 'nowrap',
-                }}>{STEP_BALL_LABELS[s.ball]}</span>
-
-                {locked && (
-                  <span style={{ flexShrink: 0, fontSize: 'var(--fs-12)', color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>
-                    🔒 בתור
-                  </span>
-                )}
-
-                {/* ‼ הסדר כאן הוא הסדר שהלקוח יראה בדף האישי, ולכן הוא חלק
-                    מההרכבה ולא קישוט. חצים ולא גרירה — בלי ספריות חדשות. */}
-                <span style={{ display: 'inline-flex', gap: 2, flexShrink: 0 }}>
-                  <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למעלה"
-                    disabled={busyId === s.id} onClick={() => void move(s.id, -1)}
-                    style={{ padding: '0 .3rem' }}>↑</button>
-                  <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למטה"
-                    disabled={busyId === s.id} onClick={() => void move(s.id, 1)}
-                    style={{ padding: '0 .3rem' }}>↓</button>
-                </span>
-              </div>
-              </div>
-            );
-          })}
+          {officeRows.length > 0 && <GroupTitle>העבודה שלי</GroupTitle>}
+          {officeRows.map(r => renderRow(r, false))}
 
           <div style={{ display: 'flex', gap: '.4rem', justifySelf: 'start' }}>
             <button type="button" className="btn btn-secondary" onClick={() => setAddOpen(true)}>+ בקשה</button>
@@ -324,26 +429,18 @@ export default function OnboardingProcessBuilder({
           </div>
         </div>
 
+        {/* --surface-2 ולא --bg-2: השני לא מוגדר בערכת הצבעים ונופל תמיד
+            לגוון בהיר — במצב כהה הפאנל נשאר לבן מול כרטיסים כהים. */}
         <aside style={{
           display: 'grid', gap: '.5rem', padding: '.75rem',
-          borderRadius: '.6rem', background: 'var(--bg-2, #f3f2f0)',
+          borderRadius: '.6rem', background: 'var(--surface-2)',
         }}>
           <span style={{ fontWeight: 600, fontSize: 'var(--fs-13)' }}>מה הוא יראה</span>
-          {preview.length === 0 && (
+          {preview.length === 0 && previewLocked.length === 0 && (
             <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
               אף בקשה לא מופנית ללקוח — הדף שלו יראה רק את מה שבטיפולנו.
             </span>
           )}
-          {previewLocked.map(s => (
-            <div key={s.id} style={{
-              display: 'flex', gap: '.5rem', alignItems: 'center',
-              padding: '.5rem', borderRadius: '.5rem', border: '1px dashed var(--bd)',
-              fontSize: 'var(--fs-12)', color: 'var(--ink-3)',
-            }}>
-              <span aria-hidden="true">🔒</span>
-              <span>{clientVoice(s).title} — ייפתח בהמשך</span>
-            </div>
-          ))}
           {preview.map((s, i) => {
             const v = clientVoice(s);
             return (
@@ -365,6 +462,16 @@ export default function OnboardingProcessBuilder({
               </div>
             );
           })}
+          {previewLocked.map(s => (
+            <div key={s.id} style={{
+              display: 'flex', gap: '.5rem', alignItems: 'center',
+              padding: '.5rem', borderRadius: '.5rem', border: '1px dashed var(--bd)',
+              fontSize: 'var(--fs-12)', color: 'var(--ink-3)',
+            }}>
+              <span aria-hidden="true">🔒</span>
+              <span>{clientVoice(s).title} — ייפתח בהמשך</span>
+            </div>
+          ))}
         </aside>
       </div>
 

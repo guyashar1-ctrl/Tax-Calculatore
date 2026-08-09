@@ -1977,6 +1977,18 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .client-table tbody tr:hover .row-menu-btn,
 .client-table tbody tr:focus-within .row-menu-btn { opacity: 1; }
 
+/* ── בונה התהליך: הרשימה + "מה הוא יראה" ───────────────────────────────────
+   שתי עמודות בדסקטופ; במסך צר הן נערמות — inline-grid קשיח נתן לרשימה
+   רוחב 0 במובייל והבקשות פשוט נעלמו. */
+.ob-builder-grid {
+  display: grid; gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .ob-builder-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* ── התקדמות הקליטה בדף המסע · דרישה 3 ─────────────────────────────────────
    סדר השלבים, מה נעשה, מה עכשיו, ומה חוסם — ובראש שתי הפעולות שקודם
    לא היו נגישות מדף המסע: הקישור ללקוח וסגירת הקליטה. */

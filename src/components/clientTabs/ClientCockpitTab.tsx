@@ -253,16 +253,17 @@ export default function ClientCockpitTab({
 
       {/* ── לוח הגשות + מה זז ── */}
       {/* פריסת המרכז לפי מסך 07 במוקאפ: עמודה רחבה למה שדורש טיפול,
-          ומסילה צרה לצידה למה שחוסם, למה שזז, ולהערה. */}
+          ומסילה צרה לצידה למה שחוסם, למה שזז, ולהערה.
+          ‼ מקטע ריק לא מוצג — "אין פעילות" ו"אין חובות דיווח" הם רעש שמאריך
+          את העמוד בלי להניע פעולה (הכרעת גיא 2026-08-09). */}
+      {(calendar.length > 0 || recentActivity.length > 0) && (
       <div className="cw-hub-grid cw-cockpit-row">
+        {calendar.length > 0 && (
         <div className="cw-section">
           <div className="cw-section-head">
             <span>לוח הגשות</span>
             <span className="cw-section-hint">חודשי ושנתי · נגזר מסוג העוסק</span>
           </div>
-          {calendar.length === 0 ? (
-            <div className="cw-empty">אין חובות דיווח שוטפות לפי הכרטיס.</div>
-          ) : (
             <div className="cw-cal">
               <div className="cw-cal-row cw-cal-head">
                 <span>הגשה</span><span>תקופה</span><span>מועד</span><span>מצב</span>
@@ -276,14 +277,12 @@ export default function ClientCockpitTab({
                 </div>
               ))}
             </div>
-          )}
         </div>
+        )}
 
+        {recentActivity.length > 0 && (
         <div className="cw-section">
           <div className="cw-section-head"><span>מה זז לאחרונה</span></div>
-          {recentActivity.length === 0 ? (
-            <div className="cw-empty">עדיין אין פעילות רשומה.</div>
-          ) : (
             <div>
               {recentActivity.map((a) => (
                 <div key={a.id} className="cw-activity-row">
@@ -292,22 +291,22 @@ export default function ClientCockpitTab({
                 </div>
               ))}
             </div>
-          )}
         </div>
+        )}
       </div>
+      )}
 
-      {/* ── משימות המשרד — עבודה שלי, לא בקשה שממתינה לאדם אחר ──────────── */}
+      {/* ── משימות המשרד — עבודה שלי, לא בקשה שממתינה לאדם אחר ────────────
+          ‼ בלי משימות פתוחות המקטע כולו יורד — יש לו בית בלשונית המשימות. */}
+      {openTasks.length > 0 && (
       <div className="cw-section">
         <div className="cw-section-head">
           <span>משימות המשרד</span>
-          {openTasks.length > 0 && <span className="cw-section-count">{openTasks.length} פתוחות</span>}
+          <span className="cw-section-count">{openTasks.length} פתוחות</span>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => onGotoTab('tasks')}>
             ללשונית המשימות
           </button>
         </div>
-        {openTasks.length === 0 ? (
-          <div className="cw-empty">אין משימת משרד פתוחה ללקוח הזה.</div>
-        ) : (
           <div className="cw-due-list">
             {openTasks.slice(0, 5).map((t) => {
               const tone = dueTone(t);
@@ -331,20 +330,23 @@ export default function ClientCockpitTab({
               </button>
             )}
           </div>
-        )}
         <p className="jt-footnote">
           משימות הן עבודת משרד; בקשות הן משהו שממתין לאדם אחר. שני מנגנונים נפרדים, גם אצל לקוח פעיל.
         </p>
       </div>
+      )}
 
-      {/* ── תיקי שנה + סכומי מפתח ── */}
+      {/* ── תיקי שנה + סכומי מפתח ──
+          ‼ כשאין אף תיק המקטע יורד: "אין תיק דוח שנתי" כבר מופיע כחריגה
+          למעלה, ושורת-ריק שנייה על אותו דבר היא רק אורך. */}
+      {(taxSessions.length > 0 || taxSessionsLoading) && (
       <div className="cw-section">
         <div className="cw-section-head">
           <span>תיקי שנה</span>
           {taxSessionsLoading && <span style={{ fontSize: '12px', color: 'var(--gray-400)' }}>טוען…</span>}
         </div>
-        {taxSessions.length === 0 && !taxSessionsLoading ? (
-          <div className="cw-empty">עדיין לא נפתח תיק דוח שנתי — מכפתור «התחל דוח שנתי» בראש כרטיס הלקוח.</div>
+        {taxSessions.length === 0 ? (
+          <div className="cw-empty">טוען…</div>
         ) : (
           /* שורה לשנה, לא גלולה: השנים נקראות זו מתחת לזו כרשימה
              כרונולוגית, ובכל שורה מצב אחד ופעולה אחת. */
@@ -384,6 +386,7 @@ export default function ClientCockpitTab({
           </div>
         )}
       </div>
+      )}
 
       {/* ── מיילים שיצאו ללקוח ── */}
       {emails

@@ -94,10 +94,26 @@ export default function ClientEmailsSection(
   return <ClientEmailsList rows={rows} loading={loading} onChanged={reload} />;
 }
 
-/** התצוגה בלבד — כדי שאפשר יהיה לבדוק אותה עם נתונים מדומים. */
-export function ClientEmailsList({ rows, loading, onChanged }: { rows: EmailMessage[]; loading?: boolean; onChanged: () => void }) {
+/** התצוגה בלבד — כדי שאפשר יהיה לבדוק אותה עם נתונים מדומים.
+ *  bare ⇒ בלי מעטפת וכותרת — כשהרשימה יושבת בתוך מקטע מתקפל שכבר נושא אותן. */
+export function ClientEmailsList({ rows, loading, onChanged, bare }: { rows: EmailMessage[]; loading?: boolean; onChanged: () => void; bare?: boolean }) {
   const [showAll, setShowAll] = useState(false);
   const shown = showAll ? rows : rows.slice(0, 5);
+
+  const body = rows.length === 0 ? (
+    <div className="cw-empty">{loading ? 'טוען…' : 'לא נשלח ללקוח הזה אף מייל מהמערכת.'}</div>
+  ) : (
+    <>
+      {shown.map(m => <Row key={m.id} m={m} onChanged={onChanged} />)}
+      {rows.length > shown.length && (
+        <button className="btn btn-ghost btn-sm" style={{ marginTop: '.3rem' }} onClick={() => setShowAll(true)}>
+          הצג עוד {rows.length - shown.length}
+        </button>
+      )}
+    </>
+  );
+
+  if (bare) return body;
 
   return (
     <div className="cw-section">
@@ -105,18 +121,7 @@ export function ClientEmailsList({ rows, loading, onChanged }: { rows: EmailMess
         <span>מיילים שנשלחו ללקוח</span>
         {rows.length > 0 && <span style={{ fontSize: '.75rem', color: 'var(--gray-400)' }}>{rows.length}</span>}
       </div>
-      {rows.length === 0 ? (
-        <div className="cw-empty">{loading ? 'טוען…' : 'לא נשלח ללקוח הזה אף מייל מהמערכת.'}</div>
-      ) : (
-        <>
-          {shown.map(m => <Row key={m.id} m={m} onChanged={onChanged} />)}
-          {rows.length > shown.length && (
-            <button className="btn btn-ghost btn-sm" style={{ marginTop: '.3rem' }} onClick={() => setShowAll(true)}>
-              הצג עוד {rows.length - shown.length}
-            </button>
-          )}
-        </>
-      )}
+      {body}
     </div>
   );
 }
