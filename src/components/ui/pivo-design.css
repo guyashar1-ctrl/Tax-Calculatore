@@ -2058,6 +2058,10 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .cob-action { font-size: var(--fs-13); color: var(--ink-3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cob-action.is-mine { color: var(--ink-1); }
 .cob-ball { color: var(--ink-4); margin-inline-start: .3rem; }
+/* ‼ "אצלך" הוא הקריאה לפעולה של המסך כולו (אפיון §5.1 — "נדרשת פעולה ממך").
+   משקל, לא צבע: צבע שמור לאיחור ולתקיעות. */
+.cob-ball.is-mine { color: var(--ink-1); font-weight: 500; }
+.cob-wait { color: var(--ink-4); margin-inline-start: .3rem; }
 /* ‼ עמודות מפורשות. בלעדיהן שורה בלי "ייצוג:" מדלגת על עמודה 5, הפותחן נופל
    לתוכה, והחץ קופץ 41px שמאלה בין שורה לשורה. */
 .cob-rep { grid-column: 5; font-size: var(--fs-12); color: var(--ink-3); white-space: nowrap; }

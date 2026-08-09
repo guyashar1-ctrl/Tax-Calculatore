@@ -142,6 +142,12 @@ export default function ClientsOnboardingSection({ clients, steps, engagements, 
                    המילה הזאת השורה מציגה שם שלב בלי הסבר למה הוא לא זז. */
                 : 'נעול';
 
+          /* ‼ כמה זמן ממתינים ל**פעולה הנוכחית** — מדד אחר מגיל הקליטה, ושניהם
+             נדרשים: קליטה בת 38 יום שהשלב שלה זז אתמול אינה תקועה. מתחת
+             לשלושה ימים זה רעש. (אפיון §5.1) */
+          const waited = r.step && r.actionable ? daysSince(r.step.updatedAt) : null;
+          const waitLabel = waited !== null && waited >= 3 ? `${waited} ימים` : null;
+
           const rep = r.client.representationStatus && r.client.representationStatus !== 'active'
             ? REPRESENTATION_STATUS_LABELS[r.client.representationStatus]
             : null;
@@ -167,7 +173,10 @@ export default function ClientsOnboardingSection({ clients, steps, engagements, 
 
                 <span className={`cob-action${r.priority === 1 ? ' is-mine' : ''}`}>
                   {action}
-                  {ball && <span className="cob-ball">· {ball}</span>}
+                  {ball && (
+                    <span className={`cob-ball${r.priority === 1 ? ' is-mine' : ''}`}>· {ball}</span>
+                  )}
+                  {waitLabel && <span className="cob-wait">· {waitLabel}</span>}
                 </span>
 
                 {rep && <span className="cob-rep">ייצוג: {rep}</span>}
