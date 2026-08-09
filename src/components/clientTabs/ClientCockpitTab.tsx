@@ -388,7 +388,10 @@ export default function ClientCockpitTab({
       {/* ── מיילים שיצאו ללקוח ── */}
       {emails
         ? <ClientEmailsList rows={emails} loading={emailsLoading} onChanged={onEmailsChanged ?? (() => {})} />
-        : client.id && <ClientEmailsSection clientId={client.id} emails={[client.email]} />}
+        /* since — הגבול של הניחוש לפי כתובת. ראה ClientEmailsSection. */
+        : client.id && (
+          <ClientEmailsSection clientId={client.id} emails={[client.email]} since={client.createdAt} />
+        )}
 
       {/* ── הערה מוצמדת + הוספה מהירה ── */}
       <div className="cw-section pin-section">

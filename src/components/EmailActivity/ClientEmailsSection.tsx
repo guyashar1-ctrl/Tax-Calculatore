@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useEmailMessages } from '../../hooks/useEmailMessages';
 import { emailKindLabel, EmailMessage } from '../../types/emailActivity';
+import { belongsToClientCard } from '../../utils/clientEmailFilter';
 import SentEmailViewer from './SentEmailViewer';
 import { supabase } from '../../lib/supabase';
 
@@ -72,7 +73,9 @@ function Row({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) {
   );
 }
 
-export default function ClientEmailsSection({ clientId, emails }: { clientId: string; emails?: (string | undefined)[] }) {
+export default function ClientEmailsSection(
+  { clientId, emails, since }: { clientId: string; emails?: (string | undefined)[]; since?: string },
+) {
   const { user } = useAuth();
   const { messages, loading, reload } = useEmailMessages(user?.id);
 
@@ -82,9 +85,10 @@ export default function ClientEmailsSection({ clientId, emails }: { clientId: st
     () => new Set((emails ?? []).filter(Boolean).map(e => e!.trim().toLowerCase())),
     [emails],
   );
+
   const rows = useMemo(
-    () => messages.filter(m => m.clientId === clientId || (!m.clientId && addresses.has((m.toEmail || '').toLowerCase()))),
-    [messages, clientId, addresses],
+    () => messages.filter(m => belongsToClientCard(m, { clientId, addresses, since })),
+    [messages, clientId, addresses, since],
   );
 
   return <ClientEmailsList rows={rows} loading={loading} onChanged={reload} />;
