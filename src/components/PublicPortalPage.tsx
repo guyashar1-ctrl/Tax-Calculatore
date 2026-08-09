@@ -141,10 +141,8 @@ function UploadItem({ token, tokenKind, stepId, itemKey, label, done, brand, acc
               onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
             <label htmlFor={inputId} style={{
               flexShrink: 0, cursor: busy ? 'default' : 'pointer',
-              fontSize: 12.5, fontWeight: 600, padding: '5px 14px',
-              color: busy ? brand.muted : accent,
-              border: `1px solid ${busy ? brand.border : accent}`,
-              borderRadius: brand.radius, opacity: busy ? .6 : 1,
+              fontSize: 12.5, fontWeight: 600, padding: '2px 0',
+              color: busy ? brand.muted : accent, opacity: busy ? .6 : 1,
             }}>{busy ? 'מעלה…' : 'העלאה'}</label>
           </>
         )}
@@ -248,6 +246,65 @@ function btn(accent: string, radius: number, busy: boolean): React.CSSProperties
     fontSize: 12.5, fontWeight: 600, padding: '7px 16px',
     color: '#fff', background: accent, borderRadius: radius, opacity: busy ? .6 : 1,
   };
+}
+
+/**
+ * פעולה אחת שממתינה ללקוח. השורות מכוונות לקריאה כרשימה שאפשר לתקוף בכל סדר,
+ * ולא כתור: אין עמודת נקודות מובילה, וכל שורה נושאת את הכפתור שלה.
+ *
+ * ‼ טופס הרו"ח הקודם נפתח בלחיצה ולא כברירת מחדל — שלושה שדות פתוחים באמצע
+ * הרשימה מושכים את כל תשומת הלב לפעולה אחת ומסתירים את השאר.
+ */
+function ActionItem({ token, item, brand, accent, last, onDone }: {
+  token: string; item: PortalItem; last: boolean;
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string; onDone: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const href = actionHref(item);
+  const inPage = item.actionKind === 'portal';
+  const quietBtn: React.CSSProperties = {
+    flexShrink: 0, textDecoration: 'none', cursor: 'pointer', background: 'none',
+    fontSize: 13, fontWeight: 600, padding: '6px 15px', color: accent,
+    border: `1px solid ${accent}`, borderRadius: brand.radius,
+  };
+
+  return (
+    <div style={{ padding: '12px 0', borderBottom: last ? 'none' : `1px solid ${brand.border}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink }}>{item.label}</div>
+          {item.sub && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.sub}</div>}
+        </div>
+        {href && <a href={href} style={quietBtn}>להמשך ←</a>}
+        {inPage && item.kind === 'prev_accountant' && !open && (
+          <button type="button" onClick={() => setOpen(true)} style={quietBtn}>למילוי</button>
+        )}
+      </div>
+
+      {/* ‼ מסמכים: הלקוח מעלה כאן, במקום. הקובץ נכנס ישר לתיק שלו אצל הרו"ח
+          ומסמן את הפריט. מה שמגיע בוואטסאפ או במייל עדיין מסומן ידנית על ידי
+          הרו"ח — שני הערוצים חיים זה לצד זה. */}
+      {inPage && item.kind === 'documents' && !!item.checklist?.length && item.actionValue && (
+        <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 2 }}>
+          {item.checklist.map(ci => (
+            <UploadItem key={ci.key ?? ci.label} token={token} tokenKind="portal"
+              stepId={item.actionValue!} itemKey={ci.key} label={ci.label} done={ci.done}
+              brand={brand} accent={accent} onDone={onDone} />
+          ))}
+        </ul>
+      )}
+
+      {inPage && item.kind === 'custom' && item.actionValue && (
+        <CustomRequestBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+      )}
+
+      {inPage && item.kind === 'prev_accountant' && item.actionValue && open && (
+        <PrevAccountantForm token={token} stepId={item.actionValue}
+          brand={brand} accent={accent} onDone={onDone} />
+      )}
+    </div>
+  );
 }
 
 /** טופס פרטי הרו"ח הקודם — הדבר היחיד שהלקוח כותב ישירות מהדף האישי. */
@@ -378,13 +435,12 @@ export default function PublicPortalPage({ token }: Props) {
   const office  = data.items.filter(i => i.bucket === 'office');
   const done    = data.items.filter(i => i.bucket === 'done');
   const future  = data.items.filter(i => i.bucket === 'future');
+  // מה שכבר נסגר קודם, ואחריו מה שרץ עכשיו — כך המקטע נקרא כרצף אחד.
+  const track   = [...done, ...office];
   const allDone = actions.length === 0 && office.length === 0 && data.total > 0;
   const firstName = data.clientFirstName;
   const stage: JourneyStage = data.journeyStage ?? 'identity';
   const stageIdx = Math.max(0, JOURNEY.findIndex(s => s.id === stage));
-  // הספירה המפורטת מדברת על שלבי הקליטה. לפני החתימה אין עדיין שלבים,
-  // ו"0 מתוך 1" רק מרעיש.
-  const showCount = stage !== 'quote' && data.total > 0;
 
   return (
     <div style={page}>
@@ -430,138 +486,64 @@ export default function PublicPortalPage({ token }: Props) {
             );
           })}
         </div>
-        {showCount && (
-          <div style={{ fontSize: 12, color: brand.muted, textAlign: 'center', marginTop: 8 }}>
-            {data.done} מתוך {data.total} הושלמו
-          </div>
-        )}
-
         {actions.length > 0 && (
           <>
-            <div style={{ ...sectionTitle, color: accent }}>
-              ממתין לך — {actions.length === 1 ? 'פעולה אחת קצרה' : `${actions.length} פעולות קצרות`}
+            <div style={{ ...sectionTitle, color: accent, marginBottom: 0 }}>
+              ממתין לך — {actions.length === 1 ? 'פעולה אחת' : `${actions.length} פעולות`}
             </div>
-            {actions.map(item => {
-              const href = actionHref(item);
-              const inPage = item.actionKind === 'portal';
+            <div style={{ fontSize: 12.5, color: brand.muted, marginBottom: 2 }}>
+              אפשר בכל סדר, ואפשר לעצור ולחזור לדף מתי שנוח
+            </div>
+            {actions.map((item, i) => (
+              <ActionItem key={item.key} token={token} item={item} brand={brand} accent={accent}
+                last={i === actions.length - 1} onDone={reload} />
+            ))}
+          </>
+        )}
+
+        {/* ‼ "הושלם" ו"בטיפול המשרד" הם מקטע אחד: אבני הדרך הגדולות — ההצעה
+            והייצוג — נבלעו כשורות בתחתית שני מקטעים נפרדים. כאן הן נקראות
+            כרצף אחד שמתקדם, וכל שורה נושאת את המצב שלה. */}
+        {track.length > 0 && (
+          <>
+            <div style={{ ...sectionTitle, marginBottom: 0 }}>במקביל</div>
+            <div style={{ fontSize: 12.5, color: brand.muted, marginBottom: 4 }}>
+              מתקדם אצלנו בזמן שאתה עושה את שלך
+            </div>
+            {track.map(item => {
+              const isDone = item.bucket === 'done';
               return (
-                <div key={item.key} style={{
-                  padding: '11px 0', borderBottom: `1px solid ${brand.border}`,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span aria-hidden="true" style={{
-                      width: 10, height: 10, borderRadius: 999, background: accent, flexShrink: 0,
-                    }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink }}>{item.label}</div>
-                      {item.sub && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.sub}</div>}
-                    </div>
-                    {href && (
-                      <a href={href} style={{
-                        flexShrink: 0, textDecoration: 'none', fontSize: 13.5, fontWeight: 600,
-                        padding: '8px 18px', color: '#fff', background: accent,
-                        borderRadius: brand.buttonStyle === 'pill' ? 999 : brand.radius,
-                      }}>להמשך ←</a>
+                <div key={item.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0' }}>
+                  <span aria-hidden="true" style={{
+                    flexShrink: 0, width: 14, marginTop: 1, textAlign: 'center',
+                    fontSize: isDone ? 13 : 11, color: isDone ? '#1e7a55' : brand.muted,
+                  }}>{isDone ? '✓' : '○'}</span>
+                  <div>
+                    <span style={{ fontSize: 13.5, color: isDone ? brand.muted : brand.ink }}>{item.label}</span>
+                    {item.sub && (
+                      <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.sub}</div>
                     )}
                   </div>
-
-                  {/* ‼ מסמכים: הלקוח מעלה כאן, במקום. הקובץ נכנס ישר לתיק שלו
-                      אצל הרו"ח ומסמן את הפריט. מה שמגיע בוואטסאפ או במייל עדיין
-                      מסומן ידנית על ידי הרו"ח — שני הערוצים חיים זה לצד זה. */}
-                  {inPage && item.kind === 'documents' && !!item.checklist?.length && item.actionValue && (
-                    <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 2 }}>
-                      {item.checklist.map(ci => (
-                        <UploadItem
-                          key={ci.key ?? ci.label}
-                          token={token}
-                          tokenKind="portal"
-                          stepId={item.actionValue!}
-                          itemKey={ci.key}
-                          label={ci.label}
-                          done={ci.done}
-                          brand={brand}
-                          accent={accent}
-                          onDone={reload}
-                        />
-                      ))}
-                    </ul>
-                  )}
-
-                  {inPage && item.kind === 'custom' && item.actionValue && (
-                    <CustomRequestBlock
-                      token={token}
-                      item={item}
-                      brand={brand}
-                      accent={accent}
-                      onDone={reload}
-                    />
-                  )}
-
-                  {inPage && item.kind === 'prev_accountant' && item.actionValue && (
-                    <PrevAccountantForm
-                      token={token}
-                      stepId={item.actionValue}
-                      brand={brand}
-                      accent={accent}
-                      onDone={reload}
-                    />
-                  )}
                 </div>
               );
             })}
           </>
         )}
 
-        {office.length > 0 && (
-          <>
-            <div style={sectionTitle}>בטיפול המשרד — אין צורך בפעולה שלך</div>
-            {office.map(item => (
-              <div key={item.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '8px 0' }}>
-                <span aria-hidden="true" style={{
-                  width: 10, height: 10, borderRadius: 999, border: `1.5px solid ${brand.muted}`,
-                  flexShrink: 0, marginTop: 5,
-                }} />
-                <div>
-                  <div style={{ fontSize: 13.5, color: brand.ink }}>{item.label}</div>
-                  {item.sub && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.sub}</div>}
-                </div>
-              </div>
-            ))}
-          </>
-        )}
-
-        {done.length > 0 && (
-          <>
-            <div style={sectionTitle}>הושלם</div>
-            {done.map(item => (
-              <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' }}>
-                <span aria-hidden="true" style={{
-                  width: 18, height: 18, borderRadius: 999, background: '#e4f1ea', color: '#1e5942',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, flexShrink: 0,
-                }}>✓</span>
-                <span style={{ fontSize: 13, color: brand.muted }}>{item.label}</span>
-              </div>
-            ))}
-          </>
-        )}
-
         {future.map(item => (
           <div key={item.key} style={{
-            display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, paddingTop: 12,
-            borderTop: `1px solid ${brand.border}`, color: brand.muted,
+            display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0', color: brand.muted,
           }}>
-            <span aria-hidden="true" style={{ fontSize: 13 }}>🔒</span>
+            <span aria-hidden="true" style={{ flexShrink: 0, width: 14, textAlign: 'center', fontSize: 11 }}>·</span>
             <span style={{ fontSize: 12.5 }}>{item.label} — {item.sub}</span>
           </div>
         ))}
 
         <div style={{
-          marginTop: 20, paddingTop: 12, borderTop: `1px solid ${brand.border}`,
+          marginTop: 22, paddingTop: 12, borderTop: `1px solid ${brand.border}`,
           fontSize: 12, color: brand.muted, textAlign: 'center', lineHeight: 1.6,
         }}>
-          הדף מתעדכן מעצמו — אפשר לשמור את הקישור ולחזור אליו בכל שלב.
-          <br />שאלות? פשוט השיבו למייל שקיבלתם מ{data.firmName}.
+          שאלות? פשוט השיבו למייל שקיבלתם מ{data.firmName}.
         </div>
       </div>
     </div>
