@@ -268,8 +268,14 @@ Deno.serve(async (req: Request) => {
 
     // ‼ הקישור האחיד (הכרעת גיא): מייל קישור-הייצוג מוביל לדף האישי של הלקוח,
     // שמציג את הפעולה הנוכחית — וגם את כל השאר. נשארים ישירים בכוונה:
+    //
     // חתימות (טוקן אישי לכל חותם — לבן/בת הזוג אין דף), אישור ב"ל (אתר חיצוני
     // עם אסמכתא), ושאלון שנשלח ללקוח ותיק בלי קליטה (אין לו מה לראות בדף).
+    //
+    // ‼ חריג נוסף (הכרעת גיא, 2026-08-09): בקשת ייצוג שנפתחה לבדה — בלי הצעה
+    // ובלי התקשרות — מובילה ישר לטופס. בדף האישי אין במקרה הזה שום דבר מלבד
+    // אותה פעולה עצמה, ודף ביניים עם פעולה אחת הוא קליק מיותר. הטוקן עדיין
+    // נוצר, כדי שהדף יהיה מוכן ברגע שייפתח תהליך.
     if (stage === "onboard" && logClientId) {
       const { data: pc } = await admin.from("clients")
         .select("portal_token").eq("id", logClientId).maybeSingle();
@@ -280,7 +286,12 @@ Deno.serve(async (req: Request) => {
           .update({ portal_token: portalToken }).eq("id", logClientId);
         if (portalErr) portalToken = "";
       }
-      if (portalToken) ctaHref = `${APP_URL}/?portal=${portalToken}`;
+      const { count: engCount } = await admin.from("engagements")
+        .select("id", { count: "exact", head: true }).eq("client_id", logClientId);
+      // המסלול של אישור ההצעה שומר על הדף האישי גם לפני שנפתחה התקשרות —
+      // הנוסח שלו מפנה אליו במפורש, והלקוח יקבל שם עוד פעולות בהמשך.
+      const portalWorthIt = (engCount ?? 0) > 0 || !!quotationId;
+      if (portalToken && portalWorthIt) ctaHref = `${APP_URL}/?portal=${portalToken}`;
     }
 
     // ‼ המייל הזה כבר לא נשלח ברגע החתימה — שם המסך ממשיך מעצמו, והקישור

@@ -83,6 +83,7 @@ import TestQuotations from './components/__TestQuotations';
 import TestDeferred from './components/quotations/__TestDeferred';
 import TestSignDone from './components/ui/__TestSignDone';
 import TestFirmNotifications from './components/__TestFirmNotifications';
+import TestRepDialog from './components/__TestRepDialog';
 import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
@@ -200,6 +201,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-firm-notifications')) {
     return <TestFirmNotifications />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-repdialog')) {
+    return <TestRepDialog />;
   }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {
@@ -689,7 +693,7 @@ export default function App() {
    * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
    */
   async function handleCreateRepresentation(data: CreateRepresentationInput): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
-    const { name, email, areas, spouse, prefill, sendEmail } = data;
+    const { name, email, areas, spouse, prefill, sendEmail, hasPreviousAccountant, prevAccountant } = data;
     // שער בטיחות: לא פותחים בקשה כפולה לאותו מייל (גם אם ה-UI כבר חוסם).
     // בלי מייל אין מה לבדוק — הזיהוי ייקבע כשהלקוח ימלא.
     if (email) {
@@ -734,6 +738,11 @@ export default function App() {
       ...(prefill.familyStatusYear && prefill.familyStatus === 'widowed'  ? { widowhoodYear: prefill.familyStatusYear } : {}),
       ...(spouse ? { spouseName: spouse.name } : {}),
       ...(spouse?.idNumber ? { spouseIdNumber: spouse.idNumber } : {}),
+      // מעבר מרו"ח אחר נרשם על הכרטיס מיד: ממנו נגזרים מכתב השחרור ומעקב החומרים.
+      hasPreviousAccountant,
+      ...(prevAccountant?.name  ? { prevAccountantName: prevAccountant.name } : {}),
+      ...(prevAccountant?.email ? { prevAccountantEmail: prevAccountant.email } : {}),
+      ...(prevAccountant?.phone ? { prevAccountantPhone: prevAccountant.phone } : {}),
       notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין להשלמת התהליך.',
     });
     await addClient(client);
@@ -1936,6 +1945,11 @@ export default function App() {
             initialName={lead?.fullName ?? convertingQuotation.snapshot?.recipientName ?? ''}
             initialEmail={lead?.email ?? convertingQuotation.snapshot?.recipientEmail ?? ''}
             isTransfer={!!(lead?.hasPreviousAccountant || client?.hasPreviousAccountant)}
+            initialPrevAccountant={{
+              name:  lead?.prevAccountantName  ?? client?.prevAccountantName,
+              email: lead?.prevAccountantEmail ?? client?.prevAccountantEmail,
+              phone: lead?.prevAccountantPhone ?? client?.prevAccountantPhone,
+            }}
             onCreate={handleCreateRepresentationFromQuotation}
             onCancel={() => setConvertingQuotation(null)}
             checkEmailConflict={repEmailConflictMessage}

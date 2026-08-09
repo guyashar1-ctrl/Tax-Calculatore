@@ -27,6 +27,9 @@ export interface CreateRepresentationInput {
   prefill: OnboardingPrefill;
   /** false ⇒ מפיקים קישור בלבד; הרו"ח ישלח אותו בעצמו בוואטסאפ. */
   sendEmail: boolean;
+  /** הלקוח עובר מרו"ח אחר — נרשם על הכרטיס, וממנו נגזר מכתב השחרור. */
+  hasPreviousAccountant: boolean;
+  prevAccountant?: { name?: string; email?: string; phone?: string };
 }
 
 interface Props {
@@ -40,8 +43,11 @@ interface Props {
   /**
    * הלקוח עובר מרו"ח אחר. הרו"ח הקודם עדיין תופס את מקום המייצג הראשי
    * ברשויות, ולכן הייצוג נפתח כמייצג משני עד לשחרורו.
+   * זהו ערך פתיחה בלבד — בדיאלוג עצמו אפשר לסמן ולבטל.
    */
   isTransfer?: boolean;
+  /** פרטי הרו"ח הקודם שכבר ידועים (מהליד) — ערכי פתיחה לשדות. */
+  initialPrevAccountant?: { name?: string; email?: string; phone?: string };
 }
 
 interface AreaState {
@@ -59,7 +65,7 @@ const FAMILY_ORDER: FamilyStatus[] = ['single', 'married', 'divorced', 'widowed'
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict, initialName, initialEmail, isTransfer = false }: Props) {
+export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict, initialName, initialEmail, isTransfer = false, initialPrevAccountant }: Props) {
   const [name, setName] = useState(initialName ?? '');
   const [email, setEmail] = useState(initialEmail ?? '');
   // הגעה עם מייל ידוע (הפיכת ליד ללקוח) ⇒ שליחה במייל היא ברירת המחדל ההגיונית
@@ -75,6 +81,12 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   const [sameSigningEmail, setSameSigningEmail] = useState(false);
   const [niCoversSpouse, setNiCoversSpouse] = useState(false);
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
+  const [transfer, setTransfer] = useState(isTransfer);
+  const [prevAcc, setPrevAcc] = useState({
+    name: initialPrevAccountant?.name ?? '',
+    email: initialPrevAccountant?.email ?? '',
+    phone: initialPrevAccountant?.phone ?? '',
+  });
   // מעבר מרו"ח אחר ⇒ הרשויות שנושאות רמה נפתחות כמייצג משני (ב"ל ללא רמה).
   const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>(() => {
     const level: RepLevel = isTransfer ? 'secondary' : 'primary';
@@ -106,12 +118,29 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     setAreas(prev => ({ ...prev, [a]: { ...prev[a], level } }));
   }
 
+  // סימון המעבר גורר את הרמה איתו: כל עוד הרו"ח הקודם לא שוחרר הוא המייצג
+  // הראשי ברשויות, ואנחנו נכנסים כמשניים. הרמה נשארת ניתנת לשינוי ידני אחרי כן.
+  function toggleTransfer(on: boolean) {
+    setTransfer(on);
+    const level: RepLevel = on ? 'secondary' : 'primary';
+    setAreas(prev => {
+      const next = { ...prev };
+      for (const a of REP_AUTHORITY_ORDER) {
+        if (hasLevel(a)) next[a] = { ...next[a], level };
+      }
+      return next;
+    });
+  }
+
   function validate(): string | null {
     if (selectedKeys.length === 0) return 'יש לבחור לפחות רשות אחת לייצוג';
     // בשליחה במייל הכתובת היא תנאי; בקישור אין צורך בה כלל — הלקוח ימלא בעצמו.
     if (sendBy === 'email' && !email.trim()) return 'יש להזין כתובת מייל, או לעבור לשליחה בקישור';
     if (email.trim() && !isValidEmail(email)) return 'כתובת אימייל לא תקינה';
     if (emailConflict) return emailConflict;
+    if (transfer && prevAcc.email.trim() && !isValidEmail(prevAcc.email)) {
+      return 'כתובת המייל של הרו״ח הקודם אינה תקינה';
+    }
     if (yearLabel && familyYear.trim()) {
       const y = Number(familyYear);
       if (!Number.isInteger(y) || y < 1900 || y > CURRENT_YEAR) return `${yearLabel} — יש להזין שנה תקינה`;
@@ -184,6 +213,12 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
         spouse,
         prefill,
         sendEmail: sendBy === 'email' && isValidEmail(email),
+        hasPreviousAccountant: transfer,
+        prevAccountant: transfer ? {
+          name: prevAcc.name.trim() || undefined,
+          email: prevAcc.email.trim() || undefined,
+          phone: prevAcc.phone.trim() || undefined,
+        } : undefined,
       });
       setResult(res);
     } catch (err) {
@@ -295,15 +330,59 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
         </div>
 
         <div className="modal-body">
+          {/* ‼ השאלה הזאת נשאלת לפני הרשויות ולא אחריהן: היא זו שקובעת אם
+              נכנסים כמייצג ראשי או משני, והיא זו שמולידה את מכתב השחרור.
+              קודם היא נגזרה מהליד בלבד — ובבקשת ייצוג ישירה לא היה איפה לסמן. */}
+          <div style={{
+            padding: '.7rem .8rem', marginBottom: '1.1rem',
+            border: `1px solid ${transfer ? 'var(--accent)' : 'var(--hairline-1)'}`,
+            borderRadius: 'var(--radius)',
+          }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.6rem', cursor: busy ? 'default' : 'pointer' }}>
+              <input type="checkbox" checked={transfer} disabled={busy}
+                onChange={e => toggleTransfer(e.target.checked)} />
+              <span style={{ fontSize: 'var(--fs-15)', fontWeight: transfer ? 600 : 400 }}>
+                הלקוח עובר מרו״ח אחר
+              </span>
+            </label>
+            {transfer ? (
+              <div style={{ marginTop: '.6rem' }}>
+                <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.55, marginBottom: '.5rem' }}>
+                  הייצוג נפתח כמייצג משני עד לשחרור מהרו״ח הקודם. אפשר לשנות למטה.
+                </div>
+                <div className="form-group">
+                  <label>שם הרו״ח הקודם (לא חובה)</label>
+                  <input type="text" value={prevAcc.name} disabled={busy}
+                    onChange={e => setPrevAcc(v => ({ ...v, name: e.target.value }))}
+                    placeholder="שם רואה החשבון או המשרד" />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.6rem', marginTop: '.5rem' }}>
+                  <div className="form-group">
+                    <label>מייל</label>
+                    <input type="email" value={prevAcc.email} disabled={busy} dir="ltr" style={{ textAlign: 'right' }}
+                      onChange={e => setPrevAcc(v => ({ ...v, email: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>טלפון</label>
+                    <input type="tel" value={prevAcc.phone} disabled={busy} dir="ltr" style={{ textAlign: 'right' }}
+                      onChange={e => setPrevAcc(v => ({ ...v, phone: e.target.value }))} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.5rem', lineHeight: 1.5 }}>
+                  מה שלא ידוע כאן — אפשר לבקש מהלקוח בדף האישי, ומכתב השחרור ייבנה ממנו.
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: '.4rem', lineHeight: 1.5 }}>
+                לקוח חדש לגמרי — נכנסים כמייצג ראשי, בלי מכתב שחרור.
+              </div>
+            )}
+          </div>
+
           {/* רשויות — הבחירה היחידה שנדרשת */}
           <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginBottom: '.5rem' }}>
             אילו רשויות לייצג? <span style={{ color: 'var(--danger)' }}>*</span>
           </label>
-          {isTransfer && (
-            <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginBottom: '.5rem', lineHeight: 1.55 }}>
-              הלקוח עובר מרו״ח אחר — הייצוג נפתח כמייצג משני. אפשר לשנות.
-            </div>
-          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
             {REP_AUTHORITY_ORDER.map(a => {
               const st = areas[a];
