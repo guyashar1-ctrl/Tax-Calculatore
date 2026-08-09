@@ -40,6 +40,7 @@ import SendPortalDialog from './SendPortalDialog';
 import ClientPagePreviewDialog from './ClientPagePreviewDialog';
 import CaseStageSections from './CaseStageSections';
 import type { JourneyStageRow } from './CaseStageSections';
+import PublishCasePrompt from './PublishCasePrompt';
 
 interface Props {
   clientId: string;
@@ -385,6 +386,9 @@ export default function OnboardingTab({
   const [previewOpen, setPreviewOpen] = useState(false);
   /** שלבי-העל של התיק (journey_stages). ריק ⇒ דליי ברירת-המחדל בלבד. */
   const [stageRows, setStageRows] = useState<JourneyStageRow[]>([]);
+  /** "עדכן את דף הלקוח" — פרסום כל השינויים, ואז השאלה על המייל (D4). */
+  const [publishingCase, setPublishingCase] = useState(false);
+  const [publishPromptOpen, setPublishPromptOpen] = useState(false);
 
   useEffect(() => {
     if (!embedded) return;
@@ -518,8 +522,20 @@ export default function OnboardingTab({
     const res = data as { ok?: boolean; error?: string } | null;
     if (rpcError || !res?.ok) { setError(rpcError?.message ?? 'פתיחת הבקשה נכשלה.'); return; }
     refresh?.();
-    // הבקשה נחשפה — עכשיו אפשר להציע את המייל שמודיע עליה.
-    setEmailDialog({ stepId: id, kind: 'step_reminder', heading: 'הודעה ללקוח על הבקשה' });
+    // הכרעת D4: החשיפה אינה גוררת את מסך המייל. נשאלת השאלה הנפרדת —
+    // "לשלוח מייל עם הקישור?" — ומי שרוצה שולח משם.
+    setPublishPromptOpen(true);
+  }
+
+  /** פרסום כל שינויי התיק בבת אחת — טיוטות + עריכות ממתינות. */
+  async function publishCase() {
+    setPublishingCase(true);
+    const { data, error: rpcError } = await supabase.rpc('publish_case_changes', { p_client_id: clientId });
+    setPublishingCase(false);
+    const res = data as { ok?: boolean; error?: string } | null;
+    if (rpcError || !res?.ok) { setError(rpcError?.message ?? 'הפרסום נכשל.'); return; }
+    refresh?.();
+    setPublishPromptOpen(true);
   }
 
   async function setStepRequired(id: string, required: boolean) {
@@ -917,6 +933,39 @@ export default function OnboardingTab({
 
       {loading && clientSteps.length === 0 && <div className="cw-empty">טוען…</div>}
 
+      {/* ── פס הפרסום: "יש שינויים שלא פורסמו" (הכרעת D4) ──────────────────
+          מופיע רק כשיש טיוטות או עריכות ממתינות. הפרסום לא שולח מייל —
+          השאלה על המייל נשאלת מיד אחריו, בנפרד. */}
+      {embedded && (() => {
+        // טיוטה = published_at ריק במסד או המראה הישנה ב-payload; undefined
+        // (נתוני בדיקה ישנים) אינו טיוטה. עריכה ממתינה = draft_payload מלא.
+        const dirty = clientSteps.filter(s =>
+          s.publishedAt === null || s.payload.published === false || s.draftPayload);
+        if (dirty.length === 0) return null;
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap',
+            padding: '.55rem .8rem', borderRadius: 'var(--radius)',
+            border: '1px solid #fbbf77', background: 'var(--surface-2)',
+          }}>
+            <span aria-hidden="true" style={{ color: '#b45309' }}>●</span>
+            <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-1)' }}>
+              {dirty.length === 1 ? 'שינוי אחד שלא פורסם' : `${dirty.length} שינויים שלא פורסמו`}
+            </span>
+            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', flex: 1 }}>
+              {dirty.length === 1 ? 'הלקוח לא יראה אותו עד שמעדכנים את הדף' : 'הלקוח לא יראה אותם עד שמעדכנים את הדף'}
+            </span>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPreviewOpen(true)}>
+              תצוגה מקדימה
+            </button>
+            <button type="button" className="btn btn-sm btn-primary" disabled={publishingCase}
+              onClick={() => void publishCase()}>
+              {publishingCase ? 'מפרסם…' : 'עדכן את דף הלקוח'}
+            </button>
+          </div>
+        );
+      })()}
+
       {/* ── מרכז התיק: היררכיית שלבי-על (המודל המאושר) ─────────────────────
           מוטמע בדף המסע בלבד; המסך הישן (מאחורי journeyUi=false) נשאר רשימה
           שטוחה כדי שמתג החירום יחזיר בדיוק את מה שהיה. */}
@@ -1057,6 +1106,14 @@ export default function OnboardingTab({
           clientId={clientId}
           clientName={clientDisplayName ?? 'הלקוח'}
           onClose={() => setPreviewOpen(false)}
+        />
+      )}
+      {publishPromptOpen && (
+        <PublishCasePrompt
+          clientId={clientId}
+          clientName={clientDisplayName ?? 'הלקוח'}
+          clientEmail={clientEmail}
+          onClose={() => { setPublishPromptOpen(false); refresh?.(); }}
         />
       )}
     </div>

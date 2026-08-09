@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { PortalView, PortalData } from '../PublicPortalPage';
 import ClientPagePreviewDialog from './ClientPagePreviewDialog';
+import PublishCasePrompt from './PublishCasePrompt';
 
 const FIXTURE: PortalData = {
   clientFirstName: 'נועה',
@@ -42,6 +43,7 @@ const FIXTURE: PortalData = {
 export default function TestPortalPreview() {
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [promptId, setPromptId] = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
@@ -86,8 +88,12 @@ export default function TestPortalPreview() {
         {sessionReady && clients.length === 0 && <p>למשתמש הזה אין לקוחות ב-DB.</p>}
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
           {clients.map(c => (
-            <button key={c.id} type="button" className="btn btn-sm btn-secondary"
-              onClick={() => setOpenId(c.id)}>{c.name}</button>
+            <span key={c.id} style={{ display: 'inline-flex', gap: '.25rem' }}>
+              <button type="button" className="btn btn-sm btn-secondary"
+                onClick={() => setOpenId(c.id)}>{c.name}</button>
+              <button type="button" className="btn btn-sm btn-ghost" title="שאלת המייל שאחרי פרסום (D4)"
+                onClick={() => setPromptId(c.id)}>שאלת פרסום</button>
+            </span>
           ))}
         </div>
       </section>
@@ -97,6 +103,14 @@ export default function TestPortalPreview() {
           clientId={openId}
           clientName={clients.find(c => c.id === openId)?.name ?? openId}
           onClose={() => setOpenId(null)}
+        />
+      )}
+      {promptId && (
+        <PublishCasePrompt
+          clientId={promptId}
+          clientName={clients.find(c => c.id === promptId)?.name ?? promptId}
+          clientEmail="delivered@resend.dev"
+          onClose={() => setPromptId(null)}
         />
       )}
     </div>
