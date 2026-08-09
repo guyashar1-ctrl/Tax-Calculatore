@@ -21,10 +21,8 @@ import {
 } from '../types';
 import { ShaamStatus } from '../types/clientWorkspace';
 import type { Engagement, OnboardingStep } from '../types/onboarding';
-import { isStepOpen } from '../types/onboarding';
-import OnboardingGrid from './OnboardingGrid';
+import ClientsOnboardingSection from './ClientsOnboardingSection';
 import type { Lead } from '../types/quotations';
-import RepSignersStatus from './RepSignersStatus';
 import Icon from './ui/Icon';
 import ClientDeleteDialog from './ClientDeleteDialog';
 import { EmptyState } from './ui/States';
@@ -153,15 +151,6 @@ const STATUS_ORDER: Record<RepresentationStatus, number> = {
   active: 5,
 };
 
-// שלבי צינור הייצוג (הבקשות שעדיין לא הפכו ל"מיוצג פעיל") + "אצל מי הכדור" בכל שלב.
-const PIPELINE_STAGES: { id: RepresentationStatus; label: string; ball: string; ballClass: string }[] = [
-  { id: 'pending_fill', label: 'ממתין למילוי הלקוח', ball: 'אצל הלקוח', ballClass: 'badge-blue' },
-  { id: 'awaiting_accountant', label: 'דורש הפקת טופס', ball: 'אצלי', ballClass: 'badge-orange' },
-  { id: 'pending_signature', label: 'נשלח לחתימת הלקוח', ball: 'אצל הלקוח', ballClass: 'badge-blue' },
-  { id: 'awaiting_stamp', label: 'דרושה חתימה + חותמת', ball: 'אצלי', ballClass: 'badge-orange' },
-  { id: 'awaiting_authorities', label: 'ממתין לאישור הרשויות', ball: 'אצל הרשות', ballClass: 'badge-purple' },
-];
-
 export default function ClientList({
   clients,
   requests,
@@ -197,10 +186,12 @@ export default function ClientList({
   const [shaamFilter, setShaamFilter] = useState<'all' | ShaamStatus>('all');
   // ‼ הטאב הוא הסינון. 'default' = רשימת העבודה: כל מי שאינו ליד ואינו בארכיון.
   // הבחירה נזכרת כדי שהמסך לא יתאפס בכל כניסה.
+  /* ‼ 'onboarding' אינו לשונית עוד — הקליטה חיה במקטע העליון בלבד. ערך שמור
+     מהגרסה הקודמת נופל חזרה ל"הכל", אחרת המסך היה נפתח על לשונית שאינה
+     קיימת ומציג רשימה ריקה. */
   const [stageFilter, setStageFilter] = useState<'default' | LifecycleStage>(() => {
     const saved = localStorage.getItem('crm_clients_tab');
-    return saved === 'quoted' || saved === 'onboarding' || saved === 'active' || saved === 'lead'
-      ? saved : 'default';
+    return saved === 'quoted' || saved === 'active' || saved === 'lead' ? saved : 'default';
   });
   function switchTab(next: 'default' | LifecycleStage) {
     setStageFilter(next);
@@ -211,8 +202,6 @@ export default function ClientList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newLeadRequested, journeyUi]);
   const [openRowMenu, setOpenRowMenu] = useState<string | null>(null);
-  /** המבט התפעולי — בקשות קליטה פתוחות. אינו שלב חיים ואינו לשונית. */
-  const [opsOnboarding, setOpsOnboarding] = useState(false);
   const [openTasksOnly, setOpenTasksOnly] = useState(false);
 
   // לחיצה מחוץ לתפריט השורה סוגרת אותו — אחרת הוא נשאר פתוח על שורה
@@ -234,16 +223,6 @@ export default function ClientList({
   const getStatus = (c: Client): RepresentationStatus => c.representationStatus ?? 'active';
   const getStage = (c: Client): LifecycleStage => c.lifecycleStage ?? 'active';
 
-  // כמה קליטות פתוחות — נספר לפי שלבים פתוחים בפועל, לא לפי שלב החיים, כדי
-  // שהמונה לא יראה לקוחות שהקליטה שלהם כבר נסגרה.
-  const onboardingCount = useMemo(() => {
-    if (!onboardingSteps) return 0;
-    const open = new Set<string>();
-    for (const s of onboardingSteps) if (isStepOpen(s.status) && s.status !== 'cancelled') open.add(s.clientId);
-    return open.size;
-  }, [onboardingSteps]);
-  const showOnboardingView = opsOnboarding && !!onboardingSteps && !!onOpenOnboarding;
-
   /* ‼ ציר אחד לכל הלשוניות הראשיות: שלב החיים שעל הכרטיס, ותו לא.
      קודם "בקליטה" נספר לפי שלבים פתוחים בפועל — ציר אחר לגמרי — ולכן אותו
      אדם נספר פעמיים (פעיל *וגם* בקליטה), והלשוניות לא חילקו את האוכלוסייה.
@@ -258,6 +237,12 @@ export default function ClientList({
     return m;
   }, [clients]);
 
+  /* ‼ נספר לפי ההתקשרות — בדיוק כמו מקטע "לקוחות בתהליך" שמעל. שני מספרים
+     שנספרים אחרת על אותו מסך הם שני מספרים שסותרים זה את זה. */
+  const onboardingCount = useMemo(
+    () => new Set((engagements ?? []).filter(e => e.status === 'onboarding').map(e => e.clientId)).size,
+    [engagements]);
+
   // ‼ ליד שטרם קיבל הצעה אין לו כרטיס לקוח, ולכן הוא לא יופיע בטבלה. בלי
   // הרשימה הזו הוא היה נעלם מהמסך לגמרי כשהמשפך ירד.
   const cardlessLeads = useMemo(
@@ -270,7 +255,6 @@ export default function ClientList({
   const TABS: { key: 'default' | LifecycleStage; label: string; count?: number }[] = [
     { key: 'lead', label: 'לידים', count: stageCounts.lead + cardlessLeads.length },
     { key: 'quoted', label: 'בהצעה', count: stageCounts.quoted },
-    { key: 'onboarding', label: 'בקליטה', count: stageCounts.onboarding },
     { key: 'active', label: 'לקוחות פעילים', count: stageCounts.active },
     ...(stageCounts.archived > 0
       ? [{ key: 'archived' as LifecycleStage, label: 'ארכיון', count: stageCounts.archived }]
@@ -407,14 +391,11 @@ export default function ClientList({
     return <span className="sort-icon active">{sortDir === 'asc' ? '▲' : '▼'}</span>;
   };
 
-  // הפרדה: בקשות בתהליך (עדיין לא "מיוצג פעיל") מול לקוחות מיוצגים.
-  const pipelineList = useMemo(
-    () => filtered
-      .filter(c => getStatus(c) !== 'active')
-      .sort((a, b) => STATUS_ORDER[getStatus(a)] - STATUS_ORDER[getStatus(b)]),
-    [filtered],
-  );
-  const activeList = useMemo(() => filtered.filter(c => getStatus(c) === 'active'), [filtered]);
+  /* ‼ הטבלה מציגה את כל מי שהלשונית מכילה, ולא רק "מיוצג פעיל".
+     הפיצול הקודם הוא שיצר את הסתירה: הכרטיס שמעל הציג לקוחות בתהליך,
+     והטבלה מתחתיו הכריזה "אין עדיין לקוחות ברשימה" — כי היא סיננה החוצה
+     בדיוק את אותם אנשים. שתי רשימות באותו מסך על שתי אוכלוסיות שונות. */
+  const activeList = filtered;
 
   function handleRowClick(c: Client) {
     // ‼ כניסה אחת: לחיצה על אדם פותחת את המסע שלו, בכל שלב חיים. עד כה
@@ -449,6 +430,10 @@ export default function ClientList({
     (openTasksOnly ? 1 : 0) +
     (upcomingDebtsOnly ? 1 : 0);
 
+  /* האם המסך מצומצם כרגע — חיפוש, פילטר מתקדם, או לשונית שאינה "הכל".
+     קובע אם הריקנות היא "אין תוצאות" (עם דרך חזרה) או "אין כאן אף אחד". */
+  const isNarrowed = search.trim() !== '' || activeAdvancedCount > 0 || stageFilter !== 'default';
+
   function clearAdvanced() {
     setEmployeeFilter('all');
     setVatFilter('all');
@@ -466,15 +451,10 @@ export default function ClientList({
           ובראש המסך ולא באמצעו. המשפט מתחת הוא מה שהמסך מבטיח. */}
       <div className="pg-head">
         <div className="pg-head-main">
-          <div className="pg-title">{showOnboardingView ? 'קליטות פתוחות' : 'לקוחות'}</div>
-          <div className="pg-status">
-            {showOnboardingView
-              ? `${onboardingCount} בתהליך קליטה`
-              /* ‼ נספרים כל מי שמופיע על המסך — גם מי שהייצוג שלו עדיין
-                 בתהליך ויושב בפאנל שמעל הטבלה. הכותרת אומרת "אנשים",
-                 ומספר שסופר רק חלק מהם הוא מספר ששוקר. */
-              : `${filtered.length} אנשים · אדם אחד לכל אורך המסע`}
-          </div>
+          <div className="pg-title">לקוחות</div>
+          {/* ‼ משפט המצב הוא היחיד שמדווח מספרים בראש המסך. מקטע הקליטה
+              נושא את המונה שלו בכותרת שלו, ואין רצועת מחוונים. */}
+          <div className="pg-status">{`${filtered.length} אנשים · אדם אחד לכל אורך המסע`}</div>
         </div>
         <div className="pg-actions">
           {/* טעינת דוגמאות היא כלי פיתוח ולא פעולה של רואה חשבון —
@@ -490,6 +470,19 @@ export default function ClientList({
           <button className="btn btn-primary" onClick={onAdd}>+ לקוח חדש</button>
         </div>
       </div>
+
+      {/* ── לקוחות בתהליך ──────────────────────────────────────────────────
+          התצוגה התפעולית היחידה לקליטה. יושבת מעל הלשוניות ולא בתוכן, כי
+          היא אינה שלב חיים אלא העבודה של הבוקר. הלשוניות שמתחת שייכות
+          לטבלה. ראה docs/DECISIONS-CLIENTS-ONBOARDING-SECTION.md. */}
+      {onboardingSteps && engagements && onOpenOnboarding && (
+        <ClientsOnboardingSection
+          clients={clients}
+          steps={onboardingSteps}
+          engagements={engagements}
+          onOpen={onOpenOnboarding}
+        />
+      )}
 
       <div className="cl-list-header">
         <div style={{ display: 'flex', gap: '.15rem', flexWrap: 'wrap' }}>
@@ -507,7 +500,7 @@ export default function ClientList({
                 style={{
                   padding: '.45rem .7rem', border: 'none', background: 'transparent',
                   borderBottom: `2px solid ${on ? 'var(--accent)' : 'transparent'}`,
-                  color: on ? 'var(--ink)' : 'var(--ink-3)',
+                  color: on ? 'var(--ink-1)' : 'var(--ink-3)',
                   fontWeight: on ? 600 : 500, fontSize: 'var(--fs-14)',
                   cursor: 'pointer', whiteSpace: 'nowrap',
                 }}
@@ -518,24 +511,6 @@ export default function ClientList({
           })}
         </div>
       </div>
-
-      {/* ── מבט תפעולי · לא שלב חיים ────────────────────────────────────────
-          "למי יש בקשה פתוחה" חוצה שלבי חיים: גם לקוח פעיל יכול לחכות לבקשה.
-          לכן הוא לא לשונית — הלשוניות מחלקות את האוכלוסייה בלי חפיפה — אלא
-          שורה נפרדת שמסומנת ככזו. */}
-      {onboardingCount > 0 && onOpenOnboarding && (
-        <div className="cl-ops-row">
-          <span className="cl-ops-label">מבט תפעולי</span>
-          <button
-            type="button"
-            className={`btn btn-sm ${opsOnboarding ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setOpsOnboarding(v => !v)}
-          >
-            בקשות קליטה פתוחות · {onboardingCount}
-          </button>
-          <span className="cl-ops-hint">חוצה שלבי חיים — כולל לקוחות פעילים שממתינים לבקשה</span>
-        </div>
-      )}
 
       {(<>
       {/* Search + advanced toggle */}
@@ -643,62 +618,6 @@ export default function ClientList({
         />
       ) : (
         <>
-          {pipelineList.length > 0 && (
-            <div className="card" style={{ padding: '1rem 1.1rem', marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
-                <span style={{ fontSize: '17px', fontWeight: 500 }}>בתהליך ייצוג</span>
-                <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>· {pipelineList.length}</span>
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--gray-500)', marginBottom: 12 }}>כל בקשה, השלב שבו היא, ואצל מי הכדור.</div>
-              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 4 }}>
-                {PIPELINE_STAGES.map(s => {
-                  const n = pipelineList.filter(c => getStatus(c) === s.id).length;
-                  return (
-                    <div key={s.id} style={{ flex: '0 0 auto', minWidth: 108, textAlign: 'center', background: 'var(--gray-50)', borderRadius: 10, padding: '8px 12px' }}>
-                      <div style={{ fontSize: '20px', fontWeight: 500 }}>{n}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{s.label}</div>
-                    </div>
-                  );
-                })}
-              </div>
-              {pipelineList.map(c => {
-                const stage = PIPELINE_STAGES.find(s => s.id === getStatus(c)) ?? PIPELINE_STAGES[0];
-                const fullName = `${c.firstName} ${c.lastName}`.trim() || '(ללא שם)';
-                const linkedReq = c.representationRequestId ? requestById.get(c.representationRequestId) : undefined;
-                const idSubmitted = linkedReq?.onboardingStatus === 'submitted' && getStatus(c) === 'pending_fill';
-                return (
-                  <div
-                    key={c.id}
-                    onClick={() => handleRowClick(c)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '.55rem .25rem', borderTop: '1px solid var(--gray-100)', cursor: 'pointer' }}
-                  >
-                    <div className="client-avatar-sm">{`${(c.firstName || '').charAt(0) || '?'}${(c.lastName || '').charAt(0) || ''}`}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '14px' }}>{fullName}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-                        {stage.label}{idSubmitted ? ' · פרטי זיהוי התקבלו' : ''}
-                      </div>
-                      {linkedReq && (
-                        <div style={{ marginTop: 3 }}>
-                          <RepSignersStatus request={linkedReq} compact />
-                        </div>
-                      )}
-                    </div>
-                    <span className={`badge ${stage.ballClass}`} style={{ fontSize: '12px' }}>{stage.ball}</span>
-                    {/* השורה מובילה למסך הביצוע — אבל גם לקוח בתהליך צריך כרטיס
-                        נגיש (מסמכים, ייפוי כוח, הסכם התקשרות), ולכן קישור נפרד. */}
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      title="כרטיס הלקוח והמסמכים שלו"
-                      onClick={e => { e.stopPropagation(); onSelect(c.id); }}
-                    >כרטיס</button>
-                    <span style={{ color: 'var(--gray-300)', fontSize: '17px' }}>‹</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
           {/* ‼ הלידים חיים כאן, במסך הלקוחות — הם שלב במסע ולא עולם נפרד.
               הפאנל עצמו מוזרק מהאב כדי לא לשכפל את לוגיקת העריכה שלו. */}
           {journeyUi && stageFilter === 'lead' && leadsPanel}
@@ -729,22 +648,27 @@ export default function ClientList({
           )}
 
 
-          {/* ‼ במצב "בקליטה" הטבלה מחליפה עמודות לגמרי: מי שבתהליך נמדד בימים,
-              בהתקדמות ובאצל-מי — לא בסטטוס מע"מ ותיק ניכויים. */}
-          {showOnboardingView ? (
-            <div className="card" style={{ overflow: 'hidden', padding: '.4rem .6rem' }}>
-              <OnboardingGrid
-                clients={clients}
-                steps={onboardingSteps ?? []}
-                engagements={engagements ?? []}
-                onOpen={onOpenOnboarding!}
-              />
-            </div>
-          ) : activeList.length === 0 ? (
+          {/* ‼ הודעת הריקנות מדברת בשם הטבלה שמתחתיה בלבד. הנוסח הקודם
+              ("אין עדיין לקוחות ברשימה") הופיע גם כשלקוחות בתהליך היו גלויים
+              מעליה — כי הטבלה סיננה החוצה בדיוק אותם. מסך שסותר את עצמו. */}
+          {activeList.length === 0 ? (
             <div className="empty-state">
-              
-              <div className="empty-state-title">אין עדיין לקוחות ברשימה</div>
-              <div className="empty-state-desc">בקשות ייצוג בתהליך מופיעות למעלה. אדם שנשלחה לו הצעה מופיע כאן עם התווית "בהצעה".</div>
+              <div className="empty-state-title">
+                {isNarrowed ? 'אין תוצאות לסינון הזה' : 'אין כאן אף אחד'}
+              </div>
+              <div className="empty-state-desc">
+                {isNarrowed
+                  ? 'אפשר לנקות את הסינון ולראות את כולם.'
+                  : onboardingCount > 0
+                    ? `${onboardingCount} בתהליך קליטה — הם מופיעים במקטע שלמעלה.`
+                    : 'אדם שנשלחה לו הצעה מופיע כאן עם התווית "בהצעה".'}
+              </div>
+              {isNarrowed && (
+                <button
+                  className="ui-linkbtn"
+                  onClick={() => { setSearch(''); clearAdvanced(); }}
+                >נקה סינון</button>
+              )}
             </div>
           ) : (
           <div className="card" style={{ overflow: 'hidden' }}>

@@ -11,6 +11,7 @@ import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/on
 import OnboardingTab from './OnboardingTab';
 import ReleaseLetterDialog from '../quotations/ReleaseLetterDialog';
 import OnboardingGrid from '../OnboardingGrid';
+import ClientsOnboardingSection from '../ClientsOnboardingSection';
 
 const CLIENT_ID = 'fixture-client';
 const ENG_ID = 'fixture-eng';
@@ -120,16 +121,26 @@ const EVENTS: OnboardingEvent[] = [
 ];
 
 // ── נתונים לרשת: שלושה לקוחות בשלושה מצבים שונים ──
+/* ‼ חמישה לקוחות ולא שלושה — כדי שמקטע "לקוחות בתהליך" ייבדק על **כל ארבע**
+   דרגות העדיפות. ארבע מהן לא היו מיוצגות כאן קודם, ובלעדיהן המיון נבדק על
+   מחצית מהמקרים. grid-6 הוא לקוח שהקליטה שלו נסגרה — הוא חייב **לא** להופיע. */
 const GRID_CLIENTS = [
-  { id: CLIENT_ID, firstName: 'שרון', lastName: 'מזרחי' },
-  { id: 'grid-2', firstName: 'אבי', lastName: 'דהן' },
-  { id: 'grid-3', firstName: 'תמר', lastName: 'בן-חיים' },
+  { id: CLIENT_ID, firstName: 'שרון', lastName: 'מזרחי', representationStatus: 'awaiting_authorities' },
+  { id: 'grid-2', firstName: 'אבי', lastName: 'דהן', representationStatus: 'pending_fill' },
+  { id: 'grid-3', firstName: 'תמר', lastName: 'בן-חיים', representationStatus: 'active' },
+  { id: 'grid-4', firstName: 'דנה', lastName: 'אלמוג', representationStatus: 'active' },
+  { id: 'grid-5', firstName: 'יוסי', lastName: 'קרן', representationStatus: 'active' },
+  { id: 'grid-6', firstName: 'נועה', lastName: 'שגב', representationStatus: 'active' },
 ] as never[];
 
 const GRID_ENGAGEMENTS: Engagement[] = [
   ENGAGEMENTS[0],
   { ...ENGAGEMENTS[0], id: 'eng-2', clientId: 'grid-2', approvedAt: '2026-07-01T09:00:00Z' },
   { ...ENGAGEMENTS[0], id: 'eng-3', clientId: 'grid-3', approvedAt: '2026-08-03T09:00:00Z' },
+  { ...ENGAGEMENTS[0], id: 'eng-4', clientId: 'grid-4', approvedAt: '2026-07-25T09:00:00Z' },
+  { ...ENGAGEMENTS[0], id: 'eng-5', clientId: 'grid-5', approvedAt: '2026-08-06T09:00:00Z' },
+  // קליטה שנסגרה — status 'active'. נשארו לה שלבי רשות פתוחים בכוונה.
+  { ...ENGAGEMENTS[0], id: 'eng-6', clientId: 'grid-6', status: 'active', approvedAt: '2026-06-01T09:00:00Z' },
 ];
 
 function gstep(clientId: string, engagementId: string, p: Partial<OnboardingStep> & Pick<OnboardingStep, 'id' | 'stepType' | 'track' | 'scope' | 'status' | 'ball'>): OnboardingStep {
@@ -155,6 +166,16 @@ const GRID_STEPS: OnboardingStep[] = [
   gstep('grid-3', 'eng-3', { id: 'g3b', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'pending', ball: 'me', updatedAt: NEW }),
   gstep('grid-3', 'eng-3', { id: 'g3c', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'locked', ball: 'me', dependsOnStepId: 'g3b' }),
   gstep('grid-3', 'eng-3', { id: 'g3d', stepType: 'release_letter', track: 'prev_accountant', scope: 'person', status: 'skipped', ball: 'me' }),
+  // דנה — הכול אצל הלקוח, שום דבר תקוע ⇒ דרגה 3
+  gstep('grid-4', 'eng-4', { id: 'g4a', stepType: 'client_documents', track: 'tools', scope: 'person', status: 'waiting_client', ball: 'client', updatedAt: NEW }),
+  gstep('grid-4', 'eng-4', { id: 'g4b', stepType: 'paperless_invite', track: 'tools', scope: 'person', status: 'waiting_client', ball: 'client', updatedAt: NEW }),
+  gstep('grid-4', 'eng-4', { id: 'g4c', stepType: 'first_month_review', track: 'internal', scope: 'engagement', status: 'completed', ball: 'me', requiredForClose: false }),
+  // יוסי — הכול נעול, אין מה לעשות ⇒ דרגה 4
+  gstep('grid-5', 'eng-5', { id: 'g5a', stepType: 'representation', track: 'authorities', scope: 'person', status: 'completed', ball: 'me' }),
+  gstep('grid-5', 'eng-5', { id: 'g5b', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'locked', ball: 'me', dependsOnStepId: 'g5c' }),
+  gstep('grid-5', 'eng-5', { id: 'g5c', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'locked', ball: 'client' }),
+  // נועה — הקליטה נסגרה, ונשאר לה שלב רשות פתוח. אסור שתופיע במקטע.
+  gstep('grid-6', 'eng-6', { id: 'g6a', stepType: 'first_month_review', track: 'internal', scope: 'engagement', status: 'pending', ball: 'me', requiredForClose: false }),
 ];
 
 export default function TestOnboarding() {
@@ -201,6 +222,14 @@ export default function TestOnboarding() {
         repStatusLabel="בקשת ייצוג · ממתין למילוי הלקוח"
         onOpenRepresentation={() => setMsg('קפיצה למרכז הייצוג')}
       />
+      <h3 style={{ marginTop: '2rem' }}>מקטע "לקוחות בתהליך" — ראש מסך הלקוחות</h3>
+      <ClientsOnboardingSection
+        clients={GRID_CLIENTS}
+        steps={GRID_STEPS}
+        engagements={GRID_ENGAGEMENTS}
+        onOpen={(id) => setMsg(`פתיחת דף המסע של ${id}`)}
+      />
+
       <h3 style={{ marginTop: '2rem' }}>הרשת — מסך הבוקר</h3>
       <div className="card" style={{ padding: '.5rem .7rem' }}>
         <OnboardingGrid

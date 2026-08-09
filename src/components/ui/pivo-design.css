@@ -2022,10 +2022,83 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .ob-stage-state { grid-area: state; text-align: start; }
 }
 
-/* ── המבט התפעולי במסך הלקוחות · דרישה 12 ───────────────────────────────── */
-.cl-ops-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin: .5rem 0 .2rem; }
-.cl-ops-label { font-size: var(--fs-12); font-weight: 600; color: var(--ink-4); letter-spacing: .02em; }
-.cl-ops-hint { font-size: var(--fs-12); color: var(--ink-4); }
+/* ── "לקוחות בתהליך" · המקטע העליון של מסך הלקוחות ───────────────────────────
+   ‼ שורות, לא כרטיסים. אין מסגרת מסביב, אין צל, אין רקע — המקטע מופרד בקו
+   תחתון אחד בלבד. ראה docs/DECISIONS-CLIENTS-ONBOARDING-SECTION.md §4. */
+.cob { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--hairline-1); }
+.cob-head { display: flex; align-items: baseline; gap: .4rem; margin-bottom: .5rem; }
+.cob-title { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); margin: 0; }
+.cob-count { font-size: var(--fs-13); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cob-all { margin-inline-start: auto; font-size: var(--fs-13); }
+
+.cob-row { border-top: 1px solid var(--hairline-2); }
+.cob-row:first-child { border-top: 0; }
+/* ‼ רוחב קבוע לעמודות המטא והייצוג, ולא auto. כל שורה היא רשת נפרדת, ולכן
+   auto נמדד לפי תוכן השורה בלבד — והטקסט התחיל במקום אחר בכל שורה. רשימה
+   שנסרקת בעין צריכה עמודות שמתחילות באותו קו. */
+.cob-main {
+  display: grid;
+  grid-template-columns: 10px minmax(6.5rem, 1fr) 7.5rem minmax(0, 1.6fr) 11rem 32px;
+  align-items: center; gap: .1rem .6rem; padding: .5rem 0;
+}
+.cob-row.is-open .cob-main { padding-bottom: .35rem; }
+
+/* הנקודה תופסת מקום תמיד — אחרת השמות קופצים בין שורה לשורה. */
+.cob-dot { width: 6px; height: 6px; border-radius: 50%; background: transparent; justify-self: center; }
+.cob-dot.is-stuck { background: var(--err); }
+.cob-dot.is-late { background: var(--warn); }
+
+.cob-name {
+  padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-14); font-weight: 500;
+  color: var(--ink-1); cursor: pointer; text-align: start;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.cob-name:hover { color: var(--accent); text-decoration: underline; }
+.cob-meta { font-size: var(--fs-12); color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cob-action { font-size: var(--fs-13); color: var(--ink-3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cob-action.is-mine { color: var(--ink-1); }
+.cob-ball { color: var(--ink-4); margin-inline-start: .3rem; }
+/* ‼ עמודות מפורשות. בלעדיהן שורה בלי "ייצוג:" מדלגת על עמודה 5, הפותחן נופל
+   לתוכה, והחץ קופץ 41px שמאלה בין שורה לשורה. */
+.cob-rep { grid-column: 5; font-size: var(--fs-12); color: var(--ink-3); white-space: nowrap; }
+
+.cob-toggle {
+  grid-column: 6;
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px;
+  background: none; color: var(--ink-3); cursor: pointer;
+  /* ‼ בלי זה הכפתור יורש 13.33px מברירת המחדל של הדפדפן — מחוץ לסקאלה הסגורה. */
+  font: inherit; font-size: var(--fs-14);
+}
+.cob-toggle:hover { background: var(--surface-2); color: var(--ink-1); }
+.cob-chev { display: block; font-size: var(--fs-14); line-height: 1; transition: transform .15s ease; }
+.cob-chev.is-open { transform: rotate(180deg); }
+
+/* המסע המלא — רשימה שטוחה, מוזחת מעט, בלי קופסה. */
+.cob-journey { list-style: none; margin: 0 0 .5rem; padding: 0 1.1rem .1rem 0; display: grid; gap: .3rem; }
+.cob-step { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; font-size: var(--fs-13); }
+.cob-step-name { color: var(--ink-1); }
+.cob-step-status { font-size: var(--fs-12); color: var(--ink-3); }
+.cob-step-ball { font-size: var(--fs-12); color: var(--ink-3); }
+.cob-step-opt { font-size: var(--fs-12); color: var(--ink-3); }
+.cob-step.is-done .cob-step-name { color: var(--ink-3); }
+.cob-step.is-stuck .cob-step-status { color: var(--err); }
+.cob-step.is-late .cob-step-status { color: var(--warn); }
+
+/* מתחת ל-700px השורה נשברת: שם ופותחן בשורה אחת, השאר מתחת.
+   ‼ נבדק ב-360px — אין גלילה אופקית. */
+@media (max-width: 700px) {
+  .cob-main {
+    grid-template-columns: 10px minmax(0, 1fr) 44px;
+    gap: .15rem .5rem; padding: .6rem 0;
+  }
+  .cob-name { grid-column: 2; }
+  .cob-toggle { grid-column: 3; grid-row: 1 / span 2; width: 44px; height: 44px; justify-self: end; }
+  .cob-meta { grid-column: 2; grid-row: 2; }
+  .cob-action { grid-column: 2 / span 2; white-space: normal; }
+  .cob-rep { grid-column: 2 / span 2; white-space: normal; }
+  .cob-journey { padding-inline-start: .6rem; padding-inline-end: 0; }
+}
 /* אדם בארכיון — נשאר קריא, אך מעומעם. הוא לא עבודה פעילה. */
 .client-table tbody tr.is-archived { opacity: .55; }
 .client-table tbody tr.is-archived:hover { opacity: 1; }
