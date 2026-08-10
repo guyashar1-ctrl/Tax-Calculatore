@@ -247,6 +247,15 @@ export interface StepPayload {
   published?: boolean;
   /** משימת גורם חיצוני — מי הגורם ומאיפה פרטי הקשר. */
   externalParty?: ExternalPartyConfig;
+  /**
+   * תצורת ביצוע אוטומטי (D3). null מפורש = ביטול (נדרס בפרסום); היעדר = ידני.
+   * ‼ נחמשת רק אחרי "עדכן את דף הלקוח" — טיוטה לעולם אינה מבצעת.
+   */
+  autoAction?: { kind: 'email' } | null;
+  /** חותמת הביצוע האוטומטי — התביעה של "בדיוק פעם אחת". */
+  autoExecutedAt?: string;
+  /** שגיאת הביצוע האחרון — התביעה שוחררה ויינסה שוב בטריגר הבא. */
+  autoError?: string;
   [key: string]: unknown;
 }
 

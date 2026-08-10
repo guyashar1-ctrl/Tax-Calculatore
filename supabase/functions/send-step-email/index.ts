@@ -84,24 +84,50 @@ Deno.serve(async (req: Request) => {
     new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
   try {
-    const { stepId, kind: rawKind, preview, overrides } = await req.json();
+    const { stepId, kind: rawKind, preview, overrides, internalSecret } = await req.json();
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
-    // ── הרשאה: רק רו"ח מחובר ──────────────────────────────────────────────
-    const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-    const { data: userData } = await admin.auth.getUser(token);
-    const userId = userData?.user?.id ?? null;
-    if (!userId) return json({ error: "unauthorized" }, 401);
-
     if (!stepId) return json({ error: "missing stepId" }, 400);
-    const kind = String(rawKind || "") as StepEmailKind;
+    const { data: step } = await admin.from("onboarding_steps").select("*").eq("id", stepId).maybeSingle();
+    if (!step) return json({ error: "not found" }, 404);
+
+    // ── הרשאה: רו"ח מחובר, או מסלול המשימות האוטומטיות בסוד פנימי (D3) ─────
+    // המסלול הפנימי זהה לזה של מייל הייצוג (מיגרציה 72): הסוד מגיע מהמסד
+    // עצמו (execute_automatic_step), לא מדפדפן ולא מטוקן של לקוח.
+    let isAuto = false;
+    let userId: string | null = null;
+    if (internalSecret) {
+      const { data: okSecret } = await admin.rpc("verify_internal_send_secret", { p: String(internalSecret) });
+      if (okSecret !== true) return json({ error: "unauthorized" }, 401);
+      isAuto = true;
+      userId = step.user_id;
+      if (preview) return json({ error: "bad_request" }, 400);
+    } else {
+      const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      const { data: userData } = await admin.auth.getUser(token);
+      userId = userData?.user?.id ?? null;
+      if (!userId) return json({ error: "unauthorized" }, 401);
+      if (step.user_id !== userId) return json({ error: "not found" }, 404);
+    }
+
+    // המסלול האוטומטי שולח תמיד את מייל הבקשה עצמה — לא הזמנות/הרשאות.
+    const kind = (isAuto ? "step_reminder" : String(rawKind || "")) as StepEmailKind;
     if (!STEP_EMAIL_KINDS.includes(kind)) return json({ error: "bad_kind" }, 400);
 
-    const { data: step } = await admin.from("onboarding_steps").select("*").eq("id", stepId).maybeSingle();
-    if (!step || step.user_id !== userId) return json({ error: "not found" }, 404);
+    // ── משימה אוטומטית: שערי בטיחות + התביעה האטומית (בדיוק פעם אחת) ───────
+    // טיוטה אינה חמושה; שלב שאינו פתוח לא נשלח; התביעה נעשית ב-UPDATE יחיד
+    // עם WHERE על היעדר המפתח — שתי קריאות מקבילות ⇒ זוכה אחד בלבד.
+    if (isAuto) {
+      if (step.published_at == null) return json({ error: "draft_not_armed" }, 409);
+      if (!["pending", "in_progress"].includes(step.status)) {
+        return json({ error: "step_not_open", status: step.status }, 409);
+      }
+      const { data: claimed } = await admin.rpc("claim_auto_execution", { p_step_id: stepId });
+      if (claimed !== true) return json({ ok: true, alreadySent: true });
+    }
 
     const allowed = KIND_FOR_STEP[step.step_type] ?? ["step_reminder"];
     if (!allowed.includes(kind)) {
@@ -121,11 +147,39 @@ Deno.serve(async (req: Request) => {
 
     // ── הנמען — מהכרטיס של הלקוח, לא מהבקשה ───────────────────────────────
     const { data: client } = await admin
-      .from("clients").select("id,user_id,first_name,last_name,email,intake_token,portal_token")
+      .from("clients")
+      .select("id,user_id,first_name,last_name,email,intake_token,portal_token,prev_accountant_name,prev_accountant_email")
       .eq("id", step.client_id).maybeSingle();
     if (!client || client.user_id !== userId) return json({ error: "not found" }, 404);
-    const toEmail = String(client.email || "").trim();
-    if (!toEmail) return json({ error: "no client email" }, 400);
+
+    // משימת גורם חיצוני: הנמען נפתר מפרטי הרו"ח הקודם בכרטיס (שמוזנים גם
+    // מהבקשה «פרטי רו"ח קודם»), או מהפרטים שהוזנו ידנית ל"גורם אחר".
+    // ‼ דרישת-מערכת, לא תלות: בלי נמען פתור אין שליחה — גם לא אוטומטית.
+    const extParty = (step.payload?.externalParty ?? null) as
+      | { kind?: string; contact?: { name?: string; email?: string } }
+      | null;
+    const isExternal = !!extParty && typeof extParty === "object" && !!extParty.kind;
+    let toEmail: string;
+    let recipientName: string;
+    if (isExternal) {
+      toEmail = extParty!.kind === "prev_accountant"
+        ? String(client.prev_accountant_email || "").trim()
+        : String(extParty!.contact?.email || "").trim();
+      recipientName = extParty!.kind === "prev_accountant"
+        ? String(client.prev_accountant_name || "").trim()
+        : String(extParty!.contact?.name || "").trim();
+      if (!toEmail) {
+        if (isAuto) await admin.rpc("release_auto_execution", { p_step_id: stepId, p_error: "contact_missing" });
+        return json({ error: "contact_missing" }, 400);
+      }
+    } else {
+      toEmail = String(client.email || "").trim();
+      recipientName = "";
+      if (!toEmail) {
+        if (isAuto) await admin.rpc("release_auto_execution", { p_step_id: stepId, p_error: "no_client_email" });
+        return json({ error: "no client email" }, 400);
+      }
+    }
 
     const { data: profile } = await admin.from("profiles").select("*").eq("id", userId).single();
     const brand = resolveBrand({
@@ -191,6 +245,8 @@ Deno.serve(async (req: Request) => {
 
     const clientFirst = String(client.first_name || "").trim();
     const clientFull = [client.first_name, client.last_name].filter(Boolean).join(" ").trim();
+    // לגורם חיצוני הפנייה היא אליו, לא ללקוח.
+    const greetFirst = isExternal ? (recipientName.split(" ")[0] || "") : clientFirst;
     // ‼ המייל מדבר בשפת הבקשה עצמה. הניסוח שהרו"ח כתב בבונה ("להעלות 3
     // מסמכים") הוא מה שהלקוח כבר רואה בדף האישי, ולכן זה גם מה שהמייל אומר —
     // אין נוסח שני לתחזק (הכרעת גיא 2026-08-05).
@@ -198,7 +254,7 @@ Deno.serve(async (req: Request) => {
     const requestSub = String(payload.clientSub || "").trim();
 
     const rendered = renderTemplate(merged, {
-      clientName: clientFull || clientFirst,
+      clientName: isExternal ? (recipientName || clientFull) : (clientFull || clientFirst),
       firmName: brand.firmName,
       paperlessInviteUrl: inviteUrl,
       amount: formatAmount(payload.amount),
@@ -210,9 +266,11 @@ Deno.serve(async (req: Request) => {
 
     const ctaHref = portalUrl;
     const requestCta = String(payload.clientCta || "").trim();
-    const ctaLabel = CTA_LABEL[kind] || requestCta || "למצב ההצטרפות שלך";
+    // ‼ לגורם חיצוני אין כפתור: הקישור הקבוע הוא הדף האישי של הלקוח, ואסור
+    // שידלוף לצד שלישי. המייל לגורם הוא אינפורמטיבי, והתשובה — ב-reply.
+    const ctaLabel = isExternal ? "" : (CTA_LABEL[kind] || requestCta || "למצב ההצטרפות שלך");
     const html = buildBrandedEmail(brand, {
-      heading: HEADING[kind] + (clientFirst ? ", " + clientFirst : ""),
+      heading: HEADING[kind] + (greetFirst ? ", " + greetFirst : ""),
       bodyHtml: esc(rendered.body).replace(/\n/g, "<br />"),
       ctaLabel: ctaLabel || undefined,
       ctaHref: ctaLabel ? ctaHref : undefined,
@@ -262,17 +320,23 @@ Deno.serve(async (req: Request) => {
       // ‼ שורת הכישלון נרשמת בלי מפתח ייחודי: אחרת הניסיון החוזר המוצלח היה
       // מתנגש בה ונחשב ל"כבר נשלח" — והמייל לא היה יוצא לעולם.
       await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
+      // כישלון שליחה אוטומטית משחרר את התביעה — הטריגר הבא ינסה שוב (כמו
+      // מייל הייצוג): שקט לעולם לא נחשב הצלחה.
+      if (isAuto) await admin.rpc("release_auto_execution", { p_step_id: stepId, p_error: JSON.stringify(body).slice(0, 250) });
       return json({ error: "resend_failed", detail: body }, 502);
     }
 
-    // מפתח ייחודי לשורת היומן — שכבת ההגנה מפני רישום כפול. שליחה נוספת של
-    // אותו סוג לאותו שלב היא תזכורת לגיטימית, ולכן מקבלת מספר רץ ולא נחסמת.
+    // מפתח ייחודי לשורת היומן — שכבת ההגנה מפני רישום כפול. שליחה ידנית
+    // נוספת היא תזכורת לגיטימית ומקבלת מספר רץ; שליחה אוטומטית היא בדיוק
+    // פעם אחת ולכן המפתח שלה קבוע.
     const { count } = await admin
       .from("email_messages")
       .select("id", { count: "exact", head: true })
       .eq("step_id", step.id)
       .eq("kind", kind);
-    const idempotencyKey = `step:${step.id}:${kind}:${(count ?? 0) + 1}`;
+    const idempotencyKey = isAuto
+      ? `auto:step:${step.id}`
+      : `step:${step.id}:${kind}:${(count ?? 0) + 1}`;
 
     const { error: logErr } = await admin.from("email_messages")
       .insert({ ...logBase, resend_id: body.id, status: "sent", idempotency_key: idempotencyKey });
@@ -303,16 +367,27 @@ Deno.serve(async (req: Request) => {
       await admin.from("onboarding_steps")
         .update({ status: "waiting_client", ball: "client", updated_at: new Date().toISOString() })
         .eq("id", step.id);
+    } else if (isAuto) {
+      // המייל האוטומטי של הבקשה יצא — הכדור עובר למי שמטפל: הלקוח, או
+      // הגורם החיצוני (שם הכדור כבר עליו — רק הסטטוס מתעדכן).
+      await admin.from("onboarding_steps")
+        .update({
+          status: "waiting_client",
+          ...(isExternal ? {} : { ball: "client" }),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", step.id);
     }
     await admin.from("onboarding_events").insert({
       user_id: userId,
       step_id: step.id,
       engagement_id: step.engagement_id,
       type: "email_sent",
-      actor: "accountant",
-      note: `נשלח מייל: ${rendered.subject}`
+      // ‼ ביומן חייב להיות ברור שזה בוצע אוטומטית — לא ביד של גיא (D3 כלל 6).
+      actor: isAuto ? "system" : "accountant",
+      note: (isAuto ? "בוצע אוטומטית — נשלח מייל: " : "נשלח מייל: ") + rendered.subject
         + (logged ? "" : " (לא נרשם ביומן הדואר — ראה לוג השרת)"),
-      meta: { kind, to: toEmail, resend_id: body.id, logged },
+      meta: { kind, to: toEmail, resend_id: body.id, logged, automatic: isAuto },
     });
 
     // ‼ logged=false אומר "נשלח, אבל לא תועד". המסך מציג את זה — אחרת גיא

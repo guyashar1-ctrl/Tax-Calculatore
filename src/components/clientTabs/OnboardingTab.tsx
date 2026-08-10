@@ -93,6 +93,10 @@ const RowOpenContext = createContext<{
    * כדי לעקוף חוק.
    */
   onSetRequired?: (id: string, required: boolean) => void;
+  /** כל ההורים של כל שלב (מיגרציה 78) — לשורת "ממתין ל: X, Y" המלאה. */
+  depParents?: Map<string, string[]>;
+  /** ההיפוך — אילו שלבים משתחררים כשהשלב הזה יושלם ("משחרר:"). */
+  depChildren?: Map<string, string[]>;
 }>({ openId: null, toggle: () => {} });
 
 /** שם השורה. בקשה חופשית נושאת את השם שהרו"ח נתן לה, לא תווית גנרית. */
@@ -134,10 +138,25 @@ const TONE_COLOR: Record<string, string> = {
   muted: 'var(--ink-3)',
 };
 
-/** למה השלב נעול ומה יפתח אותו — במילים של הרו"ח, לא של המסד. */
-function lockHint(step: OnboardingStep, byId: Map<string, OnboardingStep>): string {
+/** למה השלב נעול ומה יפתח אותו — במילים של הרו"ח, לא של המסד.
+ *  תלות מרובת-הורים: מציגים את **כל** מה שעדיין חוסם — ורק אותו. הורה
+ *  שכבר הושלם ירד מהרשימה (הכרעת גיא, שלב 8). */
+function lockHint(
+  step: OnboardingStep,
+  byId: Map<string, OnboardingStep>,
+  parents?: string[],
+): string {
   if (step.stepType === 'retainer_authorization') {
     return 'ייפתח אחרי שתאשר את חיבור הלקוח לפייפרלס';
+  }
+  const parentIds = (parents && parents.length > 0)
+    ? parents
+    : (step.dependsOnStepId ? [step.dependsOnStepId] : []);
+  const blocking = parentIds
+    .map(id => byId.get(id))
+    .filter((d): d is OnboardingStep => !!d && isStepOpen(d.status));
+  if (blocking.length > 0) {
+    return `ממתין ל: ${blocking.map(d => rowTitle(d)).join(', ')}`;
   }
   const dep = step.dependsOnStepId ? byId.get(step.dependsOnStepId) : undefined;
   if (dep) return `ייפתח אחרי «${rowTitle(dep)}»`;
@@ -409,6 +428,34 @@ export default function OnboardingTab({
   const [previewOpen, setPreviewOpen] = useState(false);
   /** שלבי-העל של התיק (journey_stages). ריק ⇒ דליי ברירת-המחדל בלבד. */
   const [stageRows, setStageRows] = useState<JourneyStageRow[]>([]);
+  /** קשתות התלות (מיגרציה 78): שלב ← כל הוריו. */
+  const [depEdges, setDepEdges] = useState<{ stepId: string; parentId: string }[]>([]);
+
+  useEffect(() => {
+    if (!embedded) return;
+    const ids = steps.filter(s => s.clientId === clientId).map(s => s.id);
+    if (ids.length === 0) { setDepEdges([]); return; }
+    let cancelled = false;
+    supabase.from('onboarding_step_dependencies')
+      .select('step_id, depends_on_step_id')
+      .in('step_id', ids)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setDepEdges((data ?? []).map(r => ({ stepId: r.step_id, parentId: r.depends_on_step_id })));
+      });
+    return () => { cancelled = true; };
+  }, [clientId, embedded, steps]);
+
+  const depParents = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const e of depEdges) m.set(e.stepId, [...(m.get(e.stepId) ?? []), e.parentId]);
+    return m;
+  }, [depEdges]);
+  const depChildren = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const e of depEdges) m.set(e.parentId, [...(m.get(e.parentId) ?? []), e.stepId]);
+    return m;
+  }, [depEdges]);
   /** "עדכן את דף הלקוח" — פרסום כל השינויים, ואז השאלה על המייל (D4). */
   const [publishingCase, setPublishingCase] = useState(false);
   const [publishPromptOpen, setPublishPromptOpen] = useState(false);
@@ -498,7 +545,7 @@ export default function OnboardingTab({
   const ballTitle = !nextStep
     ? 'הקליטה הושלמה'
     : nextStep.status === 'locked'
-      ? `${STEP_TYPE_LABELS[nextStep.stepType]} — ${lockHint(nextStep, stepById)}`
+      ? `${STEP_TYPE_LABELS[nextStep.stepType]} — ${lockHint(nextStep, stepById, depParents.get(nextStep.id))}`
       : nextStep.ball === 'me'
         ? NEXT_ACTION[nextStep.stepType]
         : `${STEP_TYPE_LABELS[nextStep.stepType]} — ${STEP_STATUS_LABELS[nextStep.status]}`;
@@ -606,6 +653,7 @@ export default function OnboardingTab({
                     key={step.id}
                     clientId={clientId}
                     editStep={step}
+                    initialDeps={depParents.get(step.id)}
                     existingSteps={clientSteps}
                     prevAccountant={prevAccountant}
                     onCancel={() => setEditingStepId(null)}
@@ -618,12 +666,14 @@ export default function OnboardingTab({
                 );
               }
 
-              // דרישת-הקשר של גורם חיצוני: נגזרת, לא תלות, לא ניתנת להסרה.
+              // דרישת-הקשר של גורם חיצוני: נגזרת מהנתונים, נפרדת מהתלויות,
+              // ולא ניתנת להסרה — הסרת תלות אינה עוקפת אותה (Correction 1).
+              // בשורה: "חסר לפרטי קשר: <מה חסר>".
               const extCfg = step.payload.externalParty;
               const contactNote = extCfg && isStepOpen(step.status)
                 ? (extCfg.kind === 'prev_accountant'
-                    ? (prevAccountant?.email?.trim() ? null : 'ממתין לפרטי קשר של הרו״ח הקודם')
-                    : (extCfg.contact?.email?.trim() ? null : 'חסר אימייל של הגורם — אין למי לפנות'))
+                    ? (prevAccountant?.email?.trim() ? null : 'מייל רו״ח קודם')
+                    : (extCfg.contact?.email?.trim() ? null : 'מייל הגורם'))
                 : null;
 
               const locked = step.status === 'locked';
@@ -874,6 +924,8 @@ export default function OnboardingTab({
       onMove: ordering ? undefined : (id, dir) => void moveRow(id, dir),
       onPublish: (id) => void publishRequest(id),
       onSetRequired: (id, required) => void setStepRequired(id, required),
+      depParents,
+      depChildren,
     }}>
     <div className="cw-tabpanel">
       {error && (
@@ -2001,7 +2053,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { openId, toggle, onMove, onPublish, onSetRequired } = useContext(RowOpenContext);
+  const { openId, toggle, onMove, onPublish, onSetRequired, depParents, depChildren } = useContext(RowOpenContext);
   const open = openId === step.id;
   const tone = TONE_COLOR[STEP_STATUS_TONE[step.status]];
   const locked = step.status === 'locked';
@@ -2014,6 +2066,16 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
   const extName = ext
     ? (ext.kind === 'prev_accountant' ? 'רו״ח קודם' : (ext.contact?.name || 'גורם חיצוני'))
     : null;
+  // ⚡ אוטומטי: מסומן בעדינות; אחרי הביצוע — "בוצע"; אחרי כישלון — יינסה שוב.
+  const isAutomatic = step.payload.autoAction?.kind === 'email';
+  const autoLabel = !isAutomatic ? null
+    : step.payload.autoExecutedAt ? '⚡ בוצע אוטומטית'
+    : step.payload.autoError ? '⚡ אוטומטי · הניסיון נכשל — יינסה שוב'
+    : '⚡ אוטומטי';
+  // "משחרר:" — אילו שלבים פתוחים ממתינים לשלב הזה. רק כשפתוח, ובשקט.
+  const releases = (depChildren?.get(step.id) ?? [])
+    .map(id => stepById.get(id))
+    .filter((d): d is OnboardingStep => !!d && isStepOpen(d.status));
 
   return (
     <div id={`ob-step-${step.id}`} style={{
@@ -2083,8 +2145,11 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
               <span>· הכדור {STEP_BALL_LABELS[step.ball]}</span>
               {age && <span>· {age}</span>}
               {step.dueDate && <span>· עד {formatDate(step.dueDate, 'list')}</span>}
-              {locked && <span>· {lockHint(step, stepById)}</span>}
-              {noteLine && <span style={{ color: 'var(--warn)' }}>· {noteLine}</span>}
+              {autoLabel && (
+                <span style={{ color: step.payload.autoError ? 'var(--warn)' : 'var(--ink-3)' }}>· {autoLabel}</span>
+              )}
+              {locked && <span>· {lockHint(step, stepById, depParents?.get(step.id))}</span>}
+              {noteLine && <span style={{ color: 'var(--warn)' }}>· חסר לפרטי קשר: {noteLine}</span>}
             </div>
           </button>
           <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
@@ -2118,7 +2183,17 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
             )}
           </div>
         </div>
-        {open && children}
+        {open && (
+          <>
+            {/* קשר, לא היררכיה: השורות נשארות באותה רמה; זו רק שורת מידע. */}
+            {releases.length > 0 && (
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginTop: '.25rem' }}>
+                משחרר: {releases.map(d => rowTitle(d)).join(', ')}
+              </div>
+            )}
+            {children}
+          </>
+        )}
       </div>
     </div>
   );

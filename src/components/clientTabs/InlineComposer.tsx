@@ -48,13 +48,15 @@ function emptyRow(): InputRow {
 }
 
 export default function InlineComposer({
-  clientId, stageId, editStep, existingSteps, prevAccountant, onSaved, onCancel,
+  clientId, stageId, editStep, initialDeps, existingSteps, prevAccountant, onSaved, onCancel,
 }: {
   clientId: string;
   /** שלב-העל שבו נלחץ "+ הוסף" — נגזר מההקשר, לא נשאל. null = דלי ברירת-מחדל. */
   stageId?: string | null;
   /** מצב עריכה — אותו קומפוזר, מלא מראש. */
   editStep?: OnboardingStep;
+  /** כל ההורים של השלב הנערך (מטבלת התלויות) — לא רק הראשון. */
+  initialDeps?: string[];
   /** בקשות פתוחות אחרות של הלקוח — לבחירת "ממתין ל…". */
   existingSteps: OnboardingStep[];
   /** פרטי הרו״ח הקודם מכרטיס הלקוח — לפתרון דרישת-הקשר של גורם חיצוני. */
@@ -94,7 +96,13 @@ export default function InlineComposer({
   const [clientCta, setClientCta] = useState(String(editContent?.clientCta ?? ''));
   const [requiredForClose, setRequiredForClose] = useState(edit ? edit.requiredForClose !== false : true);
   const [dueDate, setDueDate] = useState(edit?.dueDate ?? '');
-  const [deps, setDeps] = useState<string[]>(edit?.dependsOnStepId ? [edit.dependsOnStepId] : []);
+  const [deps, setDeps] = useState<string[]>(
+    initialDeps && initialDeps.length > 0
+      ? initialDeps
+      : (edit?.dependsOnStepId ? [edit.dependsOnStepId] : []));
+  /** ביצוע אוטומטי (D3): ברירת המחדל ידני. נחמש רק אחרי "עדכן את דף הלקוח". */
+  const [auto, setAuto] = useState(editContent?.autoAction != null
+    && (editContent.autoAction as { kind?: string }).kind === 'email');
   const [depsOpen, setDepsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -173,6 +181,9 @@ export default function InlineComposer({
       clientCta: clientCta.trim(),
       ...(requirements.length ? { requirements } : {}),
       ...(externalParty ? { externalParty } : {}),
+      // ‼ null מפורש ולא היעדר: ביטול אוטומציה על בקשה שפורסמה חייב לדרוס
+      // את המפתח בפרסום (merge שומר מפתחות שלא נשלחו).
+      autoAction: (auto && owner !== 'me') ? { kind: 'email' } : null,
     };
   }
 
@@ -478,6 +489,28 @@ export default function InlineComposer({
                 onChange={e => setRequiredForClose(e.target.checked)} />
               נדרש לסגירת הקליטה
             </label>
+          )}
+
+          {/* ── ביצוע: ידני (ברירת מחדל) / אוטומטי (D3) ── */}
+          {owner !== 'me' && (
+            <div style={{ display: 'grid', gap: '.25rem' }}>
+              <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-2)' }}>ביצוע</span>
+              <span role="group" aria-label="ביצוע" style={{ display: 'inline-flex', gap: '.3rem' }}>
+                <button type="button" style={pill(!auto)} aria-pressed={!auto}
+                  onClick={() => setAuto(false)}>ידני</button>
+                <button type="button" style={pill(auto)} aria-pressed={auto}
+                  onClick={() => setAuto(true)}>אוטומטי ⚡</button>
+              </span>
+              <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', lineHeight: 1.5 }}>
+                {auto
+                  ? <>כשכל התנאים יתמלאו — יישלח אוטומטית מייל על הבקשה
+                      {owner === 'external'
+                        ? (extKind === 'prev_accountant' ? ' לרו״ח הקודם' : ` ל${extContact.name.trim() || 'גורם'}`)
+                        : ' ללקוח'}.
+                      {' '}נחמש רק אחרי ״עדכן את דף הלקוח״ — טיוטה לא שולחת.</>
+                  : 'כשהתנאים יתמלאו הבקשה תסומן כמוכנה, והשליחה תישאר בידיים שלך.'}
+              </span>
+            </div>
           )}
 
           {owner === 'client' && (
