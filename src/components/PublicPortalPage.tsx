@@ -47,8 +47,18 @@ export interface PortalItem {
   kind?: 'documents' | 'prev_accountant' | 'custom';
   /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
   checklist?: { key: string; label: string; done: boolean }[];
-  /** דרישות של בקשה חופשית: אישור, תשובת טקסט, או קובץ. */
-  requirements?: { key: string; kind: 'confirm' | 'text' | 'file'; label: string; done: boolean; value?: string }[];
+  /** דרישות של בקשה חופשית — שדות בתוך בקשה אחת, כל אחד עם סוג ו-חובה/רשות. */
+  requirements?: {
+    key: string;
+    kind: 'confirm' | 'text' | 'email' | 'phone' | 'number' | 'date' | 'select' | 'file' | 'files';
+    label: string;
+    done: boolean;
+    required?: boolean;
+    options?: string[];
+    maxFiles?: number;
+    fileCount?: number;
+    value?: string;
+  }[];
   /** יש כאן פריט שאפשר להעלות אליו קובץ. */
   canUpload?: boolean;
   /** טקסט הכפתור שהרו"ח בחר לבקשה החופשית. */
@@ -194,7 +204,15 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
     setBusyKey(null);
     const res = data as { ok?: boolean; error?: string } | null;
     if (error || !res?.ok) {
-      setErr(res?.error === 'missing_value' ? 'צריך למלא תשובה.' : 'לא הצלחנו לשמור. אפשר לנסות שוב.');
+      const messages: Record<string, string> = {
+        missing_value: 'צריך למלא תשובה.',
+        bad_email: 'כתובת האימייל לא נראית תקינה.',
+        bad_phone: 'מספר הטלפון לא נראה תקין.',
+        bad_number: 'צריך להזין מספר.',
+        bad_date: 'התאריך לא נראה תקין.',
+        bad_choice: 'צריך לבחור אחת מהאפשרויות.',
+      };
+      setErr(messages[res?.error ?? ''] ?? 'לא הצלחנו לשמור. אפשר לנסות שוב.');
       return;
     }
     flushAccountantNotifications(token);
@@ -206,9 +224,40 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
     border: `1px solid ${brand.border}`, borderRadius: brand.radius, background: '#fff',
   } as const;
 
+  /** תווית + סימון רשות. שדות רשות לא חוסמים את השלמת הבקשה. */
+  const labelOf = (r: NonNullable<PortalItem['requirements']>[number]) => (
+    <>
+      {r.label}
+      {r.required === false && <span style={{ color: brand.muted }}> (רשות)</span>}
+    </>
+  );
+
   return (
     <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
       {(item.requirements ?? []).map(r => {
+        // 'files' נשאר פתוח להעלאות נוספות גם אחרי הקובץ הראשון — עד התקרה.
+        if (r.kind === 'files') {
+          const count = r.fileCount ?? 0;
+          const canAddMore = !r.maxFiles || count < r.maxFiles;
+          return (
+            <div key={r.key} style={{ display: 'grid', gap: 2 }}>
+              {count > 0 && (
+                <span style={{ fontSize: 12.5, color: brand.muted }}>
+                  <span aria-hidden="true" style={{ color: accent }}>✓ </span>
+                  {r.label} · {count === 1 ? 'הועלה קובץ אחד' : `הועלו ${count} קבצים`}
+                  {r.maxFiles ? ` מתוך ${r.maxFiles}` : ''}
+                </span>
+              )}
+              {canAddMore && (
+                <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                  <UploadItem token={token} tokenKind="portal" stepId={stepId} itemKey={r.key}
+                    label={count > 0 ? 'קובץ נוסף' : r.label} done={false}
+                    brand={brand} accent={accent} onDone={onDone} />
+                </ul>
+              )}
+            </div>
+          );
+        }
         if (r.done) {
           return (
             <div key={r.key} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: brand.muted }}>
@@ -226,12 +275,41 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
             </ul>
           );
         }
-        if (r.kind === 'text') {
+        if (r.kind === 'select') {
           return (
             <div key={r.key} style={{ display: 'grid', gap: 4 }}>
-              <span style={{ fontSize: 13, color: brand.ink }}>{r.label}</span>
+              <span style={{ fontSize: 13, color: brand.ink }}>{labelOf(r)}</span>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <input style={field} value={text[r.key] ?? ''} disabled={busyKey === r.key || previewMode}
+                <select style={field} value={text[r.key] ?? ''} disabled={busyKey === r.key || previewMode}
+                  onChange={e => setText(t => ({ ...t, [r.key]: e.target.value }))}>
+                  <option value="" disabled>בחרו…</option>
+                  {(r.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <button type="button"
+                  disabled={previewMode || busyKey === r.key || !(text[r.key] ?? '').trim()}
+                  onClick={() => void submit(r.key, text[r.key])}
+                  style={btn(accent, brand.radius, busyKey === r.key || previewMode)}>
+                  {busyKey === r.key ? 'שומר…' : 'שליחה'}
+                </button>
+              </div>
+            </div>
+          );
+        }
+        if (['text', 'email', 'phone', 'number', 'date'].includes(r.kind)) {
+          const inputType = r.kind === 'text' ? 'text'
+            : r.kind === 'email' ? 'email'
+            : r.kind === 'phone' ? 'tel'
+            : r.kind === 'number' ? 'number' : 'date';
+          const ltr = ['email', 'phone', 'number', 'date'].includes(r.kind);
+          return (
+            <div key={r.key} style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 13, color: brand.ink }}>{labelOf(r)}</span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  style={{ ...field, ...(ltr ? { direction: 'ltr' as const, textAlign: 'right' as const } : {}) }}
+                  type={inputType}
+                  inputMode={r.kind === 'number' ? 'decimal' : r.kind === 'phone' ? 'tel' : undefined}
+                  value={text[r.key] ?? ''} disabled={busyKey === r.key || previewMode}
                   onChange={e => setText(t => ({ ...t, [r.key]: e.target.value }))} />
                 <button type="button"
                   disabled={previewMode || busyKey === r.key || !(text[r.key] ?? '').trim()}
@@ -246,7 +324,7 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
         return (
           <div key={r.key} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span aria-hidden="true" style={{ color: brand.muted }}>○</span>
-            <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: brand.ink }}>{r.label}</span>
+            <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: brand.ink }}>{labelOf(r)}</span>
             <button type="button" disabled={busyKey === r.key || previewMode}
               onClick={() => void submit(r.key)}
               style={btn(accent, brand.radius, busyKey === r.key || previewMode)}>

@@ -109,7 +109,7 @@ export default function JourneyTab(p: Props) {
       // ‼ שלב נעול אינו "אצלי" — הוא ממתין למה שהוא תלוי בו. ראה stepAwaitsMe.
       me: open.filter(stepAwaitsMe).length,
       client: open.filter(s => s.ball === 'client').length,
-      third: open.filter(s => s.ball === 'authority' || s.ball === 'prev_accountant').length,
+      third: open.filter(s => s.ball === 'authority' || s.ball === 'prev_accountant' || s.ball === 'external').length,
       stuck: open.filter(s => s.status === 'blocked' || s.status === 'failed' || s.needsAttention).length,
       done: clientSteps.filter(s => !isStepOpen(s.status)).length,
     };

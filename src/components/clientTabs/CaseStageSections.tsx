@@ -54,7 +54,7 @@ function sectionState(members: OnboardingStep[]): StageState {
 
 export default function CaseStageSections({
   steps, visibleSteps, stages, renderStep, ballFilterActive, headActions,
-  clientBucketTitle = 'קליטת הלקוח',
+  clientBucketTitle = 'קליטת הלקוח', composer,
 }: {
   /** כל בקשות הלקוח (בלי מבוטלות), בסדר של הרו"ח. */
   steps: OnboardingStep[];
@@ -67,9 +67,16 @@ export default function CaseStageSections({
   headActions?: ReactNode;
   /** שם דלי ברירת-המחדל של בקשות הלקוח: "קליטת הלקוח" בקליטה, "בקשות" ללקוח פעיל. */
   clientBucketTitle?: string;
+  /**
+   * הקומפוזר של "+ הוסף בקשה או משימה לשלב הזה". השלב נגזר מההקשר —
+   * stageId של שלב-על אמיתי, או null לדליי ברירת-המחדל. חסר ⇒ אין כפתור הוספה.
+   */
+  composer?: (stageId: string | null, close: () => void) => ReactNode;
 }) {
   /** דריסת קיפול ידנית; undefined = לפי המצב הנגזר. */
   const [openOverride, setOpenOverride] = useState<Record<string, boolean>>({});
+  /** באיזה שלב-על פתוח כרגע קומפוזר. אחד בכל רגע — זה מסלול מהיר, לא טפסים. */
+  const [composeIn, setComposeIn] = useState<string | null>(null);
 
   const sections = useMemo<Section[]>(() => {
     const visibleIds = new Set(visibleSteps.map(s => s.id));
@@ -168,9 +175,27 @@ export default function CaseStageSections({
 
               {open && (
                 <div style={{ padding: '0 .75rem .55rem', borderTop: '1px solid var(--hairline-1, var(--bd))' }}>
-                  {sec.visible.length === 0
+                  {sec.visible.length === 0 && ballFilterActive
                     ? <div className="cw-empty">אין בקשות שמתאימות לסינון.</div>
                     : sec.visible.map(renderStep)}
+                  {/* ‼ ההוספה בתוך השלב — ההקשר נגזר מאיפה שלחצו, בלי מודל
+                      ובלי שאלת "לאיזה שלב?". שלב הייצוג מסונכרן ואינו נערך. */}
+                  {composer && sec.key !== '__rep' && (
+                    composeIn === sec.key
+                      ? composer(sec.stageId ?? null, () => setComposeIn(null))
+                      : (
+                        <button type="button"
+                          onClick={() => setComposeIn(sec.key)}
+                          style={{
+                            display: 'block', width: '100%', textAlign: 'start',
+                            minHeight: 44, padding: '.45rem .2rem', marginTop: '.15rem',
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            font: 'inherit', fontSize: 'var(--fs-13)', color: 'var(--accent)',
+                          }}>
+                          + הוסף בקשה או משימה לשלב הזה
+                        </button>
+                      )
+                  )}
                 </div>
               )}
             </section>

@@ -41,6 +41,7 @@ import ClientPagePreviewDialog from './ClientPagePreviewDialog';
 import CaseStageSections from './CaseStageSections';
 import type { JourneyStageRow } from './CaseStageSections';
 import PublishCasePrompt from './PublishCasePrompt';
+import InlineComposer from './InlineComposer';
 
 interface Props {
   clientId: string;
@@ -112,9 +113,16 @@ function ageLabel(step: OnboardingStep): string | null {
   return days === 1 ? 'יום אחד' : `${days} ימים`;
 }
 
-/** "2/3" — התקדמות פנימית של בקשה, כשיש לה פריטים. */
+/** "2/3 נדרשים" — התקדמות פנימית של בקשה. דרישות נספרות לפי חובה בלבד:
+ *  רשות פתוחה לעולם לא חוסמת השלמה (הכרעת גיא, 6+7). */
 function progressLabel(step: OnboardingStep): string | null {
-  const list = step.payload.requirements ?? step.payload.checklist;
+  const reqs = step.payload.requirements;
+  if (Array.isArray(reqs) && reqs.length > 0) {
+    const required = reqs.filter(r => r.required !== false);
+    if (required.length === 0) return null;
+    return `${required.filter(r => r.done).length}/${required.length} נדרשים`;
+  }
+  const list = step.payload.checklist;
   if (!Array.isArray(list) || list.length === 0) return null;
   return `${list.filter(i => i.done).length}/${list.length}`;
 }
@@ -132,7 +140,7 @@ function lockHint(step: OnboardingStep, byId: Map<string, OnboardingStep>): stri
     return 'ייפתח אחרי שתאשר את חיבור הלקוח לפייפרלס';
   }
   const dep = step.dependsOnStepId ? byId.get(step.dependsOnStepId) : undefined;
-  if (dep) return `ייפתח אחרי «${STEP_TYPE_LABELS[dep.stepType]}»`;
+  if (dep) return `ייפתח אחרי «${rowTitle(dep)}»`;
   /* ‼ בלי תלות מפורשת נופלים לשלב הפתוח שקודם לו בסדר — זה מה שחוסם אותו
      בפועל. "ייפתח אחרי השלב שהוא תלוי בו" הוא משפט שלא אומר כלום למי
      שמסתכל על המסך ומנסה להבין מה לעשות עכשיו. */
@@ -239,9 +247,24 @@ export default function OnboardingTab({
   const clientEngagements = useMemo(
     () => engagements.filter(e => e.clientId === clientId),
     [engagements, clientId]);
-  const clientSteps = useMemo(
-    () => steps.filter(s => s.clientId === clientId && s.status !== 'cancelled'),
-    [steps, clientId]);
+  /**
+   * שכבה אופטימית של הקומפוזר: בקשה שנשמרה מופיעה מיד, בלי לחכות לרענון
+   * הכולל של useOnboarding. כשהנתונים מהשרת מגיעים — השכבה מתנקה.
+   */
+  const [optimisticSteps, setOptimisticSteps] = useState<OnboardingStep[]>([]);
+  const [optimisticPatches, setOptimisticPatches] = useState<Record<string, Partial<OnboardingStep>>>({});
+  useEffect(() => {
+    setOptimisticSteps(prev => prev.filter(o => !steps.some(s => s.id === o.id)));
+    setOptimisticPatches({});
+  }, [steps]);
+
+  const clientSteps = useMemo(() => {
+    const base = steps.filter(s => s.clientId === clientId && s.status !== 'cancelled');
+    const extras = optimisticSteps.filter(o =>
+      o.clientId === clientId && !base.some(s => s.id === o.id));
+    return [...base, ...extras].map(s =>
+      optimisticPatches[s.id] ? { ...s, ...optimisticPatches[s.id] } : s);
+  }, [steps, clientId, optimisticSteps, optimisticPatches]);
 
   const stepById = useMemo(() => {
     const m = new Map<string, OnboardingStep>();
@@ -389,6 +412,8 @@ export default function OnboardingTab({
   /** "עדכן את דף הלקוח" — פרסום כל השינויים, ואז השאלה על המייל (D4). */
   const [publishingCase, setPublishingCase] = useState(false);
   const [publishPromptOpen, setPublishPromptOpen] = useState(false);
+  /** עריכה בתוך השורה — אותו קומפוזר של ההוספה, מלא מראש. */
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!embedded) return;
@@ -491,7 +516,7 @@ export default function OnboardingTab({
     if (ballFilter === 'done') return !isStepOpen(s.status);
     if (!isStepOpen(s.status)) return false;
     if (ballFilter === 'stuck') return s.status === 'blocked' || s.status === 'failed' || s.needsAttention;
-    if (ballFilter === 'third') return s.ball === 'authority' || s.ball === 'prev_accountant';
+    if (ballFilter === 'third') return s.ball === 'authority' || s.ball === 'prev_accountant' || s.ball === 'external';
     // הסינון חייב להחזיר בדיוק את מה שהמונה ספר, אחרת "אצלי 7" מציג 9 שורות
     if (ballFilter === 'me') return stepAwaitsMe(s);
     return s.ball === ballFilter;
@@ -574,6 +599,33 @@ export default function OnboardingTab({
 
   /** רינדור בקשה אחת — משותף לרשימה השטוחה (המסך הישן) ולשלבי-העל של מרכז התיק. */
   const renderStep = (step: OnboardingStep) => {
+              // עריכה בתוך השורה — הקומפוזר מחליף את השורה עצמה. אין מודל.
+              if (editingStepId === step.id && step.stepType === 'custom_request') {
+                return (
+                  <InlineComposer
+                    key={step.id}
+                    clientId={clientId}
+                    editStep={step}
+                    existingSteps={clientSteps}
+                    prevAccountant={prevAccountant}
+                    onCancel={() => setEditingStepId(null)}
+                    onSaved={updated => {
+                      setEditingStepId(null);
+                      setOptimisticPatches(p => ({ ...p, [step.id]: updated }));
+                      refresh?.();
+                    }}
+                  />
+                );
+              }
+
+              // דרישת-הקשר של גורם חיצוני: נגזרת, לא תלות, לא ניתנת להסרה.
+              const extCfg = step.payload.externalParty;
+              const contactNote = extCfg && isStepOpen(step.status)
+                ? (extCfg.kind === 'prev_accountant'
+                    ? (prevAccountant?.email?.trim() ? null : 'ממתין לפרטי קשר של הרו״ח הקודם')
+                    : (extCfg.contact?.email?.trim() ? null : 'חסר אימייל של הגורם — אין למי לפנות'))
+                : null;
+
               const locked = step.status === 'locked';
               const busy = busyStepId === step.id;
               const checklist = step.payload.checklist ?? [];
@@ -588,6 +640,11 @@ export default function OnboardingTab({
                   )}
                   {menuStepId === step.id && (
                     <>
+                      {/* עריכה בשורה — רק לבקשות שנבנות בקומפוזר. */}
+                      {step.stepType === 'custom_request' && isStepOpen(step.status) && (
+                        <button type="button" className="btn btn-sm btn-ghost"
+                          onClick={() => { setMenuStepId(null); setEditingStepId(step.id); }}>עריכה</button>
+                      )}
                       {/* ‼ שלב הייצוג מסונכרן מהשרת — "דלג" ו"חסום" ידניים היו
                           נדרסים בטריגר הבא ומשקרים עד אז. נשארת רק הערה. */}
                       {step.stepType !== 'representation' && (
@@ -732,6 +789,7 @@ export default function OnboardingTab({
                   step={step}
                   stepById={stepById}
                   highlight={highlightStepId === step.id}
+                  noteLine={contactNote ?? undefined}
                   menu={<>
                     {locked && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled>התחל</button>
@@ -755,6 +813,7 @@ export default function OnboardingTab({
                         onClick={() => void run(step, 'complete')}>
                         {step.ball === 'prev_accountant' ? 'החומרים הגיעו'
                           : step.ball === 'authority' ? 'התקבל מהרשות'
+                          : step.ball === 'external' ? 'התקבל מהגורם החיצוני'
                           : 'הלקוח השלים'}
                       </button>
                     )}
@@ -977,6 +1036,20 @@ export default function OnboardingTab({
           renderStep={renderStep}
           ballFilterActive={!!ballFilter}
           clientBucketTitle={activeEngagement?.status === 'onboarding' ? 'קליטת הלקוח' : 'בקשות'}
+          composer={(stageId, close) => (
+            <InlineComposer
+              clientId={clientId}
+              stageId={stageId}
+              existingSteps={clientSteps}
+              prevAccountant={prevAccountant}
+              onCancel={close}
+              onSaved={created => {
+                close();
+                setOptimisticSteps(prev => [...prev, created]);
+                refresh?.();
+              }}
+            />
+          )}
           headActions={<>
             <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>
               תבניות
@@ -1917,12 +1990,14 @@ function StepCardShell({ step, stepById, highlight, danger, statusLabel, menu, c
  * סגורה: שם · מצב · התקדמות · אצל מי הכדור וכמה זמן · הפעולה הבאה.
  * פתוחה: כל הפרטים של אותה בקשה. פותחים אחת בכל פעם, כדי שהמסך יישאר קריא.
  */
-function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, children }: {
+function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, menu, children }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
   danger?: boolean;
   statusLabel?: string;
+  /** שורת הסבר נוספת במטא — למשל דרישת-קשר של גורם חיצוני שטרם נפתרה. */
+  noteLine?: string;
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -1933,7 +2008,12 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
   const age = ageLabel(step);
   const progress = progressLabel(step);
   const hasBody = Boolean(children);
-  const isDraft = String(step.payload.published ?? 'true') === 'false';
+  const isDraft = step.publishedAt === null || String(step.payload.published ?? 'true') === 'false';
+  const hasPendingEdit = !!step.draftPayload && !isDraft;
+  const ext = step.payload.externalParty;
+  const extName = ext
+    ? (ext.kind === 'prev_accountant' ? 'רו״ח קודם' : (ext.contact?.name || 'גורם חיצוני'))
+    : null;
 
   return (
     <div id={`ob-step-${step.id}`} style={{
@@ -1966,6 +2046,9 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
             <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: locked ? 'var(--ink-3)' : 'var(--ink-1)' }}>
               {hasBody && <span aria-hidden="true" style={{ color: 'var(--ink-4)', marginInlineEnd: '.3rem' }}>{open ? '▾' : '▸'}</span>}
               {locked && '🔒 '}{rowTitle(step)}
+              {extName && (
+                <span style={{ color: 'var(--ink-3)', fontWeight: 400 }}> ← {extName}</span>
+              )}
               {/* ‼ מילה אחת אפורה, ורק על מה שאינו נדרש. הנדרש אינו מסומן —
                   סימון על הרוב הוא רעש, וסימון על המיעוט הוא מידע. */}
               {!isStepRequiredForClose(step) && <span className="ob-optional">רשות</span>}
@@ -1977,6 +2060,15 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
                   color: 'var(--warn)', border: '1px solid var(--warn)', borderRadius: 999,
                   padding: '0 .35rem',
                 }}>טיוטה</span>
+              )}
+              {/* ‼ עריכה ממתינה: הלקוח ממשיך לראות את הנוסח הישן עד "עדכן את
+                  דף הלקוח". בלי הסימון, עריכה נראית כאילו כבר פורסמה. */}
+              {hasPendingEdit && (
+                <span style={{
+                  marginInlineStart: '.4rem', fontSize: 'var(--fs-12)', fontWeight: 600,
+                  color: 'var(--warn)', border: '1px dashed var(--warn)', borderRadius: 999,
+                  padding: '0 .35rem',
+                }}>עריכה ממתינה</span>
               )}
               {step.needsAttention && !danger && (
                 <span style={{ color: 'var(--err)', marginInlineStart: '.4rem' }}>· דורש טיפול</span>
@@ -1992,6 +2084,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, menu, chil
               {age && <span>· {age}</span>}
               {step.dueDate && <span>· עד {formatDate(step.dueDate, 'list')}</span>}
               {locked && <span>· {lockHint(step, stepById)}</span>}
+              {noteLine && <span style={{ color: 'var(--warn)' }}>· {noteLine}</span>}
             </div>
           </button>
           <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
