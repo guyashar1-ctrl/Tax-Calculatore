@@ -27,8 +27,11 @@ const deferred = [];
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`✓ ${n}`); } else { fail++; console.log(`✗ ${n}${d ? ' — ' + d : ''}`); } };
 const one = async (q) => (await writeStaging(q))[0];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-/** ממתין ש-pg_net יוציא את הבקשה בפועל (הוא נשלח אחרי ה-commit, ברקע). */
-async function waitForNet(sinceId, tries = 20) {
+/** ממתין ש-pg_net יוציא את הבקשה בפועל (הוא נשלח אחרי ה-commit, ברקע).
+ *  ‼ הסבלנות רחבה בכוונה: השיגור אסינכרוני, ובהרצות רצופות נצפתה נפילה
+ *  בודדת (1 מתוך 9) שכולה תזמון — לא התנהגות. עדיף להמתין מאשר לדווח
+ *  אדום על מנגנון תקין. */
+async function waitForNet(sinceId, tries = 32) {
   for (let i = 0; i < tries; i++) {
     const r = await one(`select count(*)::int as n from net._http_response where id > ${sinceId}`);
     if (r.n > 0) return true;
@@ -350,7 +353,7 @@ console.log('\n— AT-5 · תזכורת פקיעת הצעה —');
 console.log('\n— AT-6 · משימות אוטומטיות: חמוש-בפרסום, בדיוק פעם אחת —');
 {
   const CLAIMS = `select set_config('request.jwt.claims', json_build_object('sub','${USER_ID}','role','authenticated')::text, false);`;
-  const waitForCond = async (fn, tries = 15) => {
+  const waitForCond = async (fn, tries = 25) => {
     for (let i = 0; i < tries; i++) { if (await fn()) return true; await sleep(1400); }
     return false;
   };
@@ -409,11 +412,31 @@ console.log('\n— AT-6 · משימות אוטומטיות: חמוש-בפרסו�
       return s.claimed === null && !!s.err;
     }), JSON.stringify(await stepRow(auto.stepId)).slice(0, 160));
   ok('AT-6 · אחרי כשל — הטריגר הבא רשאי לנסות שוב', (await exec(auto.stepId)).ok === true);
-  await waitForCond(async () => (await stepRow(auto.stepId)).claimed === null);
 
-  // 4+5 · הצלחה (תביעה תפוסה) — שום דבר לא יורה שוב
+  /* ‼ השחרור-אחרי-כשל הוא אסינכרוני (pg_net → פונקציה → release). לפני
+     שמדמים הצלחה חייבים להמתין שהוא ישקע, אחרת הוא ימחק את התביעה הידנית
+     שלנו והבדיקה תמדוד מרוץ במקום התנהגות. דורשים שקט יציב בשתי דגימות. */
+  const settled = async () => {
+    let quiet = 0;
+    for (let i = 0; i < 20; i++) {
+      const s = await stepRow(auto.stepId);
+      quiet = s.claimed === null ? quiet + 1 : 0;
+      if (quiet >= 2) return true;
+      await sleep(1500);
+    }
+    return false;
+  };
+  ok('AT-6 · מצב הביצוע נרגע אחרי הניסיון החוזר', await settled());
+
+  // 4+5 · הצלחה (תביעה תפוסה) — שום דבר לא יורה שוב.
+  // ‼ הטענה נבדקת על השלב עצמו ולא על המונה הכולל: המונה סופר את כל
+  //   המשימות של הלקוח, ומשימה אחרת שנורית באותו רגע הייתה הופכת בדיקה
+  //   נכונה לאדומה.
   await writeStaging(`select public.claim_auto_execution('${auto.stepId}');`);
-  ok('AT-6 · פרסום חוזר אינו שולח שוב אחרי הצלחה', Number((await publish()).autoQueued) === 0);
+  await publish();
+  ok('AT-6 · פרסום חוזר אינו שולח שוב אחרי הצלחה',
+    (await stepRow(auto.stepId)).claimed !== null,
+    JSON.stringify(await stepRow(auto.stepId)).slice(0, 120));
   ok('AT-6 · ניסיון ישיר אחרי הצלחה מדלג', (await exec(auto.stepId)).skipped === 'already_executed');
 
   // 7 · נמען חיצוני חסר חוסם — בלי לצרוך את התביעה
@@ -432,8 +455,18 @@ console.log('\n— AT-6 · משימות אוטומטיות: חמוש-בפרסו�
   ok('AT-6 · העריכה נרשמה כממתינה (draft_payload)', edit1.pendingEdit === true);
   ok('AT-6 · אוטומציה שנוספה בעריכה אינה פעילה לפני פרסום',
     (await exec(man.stepId)).skipped === 'not_automatic');
+  // ‼ נמדד על השלב הזה בלבד: הפרסום החיל את העריכה, השלב נחמש ונורה בדיוק
+  //   פעם אחת (ניסיון יחיד — ומכיוון שאין Resend ב-staging הוא נרשם ככשל).
+  const netBefore = (await one(`select coalesce(max(id),0)::bigint as m from net._http_response`)).m;
   const pub2 = await publish();
-  ok('AT-6 · הפרסום החיל את העריכה וחימש — ירייה אחת', Number(pub2.autoQueued) === 1, JSON.stringify(pub2).slice(0, 140));
+  ok('AT-6 · הפרסום החיל את העריכה', Number(pub2.editsApplied) >= 1, JSON.stringify(pub2).slice(0, 140));
+  ok('AT-6 · השלב שנחמש בפרסום נורה בדיוק פעם אחת',
+    await waitForCond(async () => {
+      const s = await stepRow(man.stepId);
+      return s.claimed !== null || !!s.err;   // נתפס, או נורה ונכשל ושוחרר
+    }) &&
+    (await one(`select count(*)::int as n from net._http_response where id > ${netBefore}`)).n === 1,
+    JSON.stringify(await stepRow(man.stepId)).slice(0, 120));
   await waitForCond(async () => {
     const s = await stepRow(man.stepId);
     return s.claimed === null && !!s.err; // הירייה נכשלה על Resend ושוחררה
