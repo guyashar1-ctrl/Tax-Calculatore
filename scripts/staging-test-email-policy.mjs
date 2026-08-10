@@ -4,7 +4,9 @@
  *
  * AT-1 שליחה אוטומטית בלי שרו"ח מחובר · AT-2 אין כפילות · AT-3 כשל בטוח,
  * גלוי וניתן לניסיון חוזר · AT-4 מנגנון 24 השעות אינו שולח ללקוח ·
- * AT-5 תזכורת הפקיעה שותקת כשהמתג כבוי.
+ * AT-5 תזכורת הפקיעה שותקת כשהמתג כבוי · AT-6 משימות אוטומטיות (D3):
+ * טיוטה לא יורה, חימוש רק בפרסום, בדיוק פעם אחת, כשל משחרר, נמען חיצוני
+ * חסר חוסם, ועריכה/נטרול נכנסים לתוקף רק בפרסום.
  *
  * ‼ הכול על לקוחות דמה בלבד, וכל הנמענים על דומיין הבדיקה של Resend.
  */
@@ -45,14 +47,23 @@ const tok = randomBytes(16).toString('hex');
     delete from public.leads where id = 'fx-lead-at1';
     insert into public.leads (id, user_id, full_name, email, phone, status, has_previous_accountant)
     values ('fx-lead-at1', '${USER_ID}', 'AT1 דמה', 'delivered@resend.dev', '050-0000011', 'new', false);`);
+  /* ‼ איפוס מלא בכל ריצה. `on conflict do nothing` השאיר את ההצעה במצב
+     "אושרה" עם הטוקן של הריצה הקודמת, ולכן הריצה השנייה קיבלה `invalid` —
+     כישלון שמדווח על שארית ולא על המנגנון. מוחקים גם את מה שהאישור הקודם
+     ייצר (לקוח, התקשרות, בקשת ייצוג), אחרת הספירות אינן דטרמיניסטיות. */
   await writeStaging(`
+    delete from public.clients c
+     where c.id in (select q.client_id from public.quotations q where q.id = 'fx-q-at1' and q.client_id is not null);
+    delete from public.representation_requests rr
+     where rr.id in (select q.representation_request_id from public.quotations q
+                      where q.id = 'fx-q-at1' and q.representation_request_id is not null);
+    delete from public.quotations where id = 'fx-q-at1';
     insert into public.quotations (id, user_id, lead_id, quotation_number, status, public_token,
                                    items, representation, vat_rate, expires_at, sent_at)
     values ('fx-q-at1', '${USER_ID}', 'fx-lead-at1', 'FX-AT1', 'sent', '${tok}',
       '[{"id":"i1","serviceId":"s1","name":"הנהלת חשבונות","category":"monthly","billingType":"monthly","catalogPrice":1000,"clientPrice":1000,"quantity":1,"vatFlag":true}]'::jsonb,
       '{"enabled":true,"areas":{"incomeTax":true},"spouse":null,"prefill":{"firstName":"AT1","lastName":"דמה","email":"delivered@resend.dev","phone":"050-0000011"}}'::jsonb,
-      18, now() + interval '30 days', now())
-    on conflict (id) do nothing;`);
+      18, now() + interval '30 days', now());`);
 
   const maxNet = (await one(`select coalesce(max(id), 0)::bigint as m from net._http_response`)).m;
   const mailsBefore = (await one(`select count(*)::int as n from public.email_messages`)).n;
@@ -245,13 +256,22 @@ console.log('\n— AT-4 · מנגנון 24 השעות —');
   const before = (await one(`select count(*)::int as n from public.email_messages`)).n;
   const n = await one(`select public.flag_missing_representation_links() as n`);
   ok('AT-4 · ההצעה סומנה כ"הקישור לא יצא"', Number(n.n) >= 1, String(n.n));
+  /* ‼ נספרת ההתראה של הפיקסטורה הזאת בלבד. ספירה גלובלית נכשלה ברגע
+     שסקריפט אחר השאיר הצעה מאושרת שהקישור שלה לא יצא — כישלון שמדווח על
+     נתוני שאריות ולא על התנהגות המנגנון. */
   const notif = await one(`select count(*)::int as n from public.accountant_notifications
-                            where kind = 'representation_link_missing'`);
+                            where kind = 'representation_link_missing'
+                              and payload->>'quotationId' = 'fx-q-at1'`);
   ok('AT-4 · נרשמה התראה פנימית לרו״ח', notif.n === 1, String(notif.n));
   const after = (await one(`select count(*)::int as n from public.email_messages`)).n;
   ok('AT-4 · אפס מיילים ללקוח מהמנגנון הזה', after === before, `${before} → ${after}`);
-  const again = await one(`select public.flag_missing_representation_links() as n`);
-  ok('AT-4 · הרצה שנייה אינה מציפה בהתראות', Number(again.n) === 0, String(again.n));
+  const againBefore = (await one(`select count(*)::int as n from public.accountant_notifications
+                                   where kind = 'representation_link_missing'`)).n;
+  await one(`select public.flag_missing_representation_links() as n`);
+  const againAfter = (await one(`select count(*)::int as n from public.accountant_notifications
+                                  where kind = 'representation_link_missing'`)).n;
+  ok('AT-4 · הרצה שנייה אינה מציפה בהתראות', againAfter === againBefore,
+    `${againBefore} → ${againAfter}`);
 
   /* ‼ התראה פנימית שנושאת client_id נכנסת לכרטיס הלקוח דרך ההתאמה הראשית,
      לא רק דרך הכתובת — ולכן הסינון לפי סוג המייל הוא השער היחיד שעוצר אותה.
@@ -280,6 +300,20 @@ console.log('\n— AT-5 · תזכורת פקיעת הצעה —');
     return r.json().catch(() => ({}));
   };
 
+  /* ‼ הפיקסטורה נבנית כאן ולא מסתמכת על הצעה ששרדה מריצה קודמת: הצעה
+     שנוצרה אתמול פוקעת היום, ואז הפונקציה לא מוצאת מועמד — והבדיקה "נכשלת"
+     על תאריך, לא על התנהגות. expires_at נדחף קדימה בכל ריצה. */
+  await writeStaging(`
+    delete from public.leads where id = 'fx-lead-at5';
+    insert into public.leads (id, user_id, full_name, email, phone, status, has_previous_accountant)
+    values ('fx-lead-at5', '${USER_ID}', 'AT5 דמה', 'delivered@resend.dev', '050-0000055', 'new', false);
+    delete from public.quotations where id = 'fx-q-at5';
+    insert into public.quotations (id, user_id, lead_id, quotation_number, status, public_token,
+                                   items, vat_rate, expires_at, sent_at, auto_reminder_sent_at)
+    values ('fx-q-at5', '${USER_ID}', 'fx-lead-at5', 'FX-AT5', 'sent', '${randomBytes(16).toString('hex')}',
+      '[{"id":"i1","serviceId":"s1","name":"שירות","category":"monthly","billingType":"monthly","catalogPrice":500,"clientPrice":500,"quantity":1,"vatFlag":true}]'::jsonb,
+      18, now() + interval '20 hours', now(), null);`);
+
   // ברירת המחדל: אין הגדרה כלל ⇒ כבוי.
   await writeStaging(`update public.profiles set settings = coalesce(settings,'{}'::jsonb) - 'accountantNotifications' where id = '${USER_ID}';`);
   const before = (await one(`select count(*)::int as n from public.email_messages`)).n;
@@ -306,6 +340,118 @@ console.log('\n— AT-5 · תזכורת פקיעת הצעה —');
   await writeStaging(`update public.profiles set settings = coalesce(settings,'{}'::jsonb) - 'accountantNotifications' where id = '${USER_ID}';`);
   const back = await one(`select settings->'accountantNotifications' as s from public.profiles where id = '${USER_ID}'`);
   ok('AT-5 · המתג הוחזר לכבוי', back?.s === null, JSON.stringify(back?.s));
+}
+
+// ── AT-6 · משימות אוטומטיות (D3) — חמוש-בפרסום, בדיוק פעם אחת ───────────────
+// docs/EMAIL-POLICY.md §9. הביצוע: execute_automatic_step (מיגרציה 83) ⇒
+// net.http_post ⇒ send-step-email במסלול הסוד הפנימי. ב-staging אין מפתח
+// Resend, ולכן "ירייה" מסתיימת בכשל מבוקר: התביעה משתחררת ו-autoError נרשם —
+// בדיוק ההתנהגות של מייל הייצוג. ההצלחה עצמה מדומה בתביעה ידנית.
+console.log('\n— AT-6 · משימות אוטומטיות: חמוש-בפרסום, בדיוק פעם אחת —');
+{
+  const CLAIMS = `select set_config('request.jwt.claims', json_build_object('sub','${USER_ID}','role','authenticated')::text, false);`;
+  const waitForCond = async (fn, tries = 15) => {
+    for (let i = 0; i < tries; i++) { if (await fn()) return true; await sleep(1400); }
+    return false;
+  };
+
+  // לקוח העוגן: לקוח קיים של משתמש הבדיקה עם דף אישי. בלי מייל לרו"ח קודם —
+  // כדי לבדוק את דרישת-הקשר. שאריות מריצות קודמות מנוקות קודם.
+  const cli = await one(`select id from public.clients
+    where user_id = '${USER_ID}' and portal_token is not null limit 1`);
+  const cid = cli.id;
+  await writeStaging(`
+    delete from public.email_messages where subject like 'fx-at6%';
+    delete from public.onboarding_steps where client_id = '${cid}' and payload->>'title' like 'fx-at6%';
+    update public.clients set prev_accountant_email = null where id = '${cid}';
+    update public.engagements set process_published_at = coalesce(process_published_at, now())
+      where client_id = '${cid}';`);
+
+  const mk = async (payload, { published = false, owner = 'client', dependsOn = null } = {}) => {
+    const r = await one(`${CLAIMS}
+      select public.create_onboarding_request('${cid}', 'custom_request', '${payload}'::jsonb,
+        null, ${dependsOn ? `'${dependsOn}'` : 'null'}, ${published}, true, '${owner}', null)::text as out;`);
+    return JSON.parse(r.out);
+  };
+  const exec = async (id) =>
+    JSON.parse((await one(`select public.execute_automatic_step('${id}')::text as out;`)).out);
+  const publish = async () =>
+    JSON.parse((await one(`${CLAIMS} select public.publish_case_changes('${cid}')::text as out;`)).out);
+  const stepRow = async (id) =>
+    await one(`select status, payload->>'autoExecutedAt' as claimed, payload->>'autoError' as err
+                 from public.onboarding_steps where id = '${id}'`);
+
+  // 1 · טיוטה אוטומטית לעולם אינה מבצעת
+  const auto = await mk(`{"title":"fx-at6-auto","clientTitle":"fx-at6-auto","autoAction":{"kind":"email"},"requirements":[{"key":"r1","kind":"confirm","label":"אישור","done":false}]}`);
+  ok('AT-6 · טיוטה אוטומטית לעולם אינה מבצעת', (await exec(auto.stepId)).skipped === 'draft');
+
+  // 2 · פרסום מחמש — אך אינו יורה כשתלות פתוחה
+  const dep = await mk(`{"title":"fx-at6-dep","clientTitle":"fx-at6-dep","requirements":[{"key":"r1","kind":"confirm","label":"אישור","done":false}]}`);
+  await one(`${CLAIMS} select public.set_onboarding_step_dependencies('${auto.stepId}', array['${dep.stepId}'])::text as out;`);
+  const pub1 = await publish();
+  const s1 = await stepRow(auto.stepId);
+  ok('AT-6 · פרסום מחמש אך אינו יורה על תלות פתוחה',
+    Number(pub1.autoQueued) === 0 && s1.claimed === null && s1.status === 'locked',
+    JSON.stringify({ pub1, s1 }).slice(0, 160));
+
+  // 3 · השלמת התלות האחרונה יורה — ניסיון שליחה אחד בדיוק
+  const maxNet = (await one(`select coalesce(max(id),0)::bigint as m from net._http_response`)).m;
+  await one(`${CLAIMS} select public.advance_onboarding_step('${dep.stepId}','start')::text as out;`);
+  await one(`${CLAIMS} select public.advance_onboarding_step('${dep.stepId}','complete')::text as out;`);
+  ok('AT-6 · השלמת התלות האחרונה ירתה', await waitForNet(maxNet));
+  const attempts = await one(`select count(*)::int as n from net._http_response where id > ${maxNet}`);
+  ok('AT-6 · ניסיון שליחה אחד בדיוק לטריגר', attempts.n === 1, String(attempts.n));
+
+  // 6 · כשל השליחה (אין Resend ב-staging) שחרר את התביעה — ניסיון חוזר אפשרי
+  ok('AT-6 · כשל שליחה שחרר את התביעה ורשם שגיאה',
+    await waitForCond(async () => {
+      const s = await stepRow(auto.stepId);
+      return s.claimed === null && !!s.err;
+    }), JSON.stringify(await stepRow(auto.stepId)).slice(0, 160));
+  ok('AT-6 · אחרי כשל — הטריגר הבא רשאי לנסות שוב', (await exec(auto.stepId)).ok === true);
+  await waitForCond(async () => (await stepRow(auto.stepId)).claimed === null);
+
+  // 4+5 · הצלחה (תביעה תפוסה) — שום דבר לא יורה שוב
+  await writeStaging(`select public.claim_auto_execution('${auto.stepId}');`);
+  ok('AT-6 · פרסום חוזר אינו שולח שוב אחרי הצלחה', Number((await publish()).autoQueued) === 0);
+  ok('AT-6 · ניסיון ישיר אחרי הצלחה מדלג', (await exec(auto.stepId)).skipped === 'already_executed');
+
+  // 7 · נמען חיצוני חסר חוסם — בלי לצרוך את התביעה
+  const ext = await mk(`{"title":"fx-at6-ext","autoAction":{"kind":"email"},"externalParty":{"kind":"prev_accountant"}}`,
+    { published: true, owner: 'external' });
+  const extRes = await exec(ext.stepId);
+  const extRow = await stepRow(ext.stepId);
+  ok('AT-6 · נמען חיצוני חסר חוסם בלי לתפוס תביעה',
+    extRes.skipped === 'contact_missing' && extRow.claimed === null, JSON.stringify(extRes));
+
+  // 8 · אוטומציה שנוספה בעריכה על בקשה שפורסמה — לא פעילה עד הפרסום
+  const man = await mk(`{"title":"fx-at6-man","clientTitle":"fx-at6-man","requirements":[{"key":"r1","kind":"confirm","label":"אישור","done":false}]}`,
+    { published: true });
+  const edit1 = JSON.parse((await one(`${CLAIMS} select public.update_onboarding_request('${man.stepId}',
+    '{"title":"fx-at6-man","clientTitle":"fx-at6-man","autoAction":{"kind":"email"},"requirements":[{"key":"r1","kind":"confirm","label":"אישור","done":false}]}'::jsonb)::text as out;`)).out);
+  ok('AT-6 · העריכה נרשמה כממתינה (draft_payload)', edit1.pendingEdit === true);
+  ok('AT-6 · אוטומציה שנוספה בעריכה אינה פעילה לפני פרסום',
+    (await exec(man.stepId)).skipped === 'not_automatic');
+  const pub2 = await publish();
+  ok('AT-6 · הפרסום החיל את העריכה וחימש — ירייה אחת', Number(pub2.autoQueued) === 1, JSON.stringify(pub2).slice(0, 140));
+  await waitForCond(async () => {
+    const s = await stepRow(man.stepId);
+    return s.claimed === null && !!s.err; // הירייה נכשלה על Resend ושוחררה
+  });
+
+  // 9 · נטרול אוטומציה בעריכה — נכנס לתוקף רק בפרסום
+  await one(`${CLAIMS} select public.update_onboarding_request('${man.stepId}',
+    '{"title":"fx-at6-man","clientTitle":"fx-at6-man","autoAction":null,"requirements":[{"key":"r1","kind":"confirm","label":"אישור","done":false}]}'::jsonb)::text as out;`);
+  ok('AT-6 · לפני הפרסום התצורה הישנה (החמושה) עדיין חיה',
+    (await exec(man.stepId)).ok === true);
+  await waitForCond(async () => (await stepRow(man.stepId)).claimed === null);
+  await publish();
+  ok('AT-6 · אחרי הפרסום הנטרול בתוקף', (await exec(man.stepId)).skipped === 'not_automatic');
+
+  // ניקוי
+  await writeStaging(`
+    delete from public.email_messages where subject like 'fx-at6%';
+    delete from public.onboarding_steps where client_id = '${cid}' and payload->>'title' like 'fx-at6%';`);
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} עברו ${pass} · נכשלו ${fail}`);
