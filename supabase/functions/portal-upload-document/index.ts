@@ -96,7 +96,9 @@ Deno.serve(async (req: Request) => {
       : ["client_documents", "custom_request"];
     if (!allowedTypes.includes(step.step_type)) return json({ error: "step_not_uploadable" }, 403);
     // בקשה שהרו"ח עוד לא פתח ללקוח אינה קיימת מבחינתו.
-    if (tokenKind === "portal" && String(step.payload?.published ?? "true") === "false") {
+    // מקור האמת הוא העמודה (מיגרציה 77); המראה ב-payload נבדקת ליתר ביטחון.
+    if (tokenKind === "portal" &&
+        (step.published_at == null || String(step.payload?.published ?? "true") === "false")) {
       return json({ error: "not_published" }, 403);
     }
 
@@ -113,8 +115,15 @@ Deno.serve(async (req: Request) => {
     const list = Array.isArray(payload[listKey]) ? [...(payload[listKey] as any[])] : [];
     const idx = list.findIndex((x) => x?.key === itemKey);
     if (idx < 0) return json({ error: "item_not_found" }, 404);
-    if (step.step_type === "custom_request" && list[idx]?.kind !== "file") {
+    const itemKind = String(list[idx]?.kind ?? "");
+    if (step.step_type === "custom_request" && itemKind !== "file" && itemKind !== "files") {
       return json({ error: "item_not_a_file" }, 400);
+    }
+    // 'files' מקבל כמה קבצים לאותו פריט — עד התקרה שהרו"ח קבע, אם קבע.
+    const priorIds: string[] = Array.isArray(list[idx]?.documentIds) ? list[idx].documentIds : [];
+    const maxFiles = Number(list[idx]?.maxFiles ?? 0);
+    if (itemKind === "files" && maxFiles > 0 && priorIds.length >= maxFiles) {
+      return json({ error: "max_files_reached", maxFiles }, 409);
     }
     const itemLabel = String(list[idx]?.label || itemKey);
 
@@ -149,8 +158,13 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── סימון הפריט ועדכון השלב ──────────────────────────────────────────────
-    list[idx] = { ...list[idx], done: true, documentId: docId, doneAt: new Date().toISOString() };
-    const remaining = list.filter((x) => !x?.done).length;
+    list[idx] = itemKind === "files"
+      ? { ...list[idx], done: true, documentIds: [...priorIds, docId], doneAt: new Date().toISOString() }
+      : { ...list[idx], done: true, documentId: docId, doneAt: new Date().toISOString() };
+    // ‼ ההשלמה נספרת לפי דרישות חובה בלבד (בבקשה חופשית); פריט רשות פתוח
+    // לעולם לא חוסם (הכרעת גיא, 6+7). צ'קליסט מסמכים — כל הפריטים חובה.
+    const remaining = list.filter((x) =>
+      !x?.done && (listKey === "checklist" || x?.required !== false)).length;
 
     const patch: Record<string, unknown> = { payload: { ...payload, [listKey]: list } };
     if (remaining === 0) {

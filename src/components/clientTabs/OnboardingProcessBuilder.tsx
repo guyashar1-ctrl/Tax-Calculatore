@@ -20,7 +20,8 @@ import type { AdvanceResult } from '../../hooks/useOnboarding';
 import { supabase } from '../../lib/supabase';
 import AddRequestDialog from './AddRequestDialog';
 import JourneyTemplatesDialog from './JourneyTemplatesDialog';
-import SendPortalDialog from './SendPortalDialog';
+import ClientPagePreviewDialog from './ClientPagePreviewDialog';
+import PublishCasePrompt from './PublishCasePrompt';
 
 interface Props {
   clientName: string;
@@ -89,7 +90,10 @@ export default function OnboardingProcessBuilder({
   const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [sendOpen, setSendOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  /** השאלה "לשלוח מייל?" שאחרי הפרסום — הכרעת D4. */
+  const [promptOpen, setPromptOpen] = useState(false);
 
   const mine = useMemo(
     () => steps.filter(s => s.engagementId === engagement.id || s.clientId === engagement.clientId),
@@ -244,17 +248,21 @@ export default function OnboardingProcessBuilder({
   }
 
   /**
-   * פתיחת התהליך. רצה כשלב הראשון של השליחה ולא ככפתור בפני עצמו — הכרעת גיא:
-   * "אני לוחץ שלח, וזה שולח". החזרת מחרוזת = תקלה שנעצרת לפני שהמייל יוצא.
-   * ‼ הפונקציה בשרת אידמפוטנטית (alreadyPublished), ולכן ניסיון חוזר בטוח.
+   * "עדכן את דף הלקוח" — פרסום בלבד (הכרעת D4, docs/EMAIL-POLICY.md §9):
+   * פותח את התהליך וחושף את הטיוטות, ולא שולח שום מייל. מיד אחרי ההצלחה
+   * נפתחת השאלה הנפרדת "לשלוח מייל עם הקישור?". הרענון נדחה עד סגירת
+   * השאלה — אחרת הבונה מוחלף במסך הניהול לפני שהשאלה מוצגת.
    */
-  async function publish(): Promise<string | null> {
-    const { data, error: rpcError } = await supabase.rpc('publish_onboarding_process', {
-      p_engagement_id: engagement.id,
+  async function publishCase() {
+    setPublishing(true);
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc('publish_case_changes', {
+      p_client_id: engagement.clientId,
     });
+    setPublishing(false);
     const res = data as { ok?: boolean; error?: string } | null;
-    if (rpcError || !res?.ok) return 'לא הצלחתי לפתוח את התהליך. נסה שוב.';
-    return null;
+    if (rpcError || !res?.ok) { setError('לא הצלחתי לפתוח את התהליך. נסה שוב.'); return; }
+    setPromptOpen(true);
   }
 
   function renderRow(row: ViewRow, movable: boolean) {
@@ -414,17 +422,19 @@ export default function OnboardingProcessBuilder({
           <div style={{ display: 'flex', gap: '.4rem', justifySelf: 'start' }}>
             <button type="button" className="btn btn-secondary" onClick={() => setAddOpen(true)}>+ בקשה</button>
             <button type="button" className="btn btn-ghost" onClick={() => setTemplatesOpen(true)}>תבניות מסע</button>
+            {/* הדף האמיתי, מהשרת — הפאנל שמימין הוא רק תקציר. */}
+            <button type="button" className="btn btn-ghost" onClick={() => setPreviewOpen(true)}>תצוגה מקדימה</button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem', flexWrap: 'wrap', paddingTop: '.2rem' }}>
-            {/* ‼ כפתור אחד: פותח את התהליך *ומוציא אותו* ללקוח. "פתח ללקוח"
-                שרק הדליק דגל בשרת השאיר את הלקוח מול דף שהוא לא יודע עליו,
-                ואת הרו"ח מחפש כפתור שליחה שלא היה קיים. */}
-            <button type="button" className="btn btn-primary" onClick={() => setSendOpen(true)}>
-              שלח ללקוח
+            {/* ‼ הכרעת D4: הפרסום לא שולח. מיד אחריו נשאלת השאלה "לשלוח מייל
+                עם הקישור?" — כך פרסום שקט לא נשכח, בלי לאחד את הכפתורים. */}
+            <button type="button" className="btn btn-primary" disabled={publishing}
+              onClick={() => void publishCase()}>
+              {publishing ? 'מפרסם…' : 'עדכן את דף הלקוח'}
             </button>
             <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
-              נבחר איך שולחים — מייל או קישור לוואטסאפ. אפשר לשנות הכל אחר כך.
+              הדף האישי ייפתח ללקוח, ומיד אחר כך נשאל אם לשלוח לו מייל עם הקישור.
             </span>
           </div>
         </div>
@@ -494,15 +504,20 @@ export default function OnboardingProcessBuilder({
         />
       )}
 
-      {sendOpen && (
-        <SendPortalDialog
+      {promptOpen && (
+        <PublishCasePrompt
           clientId={engagement.clientId}
           clientName={clientName}
           clientEmail={clientEmail}
-          heading="פתיחת התהליך ללקוח"
-          beforeSend={publish}
-          onClose={() => { setSendOpen(false); refresh?.(); }}
-          onSent={() => refresh?.()}
+          onClose={() => { setPromptOpen(false); refresh?.(); }}
+        />
+      )}
+
+      {previewOpen && (
+        <ClientPagePreviewDialog
+          clientId={engagement.clientId}
+          clientName={clientName}
+          onClose={() => setPreviewOpen(false)}
         />
       )}
     </section>

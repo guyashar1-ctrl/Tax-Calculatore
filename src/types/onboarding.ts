@@ -126,7 +126,7 @@ export const STEP_STATUS_TONE: Record<OnboardingStepStatus, StepTone> = {
   cancelled: 'muted',
 };
 
-export type OnboardingBall = 'me' | 'client' | 'authority' | 'prev_accountant' | 'system';
+export type OnboardingBall = 'me' | 'client' | 'authority' | 'prev_accountant' | 'system' | 'external';
 
 export const STEP_BALL_LABELS: Record<OnboardingBall, string> = {
   me: 'אצלי',
@@ -134,6 +134,7 @@ export const STEP_BALL_LABELS: Record<OnboardingBall, string> = {
   authority: 'אצל הרשות',
   prev_accountant: 'אצל הרו״ח הקודם',
   system: 'אוטומטי',
+  external: 'אצל גורם חיצוני',
 };
 
 export type StepCompletionMethod = 'manual' | 'auto' | 'system';
@@ -148,13 +149,22 @@ export interface StepChecklistItem {
   doneAt?: string;
 }
 
-/** מה נדרש מהלקוח בבקשה חופשית. שילובים מותרים באותה בקשה. */
-export type CustomRequirementKind = 'confirm' | 'text' | 'file';
+/** מה נדרש מהלקוח בבקשה חופשית. שילובים מותרים באותה בקשה.
+ *  ‼ אלה שדות בתוך בקשה אחת — לעולם לא משימות נפרדות (מרכז התיק, 6+7). */
+export type CustomRequirementKind =
+  | 'confirm' | 'text' | 'email' | 'phone' | 'number' | 'date'
+  | 'select' | 'file' | 'files';
 
 export const REQUIREMENT_KIND_LABELS: Record<CustomRequirementKind, string> = {
   confirm: 'לקרוא ולאשר',
   text: 'לענות בטקסט',
+  email: 'אימייל',
+  phone: 'טלפון',
+  number: 'מספר',
+  date: 'תאריך',
+  select: 'בחירה מרשימה',
   file: 'להעלות קובץ',
+  files: 'להעלות כמה קבצים',
 };
 
 export interface CustomRequirement {
@@ -162,11 +172,36 @@ export interface CustomRequirement {
   kind: CustomRequirementKind;
   label: string;
   done: boolean;
-  /** תשובת הטקסט של הלקוח (kind='text'). */
+  /**
+   * חובה ⇒ חוסם את השלמת הבקשה; רשות ⇒ לא חוסם לעולם (הכרעת גיא, 6+7).
+   * היעדר השדה = חובה — כל הדרישות שנוצרו לפני השדה הזה היו חוסמות.
+   */
+  required?: boolean;
+  /** תשובת הלקוח (text/email/phone/number/date/select). */
   value?: string;
+  /** אפשרויות הבחירה (kind='select'). */
+  options?: string[];
+  /** תקרת קבצים (kind='files'). היעדר = בלי תקרה. */
+  maxFiles?: number;
   /** המסמך שנוצר בהעלאה (kind='file'). */
   documentId?: string;
+  /** המסמכים שהצטברו (kind='files'). */
+  documentIds?: string[];
   doneAt?: string;
+}
+
+/** הדרישה חוסמת השלמה? היעדר required = חובה (תאימות לאחור). */
+export function isRequirementRequired(r: Pick<CustomRequirement, 'required'>): boolean {
+  return r.required !== false;
+}
+
+/** מי הגורם החיצוני של משימת-חוץ, ומאיפה פרטי הקשר שלו.
+ *  ‼ מוכנות פרטי הקשר היא דרישת-מערכת, לא תלות-משימה: אי אפשר "להסיר" אותה
+ *  כמו צ'יפ תלות — בלי אימייל אין למי לשלוח (הכרעת גיא, מרכז התיק). */
+export interface ExternalPartyConfig {
+  kind: 'prev_accountant' | 'other';
+  /** ל-kind='other' — פרטים שהוזנו ידנית. */
+  contact?: { name?: string; email?: string; phone?: string };
 }
 
 export interface StepPayload {
@@ -210,6 +245,17 @@ export interface StepPayload {
   clientCta?: string;
   /** false ⇒ הבקשה מוכנה אצל הרו״ח אך אינה מוצגת ללקוח. היעדר השדה = מפורסמת. */
   published?: boolean;
+  /** משימת גורם חיצוני — מי הגורם ומאיפה פרטי הקשר. */
+  externalParty?: ExternalPartyConfig;
+  /**
+   * תצורת ביצוע אוטומטי (D3). null מפורש = ביטול (נדרס בפרסום); היעדר = ידני.
+   * ‼ נחמשת רק אחרי "עדכן את דף הלקוח" — טיוטה לעולם אינה מבצעת.
+   */
+  autoAction?: { kind: 'email' } | null;
+  /** חותמת הביצוע האוטומטי — התביעה של "בדיוק פעם אחת". */
+  autoExecutedAt?: string;
+  /** שגיאת הביצוע האחרון — התביעה שוחררה ויינסה שוב בטריגר הבא. */
+  autoError?: string;
   [key: string]: unknown;
 }
 
@@ -234,6 +280,12 @@ export interface OnboardingStep {
   dueDate?: string;
   /** סדר התצוגה שהרו״ח קבע בבונה. גובר על סדר היצירה בכל מסך ובדף האישי. */
   sortOrder?: number;
+  /** שלב-העל בתיק (journey_stages, מיגרציה 79). חסר ⇒ דלי ברירת-מחדל בתצוגה. */
+  stageId?: string | null;
+  /** מקור האמת לפרסום פר-בקשה (מיגרציה 77). null = טיוטה שהלקוח אינו רואה. */
+  publishedAt?: string | null;
+  /** עריכות ממתינות לבקשה שפורסמה — הלקוח רואה את payload עד הפרסום הבא. */
+  draftPayload?: StepPayload | null;
   needsAttention: boolean;
   payload: StepPayload;
   completionMethod: StepCompletionMethod;

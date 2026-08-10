@@ -1,7 +1,8 @@
 // ─── שליחת הדף האישי ללקוח ──────────────────────────────────────────────────
-// ‼ אותה צורה בדיוק כמו "קישור ייצוג חדש" (הכרעת גיא 2026-08-09): בוחרים איך
-// שולחים, לוחצים פעם אחת — וזה יוצא. פתיחת תהליך שרק מדליקה דגל בשרת היא
-// פתיחה שהלקוח לא יודע עליה, ולכן הכפתור שמסיים את הבנייה הוא הכפתור ששולח.
+// ‼ הכרעת D4 (docs/EMAIL-POLICY.md §9): פרסום דף הלקוח ושליחת המייל הם שתי
+// החלטות נפרדות. החלון הזה שולח בלבד — הפרסום קורה קודם, ב"עדכן את דף
+// הלקוח" (publish_case_changes), ואחריו PublishCasePrompt שואל אם לשלוח.
+// הפרמטר beforeSend שאיחד פרסום ושליחה הוסר במכוון — לא להחזיר אותו.
 
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -18,19 +19,13 @@ interface Props {
   initialMode?: SendPortalMode;
   /** כותרת החלון — "פתיחת התהליך" בבנייה, "שליחה ללקוח" אחר כך. */
   heading?: string;
-  /**
-   * מה שצריך לקרות לפני השליחה עצמה (פתיחת התהליך). מחזיר הודעת שגיאה, או
-   * null בהצלחה. ‼ רץ פעם אחת בלחיצה — אחרת מייל שנכשל היה משאיר תהליך פתוח
-   * בלי שהלקוח יודע, וניסיון חוזר היה פותח אותו שוב.
-   */
-  beforeSend?: () => Promise<string | null>;
   onClose: () => void;
   /** נקרא אחרי שהקישור הופק או שהמייל יצא. */
   onSent?: () => void;
 }
 
 export default function SendPortalDialog({
-  clientId, clientName, clientEmail, initialMode, heading, beforeSend, onClose, onSent,
+  clientId, clientName, clientEmail, initialMode, heading, onClose, onSent,
 }: Props) {
   const hasEmail = !!clientEmail?.trim();
   const [mode, setMode] = useState<SendPortalMode>(initialMode ?? (hasEmail ? 'email' : 'link'));
@@ -43,10 +38,6 @@ export default function SendPortalDialog({
   async function go() {
     setBusy(true);
     setError(null);
-    if (beforeSend) {
-      const failure = await beforeSend();
-      if (failure) { setError(failure); setBusy(false); return; }
-    }
     if (mode === 'email') {
       setBusy(false);
       setStage('email');

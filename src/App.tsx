@@ -79,6 +79,8 @@ import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
 import TestJourney from './components/clientTabs/__TestJourney';
 import TestJourneyBall from './components/clientTabs/__TestJourneyBall';
+import TestPortalPreview from './components/clientTabs/__TestPortalPreview';
+import TestCaseComposer from './components/clientTabs/__TestCaseComposer';
 import TestQuotations from './components/__TestQuotations';
 import TestDeferred from './components/quotations/__TestDeferred';
 import TestSignDone from './components/ui/__TestSignDone';
@@ -190,6 +192,12 @@ export default function App() {
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-journey')) {
     return <TestJourney />;
   }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-portal-preview')) {
+    return <TestPortalPreview />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-case')) {
+    return <TestCaseComposer />;
+  }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-quotations')) {
     return <TestQuotations />;
   }
@@ -240,6 +248,13 @@ export default function App() {
   // בתחילת כל רבעון (ינואר/אפריל/יולי/אוקטובר) נוצרת אוטומטית משימת בדיקת
   // עדכניות של מרכז הידע — פעם אחת לרבעון (זיהוי לפי תגית בכותרת + נעילת מודול
   // נגד ההרכבה הכפולה של StrictMode + אינדקס ייחודי במסד כרשת אחרונה).
+  //
+  // ‼ ב-DEV עם VITE_DEV_BYPASS_AUTHZ=true הרשימה מוזרקת מנתוני דוגמה ואינה
+  // נטענת מהמסד, ולכן הבדיקה כאן לא רואה את משימת הרבעון האמיתית והניסיון
+  // יוצא. אז האינדקס הייחודי (tasks_system_unique_title, מיגרציה 22) דוחה
+  // אותו וב-console מופיע `POST /rest/v1/tasks → 409`. זו הרשת האחרונה
+  // עושה את עבודתה: שום שורה לא נכתבת, השגיאה נבלעת ב-catch, והניסיון
+  // יחזור בכניסה הבאה. רעש של סביבת הפיתוח בלבד — לא באג בפרודקשן.
   useEffect(() => {
     if (!user || tasksLoading) return;
     if (quarterlyTaskExists(tasks)) return;
