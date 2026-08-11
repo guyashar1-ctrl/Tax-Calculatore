@@ -438,7 +438,7 @@ export default function RepresentationRequestReview({
           <button
             className="btn btn-danger"
             onClick={() => {
-              if (confirm('למחוק את הבקשה? פעולה זו תמחק גם את הקבצים שהועלו ואת הלקוח שנוצר.')) onDelete(request.id);
+              if (confirm('למחוק את הבקשה? פעולה זו תמחק את הקבצים שהועלו לבקשה. הלקוח המקושר יישאר בכרטיס שלו — רק שדות הייצוג יתאפסו.')) onDelete(request.id);
             }}
           >מחק</button>
         </div>
