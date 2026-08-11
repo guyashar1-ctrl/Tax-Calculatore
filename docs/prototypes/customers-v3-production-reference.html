@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PIVO — לקוחות · V3 · ייחוס נאמנות להפקה</title>
+<!-- אותם גופנים שהאפליקציה טוענת (index.html) — Heebo לגוף, Manrope ללוגו -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   ייחוס נאמנות · Customers V3.3 — תיקוני מוצר 2026-08-11:
+   "ידע מס" הוסר מהכותרת · "שירות נוסף" הוחלף במודל "חיוב נוסף" פשוט ·
+   חיובים נוספים הם אוסף: רשימה מוערמת בתצוגה המהירה, ובשורת הלקוח רמז
+   קומפקטי לחיוב הראשון עם ‎+N‎ כשיש עוד.
+   הטוקנים מועתקים מילה במילה מ-src/index.css (הערכה הבהירה) כדי שהקובץ
+   יעמוד בפני עצמו. ההיררכיה, הסדר והצפיפות — מהפרוטוטייפ המאושר. הוא המנצח
+   בכל התנגשות עם המסך הקיים.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --desk:#edeceA; --page:#f8f7f5; --card:#ffffff; --bd:#e2e4e7; --bd-strong:#d3d6da;
+  --tx:#25282d; --txb:#3b3f45; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b;
+  --br:#3f5f8f; --br-strong:#34507a; --on-br:#ffffff; --soft:#e8eef5; --soft-bd:#c6d4e6;
+  --s1:#f5f4f2; --s2:#f3f2f0; --s4:#fafaf9;
+  --ok:#24654e; --ok-bg:#eaf4ef; --warn:#8a5b0f; --warn-bg:#fbf3e4;
+  --err:#a63a3a; --err-bg:#fbeded; --info:#6b4a87; --info-bg:#f2ecf7;
+  --chip-blue-bg:#e3ebf5; --chip-blue-tx:#2c4468;
+  --ink-1:var(--tx); --ink-2:var(--txc); --ink-3:var(--tx2); --ink-4:var(--tx3);
+  --ink-quiet:#c3c7cc;
+  --accent:var(--br); --accent-hover:var(--br-strong);
+  --accent-fill:var(--br); --on-accent-fill:var(--on-br);
+  --danger:var(--err); --danger-bg:var(--err-bg);
+  --surface-0:var(--card); --surface-1:var(--s4); --surface-2:var(--s2);
+  --field-read:var(--s1);
+  --hairline-1:var(--bd); --hairline-2:#eeedeb; --canvas:var(--desk);
+  --focus-ring:rgba(63,95,143,.42);
+  --shadow-lg:0 18px 40px -24px rgba(28,30,34,.35), 0 4px 10px -6px rgba(28,30,34,.1);
+  --fs-12:12px; --fs-13:13px; --fs-14:14px; --fs-15:15px; --fs-17:17px;
+  --fs-20:20px; --fs-24:24px;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px;
+  --r-chip:6px; --r-input:8px; --r-panel:12px; --r-modal:14px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* המגירה המוסתרת חורגת מקצה המסך; בלי clip היא מרחיבה את קנבס הגלילה ב-RTL */
+html{direction:rtl;font-size:16px;overflow-x:clip}
+body{overflow-x:clip}
+body{font-family:'Heebo',system-ui,sans-serif;background:var(--canvas);color:var(--tx);line-height:1.5;min-height:100vh}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+:where(a,button,input,[tabindex]):focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;border-radius:var(--r-chip)}
+.num{font-variant-numeric:tabular-nums}
+.ltr{direction:ltr;unicode-bidi:isolate}
+
+/* ── מסגרת האפליקציה — הכרטיס הצף של PIVO (pivo-design.css §מסגרת) ─────── */
+.app{min-height:100vh;padding:28px 32px 56px;font-size:var(--fs-14)}
+.header,.main{max-width:1280px;margin-inline:auto;width:100%;background:var(--surface-0)}
+.header{height:52px;border:1px solid var(--hairline-1);border-radius:var(--r-modal) var(--r-modal) 0 0;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);position:sticky;top:0;z-index:5;
+  padding-inline:20px;display:flex;align-items:center;gap:26px}
+.main{border:1px solid var(--hairline-1);border-top:0;border-radius:0 0 var(--r-modal) var(--r-modal);
+  box-shadow:0 8px 28px rgba(0,0,0,.05);padding:14px 22px 48px}
+.wordmark{direction:ltr;font-family:'Manrope',system-ui,sans-serif;font-weight:600;font-size:20px;letter-spacing:-.022em;color:var(--tx)}
+.nav-tab{font-size:var(--fs-14);color:var(--ink-3);height:52px;display:flex;align-items:center;border-bottom:2px solid transparent;padding:0}
+.nav-tab.on{color:var(--ink-1);font-weight:600;border-bottom-color:var(--accent)}
+.grow{flex:1}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--surface-2);color:var(--ink-2);display:grid;place-items:center;font-size:var(--fs-12);font-weight:600;flex-shrink:0}
+
+/* ── ראש העמוד — חיפוש קודם לכל ─────────────────────────────────────────── */
+.page{max-width:1040px;margin-inline:auto;padding:26px 16px 0}
+h1{font-size:var(--fs-24);font-weight:700;margin-bottom:var(--sp-1)}
+.intro{font-size:var(--fs-13);color:var(--ink-3);margin-bottom:var(--sp-6)}
+.notice{display:none;align-items:center;gap:10px;border:1px solid var(--soft-bd);background:var(--soft);
+  border-radius:var(--r-panel);padding:11px 14px;margin-bottom:var(--sp-3);font-size:var(--fs-13)}
+.notice.show{display:flex}
+.notice b{color:var(--accent);font-weight:600}
+.notice button{margin-inline-start:auto;color:var(--accent);font-weight:600;flex-shrink:0}
+.searchline{display:flex;gap:10px}
+.search{position:relative;flex:1}
+.search input{width:100%;height:52px;border:1px solid var(--bd-strong);border-radius:var(--r-panel);
+  outline:0;padding:0 46px 0 14px;font-size:var(--fs-14);background:var(--surface-0)}
+.search input::placeholder{color:var(--ink-4)}
+.search input:focus{border-color:var(--soft-bd);box-shadow:0 0 0 4px rgba(63,95,143,.07)}
+.glass{position:absolute;right:16px;top:14px;color:var(--ink-4);font-size:20px;pointer-events:none}
+.primary{border-radius:var(--r-input);background:var(--accent-fill);color:var(--on-accent-fill);
+  font-weight:600;font-size:var(--fs-14);padding:0 20px;min-width:126px}
+.primary:hover{background:var(--accent-hover)}
+
+/* ── הרשימה — שורות שטוחות, קו שערה, בלי מסגרות ─────────────────────────── */
+.listhead{height:48px;margin-top:var(--sp-5);border-bottom:1px solid var(--hairline-1);
+  display:flex;align-items:center;font-size:var(--fs-13);font-weight:600}
+.count{font-weight:400;color:var(--ink-3);margin-inline-start:5px}
+.row{display:grid;grid-template-columns:minmax(250px,1.4fr) minmax(180px,1fr) 150px 150px 22px;
+  align-items:center;min-height:72px;border-bottom:1px solid var(--hairline-2);
+  padding:6px 8px;cursor:pointer;border-radius:var(--r-input)}
+.row:hover{background:var(--surface-1)}
+.person{display:flex;align-items:center;gap:12px;min-width:0}
+.av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--soft);
+  color:var(--accent);font-weight:600;font-size:var(--fs-12);flex-shrink:0}
+.nm{font-size:var(--fs-14);font-weight:600;margin-bottom:2px}
+.meta,.cue{font-size:var(--fs-12);color:var(--ink-3);line-height:1.5}
+.contact{font-size:var(--fs-13);color:var(--ink-2);line-height:1.55}
+.badge{display:inline-flex;align-items:center;padding:.2rem .6rem;border-radius:999px;
+  font-size:var(--fs-12);font-weight:600;white-space:nowrap}
+.badge.active{background:var(--ok-bg);color:var(--ok)}
+.badge.rep{background:var(--chip-blue-bg);color:var(--chip-blue-tx)}
+.badge.quote{background:var(--warn-bg);color:var(--warn)}
+.badge.new{background:var(--info-bg);color:var(--info)}
+.match{display:inline-flex;margin-top:5px;font-size:var(--fs-12);color:var(--danger);
+  background:var(--danger-bg);padding:3px 8px;border-radius:999px}
+.arrow{font-size:20px;color:var(--ink-quiet)}
+.empty{display:none;text-align:center;padding:64px 20px}
+.empty.show{display:block}
+.empty h3{font-size:var(--fs-15);font-weight:600;margin-bottom:6px}
+.empty p{font-size:var(--fs-13);color:var(--ink-3)}
+
+/* ── שכבת הכיסוי, המגירה (דסקטופ) / היריעה (מובייל) ─────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(28,30,34,.24);opacity:0;pointer-events:none;transition:.2s;z-index:10}
+.overlay.on{opacity:1;pointer-events:auto}
+/* המגירה עוגנת לימין (תחילת השורה ב-RTL) ומוסתרת ימינה — translateX חיובי הוא
+   פיזי, לא לוגי */
+.drawer{position:fixed;right:0;top:0;height:100dvh;width:min(500px,96vw);background:var(--surface-0);
+  z-index:20;transform:translateX(105%);box-shadow:var(--shadow-lg);
+  display:flex;flex-direction:column;
+  /* visibility מושהית: מגירה סגורה אינה נצבעת ואינה נגישה למקלדת */
+  visibility:hidden;transition:transform .22s,visibility 0s .22s}
+.drawer.on{transform:none;visibility:visible;transition:transform .22s}
+.dh{padding:20px 24px 15px;border-bottom:1px solid var(--hairline-1);display:flex;align-items:center;gap:12px;flex-shrink:0}
+.dh .av{width:38px;height:38px}
+.x{margin-inline-start:auto;width:34px;height:34px;border:1px solid var(--hairline-1);border-radius:var(--r-input);
+  background:var(--surface-0);font-size:19px;color:var(--ink-3);flex-shrink:0}
+.dname{font-size:var(--fs-20);font-weight:700;line-height:1.2}
+.dstate{font-size:var(--fs-12);color:var(--ink-3);margin-top:3px}
+.db{padding:20px 24px 24px;overflow:auto;flex:1}
+.dupbox{display:none;border:1px solid #ecc8c8;background:var(--danger-bg);border-radius:var(--r-panel);
+  padding:11px 13px;margin-bottom:var(--sp-4);font-size:var(--fs-12);color:var(--danger)}
+.dupbox.show{display:block}
+.info{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--hairline-1);border-radius:var(--r-panel);overflow:hidden}
+.cell{padding:11px 14px;border-bottom:1px solid var(--hairline-2)}
+.cell:nth-child(odd){border-inline-end:1px solid var(--hairline-2)}
+.cell:nth-last-child(-n+2){border-bottom:0}
+.lab{font-size:var(--fs-12);color:var(--ink-3);margin-bottom:3px}
+.val{font-size:var(--fs-13);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.section{margin-top:var(--sp-5)}
+.st{font-size:var(--fs-13);font-weight:700;margin-bottom:var(--sp-2)}
+.process{border:1px solid var(--hairline-1);background:var(--field-read);border-radius:var(--r-panel);
+  padding:12px 14px;font-size:var(--fs-13)}
+.process b{font-weight:600}
+.small{font-size:var(--fs-12);color:var(--ink-3);margin-top:4px}
+.docs{display:grid;gap:7px}
+.doc{display:flex;align-items:center;gap:10px;border:1px solid var(--hairline-1);border-radius:var(--r-panel);
+  padding:10px 13px;font-size:var(--fs-13)}
+.di{width:30px;height:30px;border-radius:var(--r-input);background:var(--soft);color:var(--accent);
+  display:grid;place-items:center;flex-shrink:0}
+.charges-list{display:grid;gap:8px}.servicecard{border:1px solid var(--hairline-1);border-radius:var(--r-panel);padding:12px 14px;font-size:var(--fs-13)}
+.servicehead{display:flex;align-items:center;gap:8px}
+.servicehead b{font-size:var(--fs-13);font-weight:600}
+.servicehead .badge{margin-inline-start:auto}
+.money{font-size:var(--fs-12);color:var(--ink-2);margin-top:7px}
+.nextaction{margin-top:10px;border-top:1px solid var(--hairline-2);padding-top:10px;display:flex;align-items:center;gap:8px}
+.nextaction .label{font-size:var(--fs-12);color:var(--ink-3)}
+.nextaction .action{font-size:var(--fs-13);font-weight:700;color:var(--accent)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:var(--sp-6)}
+.act{height:41px;border:1px solid var(--bd-strong);background:var(--surface-0);border-radius:var(--r-input);
+  color:var(--ink-2);font-weight:600;font-size:var(--fs-14)}
+.act:hover{background:var(--surface-1)}
+.act.main{background:var(--accent-fill);border-color:var(--accent-fill);color:var(--on-accent-fill)}
+.act.main:hover{background:var(--accent-hover)}
+.act.full{grid-column:1/-1}
+
+/* ── חלונות: "+ אדם חדש" ו"חיוב נוסף" ───────────────────────────────────── */
+.modal{position:fixed;z-index:30;left:50%;top:50%;width:min(500px,calc(100vw - 28px));background:var(--surface-0);
+  border-radius:var(--r-modal);box-shadow:var(--shadow-lg);transform:translate(-50%,-45%);
+  opacity:0;pointer-events:none;max-height:calc(100dvh - 40px);display:flex;flex-direction:column;
+  visibility:hidden;transition:opacity .2s,transform .2s,visibility 0s .2s}
+.modal.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%);visibility:visible;transition:opacity .2s,transform .2s}
+.mh{padding:20px 22px 15px;border-bottom:1px solid var(--hairline-1);display:flex;align-items:flex-start;flex-shrink:0}
+.mh h2{font-size:var(--fs-17);font-weight:700}
+.mh p{font-size:var(--fs-12);color:var(--ink-3);margin-top:4px}
+.mb{padding:20px 22px;overflow:auto}
+.mf{padding:13px 22px;border-top:1px solid var(--hairline-1);display:flex;gap:8px;flex-shrink:0}
+.mf .primary{height:40px}
+.textbtn{color:var(--ink-3);font-weight:500}
+.choice{display:grid;gap:10px}
+.choice button,.route button{border:1px solid var(--bd-strong);border-radius:var(--r-panel);
+  background:var(--surface-0);text-align:right;padding:14px 15px;font-family:inherit}
+.choice button:hover,.route button:hover,.route button.sel{border-color:var(--accent);background:var(--surface-1)}
+.route button.sel{box-shadow:0 0 0 1px var(--accent)}
+.choice strong,.route strong{display:block;font-size:var(--fs-14);font-weight:600;margin-bottom:4px}
+.choice span,.route span{font-size:var(--fs-12);color:var(--ink-3);line-height:1.5}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field.full{grid-column:1/-1}
+.field label{display:block;font-size:var(--fs-12);color:var(--ink-3);margin-bottom:5px}
+.field input{width:100%;height:40px;border:1px solid var(--bd-strong);border-radius:var(--r-input);
+  padding:0 10px;outline:0;background:var(--surface-0);font-size:var(--fs-14)}
+.field input:focus{border-color:var(--soft-bd);box-shadow:0 0 0 3px rgba(63,95,143,.07)}
+.route{display:grid;gap:9px}
+.preview{padding:11px 13px;border:1px solid var(--hairline-1);background:var(--field-read);
+  border-radius:var(--r-panel);margin-bottom:var(--sp-4);font-size:var(--fs-13)}
+.routetitle{font-size:var(--fs-13);font-weight:700;margin-bottom:10px}
+.linkbox{border:1px solid var(--hairline-1);background:var(--field-read);border-radius:var(--r-panel);padding:14px}
+.linktitle{font-size:var(--fs-13);font-weight:700;margin-bottom:7px}
+.link{direction:ltr;text-align:left;border:1px solid var(--bd-strong);background:var(--surface-0);
+  border-radius:var(--r-input);padding:10px;font-size:var(--fs-12);color:var(--ink-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linkactions{display:flex;gap:8px;margin-top:10px}
+.linkactions button{height:38px;border-radius:var(--r-input);border:1px solid var(--soft-bd);
+  background:var(--surface-0);color:var(--accent);font-weight:600;padding:0 12px;font-size:var(--fs-13)}
+.sim{margin-top:15px;border-top:1px solid var(--hairline-2);padding-top:14px}
+.sim button{width:100%;height:40px;border:1px dashed var(--soft-bd);background:var(--surface-1);
+  color:var(--accent);border-radius:var(--r-input);font-weight:600;font-size:var(--fs-13)}
+
+.toast{position:fixed;z-index:50;bottom:25px;left:50%;transform:translate(-50%,15px);opacity:0;
+  background:var(--tx);color:var(--card);padding:10px 16px;border-radius:var(--r-input);
+  font-size:var(--fs-13);transition:.2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ── כלי בדיקה — פיגום לסקירה בלבד, איננו חלק מהעיצוב ───────────────────── */
+.inspector{position:fixed;z-index:60;bottom:14px;inset-inline-end:14px;font-size:var(--fs-12)}
+.inspector summary{list-style:none;cursor:pointer;background:var(--tx);color:var(--card);
+  border-radius:999px;padding:7px 13px;font-weight:600;opacity:.75}
+.inspector summary::-webkit-details-marker{display:none}
+.inspector[open] summary{opacity:1}
+.insp-body{position:absolute;bottom:40px;inset-inline-end:0;width:230px;background:var(--surface-0);
+  border:1px solid var(--hairline-1);border-radius:var(--r-panel);box-shadow:var(--shadow-lg);
+  padding:10px;display:grid;gap:4px;max-height:70dvh;overflow:auto}
+.insp-body .note{color:var(--ink-4);padding:2px 4px 6px}
+.insp-body button{text-align:right;padding:6px 8px;border-radius:var(--r-chip);color:var(--ink-2)}
+.insp-body button:hover{background:var(--surface-2)}
+@media print{.inspector{display:none}}
+
+/* ── מובייל · נקודת השבירה של האפליקציה (760px) ─────────────────────────── */
+@media (max-width:760px){
+  .app{padding:0}
+  .header,.main{border-radius:0;border-inline:0;max-width:none}
+  .main{border-bottom:0;padding:10px 14px 40px}
+  .page{padding:18px 2px 0}
+  .searchline{flex-direction:column}
+  .primary{height:47px}
+  .row{grid-template-columns:1fr auto 18px;min-height:64px}
+  .contact,.cue{display:none}
+  .drawer{width:100%}
+  .db{padding:18px 16px calc(16px + env(safe-area-inset-bottom))}
+  .actions{position:sticky;bottom:0;background:var(--surface-0);padding-top:8px;
+    padding-bottom:env(safe-area-inset-bottom);margin-top:var(--sp-5)}
+  .form{grid-template-columns:1fr}
+  .field.full{grid-column:auto}
+  .notice{align-items:flex-start}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <span class="wordmark">PIVO</span>
+    <button class="nav-tab on">לקוחות</button>
+    <button class="nav-tab">משימות</button>
+    <div class="grow"></div>
+    <div class="avatar">גי</div>
+  </header>
+  <main class="main">
+    <div class="page">
+      <h1>לקוחות</h1>
+      <div class="intro">חפש אדם קיים או התחל לעבוד עם אדם חדש</div>
+      <div class="notice" id="notice"><b>אדם חדש ממתין לטיפול</b><span id="noticeName"></span><button id="noticeOpen">פתח</button></div>
+      <div class="searchline">
+        <div class="search"><span class="glass">⌕</span><input id="q" placeholder="חיפוש לפי שם, ת״ז, טלפון או מייל" autocomplete="off"></div>
+        <button class="primary" id="new">+ אדם חדש</button>
+      </div>
+      <div class="listhead">כל האנשים <span class="count" id="count"></span></div>
+      <div id="rows"></div>
+      <div class="empty" id="empty"><h3>לא מצאנו אדם מתאים</h3><p>אפשר להוסיף אדם חדש או לשלוח לו קישור למילוי פרטים.</p></div>
+    </div>
+  </main>
+</div>
+
+<div class="overlay" id="ov"></div>
+
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="תצוגה מהירה">
+  <div class="dh"><div class="av" id="dav"></div><div><div class="dname" id="dn"></div><div class="dstate" id="dst"></div></div><button class="x" id="dx" aria-label="סגירה">×</button></div>
+  <div class="db">
+    <div class="dupbox" id="dupbox">ייתכן שכבר קיים אדם תואם במערכת. בדוק לפני יצירת תהליך חדש.</div>
+    <div class="info">
+      <div class="cell"><div class="lab">תעודת זהות</div><div class="val num" id="did"></div></div>
+      <div class="cell"><div class="lab">טלפון</div><div class="val num ltr" id="dph"></div></div>
+      <div class="cell"><div class="lab">אימייל</div><div class="val ltr" id="dem"></div></div>
+      <div class="cell"><div class="lab">סטטוס</div><div class="val" id="dstat"></div></div>
+    </div>
+    <div class="section"><div class="st">מה קורה עכשיו</div><div class="process"><b id="dproc"></b><div class="small" id="dnext"></div></div></div>
+    <div class="section" id="serviceSection">
+      <div class="st" style="display:flex;align-items:center;gap:8px">
+        <span>חיובים נוספים</span>
+        <button id="addChargeInline" style="margin-inline-start:auto;color:var(--accent);font-size:var(--fs-12);font-weight:600">+ חיוב נוסף</button>
+      </div>
+      <div class="charges-list" id="chargesList"></div>
+    </div>
+    <div class="section"><div class="st">מסמכים אחרונים</div><div class="docs"><div class="doc"><div class="di">▤</div><div>צילום תעודת זהות<div class="small">התקבל לאחרונה</div></div></div><div class="doc"><div class="di">▥</div><div>טופס 106<div class="small">2 מסמכים</div></div></div></div></div>
+    <div class="actions">
+      <button class="act" id="request">בקשת חומרים</button>
+      <button class="act" id="quickAction"></button>
+      <button class="act" id="addService">+ חיוב נוסף</button>
+      <button class="act main full" id="fullcase">פתח תיק מלא</button>
+    </div>
+  </div>
+</aside>
+
+<section class="modal" id="modal" role="dialog" aria-modal="true" aria-label="אדם חדש">
+  <div class="mh"><div><h2>אדם חדש</h2><p id="msub">איך תרצה להתחיל?</p></div><button class="x" id="mx" aria-label="סגירה" style="margin-inline-start:auto">×</button></div>
+  <div class="mb">
+    <div id="choose" class="choice">
+      <button id="manual"><strong>הזנת פרטים בעצמי</strong><span>יש לי שם ואמצעי קשר ואני רוצה להתחיל עכשיו.</span></button>
+      <button id="sendlink"><strong>שליחת קישור למילוי פרטים</strong><span>האדם ימלא את הפרטים בעצמו ויופיע כאן לאחר השליחה.</span></button>
+    </div>
+    <div id="manualForm" style="display:none">
+      <div class="form">
+        <div class="field full"><label>שם מלא *</label><input id="name"></div>
+        <div class="field"><label>טלפון</label><input id="phone" inputmode="tel"></div>
+        <div class="field"><label>אימייל</label><input id="email" inputmode="email"></div>
+        <div class="field full"><label>תעודת זהות — אופציונלי</label><input id="idnum" inputmode="numeric"></div>
+      </div>
+    </div>
+    <div id="routeStep" style="display:none">
+      <div class="preview" id="prev"></div>
+      <div class="routetitle">מה רוצים לעשות עכשיו?</div>
+      <div class="route">
+        <button data-r="quote"><strong>שליחת הצעת מחיר</strong><span>הצעה תחילה, ולאחר אישור ממשיכים לייצוג.</span></button>
+        <button data-r="rep"><strong>התחלת ייצוג ללא הצעה</strong><span>למשפחה, מקרה ללא חיוב או כשאין צורך בהצעה.</span></button>
+      </div>
+    </div>
+    <div id="linkStep" style="display:none">
+      <div class="linkbox">
+        <div class="linktitle">הקישור מוכן לשליחה</div>
+        <div class="small" style="margin-top:0;margin-bottom:10px">בטופס החיצוני: שם ומייל הם חובה. לאחר השליחה האדם יופיע כממתין לטיפול.</div>
+        <div class="link">https://crm.yasharcpa.co.il/?apply=a3f19c…</div>
+        <div class="linkactions"><button id="copy">העתק קישור</button><button id="share">שתף מהטלפון</button></div>
+      </div>
+      <div class="sim"><div class="small" style="margin-top:0;margin-bottom:9px">לצורך הייחוס בלבד:</div><button id="simulate" style="width:100%;height:40px;border:1px dashed var(--soft-bd);background:var(--surface-1);color:var(--accent);border-radius:var(--r-input);font-weight:600;font-size:var(--fs-13)">הדמה: הלקוח מילא ושלח את הטופס</button></div>
+    </div>
+  </div>
+  <div class="mf"><button class="primary" id="next" style="display:none">המשך</button><button class="textbtn" id="back" style="display:none">חזרה</button><button class="textbtn" id="cancel">ביטול</button></div>
+</section>
+
+<section class="modal" id="serviceModal" role="dialog" aria-modal="true" aria-label="חיוב נוסף">
+  <div class="mh">
+    <div><h2>חיוב נוסף</h2><p>הוסף סכום חד־פעמי מעבר לריטיינר</p></div>
+    <button class="x" id="serviceClose" aria-label="סגירה" style="margin-inline-start:auto">×</button>
+  </div>
+  <div class="mb">
+    <div id="servicePick">
+      <div class="form">
+        <div class="field full">
+          <label>עבור מה החיוב?</label>
+          <input id="serviceInput" placeholder="לדוגמה: הצהרת הון / אישור מיוחד / תוספת לדוח">
+        </div>
+        <div class="field">
+          <label>סכום</label>
+          <input id="chargeAmount" inputmode="numeric" placeholder="0">
+        </div>
+        <div class="field">
+          <label>מצב</label>
+          <input id="chargeStatus" value="ממתין לתשלום" readonly style="background:var(--field-read)">
+        </div>
+      </div>
+      <div class="small" style="margin-top:12px">
+        החיוב נשמר כפריט כספי פשוט. אם אחר כך צריך הצעה, חתימה או חומרים — אפשר להתחיל תהליך מתוך התיק המלא.
+      </div>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="primary" id="chargeSubmit">הוסף חיוב</button>
+    <button class="textbtn" id="serviceCancel">ביטול</button>
+  </div>
+</section>
+
+<div class="toast" id="toast" role="status"></div>
+
+<details class="inspector" id="inspector">
+  <summary>🔍 מצבי בדיקה</summary>
+  <div class="insp-body">
+    <div class="note">כלי סקירה — לא חלק מהעיצוב. למובייל: 375px.</div>
+    <button data-s="default">1 · ברירת מחדל</button>
+    <button data-s="search-name">2 · חיפוש לפי שם</button>
+    <button data-s="search-phone">3 · חיפוש לפי טלפון</button>
+    <button data-s="search-empty">4 · חיפוש ללא תוצאה</button>
+    <button data-s="qv-active">5 · לקוח פעיל (ללא חיוב)</button>
+    <button data-s="qv-rep">6 · ממתין לייצוג</button>
+    <button data-s="qv-quote">7 · הצעה נשלחה</button>
+    <button data-s="qv-new">8 · חדש · ממתין לטיפול</button>
+    <button data-s="qv-dup">9 · כפילות אפשרית</button>
+    <button data-s="qv-service">10 · כמה חיובים פתוחים</button>
+    <button data-s="charge-modal">11 · חלון "חיוב נוסף"</button>
+    <button data-s="modal-choose">13 · אדם חדש — בחירה</button>
+    <button data-s="modal-manual">14 · הזנת פרטים</button>
+    <button data-s="modal-link">15 · שליחת קישור</button>
+  </div>
+</details>
+
+<script>
+/* נתוני דוגמה — זהים לפרוטוטייפ המאושר; "חיוב נוסף" במקום "שירות נוסף" */
+const people=[
+ {name:"גיא יושר",ini:"גי",id:"031234667",phone:"052-4491120",email:"guy@gmail.com",status:"active",label:"לקוח פעיל",cue:"טופל היום",proc:"תיק פעיל",next:"אין פעולה דחופה כרגע",charges:[],dup:false},
+ {name:"יריב ברנס",ini:"יב",id:"052263223",phone:"052-2632236",email:"yariv@brens.co.il",status:"rep",label:"ממתין לייצוג",cue:"ממתין לאישור",proc:"בקשת ייצוג",next:"ממתין לחתימת הלקוח",charges:[],dup:false},
+ {name:"אילן סימנטוב",ini:"אס",id:"207654321",phone:"054-8421330",email:"ilan@gmail.com",status:"quote",label:"הצעה נשלחה",cue:"לפני 7 ימים",proc:"הצעת מחיר",next:"ממתינים לתשובת הלקוח",charges:[],dup:false},
+ {name:"דוד לוי",ini:"דל",id:"",phone:"052-5551234",email:"david@gmail.com",status:"new",label:"חדש · ממתין לטיפול",cue:"נוצר היום",proc:"פרטים התקבלו",next:"בחר: הצעת מחיר או התחלת ייצוג",charges:[],dup:false},
+ {name:"מאיר כהן",ini:"מכ",id:"203994122",phone:"050-2118899",email:"meir@gmail.com",status:"active",label:"לקוח פעיל",cue:"חיוב נוסף פתוח",proc:"תיק פעיל",next:"הלקוח פעיל. יש חיוב נוסף שממתין לתשלום.",charges:[{name:"הצהרת הון",state:"ממתין לתשלום",money:"15,000 ₪",next:"שלח דרישת תשלום"},{name:"תוספת לדוח",state:"ממתין לתשלום",money:"700 ₪",next:"שלח דרישת תשלום"}],dup:false}
+];
+let route=null,currentPerson=null,lastFocus=null,layerDepth=0;
+const $=id=>document.getElementById(id),ov=$("ov"),modal=$("modal"),serviceModal=$("serviceModal"),drawer=$("drawer");
+function norm(v){return String(v||"").toLowerCase().replace(/[\s-]/g,"")}
+function render(){
+  const q=norm($("q").value);
+  const arr=people.filter(p=>[p.name,p.id,p.phone,p.email].some(v=>norm(v).includes(q)));
+  $("count").textContent=`(${arr.length})`;
+  $("rows").innerHTML=arr.map(p=>`<div class="row" role="button" tabindex="0" data-n="${p.name}">
+    <div class="person"><div class="av">${p.ini}</div><div>
+      <div class="nm">${p.name}</div>
+      <div class="meta">${p.id?`ת.ז. <span class="num">${p.id}</span>`:`<span class="num ltr">${p.phone||p.email}</span>`}</div>
+      ${p.dup?`<span class="match">ייתכן שכבר קיים אדם תואם</span>`:""}
+    </div></div>
+    <div class="contact"><span class="num ltr">${p.phone||"—"}</span><br><span class="ltr">${p.email||"—"}</span></div>
+    <div><span class="badge ${p.status}">${p.label}</span></div>
+    <div class="cue">${p.charges&&p.charges.length?`${p.charges[0].name} · ${p.charges[0].state}${p.charges.length>1?` · +${p.charges.length-1}`:""}`:p.cue}</div>
+    <div class="arrow">‹</div></div>`).join("");
+  $("empty").classList.toggle("show",!arr.length);
+  document.querySelectorAll(".row").forEach(r=>{
+    const open=()=>openPerson(people.find(p=>p.name===r.dataset.n));
+    r.onclick=open;
+    r.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();open()}};
+  });
+}
+function openPerson(p){
+  if(!p)return;
+  currentPerson=p;
+  $("dav").textContent=p.ini;$("dn").textContent=p.name;$("dst").textContent=p.label;
+  $("did").textContent=p.id||"טרם התקבל";$("dph").textContent=p.phone||"—";$("dem").textContent=p.email||"—";
+  $("dstat").innerHTML=`<span class="badge ${p.status}">${p.label}</span>`;
+  $("dproc").textContent=p.proc;$("dnext").textContent=p.next;
+  $("dupbox").classList.toggle("show",!!p.dup);
+  if(p.charges&&p.charges.length){
+    $("serviceSection").style.display="block";
+    $("chargesList").innerHTML=p.charges.map(c=>`<div class="servicecard">
+      <div class="servicehead"><b>${c.name}</b><span class="badge quote">${c.state}</span></div>
+      <div class="money">סכום: ${c.money}</div>
+      <div class="nextaction"><span class="label">הפעולה הבאה</span><span class="action">${c.next}</span></div>
+    </div>`).join("");
+  }else{
+    $("serviceSection").style.display="none";
+    $("chargesList").innerHTML="";
+  }
+  /* הפעולה המהירה נגזרת מהמצב; ללקוח פעיל רגוע אין פעולה — הכפתור לא מוצג
+     (סטייה 6 שאושרה בתוכנית: כפתור שלא מוביל לכלום אינו מוצג) */
+  const qa=$("quickAction");let label=null;
+  if(p.charges&&p.charges.length)label=p.charges[0].next;
+  else if(p.status==="new")label="שלח הצעת מחיר";
+  else if(p.status==="quote")label="פתח הצעה";
+  else if(p.status==="rep")label="פתח בקשת ייצוג";
+  qa.style.display=label?"":"none";qa.textContent=label||"";
+  /* "+ חיוב נוסף" כפעולה משנית — רק ללקוח פעיל בלי חיוב קיים; כשיש חיוב,
+     ההוספה יושבת בכותרת המקטע "חיובים נוספים" ולא כפעולה קבועה נוספת */
+  const showAdd=p.status==="active"&&(!p.charges||p.charges.length===0);
+  $("addService").style.display=showAdd?"":"none";
+  $("request").classList.toggle("full",!label&&!showAdd);
+  openLayer(drawer);$("dx").focus();
+}
+/* שכבות: פתיחה דוחפת מצב היסטוריה — כפתור "אחורה" סוגר (התנהגות הייצור המתוכננת) */
+function openLayer(el){lastFocus=document.activeElement;ov.classList.add("on");el.classList.add("on");
+  layerDepth++;history.pushState({layer:layerDepth},"");}
+function closeAll(fromPop){
+  ov.classList.remove("on");drawer.classList.remove("on");modal.classList.remove("on");serviceModal.classList.remove("on");
+  if(!fromPop&&layerDepth>0){const d=layerDepth;layerDepth=0;history.go(-d)}else if(fromPop)layerDepth=0;
+  if(lastFocus&&lastFocus.focus)lastFocus.focus();
+}
+window.addEventListener("popstate",()=>{if(layerDepth>0){layerDepth--;if(layerDepth===0)closeAll(true);}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&(drawer.classList.contains("on")||modal.classList.contains("on")||serviceModal.classList.contains("on")))closeAll()});
+function resetModal(){["choose","manualForm","routeStep","linkStep"].forEach(id=>$(id).style.display=id==="choose"?"grid":"none");
+  $("next").style.display="none";$("back").style.display="none";
+  $("msub").textContent="איך תרצה להתחיל?";route=null;
+  document.querySelectorAll(".route button").forEach(b=>b.classList.remove("sel"))}
+function openModal(){ov.classList.remove("on");drawer.classList.remove("on");resetModal();openLayer(modal);$("mx").focus()}
+function openServiceModal(){
+  if(!currentPerson)return;
+  drawer.classList.remove("on");
+  $("serviceInput").value="";
+  $("chargeAmount").value="";
+  $("chargeStatus").value="ממתין לתשלום";
+  openLayer(serviceModal);
+  setTimeout(()=>$("serviceInput").focus(),50);
+}
+function toast(t){$("toast").textContent=t;$("toast").classList.add("on");
+  clearTimeout(toast.t);toast.t=setTimeout(()=>$("toast").classList.remove("on"),1800)}
+$("q").oninput=render;
+$("new").onclick=openModal;
+$("mx").onclick=()=>closeAll();$("dx").onclick=()=>closeAll();$("cancel").onclick=()=>closeAll();ov.onclick=()=>closeAll();
+$("manual").onclick=()=>{$("choose").style.display="none";$("manualForm").style.display="block";
+  $("next").style.display="block";$("back").style.display="block";
+  $("msub").textContent="שם ואמצעי קשר אחד מספיקים כדי להתחיל";$("name").focus()};
+$("sendlink").onclick=()=>{$("choose").style.display="none";$("linkStep").style.display="block";
+  $("back").style.display="block";$("msub").textContent="שלח קישור קצר והאדם ימלא את הפרטים בעצמו"};
+$("back").onclick=resetModal;
+$("next").onclick=()=>{
+  if($("manualForm").style.display!=="none"){
+    const n=$("name").value.trim(),p=$("phone").value.trim(),e=$("email").value.trim();
+    if(!n)return toast("צריך להזין שם");
+    if(!p&&!e)return toast("צריך טלפון או מייל");
+    $("manualForm").style.display="none";$("routeStep").style.display="block";
+    $("prev").textContent=`${n} · ${p||e}`;$("next").textContent="צור והמשך";
+  }else if($("routeStep").style.display!=="none"){
+    if(!route)return toast("בחר איך להתחיל");
+    closeAll();toast("האדם נוצר והתהליך התחיל");
+  }};
+document.querySelectorAll(".route button").forEach(b=>b.onclick=()=>{route=b.dataset.r;
+  document.querySelectorAll(".route button").forEach(x=>x.classList.remove("sel"));b.classList.add("sel")});
+$("copy").onclick=()=>toast("הקישור הועתק");
+$("share").onclick=()=>toast("בטלפון ייפתח תפריט השיתוף");
+function simulateIntake(){
+  const p={name:"נועה ישראלי",ini:"ני",id:"",phone:"",email:"noa@example.com",status:"new",
+    label:"חדש · ממתין לטיפול",cue:"עכשיו",proc:"הפרטים מולאו דרך קישור",
+    next:"בחר: שליחת הצעת מחיר או התחלת ייצוג ללא הצעה",charges:[],dup:true};
+  if(!people.some(x=>x.name===p.name))people.unshift(p);
+  closeAll();$("notice").classList.add("show");
+  $("noticeName").textContent="נועה ישראלי מילאה את הפרטים דרך הקישור.";
+  render();toast("נועה ישראלי נוספה וממתינה לטיפול");
+}
+$("simulate").onclick=simulateIntake;
+$("noticeOpen").onclick=()=>openPerson(people.find(p=>p.name==="נועה ישראלי"));
+$("request").onclick=()=>toast("ייפתח התיק המלא עם דיאלוג בקשת החומרים");
+$("quickAction").onclick=()=>toast($("quickAction").textContent);
+$("addService").onclick=openServiceModal;
+$("addChargeInline").onclick=openServiceModal;
+$("fullcase").onclick=()=>toast("מעבר לתיק המלא");
+$("serviceClose").onclick=()=>closeAll();
+$("serviceCancel").onclick=()=>closeAll();
+$("chargeSubmit").onclick=()=>{
+  const name=$("serviceInput").value.trim();
+  const amount=$("chargeAmount").value.trim();
+  if(!name)return toast("צריך להזין עבור מה החיוב");
+  if(!amount || isNaN(Number(amount)))return toast("צריך להזין סכום");
+  currentPerson.charges=currentPerson.charges||[];
+  currentPerson.charges.push({
+    name,
+    state:"ממתין לתשלום",
+    money:Number(amount).toLocaleString("he-IL")+" ₪",
+    next:"שלח דרישת תשלום"
+  });
+  closeAll();
+  render();
+  toast("החיוב נוסף ללקוח");
+};
+
+/* ── מצבי בדיקה: כפתורים + ‎?state=‎ לצילומי מסך אוטומטיים ─────────────── */
+function applyState(s){
+  $("q").value="";closeAll();$("notice").classList.remove("show");render();
+  switch(s){
+    case"search-name":$("q").value="מאיר";render();break;
+    case"search-phone":$("q").value="052-555";render();break;
+    case"search-empty":$("q").value="אבגדהו";render();break;
+    case"qv-active":openPerson(people.find(p=>p.name==="גיא יושר"));break;
+    case"qv-rep":openPerson(people.find(p=>p.name==="יריב ברנס"));break;
+    case"qv-quote":openPerson(people.find(p=>p.name==="אילן סימנטוב"));break;
+    case"qv-new":openPerson(people.find(p=>p.name==="דוד לוי"));break;
+    case"qv-dup":simulateIntake();openPerson(people.find(p=>p.name==="נועה ישראלי"));break;
+    case"qv-service":openPerson(people.find(p=>p.name==="מאיר כהן"));break;
+    case"charge-modal":openPerson(people.find(p=>p.name==="גיא יושר"));openServiceModal();break;
+    case"intake-done":simulateIntake();break;
+    case"modal-choose":openModal();break;
+    case"modal-manual":openModal();$("manual").click();break;
+    case"modal-link":openModal();$("sendlink").click();break;
+  }
+}
+document.querySelectorAll(".insp-body button").forEach(b=>b.onclick=()=>applyState(b.dataset.s));
+render();
+const urlState=new URLSearchParams(location.search).get("state");
+if(urlState){$("inspector").style.display="none";applyState(urlState)}
+</script>
+</body>
+</html>

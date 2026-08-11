@@ -25,6 +25,8 @@ export interface AppRoute {
   clientId?: string;
   /** לשונית הפתיחה של כרטיס הלקוח */
   clientTab?: string;
+  /** התצוגה המהירה במסך הלקוחות — ‎#/clients/p/{id}‎. בכתובת כדי ש"אחורה" יסגור אותה. */
+  quickId?: string;
   requestId?: string;
   /** null = הצעה חדשה שעדיין לא נשמרה */
   quotationId?: string;
@@ -63,6 +65,9 @@ export const DEFAULT_ROUTE: AppRoute = { view: 'tasks' };
 export function formatRoute(route: AppRoute): string {
   const parts: string[] = [SLUG_BY_VIEW[route.view]];
   switch (route.view) {
+    case 'list':
+      if (route.quickId) parts.push('p', route.quickId);
+      break;
     case 'form':
       if (route.clientId) parts.push(route.clientId);
       if (route.clientId && route.clientTab) parts.push(route.clientTab);
@@ -101,6 +106,9 @@ export function parseHash(hash: string): AppRoute {
   if (!view) return DEFAULT_ROUTE;
 
   switch (view) {
+    case 'list':
+      if (rest[0] === 'p' && rest[1]) return { view, quickId: rest[1] };
+      return { view };
     case 'form':
       if (!rest[0]) return { view: 'list' };
       return { view, clientId: rest[0], clientTab: rest[1] };

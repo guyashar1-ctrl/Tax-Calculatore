@@ -13,7 +13,7 @@ import type { Client, Task, RepresentationStatus } from '../../types';
 import { LIFECYCLE_STAGE_LABELS } from '../../types';
 import type { ClientAlert } from '../../types/clientWorkspace';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
-import { isStepOpen, stepAwaitsMe, STEP_TYPE_LABELS, STEP_BALL_LABELS } from '../../types/onboarding';
+import { isStepOpen, stepAwaitsMe } from '../../types/onboarding';
 import type { Quotation, Lead } from '../../types/quotations';
 import { QUOTATION_STATUS_LABELS } from '../../types/quotations';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
@@ -23,9 +23,10 @@ import { formatDate } from '../../utils/dateFormat';
 import { useAuth } from '../../hooks/useAuth';
 import { useEmailMessages } from '../../hooks/useEmailMessages';
 import {
-  deriveNextAction, buildQuotationTimeline, leadKnownFacts,
+  buildQuotationTimeline, leadKnownFacts,
   type NextActionButton,
 } from '../../utils/journeyPresentation';
+import { nextActionForClient } from '../../utils/nextActionForClient';
 import OnboardingTab from './OnboardingTab';
 import ClientCockpitTab from './ClientCockpitTab';
 import { ClientEmailsList } from '../EmailActivity/ClientEmailsSection';
@@ -132,22 +133,17 @@ export default function JourneyTab(p: Props) {
   const leadClosed = p.lead?.status === 'closed';
   const knownFacts = useMemo(() => (p.lead ? leadKnownFacts(p.lead) : []), [p.lead]);
 
-  const nextAction = useMemo(() => deriveNextAction({
+  /* ‼ ההרכבה עברה ל-nextActionForClient — אותה פונקציה משרתת גם את התצוגה
+     המהירה במסך הלקוחות. שתי חזיתות, תשובה אחת. */
+  const nextAction = useMemo(() => nextActionForClient({
     client: p.client,
-    stage,
     lead: p.lead,
-    liveQuotation,
-    latestQuotation: clientQuotations[0],
+    quotations: p.quotations,
     openTasks: p.openTasks,
-    latestSession: p.taxSessions[0] ?? null,
-    openRequests: clientSteps.filter(s => isStepOpen(s.status)).map(s => ({
-      title: String(s.payload?.title ?? '').trim() || STEP_TYPE_LABELS[s.stepType],
-      stuck: s.status === 'blocked' || s.status === 'failed' || !!s.needsAttention,
-      ball: STEP_BALL_LABELS[s.ball],
-    })),
-    representationPending: p.repStatusLabel && p.repStatusLabel !== 'מיוצג פעיל' ? p.repStatusLabel : null,
-  }), [p.client, stage, p.lead, liveQuotation, clientQuotations, p.openTasks, p.taxSessions,
-    clientSteps, p.repStatusLabel]);
+    steps: p.steps,
+    taxSessions: p.taxSessions,
+    repStatusLabel: p.repStatusLabel,
+  }), [p.client, p.lead, p.quotations, p.openTasks, p.steps, p.taxSessions, p.repStatusLabel]);
 
   const timeline = useMemo(
     () => (liveQuotation ? buildQuotationTimeline(liveQuotation, clientEmails) : []),

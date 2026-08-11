@@ -50,6 +50,7 @@ import type { FirmProfile } from './types/firmProfile';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
 import { SAMPLE_TASKS } from './data/sampleTasks';
 import ClientList from './components/ClientList';
+import PersonDirectory from './components/PersonDirectory';
 import ClientWorkspace, { type TabId as ClientTabId } from './components/ClientWorkspace';
 import { useOnboarding } from './hooks/useOnboarding';
 import EmailPreviewDialog from './components/EmailActivity/EmailPreviewDialog';
@@ -272,6 +273,10 @@ export default function App() {
   // לשוניות הכרטיס חוזרים במלואם. שום נתון לא תלוי בו — הוא תצוגה בלבד.
   const journeyUi =
     ((firmProfile?.settings?.flags as { journeyUi?: boolean } | undefined)?.journeyUi) !== false;
+  // ‼ מתג החירום של ספריית האנשים (Customers V3.3): כבוי ⇒ מסך הלקוחות הישן
+  // (ClientList) חוזר במלואו. תצוגה בלבד, שום נתון לא תלוי בו. יוסר בשלב הניקוי.
+  const personDirectory =
+    ((firmProfile?.settings?.flags as { personDirectory?: boolean } | undefined)?.personDirectory) !== false;
   const onboarding = useOnboarding(onboardingEnabled ? user?.id : undefined);
   const { leads, addLead, updateLead, deleteLead } = useLeads(user?.id);
   // כרטיס לקוח ↔ הליד שממנו הוא בא. שורה בשלב "ליד" במסך הלקוחות מובילה לשם.
@@ -330,6 +335,8 @@ export default function App() {
   const [view, setView] = useState<View>(initialRoute.view);
   const [selectedId, setSelectedId] = useState<string | null>(initialRoute.clientId ?? null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(initialRoute.requestId ?? null);
+  // התצוגה המהירה במסך הלקוחות — חיה בכתובת (#/clients/p/{id}) כדי ש"אחורה" יסגור
+  const [quickViewId, setQuickViewId] = useState<string | null>(initialRoute.quickId ?? null);
   // לשונית הפתיחה של כרטיס הלקוח — נקבעת רק כשהגיעו אליו בשביל דבר מסוים
   const [clientInitialTab, setClientInitialTab] = useState<ClientTabId | undefined>(
     initialRoute.clientTab as ClientTabId | undefined
@@ -374,6 +381,7 @@ export default function App() {
     view,
     clientId: selectedId ?? undefined,
     clientTab: clientInitialTab,
+    quickId: view === 'list' ? quickViewId ?? undefined : undefined,
     requestId: selectedRequestId ?? undefined,
     quotationId: editingQuotationId ?? undefined,
     annualClientId: annualRoute?.clientId,
@@ -398,6 +406,7 @@ export default function App() {
       setView(route.view);
       setSelectedId(route.clientId ?? null);
       setClientInitialTab(route.clientTab as ClientTabId | undefined);
+      setQuickViewId(route.quickId ?? null);
       setSelectedRequestId(route.requestId ?? null);
       setEditingQuotationId(route.quotationId ?? null);
       setAnnualRoute(
@@ -1476,8 +1485,10 @@ export default function App() {
         </nav>
 
         <div className="header-actions">
-          {/* אשכול הכלים — מופרד מהניווט בקו, כדי שיהיה ברור שזה לא מקום עבודה */}
-          {journeyUi && (
+          {/* אשכול הכלים — מופרד מהניווט בקו, כדי שיהיה ברור שזה לא מקום עבודה.
+             ‼ במסך הלקוחות הקישור מוסתר (הכרעת גיא, V3.3): המסך נשאר שקט,
+             וההצעות נגישות משם דרך האדם עצמו — לא דרך הכותרת. */}
+          {journeyUi && !(view === 'list' && personDirectory) && (
             <button
               type="button"
               className={`header-tool-link ${view === 'quotations' || view === 'quotationBuilder' ? 'is-active' : ''}`}
@@ -1493,7 +1504,7 @@ export default function App() {
             </button>
           )}
 
-          {journeyUi && <span className="header-divider" aria-hidden="true" />}
+          {journeyUi && !(view === 'list' && personDirectory) && <span className="header-divider" aria-hidden="true" />}
 
           <div className="header-account">
             <button
@@ -1605,7 +1616,32 @@ export default function App() {
           />
         )}
 
-        {view === 'list' && (
+        {view === 'list' && personDirectory && (
+          <PersonDirectory
+            clients={clients}
+            leads={leads}
+            tasks={tasks}
+            quotations={quotations}
+            onboardingSteps={onboarding.steps}
+            quickViewId={quickViewId}
+            onQuickView={setQuickViewId}
+            onAdd={handleAddNew}
+            onOpenFullCase={handleSelectClient}
+            onRequestMaterials={handleOpenClientOnboarding}
+            onOpenQuotation={(id) => {
+              const q = quotations.find(x => x.id === id);
+              if (q) handleOpenQuotation(q);
+            }}
+            onNewQuotation={handleNewQuotation}
+            onNewQuotationForLead={handleNewQuotationForLead}
+            onOpenLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
+            onOpenRequest={handleSelectRequest}
+            onOpenTask={openEditTaskModal}
+            onOpenRepresentation={handleOpenClientRepresentation}
+          />
+        )}
+
+        {view === 'list' && !personDirectory && (
           <ClientList
             clients={clients}
             requests={requests}
