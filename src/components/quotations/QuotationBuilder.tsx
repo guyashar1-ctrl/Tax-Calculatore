@@ -60,6 +60,7 @@ interface Props {
   clients: Client[];
   existing?: Quotation | null;               // עריכת טיוטה קיימת
   initialLeadId?: string;                    // הצעה חדשה שנפתחה מתוך ליד קיים
+  initialClientId?: string;                  // הצעה חדשה שנפתחה מתוך לקוח קיים (שלב 3 / "שירות נוסף")
   existingQuotations: Quotation[];           // לאזהרת "כבר יש הצעה פתוחה"
   /** כבר קיים ייצוג פעיל/בתהליך למייל הזה? מחזיר הודעת חסימה, או null. */
   checkRepEmailConflict?: (email: string) => string | null;
@@ -169,7 +170,7 @@ function r2(n: number): number {
 
 
 export default function QuotationBuilder({
-  profile, services, templates, leads, clients, existing, initialLeadId, existingQuotations,
+  profile, services, templates, leads, clients, existing, initialLeadId, initialClientId, existingQuotations,
   checkRepEmailConflict, onSaveDraft, onSend, onBack,
 }: Props) {
   const brand = useMemo(() => deriveQuotationBrand(profile), [profile]);
@@ -187,6 +188,11 @@ export default function QuotationBuilder({
     if (initialLeadId) {
       const l = leads.find(x => x.id === initialLeadId);
       if (l) return { kind: 'lead', id: l.id, fullName: l.fullName, businessName: l.businessName, email: l.email, phone: l.phone, dealerType: l.dealerType };
+    }
+    // הצעה חדשה שנפתחה מכרטיס לקוח קיים — "אדם חדש" משלב 3, או "שירות נוסף"
+    if (initialClientId) {
+      const c = clients.find(x => x.id === initialClientId);
+      if (c) return { kind: 'client', id: c.id, fullName: `${c.firstName} ${c.lastName}`.trim(), email: c.email, phone: c.phone };
     }
     return { kind: 'new', fullName: '' };
   })();

@@ -2234,3 +2234,33 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .pd-qv-actions{position:sticky;bottom:0;background:var(--surface-0);padding-top:8px;
     padding-bottom:env(safe-area-inset-bottom);margin-top:20px}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   "+ אדם חדש" · שלב 3
+   המקור החזותי המחייב: docs/prototypes/customers-v3-production-reference.html
+   בתוך Modal.tsx (ui-modal-*) — כאן רק פנים השלבים: בחירה, טופס, מסלול.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.np-choice{display:grid;gap:10px}
+.np-choice button,.np-route button{border:1px solid var(--bd-strong);border-radius:var(--r-panel);
+  background:var(--surface-0);text-align:right;padding:14px 15px;width:100%;cursor:pointer;font-family:inherit}
+.np-choice button:hover,.np-route button:hover,.np-route button.is-selected{border-color:var(--accent);background:var(--surface-1)}
+.np-route button.is-selected{box-shadow:0 0 0 1px var(--accent)}
+.np-choice strong,.np-route strong{display:block;font-size:var(--fs-14);font-weight:600;margin-bottom:4px;color:var(--ink-1)}
+.np-choice span,.np-route span{font-size:var(--fs-12);color:var(--ink-3);line-height:1.5}
+.np-form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.np-field-full{grid-column:1/-1}
+.np-field label{display:block;font-size:var(--fs-12);color:var(--ink-3);margin-bottom:5px}
+.np-field input{width:100%;height:40px;border:1px solid var(--bd-strong);border-radius:var(--r-input);
+  padding:0 10px;outline:0;background:var(--surface-0);font-size:var(--fs-14);font-family:inherit;color:var(--ink-1)}
+.np-field input:focus{border-color:var(--soft-bd);box-shadow:0 0 0 3px rgba(63,95,143,.07)}
+.np-field input:disabled{opacity:.6}
+.np-preview{padding:11px 13px;border:1px solid var(--hairline-1);background:var(--field-read);
+  border-radius:var(--r-panel);margin-bottom:16px;font-size:var(--fs-13);color:var(--ink-1)}
+.np-routetitle{font-size:var(--fs-13);font-weight:700;margin-bottom:10px;color:var(--ink-1)}
+.np-route{display:grid;gap:9px}
+.np-error{font-size:var(--fs-12);color:var(--danger);margin-top:10px}
+
+@media (max-width:760px){
+  .np-form{grid-template-columns:1fr}
+  .np-field-full{grid-column:auto}
+}

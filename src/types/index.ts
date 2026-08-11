@@ -612,11 +612,16 @@ export interface Client {
   mergedFromLeadId?: string;
 
   // ── סטטוס ייצוג (lifecycle של תהליך הייצוג) ──
-  representationStatus?: RepresentationStatus; // ברירת מחדל: 'active' (לקוח שנוצר ידנית)
-  representationRequestId?: string;            // קישור ל-RepresentationRequest אם הלקוח נוצר מבקשה
+  // ‼ null (ולא רק undefined) מציין ניקוי מפורש: מחיקת בקשת הייצוג המקושרת
+  // (שלב 3) מנקה את השדות האלה בלי למחוק את הכרטיס עצמו. objectToRow שולח
+  // undefined = "לא לגעת" ו-null = לכתוב NULL בפועל — ראה lib/dbMappers.ts.
+  representationStatus?: RepresentationStatus | null; // ברירת מחדל: 'active' (לקוח שנוצר ידנית)
+  representationRequestId?: string | null;            // קישור ל-RepresentationRequest אם הלקוח נוצר מבקשה
 
   // ── מרשם ייצוג לפי רשות — מצב הייצוג מול כל רשות בנפרד (RepresentationRecord) ──
   // מתוכנן להחזיק בעתיד גם היסטוריה, הגשות, אישורים וקישורי מסמכים לכל רשות.
+  // ‼ לא null: העמודה NOT NULL DEFAULT '{}'::jsonb — ריקון כותב אובייקט ריק,
+  // לא null (אומת ישירות מול המסד; ראה handleDeleteRequest).
   authorityRepresentations?: AuthorityRepresentations;
 
   // ── הרחבות תיק עבודה (אופציונלי, ראה types/clientWorkspace.ts) ──

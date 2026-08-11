@@ -712,7 +712,7 @@ export default function ClientList({
                   const m = metricsByClient.get(client.id);
                   const employee = findEmployee(client.assignedAccountantId);
                   const repBadgeForNonActive = status !== 'active';
-                  const overallRep = deriveOverallRep(client.authorityRepresentations);
+                  const overallRep = deriveOverallRep(client.authorityRepresentations ?? undefined);
                   const linkedReq = client.representationRequestId ? requestById.get(client.representationRequestId) : undefined;
                   const idSubmitted = linkedReq?.onboardingStatus === 'submitted' && status !== 'active';
                   const pc = getPrimaryContact(client);

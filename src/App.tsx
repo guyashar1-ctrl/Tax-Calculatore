@@ -66,7 +66,7 @@ import TaskBoard from './components/TaskBoard';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
 import NoAccessScreen from './components/NoAccessScreen';
-import QuickCreateClient, { QuickClientBasics } from './components/QuickCreateClient';
+import NewPersonDialog, { type NewPersonBasics } from './components/NewPersonDialog';
 import RepresentationOnboardingDialog, { CreateRepresentationInput } from './components/RepresentationOnboardingDialog';
 import OnboardingPage from './components/OnboardingPage';
 import PublicIntakePage from './components/PublicIntakePage';
@@ -346,6 +346,8 @@ export default function App() {
   const [focusLeadId, setFocusLeadId] = useState<string | null>(null);
   const [openNewLead, setOpenNewLead] = useState(false);
   const [newQuotationLeadId, setNewQuotationLeadId] = useState<string | null>(null);
+  // הצעה חדשה שנפתחה מ"אדם חדש" (שלב 3) או מ"שירות נוסף" ללקוח קיים
+  const [newQuotationClientId, setNewQuotationClientId] = useState<string | null>(null);
   const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
   // תצוגה מקדימה של מייל תזכורת להצעה — נפתחת לפני כל שליחה חוזרת
   const [remindPreview, setRemindPreview] = useState<{ quotation: Quotation; subject: string; to: string; html: string } | null>(null);
@@ -355,8 +357,11 @@ export default function App() {
   /** תזכורת שהוכנה לשלב תקוע — נפתחת לעריכה, נשלחת רק בלחיצה. */
   const [stepReminder, setStepReminder] = useState<{ stepId: string; clientId: string } | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
-  const [showCreateClient, setShowCreateClient] = useState(false);
+  const [showNewPerson, setShowNewPerson] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  // "התחלת ייצוג ללא הצעה" משלב 3: האדם כבר נוצר, והדיאלוג נפתח מצומד אליו —
+  // בשונה מ-showOnboarding (שם עדיין נוצר אדם חדש בתוך הדיאלוג עצמו).
+  const [pendingRepresentationClient, setPendingRepresentationClient] = useState<Client | null>(null);
   // בחירה מוקדמת לדוח השנתי (מתוך "פתח ←" בתמונת המס של הכרטיס)
   const [annualReportSelection, setAnnualReportSelection] = useState<{ clientId: string; taxYear: number } | null>(
     initialRoute.annualClientId && initialRoute.annualTaxYear
@@ -590,10 +595,15 @@ export default function App() {
   }
 
   function handleAddNew() {
-    setShowCreateClient(true);
+    setShowNewPerson(true);
   }
 
-  async function handleCreateClient(basics: QuickClientBasics) {
+  /**
+   * ‼ נקודת היצירה היחידה של אדם משלב 3. נקראת רק אחרי שנבחר מסלול
+   * ("שליחת הצעת מחיר" / "התחלת ייצוג ללא הצעה") — לא אחרי מילוי הפרטים.
+   * ביטול הדיאלוג לפני שנבחר מסלול לא מגיע לכאן כלל, ולכן אינו יוצר כלום.
+   */
+  async function createPersonFromBasics(basics: NewPersonBasics): Promise<Client> {
     const draft = makeEmptyClient(crypto.randomUUID(), {
       firstName: basics.firstName,
       lastName: basics.lastName,
@@ -601,10 +611,19 @@ export default function App() {
       phone: basics.phone,
       email: basics.email,
     });
-    const inserted = await addClient(draft);
-    setShowCreateClient(false);
-    setSelectedId(inserted.id);
-    setView('form');
+    return addClient(draft);
+  }
+
+  async function handleConfirmNewPersonQuote(basics: NewPersonBasics) {
+    const client = await createPersonFromBasics(basics);
+    setShowNewPerson(false);
+    handleNewQuotationForClient(client.id);
+  }
+
+  async function handleConfirmNewPersonRepresentation(basics: NewPersonBasics) {
+    const client = await createPersonFromBasics(basics);
+    setShowNewPerson(false);
+    setPendingRepresentationClient(client);
   }
 
   async function handleSave(client: Client) {
@@ -688,22 +707,29 @@ export default function App() {
   /**
    * מחזיר התנגשות אם המייל כבר שייך ללקוח שנמצא בתהליך ייצוג או שכבר מיוצג.
    * מייל הוא "המזהה" של הלקוח בתהליך הייצוג — אסור לפתוח שתי בקשות לאותו מייל.
+   *
+   * ‼ excludeClientId — שלב 3, "התחלת ייצוג ללא הצעה": האדם שאליו מצמידים את
+   * הבקשה כבר קיים כרגע (נוצר רגע קודם), ו-representation_status במסד מגיע
+   * כברירת מחדל 'active' לכל לקוח חדש (עמודה, לא קוד) — בלי החרגה הוא היה
+   * מתנגש עם עצמו ונחסם על "כבר מיוצג" באדם שמעולם לא היה מיוצג.
    */
-  function repEmailConflict(email: string): { status: RepresentationStatus; name: string } | null {
+  function repEmailConflict(email: string, excludeClientId?: string): { status: RepresentationStatus; name: string } | null {
     const norm = email.trim().toLowerCase();
     if (!norm) return null;
-    const client = clients.find(c => (c.email || '').trim().toLowerCase() === norm && !!c.representationStatus);
+    const client = clients.find(c =>
+      c.id !== excludeClientId && (c.email || '').trim().toLowerCase() === norm && !!c.representationStatus);
     if (client) {
       return { status: client.representationStatus!, name: `${client.firstName} ${client.lastName}`.trim() || email.trim() };
     }
-    const req = requests.find(r => (r.clientEmail || '').trim().toLowerCase() === norm);
+    const req = requests.find(r =>
+      r.linkedClientId !== excludeClientId && (r.clientEmail || '').trim().toLowerCase() === norm);
     if (req) return { status: req.status, name: req.clientName || email.trim() };
     return null;
   }
 
   /** הודעה בעברית להצגה כשמנסים לפתוח בקשת ייצוג למייל שכבר בשימוש. */
-  function repEmailConflictMessage(email: string): string | null {
-    const c = repEmailConflict(email);
+  function repEmailConflictMessage(email: string, excludeClientId?: string): string | null {
+    const c = repEmailConflict(email, excludeClientId);
     if (!c) return null;
     return c.status === 'active'
       ? `${c.name} כבר מיוצג/ת עם המייל הזה — אין צורך בבקשת ייצוג נוספת.`
@@ -711,33 +737,17 @@ export default function App() {
   }
 
   /**
-   * נקודת הכניסה לייצוג: הרו"ח בוחר רשויות ומקבל קישור לשליחה בוואטסאפ.
-   * שם ומייל אינם חובה — מה שלא הוזן כאן, הלקוח ממלא בעצמו בקישור.
-   * המערכת יוצרת: לקוח ("טרם מיוצג") + התקשרות ייצוג + משימה פנימית
-   * + מרשם ייצוג "בתהליך" לכל רשות שנבחרה.
+   * זנב משותף: בקשת ייצוג + מייל, לאחר שכרטיס הלקוח כבר קיים (חדש או ותיק).
+   * טופס 2279א'5 (שע"ם) מכסה רק מ"ה/ניכויים/מע"מ — ביטוח לאומי הוא ייצוג
+   * נפרד ולכן נשמר רק במרשם הלקוח, לא ברשויות הבקשה.
    */
-  async function handleCreateRepresentation(data: CreateRepresentationInput): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
-    const { name, email, areas, spouse, prefill, sendEmail, hasPreviousAccountant, prevAccountant } = data;
-    // שער בטיחות: לא פותחים בקשה כפולה לאותו מייל (גם אם ה-UI כבר חוסם).
-    // בלי מייל אין מה לבדוק — הזיהוי ייקבע כשהלקוח ימלא.
-    if (email) {
-      const conflictMsg = repEmailConflictMessage(email);
-      if (conflictMsg) throw new Error(conflictMsg);
-    }
-    const nameParts = name.trim().split(/\s+/).filter(Boolean);
-    const clientId = crypto.randomUUID();
-    const reqId = crypto.randomUUID();
+  async function saveRepresentationRequest(
+    clientId: string, reqId: string, data: CreateRepresentationInput,
+  ): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
+    const { name, email, areas, spouse, prefill, sendEmail } = data;
     const onboardingToken = crypto.randomUUID().replace(/-/g, '');
     const now = new Date().toISOString();
     const selectedKeys = Object.keys(areas) as RepAuthorityKind[];
-
-    // כרטיס בלי שם צריך תווית זמנית שאפשר לזהות ברשימה — הזמן מבדיל בין
-    // כמה קישורים שהופקו באותו יום. submit_onboarding_full דורס אותה בשם האמיתי.
-    const placeholderLabel = new Date().toLocaleString('he-IL', {
-      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-    });
-    const displayFirstName = nameParts[0] || 'ממתין למילוי';
-    const displayLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : (nameParts[0] ? '' : placeholderLabel);
 
     // חותמים: הנישום תמיד; בן/בת הזוג נוסף אם ידוע שהלקוח נשוי. לכל חותם טוקן
     // ומצב נפרד. שם/מייל ריקים מתמלאים ב-submit_onboarding_full כשהלקוח ממלא.
@@ -748,31 +758,6 @@ export default function App() {
       signers.push({ id: 'spouse', role: 'spouse', name: spouse.name, email: spouse.email, signStatus: 'pending', signToken: crypto.randomUUID().replace(/-/g, '') });
     }
 
-    // 1. לקוח חדש — מסומן "ממתין" עם מרשם הייצוג לפי רשות
-    const client = makeEmptyClient(clientId, {
-      firstName: displayFirstName,
-      lastName: displayLastName,
-      email,
-      representationStatus: 'pending_fill',
-      representationRequestId: reqId,
-      authorityRepresentations: areas,
-      ...(prefill.familyStatus ? { familyStatus: prefill.familyStatus } : {}),
-      ...(prefill.familyStatusYear && prefill.familyStatus === 'married'  ? { marriageYear: prefill.familyStatusYear } : {}),
-      ...(prefill.familyStatusYear && prefill.familyStatus === 'divorced' ? { divorceYear: prefill.familyStatusYear } : {}),
-      ...(prefill.familyStatusYear && prefill.familyStatus === 'widowed'  ? { widowhoodYear: prefill.familyStatusYear } : {}),
-      ...(spouse ? { spouseName: spouse.name } : {}),
-      ...(spouse?.idNumber ? { spouseIdNumber: spouse.idNumber } : {}),
-      // מעבר מרו"ח אחר נרשם על הכרטיס מיד: ממנו נגזרים מכתב השחרור ומעקב החומרים.
-      hasPreviousAccountant,
-      ...(prevAccountant?.name  ? { prevAccountantName: prevAccountant.name } : {}),
-      ...(prevAccountant?.email ? { prevAccountantEmail: prevAccountant.email } : {}),
-      ...(prevAccountant?.phone ? { prevAccountantPhone: prevAccountant.phone } : {}),
-      notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין להשלמת התהליך.',
-    });
-    await addClient(client);
-
-    // 2. התקשרות ייצוג. טופס 2279א'5 (שע"ם) מכסה רק מ"ה/ניכויים/מע"מ —
-    //    ביטוח לאומי הוא ייצוג נפרד ולכן נשמר רק במרשם הלקוח, לא ברשויות הבקשה.
     const shaamAuthorities = selectedKeys.filter(k => k !== 'nationalInsurance') as unknown as AuthorityKind[];
     const request: RepresentationRequest = {
       id: reqId,
@@ -822,6 +807,90 @@ export default function App() {
       emailError = e instanceof Error ? e.message : String(e);
     }
     return { link, emailSent, emailError, clientId };
+  }
+
+  /**
+   * נקודת הכניסה הוותיקה לייצוג ("+ בקשת ייצוג"): הרו"ח בוחר רשויות ומקבל
+   * קישור לשליחה בוואטסאפ. שם ומייל אינם חובה — מה שלא הוזן כאן, הלקוח ממלא
+   * בעצמו בקישור. המערכת יוצרת: לקוח חדש ("טרם מיוצג") + התקשרות ייצוג.
+   */
+  async function handleCreateRepresentation(data: CreateRepresentationInput): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
+    const { name, email, areas, spouse, prefill, hasPreviousAccountant, prevAccountant } = data;
+    // שער בטיחות: לא פותחים בקשה כפולה לאותו מייל (גם אם ה-UI כבר חוסם).
+    // בלי מייל אין מה לבדוק — הזיהוי ייקבע כשהלקוח ימלא.
+    if (email) {
+      const conflictMsg = repEmailConflictMessage(email);
+      if (conflictMsg) throw new Error(conflictMsg);
+    }
+    const nameParts = name.trim().split(/\s+/).filter(Boolean);
+    const clientId = crypto.randomUUID();
+    const reqId = crypto.randomUUID();
+
+    // כרטיס בלי שם צריך תווית זמנית שאפשר לזהות ברשימה — הזמן מבדיל בין
+    // כמה קישורים שהופקו באותו יום. submit_onboarding_full דורס אותה בשם האמיתי.
+    const placeholderLabel = new Date().toLocaleString('he-IL', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+    });
+    const displayFirstName = nameParts[0] || 'ממתין למילוי';
+    const displayLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : (nameParts[0] ? '' : placeholderLabel);
+
+    // לקוח חדש — מסומן "ממתין" עם מרשם הייצוג לפי רשות
+    const client = makeEmptyClient(clientId, {
+      firstName: displayFirstName,
+      lastName: displayLastName,
+      email,
+      representationStatus: 'pending_fill',
+      representationRequestId: reqId,
+      authorityRepresentations: areas,
+      ...(prefill.familyStatus ? { familyStatus: prefill.familyStatus } : {}),
+      ...(prefill.familyStatusYear && prefill.familyStatus === 'married'  ? { marriageYear: prefill.familyStatusYear } : {}),
+      ...(prefill.familyStatusYear && prefill.familyStatus === 'divorced' ? { divorceYear: prefill.familyStatusYear } : {}),
+      ...(prefill.familyStatusYear && prefill.familyStatus === 'widowed'  ? { widowhoodYear: prefill.familyStatusYear } : {}),
+      ...(spouse ? { spouseName: spouse.name } : {}),
+      ...(spouse?.idNumber ? { spouseIdNumber: spouse.idNumber } : {}),
+      // מעבר מרו"ח אחר נרשם על הכרטיס מיד: ממנו נגזרים מכתב השחרור ומעקב החומרים.
+      hasPreviousAccountant,
+      ...(prevAccountant?.name  ? { prevAccountantName: prevAccountant.name } : {}),
+      ...(prevAccountant?.email ? { prevAccountantEmail: prevAccountant.email } : {}),
+      ...(prevAccountant?.phone ? { prevAccountantPhone: prevAccountant.phone } : {}),
+      notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין להשלמת התהליך.',
+    });
+    await addClient(client);
+    return saveRepresentationRequest(clientId, reqId, data);
+  }
+
+  /**
+   * "התחלת ייצוג ללא הצעה" משלב 3: האדם כבר קיים (נוצר ברגע אישור המסלול,
+   * או לקוח ותיק) — כאן רק מצמידים אליו בקשת ייצוג, בלי ליצור כרטיס שני.
+   * ‼ שם/מייל שהוקלדו בדיאלוג מתעדכנים על הכרטיס: הם המקור העדכני ביותר.
+   */
+  async function handleAttachRepresentation(client: Client, data: CreateRepresentationInput) {
+    const { email, areas, spouse, prefill, hasPreviousAccountant, prevAccountant } = data;
+    if (email) {
+      const conflictMsg = repEmailConflictMessage(email, client.id);
+      if (conflictMsg) throw new Error(conflictMsg);
+    }
+    const reqId = crypto.randomUUID();
+    await updateClient({
+      ...client,
+      firstName: prefill.firstName || client.firstName,
+      lastName: prefill.lastName ?? client.lastName,
+      email: email || client.email,
+      representationStatus: 'pending_fill',
+      representationRequestId: reqId,
+      authorityRepresentations: areas,
+      ...(prefill.familyStatus ? { familyStatus: prefill.familyStatus } : {}),
+      ...(prefill.familyStatusYear && prefill.familyStatus === 'married'  ? { marriageYear: prefill.familyStatusYear } : {}),
+      ...(prefill.familyStatusYear && prefill.familyStatus === 'divorced' ? { divorceYear: prefill.familyStatusYear } : {}),
+      ...(prefill.familyStatusYear && prefill.familyStatus === 'widowed'  ? { widowhoodYear: prefill.familyStatusYear } : {}),
+      ...(spouse ? { spouseName: spouse.name } : {}),
+      ...(spouse?.idNumber ? { spouseIdNumber: spouse.idNumber } : {}),
+      hasPreviousAccountant,
+      ...(prevAccountant?.name  ? { prevAccountantName: prevAccountant.name } : {}),
+      ...(prevAccountant?.email ? { prevAccountantEmail: prevAccountant.email } : {}),
+      ...(prevAccountant?.phone ? { prevAccountantPhone: prevAccountant.phone } : {}),
+    });
+    return saveRepresentationRequest(client.id, reqId, data);
   }
 
   function handleSelectRequest(id: string) {
@@ -1016,30 +1085,43 @@ export default function App() {
     await reloadTasks();
   }
 
+  /**
+   * ‼ מחיקת בקשה לעולם לא מוחקת את האדם המקושר אליה (שלב 3, תיקון היפוך
+   * הבעלות): הבקשה מתועדת על הכרטיס, ולא להפך. מה שהיא כן עושה — מנקה
+   * מהכרטיס את שדות הייצוג, כדי שלא יישאר מצביע לבקשה שכבר לא קיימת.
+   * קבצים תחת ‎req-{id}‎ הם קבצי-הבקשה עצמה (למשל העלאות מלפני שהיה כרטיס)
+   * ונמחקים; קבצי הלקוח האמיתיים (תחת מזהה הכרטיס) לעולם לא נגועים כאן.
+   */
   async function handleDeleteRequest(id: string) {
     const req = requests.find(r => r.id === id);
-    // מחיקת קבצים גם תחת req- וגם תחת clientId
     try {
       const oldFiles = await db.getDocsByClient(`req-${id}`);
-      const linkedFiles = req?.linkedClientId ? await db.getDocsByClient(req.linkedClientId) : [];
-      await Promise.all([...oldFiles, ...linkedFiles].map(d => db.deleteDoc(d.id)));
+      await Promise.all(oldFiles.map(d => db.deleteDoc(d.id)));
     } catch {
       // ignore
     }
-    const deletesClient = !!req?.linkedClientId;
-    if (req?.linkedClientId) {
-      try { await removeClient(req.linkedClientId); } catch { /* ignore */ }
-    }
     await removeRequest(id);
+    if (req?.linkedClientId) {
+      const c = clients.find(x => x.id === req.linkedClientId);
+      if (c) {
+        try {
+          await updateClient({
+            ...c,
+            representationStatus: null,
+            representationRequestId: null,
+            // ‼ {} ולא null — העמודה NOT NULL DEFAULT '{}'::jsonb; null נדחה
+            // ב-23502 (אומת מול המסד בבדיקת שלב 3).
+            authorityRepresentations: {},
+          });
+        } catch (e) {
+          // לא חוסם: הבקשה כבר נמחקה. אבל לא בולעים בשקט — זה בדיוק מה שהסתיר
+          // את התקלה הזו בבדיקה הראשונה.
+          console.error('ניקוי שדות הייצוג מהכרטיס נכשל אחרי מחיקת הבקשה:', e);
+        }
+      }
+    }
     setSelectedRequestId(null);
     setView('list');
-    // ‼ מחיקת בקשה שמוחקת גם את כרטיס הלקוח היא מחיקת לקוח לכל דבר: המסד מוריד
-    // איתה בגרירה משימות, קליטה והתקשרות. בלי הטעינה מחדש שלבי הקליטה נשארו
-    // בזיכרון בלי כרטיס להתאים — וזה מה שהופיע על השולחן בשם "לקוח".
-    if (deletesClient) {
-      window.location.hash = formatRoute({ view: 'list' });
-      window.location.reload();
-    }
   }
 
   // ─── הצעות מחיר ולידים ─────────────────────────────────────────────────────
@@ -1049,12 +1131,14 @@ export default function App() {
   function handleNewQuotation() {
     setEditingQuotationId(null);
     setNewQuotationLeadId(null);
+    setNewQuotationClientId(null);
     setView('quotationBuilder');
   }
 
   function handleOpenQuotation(q: Quotation) {
     setEditingQuotationId(q.id);
     setNewQuotationLeadId(null);
+    setNewQuotationClientId(null);
     setView('quotationBuilder');
   }
 
@@ -1062,6 +1146,15 @@ export default function App() {
   function handleNewQuotationForLead(lead: Lead) {
     setEditingQuotationId(null);
     setNewQuotationLeadId(lead.id);
+    setNewQuotationClientId(null);
+    setView('quotationBuilder');
+  }
+
+  /** הצעה חדשה שנפתחת מכרטיס לקוח קיים (אדם חדש משלב 3) — הנמען ממולא מראש */
+  function handleNewQuotationForClient(clientId: string) {
+    setEditingQuotationId(null);
+    setNewQuotationLeadId(null);
+    setNewQuotationClientId(clientId);
     setView('quotationBuilder');
   }
 
@@ -1814,6 +1907,7 @@ export default function App() {
             clients={clients}
             existing={editingQuotation}
             initialLeadId={newQuotationLeadId ?? undefined}
+            initialClientId={newQuotationClientId ?? undefined}
             existingQuotations={quotations}
             checkRepEmailConflict={repEmailConflictMessage}
             onSaveDraft={handleSaveQuotationDraft}
@@ -1917,10 +2011,23 @@ export default function App() {
         />
       )}
 
-      {showCreateClient && (
-        <QuickCreateClient
-          onSave={handleCreateClient}
-          onCancel={() => setShowCreateClient(false)}
+      {showNewPerson && (
+        <NewPersonDialog
+          clients={clients}
+          onCancel={() => setShowNewPerson(false)}
+          onOpenExisting={(clientId) => { setShowNewPerson(false); handleSelectClient(clientId); }}
+          onConfirmQuote={handleConfirmNewPersonQuote}
+          onConfirmRepresentation={handleConfirmNewPersonRepresentation}
+        />
+      )}
+
+      {pendingRepresentationClient && (
+        <RepresentationOnboardingDialog
+          onCreate={(data) => handleAttachRepresentation(pendingRepresentationClient, data)}
+          onCancel={() => setPendingRepresentationClient(null)}
+          checkEmailConflict={(email) => repEmailConflictMessage(email, pendingRepresentationClient.id)}
+          initialName={`${pendingRepresentationClient.firstName} ${pendingRepresentationClient.lastName}`.trim()}
+          initialEmail={pendingRepresentationClient.email || undefined}
         />
       )}
 
