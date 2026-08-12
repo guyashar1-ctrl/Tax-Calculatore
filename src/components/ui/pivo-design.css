@@ -2217,6 +2217,26 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   border-radius:var(--r-panel);padding:10px 13px;font-size:var(--fs-13)}
 .pd-di{width:30px;height:30px;border-radius:var(--r-input);background:var(--soft);color:var(--accent);
   display:grid;place-items:center;flex-shrink:0}
+
+/* ── חיובים נוספים — V3.3, docs/prototypes/customers-v3-production-reference.html ── */
+.pd-charges-header{display:flex;align-items:center;gap:8px}
+.pd-charges-header button{margin-inline-start:auto;color:var(--accent);font-size:var(--fs-12);
+  font-weight:600;cursor:pointer;background:none;border:0;font-family:inherit}
+.pd-charges-list{display:grid;gap:8px}
+.pd-chargecard{border:1px solid var(--hairline-1);border-radius:var(--r-panel);
+  padding:12px 14px;font-size:var(--fs-13)}
+.pd-chargehead{display:flex;align-items:center;gap:8px}
+.pd-chargehead b{font-size:var(--fs-13);font-weight:600}
+.pd-chargehead .pd-badge{margin-inline-start:auto}
+.pd-chargemoney{font-size:var(--fs-12);color:var(--ink-2);margin-top:7px}
+.pd-nextaction{margin-top:10px;border-top:1px solid var(--hairline-2);padding-top:10px;
+  display:flex;align-items:center;gap:8px}
+.pd-nextaction .pd-na-label{font-size:var(--fs-12);color:var(--ink-3)}
+.pd-nextaction .pd-na-action{font-size:var(--fs-13);font-weight:700;color:var(--accent);
+  cursor:pointer;background:none;border:0;padding:0;font-family:inherit}
+.pd-nextaction .pd-na-action:disabled{opacity:.5;cursor:default}
+.pd-nextaction .pd-na-text{font-size:var(--fs-13);font-weight:700;color:var(--ink-2)}
+
 .pd-qv-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:24px}
 /* 44px — כלל מטרות המגע של הבית (index.css); הייחוס צייר 41 והוסכם שהייצור מגביה */
 .pd-act{height:44px;border:1px solid var(--bd-strong);background:var(--surface-0);

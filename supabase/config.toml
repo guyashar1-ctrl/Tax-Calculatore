@@ -57,6 +57,11 @@ verify_jwt = false
 [functions.send-apply-link-email]
 verify_jwt = false
 
+# שליחת דרישת תשלום עבור חיוב נוסף. אין מסלול ציבורי — מזוהה מה-JWT של הרו"ח,
+# והחיוב נבדק ששייך לו לפני שהמייל יוצא.
+[functions.send-charge-payment-request-email]
+verify_jwt = false
+
 # ── נקראת מתוך המערכת ע"י משתמש מחובר בלבד ─────────────────────────────────
 [functions.ocr-document]
 verify_jwt = true

@@ -36,6 +36,8 @@ import { useFirmProfile } from './hooks/useFirmProfile';
 import { useFailedNotifications } from './hooks/useFailedNotifications';
 import { useLeads } from './hooks/useLeads';
 import { useQuotations } from './hooks/useQuotations';
+import { useCharges } from './hooks/useCharges';
+import type { AdditionalCharge } from './types/charges';
 import { useQuotationCatalog } from './hooks/useQuotationCatalog';
 import QuotationsPipeline from './components/quotations/QuotationsPipeline';
 import LeadsPanel from './components/quotations/LeadsPanel';
@@ -290,6 +292,7 @@ export default function App() {
     return map;
   }, [leads]);
   const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation } = useQuotations(user?.id);
+  const { charges, addCharge, replaceCharge } = useCharges(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
   const failedNotifications = useFailedNotifications(user?.id);
 
@@ -650,6 +653,20 @@ export default function App() {
       body: { token, recipientEmail },
     });
     if (error || !data?.ok) throw new Error(error?.message || data?.error || 'שליחת המייל נכשלה');
+  }
+
+  /**
+   * שולח דרישת תשלום עבור חיוב נוסף. ‼ אין אינטגרציית סליקה — הפונקציה רק
+   * שולחת מייל ומסמנת שהבקשה יצאה; היא לעולם לא מסמנת "שולם".
+   */
+  async function requestChargePayment(charge: AdditionalCharge): Promise<void> {
+    const { data, error } = await supabase.functions.invoke('send-charge-payment-request-email', {
+      body: { chargeId: charge.id },
+    });
+    if (error || !data?.ok) {
+      throw new Error(error?.message || data?.error || 'שליחת דרישת התשלום נכשלה');
+    }
+    replaceCharge({ ...charge, status: 'requested', requestedAt: data.requestedAt as string });
   }
 
   /**
@@ -1795,6 +1812,9 @@ export default function App() {
             onOpenRepresentation={handleOpenClientRepresentation}
             onContinueLead={handleContinueLead}
             onDeleteLead={async (lead) => { await deleteLead(lead.id); }}
+            charges={charges}
+            onAddCharge={async (clientId, description, amount) => { await addCharge(clientId, description, amount); }}
+            onRequestChargePayment={requestChargePayment}
           />
         )}
 

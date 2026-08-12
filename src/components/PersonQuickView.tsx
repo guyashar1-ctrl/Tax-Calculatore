@@ -8,6 +8,8 @@
 
 import type { PersonRow } from '../utils/personDirectory';
 import type { RecentDoc } from '../hooks/useRecentDocuments';
+import type { AdditionalCharge } from '../types/charges';
+import { CHARGE_STATUS_LABELS, CHARGE_STATUS_BADGE, CHARGE_NEXT_ACTION } from '../types/charges';
 
 export interface QuickViewAction {
   label: string;
@@ -36,6 +38,17 @@ interface Props {
   possibleMatch?: { clientName: string; onOpen: () => void } | null;
   /** מחיקת ליד שטרם הפך ללקוח — קישור שקט, לא כפתור מתחרה; רק לשורות ליד. */
   onDeleteLead?: () => void;
+  /**
+   * חיובים נוספים פתוחים (רק לשורות client). המקטע מוצג אך ורק כשיש לפחות
+   * חיוב אחד — ראה docs/prototypes/customers-v3-production-reference.html.
+   */
+  charges?: AdditionalCharge[];
+  /** פותח את חלון "חיוב נוסף" — מכותרת המקטע כשיש כבר חיובים. */
+  onAddCharge?: () => void;
+  /** "שלח דרישת תשלום" לחיוב ספציפי מתוך הכרטיס שלו. */
+  onRequestChargePayment?: (charge: AdditionalCharge) => void;
+  /** מזהה החיוב שהבקשה שלו נמצאת עכשיו בשליחה — מנטרל את הכפתור שלו בלבד. */
+  chargeSendingId?: string | null;
 }
 
 function relDate(iso: string): string {
@@ -95,6 +108,46 @@ export default function PersonQuickView(p: Props) {
             {p.now.detail && <div className="pd-small">{p.now.detail}</div>}
           </div>
         </div>
+
+        {row.kind === 'client' && !!p.charges?.length && (
+          <div className="pd-section">
+            <div className="pd-st pd-charges-header">
+              <span>חיובים נוספים</span>
+              {p.onAddCharge && (
+                <button type="button" onClick={p.onAddCharge}>+ חיוב נוסף</button>
+              )}
+            </div>
+            <div className="pd-charges-list">
+              {p.charges!.map(c => {
+                const sending = p.chargeSendingId === c.id;
+                return (
+                  <div className="pd-chargecard" key={c.id}>
+                    <div className="pd-chargehead">
+                      <b>{c.description}</b>
+                      <span className={`pd-badge ${CHARGE_STATUS_BADGE[c.status]}`}>{CHARGE_STATUS_LABELS[c.status]}</span>
+                    </div>
+                    <div className="pd-chargemoney">סכום: {c.amount.toLocaleString('he-IL')} ₪</div>
+                    <div className="pd-nextaction">
+                      <span className="pd-na-label">הפעולה הבאה</span>
+                      {c.status === 'pending' && p.onRequestChargePayment ? (
+                        <button
+                          type="button"
+                          className="pd-na-action"
+                          disabled={sending}
+                          onClick={() => p.onRequestChargePayment!(c)}
+                        >
+                          {sending ? 'שולח…' : CHARGE_NEXT_ACTION[c.status]}
+                        </button>
+                      ) : (
+                        <span className="pd-na-text">{CHARGE_NEXT_ACTION[c.status]}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {row.kind === 'client' && (
           <div className="pd-section">

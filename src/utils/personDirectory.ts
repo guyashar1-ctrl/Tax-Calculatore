@@ -9,6 +9,8 @@
 
 import type { Client } from '../types';
 import type { Lead } from '../types/quotations';
+import type { AdditionalCharge } from '../types/charges';
+import { CHARGE_STATUS_LABELS } from '../types/charges';
 import { squash, normalizePhone, normalizeEmail, normalizeIdNumber } from './identity';
 
 export type PersonBadgeCls = 'active' | 'rep' | 'quote' | 'new' | 'gray';
@@ -37,6 +39,12 @@ export interface PersonRow {
   matchClientId?: string;
   client?: Client;
   lead?: Lead;
+  /**
+   * חיובים נוספים פתוחים של הלקוח, מהישן לחדש (הראשון הוא זה שנשאר "ראשי"
+   * עד שהוא מטופל — ראה docs/prototypes/customers-v3-production-reference.html).
+   * רק לשורות client; ריק כברירת מחדל.
+   */
+  charges: AdditionalCharge[];
   /** מחרוזות מנורמלות להשוואה — נבנות פעם אחת. */
   haystack: string[];
 }
@@ -103,13 +111,33 @@ function buildHaystack(name: string, idNumber?: string, phone?: string, email?: 
   ].filter(Boolean);
 }
 
-export function buildPersonRows(clients: Client[], leads: Lead[]): PersonRow[] {
+/** "הצהרת הון · ממתין לתשלום · +1" — הראשון תמיד קובע, השאר נספרים בלבד. */
+function chargesCue(charges: AdditionalCharge[]): string | null {
+  if (charges.length === 0) return null;
+  const first = charges[0];
+  const extra = charges.length > 1 ? ` · +${charges.length - 1}` : '';
+  return `${first.description} · ${CHARGE_STATUS_LABELS[first.status]}${extra}`;
+}
+
+export function buildPersonRows(clients: Client[], leads: Lead[], charges: AdditionalCharge[] = []): PersonRow[] {
   const rows: PersonRow[] = [];
+
+  const chargesByClient = new Map<string, AdditionalCharge[]>();
+  for (const ch of charges) {
+    const list = chargesByClient.get(ch.clientId);
+    if (list) list.push(ch); else chargesByClient.set(ch.clientId, [ch]);
+  }
+  // מהישן לחדש — מי שנוסף ראשון נשאר "ראשי" בשורה ובתצוגה המהירה עד שהוא
+  // מטופל; חיוב חדש רק מגדיל את מונה ה-+N ולא מחליף את מי שכבר מוצג.
+  for (const list of chargesByClient.values()) {
+    list.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
+  }
 
   for (const c of clients) {
     const name = clientName(c);
     const contactBits = (c.additionalContacts ?? []).flatMap(ct =>
       [ct.name, ct.phone, ct.email].filter(Boolean) as string[]);
+    const clientCharges = chargesByClient.get(c.id) ?? [];
     rows.push({
       id: c.id,
       kind: 'client',
@@ -119,10 +147,11 @@ export function buildPersonRows(clients: Client[], leads: Lead[]): PersonRow[] {
       phone: c.phone || undefined,
       email: c.email || undefined,
       badge: clientBadge(c),
-      cue: relativeCue('עודכן', c.updatedAt ?? c.createdAt),
+      cue: chargesCue(clientCharges) ?? relativeCue('עודכן', c.updatedAt ?? c.createdAt),
       hidden: c.lifecycleStage === 'archived',
       possibleMatch: false,
       client: c,
+      charges: clientCharges,
       haystack: buildHaystack(name, c.idNumber, c.phone, c.email, c.city,
         [c.businessName ?? '', ...contactBits]),
     });
@@ -146,6 +175,7 @@ export function buildPersonRows(clients: Client[], leads: Lead[]): PersonRow[] {
       possibleMatch: !!l.matchClientId,
       matchClientId: l.matchClientId,
       lead: l,
+      charges: [],
       haystack: buildHaystack(name, undefined, l.phone, l.email, undefined,
         [l.businessName ?? '']),
     });

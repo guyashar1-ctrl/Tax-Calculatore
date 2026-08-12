@@ -12,6 +12,7 @@ import type {
   Quotation,
 } from '../types/quotations';
 import type { Engagement, OnboardingStep, OnboardingEvent } from '../types/onboarding';
+import type { AdditionalCharge } from '../types/charges';
 
 function toSnake(s: string): string {
   // Convert camelCase / PascalCase to snake_case, treating runs of uppercase
@@ -229,6 +230,23 @@ export function quotationFromDb(row: Record<string, any>): Quotation {
 
 export function quotationToDb(q: Partial<Quotation>, userId?: string, forInsert = false): Record<string, any> {
   const row = objectToRow(q, forInsert ? QUOTATION_OMIT_ON_INSERT : ['updatedAt']);
+  if (userId) row.user_id = userId;
+  return row;
+}
+
+// ─────────────────────────────── חיוב נוסף ─────────────────────────────────
+
+const CHARGE_OMIT_ON_WRITE = ['updatedAt'];
+
+export function chargeFromDb(row: Record<string, any>): AdditionalCharge {
+  const c = rowToObject<AdditionalCharge>(row);
+  // עמודת numeric חוזרת כמחרוזת מ-PostgREST — כמו monthlyTotal ב-engagementFromDb.
+  if (c.amount !== undefined) c.amount = Number(c.amount);
+  return c;
+}
+
+export function chargeToDb(charge: Partial<AdditionalCharge>, userId?: string): Record<string, any> {
+  const row = objectToRow(charge, CHARGE_OMIT_ON_WRITE);
   if (userId) row.user_id = userId;
   return row;
 }
