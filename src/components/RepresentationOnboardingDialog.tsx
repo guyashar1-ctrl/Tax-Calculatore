@@ -35,7 +35,7 @@ export interface CreateRepresentationInput {
 interface Props {
   onCreate: (data: CreateRepresentationInput) => Promise<CreateResult>;
   onCancel: () => void;
-  /** בודק אם המייל כבר בשימוש בייצוג פעיל/בתהליך. מחזיר הודעת חסימה, או null אם פנוי. */
+  /** בודק אם המייל כבר משויך לאדם אחר. מחזיר הודעה מייעצת בלבד — לא חוסמת. */
   checkEmailConflict?: (email: string) => string | null;
   /** ערכי פתיחה — לזרימת "הפוך ליד ללקוח" מהצעת מחיר מאושרת. */
   initialName?: string;
@@ -137,7 +137,8 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     // בשליחה במייל הכתובת היא תנאי; בקישור אין צורך בה כלל — הלקוח ימלא בעצמו.
     if (sendBy === 'email' && !email.trim()) return 'יש להזין כתובת מייל, או לעבור לשליחה בקישור';
     if (email.trim() && !isValidEmail(email)) return 'כתובת אימייל לא תקינה';
-    if (emailConflict) return emailConflict;
+    // ‼ emailConflict הוא מייעץ בלבד — מייל הוא פרט קשר, לא זיהוי אדם, ולכן
+    // לעולם לא חוסם המשך (ייתכן בן משפחה שחולק אותו מייל).
     if (transfer && prevAcc.email.trim() && !isValidEmail(prevAcc.email)) {
       return 'כתובת המייל של הרו״ח הקודם אינה תקינה';
     }
@@ -469,11 +470,10 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                 dir="ltr"
                 disabled={busy}
                 autoFocus
-                style={emailConflict ? { borderColor: 'var(--danger)' } : undefined}
               />
               {emailConflict && (
-                <div style={{ marginTop: '.4rem', fontSize: 'var(--fs-13)', color: 'var(--danger)', lineHeight: 1.5 }}>
-                  {'⛔'} {emailConflict}
+                <div style={{ marginTop: '.4rem', fontSize: 'var(--fs-13)', color: 'var(--chip-blue-tx)', lineHeight: 1.5 }}>
+                  {emailConflict}
                 </div>
               )}
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: '.35rem' }}>
@@ -668,7 +668,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             ביטול
           </button>
           {/* בשליחה במייל הכפתור גם מפיק וגם שולח — הכתוב מתאר את הפעולה שתקרה */}
-          <button type="submit" className="btn btn-primary" disabled={busy || !!emailConflict || selectedKeys.length === 0}>
+          <button type="submit" className="btn btn-primary" disabled={busy || selectedKeys.length === 0}>
             {sendBy === 'email'
               ? (busy ? 'שולח…' : '\u{1F4E7} שליחה ללקוח במייל')
               : (busy ? 'מפיק…' : '\u{1F517} הפקת קישור')}

@@ -295,6 +295,32 @@ async function buildEmail(
     };
   }
 
+  if (kind === "lead_self_submitted") {
+    const leadName = String(p.leadName || "אדם חדש").trim();
+    const leadEmail = String(p.leadEmail || "").trim();
+    const matchName = p.matchClientName ? String(p.matchClientName).trim() : "";
+    const rows = [
+      row(brand, "שם", leadName),
+      leadEmail ? row(brand, "אימייל", leadEmail) : "",
+      matchName ? row(brand, "ייתכן שקיים", matchName) : "",
+    ].join("");
+
+    return {
+      subject: `📨 ${leadName} מילא את הקישור למילוי פרטים`,
+      html: buildBrandedEmail(brand, {
+        heading: "התקבלה הגשה מהקישור הציבורי",
+        bodyHtml: esc(matchName
+          ? `${leadName} מילא את הפרטים בקישור הציבורי. שים לב — ייתכן שכבר קיים אדם תואם במערכת.`
+          : `${leadName} מילא את הפרטים בקישור הציבורי וממתין לטיפול.`),
+        extraHtml: card(brand, rows),
+        ctaLabel: "לרשימת הלקוחות",
+        ctaHref: `${appUrl}/`,
+        ctaArrow: true,
+        footerTagline: "התראה אוטומטית מקישור מילוי הפרטים",
+      }),
+    };
+  }
+
   // ── האירועים שמקורם בשלב קליטה ────────────────────────────────────────────
   // כולם נשענים על step_id. שלב שנמחק מוחק את ההתראה איתו (FK cascade), ולכן
   // הבדיקה כאן היא רשת ביטחון בלבד.

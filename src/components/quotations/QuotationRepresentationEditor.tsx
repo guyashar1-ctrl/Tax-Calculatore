@@ -79,7 +79,7 @@ interface Props {
   /** נמען ההצעה — הייצוג ייפתח על שמו, ולכן מוצג כאן ולא נשאל מחדש. */
   recipientName: string;
   recipientEmail?: string;
-  /** התנגשות מייל: כבר קיים ייצוג פעיל/בתהליך לכתובת הזו. */
+  /** אזהרה מייעצת בלבד: המייל כבר משויך לאדם אחר עם ייצוג פעיל/בתהליך. */
   emailConflict?: string | null;
   /** הנמען עובר מרו"ח אחר ⇒ רמת הייצוג נפתחת כמשנית, וזה נאמר על המסך. */
   isTransfer?: boolean;
@@ -180,7 +180,7 @@ export default function QuotationRepresentationEditor({
           </div>
 
           {emailConflict && (
-            <div style={{ padding: '.6rem .8rem', background: 'var(--red-light)', color: 'var(--red)', borderRadius: 8, fontSize: 12, lineHeight: 1.6, marginBottom: 10 }}>
+            <div style={{ padding: '.6rem .8rem', background: 'var(--blue-light)', color: 'var(--chip-blue-tx)', borderRadius: 8, fontSize: 12, lineHeight: 1.6, marginBottom: 10 }}>
               {emailConflict}
             </div>
           )}

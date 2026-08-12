@@ -14,12 +14,31 @@ import {
 interface Row {
   label: string;
   value: string;
+  /** מה שמועתק בפועל בלחיצה על "העתק" — כשריק, מועתק row.value. */
+  copyValue?: string;
 }
 
 function birthYearOf(birthDate?: string): string {
   if (!birthDate) return '';
   const y = birthDate.slice(0, 4);
   return /^\d{4}$/.test(y) ? y : '';
+}
+
+/** ‼ תבנית ISO (2005-03-23) לא נוחה להקלדה בטפסי הרשויות — הרו"ח צריך DDMMYYYY
+ * להקלדה מהירה, עם אימות ויזואלי DD/MM/YYYY לצידה. הערך המאוחסן במסד לא משתנה. */
+function parseBirthDate(birthDate?: string): { d: string; m: string; y: string } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(birthDate || '');
+  return m ? { y: m[1], m: m[2], d: m[3] } : null;
+}
+
+function birthDateDisplay(birthDate?: string): string {
+  const p = parseBirthDate(birthDate);
+  return p ? `${p.d}${p.m}${p.y} (${p.d}/${p.m}/${p.y})` : '';
+}
+
+function birthDateCopy(birthDate?: string): string {
+  const p = parseBirthDate(birthDate);
+  return p ? `${p.d}${p.m}${p.y}` : '';
 }
 
 function CopyRow({ row }: { row: Row }) {
@@ -49,7 +68,7 @@ function CopyRow({ row }: { row: Row }) {
         style={{ minWidth: 62 }}
         onClick={async () => {
           try {
-            await navigator.clipboard.writeText(row.value);
+            await navigator.clipboard.writeText(row.copyValue ?? row.value);
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           } catch { /* דפדפן חסם גישה ללוח — הערך גלוי וניתן לסימון ידני */ }
@@ -80,7 +99,7 @@ function Block({ title, subtitle, rows }: { title: string; subtitle: string; row
           disabled={filled.length === 0}
           onClick={async () => {
             try {
-              await navigator.clipboard.writeText(filled.map(r => `${r.label}: ${r.value}`).join('\n'));
+              await navigator.clipboard.writeText(filled.map(r => `${r.label}: ${r.copyValue ?? r.value}`).join('\n'));
               setCopiedAll(true);
               setTimeout(() => setCopiedAll(false), 1800);
             } catch { /* ראה CopyRow */ }
@@ -122,7 +141,7 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse }:
     { label: 'שם פרטי', value: firstName },
     { label: 'שם משפחה', value: lastName },
     { label: 'תעודת זהות', value: id.idNumber || '' },
-    { label: 'תאריך לידה', value: id.birthDate || '' },
+    { label: 'תאריך לידה', value: birthDateDisplay(id.birthDate), copyValue: birthDateCopy(id.birthDate) },
     { label: 'טלפון', value: id.phone || '' },
     { label: 'דוא"ל', value: id.email || pre.email || request.clientEmail || '' },
     { label: 'עיר', value: id.city || '' },

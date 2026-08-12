@@ -15,8 +15,9 @@ export function useLeads(userId: string | undefined) {
       return;
     }
     let cancelled = false;
-    setLoading(true);
-    (async () => {
+
+    async function fetchLeads(showLoading: boolean) {
+      if (showLoading) setLoading(true);
       const { data, error } = await supabase
         .from('leads')
         .select('*')
@@ -30,8 +31,18 @@ export function useLeads(userId: string | undefined) {
       setLeads((data ?? []).map(leadFromDb));
       setError(null);
       setLoading(false);
-    })();
-    return () => { cancelled = true; };
+    }
+
+    fetchLeads(true);
+
+    // ‼ הגשה עצמית מהקישור הציבורי (שלב 4) יכולה להגיע בזמן שהטאב ברקע —
+    // בלי realtime, רענון קטן בחזרה לטאב הוא הדרך היחידה לגלות אותה בזמן סביר.
+    function onVisible() {
+      if (document.visibilityState === 'visible') fetchLeads(false);
+    }
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisible); };
   }, [userId]);
 
   async function addLead(lead: Omit<Lead, 'id'>): Promise<Lead> {

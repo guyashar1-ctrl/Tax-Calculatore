@@ -32,8 +32,8 @@ interface Props {
   /** הפעולה הראשית: פתיחת התיק המלא / רשומת הליד. */
   primary: QuickViewAction;
   onClose: () => void;
-  /** יוצג רק כשיהיה מקור נתונים אמיתי (שלב 4) — היום לעולם false. */
-  possibleMatch?: boolean;
+  /** התאמה אפשרית ללקוח קיים (שלב 4, ליד מקישור ציבורי בלבד) — עם פעולה לפתוח את הכרטיס הקיים. */
+  possibleMatch?: { clientName: string; onOpen: () => void } | null;
 }
 
 function relDate(iso: string): string {
@@ -59,7 +59,12 @@ export default function PersonQuickView(p: Props) {
       </div>
       <div className="pd-qv-body">
         {p.possibleMatch && (
-          <div className="pd-dupbox">ייתכן שכבר קיים אדם תואם במערכת. בדוק לפני יצירת תהליך חדש.</div>
+          <div className="pd-dupbox">
+            ייתכן שכבר קיים אדם תואם — {p.possibleMatch.clientName}.{' '}
+            <button type="button" className="ui-linkbtn" onClick={p.possibleMatch.onOpen}>
+              פתח את הכרטיס הקיים
+            </button>
+          </div>
         )}
 
         <div className="pd-info">

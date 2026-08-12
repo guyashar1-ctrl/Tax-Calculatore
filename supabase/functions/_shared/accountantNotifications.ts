@@ -79,6 +79,13 @@ export const ACCOUNTANT_NOTIFICATIONS: AccountantNotificationDef[] = [
     defaultOn: false,
   },
   {
+    kind: 'lead_self_submitted',
+    label: 'התקבלה הגשה מקישור מילוי פרטים',
+    hint: 'מישהו מילא שם ואימייל בקישור הציבורי ("שליחת קישור למילוי פרטים") — ליד חדש ממתין לטיפול.',
+    group: 'הלקוח',
+    defaultOn: true,
+  },
+  {
     kind: 'client_request_completed',
     label: 'לקוח השלים בקשה',
     hint: 'כשכל הפריטים בבקשה סומנו, והבקשה נסגרה מצד הלקוח.',

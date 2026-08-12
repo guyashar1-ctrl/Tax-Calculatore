@@ -1,10 +1,13 @@
-// ─── "+ אדם חדש" — שלב 3, מסלול ידני בלבד ────────────────────────────────────
+// ─── "+ אדם חדש" — שלב 3 (ידני) + שלב 4 (קישור ציבורי, והמשך טיפול בליד) ─────
 // המקור החזותי המחייב: docs/prototypes/customers-v3-production-reference.html
 //
-// ‼ האדם נוצר רק ברגע אישור המסלול (§ הכרעת גיא): שלבי הפרטים והכפילות אינם
-// כותבים כלום. ביטול בכל שלב שלפני "צור והמשך" אינו משאיר רשומה יתומה.
-// "חזרה" מאפסת לבחירה הראשונה — בדיוק כמו בייחוס — כי אין מה "לשמר טיוטה
-// של" משהו שעדיין לא נוצר.
+// ‼ באדם חדש-ידני: הוא נוצר רק ברגע אישור המסלול. שלבי הפרטים והכפילות אינם
+// כותבים כלום. ביטול לפני "צור והמשך" אינו משאיר רשומה יתומה.
+// "חזרה" מאפסת לבחירה הראשונה — אין מה "לשמר טיוטה של" משהו שעדיין לא נוצר.
+//
+// ‼ בהמשך טיפול לליד (continuationFor): האדם כבר קיים כליד. אין מה לאסוף
+// ואין מה לבדוק כפילות מחדש (ההתאמה כבר נבדקה בשרת בזמן ההגשה הציבורית
+// ומוצגת בכרטיס עצמו) — נפתחים ישר על שלב המסלול, אותו רכיב בדיוק.
 
 import { useState } from 'react';
 import type { Client } from '../types';
@@ -21,8 +24,14 @@ export interface NewPersonBasics {
   email: string;
 }
 
-type Step = 'choose' | 'manual' | 'route';
+type Step = 'choose' | 'manual' | 'link' | 'route';
 type Route = 'quote' | 'representation';
+
+interface ContinuationTarget {
+  fullName: string;
+  phone?: string;
+  email?: string;
+}
 
 interface Props {
   clients: Client[];
@@ -30,8 +39,12 @@ interface Props {
   onOpenExisting: (clientId: string) => void;
   onConfirmQuote: (basics: NewPersonBasics) => Promise<void>;
   onConfirmRepresentation: (basics: NewPersonBasics) => Promise<void>;
+  /** ממנפק/מחזיר את הטוקן הקיים. p_rotate=true מחליף — הקישור הישן מפסיק לעבוד מיד. */
+  onMintApplyLink: (rotate: boolean) => Promise<string | null>;
+  /** שלב 4: פתיחה ישירה על שלב המסלול, לליד קיים מקישור ציבורי. */
+  continuationFor?: ContinuationTarget;
   /** לבדיקת מסך בלבד (כמו emailsOverride ב-JourneyTab) — קופץ ישר לשלב, עם נתוני דוגמה. */
-  initialStepForQA?: 'manual' | 'route' | null;
+  initialStepForQA?: 'manual' | 'route' | 'link' | null;
 }
 
 function isValidEmail(email: string): boolean {
@@ -43,20 +56,66 @@ function splitName(fullName: string): { firstName: string; lastName: string } {
   return { firstName: parts[0] ?? '', lastName: parts.slice(1).join(' ') };
 }
 
+const APPLY_ORIGIN = typeof window !== 'undefined' ? window.location.origin : '';
+
 export default function NewPersonDialog({
-  clients, onCancel, onOpenExisting, onConfirmQuote, onConfirmRepresentation, initialStepForQA,
+  clients, onCancel, onOpenExisting, onConfirmQuote, onConfirmRepresentation,
+  onMintApplyLink, continuationFor, initialStepForQA,
 }: Props) {
   const { showToast } = useToast();
-  const [step, setStep] = useState<Step>(initialStepForQA === 'route' ? 'route' : initialStepForQA === 'manual' ? 'manual' : 'choose');
-  const [fullName, setFullName] = useState(initialStepForQA ? 'ישראל כהן' : '');
-  const [phone, setPhone] = useState(initialStepForQA ? '050-1234567' : '');
-  const [email, setEmail] = useState('');
+  const initialStep: Step = continuationFor ? 'route'
+    : initialStepForQA === 'route' ? 'route'
+    : initialStepForQA === 'manual' ? 'manual'
+    : initialStepForQA === 'link' ? 'link'
+    : 'choose';
+  const [step, setStep] = useState<Step>(initialStep);
+  const [fullName, setFullName] = useState(continuationFor?.fullName ?? (initialStepForQA ? 'ישראל כהן' : ''));
+  const [phone, setPhone] = useState(continuationFor?.phone ?? (initialStepForQA ? '050-1234567' : ''));
+  const [email, setEmail] = useState(continuationFor?.email ?? '');
   const [idNumber, setIdNumber] = useState('');
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<DuplicateMatch | null>(null);
   const [route, setRoute] = useState<Route | null>(null);
   const [busy, setBusy] = useState(false);
   const [busyError, setBusyError] = useState<string | null>(null);
+
+  // ── שלב הקישור הציבורי ──
+  const [applyToken, setApplyToken] = useState<string | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const applyLink = applyToken ? `${APPLY_ORIGIN}/?apply=${applyToken}` : '';
+
+  async function openLinkStep() {
+    setStep('link');
+    setLinkBusy(true);
+    setLinkError(null);
+    try {
+      const token = await onMintApplyLink(false);
+      if (!token) throw new Error('לא הצלחנו להפיק קישור');
+      setApplyToken(token);
+    } catch (e) {
+      setLinkError(e instanceof Error ? e.message : 'שגיאה בהפקת הקישור');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  async function rotateLink() {
+    setLinkBusy(true);
+    setLinkError(null);
+    try {
+      const token = await onMintApplyLink(true);
+      if (!token) throw new Error('לא הצלחנו להחליף את הקישור');
+      setApplyToken(token);
+      showToast('הקישור הוחלף — הקישור הקודם כבר לא פעיל.');
+    } catch (e) {
+      setLinkError(e instanceof Error ? e.message : 'שגיאה בהחלפת הקישור');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
 
   function resetToChoose() {
     setStep('choose');
@@ -99,37 +158,84 @@ export default function NewPersonDialog({
 
   const exactBlock = duplicate?.kind === 'exact' ? duplicate : null;
   const probableWarn = duplicate?.kind === 'probable' ? duplicate : null;
+  const canGoBack = step !== 'choose' && !continuationFor;
+
+  const shareText = applyLink
+    ? `היי,\nכדי שאוכל להתחיל לטפל בבקשה שלך, אפשר למלא כמה פרטים בקישור הקצר הבא:\n${applyLink}\nלוקח פחות מדקה. תודה!`
+    : '';
+  const waHref = applyLink ? `https://wa.me/?text=${encodeURIComponent(shareText)}` : '';
+  const canShare = typeof navigator !== 'undefined' && !!navigator.share;
 
   const footer = (
     <>
-      {step !== 'choose' && (
+      {canGoBack && (
         <button type="button" className="ui-btn ui-btn-ghost" onClick={resetToChoose} disabled={busy}>חזרה</button>
       )}
       <div style={{ flex: 1 }} />
-      <button type="button" className="ui-btn ui-btn-ghost" onClick={onCancel} disabled={busy}>ביטול</button>
+      <button type="button" className="ui-btn ui-btn-ghost" onClick={onCancel} disabled={busy}>
+        {step === 'link' ? 'סגירה' : 'ביטול'}
+      </button>
       {step === 'manual' && !exactBlock && (
         <button type="button" className="ui-btn ui-btn-primary" onClick={handleManualContinue}>המשך</button>
       )}
       {step === 'route' && (
         <button type="button" className="ui-btn ui-btn-primary" onClick={handleConfirmRoute} disabled={!route || busy}>
-          {busy ? 'יוצר…' : 'צור והמשך'}
+          {busy ? 'יוצר…' : continuationFor ? 'המשך' : 'צור והמשך'}
         </button>
       )}
     </>
   );
 
   return (
-    <Modal title="אדם חדש" onClose={onCancel} footer={footer} width={500}>
+    <Modal title={continuationFor ? 'המשך טיפול' : 'אדם חדש'} onClose={onCancel} footer={footer} width={500}>
       {step === 'choose' && (
         <div className="np-choice">
           <button type="button" onClick={() => setStep('manual')}>
             <strong>הזנת פרטים בעצמי</strong>
             <span>יש לי שם ואמצעי קשר ואני רוצה להתחיל עכשיו.</span>
           </button>
-          <button type="button" onClick={() => showToast('שליחת קישור למילוי פרטים תגיע בשלב הבא.')}>
+          <button type="button" onClick={openLinkStep}>
             <strong>שליחת קישור למילוי פרטים</strong>
             <span>האדם ימלא את הפרטים בעצמו ויופיע כאן לאחר השליחה.</span>
           </button>
+        </div>
+      )}
+
+      {step === 'link' && (
+        <div>
+          {linkBusy && !applyLink && <div className="pd-small">מפיק קישור…</div>}
+          {linkError && <div className="np-error">{linkError}</div>}
+          {applyLink && (
+            <>
+              <div className="np-linkbox">
+                <div className="np-linktitle">הקישור מוכן לשליחה</div>
+                <div className="pd-small" style={{ marginTop: 0, marginBottom: 10 }}>
+                  בטופס החיצוני: שם ומייל הם חובה. לאחר השליחה האדם יופיע כאן כ"חדש · ממתין לטיפול".
+                </div>
+                <div className="np-link pd-ltr">{applyLink}</div>
+                <div className="np-linkactions">
+                  <button type="button" onClick={async () => {
+                    try { await navigator.clipboard.writeText(applyLink); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ }
+                  }}>
+                    {copied ? 'הועתק' : 'העתק קישור'}
+                  </button>
+                  <a href={waHref} target="_blank" rel="noopener noreferrer" className="np-linkactions-wa">
+                    שיתוף בוואטסאפ
+                  </a>
+                  {canShare && (
+                    <button type="button" onClick={() => { navigator.share({ text: shareText }).catch(() => {}); }}>
+                      שיתוף
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="np-sim">
+                <button type="button" className="ui-linkbtn" onClick={rotateLink} disabled={linkBusy}>
+                  החלף קישור — הקישור הנוכחי יפסיק לעבוד
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

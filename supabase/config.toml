@@ -23,6 +23,10 @@ verify_jwt = false
 [functions.signing-session]
 verify_jwt = false
 
+# קישור המילוי הציבורי הקבוע (?apply=) — הזיהוי הוא apply_token, לא JWT.
+[functions.submit-application]
+verify_jwt = false
+
 # מופעלת גם מהדפדפן של הלקוח (עם טוקן ציבורי) וגם מהמערכת (עם JWT של הרו"ח).
 # מזהה את הרו"ח בשני המסלולים בעצמה, ומחזירה מונה בלבד — בלי מידע.
 [functions.notify-accountant]

@@ -30,6 +30,15 @@ export interface Lead {
   referralSource?: string;
   /** true = העברה מרו"ח אחר, false = עסק חדש. undefined = לא נשאל. */
   businessTransfer?: boolean;
+  /** מי הזין את הליד — הרו"ח (ברירת מחדל) או האדם עצמו דרך קישור ציבורי (שלב 4). */
+  source?: 'accountant' | 'self_intake';
+  /**
+   * התאמה אפשרית ללקוח קיים — נקבעת בשרת בזמן ההגשה הציבורית ומוצגת אך ורק
+   * לרו"ח המחובר (RLS על leads כבר מגביל ל-auth.uid()=user_id). המגיש
+   * הציבורי לעולם לא רואה את השדות האלה ואינו יודע שהם קיימים.
+   */
+  matchClientId?: string;
+  matchKind?: 'email';
   createdAt?: string;
   updatedAt?: string;
 }

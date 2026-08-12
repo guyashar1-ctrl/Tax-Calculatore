@@ -19,6 +19,7 @@ import {
   RepresentationStatus,
   REPRESENTATION_STATUS_LABELS,
   DEFAULT_REQUESTED_DOCS,
+  LifecycleStage,
 } from './types';
 import type { OnboardingStep } from './types/onboarding';
 import { ExtractedClientData } from './utils/geminiVision';
@@ -73,6 +74,7 @@ import PublicIntakePage from './components/PublicIntakePage';
 import PublicPortalPage from './components/PublicPortalPage';
 import PublicReleasePage from './components/PublicReleasePage';
 import PublicQuotationPage from './components/PublicQuotationPage';
+import PublicApplyPage from './components/PublicApplyPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import TestExecutionCenter from './components/signatureRequest/__TestExecutionCenter';
@@ -151,7 +153,6 @@ function makeEmptyClient(id: string, partial: Partial<Client> = {}): Client {
     hasKrenHashtalmut: false,
     krenHashtalmutMonthly: 0,
     notes: '',
-    representationStatus: 'active',
     createdAt: now,
     updatedAt: now,
     ...partial,
@@ -239,6 +240,9 @@ export default function App() {
     // גורם חיצוני ולא לקוח, אבל אותו כלל: מיתוג המשרד ותצוגה בהירה.
     const releaseToken = new URLSearchParams(window.location.search).get('release');
     if (releaseToken) return asClientPage(<PublicReleasePage token={releaseToken} />);
+    // קישור המילוי הציבורי הקבוע של המשרד — "+ אדם חדש → שליחת קישור למילוי פרטים".
+    const applyToken = new URLSearchParams(window.location.search).get('apply');
+    if (applyToken) return asClientPage(<PublicApplyPage token={applyToken} />);
   }
 
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
@@ -362,6 +366,9 @@ export default function App() {
   // "התחלת ייצוג ללא הצעה" משלב 3: האדם כבר נוצר, והדיאלוג נפתח מצומד אליו —
   // בשונה מ-showOnboarding (שם עדיין נוצר אדם חדש בתוך הדיאלוג עצמו).
   const [pendingRepresentationClient, setPendingRepresentationClient] = useState<Client | null>(null);
+  // "המשך טיפול" בליד שהגיע מקישור המילוי הציבורי (שלב 4) — פותח את בורר
+  // המסלול ממולא מראש, בלי לאסוף פרטים מחדש (הם כבר על הליד).
+  const [continuationLead, setContinuationLead] = useState<Lead | null>(null);
   // בחירה מוקדמת לדוח השנתי (מתוך "פתח ←" בתמונת המס של הכרטיס)
   const [annualReportSelection, setAnnualReportSelection] = useState<{ clientId: string; taxYear: number } | null>(
     initialRoute.annualClientId && initialRoute.annualTaxYear
@@ -626,6 +633,37 @@ export default function App() {
     setPendingRepresentationClient(client);
   }
 
+  /** מנפק/מחזיר את קישור המילוי הציבורי הקבוע של המשרד (שלב 4). */
+  async function mintApplyLink(rotate: boolean): Promise<string | null> {
+    const { data, error } = await supabase.rpc('mint_apply_token', { p_rotate: rotate });
+    if (error) throw new Error(error.message);
+    return (data as string) ?? null;
+  }
+
+  /**
+   * "המשך טיפול" בליד מקישור המילוי הציבורי — פותח את אותו בורר מסלול משלב 3,
+   * ממולא מראש משם/מייל הליד. הליד עצמו כבר קיים; אין כאן איסוף פרטים חדש.
+   */
+  function handleContinueLead(lead: Lead) {
+    setContinuationLead(lead);
+  }
+
+  async function handleContinueLeadQuote(lead: Lead) {
+    setContinuationLead(null);
+    handleNewQuotationForLead(lead);
+  }
+
+  /**
+   * ‼ הליד מסומן converted רק אחרי שהכרטיס נוצר בהצלחה — כדי שכישלון ביצירה
+   * לא ישאיר ליד "גמור" בלי אדם שמאחוריו.
+   */
+  async function handleContinueLeadRepresentation(lead: Lead, basics: NewPersonBasics) {
+    const client = await createPersonFromBasics(basics);
+    await updateLead({ ...lead, status: 'converted', convertedClientId: client.id });
+    setContinuationLead(null);
+    setPendingRepresentationClient(client);
+  }
+
   async function handleSave(client: Client) {
     const exists = clients.some(c => c.id === client.id);
     if (exists) {
@@ -705,13 +743,13 @@ export default function App() {
   }
 
   /**
-   * מחזיר התנגשות אם המייל כבר שייך ללקוח שנמצא בתהליך ייצוג או שכבר מיוצג.
-   * מייל הוא "המזהה" של הלקוח בתהליך הייצוג — אסור לפתוח שתי בקשות לאותו מייל.
+   * ‼ זהות מבוססת מייל: מייל הוא פרט קשר, לא זיהוי אדם. שני אנשים שונים
+   * (למשל אחים) יכולים לחלוק מייל לגיטימית — ולכן ההתנגשות הזו היא אזהרה
+   * שקטה בלבד, לעולם לא חוסמת יצירה/שמירה. ת"ז תקפה היא סמן הזהות היחיד
+   * שחוסם (ראה duplicateCheck.ts).
    *
    * ‼ excludeClientId — שלב 3, "התחלת ייצוג ללא הצעה": האדם שאליו מצמידים את
-   * הבקשה כבר קיים כרגע (נוצר רגע קודם), ו-representation_status במסד מגיע
-   * כברירת מחדל 'active' לכל לקוח חדש (עמודה, לא קוד) — בלי החרגה הוא היה
-   * מתנגש עם עצמו ונחסם על "כבר מיוצג" באדם שמעולם לא היה מיוצג.
+   * הבקשה כבר קיים כרגע (נוצר רגע קודם) ולכן לא אמור "להתנגש" עם עצמו.
    */
   function repEmailConflict(email: string, excludeClientId?: string): { status: RepresentationStatus; name: string } | null {
     const norm = email.trim().toLowerCase();
@@ -727,13 +765,22 @@ export default function App() {
     return null;
   }
 
-  /** הודעה בעברית להצגה כשמנסים לפתוח בקשת ייצוג למייל שכבר בשימוש. */
+  /** הודעה מייעצת (לא חוסמת) להצגה כשמייל כבר משויך לאדם אחר במערכת. */
   function repEmailConflictMessage(email: string, excludeClientId?: string): string | null {
     const c = repEmailConflict(email, excludeClientId);
     if (!c) return null;
-    return c.status === 'active'
-      ? `${c.name} כבר מיוצג/ת עם המייל הזה — אין צורך בבקשת ייצוג נוספת.`
-      : `כבר קיימת בקשת ייצוג בתהליך למייל הזה (${c.name} — ${REPRESENTATION_STATUS_LABELS[c.status]}). אפשר להמשיך את התהליך מלשונית הלקוחות.`;
+    return `המייל הזה משויך גם ל${c.name} — ${REPRESENTATION_STATUS_LABELS[c.status] ?? 'לקוח פעיל'}. אפשר להמשיך; זה יכול להיות בן משפחה שחולק את אותו מייל.`;
+  }
+
+  /**
+   * מתקן מיד את שלב מחזור החיים אחרי אירוע שמשנה אותו (ייצוג הוצמד/התקדם),
+   * בלי לחכות למשימה הלילית — כדי שהתג במסך הלקוחות יהיה נכון כבר עכשיו.
+   */
+  async function syncLifecycleStage(clientId: string) {
+    try {
+      const { data } = await supabase.rpc('refresh_lifecycle_stage_for', { p_client_id: clientId });
+      if (typeof data === 'string') await setClientLifecycleStage(clientId, data as LifecycleStage);
+    } catch { /* לא חוסם את הפעולה העיקרית — הריצה הלילית תתקן בהמשך */ }
   }
 
   /**
@@ -816,12 +863,6 @@ export default function App() {
    */
   async function handleCreateRepresentation(data: CreateRepresentationInput): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
     const { name, email, areas, spouse, prefill, hasPreviousAccountant, prevAccountant } = data;
-    // שער בטיחות: לא פותחים בקשה כפולה לאותו מייל (גם אם ה-UI כבר חוסם).
-    // בלי מייל אין מה לבדוק — הזיהוי ייקבע כשהלקוח ימלא.
-    if (email) {
-      const conflictMsg = repEmailConflictMessage(email);
-      if (conflictMsg) throw new Error(conflictMsg);
-    }
     const nameParts = name.trim().split(/\s+/).filter(Boolean);
     const clientId = crypto.randomUUID();
     const reqId = crypto.randomUUID();
@@ -856,6 +897,7 @@ export default function App() {
       notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין להשלמת התהליך.',
     });
     await addClient(client);
+    void syncLifecycleStage(clientId);
     return saveRepresentationRequest(clientId, reqId, data);
   }
 
@@ -866,10 +908,6 @@ export default function App() {
    */
   async function handleAttachRepresentation(client: Client, data: CreateRepresentationInput) {
     const { email, areas, spouse, prefill, hasPreviousAccountant, prevAccountant } = data;
-    if (email) {
-      const conflictMsg = repEmailConflictMessage(email, client.id);
-      if (conflictMsg) throw new Error(conflictMsg);
-    }
     const reqId = crypto.randomUUID();
     await updateClient({
       ...client,
@@ -890,6 +928,7 @@ export default function App() {
       ...(prevAccountant?.email ? { prevAccountantEmail: prevAccountant.email } : {}),
       ...(prevAccountant?.phone ? { prevAccountantPhone: prevAccountant.phone } : {}),
     });
+    void syncLifecycleStage(client.id);
     return saveRepresentationRequest(client.id, reqId, data);
   }
 
@@ -1081,6 +1120,7 @@ export default function App() {
         if (r) reps[k] = { ...r, status: 'active' };
       }
       await updateClient({ ...linkedClient, representationStatus: 'active', authorityRepresentations: reps });
+      void syncLifecycleStage(linkedClient.id);
     }
     await reloadTasks();
   }
@@ -1565,6 +1605,10 @@ export default function App() {
                 setSelectedId(null);
                 setSelectedRequestId(null);
                 setEditingQuotationId(null);
+                // ‼ ניווט מפורש לטאב הוא כוונה מפורשת למסך הנקי — לא לתצוגה
+                // המהירה שנשארה פתוחה מביקור קודם (אחרת "לקוחות" היה מציג
+                // מגירה ישנה במקום את הרשימה).
+                setQuickViewId(null);
               }}
               className={`nav-tab ${view === t.id ? 'active' : ''}`}
               aria-current={view === t.id ? 'page' : undefined}
@@ -1731,6 +1775,7 @@ export default function App() {
             onOpenRequest={handleSelectRequest}
             onOpenTask={openEditTaskModal}
             onOpenRepresentation={handleOpenClientRepresentation}
+            onContinueLead={handleContinueLead}
           />
         )}
 
@@ -1991,6 +2036,7 @@ export default function App() {
               setSelectedId(null);
               setSelectedRequestId(null);
               setEditingQuotationId(null);
+              setQuickViewId(null);
             }}
           >
             <span className="mobile-nav-label">{t.label}</span>
@@ -2018,6 +2064,23 @@ export default function App() {
           onOpenExisting={(clientId) => { setShowNewPerson(false); handleSelectClient(clientId); }}
           onConfirmQuote={handleConfirmNewPersonQuote}
           onConfirmRepresentation={handleConfirmNewPersonRepresentation}
+          onMintApplyLink={mintApplyLink}
+        />
+      )}
+
+      {continuationLead && (
+        <NewPersonDialog
+          clients={clients}
+          onCancel={() => setContinuationLead(null)}
+          onOpenExisting={(clientId) => { setContinuationLead(null); handleSelectClient(clientId); }}
+          onConfirmQuote={() => handleContinueLeadQuote(continuationLead)}
+          onConfirmRepresentation={(basics) => handleContinueLeadRepresentation(continuationLead, basics)}
+          onMintApplyLink={mintApplyLink}
+          continuationFor={{
+            fullName: continuationLead.fullName,
+            phone: continuationLead.phone || undefined,
+            email: continuationLead.email || undefined,
+          }}
         />
       )}
 

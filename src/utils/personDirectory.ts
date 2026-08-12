@@ -27,6 +27,14 @@ export interface PersonRow {
   cue: string;
   /** מוסתר מהרשימה הרגילה; מופיע רק כשחיפוש מוצא אותו. */
   hidden: boolean;
+  /**
+   * התאמה אפשרית ללקוח קיים — רק לידים מקישור ציבורי עם match_client_id.
+   * מוצג בשורה ובתצוגה המהירה לרו"ח המחובר בלבד; המגיש הציבורי לא נחשף לזה
+   * לעולם (הבדיקה רצה בשרת, בתוך submit-application, לא כאן).
+   */
+  possibleMatch: boolean;
+  /** מזהה הלקוח הקיים שאליו יש התאמה אפשרית — רק כש-possibleMatch. */
+  matchClientId?: string;
   client?: Client;
   lead?: Lead;
   /** מחרוזות מנורמלות להשוואה — נבנות פעם אחת. */
@@ -113,6 +121,7 @@ export function buildPersonRows(clients: Client[], leads: Lead[]): PersonRow[] {
       badge: clientBadge(c),
       cue: relativeCue('עודכן', c.updatedAt ?? c.createdAt),
       hidden: c.lifecycleStage === 'archived',
+      possibleMatch: false,
       client: c,
       haystack: buildHaystack(name, c.idNumber, c.phone, c.email, c.city,
         [c.businessName ?? '', ...contactBits]),
@@ -132,6 +141,8 @@ export function buildPersonRows(clients: Client[], leads: Lead[]): PersonRow[] {
       badge: leadBadge(l),
       cue: relativeCue('נוצר', l.createdAt),
       hidden: l.status === 'closed',
+      possibleMatch: !!l.matchClientId,
+      matchClientId: l.matchClientId,
       lead: l,
       haystack: buildHaystack(name, undefined, l.phone, l.email, undefined,
         [l.businessName ?? '']),

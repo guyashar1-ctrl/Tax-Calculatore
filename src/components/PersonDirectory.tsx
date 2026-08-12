@@ -44,6 +44,8 @@ interface Props {
   onOpenRequest: (requestId: string) => void;
   onOpenTask: (taskId: string) => void;
   onOpenRepresentation: (clientId: string) => void;
+  /** שלב 4: "המשך טיפול" בליד שהגיע מקישור המילוי הציבורי — פותח את בורר המסלול. */
+  onContinueLead: (lead: Lead) => void;
 }
 
 const STAGE_NOW_TITLE: Record<string, string> = {
@@ -62,6 +64,10 @@ export default function PersonDirectory(p: Props) {
   const selected = useMemo(
     () => (p.quickViewId ? rows.find(r => r.id === p.quickViewId) ?? null : null),
     [rows, p.quickViewId],
+  );
+  const newSelfIntakeCount = useMemo(
+    () => rows.filter(r => r.kind === 'lead' && r.lead?.source === 'self_intake' && r.lead.status === 'new').length,
+    [rows],
   );
 
   const { docs, loading: docsLoading } = useRecentDocuments(
@@ -95,10 +101,34 @@ export default function PersonDirectory(p: Props) {
     return { label: b.label, run };
   }
 
+  /** שלב 4: פרטי ההתאמה האפשרית להצגה בתצוגה המהירה, כולל פתיחת הכרטיס הקיים. */
+  function matchInfoFor(row: PersonRow): { clientName: string; onOpen: () => void } | null {
+    if (!row.possibleMatch || !row.matchClientId) return null;
+    const client = p.clients.find(c => c.id === row.matchClientId);
+    if (!client) return null;
+    const name = `${client.firstName ?? ''} ${client.lastName ?? ''}`.trim()
+      || client.businessName || client.idNumber || '—';
+    const clientId = client.id;
+    return { clientName: name, onOpen: () => p.onOpenFullCase(clientId) };
+  }
+
   /** כל תוכן התצוגה המהירה נגזר כאן; PersonQuickView רק מציג. */
   function quickViewContent(row: PersonRow) {
     if (row.kind === 'lead') {
       const lead = row.lead!;
+
+      // ‼ הגשה עצמית שטרם טופלה: פעולה אחת בלבד — "המשך טיפול" — פותחת את
+      // בורר המסלול הקיים משלב 3. אין כאן קיצור ישיר להצעה, כי הרו"ח עדיין
+      // לא בחר מסלול (שלב 7 באפיון שלב 4).
+      if (lead.source === 'self_intake' && lead.status === 'new') {
+        return {
+          now: { title: 'ליד', detail: 'התקבל מקישור מילוי פרטים — טרם טופל' },
+          quickAction: { label: 'המשך טיפול', run: () => p.onContinueLead(lead) } as QuickViewAction,
+          onRequestMaterials: undefined,
+          primary: { label: 'פתח את הליד', run: () => p.onOpenLead(lead.id) } as QuickViewAction,
+        };
+      }
+
       const leadQuotation = p.quotations
         .filter(q => q.leadId === lead.id)
         .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0];
@@ -184,6 +214,14 @@ export default function PersonDirectory(p: Props) {
         <button type="button" className="pd-primary" onClick={p.onAdd}>+ אדם חדש</button>
       </div>
 
+      {newSelfIntakeCount > 0 && (
+        <div className="pd-notice">
+          {newSelfIntakeCount === 1
+            ? 'התקבלה הגשה חדשה מקישור מילוי הפרטים — ממתינה לטיפול.'
+            : `התקבלו ${newSelfIntakeCount} הגשות חדשות מקישור מילוי הפרטים — ממתינות לטיפול.`}
+        </div>
+      )}
+
       <div className="pd-listhead">
         כל האנשים <span className="pd-count">({visible.length})</span>
       </div>
@@ -215,7 +253,10 @@ export default function PersonDirectory(p: Props) {
               <span className="num pd-ltr">{row.phone || '—'}</span><br />
               <span className="pd-ltr">{row.email || '—'}</span>
             </div>
-            <div><span className={`pd-badge ${row.badge.cls}`}>{row.badge.label}</span></div>
+            <div>
+              <span className={`pd-badge ${row.badge.cls}`}>{row.badge.label}</span>
+              {row.possibleMatch && <span className="pd-match">ייתכן שקיים</span>}
+            </div>
             <div className="pd-cue">{row.cue}</div>
             <div className="pd-arrow" aria-hidden="true">‹</div>
           </div>
@@ -241,6 +282,7 @@ export default function PersonDirectory(p: Props) {
               quickAction={content.quickAction}
               onRequestMaterials={content.onRequestMaterials}
               primary={content.primary}
+              possibleMatch={matchInfoFor(selected)}
               onClose={() => p.onQuickView(null)}
             />
           </Sheet>

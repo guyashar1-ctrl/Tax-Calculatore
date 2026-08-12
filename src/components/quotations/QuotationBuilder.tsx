@@ -349,7 +349,8 @@ export default function QuotationBuilder({
   );
   const dirty = savedKey.current !== stateKey;
 
-  // התנגשות מייל בייצוג — רק כשהאישור אכן עתיד לפתוח ייצוג חדש
+  // ‼ מייעץ בלבד — מייל הוא פרט קשר, לא זיהוי אדם (יכול להיות בן משפחה
+  // שחולק מייל). לעולם לא חוסם שליחה, רק מוצג כאזהרה שקטה בעורך הייצוג.
   const repEmailConflict = useMemo(() => {
     if (!representation.enabled || !checkRepEmailConflict) return null;
     const email = recipient.email?.trim();
@@ -544,7 +545,6 @@ export default function QuotationBuilder({
     // הייצוג נפתח אוטומטית עם האישור, ואז אין הזדמנות לתקן — ולכן נבדק כאן
     const repError = validateQuotationRepresentation(representation);
     if (repError) { flagField('representation', `ייצוג: ${repError}`); return; }
-    if (!isTest && repEmailConflict) { flagField('representation', `ייצוג: ${repEmailConflict}`); return; }
     setSending(isTest ? 'test' : 'send');
     try {
       const res = await onSend(buildPayload(), isTest);

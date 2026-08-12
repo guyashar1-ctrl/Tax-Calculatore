@@ -2172,6 +2172,10 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .pd-badge.quote{background:var(--warn-bg);color:var(--warn)}
 .pd-badge.new{background:var(--info-bg);color:var(--info)}
 .pd-badge.gray{background:var(--surface-2);color:var(--ink-3)}
+.pd-match{display:inline-block;margin-inline-start:6px;font-size:var(--fs-11,11px);
+  color:var(--warn);background:var(--warn-bg);border-radius:var(--r-chip);padding:2px 7px}
+.pd-notice{border:1px solid var(--hairline-1);background:var(--info-bg);color:var(--info);
+  border-radius:var(--r-panel);padding:10px 14px;margin:0 0 14px;font-size:var(--fs-13)}
 .pd-arrow{font-size:20px;color:var(--ink-quiet)}
 .pd-empty{text-align:center;padding:64px 20px}
 .pd-empty h3{font-size:var(--fs-15);font-weight:600;margin-bottom:6px}
@@ -2259,6 +2263,23 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .np-routetitle{font-size:var(--fs-13);font-weight:700;margin-bottom:10px;color:var(--ink-1)}
 .np-route{display:grid;gap:9px}
 .np-error{font-size:var(--fs-12);color:var(--danger);margin-top:10px}
+
+/* קישור המילוי הציבורי — שלב 4 */
+.np-linkbox{border:1px solid var(--hairline-1);background:var(--field-read);
+  border-radius:var(--r-panel);padding:14px 15px}
+.np-linktitle{font-size:var(--fs-14);font-weight:700;margin-bottom:4px;color:var(--ink-1)}
+.np-link{font-size:var(--fs-13);color:var(--ink-2);background:var(--surface-0);
+  border:1px solid var(--hairline-1);border-radius:var(--r-input);padding:9px 11px;
+  overflow-x:auto;white-space:nowrap;margin-bottom:12px}
+.np-linkactions{display:flex;flex-wrap:wrap;gap:8px}
+.np-linkactions button,.np-linkactions a{height:44px;padding:0 14px;border-radius:var(--r-input);
+  border:1px solid var(--bd-strong);background:var(--surface-0);font-size:var(--fs-13);
+  font-weight:600;color:var(--ink-2);cursor:pointer;font-family:inherit;
+  display:inline-flex;align-items:center;text-decoration:none}
+.np-linkactions button:hover,.np-linkactions a:hover{background:var(--surface-1)}
+.np-linkactions-wa{color:#1a7d4a !important;border-color:#bfe3cd !important}
+.np-linkactions-wa:hover{background:#f0faf4 !important}
+.np-sim{margin-top:14px;text-align:center}
 
 @media (max-width:760px){
   .np-form{grid-template-columns:1fr}

@@ -141,7 +141,6 @@ function newEmptyClient(): Client {
     employeePensionPct: 0, employerPensionPct: 0,
     hasKupotGemel: false, hasKrenHashtalmut: false, krenHashtalmutMonthly: 0,
     notes: '',
-    representationStatus: 'active',
     assignedAccountantId: 'emp-self',
     tags: [], additionalContacts: [], activity: [],
     createdAt: now, updatedAt: now,
