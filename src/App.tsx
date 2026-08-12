@@ -969,6 +969,10 @@ export default function App() {
         notes: 'נוצר אוטומטית מבקשת ייצוג. ממתין למילוי הלקוח.',
       });
       const insertedClient = await addClient(stubClient);
+      // ‼ הכרטיס נולד עם lifecycle_stage='lead' (ברירת המחדל בעמודה) — בלי
+      // הסנכרון הזה הוא נשאר "חדש" עד הריצה הלילית, למרות שיש לו כבר ייצוג
+      // בתהליך (derive_lifecycle_stage ממפה pending_fill ל"בקליטה" מיד).
+      void syncLifecycleStage(insertedClient.id);
       // 2. יוצרים את הבקשה עם linkedClientId
       const finalReq = { ...req, linkedClientId: insertedClient.id };
       await addRequest(finalReq);
@@ -1165,6 +1169,8 @@ export default function App() {
             // ב-23502 (אומת מול המסד בבדיקת שלב 3).
             authorityRepresentations: {},
           });
+          // בלי ייצוג, שם הכרטיס לא אמור להישאר "בקליטה"/"פעיל" עד הריצה הלילית.
+          void syncLifecycleStage(c.id);
         } catch (e) {
           // לא חוסם: הבקשה כבר נמחקה. אבל לא בולעים בשקט — זה בדיוק מה שהסתיר
           // את התקלה הזו בבדיקה הראשונה.
