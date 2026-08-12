@@ -51,11 +51,13 @@ interface Props {
   onContinueLead: (lead: Lead) => void;
   /** מחיקת ליד שטרם הפך ללקוח. אין השפעה על כרטיס לקוח קיים. */
   onDeleteLead: (lead: Lead) => Promise<void>;
-  /** חיובים נוספים — כל הרשומות, מכל הלקוחות (מקובצות פנימית לפי clientId). */
+  /** חיובים חד-פעמיים — כל הרשומות, מכל הלקוחות (מקובצות פנימית לפי clientId). כולל חיובים שמקורם הצעת מחיר מאושרת. */
   charges: AdditionalCharge[];
-  onAddCharge: (clientId: string, description: string, amount: number) => Promise<void>;
+  onAddCharge: (clientId: string, description: string, amount: number, dueDate: string) => Promise<void>;
   /** "שלח דרישת תשלום" — שולח מייל אמיתי ומסמן שהבקשה יצאה. */
   onRequestChargePayment: (charge: AdditionalCharge) => Promise<void>;
+  /** "סמן כשולם" — סימון ידני בלבד. */
+  onMarkChargePaid: (charge: AdditionalCharge) => Promise<void>;
 }
 
 const STAGE_NOW_TITLE: Record<string, string> = {
@@ -69,7 +71,7 @@ const STAGE_NOW_TITLE: Record<string, string> = {
 export default function PersonDirectory(p: Props) {
   const [query, setQuery] = useState('');
   const [chargeDialogFor, setChargeDialogFor] = useState<Client | null>(null);
-  const [chargeSendingId, setChargeSendingId] = useState<string | null>(null);
+  const [chargeBusyId, setChargeBusyId] = useState<string | null>(null);
   const { showToast } = useToast();
 
   const rows = useMemo(
@@ -99,24 +101,37 @@ export default function PersonDirectory(p: Props) {
     p.onQuickView(null);
   }
 
-  async function handleAddChargeSubmit(description: string, amount: number) {
+  async function handleAddChargeSubmit(description: string, amount: number, dueDate: string) {
     if (!chargeDialogFor) return;
-    await p.onAddCharge(chargeDialogFor.id, description, amount);
+    await p.onAddCharge(chargeDialogFor.id, description, amount, dueDate);
     setChargeDialogFor(null);
     showToast('החיוב נוסף ללקוח');
   }
 
-  /** ‼ chargeSendingId מונע שליחה כפולה מלחיצה כפולה — הכפתור המקביל ננעל עד שהשרת מגיב. */
+  /** ‼ chargeBusyId מונע פעולה כפולה מלחיצה כפולה — הכפתור המקביל ננעל עד שהשרת מגיב. */
   async function handleRequestChargePayment(charge: AdditionalCharge) {
-    if (chargeSendingId) return;
-    setChargeSendingId(charge.id);
+    if (chargeBusyId) return;
+    setChargeBusyId(charge.id);
     try {
       await p.onRequestChargePayment(charge);
       showToast('דרישת התשלום נשלחה');
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'שליחת דרישת התשלום נכשלה');
     } finally {
-      setChargeSendingId(null);
+      setChargeBusyId(null);
+    }
+  }
+
+  async function handleMarkChargePaid(charge: AdditionalCharge) {
+    if (chargeBusyId) return;
+    setChargeBusyId(charge.id);
+    try {
+      await p.onMarkChargePaid(charge);
+      showToast('החיוב סומן כשולם');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'סימון כשולם נכשל');
+    } finally {
+      setChargeBusyId(null);
     }
   }
 
@@ -231,13 +246,16 @@ export default function PersonDirectory(p: Props) {
       quickAction = mapButton(row, na?.buttons?.[0]);
     }
 
-    // ‼ חיובים נוספים גוברים על הפעולה תלוית-השלב (V3.3): מי שממתין לתשלום
-    // הוא הדבר הכי דחוף, בלי קשר לאיפה האדם נמצא במסע. הראשון עם 'pending'
-    // הוא זה שמקבל את כפתור השורה — חיוב שכבר נשלח אין לו כפתור "מת".
+    // ‼ חיובים חד-פעמיים פתוחים גוברים על הפעולה תלוית-השלב (V3.3): מי שיש
+    // לו עבודת תשלום פתוחה זה הדבר הכי דחוף, בלי קשר לאיפה במסע. הראשון
+    // הפתוח (הישן ביותר, לא 'paid') הוא זה שמקבל את כפתור השורה — הפעולה
+    // תלויה במצב שלו, בדיוק כמו בכרטיס שלו במקטע.
     const charges = row.charges;
-    const firstPending = charges.find(c => c.status === 'pending');
-    if (firstPending) {
-      quickAction = { label: 'שלח דרישת תשלום', run: () => handleRequestChargePayment(firstPending) };
+    const firstOpen = charges.find(c => c.status !== 'paid');
+    if (firstOpen?.status === 'pending') {
+      quickAction = { label: 'שלח דרישת תשלום', run: () => handleRequestChargePayment(firstOpen) };
+    } else if (firstOpen?.status === 'requested') {
+      quickAction = { label: 'סמן כשולם', run: () => handleMarkChargePaid(firstOpen) };
     } else if (stage === 'active' && charges.length === 0) {
       // "+ חיוב נוסף" כפעולה משנית — רק ללקוח פעיל רגוע בלי חיוב קיים; כשיש
       // חיוב, ההוספה עוברת לכותרת המקטע "חיובים נוספים" ולא נשארת כאן.
@@ -345,7 +363,8 @@ export default function PersonDirectory(p: Props) {
               charges={content.charges}
               onAddCharge={selected.kind === 'client' ? () => setChargeDialogFor(selected.client!) : undefined}
               onRequestChargePayment={handleRequestChargePayment}
-              chargeSendingId={chargeSendingId}
+              onMarkChargePaid={handleMarkChargePaid}
+              chargeBusyId={chargeBusyId}
               onClose={() => p.onQuickView(null)}
             />
           </Sheet>

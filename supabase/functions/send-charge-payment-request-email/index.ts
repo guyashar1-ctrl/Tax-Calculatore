@@ -80,10 +80,15 @@ Deno.serve(async (req: Request) => {
 
     const clientName = `${client.first_name ?? ""} ${client.last_name ?? ""}`.trim() || "לקוח יקר";
     const amountFmt = "₪" + Number(claimed.amount).toLocaleString("he-IL");
+    // dd.mm.yyyy — כמו utils/dateFormat.ts (mode 'form') בצד הלקוח; שום מסך/מייל לא בונה תאריך בעצמו.
+    const dueDateFmt = claimed.due_date
+      ? (() => { const [y, m, d] = String(claimed.due_date).split("-"); return `${d}.${m}.${y}`; })()
+      : null;
     const subject = `דרישת תשלום — ${claimed.description}`;
+    const dueLine = dueDateFmt ? ` התשלום נדרש עד ${dueDateFmt}.` : "";
     const html = buildBrandedEmail(brand, {
       heading: "דרישת תשלום",
-      bodyHtml: esc(`שלום ${clientName}, בנוסף לטיפול השוטף מבקשים תשלום עבור "${claimed.description}", בסך ${amountFmt}. ניתן ליצור קשר עם המשרד לתיאום התשלום.`),
+      bodyHtml: esc(`שלום ${clientName}, בנוסף לטיפול השוטף מבקשים תשלום עבור "${claimed.description}", בסך ${amountFmt}.${dueLine} ניתן ליצור קשר עם המשרד לתיאום התשלום.`),
       footerTagline: "דרישת תשלום — חיוב נוסף",
     });
 

@@ -111,11 +111,15 @@ function buildHaystack(name: string, idNumber?: string, phone?: string, email?: 
   ].filter(Boolean);
 }
 
-/** "הצהרת הון · ממתין לתשלום · +1" — הראשון תמיד קובע, השאר נספרים בלבד. */
+/**
+ * "הצהרת הון · ממתין לתשלום · +1" — רק עבודה פתוחה (לא 'paid') קובעת את
+ * הרמז; חיוב ששולם כבר לא מתנהג כעבודה פתוחה, גם אם הוא עדיין מוצג בכרטיס.
+ */
 function chargesCue(charges: AdditionalCharge[]): string | null {
-  if (charges.length === 0) return null;
-  const first = charges[0];
-  const extra = charges.length > 1 ? ` · +${charges.length - 1}` : '';
+  const open = charges.filter(c => c.status !== 'paid');
+  if (open.length === 0) return null;
+  const first = open[0];
+  const extra = open.length > 1 ? ` · +${open.length - 1}` : '';
   return `${first.description} · ${CHARGE_STATUS_LABELS[first.status]}${extra}`;
 }
 
@@ -127,10 +131,14 @@ export function buildPersonRows(clients: Client[], leads: Lead[], charges: Addit
     const list = chargesByClient.get(ch.clientId);
     if (list) list.push(ch); else chargesByClient.set(ch.clientId, [ch]);
   }
-  // מהישן לחדש — מי שנוסף ראשון נשאר "ראשי" בשורה ובתצוגה המהירה עד שהוא
-  // מטופל; חיוב חדש רק מגדיל את מונה ה-+N ולא מחליף את מי שכבר מוצג.
+  // עבודה פתוחה קודם (מהישן לחדש בתוכה), ואז מה ששולם — "פתוחים מקבלים
+  // עדיפות, שולם יכול להיות שקט יותר" (ראה pd-chargecard-paid ב-CSS).
   for (const list of chargesByClient.values()) {
-    list.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
+    list.sort((a, b) => {
+      const openA = a.status !== 'paid', openB = b.status !== 'paid';
+      if (openA !== openB) return openA ? -1 : 1;
+      return (a.createdAt ?? '').localeCompare(b.createdAt ?? '');
+    });
   }
 
   for (const c of clients) {

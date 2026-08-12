@@ -292,7 +292,7 @@ export default function App() {
     return map;
   }, [leads]);
   const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation } = useQuotations(user?.id);
-  const { charges, addCharge, replaceCharge } = useCharges(user?.id);
+  const { charges, addCharge, replaceCharge, markChargePaid } = useCharges(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
   const failedNotifications = useFailedNotifications(user?.id);
 
@@ -1813,8 +1813,9 @@ export default function App() {
             onContinueLead={handleContinueLead}
             onDeleteLead={async (lead) => { await deleteLead(lead.id); }}
             charges={charges}
-            onAddCharge={async (clientId, description, amount) => { await addCharge(clientId, description, amount); }}
+            onAddCharge={async (clientId, description, amount, dueDate) => { await addCharge(clientId, description, amount, dueDate); }}
             onRequestChargePayment={requestChargePayment}
+            onMarkChargePaid={async (charge) => { await markChargePaid(charge); }}
           />
         )}
 

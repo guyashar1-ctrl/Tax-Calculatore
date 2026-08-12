@@ -10,6 +10,7 @@ import type { PersonRow } from '../utils/personDirectory';
 import type { RecentDoc } from '../hooks/useRecentDocuments';
 import type { AdditionalCharge } from '../types/charges';
 import { CHARGE_STATUS_LABELS, CHARGE_STATUS_BADGE, CHARGE_NEXT_ACTION } from '../types/charges';
+import { formatDate, daysLate } from '../utils/dateFormat';
 
 export interface QuickViewAction {
   label: string;
@@ -47,8 +48,10 @@ interface Props {
   onAddCharge?: () => void;
   /** "שלח דרישת תשלום" לחיוב ספציפי מתוך הכרטיס שלו. */
   onRequestChargePayment?: (charge: AdditionalCharge) => void;
-  /** מזהה החיוב שהבקשה שלו נמצאת עכשיו בשליחה — מנטרל את הכפתור שלו בלבד. */
-  chargeSendingId?: string | null;
+  /** "סמן כשולם" — סימון ידני, בלי מסלול הפוך. */
+  onMarkChargePaid?: (charge: AdditionalCharge) => void;
+  /** מזהה החיוב שנמצא עכשיו בפעולה (שליחה/סימון) — מנטרל את הכפתור שלו בלבד. */
+  chargeBusyId?: string | null;
 }
 
 function relDate(iso: string): string {
@@ -112,36 +115,49 @@ export default function PersonQuickView(p: Props) {
         {row.kind === 'client' && !!p.charges?.length && (
           <div className="pd-section">
             <div className="pd-st pd-charges-header">
-              <span>חיובים נוספים</span>
+              <span>חיובים חד־פעמיים</span>
               {p.onAddCharge && (
                 <button type="button" onClick={p.onAddCharge}>+ חיוב נוסף</button>
               )}
             </div>
             <div className="pd-charges-list">
               {p.charges!.map(c => {
-                const sending = p.chargeSendingId === c.id;
+                const busy = p.chargeBusyId === c.id;
+                const overdue = c.status !== 'paid' && !!c.dueDate && daysLate(c.dueDate) > 0;
+                const moneyLine = c.dueDate
+                  ? `${c.amount.toLocaleString('he-IL')} ₪ · לתשלום עד ${formatDate(c.dueDate, 'form')}`
+                  : `${c.amount.toLocaleString('he-IL')} ₪`;
                 return (
-                  <div className="pd-chargecard" key={c.id}>
+                  <div className={`pd-chargecard${c.status === 'paid' ? ' pd-chargecard-paid' : ''}`} key={c.id}>
                     <div className="pd-chargehead">
                       <b>{c.description}</b>
                       <span className={`pd-badge ${CHARGE_STATUS_BADGE[c.status]}`}>{CHARGE_STATUS_LABELS[c.status]}</span>
                     </div>
-                    <div className="pd-chargemoney">סכום: {c.amount.toLocaleString('he-IL')} ₪</div>
-                    <div className="pd-nextaction">
-                      <span className="pd-na-label">הפעולה הבאה</span>
-                      {c.status === 'pending' && p.onRequestChargePayment ? (
-                        <button
-                          type="button"
-                          className="pd-na-action"
-                          disabled={sending}
-                          onClick={() => p.onRequestChargePayment!(c)}
-                        >
-                          {sending ? 'שולח…' : CHARGE_NEXT_ACTION[c.status]}
-                        </button>
-                      ) : (
-                        <span className="pd-na-text">{CHARGE_NEXT_ACTION[c.status]}</span>
-                      )}
+                    <div className="pd-chargemoney" style={overdue ? { color: 'var(--danger)' } : undefined}>
+                      {moneyLine}
                     </div>
+                    {c.status === 'paid' ? (
+                      <div className="pd-nextaction">
+                        <span className="pd-na-text">{c.paidAt ? `שולם ב-${formatDate(c.paidAt, 'form')}` : 'שולם'}</span>
+                      </div>
+                    ) : (
+                      <div className="pd-nextaction">
+                        <span className="pd-na-label">הפעולה הבאה</span>
+                        {c.status === 'pending' && p.onRequestChargePayment ? (
+                          <button type="button" className="pd-na-action" disabled={busy}
+                            onClick={() => p.onRequestChargePayment!(c)}>
+                            {busy ? 'שולח…' : CHARGE_NEXT_ACTION[c.status]}
+                          </button>
+                        ) : c.status === 'requested' && p.onMarkChargePaid ? (
+                          <button type="button" className="pd-na-action" disabled={busy}
+                            onClick={() => p.onMarkChargePaid!(c)}>
+                            {busy ? 'מסמן…' : CHARGE_NEXT_ACTION[c.status]}
+                          </button>
+                        ) : (
+                          <span className="pd-na-text">{CHARGE_NEXT_ACTION[c.status]}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

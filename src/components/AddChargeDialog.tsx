@@ -6,16 +6,18 @@
 
 import { useState } from 'react';
 import Modal from './ui/Modal';
+import { todayIso } from '../utils/dateFormat';
 
 interface Props {
   clientName: string;
   onCancel: () => void;
-  onSubmit: (description: string, amount: number) => Promise<void>;
+  onSubmit: (description: string, amount: number, dueDate: string) => Promise<void>;
 }
 
 export default function AddChargeDialog({ clientName, onCancel, onSubmit }: Props) {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
+  const [dueDate, setDueDate] = useState(todayIso());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -24,10 +26,11 @@ export default function AddChargeDialog({ clientName, onCancel, onSubmit }: Prop
     const num = Number(amount);
     if (!trimmed) { setError('צריך להזין עבור מה החיוב'); return; }
     if (!amount.trim() || !Number.isFinite(num) || num <= 0) { setError('צריך להזין סכום תקין וגדול מאפס'); return; }
+    if (!dueDate) { setError('צריך לבחור תאריך לתשלום'); return; }
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(trimmed, num);
+      await onSubmit(trimmed, num, dueDate);
     } catch (e) {
       setBusy(false);
       setError(e instanceof Error ? e.message : 'שגיאה בהוספת החיוב');
@@ -71,8 +74,12 @@ export default function AddChargeDialog({ clientName, onCancel, onSubmit }: Prop
           />
         </div>
         <div className="np-field">
+          <label>תאריך לתשלום *</label>
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} disabled={busy} />
+        </div>
+        <div className="np-field np-field-full">
           <label>מצב</label>
-          <input value="ממתין לתשלום" readOnly disabled />
+          <input value="טרם נשלחה דרישת תשלום" readOnly disabled />
         </div>
       </div>
       <div className="pd-small" style={{ marginTop: 12 }}>

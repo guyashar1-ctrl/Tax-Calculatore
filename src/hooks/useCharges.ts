@@ -34,9 +34,15 @@ export function useCharges(userId: string | undefined) {
     return () => { cancelled = true; };
   }, [userId]);
 
-  async function addCharge(clientId: string, description: string, amount: number): Promise<AdditionalCharge> {
+  /** הזנה ידנית בלבד — חיוב מהצעת מחיר נוצר בשרת (create_engagement_for_quotation), לא כאן. */
+  async function addCharge(
+    clientId: string, description: string, amount: number, dueDate: string,
+  ): Promise<AdditionalCharge> {
     if (!userId) throw new Error('Not signed in');
-    const row = chargeToDb({ clientId, description, amount, currency: 'ILS', status: 'pending' }, userId);
+    const row = chargeToDb(
+      { clientId, description, amount, currency: 'ILS', status: 'pending', dueDate, sourceType: 'manual' },
+      userId,
+    );
     const { data, error } = await supabase.from('additional_charges').insert(row).select().single();
     if (error) throw error;
     const inserted = chargeFromDb(data);
@@ -49,5 +55,24 @@ export function useCharges(userId: string | undefined) {
     setCharges(prev => prev.map(x => x.id === updated.id ? updated : x));
   }
 
-  return { charges, loading, error, addCharge, replaceCharge };
+  /**
+   * "סמן כשולם" — סימון ידני בלבד, בלי מסלול הפוך: אין אינטגרציית סליקה
+   * שיודעת "לבדוק" תשלום, ולכן אין גם דרך אוטומטית לבטל את הסימון.
+   */
+  async function markChargePaid(charge: AdditionalCharge): Promise<AdditionalCharge> {
+    if (!userId) throw new Error('Not signed in');
+    const paidAt = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('additional_charges')
+      .update({ status: 'paid', paid_at: paidAt })
+      .eq('id', charge.id)
+      .select()
+      .single();
+    if (error) throw error;
+    const updated = chargeFromDb(data);
+    replaceCharge(updated);
+    return updated;
+  }
+
+  return { charges, loading, error, addCharge, replaceCharge, markChargePaid };
 }
