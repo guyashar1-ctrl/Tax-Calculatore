@@ -46,6 +46,8 @@ interface Props {
   onOpenRepresentation: (clientId: string) => void;
   /** שלב 4: "המשך טיפול" בליד שהגיע מקישור המילוי הציבורי — פותח את בורר המסלול. */
   onContinueLead: (lead: Lead) => void;
+  /** מחיקת ליד שטרם הפך ללקוח. אין השפעה על כרטיס לקוח קיים. */
+  onDeleteLead: (lead: Lead) => Promise<void>;
 }
 
 const STAGE_NOW_TITLE: Record<string, string> = {
@@ -73,6 +75,15 @@ export default function PersonDirectory(p: Props) {
   const { docs, loading: docsLoading } = useRecentDocuments(
     selected?.kind === 'client' ? selected.id : undefined,
   );
+
+  /** מחיקת ליד מתוך התצוגה המהירה — פעולה הרסנית, לכן עם אישור. סוגר את
+   *  התצוגה מיד אחרי שהמחיקה מצליחה, כדי לא להישאר על שורה שכבר נעלמה. */
+  async function handleDeleteLead(lead: Lead) {
+    const name = lead.fullName?.trim() || lead.businessName || 'הליד';
+    if (!window.confirm(`למחוק את "${name}"? הפעולה אינה הפיכה.`)) return;
+    await p.onDeleteLead(lead);
+    p.onQuickView(null);
+  }
 
   /* ‼ כלל צפיפות הפעולות: מתוך deriveNextAction נלקח לכל היותר כפתור אחד —
      הראשון. גם אם הפעולה הבאה תציע יותר כפתורים בעתיד, התצוגה המהירה לא
@@ -116,37 +127,34 @@ export default function PersonDirectory(p: Props) {
   function quickViewContent(row: PersonRow) {
     if (row.kind === 'lead') {
       const lead = row.lead!;
-
-      // ‼ הגשה עצמית שטרם טופלה: פעולה אחת בלבד — "המשך טיפול" — פותחת את
-      // בורר המסלול הקיים משלב 3. אין כאן קיצור ישיר להצעה, כי הרו"ח עדיין
-      // לא בחר מסלול (שלב 7 באפיון שלב 4).
-      if (lead.source === 'self_intake' && lead.status === 'new') {
-        return {
-          now: { title: 'ליד', detail: 'התקבל מקישור מילוי פרטים — טרם טופל' },
-          quickAction: { label: 'המשך טיפול', run: () => p.onContinueLead(lead) } as QuickViewAction,
-          onRequestMaterials: undefined,
-          primary: { label: 'פתח את הליד', run: () => p.onOpenLead(lead.id) } as QuickViewAction,
-        };
-      }
-
       const leadQuotation = p.quotations
         .filter(q => q.leadId === lead.id)
         .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0];
+
       const now = lead.status === 'quoted'
         ? { title: 'הצעת מחיר', detail: 'ההצעה נשלחה — ממתינים לתשובת הלקוח' }
         : lead.status === 'closed'
           ? { title: 'ליד', detail: 'הליד סגור' }
-          : { title: 'ליד', detail: 'טרם נשלחה הצעה' };
-      const quickAction: QuickViewAction | null =
-        lead.status === 'closed' ? null
-          : lead.status === 'quoted' && leadQuotation
-            ? { label: 'פתח את ההצעה', run: () => p.onOpenQuotation(leadQuotation.id) }
-            : { label: 'שלח הצעת מחיר', run: () => p.onNewQuotationForLead(lead) };
+          : {
+              title: 'ליד',
+              detail: lead.source === 'self_intake'
+                ? 'התקבל מקישור מילוי פרטים — טרם טופל'
+                : 'טרם נשלחה הצעה',
+            };
+
+      // ‼ Customers היא המשטח היחיד לליד שטרם הפך ללקוח — בין אם הגיע
+      // מהקישור הציבורי ובין אם הוזן ידנית. "המשך טיפול" פותח תמיד את בורר
+      // המסלול הקיים משלב 3; אין החזרה למסך הלידים הישן משום מקום כאן.
+      // הצעה שכבר נשלחה היא היוצא היחיד — שם הפעולה היא לפתוח אותה עצמה.
+      const primary: QuickViewAction = lead.status === 'quoted' && leadQuotation
+        ? { label: 'פתח את ההצעה', run: () => p.onOpenQuotation(leadQuotation.id) }
+        : { label: 'המשך טיפול', run: () => p.onContinueLead(lead) };
+
       return {
         now,
-        quickAction,
+        quickAction: null,
         onRequestMaterials: undefined,
-        primary: { label: 'פתח את הליד', run: () => p.onOpenLead(lead.id) } as QuickViewAction,
+        primary,
       };
     }
 
@@ -283,6 +291,7 @@ export default function PersonDirectory(p: Props) {
               onRequestMaterials={content.onRequestMaterials}
               primary={content.primary}
               possibleMatch={matchInfoFor(selected)}
+              onDeleteLead={selected.kind === 'lead' ? () => handleDeleteLead(selected.lead!) : undefined}
               onClose={() => p.onQuickView(null)}
             />
           </Sheet>

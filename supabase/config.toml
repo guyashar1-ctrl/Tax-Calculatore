@@ -52,6 +52,11 @@ verify_jwt = false
 [functions.send-process-open-email]
 verify_jwt = false
 
+# שליחת קישור המילוי הציבורי במייל, ביוזמת הרו"ח. אין מסלול ציבורי — הטוקן
+# מאומת מול הפרופיל של בעל ה-JWT, לא מתקבל כהרשאה.
+[functions.send-apply-link-email]
+verify_jwt = false
+
 # ── נקראת מתוך המערכת ע"י משתמש מחובר בלבד ─────────────────────────────────
 [functions.ocr-document]
 verify_jwt = true

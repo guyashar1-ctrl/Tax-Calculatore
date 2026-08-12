@@ -34,6 +34,8 @@ interface Props {
   onClose: () => void;
   /** התאמה אפשרית ללקוח קיים (שלב 4, ליד מקישור ציבורי בלבד) — עם פעולה לפתוח את הכרטיס הקיים. */
   possibleMatch?: { clientName: string; onOpen: () => void } | null;
+  /** מחיקת ליד שטרם הפך ללקוח — קישור שקט, לא כפתור מתחרה; רק לשורות ליד. */
+  onDeleteLead?: () => void;
 }
 
 function relDate(iso: string): string {
@@ -134,6 +136,14 @@ export default function PersonQuickView(p: Props) {
             {p.primary.label}
           </button>
         </div>
+
+        {p.onDeleteLead && (
+          <div style={{ textAlign: 'center', marginTop: 12 }}>
+            <button type="button" className="ui-linkbtn" style={{ color: 'var(--danger)' }} onClick={p.onDeleteLead}>
+              מחיקת הליד
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

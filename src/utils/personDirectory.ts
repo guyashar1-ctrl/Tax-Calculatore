@@ -129,7 +129,9 @@ export function buildPersonRows(clients: Client[], leads: Lead[]): PersonRow[] {
   }
 
   for (const l of leads) {
-    if (l.convertedClientId) continue;   // הכרטיס שלו כבר ברשימה
+    // ‼ 'converted' בלי convertedClientId הוא מצב יתום (למשל עריכה ידנית של
+    // סטטוס) — עדיין לא אמור להישאר ברשימה הרגילה כאילו הוא "חדש וממתין".
+    if (l.convertedClientId || l.status === 'converted') continue;
     const name = l.fullName?.trim() || l.businessName || '—';
     rows.push({
       id: l.id,

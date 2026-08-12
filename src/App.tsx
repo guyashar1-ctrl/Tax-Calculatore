@@ -641,6 +641,18 @@ export default function App() {
   }
 
   /**
+   * שולח את קישור המילוי הציבורי במייל לנמען שהרו"ח מזין. ‼ אינה יוצרת שום
+   * ליד — האימייל כאן הוא כתובת משלוח בלבד, לא זיהוי אדם. הליד נוצר רק כשמישהו
+   * שולח בפועל את הטופס הציבורי, ולכן אפשר לשלוח את אותו קישור כמה פעמים.
+   */
+  async function sendApplyLinkEmail(token: string, recipientEmail: string): Promise<void> {
+    const { data, error } = await supabase.functions.invoke('send-apply-link-email', {
+      body: { token, recipientEmail },
+    });
+    if (error || !data?.ok) throw new Error(error?.message || data?.error || 'שליחת המייל נכשלה');
+  }
+
+  /**
    * "המשך טיפול" בליד מקישור המילוי הציבורי — פותח את אותו בורר מסלול משלב 3,
    * ממולא מראש משם/מייל הליד. הליד עצמו כבר קיים; אין כאן איסוף פרטים חדש.
    */
@@ -1776,6 +1788,7 @@ export default function App() {
             onOpenTask={openEditTaskModal}
             onOpenRepresentation={handleOpenClientRepresentation}
             onContinueLead={handleContinueLead}
+            onDeleteLead={async (lead) => { await deleteLead(lead.id); }}
           />
         )}
 
@@ -2065,6 +2078,7 @@ export default function App() {
           onConfirmQuote={handleConfirmNewPersonQuote}
           onConfirmRepresentation={handleConfirmNewPersonRepresentation}
           onMintApplyLink={mintApplyLink}
+          onSendApplyLinkEmail={sendApplyLinkEmail}
         />
       )}
 
@@ -2076,6 +2090,7 @@ export default function App() {
           onConfirmQuote={() => handleContinueLeadQuote(continuationLead)}
           onConfirmRepresentation={(basics) => handleContinueLeadRepresentation(continuationLead, basics)}
           onMintApplyLink={mintApplyLink}
+          onSendApplyLinkEmail={sendApplyLinkEmail}
           continuationFor={{
             fullName: continuationLead.fullName,
             phone: continuationLead.phone || undefined,

@@ -41,6 +41,8 @@ interface Props {
   onConfirmRepresentation: (basics: NewPersonBasics) => Promise<void>;
   /** ממנפק/מחזיר את הטוקן הקיים. p_rotate=true מחליף — הקישור הישן מפסיק לעבוד מיד. */
   onMintApplyLink: (rotate: boolean) => Promise<string | null>;
+  /** שולח את הקישור למייל שהוקלד. אינה יוצרת ליד — רק שולחת. */
+  onSendApplyLinkEmail: (token: string, email: string) => Promise<void>;
   /** שלב 4: פתיחה ישירה על שלב המסלול, לליד קיים מקישור ציבורי. */
   continuationFor?: ContinuationTarget;
   /** לבדיקת מסך בלבד (כמו emailsOverride ב-JourneyTab) — קופץ ישר לשלב, עם נתוני דוגמה. */
@@ -60,7 +62,7 @@ const APPLY_ORIGIN = typeof window !== 'undefined' ? window.location.origin : ''
 
 export default function NewPersonDialog({
   clients, onCancel, onOpenExisting, onConfirmQuote, onConfirmRepresentation,
-  onMintApplyLink, continuationFor, initialStepForQA,
+  onMintApplyLink, onSendApplyLinkEmail, continuationFor, initialStepForQA,
 }: Props) {
   const { showToast } = useToast();
   const initialStep: Step = continuationFor ? 'route'
@@ -84,6 +86,11 @@ export default function NewPersonDialog({
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [emailFormOpen, setEmailFormOpen] = useState(false);
+  const [sendEmailValue, setSendEmailValue] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSendError, setEmailSendError] = useState<string | null>(null);
+  const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
 
   const applyLink = applyToken ? `${APPLY_ORIGIN}/?apply=${applyToken}` : '';
 
@@ -117,10 +124,30 @@ export default function NewPersonDialog({
     }
   }
 
+  /** שליחת הקישור למייל שהוזן. אינה יוצרת ליד — ראה onSendApplyLinkEmail. */
+  async function handleSendEmail() {
+    if (!applyToken) return;
+    const addr = sendEmailValue.trim();
+    if (!addr || !isValidEmail(addr)) { setEmailSendError('כתובת אימייל לא תקינה'); return; }
+    setEmailSending(true);
+    setEmailSendError(null);
+    try {
+      await onSendApplyLinkEmail(applyToken, addr);
+      setEmailSentTo(addr);
+      setEmailFormOpen(false);
+      showToast(`הקישור נשלח ל-${addr}`);
+    } catch (e) {
+      setEmailSendError(e instanceof Error ? e.message : 'שליחת המייל נכשלה');
+    } finally {
+      setEmailSending(false);
+    }
+  }
+
   function resetToChoose() {
     setStep('choose');
     setFullName(''); setPhone(''); setEmail(''); setIdNumber('');
     setFieldError(null); setDuplicate(null); setRoute(null); setBusyError(null);
+    setEmailFormOpen(false); setSendEmailValue(''); setEmailSendError(null); setEmailSentTo(null);
   }
 
   function handleManualContinue() {
@@ -227,7 +254,31 @@ export default function NewPersonDialog({
                       שיתוף
                     </button>
                   )}
+                  <button type="button" onClick={() => { setEmailFormOpen(v => !v); setEmailSendError(null); }}>
+                    שליחה במייל
+                  </button>
                 </div>
+                {emailFormOpen && (
+                  <div className="np-emailrow" style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                    <input
+                      type="email"
+                      value={sendEmailValue}
+                      onChange={e => setSendEmailValue(e.target.value)}
+                      placeholder="name@example.com"
+                      dir="ltr"
+                      disabled={emailSending}
+                      autoFocus
+                      style={{ flex: 1 }}
+                    />
+                    <button type="button" className="ui-btn ui-btn-primary" onClick={handleSendEmail} disabled={emailSending}>
+                      {emailSending ? 'שולח…' : 'שלח'}
+                    </button>
+                  </div>
+                )}
+                {emailSendError && <div className="np-error">{emailSendError}</div>}
+                {emailSentTo && !emailFormOpen && (
+                  <div className="pd-small" style={{ marginTop: 8 }}>נשלח מייל ל-{emailSentTo}</div>
+                )}
               </div>
               <div className="np-sim">
                 <button type="button" className="ui-linkbtn" onClick={rotateLink} disabled={linkBusy}>
