@@ -39,6 +39,17 @@ const RENTAL_TRACK_LABELS: Record<RentalTaxTrack, string> = {
 
 const AUTHORITY_ORDER: TaxAuthority[] = ['income_tax', 'vat', 'deductions', 'national_insurance'];
 
+/** אילו שדות מנוהלים שייכים לכל רשות — לצורך פרובננס "מקור: יישור קו" בפירוט המורחב (M2). */
+const AUTHORITY_FIELD_KEYS: Record<TaxAuthority, (keyof Client)[]> = {
+  income_tax: ['incomeTaxFileType', 'taxOfficeName', 'incomeTaxUnit', 'incomeTaxEconomicIndustry',
+    'pitAdvancePercent', 'pitAdvanceFrequency', 'incomeTaxBalance', 'capitalDeclarationRequired',
+    'capitalDeclarationDeadline', 'incomeTaxDebitAuthorization'],
+  vat: ['vatFileType', 'vatOpeningDate', 'vatPrimaryIndustry', 'vatFrequency', 'vatLastReportPeriod',
+    'vatBalance', 'vatDebitAuthorization'],
+  deductions: ['withholdingRate', 'hasExemptFromWithholding', 'withholdingDetail', 'bookStatus'],
+  national_insurance: ['niBalance', 'niOccupations', 'niDebitAuthorization', 'niAdvanceMonthly'],
+};
+
 function money(n?: number): string | undefined {
   return typeof n === 'number' && !Number.isNaN(n) ? `₪${Math.round(n).toLocaleString('he-IL')}` : undefined;
 }
@@ -293,10 +304,44 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
                     <KV k="ניהול ספרים" v={<span style={client.bookStatus === 'rejected' ? { color: 'var(--warn)' } : undefined}>{client.bookStatus === 'kosher' ? 'תקין' : 'נפסל'}</span>} />
                   )}
                   {authority === 'income_tax' && client.hasExemptFromWithholding && <KV k="פטור מניכוי במקור" v="כן" />}
+                  {authority === 'income_tax' && client.withholdingDetail && <KV k="פירוט ניכוי במקור" v={client.withholdingDetail} />}
+                  {authority === 'income_tax' && client.taxOfficeName && <KV k="פקיד שומה" v={client.taxOfficeName} />}
+                  {authority === 'income_tax' && client.incomeTaxUnit && <KV k="חוליה" v={client.incomeTaxUnit} />}
+                  {authority === 'income_tax' && client.incomeTaxEconomicIndustry && <KV k="ענף כלכלי" v={client.incomeTaxEconomicIndustry} />}
+                  {authority === 'income_tax' && client.incomeTaxBalance != null && <KV k="יתרה במס הכנסה" v={money(client.incomeTaxBalance)} />}
+                  {authority === 'income_tax' && client.capitalDeclarationRequired && (
+                    <KV k="הצהרת הון" v={<span style={{ color: 'var(--warn)' }}>דרישה פתוחה{client.capitalDeclarationDeadline ? ` · עד ${shortDate(client.capitalDeclarationDeadline)}` : ''}</span>} />
+                  )}
+                  {authority === 'income_tax' && client.incomeTaxDebitAuthorization != null && (
+                    <KV k="הרשאה לחיוב חשבון" v={client.incomeTaxDebitAuthorization ? 'קיימת' : <span style={{ color: 'var(--warn)' }}>אין הרשאה</span>} />
+                  )}
                   {authority === 'national_insurance' && client.niAdvanceMonthly ? <KV k="מקדמה חודשית" v={money(client.niAdvanceMonthly)} /> : null}
+                  {authority === 'national_insurance' && client.niBalance != null && <KV k="יתרה בביטוח לאומי" v={money(client.niBalance)} />}
+                  {authority === 'national_insurance' && (client.niOccupations?.length ?? 0) > 0 && <KV k="עיסוקים" v={client.niOccupations!.length} />}
+                  {authority === 'national_insurance' && client.niDebitAuthorization != null && (
+                    <KV k="הרשאה לחיוב חשבון" v={client.niDebitAuthorization ? 'קיימת' : <span style={{ color: 'var(--warn)' }}>אין הרשאה</span>} />
+                  )}
+                  {authority === 'vat' && client.vatFileType && <KV k="סוג תיק" v={client.vatFileType} />}
+                  {authority === 'vat' && client.vatOpeningDate && <KV k="תאריך פתיחת תיק" v={shortDate(client.vatOpeningDate)} />}
+                  {authority === 'vat' && client.vatPrimaryIndustry && <KV k="ענף עיקרי" v={client.vatPrimaryIndustry} />}
+                  {authority === 'vat' && client.vatLastReportPeriod && <KV k="דוח אחרון שהוגש" v={client.vatLastReportPeriod} />}
+                  {authority === 'vat' && client.vatBalance != null && <KV k="יתרה במע״מ" v={money(client.vatBalance)} />}
+                  {authority === 'vat' && client.vatDebitAuthorization != null && (
+                    <KV k="הרשאה לחיוב חשבון" v={client.vatDebitAuthorization ? 'קיימת' : <span style={{ color: 'var(--warn)' }}>אין הרשאה</span>} />
+                  )}
                   {client.shaamStatus && <KV k="הרשאת שע״ם" v={SHAAM_STATUS_LABELS[client.shaamStatus]} />}
                 </div>
                 <SrcLine label="מקור: תיקי הרשויות בכרטיס הלקוח · עריכה מלאה בלשונית התיק" />
+                {(() => {
+                  // ‼ פרובננס עדין — רק בפירוט המורחב, לא במשפט הפתיחה (הכרעת M2).
+                  const authKeys = AUTHORITY_FIELD_KEYS[authority];
+                  const latest = authKeys
+                    .map(k => meta[k])
+                    .filter((m): m is NonNullable<typeof m> => !!m && m.source === 'institution_alignment')
+                    .sort((a, b) => (b.syncedAt ?? '').localeCompare(a.syncedAt ?? ''))[0];
+                  if (!latest) return null;
+                  return <SrcLine label={`מקור: יישור קו מול הרשויות${latest.syncedAt ? ` · עודכן ${shortDate(latest.syncedAt)}` : ''}`} />;
+                })()}
               </TRow>
             );
           })

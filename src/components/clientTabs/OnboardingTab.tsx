@@ -14,9 +14,10 @@ import {
   blockingStepsForClose, isStepRequiredForClose,
   isStepOpen, stepAwaitsMe,
 } from '../../types/onboarding';
-import type { RepAuthorityKind, RepresentationStatus } from '../../types';
+import type { Client, RepAuthorityKind, RepresentationStatus } from '../../types';
 import { REP_AUTHORITY_LABELS } from '../../types';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
+import InstitutionAlignmentGroup from './InstitutionAlignment';
 import { NEXT_ACTION, nextStepForClient } from '../../utils/onboardingNext';
 import { representationAction } from '../../utils/representationAction';
 import { relativeTime } from '../../utils/clientDerived';
@@ -45,6 +46,10 @@ import InlineComposer from './InlineComposer';
 
 interface Props {
   clientId: string;
+  /** נדרש ליישור קו (M2): תמונת מצב לפני הצעת עובדה, ומחזור החיים לניסוח הכרטיס. */
+  client: Client;
+  /** הלקוח המעודכן אחרי שעובדה מקצועית התקבלה — כדי לשקף מיד בלי לחכות לרענון. */
+  onClientPersisted: (c: Client) => void;
   engagements: Engagement[];
   steps: OnboardingStep[];
   events: OnboardingEvent[];
@@ -216,7 +221,7 @@ const isHttps = (v: string) => v.trim().startsWith('https://');
 const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי', 'העברה בנקאית חודשית', 'המחאות', 'אחר'];
 
 export default function OnboardingTab({
-  clientId, engagements, steps, events, loading, advance, refresh,
+  clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
   prevAccountant, onPrepareReleaseLetter, repStatusLabel, repStatus, onOpenRepresentation,
   clientDisplayName, clientEmail, embedded, ballFilter,
 }: Props) {
@@ -239,6 +244,7 @@ export default function OnboardingTab({
   const [addOpen, setAddOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [ordering, setOrdering] = useState(false);
+  const [alignBusy, setAlignBusy] = useState(false);
   const highlightTimer = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -345,6 +351,29 @@ export default function OnboardingTab({
     const res = await advance(step.id, action, payload);
     if (!res.ok) setError(res.message || 'הפעולה נכשלה.');
     setBusyStepId(null);
+  }
+
+  /**
+   * הקמת יישור קו ללקוח שאין לו שלבי מוסדות (הקמת תיק במערכת), או ריצה מחדש
+   * ללקוח שכבר יש לו — בלי לפתוח קליטה חדשה. שתי הפעולות דרך RPC ייעודי
+   * (92-institution-alignment.sql) ולא UPDATE ישיר — עקבי עם שאר המסך.
+   */
+  async function startOrRerunAlignment(existing: OnboardingStep[]) {
+    setAlignBusy(true);
+    setError(null);
+    if (existing.length === 0) {
+      const { error: rpcError } = await supabase.rpc('ensure_institution_alignment_steps', {
+        p_client_id: clientId, p_engagement_id: clientEngagements[0]?.id ?? null, p_include_opening_call: false,
+      });
+      if (rpcError) setError(rpcError.message);
+    } else {
+      for (const s of existing) {
+        const { error: rpcError } = await supabase.rpc('reopen_institution_alignment', { p_step_id: s.id });
+        if (rpcError) setError(rpcError.message);
+      }
+    }
+    setAlignBusy(false);
+    refresh?.();
   }
 
   function handleSkip(step: OnboardingStep) {
@@ -505,6 +534,23 @@ export default function OnboardingTab({
           <div className="cw-empty">
             אין בקשות פתוחות. אפשר לבקש מסמך או לשלוח בקשה חופשית בכל שלב —
             הלקוח יראה אותה בדף האישי שלו.
+          </div>
+        </div>
+
+        {/* ‼ M2 — בדיוק הלקוח הזה: בלי התקשרות ובלי שלבים בכלל. "הקמת תיק
+            במערכת" היא נקודת הכניסה היחידה שלו ליישור קו — בלי המסלול הזה
+            אין דרך להגיע לשלבי המוסדות מהמסך הזה, כי הם בדיוק מה שהמסך
+            הקצר הזה מדלג עליו (clientSteps.length === 0). */}
+        <div className="cw-section">
+          <div className="cw-section-head"><span>הקמת תיק במערכת</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap', padding: '.5rem 0' }}>
+            <span style={{ flex: 1, fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
+              ביטוח לאומי, מע״מ ומס הכנסה — לאן להיכנס, מה להעתיק, מה חריג.
+            </span>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={alignBusy}
+              onClick={() => void startOrRerunAlignment([])}>
+              {alignBusy ? 'מעדכן…' : 'התחל יישור קו'}
+            </button>
           </div>
         </div>
 
@@ -833,6 +879,38 @@ export default function OnboardingTab({
                 );
               }
 
+              // ‼ M2: שלושת שלבי המוסדות מיוצגים בכרטיס קבוצה אחד — הוא מצויר פעם
+              // אחת (על השלב הראשון שנתקלים בו לפי סדר יצירה) ולא שלוש פעמים.
+              if (step.stepType === 'institution_alignment_btl' || step.stepType === 'institution_alignment_vat'
+                || step.stepType === 'institution_alignment_income') {
+                const instSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
+                if (instSteps[0]?.id !== step.id) return null;
+                const openingCallStep = clientSteps.find(s => s.stepType === 'opening_call');
+                return (
+                  <InstitutionAlignmentGroup
+                    key="institution-alignment-group"
+                    client={client}
+                    steps={instSteps}
+                    openingCallStep={openingCallStep}
+                    advance={advance}
+                    onClientPersisted={onClientPersisted}
+                  />
+                );
+              }
+
+              if (step.stepType === 'opening_call') {
+                return (
+                  <OpeningCallCard
+                    key={step.id}
+                    step={step}
+                    busy={busy}
+                    highlight={highlightStepId === step.id}
+                    onRun={(action, payload) => void run(step, action, payload)}
+                    menu={menu}
+                  />
+                );
+              }
+
               return (
                 <JourneyRow
                   key={step.id}
@@ -1073,6 +1151,36 @@ export default function OnboardingTab({
               onClick={() => void publishCase()}>
               {publishingCase ? 'מפרסם…' : 'עדכן את דף הלקוח'}
             </button>
+          </div>
+        );
+      })()}
+
+      {/* ── יישור קו מול הרשויות: הקמה / ריצה מחדש ──────────────────────────
+          ‼ מוצג רק כשאין כבר כרטיס קבוצה פעיל ברשימה למטה (renderStep) —
+          לפני שיש שלבים בכלל, או אחרי ששלושתם הושלמו ("בצע יישור קו מחדש"). */}
+      {embedded && (() => {
+        const instSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
+        const allDone = instSteps.length === 3
+          && instSteps.every(s => s.status === 'completed' || s.status === 'verified');
+        if (instSteps.length > 0 && !allDone) return null;
+        const isExistingOfficeClient = instSteps.length === 0
+          && (activeEngagement?.status !== 'onboarding');
+        return (
+          <div className="cw-section">
+            <div className="cw-section-head">
+              <span>{isExistingOfficeClient ? 'הקמת תיק במערכת' : 'יישור קו מול הרשויות'}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap', padding: '.5rem 0' }}>
+              <span style={{ flex: 1, fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
+                {instSteps.length === 0
+                  ? 'ביטוח לאומי, מע״מ ומס הכנסה — לאן להיכנס, מה להעתיק, מה חריג.'
+                  : `הושלם${instSteps[0]?.payload.checkedAt ? ' · נבדק לאחרונה ' + formatDate(String(instSteps[0].payload.checkedAt), 'list') : ''}.`}
+              </span>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={alignBusy}
+                onClick={() => void startOrRerunAlignment(instSteps)}>
+                {alignBusy ? 'מעדכן…' : instSteps.length === 0 ? 'התחל יישור קו' : 'בצע יישור קו מחדש'}
+              </button>
+            </div>
           </div>
         );
       })()}
@@ -2014,6 +2122,56 @@ function ReleaseDelivery({ clientId }: { clientId: string }) {
       מכתב אחרון אל <span dir="ltr">{last.toEmail}</span> · {relativeTime(last.sentAt)} · {EMAIL_STATUS_LABEL[last.status] ?? last.status}
       {last.openedAt && <> · נפתח {relativeTime(last.openedAt)}</>}
     </div>
+  );
+}
+
+/**
+ * שיחת הפתיחה — לא טופס. רשימת נקודות לבירור שהצטברו מיישור הקו (M2), ונעולה
+ * עד ששלושת המוסדות הושלמו (תלות מרובת-הורים בשרת). פעולה ברורה אחת: קיימתי.
+ */
+function OpeningCallCard({ step, busy, highlight, onRun, menu }: {
+  step: OnboardingStep;
+  busy: boolean;
+  highlight: boolean;
+  onRun: (action: string, payload?: Record<string, unknown>) => void;
+  menu: React.ReactNode;
+}) {
+  const clarifications = step.payload.clarifications ?? [];
+  const open = isStepOpen(step.status);
+  return (
+    <StepCardShell step={step} stepById={new Map()} highlight={highlight} menu={
+      <>
+        {step.status === 'locked' && <button type="button" className="btn btn-sm btn-secondary" disabled>נעול</button>}
+        {step.status === 'pending' && (
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+            onClick={() => onRun('start')}>התחל</button>
+        )}
+        {step.status === 'in_progress' && (
+          <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+            onClick={() => onRun('complete')}>קיימתי את השיחה</button>
+        )}
+        {step.status === 'completed' && (
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+            onClick={() => onRun('verify')}>אמת</button>
+        )}
+        {menu}
+      </>
+    }>
+      {clarifications.length === 0 ? (
+        <div style={cardNote}>
+          {step.status === 'locked' ? 'תיפתח אחרי שיישור הקו מול שלושת הרשויות יושלם.' : 'לא הצטברו נקודות לבירור מיישור הקו.'}
+        </div>
+      ) : (
+        <ul style={{ margin: '.4rem 0 0', paddingInlineStart: '1.1rem', display: 'flex', flexDirection: 'column', gap: '.2rem' }}>
+          {clarifications.map((c, i) => (
+            <li key={i} style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>{c.text}</li>
+          ))}
+        </ul>
+      )}
+      {open && step.status !== 'locked' && clarifications.length > 0 && (
+        <div style={{ ...cardNote, marginTop: '.4rem' }}>הפריטים האלה נועדו לבירור בשיחה — לא בקשות ללקוח.</div>
+      )}
+    </StepCardShell>
   );
 }
 

@@ -5,7 +5,9 @@
 import { Client } from './index';
 
 // ── מטא-נתונים על שדה רגולטורי ──
-export type FieldSource = 'manual' | 'shaam' | 'authority' | 'import' | 'questionnaire';
+// ‼ institution_alignment (M2) — זהה בכוונה ל-TaxFactSource ב-types/taxFacts.ts:
+// _tax_fact_field_op בשרת כותב לכאן את אותו source שנשלח ל-propose_tax_facts.
+export type FieldSource = 'manual' | 'shaam' | 'authority' | 'import' | 'questionnaire' | 'institution_alignment';
 
 export interface FieldMeta {
   source?: FieldSource;
@@ -20,6 +22,7 @@ export const FIELD_SOURCE_LABELS: Record<FieldSource, string> = {
   authority: 'הרשות',
   import: 'יבוא',
   questionnaire: 'שאלון',
+  institution_alignment: 'יישור קו מול הרשויות',
 };
 
 // ── איש קשר נוסף (עו"ד, מנהל חשבונות, רו"ח אחר וכו') ──

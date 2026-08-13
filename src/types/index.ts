@@ -304,6 +304,39 @@ export interface TaxFileInfo {
   notes?: string;
 }
 
+// ─── עיסוקים בביטוח לאומי — M2, יישור קו ────────────────────────────────────
+// מקור: "עיסוקים והכנסות → רשימת עיסוקים" באתר הביטוח הלאומי. חשיפה הדרגתית:
+// שדות שכיר שונים משדות עצמאי; סוגים אחרים (סטודנט/פנסיה מוקדמת/לא עובד/אחר)
+// לא דורשים פירוט נוסף.
+export type NiOccupationType =
+  | 'employee' | 'self_employed' | 'self_employed_non_qualifying'
+  | 'student' | 'early_pension' | 'non_work_income' | 'not_working' | 'other';
+
+export const NI_OCCUPATION_TYPE_LABELS: Record<NiOccupationType, string> = {
+  employee: 'שכיר',
+  self_employed: 'עצמאי',
+  self_employed_non_qualifying: 'עצמאי שאינו עונה להגדרה',
+  student: 'סטודנט / תלמיד',
+  early_pension: 'פנסיה מוקדמת',
+  non_work_income: 'הכנסה שאינה מעבודה',
+  not_working: 'לא עובד',
+  other: 'אחר',
+};
+
+export interface NiOccupation {
+  id: string;
+  type: NiOccupationType;
+  // ── שכיר בלבד ──
+  employerName?: string;
+  withholdingFile?: string;
+  // ── עצמאי / עצמאי שאינו עונה להגדרה בלבד ──
+  weeklyHours?: number;
+  definitionIncome?: number;
+  // ── משותף לשכיר ולעצמאי ──
+  fromDate?: string;
+  toDate?: string;
+}
+
 // ─── עסקים — לעצמאי עם 2+ עסקים ────────────────────────────────────────
 /**
  * עסק עצמאי של הנישום. כל עסק = נספח א' (1320) נפרד + שורת מחזור
@@ -659,6 +692,31 @@ export interface Client {
 
   hasWealthDeclaration?: boolean;
   lastWealthDeclarationYear?: number;
+
+  // ── M2 — יישור קו מול הרשויות: עובדות מקצועיות שנאספות ומנותבות דרך
+  // תיק המס (propose_tax_facts/accept_tax_fact_change, source='institution_alignment').
+  // כל רשות בנפרד — לא מוסקות זו מזו (הרשאת חיוב במע"מ ≠ הרשאת חיוב במס הכנסה).
+  niBalance?: number;
+  niOccupations?: NiOccupation[];
+  niDebitAuthorization?: boolean;
+
+  vatBalance?: number;
+  vatDebitAuthorization?: boolean;
+  vatFileType?: string;
+  vatOpeningDate?: string;
+  vatPrimaryIndustry?: string;
+  vatLastReportPeriod?: string;
+
+  incomeTaxBalance?: number;
+  incomeTaxFileType?: string;
+  incomeTaxUnit?: string;
+  incomeTaxEconomicIndustry?: string;
+  incomeTaxDebitAuthorization?: boolean;
+  /** תיאור חופשי כשהניכוי במקור אינו שיעור בודד (למשל "5% שירותים / 10% מוצרים"). withholdingRate נשאר לשיעור הפשוט. */
+  withholdingDetail?: string;
+
+  capitalDeclarationRequired?: boolean;
+  capitalDeclarationDeadline?: string;
 
   fieldMeta?: Record<string, import('./clientWorkspace').FieldMeta>;
   activity?: import('./clientWorkspace').ActivityEntry[];

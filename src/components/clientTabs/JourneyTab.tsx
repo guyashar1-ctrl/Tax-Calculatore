@@ -64,6 +64,8 @@ interface Props {
   onPinNote: (text: string) => void;
   onAddNote: (text: string) => void;
   onGotoTab: (tab: 'overview' | 'dossier' | 'docs' | 'tasks') => void;
+  /** מ-M2: יישור קו כותב עובדות מקצועיות ישירות דרך M1 — צריך לשקף מיד. */
+  onClientPersisted: (c: Client) => void;
   taxSessions: AnnualReportSession[];
   taxSessionsLoading?: boolean;
   onOpenYear?: (taxYear: number) => void;
@@ -426,6 +428,8 @@ export default function JourneyTab(p: Props) {
           embedded
           ballFilter={ballFilter}
           clientId={p.client.id}
+          client={p.client}
+          onClientPersisted={p.onClientPersisted}
           clientDisplayName={`${p.client.firstName} ${p.client.lastName ?? ''}`.trim()}
           clientEmail={p.client.email}
           engagements={p.engagements}

@@ -25,6 +25,10 @@ export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   client_documents: 'לאסוף את המסמכים מהלקוח',
   prev_accountant_details: 'לקבל מהלקוח את פרטי הרו״ח הקודם',
   custom_request: 'לטפל בבקשה שהגדרת',
+  institution_alignment_btl: 'לבצע יישור קו מול ביטוח לאומי',
+  institution_alignment_vat: 'לבצע יישור קו מול מע״מ',
+  institution_alignment_income: 'לבצע יישור קו מול מס הכנסה',
+  opening_call: 'לקיים שיחת פתיחה עם הלקוח',
 };
 
 /** תאריך יעד רק אם הוא בטווח שבועיים — אחרת הוא אינו שיקול דחיפות. */

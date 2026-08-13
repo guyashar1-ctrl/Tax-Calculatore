@@ -657,6 +657,7 @@ export default function ClientWorkspace({
             taxSessionsLoading={taxSessionsLoading}
             onOpenYear={openYear}
             onSelectTask={onSelectTask}
+            onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
           />
         )}
 
@@ -700,6 +701,8 @@ export default function ClientWorkspace({
         {tab === 'onboarding' && hasOnboarding && advanceOnboardingStep && (
           <OnboardingTab
             clientId={client.id}
+            client={client}
+            onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
             engagements={engagements ?? []}
             steps={onboardingSteps ?? []}
             events={onboardingEvents ?? []}

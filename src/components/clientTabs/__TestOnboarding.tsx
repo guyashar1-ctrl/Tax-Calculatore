@@ -7,6 +7,7 @@
 // פתיחה:  http://localhost:5173/?test-onboarding   (DEV בלבד)
 
 import { useState } from 'react';
+import type { Client } from '../../types';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
 import OnboardingTab from './OnboardingTab';
 import ReleaseLetterDialog from '../quotations/ReleaseLetterDialog';
@@ -15,6 +16,13 @@ import ClientsOnboardingSection from '../ClientsOnboardingSection';
 
 const CLIENT_ID = 'fixture-client';
 const ENG_ID = 'fixture-eng';
+
+const FIXTURE_CLIENT = {
+  id: CLIENT_ID, firstName: 'שרון', lastName: 'מזרחי', idNumber: '029384756',
+  phone: '054-8823001', email: 'sharon.m@example.invalid', city: 'תל אביב',
+  incomeTaxType: 'selfEmployed', niType: 'selfEmployed', vatStatus: 'authorizedDealer',
+  lifecycleStage: 'onboarding',
+} as unknown as Client;
 
 // ?theme=light|dark — קיבוע ערכה לצילומי מסך ללא-ראש (אין App שמפעיל useTheme).
 {
@@ -213,6 +221,8 @@ export default function TestOnboarding() {
       </div>
       <OnboardingTab
         clientId={CLIENT_ID}
+        client={FIXTURE_CLIENT}
+        onClientPersisted={() => setMsg('onClientPersisted()')}
         clientDisplayName="שרון מזרחי"
         engagements={published ? ENGAGEMENTS : ENGAGEMENTS_UNPUBLISHED}
         steps={STEPS}

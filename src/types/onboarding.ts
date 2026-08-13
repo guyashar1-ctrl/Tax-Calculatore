@@ -49,7 +49,15 @@ export type OnboardingStepType =
   | 'client_documents'
   | 'prev_accountant_details'
   // בקשה שהרו"ח הרכיב בעצמו. מה נדרש מהלקוח נקבע ב-payload.requirements.
-  | 'custom_request';
+  | 'custom_request'
+  // ‼ M2 — יכולת אחת בשלושה הקשרי מחזור-חיים (קליטה חדשה / הקמת תיק במערכת /
+  // יישור קו מחדש אצל לקוח פעיל). ערך ייעודי לכל מוסד ולא 'institution_alignment'
+  // משותף+key, כדי שאינדקס הייחודיות (client_id,step_type) ימשיך לעבוד בלי שינוי.
+  | 'institution_alignment_btl'
+  | 'institution_alignment_vat'
+  | 'institution_alignment_income'
+  // תלוי בשלושת המוסדות (multi-parent) — לקליטה חדשה בלבד.
+  | 'opening_call';
 
 export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   representation: 'ייצוג מול הרשויות',
@@ -69,6 +77,27 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   client_documents: 'מסמכים מהלקוח',
   prev_accountant_details: 'פרטי הרו״ח הקודם',
   custom_request: 'בקשה מהמשרד',
+  institution_alignment_btl: 'יישור קו · ביטוח לאומי',
+  institution_alignment_vat: 'יישור קו · מע״מ',
+  institution_alignment_income: 'יישור קו · מס הכנסה',
+  opening_call: 'שיחת פתיחה',
+};
+
+/** שלושת שלבי המוסדות, בסדר התצוגה המאושר (מוקאפ v3-final2). */
+export const INSTITUTION_STEP_TYPES: OnboardingStepType[] = [
+  'institution_alignment_btl', 'institution_alignment_vat', 'institution_alignment_income',
+];
+
+export type InstitutionKey = 'btl' | 'vat' | 'income';
+
+export const INSTITUTION_STEP_TYPE_TO_KEY: Record<string, InstitutionKey> = {
+  institution_alignment_btl: 'btl',
+  institution_alignment_vat: 'vat',
+  institution_alignment_income: 'income',
+};
+
+export const INSTITUTION_NAMES: Record<InstitutionKey, string> = {
+  btl: 'ביטוח לאומי', vat: 'מע״מ', income: 'מס הכנסה',
 };
 
 export type OnboardingTrack =
@@ -256,6 +285,20 @@ export interface StepPayload {
   autoExecutedAt?: string;
   /** שגיאת הביצוע האחרון — התביעה שוחררה ויינסה שוב בטריגר הבא. */
   autoError?: string;
+  // ── M2: יישור קו מול הרשויות ────────────────────────────────────────────
+  /** איזה משלושת המוסדות — זהה לסיומת ה-step_type, נוח לקריאה ב-UI. */
+  institution?: 'btl' | 'vat' | 'income';
+  /** מה שהועתק מהמסך של הרשות — מפתחות ספציפיים לכל מוסד (ראה InstitutionAlignmentWorkspace). */
+  collected?: Record<string, unknown>;
+  /** תשובות שדה "יש משהו חריג?" — מפתח לכל שאלת חריגה במוסד. */
+  exceptions?: Record<string, unknown>;
+  /** מתי הושלמה הבדיקה בפועל — מתעדכן בכל השלמה, גם אחרי ריצה מחדש (בשונה מ-completedAt שנשאר על הראשונה). */
+  checkedAt?: string;
+  /** תמונות מצב קודמות — נוספת ב-reopen_institution_alignment לפני איפוס. */
+  history?: Array<{ checkedAt?: string; collected: Record<string, unknown>; exceptions: Record<string, unknown> }>;
+  // ── M2: שיחת פתיחה ───────────────────────────────────────────────────────
+  /** נקודות שהצטברו מיישור הקו — "יש משהו לברר עם הלקוח", לא בקשה. */
+  clarifications?: Array<{ text: string; institution: 'btl' | 'vat' | 'income'; at: string }>;
   [key: string]: unknown;
 }
 

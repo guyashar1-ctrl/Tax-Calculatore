@@ -68,6 +68,14 @@ export const GOVERNED_FACT_KEYS: ReadonlySet<string> = new Set([
   'isSubstantialShareholder', 'hasResidentialProperty', 'numberOfProperties', 'hasCapitalIncome',
   'hasGamblingIncome', 'hasForeignAssets', 'spouseWorking', 'rentalTaxTrack', 'hasInvestments',
   'hasPension', 'taxFiles', 'bankAccounts', 'investmentAccounts', 'children', 'employers', 'pensionFunds',
+  // ── M2: היו בכוונה מחוץ לרשימה ב-M1 ("טריטוריית יישור קו") — נכנסו עכשיו ──
+  'vatFrequency', 'pitAdvancePercent', 'pitAdvanceFrequency', 'bookStatus', 'withholdingRate',
+  'hasExemptFromWithholding', 'niAdvanceMonthly', 'taxOfficeName',
+  // ── M2: שדות חדשים לחלוטין ──
+  'niBalance', 'niOccupations', 'niDebitAuthorization',
+  'vatBalance', 'vatDebitAuthorization', 'vatFileType', 'vatOpeningDate', 'vatPrimaryIndustry', 'vatLastReportPeriod',
+  'incomeTaxBalance', 'incomeTaxFileType', 'incomeTaxUnit', 'incomeTaxEconomicIndustry',
+  'incomeTaxDebitAuthorization', 'withholdingDetail', 'capitalDeclarationRequired', 'capitalDeclarationDeadline',
 ]);
 
 export const GOVERNED_FIELD_LABELS: Record<string, string> = {
@@ -86,6 +94,19 @@ export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   hasResidentialProperty: 'נכס דיור', numberOfProperties: 'מספר נכסים',
   hasCapitalIncome: 'פעילות בשוק ההון', hasGamblingIncome: 'הכנסות מהגרלות',
   hasForeignAssets: 'נכסים בחו״ל',
+  vatFrequency: 'תדירות דיווח מע״מ', pitAdvancePercent: 'שיעור מקדמות מס הכנסה',
+  pitAdvanceFrequency: 'תדירות מקדמות מס הכנסה', bookStatus: 'ניהול ספרים',
+  withholdingRate: 'שיעור ניכוי במקור', hasExemptFromWithholding: 'פטור מניכוי במקור',
+  niAdvanceMonthly: 'מקדמה חודשית בביטוח לאומי', taxOfficeName: 'פקיד שומה',
+  niBalance: 'יתרה בביטוח לאומי', niOccupations: 'עיסוקים בביטוח לאומי',
+  niDebitAuthorization: 'הרשאת חיוב — ביטוח לאומי',
+  vatBalance: 'יתרה במע״מ', vatDebitAuthorization: 'הרשאת חיוב — מע״מ',
+  vatFileType: 'סוג תיק מע״מ', vatOpeningDate: 'תאריך פתיחת תיק מע״מ',
+  vatPrimaryIndustry: 'ענף עיקרי (מע״מ)', vatLastReportPeriod: 'דוח מע״מ אחרון שהוגש',
+  incomeTaxBalance: 'יתרה במס הכנסה', incomeTaxFileType: 'סוג תיק מס הכנסה',
+  incomeTaxUnit: 'חוליה', incomeTaxEconomicIndustry: 'ענף כלכלי',
+  incomeTaxDebitAuthorization: 'הרשאת חיוב — מס הכנסה', withholdingDetail: 'פירוט ניכוי במקור',
+  capitalDeclarationRequired: 'דרישת הצהרת הון פתוחה', capitalDeclarationDeadline: 'מועד להגשת הצהרת הון',
 };
 
 /** השוואה עמוקה מספיק לשדות מנוהלים — כולל מערכים/אובייקטים (ילדים, מעבידים וכו'). */

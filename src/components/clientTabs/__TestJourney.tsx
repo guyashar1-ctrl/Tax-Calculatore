@@ -131,9 +131,21 @@ const STEPS: OnboardingStep[] = [
   { id: 'st1', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'client_documents', title: 'אישורי תרומות 2025', status: 'waiting_client', ball: 'client', payload: { published: true }, sortOrder: 1 },
   { id: 'st2', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'custom_request', title: 'עדכון תמונת מס — מחזור 2026', status: 'pending', ball: 'me', payload: { published: false }, sortOrder: 2 },
   { id: 'st3', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'representation', title: 'ייפוי כוח', status: 'completed', ball: 'me', payload: {}, sortOrder: 0 },
+  // ‼ M2 — יישור קו: btl הושלם, vat/income פתוחים, opening_call נעול עד ששלושתם יושלמו.
+  { id: 'ial-btl', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'institution_alignment_btl', status: 'completed', ball: 'me', payload: { institution: 'btl', checkedAt: '2026-08-01T09:00:00Z', collected: { niBalance: 0, niAdvanceMonthly: 2150 } }, sortOrder: 3 },
+  { id: 'ial-vat', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'institution_alignment_vat', status: 'pending', ball: 'me', payload: { institution: 'vat' }, sortOrder: 4 },
+  { id: 'ial-income', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'institution_alignment_income', status: 'pending', ball: 'me', payload: { institution: 'income' }, sortOrder: 5 },
+  { id: 'ial-call', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'opening_call', status: 'locked', ball: 'me', payload: { clarifications: [] }, sortOrder: 6 },
 ] as unknown as OnboardingStep[];
 
-type Scenario = 'lead' | 'leadClosed' | 'quoted' | 'quotedExpired' | 'onboarding' | 'active' | 'activeQuiet';
+/** לתרחיש הלקוח הוותיק/הפעיל — שלושתם הושלמו, כדי לבדוק את "בצע יישור קו מחדש". */
+const STEPS_ALIGNED_DONE: OnboardingStep[] = [
+  ...STEPS,
+].map(s => (s.stepType.startsWith('institution_alignment_')
+  ? { ...s, status: 'completed', payload: { ...s.payload, checkedAt: '2026-06-01T09:00:00Z' } }
+  : s)) as unknown as OnboardingStep[];
+
+type Scenario = 'lead' | 'leadClosed' | 'quoted' | 'quotedExpired' | 'onboarding' | 'active' | 'activeQuiet' | 'existingOffice';
 
 const SCENARIOS: { key: Scenario; label: string }[] = [
   { key: 'lead', label: 'ליד' },
@@ -143,6 +155,7 @@ const SCENARIOS: { key: Scenario; label: string }[] = [
   { key: 'onboarding', label: 'קליטה' },
   { key: 'active', label: 'לקוח פעיל' },
   { key: 'activeQuiet', label: 'לקוח פעיל · שקט' },
+  { key: 'existingOffice', label: 'לקוח ותיק במשרד (M2)' },
 ];
 
 export default function TestJourney() {
@@ -168,7 +181,7 @@ export default function TestJourney() {
 
   const tasks = quiet ? [] : isLead ? [TASKS[2]] : TASKS;
   const openTasks = tasks.filter(t => t.status === 'open');
-  const steps = sc === 'onboarding' || sc === 'active' ? STEPS : [];
+  const steps = sc === 'onboarding' ? STEPS : sc === 'active' || quiet ? STEPS_ALIGNED_DONE : [];
 
   return (
     <div className="app" style={{ minHeight: '100vh' }}>
@@ -196,6 +209,7 @@ export default function TestJourney() {
           steps={steps}
           events={[]}
           advance={async () => ({ ok: true })}
+          onClientPersisted={() => {}}
           lead={sc === 'leadClosed' ? { ...LEAD, status: 'closed' } : isLead ? LEAD : undefined}
           onEditLead={() => alert('עריכת ליד (בדיקה)')}
           onNewQuotation={() => alert('בנה הצעה (בדיקה)')}
