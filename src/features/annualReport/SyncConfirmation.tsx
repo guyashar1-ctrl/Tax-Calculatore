@@ -1,18 +1,23 @@
-// ─── מסך Sync Confirmation — סוגר את לולאת השאלון ↔ הכרטיס ─────────────────
+// ─── מסך Sync Confirmation — סוגר את לולאת השאלון ↔ תיק המס ────────────────
 //
 // מופיע אחרי סיום השאלון. מציג את כל הדיפים בין מודל הסשן (התשובות
-// שניתנו השנה) לבין הפרופיל הקיים בכרטיס. המשתמש מאשר אילו שינויים
-// להעביר לפרופיל לפני שעוברים למסך הפלט.
-
+// שניתנו השנה) לבין הפרופיל הקיים בכרטיס.
+//
+// ‼ המסך הזה כבר לא כותב לכרטיס. הוא רק **מציע** שינויים לתיק המס
+// (propose_tax_facts) — הכתיבה בפועל קורית רק אחרי שהרו"ח מאשר אותם שם,
+// בנפרד, בזמן שנוח לו. השאלון הוא מקור מידע, לא הסמכות על הפרופיל
+// (הכרעת מוצר, ראה docs/prototypes/README.md).
 import { useState, useMemo } from 'react';
 import type { Client } from '../../types';
+import type { ProposedFact } from '../../types/taxFacts';
 import type { AnnualReportSession } from './types';
 import { clientDisplayName, spouseDisplayName } from './profile';
 
 interface Props {
   session: AnnualReportSession;
   client: Client;
-  onUpdateClient: (client: Client) => Promise<Client>;
+  /** מציע לתיק המס — לא כותב לכרטיס. מחזיר ok גם כשלא הוצע כלום. */
+  onProposeChanges: (items: ProposedFact[]) => Promise<{ ok: boolean; error?: string }>;
   onContinue: () => void;
 }
 
@@ -21,13 +26,16 @@ interface Diff {
   label: string;
   fromCard: string;
   fromQuestionnaire: string;
+  /** {} = הצעה מידעית בלבד — לא ניתן ליישם אוטומטית (למשל מספר ילדים,
+   *  שדורש הוספת רשומת ילד עם תאריך לידה אמיתי, לא ניחוש). */
   apply: (client: Client) => Partial<Client>;
 }
 
-export default function SyncConfirmation({ session, client, onUpdateClient, onContinue }: Props) {
+export default function SyncConfirmation({ session, client, onProposeChanges, onContinue }: Props) {
   const diffs = useMemo(() => computeDiffs(session, client), [session, client]);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(diffs.map((d) => d.key)));
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleApply() {
     if (selected.size === 0) {
@@ -35,21 +43,32 @@ export default function SyncConfirmation({ session, client, onUpdateClient, onCo
       return;
     }
     setSaving(true);
+    setError(null);
     try {
-      let updates: Partial<Client> = {};
-      for (const d of diffs) {
-        if (selected.has(d.key)) updates = { ...updates, ...d.apply(client) };
+      const items: ProposedFact[] = diffs
+        .filter((d) => selected.has(d.key))
+        .map((d) => {
+          const patch = d.apply(client);
+          return {
+            fieldKey: d.key,
+            label: d.label,
+            oldValue: { display: d.fromCard },
+            newValue: {
+              display: d.fromQuestionnaire,
+              ...(Object.keys(patch).length > 0 ? { patch } : {}),
+            },
+          };
+        });
+      const res = await onProposeChanges(items);
+      if (!res.ok) {
+        setError(res.error ?? 'ההצעה לתיק המס נכשלה');
+        setSaving(false);
+        return;
       }
-      // חותמת מקור לכל שדה שעודכן — מזין את תגיות "מאיפה אנחנו יודעים" בפרופיל
-      const now = new Date().toISOString();
-      const fieldMeta = { ...(client.fieldMeta ?? {}) };
-      for (const key of Object.keys(updates)) {
-        fieldMeta[key] = { ...(fieldMeta[key] ?? {}), source: 'questionnaire', syncedAt: now };
-      }
-      await onUpdateClient({ ...client, ...updates, fieldMeta, updatedAt: now });
       onContinue();
     } catch (e) {
       console.error('[sync] failed', e);
+      setError('ההצעה לתיק המס נכשלה');
       setSaving(false);
     }
   }
@@ -60,9 +79,9 @@ export default function SyncConfirmation({ session, client, onUpdateClient, onCo
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '2rem' }}>
             <div style={{ fontSize: '34px' }}>✅</div>
-            <h2 style={{ margin: '.5rem 0' }}>הפרופיל מסונכרן</h2>
+            <h2 style={{ margin: '.5rem 0' }}>התיק מעודכן</h2>
             <p style={{ color: 'var(--gray-600)' }}>
-              כל התשובות בשאלון תואמות את הנתונים בכרטיס. אין מה לעדכן.
+              כל התשובות בשאלון תואמות את תיק המס. אין מה להציע.
             </p>
             <button className="btn btn-primary btn-lg" onClick={onContinue}>המשך לפלט →</button>
           </div>
@@ -74,11 +93,14 @@ export default function SyncConfirmation({ session, client, onUpdateClient, onCo
   return (
     <div style={{ maxWidth: 800, margin: '1.5rem auto', padding: '0 1rem' }}>
       <div style={{ marginBottom: '1.25rem' }}>
-        <h2 style={{ margin: 0, fontSize: '24px' }}>סנכרון פרופיל הלקוח</h2>
+        <h2 style={{ margin: 0, fontSize: '24px' }}>עדכונים לתיק המס</h2>
         <p style={{ margin: '.4rem 0 0', color: 'var(--gray-600)', fontSize: '14px' }}>
-          זוהו {diffs.length} שינויים בין התשובות בשאלון לבין הפרופיל בכרטיס.
-          סמן אילו לעדכן בכרטיס. סימון ↔ הפרופיל מעודכן, ביטול סימון ↔ הנתון נשאר רק בשאלון השנה.
+          זוהו {diffs.length} שינויים בין התשובות בשאלון לבין תיק המס. סמן אילו להציע.
+          העדכון עצמו לא קורה כאן — הוא ממתין לאישורך בתיק המס, כדי שלא ידרוס בשקט ערך שנקבע ידנית.
         </p>
+        {error && (
+          <p style={{ margin: '.6rem 0 0', color: 'var(--red)', fontSize: '13px' }}>⚠ {error}</p>
+        )}
       </div>
 
       <div className="card">
@@ -118,7 +140,7 @@ export default function SyncConfirmation({ session, client, onUpdateClient, onCo
 
       <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'space-between', gap: '.5rem' }}>
         <button className="btn btn-ghost" onClick={onContinue} disabled={saving}>
-          ⊘ דלג (אל תעדכן את הכרטיס)
+          ⊘ דלג (אל תציע כלום לתיק המס)
         </button>
         <div style={{ display: 'flex', gap: '.5rem' }}>
           <button
@@ -136,7 +158,7 @@ export default function SyncConfirmation({ session, client, onUpdateClient, onCo
             נקה הכל
           </button>
           <button className="btn btn-primary btn-lg" onClick={handleApply} disabled={saving}>
-            {saving ? 'מעדכן...' : `עדכן ${selected.size} שינויים והמשך`}
+            {saving ? 'מציע...' : `הצע ${selected.size} שינויים לתיק המס והמשך`}
           </button>
         </div>
       </div>

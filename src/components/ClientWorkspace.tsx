@@ -24,6 +24,7 @@ import ClientDossierTab from './clientTabs/ClientDossierTab';
 import ClientCockpitTab from './clientTabs/ClientCockpitTab';
 import JourneyTab from './clientTabs/JourneyTab';
 import OnboardingTab from './clientTabs/OnboardingTab';
+import TaxFileTab from './clientTabs/TaxFileTab';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboarding';
 import { isStepOpen, stepAwaitsMe } from '../types/onboarding';
 import type { Lead } from '../types/quotations';
@@ -47,7 +48,7 @@ const IT_LABELS: Record<IncomeTaxType, string> = {
 // במרכז השליטה, אף פעם לא כלשונית (ראה הצעת הארכיטקטורה שאושרה 15.07.2026).
 // "קליטה" היא היוצא מן הכלל: היא מופיעה רק כשיש ללקוח קליטה בפועל, ונעלמת
 // כשהיא נגמרת — לשונית מתה בכל לקוח היא בדיוק מה שהכלל הזה בא למנוע.
-export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding' | 'journey';
+export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding' | 'journey' | 'taxfile';
 
 // שמות הלשוניות נושאים את המשמעות; האייקון ירד (§3.16)
 const TABS: { id: TabId; label: string }[] = [
@@ -64,6 +65,7 @@ const TABS: { id: TabId; label: string }[] = [
 // נשארים כי הם מחסני עובדות ולא תהליך. הישן חי מאחורי flags.journeyUi=false.
 const JOURNEY_TABS: { id: TabId; label: string }[] = [
   { id: 'journey',  label: 'המסע' },
+  { id: 'taxfile',  label: 'תיק מס' },
   { id: 'dossier',  label: 'התיק' },
   { id: 'docs',     label: 'מסמכים' },
   { id: 'tasks',    label: 'משימות' },
@@ -76,6 +78,9 @@ interface Props {
   onSave: (client: Client) => void;
   onCancel: () => void;
   onDelete: (id: string) => void;
+  /** כתיבה אמיתית ל-clients עם Promise שמחזיר את הרשומה שנשמרה — נדרש לזרימת
+   *  אישור/דחייה/עריכה ידנית של עובדות בתיק המס (זהה למה שמזין את הדוח השנתי). */
+  onUpdateClientAsync?: (client: Client) => Promise<Client>;
   /** העברה לארכיון והחזרה ממנו — הכתיבה היחידה של שלב הכרטיס מהמסך */
   onSetLifecycleStage?: (id: string, stage: LifecycleStage) => Promise<void>;
   onAddTaskForClient: (clientId: string) => void;
@@ -154,6 +159,7 @@ export default function ClientWorkspace({
   onSave,
   onCancel,
   onDelete,
+  onUpdateClientAsync,
   onSetLifecycleStage,
   onAddTaskForClient,
   onSelectTask,
@@ -189,7 +195,6 @@ export default function ClientWorkspace({
   // ברירת המחדל נפלה על "התיק" כאילו זה לקוח חדש. מתקנים פעם אחת כשהוא מגיע,
   // ורק אם המשתמש עוד לא בחר לשונית בעצמו.
   const tabPickedByUser = useRef(!!initialTab);
-  const correctedDefaultTab = useRef(false);
   const [docCategories, setDocCategories] = useState<Set<string>>(new Set());
   const [dirty, setDirty] = useState(false);
   const [intakeModalOpen, setIntakeModalOpen] = useState(false);
@@ -344,17 +349,28 @@ export default function ClientWorkspace({
 
   // ‼ קישורי עומק ישנים (#/client/x/overview, /onboarding, /tasks) ממשיכים
   // לעבוד — הם נוחתים על המסע, שבלע את שלושתם. בלי זה כל קישור שמור נשבר.
+  //
+  // נחיתת ברירת המחדל (מאושר, M1) חיה באותו אפקט ולא באפקט נפרד בכוונה:
+  // תחת הכפלת האפקטים של StrictMode בפיתוח, שני אפקטים עם setTab מתחרים
+  // עלולים "לנצח" זה את זה בסבב השני (ה-ref החד-פעמי כבר נצרך, האפקט השני
+  // עדיין קורא tab הישן וגובר). אפקט אחד עם תנאי אחד הוא אידמפוטנטי משני
+  // הסבבים ולא רגיש לסדר. לקוח פעיל/בארכיון כבר עבר קליטה — "המסע" נגמר
+  // בשבילו, ונוחתים ישר על "תיק מס". מי שעדיין ליד/בהצעה/בקליטה בפועל נוחת
+  // על "המסע", ששם השלב הבא שלו. קישור עומק מפורש (initialTab) לא נבחן מול
+  // שלב החיים — הוא ממשיך להתנקז ל"המסע" כמו קודם.
   useEffect(() => {
-    if (journeyUi && (tab === 'overview' || tab === 'onboarding')) setTab('journey');
-    if (!journeyUi && tab === 'journey') setTab('overview');
-  }, [journeyUi, tab]);
-
-  useEffect(() => {
-    if (correctedDefaultTab.current || tabPickedByUser.current) return;
-    if (!initialClient?.id) return;         // עוד לא נטען — מחכים
-    correctedDefaultTab.current = true;
-    setTab(journeyUi ? 'journey' : 'overview');
-  }, [initialClient?.id, journeyUi]);
+    if (!journeyUi) {
+      if (tab === 'journey') setTab('overview');
+      return;
+    }
+    if (tab !== 'overview' && tab !== 'onboarding') return;
+    if (!tabPickedByUser.current && initialClient?.id) {
+      const stage = initialClient.lifecycleStage ?? 'active';
+      setTab(stage === 'active' || stage === 'archived' ? 'taxfile' : 'journey');
+    } else {
+      setTab('journey');
+    }
+  }, [journeyUi, tab, initialClient?.id]);
 
   const fullName = `${client.firstName} ${client.lastName}`.trim() || (isNew ? 'לקוח חדש' : '(ללא שם)');
   const status = client.representationStatus ?? 'active';
@@ -591,6 +607,15 @@ export default function ClientWorkspace({
             taxSessionsLoading={taxSessionsLoading}
             onOpenYear={openYear}
             onSelectTask={onSelectTask}
+          />
+        )}
+
+        {tab === 'taxfile' && onUpdateClientAsync && (
+          <TaxFileTab
+            client={client}
+            onUpdateClientAsync={onUpdateClientAsync}
+            onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
+            onSendQuestionnaire={() => setIntakeModalOpen(true)}
           />
         )}
 

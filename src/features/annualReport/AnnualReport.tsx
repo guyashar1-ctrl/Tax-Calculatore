@@ -9,6 +9,7 @@ import Questionnaire from './Questionnaire';
 import AnnualReportOutput from './AnnualReportOutput';
 import AnswersReview from './AnswersReview';
 import SyncConfirmation from './SyncConfirmation';
+import { proposeTaxFacts } from '../../lib/taxFacts';
 import TaxConstantsDashboard from './TaxConstantsDashboard';
 import TreeMapView from './TreeMapView';
 import CoverageGate from './CoverageGate';
@@ -183,7 +184,8 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
         <SyncConfirmation
           session={currentSession}
           client={selectedClient}
-          onUpdateClient={onUpdateClient}
+          onProposeChanges={(items) =>
+            proposeTaxFacts(selectedClient.id, 'questionnaire', currentSession.id, items)}
           onContinue={() => setMode('output')}
         />
       )}

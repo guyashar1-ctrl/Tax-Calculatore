@@ -1870,6 +1870,7 @@ export default function App() {
             onSave={handleSave}
             onCancel={handleCancelForm}
             onDelete={handleDelete}
+            onUpdateClientAsync={updateClient}
             onSetLifecycleStage={async (id, stage) => { await setClientLifecycleStage(id, stage); }}
             onAddTaskForClient={(clientId) => openNewTaskModal(clientId)}
             onSelectTask={openEditTaskModal}

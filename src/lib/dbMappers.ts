@@ -13,6 +13,7 @@ import type {
 } from '../types/quotations';
 import type { Engagement, OnboardingStep, OnboardingEvent } from '../types/onboarding';
 import type { AdditionalCharge } from '../types/charges';
+import type { TaxFactChange } from '../types/taxFacts';
 
 function toSnake(s: string): string {
   // Convert camelCase / PascalCase to snake_case, treating runs of uppercase
@@ -273,4 +274,12 @@ export function eventFromDb(row: Record<string, any>): OnboardingEvent {
   const ev = rowToObject<OnboardingEvent>(row);
   if (!ev.meta) ev.meta = {};
   return ev;
+}
+
+// ─────────────────────────────── תיק מס — מעברים ───────────────────────────
+// קריאה בלבד מהדפדפן: status משתנה אך ורק דרך propose/accept/reject/manual
+// ב-supabase/90-tax-fact-reconciliation.sql — אין UPDATE ישיר על הטבלה הזו.
+
+export function taxFactChangeFromDb(row: Record<string, any>): TaxFactChange {
+  return rowToObject<TaxFactChange>(row);
 }

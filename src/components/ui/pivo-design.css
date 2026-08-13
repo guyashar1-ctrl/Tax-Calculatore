@@ -2307,3 +2307,69 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .np-form{grid-template-columns:1fr}
   .np-field-full{grid-column:auto}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   תיק מס — קריאה תחילה
+   מקור: docs/prototypes/client-case-simplified-exploration-v3-final2.html
+   (מקטע #v-tax, מאושר כ-Source of Truth). מחלקות בקידומת txf- כדי לא
+   להתנגש עם tf-* הקיימות (TaxFilesSection, עורך תיקי הרשויות בלשונית התיק).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.txf-root{display:flex;flex-direction:column;gap:0}
+.txf-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.txf-head h2{margin:0;font-size:var(--fs-17);font-weight:700;color:var(--ink-1)}
+.txf-qstat{font-size:var(--fs-12);color:var(--ink-3);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+.txf-sentence{background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:var(--r-panel);
+  padding:14px 18px;font-size:var(--fs-14);line-height:1.7;margin-bottom:10px;color:var(--ink-1)}
+
+.txf-secthead{font-size:var(--fs-12);font-weight:700;color:var(--ink-3);margin:18px 2px 6px}
+.txf-secthead:first-of-type{margin-top:0}
+.txf-sect{background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:var(--r-panel);
+  margin-bottom:4px;overflow:hidden}
+
+.txf-row{border-top:1px solid var(--hairline-1)}
+.txf-row:first-child{border-top:0}
+.txf-row-head{display:flex;align-items:baseline;gap:12px;padding:12px 16px;cursor:pointer;background:none;
+  border:0;width:100%;text-align:start;font:inherit;color:inherit}
+.txf-row-head:hover{background:var(--surface-1)}
+.txf-row-name{font-weight:600;min-width:104px;color:var(--ink-1)}
+.txf-row-sum{flex:1;color:var(--ink-3);font-size:var(--fs-13)}
+.txf-row-chev{color:var(--ink-4);font-size:11px;align-self:center;transition:transform .15s}
+.txf-row.is-open .txf-row-chev{transform:rotate(90deg)}
+.txf-row-body{border-top:1px dashed var(--hairline-1);background:var(--field-read);padding:10px 16px 14px}
+.txf-warn-inline{display:inline-flex;gap:5px;align-items:center;font-size:var(--fs-12);color:var(--warn);
+  background:var(--warn-bg);border-radius:7px;padding:2px 8px;white-space:nowrap}
+
+.txf-kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px 20px;padding-top:4px}
+.txf-kv .k{font-size:11px;color:var(--ink-4);margin-bottom:1px}
+.txf-kv .v{font-size:var(--fs-13);color:var(--ink-1)}
+
+.txf-srcline{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--ink-4);
+  margin-top:12px;padding-top:9px;border-top:1px solid var(--hairline-2)}
+.txf-srcline button{border:0;background:none;color:var(--accent);cursor:pointer;font-size:var(--fs-12);padding:0;font-family:inherit}
+.txf-srcline button:hover{color:var(--accent-hover)}
+
+.txf-empty{padding:14px 16px;color:var(--ink-3);font-size:var(--fs-13)}
+
+.txf-editor{margin:10px 0 4px;background:var(--surface-0);border:1px solid var(--soft-bd);border-radius:var(--r-input);padding:12px}
+.txf-editor h4{margin:0 0 8px;font-size:var(--fs-13);color:var(--ink-1)}
+.txf-editor input,.txf-editor select{border:1px solid var(--bd-strong);border-radius:var(--r-input);
+  padding:7px 9px;background:var(--surface-0);font-size:var(--fs-13);font-family:inherit;color:var(--ink-1)}
+.txf-note{font-size:11px;color:var(--ink-3);background:var(--surface-2);border-radius:8px;padding:8px 10px;margin-top:8px}
+.txf-editor-actions{display:flex;gap:8px;margin-top:11px}
+
+.txf-qchange{border:1px solid var(--warn-bg);background:var(--warn-bg);border-radius:var(--r-panel);margin-bottom:10px;overflow:hidden}
+.txf-qchange-head{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:var(--fs-13);
+  background:none;border:0;width:100%;text-align:start;font-family:inherit;color:var(--ink-1)}
+.txf-qchange-head b{color:var(--warn)}
+.txf-qchange-body{border-top:1px solid var(--warn-bg);padding:12px 14px;background:var(--surface-0)}
+.txf-oldnew{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.txf-oldnew>div{background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:9px;padding:9px 11px;font-size:var(--fs-12);color:var(--ink-1)}
+.txf-oldnew .k{font-size:11px;color:var(--ink-4);margin-bottom:3px}
+.txf-qchange-error{color:var(--danger);font-size:var(--fs-12);margin-top:8px}
+
+@media (max-width:700px){
+  .txf-oldnew{grid-template-columns:1fr}
+  .txf-row-name{min-width:0}
+  .txf-row-head{flex-wrap:wrap}
+}
