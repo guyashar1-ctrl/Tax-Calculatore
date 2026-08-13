@@ -11,6 +11,7 @@ import AnswersReview from './AnswersReview';
 import SyncConfirmation from './SyncConfirmation';
 import { proposeTaxFacts, recordManualFactChange } from '../../lib/taxFacts';
 import { clientFromDb } from '../../lib/dbMappers';
+import { GOVERNED_FACT_KEYS, GOVERNED_FIELD_LABELS } from '../../types/taxFacts';
 import TaxConstantsDashboard from './TaxConstantsDashboard';
 import TreeMapView from './TreeMapView';
 import CoverageGate from './CoverageGate';
@@ -25,34 +26,9 @@ type Mode = 'entry' | 'questionnaire' | 'sync_confirmation' | 'answers_review' |
 // (record_manual_fact_change) ולא ב-updateClient() גולמי — אחרת זו בדיוק
 // דריסה שקטה של עובדה מקובלת. שדות זיהוי/קשר (שם, כתובת, ת.ז.) אינם
 // עובדות מקצועיות מבחינת הארכיטקטורה המאושרת וממשיכים בנתיב הרגיל.
-// הרשימה זהה ל-allowlist בשרת: supabase/91-tax-fact-transactions.sql.
-const GOVERNED_FACT_KEYS = new Set([
-  'familyStatus', 'isNewImmigrant', 'aliyahYear', 'isReturningResident', 'disabilityPercentage',
-  'hasAcademicDegree', 'academicDegreeYear', 'completedIdf', 'idfReleaseYear',
-  'completedNationalService', 'nationalServiceYear', 'donationsAnnual', 'lifeInsuranceAnnual',
-  'hasLifeInsurance', 'isFamilyCompanyMember', 'isForeignControllingShareholder', 'isKibbutzMember',
-  'isSubstantialShareholder', 'hasResidentialProperty', 'numberOfProperties', 'hasCapitalIncome',
-  'hasGamblingIncome', 'hasForeignAssets', 'spouseWorking', 'rentalTaxTrack', 'hasInvestments',
-  'hasPension', 'taxFiles', 'bankAccounts', 'investmentAccounts', 'children', 'employers', 'pensionFunds',
-]);
-
-const GOVERNED_FIELD_LABELS: Record<string, string> = {
-  familyStatus: 'מצב משפחתי', isNewImmigrant: 'עולה חדש', aliyahYear: 'שנת עלייה',
-  isReturningResident: 'תושב חוזר', disabilityPercentage: 'אחוז נכות',
-  hasAcademicDegree: 'תואר אקדמי', academicDegreeYear: 'שנת קבלת התואר',
-  completedIdf: 'שירות צבאי', idfReleaseYear: 'שנת שחרור',
-  completedNationalService: 'שירות לאומי', nationalServiceYear: 'שנת סיום שירות לאומי',
-  donationsAnnual: 'תרומות שנתיות', lifeInsuranceAnnual: 'ביטוח חיים שנתי',
-  hasLifeInsurance: 'ביטוח חיים', isFamilyCompanyMember: 'חברה משפחתית',
-  isForeignControllingShareholder: 'שליטה בחברה זרה', isKibbutzMember: 'חבר קיבוץ',
-  isSubstantialShareholder: 'בעל מניות מהותי', spouseWorking: 'תעסוקת בן/בת הזוג',
-  children: 'רשימת ילדים', employers: 'רשימת מעבידים', pensionFunds: 'קופות פנסיה',
-  hasPension: 'פנסיה', investmentAccounts: 'חשבונות השקעה', hasInvestments: 'השקעות',
-  bankAccounts: 'חשבונות בנק', taxFiles: 'תיקי רשויות', rentalTaxTrack: 'מסלול מיסוי שכירות',
-  hasResidentialProperty: 'נכס דיור', numberOfProperties: 'מספר נכסים',
-  hasCapitalIncome: 'פעילות בשוק ההון', hasGamblingIncome: 'הכנסות מהגרלות',
-  hasForeignAssets: 'נכסים בחו״ל',
-};
+// GOVERNED_FACT_KEYS/GOVERNED_FIELD_LABELS חיים ב-types/taxFacts.ts —
+// מקור אמת יחיד, זהה ל-allowlist בשרת (supabase/91-tax-fact-transactions.sql)
+// ולנתיב המקביל ב-ClientWorkspace.handleSave (מסכי העריכה המלאה הישנים).
 
 interface Props {
   clients: Client[];

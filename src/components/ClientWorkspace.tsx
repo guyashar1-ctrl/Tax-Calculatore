@@ -29,6 +29,9 @@ import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboa
 import { isStepOpen, stepAwaitsMe } from '../types/onboarding';
 import type { Lead } from '../types/quotations';
 import type { AdvanceResult } from '../hooks/useOnboarding';
+import { GOVERNED_FACT_KEYS, GOVERNED_FIELD_LABELS, governedValuesEqual } from '../types/taxFacts';
+import { recordManualFactChange } from '../lib/taxFacts';
+import { clientFromDb } from '../lib/dbMappers';
 
 const VAT_LABELS: Record<VATStatus, string> = {
   authorizedDealer: 'עוסק מורשה',
@@ -293,6 +296,19 @@ export default function ClientWorkspace({
     setDirty(false);
   }
 
+  /**
+   * ‼ "התיק" (ClientDossierTab/PersonalContactsTab/TaxNITab/TaxFilesSection)
+   * הוא מסך עריכה מלאה ישן — שדות עם update()/patch() ישירות, בלי לעבור דרך
+   * useTaxFacts. חלק מהם הם עובדות מקצועיות שהתאמה מנהלת (GOVERNED_FACT_KEYS,
+   * אותה רשימה בדיוק כמו allowlist השרת ועורך "עדכן בכרטיס" בשאלון).
+   * כתיבה ישירה שלהן דרך updateClient() הרגילה הייתה עוקפת את ההיסטוריה,
+   * את provenance של field_meta, ואת ההגנה מפני דריסה שקטה — בדיוק מה
+   * שהתגלה כפער בביקורת. לכן: בזמן השמירה, שדות מנוהלים שהשתנו מאז
+   * הטעינה עוברים בנפרד דרך record_manual_fact_change (הרו"ח הוא הסמכות
+   * הסופית — נכנס ישר כ-accepted), ומוצאים מתוך השמירה הרגילה כדי שלא
+   * ייכתבו פעמיים. לקוח חדש (עדיין לא קיים ב-DB) מדלג על זה לגמרי —
+   * אין עדיין עובדה מקובלת להגן עליה, וה-RPC ממילא ידרוש שורת clients קיימת.
+   */
   function handleSave() {
     const now = new Date().toISOString();
     const id = client.id || crypto.randomUUID();
@@ -302,7 +318,45 @@ export default function ClientWorkspace({
       createdAt: client.createdAt || now,
       updatedAt: now,
     };
-    onSave(c);
+
+    const initialClientRec = initialClient as unknown as Record<string, unknown> | null;
+    const cRec = c as unknown as Record<string, unknown>;
+    const changedGoverned = (!isNew && initialClientRec)
+      ? Array.from(GOVERNED_FACT_KEYS).filter((k) => !governedValuesEqual(initialClientRec[k], cRec[k]))
+      : [];
+
+    if (changedGoverned.length > 0) {
+      const patch: Record<string, unknown> = {};
+      changedGoverned.forEach((k) => { patch[k] = cRec[k]; });
+      const labels = changedGoverned.map((k) => GOVERNED_FIELD_LABELS[k] ?? k);
+      void recordManualFactChange(
+        id, 'dossier-edit', `עדכון בתיק · ${labels.join(', ')}`,
+        'לפני העדכון', 'עודכן בתיק', patch,
+      ).then((res) => {
+        if (!res.ok) { console.error('[dossier] כתיבת עובדה מנוהלת נכשלה:', res.error); return; }
+        // ה-field_meta האמיתי (provenance) נכתב רק בתוך ה-RPC — לא בעותק
+        // המקומי שכבר היה בזיכרון. מציבים אותו בחזרה כשהתשובה חוזרת, כדי
+        // שהמסך יראה "מקור: ידני" בלי לדרוש רענון מלא.
+        if (res.client) setClient((prev) => ({ ...prev, fieldMeta: clientFromDb(res.client!).fieldMeta }));
+      });
+    }
+
+    // שדות מנוהלים שכבר נכתבו אטומית למעלה מוצאים מהאובייקט שהולך ל-onSave
+    // הרגילה (undefined = objectToRow מדלגת על העמודה) — לא כותבים אותם פעמיים.
+    //
+    // ‼ field_meta מוצא תמיד, בלי תנאי — לא רק כשיש שינוי מנוהל. אף שדה
+    // בתיק לא כותב אליו ישירות (הוא provenance שנקרא, לא נערך), ולכן העותק
+    // המקומי הוא תמיד רק מה שנטען פעם אחת ועלול כבר להתיישן. אם לא מוציאים
+    // אותו כאן, השמירה הרגילה — שרצה *בלי המתנה* מקבילית לקריאת ה-RPC
+    // האטומית למעלה — עלולה לדרוס את ה-field_meta העדכני שה-RPC כתב הרגע
+    // בעותק הישן שהיה בזיכרון לפני הלחיצה על "שמור". זה בדיוק מה שקרה
+    // בבדיקה בדפדפן: הערך התעדכן נכון, אבל source='manual' נמחק ברגע אחריו.
+    const plainClient: Client = { ...c };
+    const plainClientRec = plainClient as unknown as Record<string, unknown>;
+    changedGoverned.forEach((k) => { plainClientRec[k] = undefined; });
+    plainClientRec.fieldMeta = undefined;
+
+    onSave(plainClient);
     setClient(c);
     setDirty(false);
   }

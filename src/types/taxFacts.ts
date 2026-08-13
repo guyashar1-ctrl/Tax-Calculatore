@@ -52,3 +52,45 @@ export interface ProposedFact {
   newValue: TaxFactValue;
   note?: string;
 }
+
+// ─── allowlist השדות המקצועיים המנוהלים ─────────────────────────────────────
+// ‼ מקור אמת יחיד — זהה בדיוק ל-allowlist בשרת (_tax_fact_field_op ב-
+// supabase/91-tax-fact-transactions.sql). כל כותב client-side (השאלון,
+// עורך "עדכן בכרטיס" באמצע השאלון, עריכה ידנית בתיק המס, ומסכי העריכה
+// המלאה הישנים — ClientDossierTab/PersonalContactsTab/TaxFilesSection)
+// חייב לבדוק מול הרשימה הזו, לא להמציא רשימה משלו — סטייה בין שני מקורות
+// היא בדיוק הבאג שקרה כשהיה עותק שני ב-AnnualReport.tsx.
+export const GOVERNED_FACT_KEYS: ReadonlySet<string> = new Set([
+  'familyStatus', 'isNewImmigrant', 'aliyahYear', 'isReturningResident', 'disabilityPercentage',
+  'hasAcademicDegree', 'academicDegreeYear', 'completedIdf', 'idfReleaseYear',
+  'completedNationalService', 'nationalServiceYear', 'donationsAnnual', 'lifeInsuranceAnnual',
+  'hasLifeInsurance', 'isFamilyCompanyMember', 'isForeignControllingShareholder', 'isKibbutzMember',
+  'isSubstantialShareholder', 'hasResidentialProperty', 'numberOfProperties', 'hasCapitalIncome',
+  'hasGamblingIncome', 'hasForeignAssets', 'spouseWorking', 'rentalTaxTrack', 'hasInvestments',
+  'hasPension', 'taxFiles', 'bankAccounts', 'investmentAccounts', 'children', 'employers', 'pensionFunds',
+]);
+
+export const GOVERNED_FIELD_LABELS: Record<string, string> = {
+  familyStatus: 'מצב משפחתי', isNewImmigrant: 'עולה חדש', aliyahYear: 'שנת עלייה',
+  isReturningResident: 'תושב חוזר', disabilityPercentage: 'אחוז נכות',
+  hasAcademicDegree: 'תואר אקדמי', academicDegreeYear: 'שנת קבלת התואר',
+  completedIdf: 'שירות צבאי', idfReleaseYear: 'שנת שחרור',
+  completedNationalService: 'שירות לאומי', nationalServiceYear: 'שנת סיום שירות לאומי',
+  donationsAnnual: 'תרומות שנתיות', lifeInsuranceAnnual: 'ביטוח חיים שנתי',
+  hasLifeInsurance: 'ביטוח חיים', isFamilyCompanyMember: 'חברה משפחתית',
+  isForeignControllingShareholder: 'שליטה בחברה זרה', isKibbutzMember: 'חבר קיבוץ',
+  isSubstantialShareholder: 'בעל מניות מהותי', spouseWorking: 'תעסוקת בן/בת הזוג',
+  children: 'רשימת ילדים', employers: 'רשימת מעבידים', pensionFunds: 'קופות פנסיה',
+  hasPension: 'פנסיה', investmentAccounts: 'חשבונות השקעה', hasInvestments: 'השקעות',
+  bankAccounts: 'חשבונות בנק', taxFiles: 'תיקי רשויות', rentalTaxTrack: 'מסלול מיסוי שכירות',
+  hasResidentialProperty: 'נכס דיור', numberOfProperties: 'מספר נכסים',
+  hasCapitalIncome: 'פעילות בשוק ההון', hasGamblingIncome: 'הכנסות מהגרלות',
+  hasForeignAssets: 'נכסים בחו״ל',
+};
+
+/** השוואה עמוקה מספיק לשדות מנוהלים — כולל מערכים/אובייקטים (ילדים, מעבידים וכו'). */
+export function governedValuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null && b == null) return true;
+  try { return JSON.stringify(a ?? null) === JSON.stringify(b ?? null); } catch { return false; }
+}
