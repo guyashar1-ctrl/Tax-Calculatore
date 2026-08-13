@@ -1,0 +1,1574 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>תיק לקוח — V3 סופי · מחזור חיים מלא</title>
+<style>
+/* ── שפה חזותית אחת לכל התיק: רגוע, מעט מסגרות, צבע רק כשהוא אומר משהו ── */
+:root{
+ --bg:#f6f7f9;--card:#fff;--ink:#1c2433;--muted:#717a8a;--faint:#9aa2b1;--line:#e7eaef;
+ --accent:#2e5f92;--accent-soft:#eef4fa;--accent-bd:#cfdeed;
+ --green:#187a53;--green-soft:#ecf7f1;
+ --amber:#9c6a0d;--amber-soft:#fff6e2;--amber-bd:#eedcab;
+ --red:#b3453e;
+ --r:12px;--shadow:0 1px 2px rgba(16,24,40,.06)
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,Arial,"Noto Sans Hebrew",sans-serif;font-size:13.5px;line-height:1.55}
+button,input,select,textarea{font:inherit;color:inherit}
+b{font-weight:600}
+
+/* ── מסגרת ── */
+.top{height:56px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:22px;padding:0 26px;position:sticky;top:0;z-index:9}
+.logo{font-weight:700;letter-spacing:.06em}
+.nav{display:flex;gap:2px}
+.nav button{border:0;background:none;padding:6px 12px;border-radius:8px;color:var(--muted);cursor:pointer}
+.nav .on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.wrap{max-width:960px;margin:auto;padding:22px 20px 90px}
+.crumb{font-size:11.5px;color:var(--faint);margin-bottom:10px}
+.chead h1{margin:0;font-size:21px;display:flex;align-items:center;gap:10px}
+.badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--amber-soft);color:var(--amber)}
+.badge.active{background:var(--green-soft);color:var(--green)}
+.cmeta{font-size:12px;color:var(--muted);margin-top:3px}
+.tabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin:18px 0 16px}
+.tabs button{border:0;background:none;padding:0 2px 9px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px}
+.tabs button.on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--accent)}
+.tbadge{min-width:15px;height:15px;border-radius:999px;background:var(--red);color:#fff;font-size:9.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
+.hidden{display:none!important}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+
+/* ── "עכשיו אצלך" ── */
+.now{display:flex;align-items:center;gap:12px;background:var(--amber-soft);border:1px solid var(--amber-bd);border-radius:var(--r);padding:11px 14px;margin-bottom:14px}
+.now .k{font-size:11px;font-weight:700;color:var(--amber);white-space:nowrap}
+.now .t{flex:1;font-size:13px}
+
+/* ── אבני דרך ── */
+.milestones{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--muted);margin:0 2px 10px;flex-wrap:wrap}
+.milestones .m{display:flex;gap:5px;align-items:center}
+.milestones .m::before{content:"✓";color:var(--green);font-weight:700}
+
+/* ── רשימת העבודה (קליטה) ── */
+.worklist{overflow:hidden}
+.wrow{border-top:1px solid var(--line)}
+.wrow:first-child{border-top:0}
+.whead{display:flex;align-items:center;gap:11px;padding:13px 16px;cursor:pointer;background:#fff}
+.whead:hover{background:#fafbfc}
+.dot{width:8px;height:8px;border-radius:50%;background:#c9d0da;flex:none}
+.dot.me{background:#e3a53a}
+.dot.done{background:var(--green)}
+.dot.locked{background:transparent;border:1.6px solid #c9d0da}
+.wtitle{font-weight:600}
+.wphrase{color:var(--muted);font-size:12px;flex:1}
+.chev{color:var(--faint);font-size:11px;transition:transform .15s}
+.wrow.open .chev{transform:rotate(90deg)}
+.draftTag{font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-soft);border-radius:6px;padding:2px 6px}
+.wbody{display:none;padding:2px 16px 12px 16px;background:#fcfcfd;border-top:1px dashed var(--line)}
+.wrow.open .wbody{display:block}
+.sub{display:flex;align-items:center;gap:9px;padding:8px 2px;border-top:1px solid #f0f2f5;font-size:12.5px}
+.sub:first-child{border-top:0}
+.sub .st{flex:1}
+.sub .after{display:block;font-size:11px;color:var(--faint)}
+.sub .who{font-size:11px;color:var(--muted);white-space:nowrap}
+.sub .act{visibility:hidden;border:0;background:none;color:var(--accent);cursor:pointer;font-size:11.5px;padding:2px 4px}
+.sub:hover .act{visibility:visible}
+.sub.done{color:var(--muted)}
+.sub.done .st::before{content:"✓ ";color:var(--green)}
+.addline{border:0;background:none;color:var(--accent);cursor:pointer;font-size:12px;padding:9px 2px 2px;display:block}
+.editor{margin:8px 0 4px;background:#fff;border:1px solid var(--accent-bd);border-radius:10px;padding:12px}
+.editor h4{margin:0 0 8px;font-size:12.5px}
+.lbl{font-size:11px;color:var(--muted);margin:9px 0 4px}
+.inp{width:100%;border:1px solid #d4dae2;border-radius:8px;padding:8px 9px;background:#fff}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid #d4dae2;background:#fff;border-radius:999px;padding:5px 11px;font-size:12px;cursor:pointer}
+.chip.on{background:var(--accent-soft);border-color:var(--accent-bd);color:var(--accent);font-weight:600}
+.reqrow{display:grid;grid-template-columns:1.4fr 130px 96px 30px;gap:6px;margin-top:6px}
+.reqrow .inp{padding:7px 8px;font-size:12.5px}
+.xbtn{border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;color:var(--faint)}
+.edact{display:flex;gap:8px;margin-top:11px}
+.btn{border:1px solid #d1d7df;background:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.ghost{border-color:transparent;color:var(--accent)}
+.note{font-size:11.5px;color:var(--muted);background:#f6f8fa;border-radius:8px;padding:8px 10px;margin-top:8px}
+.note.warn{background:var(--amber-soft);color:var(--amber)}
+.insts{display:grid;gap:6px;margin-top:4px}
+.inst{display:flex;align-items:center;gap:10px;padding:9px 2px;border-top:1px solid #f0f2f5;font-size:12.5px}
+.inst:first-child{border-top:0}
+.inst .nm{flex:1}
+.inst .stt{font-size:11px;color:var(--faint)}
+.inst .stt.done{color:var(--green)}
+.inst button{border:1px solid var(--accent-bd);background:var(--accent-soft);color:var(--accent);border-radius:8px;padding:5px 11px;font-size:11.5px;cursor:pointer}
+.focus{max-width:760px;margin:auto}
+.fback{border:0;background:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0;margin-bottom:12px}
+.ftrail{display:flex;gap:6px;margin-bottom:12px}
+.ftrail span{font-size:11px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 10px;color:var(--muted)}
+.ftrail span.done{background:var(--green-soft);color:var(--green);border-color:#cfe8db}
+.ftrail span.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-bd);font-weight:600}
+.fcard{overflow:hidden}
+.fblock{padding:16px 20px;border-bottom:1px solid var(--line)}
+.fblock:last-child{border-bottom:0}
+.kicker{font-size:10.5px;font-weight:700;color:var(--faint);margin-bottom:7px}
+.route{display:inline-flex;gap:6px;align-items:center;background:var(--accent-soft);border-radius:8px;padding:6px 9px;font-size:11.5px;color:var(--accent)}
+.route span{background:#fff;border:1px solid var(--accent-bd);border-radius:6px;padding:3px 7px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fgrid label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.saved{background:#fafbfc}
+.srow{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid #eff1f4;font-size:12px}
+.srow:first-child{border-top:0}
+.srow span{color:var(--muted)}
+.fact-bar{display:flex;justify-content:space-between;gap:8px;padding:13px 20px;background:#fbfcfd}
+.pubbar{position:fixed;bottom:14px;right:50%;transform:translateX(50%);width:min(920px,calc(100% - 28px));background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 24px rgba(16,24,40,.12);padding:10px 14px;display:flex;gap:10px;align-items:center;z-index:8}
+.pubbar b{flex:1;font-size:12.5px}
+.pubbar .h{font-size:11px;color:var(--faint)}
+.clientbox{max-width:640px;margin:auto;padding:20px}
+.clientbox h2{margin:0 0 2px;font-size:17px}
+.csub{font-size:12px;color:var(--muted)}
+.csec{font-size:12px;font-weight:700;margin:16px 0 4px}
+.creq{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-top:7px;background:#fff}
+.creq .s{display:block;font-size:11px;color:var(--muted)}
+
+/* ── תיק מס — קריאה תחילה (מאושר, V2) ── */
+.taxhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.taxhead h2{margin:0;font-size:16px}
+.qstat{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sentence{padding:14px 18px;font-size:14px;line-height:1.7;margin-bottom:10px}
+.secthead{font-size:12px;font-weight:700;color:var(--muted);margin:16px 2px 6px}
+.sect{margin-bottom:4px;overflow:hidden}
+.trow{border-top:1px solid var(--line)}
+.trow:first-child{border-top:0}
+.thead{display:flex;align-items:baseline;gap:12px;padding:12px 16px;cursor:pointer}
+.thead:hover{background:#fafbfc}
+.tname{font-weight:600;min-width:104px}
+.tsum{flex:1;color:var(--muted);font-size:12.5px}
+.tchev{color:var(--faint);font-size:11px;align-self:center;transition:transform .15s}
+.trow.open .tchev{transform:rotate(90deg)}
+.tbody{display:none;border-top:1px dashed var(--line);background:#fcfcfd;padding:10px 16px 14px}
+.trow.open .tbody{display:block}
+.exc{display:inline-flex;gap:5px;align-items:center;font-size:11.5px;color:var(--amber);background:var(--amber-soft);border-radius:7px;padding:2px 8px;white-space:nowrap}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px 20px;padding-top:4px}
+.kv .k{font-size:10.5px;color:var(--faint);margin-bottom:1px}
+.kv .v{font-size:12.5px}
+.srcline{display:flex;justify-content:space-between;gap:10px;font-size:10.5px;color:var(--faint);margin-top:12px;padding-top:9px;border-top:1px solid #f0f2f5}
+.srcline button{border:0;background:none;color:var(--accent);cursor:pointer;font-size:11px;padding:0}
+.analysis{margin-top:12px;border:1px solid var(--accent-bd);background:var(--accent-soft);border-radius:10px;padding:11px 13px}
+.analysis .ttl{font-size:10.5px;font-weight:700;color:var(--accent);margin-bottom:7px}
+.recline{display:flex;gap:22px;flex-wrap:wrap;font-size:12.5px;align-items:baseline}
+.recline .k{display:block;font-size:10.5px;color:var(--faint)}
+.recline .diff{font-size:10.5px;color:var(--amber)}
+.calc{display:none;margin-top:10px;background:#fff;border:1px solid var(--accent-bd);border-radius:9px;padding:11px}
+.analysis.open .calc{display:block}
+.calcrow{display:flex;justify-content:space-between;gap:10px;padding:7px 2px;border-top:1px solid #f0f2f5;font-size:12.5px}
+.calcrow:first-of-type{border-top:0}
+.calcrow .tag{font-size:10px;font-weight:600;border-radius:6px;padding:1px 7px}
+.calcrow .tag.rec{background:var(--green-soft);color:var(--green)}
+.calcrow .tag.cur{background:var(--accent-soft);color:var(--accent)}
+.calcfoot{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.calcfoot select{border:1px solid #d4dae2;border-radius:8px;padding:6px 9px;background:#fff;font-size:12px}
+.qchange{border:1px solid var(--amber-bd);background:var(--amber-soft);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.qchead{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;font-size:12.5px}
+.qchead b{color:var(--amber)}
+.qcbody{display:none;border-top:1px solid var(--amber-bd);padding:12px 14px;background:#fffdf6}
+.qchange.open .qcbody{display:block}
+.oldnew{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.oldnew>div{background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:12px}
+.oldnew .k{font-size:10.5px;color:var(--faint);margin-bottom:3px}
+
+/* ── מסמכים — אותה שפה בדיוק ── */
+.dtoolbar{display:flex;gap:8px;align-items:center;padding:10px 12px;flex-wrap:wrap}
+.dsearch{flex:1;min-width:200px;border:1px solid #d4dae2;border-radius:8px;padding:8px 10px;background:#fff;font-size:12.5px}
+.dsel{border:1px solid #d4dae2;border-radius:8px;padding:8px 9px;background:#fff;font-size:12px;width:auto}
+.addWrap{position:relative}
+.menu{position:absolute;top:40px;left:0;min-width:180px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(16,24,40,.1);padding:5px;z-index:7}
+.menu button{display:block;width:100%;border:0;background:#fff;text-align:right;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:12.5px}
+.menu button:hover{background:#f6f8fa}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.dpath{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 14px;font-size:12px}
+.dpath button{border:0;background:none;color:var(--accent);cursor:pointer;padding:0;font-size:12px}
+.dpath .count{margin-inline-start:auto;color:var(--faint);font-size:11px}
+.dhead,.drow{display:grid;grid-template-columns:2fr .9fr .55fr .7fr;gap:12px;align-items:center;padding:10px 14px}
+.dhead{color:var(--faint);font-size:10.5px;border-bottom:1px solid var(--line);background:#fafbfc}
+.drow{border-top:1px solid #f0f2f5;cursor:pointer;font-size:12.5px}
+.drow:hover{background:#fafbfc}
+.drow .dn{font-weight:600}
+.drow .dd{font-size:10.5px;color:var(--faint);margin-top:2px}
+.dlabel{display:inline-block;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:999px;font-size:10.5px}
+.dmut{color:var(--muted);font-size:12px}
+.modal{position:fixed;inset:0;background:rgba(17,24,39,.28);display:grid;place-items:center;padding:18px;z-index:15}
+.box{background:#fff;width:min(480px,100%);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 15px 40px rgba(16,24,40,.14)}
+.box h3{margin:0;font-size:15px}
+.drop{border:1px dashed #c4ccd6;border-radius:9px;padding:18px;text-align:center;color:var(--faint);margin-top:12px;font-size:12px}
+.foot{display:flex;gap:7px;margin-top:14px}
+.drawer{position:fixed;left:0;top:0;height:100%;width:min(380px,100%);background:#fff;z-index:20;border-inline-end:1px solid var(--line);padding:18px;box-shadow:5px 0 20px rgba(16,24,40,.08);overflow:auto}
+.drawer h2{font-size:16px;margin:14px 0 2px}
+.dfact{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #f0f2f5;font-size:12px}
+.dfact span{color:var(--muted)}
+
+/* ── הסכם ותשלומים — אותה שפה ── */
+.ahead{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.ahead h3{margin:0;font-size:14px}
+.ahead .s{font-size:11px;color:var(--faint);margin-top:2px}
+.aline{display:flex;justify-content:space-between;gap:12px;padding:10px 16px;border-top:1px solid #f0f2f5;font-size:12.5px}
+.aline:first-of-type{border-top:0}
+.aline span{color:var(--muted)}
+.aline .freeval{color:var(--green);font-weight:600}
+.adetail{border-top:1px dashed var(--line);background:#fcfcfd;padding:11px 16px;font-size:12px;color:var(--muted)}
+.paytotal{font-size:18px;font-weight:700}
+.paytotal small{display:block;font-size:10.5px;font-weight:400;color:var(--faint)}
+.payitem{display:grid;grid-template-columns:1.7fr .6fr 1fr auto;gap:12px;align-items:center;padding:11px 16px;border-top:1px solid #f0f2f5;font-size:12.5px}
+.payitem:first-of-type{border-top:0}
+.payitem .pt{font-weight:600}
+.payitem .pm{font-size:10.5px;color:var(--faint);margin-top:2px}
+.payitem .amt{font-weight:600}
+.duechip{color:var(--amber);font-weight:600;font-size:11.5px}
+.futdate{color:var(--muted);font-size:12px}
+/* ── פעילות — ציר זמן של מה שקרה בתיק ── */
+.actbar{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:11px 14px;flex-wrap:wrap}
+.actbar .t{font-weight:600;font-size:12.5px}
+.filters{display:flex;gap:5px;flex-wrap:wrap}
+.fchip{border:1px solid #d4dae2;background:#fff;border-radius:999px;padding:5px 10px;cursor:pointer;color:var(--muted);font-size:11.5px}
+.fchip.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-bd);font-weight:600}
+.timeline{padding:4px 16px 10px}
+.day{padding:11px 0 3px;color:var(--faint);font-size:10.5px;font-weight:700}
+.event{display:grid;grid-template-columns:14px 1fr auto;gap:10px;padding:10px 0;border-top:1px solid #f0f2f5;align-items:start}
+.event:first-of-type{border-top:0}
+.edot{width:8px;height:8px;border-radius:50%;background:#c9d0da;margin-top:5px}
+.edot.blue{background:var(--accent)}.edot.green{background:var(--green)}.edot.amber{background:#e3a53a}
+.etitle{font-size:12.5px;font-weight:600}
+.emeta{font-size:11px;color:var(--muted);margin-top:2px}
+.emailmeta{font-size:11px;color:var(--muted);margin-top:4px}
+.emailmeta b{color:var(--ink);font-weight:600}
+.etime{font-size:10.5px;color:var(--faint);white-space:nowrap}
+.elink{border:0;background:none;color:var(--accent);padding:3px 0 0;cursor:pointer;font-size:11.5px}
+.mailtag{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:1px 7px;font-size:10px;margin-inline-start:5px}
+.mailbody{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:9px;background:#fafbfc;white-space:pre-wrap;line-height:1.7;font-size:12px;color:#46515c}
+
+/* ── מחזור חיים: הקמת תיק ללקוח ותיק · היסטוריה + יישור קו מחדש ── */
+.hero{padding:14px 16px;margin-bottom:10px}
+.hero h2{margin:0;font-size:15px}
+.hero p{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
+.lstage{padding:13px 16px;border-top:1px solid var(--line)}
+.lstage:first-child{border-top:0}
+.lstop{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.ltitle{font-size:12.5px;font-weight:600}
+.lmeta{font-size:11px;color:var(--muted);margin-top:3px}
+.lstatus{font-size:10px;font-weight:600;border-radius:999px;padding:3px 8px;white-space:nowrap}
+.lstatus.done{background:var(--green-soft);color:var(--green)}
+.lstatus.current{background:var(--accent-soft);color:var(--accent)}
+.lstatus.future{background:#f1f3f6;color:var(--muted)}
+.instgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.instbox{border:1px solid var(--line);border-radius:9px;padding:10px;background:#fcfcfd}
+.instbox b{font-size:11.5px}
+.instbox .m{font-size:10.5px;color:var(--faint);margin-top:3px}
+.instbox.ok{background:var(--green-soft);border-color:#cfe8db}
+.instbox.ok .m{color:var(--green)}
+.lact{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+.histlist{padding:2px 16px 12px}
+.histrow{display:flex;gap:9px;align-items:baseline;padding:7px 0;border-top:1px solid #f0f2f5;font-size:12.5px}
+.histrow:first-child{border-top:0}
+.histrow::before{content:"✓";color:var(--green);font-weight:700;font-size:11px}
+.histrow .hm{color:var(--faint);font-size:11px;margin-inline-start:auto}
+
+.placeholder{padding:20px;color:var(--muted);font-size:12.5px}
+.demo{position:fixed;bottom:14px;left:14px;z-index:20;background:#1c2433;color:#cdd5e1;border-radius:10px;padding:7px 9px;font-size:11px;display:flex;gap:6px;align-items:center;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.demo button{border:0;background:#2a3550;color:#cdd5e1;border-radius:7px;padding:4px 9px;cursor:pointer;font-size:11px}
+.demo button.on{background:#fff;color:#1c2433;font-weight:600}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:64px;background:#1c2433;color:#fff;padding:9px 14px;border-radius:9px;font-size:12.5px;z-index:30}
+@media(max-width:700px){
+ .fgrid,.oldnew,.reqrow{grid-template-columns:1fr}.wphrase{display:none}.pubbar{flex-wrap:wrap}
+ .tname{min-width:0}.thead{flex-wrap:wrap}
+ .dhead{display:none}.drow{grid-template-columns:1fr auto;grid-auto-flow:dense}.drow>div:nth-child(3),.drow>div:nth-child(4){display:none}
+ .payitem{grid-template-columns:1fr;gap:5px}
+ .dtoolbar>*{width:100%}.dsearch{min-width:0}.addWrap{width:100%}.addWrap>.btn{width:100%}.menu{left:0;right:0}
+}
+</style>
+</head>
+<body>
+
+<div class="top">
+ <div class="logo">PIVO ◎</div>
+ <div class="nav"><button class="on">לקוחות</button><button>משימות</button></div>
+</div>
+
+<main class="wrap">
+<div class="crumb">לקוחות / ישראל ישראלי</div>
+<div class="chead">
+ <h1>ישראל ישראלי <span id="cbadge" class="badge">בקליטה</span></h1>
+ <div class="cmeta" id="cmeta">עוסק מורשה · שירותי ייעוץ · עובר מרו״ח קודם</div>
+</div>
+
+<nav class="tabs" id="tabs">
+ <button data-v="process" class="on" onclick="tab('process',this)">תהליך</button>
+ <button data-v="tax" onclick="tab('tax',this)">תיק מס</button>
+ <button data-v="docs" onclick="tab('docs',this)">מסמכים</button>
+ <button data-v="pay" onclick="tab('pay',this)">הסכם ותשלומים<span id="payBadge" class="tbadge hidden"></span></button>
+ <button data-v="log" onclick="tab('log',this)">פעילות</button>
+</nav>
+
+<!-- ═══════════ תהליך (מאושר — ללא עיצוב מחדש) ═══════════ -->
+<section id="v-process">
+ <div id="officeView">
+
+ <!-- ═════ מצב ב׳ · לקוח ותיק שנכנס למערכת — אין קליטה, יש הקמת תיק ═════ -->
+ <div id="pExisting" class="hidden">
+  <div class="card hero">
+   <h2>הקמת תיק במערכת</h2>
+   <p>הלקוח כבר שלך — אין כאן הצעת מחיר, בקשת ייצוג או שיחת פתיחה. משלימים רק את מה שחסר כדי שתמונת המס במערכת תהיה נכונה.</p>
+  </div>
+  <div class="card sect">
+   <div class="lstage">
+    <div class="lstop">
+     <div><div class="ltitle">יישור קו מול הרשויות</div>
+      <div class="lmeta">בדיקה ראשונית כדי ליישר את תיק המס למה שקיים בפועל</div></div>
+     <span class="lstatus current" id="exStatus">מומלץ להשלים</span>
+    </div>
+    <div class="instgrid" id="exInsts"></div>
+    <div class="lact">
+     <button class="btn primary" id="exBtn" onclick="startAlign()">התחל יישור קו</button>
+     <button class="btn" onclick="tab('tax')">פתח תיק מס</button>
+    </div>
+   </div>
+   <div class="lstage">
+    <div class="lstop">
+     <div><div class="ltitle">השלמת מידע מקצועי</div>
+      <div class="lmeta">מה שחסר לתמונה — מהשאלון, ממסמכים קיימים או בהזנה ידנית</div></div>
+     <span class="lstatus future">לפי צורך</span>
+    </div>
+    <div class="lact">
+     <button class="btn" onclick="tab('tax');sendQuestionnaire()">שלח שאלון נתוני מס</button>
+     <button class="btn ghost" onclick="openEditor('mainAddB')">+ בקשה מהלקוח</button>
+    </div>
+    <div class="editor hidden" id="mainAddB"></div>
+   </div>
+  </div>
+  <div id="extraRowsB"></div>
+ </div>
+
+ <!-- ═════ מצב ג׳ · לקוח פעיל — היסטוריה + יישור קו מחדש ═════ -->
+ <div id="pActive" class="hidden">
+  <div class="card hero">
+   <h2>לקוח פעיל</h2>
+   <p>תיק המס הוא מסך ברירת המחדל. הקליטה נשארת כאן כראיה מקצועית, ואפשר לבצע יישור קו מחדש בלי לפתוח קליטה חדשה.</p>
+  </div>
+  <div class="card sect">
+   <div class="lstage">
+    <div class="lstop">
+     <div><div class="ltitle">הקליטה שהושלמה</div>
+      <div class="lmeta">הושלמה 03/2025 · יישור קו 3/3 · שיחת פתיחה 12.03.2025</div></div>
+     <span class="lstatus done">הושלם</span>
+    </div>
+    <div class="lact"><button class="btn" onclick="toggleHist()" id="histBtn">צפה בקליטה</button></div>
+    <div class="histlist hidden" id="histList">
+     <div class="histrow">ייצוג וחיבורים<span class="hm">02/2025</span></div>
+     <div class="histrow">הקמת הלקוח — Paperless, ריטיינר, הרשאה לחיוב<span class="hm">02/2025</span></div>
+     <div class="histrow">מעבר מרו״ח קודם — החומרים התקבלו ונבדקו<span class="hm">03/2025</span></div>
+     <div class="histrow">יישור קו מול הרשויות — 3 מתוך 3<span class="hm">03/2025</span></div>
+     <div class="histrow">שיחת פתיחה<span class="hm">12.03.2025</span></div>
+     <div class="note">שמור לקריאה בלבד. הקליטה לא נמחקת אחרי שהיא מסתיימת.</div>
+    </div>
+   </div>
+   <div class="lstage">
+    <div class="lstop">
+     <div><div class="ltitle">יישור קו מחדש</div>
+      <div class="lmeta" id="reAlignMeta">בוצע לאחרונה 03/2025 · אותה בדיקה, בלי לפתוח קליטה</div></div>
+     <span class="lstatus current">לפי צורך</span>
+    </div>
+    <div class="instgrid" id="acInsts"></div>
+    <div class="lact"><button class="btn primary" onclick="startAlign()">בצע יישור קו מחדש</button></div>
+   </div>
+  </div>
+  <div id="extraRowsC"></div>
+ </div>
+
+ <!-- ═════ מצב א׳ · לקוח חדש בקליטה — ללא שינוי ═════ -->
+ <div id="pOnboarding">
+  <div class="now" id="nowStrip">
+   <span class="k">עכשיו אצלך</span>
+   <span class="t" id="nowText">יישור קו מול הרשויות — נשארו מע״מ ומס הכנסה</span>
+   <button class="btn primary" id="nowBtn" onclick="nowAction()">המשך יישור קו</button>
+  </div>
+
+  <div class="milestones">
+   <span class="m">הצעת מחיר · אושרה 12.07</span>
+   <span class="m">בקשת ייצוג · הייצוג פעיל</span>
+   <span style="margin-inline-start:auto;display:flex;gap:10px;align-items:center">
+     <button class="btn ghost" onclick="showClientView()">מה הלקוח רואה</button>
+     <button class="btn ghost" onclick="sendResend()">שלח שוב קישור לתיק</button>
+   </span>
+  </div>
+
+  <div class="card worklist" id="worklist">
+   <div class="wrow" id="g-setup">
+    <div class="whead" onclick="toggleRow('g-setup')">
+     <span class="dot"></span><span class="wtitle">הקמת הלקוח</span>
+     <span class="wphrase">2 אצל הלקוח · ריטיינר ייפתח אחרי Paperless</span><span class="chev">◂</span>
+    </div>
+    <div class="wbody">
+     <div class="sub" data-owner="client" data-pub="1"><span class="st">חיבור Paperless</span><span class="who">אצל הלקוח</span><button class="act" onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+     <div class="sub" data-owner="client" data-pub="1"><span class="st">הרשאה לחיוב חשבון</span><span class="who">אצל הלקוח</span><button class="act" onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+     <div class="sub"><span class="st">קביעת ריטיינר<span class="after">זמין אחרי ש… חיבור Paperless יושלם</span></span><span class="who">אני</span><button class="act" onclick="openEditor('retEd')">ערוך</button></div>
+     <div class="editor hidden" id="retEd">
+      <h4>קביעת ריטיינר · תזמון</h4>
+      <div class="chips"><button class="chip" onclick="pick(this)">מיד — במקביל</button><button class="chip on" onclick="pick(this)">אחרי ש…</button></div>
+      <select class="inp" style="margin-top:7px;width:auto"><option>חיבור Paperless</option><option>הרשאה לחיוב חשבון</option></select>
+      <div class="edact"><button class="btn primary" onclick="closeEditor('retEd');toast('נשמר')">שמור</button><button class="btn" onclick="closeEditor('retEd')">ביטול</button></div>
+     </div>
+     <button class="addline" onclick="openEditor('sub-setup')">+ תת־בקשה</button>
+     <div class="editor hidden" id="sub-setup"></div>
+    </div>
+   </div>
+
+   <div class="wrow" id="g-cpa">
+    <div class="whead" onclick="toggleRow('g-cpa')">
+     <span class="dot"></span><span class="wtitle">מעבר מרו״ח קודם</span>
+     <span class="wphrase">ממתין לחומרים מהרו״ח הקודם</span><span class="chev">◂</span>
+    </div>
+    <div class="wbody">
+     <div class="sub done"><span class="st">פרטי רו״ח קודם</span><span class="who">הלקוח מילא</span></div>
+     <div class="sub done"><span class="st">בקשת חומרים — מייל אוטומטי</span><span class="who">נשלח 08.08</span><button class="act" onclick="openEditor('mailEd')">נוסח</button></div>
+     <div class="editor hidden" id="mailEd">
+      <h4>המייל לרו״ח הקודם</h4>
+      <div class="lbl">נושא</div><input class="inp" value="בקשת חומרים עבור ישראל ישראלי">
+      <div class="lbl">גוף</div><textarea class="inp" style="min-height:76px">שלום, בהמשך למעבר הטיפול בישראל ישראלי למשרדנו, אשמח לקבל את החומרים הרלוונטיים. תודה, גיא</textarea>
+      <label style="display:flex;gap:6px;font-size:11.5px;color:var(--muted);margin-top:8px"><input type="checkbox" checked> שליחה אוטומטית כשהתנאים מתקיימים</label>
+      <div class="edact"><button class="btn primary" onclick="closeEditor('mailEd');toast('הנוסח נשמר')">שמור</button><button class="btn" onclick="closeEditor('mailEd')">סגור</button></div>
+     </div>
+     <div class="sub"><span class="st">בדיקת החומרים<span class="after">זמין אחרי ש… החומרים יתקבלו</span></span><span class="who">אני</span><button class="act" onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+     <button class="addline" onclick="openEditor('sub-cpa')">+ תת־בקשה</button>
+     <div class="editor hidden" id="sub-cpa"></div>
+    </div>
+   </div>
+
+   <div class="wrow" id="g-align">
+    <div class="whead" onclick="toggleRow('g-align')">
+     <span class="dot me" id="alignDot"></span><span class="wtitle">יישור קו מול הרשויות</span>
+     <span class="wphrase" id="alignPhrase">אצלך · הושלם 1 מתוך 3</span><span class="chev">◂</span>
+    </div>
+    <div class="wbody">
+     <div class="insts">
+      <div class="inst"><span class="dot done"></span><span class="nm">ביטוח לאומי</span><span class="stt done" id="stt-btl">הושלם</span></div>
+      <div class="inst"><span class="dot" id="idot-vat"></span><span class="nm">מע״מ</span><span class="stt" id="stt-vat">לא התחיל</span><button onclick="openFocus('vat')" id="ibtn-vat">כניסה</button></div>
+      <div class="inst"><span class="dot" id="idot-income"></span><span class="nm">מס הכנסה</span><span class="stt" id="stt-income">לא התחיל</span><button onclick="openFocus('income')" id="ibtn-income">כניסה</button></div>
+     </div>
+    </div>
+   </div>
+
+   <div class="wrow" id="g-call">
+    <div class="whead" onclick="toggleRow('g-call')">
+     <span class="dot locked" id="callDot"></span><span class="wtitle">שיחת פתיחה</span>
+     <span class="wphrase" id="callPhrase">ייפתח אחרי יישור הקו</span><span class="chev">◂</span>
+    </div>
+    <div class="wbody"><div id="callNotes" class="note">הנקודות מהמוסדות יצטברו כאן.</div>
+     <div class="edact hidden" id="callAct"><button class="btn primary" onclick="toast('בהדגמה: נקבעת שיחה')">קבע שיחה עם הלקוח</button></div>
+    </div>
+   </div>
+
+   <div class="wrow" id="g-q">
+    <div class="whead" onclick="toggleRow('g-q')">
+     <span class="dot"></span><span class="wtitle">שאלון נתוני מס</span>
+     <span class="wphrase">אצל הלקוח · רץ במקביל</span><span class="chev">◂</span>
+    </div>
+    <div class="wbody">
+     <div class="sub" data-owner="client" data-pub="1"><span class="st">מילוי השאלון בדף האישי</span><span class="who">אצל הלקוח</span></div>
+    </div>
+   </div>
+
+   <div id="extraRows"></div>
+  </div>
+
+  <button class="addline" style="padding-inline-start:6px" onclick="openEditor('mainAdd')">+ בקשה עצמאית לקליטה</button>
+  <div class="editor hidden" id="mainAdd"></div>
+ </div>
+ </div>
+
+ <div id="clientView" class="hidden">
+  <div class="card clientbox">
+   <h2>הקליטה שלך</h2>
+   <div class="csub">רק מה שממתין לך. אפשר בכל סדר.</div>
+   <div class="csec">ממתין לך</div>
+   <div id="clientReqs"></div>
+   <div class="csec">בטיפול שלנו</div>
+   <div class="creq"><div><b>בדיקות מול הרשויות ומעבר מהרו״ח הקודם</b><span class="s">נעדכן אם נצטרך משהו ממך.</span></div></div>
+   <div id="clientDraftNote" class="note hidden" style="margin-top:12px">יש אצלך טיוטות שטרם פורסמו — הלקוח אינו רואה אותן.</div>
+  </div>
+  <div style="text-align:center;margin-top:12px"><button class="btn" onclick="showOffice()">→ חזרה לתצוגת המשרד</button></div>
+ </div>
+
+ <div id="focusView" class="hidden">
+  <div class="focus">
+   <button class="fback" id="fback" onclick="closeFocus()">→ חזרה לקליטת ישראל ישראלי</button>
+   <div class="ftrail" id="ftrail"></div>
+   <div class="card fcard" id="fcard"></div>
+  </div>
+ </div>
+
+ <div class="pubbar hidden" id="pubbar">
+  <b id="pubText">טיוטה אחת</b><span class="h">הלקוח לא יראה עד הפרסום</span>
+  <button class="btn" onclick="showClientView()">תצוגה מקדימה</button>
+  <button class="btn primary" onclick="publish()">פרסם לדף הלקוח</button>
+ </div>
+ <div class="pubbar hidden" id="postbar">
+  <b>דף הלקוח עודכן.</b><span class="h">פרסום אינו שולח מייל</span>
+  <button class="btn primary" onclick="hide('postbar');toast('נשלח מייל עם הקישור לתיק')">שלח מייל עם הקישור</button>
+  <button class="btn" onclick="hide('postbar')">לא עכשיו</button>
+ </div>
+</section>
+
+<!-- ═══════════ תיק מס (מאושר) — בלי בורר שנים, עם שאלון מהתיק ═══════════ -->
+<section id="v-tax" class="hidden">
+ <div class="taxhead">
+  <div><h2>תיק מס</h2><div class="csub">הרשומה המקצועית של הלקוח. עריכה — מתוך הפירוט בלבד.</div></div>
+  <div class="qstat" id="qstat">
+   <span>שאלון נתוני מס · הושלם לאחרונה 04.2026</span>
+   <button class="btn ghost" id="qbtn" onclick="sendQuestionnaire()">שלח שאלון עדכון</button>
+  </div>
+ </div>
+
+ <div class="card sentence" id="taxSentence">
+  עוסק מורשה (ייעוץ עסקי), נשוי + <span id="kidsInline">2</span>.
+  הכנסות: עסק, משכורת, שכירות למגורים ושוק ההון. מקדמות מס הכנסה 6%.
+ </div>
+
+ <div class="qchange" id="qchange">
+  <div class="qchead" onclick="this.parentElement.classList.toggle('open')">
+   <b>עדכון מהשאלון ממתין לאישורך</b><span style="color:var(--muted);font-size:12px">מספר ילדים</span>
+   <span style="margin-inline-start:auto;color:var(--faint);font-size:11px">פתח ›</span>
+  </div>
+  <div class="qcbody">
+   <div class="oldnew">
+    <div><div class="k">בתיק היום</div>2 ילדים</div>
+    <div><div class="k">מהשאלון (10.08)</div>3 ילדים — נולד בן ביוני 2026</div>
+   </div>
+   <div class="edact" style="margin-top:0">
+    <button class="btn primary" onclick="approveKids()">אשר ועדכן בתיק</button>
+    <button class="btn" onclick="rejectKids()">השאר את הערך הנוכחי</button>
+   </div>
+   <div class="note" style="margin-top:10px">ההחלטה נרשמת ביומן: מקור, ערך קודם, ערך חדש ומועד. אישור יעדכן גם את נקודות הזיכוי.</div>
+  </div>
+ </div>
+
+ <!-- א · מצב מול הרשויות -->
+ <div class="secthead">מצב מול הרשויות</div>
+ <div class="card sect">
+
+  <div class="trow" id="t-it">
+   <div class="thead" onclick="toggleT('t-it')">
+    <span class="tname">מס הכנסה</span>
+    <span class="tsum">מקדמות 6% דו-חודשי · יתרה ₪0 <span class="exc">⚠ אין אישור ניהול ספרים תקף</span></span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">סוג תיק</div><div class="v">94 · עצמאי</div></div>
+     <div><div class="k">פקיד שומה · חוליה</div><div class="v">תל אביב 3 · 07</div></div>
+     <div><div class="k">ענף כלכלי</div><div class="v">7020 · ייעוץ ניהולי</div></div>
+     <div><div class="k">שיעור מקדמות</div><div class="v">6% · דו-חודשי</div></div>
+     <div><div class="k">מצב דיווחים</div><div class="v">אין דיווחים חסרים</div></div>
+     <div><div class="k">יתרה</div><div class="v">₪0</div></div>
+     <div><div class="k">הצהרת הון</div><div class="v">אין דרישה פתוחה · אחרונה ל-31.12.2022</div></div>
+     <div><div class="k">ניכוי מס במקור</div><div class="v">פטור · עד 31.12.2026</div></div>
+     <div><div class="k">ניהול ספרים</div><div class="v" style="color:var(--amber)">אין אישור תקף — נדון בשיחת הפתיחה</div></div>
+     <div><div class="k">הרשאה לחיוב</div><div class="v">קיימת · 12-170-48047</div></div>
+    </div>
+    <div class="srcline"><span>מקור: יישור קו מול הרשויות · עודכן 10.08.26</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+
+  <div class="trow" id="t-vat">
+   <div class="thead" onclick="toggleT('t-vat')">
+    <span class="tname">מע״מ</span>
+    <span class="tsum">עוסק מורשה · דיווח דו-חודשי · דוח אחרון 06/2026</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">מספר עוסק</div><div class="v">123456789</div></div>
+     <div><div class="k">תאריך פתיחה</div><div class="v">01.03.2021</div></div>
+     <div><div class="k">ענף ראשי</div><div class="v">שירותים מקצועיים</div></div>
+     <div><div class="k">תדירות דיווח</div><div class="v">דו-חודשי</div></div>
+     <div><div class="k">דוח אחרון שהוגש</div><div class="v">06/2026</div></div>
+     <div><div class="k">יתרה</div><div class="v">₪0</div></div>
+     <div><div class="k">הרשאה לחיוב</div><div class="v">קיימת</div></div>
+    </div>
+    <div class="srcline"><span>מקור: יישור קו מול הרשויות · עודכן 10.08.26</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+
+  <div class="trow" id="t-btl">
+   <div class="thead" onclick="toggleT('t-btl')">
+    <span class="tname">ביטוח לאומי</span>
+    <span class="tsum">עצמאי + שכיר · מקדמה ₪2,150 לחודש</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">מעמד</div><div class="v">עצמאי + שכיר</div></div>
+     <div><div class="k">עיסוקים</div><div class="v">עצמאי — ייעוץ · שכיר — טכנולוגיות בע״מ</div></div>
+     <div><div class="k">בסיס למקדמות</div><div class="v">₪18,000 לחודש</div></div>
+     <div><div class="k">מקדמה חודשית</div><div class="v">₪2,150</div></div>
+     <div><div class="k">יתרה</div><div class="v">₪0</div></div>
+     <div><div class="k">הרשאה לחיוב</div><div class="v">קיימת · קוד מוטב 28900</div></div>
+     <div><div class="k">זכאות רלוונטית</div><div class="v">מענק לידה — נבדק בשיחה</div></div>
+    </div>
+    <div class="srcline"><span>מקור: יישור קו מול הרשויות · עודכן 10.08.26</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+ </div>
+
+ <!-- ב · הפעילות הכלכלית -->
+ <div class="secthead">הפעילות הכלכלית</div>
+ <div class="card sect">
+
+  <div class="trow" id="t-biz">
+   <div class="thead" onclick="toggleT('t-biz')">
+    <span class="tname">עצמאי</span>
+    <span class="tsum">ייעוץ עסקי · מקור ההכנסה העיקרי</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">שם העסק</div><div class="v">י. ישראלי ייעוץ עסקי</div></div>
+     <div><div class="k">תחום</div><div class="v">ייעוץ ניהולי לחברות</div></div>
+     <div><div class="k">שנת הקמה</div><div class="v">2021</div></div>
+     <div><div class="k">מחזור שנתי (2025)</div><div class="v">₪640,000</div></div>
+     <div><div class="k">הנהלת חשבונות</div><div class="v">חד-צדית · Paperless</div></div>
+    </div>
+    <div class="srcline"><span>מקור: שאלון 2025 + עריכות המשרד</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+
+  <div class="trow" id="t-sal">
+   <div class="thead" onclick="toggleT('t-sal')">
+    <span class="tname">שכיר</span>
+    <span class="tsum" id="salSum">טכנולוגיות בע״מ · משרה חלקית</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">מעסיק</div><div class="v">טכנולוגיות בע״מ</div></div>
+     <div><div class="k">תיק ניכויים</div><div class="v">941234567</div></div>
+     <div><div class="k">תחילת עבודה</div><div class="v">02.2023</div></div>
+     <div><div class="k">שכר חודשי ברוטו</div><div class="v" id="salGross">₪9,500</div></div>
+     <div><div class="k">תיאום מס</div><div class="v">קיים · 2026</div></div>
+    </div>
+    <!-- עריכה ידנית עובדת — מדגימה את סמכות הרו״ח -->
+    <div class="editor hidden" id="salEd">
+     <h4>עריכת שכר חודשי ברוטו</h4>
+     <input class="inp" id="salInp" value="9,500" style="width:140px">
+     <div class="note">עריכה ידנית הופכת לערך המקובל. הערך הקודם והמקור נשמרים בהיסטוריה, ומקור חדש שיחלוק עליה יופיע כשינוי ממתין — לא ידרוס.</div>
+     <div class="edact"><button class="btn primary" onclick="saveSalary()">שמור</button><button class="btn" onclick="closeEditor('salEd')">ביטול</button></div>
+    </div>
+    <div class="srcline"><span id="salSrc">מקור: תלושים + שאלון 2025</span><button onclick="openEditor('salEd')">ערוך</button></div>
+   </div>
+  </div>
+
+  <div class="trow" id="t-rent">
+   <div class="thead" onclick="toggleT('t-rent')">
+    <span class="tname">שכירות</span>
+    <span class="tsum">דירה בחיפה · ₪5,200 לחודש · מסלול רגיל</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">נכס</div><div class="v">דירת 3 חד׳ · הנשיא 12, חיפה</div></div>
+     <div><div class="k">בעלות</div><div class="v">משותפת עם בת הזוג · 50/50</div></div>
+     <div><div class="k">שכ״ד חודשי</div><div class="v">₪5,200</div></div>
+     <div><div class="k">הכנסה שנתית</div><div class="v">₪62,400</div></div>
+     <div><div class="k">שימוש</div><div class="v">מגורים · שוכר פרטי</div></div>
+    </div>
+
+    <div class="analysis" id="rentAnalysis">
+     <div class="ttl">ניתוח מקצועי · מסלול מיסוי שכירות</div>
+     <div class="recline">
+      <span><span class="k">המלצת המשרד</span>מסלול 10%</span>
+      <span><span class="k">נבחר בפועל</span><b id="rentChoice">מסלול רגיל</b> <span class="diff" id="rentDiff">· שונה מההמלצה</span></span>
+      <span style="margin-inline-start:auto"><button class="btn ghost" onclick="document.getElementById('rentAnalysis').classList.toggle('open')">פתח תחשיב</button></span>
+     </div>
+     <div class="calc">
+      <div class="calcrow"><span>פטור מלא</span><span style="color:var(--faint)">לא זמין — שכ״ד מעל תקרת הפטור החודשית</span></div>
+      <div class="calcrow"><span>מסלול 10% על המחזור</span><span><b>₪6,240</b> מס שנתי <span class="tag rec">מומלץ</span></span></div>
+      <div class="calcrow"><span>מסלול רגיל (בניכוי הוצאות)</span><span><b>₪7,850</b> מס משוער <span class="tag cur">נבחר</span></span></div>
+      <div class="calcfoot">
+       <span style="font-size:11px;color:var(--muted)">סיבת הבחירה: קיזוז הוצאות מימון גבוהות השנה (החלטת לקוח, 03.2026)</span>
+       <span style="margin-inline-start:auto;display:flex;gap:6px;align-items:center">
+        <select id="routeSel"><option>מסלול רגיל</option><option>מסלול 10%</option></select>
+        <button class="btn primary" onclick="applyRoute()">עדכן בחירה</button>
+       </span>
+      </div>
+     </div>
+    </div>
+
+    <div class="srcline"><span>עובדות: שאלון 2025 · ניתוח: המשרד, 03.2026</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+
+  <div class="trow" id="t-cap">
+   <div class="thead" onclick="toggleT('t-cap')">
+    <span class="tname">שוק ההון</span>
+    <span class="tsum">שני תיקי ני״ע · הבנקים מנכים במקור</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">תיק 1</div><div class="v">בנק לאומי · ~₪420,000</div></div>
+     <div><div class="k">תיק 2</div><div class="v">אקסלנס · ~₪150,000</div></div>
+     <div><div class="k">ניכוי במקור</div><div class="v">מנוכה על ידי הבנקים</div></div>
+     <div><div class="k">טפסי 867</div><div class="v">מתקבלים בכל מרץ</div></div>
+    </div>
+    <div class="srcline"><span>מקור: שאלון 2025</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+ </div>
+
+ <!-- ג · מידע מקצועי משני — כיסוי 1301 בלי צפיפות -->
+ <div class="secthead">מידע מקצועי</div>
+ <div class="card sect">
+
+  <div class="trow" id="t-family">
+   <div class="thead" onclick="toggleT('t-family')">
+    <span class="tname">משפחה ובן/בת זוג</span>
+    <span class="tsum" id="famSum">נשוי · בת זוג שכירה · 2 ילדים</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">מצב משפחתי</div><div class="v">נשוי · משנת 2019</div></div>
+     <div><div class="k">בת הזוג</div><div class="v">מיכל ישראלי · ת.ז. 234567891</div></div>
+     <div><div class="k">תעסוקת בת הזוג</div><div class="v">שכירה · אין תיק עצמאי</div></div>
+     <div><div class="k">הכנסת בת הזוג (שנתית)</div><div class="v">₪180,000 ברוטו</div></div>
+     <div><div class="k">בן הזוג הרשום</div><div class="v">ישראל · התיק על שמו</div></div>
+     <div><div class="k">ילדים</div><div class="v" id="famKids">2 · שנתונים 2021, 2023</div></div>
+    </div>
+    <div class="srcline"><span>מקור: שאלון 2025 · רלוונטי לדוח המשותף</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+
+  <div class="trow" id="t-credits">
+   <div class="thead" onclick="toggleT('t-credits')">
+    <span class="tname">זיכויים והטבות</span>
+    <span class="tsum" id="creditsSum">5.25 נקודות · 2 ילדים · תואר אקדמי</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv" id="creditsKv">
+     <div><div class="k">בסיס תושב</div><div class="v">2.25 נק׳</div></div>
+     <div><div class="k">ילדים</div><div class="v" id="kidsKv">2 ילדים · 2 נק׳</div></div>
+     <div><div class="k">תואר אקדמי</div><div class="v">1 נק׳ · מוצה ב-2024</div></div>
+     <div><div class="k">יישוב מזכה</div><div class="v">לא</div></div>
+     <div><div class="k">סה״כ</div><div class="v"><b id="totalPts">5.25 נק׳</b></div></div>
+    </div>
+    <div class="srcline"><span>מקור: כרטיס הלקוח · עודכן 04.2026</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+
+  <div class="trow" id="t-assets">
+   <div class="thead" onclick="toggleT('t-assets')">
+    <span class="tname">נכסים והשקעות</span>
+    <span class="tsum">דירת מגורים · דירה מושכרת · חשבונות בנק</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">דירת מגורים</div><div class="v">תל אביב · מגורי המשפחה</div></div>
+     <div><div class="k">דירה מושכרת</div><div class="v">חיפה · הפרטים בפעילות הכלכלית ↑</div></div>
+     <div><div class="k">חשבונות בנק</div><div class="v">הפועלים (עסקי) · לאומי (פרטי)</div></div>
+     <div><div class="k">נכסים בחו״ל</div><div class="v">אין</div></div>
+    </div>
+    <div class="srcline"><span>מקור: שאלון 2025</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+
+  <div class="trow" id="t-savings">
+   <div class="thead" onclick="toggleT('t-savings')">
+    <span class="tname">הפקדות וביטוחים</span>
+    <span class="tsum">פנסיה · קרן השתלמות · ביטוח חיים · תרומות</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">פנסיה</div><div class="v">מיטב · עצמאי + שכיר</div></div>
+     <div><div class="k">קרן השתלמות</div><div class="v">עצמאי · ₪1,600 לחודש</div></div>
+     <div><div class="k">ביטוח חיים</div><div class="v">₪310 לחודש · מזכה</div></div>
+     <div><div class="k">אובדן כושר עבודה</div><div class="v">קיים · דרך הפנסיה</div></div>
+     <div><div class="k">תרומות (2025)</div><div class="v">₪4,800 · מוסדות מוכרים</div></div>
+    </div>
+    <div class="srcline"><span>מקור: שאלון 2025 · אישורים במסמכים</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+
+  <div class="trow" id="t-ids">
+   <div class="thead" onclick="toggleT('t-ids')">
+    <span class="tname">אישורים ומזהים</span>
+    <span class="tsum">ניכוי במקור פטור · 3 הרשאות חיוב · ת.ז. ותיקים</span>
+    <span class="tchev">◂</span>
+   </div>
+   <div class="tbody">
+    <div class="kv">
+     <div><div class="k">ת.ז.</div><div class="v">123456782</div></div>
+     <div><div class="k">תיק מס הכנסה</div><div class="v">93/12345678</div></div>
+     <div><div class="k">עוסק מע״מ</div><div class="v">123456789</div></div>
+     <div><div class="k">ניכוי מס במקור</div><div class="v">פטור עד 31.12.2026</div></div>
+     <div><div class="k">ניהול ספרים</div><div class="v" style="color:var(--amber)">אין אישור תקף</div></div>
+     <div><div class="k">הרשאות לחיוב</div><div class="v">מ״ה ✓ · מע״מ ✓ · ב״ל ✓</div></div>
+    </div>
+    <div class="srcline"><span>מקור: יישור קו + מסמכים</span><button onclick="toast('עריכה — בהדגמה')">ערוך</button></div>
+   </div>
+  </div>
+ </div>
+</section>
+
+<!-- ═══════════ מסמכים — פנימי למשרד ═══════════ -->
+<section id="v-docs" class="hidden">
+ <div class="card dtoolbar">
+  <input id="q" class="dsearch" placeholder="חפש קובץ, תיקייה, תווית, לקוח או משימה…" oninput="renderDocs()">
+  <select id="lf" class="dsel" onchange="renderDocs()"><option value="">כל התוויות</option><option>הצהרת הון</option><option>בנק</option><option>נכסים</option><option>שכר</option><option>שכירות</option></select>
+  <select id="yf" class="dsel" onchange="renderDocs()"><option value="">כל השנים</option><option>כללי</option><option>2026</option><option>2025</option></select>
+  <div class="addWrap">
+   <button class="btn primary" onclick="toggleAdd(event)">הוסף ▾</button>
+   <div id="addMenu" class="menu hidden">
+    <button onclick="openUploadFile()">העלה קובץ</button>
+    <button onclick="openUploadFolder()">העלה תיקייה</button>
+    <button onclick="openCreateFolder()">צור תיקייה</button>
+    <hr>
+    <button onclick="openRequest()">בקש מסמך מהלקוח</button>
+   </div>
+  </div>
+ </div>
+
+ <div class="card" style="margin-top:9px"><div class="dpath"><div id="bc"></div><div class="count" id="dcount"></div></div></div>
+ <div class="card sect" style="margin-top:9px">
+  <div class="dhead"><div>שם</div><div>תווית</div><div>שנה</div><div>עודכן</div></div>
+  <div id="drows"></div>
+ </div>
+ <div class="csub" style="margin:8px 2px 0">המסמכים פנימיים למשרד. הלקוח אינו רואה אותם — מה שמבקשים ממנו עובר דרך בקשת לקוח.</div>
+</section>
+
+<!-- ═══════════ הסכם ותשלומים — הרשומה המסחרית ═══════════ -->
+<section id="v-pay" class="hidden">
+
+ <div class="card sect">
+  <div class="ahead">
+   <div><h3>התקשרות נוכחית</h3><div class="s">לפי הצעת מחיר #982 · אושרה 18.02.2025</div></div>
+   <span style="display:flex;gap:8px">
+    <button class="btn ghost" onclick="document.getElementById('agrDetail').classList.toggle('hidden')">פרטי ההצעה</button>
+    <button class="btn" onclick="openQuote()">+ הצעת מחיר</button>
+   </span>
+  </div>
+  <div class="aline"><b>ריטיינר חודשי</b><span>₪850 לחודש</span></div>
+  <div class="aline"><b>הנהלת חשבונות</b><span>כלול בריטיינר</span></div>
+  <div class="aline"><b>דוח שנתי</b><span>כלול בריטיינר + השלמה לפי שנת המס</span></div>
+  <div class="aline"><b>תחילת התקשרות</b><span>03/2025</span></div>
+  <div class="aline"><b>אופן תשלום</b><span>הוראת קבע</span></div>
+  <div class="aline"><b>פתיחת תיק</b><span class="freeval">ניתן ללא חיוב</span></div>
+  <div id="agrDetail" class="adetail hidden">
+   מתוך ההצעה המקורית: פתיחת תיק — מחיר מחירון ₪900, ניתן ללא חיוב.
+   דוח שנתי כלול בריטיינר; בהצטרפות באמצע שנה נקבעת השלמה חד-פעמית לפי שנת המס.
+  </div>
+ </div>
+
+ <!-- מרכיב הצעה חדשה — אותו מושג הצעה מהקליטה -->
+ <div class="editor hidden" id="quoteEd" style="margin-top:10px">
+  <h4>הצעת מחיר חדשה · אותו מסלול הצעה מהקליטה</h4>
+  <div class="lbl">שירות</div>
+  <select class="inp" id="qsvc" style="width:auto"><option>אישור מיוחד</option><option>הצהרת הון</option><option>עבודה מקצועית נוספת</option><option>דוח נוסף</option></select>
+  <div class="lbl">מחיר</div><input class="inp" id="qamt" value="₪650" style="width:140px">
+  <div class="lbl">מועד תשלום</div><input class="inp" id="qdue" value="עם מסירת האישור · 09/2026" style="width:280px">
+  <div class="edact">
+   <button class="btn" onclick="toast('תצוגה מקדימה של ההצעה — בהדגמה')">תצוגה מקדימה</button>
+   <button class="btn primary" onclick="sendQuote()">שלח ללקוח</button>
+   <button class="btn" onclick="closeEditor('quoteEd')">ביטול</button>
+  </div>
+ </div>
+ <div id="pendingQuote"></div>
+
+ <div class="secthead">דוח שנתי 2026</div>
+ <div class="card sect">
+  <div class="ahead" style="border-bottom:0">
+   <div><h3 style="font-weight:600;font-size:13px">תמחור הדוח</h3><div class="s">כלול בריטיינר + השלמה חד-פעמית</div></div>
+   <div class="paytotal">₪3,600<small>סה״כ נגבה עבור הדוח</small></div>
+  </div>
+  <div style="padding:0 16px 12px"><button class="btn ghost" onclick="document.getElementById('rptBreak').classList.toggle('hidden')">פירוט</button></div>
+  <div id="rptBreak" class="adetail hidden">
+   <div class="aline" style="padding-inline:0"><b>חלק מהריטיינר שיוחס לדוח</b><span>₪2,400</span></div>
+   <div class="aline" style="padding-inline:0"><b>השלמה חד-פעמית לדוח 2026</b><span>₪1,200</span></div>
+   <div class="aline" style="padding-inline:0"><b>סה״כ</b><span><b>₪3,600</b></span></div>
+  </div>
+ </div>
+
+ <div class="secthead">תשלומים עתידיים</div>
+ <div class="card sect" id="futureCard"></div>
+
+ <div class="secthead">היסטוריית תשלומים</div>
+ <div class="card sect" id="historyCard"></div>
+</section>
+
+<!-- ═══════════ פעילות — מה קרה בתיק ═══════════ -->
+<section id="v-log" class="hidden">
+ <div class="card actbar">
+  <div><div class="t">מה קרה בתיק</div><div class="csub">אירועים משמעותיים ותקשורת עם הלקוח.</div></div>
+  <div class="filters" id="actFilters">
+   <button class="fchip on" onclick="filt('all',this)">הכל</button>
+   <button class="fchip" onclick="filt('mail',this)">מיילים</button>
+   <button class="fchip" onclick="filt('tax',this)">תיק מס</button>
+   <button class="fchip" onclick="filt('docs',this)">מסמכים</button>
+   <button class="fchip" onclick="filt('commercial',this)">מסחרי</button>
+   <button class="fchip" onclick="filt('process',this)">תהליך</button>
+  </div>
+ </div>
+ <div class="card sect"><div class="timeline" id="timeline"></div></div>
+</section>
+
+</main>
+
+<!-- מודלים של מסמכים -->
+<div id="createFolderModal" class="modal hidden"><div class="box">
+ <h3>צור תיקייה</h3>
+ <div class="lbl">שם</div><input id="folderName" class="inp" value="חומרים מהלקוח">
+ <div class="lbl">שנה</div><select id="folderYear" class="inp"><option value="">בחר שנה…</option><option>כללי</option><option>2026</option><option>2025</option></select>
+ <div class="lbl">תווית</div><select id="folderLabel" class="inp"><option value="">בחר תווית…</option><option>הצהרת הון</option><option>בנק</option><option>נכסים</option><option>שכר</option><option>שכירות</option></select>
+ <div class="note" id="folderHint"></div>
+ <div class="foot"><button class="btn primary" onclick="createFolder()">צור</button><button class="btn" onclick="hide('createFolderModal')">ביטול</button></div>
+</div></div>
+
+<div id="uploadFileModal" class="modal hidden"><div class="box">
+ <h3>העלה קובץ</h3>
+ <div class="drop">גרור קובץ לכאן או בחר מהמחשב</div>
+ <div class="lbl">שנה</div><select id="fileYear" class="inp"><option value="">בחר שנה…</option><option>כללי</option><option>2026</option><option>2025</option></select>
+ <div class="lbl">תווית</div><select id="fileLabel" class="inp"><option value="">בחר תווית…</option><option>הצהרת הון</option><option>בנק</option><option>נכסים</option><option>שכר</option><option>שכירות</option></select>
+ <div class="note" id="fileInheritance"></div>
+ <div class="foot"><button class="btn primary" onclick="saveUploadFile()">שמור</button><button class="btn" onclick="hide('uploadFileModal')">ביטול</button></div>
+</div></div>
+
+<div id="uploadFolderModal" class="modal hidden"><div class="box">
+ <h3>העלה תיקייה</h3>
+ <div class="drop">בחר תיקייה מהמחשב — המבנה הפנימי שלה יישמר</div>
+ <div class="lbl">שנה</div><select id="upFolderYear" class="inp"><option value="">בחר שנה…</option><option>כללי</option><option>2026</option><option>2025</option></select>
+ <div class="lbl">תווית</div><select id="upFolderLabel" class="inp"><option value="">בחר תווית…</option><option>הצהרת הון</option><option>בנק</option><option>נכסים</option><option>שכר</option><option>שכירות</option></select>
+ <div class="note" id="upFolderHint"></div>
+ <div class="note">כל מה שבתוכה יקבל כברירת מחדל את אותה שנה ותווית. פריט מסוים אפשר לשנות אחר כך.</div>
+ <div class="foot"><button class="btn primary" onclick="saveUploadFolder()">העלה</button><button class="btn" onclick="hide('uploadFolderModal')">ביטול</button></div>
+</div></div>
+
+<div id="requestModal" class="modal hidden"><div class="box">
+ <h3>בקש מסמך מהלקוח</h3>
+ <div class="csub">קיצור דרך לבקשת לקוח רגילה — תופיע בדף הבקשות של הלקוח. הקובץ שיתקבל יישמר כאן ויקושר לבקשה.</div>
+ <div class="lbl">מה לבקש?</div><input class="inp" value="אישור יתרות בנק">
+ <div class="lbl">שנה למסמך שיתקבל</div><select class="inp"><option>כללי</option><option selected>2026</option><option>2025</option></select>
+ <div class="lbl">תווית למסמך שיתקבל</div><select class="inp"><option selected>בנק</option><option>הצהרת הון</option><option>נכסים</option><option>שכר</option><option>שכירות</option></select>
+ <div class="foot"><button class="btn primary" onclick="hide('requestModal');toast('נוצרה בקשת מסמך (טיוטה) בתהליך')">צור בקשה</button><button class="btn" onclick="hide('requestModal')">ביטול</button></div>
+</div></div>
+
+<div id="drawer" class="drawer hidden">
+ <button class="btn" onclick="hide('drawer')">סגור</button>
+ <h2 id="dt"></h2><div class="csub">מסמך פנימי למשרד</div>
+ <div style="margin-top:14px">
+  <div class="dfact"><b>תווית</b><span id="dl"></span></div>
+  <div class="dfact"><b>שנה</b><span id="dy"></span></div>
+  <div class="dfact"><b>תיקייה</b><span id="dp"></span></div>
+  <div class="dfact"><b>לקוחות מקושרים</b><span id="dc"></span></div>
+  <div class="dfact"><b>משימה מקושרת</b><span id="dm"></span></div>
+ </div>
+ <div class="note" style="margin-top:12px">קובץ אחד יכול להיות מקושר לכמה לקוחות — בלי לשכפל אותו.</div>
+</div>
+
+<div id="mailModal" class="modal hidden"><div class="box" style="width:min(600px,100%)">
+ <h3 id="mailTitle">מייל שנשלח</h3>
+ <div class="lbl">אל</div><div id="mailTo" style="font-size:12.5px"></div>
+ <div class="lbl">נושא</div><div id="mailSubject" style="font-size:12.5px"></div>
+ <div class="mailbody" id="mailBody"></div>
+ <div class="foot" style="justify-content:flex-end"><button class="btn" onclick="hide('mailModal')">סגור</button></div>
+</div></div>
+
+<div class="demo">מחזור חיים
+ <button id="dOn" class="on" onclick="setLife('onboarding')">חדש בקליטה</button>
+ <button id="dEx" onclick="setLife('existing')">ותיק שנכנס למערכת</button>
+ <button id="dAct" onclick="setLife('active')">פעיל אחרי קליטה</button></div>
+
+<script>
+/* ─── מצב כללי ────────────────────────────────────────────────────────── */
+/**
+ * ‼ מעמד הלקוח והקליטה הם שני מושגים נפרדים:
+ *   onboarding — לקוח חדש, עובר את מסלול הקליטה המלא.
+ *   existing   — לקוח ותיק של המשרד שנכנס למערכת. אין קליטה, יש "הקמת תיק".
+ *   active     — לקוח שסיים קליטה. ההיסטוריה נשמרת, ואפשר יישור קו מחדש.
+ * יישור הקו הוא **יכולת** אחת שמופעלת בשלושת ההקשרים — לא תהליך נפרד לכל אחד.
+ */
+const S={
+ life:'onboarding',
+ drafts:0,
+ alignSets:{
+  onboarding:{btl:true,vat:false,income:false},
+  existing:{btl:false,vat:false,income:false},
+  active:{btl:true,vat:true,income:true},
+ },
+ align:null,               // מצביע על הסט של מחזור החיים הנוכחי
+ btl:{status:'',base:'',adv:'',auth:'קיימת'},
+ vat:{freq:'דו-חודשי',last:'',missing:'לא'},
+ income:{rate:'',office:'',books:'תקף',auth:'קיימת'},
+ callNotes:[],
+ reAlignedAt:null,
+};
+S.align=S.alignSets.onboarding;
+const INST_NAMES={btl:'ביטוח לאומי',vat:'מע״מ',income:'מס הכנסה'};
+const $=id=>document.getElementById(id);
+function hide(id){$(id).classList.add('hidden')}
+function show(id){$(id).classList.remove('hidden')}
+function toast(t){const x=document.createElement('div');x.className='toast';x.textContent=t;document.body.appendChild(x);setTimeout(()=>x.remove(),2100)}
+
+function tab(v,btn){
+ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',btn?b===btn:b.dataset.v===v));
+ ['process','tax','docs','pay','log'].forEach(k=>$('v-'+k).classList.toggle('hidden',k!==v));
+}
+const LIFE={
+ onboarding:{badge:'בקליטה',active:false,meta:'עוסק מורשה · שירותי ייעוץ · עובר מרו״ח קודם',land:'process'},
+ existing:{badge:'לקוח ותיק',active:true,meta:'עוסק מורשה · לקוח המשרד מ-2019 · נכנס למערכת',land:'tax'},
+ active:{badge:'לקוח פעיל',active:true,meta:'עוסק מורשה · שירותי ייעוץ · לקוח פעיל מ-03/2025',land:'tax'},
+};
+function setLife(life){
+ S.life=life;S.align=S.alignSets[life];
+ $('dOn').classList.toggle('on',life==='onboarding');
+ $('dEx').classList.toggle('on',life==='existing');
+ $('dAct').classList.toggle('on',life==='active');
+ const L=LIFE[life];
+ $('cbadge').textContent=L.badge;$('cbadge').classList.toggle('active',L.active);
+ $('cmeta').textContent=L.meta;
+ // תצוגת התהליך משתנה לפי מחזור החיים; שאר הלשוניות זהות.
+ $('pOnboarding').classList.toggle('hidden',life!=='onboarding');
+ $('pExisting').classList.toggle('hidden',life!=='existing');
+ $('pActive').classList.toggle('hidden',life!=='active');
+ showOffice();renderInsts();refreshNow();tab(L.land);
+}
+/** שורות המוסדות בשני המסלולים שאינם קליטה — אותה יכולת, הקשר אחר. */
+function renderInsts(){
+ const box=S.life==='existing'?$('exInsts'):S.life==='active'?$('acInsts'):null;
+ if(!box)return;
+ box.innerHTML=['btl','vat','income'].map(k=>{
+  const done=S.align[k];
+  const m=S.life==='existing'
+    ? (done?'נבדק ונשמר לתיק':'לא בוצע במערכת')
+    : (done?'עודכן '+(S.reAlignedAt||'03/2025'):'ממתין לבדיקה');
+  return `<div class="instbox ${done?'ok':''}"><b>${INST_NAMES[k]}</b><div class="m">${m}</div></div>`;
+ }).join('');
+ if(S.life==='existing'){
+  const n=['btl','vat','income'].filter(k=>S.align[k]).length;
+  $('exStatus').textContent=n===3?'הושלם':'מומלץ להשלים';
+  $('exStatus').className='lstatus '+(n===3?'done':'current');
+  $('exBtn').textContent=n===0?'התחל יישור קו':n===3?'בצע יישור קו מחדש':'המשך יישור קו';
+ }
+}
+/** נקודת הכניסה ליכולת — נכנסים למוסד הראשון שטרם נבדק בהקשר הזה. */
+function startAlign(){
+ const next=['btl','vat','income'].find(k=>!S.align[k]);
+ if(next){openFocus(next);return}
+ // הכול נבדק — ריצה מחדש מתחילה מהמוסד הראשון, בלי לפתוח קליטה
+ S.align.btl=S.align.vat=S.align.income=false;renderInsts();openFocus('btl');
+}
+function toggleHist(){
+ const l=$('histList'),open=!l.classList.contains('hidden');
+ l.classList.toggle('hidden',open);
+ $('histBtn').textContent=open?'צפה בקליטה':'סגור';
+}
+/** תאימות לאחור לפרמטר ?active מהגרסאות הקודמות. */
+function setClient(mode){setLife(mode==='active'?'active':'onboarding')}
+
+/* ─── קליטה (מאושר, ללא שינוי) ────────────────────────────────────────── */
+function toggleRow(id){
+ const r=$(id),was=r.classList.contains('open');
+ document.querySelectorAll('.wrow.open').forEach(x=>x.classList.remove('open'));
+ if(!was)r.classList.add('open');
+}
+function openEditor(id){
+ const el=$(id);
+ if(!el.dataset.built&&(id.startsWith('mainAdd')||id.startsWith('sub-')))buildComposer(el,id.startsWith('mainAdd'));
+ el.classList.remove('hidden');
+}
+function closeEditor(id){$(id).classList.add('hidden')}
+function pick(btn){btn.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));btn.classList.add('on')}
+
+function buildComposer(el,standalone){
+ el.dataset.built='1';
+ el.innerHTML=`
+  <h4>${standalone?'בקשה עצמאית חדשה':'תת־בקשה חדשה'}</h4>
+  <div class="lbl">למי?</div>
+  <div class="chips"><button class="chip on" onclick="pick(this)">לקוח</button><button class="chip" onclick="pick(this)">אני</button><button class="chip" onclick="pick(this)">גורם חיצוני</button></div>
+  <div class="lbl">שם</div><input class="inp" placeholder="למשל: מסמכים לפתיחת התיק" value="">
+  <div class="lbl">מה לקבל מהלקוח?</div>
+  <div class="reqrow"><input class="inp" placeholder="למשל: צילום תעודת זהות"><select class="inp"><option>מסמך</option><option>מסמכים מרובים</option><option>טקסט</option><option>אימייל</option><option>טלפון</option><option>מספר</option><option>תאריך</option><option>בחירה מרשימה</option></select><select class="inp"><option>חובה</option><option>רשות</option></select><button class="xbtn">×</button></div>
+  <div class="lbl">מתי זמינה?</div>
+  <div class="chips"><button class="chip on" onclick="pick(this);this.closest('.editor').querySelector('.afterSel').classList.add('hidden')">מיד — במקביל</button><button class="chip" onclick="pick(this);this.closest('.editor').querySelector('.afterSel').classList.remove('hidden')">אחרי ש…</button></div>
+  <select class="inp afterSel hidden" style="margin-top:6px;width:auto"><option>חיבור Paperless</option><option>הרשאה לחיוב חשבון</option><option>פרטי רו״ח קודם</option></select>
+  ${standalone?'':'<div class="note">תישאר תחת הקבוצה הזו; הבחירה קובעת רק אם היא מקבילה או תלויה.</div>'}
+  <div class="edact"><button class="btn primary" onclick="composerAdd(this,${standalone})">הוסף כטיוטה</button><button class="btn" onclick="this.closest('.editor').classList.add('hidden')">ביטול</button></div>`;
+}
+function composerAdd(btn,standalone){
+ const ed=btn.closest('.editor');
+ const name=ed.querySelector('input.inp').value.trim()||'בקשה חדשה';
+ if(standalone){
+   const row=document.createElement('div');row.className='wrow';const rid='x'+Date.now();row.id=rid;
+   row.innerHTML=`<div class="whead" onclick="toggleRow('${rid}')"><span class="dot"></span><span class="wtitle">${name}</span><span class="wphrase">אצל הלקוח</span><span class="draftTag">טיוטה</span><span class="chev">◂</span></div>
+     <div class="wbody"><div class="sub" data-owner="client" data-pub="0"><span class="st">${name}</span><span class="who">אצל הלקוח</span></div></div>`;
+   $('extraRows').appendChild(row);
+ }else{
+   const body=ed.closest('.wbody');
+   const sub=document.createElement('div');sub.className='sub';sub.dataset.owner='client';sub.dataset.pub='0';
+   sub.innerHTML=`<span class="st">${name}</span><span class="who">אצל הלקוח</span><span class="draftTag">טיוטה</span>`;
+   body.insertBefore(sub,ed.previousElementSibling);
+ }
+ ed.classList.add('hidden');
+ S.drafts++;renderDrafts();toast('נוסף כטיוטה — הלקוח לא רואה עד הפרסום');
+}
+function renderDrafts(){
+ if(S.drafts>0){show('pubbar');$('pubText').textContent=S.drafts===1?'טיוטה אחת':S.drafts+' טיוטות';}
+ else hide('pubbar');
+}
+function publish(){
+ document.querySelectorAll('.draftTag').forEach(t=>t.remove());
+ document.querySelectorAll('[data-pub="0"]').forEach(e=>e.dataset.pub='1');
+ S.drafts=0;renderDrafts();hide('pubbar');show('postbar');
+}
+function showClientView(){
+ hide('officeView');hide('focusView');show('clientView');
+ const box=$('clientReqs');box.innerHTML='';
+ document.querySelectorAll('.sub[data-owner="client"]').forEach(s=>{
+   if(s.classList.contains('done'))return;
+   if(s.dataset.pub!=='1')return;
+   const nm=s.querySelector('.st').childNodes[0].textContent.trim();
+   const d=document.createElement('div');d.className='creq';
+   d.innerHTML=`<div><b>${nm}</b><span class="s">ממתין לביצוע</span></div><button class="btn">פתח</button>`;
+   box.appendChild(d);
+ });
+ $('clientDraftNote').classList.toggle('hidden',S.drafts===0);
+}
+function showOffice(){hide('clientView');hide('focusView');show('officeView')}
+
+function refreshNow(){
+ if(S.life!=='onboarding')return;   // "עכשיו אצלך" שייך לקליטה בלבד
+ const left=['vat','income'].filter(k=>!S.align[k]);
+ if(left.length){
+   $('nowText').textContent='יישור קו מול הרשויות — נשאר'+(left.length===2?'ו מע״מ ומס הכנסה':' '+(left[0]==='vat'?'מע״מ':'מס הכנסה'));
+   $('nowBtn').textContent='המשך יישור קו';
+ }else{
+   $('nowText').textContent='יישור הקו הושלם — שיחת פתיחה עם הלקוח';
+   $('nowBtn').textContent='פתח את שיחת הפתיחה';
+ }
+ const done=Object.values(S.align).filter(Boolean).length;
+ $('alignPhrase').textContent=done===3?'הושלם':'אצלך · הושלם '+done+' מתוך 3';
+ $('alignDot').className='dot '+(done===3?'done':'me');
+ if(done===3){
+   $('callDot').className='dot me';$('callPhrase').textContent='מוכן — הנקודות מהמוסדות מחכות';
+   show('callAct');
+   $('callNotes').innerHTML=S.callNotes.length
+     ? S.callNotes.map(n=>`<div class="note warn" style="margin-top:6px">${n}</div>`).join('')
+     : '<div class="note">אין נקודות חריגות — שיחה קצרה.</div>';
+ }
+}
+function nowAction(){
+ const left=['vat','income'].filter(k=>!S.align[k]);
+ if(left.length){toggleRowOpen('g-align');openFocus(left[0]);}
+ else{toggleRowOpen('g-call');}
+}
+function toggleRowOpen(id){document.querySelectorAll('.wrow.open').forEach(x=>x.classList.remove('open'));$(id).classList.add('open')}
+
+const INST={
+ /* ‼ ביטוח לאומי נוסף כאן: עד עכשיו הוא היה "כבר הושלם" בכל התרחישים,
+    ובלקוח ותיק מתחילים ממנו — ובלי הגדרה מסך המיקוד היה נשבר. */
+ btl:{name:'ביטוח לאומי',route:['פרטים כלליים','ריכוז מידע','עיסוק'],
+  copy:[{k:'status',label:'מעמד ועיסוקים',ph:'עצמאי / שכיר / שניהם'},
+        {k:'base',label:'בסיס למקדמות (לחודש)',ph:'18,000'},
+        {k:'adv',label:'מקדמה חודשית',ph:'2,150'}],
+  exc:[{k:'auth',label:'הרשאה לחיוב',opts:['קיימת','אין הרשאה'],yes:'אין הרשאה',
+        onYes:{request:'הקמת הרשאה לחיוב בביטוח לאומי — קוד מוטב 28900',dest:'בקשת לקוח'}}]},
+ vat:{name:'מע״מ',route:['פרטי עוסק','מאפייני דיווח'],
+  copy:[{k:'freq',label:'תדירות דיווח',type:'select',opts:['דו-חודשי','חודשי','אחר']},{k:'last',label:'דוח אחרון שהוגש',ph:'06/2026'}],
+  exc:[{k:'missing',label:'נראה שחסר דיווח?',opts:['לא','כן','לא ברור'],onYes:{note:'נראה שחסר דיווח מע״מ — לברר בשיחת הפתיחה.',dest:'שיחת הפתיחה'}}]},
+ income:{name:'מס הכנסה',route:['גביית מס הכנסה','134 מקדמות','מידע לתיק'],
+  copy:[{k:'rate',label:'שיעור מקדמות',ph:'6%'},{k:'office',label:'פקיד שומה',ph:'תל אביב 3'}],
+  exc:[
+   {k:'books',label:'אישור ניהול ספרים',opts:['תקף','אין אישור תקף','דורש בירור'],yes:'אין אישור תקף',onYes:{note:'אין אישור ניהול ספרים תקף.',dest:'שיחת הפתיחה'}},
+   {k:'auth',label:'הרשאה לחיוב חשבון',opts:['קיימת','לא קיימת'],yes:'לא קיימת',onYes:{request:'הקמת הרשאה לחיוב במס הכנסה',dest:'בקשת לקוח'}}]},
+};
+let focusInst=null;
+function openFocus(k){focusInst=k;hide('officeView');hide('clientView');show('focusView');renderFocus();window.scrollTo({top:0,behavior:'smooth'})}
+function closeFocus(){hide('focusView');show('officeView');focusInst=null;refreshNow();renderInsts()}
+/** מה כתוב על כפתור הסיום — לפי מה שבאמת נשאר לבדוק בהקשר הזה. */
+function nextLabel(){
+ const rest=['btl','vat','income'].filter(k=>k!==focusInst&&!S.align[k]);
+ if(!rest.length)return 'שמור וסיים את יישור הקו';
+ return 'שמור והמשך ל'+INST_NAMES[rest[0]];
+}
+function renderFocus(){
+ const c=INST[focusInst],st=S[focusInst];
+ $('ftrail').innerHTML=['btl','vat','income'].map(k=>{
+   const nm=k==='btl'?'ביטוח לאומי':k==='vat'?'מע״מ':'מס הכנסה';
+   const cls=S.align[k]?'done':(k===focusInst?'on':'');
+   return `<span class="${cls}">${S.align[k]?'✓ ':''}${nm}</span>`;
+ }).join('');
+ const copyFields=c.copy.map(f=>{
+   const v=st[f.k]||'';
+   if(f.type==='select')return `<div><label>${f.label}</label><select class="inp" onchange="S.${focusInst}.${f.k}=this.value;paintSaved()">${f.opts.map(o=>`<option ${o===v?'selected':''}>${o}</option>`).join('')}</select></div>`;
+   return `<div><label>${f.label}</label><input class="inp" value="${v}" placeholder="${f.ph||''}" oninput="S.${focusInst}.${f.k}=this.value;paintSaved()"></div>`;
+ }).join('');
+ const excFields=c.exc.map(e=>{
+   const v=st[e.k]||e.opts[0];
+   return `<div><label>${e.label}</label><select class="inp" onchange="S.${focusInst}.${e.k}=this.value;paintExc()">${e.opts.map(o=>`<option ${o===v?'selected':''}>${o}</option>`).join('')}</select></div>`;
+ }).join('');
+ $('fcard').innerHTML=`
+  <div class="fblock"><div class="kicker">לאן להיכנס</div>
+   <div class="route">${c.route.map((p,i)=>(i?'<span style="border:0;background:none;padding:0">←</span>':'')+'<span>'+p+'</span>').join('')}</div></div>
+  <div class="fblock"><div class="kicker">מה להעתיק</div><div class="fgrid">${copyFields}</div>
+   <div class="note" style="margin-top:9px">זה כל מה שצריך מהמסך הזה.</div></div>
+  <div class="fblock"><div class="kicker">יש משהו חריג?</div><div class="fgrid">${excFields}</div><div id="excNotes"></div></div>
+  <div class="fblock saved"><div class="kicker">מה נשמר לתיק המס</div><div id="savedRows"></div></div>
+  <div class="fact-bar"><button class="btn" onclick="closeFocus()">חזרה</button>
+   <button class="btn primary" onclick="finishInst()">${nextLabel()}</button></div>`;
+ $('fback').textContent=S.life==='onboarding'?'→ חזרה לקליטת ישראל ישראלי'
+   :S.life==='existing'?'→ חזרה להקמת התיק':'→ חזרה לתהליך';
+ paintSaved();paintExc();
+}
+function paintSaved(){
+ const c=INST[focusInst],st=S[focusInst];
+ $('savedRows').innerHTML=c.copy.map(f=>`<div class="srow"><b>${f.label}</b><span>${st[f.k]||'—'}</span></div>`).join('');
+}
+function paintExc(){
+ const c=INST[focusInst],st=S[focusInst];
+ $('excNotes').innerHTML=c.exc.map(e=>{
+   const bad=(st[e.k]||e.opts[0])===(e.yes||'כן');
+   if(!bad)return '';
+   return `<div class="note warn" style="margin-top:8px">${e.onYes.request?'תיווצר בקשת לקוח (כטיוטה): '+e.onYes.request:'יירשם ל'+e.onYes.dest+'. לא נוצרת בקשה ללקוח.'}</div>`;
+ }).join('');
+}
+function finishInst(){
+ const c=INST[focusInst],st=S[focusInst];
+ // שלושת פלטי היציאה — זהים בכל מחזור החיים.
+ c.exc.forEach(e=>{
+   const bad=(st[e.k]||e.opts[0])===(e.yes||'כן');
+   if(!bad)return;
+   if(e.onYes.note&&!S.callNotes.includes(e.onYes.note))S.callNotes.push(e.onYes.note);
+   if(e.onYes.request)addAlignmentRequest(e.onYes.request);
+ });
+ S.align[focusInst]=true;
+ if(S.life==='onboarding'){
+   $('stt-'+focusInst).textContent='הושלם';$('stt-'+focusInst).classList.add('done');
+   $('idot-'+focusInst).classList.add('done');$('ibtn-'+focusInst)?.remove();
+ }else{
+   if(S.life==='active'){S.reAlignedAt='היום';$('reAlignMeta').textContent='בוצע לאחרונה היום · אותה בדיקה, בלי לפתוח קליטה';}
+   renderInsts();
+ }
+ addLog('יישור קו מול '+c.name+' הושלם','tax','הנתונים נשמרו לתיק המס'+(S.life==='active'?' · יישור קו מחדש':''));
+ const next=['btl','vat','income'].find(k=>!S.align[k]);
+ toast(c.name+' — נשמר לתיק המס');
+ if(next&&S.life!=='onboarding'){focusInst=next;renderFocus();window.scrollTo({top:0,behavior:'smooth'});return}
+ if(S.life==='onboarding'&&focusInst==='vat'&&!S.align.income){focusInst='income';renderFocus();window.scrollTo({top:0,behavior:'smooth'});return}
+ closeFocus();
+}
+/** בקשת לקוח מיישור קו — אותו מודל טיוטה/פרסום בכל מחזור החיים. */
+function addAlignmentRequest(name){
+ const host=S.life==='onboarding'?$('extraRows'):S.life==='existing'?$('extraRowsB'):$('extraRowsC');
+ const rid='x'+Date.now();
+ const row=document.createElement('div');
+ row.className=S.life==='onboarding'?'wrow':'card sect wrow';
+ if(S.life!=='onboarding')row.style.marginTop='10px';
+ row.id=rid;
+ row.innerHTML=`<div class="whead" onclick="toggleRow('${rid}')"><span class="dot"></span><span class="wtitle">${name}</span><span class="wphrase">אצל הלקוח · נוצר מיישור הקו</span><span class="draftTag">טיוטה</span><span class="chev">◂</span></div>
+   <div class="wbody"><div class="sub" data-owner="client" data-pub="0"><span class="st">${name}</span><span class="who">אצל הלקוח</span></div></div>`;
+ host.appendChild(row);
+ S.drafts++;renderDrafts();
+}
+
+/* ─── תיק מס ─────────────────────────────────────────────────────────── */
+function toggleT(id){$(id).classList.toggle('open')}
+
+function approveKids(){
+ $('qchange').remove();
+ $('kidsInline').textContent='3';
+ $('kidsKv').textContent='3 ילדים · 3.5 נק׳';
+ $('creditsSum').textContent='6.75 נקודות · 3 ילדים · תואר אקדמי';
+ $('totalPts').textContent='6.75 נק׳';
+ $('famSum').textContent='נשוי · בת זוג שכירה · 3 ילדים';
+ $('famKids').textContent='3 · שנתונים 2021, 2023, 2026';
+ addLog('עודכן נתון בתיק המס','tax','ילדים: 2 → 3 · אושר מתוך שאלון נתוני מס');
+ toast('התיק עודכן: 3 ילדים — נרשם ביומן');
+}
+function rejectKids(){$('qchange').remove();addLog('נדחה עדכון מהשאלון','tax','מספר ילדים נשאר 2 · ההחלטה נשמרה');toast('נשאר 2 ילדים — ההחלטה נרשמה ביומן')}
+
+function applyRoute(){
+ const v=$('routeSel').value;
+ $('rentChoice').textContent=v;
+ $('rentDiff').style.display=v==='מסלול 10%'?'none':'';
+ document.querySelector('#t-rent .tsum').textContent='דירה בחיפה · ₪5,200 לחודש · '+v;
+ document.querySelectorAll('#rentAnalysis .calcrow .tag.cur').forEach(t=>t.remove());
+ const rows=[...document.querySelectorAll('#rentAnalysis .calcrow')];
+ const target=v==='מסלול 10%'?rows[1]:rows[2];
+ target.querySelector('span:last-child').insertAdjacentHTML('beforeend',' <span class="tag cur">נבחר</span>');
+ addLog('עודכנה בחירת מסלול מיסוי השכירות','tax','נבחר '+v+' · המלצת המשרד נשארה 10%');
+ toast('הבחירה עודכנה — נרשם ביומן');
+}
+
+/* סמכות הרו״ח: עריכה ידנית הופכת לערך המקובל, המקור נרשם */
+function saveSalary(){
+ const v=$('salInp').value.replace(/[^\d,]/g,'')||'9,500';
+ $('salGross').textContent='₪'+v;
+ $('salSrc').textContent='מקור: עריכה ידנית של המשרד · היום · הערך הקודם נשמר בהיסטוריה';
+ closeEditor('salEd');
+ addLog('עובדה מקצועית עודכנה ידנית','tax','שכר חודשי ברוטו ← ₪'+v+' · הערך הקודם נשמר');
+ toast('עודכן ידנית — מקור חדש שיחלוק יופיע כשינוי ממתין');
+}
+
+/* שאלון מתוך תיק המס — אותו מנגנון בקשות */
+function sendQuestionnaire(){
+ $('qstat').innerHTML='<span>שאלון עדכון · נשלח היום · ממתין ללקוח</span>';
+ const row=document.createElement('div');row.className='wrow';const rid='xq'+Date.now();row.id=rid;
+ row.innerHTML=`<div class="whead" onclick="toggleRow('${rid}')"><span class="dot"></span><span class="wtitle">שאלון עדכון נתוני מס</span><span class="wphrase">אצל הלקוח · נשלח מתיק המס</span><span class="chev">◂</span></div>
+   <div class="wbody"><div class="sub" data-owner="client" data-pub="1"><span class="st">שאלון עדכון נתוני מס</span><span class="who">אצל הלקוח</span></div></div>`;
+ $('extraRows').appendChild(row);
+ addLog('נשלח מייל ללקוח','mail','שאלון עדכון נתוני מס','taxq');
+ toast('נשלח — הבקשה בדף המרכזי של הלקוח');
+}
+
+/* ─── מסמכים ─────────────────────────────────────────────────────────── */
+const DOCS={
+ "":[
+  {t:"folder",n:"הצהרת הון 2026",l:"הצהרת הון",y:"2026",u:"12.08.2026"},
+  {t:"folder",n:"דירה בחיפה",l:"שכירות",y:"כללי",u:"09.08.2026"},
+  {t:"file",n:"טופס 106 — 2025.pdf",l:"שכר",y:"2025",u:"12.08.2026",clients:"ישראל ישראלי",task:"בקשת 106"}
+ ],
+ "הצהרת הון 2026":[
+  {t:"folder",n:"חומרים מהלקוח",l:"הצהרת הון",y:"2026",u:"12.08.2026"},
+  {t:"folder",n:"עבודה שלנו",l:"הצהרת הון",y:"2026",u:"11.08.2026"},
+  {t:"file",n:"טיוטת הצהרת הון.pdf",l:"הצהרת הון",y:"2026",u:"11.08.2026",clients:"ישראל ישראלי",task:"הצהרת הון"}
+ ],
+ "הצהרת הון 2026/חומרים מהלקוח":[
+  {t:"folder",n:"בנקים",l:"בנק",y:"2026",u:"12.08.2026"},
+  {t:"folder",n:"נכסים",l:"נכסים",y:"2026",u:"12.08.2026"},
+  {t:"file",n:"ריכוז מסמכים.pdf",l:"הצהרת הון",y:"2026",u:"12.08.2026",clients:"ישראל ישראלי",task:"בקשת חומרים"}
+ ],
+ "הצהרת הון 2026/חומרים מהלקוח/בנקים":[
+  {t:"file",n:"אישור יתרות — הפועלים.pdf",l:"בנק",y:"2026",u:"12.08.2026",clients:"ישראל ישראלי",task:"בקשת חומרים"},
+  {t:"file",n:"אישור יתרות — לאומי.pdf",l:"בנק",y:"2026",u:"12.08.2026",clients:"ישראל ישראלי",task:"בקשת חומרים"}
+ ],
+ "הצהרת הון 2026/חומרים מהלקוח/נכסים":[
+  {t:"file",n:"נסח טאבו — חיפה.pdf",l:"נכסים",y:"2026",u:"12.08.2026",clients:"ישראל ישראלי · מיכל ישראלי",task:"—"}
+ ],
+ "הצהרת הון 2026/עבודה שלנו":[
+  {t:"file",n:"גיליון עבודה — הון.xlsx",l:"הצהרת הון",y:"2026",u:"11.08.2026",clients:"ישראל ישראלי",task:"—"}
+ ],
+ "דירה בחיפה":[
+  {t:"file",n:"חוזה שכירות.pdf",l:"שכירות",y:"כללי",u:"09.08.2026",clients:"ישראל ישראלי · מיכל ישראלי",task:"—"}
+ ]
+};
+let dpath="";
+function renderDocs(){
+ const qv=$('q').value.trim().toLowerCase(),lv=$('lf').value,yv=$('yf').value;
+ // חיפוש הוא גלובלי — מוצא בכל התיקיות, לא רק בנוכחית; בלי חיפוש — התיקייה הנוכחית.
+ let arr;
+ if(qv){
+   arr=[];
+   for(const p in DOCS)for(const x of DOCS[p])
+     if((x.n+" "+x.l+" "+x.y+" "+(x.clients||'')+" "+(x.task||'')).toLowerCase().includes(qv))
+       arr.push({...x,_p:p});
+ }else{
+   arr=(DOCS[dpath]||[]).map(x=>({...x,_p:dpath}));
+ }
+ arr=arr.filter(x=>(!lv||x.l===lv)&&(!yv||x.y===yv));
+ $('bc').innerHTML=qv
+  ? `<button onclick="clearSearch()">כל המסמכים</button> <span style="color:var(--faint)">·</span> <span style="color:var(--muted);font-size:12px">תוצאות חיפוש בכל התיקיות</span>`
+  : `<button onclick="droot()">כל המסמכים</button>`+(dpath?dpath.split("/").map((p,i)=>` <span style="color:var(--faint)">/</span> <button onclick="dgo(${i})">${p}</button>`).join(""):"");
+ $('dcount').textContent=arr.length+' פריטים';
+ $('drows').innerHTML=arr.map(x=>`<div class="drow" onclick='${x.t==="folder"?`dopen(${JSON.stringify(x._p)},${JSON.stringify(x.n)})`:`docOpenAt(${JSON.stringify(x)})`}'>
+   <div><div class="dn">${x.t==="folder"?"📁 ":""}${x.n}</div><div class="dd">${qv?(x._p||'כל המסמכים'):(x.t==="folder"?"תיקייה":"קובץ")}</div></div>
+   <div><span class="dlabel">${x.l}</span></div><div class="dmut">${x.y}</div><div class="dmut">${x.u}</div></div>`).join("")
+  ||'<div class="placeholder">אין פריטים שמתאימים לסינון.</div>';
+}
+function clearSearch(){$('q').value='';droot()}
+function dopen(p,n){$('q').value='';dpath=p?p+"/"+n:n;renderDocs()}
+function docOpenAt(x){dpath=x._p||dpath;docOpen(x)}
+function denter(n){dpath=dpath?dpath+"/"+n:n;renderDocs()}
+function droot(){dpath="";renderDocs()}
+function dgo(i){dpath=dpath.split("/").slice(0,i+1).join("/");renderDocs()}
+/**
+ * ‼ בשורש אין תיקיית אב ולכן אין ממה לרשת — מחזירים null, והטופס דורש
+ * בחירה מפורשת של שנה ותווית. ברירת מחדל שרירותית ("הצהרת הון") הייתה
+ * מתייגת מסמכים לא נכון בשקט, וזו בדיוק התקלה שהתגלתה ב-V3.
+ */
+function parentMeta(){
+ if(!dpath)return null;
+ const parts=dpath.split("/"),parent=parts.slice(0,-1).join("/"),name=parts.at(-1);
+ return (DOCS[parent]||[]).find(x=>x.t==="folder"&&x.n===name)||null;
+}
+/** מציב ירושה כשיש אב, או מאלץ בחירה מפורשת בשורש. */
+function applyMeta(yEl,lEl,hintEl){
+ const m=parentMeta();
+ if(m){
+   yEl.value=m.y;lEl.value=m.l;
+   if(hintEl){hintEl.className='note';hintEl.textContent='נבחר אוטומטית לפי התיקייה «'+dpath.split('/').at(-1)+'»: '+m.y+' · '+m.l+'. אפשר לשנות.';}
+ }else{
+   yEl.value='';lEl.value='';
+   if(hintEl){hintEl.className='note warn';hintEl.textContent='שורש המסמכים — אין תיקייה שממנה לרשת. בחר שנה ותווית.';}
+ }
+}
+/** אימות לפני שמירה: שנה ותווית חובה על כל פריט. */
+function metaOk(yEl,lEl){
+ if(!yEl.value||!lEl.value){toast('צריך לבחור שנה ותווית');return false}
+ return true;
+}
+function toggleAdd(e){e.stopPropagation();$('addMenu').classList.toggle('hidden')}
+function openCreateFolder(){hide('addMenu');applyMeta($('folderYear'),$('folderLabel'),$('folderHint'));show('createFolderModal')}
+function createFolder(){
+ const n=$('folderName').value.trim();if(!n){toast('צריך שם לתיקייה');return}
+ if(!metaOk($('folderYear'),$('folderLabel')))return;
+ (DOCS[dpath]||(DOCS[dpath]=[])).unshift({t:"folder",n,l:$('folderLabel').value,y:$('folderYear').value,u:"היום"});
+ DOCS[dpath?dpath+"/"+n:n]=[];
+ hide('createFolderModal');renderDocs();toast('התיקייה נוצרה');
+}
+function openUploadFile(){hide('addMenu');applyMeta($('fileYear'),$('fileLabel'),$('fileInheritance'));show('uploadFileModal')}
+function saveUploadFile(){
+ if(!metaOk($('fileYear'),$('fileLabel')))return;
+ (DOCS[dpath]||(DOCS[dpath]=[])).push({t:"file",n:"מסמך חדש.pdf",l:$('fileLabel').value,y:$('fileYear').value,u:"היום",clients:"ישראל ישראלי",task:"—"});
+ hide('uploadFileModal');renderDocs();
+ addLog('נוסף מסמך למסמכי הלקוח','docs','מסמך חדש.pdf · '+$('fileLabel').value+' · '+$('fileYear').value);
+ toast('הקובץ נשמר');
+}
+function openUploadFolder(){hide('addMenu');applyMeta($('upFolderYear'),$('upFolderLabel'),$('upFolderHint'));show('uploadFolderModal')}
+function saveUploadFolder(){
+ if(!metaOk($('upFolderYear'),$('upFolderLabel')))return;
+ hide('uploadFolderModal');toast('התיקייה הועלתה — המבנה נשמר, השנה והתווית הוחלו על התוכן');
+}
+function openRequest(){hide('addMenu');show('requestModal')}
+function docOpen(x){$('dt').textContent=x.n;$('dl').textContent=x.l;$('dy').textContent=x.y;$('dp').textContent=dpath||'כל המסמכים';$('dc').textContent=x.clients||'—';$('dm').textContent=x.task||'—';show('drawer')}
+document.addEventListener('click',()=>$('addMenu').classList.add('hidden'));
+
+/* ─── הסכם ותשלומים ──────────────────────────────────────────────────── */
+const PAY={
+ future:[
+  {id:'p1',title:'השלמה לדוח שנתי 2026',src:'לפי הצעת מחיר #1042',amt:'₪1,200',due:'01.08.2026',dueReached:true},
+  {id:'p2',title:'הצהרת הון',src:'תשלום עם תחילת העבודה',amt:'₪2,500',due:'ינואר 2027',dueReached:false},
+ ],
+ history:[
+  {title:'ריטיינר 07/2026',amt:'₪850',when:'01.07.2026',src:'הוראת קבע'},
+  {title:'ריטיינר 06/2026',amt:'₪850',when:'01.06.2026',src:'הוראת קבע'},
+ ],
+};
+function renderPay(){
+ $('futureCard').innerHTML=PAY.future.length?PAY.future.map(p=>`
+  <div class="payitem">
+   <div><div class="pt">${p.title}</div><div class="pm">${p.src}</div></div>
+   <div class="amt">${p.amt}</div>
+   <div>${p.dueReached?'<div class="duechip">מועד התשלום הגיע</div><div class="pm">'+p.due+'</div>':'<div class="futdate">'+p.due+'</div>'}</div>
+   <button class="btn" onclick="markPaid('${p.id}')">סמן כשולם</button>
+  </div>`).join(''):'<div class="placeholder">אין תשלומים עתידיים.</div>';
+ $('historyCard').innerHTML=PAY.history.map(h=>`
+  <div class="payitem" style="grid-template-columns:1.7fr .6fr 1fr">
+   <div><div class="pt">${h.title}</div><div class="pm">${h.src}</div></div>
+   <div class="amt">${h.amt}</div><div class="futdate">${h.when}</div>
+  </div>`).join('');
+ const due=PAY.future.filter(p=>p.dueReached).length;
+ $('payBadge').classList.toggle('hidden',due===0);
+ $('payBadge').textContent=due;
+}
+function markPaid(id){
+ const i=PAY.future.findIndex(p=>p.id===id);if(i<0)return;
+ const p=PAY.future.splice(i,1)[0];
+ PAY.history.unshift({title:p.title,amt:p.amt,when:'היום',src:p.src+' · סומן שולם'});
+ renderPay();addLog('תשלום סומן כשולם','commercial',p.title+' · '+p.amt+' · הועבר מתשלומים עתידיים להיסטוריה');
+ toast('עבר להיסטוריית התשלומים — לא נוצרה משימה');
+}
+function openQuote(){show('quoteEd')}
+function sendQuote(){
+ closeEditor('quoteEd');
+ $('pendingQuote').innerHTML=`<div class="card sect" style="margin-top:10px"><div class="payitem" style="grid-template-columns:1.7fr .6fr 1fr auto">
+   <div><div class="pt">הצעה #1058 · ${$('qsvc').value}</div><div class="pm">נשלחה ללקוח · ממתינה לאישור</div></div>
+   <div class="amt">${$('qamt').value}</div><div class="futdate">${$('qdue').value}</div>
+   <button class="btn" onclick="approveQuote()">הלקוח אישר (הדגמה)</button></div></div>`;
+ addLog('נשלחה הצעת מחיר','mail',$('qsvc').value+' · '+$('qamt').value,'quote');
+ toast('ההצעה נשלחה — אותו מסלול הצעה מהקליטה');
+}
+function approveQuote(){
+ const svc=$('qsvc').value,amt=$('qamt').value,due=$('qdue').value;
+ $('pendingQuote').innerHTML='';
+ PAY.future.push({id:'p'+Date.now(),title:svc,src:'לפי הצעת מחיר #1058',amt:amt,due:due,dueReached:false});
+ renderPay();
+ addLog('הצעת מחיר #1058 אושרה','commercial',svc+' · '+amt+' · נוסף תשלום עתידי');
+ toast('ההצעה אושרה — נרשמה ברשומה המסחרית. לא נוצרה משימה תפעולית');
+}
+
+/* ─── פעילות — אירועים משמעותיים, לא יומן טכני ─────────────────────────
+   ‼ כל אירוע שייך לקטגוריה אחת (mail / tax / docs / commercial / process).
+   פעולות מהלשוניות האחרות נכנסות לכאן חיות, עם הקטגוריה שלהן. */
+const MAILS={
+ taxq:{title:'שאלון נתוני מס',to:'israel@example.com',subject:'השלמת שאלון נתוני מס לשנת 2026',
+  body:'שלום ישראל,\n\nמצורף הקישור לשאלון נתוני המס שלך. נשמח שתעדכן את הפרטים הרלוונטיים כדי שנוכל להשלים את תמונת המצב בתיק.\n\nתודה,\nמשרד גיא ישר'},
+ reminder:{title:'תזכורת לבקשת מסמכים',to:'israel@example.com',subject:'תזכורת — חסרים לנו מסמכים להצהרת ההון',
+  body:'שלום ישראל,\n\nתזכורת קצרה: עדיין חסרים לנו מספר מסמכים להשלמת ההכנה להצהרת ההון.\n\nאפשר להעלות את כולם דרך דף הבקשות המרכזי שלך.\n\nתודה,\nמשרד גיא ישר'},
+ quote:{title:'הצעת מחיר — ליווי בהצהרת הון',to:'israel@example.com',subject:'הצעת מחיר — ליווי בהצהרת הון',
+  body:'שלום ישראל,\n\nשלחנו לך הצעת מחיר לליווי מלא בהכנת והגשת הצהרת הון.\n\nאפשר לעבור על ההצעה ולאשר אותה בקישור המצורף.\n\nתודה,\nמשרד גיא ישר'},
+ resend:{title:'הקישור לתיק הלקוח',to:'israel@example.com',subject:'הקישור שלך לתיק הלקוח',
+  body:'שלום ישראל,\n\nמצרפים שוב את הקישור המרכזי לתיק הלקוח שלך, שבו אפשר לראות את כל הבקשות הפתוחות ולהשלים את מה שחסר.\n\nתודה,\nמשרד גיא ישר'},
+};
+const EVENTS=[
+ {day:'היום',time:'14:32',cat:'mail',dot:'blue',title:'נשלח מייל ללקוח',meta:'שאלון נתוני מס',mail:'taxq'},
+ {day:'היום',time:'14:12',cat:'commercial',dot:'green',title:'נגבה ריטיינר 07/2026',meta:'₪850 · הוראת קבע',link:'פתח הסכם ותשלומים',go:'pay'},
+ {day:'היום',time:'11:03',cat:'docs',dot:'blue',title:'התקבל אישור יתרות מבנק הפועלים',meta:'התקבל דרך בקשת חומרים · נשמר במסמכים · תווית: בנק · 2026',link:'פתח מסמך',go:'docs'},
+ {day:'היום',time:'09:40',cat:'tax',dot:'amber',title:'עודכן נתון בתיק המס',meta:'ילדים: 2 → 3 · אושר מתוך שאלון נתוני מס',link:'פתח תיק מס',go:'tax'},
+ {day:'12 באוגוסט 2026',time:'17:05',cat:'mail',dot:'blue',title:'נשלחה תזכורת לבקשת מסמכים',meta:'בקשת חומרים להצהרת הון',mail:'reminder'},
+ {day:'12 באוגוסט 2026',time:'13:05',cat:'commercial',dot:'blue',title:'הצעת מחיר לליווי בהצהרת הון אושרה',meta:'₪2,500 · תשלום עם תחילת העבודה',link:'פתח הצעה',go:'pay'},
+ {day:'12 באוגוסט 2026',time:'12:41',cat:'mail',dot:'blue',title:'נשלחה הצעת מחיר',meta:'ליווי בהצהרת הון',mail:'quote'},
+ {day:'12 באוגוסט 2026',time:'11:20',cat:'process',dot:'green',title:'בקשת חומרים הושלמה',meta:'כל המסמכים הנדרשים התקבלו מהלקוח',link:'פתח בקשה',go:'process'},
+ {day:'10 באוגוסט 2026',time:'12:48',cat:'mail',dot:'blue',title:'נשלח מחדש קישור לתיק הלקוח',meta:'אותו קישור מרכזי לדף הלקוח',mail:'resend'},
+ {day:'10 באוגוסט 2026',time:'10:11',cat:'tax',dot:'green',title:'יישור קו מול מע״מ הושלם',meta:'נתוני התיק נשמרו לתיק המס · דיווח אחרון 06/2026',link:'פתח פרטי מע״מ',go:'tax'},
+];
+let actFilter='all';
+/** אירוע חדש מפעולה בלשונית אחרת — נכנס לראש "היום" עם הקטגוריה שלו. */
+function addLog(title,cat,meta,mail){
+ const now=new Date();
+ const t=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+ EVENTS.unshift({day:'היום',time:t,cat:cat||'process',dot:cat==='commercial'?'green':cat==='tax'?'amber':'blue',
+   title,meta:meta||'',mail:mail||null});
+ renderLog();
+}
+function renderLog(){
+ const shown=EVENTS.filter(e=>actFilter==='all'||e.cat===actFilter);
+ let html='',lastDay=null;
+ for(const e of shown){
+   if(e.day!==lastDay){html+=`<div class="day">${e.day}</div>`;lastDay=e.day}
+   const m=e.mail?MAILS[e.mail]:null;
+   html+=`<div class="event">
+    <span class="edot ${e.dot}"></span>
+    <div>
+     <div class="etitle">${e.title}${m?'<span class="mailtag">מייל</span>':''}</div>
+     ${e.meta?`<div class="emeta">${e.meta}</div>`:''}
+     ${m?`<div class="emailmeta"><b>אל:</b> ${m.to} · <b>נושא:</b> ${m.subject}</div>
+         <button class="elink" onclick="openMail('${e.mail}')">צפה במייל שנשלח</button>`:''}
+     ${e.link?`<button class="elink" onclick="${e.go?`tab('${e.go}')`:`toast('${e.link}')`}">${e.link}</button>`:''}
+    </div>
+    <div class="etime">${e.time}</div>
+   </div>`;
+ }
+ $('timeline').innerHTML=html||'<div class="placeholder">אין אירועים בסינון הזה.</div>';
+}
+function filt(cat,el){
+ actFilter=cat;
+ document.querySelectorAll('#actFilters .fchip').forEach(x=>x.classList.remove('on'));
+ el.classList.add('on');
+ renderLog();
+}
+/** שליחה חוזרת של הקישור המרכזי — אירוע תקשורת אמיתי, לא toast בלבד. */
+function sendResend(){
+ addLog('נשלח מחדש קישור לתיק הלקוח','mail','אותו קישור מרכזי לדף הלקוח','resend');
+ toast('נשלח שוב מייל עם הקישור הקבוע לתיק');
+}
+function openMail(id){
+ const m=MAILS[id];
+ $('mailTitle').textContent=m.title;$('mailTo').textContent=m.to;
+ $('mailSubject').textContent=m.subject;$('mailBody').textContent=m.body;
+ show('mailModal');
+}
+
+renderDocs();renderPay();renderLog();renderInsts();refreshNow();
+// ?life=existing|active · ?active (תאימות) · &tab=… — קיצורי הדגמה בלבד
+const qp=new URLSearchParams(location.search);
+const life=qp.get('life');
+if(life&&LIFE[life])setLife(life);
+else if(qp.has('active'))setLife('active');
+const wanted=qp.get('tab');
+if(wanted&&['process','tax','docs','pay','log'].includes(wanted))tab(wanted);
+</script>
+</body>
+</html>

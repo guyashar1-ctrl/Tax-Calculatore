@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>משימות — V3 סופי</title>
+<style>
+/* ── אותה שפה חזותית בדיוק כמו תיק הלקוח ─────────────────────────────── */
+:root{
+ --bg:#f6f7f9;--card:#fff;--ink:#1c2433;--muted:#717a8a;--faint:#9aa2b1;--line:#e7eaef;
+ --accent:#2e5f92;--accent-soft:#eef4fa;--accent-bd:#cfdeed;
+ --green:#187a53;--green-soft:#ecf7f1;
+ --amber:#9c6a0d;--amber-soft:#fff6e2;--amber-bd:#eedcab;
+ --red:#b3453e;--red-soft:#fdf0ef;
+ --r:12px;--shadow:0 1px 2px rgba(16,24,40,.06)
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,Arial,"Noto Sans Hebrew",sans-serif;font-size:13.5px;line-height:1.55}
+button,input,select,textarea{font:inherit;color:inherit}
+b{font-weight:600}
+.hidden{display:none!important}
+
+.top{height:56px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:22px;padding:0 26px;position:sticky;top:0;z-index:9}
+.logo{font-weight:700;letter-spacing:.06em}
+.nav{display:flex;gap:2px}
+.nav button{border:0;background:none;padding:6px 12px;border-radius:8px;color:var(--muted);cursor:pointer}
+.nav .on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.wrap{max-width:880px;margin:auto;padding:22px 20px 90px}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.head h1{margin:0;font-size:21px}
+.csub{font-size:12px;color:var(--muted);margin-top:3px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.btn{border:1px solid #d1d7df;background:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.ghost{border-color:transparent;color:var(--accent)}
+.btn.finish{background:var(--green);border-color:var(--green);color:#fff}
+
+.views{display:flex;gap:18px;border-bottom:1px solid var(--line);margin:18px 0 12px}
+.view{border:0;background:none;padding:0 2px 9px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:6px}
+.view.on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--accent)}
+.vcount{font-size:10.5px;color:var(--faint)}
+.view.on .vcount{color:var(--accent)}
+.tools{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.search{flex:1;min-width:200px;border:1px solid #d4dae2;border-radius:8px;padding:8px 10px;background:#fff;font-size:12.5px}
+.sel{border:1px solid #d4dae2;border-radius:8px;padding:8px 9px;background:#fff;font-size:12px}
+
+/* ── שורת משימה: כמו שורות התיק — שם + משפט אחד ── */
+.list{overflow:hidden}
+.row{display:grid;grid-template-columns:20px 1fr auto;gap:10px;align-items:start;padding:12px 14px;border-top:1px solid var(--line);cursor:pointer;background:#fff}
+.row:first-child{border-top:0}
+.row:hover{background:#fafbfc}
+.row.drag{opacity:.4}
+.row.over{background:var(--accent-soft)}
+.grip{color:#c3cad3;cursor:grab;font-size:13px;line-height:1.3;user-select:none}
+.rtitle{font-weight:600;font-size:12.5px}
+.rmeta{font-size:11px;color:var(--muted);margin-top:3px}
+.rnext{font-size:11px;color:var(--faint);margin-top:3px}
+.clip{color:var(--accent)}
+.pill{display:inline-block;font-size:10px;font-weight:600;border-radius:999px;padding:1px 7px;margin-inline-start:6px}
+.pill.late{background:var(--red-soft);color:var(--red)}
+.pill.today{background:var(--amber-soft);color:var(--amber)}
+.pill.wait{background:#f1f3f6;color:var(--muted)}
+.pill.done{background:var(--green-soft);color:var(--green)}
+.tail{display:flex;align-items:center;gap:6px;align-self:center}
+.chev{color:var(--faint);font-size:11px}
+.movers{display:none;gap:2px;flex-direction:column}
+.movers button{border:1px solid var(--line);background:#fff;border-radius:6px;width:26px;height:22px;line-height:1;cursor:pointer;color:var(--muted);font-size:11px;padding:0}
+.hint{font-size:11.5px;color:var(--faint);margin:10px 2px 0}
+.empty{padding:30px;text-align:center;color:var(--muted);font-size:12.5px}
+
+/* ── מגירת פרטים ── */
+.shade{position:fixed;inset:0;background:rgba(17,24,39,.26);z-index:20}
+.drawer{position:fixed;top:0;left:0;height:100%;width:min(400px,100%);background:#fff;z-index:21;padding:18px;overflow:auto;box-shadow:5px 0 20px rgba(16,24,40,.1)}
+.dhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dtitle{font-size:17px;font-weight:600;margin:15px 0 3px}
+.dsub{font-size:12px;color:var(--muted)}
+.sechead{font-size:11px;color:var(--faint);font-weight:700;margin:18px 0 6px}
+.fact{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #f0f2f5;font-size:12px}
+.fact span{color:var(--muted)}
+.link{border:1px solid var(--line);background:#fbfcfd;border-radius:9px;padding:10px 11px;margin-top:7px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.link b{font-size:12px}
+.link .ls{display:block;font-size:10.5px;color:var(--faint);margin-top:2px}
+.dfoot{display:flex;gap:8px;margin-top:20px}
+.dfoot .btn{flex:1}
+
+/* ── מודלים ── */
+.modal{position:fixed;inset:0;background:rgba(17,24,39,.28);display:grid;place-items:center;padding:18px;z-index:30}
+.box{background:#fff;width:min(470px,100%);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 15px 40px rgba(16,24,40,.14)}
+.box h3{margin:0;font-size:15px}
+.lbl{font-size:11px;color:var(--muted);margin:10px 0 4px}
+.inp{width:100%;border:1px solid #d4dae2;border-radius:8px;padding:8px 9px;background:#fff}
+.mfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.choice{display:grid;gap:8px;margin-top:12px}
+.choice button{text-align:start;border:1px solid var(--line);background:#fff;border-radius:10px;padding:12px;cursor:pointer}
+.choice button:hover{background:#fafbfc}
+.choice b{display:block;font-size:12.5px}
+.choice span{font-size:11px;color:var(--muted)}
+.note{font-size:11.5px;color:var(--muted);background:#f6f8fa;border-radius:8px;padding:8px 10px;margin-top:10px}
+.note.warn{background:var(--amber-soft);color:var(--amber)}
+.fab{display:none}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:64px;background:#1c2433;color:#fff;padding:9px 14px;border-radius:9px;font-size:12.5px;z-index:40}
+
+@media(max-width:700px){
+ .wrap{padding:16px 14px 90px}
+ .head .btn{display:none}
+ .views{overflow:auto;white-space:nowrap;gap:14px}
+ .tools>*{width:100%}.search{min-width:0}
+ .grip{display:none}
+ .row{grid-template-columns:1fr auto}
+ .movers{display:flex}
+ .chev{display:none}
+ .drawer{width:100%}
+ .fab{display:grid;place-items:center;position:fixed;bottom:18px;left:18px;width:54px;height:54px;border-radius:50%;border:0;background:var(--accent);color:#fff;font-size:26px;box-shadow:0 6px 18px rgba(16,24,40,.22);z-index:12;cursor:pointer}
+}
+</style>
+</head>
+<body>
+
+<div class="top">
+ <div class="logo">PIVO ◎</div>
+ <div class="nav"><button onclick="toast('בהדגמה: מסך הלקוחות')">לקוחות</button><button class="on">משימות</button></div>
+</div>
+
+<main class="wrap">
+ <div class="head">
+  <div><h1>משימות</h1><div class="csub">מה דורש ממני טיפול, ומה עדיין מחכה לאחרים.</div></div>
+  <button class="btn primary" onclick="show('addModal')">+ חדש</button>
+ </div>
+
+ <nav class="views">
+  <button class="view on" data-v="mine" onclick="showView('mine',this)">לטיפולי <span class="vcount" id="cMine"></span></button>
+  <button class="view" data-v="waiting" onclick="showView('waiting',this)">ממתין לאחרים <span class="vcount" id="cWait"></span></button>
+  <button class="view" data-v="done" onclick="showView('done',this)">הושלמו <span class="vcount" id="cDone"></span></button>
+ </nav>
+
+ <div class="tools">
+  <input id="q" class="search" placeholder="חפש משימה או לקוח…" oninput="render()">
+  <select id="fc" class="sel" onchange="render()"><option value="">כל הלקוחות</option><option>ישראל ישראלי</option><option>יעל כהן</option><option>משה לוי</option><option>כללי</option></select>
+  <select id="fl" class="sel" onchange="render()"><option value="">כל התוויות</option><option>הצהרת הון</option><option>דוח שנתי</option><option>קליטה</option><option>בנק</option></select>
+ </div>
+
+ <div class="card list" id="list"></div>
+ <div class="hint" id="hint"></div>
+</main>
+
+<button class="fab" onclick="show('addModal')">+</button>
+
+<!-- מגירת פרטים -->
+<div id="shade" class="shade hidden" onclick="closeDrawer()"></div>
+<aside id="drawer" class="drawer hidden">
+ <div class="dhead"><button class="btn" onclick="closeDrawer()">סגור</button><span id="dpill"></span></div>
+ <div class="dtitle" id="dtitle"></div>
+ <div class="dsub" id="dsub"></div>
+ <div id="dfacts"></div>
+ <div id="dlinksWrap"></div>
+ <div class="dfoot" id="dfoot"></div>
+</aside>
+
+<!-- מה יוצרים -->
+<div id="addModal" class="modal hidden"><div class="box">
+ <h3>מה תרצה ליצור?</h3>
+ <div class="choice">
+  <button onclick="hide('addModal');show('taskModal')"><b>משימה</b><span>משהו שאתה צריך לעשות</span></button>
+  <button onclick="hide('addModal');show('docsModal')"><b>בקשת מסמכים</b><span>בקשה מהלקוח — נכנסת לדף הלקוח ול״ממתין לאחרים״</span></button>
+ </div>
+ <div class="mfoot"><button class="btn" onclick="hide('addModal')">ביטול</button></div>
+</div></div>
+
+<!-- משימה חדשה — שני שדות חובה בלבד -->
+<div id="taskModal" class="modal hidden"><div class="box">
+ <h3>משימה חדשה</h3>
+ <div class="lbl">מה צריך לעשות?</div><input id="ntTitle" class="inp" placeholder="למשל: לדבר עם דני">
+ <div class="lbl">שייך ל…</div>
+ <select id="ntClient" class="inp"><option value="">בחר…</option><option>ישראל ישראלי</option><option>יעל כהן</option><option>משה לוי</option><option>כללי</option></select>
+ <div class="lbl">תווית (אופציונלי)</div>
+ <select id="ntLabel" class="inp"><option value="">ללא תווית</option><option>הצהרת הון</option><option>דוח שנתי</option><option>קליטה</option><option>בנק</option></select>
+ <div class="lbl">תאריך יעד (אופציונלי)</div><input id="ntDue" type="date" class="inp">
+ <div class="mfoot"><button class="btn" onclick="hide('taskModal')">ביטול</button><button class="btn primary" onclick="addTask()">הוסף</button></div>
+</div></div>
+
+<!-- בקשת מסמכים — לא משימה פנימית -->
+<div id="docsModal" class="modal hidden"><div class="box">
+ <h3>בקשת מסמכים</h3>
+ <div class="csub">הבקשה מתפרסמת לדף הלקוח המרכזי. המייל הוא רק הודעה עם הקישור.</div>
+ <div class="lbl">לקוח</div><select id="drClient" class="inp"><option>ישראל ישראלי</option><option>יעל כהן</option><option>משה לוי</option></select>
+ <div class="lbl">מה מבקשים?</div><input id="drTitle" class="inp" value="חומרים להצהרת הון">
+ <div class="lbl">פריטים</div><input id="drItems" class="inp" value="אישור יתרות בנק, ריכוז נכסים, אישורי קופות">
+ <div class="lbl">שנה למסמכים שיתקבלו</div><select id="drYear" class="inp"><option value="">בחר שנה…</option><option>2026</option><option>2025</option><option>כללי</option></select>
+ <div class="lbl">תווית למסמכים שיתקבלו</div><select id="drLabel" class="inp"><option value="">בחר תווית…</option><option>הצהרת הון</option><option>בנק</option><option>דוח שנתי</option></select>
+ <div class="note">המסמכים שיתקבלו יישמרו אוטומטית במסמכי הלקוח עם השנה והתווית האלה, ויקושרו לבקשה.</div>
+ <div class="mfoot"><button class="btn" onclick="hide('docsModal')">ביטול</button><button class="btn" onclick="toast('תצוגה מקדימה של דף הלקוח — בהדגמה')">תצוגה מקדימה</button><button class="btn primary" onclick="addDocRequest()">פרסם לדף הלקוח</button></div>
+</div></div>
+
+<!-- צירוף מסמך חדש ממשימה — דורש שנה ותווית לארכיון -->
+<div id="attachModal" class="modal hidden"><div class="box">
+ <h3>צרף מסמך חדש</h3>
+ <div class="csub">הקובץ נשמר במסמכי הלקוח ומקושר למשימה. הוא לא מוכפל.</div>
+ <div class="lbl">שם הקובץ</div><input id="atName" class="inp" value="אישור מהבנק.pdf">
+ <div class="lbl">שנה</div><select id="atYear" class="inp"><option value="">בחר שנה…</option><option>2026</option><option>2025</option><option>כללי</option></select>
+ <div class="lbl">תווית</div><select id="atLabel" class="inp"><option value="">בחר תווית…</option><option>הצהרת הון</option><option>בנק</option><option>דוח שנתי</option><option>שכר</option></select>
+ <div class="note">שנה ותווית נדרשות לארכיון המסמכים — לא למשימה עצמה.</div>
+ <div class="mfoot"><button class="btn" onclick="hide('attachModal')">ביטול</button><button class="btn primary" onclick="saveAttach()">שמור וקשר</button></div>
+</div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+function show(id){$(id).classList.remove('hidden')}
+function hide(id){$(id).classList.add('hidden')}
+function toast(t){const x=document.createElement('div');x.className='toast';x.textContent=t;document.body.appendChild(x);setTimeout(()=>x.remove(),2100)}
+
+/* ─── מודל המצב ───────────────────────────────────────────────────────
+   שלושה דליים בלבד. סדר ידני בתוך "לטיפולי"; תאריך שהגיע קופץ לראש. */
+let seq=100;
+const T={
+ mine:[
+  {id:'t1',title:'לדבר עם דני לגבי האישור',client:'ישראל ישראלי',label:'הצהרת הון',due:'2026-08-12',dueState:'late',
+   docs:[{n:'אישור דרישה.pdf',y:'2026',l:'הצהרת הון'}]},
+  {id:'t2',title:'קליטת יעל כהן',client:'יעל כהן',label:'קליטה',process:true,now:'שיחת פתיחה · יישור קו 3/3 הושלם',dueState:'today',docs:[]},
+  {id:'t3',title:'בדיקת דוח שנתי 2026',client:'ישראל ישראלי',label:'דוח שנתי',
+   docs:[{n:'טופס 106 — 2025.pdf',y:'2025',l:'שכר'},{n:'ריכוז הכנסות.xlsx',y:'2026',l:'דוח שנתי'},{n:'אישור ניכוי במקור.pdf',y:'2026',l:'דוח שנתי'}]},
+  {id:'t4',title:'לדבר עם התמיכה של שע״מ',client:'כללי',docs:[]},
+ ],
+ waiting:[
+  {id:'w1',title:'חומרים להצהרת הון',client:'ישראל ישראלי',label:'הצהרת הון',wait:'ממתין ללקוח',
+   next:'4 מתוך 7 התקבלו · נשלח 10.08',kind:'request',docs:[]},
+  {id:'w2',title:'שאלון נתוני מס',client:'יעל כהן',label:'דוח שנתי',wait:'ממתין ללקוח',
+   next:'נשלח לפני 3 ימים',kind:'questionnaire',docs:[]},
+  {id:'w3',title:'הצעת מחיר — אישור מיוחד',client:'משה לוי',wait:'ממתין לאישור',
+   next:'נשלחה 11.08',kind:'quote',docs:[]},
+ ],
+ done:[
+  {id:'d1',title:'לשלוח אישור ניהול ספרים',client:'יעל כהן',label:'דוח שנתי',completedAt:'היום, 10:42',
+   docs:[{n:'אישור ניהול ספרים.pdf',y:'2026',l:'דוח שנתי'}]},
+  {id:'d2',title:'בדיקת יתרת מע״מ',client:'ישראל ישראלי',completedAt:'11.08.2026',docs:[]},
+ ],
+};
+let view='mine';
+const HINTS={
+ mine:'אפשר לגרור כדי לקבוע סדר — מה שלמעלה הוא מה שבחרת לקדם. תאריך שהגיע קופץ לראש מעצמו.',
+ waiting:'דברים שביקשת מאחרים. הם לא מתחרים בעבודה שלך — כשמשהו יחזור, הפעולה הבאה תופיע ב״לטיפולי״.',
+ done:'עבודה שסיימת נשמרת כאן עם התאריך, הלקוח, התווית והמסמכים. אפשר לפתוח מחדש.',
+};
+
+/* תאריך שהגיע/עבר — קופץ לראש, אחרת הסדר הידני נשמר. */
+function ordered(){
+ const rank=t=>t.dueState==='late'?0:t.dueState==='today'?1:2;
+ return [...T.mine].map((t,i)=>({t,i})).sort((a,b)=>rank(a.t)-rank(b.t)||a.i-b.i).map(x=>x.t);
+}
+function matches(t){
+ const q=$('q').value.trim().toLowerCase(),c=$('fc').value,l=$('fl').value;
+ if(q&&!((t.title+' '+t.client+' '+(t.label||'')).toLowerCase().includes(q)))return false;
+ if(c&&t.client!==c)return false;
+ if(l&&t.label!==l)return false;
+ return true;
+}
+function render(){
+ $('cMine').textContent=T.mine.length;$('cWait').textContent=T.waiting.length;$('cDone').textContent=T.done.length;
+ $('hint').textContent=HINTS[view];
+ const arr=(view==='mine'?ordered():T[view]).filter(matches);
+ if(!arr.length){$('list').innerHTML='<div class="empty">אין כאן משימות שמתאימות לסינון.</div>';return}
+ $('list').innerHTML=arr.map((t,idx)=>{
+  const pill=view==='done'?'<span class="pill done">הושלם</span>'
+    :t.wait?`<span class="pill wait">${t.wait}</span>`
+    :t.dueState==='late'?'<span class="pill late">באיחור</span>'
+    :t.dueState==='today'?'<span class="pill today">היום</span>':'';
+  const meta=`<b>${t.client}</b>${t.label?' · '+t.label:''}`;
+  const next=view==='done'?('הושלם '+t.completedAt)
+    :t.process?('עכשיו: '+t.now)
+    :t.next?t.next
+    :(t.due?('יעד: '+fmt(t.due)):'ללא תאריך');
+  const clip=t.docs&&t.docs.length?` <span class="clip">📎 ${t.docs.length===1?'מסמך אחד':t.docs.length+' מסמכים'}</span>`:'';
+  const movers=view==='mine'?`<div class="movers">
+     <button onclick="event.stopPropagation();move('${t.id}',-1)" aria-label="הקדם">▲</button>
+     <button onclick="event.stopPropagation();move('${t.id}',1)" aria-label="אחר">▼</button></div>`:'';
+  return `<div class="row" data-id="${t.id}" ${view==='mine'?'draggable="true"':''} onclick="openTask('${t.id}')">
+    ${view==='mine'?'<div class="grip">⋮⋮</div>':'<div></div>'}
+    <div><div class="rtitle">${t.title}${pill}</div><div class="rmeta">${meta}</div><div class="rnext">${next}${clip}</div></div>
+    <div class="tail">${movers}<span class="chev">‹</span></div>
+   </div>`;
+ }).join('');
+ if(view==='mine')wireDrag();
+}
+function fmt(d){const [y,m,dd]=d.split('-');return dd+'.'+m+'.'+y}
+function showView(v,btn){
+ view=v;document.querySelectorAll('.view').forEach(b=>b.classList.toggle('on',b===btn));render();
+}
+
+/* ─── סדר ידני: גרירה בשולחני, חיצים במובייל ─────────────────────────── */
+/**
+ * ‼ ההזזה עובדת על הסדר ה**נראה** ולא על סדר המערך: משימה עם תאריך שהגיע
+ * מוצגת בראש, ולכן "למעלה" בעיני הרו"ח אינו בהכרח האינדקס הקודם במערך.
+ * מוצאים את השכן בתצוגה, ומחליפים איתו במערך.
+ */
+function move(id,dir){
+ const vis=ordered();
+ const vi=vis.findIndex(t=>t.id===id),vj=vi+dir;
+ if(vi<0||vj<0||vj>=vis.length)return;
+ const i=T.mine.findIndex(t=>t.id===id),j=T.mine.findIndex(t=>t.id===vis[vj].id);
+ [T.mine[i],T.mine[j]]=[T.mine[j],T.mine[i]];
+ render();toast('הסדר עודכן');
+}
+let dragId=null;
+function wireDrag(){
+ document.querySelectorAll('#list .row').forEach(r=>{
+  r.addEventListener('dragstart',e=>{dragId=r.dataset.id;r.classList.add('drag')});
+  r.addEventListener('dragend',()=>{dragId=null;document.querySelectorAll('.row').forEach(x=>x.classList.remove('drag','over'))});
+  r.addEventListener('dragover',e=>{e.preventDefault();r.classList.add('over')});
+  r.addEventListener('dragleave',()=>r.classList.remove('over'));
+  r.addEventListener('drop',e=>{
+   e.preventDefault();r.classList.remove('over');
+   if(!dragId||dragId===r.dataset.id)return;
+   const from=T.mine.findIndex(t=>t.id===dragId),to=T.mine.findIndex(t=>t.id===r.dataset.id);
+   if(from<0||to<0)return;
+   const [m]=T.mine.splice(from,1);T.mine.splice(to,0,m);render();toast('הסדר עודכן');
+  });
+ });
+}
+
+/* ─── מגירה ───────────────────────────────────────────────────────────── */
+let openId=null;
+function findTask(id){for(const k of ['mine','waiting','done']){const t=T[k].find(x=>x.id===id);if(t)return{t,bucket:k}}return{}}
+function openTask(id){
+ const {t,bucket}=findTask(id);if(!t)return;openId=id;
+ $('dtitle').textContent=t.title;
+ $('dsub').textContent=t.client+(t.label?' · '+t.label:'');
+ $('dpill').innerHTML=bucket==='done'?'<span class="pill done">הושלם</span>'
+   :t.wait?`<span class="pill wait">${t.wait}</span>`
+   :t.dueState==='late'?'<span class="pill late">באיחור</span>'
+   :t.dueState==='today'?'<span class="pill today">היום</span>':'';
+ const facts=[];
+ facts.push(['שיוך',t.client]);
+ if(t.label)facts.push(['תווית',t.label]); else if(bucket==='mine')facts.push(['תווית','ללא']);
+ if(t.process)facts.push(['סוג','תהליך קליטה — משימה אחת לכל התהליך'],['עכשיו',t.now]);
+ if(t.due)facts.push(['תאריך יעד',fmt(t.due)]);
+ if(bucket==='mine'&&!t.due&&!t.process)facts.push(['תאריך יעד','ללא']);
+ if(t.next&&bucket==='waiting')facts.push(['מצב',t.next]);
+ if(bucket==='done')facts.push(['הושלם',t.completedAt]);
+ $('dfacts').innerHTML='<div class="sechead">פרטים</div>'+facts.map(f=>`<div class="fact"><b>${f[0]}</b><span>${f[1]}</span></div>`).join('');
+
+ let links='<div class="sechead">קישורים</div>';
+ if(t.process)links+=`<div class="link"><div><b>תהליך הקליטה</b><span class="ls">פתח את התיק בלשונית תהליך</span></div><button class="btn" onclick="toast('נפתח תיק הלקוח › תהליך')">פתח</button></div>`;
+ if(t.kind)links+=`<div class="link"><div><b>דף הלקוח</b><span class="ls">הבקשה כפי שהלקוח רואה אותה</span></div><button class="btn" onclick="toast('נפתח דף הלקוח המרכזי')">פתח</button></div>`;
+ (t.docs||[]).forEach(d=>{
+  links+=`<div class="link"><div><b>📄 ${d.n}</b><span class="ls">${d.l} · ${d.y} · שמור במסמכי הלקוח</span></div><button class="btn" onclick="toast('נפתח המסמך — ומשם רואים שהוא מקושר למשימה הזו')">פתח</button></div>`;
+ });
+ if(!t.docs||!t.docs.length)links+='<div class="csub" style="margin-top:6px">אין מסמכים מקושרים.</div>';
+ if(bucket!=='done')links+=`<button class="btn ghost" style="margin-top:8px" onclick="show('attachModal')">+ צרף מסמך חדש</button>`;
+ $('dlinksWrap').innerHTML=links;
+
+ $('dfoot').innerHTML=bucket==='done'
+  ? `<button class="btn primary" onclick="reopen('${id}')">פתח מחדש</button>`
+  : bucket==='waiting'
+   ? `<button class="btn" onclick="toast('נשלחה תזכורת ללקוח')">שלח תזכורת</button><button class="btn" onclick="toast('נפתח דף הלקוח')">פתח בקשה</button>`
+   : `<button class="btn finish" onclick="complete('${id}')">סמן הושלם</button><button class="btn" onclick="toast('עריכת משימה — בהדגמה')">ערוך</button>`;
+ show('shade');show('drawer');
+}
+function closeDrawer(){hide('shade');hide('drawer');openId=null}
+function complete(id){
+ const i=T.mine.findIndex(t=>t.id===id);if(i<0)return;
+ const t=T.mine.splice(i,1)[0];
+ t.completedAt='היום, '+new Date().toTimeString().slice(0,5);
+ delete t.dueState;
+ T.done.unshift(t);closeDrawer();render();toast('הועברה ל״הושלמו״ — נשמרו הלקוח, התווית והמסמכים');
+}
+function reopen(id){
+ const i=T.done.findIndex(t=>t.id===id);if(i<0)return;
+ const t=T.done.splice(i,1)[0];delete t.completedAt;
+ T.mine.unshift(t);closeDrawer();showView('mine',document.querySelector('.view[data-v=mine]'));toast('המשימה נפתחה מחדש');
+}
+
+/* ─── יצירה ───────────────────────────────────────────────────────────── */
+function addTask(){
+ const title=$('ntTitle').value.trim(),client=$('ntClient').value;
+ if(!title){toast('צריך לכתוב מה לעשות');return}
+ if(!client){toast('צריך לשייך ללקוח או ל״כללי״');return}
+ const due=$('ntDue').value;
+ const today=new Date().toISOString().slice(0,10);
+ T.mine.unshift({id:'t'+(++seq),title,client,label:$('ntLabel').value||undefined,due:due||undefined,
+   dueState:due?(due<today?'late':due===today?'today':undefined):undefined,docs:[]});
+ hide('taskModal');$('ntTitle').value='';$('ntClient').value='';$('ntLabel').value='';$('ntDue').value='';
+ showView('mine',document.querySelector('.view[data-v=mine]'));toast('המשימה נוספה');
+}
+function addDocRequest(){
+ if(!$('drYear').value||!$('drLabel').value){toast('צריך שנה ותווית למסמכים שיתקבלו');return}
+ T.waiting.unshift({id:'w'+(++seq),title:$('drTitle').value.trim()||'בקשת מסמכים',client:$('drClient').value,
+   label:$('drLabel').value,wait:'ממתין ללקוח',next:'פורסמה היום לדף הלקוח · '+$('drItems').value.split(',').length+' פריטים',
+   kind:'request',docs:[]});
+ hide('docsModal');
+ showView('waiting',document.querySelector('.view[data-v=waiting]'));
+ toast('פורסמה לדף הלקוח המרכזי — ונכנסה ל״ממתין לאחרים״');
+}
+function saveAttach(){
+ if(!$('atYear').value||!$('atLabel').value){toast('צריך שנה ותווית כדי לשמור במסמכים');return}
+ const {t}=findTask(openId);if(!t)return;
+ (t.docs||(t.docs=[])).push({n:$('atName').value.trim()||'מסמך חדש.pdf',y:$('atYear').value,l:$('atLabel').value});
+ hide('attachModal');$('atYear').value='';$('atLabel').value='';
+ openTask(openId);render();toast('נשמר במסמכי הלקוח וקושר למשימה');
+}
+
+render();
+</script>
+</body>
+</html>
