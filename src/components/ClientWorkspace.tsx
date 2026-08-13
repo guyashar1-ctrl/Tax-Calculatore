@@ -78,9 +78,6 @@ interface Props {
   onSave: (client: Client) => void;
   onCancel: () => void;
   onDelete: (id: string) => void;
-  /** כתיבה אמיתית ל-clients עם Promise שמחזיר את הרשומה שנשמרה — נדרש לזרימת
-   *  אישור/דחייה/עריכה ידנית של עובדות בתיק המס (זהה למה שמזין את הדוח השנתי). */
-  onUpdateClientAsync?: (client: Client) => Promise<Client>;
   /** העברה לארכיון והחזרה ממנו — הכתיבה היחידה של שלב הכרטיס מהמסך */
   onSetLifecycleStage?: (id: string, stage: LifecycleStage) => Promise<void>;
   onAddTaskForClient: (clientId: string) => void;
@@ -159,7 +156,6 @@ export default function ClientWorkspace({
   onSave,
   onCancel,
   onDelete,
-  onUpdateClientAsync,
   onSetLifecycleStage,
   onAddTaskForClient,
   onSelectTask,
@@ -610,10 +606,9 @@ export default function ClientWorkspace({
           />
         )}
 
-        {tab === 'taxfile' && onUpdateClientAsync && (
+        {tab === 'taxfile' && (
           <TaxFileTab
             client={client}
-            onUpdateClientAsync={onUpdateClientAsync}
             onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
           />

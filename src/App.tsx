@@ -249,7 +249,7 @@ export default function App() {
 
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
 
-  const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients, setClientLifecycleStage } = useClients(user?.id);
+  const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients, setClientLifecycleStage, applyClientLocally } = useClients(user?.id);
   const { tasks, loading: tasksLoading, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks, reloadTasks } = useTasks(user?.id);
 
   // בתחילת כל רבעון (ינואר/אפריל/יולי/אוקטובר) נוצרת אוטומטית משימת בדיקת
@@ -1870,7 +1870,6 @@ export default function App() {
             onSave={handleSave}
             onCancel={handleCancelForm}
             onDelete={handleDelete}
-            onUpdateClientAsync={updateClient}
             onSetLifecycleStage={async (id, stage) => { await setClientLifecycleStage(id, stage); }}
             onAddTaskForClient={(clientId) => openNewTaskModal(clientId)}
             onSelectTask={openEditTaskModal}
@@ -1950,6 +1949,7 @@ export default function App() {
             clients={clients}
             userId={user?.id}
             onUpdateClient={updateClient}
+            onClientLocallyUpdated={applyClientLocally}
             initialSelection={annualReportSelection}
             onConsumeInitialSelection={() => setAnnualReportSelection(null)}
           />

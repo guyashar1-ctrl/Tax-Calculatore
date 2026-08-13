@@ -12,6 +12,12 @@ export interface TaxFactRpcResult {
   change?: Record<string, any>;
   proposed?: number;
   id?: string;
+  /** הלקוח המעודכן (שורת DB גולמית) — מוחזר מ-accept/manual, שעכשיו כותבים
+   *  ל-clients בתוך אותה קריאה. ראה useTaxFacts.ts להמרה ל-Client. */
+  client?: Record<string, any>;
+  /** רק כש-error === 'stale_conflict' — אילו מפתחות בהצעה כבר לא תואמים
+   *  את הערך המקובל הנוכחי (מישהו/משהו שינה אותו אחרי שההצעה נוצרה). */
+  staleFields?: string[];
 }
 
 /** מציע שינויים — לעולם לא כותב ל-clients. כל פריט נוחת כ-pending. */

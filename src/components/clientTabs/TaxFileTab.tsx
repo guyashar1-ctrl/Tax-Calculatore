@@ -26,9 +26,8 @@ import { calcCreditPoints } from '../../utils/taxCalculations';
 
 interface Props {
   client: Client;
-  /** כתיבה אמיתית ל-clients, זהה למה שמשמש את הדוח השנתי (App.tsx → useClients().updateClient). */
-  onUpdateClientAsync: (c: Client) => Promise<Client>;
-  /** סנכרון עותק הלקוח המקומי ב-ClientWorkspace אחרי כתיבה שקרתה כאן ולא דרך onSave הרגיל. */
+  /** סנכרון עותק הלקוח המקומי ב-ClientWorkspace אחרי כתיבה טרנזקציונית שקרתה
+   *  בשרת (accept/manual-edit) ולא דרך onSave הרגיל. */
   onClientPersisted: (c: Client) => void;
   /** פותח את אותו חלון "שלח שאלון" שכבר קיים בכותרת התיק — לא נבנה מנגנון שני. */
   onSendQuestionnaire: () => void;
@@ -109,7 +108,7 @@ function SrcLine({ label, onEdit }: { label: string; onEdit?: () => void }) {
   );
 }
 
-export default function TaxFileTab({ client, onUpdateClientAsync, onClientPersisted, onSendQuestionnaire }: Props) {
+export default function TaxFileTab({ client, onClientPersisted, onSendQuestionnaire }: Props) {
   const { pending, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [openChanges, setOpenChanges] = useState<Set<string>>(new Set());
@@ -132,9 +131,17 @@ export default function TaxFileTab({ client, onUpdateClientAsync, onClientPersis
   async function handleAccept(change: TaxFactChange) {
     setBusyChangeId(change.id);
     setChangeErrors(e => ({ ...e, [change.id]: '' }));
-    const res = await acceptFact(change, client, onUpdateClientAsync);
+    const res = await acceptFact(change);
     setBusyChangeId(null);
-    if (!res.ok) { setChangeErrors(e => ({ ...e, [change.id]: res.error || 'שגיאה בעדכון' })); return; }
+    if (!res.ok) {
+      // הערך המקובל השתנה אחרי שההצעה נוצרה — לא נדרס בשקט, מסבירים ומרעננים
+      // את הרשימה כדי שהרו"ח יראה מצב עדכני לפני שיחליט שוב.
+      const msg = res.error === 'stale_conflict'
+        ? 'הערך בתיק השתנה אחרי שההצעה הזו נוצרה — נדרשת בדיקה מחדש. רענן ונסה שוב.'
+        : (res.error || 'שגיאה בעדכון');
+      setChangeErrors(e => ({ ...e, [change.id]: msg }));
+      return;
+    }
     if (res.client) onClientPersisted(res.client);
   }
   async function handleReject(change: TaxFactChange) {
@@ -149,9 +156,9 @@ export default function TaxFileTab({ client, onUpdateClientAsync, onClientPersis
     const val = Math.max(0, Number(donationsDraft.replace(/[^\d.-]/g, '')) || 0);
     setSavingEdit(true);
     const res = await recordManualEdit(
-      client, 'donationsAnnual', 'תרומות שנתיות',
+      client.id, 'donationsAnnual', 'תרומות שנתיות',
       money(client.donationsAnnual) ?? '—', money(val) ?? '—',
-      { donationsAnnual: val }, onUpdateClientAsync,
+      { donationsAnnual: val },
     );
     setSavingEdit(false);
     if (res.ok) { if (res.client) onClientPersisted(res.client); setEditingField(null); }
@@ -159,9 +166,9 @@ export default function TaxFileTab({ client, onUpdateClientAsync, onClientPersis
   async function saveRentalTrack() {
     setSavingEdit(true);
     const res = await recordManualEdit(
-      client, 'rentalTaxTrack', 'מסלול מיסוי שכירות',
+      client.id, 'rentalTaxTrack', 'מסלול מיסוי שכירות',
       client.rentalTaxTrack ? RENTAL_TRACK_LABELS[client.rentalTaxTrack] : '—', RENTAL_TRACK_LABELS[rentalDraft],
-      { rentalTaxTrack: rentalDraft }, onUpdateClientAsync,
+      { rentalTaxTrack: rentalDraft },
     );
     setSavingEdit(false);
     if (res.ok) { if (res.client) onClientPersisted(res.client); setEditingField(null); }

@@ -89,6 +89,15 @@ export function useClients(userId: string | undefined) {
     setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
   }
 
+  /**
+   * מציב לקוח שכבר נכתב בשרת (למשל דרך RPC טרנזקציוני כמו
+   * accept_tax_fact_change/record_manual_fact_change) בקאש המקומי, בלי
+   * כתיבה נוספת. מיועד לכיווץ סטייל אחרי כתיבה שקרתה מחוץ ל-updateClient.
+   */
+  function applyClientLocally(client: Client): void {
+    setClients(prev => prev.map(c => c.id === client.id ? client : c));
+  }
+
   async function deleteClient(id: string): Promise<void> {
     const { error } = await supabase.from('clients').delete().eq('id', id);
     if (error) throw error;
@@ -106,5 +115,8 @@ export function useClients(userId: string | undefined) {
     return inserted;
   }
 
-  return { clients, loading, error, addClient, updateClient, deleteClient, bulkAddClients, setClientLifecycleStage };
+  return {
+    clients, loading, error, addClient, updateClient, deleteClient, bulkAddClients,
+    setClientLifecycleStage, applyClientLocally,
+  };
 }

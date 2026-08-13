@@ -9,7 +9,8 @@ import Questionnaire from './Questionnaire';
 import AnnualReportOutput from './AnnualReportOutput';
 import AnswersReview from './AnswersReview';
 import SyncConfirmation from './SyncConfirmation';
-import { proposeTaxFacts } from '../../lib/taxFacts';
+import { proposeTaxFacts, recordManualFactChange } from '../../lib/taxFacts';
+import { clientFromDb } from '../../lib/dbMappers';
 import TaxConstantsDashboard from './TaxConstantsDashboard';
 import TreeMapView from './TreeMapView';
 import CoverageGate from './CoverageGate';
@@ -17,16 +18,55 @@ import { seedModelFromClient } from './profile';
 
 type Mode = 'entry' | 'questionnaire' | 'sync_confirmation' | 'answers_review' | 'gate' | 'output' | 'dashboard' | 'treemap';
 
+// ‼ בקר גישה — "עדכן בכרטיס" בתוך השאלון (CardSectionEditor, מופעל דרך
+// Questionnaire.onPatchClient) הוא הרו"ח שמקליד ערך בעצמו תוך כדי מילוי
+// השאלון — לא הצעה ממתינה. אבל הוא נוגע באותם שדות מקצועיים בדיוק
+// שהתאמה מנהלת, ולכן חייב לעבור באותו allowlist טרנזקציוני עם היסטוריה
+// (record_manual_fact_change) ולא ב-updateClient() גולמי — אחרת זו בדיוק
+// דריסה שקטה של עובדה מקובלת. שדות זיהוי/קשר (שם, כתובת, ת.ז.) אינם
+// עובדות מקצועיות מבחינת הארכיטקטורה המאושרת וממשיכים בנתיב הרגיל.
+// הרשימה זהה ל-allowlist בשרת: supabase/91-tax-fact-transactions.sql.
+const GOVERNED_FACT_KEYS = new Set([
+  'familyStatus', 'isNewImmigrant', 'aliyahYear', 'isReturningResident', 'disabilityPercentage',
+  'hasAcademicDegree', 'academicDegreeYear', 'completedIdf', 'idfReleaseYear',
+  'completedNationalService', 'nationalServiceYear', 'donationsAnnual', 'lifeInsuranceAnnual',
+  'hasLifeInsurance', 'isFamilyCompanyMember', 'isForeignControllingShareholder', 'isKibbutzMember',
+  'isSubstantialShareholder', 'hasResidentialProperty', 'numberOfProperties', 'hasCapitalIncome',
+  'hasGamblingIncome', 'hasForeignAssets', 'spouseWorking', 'rentalTaxTrack', 'hasInvestments',
+  'hasPension', 'taxFiles', 'bankAccounts', 'investmentAccounts', 'children', 'employers', 'pensionFunds',
+]);
+
+const GOVERNED_FIELD_LABELS: Record<string, string> = {
+  familyStatus: 'מצב משפחתי', isNewImmigrant: 'עולה חדש', aliyahYear: 'שנת עלייה',
+  isReturningResident: 'תושב חוזר', disabilityPercentage: 'אחוז נכות',
+  hasAcademicDegree: 'תואר אקדמי', academicDegreeYear: 'שנת קבלת התואר',
+  completedIdf: 'שירות צבאי', idfReleaseYear: 'שנת שחרור',
+  completedNationalService: 'שירות לאומי', nationalServiceYear: 'שנת סיום שירות לאומי',
+  donationsAnnual: 'תרומות שנתיות', lifeInsuranceAnnual: 'ביטוח חיים שנתי',
+  hasLifeInsurance: 'ביטוח חיים', isFamilyCompanyMember: 'חברה משפחתית',
+  isForeignControllingShareholder: 'שליטה בחברה זרה', isKibbutzMember: 'חבר קיבוץ',
+  isSubstantialShareholder: 'בעל מניות מהותי', spouseWorking: 'תעסוקת בן/בת הזוג',
+  children: 'רשימת ילדים', employers: 'רשימת מעבידים', pensionFunds: 'קופות פנסיה',
+  hasPension: 'פנסיה', investmentAccounts: 'חשבונות השקעה', hasInvestments: 'השקעות',
+  bankAccounts: 'חשבונות בנק', taxFiles: 'תיקי רשויות', rentalTaxTrack: 'מסלול מיסוי שכירות',
+  hasResidentialProperty: 'נכס דיור', numberOfProperties: 'מספר נכסים',
+  hasCapitalIncome: 'פעילות בשוק ההון', hasGamblingIncome: 'הכנסות מהגרלות',
+  hasForeignAssets: 'נכסים בחו״ל',
+};
+
 interface Props {
   clients: Client[];
   userId: string | undefined;
   onUpdateClient?: (client: Client) => Promise<Client>;
+  /** מציב לקוח שכבר נכתב בשרת (RPC טרנזקציוני) בקאש המקומי בלי כתיבה נוספת —
+   *  ראה useClients().applyClientLocally. */
+  onClientLocallyUpdated?: (client: Client) => void;
   /** בחירה מוקדמת (מ"פתח ←" בכרטיס הלקוח) — נפתחת אוטומטית פעם אחת. */
   initialSelection?: { clientId: string; taxYear: number } | null;
   onConsumeInitialSelection?: () => void;
 }
 
-export default function AnnualReport({ clients, userId, onUpdateClient, initialSelection, onConsumeInitialSelection }: Props) {
+export default function AnnualReport({ clients, userId, onUpdateClient, onClientLocallyUpdated, initialSelection, onConsumeInitialSelection }: Props) {
   const { sessions, loading, startOrResume, removeSession, restartForEdit } = useAnnualReportSessions(userId);
   const [mode, setMode] = useState<Mode>('entry');
   const [currentSession, setCurrentSession] = useState<AnnualReportSession | null>(null);
@@ -175,7 +215,34 @@ export default function AnnualReport({ clients, userId, onUpdateClient, initialS
           onFinished={handleQuestionnaireFinished}
           onExit={handleExitToEntry}
           onPatchClient={onUpdateClient && selectedClient ? async (partial) => {
-            await onUpdateClient({ ...selectedClient, ...partial, updatedAt: new Date().toISOString() });
+            const entries = Object.entries(partial);
+            const governed = entries.filter(([k]) => GOVERNED_FACT_KEYS.has(k));
+            const plain = entries.filter(([k]) => !GOVERNED_FACT_KEYS.has(k));
+
+            // שדות זיהוי/קשר — לא עובדה מקצועית, ממשיכים בנתיב הרגיל.
+            if (plain.length > 0) {
+              await onUpdateClient({
+                ...selectedClient, ...Object.fromEntries(plain), updatedAt: new Date().toISOString(),
+              });
+            }
+            // עובדות מקצועיות — הרו"ח מקליד כאן ערך בעצמו (סמכות סופית), אבל
+            // דרך אותה פעולה טרנזקציונית עם היסטוריה כמו עריכה ידנית בתיק המס.
+            if (governed.length > 0) {
+              const patch = Object.fromEntries(governed);
+              const labels = governed.map(([k]) => GOVERNED_FIELD_LABELS[k] ?? k);
+              const res = await recordManualFactChange(
+                selectedClient.id,
+                'questionnaire-card-edit',
+                `עדכון מתוך השאלון · ${labels.join(', ')}`,
+                'לפני העדכון',
+                'עודכן מתוך השאלון',
+                patch,
+              );
+              if (!res.ok) throw new Error(res.error || 'העדכון נכשל');
+              // הכתיבה כבר קרתה בשרת — רק מציבים את הלקוח המעודכן בקאש
+              // המקומי, לא כותבים אותו שוב דרך onUpdateClient.
+              if (res.client) onClientLocallyUpdated?.(clientFromDb(res.client));
+            }
           } : undefined}
         />
       )}

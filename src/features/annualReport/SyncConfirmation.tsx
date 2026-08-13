@@ -49,13 +49,19 @@ export default function SyncConfirmation({ session, client, onProposeChanges, on
         .filter((d) => selected.has(d.key))
         .map((d) => {
           const patch = d.apply(client);
+          const patchKeys = Object.keys(patch);
+          // תמונת מצב של הערך המקובל *עכשיו*, לאותם מפתחות שה-patch נוגע בהם —
+          // לא רק טקסט לתצוגה. השרת משווה אותה מול הערך המקובל בזמן האישור:
+          // אם מישהו כבר שינה את הערך בינתיים, האישור נדחה כ-stale ולא דורס בשקט.
+          const oldPatch: Record<string, unknown> = {};
+          for (const k of patchKeys) oldPatch[k] = (client as unknown as Record<string, unknown>)[k] ?? null;
           return {
             fieldKey: d.key,
             label: d.label,
-            oldValue: { display: d.fromCard },
+            oldValue: { display: d.fromCard, ...(patchKeys.length > 0 ? { patch: oldPatch } : {}) },
             newValue: {
               display: d.fromQuestionnaire,
-              ...(Object.keys(patch).length > 0 ? { patch } : {}),
+              ...(patchKeys.length > 0 ? { patch } : {}),
             },
           };
         });
