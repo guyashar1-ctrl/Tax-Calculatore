@@ -32,6 +32,8 @@ import type { AdvanceResult } from '../hooks/useOnboarding';
 import { GOVERNED_FACT_KEYS, GOVERNED_FIELD_LABELS, governedValuesEqual } from '../types/taxFacts';
 import { recordManualFactChange } from '../lib/taxFacts';
 import { clientFromDb } from '../lib/dbMappers';
+import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
+import ActivityTab from './clientTabs/ActivityTab';
 
 const VAT_LABELS: Record<VATStatus, string> = {
   authorizedDealer: 'עוסק מורשה',
@@ -51,7 +53,13 @@ const IT_LABELS: Record<IncomeTaxType, string> = {
 // במרכז השליטה, אף פעם לא כלשונית (ראה הצעת הארכיטקטורה שאושרה 15.07.2026).
 // "קליטה" היא היוצא מן הכלל: היא מופיעה רק כשיש ללקוח קליטה בפועל, ונעלמת
 // כשהיא נגמרת — לשונית מתה בכל לקוח היא בדיוק מה שהכלל הזה בא למנוע.
-export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding' | 'journey' | 'taxfile';
+//
+// ‼ M3 — חריגה שנייה, מודעת: "הסכם ותשלומים" ו"פעילות" נוספות כלשוניות מלאות,
+// לא כקטעים. docs/prototypes/README.md (הוקפא 2026-08-14, cc2878e) קובע
+// אותן כאזורים מאושרים שווי-משקל ל"תיק מס"/"מסמכים" — שתיהן כבר לשוניות —
+// בתוך client-case-simplified-exploration-v3-final2.html (טאבים process/tax/
+// docs/pay/log). המקור הזה חדש ומחייב יותר מהכלל מ-15.07; לא בוטל, לא נסתר.
+export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding' | 'journey' | 'taxfile' | 'pay' | 'log';
 
 // שמות הלשוניות נושאים את המשמעות; האייקון ירד (§3.16)
 const TABS: { id: TabId; label: string }[] = [
@@ -71,6 +79,8 @@ const JOURNEY_TABS: { id: TabId; label: string }[] = [
   { id: 'taxfile',  label: 'תיק מס' },
   { id: 'dossier',  label: 'התיק' },
   { id: 'docs',     label: 'מסמכים' },
+  { id: 'pay',      label: 'הסכם ותשלומים' },
+  { id: 'log',      label: 'פעילות' },
   { id: 'tasks',    label: 'משימות' },
 ];
 
@@ -119,6 +129,9 @@ interface Props {
   /** רשומת הליד שממנה נולד הכרטיס — «מה ידוע עליו» ומצב «לא רלוונטי». */
   lead?: Lead;
   onEditLead?: (leadId: string) => void;
+  // ─── M3: הסכם ותשלומים ───
+  charges?: import('../types/charges').AdditionalCharge[];
+  onMarkChargePaid?: (charge: import('../types/charges').AdditionalCharge) => Promise<import('../types/charges').AdditionalCharge>;
 }
 
 function newEmptyClient(): Client {
@@ -185,6 +198,8 @@ export default function ClientWorkspace({
   onNewQuotation,
   lead,
   onEditLead,
+  charges,
+  onMarkChargePaid,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
@@ -391,6 +406,18 @@ export default function ClientWorkspace({
         && (s.status === 'blocked' || s.status === 'failed' || !!s.needsAttention)),
     };
   }, [onboardingSteps, client.id]);
+
+  const clientCharges = useMemo(
+    () => (charges ?? []).filter(c => c.clientId === client.id),
+    [charges, client.id]);
+  const clientSteps = useMemo(
+    () => (onboardingSteps ?? []).filter(s => s.clientId === client.id && s.status !== 'cancelled'),
+    [onboardingSteps, client.id]);
+  /** תג תשומת-לב על "הסכם ותשלומים" — מועד תשלום שהגיע ועדיין לא סומן שולם. */
+  const overdueChargeCount = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return clientCharges.filter(c => c.status !== 'paid' && c.dueDate && c.dueDate <= today).length;
+  }, [clientCharges]);
 
   useEffect(() => {
     // בזמן טעינה עוד לא יודעים אם יש קליטה — לא מפילים את הלשונית מוקדם מדי
@@ -620,6 +647,11 @@ export default function ClientWorkspace({
                     : `${journeyBadge.n} דברים מחכים לך`}
                 >{journeyBadge.n}</span>
               )}
+              {t.id === 'pay' && overdueChargeCount > 0 && (
+                <span className="cw-tab-dot is-stuck" title={`${overdueChargeCount} תשלומים שמועדם הגיע`}>
+                  {overdueChargeCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -666,6 +698,27 @@ export default function ClientWorkspace({
             client={client}
             onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
+          />
+        )}
+
+        {tab === 'pay' && (
+          <AgreementPaymentsTab
+            client={client}
+            quotations={quotations ?? []}
+            engagements={engagements ?? []}
+            charges={clientCharges}
+            onMarkChargePaid={onMarkChargePaid ?? (async (c) => c)}
+            onNewQuotation={onNewQuotation ? () => onNewQuotation(client.id) : undefined}
+          />
+        )}
+
+        {tab === 'log' && (
+          <ActivityTab
+            client={client}
+            clientSteps={clientSteps}
+            events={onboardingEvents ?? []}
+            quotations={quotations ?? []}
+            charges={clientCharges}
           />
         )}
 

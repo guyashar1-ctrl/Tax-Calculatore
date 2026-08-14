@@ -137,6 +137,8 @@ Deno.serve(async (req: Request) => {
     if (upErr) return json({ error: "storage_failed", detail: upErr.message }, 500);
 
     const source = tokenKind === "release" ? "רואה החשבון הקודם" : "הלקוח";
+    // ‼ שנה ותווית מוגדרות מראש על הבקשה (M3 — "בקש מסמך מהלקוח") — לא מנחשים
+    // אותן כאן. חסרות ⇒ נופלים ל'כללי'/'לבדיקה' בצד הלקוח (fallback שמרני).
     const { error: docErr } = await admin.from("documents").insert({
       id: docId,
       user_id: step.user_id,
@@ -146,7 +148,8 @@ Deno.serve(async (req: Request) => {
       file_type: type,
       file_size: file.size,
       category: tokenKind === "release" ? "business_document" : (CATEGORY_BY_KEY[itemKey] || "other"),
-      year: "general",
+      year: String(payload?.documentYear ?? "general"),
+      label_id: payload?.documentLabelId ?? null,
       description: itemLabel,
       notes: `הועלה על ידי ${source} מהדף הציבורי`,
       status: "received",
@@ -155,6 +158,12 @@ Deno.serve(async (req: Request) => {
       // לא משאירים קובץ יתום ב-Storage כשהרשומה נכשלה.
       await admin.storage.from("client-documents").remove([path]);
       return json({ error: "record_failed", detail: docErr.message }, 500);
+    }
+    // ‼ בקשה שנוצרה ממשימה נושאת linkedTaskId — קישור אוטומטי, לא כפילות קובץ.
+    if (payload?.linkedTaskId) {
+      await admin.from("document_task_links").insert({
+        user_id: step.user_id, document_id: docId, task_id: payload.linkedTaskId,
+      }).select().maybeSingle();
     }
 
     // ── סימון הפריט ועדכון השלב ──────────────────────────────────────────────

@@ -18,6 +18,7 @@ import Icon from './ui/Icon';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { formatDate } from '../utils/dateFormat';
 import LinkedDocsWidget from './LinkedDocsWidget';
+import TaskLinkedDocuments from './TaskLinkedDocuments';
 import SignatureRequestEditor from './signatureRequest/SignatureRequestEditor';
 
 interface Props {
@@ -263,6 +264,14 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                   defaultCategory="other"
                   compact
                 />
+              </div>
+              )}
+
+              {/* קישור למסמך שכבר קיים בתיק המסמכים (M3) — נפרד מהצירוף הישיר למעלה */}
+              {hasClient && (
+              <div className="form-group span-full">
+                <label>מסמכים מהתיק</label>
+                <TaskLinkedDocuments clientId={data.clientId} taskId={data.id} taskTitle={data.title} />
               </div>
               )}
 

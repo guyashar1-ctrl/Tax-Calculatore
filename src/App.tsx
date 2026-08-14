@@ -65,7 +65,10 @@ import { buildQuarterlyFreshnessTask, markFreshnessCreationAttempted, quarterlyT
 import RepresentationRequestForm from './components/RepresentationRequestForm';
 import RepresentationFillForm from './components/RepresentationFillForm';
 import RepresentationRequestReview from './components/RepresentationRequestReview';
-import TaskBoard from './components/TaskBoard';
+// TaskBoard.tsx (הלוח הישן, קיבוץ new/in_progress/done) הוחלף ב-M3 ב-TasksWorkspace
+// (שלושת הדליים הקנוניים: לטיפולי/ממתין לאחרים/הושלמו). הקובץ הישן נשאר ללא
+// ייבוא — קוד מת שממתין לניקוי, כמו DocumentManager.tsx.
+import TasksWorkspace from './components/TasksWorkspace';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
 import NoAccessScreen from './components/NoAccessScreen';
@@ -532,6 +535,32 @@ export default function App() {
     const nextGroup = [...inGroup.slice(0, insertAt), updatedMoving, ...inGroup.slice(insertAt)];
 
     const updates: Task[] = nextGroup.map((t, i) => ({ ...t, sortOrder: (i + 1) * 10 }));
+    await bulkUpdateTasks(updates);
+  }
+
+  /**
+   * גרירה/הזזה במסך המשימות החדש (M3, שלושה דליים) — רשימה שטוחה אחת של כל
+   * המשימות הפתוחות, בלי חלוקת new/in_progress כמו הלוח הישן. תאריך שהגיע
+   * מוצג למעלה בתצוגה (ordered() בצד הלקוח) אבל אינו כותב סדר קבוע —
+   * ראה docs/prototypes/tasks-v3-final.html.
+   */
+  async function handleReorderOpenTask(id: string, beforeId: string | null) {
+    const moving = tasks.find(t => t.id === id);
+    if (!moving) return;
+    const openList = tasks
+      .filter(t => t.id !== id && t.status === 'open')
+      .sort((a, b) => {
+        const ao = a.sortOrder, bo = b.sortOrder;
+        if (ao !== undefined && bo !== undefined) return ao - bo;
+        if (ao !== undefined) return -1;
+        if (bo !== undefined) return 1;
+        return a.createdAt.localeCompare(b.createdAt);
+      });
+    const idx = beforeId === null ? openList.length : openList.findIndex(t => t.id === beforeId);
+    const insertAt = idx === -1 ? openList.length : idx;
+    const updatedMoving: Task = { ...moving, status: 'open' };
+    const next = [...openList.slice(0, insertAt), updatedMoving, ...openList.slice(insertAt)];
+    const updates: Task[] = next.map((t, i) => ({ ...t, sortOrder: (i + 1) * 10 }));
     await bulkUpdateTasks(updates);
   }
 
@@ -1768,23 +1797,21 @@ export default function App() {
         <FailedNotificationsBanner failures={failedNotifications} />
 
         {view === 'tasks' && (
-          <TaskBoard
+          <TasksWorkspace
             tasks={tasks}
             clients={clients}
             onSelectTask={openEditTaskModal}
-            onAddTask={() => openNewTaskModal()}
+            onAddTask={(presetClientId) => openNewTaskModal(presetClientId)}
             onToggleDone={handleToggleTaskDone}
-            onChangeStatus={handleChangeTaskStatus}
-            onChangeBall={handleChangeTaskBall}
-            onChangeCategory={handleChangeTaskCategory}
-            onReorder={handleReorderTask}
-            onSelectClient={handleSelectClient}
             onDeleteTask={handleDeleteTask}
-            onUpdateTask={updateTask}
-            onLoadSampleTasks={handleLoadSampleTasks}
+            onReorderOpen={handleReorderOpenTask}
+            onSelectClient={handleSelectClient}
             onboardingSteps={onboarding.steps}
             onOpenOnboarding={handleOpenClientOnboarding}
+            quotations={quotations}
+            onOpenQuotation={(id) => { const q = quotations.find(x => x.id === id); if (q) handleOpenQuotation(q); }}
             onRemindStep={handleRemindStep}
+            onLoadSampleTasks={handleLoadSampleTasks}
           />
         )}
 
@@ -1900,9 +1927,11 @@ export default function App() {
               const q = quotations.find(x => x.id === id);
               if (q) handleOpenQuotation(q);
             }}
-            onNewQuotation={() => handleNewQuotation()}
+            onNewQuotation={(clientId) => handleNewQuotationForClient(clientId)}
             lead={leads.find(l => l.convertedClientId === selectedClient?.id)}
             onEditLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
+            charges={charges}
+            onMarkChargePaid={markChargePaid}
           />
         )}
 

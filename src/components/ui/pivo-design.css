@@ -2439,3 +2439,43 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .ial-fgrid{grid-template-columns:1fr}
   .ial-occ-head{flex-wrap:wrap}
 }
+
+/* ─── M3: מודלים גנריים + מסמכים ─────────────────────────────────────────── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(17,24,39,.28);display:grid;place-items:center;padding:18px;z-index:60}
+.modal-box{background:var(--surface-0);width:min(480px,100%);border:1px solid var(--hairline-1);border-radius:var(--r-modal);
+  padding:16px;box-shadow:0 15px 40px rgba(16,24,40,.16);max-height:90vh;overflow:auto}
+.modal-box h3{margin:0 0 4px;font-size:var(--fs-15);color:var(--ink-1)}
+.lbl{font-size:var(--fs-12);color:var(--ink-3);margin:10px 0 4px}
+.lbl.required::after{content:" *";color:var(--warn)}
+.inp{width:100%;border:1px solid var(--bd-strong);border-radius:var(--r-input);padding:8px 9px;background:var(--surface-0);
+  color:var(--ink-1);font:inherit}
+.foot{display:flex;gap:8px;margin-top:16px}
+
+.ial-doc-search{border:1px solid var(--bd-strong);border-radius:var(--r-input);padding:8px 10px;background:var(--surface-0);font:inherit}
+.ial-doc-menu{position:absolute;top:36px;left:0;min-width:190px;background:var(--surface-0);border:1px solid var(--hairline-1);
+  border-radius:var(--r-panel);box-shadow:0 10px 28px rgba(16,24,40,.12);padding:5px;z-index:11}
+.ial-doc-menu button{display:block;width:100%;border:0;background:none;text-align:right;padding:8px 10px;border-radius:7px;
+  cursor:pointer;font-size:var(--fs-13);color:var(--ink-1);font:inherit}
+.ial-doc-menu button:hover{background:var(--surface-2)}
+.ial-doc-menu hr{border:0;border-top:1px solid var(--hairline-1);margin:4px 0}
+.ial-doc-label-chip{display:inline-block;background:var(--soft);color:var(--accent);padding:2px 8px;border-radius:999px;font-size:var(--fs-12)}
+.ial-doc-drawer-shade{position:fixed;inset:0;background:rgba(17,24,39,.26);z-index:60}
+.ial-doc-drawer{position:fixed;inset-inline-start:0;top:0;height:100%;width:min(380px,100%);background:var(--surface-0);
+  z-index:61;padding:18px;overflow:auto;box-shadow:5px 0 20px rgba(16,24,40,.1)}
+.ial-doc-fact{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;
+  border-bottom:1px solid var(--hairline-2);font-size:var(--fs-12)}
+.ial-doc-fact label{color:var(--ink-3)}
+.ial-doc-sechead{font-size:var(--fs-11,11px);color:var(--ink-4);font-weight:700;margin:18px 0 6px}
+
+@media (max-width:700px){
+  .ial-doc-drawer{width:100%}
+}
+
+/* ─── M3: שורת מפתח-ערך משותפת (הסכם ותשלומים / פעילות) ─────────────────── */
+.cw-kv-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 0;
+  border-top:1px solid var(--hairline-2);font-size:var(--fs-13)}
+.cw-kv-row:first-of-type{border-top:0}
+
+@media (max-width:700px){
+  .cw-kv-row{flex-wrap:wrap}
+}

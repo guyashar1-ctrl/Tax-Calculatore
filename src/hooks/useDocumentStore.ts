@@ -69,6 +69,8 @@ export interface StoredDoc {
   linkedLabel?: string;
   /** התיקייה שבה יושב המסמך. null/undefined = הרמה הראשית של הלקוח. */
   folderId?: string | null;
+  /** תווית מקצועית אחת (M3) — document_labels.id. חובה על כל פריט. */
+  labelId?: string | null;
 }
 
 /** תיקייה בתוך מסמכי לקוח. ארגון לוגי בלבד — הקובץ ב-Storage לא זז. */
@@ -78,6 +80,23 @@ export interface DocFolder {
   parentId: string | null;
   name: string;
   createdAt: string;
+  /** תווית מקצועית אחת (M3) — יורשת לילדים חדשים כברירת מחדל, לא מחייבת בעצמה. */
+  labelId?: string | null;
+  /** שנה (M3) — 'כללי' או שנה כמחרוזת. */
+  year?: string | null;
+}
+
+/** תווית מקצועית מנוהלת-משרד (M3). 'לבדיקה' היא השמורה — legacy שטרם סווג. */
+export interface DocumentLabel {
+  id: string;
+  userId: string;
+  name: string;
+  sortOrder: number;
+  isReserved: boolean;
+}
+
+function rowToLabel(row: any): DocumentLabel {
+  return { id: row.id, userId: row.user_id, name: row.name, sortOrder: row.sort_order ?? 0, isReserved: !!row.is_reserved };
 }
 
 function rowToFolder(row: any): DocFolder {
@@ -87,6 +106,8 @@ function rowToFolder(row: any): DocFolder {
     parentId: row.parent_id ?? null,
     name: row.name,
     createdAt: row.created_at,
+    labelId: row.label_id ?? null,
+    year: row.year ?? null,
   };
 }
 
@@ -114,6 +135,7 @@ function rowToStoredDoc(row: any, withBytes?: ArrayBuffer): StoredDoc {
     linkedTo: row.linked_to ?? undefined,
     linkedLabel: row.linked_label ?? undefined,
     folderId: row.folder_id ?? null,
+    labelId: row.label_id ?? null,
   };
 }
 
@@ -169,6 +191,7 @@ export function useDocumentStore() {
       linked_to: doc.linkedTo ?? null,
       linked_label: doc.linkedLabel ?? null,
       folder_id: doc.folderId ?? null,
+      label_id: doc.labelId ?? null,
       uploaded_at: doc.uploadedAt,
     };
     console.log('[useDocumentStore.saveDoc] inserting row:', row);
@@ -288,7 +311,10 @@ export function useDocumentStore() {
    * יוצרת תיקייה — ואם כבר קיימת תיקייה באותו שם תחת אותו הורה, מחזירה אותה.
    * העלאת תיקייה מהמחשב נשענת על זה: מסלול קבצים חוזר על אותם שמות תיקיות.
    */
-  async function createFolder(clientId: string, name: string, parentId: string | null): Promise<DocFolder> {
+  async function createFolder(
+    clientId: string, name: string, parentId: string | null,
+    meta?: { labelId?: string | null; year?: string | null },
+  ): Promise<DocFolder> {
     if (!userId) throw new Error('אינך מחובר/ת. נסה להיכנס שוב לאפליקציה.');
     const clean = name.trim();
     if (!clean) throw new Error('שם התיקייה לא יכול להיות ריק');
@@ -307,6 +333,8 @@ export function useDocumentStore() {
       client_id: clientId,
       parent_id: parentId,
       name: clean,
+      label_id: meta?.labelId ?? null,
+      year: meta?.year ?? null,
     };
     const { data, error } = await supabase.from('document_folders').insert(row).select().single();
     if (error) {
@@ -363,9 +391,123 @@ export function useDocumentStore() {
     if (error) throw new Error(`העברת המסמכים נכשלה: ${error.message || JSON.stringify(error)}`);
   }
 
+  // ─── תוויות מקצועיות (M3) ──────────────────────────────────────────────
+  async function getLabels(): Promise<DocumentLabel[]> {
+    const { data, error } = await supabase
+      .from('document_labels')
+      .select('*')
+      .order('is_reserved', { ascending: true })
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true });
+    if (error) { console.error('[useDocumentStore.getLabels] FAILED', error); return []; }
+    return (data ?? []).map(rowToLabel);
+  }
+
+  async function createLabel(name: string): Promise<DocumentLabel> {
+    if (!userId) throw new Error('אינך מחובר/ת.');
+    const clean = name.trim();
+    if (!clean) throw new Error('שם התווית לא יכול להיות ריק');
+    const { data, error } = await supabase
+      .from('document_labels')
+      .insert({ user_id: userId, name: clean })
+      .select().single();
+    if (error) throw new Error(`יצירת התווית נכשלה: ${error.message || JSON.stringify(error)}`);
+    return rowToLabel(data);
+  }
+
+  async function renameLabel(id: string, name: string): Promise<void> {
+    if (!userId) throw new Error('אינך מחובר/ת.');
+    const clean = name.trim();
+    if (!clean) throw new Error('שם התווית לא יכול להיות ריק');
+    const { error } = await supabase
+      .from('document_labels')
+      .update({ name: clean })
+      .eq('id', id).eq('user_id', userId).eq('is_reserved', false);
+    if (error) throw new Error(`שינוי שם התווית נכשל: ${error.message || JSON.stringify(error)}`);
+  }
+
+  /** מחיקה בטוחה — פריטים שהיו מתויגים בה עוברים ל'לבדיקה' קודם (ראה 95-…sql). */
+  async function deleteLabel(id: string): Promise<{ ok: boolean; error?: string }> {
+    const { data, error } = await supabase.rpc('delete_document_label', { p_label_id: id });
+    if (error) return { ok: false, error: error.message };
+    return data as { ok: boolean; error?: string };
+  }
+
+  // ─── קישור מסמך לכמה לקוחות (M3) ────────────────────────────────────────
+  async function getLinkedClientIds(documentId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('document_clients').select('client_id').eq('document_id', documentId);
+    if (error) { console.error('[useDocumentStore.getLinkedClientIds] FAILED', error); return []; }
+    return (data ?? []).map((r: any) => r.client_id);
+  }
+
+  async function linkDocumentClient(documentId: string, clientId: string): Promise<void> {
+    if (!userId) throw new Error('אינך מחובר/ת.');
+    const { error } = await supabase
+      .from('document_clients')
+      .upsert({ user_id: userId, document_id: documentId, client_id: clientId }, { onConflict: 'document_id,client_id' });
+    if (error) throw new Error(`קישור הלקוח נכשל: ${error.message || JSON.stringify(error)}`);
+  }
+
+  async function unlinkDocumentClient(documentId: string, clientId: string): Promise<void> {
+    const { error } = await supabase
+      .from('document_clients').delete().eq('document_id', documentId).eq('client_id', clientId);
+    if (error) throw new Error(`ביטול הקישור נכשל: ${error.message || JSON.stringify(error)}`);
+  }
+
+  /**
+   * מסמכי לקוח כולל מסמכים ששייכים בעיקר ללקוח אחר אבל מקושרים גם אליו
+   * (למשל חוזה שכירות משותף לבני זוג) — בלי לשכפל תוצאות.
+   */
+  async function getDocsByClientIncludingLinked(clientId: string): Promise<StoredDoc[]> {
+    const [primary, linkRows] = await Promise.all([
+      supabase.from('documents').select('*').eq('client_id', clientId).order('uploaded_at', { ascending: false }),
+      supabase.from('document_clients').select('document_id').eq('client_id', clientId),
+    ]);
+    if (primary.error) { console.error('[getDocsByClientIncludingLinked] primary FAILED', primary.error); return []; }
+    const primaryDocs = (primary.data ?? []).map(row => rowToStoredDoc(row));
+    const linkedIds = (linkRows.data ?? []).map((r: any) => r.document_id).filter((id: string) => !primaryDocs.some(d => d.id === id));
+    if (linkedIds.length === 0) return primaryDocs;
+    const extra = await supabase.from('documents').select('*').in('id', linkedIds);
+    if (extra.error) return primaryDocs;
+    return [...primaryDocs, ...(extra.data ?? []).map(row => rowToStoredDoc(row))];
+  }
+
+  // ─── קישור מסמך למשימה — document_task_links (M3) ───────────────────────
+  async function getLinkedTaskIds(documentId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('document_task_links').select('task_id').eq('document_id', documentId);
+    if (error) { console.error('[useDocumentStore.getLinkedTaskIds] FAILED', error); return []; }
+    return (data ?? []).map((r: any) => r.task_id);
+  }
+
+  async function getLinkedDocIdsForTask(taskId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('document_task_links').select('document_id').eq('task_id', taskId);
+    if (error) { console.error('[useDocumentStore.getLinkedDocIdsForTask] FAILED', error); return []; }
+    return (data ?? []).map((r: any) => r.document_id);
+  }
+
+  async function linkDocumentTask(documentId: string, taskId: string): Promise<void> {
+    if (!userId) throw new Error('אינך מחובר/ת.');
+    const { error } = await supabase
+      .from('document_task_links')
+      .upsert({ user_id: userId, document_id: documentId, task_id: taskId }, { onConflict: 'document_id,task_id' });
+    if (error) throw new Error(`קישור המשימה נכשל: ${error.message || JSON.stringify(error)}`);
+  }
+
+  async function unlinkDocumentTask(documentId: string, taskId: string): Promise<void> {
+    const { error } = await supabase
+      .from('document_task_links').delete().eq('document_id', documentId).eq('task_id', taskId);
+    if (error) throw new Error(`ביטול קישור המשימה נכשל: ${error.message || JSON.stringify(error)}`);
+  }
+
   return {
     saveDoc, getDocsByClient, getDoc, deleteDoc,
     getFoldersByClient, createFolder, renameFolder, deleteFolder, moveDocsToFolder,
+    getLabels, createLabel, renameLabel, deleteLabel,
+    getLinkedClientIds, linkDocumentClient, unlinkDocumentClient, getDocsByClientIncludingLinked,
+    getLinkedTaskIds, getLinkedDocIdsForTask, linkDocumentTask, unlinkDocumentTask,
   };
 }
 
