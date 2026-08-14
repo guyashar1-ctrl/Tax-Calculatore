@@ -12,7 +12,7 @@ import {
   ENGAGEMENT_STATUS_LABELS, EVENT_ACTOR_LABELS, EVENT_TYPE_LABELS, REQUIREMENT_KIND_LABELS,
   STEP_BALL_LABELS, STEP_STATUS_LABELS, STEP_STATUS_TONE, STEP_TYPE_LABELS, TRACK_LABELS,
   blockingStepsForClose, isStepRequiredForClose,
-  isStepOpen, stepAwaitsMe,
+  isStepOpen, stepAwaitsMe, stepStatusLabel,
 } from '../../types/onboarding';
 import type { Client, RepAuthorityKind, RepresentationStatus } from '../../types';
 import { REP_AUTHORITY_LABELS } from '../../types';
@@ -629,7 +629,7 @@ export default function OnboardingTab({
       ? `${STEP_TYPE_LABELS[nextStep.stepType]} — ${lockHint(nextStep, stepById, depParents.get(nextStep.id))}`
       : nextStep.ball === 'me'
         ? NEXT_ACTION[nextStep.stepType]
-        : `${STEP_TYPE_LABELS[nextStep.stepType]} — ${STEP_STATUS_LABELS[nextStep.status]}`;
+        : `${STEP_TYPE_LABELS[nextStep.stepType]} — ${stepStatusLabel(nextStep)}`;
 
   const openCount = clientSteps.filter(s => isStepOpen(s.status)).length;
   const activeEngagement = clientEngagements[0];
@@ -2329,7 +2329,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
               display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center',
               fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2,
             }}>
-              <span style={{ color: tone, fontWeight: 600 }}>{statusLabel ?? STEP_STATUS_LABELS[step.status]}</span>
+              <span style={{ color: tone, fontWeight: 600 }}>{statusLabel ?? stepStatusLabel(step)}</span>
               {progress && <span>· {progress}</span>}
               <span>· הכדור {STEP_BALL_LABELS[step.ball]}</span>
               {age && <span>· {age}</span>}

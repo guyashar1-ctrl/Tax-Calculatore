@@ -166,6 +166,29 @@ export const STEP_BALL_LABELS: Record<OnboardingBall, string> = {
   external: 'אצל גורם חיצוני',
 };
 
+/**
+ * מי ממתין — לפי ball, לא לפי הסטטוס הגנרי. 'waiting_client' הוא שם הסטטוס
+ * הגנרי לכל שלב פתוח שממתין למישהו חוץ ממני, אבל השם שלו נועל "לקוח" גם
+ * כשהכדור בפועל אצל הרו״ח הקודם או הרשות — סתירה בין השורה הראשית לשורת
+ * הכדור. אותו עיקרון כבר חל על תווית כפתור הסיום ('החומרים הגיעו' /
+ * 'התקבל מהרשות', ראה OnboardingTab).
+ */
+export const WAITING_STATUS_LABEL_BY_BALL: Record<OnboardingBall, string> = {
+  me: 'אצלך',
+  system: 'אצלך',
+  client: 'ממתין ללקוח',
+  prev_accountant: 'ממתין לרו״ח קודם',
+  authority: 'ממתין לרשות',
+  external: 'ממתין לגורם חיצוני',
+};
+
+/** תווית המצב הראשית של שלב — תמיד עקבית עם אצל מי הכדור. מקור אחד לכל
+ *  מקום שמציג "מה קורה עם השלב הזה עכשיו". */
+export function stepStatusLabel(step: Pick<OnboardingStep, 'status' | 'ball'>): string {
+  if (step.status === 'waiting_client') return WAITING_STATUS_LABEL_BY_BALL[step.ball];
+  return STEP_STATUS_LABELS[step.status];
+}
+
 export type StepCompletionMethod = 'manual' | 'auto' | 'system';
 
 /** פריט ברשימת סימון של שלב (קבלת חומרים, הקמה פנימית). */

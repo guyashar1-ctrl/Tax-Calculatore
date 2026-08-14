@@ -14,7 +14,7 @@ import type { Client } from '../types';
 import { REPRESENTATION_STATUS_LABELS } from '../types';
 import type { Engagement, OnboardingStep } from '../types/onboarding';
 import {
-  STEP_TYPE_LABELS, STEP_STATUS_LABELS, STEP_BALL_LABELS, isStepOpen,
+  STEP_TYPE_LABELS, STEP_BALL_LABELS, isStepOpen, stepStatusLabel,
 } from '../types/onboarding';
 import {
   NEXT_ACTION, isStuckStep, summarizeClientOnboarding,
@@ -229,7 +229,7 @@ export default function ClientsOnboardingSection({ clients, steps, engagements, 
                           <span className="cob-step-name">
                             {s.payload?.title || STEP_TYPE_LABELS[s.stepType]}
                           </span>
-                          <span className="cob-step-status">{STEP_STATUS_LABELS[s.status]}</span>
+                          <span className="cob-step-status">{stepStatusLabel(s)}</span>
                           {isStepOpen(s.status) && s.status !== 'locked' && (
                             <span className="cob-step-ball">{STEP_BALL_LABELS[s.ball]}</span>
                           )}
