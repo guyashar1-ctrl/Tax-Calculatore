@@ -78,15 +78,10 @@ const UPLOAD_ERRORS: Record<string, string> = {
   not_published: 'הבקשה הזאת עדיין לא נפתחה.',
 };
 
-/** תחנות המסע כפי שהלקוח מבין אותן. השרת מחזיר את התחנה הנוכחית. */
+/** שלב המסע כפי שהשרת שולח — כבר לא מוצג כפס התקדמות (הכרעת מוצר: הדף מציג
+ *  רק "מה צריך ממך", לא מיפוי פנימי של איפה הלקוח נמצא בתהליך המשרד). השדה
+ *  נשאר בטיפוס כי get_client_portal עדיין מחזיר אותו. */
 type JourneyStage = 'quote' | 'identity' | 'setup' | 'active';
-
-const JOURNEY: { id: JourneyStage; label: string }[] = [
-  { id: 'quote',    label: 'הצעה' },
-  { id: 'identity', label: 'אימות וייצוג' },
-  { id: 'setup',    label: 'התחברות' },
-  { id: 'active',   label: 'עובדים ביחד' },
-];
 
 export interface PortalData {
   clientFirstName: string;
@@ -346,55 +341,75 @@ function btn(accent: string, radius: number, busy: boolean): React.CSSProperties
   };
 }
 
+/** שורת התקדמות קצרה מתחת לכותרת — נגזרת מהפריטים, לא שדה שמור. */
+function progressLine(item: PortalItem): string | undefined {
+  if (item.checklist?.length) {
+    const done = item.checklist.filter(c => c.done).length;
+    return `${done} מתוך ${item.checklist.length} התקבלו`;
+  }
+  if (item.requirements?.length) {
+    const done = item.requirements.filter(r => r.done).length;
+    return `${done} מתוך ${item.requirements.length} הושלמו`;
+  }
+  return item.sub;
+}
+
 /**
- * פעולה אחת שממתינה ללקוח. השורות מכוונות לקריאה כרשימה שאפשר לתקוף בכל סדר,
- * ולא כתור: אין עמודת נקודות מובילה, וכל שורה נושאת את הכפתור שלה.
- *
- * ‼ טופס הרו"ח הקודם נפתח בלחיצה ולא כברירת מחדל — שלושה שדות פתוחים באמצע
- * הרשימה מושכים את כל תשומת הלב לפעולה אחת ומסתירים את השאר.
+ * כרטיס פעולה אחת שממתינה ללקוח — כותרת, שורת התקדמות, כפתור אחד.
+ * ‼ יחידת התצוגה הראשית היא הקבוצה, לא הפריט הבודד: הצ'קליסט/הדרישות/טופס
+ * הרו"ח הקודם נפתחים רק בלחיצה. גרסה קודמת פרשה את כל השורות תמיד — שבע
+ * שורות מסמכים גלויות מיד הן בדיוק העומס שהמודל המאוחד בא לצמצם.
  */
 function ActionItem({ token, item, brand, accent, last, onDone }: {
   token: string; item: PortalItem; last: boolean;
-  brand: { ink: string; muted: string; border: string; radius: number };
+  brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
   accent: string; onDone: () => void;
 }) {
   const previewMode = useContext(PreviewCtx);
   const [open, setOpen] = useState(false);
   const href = actionHref(item);
   const inPage = item.actionKind === 'portal';
-  const quietBtn: React.CSSProperties = {
-    flexShrink: 0, textDecoration: 'none', cursor: 'pointer', background: 'none',
-    fontSize: 13, fontWeight: 600, padding: '6px 15px', color: accent,
-    border: `1px solid ${accent}`, borderRadius: brand.radius,
+  const expandable = inPage && (item.kind === 'documents' || item.kind === 'custom' || item.kind === 'prev_accountant');
+  const prog = progressLine(item);
+
+  const primaryBtn: React.CSSProperties = {
+    display: 'inline-block', flexShrink: 0, textDecoration: 'none', cursor: 'pointer', border: 'none',
+    fontSize: 13.5, fontWeight: 600, padding: '9px 18px', color: '#fff', background: accent, borderRadius: brand.radius,
   };
-  // בתצוגה המקדימה הכפתורים נראים אבל לא חיים — הרו"ח מסתכל, לא פועל בשם הלקוח.
-  const inertBtn: React.CSSProperties = { ...quietBtn, opacity: .55, cursor: 'default', pointerEvents: 'none' };
+  const inertBtn: React.CSSProperties = { ...primaryBtn, opacity: .55, cursor: 'default', pointerEvents: 'none' };
+
+  const primaryLabel = item.cta || (
+    item.kind === 'documents' ? (open ? 'סגירה' : 'המשך העלאה')
+    : item.kind === 'custom' ? (open ? 'סגירה' : 'המשך')
+    : item.kind === 'prev_accountant' ? (open ? 'סגירה' : 'למילוי')
+    : 'להמשך'
+  );
 
   return (
-    <div style={{ padding: '12px 0', borderBottom: last ? 'none' : `1px solid ${brand.border}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink }}>{item.label}</span>
-            {previewMode && item.draft && <DraftChip />}
-          </div>
-          {item.sub && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.sub}</div>}
-        </div>
+    <div style={{
+      padding: '15px 16px', marginBottom: last ? 0 : 10,
+      background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius + 2,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ flex: 1, fontSize: 14.5, fontWeight: 650, color: brand.ink }}>{item.label}</span>
+        {previewMode && item.draft && <DraftChip />}
+      </div>
+      {prog && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 3 }}>{prog}</div>}
+
+      <div style={{ marginTop: 11 }}>
         {href && (previewMode
           ? <span style={inertBtn}>להמשך ←</span>
-          : <a href={href} style={quietBtn}>להמשך ←</a>)}
-        {inPage && item.kind === 'prev_accountant' && !open && (
-          previewMode
-            ? <span style={inertBtn}>למילוי</span>
-            : <button type="button" onClick={() => setOpen(true)} style={quietBtn}>למילוי</button>
-        )}
+          : <a href={href} style={primaryBtn}>להמשך ←</a>)}
+        {expandable && (previewMode
+          ? <span style={inertBtn}>{primaryLabel}</span>
+          : <button type="button" onClick={() => setOpen(o => !o)} style={primaryBtn}>{primaryLabel}</button>)}
       </div>
 
       {/* ‼ מסמכים: הלקוח מעלה כאן, במקום. הקובץ נכנס ישר לתיק שלו אצל הרו"ח
           ומסמן את הפריט. מה שמגיע בוואטסאפ או במייל עדיין מסומן ידנית על ידי
           הרו"ח — שני הערוצים חיים זה לצד זה. */}
-      {inPage && item.kind === 'documents' && !!item.checklist?.length && item.actionValue && (
-        <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 2 }}>
+      {open && inPage && item.kind === 'documents' && !!item.checklist?.length && item.actionValue && (
+        <ul style={{ margin: '12px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 2, borderTop: `1px dashed ${brand.border}`, paddingTop: 8 }}>
           {item.checklist.map(ci => (
             <UploadItem key={ci.key ?? ci.label} token={token} tokenKind="portal"
               stepId={item.actionValue!} itemKey={ci.key} label={ci.label} done={ci.done}
@@ -403,13 +418,17 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
         </ul>
       )}
 
-      {inPage && item.kind === 'custom' && item.actionValue && (
-        <CustomRequestBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+      {open && inPage && item.kind === 'custom' && item.actionValue && (
+        <div style={{ borderTop: `1px dashed ${brand.border}`, paddingTop: 8, marginTop: 12 }}>
+          <CustomRequestBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+        </div>
       )}
 
-      {inPage && item.kind === 'prev_accountant' && item.actionValue && open && (
-        <PrevAccountantForm token={token} stepId={item.actionValue}
-          brand={brand} accent={accent} onDone={onDone} />
+      {open && inPage && item.kind === 'prev_accountant' && item.actionValue && (
+        <div style={{ borderTop: `1px dashed ${brand.border}`, paddingTop: 8, marginTop: 12 }}>
+          <PrevAccountantForm token={token} stepId={item.actionValue}
+            brand={brand} accent={accent} onDone={onDone} />
+        </div>
       )}
     </div>
   );
@@ -518,16 +537,13 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
     );
   }
 
+  // ‼ הכרעת מוצר סגורה: הדף מציג רק מה שהלקוח צריך לעשות. עבודת המשרד,
+  // רו"ח קודם וגורם חיצוני — כולל "future" (שלב נעול הממתין להם) — לא
+  // מוצגים כאן בכלל. הרו"ח רואה את כל זה ב"תהליך"; כאן זה רק היה רועש
+  // ומטשטש את השאלה היחידה שהעמוד עונה עליה.
   const actions = data.items.filter(i => i.bucket === 'action');
-  const office  = data.items.filter(i => i.bucket === 'office');
   const done    = data.items.filter(i => i.bucket === 'done');
-  const future  = data.items.filter(i => i.bucket === 'future');
-  // מה שכבר נסגר קודם, ואחריו מה שרץ עכשיו — כך המקטע נקרא כרצף אחד.
-  const track   = [...done, ...office];
-  const allDone = actions.length === 0 && office.length === 0 && data.total > 0;
   const firstName = data.clientFirstName;
-  const stage: JourneyStage = data.journeyStage ?? 'identity';
-  const stageIdx = Math.max(0, JOURNEY.findIndex(s => s.id === stage));
 
   return (
     <PreviewCtx.Provider value={preview}>
@@ -535,103 +551,35 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
       <div style={card}>
         <Header />
 
-        <div style={{ fontSize: 20, fontWeight: 600, color: brand.ink, marginBottom: 3 }}>
-          {allDone
-            ? <>הכול הושלם{firstName ? `, ${firstName}` : ''} 🎉</>
-            : stage === 'quote'
-              ? <>שלום{firstName ? ` ${firstName}` : ''}, זה הדף האישי שלך</>
-              : <>שלום{firstName ? ` ${firstName}` : ''}, הנה מצב ההצטרפות שלך</>}
+        <div style={{ fontSize: 19, fontWeight: 650, color: brand.ink, marginBottom: 3 }}>
+          שלום{firstName ? ` ${firstName}` : ''},
         </div>
-        {/* המפה הגדולה: איפה אני במסע. מחליפה את פס ההתקדמות הדק — שני
-            מדדי התקדמות זה על זה רק מבלבלים. */}
-        <div style={{ display: 'flex', margin: '16px 0 2px' }}>
-          {JOURNEY.map((st, i) => {
-            const passed = i < stageIdx;
-            const current = i === stageIdx;
-            const on = passed || current;
-            return (
-              <div key={st.id} style={{ flex: 1, minWidth: 0, textAlign: 'center', position: 'relative' }}>
-                {i > 0 && (
-                  <span aria-hidden="true" style={{
-                    // ‼ בעברית התחנה הקודמת נמצאת מימין, אבל left/right ב-CSS
-                    // אינם מתהפכים. הקו חייב לצאת מהנקודה ימינה: left:50%.
-                    position: 'absolute', top: 6, left: '50%', width: '100%', height: 2,
-                    background: on ? accent : brand.border,
-                  }} />
-                )}
-                <span aria-hidden="true" style={{
-                  position: 'relative', display: 'block', width: 14, height: 14, margin: '0 auto',
-                  borderRadius: 999, boxSizing: 'border-box',
-                  background: on ? accent : brand.cardBg,
-                  border: on ? `2px solid ${accent}` : `2px solid ${brand.border}`,
-                }} />
-                <div style={{
-                  marginTop: 6, fontSize: 11, lineHeight: 1.35,
-                  fontWeight: current ? 700 : 400,
-                  color: current ? ink : brand.muted,
-                }}>{st.label}</div>
-              </div>
-            );
-          })}
-        </div>
-        {actions.length > 0 && (
+
+        {actions.length > 0 ? (
           <>
-            <div style={{ ...sectionTitle, color: accent, marginBottom: 0 }}>
-              ממתין לך — {actions.length === 1 ? 'פעולה אחת' : `${actions.length} פעולות`}
-            </div>
-            <div style={{ fontSize: 12.5, color: brand.muted, marginBottom: 2 }}>
-              אפשר בכל סדר, ואפשר לעצור ולחזור לדף מתי שנוח
-            </div>
+            <div style={{ ...sectionTitle, color: accent, marginTop: 16, marginBottom: 8 }}>מה צריך ממך</div>
             {actions.map((item, i) => (
               <ActionItem key={item.key} token={token} item={item} brand={brand} accent={accent}
                 last={i === actions.length - 1} onDone={reload} />
             ))}
           </>
-        )}
-
-        {/* ‼ "הושלם" ו"בטיפול המשרד" הם מקטע אחד: אבני הדרך הגדולות — ההצעה
-            והייצוג — נבלעו כשורות בתחתית שני מקטעים נפרדים. כאן הן נקראות
-            כרצף אחד שמתקדם, וכל שורה נושאת את המצב שלה. */}
-        {track.length > 0 && (
-          <>
-            <div style={{ ...sectionTitle, marginBottom: 0 }}>במקביל</div>
-            <div style={{ fontSize: 12.5, color: brand.muted, marginBottom: 4 }}>
-              מתקדם אצלנו בזמן שאתה עושה את שלך
-            </div>
-            {track.map(item => {
-              const isDone = item.bucket === 'done';
-              return (
-                <div key={item.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0' }}>
-                  <span aria-hidden="true" style={{
-                    flexShrink: 0, width: 14, marginTop: 1, textAlign: 'center',
-                    fontSize: isDone ? 13 : 11, color: isDone ? '#1e7a55' : brand.muted,
-                  }}>{isDone ? '✓' : '○'}</span>
-                  <div>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13.5, color: isDone ? brand.muted : brand.ink }}>{item.label}</span>
-                      {preview && item.draft && <DraftChip />}
-                    </span>
-                    {item.sub && (
-                      <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.sub}</div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {future.map(item => (
-          <div key={item.key} style={{
-            display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0', color: brand.muted,
-          }}>
-            <span aria-hidden="true" style={{ flexShrink: 0, width: 14, textAlign: 'center', fontSize: 11 }}>·</span>
-            <span style={{ fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span>{item.label}{item.sub ? ` — ${item.sub}` : ''}</span>
-              {preview && item.draft && <DraftChip />}
-            </span>
+        ) : done.length > 0 ? (
+          <div style={{ fontSize: 15, color: brand.ink, margin: '18px 0 4px' }}>
+            הכול הושלם{firstName ? `, ${firstName}` : ''} 🎉
           </div>
-        ))}
+        ) : (
+          <div style={{ fontSize: 13.5, color: brand.muted, margin: '18px 0 4px' }}>
+            אין כרגע משהו שממתין לך.
+          </div>
+        )}
+
+        {/* ‼ תזכורת שקטה שכבר קרה משהו — לא רשימה. "מה קורה עכשיו" הוא
+            השאלה של העמוד הזה; "מה קרה" שייך לרו"ח בלבד. */}
+        {done.length > 0 && (
+          <div style={{ fontSize: 12, color: brand.muted, marginTop: actions.length > 0 ? 16 : 4 }}>
+            ✓ {done.length === 1 ? 'דבר אחד שכבר הושלם' : `${done.length} דברים שכבר הושלמו`}
+          </div>
+        )}
 
         <div style={{
           marginTop: 22, paddingTop: 12, borderTop: `1px solid ${brand.border}`,

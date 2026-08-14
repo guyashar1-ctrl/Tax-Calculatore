@@ -1,0 +1,511 @@
+<!doctype html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תהליך ובקשות — מודל מאוחד V1</title>
+<style>
+/* ─── אותה שפה ויזואלית כמו הרפרנסים המאושרים ─────────────────────────── */
+:root{
+  --bg:#f6f7f9; --card:#fff; --ink:#1c2433; --muted:#717a8a; --faint:#9aa2b1;
+  --line:#e7eaef; --accent:#2e5f92; --accent-soft:#eef4fa; --accent-bd:#cfdeed;
+  --green:#187a53; --green-soft:#ecf7f1; --amber:#9c6a0d; --amber-soft:#fff6e2;
+  --red:#b3453e; --red-soft:#fdf0ef; --r:12px; --shadow:0 1px 2px rgba(16,24,40,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,'Segoe UI',Arial,'Noto Sans Hebrew',sans-serif}
+button{font:inherit;cursor:pointer}
+
+/* ראש הדגמה — לא חלק מהמוצר */
+.demo-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 18px;background:#1c2433;color:#fff;font-size:12.5px}
+.demo-top b{font-size:13.5px;letter-spacing:.03em}
+.demo-nav{display:flex;gap:6px;flex-wrap:wrap}
+.demo-nav button{border:1px solid rgba(255,255,255,.25);background:none;color:#e8ecf2;border-radius:999px;padding:4px 12px;font-size:12px}
+.demo-nav button.on{background:#fff;color:#1c2433;font-weight:600;border-color:#fff}
+.demo-top .sp{flex:1}
+.demo-top .mob{border:1px solid rgba(255,255,255,.25);background:none;color:#e8ecf2;border-radius:8px;padding:4px 10px;font-size:12px}
+.demo-top .mob.on{background:#fff;color:#1c2433;font-weight:600}
+
+/* מסגרת: דסקטופ רגיל, או "טלפון" של 375px */
+.frame{max-width:880px;margin:auto;padding:22px 20px 90px}
+body.mobile .frame{max-width:375px;padding:14px 12px 70px;border-inline:1px solid var(--line);min-height:calc(100vh - 44px);background:var(--bg)}
+
+/* ── כותרת תיק ── */
+.chead h1{font-size:20px;font-weight:650}
+.csub{font-size:12px;color:var(--muted);margin-top:3px}
+.lifecycle{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;padding:3px 9px;background:var(--amber-soft);color:var(--amber);margin-inline-start:8px;vertical-align:2px}
+.lifecycle.active{background:var(--green-soft);color:var(--green)}
+
+.secthead{font-size:12px;font-weight:700;color:var(--muted);margin:18px 2px 6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+
+/* ── קבוצת בקשה: היחידה המרכזית. שורה אחת — כותרת, בעלים·התקדמות, פתח ── */
+.grp{border-top:1px solid var(--line)}
+.grp:first-child{border-top:0}
+.grp-head{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;width:100%;
+  text-align:start;background:none;border:0;padding:13px 16px;color:inherit}
+.grp-head:hover{background:#fafbfc}
+.grp-title{font-size:13px;font-weight:600}
+.grp-sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+.grp-side{display:flex;align-items:center;gap:8px}
+.chev{color:var(--faint);font-size:11px;transition:transform .15s}
+.grp.open .chev{transform:rotate(-90deg)}
+
+.pill{display:inline-block;font-size:10.5px;font-weight:600;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.pill.me{background:var(--accent-soft);color:var(--accent)}
+.pill.wait{background:#f1f3f6;color:var(--muted)}
+.pill.done{background:var(--green-soft);color:var(--green)}
+.pill.locked{background:none;color:var(--faint);border:1px dashed var(--line)}
+.pill.draft{background:var(--amber-soft);color:var(--amber)}
+.miss{color:var(--amber);font-weight:600}
+
+/* גוף קבוצה פתוחה — תת-פריטים רק כאן */
+.grp-body{padding:2px 16px 14px;border-top:1px dashed var(--line);background:#fcfcfd}
+.item{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid #f0f2f5;font-size:12.5px}
+.item:first-child{border-top:0}
+.item .tick{width:15px;text-align:center;flex-shrink:0}
+.item.done .tick{color:var(--green)} .item.done .lbl{color:var(--muted)}
+.item.todo .tick{color:var(--faint)}
+.item .lbl{flex:1}
+.item .when{font-size:11px;color:var(--faint);white-space:nowrap}
+.grp-next{font-size:11.5px;color:var(--faint);margin-top:9px}
+.grp-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn{border:1px solid #d4dae2;background:#fff;border-radius:8px;padding:6px 12px;font-size:12px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.link{border:0;background:none;color:var(--accent);padding:6px 2px}
+
+/* מוסדות בתוך יישור קו */
+.inst{display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid #f0f2f5;font-size:12.5px}
+.inst:first-child{border-top:0}
+.inst .lbl{flex:1;font-weight:550}
+.inst button{border:0;background:none;color:var(--accent);font-size:12px}
+
+/* מצב מיקוד — משתלט על המסך, התהליך נעלם */
+.focus h1{font-size:17px;margin-bottom:2px}
+.focus .fsec{margin-top:14px}
+.focus .fk{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px}
+.focus .fv{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px}
+.focus textarea{width:100%;border:1px solid #d4dae2;border-radius:10px;padding:9px 11px;font:inherit;font-size:13px;min-height:56px;resize:vertical}
+.focus .facts{display:flex;justify-content:flex-start;gap:8px;margin-top:18px}
+
+/* הושלם — מקטע שקט בתחתית */
+.done-toggle{border:0;background:none;color:var(--faint);font-size:12px;padding:10px 2px;text-align:start;width:100%}
+
+/* ── דף הלקוח ── */
+.cl-hello{font-size:19px;font-weight:650}
+.cl-sub{font-size:12.5px;color:var(--muted);margin-top:3px}
+.cl-need{font-size:12px;font-weight:700;color:var(--accent);margin:20px 2px 6px}
+.cl-card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:15px 16px;margin-bottom:10px}
+.cl-title{font-size:14.5px;font-weight:650}
+.cl-prog{font-size:12.5px;color:var(--muted);margin-top:3px}
+.cl-btn{display:inline-block;margin-top:11px;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:9px 18px;font-size:13.5px;font-weight:600}
+.cl-items{margin-top:12px;border-top:1px dashed var(--line);padding-top:4px}
+.cl-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #f0f2f5;font-size:13px}
+.cl-item:first-child{border-top:0}
+.cl-item .lbl{flex:1}
+.cl-item.done .lbl{color:var(--muted)}
+.cl-item .up{border:1px solid var(--accent-bd);background:var(--accent-soft);color:var(--accent);border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600}
+.cl-alldone{color:var(--green);font-size:12.5px;margin-top:10px}
+.cl-quiet{margin-top:22px;font-size:12px;color:var(--faint)}
+.cl-done-line{color:var(--faint);font-size:12.5px;padding:7px 2px}
+.cl-foot{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);font-size:11.5px;color:var(--faint);text-align:center;line-height:1.7}
+.cl-switch{display:flex;gap:6px;margin-bottom:16px}
+.cl-switch button{border:1px solid #d4dae2;background:#fff;border-radius:999px;padding:4px 12px;font-size:12px;color:var(--muted)}
+.cl-switch button.on{background:var(--accent-soft);border-color:var(--accent-bd);color:var(--accent);font-weight:600}
+
+/* טוסט קטן — "נשמר במסמכים" */
+.toast{position:fixed;bottom:20px;inset-inline-start:50%;transform:translateX(50%);background:#1c2433;color:#fff;
+  border-radius:10px;padding:9px 16px;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .25s;pointer-events:none;z-index:50}
+.toast.on{opacity:1}
+
+.note{font-size:11.5px;color:var(--faint);margin:14px 2px 0}
+</style>
+</head>
+<body>
+
+<div class="demo-top">
+  <b>מודל מאוחד · תהליך = בקשות = דף הלקוח</b>
+  <div class="demo-nav" id="nav"></div>
+  <span class="sp"></span>
+  <button class="mob" id="mobBtn" onclick="toggleMobile()">📱 375px</button>
+</div>
+
+<div class="frame"><div id="app"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   מודל נתונים אחד. אין "מסד קליטה" ואין "מסד בקשות מסמכים" —
+   קבוצת בקשה אחת, עם בעלים, פריטים, תלות ומצב פרסום.
+   שני המסכים (משרד / לקוח) מרנדרים בדיוק את אותם אובייקטים.
+   ══════════════════════════════════════════════════════════════════════════ */
+const OWNER = {
+  office:  { label:'אצלך',                cls:'me'   },
+  client:  { label:'ממתין ללקוח',         cls:'wait' },
+  prev:    { label:'ממתין לרו״ח קודם',    cls:'wait' },
+  external:{ label:'ממתין לגורם חיצוני',  cls:'wait' },
+};
+
+const DB = {
+  onboarding: {
+    name:'יעל כהן', stage:'בקליטה', stageCls:'', backLabel:'חזרה לקליטה',
+    sub:'עוסקת מורשית · עיצוב פנים · עוברת מרו״ח קודם',
+    groups:[
+      { id:'y-docs', title:'חומרים לפתיחת התיק', owner:'client', kind:'docs', published:true,
+        clientTitle:'מסמכים לפתיחת התיק', clientBtn:'המשך העלאה',
+        items:[
+          {label:'צילום תעודת זהות', done:true},
+          {label:'אישור ניהול חשבון בנק', done:true},
+          {label:'תעודת עוסק מורשה', done:false},
+          {label:'אישורי ניכוי מס במקור', done:false},
+          {label:'חוזה שכירות של הסטודיו', done:false},
+          {label:'תלושי שכר אחרונים של בן הזוג', done:false},
+        ],
+        next:'כשהכול יתקבל — הכדור חוזר אליך לבדיקה.' },
+      { id:'y-prev', title:'חומרים מרו״ח קודם', owner:'prev', kind:'docs', published:true,
+        items:[
+          {label:'כרטסת הנהלת חשבונות 2024–2025', done:true},
+          {label:'דוח שנתי אחרון שהוגש', done:true},
+          {label:'טפסי פחת', done:true},
+          {label:'הצהרת הון אחרונה', done:false},
+          {label:'התכתבויות פתוחות מול פקיד השומה', done:false},
+        ],
+        next:'נשלחה תזכורת לפני 4 ימים. אם לא יגיע עד סוף השבוע — הכדור חוזר אליך.' },
+      { id:'y-paperless', title:'חיבור לפייפרלס', owner:'client', kind:'simple', published:true,
+        clientTitle:'חיבור למערכת הפייפרלס', clientBtn:'התחבר',
+        sub:'הקישור נשלח ללקוחה', next:'אחרי החיבור נפתחת הרשאת החיוב.' },
+      { id:'y-charge', title:'הרשאה לחיוב חשבון', owner:'client', kind:'simple', published:true,
+        dependsOn:'y-paperless', clientTitle:'הרשאה לחיוב חשבון', clientBtn:'הקם הרשאה' },
+      { id:'y-align', title:'יישור קו מול הרשויות', owner:'office', kind:'align', published:true,
+        inst:[
+          {key:'btl', label:'ביטוח לאומי', done:true},
+          {key:'vat', label:'מע״מ', done:true},
+          {key:'pit', label:'מס הכנסה', done:false},
+        ],
+        next:'נתונים שנאספים נכנסים לתיק המס דרך התאמה. כשהכול יסתיים — נפתחת שיחת הפתיחה.' },
+      { id:'y-tax', title:'עדכון סטטוס מיסויי', owner:'client', kind:'quest', published:false,
+        clientTitle:'עדכון סטטוס מיסויי', clientBtn:'השלם שאלון',
+        next:'התשובות ייכנסו לתיק המס כהצעות — כלום לא נדרס אוטומטית.' },
+      { id:'y-call', title:'שיחת פתיחה', owner:'office', kind:'simple', published:true,
+        dependsOn:'y-align' },
+      { id:'y-intake', title:'קליטת פרטים ראשונית', owner:'client', kind:'docs', published:true, completed:true,
+        items:[{label:'פרטים אישיים ופרטי העסק', done:true},{label:'פרטי הרו״ח הקודם', done:true}] },
+    ],
+  },
+
+  existing: {
+    name:'משה לוי', stage:'הקמת תיק', stageCls:'', backLabel:'חזרה להקמת התיק',
+    sub:'לקוח קיים של המשרד · נכנס למערכת · בלי היסטוריה מומצאת: אין הצעה, אין ייצוג, אין שיחת פתיחה',
+    groups:[
+      { id:'m-align', title:'יישור קו מול הרשויות', owner:'office', kind:'align', published:true,
+        inst:[
+          {key:'btl', label:'ביטוח לאומי', done:false},
+          {key:'vat', label:'מע״מ', done:false},
+          {key:'pit', label:'מס הכנסה', done:false},
+        ],
+        next:'הנתונים נכנסים לתיק המס דרך התאמה — זה כל מה שההקמה דורשת.' },
+      { id:'m-info', title:'השלמת מידע מקצועי', owner:'client', kind:'docs', published:true,
+        clientTitle:'השלמת פרטים לתיק', clientBtn:'המשך העלאה',
+        items:[
+          {label:'אישור קרן השתלמות', done:true},
+          {label:'אישור קופת גמל', done:false},
+          {label:'פוליסת ביטוח חיים', done:false},
+        ] },
+      { id:'m-tax', title:'עדכון סטטוס מיסויי', owner:'client', kind:'quest', published:true,
+        clientTitle:'עדכון סטטוס מיסויי', clientBtn:'השלם שאלון' },
+    ],
+  },
+
+  active: {
+    name:'ישראל ישראלי', stage:'לקוח פעיל', stageCls:'active', backLabel:'חזרה לתהליך',
+    sub:'עוסק מורשה · שירותי ייעוץ',
+    groups:[
+      { id:'i-review', title:'בדיקת חומר שהתקבל', owner:'office', kind:'simple', published:true,
+        sub:'אישור יתרות מבנק הפועלים ממתין לבדיקתך' },
+      { id:'i-hon', title:'חומרים להצהרת הון', owner:'client', kind:'docs', published:true,
+        clientTitle:'מסמכים להצהרת הון', clientBtn:'המשך העלאה',
+        items:[
+          {label:'אישורי יתרות בנק — עו״ש', done:true},
+          {label:'אישורי יתרות — פיקדונות', done:true},
+          {label:'דוח שנתי מקרן הפנסיה', done:true},
+          {label:'אישור יתרה מקרן ההשתלמות', done:true},
+          {label:'הערכת שווי רכב', done:false},
+          {label:'חוזה רכישת הדירה', done:false},
+          {label:'דפי חשבון השקעות (867)', done:false},
+        ],
+        next:'כשהכול יתקבל — הכדור חוזר אליך להכנת ההצהרה.' },
+      { id:'i-quote', title:'הצעת מחיר — ליווי בהצהרת הון', owner:'client', kind:'quote', published:true,
+        clientTitle:'הצעת מחיר — ליווי בהצהרת הון', clientBtn:'בדוק ואשר',
+        sub:'נשלחה לפני יומיים · טרם נצפתה',
+        next:'עם האישור נוצר חיוב עתידי ב"הסכם ותשלומים". לא נוצרת משימה.' },
+      { id:'i-tax', title:'עדכון סטטוס מיסויי', owner:'client', kind:'quest', published:true,
+        clientTitle:'עדכון סטטוס מיסויי', clientBtn:'השלם שאלון',
+        sub:'נשלח לפני שבוע' },
+      { id:'i-old', title:'בקשת אישורי יתרות — מרץ', owner:'client', kind:'docs', published:true, completed:true,
+        items:[{label:'אישור יתרות לסוף 2025', done:true}] },
+    ],
+  },
+};
+
+/* ─── מצב תצוגה ─── */
+const S = { view:'A', open:new Set(), focus:null, showDone:{}, landing:'active', mobile:false };
+const VIEWS = [
+  ['A','א · לקוח חדש בקליטה'],
+  ['B','ב · לקוח משרד קיים'],
+  ['C','ג · לקוח פעיל'],
+  ['D','ד · הדף של הלקוח'],
+];
+const keyOf = v => v==='A' ? 'onboarding' : v==='B' ? 'existing' : 'active';
+
+/* ─── עזרי מודל: הכול נגזר, שום דבר לא משוכפל ─── */
+function progress(g){ if(!g.items) return null; const d=g.items.filter(i=>i.done).length; return {d, t:g.items.length}; }
+function isDone(g){
+  if (g.completed) return true;
+  if (g.kind==='align') return g.inst.every(i=>i.done);
+  if (g.items) return g.items.every(i=>i.done);
+  return false;
+}
+function isLocked(g, groups){
+  if (!g.dependsOn) return false;
+  const dep = groups.find(x=>x.id===g.dependsOn);
+  return dep ? !isDone(dep) : false;
+}
+/* הדף של הלקוח = נגזרת: בבעלות הלקוח, פורסם, לא נעול, לא הושלם. נקודה. */
+function clientActions(groups){
+  return groups.filter(g => g.owner==='client' && g.published && !isDone(g) && !isLocked(g, groups));
+}
+
+/* ─── רינדור ─── */
+function h(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content; }
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  document.getElementById('nav').innerHTML = VIEWS.map(([v,l]) =>
+    `<button class="${S.view===v?'on':''}" onclick="go('${v}')">${l}</button>`).join('');
+  if (S.focus) return renderFocus(app);
+  if (S.view==='D') return renderLanding(app);
+  renderOffice(app, keyOf(S.view));
+}
+
+function renderOffice(app, key){
+  const c = DB[key];
+  const open = c.groups.filter(g => !isDone(g));
+  const done = c.groups.filter(g =>  isDone(g));
+  /* סדר: אצלך → טיוטות → ממתין לאחרים → נעול. הושלם בתחתית, מקופל. */
+  const rank = g => isLocked(g,c.groups) ? 3 : !g.published ? 1 : g.owner==='office' ? 0 : 2;
+  open.sort((a,b)=>rank(a)-rank(b));
+
+  app.append(h(`
+    <div class="chead">
+      <h1>${c.name}<span class="lifecycle ${c.stageCls}">${c.stage}</span></h1>
+      <div class="csub">${c.sub}</div>
+    </div>
+    <div class="secthead">תהליך</div>
+  `));
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  open.forEach(g => card.append(renderGroup(g, c)));
+  app.append(card);
+
+  if (done.length){
+    const dCard = document.createElement('div');
+    dCard.style.marginTop = '10px';
+    const shown = S.showDone[key];
+    dCard.append(h(`<button class="done-toggle" onclick="toggleDone('${key}')">
+      ${shown?'▾':'◂'} הושלם · ${done.length}</button>`));
+    if (shown){
+      const dc = document.createElement('div'); dc.className='card';
+      done.forEach(g => dc.append(renderGroup(g, c)));
+      dCard.append(dc);
+    }
+    app.append(dCard);
+  }
+
+  app.append(h(`<div class="note">מה שממתין לאחרים כאן מופיע מעצמו ב"ממתין לאחרים" במסך המשימות — אין משימות כפולות.
+  פרסום פותח את הפעולה בדף הלקוח; מייל הוא רק תזכורת עם קישור לאותו דף.</div>`));
+}
+
+function renderGroup(g, c){
+  const locked = isLocked(g, c.groups);
+  const doneG  = isDone(g);
+  const p = g.kind==='align'
+    ? {d:g.inst.filter(i=>i.done).length, t:g.inst.length}
+    : progress(g);
+  const opened = S.open.has(g.id);
+
+  let pill, sub='';
+  if (doneG)            pill = `<span class="pill done">הושלם</span>`;
+  else if (locked){     const dep = c.groups.find(x=>x.id===g.dependsOn);
+                        pill = `<span class="pill locked">ימתין</span>`;
+                        sub  = `אחרי ש: ${dep.title}`; }
+  else if (!g.published){ pill = `<span class="pill draft">טיוטה</span>`;
+                        sub  = 'הלקוח עדיין לא רואה את זה'; }
+  else {                const o = OWNER[g.owner];
+                        pill = `<span class="pill ${o.cls}">${o.label}</span>`;
+                        const bits=[];
+                        if (p) bits.push(`${p.d}/${p.t} ${g.kind==='align'?'הושלמו':'התקבלו'}`);
+                        if (p && p.t-p.d>0 && g.owner!=='office') bits.push(`<span class="miss">${p.t-p.d} חסרים</span>`);
+                        if (g.sub) bits.push(esc(g.sub));
+                        sub = bits.join(' · '); }
+
+  const el = document.createElement('div');
+  el.className = 'grp' + (opened?' open':'');
+  el.append(h(`
+    <button class="grp-head" onclick="toggle('${g.id}')">
+      <span><span class="grp-title">${esc(g.title)}</span>
+        ${sub?`<div class="grp-sub">${sub}</div>`:''}</span>
+      <span class="grp-side">${pill}<span class="chev">‹</span></span>
+    </button>
+  `));
+
+  if (opened){
+    const b = document.createElement('div'); b.className='grp-body';
+    if (g.kind==='align'){
+      g.inst.forEach(i => b.append(h(`
+        <div class="inst">
+          <span class="tick" style="color:${i.done?'var(--green)':'var(--faint)'}">${i.done?'✓':'○'}</span>
+          <span class="lbl">${i.label}</span>
+          ${i.done ? '<span class="when">הושלם</span>'
+                   : `<button onclick="openFocus('${g.id}','${i.key}')">התחל ←</button>`}
+        </div>`)));
+    } else if (g.items){
+      g.items.forEach(i => b.append(h(`
+        <div class="item ${i.done?'done':'todo'}">
+          <span class="tick">${i.done?'✓':'○'}</span>
+          <span class="lbl">${esc(i.label)}</span>
+          ${i.done?'<span class="when">התקבל</span>':''}
+        </div>`)));
+    }
+    if (g.next && !doneG) b.append(h(`<div class="grp-next">${esc(g.next)}</div>`));
+    if (!doneG && !locked){
+      const acts = document.createElement('div'); acts.className='grp-actions';
+      if (!g.published){
+        acts.append(h(`<button class="btn primary" onclick="publish('${g.id}')">פרסם לדף הלקוח</button>`));
+        acts.append(h(`<span class="grp-next" style="margin-top:8px">פרסום אינו שולח מייל — אפשר לשלוח קישור אחר כך.</span>`));
+      } else if (g.owner!=='office'){
+        acts.append(h(`<button class="btn link">שלח תזכורת</button>`));
+      }
+      b.append(acts);
+    }
+    el.append(b);
+  }
+  return el;
+}
+
+/* ─── מצב מיקוד — יישור קו. התהליך נעלם מהמסך. ─── */
+function renderFocus(app){
+  const {gid, inst} = S.focus;
+  const key = keyOf(S.view), c = DB[key];
+  const g = c.groups.find(x=>x.id===gid);
+  const i = g.inst.find(x=>x.key===inst);
+  const GUIDE = {
+    btl:{where:'אתר ביטוח לאומי — ייצוג לקוחות', copy:'סיווג עיסוק · בסיס הכנסה למקדמות · יתרת חוב'},
+    vat:{where:'שע״ם — שאילתת עוסק', copy:'תדירות דיווח · תקופת דיווח אחרונה · יתרה'},
+    pit:{where:'שע״ם — פרטי תיק', copy:'סוג תיק · מצב דיווחים · אחוז מקדמות · יתרה'},
+  }[inst];
+  app.append(h(`
+    <div class="focus">
+      <h1>יישור קו — ${i.label}</h1>
+      <div class="csub">${c.name}</div>
+      <div class="fsec"><div class="fk">לאן להיכנס</div><div class="fv">${GUIDE.where}</div></div>
+      <div class="fsec"><div class="fk">מה להעתיק</div><div class="fv">${GUIDE.copy}</div></div>
+      <div class="fsec"><div class="fk">חריגה (אם קיימת)</div>
+        <textarea placeholder="מה שמצאת ואינו תואם את הצפוי — יהפוך להבהרה או לבקשת לקוח, לבחירתך"></textarea></div>
+      <div class="facts">
+        <button class="btn primary" onclick="focusSave()">שמור והמשך</button>
+        <button class="btn" onclick="focusBack()">${c.backLabel}</button>
+      </div>
+      <div class="note">עובדות שנאספות נכנסות לתיק המס דרך התאמה. פעולה שהלקוח צריך לעשות — נפתחת כטיוטת בקשה, ולא נשלחת אוטומטית.</div>
+    </div>
+  `));
+}
+
+/* ─── הדף של הלקוח — נגזרת מאותם אובייקטים ─── */
+function renderLanding(app){
+  const key = S.landing, c = DB[key];
+  const acts = clientActions(c.groups);
+  const doneCount = c.groups.filter(g=>isDone(g)).length;
+
+  app.append(h(`
+    <div class="cl-switch">
+      <button class="${key==='active'?'on':''}" onclick="setLanding('active')">ישראל · לקוח פעיל</button>
+      <button class="${key==='onboarding'?'on':''}" onclick="setLanding('onboarding')">יעל · בקליטה</button>
+    </div>
+    <div class="cl-hello">שלום ${c.name.split(' ')[0]},</div>
+    <div class="cl-sub">${acts.length===0 ? 'אין שום דבר שממתין לך כרגע 🎉' : 'זה הדף האישי שלך — הוא תמיד באותה כתובת.'}</div>
+    ${acts.length ? `<div class="cl-need">מה צריך ממך</div>` : ''}
+  `));
+
+  acts.forEach(g => {
+    const p = progress(g);
+    const opened = S.open.has('cl-'+g.id);
+    const card = document.createElement('div'); card.className='cl-card';
+    card.append(h(`
+      <div class="cl-title">${esc(g.clientTitle||g.title)}</div>
+      ${p?`<div class="cl-prog">${p.d} מתוך ${p.t} התקבלו</div>`:''}
+      <button class="cl-btn" onclick="clientOpen('${g.id}')">${g.clientBtn||'פתח'}</button>
+    `));
+    if (opened && g.items){
+      const box = document.createElement('div'); box.className='cl-items';
+      g.items.forEach((it,idx) => box.append(h(`
+        <div class="cl-item ${it.done?'done':''}">
+          <span class="tick" style="color:${it.done?'var(--green)':'var(--faint)'}">${it.done?'✓':'○'}</span>
+          <span class="lbl">${esc(it.label)}</span>
+          ${it.done?'':`<button class="up" onclick="upload('${g.id}',${idx})">העלה</button>`}
+        </div>`)));
+      card.append(box);
+    }
+    if (opened && !g.items){
+      card.append(h(`<div class="cl-prog" style="margin-top:10px">(כאן ייפתח ${g.kind==='quest'?'השאלון':'המסך המתאים'} — הדגמה)</div>`));
+    }
+    app.append(card);
+  });
+
+  if (doneCount) app.append(h(`<div class="cl-done-line">✓ ${doneCount===1?'דבר אחד שכבר הושלם':`${doneCount} דברים שכבר הושלמו`}</div>`));
+  app.append(h(`<div class="cl-foot">גיא ישר · רואה חשבון<br>הדף מתעדכן לבד — אפשר לחזור אליו מכל מייל שקיבלת.</div>`));
+}
+
+/* ─── פעולות ─── */
+function go(v){ S.view=v; S.focus=null; render(); }
+function toggle(id){ S.open.has(id)?S.open.delete(id):S.open.add(id); render(); }
+function toggleDone(key){ S.showDone[key]=!S.showDone[key]; render(); }
+function setLanding(k){ S.landing=k; render(); }
+function clientOpen(id){ const k='cl-'+id; S.open.has(k)?S.open.delete(k):S.open.add(k); render(); }
+function publish(id){
+  const g = DB[keyOf(S.view)].groups.find(x=>x.id===id);
+  g.published = true; render();
+  toast('פורסם. הפעולה מופיעה עכשיו בדף הלקוח — מייל לא נשלח.');
+}
+function upload(gid, idx){
+  for (const key of Object.keys(DB)){
+    const g = DB[key].groups.find(x=>x.id===gid);
+    if (g){ g.items[idx].done = true; break; }
+  }
+  render();
+  toast('התקבל ✓ נשמר במסמכים · 2026 · התווית שהוגדרה בבקשה');
+}
+function openFocus(gid, inst){ S.focus={gid, inst}; render(); }
+function focusBack(){ S.focus=null; render(); }
+function focusSave(){
+  const g = DB[keyOf(S.view)].groups.find(x=>x.id===S.focus.gid);
+  g.inst.find(i=>i.key===S.focus.inst).done = true;
+  S.focus=null; render();
+  toast('נשמר. הנתונים ייכנסו לתיק המס דרך התאמה.');
+}
+function toggleMobile(){
+  S.mobile=!S.mobile;
+  document.body.classList.toggle('mobile', S.mobile);
+  document.getElementById('mobBtn').classList.toggle('on', S.mobile);
+}
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('on'), 2600);
+}
+render();
+</script>
+</body>
+</html>

@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
+import ConfirmDialog from '../ui/ConfirmDialog';
 
 export type SendPortalMode = 'link' | 'email';
 
@@ -34,6 +35,20 @@ export default function SendPortalDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+  const [rotateBusy, setRotateBusy] = useState(false);
+
+  async function rotate() {
+    setRotateBusy(true);
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc('rotate_portal_token', { p_client_id: clientId });
+    const token = (data as string | null) ?? null;
+    setRotateBusy(false);
+    setConfirmRotate(false);
+    if (rpcError || !token) { setError('לא הצלחתי להנפיק קישור חדש.'); return; }
+    setLink(`${window.location.origin}/?portal=${token}`);
+    setStage('link');
+  }
 
   async function go() {
     setBusy(true);
@@ -110,11 +125,27 @@ export default function SendPortalDialog({
             <input readOnly value={link} dir="ltr"
               style={{ width: '100%', textAlign: 'left', fontSize: 'var(--fs-13)', fontFamily: 'var(--font-mono, monospace)' }}
               onFocus={e => e.currentTarget.select()} />
+            {/* ‼ פעולה נדירה ורגישת-אבטחה — קישור טקסט שקט, לא כפתור שמתחרה
+                עם הפעולות הרגילות. מבטלת את הקישור הקודם מיידית. */}
+            <button type="button" className="ui-linkbtn" style={{ marginTop: '.6rem', fontSize: 'var(--fs-12)' }}
+              onClick={() => setConfirmRotate(true)}>
+              חדש קישור לקוח (מבטל את הקישור הקודם)
+            </button>
+            {error && <div style={{ marginTop: '.5rem', color: 'var(--danger, var(--err))', fontSize: 'var(--fs-13)' }}>{error}</div>}
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-primary" onClick={onClose}>סיום</button>
           </div>
         </div>
+        {confirmRotate && (
+          <ConfirmDialog
+            title="קישור חדש ללקוח"
+            message="הקישור הקודם יפסיק לעבוד מיד. אם נשלח ללקוח באימייל או בוואטסאפ קודם — יהיה צריך לשלוח לו את הקישור החדש."
+            confirmLabel={rotateBusy ? 'רגע…' : 'הנפקת קישור חדש'}
+            onConfirm={() => void rotate()}
+            onCancel={() => setConfirmRotate(false)}
+          />
+        )}
       </div>
     );
   }
