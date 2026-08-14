@@ -43,11 +43,11 @@ const AUTHORITY_ORDER: TaxAuthority[] = ['income_tax', 'vat', 'deductions', 'nat
 const AUTHORITY_FIELD_KEYS: Record<TaxAuthority, (keyof Client)[]> = {
   income_tax: ['incomeTaxFileType', 'taxOfficeName', 'incomeTaxUnit', 'incomeTaxEconomicIndustry',
     'pitAdvancePercent', 'pitAdvanceFrequency', 'incomeTaxBalance', 'capitalDeclarationRequired',
-    'capitalDeclarationDeadline', 'incomeTaxDebitAuthorization'],
+    'capitalDeclarationDeadline', 'incomeTaxDebitAuthorization', 'incomeTaxReportingStatus'],
   vat: ['vatFileType', 'vatOpeningDate', 'vatPrimaryIndustry', 'vatFrequency', 'vatLastReportPeriod',
     'vatBalance', 'vatDebitAuthorization'],
   deductions: ['withholdingRate', 'hasExemptFromWithholding', 'withholdingDetail', 'bookStatus'],
-  national_insurance: ['niBalance', 'niOccupations', 'niDebitAuthorization', 'niAdvanceMonthly'],
+  national_insurance: ['niBalance', 'niOccupations', 'niDebitAuthorization', 'niAdvanceMonthly', 'niIncomeBasisMonthly'],
 };
 
 function money(n?: number): string | undefined {
@@ -315,7 +315,11 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
                   {authority === 'income_tax' && client.incomeTaxDebitAuthorization != null && (
                     <KV k="הרשאה לחיוב חשבון" v={client.incomeTaxDebitAuthorization ? 'קיימת' : <span style={{ color: 'var(--warn)' }}>אין הרשאה</span>} />
                   )}
+                  {authority === 'income_tax' && client.incomeTaxReportingStatus && (
+                    <KV k="מצב דיווחים" v={<span style={client.incomeTaxReportingStatus === 'אין דיווחים חסרים' ? undefined : { color: 'var(--warn)' }}>{client.incomeTaxReportingStatus}</span>} />
+                  )}
                   {authority === 'national_insurance' && client.niAdvanceMonthly ? <KV k="מקדמה חודשית" v={money(client.niAdvanceMonthly)} /> : null}
+                  {authority === 'national_insurance' && client.niIncomeBasisMonthly != null && <KV k="בסיס הכנסה למקדמות" v={money(client.niIncomeBasisMonthly)} />}
                   {authority === 'national_insurance' && client.niBalance != null && <KV k="יתרה בביטוח לאומי" v={money(client.niBalance)} />}
                   {authority === 'national_insurance' && (client.niOccupations?.length ?? 0) > 0 && <KV k="עיסוקים" v={client.niOccupations!.length} />}
                   {authority === 'national_insurance' && client.niDebitAuthorization != null && (

@@ -85,7 +85,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
         kicker: 'מקדמות',
         fields: [
           { key: 'incomeBasisMonthly', label: 'בסיס הכנסה למקדמות (לחודש)', type: 'number',
-            note: 'לתיעוד בלבד — אין עדיין שדה ייעודי בתיק המס עבור בסיס ההכנסה.' },
+            governedKey: 'niIncomeBasisMonthly', toPatchValue: v => v === '' ? null : Number(v) },
           { key: 'niAdvanceMonthly', label: 'מקדמה חודשית', type: 'number', governedKey: 'niAdvanceMonthly',
             toPatchValue: v => v === '' ? null : Number(v) },
         ],
@@ -159,6 +159,8 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
             toPatchValue: v => v === 'חודשי' ? 'monthly' : 'bi_monthly' },
           { key: 'incomeTaxBalance', label: 'יתרה במס הכנסה', type: 'number', governedKey: 'incomeTaxBalance',
             toPatchValue: v => v === '' ? null : Number(v) },
+          { key: 'reportingStatus', label: 'מצב דיווחים', placeholder: 'למשל: אין דיווחים חסרים / חסר דיווח',
+            governedKey: 'incomeTaxReportingStatus' },
         ],
       },
       {
@@ -258,11 +260,13 @@ interface FocusProps {
   advance: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
   onClientPersisted: (c: Client) => void;
   openingCallStep?: OnboardingStep;
+  /** "חזרה לקליטה" / "חזרה להקמת התיק" / "חזרה לתהליך" — לפי הקשר מחזור-החיים (נגזר ב-OnboardingTab). */
+  returnLabel: string;
   onClose: () => void;
   onAdvanceInstitution: (nextKey: InstitutionKey | null) => void;
 }
 
-function InstitutionFocus({ client, step, allSteps, advance, onClientPersisted, openingCallStep, onClose, onAdvanceInstitution }: FocusProps) {
+export function InstitutionFocus({ client, step, allSteps, advance, onClientPersisted, openingCallStep, returnLabel, onClose, onAdvanceInstitution }: FocusProps) {
   const key = (step.payload.institution ?? 'btl') as InstitutionKey;
   const cfg = INSTITUTIONS[key];
   const [collected, setCollected] = useState<Record<string, unknown>>(step.payload.collected ?? {});
@@ -392,7 +396,7 @@ function InstitutionFocus({ client, step, allSteps, advance, onClientPersisted, 
 
   return (
     <div className="ial-focus">
-      <button type="button" className="ial-back" onClick={onClose}>→ חזרה לתהליך</button>
+      <button type="button" className="ial-back" onClick={onClose}>→ {returnLabel}</button>
       <div className="ial-trail">
         {(['btl', 'vat', 'income'] as InstitutionKey[]).map(k => {
           const s = allSteps.find(x => x.payload.institution === k);
@@ -406,6 +410,7 @@ function InstitutionFocus({ client, step, allSteps, advance, onClientPersisted, 
       </div>
       <div className="ial-card">
         <div className="ial-step">
+          <div className="ial-focus-title">{INSTITUTION_NAMES[key]}</div>
           <div className="ial-kicker">לאן להיכנס</div>
           <div className="ial-route">
             {cfg.route.map((r, i) => (
@@ -570,34 +575,16 @@ function OccupationsEditor({ occupations, onChange }: { occupations: NiOccupatio
 // ─── כרטיס הקבוצה — שלושת המוסדות, כפי שמופיע ברשימת הבקשות ────────────────
 
 interface GroupProps {
-  client: Client;
   steps: OnboardingStep[];
-  openingCallStep?: OnboardingStep;
-  advance: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
-  onClientPersisted: (c: Client) => void;
+  /** בחירת מוסד למיקוד — הבעלים על מצב המיקוד הוא OnboardingTab (השתלטות מלאה על המסך). */
+  onOpen: (key: InstitutionKey) => void;
 }
 
-export default function InstitutionAlignmentGroup({ client, steps, openingCallStep, advance, onClientPersisted }: GroupProps) {
+/** כרטיס הקבוצה — שלושת המוסדות. פתיחה קופצת להשתלטות מלאה על המסך אצל ההורה. */
+export default function InstitutionAlignmentGroup({ steps, onOpen }: GroupProps) {
   const instSteps = (['btl', 'vat', 'income'] as InstitutionKey[])
     .map(k => steps.find(s => s.payload.institution === k))
     .filter((s): s is OnboardingStep => !!s);
-  const [focusKey, setFocusKey] = useState<InstitutionKey | null>(null);
-  const focusStep = focusKey ? instSteps.find(s => s.payload.institution === focusKey) : undefined;
-
-  if (focusStep) {
-    return (
-      <InstitutionFocus
-        client={client}
-        step={focusStep}
-        allSteps={instSteps}
-        advance={advance}
-        onClientPersisted={onClientPersisted}
-        openingCallStep={openingCallStep}
-        onClose={() => setFocusKey(null)}
-        onAdvanceInstitution={next => setFocusKey(next)}
-      />
-    );
-  }
 
   return (
     <div className="ial-grid">
@@ -607,7 +594,7 @@ export default function InstitutionAlignmentGroup({ client, steps, openingCallSt
         const checkedAt = s.payload.checkedAt ? new Date(String(s.payload.checkedAt)).toLocaleDateString('he-IL') : null;
         return (
           <button type="button" key={k} className={`ial-box ${done ? 'is-done' : ''}`}
-            onClick={() => setFocusKey(k)} style={{ textAlign: 'right', cursor: 'pointer' }}>
+            onClick={() => onOpen(k)} style={{ textAlign: 'right', cursor: 'pointer' }}>
             <b>{INSTITUTION_NAMES[k]}</b>
             <div className="m">{done ? `נבדק ${checkedAt ? '· ' + checkedAt : ''}` : 'טרם בוצע'}</div>
           </button>

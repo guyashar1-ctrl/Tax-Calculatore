@@ -76,6 +76,8 @@ export const GOVERNED_FACT_KEYS: ReadonlySet<string> = new Set([
   'vatBalance', 'vatDebitAuthorization', 'vatFileType', 'vatOpeningDate', 'vatPrimaryIndustry', 'vatLastReportPeriod',
   'incomeTaxBalance', 'incomeTaxFileType', 'incomeTaxUnit', 'incomeTaxEconomicIndustry',
   'incomeTaxDebitAuthorization', 'withholdingDetail', 'capitalDeclarationRequired', 'capitalDeclarationDeadline',
+  // ── M2 — תיקון נאמנות: היו payload-בלבד, עכשיו עובדות מנוהלות כמו כולן ──
+  'niIncomeBasisMonthly', 'incomeTaxReportingStatus',
 ]);
 
 export const GOVERNED_FIELD_LABELS: Record<string, string> = {
@@ -107,6 +109,7 @@ export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   incomeTaxUnit: 'חוליה', incomeTaxEconomicIndustry: 'ענף כלכלי',
   incomeTaxDebitAuthorization: 'הרשאת חיוב — מס הכנסה', withholdingDetail: 'פירוט ניכוי במקור',
   capitalDeclarationRequired: 'דרישת הצהרת הון פתוחה', capitalDeclarationDeadline: 'מועד להגשת הצהרת הון',
+  niIncomeBasisMonthly: 'בסיס הכנסה למקדמות — ביטוח לאומי', incomeTaxReportingStatus: 'מצב דיווחים',
 };
 
 /** השוואה עמוקה מספיק לשדות מנוהלים — כולל מערכים/אובייקטים (ילדים, מעבידים וכו'). */

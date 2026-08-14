@@ -6,7 +6,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  Engagement, OnboardingEvent, OnboardingStep, StepChecklistItem,
+  Engagement, InstitutionKey, OnboardingEvent, OnboardingStep, StepChecklistItem,
 } from '../../types/onboarding';
 import {
   ENGAGEMENT_STATUS_LABELS, EVENT_ACTOR_LABELS, EVENT_TYPE_LABELS, REQUIREMENT_KIND_LABELS,
@@ -17,7 +17,7 @@ import {
 import type { Client, RepAuthorityKind, RepresentationStatus } from '../../types';
 import { REP_AUTHORITY_LABELS } from '../../types';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
-import InstitutionAlignmentGroup from './InstitutionAlignment';
+import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
 import { NEXT_ACTION, nextStepForClient } from '../../utils/onboardingNext';
 import { representationAction } from '../../utils/representationAction';
 import { relativeTime } from '../../utils/clientDerived';
@@ -245,6 +245,8 @@ export default function OnboardingTab({
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [ordering, setOrdering] = useState(false);
   const [alignBusy, setAlignBusy] = useState(false);
+  /** מוסד במיקוד — כשמוגדר, המסך משתלט לגמרי (המודל המאושר: בידוד חזותי וקוגניטיבי). */
+  const [focusedInstitutionKey, setFocusedInstitutionKey] = useState<InstitutionKey | null>(null);
   const highlightTimer = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -514,6 +516,39 @@ export default function OnboardingTab({
     document.getElementById(`ob-step-${stepId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     if (highlightTimer.current) window.clearTimeout(highlightTimer.current);
     highlightTimer.current = window.setTimeout(() => setHighlightStepId(null), 2600);
+  }
+
+  // ‼ M2 — תיקון נאמנות: מוסד במיקוד משתלט על המסך, לא נפתח בתוך רשימת
+  // הבקשות. זו הכרעת Product/UX מאושרת (בידוד חזותי וקוגניטיבי) — לא עיצוב
+  // מחדש, אלא איזה תת-עץ מוחזר מהרכיב הזה. חוזרים ל"תהליך" (המסך הרגיל)
+  // פשוט כשמאפסים את המצב — אין ניווט/מסלול חדש.
+  if (embedded && focusedInstitutionKey) {
+    const instStepsAll = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
+    const focusStep = instStepsAll.find(s => s.payload.institution === focusedInstitutionKey);
+    if (focusStep) {
+      const openingCallStepForFocus = clientSteps.find(s => s.stepType === 'opening_call');
+      // ‼ שלושה הקשרי מחזור-חיים, שלושה ניסוחי חזרה (הכרעת Product): קליטה
+      // חדשה, לקוח ותיק שמעולם לא הייתה לו התקשרות ("הקמת תיק"), ולקוח פעיל
+      // שכבר עבר את זה ("תהליך"). לא נגזר מ-instSteps — קיים בלי קשר למה שהושלם.
+      const returnLabel = client.lifecycleStage === 'onboarding' ? 'חזרה לקליטה'
+        : clientEngagements.length === 0 ? 'חזרה להקמת התיק'
+        : 'חזרה לתהליך';
+      return (
+        <div className="cw-tabpanel">
+          <InstitutionFocus
+            client={client}
+            step={focusStep}
+            allSteps={instStepsAll}
+            advance={advance}
+            onClientPersisted={onClientPersisted}
+            openingCallStep={openingCallStepForFocus}
+            returnLabel={returnLabel}
+            onClose={() => setFocusedInstitutionKey(null)}
+            onAdvanceInstitution={next => setFocusedInstitutionKey(next)}
+          />
+        </div>
+      );
+    }
   }
 
   // ‼ ללקוח ותיק אין התקשרות ואין שלבים — וזה הרוב אצל רו"ח שכבר עובד שנים.
@@ -885,15 +920,11 @@ export default function OnboardingTab({
                 || step.stepType === 'institution_alignment_income') {
                 const instSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
                 if (instSteps[0]?.id !== step.id) return null;
-                const openingCallStep = clientSteps.find(s => s.stepType === 'opening_call');
                 return (
                   <InstitutionAlignmentGroup
                     key="institution-alignment-group"
-                    client={client}
                     steps={instSteps}
-                    openingCallStep={openingCallStep}
-                    advance={advance}
-                    onClientPersisted={onClientPersisted}
+                    onOpen={setFocusedInstitutionKey}
                   />
                 );
               }

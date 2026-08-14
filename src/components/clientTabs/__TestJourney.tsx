@@ -145,6 +145,13 @@ const STEPS_ALIGNED_DONE: OnboardingStep[] = [
   ? { ...s, status: 'completed', payload: { ...s.payload, checkedAt: '2026-06-01T09:00:00Z' } }
   : s)) as unknown as OnboardingStep[];
 
+/** לקוח ותיק במשרד באמצע יישור קו — בלי engagement, בלי בקשות אחרות. בודק "חזרה להקמת התיק". */
+const STEPS_EXISTING_OFFICE_MIDWAY: OnboardingStep[] = [
+  { id: 'ial-btl', clientId: CLIENT_ID, stepType: 'institution_alignment_btl', status: 'pending', ball: 'me', payload: { institution: 'btl' }, sortOrder: 0 },
+  { id: 'ial-vat', clientId: CLIENT_ID, stepType: 'institution_alignment_vat', status: 'pending', ball: 'me', payload: { institution: 'vat' }, sortOrder: 1 },
+  { id: 'ial-income', clientId: CLIENT_ID, stepType: 'institution_alignment_income', status: 'pending', ball: 'me', payload: { institution: 'income' }, sortOrder: 2 },
+] as unknown as OnboardingStep[];
+
 type Scenario = 'lead' | 'leadClosed' | 'quoted' | 'quotedExpired' | 'onboarding' | 'active' | 'activeQuiet' | 'existingOffice';
 
 const SCENARIOS: { key: Scenario; label: string }[] = [
@@ -181,7 +188,8 @@ export default function TestJourney() {
 
   const tasks = quiet ? [] : isLead ? [TASKS[2]] : TASKS;
   const openTasks = tasks.filter(t => t.status === 'open');
-  const steps = sc === 'onboarding' ? STEPS : sc === 'active' || quiet ? STEPS_ALIGNED_DONE : [];
+  const steps = sc === 'onboarding' ? STEPS : sc === 'active' || quiet ? STEPS_ALIGNED_DONE
+    : sc === 'existingOffice' ? STEPS_EXISTING_OFFICE_MIDWAY : [];
 
   return (
     <div className="app" style={{ minHeight: '100vh' }}>

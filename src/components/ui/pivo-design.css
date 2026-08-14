@@ -2402,6 +2402,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .ial-card{background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:var(--r-modal);overflow:hidden}
 .ial-step{padding:16px 20px;border-bottom:1px solid var(--hairline-1)}
 .ial-step:last-child{border-bottom:0}
+.ial-focus-title{font-size:var(--fs-17);font-weight:700;color:var(--ink-1);margin-bottom:14px}
 .ial-kicker{font-size:11px;font-weight:700;color:var(--ink-4);margin-bottom:7px;letter-spacing:.01em}
 .ial-step-title{font-size:var(--fs-14);font-weight:600;color:var(--ink-1);margin-bottom:9px}
 .ial-route{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--soft);border-radius:8px;padding:6px 9px;font-size:11px;color:var(--accent);margin-bottom:12px}

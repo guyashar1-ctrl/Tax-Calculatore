@@ -172,6 +172,45 @@ const afterNote = (await writeStaging(`select payload from public.onboarding_ste
 ok('T7b clarifications נשמר ב-payload', Array.isArray(afterNote.payload.clarifications) && afterNote.payload.clarifications.length === 1
   && afterNote.payload.clarifications[0].text === 'נראה שחסר דיווח מע״מ', JSON.stringify(afterNote.payload));
 
+// ─── T16+T17 · תיקון נאמנות (94): שני השדות שהיו payload-בלבד עכשיו מנוהלים ──
+// ‼ בסיס לא-null בכוונה (ראה הערה למעלה על SQL NULL מול jsonb 'null').
+await writeStaging(`update public.clients set ni_income_basis_monthly = 15000, income_tax_reporting_status = null where id='${client2}';`);
+const proposeBasis = await jrpc(`public.propose_tax_facts('${client2}', 'institution_alignment', '${btlStep2.id}', '[
+  {"field_key":"niIncomeBasisMonthly","label":"בסיס הכנסה למקדמות — ביטוח לאומי",
+   "old_value":{"display":"15,000 ₪","patch":{"niIncomeBasisMonthly":15000}},
+   "new_value":{"display":"18,000 ₪","patch":{"niIncomeBasisMonthly":18000}}}
+]'::jsonb)`);
+const pendingBasis = await one(`select id from public.tax_fact_changes where client_id='${client2}' and field_key='niIncomeBasisMonthly' and status='pending';`);
+const acceptBasis = await jrpc(`public.accept_tax_fact_change('${pendingBasis.id}')`);
+ok('T16a בסיס הכנסה למקדמות (ביטוח לאומי) עובר דרך M1', proposeBasis.ok === true && acceptBasis.ok === true, JSON.stringify(acceptBasis));
+const afterBasis = await one(`select ni_income_basis_monthly from public.clients where id='${client2}';`);
+ok('T16b clients מעודכן', Number(afterBasis.ni_income_basis_monthly) === 18000, afterBasis.ni_income_basis_monthly);
+
+await writeStaging(`update public.clients set income_tax_reporting_status = 'לא נבדק' where id='${client2}';`);
+const proposeReporting = await jrpc(`public.propose_tax_facts('${client2}', 'institution_alignment', '${btlStep2.id}', '[
+  {"field_key":"incomeTaxReportingStatus","label":"מצב דיווחים",
+   "old_value":{"display":"לא נבדק","patch":{"incomeTaxReportingStatus":"לא נבדק"}},
+   "new_value":{"display":"אין דיווחים חסרים","patch":{"incomeTaxReportingStatus":"אין דיווחים חסרים"}}}
+]'::jsonb)`);
+const pendingReporting = await one(`select id from public.tax_fact_changes where client_id='${client2}' and field_key='incomeTaxReportingStatus' and status='pending';`);
+const acceptReporting = await jrpc(`public.accept_tax_fact_change('${pendingReporting.id}')`);
+ok('T17a מצב דיווחים (מס הכנסה) עובר דרך M1', proposeReporting.ok === true && acceptReporting.ok === true, JSON.stringify(acceptReporting));
+const afterReporting = await one(`select income_tax_reporting_status from public.clients where id='${client2}';`);
+ok('T17b clients מעודכן', afterReporting.income_tax_reporting_status === 'אין דיווחים חסרים', afterReporting.income_tax_reporting_status);
+
+// קונפליקט על אחד השדות החדשים — לא נדרס, כמו כל שדה מנוהל אחר (T6 המקורית)
+await writeStaging(`update public.clients set income_tax_reporting_status = 'חסר דיווח' where id='${client2}';`);
+const proposeReportingStale = await jrpc(`public.propose_tax_facts('${client2}', 'institution_alignment', '${btlStep2.id}', '[
+  {"field_key":"incomeTaxReportingStatus","label":"מצב דיווחים",
+   "old_value":{"display":"אין דיווחים חסרים","patch":{"incomeTaxReportingStatus":"אין דיווחים חסרים"}},
+   "new_value":{"display":"מצב אחר","patch":{"incomeTaxReportingStatus":"מצב אחר"}}}
+]'::jsonb)`);
+const pendingReportingStale = await one(`select id from public.tax_fact_changes where client_id='${client2}' and field_key='incomeTaxReportingStatus' and status='pending' order by created_at desc limit 1;`);
+const acceptReportingStale = await jrpc(`public.accept_tax_fact_change('${pendingReportingStale.id}')`);
+ok('T17c קונפליקט מזוהה — stale_conflict', acceptReportingStale.ok === false && acceptReportingStale.error === 'stale_conflict', JSON.stringify(acceptReportingStale));
+const afterReportingStale = await one(`select income_tax_reporting_status from public.clients where id='${client2}';`);
+ok('T17d clients נשאר עם הערך שנערך ידנית — לא נדרס', afterReportingStale.income_tax_reporting_status === 'חסר דיווח', afterReportingStale.income_tax_reporting_status);
+
 // ─── T12 · בעלות — משתמש אחר נדחה ───────────────────────────────────────────
 if (OTHER_USER) {
   const otherEnsure = await jrpc(`public.ensure_institution_alignment_steps('${client2}', null, false)`, OTHER_USER);

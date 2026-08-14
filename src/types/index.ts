@@ -699,6 +699,8 @@ export interface Client {
   niBalance?: number;
   niOccupations?: NiOccupation[];
   niDebitAuthorization?: boolean;
+  /** בסיס הכנסה למקדמות בביטוח לאומי — לחודש. עובדה מקצועית מאושרת (M2 fix, לא רק תיעוד). */
+  niIncomeBasisMonthly?: number;
 
   vatBalance?: number;
   vatDebitAuthorization?: boolean;
@@ -714,6 +716,8 @@ export interface Client {
   incomeTaxDebitAuthorization?: boolean;
   /** תיאור חופשי כשהניכוי במקור אינו שיעור בודד (למשל "5% שירותים / 10% מוצרים"). withholdingRate נשאר לשיעור הפשוט. */
   withholdingDetail?: string;
+  /** מצב דיווחים במס הכנסה, כפי שנרשם ב-134 מקדמות (למשל "אין דיווחים חסרים" / "חסר דיווח"). עובדה מקצועית מאושרת (M2 fix). */
+  incomeTaxReportingStatus?: string;
 
   capitalDeclarationRequired?: boolean;
   capitalDeclarationDeadline?: string;
