@@ -437,7 +437,9 @@ export default function ClientWorkspace({
   // שלב החיים — הוא ממשיך להתנקז ל"המסע" כמו קודם.
   useEffect(() => {
     if (!journeyUi) {
-      if (tab === 'journey') setTab('overview');
+      // ‼ pay/log קיימות רק ב-JOURNEY_TABS. בלי ההחזרה הזו, מי שכיבה את
+      // הקילל-סוויץ' בזמן שהוא עומד עליהן היה נתקע על לשונית שאין לה כפתור.
+      if (tab === 'journey' || tab === 'pay' || tab === 'log') setTab('overview');
       return;
     }
     if (tab !== 'overview' && tab !== 'onboarding') return;

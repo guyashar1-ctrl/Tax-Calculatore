@@ -267,8 +267,11 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
               </div>
               )}
 
-              {/* קישור למסמך שכבר קיים בתיק המסמכים (M3) — נפרד מהצירוף הישיר למעלה */}
-              {hasClient && (
+              {/* קישור למסמך שכבר קיים בתיק המסמכים (M3) — נפרד מהצירוף הישיר למעלה.
+                  ‼ רק על משימה שכבר נשמרה: שורת הקישור מצביעה על tasks.id, ובמשימה
+                  חדשה השורה עוד לא קיימת במסד — הקישור היה נכשל, ובמסלול "העלה
+                  מסמך חדש" הקובץ כבר היה נשמר ומשאיר מסמך יתום. */}
+              {hasClient && isEditing && (
               <div className="form-group span-full">
                 <label>מסמכים מהתיק</label>
                 <TaskLinkedDocuments clientId={data.clientId} taskId={data.id} taskTitle={data.title} />

@@ -21,7 +21,6 @@ import {
   DEFAULT_REQUESTED_DOCS,
   LifecycleStage,
 } from './types';
-import type { OnboardingStep } from './types/onboarding';
 import { ExtractedClientData } from './utils/geminiVision';
 import { useDocumentDB } from './hooks/useIndexedDB';
 import { useTheme } from './hooks/useTheme';
@@ -67,7 +66,10 @@ import RepresentationFillForm from './components/RepresentationFillForm';
 import RepresentationRequestReview from './components/RepresentationRequestReview';
 // TaskBoard.tsx (הלוח הישן, קיבוץ new/in_progress/done) הוחלף ב-M3 ב-TasksWorkspace
 // (שלושת הדליים הקנוניים: לטיפולי/ממתין לאחרים/הושלמו). הקובץ הישן נשאר ללא
-// ייבוא — קוד מת שממתין לניקוי, כמו DocumentManager.tsx.
+// ייבוא — קוד מת שממתין לניקוי.
+// ‼ DocumentManager.tsx לעומתו *אינו* מת: לשונית המסמכים בכרטיס הלקוח עברה
+// ל-DocumentsWorkspace, אבל מסך המסמכים הגלובלי (view === 'documents') עדיין
+// מרנדר אותו. אל תמחק אותו בהסתמך על ההערה הזו.
 import TasksWorkspace from './components/TasksWorkspace';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
@@ -365,7 +367,6 @@ export default function App() {
   // שליחה מוצלחת השלב עובר ל"נשלח" והכדור עובר לרו"ח הקודם.
   const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; clientEmail?: string; prevAccountant: { name?: string; email?: string; phone?: string }; stepId?: string } | null>(null);
   /** תזכורת שהוכנה לשלב תקוע — נפתחת לעריכה, נשלחת רק בלחיצה. */
-  const [stepReminder, setStepReminder] = useState<{ stepId: string; clientId: string } | null>(null);
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showNewPerson, setShowNewPerson] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -589,31 +590,10 @@ export default function App() {
     setView('form');
   }
 
-  /**
-   * "הכן תזכורת" על שלב תקוע — מהשולחן.
-   * ‼ מכין ולא שולח. נפתחת תצוגה מקדימה שאפשר לערוך, והמייל יוצא רק בלחיצה.
-   * ‼ שלב שהכדור בו אצל הרו"ח הקודם אינו מקבל תזכורת ללקוח: שם הפנייה היא
-   * מכתב לעמית, וזה דיאלוג אחר לגמרי.
-   */
-  function handleRemindStep(step: OnboardingStep, clientId: string) {
-    if (step.ball === 'prev_accountant' || step.stepType === 'release_letter'
-        || step.stepType === 'materials_received') {
-      const c = clients.find(x => x.id === clientId);
-      if (!c) return;
-      setReleaseFor({
-        clientId,
-        clientName: `${c.firstName} ${c.lastName}`.trim(),
-        businessName: c.businessName,
-        clientEmail: c.email,
-        prevAccountant: {
-          name: c.prevAccountantName, email: c.prevAccountantEmail, phone: c.prevAccountantPhone,
-        },
-        stepId: step.id,
-      });
-      return;
-    }
-    setStepReminder({ stepId: step.id, clientId });
-  }
+  // ‼ handleRemindStep ("הכן תזכורת" ישירות מהשולחן) הוסר ב-M3: ברפרנס המאושר
+  // שורת משימה אינה נושאת כפתורי פעולה, והשורה הנגזרת של הקליטה מובילה
+  // ללשונית הקליטה — ששם הכפתור הזה חי ממילא (OnboardingTab), כולל המסלול
+  // הנפרד של מכתב שחרור לרו״ח הקודם. הדיאלוג שהיה תלוי בו הוסר איתו.
 
   /**
    * ממסך הקליטה של הלקוח למרכז הייצוג שלו. הבקשה נמצאת דרך הכרטיס, ואם
@@ -1802,15 +1782,12 @@ export default function App() {
             clients={clients}
             onSelectTask={openEditTaskModal}
             onAddTask={(presetClientId) => openNewTaskModal(presetClientId)}
-            onToggleDone={handleToggleTaskDone}
-            onDeleteTask={handleDeleteTask}
             onReorderOpen={handleReorderOpenTask}
             onSelectClient={handleSelectClient}
             onboardingSteps={onboarding.steps}
             onOpenOnboarding={handleOpenClientOnboarding}
             quotations={quotations}
             onOpenQuotation={(id) => { const q = quotations.find(x => x.id === id); if (q) handleOpenQuotation(q); }}
-            onRemindStep={handleRemindStep}
             onLoadSampleTasks={handleLoadSampleTasks}
           />
         )}
@@ -2181,17 +2158,6 @@ export default function App() {
           sendVia={sendQuotationReminder}
           onSent={() => { /* החלון מציג את האישור; ההצעה כבר עודכנה */ }}
           onClose={() => setRemindPreview(null)}
-        />
-      )}
-
-      {stepReminder && (
-        <EmailPreviewDialog
-          heading="תזכורת ללקוח"
-          fn="send-step-email"
-          editable
-          body={{ stepId: stepReminder.stepId, kind: 'step_reminder' }}
-          onSent={() => onboarding.refresh()}
-          onClose={() => setStepReminder(null)}
         />
       )}
 

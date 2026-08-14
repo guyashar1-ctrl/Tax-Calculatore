@@ -7,7 +7,7 @@
 
 import { useMemo, useState } from 'react';
 import type { Task, Client } from '../types';
-import { BALL_WITH_LABELS, BALL_WITH_COLOR } from '../types';
+import { TASK_CATEGORY_LABELS } from '../types';
 import type { OnboardingStep } from '../types/onboarding';
 import { STEP_TYPE_LABELS } from '../types/onboarding';
 import { summarizeClientOnboarding, NEXT_ACTION, type ClientOnboardingSummary } from '../utils/onboardingNext';
@@ -24,18 +24,19 @@ interface Props {
   clients: Client[];
   onSelectTask: (id: string) => void;
   onAddTask: (presetClientId?: string) => void;
-  onToggleDone: (id: string) => void;
-  onDeleteTask?: (id: string) => void;
   onReorderOpen: (id: string, beforeId: string | null) => void;
   onSelectClient: (id: string) => void;
   onboardingSteps: OnboardingStep[];
   onOpenOnboarding: (clientId: string) => void;
   quotations: Quotation[];
   onOpenQuotation?: (id: string) => void;
-  /** הכנת מייל תזכורת לשלב תקוע. חסר ⇒ הכפתור לא מוצג. */
-  onRemindStep?: (step: OnboardingStep, clientId: string) => void;
   onLoadSampleTasks?: () => void;
 }
+
+// ‼ אין כאן onToggleDone/onDeleteTask/onRemindStep בכוונה. ברפרנס השורה היא
+// טקסט בלבד — סימון בוצע, מחיקה והכנת תזכורת חיים במגירה שנפתחת בלחיצה
+// (אצלנו: מודל המשימה, ולשונית הקליטה). שורה שנושאת צ'קבוקס וכפתור מחיקה
+// הופכת רשימה שקטה לטבלה, וזה בדיוק מה שהמקור נמנע ממנו.
 
 type BucketKey = 'mine' | 'waiting' | 'done';
 
@@ -77,9 +78,9 @@ function journeyLine(sum: ClientOnboardingSummary): string {
 }
 
 export default function TasksWorkspace({
-  tasks, clients, onSelectTask, onAddTask, onToggleDone, onDeleteTask,
+  tasks, clients, onSelectTask, onAddTask,
   onReorderOpen, onSelectClient, onboardingSteps, onOpenOnboarding, quotations, onOpenQuotation,
-  onRemindStep, onLoadSampleTasks,
+  onLoadSampleTasks,
 }: Props) {
   const db = useDocumentStore();
   const [bucket, setBucket] = useState<BucketKey>('mine');
@@ -90,6 +91,7 @@ export default function TasksWorkspace({
   const [reqModal, setReqModal] = useState<{ clientId: string; title: string; year: string; labelId: string } | null>(null);
   const [reqLabels, setReqLabels] = useState<DocumentLabel[]>([]);
   const [reqBusy, setReqBusy] = useState(false);
+  const [reqError, setReqError] = useState('');
 
   const clientMap = useMemo(() => {
     const m = new Map<string, Client>();
@@ -137,8 +139,9 @@ export default function TasksWorkspace({
   async function confirmRequest() {
     if (!reqModal || !reqModal.clientId || !reqModal.title.trim() || !reqModal.year || !reqModal.labelId) return;
     setReqBusy(true);
+    setReqError('');
     try {
-      await supabase.rpc('create_onboarding_request', {
+      const { data, error } = await supabase.rpc('create_onboarding_request', {
         p_client_id: reqModal.clientId,
         p_step_type: 'custom_request',
         p_payload: {
@@ -155,7 +158,16 @@ export default function TasksWorkspace({
         p_owner: 'client',
         p_stage_id: null,
       });
+      // ‼ ה-RPC מחזיר {ok:false,error} בלי לזרוק — בלי הבדיקה המודל נסגר
+      // כאילו הבקשה נוצרה, והיא לעולם לא הייתה מגיעה ללקוח.
+      const res = data as { ok?: boolean; error?: string } | null;
+      if (error || !res?.ok) {
+        setReqError(error?.message ?? res?.error ?? 'יצירת הבקשה נכשלה.');
+        return;
+      }
       setReqModal(null);
+    } catch (e) {
+      setReqError(e instanceof Error ? e.message : 'יצירת הבקשה נכשלה.');
     } finally {
       setReqBusy(false);
     }
@@ -192,167 +204,205 @@ export default function TasksWorkspace({
     );
   }
 
-  return (
-    <div className="tasks-page">
-      <div className="pg-head">
-        <div className="pg-head-main">
-          <div className="pg-title">משימות</div>
-          <div className="pg-status">{openTasks.length} לטיפולי</div>
+  const mineCount = orderedOpen.length + journeyMine.length;
+  const waitingCount = journeyWaiting.length + waitingQuotations.length;
+
+  /** שורה במבנה הרפרנס: ידית · (כותרת+תג / לקוח·תווית / מה הלאה) · זנב. */
+  function Row({ id, title, pill, meta, next, onOpen, draggable: drag }: {
+    id: string; title: string; pill?: { text: string; tone: 'late' | 'today' | 'wait' | 'done' };
+    meta: string; next?: React.ReactNode; onOpen: () => void; draggable?: boolean;
+  }) {
+    return (
+      <div
+        className="tw-row"
+        onClick={onOpen}
+        draggable={drag}
+        onDragStart={drag ? () => setDraggedId(id) : undefined}
+        onDragOver={drag ? (e) => e.preventDefault() : undefined}
+        onDrop={drag ? () => handleDrop(id) : undefined}
+      >
+        <div className="tw-grip" aria-hidden="true">{drag ? '⋮⋮' : ''}</div>
+        <div>
+          <div className="tw-title">
+            {title}
+            {pill && <span className={`tw-pill is-${pill.tone}`}>{pill.text}</span>}
+          </div>
+          <div className="tw-meta">{meta}</div>
+          {next && <div className="tw-next">{next}</div>}
         </div>
-        <div className="pg-actions" style={{ position: 'relative' }}>
-          <button type="button" className="ui-btn ui-btn-primary" onClick={() => setAddMenuOpen(o => !o)}>+ חדש ▾</button>
-          {addMenuOpen && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setAddMenuOpen(false)} />
-              <div className="ial-doc-menu" style={{ zIndex: 11 }}>
-                <button type="button" onClick={() => { setAddMenuOpen(false); onAddTask(); }}>משימה</button>
-                <button type="button" onClick={() => openRequestModal()}>בקשת מסמכים</button>
-              </div>
-            </>
+        <div className="tw-tail">
+          {drag && (
+            <div className="tw-movers">
+              <button type="button" aria-label="הקדם" onClick={(e) => { e.stopPropagation(); moveBy(id, -1); }}>▲</button>
+              <button type="button" aria-label="אחר" onClick={(e) => { e.stopPropagation(); moveBy(id, 1); }}>▼</button>
+            </div>
           )}
+          <span className="tw-chev" aria-hidden="true">‹</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tasks-page tw-wrap">
+      <div className="tw-head">
+        <div>
+          <div className="pg-title">משימות</div>
+          <div className="tw-sub">מה דורש ממני טיפול, ומה עדיין מחכה לאחרים.</div>
+        </div>
+        <div className="tw-head-btn">
+          <button type="button" className="ui-btn ui-btn-primary" onClick={() => setAddMenuOpen(true)}>+ חדש</button>
         </div>
       </div>
 
-      <div className="board-filters">
-        <div className="board-search-wrap">
-          <input
-            type="text"
-            placeholder="חיפוש משימה, לקוח…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="tasks-search"
-            aria-label="חיפוש משימות"
-          />
-        </div>
+      <div className="tw-views" role="tablist">
+        {([
+          { k: 'mine' as const, label: 'לטיפולי', n: mineCount },
+          { k: 'waiting' as const, label: 'ממתין לאחרים', n: waitingCount },
+          { k: 'done' as const, label: 'הושלמו', n: doneFiltered.length },
+        ]).map(v => (
+          <button key={v.k} type="button" role="tab" aria-selected={bucket === v.k}
+            className={`tw-view ${bucket === v.k ? 'is-on' : ''}`} onClick={() => setBucket(v.k)}>
+            {v.label}<span className="tw-vcount">{v.n}</span>
+          </button>
+        ))}
       </div>
 
-      <div className="filter-chips" role="tablist" style={{ margin: '.6rem 0' }}>
-        <button type="button" className={`btn btn-sm ${bucket === 'mine' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setBucket('mine')}>
-          לטיפולי {openTasks.length + journeyMine.length ? `(${openTasks.length + journeyMine.length})` : ''}
-        </button>
-        <button type="button" className={`btn btn-sm ${bucket === 'waiting' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setBucket('waiting')}>
-          ממתין לאחרים {journeyWaiting.length + waitingQuotations.length ? `(${journeyWaiting.length + waitingQuotations.length})` : ''}
-        </button>
-        <button type="button" className={`btn btn-sm ${bucket === 'done' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setBucket('done')}>
-          הושלמו {doneTasks.length ? `(${doneTasks.length})` : ''}
-        </button>
+      <div className="tw-tools">
+        <input
+          type="text"
+          placeholder="חפש משימה או לקוח…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="tw-search inp"
+          aria-label="חיפוש משימות"
+        />
       </div>
 
       {bucket === 'mine' && (
-        <div>
-          {journeyMine.length > 0 && (
-            <div className="cw-section" style={{ marginBottom: '.8rem' }}>
-              <div className="cw-section-head"><span>קליטות בתהליך</span></div>
-              {journeyMine.map(sum => (
-                <div key={sum.clientId} className="cw-kv-row" style={{ cursor: 'pointer' }} onClick={() => onOpenOnboarding(sum.clientId)}>
-                  <strong>{clientName(clientMap.get(sum.clientId))}</strong>
-                  <span style={{ flex: 1, color: sum.bucket === 'stuck' ? 'var(--err)' : 'var(--ink-2)', fontWeight: sum.bucket === 'stuck' ? 600 : undefined }}>
-                    {journeyLine(sum)}
-                  </span>
-                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{sum.done}/{sum.total}</span>
-                  {sum.bucket === 'stuck' && onRemindStep && sum.stuck && sum.stuck.ball !== 'me' && (
-                    <button type="button" className="btn btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); onRemindStep(sum.stuck!, sum.clientId); }}>
-                      הכן תזכורת
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {orderedOpen.length === 0 ? (
-            <EmptyState headline="אין משימות פתוחות" sentence={search.trim() ? `לא נמצאה משימה שתואמת ל״${search.trim()}״.` : undefined} />
-          ) : (
-            <div className="cw-section">
-              {orderedOpen.map(t => {
-                const c = clientMap.get(t.clientId);
-                const late = t.dueDate ? daysLate(t.dueDate) > 0 : false;
-                return (
-                  <div
-                    key={t.id}
-                    className="cw-kv-row"
-                    draggable
-                    onDragStart={() => setDraggedId(t.id)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => handleDrop(t.id)}
-                    style={{ gap: '.5rem', alignItems: 'center' }}
-                  >
-                    <span style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                      <button type="button" className="ui-linkbtn" style={{ fontSize: 'var(--fs-12)', padding: 0, lineHeight: 1 }} onClick={() => moveBy(t.id, -1)} aria-label="הזז למעלה">▲</button>
-                      <button type="button" className="ui-linkbtn" style={{ fontSize: 'var(--fs-12)', padding: 0, lineHeight: 1 }} onClick={() => moveBy(t.id, 1)} aria-label="הזז למטה">▼</button>
-                    </span>
-                    <input type="checkbox" checked={false} onChange={() => onToggleDone(t.id)} aria-label="סמן כהושלם" />
-                    <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => onSelectTask(t.id)}>
-                      <div style={{ fontWeight: 600 }}>{t.title || 'ללא כותרת'}</div>
-                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-                        {t.clientId === 'system' ? 'כללי' : clientName(c)}
-                        {c && (
-                          <button type="button" className="ui-linkbtn" style={{ marginInlineStart: '.4rem' }} onClick={(e) => { e.stopPropagation(); onSelectClient(t.clientId); }}>לתיק ←</button>
-                        )}
-                      </div>
-                    </span>
-                    <span style={{ fontSize: 'var(--fs-12)', color: BALL_WITH_COLOR[t.ballWith] }}>{BALL_WITH_LABELS[t.ballWith]}</span>
-                    {t.dueDate && (
-                      <span style={{ fontSize: 'var(--fs-12)', color: late ? 'var(--err)' : 'var(--ink-3)', whiteSpace: 'nowrap' }}>
-                        {formatDueDate(t.dueDate)}
-                      </span>
-                    )}
-                    {onDeleteTask && (
-                      <button type="button" className="ui-icon-btn" onClick={() => onDeleteTask(t.id)} aria-label="מחיקה">✕</button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <>
+          <div className="cw-section tw-list">
+            {mineCount === 0 ? (
+              <EmptyState headline="אין משימות פתוחות" sentence={search.trim() ? `לא נמצאה משימה שתואמת ל״${search.trim()}״.` : undefined} />
+            ) : (
+              <>
+                {/* ‼ שורה נגזרת אחת לכל קליטה — לא משימה שמורה, ולכן אינה נגררת. */}
+                {journeyMine.map(sum => (
+                  <Row
+                    key={`j-${sum.clientId}`}
+                    id={`j-${sum.clientId}`}
+                    title={`קליטת ${clientName(clientMap.get(sum.clientId))}`}
+                    pill={sum.bucket === 'stuck' ? { text: 'תקוע', tone: 'late' } : undefined}
+                    meta={`${clientName(clientMap.get(sum.clientId))} · קליטה`}
+                    next={<>עכשיו: {journeyLine(sum)} · {sum.done} מתוך {sum.total} הושלמו</>}
+                    onOpen={() => onOpenOnboarding(sum.clientId)}
+                  />
+                ))}
+                {orderedOpen.map(t => {
+                  const c = clientMap.get(t.clientId);
+                  const rank = dueRank(t);
+                  return (
+                    <Row
+                      key={t.id}
+                      id={t.id}
+                      draggable
+                      title={t.title || 'ללא כותרת'}
+                      pill={rank === 0 ? { text: 'באיחור', tone: 'late' } : rank === 1 ? { text: 'היום', tone: 'today' } : undefined}
+                      meta={`${t.clientId === 'system' ? 'כללי' : clientName(c)} · ${TASK_CATEGORY_LABELS[t.category]}`}
+                      next={t.dueDate ? <>יעד: {formatDueDate(t.dueDate)}</> : undefined}
+                      onOpen={() => onSelectTask(t.id)}
+                    />
+                  );
+                })}
+              </>
+            )}
+          </div>
+          <div className="tw-hint">
+            אפשר לגרור כדי לקבוע סדר — מה שלמעלה הוא מה שבחרת לקדם. תאריך שהגיע קופץ לראש מעצמו.
+          </div>
+        </>
       )}
 
       {bucket === 'waiting' && (
-        <div className="cw-section">
-          {journeyWaiting.length === 0 && waitingQuotations.length === 0 ? (
-            <EmptyState headline="אין מה שממתין כרגע" sentence="פריטים שהכדור שלהם אצל הלקוח, רשות, או ממתינים לאישור — יופיעו כאן." />
-          ) : (
-            <>
-              {journeyWaiting.map(sum => (
-                <div key={sum.clientId} className="cw-kv-row" style={{ cursor: 'pointer' }} onClick={() => onOpenOnboarding(sum.clientId)}>
-                  <strong>{clientName(clientMap.get(sum.clientId))}</strong>
-                  <span style={{ flex: 1, color: 'var(--ink-3)' }}>{sum.next ? STEP_TYPE_LABELS[sum.next.stepType] : '—'}</span>
-                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{sum.done}/{sum.total}</span>
-                </div>
-              ))}
-              {waitingQuotations.map(qt => (
-                <div key={qt.id} className="cw-kv-row" style={{ cursor: 'pointer' }}
-                  onClick={() => (onOpenQuotation ? onOpenQuotation(qt.id) : qt.clientId && onSelectClient(qt.clientId))}>
-                  <strong>{clientName(clientMap.get(qt.clientId ?? ''))}</strong>
-                  <span style={{ flex: 1, color: 'var(--ink-3)' }}>ממתין לאישור הצעת מחיר {qt.quotationNumber ? `#${qt.quotationNumber}` : ''}</span>
-                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{qt.sentAt ? relativeTime(qt.sentAt) : ''}</span>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
+        <>
+          <div className="cw-section tw-list">
+            {waitingCount === 0 ? (
+              <EmptyState headline="אין מה שממתין כרגע" sentence="פריטים שהכדור שלהם אצל הלקוח, רשות, או ממתינים לאישור — יופיעו כאן." />
+            ) : (
+              <>
+                {journeyWaiting.map(sum => (
+                  <Row
+                    key={sum.clientId}
+                    id={sum.clientId}
+                    title={sum.next ? STEP_TYPE_LABELS[sum.next.stepType] : 'קליטה בהמתנה'}
+                    pill={{ text: 'ממתין ללקוח', tone: 'wait' }}
+                    meta={`${clientName(clientMap.get(sum.clientId))} · קליטה`}
+                    next={<>{sum.done} מתוך {sum.total} הושלמו</>}
+                    onOpen={() => onOpenOnboarding(sum.clientId)}
+                  />
+                ))}
+                {waitingQuotations.map(qt => (
+                  <Row
+                    key={qt.id}
+                    id={qt.id}
+                    title={`הצעת מחיר ${qt.quotationNumber ? `#${qt.quotationNumber}` : ''}`.trim()}
+                    pill={{ text: 'ממתין לאישור', tone: 'wait' }}
+                    meta={`${clientName(clientMap.get(qt.clientId ?? ''))} · מסחרי`}
+                    next={qt.sentAt ? <>נשלחה {relativeTime(qt.sentAt)}</> : undefined}
+                    onOpen={() => (onOpenQuotation ? onOpenQuotation(qt.id) : qt.clientId && onSelectClient(qt.clientId))}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+          <div className="tw-hint">
+            אלה אינם על השולחן שלך — הם נגזרים ממה שכבר נשלח וממתין לתשובה. אין מה לעשות בהם עד שיחזור משהו.
+          </div>
+        </>
       )}
 
       {bucket === 'done' && (
-        <div className="cw-section">
+        <div className="cw-section tw-list">
           {doneFiltered.length === 0 ? (
             <EmptyState headline="אין משימות שהושלמו" />
           ) : (
             doneFiltered.map(t => {
               const c = clientMap.get(t.clientId);
               return (
-                <div key={t.id} className="cw-kv-row" style={{ opacity: .75 }}>
-                  <span style={{ flex: 1, cursor: 'pointer' }} onClick={() => onSelectTask(t.id)}>
-                    <div style={{ fontWeight: 600, textDecoration: 'line-through' }}>{t.title || 'ללא כותרת'}</div>
-                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{t.clientId === 'system' ? 'כללי' : clientName(c)}</div>
-                  </span>
-                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{t.completedAt ? relativeTime(t.completedAt) : ''}</span>
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => onToggleDone(t.id)}>פתח מחדש</button>
-                </div>
+                <Row
+                  key={t.id}
+                  id={t.id}
+                  title={t.title || 'ללא כותרת'}
+                  pill={{ text: 'הושלם', tone: 'done' }}
+                  meta={`${t.clientId === 'system' ? 'כללי' : clientName(c)} · ${TASK_CATEGORY_LABELS[t.category]}`}
+                  next={t.completedAt ? <>הושלם {relativeTime(t.completedAt)}</> : undefined}
+                  onOpen={() => onSelectTask(t.id)}
+                />
               );
             })
           )}
+        </div>
+      )}
+
+      {/* ‼ במובייל הכפתור בראש העמוד מוסתר והפעולה עוברת לכפתור צף — כמו במקור. */}
+      <button type="button" className="tw-fab" aria-label="חדש" onClick={() => setAddMenuOpen(true)}>+</button>
+
+      {addMenuOpen && (
+        <div className="modal-backdrop" onClick={() => setAddMenuOpen(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3>מה תרצה ליצור?</h3>
+            <div className="tw-choice">
+              <button type="button" onClick={() => { setAddMenuOpen(false); onAddTask(); }}>
+                <b>משימה</b><span>משהו שאתה צריך לעשות</span>
+              </button>
+              <button type="button" onClick={() => openRequestModal()}>
+                <b>בקשת מסמכים</b><span>בקשה מהלקוח — נכנסת לדף הלקוח ול״ממתין לאחרים״</span>
+              </button>
+            </div>
+            <div className="foot">
+              <button type="button" className="btn" onClick={() => setAddMenuOpen(false)}>ביטול</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -379,6 +429,7 @@ export default function TasksWorkspace({
               <option value="">בחר תווית…</option>
               {reqLabels.filter(l => !l.isReserved).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
+            {reqError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{reqError}</div>}
             <div className="foot">
               <button type="button" className="btn btn-primary" disabled={reqBusy || !reqModal.clientId || !reqModal.title.trim() || !reqModal.labelId}
                 onClick={confirmRequest}>{reqBusy ? 'יוצר…' : 'צור בקשה'}</button>

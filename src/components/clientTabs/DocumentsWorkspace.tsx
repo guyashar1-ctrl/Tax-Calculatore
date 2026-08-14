@@ -17,6 +17,10 @@ function fmtSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+/** שנת מסמך כפי שהיא מוצגת ומסוננת — 'general' במסד הוא 'כללי' על המסך. */
+function docYearLabel(year: number | 'general'): string {
+  return year === 'general' ? 'כללי' : String(year);
+}
 function fmtDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
@@ -48,6 +52,7 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   const [folderUploadModal, setFolderUploadModal] = useState<{ files: File[]; meta: MetaDraft } | null>(null);
   const [requestModal, setRequestModal] = useState<{ title: string; year: string; labelId: string } | null>(null);
   const [requestBusy, setRequestBusy] = useState(false);
+  const [requestError, setRequestError] = useState('');
   const [labelManagerOpen, setLabelManagerOpen] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
   const [labelBusy, setLabelBusy] = useState(false);
@@ -156,7 +161,9 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
       return true;
     }
     if (filterLabel && r.doc!.labelId !== filterLabel) return false;
-    if (filterYear && String(r.doc!.year) !== filterYear) return false;
+    // ‼ מסמך נשמר עם year='general' ותיקייה עם 'כללי'. בלי הנרמול הזה בחירת
+    // "כללי" בסרגל הייתה מסתירה בדיוק את המסמכים הכלליים שביקשו לראות.
+    if (filterYear && docYearLabel(r.doc!.year) !== filterYear) return false;
     return true;
   });
 
@@ -282,8 +289,9 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   async function confirmRequest() {
     if (!requestModal || !requestModal.title.trim() || !requestModal.year || !requestModal.labelId) return;
     setRequestBusy(true);
+    setRequestError('');
     try {
-      await supabase.rpc('create_onboarding_request', {
+      const { data, error } = await supabase.rpc('create_onboarding_request', {
         p_client_id: client.id,
         p_step_type: 'custom_request',
         p_payload: {
@@ -300,7 +308,16 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
         p_owner: 'client',
         p_stage_id: null,
       });
+      // ‼ ה-RPC מחזיר {ok:false,error} בלי לזרוק. בלי הבדיקה הזו המודל היה
+      // נסגר כאילו הבקשה נוצרה, והרו"ח היה ממתין לקובץ שאיש לא התבקש להעלות.
+      const res = data as { ok?: boolean; error?: string } | null;
+      if (error || !res?.ok) {
+        setRequestError(error?.message ?? res?.error ?? 'יצירת הבקשה נכשלה.');
+        return;
+      }
       setRequestModal(null);
+    } catch (e) {
+      setRequestError(e instanceof Error ? e.message : 'יצירת הבקשה נכשלה.');
     } finally {
       setRequestBusy(false);
     }
@@ -633,6 +650,7 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
               <option value="">בחר תווית…</option>
               {labels.filter(l => !l.isReserved).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
+            {requestError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{requestError}</div>}
             <div className="foot">
               <button type="button" className="btn btn-primary" disabled={requestBusy || !requestModal.title.trim() || !requestModal.labelId}
                 onClick={confirmRequest}>{requestBusy ? 'יוצר…' : 'צור בקשה'}</button>

@@ -10,7 +10,6 @@ import type { OnboardingEvent, OnboardingStep } from '../../types/onboarding';
 import type { Quotation } from '../../types/quotations';
 import type { AdditionalCharge } from '../../types/charges';
 import { useClientActivity, type ActivityCategory } from '../../hooks/useClientActivity';
-import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
 import SentEmailViewer from '../EmailActivity/SentEmailViewer';
 import type { EmailMessage } from '../../types/emailActivity';
@@ -33,7 +32,12 @@ const FILTERS: { key: ActivityCategory | 'all'; label: string }[] = [
 ];
 
 const DOT_COLOR: Record<ActivityCategory, string> = {
-  mail: 'var(--accent)', tax: '#e3a53a', docs: 'var(--accent)', commercial: 'var(--ok, #17845b)', process: 'var(--ok, #17845b)',
+  mail: 'var(--accent)', tax: '#e3a53a', docs: 'var(--accent)', commercial: 'var(--ok, #187a53)', process: 'var(--ok, #187a53)',
+};
+
+/** תג קטן ליד הכותרת — אותה שפה כמו במקור (#v-log · .mailtag). */
+const CAT_TAG: Record<ActivityCategory, string> = {
+  mail: 'מייל', tax: 'תיק מס', docs: 'מסמך', commercial: 'מסחרי', process: 'תהליך',
 };
 
 function dayLabel(iso: string): string {
@@ -43,6 +47,14 @@ function dayLabel(iso: string): string {
   const sameDay = d.toDateString() === today.toDateString();
   if (sameDay) return 'היום';
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+/** ‼ בתוך קיבוץ לפי יום, "לפני 5 ימים" חוזר על מה שהכותרת כבר אמרה. המקור
+ *  מציג שעה, וזה מה שבאמת מוסיף מידע בשורה. */
+function clockLabel(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 }
 
 export default function ActivityTab({ client, clientSteps, events, quotations, charges }: Props) {
@@ -65,55 +77,61 @@ export default function ActivityTab({ client, clientSteps, events, quotations, c
 
   return (
     <div className="cw-tab">
-      <div className="cw-section">
-        <div className="cw-section-head">
-          <span>מה קרה בתיק</span>
+      <div className="cw-section act-bar">
+        <div>
+          <div className="cw-section-head" style={{ border: 0, padding: 0, margin: 0 }}><span>מה קרה בתיק</span></div>
+          <div className="act-sub">אירועים משמעותיים ותקשורת עם הלקוח.</div>
         </div>
-        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginBottom: '.6rem' }}>
+        <div className="act-filters">
           {FILTERS.map(f => (
             <button
               key={f.key}
               type="button"
-              className={`btn btn-sm ${filter === f.key ? 'btn-primary' : 'btn-ghost'}`}
+              className={`act-chip ${filter === f.key ? 'is-on' : ''}`}
               onClick={() => setFilter(f.key)}
             >
               {f.label}
             </button>
           ))}
         </div>
+      </div>
 
+      <div className="cw-section">
         {loading ? (
           <div className="cw-empty">טוען…</div>
         ) : grouped.length === 0 ? (
           <div className="cw-empty">אין אירועים בסינון הזה.</div>
         ) : (
-          grouped.map(g => (
-            <div key={g.day}>
-              <div style={{ fontSize: 'var(--fs-11,11px)', fontWeight: 700, color: 'var(--ink-4)', padding: '.6rem 0 .2rem' }}>{g.day}</div>
-              {g.items.map(e => (
-                <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '10px 1fr auto', gap: '.6rem', padding: '.5rem 0', borderTop: '1px solid var(--hairline-2)', alignItems: 'start' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 999, background: DOT_COLOR[e.cat], marginTop: 5 }} />
-                  <div>
-                    <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600 }}>{e.title}</div>
-                    {e.meta && <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>{e.meta}</div>}
-                    {e.email && (
-                      <>
-                        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 4 }}>
-                          <b>אל:</b> <span dir="ltr">{e.email.toEmail}</span>
-                        </div>
-                        <button type="button" className="btn btn-sm btn-ghost" style={{ padding: '2px 0' }} onClick={() => setViewingEmail(e.email!)}>
-                          צפייה במייל שנשלח
-                        </button>
-                      </>
-                    )}
+          <div className="act-timeline">
+            {grouped.map(g => (
+              <div key={g.day}>
+                <div className="act-day">{g.day}</div>
+                {g.items.map(e => (
+                  <div key={e.id} className="act-event">
+                    <span className="act-dot" style={{ background: DOT_COLOR[e.cat] }} />
+                    <div>
+                      <div className="act-title">
+                        {e.title}<span className="act-tag">{CAT_TAG[e.cat]}</span>
+                      </div>
+                      {e.meta && <div className="act-meta">{e.meta}</div>}
+                      {e.email && (
+                        <>
+                          <div className="act-mailmeta">
+                            <b>אל:</b> <span dir="ltr">{e.email.toEmail}</span>
+                            {e.email.subject && <> · <b>נושא:</b> {e.email.subject}</>}
+                          </div>
+                          <button type="button" className="act-link" onClick={() => setViewingEmail(e.email!)}>
+                            צפה במייל שנשלח
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <span className="act-time" title={formatDate(e.at, 'form')}>{clockLabel(e.at)}</span>
                   </div>
-                  <span style={{ fontSize: 'var(--fs-11,11px)', color: 'var(--ink-4)', whiteSpace: 'nowrap' }} title={formatDate(e.at, 'form')}>
-                    {relativeTime(e.at)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ))
+                ))}
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

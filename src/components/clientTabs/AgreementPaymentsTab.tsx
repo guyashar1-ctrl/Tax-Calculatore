@@ -70,9 +70,24 @@ export default function AgreementPaymentsTab({ client, quotations, engagements, 
   }, [annualItems]);
   const annualForYear = annualItems.filter(i => i.year === attributionYear);
   const retainerAttributed = annualForYear.reduce((s, i) => s + itemFinalPrice(i), 0);
+
+  // ‼ השלמה חד-פעמית מגיעה גם מהצעה *נוספת* שנשלחה אחרי ההתקשרות ("השלמת
+  // דוח שנתי"), ולכן מחפשים את שורת המקור בכל ההצעות של הלקוח ולא רק בזו
+  // שמאחורי ההתקשרות. חיפוש בהצעה הנוכחית בלבד היה מפספס בדיוק את המקרה
+  // שהייחוס נועד לענות עליו. הצמדה היא תמיד דרך source_item_id — לא סכימה
+  // של כל החיובים, ולא סכום שמור שיכול להתיישן.
+  const oneTimeItemsById = useMemo(() => {
+    const m = new Map<string, QuotationItem>();
+    for (const q of clientQuotations) {
+      const list = (q.snapshot?.items ?? q.items ?? []) as QuotationItem[];
+      for (const i of list) if (i.category === 'one_time') m.set(i.id, i);
+    }
+    return m;
+  }, [clientQuotations]);
+
   const topUpCharges = clientCharges.filter(c => {
-    const src = oneTimeItems.find(i => i.id === c.sourceItemId);
-    return src && src.year === attributionYear;
+    const src = c.sourceItemId ? oneTimeItemsById.get(c.sourceItemId) : undefined;
+    return !!src && src.year === attributionYear;
   });
   const topUpAttributed = topUpCharges.reduce((s, c) => s + c.amount, 0);
   const attributionTotal = retainerAttributed + topUpAttributed;

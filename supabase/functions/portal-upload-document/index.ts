@@ -159,7 +159,9 @@ Deno.serve(async (req: Request) => {
       await admin.storage.from("client-documents").remove([path]);
       return json({ error: "record_failed", detail: docErr.message }, 500);
     }
-    // ‼ בקשה שנוצרה ממשימה נושאת linkedTaskId — קישור אוטומטי, לא כפילות קובץ.
+    // ‼ תמיכה מוכנה, בלי יצרן כרגע: "בקשת מסמכים" הגלובלית אינה משויכת למשימה
+    // מסוימת ולכן אינה שולחת linkedTaskId. ברגע שתיווצר בקשה מתוך משימה, הקובץ
+    // שיתקבל יתקשר אליה כאן — קישור, לא כפילות קובץ.
     if (payload?.linkedTaskId) {
       await admin.from("document_task_links").insert({
         user_id: step.user_id, document_id: docId, task_id: payload.linkedTaskId,
