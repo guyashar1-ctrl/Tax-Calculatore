@@ -345,6 +345,8 @@ export default function App() {
   // המסך שבו נמצאים נקרא מהכתובת, כדי שרענון (F5) יחזיר לאותו מקום
   const initialRoute = useRef(parseHash(window.location.hash)).current;
   const [view, setView] = useState<View>(initialRoute.view);
+  /** סינון מסך המשימות ללקוח מסוים — מגיע מהקיצור בכרטיס הלקוח. */
+  const [tasksClientFilter, setTasksClientFilter] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialRoute.clientId ?? null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(initialRoute.requestId ?? null);
   // התצוגה המהירה במסך הלקוחות — חיה בכתובת (#/clients/p/{id}) כדי ש"אחורה" יסגור
@@ -1620,8 +1622,8 @@ export default function App() {
   // או מאשכול הכלים בכותרת. הישן חוזר במלואו כש-journeyUi כבוי.
   const navTabs: { id: View; label: string; badge?: number }[] = journeyUi
     ? [
-        { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
         { id: 'list', label: 'לקוחות' },
+        { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
       ]
     : [
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
@@ -1669,24 +1671,10 @@ export default function App() {
           {/* אשכול הכלים — מופרד מהניווט בקו, כדי שיהיה ברור שזה לא מקום עבודה.
              ‼ במסך הלקוחות הקישור מוסתר (הכרעת גיא, V3.3): המסך נשאר שקט,
              וההצעות נגישות משם דרך האדם עצמו — לא דרך הכותרת. */}
-          {journeyUi && !(view === 'list' && personDirectory) && (
-            <button
-              type="button"
-              className={`header-tool-link ${view === 'quotations' || view === 'quotationBuilder' ? 'is-active' : ''}`}
-              onClick={() => {
-                setView('quotations');
-                setSelectedId(null);
-                setSelectedRequestId(null);
-                setEditingQuotationId(null);
-              }}
-              title="בניית הצעות ומעקב תוקף. אנשים חיים במסך הלקוחות."
-            >
-              הצעות מחיר
-            </button>
-          )}
-
-          {journeyUi && !(view === 'list' && personDirectory) && <span className="header-divider" aria-hidden="true" />}
-
+          {/* ‼ "הצעות מחיר" ירד מהכותרת לגמרי. שני יעדים גלובליים בלבד —
+              לקוחות ומשימות. הצעה נולדת בהקשר העסקי שלה: במסע של הליד, או
+              ב"הסכם ותשלומים" של לקוח קיים לשירות נוסף. הכפתור בכותרת הפך
+              את בניית ההצעות לאפליקציה נפרדת שצריך לנווט אליה. */}
           <div className="header-account">
             <button
               type="button"
@@ -1789,6 +1777,8 @@ export default function App() {
             quotations={quotations}
             onOpenQuotation={(id) => { const q = quotations.find(x => x.id === id); if (q) handleOpenQuotation(q); }}
             onLoadSampleTasks={handleLoadSampleTasks}
+            clientFilter={tasksClientFilter}
+            onClearClientFilter={() => setTasksClientFilter(null)}
           />
         )}
 
@@ -1909,6 +1899,7 @@ export default function App() {
             onEditLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
             charges={charges}
             onMarkChargePaid={markChargePaid}
+            onOpenClientTasks={(clientId) => { setTasksClientFilter(clientId); setSelectedId(null); setView('tasks'); }}
           />
         )}
 

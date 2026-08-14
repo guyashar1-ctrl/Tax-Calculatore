@@ -5,8 +5,8 @@
 // ארבע לשוניות סביב "המסע"; כבוי — חמש הלשוניות הישנות חוזרות, כולל "קליטה".
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Client, Task, REPRESENTATION_STATUS_LABELS, REPRESENTATION_STATUS_BADGE, VATStatus, IncomeTaxType, LifecycleStage, LIFECYCLE_STAGE_LABELS } from '../types';
-import { ActivityEntry, ClientAlert, SHAAM_STATUS_BADGE } from '../types/clientWorkspace';
+import { Client, Task, REPRESENTATION_STATUS_LABELS, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS } from '../types';
+import { ActivityEntry, ClientAlert } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
 import { useDocumentDB } from '../hooks/useIndexedDB';
 import { computeClientAlerts, getClientOpenTasks, getUpcomingDebts } from '../utils/clientDerived';
@@ -17,7 +17,6 @@ import ConfirmDialog from './ui/ConfirmDialog';
 import ClientDeleteDialog from './ClientDeleteDialog';
 import DocumentsTab from './clientTabs/DocumentsTab';
 import { useClientTaxSessions } from '../features/annualReport/useClientTaxSessions';
-import { registeredFileInfo } from '../features/annualReport/profile';
 import TasksActivityTab from './clientTabs/TasksActivityTab';
 import SendIntakeModal from './SendIntakeModal';
 import ClientDossierTab from './clientTabs/ClientDossierTab';
@@ -34,20 +33,6 @@ import { recordManualFactChange } from '../lib/taxFacts';
 import { clientFromDb } from '../lib/dbMappers';
 import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
 import ActivityTab from './clientTabs/ActivityTab';
-
-const VAT_LABELS: Record<VATStatus, string> = {
-  authorizedDealer: 'עוסק מורשה',
-  exemptDealer: 'עוסק פטור',
-  none: 'אין מע״מ',
-};
-
-const IT_LABELS: Record<IncomeTaxType, string> = {
-  employee: 'שכיר',
-  selfEmployed: 'עצמאי',
-  both: 'שכיר + עצמאי',
-  rentalOnly: 'שכירות',
-  other: 'אחר',
-};
 
 // ארבע לשוניות קבועות — יכולת חדשה בעתיד נכנסת כקטע בתוך "התיק" או אות
 // במרכז השליטה, אף פעם לא כלשונית (ראה הצעת הארכיטקטורה שאושרה 15.07.2026).
@@ -70,18 +55,24 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'tasks',      label: 'משימות' },
 ];
 
-// ‼ המבנה החדש: ארבע לשוניות. "המסע" בולע את מרכז השליטה ואת הקליטה — שתיהן
-// ענו על אותה שאלה במקומות שונים. "משימות" נשארת בנפרד בכוונה (הכרעת גיא
-// 2026-08-05): עבודת משרד היא לא בקשת-מסע, ולכל אחת מסך משלה. "התיק" ו"מסמכים"
-// נשארים כי הם מחסני עובדות ולא תהליך. הישן חי מאחורי flags.journeyUi=false.
+// ‼ חמש לשוניות עמיתות, בדיוק כמו במקור המאושר
+// (client-case-simplified-exploration-v3-final2.html · תהליך/תיק מס/מסמכים/
+// הסכם ותשלומים/פעילות). שתי לשוניות ירדו מהשורה:
+//
+// · "התיק" — היא הציגה את עצמה כרשומה מקצועית שנייה לצד "תיק מס", והרו"ח
+//   נאלץ לבחור בין שתיהן. היכולת עצמה לא נמחקה: היא נפתחת כפעולה משנית
+//   מתוך "תיק מס", שם היא באמת נחוצה (עריכת פרטים).
+// · "משימות" — עבודת המשרד חיה במסך המשימות הגלובלי. כפילות של מנהל
+//   משימות בתוך הכרטיס פיצלה את תור העבודה לשניים. במקומה קישור הקשרי
+//   שפותח את המשימות מסוננות ללקוח הזה.
+//
+// "המסע" נקראת עכשיו "תהליך" — אותו מסך, שם שאומר מה קורה עכשיו ולא מטאפורה.
 const JOURNEY_TABS: { id: TabId; label: string }[] = [
-  { id: 'journey',  label: 'המסע' },
+  { id: 'journey',  label: 'תהליך' },
   { id: 'taxfile',  label: 'תיק מס' },
-  { id: 'dossier',  label: 'התיק' },
   { id: 'docs',     label: 'מסמכים' },
   { id: 'pay',      label: 'הסכם ותשלומים' },
   { id: 'log',      label: 'פעילות' },
-  { id: 'tasks',    label: 'משימות' },
 ];
 
 interface Props {
@@ -132,6 +123,8 @@ interface Props {
   // ─── M3: הסכם ותשלומים ───
   charges?: import('../types/charges').AdditionalCharge[];
   onMarkChargePaid?: (charge: import('../types/charges').AdditionalCharge) => Promise<import('../types/charges').AdditionalCharge>;
+  /** פתיחת מסך המשימות הגלובלי מסונן ללקוח הזה — במקום לשונית משימות בכרטיס. */
+  onOpenClientTasks?: (clientId: string) => void;
 }
 
 function newEmptyClient(): Client {
@@ -200,6 +193,7 @@ export default function ClientWorkspace({
   onEditLead,
   charges,
   onMarkChargePaid,
+  onOpenClientTasks,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
@@ -218,6 +212,16 @@ export default function ClientWorkspace({
   const { sessions: taxSessions, loading: taxSessionsLoading } = useClientTaxSessions(client.id || undefined);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!moreOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
+    }
+    const t = setTimeout(() => document.addEventListener('click', onDoc), 0);
+    return () => { clearTimeout(t); document.removeEventListener('click', onDoc); };
+  }, [moreOpen]);
   const [archiveBusy, setArchiveBusy] = useState(false);
 
   const isArchived = (client.lifecycleStage ?? 'active') === 'archived';
@@ -458,7 +462,6 @@ export default function ClientWorkspace({
   const stage = client.lifecycleStage ?? 'active';
   const showRepBadge = !!client.representationStatus || (stage !== 'lead' && stage !== 'quoted');
   const employee = findEmployee(client.assignedAccountantId);
-  const regFile = registeredFileInfo(client);
 
   return (
     <div className="cw-root">
@@ -504,27 +507,20 @@ export default function ClientWorkspace({
             </div>
           </div>
 
+          {/* ‼ הכותרת נושאת זהות + פעולה ראשית אחת לכל היותר. קודם ישבו כאן
+              שש פעולות במקביל (שאלון · משימה · דוח שנתי · שמירה · ארכיון ·
+              מחיקה) ובכל רגע נתון חמש מהן לא היו רלוונטיות. כל אחת עברה
+              להקשר שלה: השאלון ל"תיק מס", המשימה למסך המשימות, הדוח השנתי
+              נשאר כפעולה ראשית יחידה, והארכיון/מחיקה ירדו לתפריט פעולות
+              נדירות. "שמור" מופיע רק כשבאמת יש מה לשמור. */}
           <div className="cw-header-actions">
-            {dirty && <span className="cw-dirty-flag">שינויים לא שמורים</span>}
-
-            {/* שליחת השאלון ירדה מדרגת "כפתור" — היא מסלול משנה ולא צריכה
-                להתחרות עם הדוח השנתי על תשומת הלב (D13) */}
-            {!isNew && (
-              <button
-                className="ui-linkbtn"
-                onClick={() => setIntakeModalOpen(true)}
-                title="שליחת קישור שאלון היכרות/עדכון למייל הלקוח"
-              >שלח שאלון</button>
+            {dirty && (
+              <>
+                <span className="cw-dirty-flag">שינויים לא שמורים</span>
+                <button className="ui-btn ui-btn-ghost" onClick={handleSave}>שמור</button>
+              </>
             )}
 
-            {!isNew && (
-              <button
-                className="ui-btn ui-btn-ghost"
-                onClick={() => onAddTaskForClient(client.id)}
-              >+ משימה</button>
-            )}
-
-            {/* קריאה אחת לדוח השנתי, והיא אומרת גם איפה הוא עומד (D13) */}
             {!isNew && openYear && (
               <button
                 className="ui-btn ui-btn-primary"
@@ -533,31 +529,38 @@ export default function ClientWorkspace({
               >{annualCta.label}</button>
             )}
 
-            <button className="ui-btn ui-btn-ghost" onClick={handleSave} disabled={!dirty}>שמור</button>
-
-            {/* פעולה נדירה — ולכן שקטה, ליד המחיקה ולא לצדה של פעולה יומיומית */}
-            {!isNew && onSetLifecycleStage && (
-              <button
-                className="ui-linkbtn"
-                onClick={() => setConfirmArchive(true)}
-                title={isArchived
-                  ? 'החזרת הכרטיס לרשימת הלקוחות'
-                  : 'הסתרת הכרטיס מרשימת הלקוחות — בלי למחוק כלום'}
-              >{isArchived ? 'החזר מארכיון' : 'העבר לארכיון'}</button>
-            )}
-
             {!isNew && (
-              <button
-                className="ui-icon-btn is-danger"
-                onClick={() => setConfirmDelete(true)}
-                aria-label={`מחיקת ${fullName}`}
-                title="מחיקה"
-              ><Icon name="close" size={14} /></button>
+              <div className="cw-more" ref={moreRef}>
+                <button
+                  type="button"
+                  className="ui-icon-btn"
+                  aria-label="פעולות נוספות"
+                  aria-expanded={moreOpen}
+                  onClick={() => setMoreOpen(o => !o)}
+                  title="פעולות נוספות"
+                >⋯</button>
+                {moreOpen && (
+                  <div className="cw-more-menu">
+                    {onSetLifecycleStage && (
+                      <button type="button" onClick={() => { setMoreOpen(false); setConfirmArchive(true); }}>
+                        {isArchived ? 'החזר מארכיון' : 'העבר לארכיון'}
+                      </button>
+                    )}
+                    <button type="button" className="is-danger" onClick={() => { setMoreOpen(false); setConfirmDelete(true); }}>
+                      מחיקת הלקוח
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Header — chips & meta */}
+        {/* ‼ שורת השבבים קוצצה לשלב החיים בלבד. סיווג מס הכנסה, מע״מ, ביטוח
+            לאומי, שע״ם ותיק מ"ה ע"ש מי — כולם חיים ב"תיק מס" תחת "מצב מול
+            הרשויות", שם הם הרשומה המקצועית ולא קישוט. הצגתם גם בקליפה
+            שכפלה את אותה עובדה בשני מקומות והכריחה את העין לסרוק שבע
+            תוויות לפני שהגיעה לעבודה. */}
         <div className="cw-header-chips">
           {isArchived && (
             <span className="badge badge-gray" title="הכרטיס מוסתר מרשימת הלקוחות. שום נתון לא נמחק.">
@@ -573,66 +576,33 @@ export default function ClientWorkspace({
             <span className="badge badge-gray">{LIFECYCLE_STAGE_LABELS[stage]}</span>
           )}
 
-          {/* העוגן: על שם מי רץ תיק מס הכנסה — תמיד מול העיניים, בכל לשונית */}
-          {regFile && (
-            <span
-              className="cw-tax-chip"
-              title="בן/בת הזוג הרשום/ה — כל ההתנהלות מול מס הכנסה בת.ז. הזו. ניתן לשינוי בלשונית התיק."
-              style={{
-                fontWeight: 600,
-                background: regFile.owner === 'spouse' ? 'var(--chip-amber-bg)' : undefined,
-                color: regFile.owner === 'spouse' ? 'var(--warn)' : undefined,
-                border: regFile.owner === 'spouse' ? '1px solid var(--chip-amber-bd)' : undefined,
-              }}
-            >
-              תיק מ"ה ע"ש {regFile.name}
-              {regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
-            </span>
-          )}
-
-          {employee ? (
+          {employee && (
             <span className="cw-emp-chip" title={employee.role}>
               <span className="cw-emp-dot" style={{ background: employee.color }}>{employee.initials}</span>
               {employee.name}
             </span>
-          ) : (
-            <span className="cw-emp-chip muted">ללא מטפל</span>
-          )}
-
-          <span className="cw-tax-chip">{IT_LABELS[client.incomeTaxType]}</span>
-          <span className="cw-tax-chip">{VAT_LABELS[client.vatStatus]}</span>
-          <span className="cw-tax-chip">ב״ל {client.niType === 'employee' ? 'שכיר' : client.niType === 'selfEmployed' ? 'עצמאי' : client.niType === 'employeeAndSE' ? 'משולב' : client.niType}</span>
-
-          {client.shaamStatus && (
-            <span className={`badge ${SHAAM_STATUS_BADGE[client.shaamStatus]}`}>
-              שע״ם: {client.shaamStatus === 'active' ? 'פעיל' : client.shaamStatus === 'inactive' ? 'לא פעיל' : client.shaamStatus === 'pending' ? 'בטיפול' : 'לא ידוע'}
-            </span>
           )}
 
           {(client.tags ?? []).map(t => <span key={t} className="cw-tag">#{t}</span>)}
-        </div>
 
-        {/* Header — alerts strip.
-            במרכז השליטה אותם מספרים כבר מופיעים בסימני המצב, ובפירוט רב
-            יותר. "6 משימות פתוחות" שלוש פעמים באותו מסך — בשורה הזו,
-            בסימן, ובבאדג' של הטאב — הוא בדיוק מה שהכלל "כל מספר פעם אחת"
-            בא למנוע. ולכן כאן היא מוצגת רק כשהמרכז לא פתוח. */}
-        {alerts.length > 0 && tab !== 'overview' && (
-          <div className="cw-alerts">
-            {alerts.map(a => (
-              <span key={a.kind} className={`cw-alert cw-alert-${a.level}`}>
-                {a.text}
-              </span>
-            ))}
-          </div>
-        )}
+          {/* משימות הלקוח — קיצור הקשרי אל תור העבודה הגלובלי, לא מנהל
+              משימות שני בתוך הכרטיס. */}
+          {!isNew && openTasks.length > 0 && onOpenClientTasks && (
+            <button type="button" className="cw-tasks-link" onClick={() => onOpenClientTasks(client.id)}>
+              {openTasks.length} משימות פתוחות ←
+            </button>
+          )}
+        </div>
 
         {/* Header — tabs */}
         <div className="cw-tabs">
           {visibleTabs.map(t => (
             <button
               key={t.id}
-              className={`cw-tab ${tab === t.id ? 'active' : ''}`}
+              /* ‼ "התיק" הוא מסך-משנה של "תיק מס" ולא לשונית. בלי השורה הזו
+                 אף לשונית לא הייתה מודגשת בזמן העריכה, והרו"ח היה מאבד את
+                 התשובה לשאלה "איפה אני". */
+              className={`cw-tab ${tab === t.id || (t.id === 'taxfile' && tab === 'dossier') ? 'active' : ''}`}
               onClick={() => { tabPickedByUser.current = true; setTab(t.id); }}
             >
               <span>{t.label}</span>
@@ -686,7 +656,7 @@ export default function ClientWorkspace({
             repStatus={client.representationStatus ?? undefined}
             onPinNote={(note) => update('pinnedNote', note)}
             onAddNote={(text) => appendActivity({ kind: 'note', text })}
-            onGotoTab={(t) => setTab(t)}
+            onGotoTab={(t) => { if (t === 'tasks') { onOpenClientTasks?.(client.id); return; } setTab(t); }}
             taxSessions={taxSessions}
             taxSessionsLoading={taxSessionsLoading}
             onOpenYear={openYear}
@@ -700,6 +670,7 @@ export default function ClientWorkspace({
             client={client}
             onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
+            onOpenDetails={() => setTab('dossier')}
           />
         )}
 
@@ -733,7 +704,7 @@ export default function ClientWorkspace({
             upcomingDebts={upcomingDebts}
             onPinNote={(note) => update('pinnedNote', note)}
             onAddNote={(text) => appendActivity({ kind: 'note', text })}
-            onGotoTab={(t) => setTab(t)}
+            onGotoTab={(t) => { if (t === 'tasks') { onOpenClientTasks?.(client.id); return; } setTab(t); }}
             onSelectTask={onSelectTask}
             taxSessions={taxSessions}
             taxSessionsLoading={taxSessionsLoading}
@@ -741,6 +712,15 @@ export default function ClientWorkspace({
           />
         )}
 
+        {/* ‼ "התיק" אינה לשונית עמיתה יותר — נכנסים אליה מתוך "תיק מס". ולכן
+            היא חייבת דרך חזרה משלה: מסך בלי כפתור חזרה הוא מסך שנתקעים בו. */}
+        {tab === 'dossier' && (
+          <div className="cw-subscreen-back">
+            <button type="button" className="ui-linkbtn" onClick={() => setTab('taxfile')}>
+              <Icon name="chevron-start" size={13} /> חזרה לתיק מס
+            </button>
+          </div>
+        )}
         {tab === 'dossier' && (
           <ClientDossierTab
             client={client}
@@ -797,7 +777,10 @@ export default function ClientWorkspace({
           />
         )}
 
-        {tab === 'tasks' && (
+        {/* ‼ רק במסלול הישן (journeyUi כבוי). במוצר המאושר עבודת המשרד חיה
+            במסך המשימות הגלובלי, והכרטיס מוביל לשם מסונן — לא מחזיק מנהל
+            משימות שני משלו. */}
+        {!journeyUi && tab === 'tasks' && (
           <TasksActivityTab
             client={client}
             clients={clients}

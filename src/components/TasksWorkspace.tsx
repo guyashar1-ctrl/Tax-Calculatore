@@ -31,6 +31,9 @@ interface Props {
   quotations: Quotation[];
   onOpenQuotation?: (id: string) => void;
   onLoadSampleTasks?: () => void;
+  /** סינון ללקוח מסוים — הקיצור "N משימות פתוחות ←" מכרטיס הלקוח. */
+  clientFilter?: string | null;
+  onClearClientFilter?: () => void;
 }
 
 // ‼ אין כאן onToggleDone/onDeleteTask/onRemindStep בכוונה. ברפרנס השורה היא
@@ -80,7 +83,7 @@ function journeyLine(sum: ClientOnboardingSummary): string {
 export default function TasksWorkspace({
   tasks, clients, onSelectTask, onAddTask,
   onReorderOpen, onSelectClient, onboardingSteps, onOpenOnboarding, quotations, onOpenQuotation,
-  onLoadSampleTasks,
+  onLoadSampleTasks, clientFilter, onClearClientFilter,
 }: Props) {
   const db = useDocumentStore();
   const [bucket, setBucket] = useState<BucketKey>('mine');
@@ -120,6 +123,7 @@ export default function TasksWorkspace({
 
   const q = search.trim().toLowerCase();
   const matches = (t: Task) => {
+    if (clientFilter && t.clientId !== clientFilter) return false;
     if (!q) return true;
     const c = clientMap.get(t.clientId);
     return t.title.toLowerCase().includes(q) || (c && clientName(c).toLowerCase().includes(q));
@@ -277,6 +281,13 @@ export default function TasksWorkspace({
           className="tw-search inp"
           aria-label="חיפוש משימות"
         />
+        {/* ‼ סינון שהגיע מכרטיס לקוח חייב להיות גלוי וניתן לביטול — אחרת
+            רשימה מסוננת נראית כמו רשימה ריקה. */}
+        {clientFilter && (
+          <button type="button" className="act-chip is-on" onClick={() => onClearClientFilter?.()}>
+            {clientName(clientMap.get(clientFilter))} ✕
+          </button>
+        )}
       </div>
 
       {bucket === 'mine' && (

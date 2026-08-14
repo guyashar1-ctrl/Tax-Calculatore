@@ -28,7 +28,6 @@ import {
 } from '../../utils/journeyPresentation';
 import { nextActionForClient } from '../../utils/nextActionForClient';
 import OnboardingTab from './OnboardingTab';
-import ClientCockpitTab from './ClientCockpitTab';
 import { ClientEmailsList } from '../EmailActivity/ClientEmailsSection';
 
 type BallFilter = 'me' | 'client' | 'third' | 'stuck' | 'done';
@@ -153,6 +152,8 @@ export default function JourneyTab(p: Props) {
   );
 
   const doneSteps = clientSteps.filter(s => !isStepOpen(s.status)).length;
+
+  const attentionAlerts = useMemo(() => p.alerts.filter(a => a.kind !== 'open_tasks'), [p.alerts]);
 
   function runAction(b: NextActionButton) {
     switch (b.action) {
@@ -455,7 +456,36 @@ export default function JourneyTab(p: Props) {
           ("אין תיק דוח שנתי", "אין פעילות") שהאריכו את העמוד למסך שלם של
           גלילה — הכרעת גיא 2026-08-09: עד שהלקוח פעיל היא לא מוצגת, ורק
           המיילים וההערה המוצמדת נשארים, מקופלים. */}
-      {stage === 'lead' || stage === 'quoted' || stage === 'onboarding' ? (
+      {/* ‼ חריגות — "מה דורש תשומת לב". הן היו קבורות בתוך מרכז השליטה שירד,
+          וזו הייתה השאלה היחידה שם ששאר המסך לא ענה עליה. כאן הן שורות שקטות
+          ולא כרטיסים, ומוצגות רק כשיש חריגה בפועל: "אין חריגות" הוא מקטע
+          שתופס מקום כדי לומר כלום. */}
+      {/* ‼ ספירת המשימות הפתוחות כבר מופיעה בשורת הזהות, שם היא גם קישור
+          למסך המשימות. אותו מספר פעמיים באותו מסך מלמד להתעלם משניהם. */}
+      {attentionAlerts.length > 0 && (
+        <div className="cw-section">
+          <div className="cw-section-head">
+            <span>דורש תשומת לב</span>
+            <span className="cw-section-count">{attentionAlerts.length}</span>
+          </div>
+          {attentionAlerts.map(a => (
+            <div key={a.kind} className="jt-alert-row">
+              <span className="jt-alert-dot" data-level={a.level} aria-hidden="true" />
+              <span>{a.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ‼ עד כאן "תהליך" עונה על מה קורה עכשיו ומה הלאה. מתחת לזה ישב עד
+          עכשיו מרכז השליטה הישן (ClientCockpitTab) — אבל רק ללקוח פעיל,
+          ודווקא שם הוא הזיק: רצועת מונים ("6 משימות פתוחות · 3 עם מועד
+          קרוב"), רשימת משימות משרד שלישית, ועדכון "מה זז לאחרונה" שהוא
+          בדיוק מה ש"פעילות" מציגה. שלושתם ענו על שאלות ששאר המסך כבר ענה,
+          והפכו את התהליך ללוח מחוונים שצריך לעבור אותו כדי להגיע לעבודה.
+          עכשיו כל שלבי החיים מקבלים את אותו סיום שקט: מיילים מקופלים
+          והערה מוצמדת. ההיסטוריה חיה ב"פעילות", המשימות במסך המשימות. */}
+      {(
         <>
           <div className="cw-section">
             <div className="cw-section-head">
@@ -503,24 +533,6 @@ export default function JourneyTab(p: Props) {
             </div>
           )}
         </>
-      ) : (
-        <ClientCockpitTab
-          client={p.client}
-          tasks={p.tasks}
-          alerts={p.alerts}
-          openTasks={p.openTasks}
-          upcomingDebts={p.upcomingDebts}
-          onPinNote={p.onPinNote}
-          onAddNote={p.onAddNote}
-          onGotoTab={p.onGotoTab}
-          onSelectTask={p.onSelectTask}
-          taxSessions={p.taxSessions}
-          taxSessionsLoading={p.taxSessionsLoading}
-          onOpenYear={p.onOpenYear}
-          emails={clientEmails}
-          emailsLoading={emailsLoading}
-          onEmailsChanged={reloadEmails}
-        />
       )}
 
       {/* ── פרקים קודמים — מקופלים, אבל לא נעלמים ── */}

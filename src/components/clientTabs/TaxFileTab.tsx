@@ -31,6 +31,12 @@ interface Props {
   onClientPersisted: (c: Client) => void;
   /** פותח את אותו חלון "שלח שאלון" שכבר קיים בכותרת התיק — לא נבנה מנגנון שני. */
   onSendQuestionnaire: () => void;
+  /**
+   * עריכת פרטי הלקוח המלאים. ‼ זו הייתה לשונית עמיתה בשם "התיק", והיא ירדה:
+   * שתי רשומות מקצועיות זו לצד זו הכריחו את הרו"ח לבחור ביניהן. היכולת
+   * נשמרה — היא נפתחת מכאן, מתוך הרשומה עצמה, כפעולה משנית.
+   */
+  onOpenDetails?: () => void;
 }
 
 const RENTAL_TRACK_LABELS: Record<RentalTaxTrack, string> = {
@@ -119,7 +125,7 @@ function SrcLine({ label, onEdit }: { label: string; onEdit?: () => void }) {
   );
 }
 
-export default function TaxFileTab({ client, onClientPersisted, onSendQuestionnaire }: Props) {
+export default function TaxFileTab({ client, onClientPersisted, onSendQuestionnaire, onOpenDetails }: Props) {
   const { pending, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [openChanges, setOpenChanges] = useState<Set<string>>(new Set());
@@ -217,10 +223,15 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
   const showBusinessRow = businesses.length > 0 || client.incomeTaxType === 'selfEmployed' || client.incomeTaxType === 'both';
   const showSalaryRow = employers.length > 0 || client.incomeTaxType === 'employee' || client.incomeTaxType === 'both';
   const showRentalRow = !!client.hasRentalIncome || rentedProperties.length > 0 || !!client.rentalIncomeAnnual;
-  const showCapitalRow = investmentAccounts.length > 0;
+  // ‼ קודם התנאי היה רק investmentAccounts.length > 0 — לקוח שסומן כבעל
+  // הכנסה משוק ההון, עם סכומים, אבל בלי שורת חשבון, לא קיבל שורה בכלל
+  // והמידע פשוט נעלם. אותו דפוס תוקן גם במשפחה ובנכסים.
+  const showCapitalRow = investmentAccounts.length > 0 || !!client.hasCapitalIncome
+    || !!client.capitalGainsAnnual || !!client.dividendInterestAnnual || !!client.hasInvestments;
 
-  const showFamilyRow = married || (client.children ?? []).length > 0;
-  const showAssetsRow = otherProperties.length > 0 || bankAccounts.length > 0 || foreignAccounts.length > 0;
+  const showFamilyRow = married || (client.children ?? []).length > 0 || client.familyStatus !== 'single';
+  const showAssetsRow = otherProperties.length > 0 || bankAccounts.length > 0 || foreignAccounts.length > 0
+    || !!client.hasResidentialProperty || !!client.hasForeignAssets;
   const showSavingsRow = client.hasPension || pensionFunds.length > 0 || client.hasKrenHashtalmut
     || client.hasLifeInsurance || client.hasDisabilityInsurance || !!client.donationsAnnual;
 
@@ -231,9 +242,13 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
           <h2>תיק מס</h2>
           <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>הרשומה המקצועית של הלקוח. עריכה — מתוך הפירוט בלבד.</div>
         </div>
+        {/* ‼ "עדכון סטטוס מיסויי" ולא "שאלון": השאלון הוא אחד המקורות לרענון
+            התיק, לא הרשומה עצמה, והוא אינו שייך רק לעונת הדוח השנתי. הרשומה
+            הזו חיה כל השנה, והעדכון מזרים אליה הצעות דרך אותו מסלול התאמה
+            מאושר (M1) — לא כותב עליה ישירות. */}
         <div className="txf-qstat">
-          <span>{lastQSync ? `שאלון נתוני מס · הושלם לאחרונה ${monthYear(lastQSync)}` : 'שאלון נתוני מס · טרם עודכן מהשאלון'}</span>
-          <button type="button" className="ui-btn ui-btn-ghost" onClick={onSendQuestionnaire}>שלח שאלון עדכון</button>
+          <span>{lastQSync ? `סטטוס מיסויי · עודכן לאחרונה ${monthYear(lastQSync)}` : 'סטטוס מיסויי · טרם עודכן'}</span>
+          <button type="button" className="ui-btn ui-btn-ghost" onClick={onSendQuestionnaire}>עדכן סטטוס מיסויי</button>
         </div>
       </div>
 
@@ -273,7 +288,12 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
       <div className="txf-secthead">מצב מול הרשויות</div>
       <div className="txf-sect">
         {files.length === 0 ? (
-          <div className="txf-empty">לא הוגדרו תיקים ברשויות. ניתן להגדיר בלשונית "התיק".</div>
+          <div className="txf-empty">
+            עדיין לא הוגדרו תיקים ברשויות.
+            {onOpenDetails && (
+              <> <button type="button" className="ui-linkbtn" onClick={onOpenDetails}>הגדרת תיקי הרשויות ←</button></>
+            )}
+          </div>
         ) : (
           AUTHORITY_ORDER.filter(a => files.some(f => f.authority === a)).map(authority => {
             const authFiles = files.filter(f => f.authority === authority);
@@ -335,7 +355,7 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
                   )}
                   {client.shaamStatus && <KV k="הרשאת שע״ם" v={SHAAM_STATUS_LABELS[client.shaamStatus]} />}
                 </div>
-                <SrcLine label="מקור: תיקי הרשויות בכרטיס הלקוח · עריכה מלאה בלשונית התיק" />
+                <SrcLine label="מקור: תיקי הרשויות בכרטיס הלקוח · עריכה מלאה בפרטי הלקוח" />
                 {(() => {
                   // ‼ פרובננס עדין — רק בפירוט המורחב, לא במשפט הפתיחה (הכרעת M2).
                   const authKeys = AUTHORITY_FIELD_KEYS[authority];
@@ -390,7 +410,7 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
                     e.startDate ? <KV key={`${e.id}-d`} k="תחילת עבודה" v={shortDate(e.startDate)} /> : null,
                   ]) : <KV k="סיווג" v="שכיר — אין פירוט מעביד בתיק" />}
                 </div>
-                <SrcLine label="מקור: כרטיס הלקוח · עריכה מלאה בלשונית התיק" />
+                <SrcLine label="מקור: כרטיס הלקוח · עריכה מלאה בפרטי הלקוח" />
               </TRow>
             )}
 
@@ -554,6 +574,17 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
           <SrcLine label="מקור: כרטיס הלקוח" />
         </TRow>
       </div>
+
+      {/* ‼ הכניסה לעריכה המלאה — פעולה משנית בתחתית הרשומה, לא לשונית עמיתה.
+          כך נשארת רשומה מקצועית אחת, והעריכה היא משהו שנכנסים אליו מתוכה. */}
+      {onOpenDetails && (
+        <div className="txf-details-entry">
+          <button type="button" className="ui-linkbtn" onClick={onOpenDetails}>
+            עריכת פרטי הלקוח המלאים ←
+          </button>
+          <span>שדות הכרטיס, תיקי הרשויות ופרטי הזיהוי. נתונים מנוהלים ממשיכים לעבור דרך התאמה.</span>
+        </div>
+      )}
     </div>
   );
 }
