@@ -126,7 +126,7 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
   }
 
   return (
-    <div style={{ maxWidth: 1300, margin: '1rem auto', padding: '0 1rem' }}>
+    <div style={{ maxWidth: 1220, margin: '1rem auto', padding: '0 1rem' }}>
       {/* ─── סרגל סימולציה ─── */}
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div className="card-body" style={{ display: 'flex', flexWrap: 'wrap', gap: '.9rem', alignItems: 'center', padding: '.8rem 1.1rem' }}>

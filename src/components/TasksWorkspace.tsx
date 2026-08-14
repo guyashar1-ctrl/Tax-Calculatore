@@ -1,7 +1,10 @@
-// ─── משימות — שלושה דליים ────────────────────────────────────────────────
-// מקור UX מחייב: docs/prototypes/tasks-v3-final.html. שלושה דליים קבועים:
-// לטיפולי (רשימה שטוחה אחת, בלי חדש/בתהליך — סדר ידני + הצמדת תאריך שהגיע),
-// ממתין לאחרים (תצוגה נגזרת בלבד — לא נשמרת בטבלה נפרדת), הושלמו.
+// ─── משימות — עבודה פעילה + היסטוריה ─────────────────────────────────────
+// מקור UX מחייב: docs/prototypes/tasks-v3-final.html. השאלה הראשונה היא
+// "מה אני יכול לעשות עכשיו?" — ולכן לטיפולי הוא המסך הראשי (רשימה שטוחה
+// אחת, בלי חדש/בתהליך — סדר ידני + הצמדת תאריך שהגיע), הושלמו טאב משני.
+// ‼ "ממתין לאחרים" נגזר (לא נשמר בטבלה נפרדת) ומקופל בשקט מתחת ללטיפולי —
+// לא טאב שווה. הכדור לא אצלי, אז זה לא מתחרה בעבודה שאני כן יכול לקדם.
+// ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §8/§23 (החלטה C1).
 // ‼ קליטות אינן משימות רגילות: שורה אחת נגזרת ללקוח (לא נשמרת), ראה
 // utils/onboardingNext.ts — כדי שהתקדמות בקליטה לא תיצור עשרות משימות.
 
@@ -9,10 +12,10 @@ import { useMemo, useState } from 'react';
 import type { Task, Client } from '../types';
 import { TASK_CATEGORY_LABELS } from '../types';
 import type { OnboardingStep } from '../types/onboarding';
-import { STEP_TYPE_LABELS } from '../types/onboarding';
+import { STEP_TYPE_LABELS, WAITING_STATUS_LABEL_BY_BALL } from '../types/onboarding';
 import { summarizeClientOnboarding, NEXT_ACTION, type ClientOnboardingSummary } from '../utils/onboardingNext';
 import type { Quotation } from '../types/quotations';
-import { formatDueDate, daysLate } from '../utils/taskUtils';
+import { formatDueDate, daysLate, lateLabel } from '../utils/taskUtils';
 import { relativeTime } from '../utils/clientDerived';
 import { useDocumentStore, type DocumentLabel } from '../hooks/useDocumentStore';
 import { AVAILABLE_YEARS } from '../data/taxData';
@@ -41,7 +44,11 @@ interface Props {
 // (אצלנו: מודל המשימה, ולשונית הקליטה). שורה שנושאת צ'קבוקס וכפתור מחיקה
 // הופכת רשימה שקטה לטבלה, וזה בדיוק מה שהמקור נמנע ממנו.
 
-type BucketKey = 'mine' | 'waiting' | 'done';
+// ‼ "ממתין לאחרים" אינו טאב שווה יותר — הכדור לא אצלי, אין מה לעשות עכשיו,
+// ולכן הוא מקטע שקט שנפתח מתחת ל"לטיפולי" ולא מתחרה בתשומת הלב (החלטת
+// המרה, docs/UX-CONVERGENCE-AUDIT-2026-08.md §23 C1). ‼הושלמו נשאר טאב
+// משני נפרד, כמו במקור.
+type BucketKey = 'mine' | 'done';
 
 function clientName(c?: Client): string {
   if (!c) return 'לקוח ללא שם';
@@ -90,6 +97,7 @@ export default function TasksWorkspace({
   const [search, setSearch] = useState('');
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [waitingOpen, setWaitingOpen] = useState(false);
 
   const [reqModal, setReqModal] = useState<{ clientId: string; title: string; year: string; labelId: string } | null>(null);
   const [reqLabels, setReqLabels] = useState<DocumentLabel[]>([]);
@@ -262,7 +270,6 @@ export default function TasksWorkspace({
       <div className="tw-views" role="tablist">
         {([
           { k: 'mine' as const, label: 'לטיפולי', n: mineCount },
-          { k: 'waiting' as const, label: 'ממתין לאחרים', n: waitingCount },
           { k: 'done' as const, label: 'הושלמו', n: doneFiltered.length },
         ]).map(v => (
           <button key={v.k} type="button" role="tab" aria-selected={bucket === v.k}
@@ -309,66 +316,91 @@ export default function TasksWorkspace({
                     onOpen={() => onOpenOnboarding(sum.clientId)}
                   />
                 ))}
-                {orderedOpen.map(t => {
-                  const c = clientMap.get(t.clientId);
-                  const rank = dueRank(t);
-                  return (
-                    <Row
-                      key={t.id}
-                      id={t.id}
-                      draggable
-                      title={t.title || 'ללא כותרת'}
-                      pill={rank === 0 ? { text: 'באיחור', tone: 'late' } : rank === 1 ? { text: 'היום', tone: 'today' } : undefined}
-                      meta={`${t.clientId === 'system' ? 'כללי' : clientName(c)} · ${TASK_CATEGORY_LABELS[t.category]}`}
-                      next={t.dueDate ? <>יעד: {formatDueDate(t.dueDate)}</> : undefined}
-                      onOpen={() => onSelectTask(t.id)}
-                    />
-                  );
-                })}
+                {/* ‼ כותרת קבוצה אחת מעל "באיחור"/"היום" במקום תג אדום זהה על כל
+                    שורה — ב-24 מתוך 38 משימות "באיחור" זה היה קיר אדום שווה-משקל,
+                    לא דחיפות. ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §8/§17 #5. */}
+                {(() => {
+                  let lastRank: 0 | 1 | 2 | null = null;
+                  return orderedOpen.map(t => {
+                    const c = clientMap.get(t.clientId);
+                    const rank = dueRank(t);
+                    const showHeader = rank !== 2 && rank !== lastRank;
+                    lastRank = rank;
+                    return (
+                      <div key={t.id}>
+                        {showHeader && (
+                          <div className={`tw-group-head ${rank === 0 ? 'is-late' : ''}`}>
+                            {rank === 0 ? `באיחור · ${orderedOpen.filter(x => dueRank(x) === 0).length}` : 'היום'}
+                          </div>
+                        )}
+                        <Row
+                          id={t.id}
+                          draggable
+                          title={t.title || 'ללא כותרת'}
+                          pill={rank === 1 ? { text: 'היום', tone: 'today' } : undefined}
+                          meta={`${t.clientId === 'system' ? 'כללי' : clientName(c)} · ${TASK_CATEGORY_LABELS[t.category]}`}
+                          next={rank === 0 && t.dueDate
+                            ? <>{lateLabel(t.dueDate)} · יעד היה {formatDueDate(t.dueDate)}</>
+                            : t.dueDate ? <>יעד: {formatDueDate(t.dueDate)}</> : undefined}
+                          onOpen={() => onSelectTask(t.id)}
+                        />
+                      </div>
+                    );
+                  });
+                })()}
               </>
             )}
           </div>
           <div className="tw-hint">
             אפשר לגרור כדי לקבוע סדר — מה שלמעלה הוא מה שבחרת לקדם. תאריך שהגיע קופץ לראש מעצמו.
           </div>
-        </>
-      )}
 
-      {bucket === 'waiting' && (
-        <>
-          <div className="cw-section tw-list">
-            {waitingCount === 0 ? (
-              <EmptyState headline="אין מה שממתין כרגע" sentence="פריטים שהכדור שלהם אצל הלקוח, רשות, או ממתינים לאישור — יופיעו כאן." />
-            ) : (
-              <>
-                {journeyWaiting.map(sum => (
-                  <Row
-                    key={sum.clientId}
-                    id={sum.clientId}
-                    title={sum.next ? STEP_TYPE_LABELS[sum.next.stepType] : 'קליטה בהמתנה'}
-                    pill={{ text: 'ממתין ללקוח', tone: 'wait' }}
-                    meta={`${clientName(clientMap.get(sum.clientId))} · קליטה`}
-                    next={<>{sum.done} מתוך {sum.total} הושלמו</>}
-                    onOpen={() => onOpenOnboarding(sum.clientId)}
-                  />
-                ))}
-                {waitingQuotations.map(qt => (
-                  <Row
-                    key={qt.id}
-                    id={qt.id}
-                    title={`הצעת מחיר ${qt.quotationNumber ? `#${qt.quotationNumber}` : ''}`.trim()}
-                    pill={{ text: 'ממתין לאישור', tone: 'wait' }}
-                    meta={`${clientName(clientMap.get(qt.clientId ?? ''))} · מסחרי`}
-                    next={qt.sentAt ? <>נשלחה {relativeTime(qt.sentAt)}</> : undefined}
-                    onOpen={() => (onOpenQuotation ? onOpenQuotation(qt.id) : qt.clientId && onSelectClient(qt.clientId))}
-                  />
-                ))}
-              </>
-            )}
-          </div>
-          <div className="tw-hint">
-            אלה אינם על השולחן שלך — הם נגזרים ממה שכבר נשלח וממתין לתשובה. אין מה לעשות בהם עד שיחזור משהו.
-          </div>
+          {/* ‼ "ממתין לאחרים" הוא מקטע שקט ומתקפל, לא טאב שווה — הכדור לא אצלי,
+              אין כאן מה לעשות עכשיו. 0 פריטים = לא מוצג בכלל, לא "0" חי כטאב ריק.
+              ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §23 (החלטה C1). */}
+          {waitingCount > 0 && (
+            <div className="tw-waiting">
+              <button type="button" className="tw-waiting-toggle" onClick={() => setWaitingOpen(o => !o)}
+                aria-expanded={waitingOpen}>
+                <span className="tw-waiting-arrow" aria-hidden="true">{waitingOpen ? '▾' : '◂'}</span>
+                <span>{waitingCount} {waitingCount === 1 ? 'דבר ממתין' : 'דברים ממתינים'} לאחרים</span>
+              </button>
+              {waitingOpen && (
+                <>
+                  <div className="cw-section tw-list tw-waiting-list">
+                    {journeyWaiting.map(sum => {
+                      const ownerLabel = sum.next ? WAITING_STATUS_LABEL_BY_BALL[sum.next.ball] : 'ממתין';
+                      return (
+                        <Row
+                          key={sum.clientId}
+                          id={sum.clientId}
+                          title={sum.next ? STEP_TYPE_LABELS[sum.next.stepType] : 'קליטה בהמתנה'}
+                          pill={{ text: ownerLabel, tone: 'wait' }}
+                          meta={`${clientName(clientMap.get(sum.clientId))} · קליטה`}
+                          next={<>{sum.done} מתוך {sum.total} הושלמו</>}
+                          onOpen={() => onOpenOnboarding(sum.clientId)}
+                        />
+                      );
+                    })}
+                    {waitingQuotations.map(qt => (
+                      <Row
+                        key={qt.id}
+                        id={qt.id}
+                        title={`הצעת מחיר ${qt.quotationNumber ? `#${qt.quotationNumber}` : ''}`.trim()}
+                        pill={{ text: 'ממתין לאישור', tone: 'wait' }}
+                        meta={`${clientName(clientMap.get(qt.clientId ?? ''))} · מסחרי`}
+                        next={qt.sentAt ? <>נשלחה {relativeTime(qt.sentAt)}</> : undefined}
+                        onOpen={() => (onOpenQuotation ? onOpenQuotation(qt.id) : qt.clientId && onSelectClient(qt.clientId))}
+                      />
+                    ))}
+                  </div>
+                  <div className="tw-waiting-hint">
+                    אלה אינם על השולחן שלך — הם נגזרים ממה שכבר נשלח וממתין לתשובה. אין מה לעשות בהם עד שיחזור משהו.
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </>
       )}
 

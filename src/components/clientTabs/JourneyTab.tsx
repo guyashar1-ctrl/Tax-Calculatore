@@ -28,7 +28,6 @@ import {
 } from '../../utils/journeyPresentation';
 import { nextActionForClient } from '../../utils/nextActionForClient';
 import OnboardingTab from './OnboardingTab';
-import { ClientEmailsList } from '../EmailActivity/ClientEmailsSection';
 
 type BallFilter = 'me' | 'client' | 'third' | 'stuck' | 'done';
 
@@ -82,7 +81,6 @@ const CHAPTERS = [
 export default function JourneyTab(p: Props) {
   const [ballFilter, setBallFilter] = useState<BallFilter | null>(null);
   const [showPast, setShowPast] = useState(false);
-  const [showEmails, setShowEmails] = useState(false);
 
   const clientSteps = useMemo(
     () => p.steps.filter(s => s.clientId === p.client.id && s.status !== 'cancelled'),
@@ -124,7 +122,7 @@ export default function JourneyTab(p: Props) {
   /* יומן המיילים נטען פעם אחת כאן ומוזרם גם ללוח האירועים של ההצעה וגם
      למקטע המיילים למטה — אותם נתונים, שאילתה אחת. */
   const { user } = useAuth();
-  const { messages, loading: emailsLoading, reload: reloadEmails } = useEmailMessages(user?.id);
+  const { messages } = useEmailMessages(user?.id);
   const clientEmails = useMemo(() => {
     if (p.emailsOverride) return p.emailsOverride;
     const addr = new Set([p.client.email].filter(Boolean).map(e => e!.trim().toLowerCase()));
@@ -153,7 +151,14 @@ export default function JourneyTab(p: Props) {
 
   const doneSteps = clientSteps.filter(s => !isStepOpen(s.status)).length;
 
-  const attentionAlerts = useMemo(() => p.alerts.filter(a => a.kind !== 'open_tasks'), [p.alerts]);
+  // ‼ open_tasks ו-upcoming_debt הן שתיהן ספירות של משימות משרד ("6 משימות
+  // פתוחות", "3 חובות קרובים") — המקום שלהן הוא מסך המשימות, לא כאן. תהליך
+  // לא צריך להיות לוח מחוונים שני למה שכבר יש לו מסך משלו.
+  // ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §6/§17 #4.
+  const attentionAlerts = useMemo(
+    () => p.alerts.filter(a => a.kind !== 'open_tasks' && a.kind !== 'upcoming_debt'),
+    [p.alerts]
+  );
 
   function runAction(b: NextActionButton) {
     switch (b.action) {
@@ -176,7 +181,14 @@ export default function JourneyTab(p: Props) {
 
   return (
     <div className="cw-tabpanel">
-      {/* ── פס המסע ── */}
+      {/* ── פס המסע ──
+          ‼ ללקוח פעיל פס המסע הקבוע יורד: מחזור החיים כבר נגמר בשבילו,
+          וארבע תחנות שנשארות תמיד על המסך אחרי שהן כבר לא שאלה פעילה הן
+          בדיוק "לוח מחוונים שצריך לעבור כדי להגיע לעבודה" — ראה הערה למטה
+          על הסרת מרכז השליטה הישן מאותה סיבה. ההיסטוריה נשארת נגישה, שקטה,
+          תחת "מה היה עד כה" (למטה) — לא נעלמת, רק לא תופסת מקום קבוע.
+          החלטת המרה: docs/UX-CONVERGENCE-AUDIT-2026-08.md §23 C2. */}
+      {stage !== 'active' && (
       <div style={{
         display: 'flex', alignItems: 'stretch', gap: '.25rem', flexWrap: 'wrap',
         padding: '.6rem .75rem', background: 'var(--surface-2)', borderRadius: 'var(--radius)',
@@ -213,6 +225,7 @@ export default function JourneyTab(p: Props) {
           {LIFECYCLE_STAGE_LABELS[stage] ?? stage}
         </span>
       </div>
+      )}
 
       {/* ── רצועת המונים. צבע רק למה שדורש החלטה. ──
           ללקוח שאין לו אף בקשה הרצועה כולה יורדת: "אצלי 0" הוא מונה שמצביע
@@ -483,34 +496,13 @@ export default function JourneyTab(p: Props) {
           קרוב"), רשימת משימות משרד שלישית, ועדכון "מה זז לאחרונה" שהוא
           בדיוק מה ש"פעילות" מציגה. שלושתם ענו על שאלות ששאר המסך כבר ענה,
           והפכו את התהליך ללוח מחוונים שצריך לעבור אותו כדי להגיע לעבודה.
-          עכשיו כל שלבי החיים מקבלים את אותו סיום שקט: מיילים מקופלים
-          והערה מוצמדת. ההיסטוריה חיה ב"פעילות", המשימות במסך המשימות. */}
+          ‼ מקטע "מיילים שנשלחו ללקוח" שהיה כאן הוסר מאותה סיבה בדיוק —
+          "פעילות" כבר מציגה תקשורת עם הלקוח (כולל מיילים) בציר זמן אחד,
+          וכפילות בין שני מסכים היא בדיוק מה שהמהלך הזה בא לתקן.
+          ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §6/§17 #4. נשארת רק
+          הערה מוצמדת — שורה שקטה כשיש, כפתור קטן כשאין, לא מקטע שלם. */}
       {(
         <>
-          <div className="cw-section">
-            <div className="cw-section-head">
-              <button type="button"
-                onClick={() => setShowEmails(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '.35rem', color: 'inherit', font: 'inherit',
-                  background: 'none', border: 'none', appearance: 'none', padding: 0, cursor: 'pointer',
-                  minHeight: 44,
-                }}>
-                <span aria-hidden="true">{showEmails ? '▾' : '▸'}</span>
-                <span>מיילים שנשלחו ללקוח</span>
-              </button>
-              <span className="jt-past-summary">
-                {emailsLoading && clientEmails.length === 0 ? 'טוען…'
-                  : clientEmails.length === 0 ? 'עדיין לא נשלח מייל'
-                  : clientEmails.length === 1 ? 'מייל אחד' : `${clientEmails.length} מיילים`}
-              </span>
-            </div>
-            {showEmails && (
-              <ClientEmailsList bare rows={clientEmails} loading={emailsLoading} onChanged={reloadEmails} />
-            )}
-          </div>
-
-          {/* הערה מוצמדת — שורה שקטה כשיש, כפתור קטן כשאין. לא מקטע שלם. */}
           {p.client.pinnedNote ? (
             <div className="jt-panel jt-panel-quiet">
               <div className="jt-panel-head">

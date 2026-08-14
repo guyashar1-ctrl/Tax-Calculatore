@@ -19,7 +19,7 @@ const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'materials_received',     hint: 'מעקב אחרי החומרים שמגיעים ממנו', once: true },
   { type: 'paperless_invite',       hint: 'הזמנת הלקוח לפייפרלס', once: true },
   { type: 'retainer_authorization', hint: 'הרשאה לחיוב חודשי', once: true },
-  { type: 'intake_questionnaire',   hint: 'שאלון פתיחת תיק', once: true },
+  { type: 'intake_questionnaire',   hint: 'עדכון סטטוס מיסויי', once: true },
   { type: 'kyc_identification',     hint: 'הכרת הלקוח — אישור ידני', once: true },
   { type: 'file_opening',           hint: 'פתיחת תיקים ברשויות', once: true },
 ];

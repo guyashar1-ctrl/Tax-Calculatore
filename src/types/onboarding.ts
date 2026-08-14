@@ -73,7 +73,7 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   internal_setup: 'הקמה פנימית',
   kyc_identification: 'הכרת הלקוח',
   first_month_review: 'ביקורת חודש ראשון',
-  intake_questionnaire: 'שאלון פתיחת תיק',
+  intake_questionnaire: 'עדכון סטטוס מיסויי',
   client_documents: 'מסמכים מהלקוח',
   prev_accountant_details: 'פרטי הרו״ח הקודם',
   custom_request: 'בקשה מהמשרד',

@@ -27,7 +27,7 @@ export const STEP_EMAIL_KIND_LABELS: Record<StepEmailKind, string> = {
   paperless_invite: 'הזמנה לפייפרלס',
   retainer_request: 'בקשת הרשאת תשלום',
   step_reminder: 'תזכורת קליטה',
-  intake_questionnaire: 'שאלון פתיחת תיק',
+  intake_questionnaire: 'עדכון סטטוס מיסויי',
   process_open: 'פתיחת התהליך — הדף האישי',
 };
 

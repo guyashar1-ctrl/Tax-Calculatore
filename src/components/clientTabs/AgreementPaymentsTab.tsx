@@ -118,6 +118,30 @@ export default function AgreementPaymentsTab({ client, quotations, engagements, 
     return q ? `לפי הצעת מחיר ${q.quotationNumber ? `#${q.quotationNumber}` : ''}`.trim() : 'לפי הצעת מחיר';
   }
 
+  // ‼ שלוש קופסאות "אין…" נפרדות (התקשרות/עתידיים/היסטוריה) כשאין כלום
+  // בכלל הן אותו משפט שלוש פעמים. שורה שקטה אחת + פעולה, לא שלושה כרטיסים
+  // ריקים אחד מתחת לשני. כשיש תוכן באחד המקטעים, המקטעים חוזרים לעמוד
+  // כל אחד בפני עצמו — אין שינוי שם. ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §11/§21 Phase 5.
+  const fullyEmpty = (!engagement || !currentQuotation) && future.length === 0 && history.length === 0;
+
+  if (fullyEmpty) {
+    return (
+      <div className="cw-tab">
+        <div className="cw-section">
+          <div className="cw-empty">
+            אין עדיין הסכם או תשלומים לתיק הזה.
+            {onNewQuotation && (
+              <>
+                {' '}
+                <button type="button" className="ui-linkbtn" onClick={onNewQuotation}>+ הצעת מחיר</button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="cw-tab">
       <div className="cw-section">

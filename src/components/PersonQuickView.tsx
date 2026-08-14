@@ -85,6 +85,21 @@ export default function PersonQuickView(p: Props) {
           </div>
         )}
 
+        {/* ‼ "מה קורה עכשיו" מוביל — זו הסיבה שפותחים תצוגה מהירה, לא כדי
+            לראות שוב את מה שהשורה כבר הראתה. עובדות הזיהוי (ת.ז./טלפון/
+            אימייל) יורדות למטה כהפניה שקטה — לא נעלמות, כי יש להן ערך
+            מעשי (העתקה, חיוג), אבל לא מובילות. סטטוס ירד לגמרי: הוא כבר
+            בשורה עצמה *וגם* בכותרת התצוגה המהירה כאן למעלה (pd-qv-state) —
+            שלישיה של אותה עובדה היא לא הבהרה, היא רעש.
+            ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §13/§21 Phase 5. */}
+        <div className="pd-section">
+          <div className="pd-st">מה קורה עכשיו</div>
+          <div className="pd-process">
+            <b>{p.now.title}</b>
+            {p.now.detail && <div className="pd-small">{p.now.detail}</div>}
+          </div>
+        </div>
+
         <div className="pd-info">
           <div className="pd-cell">
             <div className="pd-lab">תעודת זהות</div>
@@ -97,18 +112,6 @@ export default function PersonQuickView(p: Props) {
           <div className="pd-cell">
             <div className="pd-lab">אימייל</div>
             <div className="pd-val pd-ltr">{row.email || '—'}</div>
-          </div>
-          <div className="pd-cell">
-            <div className="pd-lab">סטטוס</div>
-            <div className="pd-val"><span className={`pd-badge ${row.badge.cls}`}>{row.badge.label}</span></div>
-          </div>
-        </div>
-
-        <div className="pd-section">
-          <div className="pd-st">מה קורה עכשיו</div>
-          <div className="pd-process">
-            <b>{p.now.title}</b>
-            {p.now.detail && <div className="pd-small">{p.now.detail}</div>}
           </div>
         </div>
 

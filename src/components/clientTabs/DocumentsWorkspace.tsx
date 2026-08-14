@@ -9,6 +9,7 @@ import type { Client } from '../../types';
 import { useDocumentStore, type StoredDoc, type DocFolder, type DocumentLabel } from '../../hooks/useDocumentStore';
 import { AVAILABLE_YEARS } from '../../data/taxData';
 import { supabase } from '../../lib/supabase';
+import { EmptyState } from '../ui/States';
 
 const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.csv';
 
@@ -394,8 +395,17 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
 
   const yearOptions = useMemo(() => ['כללי', ...AVAILABLE_YEARS.map(String)], []);
 
+  // ‼ "אין פריטים שמתאימים לסינון" זו הודעת סינון — ומוצגת גם ללקוח שמעולם
+  // לא סונן שום דבר, פשוט עוד אין לו מסמכים. סרגל כלים מלא (חיפוש/תווית/
+  // שנה/נהל-תוויות) מעל משפט על "סינון" כשאין מה לסנן קורא כמו תקלה, לא
+  // כמו התחלה. ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §9/§17 #6.
+  const hasAnyContent = docs.length > 0 || folders.length > 0;
+  const hasActiveFilter = !!q.trim() || !!filterLabel || !!filterYear;
+  const isFirstRun = !loading && !hasAnyContent && !hasActiveFilter && currentFolderId === null;
+
   return (
     <div className="cw-tab ial-docs" onClick={() => addMenuOpen && setAddMenuOpen(false)}>
+      {!isFirstRun && (
       <div className="cw-section" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center', padding: '.6rem .8rem' }}>
         <input
           className="ial-doc-search"
@@ -412,7 +422,6 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
           <option value="">כל השנים</option>
           {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
-        <button type="button" className="btn btn-sm btn-ghost" onClick={() => setLabelManagerOpen(true)}>נהל תוויות</button>
         <div style={{ position: 'relative' }}>
           <button type="button" className="btn btn-sm btn-primary" onClick={e => { e.stopPropagation(); setAddMenuOpen(v => !v); }}>
             הוסף ▾
@@ -424,6 +433,11 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
               <button type="button" onClick={openCreateFolder}>צור תיקייה</button>
               <hr />
               <button type="button" onClick={openRequest}>בקש מסמך מהלקוח</button>
+              <hr />
+              {/* ‼ פעולת ניהול נדירה — לא שייכת לרמת הכלים הראשית לצד
+                  חיפוש/תווית/שנה, שם היא מתחרה בגובה עם מה שמשתמשים בו כל
+                  יום. ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §9/§21 Phase 4. */}
+              <button type="button" onClick={() => { setAddMenuOpen(false); setLabelManagerOpen(true); }}>נהל תוויות</button>
             </div>
           )}
         </div>
@@ -433,7 +447,20 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
           {...({ webkitdirectory: '', directory: '' } as any)}
         />
       </div>
+      )}
 
+      {isFirstRun ? (
+        <div className="cw-section">
+          <EmptyState
+            headline="עוד אין מסמכים"
+            sentence="כל קובץ מקבל שנה ותווית מקצועית אחת, ואפשר לקשר אותו לכמה לקוחות בלי לשכפל."
+            action={{ label: 'העלה קובץ', onClick: openUploadFile }}
+            quietLink={{ label: 'בקש מסמך מהלקוח', onClick: openRequest }}
+          />
+          <input ref={fileInputRef} type="file" multiple accept={FILE_ACCEPT} style={{ display: 'none' }} onChange={handleFilesPicked} />
+        </div>
+      ) : (
+      <>
       <div className="cw-section" style={{ padding: '.5rem .8rem', display: 'flex', gap: '.4rem', alignItems: 'center' }}>
         <button type="button" className="ial-back" style={{ marginBottom: 0 }} onClick={goRoot}>כל המסמכים</button>
         {!q && breadcrumb.map((f, i) => (
@@ -499,6 +526,8 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
       <div className="csub" style={{ margin: '.5rem .2rem 0', fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
         המסמכים פנימיים למשרד. הלקוח אינו רואה אותם — מה שמבקשים ממנו עובר דרך בקשת לקוח.
       </div>
+      </>
+      )}
 
       {/* ── מגירת פרטי מסמך ───────────────────────────────────────────── */}
       {drawerDoc && (

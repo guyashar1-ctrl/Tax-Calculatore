@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import type { Client } from '../types';
 import type { OnboardingEvent, OnboardingStep } from '../types/onboarding';
 import { EVENT_TYPE_LABELS } from '../types/onboarding';
+import { ACTIVITY_LABELS } from '../types/clientWorkspace';
 import type { Quotation } from '../types/quotations';
 import { QUOTATION_STATUS_LABELS } from '../types/quotations';
 import type { AdditionalCharge } from '../types/charges';
@@ -81,11 +82,14 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
   const items: ActivityEvent[] = [];
 
   for (const ev of clientEvents) {
-    if (ev.type === 'note' && !ev.note) continue;
+    // ‼ בדיקה לא-ריקה בלי trim מחמיצה מחרוזת רווח/שורה בלבד — "אמת" בבדיקת
+    // Boolean, אבל ריקה בעין. אותה שורה "הערה · תהליך" בלי שום תוכן.
+    // ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §12/§21 Phase 8.
+    if (ev.type === 'note' && !ev.note?.trim()) continue;
     items.push({
       id: `ob-${ev.id}`, at: ev.at, cat: 'process',
       title: EVENT_TYPE_LABELS[ev.type] ?? ev.type,
-      meta: ev.note || undefined,
+      meta: ev.note?.trim() || undefined,
     });
   }
 
@@ -137,8 +141,20 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
     }
   }
 
+  // ‼ באג ממשי שנחשף בבדיקת דפדפן: הקוד טיפל רק ב-2 מתוך 6 סוגי kind
+  // (note/manual) — task_created/task_completed/doc_uploaded/status_change
+  // נפלו כולם לכותרת גנרית "הערה" ו-a.text נזרק (meta=undefined), למרות
+  // שיש כבר ACTIVITY_LABELS לכל ששת הסוגים. זו הייתה השורה הריקה "הערה ·
+  // תהליך" שנראתה בדף — לא הערה ריקה, אלא אירוע אחר לגמרי שאיבד את תוכנו.
+  // manual עדיין מציג את הטקסט ככותרת (זה כל האירוע); שאר הסוגים מציגים
+  // את שם הסוג ככותרת ואת a.text כפירוט. ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §12/§21 Phase 8.
   for (const a of client.activity ?? []) {
-    items.push({ id: `note-${a.id}`, at: a.at, cat: 'process', title: a.kind === 'manual' ? a.text : 'הערה', meta: a.kind === 'note' ? a.text : undefined });
+    if (!a.text || !a.text.trim()) continue;
+    items.push({
+      id: `note-${a.id}`, at: a.at, cat: 'process',
+      title: a.kind === 'manual' ? a.text : (ACTIVITY_LABELS[a.kind] ?? 'הערה'),
+      meta: a.kind === 'manual' ? undefined : a.text,
+    });
   }
 
   items.sort((a, b) => (b.at || '').localeCompare(a.at || ''));
