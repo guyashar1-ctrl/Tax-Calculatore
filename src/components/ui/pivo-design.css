@@ -14,16 +14,25 @@
 
 /* ═══════════════════════════════════════════════════════════════════════════
    מסגרת האפליקציה · המבנה שקובע את כל השאר
-   מקור: "משימות · מינימלי.dc.html" בפרויקט העיצוב, ואפיון §3.1.
 
-   האפליקציה כולה יושבת בכרטיס לבן אחד, ממורכז, עם פינות מעוגלות וצל רך,
-   שצף על קנבס אפור. זה מה שמפריד בין "מסך מלא של דפדפן" לבין מוצר —
-   הקנבס מסביב הוא שנותן לתוכן גבול, והגבול הוא שנותן לו נשימה.
+   ‼ הגרסה הקודמת של המסגרת הזו הגדירה את כל האפליקציה ככרטיס לבן אחד,
+   ממורכז ל-1280px, עם גבול/פינות מעוגלות/צל, צף על קנבס אפור נפרד —
+   ומקורה היה קובץ עיצוב ("משימות · מינימלי.dc.html") שאינו אחד משני
+   האסמכתאות המאושרות. שתי האסמכתאות עצמן
+   (client-case-simplified-exploration-v3-final2.html, tasks-v3-final.html)
+   פורסות סרגל עליון ברוחב מלא בלי שום כרטיס-על — התוכן מתחתיו הוא זה
+   שנושא מידה. הכרטיס הישן היה שכבה שלישית של "מסך זעיר באמצע מסך ענק":
+   1920 viewport → 1280 כרטיס אפליקציה → 1040 תוכן — בדיוק תלונת
+   "האפליקציה נראית מוקטנת" שדווחה.
+
+   עכשיו: המעטפת היא שטח עבודה — לא כרטיס. בלי גבול, בלי פינות, בלי צל,
+   בלי קנבס בצבע נבדל. --workspace-max (index.css) קובע כמה משטח המסך
+   שטח העבודה עצמו תופס; --content-max ממשיך לקבוע את מידת הקריאה/העבודה
+   הפנימית של כל מסך בנפרד, בדיוק כפי שהיה מאז המילסטון הקודם.
    ═══════════════════════════════════════════════════════════════════════════ */
 .app {
   min-height: 100vh;
-  background: var(--canvas);
-  padding: 28px 32px 56px;
+  background: var(--page);
   display: block;
   /* ‎html‎ מגדיר 16px, ו-16 אינו בסקאלה. כל טקסט שלא קיבל מידה מפורשת ירש
      אותו — ולכן עשרות כותרות ופסקאות במערכת נפלו מחוץ לסולם בלי שאיש
@@ -33,39 +42,29 @@
 .ui-modal, .ui-toast { font-size: var(--fs-14); }
 .app > .header,
 .app > .main {
-  max-width: 1280px;
+  max-width: var(--workspace-max);
   margin-inline: auto;
   width: 100%;
   background: var(--surface-0);
 }
 .app > .header {
-  border: 1px solid var(--hairline-1);
-  border-bottom-color: var(--hairline-1);
-  border-radius: var(--r-modal) var(--r-modal) 0 0;
-  box-shadow: 0 1px 3px rgba(0,0,0,.06);
   position: sticky;
   top: 0;
-  padding-inline: 20px;
+  border-bottom: 1px solid var(--hairline-1);
+  padding-inline: clamp(20px, 3vw, 40px);
   gap: 26px;
 }
 .app > .main {
-  border: 1px solid var(--hairline-1);
-  border-top: 0;
-  border-radius: 0 0 var(--r-modal) var(--r-modal);
-  box-shadow: 0 8px 28px rgba(0,0,0,.05);
-  padding: 14px 22px 40px;
-  max-width: 1280px;
+  padding: 20px clamp(20px, 3vw, 40px) 48px;
   flex: none;
 }
 
-/* בתוך הכרטיס הכותרת הדביקה נצמדת לראשו, לא לראש החלון */
+/* בתוך שטח העבודה הכותרת הדביקה נצמדת לראשו, לא לראש החלון */
 .tasks-page .ui-group-head { top: 0; }
 
 @media (max-width: 1100px) {
-  .app { padding: 0; }
   .app > .header,
-  .app > .main { border-radius: 0; border-inline: 0; max-width: none; }
-  .app > .main { border-bottom: 0; }
+  .app > .main { max-width: none; padding-inline: 16px; }
 }
 
 /* קו אנכי אחד לכל המסך — הכל מיושר לאותו אינסט */
@@ -2146,8 +2145,13 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
    מבאג ה-880px של משימות: שם אין קופסה שנייה בתוך קופסה — .pd-page הוא
    התוכן היחיד בכרטיס, לא עוד רמת קינון. ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §17 #1. */
 /* ‼ הריפוד הצידי (16px, נחוץ במובייל כשה-max-width משתחרר) מפוצה ברוחב —
-   כך שהתוכן הפנימי עומד בדיוק על --content-max, מיושר עם משימות והתיק. */
-.pd-page{max-width:calc(var(--content-max) + 32px);margin-inline:auto;padding:26px 16px 0}
+   כך שהתוכן הפנימי עומד בדיוק על --content-max, מיושר עם משימות והתיק.
+   ‼ הדף עצמו (כותרת/חיפוש/סינון) עבר ל-wide-content-max — אותו עיקרון
+   כמו tasks-page: שדות ופעולות רוחביים, לא טקסט רץ. אבל .pd-list (רשימת
+   האנשים/לקוחות) נשאר על content-max ומיושר לקצה, לא ממורכז בפני עצמו —
+   כדי לא ליצור קופסה ממורכזת בתוך קופסה ממורכזת, בדיוק כמו tw-list. */
+.pd-page{max-width:calc(var(--wide-content-max) + 32px);margin-inline:auto;padding:26px 16px 0}
+.pd-list{max-width:var(--content-max)}
 .pd-h1{font-size:var(--fs-24);font-weight:700;margin-bottom:4px}
 .pd-intro{font-size:var(--fs-13);color:var(--ink-3);margin-bottom:24px}
 .pd-searchline{display:flex;gap:10px}
@@ -2519,8 +2523,13 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
    "הזום המשתנה" שדווחה. מידה אחת ממורכזת ⇒ אותם קצוות בכל המסכים.
    ראה index.css (--content-max) והדוח במילסטון ההתכנסות. */
 /* על .tasks-page ולא על .tw-wrap — מצב האפס מרונדר בלי tw-wrap, ובלי זה
-   אותו מסך היה מחליף רוחב בין ריק למלא (הבאג שכבר תוקן פעם). */
-.tasks-page { width: 100%; max-width: var(--content-max); margin-inline: auto; }
+   אותו מסך היה מחליף רוחב בין ריק למלא (הבאג שכבר תוקן פעם).
+   ‼ משימות היא מסך רשימה — הכותרת/הטאבים/סרגל הכלים משתמשים בעמודה
+   הרחבה (--wide-content-max) כדי שינצלו את שטח העבודה החדש והרחב יותר.
+   רשימת השורות עצמה (.tw-list, למטה) חוזרת ומוגבלת ל-content-max:
+   שורת משימה קצרה (כותרת · לקוח · תאריך) שנמתחת ל-1280px נשארת ברובה
+   ריקה — בדיוק הבאג שכבר תוקן פעם, עכשיו חוזר כי העמוד עצמו התרחב. */
+.tasks-page { width: 100%; max-width: var(--wide-content-max); margin-inline: auto; }
 .tw-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .tw-sub { font-size: var(--fs-12); color: var(--ink-3); margin-top: 3px; }
 
@@ -2540,7 +2549,10 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .tw-tools { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .tw-search { flex: 1; min-width: 200px; font-size: var(--fs-12); }
 
-.tw-list { overflow: hidden; }
+/* לא ממורכז (בלי margin:auto) — מיושר לקצה ה-RTL-start של tasks-page,
+   כדי שלא ייווצר קופסה ממורכזת בתוך קופסה ממורכזת. אותו עיקרון כמו
+   הריפוד/מירכוז של tasks-page עצמו מהמילסטון הקודם. */
+.tw-list { overflow: hidden; max-width: var(--content-max); }
 /* ‼ מדידה בפועל (לא הערכה): 82px = 24px ריפוד (12+12) + 18px כותרת
    (line-height 1.5 ברירת מחדל על 12px) + (3+17)×2 למטא/הבא (line-height
    1.5 על 11px). הריפוד וה-line-height שירשנו בברירת מחדל הם המרחב הניתן
@@ -2585,7 +2597,8 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   border: 0; background: none; cursor: pointer; color: var(--ink-4);
   font-size: var(--fs-11, 11px); line-height: 1; padding: 2px 4px;
 }
-.tw-hint { font-size: var(--fs-12); color: var(--ink-4); margin: 10px 2px 0; }
+/* שורת עזר בת משפט אחד — שורת טקסט רץ, לא רשימה; אותה מגבלת קריאה. */
+.tw-hint { font-size: var(--fs-12); color: var(--ink-4); margin: 10px 2px 0; max-width: var(--content-max); }
 
 /* ‼ "ממתין לאחרים" מוצג כקבוצה שקטה מתחת לעבודה הפעילה, לא כטאב שווה —
    הכדור לא אצלי, אין כאן מה לעשות עכשיו, אז זה לא מתחרה בתשומת הלב.
@@ -2599,7 +2612,8 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 }
 .tw-waiting-toggle:hover { color: var(--ink-2); }
 .tw-waiting-arrow { font-size: var(--fs-11, 11px); color: var(--ink-4); }
-.tw-waiting-list { margin-top: 4px; }
+/* אותן שורות קצרות כמו tw-list — אותה מגבלת רוחב, מאותה סיבה. */
+.tw-waiting-list { margin-top: 4px; max-width: var(--content-max); }
 .tw-waiting-hint { font-size: var(--fs-12); color: var(--ink-4); margin: 8px 2px 0; }
 
 /* "+ חדש" פותח בחירה, לא תפריט נשלף — כך היא עובדת גם במובייל, שם הכפתור
