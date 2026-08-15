@@ -19,7 +19,7 @@ const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'materials_received',     hint: 'מעקב אחרי החומרים שמגיעים ממנו', once: true },
   { type: 'paperless_invite',       hint: 'הזמנת הלקוח לפייפרלס', once: true },
   { type: 'retainer_authorization', hint: 'הרשאה לחיוב חודשי', once: true },
-  { type: 'intake_questionnaire',   hint: 'עדכון סטטוס מיסויי', once: true },
+  { type: 'intake_questionnaire',   hint: 'רענון תיק המס — שאלון ומסמכים לפי מה שחסר', once: true },
   { type: 'kyc_identification',     hint: 'הכרת הלקוח — אישור ידני', once: true },
   { type: 'file_opening',           hint: 'פתיחת תיקים ברשויות', once: true },
 ];
@@ -31,11 +31,17 @@ interface Props {
   steps: OnboardingStep[];
   /** לפני פרסום התהליך אין מושג "טיוטה" — הכל ממילא עוד לא נחשף. */
   processPublished: boolean;
+  /**
+   * סוג בקשה מסומן מראש — לנקודת כניסה הקשרית (למשל "עדכון סטטוס מס"
+   * מתוך תיק מס). ‼ זו אינה זרימה שנייה: אותו חלון, אותו state, ואותה
+   * קריאת create_onboarding_request. ההבדל היחיד הוא שמדלגים על הקטלוג.
+   */
+  presetType?: OnboardingStep['stepType'];
   onClose: () => void;
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, onClose, onCreated }: Props) {
+export default function AddRequestDialog({ clientId, steps, processPublished, presetType, onClose, onCreated }: Props) {
   const [mode, setMode] = useState<'catalog' | 'custom' | 'documents'>('catalog');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +126,8 @@ export default function AddRequestDialog({ clientId, steps, processPublished, on
       <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
         <div className="modal-head">
           <h3 style={{ margin: 0, fontSize: 'var(--fs-16)' }}>
-            {mode === 'catalog' ? 'הוספת בקשה'
+            {presetType ? STEP_TYPE_LABELS[presetType]
+              : mode === 'catalog' ? 'הוספת בקשה'
               : mode === 'custom' ? 'בקשה חופשית'
               : 'מסמכים מהלקוח'}
           </h3>
@@ -135,7 +142,22 @@ export default function AddRequestDialog({ clientId, steps, processPublished, on
             }}>⚠ {error}</div>
           )}
 
-          {mode === 'catalog' && (
+          {/* ‼ נקודת כניסה הקשרית (תיק מס). אותה בקשה, אותו RPC — רק בלי
+              לבחור מהקטלוג. אם כבר קיימת בקשה פתוחה מהסוג הזה לא יוצרים
+              שנייה: הכפילות היא בדיוק מה שהמודל המאוחד בא למנוע. */}
+          {presetType && (
+            existing.has(presetType) ? (
+              <div className="cw-empty">
+                כבר קיימת בקשת {STEP_TYPE_LABELS[presetType]} פתוחה ללקוח. אפשר לנהל אותה מלשונית «תהליך».
+              </div>
+            ) : (
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
+                הבקשה תיווצר במודל הבקשות המאוחד ותופיע ללקוח בדף האישי — כמו כל בקשה אחרת.
+              </div>
+            )
+          )}
+
+          {mode === 'catalog' && !presetType && (
             <>
               {available.length === 0 && (
                 <div className="cw-empty">כל הבקשות מהקטלוג כבר קיימות אצל הלקוח.</div>
@@ -232,20 +254,32 @@ export default function AddRequestDialog({ clientId, steps, processPublished, on
               <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
             </>
           )}
+
+          {presetType && !existing.has(presetType) && (
+            <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+          )}
         </div>
 
         <div className="modal-foot" style={{ display: 'flex', gap: '.4rem', justifyContent: 'flex-end' }}>
-          {mode !== 'catalog' && (
+          {mode !== 'catalog' && !presetType && (
             <button type="button" className="btn btn-secondary" disabled={busy}
               onClick={() => { setMode('catalog'); setError(null); }}>חזרה</button>
           )}
-          <button type="button" className="btn btn-ghost" onClick={onClose}>ביטול</button>
-          {mode === 'custom' && (
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            {presetType && existing.has(presetType) ? 'סגור' : 'ביטול'}
+          </button>
+          {presetType && !existing.has(presetType) && (
+            <button type="button" className="btn btn-primary" disabled={busy}
+              onClick={() => { void create(presetType, {}); }}>
+              {busy ? 'מוסיף…' : 'הוסף בקשה'}
+            </button>
+          )}
+          {mode === 'custom' && !presetType && (
             <button type="button" className="btn btn-primary" disabled={busy} onClick={submitCustom}>
               {busy ? 'מוסיף…' : 'הוסף בקשה'}
             </button>
           )}
-          {mode === 'documents' && (
+          {mode === 'documents' && !presetType && (
             <button type="button" className="btn btn-primary" disabled={busy} onClick={submitDocuments}>
               {busy ? 'מוסיף…' : 'הוסף בקשה'}
             </button>

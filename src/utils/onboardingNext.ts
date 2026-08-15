@@ -21,7 +21,7 @@ export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   internal_setup: 'להשלים את ההקמה הפנימית',
   kyc_identification: 'להשלים את הכרת הלקוח',
   first_month_review: 'לבצע את ביקורת החודש הראשון',
-  intake_questionnaire: 'לשלוח ללקוח עדכון סטטוס מיסויי',
+  intake_questionnaire: 'לשלוח ללקוח עדכון סטטוס מס',
   client_documents: 'לאסוף את המסמכים מהלקוח',
   prev_accountant_details: 'לקבל מהלקוח את פרטי הרו״ח הקודם',
   custom_request: 'לטפל בבקשה שהגדרת',

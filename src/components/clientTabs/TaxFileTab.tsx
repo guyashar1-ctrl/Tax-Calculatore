@@ -242,13 +242,18 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
           <h2>תיק מס</h2>
           <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>הרשומה המקצועית של הלקוח. עריכה — מתוך הפירוט בלבד.</div>
         </div>
-        {/* ‼ "עדכון סטטוס מיסויי" ולא "שאלון": השאלון הוא אחד המקורות לרענון
+        {/* ‼ "עדכון סטטוס מס" ולא "שאלון": השאלון הוא אחד המקורות לרענון
             התיק, לא הרשומה עצמה, והוא אינו שייך רק לעונת הדוח השנתי. הרשומה
             הזו חיה כל השנה, והעדכון מזרים אליה הצעות דרך אותו מסלול התאמה
-            מאושר (M1) — לא כותב עליה ישירות. */}
+            מאושר (M1) — לא כותב עליה ישירות.
+            ‼ הכפתור הזה הוא נקודת כניסה שנייה ליכולת אחת, לא מסלול שני:
+            הוא פותח את אותו חלון "הוסף בקשה" עם סוג הבקשה intake_questionnaire
+            מסומן מראש, ולכן נוצרת אותה בקשה מאוחדת בדיוק כמו מהתהליך. קודם
+            הוא פתח שליחת מייל ישירה (?intake=TOKEN) שעקפה את מודל הבקשות
+            והדף האישי — ערוץ תקשורת שני ללקוח, וזה בדיוק מה שאסור. */}
         <div className="txf-qstat">
-          <span>{lastQSync ? `סטטוס מיסויי · עודכן לאחרונה ${monthYear(lastQSync)}` : 'סטטוס מיסויי · טרם עודכן'}</span>
-          <button type="button" className="ui-btn ui-btn-ghost" onClick={onSendQuestionnaire}>עדכן סטטוס מיסויי</button>
+          <span>{lastQSync ? `סטטוס מס · עודכן לאחרונה ${monthYear(lastQSync)}` : 'סטטוס מס · טרם עודכן'}</span>
+          <button type="button" className="ui-btn ui-btn-ghost" onClick={onSendQuestionnaire}>עדכון סטטוס מס</button>
         </div>
       </div>
 

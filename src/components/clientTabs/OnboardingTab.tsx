@@ -872,7 +872,7 @@ export default function OnboardingTab({
                     busy={busy}
                     highlight={highlightStepId === step.id}
                     onPrepareEmail={() => setEmailDialog({
-                      stepId: step.id, kind: 'intake_questionnaire', heading: 'מייל עדכון סטטוס מיסויי',
+                      stepId: step.id, kind: 'intake_questionnaire', heading: 'מייל עדכון סטטוס מס',
                     })}
                     onRun={(action, payload) => void run(step, action, payload)}
                     menu={menu}
@@ -1902,7 +1902,7 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
   );
 }
 
-// ═══════════════ כרטיס עדכון סטטוס מיסויי ═══════════════════════════════
+// ═══════════════ כרטיס עדכון סטטוס מס ═══════════════════════════════
 // ‼ במסלול הפנימי ולא ב"כלים": העיתוי הוא החלטה של הרו"ח. לקוח שמקבל שאלון
 // באותו יום שבו הוא חתם על ההצעה מרגיש שנפל עליו טופס; מי ששולח אותו יודע
 // מתי הרגע הנכון, והמערכת לא מנחשת במקומו.

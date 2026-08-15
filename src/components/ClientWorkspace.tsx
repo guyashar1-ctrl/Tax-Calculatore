@@ -18,7 +18,7 @@ import ClientDeleteDialog from './ClientDeleteDialog';
 import DocumentsTab from './clientTabs/DocumentsTab';
 import { useClientTaxSessions } from '../features/annualReport/useClientTaxSessions';
 import TasksActivityTab from './clientTabs/TasksActivityTab';
-import SendIntakeModal from './SendIntakeModal';
+import AddRequestDialog from './clientTabs/AddRequestDialog';
 import ClientDossierTab from './clientTabs/ClientDossierTab';
 import ClientCockpitTab from './clientTabs/ClientCockpitTab';
 import JourneyTab from './clientTabs/JourneyTab';
@@ -406,6 +406,10 @@ export default function ClientWorkspace({
   const clientSteps = useMemo(
     () => (onboardingSteps ?? []).filter(s => s.clientId === client.id && s.status !== 'cancelled'),
     [onboardingSteps, client.id]);
+  /** ההתקשרות הפעילה — קובעת אם התהליך כבר פורסם ללקוח (מצב "טיוטה"). */
+  const activeEngagement = useMemo(
+    () => (engagements ?? []).find(e => e.clientId === client.id && e.status !== 'cancelled'),
+    [engagements, client.id]);
   /** תג תשומת-לב על "הסכם ותשלומים" — מועד תשלום שהגיע ועדיין לא סומן שולם. */
   const overdueChargeCount = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -779,11 +783,19 @@ export default function ClientWorkspace({
         )}
       </div>
 
-      {intakeModalOpen && (
-        <SendIntakeModal
-          client={client}
+      {/* ‼ "עדכון סטטוס מס" מתיק המס — נקודת כניסה שנייה ליכולת אחת.
+          פותח את אותו AddRequestDialog של «הוסף בקשה» עם הסוג מסומן מראש,
+          ולכן נוצרת אותה בקשה מאוחדת (create_onboarding_request) שמופיעה
+          ללקוח בדף האישי. קודם כאן ישב SendIntakeModal ששלח מייל ישיר עם
+          ‎?intake=TOKEN‎ — ערוץ תקשורת שני ללקוח שעקף את מודל הבקשות. */}
+      {intakeModalOpen && client.id && (
+        <AddRequestDialog
+          clientId={client.id}
+          steps={clientSteps}
+          processPublished={!!activeEngagement?.processPublishedAt}
+          presetType="intake_questionnaire"
           onClose={() => setIntakeModalOpen(false)}
-          onSent={(email) => appendActivity({ kind: 'manual', text: `נשלח שאלון עדכון אל ${email}` })}
+          onCreated={() => { setIntakeModalOpen(false); refreshOnboarding?.(); }}
         />
       )}
 
