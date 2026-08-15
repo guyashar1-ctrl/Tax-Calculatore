@@ -2003,6 +2003,29 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .ob-prog-title { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); }
 .ob-prog-count { font-size: var(--fs-12); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
+/* ‼ שורת הדף האישי — הפעולות של הקישור, ברמת העמוד ולא על שורה בודדת.
+   בלי מסגרת ובלי רקע: זו שורת שירות מעל הרשימה, לא פאנל שמתחרה בה. */
+.ob-clientpage {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: .35rem 1rem;
+  font-size: var(--fs-12); color: var(--ink-3);
+  padding: .1rem 0 .2rem;
+}
+.ob-clientpage-lead { color: var(--ink-3); }
+.ob-clientpage .ui-linkbtn { font-size: var(--fs-12); font-weight: 600; min-height: 44px; }
+@media (max-width: 640px) {
+  /* באגודל אין ריחוף ואין מקום לשורה אחת — הפעולות יורדות לשורה משלהן. */
+  .ob-clientpage { gap: .2rem .9rem; }
+  .ob-clientpage-lead { width: 100%; }
+}
+
+/* ‼ ⋯ — הכניסה לתצורה. דהוי במנוחה כדי שרשימה של עשר בקשות לא תיראה
+   כמו עשרה תפריטים, ומלא ברגע שנוגעים בו. באגודל אין ריחוף ולכן הוא
+   נשאר קריא תמיד. */
+.ob-more { opacity: .4; transition: opacity .15s ease; }
+.ob-more:hover, .ob-more:focus-visible, .ob-more[aria-expanded="true"] { opacity: 1; }
+@media (hover: none) { .ob-more { opacity: .65; } }
+
 .ob-stages { list-style: none; margin: 0; padding: 0; display: grid; }
 .ob-stage {
   display: grid; grid-template-columns: 18px minmax(0, 1fr) auto;

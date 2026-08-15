@@ -33,6 +33,13 @@ interface Props {
    * (למשל מייל החתימה, שנשלח לכל החותמים ומסמן שההוראות לב"ל יצאו).
    */
   readOnly?: boolean;
+  /**
+   * נוסח ששמור על הבקשה עצמה (נושא/גוף של בקשה לגורם חיצוני). נטען לתוך
+   * התצוגה המקדימה הראשונה, ומשם ממשיך כרגיל — אפשר לערוך לפני השליחה.
+   * ‼ שדה ריק אינו נשלח כדריסה: השרת מפרש '' כ"נושא ריק" ולא כ"אין ערך",
+   * ובקשה ששמור לה רק נושא הייתה יוצאת בלי גוף בכלל.
+   */
+  initialOverrides?: { subject?: string; body?: string };
 }
 
 interface Loaded { subject: string; to: string; from?: string; html: string; bodyText?: string; }
@@ -61,7 +68,7 @@ async function errText(data: any, error: any): Promise<string> {
   return body?.detail?.message || (code && (ERROR_TEXT[code] || code)) || error?.message || 'הפעולה נכשלה';
 }
 
-export default function EmailPreviewDialog({ body, fn, editable, preloaded, sendVia, heading, onClose, onSent, readOnly }: Props) {
+export default function EmailPreviewDialog({ body, fn, editable, preloaded, sendVia, heading, onClose, onSent, readOnly, initialOverrides }: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(preloaded ?? null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -99,8 +106,14 @@ export default function EmailPreviewDialog({ body, fn, editable, preloaded, send
     let alive = true;
     (async () => {
       try {
+        /* רק שדות שיש בהם תוכן. השרת ממזג overrides ?? saved ?? base, ולכן
+           מפתח חסר נופל לנוסח הנגזר — בדיוק ההתנהגות של בקשה בלי נוסח שמור. */
+        const seeded: { subject?: string; body?: string } = {};
+        if (initialOverrides?.subject?.trim()) seeded.subject = initialOverrides.subject;
+        if (initialOverrides?.body?.trim()) seeded.body = initialOverrides.body;
+        const hasSeed = Object.keys(seeded).length > 0;
         const { data, error } = await supabase.functions.invoke(fnName, {
-          body: { ...body, preview: true },
+          body: { ...body, preview: true, ...(hasSeed ? { overrides: seeded } : {}) },
         });
         if (!alive) return;
         if (error || !data?.ok) setError(await errText(data, error));

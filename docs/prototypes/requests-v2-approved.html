@@ -1,0 +1,417 @@
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>בקשות — גרסה 2.2</title><style>
+*{box-sizing:border-box} body{margin:0;background:#f5f7fb;color:#172033;font-family:Arial,"Noto Sans Hebrew",sans-serif;direction:rtl}
+.shell{max-width:1040px;margin:36px auto;padding:0 22px}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:10px}
+h1{font-size:24px;margin:0 0 6px;font-weight:750}.sub{font-size:13px;color:#7b879b}
+button{font:inherit}.btn{border:0;border-radius:10px;padding:10px 16px;font-weight:700;cursor:pointer}
+.primary{background:#79a3f2;color:white}.ghost{background:transparent;color:#657187}.soft{background:#eef3fb;color:#47648f}
+.card{position:relative;background:#fff;border:1px solid #dfe6f0;border-radius:14px;box-shadow:0 0 0 1px rgba(214,223,236,.35);padding:16px 18px}
+.title{font-size:14px;font-weight:750}.meta{font-size:12px;color:#8a95a7;margin-top:7px;line-height:1.5}
+.row{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.lft{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.small{font-size:12px}.muted{color:#8a95a7}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;background:#f3f6fa;color:#69768a;font-size:11px;font-weight:700}
+.pill.draft{background:#fbf3e3;color:#96793c}.pill.ext{background:#edf6ef;color:#527d5e}
+.more{border:0;background:none;color:#9aa5b5;font-size:17px;cursor:pointer;padding:4px 7px;border-radius:8px;opacity:.35}
+.more:hover{opacity:1;background:#f1f4f9}
+.add{width:100%;border:1px dashed #cbd6e4;background:rgba(255,255,255,.55);border-radius:14px;padding:15px;color:#6e7b8e;font-weight:700;cursor:pointer}
+.section-label{font-size:12px;color:#7c8799;font-weight:700;margin:18px 2px 9px}
+.chev{font-size:16px;color:#9aa5b5}.done{opacity:.72}
+.overlay{position:fixed;inset:0;background:rgba(32,43,60,.22);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal{width:min(560px,100%);background:white;border-radius:16px;padding:20px;box-shadow:0 20px 60px rgba(37,49,67,.18);max-height:88vh;overflow:auto}
+.overlay.open{display:flex}.modal h3{margin:0 0 5px;font-size:17px}.choices{display:grid;gap:9px;margin-top:16px}
+.choice{border:1px solid #e0e6ef;background:#fff;border-radius:12px;padding:13px;text-align:right;cursor:pointer}
+.choice b{display:block;font-size:13px}.choice span{font-size:11px;color:#8b95a4}
+.modal-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:16px;border-top:1px solid #edf1f5;padding-top:13px;flex-wrap:wrap}
+.link{border:0;background:none;color:#668bc8;cursor:pointer;font-weight:700;font-size:12px;padding:0}
+
+.flow{max-width:760px;margin:auto}
+.request{position:relative;padding-right:26px;margin-top:12px}
+.request:before{content:"";position:absolute;right:7px;top:25px;bottom:-16px;width:1px;background:#d8e0eb}
+.request:last-of-type:before{display:none}
+.dot{position:absolute;right:2px;top:25px;width:11px;height:11px;border:2px solid #fff;border-radius:50%;background:#b8c6d9;box-shadow:0 0 0 1px #c9d5e4}
+.active .dot{background:#7da6f2}
+.child{margin:10px 24px 0 0;border-style:dashed;background:#fbfcfe;padding:13px 15px}
+
+.linkrow{display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#8a95a7;margin:0 0 22px}
+.locked-title{color:#93a0b2}
+.pubbar{display:none;align-items:center;justify-content:space-between;gap:14px;margin-top:14px;background:#fdf8ec;border:1px solid #eee1bd;border-radius:12px;padding:10px 14px;font-size:12px;color:#8a7845;font-weight:700}
+.pubbar.on{display:flex}
+.pubnote{display:none;margin-top:14px;font-size:12px;color:#7d8a7f}
+.pubnote.on{display:block}
+.inline-add{display:flex;gap:10px;margin-top:18px}.inline-add .add{flex:1}.template-btn{white-space:nowrap}
+.pv-section{font-size:12px;font-weight:750;color:#7c8799;margin:16px 0 8px}
+.pv-item{border:1px solid #e6ebf3;border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13px}
+.pv-item .pv-sub{font-size:11px;color:#8f9aab;margin-top:4px}
+.pv-item.pv-locked{background:#f8fafc;color:#8b96a7;border-style:dashed}
+
+.field{margin-top:13px}
+.field>label{display:block;font-size:12px;font-weight:700;color:#66718a;margin-bottom:5px}
+.field input[type=text],.field input[type=email],.field textarea{width:100%;border:1px solid #d9e1ec;border-radius:10px;padding:9px 11px;font:inherit;font-size:13px;background:#fff}
+.field textarea{min-height:70px;resize:vertical}
+.radio-row{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:#3d4a63}
+.radio-row label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+.chip{border:1px solid #d9e1ec;border-radius:999px;padding:6px 11px;font-size:12px;cursor:pointer;background:#fff;color:#5b6880}
+.chip.onn{background:#e8effc;border-color:#b7cdf3;color:#3d5f9e;font-weight:700}
+.chips.dis{opacity:.4;pointer-events:none}
+.note{font-size:11px;color:#93a0b2;margin-top:8px;line-height:1.6}
+.attach-chip{display:inline-flex;align-items:center;gap:6px;background:#f3f6fa;border-radius:8px;padding:5px 9px;font-size:11px;color:#5b6880;cursor:pointer}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#33415c;color:#fff;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;z-index:99;opacity:0;pointer-events:none;transition:opacity .25s;max-width:90vw;text-align:center}
+#toast.on{opacity:1}
+
+@media (max-width:640px){
+  .shell{margin:18px auto;padding:0 14px}
+  .top{flex-direction:column;align-items:flex-start;gap:10px}
+  .row{flex-direction:column;align-items:flex-start;gap:10px}
+  .lft{align-self:flex-start}
+  .request{padding-right:20px}
+  .child{margin-right:14px}
+  .inline-add{flex-direction:column}
+  .more{opacity:.5}
+}
+</style></head><body><main class="shell"><div class="flow">
+
+<div class="top"><div><h1>בקשות</h1><div class="sub">כל מה שמבקשים מהלקוח חי בדף אישי אחד קבוע. בקשות לגורם חיצוני נשלחות בנפרד.</div></div><button class="btn ghost" onclick="openTpl()">תבניות</button></div>
+
+<div class="linkrow"><span>הדף של דנה כהן — קישור קבוע אחד:</span>
+<button class="link" id="copyBtn" onclick="copyLink()">העתק קישור</button>
+<button class="link" id="resendBtn" onclick="resendLink()">שלח שוב את הקישור</button>
+<button class="link" onclick="openPreview()">מה הלקוח רואה</button>
+</div>
+
+<div id="list"></div>
+
+<div class="pubbar" id="pubbar"><span id="pubText"></span><button class="btn primary" style="padding:7px 14px" onclick="publishAll()">עדכן את דף הלקוח</button></div>
+<div class="pubnote" id="pubnote">✓ דף הלקוח עודכן. פרסום אינו שולח מייל — אפשר לשלוח את הקישור מהשורה למעלה.</div>
+
+<div class="inline-add"><button class="add" onclick="modal('ov',true)">＋ בקשה חדשה</button><button class="btn soft template-btn" onclick="openTpl()">מתבנית</button></div>
+
+<div class="section-label">עבר</div>
+<div class="card done" onclick="toggleDone('done2')" style="cursor:pointer"><div class="row"><div class="title">בקשות שהושלמו · 5</div><span class="chev" id="done2Chev">⌄</span></div><div id="done2" style="display:none;margin-top:12px" class="small muted">✓ צילום תעודת זהות<br><br>✓ אישור ניהול חשבון<br><br>✓ שאלון היכרות<br><br>✓ מכתב שחרור נחתם<br><br>↷ הצהרת הון — דולג (לא רלוונטי השנה)</div></div>
+
+</div></main>
+
+<!-- הוספת בקשה: בחירת סוג -->
+<div id="ov" class="overlay" onclick="if(event.target===this)modal('ov',false)"><div class="modal"><h3>הוספת בקשה</h3><div class="sub">בחר סוג. כל תוספת נשמרת כטיוטה — הלקוח יראה אותה רק אחרי ״עדכן את דף הלקוח״.</div><div class="choices">
+<button class="choice" onclick="startNew('docs')"><b>בקשת מסמכים</b><span>הלקוח מעלה קבצים בדף האישי · אפשר לפרט אילו מסמכים</span></button>
+<button class="choice" onclick="startNew('quest')"><b>שאלון</b><span>שאלות שהלקוח עונה עליהן בדף האישי</span></button>
+<button class="choice" onclick="startNew('free')"><b>בקשה חופשית ללקוח</b><span>אישור, שאלה או משימה · אפשר להתנות בבקשה אחרת בהגדרות</span></button>
+<button class="choice" onclick="startNew('ext')"><b>בקשה לגורם חיצוני</b><span>רו״ח קודם, מנהלת חשבונות וכד׳ · נמען, מייל ותנאי שליחה</span></button>
+<button class="choice" onclick="modal('ov',false);openTpl()"><b>מתבנית</b><span>ספריית התבניות — כולל רצפים עם תלות בין בקשות</span></button>
+</div><div class="modal-foot"><span class="note">בקשת המשך לבקשה קיימת? דרך תפריט ⋯ שעל הבקשה.</span><button class="btn ghost" onclick="modal('ov',false)">סגור</button></div></div></div>
+
+<!-- ספריית תבניות -->
+<div id="tpl" class="overlay" onclick="if(event.target===this)modal('tpl',false)"><div class="modal"><h3>ספריית בקשות</h3><div class="sub">החלת תבנית יוצרת טיוטות — כלום לא נשלח עד ״עדכן את דף הלקוח״.</div><div class="choices" id="tplList"></div><div class="modal-foot"><span class="note">שמירת תבנית חדשה: מתפריט ⋯ של בקשה קיימת — רצף נשמר כולל התלות.</span><button class="btn ghost" onclick="modal('tpl',false)">סגור</button></div></div></div>
+
+<!-- תפריט ⋯ -->
+<div id="menu" class="overlay" onclick="if(event.target===this)modal('menu',false)"><div class="modal" style="width:min(400px,100%)"><h3 id="menuTitle"></h3><div class="choices" id="menuList"></div><div class="modal-foot"><span></span><button class="btn ghost" onclick="modal('menu',false)">סגור</button></div></div></div>
+
+<!-- עורך בקשה -->
+<div id="ed" class="overlay" onclick="if(event.target===this)modal('ed',false)"><div class="modal"><h3 id="edTitle">בקשה חדשה</h3><div class="sub" id="edSubtitle"></div>
+<div class="field"><label>שם הבקשה</label><input type="text" id="edName"></div>
+<div class="field"><label>למי הבקשה</label><div class="radio-row"><label><input type="radio" name="edOwner" id="edOwnerClient" checked onchange="edOwnerChanged()">הלקוח — בדף האישי</label><label><input type="radio" name="edOwner" id="edOwnerExt" onchange="edOwnerChanged()">גורם חיצוני — במייל נפרד</label></div></div>
+
+<div id="edClientSec">
+<div class="field"><label>הסבר ללקוח (יופיע בדף האישי)</label><textarea id="edSub"></textarea></div>
+<div class="field"><label>מתי זה נפתח ללקוח</label><div class="radio-row"><label><input type="radio" name="edWhen" id="edNow" checked onchange="edWhenChanged()">זמין מיד</label><label><input type="radio" name="edWhen" id="edAfter" onchange="edWhenChanged()">ייפתח רק אחרי:</label></div><div class="chips dis" id="edDeps"></div><div class="note">הבקשה תופיע ללקוח כשלב נעול עם ההסבר מה פותח אותה. ברגע שהתנאים יושלמו — היא תיפתח מעצמה, בלי שליחה נוספת.</div></div>
+</div>
+
+<div id="edExtSec" style="display:none">
+<div class="field"><label>נמען</label><input type="text" id="edRecName" placeholder="למשל: רו״ח יעקב לוי"></div>
+<div class="field"><label>אימייל הנמען</label><input type="email" id="edRecMail" placeholder="name@example.co.il"></div>
+<div class="field"><label>תיאור פנימי (רק בשבילך — לא נשלח)</label><textarea id="edNote" style="min-height:48px"></textarea></div>
+<div class="field"><label>נושא המייל</label><input type="text" id="edSubj"></div>
+<div class="field"><label>גוף המייל</label><textarea id="edBody" style="min-height:110px"></textarea></div>
+<div class="field"><label>קבצים מצורפים</label><div class="chips" id="edAtt"></div><button class="link" style="margin-top:7px" onclick="edAddAtt()">＋ צרף קובץ</button></div>
+<div class="field"><label>מתי שולחים</label><div class="radio-row"><label><input type="radio" name="edSendWhen" id="edSendNow" checked onchange="edWhenChanged()">אפשר לשלוח מיד</label><label><input type="radio" name="edSendWhen" id="edSendAfter" onchange="edWhenChanged()">לשלוח רק אחרי:</label></div><div class="chips dis" id="edSendDeps"></div><div class="note">השליחה תמיד ידנית: לפני שהמייל יוצא נפתחת טיוטה לעריכה ואישור. שום דבר לא נשלח לבד.</div></div>
+</div>
+
+<div class="modal-foot"><span class="note" id="edFootNote"></span><span style="display:flex;gap:10px"><button class="btn ghost" onclick="modal('ed',false)">ביטול</button><button class="btn primary" onclick="saveEditor()">שמור</button></span></div></div></div>
+
+<!-- טיוטת מייל לפני שליחה -->
+<div id="em" class="overlay" onclick="if(event.target===this)modal('em',false)"><div class="modal"><h3>טיוטת מייל — לעריכה ואישור לפני שליחה</h3>
+<div class="field"><label>אל</label><input type="text" id="emTo" disabled></div>
+<div class="field"><label>נושא</label><input type="text" id="emSubj"></div>
+<div class="field"><label>גוף המייל</label><textarea id="emBody" style="min-height:130px"></textarea></div>
+<div class="field"><label>מצורף</label><div class="chips" id="emAtt"></div></div>
+<div class="modal-foot"><span></span><span style="display:flex;gap:10px"><button class="btn ghost" onclick="modal('em',false)">ביטול</button><button class="btn primary" onclick="sendEmailNow()">שלח עכשיו</button></span></div></div></div>
+
+<!-- מה הלקוח רואה -->
+<div id="pv" class="overlay" onclick="if(event.target===this)modal('pv',false)"><div class="modal"><h3>מה דנה רואה עכשיו</h3><div class="sub">תצוגה של הדף האישי — כולל שלבים עתידיים נעולים. טיוטות ובקשות לגורמים חיצוניים אינן מוצגות.</div><div id="pvBody"></div><div class="modal-foot"><span class="small muted" id="pvNote"></span><button class="btn ghost" onclick="modal('pv',false)">סגור</button></div></div></div>
+
+<div id="toast"></div>
+
+<script>
+let SEQ=1; const nid=()=>'n'+(SEQ++);
+const REQS=[
+ {id:'rep',fixed:true,owner:'client',title:'בקשת ייצוג',meta:'ממתין לחתימת הלקוח בדף האישי · הכדור אצל הלקוח',cta:'rep',pub:true,deps:[],pvNow:'ממתין לחתימה שלך'},
+ {id:'paperless',owner:'client',title:'פתיחת חשבון פייפרלס',sub:'נרשמים בקישור שקיבלת, מאשרים את החיבור, וזהו.',meta:'זמין ללקוח בדף האישי · הכדור אצל הלקוח',cta:'paperless',pub:true,deps:[]},
+ {id:'retainer',owner:'client',childOf:'paperless',title:'הרשאה לחיוב חודשי',sub:'מגדירים בתוך חשבון הפייפרלס הרשאה לחיוב החודשי.',deps:['paperless'],pub:true},
+ {id:'quest',owner:'client',title:'שאלון עדכון סטטוס מס',sub:'כמה שאלות קצרות על מצב התיק.',meta:'ממתין למילוי בדף האישי · נפתח לפני 3 ימים',cta:'remind',pub:true,deps:[]},
+ {id:'bank',owner:'client',title:'דפי בנק לשנת 2025',sub:'מעלים את דפי הבנק לכל שנת 2025.',deps:['paperless','quest'],pub:true},
+ {id:'ext',owner:'external',title:'חומרים מרו״ח קודם',rec:{name:'רו״ח יעקב לוי',email:'yaakov@levi-cpa.co.il'},note:'לוודא שמגיעות גם הכרטסות של 2024.',subject:'העברת חומרים — דנה כהן',body:'שלום יעקב,\n\nבהמשך למכתב השחרור החתום, נודה להעברת החומרים של דנה כהן: תיקי ניירת, דוחות אחרונים וכרטסות.\n\nתודה,\nגיא ישר, רו״ח',att:['מכתב שחרור חתום.pdf'],sendDeps:['release'],sent:false,pub:true,deps:[]}
+];
+const DONE=[
+ {id:'idcopy',title:'צילום תעודת זהות'},{id:'bankok',title:'אישור ניהול חשבון'},
+ {id:'intro',title:'שאלון היכרות'},{id:'release',title:'מכתב שחרור נחתם'},
+ {id:'capital',title:'הצהרת הון',skipped:true}
+];
+let TPLS=[
+ {key:'yearend',name:'מסמכי סוף שנה — רצף',sub:'2 בקשות · דוח הריכוז ייפתח אחרי אישור היתרות · התלות נשמרת בתבנית'},
+ {key:'questT',name:'שאלון עדכון סטטוס מס',sub:'שאלון · בקשה בודדת'},
+ {key:'balance',name:'אישור יתרות ל־31.12',sub:'בקשת מסמך · אפשר להגדיר תאריך יעד'}
+];
+
+const byId=id=>REQS.find(r=>r.id===id);
+const isDone=id=>{const r=byId(id);if(r&&r.done)return true;const d=DONE.find(x=>x.id===id);return !!(d&&!d.skipped)};
+const depTitle=id=>{const r=byId(id);if(r)return r.title;const d=DONE.find(x=>x.id===id);return d?d.title:''};
+const locked=r=>r.owner==='client'&&(r.deps||[]).some(d=>!isDone(d));
+const openDepTitles=r=>(r.deps||[]).filter(d=>!isDone(d)).map(depTitle);
+
+function modal(id,on){document.getElementById(id).classList.toggle('open',on)}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2600)}
+function toggleDone(id){const el=document.getElementById(id);const c=document.getElementById(id+'Chev');const open=el.style.display!=='none';el.style.display=open?'none':'block';if(c)c.textContent=open?'⌄':'⌃'}
+function copyLink(){try{navigator.clipboard.writeText('https://crm.example/portal/abc123')}catch(e){}const b=document.getElementById('copyBtn');b.textContent='הועתק ✓';setTimeout(()=>b.textContent='העתק קישור',1800)}
+function resendLink(){const b=document.getElementById('resendBtn');b.textContent='הקישור נשלח ✓';setTimeout(()=>b.textContent='שלח שוב את הקישור',2200)}
+
+function metaFor(r){
+ if(r.done)return 'הושלם עכשיו ✓';
+ if(r.owner==='external'){
+  if(r.sent)return 'נשלחה זה עתה במייל ל'+r.rec.name+' · ממתין לחומרים';
+  const lines=['בקשה עצמאית — נשלחת במייל נפרד, לא דרך דף הלקוח'];
+  if(r.sendDeps&&r.sendDeps.length){
+   const open=r.sendDeps.filter(d=>!isDone(d));
+   lines.push('תנאי שליחה: אחרי '+r.sendDeps.map(depTitle).join(' · ')+(open.length?' — ממתין לתנאי':' — התקיים ✓ · מוכן לשליחה'));
+  }else lines.push('אפשר לשלוח מיד');
+  if(r.draft)lines.push('טיוטה — טרם פורסמה');
+  return lines.join('<br>');
+ }
+ if(r.draft)return 'הלקוח לא רואה את זה עד ״עדכן את דף הלקוח״';
+ if(locked(r))return 'ממתין ל: '+openDepTitles(r).join(' · ');
+ return r.meta||'בדף הלקוח · ממתין ללקוח';
+}
+
+function ctaHtml(r){
+ if(r.done)return '';
+ if(r.cta==='rep')return '<button class="btn primary">להמשך ←</button>';
+ if(r.cta==='paperless')return '<button class="btn soft" onclick="ctaClick(\''+r.id+'\')">הלקוח השלים</button>';
+ if(r.cta==='remind')return '<button class="btn ghost" onclick="ctaClick(\''+r.id+'\')">הכן תזכורת</button>';
+ if(r.owner==='external'&&!r.draft){
+  if(r.sent)return '<button class="btn ghost" onclick="ctaClick(\''+r.id+'\')">שלח תזכורת</button>';
+  const ready=!(r.sendDeps||[]).some(d=>!isDone(d));
+  if(ready)return '<button class="btn soft" onclick="ctaClick(\''+r.id+'\')">פתח טיוטת מייל לשליחה</button>';
+ }
+ return '';
+}
+function ctaClick(id){
+ const r=byId(id);
+ if(r.cta==='paperless'){r.done=true;const rt=byId('retainer');if(rt){rt.meta='נפתח אוטומטית — זמין ללקוח עכשיו בדף האישי, בלי שליחה נוספת';rt.autoPill=true}render();return}
+ if(r.cta==='remind'){toast('כאן תיפתח טיוטת מייל תזכורת — לאישור לפני שליחה');return}
+ if(r.owner==='external'){if(r.sent){toast('תיפתח טיוטת תזכורת לאישור לפני שליחה')}else openEmail(id)}
+}
+
+function titleHtml(r){
+ let h='';
+ if(r.owner==='client'&&locked(r)&&!r.draft)h+='🔒 ';
+ h+=r.title;
+ if(r.owner==='external')h+=' <span class="pill ext">גורם חיצוני · '+r.rec.name+'</span>';
+ if(r.draft)h+=' <span class="pill draft">טיוטה</span>';
+ return h;
+}
+function leftSlot(r){
+ const cta=ctaHtml(r);
+ let extra='';
+ if(r.owner==='client'&&locked(r)&&!r.draft)extra='<span class="pill">מוצג ללקוח כשלב נעול</span>';
+ else if(r.autoPill&&!locked(r)&&!r.done)extra='<span class="pill">נפתח אוטומטית</span>';
+ const more=r.fixed?'':'<button class="more" onclick="openMenu(\''+r.id+'\')" title="עריכה ואפשרויות">⋯</button>';
+ return '<div class="lft">'+(cta||extra)+more+'</div>';
+}
+function rowHtml(r){
+ const lockCls=(r.owner==='client'&&locked(r)&&!r.draft)?' locked-title':'';
+ return '<div class="row"><div><div class="title'+lockCls+'">'+titleHtml(r)+'</div><div class="meta">'+metaFor(r)+'</div></div>'+leftSlot(r)+'</div>';
+}
+function render(){
+ const host=document.getElementById('list');host.innerHTML='';
+ REQS.filter(r=>!r.childOf).forEach(r=>{
+  const kids=REQS.filter(c=>c.childOf===r.id);
+  const active=r.owner==='client'&&!locked(r)&&!r.draft&&!r.done;
+  const wrap=document.createElement('div');
+  wrap.className='request'+(active?' active':'');
+  wrap.innerHTML='<span class="dot"></span><div class="card">'+rowHtml(r)+kids.map(c=>'<div class="card child">'+rowHtml(c)+'</div>').join('')+'</div>';
+  host.appendChild(wrap);
+ });
+ refreshPubbar();
+}
+function refreshPubbar(){
+ const n=REQS.filter(r=>r.draft).length;
+ const bar=document.getElementById('pubbar');
+ bar.classList.toggle('on',n>0);
+ if(n>0){document.getElementById('pubnote').classList.remove('on');
+  document.getElementById('pubText').textContent=(n===1?'שינוי אחד שלא פורסם — הלקוח עדיין לא רואה אותו':n+' שינויים שלא פורסמו — הלקוח עדיין לא רואה אותם')}
+}
+function publishAll(){
+ REQS.forEach(r=>{if(r.draft){r.draft=false;r.pub=true}});
+ render();
+ document.getElementById('pubnote').classList.add('on');
+}
+
+/* ===== תפריט ⋯ ===== */
+function openMenu(id){
+ const r=byId(id);
+ document.getElementById('menuTitle').textContent=r.title;
+ const list=document.getElementById('menuList');list.innerHTML='';
+ const add=(b,s,fn)=>{const btn=document.createElement('button');btn.className='choice';btn.innerHTML='<b>'+b+'</b>'+(s?'<span>'+s+'</span>':'');btn.onclick=fn;list.appendChild(btn)};
+ add('עריכה והגדרות','שם, הסבר ללקוח, תנאי פתיחה'+(r.owner==='external'?', נמען ומייל':''),()=>{modal('menu',false);openEditor(id)});
+ if(r.owner==='client')add('הוסף בקשת המשך','בקשה חדשה שתיפתח רק אחרי ״'+r.title+'״',()=>{modal('menu',false);openEditor(null,{childOf:id,deps:[id]})});
+ const kids=REQS.filter(c=>c.childOf===id);
+ if(kids.length)add('שמור את הרצף כתבנית','‏'+(kids.length+1)+' שלבים · כולל התלות ביניהם',()=>{modal('menu',false);saveSeqTemplate(id)});
+ else add('שמור כתבנית','לשימוש חוזר אצל לקוח אחר',()=>{modal('menu',false);toast('נשמר בספריית התבניות: ״'+r.title+'״')});
+ modal('menu',true);
+}
+function saveSeqTemplate(id){
+ const r=byId(id);const kids=REQS.filter(c=>c.childOf===id);
+ TPLS.push({key:'seq_'+id,name:'רצף '+r.title,sub:(kids.length+1)+' שלבים · '+kids[0].title+' נפתח אחרי '+r.title+' · התלות נשמרת',exists:id});
+ toast('נשמר בספריית התבניות: ״רצף '+r.title+'״ — כולל התלות');
+}
+
+/* ===== ספריית תבניות ===== */
+function openTpl(){
+ const list=document.getElementById('tplList');list.innerHTML='';
+ TPLS.forEach(t=>{const btn=document.createElement('button');btn.className='choice';btn.innerHTML='<b>'+t.name+'</b><span>'+t.sub+'</span>';btn.onclick=()=>applyTpl(t);list.appendChild(btn)});
+ modal('tpl',true);
+}
+function applyTpl(t){
+ modal('tpl',false);
+ if(t.exists){toast('הרצף כבר קיים אצל הלקוח — לא נוסף שוב');return}
+ if(t.key==='yearend'){
+  const p={id:nid(),owner:'client',title:'אישור יתרות ל־31.12',sub:'מבקשים מהבנק אישור יתרות ליום 31.12 ומעלים כאן.',deps:[],draft:true};
+  const c={id:nid(),owner:'client',title:'דוח ריכוז שנתי מהבנק',sub:'מפיקים דוח ריכוז שנתי ומעלים כאן.',deps:[p.id],childOf:p.id,draft:true};
+  REQS.push(p,c);render();
+  toast('נוספו 2 בקשות כטיוטה — כולל התלות ביניהן');return;
+ }
+ const name=t.key==='questT'?'שאלון עדכון סטטוס מס':'אישור יתרות ל־31.12';
+ REQS.push({id:nid(),owner:'client',title:name,sub:'',deps:[],draft:true});render();
+ toast('נוספה בקשה כטיוטה מהתבנית');
+}
+
+/* ===== עורך ===== */
+const edCtx={editingId:null,preset:null,deps:new Set(),sendDeps:new Set(),att:[]};
+const V=id=>document.getElementById(id).value.trim();
+function edOwnerChanged(){
+ const ext=document.getElementById('edOwnerExt').checked;
+ document.getElementById('edClientSec').style.display=ext?'none':'block';
+ document.getElementById('edExtSec').style.display=ext?'block':'none';
+}
+function edWhenChanged(){
+ document.getElementById('edDeps').classList.toggle('dis',!document.getElementById('edAfter').checked);
+ document.getElementById('edSendDeps').classList.toggle('dis',!document.getElementById('edSendAfter').checked);
+}
+function buildChips(containerId,selected,excludeId){
+ const host=document.getElementById(containerId);host.innerHTML='';
+ const opts=[...REQS.filter(r=>r.id!==excludeId&&r.childOf!==excludeId).map(r=>({id:r.id,t:r.title,d:!!r.done})),...DONE.filter(d=>!d.skipped).map(d=>({id:d.id,t:d.title,d:true}))];
+ opts.forEach(o=>{
+  const c=document.createElement('button');c.className='chip'+(selected.has(o.id)?' onn':'');
+  c.textContent=(o.d?'✓ ':'')+o.t;
+  c.onclick=()=>{selected.has(o.id)?selected.delete(o.id):selected.add(o.id);c.classList.toggle('onn')};
+  host.appendChild(c);
+ });
+}
+function renderAtt(){
+ const host=document.getElementById('edAtt');host.innerHTML='';
+ edCtx.att.forEach((a,i)=>{const s=document.createElement('span');s.className='attach-chip';s.innerHTML='📎 '+a+' ×';s.title='הסר';s.onclick=()=>{edCtx.att.splice(i,1);renderAtt()};host.appendChild(s)});
+ if(!edCtx.att.length)host.innerHTML='<span class="note">אין קבצים מצורפים</span>';
+}
+function edAddAtt(){edCtx.att.push(edCtx.att.length?'ייפוי כוח מייצג.pdf':'מכתב שחרור חתום.pdf');renderAtt()}
+function openEditor(id,preset){
+ edCtx.editingId=id;edCtx.preset=preset||null;
+ const r=id?byId(id):null;
+ edCtx.deps=new Set(r?(r.deps||[]):(preset&&preset.deps?preset.deps:[]));
+ edCtx.sendDeps=new Set(r&&r.sendDeps?r.sendDeps:[]);
+ edCtx.att=r&&r.att?[...r.att]:[];
+ document.getElementById('edTitle').textContent=r?'עריכה — '+r.title:(preset&&preset.childOf?'בקשת המשך':'בקשה חדשה');
+ document.getElementById('edSubtitle').textContent=preset&&preset.childOf?'תיפתח ללקוח רק אחרי ״'+depTitle(preset.childOf)+'״ — אפשר לשנות למטה.':'';
+ document.getElementById('edName').value=r?r.title:'';
+ document.getElementById('edName').placeholder=preset&&preset.childOf?'למשל: הרשאה לחיוב חודשי':'שם קצר וברור';
+ const ext=(r&&r.owner==='external')||(preset&&preset.kind==='ext');
+ document.getElementById('edOwnerExt').checked=ext;document.getElementById('edOwnerClient').checked=!ext;
+ document.getElementById('edSub').value=r&&r.sub?r.sub:'';
+ document.getElementById('edAfter').checked=edCtx.deps.size>0;document.getElementById('edNow').checked=edCtx.deps.size===0;
+ document.getElementById('edRecName').value=r&&r.rec?r.rec.name:'';
+ document.getElementById('edRecMail').value=r&&r.rec?r.rec.email:'';
+ document.getElementById('edNote').value=r&&r.note?r.note:'';
+ document.getElementById('edSubj').value=r&&r.subject?r.subject:'';
+ document.getElementById('edBody').value=r&&r.body?r.body:'';
+ document.getElementById('edSendAfter').checked=edCtx.sendDeps.size>0;document.getElementById('edSendNow').checked=edCtx.sendDeps.size===0;
+ buildChips('edDeps',edCtx.deps,id);buildChips('edSendDeps',edCtx.sendDeps,id);renderAtt();
+ document.getElementById('edFootNote').textContent=r?'':'נשמר כטיוטה — הלקוח יראה רק אחרי ״עדכן את דף הלקוח״';
+ edOwnerChanged();edWhenChanged();
+ modal('ed',true);
+}
+function startNew(kind){
+ modal('ov',false);
+ const names={docs:'בקשת מסמכים',quest:'שאלון',free:'',ext:''};
+ openEditor(null,{kind:kind==='ext'?'ext':'client'});
+ if(names[kind])document.getElementById('edName').value=names[kind];
+}
+function saveEditor(){
+ const name=V('edName');if(!name){toast('צריך שם לבקשה');return}
+ const ext=document.getElementById('edOwnerExt').checked;
+ const deps=document.getElementById('edAfter').checked?[...edCtx.deps]:[];
+ const sendDeps=document.getElementById('edSendAfter').checked?[...edCtx.sendDeps]:[];
+ if(edCtx.editingId){
+  const r=byId(edCtx.editingId);
+  r.title=name;
+  if(r.owner==='client'){r.sub=V('edSub');r.deps=deps;if(!locked(r))r.autoPill=false}
+  else{r.rec={name:V('edRecName')||'ללא שם',email:V('edRecMail')};r.note=V('edNote');r.subject=V('edSubj');r.body=V('edBody');r.att=[...edCtx.att];r.sendDeps=sendDeps}
+  toast('העדכון נשמר');
+ }else{
+  const r={id:nid(),owner:ext?'external':'client',title:name,draft:true,deps:[]};
+  if(ext){r.rec={name:V('edRecName')||'ללא שם',email:V('edRecMail')};r.note=V('edNote');r.subject=V('edSubj');r.body=V('edBody');r.att=[...edCtx.att];r.sendDeps=sendDeps;r.sent=false}
+  else{r.sub=V('edSub');r.deps=deps;if(edCtx.preset&&edCtx.preset.childOf)r.childOf=edCtx.preset.childOf}
+  REQS.push(r);
+  toast('נשמר כטיוטה');
+ }
+ modal('ed',false);render();
+}
+
+/* ===== מייל חיצוני ===== */
+let emailFor=null;
+function openEmail(id){
+ const r=byId(id);emailFor=id;
+ document.getElementById('emTo').value=r.rec.name+' <'+r.rec.email+'>';
+ document.getElementById('emSubj').value=r.subject||'';
+ document.getElementById('emBody').value=r.body||'';
+ document.getElementById('emAtt').innerHTML=(r.att&&r.att.length)?r.att.map(a=>'<span class="attach-chip">📎 '+a+'</span>').join(''):'<span class="note">אין קבצים מצורפים</span>';
+ modal('em',true);
+}
+function sendEmailNow(){
+ const r=byId(emailFor);
+ r.subject=V('emSubj');r.body=V('emBody');r.sent=true;
+ modal('em',false);render();
+ toast('המייל נשלח ל'+r.rec.name);
+}
+
+/* ===== מה הלקוח רואה ===== */
+function openPreview(){
+ const now=[],future=[];
+ REQS.forEach(r=>{
+  if(r.owner!=='client'||r.draft||r.done)return;
+  if(locked(r))future.push({t:r.title,s:'ייפתח אחרי '+openDepTitles(r).join(' ו')});
+  else now.push({t:r.title,s:r.pvNow||(r.autoPill?'נפתח עכשיו — אחרי שהשלמת את השלב הקודם':'זמין עכשיו')});
+ });
+ const doneCount=DONE.filter(d=>!d.skipped).length+REQS.filter(r=>r.done).length;
+ let h='<div class="pv-section">ממתין לך</div>';
+ now.forEach(i=>h+='<div class="pv-item"><b>'+i.t+'</b><div class="pv-sub">'+i.s+'</div></div>');
+ h+='<div class="pv-section">בהמשך — ייפתח אוטומטית</div>';
+ if(!future.length)h+='<div class="note">אין כרגע שלבים עתידיים</div>';
+ future.forEach(i=>h+='<div class="pv-item pv-locked">🔒 '+i.t+'<div class="pv-sub">'+i.s+'</div></div>');
+ h+='<div class="pv-section">הושלם · '+doneCount+'</div>';
+ document.getElementById('pvBody').innerHTML=h;
+ const nDrafts=REQS.filter(r=>r.draft).length;
+ document.getElementById('pvNote').textContent=nDrafts?(nDrafts===1?'טיוטה אחת שלא פורסמה אינה מוצגת ללקוח':nDrafts+' טיוטות שלא פורסמו אינן מוצגות ללקוח'):'';
+ modal('pv',true);
+}
+
+render();
+</script></body></html>

@@ -11,7 +11,18 @@
 import { useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { CustomRequirement, CustomRequirementKind, ExternalPartyConfig, OnboardingStep } from '../../types/onboarding';
-import { REQUIREMENT_KIND_LABELS } from '../../types/onboarding';
+import { REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
+
+/** שם הבקשה בשביל צ'יפ התלות ורשימת הבחירה.
+ *  ‼ היה כאן נפילה ל-stepType הגולמי, ולכן תלות בשלב מובנה הוצגה לרו"ח
+ *  כ-"client_documents" — מזהה של המסד על המסך. השם שניתן גובר, אחריו
+ *  הניסוח ללקוח, ורק אז התווית העברית של הסוג. */
+function depLabel(s: OnboardingStep): string {
+  return String(s.payload.title ?? '').trim()
+    || String(s.payload.clientTitle ?? '').trim()
+    || STEP_TYPE_LABELS[s.stepType]
+    || s.stepType;
+}
 
 type Owner = 'client' | 'me' | 'external';
 
@@ -91,12 +102,30 @@ export default function InlineComposer({
     email: (editContent?.externalParty as ExternalPartyConfig | undefined)?.contact?.email ?? '',
     phone: (editContent?.externalParty as ExternalPartyConfig | undefined)?.contact?.phone ?? '',
   }));
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  /* ‼ בקשת המשך נולדת עם תלות מסומנת — ולכן ההגדרות נפתחות מיד. התנאי הוא
+     כל הסיבה שהבקשה הזאת נוצרה, ולהסתיר אותו מאחורי "עוד הגדרות" היה מבקש
+     מהרו"ח לאמת באמונה שמה שביקש באמת נשמר. */
+  const [showAdvanced, setShowAdvanced] = useState(
+    !editStep && Array.isArray(initialDeps) && initialDeps.length > 0);
+  /* ── נוסח המייל של בקשה לגורם חיצוני ──────────────────────────────────
+     ‼ נשמר על הבקשה עצמה, ולא רק בחלון השליחה: מייל לרו"ח קודם נכתב פעם
+     אחת ונשלח אחרי שהתנאי מתקיים — לפעמים שבועות אחר כך, ולפעמים בתזכורת
+     שנייה ושלישית. נוסח שחי רק ברגע השליחה היה נכתב מחדש בכל פעם.
+     ריק ⇒ נופלים לנוסח הנגזר בשרת, בדיוק כמו כל הבקשות שנוצרו עד היום. */
+  const [emailSubject, setEmailSubject] = useState(String(editContent?.emailSubject ?? ''));
+  const [emailBody, setEmailBody] = useState(String(editContent?.emailBody ?? ''));
+  /** לעיניים של הרו"ח בלבד — לא נכנס למייל ולא לדף הלקוח. */
+  const [internalNote, setInternalNote] = useState(String(editContent?.internalNote ?? ''));
   const [clientSub, setClientSub] = useState(String(editContent?.clientSub ?? ''));
   const [clientCta, setClientCta] = useState(String(editContent?.clientCta ?? ''));
   const [requiredForClose, setRequiredForClose] = useState(edit ? edit.requiredForClose !== false : true);
   const [dueDate, setDueDate] = useState(edit?.dueDate ?? '');
   const [deps, setDeps] = useState<string[]>(
+    initialDeps && initialDeps.length > 0
+      ? initialDeps
+      : (edit?.dependsOnStepId ? [edit.dependsOnStepId] : []));
+  /** קבוצת ההורים שאיתה נפתח הטופס — נקודת ההשוואה בשמירה. */
+  const [initialDepSet] = useState<string[]>(
     initialDeps && initialDeps.length > 0
       ? initialDeps
       : (edit?.dependsOnStepId ? [edit.dependsOnStepId] : []));
@@ -181,6 +210,13 @@ export default function InlineComposer({
       clientCta: clientCta.trim(),
       ...(requirements.length ? { requirements } : {}),
       ...(externalParty ? { externalParty } : {}),
+      /* ‼ null מפורש ולא היעדר, מאותה סיבה כמו autoAction: מיזוג הפרסום
+         שומר מפתחות שלא נשלחו, ולכן מחיקת נוסח שנשמר חייבת לדרוס אותו. */
+      ...(owner === 'external' ? {
+        emailSubject: emailSubject.trim() || null,
+        emailBody: emailBody.trim() || null,
+        internalNote: internalNote.trim() || null,
+      } : {}),
       // ‼ null מפורש ולא היעדר: ביטול אוטומציה על בקשה שפורסמה חייב לדרוס
       // את המפתח בפרסום (merge שומר מפתחות שלא נשלחו).
       autoAction: (auto && owner !== 'me') ? { kind: 'email' } : null,
@@ -206,8 +242,21 @@ export default function InlineComposer({
         setError(ERRORS[res?.error ?? ''] ?? rpcErr?.message ?? 'השמירה נכשלה.');
         return;
       }
-      if (deps.join('|') !== (edit.dependsOnStepId ?? '')) {
-        await supabase.rpc('set_onboarding_step_dependencies', { p_step_id: edit.id, p_depends_on: deps });
+      /* ‼ היה כאן באג: ההשוואה הייתה מול edit.dependsOnStepId — עמודת ההורה
+         היחיד, שמשקפת רק את הראשון מבין ההורים. בקשה שתלויה ב-A וב-B, שממנה
+         הסירו את B, נתנה deps=['A'] מול dependsOnStepId='A' — זהה, ולכן הקריאה
+         דולגה וההסרה נעלמה בשקט. משווים מול קבוצת ההורים שאיתה נפתח הטופס. */
+      const before = [...initialDepSet].sort().join('|');
+      const after = [...deps].sort().join('|');
+      if (before !== after) {
+        const { data: depData, error: depErr } = await supabase.rpc(
+          'set_onboarding_step_dependencies', { p_step_id: edit.id, p_depends_on: deps });
+        const depRes = depData as { ok?: boolean; error?: string } | null;
+        if (depErr || !depRes?.ok) {
+          setBusy(false);
+          setError(ERRORS[depRes?.error ?? ''] ?? 'התלות לא נשמרה — שאר השינויים כן.');
+          return;
+        }
       }
       setBusy(false);
       onSaved(res.pendingEdit
@@ -418,6 +467,37 @@ export default function InlineComposer({
               {contactGap} — המשימה תמתין עד שיהיה למי לפנות.
             </span>
           )}
+
+          {/* ── נוסח המייל ────────────────────────────────────────────────
+              ריק = הנוסח הרגיל של המשרד. מה שנכתב כאן נטען לטיוטה בשליחה,
+              ושם עוד אפשר לשנות — שום מייל לא יוצא בלי אישור. */}
+          <label style={{ display: 'grid', gap: '.2rem', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
+            נושא המייל (רשות)
+            <input style={field} value={emailSubject} disabled={busy}
+              placeholder="ריק = הנוסח הרגיל של המשרד"
+              onChange={e => setEmailSubject(e.target.value)} />
+          </label>
+          <label style={{ display: 'grid', gap: '.2rem', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
+            גוף המייל (רשות)
+            <textarea
+              style={{ ...field, minHeight: 92, resize: 'vertical', lineHeight: 1.6 }}
+              value={emailBody}
+              disabled={busy}
+              placeholder="ריק = הנוסח הרגיל. אפשר להשתמש ב-{{clientName}} ו-{{firmName}}."
+              onChange={e => setEmailBody(e.target.value)}
+            />
+          </label>
+          <label style={{ display: 'grid', gap: '.2rem', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
+            תיאור פנימי (רק בשבילך — לא נשלח)
+            <input style={field} value={internalNote} disabled={busy}
+              placeholder="למשל: לוודא שמגיעות גם הכרטסות של 2024"
+              onChange={e => setInternalNote(e.target.value)} />
+          </label>
+          {/* ‼ מה שאב-הטיפוס הראה ואין לו כיסוי בשרת — נאמר במפורש ולא
+              מוצג ככפתור מת: אין היום צירוף קבצים בשום מייל יוצא במערכת. */}
+          <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', lineHeight: 1.6 }}>
+            צירוף קבצים למייל אינו נתמך עדיין — אפשר לכתוב בגוף המייל שהמסמכים יישלחו בנפרד.
+          </span>
         </div>
       )}
 
@@ -433,9 +513,24 @@ export default function InlineComposer({
 
       {showAdvanced && (
         <div style={{ display: 'grid', gap: '.5rem', paddingInlineStart: '.2rem' }}>
-          {/* תלויות — קשר בין משימות, לא היררכיה. השורות נשארות באותה רמה. */}
+          {/* ── התנאי ────────────────────────────────────────────────────
+              ‼ שני מושגים, מנוע אחד. לבקשת לקוח התנאי הוא **מתי היא נפתחת**:
+              היא כבר בדף האישי, מוצגת כשלב נעול, ונפתחת מעצמה כשהתנאי מתקיים —
+              בלי שנשלח שום דבר. לבקשה לגורם חיצוני אותו תנאי הוא **מתי מותר
+              לשלוח**, כי שם יש שליחה עצמאית לאדם אחר.
+              המשמעות שונה, המנגנון זהה: קשת תלות אחת, נעילה אחת בשרת. מנוע
+              שני היה שני מקומות שאפשר לשכוח לעדכן. */}
           <div style={{ display: 'grid', gap: '.25rem' }}>
-            <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-2)' }}>ממתין ל…</span>
+            <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-2)' }}>
+              {owner === 'external' ? 'מתי שולחים — רק אחרי…' : 'מתי זה נפתח ללקוח — רק אחרי…'}
+            </span>
+            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
+              {deps.length === 0
+                ? (owner === 'external' ? 'בלי תנאי — אפשר לשלוח מיד.' : 'בלי תנאי — זמין ללקוח מרגע הפרסום.')
+                : (owner === 'external'
+                    ? 'עד שהתנאי יתקיים הבקשה נעולה ואי אפשר לשלוח אותה.'
+                    : 'הלקוח יראה את הבקשה כשלב נעול עם ההסבר מה פותח אותה, והיא תיפתח מעצמה.')}
+            </span>
             <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
               {deps.map(id => {
                 const s = depCandidates.find(x => x.id === id) ?? existingSteps.find(x => x.id === id);
@@ -445,7 +540,7 @@ export default function InlineComposer({
                     fontSize: 'var(--fs-12)', padding: '.15rem .5rem', borderRadius: 999,
                     border: '1px solid var(--bd)', background: 'var(--card, #fff)',
                   }}>
-                    {s ? (String(s.payload.title ?? '').trim() || s.stepType) : id}
+                    {s ? depLabel(s) : id}
                     <button type="button" aria-label="הסרת תלות" onClick={() => setDeps(d => d.filter(x => x !== id))}
                       style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--ink-3)', padding: 0 }}>✕</button>
                   </span>
@@ -468,7 +563,7 @@ export default function InlineComposer({
                   <label key={s.id} style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)' }}>
                     <input type="checkbox" checked={deps.includes(s.id)}
                       onChange={e => setDeps(d => e.target.checked ? [...d, s.id] : d.filter(x => x !== s.id))} />
-                    <span>{String(s.payload.title ?? '').trim() || String(s.payload.clientTitle ?? '').trim() || s.stepType}</span>
+                    <span>{depLabel(s)}</span>
                   </label>
                 ))}
               </div>

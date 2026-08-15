@@ -87,17 +87,10 @@ interface Props {
 const RowOpenContext = createContext<{
   openId: string | null;
   toggle: (id: string) => void;
-  /** הזזת השורה בסדר התצוגה. null ⇒ אין סידור במסך הזה. */
-  onMove?: (id: string, dir: -1 | 1) => void;
-  /** פתיחת בקשה שנשמרה כטיוטה, אל הדף האישי של הלקוח. */
-  onPublish?: (id: string) => void;
-  /**
-   * שינוי "נדרש לסגירת הקליטה" על שלב קיים.
-   * ‼ ההחלטה הזאת מתבררת תוך כדי — בקשה שנראתה קריטית מתגלה כלא רלוונטית.
-   * בלי הכפתור הזה הדרך היחידה לשחרר שלב הייתה לבטל אותו, כלומר למחוק מידע
-   * כדי לעקוף חוק.
-   */
-  onSetRequired?: (id: string, required: boolean) => void;
+  /* ‼ onMove / onPublish / onSetRequired ירדו מכאן: הפעולות האלה עברו לתפריט
+     ⋯ שנבנה ב-renderStep, ולכן הן נקראות ישירות (moveRow / setStepRequired)
+     ולא דרך ה-context. onPublish ירד לגמרי — אין יותר פרסום של בקשה בודדת;
+     הפרסום הוא של התיק כולו ("עדכן את דף הלקוח"). */
   /** כל ההורים של כל שלב (מיגרציה 78) — לשורת "ממתין ל: X, Y" המלאה. */
   depParents?: Map<string, string[]>;
   /** ההיפוך — אילו שלבים משתחררים כשהשלב הזה יושלם ("משחרר:"). */
@@ -111,6 +104,12 @@ function rowTitle(step: OnboardingStep): string {
   const named = String(step.payload?.title ?? '').trim();
   if (named) return named;
   return STEP_TYPE_LABELS[step.stepType];
+}
+
+/** טיוטה = הרו"ח הכין, הלקוח עוד לא רואה. published_at ריק במסד, או הסימון
+ *  הישן ב-payload (בקשות שנוצרו לפני מיגרציה 77). */
+function isDraftStep(step: OnboardingStep): boolean {
+  return step.publishedAt === null || String(step.payload.published ?? 'true') === 'false';
 }
 
 /** כמה זמן השורה עומדת במצב הזה — "9 ימים" ולא תאריך שצריך לחשב בראש. */
@@ -229,8 +228,18 @@ export default function OnboardingTab({
   const [closing, setClosing] = useState(false);
   const [busyStepId, setBusyStepId] = useState<string | null>(null);
   const [menuStepId, setMenuStepId] = useState<string | null>(null);
-  // חלון המייל של שלב — נפתח מהכרטיס, נשלח דרך send-step-email
-  const [emailDialog, setEmailDialog] = useState<{ stepId: string; kind: 'paperless_invite' | 'retainer_request' | 'step_reminder' | 'intake_questionnaire'; heading: string } | null>(null);
+  // חלון המייל של שלב — נפתח מהכרטיס, נשלח דרך send-step-email.
+  // subject/body: הנוסח ששמור על הבקשה עצמה (בקשה לגורם חיצוני). ריק ⇒
+  // התצוגה המקדימה נטענת מהנוסח הנגזר בשרת, בדיוק כמו עד היום.
+  const [emailDialog, setEmailDialog] = useState<{
+    stepId: string;
+    kind: 'paperless_invite' | 'retainer_request' | 'step_reminder' | 'intake_questionnaire';
+    heading: string;
+    subject?: string;
+    body?: string;
+  } | null>(null);
+  /** על איזו בקשה פתוח כרגע קומפוזר "בקשת המשך" — התלות נגזרת ממנה. */
+  const [followUpFor, setFollowUpFor] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<{ stepId: string; title: string; message: string; confirmLabel: string } | null>(null);
   // "שנה מסלול" — פותח מחדש את הטריאז' על שלב שכבר נענה
   const [retriageStepId, setRetriageStepId] = useState<string | null>(null);
@@ -457,6 +466,10 @@ export default function OnboardingTab({
   const [sendOpen, setSendOpen] = useState(false);
   /** תצוגה מקדימה של הדף האישי — הדף האמיתי, לא חיקוי. */
   const [previewOpen, setPreviewOpen] = useState(false);
+  /** העתקת הקישור הקבוע לדף האישי — אותו טוקן שמונפק גם בשליחה במייל. */
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   /** שלבי-העל של התיק (journey_stages). ריק ⇒ דליי ברירת-המחדל בלבד. */
   const [stageRows, setStageRows] = useState<JourneyStageRow[]>([]);
   /** קשתות התלות (מיגרציה 78): שלב ← כל הוריו. */
@@ -670,15 +683,32 @@ export default function OnboardingTab({
     refresh?.();
   }
 
-  async function publishRequest(id: string) {
-    const { data, error: rpcError } = await supabase.rpc('publish_onboarding_request', { p_step_id: id });
-    const res = data as { ok?: boolean; error?: string } | null;
-    if (rpcError || !res?.ok) { setError(rpcError?.message ?? 'פתיחת הבקשה נכשלה.'); return; }
-    refresh?.();
-    // הכרעת D4: החשיפה אינה גוררת את מסך המייל. נשאלת השאלה הנפרדת —
-    // "לשלוח מייל עם הקישור?" — ומי שרוצה שולח משם.
-    setPublishPromptOpen(true);
+  /** ‼ אותו mint_portal_token של חלון השליחה — קישור אחד ללקוח, לא שניים. */
+  async function copyPortalLink() {
+    setLinkBusy(true);
+    setLinkError(null);
+    const { data, error: rpcError } = await supabase.rpc('mint_portal_token', { p_client_id: clientId });
+    const token = (data as string | null) ?? null;
+    setLinkBusy(false);
+    if (rpcError || !token) { setLinkError('לא הצלחתי להנפיק קישור ללקוח.'); return; }
+    const url = `${window.location.origin}/?portal=${token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // דפדפן שחוסם גישה ללוח — לא משאירים את הרו"ח בלי הקישור.
+      setLinkError(`העתקה נחסמה בדפדפן. הקישור: ${url}`);
+    }
   }
+
+  /* ‼ publishRequest (publish_onboarding_request על בקשה בודדת) הוסר.
+     שתי סיבות, ושתיהן עקרוניות ולא סגנוניות:
+     1. בקשת לקוח אינה נשלחת לבדה — היא מופיעה בדף האישי כשמפרסמים את התיק.
+     2. הנתיב הזה גם עקף את execute_automatic_step (מיגרציה 83 חיברה אותו
+        ל-publish_case_changes ול-unlock_dependent_steps בלבד), ולכן בקשה
+        אוטומטית שנפתחה דרכו לא חימשה את המייל שלה. עכשיו יש נתיב פרסום אחד.
+     הפונקציה בשרת נשארה — לא נמחק כלום מהמסד. */
 
   /** פרסום כל שינויי התיק בבת אחת — טיוטות + עריכות ממתינות. */
   async function publishCase() {
@@ -726,7 +756,7 @@ export default function OnboardingTab({
   }
 
   /** רינדור בקשה אחת — משותף לרשימה השטוחה (המסך הישן) ולשלבי-העל של מרכז התיק. */
-  const renderStep = (step: OnboardingStep) => {
+  const renderStepInner = (step: OnboardingStep) => {
               // עריכה בתוך השורה — הקומפוזר מחליף את השורה עצמה. אין מודל.
               if (editingStepId === step.id && step.stepType === 'custom_request') {
                 return (
@@ -761,20 +791,35 @@ export default function OnboardingTab({
               const busy = busyStepId === step.id;
               const checklist = step.payload.checklist ?? [];
 
-              // תפריט הפעולות המשניות — זהה בכל סוגי הכרטיסים
+              // ── תפריט הפעולות המשניות ────────────────────────────────────
+              // ‼ כל מה שאינו "הפעולה של עכשיו" גר כאן. קודם ישבו על כל שורה,
+              // תמיד, גם "סמן כרשות" וגם שני חצי סידור — ארבעה פקדי תצורה על
+              // כל בקשה, בכל מסך. עכשיו השורה הסגורה נושאת פעולה אחת, והתצורה
+              // נפתחת רק כשמבקשים אותה.
               const menu = (
                 <>
                   {isStepOpen(step.status) && (
-                    <button type="button" className="btn btn-sm btn-ghost" disabled={busy}
+                    <button type="button" className="btn btn-sm btn-ghost ob-more" disabled={busy}
+                      aria-expanded={menuStepId === step.id}
                       onClick={() => setMenuStepId(id => id === step.id ? null : step.id)}
-                      aria-label="פעולות נוספות">⋯</button>
+                      aria-label="עריכה ואפשרויות">⋯</button>
                   )}
                   {menuStepId === step.id && (
                     <>
                       {/* עריכה בשורה — רק לבקשות שנבנות בקומפוזר. */}
                       {step.stepType === 'custom_request' && isStepOpen(step.status) && (
                         <button type="button" className="btn btn-sm btn-ghost"
-                          onClick={() => { setMenuStepId(null); setEditingStepId(step.id); }}>עריכה</button>
+                          onClick={() => { setMenuStepId(null); setEditingStepId(step.id); }}>עריכה והגדרות</button>
+                      )}
+                      {/* ‼ בקשת המשך — כאן נולדת התלות. הרו"ח לא בונה גרף ולא
+                          בוחר "הורה" מרשימה: הוא עומד על «פתיחת חשבון פייפרלס»
+                          ואומר "ואחריה צריך גם…". התלות נגזרת מהמקום שממנו לחץ. */}
+                      {isStepOpen(step.status) && (
+                        <button type="button" className="btn btn-sm btn-ghost"
+                          onClick={() => { setMenuStepId(null); setFollowUpFor(step.id); }}
+                          title={`בקשה חדשה שתיפתח רק אחרי «${rowTitle(step)}»`}>
+                          הוסף בקשת המשך
+                        </button>
                       )}
                       {/* ‼ שלב הייצוג מסונכרן מהשרת — "דלג" ו"חסום" ידניים היו
                           נדרסים בטריגר הבא ומשקרים עד אז. נשארת רק הערה. */}
@@ -785,10 +830,54 @@ export default function OnboardingTab({
                         </>
                       )}
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleNote(step)}>הערה</button>
+                      {/* ‼ ירדו מהשורה עצמה לכאן. */}
+                      {!['completed', 'verified', 'cancelled'].includes(step.status) && (
+                        <button type="button" className="btn btn-sm btn-ghost"
+                          onClick={() => { setMenuStepId(null); void setStepRequired(step.id, !isStepRequiredForClose(step)); }}
+                          title={isStepRequiredForClose(step)
+                            ? 'השלב חוסם היום את סגירת הקליטה. סימון כרשות ישחרר אותה.'
+                            : 'השלב אינו חוסם היום את סגירת הקליטה.'}>
+                          {isStepRequiredForClose(step) ? 'סמן כרשות' : 'סמן כנדרש'}
+                        </button>
+                      )}
+                      {!ordering && isStepOpen(step.status) && (
+                        <>
+                          <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למעלה"
+                            onClick={() => void moveRow(step.id, -1)}>↑</button>
+                          <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למטה"
+                            onClick={() => void moveRow(step.id, 1)}>↓</button>
+                        </>
+                      )}
+                      <button type="button" className="btn btn-sm btn-ghost"
+                        onClick={() => { setMenuStepId(null); setTemplatesOpen(true); }}
+                        title="שמירת הבקשות של הלקוח כתבנית — כולל התלות ביניהן">
+                        שמור כתבנית
+                      </button>
                     </>
                   )}
                 </>
               );
+
+              // ── שליחה לגורם חיצוני ───────────────────────────────────────
+              // ‼ החריג היחיד למודל "דף אחד": בקשה לרו"ח קודם אינה יושבת בדף
+              // של הלקוח — היא מייל עצמאי לאדם אחר, ולכן יש לה כפתור שליחה
+              // משלה. נעול ⇒ אין כפתור: תנאי השליחה עדיין לא התקיים, והשרת
+              // ממילא יחסום. טיוטה ⇒ אין כפתור: קודם מפרסמים.
+              const extSendable = !!extCfg && isStepOpen(step.status)
+                && step.status !== 'locked' && !isDraftStep(step) && !contactNote;
+              const extAlreadySent = step.status === 'waiting_client';
+              const externalSend = extSendable ? (
+                <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+                  onClick={() => setEmailDialog({
+                    stepId: step.id, kind: 'step_reminder',
+                    heading: extAlreadySent ? 'תזכורת לגורם החיצוני' : 'מייל לגורם החיצוני',
+                    subject: String(step.payload.emailSubject ?? ''),
+                    body: String(step.payload.emailBody ?? ''),
+                  })}
+                  title="נפתחת טיוטה לעריכה ואישור — שום דבר לא נשלח לפני שתלחץ שלח">
+                  {extAlreadySent ? 'שלח תזכורת' : 'פתח טיוטת מייל לשליחה'}
+                </button>
+              ) : null;
 
               if (step.stepType === 'paperless_invite' || step.stepType === 'paperless_connection') {
                 return (
@@ -950,10 +1039,13 @@ export default function OnboardingTab({
                   highlight={highlightStepId === step.id}
                   noteLine={contactNote ?? undefined}
                   menu={<>
-                    {locked && (
+                    {/* ‼ בבקשה לגורם חיצוני השליחה היא הפעולה — לא "התחל".
+                        "התחל" על מייל שלא יצא הוא סימון עצמי שלא קרה כלום. */}
+                    {externalSend}
+                    {locked && !extCfg && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled>התחל</button>
                     )}
-                    {step.status === 'pending' && (
+                    {step.status === 'pending' && !extSendable && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
                         onClick={() => void run(step, 'start')}>התחל</button>
                     )}
@@ -1026,13 +1118,38 @@ export default function OnboardingTab({
               );
             };
 
+  /**
+   * ‼ בקשת המשך נפתחת מתחת לבקשה שממנה ביקשו אותה, ולא במודל נפרד: המקום
+   * על המסך הוא ההסבר. הקומפוזר נולד עם התלות כבר מסומנת, ועם אותו שלב-על
+   * של ההורה — כלומר הרו"ח לא בוחר "אחרי מה" ולא "לאן", הוא רק כותב מה.
+   */
+  const renderStep = (step: OnboardingStep) => {
+    const inner = renderStepInner(step);
+    if (followUpFor !== step.id) return inner;
+    return (
+      <div key={`${step.id}-with-followup`}>
+        {inner}
+        <InlineComposer
+          clientId={clientId}
+          stageId={step.stageId ?? null}
+          initialDeps={[step.id]}
+          existingSteps={clientSteps}
+          prevAccountant={prevAccountant}
+          onCancel={() => setFollowUpFor(null)}
+          onSaved={created => {
+            setFollowUpFor(null);
+            setOptimisticSteps(prev => [...prev, created]);
+            refresh?.();
+          }}
+        />
+      </div>
+    );
+  };
+
   return (
     <RowOpenContext.Provider value={{
       openId: openRowId,
       toggle: (id: string) => setOpenRowId(cur => (cur === id ? null : id)),
-      onMove: ordering ? undefined : (id, dir) => void moveRow(id, dir),
-      onPublish: (id) => void publishRequest(id),
-      onSetRequired: (id, required) => void setStepRequired(id, required),
       depParents,
       depChildren,
     }}>
@@ -1085,44 +1202,52 @@ export default function OnboardingTab({
         <OnboardingJourneyMap steps={clientSteps} onSelect={gotoStep} />
       )}
 
-      {/* ── התקדמות הקליטה · מוטמע בדף המסע ────────────────────────────────
-          רצועת המונים של הדף אומרת "כמה אצל מי"; היא אינה אומרת מה הסדר,
-          מה נעשה, מה עכשיו, ומה חוסם. זה המסך שעונה על זה — ובראשו שתי
-          הפעולות שעד כה לא היו נגישות מדף המסע בכלל: השליחה ללקוח
-          וסגירת הקליטה. רצועת הכדור הכפולה נשארת מוסתרת בכוונה. */}
-      {/* ‼ נעלם ברגע שההתקשרות אינה בקליטה: אחרי הסגירה אין "התקדמות קליטה",
-          יש לקוח פעיל שאולי נותרו לו בקשות פתוחות — והן מוצגות כבקשות. */}
-      {embedded && clientSteps.length > 0 && activeEngagement?.status === 'onboarding' && (
-        <div className="ob-prog">
-          <div className="ob-prog-head">
-            <span className="ob-prog-title">התקדמות הקליטה</span>
-            <span className="ob-prog-count">
-              {clientSteps.filter(s => !isStepOpen(s.status)).length} מתוך {clientSteps.length} הושלמו
-              {activeEngagement?.approvedAt && (() => {
-                const d = Math.floor((Date.now() - new Date(activeEngagement.approvedAt!).getTime()) / 86400000);
-                return Number.isFinite(d) && d >= 1 ? ` · יום ${d}` : '';
-              })()}
-            </span>
-            <span style={{ flex: 1 }} />
-            <button type="button" className="btn btn-sm btn-ghost"
-              onClick={() => setPreviewOpen(true)}
-              title="הדף האישי כפי שהלקוח רואה אותו — כולל טיוטות שטרם פורסמו">
-              הדף של הלקוח
+      {/* ── הדף האישי: קישור אחד קבוע ─────────────────────────────────────
+          ‼ זה המשפט שכל המסך הזה עומד עליו. בקשה ללקוח אינה נשלחת בנפרד —
+          היא מופיעה בדף האישי שלו, שהוא אותו קישור מהיום הראשון ועד הסוף.
+          לכן הפעולות של הקישור יושבות כאן, ברמת העמוד, ולא על שורה בודדת:
+          יש דבר אחד לשלוח, ושולחים אותו פעם אחת (ואפשר לשלוח שוב).
+          עד היום הפס הזה הופיע רק בזמן קליטה; אבל בקשה אינה שייכת לקליטה,
+          ולקוח ותיק שמבקשים ממנו מסמך צריך בדיוק את אותו קישור. */}
+      {embedded && (
+        <div className="ob-clientpage">
+          <span className="ob-clientpage-lead">
+            הדף של {clientDisplayName ?? 'הלקוח'} — קישור קבוע אחד:
+          </span>
+          <button type="button" className="ui-linkbtn" disabled={linkBusy}
+            onClick={() => void copyPortalLink()}
+            title="מעתיק את הקישור לדף האישי — לוואטסאפ או לכל מקום אחר">
+            {linkCopied ? 'הועתק ✓' : linkBusy ? 'מכין…' : 'העתק קישור'}
+          </button>
+          <button type="button" className="ui-linkbtn"
+            onClick={() => setSendOpen(true)}
+            title="מייל עם מה שממתין לו, או הקישור לשליחה בוואטסאפ">
+            שלח שוב את הקישור
+          </button>
+          <button type="button" className="ui-linkbtn"
+            onClick={() => setPreviewOpen(true)}
+            title="הדף האישי כפי שהלקוח רואה אותו — כולל טיוטות שטרם פורסמו">
+            מה הלקוח רואה
+          </button>
+          <span style={{ flex: 1 }} />
+          {activeEngagement?.status === 'onboarding' && (
+            <button type="button" className="btn btn-sm btn-ghost" disabled={closing}
+              onClick={() => void closeOnboarding(false)}
+              title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
+              {closing ? 'סוגר…' : 'סגור קליטה'}
             </button>
-            <button type="button" className="btn btn-sm btn-ghost"
-              onClick={() => setSendOpen(true)}
-              title="מייל עם מה שממתין לו, או קישור לדף האישי לשליחה בוואטסאפ">
-              שלח ללקוח
-            </button>
-            {activeEngagement?.status === 'onboarding' && (
-              <button type="button" className="btn btn-sm btn-secondary" disabled={closing}
-                onClick={() => void closeOnboarding(false)}
-                title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
-                {closing ? 'סוגר…' : 'סגור קליטה'}
-              </button>
-            )}
-          </div>
+          )}
         </div>
+      )}
+      {/* ‼ המשפט שמסביר את המודל, מאב-הטיפוס המאושר. הוא לא קישוט: בלעדיו
+          "למה אין כפתור שליחה על הבקשה הזאת" נשארת שאלה פתוחה על המסך. */}
+      {embedded && (
+        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginTop: '-.15rem', lineHeight: 1.6 }}>
+          כל מה שמבקשים מהלקוח חי בדף האישי הזה. בקשות לגורם חיצוני נשלחות בנפרד.
+        </div>
+      )}
+      {linkError && (
+        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--err)' }}>⚠ {linkError}</div>
       )}
 
       {/* ── חלון הסגירה — נפתח רק כשהשרת חסם, ונסגר איתו ─────────────────── */}
@@ -1219,13 +1344,17 @@ export default function OnboardingTab({
       {/* ── מרכז התיק: היררכיית שלבי-על (המודל המאושר) ─────────────────────
           מוטמע בדף המסע בלבד; המסך הישן (מאחורי journeyUi=false) נשאר רשימה
           שטוחה כדי שמתג החירום יחזיר בדיוק את מה שהיה. */}
+      {/* ‼ רק מה שעדיין פתוח נכנס לאזור העבודה. בקשה שהושלמה יורדת למקטע
+          המקופל למטה — היא לא נמחקת ולא נעלמת, אבל היא גם לא תופסת שורה
+          במסך שאמור לענות על "מה פתוח עכשיו". שלב-על שכל חבריו הושלמו יורד
+          איתן (ראה CaseStageSections), אחרת נשארת כותרת ריקה. */}
       {embedded && (
         <CaseStageSections
           steps={clientSteps}
-          visibleSteps={visibleSteps}
+          visibleSteps={visibleSteps.filter(s => isStepOpen(s.status))}
           stages={stageRows}
           renderStep={renderStep}
-          ballFilterActive={!!ballFilter}
+          ballFilterActive={false}
           clientBucketTitle={activeEngagement?.status === 'onboarding' ? 'קליטת הלקוח' : 'בקשות'}
           composer={(stageId, close) => (
             <InlineComposer
@@ -1250,6 +1379,51 @@ export default function OnboardingTab({
             </button>
           </>}
         />
+      )}
+
+      {/* ── בקשות שהושלמו — מקופל, בתחתית ────────────────────────────────
+          ‼ "הושלם" אינו מצב שצריך לנהל, ולכן הוא גם לא צריך שורה מלאה עם
+          פעולות. שורה שקטה אחת שאומרת כמה, ומי שרוצה — פותח.
+          דילוג נשאר מובחן מהשלמה: "דולג" הוא החלטה שנרשמה, לא משהו שקרה. */}
+      {embedded && doneSteps.length > 0 && (
+        <div className="cw-section">
+          <div className="cw-section-head">
+            <button type="button" onClick={() => setShowDone(v => !v)}
+              aria-expanded={showDone}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '.35rem', color: 'inherit', font: 'inherit',
+                background: 'none', border: 'none', appearance: 'none', padding: 0, cursor: 'pointer',
+                minHeight: 44,
+              }}>
+              <span aria-hidden="true">{showDone ? '▾' : '▸'}</span>
+              <span>בקשות שהושלמו · {doneSteps.length}</span>
+            </button>
+          </div>
+          {showDone && (
+            <div>
+              {doneSteps.map(s => {
+                const skipped = s.status === 'skipped';
+                return (
+                  <div key={s.id} style={{
+                    display: 'flex', gap: '.5rem', alignItems: 'baseline',
+                    padding: '.4rem 0', borderTop: '1px solid var(--hairline-2)',
+                    fontSize: 'var(--fs-13)', color: 'var(--ink-3)',
+                  }}>
+                    <span aria-hidden="true" style={{ color: skipped ? 'var(--ink-4)' : 'var(--ok, #17845b)' }}>
+                      {skipped ? '↷' : '✓'}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>{rowTitle(s)}</span>
+                    <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
+                      {skipped
+                        ? `דולג${s.payload.skipReason ? ` · ${s.payload.skipReason}` : ''}`
+                        : stepStatusLabel(s)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {!embedded && [
@@ -1317,6 +1491,7 @@ export default function OnboardingTab({
           fn="send-step-email"
           editable
           body={{ stepId: emailDialog.stepId, kind: emailDialog.kind }}
+          initialOverrides={{ subject: emailDialog.subject, body: emailDialog.body }}
           onSent={() => refresh?.()}
           onClose={() => setEmailDialog(null)}
         />
@@ -2242,14 +2417,14 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { openId, toggle, onMove, onPublish, onSetRequired, depParents, depChildren } = useContext(RowOpenContext);
+  const { openId, toggle, depParents, depChildren } = useContext(RowOpenContext);
   const open = openId === step.id;
   const tone = TONE_COLOR[STEP_STATUS_TONE[step.status]];
   const locked = step.status === 'locked';
   const age = ageLabel(step);
   const progress = progressLabel(step);
   const hasBody = Boolean(children);
-  const isDraft = step.publishedAt === null || String(step.payload.published ?? 'true') === 'false';
+  const isDraft = isDraftStep(step);
   const hasPendingEdit = !!step.draftPayload && !isDraft;
   const ext = step.payload.externalParty;
   const extName = ext
@@ -2341,35 +2516,16 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
               {noteLine && <span style={{ color: 'var(--warn)' }}>· חסר לפרטי קשר: {noteLine}</span>}
             </div>
           </button>
+          {/* ‼ מה ירד מכאן, ולמה:
+              1. "שלח ללקוח" על טיוטה — בקשת לקוח אינה נשלחת לבדה. היא מופיעה
+                 בדף האישי כשמפרסמים את התיק ("עדכן את דף הלקוח"), וכפתור
+                 שליחה לכל שורה סתר בדיוק את המודל הזה. בונוס: הוא גם עקף את
+                 execute_automatic_step, ולכן בקשה אוטומטית שנפתחה דרכו לא
+                 חימשה את המייל שלה עד הטריגר הבא.
+              2. "סמן כרשות" ו-↑↓ — פקדי תצורה שהיו על כל שורה תמיד. הם עברו
+                 לתפריט ⋯. מה שנשאר גלוי הוא הפעולה של עכשיו בלבד. */}
           <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            {isDraft && onPublish && (
-              <button type="button" className="btn btn-sm btn-primary"
-                onClick={() => onPublish(step.id)}
-                title="הבקשה תופיע בדף האישי של הלקוח">שלח ללקוח</button>
-            )}
-            {/* ‼ רק על שלב שעדיין פתוח. שלב שהושלם או בוטל כבר יצא מהמשחק,
-                והשרת ממילא מסרב לשנות אותו (set_onboarding_step_required). */}
-            {onSetRequired && !['completed', 'verified', 'cancelled'].includes(step.status) && (
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost"
-                onClick={() => onSetRequired(step.id, !isStepRequiredForClose(step))}
-                title={isStepRequiredForClose(step)
-                  ? 'השלב חוסם היום את סגירת הקליטה. סימון כרשות ישחרר אותה.'
-                  : 'השלב אינו חוסם היום את סגירת הקליטה.'}
-              >
-                {isStepRequiredForClose(step) ? 'סמן כרשות' : 'סמן כנדרש'}
-              </button>
-            )}
             {menu}
-            {onMove && (
-              <span style={{ display: 'inline-flex', gap: 2 }}>
-                <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למעלה"
-                  onClick={() => onMove(step.id, -1)} style={{ padding: '0 .3rem' }}>↑</button>
-                <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למטה"
-                  onClick={() => onMove(step.id, 1)} style={{ padding: '0 .3rem' }}>↓</button>
-              </span>
-            )}
           </div>
         </div>
         {open && (

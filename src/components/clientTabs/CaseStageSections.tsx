@@ -131,6 +131,10 @@ export default function CaseStageSections({
           const open = openOverride[sec.key] ?? (state === 'active');
           // בסינון פעיל — שלב בלי התאמות פשוט לא מוצג; הרשימה חייבת לשקף את המונה.
           if (ballFilterActive && sec.visible.length === 0) return null;
+          /* ‼ שלב-על שכל בקשותיו הושלמו יורד מאזור העבודה: הבקשות עצמן חיות
+             במקטע "בקשות שהושלמו" המקופל, וכותרת שנפתחת אל גוף ריק היא בדיוק
+             הרעש שהמסך הזה בא להוריד. */
+          if (state === 'done' && sec.visible.length === 0) return null;
 
           const stateDot = state === 'done'
             ? { ch: '✓', color: 'var(--ink-4)' }        // הושלם = אפור, לא ירוק

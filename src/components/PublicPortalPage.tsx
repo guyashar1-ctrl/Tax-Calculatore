@@ -537,11 +537,17 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
     );
   }
 
-  // ‼ הכרעת מוצר סגורה: הדף מציג רק מה שהלקוח צריך לעשות. עבודת המשרד,
-  // רו"ח קודם וגורם חיצוני — כולל "future" (שלב נעול הממתין להם) — לא
-  // מוצגים כאן בכלל. הרו"ח רואה את כל זה ב"תהליך"; כאן זה רק היה רועש
-  // ומטשטש את השאלה היחידה שהעמוד עונה עליה.
+  // ‼ עבודת המשרד ("office") לא מוצגת כאן: הרו"ח רואה אותה ב"תהליך", וללקוח
+  // היא רק רעש סביב השאלה היחידה שהעמוד עונה עליה.
+  //
+  // ‼ "future" — שלב שפורסם ועדיין נעול — כן מוצג, מ-2026-08-15. קודם הוא נזרק
+  // כאן, והתוצאה הייתה שהלקוח לא ידע שיש המשך: "הרשאה לחיוב חודשי" פשוט הופיעה
+  // יום אחד כאילו צצה משום מקום. עכשיו הוא רואה את השם האמיתי, שהוא נעול, ומה
+  // יפתח אותו — מפת דרכים במקום הפתעות.
+  // ‼ הגבול שנשאר: טיוטה אינה מגיעה לכאן בכלל (השרת מסנן לפי published_at),
+  // ולכן "נעול" לעולם אינו חושף בקשה שהרו"ח עוד לא פרסם.
   const actions = data.items.filter(i => i.bucket === 'action');
+  const future  = data.items.filter(i => i.bucket === 'future');
   const done    = data.items.filter(i => i.bucket === 'done');
   const firstName = data.clientFirstName;
 
@@ -563,7 +569,9 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                 last={i === actions.length - 1} onDone={reload} />
             ))}
           </>
-        ) : done.length > 0 ? (
+        ) : done.length > 0 && future.length === 0 ? (
+          /* ‼ "הכול הושלם" רק כשבאמת אין המשך. עם שלב עתידי נעול זה היה
+             שקר קטן שמייצר פנייה: הלקוח קורא שסיים, ואז נפתח לו עוד שלב. */
           <div style={{ fontSize: 15, color: brand.ink, margin: '18px 0 4px' }}>
             הכול הושלם{firstName ? `, ${firstName}` : ''} 🎉
           </div>
@@ -573,10 +581,43 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           </div>
         )}
 
+        {/* ── בהמשך: שלבים שפורסמו ועדיין נעולים ──────────────────────────
+            שקט בכוונה — אפור, בלי כפתור, בלי מסגרת מודגשת. זו מפת דרכים,
+            לא רשימת מטלות: אסור שתתחרה ב"מה צריך ממך" שמעליה. */}
+        {future.length > 0 && (
+          <>
+            <div style={{ ...sectionTitle, marginTop: actions.length > 0 ? 20 : 16 }}>
+              בהמשך — ייפתח אוטומטית
+            </div>
+            {future.map(item => (
+              <div key={item.key} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 8,
+                padding: '10px 0', borderTop: `1px solid ${brand.border}`,
+              }}>
+                <span aria-hidden="true" style={{ fontSize: 12, lineHeight: '20px', opacity: .5 }}>🔒</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, color: brand.muted }}>
+                    {item.label}
+                    {preview && item.draft && <DraftChip />}
+                  </div>
+                  {item.sub && (
+                    <div style={{ fontSize: 12, color: brand.muted, opacity: .85, marginTop: 2 }}>
+                      {item.sub}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            <div style={{ fontSize: 11.5, color: brand.muted, opacity: .8, marginTop: 8 }}>
+              אין מה לעשות עם אלה עכשיו — הם ייפתחו כאן מעצמם.
+            </div>
+          </>
+        )}
+
         {/* ‼ תזכורת שקטה שכבר קרה משהו — לא רשימה. "מה קורה עכשיו" הוא
             השאלה של העמוד הזה; "מה קרה" שייך לרו"ח בלבד. */}
         {done.length > 0 && (
-          <div style={{ fontSize: 12, color: brand.muted, marginTop: actions.length > 0 ? 16 : 4 }}>
+          <div style={{ fontSize: 12, color: brand.muted, marginTop: (actions.length > 0 || future.length > 0) ? 16 : 4 }}>
             ✓ {done.length === 1 ? 'דבר אחד שכבר הושלם' : `${done.length} דברים שכבר הושלמו`}
           </div>
         )}
