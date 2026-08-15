@@ -257,15 +257,16 @@ export default function TasksWorkspace({
 
   return (
     <div className="tasks-page tw-wrap">
-      <div className="tw-head">
-        <div>
-          <div className="pg-title">משימות</div>
-          <div className="tw-sub">מה דורש ממני טיפול, ומה עדיין מחכה לאחרים.</div>
+      {/* אנטומיה משותפת עם מסך הלקוחות — ראה בלוק wp- ב-pivo-design.css */}
+      <header className="wp-head">
+        <div className="wp-head-main">
+          <h1 className="wp-title">משימות</h1>
+          <p className="wp-sub">מה דורש ממני טיפול, ומה עדיין מחכה לאחרים.</p>
         </div>
-        <div className="tw-head-btn">
+        <div className="wp-actions">
           <button type="button" className="ui-btn ui-btn-primary" onClick={() => setAddMenuOpen(true)}>+ חדש</button>
         </div>
-      </div>
+      </header>
 
       <div className="tw-views" role="tablist">
         {([
@@ -279,13 +280,13 @@ export default function TasksWorkspace({
         ))}
       </div>
 
-      <div className="tw-tools">
+      <div className="wp-tools">
         <input
           type="text"
           placeholder="חפש משימה או לקוח…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="tw-search inp"
+          className="wp-search inp"
           aria-label="חיפוש משימות"
         />
         {/* ‼ סינון שהגיע מכרטיס לקוח חייב להיות גלוי וניתן לביטול — אחרת

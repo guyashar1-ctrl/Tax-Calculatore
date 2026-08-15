@@ -273,11 +273,22 @@ export default function PersonDirectory(p: Props) {
 
   return (
     <div className="pd-page">
-      <h1 className="pd-h1">לקוחות</h1>
-      <div className="pd-intro">חפש אדם קיים או התחל לעבוד עם אדם חדש</div>
+      {/* ‼ אנטומיה משותפת עם מסך המשימות (בלוק wp- ב-pivo-design.css).
+          קודם הפעולה הראשית ישבה בתוך שורת החיפוש ולכן ירדה ל-130px,
+          בעוד שבמשימות היא יושבת לצד הכותרת ב-20px — זו הייתה הקפיצה
+          העיקרית במעבר בין שני הדפים. */}
+      <header className="wp-head">
+        <div className="wp-head-main">
+          <h1 className="wp-title">לקוחות</h1>
+          <p className="wp-sub">חפש אדם קיים או התחל לעבוד עם אדם חדש</p>
+        </div>
+        <div className="wp-actions">
+          <button type="button" className="ui-btn ui-btn-primary" onClick={p.onAdd}>+ אדם חדש</button>
+        </div>
+      </header>
 
-      <div className="pd-searchline">
-        <div className="pd-search">
+      <div className="wp-tools">
+        <div className="pd-search wp-search">
           <span className="pd-glass" aria-hidden="true">⌕</span>
           <input
             value={query}
@@ -287,7 +298,6 @@ export default function PersonDirectory(p: Props) {
             aria-label="חיפוש אנשים"
           />
         </div>
-        <button type="button" className="pd-primary" onClick={p.onAdd}>+ אדם חדש</button>
       </div>
 
       {newSelfIntakeCount > 0 && (
