@@ -302,7 +302,7 @@ export default function PersonDirectory(p: Props) {
         כל האנשים <span className="pd-count">({visible.length})</span>
       </div>
 
-      <div className="pd-list">
+      <div>
         {visible.map(row => (
           <div
             key={`${row.kind}:${row.id}`}
