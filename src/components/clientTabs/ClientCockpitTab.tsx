@@ -167,7 +167,7 @@ export default function ClientCockpitTab({
         });
       }
     } else if (!taxSessionsLoading) {
-      out.push({ key: 'report', level: 'warn', title: 'אין תיק דוח שנתי', subtitle: 'נפתח מכפתור «התחל דוח שנתי» בראש כרטיס הלקוח' });
+      out.push({ key: 'report', level: 'warn', title: 'אין תיק דוח שנתי', subtitle: 'ניתן לפתוח מתוך תהליך הקליטה או תיק המס' });
     }
 
     // משימות

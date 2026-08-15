@@ -3,6 +3,11 @@
 // (מקטע #v-docs). סרגל כלים רגוע: חיפוש | תווית | שנה | הוסף▾. כל פריט —
 // שנה + תווית מקצועית אחת. 'לבדיקה' היא תווית שמורה ל-legacy שטרם סווג;
 // לעולם לא יורשת לילד חדש (הכרעה סגורה — ראה docs/PLAN... / הבקשה).
+//
+// ‼ cw-tabpanel ולא cw-tab (וכנ"ל בעטיפה החיצונית ב-DocumentsTab.tsx):
+// cw-tab היא גם מחלקת כפתור הטאב (display:flex שורה) — כלים/נתיב/רשימה
+// נדחסו לשורה אופקית אחת וכל מקטע כווץ למינימום, בדיוק "התוכן דחוס בשטח
+// צר" + "הרבה שטח ריק" שדווחו. tabpanel = flex column+gap, כמו כל טאב אחר.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Client } from '../../types';
@@ -404,9 +409,9 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   const isFirstRun = !loading && !hasAnyContent && !hasActiveFilter && currentFolderId === null;
 
   return (
-    <div className="cw-tab ial-docs" onClick={() => addMenuOpen && setAddMenuOpen(false)}>
+    <div className="cw-tabpanel ial-docs" onClick={() => addMenuOpen && setAddMenuOpen(false)}>
       {!isFirstRun && (
-      <div className="cw-section" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center', padding: '.6rem .8rem' }}>
+      <div className="docw-toolbar">
         <input
           className="ial-doc-search"
           style={{ flex: 1, minWidth: 180 }}
@@ -461,7 +466,9 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
         </div>
       ) : (
       <>
-      <div className="cw-section" style={{ padding: '.5rem .8rem', display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+      {/* ‼ המסמכים עצמם ראשוניים: הכלים למעלה קומפקטיים, הנתיב+הרשימה
+          מיד מתחתיהם באותה מידה — לא עוד כרטיס נפרד עם ריפוד עצמאי. */}
+      <div className="docw-path">
         <button type="button" className="ial-back" style={{ marginBottom: 0 }} onClick={goRoot}>כל המסמכים</button>
         {!q && breadcrumb.map((f, i) => (
           <span key={f.id} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
@@ -469,60 +476,59 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
             <button type="button" className="ial-back" style={{ marginBottom: 0 }} onClick={() => goCrumb(i)}>{f.name}</button>
           </span>
         ))}
-        {q && <span style={{ color: 'var(--ink-3)', fontSize: 'var(--fs-12)' }}>תוצאות חיפוש בכל התיקיות</span>}
-        <span style={{ marginInlineStart: 'auto', color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>{filteredRows.length} פריטים</span>
+        {q && <span>תוצאות חיפוש בכל התיקיות</span>}
+        <span className="docw-path-count">{filteredRows.length} פריטים</span>
       </div>
 
-      <div className="cw-section">
-        {loading ? (
-          <div className="cw-empty">טוען…</div>
-        ) : filteredRows.length === 0 ? (
-          <div className="cw-empty">אין פריטים שמתאימים לסינון.</div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', borderBottom: '1px solid var(--hairline-1)' }}>
-                <th style={{ textAlign: 'right', padding: '.4rem .6rem' }}>שם</th>
-                <th style={{ textAlign: 'right', padding: '.4rem .6rem' }}>תווית</th>
-                <th style={{ textAlign: 'right', padding: '.4rem .6rem' }}>שנה</th>
-                <th style={{ textAlign: 'right', padding: '.4rem .6rem' }}>עודכן</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map(r => {
-                if (r.kind === 'folder') {
-                  const f = r.folder!;
-                  const label = f.labelId ? labelsById.get(f.labelId) : null;
-                  return (
-                    <tr key={f.id} onClick={() => goInto(f.id)} style={{ cursor: 'pointer', borderBottom: '1px solid var(--hairline-2)' }}>
-                      <td style={{ padding: '.5rem .6rem', fontWeight: 600 }}>
-                        📁 {f.name}
-                        {r.path && <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>{r.path}</div>}
-                      </td>
-                      <td style={{ padding: '.5rem .6rem' }}>{label && <span className="ial-doc-label-chip">{label.name}</span>}</td>
-                      <td style={{ padding: '.5rem .6rem', color: 'var(--ink-3)' }}>{f.year || '—'}</td>
-                      <td style={{ padding: '.5rem .6rem', color: 'var(--ink-3)' }}>{fmtDate(f.createdAt)}</td>
-                    </tr>
-                  );
-                }
-                const d = r.doc!;
-                const label = d.labelId ? labelsById.get(d.labelId) : null;
-                return (
-                  <tr key={d.id} onClick={() => openDocFile(d)} style={{ cursor: 'pointer', borderBottom: '1px solid var(--hairline-2)' }}>
-                    <td style={{ padding: '.5rem .6rem', fontWeight: 600 }}>
-                      {d.description || d.fileName}
-                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>{r.path || d.fileName}</div>
-                    </td>
-                    <td style={{ padding: '.5rem .6rem' }}>{label && <span className="ial-doc-label-chip">{label.name}</span>}</td>
-                    <td style={{ padding: '.5rem .6rem', color: 'var(--ink-3)' }}>{d.year === 'general' ? 'כללי' : d.year}</td>
-                    <td style={{ padding: '.5rem .6rem', color: 'var(--ink-3)' }}>{fmtDate(d.uploadedAt)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {loading ? (
+        <div className="docw-list"><div className="docw-empty">טוען…</div></div>
+      ) : filteredRows.length === 0 ? (
+        <div className="docw-list"><div className="docw-empty">אין פריטים שמתאימים לסינון.</div></div>
+      ) : (
+        <div className="docw-list">
+          <div className="docw-head-row">
+            <span>שם</span><span>תווית</span><span>שנה</span><span>עודכן</span>
+          </div>
+          {filteredRows.map(r => {
+            if (r.kind === 'folder') {
+              const f = r.folder!;
+              const label = f.labelId ? labelsById.get(f.labelId) : null;
+              return (
+                <div
+                  key={f.id} className="docw-row" role="button" tabIndex={0}
+                  onClick={() => goInto(f.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goInto(f.id); } }}
+                >
+                  <span className="docw-name">
+                    📁 {f.name}
+                    {r.path && <span className="docw-path-hint">{r.path}</span>}
+                  </span>
+                  <span>{label && <span className="ial-doc-label-chip">{label.name}</span>}</span>
+                  <span className="docw-col-year">{f.year || '—'}</span>
+                  <span className="docw-col-updated">{fmtDate(f.createdAt)}</span>
+                </div>
+              );
+            }
+            const d = r.doc!;
+            const label = d.labelId ? labelsById.get(d.labelId) : null;
+            return (
+              <div
+                key={d.id} className="docw-row" role="button" tabIndex={0}
+                onClick={() => openDocFile(d)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDocFile(d); } }}
+              >
+                <span className="docw-name">
+                  {d.description || d.fileName}
+                  <span className="docw-path-hint">{r.path || d.fileName}</span>
+                </span>
+                <span>{label && <span className="ial-doc-label-chip">{label.name}</span>}</span>
+                <span className="docw-col-year">{d.year === 'general' ? 'כללי' : d.year}</span>
+                <span className="docw-col-updated">{fmtDate(d.uploadedAt)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div className="csub" style={{ margin: '.5rem .2rem 0', fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
         המסמכים פנימיים למשרד. הלקוח אינו רואה אותם — מה שמבקשים ממנו עובר דרך בקשת לקוח.
       </div>

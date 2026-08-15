@@ -3,6 +3,10 @@
 // (מקטע #v-log). לא יומן טכני — אירועים משמעותיים בלבד, מצטברים בזמן שאילתה
 // ממקורות קיימים (ראה hooks/useClientActivity.ts). "צפייה במייל שנשלח" פותחת
 // את אותו SentEmailViewer שכבר קיים.
+//
+// ‼ cw-tabpanel ולא cw-tab: cw-tab היא גם מחלקת כפתור הטאב (display:flex
+// שורה) — עטיפת השורש בה דחסה את הסרגל וציר הזמן זה לצד זה באותה שורה
+// אופקית, בדיוק "זרם צר צף בשטח ריק" שדווח. tabpanel = flex column+gap.
 
 import { useMemo, useState } from 'react';
 import type { Client } from '../../types';
@@ -76,7 +80,7 @@ export default function ActivityTab({ client, clientSteps, events, quotations, c
   }, [shown]);
 
   return (
-    <div className="cw-tab">
+    <div className="cw-tabpanel">
       <div className="cw-section act-bar">
         <div>
           <div className="cw-section-head" style={{ border: 0, padding: 0, margin: 0 }}><span>מה קרה בתיק</span></div>

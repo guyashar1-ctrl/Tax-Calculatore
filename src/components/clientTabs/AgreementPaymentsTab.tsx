@@ -3,6 +3,10 @@
 // (מקטע #v-pay). לא מערכת חיוב שנייה: קוראת מתוך quotations/engagements/
 // additional_charges הקיימים ומציגה אותם בהיררכיה רגועה. הצעה נוספת עוברת
 // באותו מסלול הצעה (Draft→שליחה→אישור), בקשה עתידית נשארת ב-additional_charges.
+//
+// ‼ cw-tabpanel ולא cw-tab: cw-tab היא גם מחלקת כפתור הטאב (display:flex
+// שורה, בלי flex-direction:column) — עטיפת השורש בה כיווצה כל מקטע לקופסה
+// זעירה בצד, בדיוק "הטבלה הקטנה הצפה" שדווחה. tabpanel = flex column+gap.
 
 import { useMemo, useState } from 'react';
 import type { Client } from '../../types';
@@ -126,7 +130,7 @@ export default function AgreementPaymentsTab({ client, quotations, engagements, 
 
   if (fullyEmpty) {
     return (
-      <div className="cw-tab">
+      <div className="cw-tabpanel">
         <div className="cw-section">
           <div className="cw-empty">
             אין עדיין הסכם או תשלומים לתיק הזה.
@@ -143,7 +147,7 @@ export default function AgreementPaymentsTab({ client, quotations, engagements, 
   }
 
   return (
-    <div className="cw-tab">
+    <div className="cw-tabpanel">
       <div className="cw-section">
         <div className="cw-section-head">
           <span>התקשרות נוכחית</span>

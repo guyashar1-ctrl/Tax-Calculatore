@@ -241,19 +241,8 @@ export default function ClientWorkspace({
     }
   }
 
-  /**
-   * קריאה אחת לדוח השנתי — והיא אומרת גם מה מצבו (D13).
-   * "התחל" כשאין דוח, "המשך {שנה}" כשיש דוח פתוח, "פתח {שנה}" כשהוא סגור.
-   */
-  const annualCta = (() => {
-    const defaultYear = new Date().getFullYear() - 1;
-    const open = taxSessions.find(s => s.status === 'in_progress' || s.status === 'review');
-    if (open) return { year: open.taxYear, label: `המשך דוח ${open.taxYear}` };
-    const latest = taxSessions[0];
-    if (latest) return { year: latest.taxYear, label: `פתח דוח ${latest.taxYear}` };
-    return { year: defaultYear, label: 'התחל דוח שנתי' };
-  })();
-
+  // פתיחת שנת דוח ספציפית — נקרא מהקשר (שורת "תהליך"/מרכז שליטה הישן),
+  // לא מ-CTA קבוע בכותרת. ראה docs/prototypes/README.md.
   const openYear = onOpenAnnualReport && client.id
     ? (taxYear: number) => onOpenAnnualReport(client.id, taxYear)
     : undefined;
@@ -507,26 +496,19 @@ export default function ClientWorkspace({
             </div>
           </div>
 
-          {/* ‼ הכותרת נושאת זהות + פעולה ראשית אחת לכל היותר. קודם ישבו כאן
-              שש פעולות במקביל (שאלון · משימה · דוח שנתי · שמירה · ארכיון ·
-              מחיקה) ובכל רגע נתון חמש מהן לא היו רלוונטיות. כל אחת עברה
-              להקשר שלה: השאלון ל"תיק מס", המשימה למסך המשימות, הדוח השנתי
-              נשאר כפעולה ראשית יחידה, והארכיון/מחיקה ירדו לתפריט פעולות
-              נדירות. "שמור" מופיע רק כשבאמת יש מה לשמור. */}
+          {/* ‼ הכותרת נושאת זהות בלבד, בלי CTA קבוע — כמו האסמכתא המאושרת
+              (client-case-simplified-exploration-v3-final2.html: h1+badge+
+              cmeta, שום כפתור). "התחל דוח שנתי" הוסר: הדוח השנתי אינו בעל
+              מידע מקצועי קבוע — הוא צרכן של תיק המס. רענון מידע מהלקוח עובר
+              דרך "עדכן סטטוס מיסויי" (תיק מס) או תהליך/בקשה, לא CTA ראשי
+              כאן. "שמור" מופיע רק כשבאמת יש מה לשמור; ארכיון/מחיקה בתפריט
+              פעולות נדירות. ראה docs/prototypes/README.md + סבב ההתכנסות. */}
           <div className="cw-header-actions">
             {dirty && (
               <>
                 <span className="cw-dirty-flag">שינויים לא שמורים</span>
                 <button className="ui-btn ui-btn-ghost" onClick={handleSave}>שמור</button>
               </>
-            )}
-
-            {!isNew && openYear && (
-              <button
-                className="ui-btn ui-btn-primary"
-                onClick={() => openYear(annualCta.year)}
-                title="פתיחת הדוח השנתי של הלקוח"
-              >{annualCta.label}</button>
             )}
 
             {!isNew && (
