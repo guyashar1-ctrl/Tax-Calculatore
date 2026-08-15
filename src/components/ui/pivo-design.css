@@ -2500,6 +2500,13 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .docw-name{font-weight:600;color:var(--ink-1)}
 .docw-path-hint{display:block;font-size:var(--fs-12);color:var(--ink-4);margin-top:2px;font-weight:400}
 .docw-col-year,.docw-col-updated{color:var(--ink-3);font-size:var(--fs-12)}
+/* פעולות תיקייה — מופיעות רק בריחוף/מיקוד, כדי שהשורה תישאר שקטה */
+.docw-folder-actions{display:inline-flex;gap:8px;margin-inline-start:10px;opacity:0;transition:opacity .12s}
+.docw-row:hover .docw-folder-actions,.docw-row:focus-within .docw-folder-actions{opacity:1}
+.docw-folder-actions button{border:0;background:none;padding:0;cursor:pointer;font:inherit;
+  font-size:var(--fs-12);color:var(--accent)}
+.docw-folder-actions button:hover{text-decoration:underline}
+@media (hover:none){.docw-folder-actions{opacity:1}}
 .docw-empty{padding:18px 16px;color:var(--ink-3);font-size:var(--fs-13);text-align:center}
 @media (max-width:700px){
   .docw-head-row{display:none}

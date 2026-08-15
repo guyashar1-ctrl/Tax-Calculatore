@@ -473,6 +473,80 @@ export function useDocumentStore() {
     return [...primaryDocs, ...(extra.data ?? []).map(row => rowToStoredDoc(row))];
   }
 
+  /**
+   * העברת מסמך ללקוח אחר — הבעלות עוברת, ואין עותק שני.
+   * ‼ שלוש פעולות שונות ואסור לבלבל ביניהן:
+   *   linkDocumentClient  — אותו קובץ, כמה לקוחות. עריכה משפיעה על כולם.
+   *   moveDocToClient     — הקובץ עוזב את הלקוח הנוכחי. אין כפילות.
+   *   duplicateDocToClient— עותק עצמאי חדש. עריכה בו לא נוגעת במקור.
+   * ‼ folder_id מתאפס: תיקייה שייכת ללקוח, ותיקיית המקור אינה קיימת אצל היעד.
+   * הקובץ עצמו זז ב-Storage דרך move בצד השרת — בלי הורדה/העלאה, ולכן
+   * אין רגע שבו הבייטים קיימים רק בזיכרון הדפדפן.
+   */
+  async function moveDocToClient(docId: string, targetClientId: string): Promise<{ ok: boolean; error?: string }> {
+    if (!userId) return { ok: false, error: 'אינך מחובר/ת.' };
+    const { data: row } = await supabase
+      .from('documents').select('storage_path, client_id')
+      .eq('id', docId).eq('user_id', userId).maybeSingle();
+    if (!row) return { ok: false, error: 'המסמך לא נמצא.' };
+    if (row.client_id === targetClientId) return { ok: false, error: 'המסמך כבר שייך ללקוח הזה.' };
+
+    const from = row.storage_path as string | null;
+    const to = storagePath(userId, targetClientId, docId);
+    if (from && from !== to) {
+      const { error: mvErr } = await supabase.storage.from(BUCKET).move(from, to);
+      // ‼ אם הקובץ עצמו לא זז — עוצרים. עדכון השורה לבדו היה מותיר רשומה
+      // שמצביעה על נתיב ריק, כלומר מסמך "קיים" בלי קובץ.
+      if (mvErr) return { ok: false, error: `העברת הקובץ נכשלה: ${mvErr.message}` };
+    }
+    const { error } = await supabase.from('documents')
+      .update({ client_id: targetClientId, storage_path: to, folder_id: null })
+      .eq('id', docId).eq('user_id', userId);
+    if (error) return { ok: false, error: `עדכון המסמך נכשל: ${error.message}` };
+
+    // קישור עודף ליעד (אם היה) הופך למיותר ברגע שהוא הבעלים
+    await supabase.from('document_clients').delete()
+      .eq('document_id', docId).eq('client_id', targetClientId);
+
+    window.dispatchEvent(new CustomEvent('crm:docs-changed', { detail: { clientId: row.client_id } }));
+    window.dispatchEvent(new CustomEvent('crm:docs-changed', { detail: { clientId: targetClientId } }));
+    return { ok: true };
+  }
+
+  /**
+   * שכפול ללקוח אחר — עותק עצמאי לגמרי (id חדש, קובץ חדש באחסון).
+   * שינוי שם/תוכן בעותק אינו נוגע במקור, וזה כל ההבדל מ"קשר ללקוח נוסף".
+   */
+  async function duplicateDocToClient(docId: string, targetClientId: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+    if (!userId) return { ok: false, error: 'אינך מחובר/ת.' };
+    const { data: row } = await supabase
+      .from('documents').select('*')
+      .eq('id', docId).eq('user_id', userId).maybeSingle();
+    if (!row) return { ok: false, error: 'המסמך לא נמצא.' };
+
+    const newId = crypto.randomUUID();
+    const to = storagePath(userId, targetClientId, newId);
+    if (row.storage_path) {
+      const { error: cpErr } = await supabase.storage.from(BUCKET).copy(row.storage_path, to);
+      if (cpErr) return { ok: false, error: `העתקת הקובץ נכשלה: ${cpErr.message}` };
+    }
+    const { error } = await supabase.from('documents').insert({
+      ...row,
+      id: newId,
+      client_id: targetClientId,
+      storage_path: to,
+      folder_id: null,           // תיקיות שייכות ללקוח — מתחילים בשורש
+      uploaded_at: new Date().toISOString(),
+    });
+    if (error) {
+      // ניקוי הקובץ שהועתק, כדי לא להשאיר יתום באחסון
+      if (row.storage_path) await supabase.storage.from(BUCKET).remove([to]);
+      return { ok: false, error: `יצירת העותק נכשלה: ${error.message}` };
+    }
+    window.dispatchEvent(new CustomEvent('crm:docs-changed', { detail: { clientId: targetClientId } }));
+    return { ok: true, id: newId };
+  }
+
   // ─── קישור מסמך למשימה — document_task_links (M3) ───────────────────────
   async function getLinkedTaskIds(documentId: string): Promise<string[]> {
     const { data, error } = await supabase
@@ -507,6 +581,7 @@ export function useDocumentStore() {
     getFoldersByClient, createFolder, renameFolder, deleteFolder, moveDocsToFolder,
     getLabels, createLabel, renameLabel, deleteLabel,
     getLinkedClientIds, linkDocumentClient, unlinkDocumentClient, getDocsByClientIncludingLinked,
+    moveDocToClient, duplicateDocToClient,
     getLinkedTaskIds, getLinkedDocIdsForTask, linkDocumentTask, unlinkDocumentTask,
   };
 }

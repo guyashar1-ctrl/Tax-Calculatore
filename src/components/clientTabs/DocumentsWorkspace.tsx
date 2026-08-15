@@ -68,6 +68,17 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   const [drawerLinkedClients, setDrawerLinkedClients] = useState<string[]>([]);
   const [drawerLinkedTasks, setDrawerLinkedTasks] = useState<{ id: string; title: string }[]>([]);
   const [addClientPick, setAddClientPick] = useState('');
+  const [renameDraft, setRenameDraft] = useState('');
+  const [transferPick, setTransferPick] = useState('');
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [transferError, setTransferError] = useState('');
+  const [confirmTransfer, setConfirmTransfer] = useState<'move' | 'duplicate' | null>(null);
+  const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(false);
+  const [folderEdit, setFolderEdit] = useState<DocFolder | null>(null);
+  const [folderEditName, setFolderEditName] = useState('');
+  const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<DocFolder | null>(null);
+  const [folderBusy, setFolderBusy] = useState(false);
+  const [folderError, setFolderError] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -366,15 +377,93 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
       setDrawerLinkedTasks([]);
     }
     setAddClientPick('');
+    setRenameDraft(doc.description || '');
+    setTransferPick(''); setTransferError(''); setConfirmTransfer(null); setConfirmDeleteDoc(false);
   }
-  function closeDrawer() { setDrawerDoc(null); setDrawerLinkedClients([]); setDrawerLinkedTasks([]); }
+  function closeDrawer() {
+    setDrawerDoc(null); setDrawerLinkedClients([]); setDrawerLinkedTasks([]);
+    setTransferPick(''); setTransferError(''); setConfirmTransfer(null); setConfirmDeleteDoc(false);
+  }
 
-  async function saveDrawerMeta(patch: Partial<Pick<StoredDoc, 'labelId' | 'year' | 'description'>>) {
+  async function saveDrawerMeta(patch: Partial<Pick<StoredDoc, 'labelId' | 'year' | 'description' | 'folderId'>>) {
     if (!drawerDoc) return;
     const updated = { ...drawerDoc, ...patch };
     await db.saveDoc(updated);
     setDrawerDoc(updated);
     void loadAll();
+  }
+
+  /** שינוי שם — נשמר רק כשבאמת השתנה, כדי לא לכתוב על כל יציאה מהשדה. */
+  async function commitRename() {
+    if (!drawerDoc) return;
+    const next = renameDraft.trim();
+    if (next === (drawerDoc.description || '')) return;
+    await saveDrawerMeta({ description: next });
+  }
+
+  async function moveDrawerDocToFolder(folderId: string | null) {
+    if (!drawerDoc) return;
+    await db.moveDocsToFolder([drawerDoc.id], folderId);
+    setDrawerDoc({ ...drawerDoc, folderId });
+    void loadAll();
+  }
+
+  /** העברה/שכפול ללקוח אחר — שתי פעולות שונות מאוד, אותה נקודת כניסה. */
+  async function runTransfer(mode: 'move' | 'duplicate') {
+    if (!drawerDoc || !transferPick) return;
+    setTransferBusy(true); setTransferError('');
+    const res = mode === 'move'
+      ? await db.moveDocToClient(drawerDoc.id, transferPick)
+      : await db.duplicateDocToClient(drawerDoc.id, transferPick);
+    setTransferBusy(false);
+    setConfirmTransfer(null);
+    if (!res.ok) { setTransferError(res.error ?? 'הפעולה נכשלה'); return; }
+    if (mode === 'move') closeDrawer();   // המסמך כבר לא שייך ללקוח הזה
+    else setTransferPick('');
+    void loadAll();
+  }
+
+  async function deleteDrawerDoc() {
+    if (!drawerDoc) return;
+    setTransferBusy(true); setTransferError('');
+    try {
+      await db.deleteDoc(drawerDoc.id);
+      setConfirmDeleteDoc(false);
+      closeDrawer();
+      void loadAll();
+    } catch (e) {
+      setTransferError(e instanceof Error ? e.message : 'המחיקה נכשלה');
+    } finally {
+      setTransferBusy(false);
+    }
+  }
+
+  // ─── תיקיות: שינוי שם ומחיקה ───────────────────────────────────────────
+  async function commitFolderRename() {
+    if (!folderEdit) return;
+    const name = folderEditName.trim();
+    if (!name || name === folderEdit.name) { setFolderEdit(null); return; }
+    setFolderBusy(true); setFolderError('');
+    try {
+      await db.renameFolder(folderEdit.id, name);
+      setFolderEdit(null);
+      void loadAll();
+    } catch (e) {
+      setFolderError(e instanceof Error ? e.message : 'שינוי השם נכשל');
+    } finally { setFolderBusy(false); }
+  }
+
+  async function runDeleteFolder() {
+    if (!confirmDeleteFolder) return;
+    setFolderBusy(true); setFolderError('');
+    try {
+      await db.deleteFolder(confirmDeleteFolder.id);
+      if (currentFolderId === confirmDeleteFolder.id) setCurrentFolderId(confirmDeleteFolder.parentId ?? null);
+      setConfirmDeleteFolder(null);
+      void loadAll();
+    } catch (e) {
+      setFolderError(e instanceof Error ? e.message : 'המחיקה נכשלה');
+    } finally { setFolderBusy(false); }
   }
 
   async function addClientLink() {
@@ -505,7 +594,16 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
                   </span>
                   <span>{label && <span className="ial-doc-label-chip">{label.name}</span>}</span>
                   <span className="docw-col-year">{f.year || '—'}</span>
-                  <span className="docw-col-updated">{fmtDate(f.createdAt)}</span>
+                  <span className="docw-col-updated">
+                    {fmtDate(f.createdAt)}
+                    {/* פעולות התיקייה יושבות על השורה שלה — שם הן רלוונטיות */}
+                    <span className="docw-folder-actions">
+                      <button type="button" title="שינוי שם"
+                        onClick={e => { e.stopPropagation(); setFolderEdit(f); setFolderEditName(f.name); setFolderError(''); }}>שנה שם</button>
+                      <button type="button" title="מחיקת התיקייה" style={{ color: 'var(--err)' }}
+                        onClick={e => { e.stopPropagation(); setConfirmDeleteFolder(f); setFolderError(''); }}>מחק</button>
+                    </span>
+                  </span>
                 </div>
               );
             }
@@ -543,6 +641,19 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
             <h3 style={{ margin: '.8rem 0 .2rem' }}>{drawerDoc.description || drawerDoc.fileName}</h3>
             <div className="csub">מסמך פנימי למשרד · {fmtSize(drawerDoc.fileSize)}</div>
 
+            {/* ‼ שם התצוגה הוא description; שם הקובץ המקורי (fileName) לא
+                משתנה, כדי שהקובץ שיירד למחשב יישאר מזוהה. */}
+            <label className="lbl" style={{ marginTop: '.6rem' }}>שם המסמך</label>
+            <input
+              className="inp"
+              value={renameDraft}
+              onChange={e => setRenameDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              placeholder={drawerDoc.fileName}
+            />
+            <div className="csub" style={{ marginTop: '.2rem' }}>הקובץ עצמו: {drawerDoc.fileName}</div>
+
             <div className="ial-doc-fact">
               <label>תווית</label>
               <select value={drawerDoc.labelId ?? ''} onChange={e => saveDrawerMeta({ labelId: e.target.value })}>
@@ -558,7 +669,16 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
                 {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
-            <div className="ial-doc-fact"><b>תיקייה</b><span>{drawerDoc.folderId ? foldersById.get(drawerDoc.folderId)?.name ?? '—' : 'הרמה הראשית'}</span></div>
+            <div className="ial-doc-fact">
+              <label>תיקייה</label>
+              <select
+                value={drawerDoc.folderId ?? ''}
+                onChange={e => moveDrawerDocToFolder(e.target.value || null)}
+              >
+                <option value="">הרמה הראשית</option>
+                {folders.map(f => <option key={f.id} value={f.id}>{folderPathLabel(f.id, foldersById)}</option>)}
+              </select>
+            </div>
 
             <div className="ial-doc-sechead">לקוחות מקושרים</div>
             <div className="ial-doc-fact"><b>{client.firstName} {client.lastName}</b><span>ראשי</span></div>
@@ -581,15 +701,142 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
               </select>
               <button type="button" className="btn btn-sm" disabled={!addClientPick} onClick={addClientLink}>קשר</button>
             </div>
-            <div className="note" style={{ marginTop: '.5rem' }}>קובץ אחד יכול להיות מקושר לכמה לקוחות — בלי לשכפל אותו.</div>
+            <div className="note" style={{ marginTop: '.5rem' }}>
+              <b>קישור</b> = אותו קובץ אצל כמה לקוחות. עריכה משנה אותו אצל כולם.
+            </div>
+
+            {/* ‼ שלוש פעולות שקל לבלבל ביניהן, ולכן כל אחת נפרדת ומנוסחת
+                במה שקורה בפועל — לא בשם הפעולה. ראה moveDocToClient /
+                duplicateDocToClient ב-useDocumentStore. */}
+            <div className="ial-doc-sechead">העברה ושכפול</div>
+            <div style={{ display: 'flex', gap: '.4rem' }}>
+              <select value={transferPick} onChange={e => setTransferPick(e.target.value)} style={{ flex: 1 }}>
+                <option value="">בחר לקוח יעד…</option>
+                {allClients.filter(c => c.id !== client.id).map(c => (
+                  <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '.4rem', marginTop: '.4rem' }}>
+              <button type="button" className="btn btn-sm" disabled={!transferPick || transferBusy}
+                onClick={() => setConfirmTransfer('move')}>העבר ללקוח</button>
+              <button type="button" className="btn btn-sm" disabled={!transferPick || transferBusy}
+                onClick={() => setConfirmTransfer('duplicate')}>שכפל ללקוח</button>
+            </div>
+            <div className="note" style={{ marginTop: '.5rem' }}>
+              <b>העברה</b> = הקובץ עוזב את {client.firstName} ועובר ליעד. לא יישאר כאן.<br />
+              <b>שכפול</b> = נוצר עותק עצמאי אצל היעד. עריכה בעותק לא תשפיע על הקובץ הזה.
+            </div>
+            {transferError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{transferError}</div>}
 
             <div className="ial-doc-sechead">משימות מקושרות</div>
             {drawerLinkedTasks.length === 0
               ? <div className="csub">אין משימות מקושרות.</div>
               : drawerLinkedTasks.map(t => <div className="ial-doc-fact" key={t.id}><b>{t.title}</b></div>)}
+
+            <div className="ial-doc-sechead">אזור מסוכן</div>
+            <button type="button" className="btn btn-sm btn-ghost" style={{ color: 'var(--err)' }}
+              onClick={() => setConfirmDeleteDoc(true)}>מחיקת המסמך</button>
           </div>
         </div>
       )}
+
+      {/* ── אישור העברה/שכפול ללקוח אחר ──────────────────────────────── */}
+      {confirmTransfer && drawerDoc && (() => {
+        const target = allClients.find(c => c.id === transferPick);
+        const targetName = target ? `${target.firstName} ${target.lastName}`.trim() : 'הלקוח שנבחר';
+        const docName = drawerDoc.description || drawerDoc.fileName;
+        const isMove = confirmTransfer === 'move';
+        return (
+          <div className="modal-backdrop" onClick={() => !transferBusy && setConfirmTransfer(null)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()}>
+              <h3>{isMove ? 'העברת המסמך ללקוח אחר' : 'שכפול המסמך ללקוח אחר'}</h3>
+              <div className="csub" style={{ marginTop: '.5rem', lineHeight: 1.7 }}>
+                {isMove ? (
+                  <>«{docName}» יעבור אל <b>{targetName}</b>.<br />
+                  המסמך <b>לא יישאר</b> אצל {client.firstName} — זו העברה, לא העתקה.</>
+                ) : (
+                  <>ייווצר עותק עצמאי של «{docName}» אצל <b>{targetName}</b>.<br />
+                  המסמך המקורי כאן יישאר ללא שינוי, ועריכה בעותק לא תשפיע עליו.</>
+                )}
+              </div>
+              <div className="foot">
+                <button type="button" className="btn btn-primary" disabled={transferBusy}
+                  onClick={() => runTransfer(confirmTransfer)}>
+                  {transferBusy ? 'מבצע…' : isMove ? 'העבר' : 'שכפל'}
+                </button>
+                <button type="button" className="btn" disabled={transferBusy}
+                  onClick={() => setConfirmTransfer(null)}>ביטול</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── אישור מחיקת מסמך ─────────────────────────────────────────── */}
+      {confirmDeleteDoc && drawerDoc && (
+        <div className="modal-backdrop" onClick={() => !transferBusy && setConfirmDeleteDoc(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3>מחיקת המסמך</h3>
+            <div className="csub" style={{ marginTop: '.5rem', lineHeight: 1.7 }}>
+              «{drawerDoc.description || drawerDoc.fileName}» יימחק לצמיתות, כולל הקובץ עצמו.
+              {drawerLinkedClients.length > 0 && <> הוא מקושר גם ל-{drawerLinkedClients.length} לקוחות נוספים — המחיקה תסיר אותו גם אצלם.</>}
+              <br />לא ניתן לשחזר.
+            </div>
+            {transferError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{transferError}</div>}
+            <div className="foot">
+              <button type="button" className="btn btn-primary" style={{ background: 'var(--err)', borderColor: 'var(--err)' }}
+                disabled={transferBusy} onClick={deleteDrawerDoc}>{transferBusy ? 'מוחק…' : 'מחק לצמיתות'}</button>
+              <button type="button" className="btn" disabled={transferBusy} onClick={() => setConfirmDeleteDoc(false)}>ביטול</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── שינוי שם תיקייה ──────────────────────────────────────────── */}
+      {folderEdit && (
+        <div className="modal-backdrop" onClick={() => !folderBusy && setFolderEdit(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3>שינוי שם התיקייה</h3>
+            <label className="lbl">שם</label>
+            <input className="inp" value={folderEditName} autoFocus
+              onChange={e => setFolderEditName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') void commitFolderRename(); }} />
+            {folderError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{folderError}</div>}
+            <div className="foot">
+              <button type="button" className="btn btn-primary" disabled={folderBusy || !folderEditName.trim()}
+                onClick={commitFolderRename}>{folderBusy ? 'שומר…' : 'שמור'}</button>
+              <button type="button" className="btn" disabled={folderBusy} onClick={() => setFolderEdit(null)}>ביטול</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── אישור מחיקת תיקייה ───────────────────────────────────────── */}
+      {confirmDeleteFolder && (() => {
+        const inside = docs.filter(d => d.folderId === confirmDeleteFolder.id).length;
+        const subFolders = folders.filter(f => f.parentId === confirmDeleteFolder.id).length;
+        return (
+          <div className="modal-backdrop" onClick={() => !folderBusy && setConfirmDeleteFolder(null)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()}>
+              <h3>מחיקת התיקייה</h3>
+              <div className="csub" style={{ marginTop: '.5rem', lineHeight: 1.7 }}>
+                «{confirmDeleteFolder.name}» תימחק.
+                {(inside > 0 || subFolders > 0)
+                  ? <> יש בה {inside > 0 ? `${inside} מסמכים` : ''}{inside > 0 && subFolders > 0 ? ' ו-' : ''}{subFolders > 0 ? `${subFolders} תת-תיקיות` : ''}.
+                      <br />‼ מומלץ להעביר אותם קודם — אחרת הם עלולים להישאר בלי תיקייה.</>
+                  : <> התיקייה ריקה.</>}
+              </div>
+              {folderError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{folderError}</div>}
+              <div className="foot">
+                <button type="button" className="btn btn-primary" style={{ background: 'var(--err)', borderColor: 'var(--err)' }}
+                  disabled={folderBusy} onClick={runDeleteFolder}>{folderBusy ? 'מוחק…' : 'מחק תיקייה'}</button>
+                <button type="button" className="btn" disabled={folderBusy} onClick={() => setConfirmDeleteFolder(null)}>ביטול</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── ניהול תוויות ─────────────────────────────────────────────── */}
       {labelManagerOpen && (
