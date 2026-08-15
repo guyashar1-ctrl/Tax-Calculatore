@@ -76,6 +76,8 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(false);
   const [folderEdit, setFolderEdit] = useState<DocFolder | null>(null);
   const [folderEditName, setFolderEditName] = useState('');
+  const [fileBusy, setFileBusy] = useState(false);
+  const [fileError, setFileError] = useState('');
   const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<DocFolder | null>(null);
   const [folderBusy, setFolderBusy] = useState(false);
   const [folderError, setFolderError] = useState('');
@@ -379,10 +381,12 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     setAddClientPick('');
     setRenameDraft(doc.description || '');
     setTransferPick(''); setTransferError(''); setConfirmTransfer(null); setConfirmDeleteDoc(false);
+    setFileBusy(false); setFileError('');
   }
   function closeDrawer() {
     setDrawerDoc(null); setDrawerLinkedClients([]); setDrawerLinkedTasks([]);
     setTransferPick(''); setTransferError(''); setConfirmTransfer(null); setConfirmDeleteDoc(false);
+    setFileBusy(false); setFileError('');
   }
 
   async function saveDrawerMeta(patch: Partial<Pick<StoredDoc, 'labelId' | 'year' | 'description' | 'folderId'>>) {
@@ -478,13 +482,38 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     setDrawerLinkedClients(prev => prev.filter(id => id !== clientId));
   }
 
-  async function openDocFile(doc: StoredDoc) {
-    const full = await db.getDoc(doc.id);
-    if (!full || full.fileData.byteLength === 0) { openDrawer(doc); return; }
-    const blob = new Blob([full.fileData], { type: doc.fileType || 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    openDrawer(doc);
+  /**
+   * ‼ לחיצה על שורה פותחת את המגירה בלבד — היא מרכז הפעולות של המסמך.
+   * קודם הלחיצה גם הורידה את הקובץ ופתחה אותו בלשונית חדשה, והלשונית
+   * הזו קפצה מעל המגירה שנפתחה מאחוריה — כך שהפעולות (שם/תיקייה/העברה/
+   * שכפול/מחיקה) היו קיימות אך בלתי נראות בפועל. הצפייה בקובץ עברה
+   * לכפתור מפורש בתוך המגירה.
+   */
+  async function openFileInNewTab() {
+    if (!drawerDoc) return;
+    setFileBusy(true); setFileError('');
+    // ‼ הלשונית נפתחת *לפני* ההורדה: window.open אחרי await כבר אינו
+    // נחשב תגובה ישירה ללחיצה, וחוסמי הפופ-אפ חוסמים אותו.
+    const w = window.open('', '_blank');
+    try {
+      const full = await db.getDoc(drawerDoc.id);
+      if (!full || full.fileData.byteLength === 0) {
+        w?.close();
+        setFileError('הקובץ עצמו אינו זמין להורדה.');
+        return;
+      }
+      const blob = new Blob([full.fileData], { type: drawerDoc.fileType || 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      if (w) w.location.href = url;
+      else window.open(url, '_blank');   // אם נחסם — ניסיון ישיר
+      // שחרור הזיכרון אחרי שללשונית הספיק לטעון
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      w?.close();
+      setFileError(e instanceof Error ? e.message : 'פתיחת הקובץ נכשלה.');
+    } finally {
+      setFileBusy(false);
+    }
   }
 
   const yearOptions = useMemo(() => ['כללי', ...AVAILABLE_YEARS.map(String)], []);
@@ -612,8 +641,8 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
             return (
               <div
                 key={d.id} className="docw-row" role="button" tabIndex={0}
-                onClick={() => openDocFile(d)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDocFile(d); } }}
+                onClick={() => openDrawer(d)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(d); } }}
               >
                 <span className="docw-name">
                   {d.description || d.fileName}
@@ -654,7 +683,17 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
             />
             <div className="csub" style={{ marginTop: '.2rem' }}>הקובץ עצמו: {drawerDoc.fileName}</div>
 
-            <div className="ial-doc-fact">
+            {/* צפייה בקובץ — פעולה מפורשת, לא תופעת לוואי של לחיצה על השורה */}
+            <button
+              type="button"
+              className="ui-btn ui-btn-primary"
+              style={{ width: '100%', marginTop: '.8rem' }}
+              disabled={fileBusy}
+              onClick={openFileInNewTab}
+            >{fileBusy ? 'פותח…' : 'פתח את הקובץ'}</button>
+            {fileError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{fileError}</div>}
+
+            <div className="ial-doc-fact" style={{ marginTop: '.8rem' }}>
               <label>תווית</label>
               <select value={drawerDoc.labelId ?? ''} onChange={e => saveDrawerMeta({ labelId: e.target.value })}>
                 {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
