@@ -113,7 +113,7 @@ export default function ActivityTab({ client, clientSteps, events, quotations, c
                 {g.items.map(e => (
                   <div key={e.id} className="act-event">
                     <span className="act-dot" style={{ background: DOT_COLOR[e.cat] }} />
-                    <div>
+                    <div className="act-body">
                       <div className="act-title">
                         {e.title}<span className="act-tag">{CAT_TAG[e.cat]}</span>
                       </div>
