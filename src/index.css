@@ -149,6 +149,18 @@
 
   /* ── רדיוס ──────────────────────────────────────────────────────────── */
   --r-chip: 6px; --r-input: 8px; --r-panel: 12px; --r-modal: 14px;
+
+  /* ── רוחב תוכן · דקדוק אחד לכל המסכים ─────────────────────────────────
+     ‼ שורש תחושת ה"זום החוצה": כל מסך בחר רוחב משלו (משימות 880/960,
+     לקוחות 1040, תיק ללא גבול 1234, מיקוד 760) בתוך כרטיס ה-1280 — מעבר
+     בין מסכים שינה את שני קצוות התוכן ואת "הסקאלה" הנתפסת, בלי שום zoom
+     או transform אמיתי (נמדד: zoom=1, transform=none, dpr=1 בכל שכבה).
+     מעכשיו: עמודת התוכן של כל מסך עבודה ראשי היא --content-max ממורכזת —
+     אותם שני קצוות בכל מסך, בכל מעבר. טופס מיקוד (יישור קו) הוא המידה
+     הצרה היחידה — שכבת התמקדות מכוונת, לא מסך עבודה.
+     ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §17 #1 + מילסטון ההתכנסות. */
+  --content-max: 1040px;
+  --focus-max: 760px;
 }
 
 /* ── ערכה כהה ────────────────────────────────────────────────────────────── */
@@ -234,7 +246,13 @@
   --focus-ring: rgba(154,182,230,.45);
 }
 
-html { direction: rtl; font-size: 16px; }
+html {
+  direction: rtl; font-size: 16px;
+  /* ‼ בלי זה, מסך ארוך (עם פס גלילה) ומסך קצר (בלי) ממורכזים על רוחב שונה
+     ב-7px~ — כל ניווט בין לקוחות↔משימות "קפץ" הצידה. נמדד בפועל: לקוחות
+     left=440, משימות left=433 באותו viewport. השוליים לפס נשמרים תמיד. */
+  scrollbar-gutter: stable;
+}
 
 body {
   font-family: 'Heebo', system-ui, sans-serif;
@@ -2802,7 +2820,11 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
 .cl-metric-zero { color: var(--gray-300); }
 
 /* ─── Client Workspace ──────────────────────────────────────────────────── */
-.cw-root { display: flex; flex-direction: column; gap: 0; }
+/* ‼ תיק הלקוח היה המסך היחיד בלי גבול רוחב — 1234px בזמן שלקוחות ומשימות
+   ישבו על 1040. מעבר לקוחות→תיק "קפץ" בשני הקצוות. אותה מידה, אותם קצוות:
+   הזהות, הטאבים והתוכן חולקים רוחב אחד, ולכן הפריים יציב גם בין מסכים
+   וגם בין חמשת הטאבים. ראה --content-max ב-index.css. */
+.cw-root { display: flex; flex-direction: column; gap: 0; max-width: var(--content-max); margin-inline: auto; width: 100%; }
 
 .cw-header {
   background: var(--card); border: 1px solid var(--gray-200);
