@@ -15,7 +15,8 @@ import {
   isStepOpen, stepAwaitsMe, stepStatusLabel,
 } from '../../types/onboarding';
 import type { Client, RepAuthorityKind, RepresentationStatus } from '../../types';
-import { REP_AUTHORITY_LABELS } from '../../types';
+import type { Quotation } from '../../types/quotations';
+import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS } from '../../types';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
 import { NEXT_ACTION, nextStepForClient } from '../../utils/onboardingNext';
@@ -64,6 +65,12 @@ interface Props {
   prevAccountant?: { name?: string; email?: string; phone?: string };
   /** פתיחת חלון מכתב השחרור. חסר ⇒ הכפתור לא מוצג (מסך הבדיקה). */
   onPrepareReleaseLetter?: (stepId: string) => void;
+  /**
+   * הצעות המחיר של הלקוח — **קריאה בלבד**, מהמקור הקיים (`quotations`), כדי
+   * להציג את אישור ההצעה כאבן-דרך שהושלמה מעל הבקשות. אין כאן מצב חדש:
+   * `approvedAt` על ההצעה הוא כבר האמת היחידה, ולא משוכפל לשום מקום.
+   */
+  quotations?: Quotation[];
   /** מצב בקשת הייצוג בשפת הייצוג ("ממתין למילוי הלקוח") — לא בשפת השלב הגנרי. */
   repStatusLabel?: string;
   /** אותו מצב, גולמי — כדי לגזור ממנו את הפעולה עצמה ולא רק את שמו. */
@@ -228,7 +235,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 
 export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
-  prevAccountant, onPrepareReleaseLetter, repStatusLabel, repStatus, onOpenRepresentation,
+  prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, onOpenRepresentation,
   clientDisplayName, clientEmail, embedded, ballFilter,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
@@ -621,7 +628,10 @@ export default function OnboardingTab({
 
   const visibleSteps = clientSteps.filter(s => matchesBall(s) && onSurface(s));
   const openSteps = visibleSteps.filter(s => isStepOpen(s.status));
-  const doneSteps = visibleSteps.filter(s => !isStepOpen(s.status));
+  /* ‼ הייצוג שהושלם מוצג כאבן-דרך גלויה מעל הבקשות, ולכן הוא יורד מהמקטע
+     המקופל — אחרת אותו דבר היה מופיע פעמיים על אותו מסך. */
+  const doneSteps = visibleSteps.filter(
+    s => !isStepOpen(s.status) && s.stepType !== 'representation');
 
   /**
    * הזזת שורה בסדר התצוגה. מסדרים את כל הפתוחות, לא רק את מה שמסונן.
@@ -1394,11 +1404,63 @@ export default function OnboardingTab({
         const alignDone = alignSteps.length > 0
           && alignSteps.every(s => s.status === 'completed' || s.status === 'verified');
 
+        /* ── אבני-דרך שהובילו לכאן ────────────────────────────────────────
+           ‼ בלעדיהן הרצף מתחיל באמצע: הכרטיס הראשון על המסך הוא "פתיחת
+           חשבון פייפרלס", ואי אפשר להבין ממנו למה בכלל נפתחה קליטה. שתי
+           אבני-דרך בלבד — אישור ההצעה וסגירת בקשת הייצוג — כי הן שתי
+           הנקודות שיוצרות את כל מה שמתחתן.
+           ‼ **אין מצב חדש כאן.** מקורות קיימים בלבד: `quotations.approvedAt`
+           ושלב ה-representation עצמו. שום דבר לא משוכפל ולא נכתב. */
+        const approvedQuotations = (quotations ?? [])
+          .filter(q => q.clientId === clientId && (q.status === 'approved' || !!q.approvedAt))
+          // ההצעה שממנה נולדה ההתקשרות הפעילה גוברת; אחרת האחרונה שאושרה.
+          .sort((a, b) => (a.id === activeEngagement?.quotationId ? 1 : 0) - (b.id === activeEngagement?.quotationId ? 1 : 0)
+            || (a.approvedAt ?? '').localeCompare(b.approvedAt ?? ''));
+        const approvedQuotation = approvedQuotations[approvedQuotations.length - 1];
+
+        const doneRepStep = clientSteps.find(
+          s => s.stepType === 'representation' && (s.status === 'completed' || s.status === 'verified'));
+
+        /** כרטיס אבן-דרך: ✓, שם, ומשפט אחד. בלי פעולות — אין מה לעשות בו. */
+        const milestone = (key: string, title: string, sub: string) => (
+          <div key={key} className="ob-req is-done">
+            <span className="ob-req-dot" aria-hidden="true" />
+            <div className="ob-card is-done">
+              <div className="ob-card-row">
+                <div className="ob-card-main">
+                  <div className="ob-card-title">
+                    <span className="ob-done-mark" aria-hidden="true">✓</span>{title}
+                  </div>
+                  <div className="ob-card-meta">{sub}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
         return (
           <div className="ob-flow">
-            {!repStep && clientRows.length === 0 && (
+            {!repStep && clientRows.length === 0 && !approvedQuotation && !doneRepStep && (
               <div className="cw-empty">אין בקשות פתוחות כרגע.</div>
             )}
+
+            {approvedQuotation && milestone('ms-quotation', 'הצעת מחיר',
+              [
+                'אושרה',
+                approvedQuotation.approvedAt ? formatDate(approvedQuotation.approvedAt, 'list') : null,
+                approvedQuotation.approvalSignerName || null,
+              ].filter(Boolean).join(' · '))}
+
+            {/* ‼ "הושלמה" ולא repStatusLabel: מצב בקשת הייצוג ממשיך לזוז אחרי
+                שהשלב נסגר, ובפועל ראיתי כרטיס עם ✓ שכתוב עליו "ממתין למילוי
+                הלקוח". רק מצב שהוא באמת אחרי ההשלמה מתווסף כזנב. */}
+            {doneRepStep && milestone('ms-representation', 'בקשת ייצוג',
+              [
+                'הושלמה',
+                doneRepStep.completedAt ? formatDate(doneRepStep.completedAt, 'list') : null,
+                repStatus === 'awaiting_authorities' || repStatus === 'active'
+                  ? REPRESENTATION_STATUS_LABELS[repStatus] : null,
+              ].filter(Boolean).join(' · '))}
 
             {repStep && flowItem(repStep, renderStep(repStep))}
             {clientRows.map(row => flowItem(row.primary, renderRow(row)))}

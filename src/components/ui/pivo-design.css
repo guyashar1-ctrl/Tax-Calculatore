@@ -2123,6 +2123,22 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   transition: background .3s ease;
 }
 .ob-card.is-highlight { background: var(--surface-2); }
+
+/* ── אבני-דרך שהושלמו ─────────────────────────────────────────────────────
+   ‼ אישור ההצעה ובקשת הייצוג נשארים גלויים מעל הבקשות הפעילות, כי בלעדיהם
+   הרצף מתחיל באמצע ("למה בכלל יש פה פייפרלס?"). הם לא "בקשות שהושלמו"
+   רגילות — הם הדרך שהובילה לכאן, ולכן הם לא נבלעים במקטע המקופל.
+   ‼ שקטים בכוונה: בלי רקע, בלי צל, בלי פעולות — נוכחות, לא משיכת עין. */
+.ob-card.is-done {
+  background: transparent; box-shadow: none;
+  border-color: var(--hairline-1); padding: 12px 16px;
+}
+.ob-card.is-done .ob-card-title { font-weight: 700; color: var(--ink-3); }
+.ob-card.is-done .ob-card-meta { margin-top: 4px; }
+.ob-done-mark { color: var(--ok, #187a53); font-weight: 700; }
+.ob-req.is-done > .ob-req-dot {
+  background: var(--ok, #187a53); box-shadow: 0 0 0 1px var(--ok, #187a53);
+}
 /* ‼ אין מסגרת אדומה על כרטיס. "דורש טיפול" נאמר בנקודת פס הזמן ובשורת
    הפרטים — מסגרת צבעונית על כרטיס שלם צועקת חזק יותר מהכותרת שבתוכו,
    וזה בדיוק מה שהמסך הזה בא להוריד. */

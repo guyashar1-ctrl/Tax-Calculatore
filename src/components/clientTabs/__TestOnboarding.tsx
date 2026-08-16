@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import type { Client } from '../../types';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
+import type { Quotation } from '../../types/quotations';
 import OnboardingTab from './OnboardingTab';
 import ReleaseLetterDialog from '../quotations/ReleaseLetterDialog';
 import OnboardingGrid from '../OnboardingGrid';
@@ -48,6 +49,19 @@ const ENGAGEMENTS: Engagement[] = [{
 const ENGAGEMENTS_UNPUBLISHED: Engagement[] = [
   { ...ENGAGEMENTS[0], processPublishedAt: undefined },
 ];
+
+/* ההצעה שממנה נולדה ההתקשרות — המקור לאבן-הדרך "הצעת מחיר · אושרה".
+   רק השדות שהמסך באמת קורא; שאר ההצעה אינה רלוונטית לבדיקה הזאת. */
+const QUOTATIONS = [{
+  id: 'fixture-quote',
+  clientId: CLIENT_ID,
+  quotationNumber: 'Q-2026-018',
+  revision: 1,
+  status: 'approved',
+  items: [], futureServices: [], vatRate: 18, events: [],
+  approvedAt: '2026-08-01T08:40:00Z',
+  approvalSignerName: 'שרון מזרחי',
+} as unknown as Quotation];
 
 function step(p: Partial<OnboardingStep> & Pick<OnboardingStep, 'id' | 'stepType' | 'track' | 'scope' | 'status' | 'ball'>): OnboardingStep {
   return {
@@ -200,6 +214,15 @@ export default function TestOnboarding() {
   // המסך המאוחד רץ תמיד ב-embedded (כמו בייצור, בתוך דף המסע). מצב לא-מוטבע
   // הוא מסך ישן ונפרד (ClientWorkspace.tsx) שלא נגעתי בו — נשאר לבדיקת רגרסיה.
   const [embedded, setEmbedded] = useState(true);
+  /* ‼ שני מצבי הייצוג — פתוח (כרטיס פעיל) מול הושלם (אבן-דרך שקטה מעל
+     פייפרלס). המתג הזה הוא הדרך היחידה לראות את שניהם על אותה פיקסטורה. */
+  const [repDone, setRepDone] = useState(false);
+  const steps = repDone
+    ? STEPS.map(s => (s.stepType === 'representation'
+        ? { ...s, status: 'completed' as const, ball: 'me' as const,
+            completedAt: '2026-08-04T11:00:00Z' }
+        : s))
+    : STEPS;
   return (
     <div style={{ padding: '1.5rem', maxWidth: 980, margin: '0 auto' }} dir="rtl">
       <h2 style={{ marginBottom: '.3rem' }}>בדיקת לשונית הקליטה — נתונים מדומים</h2>
@@ -219,6 +242,10 @@ export default function TestOnboarding() {
           onClick={() => setEmbedded(v => !v)}>
           {embedded ? 'עבור למסך הישן (לא מוטבע)' : 'חזרה למסך המאוחד (מוטבע)'}
         </button>
+        <button type="button" className="btn btn-sm btn-secondary"
+          onClick={() => setRepDone(v => !v)}>
+          {repDone ? 'החזר את הייצוג למצב פתוח' : 'סמן את הייצוג כהושלם'}
+        </button>
       </div>
       <OnboardingTab
         clientId={CLIENT_ID}
@@ -228,7 +255,8 @@ export default function TestOnboarding() {
         clientEmail="sharon.m@example.invalid"
         embedded={embedded}
         engagements={published ? ENGAGEMENTS : ENGAGEMENTS_UNPUBLISHED}
-        steps={STEPS}
+        steps={steps}
+        quotations={QUOTATIONS}
         events={EVENTS}
         advance={async (stepId, action, payload) => {
           setMsg(`advance(${stepId}, ${action}, ${JSON.stringify(payload ?? {})})`);

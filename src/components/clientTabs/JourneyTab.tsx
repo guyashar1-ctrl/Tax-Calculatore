@@ -342,6 +342,9 @@ export default function JourneyTab(p: Props) {
             phone: p.client.prevAccountantPhone,
           }}
           onPrepareReleaseLetter={p.onPrepareReleaseLetter}
+          /* ‼ אותו מערך שכבר נטען לדף — לא שאילתה נוספת. משמש רק לקריאת
+             approvedAt לצורך אבן-הדרך "הצעת מחיר · אושרה". */
+          quotations={clientQuotations}
           repStatusLabel={p.repStatusLabel}
           repStatus={p.repStatus}
           onOpenRepresentation={p.onOpenRepresentation}
