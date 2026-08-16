@@ -148,7 +148,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
           {presetType && (
             existing.has(presetType) ? (
               <div className="cw-empty">
-                כבר קיימת בקשת {STEP_TYPE_LABELS[presetType]} פתוחה ללקוח. אפשר לנהל אותה מלשונית «תהליך».
+                כבר קיימת בקשת {STEP_TYPE_LABELS[presetType]} פתוחה ללקוח. אפשר לנהל אותה מלשונית «בקשות».
               </div>
             ) : (
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
@@ -364,7 +364,7 @@ function friendly(dbMessage?: string): string {
 
 const ERRORS: Record<string, string> = {
   forbidden: 'אין הרשאה ללקוח הזה.',
-  step_type_exists: 'כבר קיימת בקשה מהסוג הזה אצל הלקוח. אפשר לערוך אותה מלשונית «תהליך».',
+  step_type_exists: 'כבר קיימת בקשה מהסוג הזה אצל הלקוח. אפשר לערוך אותה מלשונית «בקשות».',
   client_not_found: 'הלקוח לא נמצא.',
   step_type_not_allowed: 'סוג הבקשה הזה לא נוצר ידנית.',
   no_requirements: 'בקשה חופשית חייבת לפחות דרישה אחת.',

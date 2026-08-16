@@ -260,7 +260,7 @@ interface FocusProps {
   advance: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
   onClientPersisted: (c: Client) => void;
   openingCallStep?: OnboardingStep;
-  /** "חזרה לקליטה" / "חזרה להקמת התיק" / "חזרה לתהליך" — לפי הקשר מחזור-החיים (נגזר ב-OnboardingTab). */
+  /** "חזרה לבקשות" — יעד אחד, שם אחד, בלי תלות בשלב החיים (נגזר ב-OnboardingTab). */
   returnLabel: string;
   onClose: () => void;
   onAdvanceInstitution: (nextKey: InstitutionKey | null) => void;

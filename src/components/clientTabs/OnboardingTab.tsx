@@ -553,12 +553,10 @@ export default function OnboardingTab({
     const focusStep = instStepsAll.find(s => s.payload.institution === focusedInstitutionKey);
     if (focusStep) {
       const openingCallStepForFocus = clientSteps.find(s => s.stepType === 'opening_call');
-      // ‼ שלושה הקשרי מחזור-חיים, שלושה ניסוחי חזרה (הכרעת Product): קליטה
-      // חדשה, לקוח ותיק שמעולם לא הייתה לו התקשרות ("הקמת תיק"), ולקוח פעיל
-      // שכבר עבר את זה ("תהליך"). לא נגזר מ-instSteps — קיים בלי קשר למה שהושלם.
-      const returnLabel = client.lifecycleStage === 'onboarding' ? 'חזרה לקליטה'
-        : clientEngagements.length === 0 ? 'חזרה להקמת התיק'
-        : 'חזרה לתהליך';
+      // ‼ ניסוח חזרה אחד לכל שלב חיים. קודם היו שלושה ("קליטה"/"הקמת התיק"/
+      // "תהליך") — אבל היעד הוא אותו מסך בדיוק, ושם שמשתנה לפי שלב החיים
+      // מלמד את גיא שיש כאן שלושה מקומות. יש אחד: הבקשות.
+      const returnLabel = 'חזרה לבקשות';
       return (
         <div className="cw-tabpanel">
           <InstitutionFocus
@@ -1245,11 +1243,11 @@ export default function OnboardingTab({
             מה הלקוח רואה
           </button>
           <span style={{ flex: 1 }} />
-          {/* ‼ מסך אחד קבוע (המודל המאושר): "עריכת תהליך" לא עוברת למסך אחר —
-              היא חושפת + בקשה/תבניות ואת קומפוזר ההוספה, על אותו מסך בדיוק. */}
+          {/* ‼ מסך אחד קבוע (המודל המאושר): "עריכת הבקשות" לא עוברת למסך אחר —
+              היא מעלה את חצי הסידור אל הכרטיסים, על אותו מסך בדיוק. */}
           <button type="button" className={`btn btn-sm ${editing ? 'btn-primary' : 'btn-ghost'}`}
             onClick={() => setEditing(v => !v)}>
-            {editing ? 'סיום עריכה' : 'עריכת תהליך'}
+            {editing ? 'סיום עריכה' : 'עריכת הבקשות'}
           </button>
           {activeEngagement?.status === 'onboarding' && (
             <button type="button" className="btn btn-sm btn-ghost" disabled={closing}

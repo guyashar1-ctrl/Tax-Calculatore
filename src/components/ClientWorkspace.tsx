@@ -50,7 +50,7 @@ export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding' | '
 const TABS: { id: TabId; label: string }[] = [
   { id: 'overview',   label: 'מרכז שליטה' },
   { id: 'dossier',    label: 'התיק' },
-  { id: 'onboarding', label: 'קליטה' },
+  { id: 'onboarding', label: 'בקשות' },   // אותו משטח כמו journey — שם אחד לשניהם
   { id: 'docs',       label: 'מסמכים' },
   { id: 'tasks',      label: 'משימות' },
 ];
@@ -66,9 +66,11 @@ const TABS: { id: TabId; label: string }[] = [
 //   משימות בתוך הכרטיס פיצלה את תור העבודה לשניים. במקומה קישור הקשרי
 //   שפותח את המשימות מסוננות ללקוח הזה.
 //
-// "המסע" נקראת עכשיו "תהליך" — אותו מסך, שם שאומר מה קורה עכשיו ולא מטאפורה.
+// ‼ הלשונית נקראת "בקשות" (ולא "המסע"/"תהליך"). זה משטח קבוע לכל אורך הקשר
+// עם הלקוח — הבקשות ממשיכות להיווצר גם שנה אחרי הקליטה — ו"תהליך" תיאר משהו
+// שמתחיל ונגמר. השם הוא האובייקט שעל המסך: בקשה.
 const JOURNEY_TABS: { id: TabId; label: string }[] = [
-  { id: 'journey',  label: 'תהליך' },
+  { id: 'journey',  label: 'בקשות' },
   { id: 'taxfile',  label: 'תיק מס' },
   { id: 'docs',     label: 'מסמכים' },
   { id: 'pay',      label: 'הסכם ותשלומים' },
