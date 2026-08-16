@@ -352,6 +352,10 @@ export interface OnboardingStep {
   publishedAt?: string | null;
   /** עריכות ממתינות לבקשה שפורסמה — הלקוח רואה את payload עד הפרסום הבא. */
   draftPayload?: StepPayload | null;
+  /** סדר חדש שממתין לפרסום (מיגרציה 101). null = אין שינוי סידור ממתין. */
+  pendingSortOrder?: number | null;
+  /** הבקשה תבוטל בפרסום הבא (מיגרציה 101). */
+  pendingCancel?: boolean;
   needsAttention: boolean;
   payload: StepPayload;
   completionMethod: StepCompletionMethod;

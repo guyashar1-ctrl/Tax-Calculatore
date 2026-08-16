@@ -176,12 +176,12 @@ export default function QuotationsPipeline({
 
   const reminderFailures = quotations.filter(q => q.autoReminderError && ['sent', 'viewed'].includes(q.status));
 
-  // הצעות שאושרו, הייצוג נפתח — אבל מייל קישור הייצוג לא יצא ללקוח. בלי
-  // ההתראה הזו הרו"ח חושב שהכל אוטומטי, והלקוח מחכה לקישור שלא הגיע.
-  // הצעה שנצמדה לתהליך ייצוג קיים אינה כשל: אין ללקוח מה להשלים, ובמכוון לא
-  // יצא אליו מייל. היא מוצגת בנפרד — אחרת היא נראית כתקלה שאין לה תיקון.
+  // ‼ אין יותר מייל אוטומטי מ-approve_quotation (הכרעת גיא, מיגרציה 102) —
+  // הלקוח עובר ישר מהדף לטופס הייצוג, ולכן !representationSentAt הוא עכשיו
+  // המצב הרגיל של כל לקוח, לא כשל. מה שעדיין כן כשל אמיתי: ניסיון שליחה
+  // (למשל "שלח מייל שוב" מכרטיס הלקוח) שנכשל בפועל — representationError.
   const repEmailFailures = quotations.filter(q =>
-    q.status === 'approved' && q.representationRequestId && !q.representationSentAt
+    q.status === 'approved' && q.representationRequestId && !!q.representationError
     && !reusedRepresentation(q));
   const repReused = quotations.filter(q => q.status === 'approved' && reusedRepresentation(q));
 
@@ -298,16 +298,11 @@ export default function QuotationsPipeline({
 
       {repEmailFailures.length > 0 && (
         <div className="alert alert-warning" style={{ marginBottom: 12, flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
-          <div style={{ fontWeight: 600 }}>ב־{repEmailFailures.length} הצעות הייצוג נפתח אך מייל הקישור טרם יצא ללקוח:</div>
+          <div style={{ fontWeight: 600 }}>ב־{repEmailFailures.length} הצעות ניסיון שליחת מייל ייצוג נכשל:</div>
           {repEmailFailures.map(q => (
             <div key={q.id} style={{ fontSize: 12.5 }}>
-              {/* ‼ הטקסט הקודם הבטיח "המערכת מנסה שוב אוטומטית בכל כניסה" —
-                  זה תיאר את אפקט 24 השעות שרץ בדפדפן וירד בהכרעת D1. השליחה
-                  היום יוצאת מהשרת פעם אחת עם אישור ההצעה; אם היא נכשלה, אין
-                  ניסיון חוזר אוטומטי, ומי שלא ישלח ידנית — הלקוח לא יקבל
-                  קישור. הבטחה שאינה מתקיימת גרועה מהיעדר הבטחה. */}
               • {q.quotationNumber} ({recipientName(q)}){q.representationError ? ` — ${q.representationError}` : ''}.
-              אין ניסיון חוזר אוטומטי — יש לשלוח מכרטיס הלקוח.
+              אין ניסיון חוזר אוטומטי — יש לשלוח שוב מכרטיס הלקוח.
             </div>
           ))}
         </div>

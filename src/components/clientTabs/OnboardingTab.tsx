@@ -33,16 +33,16 @@ import { EMAIL_STATUS_LABEL } from '../../types/emailActivity';
 import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import OnboardingJourneyMap from './OnboardingJourneyMap';
-import OnboardingProcessBuilder from './OnboardingProcessBuilder';
 import Modal from '../ui/Modal';
 import AddRequestDialog from './AddRequestDialog';
 import JourneyTemplatesDialog from './JourneyTemplatesDialog';
 import SendPortalDialog from './SendPortalDialog';
 import ClientPagePreviewDialog from './ClientPagePreviewDialog';
-import CaseStageSections from './CaseStageSections';
-import type { JourneyStageRow } from './CaseStageSections';
+import type { PortalPreviewMode } from './ClientPagePreviewDialog';
+import PortalPreviewPanel from './PortalPreviewPanel';
 import PublishCasePrompt from './PublishCasePrompt';
 import InlineComposer from './InlineComposer';
+import { buildClientFacingRows, CLIENT_FACING_TYPES, type ClientFacingRow } from '../../utils/clientFacingRows';
 
 interface Props {
   clientId: string;
@@ -213,8 +213,6 @@ function monthLabel(v?: string): string {
   return idx >= 0 && idx < 12 ? `${MONTH_NAMES[idx]} ${m[1]}` : String(v);
 }
 
-const isHttps = (v: string) => v.trim().startsWith('https://');
-
 /** איך גובים מלקוח שאינו בפייפרלס. רשימה סגורה — טקסט חופשי כאן היה הופך
  *  את השדה לבלתי ניתן לסינון בעוד שנה. */
 const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי', 'העברה בנקאית חודשית', 'המחאות', 'אחר'];
@@ -233,7 +231,7 @@ export default function OnboardingTab({
   // התצוגה המקדימה נטענת מהנוסח הנגזר בשרת, בדיוק כמו עד היום.
   const [emailDialog, setEmailDialog] = useState<{
     stepId: string;
-    kind: 'paperless_invite' | 'retainer_request' | 'step_reminder' | 'intake_questionnaire';
+    kind: 'paperless_invite' | 'step_reminder' | 'intake_questionnaire';
     heading: string;
     subject?: string;
     body?: string;
@@ -470,8 +468,6 @@ export default function OnboardingTab({
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
-  /** שלבי-העל של התיק (journey_stages). ריק ⇒ דליי ברירת-המחדל בלבד. */
-  const [stageRows, setStageRows] = useState<JourneyStageRow[]>([]);
   /** קשתות התלות (מיגרציה 78): שלב ← כל הוריו. */
   const [depEdges, setDepEdges] = useState<{ stepId: string; parentId: string }[]>([]);
 
@@ -505,21 +501,11 @@ export default function OnboardingTab({
   const [publishPromptOpen, setPublishPromptOpen] = useState(false);
   /** עריכה בתוך השורה — אותו קומפוזר של ההוספה, מלא מראש. */
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!embedded) return;
-    let cancelled = false;
-    supabase.from('journey_stages')
-      .select('id, title, sort_order')
-      .eq('client_id', clientId)
-      .order('sort_order')
-      .then(({ data }) => {
-        if (cancelled) return;
-        setStageRows((data ?? []).map(r => ({ id: r.id, title: r.title, sortOrder: r.sort_order ?? 0 })));
-      });
-    return () => { cancelled = true; };
-    // steps כטריגר: שיוך/יצירת שלב-על מגיעים עם אותו refresh של הבקשות.
-  }, [clientId, embedded, steps]);
+  /** מצב עריכה — אותו מסך, פקדי ↑↓⋯ ותצורה נחשפים; במצב רגיל רק פעולה אחת. */
+  const [editing, setEditing] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  /** מתג הפאנל המוטבע: חי (ברירת מחדל, אמין) מול אחרי עדכון. */
+  const [sidebarPreviewMode, setSidebarPreviewMode] = useState<PortalPreviewMode>('live');
   /** חלון הסגירה — נפתח רק כשהשרת חוסם, ונסגר איתו. */
   const [closeGate, setCloseGate] = useState<{ steps: OnboardingStep[] } | null>(null);
 
@@ -667,7 +653,12 @@ export default function OnboardingTab({
   const openSteps = visibleSteps.filter(s => isStepOpen(s.status));
   const doneSteps = visibleSteps.filter(s => !isStepOpen(s.status));
 
-  /** הזזת שורה בסדר התצוגה. מסדרים את כל הפתוחות, לא רק את מה שמסונן. */
+  /**
+   * הזזת שורה בסדר התצוגה. מסדרים את כל הפתוחות, לא רק את מה שמסונן.
+   * ‼ כותב ל-pending_sort_order (מיגרציה 101), לא ל-sort_order החי — הסדר
+   * הישן ממשיך להיות מה שהלקוח רואה עד "עדכן את דף הלקוח". reorder_onboarding_steps
+   * הישנה (כתיבה מיידית) נשארת קיימת ולא בשימוש.
+   */
   async function moveRow(id: string, dir: -1 | 1) {
     const list = clientSteps.filter(s => isStepOpen(s.status)).map(s => s.id);
     const i = list.indexOf(id);
@@ -675,10 +666,38 @@ export default function OnboardingTab({
     if (i < 0 || j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j], list[i]];
     setOrdering(true);
-    const { error: rpcError } = await supabase.rpc('reorder_onboarding_steps', {
+    const { error: rpcError } = await supabase.rpc('stage_onboarding_steps_order', {
       p_client_id: clientId, p_ids: list,
     });
     setOrdering(false);
+    if (rpcError) { setError(rpcError.message); return; }
+    refresh?.();
+  }
+
+  /**
+   * "הסר" מ-⋯. שלב שכבר פורסם מסומן pending_cancel (ממתין לפרסום הבא —
+   * מיגרציה 101); שלב טיוטה שמעולם לא פורסם מבוטל מיד (advance('cancel'),
+   * כמו היום) — שום לקוח לא רואה אותו ממילא, ואין מה לגונן עליו.
+   */
+  async function removeRow(step: OnboardingStep) {
+    if (step.publishedAt == null) {
+      void run(step, 'cancel', { note: 'הוסר לפני שפורסם' });
+      return;
+    }
+    setBusyStepId(step.id);
+    const { error: rpcError } = await supabase.rpc('set_onboarding_step_pending_cancel', {
+      p_step_id: step.id, p_pending: !step.pendingCancel,
+    });
+    setBusyStepId(null);
+    if (rpcError) { setError(rpcError.message); return; }
+    refresh?.();
+  }
+
+  /** "בטל שינויים" — מחזיר סידור/הסרה/עריכות ממתינים למצב שלפני העריכה. */
+  async function discardChanges() {
+    setDiscarding(true);
+    const { error: rpcError } = await supabase.rpc('discard_case_changes', { p_client_id: clientId });
+    setDiscarding(false);
     if (rpcError) { setError(rpcError.message); return; }
     refresh?.();
   }
@@ -735,27 +754,7 @@ export default function OnboardingTab({
     refresh?.();
   }
 
-  // ‼ אותו מסך, שני מצבים. כל עוד התהליך לא נפתח ללקוח — מצב בנייה: מרכיבים
-  // מה מבקשים ממנו. אחרי הפתיחה — מצב ניהול. אין כאן שני מסכים שסותרים.
-  if (activeEngagement && !activeEngagement.processPublishedAt) {
-    return (
-      <div className="cw-tabpanel">
-        <OnboardingProcessBuilder
-          clientName={clientDisplayName ?? 'הלקוח'}
-          clientEmail={clientEmail}
-          engagement={activeEngagement}
-          steps={steps.filter(s => s.clientId === clientId)}
-          advance={advance}
-          refresh={refresh}
-          repStatus={repStatus}
-          onOpenRepresentation={onOpenRepresentation}
-          prevAccountantEmail={prevAccountant?.email}
-        />
-      </div>
-    );
-  }
-
-  /** רינדור בקשה אחת — משותף לרשימה השטוחה (המסך הישן) ולשלבי-העל של מרכז התיק. */
+  /** רינדור בקשה אחת — משותף לרשימה השטוחה (המסך הישן) ולשורות "מה אני צריך מהלקוח"/"העבודה שלי". */
   const renderStepInner = (step: OnboardingStep) => {
               // עריכה בתוך השורה — הקומפוזר מחליף את השורה עצמה. אין מודל.
               if (editingStepId === step.id && step.stepType === 'custom_request') {
@@ -847,6 +846,19 @@ export default function OnboardingTab({
                           <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למטה"
                             onClick={() => void moveRow(step.id, 1)}>↓</button>
                         </>
+                      )}
+                      {/* ‼ "הסר" — רק על בקשות פונות-ללקוח (לא ייצוג, לא עבודה
+                          פנימית — שם "דלג"/"חסום" כבר מספיקים). בקשה שפורסמה
+                          מסומנת pending_cancel וממשיכה להופיע ללקוח עד הפרסום
+                          הבא (מיגרציה 101); טיוטה שמעולם לא פורסמה מבוטלת מיד. */}
+                      {CLIENT_FACING_TYPES.includes(step.stepType) && (
+                        <button type="button" className="btn btn-sm btn-ghost" disabled={busy}
+                          onClick={() => { setMenuStepId(null); void removeRow(step); }}
+                          title={step.publishedAt == null ? 'הבקשה עוד לא פורסמה — ההסרה מיידית'
+                            : step.pendingCancel ? 'ההסרה ממתינה לפרסום — לחיצה תבטל אותה'
+                            : 'הבקשה תוסר מדף הלקוח בעדכון הבא'}>
+                          {step.pendingCancel ? 'בטל הסרה' : 'הסר'}
+                        </button>
                       )}
                       <button type="button" className="btn btn-sm btn-ghost"
                         onClick={() => { setMenuStepId(null); setTemplatesOpen(true); }}
@@ -994,9 +1006,6 @@ export default function OnboardingTab({
                     highlight={highlightStepId === step.id}
                     hasConnectionStep={!!connectionStep}
                     onGotoPaperless={() => connectionStep && gotoStep(connectionStep.id)}
-                    onPrepareEmail={() => setEmailDialog({
-                      stepId: step.id, kind: 'retainer_request', heading: 'מייל הרשאת תשלום',
-                    })}
                     onRun={(action, payload) => void run(step, action, payload)}
                     menu={menu}
                   />
@@ -1230,6 +1239,12 @@ export default function OnboardingTab({
             מה הלקוח רואה
           </button>
           <span style={{ flex: 1 }} />
+          {/* ‼ מסך אחד קבוע (המודל המאושר): "עריכת תהליך" לא עוברת למסך אחר —
+              היא חושפת + בקשה/תבניות ואת קומפוזר ההוספה, על אותו מסך בדיוק. */}
+          <button type="button" className={`btn btn-sm ${editing ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setEditing(v => !v)}>
+            {editing ? 'סיום עריכה' : 'עריכת תהליך'}
+          </button>
           {activeEngagement?.status === 'onboarding' && (
             <button type="button" className="btn btn-sm btn-ghost" disabled={closing}
               onClick={() => void closeOnboarding(false)}
@@ -1278,14 +1293,26 @@ export default function OnboardingTab({
 
       {loading && clientSteps.length === 0 && <div className="cw-empty">טוען…</div>}
 
+      {/* ── גריד דו-טורי (המודל המאושר): מקטעי התהליך מימין, ופאנל "מה הלקוח
+          רואה" מוטבע וקבוע לצד — לא דיאלוג שצריך לפתוח כדי לדעת. מתקפל לטור
+          אחד במסך צר (ob-builder-grid, נבנתה במקור לבונה התהליך הישן). */}
+      {embedded && (
+      <div className="ob-builder-grid">
+      <div style={{ display: 'grid', gap: '.7rem' }}>
+
       {/* ── פס הפרסום: "יש שינויים שלא פורסמו" (הכרעת D4) ──────────────────
           מופיע רק כשיש טיוטות או עריכות ממתינות. הפרסום לא שולח מייל —
           השאלה על המייל נשאלת מיד אחריו, בנפרד. */}
-      {embedded && (() => {
+      {(() => {
         // טיוטה = published_at ריק במסד או המראה הישנה ב-payload; undefined
         // (נתוני בדיקה ישנים) אינו טיוטה. עריכה ממתינה = draft_payload מלא.
+        // ‼ מיגרציה 101 מוסיפה סידור והסרה ממתינים לאותה רשימה — "עריכה אינה
+        // פרסום" חל על כל שינוי, לא רק על ניסוח. הפס נשאר גלוי גם מחוץ למצב
+        // עריכה (סטייה מכוונת מהפרוטוטייפ): עדיף שגיא ידע שיש טיוטות תלויות
+        // גם אם יצא מ"עריכת תהליך" בטעות.
         const dirty = clientSteps.filter(s =>
-          s.publishedAt === null || s.payload.published === false || s.draftPayload);
+          s.publishedAt === null || s.payload.published === false || s.draftPayload
+          || s.pendingCancel || s.pendingSortOrder != null);
         if (dirty.length === 0) return null;
         return (
           <div style={{
@@ -1303,6 +1330,10 @@ export default function OnboardingTab({
             <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPreviewOpen(true)}>
               תצוגה מקדימה
             </button>
+            <button type="button" className="btn btn-sm btn-ghost" disabled={discarding}
+              onClick={() => void discardChanges()}>
+              {discarding ? 'מבטל…' : 'בטל שינויים'}
+            </button>
             <button type="button" className="btn btn-sm btn-primary" disabled={publishingCase}
               onClick={() => void publishCase()}>
               {publishingCase ? 'מפרסם…' : 'עדכן את דף הלקוח'}
@@ -1314,7 +1345,7 @@ export default function OnboardingTab({
       {/* ── יישור קו מול הרשויות: הקמה / ריצה מחדש ──────────────────────────
           ‼ מוצג רק כשאין כבר כרטיס קבוצה פעיל ברשימה למטה (renderStep) —
           לפני שיש שלבים בכלל, או אחרי ששלושתם הושלמו ("בצע יישור קו מחדש"). */}
-      {embedded && (() => {
+      {(() => {
         const instSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
         const allDone = instSteps.length === 3
           && instSteps.every(s => s.status === 'completed' || s.status === 'verified');
@@ -1341,51 +1372,85 @@ export default function OnboardingTab({
         );
       })()}
 
-      {/* ── מרכז התיק: היררכיית שלבי-על (המודל המאושר) ─────────────────────
-          מוטמע בדף המסע בלבד; המסך הישן (מאחורי journeyUi=false) נשאר רשימה
-          שטוחה כדי שמתג החירום יחזיר בדיוק את מה שהיה. */}
-      {/* ‼ רק מה שעדיין פתוח נכנס לאזור העבודה. בקשה שהושלמה יורדת למקטע
-          המקופל למטה — היא לא נמחקת ולא נעלמת, אבל היא גם לא תופסת שורה
-          במסך שאמור לענות על "מה פתוח עכשיו". שלב-על שכל חבריו הושלמו יורד
-          איתן (ראה CaseStageSections), אחרת נשארת כותרת ריקה. */}
-      {embedded && (
-        <CaseStageSections
-          steps={clientSteps}
-          visibleSteps={visibleSteps.filter(s => isStepOpen(s.status))}
-          stages={stageRows}
-          renderStep={renderStep}
-          ballFilterActive={false}
-          clientBucketTitle={activeEngagement?.status === 'onboarding' ? 'קליטת הלקוח' : 'בקשות'}
-          composer={(stageId, close) => (
-            <InlineComposer
-              clientId={clientId}
-              stageId={stageId}
-              existingSteps={clientSteps}
-              prevAccountant={prevAccountant}
-              onCancel={close}
-              onSaved={created => {
-                close();
-                setOptimisticSteps(prev => [...prev, created]);
-                refresh?.();
-              }}
-            />
-          )}
-          headActions={<>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>
-              תבניות
-            </button>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>
-              + בקשה
-            </button>
-          </>}
-        />
-      )}
+      {/* ── מסך "תהליך" המאוחד: שני מקטעים שטוחים (המודל המאושר) ────────────
+          "מה אני צריך מהלקוח" (ייצוג, פייפרלס, מסמכים, רו"ח קודם, הרשאת
+          תשלום, בקשות חופשיות/שאלון) ו"העבודה שלי" (קמ"ל, הקמה פנימית,
+          ביקורת חודש ראשון, יישור קו, שיחת פתיחה, פתיחת תיקים). אותו מסך,
+          לפני שליחה ואחריה — אין יותר מעבר למסך "בונה" נפרד. שרשראות
+          (פייפרלס, רו"ח קודם) ממוזגות לשורה אחת דרך buildClientFacingRows. */}
+      {(() => {
+        const openVisible = visibleSteps.filter(s => isStepOpen(s.status));
+        const repStep = openVisible.find(s => s.stepType === 'representation');
+        const clientRows = buildClientFacingRows(openVisible);
+        const officeStepsList = openVisible.filter(s =>
+          s.stepType !== 'representation' && !CLIENT_FACING_TYPES.includes(s.stepType));
+
+        const CHAIN_LABEL: Record<'paperless' | 'prevAccountant', string> = {
+          paperless: 'חיבור לפייפרלס',
+          prevAccountant: 'מעבר מרו״ח קודם',
+        };
+
+        const renderClientRow = (row: ClientFacingRow) => {
+          if (row.members.length <= 1) return renderStep(row.members[0]);
+          // ‼ שרשרת: כל חבר הוא הכרטיס הייעודי המלא שלו (בלי כפילות — לא
+          // עוטפים אותו בשורה חיצונית סינתטית שנייה). הפס בצד וכותרת קטנה
+          // מקבצים אותם חזותית כמושג אחד, בלי מכונת פתיחה/סגירה משלהם.
+          return (
+            <div key={row.key} style={{
+              borderInlineStart: '3px solid var(--hairline-2)', paddingInlineStart: '.6rem',
+              marginTop: '.3rem',
+            }}>
+              <div style={{ fontSize: 'var(--fs-12)', fontWeight: 600, color: 'var(--ink-4)', margin: '.3rem 0 .1rem' }}>
+                {CHAIN_LABEL[row.kind as 'paperless' | 'prevAccountant']}
+              </div>
+              {row.members.map(renderStep)}
+            </div>
+          );
+        };
+
+        return (
+          <>
+            <div className="cw-section">
+              <div className="cw-section-head">
+                <span>מה אני צריך מהלקוח</span>
+                {editing && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>
+                      תבניות
+                    </button>
+                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>
+                      + בקשה
+                    </button>
+                  </span>
+                )}
+              </div>
+              {!repStep && clientRows.length === 0 && (
+                <div className="cw-empty">אין בקשות פתוחות ללקוח כרגע.</div>
+              )}
+              {repStep && renderStep(repStep)}
+              {clientRows.map(renderClientRow)}
+            </div>
+
+            {officeStepsList.length > 0 && (
+              <div className="cw-section">
+                <div className="cw-section-head">
+                  <span>העבודה שלי</span>
+                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
+                    לא מופיע בדף הלקוח
+                  </span>
+                </div>
+                {officeStepsList.map(renderStep)}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* ── בקשות שהושלמו — מקופל, בתחתית ────────────────────────────────
           ‼ "הושלם" אינו מצב שצריך לנהל, ולכן הוא גם לא צריך שורה מלאה עם
           פעולות. שורה שקטה אחת שאומרת כמה, ומי שרוצה — פותח.
           דילוג נשאר מובחן מהשלמה: "דולג" הוא החלטה שנרשמה, לא משהו שקרה. */}
-      {embedded && doneSteps.length > 0 && (
+      {doneSteps.length > 0 && (
         <div className="cw-section">
           <div className="cw-section-head">
             <button type="button" onClick={() => setShowDone(v => !v)}
@@ -1424,6 +1489,13 @@ export default function OnboardingTab({
             </div>
           )}
         </div>
+      )}
+
+      </div>
+      <aside>
+        <PortalPreviewPanel clientId={clientId} mode={sidebarPreviewMode} onModeChange={setSidebarPreviewMode} />
+      </aside>
+      </div>
       )}
 
       {!embedded && [
@@ -1810,7 +1882,10 @@ function ConnectionBody({ path, softwareName }: { path?: PaperlessStatus; softwa
 // ═══════════════ כרטיס הרשאת התשלום ══════════════════════════════════════
 // ‼ הסכום וחודש החיוב מוצגים גם כשהשלב נעול: זה מה שעומד על הפרק, והרו"ח
 // צריך לראות אותו כדי להבין למה כדאי לו לזרז את הפייפרלס.
-// ‼ אין כאן שום מסלול שמכין או שולח מייל בזמן שהשלב נעול. גם השרת חוסם.
+// ‼ אין כאן שום קישור לשליחה ואין מייל (הכרעת גיא §8): ההרשאה נוצרת בתוך
+// חשבון הפייפרלס של הלקוח, לא דרך קישור שהמערכת שולחת. authorizationCreatedAt
+// הוא תיעוד פנימי בלבד — לא נוגע בדף הלקוח, ולא יודע (ולא מתיימר לדעת) אם
+// הכרטיס כבר הוזן בפועל אצל פייפרלס.
 
 interface RetainerCardProps {
   step: OnboardingStep;
@@ -1819,23 +1894,19 @@ interface RetainerCardProps {
   highlight: boolean;
   hasConnectionStep: boolean;
   onGotoPaperless: () => void;
-  onPrepareEmail: () => void;
   onRun: (action: string, payload?: Record<string, unknown>) => void;
   menu: React.ReactNode;
 }
 
 function RetainerStepCard(p: RetainerCardProps) {
   const { step, stepById, busy, highlight } = p;
-  const savedUrl = String(step.payload.authUrl ?? '');
-  const [url, setUrl] = useState(savedUrl);
-  const [editingUrl, setEditingUrl] = useState(!savedUrl);
+  const authorizationCreatedAt = String(step.payload.authorizationCreatedAt ?? '');
   const [providerRef, setProviderRef] = useState(String(step.payload.providerRef ?? ''));
 
   const locked = step.status === 'locked';
   const amount = typeof step.payload.amount === 'number' ? step.payload.amount : undefined;
   const month = monthLabel(step.payload.billingStartMonth as string | undefined);
-  const urlInvalid = url.trim() !== '' && !isHttps(url);
-  // ‼ לקוח שאינו עובד עם פייפרלס: אין קישור הרשאה, אין מייל, ואין מנעול —
+  // ‼ לקוח שאינו עובד עם פייפרלס: אין הרשאה דיגיטלית, ואין מנעול —
   // אבל יש כסף. הכרטיס מתעד איך גובים במקום.
   const manual = step.payload.method === 'manual_arrangement';
   const [method, setMethod] = useState(String(step.payload.collectionMethod ?? ''));
@@ -1899,59 +1970,27 @@ function RetainerStepCard(p: RetainerCardProps) {
         </>
       ) : (
         <>
-          <div style={{ marginTop: '.55rem', maxWidth: 460 }}>
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: 3 }}>
-              קישור הרשאת התשלום מפייפרלס
-            </div>
-            {savedUrl && !editingUrl ? (
-              <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <span dir="ltr" style={{
-                  fontSize: 'var(--fs-12)', color: 'var(--ink-2)', background: 'var(--surface-2)',
-                  padding: '.15rem .4rem', borderRadius: 'var(--radius)', maxWidth: 320,
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>{savedUrl}</span>
-                <button type="button" className="btn btn-sm btn-ghost" disabled={busy}
-                  onClick={() => setEditingUrl(true)}>החלף קישור</button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: '.35rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                <input value={url} onChange={e => setUrl(e.target.value)} dir="ltr"
-                  placeholder="https://…" style={{ flex: 1, minWidth: 220, textAlign: 'left' }} />
-                <button type="button" className="btn btn-sm btn-secondary"
-                  disabled={busy || url.trim() === '' || urlInvalid}
-                  onClick={() => { p.onRun('record_link', { authUrl: url.trim() }); setEditingUrl(false); }}>
-                  שמור קישור
-                </button>
-                {savedUrl && (
-                  <button type="button" className="btn btn-sm btn-ghost"
-                    onClick={() => { setUrl(savedUrl); setEditingUrl(false); }}>ביטול</button>
-                )}
-              </div>
-            )}
-            {urlInvalid && (
-              <div style={{ marginTop: 4, fontSize: 'var(--fs-12)', color: 'var(--err)' }}>
-                הקישור חייב להתחיל ב-https://
-              </div>
-            )}
+          <div style={cardNote}>
+            {authorizationCreatedAt
+              ? <>ההרשאה נוצרה בפייפרלס {formatDate(authorizationCreatedAt, 'list')}. בפעם הבאה שהלקוח ייכנס — הוא יתבקש להזין כרטיס אשראי. אין קישור נוסף לשליחה.</>
+              : <>אחרי שהלקוח מתחבר לפייפרלס, ההרשאה נוצרת בתוך פייפרלס עצמה — לא דרך קישור שהמערכת שולחת.</>}
           </div>
 
-          <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.6rem', alignItems: 'center' }}>
-            <button type="button" className="btn btn-sm btn-primary" disabled={busy || !savedUrl}
-              onClick={p.onPrepareEmail}>
-              {step.status === 'waiting_client' ? 'שלח שוב' : 'הכן מייל'}
-            </button>
-            {!savedUrl && (
-              <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-                יש להזין את קישור ההרשאה מפייפרלס לפני הכנת המייל.
-              </span>
-            )}
-          </div>
+          {!authorizationCreatedAt && (
+            <div style={{ marginTop: '.55rem' }}>
+              <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+                onClick={() => p.onRun('note', { authorizationCreatedAt: new Date().toISOString(), note: 'ההרשאה נוצרה בפייפרלס' })}>
+                יצרתי את ההרשאה בפייפרלס
+              </button>
+            </div>
+          )}
 
           {isStepOpen(step.status) && (
             <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.5rem', alignItems: 'center' }}>
               <input value={providerRef} onChange={e => setProviderRef(e.target.value)}
                 placeholder="אסמכתא מהספק (לא חובה)" style={{ maxWidth: 220 }} />
-              <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+              <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !authorizationCreatedAt}
+                title={authorizationCreatedAt ? undefined : 'קודם יוצרים את ההרשאה בפייפרלס'}
                 onClick={() => p.onRun('complete', {
                   completionMethod: 'manual',
                   ...(providerRef.trim() ? { providerRef: providerRef.trim() } : {}),

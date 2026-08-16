@@ -297,15 +297,19 @@ export default function OnboardingPage({ token }: Props) {
             </div>
           </div>
 
-          {/* ‼ הלקוח חייב לצאת מכאן ביודעו שנשארו לו פעולות. אם הוא מפספס את
-              המייל הבא, הייצוג לא נכנס לתוקף — ולכן זה החלק הכי בולט במסך. */}
+          {/* ‼ הלקוח חייב לצאת מכאן ביודעו שנשארו לו פעולות. הכותרת לא מבטיחה
+              עוד "יגיע מייל" כעובדה מובנת מאליה (המייל האוטומטי על אישור
+              ההצעה הוסר — הכרעת גיא, מיגרציה 102) — היא אומרת מה עוד נשאר,
+              ומפנה גם לדף האישי הקבוע כמשטח המעקב. חתימת ייפוי הכוח עצמה
+              עדיין מגיעה בקישור אישי נפרד — זה נשאר נכון: יש עבודה ידנית של
+              המשרד (הזנה ברשויות) לפני שיש מה לחתום עליו. */}
           <div style={{ background: accent, color: '#fff', borderRadius: '10px 10px 0 0', padding: '13px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: 17, fontWeight: 600 }}>עוד לא סיימנו — יגיעו אליכם {niSteps} פעולות במייל</div>
-            <div style={{ fontSize: 13, fontWeight: 500, opacity: .92, marginTop: 3 }}>המייל יישלח בשעות הקרובות</div>
+            <div style={{ fontSize: 17, fontWeight: 600 }}>עוד לא סיימנו — נשארו {niSteps} פעולות</div>
+            <div style={{ fontSize: 13, fontWeight: 500, opacity: .92, marginTop: 3 }}>נשלח לכם קישור אישי לכל פעולה, בשעות הקרובות</div>
           </div>
           <div style={{ border: `2px solid ${accent}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '16px', marginBottom: 20 }}>
             <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.7 }}>
-              בשעות הקרובות, אחרי שנזין את הפרטים ברשויות, יישלח מייל אל:
+              בשעות הקרובות, אחרי שנזין את הפרטים ברשויות, יישלח קישור אישי לחתימה אל:
             </div>
             {/* הצגת הכתובת נותנת ללקוח הזדמנות אחרונה לתפוס טעות הקלדה */}
             <div dir="ltr" style={{
@@ -324,6 +328,9 @@ export default function OnboardingPage({ token }: Props) {
 
             <div style={{ fontSize: 12.5, color: '#8A4B00', background: '#FFF4E0', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6, marginTop: 14, textAlign: 'center' }}>
               עד להשלמת {info?.niIncluded ? 'שתי הפעולות' : 'הפעולה'} — הייצוג אינו בתוקף מול הרשויות.
+            </div>
+            <div style={{ fontSize: 12, color: '#9A9A95', lineHeight: 1.6, marginTop: 10, textAlign: 'center' }}>
+              אפשר גם לעקוב מהדף האישי שקיבלתם בהצעת המחיר.
             </div>
           </div>
 

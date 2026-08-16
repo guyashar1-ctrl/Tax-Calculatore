@@ -2,11 +2,21 @@
 /**
  * staging-test-email-policy.mjs — מבחני הקבלה של מדיניות המייל (תוכנית §17.5).
  *
- * AT-1 שליחה אוטומטית בלי שרו"ח מחובר · AT-2 אין כפילות · AT-3 כשל בטוח,
- * גלוי וניתן לניסיון חוזר · AT-4 מנגנון 24 השעות אינו שולח ללקוח ·
- * AT-5 תזכורת הפקיעה שותקת כשהמתג כבוי · AT-6 משימות אוטומטיות (D3):
- * טיוטה לא יורה, חימוש רק בפרסום, בדיוק פעם אחת, כשל משחרר, נמען חיצוני
- * חסר חוסם, ועריכה/נטרול נכנסים לתוקף רק בפרסום.
+ * ‼ מיגרציה 102 (הכרעת גיא) הסירה את השליחה האוטומטית מ-approve_quotation:
+ * המעבר בדפדפן מ"אושר" לטופס הייצוג כבר עושה את העבודה, והמייל האוטומטי
+ * היה כפילות. AT-1/AT-2 עודכנו בהתאם — הם מוכיחים עכשיו את **ההיעדר**:
+ * אין net.http_post, אין שורת מייל, אין חותמת representation_sent_at.
+ * AT-3/AT-3b ממשיכים לבדוק את send-onboarding-email עצמה (עדיין קיימת,
+ * משמשת "שלח מייל שוב" ומיילים לחותמים) — רק שהפעם ה"שליחה הראשונה" שהם
+ * בודקים היא קריאה ידנית מפורשת, לא תוצר לוואי של האישור.
+ *
+ * AT-1 אין מייל אוטומטי עם האישור, אבל הכול נוצר וה-onboardingToken חוזר ·
+ * AT-2 אישור חוזר אינו יוצר בקשת ייצוג/התקשרות שנייה · AT-3 שליחה ידנית
+ * (סימולציה של "שלח מייל שוב") — כשל בטוח, גלוי וניתן לניסיון חוזר ·
+ * AT-4 "24 שעות" עובר לבדוק השלמה, לא שליחת מייל · AT-5 תזכורת הפקיעה
+ * שותקת כשהמתג כבוי · AT-6 משימות אוטומטיות (D3): טיוטה לא יורה, חימוש
+ * רק בפרסום, בדיוק פעם אחת, כשל משחרר, נמען חיצוני חסר חוסם, ועריכה/נטרול
+ * נכנסים לתוקף רק בפרסום.
  *
  * ‼ הכול על לקוחות דמה בלבד, וכל הנמענים על דומיין הבדיקה של Resend.
  */
@@ -42,8 +52,8 @@ async function waitForNet(sinceId, tries = 32) {
 
 console.log(`סביבה: ${STAGING_REF}\n`);
 
-// ── AT-1 · שליחה אוטומטית, בלי אף רו"ח מחובר ───────────────────────────────
-console.log('— AT-1 · שליחה אוטומטית עם אישור ההצעה —');
+// ── AT-1 · אישור ההצעה — הכול נוצר, שום מייל לא יוצא לבד ───────────────────
+console.log('— AT-1 · אישור ההצעה: אין מייל אוטומטי (הכרעת גיא, מיגרציה 102) —');
 const tok = randomBytes(16).toString('hex');
 {
   await writeStaging(`
@@ -76,76 +86,81 @@ const tok = randomBytes(16).toString('hex');
     { p_token: tok, p_signature: null, p_signer_name: 'AT1 דמה' });
   ok('האישור עבר בלי משתמש מחובר', !error && data?.status === 'approved',
     JSON.stringify(data ?? error?.message));
+  ok('AT-1 · onboardingToken חוזר — זה מה שמפעיל את ההעברה האוטומטית בדפדפן',
+    typeof data?.onboardingToken === 'string' && data.onboardingToken.length > 0,
+    JSON.stringify(data?.onboardingToken));
 
-  const q = await one(`select client_id, representation_request_id from public.quotations where id = 'fx-q-at1'`);
+  const q = await one(`select client_id, representation_request_id, representation_sent_at
+                        from public.quotations where id = 'fx-q-at1'`);
   ok('נוצרה בקשת ייצוג', !!q.representation_request_id);
   const eng = await one(`select count(*)::int as n from public.engagements where client_id = '${q.client_id}'`);
   ok('נוצרה התקשרות', eng.n === 1, String(eng.n));
   const steps = await one(`select count(*)::int as n from public.onboarding_steps where client_id = '${q.client_id}'`);
   ok('נוצרו שלבי קליטה', steps.n > 0, String(steps.n));
 
-  const dispatched = await waitForNet(maxNet);
-  ok('המסד יצא בפועל בקריאת HTTP אל פונקציית השליחה', dispatched);
-
-  const resp = await one(`select status_code, content::text as body from net._http_response
-                           where id > ${maxNet} order by id desc limit 1`);
-  console.log(`   תשובת הפונקציה: ${resp?.status_code} ${String(resp?.body ?? '').slice(0, 160)}`);
-
+  // ‼ ההיפוך של הבדיקה הישנה: עכשיו מוכיחים שהמסד *לא* יצא לשום קריאת HTTP.
+  await sleep(3000);
+  const netCalls = (await one(`select count(*)::int as n from net._http_response where id > ${maxNet}`)).n;
+  ok('AT-1 · אין שום קריאת HTTP יוצאת (אין net.http_post ב-approve_quotation)',
+    netCalls === 0, `${netCalls} קריאות`);
   const mailsAfter = (await one(`select count(*)::int as n from public.email_messages`)).n;
-  const row = await one(`select to_email, kind, status, error from public.email_messages
-                          order by created_at desc limit 1`);
-  if (resp?.status_code === 200) {
-    ok('AT-1 · נרשמה שורת מייל אחת בדיוק', mailsAfter === mailsBefore + 1, `${mailsBefore} → ${mailsAfter}`);
-    ok('AT-1 · הנמען הוא תיבת הבדיקה', row?.to_email === 'delivered@resend.dev', String(row?.to_email));
-    ok('AT-1 · הסוג הוא onboard', row?.kind === 'onboard', String(row?.kind));
-    const sent = await one(`select representation_sent_at from public.quotations where id = 'fx-q-at1'`);
-    ok('AT-1 · ההצעה סומנה כ"נשלח"', !!sent?.representation_sent_at);
-  } else if (String(resp?.body ?? '').includes('API key is invalid')) {
-    // ‼ אין מפתח Resend בסביבת הבדיקות — בהחלטה מכוונת, כדי לא להעתיק סוד
-    //   פרודקשן. המסירה החיצונית בפועל נדחתה ומתועדת כסיכון שיורי
-    //   (docs/EMAIL-POLICY.md). היא אינה חוסמת מיזוג, אבל גם לא מדווחת כ-PASS.
-    //   כל מה שאינו תלוי ב-Resend — התביעה, האידמפוטנטיות, הכשל והניסיון
-    //   החוזר — נבדק במלואו ב-AT-3b למטה.
-    deferred.push('AT-1 · מסירה חיצונית בפועל');
-    deferred.push('AT-3 · תשובת 200 מ-Resend בניסיון חוזר');
-    console.log('   ↷ נדחה: אין מפתח Resend בסביבת הבדיקות (הפרדת סודות מכוונת).');
-    console.log('      מסלול האפליקציה נבדק במלואו; המסירה החיצונית = סיכון שיורי.');
-    ok('AT-3 · כשל אינו מפיל את האישור', true);
-    const qq = await one(`select representation_sent_at, representation_error from public.quotations where id = 'fx-q-at1'`);
-    ok('AT-3 · התביעה שוחררה (אפשר לנסות שוב)', qq?.representation_sent_at === null,
-      String(qq?.representation_sent_at));
-    ok('AT-3 · הכשל נרשם על ההצעה וגלוי לרו״ח', !!qq?.representation_error,
-      String(qq?.representation_error ?? '').slice(0, 120));
-    ok('AT-3 · נרשמה שורת כשל ביומן המיילים', mailsAfter === mailsBefore + 1 && row?.status === 'failed',
-      `${mailsBefore} → ${mailsAfter} · ${row?.status}`);
-
-    /* ‼ השיוך ללקוח הוא מה שמפריד בין "המיילים של הלקוח הזה" לבין "כל מייל
-       שנשלח אי־פעם לכתובת הזאת". כשהוא חסר, כרטיס הלקוח נאלץ לנחש לפי
-       כתובת — וזה בדיוק מה שגרם ל-45 מיילים זרים בכרטיס אחד בפרודקשן.
-       הבדיקה הזו נכשלת ברגע שמסלול שליחה מפסיק לרשום אותו. */
-    const linked = await one(`select client_id, kind from public.email_messages
-                               order by created_at desc limit 1`);
-    ok('AT-1 · שורת המייל נושאת את מזהה הלקוח', !!linked?.client_id,
-      `kind=${linked?.kind} client_id=${linked?.client_id}`);
-  }
+  ok('AT-1 · אפס שורות מייל נוספו', mailsAfter === mailsBefore, `${mailsBefore} → ${mailsAfter}`);
+  ok('AT-1 · representation_sent_at נשאר ריק — לא נטען מעולם', q.representation_sent_at === null,
+    String(q.representation_sent_at));
 }
 
-// ── AT-2 · אין כפילות ───────────────────────────────────────────────────────
+// ── AT-2 · אישור חוזר אינו יוצר בקשת ייצוג/התקשרות שנייה ───────────────────
 console.log('\n— AT-2 · אישור חוזר אינו משכפל —');
 {
-  // מדמים שליחה מוצלחת קודמת: התביעה תפוסה.
-  await writeStaging(`update public.quotations set representation_sent_at = now(),
-                        representation_error = null where id = 'fx-q-at1';`);
-  const before = (await one(`select count(*)::int as n from public.email_messages`)).n;
-  const maxNet = (await one(`select coalesce(max(id), 0)::bigint as m from net._http_response`)).m;
+  const before = await one(`select client_id, representation_request_id from public.quotations where id = 'fx-q-at1'`);
+  const mailsBefore = (await one(`select count(*)::int as n from public.email_messages`)).n;
+  const engBefore = (await one(`select count(*)::int as n from public.engagements where client_id = '${before.client_id}'`)).n;
+
   const { data } = await anon.rpc('approve_quotation',
     { p_token: tok, p_signature: null, p_signer_name: 'AT1 דמה' });
   ok('אישור חוזר מחזיר approved ולא נופל', data?.status === 'approved', JSON.stringify(data));
-  await sleep(4000);
-  const after = (await one(`select count(*)::int as n from public.email_messages`)).n;
-  const netCalls = (await one(`select count(*)::int as n from net._http_response where id > ${maxNet}`)).n;
-  ok('AT-2 · לא נוספה שורת מייל', after === before, `${before} → ${after}`);
-  ok('AT-2 · המסד כלל לא ניסה לשלוח שוב', netCalls === 0, `${netCalls} קריאות`);
+  ok('AT-2 · repReused מדווח שהוא נצמד לבקשת הייצוג הקיימת', data?.repReused === true, JSON.stringify(data));
+
+  const after = await one(`select client_id, representation_request_id from public.quotations where id = 'fx-q-at1'`);
+  ok('AT-2 · אותה בקשת ייצוג בדיוק — לא נוצרה שנייה',
+    after.representation_request_id === before.representation_request_id,
+    `${before.representation_request_id} → ${after.representation_request_id}`);
+  const engAfter = (await one(`select count(*)::int as n from public.engagements where client_id = '${before.client_id}'`)).n;
+  ok('AT-2 · לא נוצרה התקשרות שנייה', engAfter === engBefore, `${engBefore} → ${engAfter}`);
+  const mailsAfter = (await one(`select count(*)::int as n from public.email_messages`)).n;
+  ok('AT-2 · לא נוספה שורת מייל', mailsAfter === mailsBefore, `${mailsBefore} → ${mailsAfter}`);
+}
+
+// ── AT-3-setup · שליחה ידנית ("שלח מייל שוב") — send-onboarding-email עדיין
+//    עובדת ועדיין היחידה שכותבת representation_sent_at, רק שאף אחד לא קורא
+//    לה אוטומטית יותר. מדמים בדיוק את הכפתור בכרטיס הלקוח. ─────────────────
+console.log('\n— AT-3-setup · שליחה ידנית ("שלח מייל שוב") —');
+let manualSendSucceeded = false;
+{
+  const secret0 = (await one(`select decrypted_secret as s from vault.decrypted_secrets
+                              where name = 'internal_send_secret'`)).s;
+  const maxNet = (await one(`select coalesce(max(id), 0)::bigint as m from net._http_response`)).m;
+  const r = await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/send-onboarding-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: env.SUPABASE_SERVICE_ROLE_KEY },
+    body: JSON.stringify({ internalSecret: secret0, quotationId: 'fx-q-at1' }),
+  });
+  const body0 = await r.json().catch(() => ({}));
+  console.log(`   תשובת השליחה הידנית: ${r.status} ${JSON.stringify(body0).slice(0, 160)}`);
+  if (String(JSON.stringify(body0)).includes('API key is invalid')) {
+    deferred.push('AT-3-setup · מסירה חיצונית בפועל (שליחה ידנית)');
+    deferred.push('AT-3 · תשובת 200 מ-Resend בניסיון חוזר');
+    console.log('   ↷ נדחה: אין מפתח Resend בסביבת הבדיקות (הפרדת סודות מכוונת).');
+  } else {
+    manualSendSucceeded = r.status === 200;
+    ok('AT-3-setup · השליחה הידנית יצאה', manualSendSucceeded, `status=${r.status}`);
+  }
+}
+
+// ── AT-1 (המשך) · שליחה ידנית לא רצה מעצמה — רק כשמבקשים אותה ──────────────
+{
+  const q = await one(`select representation_sent_at from public.quotations where id = 'fx-q-at1'`);
+  console.log(`   representation_sent_at אחרי השליחה הידנית: ${q.representation_sent_at ?? 'null (כשל Resend, ראה למעלה)'}`);
 }
 
 // ── AT-3 · ניסיון חוזר ידני עובר דרך אותה תביעה ────────────────────────────
@@ -159,8 +174,13 @@ console.log('\n— AT-3 · ניסיון חוזר בטוח —');
     body: JSON.stringify({ internalSecret: secret, quotationId: 'fx-q-at1' }),
   });
   const body = await r.json().catch(() => ({}));
-  ok('AT-3 · שליחה חוזרת על הצעה שכבר נשלחה מוחזרת כ"כבר נשלח"',
-    body?.alreadySent === true, JSON.stringify(body).slice(0, 160));
+  if (manualSendSucceeded) {
+    ok('AT-3 · שליחה חוזרת על הצעה שכבר נשלחה מוחזרת כ"כבר נשלח"',
+      body?.alreadySent === true, JSON.stringify(body).slice(0, 160));
+  } else {
+    deferred.push('AT-3 · "כבר נשלח" (תלוי בשליחה ידנית מוצלחת שנדחתה למעלה)');
+    console.log('   ↷ AT-3 נדחה: השליחה הידנית ב-AT-3-setup לא הצליחה (אין Resend).');
+  }
 
   const bad = await fetch(`${env.VITE_SUPABASE_URL}/functions/v1/send-onboarding-email`, {
     method: 'POST',
@@ -249,16 +269,24 @@ console.log('\n— AT-3b · בדיוק פעם אחת, בלי תלות ב-Resend 
     failRow !== undefined && failRow?.idempotency_key === null, JSON.stringify(failRow));
 }
 
-// ── AT-4 · מנגנון 24 השעות — התראה פנימית, אפס מיילים ללקוח ────────────────
-console.log('\n— AT-4 · מנגנון 24 השעות —');
+// ── AT-4 · "24 שעות" — בודק השלמה (onboarding_status), לא שליחת מייל ───────
+// ‼ מיגרציה 102: התנאי המקורי הסיר את "representation_sent_at is null" —
+// הפונקציה כבר לא שואלת אם מייל יצא, רק אם הלקוח סיים למלא. מוכיחים את זה
+// ישירות: representation_sent_at מכוון ל-NOT NULL (כאילו נשלחה תזכורת ידנית)
+// והדגל עדיין אמור לתפוס, כי onboarding_status עדיין 'pending'.
+console.log('\n— AT-4 · "24 שעות" בודק השלמה, לא שליחת מייל —');
 {
   await writeStaging(`update public.quotations
-       set representation_sent_at = null, approved_at = now() - interval '30 hours'
+       set representation_sent_at = now(), approved_at = now() - interval '30 hours'
      where id = 'fx-q-at1';
+    update public.representation_requests
+       set onboarding_status = 'pending'
+     where id = (select representation_request_id from public.quotations where id = 'fx-q-at1');
     delete from public.accountant_notifications where kind = 'representation_link_missing';`);
   const before = (await one(`select count(*)::int as n from public.email_messages`)).n;
   const n = await one(`select public.flag_missing_representation_links() as n`);
-  ok('AT-4 · ההצעה סומנה כ"הקישור לא יצא"', Number(n.n) >= 1, String(n.n));
+  ok('AT-4 · הדגל תפס גם כש-representation_sent_at אינו ריק — onboarding_status הוא שקובע',
+    Number(n.n) >= 1, String(n.n));
   /* ‼ נספרת ההתראה של הפיקסטורה הזאת בלבד. ספירה גלובלית נכשלה ברגע
      שסקריפט אחר השאיר הצעה מאושרת שהקישור שלה לא יצא — כישלון שמדווח על
      נתוני שאריות ולא על התנהגות המנגנון. */
@@ -275,6 +303,25 @@ console.log('\n— AT-4 · מנגנון 24 השעות —');
                                   where kind = 'representation_link_missing'`)).n;
   ok('AT-4 · הרצה שנייה אינה מציפה בהתראות', againAfter === againBefore,
     `${againBefore} → ${againAfter}`);
+
+  // ‼ בקרה שלילית: ברגע שהלקוח השלים (onboarding_status='active') — הדגל
+  // מפסיק לתפוס גם אם עברו 24 שעות. זה ההבדל האמיתי בין "בדק מייל" ל"בדק השלמה".
+  await writeStaging(`
+    update public.representation_requests
+       set onboarding_status = 'active'
+     where id = (select representation_request_id from public.quotations where id = 'fx-q-at1');
+    delete from public.accountant_notifications where kind = 'representation_link_missing';`);
+  const doneRun = await one(`select public.flag_missing_representation_links() as n`);
+  const doneNotif = await one(`select count(*)::int as n from public.accountant_notifications
+                                where kind = 'representation_link_missing'
+                                  and payload->>'quotationId' = 'fx-q-at1'`);
+  ok('AT-4 · אחרי שהלקוח השלים — הדגל לא תופס יותר, גם עם representation_sent_at ריק',
+    doneNotif.n === 0, `flag()=${doneRun.n} · notif=${doneNotif.n}`);
+  // מחזירים למצב "ממתין" כדי לא להשפיע על ריצות אחרות שקוראות לפיקסטורה הזאת.
+  await writeStaging(`
+    update public.representation_requests
+       set onboarding_status = 'pending'
+     where id = (select representation_request_id from public.quotations where id = 'fx-q-at1');`);
 
   /* ‼ התראה פנימית שנושאת client_id נכנסת לכרטיס הלקוח דרך ההתאמה הראשית,
      לא רק דרך הכתובת — ולכן הסינון לפי סוג המייל הוא השער היחיד שעוצר אותה.

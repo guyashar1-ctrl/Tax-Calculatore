@@ -27,10 +27,14 @@ import {
   type StepEmailTemplate,
 } from "../_shared/stepTemplates.ts";
 
-/** איזה מייל מותר לאיזה שלב. תזכורת מותרת לכל שלב. */
+/** איזה מייל מותר לאיזה שלב. תזכורת מותרת לכל שלב.
+ *  ‼ retainer_authorization איבד את 'retainer_request' (הכרעת גיא §8): אין
+ *  יותר קישור הרשאה שנשלח ללקוח — ההרשאה נוצרת בתוך פייפרלס עצמה. הקוד/התוכן
+ *  של 'retainer_request' נשארו ב-stepTemplates.ts בלי שינוי; שום קורא לא
+ *  מבקש אותם יותר, ולא נמחק דבר. */
 const KIND_FOR_STEP: Record<string, StepEmailKind[]> = {
   paperless_invite: ["paperless_invite", "step_reminder"],
-  retainer_authorization: ["retainer_request", "step_reminder"],
+  retainer_authorization: ["step_reminder"],
   intake_questionnaire: ["intake_questionnaire", "step_reminder"],
 };
 

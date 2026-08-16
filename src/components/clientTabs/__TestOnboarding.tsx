@@ -98,9 +98,9 @@ const STEPS: OnboardingStep[] = [
   // ── הרשאת תשלום: פתוחה, בלי קישור — "הכן מייל" חסום ──
   step({ id: 's6b', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'pending', ball: 'me',
          payload: { amount: 780, billingStartMonth: '2026-10' } }),
-  // ── הרשאת תשלום: פתוחה, עם קישור — "הכן מייל" פעיל ──
+  // ── הרשאת תשלום: פתוחה, ההרשאה כבר נוצרה בפייפרלס — "הלקוח השלים" פעיל ──
   step({ id: 's6c', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'in_progress', ball: 'me',
-         payload: { amount: 1200, billingStartMonth: '2026-09', authUrl: 'https://www.paperless.tax/authorize/demo-123' } }),
+         payload: { amount: 1200, billingStartMonth: '2026-09', authorizationCreatedAt: '2026-08-10T09:00:00Z' } }),
   step({ id: 's7', stepType: 'internal_setup', track: 'internal', scope: 'engagement', status: 'pending', ball: 'me',
          payload: { checklist: [
            { key: 'file_numbers', label: 'מספרי תיקים בכרטיס', done: false },
@@ -199,10 +199,15 @@ export default function TestOnboarding() {
   // שני המצבים של מכתב השחרור: עם מייל לרו"ח הקודם (הכפתור פעיל) ובלעדיו
   // (הכפתור חסום עם הסיבה) — המצב השני הוא מקרה הקצה של המסלול.
   const [hasPrevEmail, setHasPrevEmail] = useState(true);
-  // מצב בנייה מול מצב ניהול — אותה לשונית, לפני ואחרי פתיחת התהליך ללקוח.
-  // ?test-onboarding&builder פותח ישר במצב הבנייה — לצילום מסך ללא-ראש.
+  // מסך "תהליך" אחד קבוע (המודל המאוחד) — אין יותר מצב בנייה נפרד; המתג
+  // הזה בודק רק אם התהליך כבר נשלח ללקוח (process_published_at) או לא —
+  // זה עדיין קובע את הצ'יפ "דף הלקוח פעיל" ואת שער התצוגה בפורטל.
+  // ?test-onboarding&builder פותח ישר במצב "טרם נשלח" — לצילום מסך ללא-ראש.
   const [published, setPublished] = useState(!window.location.search.includes('builder'));
   const [showRelease, setShowRelease] = useState(false);
+  // המסך המאוחד רץ תמיד ב-embedded (כמו בייצור, בתוך דף המסע). מצב לא-מוטבע
+  // הוא מסך ישן ונפרד (ClientWorkspace.tsx) שלא נגעתי בו — נשאר לבדיקת רגרסיה.
+  const [embedded, setEmbedded] = useState(true);
   return (
     <div style={{ padding: '1.5rem', maxWidth: 980, margin: '0 auto' }} dir="rtl">
       <h2 style={{ marginBottom: '.3rem' }}>בדיקת לשונית הקליטה — נתונים מדומים</h2>
@@ -216,7 +221,11 @@ export default function TestOnboarding() {
         </button>
         <button type="button" className="btn btn-sm btn-secondary"
           onClick={() => setPublished(v => !v)}>
-          {published ? 'הצג את מצב הבנייה (לפני פתיחה ללקוח)' : 'חזרה למצב ניהול'}
+          {published ? 'הצג לפני שנשלח ללקוח' : 'חזרה למצב שנשלח'}
+        </button>
+        <button type="button" className="btn btn-sm btn-secondary"
+          onClick={() => setEmbedded(v => !v)}>
+          {embedded ? 'עבור למסך הישן (לא מוטבע)' : 'חזרה למסך המאוחד (מוטבע)'}
         </button>
       </div>
       <OnboardingTab
@@ -224,6 +233,8 @@ export default function TestOnboarding() {
         client={FIXTURE_CLIENT}
         onClientPersisted={() => setMsg('onClientPersisted()')}
         clientDisplayName="שרון מזרחי"
+        clientEmail="sharon.m@example.invalid"
+        embedded={embedded}
         engagements={published ? ENGAGEMENTS : ENGAGEMENTS_UNPUBLISHED}
         steps={STEPS}
         events={EVENTS}

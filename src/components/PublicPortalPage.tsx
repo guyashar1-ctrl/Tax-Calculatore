@@ -35,6 +35,19 @@ function DraftChip() {
   );
 }
 
+/** תג "יוסר" — מופיע רק בתצוגה המקדימה (מיגרציה 101), על בקשות שסומנו
+ *  להסרה בעדכון הבא. הפריט עצמו עדיין מוצג — כדי שהעורך יראה מה נעלם. */
+function RemovingChip() {
+  return (
+    <span style={{
+      flexShrink: 0, fontSize: 11, fontWeight: 700, lineHeight: 1.6,
+      padding: '0 7px', borderRadius: 999, whiteSpace: 'nowrap',
+      color: '#a63a3a', background: '#fdeaea', border: '1px solid #e8b4b4',
+      textDecoration: 'line-through',
+    }}>יוסר</span>
+  );
+}
+
 export interface PortalItem {
   bucket: Bucket;
   key: string;
@@ -65,6 +78,8 @@ export interface PortalItem {
   cta?: string;
   /** מסומן רק בתצוגה המקדימה של הרו"ח — בקשה שטרם פורסמה ללקוח. */
   draft?: boolean;
+  /** מסומן רק בתצוגה המקדימה — בקשה שסומנה להסרה בעדכון הבא (מיגרציה 101). */
+  removing?: boolean;
 }
 
 /** מה שהדף מרשה להעלות. אותה רשימה נאכפת שוב בשרת — כאן זה רק כדי לחסוך
@@ -393,6 +408,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ flex: 1, fontSize: 14.5, fontWeight: 650, color: brand.ink }}>{item.label}</span>
         {previewMode && item.draft && <DraftChip />}
+        {previewMode && item.removing && <RemovingChip />}
       </div>
       {prog && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 3 }}>{prog}</div>}
 
@@ -599,6 +615,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                   <div style={{ fontSize: 14, color: brand.muted }}>
                     {item.label}
                     {preview && item.draft && <DraftChip />}
+                    {preview && item.removing && <RemovingChip />}
                   </div>
                   {item.sub && (
                     <div style={{ fontSize: 12, color: brand.muted, opacity: .85, marginTop: 2 }}>

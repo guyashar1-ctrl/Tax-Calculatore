@@ -7,19 +7,19 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { PortalView, PortalData } from '../PublicPortalPage';
 
-type Mode = 'preview' | 'live';
+export type PortalPreviewMode = 'preview' | 'live';
+type Mode = PortalPreviewMode;
 
 const ERRORS: Record<string, string> = {
   client_not_found: 'הלקוח לא נמצא.',
   forbidden: 'אין הרשאה ללקוח הזה.',
 };
 
-export default function ClientPagePreviewDialog({ clientId, clientName, onClose }: {
-  clientId: string;
-  clientName: string;
-  onClose: () => void;
-}) {
-  const [mode, setMode] = useState<Mode>('preview');
+/**
+ * שליפת הדף האישי — משותפת לדיאלוג ולפאנל המוטבע במסך "תהליך". שני הצרכנים
+ * מרנדרים את אותו PortalView בדיוק על אותם נתונים; ההבדל היחיד הוא העטיפה.
+ */
+export function usePortalPreview(clientId: string, mode: PortalPreviewMode) {
   const [data, setData] = useState<PortalData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,6 +43,17 @@ export default function ClientPagePreviewDialog({ clientId, clientName, onClose 
     })();
     return () => { cancelled = true; };
   }, [clientId, mode]);
+
+  return { data, error, loading };
+}
+
+export default function ClientPagePreviewDialog({ clientId, clientName, onClose }: {
+  clientId: string;
+  clientName: string;
+  onClose: () => void;
+}) {
+  const [mode, setMode] = useState<Mode>('preview');
+  const { data, error, loading } = usePortalPreview(clientId, mode);
 
   const draftCount = mode === 'preview'
     ? (data?.items ?? []).filter(i => i.draft).length
