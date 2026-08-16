@@ -21,6 +21,7 @@ import { useDocumentStore, type DocumentLabel } from '../hooks/useDocumentStore'
 import { AVAILABLE_YEARS } from '../data/taxData';
 import { supabase } from '../lib/supabase';
 import { EmptyState } from './ui/States';
+import LabelSelect from './ui/LabelSelect';
 
 interface Props {
   tasks: Task[];
@@ -144,8 +145,8 @@ export default function TasksWorkspace({
     setAddMenuOpen(false);
     const labels = await db.getLabels();
     setReqLabels(labels);
-    const reserved = labels.find(l => l.isReserved);
-    setReqModal({ clientId: presetClientId ?? '', title: '', year: String(new Date().getFullYear()), labelId: reserved?.id ?? '' });
+    // ‼ ללא תווית מראש — 'לבדיקה' השמורה אינה אפשרות בבורר הזה.
+    setReqModal({ clientId: presetClientId ?? '', title: '', year: String(new Date().getFullYear()), labelId: '' });
   }
 
   async function confirmRequest() {
@@ -469,10 +470,13 @@ export default function TasksWorkspace({
               {['כללי', ...AVAILABLE_YEARS.map(String)].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
             <label className="lbl">תווית למסמך שיתקבל</label>
-            <select className="inp" value={reqModal.labelId} onChange={e => setReqModal({ ...reqModal, labelId: e.target.value })}>
-              <option value="">בחר תווית…</option>
-              {reqLabels.filter(l => !l.isReserved).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
+            <LabelSelect
+              value={reqModal.labelId}
+              labels={reqLabels}
+              includeReserved={false}
+              onChange={id => setReqModal({ ...reqModal, labelId: id })}
+              onCreated={l => setReqLabels(prev => [...prev, l])}
+            />
             {reqError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{reqError}</div>}
             <div className="foot">
               <button type="button" className="btn btn-primary" disabled={reqBusy || !reqModal.clientId || !reqModal.title.trim() || !reqModal.labelId}

@@ -15,6 +15,7 @@ import { useDocumentStore, type StoredDoc, type DocFolder, type DocumentLabel } 
 import { AVAILABLE_YEARS } from '../../data/taxData';
 import { supabase } from '../../lib/supabase';
 import { EmptyState } from '../ui/States';
+import LabelSelect from '../ui/LabelSelect';
 
 const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.csv';
 
@@ -112,6 +113,16 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     setFolders(f);
     setLabels(l);
     setLoading(false);
+  }
+
+  /** תווית שנוצרה במקום נכנסת לרשימה באותו סדר שבו getLabels מחזיר (שמורה בסוף). */
+  function mergeLabel(label: DocumentLabel) {
+    setLabels(prev => prev.some(l => l.id === label.id)
+      ? prev
+      : [...prev, label].sort((a, b) =>
+          Number(a.isReserved) - Number(b.isReserved) ||
+          a.sortOrder - b.sortOrder ||
+          a.name.localeCompare(b.name, 'he')));
   }
 
   const reservedLabel = useMemo(() => labels.find(l => l.isReserved), [labels]);
@@ -303,7 +314,9 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   // ─── בקש מסמך מהלקוח — קיצור דרך למערכת הבקשות הקיימת ───────────────────
   function openRequest() {
     setAddMenuOpen(false);
-    setRequestModal({ title: 'מסמך נדרש', year: String(new Date().getFullYear()), labelId: reservedLabel?.id ?? '' });
+    // ‼ בלי תווית מראש: 'לבדיקה' אינה אפשרות כאן, וברירת מחדל שאינה ברשימה
+    // הייתה מציגה בורר ריק לכאורה עם ערך נסתר מאחוריו.
+    setRequestModal({ title: 'מסמך נדרש', year: String(new Date().getFullYear()), labelId: '' });
   }
   async function confirmRequest() {
     if (!requestModal || !requestModal.title.trim() || !requestModal.year || !requestModal.labelId) return;
@@ -356,6 +369,21 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
       setLabelBusy(false);
     }
   }
+  /** שינוי שם — רק כשבאמת השתנה, כדי לא לכתוב על כל יציאה מהשדה. */
+  async function renameLabelTo(label: DocumentLabel, name: string) {
+    const clean = name.trim();
+    if (!clean || clean === label.name) return;
+    setLabelBusy(true); setLabelError('');
+    try {
+      await db.renameLabel(label.id, clean);
+      setLabels(prev => prev.map(l => (l.id === label.id ? { ...l, name: clean } : l)));
+    } catch (e) {
+      setLabelError(e instanceof Error ? e.message : 'שינוי השם נכשל');
+    } finally {
+      setLabelBusy(false);
+    }
+  }
+
   async function removeLabel(id: string) {
     setLabelBusy(true); setLabelError('');
     const res = await db.deleteLabel(id);
@@ -693,11 +721,20 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
             >{fileBusy ? 'פותח…' : 'פתח את הקובץ'}</button>
             {fileError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{fileError}</div>}
 
-            <div className="ial-doc-fact" style={{ marginTop: '.8rem' }}>
-              <label>תווית</label>
-              <select value={drawerDoc.labelId ?? ''} onChange={e => saveDrawerMeta({ labelId: e.target.value })}>
-                {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
+            {/* flex-start: כשנפתח שדה היצירה השורה מתארכת, וכותרת ממורכזת
+                הייתה יורדת לגובה שדה השם במקום להישאר מול הבורר. */}
+            <div className="ial-doc-fact" style={{ marginTop: '.8rem', alignItems: 'flex-start' }}>
+              <label style={{ paddingTop: '.35rem' }}>תווית</label>
+              {/* עמודה, כי שדה היצירה-במקום נפתח מתחת לבורר ולא לצידו */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flex: 1, minWidth: 0 }}>
+                <LabelSelect
+                  className=""
+                  value={drawerDoc.labelId ?? ''}
+                  labels={labels}
+                  onChange={id => id && saveDrawerMeta({ labelId: id })}
+                  onCreated={mergeLabel}
+                />
+              </div>
             </div>
             <div className="ial-doc-fact">
               <label>שנה</label>
@@ -882,9 +919,18 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
         <div className="modal-backdrop" onClick={() => setLabelManagerOpen(false)}>
           <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
             <h3>תוויות מקצועיות</h3>
+            <div className="csub">הרשימה משותפת לכל הלקוחות. תווית שנוספת כאן זמינה מיד בכל תיק.</div>
             {labels.map(l => (
               <div key={l.id} className="ial-doc-fact">
-                <b>{l.name}{l.isReserved ? ' (שמורה)' : ''}</b>
+                {l.isReserved ? (
+                  <b>{l.name} (שמורה)</b>
+                ) : (
+                  <input
+                    className="inp" style={{ flex: 1, marginTop: 0 }} defaultValue={l.name} disabled={labelBusy}
+                    onBlur={e => renameLabelTo(l, e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                  />
+                )}
                 {!l.isReserved && (
                   <button type="button" className="btn btn-sm btn-ghost" disabled={labelBusy} onClick={() => removeLabel(l.id)}>מחק</button>
                 )}
@@ -910,6 +956,7 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
           labels={labels}
           yearOptions={yearOptions}
           rootRequiresExplicit={!parentFolder}
+          onLabelCreated={mergeLabel}
           onChange={meta => setUploadModal({ ...uploadModal, meta })}
           onCancel={() => setUploadModal(null)}
           onConfirm={confirmUpload}
@@ -927,6 +974,7 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
             <MetaFields
               meta={folderModal.meta} labels={labels} yearOptions={yearOptions}
               rootRequiresExplicit={!parentFolder}
+              onLabelCreated={mergeLabel}
               onChange={meta => setFolderModal({ ...folderModal, meta })}
             />
             <div className="foot">
@@ -947,6 +995,7 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
           yearOptions={yearOptions}
           rootRequiresExplicit={!parentFolder}
           note="כל מה שבתוכה יקבל כברירת מחדל את אותה שנה ותווית. פריט מסוים אפשר לשנות אחר כך."
+          onLabelCreated={mergeLabel}
           onChange={meta => setFolderUploadModal({ ...folderUploadModal, meta })}
           onCancel={() => setFolderUploadModal(null)}
           onConfirm={confirmFolderUpload}
@@ -967,10 +1016,13 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
               {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
             <label className="lbl">תווית למסמך שיתקבל</label>
-            <select className="inp" value={requestModal.labelId} onChange={e => setRequestModal({ ...requestModal, labelId: e.target.value })}>
-              <option value="">בחר תווית…</option>
-              {labels.filter(l => !l.isReserved).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
+            <LabelSelect
+              value={requestModal.labelId}
+              labels={labels}
+              includeReserved={false}
+              onChange={id => setRequestModal({ ...requestModal, labelId: id })}
+              onCreated={mergeLabel}
+            />
             {requestError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{requestError}</div>}
             <div className="foot">
               <button type="button" className="btn btn-primary" disabled={requestBusy || !requestModal.title.trim() || !requestModal.labelId}
@@ -998,9 +1050,9 @@ function folderPathLabel(folderId: string | null, foldersById: Map<string, DocFo
   return path.length ? path.join(' / ') : 'הרמה הראשית';
 }
 
-function MetaFields({ meta, labels, yearOptions, rootRequiresExplicit, onChange }: {
+function MetaFields({ meta, labels, yearOptions, rootRequiresExplicit, onChange, onLabelCreated }: {
   meta: MetaDraft; labels: DocumentLabel[]; yearOptions: string[]; rootRequiresExplicit: boolean;
-  onChange: (m: MetaDraft) => void;
+  onChange: (m: MetaDraft) => void; onLabelCreated: (l: DocumentLabel) => void;
 }) {
   return (
     <>
@@ -1010,11 +1062,12 @@ function MetaFields({ meta, labels, yearOptions, rootRequiresExplicit, onChange 
         {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
       </select>
       <label className="lbl required">תווית</label>
-      <select className="inp" value={meta.labelId} onChange={e => onChange({ ...meta, labelId: e.target.value })}>
-        <option value="">בחר תווית…</option>
-        {labels.filter(l => !l.isReserved).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-        {labels.filter(l => l.isReserved).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-      </select>
+      <LabelSelect
+        value={meta.labelId}
+        labels={labels}
+        onChange={id => onChange({ ...meta, labelId: id })}
+        onCreated={onLabelCreated}
+      />
       {rootRequiresExplicit ? (
         <div className="note warn">שורש המסמכים — אין תיקייה שממנה לרשת. בחר שנה ותווית.</div>
       ) : (meta.year && meta.labelId) ? (
@@ -1024,15 +1077,16 @@ function MetaFields({ meta, labels, yearOptions, rootRequiresExplicit, onChange 
   );
 }
 
-function MetaModal({ title, meta, labels, yearOptions, rootRequiresExplicit, note, onChange, onCancel, onConfirm, confirmLabel }: {
+function MetaModal({ title, meta, labels, yearOptions, rootRequiresExplicit, note, onChange, onLabelCreated, onCancel, onConfirm, confirmLabel }: {
   title: string; meta: MetaDraft; labels: DocumentLabel[]; yearOptions: string[]; rootRequiresExplicit: boolean; note?: string;
-  onChange: (m: MetaDraft) => void; onCancel: () => void; onConfirm: () => void; confirmLabel: string;
+  onChange: (m: MetaDraft) => void; onLabelCreated: (l: DocumentLabel) => void;
+  onCancel: () => void; onConfirm: () => void; confirmLabel: string;
 }) {
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <h3>{title}</h3>
-        <MetaFields meta={meta} labels={labels} yearOptions={yearOptions} rootRequiresExplicit={rootRequiresExplicit} onChange={onChange} />
+        <MetaFields meta={meta} labels={labels} yearOptions={yearOptions} rootRequiresExplicit={rootRequiresExplicit} onChange={onChange} onLabelCreated={onLabelCreated} />
         {note && <div className="note">{note}</div>}
         <div className="foot">
           <button type="button" className="btn btn-primary" disabled={!meta.year || !meta.labelId} onClick={onConfirm}>{confirmLabel}</button>
