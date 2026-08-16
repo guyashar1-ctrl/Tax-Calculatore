@@ -57,7 +57,9 @@ export interface PortalItem {
   actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote' | 'portal';
   actionValue?: string;
   /** מה בדיוק הפעולה בתוך העמוד. */
-  kind?: 'documents' | 'prev_accountant' | 'custom';
+  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup';
+  /** קישור יוצא שנלווה לפעולה בעמוד (הרשמה לפייפרלס). אינו מחליף את ההשלמה. */
+  linkUrl?: string;
   /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
   checklist?: { key: string; label: string; done: boolean }[];
   /** דרישות של בקשה חופשית — שדות בתוך בקשה אחת, כל אחד עם סוג ו-חובה/רשות. */
@@ -385,6 +387,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
   const href = actionHref(item);
   const inPage = item.actionKind === 'portal';
   const expandable = inPage && (item.kind === 'documents' || item.kind === 'custom' || item.kind === 'prev_accountant');
+  const signup = inPage && item.kind === 'paperless_signup';
   const prog = progressLine(item);
 
   const primaryBtn: React.CSSProperties = {
@@ -412,14 +415,22 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
       </div>
       {prog && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 3 }}>{prog}</div>}
 
-      <div style={{ marginTop: 11 }}>
-        {href && (previewMode
-          ? <span style={inertBtn}>להמשך ←</span>
-          : <a href={href} style={primaryBtn}>להמשך ←</a>)}
-        {expandable && (previewMode
-          ? <span style={inertBtn}>{primaryLabel}</span>
-          : <button type="button" onClick={() => setOpen(o => !o)} style={primaryBtn}>{primaryLabel}</button>)}
-      </div>
+      {/* ‼ הרשמה לפייפרלס אינה "נפתחת" — היא קישור החוצה ואישור, ולכן היא
+          מוצגת ישירות ולא מאחורי כפתור פתיחה. */}
+      {signup ? (
+        <div style={{ marginTop: 11 }}>
+          <PaperlessSignupBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+        </div>
+      ) : (
+        <div style={{ marginTop: 11 }}>
+          {href && (previewMode
+            ? <span style={inertBtn}>להמשך ←</span>
+            : <a href={href} style={primaryBtn}>להמשך ←</a>)}
+          {expandable && (previewMode
+            ? <span style={inertBtn}>{primaryLabel}</span>
+            : <button type="button" onClick={() => setOpen(o => !o)} style={primaryBtn}>{primaryLabel}</button>)}
+        </div>
+      )}
 
       {/* ‼ מסמכים: הלקוח מעלה כאן, במקום. הקובץ נכנס ישר לתיק שלו אצל הרו"ח
           ומסמן את הפריט. מה שמגיע בוואטסאפ או במייל עדיין מסומן ידנית על ידי
@@ -446,6 +457,65 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
             brand={brand} accent={accent} onDone={onDone} />
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * הרשמה לפייפרלס — הצעד היחיד ברצף שהוא של הלקוח.
+ *
+ * ‼ שני פקדים ולא אחד: הקישור פותח את ההרשמה בפייפרלס עצמה, והכפתור השני
+ * הוא ההצהרה שהיא בוצעה. בלי ההצהרה הרו"ח היה צריך לנחש מתי להיכנס לחשבון —
+ * וזה בדיוק מה שהמסך הזה בא לסגור.
+ * ‼ אין כאן אימות מול פייפרלס, ולכן הניסוח הוא "נרשמתי" ולא "נרשם": מה
+ * שנשמר הוא הצהרת הלקוח, והרו"ח יכול לפתוח את השלב מחדש אם התברר אחרת.
+ */
+function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
+  token: string; item: PortalItem;
+  brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
+  accent: string; onDone: () => void;
+}) {
+  const previewMode = useContext(PreviewCtx);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirm() {
+    if (previewMode || !item.actionValue) return;
+    setBusy(true);
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc('portal_submit_step', {
+      p_token: token, p_step_id: item.actionValue, p_data: {},
+    });
+    const res = data as { ok?: boolean; error?: string } | null;
+    setBusy(false);
+    if (rpcError || !res?.ok) {
+      setError('לא הצלחנו לשמור את האישור. אפשר לנסות שוב.');
+      return;
+    }
+    onDone();
+  }
+
+  const linkBtn: React.CSSProperties = {
+    display: 'inline-block', textDecoration: 'none', cursor: 'pointer',
+    fontSize: 13.5, fontWeight: 600, padding: '9px 18px', borderRadius: brand.radius,
+    color: '#fff', background: accent, border: 'none',
+  };
+  const confirmBtn: React.CSSProperties = {
+    display: 'inline-block', cursor: previewMode || busy ? 'default' : 'pointer',
+    fontSize: 13.5, fontWeight: 600, padding: '9px 18px', borderRadius: brand.radius,
+    color: brand.ink, background: 'transparent', border: `1px solid ${brand.border}`,
+    opacity: previewMode || busy ? .55 : 1,
+  };
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+      {item.linkUrl && (previewMode
+        ? <span style={{ ...linkBtn, opacity: .55, pointerEvents: 'none' }}>לפתיחת החשבון ←</span>
+        : <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={linkBtn}>לפתיחת החשבון ←</a>)}
+      <button type="button" style={confirmBtn} disabled={previewMode || busy} onClick={() => void confirm()}>
+        {busy ? 'רגע…' : (item.cta || 'נרשמתי')}
+      </button>
+      {error && <div style={{ width: '100%', fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
     </div>
   );
 }
@@ -553,8 +623,12 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
     );
   }
 
-  // ‼ עבודת המשרד ("office") לא מוצגת כאן: הרו"ח רואה אותה ב"תהליך", וללקוח
-  // היא רק רעש סביב השאלה היחידה שהעמוד עונה עליה.
+  // ‼ עבודת המשרד ("office") כן מוצגת, מ-2026-08-16 — בלי שום פקד. הלקוח
+  // צריך לדעת שלושה דברים: מה עליו לעשות, מה אנחנו עושים עכשיו, ומה יקרה
+  // אחר כך. קודם הושמט האמצעי מביניהם, והתוצאה הייתה שקט שנקרא כתקיעות:
+  // "נרשמתי לפייפרלס — ומה עכשיו?" בלי תשובה על המסך.
+  // ‼ הגבול שנשמר: office הוא מידע ולא מטלה, ולכן הוא שקט, אפור, ומתחת
+  // ל"מה צריך ממך" — לעולם לא מתחרה בו.
   //
   // ‼ "future" — שלב שפורסם ועדיין נעול — כן מוצג, מ-2026-08-15. קודם הוא נזרק
   // כאן, והתוצאה הייתה שהלקוח לא ידע שיש המשך: "הרשאה לחיוב חודשי" פשוט הופיעה
@@ -563,6 +637,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   // ‼ הגבול שנשאר: טיוטה אינה מגיעה לכאן בכלל (השרת מסנן לפי published_at),
   // ולכן "נעול" לעולם אינו חושף בקשה שהרו"ח עוד לא פרסם.
   const actions = data.items.filter(i => i.bucket === 'action');
+  const office  = data.items.filter(i => i.bucket === 'office');
   const future  = data.items.filter(i => i.bucket === 'future');
   const done    = data.items.filter(i => i.bucket === 'done');
   const firstName = data.clientFirstName;
@@ -585,9 +660,10 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                 last={i === actions.length - 1} onDone={reload} />
             ))}
           </>
-        ) : done.length > 0 && future.length === 0 ? (
-          /* ‼ "הכול הושלם" רק כשבאמת אין המשך. עם שלב עתידי נעול זה היה
-             שקר קטן שמייצר פנייה: הלקוח קורא שסיים, ואז נפתח לו עוד שלב. */
+        ) : done.length > 0 && future.length === 0 && office.length === 0 ? (
+          /* ‼ "הכול הושלם" רק כשבאמת אין המשך. עם שלב עתידי נעול או עם משהו
+             שבטיפולנו זה היה שקר קטן שמייצר פנייה: הלקוח קורא שסיים, ואז
+             נפתח לו עוד שלב. */
           <div style={{ fontSize: 15, color: brand.ink, margin: '18px 0 4px' }}>
             הכול הושלם{firstName ? `, ${firstName}` : ''} 🎉
           </div>
@@ -597,12 +673,43 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           </div>
         )}
 
+        {/* ── בטיפול המשרד ────────────────────────────────────────────────
+            מה שאנחנו עושים עכשיו. שקט ובלי פקדים — זו תשובה לשאלה "ומה
+            עכשיו?", לא עוד רשימת מטלות. */}
+        {office.length > 0 && (
+          <>
+            <div style={{ ...sectionTitle, marginTop: actions.length > 0 ? 20 : 16 }}>
+              בטיפול המשרד
+            </div>
+            {office.map(item => (
+              <div key={item.key} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 8,
+                padding: '10px 0', borderTop: `1px solid ${brand.border}`,
+              }}>
+                <span aria-hidden="true" style={{ fontSize: 12, lineHeight: '20px', opacity: .55 }}>●</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, color: brand.ink }}>
+                    {item.label}
+                    {preview && item.draft && <DraftChip />}
+                    {preview && item.removing && <RemovingChip />}
+                  </div>
+                  {item.sub && (
+                    <div style={{ fontSize: 12, color: brand.muted, marginTop: 2, lineHeight: 1.55 }}>
+                      {item.sub}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
         {/* ── בהמשך: שלבים שפורסמו ועדיין נעולים ──────────────────────────
             שקט בכוונה — אפור, בלי כפתור, בלי מסגרת מודגשת. זו מפת דרכים,
             לא רשימת מטלות: אסור שתתחרה ב"מה צריך ממך" שמעליה. */}
         {future.length > 0 && (
           <>
-            <div style={{ ...sectionTitle, marginTop: actions.length > 0 ? 20 : 16 }}>
+            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || office.length > 0) ? 20 : 16 }}>
               בהמשך — ייפתח אוטומטית
             </div>
             {future.map(item => (

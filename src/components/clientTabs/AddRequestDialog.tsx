@@ -25,24 +25,34 @@ const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'file_opening',           hint: 'פתיחת תיקים ברשויות', once: true },
 ];
 
-/** רצף הפייפרלס — תבנית מוכרת, לא תצורה: הזמנה, חיבור, והרשאה לתשלום חודשי,
- *  כשכל שלב נפתח אחרי הקודם. הניסוחים ללקוח והכדור זהים למה שהמנוע בשרת
- *  יוצר מהצעת מחיר (generate_onboarding_steps) — כדי שרצף שנוסף ידנית
- *  יתנהג בדיוק כמו רצף שנולד מהצעה. */
+/** רצף הפייפרלס — תבנית מוכרת, לא תצורה. שלושה שלבים, ובעלות שונה לכל אחד:
+ *
+ *   1. הרשמה לפייפרלס   — הלקוח. הוא נרשם ומאשר בעצמו בדף האישי.
+ *   2. חיבור לפייפרלס    — המשרד. נכנסים לחשבון ומשלימים את ההגדרה (שם
+ *      פייפרלס מבקשת את פרטי האשראי) — ולכן זו פעולה שלנו, לא שלו.
+ *   3. הרשאה לתשלום חודשי — נפתחת אחרי (2).
+ *
+ * ‼ הבעלות היא מה שקובע מי רואה כפתור: הלקוח מקבל פעולה רק על (1), ורואה
+ * את (2) כ"בטיפול המשרד" בלי שום פקד. הכדור והניסוחים זהים למה שהמנוע
+ * בשרת יוצר מהצעת מחיר, כדי שרצף ידני ורצף מהצעה יתנהגו אותו דבר. */
 const PAPERLESS_SEQUENCE: {
   type: OnboardingStep['stepType'];
-  owner?: 'client';
+  owner: 'client' | 'me';
   payload: Record<string, unknown>;
 }[] = [
-  { type: 'paperless_invite',
-    payload: { paperlessStatus: 'unknown', dataSource: 'unknown' } },
-  { type: 'paperless_connection', owner: 'client',
+  { type: 'paperless_invite', owner: 'client',
     payload: {
-      clientTitle: 'להירשם לפייפרלס',
+      paperlessStatus: 'unknown', dataSource: 'unknown',
+      clientTitle: 'הרשמה לפייפרלס',
       clientSub: 'שתי דקות, ומשם רק מצלמים קבלות מהטלפון',
-      clientCta: 'להרשמה',
+      clientCta: 'נרשמתי לפייפרלס',
     } },
-  { type: 'retainer_authorization',
+  { type: 'paperless_connection', owner: 'me',
+    payload: {
+      clientTitle: 'חיבור לפייפרלס',
+      clientSub: 'בימים הקרובים ניכנס לחשבון ונשלים את החיבור. אין צורך לעשות דבר כרגע.',
+    } },
+  { type: 'retainer_authorization', owner: 'me',
     payload: {
       clientTitle: 'להזין אמצעי תשלום',
       clientSub: 'הסכום שסוכם בהצעה, כהרשאה קבועה',
@@ -143,7 +153,8 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     for (const part of PAPERLESS_SEQUENCE) {
       const existingId = byType.get(part.type);
       if (existingId) { prevId = existingId; continue; }
-      const res = await rpcCreate(part.type, part.payload, prevId, part.owner);
+      const res: { id: string } | { error: string } =
+        await rpcCreate(part.type, part.payload, prevId, part.owner);
       if ('error' in res) { setBusy(false); setError(res.error); return; }
       prevId = res.id;
     }

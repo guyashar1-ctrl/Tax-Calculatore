@@ -65,7 +65,9 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   file_opening: 'פתיחת תיקים ברשויות',
   release_letter: 'מכתב שחרור לרו״ח הקודם',
   materials_received: 'קבלת חומרים מהרו״ח הקודם',
-  paperless_invite: 'הזמנה לפייפרלס',
+  // ‼ "הרשמה" ולא "הזמנה": השלב הזה הוא של הלקוח — הוא נרשם ומאשר בדף
+  // האישי. "הזמנה" תיאר מייל שהמשרד שולח, וזה כבר לא המודל.
+  paperless_invite: 'הרשמה לפייפרלס',
   paperless_connection: 'חיבור לפייפרלס',
   data_import: 'ייבוא היסטוריה',
   data_verification: 'אימות הנתונים',

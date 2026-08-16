@@ -96,9 +96,12 @@ const STEPS: OnboardingStep[] = [
            { key: 'uniform_file', label: 'קובץ מבנה אחיד', done: false },
          ] } }),
   // ── פייפרלס: טריאז' שטרם נענה (השאלות מוצגות על השלב הזה) ──
-  step({ id: 's4', stepType: 'paperless_invite', track: 'tools', scope: 'person', status: 'pending', ball: 'me',
-         payload: { paperlessStatus: 'unknown', dataSource: 'unknown' } }),
-  step({ id: 's5', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'locked', ball: 'client', dependsOnStepId: 's4' }),
+  // ‼ הבעלות ממיגרציה 106: ההרשמה של הלקוח, החיבור של המשרד.
+  step({ id: 's4', stepType: 'paperless_invite', track: 'tools', scope: 'person', status: 'pending', ball: 'client',
+         payload: { paperlessStatus: 'unknown', dataSource: 'unknown',
+                    clientTitle: 'הרשמה לפייפרלס', clientCta: 'נרשמתי לפייפרלס' } }),
+  step({ id: 's5', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'locked', ball: 'me', dependsOnStepId: 's4',
+         payload: { clientTitle: 'חיבור לפייפרלס' } }),
   /* ── הרשאת תשלום: נעולה עד חיבור הפייפרלס ──
      ‼ זה מקרה־הייחוס של אב-הטיפוס: בקשה תלויה שיורדת לתוך כרטיס ההורה
      ונקראת כצעד ההמשך שלו. שלבים כפולים מאותו סוג הוסרו מהפיקסטורה —

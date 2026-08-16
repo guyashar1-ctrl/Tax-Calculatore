@@ -221,7 +221,8 @@ export default function InlineComposer({
       } : {}),
       // ‼ null מפורש ולא היעדר: ביטול אוטומציה על בקשה שפורסמה חייב לדרוס
       // את המפתח בפרסום (merge שומר מפתחות שלא נשלחו).
-      autoAction: (auto && owner !== 'me') ? { kind: 'email' } : null,
+      // ‼ גורם חיצוני בלבד — ראה ההערה ליד הפקד.
+      autoAction: (auto && owner === 'external') ? { kind: 'email' } : null,
     };
   }
 
@@ -588,8 +589,11 @@ export default function InlineComposer({
             </label>
           )}
 
-          {/* ── ביצוע: ידני (ברירת מחדל) / אוטומטי (D3) ── */}
-          {owner !== 'me' && (
+          {/* ── ביצוע: ידני (ברירת מחדל) / אוטומטי (D3) ──
+              ‼ לגורם חיצוני בלבד. בקשה ללקוח אינה נשלחת כמייל משלה — היא
+              שורה בדף האישי, ומה שיוצא ללקוח הוא עדכון הדף. "אוטומטי" על
+              בקשת לקוח היה מייל פר-בקשה בדלת האחורית. */}
+          {owner === 'external' && (
             <div style={{ display: 'grid', gap: '.25rem' }}>
               <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-2)' }}>ביצוע</span>
               <span role="group" aria-label="ביצוע" style={{ display: 'inline-flex', gap: '.3rem' }}>

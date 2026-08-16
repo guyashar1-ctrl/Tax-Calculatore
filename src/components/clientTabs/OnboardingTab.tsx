@@ -167,7 +167,7 @@ function lockHint(
   parents?: string[],
 ): string {
   if (step.stepType === 'retainer_authorization') {
-    return 'ייפתח אחרי שתאשר את חיבור הלקוח לפייפרלס';
+    return 'ייפתח אחרי שנשלים את החיבור לפייפרלס';
   }
   const parentIds = (parents && parents.length > 0)
     ? parents
@@ -528,9 +528,10 @@ export default function OnboardingTab({
     for (const e of depEdges) m.set(e.parentId, [...(m.get(e.parentId) ?? []), e.stepId]);
     return m;
   }, [depEdges]);
-  /** "עדכן את דף הלקוח" — פרסום כל השינויים, ואז השאלה על המייל (D4). */
-  const [publishingCase, setPublishingCase] = useState(false);
+  /** "עדכן את דף הלקוח" — הפעולה היחידה ברמת הדף. הבחירה (רק לעדכן / לעדכן
+   *  ולשלוח / העתק קישור) והפרסום עצמו חיים ב-PublishCasePrompt. */
   const [publishPromptOpen, setPublishPromptOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   /** עריכה בתוך השורה — אותו קומפוזר של ההוספה, מלא מראש. */
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   /** מצב עריכה — אותו מסך, פקדי ↑↓⋯ ותצורה נחשפים; במצב רגיל רק פעולה אחת. */
@@ -709,16 +710,10 @@ export default function OnboardingTab({
         אוטומטית שנפתחה דרכו לא חימשה את המייל שלה. עכשיו יש נתיב פרסום אחד.
      הפונקציה בשרת נשארה — לא נמחק כלום מהמסד. */
 
-  /** פרסום כל שינויי התיק בבת אחת — טיוטות + עריכות ממתינות. */
-  async function publishCase() {
-    setPublishingCase(true);
-    const { data, error: rpcError } = await supabase.rpc('publish_case_changes', { p_client_id: clientId });
-    setPublishingCase(false);
-    const res = data as { ok?: boolean; error?: string } | null;
-    if (rpcError || !res?.ok) { setError(rpcError?.message ?? 'הפרסום נכשל.'); return; }
-    refresh?.();
-    setPublishPromptOpen(true);
-  }
+  /* ‼ publish_case_changes נקראת מ-PublishCasePrompt ולא מכאן: הבחירה
+     ("רק לעדכן" / "לעדכן ולשלוח קישור") חייבת לקדום את הפרסום, אחרת
+     "רק לעדכן" הוא שם של כפתור סגירה. פרסום כל שינויי התיק בבת אחת —
+     טיוטות, עריכות, סידור והסרות — נשאר קריאה אחת, שם. */
 
   async function setStepRequired(id: string, required: boolean) {
     const { data, error: rpcError } = await supabase.rpc('set_onboarding_step_required', {
@@ -913,9 +908,6 @@ export default function OnboardingTab({
                     onTriage={submitTriage}
                     onRetriage={() => { setTriageError(null); setRetriageStepId(step.id); }}
                     onCancelTriage={() => setRetriageStepId(null)}
-                    onPrepareInvite={() => setEmailDialog({
-                      stepId: step.id, kind: 'paperless_invite', heading: 'מייל הזמנה לפייפרלס',
-                    })}
                     onConfirm={(title, message, confirmLabel) =>
                       setConfirmState({ stepId: step.id, title, message, confirmLabel })}
                     onRun={(action, payload) => void run(step, action, payload)}
@@ -980,9 +972,6 @@ export default function OnboardingTab({
                     stepById={stepById}
                     busy={busy}
                     highlight={highlightStepId === step.id}
-                    onPrepareEmail={() => setEmailDialog({
-                      stepId: step.id, kind: 'intake_questionnaire', heading: 'מייל עדכון סטטוס מס',
-                    })}
                     onRun={(action, payload) => void run(step, action, payload)}
                     menu={menu}
                   />
@@ -1094,14 +1083,11 @@ export default function OnboardingTab({
                         onClick={() => void run(step, 'reopen')}>פתח מחדש</button>
                     )}
 
-                    {/* ‼ תזכורת מוצעת רק כשהכדור בחוץ. שלב שהכדור בו אצלי
-                        לא צריך תזכורת — הוא צריך שאעשה אותו. */}
-                    {step.needsAttention && isStepOpen(step.status) && step.ball === 'client' && (
-                      <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
-                        onClick={() => setEmailDialog({
-                          stepId: step.id, kind: 'step_reminder', heading: 'תזכורת ללקוח',
-                        })}>הכן תזכורת</button>
-                    )}
+                    {/* ‼ "הכן תזכורת" הוסר מבקשת לקוח (2026-08-16). בקשה
+                        ללקוח אינה מייל משלה — היא שורה בדף האישי, ומזכירים
+                        עליה בשליחה אחת של הדף ("עדכן את דף הלקוח ← לעדכן
+                        ולשלוח קישור"). תזכורת פר-בקשה החזירה בדיוק את המודל
+                        של "שלחתי כמה בקשות" שהמסך הזה בא לבטל. */}
 
                     {menu}
                   </>}
@@ -1348,9 +1334,11 @@ export default function OnboardingTab({
               onClick={() => void discardChanges()}>
               {discarding ? 'מבטל…' : 'בטל שינויים'}
             </button>
-            <button type="button" className="btn btn-sm btn-primary" disabled={publishingCase}
-              onClick={() => void publishCase()}>
-              {publishingCase ? 'מפרסם…' : 'עדכן את דף הלקוח'}
+            {/* ‼ הבחירה קודמת לפרסום: "רק לעדכן" חייב להיות הפעולה עצמה,
+                ולא "סגור" אחרי שכבר פורסם. הפעולה היחידה ברמת הדף. */}
+            <button type="button" className="btn btn-sm btn-primary"
+              onClick={() => { setPendingCount(dirty.length); setPublishPromptOpen(true); }}>
+              עדכן את דף הלקוח
             </button>
           </div>
         );
@@ -1697,6 +1685,8 @@ export default function OnboardingTab({
           clientId={clientId}
           clientName={clientDisplayName ?? 'הלקוח'}
           clientEmail={clientEmail}
+          pendingCount={pendingCount}
+          onPublished={() => refresh?.()}
           onClose={() => { setPublishPromptOpen(false); refresh?.(); }}
         />
       )}
@@ -1755,7 +1745,6 @@ interface PaperlessCardProps {
   onTriage: (a: { paperlessStatus: PaperlessStatus; dataSource: PaperlessDataSource; softwareName: string }) => void;
   onRetriage: () => void;
   onCancelTriage: () => void;
-  onPrepareInvite: () => void;
   onConfirm: (title: string, message: string, confirmLabel: string) => void;
   onRun: (action: string, payload?: Record<string, unknown>) => void;
   menu: React.ReactNode;
@@ -1838,30 +1827,36 @@ function PaperlessStepCard(p: PaperlessCardProps) {
           )}
 
           <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
-            {isInvite && open && path === 'none' && (
-              <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={p.onPrepareInvite}>
-                {step.status === 'waiting_client' ? 'שלח הזמנה שוב' : 'הכן מייל הזמנה'}
-              </button>
-            )}
+            {/* ‼ אין כאן יותר "הכן מייל הזמנה". קישור ההרשמה חי בדף האישי
+                של הלקוח, ככל בקשה אחרת — לא במייל נפרד לבקשה הזאת. */}
             {isInvite && open && path !== 'none' && path !== undefined && (
               <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
-                onClick={() => p.onRun('skip', { reason: 'already_connected', note: 'הלקוח כבר בפייפרלס — אין צורך בהזמנה' })}>
-                סמן שאין צורך בהזמנה
+                onClick={() => p.onRun('skip', { reason: 'already_connected', note: 'הלקוח כבר בפייפרלס — אין צורך בהרשמה' })}>
+                סמן שאין צורך בהרשמה
               </button>
             )}
+            {/* ‼ ההשלמה הרגילה של השלב הזה היא של הלקוח ("נרשמתי לפייפרלס"
+                בדף האישי). הכפתור כאן הוא המסלול הידני — הלקוח אמר בטלפון,
+                או שראינו אותו בפייפרלס — בדיוק כמו "הלקוח השלים" בשאר הבקשות. */}
             {isInvite && open && (
               <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
-                onClick={() => p.onRun('complete', { completionMethod: 'manual' })}>ההזמנה יצאה</button>
+                title="לשימוש כשהלקוח הודיע מחוץ למערכת — בדרך כלל הוא מאשר בעצמו בדף האישי"
+                onClick={() => p.onRun('complete', { completionMethod: 'manual' })}>הלקוח נרשם</button>
             )}
 
+            {/* ‼ שלב החיבור הוא של המשרד: ברגע שנכנסים לחשבון של הלקוח,
+                פייפרלס מבקשת מאיתנו את פרטי האשראי. ולכן ההשלמה כאן היא
+                "סיימתי" — לא "אשר שהלקוח עשה". זה גם מה שפותח את ההרשאה. */}
             {!isInvite && open && step.status !== 'locked' && (
               <button type="button" className="btn btn-sm btn-primary" disabled={busy}
                 onClick={() => p.onConfirm(
-                  path === 'other_rep' ? 'אישור השלמת ההעברה' : 'אישור חיבור לפייפרלס',
-                  'ודאת שהלקוח קיים ומחובר בפייפרלס תחת הייצוג שלך?',
-                  path === 'other_rep' ? 'אשר שההעברה הושלמה' : 'אשר חיבור',
+                  path === 'other_rep' ? 'אישור השלמת ההעברה' : 'סיום החיבור לפייפרלס',
+                  path === 'other_rep'
+                    ? 'ההעברה מהמייצג הקודם הושלמה והלקוח מופיע ברשימה שלך?'
+                    : 'נכנסת לחשבון הפייפרלס של הלקוח והשלמת את ההגדרה, כולל פרטי האשראי שפייפרלס ביקשה?',
+                  'סיימתי',
                 )}>
-                {path === 'other_rep' ? 'אשר שההעברה הושלמה' : path === 'self' ? 'אשר קישור למשרד' : 'אשר חיבור'}
+                סיימתי
               </button>
             )}
             {!isInvite && step.status === 'completed' && (
@@ -1889,18 +1884,27 @@ function InviteBody({ path, status }: { path?: PaperlessStatus; status: string }
       </div>
     );
   }
-  if (path === 'other_rep' || path === 'self') {
+  if (path === 'other_rep') {
     return (
       <div style={cardNote}>
-        הלקוח כבר קיים בפייפרלס — אין צורך במייל הזמנה. ההמשך נעשה בשלב החיבור.
+        הלקוח כבר קיים בפייפרלס אצל המייצג הקודם — אין לו מה להירשם. ההמשך
+        נעשה בשלב החיבור, שהוא שלנו.
+      </div>
+    );
+  }
+  if (path === 'self') {
+    return (
+      <div style={cardNote}>
+        ללקוח כבר יש חשבון פייפרלס. בדף האישי הוא מתבקש להוסיף את המשרד
+        כמייצג, ומאשר כאן שעשה זאת.
       </div>
     );
   }
   return (
     <div style={cardNote}>
-      {status === 'waiting_client'
-        ? 'ההזמנה נשלחה ללקוח. ברגע שיפתח חשבון, אפשר לאשר את החיבור בשלב הבא.'
-        : 'המייל מסביר ללקוח מה פייפרלס נותן לו — צילום מסמכים מהטלפון, שליחה במייל, מעקב אחרי התשלומים לרשויות והפקת חשבוניות — ומצרף את קישור ההזמנה של המשרד.'}
+      {status === 'waiting_client' || status === 'pending'
+        ? 'קישור ההרשמה מופיע ללקוח בדף האישי, יחד עם כפתור «נרשמתי לפייפרלס». ברגע שילחץ, שלב החיבור ייפתח אצלך מעצמו.'
+        : 'הלקוח נרשם. אפשר להיכנס לחשבון שלו ולהשלים את החיבור.'}
     </div>
   );
 }
@@ -1946,8 +1950,21 @@ function ConnectionBody({ path, softwareName }: { path?: PaperlessStatus; softwa
   }
   return (
     <div style={cardNote}>
-      אחרי שהלקוח פותח חשבון מקישור ההזמנה — לוודא שהוא מופיע ברשימת הלקוחות שלך בפייפרלס, ולאשר כאן.
-      {softwareName && <> ההיסטוריה מ{softwareName} מיובאת בשלב נפרד ואינה מעכבת את האישור.</>}
+      <div style={{ fontWeight: 600, color: 'var(--ink-2)', marginBottom: '.25rem' }}>
+        מה שנשאר לנו לעשות
+      </div>
+      <ol style={{ margin: 0, paddingInlineStart: '1.1rem', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
+        <li>להיכנס לחשבון הפייפרלס של הלקוח ולוודא שהוא ברשימת הלקוחות שלך.</li>
+        {/* ‼ זה החלק שהופך את השלב הזה לשלנו: פייפרלס מבקשת את פרטי האשראי
+            ממי שנכנס לחשבון, ולכן אי אפשר לבקש מהלקוח "לסמן שהסתיים". */}
+        <li>להזין את פרטי האשראי שפייפרלס מבקשת בכניסה.</li>
+        <li>ללחוץ «סיימתי» — זה מה שפותח את הרשאת התשלום החודשי.</li>
+      </ol>
+      {softwareName && (
+        <div style={{ marginTop: '.3rem' }}>
+          ההיסטוריה מ{softwareName} מיובאת בשלב נפרד ואינה מעכבת.
+        </div>
+      )}
     </div>
   );
 }
@@ -2196,12 +2213,11 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
 // ‼ נסגר לבד כשהלקוח מסיים למלא (close_intake_step_for_client) — אין צורך
 // לשאול "האם הוא כבר מילא" ואין מה לסמן ידנית.
 
-function IntakeStepCard({ step, stepById, busy, highlight, onPrepareEmail, onRun, menu }: {
+function IntakeStepCard({ step, stepById, busy, highlight, onRun, menu }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   busy: boolean;
   highlight: boolean;
-  onPrepareEmail: () => void;
   onRun: (action: string, payload?: Record<string, unknown>) => void;
   menu: React.ReactNode;
 }) {
@@ -2211,22 +2227,18 @@ function IntakeStepCard({ step, stepById, busy, highlight, onPrepareEmail, onRun
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}>
       <div style={cardNote}>
         {sent
-          ? 'השאלון נשלח. ברגע שהלקוח יסיים למלא — השלב ייסגר מעצמו והתשובות יופיעו בכרטיס.'
+          ? 'השאלון פתוח ללקוח בדף האישי. ברגע שיסיים למלא — השלב ייסגר מעצמו והתשובות יופיעו בכרטיס.'
           : 'שאלון שממפה את מצב המס של הלקוח: מצב משפחתי וילדים, מקורות הכנסה, הפקדות לפנסיה וקרן השתלמות, ונכסים להצהרת הון. מה שיענה כאן לא ייאסף שוב בדוח השנתי.'}
       </div>
 
-      {open && (
+      {/* ‼ "הכן מייל שאלון" הוסר (2026-08-16). השאלון הוא בקשה בדף האישי כמו
+          כל בקשה אחרת, והוא נחשף בעדכון הדף — לא במייל ייעודי שמתחרה בו. */}
+      {open && sent && (
         <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
-          <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-            onClick={onPrepareEmail}>
-            {sent ? 'שלח שוב' : 'הכן מייל שאלון'}
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+            onClick={() => onRun('complete', { completionMethod: 'manual', note: 'סומן ידנית כמולא' })}>
+            הלקוח מילא
           </button>
-          {sent && (
-            <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
-              onClick={() => onRun('complete', { completionMethod: 'manual', note: 'סומן ידנית כמולא' })}>
-              הלקוח מילא
-            </button>
-          )}
         </div>
       )}
       {step.status === 'completed' && (
