@@ -40,6 +40,25 @@ export const CLIENT_FACING_TYPES: OnboardingStepType[] = [
   'release_letter', 'materials_received',
 ];
 
+/**
+ * ‼ עבודה פנימית שהמרכיב יוצר לבד — **אינה מוצגת במשטח הבקשות** (הכרעת גיא).
+ * המשטח הזה הוא "מה אני צריך מאנשים אחרים", לא מערכת לניהול משימות המשרד;
+ * כרטיסים אוטומטיים כמו "הקמה פנימית" הפכו אותו ללוח מטלות.
+ *
+ * ‼ שום דבר לא נמחק: השלבים ממשיכים להתקיים במסד וממשיכים להופיע ביומן
+ * "מה קרה". רק התצוגה כאן ירדה — ואיתה גם החסימה של סגירת הקליטה, כי אסור
+ * שגיא ייחסם על ידי פריט שהמסך בכוונה לא מראה לו.
+ * העבודה הפנימית שכן מוצגת: "יישור קו ללקוח", ומשימה שהרו"ח הוסיף בעצמו.
+ *
+ * ‼ רשימה אחת בלבד — היא חיה ב-types/onboarding.ts, כי אותה רשימה בדיוק גם
+ * קובעת מה לא חוסם סגירה. שני עותקים היו נפרדים ביום שמישהו יוסיף סוג.
+ */
+export { LEGACY_AUTO_OFFICE_TYPES as AUTO_OFFICE_TYPES } from '../types/onboarding';
+
+/** משימה פנימית שהרו"ח הוסיף בעצמו — בקשה חופשית שהכדור בה אצלו. */
+export const isManualInternalTask = (s: OnboardingStep): boolean =>
+  s.stepType === 'custom_request' && s.ball === 'me';
+
 /** החבר הפעיל של שרשרת: הראשון הפתוח בסדר הפנימי, אחרת הראשון (הכול נסגר). */
 function pickPrimary(members: OnboardingStep[]): OnboardingStep {
   return members.find(s => isStepOpen(s.status)) ?? members[0];

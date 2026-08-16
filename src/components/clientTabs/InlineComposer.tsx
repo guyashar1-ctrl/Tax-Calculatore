@@ -59,11 +59,13 @@ function emptyRow(): InputRow {
 }
 
 export default function InlineComposer({
-  clientId, stageId, editStep, initialDeps, existingSteps, prevAccountant, onSaved, onCancel,
+  clientId, stageId, editStep, initialDeps, initialOwner, existingSteps, prevAccountant, onSaved, onCancel,
 }: {
   clientId: string;
   /** שלב-העל שבו נלחץ "+ הוסף" — נגזר מההקשר, לא נשאל. null = דלי ברירת-מחדל. */
   stageId?: string | null;
+  /** מי מטפל כברירת מחדל. 'me' — כשנפתח מ"+ משימה פנימית". */
+  initialOwner?: Owner;
   /** מצב עריכה — אותו קומפוזר, מלא מראש. */
   editStep?: OnboardingStep;
   /** כל ההורים של השלב הנערך (מטבלת התלויות) — לא רק הראשון. */
@@ -81,7 +83,7 @@ export default function InlineComposer({
 
   const [name, setName] = useState(String(editContent?.title ?? editContent?.clientTitle ?? ''));
   const [owner, setOwner] = useState<Owner>(() => {
-    if (!edit) return 'client';
+    if (!edit) return initialOwner ?? 'client';
     if (edit.payload.externalParty) return 'external';
     return edit.ball === 'me' ? 'me' : 'client';
   });

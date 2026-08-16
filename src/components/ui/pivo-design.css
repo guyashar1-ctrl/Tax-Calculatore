@@ -2156,9 +2156,34 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .ob-card .ob-more {
   border: 0; background: none; color: var(--ink-4); font-size: 17px;
   cursor: pointer; padding: 4px 7px; border-radius: 8px; opacity: .35;
-  min-height: auto; line-height: 1;
+  min-height: auto; line-height: 1; font: inherit; font-size: 17px;
 }
 .ob-card .ob-more:hover, .ob-card .ob-more:focus-visible { opacity: 1; background: var(--surface-2); }
+.ob-card .ob-more[aria-expanded="true"] { opacity: 1; background: var(--surface-2); }
+.ob-card .ob-more:disabled { cursor: default; opacity: .2; }
+
+/* ‼ תפריט ⋯ — שכבה מרחפת, לא כפתורים בשורה. הבאג שהיה כאן: הפריטים רונדרו
+   כאחים של ⋯ בתוך .ob-card-actions (flex-shrink:0) וגזלו את רוחב הכרטיס,
+   עד שהכותרת נמעכה לעמודה. תפריט חייב לצוף מעל הכרטיס ולא לתפוס בו מקום. */
+.ob-menu-wrap { position: relative; display: inline-flex; }
+.ob-menu {
+  position: absolute; top: 100%; inset-inline-end: 0; margin-top: 6px;
+  background: var(--card); border: 1px solid var(--bd); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(20, 25, 40, .10), 0 2px 6px rgba(20, 25, 40, .04);
+  z-index: 60; padding: .35rem; display: flex; flex-direction: column;
+  min-width: 190px; max-height: min(60vh, 420px); overflow-y: auto;
+}
+.ob-menu-item {
+  appearance: none; border: 0; background: none; font: inherit;
+  font-size: var(--fs-13); color: var(--ink-1);
+  text-align: start; width: 100%; white-space: nowrap;
+  padding: .5rem .6rem; border-radius: 7px; cursor: pointer; min-height: 36px;
+}
+.ob-menu-item:hover, .ob-menu-item:focus-visible { background: var(--surface-2); }
+.ob-menu-item.is-danger { color: var(--err); }
+.ob-menu-item.is-danger:hover { background: var(--red-light, var(--surface-2)); }
+.ob-menu-item:disabled { color: var(--ink-4); cursor: default; background: none; }
+.ob-menu-sep { height: 1px; background: var(--hairline-1); margin: .3rem .2rem; }
 
 /* צ'יפ מצב — שקט, לא תג צבעוני שמושך את העין מהכותרת. */
 .ob-pill {
@@ -2198,6 +2223,15 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   font: inherit; font-weight: 700; cursor: pointer; margin-top: 18px;
 }
 .ob-add:hover { background: var(--surface-2); color: var(--ink-2); }
+
+/* ‼ "משימה פנימית" נשארת שקטה בכוונה: היא לא ההזמנה הראשית של המסך —
+   הבקשה מהלקוח היא. אותו רוחב-מלא כמו "+ בקשה חדשה" היה מציב אותן כשוות. */
+.ob-add.ob-add-quiet {
+  display: inline-block; width: auto; text-align: start;
+  border: 0; padding: 6px 2px; margin-top: 10px;
+  font-size: var(--fs-12); font-weight: 600; color: var(--ink-4);
+}
+.ob-add.ob-add-quiet:hover { background: transparent; color: var(--ink-2); text-decoration: underline; }
 
 @media (max-width: 640px) {
   .ob-card-row { flex-direction: column; align-items: flex-start; gap: 10px; }

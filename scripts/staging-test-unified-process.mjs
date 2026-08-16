@@ -171,6 +171,21 @@ ok('UP-9 · אין פריט retainer עם actionKind=external בדף הלקוח'
 console.log(`   פריט ההרשאה שהוצג בפועל: ${JSON.stringify(retainerItem)}`);
 void retainer;
 
+// ── UP-10 · משימה פנימית לא מגיעה לדף הלקוח ─────────────────────────────────
+// ‼ ההפרדה היא הכדור, לא סוג השלב: custom_request עם ball='me' הוא משימה של
+// המשרד. הבדיקה מוודאת שגם אחרי פרסום היא לא נראית ללקוח בשום דלי.
+console.log('\n— UP-10 · משימה פנימית —');
+const internal = await jrpc(`public.create_onboarding_request('${cid}', 'custom_request',
+  '{"title":"לבדוק תיק ישן במשרד"}'::jsonb, null, null, false, true, 'me', null)`);
+await jrpc(`public.publish_case_changes('${cid}')`);
+const portalInternal = await live();
+ok('UP-10 · המשימה הפנימית אינה מופיעה בדף הלקוח אחרי פרסום',
+  !(portalInternal.items || []).some(i => String(i.label ?? '').includes('לבדוק תיק ישן')),
+  JSON.stringify((portalInternal.items || []).map(i => i.label)));
+const internalRow = await one(`select ball, status from public.onboarding_steps where id = '${internal.stepId}'`);
+ok('UP-10b · המשימה קיימת במסד עם הכדור אצל המשרד',
+  internalRow.ball === 'me' && internalRow.status !== 'cancelled', JSON.stringify(internalRow));
+
 // ── ניקוי ───────────────────────────────────────────────────────────────────
 await cleanup();
 const left = await one(`select count(*)::int as n from public.clients where last_name = '${NAME}';`);

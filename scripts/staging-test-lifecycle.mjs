@@ -101,18 +101,27 @@ const eng = await one(`select id, status from public.engagements where client_id
 ok('נוצרה התקשרות בקליטה', eng?.status === 'onboarding', String(eng?.status));
 const nSteps = (await one(`select count(*)::int as n from public.onboarding_steps where client_id = ${q(CID)}`)).n;
 ok('נוצרו שלבי קליטה', nSteps > 0, String(nSteps));
-// ‼ הליבה של D1: המסד עצמו יצא בקריאת HTTP, בלי דפדפן של רו"ח.
+// ‼ הפוך מ-D1 המקורי (מיגרציה 102): המסד **אינו** שולח מייל ייצוג משלו.
+// ההעברה לטופס הייצוג קורית בדפדפן של הלקוח, מיד אחרי האישור, דרך
+// ה-onboardingToken שהפונקציה מחזירה. מייל שני היה כפילות מיותרת.
 let dispatched = false;
-for (let i = 0; i < 20 && !dispatched; i++) {
+for (let i = 0; i < 6 && !dispatched; i++) {
   await new Promise((r) => setTimeout(r, 1500));
   dispatched = (await one(`select count(*)::int as n from net._http_response where id > ${maxNet}`)).n > 0;
 }
-ok('המסד יצא בקריאת HTTP לשליחת מייל הייצוג', dispatched);
+ok('המסד אינו שולח מייל ייצוג משלו', dispatched === false);
+ok('במקומו הוחזר onboardingToken שמעביר את הלקוח לטופס',
+  typeof appr.data?.onboardingToken === 'string' && appr.data.onboardingToken.length > 0,
+  JSON.stringify(Object.keys(appr.data ?? {})));
+const repSent = await one(`select representation_sent_at from public.quotations where id = 'fx-q-life'`);
+ok('representation_sent_at נשאר ריק — לא יצא מייל', repSent.representation_sent_at === null,
+  String(repSent.representation_sent_at));
 
-// ‼ רק הייצוג אוטומטי. אין מייל אחר ללקוח שיצא מעצמו.
+// ‼ מאז מיגרציה 102 אין שום מייל שיוצא מעצמו לאישור ההצעה. הבדיקה כאן
+// מוודאת שגם לא נולד אחר במקומו — לא "כמעט אף אחד", אלא אף אחד.
 const kinds = await writeStaging(
   `select distinct kind from public.email_messages where client_id = ${q(CID)}`);
-ok('רק מייל ייצוג יצא אוטומטית', kinds.every((k) => k.kind === 'onboard'),
+ok('שום מייל ללקוח לא יצא מעצמו באישור ההצעה', kinds.length === 0,
   JSON.stringify(kinds.map((k) => k.kind)));
 const otherMailsAfter = (await one(
   `select count(*)::int as n from public.email_messages where client_id is distinct from ${q(CID)}`)).n;

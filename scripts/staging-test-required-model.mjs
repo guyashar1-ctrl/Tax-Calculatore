@@ -188,8 +188,14 @@ console.log('\n— המסך והשרת —');
   const steps = await writeStaging(`select id, step_type, status, required_for_close, due_date
      from public.onboarding_steps where engagement_id = '${eng.id}'`);
   const SAT = ['completed', 'verified', 'skipped'];
+  // ‼ מיגרציה 105 · LEGACY_AUTO_OFFICE_TYPES — עבודה פנימית אוטומטית שמסך
+  //   הבקשות אינו מציג אינה חוסמת, ולכן היא קודמת לערך שעל השלב.
+  const HIDDEN_OFFICE = ['internal_setup', 'kyc_identification', 'first_month_review',
+    'representation_upgrade', 'opening_call', 'file_opening',
+    'data_import', 'data_verification'];
   const uiIds = steps.filter((x) => {
     if (x.status === 'cancelled') return false;
+    if (HIDDEN_OFFICE.includes(x.step_type)) return false;
     const required = typeof x.required_for_close === 'boolean' ? x.required_for_close
       : !['representation_upgrade', 'first_month_review'].includes(x.step_type);
     if (!required) return false;

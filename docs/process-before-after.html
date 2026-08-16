@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>לשונית «תהליך» — לפני ואחרי השליחה</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink-1:#25282d; --ink-2:#4b5058; --ink-3:#63686f; --ink-4:#8e949b;
+  --bd:#e2e4e7; --bd-strong:#d3d6da; --card:#fff; --surface-1:#fafaf9; --surface-2:#f3f2f0;
+  --accent:#3f5f8f; --warn:#8a5b0f; --err:#a63a3a; --ok:#24654e; --ok-bg:#eaf4ef;
+  --hairline-1:#e2e4e7; --hairline-2:#eeedeb;
+  --chip-blue-bg:#e3ebf5; --chip-blue-tx:#2c4468;
+  --fs-12:12px; --fs-13:13px; --fs-14:14px; --fs-15:15px;
+  --radius:9px; --r-panel:12px; --page:#f8f7f5;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink-1);font-family:Heebo,system-ui,sans-serif;font-size:14px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding:1.6rem 1.1rem 4rem}
+
+/* ── מסגרת ההסבר ─────────────────────────────────────────── */
+h1{font-size:22px;margin:0 0 .3rem}
+.lede{color:var(--ink-3);font-size:var(--fs-14);margin:0 0 1.6rem;max-width:70ch}
+.why{background:var(--card);border:1px solid var(--bd);border-radius:var(--r-panel);padding:1rem 1.1rem;margin-bottom:2rem}
+.why h2{font-size:15px;margin:0 0 .5rem}
+.why p{margin:.35rem 0;font-size:var(--fs-13);color:var(--ink-2);max-width:82ch}
+.why b{color:var(--ink-1)}
+
+.screens{display:grid;gap:1.6rem}
+@media(min-width:1000px){.screens{grid-template-columns:1fr 1fr;align-items:start}}
+.screen{background:var(--card);border:1px solid var(--bd);border-radius:var(--r-panel);overflow:hidden}
+.screen-head{padding:.7rem .9rem;border-bottom:1px solid var(--hairline-1);background:var(--surface-1)}
+.screen-head .tag{font-size:var(--fs-12);font-weight:700;letter-spacing:.02em;color:var(--ink-4)}
+.screen-head .name{font-size:var(--fs-15);font-weight:700;display:block;margin-top:.1rem}
+.screen-head .file{font-size:var(--fs-12);color:var(--ink-4);font-family:ui-monospace,monospace;direction:ltr;display:block;margin-top:.15rem}
+.screen-body{padding:.9rem}
+
+/* ── פקדים משותפים ───────────────────────────────────────── */
+.btn{font:inherit;font-size:var(--fs-13);border-radius:7px;padding:.3rem .7rem;cursor:default;border:1px solid transparent;line-height:1.4}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-secondary{background:var(--card);border-color:var(--bd-strong);color:var(--ink-1)}
+.btn-ghost{background:none;color:var(--ink-2)}
+.linkbtn{background:none;border:none;font:inherit;font-size:var(--fs-13);color:var(--accent);padding:0;cursor:default}
+.muted{color:var(--ink-3);font-size:var(--fs-12)}
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.15rem 0 .5rem;font-weight:700;font-size:var(--fs-14)}
+
+/* ── עמוד 1: הבונה ───────────────────────────────────────── */
+.chip-ok{padding:.1rem .5rem;border-radius:.4rem;font-size:var(--fs-12);font-weight:600;background:var(--ok-bg);color:var(--ok)}
+.b-h3{margin:.5rem 0 .15rem;font-size:17px}
+.b-p{margin:0 0 .2rem;font-size:var(--fs-13);color:var(--ink-3)}
+.grouptitle{font-size:var(--fs-12);font-weight:600;color:var(--ink-3);letter-spacing:.02em;margin:.9rem 0 .35rem}
+.brow{display:flex;align-items:flex-start;gap:.7rem;padding:.6rem .75rem;border-radius:.55rem;border:1px solid var(--bd-strong);background:var(--card);margin-bottom:.5rem}
+.toggle{flex-shrink:0;width:2.1rem;height:1.2rem;padding:.12rem;margin-top:.1rem;display:inline-flex;align-items:center;justify-content:flex-end;border:none;border-radius:999px;background:var(--accent)}
+.toggle span{width:.95rem;height:.95rem;border-radius:999px;background:#fff}
+.toggle.off{background:var(--bd-strong);justify-content:flex-start}
+.fixed-lbl{flex-shrink:0;width:2.1rem;text-align:center;padding-top:.1rem;font-size:var(--fs-12);color:var(--ink-3)}
+.brow-txt{display:grid;gap:.15rem;flex:1;min-width:0}
+.brow-txt .t{font-weight:600}
+.brow-txt .s{font-size:var(--fs-12);color:var(--ink-3)}
+.brow-txt .l{font-size:var(--fs-12);color:var(--ink-4)}
+.arrows{display:inline-flex;gap:2px;flex-shrink:0;color:var(--ink-3);font-size:var(--fs-13)}
+.reprow{display:flex;align-items:flex-start;gap:.7rem;padding:.65rem 0;border-top:1px solid var(--hairline-2)}
+.repbar{align-self:stretch;width:3px;flex-shrink:0;border-radius:999px;background:var(--accent)}
+.ballchip{font-size:var(--fs-12);font-weight:600;border-radius:999px;padding:.05rem .45rem;background:var(--chip-blue-bg);color:var(--chip-blue-tx)}
+.aside{margin-top:1.1rem;display:grid;gap:.5rem;padding:.75rem;border-radius:.6rem;background:var(--surface-2)}
+.aside .h{font-weight:600;font-size:var(--fs-13)}
+.pv{display:flex;gap:.55rem;align-items:flex-start;padding:.55rem;border-radius:.5rem;background:var(--card);border:1px solid var(--bd)}
+.pv .n{flex-shrink:0;width:1.35rem;height:1.35rem;border-radius:.35rem;display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-12);font-weight:700;border:2px solid var(--bd-strong);color:var(--ink-3)}
+.pv-lock{display:flex;gap:.5rem;align-items:center;padding:.5rem;border-radius:.5rem;border:1px dashed var(--bd);font-size:var(--fs-12);color:var(--ink-3)}
+.cta{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;padding-top:.6rem}
+
+/* ── עמוד 2: מצב ניהול ───────────────────────────────────── */
+.clientpage{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.4rem 0 .3rem;font-size:var(--fs-13)}
+.clientpage .lead{color:var(--ink-2)}
+.stage{border:1px solid var(--bd);border-radius:var(--r-panel);overflow:hidden;margin-bottom:.55rem;background:var(--card)}
+.stage.quiet{background:var(--surface-2)}
+.stage-head{display:flex;align-items:center;gap:.55rem;width:100%;min-height:40px;padding:.5rem .75rem;background:none;border:none;font:inherit;text-align:start}
+.stage-head .car,.stage-head .dot{font-size:var(--fs-12)}
+.stage-head .car{color:var(--ink-4)}
+.stage-head .ttl{font-weight:700;font-size:var(--fs-14)}
+.stage-head .sum{font-size:var(--fs-12);color:var(--ink-3)}
+.stage-body{padding:0 .75rem .55rem;border-top:1px solid var(--hairline-1)}
+.srow{display:flex;gap:.6rem;align-items:flex-start;padding:.55rem 0;border-top:1px solid var(--hairline-2)}
+.sdot{width:8px;height:8px;border-radius:999px;margin-top:.4rem;flex-shrink:0;background:var(--ink-3)}
+.srow .body{flex:1;min-width:0}
+.srow .title{font-size:var(--fs-14);font-weight:600;color:var(--ink-1)}
+.srow .title .car{color:var(--ink-4);margin-inline-end:.3rem}
+.srow .meta{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;font-size:var(--fs-12);color:var(--ink-3);margin-top:2px}
+.srow .acts{display:flex;gap:.35rem;align-items:flex-start;flex-shrink:0}
+.addline{display:block;width:100%;text-align:start;padding:.45rem .2rem;margin-top:.15rem;background:none;border:none;font:inherit;font-size:var(--fs-13);color:var(--accent)}
+.done-head{display:flex;align-items:center;gap:.35rem;font-weight:700;font-size:var(--fs-14);padding:.6rem 0 .2rem}
+.empty{color:var(--ink-3);font-size:var(--fs-13);padding:.4rem 0}
+
+/* ── טבלת ההשוואה ─────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse;margin-top:2.2rem;background:var(--card);border:1px solid var(--bd);border-radius:var(--r-panel);overflow:hidden}
+caption{text-align:start;font-weight:700;font-size:15px;padding-bottom:.5rem}
+th,td{text-align:start;padding:.6rem .8rem;border-bottom:1px solid var(--hairline-1);font-size:var(--fs-13);vertical-align:top}
+th{background:var(--surface-1);font-size:var(--fs-12);color:var(--ink-3);font-weight:600}
+tr:last-child td{border-bottom:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>לשונית «תהליך» — לפני השליחה ואחריה</h1>
+<p class="lede">שני המסכים שאתה רואה הם באמת שני מסכים שונים במערכת, לא אותו מסך שהתקלקל.
+המעבר ביניהם קורה ברגע שאתה לוחץ «עדכן את דף הלקוח» / שולח את הקישור.</p>
+
+<div class="why">
+  <h2>למה זה מתחלף</h2>
+  <p>בהתקשרות של הלקוח יש שדה אחד שאומר <b>«התהליך כבר נפתח ללקוח?»</b>.
+     כל עוד הוא ריק — הלשונית מציגה את <b>מסך הבנייה</b>: אתה מרכיב מה לבקש ובאיזה סדר, עם מתגים ותצוגה מקדימה של מה שהלקוח יראה.
+     ברגע שהוא מתמלא — הלשונית מחליפה את עצמה ב<b>מסך הניהול</b>: הבקשות כבר יצאו לדרך, ועכשיו צריך לעקוב אחריהן.</p>
+  <p>כלומר: מסך הבנייה הוא מסך <b>חד־פעמי</b>. אחרי הלחיצה הוא נעלם ולא חוזר — גם אם תוסיף בקשות חדשות אחר כך.</p>
+  <p class="muted">בקוד: <span style="font-family:ui-monospace,monospace;direction:ltr">OnboardingProcessBuilder.tsx</span> מול <span style="font-family:ui-monospace,monospace;direction:ltr">CaseStageSections.tsx</span>, ההחלפה בשורה 740 של <span style="font-family:ui-monospace,monospace;direction:ltr">OnboardingTab.tsx</span>.</p>
+</div>
+
+<div class="screens">
+
+<!-- ══════════ עמוד 1 — לפני ══════════ -->
+<section class="screen">
+  <div class="screen-head">
+    <span class="tag">עמוד 1 · לפני השליחה</span>
+    <span class="name">מצב בנייה — «מה אתה צריך ממנו, ובאיזה סדר?»</span>
+    <span class="file">OnboardingProcessBuilder.tsx</span>
+  </div>
+  <div class="screen-body">
+
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+      <span class="chip-ok">ההצעה אושרה</span>
+      <span style="font-size:var(--fs-13);color:var(--ink-3)">הבודק הסופי · 450 ₪ לחודש</span>
+    </div>
+    <h3 class="b-h3">מה אתה צריך ממנו, ובאיזה סדר?</h3>
+    <p class="b-p">ייפוי הכוח כבר נפתח לו. שאר הבקשות יגיעו אליו כשתלחץ "שלח ללקוח" — לא לפני.</p>
+
+    <!-- ייפוי הכוח — כבר רץ -->
+    <div class="reprow">
+      <span class="repbar"></span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap">
+          <span class="ballchip">אצלך</span>
+          <span style="font-size:var(--fs-14);font-weight:600">בקשת ייצוג — לשלוח ללקוח לחתימה</span>
+        </div>
+        <div class="muted" style="margin-top:2px">הטופס מוכן וממתין לחתימת הלקוח</div>
+      </div>
+      <button class="btn btn-primary">למרכז הייצוג ←</button>
+    </div>
+
+    <div class="grouptitle">מה הלקוח יראה בדף האישי</div>
+
+    <div class="brow">
+      <button class="toggle"><span></span></button>
+      <span class="brow-txt">
+        <span class="t">חיבור לפייפרלס</span>
+        <span class="s">שתי דקות, ומשם רק מצלמים קבלות מהטלפון</span>
+        <span class="s">שולחים לו את הקישור הקבוע ← הלקוח נרשם ומתחבר ← נפתחת ההרשאה לתשלום</span>
+      </span>
+      <span class="arrows">↑ ↓</span>
+    </div>
+
+    <div class="brow">
+      <button class="toggle"><span></span></button>
+      <span class="brow-txt">
+        <span class="t">מעבר מהרו״ח הקודם</span>
+        <span class="s">הלקוח ממלא את פרטי הרו״ח ← שולחים מכתב שחרור ← מקבלים את החומרים (3 פריטים במעקב)</span>
+      </span>
+      <span class="arrows">↑ ↓</span>
+    </div>
+
+    <div class="brow">
+      <button class="toggle"><span></span></button>
+      <span class="brow-txt">
+        <span class="t">הרשאה לתשלום חודשי</span>
+        <span class="s">450 ₪ בחודש — הסכום שסוכם בהצעה, כהרשאה קבועה</span>
+        <span class="l">🔒 ייפתח ללקוח אוטומטית אחרי החיבור לפייפרלס</span>
+      </span>
+      <span class="arrows">↑ ↓</span>
+    </div>
+
+    <div class="brow">
+      <button class="toggle"><span></span></button>
+      <span class="brow-txt">
+        <span class="t">מסמכים מהלקוח</span>
+        <span class="s">אישור ניהול חשבון בנק · דוח שנתי אחרון · טופס 106</span>
+      </span>
+      <span class="arrows">↑ ↓</span>
+    </div>
+
+    <div class="grouptitle">העבודה שלי</div>
+
+    <div class="brow">
+      <button class="toggle"><span></span></button>
+      <span class="brow-txt"><span class="t">הקמה פנימית</span></span>
+    </div>
+    <div class="brow">
+      <span class="fixed-lbl">חובה</span>
+      <span class="brow-txt"><span class="t">הכרת הלקוח</span></span>
+    </div>
+    <div class="brow">
+      <button class="toggle off"><span></span></button>
+      <span class="brow-txt"><span class="t" style="color:var(--ink-3)">שיחת פתיחה</span></span>
+    </div>
+
+    <div style="display:flex;gap:.4rem;margin-top:.7rem">
+      <button class="btn btn-secondary">+ בקשה</button>
+      <button class="btn btn-ghost">תבניות מסע</button>
+      <button class="btn btn-ghost">תצוגה מקדימה</button>
+    </div>
+
+    <div class="cta">
+      <button class="btn btn-primary">עדכן את דף הלקוח</button>
+      <span style="font-size:var(--fs-13);color:var(--ink-3)">הדף האישי ייפתח ללקוח, ומיד אחר כך נשאל אם לשלוח לו מייל עם הקישור.</span>
+    </div>
+
+    <aside class="aside">
+      <span class="h">מה הוא יראה</span>
+      <div class="pv"><span class="n">1</span><span><span style="font-weight:600;font-size:var(--fs-13)">חיבור לפייפרלס</span></span></div>
+      <div class="pv"><span class="n">2</span><span style="display:grid;gap:.15rem"><span style="font-weight:600;font-size:var(--fs-13)">להעלות 3 מסמכים</span><span class="s muted">אישור ניהול חשבון בנק · דוח שנתי אחרון · טופס 106</span></span></div>
+      <div class="pv"><span class="n">3</span><span style="display:grid;gap:.15rem"><span style="font-weight:600;font-size:var(--fs-13)">פרטי רואה החשבון הקודם שלך</span><span class="s muted">שם, אימייל וטלפון — כדי שנפנה אליו בשמך</span></span></div>
+      <div class="pv-lock"><span>🔒</span><span>הרשאה לתשלום חודשי — ייפתח בהמשך</span></div>
+    </aside>
+
+  </div>
+</section>
+
+<!-- ══════════ עמוד 2 — אחרי ══════════ -->
+<section class="screen">
+  <div class="screen-head">
+    <span class="tag">עמוד 2 · אחרי השליחה — זה מה שבצילום שלך</span>
+    <span class="name">מצב ניהול — «המסלול בתיק»</span>
+    <span class="file">OnboardingTab.tsx + CaseStageSections.tsx</span>
+  </div>
+  <div class="screen-body">
+
+    <div class="clientpage">
+      <span class="lead">הדף של הבודק הסופי — קישור קבוע אחד:</span>
+      <button class="linkbtn">העתק קישור</button>
+      <button class="linkbtn">שלח שוב את הקישור</button>
+      <button class="linkbtn">מה הלקוח רואה</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-ghost">סגור קליטה</button>
+    </div>
+    <div class="muted" style="color:var(--ink-4);margin-bottom:.8rem">כל מה שמבקשים מהלקוח חי בדף האישי הזה. בקשות לגורם חיצוני נשלחות בנפרד.</div>
+
+    <div class="sec-head"><span>המסלול בתיק</span>
+      <span style="display:flex;gap:.4rem"><button class="btn btn-ghost">תבניות</button><button class="btn btn-ghost">+ בקשה</button></span>
+    </div>
+
+    <section class="stage quiet">
+      <div class="stage-head"><span class="car">▸</span><span class="dot" style="color:var(--accent)">●</span><span class="ttl" style="color:var(--ink-3)">בקשת הייצוג</span><span class="sum">0 מתוך 1 הושלמו</span></div>
+    </section>
+    <section class="stage quiet">
+      <div class="stage-head"><span class="car">▸</span><span class="dot" style="color:var(--accent)">●</span><span class="ttl" style="color:var(--ink-3)">יישור קו מול הרשויות</span><span class="sum">0 מתוך 3 הושלמו</span></div>
+    </section>
+    <section class="stage quiet">
+      <div class="stage-head"><span class="car">▸</span><span class="dot" style="color:var(--accent)">●</span><span class="ttl" style="color:var(--ink-3)">קליטת הלקוח</span><span class="sum">2 מתוך 6 הושלמו</span></div>
+    </section>
+
+    <section class="stage">
+      <div class="stage-head"><span class="car">▾</span><span class="dot" style="color:var(--accent)">●</span><span class="ttl">עבודה פנימית</span><span class="sum">0 מתוך 4 הושלמו</span></div>
+      <div class="stage-body">
+
+        <div class="srow">
+          <span class="sdot"></span>
+          <div class="body">
+            <div class="title" style="color:var(--ink-3)"><span class="car">▸</span>🔒 שיחת פתיחה <span class="muted">רשות</span></div>
+            <div class="meta"><span style="font-weight:600">נעול</span><span>· הכדור אצלי</span><span>· ייפתח כשהשלב שלפניו יושלם</span></div>
+          </div>
+          <div class="acts"><button class="btn btn-secondary" style="opacity:.5">נעול</button><button class="btn btn-ghost">⋯</button></div>
+        </div>
+
+        <div class="srow">
+          <span class="sdot" style="background:var(--warn)"></span>
+          <div class="body">
+            <div class="title"><span class="car">▸</span>הכרת הלקוח</div>
+            <div class="meta"><span style="font-weight:600;color:var(--warn)">ממתין</span><span>· הכדור אצלי</span></div>
+          </div>
+          <div class="acts"><button class="btn btn-ghost">⋯</button></div>
+        </div>
+
+        <div class="srow">
+          <span class="sdot" style="background:var(--warn)"></span>
+          <div class="body">
+            <div class="title"><span class="car">▸</span>הקמה פנימית</div>
+            <div class="meta"><span style="font-weight:600;color:var(--warn)">ממתין</span><span>· 2/3</span><span>· הכדור אצלי</span></div>
+          </div>
+          <div class="acts"><button class="btn btn-secondary">התחל</button><button class="btn btn-ghost">⋯</button></div>
+        </div>
+
+        <div class="srow">
+          <span class="sdot" style="background:var(--warn)"></span>
+          <div class="body">
+            <div class="title"><span class="car">▸</span>עדכון סטטוס מס <span class="muted">רשות</span></div>
+            <div class="meta"><span style="font-weight:600;color:var(--warn)">ממתין</span><span>· הכדור אצלי</span></div>
+          </div>
+          <div class="acts"><button class="btn btn-ghost">⋯</button></div>
+        </div>
+
+        <button class="addline">+ הוסף בקשה או משימה לשלב הזה</button>
+      </div>
+    </section>
+
+    <div class="done-head"><span class="car" style="color:var(--ink-4)">▸</span><span>בקשות שהושלמו · 2</span></div>
+    <div class="sec-head" style="margin-top:.8rem"><span>מה קרה בקליטה</span></div>
+    <div class="empty">עדיין אין רישומים.</div>
+
+  </div>
+</section>
+
+</div><!-- /screens -->
+
+<table>
+  <caption>מה בעצם ההבדל</caption>
+  <tr><th style="width:20%"></th><th style="width:40%">עמוד 1 — בנייה</th><th style="width:40%">עמוד 2 — ניהול</th></tr>
+  <tr><td><b>השאלה שהמסך עונה עליה</b></td><td>מה לבקש מהלקוח, ובאיזה סדר</td><td>מה פתוח עכשיו ואצל מי הכדור</td></tr>
+  <tr><td><b>יחידת התצוגה</b></td><td>שורה עם מתג הדלקה/כיבוי</td><td>שלב־על מתקפל, ובתוכו שורות בקשה</td></tr>
+  <tr><td><b>הסבר במילים</b></td><td>יש — «שולחים קישור ← הלקוח נרשם ← נפתחת ההרשאה»</td><td>אין — רק שם, סטטוס וכדור</td></tr>
+  <tr><td><b>תצוגה מקדימה של דף הלקוח</b></td><td>קבועה על המסך, מצד שמאל</td><td>מאחורי כפתור «מה הלקוח רואה»</td></tr>
+  <tr><td><b>סדר הבקשות</b></td><td>חיצי ↑↓ על כל שורה</td><td>מוסתר בתוך תפריט ⋯</td></tr>
+  <tr><td><b>מתי מוצג</b></td><td>פעם אחת בלבד, לפני הפתיחה ללקוח</td><td>מכאן והלאה, לתמיד</td></tr>
+</table>
+
+</div>
+</body>
+</html>

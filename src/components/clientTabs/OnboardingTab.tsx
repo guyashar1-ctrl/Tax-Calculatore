@@ -42,7 +42,10 @@ import type { PortalPreviewMode } from './ClientPagePreviewDialog';
 import PortalPreviewPanel from './PortalPreviewPanel';
 import PublishCasePrompt from './PublishCasePrompt';
 import InlineComposer from './InlineComposer';
-import { buildClientFacingRows, CLIENT_FACING_TYPES, type ClientFacingRow } from '../../utils/clientFacingRows';
+import {
+  AUTO_OFFICE_TYPES, buildClientFacingRows, CLIENT_FACING_TYPES, isManualInternalTask,
+  type ClientFacingRow,
+} from '../../utils/clientFacingRows';
 
 interface Props {
   clientId: string;
@@ -265,6 +268,22 @@ export default function OnboardingTab({
   useEffect(() => () => {
     if (highlightTimer.current) window.clearTimeout(highlightTimer.current);
   }, []);
+
+  /* ‼ תפריט ⋯ נסגר בלחיצה בחוץ וב-Escape. בלי זה הוא נשאר פתוח על כרטיס
+     אחד בזמן שעובדים על אחר, ושתי שכבות פתוחות בו-זמנית נראות כתקלה. */
+  useEffect(() => {
+    if (!menuStepId) return;
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement | null)?.closest?.('.ob-menu-wrap')) setMenuStepId(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuStepId(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuStepId]);
 
   // ─── מילוי אוטומטי של ההקמה הפנימית ──────────────────────────────────────
   // ‼ מספרי התיקים והמטפל כבר ידועים למערכת מרגע הייצוג. לבקש מהרו"ח לסמן
@@ -512,6 +531,8 @@ export default function OnboardingTab({
   const [discarding, setDiscarding] = useState(false);
   /** מתג הפאנל המוטבע: חי (ברירת מחדל, אמין) מול אחרי עדכון. */
   const [sidebarPreviewMode, setSidebarPreviewMode] = useState<PortalPreviewMode>('live');
+  /** קומפוזר "משימה פנימית" — נפתח בתוך מקטע "העבודה שלי". */
+  const [internalComposerOpen, setInternalComposerOpen] = useState(false);
   /** חלון הסגירה — נפתח רק כשהשרת חוסם, ונסגר איתו. */
   const [closeGate, setCloseGate] = useState<{ steps: OnboardingStep[] } | null>(null);
 
@@ -594,7 +615,13 @@ export default function OnboardingTab({
     return s.ball === ballFilter;
   };
 
-  const visibleSteps = clientSteps.filter(matchesBall);
+  /* ‼ העבודה הפנימית האוטומטית ושלבי יישור-הקו יורדים ממשטח הבקשות (הכרעת
+     גיא). יישור קו מיוצג בכרטיס אחד קבוע ב"העבודה שלי" ונפתח למסך שלו;
+     השאר פשוט לא מוצג כאן. הנתונים לא נמחקו — ראה AUTO_OFFICE_TYPES. */
+  const onSurface = (s: OnboardingStep) =>
+    !AUTO_OFFICE_TYPES.includes(s.stepType) && !s.stepType.startsWith('institution_alignment_');
+
+  const visibleSteps = clientSteps.filter(s => matchesBall(s) && onSurface(s));
   const openSteps = visibleSteps.filter(s => isStepOpen(s.status));
   const doneSteps = visibleSteps.filter(s => !isStepOpen(s.status));
 
@@ -740,6 +767,12 @@ export default function OnboardingTab({
               // תמיד, גם "סמן כרשות" וגם שני חצי סידור — ארבעה פקדי תצורה על
               // כל בקשה, בכל מסך. עכשיו השורה הסגורה נושאת פעולה אחת, והתצורה
               // נפתחת רק כשמבקשים אותה.
+              /* ‼ תפריט צף, לא כפתורים בשורה. הבאג שהיה כאן: כל פריטי התפריט
+                 רונדרו כאחים של ⋯ בתוך .ob-card-actions (שהוא flex-shrink:0),
+                 ולכן שמונה כפתורים גזלו את כל רוחב הכרטיס — הכותרת והמצב
+                 נמעכו לעמודה של מילה אחת. עכשיו זו שכבה מרחפת מעל הכרטיס. */
+              const menuOpen = menuStepId === step.id;
+              const mi = 'ob-menu-item';
               const menu = (
                 <>
                   {/* ‼ "עריכת תהליך" מעלה את חצי הסידור אל השורה עצמה. במנוחה
@@ -747,82 +780,92 @@ export default function OnboardingTab({
                       בדיוק תחושת הטבלה שהמסך הזה בא להוריד. */}
                   {editing && !ordering && isStepOpen(step.status) && (
                     <>
-                      <button type="button" className="btn btn-sm btn-ghost ob-more" aria-label="הזז למעלה"
+                      <button type="button" className="ob-more" aria-label="הזז למעלה"
                         onClick={() => void moveRow(step.id, -1)}>↑</button>
-                      <button type="button" className="btn btn-sm btn-ghost ob-more" aria-label="הזז למטה"
+                      <button type="button" className="ob-more" aria-label="הזז למטה"
                         onClick={() => void moveRow(step.id, 1)}>↓</button>
                     </>
                   )}
                   {isStepOpen(step.status) && (
-                    <button type="button" className="btn btn-sm btn-ghost ob-more" disabled={busy}
-                      aria-expanded={menuStepId === step.id}
-                      onClick={() => setMenuStepId(id => id === step.id ? null : step.id)}
-                      aria-label="עריכה ואפשרויות">⋯</button>
-                  )}
-                  {menuStepId === step.id && (
-                    <>
-                      {/* עריכה בשורה — רק לבקשות שנבנות בקומפוזר. */}
-                      {step.stepType === 'custom_request' && isStepOpen(step.status) && (
-                        <button type="button" className="btn btn-sm btn-ghost"
-                          onClick={() => { setMenuStepId(null); setEditingStepId(step.id); }}>עריכה והגדרות</button>
+                    <div className="ob-menu-wrap">
+                      <button type="button" className="ob-more" disabled={busy}
+                        aria-haspopup="menu" aria-expanded={menuOpen}
+                        onClick={() => setMenuStepId(id => id === step.id ? null : step.id)}
+                        aria-label="עריכה ואפשרויות">⋯</button>
+                      {menuOpen && (
+                        <div className="ob-menu" role="menu">
+                          {/* עריכה בשורה — רק לבקשות שנבנות בקומפוזר. */}
+                          {step.stepType === 'custom_request' && (
+                            <button type="button" role="menuitem" className={mi}
+                              onClick={() => { setMenuStepId(null); setEditingStepId(step.id); }}>עריכה והגדרות</button>
+                          )}
+                          {/* ‼ בקשת המשך — כאן נולדת התלות. הרו"ח לא בונה גרף ולא
+                              בוחר "הורה" מרשימה: הוא עומד על «פתיחת חשבון פייפרלס»
+                              ואומר "ואחריה צריך גם…". התלות נגזרת מהמקום שממנו לחץ. */}
+                          <button type="button" role="menuitem" className={mi}
+                            onClick={() => { setMenuStepId(null); setFollowUpFor(step.id); }}
+                            title={`בקשה חדשה שתיפתח רק אחרי «${rowTitle(step)}»`}>
+                            הוסף בקשת המשך
+                          </button>
+
+                          <div className="ob-menu-sep" />
+
+                          {/* ‼ שלב הייצוג מסונכרן מהשרת — "דלג" ו"חסום" ידניים היו
+                              נדרסים בטריגר הבא ומשקרים עד אז. נשארת רק הערה. */}
+                          {step.stepType !== 'representation' && (
+                            <>
+                              <button type="button" role="menuitem" className={mi}
+                                onClick={() => { setMenuStepId(null); handleSkip(step); }}>דלג על הבקשה</button>
+                              <button type="button" role="menuitem" className={mi}
+                                onClick={() => { setMenuStepId(null); handleBlock(step); }}>סמן כחסום</button>
+                            </>
+                          )}
+                          <button type="button" role="menuitem" className={mi}
+                            onClick={() => { setMenuStepId(null); handleNote(step); }}>הוסף הערה</button>
+                          {!['completed', 'verified', 'cancelled'].includes(step.status) && (
+                            <button type="button" role="menuitem" className={mi}
+                              onClick={() => { setMenuStepId(null); void setStepRequired(step.id, !isStepRequiredForClose(step)); }}
+                              title={isStepRequiredForClose(step)
+                                ? 'השלב חוסם היום את סגירת הקליטה. סימון כרשות ישחרר אותה.'
+                                : 'השלב אינו חוסם היום את סגירת הקליטה.'}>
+                              {isStepRequiredForClose(step) ? 'סמן כרשות' : 'סמן כנדרש'}
+                            </button>
+                          )}
+                          {/* ‼ בתפריט טקסט מלא ולא חץ בודד: "↑" ברשימה אנכית לא
+                              אומר כלום. במצב עריכה הם ממילא עלו לשורה. */}
+                          {!editing && !ordering && (
+                            <>
+                              <button type="button" role="menuitem" className={mi}
+                                onClick={() => { setMenuStepId(null); void moveRow(step.id, -1); }}>הזז למעלה</button>
+                              <button type="button" role="menuitem" className={mi}
+                                onClick={() => { setMenuStepId(null); void moveRow(step.id, 1); }}>הזז למטה</button>
+                            </>
+                          )}
+
+                          <div className="ob-menu-sep" />
+
+                          <button type="button" role="menuitem" className={mi}
+                            onClick={() => { setMenuStepId(null); setTemplatesOpen(true); }}
+                            title="שמירת הבקשות של הלקוח כתבנית — כולל התלות ביניהן">
+                            שמור כתבנית
+                          </button>
+                          {/* ‼ "הסר" — רק על בקשות פונות-ללקוח (לא ייצוג, לא עבודה
+                              פנימית — שם "דלג"/"חסום" כבר מספיקים). בקשה שפורסמה
+                              מסומנת pending_cancel וממשיכה להופיע ללקוח עד הפרסום
+                              הבא (מיגרציה 101); טיוטה שמעולם לא פורסמה מבוטלת מיד. */}
+                          {CLIENT_FACING_TYPES.includes(step.stepType) && (
+                            <button type="button" role="menuitem"
+                              className={`${mi} ${step.pendingCancel ? '' : 'is-danger'}`} disabled={busy}
+                              onClick={() => { setMenuStepId(null); void removeRow(step); }}
+                              title={step.publishedAt == null ? 'הבקשה עוד לא פורסמה — ההסרה מיידית'
+                                : step.pendingCancel ? 'ההסרה ממתינה לפרסום — לחיצה תבטל אותה'
+                                : 'הבקשה תוסר מדף הלקוח בעדכון הבא'}>
+                              {step.pendingCancel ? 'בטל את ההסרה' : 'הסר את הבקשה'}
+                            </button>
+                          )}
+                        </div>
                       )}
-                      {/* ‼ בקשת המשך — כאן נולדת התלות. הרו"ח לא בונה גרף ולא
-                          בוחר "הורה" מרשימה: הוא עומד על «פתיחת חשבון פייפרלס»
-                          ואומר "ואחריה צריך גם…". התלות נגזרת מהמקום שממנו לחץ. */}
-                      {isStepOpen(step.status) && (
-                        <button type="button" className="btn btn-sm btn-ghost"
-                          onClick={() => { setMenuStepId(null); setFollowUpFor(step.id); }}
-                          title={`בקשה חדשה שתיפתח רק אחרי «${rowTitle(step)}»`}>
-                          הוסף בקשת המשך
-                        </button>
-                      )}
-                      {/* ‼ שלב הייצוג מסונכרן מהשרת — "דלג" ו"חסום" ידניים היו
-                          נדרסים בטריגר הבא ומשקרים עד אז. נשארת רק הערה. */}
-                      {step.stepType !== 'representation' && (
-                        <>
-                          <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleSkip(step)}>דלג</button>
-                          <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleBlock(step)}>חסום</button>
-                        </>
-                      )}
-                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => handleNote(step)}>הערה</button>
-                      {/* ‼ ירדו מהשורה עצמה לכאן. */}
-                      {!['completed', 'verified', 'cancelled'].includes(step.status) && (
-                        <button type="button" className="btn btn-sm btn-ghost"
-                          onClick={() => { setMenuStepId(null); void setStepRequired(step.id, !isStepRequiredForClose(step)); }}
-                          title={isStepRequiredForClose(step)
-                            ? 'השלב חוסם היום את סגירת הקליטה. סימון כרשות ישחרר אותה.'
-                            : 'השלב אינו חוסם היום את סגירת הקליטה.'}>
-                          {isStepRequiredForClose(step) ? 'סמן כרשות' : 'סמן כנדרש'}
-                        </button>
-                      )}
-                      {/* בתפריט רק כשלא במצב עריכה — אחרת החצים כפולים. */}
-                      {!editing && !ordering && isStepOpen(step.status) && (
-                        <>
-                          <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למעלה"
-                            onClick={() => void moveRow(step.id, -1)}>↑</button>
-                          <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למטה"
-                            onClick={() => void moveRow(step.id, 1)}>↓</button>
-                        </>
-                      )}
-                      {/* ‼ "הסר" — רק על בקשות פונות-ללקוח (לא ייצוג, לא עבודה
-                          פנימית — שם "דלג"/"חסום" כבר מספיקים). בקשה שפורסמה
-                          מסומנת pending_cancel וממשיכה להופיע ללקוח עד הפרסום
-                          הבא (מיגרציה 101); טיוטה שמעולם לא פורסמה מבוטלת מיד. */}
-                      {CLIENT_FACING_TYPES.includes(step.stepType) && (
-                        <button type="button" className="btn btn-sm btn-ghost" disabled={busy}
-                          onClick={() => { setMenuStepId(null); void removeRow(step); }}
-                          title={step.publishedAt == null ? 'הבקשה עוד לא פורסמה — ההסרה מיידית'
-                            : step.pendingCancel ? 'ההסרה ממתינה לפרסום — לחיצה תבטל אותה'
-                            : 'הבקשה תוסר מדף הלקוח בעדכון הבא'}>
-                          {step.pendingCancel ? 'בטל הסרה' : 'הסר'}
-                        </button>
-                      )}
-                      <button type="button" className="btn btn-sm btn-ghost"
-                        onClick={() => { setMenuStepId(null); setTemplatesOpen(true); }}
-                        title="שמירת הבקשות של הלקוח כתבנית — כולל התלות ביניהן">
-                        שמור כתבנית
-                      </button>
-                    </>
+                    </div>
                   )}
                 </>
               );
@@ -1305,34 +1348,6 @@ export default function OnboardingTab({
         );
       })()}
 
-      {/* ── יישור קו מול הרשויות: הקמה / ריצה מחדש ──────────────────────────
-          ‼ מוצג רק כשאין כבר כרטיס קבוצה פעיל ברשימה למטה (renderStep) —
-          לפני שיש שלבים בכלל, או אחרי ששלושתם הושלמו ("בצע יישור קו מחדש").
-          ‼ שם אחד לשני המצבים (ולא "הקמת תיק במערכת" ללקוח ותיק): זו אותה
-          יכולת בדיוק, והכותרת לא משתנה לפי שלב החיים של הלקוח. */}
-      {(() => {
-        const instSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
-        const allDone = instSteps.length === 3
-          && instSteps.every(s => s.status === 'completed' || s.status === 'verified');
-        if (instSteps.length > 0 && !allDone) return null;
-        return (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap',
-            marginTop: '1.1rem', fontSize: 'var(--fs-12)', color: 'var(--ink-4)',
-          }}>
-            <span style={{ flex: 1, minWidth: 200 }}>
-              יישור קו מול הרשויות — {instSteps.length === 0
-                ? 'ביטוח לאומי, מע״מ ומס הכנסה'
-                : `הושלם${instSteps[0]?.payload.checkedAt ? ' · נבדק לאחרונה ' + formatDate(String(instSteps[0].payload.checkedAt), 'list') : ''}`}
-            </span>
-            <button type="button" className="ui-linkbtn" disabled={alignBusy}
-              onClick={() => void startOrRerunAlignment(instSteps)}>
-              {alignBusy ? 'מעדכן…' : instSteps.length === 0 ? 'התחל יישור קו' : 'בצע מחדש'}
-            </button>
-          </div>
-        );
-      })()}
-
       {/* ── מסך "תהליך" המאוחד: שני מקטעים שטוחים (המודל המאושר) ────────────
           "מה אני צריך מהלקוח" (ייצוג, פייפרלס, מסמכים, רו"ח קודם, הרשאת
           תשלום, בקשות חופשיות/שאלון) ו"העבודה שלי" (קמ"ל, הקמה פנימית,
@@ -1342,9 +1357,13 @@ export default function OnboardingTab({
       {(() => {
         const openVisible = visibleSteps.filter(s => isStepOpen(s.status));
         const repStep = openVisible.find(s => s.stepType === 'representation');
-        const clientRows = buildClientFacingRows(openVisible, depParents);
-        const officeStepsList = openVisible.filter(s =>
-          s.stepType !== 'representation' && !CLIENT_FACING_TYPES.includes(s.stepType));
+        /* ‼ משימה פנימית שהרו"ח הוסיף יורדת מרשימת הבקשות ועולה ב"העבודה
+           שלי" — היא custom_request בדיוק כמו בקשת לקוח, ומה שמפריד הוא
+           הכדור. בלי ההפרדה הזאת משימה לעצמי הייתה נראית כבקשה מהלקוח. */
+        const manualInternal = openVisible.filter(isManualInternalTask);
+        const clientRows = buildClientFacingRows(
+          openVisible.filter(s => !isManualInternalTask(s)), depParents);
+        const alignSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
 
         /** כרטיס אחד + פס הזמן שלו. active = יש בו מה לעשות עכשיו. */
         const flowItem = (step: OnboardingStep, body: React.ReactNode) => (
@@ -1374,9 +1393,12 @@ export default function OnboardingTab({
           return renderStep(row.primary);
         };
 
+        const alignDone = alignSteps.length > 0
+          && alignSteps.every(s => s.status === 'completed' || s.status === 'verified');
+
         return (
           <div className="ob-flow">
-            {!repStep && clientRows.length === 0 && officeStepsList.length === 0 && (
+            {!repStep && clientRows.length === 0 && (
               <div className="cw-empty">אין בקשות פתוחות כרגע.</div>
             )}
 
@@ -1391,13 +1413,66 @@ export default function OnboardingTab({
                 onClick={() => setTemplatesOpen(true)}>מתבנית</button>
             </div>
 
-            {/* ‼ עבודה פנימית — תווית שקטה, לא כותרת מקטע. היא לא מגדירה את
-                המסך מחדש: הבקשות נשארות האובייקט הראשי. */}
-            {officeStepsList.length > 0 && (
-              <>
-                <div className="ob-flow-label">העבודה שלי · לא מופיע בדף הלקוח</div>
-                {officeStepsList.map(s => flowItem(s, renderStep(s)))}
-              </>
+            {/* ── העבודה שלי ──────────────────────────────────────────────
+                ‼ שני דברים בלבד (הכרעת גיא): "יישור קו ללקוח" כפריט הקבוע,
+                ומשימות שהרו"ח הוסיף בעצמו. הכרטיסים האוטומטיים (הקמה פנימית,
+                הכרת הלקוח, ביקורת חודש ראשון…) ירדו מהמסך — הם הפכו את משטח
+                הבקשות ללוח מטלות. הם ממשיכים להתקיים במסד ובשער הסגירה. */}
+            <div className="ob-flow-label">העבודה שלי · לא מופיע בדף הלקוח</div>
+
+            <div className="ob-req">
+              <span className="ob-req-dot" aria-hidden="true" />
+              <div className="ob-card">
+                <div className="ob-card-row">
+                  <div className="ob-card-main">
+                    <div className="ob-card-title">יישור קו ללקוח</div>
+                    <div className="ob-card-meta">
+                      {alignSteps.length === 0
+                        ? 'ביטוח לאומי, מע״מ ומס הכנסה — לאן להיכנס, מה להעתיק, מה חריג'
+                        : alignDone
+                          ? `הושלם${alignSteps[0]?.payload.checkedAt ? ' · נבדק לאחרונה ' + formatDate(String(alignSteps[0].payload.checkedAt), 'list') : ''}`
+                          : 'בתהליך — נכנסים לכל רשות ומיישרים קו'}
+                    </div>
+                  </div>
+                  {(alignSteps.length === 0 || alignDone) && (
+                    <div className="ob-card-actions">
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={alignBusy}
+                        onClick={() => void startOrRerunAlignment(alignSteps)}>
+                        {alignBusy ? 'מעדכן…' : alignSteps.length === 0 ? 'התחל' : 'בצע מחדש'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {alignSteps.length > 0 && (
+                  <div className="ob-card-body">
+                    <InstitutionAlignmentGroup steps={alignSteps} onOpen={setFocusedInstitutionKey} />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {manualInternal.map(s => flowItem(s, renderStep(s)))}
+
+            {/* ‼ משימה פנימית — נוצרת ידנית בלבד, ולעולם לא מופיעה בדף הלקוח
+                (הכדור אצלי ⇒ build_client_portal לא מייצר לה פריט). */}
+            {internalComposerOpen ? (
+              <InlineComposer
+                clientId={clientId}
+                initialOwner="me"
+                existingSteps={clientSteps}
+                prevAccountant={prevAccountant}
+                onCancel={() => setInternalComposerOpen(false)}
+                onSaved={created => {
+                  setInternalComposerOpen(false);
+                  setOptimisticSteps(prev => [...prev, created]);
+                  refresh?.();
+                }}
+              />
+            ) : (
+              <button type="button" className="ob-add ob-add-quiet"
+                onClick={() => setInternalComposerOpen(true)}>
+                ＋ משימה פנימית
+              </button>
             )}
           </div>
         );

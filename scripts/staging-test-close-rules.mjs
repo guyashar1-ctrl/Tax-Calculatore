@@ -107,8 +107,10 @@ console.log('\n— מטריצת הסגירה —');
 }
 {
   // רק שלב אחד נשאר נדרש — הרשימה חייבת להצטמצם בדיוק אליו.
+  // ‼ client_documents ולא internal_setup: מאז מיגרציה 105 העבודה הפנימית
+  //   האוטומטית אינה חוסמת בכלל, ולכן היא כבר לא יכולה לשמש כ"החוסם היחיד".
   const keep = await one(`select id from public.onboarding_steps
-    where client_id = '${F4}' and step_type = 'internal_setup'`);
+    where client_id = '${F4}' and step_type = 'client_documents'`);
   await writeStaging(`update public.onboarding_steps set required_for_close = false
                        where client_id = '${F4}' and id <> '${keep.id}';`);
   const r = await readiness(E4);
@@ -205,6 +207,46 @@ console.log('\n— כפייה, קישורים, ברירת מחדל —');
 {
   const h = await one(`select public.public_link_health() as h`);
   ok('כל הקישורים הציבוריים תקינים', h.h?.allHealthy === true, JSON.stringify(h.h));
+}
+
+// ── מיגרציה 105 · עבודה פנימית שהמסך לא מציג אינה חוסמת סגירה ──────────────
+// ‼ שתי בדיקות משלימות, ובכוונה גם השלילית: הקלה שרחבה מדי היא באג חמור
+// יותר מהחסימה שהיא באה לפתור.
+console.log('\n— 105 · שער הסגירה מול עבודה פנימית מוסתרת —');
+{
+  const eng = await one(`select id, client_id from public.engagements
+     where client_id = '${F4}' order by created_at desc limit 1`);
+  await writeStaging(`delete from public.onboarding_steps where engagement_id = '${eng.id}'`);
+
+  const mk = (type, ball = 'me') => writeStaging(
+    `insert into public.onboarding_steps (id, user_id, client_id, engagement_id, step_type,
+       status, ball, track, scope, required_for_close, payload, sort_order)
+     select gen_random_uuid()::text, user_id, client_id, id, '${type}', 'pending', '${ball}',
+            'internal', 'engagement', true, '{}'::jsonb, 10
+       from public.engagements where id = '${eng.id}'`);
+
+  await mk('internal_setup');
+  await mk('kyc_identification');
+  await mk('first_month_review');
+  const r1 = await readiness(eng.id);
+  ok('105 · שלושת הכרטיסים הפנימיים המוסתרים אינם חוסמים סגירה',
+    r1.ready === true && r1.blocking.length === 0, JSON.stringify(r1.blocking));
+
+  await mk('institution_alignment_btl');
+  const r2 = await readiness(eng.id);
+  ok('105b · יישור קו מול הרשויות עדיין חוסם',
+    r2.ready === false && r2.blocking.some(b => b.stepType === 'institution_alignment_btl'),
+    JSON.stringify(r2.blocking));
+
+  await writeStaging(`delete from public.onboarding_steps
+     where engagement_id = '${eng.id}' and step_type = 'institution_alignment_btl'`);
+  await mk('client_documents', 'client');
+  const r3 = await readiness(eng.id);
+  ok('105c · בקשה מהלקוח עדיין חוסמת',
+    r3.ready === false && r3.blocking.some(b => b.stepType === 'client_documents'),
+    JSON.stringify(r3.blocking));
+
+  await writeStaging(`delete from public.onboarding_steps where engagement_id = '${eng.id}'`);
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} עברו ${pass} · נכשלו ${fail}`);

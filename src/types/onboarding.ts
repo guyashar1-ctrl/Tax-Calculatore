@@ -427,6 +427,21 @@ export const DEFAULT_OPTIONAL_STEP_TYPES: OnboardingStepType[] = [
   'first_month_review',
 ];
 
+/**
+ * ‼ עבודה פנימית אוטומטית שמסך הבקשות כבר אינו מציג (הכרעת גיא) — ולכן
+ * **אינה חוסמת את סגירת הקליטה**. אסור שהמשתמש ייחסם על ידי שלב שהמסך
+ * בכוונה לא מראה לו, בלי דרך לראות אותו או לסמן אותו.
+ *
+ * ‼ הרשימה הזאת היא בדיוק הרשימה שירדה מהמסך — לא רחבה ממנה. יישור קו,
+ * בקשות מהלקוח, ומשימה פנימית שהרו"ח הוסיף בעצמו — כולם ממשיכים לחסום.
+ * מקבילה ב-SQL: onboarding_close_readiness (מיגרציה 105).
+ */
+export const LEGACY_AUTO_OFFICE_TYPES: OnboardingStepType[] = [
+  'internal_setup', 'kyc_identification', 'first_month_review',
+  'representation_upgrade', 'opening_call', 'file_opening',
+  'data_import', 'data_verification',
+];
+
 /** מצבים שנחשבים "סגור" לצורך הסגירה. */
 export const SATISFIED_STATUSES: OnboardingStepStatus[] = ['completed', 'verified', 'skipped'];
 
@@ -440,6 +455,9 @@ export const SATISFIED_STATUSES: OnboardingStepStatus[] = ['completed', 'verifie
  */
 export function isStepRequiredForClose(step: OnboardingStep): boolean {
   if (step.status === 'cancelled') return false;
+  // ‼ קודם לערך שעל השלב: שלב שלא מוצג במסך לא יכול לחסום, גם אם סומן כנדרש
+  // ביצירה. אחרת גיא היה נתקע מול פריט שאין לו שום דרך לפתוח או לסמן.
+  if (LEGACY_AUTO_OFFICE_TYPES.includes(step.stepType)) return false;
   if (typeof step.requiredForClose === 'boolean') return step.requiredForClose;
   return !DEFAULT_OPTIONAL_STEP_TYPES.includes(step.stepType);
 }
