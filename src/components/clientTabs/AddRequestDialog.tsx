@@ -7,14 +7,20 @@
 // היה קופץ מיד למסך של הלקוח.
 
 import { useMemo, useState } from 'react';
-import type { CustomRequirement, CustomRequirementKind, OnboardingStep } from '../../types/onboarding';
-import { REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
+import type { CustomRequirement, CustomRequirementKind, InstitutionKey, OnboardingStep } from '../../types/onboarding';
+import {
+  DEBIT_INSTITUTION_ORDER, INSTITUTION_DEBIT_CODES, INSTITUTION_NAMES,
+  REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS,
+} from '../../types/onboarding';
+import { BANK_DEBIT_TITLE, buildBankDebitPayload } from '../../lib/bankDebitRequest';
 import { supabase } from '../../lib/supabase';
 
 /** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
- *  'paperless_sequence' אינו סוג בקשה במסד — הוא תבנית שיוצרת את רצף
- *  הפייפרלס המלא (ראה PAPERLESS_SEQUENCE). */
+ *  'paperless_sequence' ו-'bank_debit' אינם סוגי בקשה במסד — הם תבניות:
+ *  הראשונה יוצרת את רצף הפייפרלס (PAPERLESS_SEQUENCE), והשנייה בקשה
+ *  חופשית אחת עם דרישת אסמכתה לכל רשות שנבחרה (buildBankDebitPayload). */
 const CATALOG: { type: string; hint: string; once: boolean }[] = [
+  { type: 'bank_debit',             hint: 'הלקוח פותח הרשאה בבנק ומעלה אסמכתה — לרשויות שתבחר', once: false },
   { type: 'client_documents',       hint: 'רשימת מסמכים שהלקוח מעלה בדף האישי', once: true },
   { type: 'prev_accountant_details', hint: 'הלקוח מוסר שם, מייל וטלפון של הקודם', once: true },
   { type: 'release_letter',         hint: 'מכתב שחרור — נשלח לרו״ח הקודם', once: true },
@@ -78,7 +84,7 @@ interface Props {
 }
 
 export default function AddRequestDialog({ clientId, steps, processPublished, presetType, onClose, onCreated }: Props) {
-  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents'>('catalog');
+  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank'>('catalog');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,6 +100,9 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
   ]);
   // מסמכים מהלקוח
   const [docLines, setDocLines] = useState('אישור ניהול חשבון בנק\nצילום תעודת זהות');
+  /** הרשאה לחיוב חשבון — ‼ מתחיל ריק בכוונה. לא כל לקוח צריך את שלוש
+   *  הרשויות, ובחירה מראש הייתה שולחת אותו לפתוח הרשאות מיותרות. */
+  const [debitAuthorities, setDebitAuthorities] = useState<InstitutionKey[]>([]);
 
   const [dueDate, setDueDate] = useState('');
   const [dependsOn, setDependsOn] = useState('');
@@ -181,6 +190,15 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     });
   }
 
+  function submitBankDebit() {
+    if (debitAuthorities.length === 0) {
+      setError('צריך לבחור לפחות רשות אחת — אחרת אין ללקוח מה להקים.');
+      return;
+    }
+    const ordered = DEBIT_INSTITUTION_ORDER.filter(k => debitAuthorities.includes(k));
+    void create('custom_request', buildBankDebitPayload(ordered) as Record<string, unknown>);
+  }
+
   function submitDocuments() {
     const items = docLines.split('\n').map(s => s.trim()).filter(Boolean);
     if (items.length === 0) { setError('צריך לפחות מסמך אחד ברשימה.'); return; }
@@ -200,6 +218,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
             {presetType ? STEP_TYPE_LABELS[presetType]
               : mode === 'catalog' ? 'הוספת בקשה'
               : mode === 'custom' ? 'בקשה חופשית'
+              : mode === 'bank' ? BANK_DEBIT_TITLE
               : 'מסמכים מהלקוח'}
           </h3>
           <button type="button" className="btn btn-sm btn-ghost" onClick={onClose} aria-label="סגירה">✕</button>
@@ -240,6 +259,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   disabled={busy}
                   onClick={() => {
                     if (c.type === 'client_documents') { setMode('documents'); return; }
+                    if (c.type === 'bank_debit') { setMode('bank'); return; }
                     if (c.type === 'paperless_sequence') { void createPaperlessSequence(); return; }
                     void create(c.type, {});
                   }}
@@ -247,6 +267,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                 >
                   <span style={{ fontWeight: 600 }}>
                     {c.type === 'paperless_sequence' ? 'פייפרלס'
+                      : c.type === 'bank_debit' ? BANK_DEBIT_TITLE
                       : STEP_TYPE_LABELS[c.type as OnboardingStep['stepType']]}
                   </span>
                   <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
@@ -264,6 +285,33 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   אתה מגדיר מה הלקוח צריך לעשות — לאשר, לענות, או להעלות
                 </span>
               </button>
+            </>
+          )}
+
+          {mode === 'bank' && (
+            <>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
+                הלקוח יראה בדף האישי הסבר איך פותחים הרשאה באפליקציית הבנק, את קודי
+                המוסד של הרשויות שתבחר, ומקום להעלות אסמכתה לכל אחת.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
+                <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600 }}>לאילו רשויות</div>
+                {DEBIT_INSTITUTION_ORDER.map(k => (
+                  <label key={k} style={{
+                    display: 'flex', gap: '.45rem', alignItems: 'center', fontSize: 'var(--fs-13)',
+                  }}>
+                    <input type="checkbox" checked={debitAuthorities.includes(k)}
+                      onChange={e => setDebitAuthorities(list => e.target.checked
+                        ? [...list, k]
+                        : list.filter(x => x !== k))} />
+                    {INSTITUTION_NAMES[k]}
+                    <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)', direction: 'ltr' }}>
+                      {INSTITUTION_DEBIT_CODES[k]}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
             </>
           )}
 
@@ -361,6 +409,12 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
           )}
           {mode === 'documents' && !presetType && (
             <button type="button" className="btn btn-primary" disabled={busy} onClick={submitDocuments}>
+              {busy ? 'מוסיף…' : 'הוסף בקשה'}
+            </button>
+          )}
+          {mode === 'bank' && !presetType && (
+            <button type="button" className="btn btn-primary"
+              disabled={busy || debitAuthorities.length === 0} onClick={submitBankDebit}>
               {busy ? 'מוסיף…' : 'הוסף בקשה'}
             </button>
           )}

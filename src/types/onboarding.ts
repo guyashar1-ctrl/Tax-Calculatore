@@ -102,6 +102,18 @@ export const INSTITUTION_NAMES: Record<InstitutionKey, string> = {
   btl: 'ביטוח לאומי', vat: 'מע״מ', income: 'מס הכנסה',
 };
 
+/**
+ * קוד המוסד בהרשאה לחיוב חשבון — המספר שהלקוח מזין בבנק כדי לפתוח הרשאה
+ * לטובת הרשות. ‼ אלה מספרים של הרשויות, לא של המשרד: הם זהים לכל לקוח
+ * ולכל בנק, ולכן הם קבועים בקוד ולא שדה שממלאים לכל בקשה.
+ */
+export const INSTITUTION_DEBIT_CODES: Record<InstitutionKey, string> = {
+  income: '2760', vat: '2761', btl: '28900',
+};
+
+/** סדר התצוגה בבקשת ההרשאה — מס הכנסה, מע״מ, ביטוח לאומי. */
+export const DEBIT_INSTITUTION_ORDER: InstitutionKey[] = ['income', 'vat', 'btl'];
+
 export type OnboardingTrack =
   | 'authorities'
   | 'prev_accountant'
@@ -297,6 +309,22 @@ export interface StepPayload {
   clientTitle?: string;
   clientSub?: string;
   clientCta?: string;
+  /**
+   * הסבר מלא שנפתח יחד עם הבקשה בדף האישי — למה זה נדרש ומה בדיוק לעשות.
+   * ‼ נפרד מ-clientSub: השורה שמתחת לכותרת מוחלפת בהתקדמות ("1 מתוך 2
+   * הושלמו") ברגע שיש יותר מדרישה אחת, ולכן הסבר שנשען עליה נעלם.
+   */
+  clientNote?: string;
+  /** שורות "שם ומספר" שהלקוח צריך להעתיק (קוד מוסד להרשאה, מספר תיק וכד'). */
+  clientRefs?: { label: string; value: string }[];
+  /** משפט הסגירה שמופיע אחרי הטבלה, לפני הפעולות — "ואז מעלים כאן אסמכתה". */
+  clientNoteAfter?: string;
+  /**
+   * הרשויות שנבחרו בבקשת "הקמת הרשאה לחיוב חשבון". הבחירה היא נתון מוצרי
+   * ולא רק ניסוח — היא נשמרת כאן כדי שאפשר יהיה לדעת מה נדרש מהלקוח גם
+   * אחרי שהניסוח השתנה. הדף האישי עצמו נגזר מ-clientRefs ומהדרישות.
+   */
+  bankDebitAuthorities?: InstitutionKey[];
   /** false ⇒ הבקשה מוכנה אצל הרו״ח אך אינה מוצגת ללקוח. היעדר השדה = מפורסמת. */
   published?: boolean;
   /** משימת גורם חיצוני — מי הגורם ומאיפה פרטי הקשר. */

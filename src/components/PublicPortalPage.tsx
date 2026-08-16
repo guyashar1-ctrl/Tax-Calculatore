@@ -74,6 +74,12 @@ export interface PortalItem {
     fileCount?: number;
     value?: string;
   }[];
+  /** הסבר מלא שנפתח עם הבקשה — למה זה נדרש ומה בדיוק לעשות. */
+  note?: string;
+  /** שורות "שם ומספר" להעתקה (קוד מוסד בהרשאה לחיוב חשבון, מספר תיק וכד'). */
+  refs?: { label: string; value: string }[];
+  /** משפט הסגירה שאחרי הטבלה, לפני הפעולות. */
+  noteAfter?: string;
   /** יש כאן פריט שאפשר להעלות אליו קובץ. */
   canUpload?: boolean;
   /** טקסט הכפתור שהרו"ח בחר לבקשה החופשית. */
@@ -87,6 +93,19 @@ export interface PortalItem {
 /** מה שהדף מרשה להעלות. אותה רשימה נאכפת שוב בשרת — כאן זה רק כדי לחסוך
  *  ללקוח העלאה שתידחה, ולא כהגנה. */
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.xls,.xlsx,.csv,.doc,.docx';
+
+/**
+ * חומר עזר קבוע שהמשרד נותן לכל לקוח — לא בקשה, לא משימה, ולעולם לא נספר
+ * ב"מה צריך ממך". קובץ סטטי בריפו (public/docs) ולא מסמך במסד: הוא זהה
+ * לכל הלקוחות ומתעדכן עם הקוד, ולכן אין לו מקום בתיק של אף אחד מהם.
+ */
+const CLIENT_RESOURCES: { label: string; sub: string; href: string }[] = [
+  {
+    label: 'הוצאות מוכרות – מדריך ללקוח',
+    sub: 'מה כדאי לשמור ולהעביר אלינו · PDF',
+    href: '/docs/recognized-expenses-guide.pdf',
+  },
+];
 
 const UPLOAD_ERRORS: Record<string, string> = {
   too_large: 'הקובץ גדול מדי — עד 10MB.',
@@ -447,6 +466,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
 
       {open && inPage && item.kind === 'custom' && item.actionValue && (
         <div style={{ borderTop: `1px dashed ${brand.border}`, paddingTop: 8, marginTop: 12 }}>
+          <RequestGuide item={item} brand={brand} />
           <CustomRequestBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       )}
@@ -456,6 +476,46 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
           <PrevAccountantForm token={token} stepId={item.actionValue}
             brand={brand} accent={accent} onDone={onDone} />
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * ההסבר שנפתח עם הבקשה: למה זה נדרש, אילו מספרים צריך, ומה עושים בסוף.
+ *
+ * ‼ הסדר הוא ההיררכיה — קודם מבינים, אחר כך מעתיקים, ורק אז מעלים. שלושת
+ * החלקים אופציונליים לחלוטין: בקשה בלי הסבר מרנדרת בדיוק כמו קודם.
+ * ‼ שקט בכוונה: טקסט ורשימה, בלי כרטיס משלהם — הפעולה נשארת המוקד.
+ */
+function RequestGuide({ item, brand }: {
+  item: PortalItem;
+  brand: { ink: string; muted: string; border: string; radius: number };
+}) {
+  const refs = item.refs ?? [];
+  if (!item.note && !item.noteAfter && refs.length === 0) return null;
+  return (
+    <div style={{ display: 'grid', gap: 8, marginBottom: 4 }}>
+      {item.note && (
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: brand.ink }}>{item.note}</p>
+      )}
+      {refs.length > 0 && (
+        <ul style={{
+          margin: 0, padding: '8px 12px', listStyle: 'none', display: 'grid', gap: 5,
+          border: `1px solid ${brand.border}`, borderRadius: brand.radius,
+        }}>
+          {refs.map(r => (
+            <li key={`${r.label}-${r.value}`} style={{
+              display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap', fontSize: 13,
+            }}>
+              <span style={{ flex: 1, minWidth: 90, color: brand.ink, fontWeight: 600 }}>{r.label}</span>
+              <span style={{ color: brand.muted }}>{r.value}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {item.noteAfter && (
+        <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: brand.muted }}>{item.noteAfter}</p>
       )}
     </div>
   );
@@ -744,6 +804,29 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           <div style={{ fontSize: 12, color: brand.muted, marginTop: (actions.length > 0 || future.length > 0) ? 16 : 4 }}>
             ✓ {done.length === 1 ? 'דבר אחד שכבר הושלם' : `${done.length} דברים שכבר הושלמו`}
           </div>
+        )}
+
+        {/* ── מסמכים שימושיים ─────────────────────────────────────────────
+            ‼ מתחת להכול ובלי כרטיס: זה חומר עזר שזמין תמיד, לא משהו
+            שממתין. ברגע שהוא ייראה כמו בקשה — הוא ייקרא כעוד מטלה פתוחה. */}
+        {CLIENT_RESOURCES.length > 0 && (
+          <>
+            <div style={{ ...sectionTitle, marginTop: 20 }}>מסמכים שימושיים</div>
+            {CLIENT_RESOURCES.map(r => (
+              <a key={r.href} href={r.href} target="_blank" rel="noopener noreferrer" style={{
+                display: 'flex', alignItems: 'baseline', gap: 8, padding: '8px 0',
+                borderTop: `1px solid ${brand.border}`, textDecoration: 'none',
+              }}>
+                <span aria-hidden="true" style={{ fontSize: 12, opacity: .55, color: brand.muted }}>↓</span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 13.5, color: accent }}>{r.label}</span>
+                  <span style={{ display: 'block', fontSize: 12, color: brand.muted, marginTop: 2 }}>
+                    {r.sub}
+                  </span>
+                </span>
+              </a>
+            ))}
+          </>
         )}
 
         <div style={{
