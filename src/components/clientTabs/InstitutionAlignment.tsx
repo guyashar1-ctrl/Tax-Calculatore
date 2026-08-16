@@ -22,6 +22,13 @@ import { supabase } from '../../lib/supabase';
 
 type FieldType = 'text' | 'number' | 'date' | 'select';
 
+/**
+ * ‼ "איפה מוצאים את הערך" יושב על השדה או על הקבוצה שהוא מסביר — לא כמקרא
+ * מרוכז בראש המסך. מקרא בראש מחייב לקרוא, לזכור, ואז לחפש את השדה המתאים.
+ * המסלולים עצמם לא שונו — רק הועברו למקום שבו הם נדרשים.
+ */
+type WherePath = string;
+
 interface AlignmentField {
   key: string;
   label: string;
@@ -32,11 +39,13 @@ interface AlignmentField {
   governedKey?: string;
   toPatchValue?: (raw: string) => unknown;
   note?: string;
+  where?: WherePath[];
 }
 
 interface AlignmentSection {
   kicker: string;
   fields: AlignmentField[];
+  where?: WherePath[];
 }
 
 type ExceptionOutcome =
@@ -54,12 +63,14 @@ interface AlignmentException {
   outcome: (badValue: string) => ExceptionOutcome;
   /** שדה נוסף שמופיע רק כשהתשובה חריגה — למשל מועד להגשת הצהרת הון. */
   extraFieldWhenBad?: AlignmentField;
+  where?: WherePath[];
 }
 
 interface InstitutionConfig {
-  route: string[];
   sections: AlignmentSection[];
   exceptions: AlignmentException[];
+  /** ביטוח לאומי בלבד — רשימת העיסוקים היא בלוק נפרד, ולכן ההסבר שלה נשמר כאן. */
+  occupationsWhere?: WherePath[];
   /** הבהרות נגזרות משדה "מה להעתיק" עצמו, לא מ-exceptions (למשל ניהול ספרים לא תקף). */
   derivedClarifications?: (collected: Record<string, unknown>) => string[];
 }
@@ -69,20 +80,19 @@ const AUTH_OPTS = ['קיימת', 'אין הרשאה'];
 
 const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
   btl: {
-    route: ['פרטים כלליים → ריכוז מידע → עיסוק', 'עיסוקים והכנסות → רשימת עיסוקים',
-      'מצב חשבון → לפי ימי ערך ריאלי', 'דמי ביטוח → דמי ביטוח שנתיים → פירוט חודשים',
-      'הוראות כספיות → הרשאות לחיוב'],
+    occupationsWhere: ['פרטים כלליים → ריכוז מידע → עיסוק', 'עיסוקים והכנסות → רשימת עיסוקים'],
     sections: [
       {
-        kicker: 'עיסוק ומצב חשבון',
+        kicker: 'מצב חשבון',
         fields: [
-          { key: 'occupationStatus', label: 'עיסוק (כפי שמופיע בריכוז מידע)', placeholder: 'עצמאי / שכיר' },
           { key: 'niBalance', label: 'יתרה בביטוח לאומי', type: 'number', governedKey: 'niBalance',
+            where: ['מצב חשבון → לפי ימי ערך ריאלי'],
             toPatchValue: v => v === '' ? null : Number(v) },
         ],
       },
       {
         kicker: 'מקדמות',
+        where: ['דמי ביטוח → דמי ביטוח שנתיים → פירוט חודשים'],
         fields: [
           { key: 'incomeBasisMonthly', label: 'בסיס הכנסה למקדמות (לחודש)', type: 'number',
             governedKey: 'niIncomeBasisMonthly', toPatchValue: v => v === '' ? null : Number(v) },
@@ -95,17 +105,17 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'niDebitAuthorization', label: 'הרשאה לחיוב חשבון', options: AUTH_OPTS, badValues: ['אין הרשאה'],
         governedKey: 'niDebitAuthorization', governedPatch: bad => !bad,
+        where: ['הוראות כספיות → הרשאות לחיוב'],
         outcome: () => ({ kind: 'request', title: 'הקמת הרשאה לחיוב בביטוח לאומי — קוד מוטב 28900',
           sub: 'להקים הרשאה לחיוב חשבון בביטוח לאומי, קוד מוטב 28900.' }),
       },
     ],
   },
   vat: {
-    route: ['פרטי עוסק → פרטי רישום', 'פרטי עוסק → מאפייני דיווח',
-      'פורטל המייצגים → רשימת מיוצגים → מע״מ → הרשאה לחיוב חשבון'],
     sections: [
       {
         kicker: 'פרטי רישום',
+        where: ['פרטי עוסק → פרטי רישום'],
         fields: [
           { key: 'vatFileType', label: 'סוג תיק', type: 'select',
             options: ['עוסק מורשה', 'עוסק פטור', 'חברה', 'מלכ״ר', 'אחר'], governedKey: 'vatFileType' },
@@ -118,6 +128,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       },
       {
         kicker: 'דיווח ויתרה',
+        where: ['פרטי עוסק → מאפייני דיווח'],
         fields: [
           { key: 'vatFrequency', label: 'תדירות דיווח', type: 'select',
             options: ['חודשי', 'דו-חודשי'], governedKey: 'vatFrequency',
@@ -137,17 +148,17 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'vatDebitAuthorization', label: 'הרשאה לחיוב חשבון', options: AUTH_OPTS, badValues: ['אין הרשאה'],
         governedKey: 'vatDebitAuthorization', governedPatch: bad => !bad,
+        where: ['פורטל המייצגים → רשימת מיוצגים → מע״מ → הרשאה לחיוב חשבון'],
         outcome: () => ({ kind: 'request', title: 'הקמת הרשאה לחיוב במע״מ',
           sub: 'להקים הרשאה לחיוב חשבון במע״מ דרך פורטל המייצגים.' }),
       },
     ],
   },
   income: {
-    route: ['גביית מס הכנסה → 134 מקדמות → מידע לתיק', 'אזור אישי → דרישות להצהרת הון',
-      'אישורי ניכוי במקור וניהול ספרים', 'פורטל המייצגים → מס הכנסה → הרשאה לחיוב חשבון'],
     sections: [
       {
         kicker: 'תיק ומקדמות',
+        where: ['גביית מס הכנסה → 134 מקדמות → מידע לתיק'],
         fields: [
           { key: 'incomeTaxFileType', label: 'סוג תיק', governedKey: 'incomeTaxFileType' },
           { key: 'taxOfficeName', label: 'פקיד שומה', placeholder: 'תל אביב 3', governedKey: 'taxOfficeName' },
@@ -165,6 +176,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       },
       {
         kicker: 'ניכוי במקור וניהול ספרים',
+        where: ['אישורי ניכוי במקור וניהול ספרים'],
         fields: [
           { key: 'withholdingStatus', label: 'מצב ניכוי במקור', type: 'select',
             options: ['פטור מניכוי', 'שיעור/ים לפי פעילות', 'אין אישור תקף'] },
@@ -180,6 +192,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'capitalDeclarationRequired', label: 'דרישת הצהרת הון', options: ['אין דרישה פתוחה', 'דרישה פתוחה'],
         badValues: ['דרישה פתוחה'], governedKey: 'capitalDeclarationRequired', governedPatch: bad => bad,
+        where: ['אזור אישי → דרישות להצהרת הון'],
         outcome: () => ({ kind: 'clarification', text: 'קיימת דרישה פתוחה להצהרת הון — לברר מועד הגשה עם הלקוח.' }),
         extraFieldWhenBad: { key: 'capitalDeclarationDeadline', label: 'מועד להגשה', type: 'date',
           governedKey: 'capitalDeclarationDeadline', toPatchValue: v => v || null },
@@ -187,6 +200,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'incomeTaxDebitAuthorization', label: 'הרשאה לחיוב חשבון', options: AUTH_OPTS, badValues: ['אין הרשאה'],
         governedKey: 'incomeTaxDebitAuthorization', governedPatch: bad => !bad,
+        where: ['פורטל המייצגים → מס הכנסה → הרשאה לחיוב חשבון'],
         outcome: () => ({ kind: 'request', title: 'הקמת הרשאה לחיוב במס הכנסה',
           sub: 'להקים הרשאה לחיוב חשבון במס הכנסה דרך פורטל המייצגים.' }),
       },
@@ -251,6 +265,41 @@ function displayValue(_f: AlignmentField, raw: unknown): string {
   return s || '—';
 }
 
+// ─── "איפה מוצאים?" — ההסבר צמוד לשדה שהוא מסביר ─────────────────────────────
+
+/** מסלול קצר (עד שתי תחנות, אחד בלבד) נקרא במבט — אין טעם להסתיר אותו מאחורי לחיצה. */
+function isShortHint(where: WherePath[]): boolean {
+  return where.length === 1 && where[0].split('→').length <= 2;
+}
+
+function WhereHint({ where }: { where?: WherePath[] }) {
+  const [open, setOpen] = useState(false);
+  if (!where || where.length === 0) return null;
+  if (isShortHint(where)) return <div className="ial-where">{where[0]}</div>;
+  return (
+    <>
+      <button type="button" className="ial-where-btn" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        איפה מוצאים?
+      </button>
+      {open && (
+        <div className="ial-where">
+          {where.map(p => <div key={p}>{p}</div>)}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** כותרת קבוצה + ההסבר של אותה קבוצה, על אותה שורה. */
+function SectionHead({ kicker, where }: { kicker: string; where?: WherePath[] }) {
+  return (
+    <div className="ial-head">
+      <div className="ial-kicker">{kicker}</div>
+      <WhereHint where={where} />
+    </div>
+  );
+}
+
 // ─── מסך מיקוד — מוסד אחד ────────────────────────────────────────────────────
 
 interface FocusProps {
@@ -271,8 +320,13 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
   const cfg = INSTITUTIONS[key];
   const [collected, setCollected] = useState<Record<string, unknown>>(step.payload.collected ?? {});
   const [exceptions, setExceptions] = useState<Record<string, unknown>>(step.payload.exceptions ?? {});
-  const [occupations, setOccupations] = useState<NiOccupation[]>(
-    (step.payload.collected?.occupations as NiOccupation[] | undefined) ?? []);
+  // שורה אחת פתוחה תמיד — בלי בחירה מוקדמת, ובלי שורות ריקות מראש.
+  const [occupations, setOccupations] = useState<OccupationDraft[]>(() => {
+    const saved = (step.payload.collected?.occupations as NiOccupation[] | undefined) ?? [];
+    return saved.length > 0 ? saved : [newOccupationRow(0)];
+  });
+  /** רק שורה שנבחר בה עיסוק נשמרת — שורה ריקה היא הזמנה למלא, לא עובדה. */
+  const selectedOccupations = occupations.filter((o): o is NiOccupation => o.type !== '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -293,7 +347,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
     setSaving(true);
     setError(null);
     try {
-      const fullCollected = key === 'btl' ? { ...collected, occupations } : collected;
+      const fullCollected = key === 'btl' ? { ...collected, occupations: selectedOccupations } : collected;
 
       // 1) עובדות מקצועיות — כל שדה עם governedKey מוצע ומאושר מיד דרך M1.
       //    נשאר pending (לא נדרס) אם הערך המקובל השתנה מאז שהמסך נטען.
@@ -314,7 +368,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
       if (key === 'btl') {
         const res = await proposeAndAccept(
           latestClient, step.id, 'niOccupations', 'עיסוקים בביטוח לאומי',
-          occupations.length ? `${occupations.length} עיסוקים` : '—', occupations);
+          selectedOccupations.length ? `${selectedOccupations.length} עיסוקים` : '—', selectedOccupations);
         if (res.client) latestClient = res.client;
         if (res.pending) pendingCount++;
       }
@@ -411,17 +465,11 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
       <div className="ial-card">
         <div className="ial-step">
           <div className="ial-focus-title">{INSTITUTION_NAMES[key]}</div>
-          <div className="ial-kicker">לאן להיכנס</div>
-          <div className="ial-route">
-            {cfg.route.map((r, i) => (
-              <span key={i}>{r}</span>
-            ))}
-          </div>
         </div>
 
         {cfg.sections.map(section => (
           <div className="ial-step" key={section.kicker}>
-            <div className="ial-kicker">{section.kicker}</div>
+            <SectionHead kicker={section.kicker} where={section.where} />
             <div className="ial-fgrid">
               {section.fields.map(f => (
                 <div key={f.key}>
@@ -437,7 +485,8 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
                       placeholder={f.placeholder} value={String(collected[f.key] ?? '')}
                       onChange={e => setField(f.key, e.target.value)} />
                   )}
-                  {f.note && <div className="m" style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 3 }}>{f.note}</div>}
+                  {f.note && <div className="ial-where">{f.note}</div>}
+                  <WhereHint where={f.where} />
                 </div>
               ))}
             </div>
@@ -446,7 +495,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
 
         {key === 'btl' && (
           <div className="ial-step">
-            <div className="ial-kicker">רשימת עיסוקים</div>
+            <SectionHead kicker="רשימת עיסוקים" where={cfg.occupationsWhere} />
             <OccupationsEditor occupations={occupations} onChange={setOccupations} />
           </div>
         )}
@@ -463,6 +512,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
                   <select className="inp" value={val} onChange={e => setExc(exc.key, e.target.value)}>
                     {exc.options.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
+                  <WhereHint where={exc.where} />
                   {bad && exc.extraFieldWhenBad && (
                     <div style={{ marginTop: 6 }}>
                       <label>{exc.extraFieldWhenBad.label}</label>
@@ -499,7 +549,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
               <span>{f.label}</span><b>{displayValue(f, collected[f.key])}</b>
             </div>
           ))}
-          {key === 'btl' && <div className="ial-srow"><span>עיסוקים</span><b>{occupations.length || '—'}</b></div>}
+          {key === 'btl' && <div className="ial-srow"><span>עיסוקים</span><b>{selectedOccupations.length || '—'}</b></div>}
         </div>
 
         {error && (
@@ -521,25 +571,36 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
 
 const OCC_TYPES = Object.keys(NI_OCCUPATION_TYPE_LABELS) as NiOccupationType[];
 
-function OccupationsEditor({ occupations, onChange }: { occupations: NiOccupation[]; onChange: (o: NiOccupation[]) => void }) {
-  function update(id: string, patch: Partial<NiOccupation>) {
+/** שורה שעדיין לא נבחר בה עיסוק. נשמר רק מה שנבחר — ראה selectedOccupations. */
+type OccupationDraft = Omit<NiOccupation, 'type'> & { type: NiOccupationType | '' };
+
+function newOccupationRow(index: number): OccupationDraft {
+  return { id: `occ_${Date.now()}_${index}`, type: '' };
+}
+
+function OccupationsEditor({ occupations, onChange }: { occupations: OccupationDraft[]; onChange: (o: OccupationDraft[]) => void }) {
+  function update(id: string, patch: Partial<OccupationDraft>) {
     onChange(occupations.map(o => o.id === id ? { ...o, ...patch } : o));
   }
   function remove(id: string) {
     onChange(occupations.filter(o => o.id !== id));
   }
   function add() {
-    onChange([...occupations, { id: `occ_${Date.now()}_${occupations.length}`, type: 'employee' }]);
+    onChange([...occupations, newOccupationRow(occupations.length)]);
   }
   return (
     <div>
-      {occupations.map(o => (
+      {occupations.map((o, i) => (
         <div key={o.id} className="ial-occ">
           <div className="ial-occ-head">
-            <select value={o.type} onChange={e => update(o.id, { type: e.target.value as NiOccupationType })}>
+            <select className="inp" value={o.type} aria-label="עיסוק"
+              onChange={e => update(o.id, { type: e.target.value as NiOccupationType | '' })}>
+              <option value="">בחירת עיסוק</option>
               {OCC_TYPES.map(t => <option key={t} value={t}>{NI_OCCUPATION_TYPE_LABELS[t]}</option>)}
             </select>
-            <button type="button" className="ial-occ-remove" onClick={() => remove(o.id)} aria-label="הסר עיסוק">✕</button>
+            {i > 0 && (
+              <button type="button" className="ial-occ-remove" onClick={() => remove(o.id)}>הסר</button>
+            )}
           </div>
           {o.type === 'employee' && (
             <div className="ial-fgrid">
