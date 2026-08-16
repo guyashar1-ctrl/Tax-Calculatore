@@ -33,13 +33,14 @@ import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
 import { useFirmProfile } from './hooks/useFirmProfile';
 import { useFailedNotifications } from './hooks/useFailedNotifications';
+import { useLivePulse } from './hooks/useLivePulse';
 import { useLeads } from './hooks/useLeads';
 import { useQuotations } from './hooks/useQuotations';
 import { useCharges } from './hooks/useCharges';
 import type { AdditionalCharge } from './types/charges';
 import { useQuotationCatalog } from './hooks/useQuotationCatalog';
 import QuotationsPipeline from './components/quotations/QuotationsPipeline';
-import LeadsPanel from './components/quotations/LeadsPanel';
+import LeadsPanel, { LeadForm } from './components/quotations/LeadsPanel';
 import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
 import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
 import { RELEASE_MATERIALS } from './utils/releaseLetter';
@@ -254,7 +255,7 @@ export default function App() {
 
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
 
-  const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients, setClientLifecycleStage, applyClientLocally } = useClients(user?.id);
+  const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients, setClientLifecycleStage, applyClientLocally, refreshClient, refreshClients } = useClients(user?.id);
   const { tasks, loading: tasksLoading, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks, reloadTasks } = useTasks(user?.id);
 
   // בתחילת כל רבעון (ינואר/אפריל/יולי/אוקטובר) נוצרת אוטומטית משימת בדיקת
@@ -289,17 +290,36 @@ export default function App() {
   const personDirectory =
     ((firmProfile?.settings?.flags as { personDirectory?: boolean } | undefined)?.personDirectory) !== false;
   const onboarding = useOnboarding(onboardingEnabled ? user?.id : undefined);
-  const { leads, addLead, updateLead, deleteLead } = useLeads(user?.id);
+  const { leads, addLead, updateLead, deleteLead, refreshLeads } = useLeads(user?.id);
   // כרטיס לקוח ↔ הליד שממנו הוא בא. שורה בשלב "ליד" במסך הלקוחות מובילה לשם.
   const leadIdByClient = useMemo(() => {
     const map = new Map<string, string>();
     for (const l of leads) if (l.convertedClientId) map.set(l.convertedClientId, l.id);
     return map;
   }, [leads]);
-  const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation } = useQuotations(user?.id);
+  const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation, refreshQuotations } = useQuotations(user?.id);
   const { charges, addCharge, replaceCharge, markChargePaid } = useCharges(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
   const failedNotifications = useFailedNotifications(user?.id);
+
+  /**
+   * ‼ כל מה שהלקוח עושה בדף האישי שלו — פותח הצעה, מאשר וחותם, משיב לבקשה —
+   * נכתב בשרת ולא עובר דרך המסך הזה. בלי הפעימה, מסך פתוח היה ממשיך להציג
+   * "נשלחה · ממתין לתשובה" אחרי שההצעה כבר אושרה, וזו בדיוק הסתירה שהמוצר
+   * הזה בא למנוע. ארבע המשיכות יחד, כי שלב הלקוח נגזר בשרת מתוך ההצעה —
+   * משיכת ההצעה בלי הכרטיס הייתה יוצרת סתירה חדשה במקום לסגור אחת.
+   */
+  const onboardingRefresh = onboarding.refresh;
+  const pulseRefreshers = useMemo(
+    () => [
+      refreshQuotations,
+      refreshClients,
+      refreshLeads,
+      () => onboardingRefresh({ silent: true }),
+    ],
+    [refreshQuotations, refreshClients, refreshLeads, onboardingRefresh],
+  );
+  useLivePulse(!!user?.id && authorized === true, pulseRefreshers);
 
   /**
    * רשת הביטחון של התראות ההתקדמות. השרת רושם כל אירוע אצל הלקוח (חתימה על
@@ -363,6 +383,13 @@ export default function App() {
   // הצעה חדשה שנפתחה מ"אדם חדש" (שלב 3) או מ"שירות נוסף" ללקוח קיים
   const [newQuotationClientId, setNewQuotationClientId] = useState<string | null>(null);
   const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
+  // הכרטיס שההצעה זה עתה נשלחה אליו — היעד שאליו הבונה סוגר את עצמו (§"הכפתור
+  // ששולח הוא הכפתור שמסיים"). בלי זה הבונה חזר למסך ההצעות הישן, שכבר אינו
+  // חלק מהמבנה.
+  // ‼ ref ולא state: הבונה קורא ל-onBack מתוך setTimeout, ולכן הוא מחזיק את
+  // הפונקציה מהרנדר שבו נלחץ "שליחה" — לפני שהיעד נקבע. state היה נקרא שם ריק
+  // והנחיתה הייתה נופלת בחזרה לרשימת הלקוחות.
+  const postSendClientId = useRef<string | null>(null);
   // תצוגה מקדימה של מייל תזכורת להצעה — נפתחת לפני כל שליחה חוזרת
   const [remindPreview, setRemindPreview] = useState<{ quotation: Quotation; subject: string; to: string; html: string } | null>(null);
   // מכתב שחרור לרו"ח הקודם. stepId מגיע כשפתחו אותו משלב הקליטה — אחרי
@@ -1391,6 +1418,15 @@ export default function App() {
         status: 'sent', sentAt: now, publicToken: token, snapshot,
         events: [...saved.events, { type: 'sent', at: now }],
       });
+      // ‼ שלב החיים של הכרטיס נגזר בשרת מתוך מצב ההצעה, ולכן העדכון שלמעלה
+      // הזיז אותו מ"ליד" ל"הצעה" בלי שהדפדפן כתב לכרטיס דבר. בלי המשיכה הזו
+      // דף המסע היה ממשיך להציג "לבנות הצעת מחיר" מיד אחרי השליחה, כי העותק
+      // שבזיכרון נטען בכניסה למערכת ואיש לא רענן אותו.
+      const targetClientId = ensuredClientId ?? saved.clientId;
+      if (targetClientId) {
+        await refreshClient(targetClientId);
+        postSendClientId.current = targetClientId;
+      }
     } else if (!saved.publicToken) {
       await updateQuotation({
         ...saved, publicToken: token,
@@ -1800,7 +1836,7 @@ export default function App() {
             }}
             onNewQuotation={handleNewQuotation}
             onNewQuotationForLead={handleNewQuotationForLead}
-            onOpenLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
+            onOpenLead={(leadId) => { setFocusLeadId(leadId); if (!journeyUi) setView('quotations'); }}
             onOpenRequest={handleSelectRequest}
             onOpenTask={openEditTaskModal}
             onOpenRepresentation={handleOpenClientRepresentation}
@@ -1826,7 +1862,7 @@ export default function App() {
             onAddRequest={handleAddRequest}
             onSelectRequest={handleSelectRequest}
             leadIdByClient={leadIdByClient}
-            onOpenLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
+            onOpenLead={(leadId) => { setFocusLeadId(leadId); if (!journeyUi) setView('quotations'); }}
             journeyUi={journeyUi}
             leadsPanel={journeyUi ? (
               <LeadsPanel
@@ -1896,7 +1932,7 @@ export default function App() {
             }}
             onNewQuotation={(clientId) => handleNewQuotationForClient(clientId)}
             lead={leads.find(l => l.convertedClientId === selectedClient?.id)}
-            onEditLead={(leadId) => { setFocusLeadId(leadId); setView('quotations'); }}
+            onEditLead={(leadId) => { setFocusLeadId(leadId); if (!journeyUi) setView('quotations'); }}
             charges={charges}
             onMarkChargePaid={markChargePaid}
             onOpenClientTasks={(clientId) => { setTasksClientFilter(clientId); setSelectedId(null); setView('tasks'); }}
@@ -1995,7 +2031,22 @@ export default function App() {
             checkRepEmailConflict={repEmailConflictMessage}
             onSaveDraft={handleSaveQuotationDraft}
             onSend={handleSendQuotation}
-            onBack={() => { setEditingQuotationId(null); setView('quotations'); }}
+            onBack={() => {
+              setEditingQuotationId(null);
+              // אחרי שליחה — נוחתים על הכרטיס שההצעה יצאה אליו: שם רואים את
+              // המסע ואת ההצעה הממתינה. יציאה בלי שליחה חוזרת לרשימת הלקוחות,
+              // כי מסך ההצעות הישן אינו חלק מהמבנה כש-journeyUi דלוק.
+              if (postSendClientId.current) {
+                const target = postSendClientId.current;
+                postSendClientId.current = null;
+                setQuickViewId(null);
+                setSelectedId(target);
+                setClientInitialTab('journey');
+                setView('form');
+                return;
+              }
+              setView(journeyUi ? 'list' : 'quotations');
+            }}
           />
         )}
 
@@ -2141,6 +2192,23 @@ export default function App() {
           checkEmailConflict={repEmailConflictMessage}
         />
       )}
+
+      {/* ‼ "ערוך פרטי ליד" ניווט עד עכשיו למסך ההצעות הישן — מסך שירד מהסרגל
+          במבנה "המסע הוא הכרטיס", ובו לוח הלידים כלל אינו מוצג. התוצאה הייתה
+          נחיתה על טבלת הצעות במקום על הליד שביקשו לערוך. עכשיו הטופס נפתח
+          במקום, מעל המסך שממנו לחצו. מוצג רק כשלוח הלידים עצמו אינו מורכב
+          (שם הוא כבר צורך את focusLeadId ופותח את אותו טופס). */}
+      {journeyUi && focusLeadId && !(view === 'list' && !personDirectory) && (() => {
+        const lead = leads.find(l => l.id === focusLeadId);
+        if (!lead) return null;
+        return (
+          <LeadForm
+            lead={lead}
+            onSave={async l => { await updateLead(l as Partial<Lead> & { id: string }); setFocusLeadId(null); }}
+            onCancel={() => setFocusLeadId(null)}
+          />
+        );
+      })()}
 
       {remindPreview && (
         <EmailPreviewDialog

@@ -122,7 +122,9 @@ export function parseHash(hash: string): AppRoute {
       return { view, requestId: rest[0] };
     case 'quotationBuilder':
       // בונה הצעות בלי מזהה = טיוטה שלא נשמרה. אין מה לשחזר אחרי רענון.
-      if (!rest[0]) return { view: 'quotations' };
+      // ‼ הנפילה היא למסך הלקוחות ולא למסך ההצעות: זה המסך שממנו נכנסים
+      // לבונה במבנה "המסע הוא הכרטיס", ומסך ההצעות ירד מהסרגל.
+      if (!rest[0]) return { view: 'list' };
       return { view, quotationId: rest[0] };
     case 'annualReport': {
       const year = Number(rest[1]);

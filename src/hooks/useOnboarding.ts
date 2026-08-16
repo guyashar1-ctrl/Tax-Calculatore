@@ -27,6 +27,9 @@ export function useOnboarding(userId: string | undefined, clientId?: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // ‼ פעימה חיה חוזרת כל כמה שניות. אילו כל משיכה הייתה מדליקה "טוען…",
+  // המסך היה מהבהב ללא הפסקה — ולכן רענון שקט אינו נוגע ב-loading.
+  const [silentReload, setSilentReload] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -35,7 +38,7 @@ export function useOnboarding(userId: string | undefined, clientId?: string) {
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    if (!silentReload) setLoading(true);
     (async () => {
       const engQuery = supabase.from('engagements').select('*').order('created_at', { ascending: false });
       // הסדר שהרו״ח קבע בבונה גובר; סדר היצירה הוא רק שובר שוויון.
@@ -81,10 +84,17 @@ export function useOnboarding(userId: string | undefined, clientId?: string) {
       setError(null);
       setLoading(false);
     })();
-    return () => { cancelled = true; };
+    // ‼ "שקט" תקף לרענון אחד בלבד. בלי האיפוס הזה, פעימה אחת הייתה משתיקה גם
+    // את הטעינה האמיתית הבאה (מעבר ללקוח אחר) — והמסך היה מציג "אין שלבים"
+    // במקום "טוען" בזמן שהנתונים בדרך.
+    return () => { cancelled = true; setSilentReload(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, clientId, reloadKey]);
 
-  const refresh = useCallback(() => setReloadKey(k => k + 1), []);
+  const refresh = useCallback((opts?: { silent?: boolean }) => {
+    setSilentReload(!!opts?.silent);
+    setReloadKey(k => k + 1);
+  }, []);
 
   /**
    * ‼ נתיב הכתיבה היחיד לסטטוס של שלב. אין UPDATE ישיר על onboarding_steps —

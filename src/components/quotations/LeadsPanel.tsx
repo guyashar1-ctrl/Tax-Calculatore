@@ -216,7 +216,7 @@ export default function LeadsPanel({
 
 // ─── טופס ליד (מודל) ────────────────────────────────────────────────────────
 
-function LeadForm({ lead, onSave, onCancel }: {
+export function LeadForm({ lead, onSave, onCancel }: {
   lead: Lead | null;
   onSave: (l: LeadPatch | Omit<Lead, 'id'>) => Promise<void>;
   onCancel: () => void;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Client, LifecycleStage } from '../types';
 import { supabase } from '../lib/supabase';
 import { clientFromDb, clientToDb } from '../lib/dbMappers';
@@ -39,6 +39,36 @@ export function useClients(userId: string | undefined) {
       setLoading(false);
     })();
     return () => { cancelled = true; };
+  }, [userId]);
+
+  /**
+   * ‼ lifecycle_stage נגזר בשרת (טריגר על quotations/engagements), ולכן שליחת
+   * הצעה משנה את שלב הכרטיס בלי שהדפדפן כתב אליו כלום. בלי המשיכה הזו הכרטיס
+   * נשאר על הערך שנטען בכניסה למערכת — וכך דף המסע הציג "לבנות הצעת מחיר"
+   * דקות אחרי שההצעה כבר נשלחה, עד שהמשתמש רענן את הדף.
+   * משמשת גם כשהכרטיס נולד בשרת (ensure_client_for_quotation) ועדיין אינו
+   * ברשימה המקומית — ולכן מוסיפה ולא רק מחליפה.
+   */
+  async function refreshClient(id: string): Promise<Client | null> {
+    if (DEV_SEED) return null;
+    const { data, error } = await supabase.from('clients').select('*').eq('id', id).maybeSingle();
+    if (error || !data) return null;
+    const fresh = clientFromDb(data);
+    setClients(prev => prev.some(c => c.id === fresh.id)
+      ? prev.map(c => c.id === fresh.id ? fresh : c)
+      : [...prev, fresh]);
+    return fresh;
+  }
+
+  /** משיכה שקטה של כל הרשימה — בלי מצב טעינה, לשימוש הפעימה החיה. */
+  const refreshClients = useCallback(async () => {
+    if (DEV_SEED || !userId) return;
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) return;
+    setClients((data ?? []).map(clientFromDb));
   }, [userId]);
 
   async function addClient(client: Client): Promise<Client> {
@@ -117,6 +147,6 @@ export function useClients(userId: string | undefined) {
 
   return {
     clients, loading, error, addClient, updateClient, deleteClient, bulkAddClients,
-    setClientLifecycleStage, applyClientLocally,
+    setClientLifecycleStage, applyClientLocally, refreshClient, refreshClients,
   };
 }

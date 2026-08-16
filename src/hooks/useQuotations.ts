@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Quotation, QuotationEvent, QuotationEventType } from '../types/quotations';
 import { supabase } from '../lib/supabase';
 import { quotationFromDb, quotationToDb } from '../lib/dbMappers';
@@ -40,6 +40,21 @@ export function useQuotations(userId: string | undefined) {
       if (stale.length > 0) void expireStale(stale);
     })();
     return () => { cancelled = true; };
+  }, [userId]);
+
+  /**
+   * משיכה שקטה — בלי מצב טעינה, כדי שהמסך לא יהבהב בכל פעימה.
+   * ‼ הצפייה והאישור של הלקוח קורים בדף שלו ונכתבים בשרת; ההצעה שבזיכרון
+   * הרו"ח לא יודעת עליהם. זו הדרך שבה "נשלחה" הופך ל"אושרה" על המסך הפתוח.
+   */
+  const refreshQuotations = useCallback(async () => {
+    if (!userId) return;
+    const { data, error } = await supabase
+      .from('quotations')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) return;
+    setQuotations((data ?? []).map(quotationFromDb));
   }, [userId]);
 
   async function expireStale(stale: Quotation[]) {
@@ -108,7 +123,7 @@ export function useQuotations(userId: string | undefined) {
     setQuotations(prev => prev.filter(x => x.id !== q.id));
   }
 
-  return { quotations, loading, error, addQuotation, updateQuotation, cancelQuotation, deleteQuotation };
+  return { quotations, loading, error, addQuotation, updateQuotation, cancelQuotation, deleteQuotation, refreshQuotations };
 }
 
 function event(type: QuotationEventType, note?: string): QuotationEvent {

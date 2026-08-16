@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Lead } from '../types/quotations';
 import { supabase } from '../lib/supabase';
 import { leadFromDb, leadToDb } from '../lib/dbMappers';
@@ -45,6 +45,17 @@ export function useLeads(userId: string | undefined) {
     return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisible); };
   }, [userId]);
 
+  /** משיכה שקטה, לשימוש הפעימה החיה במסך. */
+  const refreshLeads = useCallback(async () => {
+    if (!userId) return;
+    const { data, error } = await supabase
+      .from('leads')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) return;
+    setLeads((data ?? []).map(leadFromDb));
+  }, [userId]);
+
   async function addLead(lead: Omit<Lead, 'id'>): Promise<Lead> {
     if (!userId) throw new Error('Not signed in');
     const row = leadToDb(lead as Partial<Lead>, userId);
@@ -83,5 +94,5 @@ export function useLeads(userId: string | undefined) {
     setLeads(prev => prev.filter(l => l.id !== id));
   }
 
-  return { leads, loading, error, addLead, updateLead, deleteLead };
+  return { leads, loading, error, addLead, updateLead, deleteLead, refreshLeads };
 }

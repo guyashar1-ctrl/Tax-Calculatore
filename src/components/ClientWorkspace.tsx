@@ -257,6 +257,23 @@ export default function ClientWorkspace({
     }
   }, [initialClient?.id]);
 
+  /**
+   * ‼ המסך מחזיק עותק עריכה משלו, ולכן משיכה חדשה של הלקוח מ-App לא הגיעה
+   * לכאן — כרטיס פתוח המשיך להציג "ליד" גם אחרי שהלקוח אישר את ההצעה.
+   * שני השדות האלה נכתבים בשרת בלבד (שלב החיים נגזר מההצעה, מצב הייצוג
+   * מתהליך הייצוג) ואינם ניתנים לעריכה במסך — ולכן אפשר לאמץ אותם בבטחה
+   * מבלי לגעת בשדות שהמשתמש עורך כרגע ובלי לאבד עריכה פתוחה.
+   */
+  const serverStage = initialClient?.lifecycleStage;
+  const serverRepStatus = initialClient?.representationStatus;
+  useEffect(() => {
+    if (!initialClient?.id) return;
+    setClient(c => (c.lifecycleStage === serverStage && c.representationStatus === serverRepStatus)
+      ? c
+      : { ...c, lifecycleStage: serverStage, representationStatus: serverRepStatus });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialClient?.id, serverStage, serverRepStatus]);
+
   useEffect(() => {
     if (!client.id) return;
     let cancelled = false;
