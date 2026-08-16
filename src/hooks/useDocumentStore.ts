@@ -365,6 +365,56 @@ export function useDocumentStore() {
     if (error) throw new Error(`שינוי שם התיקייה נכשל: ${error.message || JSON.stringify(error)}`);
   }
 
+  /** עדכון תיקייה — שם, תווית ושנה. שדה שלא נשלח נשאר כפי שהוא. */
+  async function updateFolder(
+    id: string,
+    patch: { name?: string; labelId?: string | null; year?: string | null },
+  ): Promise<void> {
+    if (!userId) throw new Error('אינך מחובר/ת.');
+    const row: Record<string, unknown> = {};
+    if (patch.name !== undefined) {
+      const clean = patch.name.trim();
+      if (!clean) throw new Error('שם התיקייה לא יכול להיות ריק');
+      row.name = clean;
+    }
+    if (patch.labelId !== undefined) row.label_id = patch.labelId;
+    if (patch.year !== undefined) row.year = patch.year;
+    if (Object.keys(row).length === 0) return;
+    const { error } = await supabase
+      .from('document_folders')
+      .update(row)
+      .eq('id', id)
+      .eq('user_id', userId);
+    if (error) throw new Error(`עדכון התיקייה נכשל: ${error.message || JSON.stringify(error)}`);
+  }
+
+  /**
+   * החלת תווית/שנה על תיקיות ומסמכים בבת אחת — הורשה אחורה מתיקיית אב לתוכן.
+   * ‼ שנה נשמרת אחרת בשתי הטבלאות: תיקייה 'כללי', מסמך 'general'. הקורא אחראי
+   * להעביר את הערך המתאים לכל אחת.
+   */
+  async function setFoldersMeta(ids: string[], patch: { labelId?: string; year?: string }): Promise<void> {
+    if (!userId || ids.length === 0) return;
+    const row: Record<string, unknown> = {};
+    if (patch.labelId !== undefined) row.label_id = patch.labelId;
+    if (patch.year !== undefined) row.year = patch.year;
+    if (Object.keys(row).length === 0) return;
+    const { error } = await supabase
+      .from('document_folders').update(row).in('id', ids).eq('user_id', userId);
+    if (error) throw new Error(`עדכון תת-התיקיות נכשל: ${error.message || JSON.stringify(error)}`);
+  }
+
+  async function setDocsMeta(ids: string[], patch: { labelId?: string; year?: string }): Promise<void> {
+    if (!userId || ids.length === 0) return;
+    const row: Record<string, unknown> = {};
+    if (patch.labelId !== undefined) row.label_id = patch.labelId;
+    if (patch.year !== undefined) row.year = patch.year;
+    if (Object.keys(row).length === 0) return;
+    const { error } = await supabase
+      .from('documents').update(row).in('id', ids).eq('user_id', userId);
+    if (error) throw new Error(`עדכון המסמכים נכשל: ${error.message || JSON.stringify(error)}`);
+  }
+
   /**
    * מוחקת תיקייה. תת-התיקיות נמחקות איתה (cascade), והקבצים שהיו בהן
    * עוברים לרמה הראשית (on delete set null) — קובץ לא נמחק בטעות.
@@ -578,7 +628,8 @@ export function useDocumentStore() {
 
   return {
     saveDoc, getDocsByClient, getDoc, deleteDoc,
-    getFoldersByClient, createFolder, renameFolder, deleteFolder, moveDocsToFolder,
+    getFoldersByClient, createFolder, renameFolder, updateFolder, deleteFolder, moveDocsToFolder,
+    setFoldersMeta, setDocsMeta,
     getLabels, createLabel, renameLabel, deleteLabel,
     getLinkedClientIds, linkDocumentClient, unlinkDocumentClient, getDocsByClientIncludingLinked,
     moveDocToClient, duplicateDocToClient,

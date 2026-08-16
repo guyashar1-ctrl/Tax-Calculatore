@@ -77,6 +77,7 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(false);
   const [folderEdit, setFolderEdit] = useState<DocFolder | null>(null);
   const [folderEditName, setFolderEditName] = useState('');
+  const [folderEditMeta, setFolderEditMeta] = useState<MetaDraft>({ year: '', labelId: '' });
   const [fileBusy, setFileBusy] = useState(false);
   const [fileError, setFileError] = useState('');
   const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<DocFolder | null>(null);
@@ -470,18 +471,58 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     }
   }
 
-  // ─── תיקיות: שינוי שם ומחיקה ───────────────────────────────────────────
-  async function commitFolderRename() {
+  // ─── תיקיות: עריכה ומחיקה ──────────────────────────────────────────────
+  function openFolderEdit(f: DocFolder) {
+    setFolderEdit(f);
+    setFolderEditName(f.name);
+    setFolderEditMeta({ year: f.year || '', labelId: f.labelId || '' });
+    setFolderError('');
+  }
+
+  /** כל מה שיושב מתחת לתיקייה, לכל עומק — תת-תיקיות והקבצים שבהן. */
+  function descendantsOf(folderId: string): { folderIds: string[]; docIds: string[] } {
+    const folderIds: string[] = [];
+    const queue = [folderId];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      folders.forEach(f => {
+        if ((f.parentId ?? null) === cur) { folderIds.push(f.id); queue.push(f.id); }
+      });
+    }
+    const under = new Set([folderId, ...folderIds]);
+    const docIds = docs.filter(d => d.folderId && under.has(d.folderId)).map(d => d.id);
+    return { folderIds, docIds };
+  }
+
+  /**
+   * ‼ תווית/שנה של תיקייה חלות על כל מה שבתוכה, לכל עומק. עד כה הן היו
+   * ברירת מחדל ברגע היצירה בלבד, ולכן סיווג מחדש של תיקייה שלמה חייב
+   * נגיעה בכל קובץ בנפרד. הבקשה: התיקייה מסווגת את תוכנה.
+   */
+  async function commitFolderEdit() {
     if (!folderEdit) return;
     const name = folderEditName.trim();
-    if (!name || name === folderEdit.name) { setFolderEdit(null); return; }
+    const { year, labelId } = folderEditMeta;
+    if (!name || !year || !labelId) return;
+    const labelChanged = labelId !== (folderEdit.labelId || '');
+    const yearChanged = year !== (folderEdit.year || '');
     setFolderBusy(true); setFolderError('');
     try {
-      await db.renameFolder(folderEdit.id, name);
+      await db.updateFolder(folderEdit.id, { name, labelId, year });
+      if (labelChanged || yearChanged) {
+        const { folderIds, docIds } = descendantsOf(folderEdit.id);
+        const folderPatch: { labelId?: string; year?: string } = {};
+        const docPatch: { labelId?: string; year?: string } = {};
+        if (labelChanged) { folderPatch.labelId = labelId; docPatch.labelId = labelId; }
+        // שנה נשמרת 'כללי' על תיקייה ו-'general' על מסמך — ראה docYearLabel
+        if (yearChanged) { folderPatch.year = year; docPatch.year = year === 'כללי' ? 'general' : year; }
+        await db.setFoldersMeta(folderIds, folderPatch);
+        await db.setDocsMeta(docIds, docPatch);
+      }
       setFolderEdit(null);
       void loadAll();
     } catch (e) {
-      setFolderError(e instanceof Error ? e.message : 'שינוי השם נכשל');
+      setFolderError(e instanceof Error ? e.message : 'שמירת התיקייה נכשלה');
     } finally { setFolderBusy(false); }
   }
 
@@ -655,8 +696,8 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
                     {fmtDate(f.createdAt)}
                     {/* פעולות התיקייה יושבות על השורה שלה — שם הן רלוונטיות */}
                     <span className="docw-folder-actions">
-                      <button type="button" title="שינוי שם"
-                        onClick={e => { e.stopPropagation(); setFolderEdit(f); setFolderEditName(f.name); setFolderError(''); }}>שנה שם</button>
+                      <button type="button" title="שם, תווית ושנה"
+                        onClick={e => { e.stopPropagation(); openFolderEdit(f); }}>ערוך</button>
                       <button type="button" title="מחיקת התיקייה" style={{ color: 'var(--err)' }}
                         onClick={e => { e.stopPropagation(); setConfirmDeleteFolder(f); setFolderError(''); }}>מחק</button>
                     </span>
@@ -869,24 +910,57 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
         </div>
       )}
 
-      {/* ── שינוי שם תיקייה ──────────────────────────────────────────── */}
-      {folderEdit && (
-        <div className="modal-backdrop" onClick={() => !folderBusy && setFolderEdit(null)}>
-          <div className="modal-box" onClick={e => e.stopPropagation()}>
-            <h3>שינוי שם התיקייה</h3>
-            <label className="lbl">שם</label>
-            <input className="inp" value={folderEditName} autoFocus
-              onChange={e => setFolderEditName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') void commitFolderRename(); }} />
-            {folderError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{folderError}</div>}
-            <div className="foot">
-              <button type="button" className="btn btn-primary" disabled={folderBusy || !folderEditName.trim()}
-                onClick={commitFolderRename}>{folderBusy ? 'שומר…' : 'שמור'}</button>
-              <button type="button" className="btn" disabled={folderBusy} onClick={() => setFolderEdit(null)}>ביטול</button>
+      {/* ── עריכת תיקייה: שם, תווית ושנה ─────────────────────────────── */}
+      {folderEdit && (() => {
+        const { folderIds, docIds } = descendantsOf(folderEdit.id);
+        const changesContent =
+          folderEditMeta.labelId !== (folderEdit.labelId || '') ||
+          folderEditMeta.year !== (folderEdit.year || '');
+        const parts = [
+          docIds.length ? (docIds.length === 1 ? 'קובץ אחד' : `${docIds.length} קבצים`) : '',
+          folderIds.length ? (folderIds.length === 1 ? 'תת-תיקייה אחת' : `${folderIds.length} תת-תיקיות`) : '',
+        ].filter(Boolean);
+        // ו' החיבור נצמדת למילה אבל מקבלת מקף לפני ספרה — "ותת-תיקייה", "ו-2 קבצים"
+        const inside = parts.length < 2
+          ? parts[0] ?? ''
+          : `${parts[0]} ${/^\d/.test(parts[1]) ? 'ו-' : 'ו'}${parts[1]}`;
+        return (
+          <div className="modal-backdrop" onClick={() => !folderBusy && setFolderEdit(null)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()}>
+              <h3>עריכת התיקייה</h3>
+              <label className="lbl">שם</label>
+              <input className="inp" value={folderEditName} autoFocus
+                onChange={e => setFolderEditName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') void commitFolderEdit(); }} />
+              <label className="lbl required">שנה</label>
+              <select className="inp" value={folderEditMeta.year}
+                onChange={e => setFolderEditMeta({ ...folderEditMeta, year: e.target.value })}>
+                <option value="">בחר שנה…</option>
+                {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <label className="lbl required">תווית</label>
+              <LabelSelect
+                value={folderEditMeta.labelId}
+                labels={labels}
+                onChange={id => setFolderEditMeta({ ...folderEditMeta, labelId: id })}
+                onCreated={mergeLabel}
+              />
+              <div className={changesContent && inside ? 'note warn' : 'note'}>
+                {inside
+                  ? <>התווית והשנה של התיקייה חלות על כל מה שבתוכה — {inside}.{changesContent && <> <b>שינוי שביצעת יוחל עליהם עכשיו.</b></>}</>
+                  : <>התיקייה ריקה — התווית והשנה ישמשו כברירת מחדל למה שייכנס אליה.</>}
+              </div>
+              {folderError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{folderError}</div>}
+              <div className="foot">
+                <button type="button" className="btn btn-primary"
+                  disabled={folderBusy || !folderEditName.trim() || !folderEditMeta.year || !folderEditMeta.labelId}
+                  onClick={commitFolderEdit}>{folderBusy ? 'שומר…' : 'שמור'}</button>
+                <button type="button" className="btn" disabled={folderBusy} onClick={() => setFolderEdit(null)}>ביטול</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── אישור מחיקת תיקייה ───────────────────────────────────────── */}
       {confirmDeleteFolder && (() => {
