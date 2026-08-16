@@ -8,11 +8,10 @@
 // ‼ משימות המשרד אינן שורות מסע. משימה היא עבודה שלי, בקשה היא משהו שאני
 // מחכה לו מאדם אחר — ערבוב שלהן היה מוחק את המשמעות של "אצל מי הכדור".
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { Client, Task, RepresentationStatus } from '../../types';
 import type { ClientAlert } from '../../types/clientWorkspace';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
-import { isStepOpen } from '../../types/onboarding';
 import type { Quotation, Lead } from '../../types/quotations';
 import { QUOTATION_STATUS_LABELS } from '../../types/quotations';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
@@ -69,16 +68,6 @@ interface Props {
 }
 
 export default function JourneyTab(p: Props) {
-  const [showPast, setShowPast] = useState(false);
-
-  const clientSteps = useMemo(
-    () => p.steps.filter(s => s.clientId === p.client.id && s.status !== 'cancelled'),
-    [p.steps, p.client.id],
-  );
-  const engagement = useMemo(
-    () => p.engagements.find(e => e.clientId === p.client.id),
-    [p.engagements, p.client.id],
-  );
   const clientQuotations = useMemo(
     () => p.quotations
       .filter(q => q.clientId === p.client.id)
@@ -121,8 +110,6 @@ export default function JourneyTab(p: Props) {
     () => (liveQuotation ? buildQuotationTimeline(liveQuotation, clientEmails) : []),
     [liveQuotation, clientEmails],
   );
-
-  const doneSteps = clientSteps.filter(s => !isStepOpen(s.status)).length;
 
   // ‼ open_tasks ו-upcoming_debt הן שתיהן ספירות של משימות משרד ("6 משימות
   // פתוחות", "3 חובות קרובים") — המקום שלהן הוא מסך המשימות, לא כאן. תהליך
@@ -414,54 +401,11 @@ export default function JourneyTab(p: Props) {
         </>
       )}
 
-      {/* ── פרקים קודמים — מקופלים, אבל לא נעלמים ── */}
-      {(clientQuotations.length > 0 || doneSteps > 0) && (
-        <div className="cw-section">
-          <div className="cw-section-head">
-            <button type="button"
-              onClick={() => setShowPast(v => !v)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '.35rem', color: 'inherit', font: 'inherit',
-                background: 'none', border: 'none', appearance: 'none', padding: 0, cursor: 'pointer',
-                // ‼ 19 פיקסלים באגודל זה פספוס. גם קישור־טקסט צריך שטח נגיעה.
-                minHeight: 44,
-              }}>
-              <span aria-hidden="true">{showPast ? '▾' : '▸'}</span>
-              <span>מה היה עד כה</span>
-            </button>
-            {/* השורה המקופלת אומרת מה יש בפנים — כדי שלא צריך לפתוח כדי לדעת */}
-            <span className="jt-past-summary">
-              {[
-                engagement?.activatedAt ? `קליטה נסגרה ${formatDate(engagement.activatedAt, 'list')}` : null,
-                doneSteps > 0 ? (doneSteps === 1 ? 'בקשה אחת הושלמה' : `${doneSteps} בקשות הושלמו`) : null,
-                clientQuotations.length > 0
-                  ? (clientQuotations.length === 1 ? 'הצעה אחת' : `${clientQuotations.length} הצעות`)
-                  : null,
-              ].filter(Boolean).join(' · ')}
-            </span>
-          </div>
-          {showPast && (
-            <div>
-              {clientQuotations.map(q => (
-                <div key={q.id} style={{
-                  display: 'flex', gap: '.6rem', alignItems: 'center', flexWrap: 'wrap',
-                  padding: '.5rem 0', borderTop: '1px solid var(--hairline-2)',
-                  fontSize: 'var(--fs-13)',
-                }}>
-                  <span style={{ flex: 1, minWidth: 0, color: 'var(--ink-2)' }}>
-                    הצעה {q.quotationNumber ? `#${q.quotationNumber}` : ''} · {QUOTATION_STATUS_LABELS[q.status]}
-                    {q.approvedAt && <span style={{ color: 'var(--ink-4)' }}> · אושרה {formatDate(q.approvedAt, 'list')}</span>}
-                  </span>
-                  {p.onOpenQuotation && (
-                    <button type="button" className="btn btn-sm btn-ghost"
-                      onClick={() => p.onOpenQuotation?.(q.id)}>פתח</button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* ‼ «מה היה עד כה» הוסר ממשטח הבקשות. אותה היסטוריה בדיוק — הצעות
+          שאושרו, בקשות שהושלמו, סגירת הקליטה — נקראת בלשונית «פעילות», שם
+          היא מקובצת לפי יום וניתנת לסינון. שני צירי זמן על אותו לקוח לימדו
+          שיש שתי אמיתות. שום נתון לא נמחק: useClientActivity קורא בדיוק
+          מאותם מקורות (quotations.events, onboarding_events). */}
     </div>
   );
 }

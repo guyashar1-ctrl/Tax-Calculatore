@@ -11,17 +11,43 @@ import type { CustomRequirement, CustomRequirementKind, OnboardingStep } from '.
 import { REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
 import { supabase } from '../../lib/supabase';
 
-/** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג. */
+/** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
+ *  'paperless_sequence' אינו סוג בקשה במסד — הוא תבנית שיוצרת את רצף
+ *  הפייפרלס המלא (ראה PAPERLESS_SEQUENCE). */
 const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'client_documents',       hint: 'רשימת מסמכים שהלקוח מעלה בדף האישי', once: true },
   { type: 'prev_accountant_details', hint: 'הלקוח מוסר שם, מייל וטלפון של הקודם', once: true },
   { type: 'release_letter',         hint: 'מכתב שחרור — נשלח לרו״ח הקודם', once: true },
   { type: 'materials_received',     hint: 'מעקב אחרי החומרים שמגיעים ממנו', once: true },
-  { type: 'paperless_invite',       hint: 'הזמנת הלקוח לפייפרלס', once: true },
-  { type: 'retainer_authorization', hint: 'הרשאה לחיוב חודשי', once: true },
+  { type: 'paperless_sequence',     hint: '', once: true },
   { type: 'intake_questionnaire',   hint: 'רענון תיק המס — שאלון ומסמכים לפי מה שחסר', once: true },
   { type: 'kyc_identification',     hint: 'הכרת הלקוח — אישור ידני', once: true },
   { type: 'file_opening',           hint: 'פתיחת תיקים ברשויות', once: true },
+];
+
+/** רצף הפייפרלס — תבנית מוכרת, לא תצורה: הזמנה, חיבור, והרשאה לתשלום חודשי,
+ *  כשכל שלב נפתח אחרי הקודם. הניסוחים ללקוח והכדור זהים למה שהמנוע בשרת
+ *  יוצר מהצעת מחיר (generate_onboarding_steps) — כדי שרצף שנוסף ידנית
+ *  יתנהג בדיוק כמו רצף שנולד מהצעה. */
+const PAPERLESS_SEQUENCE: {
+  type: OnboardingStep['stepType'];
+  owner?: 'client';
+  payload: Record<string, unknown>;
+}[] = [
+  { type: 'paperless_invite',
+    payload: { paperlessStatus: 'unknown', dataSource: 'unknown' } },
+  { type: 'paperless_connection', owner: 'client',
+    payload: {
+      clientTitle: 'להירשם לפייפרלס',
+      clientSub: 'שתי דקות, ומשם רק מצלמים קבלות מהטלפון',
+      clientCta: 'להרשמה',
+    } },
+  { type: 'retainer_authorization',
+    payload: {
+      clientTitle: 'להזין אמצעי תשלום',
+      clientSub: 'הסכום שסוכם בהצעה, כהרשאה קבועה',
+      clientCta: 'להזנה',
+    } },
 ];
 
 const KINDS: CustomRequirementKind[] = ['confirm', 'text', 'file'];
@@ -67,27 +93,61 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     () => new Set(steps.filter(s => s.status !== 'cancelled').map(s => s.stepType)),
     [steps],
   );
-  const available = CATALOG.filter(c => !(c.once && existing.has(c.type as OnboardingStep['stepType'])));
+  const paperlessMissing = PAPERLESS_SEQUENCE.filter(p => !existing.has(p.type));
+  const available = CATALOG.filter(c => c.type === 'paperless_sequence'
+    ? paperlessMissing.length > 0
+    : !(c.once && existing.has(c.type as OnboardingStep['stepType'])));
   const dependencyOptions = steps.filter(s => s.status !== 'cancelled');
 
-  async function create(stepType: string, payload: Record<string, unknown>) {
-    setBusy(true);
-    setError(null);
+  async function rpcCreate(
+    stepType: string,
+    payload: Record<string, unknown>,
+    depends: string | null,
+    owner?: string,
+  ): Promise<{ id: string } | { error: string }> {
     const { data, error: rpcError } = await supabase.rpc('create_onboarding_request', {
       p_client_id: clientId,
       p_step_type: stepType,
       p_payload: payload,
       p_due_date: dueDate || null,
-      p_depends_on: dependsOn || null,
+      p_depends_on: depends,
       p_published: processPublished ? sendNow : true,
       p_required_for_close: requiredForClose,
+      ...(owner ? { p_owner: owner } : {}),
     });
-    setBusy(false);
-    const res = data as { ok?: boolean; error?: string } | null;
+    const res = data as { ok?: boolean; error?: string; stepId?: string } | null;
     if (rpcError || !res?.ok) {
-      setError(ERRORS[res?.error ?? ''] ?? friendly(rpcError?.message));
-      return;
+      return { error: ERRORS[res?.error ?? ''] ?? friendly(rpcError?.message) };
     }
+    return { id: res.stepId ?? '' };
+  }
+
+  async function create(stepType: string, payload: Record<string, unknown>) {
+    setBusy(true);
+    setError(null);
+    const res = await rpcCreate(stepType, payload, dependsOn || null);
+    setBusy(false);
+    if ('error' in res) { setError(res.error); return; }
+    onCreated();
+    onClose();
+  }
+
+  /** התבנית יוצרת את הרצף שלם: מה שכבר קיים אצל הלקוח לא נוצר שוב, אלא
+   *  משמש עוגן לתלות של השלב הבא — ולכן לחיצה חוזרת רק משלימה חסרים. */
+  async function createPaperlessSequence() {
+    setBusy(true);
+    setError(null);
+    const byType = new Map(
+      steps.filter(s => s.status !== 'cancelled').map(s => [s.stepType, s.id]));
+    let prevId: string | null = null;
+    for (const part of PAPERLESS_SEQUENCE) {
+      const existingId = byType.get(part.type);
+      if (existingId) { prevId = existingId; continue; }
+      const res = await rpcCreate(part.type, part.payload, prevId, part.owner);
+      if ('error' in res) { setBusy(false); setError(res.error); return; }
+      prevId = res.id;
+    }
+    setBusy(false);
     onCreated();
     onClose();
   }
@@ -169,12 +229,21 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   disabled={busy}
                   onClick={() => {
                     if (c.type === 'client_documents') { setMode('documents'); return; }
+                    if (c.type === 'paperless_sequence') { void createPaperlessSequence(); return; }
                     void create(c.type, {});
                   }}
                   style={rowBtn}
                 >
-                  <span style={{ fontWeight: 600 }}>{STEP_TYPE_LABELS[c.type as OnboardingStep['stepType']]}</span>
-                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{c.hint}</span>
+                  <span style={{ fontWeight: 600 }}>
+                    {c.type === 'paperless_sequence' ? 'פייפרלס'
+                      : STEP_TYPE_LABELS[c.type as OnboardingStep['stepType']]}
+                  </span>
+                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                    {c.type !== 'paperless_sequence' ? c.hint
+                      : paperlessMissing.length === PAPERLESS_SEQUENCE.length
+                        ? 'הזמנה, חיבור והרשאה לתשלום חודשי — כל שלב נפתח אחרי הקודם'
+                        : `משלים את הרצף: ${paperlessMissing.map(p => STEP_TYPE_LABELS[p.type]).join(' · ')}`}
+                  </span>
                 </button>
               ))}
 

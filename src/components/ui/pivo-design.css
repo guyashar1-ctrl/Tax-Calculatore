@@ -1994,7 +1994,6 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   display: grid; gap: .3rem;
   font-size: var(--fs-13); color: var(--ink-2); line-height: 1.55;
 }
-.jt-past-summary { font-size: var(--fs-12); color: var(--ink-4); margin-inline-start: auto; }
 
 /* ── חריגות מקצועיות ─────────────────────────────────────────────────────── */
 .cw-exc-row {

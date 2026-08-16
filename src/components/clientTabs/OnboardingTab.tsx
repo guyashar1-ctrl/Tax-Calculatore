@@ -9,7 +9,7 @@ import type {
   Engagement, InstitutionKey, OnboardingEvent, OnboardingStep, StepChecklistItem,
 } from '../../types/onboarding';
 import {
-  ENGAGEMENT_STATUS_LABELS, EVENT_ACTOR_LABELS, EVENT_TYPE_LABELS, REQUIREMENT_KIND_LABELS,
+  ENGAGEMENT_STATUS_LABELS, REQUIREMENT_KIND_LABELS,
   STEP_BALL_LABELS, STEP_STATUS_LABELS, STEP_TYPE_LABELS, TRACK_LABELS,
   blockingStepsForClose, isStepRequiredForClose,
   isStepOpen, stepAwaitsMe, stepStatusLabel,
@@ -1624,27 +1624,11 @@ export default function OnboardingTab({
         </div>
       ))}
 
-      {/* ── ציר הזמן ──
-          ‼ "מה קרה בקליטה" → "מה קרה": המסך הזה מלווה את הלקוח לכל אורך חייו,
-          ולא רק בקליטה. אותו יומן בדיוק, בלי מילה שקושרת אותו לשלב חיים. */}
-      <div className="cw-section">
-        <div className="cw-section-head"><span>מה קרה</span></div>
-        {clientEvents.length === 0 ? (
-          <div className="cw-empty">עדיין אין רישומים.</div>
-        ) : (
-          <div>
-            {clientEvents.slice(0, 40).map(ev => (
-              <div key={ev.id} className="cw-activity-row">
-                <span className="cw-activity-text">
-                  {describeEvent(ev, stepById)}
-                  <span style={{ color: 'var(--ink-4)' }}> · {EVENT_ACTOR_LABELS[ev.actor] ?? ev.actor}</span>
-                </span>
-                <span className="cw-activity-when" title={formatDate(ev.at, 'form')}>{relativeTime(ev.at)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* ‼ ציר הזמן «מה קרה» הוסר מכאן. משטח הבקשות אומר מה **צריך לקרות** —
+          אבני דרך שהובילו לכאן, בקשות פתוחות, בקשות נעולות והעבודה שלי; יומן
+          של מה שכבר קרה הוא שאלה אחרת, ויש לה מסך: לשונית «פעילות». האירועים
+          עצמם לא נגעו — ActivityTab מציג את אותם onboarding_events, מקובצים
+          לפי יום ועם סינון. */}
 
       {emailDialog && (
         <EmailPreviewDialog
@@ -2697,14 +2681,3 @@ const cardNote: React.CSSProperties = {
   marginTop: '.45rem', fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.7,
 };
 
-/** תיאור אירוע בעברית: ההערה שנכתבה, אחרת מעבר הסטטוס, אחרת סוג האירוע. */
-function describeEvent(ev: OnboardingEvent, stepById: Map<string, OnboardingStep>): string {
-  const step = ev.stepId ? stepById.get(ev.stepId) : undefined;
-  const stepName = step ? STEP_TYPE_LABELS[step.stepType] : '';
-  const to = typeof ev.meta?.to === 'string' ? ev.meta.to : undefined;
-  const statusPart = to && STEP_STATUS_LABELS[to as keyof typeof STEP_STATUS_LABELS]
-    ? STEP_STATUS_LABELS[to as keyof typeof STEP_STATUS_LABELS]
-    : EVENT_TYPE_LABELS[ev.type] ?? ev.type;
-  const head = stepName ? `${stepName} — ${statusPart}` : statusPart;
-  return ev.note ? `${head}: ${ev.note}` : head;
-}
