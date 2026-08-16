@@ -85,7 +85,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     setBusy(false);
     const res = data as { ok?: boolean; error?: string } | null;
     if (rpcError || !res?.ok) {
-      setError(ERRORS[res?.error ?? ''] ?? rpcError?.message ?? 'ההוספה נכשלה.');
+      setError(ERRORS[res?.error ?? ''] ?? friendly(rpcError?.message));
       return;
     }
     onCreated();
@@ -354,8 +354,17 @@ const rowBtn: React.CSSProperties = {
   color: 'var(--ink-1)', cursor: 'pointer', font: 'inherit', width: '100%',
 };
 
+/** שגיאת מסד גולמית באנגלית אינה אומרת כלום לרו"ח. מה שאין לו תרגום — נאמר בכלליות. */
+function friendly(dbMessage?: string): string {
+  if (dbMessage && /duplicate key|unique constraint/i.test(dbMessage)) {
+    return ERRORS.step_type_exists;
+  }
+  return 'ההוספה נכשלה. אפשר לנסות שוב.';
+}
+
 const ERRORS: Record<string, string> = {
   forbidden: 'אין הרשאה ללקוח הזה.',
+  step_type_exists: 'כבר קיימת בקשה מהסוג הזה אצל הלקוח. אפשר לערוך אותה מלשונית «תהליך».',
   client_not_found: 'הלקוח לא נמצא.',
   step_type_not_allowed: 'סוג הבקשה הזה לא נוצר ידנית.',
   no_requirements: 'בקשה חופשית חייבת לפחות דרישה אחת.',

@@ -9,6 +9,12 @@
       "autoPort": true
     },
     {
+      "name": "qa",
+      "runtimeExecutable": "node_modules\\.bin\\vite.cmd",
+      "runtimeArgs": ["--mode", "qa", "--port", "5176", "--strictPort"],
+      "port": 5176
+    },
+    {
       "name": "staging",
       "runtimeExecutable": "node_modules\\.bin\\vite.cmd",
       "runtimeArgs": ["--mode", "staging", "--port", "5174", "--strictPort"],
