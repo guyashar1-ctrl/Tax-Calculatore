@@ -11,12 +11,17 @@ import {
 } from './types';
 import ExpenseDetail from './ExpenseDetail';
 
-export default function ExpenseKnowledge() {
+interface Props {
+  /** נושא שנפתח מיד עם הכניסה — כשמגיעים לכאן מקישור ממסך אחר */
+  initialTopicId?: string | null;
+}
+
+export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
   const [query, setQuery] = useState('');
   const [itFilter, setItFilter] = useState<IncomeTaxVerdict | 'all'>('all');
   const [vatFilter, setVatFilter] = useState<VatVerdict | 'all'>('all');
   const [riskFilter, setRiskFilter] = useState<RiskLevel | 'all'>('all');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialTopicId);
 
   const filtered = useMemo(() => {
     let list = searchExpenseTopics(EXPENSE_TOPICS, query);

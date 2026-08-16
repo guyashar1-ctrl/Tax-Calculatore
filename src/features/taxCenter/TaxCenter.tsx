@@ -7,16 +7,18 @@ import RentalRouteCalculator from './RentalRouteCalculator';
 import SettlementLookup from './SettlementLookup';
 import IncomeTaxPanel from './IncomeTaxPanel';
 import KnowledgeTopics from './KnowledgeTopics';
+import SavingsBenefits from './SavingsBenefits';
 import BookkeepingKnowledge from './bookkeeping/BookkeepingKnowledge';
 import { FreshnessBadge, FreshnessPanel } from './DataFreshness';
 
 const fmt = (n: number) => '₪' + n.toLocaleString('he-IL');
 
 type Tool =
-  | 'overview' | 'expenses' | 'bookkeeping' | 'wizard' | 'rental' | 'incomeTax' | 'ni' | 'settlements' | 'topics';
+  | 'overview' | 'expenses' | 'savings' | 'bookkeeping' | 'wizard' | 'rental' | 'incomeTax' | 'ni' | 'settlements' | 'topics';
 
 const TOOLS: { key: Tool; label: string; desc: string }[] = [
   { key: 'expenses',     label: 'הוצאות מוכרות',       desc: '"אפשר לנכות את זה?" — תשובה בשניות: מס הכנסה, מע"מ, מקורות ופסיקה' },
+  { key: 'savings',      label: 'פנסיה וקרן השתלמות',  desc: 'שתי ההטבות הגדולות של עצמאי — ניכוי, זיכוי ופטור ממס רווחי הון, כל אחד בנפרד' },
   { key: 'bookkeeping',  label: 'ניהול ספרים',          desc: 'איזו תוספת ואילו ספרים כל עוסק חייב — אשף, 15 התוספות ומילון הספרים' },
   { key: 'wizard',       label: 'אשף נקודות זיכוי',   desc: 'עונים על שאלות — המערכת קובעת את הנקודות ומסבירה למה' },
   { key: 'rental',       label: 'מחשבון שכר דירה',     desc: 'השוואת פטור / 10% / שולי, כולל הפטור המתקפל ו-122(ו)' },
@@ -29,6 +31,7 @@ const TOOLS: { key: Tool; label: string; desc: string }[] = [
 /** מיפוי כלי → מאגר הנתונים שמזין אותו (לתג העדכניות) */
 const TOOL_DATASET: Partial<Record<Tool, string>> = {
   expenses: 'expenses',
+  savings: 'savings',
   bookkeeping: 'bookkeeping',
   wizard: 'taxData',
   rental: 'taxData',
@@ -47,7 +50,14 @@ interface Props {
 export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshnessTask }: Props) {
   const [year, setYear] = useState<number>(2026);
   const [tool, setTool] = useState<Tool>('overview');
+  /** נושא הוצאה שנפתח ישירות כשמגיעים מקישור במסך אחר */
+  const [expenseJump, setExpenseJump] = useState<string | null>(null);
   const data = TAX_YEARS.find(t => t.year === year)!;
+
+  function openExpenseTopic(topicId: string) {
+    setExpenseJump(topicId);
+    setTool('expenses');
+  }
 
   const keyValues = [
     { label: 'ערך נקודת זיכוי', value: fmt(data.creditPointValue), sub: 'לשנה · מוקפא עד 2027' },
@@ -68,7 +78,7 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
     <div className="tax-center pg-split">
       <nav className="pg-rail" aria-label="כלי ידע המס">
         <div className="pg-rail-eyebrow">ידע מס · {year}</div>
-        <button type="button" className={`pg-rail-item ${tool === 'overview' ? 'is-active' : ''}`} onClick={() => setTool('overview')}>
+        <button type="button" className={`pg-rail-item ${tool === 'overview' ? 'is-active' : ''}`} onClick={() => { setExpenseJump(null); setTool('overview'); }}>
           <span className="pg-rail-name">סקירה</span>
         </button>
         {TOOLS.map(t => (
@@ -76,7 +86,7 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
             key={t.key}
             type="button"
             className={`pg-rail-item ${tool === t.key ? 'is-active' : ''}`}
-            onClick={() => setTool(t.key)}
+            onClick={() => { setExpenseJump(null); setTool(t.key); }}
             aria-current={tool === t.key ? 'true' : undefined}
           >
             <span className="pg-rail-name">{t.label}</span>
@@ -133,7 +143,8 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
           </>
         )}
 
-        {tool === 'expenses' && <ExpenseKnowledge />}
+        {tool === 'expenses' && <ExpenseKnowledge key={expenseJump ?? 'all'} initialTopicId={expenseJump} />}
+        {tool === 'savings' && <SavingsBenefits year={year} onOpenExpenseTopic={openExpenseTopic} />}
         {tool === 'bookkeeping' && <BookkeepingKnowledge />}
         {tool === 'wizard' && <CreditPointsWizard taxData={data} year={year} />}
         {tool === 'rental' && <RentalRouteCalculator taxData={data} year={year} />}
