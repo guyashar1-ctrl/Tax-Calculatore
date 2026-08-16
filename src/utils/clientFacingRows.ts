@@ -1,13 +1,15 @@
-// ─── קיבוץ שורות "מה אני צריך מהלקוח" — מיזוג שרשראות ────────────────────────
-// ‼ שרשרת = מושג אחד בעיני הלקוח, אבל כמה שלבים בשרת (מסך "תהליך" המאוחד,
-// לפי הפרוטוטייפ המאושר): פייפרלס = הזמנה+חיבור, רו"ח קודם = פרטים+מכתב
-// שחרור+קבלת חומרים. שתי השרשראות האלה כבר היו ממוזגות ב-OnboardingProcessBuilder
-// (במצב בנייה, סטטי) — כאן אותו עיקרון, בשביל המסך המאוחד שמחליף אותו.
+// ─── קיבוץ שורות "מה אני צריך מהלקוח" — כרטיס אחד למושג ─────────────────────
+// ‼ שני כללי קיבוץ, בסדר הזה (אב-הטיפוס המאושר requests-v2-approved.html):
 //
-// הפונקציה כאן קובעת רק אילו שלבים שייכים לאיזו שורה ומי מהם "פעיל" (קובע
-// כותרת/סטטוס/פעולה של השורה המכווצת) — הרינדור עצמו נשאר ב-OnboardingTab,
-// ששם יושבים כל הכרטיסים הייעודיים (PaperlessStepCard, ReleaseStepCard...).
-// שרשרת שנפתחת מציגה את כל חבריה דרך אותם כרטיסים בדיוק, בלי לשכפל לוגיקה.
+// 1. שרשרת-מושג = כרטיס אחד. "פתיחת חשבון פייפרלס" היא הזמנה+חיבור, ו"מעבר
+//    מרו״ח קודם" היא פרטים+מכתב שחרור+קבלת חומרים. בעיני הרו"ח זה דבר אחד.
+//
+// 2. בקשה שתלויה בכרטיס אחר יורדת לתוכו ככרטיס-בן (childOf באב-הטיפוס):
+//    "הרשאה לחיוב חודשי" תלויה בחיבור הפייפרלס, ולכן היא נקראת כצעד ההמשך
+//    שלו — לא כשורה נפרדת ברשימה. זה הכלל שהופך רשימה שטוחה לתהליך.
+//
+// הפונקציה קובעת רק **מי בתוך מי**; הרינדור עצמו נשאר ב-OnboardingTab, ששם
+// יושבים הכרטיסים הייעודיים (PaperlessStepCard, ReleaseStepCard…).
 
 import type { OnboardingStep, OnboardingStepType } from '../types/onboarding';
 import { isStepOpen } from '../types/onboarding';
@@ -17,10 +19,12 @@ export type ClientRowKind = 'paperless' | 'prevAccountant' | 'single';
 export interface ClientFacingRow {
   key: string;
   kind: ClientRowKind;
-  /** כל השלבים בשרשרת, בסדר הפנימי שלהם — תמיד יש לפחות אחד. */
+  /** כל השלבים בשרשרת-המושג, בסדר הפנימי שלהם — תמיד יש לפחות אחד. */
   members: OnboardingStep[];
-  /** השלב שקובע כותרת/סטטוס/פעולה של השורה המכווצת — הראשון הפתוח, אחרת הראשון. */
+  /** השלב שקובע כותרת/סטטוס/פעולה של הכרטיס — הראשון הפתוח, אחרת הראשון. */
   primary: OnboardingStep;
+  /** כרטיסי-המשך שתלויים בכרטיס הזה ומוצגים בתוכו. */
+  children: ClientFacingRow[];
 }
 
 /**
@@ -41,25 +45,35 @@ function pickPrimary(members: OnboardingStep[]): OnboardingStep {
   return members.find(s => isStepOpen(s.status)) ?? members[0];
 }
 
+const bySort = (a: ClientFacingRow, b: ClientFacingRow) =>
+  (a.primary.sortOrder ?? 0) - (b.primary.sortOrder ?? 0)
+  || (a.primary.createdAt ?? '').localeCompare(b.primary.createdAt ?? '');
+
 /**
- * מקבצת את שלבי הלקוח לשורות "מה אני צריך מהלקוח", בסדר התצוגה (sort_order
- * של החבר הפעיל של כל שורה). custom_request/intake_questionnaire יכולים
- * להופיע כמה פעמים — כל אחד שורה משלו, לא ממוזג.
+ * מקבצת את שלבי הלקוח לכרטיסים, בסדר התצוגה.
+ *
+ * @param depParents כל ההורים של כל שלב (מיגרציה 78). בלעדיו נופלים לעמודת
+ *   ההורה היחיד — מה שמספיק לפייפרלס→הרשאה, שהוא המקרה שהאב-טיפוס מדגים.
  */
-export function buildClientFacingRows(steps: OnboardingStep[]): ClientFacingRow[] {
+export function buildClientFacingRows(
+  steps: OnboardingStep[],
+  depParents?: Map<string, string[]>,
+): ClientFacingRow[] {
   const pool = steps.filter(s => CLIENT_FACING_TYPES.includes(s.stepType));
   const byType = new Map<OnboardingStepType, OnboardingStep>();
   for (const s of pool) if (!byType.has(s.stepType)) byType.set(s.stepType, s);
 
   const merged = new Set<string>();
   const rows: ClientFacingRow[] = [];
+  const mk = (key: string, kind: ClientRowKind, members: OnboardingStep[]): ClientFacingRow =>
+    ({ key, kind, members, primary: pickPrimary(members), children: [] });
 
   const invite = byType.get('paperless_invite');
   const connection = byType.get('paperless_connection');
   if (invite || connection) {
     const members = [invite, connection].filter((s): s is OnboardingStep => !!s);
     members.forEach(s => merged.add(s.id));
-    rows.push({ key: 'paperless', kind: 'paperless', members, primary: pickPrimary(members) });
+    rows.push(mk('paperless', 'paperless', members));
   }
 
   const prevDetails = byType.get('prev_accountant_details');
@@ -68,15 +82,40 @@ export function buildClientFacingRows(steps: OnboardingStep[]): ClientFacingRow[
   if (prevDetails || release || materials) {
     const members = [prevDetails, release, materials].filter((s): s is OnboardingStep => !!s);
     members.forEach(s => merged.add(s.id));
-    rows.push({ key: 'prevAccountant', kind: 'prevAccountant', members, primary: pickPrimary(members) });
+    rows.push(mk('prevAccountant', 'prevAccountant', members));
   }
 
   for (const s of pool) {
     if (merged.has(s.id)) continue;
-    rows.push({ key: s.id, kind: 'single', members: [s], primary: s });
+    rows.push(mk(s.id, 'single', [s]));
   }
 
-  return rows.sort((a, b) =>
-    (a.primary.sortOrder ?? 0) - (b.primary.sortOrder ?? 0)
-    || (a.primary.createdAt ?? '').localeCompare(b.primary.createdAt ?? ''));
+  // ── קינון לפי תלות ────────────────────────────────────────────────────────
+  // ‼ רק רמה אחת. שרשרת תלויות ארוכה מקוננת לעומק הייתה בונה עץ שאי אפשר
+  // לסרוק, וזה בדיוק מה שהאב-טיפוס נמנע ממנו: כרטיס, ומתחתיו צעד ההמשך שלו.
+  const rowOfStep = new Map<string, ClientFacingRow>();
+  for (const row of rows) for (const m of row.members) rowOfStep.set(m.id, row);
+
+  const parentsOf = (s: OnboardingStep): string[] => {
+    const multi = depParents?.get(s.id);
+    if (multi && multi.length > 0) return multi;
+    return s.dependsOnStepId ? [s.dependsOnStepId] : [];
+  };
+
+  const nested = new Set<string>();
+  for (const row of rows) {
+    // שרשרת-מושג אינה יורדת לתוך אחרת: היא כבר מייצגת מושג שלם בפני עצמו.
+    if (row.kind !== 'single') continue;
+    const parentRows = new Set(
+      parentsOf(row.primary).map(pid => rowOfStep.get(pid)).filter((r): r is ClientFacingRow => !!r && r !== row));
+    // בדיוק הורה אחד — ואינו כרטיס שכבר קונן בעצמו (רמה אחת בלבד).
+    if (parentRows.size !== 1) continue;
+    const parent = [...parentRows][0];
+    if (nested.has(parent.key)) continue;
+    parent.children.push(row);
+    nested.add(row.key);
+  }
+
+  for (const row of rows) row.children.sort(bySort);
+  return rows.filter(r => !nested.has(r.key)).sort(bySort);
 }

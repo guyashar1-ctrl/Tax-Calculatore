@@ -74,9 +74,6 @@ const STEPS: OnboardingStep[] = [
   step({ id: 's1b', stepType: 'representation_upgrade', track: 'authorities', scope: 'person', status: 'pending', ball: 'me',
          dueDate: '2026-07-15', needsAttention: true,
          payload: { secondaryAuthorities: ['incomeTax', 'vat'] } }),
-  step({ id: 's1c', stepType: 'representation_upgrade', track: 'authorities', scope: 'person', status: 'pending', ball: 'me',
-         dueDate: '2026-11-01',
-         payload: { secondaryAuthorities: ['withholding'] } }),
   step({ id: 's2', stepType: 'release_letter', track: 'prev_accountant', scope: 'person', status: 'pending', ball: 'me' }),
   step({ id: 's3', stepType: 'materials_received', track: 'prev_accountant', scope: 'person', status: 'locked', ball: 'prev_accountant', dependsOnStepId: 's2',
          payload: { checklist: [
@@ -88,19 +85,14 @@ const STEPS: OnboardingStep[] = [
   step({ id: 's4', stepType: 'paperless_invite', track: 'tools', scope: 'person', status: 'pending', ball: 'me',
          payload: { paperlessStatus: 'unknown', dataSource: 'unknown' } }),
   step({ id: 's5', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'locked', ball: 'client', dependsOnStepId: 's4' }),
-  // ── פייפרלס: מסלול העברה ממייצג אחר, אחרי טריאז' — כרטיס ההוראות ──
-  step({ id: 's5b', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'pending', ball: 'me',
-         payload: { paperlessStatus: 'other_rep', dataSource: 'paperless' } }),
-  // ── הרשאת תשלום: נעולה, עם דגל "דורש טיפול" ──
+  /* ── הרשאת תשלום: נעולה עד חיבור הפייפרלס ──
+     ‼ זה מקרה־הייחוס של אב-הטיפוס: בקשה תלויה שיורדת לתוך כרטיס ההורה
+     ונקראת כצעד ההמשך שלו. שלבים כפולים מאותו סוג הוסרו מהפיקסטורה —
+     המסד אוסר אותם (אינדקס ייחודי על client_id/engagement_id + step_type),
+     ולכן פיקסטורה עם שלוש הרשאות תשלום בדקה מסך שלא קיים בפרודקשן. */
   step({ id: 's6', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'locked', ball: 'me', dependsOnStepId: 's5',
          needsAttention: true, dueDate: '2026-08-20',
          payload: { amount: 450, billingStartMonth: '2026-09' } }),
-  // ── הרשאת תשלום: פתוחה, בלי קישור — "הכן מייל" חסום ──
-  step({ id: 's6b', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'pending', ball: 'me',
-         payload: { amount: 780, billingStartMonth: '2026-10' } }),
-  // ── הרשאת תשלום: פתוחה, ההרשאה כבר נוצרה בפייפרלס — "הלקוח השלים" פעיל ──
-  step({ id: 's6c', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'in_progress', ball: 'me',
-         payload: { amount: 1200, billingStartMonth: '2026-09', authorizationCreatedAt: '2026-08-10T09:00:00Z' } }),
   step({ id: 's7', stepType: 'internal_setup', track: 'internal', scope: 'engagement', status: 'pending', ball: 'me',
          payload: { checklist: [
            { key: 'file_numbers', label: 'מספרי תיקים בכרטיס', done: false },

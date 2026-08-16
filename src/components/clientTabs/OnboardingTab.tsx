@@ -10,7 +10,7 @@ import type {
 } from '../../types/onboarding';
 import {
   ENGAGEMENT_STATUS_LABELS, EVENT_ACTOR_LABELS, EVENT_TYPE_LABELS, REQUIREMENT_KIND_LABELS,
-  STEP_BALL_LABELS, STEP_STATUS_LABELS, STEP_STATUS_TONE, STEP_TYPE_LABELS, TRACK_LABELS,
+  STEP_BALL_LABELS, STEP_STATUS_LABELS, STEP_TYPE_LABELS, TRACK_LABELS,
   blockingStepsForClose, isStepRequiredForClose,
   isStepOpen, stepAwaitsMe, stepStatusLabel,
 } from '../../types/onboarding';
@@ -95,6 +95,12 @@ const RowOpenContext = createContext<{
   depParents?: Map<string, string[]>;
   /** ההיפוך — אילו שלבים משתחררים כשהשלב הזה יושלם ("משחרר:"). */
   depChildren?: Map<string, string[]>;
+  /**
+   * כרטיסי-המשך שמוצגים **בתוך** הכרטיס של השלב (אב-הטיפוס: childOf).
+   * דרך ה-context ולא props מאותה סיבה כמו openId: שמונה כרטיסים מתמחים
+   * עוברים דרך StepCardShell, והעברה ידנית הייתה מוסיפה prop לכל אחד מהם.
+   */
+  nestedByStep?: Map<string, React.ReactNode>;
 }>({ openId: null, toggle: () => {} });
 
 /** שם השורה. בקשה חופשית נושאת את השם שהרו"ח נתן לה, לא תווית גנרית. */
@@ -550,71 +556,10 @@ export default function OnboardingTab({
     }
   }
 
-  // ‼ ללקוח ותיק אין התקשרות ואין שלבים — וזה הרוב אצל רו"ח שכבר עובד שנים.
-  // המסך הזה היה מבוי סתום: הודעה שאומרת "אין קליטה" ואפס דרך לבקש ממנו משהו.
-  // בקשה אינה שייכת רק לקליטה; אפשר לבקש מסמך מלקוח פעיל בכל רגע.
-  if (clientEngagements.length === 0 && clientSteps.length === 0) {
-    return (
-      <div className="cw-tabpanel">
-        <div className="cw-section">
-          <div className="cw-section-head">
-            <span>בקשות</span>
-            <span style={{ display: 'flex', gap: '.4rem' }}>
-              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPreviewOpen(true)}>הדף של הלקוח</button>
-              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>תבניות</button>
-              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>+ בקשה</button>
-            </span>
-          </div>
-          <div className="cw-empty">
-            אין בקשות פתוחות. אפשר לבקש מסמך או לשלוח בקשה חופשית בכל שלב —
-            הלקוח יראה אותה בדף האישי שלו.
-          </div>
-        </div>
-
-        {/* ‼ M2 — בדיוק הלקוח הזה: בלי התקשרות ובלי שלבים בכלל. "הקמת תיק
-            במערכת" היא נקודת הכניסה היחידה שלו ליישור קו — בלי המסלול הזה
-            אין דרך להגיע לשלבי המוסדות מהמסך הזה, כי הם בדיוק מה שהמסך
-            הקצר הזה מדלג עליו (clientSteps.length === 0). */}
-        <div className="cw-section">
-          <div className="cw-section-head"><span>הקמת תיק במערכת</span></div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap', padding: '.5rem 0' }}>
-            <span style={{ flex: 1, fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
-              ביטוח לאומי, מע״מ ומס הכנסה — לאן להיכנס, מה להעתיק, מה חריג.
-            </span>
-            <button type="button" className="btn btn-sm btn-secondary" disabled={alignBusy}
-              onClick={() => void startOrRerunAlignment([])}>
-              {alignBusy ? 'מעדכן…' : 'התחל יישור קו'}
-            </button>
-          </div>
-        </div>
-
-        {previewOpen && (
-          <ClientPagePreviewDialog
-            clientId={clientId}
-            clientName={clientDisplayName ?? 'הלקוח'}
-            onClose={() => setPreviewOpen(false)}
-          />
-        )}
-        {addOpen && (
-          <AddRequestDialog
-            clientId={clientId}
-            steps={clientSteps}
-            processPublished
-            onClose={() => setAddOpen(false)}
-            onCreated={() => refresh?.()}
-          />
-        )}
-        {templatesOpen && (
-          <JourneyTemplatesDialog
-            clientId={clientId}
-            clientName={clientDisplayName ?? 'הלקוח'}
-            onClose={() => setTemplatesOpen(false)}
-            onApplied={() => refresh?.()}
-          />
-        )}
-      </div>
-    );
-  }
+  /* ‼ אין כאן יותר מסך נפרד ללקוח ותיק (בלי התקשרות ובלי שלבים). הכרעת גיא:
+     זהו משטח הבקשות של הלקוח לכל אורך חייו — לא תהליך קליטה. לקוח חדש ולקוח
+     ותיק מקבלים בדיוק את אותו מסך; רק תוכן הבקשות שונה. המסך הראשי כבר יודע
+     להציג מצב ריק, ו"בקשה חדשה"/"מתבנית" זמינים בו תמיד. */
 
   const ballTone = !nextStep
     ? { c: TONE_COLOR.ok, label: 'הושלם' }
@@ -797,6 +742,17 @@ export default function OnboardingTab({
               // נפתחת רק כשמבקשים אותה.
               const menu = (
                 <>
+                  {/* ‼ "עריכת תהליך" מעלה את חצי הסידור אל השורה עצמה. במנוחה
+                      הם חיים בתפריט ⋯ בלבד — פקדי סידור על כל כרטיס, תמיד, הם
+                      בדיוק תחושת הטבלה שהמסך הזה בא להוריד. */}
+                  {editing && !ordering && isStepOpen(step.status) && (
+                    <>
+                      <button type="button" className="btn btn-sm btn-ghost ob-more" aria-label="הזז למעלה"
+                        onClick={() => void moveRow(step.id, -1)}>↑</button>
+                      <button type="button" className="btn btn-sm btn-ghost ob-more" aria-label="הזז למטה"
+                        onClick={() => void moveRow(step.id, 1)}>↓</button>
+                    </>
+                  )}
                   {isStepOpen(step.status) && (
                     <button type="button" className="btn btn-sm btn-ghost ob-more" disabled={busy}
                       aria-expanded={menuStepId === step.id}
@@ -839,7 +795,8 @@ export default function OnboardingTab({
                           {isStepRequiredForClose(step) ? 'סמן כרשות' : 'סמן כנדרש'}
                         </button>
                       )}
-                      {!ordering && isStepOpen(step.status) && (
+                      {/* בתפריט רק כשלא במצב עריכה — אחרת החצים כפולים. */}
+                      {!editing && !ordering && isStepOpen(step.status) && (
                         <>
                           <button type="button" className="btn btn-sm btn-ghost" aria-label="הזז למעלה"
                             onClick={() => void moveRow(step.id, -1)}>↑</button>
@@ -1155,12 +1112,18 @@ export default function OnboardingTab({
     );
   };
 
+  /* ‼ נבנית תוך כדי הרינדור של רשימת הבקשות (renderRow) ונקראת מתוך
+     JourneyRow דרך ה-context. מפה חדשה בכל רינדור — אחרת קינון שהוסר
+     היה נשאר תקוע מהפעם הקודמת. */
+  const nestedMap = new Map<string, React.ReactNode>();
+
   return (
     <RowOpenContext.Provider value={{
       openId: openRowId,
       toggle: (id: string) => setOpenRowId(cur => (cur === id ? null : id)),
       depParents,
       depChildren,
+      nestedByStep: nestedMap,
     }}>
     <div className="cw-tabpanel">
       {error && (
@@ -1344,30 +1307,28 @@ export default function OnboardingTab({
 
       {/* ── יישור קו מול הרשויות: הקמה / ריצה מחדש ──────────────────────────
           ‼ מוצג רק כשאין כבר כרטיס קבוצה פעיל ברשימה למטה (renderStep) —
-          לפני שיש שלבים בכלל, או אחרי ששלושתם הושלמו ("בצע יישור קו מחדש"). */}
+          לפני שיש שלבים בכלל, או אחרי ששלושתם הושלמו ("בצע יישור קו מחדש").
+          ‼ שם אחד לשני המצבים (ולא "הקמת תיק במערכת" ללקוח ותיק): זו אותה
+          יכולת בדיוק, והכותרת לא משתנה לפי שלב החיים של הלקוח. */}
       {(() => {
         const instSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
         const allDone = instSteps.length === 3
           && instSteps.every(s => s.status === 'completed' || s.status === 'verified');
         if (instSteps.length > 0 && !allDone) return null;
-        const isExistingOfficeClient = instSteps.length === 0
-          && (activeEngagement?.status !== 'onboarding');
         return (
-          <div className="cw-section">
-            <div className="cw-section-head">
-              <span>{isExistingOfficeClient ? 'הקמת תיק במערכת' : 'יישור קו מול הרשויות'}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap', padding: '.5rem 0' }}>
-              <span style={{ flex: 1, fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
-                {instSteps.length === 0
-                  ? 'ביטוח לאומי, מע״מ ומס הכנסה — לאן להיכנס, מה להעתיק, מה חריג.'
-                  : `הושלם${instSteps[0]?.payload.checkedAt ? ' · נבדק לאחרונה ' + formatDate(String(instSteps[0].payload.checkedAt), 'list') : ''}.`}
-              </span>
-              <button type="button" className="btn btn-sm btn-secondary" disabled={alignBusy}
-                onClick={() => void startOrRerunAlignment(instSteps)}>
-                {alignBusy ? 'מעדכן…' : instSteps.length === 0 ? 'התחל יישור קו' : 'בצע יישור קו מחדש'}
-              </button>
-            </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '.6rem', flexWrap: 'wrap',
+            marginTop: '1.1rem', fontSize: 'var(--fs-12)', color: 'var(--ink-4)',
+          }}>
+            <span style={{ flex: 1, minWidth: 200 }}>
+              יישור קו מול הרשויות — {instSteps.length === 0
+                ? 'ביטוח לאומי, מע״מ ומס הכנסה'
+                : `הושלם${instSteps[0]?.payload.checkedAt ? ' · נבדק לאחרונה ' + formatDate(String(instSteps[0].payload.checkedAt), 'list') : ''}`}
+            </span>
+            <button type="button" className="ui-linkbtn" disabled={alignBusy}
+              onClick={() => void startOrRerunAlignment(instSteps)}>
+              {alignBusy ? 'מעדכן…' : instSteps.length === 0 ? 'התחל יישור קו' : 'בצע מחדש'}
+            </button>
           </div>
         );
       })()}
@@ -1381,68 +1342,64 @@ export default function OnboardingTab({
       {(() => {
         const openVisible = visibleSteps.filter(s => isStepOpen(s.status));
         const repStep = openVisible.find(s => s.stepType === 'representation');
-        const clientRows = buildClientFacingRows(openVisible);
+        const clientRows = buildClientFacingRows(openVisible, depParents);
         const officeStepsList = openVisible.filter(s =>
           s.stepType !== 'representation' && !CLIENT_FACING_TYPES.includes(s.stepType));
 
-        const CHAIN_LABEL: Record<'paperless' | 'prevAccountant', string> = {
-          paperless: 'חיבור לפייפרלס',
-          prevAccountant: 'מעבר מרו״ח קודם',
-        };
+        /** כרטיס אחד + פס הזמן שלו. active = יש בו מה לעשות עכשיו. */
+        const flowItem = (step: OnboardingStep, body: React.ReactNode) => (
+          <div
+            key={step.id}
+            className={[
+              'ob-req',
+              stepAwaitsMe(step) ? 'is-active' : '',
+              step.status === 'blocked' || step.status === 'failed' || step.needsAttention ? 'is-danger' : '',
+            ].filter(Boolean).join(' ')}
+          >
+            <span className="ob-req-dot" aria-hidden="true" />
+            {body}
+          </div>
+        );
 
-        const renderClientRow = (row: ClientFacingRow) => {
-          if (row.members.length <= 1) return renderStep(row.members[0]);
-          // ‼ שרשרת: כל חבר הוא הכרטיס הייעודי המלא שלו (בלי כפילות — לא
-          // עוטפים אותו בשורה חיצונית סינתטית שנייה). הפס בצד וכותרת קטנה
-          // מקבצים אותם חזותית כמושג אחד, בלי מכונת פתיחה/סגירה משלהם.
-          return (
-            <div key={row.key} style={{
-              borderInlineStart: '3px solid var(--hairline-2)', paddingInlineStart: '.6rem',
-              marginTop: '.3rem',
-            }}>
-              <div style={{ fontSize: 'var(--fs-12)', fontWeight: 600, color: 'var(--ink-4)', margin: '.3rem 0 .1rem' }}>
-                {CHAIN_LABEL[row.kind as 'paperless' | 'prevAccountant']}
-              </div>
-              {row.members.map(renderStep)}
-            </div>
-          );
+        /* ‼ שרשרת-מושג נשארת כרטיס אחד: החבר הפעיל הוא הכרטיס, ושאר החברים
+           יורדים לתוכו ככרטיסי-המשך — בדיוק כמו בקשה תלויה. כך "פתיחת חשבון
+           פייפרלס" ו"הרשאה לחיוב חודשי" נקראות כשלב ובן-שלב, ולא כשתי שורות. */
+        const renderRow = (row: ClientFacingRow): React.ReactNode => {
+          const rest = row.members.filter(m => m.id !== row.primary.id);
+          const nestedNodes = [
+            ...rest.map(m => renderStep(m)),
+            ...row.children.map(c => renderRow(c)),
+          ];
+          if (nestedNodes.length) nestedMap.set(row.primary.id, <>{nestedNodes}</>);
+          return renderStep(row.primary);
         };
 
         return (
-          <>
-            <div className="cw-section">
-              <div className="cw-section-head">
-                <span>מה אני צריך מהלקוח</span>
-                {editing && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => setTemplatesOpen(true)}>
-                      תבניות
-                    </button>
-                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAddOpen(true)}>
-                      + בקשה
-                    </button>
-                  </span>
-                )}
-              </div>
-              {!repStep && clientRows.length === 0 && (
-                <div className="cw-empty">אין בקשות פתוחות ללקוח כרגע.</div>
-              )}
-              {repStep && renderStep(repStep)}
-              {clientRows.map(renderClientRow)}
+          <div className="ob-flow">
+            {!repStep && clientRows.length === 0 && officeStepsList.length === 0 && (
+              <div className="cw-empty">אין בקשות פתוחות כרגע.</div>
+            )}
+
+            {repStep && flowItem(repStep, renderStep(repStep))}
+            {clientRows.map(row => flowItem(row.primary, renderRow(row)))}
+
+            {/* ‼ הוספה ותבניות זמינות תמיד — לאורך כל חיי הלקוח, לא רק בקליטה
+                ולא רק במצב עריכה. זו בקשה חדשה, לא תצורה. */}
+            <div className="ob-add-row">
+              <button type="button" className="ob-add" onClick={() => setAddOpen(true)}>＋ בקשה חדשה</button>
+              <button type="button" className="btn btn-secondary ob-tpl"
+                onClick={() => setTemplatesOpen(true)}>מתבנית</button>
             </div>
 
+            {/* ‼ עבודה פנימית — תווית שקטה, לא כותרת מקטע. היא לא מגדירה את
+                המסך מחדש: הבקשות נשארות האובייקט הראשי. */}
             {officeStepsList.length > 0 && (
-              <div className="cw-section">
-                <div className="cw-section-head">
-                  <span>העבודה שלי</span>
-                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
-                    לא מופיע בדף הלקוח
-                  </span>
-                </div>
-                {officeStepsList.map(renderStep)}
-              </div>
+              <>
+                <div className="ob-flow-label">העבודה שלי · לא מופיע בדף הלקוח</div>
+                {officeStepsList.map(s => flowItem(s, renderStep(s)))}
+              </>
             )}
-          </>
+          </div>
         );
       })()}
 
@@ -1451,44 +1408,39 @@ export default function OnboardingTab({
           פעולות. שורה שקטה אחת שאומרת כמה, ומי שרוצה — פותח.
           דילוג נשאר מובחן מהשלמה: "דולג" הוא החלטה שנרשמה, לא משהו שקרה. */}
       {doneSteps.length > 0 && (
-        <div className="cw-section">
-          <div className="cw-section-head">
-            <button type="button" onClick={() => setShowDone(v => !v)}
-              aria-expanded={showDone}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '.35rem', color: 'inherit', font: 'inherit',
-                background: 'none', border: 'none', appearance: 'none', padding: 0, cursor: 'pointer',
-                minHeight: 44,
-              }}>
-              <span aria-hidden="true">{showDone ? '▾' : '▸'}</span>
-              <span>בקשות שהושלמו · {doneSteps.length}</span>
-            </button>
-          </div>
-          {showDone && (
-            <div>
-              {doneSteps.map(s => {
-                const skipped = s.status === 'skipped';
-                return (
-                  <div key={s.id} style={{
-                    display: 'flex', gap: '.5rem', alignItems: 'baseline',
-                    padding: '.4rem 0', borderTop: '1px solid var(--hairline-2)',
-                    fontSize: 'var(--fs-13)', color: 'var(--ink-3)',
-                  }}>
-                    <span aria-hidden="true" style={{ color: skipped ? 'var(--ink-4)' : 'var(--ok, #17845b)' }}>
-                      {skipped ? '↷' : '✓'}
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0 }}>{rowTitle(s)}</span>
-                    <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
-                      {skipped
-                        ? `דולג${s.payload.skipReason ? ` · ${s.payload.skipReason}` : ''}`
-                        : stepStatusLabel(s)}
-                    </span>
-                  </div>
-                );
-              })}
+        <>
+          <div className="ob-flow-label">עבר</div>
+          <div className="ob-card" style={{ opacity: .72, cursor: 'pointer' }}
+            onClick={() => setShowDone(v => !v)}>
+            <div className="ob-card-row">
+              <div className="ob-card-title">בקשות שהושלמו · {doneSteps.length}</div>
+              <span aria-hidden="true" style={{ color: 'var(--ink-4)', fontSize: 16 }}>
+                {showDone ? '⌃' : '⌄'}
+              </span>
             </div>
-          )}
-        </div>
+            {showDone && (
+              <div style={{ marginTop: 12 }}>
+                {doneSteps.map(s => {
+                  const skipped = s.status === 'skipped';
+                  return (
+                    <div key={s.id} style={{
+                      display: 'flex', gap: '.5rem', alignItems: 'baseline', padding: '.3rem 0',
+                      fontSize: 'var(--fs-12)', color: 'var(--ink-4)',
+                    }}>
+                      <span aria-hidden="true">{skipped ? '↷' : '✓'}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>{rowTitle(s)}</span>
+                      <span>
+                        {skipped
+                          ? `דולג${s.payload.skipReason ? ` · ${s.payload.skipReason}` : ''}`
+                          : stepStatusLabel(s)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       </div>
@@ -1537,9 +1489,11 @@ export default function OnboardingTab({
         </div>
       ))}
 
-      {/* ── ציר הזמן ── */}
+      {/* ── ציר הזמן ──
+          ‼ "מה קרה בקליטה" → "מה קרה": המסך הזה מלווה את הלקוח לכל אורך חייו,
+          ולא רק בקליטה. אותו יומן בדיוק, בלי מילה שקושרת אותו לשלב חיים. */}
       <div className="cw-section">
-        <div className="cw-section-head"><span>מה קרה בקליטה</span></div>
+        <div className="cw-section-head"><span>מה קרה</span></div>
         {clientEvents.length === 0 ? (
           <div className="cw-empty">עדיין אין רישומים.</div>
         ) : (
@@ -2441,9 +2395,9 @@ function StepCardShell({ step, stepById, highlight, danger, statusLabel, menu, c
 }
 
 /**
- * שורת תהליך — הצורה האחידה של כל בקשה במסע.
- * סגורה: שם · מצב · התקדמות · אצל מי הכדור וכמה זמן · הפעולה הבאה.
- * פתוחה: כל הפרטים של אותה בקשה. פותחים אחת בכל פעם, כדי שהמסך יישאר קריא.
+ * כרטיס בקשה — הצורה האחידה של כל בקשה (אב-הטיפוס המאושר requests-v2-approved).
+ * סגור: שם · משפט מצב אחד · פרטים משניים בשקט · פעולה אחת רלוונטית + ⋯.
+ * פתוח: כל הפרטים של אותה בקשה. פותחים אחת בכל פעם, כדי שהמסך יישאר קריא.
  */
 function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, menu, children }: {
   step: OnboardingStep;
@@ -2456,9 +2410,12 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { openId, toggle, depParents, depChildren } = useContext(RowOpenContext);
+  const { openId, toggle, depParents, depChildren, nestedByStep } = useContext(RowOpenContext);
   const open = openId === step.id;
-  const tone = TONE_COLOR[STEP_STATUS_TONE[step.status]];
+  const nested = nestedByStep?.get(step.id);
+  /* ‼ צבע הסטטוס ירד מהטקסט. באב-הטיפוס שורת המצב אפורה אחידה — הצבע חי
+     בנקודת פס הזמן בלבד (.ob-req.is-active / .is-danger). שורת מטא צבעונית
+     על כל כרטיס הייתה מחזירה בדיוק את תחושת הטבלה שהמסך הזה בא להוריד. */
   const locked = step.status === 'locked';
   const age = ageLabel(step);
   const progress = progressLabel(step);
@@ -2480,105 +2437,100 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
     .map(id => stepById.get(id))
     .filter((d): d is OnboardingStep => !!d && isStepOpen(d.status));
 
+  /* ── משפט המצב — שורה אחת שאומרת מה קורה ────────────────────────────────
+     ‼ זה השינוי המרכזי מול הרשימה הצפופה שהייתה כאן: המטא לא נפרשת לרצועה
+     של שישה פריטים מופרדים בנקודות. שורה ראשונה = מה קורה / למה ממתינים
+     (בדיוק כמו .meta באב-הטיפוס), ושורה שנייה שקטה יותר לפרטים המשניים. */
+  const statusSentence = locked
+    ? lockHint(step, stepById, depParents?.get(step.id))
+    : [statusLabel ?? stepStatusLabel(step), `הכדור ${STEP_BALL_LABELS[step.ball]}`, age]
+        .filter(Boolean).join(' · ');
+
+  /* ‼ "כמה זמן" נכנס למשפט המצב ולא לשורה נפרדת: הוא חלק מ"מה קורה", ושורה
+     שלישית שכתוב בה רק "14 ימים" הוסיפה גובה לכל כרטיס בלי להוסיף מידע.
+     בשורה השנייה נשאר רק מה שבאמת משני ולא תמיד קיים. */
+  const dimParts = [
+    progress,
+    step.dueDate ? `עד ${formatDate(step.dueDate, 'list')}` : null,
+    autoLabel,
+  ].filter(Boolean) as string[];
+
   return (
-    <div id={`ob-step-${step.id}`} style={{
-      display: 'flex', gap: '.6rem', alignItems: 'flex-start',
-      padding: danger || highlight || open ? '.55rem .6rem' : '.55rem 0',
-      borderTop: '1px solid var(--hairline-2)',
-      background: danger ? 'var(--red-light)' : (highlight || open) ? 'var(--surface-2)' : undefined,
-      borderRadius: danger || highlight || open ? 'var(--radius)' : undefined,
-      transition: 'background .3s ease',
-    }}>
-      <span aria-hidden="true" style={{
-        width: 8, height: 8, borderRadius: 999, background: danger ? 'var(--err)' : tone,
-        marginTop: '.4rem', flexShrink: 0,
-      }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', gap: '.4rem', alignItems: 'flex-start' }}>
+    <div
+      id={`ob-step-${step.id}`}
+      className={[
+        'ob-card',
+        highlight || open ? 'is-highlight' : '',
+        danger ? 'is-danger' : '',
+      ].filter(Boolean).join(' ')}
+    >
+      <div className="ob-card-row">
+        <div className="ob-card-main">
           <button
             type="button"
             onClick={() => hasBody && toggle(step.id)}
             aria-expanded={hasBody ? open : undefined}
             style={{
-              // ‼ 41 פיקסלים — קרוב, אבל זה הכפתור שפותח את הבקשה, והוא
-              // הפעולה הראשונה בכל שורה. 44 הוא המינימום.
-              minHeight: 44,
-              flex: 1, minWidth: 0, textAlign: 'start', font: 'inherit', color: 'inherit',
+              display: 'block', width: '100%', textAlign: 'start', font: 'inherit', color: 'inherit',
               cursor: hasBody ? 'pointer' : 'default', padding: 0,
               background: 'none', border: 'none', appearance: 'none',
             }}
           >
-            <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: locked ? 'var(--ink-3)' : 'var(--ink-1)' }}>
-              {hasBody && <span aria-hidden="true" style={{ color: 'var(--ink-4)', marginInlineEnd: '.3rem' }}>{open ? '▾' : '▸'}</span>}
-              {locked && '🔒 '}{rowTitle(step)}
-              {extName && (
-                <span style={{ color: 'var(--ink-3)', fontWeight: 400 }}> ← {extName}</span>
-              )}
+            <div className={`ob-card-title${locked ? ' is-locked' : ''}`}>
+              {locked && <span aria-hidden="true">🔒</span>}
+              <span>{rowTitle(step)}</span>
               {/* ‼ מילה אחת אפורה, ורק על מה שאינו נדרש. הנדרש אינו מסומן —
                   סימון על הרוב הוא רעש, וסימון על המיעוט הוא מידע. */}
               {!isStepRequiredForClose(step) && <span className="ob-optional">רשות</span>}
+              {extName && <span className="ob-pill is-ext">גורם חיצוני · {extName}</span>}
               {/* ‼ טיוטה = הבקשה מוכנה אצלי והלקוח עוד לא רואה אותה. בלי הסימון
                   הזה אין דרך לדעת אם ביקשתי בפועל או רק הכנתי. */}
-              {isDraft && (
-                <span style={{
-                  marginInlineStart: '.4rem', fontSize: 'var(--fs-12)', fontWeight: 600,
-                  color: 'var(--warn)', border: '1px solid var(--warn)', borderRadius: 999,
-                  padding: '0 .35rem',
-                }}>טיוטה</span>
-              )}
+              {isDraft && <span className="ob-pill is-draft">טיוטה</span>}
               {/* ‼ עריכה ממתינה: הלקוח ממשיך לראות את הנוסח הישן עד "עדכן את
                   דף הלקוח". בלי הסימון, עריכה נראית כאילו כבר פורסמה. */}
-              {hasPendingEdit && (
-                <span style={{
-                  marginInlineStart: '.4rem', fontSize: 'var(--fs-12)', fontWeight: 600,
-                  color: 'var(--warn)', border: '1px dashed var(--warn)', borderRadius: 999,
-                  padding: '0 .35rem',
-                }}>עריכה ממתינה</span>
-              )}
-              {step.needsAttention && !danger && (
-                <span style={{ color: 'var(--err)', marginInlineStart: '.4rem' }}>· דורש טיפול</span>
-              )}
+              {hasPendingEdit && <span className="ob-pill is-draft">עריכה ממתינה</span>}
+              {step.pendingCancel && <span className="ob-pill is-draft">יוסר בעדכון</span>}
             </div>
-            <div style={{
-              display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center',
-              fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2,
-            }}>
-              <span style={{ color: tone, fontWeight: 600 }}>{statusLabel ?? stepStatusLabel(step)}</span>
-              {progress && <span>· {progress}</span>}
-              <span>· הכדור {STEP_BALL_LABELS[step.ball]}</span>
-              {age && <span>· {age}</span>}
-              {step.dueDate && <span>· עד {formatDate(step.dueDate, 'list')}</span>}
-              {autoLabel && (
-                <span style={{ color: step.payload.autoError ? 'var(--warn)' : 'var(--ink-3)' }}>· {autoLabel}</span>
-              )}
-              {locked && <span>· {lockHint(step, stepById, depParents?.get(step.id))}</span>}
-              {noteLine && <span style={{ color: 'var(--warn)' }}>· חסר לפרטי קשר: {noteLine}</span>}
-            </div>
-          </button>
-          {/* ‼ מה ירד מכאן, ולמה:
-              1. "שלח ללקוח" על טיוטה — בקשת לקוח אינה נשלחת לבדה. היא מופיעה
-                 בדף האישי כשמפרסמים את התיק ("עדכן את דף הלקוח"), וכפתור
-                 שליחה לכל שורה סתר בדיוק את המודל הזה. בונוס: הוא גם עקף את
-                 execute_automatic_step, ולכן בקשה אוטומטית שנפתחה דרכו לא
-                 חימשה את המייל שלה עד הטריגר הבא.
-              2. "סמן כרשות" ו-↑↓ — פקדי תצורה שהיו על כל שורה תמיד. הם עברו
-                 לתפריט ⋯. מה שנשאר גלוי הוא הפעולה של עכשיו בלבד. */}
-          <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            {menu}
-          </div>
-        </div>
-        {open && (
-          <>
-            {/* קשר, לא היררכיה: השורות נשארות באותה רמה; זו רק שורת מידע. */}
-            {releases.length > 0 && (
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginTop: '.25rem' }}>
-                משחרר: {releases.map(d => rowTitle(d)).join(', ')}
+            <div className="ob-card-meta">{statusSentence}</div>
+            {(dimParts.length > 0 || noteLine || (step.needsAttention && !danger)) && (
+              <div className="ob-card-dim">
+                {dimParts.join(' · ')}
+                {noteLine && (
+                  <span style={{ color: 'var(--warn)' }}>
+                    {dimParts.length ? ' · ' : ''}חסר לפרטי קשר: {noteLine}
+                  </span>
+                )}
+                {step.needsAttention && !danger && (
+                  <span style={{ color: 'var(--err)' }}>
+                    {dimParts.length || noteLine ? ' · ' : ''}דורש טיפול
+                  </span>
+                )}
               </div>
             )}
-            {children}
-          </>
-        )}
+          </button>
+        </div>
+        {/* ‼ מה יושב כאן: הפעולה של עכשיו, ו-⋯ דהוי. תצורה (עריכה, תלות,
+            דלג/חסום, רשות/נדרש, סידור, תבנית) חיה מאחורי ⋯ בלבד — המסך
+            במנוחה נשאר שקט. */}
+        <div className="ob-card-actions">{menu}</div>
       </div>
+
+      {open && (
+        <div className="ob-card-body">
+          {/* קשר, לא היררכיה: זו שורת מידע, לא מבנה. */}
+          {releases.length > 0 && (
+            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginBottom: '.35rem' }}>
+              משחרר: {releases.map(d => rowTitle(d)).join(', ')}
+            </div>
+          )}
+          {children}
+        </div>
+      )}
+
+      {/* ‼ צעד ההמשך — בתוך הכרטיס, וגלוי תמיד (לא מאחורי פתיחה). זה מה
+          שגורם ל"הרשאה לחיוב חודשי" להיקרא כהמשך של הפייפרלס ולא כבקשה
+          נפרדת ברשימה. אב-הטיפוס: card > card.child. */}
+      {nested}
     </div>
   );
 }
