@@ -299,6 +299,23 @@ export interface StepPayload {
   billingStartMonth?: string;
   authUrl?: string;
   providerRef?: string;
+  /**
+   * שלוש נקודות הזמן של הרשאת התשלום. ‼ אף אחת מהן אינה נקראת מפייפרלס —
+   * אין אינטגרציה, ולכן כולן הצהרות של הרו"ח על מה שהוא עשה או ראה:
+   * ההרשאה נוצרה בפייפרלס · הכרטיס הוזן על ידי הלקוח · הריטיינר חויב.
+   * הראשונה היא גם מה שחושף ללקוח את ההנחיה להזין כרטיס — ולא רגע לפניה.
+   */
+  authorizationCreatedAt?: string;
+  cardEnteredAt?: string;
+  retainerChargedAt?: string;
+  /**
+   * קישור חיצוני שהבקשה פותחת (מדריך הווידאו של פייפרלס). ‼ מקביל ל-
+   * clientResource שמצביע לקובץ בספריית המשרד — אותו כרטיס "חומר עזר" בדיוק,
+   * רק שהיעד הוא כתובת ולא קובץ. השרת בוחר ביניהם ב-build_client_portal.
+   */
+  clientLinkUrl?: string;
+  /** מזהה יציב לבקשה שהמערכת יוצרת בעצמה, כדי לא ליצור אותה פעמיים. */
+  guideKey?: string;
   /** מפתחות הרשויות שעדיין רשומות כמייצג משני (RepAuthorityKind). */
   secondaryAuthorities?: string[];
   skipReason?: string;

@@ -425,6 +425,30 @@ export default function OnboardingTab({
     refresh?.();
   }
 
+  /**
+   * ביטול אישור הרשמה שגוי — RPC ייעודי (מיגרציה 114).
+   * ‼ לא advance('reopen') הגנרי: צריך גם להחזיר את הכדור ללקוח וגם לנעול
+   * בחזרה את שלב החיבור שנפתח בגלל האישור, ורק אם עוד לא נגעו בו.
+   */
+  async function reopenRegistration(step: OnboardingStep) {
+    const yes = window.confirm(
+      'הלקוח לא באמת נרשם לפייפרלס?\n\n' +
+      'אישור = השלב חוזר ללקוח בדף האישי, ושלב החיבור ננעל שוב עד שיאשר.');
+    if (!yes) return;
+    setBusyStepId(step.id);
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc('reopen_paperless_registration', {
+      p_step_id: step.id,
+    });
+    setBusyStepId(null);
+    const res = data as { ok?: boolean; error?: string } | null;
+    if (rpcError || !res?.ok) {
+      setError(rpcError?.message ?? 'ביטול האישור נכשל.');
+      return;
+    }
+    refresh?.();
+  }
+
   function handleSkip(step: OnboardingStep) {
     const isPaperless = step.stepType === 'paperless_invite' || step.stepType === 'paperless_connection';
     if (isPaperless) {
@@ -915,6 +939,8 @@ export default function OnboardingTab({
                     key={step.id}
                     step={step}
                     stepById={stepById}
+                    client={client}
+                    onReopen={() => void reopenRegistration(step)}
                     busy={busy}
                     highlight={highlightStepId === step.id}
                     showTriage={retriageStepId === step.id || triageAnchorId === step.id}
@@ -1592,6 +1618,17 @@ export default function OnboardingTab({
                     }}>
                       <span aria-hidden="true">{skipped ? '↷' : '✓'}</span>
                       <span style={{ flex: 1, minWidth: 0 }}>{rowTitle(s)}</span>
+                      {/* ‼ הדרך היחידה לבטל אישור הרשמה שגוי: בקשה שהושלמה
+                          מוצגת כאן כשורה, בלי הכרטיס ובלי תפריט ⋯. בלי הכפתור
+                          הזה "הלקוח לחץ בטעות" הוא מבוי סתום. */}
+                      {s.stepType === 'paperless_invite' && (
+                        <button type="button" className="btn btn-sm btn-ghost"
+                          disabled={busyStepId === s.id}
+                          title="הלקוח אישר שנרשם, אבל בפועל לא — השלב חוזר אליו"
+                          onClick={e => { e.stopPropagation(); void reopenRegistration(s); }}>
+                          בטל אישור
+                        </button>
+                      )}
                       <span>
                         {skipped
                           ? `דולג${s.payload.skipReason ? ` · ${s.payload.skipReason}` : ''}`
@@ -1804,11 +1841,60 @@ function CustomRequestBody({ step }: { step: OnboardingStep }) {
 // הרשאת התשלום. לכן הוא לא שורה בין שורות אלא כרטיס שאומר מה המצב, מה
 // המסלול, ומה הפעולה הבאה.
 
+/**
+ * מה שהמשרד עושה בפועל בתוך פייפרלס אחרי שהלקוח נרשם.
+ *
+ * ‼ ארבעה סעיפים תמיד — כולל משיכת עוסקים. היא חלק מההקמה הסטנדרטית גם
+ * ללקוח חדש לגמרי, ולא רק בהעברה ממייצג קודם (הכרעת גיא 2026-08-17).
+ * ‼ עדכון הריטיינר לכרטיס אשראי הוא הסעיף שגורם לפייפרלס לבקש מהלקוח את
+ * הכרטיס — ולכן הוא כאן, בעבודה, ולא בכרטיס התשלום.
+ */
+const PAPERLESS_SETUP_CHECKLIST: { key: string; label: string }[] = [
+  { key: 'id_number', label: 'הזנת מספר הזהות של הלקוח בפייפרלס' },
+  { key: 'business_name', label: 'הזנת שם העסק ואימות שהוא נכון' },
+  { key: 'pull_dealers', label: 'ביצוע משיכת עוסקים' },
+  { key: 'retainer_card', label: 'עדכון הריטיינר שסוכם לתשלום בכרטיס אשראי' },
+];
+
+/** הרשימה הקבועה, ממוזגת עם מה שכבר סומן על השלב. שורות שנוצרו לפני
+ *  המיגרציה מגיעות בלי checklist — ולכן מיזוג ולא קריאה ישירה. */
+function paperlessSetupItems(step: OnboardingStep): StepChecklistItem[] {
+  const saved = new Map((step.payload.checklist ?? []).map(i => [i.key, i]));
+  return PAPERLESS_SETUP_CHECKLIST.map(
+    x => saved.get(x.key) ?? { key: x.key, label: x.label, done: false });
+}
+
+/** ערך שצריך להעתיק לפייפרלס — מוצג מכרטיס הלקוח, לא מעותק שנשמר על השלב. */
+function CopyValueRow({ label, value }: { label: string; value?: string }) {
+  const [copied, setCopied] = useState(false);
+  const has = !!value?.trim();
+  return (
+    <div style={{ display: 'flex', gap: '.5rem', alignItems: 'baseline', fontSize: 'var(--fs-13)' }}>
+      <span style={{ color: 'var(--ink-3)', minWidth: 78 }}>{label}</span>
+      <span style={{ fontWeight: 600, color: has ? 'var(--ink-1)' : 'var(--ink-4)' }}>
+        {has ? value : 'חסר בכרטיס'}
+      </span>
+      {has && (
+        <button type="button" className="btn btn-sm btn-ghost"
+          onClick={() => {
+            void navigator.clipboard?.writeText(value!.trim());
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+          }}>{copied ? 'הועתק' : 'העתק'}</button>
+      )}
+    </div>
+  );
+}
+
 interface PaperlessCardProps {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
+  /** ת״ז ושם העסק — מה שמזינים בפייפרלס, ישירות מהכרטיס. */
+  client: Client;
   busy: boolean;
   highlight: boolean;
+  /** ביטול אישור הרשמה שגוי — רק על שלב ההרשמה שכבר נסגר. */
+  onReopen: () => void;
   showTriage: boolean;
   triageBusy: boolean;
   triageError: string | null;
@@ -1893,7 +1979,8 @@ function PaperlessStepCard(p: PaperlessCardProps) {
           {isInvite ? (
             <InviteBody path={path} status={step.status} />
           ) : (
-            <ConnectionBody path={path} softwareName={String(step.payload.softwareName ?? '')} />
+            <ConnectionBody path={path} softwareName={String(step.payload.softwareName ?? '')}
+              step={step} client={p.client} busy={busy} onRun={p.onRun} />
           )}
 
           <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
@@ -1932,6 +2019,15 @@ function PaperlessStepCard(p: PaperlessCardProps) {
             {!isInvite && step.status === 'completed' && (
               <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
                 onClick={() => p.onRun('verify')}>אמת</button>
+            )}
+
+            {/* ‼ הלקוח יכול ללחוץ «נרשמתי» בטעות, ותפריט ⋯ מוצג רק על שלב
+                פתוח — כלומר עד היום לא הייתה שום דרך להחזיר את השלב אליו.
+                כאן, ורק על ההרשמה: שלב החיבור חוזר לנעול אם עוד לא נגעו בו. */}
+            {isInvite && !open && step.status !== 'cancelled' && (
+              <button type="button" className="btn btn-sm btn-ghost" disabled={busy}
+                title="הלקוח אישר שנרשם, אבל בפועל לא — השלב חוזר אליו"
+                onClick={p.onReopen}>בטל את אישור ההרשמה</button>
             )}
 
             {path && (
@@ -1979,8 +2075,23 @@ function InviteBody({ path, status }: { path?: PaperlessStatus; status: string }
   );
 }
 
-/** הוראות החיבור, לפי המסלול. */
-function ConnectionBody({ path, softwareName }: { path?: PaperlessStatus; softwareName: string }) {
+/**
+ * עבודת החיבור — רשימת סימון תפעולית ולא פסקת הוראות.
+ *
+ * ‼ ארבעת הסעיפים זהים בכל המסלולים (חוץ מ"לא יעבוד עם פייפרלס", שבו אין
+ * עבודה בכלל): גם לקוח חדש לגמרי עובר משיכת עוסקים. מה שמשתנה בין המסלולים
+ * הוא רק משפט ההקשר שמעל.
+ * ‼ הת״ז ושם העסק מוצגים כאן להעתקה — מכרטיס הלקוח עצמו. אין עותק שלהם על
+ * השלב: מה שיוצג הוא תמיד מה שבכרטיס, גם אם תוקן אחרי שהשלב נוצר.
+ */
+function ConnectionBody({ path, softwareName, step, client, busy, onRun }: {
+  path?: PaperlessStatus;
+  softwareName: string;
+  step: OnboardingStep;
+  client: Client;
+  busy: boolean;
+  onRun: (action: string, payload?: Record<string, unknown>) => void;
+}) {
   if (path === 'not_applicable') {
     return (
       <div style={cardNote}>
@@ -1989,47 +2100,59 @@ function ConnectionBody({ path, softwareName }: { path?: PaperlessStatus; softwa
       </div>
     );
   }
-  if (path === 'other_rep') {
-    return (
-      <div style={cardNote}>
-        <div style={{ fontWeight: 600, color: 'var(--ink-2)', marginBottom: '.25rem' }}>
-          משיכת הלקוח מהמייצג הקודם בפייפרלס
-        </div>
-        <ol style={{ margin: 0, paddingInlineStart: '1.1rem', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
-          <li>לפתוח בפייפרלס בקשה להעברת הלקוח מהמייצג הקודם.</li>
-          <li>ליידע את המייצג הקודם שהבקשה ממתינה לאישור שלו.</li>
-          <li>לוודא שהלקוח מופיע ברשימת הלקוחות שלך, עם ההיסטוריה שלו.</li>
-          <li>לאשר כאן שההעברה הושלמה — זה מה שפותח את הרשאת התשלום.</li>
-        </ol>
-      </div>
-    );
+
+  const items = paperlessSetupItems(step);
+  const doneCount = items.filter(i => i.done).length;
+  const intro = path === 'other_rep'
+    ? 'הלקוח קיים בפייפרלס אצל המייצג הקודם. נכנסים לחשבון, מושכים אותו אלינו, ומשלימים את ההקמה.'
+    : path === 'self'
+      ? 'ללקוח יש חשבון משלו והוא הוסיף אותנו כמייצג. נכנסים לחשבון ומשלימים את ההקמה.'
+      : 'הלקוח נרשם. נכנסים לחשבון שלו בפייפרלס ומשלימים את ההקמה.';
+
+  function toggle(item: StepChecklistItem) {
+    const next = items.map(x => x.key === item.key ? { ...x, done: !x.done } : x);
+    onRun('note', {
+      checklist: next,
+      note: `${item.done ? 'בוטל סימון' : 'סומן'}: ${item.label}`,
+    });
   }
-  if (path === 'self') {
-    return (
-      <div style={cardNote}>
-        <div style={{ fontWeight: 600, color: 'var(--ink-2)', marginBottom: '.25rem' }}>
-          קישור החשבון הקיים למשרד
-        </div>
-        <ol style={{ margin: 0, paddingInlineStart: '1.1rem', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
-          <li>לבקש מהלקוח להוסיף את המשרד כמייצג בחשבון הפייפרלס שלו.</li>
-          <li>לוודא שהלקוח מופיע ברשימת הלקוחות שלך בפייפרלס.</li>
-          <li>לאשר כאן שהחשבון מחובר.</li>
-        </ol>
-      </div>
-    );
-  }
+
   return (
     <div style={cardNote}>
-      <div style={{ fontWeight: 600, color: 'var(--ink-2)', marginBottom: '.25rem' }}>
-        מה שנשאר לנו לעשות
+      <div style={{ marginBottom: '.45rem' }}>{intro}</div>
+
+      <div style={{
+        display: 'grid', gap: '.2rem', marginBottom: '.5rem',
+        padding: '.4rem .55rem', border: '1px solid var(--line)', borderRadius: 6,
+      }}>
+        <CopyValueRow label="מספר זהות" value={client.idNumber} />
+        <CopyValueRow label="שם העסק" value={client.businessName} />
       </div>
-      <ol style={{ margin: 0, paddingInlineStart: '1.1rem', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
-        <li>להיכנס לחשבון הפייפרלס של הלקוח ולוודא שהוא ברשימת הלקוחות שלך.</li>
-        {/* ‼ זה החלק שהופך את השלב הזה לשלנו: פייפרלס מבקשת את פרטי האשראי
-            ממי שנכנס לחשבון, ולכן אי אפשר לבקש מהלקוח "לסמן שהסתיים". */}
-        <li>להזין את פרטי האשראי שפייפרלס מבקשת בכניסה.</li>
-        <li>ללחוץ «סיימתי» — זה מה שפותח את הרשאת התשלום החודשי.</li>
-      </ol>
+
+      <div style={{ fontWeight: 600, color: 'var(--ink-2)', marginBottom: '.3rem' }}>
+        מה עושים בפייפרלס · {doneCount} מתוך {items.length}
+      </div>
+      <div style={{ display: 'grid', gap: '.25rem' }}>
+        {items.map(item => (
+          <label key={item.key} style={{
+            display: 'flex', gap: '.45rem', alignItems: 'flex-start',
+            cursor: busy ? 'default' : 'pointer',
+            color: item.done ? 'var(--ink-3)' : 'var(--ink-1)',
+          }}>
+            <input type="checkbox" checked={item.done} disabled={busy}
+              onChange={() => toggle(item)} style={{ marginTop: 2 }} />
+            <span style={{ textDecoration: item.done ? 'line-through' : 'none' }}>{item.label}</span>
+          </label>
+        ))}
+      </div>
+
+      {/* ‼ עדכון הריטיינר לכרטיס הוא מה שגורם לפייפרלס לבקש מהלקוח את הכרטיס.
+          לכן «סיימתי» כאן אינו סוף הכסף אלא תחילתו — וכרטיס התשלום ממשיך משם. */}
+      <div style={{ marginTop: '.45rem' }}>
+        אחרי «סיימתי» נפתח כרטיס התשלום החודשי, ושם ממשיכים: ההרשאה בפייפרלס,
+        הכרטיס שהלקוח מזין, והחיוב עצמו.
+      </div>
+
       {softwareName && (
         <div style={{ marginTop: '.3rem' }}>
           ההיסטוריה מ{softwareName} מיובאת בשלב נפרד ואינה מעכבת.
@@ -2043,9 +2166,16 @@ function ConnectionBody({ path, softwareName }: { path?: PaperlessStatus; softwa
 // ‼ הסכום וחודש החיוב מוצגים גם כשהשלב נעול: זה מה שעומד על הפרק, והרו"ח
 // צריך לראות אותו כדי להבין למה כדאי לו לזרז את הפייפרלס.
 // ‼ אין כאן שום קישור לשליחה ואין מייל (הכרעת גיא §8): ההרשאה נוצרת בתוך
-// חשבון הפייפרלס של הלקוח, לא דרך קישור שהמערכת שולחת. authorizationCreatedAt
-// הוא תיעוד פנימי בלבד — לא נוגע בדף הלקוח, ולא יודע (ולא מתיימר לדעת) אם
-// הכרטיס כבר הוזן בפועל אצל פייפרלס.
+// חשבון הפייפרלס של הלקוח, לא דרך קישור שהמערכת שולחת.
+//
+// ‼ שלוש נקודות זמן ולא אחת (2026-08-17). עד כה השלב נסגר ב"הלקוח השלים",
+// והחיוב עצמו — הדבר היחיד שבאמת מסיים את הקליטה — לא היה מיוצג בשום מקום:
+//   1. authorizationCreatedAt — גיא יצר את ההרשאה בפייפרלס. **רק מכאן**
+//      הלקוח רואה בדף האישי שפייפרלס תבקש ממנו כרטיס, ומה זה חיוב ה-₪1.
+//   2. cardEnteredAt          — גיא ראה בפייפרלס שהכרטיס הוזן. הלקוח אינו
+//      מאשר את זה בעצמו: אין לנו איך לאמת, והצהרה בלי כיסוי גרועה מכלום.
+//   3. retainerChargedAt      — הריטיינר חויב. זה, ורק זה, סוגר את השלב.
+// אף אחת מהן אינה נקראת מפייפרלס — אין אינטגרציה, וכולן הצהרות של גיא.
 
 interface RetainerCardProps {
   step: OnboardingStep;
@@ -2061,6 +2191,8 @@ interface RetainerCardProps {
 function RetainerStepCard(p: RetainerCardProps) {
   const { step, stepById, busy, highlight } = p;
   const authorizationCreatedAt = String(step.payload.authorizationCreatedAt ?? '');
+  const cardEnteredAt = String(step.payload.cardEnteredAt ?? '');
+  const retainerChargedAt = String(step.payload.retainerChargedAt ?? '');
   const [providerRef, setProviderRef] = useState(String(step.payload.providerRef ?? ''));
 
   const locked = step.status === 'locked';
@@ -2130,31 +2262,52 @@ function RetainerStepCard(p: RetainerCardProps) {
         </>
       ) : (
         <>
+          {/* ‼ שורת מצב אחת שאומרת איפה עומדים מבין שלוש הנקודות, ולא שלושה
+              משפטים שצריך לקרוא כדי להבין מה נשאר. */}
           <div style={cardNote}>
-            {authorizationCreatedAt
-              ? <>ההרשאה נוצרה בפייפרלס {formatDate(authorizationCreatedAt, 'list')}. בפעם הבאה שהלקוח ייכנס — הוא יתבקש להזין כרטיס אשראי. אין קישור נוסף לשליחה.</>
-              : <>אחרי שהלקוח מתחבר לפייפרלס, ההרשאה נוצרת בתוך פייפרלס עצמה — לא דרך קישור שהמערכת שולחת.</>}
+            {!authorizationCreatedAt
+              ? <>הלקוח מחובר לפייפרלס. עכשיו יוצרים שם את ההרשאה הקבועה — בתוך פייפרלס, לא דרך קישור שהמערכת שולחת.</>
+              : !cardEnteredAt
+                ? <>ההרשאה נוצרה בפייפרלס {formatDate(authorizationCreatedAt, 'list')}. הלקוח רואה בדף האישי שפייפרלס תבקש ממנו כרטיס אשראי, וגם שייתכן חיוב אימות בסך 1 ₪. כשתראה בפייפרלס שהכרטיס הוזן — לסמן כאן.</>
+                : !retainerChargedAt
+                  ? <>הכרטיס הוזן {formatDate(cardEnteredAt, 'list')}. נשאר לחייב את הריטיינר שסוכם — ואז לסמן כאן. זה מה שסוגר את השלב.</>
+                  : <>הריטיינר חויב {formatDate(retainerChargedAt, 'list')}.</>}
           </div>
 
-          {!authorizationCreatedAt && (
-            <div style={{ marginTop: '.55rem' }}>
-              <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-                onClick={() => p.onRun('note', { authorizationCreatedAt: new Date().toISOString(), note: 'ההרשאה נוצרה בפייפרלס' })}>
-                יצרתי את ההרשאה בפייפרלס
-              </button>
-            </div>
-          )}
-
           {isStepOpen(step.status) && (
-            <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.5rem', alignItems: 'center' }}>
-              <input value={providerRef} onChange={e => setProviderRef(e.target.value)}
-                placeholder="אסמכתא מהספק (לא חובה)" style={{ maxWidth: 220 }} />
-              <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !authorizationCreatedAt}
-                title={authorizationCreatedAt ? undefined : 'קודם יוצרים את ההרשאה בפייפרלס'}
-                onClick={() => p.onRun('complete', {
-                  completionMethod: 'manual',
-                  ...(providerRef.trim() ? { providerRef: providerRef.trim() } : {}),
-                })}>הלקוח השלים</button>
+            <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
+              {!authorizationCreatedAt && (
+                <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+                  onClick={() => p.onRun('note', { authorizationCreatedAt: new Date().toISOString(), note: 'ההרשאה נוצרה בפייפרלס' })}>
+                  יצרתי את ההרשאה בפייפרלס
+                </button>
+              )}
+
+              {/* ‼ "ראיתי בפייפרלס" ולא "הלקוח אישר": הלקוח אינו מאשר כאן
+                  שהזין כרטיס, ולכן מה שנרשם הוא מה שגיא ראה בפועל. */}
+              {authorizationCreatedAt && !cardEnteredAt && (
+                <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+                  title="לסמן אחרי שראית בפייפרלס שהכרטיס של הלקוח הוזן"
+                  onClick={() => p.onRun('note', { cardEnteredAt: new Date().toISOString(), note: 'הכרטיס של הלקוח הוזן בפייפרלס' })}>
+                  הכרטיס הוזן
+                </button>
+              )}
+
+              {/* ‼ הפעולה שסוגרת את השלב היא החיוב עצמו — לא ההרשאה ולא
+                  הכרטיס. עד היום הקליטה נסגרה בלי שאיש אמר שהכסף נגבה. */}
+              {cardEnteredAt && (
+                <>
+                  <input value={providerRef} onChange={e => setProviderRef(e.target.value)}
+                    placeholder="אסמכתא מהספק (לא חובה)" style={{ maxWidth: 220 }} />
+                  <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+                    onClick={() => p.onRun('complete', {
+                      completionMethod: 'manual',
+                      retainerChargedAt: new Date().toISOString(),
+                      note: 'הריטיינר חויב',
+                      ...(providerRef.trim() ? { providerRef: providerRef.trim() } : {}),
+                    })}>הריטיינר חויב</button>
+                </>
+              )}
             </div>
           )}
 

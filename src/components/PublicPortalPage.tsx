@@ -56,13 +56,24 @@ export interface PortalItem {
   /** 'portal' = הפעולה נעשית כאן בעמוד, בלי לנווט לטוקן אחר. */
   actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote' | 'portal';
   actionValue?: string;
-  /** מה בדיוק הפעולה בתוך העמוד. */
-  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide';
+  /**
+   * מה בדיוק הפעולה בתוך העמוד.
+   * ‼ 'info' — הכדור אצל הלקוח אבל הפעולה עצמה קורית מחוץ לדף (בפייפרלס),
+   * ולכן כרטיס בלי שום פקד: אין לנו מה לאמת, ואישור-דמה היה מידע כוזב.
+   */
+  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info';
   /** חומר עזר של המשרד — הקובץ העדכני, נפתר בשרת בכל טעינה. */
   resourceUrl?: string;
   resourceKey?: string;
   /** קישור יוצא שנלווה לפעולה בעמוד (הרשמה לפייפרלס). אינו מחליף את ההשלמה. */
   linkUrl?: string;
+  /**
+   * שם העסק — נשאל בכרטיס ההרשמה לפייפרלס, כי זה מה שהמשרד מזין שם.
+   * ‼ מקור האמת הוא clients.business_name: הערך כאן הוא מילוי-מראש לאישור,
+   * ומה שנשלח חוזר לאותו שדה עצמו ולא נשמר על הבקשה.
+   */
+  needsBusinessName?: boolean;
+  businessName?: string;
   /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
   checklist?: { key: string; label: string; done: boolean }[];
   /** דרישות של בקשה חופשית — שדות בתוך בקשה אחת, כל אחד עם סוג ו-חובה/רשות. */
@@ -402,6 +413,12 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
   const signup = inPage && item.kind === 'paperless_signup';
   /** חומר עזר — הכל גלוי מיד: כפתור הפתיחה והסימון, בלי כרטיס שנפתח. */
   const guide = inPage && item.kind === 'guide' && !!item.resourceUrl;
+  /**
+   * כרטיס מידע — מה שממתין ללקוח קורה מחוץ לדף (פייפרלס מבקשת ממנו כרטיס
+   * אשראי), ולכן אין כאן שום פקד. ‼ הוא כן יושב תחת «מה צריך ממך»: הכדור
+   * באמת אצלו, וכרטיס שקוף שמסתיר את זה בטור "בטיפול המשרד" היה שקר.
+   */
+  const info = item.kind === 'info';
   const prog = progressLine(item);
 
   const primaryBtn: React.CSSProperties = {
@@ -431,7 +448,14 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
 
       {/* ‼ הרשמה לפייפרלס אינה "נפתחת" — היא קישור החוצה ואישור, ולכן היא
           מוצגת ישירות ולא מאחורי כפתור פתיחה. */}
-      {guide ? (
+      {info ? (
+        item.note ? (
+          <p style={{
+            margin: '9px 0 0', fontSize: 12.5, lineHeight: 1.7, color: brand.muted,
+            whiteSpace: 'pre-line',
+          }}>{item.note}</p>
+        ) : null
+      ) : guide ? (
         <div style={{ marginTop: 11 }}>
           <GuideBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
@@ -657,6 +681,10 @@ function RequestGuide({ item, brand }: {
  * וזה בדיוק מה שהמסך הזה בא לסגור.
  * ‼ אין כאן אימות מול פייפרלס, ולכן הניסוח הוא "נרשמתי" ולא "נרשם": מה
  * שנשמר הוא הצהרת הלקוח, והרו"ח יכול לפתוח את השלב מחדש אם התברר אחרת.
+ *
+ * ‼ שם העסק נשאל כאן ולא במסך נפרד: זה מה שהמשרד מזין בפייפרלס, וזה הרגע
+ * היחיד שבו הלקוח ממילא עוסק בפייפרלס. ידוע ⇒ מוצג לאישור; לא ידוע ⇒ נשאל.
+ * מה שנשלח נשמר ב-clients.business_name בלבד — אין עותק שני על הבקשה.
  */
 function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
   token: string; item: PortalItem;
@@ -666,18 +694,26 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
   const previewMode = useContext(PreviewCtx);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [businessName, setBusinessName] = useState(item.businessName ?? '');
+
+  const asksBusiness = !!item.needsBusinessName;
+  const missingBusiness = asksBusiness && businessName.trim() === '';
 
   async function confirm() {
     if (previewMode || !item.actionValue) return;
+    if (missingBusiness) { setError('צריך למלא את שם העסק לפני האישור.'); return; }
     setBusy(true);
     setError(null);
     const { data, error: rpcError } = await supabase.rpc('portal_submit_step', {
-      p_token: token, p_step_id: item.actionValue, p_data: {},
+      p_token: token, p_step_id: item.actionValue,
+      p_data: asksBusiness ? { businessName: businessName.trim() } : {},
     });
     const res = data as { ok?: boolean; error?: string } | null;
     setBusy(false);
     if (rpcError || !res?.ok) {
-      setError('לא הצלחנו לשמור את האישור. אפשר לנסות שוב.');
+      setError(res?.error === 'missing_business_name'
+        ? 'צריך למלא את שם העסק לפני האישור.'
+        : 'לא הצלחנו לשמור את האישור. אפשר לנסות שוב.');
       return;
     }
     onDone();
@@ -696,14 +732,33 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
   };
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-      {item.linkUrl && (previewMode
-        ? <span style={{ ...linkBtn, opacity: .55, pointerEvents: 'none' }}>לפתיחת החשבון ←</span>
-        : <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={linkBtn}>לפתיחת החשבון ←</a>)}
-      <button type="button" style={confirmBtn} disabled={previewMode || busy} onClick={() => void confirm()}>
-        {busy ? 'רגע…' : (item.cta || 'נרשמתי')}
-      </button>
-      {error && <div style={{ width: '100%', fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
+    <div style={{ display: 'grid', gap: 10 }}>
+      {asksBusiness && (
+        <label style={{ display: 'grid', gap: 4, maxWidth: 420 }}>
+          <span style={{ fontSize: 12.5, color: brand.muted }}>
+            שם העסק{item.businessName ? ' — לאישור או לתיקון' : ''}
+          </span>
+          <input
+            value={businessName}
+            onChange={e => setBusinessName(e.target.value)}
+            disabled={previewMode || busy}
+            placeholder="השם שהעסק מוכר בו"
+            style={{
+              width: '100%', padding: '9px 11px', fontSize: 14, color: brand.ink,
+              border: `1px solid ${brand.border}`, borderRadius: brand.radius, background: '#fff',
+            }} />
+        </label>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        {item.linkUrl && (previewMode
+          ? <span style={{ ...linkBtn, opacity: .55, pointerEvents: 'none' }}>לפתיחת החשבון ←</span>
+          : <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={linkBtn}>לפתיחת החשבון ←</a>)}
+        <button type="button" style={{ ...confirmBtn, opacity: missingBusiness ? .55 : confirmBtn.opacity }}
+          disabled={previewMode || busy} onClick={() => void confirm()}>
+          {busy ? 'רגע…' : (item.cta || 'נרשמתי')}
+        </button>
+        {error && <div style={{ width: '100%', fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
+      </div>
     </div>
   );
 }
