@@ -6,7 +6,7 @@
 //
 // ‼ שלושה מסכי מיקוד, לא טופס ארוך אחד. כל מוסד הוא עמוד סגור בפני עצמו.
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Client } from '../../types';
 import { NI_OCCUPATION_TYPE_LABELS } from '../../types';
 import type { NiOccupation, NiOccupationType } from '../../types';
@@ -17,6 +17,9 @@ import type { AdvanceResult } from '../../hooks/useOnboarding';
 import { proposeTaxFacts, acceptTaxFactChange } from '../../lib/taxFacts';
 import { clientFromDb } from '../../lib/dbMappers';
 import { supabase } from '../../lib/supabase';
+import { useDocumentStore } from '../../hooks/useDocumentStore';
+import type { DocCategory, StoredDoc } from '../../hooks/useDocumentStore';
+import { CURRENT_TAX_YEAR } from '../../data/taxData';
 
 // ─── תצורת השדות — אחת לכל מוסד ─────────────────────────────────────────────
 
@@ -29,6 +32,29 @@ type FieldType = 'text' | 'number' | 'date' | 'select';
  */
 type WherePath = string;
 
+/**
+ * הסבר תהליכי קצר שנפתח בלחיצה — לא "איפה מוצאים" (מסלול), אלא "איך בודקים"
+ * (סדר פעולות בשאילתה). מוסתר כברירת מחדל כדי שלא יעמיס על המסך.
+ */
+interface HowToGuide {
+  label: string;
+  intro?: string;
+  steps: string[];
+}
+
+/**
+ * צירוף אישור לפריט קיים — לא זרימה נפרדת. הקובץ נשמר במסמכי הלקוח
+ * הרגילים (bucket 'client-documents' + public.documents), וה-linkedTo
+ * הוא מה שקושר אותו לפריט הזה וגם מה שמאפשר למצוא אותו שוב בכניסה הבאה.
+ */
+interface AttachSpec {
+  /** מפתח יציב לפריט. משמש גם ל-linkedTo וגם למפתח ב-collected. */
+  docKey: string;
+  /** תיאור המסמך כפי שיישמר בתיק המסמכים. */
+  linkLabel: string;
+  category: DocCategory;
+}
+
 interface AlignmentField {
   key: string;
   label: string;
@@ -40,6 +66,7 @@ interface AlignmentField {
   toPatchValue?: (raw: string) => unknown;
   note?: string;
   where?: WherePath[];
+  attach?: AttachSpec;
 }
 
 interface AlignmentSection {
@@ -64,6 +91,7 @@ interface AlignmentException {
   /** שדה נוסף שמופיע רק כשהתשובה חריגה — למשל מועד להגשת הצהרת הון. */
   extraFieldWhenBad?: AlignmentField;
   where?: WherePath[];
+  guide?: HowToGuide;
 }
 
 interface InstitutionConfig {
@@ -179,12 +207,16 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
         where: ['אישורי ניכוי במקור וניהול ספרים'],
         fields: [
           { key: 'withholdingStatus', label: 'מצב ניכוי במקור', type: 'select',
-            options: ['פטור מניכוי', 'שיעור/ים לפי פעילות', 'אין אישור תקף'] },
+            options: ['פטור מניכוי', 'שיעור/ים לפי פעילות', 'אין אישור תקף'],
+            attach: { docKey: 'withholdingCertificate', linkLabel: 'אישור ניכוי מס במקור',
+              category: 'business_document' } },
           { key: 'withholdingDetail', label: 'פירוט (כפי שמופיע באישור)', governedKey: 'withholdingDetail',
             placeholder: 'למשל: 0% שירותים, 30% קבלנות' },
           { key: 'bookStatus', label: 'ניהול ספרים', type: 'select',
             options: ['תקין', 'נפסל', 'לא ידוע'], governedKey: 'bookStatus',
-            toPatchValue: v => v === 'תקין' ? 'kosher' : v === 'נפסל' ? 'rejected' : 'unknown' },
+            toPatchValue: v => v === 'תקין' ? 'kosher' : v === 'נפסל' ? 'rejected' : 'unknown',
+            attach: { docKey: 'bookkeepingCertificate', linkLabel: 'אישור ניהול ספרים',
+              category: 'business_document' } },
         ],
       },
     ],
@@ -193,6 +225,15 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
         key: 'capitalDeclarationRequired', label: 'דרישת הצהרת הון', options: ['אין דרישה פתוחה', 'דרישה פתוחה'],
         badValues: ['דרישה פתוחה'], governedKey: 'capitalDeclarationRequired', governedPatch: bad => bad,
         where: ['אזור אישי → דרישות להצהרת הון'],
+        guide: {
+          label: 'איך בודקים בשע״ם?',
+          intro: 'בשאילתת AHZM — דרישות להצהרת הון:',
+          steps: [
+            'הזן את תיק הלקוח.',
+            'בדוק האם קיימת דרישה להצהרת הון ובאיזו שנה.',
+            'לפי פרטי ההיענות ניתן לראות אם הדרישה טופלה ולזהות את הצהרת ההון האחרונה שמופיעה במערכת.',
+          ],
+        },
         outcome: () => ({ kind: 'clarification', text: 'קיימת דרישה פתוחה להצהרת הון — לברר מועד הגשה עם הלקוח.' }),
         extraFieldWhenBad: { key: 'capitalDeclarationDeadline', label: 'מועד להגשה', type: 'date',
           governedKey: 'capitalDeclarationDeadline', toPatchValue: v => v || null },
@@ -290,6 +331,162 @@ function WhereHint({ where }: { where?: WherePath[] }) {
   );
 }
 
+/** "איך בודקים?" — סדר פעולות בשאילתה, סגור כברירת מחדל. */
+function GuideHint({ guide }: { guide?: HowToGuide }) {
+  const [open, setOpen] = useState(false);
+  if (!guide) return null;
+  return (
+    <>
+      <button type="button" className="ial-where-btn" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        {guide.label}
+      </button>
+      {open && (
+        <div className="ial-where">
+          {guide.intro && <div>{guide.intro}</div>}
+          <ol className="ial-guide">
+            {guide.steps.map(s => <li key={s}>{s}</li>)}
+          </ol>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── צירוף אישור לפריט — קומפקטי, בתוך השדה ─────────────────────────────────
+
+const ATTACH_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,.doc,.docx';
+
+/** הקישור שנשמר על המסמך. יציב לאורך זמן — לפיו מוצאים אותו שוב. */
+function attachLinkKey(spec: AttachSpec): string {
+  return `institution_alignment:${spec.docKey}`;
+}
+
+/**
+ * ‼ המסמך נשמר בתיק המסמכים הרגיל של הלקוח (אותו saveDoc של DocumentManager),
+ * ולא בעותק צדדי — כדי שהוא יופיע גם ב"מסמכים" וגם כאן. מקור האמת הוא הטבלה:
+ * המסך טוען לפי linkedTo, ולכן צירוף שנעשה ולא נשמר בשלב עדיין נמצא בחזרה.
+ */
+function ItemAttachment({ clientId, spec, onDocChange }: {
+  clientId: string;
+  spec: AttachSpec;
+  onDocChange: (docId: string | null) => void;
+}) {
+  const db = useDocumentStore();
+  const linkKey = attachLinkKey(spec);
+  const [doc, setDoc] = useState<StoredDoc | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      if (!clientId) return;
+      try {
+        const all = await db.getDocsByClient(clientId);
+        const mine = all.filter(d => d.linkedTo === linkKey);
+        const found = mine.length ? mine[mine.length - 1] : null;
+        if (!alive) return;
+        setDoc(found);
+        onDocChange(found?.id ?? null);
+      } catch {
+        if (alive) setDoc(null);
+      }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, linkKey]);
+
+  async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (inputRef.current) inputRef.current.value = '';
+    if (!file || !clientId) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const buf = await file.arrayBuffer();
+      // החלפה משתמשת באותו מזהה ⇒ אותו נתיב באחסון, בלי להשאיר קובץ יתום.
+      const next: StoredDoc = {
+        id: doc?.id ?? crypto.randomUUID(),
+        clientId,
+        fileName: file.name,
+        fileType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+        category: spec.category,
+        year: doc?.year ?? CURRENT_TAX_YEAR,
+        uploadedAt: new Date().toISOString(),
+        description: spec.linkLabel,
+        notes: doc?.notes ?? '',
+        fileData: buf,
+        linkedTo: linkKey,
+        linkedLabel: spec.linkLabel,
+        folderId: doc?.folderId ?? null,
+        labelId: doc?.labelId ?? null,
+      };
+      await db.saveDoc(next);
+      setDoc({ ...next, fileData: new ArrayBuffer(0), _remote: true });
+      onDocChange(next.id);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : 'ההעלאה נכשלה.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleOpen() {
+    if (!doc) return;
+    // ‼ הכרטיסייה נפתחת לפני ה-await — אחרת חוסם החלונות הקופצים בולע אותה.
+    const tab = window.open('', '_blank');
+    const full = await db.getDoc(doc.id);
+    if (!full || full.fileData.byteLength === 0) { tab?.close(); setErr('לא ניתן לפתוח את הקובץ.'); return; }
+    const url = URL.createObjectURL(new Blob([full.fileData], { type: full.fileType || 'application/octet-stream' }));
+    if (tab) tab.location.href = url; else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  async function handleRemove() {
+    if (!doc) return;
+    if (!confirm(`להסיר את "${doc.fileName}"? המסמך יימחק גם מתיק המסמכים של הלקוח.`)) return;
+    setBusy(true);
+    try {
+      await db.deleteDoc(doc.id);
+      setDoc(null);
+      onDocChange(null);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : 'המחיקה נכשלה.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!clientId) return null;
+
+  return (
+    <div className="ial-attach">
+      <input ref={inputRef} type="file" accept={ATTACH_ACCEPT} style={{ display: 'none' }}
+        onChange={e => void handlePick(e)} />
+      {doc ? (
+        <>
+          <button type="button" className="ial-attach-file" onClick={() => void handleOpen()} title="פתיחה לצפייה">
+            📎 {doc.fileName}
+          </button>
+          <button type="button" className="ial-attach-btn" disabled={busy}
+            onClick={() => inputRef.current?.click()}>החלפה</button>
+          <button type="button" className="ial-attach-btn is-danger" disabled={busy}
+            onClick={() => void handleRemove()}>הסרה</button>
+        </>
+      ) : (
+        <button type="button" className="ial-attach-btn" disabled={busy}
+          onClick={() => inputRef.current?.click()}>
+          {busy ? 'מעלה…' : `+ צירוף ${spec.linkLabel} (לא חובה)`}
+        </button>
+      )}
+      {busy && doc && <span className="ial-attach-state">שומר…</span>}
+      {err && <span className="ial-attach-err">{err}</span>}
+    </div>
+  );
+}
+
 /** כותרת קבוצה + ההסבר של אותה קבוצה, על אותה שורה. */
 function SectionHead({ kicker, where }: { kicker: string; where?: WherePath[] }) {
   return (
@@ -341,6 +538,11 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
   }
   function setExc(k: string, v: unknown) {
     setExceptions(prev => ({ ...prev, [k]: v }));
+  }
+  /** מקור האמת לצירוף הוא תיק המסמכים; כאן רק נרשם מי המסמך של הפריט. */
+  function setAttachDoc(docKey: string, docId: string | null) {
+    const k = `${docKey}DocId`;
+    setCollected(prev => ((prev[k] ?? null) === docId ? prev : { ...prev, [k]: docId }));
   }
 
   async function finish() {
@@ -487,6 +689,10 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
                   )}
                   {f.note && <div className="ial-where">{f.note}</div>}
                   <WhereHint where={f.where} />
+                  {f.attach && (
+                    <ItemAttachment clientId={client.id} spec={f.attach}
+                      onDocChange={id => setAttachDoc(f.attach!.docKey, id)} />
+                  )}
                 </div>
               ))}
             </div>
@@ -513,6 +719,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
                     {exc.options.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
                   <WhereHint where={exc.where} />
+                  <GuideHint guide={exc.guide} />
                   {bad && exc.extraFieldWhenBad && (
                     <div style={{ marginTop: 6 }}>
                       <label>{exc.extraFieldWhenBad.label}</label>

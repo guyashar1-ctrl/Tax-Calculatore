@@ -18,8 +18,15 @@ import { InstitutionFocus } from './InstitutionAlignment';
   if (t) document.documentElement.dataset.theme = t;
 }
 
+/**
+ * ?client=<uuid> — מריץ את המסך על לקוח אמיתי של משתמש הבדיקה. נחוץ כדי לאמת
+ * צירוף אישורים: מסמך נשמר בטבלת documents עם FK ללקוח, ולכן לקוח מדומה לא
+ * מאפשר לבדוק את השמירה בפועל. השלבים עדיין מדומים — advance לא כותב לשרת.
+ */
+const CLIENT_ID_OVERRIDE = new URLSearchParams(window.location.search).get('client');
+
 const CLIENT: Client = {
-  id: 'fixture-inst-client',
+  id: CLIENT_ID_OVERRIDE || 'fixture-inst-client',
   firstName: 'אילן',
   lastName: 'סימנטוב',
   idNumber: '029384756',
@@ -87,7 +94,8 @@ export default function TestInstitutions() {
   const step = steps.find(s => s.payload.institution === focus)!;
 
   async function advance(stepId: string, action: string, payload?: Record<string, unknown>) {
-    setLog(l => [`${action} · ${stepId}${payload ? ' · ' + Object.keys(payload).join(', ') : ''}`, ...l].slice(0, 8));
+    // ה-payload המלא, לא רק שמות המפתחות — אחרת אי אפשר לאמת מה באמת נשמר לשלב.
+    setLog(l => [`${action} · ${stepId}${payload ? '\n' + JSON.stringify(payload) : ''}`, ...l].slice(0, 8));
     setSteps(prev => prev.map(s => s.id !== stepId ? s : {
       ...s,
       status: action === 'complete' ? 'completed' : s.status,

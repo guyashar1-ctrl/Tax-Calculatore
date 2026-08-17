@@ -2731,6 +2731,27 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .ial-fgrid label{display:block;font-size:11px;color:var(--ink-3);margin-bottom:4px}
 .ial-fgrid input,.ial-fgrid select{width:100%;border:1px solid var(--bd-strong);border-radius:var(--r-input);
   padding:8px 10px;background:var(--surface-0);font-size:var(--fs-13);font-family:inherit;color:var(--ink-1)}
+/* ── "איך בודקים?" — סדר פעולות בשאילתה, באותו משקל של "איפה מוצאים" ──
+   הסימון נשאר בצד ימין (RTL) כי הדפדפן מציב את ה-marker לפי כיוון הרשימה. */
+.ial-guide{margin:4px 0 0;padding-inline-start:1.2em;display:grid;gap:2px}
+.ial-guide li{font-size:11px;line-height:1.5;color:var(--ink-4)}
+
+/* ── צירוף אישור לפריט — שורת עזר מתחת לשדה, לא כרטיס ──
+   ‼ אין כאן טופס מטא-נתונים: התיאור והקטגוריה נגזרים מהפריט עצמו, אחרת
+   "צירוף אישור" הופך לזרימה נפרדת במקום לפעולה אחת בתוך השדה. */
+.ial-attach{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px}
+.ial-attach-btn{border:0;background:none;padding:0;font:inherit;font-size:11px;color:var(--accent);
+  cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.ial-attach-btn:hover{color:var(--accent-hover)}
+.ial-attach-btn.is-danger{color:var(--ink-4)}
+.ial-attach-btn.is-danger:hover{color:var(--danger)}
+.ial-attach-btn:disabled{color:var(--ink-4);cursor:default;text-decoration:none}
+.ial-attach-file{border:0;background:none;padding:0;font:inherit;font-size:11px;color:var(--ink-1);
+  cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
+.ial-attach-file:hover{color:var(--accent)}
+.ial-attach-state{font-size:11px;color:var(--ink-4)}
+.ial-attach-err{font-size:11px;color:var(--err)}
+
 .ial-exc{margin-top:10px;padding-top:10px;border-top:1px dashed var(--hairline-1)}
 .ial-exc-note{margin-top:8px;font-size:11px;color:var(--warn);background:var(--warn-bg);border-radius:8px;padding:8px 10px}
 
