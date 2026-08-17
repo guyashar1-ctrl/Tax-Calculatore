@@ -1,5 +1,39 @@
--- נמשך חי 2026-08-16 מהמסד (pg_get_functiondef).
--- ארגומנטים: p_client_id text, p_mode text
+-- ─── 108 · מדריך ההוצאות המוכרות כבקשה מעקבת ────────────────────────────────
+-- שני חלקים:
+--
+-- 1. דלי 'firm-resources' — קובץ אחד משותף לכל הלקוחות, בבעלות המשרד.
+--    ציבורי (הלקוח פותח אותו מהדף האישי בלי התחברות), PDF בלבד, עד 10MB.
+--    מדיניות הכתיבה זהה ל-firm-logos: כל משרד כותב רק לתיקייה שלו.
+--
+-- 2. build_client_portal — בקשה שנושאת payload.clientResource='expenses_guide'
+--    מקבלת kind='guide' והקישור לקובץ העדכני, וכשהיא מושלמת היא ממשיכה לשאת
+--    אותו כדי שהמדריך יישאר נגיש. ‼ תוספת בלבד: בקשה בלי clientResource
+--    מחזירה בדיוק את אותו jsonb כמו קודם.
+--
+-- ‼ הכרעת מוצר — הקישור נפתר לקובץ **העדכני** בזמן הפתיחה, ולא לצילום מרגע
+-- השליחה. זו ההתנהגות של קישור הפייפרלס באותה פונקציה. הגרסאות הקודמות
+-- נשמרות ב-settings.expenses_guide.history ואינן נמחקות מה-Storage, ולכן
+-- הצלבת doneAt מול ההיסטוריה אומרת איזו גרסה הייתה פעילה בזמן הפתיחה.
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('firm-resources', 'firm-resources', true, 10485760, array['application/pdf'])
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists firm_resources_owner_insert on storage.objects;
+create policy firm_resources_owner_insert on storage.objects for insert to authenticated
+  with check (bucket_id = 'firm-resources' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists firm_resources_owner_update on storage.objects;
+create policy firm_resources_owner_update on storage.objects for update to authenticated
+  using (bucket_id = 'firm-resources' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists firm_resources_owner_delete on storage.objects;
+create policy firm_resources_owner_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'firm-resources' and (storage.foldername(name))[1] = auth.uid()::text);
+
 CREATE OR REPLACE FUNCTION public.build_client_portal(p_client_id text, p_mode text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -18,6 +52,8 @@ declare
   v_sign_token text;
   v_spouse_pending boolean := false;
   v_invite_url text;
+  v_guide_url text;
+  v_res_key   text;
   v_prev_open boolean := false;
   v_prev_done boolean := false;
   v_first  text;
@@ -41,6 +77,9 @@ begin
   select * into p from public.profiles where id = c.user_id;
   v_first := split_part(trim(coalesce(c.first_name, '')), ' ', 1);
   v_invite_url := nullif(trim(coalesce(p.settings->'paperless'->>'inviteUrl', '')), '');
+  -- ‼ נפתר מהגדרות המשרד בכל רינדור, כמו קישור הפייפרלס שמעליו: קובץ אחד
+  -- משותף, והחלפתו משנה מיד את מה שכל בקשה תפתח.
+  v_guide_url := nullif(trim(coalesce(p.settings->'expenses_guide'->>'url', '')), '');
 
   v_has_eng := exists (select 1 from public.engagements e where e.client_id = c.id);
 
@@ -151,9 +190,16 @@ begin
         into v_rq_done, v_rq_total
         from jsonb_array_elements(v_reqs) x;
       v_label := coalesce(nullif(s.payload->>'clientTitle',''), 'בקשה מהמשרד');
+      v_res_key := nullif(s.payload->>'clientResource', '');
 
       if s.status in ('completed','verified','skipped') then
-        v_items := v_items || jsonb_build_object('bucket','done','key','custom_'||s.id,'label', v_label);
+        v_items := v_items || jsonb_strip_nulls(jsonb_build_object(
+          'bucket','done','key','custom_'||s.id,'label', v_label,
+          -- ‼ בקשת חומר עזר שהושלמה ממשיכה לשאת את הקישור. הדף מציג אותה
+          -- תחת «מסמכים שימושיים» — אחרת הלקוח שפתח את המדריך פעם אחת
+          -- מאבד אליו גישה לתמיד.
+          'resourceKey', case when v_res_key = 'expenses_guide' then v_res_key else null end,
+          'resourceUrl', case when v_res_key = 'expenses_guide' then v_guide_url else null end));
       elsif s.status = 'locked' then
         v_items := v_items || jsonb_strip_nulls(jsonb_build_object(
           'bucket','future','key','custom_'||s.id,'label', v_label,
@@ -161,11 +207,16 @@ begin
       else
         v_items := v_items || jsonb_strip_nulls(jsonb_build_object(
           'bucket','action','key','custom_'||s.id,'label', v_label,
-          'sub', case when coalesce(v_rq_total,0) > 1
+          'sub', case when v_res_key is not null then nullif(s.payload->>'clientSub','')
+                      when coalesce(v_rq_total,0) > 1
                       then v_rq_done || ' מתוך ' || v_rq_total || ' הושלמו'
                       else nullif(s.payload->>'clientSub','') end,
           'actionKind','portal','actionValue', s.id,
-          'kind','custom',
+          -- ‼ בקשת חומר עזר אינה טופס: הפעולה היחידה היא פתיחת הקובץ, והיא
+          -- עצמה מה שסוגר אותה. kind נפרד כדי שהדף לא יצייר שורות דרישות.
+          'kind', case when v_res_key = 'expenses_guide' then 'guide' else 'custom' end,
+          'resourceKey', case when v_res_key = 'expenses_guide' then v_res_key else null end,
+          'resourceUrl', case when v_res_key = 'expenses_guide' then v_guide_url else null end,
           'cta', nullif(s.payload->>'clientCta',''),
           -- ‼ מיגרציה 107: ההסבר, המספרים להעתקה ומשפט הסגירה עוברים כמו שהם
           -- אל הדף האישי. clientSub לבדו לא הספיק — הוא מוחלף בשורת ההתקדמות

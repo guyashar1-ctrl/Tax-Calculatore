@@ -13,6 +13,7 @@ import {
   REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS,
 } from '../../types/onboarding';
 import { BANK_DEBIT_TITLE, buildBankDebitPayload } from '../../lib/bankDebitRequest';
+import { EXPENSES_GUIDE_TITLE, buildGuideRequestPayload } from '../../lib/clientGuide';
 import { supabase } from '../../lib/supabase';
 
 /** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
@@ -21,6 +22,7 @@ import { supabase } from '../../lib/supabase';
  *  חופשית אחת עם דרישת אסמכתה לכל רשות שנבחרה (buildBankDebitPayload). */
 const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'bank_debit',             hint: 'הלקוח פותח הרשאה בבנק ומעלה אסמכתה — לרשויות שתבחר', once: false },
+  { type: 'expenses_guide',         hint: 'נסגרת מעצמה כשהלקוח פותח את המדריך', once: false },
   { type: 'client_documents',       hint: 'רשימת מסמכים שהלקוח מעלה בדף האישי', once: true },
   { type: 'prev_accountant_details', hint: 'הלקוח מוסר שם, מייל וטלפון של הקודם', once: true },
   { type: 'release_letter',         hint: 'מכתב שחרור — נשלח לרו״ח הקודם', once: true },
@@ -84,7 +86,7 @@ interface Props {
 }
 
 export default function AddRequestDialog({ clientId, steps, processPublished, presetType, onClose, onCreated }: Props) {
-  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank'>('catalog');
+  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'guide'>('catalog');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,6 +105,21 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
   /** הרשאה לחיוב חשבון — ‼ מתחיל ריק בכוונה. לא כל לקוח צריך את שלוש
    *  הרשויות, ובחירה מראש הייתה שולחת אותו לפתוח הרשאות מיותרות. */
   const [debitAuthorities, setDebitAuthorities] = useState<InstitutionKey[]>([]);
+  /** המדריך הפעיל של המשרד. null = עוד לא הועלה, ואז אין מה לשלוח. */
+  const [guideUrl, setGuideUrl] = useState<string | null | undefined>(undefined);
+
+  // ‼ נטען רק כשנכנסים למסך המדריך: שאילתה לכל פתיחה של חלון ההוספה הייתה
+  // מיותרת, והמידע דרוש רק כדי לדעת אם יש מה לשלוח.
+  async function openGuideMode() {
+    setMode('guide');
+    setError(null);
+    // בקשת המדריך אינה עבודה שחוסמת סגירת קליטה — היא חומר עזר.
+    setRequiredForClose(false);
+    if (guideUrl !== undefined) return;
+    const { data } = await supabase.from('profiles').select('settings').limit(1).maybeSingle();
+    const g = (data?.settings as Record<string, { url?: string }> | null)?.expenses_guide;
+    setGuideUrl(g?.url?.trim() || null);
+  }
 
   const [dueDate, setDueDate] = useState('');
   const [dependsOn, setDependsOn] = useState('');
@@ -219,6 +236,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
               : mode === 'catalog' ? 'הוספת בקשה'
               : mode === 'custom' ? 'בקשה חופשית'
               : mode === 'bank' ? BANK_DEBIT_TITLE
+              : mode === 'guide' ? EXPENSES_GUIDE_TITLE
               : 'מסמכים מהלקוח'}
           </h3>
           <button type="button" className="btn btn-sm btn-ghost" onClick={onClose} aria-label="סגירה">✕</button>
@@ -260,6 +278,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   onClick={() => {
                     if (c.type === 'client_documents') { setMode('documents'); return; }
                     if (c.type === 'bank_debit') { setMode('bank'); return; }
+                    if (c.type === 'expenses_guide') { void openGuideMode(); return; }
                     if (c.type === 'paperless_sequence') { void createPaperlessSequence(); return; }
                     void create(c.type, {});
                   }}
@@ -268,6 +287,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   <span style={{ fontWeight: 600 }}>
                     {c.type === 'paperless_sequence' ? 'פייפרלס'
                       : c.type === 'bank_debit' ? BANK_DEBIT_TITLE
+                      : c.type === 'expenses_guide' ? EXPENSES_GUIDE_TITLE
                       : STEP_TYPE_LABELS[c.type as OnboardingStep['stepType']]}
                   </span>
                   <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
@@ -312,6 +332,32 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                 ))}
               </div>
               <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+            </>
+          )}
+
+          {mode === 'guide' && (
+            <>
+              {guideUrl === undefined ? (
+                <div className="cw-empty">טוען…</div>
+              ) : guideUrl === null ? (
+                /* ‼ בלי קובץ פעיל אין מה לשלוח — הכפתור בדף של הלקוח היה
+                   נפתח לשום מקום, והבקשה לא הייתה נסגרת לעולם. */
+                <div className="cw-empty">
+                  עדיין לא הועלה מדריך. יש להעלות אותו במסך המשרד ← «מסמכים ללקוחות», ואז לחזור לכאן.
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
+                    הלקוח יראה בקשה עם כפתור אחד שפותח את המדריך. אין מה למלא ואין מה לאשר —
+                    הפתיחה עצמה סוגרת את הבקשה, והיא תסומן כאן כהושלמה.
+                  </div>
+                  <a href={guideUrl} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 'var(--fs-12)', color: 'var(--accent)' }}>
+                    לצפייה בקובץ שיישלח ←
+                  </a>
+                  <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+                </>
+              )}
             </>
           )}
 
@@ -415,6 +461,12 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
           {mode === 'bank' && !presetType && (
             <button type="button" className="btn btn-primary"
               disabled={busy || debitAuthorities.length === 0} onClick={submitBankDebit}>
+              {busy ? 'מוסיף…' : 'הוסף בקשה'}
+            </button>
+          )}
+          {mode === 'guide' && !presetType && !!guideUrl && (
+            <button type="button" className="btn btn-primary" disabled={busy}
+              onClick={() => { void create('custom_request', buildGuideRequestPayload()); }}>
               {busy ? 'מוסיף…' : 'הוסף בקשה'}
             </button>
           )}

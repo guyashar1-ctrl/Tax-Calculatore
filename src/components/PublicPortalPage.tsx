@@ -57,7 +57,10 @@ export interface PortalItem {
   actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote' | 'portal';
   actionValue?: string;
   /** מה בדיוק הפעולה בתוך העמוד. */
-  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup';
+  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide';
+  /** חומר עזר של המשרד — הקובץ העדכני, נפתר בשרת בכל טעינה. */
+  resourceUrl?: string;
+  resourceKey?: string;
   /** קישור יוצא שנלווה לפעולה בעמוד (הרשמה לפייפרלס). אינו מחליף את ההשלמה. */
   linkUrl?: string;
   /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
@@ -93,19 +96,6 @@ export interface PortalItem {
 /** מה שהדף מרשה להעלות. אותה רשימה נאכפת שוב בשרת — כאן זה רק כדי לחסוך
  *  ללקוח העלאה שתידחה, ולא כהגנה. */
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.xls,.xlsx,.csv,.doc,.docx';
-
-/**
- * חומר עזר קבוע שהמשרד נותן לכל לקוח — לא בקשה, לא משימה, ולעולם לא נספר
- * ב"מה צריך ממך". קובץ סטטי בריפו (public/docs) ולא מסמך במסד: הוא זהה
- * לכל הלקוחות ומתעדכן עם הקוד, ולכן אין לו מקום בתיק של אף אחד מהם.
- */
-const CLIENT_RESOURCES: { label: string; sub: string; href: string }[] = [
-  {
-    label: 'הוצאות מוכרות – מדריך ללקוח',
-    sub: 'מה כדאי לשמור ולהעביר אלינו · PDF',
-    href: '/docs/recognized-expenses-guide.pdf',
-  },
-];
 
 const UPLOAD_ERRORS: Record<string, string> = {
   too_large: 'הקובץ גדול מדי — עד 10MB.',
@@ -379,6 +369,9 @@ function btn(accent: string, radius: number, busy: boolean): React.CSSProperties
 
 /** שורת התקדמות קצרה מתחת לכותרת — נגזרת מהפריטים, לא שדה שמור. */
 function progressLine(item: PortalItem): string | undefined {
+  // ‼ חומר עזר אינו רשימה להשלמה: יש בו דרישה טכנית אחת (הפתיחה עצמה), ו-
+  // "0 מתוך 1 הושלמו" הפך פעולה של לחיצה אחת למטלה עם מונה.
+  if (item.kind === 'guide') return item.sub;
   if (item.checklist?.length) {
     const done = item.checklist.filter(c => c.done).length;
     return `${done} מתוך ${item.checklist.length} התקבלו`;
@@ -407,6 +400,8 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
   const inPage = item.actionKind === 'portal';
   const expandable = inPage && (item.kind === 'documents' || item.kind === 'custom' || item.kind === 'prev_accountant');
   const signup = inPage && item.kind === 'paperless_signup';
+  /** חומר עזר — פעולה אחת גלויה, בלי פתיחה ובלי דרישות. */
+  const guide = inPage && item.kind === 'guide' && !!item.resourceUrl;
   const prog = progressLine(item);
 
   const primaryBtn: React.CSSProperties = {
@@ -436,7 +431,11 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
 
       {/* ‼ הרשמה לפייפרלס אינה "נפתחת" — היא קישור החוצה ואישור, ולכן היא
           מוצגת ישירות ולא מאחורי כפתור פתיחה. */}
-      {signup ? (
+      {guide ? (
+        <div style={{ marginTop: 11 }}>
+          <GuideOpenButton token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+        </div>
+      ) : signup ? (
         <div style={{ marginTop: 11 }}>
           <PaperlessSignupBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
@@ -478,6 +477,54 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * בקשת חומר עזר — כפתור אחד שפותח את הקובץ, והפתיחה עצמה סוגרת את הבקשה.
+ *
+ * ‼ אין "קראתי ואישרתי". הלחיצה היא האירוע: היא נרשמת בשרת דרך אותו
+ * portal_submit_step של כל בקשה אחרת, עם טוקן הדף — כלומר פעולה מזוהה של
+ * הלקוח, ולא עצם הצגת העמוד שמכיל את הקישור.
+ *
+ * ‼ הקובץ נפתח דרך <a target="_blank"> ולא דרך window.open אחרי await:
+ * חלון שנפתח אחרי המתנה אינו נחשב תגובה ישירה ללחיצה, וחוסמי חלונות
+ * קופצים בולעים אותו. הרישום בשרת רץ במקביל, ואם הוא נכשל — הקובץ כבר
+ * נפתח, והבקשה פשוט תישאר פתוחה לניסיון הבא.
+ */
+function GuideOpenButton({ token, item, brand, accent, onDone }: {
+  token: string; item: PortalItem;
+  brand: { radius: number };
+  accent: string; onDone: () => void;
+}) {
+  const previewMode = useContext(PreviewCtx);
+  const [busy, setBusy] = useState(false);
+
+  const style: React.CSSProperties = {
+    display: 'inline-block', flexShrink: 0, textDecoration: 'none', cursor: 'pointer', border: 'none',
+    fontSize: 13.5, fontWeight: 600, padding: '9px 18px', color: '#fff',
+    background: accent, borderRadius: brand.radius, opacity: previewMode ? .55 : 1,
+    pointerEvents: previewMode ? 'none' : undefined,
+  };
+
+  async function record() {
+    if (previewMode || !item.actionValue || busy) return;
+    setBusy(true);
+    // ‼ אין טיפול בשגיאה במסך: הלקוח כבר קיבל את מה שרצה. חזרה על לחיצה
+    // אינה מזיקה — portal_submit_step מחזיר noop על בקשה שכבר הושלמה.
+    await supabase.rpc('portal_submit_step', {
+      p_token: token, p_step_id: item.actionValue, p_data: { key: 'opened' },
+    });
+    setBusy(false);
+    flushAccountantNotifications(token);
+    onDone();
+  }
+
+  return (
+    <a href={item.resourceUrl} target="_blank" rel="noopener noreferrer"
+      style={style} onClick={() => { void record(); }}>
+      {item.cta || 'לפתיחת המדריך'}
+    </a>
   );
 }
 
@@ -699,7 +746,10 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const actions = data.items.filter(i => i.bucket === 'action');
   const office  = data.items.filter(i => i.bucket === 'office');
   const future  = data.items.filter(i => i.bucket === 'future');
-  const done    = data.items.filter(i => i.bucket === 'done');
+  // ‼ חומר עזר שכבר נפתח יורד מ"הושלמו" ומקבל מקום קבוע משלו: הבקשה נסגרה,
+  // אבל המסמך עצמו נשאר שימושי — וללקוח צריכה להישאר דרך לחזור אליו.
+  const resources = data.items.filter(i => i.bucket === 'done' && !!i.resourceUrl);
+  const done      = data.items.filter(i => i.bucket === 'done' && !i.resourceUrl);
   const firstName = data.clientFirstName;
 
   return (
@@ -809,19 +859,19 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
         {/* ── מסמכים שימושיים ─────────────────────────────────────────────
             ‼ מתחת להכול ובלי כרטיס: זה חומר עזר שזמין תמיד, לא משהו
             שממתין. ברגע שהוא ייראה כמו בקשה — הוא ייקרא כעוד מטלה פתוחה. */}
-        {CLIENT_RESOURCES.length > 0 && (
+        {resources.length > 0 && (
           <>
             <div style={{ ...sectionTitle, marginTop: 20 }}>מסמכים שימושיים</div>
-            {CLIENT_RESOURCES.map(r => (
-              <a key={r.href} href={r.href} target="_blank" rel="noopener noreferrer" style={{
+            {resources.map(r => (
+              <a key={r.key} href={r.resourceUrl} target="_blank" rel="noopener noreferrer" style={{
                 display: 'flex', alignItems: 'baseline', gap: 8, padding: '8px 0',
                 borderTop: `1px solid ${brand.border}`, textDecoration: 'none',
               }}>
-                <span aria-hidden="true" style={{ fontSize: 12, opacity: .55, color: brand.muted }}>↓</span>
+                <span aria-hidden="true" style={{ fontSize: 12, color: accent }}>✓</span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: 'block', fontSize: 13.5, color: accent }}>{r.label}</span>
                   <span style={{ display: 'block', fontSize: 12, color: brand.muted, marginTop: 2 }}>
-                    {r.sub}
+                    נפתח · אפשר לחזור אליו בכל שלב
                   </span>
                 </span>
               </a>

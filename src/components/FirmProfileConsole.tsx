@@ -16,6 +16,7 @@ import QuotationDesignStudio from './quotations/QuotationDesignStudio';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import { supabase } from '../lib/supabase';
 import { FIRM_PRIVATE_BUCKET, downloadPrivateDataUrl } from '../utils/privateAsset';
+import { EXPENSES_GUIDE_TITLE, GUIDE_BUCKET, currentGuide, withNewGuide } from '../lib/clientGuide';
 import {
   defaultTemplate,
   PLACEHOLDERS_BY_KIND,
@@ -41,7 +42,7 @@ interface Props {
   onSave: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'notifications' | 'paperless' | 'emailActivity' | 'quotations' | 'employees';
+type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'notifications' | 'paperless' | 'clientDocs' | 'emailActivity' | 'quotations' | 'employees';
 
 // אייקוני הניווט כ-SVG מוטמע. (הפרויקט לא טוען את פונט Tabler, ולכן ה-<i class="ti">
 // שהיו כאן קודם פשוט לא הוצגו — זה מחליף אותם באייקונים שבאמת נראים.)
@@ -86,6 +87,7 @@ const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'communication', label: 'ערוצי תקשורת', icon: 'communication' },
   { id: 'notifications', label: 'התראות למשרד', icon: 'bell' },
   { id: 'paperless', label: 'פייפרלס ותקשורת', icon: 'mailCog' },
+  { id: 'clientDocs', label: 'מסמכים ללקוחות', icon: 'fileUpload' },
   { id: 'emailActivity', label: 'פעילות מייל', icon: 'emailActivity' },
   { id: 'quotations', label: 'הצעות מחיר', icon: 'quotations' },
 ];
@@ -614,6 +616,10 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
             <PaperlessCommSection profile={draft} onChangeProfile={setDraft} />
           )}
 
+          {section === 'clientDocs' && (
+            <ClientGuideSection profile={draft} onChangeProfile={setDraft} />
+          )}
+
           {section === 'emailActivity' && (
             <div style={card}><EmailActivityModule userId={profile.id} /></div>
           )}
@@ -635,6 +641,92 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 
         </div>
       </div>
+    </div>
+  );
+}
+
+// ───────────────────────── מסמכים ללקוחות ─────────────────────────
+// ‼ קובץ אחד לכל הלקוחות, לא מסמך בתיק. הוא נשלח כבקשה מלשונית «בקשות»
+// של הלקוח; כאן רק קובעים מה הקובץ הפעיל.
+//
+// ‼ הגרסה הקודמת אינה נמחקת מה-Storage. הבקשות נפתרות לקובץ העדכני, ולכן
+// ההיסטוריה היא מה שמאפשר לדעת מה בדיוק לקוח פתח בתאריך שרשום על הבקשה שלו.
+
+function ClientGuideSection({ profile, onChangeProfile }: { profile: FirmProfile; onChangeProfile: (p: FirmProfile) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const guide = currentGuide(profile);
+
+  async function upload(file: File) {
+    setErr(null);
+    if (file.type !== 'application/pdf') { setErr('אפשר להעלות PDF בלבד.'); return; }
+    if (file.size > 10 * 1024 * 1024) { setErr('הקובץ גדול מדי — עד 10MB.'); return; }
+    setBusy(true);
+    try {
+      // ‼ שם ייחודי לכל העלאה, בלי upsert: הגרסה הקודמת נשארת במקומה, וגם
+      // מדיניות הדלי חוסמת upsert (אותו לקח כמו בלוגו).
+      const path = `${profile.id}/expenses-guide-${Date.now()}.pdf`;
+      const { error: upErr } = await supabase.storage
+        .from(GUIDE_BUCKET).upload(path, file, { contentType: 'application/pdf' });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from(GUIDE_BUCKET).getPublicUrl(path);
+      onChangeProfile({
+        ...profile,
+        settings: withNewGuide(profile, {
+          path, url: pub.publicUrl,
+          fileName: file.name || 'expenses-guide.pdf',
+          at: new Date().toISOString(),
+        }),
+      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={card}>
+      <div style={cardTitle}>{EXPENSES_GUIDE_TITLE}</div>
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14, lineHeight: 1.6 }}>
+        קובץ אחד שמשותף לכל הלקוחות. שולחים אותו ללקוח מלשונית «בקשות» שלו — הבקשה
+        נסגרת לבד ברגע שהוא פותח את המדריך.
+      </div>
+
+      {guide ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          padding: '10px 12px', border: '1px solid var(--hairline-1)', borderRadius: 8,
+        }}>
+          <span aria-hidden="true" style={{ fontSize: 20 }}>📄</span>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <a href={guide.url} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 'var(--fs-14)', color: 'var(--accent)' }}>{guide.fileName}</a>
+            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2 }}>
+              הועלה {new Date(guide.at).toLocaleDateString('he-IL')}
+              {guide.history?.length ? ` · ${guide.history.length} גרסאות קודמות נשמרו` : ''}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-600)', padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8 }}>
+          עדיין לא הועלה מדריך. עד שיועלה — אי אפשר לשלוח את הבקשה ללקוחות.
+        </div>
+      )}
+
+      <label style={{ display: 'inline-block', marginTop: 12 }}>
+        <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={busy}
+          onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
+        <span className="btn btn-secondary" style={{ cursor: busy ? 'default' : 'pointer', opacity: busy ? .6 : 1 }}>
+          {busy ? 'מעלה…' : guide ? 'החלפת הקובץ' : 'העלאת מדריך'}
+        </span>
+      </label>
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 8 }}>
+        PDF עד 10MB. ‼ החלפה משנה מיד את מה שייפתח בכל הבקשות — גם אלה שכבר נשלחו.
+        לשמירה יש ללחוץ «שמור» למעלה.
+      </div>
+
+      {err && <div style={{ marginTop: 10, color: 'var(--danger, var(--err))', fontSize: 'var(--fs-13)' }}>{err}</div>}
     </div>
   );
 }
