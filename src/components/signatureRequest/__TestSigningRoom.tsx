@@ -6,7 +6,10 @@ import { SignatureField, SignatureValue, Signer } from '../../types';
 import SigningRoom from './SigningRoom';
 import { burnSignaturesIntoPdf } from '../../utils/signaturePdf';
 
-const TEMPLATE_URL = '/templates/poa_2279a5.pdf';
+// ברירת המחדל היא טופס 2279 (PDF טקסטואלי). אפשר להצביע על קובץ אחר עם ?pdf=…
+// כדי לבדוק מסמכים סרוקים (פקס/G4, JBIG2) שדורשים את מפענחי ה-WebAssembly.
+const TEMPLATE_URL =
+  new URLSearchParams(location.search).get('pdf') || '/templates/poa_2279a5.pdf';
 
 const SIGNERS: Signer[] = [
   { id: 'client', source: 'client_self', name: 'רותי לקוח', email: 'ruti@example.com', order: 1 },

@@ -11,6 +11,10 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 const CMAP_URL = '/cmaps/';
 const STANDARD_FONTS_URL = '/standard_fonts/';
+// מסמכים סרוקים (פקס/G4, JBIG2, JPEG2000) מפוענחים ב-pdfjs 5.x דרך WebAssembly.
+// בלי הנתיב הזה כל סריקה מוצגת כדף לבן לגמרי — בלי שגיאה, רק בלי תוכן.
+const WASM_URL = '/wasm/';
+const ICC_URL = '/iccs/';
 
 export type PdfDocument = pdfjsLib.PDFDocumentProxy;
 
@@ -37,6 +41,8 @@ export async function loadPdf(data: ArrayBuffer | Uint8Array): Promise<LoadedPdf
     cMapUrl: CMAP_URL,
     cMapPacked: true,
     standardFontDataUrl: STANDARD_FONTS_URL,
+    wasmUrl: WASM_URL,
+    iccUrl: ICC_URL,
   }).promise;
 
   const pages: PdfPageDims[] = [];
