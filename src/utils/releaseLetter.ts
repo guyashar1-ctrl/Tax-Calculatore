@@ -8,6 +8,9 @@ import fontkit from '@pdf-lib/fontkit';
 import { embedPdfFonts, layoutMixed, measureMixed } from './pdfHebrew';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
 import { esc, emailFont, emailHeaderRow } from './brandedEmail';
+import {
+  ADDITIONAL_MATERIAL_KEY, ADDITIONAL_MATERIAL_LABEL, isOptionalMaterialKey,
+} from '../types/onboarding';
 
 export interface ReleaseContext {
   clientName: string;
@@ -20,7 +23,17 @@ export interface ReleaseMaterial {
   key: string;
   label: string;
   checked: boolean;
+  /**
+   * פריט רשות — הרו"ח הקודם מעלה אליו מה שלדעתו צריך לעבור, ואי-העלאה אינה
+   * חוסרת. ‼ אינו נספר בהתקדמות ואינו חוסם את השלמת קבלת החומרים (לא במסך
+   * ולא ב-portal-upload-document), אחרת "לפי שיקול דעתך" היה הופך לדרישה.
+   */
+  optional?: boolean;
 }
+
+// המפתח והתווית של הפריט הפתוח חיים ב-types/onboarding.ts (מקור אחד), ומיוצאים
+// גם מכאן כדי שמי שמרכיב את המכתב לא יצטרך לדעת משני מקומות.
+export { ADDITIONAL_MATERIAL_KEY, ADDITIONAL_MATERIAL_LABEL, isOptionalMaterialKey };
 
 /** ברירת המחדל — הרשימה שגיא מבקש בפועל. כרטסות ראשונות כי הן העיקר. */
 export const RELEASE_MATERIALS: ReleaseMaterial[] = [
@@ -32,6 +45,7 @@ export const RELEASE_MATERIALS: ReleaseMaterial[] = [
   { key: 'capital_declaration', label: 'הצהרת הון אחרונה', checked: true },
   { key: 'pnl_current', label: 'כרטסת רווח והפסד לשנה השוטפת', checked: true },
   { key: 'trial_balance', label: 'מאזן בוחן', checked: false },
+  { key: ADDITIONAL_MATERIAL_KEY, label: ADDITIONAL_MATERIAL_LABEL, checked: true, optional: true },
 ];
 
 export interface ReleaseOptions {
@@ -60,7 +74,8 @@ function formatHebrewDate(iso: string): string {
 export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: ReleaseOptions): string {
   const to = ctx.prevAccountantName?.trim() ? ctx.prevAccountantName.trim() : 'רו״ח הנכבד';
   const who = ctx.businessName?.trim() ? `${ctx.clientName} (${ctx.businessName})` : ctx.clientName;
-  const picked = opts.materials.filter(m => m.checked);
+  const picked = opts.materials.filter(m => m.checked && !m.optional);
+  const openItem = opts.materials.find(m => m.checked && m.optional);
 
   const lines: string[] = [
     `לכבוד ${to},`,
@@ -75,7 +90,12 @@ export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: 
   if (picked.length) {
     lines.push('נודה לקבלת החומרים הבאים:');
     picked.forEach(m => lines.push(`• ${m.label}`));
-    lines.push('• כל מסמך נוסף הדרוש להמשך הייצוג');
+    lines.push('');
+  }
+
+  // ‼ בקשה פתוחה, לא פריט ברשימה: אנחנו לא יודעים מה עוד קיים אצלו, והוא כן.
+  if (openItem) {
+    lines.push('אם יש בידיך חומר נוסף שלדעתך נכון שיעבור אלינו — נשמח לקבל גם אותו.');
     lines.push('');
   }
 
@@ -106,6 +126,111 @@ export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: 
   );
 
   return lines.join('\n');
+}
+
+// ─── הטיוטה ──────────────────────────────────────────────────────────────────
+// ‼ הטיוטה חיה על שלב מכתב השחרור (payload.releaseDraft) ולא בזיכרון החלון:
+// עד היום כל מה שהורכב נמחק ברגע שסגרו את החלון בלי לשלוח, ולכן אי אפשר היה
+// להראות בכרטיס מה בדיוק עומדים לבקש. אותה צורה נקראת בכרטיס ובחלון.
+
+export interface ReleaseDraft {
+  materials: ReleaseMaterial[];
+  serviceEndDate: string;
+  paidThroughLabel: string;
+  outstanding: string;
+  ccClient: boolean;
+  subject: string;
+  body: string;
+  /** הרו"ח נגע בנוסח ⇒ המערכת מפסיקה לבנות אותו מחדש מהשדות. */
+  bodyEdited: boolean;
+}
+
+/** שורה שנקראה מהמסד — כל שדה עשוי להיות חסר או מטיפוס אחר. */
+export function materialsFromStored(raw: unknown): ReleaseMaterial[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: ReleaseMaterial[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    const key = String(r.key ?? '').trim();
+    if (!key) continue;
+    out.push({
+      key,
+      label: String(r.label ?? '').trim(),
+      checked: r.checked === undefined ? true : !!r.checked,
+      ...(r.optional || isOptionalMaterialKey(key) ? { optional: true } : {}),
+    });
+  }
+  return out.length ? out : null;
+}
+
+export function newReleaseDraft(ctx: ReleaseContext, firmName: string, todayISO: string): ReleaseDraft {
+  const materials = RELEASE_MATERIALS.map(m => ({ ...m }));
+  return {
+    materials,
+    serviceEndDate: todayISO,
+    paidThroughLabel: '',
+    outstanding: '',
+    ccClient: true,
+    subject: defaultReleaseSubject(ctx),
+    body: defaultReleaseBody(ctx, firmName, { serviceEndDate: todayISO, materials }),
+    bodyEdited: false,
+  };
+}
+
+/** קריאת הטיוטה מה-payload של השלב, עם נפילה לברירת המחדל בכל שדה חסר. */
+export function readReleaseDraft(
+  stored: unknown, ctx: ReleaseContext, firmName: string, todayISO: string,
+): ReleaseDraft {
+  const base = newReleaseDraft(ctx, firmName, todayISO);
+  if (!stored || typeof stored !== 'object') return base;
+  const d = stored as Record<string, unknown>;
+  const materials = materialsFromStored(d.materials) ?? base.materials;
+  const serviceEndDate = typeof d.serviceEndDate === 'string' && d.serviceEndDate ? d.serviceEndDate : base.serviceEndDate;
+  const paidThroughLabel = typeof d.paidThroughLabel === 'string' ? d.paidThroughLabel : '';
+  const outstanding = typeof d.outstanding === 'string' ? d.outstanding : '';
+  const bodyEdited = !!d.bodyEdited;
+  const subject = typeof d.subject === 'string' && d.subject.trim() ? d.subject : base.subject;
+  // נוסח שנערך ידנית נשמר כלשונו; נוסח שלא נגעו בו נבנה מחדש מהשדות ששמורים,
+  // כדי שפריט שנוסף בכרטיס יופיע במכתב בלי שיצטרכו לפתוח אותו.
+  const body = bodyEdited && typeof d.body === 'string' && d.body.trim()
+    ? d.body
+    : defaultReleaseBody(ctx, firmName, {
+        serviceEndDate, materials,
+        paidThroughLabel,
+        outstanding: outstanding.split('\n').filter(t => t.trim()),
+      });
+  return {
+    materials, serviceEndDate, paidThroughLabel, outstanding,
+    ccClient: d.ccClient === undefined ? true : !!d.ccClient,
+    subject, body, bodyEdited,
+  };
+}
+
+/**
+ * מייל המשך — פריטים שנוספו אחרי שהמכתב כבר נשלח. לא מכתב שחרור שני: אותו
+ * קישור, אותו תיק, רק תוספת לרשימה.
+ */
+export function followUpBody(
+  ctx: ReleaseContext, firmName: string, items: string[], link?: string,
+): string {
+  const to = ctx.prevAccountantName?.trim() ? ctx.prevAccountantName.trim() : 'רו״ח הנכבד';
+  const lines: string[] = [
+    `לכבוד ${to},`,
+    '',
+    `בהמשך למכתב השחרור בעניין ${ctx.clientName}, נבקש להוסיף לרשימת החומרים:`,
+    ...items.map(t => `• ${t}`),
+    '',
+  ];
+  if (link) {
+    lines.push('אפשר להעלות באותו קישור שנשלח:', link, '');
+  }
+  lines.push('תודה,', firmName);
+  return lines.join('\n');
+}
+
+export function followUpSubject(ctx: ReleaseContext): string {
+  return `תוספת לבקשת החומרים — ${ctx.clientName}`;
 }
 
 // HTML ממותג לשליחה בפועל — נגזר במלואו מטוקני העיצוב (אותה שפה של כל המיילים).

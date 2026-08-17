@@ -3126,3 +3126,82 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .jt-alert-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--ink-4); }
 .jt-alert-dot[data-level="warning"] { background: var(--warn); }
 .jt-alert-dot[data-level="danger"] { background: var(--err); }
+
+/* ── מסלול הרו״ח הקודם — הכרטיס שמנהל את ההעברה ─────────────────────────────
+   ‼ גלוי בלי לחיצה (JourneyRow · always): מי הרו"ח הקודם ומה מבקשים ממנו הם
+   הבקשה עצמה, לא פרטים שנפתחים. שקט: בלי מסגרות פנימיות ובלי צבע שאינו אומר
+   משהו — הפרדה בקווי שיער בלבד, כמו בשאר הכרטיסים. */
+.ob-hand { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+.ob-hand-block {
+  border-top: 1px solid var(--hairline-2); padding-top: 10px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.ob-hand-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ob-hand-title { font-size: var(--fs-12); font-weight: 700; color: var(--ink-3); }
+.ob-hand-count { font-size: 11px; color: var(--ink-4); }
+.ob-hand-link {
+  appearance: none; border: 0; background: none; padding: 0; font: inherit;
+  font-size: var(--fs-12); font-weight: 600; color: var(--accent); cursor: pointer;
+  min-height: 28px; text-align: start;
+}
+.ob-hand-link:hover:not(:disabled) { text-decoration: underline; }
+.ob-hand-link:disabled { color: var(--ink-4); cursor: default; }
+.ob-hand-head .ob-hand-link { margin-inline-start: auto; }
+
+.ob-hand-contact {
+  display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline;
+  font-size: var(--fs-13); color: var(--ink-2); line-height: 1.6;
+}
+.ob-hand-contact strong { color: var(--ink-1); font-weight: 700; }
+
+.ob-hand-form { display: flex; flex-direction: column; gap: 6px; max-width: 22rem; }
+.ob-hand-form input {
+  width: 100%; font: inherit; font-size: var(--fs-13);
+  padding: 6px 9px; border: 1px solid var(--bd); border-radius: 8px;
+  background: var(--card); color: var(--ink-1);
+}
+
+.ob-hand-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ob-hand-item {
+  display: flex; align-items: center; gap: 7px; min-height: 30px;
+  font-size: var(--fs-13); color: var(--ink-1); line-height: 1.5;
+}
+.ob-hand-item.is-done .ob-hand-label { color: var(--ink-4); text-decoration: line-through; }
+.ob-hand-mark { color: var(--ink-4); flex: 0 0 auto; font-size: 12px; }
+.ob-hand-item.is-done .ob-hand-mark { color: var(--ok, #187a53); }
+/* ‼ min-width:0 + break-word — שם פריט ארוך גולש לשורה ולא דוחף את הכפתורים. */
+.ob-hand-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ob-hand-item input {
+  flex: 1; min-width: 0; font: inherit; font-size: var(--fs-13);
+  padding: 4px 8px; border: 1px solid var(--bd); border-radius: 7px;
+  background: var(--card); color: var(--ink-1);
+}
+.ob-hand-tag {
+  flex: 0 0 auto; font-size: 10.5px; font-weight: 700; color: var(--ink-4);
+  background: var(--surface-2); border-radius: 999px; padding: 2px 7px; white-space: nowrap;
+}
+.ob-hand-tag.is-new { color: var(--warn); background: var(--warn-bg, #fbf3e3); }
+/* פקדי השורה — דהויים במנוחה, מתעוררים בריחוף או במיקוד מקלדת. */
+.ob-hand-rowbtns { display: flex; gap: 2px; flex: 0 0 auto; opacity: .35; transition: opacity .15s ease; }
+.ob-hand-item:hover .ob-hand-rowbtns,
+.ob-hand-rowbtns:focus-within { opacity: 1; }
+.ob-hand-rowbtns button {
+  appearance: none; border: 0; background: none; cursor: pointer;
+  color: var(--ink-3); font: inherit; font-size: 13px; line-height: 1;
+  padding: 4px 6px; border-radius: 6px; min-height: auto;
+}
+.ob-hand-rowbtns button:hover:not(:disabled) { background: var(--surface-2); color: var(--ink-1); }
+
+.ob-hand-warn { font-size: var(--fs-12); color: var(--warn); line-height: 1.6; }
+.ob-hand-ok { font-size: var(--fs-13); color: var(--ok, #187a53); font-weight: 600; }
+.ob-hand-note {
+  font-size: var(--fs-13); color: var(--ink-2); line-height: 1.65;
+  background: var(--surface-2); border-radius: 10px; padding: 9px 11px;
+}
+.ob-hand-note.is-attention { background: var(--warn-bg, #fbf3e3); color: var(--ink-1); }
+.ob-hand-actions { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 2px; }
+
+@media (max-width: 640px) {
+  .ob-hand-form { max-width: none; }
+  .ob-hand-rowbtns { opacity: 1; }
+}

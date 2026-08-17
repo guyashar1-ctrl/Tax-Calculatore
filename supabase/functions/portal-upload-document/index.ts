@@ -116,6 +116,10 @@ Deno.serve(async (req: Request) => {
     const idx = list.findIndex((x) => x?.key === itemKey);
     if (idx < 0) return json({ error: "item_not_found" }, 404);
     const itemKind = String(list[idx]?.kind ?? "");
+    // ‼ "חומר נוסף לפי שיקול דעתך" — פריט רשות: אינו נסגר בהעלאה הראשונה
+    // (אפשר להוסיף עוד), ואינו נספר במה שחסר. אחרת בקשה פתוחה הייתה הופכת
+    // לדרישה שחוסמת את סגירת קבלת החומרים.
+    const isOptionalItem = list[idx]?.optional === true || itemKey === "additional_material";
     if (step.step_type === "custom_request" && itemKind !== "file" && itemKind !== "files") {
       return json({ error: "item_not_a_file" }, 400);
     }
@@ -169,13 +173,22 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── סימון הפריט ועדכון השלב ──────────────────────────────────────────────
-    list[idx] = itemKind === "files"
+    list[idx] = isOptionalItem
+      ? {
+        ...list[idx],
+        documentIds: [...priorIds, docId],
+        lastUploadAt: new Date().toISOString(),
+      }
+      : itemKind === "files"
       ? { ...list[idx], done: true, documentIds: [...priorIds, docId], doneAt: new Date().toISOString() }
       : { ...list[idx], done: true, documentId: docId, doneAt: new Date().toISOString() };
     // ‼ ההשלמה נספרת לפי דרישות חובה בלבד (בבקשה חופשית); פריט רשות פתוח
-    // לעולם לא חוסם (הכרעת גיא, 6+7). צ'קליסט מסמכים — כל הפריטים חובה.
+    // לעולם לא חוסם (הכרעת גיא, 6+7). צ'קליסט מסמכים — כל הפריטים חובה,
+    // למעט הפריט הפתוח של הרו"ח הקודם (optional).
     const remaining = list.filter((x) =>
-      !x?.done && (listKey === "checklist" || x?.required !== false)).length;
+      !x?.done
+      && !(x?.optional === true || x?.key === "additional_material")
+      && (listKey === "checklist" || x?.required !== false)).length;
 
     const patch: Record<string, unknown> = { payload: { ...payload, [listKey]: list } };
     if (remaining === 0) {

@@ -100,6 +100,15 @@ export const ACCOUNTANT_NOTIFICATIONS: AccountantNotificationDef[] = [
     defaultOn: false,
   },
   {
+    kind: 'release_letter_objection',
+    // ‼ ברירת מחדל דלוקה, בשונה משאר ההתראות של המסלול: הסתייגות היא הדבר
+    // היחיד כאן שמחייב תשובה, וגילוי מאוחר שלה עולה זמן ולקוח.
+    label: 'רו״ח קודם השיב או הסתייג',
+    hint: 'הערה שהרו״ח הקודם כתב בדף השחרור — הסתייגות, חוב פתוח או כל דבר שצריך לדעת.',
+    group: 'הרו״ח הקודם',
+    defaultOn: true,
+  },
+  {
     kind: 'prev_accountant_document_uploaded',
     label: 'רו״ח קודם העלה מסמכים',
     hint: 'מייל על כל חומר שהרו״ח הקודם מעלה בדף השחרור.',

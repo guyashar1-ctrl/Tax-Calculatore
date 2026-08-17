@@ -401,8 +401,12 @@ export default function QuotationsPipeline({
                                   ) : (
                                     <button className="btn btn-sm btn-green" onClick={() => onConvert(q)}>הפוך ללקוח והתחל ייצוג ←</button>
                                   )}
+                                  {/* ‼ הכפתור מנווט למסלול הרו״ח הקודם בכרטיס הלקוח, ולא פותח
+                                      חלון מכתב משלו: מכתב שנשלח מכאן יצא בלי שלב ובלי קישור
+                                      תשובה, כלומר בלי הדרך היחידה של הרו״ח הקודם להגיב. */}
                                   {converted && hasPrevAccountant(q) && (
-                                    <button className="btn btn-sm btn-secondary" style={{ marginInlineStart: 6 }} onClick={() => onRelease(q)}>מכתב שחרור</button>
+                                    <button className="btn btn-sm btn-secondary" style={{ marginInlineStart: 6 }}
+                                      onClick={() => onRelease(q)}>רו״ח קודם ←</button>
                                   )}
                                 </>
                               )}

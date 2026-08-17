@@ -44,7 +44,7 @@ import QuotationsPipeline from './components/quotations/QuotationsPipeline';
 import LeadsPanel, { LeadForm } from './components/quotations/LeadsPanel';
 import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
 import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
-import { RELEASE_MATERIALS } from './utils/releaseLetter';
+import { RELEASE_MATERIALS, readReleaseDraft } from './utils/releaseLetter';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
 import { generateQuotationPdf } from './utils/quotationPdf';
@@ -403,7 +403,14 @@ export default function App() {
   const [remindPreview, setRemindPreview] = useState<{ quotation: Quotation; subject: string; to: string; html: string } | null>(null);
   // מכתב שחרור לרו"ח הקודם. stepId מגיע כשפתחו אותו משלב הקליטה — אחרי
   // שליחה מוצלחת השלב עובר ל"נשלח" והכדור עובר לרו"ח הקודם.
-  const [releaseFor, setReleaseFor] = useState<{ clientId: string; clientName: string; businessName?: string; clientEmail?: string; prevAccountant: { name?: string; email?: string; phone?: string }; stepId?: string } | null>(null);
+  const [releaseFor, setReleaseFor] = useState<{
+    clientId: string; clientName: string; businessName?: string; clientEmail?: string;
+    prevAccountant: { name?: string; email?: string; phone?: string };
+    stepId: string;
+    /** 'follow_up' — פריטים שנוספו אחרי השליחה, על אותו מסלול ואותו קישור. */
+    mode: 'letter' | 'follow_up';
+    followUpItems: { key: string; label: string }[];
+  } | null>(null);
   /** תזכורת שהוכנה לשלב תקוע — נפתחת לעריכה, נשלחת רק בלחיצה. */
   const [taskModalState, setTaskModalState] = useState<{ task: Task | null; presetClientId?: string | null } | null>(null);
   const [showNewPerson, setShowNewPerson] = useState(false);
@@ -1469,15 +1476,24 @@ export default function App() {
   }
 
   /**
-   * פתיחת מכתב שחרור לרו"ח קודם.
+   * פתיחת מכתב שחרור לרו"ח קודם — תמיד מתוך שלב מכתב השחרור של הלקוח.
+   * ‼ stepId חובה: בלעדיו לא נטבע טוקן, והמכתב היה יוצא בלי הדרך היחידה לענות
+   * עליו (דף הרו"ח הקודם). היה נתיב כזה מהפייפליין — הוא נותב לכרטיס הלקוח.
    * ‼ הפרטים נקראים מכרטיס הלקוח, והליד הוא רק גיבוי לרשומות ישנות שטרם
    * הועתקו: מכתב השחרור שייך לאדם, ולכן מחיקת הליד אחרי ההמרה לא מבטלת אותו.
    */
-  function openReleaseLetter(clientId: string, opts: { stepId?: string; lead?: Lead } = {}) {
+  function openReleaseLetter(clientId: string, stepId: string, mode: 'letter' | 'follow_up' = 'letter') {
     const client = clients.find(c => c.id === clientId);
-    const lead = opts.lead ?? leads.find(l => l.convertedClientId === clientId);
+    const lead = leads.find(l => l.convertedClientId === clientId);
     if (!client && !lead) return;
+    const materialsStep = onboarding.steps.find(
+      s => s.clientId === clientId && s.stepType === 'materials_received' && s.status !== 'cancelled');
+    const followUpItems = (materialsStep?.payload.checklist ?? [])
+      .filter(i => i.addedAfterSend && !i.notifiedAt)
+      .map(i => ({ key: i.key, label: i.label }));
     setReleaseFor({
+      mode,
+      followUpItems,
       clientId,
       clientName: client ? `${client.firstName} ${client.lastName}`.trim() : (lead?.fullName ?? ''),
       businessName: client?.businessName || lead?.businessName,
@@ -1487,7 +1503,7 @@ export default function App() {
         email: client?.prevAccountantEmail || lead?.prevAccountantEmail,
         phone: client?.prevAccountantPhone || lead?.prevAccountantPhone,
       },
-      stepId: opts.stepId,
+      stepId,
     });
   }
 
@@ -1504,28 +1520,55 @@ export default function App() {
   function syncRequestedMaterials(
     clientId: string,
     materialKeys: string[],
-    sentMaterials?: { key: string; label: string }[],
+    sentMaterials?: { key: string; label: string; optional?: boolean }[],
   ) {
     const step = onboarding.steps.find(
       s => s.clientId === clientId && s.stepType === 'materials_received' && s.status !== 'cancelled');
     if (!step || materialKeys.length === 0) return;
-    const wasDone = new Map((step.payload?.checklist ?? []).map(i => [i.key, i.done]));
+    const prev = new Map((step.payload?.checklist ?? []).map(i => [i.key, i]));
     const source = sentMaterials?.length
       ? sentMaterials
       : RELEASE_MATERIALS.filter(m => materialKeys.includes(m.key));
-    const checklist = source
-      .map(m => ({ key: m.key, label: m.label, done: wasDone.get(m.key) ?? false }));
+    // ‼ מה שכבר התקבל אינו מתאפס: פריט שהיה בצ'קליסט שומר על מצבו ועל המסמכים
+    // שהצטברו אליו, גם כשהמכתב נשלח שוב.
+    const checklist = source.map(m => {
+      const was = prev.get(m.key);
+      return {
+        ...(was ?? {}),
+        key: m.key,
+        label: m.label,
+        done: m.optional ? false : (was?.done ?? false),
+        ...(m.optional ? { optional: true } : {}),
+      };
+    });
     void onboarding.advance(step.id, 'note', {
       checklist,
       note: `רשימת החומרים עודכנה לפי המכתב שנשלח (${checklist.length} פריטים)`,
     });
   }
 
+  /** סימון שהפריטים שנוספו אחרי השליחה נמסרו לרו"ח הקודם — כדי שההתראה תיעלם. */
+  function markFollowUpNotified(clientId: string, keys: string[], atIso: string) {
+    const step = onboarding.steps.find(
+      s => s.clientId === clientId && s.stepType === 'materials_received' && s.status !== 'cancelled');
+    if (!step || keys.length === 0) return;
+    const checklist = (step.payload.checklist ?? []).map(i =>
+      keys.includes(i.key) ? { ...i, notifiedAt: atIso } : i);
+    void onboarding.advance(step.id, 'note', { checklist });
+  }
+
+  /**
+   * "רו״ח קודם" בפייפליין ההצעות — מנווט לכרטיס הלקוח, ללשונית הבקשות, ששם
+   * חי מסלול הרו"ח הקודם כולו. ‼ עד כה הכפתור פתח את חלון המכתב ישירות, בלי
+   * שלב — ואז יצא מכתב בלי קישור תשובה. אין יותר שני מסלולים.
+   */
   function handleReleaseLetter(q: Quotation) {
     const lead = q.leadId ? leads.find(l => l.id === q.leadId) : undefined;
     const clientId = lead?.convertedClientId || q.clientId;
     if (!clientId) return;
-    openReleaseLetter(clientId, { lead });
+    setClientInitialTab(journeyUi ? 'journey' : 'onboarding');
+    setSelectedId(clientId);
+    setView('form');
   }
 
   /**
@@ -1942,7 +1985,7 @@ export default function App() {
             onboardingLoading={onboarding.loading}
             advanceOnboardingStep={onboarding.advance}
             refreshOnboarding={onboarding.refresh}
-            onOpenReleaseLetter={(clientId, stepId) => openReleaseLetter(clientId, { stepId })}
+            onOpenReleaseLetter={(clientId, stepId, mode) => openReleaseLetter(clientId, stepId, mode)}
             onOpenRepresentation={handleOpenClientRepresentation}
             journeyUi={journeyUi}
             quotations={quotations}
@@ -2240,40 +2283,77 @@ export default function App() {
         />
       )}
 
-      {releaseFor && (
+      {releaseFor && (() => {
+        const step = onboarding.steps.find(s => s.id === releaseFor.stepId);
+        const ctx = {
+          clientName: releaseFor.clientName,
+          businessName: releaseFor.businessName,
+          prevAccountantName: releaseFor.prevAccountant.name,
+        };
+        const brand = deriveQuotationBrand(firmProfile);
+        return (
         <ReleaseLetterDialog
           clientId={releaseFor.clientId}
           clientName={releaseFor.clientName}
           businessName={releaseFor.businessName}
           clientEmail={releaseFor.clientEmail}
           prevAccountant={releaseFor.prevAccountant}
-          brand={deriveQuotationBrand(firmProfile)}
+          brand={brand}
           stepId={releaseFor.stepId}
-          onSent={({ materialKeys, objectionDueDate, subject, body, materials }) => {
+          mode={releaseFor.mode}
+          followUpItems={releaseFor.followUpItems}
+          draft={readReleaseDraft(
+            step?.payload.releaseDraft, ctx, brand.firmName, new Date().toISOString().slice(0, 10))}
+          onSaveDraft={d => void onboarding.advance(releaseFor.stepId, 'note', { releaseDraft: d })}
+          onSent={({ materialKeys, objectionDueDate, subject, body, materials, to, draft }) => {
             const stepId = releaseFor.stepId;
-            if (stepId) {
-              // ‼ תאריך היעד הוא חלון ההתנגדות, לא מועד קבלת החומרים.
-              // עברו שלושת ימי העסקים בלי תשובה — אין התנגדות, וממשיכים.
-              // שלושת הימים הם כלל עבודה פנימי של המשרד, לא חוק או תקנה.
-              void onboarding.advance(stepId, 'wait_client', {
-                ball: 'prev_accountant',
-                dueDate: objectionDueDate,
-                note: 'מכתב השחרור נשלח לרו״ח הקודם · הלקוח מכותב',
-                objectionDueDate,
-                requestedMaterials: materialKeys,
-                // הנוסח שנשלח בפועל — דף הרו"ח הקודם מציג אותו, לא נוסח שנבנה מחדש.
-                releaseSubject: subject,
-                releaseBody: body,
-                releaseSentAt: new Date().toISOString(),
+            const nowIso = new Date().toISOString();
+            const history = [
+              ...(step?.payload.releaseHistory ?? []),
+              {
+                at: nowIso, to: to ?? '', subject: subject ?? '',
+                kind: releaseFor.mode === 'follow_up' ? ('follow_up' as const) : ('letter' as const),
+                ...(releaseFor.mode === 'follow_up'
+                  ? { items: releaseFor.followUpItems.map(i => i.label) } : {}),
+              },
+            ];
+
+            if (releaseFor.mode === 'follow_up') {
+              // ‼ עדכון המשך אינו מכתב שני: הסטטוס, המכתב המקורי והראיות שלו
+              // נשארים כמו שהם — רק ההיסטוריה גדלה, והפריטים מסומנים כנמסרו.
+              void onboarding.advance(stepId, 'note', {
+                releaseHistory: history,
+                note: `נשלח עדכון לרו״ח הקודם (${releaseFor.followUpItems.length} פריטים)`,
               });
+              markFollowUpNotified(releaseFor.clientId, releaseFor.followUpItems.map(i => i.key), nowIso);
+              return;
             }
+
+            // ‼ תאריך היעד הוא חלון ההתנגדות, לא מועד קבלת החומרים.
+            // עברו שלושת ימי העסקים בלי תשובה — אין התנגדות, וממשיכים.
+            // שלושת הימים הם כלל עבודה פנימי של המשרד, לא חוק או תקנה.
+            void onboarding.advance(stepId, 'wait_client', {
+              ball: 'prev_accountant',
+              dueDate: objectionDueDate,
+              note: 'מכתב השחרור נשלח לרו״ח הקודם · הלקוח מכותב',
+              objectionDueDate,
+              requestedMaterials: materialKeys,
+              // הנוסח שנשלח בפועל — דף הרו"ח הקודם מציג אותו, לא נוסח שנבנה מחדש.
+              releaseSubject: subject,
+              releaseBody: body,
+              releaseSentAt: nowIso,
+              releaseSentTo: to,
+              releaseHistory: history,
+              ...(draft ? { releaseDraft: draft } : {}),
+            });
             // רשימת החומרים שנתבקשו בפועל הופכת לצ'קליסט המעקב — אחרת עוקבים
             // אחרי רשימה גנרית שאינה מה שביקשנו.
             syncRequestedMaterials(releaseFor.clientId, materialKeys, materials);
           }}
           onClose={() => setReleaseFor(null)}
         />
-      )}
+        );
+      })()}
 
       {convertingQuotation && (() => {
         const lead = convertingQuotation.leadId ? leads.find(l => l.id === convertingQuotation.leadId) : undefined;

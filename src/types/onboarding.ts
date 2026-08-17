@@ -205,6 +205,18 @@ export function stepStatusLabel(step: Pick<OnboardingStep, 'status' | 'ball'>): 
 
 export type StepCompletionMethod = 'manual' | 'auto' | 'system';
 
+/**
+ * הפריט הפתוח ברשימת החומרים מהרו"ח הקודם — "מה שלדעתך צריך לעבור אלינו".
+ * ‼ מפתח קבוע: גם הדף הציבורי, גם ספירת ההתקדמות וגם פונקציית ההעלאה מזהים
+ * לפיו שהפריט אינו חוסם. יושב כאן ולא ב-utils/releaseLetter.ts כדי שהדף
+ * הציבורי לא יגרור את pdf-lib רק בשביל מחרוזת.
+ */
+export const ADDITIONAL_MATERIAL_KEY = 'additional_material';
+export const ADDITIONAL_MATERIAL_LABEL = 'חומר נוסף לפי שיקול דעתך';
+
+/** האם הפריט הוא פריט-רשות שאינו נספר בהתקדמות. */
+export const isOptionalMaterialKey = (key: string): boolean => key === ADDITIONAL_MATERIAL_KEY;
+
 /** פריט ברשימת סימון של שלב (קבלת חומרים, הקמה פנימית). */
 export interface StepChecklistItem {
   key: string;
@@ -213,6 +225,19 @@ export interface StepChecklistItem {
   /** נכתב כשהפריט נסגר בהעלאת קובץ מדף ציבורי — ולא בסימון ידני. */
   documentId?: string;
   doneAt?: string;
+  /**
+   * פריט רשות: אינו נספר בהתקדמות ואינו חוסם השלמה — "חומר נוסף לפי שיקול
+   * דעתך" של הרו"ח הקודם. נשאר פתוח להעלאות נוספות גם אחרי הקובץ הראשון.
+   */
+  optional?: boolean;
+  /** כל המסמכים שהצטברו לפריט (פריט רשות מקבל כמה). */
+  documentIds?: string[];
+  /** מתי הועלה הקובץ האחרון — לפריט שנשאר פתוח אין doneAt. */
+  lastUploadAt?: string;
+  /** הפריט נוסף אחרי שהמכתב כבר נשלח (בקשת המשך). */
+  addedAfterSend?: boolean;
+  /** מתי נמסר לרו"ח הקודם שהפריט נוסף. ריק ⇒ הוא עדיין לא עודכן במייל. */
+  notifiedAt?: string;
 }
 
 /** מה נדרש מהלקוח בבקשה חופשית. שילובים מותרים באותה בקשה.
@@ -288,10 +313,31 @@ export interface StepPayload {
   releaseSubject?: string;
   releaseBody?: string;
   releaseSentAt?: string;
+  /** סוף חלון ההתייחסות של הרו"ח הקודם — כלל עבודה של המשרד, לא חוק. */
   objectionDueDate?: string;
+  /** למי נשלח בפועל — הראיה של "לאן הלך המכתב", בנפרד מהכרטיס שיכול להשתנות. */
+  releaseSentTo?: string;
+  /**
+   * הטיוטה שנשמרת לפני השליחה (utils/releaseLetter.ts · ReleaseDraft).
+   * ‼ קיימת גם אחרי שליחה — היא הבסיס לשליחה חוזרת ולעריכה, ומה שנשלח בפועל
+   * שמור בנפרד ב-releaseSubject/releaseBody ואינו נדרס.
+   */
+  releaseDraft?: Record<string, unknown>;
+  /** כל שליחה שיצאה — מכתב ראשון ותוספות. היסטוריה שאינה נמחקת. */
+  releaseHistory?: Array<{
+    at: string; to: string; subject: string;
+    kind: 'letter' | 'follow_up';
+    items?: string[];
+  }>;
   prevAccountantSignature?: string;
   prevAccountantSignedAt?: string;
   prevAccountantSignerName?: string;
+  /** תגובה עניינית של הרו"ח הקודם (הערה, הסתייגות, התנגדות) — ראיה שנשמרת. */
+  prevAccountantResponseNote?: string;
+  prevAccountantRespondedAt?: string;
+  prevAccountantResponderName?: string;
+  /** הרו"ח הנוכחי טיפל בתגובה — מוריד את סימון "דורש טיפול". */
+  responseHandledAt?: string;
   paperlessStatus?: string;
   dataSource?: string;
   softwareName?: string;

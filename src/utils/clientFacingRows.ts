@@ -84,8 +84,10 @@ export function buildClientFacingRows(
 
   const merged = new Set<string>();
   const rows: ClientFacingRow[] = [];
-  const mk = (key: string, kind: ClientRowKind, members: OnboardingStep[]): ClientFacingRow =>
-    ({ key, kind, members, primary: pickPrimary(members), children: [] });
+  const mk = (
+    key: string, kind: ClientRowKind, members: OnboardingStep[], preferred?: OnboardingStep,
+  ): ClientFacingRow =>
+    ({ key, kind, members, primary: preferred ?? pickPrimary(members), children: [] });
 
   const invite = byType.get('paperless_invite');
   const connection = byType.get('paperless_connection');
@@ -101,7 +103,10 @@ export function buildClientFacingRows(
   if (prevDetails || release || materials) {
     const members = [prevDetails, release, materials].filter((s): s is OnboardingStep => !!s);
     members.forEach(s => merged.add(s.id));
-    rows.push(mk('prevAccountant', 'prevAccountant', members));
+    // ‼ מכתב השחרור הוא תמיד פניו של המסלול, גם כשהוא נעול (ממתין לפרטים)
+    // וגם כשהוא כבר נסגר (נחתם) והחומרים עדיין נאספים. הכרטיס שלו הוא
+    // סביבת העבודה של ההעברה כולה — מי, מה מבקשים, מה נשלח ומה חזר.
+    rows.push(mk('prevAccountant', 'prevAccountant', members, release));
   }
 
   for (const s of pool) {

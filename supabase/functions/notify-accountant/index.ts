@@ -385,6 +385,32 @@ async function buildEmail(
     };
   }
 
+  if (kind === "release_letter_objection") {
+    const who = String(p.responderName || p.prevAccountantName || "").trim();
+    const note = String(p.note || "").trim();
+    const rows = [
+      row(brand, "לקוח", name),
+      who ? row(brand, "מי השיב", who) : "",
+    ].join("");
+
+    return {
+      subject: `⚠️ ${name} — הרו״ח הקודם השיב`,
+      html: buildBrandedEmail(brand, {
+        heading: "התקבלה תגובה מהרו״ח הקודם",
+        bodyHtml: esc(who
+          ? `${who} כתב הערה בדף השחרור של ${name}. הכדור חזר אליך.`
+          : `התקבלה הערה בדף השחרור של ${name}. הכדור חזר אליך.`),
+        extraHtml: card(brand, rows) + (note
+          ? `<div style="margin-top:12px;white-space:pre-line;font-size:14px;line-height:1.8;color:${brand.ink};">${esc(note)}</div>`
+          : ""),
+        ctaLabel: "לדף המסע",
+        ctaHref: `${appUrl}/`,
+        ctaArrow: true,
+        footerTagline: "התראה אוטומטית ממערכת הקליטה",
+      }),
+    };
+  }
+
   if (kind === "release_letter_signed") {
     const signer = String(p.signerName || p.prevAccountantName || "").trim();
     const rows = [

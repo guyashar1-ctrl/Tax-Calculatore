@@ -110,7 +110,7 @@ interface Props {
   /** טעינה מחדש של הקליטה — אחרי פעולות שאינן עוברות דרך advance. */
   refreshOnboarding?: () => void;
   /** פתיחת חלון מכתב השחרור לרו"ח הקודם, משלב הקליטה של הלקוח. */
-  onOpenReleaseLetter?: (clientId: string, stepId?: string) => void;
+  onOpenReleaseLetter?: (clientId: string, stepId: string, mode?: 'letter' | 'follow_up') => void;
   /** קפיצה למרכז הייצוג של הלקוח — מהכרטיס, בלי לעבור דרך מסך הלקוחות. */
   onOpenRepresentation?: (clientId: string) => void;
   // ─── דף המסע ───
@@ -656,7 +656,8 @@ export default function ClientWorkspace({
             lead={lead}
             onEditLead={onEditLead}
             onOpenRepresentation={onOpenRepresentation ? () => onOpenRepresentation(client.id) : undefined}
-            onPrepareReleaseLetter={onOpenReleaseLetter ? (stepId) => onOpenReleaseLetter(client.id, stepId) : undefined}
+            onPrepareReleaseLetter={onOpenReleaseLetter
+              ? (stepId, mode) => onOpenReleaseLetter(client.id, stepId, mode) : undefined}
             repStatusLabel={client.representationStatus ? REPRESENTATION_STATUS_LABELS[client.representationStatus] : undefined}
             repStatus={client.representationStatus ?? undefined}
             onPinNote={(note) => update('pinnedNote', note)}
@@ -755,7 +756,7 @@ export default function ClientWorkspace({
               phone: client.prevAccountantPhone,
             }}
             onPrepareReleaseLetter={onOpenReleaseLetter
-              ? (stepId) => onOpenReleaseLetter(client.id, stepId)
+              ? (stepId, mode) => onOpenReleaseLetter(client.id, stepId, mode)
               : undefined}
             repStatusLabel={client.representationStatus
               ? `בקשת ייצוג · ${REPRESENTATION_STATUS_LABELS[status]}`

@@ -16,10 +16,10 @@ import { supabase } from '../../lib/supabase';
 import { edgeFunctionError } from '../../utils/functionError';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { QuotationBrand } from './quotationBranding';
-import type { ReleaseMaterial } from '../../utils/releaseLetter';
+import type { ReleaseDraft, ReleaseMaterial } from '../../utils/releaseLetter';
 import {
   RELEASE_MATERIALS, defaultReleaseSubject, defaultReleaseBody,
-  buildReleaseEmailHtml, generateReleaseEmailPdf,
+  buildReleaseEmailHtml, generateReleaseEmailPdf, followUpBody, followUpSubject,
 } from '../../utils/releaseLetter';
 
 interface Props {
@@ -34,12 +34,24 @@ interface Props {
     materialKeys: string[]; objectionDueDate: string;
     /** הפריטים שנשלחו בפועל, עם הניסוח הסופי — כולל פריטים שהמשרד הוסיף
      *  או ניסח מחדש. צ'קליסט המעקב נבנה מהם, ולא מהרשימה הקבועה. */
-    materials?: { key: string; label: string }[];
+    materials?: { key: string; label: string; optional?: boolean }[];
     /** הנוסח הסופי והטוקן — כדי שדף הרו"ח הקודם יציג בדיוק את מה שנשלח. */
     subject?: string; body?: string; releaseToken?: string;
+    /** הנמען בפועל, והטיוטה כפי שהייתה ברגע השליחה. */
+    to?: string; draft?: ReleaseDraft;
   }) => void;
   /** שלב מכתב השחרור. קיים ⇒ נטבע טוקן ולמכתב יתווסף קישור לדף החתימה. */
   stepId?: string;
+  /** הטיוטה השמורה על השלב — מה שנערך בכרטיס נפתח כאן, ולהפך. */
+  draft?: ReleaseDraft;
+  /**
+   * 'follow_up' — פריטים שנוספו אחרי שהמכתב כבר יצא. אותו מסלול, אותו קישור,
+   * אותה ראיה במסמכי הלקוח; מה שנשלח במקור אינו נדרס.
+   */
+  mode?: 'letter' | 'follow_up';
+  followUpItems?: { key: string; label: string }[];
+  /** נקרא בסגירה ובשליחה — הטיוטה נשמרת על השלב ולא נמחקת עם החלון. */
+  onSaveDraft?: (draft: ReleaseDraft) => void;
   onClose: () => void;
 }
 
@@ -62,16 +74,19 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function ReleaseLetterDialog({
   clientId, clientName, businessName, clientEmail, prevAccountant, brand, onSent, onClose, stepId,
+  draft, onSaveDraft, mode = 'letter', followUpItems = [],
 }: Props) {
+  const followUp = mode === 'follow_up';
   const { saveDoc } = useDocumentStore();
   const ctx = { clientName, businessName, prevAccountantName: prevAccountant.name };
 
   const [toEmail, setToEmail] = useState(prevAccountant.email ?? '');
-  const [ccClient, setCcClient] = useState(true);
-  const [serviceEndDate, setServiceEndDate] = useState(todayISO());
-  const [materials, setMaterials] = useState<ReleaseMaterial[]>(RELEASE_MATERIALS.map(m => ({ ...m })));
-  const [paidThrough, setPaidThrough] = useState('');
-  const [outstanding, setOutstanding] = useState('');
+  const [ccClient, setCcClient] = useState(draft?.ccClient ?? true);
+  const [serviceEndDate, setServiceEndDate] = useState(draft?.serviceEndDate || todayISO());
+  const [materials, setMaterials] = useState<ReleaseMaterial[]>(
+    (draft?.materials ?? RELEASE_MATERIALS).map(m => ({ ...m })));
+  const [paidThrough, setPaidThrough] = useState(draft?.paidThroughLabel ?? '');
+  const [outstanding, setOutstanding] = useState(draft?.outstanding ?? '');
 
   const compose = (o?: Partial<{
     serviceEndDate: string; materials: ReleaseMaterial[]; paidThrough: string; outstanding: string;
@@ -82,10 +97,13 @@ export default function ReleaseLetterDialog({
     outstanding: (o?.outstanding ?? outstanding).split('\n').filter(t => t.trim()),
   });
 
-  const [subject, setSubject] = useState(defaultReleaseSubject(ctx));
-  const [body, setBody] = useState(() => compose());
+  const [subject, setSubject] = useState(
+    followUp ? followUpSubject(ctx) : (draft?.subject || defaultReleaseSubject(ctx)));
+  const [body, setBody] = useState(() => followUp
+    ? followUpBody(ctx, brand.firmName, followUpItems.map(i => i.label))
+    : (draft?.body || compose()));
   // ברגע שהרו"ח נגע בנוסח, המערכת מפסיקה לדרוס אותו. יש כפתור לבנות מחדש.
-  const [edited, setEdited] = useState(false);
+  const [edited, setEdited] = useState(followUp ? true : (draft?.bodyEdited ?? false));
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [done, setDone] = useState(false);
@@ -95,6 +113,20 @@ export default function ReleaseLetterDialog({
 
   function sync(next: Parameters<typeof compose>[0]) {
     if (!edited) setBody(compose(next));
+  }
+
+  /** מה שנשמר על השלב — כך שסגירה בלי שליחה אינה מוחקת את מה שהורכב. */
+  function currentDraft(): ReleaseDraft {
+    return {
+      materials, serviceEndDate, paidThroughLabel: paidThrough, outstanding,
+      ccClient, subject, body, bodyEdited: edited,
+    };
+  }
+
+  function closeAndSave() {
+    // ‼ עדכון המשך אינו טיוטה: שמירתו הייתה דורסת את המכתב שהורכב.
+    if (!done && !followUp) onSaveDraft?.(currentDraft());
+    onClose();
   }
 
   /* ── עריכת רשימת החומרים ──────────────────────────────────────────────
@@ -134,7 +166,7 @@ export default function ReleaseLetterDialog({
   async function handleSend() {
     setNotice(null);
     if (!toEmail.trim()) { setNotice({ kind: 'err', text: 'חסר מייל של הרו״ח הקודם.' }); return; }
-    if (!serviceEndDate) { setNotice({ kind: 'err', text: 'חסר תאריך הפסקת ההתקשרות.' }); return; }
+    if (!followUp && !serviceEndDate) { setNotice({ kind: 'err', text: 'חסר תאריך הפסקת ההתקשרות.' }); return; }
     setBusy(true);
     try {
       // ‼ שולחים דגל ולא כתובת — השרת לוקח את המייל מהכרטיס, כדי שהפונקציה
@@ -148,8 +180,9 @@ export default function ReleaseLetterDialog({
         const { data: mint } = await supabase.rpc('mint_release_token', { p_step_id: stepId });
         releaseToken = (mint as { ok?: boolean; token?: string } | null)?.token;
       }
+      const linkLine = followUp ? 'להעלאת החומרים — אותו קישור:' : 'לאישור השחרור ולהעלאת החומרים:';
       const finalBody = releaseToken
-        ? `${body}\n\nלחתימה על השחרור ולהעלאת החומרים:\n${window.location.origin}/?release=${releaseToken}`
+        ? `${body}\n\n${linkLine}\n${window.location.origin}/?release=${releaseToken}`
         : body;
 
       const html = buildReleaseEmailHtml(finalBody, brand);
@@ -170,26 +203,32 @@ export default function ReleaseLetterDialog({
         from: res.from || fromLabel, to: toEmail.trim(), date: dateStr, subject, bodyText: finalBody,
       }, brand);
       const docId = crypto.randomUUID();
+      const docTitle = followUp ? 'תוספת לבקשת החומרים — רו״ח קודם' : 'מכתב שחרור — רו״ח קודם';
       await saveDoc({
         id: docId, clientId,
-        fileName: `מכתב שחרור — רו״ח קודם ${dateStr}.pdf`,
+        fileName: `${docTitle} ${dateStr}.pdf`,
         fileType: 'application/pdf',
         fileSize: pdf.byteLength,
         category: 'other',
         year: 'general',
         uploadedAt: new Date().toISOString(),
-        description: `מכתב שחרור שנשלח ל${prevAccountant.name || 'רו״ח הקודם'} (${toEmail.trim()})${res.cc ? ` · עותק ל${clientName}` : ''}`,
+        description: `${followUp ? 'תוספת לבקשת החומרים שנשלחה' : 'מכתב שחרור שנשלח'} ל${prevAccountant.name || 'רו״ח הקודם'} (${toEmail.trim()})${res.cc ? ` · עותק ל${clientName}` : ''}`,
         notes: `נשלח מ-${res.from || fromLabel}`,
         fileData: pdf.buffer.slice(0) as ArrayBuffer,
       });
       setDone(true);
-      setNotice({ kind: 'ok', text: 'המכתב נשלח ונשמר במסמכי הלקוח.' });
+      setNotice({
+        kind: 'ok',
+        text: followUp ? 'העדכון נשלח ונשמר במסמכי הלקוח.' : 'המכתב נשלח ונשמר במסמכי הלקוח.',
+      });
       onSent?.({
         materialKeys: materials.filter(m => m.checked).map(m => m.key),
         materials: materials.filter(m => m.checked && m.label.trim())
-          .map(m => ({ key: m.key, label: m.label.trim() })),
+          .map(m => ({ key: m.key, label: m.label.trim(), ...(m.optional ? { optional: true } : {}) })),
         objectionDueDate: addBusinessDays(new Date(), 3),
         subject, body: finalBody, releaseToken,
+        to: toEmail.trim(),
+        draft: { ...currentDraft(), body: finalBody, subject },
       });
     } catch (e) {
       setNotice({ kind: 'err', text: `שגיאה: ${e instanceof Error ? e.message : String(e)}` });
@@ -201,11 +240,11 @@ export default function ReleaseLetterDialog({
   const label = { fontSize: 12, color: 'var(--gray-600)' } as const;
 
   return (
-    <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) closeAndSave(); }}>
       <div className="modal task-modal" style={{ maxWidth: 720, width: '100%' }}>
         <div className="modal-header">
-          <h3>מכתב שחרור לרו״ח הקודם</h3>
-          <button className="btn btn-icon btn-ghost" onClick={onClose}>✕</button>
+          <h3>{followUp ? 'עדכון לרו״ח הקודם' : 'מכתב שחרור לרו״ח הקודם'}</h3>
+          <button className="btn btn-icon btn-ghost" onClick={closeAndSave}>✕</button>
         </div>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ fontSize: 12.5, color: 'var(--gray-600)', background: 'var(--gray-50)', borderRadius: 8, padding: '8px 10px' }}>
@@ -217,11 +256,13 @@ export default function ReleaseLetterDialog({
               <input value={toEmail} onChange={e => setToEmail(e.target.value)} dir="ltr"
                 style={{ textAlign: 'right', marginTop: 4 }} disabled={locked} />
             </label>
-            <label style={label}>הפסקת ההתקשרות מתאריך
-              <input type="date" value={serviceEndDate} disabled={locked}
-                onChange={e => { setServiceEndDate(e.target.value); sync({ serviceEndDate: e.target.value }); }}
-                style={{ marginTop: 4 }} />
-            </label>
+            {!followUp && (
+              <label style={label}>הפסקת ההתקשרות מתאריך
+                <input type="date" value={serviceEndDate} disabled={locked}
+                  onChange={e => { setServiceEndDate(e.target.value); sync({ serviceEndDate: e.target.value }); }}
+                  style={{ marginTop: 4 }} />
+              </label>
+            )}
           </div>
 
           <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -234,6 +275,17 @@ export default function ReleaseLetterDialog({
             </span>
           </label>
 
+          {followUp ? (
+            <fieldset style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: '8px 10px' }}>
+              <legend style={label}>הפריטים שנוספו</legend>
+              <ul style={{ margin: 0, paddingInlineStart: '1.1rem', fontSize: 12.5, lineHeight: 1.9 }}>
+                {followUpItems.map(i => <li key={i.key}>{i.label}</li>)}
+              </ul>
+              <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginTop: 6 }}>
+                הם כבר מופיעים בדף של הרו״ח הקודם. הרשימה המקורית והמכתב שנשלח נשמרים כפי שהם.
+              </div>
+            </fieldset>
+          ) : (
           <fieldset style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: '8px 10px' }}>
             <legend style={label}>מה מבקשים ממנו</legend>
             <div style={{ display: 'grid', gap: 2 }}>
@@ -248,6 +300,9 @@ export default function ReleaseLetterDialog({
                     onChange={e => renameMaterial(m.key, e.target.value)}
                     style={{ flex: 1, minWidth: 0, fontSize: 12.5, padding: '3px 6px',
                              opacity: m.checked ? 1 : .55 }} />
+                  {m.optional && (
+                    <span style={{ fontSize: 11, color: 'var(--gray-500)', flexShrink: 0 }}>רשות</span>
+                  )}
                   <button type="button" className="btn btn-sm btn-ghost" disabled={locked || i === 0}
                     aria-label="העלאה" title="העלאה" style={{ padding: '0 .25rem' }}
                     onClick={() => moveMaterial(m.key, -1)}>↑</button>
@@ -263,19 +318,24 @@ export default function ReleaseLetterDialog({
             <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
               style={{ marginTop: 4 }} onClick={addMaterial}>+ עוד פריט</button>
           </fieldset>
+          )}
 
-          <label style={label}>הלקוח כבר שילם לו עבור (אופציונלי — משאיר אותו מייצג ראשי עד ההגשה)
-            <input value={paidThrough} disabled={locked}
-              placeholder="דוחות שנתיים לשנת 2025 והנהלת חשבונות עד פברואר 2026"
-              onChange={e => { setPaidThrough(e.target.value); sync({ paidThrough: e.target.value }); }}
-              style={{ marginTop: 4 }} />
-          </label>
+          {!followUp && (
+            <label style={label}>הלקוח כבר שילם לו עבור (אופציונלי — משאיר אותו מייצג ראשי עד ההגשה)
+              <input value={paidThrough} disabled={locked}
+                placeholder="דוחות שנתיים לשנת 2025 והנהלת חשבונות עד פברואר 2026"
+                onChange={e => { setPaidThrough(e.target.value); sync({ paidThrough: e.target.value }); }}
+                style={{ marginTop: 4 }} />
+            </label>
+          )}
 
-          <label style={label}>דוחות או דיווחים שהוא עדיין חייב ללקוח (שורה לכל אחד, אופציונלי)
-            <textarea rows={2} value={outstanding} disabled={locked}
-              onChange={e => { setOutstanding(e.target.value); sync({ outstanding: e.target.value }); }}
-              style={{ marginTop: 4, width: '100%' }} />
-          </label>
+          {!followUp && (
+            <label style={label}>דוחות או דיווחים שהוא עדיין חייב ללקוח (שורה לכל אחד, אופציונלי)
+              <textarea rows={2} value={outstanding} disabled={locked}
+                onChange={e => { setOutstanding(e.target.value); sync({ outstanding: e.target.value }); }}
+                style={{ marginTop: 4, width: '100%' }} />
+            </label>
+          )}
 
           <label style={label}>נושא
             <input value={subject} onChange={e => setSubject(e.target.value)} style={{ marginTop: 4 }} disabled={locked} />
@@ -283,8 +343,8 @@ export default function ReleaseLetterDialog({
 
           <label style={label}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              תוכן המכתב
-              {edited && (
+              {followUp ? 'תוכן ההודעה' : 'תוכן המכתב'}
+              {edited && !followUp && (
                 <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
                   onClick={() => { setEdited(false); setBody(compose()); }}>
                   בנה מחדש מהשדות
@@ -306,8 +366,12 @@ export default function ReleaseLetterDialog({
             <button className="btn btn-primary" onClick={onClose}>סיום</button>
           ) : (
             <>
-              <button className="btn btn-secondary" onClick={onClose} disabled={busy}>ביטול</button>
-              <button className="btn btn-primary" onClick={handleSend} disabled={busy}>{busy ? 'שולח…' : 'שליחה לרו״ח הקודם'}</button>
+              <button className="btn btn-secondary" onClick={closeAndSave} disabled={busy}>
+                {followUp ? 'ביטול' : 'שמור טיוטה וסגור'}
+              </button>
+              <button className="btn btn-primary" onClick={handleSend} disabled={busy}>
+                {busy ? 'שולח…' : followUp ? 'שלח עדכון לרו״ח הקודם' : 'שלח לרו״ח הקודם'}
+              </button>
             </>
           )}
         </div>

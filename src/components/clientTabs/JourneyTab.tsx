@@ -50,7 +50,7 @@ interface Props {
   /** דריסת יומן המיילים — לבדיקת המסך עם נתונים מדומים, כמו ב-ClientEmailsList. */
   emailsOverride?: EmailMessage[];
   onOpenRepresentation?: () => void;
-  onPrepareReleaseLetter?: (stepId: string) => void;
+  onPrepareReleaseLetter?: (stepId: string, mode?: 'letter' | 'follow_up') => void;
   repStatusLabel?: string;
   /** אותו מצב, גולמי — כדי לגזור ממנו את הפעולה עצמה ולא רק את שמו. */
   repStatus?: RepresentationStatus;

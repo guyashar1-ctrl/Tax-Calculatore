@@ -6,7 +6,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  Engagement, InstitutionKey, OnboardingEvent, OnboardingStep, StepChecklistItem,
+  Engagement, InstitutionKey, OnboardingEvent, OnboardingStep, OnboardingStepType, StepChecklistItem,
 } from '../../types/onboarding';
 import {
   ENGAGEMENT_STATUS_LABELS, REQUIREMENT_KIND_LABELS,
@@ -26,6 +26,10 @@ import { formatDate } from '../../utils/dateFormat';
 import { formatILS } from '../../utils/quotationCalc';
 import { flushAccountantNotifications } from '../../lib/notifyAccountant';
 import { supabase } from '../../lib/supabase';
+import { clientFromDb } from '../../lib/dbMappers';
+import {
+  RELEASE_MATERIALS, isOptionalMaterialKey, materialsFromStored,
+} from '../../utils/releaseLetter';
 import { useAuth } from '../../hooks/useAuth';
 import type { DocCategory } from '../../hooks/useDocumentStore';
 import { DOC_CATEGORY_LABELS, useDocumentStore } from '../../hooks/useDocumentStore';
@@ -65,8 +69,8 @@ interface Props {
   refresh?: () => void;
   /** פרטי הרו"ח הקודם מכרטיס הלקוח — בלי מייל אי אפשר להכין מכתב שחרור. */
   prevAccountant?: { name?: string; email?: string; phone?: string };
-  /** פתיחת חלון מכתב השחרור. חסר ⇒ הכפתור לא מוצג (מסך הבדיקה). */
-  onPrepareReleaseLetter?: (stepId: string) => void;
+  /** פתיחת חלון מכתב השחרור — או עדכון המשך על אותו מסלול. חסר ⇒ אין כפתור. */
+  onPrepareReleaseLetter?: (stepId: string, mode?: 'letter' | 'follow_up') => void;
   /**
    * הצעות המחיר של הלקוח — **קריאה בלבד**, מהמקור הקיים (`quotations`), כדי
    * להציג את אישור ההצעה כאבן-דרך שהושלמה מעל הבקשות. אין כאן מצב חדש:
@@ -124,6 +128,9 @@ function rowTitle(step: OnboardingStep): string {
   return STEP_TYPE_LABELS[step.stepType];
 }
 
+/** שלבים שאינם מוצגים ללקוח בדף האישי — ולכן "טיוטה/פורסם" אינו חל עליהם. */
+const PORTAL_HIDDEN_TYPES: OnboardingStepType[] = ['release_letter', 'materials_received'];
+
 /** טיוטה = הרו"ח הכין, הלקוח עוד לא רואה. published_at ריק במסד, או הסימון
  *  הישן ב-payload (בקשות שנוצרו לפני מיגרציה 77). */
 function isDraftStep(step: OnboardingStep): boolean {
@@ -148,7 +155,9 @@ function progressLabel(step: OnboardingStep): string | null {
     if (required.length === 0) return null;
     return `${required.filter(r => r.done).length}/${required.length} נדרשים`;
   }
-  const list = step.payload.checklist;
+  // ‼ פריט רשות ("חומר נוסף לפי שיקול דעתך") אינו נספר — אחרת ההתקדמות
+  // לעולם לא מגיעה למלוא, ופריט שהוא בונוס נראה כחוסר.
+  const list = step.payload.checklist?.filter(i => !(i.optional || isOptionalMaterialKey(i.key)));
   if (!Array.isArray(list) || list.length === 0) return null;
   return `${list.filter(i => i.done).length}/${list.length}`;
 }
@@ -663,8 +672,20 @@ export default function OnboardingTab({
   const openSteps = visibleSteps.filter(s => isStepOpen(s.status));
   /* ‼ הייצוג שהושלם מוצג כאבן-דרך גלויה מעל הבקשות, ולכן הוא יורד מהמקטע
      המקופל — אחרת אותו דבר היה מופיע פעמיים על אותו מסך. */
+  /**
+   * ‼ מסלול הרו"ח הקודם נשאר כרטיס אחד לאורך כל ההעברה. כשהמכתב נסגר (הרו"ח
+   * הקודם חתם) אבל החומרים עדיין בדרך, השלב הסגור נשאר על המסך כפניו של
+   * המסלול — אחרת הכרטיס שמנהל את ההעברה נעלם בדיוק ברגע שאוספים בו חומרים.
+   */
+  const releaseAnchor = visibleSteps.filter(s =>
+    s.stepType === 'release_letter'
+    && !isStepOpen(s.status)
+    && s.status !== 'cancelled'
+    && visibleSteps.some(o => o.stepType === 'materials_received' && isStepOpen(o.status)));
+
   const doneSteps = visibleSteps.filter(
-    s => !isStepOpen(s.status) && s.stepType !== 'representation');
+    s => !isStepOpen(s.status) && s.stepType !== 'representation'
+      && !releaseAnchor.some(a => a.id === s.id));
 
   /**
    * הזזת שורה בסדר התצוגה. מסדרים את כל הפתוחות, לא רק את מה שמסונן.
@@ -758,6 +779,39 @@ export default function OnboardingTab({
         : (rpcError?.message ?? 'עדכון הבקשה נכשל.'));
       return;
     }
+    refresh?.();
+  }
+
+  /* ── פתיחת מסלול הרו״ח הקודם כשהוא חסר ────────────────────────────────────
+     ‼ אותו מנגנון יצירה של כל בקשה (create_onboarding_request) ואותם שני
+     שלבים שהמחולל בשרת יוצר — מכתב שחרור, ומעקב חומרים שתלוי בו. אין כאן
+     אחסון טיוטה מקביל: הטיוטה תיוולד על השלב עצמו. */
+  const [prevTrackBusy, setPrevTrackBusy] = useState(false);
+  const needsPrevTrack =
+    !!(client.hasPreviousAccountant || client.prevAccountantEmail || client.prevAccountantName)
+    && !clientSteps.some(s => s.stepType === 'release_letter' && s.status !== 'cancelled');
+
+  async function createPrevAccountantTrack() {
+    setPrevTrackBusy(true);
+    setError(null);
+    const rel = await supabase.rpc('create_onboarding_request', {
+      p_client_id: clientId, p_step_type: 'release_letter', p_payload: {},
+      p_due_date: null, p_depends_on: null, p_published: true,
+      p_required_for_close: true, p_owner: 'me', p_stage_id: null,
+    });
+    const relRes = rel.data as { ok?: boolean; stepId?: string; error?: string } | null;
+    if (rel.error || !relRes?.ok || !relRes.stepId) {
+      setError('פתיחת מסלול הרו״ח הקודם נכשלה.');
+      setPrevTrackBusy(false);
+      return;
+    }
+    // מעקב החומרים נולד ריק ותלוי במכתב — הרשימה שנשלחת בפועל היא שממלאת אותו.
+    await supabase.rpc('create_onboarding_request', {
+      p_client_id: clientId, p_step_type: 'materials_received', p_payload: { checklist: [] },
+      p_due_date: null, p_depends_on: relRes.stepId, p_published: true,
+      p_required_for_close: true, p_owner: 'me', p_stage_id: null,
+    });
+    setPrevTrackBusy(false);
     refresh?.();
   }
 
@@ -976,15 +1030,25 @@ export default function OnboardingTab({
                   <ReleaseStepCard
                     key={step.id}
                     step={step}
+                    materialsStep={clientSteps.find(
+                      s => s.stepType === 'materials_received' && s.status !== 'cancelled')}
+                    detailsStep={clientSteps.find(
+                      s => s.stepType === 'prev_accountant_details' && s.status !== 'cancelled')}
                     stepById={stepById}
                     clientId={clientId}
+                    client={client}
+                    onClientPersisted={onClientPersisted}
                     busy={busy}
                     highlight={highlightStepId === step.id}
                     prevAccountant={prevAccountant}
                     blockNote={blockNoteByStep.get(step.id)}
-                    onPrepare={onPrepareReleaseLetter ? () => onPrepareReleaseLetter(step.id) : undefined}
+                    onPrepare={onPrepareReleaseLetter
+                      ? (mode) => onPrepareReleaseLetter(step.id, mode)
+                      : undefined}
                     onBlock={() => handleBlock(step)}
                     onRun={(action, payload) => void run(step, action, payload)}
+                    advance={advance}
+                    refresh={refresh}
                     menu={menu}
                   />
                 );
@@ -1399,7 +1463,7 @@ export default function OnboardingTab({
            הכדור. בלי ההפרדה הזאת משימה לעצמי הייתה נראית כבקשה מהלקוח. */
         const manualInternal = openVisible.filter(isManualInternalTask);
         const clientRows = buildClientFacingRows(
-          openVisible.filter(s => !isManualInternalTask(s)), depParents);
+          [...openVisible, ...releaseAnchor].filter(s => !isManualInternalTask(s)), depParents);
         const alignSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
 
         /** כרטיס אחד + פס הזמן שלו. active = יש בו מה לעשות עכשיו. */
@@ -1493,6 +1557,33 @@ export default function OnboardingTab({
 
             {repStep && flowItem(repStep, renderStep(repStep))}
             {clientRows.map(row => flowItem(row.primary, renderRow(row)))}
+
+            {/* ‼ ידוע שיש רו״ח קודם, ואין מסלול — קורה כשהכרטיס נפתח בלי הצעה
+                שסומנה כמעבר, או כשהפרטים הוזנו ידנית אחר כך. כאן פותחים את
+                אותו מסלול בדיוק (create_onboarding_request), לא מסלול שני. */}
+            {needsPrevTrack && (
+              <div className="ob-req">
+                <span className="ob-req-dot" aria-hidden="true" />
+                <div className="ob-card">
+                  <div className="ob-card-row">
+                    <div className="ob-card-main">
+                      <div className="ob-card-title">רו״ח קודם</div>
+                      <div className="ob-card-meta">
+                        {prevAccountant?.name
+                          ? `${prevAccountant.name} רשום בכרטיס — עוד לא נפתח מסלול העברה.`
+                          : 'רשום שהלקוח הגיע מרו״ח אחר — עוד לא נפתח מסלול העברה.'}
+                      </div>
+                    </div>
+                    <div className="ob-card-actions">
+                      <button type="button" className="btn btn-sm btn-primary" disabled={prevTrackBusy}
+                        onClick={() => void createPrevAccountantTrack()}>
+                        {prevTrackBusy ? 'פותח…' : 'פתח מסלול רו״ח קודם'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ‼ הוספה ותבניות זמינות תמיד — לאורך כל חיי הלקוח, לא רק בקליטה
                 ולא רק במצב עריכה. זו בקשה חדשה, לא תצורה. */}
@@ -2561,53 +2652,432 @@ function KycStepCard({ step, stepById, clientId, busy, highlight, onRun, menu }:
 
 /** תרגום הסטטוס הגנרי לשפה של מסלול השחרור. */
 function releaseStatusLabel(step: OnboardingStep, hasEmail: boolean): string {
+  const sentAt = step.payload.releaseSentAt;
+  const responded = !!step.payload.prevAccountantResponseNote || !!step.payload.prevAccountantSignedAt;
   switch (step.status) {
-    case 'pending':        return hasEmail ? 'מוכן לשליחה' : 'טיוטה';
-    case 'in_progress':    return 'מוכן לשליחה';
-    case 'waiting_client': return 'נשלח';
-    case 'completed':      return 'התקבלה תשובה';
+    case 'pending':
+    case 'in_progress':    return sentAt ? 'נשלח' : (hasEmail ? 'טיוטה · טרם נשלח' : 'טיוטה');
+    case 'waiting_client': return responded ? 'התקבלה תגובה' : 'נשלח · ממתין לרו״ח הקודם';
+    case 'completed':      return 'התקבלה תגובה';
     case 'verified':       return 'הושלם';
     default:               return STEP_STATUS_LABELS[step.status];
   }
 }
 
+/** שורה אחת ברשימת "מה אנחנו מבקשים" — לפני השליחה ואחריה. */
+interface HandoffItem {
+  key: string;
+  label: string;
+  done: boolean;
+  optional?: boolean;
+  uploads: number;
+  addedAfterSend?: boolean;
+  notifiedAt?: string;
+}
+
 interface ReleaseCardProps {
   step: OnboardingStep;
+  /** שלב קבלת החומרים — אחרי השליחה הצ'קליסט שלו הוא רשימת הבקשות. */
+  materialsStep?: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   clientId: string;
+  client: Client;
+  onClientPersisted: (c: Client) => void;
   busy: boolean;
   highlight: boolean;
   prevAccountant?: { name?: string; email?: string; phone?: string };
   blockNote?: string;
-  onPrepare?: () => void;
+  onPrepare?: (mode: 'letter' | 'follow_up') => void;
   onBlock: () => void;
   onRun: (action: string, payload?: Record<string, unknown>) => void;
+  advance: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
+  /** שלב "פרטי הרו״ח הקודם" הפתוח — נסגר ברגע שהפרטים הוזנו כאן. */
+  detailsStep?: OnboardingStep;
+  refresh?: () => void;
   menu: React.ReactNode;
 }
 
+/**
+ * מסלול הרו"ח הקודם — כרטיס אחד: מי, מה מבקשים, מה נשלח, מה חזר.
+ * ‼ אין כאן מכונת מצבים שנייה: טיוטה/נשלח/התקבלה תגובה/הושלם הם הסטטוסים
+ * הגנריים של השלב, ו"דורש טיפול" הוא needs_attention. מה שנוסף הוא שהמידע
+ * שהיה פזור (פרטים בכרטיס, רשימה בתוך חלון, ראיות ביומן) נראה במקום אחד.
+ */
 function ReleaseStepCard(p: ReleaseCardProps) {
-  const { step, stepById, busy, highlight, prevAccountant } = p;
+  const { step, materialsStep, stepById, busy, highlight, prevAccountant, client } = p;
   const email = (prevAccountant?.email ?? '').trim();
   const open = isStepOpen(step.status);
-  const sent = step.status === 'waiting_client';
-  // שלב נעול/חסום/דולג אינו מציע להכין מכתב — קודם פותחים אותו מחדש.
-  const actionable = step.status === 'pending' || step.status === 'in_progress' || sent;
-  const canPrepare = !!p.onPrepare && email !== '';
+  const sentAt = step.payload.releaseSentAt;
+  const sent = !!sentAt;
+  const locked = step.status === 'locked';
+  const closed = step.status === 'completed' || step.status === 'verified';
+  const canPrepare = !!p.onPrepare && email !== '' && !locked;
+  /**
+   * ‼ המכתב נסגר (נחתם) אבל החומרים עדיין נאספים — וזה בדיוק הזמן שבו מתברר
+   * שחסר עוד משהו. הרשימה נשארת פתוחה לעריכה כל עוד מעקב החומרים פתוח.
+   */
+  const materialsOpen = !!materialsStep && isStepOpen(materialsStep.status);
+  const itemsEditable = !closed || materialsOpen;
+
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [form, setForm] = useState({
+    name: prevAccountant?.name ?? '', email: prevAccountant?.email ?? '', phone: prevAccountant?.phone ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [draftLabel, setDraftLabel] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+
+  // ── רשימת הבקשות ─────────────────────────────────────────────────────────
+  // לפני השליחה: הטיוטה ששמורה על השלב. אחרי: הצ'קליסט של קבלת החומרים —
+  // שהוא בדיוק מה שנשלח, וגם מה שהרו"ח הקודם רואה בדף שלו.
+  const draftMaterials = useMemo(
+    () => materialsFromStored(
+      (step.payload.releaseDraft as { materials?: unknown } | undefined)?.materials)
+      ?? RELEASE_MATERIALS.map(m => ({ ...m })),
+    [step.payload.releaseDraft]);
+
+  const items: HandoffItem[] = useMemo(() => {
+    if (sent && materialsStep) {
+      return (materialsStep.payload.checklist ?? []).map(i => ({
+        key: i.key,
+        label: i.label,
+        done: !!i.done,
+        optional: i.optional || isOptionalMaterialKey(i.key),
+        uploads: (i.documentIds?.length ?? 0) || (i.documentId ? 1 : 0),
+        addedAfterSend: i.addedAfterSend,
+        notifiedAt: typeof i.notifiedAt === 'string' ? i.notifiedAt : undefined,
+      }));
+    }
+    return draftMaterials.filter(m => m.checked).map(m => ({
+      key: m.key, label: m.label, done: false,
+      optional: m.optional || isOptionalMaterialKey(m.key), uploads: 0,
+    }));
+  }, [sent, materialsStep, draftMaterials]);
+
+  const required = items.filter(i => !i.optional);
+  const receivedCount = required.filter(i => i.done).length;
+  const pendingFollowUp = items.filter(i => i.addedAfterSend && !i.notifiedAt);
+
+  async function persistItems(next: HandoffItem[]) {
+    setCardError(null);
+    setSaving(true);
+    if (sent && materialsStep) {
+      const prev = new Map((materialsStep.payload.checklist ?? []).map(i => [i.key, i]));
+      const checklist = next.map(i => ({
+        ...(prev.get(i.key) ?? {}),
+        key: i.key, label: i.label, done: i.done,
+        ...(i.optional ? { optional: true } : {}),
+        ...(i.addedAfterSend ? { addedAfterSend: true } : {}),
+        ...(i.notifiedAt ? { notifiedAt: i.notifiedAt } : {}),
+      }));
+      const res = await p.advance(materialsStep.id, 'note', { checklist });
+      if (!res.ok) setCardError(res.message ?? 'השמירה נכשלה.');
+    } else {
+      // ‼ מיזוג לתוך הטיוטה הקיימת ולא דריסה שלה: הנוסח, התאריך והעותק
+      // ללקוח חיים באותו אובייקט, ושמירה חלקית הייתה מוחקת אותם.
+      const stored = (step.payload.releaseDraft ?? {}) as Record<string, unknown>;
+      const byKey = new Map(next.map(i => [i.key, i]));
+      const kept = draftMaterials
+        .filter(m => !m.checked || byKey.has(m.key))
+        .map(m => (byKey.has(m.key) ? { ...m, label: byKey.get(m.key)!.label, checked: true } : m));
+      const added = next
+        .filter(i => !draftMaterials.some(m => m.key === i.key))
+        .map(i => ({ key: i.key, label: i.label, checked: true, ...(i.optional ? { optional: true } : {}) }));
+      const materials = [...kept, ...added];
+      const res = await p.advance(step.id, 'note', { releaseDraft: { ...stored, materials } });
+      if (!res.ok) setCardError(res.message ?? 'השמירה נכשלה.');
+    }
+    setSaving(false);
+  }
+
+  function addItem() {
+    const label = newLabel.trim();
+    if (!label) { setAdding(false); setNewLabel(''); return; }
+    const key = `custom_${Date.now().toString(36)}`;
+    void persistItems([...items, {
+      key, label, done: false, uploads: 0, ...(sent ? { addedAfterSend: true } : {}),
+    }]);
+    setNewLabel('');
+    setAdding(false);
+  }
+
+  function commitLabel(key: string) {
+    const label = draftLabel.trim();
+    setEditingKey(null);
+    if (!label) return;
+    if (items.find(i => i.key === key)?.label === label) return;
+    void persistItems(items.map(i => (i.key === key ? { ...i, label } : i)));
+  }
+
+  // ── פרטי הרו"ח הקודם ─────────────────────────────────────────────────────
+  // ‼ נשמרים על כרטיס הלקוח — אותם שדות בדיוק שהתיק מציג. אין כאן מקור שני.
+  async function saveDetails() {
+    setCardError(null);
+    setSaving(true);
+    const patch = {
+      prev_accountant_name: form.name.trim() || null,
+      prev_accountant_email: form.email.trim() || null,
+      prev_accountant_phone: form.phone.trim() || null,
+      has_previous_accountant: true,
+    };
+    const { data, error } = await supabase.from('clients').update(patch)
+      .eq('id', p.clientId).select().single();
+    setSaving(false);
+    if (error || !data) { setCardError('שמירת הפרטים נכשלה.'); return; }
+    p.onClientPersisted(clientFromDb(data));
+    setEditingDetails(false);
+    // הבקשה שביקשה מהלקוח את הפרטים סיימה את תפקידה — וסגירתה משחררת את
+    // המכתב שתלוי בה. בלי זה הפרטים בכרטיס לא היו פותחים את השלב.
+    if (patch.prev_accountant_email && p.detailsStep && isStepOpen(p.detailsStep.status)) {
+      await p.advance(p.detailsStep.id, 'complete', {
+        completionMethod: 'manual', note: 'פרטי הרו״ח הקודם הוזנו בכרטיס',
+      });
+    }
+    p.refresh?.();
+  }
+
+  const label13 = { fontSize: 'var(--fs-13)', color: 'var(--ink-2)' } as const;
 
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={p.menu}
-      statusLabel={releaseStatusLabel(step, email !== '')}>
-      <div style={cardNote}>
-        {prevAccountant?.name
-          ? <>הרו״ח הקודם: <strong style={{ color: 'var(--ink-2)' }}>{prevAccountant.name}</strong>{email && <> · <span dir="ltr">{email}</span></>}</>
-          : email
-            ? <>הרו״ח הקודם: <span dir="ltr">{email}</span></>
-            : 'המכתב מבקש מהרו״ח הקודם את החומרים ואת שחרור הייצוג. הוא נפתח לעריכה ונשלח רק אחרי אישור.'}
-      </div>
+      statusLabel={releaseStatusLabel(step, email !== '')}
+      always={
+        <div className="ob-hand">
+          {/* ── מי ── */}
+          <div className="ob-hand-block">
+            <div className="ob-hand-head">
+              <span className="ob-hand-title">פרטי רו״ח קודם</span>
+              {!editingDetails && itemsEditable && (
+                <button type="button" className="ob-hand-link" disabled={saving}
+                  onClick={() => {
+                    setForm({
+                      name: prevAccountant?.name ?? '', email: prevAccountant?.email ?? '',
+                      phone: prevAccountant?.phone ?? '',
+                    });
+                    setEditingDetails(true);
+                  }}>
+                  {email ? 'עריכת פרטים' : 'הוספת פרטים'}
+                </button>
+              )}
+            </div>
+            {editingDetails ? (
+              <div className="ob-hand-form">
+                <input value={form.name} placeholder="שם הרו״ח או המשרד" disabled={saving}
+                  aria-label="שם הרו״ח הקודם"
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                <input value={form.email} placeholder="אימייל" dir="ltr" disabled={saving}
+                  aria-label="מייל הרו״ח הקודם" style={{ textAlign: 'right' }}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                <input value={form.phone} placeholder="טלפון" dir="ltr" disabled={saving}
+                  aria-label="טלפון הרו״ח הקודם" style={{ textAlign: 'right' }}
+                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+                <div style={{ display: 'flex', gap: '.35rem' }}>
+                  <button type="button" className="btn btn-sm btn-primary" disabled={saving}
+                    onClick={() => void saveDetails()}>{saving ? 'שומר…' : 'שמירה'}</button>
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={saving}
+                    onClick={() => setEditingDetails(false)}>ביטול</button>
+                </div>
+              </div>
+            ) : (
+              <div className="ob-hand-contact">
+                {prevAccountant?.name && <strong>{prevAccountant.name}</strong>}
+                {email && <span dir="ltr">{email}</span>}
+                {prevAccountant?.phone && <span dir="ltr">{prevAccountant.phone}</span>}
+                {!prevAccountant?.name && !email && !prevAccountant?.phone && (
+                  <span style={{ color: 'var(--err)' }}>עדיין אין פרטים — בלי אימייל אי אפשר לשלוח.</span>
+                )}
+              </div>
+            )}
+            {!email && !editingDetails && (prevAccountant?.name || prevAccountant?.phone) && (
+              <div className="ob-hand-warn">חסר אימייל — בלעדיו אי אפשר לשלוח את המכתב.</div>
+            )}
+          </div>
 
-      {!email && step.status !== 'completed' && step.status !== 'verified' && (
-        <div style={{ marginTop: '.4rem', fontSize: 'var(--fs-13)', color: 'var(--err)' }}>
-          חסרה כתובת מייל של הרו״ח הקודם — יש להשלים אותה בתיק הלקוח, בקבוצה "עסקים".
+          {/* ── מה מבקשים ── */}
+          <div className="ob-hand-block">
+            <div className="ob-hand-head">
+              <span className="ob-hand-title">מה אנחנו מבקשים</span>
+              <span className="ob-hand-count">
+                {sent
+                  ? `${receivedCount} מתוך ${required.length} התקבלו`
+                  : `${items.length} פריטים`}
+              </span>
+            </div>
+            <ul className="ob-hand-list">
+              {items.map(i => (
+                <li key={i.key} className={`ob-hand-item${i.done ? ' is-done' : ''}`}>
+                  <span className="ob-hand-mark" aria-hidden="true">{sent ? (i.done ? '✓' : '○') : '•'}</span>
+                  {editingKey === i.key ? (
+                    <input
+                      autoFocus value={draftLabel} aria-label="ניסוח הפריט" disabled={saving}
+                      onChange={e => setDraftLabel(e.target.value)}
+                      onBlur={() => commitLabel(i.key)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') commitLabel(i.key);
+                        if (e.key === 'Escape') setEditingKey(null);
+                      }} />
+                  ) : (
+                    <span className="ob-hand-label">{i.label || '—'}</span>
+                  )}
+                  {i.optional && <span className="ob-hand-tag">רשות</span>}
+                  {i.addedAfterSend && !i.notifiedAt && <span className="ob-hand-tag is-new">נוסף — טרם נמסר</span>}
+                  {i.optional && i.uploads > 0 && (
+                    <span className="ob-hand-tag">{i.uploads} קבצים</span>
+                  )}
+                  {itemsEditable && editingKey !== i.key && (
+                    <span className="ob-hand-rowbtns">
+                      <button type="button" aria-label={`עריכת ${i.label}`} title="עריכה" disabled={saving}
+                        onClick={() => { setEditingKey(i.key); setDraftLabel(i.label); }}>✎</button>
+                      <button type="button" aria-label={`הסרת ${i.label}`} title="הסרה" disabled={saving}
+                        onClick={() => void persistItems(items.filter(x => x.key !== i.key))}>✕</button>
+                    </span>
+                  )}
+                </li>
+              ))}
+              {items.length === 0 && (
+                <li className="ob-hand-item"><span className="ob-hand-label" style={{ color: 'var(--ink-4)' }}>
+                  אין פריטים ברשימה.
+                </span></li>
+              )}
+            </ul>
+            {itemsEditable && (adding ? (
+              <div className="ob-hand-form" style={{ marginTop: '.35rem' }}>
+                <input autoFocus value={newLabel} placeholder="מה עוד מבקשים?" disabled={saving}
+                  aria-label="פריט חדש"
+                  onChange={e => setNewLabel(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') addItem();
+                    if (e.key === 'Escape') { setAdding(false); setNewLabel(''); }
+                  }} />
+                <div style={{ display: 'flex', gap: '.35rem' }}>
+                  <button type="button" className="btn btn-sm btn-primary" disabled={saving}
+                    onClick={addItem}>הוספה</button>
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={saving}
+                    onClick={() => { setAdding(false); setNewLabel(''); }}>ביטול</button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" className="ob-hand-link" disabled={saving}
+                onClick={() => setAdding(true)}>＋ הוסף פריט</button>
+            ))}
+            {sent && pendingFollowUp.length > 0 && (
+              <div className="ob-hand-warn">
+                {pendingFollowUp.length === 1
+                  ? 'פריט אחד נוסף אחרי שהמכתב נשלח, והוא כבר מופיע בדף של הרו״ח הקודם'
+                  : `${pendingFollowUp.length} פריטים נוספו אחרי שהמכתב נשלח, והם כבר מופיעים בדף של הרו״ח הקודם`}
+                {' '}— כדאי לעדכן אותו במייל.
+              </div>
+            )}
+          </div>
+
+          {/* ── מה חזר ── */}
+          {sent && (
+            <div className="ob-hand-block">
+              <div className="ob-hand-head"><span className="ob-hand-title">תגובת הרו״ח הקודם</span></div>
+              <div className="ob-hand-contact" style={{ display: 'block' }}>
+                נשלח {formatDate(sentAt!, 'list')}
+                {step.payload.releaseSentTo && <> · <span dir="ltr">{step.payload.releaseSentTo}</span></>}
+                {step.payload.objectionDueDate && !step.payload.prevAccountantSignedAt && (
+                  <> · חלון התייחסות עד {formatDate(step.payload.objectionDueDate, 'list')}</>
+                )}
+              </div>
+              {step.payload.prevAccountantSignedAt ? (
+                <div className="ob-hand-ok">
+                  ✓ אישר/ה את ההעברה
+                  {step.payload.prevAccountantSignerName && <> · {step.payload.prevAccountantSignerName}</>}
+                  {' · '}{formatDate(step.payload.prevAccountantSignedAt, 'list')}
+                </div>
+              ) : (
+                <div className="ob-hand-contact" style={{ display: 'block' }}>טרם התקבל אישור.</div>
+              )}
+              {step.payload.prevAccountantResponseNote && (
+                <div className={`ob-hand-note${step.payload.responseHandledAt ? '' : ' is-attention'}`}>
+                  <div style={{ fontWeight: 700, marginBottom: '.15rem' }}>
+                    הערה מהרו״ח הקודם
+                    {step.payload.prevAccountantResponderName && ` · ${step.payload.prevAccountantResponderName}`}
+                    {step.payload.prevAccountantRespondedAt &&
+                      ` · ${formatDate(step.payload.prevAccountantRespondedAt, 'list')}`}
+                  </div>
+                  <div style={{ whiteSpace: 'pre-line' }}>{step.payload.prevAccountantResponseNote}</div>
+                  {!step.payload.responseHandledAt && (
+                    <button type="button" className="btn btn-sm btn-secondary" disabled={busy || saving}
+                      style={{ marginTop: '.4rem' }}
+                      onClick={async () => {
+                        setSaving(true);
+                        // ‼ שתי כתיבות שונות: הראיה נשמרת ב-payload דרך advance,
+                        // וסימון "דורש טיפול" הוא עמודה — ולה יש RPC משלה.
+                        await p.advance(step.id, 'note', {
+                          responseHandledAt: new Date().toISOString(),
+                          note: 'ההערה של הרו״ח הקודם טופלה',
+                        });
+                        await supabase.rpc('set_step_attention', { p_step_id: step.id, p_on: false });
+                        setSaving(false);
+                        p.refresh?.();
+                      }}>
+                      סמן שטופל
+                    </button>
+                  )}
+                </div>
+              )}
+              <ReleaseDelivery clientId={p.clientId} />
+            </div>
+          )}
+
+          {cardError && (
+            <div className="ob-hand-warn" role="alert">{cardError}</div>
+          )}
+
+          {/* ── הפעולות ──────────────────────────────────────────────────────
+              ‼ אחרי שהמכתב נסגר נשארת פעולה אחת בלבד — עדכון על מה שנוסף.
+              "שלח שוב" על מכתב שכבר נחתם היה מבלבל, אבל בקשת המשך היא בדיוק
+              מה שקורה בפועל בזמן איסוף החומרים. */}
+          {(!closed || (pendingFollowUp.length > 0 && materialsOpen)) && (
+            <div className="ob-hand-actions">
+              {!closed && (
+                <>
+                  <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !canPrepare}
+                    title={locked ? 'השלב ממתין לפרטי הרו״ח הקודם' : email ? undefined : 'חסרה כתובת מייל'}
+                    onClick={() => p.onPrepare?.('letter')}>
+                    תצוגה ועריכת המכתב
+                  </button>
+                  <button type="button" className="btn btn-sm btn-primary" disabled={busy || !canPrepare}
+                    title={email ? undefined : 'חסרה כתובת מייל של הרו״ח הקודם'}
+                    onClick={() => p.onPrepare?.('letter')}>
+                    {sent ? 'שלח מכתב שוב' : 'שלח לרו״ח הקודם'}
+                  </button>
+                </>
+              )}
+              {sent && pendingFollowUp.length > 0 && (
+                <button type="button" className="btn btn-sm btn-primary" disabled={busy || !canPrepare}
+                  onClick={() => p.onPrepare?.('follow_up')}>
+                  שלח עדכון לרו״ח הקודם
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      }>
+      {locked && (
+        <div style={{ ...cardNote, color: 'var(--warn)' }}>
+          השלב ממתין לפרטי הרו״ח הקודם.
+          {email && (
+            <button type="button" className="btn btn-sm btn-secondary" style={{ marginInlineStart: '.4rem' }}
+              disabled={busy || saving || !p.detailsStep}
+              onClick={async () => {
+                if (!p.detailsStep) return;
+                setSaving(true);
+                await p.advance(p.detailsStep.id, 'complete', {
+                  completionMethod: 'manual', note: 'פרטי הרו״ח הקודם כבר בכרטיס',
+                });
+                setSaving(false);
+                p.refresh?.();
+              }}>
+              הפרטים כבר כאן — פתח את המכתב
+            </button>
+          )}
         </div>
       )}
 
@@ -2617,29 +3087,21 @@ function ReleaseStepCard(p: ReleaseCardProps) {
         </div>
       )}
 
-      {(sent || step.status === 'completed' || step.status === 'verified') && (
-        <ReleaseDelivery clientId={p.clientId} />
-      )}
+      <div style={{ ...label13, marginTop: '.3rem' }}>
+        המכתב נשלח ידנית בלבד. עותק שלו נשמר במסמכי {client.firstName || 'הלקוח'} אחרי כל שליחה.
+      </div>
 
       <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
-        {actionable && (
-          <button type="button" className="btn btn-sm btn-primary"
-            disabled={busy || !canPrepare}
-            title={email ? undefined : 'חסרה כתובת מייל של הרו״ח הקודם'}
-            onClick={() => p.onPrepare?.()}>
-            {sent ? 'שלח מכתב שוב' : 'הכן מכתב שחרור'}
-          </button>
-        )}
-        {actionable && !sent && (
+        {!sent && !locked && !closed && (
           <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
             onClick={() => p.onRun('wait_client', { ball: 'prev_accountant', note: 'המכתב נשלח מחוץ למערכת' })}>
             סמן שנשלח
           </button>
         )}
-        {sent && (
-          <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+        {sent && !closed && (
+          <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
             onClick={() => p.onRun('complete', { completionMethod: 'manual', note: 'התקבלה תשובה מהרו״ח הקודם' })}>
-            התקבלה תשובה
+            סמן שהתקבלה תגובה
           </button>
         )}
         {step.status === 'completed' && (
@@ -2730,19 +3192,21 @@ function OpeningCallCard({ step, busy, highlight, onRun, menu }: {
 
 // ═══════════════ מעטפת משותפת לכרטיסים ═══════════════════════════════════
 
-function StepCardShell({ step, stepById, highlight, danger, statusLabel, menu, children }: {
+function StepCardShell({ step, stepById, highlight, danger, statusLabel, always, menu, children }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
   danger?: boolean;
   /** ניסוח הסטטוס בשפת המסלול, כשהיא שונה מהניסוח הגנרי. */
   statusLabel?: string;
+  /** תוכן שגלוי תמיד, גם כשהכרטיס סגור (ראה JourneyRow). */
+  always?: React.ReactNode;
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <JourneyRow step={step} stepById={stepById} highlight={highlight} danger={danger}
-      statusLabel={statusLabel} menu={menu}>
+      statusLabel={statusLabel} always={always} menu={menu}>
       {children}
     </JourneyRow>
   );
@@ -2753,7 +3217,7 @@ function StepCardShell({ step, stepById, highlight, danger, statusLabel, menu, c
  * סגור: שם · משפט מצב אחד · פרטים משניים בשקט · פעולה אחת רלוונטית + ⋯.
  * פתוח: כל הפרטים של אותה בקשה. פותחים אחת בכל פעם, כדי שהמסך יישאר קריא.
  */
-function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, menu, children }: {
+function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, always, menu, children }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
@@ -2761,6 +3225,11 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
   statusLabel?: string;
   /** שורת הסבר נוספת במטא — למשל דרישת-קשר של גורם חיצוני שטרם נפתרה. */
   noteLine?: string;
+  /**
+   * תוכן שגלוי גם כשהכרטיס סגור. ‼ חריג מכוון ויחיד: מסלול הרו"ח הקודם צריך
+   * להראות את מי פונים ומה מבקשים בלי לחיצה — הרשימה היא הבקשה עצמה.
+   */
+  always?: React.ReactNode;
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -2838,8 +3307,12 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
               {!isStepRequiredForClose(step) && <span className="ob-optional">רשות</span>}
               {extName && <span className="ob-pill is-ext">גורם חיצוני · {extName}</span>}
               {/* ‼ טיוטה = הבקשה מוכנה אצלי והלקוח עוד לא רואה אותה. בלי הסימון
-                  הזה אין דרך לדעת אם ביקשתי בפועל או רק הכנתי. */}
-              {isDraft && <span className="ob-pill is-draft">טיוטה</span>}
+                  הזה אין דרך לדעת אם ביקשתי בפועל או רק הכנתי.
+                  ‼ מסלול הרו"ח הקודם יוצא מהכלל: הוא לא מופיע בדף הלקוח לעולם,
+                  ולכן "טרם פורסם ללקוח" חסר משמעות שם — והוא סתר את "נשלח". */}
+              {isDraft && !PORTAL_HIDDEN_TYPES.includes(step.stepType) && (
+                <span className="ob-pill is-draft">טיוטה</span>
+              )}
               {/* ‼ עריכה ממתינה: הלקוח ממשיך לראות את הנוסח הישן עד "עדכן את
                   דף הלקוח". בלי הסימון, עריכה נראית כאילו כבר פורסמה. */}
               {hasPendingEdit && <span className="ob-pill is-draft">עריכה ממתינה</span>}
@@ -2868,6 +3341,8 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
             במנוחה נשאר שקט. */}
         <div className="ob-card-actions">{menu}</div>
       </div>
+
+      {always}
 
       {open && (
         <div className="ob-card-body">
