@@ -400,7 +400,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
   const inPage = item.actionKind === 'portal';
   const expandable = inPage && (item.kind === 'documents' || item.kind === 'custom' || item.kind === 'prev_accountant');
   const signup = inPage && item.kind === 'paperless_signup';
-  /** חומר עזר — פעולה אחת גלויה, בלי פתיחה ובלי דרישות. */
+  /** חומר עזר — הכל גלוי מיד: כפתור הפתיחה והסימון, בלי כרטיס שנפתח. */
   const guide = inPage && item.kind === 'guide' && !!item.resourceUrl;
   const prog = progressLine(item);
 
@@ -433,7 +433,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
           מוצגת ישירות ולא מאחורי כפתור פתיחה. */}
       {guide ? (
         <div style={{ marginTop: 11 }}>
-          <GuideOpenButton token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+          <GuideBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       ) : signup ? (
         <div style={{ marginTop: 11 }}>
@@ -481,11 +481,90 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
 }
 
 /**
- * בקשת חומר עזר — כפתור אחד שפותח את הקובץ, והפתיחה עצמה סוגרת את הבקשה.
+ * בקשת חומר עזר — כפתור שפותח את הקובץ, ומתחתיו הסימון של הלקוח.
  *
- * ‼ אין "קראתי ואישרתי". הלחיצה היא האירוע: היא נרשמת בשרת דרך אותו
- * portal_submit_step של כל בקשה אחרת, עם טוקן הדף — כלומר פעולה מזוהה של
- * הלקוח, ולא עצם הצגת העמוד שמכיל את הקישור.
+ * ‼ הפתיחה כבר אינה מה שסוגר את הבקשה: מסמך שנפתח לשנייה אינו מסמך שעברו
+ * עליו. מה שסוגר הוא הסימון — בדיוק כמו "נרשמתי לפייפרלס", הצהרה של הלקוח
+ * ולא אימות שלנו. הפתיחה עצמה עדיין נרשמת (דרישת רשות), ולכן הרו"ח רואה
+ * גם "נפתח" וגם "עבר עליו".
+ *
+ * ‼ תאימות לאחור: בקשה שנשלחה לפני השינוי נושאת רק את דרישת הפתיחה, ואז
+ * אין כאן שורת סימון כלל — הכפתור סוגר אותה כמו קודם.
+ */
+function GuideBlock({ token, item, brand, accent, onDone }: {
+  token: string; item: PortalItem;
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string; onDone: () => void;
+}) {
+  const marks = (item.requirements ?? []).filter(r => r.kind === 'confirm' && r.key !== 'opened');
+  return (
+    <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
+      <GuideOpenButton token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+      {marks.map(r => (
+        <GuideCheck key={r.key} token={token} item={item} req={r}
+          brand={brand} accent={accent} onDone={onDone} />
+      ))}
+    </div>
+  );
+}
+
+/** הסימון עצמו — תיבה אחת שנשלחת בלחיצה. אין ביטול: הרו"ח פותח מחדש. */
+function GuideCheck({ token, item, req, brand, accent, onDone }: {
+  token: string; item: PortalItem;
+  req: NonNullable<PortalItem['requirements']>[number];
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string; onDone: () => void;
+}) {
+  const previewMode = useContext(PreviewCtx);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function mark() {
+    if (previewMode || req.done || busy || !item.actionValue) return;
+    setBusy(true);
+    setErr(null);
+    const { data, error } = await supabase.rpc('portal_submit_step', {
+      p_token: token, p_step_id: item.actionValue, p_data: { key: req.key },
+    });
+    setBusy(false);
+    const res = data as { ok?: boolean } | null;
+    if (error || !res?.ok) { setErr('לא הצלחנו לשמור את הסימון. אפשר לנסות שוב.'); return; }
+    flushAccountantNotifications(token);
+    onDone();
+  }
+
+  const checked = req.done;
+  return (
+    <div style={{ display: 'grid', gap: 3 }}>
+      <button type="button" role="checkbox" aria-checked={checked}
+        disabled={previewMode || checked || busy} onClick={() => void mark()}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 9, padding: 0,
+          border: 'none', background: 'transparent', font: 'inherit',
+          cursor: previewMode || checked || busy ? 'default' : 'pointer',
+          opacity: previewMode ? .55 : 1,
+        }}>
+        <span aria-hidden="true" style={{
+          width: 18, height: 18, flexShrink: 0, borderRadius: 4,
+          border: `1.5px solid ${checked ? accent : brand.border}`,
+          background: checked ? accent : '#fff', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, lineHeight: 1,
+        }}>{checked ? '✓' : ''}</span>
+        <span style={{ fontSize: 13.5, color: checked ? brand.muted : brand.ink }}>
+          {busy ? 'שומר…' : req.label}
+        </span>
+      </button>
+      {err && <span style={{ fontSize: 12, color: '#a63a3a' }}>{err}</span>}
+    </div>
+  );
+}
+
+/**
+ * כפתור הפתיחה — פותח את הקובץ ורושם את הפתיחה.
+ *
+ * ‼ הלחיצה נרשמת בשרת דרך אותו portal_submit_step של כל בקשה אחרת, עם טוקן
+ * הדף — כלומר פעולה מזוהה של הלקוח, ולא עצם הצגת העמוד שמכיל את הקישור.
  *
  * ‼ הקובץ נפתח דרך <a target="_blank"> ולא דרך window.open אחרי await:
  * חלון שנפתח אחרי המתנה אינו נחשב תגובה ישירה ללחיצה, וחוסמי חלונות
@@ -543,8 +622,10 @@ function RequestGuide({ item, brand }: {
   if (!item.note && !item.noteAfter && refs.length === 0) return null;
   return (
     <div style={{ display: 'grid', gap: 8, marginBottom: 4 }}>
+      {/* ‼ pre-line: הניסוחים כוללים פסקאות ("איך עושים את זה?"), ובלי זה
+          הכול נדחס לגוש אחד. טקסט ישן בשורה אחת מרנדר בדיוק כמו קודם. */}
       {item.note && (
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: brand.ink }}>{item.note}</p>
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: brand.ink, whiteSpace: 'pre-line' }}>{item.note}</p>
       )}
       {refs.length > 0 && (
         <ul style={{
@@ -562,7 +643,7 @@ function RequestGuide({ item, brand }: {
         </ul>
       )}
       {item.noteAfter && (
-        <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: brand.muted }}>{item.noteAfter}</p>
+        <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: brand.muted, whiteSpace: 'pre-line' }}>{item.noteAfter}</p>
       )}
     </div>
   );

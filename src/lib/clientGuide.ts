@@ -130,9 +130,23 @@ export function withRemovedDocument(
   };
 }
 
-/** ה-payload של בקשת "שליחת מסמך ללקוח". דרישה אחת מסוג 'confirm' — נסגרת
- *  בפתיחת הקובץ עצמה דרך portal_submit_step, בלי שהלקוח מאשר שקרא. */
+/**
+ * ה-payload של בקשת "שליחת מסמך ללקוח". שתי דרישות, ורק אחת מהן סוגרת:
+ *
+ * - `opened` — נרשמת מאליה בלחיצה על כפתור הפתיחה, ולכן **רשות**. היא רק
+ *   מספרת לרו"ח שהקובץ נפתח.
+ * - `reviewed` — הסימון של הלקוח, והוא שסוגר את הבקשה.
+ *
+ * ‼ פתיחה אינה קריאה: עד כה הלחיצה על "לפתיחת המסמך" סגרה את הבקשה, וכך
+ * מדריך שנפתח לשנייה נספר כמדריך שעברו עליו. ההצהרה היא של הלקוח — כמו
+ * "נרשמתי לפייפרלס" — ואין כאן אימות; הרו"ח יכול לפתוח את הבקשה מחדש.
+ *
+ * ‼ תאימות לאחור: בקשות שכבר נשלחו נושאות רק `opened` כדרישת חובה, וממשיכות
+ * להיסגר בפתיחה בדיוק כמו קודם.
+ */
 export function buildDocumentRequestPayload(doc: ClientDocument): Record<string, unknown> {
+  // הסימון מדבר על מה שהלקוח באמת קיבל — מדריך או מסמך.
+  const noun = doc.label.includes('מדריך') ? 'המדריך' : 'המסמך';
   return {
     title: doc.label,
     clientTitle: doc.label,
@@ -140,7 +154,8 @@ export function buildDocumentRequestPayload(doc: ClientDocument): Record<string,
     clientCta: 'לפתיחת המסמך',
     clientResource: doc.id,
     requirements: [
-      { key: 'opened', kind: 'confirm' as const, label: 'פתיחת המסמך', done: false, required: true },
+      { key: 'opened', kind: 'confirm' as const, label: `פתיחת ${noun}`, done: false, required: false },
+      { key: 'reviewed', kind: 'confirm' as const, label: `עברתי על ${noun}`, done: false, required: true },
     ],
   };
 }

@@ -10,6 +10,10 @@ import { supabase } from '../../lib/supabase';
 import { PortalView, PortalData } from '../PublicPortalPage';
 import ClientPagePreviewDialog from './ClientPagePreviewDialog';
 import PublishCasePrompt from './PublishCasePrompt';
+import { buildBankDebitPayload } from '../../lib/bankDebitRequest';
+
+/** הניסוח האמיתי של בקשת ההרשאה — כדי שהבדיקה תראה את מה שהלקוח יראה. */
+const BANK = buildBankDebitPayload(['income', 'vat']);
 
 const FIXTURE: PortalData = {
   clientFirstName: 'נועה',
@@ -35,15 +39,18 @@ const FIXTURE: PortalData = {
     { bucket: 'action', key: 'custom_bank', label: 'הקמת הרשאה לחיוב חשבון',
       actionKind: 'portal', actionValue: 'step3', kind: 'custom', cta: 'להקמת ההרשאה',
       canUpload: true,
-      note: 'לצורך שיפור השירות ומעבר לתשלומים מקוונים ללא צורך בשיקים, ועל מנת שנוכל לבצע עבורך תשלומים למוסדות — יש להקים הרשאה לחיוב חשבון באפליקציה או באתר הבנק, תחת «הקמת/פתיחת הרשאה לחיוב חשבון».',
-      refs: [
-        { label: 'מס הכנסה', value: 'קוד מוסד 2760' },
-        { label: 'מע״מ', value: 'קוד מוסד 2761' },
-      ],
-      noteAfter: 'לאחר ההקמה בבנק — יש להעלות כאן את האסמכתה (צילום מסך או אישור מהבנק) לכל מוסד.',
+      note: BANK.clientNote, refs: BANK.clientRefs, noteAfter: BANK.clientNoteAfter,
       requirements: [
         { key: 'debit_income', kind: 'file', label: 'אסמכתה — מס הכנסה', done: false, required: true },
         { key: 'debit_vat', kind: 'file', label: 'אסמכתה — מע״מ', done: false, required: true },
+      ] },
+    { bucket: 'action', key: 'custom_guide', label: 'מדריך הוצאות מוכרות',
+      sub: 'מסמך מהמשרד — כמה דקות קריאה',
+      actionKind: 'portal', actionValue: 'step4', kind: 'guide', cta: 'לפתיחת המסמך',
+      resourceKey: 'expenses_guide', resourceUrl: 'https://example.com/guide.pdf',
+      requirements: [
+        { key: 'opened', kind: 'confirm', label: 'פתיחת המדריך', done: false, required: false },
+        { key: 'reviewed', kind: 'confirm', label: 'עברתי על המדריך', done: false, required: true },
       ] },
     { bucket: 'action', key: 'rep_sign', label: 'חתימה על ייפוי הכוח', sub: 'כדקה',
       actionKind: 'sign', actionValue: 'tok' },
@@ -95,8 +102,18 @@ export default function TestPortalPreview() {
         </div>
       </section>
 
+      {/* ‼ מצב preview מכבה כל פקד, ולכן הוא לא מראה איך הסימון נראה ומתנהג
+          אצל הלקוח. כאן אותם פריטים בלי preview — הטוקן ריק, ולכן לחיצה
+          מקבלת 'invalid' מהשרת ומציגה את הודעת השגיאה. שום נתון לא נוגע. */}
       <section>
-        <h3>2 · הדיאלוג האמיתי — לקוחות ה-DB של משתמש הפיתוח</h3>
+        <h3>2 · אותם פריטים במצב חי (טוקן ריק — לחיצה נכשלת בכוונה)</h3>
+        <div className="pivo-light" style={{ border: '1px solid #ccc', borderRadius: 8, overflow: 'hidden' }}>
+          <PortalView data={{ ...FIXTURE, items: FIXTURE.items.filter(i => i.bucket === 'action') }} embed />
+        </div>
+      </section>
+
+      <section>
+        <h3>3 · הדיאלוג האמיתי — לקוחות ה-DB של משתמש הפיתוח</h3>
         {!sessionReady && <p>ממתין להתחברות…</p>}
         {sessionReady && clients.length === 0 && <p>למשתמש הזה אין לקוחות ב-DB.</p>}
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
