@@ -6,31 +6,36 @@
 // הרו"ח ולא אצל הלקוח, עד שהוא לוחץ "שלח ללקוח". בלי זה כל תיקון קטן בניסוח
 // היה קופץ מיד למסך של הלקוח.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CustomRequirement, CustomRequirementKind, InstitutionKey, OnboardingStep } from '../../types/onboarding';
 import {
   DEBIT_INSTITUTION_ORDER, INSTITUTION_DEBIT_CODES, INSTITUTION_NAMES,
   REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS,
 } from '../../types/onboarding';
 import { BANK_DEBIT_TITLE, buildBankDebitPayload } from '../../lib/bankDebitRequest';
-import { EXPENSES_GUIDE_TITLE, buildGuideRequestPayload } from '../../lib/clientGuide';
+import type { ClientDocument } from '../../lib/clientGuide';
+import { buildDocumentRequestPayload, documentLibrary } from '../../lib/clientGuide';
+import type { RequestTemplate } from '../../lib/requestTemplates';
+import { firstEntry, loadRequestTemplates, templateBySeed } from '../../lib/requestTemplates';
 import { supabase } from '../../lib/supabase';
 
 /** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
  *  'paperless_sequence' ו-'bank_debit' אינם סוגי בקשה במסד — הם תבניות:
  *  הראשונה יוצרת את רצף הפייפרלס (PAPERLESS_SEQUENCE), והשנייה בקשה
  *  חופשית אחת עם דרישת אסמכתה לכל רשות שנבחרה (buildBankDebitPayload). */
+/* ‼ שלושה פריטים ירדו מכאן ב-2026-08: «קבלת חומרים מהרו״ח הקודם»,
+   «פתיחת תיקים ברשויות» ו«הכרת הלקוח». כולם נוצרו ריקים ואז נעלמו מהמסך
+   (AUTO_OFFICE_TYPES מסנן אותם), כלומר לחיצה לא הביאה שום דבר שאפשר לראות.
+   ‼ היכולות עצמן לא נמחקו: המחולל האוטומטי ממשיך ליצור אותם עם התוכן
+   המלא שלהם, ומעקב החומרים נוצר ומתעדכן מזרימת מכתב השחרור. */
 const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'bank_debit',             hint: 'הלקוח פותח הרשאה בבנק ומעלה אסמכתה — לרשויות שתבחר', once: false },
-  { type: 'expenses_guide',         hint: 'נסגרת מעצמה כשהלקוח פותח את המדריך', once: false },
+  { type: 'send_document',          hint: 'מסמך מספריית המשרד — נסגרת כשהלקוח פותח אותו', once: false },
   { type: 'client_documents',       hint: 'רשימת מסמכים שהלקוח מעלה בדף האישי', once: true },
   { type: 'prev_accountant_details', hint: 'הלקוח מוסר שם, מייל וטלפון של הקודם', once: true },
-  { type: 'release_letter',         hint: 'מכתב שחרור — נשלח לרו״ח הקודם', once: true },
-  { type: 'materials_received',     hint: 'מעקב אחרי החומרים שמגיעים ממנו', once: true },
+  { type: 'release_letter',         hint: 'מכתב שחרור — נשלח לרו״ח הקודם, ואיתו רשימת החומרים', once: true },
   { type: 'paperless_sequence',     hint: '', once: true },
   { type: 'intake_questionnaire',   hint: 'רענון תיק המס — שאלון ומסמכים לפי מה שחסר', once: true },
-  { type: 'kyc_identification',     hint: 'הכרת הלקוח — אישור ידני', once: true },
-  { type: 'file_opening',           hint: 'פתיחת תיקים ברשויות', once: true },
 ];
 
 /** רצף הפייפרלס — תבנית מוכרת, לא תצורה. שלושה שלבים, ובעלות שונה לכל אחד:
@@ -81,12 +86,14 @@ interface Props {
    * קריאת create_onboarding_request. ההבדל היחיד הוא שמדלגים על הקטלוג.
    */
   presetType?: OnboardingStep['stepType'];
+  /** בחירת תבנית — נמסרת החוצה כדי שהקומפוזר ייפתח במקום שבו הבקשות חיות. */
+  onUseTemplate?: (t: RequestTemplate) => void;
   onClose: () => void;
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, presetType, onClose, onCreated }: Props) {
-  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'guide'>('catalog');
+export default function AddRequestDialog({ clientId, steps, processPublished, presetType, onUseTemplate, onClose, onCreated }: Props) {
+  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document'>('catalog');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,20 +112,50 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
   /** הרשאה לחיוב חשבון — ‼ מתחיל ריק בכוונה. לא כל לקוח צריך את שלוש
    *  הרשויות, ובחירה מראש הייתה שולחת אותו לפתוח הרשאות מיותרות. */
   const [debitAuthorities, setDebitAuthorities] = useState<InstitutionKey[]>([]);
-  /** המדריך הפעיל של המשרד. null = עוד לא הועלה, ואז אין מה לשלוח. */
-  const [guideUrl, setGuideUrl] = useState<string | null | undefined>(undefined);
+  /** ספריית המסמכים של המשרד. undefined = עוד לא נטענה. */
+  const [library, setLibrary] = useState<ClientDocument[] | undefined>(undefined);
+  const [docId, setDocId] = useState<string>('');
 
-  // ‼ נטען רק כשנכנסים למסך המדריך: שאילתה לכל פתיחה של חלון ההוספה הייתה
-  // מיותרת, והמידע דרוש רק כדי לדעת אם יש מה לשלוח.
-  async function openGuideMode() {
-    setMode('guide');
+  // ‼ נטענת מיד עם פתיחת החלון, ולא רק כשנכנסים למסך המסמך: הקטלוג צריך
+  // לדעת מראש אם יש מה לשלוח, כדי להשבית את הפריט במקום לגלות בסוף.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const [{ data: prof }, tpls] = await Promise.all([
+        supabase.from('profiles').select('settings').limit(1).maybeSingle(),
+        loadRequestTemplates(),
+      ]);
+      if (!alive) return;
+      const lib = documentLibrary({ settings: (prof?.settings ?? {}) as Record<string, unknown> });
+      setLibrary(lib);
+      setDocId(lib[0]?.id ?? '');
+      setTemplates(tpls);
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const [templates, setTemplates] = useState<RequestTemplate[]>([]);
+
+  function openDocumentMode() {
+    setMode('document');
     setError(null);
-    // בקשת המדריך אינה עבודה שחוסמת סגירת קליטה — היא חומר עזר.
+    // שליחת מסמך אינה עבודה שחוסמת סגירת קליטה — היא חומר עזר.
     setRequiredForClose(false);
-    if (guideUrl !== undefined) return;
-    const { data } = await supabase.from('profiles').select('settings').limit(1).maybeSingle();
-    const g = (data?.settings as Record<string, { url?: string }> | null)?.expenses_guide;
-    setGuideUrl(g?.url?.trim() || null);
+  }
+
+  /** תוכן ברירת המחדל של סוג בקשה, מהתבנית המובנית. ריק ⇒ {} כמו קודם. */
+  function seedPayload(seedKey: string): Record<string, unknown> {
+    const entry = firstEntry(templateBySeed(templates, seedKey) ?? ({} as RequestTemplate));
+    return entry?.payload ?? {};
+  }
+
+  /** רשימת המסמכים נפתחת מהתבנית של המשרד, ולא ממחרוזת קבועה בקוד. */
+  function openDocumentsMode() {
+    setMode('documents');
+    setError(null);
+    const entry = firstEntry(templateBySeed(templates, 'client_documents') ?? ({} as RequestTemplate));
+    const list = (entry?.payload?.checklist as { label?: string }[] | undefined) ?? [];
+    if (list.length) setDocLines(list.map(i => i.label ?? '').filter(Boolean).join('\n'));
   }
 
   const [dueDate, setDueDate] = useState('');
@@ -134,6 +171,9 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     ? paperlessMissing.length > 0
     : !(c.once && existing.has(c.type as OnboardingStep['stepType'])));
   const dependencyOptions = steps.filter(s => s.status !== 'cancelled');
+  /** ‼ המובנות אינן מוצגות כשורות: הן כבר ברירת המחדל של פריטי הקטלוג
+   *  שמעליהן, והצגתן פעמיים הייתה כפילות. */
+  const savedTemplates = templates.filter(t => t.officeId !== null && !!onUseTemplate);
 
   async function rpcCreate(
     stepType: string,
@@ -236,7 +276,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
               : mode === 'catalog' ? 'הוספת בקשה'
               : mode === 'custom' ? 'בקשה חופשית'
               : mode === 'bank' ? BANK_DEBIT_TITLE
-              : mode === 'guide' ? EXPENSES_GUIDE_TITLE
+              : mode === 'document' ? 'שליחת מסמך ללקוח'
               : 'מסמכים מהלקוח'}
           </h3>
           <button type="button" className="btn btn-sm btn-ghost" onClick={onClose} aria-label="סגירה">✕</button>
@@ -276,18 +316,20 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   type="button"
                   disabled={busy}
                   onClick={() => {
-                    if (c.type === 'client_documents') { setMode('documents'); return; }
+                    if (c.type === 'client_documents') { openDocumentsMode(); return; }
                     if (c.type === 'bank_debit') { setMode('bank'); return; }
-                    if (c.type === 'expenses_guide') { void openGuideMode(); return; }
+                    if (c.type === 'send_document') { openDocumentMode(); return; }
                     if (c.type === 'paperless_sequence') { void createPaperlessSequence(); return; }
-                    void create(c.type, {});
+                    /* ‼ תוכן ברירת המחדל מגיע מתבנית מובנית ולא מ-{} ריק.
+                       בקשה שנוצרה ריקה הגיעה ללקוח בלי ניסוח ובלי רשימה. */
+                    void create(c.type, seedPayload(c.type));
                   }}
                   style={rowBtn}
                 >
                   <span style={{ fontWeight: 600 }}>
                     {c.type === 'paperless_sequence' ? 'פייפרלס'
                       : c.type === 'bank_debit' ? BANK_DEBIT_TITLE
-                      : c.type === 'expenses_guide' ? EXPENSES_GUIDE_TITLE
+                      : c.type === 'send_document' ? 'שליחת מסמך ללקוח'
                       : STEP_TYPE_LABELS[c.type as OnboardingStep['stepType']]}
                   </span>
                   <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
@@ -305,6 +347,27 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   אתה מגדיר מה הלקוח צריך לעשות — לאשר, לענות, או להעלות
                 </span>
               </button>
+
+              {/* ── תבניות שמורות ────────────────────────────────────────
+                  ‼ בחירה בתבנית פותחת עותק לעריכה, לא יוצרת בקשה מיד:
+                  התבנית היא נקודת התחלה, ומה שנשלח ללקוח הוא מה שערכת. */}
+              {savedTemplates.length > 0 && (
+                <>
+                  <div style={{
+                    fontSize: 'var(--fs-12)', color: 'var(--ink-4)',
+                    marginTop: '.3rem', paddingTop: '.5rem', borderTop: '1px solid var(--hairline-2)',
+                  }}>תבניות של המשרד</div>
+                  {savedTemplates.map(t => (
+                    <button key={t.id} type="button" disabled={busy} style={rowBtn}
+                      onClick={() => onUseTemplate?.(t)}>
+                      <span style={{ fontWeight: 600 }}>{t.name}</span>
+                      <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                        {t.description || 'תבנית שמורה — נפתחת לעריכה לפני היצירה'}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
             </>
           )}
 
@@ -335,26 +398,32 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
             </>
           )}
 
-          {mode === 'guide' && (
+          {mode === 'document' && (
             <>
-              {guideUrl === undefined ? (
+              {library === undefined ? (
                 <div className="cw-empty">טוען…</div>
-              ) : guideUrl === null ? (
-                /* ‼ בלי קובץ פעיל אין מה לשלוח — הכפתור בדף של הלקוח היה
-                   נפתח לשום מקום, והבקשה לא הייתה נסגרת לעולם. */
+              ) : library.length === 0 ? (
                 <div className="cw-empty">
-                  עדיין לא הועלה מדריך. יש להעלות אותו במסך המשרד ← «מסמכים ללקוחות», ואז לחזור לכאן.
+                  ספריית המסמכים ריקה. מוסיפים מסמכים במסך המשרד ← «מסמכים ללקוחות», ואז חוזרים לכאן.
                 </div>
               ) : (
                 <>
                   <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
-                    הלקוח יראה בקשה עם כפתור אחד שפותח את המדריך. אין מה למלא ואין מה לאשר —
+                    הלקוח יראה בקשה עם כפתור אחד שפותח את המסמך. אין מה למלא ואין מה לאשר —
                     הפתיחה עצמה סוגרת את הבקשה, והיא תסומן כאן כהושלמה.
                   </div>
-                  <a href={guideUrl} target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: 'var(--fs-12)', color: 'var(--accent)' }}>
-                    לצפייה בקובץ שיישלח ←
-                  </a>
+                  <label style={lbl}>
+                    איזה מסמך לשלוח
+                    <select className="input" value={docId} onChange={e => setDocId(e.target.value)}>
+                      {library.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+                    </select>
+                  </label>
+                  {library.find(d => d.id === docId) && (
+                    <a href={library.find(d => d.id === docId)!.url} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: 'var(--fs-12)', color: 'var(--accent)' }}>
+                      לצפייה בקובץ שיישלח ←
+                    </a>
+                  )}
                   <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
                 </>
               )}
@@ -464,9 +533,12 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
               {busy ? 'מוסיף…' : 'הוסף בקשה'}
             </button>
           )}
-          {mode === 'guide' && !presetType && !!guideUrl && (
-            <button type="button" className="btn btn-primary" disabled={busy}
-              onClick={() => { void create('custom_request', buildGuideRequestPayload()); }}>
+          {mode === 'document' && !presetType && !!library?.length && (
+            <button type="button" className="btn btn-primary" disabled={busy || !docId}
+              onClick={() => {
+                const doc = library.find(d => d.id === docId);
+                if (doc) void create('custom_request', buildDocumentRequestPayload(doc));
+              }}>
               {busy ? 'מוסיף…' : 'הוסף בקשה'}
             </button>
           )}

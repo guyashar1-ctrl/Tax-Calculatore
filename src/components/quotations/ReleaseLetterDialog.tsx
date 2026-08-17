@@ -32,6 +32,9 @@ interface Props {
   /** נקרא רק אחרי שליחה מוצלחת — מקדם את שלב הקליטה ל"נשלח". */
   onSent?: (sent: {
     materialKeys: string[]; objectionDueDate: string;
+    /** הפריטים שנשלחו בפועל, עם הניסוח הסופי — כולל פריטים שהמשרד הוסיף
+     *  או ניסח מחדש. צ'קליסט המעקב נבנה מהם, ולא מהרשימה הקבועה. */
+    materials?: { key: string; label: string }[];
     /** הנוסח הסופי והטוקן — כדי שדף הרו"ח הקודם יציג בדיוק את מה שנשלח. */
     subject?: string; body?: string; releaseToken?: string;
   }) => void;
@@ -94,10 +97,38 @@ export default function ReleaseLetterDialog({
     if (!edited) setBody(compose(next));
   }
 
-  function toggleMaterial(key: string) {
-    const next = materials.map(m => (m.key === key ? { ...m, checked: !m.checked } : m));
+  /* ── עריכת רשימת החומרים ──────────────────────────────────────────────
+     ‼ הרשימה המקצועית היא **נקודת פתיחה**, לא טופס סגור: מה שמבקשים מרו״ח
+     קודם משתנה מלקוח ללקוח. לכן אפשר לנסח מחדש, להוסיף, למחוק ולסדר —
+     ולא רק לסמן. הרשימה שנשלחת בפועל היא זו שהופכת לצ'קליסט המעקב. */
+  function applyMaterials(next: ReleaseMaterial[]) {
     setMaterials(next);
     sync({ materials: next });
+  }
+
+  const toggleMaterial = (key: string) =>
+    applyMaterials(materials.map(m => (m.key === key ? { ...m, checked: !m.checked } : m)));
+
+  const renameMaterial = (key: string, label: string) =>
+    applyMaterials(materials.map(m => (m.key === key ? { ...m, label } : m)));
+
+  const removeMaterial = (key: string) =>
+    applyMaterials(materials.filter(m => m.key !== key));
+
+  function moveMaterial(key: string, dir: -1 | 1) {
+    const i = materials.findIndex(m => m.key === key);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= materials.length) return;
+    const next = [...materials];
+    [next[i], next[j]] = [next[j], next[i]];
+    applyMaterials(next);
+  }
+
+  function addMaterial() {
+    // ‼ מפתח ייחודי משלו: מפתחות הרשימה המקצועית שמורים, ופריט שהמשרד הוסיף
+    // חייב מפתח שלא יתנגש בהם — גם בצ'קליסט המעקב שנבנה מהם.
+    const key = `custom_${Date.now().toString(36)}`;
+    applyMaterials([...materials, { key, label: '', checked: true }]);
   }
 
   async function handleSend() {
@@ -155,6 +186,8 @@ export default function ReleaseLetterDialog({
       setNotice({ kind: 'ok', text: 'המכתב נשלח ונשמר במסמכי הלקוח.' });
       onSent?.({
         materialKeys: materials.filter(m => m.checked).map(m => m.key),
+        materials: materials.filter(m => m.checked && m.label.trim())
+          .map(m => ({ key: m.key, label: m.label.trim() })),
         objectionDueDate: addBusinessDays(new Date(), 3),
         subject, body: finalBody, releaseToken,
       });
@@ -203,15 +236,32 @@ export default function ReleaseLetterDialog({
 
           <fieldset style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: '8px 10px' }}>
             <legend style={label}>מה מבקשים ממנו</legend>
-            <div style={{ display: 'grid', gap: 4, gridTemplateColumns: 'repeat(auto-fit, minmax(15rem, 1fr))' }}>
-              {materials.map(m => (
-                <label key={m.key} style={{ ...label, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'grid', gap: 2 }}>
+              {materials.map((m, i) => (
+                <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <input type="checkbox" checked={m.checked} disabled={locked}
+                    aria-label={`לכלול: ${m.label}`}
                     onChange={() => toggleMaterial(m.key)} />
-                  {m.label}
-                </label>
+                  <input
+                    value={m.label} disabled={locked} placeholder="מה מבקשים"
+                    aria-label="ניסוח הפריט"
+                    onChange={e => renameMaterial(m.key, e.target.value)}
+                    style={{ flex: 1, minWidth: 0, fontSize: 12.5, padding: '3px 6px',
+                             opacity: m.checked ? 1 : .55 }} />
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={locked || i === 0}
+                    aria-label="העלאה" title="העלאה" style={{ padding: '0 .25rem' }}
+                    onClick={() => moveMaterial(m.key, -1)}>↑</button>
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={locked || i === materials.length - 1}
+                    aria-label="הורדה" title="הורדה" style={{ padding: '0 .25rem' }}
+                    onClick={() => moveMaterial(m.key, 1)}>↓</button>
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
+                    aria-label="הסרה" title="הסרה" style={{ padding: '0 .25rem' }}
+                    onClick={() => removeMaterial(m.key)}>✕</button>
+                </div>
               ))}
             </div>
+            <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
+              style={{ marginTop: 4 }} onClick={addMaterial}>+ עוד פריט</button>
           </fieldset>
 
           <label style={label}>הלקוח כבר שילם לו עבור (אופציונלי — משאיר אותו מייצג ראשי עד ההגשה)

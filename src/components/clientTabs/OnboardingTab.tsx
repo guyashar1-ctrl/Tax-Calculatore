@@ -36,6 +36,8 @@ import ConfirmDialog from '../ui/ConfirmDialog';
 import OnboardingJourneyMap from './OnboardingJourneyMap';
 import Modal from '../ui/Modal';
 import AddRequestDialog from './AddRequestDialog';
+import type { RequestTemplate } from '../../lib/requestTemplates';
+import { firstEntry, isSeedTemplate, saveRequestTemplate } from '../../lib/requestTemplates';
 import JourneyTemplatesDialog from './JourneyTemplatesDialog';
 import SendPortalDialog from './SendPortalDialog';
 import ClientPagePreviewDialog from './ClientPagePreviewDialog';
@@ -265,6 +267,12 @@ export default function OnboardingTab({
   // שורה סגורה מראה שם, מצב ופעולה; פתיחה חושפת את הפרטים וההיסטוריה שלה.
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  /** תבנית שנבחרה מהקטלוג — פותחת את הקומפוזר על עותק שלה. */
+  const [templateDraft, setTemplateDraft] = useState<RequestTemplate | null>(null);
+  /** בקשה שנשמרת כרגע כתבנית — החלון מבקש רק שם. */
+  const [saveTemplateFor, setSaveTemplateFor] = useState<OnboardingStep | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [templateBusy, setTemplateBusy] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [ordering, setOrdering] = useState(false);
   const [alignBusy, setAlignBusy] = useState(false);
@@ -847,10 +855,17 @@ export default function OnboardingTab({
 
                           <div className="ob-menu-sep" />
 
+                          {/* ‼ שתי שמירות שונות ולכן שתי שורות: הבקשה הזאת
+                              בלבד, או כל ההרכב של הלקוח עם התלויות ביניהן. */}
+                          <button type="button" role="menuitem" className={mi}
+                            onClick={() => { setMenuStepId(null); setSaveTemplateFor(step); }}
+                            title="שמירת הבקשה הזאת בלבד כתבנית לשימוש חוזר">
+                            שמור כתבנית
+                          </button>
                           <button type="button" role="menuitem" className={mi}
                             onClick={() => { setMenuStepId(null); setTemplatesOpen(true); }}
                             title="שמירת הבקשות של הלקוח כתבנית — כולל התלות ביניהן">
-                            שמור כתבנית
+                            שמור את כל המסע כתבנית
                           </button>
                           {/* ‼ "הסר" — רק על בקשות פונות-ללקוח (לא ייצוג, לא עבודה
                               פנימית — שם "דלג"/"חסום" כבר מספיקים). בקשה שפורסמה
@@ -1455,11 +1470,36 @@ export default function OnboardingTab({
 
             {/* ‼ הוספה ותבניות זמינות תמיד — לאורך כל חיי הלקוח, לא רק בקליטה
                 ולא רק במצב עריכה. זו בקשה חדשה, לא תצורה. */}
-            <div className="ob-add-row">
-              <button type="button" className="ob-add" onClick={() => setAddOpen(true)}>＋ בקשה חדשה</button>
-              <button type="button" className="btn btn-secondary ob-tpl"
-                onClick={() => setTemplatesOpen(true)}>מתבנית</button>
-            </div>
+            {/* ‼ תבנית שנבחרה נפתחת כאן כעותק לעריכה, ולא נוצרת מיד: מה
+                שנשלח ללקוח הוא מה שערכת, והתבנית עצמה לא משתנה אלא אם
+                ביקשת זאת במפורש בתחתית הקומפוזר. */}
+            {templateDraft ? (
+              <InlineComposer
+                clientId={clientId}
+                initialContent={firstEntry(templateDraft)?.payload}
+                initialOwner={firstEntry(templateDraft)?.owner ?? 'client'}
+                sourceTemplate={{
+                  id: templateDraft.id,
+                  name: templateDraft.name,
+                  isSeed: isSeedTemplate(templateDraft),
+                  entry: firstEntry(templateDraft),
+                }}
+                existingSteps={clientSteps}
+                prevAccountant={prevAccountant}
+                onCancel={() => setTemplateDraft(null)}
+                onSaved={created => {
+                  setTemplateDraft(null);
+                  setOptimisticSteps(prev => [...prev, created]);
+                  refresh?.();
+                }}
+              />
+            ) : (
+              <div className="ob-add-row">
+                <button type="button" className="ob-add" onClick={() => setAddOpen(true)}>＋ בקשה חדשה</button>
+                <button type="button" className="btn btn-secondary ob-tpl"
+                  onClick={() => setTemplatesOpen(true)}>מתבנית</button>
+              </div>
+            )}
 
             {/* ── העבודה שלי ──────────────────────────────────────────────
                 ‼ שני דברים בלבד (הכרעת גיא): "יישור קו ללקוח" כפריט הקבוע,
@@ -1650,9 +1690,39 @@ export default function OnboardingTab({
           clientId={clientId}
           steps={clientSteps}
           processPublished={!!activeEngagement?.processPublishedAt}
+          onUseTemplate={t => { setAddOpen(false); setTemplateDraft(t); }}
           onClose={() => setAddOpen(false)}
           onCreated={() => refresh?.()}
         />
+      )}
+
+      {saveTemplateFor && (
+        <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setSaveTemplateFor(null); }}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <h3 style={{ margin: 0, fontSize: 'var(--fs-16)' }}>שמירת הבקשה כתבנית</h3>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setSaveTemplateFor(null)} aria-label="סגירה">✕</button>
+            </div>
+            <div className="modal-body" style={{ display: 'grid', gap: '.5rem' }}>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
+                התבנית תהיה זמינה לכל מי שעובד במשרד, ב«+ בקשה חדשה». הבקשה של הלקוח לא תשתנה.
+              </div>
+              <input className="input" autoFocus placeholder="שם התבנית" value={templateName}
+                onChange={e => setTemplateName(e.target.value)} />
+            </div>
+            <div className="modal-foot" style={{ display: 'flex', gap: '.4rem', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setSaveTemplateFor(null)}>ביטול</button>
+              <button type="button" className="btn btn-primary" disabled={templateBusy || !templateName.trim()}
+                onClick={async () => {
+                  setTemplateBusy(true);
+                  const err = await saveRequestTemplate(saveTemplateFor.id, templateName.trim());
+                  setTemplateBusy(false);
+                  if (err) { setError('שמירת התבנית נכשלה.'); return; }
+                  setSaveTemplateFor(null); setTemplateName('');
+                }}>{templateBusy ? 'שומר…' : 'שמירה'}</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {templatesOpen && (

@@ -1,72 +1,146 @@
-// ─── מדריך ההוצאות המוכרות — נכס אחד של המשרד ───────────────────────────────
-// קובץ אחד משותף לכל הלקוחות, שמנוהל במסך המשרד. ‼ לא מסמך בתיק של לקוח:
-// הוא זהה לכולם, ולכן הוא יושב ב-Storage פעם אחת ומצביעים אליו.
+// ─── ספריית המסמכים של המשרד ────────────────────────────────────────────────
+// מסמכים קבועים שהמשרד נותן ללקוחות — מדריך הוצאות מוכרות, וכל מה שיתווסף.
+// ‼ לא מסמך בתיק של לקוח: הקובץ זהה לכולם, יושב ב-Storage פעם אחת, ומצביעים
+// אליו. לכן גם אין פריט קטלוג נפרד לכל קובץ — יש פריט אחד, «שליחת מסמך
+// ללקוח», ובוחרים בתוכו מה לשלוח.
 //
 // ‼ הבקשה אצל הלקוח נפתרת ל**קובץ העדכני** בזמן הפתיחה, ולא לצילום מרגע
-// השליחה — בדיוק כמו קישור ההרשמה לפייפרלס, שנפתר מהגדרות המשרד בכל רינדור
-// של הדף (ראה build_client_portal). המשמעות: החלפת הקובץ משנה מיד את מה
-// שייפתח בכל בקשה, פתוחה או שהושלמה.
+// השליחה — כמו קישור ההרשמה לפייפרלס, שנפתר מהגדרות המשרד בכל רינדור.
+// לכן גרסאות קודמות אינן נמחקות אלא נערמות ב-history: מתי כל לקוח פתח רשום
+// על הבקשה שלו, והצלבה מול ההיסטוריה אומרת איזו גרסה הייתה פעילה אז.
 //
-// ‼ ולכן הגרסאות הקודמות **אינן נמחקות** אלא נערמות ב-history. מתי כל לקוח
-// פתח רשום על הבקשה שלו (doneAt), והצלבה מול ההיסטוריה אומרת איזו גרסה
-// הייתה פעילה אז — בלי להישען על נתון שהדפדפן של הלקוח שלח.
+// ‼ תאימות לאחור: המדריך שנשמר בעבר תחת settings.expenses_guide ממשיך
+// לעבוד — הוא נקרא כפריט בספרייה עם המזהה 'expenses_guide', וכל בקשה
+// שכבר נשלחה ומצביעה למזהה הזה ממשיכה להיפתח בדיוק כמו קודם.
 
 import type { FirmProfile } from '../types/firmProfile';
 
 export const GUIDE_BUCKET = 'firm-resources';
 
-/** ‼ מזהה קבוע. הוא נשמר על הבקשה ומשמש את השרת לפתור את הקובץ. */
+/** המזהה ההיסטורי של מדריך ההוצאות. נשמר כדי שבקשות ותיקות ימשיכו לעבוד. */
 export const EXPENSES_GUIDE_KEY = 'expenses_guide';
-
 export const EXPENSES_GUIDE_TITLE = 'מדריך הוצאות מוכרות';
 
-export interface GuideVersion {
+/** המפתח בהגדרות המשרד שמחזיק את הספרייה. */
+export const LIBRARY_KEY = 'client_documents';
+
+export interface DocVersion {
   path: string;
   url: string;
   fileName: string;
   at: string;
 }
 
-export interface ClientGuideSetting extends GuideVersion {
-  /** גרסאות קודמות, מהחדשה לישנה. הקבצים עצמם נשארים ב-Storage. */
-  history?: GuideVersion[];
+export interface ClientDocument extends DocVersion {
+  /** מזהה יציב — נשמר על הבקשה ולכן לעולם לא משתנה. */
+  id: string;
+  /** השם שהלקוח רואה. */
+  label: string;
+  /** גרסאות קודמות, מהחדשה לישנה. הקבצים נשארים ב-Storage. */
+  history?: DocVersion[];
 }
 
-/** המדריך הפעיל של המשרד, אם הועלה. */
-export function currentGuide(profile: Pick<FirmProfile, 'settings'>): ClientGuideSetting | null {
-  const raw = (profile.settings as Record<string, unknown> | undefined)?.[EXPENSES_GUIDE_KEY];
-  if (!raw || typeof raw !== 'object') return null;
-  const g = raw as Partial<ClientGuideSetting>;
-  return g.url && g.path ? (g as ClientGuideSetting) : null;
+type Settings = Record<string, unknown>;
+
+/**
+ * ספריית המסמכים של המשרד. קוראת גם את המדריך הישן שנשמר בשדה נפרד, כדי
+ * שמשרד שהעלה מדריך לפני המעבר לספרייה לא יאבד אותו.
+ */
+export function documentLibrary(profile: Pick<FirmProfile, 'settings'>): ClientDocument[] {
+  const settings = (profile.settings ?? {}) as Settings;
+  const raw = settings[LIBRARY_KEY];
+  if (Array.isArray(raw)) {
+    return raw.filter((d): d is ClientDocument => {
+      const x = d as Partial<ClientDocument>;
+      return !!x && typeof x === 'object' && !!x.id && !!x.url && !!x.path;
+    });
+  }
+  const legacy = settings[EXPENSES_GUIDE_KEY] as Partial<ClientDocument> | undefined;
+  if (legacy?.url && legacy?.path) {
+    return [{
+      id: EXPENSES_GUIDE_KEY,
+      label: EXPENSES_GUIDE_TITLE,
+      path: legacy.path, url: legacy.url,
+      fileName: legacy.fileName ?? 'expenses-guide.pdf',
+      at: legacy.at ?? new Date().toISOString(),
+      history: legacy.history ?? [],
+    }];
+  }
+  return [];
 }
 
-/** הגרסה החדשה נכנסת, והקודמת יורדת לראש ההיסטוריה. */
-export function withNewGuide(
+export const findDocument = (profile: Pick<FirmProfile, 'settings'>, id: string) =>
+  documentLibrary(profile).find(d => d.id === id);
+
+/** מזהה חדש למסמך — יציב, ולכן נגזר מהזמן ולא מהשם (שם משתנה). */
+export const newDocumentId = () => `doc_${Date.now().toString(36)}`;
+
+/**
+ * הוספת מסמך חדש לספרייה.
+ * ‼ כותב תמיד את המערך המלא, כולל המרה של המדריך הישן — כך הפריט הישן
+ * נשמר בספרייה במקום להישאר בשדה נפרד שאיש כבר לא קורא.
+ */
+export function withAddedDocument(
   profile: Pick<FirmProfile, 'settings'>,
-  next: GuideVersion,
-): Record<string, unknown> {
-  const prev = currentGuide(profile);
-  const history = [
-    ...(prev ? [{ path: prev.path, url: prev.url, fileName: prev.fileName, at: prev.at }] : []),
-    ...(prev?.history ?? []),
-  ].slice(0, 20);
+  doc: ClientDocument,
+): Settings {
+  const next = [...documentLibrary(profile).filter(d => d.id !== doc.id), doc];
+  return { ...(profile.settings as Settings), [LIBRARY_KEY]: next };
+}
+
+/** החלפת הקובץ של מסמך קיים. הגרסה הקודמת יורדת להיסטוריה ולא נמחקת. */
+export function withReplacedFile(
+  profile: Pick<FirmProfile, 'settings'>,
+  id: string,
+  next: DocVersion,
+): Settings {
+  const lib = documentLibrary(profile);
+  const updated = lib.map(d => d.id !== id ? d : {
+    ...d, ...next,
+    history: [
+      { path: d.path, url: d.url, fileName: d.fileName, at: d.at },
+      ...(d.history ?? []),
+    ].slice(0, 20),
+  });
+  return { ...(profile.settings as Settings), [LIBRARY_KEY]: updated };
+}
+
+/** שינוי השם שהלקוח רואה. הקובץ עצמו לא נוגע. */
+export function withRenamedDocument(
+  profile: Pick<FirmProfile, 'settings'>,
+  id: string,
+  label: string,
+): Settings {
+  const updated = documentLibrary(profile).map(d => d.id === id ? { ...d, label } : d);
+  return { ...(profile.settings as Settings), [LIBRARY_KEY]: updated };
+}
+
+/**
+ * הסרת מסמך מהספרייה.
+ * ‼ הקובץ עצמו נשאר ב-Storage: בקשות שכבר נשלחו מצביעות אליו, ומחיקה
+ * הייתה הופכת אותן לכפתור שנפתח לשום מקום.
+ */
+export function withRemovedDocument(
+  profile: Pick<FirmProfile, 'settings'>,
+  id: string,
+): Settings {
   return {
-    ...(profile.settings as Record<string, unknown>),
-    [EXPENSES_GUIDE_KEY]: { ...next, history },
+    ...(profile.settings as Settings),
+    [LIBRARY_KEY]: documentLibrary(profile).filter(d => d.id !== id),
   };
 }
 
-/** ה-payload של בקשת המדריך. דרישה אחת מסוג 'confirm' — נסגרת בפתיחת הקובץ
- *  עצמה דרך portal_submit_step, בלי שהלקוח מאשר שקרא. */
-export function buildGuideRequestPayload(): Record<string, unknown> {
+/** ה-payload של בקשת "שליחת מסמך ללקוח". דרישה אחת מסוג 'confirm' — נסגרת
+ *  בפתיחת הקובץ עצמה דרך portal_submit_step, בלי שהלקוח מאשר שקרא. */
+export function buildDocumentRequestPayload(doc: ClientDocument): Record<string, unknown> {
   return {
-    title: EXPENSES_GUIDE_TITLE,
-    clientTitle: EXPENSES_GUIDE_TITLE,
-    clientSub: 'מה כדאי לשמור ולהעביר אלינו — כמה דקות קריאה',
-    clientCta: 'לפתיחת המדריך',
-    clientResource: EXPENSES_GUIDE_KEY,
+    title: doc.label,
+    clientTitle: doc.label,
+    clientSub: 'מסמך מהמשרד — כמה דקות קריאה',
+    clientCta: 'לפתיחת המסמך',
+    clientResource: doc.id,
     requirements: [
-      { key: 'opened', kind: 'confirm' as const, label: 'פתיחת המדריך', done: false, required: true },
+      { key: 'opened', kind: 'confirm' as const, label: 'פתיחת המסמך', done: false, required: true },
     ],
   };
 }

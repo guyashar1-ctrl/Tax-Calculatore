@@ -12,6 +12,8 @@ import { useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { CustomRequirement, CustomRequirementKind, ExternalPartyConfig, OnboardingStep } from '../../types/onboarding';
 import { REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
+import type { TemplateEntry } from '../../lib/requestTemplates';
+import { differsFromTemplate, saveRequestTemplate, updateRequestTemplate } from '../../lib/requestTemplates';
 
 /** שם הבקשה בשביל צ'יפ התלות ורשימת הבחירה.
  *  ‼ היה כאן נפילה ל-stepType הגולמי, ולכן תלות בשלב מובנה הוצגה לרו"ח
@@ -59,7 +61,7 @@ function emptyRow(): InputRow {
 }
 
 export default function InlineComposer({
-  clientId, stageId, editStep, initialDeps, initialOwner, existingSteps, prevAccountant, onSaved, onCancel,
+  clientId, stageId, editStep, initialContent, sourceTemplate, initialDeps, initialOwner, existingSteps, prevAccountant, onSaved, onCancel,
 }: {
   clientId: string;
   /** שלב-העל שבו נלחץ "+ הוסף" — נגזר מההקשר, לא נשאל. null = דלי ברירת-מחדל. */
@@ -68,6 +70,13 @@ export default function InlineComposer({
   initialOwner?: Owner;
   /** מצב עריכה — אותו קומפוזר, מלא מראש. */
   editStep?: OnboardingStep;
+  /**
+   * תוכן פתיחה מתבנית — בקשה חדשה שנולדת מלאה במקום ריקה.
+   * ‼ עותק בלבד: מרגע הפתיחה אין קשר לתבנית, ועריכה כאן לא תיגע בה לעולם.
+   */
+  initialContent?: Record<string, unknown>;
+  /** התבנית שממנה נפתח — לזיהוי "השתנה" ולפעולות השמירה בסיום. */
+  sourceTemplate?: { id: string; name: string; isSeed: boolean; entry?: TemplateEntry };
   /** כל ההורים של השלב הנערך (מטבלת התלויות) — לא רק הראשון. */
   initialDeps?: string[];
   /** בקשות פתוחות אחרות של הלקוח — לבחירת "ממתין ל…". */
@@ -79,7 +88,9 @@ export default function InlineComposer({
   onCancel: () => void;
 }) {
   const edit = editStep ?? null;
-  const editContent = edit ? { ...edit.payload, ...(edit.draftPayload ?? {}) } : null;
+  const editContent: Record<string, unknown> | null = edit
+    ? { ...edit.payload, ...(edit.draftPayload ?? {}) }
+    : (initialContent ?? null);
 
   const [name, setName] = useState(String(editContent?.title ?? editContent?.clientTitle ?? ''));
   const [owner, setOwner] = useState<Owner>(() => {
@@ -88,7 +99,7 @@ export default function InlineComposer({
     return edit.ball === 'me' ? 'me' : 'client';
   });
   const [rows, setRows] = useState<InputRow[]>(() => {
-    if (edit) {
+    if (editContent) {
       const r = (editContent?.requirements as CustomRequirement[] | undefined) ?? [];
       return r.length ? r.map(x => ({
         key: x.key, kind: x.kind, label: x.label, required: x.required !== false,
@@ -137,6 +148,23 @@ export default function InlineComposer({
   const [depsOpen, setDepsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* ── מה לעשות עם התבנית ────────────────────────────────────────────────
+     ‼ ברירת המחדל היא תמיד "רק ללקוח הזה". המשימה היא לשלוח בקשה נכונה
+     ללקוח; ניהול תבניות הוא לוואי, ולכן הבלוק כולו מופיע רק אם באמת שינית
+     משהו — ואף פעם לא חוסם את השמירה. */
+  const [tplAction, setTplAction] = useState<'none' | 'update' | 'new'>('none');
+  const [tplNewName, setTplNewName] = useState('');
+
+  /** האם התוכן כבר אינו מה שהתבנית נתנה. נבדק על התוכן החי, לא על מה שנשמר. */
+  const templateChanged = useMemo(() => {
+    if (!sourceTemplate?.entry || edit) return false;
+    return differsFromTemplate(sourceTemplate.entry, {
+      title: name,
+      clientSub,
+      clientCta,
+      requirements: rows.map(r => ({ label: r.label, kind: r.kind, required: r.required })),
+    });
+  }, [sourceTemplate, edit, name, clientSub, clientCta, rows]);
 
   const depCandidates = useMemo(
     () => existingSteps.filter(s =>
@@ -288,6 +316,20 @@ export default function InlineComposer({
     if (deps.length > 1) {
       await supabase.rpc('set_onboarding_step_dependencies', { p_step_id: res.stepId, p_depends_on: deps });
     }
+
+    /* ‼ אחרי שהבקשה כבר נוצרה, ורק אם ביקשת במפורש. כישלון כאן אינו מבטל
+       את הבקשה — היא הדבר החשוב, והתבנית היא לוואי. */
+    if (sourceTemplate && tplAction !== 'none') {
+      const tplErr = tplAction === 'update'
+        ? await updateRequestTemplate(sourceTemplate.id, res.stepId)
+        : await saveRequestTemplate(res.stepId, tplNewName.trim() || name.trim() || 'תבנית חדשה');
+      if (tplErr) {
+        setBusy(false);
+        setError('הבקשה נוצרה, אבל שמירת התבנית נכשלה. אפשר לנסות שוב מהבקשה עצמה.');
+        return;
+      }
+    }
+
     setBusy(false);
     onSaved({
       id: res.stepId,
@@ -628,6 +670,38 @@ export default function InlineComposer({
 
       {error && (
         <div role="alert" style={{ fontSize: 'var(--fs-13)', color: 'var(--err)' }}>⚠ {error}</div>
+      )}
+
+      {/* ── שינית את התוכן שהתבנית נתנה ────────────────────────────────────
+          ‼ מופיע רק כשבאמת שינית, ורק כשנפתחת מתבנית. מי שלא נגע לא רואה
+          כאן כלום, והשמירה הרגילה אינה עוברת דרך שום החלטה. */}
+      {templateChanged && sourceTemplate && (
+        <div style={{
+          display: 'grid', gap: '.3rem', padding: '.5rem .6rem',
+          border: '1px solid var(--hairline-2)', borderRadius: 'var(--radius)',
+        }}>
+          <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+            שינית את התוכן של «{sourceTemplate.name}»
+          </span>
+          {([
+            ['none', 'רק ללקוח הזה'],
+            ['update', sourceTemplate.isSeed ? 'לשמור כתבנית של המשרד' : 'לעדכן גם את התבנית'],
+            ['new', 'לשמור כתבנית חדשה'],
+          ] as const).map(([val, label]) => (
+            <label key={val} style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)' }}>
+              <input type="radio" name="tpl-action" checked={tplAction === val} disabled={busy}
+                onChange={() => setTplAction(val)} />
+              {label}
+              {val === 'none' && (
+                <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>(התבנית לא תשתנה)</span>
+              )}
+            </label>
+          ))}
+          {tplAction === 'new' && (
+            <input style={{ ...field, maxWidth: 260 }} placeholder="שם התבנית החדשה" value={tplNewName}
+              disabled={busy} onChange={e => setTplNewName(e.target.value)} />
+          )}
+        </div>
       )}
 
       <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>

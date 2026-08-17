@@ -1492,13 +1492,24 @@ export default function App() {
    * ‼ בלי זה עוקבים אחרי רשימה שנוצרה בהרכבה ולא אחרי מה שנשלח — ואז "חסר
    * טופס פחת" מופיע גם כשלא ביקשנו אותו.
    */
-  function syncRequestedMaterials(clientId: string, materialKeys: string[]) {
+  /**
+   * ‼ הרשימה שנשלחה בפועל היא זו שהופכת לצ'קליסט המעקב — כולל פריטים שהמשרד
+   * ניסח מחדש או הוסיף במכתב. נפילה ל-RELEASE_MATERIALS קיימת רק בשביל
+   * מכתבים שנשלחו לפני שהרשימה הפכה לניתנת לעריכה.
+   */
+  function syncRequestedMaterials(
+    clientId: string,
+    materialKeys: string[],
+    sentMaterials?: { key: string; label: string }[],
+  ) {
     const step = onboarding.steps.find(
       s => s.clientId === clientId && s.stepType === 'materials_received' && s.status !== 'cancelled');
     if (!step || materialKeys.length === 0) return;
     const wasDone = new Map((step.payload?.checklist ?? []).map(i => [i.key, i.done]));
-    const checklist = RELEASE_MATERIALS
-      .filter(m => materialKeys.includes(m.key))
+    const source = sentMaterials?.length
+      ? sentMaterials
+      : RELEASE_MATERIALS.filter(m => materialKeys.includes(m.key));
+    const checklist = source
       .map(m => ({ key: m.key, label: m.label, done: wasDone.get(m.key) ?? false }));
     void onboarding.advance(step.id, 'note', {
       checklist,
@@ -2234,7 +2245,7 @@ export default function App() {
           prevAccountant={releaseFor.prevAccountant}
           brand={deriveQuotationBrand(firmProfile)}
           stepId={releaseFor.stepId}
-          onSent={({ materialKeys, objectionDueDate, subject, body }) => {
+          onSent={({ materialKeys, objectionDueDate, subject, body, materials }) => {
             const stepId = releaseFor.stepId;
             if (stepId) {
               // ‼ תאריך היעד הוא חלון ההתנגדות, לא מועד קבלת החומרים.
@@ -2254,7 +2265,7 @@ export default function App() {
             }
             // רשימת החומרים שנתבקשו בפועל הופכת לצ'קליסט המעקב — אחרת עוקבים
             // אחרי רשימה גנרית שאינה מה שביקשנו.
-            syncRequestedMaterials(releaseFor.clientId, materialKeys);
+            syncRequestedMaterials(releaseFor.clientId, materialKeys, materials);
           }}
           onClose={() => setReleaseFor(null)}
         />
