@@ -169,15 +169,17 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse }:
     { label: 'שם משפחה', value: lastName },
   ];
 
-  // ייפוי כוח שני בב"ל, על שם בן/בת הזוג. השם מגיע כמחרוזת אחת ולכן מפוצל כאן
-  // לשם פרטי ומשפחה — ב"ל דורש כל אחד בשדה נפרד.
+  // ייפוי כוח שני בב"ל, על שם בן/בת הזוג. השם המפוצל שהלקוח מילא בקליטה הוא
+  // המקור (110); פיצול המחרוזת נשאר רק לרשומות ישנות שאין בהן שדות מפוצלים.
   const spouseFull = (id.spouseName || pre.spouseName || '').trim();
   const spouseParts = spouseFull.split(/\s+/).filter(Boolean);
+  const spouseBirthYear = id.spouseBirthYear ?? pre.spouseBirthYear;
+  const spouseFirst = id.spouseFirstName || pre.spouseFirstName || spouseParts[0] || '';
   const niSpouseRows: Row[] = [
     { label: 'תעודת זהות', value: id.spouseIdNumber || pre.spouseIdNumber || '' },
-    { label: 'שנת לידה', value: pre.spouseBirthYear ? String(pre.spouseBirthYear) : '' },
-    { label: 'שם פרטי', value: spouseParts[0] || '' },
-    { label: 'שם משפחה', value: spouseParts.slice(1).join(' ') },
+    { label: 'שנת לידה', value: spouseBirthYear ? String(spouseBirthYear) : '' },
+    { label: 'שם פרטי', value: spouseFirst },
+    { label: 'שם משפחה', value: id.spouseLastName || pre.spouseLastName || spouseParts.slice(1).join(' ') },
   ];
 
   return (
@@ -198,7 +200,7 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse }:
         />
         {niCoversSpouse && (
           <Block
-            title={`ביטוח לאומי — ${spouseParts[0] || 'בן/בת הזוג'}`}
+            title={`ביטוח לאומי — ${spouseFirst || 'בן/בת הזוג'}`}
             subtitle="ייפוי כוח שני, נפרד — בב״ל לכל מבוטח תיק משלו"
             rows={niSpouseRows}
           />

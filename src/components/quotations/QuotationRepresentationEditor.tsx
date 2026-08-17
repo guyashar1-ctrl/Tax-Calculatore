@@ -52,14 +52,13 @@ export function validateQuotationRepresentation(rep: QuotationRepresentation): s
   if (rep.spouse?.email && !isValidEmail(rep.spouse.email)) {
     return 'כתובת האימייל של בן/בת הזוג אינה תקינה.';
   }
-  // בלי שם, ת.ז. ושנת לידה אי אפשר להזין ייפוי כוח בב"ל על שם בן/בת הזוג,
-  // ואין מי שישלים אותם ברגע האישור — ולכן הם חובה כבר כאן.
-  if (niCoversSpouse(rep)) {
-    if (!p.spouseName?.trim()) return 'ייצוג בב"ל לבן/בת הזוג — יש להזין את שמו/ה.';
-    if (!p.spouseIdNumber?.trim()) return 'ייצוג בב"ל לבן/בת הזוג — יש להזין את תעודת הזהות שלו/ה.';
+  // ‼ פרטי בן/בת הזוג אינם חוסמים שליחה (הכרעה 2026-08-17): מה שהרו"ח לא
+  // יודע — הלקוח ממלא בעצמו בקישור ההשלמה שנפתח עם האישור, כולל ארבעת
+  // שדות ייפוי הכוח בב"ל. רק ערך שהוזן בפועל נבדק שהוא תקין.
+  if (p.spouseBirthYear != null) {
     const by = Number(p.spouseBirthYear);
-    if (!p.spouseBirthYear || !Number.isInteger(by) || by < 1900 || by > CURRENT_YEAR) {
-      return 'ייצוג בב"ל לבן/בת הזוג — יש להזין שנת לידה תקינה.';
+    if (!Number.isInteger(by) || by < 1900 || by > CURRENT_YEAR) {
+      return 'שנת הלידה של בן/בת הזוג אינה תקינה.';
     }
   }
   return null;
@@ -89,12 +88,14 @@ export default function QuotationRepresentationEditor({
   value, onChange, recipientName, recipientEmail, emailConflict, isTransfer = false,
 }: Props) {
   const [showKnown, setShowKnown] = useState(false);
-  const [separateSpouseEmail, setSeparateSpouseEmail] = useState(!!value.spouse?.email);
   const p = value.prefill ?? {};
   const married = p.familyStatus === 'married';
+  // "לא נשוי" מפורש מכבה את שאלת בן/בת הזוג; מצב לא ידוע ('') משאיר את ברירת
+  // המחדל פעילה — אם הלקוח יצהיר בקישור שהוא נשוי, הייצוג יכסה את שניהם.
+  const notMarriedExplicit = !!p.familyStatus && p.familyStatus !== 'married';
   const yearLabel = p.familyStatus ? FAMILY_STATUS_YEAR_LABELS[p.familyStatus] : undefined;
   const niSelected = !!value.areas?.nationalInsurance;
-  const forSpouse = niCoversSpouse(value);
+  const forSpouse = niCoversSpouse(value) && !notMarriedExplicit;
   const selected = REP_AUTHORITY_ORDER.filter(a => !!value.areas?.[a]);
   const validation = validateQuotationRepresentation(value);
 
@@ -106,7 +107,8 @@ export default function QuotationRepresentationEditor({
     if (areas[a]) delete areas[a];
     else areas[a] = hasLevel(a)
       ? { status: 'in_process', level: isTransfer ? 'secondary' : 'primary' }
-      : { status: 'in_process' };
+      // ב"ל חוזר עם ברירת המחדל: ייצוג לשני בני הזוג אם הלקוח נשוי
+      : { status: 'in_process', coversSpouse: true };
     patch({ areas });
   }
 
@@ -227,6 +229,31 @@ export default function QuotationRepresentationEditor({
             נפרד עם טופס ואסמכתא משלו — המערכת מטפלת בשניהם באותו תהליך.
           </div>
 
+          {/* חתימה ≠ ייצוג. בב"ל לכל מבוטח תיק נפרד; ברירת המחדל ללקוח נשוי —
+              ייצוג לשני בני הזוג, וכאן אפשר לצמצם לנישום בלבד. הבחירה חלה רק
+              אם הלקוח נשוי בפועל, ולכן מוצגת גם כשהמצב המשפחתי טרם ידוע. */}
+          {niSelected && !notMarriedExplicit && (
+            <div style={{
+              marginTop: 8, padding: '9px 10px', borderRadius: 9,
+              border: `1px solid ${forSpouse ? 'var(--blue)' : 'var(--gray-200)'}`,
+              background: forSpouse ? 'var(--blue-light)' : 'var(--card)',
+            }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={forSpouse} style={{ marginTop: 3 }}
+                  onChange={e => setNiForSpouse(e.target.checked)} />
+                <span>
+                  <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+                    {married ? 'ייצוג בביטוח לאומי גם לבן/בת הזוג' : 'אם הלקוח נשוי — ייצוג בביטוח לאומי גם לבן/בת הזוג'}
+                  </span>
+                  <span style={{ display: 'block', fontSize: 11, color: 'var(--gray-600)', lineHeight: 1.6, marginTop: 2 }}>
+                    בב"ל לכל אחד תיק נפרד: שני ייפויי כוח, שתי אסמכתאות, וכל אחד מאשר את שלו.
+                    את פרטי בן/בת הזוג הלקוח ממלא בעצמו בקישור — אין צורך לדעת אותם כאן.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+
           {/* מה שכבר ידוע — כל השאר אופציונלי */}
           <button type="button" className="btn btn-ghost btn-sm"
             style={{ marginTop: 12, padding: 0 }}
@@ -245,20 +272,22 @@ export default function QuotationRepresentationEditor({
                 <select value={p.familyStatus ?? ''} style={{ marginTop: 4 }}
                   onChange={e => {
                     const fs = e.target.value as FamilyStatus | '';
-                    const stillMarried = fs === 'married';
+                    // רק "לא נשוי" מפורש מנקה את בן/בת הזוג; מצב לא ידוע ('')
+                    // משאיר הכול — הלקוח יכריע בקישור, והפרטים ישמשו אם נשוי.
+                    const dropSpouse = fs !== '' && fs !== 'married';
                     const areas = { ...(value.areas ?? {}) };
-                    if (!stillMarried && areas.nationalInsurance) {
+                    if (dropSpouse && areas.nationalInsurance) {
                       areas.nationalInsurance = { ...areas.nationalInsurance, coversSpouse: undefined };
                     }
                     onChange({
                       ...value,
                       areas,
-                      spouse: stillMarried ? value.spouse : null,
+                      spouse: dropSpouse ? null : value.spouse,
                       prefill: {
                         ...p,
                         familyStatus: fs || undefined,
                         familyStatusYear: undefined,
-                        ...(stillMarried ? {} : { spouseName: undefined, spouseIdNumber: undefined, spouseBirthYear: undefined }),
+                        ...(dropSpouse ? { spouseName: undefined, spouseIdNumber: undefined, spouseBirthYear: undefined } : {}),
                       },
                     });
                   }}>
@@ -294,61 +323,23 @@ export default function QuotationRepresentationEditor({
                     נשוי/אה ← שני בני הזוג חותמים על ייפוי הכוח. מה שלא תמלא — הלקוח ימלא בקישור.
                   </div>
 
-                  {/* חתימה ≠ ייצוג. בב"ל לכל מבוטח תיק נפרד, ולכן ייצוג של שני
-                      בני הזוג הוא שני ייפויי כוח ושתי אסמכתאות — כאן בוחרים. */}
-                  {niSelected && (
-                    <div style={{
-                      marginTop: 10, padding: '9px 10px', borderRadius: 9,
-                      border: `1px solid ${forSpouse ? 'var(--blue)' : 'var(--gray-200)'}`,
-                      background: forSpouse ? 'var(--blue-light)' : 'var(--card)',
-                    }}>
-                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={forSpouse} style={{ marginTop: 3 }}
-                          onChange={e => setNiForSpouse(e.target.checked)} />
-                        <span>
-                          <span style={{ fontSize: 12.5, fontWeight: 600 }}>ייצוג בביטוח לאומי גם לבן/בת הזוג</span>
-                          <span style={{ display: 'block', fontSize: 11, color: 'var(--gray-600)', lineHeight: 1.6, marginTop: 2 }}>
-                            בב"ל לכל אחד תיק נפרד: שני ייפויי כוח, שתי אסמכתאות, וכל אחד מאשר את שלו.
-                            במ"ה ובמע"מ ייצוג אחד מכסה את התא המשפחתי.
-                          </span>
-                        </span>
-                      </label>
-                      {forSpouse && (
-                        <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block', marginTop: 8 }}>
-                          שנת לידה של בן/בת הזוג
-                          <input type="number" inputMode="numeric" dir="ltr" min={1900} max={CURRENT_YEAR}
-                            value={p.spouseBirthYear ?? ''} placeholder={`לדוגמה: ${CURRENT_YEAR - 40}`}
-                            onChange={e => patchPrefill({ spouseBirthYear: e.target.value ? Number(e.target.value) : undefined })}
-                            style={{ marginTop: 4 }} />
-                          <span style={{ display: 'block', fontSize: 10.5, color: 'var(--gray-500)', marginTop: 3 }}>
-                            נדרשת בטופס ייפוי הכוח של הביטוח הלאומי.
-                          </span>
-                        </label>
-                      )}
-                    </div>
-                  )}
-
-                  {p.spouseName?.trim() && (
-                    <>
-                      {/* מייל ריק ⇒ שתי בקשות החתימה נשלחות למייל של הנישום */}
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--gray-700)', margin: '10px 0' }}>
-                        <input type="checkbox" checked={separateSpouseEmail}
-                          onChange={e => { setSeparateSpouseEmail(e.target.checked); if (!e.target.checked) syncSpouse({ email: '' }); }} />
-                        לבן/בת הזוג יש מייל נפרד לחתימה
-                      </label>
-                      {separateSpouseEmail ? (
-                        <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block' }}>אימייל של בן/בת הזוג
-                          <input type="email" dir="ltr" placeholder="spouse@example.com"
-                            value={value.spouse?.email ?? ''} style={{ marginTop: 4 }}
-                            onChange={e => syncSpouse({ email: e.target.value })} />
-                        </label>
-                      ) : (
-                        <div style={{ fontSize: 11, color: 'var(--gray-500)', lineHeight: 1.55 }}>
-                          שתי בקשות החתימה יישלחו אל <span dir="ltr">{recipientEmail || 'המייל של הלקוח'}</span>.
-                        </div>
-                      )}
-                    </>
-                  )}
+                  <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block', marginTop: 10 }}>
+                    שנת לידה של בן/בת הזוג
+                    <input type="number" inputMode="numeric" dir="ltr" min={1900} max={CURRENT_YEAR}
+                      value={p.spouseBirthYear ?? ''} placeholder={`לדוגמה: ${CURRENT_YEAR - 40}`}
+                      onChange={e => patchPrefill({ spouseBirthYear: e.target.value ? Number(e.target.value) : undefined })}
+                      style={{ marginTop: 4 }} />
+                  </label>
+                  {/* לא חובה: המייל נדרש רק אם יבחרו לשלוח לבן/בת הזוג קישור
+                      חתימה נפרד — והבחירה הזאת נעשית בשלב החתימה, לא כאן. */}
+                  <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block', marginTop: 10 }}>אימייל של בן/בת הזוג
+                    <input type="email" dir="ltr" placeholder="spouse@example.com"
+                      value={value.spouse?.email ?? ''} style={{ marginTop: 4 }}
+                      onChange={e => syncSpouse({ email: e.target.value })} />
+                  </label>
+                  <div style={{ fontSize: 10.5, color: 'var(--gray-500)', marginTop: 4, lineHeight: 1.5 }}>
+                    גם אלה לא חובה. בלי מייל — הלקוח יבחר בשלב החתימה אם לחתום יחד או לשלוח קישור אישי.
+                  </div>
                 </div>
               )}
             </div>
@@ -369,7 +360,8 @@ export default function QuotationRepresentationEditor({
             <div>משימה פנימית למעקב</div>
             <div>ההצעה החתומה נשמרת כהסכם התקשרות במסמכי הלקוח</div>
             {value.spouse?.name && <div>חותם שני — {value.spouse.name}</div>}
-            {forSpouse && <div>ייצוג נפרד בב"ל לבן/בת הזוג — שתי אסמכתאות</div>}
+            {married && !value.spouse?.name && <div>חותם שני — הלקוח ימלא את פרטי בן/בת הזוג בקישור</div>}
+            {forSpouse && <div>ייצוג נפרד בב"ל לבן/בת הזוג {married ? '' : '(אם הלקוח נשוי) '}— שתי אסמכתאות</div>}
           </div>
         </>
       )}

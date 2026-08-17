@@ -28,6 +28,7 @@ import { PivoMark } from './components/PivoMark';
 import Icon from './components/ui/Icon';
 import { supabase } from './lib/supabase';
 import { edgeFunctionError } from './utils/functionError';
+import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
@@ -2089,7 +2090,7 @@ export default function App() {
               onOpenFill={handleOpenFill}
               onOpenClientDocs={handleOpenClientDocs}
               niIncluded={!!clients.find(c => c.id === selectedRequest.linkedClientId)?.authorityRepresentations?.nationalInsurance}
-              niCoversSpouse={!!clients.find(c => c.id === selectedRequest.linkedClientId)?.authorityRepresentations?.nationalInsurance?.coversSpouse}
+              niCoversSpouse={effectiveNiCoversSpouse(clients.find(c => c.id === selectedRequest.linkedClientId))}
               onSaveExecution={handleSaveExecution}
             />
           ) : (

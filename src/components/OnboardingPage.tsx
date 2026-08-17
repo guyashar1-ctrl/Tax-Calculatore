@@ -65,9 +65,14 @@ export default function OnboardingPage({ token }: Props) {
   // ── מצב משפחתי ──
   const [familyStatus, setFamilyStatus] = useState<FamilyStatus | ''>('');
   const [familyYear, setFamilyYear] = useState('');
-  const [spouseName, setSpouseName] = useState('');
-  const [spouseEmail, setSpouseEmail] = useState('');
+  // שם בן/בת הזוג נאסף מפוצל: ייפוי הכוח בביטוח הלאומי דורש שם פרטי ושם
+  // משפחה בשדות נפרדים, ופיצול אוטומטי של "שם מלא" שוגה בשמות מורכבים.
+  // מייל של בן/בת הזוג אינו נאסף כאן בכוונה — הוא נדרש רק אם יבחרו לשלוח
+  // לו/לה קישור חתימה נפרד, והבחירה הזאת נעשית בשלב החתימה.
+  const [spouseFirstName, setSpouseFirstName] = useState('');
+  const [spouseLastName, setSpouseLastName] = useState('');
   const [spouseIdNumber, setSpouseIdNumber] = useState('');
+  const [spouseBirthYear, setSpouseBirthYear] = useState('');
 
   const [signature, setSignature] = useState('');
   const [busy, setBusy] = useState(false);
@@ -99,14 +104,19 @@ export default function OnboardingPage({ token }: Props) {
         knownEmail: row.known_email || '',
         niIncluded: !!row.ni_included,
       });
-      // מה שהרו"ח כבר מילא נכנס כערך פתיחה; מה שלא — נשאר ריק והלקוח ימלא.
+      // מה שהרו"ח כבר מילא (או שכבר רשום בכרטיס) נכנס כערך פתיחה; מה שלא —
+      // נשאר ריק והלקוח ימלא. הכול ניתן לתיקון: הלקוח הוא מקור האמת.
       if (prefill.firstName) setFirstName(prefill.firstName);
       if (prefill.lastName) setLastName(prefill.lastName);
       if (prefill.email) setEmail(prefill.email);
       if (prefill.familyStatus) setFamilyStatus(prefill.familyStatus);
       if (prefill.familyStatusYear) setFamilyYear(String(prefill.familyStatusYear));
-      if (prefill.spouseName) setSpouseName(prefill.spouseName);
+      // שם מפוצל אם קיים; אחרת פיצול זהיר של השם המלא — רק כזריעה, הלקוח מתקן.
+      const spParts = (prefill.spouseName || '').trim().split(/\s+/).filter(Boolean);
+      setSpouseFirstName(prefill.spouseFirstName || spParts[0] || '');
+      setSpouseLastName(prefill.spouseLastName || spParts.slice(1).join(' ') || '');
       if (prefill.spouseIdNumber) setSpouseIdNumber(prefill.spouseIdNumber);
+      if (prefill.spouseBirthYear) setSpouseBirthYear(String(prefill.spouseBirthYear));
       // בזרימת החתימה החדשה (יש הגדרת PDF) — החתימה נעשית בקישור האישי, לא כאן.
       if (st === 'pending_signature' && row.has_setup) setPhase('signLinkSent');
       else if (st === 'pending_signature' && !row.already_signed) setPhase('sign');
@@ -138,11 +148,10 @@ export default function OnboardingPage({ token }: Props) {
   const yearLabel = familyStatus ? FAMILY_STATUS_YEAR_LABELS[familyStatus] : undefined;
   // כמה פעולות ממתינות ללקוח במייל הבא — חתימה תמיד, ואישור ב"ל אם התבקש
   const niSteps = info?.niIncluded ? 2 : 1;
-  // הרו"ח כבר קבע את המצב המשפחתי (ואת השנה, אם נדרשת) ⇒ אין מה לשאול בשלב 3.
-  const familyStepDone = !!info?.prefill.familyStatus
-    && (!FAMILY_STATUS_YEAR_LABELS[info.prefill.familyStatus] || !!info.prefill.familyStatusYear)
-    && info.prefill.familyStatus !== 'married';
-  const lastStep = familyStepDone ? 2 : 3;
+  // שלב המצב המשפחתי מוצג תמיד, גם כשהרו"ח כבר בחר: הערך מגיע מסומן מראש,
+  // אבל הלקוח יכול לתקן — הוא המקור המוסמך על המצב המשפחתי של עצמו.
+  // (בעבר בחירה לא-נשואה של הרו"ח דילגה על השלב, והלקוח לא יכול היה לתקן טעות.)
+  const lastStep = 3;
 
   function validateStep(s: number): string | null {
     if (s === 1) {
@@ -168,10 +177,13 @@ export default function OnboardingPage({ token }: Props) {
         if (!Number.isInteger(y) || y < 1900 || y > CURRENT_YEAR) return `${yearLabel} — יש להזין שנה תקינה`;
       }
       if (familyStatus === 'married') {
-        if (!spouseName.trim()) return 'יש להזין את שם בן/בת הזוג';
+        if (!spouseFirstName.trim()) return 'יש להזין את השם הפרטי של בן/בת הזוג';
+        if (!spouseLastName.trim()) return 'יש להזין את שם המשפחה של בן/בת הזוג';
         if (!spouseIdNumber.trim()) return 'יש להזין את תעודת הזהות של בן/בת הזוג';
         if (!isValidIsraeliId(spouseIdNumber.trim())) return 'תעודת הזהות של בן/בת הזוג אינה תקינה';
-        if (spouseEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(spouseEmail.trim())) return 'כתובת המייל של בן/בת הזוג אינה תקינה';
+        const by = Number(spouseBirthYear);
+        if (!spouseBirthYear.trim()) return 'יש להזין את שנת הלידה של בן/בת הזוג';
+        if (!Number.isInteger(by) || by < 1900 || by > CURRENT_YEAR) return 'שנת הלידה של בן/בת הזוג אינה תקינה';
       }
     }
     return null;
@@ -206,9 +218,13 @@ export default function OnboardingPage({ token }: Props) {
       p_address: address.trim(),
       p_family_status: familyStatus || null,
       p_family_status_year: yearLabel && familyYear.trim() ? Number(familyYear) : null,
-      p_spouse_name: familyStatus === 'married' ? spouseName.trim() : null,
-      p_spouse_email: familyStatus === 'married' ? spouseEmail.trim() : null,
+      // spouse_name המשורשר נשמר לתאימות; המקור הוא השדות המפוצלים
+      p_spouse_name: familyStatus === 'married' ? `${spouseFirstName.trim()} ${spouseLastName.trim()}`.trim() : null,
+      p_spouse_email: null,
       p_spouse_id_number: familyStatus === 'married' ? spouseIdNumber.trim() : null,
+      p_spouse_first_name: familyStatus === 'married' ? spouseFirstName.trim() : null,
+      p_spouse_last_name: familyStatus === 'married' ? spouseLastName.trim() : null,
+      p_spouse_birth_year: familyStatus === 'married' && spouseBirthYear.trim() ? Number(spouseBirthYear) : null,
     });
     if (error || data === false) {
       setError('אירעה שגיאה בשליחה. נסו שוב, או פנו למשרד.');
@@ -633,12 +649,17 @@ export default function OnboardingPage({ token }: Props) {
             {familyStatus === 'married' && (
               <div style={{ marginTop: 6, paddingTop: 16, borderTop: '1px solid #F0EFEB' }}>
                 <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginBottom: 14 }}>
-                  {'\u{1F491}'} כששני בני הזוג נשואים, שניהם חותמים על ייפוי הכוח.
+                  {'\u{1F491}'} ספרו לנו על בן/בת הזוג — הפרטים נדרשים לייפויי הכוח של
+                  שניכם. איך בן/בת הזוג חותם/ת — תבחרו בשלב החתימה.
                 </div>
-                <div style={fieldBox}>
-                  <label style={label}>שם מלא של בן/בת הזוג
-                    <input style={inputStyle} value={spouseName} onChange={e => setSpouseName(e.target.value)}
-                      placeholder="שם פרטי ושם משפחה" />
+                <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                  <label style={{ ...label, flex: 1 }}>שם פרטי של בן/בת הזוג
+                    <input style={inputStyle} value={spouseFirstName} onChange={e => setSpouseFirstName(e.target.value)}
+                      placeholder="ישראלה" />
+                  </label>
+                  <label style={{ ...label, flex: 1 }}>שם משפחה
+                    <input style={inputStyle} value={spouseLastName} onChange={e => setSpouseLastName(e.target.value)}
+                      placeholder="ישראלי" />
                   </label>
                 </div>
                 <div style={fieldBox}>
@@ -648,9 +669,9 @@ export default function OnboardingPage({ token }: Props) {
                   </label>
                 </div>
                 <div style={{ marginBottom: 22 }}>
-                  <label style={label}>מייל של בן/בת הזוג <span style={{ color: '#9A9A95' }}>— לא חובה</span>
-                    <input style={inputStyle} type="email" inputMode="email" dir="ltr" value={spouseEmail}
-                      onChange={e => setSpouseEmail(e.target.value)} placeholder="אם ריק — נשלח הכל אליכם" />
+                  <label style={label}>שנת לידה של בן/בת הזוג
+                    <input style={inputStyle} inputMode="numeric" maxLength={4} dir="ltr" value={spouseBirthYear}
+                      onChange={e => setSpouseBirthYear(e.target.value.replace(/\D/g, ''))} placeholder={String(CURRENT_YEAR - 40)} />
                   </label>
                 </div>
               </div>

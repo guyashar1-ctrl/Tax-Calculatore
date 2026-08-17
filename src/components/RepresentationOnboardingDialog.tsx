@@ -78,8 +78,9 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   const [spouseName, setSpouseName] = useState('');
   const [spouseIdNumber, setSpouseIdNumber] = useState('');
   const [spouseEmail, setSpouseEmail] = useState('');
-  const [sameSigningEmail, setSameSigningEmail] = useState(false);
-  const [niCoversSpouse, setNiCoversSpouse] = useState(false);
+  // ‼ ברירת המחדל ללקוח נשוי: ייצוג בב"ל לשני בני הזוג (הכרעה 2026-08-17).
+  // אפשר לכבות — ואז הייצוג בב"ל הוא לנישום בלבד. ללקוח לא-נשוי אין לזה משמעות.
+  const [niCoversSpouse, setNiCoversSpouse] = useState(true);
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
   const [transfer, setTransfer] = useState(isTransfer);
   const [prevAcc, setPrevAcc] = useState({
@@ -106,9 +107,12 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   const emailConflict = checkEmailConflict && isValidEmail(email) ? checkEmailConflict(email) : null;
   const married = familyStatus === 'married';
   const yearLabel = familyStatus ? FAMILY_STATUS_YEAR_LABELS[familyStatus] : undefined;
+  // "לא נשוי" מפורש מכבה את שאלת בן/בת הזוג; מצב לא ידוע ('') משאיר את ברירת
+  // המחדל פעילה — אם הלקוח יצהיר בקישור שהוא נשוי, הייצוג יכסה את שניהם.
+  const notMarriedExplicit = familyStatus !== '' && familyStatus !== 'married';
   // הסימון נשמר גם אם מחליפים מצב משפחתי או מבטלים את ב"ל, ולכן הוא נגזר כאן
   // מכל התנאים במקום להתאפס בכל שינוי — כך חזרה ל"נשוי" לא מאבדת את הבחירה.
-  const niForSpouse = married && areas.nationalInsurance.selected && niCoversSpouse;
+  const niForSpouse = areas.nationalInsurance.selected && niCoversSpouse && !notMarriedExplicit;
 
   function toggleArea(a: RepAuthorityKind) {
     setAreas(prev => ({ ...prev, [a]: { ...prev[a], selected: !prev[a].selected } }));
@@ -150,18 +154,13 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
       return 'תעודת הזהות של בן/בת הזוג אינה תקינה';
     }
     if (married && spouseEmail.trim() && !isValidEmail(spouseEmail)) return 'כתובת אימייל של בן/בת הזוג לא תקינה';
-    // בלי שם ות.ז. אי אפשר להזין ייפוי כוח בב"ל על שם בן/בת הזוג, ולכן אלה
-    // הופכים לחובה ברגע שנלקח ייצוג גם עבורו/ה — ולא נשארים להשלמה בקישור.
-    if (niForSpouse && !spouseName.trim()) {
-      return 'ייצוג בב"ל לבן/בת הזוג — יש להזין את שמו/ה';
-    }
-    if (niForSpouse && !spouseIdNumber.trim()) {
-      return 'ייצוג בב"ל לבן/בת הזוג — יש להזין את תעודת הזהות שלו/ה';
-    }
-    if (niForSpouse) {
+    // ‼ פרטי בן/בת הזוג אינם חוסמים שליחה (הכרעה 2026-08-17): מה שהרו"ח לא
+    // יודע — הלקוח ממלא בעצמו בקישור, כולל ארבעת שדות ייפוי הכוח בב"ל.
+    // רק ערך שהוזן בפועל נבדק שהוא תקין.
+    if (spouseBirthYear.trim()) {
       const by = Number(spouseBirthYear);
-      if (!spouseBirthYear.trim() || !Number.isInteger(by) || by < 1900 || by > CURRENT_YEAR) {
-        return 'ייצוג בב"ל לבן/בת הזוג — יש להזין שנת לידה תקינה';
+      if (!Number.isInteger(by) || by < 1900 || by > CURRENT_YEAR) {
+        return 'שנת הלידה של בן/בת הזוג אינה תקינה';
       }
     }
     return null;
@@ -193,13 +192,14 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     if (yearLabel && familyYear.trim()) prefill.familyStatusYear = Number(familyYear);
     if (married && spouseName.trim()) prefill.spouseName = spouseName.trim();
     if (married && spouseIdNumber.trim()) prefill.spouseIdNumber = spouseIdNumber.trim();
-    if (niForSpouse && spouseBirthYear.trim()) prefill.spouseBirthYear = Number(spouseBirthYear);
+    if (married && spouseBirthYear.trim()) prefill.spouseBirthYear = Number(spouseBirthYear);
 
     // חותם שני נוצר רק אם ידוע שמו. אחרת — הלקוח יצהיר בטופס והחותם ייווצר אז.
+    // מייל ריק הוא מצב תקין: הזוג יבחר בשלב החתימה אם לחתום יחד או לקבל קישור.
     const spouse: SpouseInput | null = married && spouseName.trim()
       ? {
           name: spouseName.trim(),
-          email: (sameSigningEmail ? email : spouseEmail).trim(),
+          email: spouseEmail.trim(),
           idNumber: spouseIdNumber.trim() || undefined,
         }
       : null;
@@ -431,6 +431,30 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             })}
           </div>
 
+          {/* חתימה ≠ ייצוג. בב"ל לכל מבוטח תיק נפרד; ברירת המחדל ללקוח נשוי —
+              ייצוג לשני בני הזוג, וכאן אפשר לצמצם לנישום בלבד. הבחירה חלה רק
+              אם הלקוח נשוי בפועל, ולכן היא מוצגת גם כשהמצב המשפחתי טרם ידוע. */}
+          {areas.nationalInsurance.selected && !notMarriedExplicit && (
+            <div style={{
+              marginTop: '.6rem', padding: '.6rem .7rem', borderRadius: 'var(--radius)',
+              border: `1px solid ${niCoversSpouse ? 'var(--accent)' : 'var(--hairline-1)'}`,
+            }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', cursor: busy ? 'default' : 'pointer' }}>
+                <input type="checkbox" checked={niCoversSpouse} disabled={busy}
+                  onChange={e => setNiCoversSpouse(e.target.checked)} style={{ marginTop: 3 }} />
+                <span>
+                  <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>
+                    {'🛡'} {married ? 'ייצוג בביטוח לאומי גם לבן/בת הזוג' : 'אם הלקוח נשוי — ייצוג בביטוח לאומי גם לבן/בת הזוג'}
+                  </span>
+                  <span style={{ display: 'block', fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 2 }}>
+                    בביטוח לאומי לכל אחד תיק נפרד: שני ייפויי כוח, שתי אסמכתאות, וכל אחד מאשר
+                    את שלו. את פרטי בן/בת הזוג הלקוח ממלא בעצמו בקישור — אין צורך לדעת אותם כאן.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+
           {/* איך הקישור מגיע ללקוח — הבחירה קובעת אם המייל נדרש */}
           <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', margin: '1.25rem 0 .5rem' }}>
             איך לשלוח ללקוח?
@@ -567,61 +591,29 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                     נשוי/אה {'←'} שני בני הזוג חותמים על ייפוי הכוח. מה שלא תמלא — הלקוח ימלא בקישור.
                   </div>
 
-                  {/* חתימה ≠ ייצוג. בב"ל לכל מבוטח תיק נפרד, ולכן ייצוג של שני
-                      בני הזוג הוא שני ייפויי כוח ושתי אסמכתאות — כאן בוחרים. */}
-                  {areas.nationalInsurance.selected && (
-                    <div style={{
-                      padding: '.6rem .7rem', marginBottom: '.5rem', borderRadius: 'var(--radius)',
-                      border: `1px solid ${niCoversSpouse ? 'var(--accent)' : 'var(--hairline-1)'}`,
-                      background: 'transparent',
-                    }}>
-                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', cursor: busy ? 'default' : 'pointer' }}>
-                        <input type="checkbox" checked={niCoversSpouse} disabled={busy}
-                          onChange={e => setNiCoversSpouse(e.target.checked)} style={{ marginTop: 3 }} />
-                        <span>
-                          <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>
-                            {'🛡'} לקחת ייצוג בביטוח לאומי גם לבן/בת הזוג
-                          </span>
-                          <span style={{ display: 'block', fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 2 }}>
-                            בביטוח לאומי לכל אחד תיק נפרד: יוזנו שני ייפויי כוח, יתקבלו שתי אסמכתאות,
-                            וכל אחד יאשר את שלו. במס הכנסה ובמע"מ אין צורך — שם ייצוג אחד מכסה את התא המשפחתי.
-                          </span>
-                        </span>
-                      </label>
-                      {/* ארבעת השדות של "הוספת ייפוי כח מבוטח" בב"ל: ת.ז., שנת
-                          לידה, שם פרטי ומשפחה. השם והת.ז. נאספים למעלה. */}
-                      {niCoversSpouse && (
-                        <div className="form-group" style={{ marginTop: '.6rem', marginBottom: 0 }}>
-                          <label>שנת לידה של בן/בת הזוג</label>
-                          <input
-                            type="number" inputMode="numeric" dir="ltr"
-                            value={spouseBirthYear}
-                            onChange={e => setSpouseBirthYear(e.target.value)}
-                            placeholder={`לדוגמה: ${CURRENT_YEAR - 40}`}
-                            min={1900} max={CURRENT_YEAR} disabled={busy}
-                          />
-                          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 3 }}>
-                            נדרשת בטופס ייפוי הכוח של הביטוח הלאומי.
-                          </div>
-                        </div>
-                      )}
+                  <div className="form-grid form-grid-2">
+                    <div className="form-group">
+                      {/* אחד מארבעת שדות "הוספת ייפוי כח מבוטח" בב"ל. לא חובה —
+                          הלקוח משלים בקישור מה שלא ידוע כאן. */}
+                      <label>שנת לידה של בן/בת הזוג</label>
+                      <input
+                        type="number" inputMode="numeric" dir="ltr"
+                        value={spouseBirthYear}
+                        onChange={e => setSpouseBirthYear(e.target.value)}
+                        placeholder={`לדוגמה: ${CURRENT_YEAR - 40}`}
+                        min={1900} max={CURRENT_YEAR} disabled={busy}
+                      />
                     </div>
-                  )}
-
-                  {spouseName.trim() && (
-                    <>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', cursor: busy ? 'default' : 'pointer', fontSize: 'var(--fs-13)', color: 'var(--ink-2)', margin: '.6rem 0' }}>
-                        <input type="checkbox" checked={sameSigningEmail} onChange={e => setSameSigningEmail(e.target.checked)} disabled={busy || !email.trim()} />
-                        {'✉'} שלח את שתי בקשות החתימה לאותו מייל
-                      </label>
-                      {!sameSigningEmail && (
-                        <div className="form-group">
-                          <label>אימייל של בן/בת הזוג</label>
-                          <input type="email" value={spouseEmail} onChange={e => setSpouseEmail(e.target.value)} placeholder="spouse@example.com" dir="ltr" disabled={busy} />
-                        </div>
-                      )}
-                    </>
-                  )}
+                    <div className="form-group">
+                      {/* לא חובה: מייל של בן/בת הזוג נדרש רק אם יבחרו לשלוח לו/לה
+                          קישור חתימה נפרד — והבחירה הזאת נעשית בשלב החתימה. */}
+                      <label>אימייל של בן/בת הזוג</label>
+                      <input type="email" value={spouseEmail} onChange={e => setSpouseEmail(e.target.value)} placeholder="spouse@example.com" dir="ltr" disabled={busy} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem', lineHeight: 1.5 }}>
+                    גם אלה לא חובה. בלי מייל — הלקוח יבחר בשלב החתימה אם לחתום יחד או לשלוח קישור אישי.
+                  </div>
                 </div>
               )}
             </div>
@@ -646,7 +638,10 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             </div>
             <div>{'✓'} משימה פנימית למעקב</div>
             {married && spouseName.trim() && <div>{'✓'} חותם שני — {spouseName.trim()}</div>}
-            {niForSpouse && <div>{'✓'} ייצוג נפרד בביטוח לאומי לבן/בת הזוג — שתי אסמכתאות</div>}
+            {married && !spouseName.trim() && <div>{'✓'} חותם שני — הלקוח ימלא את פרטי בן/בת הזוג בקישור</div>}
+            {niForSpouse && (
+              <div>{'✓'} ייצוג נפרד בביטוח לאומי לבן/בת הזוג {married ? '' : '(אם הלקוח נשוי) '}— שתי אסמכתאות</div>
+            )}
           </div>
 
           {error && (

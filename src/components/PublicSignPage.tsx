@@ -14,6 +14,7 @@ interface Session {
   /** ממתין לחותם הזה אישור ייפוי כוח בב"ל — null כשאין, או כשכבר אישר. */
   ni: { referenceNumber: string; deadline: string | null } | null;
   signerId: string;
+  signerRole?: 'client' | 'spouse';
   signerName: string;
   alreadySigned: boolean;
   requestStatus: string;
@@ -23,15 +24,135 @@ interface Session {
   values: Record<string, SignatureValue>;
   pdfUrl: string;
   pdfFileName: string;
+  /** חתימת בן/בת הזוג עוד ממתינה — מוחזר רק לנישום, לבחירת "יחד או בנפרד". */
+  spousePending?: boolean;
+  spouseName?: string;
 }
 
 type Phase = 'loading' | 'invalid' | 'already' | 'sign' | 'submitting' | 'done' | 'error';
+
+/**
+ * בחירת המשך אחרי חתימת הנישום, כשחתימת בן/בת הזוג עוד ממתינה: לחתום יחד
+ * עכשיו (אותו מכשיר, בלי מייל) או לשלוח קישור אישי במייל — ורק אז מבקשים
+ * מהנישום את כתובת המייל של בן/בת הזוג.
+ */
+function SpouseNextStep({ token, spouseName }: { token: string; spouseName: string }) {
+  const [mode, setMode] = useState<'choice' | 'email' | 'sent'>('choice');
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState<'handoff' | 'send' | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const name = spouseName.trim() || 'בן/בת הזוג';
+
+  async function handleTogether() {
+    setBusy('handoff');
+    setErr(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'handoff', token } });
+      if (error || !data?.ok || !data?.spouseToken) throw new Error(error?.message || data?.error || 'failed');
+      window.location.href = `${window.location.origin}/?sign=${data.spouseToken}`;
+    } catch {
+      setErr('לא הצלחנו לפתוח את החתימה כרגע. נסו שוב, או פנו למשרד.');
+      setBusy(null);
+    }
+  }
+
+  async function handleSend() {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setErr('כתובת המייל אינה תקינה — בדקו שוב.');
+      return;
+    }
+    setBusy('send');
+    setErr(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('signing-session', {
+        body: { action: 'invite_spouse', token, email: email.trim() },
+      });
+      if (error || !data?.ok) throw new Error(error?.message || data?.error || 'failed');
+      setMode('sent');
+    } catch {
+      setErr('שליחת המייל נכשלה. אפשר לנסות שוב — או שהמשרד ישלח את הקישור.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const box: React.CSSProperties = {
+    marginTop: 18, padding: '14px 16px', textAlign: 'right',
+    background: '#F7F6F3', borderRadius: 12,
+  };
+  const btn: React.CSSProperties = {
+    width: '100%', padding: '12px 14px', borderRadius: 10, fontSize: 14.5, fontWeight: 600,
+    cursor: 'pointer', font: 'inherit',
+  };
+
+  if (mode === 'sent') {
+    return (
+      <div style={box}>
+        <div style={{ fontSize: 14.5, fontWeight: 600, color: '#111' }}>✓ הקישור נשלח אל <span dir="ltr">{email.trim()}</span></div>
+        <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginTop: 4 }}>
+          {name} יקבל/תקבל מייל עם קישור חתימה אישי. אתם סיימתם — אפשר לסגור את החלון.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={box}>
+      <div style={{ fontSize: 14.5, fontWeight: 600, color: '#111', marginBottom: 3 }}>
+        נשארה החתימה של {name}
+      </div>
+      <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginBottom: 12 }}>
+        הפרטים כבר מולאו — נשארה רק חתימה. איך נוח לכם?
+      </div>
+
+      {mode === 'choice' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button type="button" onClick={handleTogether} disabled={busy !== null}
+            style={{ ...btn, background: '#1A1A1A', color: '#fff', border: 'none', opacity: busy === 'handoff' ? 0.7 : 1 }}>
+            {busy === 'handoff' ? 'פותח…' : `${name} כאן? ממשיכים לחתימה עכשיו`}
+          </button>
+          <button type="button" onClick={() => { setErr(null); setMode('email'); }} disabled={busy !== null}
+            style={{ ...btn, background: '#fff', color: '#1A1A1A', border: '1px solid #D9D8D3' }}>
+            ✉ שליחת קישור חתימה במייל
+          </button>
+        </div>
+      ) : (
+        <div>
+          <label style={{ display: 'block', fontSize: 12.5, color: '#6B6B68' }}>
+            המייל של {name}
+            <input
+              type="email" inputMode="email" dir="ltr" autoFocus
+              value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="spouse@example.com"
+              style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, padding: '11px 13px', fontSize: 14, borderRadius: 10, border: '1px solid #D9D8D3', background: '#fff', color: '#1A1A1A' }} />
+          </label>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button type="button" onClick={() => { setErr(null); setMode('choice'); }} disabled={busy !== null}
+              style={{ ...btn, width: 'auto', padding: '12px 16px', background: 'transparent', color: '#6B6B68', border: '1px solid #D9D8D3' }}>
+              חזרה
+            </button>
+            <button type="button" onClick={handleSend} disabled={busy !== null}
+              style={{ ...btn, flex: 1, background: '#1A1A1A', color: '#fff', border: 'none', opacity: busy === 'send' ? 0.7 : 1 }}>
+              {busy === 'send' ? 'שולח…' : 'שליחת הקישור'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {err && (
+        <div style={{ marginTop: 10, padding: '9px 11px', background: '#FCEBEB', color: '#A32D2D', borderRadius: 9, fontSize: 12.5 }}>{err}</div>
+      )}
+    </div>
+  );
+}
 
 export default function PublicSignPage({ token }: { token: string }) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [session, setSession] = useState<Session | null>(null);
   const [pdfBytes, setPdfBytes] = useState<ArrayBuffer | null>(null);
   const [errMsg, setErrMsg] = useState('');
+  // מצב בן/בת הזוג מתעדכן גם מתשובת submit — לא רק מהטעינה הראשונה
+  const [spouse, setSpouse] = useState<{ pending: boolean; name: string }>({ pending: false, name: '' });
 
   useEffect(() => {
     (async () => {
@@ -39,6 +160,7 @@ export default function PublicSignPage({ token }: { token: string }) {
         const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'get', token } });
         if (error || !data?.ok) { setPhase('invalid'); return; }
         setSession(data as Session);
+        setSpouse({ pending: !!data.spousePending, name: data.spouseName || '' });
         if (data.alreadySigned || data.requestStatus !== 'pending_signature') { setPhase('already'); return; }
         const res = await fetch(data.pdfUrl);
         if (!res.ok) throw new Error('טעינת המסמך נכשלה');
@@ -61,6 +183,7 @@ export default function PublicSignPage({ token }: { token: string }) {
       for (const [k, v] of Object.entries(values)) if (myFieldIds.has(k)) mine[k] = v;
       const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'submit', token, values: mine } });
       if (error || !data?.ok) throw new Error(error?.message || data?.error || 'שליחה נכשלה');
+      setSpouse({ pending: !!data.spousePending, name: data.spouseName || '' });
       // ההתראה לרו"ח כבר בתור; כאן רק מבקשים לרוקן אותו מיד. לא חוסם.
       flushAccountantNotifications(token);
       setPhase('done');
@@ -82,15 +205,19 @@ export default function PublicSignPage({ token }: { token: string }) {
   // ‼ שני מסכי הסיום מתפצלים לפי אישור הב"ל. כשהוא עוד ממתין אסור שייאמר כאן
   //   "אין צורך בפעולה נוספת" או "נמשיך מכאן" — זה בדיוק הרגע שבו הלקוח סוגר
   //   את החלון ומשאיר את הייצוג בב"ל ללא תוקף בלי לדעת.
+  //   מאותה סיבה, כשחתימת בן/בת הזוג ממתינה — הנישום מקבל כאן את הבחירה
+  //   "יחד או בנפרד" ולא הודעת "סיימנו": בלעדיה ייפוי הכוח נשאר חצי-חתום.
   const hi = session?.signerName ? `, ${session.signerName}` : '';
-  if (phase === 'already') return session?.ni ? (
+  const spouseBlock = spouse.pending ? <SpouseNextStep token={token} spouseName={spouse.name} /> : null;
+  if (phase === 'already') return (session?.ni || spouseBlock) ? (
     <ClientPageState
       wide
       mark="✓"
       title="החתימה כבר התקבלה"
       body={<>
-        <div>תודה{hi}! נשאר צעד אחד — אישור בביטוח הלאומי.</div>
-        <NiApprovalNotice referenceNumber={session.ni.referenceNumber} deadline={session.ni.deadline} />
+        <div>תודה{hi}!{session?.ni ? ' נשאר צעד אחד — אישור בביטוח הלאומי.' : ''}</div>
+        {session?.ni && <NiApprovalNotice referenceNumber={session.ni.referenceNumber} deadline={session.ni.deadline} />}
+        {spouseBlock}
       </>}
     />
   ) : (
@@ -100,14 +227,15 @@ export default function PublicSignPage({ token }: { token: string }) {
       body={`תודה${hi}! אין צורך בפעולה נוספת.`}
     />
   );
-  if (phase === 'done') return session?.ni ? (
+  if (phase === 'done') return (session?.ni || spouseBlock) ? (
     <ClientPageState
       wide
       mark="✓"
-      title="החתימה התקבלה — נשאר צעד אחד"
+      title={session?.ni ? 'החתימה התקבלה — נשאר צעד אחד' : 'החתימה התקבלה'}
       body={<>
-        <div>תודה{hi}! {session.firmName || 'המשרד'} ימשיך מכאן מול מס הכנסה. הפעולה האחרונה שנשארה היא שלכם:</div>
-        <NiApprovalNotice referenceNumber={session.ni.referenceNumber} deadline={session.ni.deadline} />
+        <div>תודה{hi}! {session?.firmName || 'המשרד'} ימשיך מכאן מול מס הכנסה.{session?.ni ? ' הפעולה האחרונה שנשארה היא שלכם:' : ''}</div>
+        {session?.ni && <NiApprovalNotice referenceNumber={session.ni.referenceNumber} deadline={session.ni.deadline} />}
+        {spouseBlock}
       </>}
     />
   ) : (

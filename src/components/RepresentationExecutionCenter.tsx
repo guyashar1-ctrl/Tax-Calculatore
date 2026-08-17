@@ -152,13 +152,22 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   async function handleSendAll() {
     setBusy('send');
     setNote(null);
+    // חותם בלי מייל אינו תקלה (110): בן/בת זוג בלי כתובת חותם יחד עם הנישום
+    // באותו מכשיר, או מקבל קישור אחרי שהנישום יזין את המייל בשלב החתימה.
+    const emailable = pendingSigners.filter(s => s.email.trim());
+    const skipped = pendingSigners.filter(s => !s.email.trim());
     const failures: string[] = [];
-    for (const s of pendingSigners) {
+    for (const s of emailable) {
       const err = await onSendToSigner(s);
       if (err) failures.push(`${s.name || s.email}: ${err}`);
     }
     if (failures.length > 0) {
       setNote({ kind: 'err', text: failures.join(' · ') });
+      setBusy(null);
+      return;
+    }
+    if (emailable.length === 0) {
+      setNote({ kind: 'err', text: 'אין למי לשלוח — לאף חותם ממתין אין כתובת מייל.' });
       setBusy(null);
       return;
     }
@@ -175,7 +184,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       ...(niIncluded ? { nationalInsurance: stampSent(ni) } : {}),
       ...(niIncluded && niCoversSpouse ? { nationalInsuranceSpouse: stampSent(niSpouse) } : {}),
     });
-    setNote({ kind: 'ok', text: `נשלח ל-${pendingSigners.map(s => s.email).join(', ')}` });
+    setNote({
+      kind: 'ok',
+      text: `נשלח ל-${emailable.map(s => s.email).join(', ')}` + (skipped.length > 0
+        ? ` · ל${skipped.map(s => s.name || 'בן/בת הזוג').join(', ')} אין מייל — הלקוח יבחר בשלב החתימה אם לחתום יחד או להזין מייל`
+        : ''),
+    });
     setBusy(null);
     void reloadEmails();
   }

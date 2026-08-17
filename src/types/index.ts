@@ -492,6 +492,11 @@ export interface Client {
   spouseIdNumber: string;
   spouseWorking: boolean;
   spouseIncome: number;
+  // שם בן/בת הזוג מפוצל + שנת לידה — ארבעת שדות ייפוי הכוח בב"ל (110).
+  // spouseName נשאר כשרשור לתאימות; הקוראים החדשים מעדיפים את המפוצל.
+  spouseFirstName?: string;
+  spouseLastName?: string;
+  spouseBirthYear?: number;
 
   // שנת האירוע שקבע את המצב המשפחתי. רשויות המס דורשות אותה בטפסי הייצוג,
   // והיא קובעת ממתי הזוג/היחיד מדווח בנפרד. ריק = לא ידוע עדיין.
@@ -807,6 +812,10 @@ export interface RepSigner {
   signStatus: RepSignStatus;
   signedAt?: string | null;
   signToken?: string;            // טוקן חתימה ייחודי לחותם (לזרימת החתימה)
+  /** מתי נשלח קישור חתימה ביוזמת הנישום ("לשלוח לבן/בת הזוג בנפרד") */
+  inviteSentAt?: string;
+  /** מי סיפק את כתובת המייל — הרו"ח בהקמה או הנישום בשלב החתימה */
+  emailSource?: 'accountant' | 'client';
 }
 
 export const REP_SIGNER_ROLE_LABELS: Record<RepSignerRole, string> = {
@@ -901,6 +910,11 @@ export interface OnboardingIdentification {
   familyStatusYear?: number;    // שנת נישואין / גירושין ברבנות / פטירה, לפי המצב
   spouseEmail?: string;         // לשליחת בקשת חתימה נפרדת לבן/בת הזוג
   spouseIdNumber?: string;
+  // שם בן/בת הזוג מפוצל + שנת לידה — ארבעת שדות ייפוי הכוח בב"ל, שהלקוח
+  // ממלא בעצמו בקליטה (110). spouseName נשאר כשרשור לתאימות לאחור.
+  spouseFirstName?: string;
+  spouseLastName?: string;
+  spouseBirthYear?: number;
 }
 
 /**
@@ -974,8 +988,12 @@ export interface OnboardingPrefill {
   familyStatusYear?: number;
   spouseName?: string;
   spouseIdNumber?: string;
-  /** טופס "הוספת ייפוי כח מבוטח" בב"ל דורש שנת לידה — נאסף כשגם בן/בת הזוג מיוצג */
+  /** טופס "הוספת ייפוי כח מבוטח" בב"ל דורש שנת לידה. לא חובה אצל הרו"ח —
+      מה שחסר, הלקוח משלים בקישור (110). */
   spouseBirthYear?: number;
+  /** שם מפוצל — מגיע מהכרטיס דרך get_onboarding; הרו"ח מזין שם אחד מלא */
+  spouseFirstName?: string;
+  spouseLastName?: string;
 }
 
 export type OnboardingSecondaryType = 'parentId' | 'driverLicense' | 'passport';

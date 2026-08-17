@@ -1,5 +1,18 @@
 // ─── עזרי חותמים על בקשת ייצוג ────────────────────────────────────────────
-import { RepresentationRequest, RepSigner, RepSignStatus } from '../types';
+import { Client, RepresentationRequest, RepSigner, RepSignStatus } from '../types';
+
+/**
+ * האם הייצוג בב"ל מכסה בפועל גם את בן/בת הזוג. הדגל coversSpouse הוא "ברירת
+ * המחדל ללקוח נשוי" (110) — הוא נקבע עוד לפני שהלקוח הצהיר על מצבו המשפחתי,
+ * ולכן הוא חל רק כשהלקוח נשוי בפועל. לקוח שהצהיר שאינו נשוי ⇒ מסלול יחיד,
+ * בלי קשר לדגל.
+ */
+export function effectiveNiCoversSpouse(
+  client: Pick<Client, 'familyStatus' | 'authorityRepresentations'> | undefined | null,
+): boolean {
+  return !!client?.authorityRepresentations?.nationalInsurance?.coversSpouse
+    && client.familyStatus === 'married';
+}
 
 /**
  * רשימת החותמים של הבקשה, עם תאימות לאחור: בקשה ישנה ללא signers → חותם יחיד

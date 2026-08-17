@@ -133,9 +133,20 @@ Deno.serve(async (req: Request) => {
       stage = "onboard";   // המסלול הציבורי שולח את קישור הייצוג ולא שום דבר אחר
     } else {
       const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      // קריאה פנימית שרת-לשרת — signing-session שולח את קישור החתימה לבן/בת
+      // הזוג כשהנישום בוחר "לשלוח בנפרד". הצגת מפתח ה-service role היא הוכחת
+      // הפנימיות (המפתח לא קיים מחוץ לשרת). מוגבל במפורש למייל חתימה בלבד;
+      // בעל המשרד נגזר מהבקשה עצמה כי אין כאן משתמש מחובר.
+      if (token && token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+        if (stage !== "sign" || !requestId) return json({ error: "internal_calls_send_sign_only" }, 403);
+        const { data: owner } = await admin.from("representation_requests").select("user_id").eq("id", requestId).single();
+        userId = owner?.user_id ?? null;
+        if (!userId) return json({ error: "not found" }, 404);
+      } else {
       const { data: userData } = await admin.auth.getUser(token);
       userId = userData?.user?.id ?? null;
       if (!userId) return json({ error: "unauthorized" }, 401);
+      }
       if (stage === "onboard" && requestId) {
         const { data: linked } = await admin
           .from("quotations")

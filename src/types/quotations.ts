@@ -254,7 +254,11 @@ export function defaultQuotationRepresentation(isTransfer = false): QuotationRep
   const areas: AuthorityRepresentations = {
     incomeTax: { status: 'in_process', level: 'primary' },
     vat: { status: 'in_process', level: 'primary' },
-    nationalInsurance: { status: 'in_process' },
+    // ‼ ברירת המחדל ללקוח נשוי: ייצוג בב"ל לשני בני הזוג (הכרעה 2026-08-17).
+    // הדגל חל רק אם הלקוח נשוי בפועל — לקוח לא-נשוי פשוט לא מושפע ממנו.
+    // הערך נכתב כאן במפורש (ולא נגזר מהיעדרו) כדי שרשומות ישנות, שבהן היעדר
+    // הדגל פירושו "לא נבחר", ימשיכו להתנהג כפי שהיו.
+    nationalInsurance: { status: 'in_process', coversSpouse: true },
   };
   return {
     enabled: true,
