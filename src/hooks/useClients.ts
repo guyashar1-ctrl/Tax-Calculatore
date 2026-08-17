@@ -6,7 +6,13 @@ import { SAMPLE_CLIENTS } from '../data/sampleClients';
 import { enrichClientsWithWorkspace } from '../data/sampleClientWorkspace';
 
 // DEV-only local brand-QA seed (see DEV_BYPASS_AUTHZ in useAuth). Compiled out of prod builds.
-const DEV_SEED = import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS_AUTHZ === 'true';
+// ‼ ?real-clients מכבה רק את ההזרקה ומשאיר את מעקף ההרשאה: בלי זה אי אפשר
+// לבדוק מקומית זרימה שכותבת למסד, כי לקוחות הדמה אינם שייכים לחשבון ולכן כל
+// קריאה לשרת עליהם חוזרת כ"אין הרשאה".
+const DEV_SEED = import.meta.env.DEV
+  && import.meta.env.VITE_DEV_BYPASS_AUTHZ === 'true'
+  && !(typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).has('real-clients'));
 const DEV_CLIENTS = DEV_SEED ? enrichClientsWithWorkspace(SAMPLE_CLIENTS) : [];
 
 export function useClients(userId: string | undefined) {

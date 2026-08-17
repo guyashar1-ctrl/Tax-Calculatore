@@ -15,6 +15,9 @@ import {
 import { BANK_DEBIT_TITLE, buildBankDebitPayload } from '../../lib/bankDebitRequest';
 import type { ClientDocument } from '../../lib/clientGuide';
 import { buildDocumentRequestPayload, documentLibrary } from '../../lib/clientGuide';
+import {
+  BUILT_IN_DOC_OPTIONS, allDocOptions, withDocOption, withoutDocOption,
+} from '../../lib/documentRequestOptions';
 import type { RequestTemplate } from '../../lib/requestTemplates';
 import { firstEntry, loadRequestTemplates, templateBySeed } from '../../lib/requestTemplates';
 import { supabase } from '../../lib/supabase';
@@ -75,6 +78,13 @@ const PAPERLESS_SEQUENCE: {
 
 const KINDS: CustomRequirementKind[] = ['confirm', 'text', 'file'];
 
+/** טקסט הכפתור אצל הלקוח, כשלא נכתב אחר. סוג הדרישה כבר אומר מה עושים. */
+const CTA_BY_KIND: Partial<Record<CustomRequirementKind, string>> & { [k: string]: string } = {
+  confirm: 'לאישור',
+  text: 'למענה',
+  file: 'להעלאה',
+};
+
 interface Props {
   clientId: string;
   steps: OnboardingStep[];
@@ -97,18 +107,26 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // בקשה חופשית
-  const [title, setTitle] = useState('');
+  /** בקשה חופשית — שני השדות שמספיקים לרוב המוחלט של הבקשות.
+   *  ‼ `ask` הוא מקור אחד לשלושה מקומות (שם אצלי, כותרת אצל הלקוח, תיאור
+   *  הדרישה): הקלדת אותו טקסט שלוש פעמים היא בדיוק מה שהיה מסורבל כאן. */
+  const [ask, setAsk] = useState('');
+  const [askKind, setAskKind] = useState<CustomRequirementKind>('file');
+  const [advanced, setAdvanced] = useState(false);
   const [clientTitle, setClientTitle] = useState('');
   const [clientSub, setClientSub] = useState('');
-  const [clientCta, setClientCta] = useState('למילוי');
+  /** ריק ⇒ נגזר מסוג הדרישה. מה שהוקלד כאן ידנית גובר. */
+  const [clientCta, setClientCta] = useState('');
   /** האם הבקשה חוסמת סגירת קליטה. ברירת מחדל: כן — בקשה שביקשתי היא עבודה. */
   const [requiredForClose, setRequiredForClose] = useState(true);
-  const [reqs, setReqs] = useState<{ kind: CustomRequirementKind; label: string }[]>([
-    { kind: 'confirm', label: '' },
-  ]);
+  /** דרישות **נוספות** מעבר לראשונה. הראשונה חיה ב-ask/askKind. */
+  const [extraReqs, setExtraReqs] = useState<{ kind: CustomRequirementKind; label: string }[]>([]);
   // מסמכים מהלקוח
-  const [docLines, setDocLines] = useState('אישור ניהול חשבון בנק\nצילום תעודת זהות');
+  const [docOptions, setDocOptions] = useState<string[]>(BUILT_IN_DOC_OPTIONS);
+  const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
+  const [newDocLabel, setNewDocLabel] = useState('');
+  const [savingOption, setSavingOption] = useState(false);
+  const [profileId, setProfileId] = useState<string | null>(null);
   /** הרשאה לחיוב חשבון — ‼ מתחיל ריק בכוונה. לא כל לקוח צריך את שלוש
    *  הרשויות, ובחירה מראש הייתה שולחת אותו לפתוח הרשאות מיותרות. */
   const [debitAuthorities, setDebitAuthorities] = useState<InstitutionKey[]>([]);
@@ -122,14 +140,17 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     let alive = true;
     void (async () => {
       const [{ data: prof }, tpls] = await Promise.all([
-        supabase.from('profiles').select('settings').limit(1).maybeSingle(),
+        supabase.from('profiles').select('id,settings').limit(1).maybeSingle(),
         loadRequestTemplates(),
       ]);
       if (!alive) return;
-      const lib = documentLibrary({ settings: (prof?.settings ?? {}) as Record<string, unknown> });
+      const settings = (prof?.settings ?? {}) as Record<string, unknown>;
+      const lib = documentLibrary({ settings });
       setLibrary(lib);
       setDocId(lib[0]?.id ?? '');
       setTemplates(tpls);
+      setProfileId((prof?.id as string | undefined) ?? null);
+      setDocOptions(allDocOptions(settings));
     })();
     return () => { alive = false; };
   }, []);
@@ -149,13 +170,56 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     return entry?.payload ?? {};
   }
 
-  /** רשימת המסמכים נפתחת מהתבנית של המשרד, ולא ממחרוזת קבועה בקוד. */
+  /**
+   * הרשימה היא התפריט (מובנים + מה שהמשרד הוסיף), והתבנית קובעת מה **מסומן**
+   * כשנפתחים. מסמך שיושב בתבנית ולא בתפריט מצטרף לתצוגה כאן, אחרת בקשה
+   * שנשמרה כתבנית הייתה נפתחת בלי חלק מהפריטים שלה.
+   */
   function openDocumentsMode() {
     setMode('documents');
     setError(null);
     const entry = firstEntry(templateBySeed(templates, 'client_documents') ?? ({} as RequestTemplate));
-    const list = (entry?.payload?.checklist as { label?: string }[] | undefined) ?? [];
-    if (list.length) setDocLines(list.map(i => i.label ?? '').filter(Boolean).join('\n'));
+    const seeded = ((entry?.payload?.checklist as { label?: string }[] | undefined) ?? [])
+      .map(i => (i.label ?? '').trim()).filter(Boolean);
+    if (seeded.length) {
+      setDocOptions(list => [...list, ...seeded.filter(l => !list.includes(l))]);
+      setSelectedDocs(seeded);
+    }
+  }
+
+  const toggleDoc = (label: string) => setSelectedDocs(list =>
+    list.includes(label) ? list.filter(l => l !== label) : [...list, label]);
+
+  /**
+   * מסמך חדש נכנס לבקשה הנוכחית **וגם** נשמר לתפריט של המשרד.
+   * ‼ קוראים את ההגדרות מחדש רגע לפני הכתיבה: מסך המשרד עורך draft של אותה
+   * עמודה, וכתיבה עיוורת של מה שנטען בפתיחת החלון הייתה דורסת אותו.
+   */
+  async function addDocOption() {
+    const label = newDocLabel.trim().replace(/\s+/g, ' ');
+    if (!label) return;
+    setNewDocLabel('');
+    if (!docOptions.includes(label)) setDocOptions(list => [...list, label]);
+    if (!selectedDocs.includes(label)) setSelectedDocs(list => [...list, label]);
+    if (!profileId) return;
+    setSavingOption(true);
+    const { data: fresh } = await supabase
+      .from('profiles').select('settings').eq('id', profileId).maybeSingle();
+    await supabase.from('profiles')
+      .update({ settings: withDocOption((fresh?.settings ?? {}) as Record<string, unknown>, label) })
+      .eq('id', profileId);
+    setSavingOption(false);
+  }
+
+  async function removeDocOption(label: string) {
+    setDocOptions(list => list.filter(l => l !== label));
+    setSelectedDocs(list => list.filter(l => l !== label));
+    if (!profileId) return;
+    const { data: fresh } = await supabase
+      .from('profiles').select('settings').eq('id', profileId).maybeSingle();
+    await supabase.from('profiles')
+      .update({ settings: withoutDocOption((fresh?.settings ?? {}) as Record<string, unknown>, label) })
+      .eq('id', profileId);
   }
 
   const [dueDate, setDueDate] = useState('');
@@ -230,19 +294,23 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
   }
 
   function submitCustom() {
-    const clean = reqs.map(r => r.label.trim()).filter(Boolean);
-    if (clean.length !== reqs.length || reqs.length === 0) {
+    const main = ask.trim();
+    if (!main) { setError('צריך לכתוב מה מבקשים מהלקוח.'); return; }
+    if (extraReqs.some(r => !r.label.trim())) {
       setError('לכל דרישה צריך תיאור — מה בדיוק הלקוח צריך לעשות.');
       return;
     }
-    const requirements: CustomRequirement[] = reqs.map((r, i) => ({
-      key: `r${i + 1}`, kind: r.kind, label: r.label.trim(), done: false,
-    }));
+    const requirements: CustomRequirement[] = [
+      { key: 'r1', kind: askKind, label: main, done: false },
+      ...extraReqs.map((r, i) => ({
+        key: `r${i + 2}`, kind: r.kind, label: r.label.trim(), done: false,
+      })),
+    ];
     void create('custom_request', {
-      title: title.trim() || 'בקשה מהמשרד',
-      clientTitle: clientTitle.trim() || title.trim() || 'בקשה מהמשרד',
+      title: main,
+      clientTitle: clientTitle.trim() || main,
       clientSub: clientSub.trim() || undefined,
-      clientCta: clientCta.trim() || 'למילוי',
+      clientCta: clientCta.trim() || CTA_BY_KIND[askKind],
       requirements,
     });
   }
@@ -257,7 +325,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
   }
 
   function submitDocuments() {
-    const items = docLines.split('\n').map(s => s.trim()).filter(Boolean);
+    const items = docOptions.filter(l => selectedDocs.includes(l));
     if (items.length === 0) { setError('צריך לפחות מסמך אחד ברשימה.'); return; }
     void create('client_documents', {
       checklist: items.map((label, i) => ({ key: `d${i + 1}`, label, done: false })),
@@ -432,11 +500,46 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
 
           {mode === 'documents' && (
             <>
-              <label style={lbl}>
-                אילו מסמכים לבקש — שורה לכל מסמך
-                <textarea rows={5} value={docLines} onChange={e => setDocLines(e.target.value)}
-                  className="input" style={{ resize: 'vertical' }} />
-              </label>
+              <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600 }}>
+                אילו מסמכים לבקש
+                <span style={{ fontWeight: 400, color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
+                  {' '}— לכל מסומן הלקוח יקבל מקום נפרד להעלות
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                {docOptions.map(label => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>
+                    <label style={{
+                      display: 'flex', gap: '.45rem', alignItems: 'center',
+                      fontSize: 'var(--fs-13)', flex: 1, cursor: 'pointer',
+                    }}>
+                      <input type="checkbox" checked={selectedDocs.includes(label)}
+                        onChange={() => toggleDoc(label)} />
+                      {label}
+                    </label>
+                    {!BUILT_IN_DOC_OPTIONS.includes(label) && (
+                      <button type="button" className="btn btn-sm btn-ghost"
+                        aria-label={`הסרת ${label} מהרשימה`} title="הסרה מהרשימה הקבועה"
+                        onClick={() => { void removeDocOption(label); }}>✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {/* ‼ מה שנוסף כאן נשמר לרשימה של המשרד ויופיע בכל בקשה הבאה —
+                  אחרת אותו מסמך היה מוקלד מחדש בכל פעם. */}
+              <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                <input className="input" style={{ flex: 1 }} value={newDocLabel}
+                  placeholder="מסמך אחר — למשל: טופס 106"
+                  onChange={e => setNewDocLabel(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); void addDocOption(); }
+                  }} />
+                <button type="button" className="btn btn-sm btn-secondary"
+                  disabled={!newDocLabel.trim() || savingOption}
+                  onClick={() => { void addDocOption(); }}>
+                  {savingOption ? 'שומר…' : 'הוספה'}
+                </button>
+              </div>
               <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
             </>
           )}
@@ -444,55 +547,71 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
           {mode === 'custom' && (
             <>
               <label style={lbl}>
-                שם הבקשה — מה שאני רואה
-                <input className="input" value={title} onChange={e => setTitle(e.target.value)}
-                  placeholder="למשל: פרטי הרכב לצורך הכרה בהוצאות" />
+                מה מבקשים
+                <input className="input" value={ask} onChange={e => setAsk(e.target.value)}
+                  placeholder="למשל: תצלום תעודת זהות" autoFocus />
+              </label>
+              <label style={lbl}>
+                מה הלקוח עושה
+                <select className="input" value={askKind}
+                  onChange={e => setAskKind(e.target.value as CustomRequirementKind)}>
+                  {KINDS.map(k => <option key={k} value={k}>{REQUIREMENT_KIND_LABELS[k]}</option>)}
+                </select>
               </label>
 
-              <div style={{
-                borderInlineStart: '3px solid var(--hairline-2)', paddingInlineStart: '.6rem',
-                display: 'flex', flexDirection: 'column', gap: '.5rem',
-              }}>
-                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>מה הלקוח רואה בדף האישי</div>
-                <label style={lbl}>
-                  כותרת
-                  <input className="input" value={clientTitle} onChange={e => setClientTitle(e.target.value)}
-                    placeholder="ריק ⇒ אותו שם כמו למעלה" />
-                </label>
-                <label style={lbl}>
-                  משפט הסבר
-                  <input className="input" value={clientSub} onChange={e => setClientSub(e.target.value)} />
-                </label>
-                <label style={lbl}>
-                  טקסט הכפתור
-                  <input className="input" value={clientCta} onChange={e => setClientCta(e.target.value)} />
-                </label>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
-                <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600 }}>מה נדרש ממנו</div>
-                {reqs.map((r, i) => (
-                  <div key={i} style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
-                    <select className="input" style={{ width: 130 }} value={r.kind}
-                      onChange={e => setReqs(list => list.map((x, j) =>
-                        j === i ? { ...x, kind: e.target.value as CustomRequirementKind } : x))}>
-                      {KINDS.map(k => <option key={k} value={k}>{REQUIREMENT_KIND_LABELS[k]}</option>)}
-                    </select>
-                    <input className="input" style={{ flex: 1 }} value={r.label}
-                      placeholder="מה בדיוק צריך"
-                      onChange={e => setReqs(list => list.map((x, j) =>
-                        j === i ? { ...x, label: e.target.value } : x))} />
-                    {reqs.length > 1 && (
-                      <button type="button" className="btn btn-sm btn-ghost" aria-label="הסרה"
-                        onClick={() => setReqs(list => list.filter((_, j) => j !== i))}>✕</button>
-                    )}
-                  </div>
-                ))}
-                <button type="button" className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }}
-                  onClick={() => setReqs(list => [...list, { kind: 'confirm', label: '' }])}>
-                  + עוד דרישה
+              {/* ‼ הניסוחים הנוספים מוסתרים בכוונה: הם דרשו להקליד את אותו
+                  טקסט שלוש פעמים כדי לבקש דבר אחד. מי שצריך — פותח. */}
+              {!advanced ? (
+                <button type="button" className="ui-linkbtn"
+                  style={{ alignSelf: 'flex-start', fontSize: 'var(--fs-12)', color: 'var(--accent)' }}
+                  onClick={() => setAdvanced(true)}>
+                  ניסוח מתקדם ←
                 </button>
-              </div>
+              ) : (
+                <div style={{
+                  borderInlineStart: '3px solid var(--hairline-2)', paddingInlineStart: '.6rem',
+                  display: 'flex', flexDirection: 'column', gap: '.5rem',
+                }}>
+                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>מה הלקוח רואה בדף האישי</div>
+                  <label style={lbl}>
+                    כותרת
+                    <input className="input" value={clientTitle} onChange={e => setClientTitle(e.target.value)}
+                      placeholder={ask.trim() || 'ריק ⇒ אותו טקסט כמו למעלה'} />
+                  </label>
+                  <label style={lbl}>
+                    משפט הסבר
+                    <input className="input" value={clientSub} onChange={e => setClientSub(e.target.value)} />
+                  </label>
+                  <label style={lbl}>
+                    טקסט הכפתור
+                    <input className="input" value={clientCta} onChange={e => setClientCta(e.target.value)}
+                      placeholder={CTA_BY_KIND[askKind]} />
+                  </label>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
+                    <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600 }}>עוד דרישות באותה בקשה</div>
+                    {extraReqs.map((r, i) => (
+                      <div key={i} style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                        <select className="input" style={{ width: 130 }} value={r.kind}
+                          onChange={e => setExtraReqs(list => list.map((x, j) =>
+                            j === i ? { ...x, kind: e.target.value as CustomRequirementKind } : x))}>
+                          {KINDS.map(k => <option key={k} value={k}>{REQUIREMENT_KIND_LABELS[k]}</option>)}
+                        </select>
+                        <input className="input" style={{ flex: 1 }} value={r.label}
+                          placeholder="מה בדיוק צריך"
+                          onChange={e => setExtraReqs(list => list.map((x, j) =>
+                            j === i ? { ...x, label: e.target.value } : x))} />
+                        <button type="button" className="btn btn-sm btn-ghost" aria-label="הסרה"
+                          onClick={() => setExtraReqs(list => list.filter((_, j) => j !== i))}>✕</button>
+                      </div>
+                    ))}
+                    <button type="button" className="btn btn-sm btn-ghost" style={{ alignSelf: 'flex-start' }}
+                      onClick={() => setExtraReqs(list => [...list, { kind: 'confirm', label: '' }])}>
+                      + עוד דרישה
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
             </>

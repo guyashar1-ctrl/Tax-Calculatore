@@ -99,6 +99,7 @@ import TestDeferred from './components/quotations/__TestDeferred';
 import TestSignDone from './components/ui/__TestSignDone';
 import TestFirmNotifications from './components/__TestFirmNotifications';
 import TestRepDialog from './components/__TestRepDialog';
+import TestAddRequestDialog from './components/__TestAddRequestDialog';
 import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
@@ -227,6 +228,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-repdialog')) {
     return <TestRepDialog />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-addrequest')) {
+    return <TestAddRequestDialog />;
   }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {
