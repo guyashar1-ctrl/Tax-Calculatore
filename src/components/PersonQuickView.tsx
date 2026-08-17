@@ -55,6 +55,10 @@ interface Props {
   chargeBusyId?: string | null;
 }
 
+/** ‼ ההסבר המלא יושב ב-title ולא על המסך: מי שצריך אותו מרחף, ומי שלא —
+ *  רואה מילה אחת. גם אומר איפה משנים, כי התג עצמו אינו ניתן לעריכה. */
+const REG_HINT = 'בן/בת הזוג הרשום/ה — על שמו מתנהל תיק מס הכנסה. משנים בלשונית «תיק מס», בשדה הבעלים של תיק מס הכנסה.';
+
 function relDate(iso: string): string {
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
   if (Number.isNaN(d)) return '';
@@ -67,6 +71,15 @@ function relDate(iso: string): string {
 export default function PersonQuickView(p: Props) {
   /** בן/בת הזוג הרשום/ה — נגזר מתיק מס הכנסה בכרטיס, לא נשמר כאן שוב. */
   const regFile = p.row.client ? registeredFileInfo(p.row.client) : null;
+  const spouseName = p.row.client?.spouseName?.trim();
+  /**
+   * ‼ התג מוצג רק כשיש שני אנשים בתא: "רשום" ליד אדם בודד לא מוסיף מידע,
+   * ובזוג הוא כל המידע — הוא אומר על שם מי מהשניים התיק. זה גם מה שמאפשר
+   * לו להישאר מילה אחת: ההקשר עושה את עבודת ההסבר.
+   */
+  const showReg = !!spouseName;
+  const spouseDetails = [p.row.client?.spouseIdNumber, p.row.client?.spouseEmail]
+    .filter((v): v is string => !!v?.trim());
   const { row } = p;
   return (
     <>
@@ -104,8 +117,14 @@ export default function PersonQuickView(p: Props) {
         </div>
 
         <div className="pd-info">
+          {/* ‼ תג "רשום" יושב על מי שהתיק על שמו — הלקוח או בן/בת הזוג — ולכן
+              אין צורך בשורה נפרדת שחוזרת על השם והת"ז. מילה אחת, לא משפט:
+              ניסוח ארוך ("רשום במ״ה") נשבר לשתי שורות בתא הצר של הת"ז. */}
           <div className="pd-cell">
-            <div className="pd-lab">תעודת זהות</div>
+            <div className="pd-lab">
+              תעודת זהות
+              {showReg && regFile?.owner === 'client' && <span className="pd-reg" title={REG_HINT}> · רשום</span>}
+            </div>
             <div className="pd-val num">{row.idNumber || 'טרם התקבל'}</div>
           </div>
           <div className="pd-cell">
@@ -116,33 +135,25 @@ export default function PersonQuickView(p: Props) {
             <div className="pd-lab">אימייל</div>
             <div className="pd-val pd-ltr">{row.email || '—'}</div>
           </div>
-          {/* ‼ בן/בת הזוג מופיע/ה כאן רק כשיש כזה בכרטיס — לא תא ריק לכל
-              לקוח. הפרטים מוצגים במלואם, וכתובת חסרה נאמרת במפורש ("טרם
-              התקבל") ולא נעלמת: שדה שנשמט בשקט נראה כמו שדה שלא קיים. */}
-          {!!row.client?.spouseName?.trim() && (
+          {/* ‼ בן/בת הזוג מופיע/ה רק כשיש כזה בכרטיס. השם נקרא ראשון; הת"ז
+              והמייל הם פרטי היכר שקטים מתחתיו ולא שורות מודגשות משלהם —
+              אחרת תא אחד צועק יותר מכל השאר. כל פרט בשורה נפרדת ולא מחורז
+              בנקודה: בתא צר השרשור נשבר והמפריד נשאר תלוי בסוף השורה.
+              פרט חסר בודד נשמט בשקט, אבל תא בלי שום פרט אומר זאת במפורש —
+              אחרת שם לבד נראה כמו כרטיס שאין בו מה למלא. */}
+          {!!spouseName && (
             <div className="pd-cell">
               <div className="pd-lab">
                 בן/בת זוג
-                {regFile?.owner === 'spouse' && <span className="pd-reg"> · רשום/ה במס הכנסה</span>}
+                {regFile?.owner === 'spouse' && <span className="pd-reg" title={REG_HINT}> · רשום</span>}
               </div>
-              <div className="pd-val">{row.client.spouseName}</div>
-              <div className="pd-val num">{row.client.spouseIdNumber || 'ת.ז. טרם התקבלה'}</div>
-              <div className="pd-val pd-ltr">{row.client.spouseEmail?.trim() || '—'}</div>
+              <div className="pd-val">{spouseName}</div>
+              {spouseDetails.length
+                ? spouseDetails.map(v => <div className="pd-small pd-ltr" key={v}>{v}</div>)
+                : <div className="pd-small">ת.ז. ומייל טרם התקבלו</div>}
             </div>
           )}
         </div>
-
-        {/* ── מי בן/בת הזוג הרשום/ה ────────────────────────────────────────
-            ‼ נגזר מתיק מס הכנסה שבכרטיס — אותו מקור אמת שמשמש את מאזן 1301
-            (registeredFileInfo). לא נשמר כאן שוב, ולכן אי אפשר שיסתרו זה
-            את זה. משנים אותו בלשונית «תיק מס», בבעלים של תיק מס הכנסה. */}
-        {regFile && (
-          <div className="pd-small" style={{ marginTop: '.35rem' }}>
-            תיק מס הכנסה על שם <b>{regFile.name}</b>
-            {regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
-            {' — '}מוגדר בלשונית «תיק מס»
-          </div>
-        )}
 
         {row.kind === 'client' && !!p.charges?.length && (
           <div className="pd-section">
