@@ -435,6 +435,24 @@ export default function OnboardingTab({
   }
 
   /**
+   * "עדכנתי את הריטיינר לכרטיס אשראי" — הסעיף הרביעי ברשימת החיבור.
+   *
+   * ‼ הפעולה הזאת קורית בפייפרלס, אבל מה שהיא משנה אצלנו יושב על שלב התשלום:
+   * מרגע זה פייפרלס מבקשת מהלקוח כרטיס, ולכן ההנחיה נחשפת לו בדף האישי.
+   * לכן הסימון בשלב אחד כותב חותמת בשלב אחר — ולא מוסיף מצב חדש לאף אחד מהם.
+   * ‼ אידמפוטנטי: חותמת שכבר קיימת אינה נדרסת בתאריך חדש.
+   */
+  async function markRetainerCardUpdated() {
+    const retainer = clientSteps.find(s => s.stepType === 'retainer_authorization');
+    if (!retainer || retainer.payload.authorizationCreatedAt) return;
+    await advance(retainer.id, 'note', {
+      authorizationCreatedAt: new Date().toISOString(),
+      note: 'הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי — הלקוח יתבקש להזין כרטיס',
+    });
+    refresh?.();
+  }
+
+  /**
    * ביטול אישור הרשמה שגוי — RPC ייעודי (מיגרציה 114).
    * ‼ לא advance('reopen') הגנרי: צריך גם להחזיר את הכדור ללקוח וגם לנעול
    * בחזרה את שלב החיבור שנפתח בגלל האישור, ורק אם עוד לא נגעו בו.
@@ -995,6 +1013,7 @@ export default function OnboardingTab({
                     stepById={stepById}
                     client={client}
                     onReopen={() => void reopenRegistration(step)}
+                    onRetainerCardSet={() => void markRetainerCardUpdated()}
                     busy={busy}
                     highlight={highlightStepId === step.id}
                     showTriage={retriageStepId === step.id || triageAnchorId === step.id}
@@ -1104,6 +1123,7 @@ export default function OnboardingTab({
                     key={step.id}
                     step={step}
                     stepById={stepById}
+                    client={client}
                     busy={busy}
                     highlight={highlightStepId === step.id}
                     hasConnectionStep={!!connectionStep}
@@ -1937,22 +1957,31 @@ function CustomRequestBody({ step }: { step: OnboardingStep }) {
  *
  * ‼ ארבעה סעיפים תמיד — כולל משיכת עוסקים. היא חלק מההקמה הסטנדרטית גם
  * ללקוח חדש לגמרי, ולא רק בהעברה ממייצג קודם (הכרעת גיא 2026-08-17).
- * ‼ עדכון הריטיינר לכרטיס אשראי הוא הסעיף שגורם לפייפרלס לבקש מהלקוח את
- * הכרטיס — ולכן הוא כאן, בעבודה, ולא בכרטיס התשלום.
+ * ‼ הסדר אינו קוסמטי: עדכון הריטיינר לכרטיס אשראי אפשרי רק אחרי שלושת
+ * הראשונים, והוא זה שגורם לפייפרלס לבקש מהלקוח את הכרטיס. לכן הוא נעול
+ * עד שהם סומנו, וברגע שהוא מסומן — ההנחיה נחשפת ללקוח בדף האישי.
  */
 const PAPERLESS_SETUP_CHECKLIST: { key: string; label: string }[] = [
   { key: 'id_number', label: 'הזנת מספר הזהות של הלקוח בפייפרלס' },
-  { key: 'business_name', label: 'הזנת שם העסק ואימות שהוא נכון' },
+  { key: 'business_name', label: 'הזנת שם העסק ולחיצה על שמור' },
   { key: 'pull_dealers', label: 'ביצוע משיכת עוסקים' },
   { key: 'retainer_card', label: 'עדכון הריטיינר שסוכם לתשלום בכרטיס אשראי' },
 ];
 
-/** הרשימה הקבועה, ממוזגת עם מה שכבר סומן על השלב. שורות שנוצרו לפני
- *  המיגרציה מגיעות בלי checklist — ולכן מיזוג ולא קריאה ישירה. */
+/** הסעיף שפותח את בקשת הכרטיס אצל הלקוח — האחרון, ותלוי בשלושה שלפניו. */
+const RETAINER_CARD_KEY = 'retainer_card';
+
+/** הרשימה הקבועה, ממוזגת עם מה שכבר סומן על השלב.
+ *  ‼ הסימון בא מהשלב, הניסוח בא מהקוד: שורה שנשמרה עם ניסוח קודם ממשיכה
+ *  להציג את הניסוח המעודכן ולא מקפיאה את הישן. */
 function paperlessSetupItems(step: OnboardingStep): StepChecklistItem[] {
   const saved = new Map((step.payload.checklist ?? []).map(i => [i.key, i]));
-  return PAPERLESS_SETUP_CHECKLIST.map(
-    x => saved.get(x.key) ?? { key: x.key, label: x.label, done: false });
+  return PAPERLESS_SETUP_CHECKLIST.map(x => ({
+    ...(saved.get(x.key) ?? { done: false }),
+    key: x.key,
+    label: x.label,
+    done: saved.get(x.key)?.done ?? false,
+  }));
 }
 
 /** ערך שצריך להעתיק לפייפרלס — מוצג מכרטיס הלקוח, לא מעותק שנשמר על השלב. */
@@ -1986,6 +2015,8 @@ interface PaperlessCardProps {
   highlight: boolean;
   /** ביטול אישור הרשמה שגוי — רק על שלב ההרשמה שכבר נסגר. */
   onReopen: () => void;
+  /** הריטיינר עודכן לכרטיס אשראי — מסמן על שלב התשלום שההנחיה נחשפת ללקוח. */
+  onRetainerCardSet: () => void;
   showTriage: boolean;
   triageBusy: boolean;
   triageError: string | null;
@@ -2071,7 +2102,8 @@ function PaperlessStepCard(p: PaperlessCardProps) {
             <InviteBody path={path} status={step.status} />
           ) : (
             <ConnectionBody path={path} softwareName={String(step.payload.softwareName ?? '')}
-              step={step} client={p.client} busy={busy} onRun={p.onRun} />
+              step={step} client={p.client} busy={busy} onRun={p.onRun}
+              onRetainerCardSet={p.onRetainerCardSet} />
           )}
 
           <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
@@ -2099,9 +2131,12 @@ function PaperlessStepCard(p: PaperlessCardProps) {
               <button type="button" className="btn btn-sm btn-primary" disabled={busy}
                 onClick={() => p.onConfirm(
                   path === 'other_rep' ? 'אישור השלמת ההעברה' : 'סיום החיבור לפייפרלס',
+                  // ‼ הניסוח הישן שאל "כולל פרטי האשראי שפייפרלס ביקשה" — זה
+                  // המודל שבו המשרד מזין את הכרטיס, וכבר אינו נכון: הלקוח הוא
+                  // שמזין אותו, אחרי שהריטיינר עודכן לכרטיס אשראי.
                   path === 'other_rep'
                     ? 'ההעברה מהמייצג הקודם הושלמה והלקוח מופיע ברשימה שלך?'
-                    : 'נכנסת לחשבון הפייפרלס של הלקוח והשלמת את ההגדרה, כולל פרטי האשראי שפייפרלס ביקשה?',
+                    : 'ארבעת הסעיפים בוצעו בחשבון הפייפרלס של הלקוח?',
                   'סיימתי',
                 )}>
                 סיימתי
@@ -2175,13 +2210,15 @@ function InviteBody({ path, status }: { path?: PaperlessStatus; status: string }
  * ‼ הת״ז ושם העסק מוצגים כאן להעתקה — מכרטיס הלקוח עצמו. אין עותק שלהם על
  * השלב: מה שיוצג הוא תמיד מה שבכרטיס, גם אם תוקן אחרי שהשלב נוצר.
  */
-function ConnectionBody({ path, softwareName, step, client, busy, onRun }: {
+function ConnectionBody({ path, softwareName, step, client, busy, onRun, onRetainerCardSet }: {
   path?: PaperlessStatus;
   softwareName: string;
   step: OnboardingStep;
   client: Client;
   busy: boolean;
   onRun: (action: string, payload?: Record<string, unknown>) => void;
+  /** סימון "עדכנתי את הריטיינר לכרטיס" — חושף ללקוח את ההנחיה להזין כרטיס. */
+  onRetainerCardSet: () => void;
 }) {
   if (path === 'not_applicable') {
     return (
@@ -2200,12 +2237,21 @@ function ConnectionBody({ path, softwareName, step, client, busy, onRun }: {
       ? 'ללקוח יש חשבון משלו והוא הוסיף אותנו כמייצג. נכנסים לחשבון ומשלימים את ההקמה.'
       : 'הלקוח נרשם. נכנסים לחשבון שלו בפייפרלס ומשלימים את ההקמה.';
 
+  /** שלושת הראשונים — התנאי לסעיף הרביעי. */
+  const setupReady = items
+    .filter(i => i.key !== RETAINER_CARD_KEY)
+    .every(i => i.done);
+
   function toggle(item: StepChecklistItem) {
     const next = items.map(x => x.key === item.key ? { ...x, done: !x.done } : x);
     onRun('note', {
       checklist: next,
       note: `${item.done ? 'בוטל סימון' : 'סומן'}: ${item.label}`,
     });
+    // ‼ הסימון הזה הוא הרגע שבו פייפרלס מתחילה לבקש מהלקוח כרטיס — ולכן הוא
+    // גם מה שחושף לו את ההנחיה בדף האישי. סימון בלבד, בלי כפתור נוסף.
+    // ‼ הסרת הסימון אינה מבטלת את החשיפה: אי אפשר לבטל בקשה שפייפרלס כבר שלחה.
+    if (item.key === RETAINER_CARD_KEY && !item.done) onRetainerCardSet();
   }
 
   return (
@@ -2224,24 +2270,33 @@ function ConnectionBody({ path, softwareName, step, client, busy, onRun }: {
         מה עושים בפייפרלס · {doneCount} מתוך {items.length}
       </div>
       <div style={{ display: 'grid', gap: '.25rem' }}>
-        {items.map(item => (
-          <label key={item.key} style={{
-            display: 'flex', gap: '.45rem', alignItems: 'flex-start',
-            cursor: busy ? 'default' : 'pointer',
-            color: item.done ? 'var(--ink-3)' : 'var(--ink-1)',
-          }}>
-            <input type="checkbox" checked={item.done} disabled={busy}
-              onChange={() => toggle(item)} style={{ marginTop: 2 }} />
-            <span style={{ textDecoration: item.done ? 'line-through' : 'none' }}>{item.label}</span>
-          </label>
-        ))}
+        {items.map(item => {
+          // ‼ הרביעי חסום עד שהשלושה נעשו: בפועל אי אפשר לעדכן את הריטיינר
+          // לפני שהלקוח הוקם ונמשך, וצ'קבוקס שנראה זמין הוא הזמנה לטעות.
+          const blocked = item.key === RETAINER_CARD_KEY && !setupReady && !item.done;
+          return (
+            <label key={item.key} style={{
+              display: 'flex', gap: '.45rem', alignItems: 'flex-start',
+              cursor: busy || blocked ? 'default' : 'pointer',
+              color: blocked ? 'var(--ink-4)' : item.done ? 'var(--ink-3)' : 'var(--ink-1)',
+            }} title={blocked ? 'אפשר רק אחרי שלושת הסעיפים שמעל' : undefined}>
+              <input type="checkbox" checked={item.done} disabled={busy || blocked}
+                onChange={() => toggle(item)} style={{ marginTop: 2 }} />
+              <span style={{ textDecoration: item.done ? 'line-through' : 'none' }}>
+                {item.label}
+                {blocked && <span style={{ color: 'var(--ink-4)' }}> · אחרי שלושת הסעיפים שמעל</span>}
+              </span>
+            </label>
+          );
+        })}
       </div>
 
       {/* ‼ עדכון הריטיינר לכרטיס הוא מה שגורם לפייפרלס לבקש מהלקוח את הכרטיס.
           לכן «סיימתי» כאן אינו סוף הכסף אלא תחילתו — וכרטיס התשלום ממשיך משם. */}
       <div style={{ marginTop: '.45rem' }}>
-        אחרי «סיימתי» נפתח כרטיס התשלום החודשי, ושם ממשיכים: ההרשאה בפייפרלס,
-        הכרטיס שהלקוח מזין, והחיוב עצמו.
+        {items.find(i => i.key === RETAINER_CARD_KEY)?.done
+          ? 'הריטיינר עודכן לכרטיס — מכאן פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. ההמשך בכרטיס התשלום החודשי.'
+          : 'אחרי «סיימתי» נפתח כרטיס התשלום החודשי, ושם ממשיכים: הכרטיס שהלקוח מזין, והחיוב עצמו.'}
       </div>
 
       {softwareName && (
@@ -2271,6 +2326,8 @@ function ConnectionBody({ path, softwareName, step, client, busy, onRun }: {
 interface RetainerCardProps {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
+  /** שם העסק שהלקוח הזין — מה שמאשרים בפייפרלס, ולכן מוצג גם כאן. */
+  client: Client;
   busy: boolean;
   highlight: boolean;
   hasConnectionStep: boolean;
@@ -2302,6 +2359,17 @@ function RetainerStepCard(p: RetainerCardProps) {
           חודש החיוב הראשון מתקרב וההרשאה טרם הושלמה
         </div>
       )}
+
+      {/* ‼ שם העסק והת״ז כאן ולא רק בכרטיס החיבור: זה מה שמאשרים בפייפרלס
+          בזמן שמעדכנים את הריטיינר, ואין סיבה לחזור אחורה כדי לקרוא אותם.
+          אותו מקור בדיוק — הכרטיס של הלקוח. */}
+      <div style={{
+        display: 'grid', gap: '.2rem', marginTop: '.45rem',
+        padding: '.4rem .55rem', border: '1px solid var(--line)', borderRadius: 6,
+      }}>
+        <CopyValueRow label="מספר זהות" value={p.client.idNumber} />
+        <CopyValueRow label="שם העסק" value={p.client.businessName} />
+      </div>
 
       <div style={{ display: 'flex', gap: '1.4rem', flexWrap: 'wrap', marginTop: '.45rem' }}>
         <div>
@@ -2357,9 +2425,9 @@ function RetainerStepCard(p: RetainerCardProps) {
               משפטים שצריך לקרוא כדי להבין מה נשאר. */}
           <div style={cardNote}>
             {!authorizationCreatedAt
-              ? <>הלקוח מחובר לפייפרלס. עכשיו יוצרים שם את ההרשאה הקבועה — בתוך פייפרלס, לא דרך קישור שהמערכת שולחת.</>
+              ? <>הלקוח מחובר לפייפרלס. מה שפותח את בקשת הכרטיס אצלו הוא עדכון הריטיינר לתשלום בכרטיס אשראי — הסעיף האחרון ברשימת החיבור, ואפשר לסמן אותו גם כאן.</>
               : !cardEnteredAt
-                ? <>ההרשאה נוצרה בפייפרלס {formatDate(authorizationCreatedAt, 'list')}. הלקוח רואה בדף האישי שפייפרלס תבקש ממנו כרטיס אשראי, וגם שייתכן חיוב אימות בסך 1 ₪. כשתראה בפייפרלס שהכרטיס הוזן — לסמן כאן.</>
+                ? <>הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי ({formatDate(authorizationCreatedAt, 'list')}). הלקוח רואה בדף האישי שפייפרלס תבקש ממנו כרטיס, וגם שייתכן חיוב אימות בסך 1 ₪. כשתראה בפייפרלס שהכרטיס הוזן — לסמן כאן.</>
                 : !retainerChargedAt
                   ? <>הכרטיס הוזן {formatDate(cardEnteredAt, 'list')}. נשאר לחייב את הריטיינר שסוכם — ואז לסמן כאן. זה מה שסוגר את השלב.</>
                   : <>הריטיינר חויב {formatDate(retainerChargedAt, 'list')}.</>}
@@ -2369,8 +2437,12 @@ function RetainerStepCard(p: RetainerCardProps) {
             <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
               {!authorizationCreatedAt && (
                 <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-                  onClick={() => p.onRun('note', { authorizationCreatedAt: new Date().toISOString(), note: 'ההרשאה נוצרה בפייפרלס' })}>
-                  יצרתי את ההרשאה בפייפרלס
+                  title="אותה פעולה בדיוק כמו הסעיף האחרון ברשימת החיבור"
+                  onClick={() => p.onRun('note', {
+                    authorizationCreatedAt: new Date().toISOString(),
+                    note: 'הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי — הלקוח יתבקש להזין כרטיס',
+                  })}>
+                  עדכנתי את הריטיינר לכרטיס אשראי
                 </button>
               )}
 
