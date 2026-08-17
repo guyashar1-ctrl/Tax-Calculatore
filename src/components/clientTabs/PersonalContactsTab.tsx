@@ -645,6 +645,12 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                 <input type="email" value={client.spouseEmail ?? ''}
                   onChange={e => update('spouseEmail', e.target.value)} dir="ltr" />
               </div>
+              {/* פרט קשר קבוע נוסף, באותה מתכונת של המייל שמעליו — ראה ההערה שם. */}
+              <div className="form-group">
+                <label>טלפון בן/בת זוג</label>
+                <input type="tel" value={client.spousePhone ?? ''}
+                  onChange={e => update('spousePhone', e.target.value)} dir="ltr" />
+              </div>
               <div className="form-group">
                 <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
                   <input type="checkbox" checked={client.spouseWorking} onChange={e => update('spouseWorking', e.target.checked)} />
