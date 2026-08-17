@@ -637,6 +637,14 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                 <label>ת.ז. בן/בת זוג</label>
                 <input type="text" value={client.spouseIdNumber} onChange={e => update('spouseIdNumber', e.target.value)} dir="ltr" />
               </div>
+              {/* ‼ פרט קשר קבוע ולא רק אמצעי לחתימה: הכתובת נאספת בטופס הייצוג
+                  (לקישור חתימה אישי) ונשמרת כאן, ליד השם והת"ז, כדי שאפשר יהיה
+                  לפנות אליה גם שנה אחר כך. ניתנת לעריכה ידנית. */}
+              <div className="form-group">
+                <label>אימייל בן/בת זוג</label>
+                <input type="email" value={client.spouseEmail ?? ''}
+                  onChange={e => update('spouseEmail', e.target.value)} dir="ltr" />
+              </div>
               <div className="form-group">
                 <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
                   <input type="checkbox" checked={client.spouseWorking} onChange={e => update('spouseWorking', e.target.checked)} />

@@ -113,6 +113,18 @@ export default function PersonQuickView(p: Props) {
             <div className="pd-lab">אימייל</div>
             <div className="pd-val pd-ltr">{row.email || '—'}</div>
           </div>
+          {/* ‼ בן/בת הזוג מופיע/ה כאן רק כשיש כזה בכרטיס — לא תא ריק לכל
+              לקוח. המייל שלה נאסף בטופס הייצוג, ובלי הצגה כאן הוא היה נשאר
+              נתון שאיש לא רואה. */}
+          {!!row.client?.spouseName?.trim() && (
+            <div className="pd-cell">
+              <div className="pd-lab">בן/בת זוג</div>
+              <div className="pd-val">{row.client.spouseName}</div>
+              {!!row.client.spouseEmail?.trim() && (
+                <div className="pd-val pd-ltr">{row.client.spouseEmail}</div>
+              )}
+            </div>
+          )}
         </div>
 
         {row.kind === 'client' && !!p.charges?.length && (
