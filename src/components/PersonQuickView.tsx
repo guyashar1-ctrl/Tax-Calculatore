@@ -7,6 +7,7 @@
 //   שעורכת במקביל הייתה יוצרת שני בעלים לאותה רשומה.
 
 import type { PersonRow } from '../utils/personDirectory';
+import { registeredFileInfo } from '../features/annualReport/profile';
 import type { RecentDoc } from '../hooks/useRecentDocuments';
 import type { AdditionalCharge } from '../types/charges';
 import { CHARGE_STATUS_LABELS, CHARGE_STATUS_BADGE, CHARGE_NEXT_ACTION } from '../types/charges';
@@ -64,6 +65,8 @@ function relDate(iso: string): string {
 }
 
 export default function PersonQuickView(p: Props) {
+  /** בן/בת הזוג הרשום/ה — נגזר מתיק מס הכנסה בכרטיס, לא נשמר כאן שוב. */
+  const regFile = p.row.client ? registeredFileInfo(p.row.client) : null;
   const { row } = p;
   return (
     <>
@@ -114,18 +117,32 @@ export default function PersonQuickView(p: Props) {
             <div className="pd-val pd-ltr">{row.email || '—'}</div>
           </div>
           {/* ‼ בן/בת הזוג מופיע/ה כאן רק כשיש כזה בכרטיס — לא תא ריק לכל
-              לקוח. המייל שלה נאסף בטופס הייצוג, ובלי הצגה כאן הוא היה נשאר
-              נתון שאיש לא רואה. */}
+              לקוח. הפרטים מוצגים במלואם, וכתובת חסרה נאמרת במפורש ("טרם
+              התקבל") ולא נעלמת: שדה שנשמט בשקט נראה כמו שדה שלא קיים. */}
           {!!row.client?.spouseName?.trim() && (
             <div className="pd-cell">
-              <div className="pd-lab">בן/בת זוג</div>
+              <div className="pd-lab">
+                בן/בת זוג
+                {regFile?.owner === 'spouse' && <span className="pd-reg"> · רשום/ה במס הכנסה</span>}
+              </div>
               <div className="pd-val">{row.client.spouseName}</div>
-              {!!row.client.spouseEmail?.trim() && (
-                <div className="pd-val pd-ltr">{row.client.spouseEmail}</div>
-              )}
+              <div className="pd-val num">{row.client.spouseIdNumber || 'ת.ז. טרם התקבלה'}</div>
+              <div className="pd-val pd-ltr">{row.client.spouseEmail?.trim() || '—'}</div>
             </div>
           )}
         </div>
+
+        {/* ── מי בן/בת הזוג הרשום/ה ────────────────────────────────────────
+            ‼ נגזר מתיק מס הכנסה שבכרטיס — אותו מקור אמת שמשמש את מאזן 1301
+            (registeredFileInfo). לא נשמר כאן שוב, ולכן אי אפשר שיסתרו זה
+            את זה. משנים אותו בלשונית «תיק מס», בבעלים של תיק מס הכנסה. */}
+        {regFile && (
+          <div className="pd-small" style={{ marginTop: '.35rem' }}>
+            תיק מס הכנסה על שם <b>{regFile.name}</b>
+            {regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
+            {' — '}מוגדר בלשונית «תיק מס»
+          </div>
+        )}
 
         {row.kind === 'client' && !!p.charges?.length && (
           <div className="pd-section">
