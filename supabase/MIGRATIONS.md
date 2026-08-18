@@ -202,7 +202,18 @@ order by version;
 
 | # | שם המיגרציה | מה היא עושה |
 |---|---|---|
-| 115 | `115-prev-accountant-always-ask.sql` | שלושה טלאים על הפונקציות החיות (pg_get_functiondef + replace, עם בדיקת position שנכשלת בקול): `generate_onboarding_steps` — בקשת `prev_accountant_details` נוצרת תמיד כשיש רו"ח קודם; כשיש כבר אימייל בכרטיס היא בקשת אישור בלבד (`required_for_close=false`, כותרת "לאשר את פרטי רואה החשבון הקודם") ואינה נועלת את מכתב השחרור. `portal_submit_step` — היפוך ה-coalesce: הערכים שהלקוח שלח גוברים על הכרטיס (זה מסך האישור/תיקון). `build_client_portal` — הפריט מקבל `prefill` עם הפרטים הקיימים למילוי-מראש. **הוחלה על staging בלבד (2026-08-18); ממתינה לפרודקשן יחד עם פריסת הקוד.** |
+| 115 | `115-prev-accountant-always-ask.sql` | שלושה טלאים על הפונקציות החיות (pg_get_functiondef + replace, עם בדיקת position שנכשלת בקול): `generate_onboarding_steps` — בקשת `prev_accountant_details` נוצרת תמיד כשיש רו"ח קודם; כשיש כבר אימייל בכרטיס היא בקשת אישור בלבד (`required_for_close=false`, כותרת "לאשר את פרטי רואה החשבון הקודם") ואינה נועלת את מכתב השחרור. `portal_submit_step` — היפוך ה-coalesce: הערכים שהלקוח שלח גוברים על הכרטיס (זה מסך האישור/תיקון). `build_client_portal` — הפריט מקבל `prefill` עם הפרטים הקיימים למילוי-מראש. **הוחלה על staging ועל הפרודקשן (2026-08-18).** |
 
 **‼ להריץ דרך execute_sql ולא apply_migration** (בלוקי DO — ראה הלקח של 101/110),
 ולאמת אחרי ההרצה ששלוש ההחלפות נקלטו בשאילתת `position(...)` על שלוש הפונקציות.
+
+**אימות ההחלה בפרודקשן (2026-08-18).** אחרי ההרצה הושוו טביעות ה-md5 של שלוש
+הפונקציות בין הפרודקשן לסביבת הבדיקות — **זהות לחלוטין**, כלומר שתי הסביבות
+מריצות בדיוק את הקוד שנבדק:
+`generate_onboarding_steps` 934368293317aad16c808465d576a658 ·
+`portal_submit_step` 6d65415d10c3308c8d77945c2561b9c8 ·
+`build_client_portal` 95760f483019f4a679729697638eca8a.
+לפני ההחלה נשמרו טביעות המצב הקודם לצורך שחזור: 0e34be0fc3b26ce9ec39def25aec751b ·
+1f0757ed8cc56f7ee8aee39aa5bcceda · 700d20e56b03fa93023cedf2db45f36e.
+המיגרציה אינה כותבת שום שורה (CREATE OR REPLACE בלבד) — אומת שאף רשומת לקוח
+לא נגעה בזמן ההחלה.
