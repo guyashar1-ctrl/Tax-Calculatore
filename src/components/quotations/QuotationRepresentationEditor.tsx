@@ -105,8 +105,10 @@ export default function QuotationRepresentationEditor({
   function toggleArea(a: RepAuthorityKind) {
     const areas = { ...(value.areas ?? {}) };
     if (areas[a]) delete areas[a];
+    // ‼ ראשי גם במעבר מרו"ח אחר (הכרעת גיא 2026-08-18) — משני נרשמים רק
+    // כשנשארת אצל הקודם עבודה חוסמת, וזה נגזר במכתב העברת הטיפול.
     else areas[a] = hasLevel(a)
-      ? { status: 'in_process', level: isTransfer ? 'secondary' : 'primary' }
+      ? { status: 'in_process', level: 'primary' }
       // ב"ל חוזר עם ברירת המחדל: ייצוג לשני בני הזוג אם הלקוח נשוי
       : { status: 'in_process', coversSpouse: true };
     patch({ areas });
@@ -193,7 +195,9 @@ export default function QuotationRepresentationEditor({
           </div>
           {isTransfer && (
             <div style={{ fontSize: 11.5, color: 'var(--gray-600)', marginBottom: 6, lineHeight: 1.55 }}>
-              הלקוח עובר מרו״ח אחר — הייצוג נפתח כמייצג משני. אפשר לשנות.
+              הלקוח עובר מרו״ח אחר — הייצוג נפתח כמייצג ראשי. אם במכתב העברת
+              הטיפול יסומן שנשארו אצלו דוח שנתי או הצהרת הון, הרישום יירד
+              למשני עד השלמתם.
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

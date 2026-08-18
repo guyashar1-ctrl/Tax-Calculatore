@@ -222,8 +222,10 @@ export default function TestOnboarding() {
   const [repDone, setRepDone] = useState(false);
   /* ‼ מכתב שנשלח וחלון ההתייחסות שלו עבר בשקט — המצב שבו הכרטיס אומר
      "עבר חלון ההתייחסות ללא מניעה" בלי שאיש לחץ על כלום. זהו גם המצב שבו
-     נבדקים סימון קבלה ידני, תג "לפי הצהרתו" ומונה הקבצים שלא שויכו. */
-  const [windowPassed, setWindowPassed] = useState(false);
+     נבדקים סימון קבלה ידני, תג "לפי הצהרתו" ומונה הקבצים שלא שויכו.
+     ?test-onboarding&handoff — פתיחה ישירה במצב הזה, לצילום ללא-ראש. */
+  const [windowPassed, setWindowPassed] = useState(
+    new URLSearchParams(window.location.search).has('handoff'));
   const withRep = repDone
     ? STEPS.map(s => (s.stepType === 'representation'
         ? { ...s, status: 'completed' as const, ball: 'me' as const,
@@ -240,6 +242,14 @@ export default function TestOnboarding() {
               releaseSentAt: '2026-08-05T09:00:00Z',
               releaseSentTo: 'dana@prev-firm.example',
               objectionDueDate: '2026-08-10',
+              // חלוקת הטיפול כפי שנשלחה במכתב: גבול תקופה, עבודה חוסמת פתוחה
+              // (דוח שנתי — כפתור "הדוח הוגש"), עבודה שכבר הוגשה, ועבודה חופשית.
+              lastPeriodPrev: '2026-08',
+              outstandingItems: [
+                { key: 'out_ar_2025', kind: 'annual_report' as const, year: 2025, label: 'דוח שנתי לשנת 2025' },
+                { key: 'out_cd_2024', kind: 'capital_declaration' as const, year: 2024, label: 'הצהרת הון לשנת 2024', filedAt: '2026-08-12T09:00:00Z' },
+                { key: 'out_free_1', kind: 'other' as const, label: 'דיון שומה פתוח במע״מ לשנת 2023' },
+              ],
             },
           };
         }

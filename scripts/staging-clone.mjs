@@ -68,7 +68,8 @@ function cleanPayload(p) {
   if (!p || typeof p !== 'object') return {};
   const out = {};
   const KEEP = ['published', 'done', 'paperlessStatus', 'dataSource', 'amount',
-    'billingStartMonth', 'dueDate', 'objectionDueDate', 'releaseSentAt', 'secondaryAuthorities'];
+    'billingStartMonth', 'dueDate', 'objectionDueDate', 'releaseSentAt', 'secondaryAuthorities',
+    'lastPeriodPrev', 'upgradeReadyAt'];
   for (const k of KEEP) if (k in p) out[k] = p[k];
   if (Array.isArray(p.requirements)) {
     out.requirements = p.requirements.map((r, i) => ({
@@ -81,6 +82,14 @@ function cleanPayload(p) {
     }));
   }
   if (Array.isArray(p.requestedMaterials)) out.requestedMaterials = p.requestedMaterials;
+  // עבודות פתוחות אצל הרו"ח הקודם — המבנה נשמר, הניסוח החופשי מוחלף.
+  if (Array.isArray(p.outstandingItems)) {
+    out.outstandingItems = p.outstandingItems.map((o, i) => ({
+      key: o?.key, kind: o?.kind, year: o?.year,
+      ...(o?.filedAt ? { filedAt: o.filedAt } : {}),
+      label: `עבודה פתוחה ${i + 1} (בדיקה)`,
+    }));
+  }
   if ('clientTitle' in p) out.clientTitle = 'כותרת לבדיקה';
   if ('clientSub' in p) out.clientSub = 'הסבר קצר לבדיקה';
   if ('clientCta' in p) out.clientCta = 'להמשך';

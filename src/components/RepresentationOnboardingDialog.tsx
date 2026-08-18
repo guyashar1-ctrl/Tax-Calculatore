@@ -88,16 +88,15 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     email: initialPrevAccountant?.email ?? '',
     phone: initialPrevAccountant?.phone ?? '',
   });
-  // מעבר מרו"ח אחר ⇒ הרשויות שנושאות רמה נפתחות כמייצג משני (ב"ל ללא רמה).
-  const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>(() => {
-    const level: RepLevel = isTransfer ? 'secondary' : 'primary';
-    return {
-      incomeTax: { selected: true, level },
-      withholding: { selected: false, level },
-      vat: { selected: true, level },
-      nationalInsurance: { selected: true, level: 'primary' },
-    };
-  });
+  // ‼ ראשי גם במעבר מרו"ח אחר (הכרעת גיא 2026-08-18): במעבר נקי אין סיבה
+  // להמתין כמשני. משני נרשמים רק כשנשארת אצל הקודם עבודה חוסמת (דוח שנתי /
+  // הצהרת הון) — וזה נגזר במכתב העברת הטיפול, לא כאן. אפשר לשנות ידנית.
+  const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>(() => ({
+    incomeTax: { selected: true, level: 'primary' },
+    withholding: { selected: false, level: 'primary' },
+    vat: { selected: true, level: 'primary' },
+    nationalInsurance: { selected: true, level: 'primary' },
+  }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CreateResult | null>(null);
@@ -124,16 +123,10 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
 
   // סימון המעבר גורר את הרמה איתו: כל עוד הרו"ח הקודם לא שוחרר הוא המייצג
   // הראשי ברשויות, ואנחנו נכנסים כמשניים. הרמה נשארת ניתנת לשינוי ידני אחרי כן.
+  // ‼ המתג כבר לא נוגע ברמת הייצוג: מעבר נפתח ראשי בדיוק כמו לקוח חדש.
+  // מה שהוא כן קובע — פרטי הרו"ח הקודם ומכתב העברת הטיפול שייוולד מהם.
   function toggleTransfer(on: boolean) {
     setTransfer(on);
-    const level: RepLevel = on ? 'secondary' : 'primary';
-    setAreas(prev => {
-      const next = { ...prev };
-      for (const a of REP_AUTHORITY_ORDER) {
-        if (hasLevel(a)) next[a] = { ...next[a], level };
-      }
-      return next;
-    });
   }
 
   function validate(): string | null {
@@ -349,7 +342,8 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             {transfer ? (
               <div style={{ marginTop: '.6rem' }}>
                 <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.55, marginBottom: '.5rem' }}>
-                  הייצוג נפתח כמייצג משני עד לשחרור מהרו״ח הקודם. אפשר לשנות למטה.
+                  הייצוג נפתח כמייצג ראשי גם במעבר. אם במכתב העברת הטיפול יסומן
+                  שנשארו אצל הקודם דוח שנתי או הצהרת הון — הרישום יירד למשני עד השלמתם.
                 </div>
                 <div className="form-group">
                   <label>שם הרו״ח הקודם (לא חובה)</label>
@@ -370,12 +364,12 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                   </div>
                 </div>
                 <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.5rem', lineHeight: 1.5 }}>
-                  מה שלא ידוע כאן — אפשר לבקש מהלקוח בדף האישי, ומכתב השחרור ייבנה ממנו.
+                  מה שלא ידוע כאן — אפשר לבקש מהלקוח בדף האישי, ומכתב העברת הטיפול ייבנה ממנו.
                 </div>
               </div>
             ) : (
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: '.4rem', lineHeight: 1.5 }}>
-                לקוח חדש לגמרי — נכנסים כמייצג ראשי, בלי מכתב שחרור.
+                לקוח חדש לגמרי — נכנסים כמייצג ראשי, בלי מכתב לרו״ח קודם.
               </div>
             )}
           </div>

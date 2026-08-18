@@ -1,7 +1,12 @@
-// ─── מכתב שחרור לרו"ח קודם ───────────────────────────────────────────────────
+// ─── מכתב העברת הטיפול לרו"ח קודם ────────────────────────────────────────────
 // רלוונטי רק כשהליד עובר מרו"ח אחר. מכין מייל (הרו"ח בודק ושולח, לא אוטומטי),
 // ואחרי השליחה נשמר PDF של המייל במסמכי הלקוח — כך שרואים בדיוק מה נשלח,
 // ממי (כתובת המשרד) ולאן (מייל הרו"ח הקודם), עם הנושא, התוכן והתאריך.
+//
+// ‼ מודל ההעברה (הכרעת גיא 2026-08-18): לא "שחרור תיק" ולא "הלקוח מפסיק את
+// ההתקשרות מתאריך X" — אלא תיאום מקצועי בין שני משרדים: גבול טיפול שוטף אחד
+// (תקופת דיווח), עבודות שנשארו אצל הקודם, ופסקת ייצוג שנגזרת מהן אוטומטית
+// (דוח שנתי / הצהרת הון מוגשים רק על ידי המייצג הראשי).
 
 import { PDFDocument, rgb, type RGB } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
@@ -10,6 +15,8 @@ import type { QuotationBrand } from '../components/quotations/quotationBranding'
 import { esc, emailFont, buildBrandedEmail } from './brandedEmail';
 import {
   ADDITIONAL_MATERIAL_KEY, ADDITIONAL_MATERIAL_LABEL, isOptionalMaterialKey,
+  isBlockingOutstanding,
+  type TransitionOutstandingItem, type TransitionOutstandingKind,
 } from '../types/onboarding';
 
 export interface ReleaseContext {
@@ -100,26 +107,55 @@ export const RELEASE_MATERIALS: ReleaseMaterial[] = [
 ];
 
 export interface ReleaseOptions {
-  /** מתי ההתקשרות עם הרו"ח הקודם מסתיימת. חובה — בלעדיו המכתב חסר תוקף. */
-  serviceEndDate: string;              // 'YYYY-MM-DD'
+  /**
+   * התקופה האחרונה שבטיפול הרו"ח הקודם ('YYYY-MM'). חובה — היא גבול האחריות.
+   * ‼ תקופת דיווח אחת לכל המסים, לא תאריך קלנדרי (הכרעת גיא 2026-08-18).
+   */
+  lastPeriodPrev: string;
   materials: ReleaseMaterial[];
   /**
-   * הלקוח כבר שילם לקודם על דוחות שטרם הוגשו: הקודם נשאר מייצג ראשי עד ההגשה,
-   * ואנחנו נרשמים כמשני. ראה את מכתב הדוגמה של רו"ח נדב צייגר.
+   * העבודות שנשארו אצל הרו"ח הקודם. דוח שנתי / הצהרת הון גוררים את פסקת
+   * הייצוג (הקודם נשאר ראשי עד ההגשה) — אוטומטית, בלי שאלה נוספת למשרד.
    */
-  paidThroughLabel?: string;           // "דוחות שנתיים לשנת 2025 והנהלת חשבונות עד פברואר 2026"
-  /** דיווחים או דוחות שהקודם עדיין חייב ללקוח — שורות חופשיות. */
-  outstanding?: string[];
+  outstandingItems?: TransitionOutstandingItem[];
 }
 
 export function defaultReleaseSubject(ctx: ReleaseContext): string {
-  return `שחרור תיק — ${ctx.clientName}`;
+  return `העברת הטיפול בתיק — ${ctx.clientName}`;
 }
 
-function formatHebrewDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+/** 'YYYY-MM' → 'MM/YYYY' — צורת הכתיבה המקובלת לתקופת דיווח. */
+export function periodLabel(ym: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec((ym || '').trim());
+  return m ? `${m[2]}/${m[1]}` : ym;
+}
+
+/** התקופה שאחרי — ממנה מתחיל הטיפול שלנו. נגזרת, לא מוזנת. */
+export function nextPeriod(ym: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec((ym || '').trim());
+  if (!m) return ym;
+  const mo = Number(m[2]);
+  return mo >= 12 ? `${Number(m[1]) + 1}-01` : `${m[1]}-${String(mo + 1).padStart(2, '0')}`;
+}
+
+/**
+ * הניסוחים של עבודה חוסמת בתוך משפט — יידוע, פועל בזמן ובמין הנכונים.
+ * outstandingLabel נותן את שם הפריט ("דוח שנתי לשנת 2025"); כאן הצורה המיודעת
+ * שנכנסת למשפט ("הדוח השנתי לשנת 2025 יוגש...").
+ */
+function blockingPhrases(item: TransitionOutstandingItem): {
+  subject: string; verb: string; until: string; copy: string;
+} {
+  if (item.kind === 'capital_declaration') {
+    return {
+      subject: item.year ? `הצהרת ההון לשנת ${item.year}` : 'הצהרת ההון',
+      verb: 'תוגש', until: 'עד להגשתה', copy: 'העתק מההצהרה שהוגשה',
+    };
+  }
+  return {
+    subject: item.year ? `הדוח השנתי לשנת ${item.year}` : 'הדוח השנתי',
+    verb: 'יוגש', until: 'עד להגשתו', copy: 'העתק מהדוח שהוגש',
+  };
 }
 
 export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: ReleaseOptions): string {
@@ -128,16 +164,65 @@ export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: 
   // חשובים ראשונים — גם בנוסח עצמו, כדי שמי שקורא במהירות יראה אותם קודם.
   const picked = byPriorityFirst(opts.materials.filter(m => m.checked && !m.optional));
   const openItem = opts.materials.find(m => m.checked && m.optional);
+  const outstanding = (opts.outstandingItems ?? []).filter(i => i.label.trim());
+  const blocking = outstanding.filter(isBlockingOutstanding);
+  const others = outstanding.filter(i => !isBlockingOutstanding(i));
 
   const lines: string[] = [
     `לכבוד ${to},`,
     '',
-    `הנדון: שחרור תיק — ${ctx.clientName}`,
+    `הנדון: העברת הטיפול בתיק — ${ctx.clientName}`,
     '',
-    `${who} פנה אלינו לייצוגו כרואי חשבון, לרבות ייצוג מול הרשויות, הנהלת חשבונות ודוחות שנתיים.`,
-    `לפיכך, הלקוח מפסיק את ההתקשרות עמך החל מתאריך ${formatHebrewDate(opts.serviceEndDate)}.`,
+    `${who} פנה למשרדנו להמשך הטיפול בענייניו, לרבות ייצוג מול הרשויות, הנהלת חשבונות ודוחות.`,
     '',
   ];
+
+  // ‼ חלוקת האחריות השוטפת — תקופת דיווח, לא "הפסקת התקשרות מתאריך": האחריות
+  // המקצועית נחתכת לפי תקופות, והנוסח הישן נשמע כהודעת פיטורין.
+  if (opts.lastPeriodPrev?.trim()) {
+    lines.push(
+      `בהתאם לסיכום עם הלקוח, הטיפול השוטף יעבור למשרדנו החל מתקופת הדיווח ${periodLabel(nextPeriod(opts.lastPeriodPrev))}. ` +
+      `נודה להשלמת הדיווחים השוטפים עד וכולל תקופת ${periodLabel(opts.lastPeriodPrev)}.`,
+      '');
+  }
+
+  // ‼ פסקת הייצוג נגזרת מהעבודות החוסמות ואינה מוזנת ביד: דוח שנתי והצהרת
+  // הון מוגשים רק על ידי המייצג הראשי — ולכן הקודם נשאר ראשי עד ההגשה,
+  // והלקוח לא נשאר בלי מייצג באמצע. עבודה אחת — משפט אחד; כמה — פסקה אחת
+  // (לא חוזרים על הסבר הייצוג פעמיים).
+  if (blocking.length === 1) {
+    const s = blockingPhrases(blocking[0]);
+    lines.push(
+      `כמו כן, בהתאם לסיכום עם הלקוח, ${s.subject} ${s.verb} על ידי משרדך. ` +
+      `${s.until} יישאר משרדך המייצג הראשי, ומשרדנו יירשם בשלב זה כמייצג משני. ` +
+      `נודה לעדכון לאחר ההגשה ולהעברת ${s.copy}, כדי שנוכל להשלים את העברת הייצוג הראשי למשרדנו.`,
+      '');
+  } else if (blocking.length > 1) {
+    lines.push('כמו כן, בהתאם לסיכום עם הלקוח, יושלמו על ידי משרדך:');
+    blocking.forEach(b => lines.push(`• ${b.label.trim()}`));
+    lines.push(
+      'עד להשלמת ההגשות יישאר משרדך המייצג הראשי, ומשרדנו יירשם בשלב זה כמייצג משני. ' +
+      'נודה לעדכון לאחר כל הגשה ולהעברת העתק מכל מסמך שהוגש, כדי שנוכל להשלים את העברת הייצוג הראשי למשרדנו.',
+      '');
+  }
+
+  // עבודה חופשית — מופיעה ומבוקש עליה עדכון, בלי להמציא לה השלכת ייצוג.
+  if (others.length === 1) {
+    lines.push(
+      `${blocking.length ? 'בנוסף' : 'כמו כן'}, למיטב ידיעתנו נמצא בטיפולך: ${others[0].label.trim()}. ` +
+      'נודה לעדכון עם ההשלמה.',
+      '');
+  } else if (others.length > 1) {
+    lines.push(`${blocking.length ? 'בנוסף' : 'כמו כן'}, למיטב ידיעתנו נמצאים בטיפולך:`);
+    others.forEach(o => lines.push(`• ${o.label.trim()}`));
+    lines.push('נודה לעדכון עם השלמתם.', '');
+  }
+
+  // מעבר נקי — אומרים זאת במפורש ומזמינים תיקון: זה מה שמונע ממשהו ליפול
+  // בין המשרדים כשמסתבר שבכל זאת נשארה עבודה פתוחה.
+  if (!outstanding.length) {
+    lines.push('למיטב ידיעתנו לא נותרו בטיפולך דוחות או עבודות פתוחות. אם ידוע לך אחרת — נשמח לעדכון.', '');
+  }
 
   if (picked.length) {
     lines.push('נודה לקבלת החומרים הבאים:');
@@ -148,22 +233,6 @@ export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: 
   // ‼ בקשה פתוחה, לא פריט ברשימה: אנחנו לא יודעים מה עוד קיים אצלו, והוא כן.
   if (openItem) {
     lines.push('אם יש בידיך חומר נוסף שלדעתך נכון שיעבור אלינו — נשמח לקבל גם אותו.');
-    lines.push('');
-  }
-
-  if (opts.outstanding?.length) {
-    lines.push('כמו כן, למיטב ידיעתנו טרם הושלמו מול הלקוח:');
-    opts.outstanding.filter(t => t.trim()).forEach(t => lines.push(`• ${t.trim()}`));
-    lines.push('נודה לעדכון לגבי מועד ההשלמה.');
-    lines.push('');
-  }
-
-  // ‼ הפסקה הזו היא הסיבה שהלקוח לא נשאר בלי מייצג באמצע: כשהוא כבר שילם
-  // על דוחות שטרם הוגשו, מי שקיבל את הכסף נשאר הראשי עד שיגיש.
-  if (opts.paidThroughLabel?.trim()) {
-    lines.push(
-      `להבנתנו, כיוון שהלקוח כבר ביצע תשלום עבור ${opts.paidThroughLabel.trim()}, ` +
-      'משרדך יישאר מייצג ראשי עד להגשתם. נירשם כמייצג משני, ולאחר ההגשה נעבור להיות המייצג הראשי.');
     lines.push('');
   }
 
@@ -191,14 +260,52 @@ export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: 
 
 export interface ReleaseDraft {
   materials: ReleaseMaterial[];
-  serviceEndDate: string;
-  paidThroughLabel: string;
-  outstanding: string;
+  /** 'YYYY-MM' — התקופה האחרונה בטיפול הרו"ח הקודם. */
+  lastPeriodPrev: string;
+  /** העבודות שנשארו אצלו — דוח שנתי / הצהרת הון / חופשי. */
+  outstandingItems: TransitionOutstandingItem[];
   ccClient: boolean;
   subject: string;
   body: string;
   /** הרו"ח נגע בנוסח ⇒ המערכת מפסיקה לבנות אותו מחדש מהשדות. */
   bodyEdited: boolean;
+}
+
+// המודל מיוצא גם מכאן — מי שמרכיב את המכתב לא צריך לדעת משני מקומות.
+export type { TransitionOutstandingItem, TransitionOutstandingKind };
+
+/** פריט עבודה פתוחה חדש — מפתח ייחודי משלו (הזהות אינה תלויה בשנה). */
+export function newOutstandingItem(
+  kind: TransitionOutstandingKind, year?: number, label?: string,
+): TransitionOutstandingItem {
+  return {
+    key: `out_${kind}_${Date.now().toString(36)}${Math.floor(Math.random() * 100)}`,
+    kind,
+    ...(year ? { year } : {}),
+    label: label ?? '',
+  };
+}
+
+/** שורת עבודות פתוחות שנקראה מהמסד — כל שדה עשוי להיות חסר או מטיפוס אחר. */
+export function outstandingFromStored(raw: unknown): TransitionOutstandingItem[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: TransitionOutstandingItem[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    const key = String(r.key ?? '').trim();
+    if (!key) continue;
+    const kind: TransitionOutstandingKind =
+      r.kind === 'annual_report' || r.kind === 'capital_declaration' ? r.kind : 'other';
+    out.push({
+      key, kind,
+      ...(typeof r.year === 'number' && Number.isFinite(r.year) ? { year: r.year } : {}),
+      label: String(r.label ?? '').trim(),
+      ...(typeof r.filedAt === 'string' && r.filedAt ? { filedAt: r.filedAt } : {}),
+    });
+  }
+  // ‼ מערך ריק הוא ערך לגיטימי ("לא נשאר כלום") — לא נופלים ממנו לברירת מחדל.
+  return out;
 }
 
 /** שורה שנקראה מהמסד — כל שדה עשוי להיות חסר או מטיפוס אחר. */
@@ -223,14 +330,16 @@ export function materialsFromStored(raw: unknown): ReleaseMaterial[] | null {
 
 export function newReleaseDraft(ctx: ReleaseContext, firmName: string, todayISO: string): ReleaseDraft {
   const materials = RELEASE_MATERIALS.map(m => ({ ...m }));
+  // ברירת המחדל: החודש הנוכחי. בחירה מפורשת של המשרד — לא נגזרת מחודש החיוב
+  // (הכרעת גיא 2026-08-18: אחריות מקצועית וגבייה הם שני דברים).
+  const lastPeriodPrev = todayISO.slice(0, 7);
   return {
     materials,
-    serviceEndDate: todayISO,
-    paidThroughLabel: '',
-    outstanding: '',
+    lastPeriodPrev,
+    outstandingItems: [],
     ccClient: true,
     subject: defaultReleaseSubject(ctx),
-    body: defaultReleaseBody(ctx, firmName, { serviceEndDate: todayISO, materials }),
+    body: defaultReleaseBody(ctx, firmName, { lastPeriodPrev, materials }),
     bodyEdited: false,
   };
 }
@@ -243,22 +352,30 @@ export function readReleaseDraft(
   if (!stored || typeof stored !== 'object') return base;
   const d = stored as Record<string, unknown>;
   const materials = materialsFromStored(d.materials) ?? base.materials;
-  const serviceEndDate = typeof d.serviceEndDate === 'string' && d.serviceEndDate ? d.serviceEndDate : base.serviceEndDate;
-  const paidThroughLabel = typeof d.paidThroughLabel === 'string' ? d.paidThroughLabel : '';
-  const outstanding = typeof d.outstanding === 'string' ? d.outstanding : '';
+  // טיוטות מהמודל הישן: תאריך ההפסקה הופך לתקופה (החודש שלו), ושורות
+  // ה"דוחות שהוא חייב" + "הלקוח שילם עבור" הופכות לפריטי עבודה חופשיים —
+  // המידע לא נמחק בשקט, והמשרד יכול למבנות אותו מחדש בלחיצה.
+  const lastPeriodPrev =
+    typeof d.lastPeriodPrev === 'string' && /^\d{4}-\d{2}$/.test(d.lastPeriodPrev)
+      ? d.lastPeriodPrev
+      : typeof d.serviceEndDate === 'string' && /^\d{4}-\d{2}/.test(d.serviceEndDate)
+        ? d.serviceEndDate.slice(0, 7)
+        : base.lastPeriodPrev;
+  const legacyLines = [
+    ...(typeof d.outstanding === 'string' ? d.outstanding.split('\n') : []),
+    ...(typeof d.paidThroughLabel === 'string' && d.paidThroughLabel.trim() ? [d.paidThroughLabel] : []),
+  ].map(t => t.trim()).filter(Boolean);
+  const outstandingItems = outstandingFromStored(d.outstandingItems)
+    ?? legacyLines.map((t, i) => ({ key: `out_legacy_${i}`, kind: 'other' as const, label: t }));
   const bodyEdited = !!d.bodyEdited;
   const subject = typeof d.subject === 'string' && d.subject.trim() ? d.subject : base.subject;
   // נוסח שנערך ידנית נשמר כלשונו; נוסח שלא נגעו בו נבנה מחדש מהשדות ששמורים,
   // כדי שפריט שנוסף בכרטיס יופיע במכתב בלי שיצטרכו לפתוח אותו.
   const body = bodyEdited && typeof d.body === 'string' && d.body.trim()
     ? d.body
-    : defaultReleaseBody(ctx, firmName, {
-        serviceEndDate, materials,
-        paidThroughLabel,
-        outstanding: outstanding.split('\n').filter(t => t.trim()),
-      });
+    : defaultReleaseBody(ctx, firmName, { lastPeriodPrev, materials, outstandingItems });
   return {
-    materials, serviceEndDate, paidThroughLabel, outstanding,
+    materials, lastPeriodPrev, outstandingItems,
     ccClient: d.ccClient === undefined ? true : !!d.ccClient,
     subject, body, bodyEdited,
   };
@@ -275,7 +392,7 @@ export function followUpBody(
   const lines: string[] = [
     `לכבוד ${to},`,
     '',
-    `בהמשך למכתב השחרור בעניין ${ctx.clientName}, נבקש להוסיף לרשימת החומרים:`,
+    `בהמשך למכתבנו בעניין העברת הטיפול בתיק ${ctx.clientName}, נבקש להוסיף לרשימת החומרים:`,
     ...items.map(t => `• ${t}`),
     '',
   ];
@@ -476,7 +593,7 @@ export async function generateReleaseEmailPdf(rec: {
 
   page.drawRectangle({ x: 0, y: A4.h - 5, width: A4.w, height: 5, color: accent });
   rtl(brand.firmName, 15, ink, y); y -= 30;
-  rtl('מכתב שחרור — רו״ח קודם', 12, accent, y); y -= 22;
+  rtl('העברת הטיפול בתיק — רו״ח קודם', 12, accent, y); y -= 22;
 
   // בלוק כותרות המייל
   for (const [label, val] of [['מאת', rec.from], ['אל', rec.to], ['תאריך', rec.date], ['נושא', rec.subject]]) {

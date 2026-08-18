@@ -8,7 +8,7 @@ import type {
 import {
   SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ORDER, QUOTATION_EVENT_LABELS, QUOTATION_STATUS_LABELS,
   DEFAULT_VAT_RATE, DEFAULT_EXPIRY_BUSINESS_DAYS, DEFAULT_INSTALLMENTS,
-  defaultQuotationRepresentation, applySecondaryLevels,
+  defaultQuotationRepresentation,
 } from '../../types/quotations';
 import { businessDaysExpiry } from '../../utils/businessDays';
 import type { DeferredBase } from '../../utils/quotationCalc';
@@ -671,11 +671,9 @@ export default function QuotationBuilder({
                   if (picked?.representationStatus) {
                     setRepresentation(prev => prev.enabled ? { ...prev, enabled: false } : prev);
                   }
-                  // נמען שעובר מרו"ח אחר — הייצוג יורד למשני. כיוון אחד בלבד:
-                  // העלאה חזרה לראשי היא החלטה של הרו"ח, לא של החלפת נמען.
-                  if (isTransferRecipient(r, leads, clients)) {
-                    setRepresentation(prev => ({ ...prev, areas: applySecondaryLevels(prev.areas) }));
-                  }
+                  // ‼ מעבר מרו"ח אחר אינו מוריד יותר את הייצוג למשני (הכרעת
+                  // גיא 2026-08-18): גם מעבר נפתח כמייצג ראשי. משני נרשמים רק
+                  // כשנשארת אצל הקודם עבודה חוסמת — וזה קורה במכתב ההעברה.
                 }}
               />
             )}
@@ -1343,7 +1341,7 @@ function RecipientEditor({ leads, clients, value, onPick, invalidStyle }: {
                   <input placeholder="מייל הרו״ח הקודם" value={prev.email} onChange={e => setPrev(v => ({ ...v, email: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
                   <input placeholder="טלפון" value={prev.phone} onChange={e => setPrev(v => ({ ...v, phone: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
                 </div>
-                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר, נכין מכתב שחרור לרו״ח הקודם.</div>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר, נכין מכתב העברת טיפול לרו״ח הקודם.</div>
               </div>
             )}
           </div>

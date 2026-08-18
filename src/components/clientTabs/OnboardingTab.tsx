@@ -16,6 +16,8 @@ import {
   paperlessSetupItems,
   PAPERLESS_RETAINER_CARD_KEY as RETAINER_CARD_KEY,
   PAPERLESS_CARD_ENTERED_KEY as CARD_ENTERED_KEY,
+  isBlockingOutstanding, unfiledBlocking,
+  outstandingDeliverableLabel, deliverableKeyFor,
 } from '../../types/onboarding';
 import type { Client, RepAuthorityKind, RepresentationStatus } from '../../types';
 import type { Quotation } from '../../types/quotations';
@@ -32,6 +34,7 @@ import { supabase } from '../../lib/supabase';
 import { clientFromDb } from '../../lib/dbMappers';
 import {
   RELEASE_MATERIALS, isOptionalMaterialKey, materialsFromStored, byPriorityFirst,
+  outstandingFromStored, periodLabel, nextPeriod,
 } from '../../utils/releaseLetter';
 import { useAuth } from '../../hooks/useAuth';
 import type { DocCategory } from '../../hooks/useDocumentStore';
@@ -2667,13 +2670,15 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
   const secondary = (step.payload.secondaryAuthorities ?? [])
     .filter((k): k is RepAuthorityKind => k in REP_AUTHORITY_LABELS)
     .map(k => REP_AUTHORITY_LABELS[k]);
+  // הרו"ח הקודם השלים את העבודה שהחזיקה אותו כראשי — נכתב מכרטיס המכתב.
+  const ready = !!step.payload.upgradeReadyAt;
 
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={p.menu}
       danger={step.needsAttention}>
       {step.needsAttention && (
         <div style={{ marginTop: '.35rem', fontSize: 'var(--fs-13)', color: 'var(--err)', fontWeight: 600 }}>
-          הגיע מועד התזכורת
+          {ready ? 'אפשר לעבור לייצוג ראשי — הרו״ח הקודם השלים את העבודה שנותרה אצלו' : 'הגיע מועד התזכורת'}
         </div>
       )}
 
@@ -2684,8 +2689,9 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
       )}
 
       <div style={cardNote}>
-        הרו״ח הקודם עדיין רשום כמייצג הראשי. כשהוא ישוחרר — לשנות את רמת הייצוג
-        בכרטיס ל״מייצג ראשי״, והשלב ייסגר מעצמו.
+        {ready
+          ? 'העבודה שנותרה אצל הרו״ח הקודם הושלמה. לשנות את רמת הייצוג בכרטיס ל״מייצג ראשי״ — והשלב ייסגר מעצמו.'
+          : 'הרו״ח הקודם עדיין רשום כמייצג הראשי. כשהוא ישוחרר — לשנות את רמת הייצוג בכרטיס ל״מייצג ראשי״, והשלב ייסגר מעצמו.'}
       </div>
 
       {isStepOpen(step.status) && (
@@ -3027,6 +3033,15 @@ function ReleaseStepCard(p: ReleaseCardProps) {
   /** קבצים שהרו"ח הקודם שלח בלי לשייך לפריט — הם לא סוגרים כלום מעצמם. */
   const bulkUploads = (materialsStep?.payload.bulkUploads ?? []).length;
 
+  // ── חלוקת הטיפול והעבודות הפתוחות ──────────────────────────────────────
+  // נכתבות בשליחת המכתב (מהחלון); כאן רק מציגים ומסמנים "הוגש". אין להן
+  // סטטוס משלהן — עבודה פתוחה היא פריט עם filedAt ריק, ותו לא.
+  const lastPeriodPrev = typeof step.payload.lastPeriodPrev === 'string' ? step.payload.lastPeriodPrev : '';
+  const outstandingItems = useMemo(
+    () => outstandingFromStored(step.payload.outstandingItems) ?? [],
+    [step.payload.outstandingItems]);
+  const blockingLeft = unfiledBlocking(outstandingItems);
+
   async function persistItems(next: HandoffItem[]) {
     setCardError(null);
     setSaving(true);
@@ -3121,6 +3136,68 @@ function ReleaseStepCard(p: ReleaseCardProps) {
     p.refresh?.();
   }
 
+  /**
+   * "הדוח הוגש" / "ההצהרה הוגשה" — הפעולה היחידה של המשרד על עבודה פתוחה.
+   * לחיצה אחת מפעילה את כל השרשרת הנגזרת (הכרעת גיא 2026-08-18):
+   * 1. הפריט מסומן כהוגש, עם תאריך.
+   * 2. נולד פריט החומר העתידי ("העתק הדוח כפי שהוגש") ברשימת המעקב — מסומן
+   *    "נוסף אחרי השליחה", ולכן מייל ההמשך הקיים כבר יודע להציע אותו.
+   * 3. כשלא נשארה עבודה חוסמת — שלב "שדרוג לייצוג ראשי" מקבל "דורש טיפול".
+   * ‼ מה שלא קורה כאן: לא נשלח שום מייל, ולא משתנה רמת הייצוג בכרטיס —
+   * שתי הפעולות האלה נשארות של הרו"ח (מדיניות המיילים + רישום ברשויות).
+   */
+  async function markOutstandingFiled(key: string) {
+    const item = outstandingItems.find(i => i.key === key);
+    if (!item || item.filedAt) return;
+    setCardError(null);
+    setSaving(true);
+    const nowIso = new Date().toISOString();
+    const next = outstandingItems.map(i => (i.key === key ? { ...i, filedAt: nowIso } : i));
+    const verb = item.kind === 'capital_declaration' ? 'הוגשה' : item.kind === 'annual_report' ? 'הוגש' : 'הושלם';
+    const res = await p.advance(step.id, 'note', {
+      outstandingItems: next,
+      note: `${item.label} — ${verb} על ידי הרו״ח הקודם`,
+    });
+    if (!res.ok) {
+      setCardError(res.message ?? 'השמירה נכשלה.');
+      setSaving(false);
+      return;
+    }
+
+    // הפריט העתידי — רק לעבודה שמייצרת מסמך מוגש (דוח שנתי / הצהרת הון).
+    if (isBlockingOutstanding(item) && materialsStep) {
+      const dKey = deliverableKeyFor(item.key);
+      const checklist = materialsStep.payload.checklist ?? [];
+      if (!checklist.some(c => c.key === dKey)) {
+        await p.advance(materialsStep.id, 'note', {
+          checklist: [...checklist, {
+            key: dKey,
+            label: outstandingDeliverableLabel(item),
+            done: false,
+            // מופיע בדף הרו"ח הקודם ומסומן "טרם נמסר" עד שמייל ההמשך יוצא.
+            addedAfterSend: true,
+          }],
+          note: `נוסף למעקב החומרים: ${outstandingDeliverableLabel(item)}`,
+        });
+      }
+    }
+
+    // כל העבודות החוסמות הושלמו ⇒ שלב השדרוג הקיים הופך לפעיל עכשיו.
+    if (isBlockingOutstanding(item) && unfiledBlocking(next).length === 0) {
+      const upgrade = [...p.stepById.values()].find(s =>
+        s.stepType === 'representation_upgrade' && isStepOpen(s.status));
+      if (upgrade) {
+        await p.advance(upgrade.id, 'note', {
+          upgradeReadyAt: nowIso,
+          note: 'הרו״ח הקודם השלים את העבודה שנותרה אצלו — אפשר לעבור לייצוג ראשי',
+        });
+        await supabase.rpc('set_step_attention', { p_step_id: upgrade.id, p_on: true });
+      }
+    }
+    setSaving(false);
+    p.refresh?.();
+  }
+
   const label13 = { fontSize: 'var(--fs-13)', color: 'var(--ink-2)' } as const;
 
   return (
@@ -3190,6 +3267,60 @@ function ReleaseStepCard(p: ReleaseCardProps) {
               <div className="ob-hand-warn">חסר אימייל — בלעדיו אי אפשר לשלוח את המכתב.</div>
             )}
           </div>
+
+          {/* ── חלוקת הטיפול ──
+              מה שנשלח במכתב: גבול התקופה, העבודות הפתוחות והשלכת הייצוג.
+              הפעולה היחידה כאן היא "הוגש" — כל השאר מידע נגזר. */}
+          {sent && (lastPeriodPrev || outstandingItems.length > 0) && (
+            <div className="ob-hand-block">
+              <div className="ob-hand-head"><span className="ob-hand-title">חלוקת טיפול</span></div>
+              {lastPeriodPrev && (
+                <div className="ob-hand-contact" style={{ display: 'block' }}>
+                  הקודם עד {periodLabel(lastPeriodPrev)} · אנחנו מ־{periodLabel(nextPeriod(lastPeriodPrev))}
+                </div>
+              )}
+              {outstandingItems.length > 0 && (
+                <ul className="ob-hand-list">
+                  {outstandingItems.map(i => (
+                    <li key={i.key} className={`ob-hand-item${i.filedAt ? ' is-done' : ''}`}>
+                      <span className="ob-hand-mark" aria-hidden="true">{i.filedAt ? '✓' : '○'}</span>
+                      <span className="ob-hand-label">{i.label}</span>
+                      {i.filedAt ? (
+                        <span className="ob-hand-tag">
+                          {i.kind === 'capital_declaration' ? 'הוגשה' : i.kind === 'annual_report' ? 'הוגש' : 'הושלם'}
+                          {' '}{formatDate(i.filedAt, 'list')}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="ob-hand-tag">
+                            {isBlockingOutstanding(i) ? 'ממתין להגשה' : 'בטיפולו'}
+                          </span>
+                          {itemsEditable && (
+                            <button type="button" className="btn btn-sm btn-secondary"
+                              disabled={saving || busy} style={{ flexShrink: 0 }}
+                              onClick={() => void markOutstandingFiled(i.key)}>
+                              {i.kind === 'annual_report' ? 'הדוח הוגש'
+                                : i.kind === 'capital_declaration' ? 'ההצהרה הוגשה' : 'הושלם'}
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {blockingLeft.length > 0 && (
+                <div className="ob-hand-contact" style={{ display: 'block' }}>
+                  ייצוג: מייצג משני עד השלמת {blockingLeft.map(i => i.label).join(' + ')}
+                </div>
+              )}
+              {blockingLeft.length > 0 && (
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
+                  לאחר ההגשה: {blockingLeft.map(i => outstandingDeliverableLabel(i)).join(' · ')} · מעבר לייצוג ראשי
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── מה מבקשים ── */}
           <div className="ob-hand-block">

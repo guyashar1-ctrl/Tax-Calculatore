@@ -1,9 +1,13 @@
-// מכתב שחרור לרו"ח קודם — הרו"ח מרכיב, בודק, ושולח. לא נשלח אוטומטית.
+// מכתב העברת הטיפול לרו"ח קודם — הרו"ח מרכיב, בודק, ושולח. לא נשלח אוטומטית.
 //
-// ‼ שלושה דברים שהופכים את זה ממייל לבקשה מקצועית: תאריך הפסקת ההתקשרות
-// (בלעדיו למכתב אין תוקף), רשימת החומרים המבוקשים, וחלון ההתנגדות של הרו"ח
-// הקודם. הלקוח מכותב תמיד: הוא זה שמפסיק את ההתקשרות, ולא נכון שיגלה על כך
-// אחר כך.
+// ‼ שלושה דברים שהופכים את זה ממייל לבקשה מקצועית: גבול הטיפול השוטף (תקופת
+// הדיווח האחרונה שבטיפול הקודם — בלעדיה חלוקת האחריות לא מוגדרת), רשימת
+// החומרים המבוקשים, וחלון ההתייחסות של הרו"ח הקודם. הלקוח מכותב תמיד — לא
+// נכון שיגלה על ההעברה אחר כך.
+//
+// ‼ העבודות הפתוחות (דוח שנתי / הצהרת הון / חופשי) הן הקלט היחיד הנוסף:
+// פסקת הייצוג במכתב, הפריט העתידי ("העתק הדוח שהוגש") והרישום כמייצג משני
+// נגזרים מהן אוטומטית — אין שאלת "האם זה משפיע על הייצוג".
 //
 // ‼ חלון ההתנגדות (שלושה ימי עסקים) הוא **כלל עבודה פנימי של המשרד** ולא
 // חוק, תקנה או כלל מקצועי מאומת. נוסח המכתב עצמו — שגיא אישר — נשאר כפי
@@ -16,12 +20,14 @@ import { supabase } from '../../lib/supabase';
 import { edgeFunctionError } from '../../utils/functionError';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { QuotationBrand } from './quotationBranding';
-import type { ReleaseDraft, ReleaseMaterial } from '../../utils/releaseLetter';
+import type { ReleaseDraft, ReleaseMaterial, TransitionOutstandingItem, TransitionOutstandingKind } from '../../utils/releaseLetter';
 import {
   RELEASE_MATERIALS, defaultReleaseSubject, defaultReleaseBody,
   buildReleaseEmailHtml, generateReleaseEmailPdf, followUpBody, followUpSubject,
   HIGHLIGHT_MARK, hasHighlightMarks, stripHighlightMarks,
+  periodLabel, nextPeriod, newOutstandingItem,
 } from '../../utils/releaseLetter';
+import { isBlockingOutstanding, outstandingLabel } from '../../types/onboarding';
 
 interface Props {
   clientId: string;
@@ -33,6 +39,8 @@ interface Props {
   /** נקרא רק אחרי שליחה מוצלחת — מקדם את שלב הקליטה ל"נשלח". */
   onSent?: (sent: {
     materialKeys: string[]; objectionDueDate: string;
+    /** גבול הטיפול השוטף והעבודות הפתוחות — נשמרים על השלב ומזינים את הכרטיס. */
+    lastPeriodPrev?: string; outstandingItems?: TransitionOutstandingItem[];
     /** הפריטים שנשלחו בפועל, עם הניסוח הסופי — כולל פריטים שהמשרד הוסיף
      *  או ניסח מחדש. צ'קליסט המעקב נבנה מהם, ולא מהרשימה הקבועה. */
     materials?: { key: string; label: string; optional?: boolean; priority?: boolean }[];
@@ -83,19 +91,20 @@ export default function ReleaseLetterDialog({
 
   const [toEmail, setToEmail] = useState(prevAccountant.email ?? '');
   const [ccClient, setCcClient] = useState(draft?.ccClient ?? true);
-  const [serviceEndDate, setServiceEndDate] = useState(draft?.serviceEndDate || todayISO());
+  const [lastPeriodPrev, setLastPeriodPrev] = useState(draft?.lastPeriodPrev || todayISO().slice(0, 7));
   const [materials, setMaterials] = useState<ReleaseMaterial[]>(
     (draft?.materials ?? RELEASE_MATERIALS).map(m => ({ ...m })));
-  const [paidThrough, setPaidThrough] = useState(draft?.paidThroughLabel ?? '');
-  const [outstanding, setOutstanding] = useState(draft?.outstanding ?? '');
+  const [outstandingItems, setOutstandingItems] = useState<TransitionOutstandingItem[]>(
+    (draft?.outstandingItems ?? []).map(i => ({ ...i })));
+  // "כן, נשאר משהו פתוח" — נדלק ידנית גם לפני שנוסף פריט ראשון.
+  const [showOutstanding, setShowOutstanding] = useState((draft?.outstandingItems ?? []).length > 0);
 
   const compose = (o?: Partial<{
-    serviceEndDate: string; materials: ReleaseMaterial[]; paidThrough: string; outstanding: string;
+    lastPeriodPrev: string; materials: ReleaseMaterial[]; outstandingItems: TransitionOutstandingItem[];
   }>) => defaultReleaseBody(ctx, brand.firmName, {
-    serviceEndDate: o?.serviceEndDate ?? serviceEndDate,
+    lastPeriodPrev: o?.lastPeriodPrev ?? lastPeriodPrev,
     materials: o?.materials ?? materials,
-    paidThroughLabel: o?.paidThrough ?? paidThrough,
-    outstanding: (o?.outstanding ?? outstanding).split('\n').filter(t => t.trim()),
+    outstandingItems: o?.outstandingItems ?? outstandingItems,
   });
 
   const [subject, setSubject] = useState(
@@ -119,7 +128,7 @@ export default function ReleaseLetterDialog({
   /** מה שנשמר על השלב — כך שסגירה בלי שליחה אינה מוחקת את מה שהורכב. */
   function currentDraft(): ReleaseDraft {
     return {
-      materials, serviceEndDate, paidThroughLabel: paidThrough, outstanding,
+      materials, lastPeriodPrev, outstandingItems,
       ccClient, subject, body, bodyEdited: edited,
     };
   }
@@ -210,10 +219,40 @@ export default function ReleaseLetterDialog({
     applyMaterials([...materials, { key, label: '', checked: true }]);
   }
 
+  /* ── עבודות פתוחות אצל הרו"ח הקודם ────────────────────────────────────
+     ‼ שני פריסטים (דוח שנתי, הצהרת הון) + חופשי — לא טופס ניהול משימות.
+     לפריסט יש שנה בלבד; הניסוח, פסקת הייצוג והפריט העתידי נגזרים ממנו. */
+  function applyOutstanding(next: TransitionOutstandingItem[]) {
+    setOutstandingItems(next);
+    sync({ outstandingItems: next });
+  }
+
+  function addOutstanding(kind: TransitionOutstandingKind) {
+    // דוח שנתי / הצהרת הון — כמעט תמיד על השנה שהסתיימה.
+    const year = kind === 'other' ? undefined : new Date().getFullYear() - 1;
+    const item = newOutstandingItem(kind, year, kind === 'other' ? '' : outstandingLabel(kind, year));
+    applyOutstanding([...outstandingItems, item]);
+  }
+
+  const setOutstandingYear = (key: string, year: number) =>
+    applyOutstanding(outstandingItems.map(i => (
+      i.key === key ? { ...i, year, label: outstandingLabel(i.kind, year) } : i)));
+
+  const setOutstandingLabel = (key: string, label: string) =>
+    applyOutstanding(outstandingItems.map(i => (i.key === key ? { ...i, label } : i)));
+
+  const removeOutstanding = (key: string) =>
+    applyOutstanding(outstandingItems.filter(i => i.key !== key));
+
+  const hasBlocking = outstandingItems.some(i => isBlockingOutstanding(i) && i.label.trim());
+
   async function handleSend() {
     setNotice(null);
     if (!toEmail.trim()) { setNotice({ kind: 'err', text: 'חסר מייל של הרו״ח הקודם.' }); return; }
-    if (!followUp && !serviceEndDate) { setNotice({ kind: 'err', text: 'חסר תאריך הפסקת ההתקשרות.' }); return; }
+    if (!followUp && !/^\d{4}-\d{2}$/.test(lastPeriodPrev)) {
+      setNotice({ kind: 'err', text: 'חסרה התקופה האחרונה שבטיפול הרו״ח הקודם.' });
+      return;
+    }
     setBusy(true);
     try {
       // ‼ שולחים דגל ולא כתובת — השרת לוקח את המייל מהכרטיס, כדי שהפונקציה
@@ -259,7 +298,7 @@ export default function ReleaseLetterDialog({
         uploadUrl,
       }, brand);
       const docId = crypto.randomUUID();
-      const docTitle = followUp ? 'תוספת לבקשת החומרים — רו״ח קודם' : 'מכתב שחרור — רו״ח קודם';
+      const docTitle = followUp ? 'תוספת לבקשת החומרים — רו״ח קודם' : 'מכתב העברת טיפול — רו״ח קודם';
       await saveDoc({
         id: docId, clientId,
         fileName: `${docTitle} ${dateStr}.pdf`,
@@ -268,7 +307,7 @@ export default function ReleaseLetterDialog({
         category: 'other',
         year: 'general',
         uploadedAt: new Date().toISOString(),
-        description: `${followUp ? 'תוספת לבקשת החומרים שנשלחה' : 'מכתב שחרור שנשלח'} ל${prevAccountant.name || 'רו״ח הקודם'} (${toEmail.trim()})${res.cc ? ` · עותק ל${clientName}` : ''}`,
+        description: `${followUp ? 'תוספת לבקשת החומרים שנשלחה' : 'מכתב העברת הטיפול שנשלח'} ל${prevAccountant.name || 'רו״ח הקודם'} (${toEmail.trim()})${res.cc ? ` · עותק ל${clientName}` : ''}`,
         notes: `נשלח מ-${res.from || fromLabel}`,
         fileData: pdf.buffer.slice(0) as ArrayBuffer,
       });
@@ -286,6 +325,10 @@ export default function ReleaseLetterDialog({
             ...(m.priority ? { priority: true } : {}),
           })),
         objectionDueDate: addBusinessDays(new Date(), 3),
+        // חלוקת האחריות כפי שנשלחה — הכרטיס מציג אותה, וההשלכות (ייצוג משני,
+        // פריט עתידי) נגזרות ממנה. פריט חופשי בלי ניסוח לא נשלח ולא נשמר.
+        lastPeriodPrev,
+        outstandingItems: outstandingItems.filter(i => i.label.trim()),
         subject, body: finalBody, releaseToken,
         to: toEmail.trim(),
         draft: { ...currentDraft(), body: finalBody, subject },
@@ -303,7 +346,7 @@ export default function ReleaseLetterDialog({
     <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) closeAndSave(); }}>
       <div className="modal task-modal" style={{ maxWidth: 720, width: '100%' }}>
         <div className="modal-header">
-          <h3>{followUp ? 'עדכון לרו״ח הקודם' : 'מכתב שחרור לרו״ח הקודם'}</h3>
+          <h3>{followUp ? 'עדכון לרו״ח הקודם' : 'מכתב העברת טיפול לרו״ח הקודם'}</h3>
           <button className="btn btn-icon btn-ghost" onClick={closeAndSave}>✕</button>
         </div>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -317,10 +360,16 @@ export default function ReleaseLetterDialog({
                 style={{ textAlign: 'right', marginTop: 4 }} disabled={locked} />
             </label>
             {!followUp && (
-              <label style={label}>הפסקת ההתקשרות מתאריך
-                <input type="date" value={serviceEndDate} disabled={locked}
-                  onChange={e => { setServiceEndDate(e.target.value); sync({ serviceEndDate: e.target.value }); }}
-                  style={{ marginTop: 4 }} />
+              <label style={label}>הרו״ח הקודם מטפל עד וכולל
+                <input type="month" value={lastPeriodPrev} disabled={locked}
+                  aria-label="התקופה האחרונה שבטיפול הרו״ח הקודם"
+                  onChange={e => { setLastPeriodPrev(e.target.value); sync({ lastPeriodPrev: e.target.value }); }}
+                  style={{ marginTop: 4, display: 'block', width: '100%' }} />
+                {/^\d{4}-\d{2}$/.test(lastPeriodPrev) && (
+                  <span style={{ display: 'block', marginTop: 3, color: 'var(--gray-500)', fontSize: 11.5 }}>
+                    הטיפול שלנו יתחיל מתקופת {periodLabel(nextPeriod(lastPeriodPrev))}
+                  </span>
+                )}
               </label>
             )}
           </div>
@@ -394,20 +443,72 @@ export default function ReleaseLetterDialog({
           )}
 
           {!followUp && (
-            <label style={label}>הלקוח כבר שילם לו עבור (אופציונלי — משאיר אותו מייצג ראשי עד ההגשה)
-              <input value={paidThrough} disabled={locked}
-                placeholder="דוחות שנתיים לשנת 2025 והנהלת חשבונות עד פברואר 2026"
-                onChange={e => { setPaidThrough(e.target.value); sync({ paidThrough: e.target.value }); }}
-                style={{ marginTop: 4 }} />
-            </label>
-          )}
-
-          {!followUp && (
-            <label style={label}>דוחות או דיווחים שהוא עדיין חייב ללקוח (שורה לכל אחד, אופציונלי)
-              <textarea rows={2} value={outstanding} disabled={locked}
-                onChange={e => { setOutstanding(e.target.value); sync({ outstanding: e.target.value }); }}
-                style={{ marginTop: 4, width: '100%' }} />
-            </label>
+            <fieldset style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: '8px 10px' }}>
+              <legend style={label}>נשאר משהו פתוח אצל הרו״ח הקודם?</legend>
+              <div style={{ display: 'flex', gap: 14, fontSize: 12.5 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <input type="radio" name="rel-outstanding" checked={!showOutstanding} disabled={locked}
+                    onChange={() => { setShowOutstanding(false); applyOutstanding([]); }} />
+                  לא
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <input type="radio" name="rel-outstanding" checked={showOutstanding} disabled={locked}
+                    onChange={() => setShowOutstanding(true)} />
+                  כן
+                </label>
+              </div>
+              {showOutstanding && (
+                <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+                  {outstandingItems.map(i => (
+                    <div key={i.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {i.kind === 'other' ? (
+                        <input value={i.label} disabled={locked} autoFocus={!i.label}
+                          placeholder="מה נשאר אצלו — למשל: דיון שומה פתוח במע״מ לשנת 2023"
+                          aria-label="עבודה פתוחה אצל הרו״ח הקודם"
+                          onChange={e => setOutstandingLabel(i.key, e.target.value)}
+                          style={{ flex: 1, minWidth: 0, fontSize: 12.5, padding: '3px 6px' }} />
+                      ) : (
+                        <>
+                          <span style={{ fontSize: 12.5, flexShrink: 0 }}>
+                            {i.kind === 'annual_report' ? 'דוח שנתי' : 'הצהרת הון'}
+                          </span>
+                          <select value={i.year} disabled={locked}
+                            aria-label={`שנת ה${i.kind === 'annual_report' ? 'דוח' : 'הצהרה'}`}
+                            onChange={e => setOutstandingYear(i.key, Number(e.target.value))}
+                            style={{ width: 'auto', fontSize: 12.5, padding: '2px 4px' }}>
+                            {Array.from({ length: 7 }, (_, n) => new Date().getFullYear() - n).map(y => (
+                              <option key={y} value={y}>{y}</option>
+                            ))}
+                          </select>
+                          <span style={{ flex: 1 }} />
+                        </>
+                      )}
+                      <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
+                        aria-label={`הסרת ${i.label || 'הפריט'}`} title="הסרה"
+                        style={{ padding: '0 .25rem', flexShrink: 0 }}
+                        onClick={() => removeOutstanding(i.key)}>✕</button>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+                    <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
+                      onClick={() => addOutstanding('annual_report')}>+ דוח שנתי</button>
+                    <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
+                      onClick={() => addOutstanding('capital_declaration')}>+ הצהרת הון</button>
+                    <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
+                      onClick={() => addOutstanding('other')}>+ אחר</button>
+                  </div>
+                  {/* מידע, לא שאלה: ההשלכה על הייצוג נגזרת מהכלל העסקי — המשרד
+                      לא מגדיר אותה ידנית ולא נשאל עליה. */}
+                  {hasBlocking && (
+                    <div style={{ fontSize: 11.5, color: 'var(--gray-500)', lineHeight: 1.6, marginTop: 2 }}>
+                      כל עוד העבודה הזו טרם הושלמה, הרו״ח הקודם יישאר המייצג הראשי
+                      ומשרדנו יירשם כמייצג משני. המכתב מנסח זאת, והעתק המסמך שיוגש
+                      יתבקש אוטומטית אחרי ההגשה.
+                    </div>
+                  )}
+                </div>
+              )}
+            </fieldset>
           )}
 
           <label style={label}>נושא

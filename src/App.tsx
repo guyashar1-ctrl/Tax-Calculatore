@@ -45,6 +45,8 @@ import LeadsPanel, { LeadForm } from './components/quotations/LeadsPanel';
 import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
 import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
 import { RELEASE_MATERIALS, readReleaseDraft } from './utils/releaseLetter';
+import { unfiledBlocking } from './types/onboarding';
+import { applySecondaryLevels } from './types/quotations';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
 import { generateQuotationPdf } from './utils/quotationPdf';
@@ -2308,7 +2310,7 @@ export default function App() {
           draft={readReleaseDraft(
             step?.payload.releaseDraft, ctx, brand.firmName, new Date().toISOString().slice(0, 10))}
           onSaveDraft={d => void onboarding.advance(releaseFor.stepId, 'note', { releaseDraft: d })}
-          onSent={({ materialKeys, objectionDueDate, subject, body, materials, to, draft }) => {
+          onSent={({ materialKeys, objectionDueDate, subject, body, materials, to, draft, lastPeriodPrev, outstandingItems }) => {
             const stepId = releaseFor.stepId;
             const nowIso = new Date().toISOString();
             const history = [
@@ -2338,9 +2340,13 @@ export default function App() {
             void onboarding.advance(stepId, 'wait_client', {
               ball: 'prev_accountant',
               dueDate: objectionDueDate,
-              note: 'מכתב השחרור נשלח לרו״ח הקודם · הלקוח מכותב',
+              note: 'מכתב העברת הטיפול נשלח לרו״ח הקודם · הלקוח מכותב',
               objectionDueDate,
               requestedMaterials: materialKeys,
+              // חלוקת האחריות כפי שנשלחה — הכרטיס מציג אותה, ופעולת "הוגש"
+              // מתעדכנת עליה.
+              ...(lastPeriodPrev ? { lastPeriodPrev } : {}),
+              ...(outstandingItems ? { outstandingItems } : {}),
               // הנוסח שנשלח בפועל — דף הרו"ח הקודם מציג אותו, לא נוסח שנבנה מחדש.
               releaseSubject: subject,
               releaseBody: body,
@@ -2352,6 +2358,17 @@ export default function App() {
             // רשימת החומרים שנתבקשו בפועל הופכת לצ'קליסט המעקב — אחרת עוקבים
             // אחרי רשימה גנרית שאינה מה שביקשנו.
             syncRequestedMaterials(releaseFor.clientId, materialKeys, materials);
+            // ‼ ההשלכה הייצוגית נגזרת, לא נשאלת (הכרעת גיא 2026-08-18): דוח
+            // שנתי / הצהרת הון שנשארו אצל הקודם מוגשים רק על ידי המייצג הראשי,
+            // ולכן הרישום אצלנו יורד למשני עד השלמתם. הטריגר במסד פותח מזה
+            // לבד את שלב "שדרוג לייצוג ראשי". מעבר נקי — לא נוגעים ברמות.
+            if (unfiledBlocking(outstandingItems).length > 0) {
+              const client = clients.find(c => c.id === releaseFor.clientId);
+              const areas = client?.authorityRepresentations;
+              if (client && areas && Object.values(areas).some(a => a?.level === 'primary')) {
+                void updateClient({ ...client, authorityRepresentations: applySecondaryLevels(areas) });
+              }
+            }
           }}
           onClose={() => setReleaseFor(null)}
         />

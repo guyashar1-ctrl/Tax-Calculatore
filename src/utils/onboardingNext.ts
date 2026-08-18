@@ -11,7 +11,7 @@ export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   representation: 'להמשיך את תהליך הייצוג',
   representation_upgrade: 'לשדרג את הייצוג למייצג ראשי',
   file_opening: 'לפתוח את התיקים ברשויות',
-  release_letter: 'לשלוח מכתב שחרור לרו״ח הקודם',
+  release_letter: 'לשלוח לרו״ח הקודם את מכתב העברת הטיפול',
   materials_received: 'לאסוף את החומרים מהרו״ח הקודם',
   paperless_invite: 'ממתינים שהלקוח יירשם לפייפרלס',
   paperless_connection: 'להיכנס לחשבון הפייפרלס ולהשלים את החיבור',

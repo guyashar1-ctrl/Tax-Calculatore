@@ -281,7 +281,7 @@ export default function JourneyTab(p: Props) {
               <li>ייפוי הכוח נפתח מיד ללקוח; שאר הבקשות נולדות כטיוטה בלשונית «בקשות».</li>
             )}
             {(p.lead?.hasPreviousAccountant ?? p.client.hasPreviousAccountant) && (
-              <li>מסומן «יש רו״ח קודם» — ולכן ייווצרו גם מכתב שחרור ומעקב חומרים.</li>
+              <li>מסומן «יש רו״ח קודם» — ולכן ייווצרו גם מכתב העברת טיפול ומעקב חומרים.</li>
             )}
           </ol>
           <p className="jt-footnote">

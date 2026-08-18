@@ -358,7 +358,7 @@ export function LeadForm({ lead, onSave, onCancel }: {
                 <input placeholder="מייל הרו״ח הקודם" value={v.prevAccountantEmail} onChange={e => set({ prevAccountantEmail: e.target.value })} dir="ltr" style={{ textAlign: 'right' }} />
                 <input placeholder="טלפון" value={v.prevAccountantPhone} onChange={e => set({ prevAccountantPhone: e.target.value })} dir="ltr" style={{ textAlign: 'right' }} />
               </div>
-              <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר הצעה, נכין מכתב שחרור לרו״ח הקודם.</div>
+              <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר הצעה, נכין מכתב העברת טיפול לרו״ח הקודם.</div>
             </div>
           </div>
         )}

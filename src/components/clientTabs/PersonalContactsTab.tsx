@@ -1760,7 +1760,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                     dir="ltr" style={{ textAlign: 'right' }} />
                 </div>
                 <div className="form-group span-full" style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-                  מכתב השחרור לרו״ח הקודם נשלח מלשונית "קליטה", ונשען על המייל הזה.
+                  מכתב העברת הטיפול לרו״ח הקודם נשלח מלשונית "קליטה", ונשען על המייל הזה.
                 </div>
               </>
             )}

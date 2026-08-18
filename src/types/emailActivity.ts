@@ -54,7 +54,7 @@ export const EMAIL_KIND_LABEL: Record<string, string> = {
   quotation: 'הצעת מחיר',
   quotation_test: 'הצעת מחיר — שליחת בדיקה',
   quotation_reminder: 'תזכורת להצעת מחיר',
-  release: 'מכתב שחרור לרו״ח הקודם',
+  release: 'מכתב העברת טיפול לרו״ח הקודם',
   // מיילים של שלבי הקליטה
   paperless_invite: 'הזמנה לפייפרלס',
   retainer_request: 'בקשת הרשאת תשלום',

@@ -63,7 +63,7 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   representation: 'ייצוג מול הרשויות',
   representation_upgrade: 'שדרוג לייצוג ראשי',
   file_opening: 'פתיחת תיקים ברשויות',
-  release_letter: 'מכתב שחרור לרו״ח הקודם',
+  release_letter: 'מכתב העברת טיפול לרו״ח הקודם',
   materials_received: 'קבלת חומרים מהרו״ח הקודם',
   // ‼ "הרשמה" ולא "הזמנה": השלב הזה הוא של הלקוח — הוא נרשם ומאשר בדף
   // האישי. "הזמנה" תיאר מייל שהמשרד שולח, וזה כבר לא המודל.
@@ -216,6 +216,60 @@ export const ADDITIONAL_MATERIAL_LABEL = 'חומר נוסף לפי שיקול ד
 
 /** האם הפריט הוא פריט-רשות שאינו נספר בהתקדמות. */
 export const isOptionalMaterialKey = (key: string): boolean => key === ADDITIONAL_MATERIAL_KEY;
+
+// ─── עבודה שנשארה אצל הרו"ח הקודם ───────────────────────────────────────────
+// מודל ההעברה (הכרעת גיא 2026-08-18): גבול טיפול אחד (תקופת דיווח) + רשימת
+// עבודות פתוחות. ‼ לא מערכת ניהול משימות: לפריט יש רק "הוגש/לא הוגש", וכל
+// ההשלכות (ייצוג משני, פריט חומר עתידי, מייל המשך) נגזרות — לא מוגדרות ביד.
+
+export type TransitionOutstandingKind = 'annual_report' | 'capital_declaration' | 'other';
+
+/** עבודה שנשארה בטיפול הרו"ח הקודם — דוח שנתי, הצהרת הון או טקסט חופשי. */
+export interface TransitionOutstandingItem {
+  key: string;
+  kind: TransitionOutstandingKind;
+  /** שנת המס (דוח שנתי / הצהרת הון). */
+  year?: number;
+  /** הניסוח שמופיע במכתב ובכרטיס — "דוח שנתי לשנת 2025". */
+  label: string;
+  /** מתי המשרד סימן שהעבודה הוגשה. ריק ⇒ עדיין אצל הרו"ח הקודם. */
+  filedAt?: string;
+}
+
+/**
+ * כלל עסקי מאושר (הכרעת גיא 2026-08-18): דוח שנתי והצהרת הון מוגשים רק על
+ * ידי המייצג הראשי — ולכן כל עוד אחד מהם פתוח אצל הרו"ח הקודם, הוא נשאר
+ * המייצג הראשי ומשרדנו נרשם כמשני. פריט חופשי אינו נושא השלכת ייצוג —
+ * לא ממציאים כללים.
+ */
+export function isBlockingOutstanding(item: Pick<TransitionOutstandingItem, 'kind'>): boolean {
+  return item.kind === 'annual_report' || item.kind === 'capital_declaration';
+}
+
+/** הפריטים שעדיין מחזיקים את הרו"ח הקודם כמייצג ראשי. */
+export function unfiledBlocking(items: TransitionOutstandingItem[] | undefined): TransitionOutstandingItem[] {
+  return (items ?? []).filter(i => isBlockingOutstanding(i) && !i.filedAt);
+}
+
+/** הניסוח הקבוע של פריט מובנה — מקור אחד למכתב, לכרטיס ולפריט העתידי. */
+export function outstandingLabel(kind: TransitionOutstandingKind, year?: number): string {
+  if (kind === 'annual_report') return year ? `דוח שנתי לשנת ${year}` : 'דוח שנתי';
+  if (kind === 'capital_declaration') return year ? `הצהרת הון לשנת ${year}` : 'הצהרת הון';
+  return '';
+}
+
+/**
+ * החומר שנולד מהשלמת העבודה — "העתק הדוח כפי שהוגש". נוצר אוטומטית ברשימת
+ * החומרים ברגע שהמשרד מסמן "הוגש", כדי שלא יישכח לבקש אותו.
+ */
+export function outstandingDeliverableLabel(item: Pick<TransitionOutstandingItem, 'kind' | 'label'>): string {
+  if (item.kind === 'annual_report') return `העתק ${item.label} כפי שהוגש`;
+  if (item.kind === 'capital_declaration') return `העתק ${item.label} כפי שהוגשה`;
+  return `אסמכתה על השלמת ${item.label}`;
+}
+
+/** מפתח פריט החומר העתידי שנגזר מעבודה פתוחה — יציב, לזיהוי כפילויות. */
+export const deliverableKeyFor = (itemKey: string): string => `deliverable_${itemKey}`;
 
 /** פריט ברשימת סימון של שלב (קבלת חומרים, הקמה פנימית). */
 export interface StepChecklistItem {
@@ -381,6 +435,20 @@ export interface StepPayload {
   releaseSubject?: string;
   releaseBody?: string;
   releaseSentAt?: string;
+  /**
+   * גבול הטיפול השוטף — התקופה האחרונה שבטיפול הרו"ח הקודם ('YYYY-MM').
+   * הטיפול שלנו מתחיל מהתקופה שאחריה — נגזר, לא נשמר.
+   * ‼ תקופת דיווח אחת לכל המסים (הכרעת גיא 2026-08-18) — אין תאריך נפרד
+   * למע"מ/ניכויים/מקדמות, ואין קשר לחודש תחילת החיוב.
+   */
+  lastPeriodPrev?: string;
+  /** העבודות שנשארו אצל הרו"ח הקודם — נכתב בשליחת המכתב, מתעדכן ב"הוגש". */
+  outstandingItems?: TransitionOutstandingItem[];
+  /**
+   * שלב שדרוג הייצוג: הרו"ח הקודם השלים את העבודה שהחזיקה אותו כמייצג ראשי,
+   * ואפשר לעבור לראשי. נכתב מסימון "הוגש" בכרטיס המכתב — ביחד עם needs_attention.
+   */
+  upgradeReadyAt?: string;
   /** סוף חלון ההתייחסות של הרו"ח הקודם — כלל עבודה של המשרד, לא חוק. */
   objectionDueDate?: string;
   /** למי נשלח בפועל — הראיה של "לאן הלך המכתב", בנפרד מהכרטיס שיכול להשתנות. */

@@ -247,10 +247,12 @@ export function applySecondaryLevels(areas: AuthorityRepresentations): Authority
 
 /**
  * ברירת המחדל — זהה לדיאלוג הייצוג: מ"ה, מע"מ וב"ל.
- * ‼ לקוח שעובר מרו"ח אחר נפתח כמייצג משני: הרו"ח הקודם עדיין תופס את מקום
- * המייצג הראשי ברשויות, ואי אפשר להירשם ראשי לפני שהוא משחרר אותו.
+ * ‼ גם לקוח שעובר מרו"ח אחר נפתח כמייצג ראשי (הכרעת גיא 2026-08-18): במעבר
+ * נקי אין סיבה להמתין כמשני. משני נרשמים רק כשנשארת אצל הקודם עבודה שמחייבת
+ * אותו להישאר ראשי (דוח שנתי / הצהרת הון) — וזה נגזר במכתב העברת הטיפול,
+ * לא כאן. הפרמטר isTransfer נשאר בחתימה כי הקוראים עדיין מוסרים אותו.
  */
-export function defaultQuotationRepresentation(isTransfer = false): QuotationRepresentation {
+export function defaultQuotationRepresentation(_isTransfer = false): QuotationRepresentation {
   const areas: AuthorityRepresentations = {
     incomeTax: { status: 'in_process', level: 'primary' },
     vat: { status: 'in_process', level: 'primary' },
@@ -262,7 +264,7 @@ export function defaultQuotationRepresentation(isTransfer = false): QuotationRep
   };
   return {
     enabled: true,
-    areas: isTransfer ? applySecondaryLevels(areas) : areas,
+    areas,
     prefill: {},
     spouse: null,
   };
