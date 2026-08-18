@@ -307,27 +307,30 @@ export default function OnboardingPage({ token }: Props) {
               קיבלנו הכול{greetName ? `, ${greetName}` : ''}!
             </div>
             <div style={{ fontSize: 14, color: '#6B6B68', lineHeight: 1.6 }}>
-              {info?.firmName} כבר מטפל בפתיחת הייצוג מול הרשויות.
+              {info?.firmName} כבר מכין את בקשת הייצוג מול הרשויות.
             </div>
           </div>
 
           {/* ‼ הלקוח חייב לצאת מכאן ביודעו שנשארו לו פעולות. הכותרת לא מבטיחה
               עוד "יגיע מייל" כעובדה מובנת מאליה (המייל האוטומטי על אישור
               ההצעה הוסר — הכרעת גיא, מיגרציה 102) — היא אומרת מה עוד נשאר,
-              ומפנה גם לדף האישי הקבוע כמשטח המעקב. חתימת ייפוי הכוח עצמה
-              עדיין מגיעה בקישור אישי נפרד — זה נשאר נכון: יש עבודה ידנית של
-              המשרד (הזנה ברשויות) לפני שיש מה לחתום עליו. */}
+              ומפנה גם לדף האישי הקבוע כמשטח המעקב. חתימת ייפוי הכוח מגיעה
+              בקישור אישי נפרד, כי המשרד מכין את הטופס אחרי שהפרטים מגיעים.
+              ‼ סדר התהליך (הכרעת גיא 2026-08-18): פרטים → חתימה → הגשה
+              לרשויות → ייצוג פעיל. אין הגשה לרשויות לפני החתימה. */}
           <div style={{ background: accent, color: '#fff', borderRadius: '10px 10px 0 0', padding: '13px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 17, fontWeight: 600 }}>
               {info?.niIncluded ? 'עוד לא סיימנו — נשארו שתי פעולות' : 'עוד לא סיימנו — נשארה פעולה אחת'}
             </div>
             <div style={{ fontSize: 13, fontWeight: 500, opacity: .92, marginTop: 3 }}>
-              {info?.niIncluded ? 'נשלח לכם קישור אישי לכל פעולה, בשעות הקרובות' : 'נשלח לכם קישור אישי לחתימה, בשעות הקרובות'}
+              {info?.niIncluded
+                ? 'קישור החתימה יגיע בשעות הקרובות, ואישור הביטוח הלאומי — אחרי שנגיש'
+                : 'נשלח לכם קישור אישי לחתימה, בשעות הקרובות'}
             </div>
           </div>
           <div style={{ border: `2px solid ${accent}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '16px', marginBottom: 20 }}>
             <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.7 }}>
-              אחרי שנזין את הפרטים ברשויות, יישלח קישור אישי לחתימה אל:
+              נכין את בקשת הייצוג ונשלח קישור אישי לחתימה אל:
             </div>
             {/* הצגת הכתובת נותנת ללקוח הזדמנות אחרונה לתפוס טעות הקלדה */}
             <div dir="ltr" style={{
@@ -338,21 +341,23 @@ export default function OnboardingPage({ token }: Props) {
             </div>
 
             <NextAction n={1} title="חתימה על ייפוי הכוח" tone={accent}
-              text="לייצוג מול מס הכנסה. חתימה דיגיטלית בלחיצה, גם מהטלפון." />
+              text="חתימה דיגיטלית בלחיצה, גם מהטלפון. אחרי החתימה נגיש את בקשת הייצוג לרשויות." />
             {info?.niIncluded && (
               <NextAction n={2} title="אישור בביטוח הלאומי" tone="#C2410C"
-                text="נשלח לכם מספר אסמכתא. מאשרים באתר הביטוח הלאומי או בטלפון — לוקח כדקה." />
+                text="אחרי ההגשה נשלח לכם מספר אסמכתא. מאשרים באתר הביטוח הלאומי או בטלפון — לוקח כדקה." />
             )}
 
             <div style={{ fontSize: 12.5, color: '#8A4B00', background: '#FFF4E0', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6, marginTop: 14, textAlign: 'center' }}>
-              הייצוג נכנס לתוקף רק אחרי השלמת {info?.niIncluded ? 'שתי הפעולות' : 'הפעולה'}.
+              {info?.niIncluded
+                ? 'בלי החתימה אי אפשר להגיש את בקשת הייצוג, ובלי אישור הביטוח הלאומי הייצוג בביטוח הלאומי לא נכנס לתוקף.'
+                : 'בלי החתימה שלכם אי אפשר להגיש את בקשת הייצוג לרשויות.'}
             </div>
             <div style={{ fontSize: 12, color: '#9A9A95', lineHeight: 1.6, marginTop: 10, textAlign: 'center' }}>
               אפשר לעקוב אחרי ההתקדמות בדף האישי שקיבלתם עם הצעת המחיר.
             </div>
           </div>
 
-          <ProcessMap current={3} />
+          <ProcessMap current={2} />
 
           <div style={{ textAlign: 'center', fontSize: 12, color: '#9A9A95' }}>אפשר לסגור את החלון.</div>
         </div>
@@ -410,7 +415,7 @@ export default function OnboardingPage({ token }: Props) {
           <div style={{ textAlign: 'center', padding: '8px 0' }}>
             <div style={{ width: 42, height: 42, borderRadius: '50%', background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#fff', fontSize: 22 }}>✓</div>
             <div style={{ fontSize: 18, fontWeight: 500, color: '#111', marginBottom: 5 }}>תודה{greetName ? `, ${greetName}` : ''}. קיבלנו את החתימה.</div>
-            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>{info?.firmName} ישלים את התהליך מול רשויות המס ויחזור אליכם. אפשר לסגור את החלון.</div>
+            <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>{info?.firmName} יגיש עכשיו את בקשת הייצוג לרשויות ויעדכן אתכם. אפשר לסגור את החלון.</div>
           </div>
         </div>
       </div>
@@ -457,12 +462,12 @@ export default function OnboardingPage({ token }: Props) {
    * מפת התהליך כולו. מוצגת בכניסה ובסיום — הלקוח צריך לדעת מראש שיגיע אליו
    * מייל נוסף, אחרת הוא חושב שסיים ולא פותח אותו, והייצוג נתקע.
    */
-  function ProcessMap({ current }: { current: 1 | 3 }) {
+  function ProcessMap({ current }: { current: 1 | 2 }) {
     const steps = [
       { n: 1, title: 'הפרטים שלכם', text: 'ממלאים כאן — וזהו' },
-      { n: 2, title: 'רואה חשבון מגיש את הבקשה', text: 'אנחנו פותחים עבורכם בקשת ייצוג מול הרשויות' },
-      { n: 3, title: 'נשאר רק לאשר את המייל', text: 'בימים הקרובים תקבלו מייל מרשות המסים. פותחים אותו, מאשרים את הייצוג — וסיימתם.' },
-      { n: 4, title: 'הייצוג פעיל', text: 'מרגע האישור, אנחנו מטפלים עבורכם מול רשות המסים.' },
+      { n: 2, title: 'חתימה על ייפוי הכוח', text: 'נשלח לכם קישור אישי. חותמים בלחיצה, גם מהטלפון.' },
+      { n: 3, title: 'אנחנו מגישים לרשויות', text: 'אחרי החתימה אנחנו פותחים עבורכם בקשת ייצוג מול הרשויות' },
+      { n: 4, title: 'הייצוג פעיל', text: 'מרגע שהרשויות מאשרות, אנחנו מטפלים בכל עבורכם.' },
     ];
     return (
       <div style={{ background: '#F7F6F3', borderRadius: 10, padding: '14px 15px', marginBottom: 24 }}>

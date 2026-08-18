@@ -23,14 +23,14 @@ export default function TestSignDone() {
         mark="✓"
         title="החתימה התקבלה — נשאר צעד אחד"
         body={<>
-          <div>תודה, ישראל ישראלי! משרד גיא ישר ימשיך מכאן מול מס הכנסה. הפעולה האחרונה שנשארה היא שלכם:</div>
+          <div>תודה, ישראל ישראלי! משרד גיא ישר יגיש עכשיו את בקשת הייצוג לרשויות. הפעולה האחרונה שנשארה היא שלכם:</div>
           <NiApprovalNotice referenceNumber={NI.referenceNumber} deadline={NI.deadline} />
         </>}
       />
       <ClientPageState
         mark="🎉"
         title="החתימה נשלחה בהצלחה"
-        body="תודה, ישראל ישראלי! משרד גיא ישר ימשיך את הטיפול ויעדכן אתכם."
+        body="תודה, ישראל ישראלי! משרד גיא ישר יגיש עכשיו את בקשת הייצוג לרשויות ויעדכן אתכם."
       />
       <ClientPageState
         wide

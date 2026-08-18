@@ -167,7 +167,10 @@ export default function PublicSignPage({ token }: { token: string }) {
         setPdfBytes(await res.arrayBuffer());
         setPhase('sign');
       } catch (e) {
-        setErrMsg(e instanceof Error ? e.message : String(e));
+        // ‼ הלקוח לא רואה את הטקסט הטכני: הוא לרוב באנגלית, לא אומר לו כלום,
+        //   ולפעמים חושף פרטי שרת. הפירוט נשאר ב-console לצורך אבחון.
+        console.error('[PublicSignPage] טעינת המסמך נכשלה', e);
+        setErrMsg('לא הצלחנו לטעון את המסמך. נסו לרענן את הדף, ואם זה חוזר — פנו למשרד.');
         setPhase('error');
       }
     })();
@@ -188,7 +191,8 @@ export default function PublicSignPage({ token }: { token: string }) {
       flushAccountantNotifications(token);
       setPhase('done');
     } catch (e) {
-      setErrMsg(e instanceof Error ? e.message : String(e));
+      console.error('[PublicSignPage] שליחת החתימה נכשלה', e);
+      setErrMsg('החתימה לא נשלחה. נסו שוב, ואם זה חוזר — פנו למשרד.');
       setPhase('error');
     }
   }
@@ -233,7 +237,7 @@ export default function PublicSignPage({ token }: { token: string }) {
       mark="✓"
       title={session?.ni ? 'החתימה התקבלה — נשאר צעד אחד' : 'החתימה התקבלה'}
       body={<>
-        <div>תודה{hi}! {session?.firmName || 'המשרד'} ימשיך מכאן מול מס הכנסה.{session?.ni ? ' הפעולה האחרונה שנשארה היא שלכם:' : ''}</div>
+        <div>תודה{hi}! {session?.firmName || 'המשרד'} יגיש עכשיו את בקשת הייצוג לרשויות.{session?.ni ? ' הפעולה האחרונה שנשארה היא שלכם:' : ''}</div>
         {session?.ni && <NiApprovalNotice referenceNumber={session.ni.referenceNumber} deadline={session.ni.deadline} />}
         {spouseBlock}
       </>}
@@ -242,7 +246,7 @@ export default function PublicSignPage({ token }: { token: string }) {
     <ClientPageState
       mark="🎉"
       title="החתימה נשלחה בהצלחה"
-      body={`תודה${hi}! ${session?.firmName || 'המשרד'} ימשיך את הטיפול ויעדכן אתכם.`}
+      body={`תודה${hi}! ${session?.firmName || 'המשרד'} יגיש עכשיו את בקשת הייצוג לרשויות ויעדכן אתכם.`}
     />
   );
   if (phase === 'error') return (
