@@ -48,17 +48,17 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
           </div>
           <div style={{ fontSize: compact ? 21 : 25, fontWeight: 600, color: brand.ink, marginBottom: 8, letterSpacing: '-.02em' }}>נעים להכיר</div>
           <div style={{ fontSize: 14, color: brand.muted, lineHeight: 1.7, marginBottom: 18 }}>
-            כדי ש{brand.firmName} יוכל לייצג אתכם מול רשויות המס, נאסוף את הפרטים הנדרשים. לוקח כדקה.
+            כדי ש{brand.firmName} יוכל לייצג אתכם מול רשויות המס, נאסוף כמה פרטים. לוקח כדקה.
           </div>
 
           {/* מפת התהליך — מוצגת ללקוח כדי שידע שיגיע אליו מייל נוסף */}
           <div style={{ background: brand.pageBg, borderRadius: brand.radius, padding: '12px 13px', marginBottom: 20, textAlign: 'start' }}>
             <div style={{ fontSize: 11, letterSpacing: '.06em', color: brand.muted, marginBottom: 9 }}>איך זה עובד</div>
             {[
-              ['הפרטים שלכם', 'ממלאים כאן — כדקה'],
-              [`${brand.firmName} מזין ברשויות`, 'אנחנו פותחים את בקשות הייצוג'],
-              ['מייל נוסף אליכם', 'חתימה על ייפוי הכוח ואישור בביטוח הלאומי'],
-              ['הייצוג פעיל', 'מכאן אנחנו מטפלים בכל'],
+              ['הפרטים שלכם', 'ממלאים כאן — וזהו'],
+              ['רואה חשבון מגיש את הבקשה', 'אנחנו פותחים עבורכם בקשת ייצוג מול הרשויות'],
+              ['נשאר רק לאשר את המייל', 'בימים הקרובים תקבלו מייל מרשות המסים. פותחים אותו, מאשרים את הייצוג — וסיימתם.'],
+              ['הייצוג פעיל', 'מרגע האישור, אנחנו מטפלים עבורכם מול רשות המסים.'],
             ].map(([title, sub], i) => (
               <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', paddingBottom: i < 3 ? 8 : 0 }}>
                 <div style={{

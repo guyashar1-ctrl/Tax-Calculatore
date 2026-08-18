@@ -146,8 +146,6 @@ export default function OnboardingPage({ token }: Props) {
   const greetName = (firstName || info?.clientName || '').trim().split(/\s+/)[0] || '';
 
   const yearLabel = familyStatus ? FAMILY_STATUS_YEAR_LABELS[familyStatus] : undefined;
-  // כמה פעולות ממתינות ללקוח במייל הבא — חתימה תמיד, ואישור ב"ל אם התבקש
-  const niSteps = info?.niIncluded ? 2 : 1;
   // שלב המצב המשפחתי מוצג תמיד, גם כשהרו"ח כבר בחר: הערך מגיע מסומן מראש,
   // אבל הלקוח יכול לתקן — הוא המקור המוסמך על המצב המשפחתי של עצמו.
   // (בעבר בחירה לא-נשואה של הרו"ח דילגה על השלב, והלקוח לא יכול היה לתקן טעות.)
@@ -157,7 +155,7 @@ export default function OnboardingPage({ token }: Props) {
     if (s === 1) {
       if (!firstName.trim()) return 'יש להזין שם פרטי';
       if (!lastName.trim()) return 'יש להזין שם משפחה';
-      if (!/^\d{9}$/.test(idNumber.trim())) return 'תעודת זהות חייבת להכיל 9 ספרות';
+      if (!/^\d{9}$/.test(idNumber.trim())) return 'יש להזין 9 ספרות בתעודת הזהות';
       if (!isValidIsraeliId(idNumber.trim())) return 'מספר תעודת הזהות אינו תקין — בדקו שוב';
       if (!birthDate) return 'יש להזין תאריך לידה';
       if (new Date(birthDate) > new Date()) return 'תאריך הלידה לא יכול להיות בעתיד';
@@ -227,7 +225,7 @@ export default function OnboardingPage({ token }: Props) {
       p_spouse_birth_year: familyStatus === 'married' && spouseBirthYear.trim() ? Number(spouseBirthYear) : null,
     });
     if (error || data === false) {
-      setError('אירעה שגיאה בשליחה. נסו שוב, או פנו למשרד.');
+      setError('השליחה לא הצליחה. נסו שוב, ואם זה חוזר — פנו למשרד.');
       setBusy(false);
       return;
     }
@@ -239,12 +237,12 @@ export default function OnboardingPage({ token }: Props) {
   }
 
   async function handleSubmitSignature() {
-    if (!signature) { setError('נא לחתום על הטופס'); return; }
+    if (!signature) { setError('יש לחתום לפני השליחה'); return; }
     setBusy(true);
     setError(null);
     const { data, error } = await supabase.rpc('submit_signature', { p_token: token, p_signature: signature });
     if (error || data === false) {
-      setError('אירעה שגיאה בשליחה. נסו שוב, או פנו למשרד.');
+      setError('השליחה לא הצליחה. נסו שוב, ואם זה חוזר — פנו למשרד.');
       setBusy(false);
       return;
     }
@@ -293,7 +291,7 @@ export default function OnboardingPage({ token }: Props) {
       <ClientPageState
         mark="🔗"
         title="הקישור אינו תקין"
-        body="ייתכן שהקישור פג או שגוי. אנא פנו למשרד לקבלת קישור חדש."
+        body="ייתכן שהקישור פג תוקף או שאינו מלא. פנו למשרד לקבלת קישור חדש."
       />
     );
   }
@@ -320,12 +318,16 @@ export default function OnboardingPage({ token }: Props) {
               עדיין מגיעה בקישור אישי נפרד — זה נשאר נכון: יש עבודה ידנית של
               המשרד (הזנה ברשויות) לפני שיש מה לחתום עליו. */}
           <div style={{ background: accent, color: '#fff', borderRadius: '10px 10px 0 0', padding: '13px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: 17, fontWeight: 600 }}>עוד לא סיימנו — נשארו {niSteps} פעולות</div>
-            <div style={{ fontSize: 13, fontWeight: 500, opacity: .92, marginTop: 3 }}>נשלח לכם קישור אישי לכל פעולה, בשעות הקרובות</div>
+            <div style={{ fontSize: 17, fontWeight: 600 }}>
+              {info?.niIncluded ? 'עוד לא סיימנו — נשארו שתי פעולות' : 'עוד לא סיימנו — נשארה פעולה אחת'}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 500, opacity: .92, marginTop: 3 }}>
+              {info?.niIncluded ? 'נשלח לכם קישור אישי לכל פעולה, בשעות הקרובות' : 'נשלח לכם קישור אישי לחתימה, בשעות הקרובות'}
+            </div>
           </div>
           <div style={{ border: `2px solid ${accent}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '16px', marginBottom: 20 }}>
             <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.7 }}>
-              בשעות הקרובות, אחרי שנזין את הפרטים ברשויות, יישלח קישור אישי לחתימה אל:
+              אחרי שנזין את הפרטים ברשויות, יישלח קישור אישי לחתימה אל:
             </div>
             {/* הצגת הכתובת נותנת ללקוח הזדמנות אחרונה לתפוס טעות הקלדה */}
             <div dir="ltr" style={{
@@ -343,10 +345,10 @@ export default function OnboardingPage({ token }: Props) {
             )}
 
             <div style={{ fontSize: 12.5, color: '#8A4B00', background: '#FFF4E0', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6, marginTop: 14, textAlign: 'center' }}>
-              עד להשלמת {info?.niIncluded ? 'שתי הפעולות' : 'הפעולה'} — הייצוג אינו בתוקף מול הרשויות.
+              הייצוג נכנס לתוקף רק אחרי השלמת {info?.niIncluded ? 'שתי הפעולות' : 'הפעולה'}.
             </div>
             <div style={{ fontSize: 12, color: '#9A9A95', lineHeight: 1.6, marginTop: 10, textAlign: 'center' }}>
-              אפשר גם לעקוב מהדף האישי שקיבלתם בהצעת המחיר.
+              אפשר לעקוב אחרי ההתקדמות בדף האישי שקיבלתם עם הצעת המחיר.
             </div>
           </div>
 
@@ -392,7 +394,7 @@ export default function OnboardingPage({ token }: Props) {
             <div style={{ fontSize: 26, marginBottom: 10 }}>✉️</div>
             <div style={{ fontSize: 18, fontWeight: 500, color: '#111', marginBottom: 5 }}>הטופס מוכן לחתימה</div>
             <div style={{ fontSize: 13, color: '#6B6B68', lineHeight: 1.6 }}>
-              שלחנו לכל חותם קישור חתימה אישי למייל. פתחו את המייל מ{info?.firmName || 'המשרד'} ולחצו על הכפתור כדי לחתום על הטופס.
+              שלחנו לכל אחד מהחותמים קישור אישי לחתימה במייל. פתחו את המייל מ{info?.firmName || 'המשרד'} ולחצו על הכפתור שבו כדי לחתום.
             </div>
           </div>
         </div>
@@ -456,14 +458,11 @@ export default function OnboardingPage({ token }: Props) {
    * מייל נוסף, אחרת הוא חושב שסיים ולא פותח אותו, והייצוג נתקע.
    */
   function ProcessMap({ current }: { current: 1 | 3 }) {
-    const niStep = info?.niIncluded
-      ? 'בשעות הקרובות — לחתום על ייפוי הכוח למס הכנסה, ולאשר את ייפוי הכוח בביטוח הלאומי'
-      : 'בשעות הקרובות — לחתום על ייפוי הכוח למס הכנסה';
     const steps = [
-      { n: 1, title: 'הפרטים שלכם', text: 'ממלאים כאן — כדקה' },
-      { n: 2, title: `${info?.firmName || 'המשרד'} מזין ברשויות`, text: 'אנחנו פותחים את בקשות הייצוג' },
-      { n: 3, title: 'מייל נוסף אליכם', text: niStep },
-      { n: 4, title: 'הייצוג פעיל', text: 'מכאן אנחנו מטפלים בכל מול הרשויות' },
+      { n: 1, title: 'הפרטים שלכם', text: 'ממלאים כאן — וזהו' },
+      { n: 2, title: 'רואה חשבון מגיש את הבקשה', text: 'אנחנו פותחים עבורכם בקשת ייצוג מול הרשויות' },
+      { n: 3, title: 'נשאר רק לאשר את המייל', text: 'בימים הקרובים תקבלו מייל מרשות המסים. פותחים אותו, מאשרים את הייצוג — וסיימתם.' },
+      { n: 4, title: 'הייצוג פעיל', text: 'מרגע האישור, אנחנו מטפלים עבורכם מול רשות המסים.' },
     ];
     return (
       <div style={{ background: '#F7F6F3', borderRadius: 10, padding: '14px 15px', marginBottom: 24 }}>
@@ -484,7 +483,7 @@ export default function OnboardingPage({ token }: Props) {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12.5, fontWeight: now ? 700 : 500, color: now ? '#111' : '#6B6B68' }}>
-                  {s.title}{now && s.n === 3 ? ' — שימו לב' : ''}
+                  {s.title}
                 </div>
                 <div style={{ fontSize: 11.5, color: '#9A9A95', lineHeight: 1.5 }}>{s.text}</div>
               </div>
@@ -508,7 +507,7 @@ export default function OnboardingPage({ token }: Props) {
           <>
             <div style={{ fontSize: 24, fontWeight: 500, color: '#111', marginBottom: 6 }}>נעים להכיר{greetName ? `, ${greetName}` : ''}</div>
             <div style={{ fontSize: 13.5, lineHeight: 1.6, color: '#6B6B68', marginBottom: 20 }}>
-              כדי ש{info?.firmName || 'המשרד'} יוכל לייצג אתכם מול רשויות המס, נאסוף את הפרטים הנדרשים. לוקח כדקה.
+              כדי ש{info?.firmName || 'המשרד'} יוכל לייצג אתכם מול רשויות המס, נאסוף כמה פרטים. לוקח כדקה.
             </div>
 
             <ProcessMap current={1} />
@@ -650,7 +649,7 @@ export default function OnboardingPage({ token }: Props) {
               <div style={{ marginTop: 6, paddingTop: 16, borderTop: '1px solid #F0EFEB' }}>
                 <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginBottom: 14 }}>
                   {'\u{1F491}'} ספרו לנו על בן/בת הזוג — הפרטים נדרשים לייפויי הכוח של
-                  שניכם. איך בן/בת הזוג חותם/ת — תבחרו בשלב החתימה.
+                  שניכם. את אופן החתימה של בן/בת הזוג תבחרו בשלב החתימה.
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
                   <label style={{ ...label, flex: 1 }}>שם פרטי של בן/בת הזוג
@@ -698,7 +697,7 @@ export default function OnboardingPage({ token }: Props) {
           )}
           <button type="button" onClick={handleNext} disabled={busy}
             style={{ flex: 1, ...ctaStyle, borderRadius: btnRadius, padding: 13, fontSize: 14.5, fontWeight: 600, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1 }}>
-            {busy ? 'שולח…' : step >= lastStep ? 'שליחה ואימות' : 'המשך'}
+            {busy ? 'שולח…' : step >= lastStep ? 'שליחת הפרטים' : 'המשך'}
           </button>
         </div>
 
