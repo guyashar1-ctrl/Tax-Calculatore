@@ -13,6 +13,9 @@ import {
   STEP_BALL_LABELS, STEP_STATUS_LABELS, STEP_TYPE_LABELS, TRACK_LABELS,
   blockingStepsForClose, isStepRequiredForClose,
   isStepOpen, stepAwaitsMe, stepStatusLabel,
+  paperlessSetupItems,
+  PAPERLESS_RETAINER_CARD_KEY as RETAINER_CARD_KEY,
+  PAPERLESS_CARD_ENTERED_KEY as CARD_ENTERED_KEY,
 } from '../../types/onboarding';
 import type { Client, RepAuthorityKind, RepresentationStatus } from '../../types';
 import type { Quotation } from '../../types/quotations';
@@ -160,6 +163,25 @@ function progressLabel(step: OnboardingStep): string | null {
   const list = step.payload.checklist?.filter(i => !(i.optional || isOptionalMaterialKey(i.key)));
   if (!Array.isArray(list) || list.length === 0) return null;
   return `${list.filter(i => i.done).length}/${list.length}`;
+}
+
+/**
+ * התקדמות רשימת ההקמה בפייפרלס — חמישה סעיפים.
+ *
+ * ‼ למה לא progressLabel הגנרי: הסעיף החמישי ("הלקוח הזין כרטיס אשראי") חי
+ * כחותמת על שלב התשלום ולא ברשימה של שלב החיבור, ולכן קורא שמסתמך על
+ * payload.checklist לבדו הציג "4 מתוך 4" בעוד הכרטיס עצמו אומר "4 מתוך 5".
+ */
+function paperlessProgressLabel(step: OnboardingStep, retainer?: OnboardingStep): string | null {
+  const items = paperlessSetupItems(step, retainer);
+  if (items.length === 0) return null;
+  return `${items.filter(i => i.done).length}/${items.length}`;
+}
+
+/** שלב התשלום מבין שלבי הלקוח — נושא את החותמות של רשימת ההקמה. */
+function findRetainerStep(m: Map<string, OnboardingStep>): OnboardingStep | undefined {
+  for (const s of m.values()) if (s.stepType === 'retainer_authorization') return s;
+  return undefined;
 }
 
 const TONE_COLOR: Record<string, string> = {
@@ -453,6 +475,48 @@ export default function OnboardingTab({
   }
 
   /**
+   * "הלקוח הזין כרטיס אשראי בפייפרלס" — הסעיף החמישי והאחרון ברשימת החיבור.
+   *
+   * ‼ הצהרה של המשרד ולא אימות מול פייפרלס: אין אינטגרציה, וגיא מסמן את מה
+   * שראה בחשבון — בדיוק כמו שאר הסעיפים ברשימה.
+   * ‼ אותה חותמת בדיוק שכפתור "הכרטיס הוזן" בכרטיס התשלום כותב, ולכן שני
+   * המשטחים אינם יכולים לסתור זה את זה ואין כאן מצב חדש לתחזק.
+   * ‼ הסימון הוא גם מה שסוגר את שלב החיבור, והשחרור של הרשאת התשלום מגיע
+   * מהתלות הקיימת בשרת (unlock_dependent_steps) — לא ממנעול שני משלנו.
+   * ‼ אידמפוטנטי: חותמת שכבר קיימת אינה נדרסת בתאריך חדש.
+   */
+  async function markCardEntered(connection: OnboardingStep) {
+    const retainer = clientSteps.find(s => s.stepType === 'retainer_authorization');
+    if (!retainer) return;
+    setBusyStepId(connection.id);
+    setError(null);
+    try {
+      if (!retainer.payload.cardEnteredAt) {
+        const stamped = await advance(retainer.id, 'note', {
+          cardEnteredAt: new Date().toISOString(),
+          note: 'הכרטיס של הלקוח הוזן בפייפרלס',
+        });
+        if (!stamped.ok) { setError(stamped.message ?? 'סימון הכרטיס נכשל.'); return; }
+      }
+      // ‼ שלב שכבר נסגר בעבר (לקוח מלפני הסעיף הזה) אינו נפתח מחדש כדי להיסגר
+      // שוב: החותמת נכתבה, וזה כל מה שהיה חסר.
+      if (isStepOpen(connection.status) && connection.status !== 'locked') {
+        const checklist = paperlessSetupItems(connection, retainer)
+          .map(i => i.key === CARD_ENTERED_KEY ? { ...i, done: true } : i);
+        const closed = await advance(connection.id, 'complete', {
+          completionMethod: 'manual',
+          checklist,
+          note: 'הלקוח הזין כרטיס אשראי בפייפרלס — ההקמה בפייפרלס הושלמה',
+        });
+        if (!closed.ok) { setError(closed.message ?? 'סגירת החיבור נכשלה.'); return; }
+      }
+    } finally {
+      setBusyStepId(null);
+    }
+    refresh?.();
+  }
+
+  /**
    * ביטול אישור הרשמה שגוי — RPC ייעודי (מיגרציה 114).
    * ‼ לא advance('reopen') הגנרי: צריך גם להחזיר את הכדור ללקוח וגם לנעול
    * בחזרה את שלב החיבור שנפתח בגלל האישור, ורק אם עוד לא נגעו בו.
@@ -518,6 +582,9 @@ export default function OnboardingTab({
   const paperlessSteps = clientSteps.filter(
     s => s.stepType === 'paperless_invite' || s.stepType === 'paperless_connection');
   const connectionStep = clientSteps.find(s => s.stepType === 'paperless_connection');
+  // ‼ שני הסעיפים האחרונים ברשימת החיבור נשמרים כחותמות על שלב התשלום, ולכן
+  // כרטיס הפייפרלס צריך לקרוא אותו — לא רק לכתוב אליו.
+  const retainerStep = clientSteps.find(s => s.stepType === 'retainer_authorization');
   const triageUnanswered = (s: OnboardingStep) =>
     !s.payload.paperlessStatus || s.payload.paperlessStatus === 'unknown';
   // הטריאז' מוצג פעם אחת בלבד — על השלב הראשון שטרם נענה, לא על שניהם.
@@ -1040,8 +1107,10 @@ export default function OnboardingTab({
                     step={step}
                     stepById={stepById}
                     client={client}
+                    retainer={retainerStep}
                     onReopen={() => void reopenRegistration(step)}
                     onRetainerCardSet={() => void markRetainerCardUpdated()}
+                    onCardEntered={() => void markCardEntered(step)}
                     busy={busy}
                     highlight={highlightStepId === step.id}
                     showTriage={retriageStepId === step.id || triageAnchorId === step.id}
@@ -1999,29 +2068,13 @@ function CustomRequestBody({ step }: { step: OnboardingStep }) {
  * ‼ הסדר אינו קוסמטי: עדכון הריטיינר לכרטיס אשראי אפשרי רק אחרי שלושת
  * הראשונים, והוא זה שגורם לפייפרלס לבקש מהלקוח את הכרטיס. לכן הוא נעול
  * עד שהם סומנו, וברגע שהוא מסומן — ההנחיה נחשפת ללקוח בדף האישי.
+ * ‼ הסעיף החמישי (2026-08-18) סוגר את הרצף: ההקמה אינה נגמרת בבקשה שיצאה
+ * ללקוח אלא בכרטיס שהוא הזין בפועל, וזה מה שמשחרר את הרשאת התשלום.
+ *
+ * ‼ הרשימה עצמה ו-paperlessSetupItems עברו ל-types/onboarding.ts: גם המסך הזה
+ * וגם רשת הבוקר סופרים אותה, ושתי ספירות נפרדות הן בדיוק איך שנוצר
+ * "4 מתוך 4" מול "4 מתוך 5".
  */
-const PAPERLESS_SETUP_CHECKLIST: { key: string; label: string }[] = [
-  { key: 'id_number', label: 'הזנת מספר הזהות של הלקוח בפייפרלס' },
-  { key: 'business_name', label: 'הזנת שם העסק ולחיצה על שמור' },
-  { key: 'pull_dealers', label: 'ביצוע משיכת עוסקים' },
-  { key: 'retainer_card', label: 'עדכון הריטיינר שסוכם לתשלום בכרטיס אשראי' },
-];
-
-/** הסעיף שפותח את בקשת הכרטיס אצל הלקוח — האחרון, ותלוי בשלושה שלפניו. */
-const RETAINER_CARD_KEY = 'retainer_card';
-
-/** הרשימה הקבועה, ממוזגת עם מה שכבר סומן על השלב.
- *  ‼ הסימון בא מהשלב, הניסוח בא מהקוד: שורה שנשמרה עם ניסוח קודם ממשיכה
- *  להציג את הניסוח המעודכן ולא מקפיאה את הישן. */
-function paperlessSetupItems(step: OnboardingStep): StepChecklistItem[] {
-  const saved = new Map((step.payload.checklist ?? []).map(i => [i.key, i]));
-  return PAPERLESS_SETUP_CHECKLIST.map(x => ({
-    ...(saved.get(x.key) ?? { done: false }),
-    key: x.key,
-    label: x.label,
-    done: saved.get(x.key)?.done ?? false,
-  }));
-}
 
 /** ערך שצריך להעתיק לפייפרלס — מוצג מכרטיס הלקוח, לא מעותק שנשמר על השלב. */
 function CopyValueRow({ label, value }: { label: string; value?: string }) {
@@ -2052,10 +2105,14 @@ interface PaperlessCardProps {
   client: Client;
   busy: boolean;
   highlight: boolean;
+  /** שלב התשלום — נושא את החותמות של שני הסעיפים האחרונים ברשימת החיבור. */
+  retainer?: OnboardingStep;
   /** ביטול אישור הרשמה שגוי — רק על שלב ההרשמה שכבר נסגר. */
   onReopen: () => void;
   /** הריטיינר עודכן לכרטיס אשראי — מסמן על שלב התשלום שההנחיה נחשפת ללקוח. */
   onRetainerCardSet: () => void;
+  /** הלקוח הזין כרטיס — סוגר את החיבור ומשחרר את הרשאת התשלום. */
+  onCardEntered: () => void;
   showTriage: boolean;
   triageBusy: boolean;
   triageError: string | null;
@@ -2078,6 +2135,16 @@ function PaperlessStepCard(p: PaperlessCardProps) {
   const isInvite = step.stepType === 'paperless_invite';
   const path = (step.payload.paperlessStatus as PaperlessStatus | undefined);
   const open = isStepOpen(step.status);
+
+  // ‼ «סיימתי» חסום כל עוד הסעיף החמישי פתוח: סגירה ב-4 מתוך 5 הייתה משחררת
+  // את הרשאת התשלום לפני שיש כרטיס לחייב, וזה בדיוק מה שהסעיף בא למנוע.
+  // ‼ הכפתור נשאר גלוי ולא נעלם — כשהכרטיס כבר סומן והשלב עדיין פתוח (למשל
+  // אם הסגירה האוטומטית לא עברה) הוא הדרך לסיים ידנית.
+  // ‼ לקוח שאינו עובד עם פייפרלס, או שגובים ממנו ידנית, אינו מגיע לכאן בכלל —
+  // אין לו רשימת חיבור, ולכן אין מה לחסום.
+  const retainerIsDigital = !!p.retainer && p.retainer.payload.method !== 'manual_arrangement';
+  const cardPending = !isInvite && path !== 'not_applicable' && retainerIsDigital
+    && !paperlessSetupItems(step, p.retainer).find(i => i.key === CARD_ENTERED_KEY)?.done;
   const canSubmit = status !== '' && (status !== 'none' || source !== '');
   // "לא יעבוד עם פייפרלס" מייתר את שאלת ההיסטוריה — אין לאן לייבא אותה.
   const asksHistory = status === 'none';
@@ -2141,8 +2208,8 @@ function PaperlessStepCard(p: PaperlessCardProps) {
             <InviteBody path={path} status={step.status} />
           ) : (
             <ConnectionBody path={path} softwareName={String(step.payload.softwareName ?? '')}
-              step={step} client={p.client} busy={busy} onRun={p.onRun}
-              onRetainerCardSet={p.onRetainerCardSet} />
+              step={step} client={p.client} retainer={p.retainer} busy={busy} onRun={p.onRun}
+              onRetainerCardSet={p.onRetainerCardSet} onCardEntered={p.onCardEntered} />
           )}
 
           <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
@@ -2166,7 +2233,11 @@ function PaperlessStepCard(p: PaperlessCardProps) {
             {/* ‼ שלב החיבור הוא של המשרד: ברגע שנכנסים לחשבון של הלקוח,
                 פייפרלס מבקשת מאיתנו את פרטי האשראי. ולכן ההשלמה כאן היא
                 "סיימתי" — לא "אשר שהלקוח עשה". זה גם מה שפותח את ההרשאה. */}
-            {!isInvite && open && step.status !== 'locked' && (
+            {/* ‼ כל עוד הסעיף החמישי פתוח הכפתור הזה יורד ולא מוצג מושבת:
+                הפעולה שסוגרת את ההקמה היא «סמן כבוצע» שבשורה עצמה, וכפתור
+                ראשי שני — מושבת — רק מתחרה בו על העין. הוא חוזר ברגע שהכרטיס
+                סומן והשלב עדיין פתוח, כלומר בדיוק כשצריך מסלול סיום ידני. */}
+            {!isInvite && open && step.status !== 'locked' && !cardPending && (
               <button type="button" className="btn btn-sm btn-primary" disabled={busy}
                 onClick={() => p.onConfirm(
                   path === 'other_rep' ? 'אישור השלמת ההעברה' : 'סיום החיבור לפייפרלס',
@@ -2175,7 +2246,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
                   // שמזין אותו, אחרי שהריטיינר עודכן לכרטיס אשראי.
                   path === 'other_rep'
                     ? 'ההעברה מהמייצג הקודם הושלמה והלקוח מופיע ברשימה שלך?'
-                    : 'ארבעת הסעיפים בוצעו בחשבון הפייפרלס של הלקוח?',
+                    : 'כל הסעיפים בוצעו בחשבון הפייפרלס של הלקוח?',
                   'סיימתי',
                 )}>
                 סיימתי
@@ -2249,15 +2320,19 @@ function InviteBody({ path, status }: { path?: PaperlessStatus; status: string }
  * ‼ הת״ז ושם העסק מוצגים כאן להעתקה — מכרטיס הלקוח עצמו. אין עותק שלהם על
  * השלב: מה שיוצג הוא תמיד מה שבכרטיס, גם אם תוקן אחרי שהשלב נוצר.
  */
-function ConnectionBody({ path, softwareName, step, client, busy, onRun, onRetainerCardSet }: {
+function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRun, onRetainerCardSet, onCardEntered }: {
   path?: PaperlessStatus;
   softwareName: string;
   step: OnboardingStep;
   client: Client;
+  /** שלב התשלום — נושא את החותמות, וקיומו הוא התנאי לסעיף החמישי. */
+  retainer?: OnboardingStep;
   busy: boolean;
   onRun: (action: string, payload?: Record<string, unknown>) => void;
   /** סימון "עדכנתי את הריטיינר לכרטיס" — חושף ללקוח את ההנחיה להזין כרטיס. */
   onRetainerCardSet: () => void;
+  /** סימון "הלקוח הזין כרטיס" — סוגר את החיבור ומשחרר את הרשאת התשלום. */
+  onCardEntered: () => void;
 }) {
   if (path === 'not_applicable') {
     return (
@@ -2268,7 +2343,7 @@ function ConnectionBody({ path, softwareName, step, client, busy, onRun, onRetai
     );
   }
 
-  const items = paperlessSetupItems(step);
+  const items = paperlessSetupItems(step, retainer);
   const doneCount = items.filter(i => i.done).length;
   const intro = path === 'other_rep'
     ? 'הלקוח קיים בפייפרלס אצל המייצג הקודם. נכנסים לחשבון, מושכים אותו אלינו, ומשלימים את ההקמה.'
@@ -2278,8 +2353,16 @@ function ConnectionBody({ path, softwareName, step, client, busy, onRun, onRetai
 
   /** שלושת הראשונים — התנאי לסעיף הרביעי. */
   const setupReady = items
-    .filter(i => i.key !== RETAINER_CARD_KEY)
+    .filter(i => i.key !== RETAINER_CARD_KEY && i.key !== CARD_ENTERED_KEY)
     .every(i => i.done);
+
+  /** ארבעת הראשונים — התנאי לסעיף החמישי: פייפרלס מבקשת את הכרטיס רק אחרי
+   *  שהריטיינר עודכן, ולכן "הלקוח הזין" לפני זה אינו יכול לקרות. */
+  const cardStepReady = items
+    .filter(i => i.key !== CARD_ENTERED_KEY)
+    .every(i => i.done);
+
+  const cardItem = items.find(i => i.key === CARD_ENTERED_KEY);
 
   function toggle(item: StepChecklistItem) {
     const next = items.map(x => x.key === item.key ? { ...x, done: !x.done } : x);
@@ -2310,6 +2393,35 @@ function ConnectionBody({ path, softwareName, step, client, busy, onRun, onRetai
       </div>
       <div style={{ display: 'grid', gap: '.25rem' }}>
         {items.map(item => {
+          // ‼ הסעיף החמישי אינו צ'קבוקס: הוא נשען על חותמת בשלב אחר, ואי אפשר
+          // לבטל כרטיס שהלקוח כבר הזין. לכן פעולה מפורשת אחת, וסימון לקריאה
+          // בלבד — ולא פקד שנראה כמו שאר השורות אבל מתנהג אחרת בלחיצה חוזרת.
+          if (item.key === CARD_ENTERED_KEY) {
+            const waiting = !item.done && !cardStepReady;
+            return (
+              <div key={item.key} style={{
+                display: 'flex', gap: '.45rem', alignItems: 'flex-start',
+                color: waiting ? 'var(--ink-4)' : item.done ? 'var(--ink-3)' : 'var(--ink-1)',
+              }}>
+                <input type="checkbox" checked={item.done} disabled readOnly
+                  style={{ marginTop: 2 }}
+                  title={item.done ? 'סומן על ידך — אי אפשר לבטל כרטיס שהוזן' : undefined} />
+                <span style={{
+                  display: 'flex', gap: '.45rem', alignItems: 'baseline', flexWrap: 'wrap',
+                  textDecoration: item.done ? 'line-through' : 'none',
+                }}>
+                  {item.label}
+                  {waiting && <span style={{ color: 'var(--ink-4)' }}>· אחרי ארבעת הסעיפים שמעל</span>}
+                  {!item.done && cardStepReady && (
+                    <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+                      title="לסמן אחרי שראית בפייפרלס שהלקוח הזין כרטיס — זה מה שמשחרר את הרשאת התשלום"
+                      onClick={onCardEntered}>סמן כבוצע</button>
+                  )}
+                </span>
+              </div>
+            );
+          }
+
           // ‼ הרביעי חסום עד שהשלושה נעשו: בפועל אי אפשר לעדכן את הריטיינר
           // לפני שהלקוח הוקם ונמשך, וצ'קבוקס שנראה זמין הוא הזמנה לטעות.
           const blocked = item.key === RETAINER_CARD_KEY && !setupReady && !item.done;
@@ -2330,12 +2442,17 @@ function ConnectionBody({ path, softwareName, step, client, busy, onRun, onRetai
         })}
       </div>
 
-      {/* ‼ עדכון הריטיינר לכרטיס הוא מה שגורם לפייפרלס לבקש מהלקוח את הכרטיס.
-          לכן «סיימתי» כאן אינו סוף הכסף אלא תחילתו — וכרטיס התשלום ממשיך משם. */}
+      {/* ‼ עדכון הריטיינר לכרטיס הוא מה שגורם לפייפרלס לבקש מהלקוח את הכרטיס,
+          והכרטיס שהוזן הוא מה שסוגר את ההקמה. לכן שורת ההמשך אומרת על מה
+          ממתינים כרגע — ולא "אחרי «סיימתי»", שכבר אינו הפעולה שסוגרת כאן. */}
       <div style={{ marginTop: '.45rem' }}>
-        {items.find(i => i.key === RETAINER_CARD_KEY)?.done
-          ? 'הריטיינר עודכן לכרטיס — מכאן פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. ההמשך בכרטיס התשלום החודשי.'
-          : 'אחרי «סיימתי» נפתח כרטיס התשלום החודשי, ושם ממשיכים: הכרטיס שהלקוח מזין, והחיוב עצמו.'}
+        {!cardItem
+          ? 'אחרי «סיימתי» נפתח כרטיס התשלום החודשי, ושם ממשיכים: הכרטיס שהלקוח מזין, והחיוב עצמו.'
+          : cardItem.done
+            ? 'הכרטיס הוזן וההקמה בפייפרלס הושלמה. ההמשך בכרטיס התשלום החודשי — החיוב עצמו.'
+            : items.find(i => i.key === RETAINER_CARD_KEY)?.done
+              ? 'הריטיינר עודכן לכרטיס — מכאן פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. כשתראה שהכרטיס הוזן — לסמן כאן, וכרטיס התשלום החודשי ייפתח.'
+              : 'אחרי עדכון הריטיינר פייפרלס תבקש מהלקוח את הכרטיס. הסימון שהוא הוזן הוא מה שיפתח את כרטיס התשלום החודשי.'}
       </div>
 
       {softwareName && (
@@ -2461,10 +2578,15 @@ function RetainerStepCard(p: RetainerCardProps) {
       ) : (
         <>
           {/* ‼ שורת מצב אחת שאומרת איפה עומדים מבין שלוש הנקודות, ולא שלושה
-              משפטים שצריך לקרוא כדי להבין מה נשאר. */}
+              משפטים שצריך לקרוא כדי להבין מה נשאר.
+              ‼ מאז שהכרטיס שהוזן הוא הסעיף החמישי ברשימת החיבור, שלב זה נפתח
+              כשהחותמות הראשונות כבר קיימות — ולכן שני המצבים הראשונים כאן
+              נותרו בשביל תיקים שנסגרו לפני כן, ובשביל מסלולים שדילגו על
+              רשימת החיבור (העברה ממייצג קודם, "אין צורך בהרשמה"). הם מסלול
+              תיקון, לא הדרך הרגילה — ואסור להסיר אותם. */}
           <div style={cardNote}>
             {!authorizationCreatedAt
-              ? <>הלקוח מחובר לפייפרלס. מה שפותח את בקשת הכרטיס אצלו הוא עדכון הריטיינר לתשלום בכרטיס אשראי — הסעיף האחרון ברשימת החיבור, ואפשר לסמן אותו גם כאן.</>
+              ? <>הלקוח מחובר לפייפרלס. מה שפותח את בקשת הכרטיס אצלו הוא עדכון הריטיינר לתשלום בכרטיס אשראי — הסעיף הרביעי ברשימת החיבור, ואפשר לסמן אותו גם כאן.</>
               : !cardEnteredAt
                 ? <>הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי ({formatDate(authorizationCreatedAt, 'list')}). הלקוח רואה בדף האישי שפייפרלס תבקש ממנו כרטיס, וגם שייתכן חיוב אימות בסך 1 ₪. כשתראה בפייפרלס שהכרטיס הוזן — לסמן כאן.</>
                 : !retainerChargedAt
@@ -3464,7 +3586,13 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
      על כל כרטיס הייתה מחזירה בדיוק את תחושת הטבלה שהמסך הזה בא להוריד. */
   const locked = step.status === 'locked';
   const age = ageLabel(step);
-  const progress = progressLabel(step);
+  // ‼ שלב החיבור נמדד מול חמישה סעיפים. רק כשיש כבר רשימה — שלב שטרם התחיל,
+  // או לקוח שאינו עובד עם פייפרלס, ממשיכים בלי מונה בכלל כמו קודם.
+  const progress = step.stepType === 'paperless_connection'
+    && step.payload.paperlessStatus !== 'not_applicable'
+    && (step.payload.checklist?.length ?? 0) > 0
+    ? paperlessProgressLabel(step, findRetainerStep(stepById))
+    : progressLabel(step);
   const hasBody = Boolean(children);
   const isDraft = isDraftStep(step);
   const hasPendingEdit = !!step.draftPayload && !isDraft;

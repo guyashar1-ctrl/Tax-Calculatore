@@ -10,7 +10,7 @@
 import { useMemo, useState } from 'react';
 import type { Client } from '../types';
 import type { Engagement, OnboardingStep, OnboardingStepType } from '../types/onboarding';
-import { STEP_TYPE_LABELS, isStepOpen } from '../types/onboarding';
+import { STEP_TYPE_LABELS, isStepOpen, paperlessSetupItems } from '../types/onboarding';
 import { NEXT_ACTION, isStuckStep, summarizeClientOnboarding } from '../utils/onboardingNext';
 import { EmptyState } from './ui/States';
 
@@ -51,7 +51,16 @@ function daysSince(iso?: string | null): number | null {
   return d >= 0 ? d : null;
 }
 
-function checklistCount(s: OnboardingStep): string | null {
+/** ‼ שלב החיבור לפייפרלס נמדד מול חמישה סעיפים, והחמישי ("הלקוח הזין כרטיס")
+ *  חי כחותמת על שלב התשלום ולא ברשימה שלו — ולכן ספירה של payload.checklist
+ *  לבדו הציגה כאן "4/4" בזמן שכרטיס הבקשה אמר "4 מתוך 5". */
+function checklistCount(s: OnboardingStep, all: OnboardingStep[]): string | null {
+  if (s.stepType === 'paperless_connection'
+    && s.payload?.paperlessStatus !== 'not_applicable'
+    && (s.payload?.checklist?.length ?? 0) > 0) {
+    const items = paperlessSetupItems(s, all.find(x => x.stepType === 'retainer_authorization'));
+    return `${items.filter(i => i.done).length}/${items.length}`;
+  }
   const list = s.payload?.checklist;
   if (!list?.length) return null;
   return `${list.filter(i => i.done).length}/${list.length}`;
@@ -78,7 +87,7 @@ function cellFor(steps: OnboardingStep[], kinds: OnboardingStepType[]): Cell {
   if (actionable.length === 0) return { text: 'נעול', tone: 'locked' };
 
   const focus = actionable[0];
-  const count = checklistCount(focus);
+  const count = checklistCount(focus, steps);
   const d = daysSince(focus.updatedAt);
   const late = focus.ball === 'client' && d !== null && d >= WAIT_DAYS;
   const parts = [count, d !== null && d > 0 ? `${d} ימים` : null].filter(Boolean);

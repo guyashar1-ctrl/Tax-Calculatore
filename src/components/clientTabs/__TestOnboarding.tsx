@@ -263,11 +263,69 @@ export default function TestOnboarding() {
         return s;
       })
     : withRep;
+
+  /* ‼ שלושת המצבים של רשימת ההקמה בפייפרלס. הפיקסטורה הבסיסית נכנסת בשלב
+     החיבור **נעול** (הלקוח עוד לא נרשם), ולכן בלי המתג הזה אי אפשר לראות
+     בכלל את הרשימה — ובוודאי לא את הסעיף החמישי ואת החסימה שלו.
+     · 'locked'   — כמו הפיקסטורה המקורית: הלקוח טרם נרשם.
+     · 'four'     — ארבעת הראשונים סומנו, הכרטיס טרם הוזן ⇒ 4 מתוך 5.
+     · 'card'     — הכרטיס הוזן ⇒ 5 מתוך 5, והרשאת התשלום משוחררת. */
+  /* ?test-onboarding&pl=partial|four|card|legacy — פתיחה ישירה במצב, לצילום
+     ללא-ראש שאינו לוחץ. 'legacy' הוא תיק שנסגר לפני שהסעיף החמישי נולד:
+     החיבור completed ב-4/4 והרשאת התשלום כבר משוחררת — אסור שנחזור ננעל אותו. */
+  type PlState = 'locked' | 'partial' | 'four' | 'card' | 'legacy';
+  const [paperless, setPaperless] = useState<PlState>(
+    (/[?&]pl=(partial|four|card|legacy)/.exec(window.location.search)?.[1] as PlState) ?? 'locked');
+  const SETUP = (doneCount: number) => [
+    { key: 'id_number', label: 'הזנת מספר הזהות של הלקוח בפייפרלס', done: doneCount > 0 },
+    { key: 'business_name', label: 'הזנת שם העסק ולחיצה על שמור', done: doneCount > 1 },
+    { key: 'pull_dealers', label: 'ביצוע משיכת עוסקים', done: doneCount > 2 },
+    { key: 'retainer_card', label: 'עדכון הריטיינר שסוכם לתשלום בכרטיס אשראי', done: doneCount > 3 },
+  ];
+  const paperlessSteps = paperless === 'locked' ? steps : steps.map(s => {
+    if (s.stepType === 'paperless_invite') {
+      return { ...s, status: 'completed' as const, ball: 'me' as const,
+               payload: { ...s.payload, paperlessStatus: 'none', dataSource: 'none' } };
+    }
+    if (s.stepType === 'paperless_connection') {
+      return {
+        ...s,
+        status: (paperless === 'legacy' ? 'completed' : 'in_progress') as 'completed' | 'in_progress',
+        ball: 'me' as const,
+        payload: {
+          ...s.payload, paperlessStatus: 'none',
+          checklist: SETUP(paperless === 'partial' ? 2 : 4),
+        },
+      };
+    }
+    if (s.stepType === 'retainer_authorization') {
+      // partial ⇒ הריטיינר עוד לא עודכן, ולכן אין גם חותמת ראשונה.
+      const unlocked = paperless === 'card' || paperless === 'legacy';
+      return {
+        ...s,
+        status: (unlocked ? 'pending' : 'locked') as 'pending' | 'locked',
+        payload: {
+          ...s.payload,
+          ...(paperless === 'partial' ? {} : { authorizationCreatedAt: '2026-08-16T09:00:00Z' }),
+          ...(paperless === 'card' ? { cardEnteredAt: '2026-08-18T08:30:00Z' } : {}),
+        },
+      };
+    }
+    return s;
+  });
+
   return (
     <div style={{ padding: '1.5rem', maxWidth: 980, margin: '0 auto' }} dir="rtl">
       <h2 style={{ marginBottom: '.3rem' }}>בדיקת לשונית הקליטה — נתונים מדומים</h2>
       <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: '1rem' }}>
-        לא מחובר למסד. פעולות מדפיסות את מה שהיה נשלח לשרת. {msg && <strong> · {msg}</strong>}
+        לא מחובר למסד. פעולות מדפיסות את מה שהיה נשלח לשרת.
+        {msg && (
+          <pre id="qa-advance-log" style={{
+            whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: '.4rem 0 0',
+            fontSize: 11, lineHeight: 1.5, color: 'var(--ink-2)',
+            background: 'var(--surface-2, #f4f4f5)', padding: '.4rem .5rem', borderRadius: 4,
+          }}>{msg}</pre>
+        )}
       </div>
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
         <button type="button" className="btn btn-sm btn-secondary"
@@ -290,6 +348,16 @@ export default function TestOnboarding() {
           onClick={() => setWindowPassed(v => !v)}>
           {windowPassed ? 'חזרה למכתב שטרם נשלח' : 'מכתב שנשלח וחלון ההתייחסות עבר'}
         </button>
+        <button type="button" className="btn btn-sm btn-secondary"
+          onClick={() => setPaperless(v =>
+            v === 'locked' ? 'partial' : v === 'partial' ? 'four'
+              : v === 'four' ? 'card' : v === 'card' ? 'legacy' : 'locked')}>
+          פייפרלס: {paperless === 'locked' ? 'נעול → חלקי (2/5)'
+            : paperless === 'partial' ? 'חלקי → 4 מתוך 5'
+              : paperless === 'four' ? '4/5 → הכרטיס הוזן (5/5)'
+                : paperless === 'card' ? '5/5 → תיק קיים (נסגר ב-4/4)'
+                  : 'תיק קיים → נעול'}
+        </button>
       </div>
       <OnboardingTab
         clientId={CLIENT_ID}
@@ -299,14 +367,21 @@ export default function TestOnboarding() {
         clientEmail="sharon.m@example.invalid"
         embedded={embedded}
         engagements={published ? ENGAGEMENTS : ENGAGEMENTS_UNPUBLISHED}
-        steps={steps}
+        steps={paperlessSteps}
         quotations={QUOTATIONS}
         events={EVENTS}
+        /* ‼ מצטבר ולא דורס: פעולה אחת במסך יכולה לשלוח שתי קריאות לשרת (למשל
+           "סמן כבוצע" — חותמת על שלב התשלום ואז סגירת החיבור), ושורה שמראה
+           רק את האחרונה מסתירה בדיוק את מה שצריך לאמת. */
         advance={async (stepId, action, payload) => {
-          setMsg(`advance(${stepId}, ${action}, ${JSON.stringify(payload ?? {})})`);
+          setMsg(prev => {
+            const line = `advance(${stepId}, ${action}, ${JSON.stringify(payload ?? {})})`;
+            return [...prev.split('\n').filter(Boolean).slice(-3), line].join('\n');
+          });
           return { ok: true };
         }}
-        refresh={() => setMsg('refresh()')}
+        refresh={() => setMsg(prev =>
+          [...prev.split('\n').filter(Boolean).slice(-3), 'refresh()'].join('\n'))}
         prevAccountant={{
           name: 'רו״ח דנה כהן',
           email: hasPrevEmail ? 'dana@prev-firm.example' : undefined,

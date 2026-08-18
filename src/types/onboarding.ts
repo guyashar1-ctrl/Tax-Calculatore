@@ -251,6 +251,63 @@ export interface StepChecklistItem {
   declaredByRecipient?: boolean;
 }
 
+/**
+ * רשימת ההקמה בפייפרלס — מה שהמשרד עושה בחשבון אחרי שהלקוח נרשם.
+ *
+ * ‼ הסדר אינו קוסמטי: עדכון הריטיינר לכרטיס אשראי אפשרי רק אחרי שלושת
+ * הראשונים, והוא זה שגורם לפייפרלס לבקש מהלקוח את הכרטיס. הסעיף החמישי הוא
+ * הכרטיס שהלקוח הזין בפועל — וזה מה שסוגר את ההקמה ומשחרר את הרשאת התשלום.
+ * ‼ יושב כאן ולא בקומפוננטה כי גם מסך הבקשות וגם רשת הבוקר סופרים אותו, ושתי
+ * ספירות מאותה רשימה בשני מקומות הן בדיוק איך שנוצר "4 מתוך 4" מול "4 מתוך 5".
+ */
+export const PAPERLESS_SETUP_CHECKLIST: { key: string; label: string }[] = [
+  { key: 'id_number', label: 'הזנת מספר הזהות של הלקוח בפייפרלס' },
+  { key: 'business_name', label: 'הזנת שם העסק ולחיצה על שמור' },
+  { key: 'pull_dealers', label: 'ביצוע משיכת עוסקים' },
+  { key: 'retainer_card', label: 'עדכון הריטיינר שסוכם לתשלום בכרטיס אשראי' },
+  { key: 'card_entered', label: 'הלקוח הזין כרטיס אשראי בפייפרלס' },
+];
+
+/** הסעיף שפותח את בקשת הכרטיס אצל הלקוח — תלוי בשלושה שלפניו. */
+export const PAPERLESS_RETAINER_CARD_KEY = 'retainer_card';
+
+/**
+ * הסעיף החמישי — הלקוח הזין את הכרטיס.
+ *
+ * ‼ הצהרה של המשרד ולא אימות מול פייפרלס: אין אינטגרציה, והרו"ח מסמן את מה
+ * שראה בחשבון — בדיוק כמו שאר הסעיפים.
+ * ‼ מקור האמת הוא החותמת cardEnteredAt שעל שלב התשלום, ולא הדגל שברשימה.
+ * הדגל נשמר כדי שכל קורא גנרי יראה "4 מתוך 5" בלי לדעת דבר על פייפרלס —
+ * אבל בקריאה החותמת גוברת, ולכן כרטיס שסומן בכרטיס התשלום מופיע מסומן גם
+ * בלקוחות שקדמו לסעיף הזה.
+ */
+export const PAPERLESS_CARD_ENTERED_KEY = 'card_entered';
+
+/** הרשימה הקבועה, ממוזגת עם מה שכבר סומן על השלב ועם החותמת שבשלב התשלום.
+ *  ‼ הסימון בא מהשלב, הניסוח בא מהקוד: שורה שנשמרה עם ניסוח קודם ממשיכה
+ *  להציג את הניסוח המעודכן ולא מקפיאה את הישן.
+ *  ‼ בלי שלב תשלום אין סעיף חמישי: אי אפשר להזין כרטיס להרשאה שאינה קיימת,
+ *  וסעיף שאי אפשר לסמן היה חוסם את סגירת החיבור לנצח. */
+export function paperlessSetupItems(
+  step: OnboardingStep, retainer?: OnboardingStep,
+): StepChecklistItem[] {
+  const saved = new Map((step.payload.checklist ?? []).map(i => [i.key, i]));
+  const cardEnteredAt = String(retainer?.payload.cardEnteredAt ?? '');
+  return PAPERLESS_SETUP_CHECKLIST
+    .filter(x => x.key !== PAPERLESS_CARD_ENTERED_KEY || !!retainer)
+    .map(x => {
+      const prev = saved.get(x.key);
+      const isCard = x.key === PAPERLESS_CARD_ENTERED_KEY;
+      return {
+        ...(prev ?? { done: false }),
+        key: x.key,
+        label: x.label,
+        done: isCard ? (!!cardEnteredAt || prev?.done === true) : prev?.done ?? false,
+        ...(isCard && cardEnteredAt ? { doneAt: cardEnteredAt } : {}),
+      };
+    });
+}
+
 /** מה נדרש מהלקוח בבקשה חופשית. שילובים מותרים באותה בקשה.
  *  ‼ אלה שדות בתוך בקשה אחת — לעולם לא משימות נפרדות (מרכז התיק, 6+7). */
 export type CustomRequirementKind =
