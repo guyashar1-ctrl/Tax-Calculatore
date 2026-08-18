@@ -812,9 +812,39 @@ export default function OnboardingTab({
   async function createPrevAccountantTrack() {
     setPrevTrackBusy(true);
     setError(null);
+    // ‼ הצעד הראשון של המסלול הוא תמיד שאלה ללקוח (הכרעת גיא 2026-08-18):
+    // בלי פרטים — "מי הרו״ח הקודם שלך?"; עם פרטים — רק לאשר שהם עדכניים.
+    // המכתב נחסם לשליחה רק כשאין אימייל; אחרת הוא נולד פתוח והאישור רץ במקביל.
+    const hasEmail = !!prevAccountant?.email?.trim();
+    const existingDetails = clientSteps.find(
+      s => s.stepType === 'prev_accountant_details' && s.status !== 'cancelled');
+    const det = existingDetails
+      ? { data: { ok: true, stepId: existingDetails.id }, error: null }
+      : await supabase.rpc('create_onboarding_request', {
+      p_client_id: clientId, p_step_type: 'prev_accountant_details',
+      p_payload: hasEmail
+        ? {
+            clientTitle: 'לאשר את פרטי רואה החשבון הקודם',
+            clientSub: 'הפרטים שאצלנו מוצגים למילוי מראש — רק לוודא שהם נכונים',
+            clientCta: 'לאישור',
+          }
+        : {
+            clientTitle: 'פרטי רואה החשבון הקודם שלך',
+            clientSub: 'שם, אימייל וטלפון — כדי שנפנה אליו בשמך',
+            clientCta: 'למילוי',
+          },
+        p_due_date: null, p_depends_on: null, p_published: true,
+        p_required_for_close: !hasEmail, p_owner: 'client', p_stage_id: null,
+      });
+    const detRes = det.data as { ok?: boolean; stepId?: string; error?: string } | null;
+    if (det.error || !detRes?.ok || !detRes.stepId) {
+      setError('פתיחת מסלול הרו״ח הקודם נכשלה.');
+      setPrevTrackBusy(false);
+      return;
+    }
     const rel = await supabase.rpc('create_onboarding_request', {
       p_client_id: clientId, p_step_type: 'release_letter', p_payload: {},
-      p_due_date: null, p_depends_on: null, p_published: true,
+      p_due_date: null, p_depends_on: hasEmail ? null : detRes.stepId, p_published: true,
       p_required_for_close: true, p_owner: 'me', p_stage_id: null,
     });
     const relRes = rel.data as { ok?: boolean; stepId?: string; error?: string } | null;
@@ -901,72 +931,70 @@ export default function OnboardingTab({
                         aria-label="עריכה ואפשרויות">⋯</button>
                       {menuOpen && (
                         <div className="ob-menu" role="menu">
+                          {/* ‼ במנוחה התפריט קטן בכוונה: הערה והסרה, ותו לא
+                              (הכרעת גיא 2026-08-18 — "כל האפשרויות האלה מיותרות").
+                              דלג/חסום/כרשות/תבניות/בקשת המשך הם בניית תהליך,
+                              והם מופיעים רק במצב "עריכת הבקשות". */}
                           {/* עריכה בשורה — רק לבקשות שנבנות בקומפוזר. */}
                           {step.stepType === 'custom_request' && (
                             <button type="button" role="menuitem" className={mi}
                               onClick={() => { setMenuStepId(null); setEditingStepId(step.id); }}>עריכה והגדרות</button>
                           )}
-                          {/* ‼ בקשת המשך — כאן נולדת התלות. הרו"ח לא בונה גרף ולא
-                              בוחר "הורה" מרשימה: הוא עומד על «פתיחת חשבון פייפרלס»
-                              ואומר "ואחריה צריך גם…". התלות נגזרת מהמקום שממנו לחץ. */}
-                          <button type="button" role="menuitem" className={mi}
-                            onClick={() => { setMenuStepId(null); setFollowUpFor(step.id); }}
-                            title={`בקשה חדשה שתיפתח רק אחרי «${rowTitle(step)}»`}>
-                            הוסף בקשת המשך
-                          </button>
-
-                          <div className="ob-menu-sep" />
-
-                          {/* ‼ שלב הייצוג מסונכרן מהשרת — "דלג" ו"חסום" ידניים היו
-                              נדרסים בטריגר הבא ומשקרים עד אז. נשארת רק הערה. */}
-                          {step.stepType !== 'representation' && (
-                            <>
-                              <button type="button" role="menuitem" className={mi}
-                                onClick={() => { setMenuStepId(null); handleSkip(step); }}>דלג על הבקשה</button>
-                              <button type="button" role="menuitem" className={mi}
-                                onClick={() => { setMenuStepId(null); handleBlock(step); }}>סמן כחסום</button>
-                            </>
-                          )}
                           <button type="button" role="menuitem" className={mi}
                             onClick={() => { setMenuStepId(null); handleNote(step); }}>הוסף הערה</button>
-                          {!['completed', 'verified', 'cancelled'].includes(step.status) && (
-                            <button type="button" role="menuitem" className={mi}
-                              onClick={() => { setMenuStepId(null); void setStepRequired(step.id, !isStepRequiredForClose(step)); }}
-                              title={isStepRequiredForClose(step)
-                                ? 'השלב חוסם היום את סגירת הקליטה. סימון כרשות ישחרר אותה.'
-                                : 'השלב אינו חוסם היום את סגירת הקליטה.'}>
-                              {isStepRequiredForClose(step) ? 'סמן כרשות' : 'סמן כנדרש'}
-                            </button>
-                          )}
-                          {/* ‼ בתפריט טקסט מלא ולא חץ בודד: "↑" ברשימה אנכית לא
-                              אומר כלום. במצב עריכה הם ממילא עלו לשורה. */}
-                          {!editing && !ordering && (
+                          {editing && (
                             <>
+                              {/* ‼ בקשת המשך — כאן נולדת התלות. הרו"ח לא בונה גרף ולא
+                                  בוחר "הורה" מרשימה: הוא עומד על «פתיחת חשבון פייפרלס»
+                                  ואומר "ואחריה צריך גם…". התלות נגזרת מהמקום שממנו לחץ. */}
                               <button type="button" role="menuitem" className={mi}
-                                onClick={() => { setMenuStepId(null); void moveRow(step.id, -1); }}>הזז למעלה</button>
+                                onClick={() => { setMenuStepId(null); setFollowUpFor(step.id); }}
+                                title={`בקשה חדשה שתיפתח רק אחרי «${rowTitle(step)}»`}>
+                                הוסף בקשת המשך
+                              </button>
+
+                              <div className="ob-menu-sep" />
+
+                              {/* ‼ שלב הייצוג מסונכרן מהשרת — "דלג" ו"חסום" ידניים היו
+                                  נדרסים בטריגר הבא ומשקרים עד אז. נשארת רק הערה. */}
+                              {step.stepType !== 'representation' && (
+                                <>
+                                  <button type="button" role="menuitem" className={mi}
+                                    onClick={() => { setMenuStepId(null); handleSkip(step); }}>דלג על הבקשה</button>
+                                  <button type="button" role="menuitem" className={mi}
+                                    onClick={() => { setMenuStepId(null); handleBlock(step); }}>סמן כחסום</button>
+                                </>
+                              )}
+                              {!['completed', 'verified', 'cancelled'].includes(step.status) && (
+                                <button type="button" role="menuitem" className={mi}
+                                  onClick={() => { setMenuStepId(null); void setStepRequired(step.id, !isStepRequiredForClose(step)); }}
+                                  title={isStepRequiredForClose(step)
+                                    ? 'השלב חוסם היום את סגירת הקליטה. סימון כרשות ישחרר אותה.'
+                                    : 'השלב אינו חוסם היום את סגירת הקליטה.'}>
+                                  {isStepRequiredForClose(step) ? 'סמן כרשות' : 'סמן כנדרש'}
+                                </button>
+                              )}
+
+                              <div className="ob-menu-sep" />
+
+                              {/* ‼ שתי שמירות שונות ולכן שתי שורות: הבקשה הזאת
+                                  בלבד, או כל ההרכב של הלקוח עם התלויות ביניהן. */}
                               <button type="button" role="menuitem" className={mi}
-                                onClick={() => { setMenuStepId(null); void moveRow(step.id, 1); }}>הזז למטה</button>
+                                onClick={() => { setMenuStepId(null); setSaveTemplateFor(step); }}
+                                title="שמירת הבקשה הזאת בלבד כתבנית לשימוש חוזר">
+                                שמור כתבנית
+                              </button>
+                              <button type="button" role="menuitem" className={mi}
+                                onClick={() => { setMenuStepId(null); setTemplatesOpen(true); }}
+                                title="שמירת הבקשות של הלקוח כתבנית — כולל התלות ביניהן">
+                                שמור את כל המסע כתבנית
+                              </button>
                             </>
                           )}
-
-                          <div className="ob-menu-sep" />
-
-                          {/* ‼ שתי שמירות שונות ולכן שתי שורות: הבקשה הזאת
-                              בלבד, או כל ההרכב של הלקוח עם התלויות ביניהן. */}
-                          <button type="button" role="menuitem" className={mi}
-                            onClick={() => { setMenuStepId(null); setSaveTemplateFor(step); }}
-                            title="שמירת הבקשה הזאת בלבד כתבנית לשימוש חוזר">
-                            שמור כתבנית
-                          </button>
-                          <button type="button" role="menuitem" className={mi}
-                            onClick={() => { setMenuStepId(null); setTemplatesOpen(true); }}
-                            title="שמירת הבקשות של הלקוח כתבנית — כולל התלות ביניהן">
-                            שמור את כל המסע כתבנית
-                          </button>
                           {/* ‼ "הסר" — רק על בקשות פונות-ללקוח (לא ייצוג, לא עבודה
-                              פנימית — שם "דלג"/"חסום" כבר מספיקים). בקשה שפורסמה
-                              מסומנת pending_cancel וממשיכה להופיע ללקוח עד הפרסום
-                              הבא (מיגרציה 101); טיוטה שמעולם לא פורסמה מבוטלת מיד. */}
+                              פנימית — שם "דלג"/"חסום" שבמצב העריכה מספיקים). בקשה
+                              שפורסמה מסומנת pending_cancel וממשיכה להופיע ללקוח עד
+                              הפרסום הבא (מיגרציה 101); טיוטה שמעולם לא פורסמה מבוטלת מיד. */}
                           {CLIENT_FACING_TYPES.includes(step.stepType) && (
                             <button type="button" role="menuitem"
                               className={`${mi} ${step.pendingCancel ? '' : 'is-danger'}`} disabled={busy}
@@ -1321,6 +1349,12 @@ export default function OnboardingTab({
           title="מייל עם מה שממתין לו, או קישור לדף האישי לשליחה בוואטסאפ">
           שלח ללקוח
         </button>
+        {/* ‼ מאז שהתפריט במנוחה קטן (הערה + הסרה בלבד), מצב העריכה הוא הדרך
+            היחידה אל דלג/חסום/תבניות — ולכן הכפתור חייב להופיע גם במסך הזה. */}
+        <button type="button" className={`btn btn-sm ${editing ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={() => setEditing(v => !v)}>
+          {editing ? 'סיום עריכה' : 'עריכת הבקשות'}
+        </button>
         {/* ‼ סגירת קליטה היא החלטה ולא תוצר לוואי. השרת בודק את התנאים
             ואומר מה חסר; לכפות אפשר, אבל עם סיבה שנרשמת ביומן. */}
         {activeEngagement?.status === 'onboarding' && (
@@ -1505,7 +1539,12 @@ export default function OnboardingTab({
            יורדים לתוכו ככרטיסי-המשך — בדיוק כמו בקשה תלויה. כך "פתיחת חשבון
            פייפרלס" ו"הרשאה לחיוב חודשי" נקראות כשלב ובן-שלב, ולא כשתי שורות. */
         const renderRow = (row: ClientFacingRow): React.ReactNode => {
-          const rest = row.members.filter(m => m.id !== row.primary.id);
+          // ‼ "פרטי הרו״ח הקודם" אינה כרטיס במסך המשרד — מצבה מוצג בתוך כרטיס
+          // המכתב עצמו (הכרעת גיא 2026-08-18: כרטיס אחד למסלול). בדף הלקוח
+          // היא ממשיכה להופיע כרגיל. אם המכתב בוטל והיא נשארה לבד — היא
+          // ה-primary ואז כן מוצגת, אחרת אין למסלול שום ייצוג על המסך.
+          const rest = row.members.filter(m =>
+            m.id !== row.primary.id && m.stepType !== 'prev_accountant_details');
           const nestedNodes = [
             ...rest.map(m => renderStep(m)),
             ...row.children.map(c => renderRow(c)),
@@ -2783,7 +2822,10 @@ function ReleaseStepCard(p: ReleaseCardProps) {
   const sent = !!sentAt;
   const locked = step.status === 'locked';
   const closed = step.status === 'completed' || step.status === 'verified';
-  const canPrepare = !!p.onPrepare && email !== '' && !locked;
+  // ‼ עריכת המכתב פתוחה תמיד — גם בלי אימייל וגם כשהשלב נעול. רק השליחה
+  // עצמה דורשת כתובת (הכרעת גיא 2026-08-18: "במקביל אני יכול כבר לערוך").
+  const canPrepare = !!p.onPrepare;
+  const detailsOpen = !!p.detailsStep && isStepOpen(p.detailsStep.status);
   /**
    * ‼ המכתב נסגר (נחתם) אבל החומרים עדיין נאספים — וזה בדיוק הזמן שבו מתברר
    * שחסר עוד משהו. הרשימה נשארת פתוחה לעריכה כל עוד מעקב החומרים פתוח.
@@ -2958,12 +3000,25 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                 {prevAccountant?.name && <strong>{prevAccountant.name}</strong>}
                 {email && <span dir="ltr">{email}</span>}
                 {prevAccountant?.phone && <span dir="ltr">{prevAccountant.phone}</span>}
-                {!prevAccountant?.name && !email && !prevAccountant?.phone && (
+                {!prevAccountant?.name && !email && !prevAccountant?.phone && !detailsOpen && (
                   <span style={{ color: 'var(--err)' }}>עדיין אין פרטים — בלי אימייל אי אפשר לשלוח.</span>
                 )}
               </div>
             )}
-            {!email && !editingDetails && (prevAccountant?.name || prevAccountant?.phone) && (
+            {/* ‼ הבקשה מהלקוח אינה כרטיס נפרד — מצבה חי כאן, בתוך הבלוק.
+                כשהיא פתוחה אין "חסר" ואין אדום: מישהו כבר עובד על זה. */}
+            {detailsOpen && !email && !editingDetails && (
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
+                ביקשנו מ{client.firstName || 'הלקוח'} את הפרטים — ממתין.
+                אפשר לערוך את המכתב בינתיים; השליחה תיפתח כשיהיה אימייל.
+              </div>
+            )}
+            {detailsOpen && email !== '' && !editingDetails && (
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
+                {client.firstName || 'הלקוח'} התבקש/ה לאשר שהפרטים עדכניים.
+              </div>
+            )}
+            {!email && !editingDetails && !detailsOpen && (prevAccountant?.name || prevAccountant?.phone) && (
               <div className="ob-hand-warn">חסר אימייל — בלעדיו אי אפשר לשלוח את המכתב.</div>
             )}
           </div>
@@ -3111,12 +3166,12 @@ function ReleaseStepCard(p: ReleaseCardProps) {
               {!closed && (
                 <>
                   <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !canPrepare}
-                    title={locked ? 'השלב ממתין לפרטי הרו״ח הקודם' : email ? undefined : 'חסרה כתובת מייל'}
                     onClick={() => p.onPrepare?.('letter')}>
                     תצוגה ועריכת המכתב
                   </button>
-                  <button type="button" className="btn btn-sm btn-primary" disabled={busy || !canPrepare}
-                    title={email ? undefined : 'חסרה כתובת מייל של הרו״ח הקודם'}
+                  <button type="button" className="btn btn-sm btn-primary"
+                    disabled={busy || !canPrepare || !email}
+                    title={email ? undefined : 'השליחה תיפתח כשיהיה אימייל של הרו״ח הקודם'}
                     onClick={() => p.onPrepare?.('letter')}>
                     {sent ? 'שלח מכתב שוב' : 'שלח לרו״ח הקודם'}
                   </button>
@@ -3134,7 +3189,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
       }>
       {locked && (
         <div style={{ ...cardNote, color: 'var(--warn)' }}>
-          השלב ממתין לפרטי הרו״ח הקודם.
+          השליחה ממתינה לפרטי הרו״ח הקודם — המכתב והרשימה פתוחים לעריכה כבר עכשיו.
           {email && (
             <button type="button" className="btn btn-sm btn-secondary" style={{ marginInlineStart: '.4rem' }}
               disabled={busy || saving || !p.detailsStep}

@@ -62,6 +62,11 @@ export interface PortalItem {
    * ולכן כרטיס בלי שום פקד: אין לנו מה לאמת, ואישור-דמה היה מידע כוזב.
    */
   kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info';
+  /**
+   * פרטי הרו״ח הקודם שכבר בכרטיס — מילוי-מראש לאישור. כמו businessName:
+   * מקור האמת הוא הכרטיס, ומה שהלקוח שולח חוזר אליו (וגובר, מיגרציה 115).
+   */
+  prefill?: { name?: string; email?: string; phone?: string };
   /** חומר עזר של המשרד — הקובץ העדכני, נפתר בשרת בכל טעינה. */
   resourceUrl?: string;
   resourceKey?: string;
@@ -497,7 +502,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
       {open && inPage && item.kind === 'prev_accountant' && item.actionValue && (
         <div style={{ borderTop: `1px dashed ${brand.border}`, paddingTop: 8, marginTop: 12 }}>
           <PrevAccountantForm token={token} stepId={item.actionValue}
-            brand={brand} accent={accent} onDone={onDone} />
+            prefill={item.prefill} brand={brand} accent={accent} onDone={onDone} />
         </div>
       )}
     </div>
@@ -764,14 +769,17 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
 }
 
 /** טופס פרטי הרו"ח הקודם — הדבר היחיד שהלקוח כותב ישירות מהדף האישי. */
-function PrevAccountantForm({ token, stepId, brand, accent, onDone }: {
+function PrevAccountantForm({ token, stepId, prefill, brand, accent, onDone }: {
   token: string; stepId: string;
+  prefill?: { name?: string; email?: string; phone?: string };
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  // הפרטים שכבר בכרטיס ממולאים מראש — הלקוח מאשר או מתקן, לא מקליד מאפס.
+  const [name, setName] = useState(prefill?.name ?? '');
+  const [email, setEmail] = useState(prefill?.email ?? '');
+  const [phone, setPhone] = useState(prefill?.phone ?? '');
+  const hasPrefill = !!(prefill?.name || prefill?.email || prefill?.phone);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -807,7 +815,7 @@ function PrevAccountantForm({ token, stepId, brand, accent, onDone }: {
         justifySelf: 'start', border: 'none', cursor: 'pointer',
         fontSize: 13.5, fontWeight: 600, padding: '9px 20px',
         color: '#fff', background: accent, borderRadius: brand.radius,
-      }}>{busy ? 'שומר…' : 'שליחה'}</button>
+      }}>{busy ? 'שומר…' : hasPrefill ? 'הפרטים נכונים — אישור' : 'שליחה'}</button>
     </div>
   );
 }
