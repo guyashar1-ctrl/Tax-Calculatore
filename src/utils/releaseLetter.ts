@@ -118,6 +118,13 @@ export interface ReleaseOptions {
    * הייצוג (הקודם נשאר ראשי עד ההגשה) — אוטומטית, בלי שאלה נוספת למשרד.
    */
   outstandingItems?: TransitionOutstandingItem[];
+  /**
+   * האם הלקוח מכותב בפועל. ‼ ברירת המחדל היא כן, וזה גם מה שקורה תמיד כשיש
+   * מייל בכרטיס — הלקוח הוא זה שמעביר את הטיפול, ולא נכון שיגלה על המכתב
+   * בדיעבד. השדה קיים כדי שהמשפט "הלקוח מכותב" לא ייכתב כשאין מייל ולא נשלח
+   * עותק: מכתב שמצהיר על כיתוב שלא קרה מטעה את הרו"ח הקודם.
+   */
+  ccClient?: boolean;
 }
 
 export function defaultReleaseSubject(ctx: ReleaseContext): string {
@@ -243,12 +250,15 @@ export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: 
     'בהתאם לכלל 16 לכללי ההתנהגות המקצועית של לשכת רואי חשבון בישראל — ' +
     'אם קיימת מניעה או הסתייגות להעברת התיק, נודה לעדכון במייל חוזר ' +
     'בתוך כ־3 ימי עסקים.',
-    '',
-    'הלקוח מכותב למכתב זה.',
-    '',
-    'בברכה,',
-    firmName,
-  );
+    '');
+
+  // ‼ נכתב רק כשהעותק באמת יוצא: המשפט הזה הוא הצהרה לרו"ח הקודם שהלקוח
+  // יודע על המכתב, ומכתב שמצהיר על כיתוב שלא קרה מטעה אותו.
+  if (opts.ccClient !== false) {
+    lines.push('הלקוח מכותב למכתב זה.', '');
+  }
+
+  lines.push('בברכה,', firmName);
 
   return lines.join('\n');
 }
@@ -371,12 +381,14 @@ export function readReleaseDraft(
   const subject = typeof d.subject === 'string' && d.subject.trim() ? d.subject : base.subject;
   // נוסח שנערך ידנית נשמר כלשונו; נוסח שלא נגעו בו נבנה מחדש מהשדות ששמורים,
   // כדי שפריט שנוסף בכרטיס יופיע במכתב בלי שיצטרכו לפתוח אותו.
+  // ‼ הכיתוב ללקוח אינו נקרא מהטיוטה יותר (הכרעת גיא 2026-08-18): הלקוח מכותב
+  // תמיד כשיש לו מייל בכרטיס. טיוטה ישנה ששמרה false לא תשתיק אותו בשקט.
+  const ccClient = true;
   const body = bodyEdited && typeof d.body === 'string' && d.body.trim()
     ? d.body
-    : defaultReleaseBody(ctx, firmName, { lastPeriodPrev, materials, outstandingItems });
+    : defaultReleaseBody(ctx, firmName, { lastPeriodPrev, materials, outstandingItems, ccClient });
   return {
-    materials, lastPeriodPrev, outstandingItems,
-    ccClient: d.ccClient === undefined ? true : !!d.ccClient,
+    materials, lastPeriodPrev, outstandingItems, ccClient,
     subject, body, bodyEdited,
   };
 }

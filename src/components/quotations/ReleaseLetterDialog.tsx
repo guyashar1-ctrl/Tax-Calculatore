@@ -90,7 +90,10 @@ export default function ReleaseLetterDialog({
   const ctx = { clientName, businessName, prevAccountantName: prevAccountant.name };
 
   const [toEmail, setToEmail] = useState(prevAccountant.email ?? '');
-  const [ccClient, setCcClient] = useState(draft?.ccClient ?? true);
+  // ‼ הלקוח מכותב תמיד (הכרעת גיא 2026-08-18) — זה לא בחירה של המשרד: הוא
+  // זה שמעביר את הטיפול, ולא נכון שיגלה על המכתב בדיעבד. נגזר מהמייל בכרטיס
+  // ולא ממצב שאפשר לכבות; בלי מייל אין למי לשלוח, והמכתב גם לא יצהיר שיש.
+  const ccClient = !!clientEmail?.trim();
   const [lastPeriodPrev, setLastPeriodPrev] = useState(draft?.lastPeriodPrev || todayISO().slice(0, 7));
   const [materials, setMaterials] = useState<ReleaseMaterial[]>(
     (draft?.materials ?? RELEASE_MATERIALS).map(m => ({ ...m })));
@@ -105,6 +108,7 @@ export default function ReleaseLetterDialog({
     lastPeriodPrev: o?.lastPeriodPrev ?? lastPeriodPrev,
     materials: o?.materials ?? materials,
     outstandingItems: o?.outstandingItems ?? outstandingItems,
+    ccClient,
   });
 
   const [subject, setSubject] = useState(
@@ -374,15 +378,23 @@ export default function ReleaseLetterDialog({
             )}
           </div>
 
-          <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" checked={ccClient} disabled={locked || !clientEmail}
-              onChange={e => setCcClient(e.target.checked)} />
-            <span>
-              לשלוח עותק ל{clientName}
-              {clientEmail ? <span dir="ltr" style={{ color: 'var(--gray-500)' }}> ({clientEmail})</span>
-                           : <span style={{ color: 'var(--err)' }}> — אין מייל בכרטיס</span>}
-            </span>
-          </label>
+          {/* ‼ הכיתוב ללקוח אינו בחירה: הוא זה שמעביר את הטיפול, והמכתב מצהיר
+              על כך בפני הרו״ח הקודם. בלי מייל בכרטיס אין עותק — ואז גם המשפט
+              "הלקוח מכותב" יורד מהנוסח, כדי שלא נצהיר על משהו שלא קרה. */}
+          {ccClient ? (
+            <div style={{ ...label, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span aria-hidden="true">✓</span>
+              <span>
+                עותק יישלח ל{clientName}
+                <span dir="ltr" style={{ color: 'var(--gray-500)' }}> ({clientEmail})</span>
+              </span>
+            </div>
+          ) : (
+            <div className="alert alert-warning" style={{ fontSize: 12.5 }}>
+              אין מייל של {clientName} בכרטיס — המכתב ייצא בלי עותק ללקוח,
+              והמשפט "הלקוח מכותב למכתב זה" לא ייכלל בו. כדאי להוסיף מייל בכרטיס לפני השליחה.
+            </div>
+          )}
 
           {followUp ? (
             <fieldset style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: '8px 10px' }}>
