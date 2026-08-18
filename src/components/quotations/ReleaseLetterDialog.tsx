@@ -11,7 +11,7 @@
 //
 // אחרי שליחה מוצלחת המייל נשמר כ-PDF במסמכי הלקוח — רואים בדיוק מה נשלח ולמי.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { edgeFunctionError } from '../../utils/functionError';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
@@ -20,6 +20,7 @@ import type { ReleaseDraft, ReleaseMaterial } from '../../utils/releaseLetter';
 import {
   RELEASE_MATERIALS, defaultReleaseSubject, defaultReleaseBody,
   buildReleaseEmailHtml, generateReleaseEmailPdf, followUpBody, followUpSubject,
+  HIGHLIGHT_MARK, hasHighlightMarks, stripHighlightMarks,
 } from '../../utils/releaseLetter';
 
 interface Props {
@@ -34,7 +35,7 @@ interface Props {
     materialKeys: string[]; objectionDueDate: string;
     /** הפריטים שנשלחו בפועל, עם הניסוח הסופי — כולל פריטים שהמשרד הוסיף
      *  או ניסח מחדש. צ'קליסט המעקב נבנה מהם, ולא מהרשימה הקבועה. */
-    materials?: { key: string; label: string; optional?: boolean }[];
+    materials?: { key: string; label: string; optional?: boolean; priority?: boolean }[];
     /** הנוסח הסופי והטוקן — כדי שדף הרו"ח הקודם יציג בדיוק את מה שנשלח. */
     subject?: string; body?: string; releaseToken?: string;
     /** הנמען בפועל, והטיוטה כפי שהייתה ברגע השליחה. */
@@ -147,6 +148,52 @@ export default function ReleaseLetterDialog({
   const removeMaterial = (key: string) =>
     applyMaterials(materials.filter(m => m.key !== key));
 
+  /** סימון "חשוב במיוחד". הנוסח נבנה מחדש כדי שהפריט יעלה לראש הרשימה במכתב. */
+  const togglePriority = (key: string) =>
+    applyMaterials(materials.map(m => (
+      m.key === key ? { ...m, priority: !m.priority } : m)));
+
+  /* ── מרקר על קטע נבחר ─────────────────────────────────────────────────────
+     ‼ לא עורך עשיר: הסימון הוא זוג `==` סביב הבחירה, והמכתב נשאר טקסט פשוט
+     בכל מקום שהוא נשמר. לחיצה על קטע שכבר מובלט מסירה את הסימון. */
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+
+  function toggleHighlight() {
+    const el = bodyRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    if (start === end) {
+      setNotice({ kind: 'err', text: 'צריך לסמן קודם את הקטע שרוצים להדגיש.' });
+      return;
+    }
+    const before = body.slice(0, start);
+    const sel = body.slice(start, end);
+    const after = body.slice(end);
+    // כבר מובלט — בתוך הבחירה או מסביבה: מסירים.
+    const wrapped = before.endsWith(HIGHLIGHT_MARK) && after.startsWith(HIGHLIGHT_MARK);
+    let next: string;
+    let caret: [number, number];
+    if (wrapped) {
+      next = before.slice(0, -2) + sel + after.slice(2);
+      caret = [start - 2, end - 2];
+    } else if (hasHighlightMarks(sel)) {
+      const cleaned = stripHighlightMarks(sel);
+      next = before + cleaned + after;
+      caret = [start, start + cleaned.length];
+    } else {
+      // ‼ סימון חייב להיות בתוך שורה אחת — מרקר שחוצה שורות אינו מרונדר.
+      const marked = sel.split('\n')
+        .map(l => (l.trim() ? `${HIGHLIGHT_MARK}${l}${HIGHLIGHT_MARK}` : l)).join('\n');
+      next = before + marked + after;
+      caret = [start, start + marked.length];
+    }
+    setBody(next);
+    setEdited(true);
+    setNotice(null);
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(caret[0], caret[1]); });
+  }
+
   function moveMaterial(key: string, dir: -1 | 1) {
     const i = materials.findIndex(m => m.key === key);
     const j = i + dir;
@@ -180,12 +227,20 @@ export default function ReleaseLetterDialog({
         const { data: mint } = await supabase.rpc('mint_release_token', { p_step_id: stepId });
         releaseToken = (mint as { ok?: boolean; token?: string } | null)?.token;
       }
-      const linkLine = followUp ? 'להעלאת החומרים — אותו קישור:' : 'לאישור השחרור ולהעלאת החומרים:';
-      const finalBody = releaseToken
-        ? `${body}\n\n${linkLine}\n${window.location.origin}/?release=${releaseToken}`
-        : body;
+      // ‼ הקישור הוא הכפתור הראשי של המייל, ולא שורת טקסט בסוף המכתב. הכיתוב
+      // "לאישור השחרור" ירד יחד עם דרישת החתימה — הפעולה היא העברת החומרים.
+      // ‼ הגוף נשאר נקי מהקישור: הוא מה שנשמר כראיה ומה שמוצג בדף הנמען,
+      // וכתובת ארוכה בתוכו הייתה נקראת שם כרעש.
+      const uploadUrl = releaseToken
+        ? `${window.location.origin}/?release=${releaseToken}`
+        : undefined;
+      const finalBody = body;
 
-      const html = buildReleaseEmailHtml(finalBody, brand);
+      const html = buildReleaseEmailHtml(finalBody, brand, {
+        uploadUrl,
+        materials,
+        heading: followUp ? 'תוספת לבקשת החומרים' : `העברת חומרים — ${clientName}`,
+      });
       const { data: res, error } = await supabase.functions.invoke('send-release-email', {
         body: { clientId, to: toEmail.trim(), ccClient: wantsCc, subject, html },
       });
@@ -201,6 +256,7 @@ export default function ReleaseLetterDialog({
       const dateStr = new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
       const pdf = await generateReleaseEmailPdf({
         from: res.from || fromLabel, to: toEmail.trim(), date: dateStr, subject, bodyText: finalBody,
+        uploadUrl,
       }, brand);
       const docId = crypto.randomUUID();
       const docTitle = followUp ? 'תוספת לבקשת החומרים — רו״ח קודם' : 'מכתב שחרור — רו״ח קודם';
@@ -224,7 +280,11 @@ export default function ReleaseLetterDialog({
       onSent?.({
         materialKeys: materials.filter(m => m.checked).map(m => m.key),
         materials: materials.filter(m => m.checked && m.label.trim())
-          .map(m => ({ key: m.key, label: m.label.trim(), ...(m.optional ? { optional: true } : {}) })),
+          .map(m => ({
+            key: m.key, label: m.label.trim(),
+            ...(m.optional ? { optional: true } : {}),
+            ...(m.priority ? { priority: true } : {}),
+          })),
         objectionDueDate: addBusinessDays(new Date(), 3),
         subject, body: finalBody, releaseToken,
         to: toEmail.trim(),
@@ -303,6 +363,19 @@ export default function ReleaseLetterDialog({
                   {m.optional && (
                     <span style={{ fontSize: 11, color: 'var(--gray-500)', flexShrink: 0 }}>רשות</span>
                   )}
+                  {/* ‼ "חשוב במיוחד" הוא עדיפות תקשורתית בלבד — הפריט עולה
+                      לראש הרשימה ומקבל תג מאופק. שאר הפריטים נשארים מבוקשים
+                      בדיוק כמו קודם. פריט רשות אינו יכול להיות חשוב. */}
+                  {!m.optional && (
+                    <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
+                      aria-label={m.priority ? `ביטול סימון חשוב: ${m.label}` : `סימון כחשוב: ${m.label}`}
+                      aria-pressed={!!m.priority}
+                      title={m.priority ? 'חשוב במיוחד — יופיע ראשון ומודגש' : 'סימון כחשוב במיוחד'}
+                      style={{ padding: '0 .25rem', flexShrink: 0, opacity: m.priority ? 1 : .4 }}
+                      onClick={() => togglePriority(m.key)}>
+                      {m.priority ? '★' : '☆'}
+                    </button>
+                  )}
                   <button type="button" className="btn btn-sm btn-ghost" disabled={locked || i === 0}
                     aria-label="העלאה" title="העלאה" style={{ padding: '0 .25rem' }}
                     onClick={() => moveMaterial(m.key, -1)}>↑</button>
@@ -344,6 +417,11 @@ export default function ReleaseLetterDialog({
           <label style={label}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {followUp ? 'תוכן ההודעה' : 'תוכן המכתב'}
+              <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
+                onClick={toggleHighlight}
+                title="מסמנים קטע בטקסט ולוחצים — הוא יופיע עם הדגשה צהובה">
+                <span style={{ background: '#fdf3c4', padding: '0 5px', borderRadius: 3 }}>מרקר</span>
+              </button>
               {edited && !followUp && (
                 <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
                   onClick={() => { setEdited(false); setBody(compose()); }}>
@@ -351,9 +429,14 @@ export default function ReleaseLetterDialog({
                 </button>
               )}
             </span>
-            <textarea rows={14} value={body} disabled={locked}
+            <textarea ref={bodyRef} rows={14} value={body} disabled={locked}
               onChange={e => { setBody(e.target.value); setEdited(true); }}
               style={{ marginTop: 4, width: '100%', lineHeight: 1.7 }} />
+            {hasHighlightMarks(body) && (
+              <span style={{ fontSize: 11.5, color: 'var(--gray-500)' }}>
+                הקטעים שבין <code>==</code> יופיעו מודגשים בצהוב אצל הנמען.
+              </span>
+            )}
           </label>
 
           {notice && (

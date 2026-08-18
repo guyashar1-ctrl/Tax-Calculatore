@@ -51,6 +51,13 @@ Deno.serve(async (req: Request) => {
     const itemKey = String(form.get("itemKey") || "");
     const file = form.get("file");
 
+    // ‼ העלאה מרוכזת מדף הרו"ח הקודם: הוא שולח את מה שיש לו, בלי לשייך כל
+    // קובץ לפריט מבוקש (הכרעת גיא 2026-08-18 — הוא אינו המשתמש שלנו ואינו
+    // צריך לנהל את המעקב הפנימי שלנו). הקובץ נשמר ונרשם, ו**שום פריט אינו
+    // מסומן כהתקבל** — השיוך נעשה בהצהרה שלו או בסימון של המשרד.
+    const BULK_KEY = "__unfiled__";
+    const isBulk = tokenKind === "release" && itemKey === BULK_KEY;
+
     if (!token) return json({ error: "missing_token" }, 400);
     if (!stepId) return json({ error: "missing_step" }, 400);
     if (!itemKey) return json({ error: "missing_item" }, 400);
@@ -113,8 +120,8 @@ Deno.serve(async (req: Request) => {
     const payload = (step.payload || {}) as Record<string, unknown>;
     const listKey = step.step_type === "custom_request" ? "requirements" : "checklist";
     const list = Array.isArray(payload[listKey]) ? [...(payload[listKey] as any[])] : [];
-    const idx = list.findIndex((x) => x?.key === itemKey);
-    if (idx < 0) return json({ error: "item_not_found" }, 404);
+    const idx = isBulk ? -1 : list.findIndex((x) => x?.key === itemKey);
+    if (!isBulk && idx < 0) return json({ error: "item_not_found" }, 404);
     const itemKind = String(list[idx]?.kind ?? "");
     // ‼ "חומר נוסף לפי שיקול דעתך" — פריט רשות: אינו נסגר בהעלאה הראשונה
     // (אפשר להוסיף עוד), ואינו נספר במה שחסר. אחרת בקשה פתוחה הייתה הופכת
@@ -129,7 +136,7 @@ Deno.serve(async (req: Request) => {
     if (itemKind === "files" && maxFiles > 0 && priorIds.length >= maxFiles) {
       return json({ error: "max_files_reached", maxFiles }, 409);
     }
-    const itemLabel = String(list[idx]?.label || itemKey);
+    const itemLabel = isBulk ? "חומרים מהרו״ח הקודם" : String(list[idx]?.label || itemKey);
 
     // ── שמירה ב-Storage ואז ברשומת המסמכים ───────────────────────────────────
     const docId = crypto.randomUUID();
@@ -154,6 +161,8 @@ Deno.serve(async (req: Request) => {
       category: tokenKind === "release" ? "business_document" : (CATEGORY_BY_KEY[itemKey] || "other"),
       year: String(payload?.documentYear ?? "general"),
       label_id: payload?.documentLabelId ?? null,
+      // ‼ בהעלאה מרוכזת itemLabel הוא "חומרים מהרו״ח הקודם" ולא שם פריט —
+      // הקובץ לא נענה לבקשה מסוימת, ובתיק המסמכים אסור שייראה כאילו כן.
       description: itemLabel,
       notes: `הועלה על ידי ${source} מהדף הציבורי`,
       status: "received",
@@ -170,6 +179,43 @@ Deno.serve(async (req: Request) => {
       await admin.from("document_task_links").insert({
         user_id: step.user_id, document_id: docId, task_id: payload.linkedTaskId,
       }).select().maybeSingle();
+    }
+
+    // ── העלאה מרוכזת: נרשמת, ולא מסמנת כלום ─────────────────────────────────
+    // ‼ הגבול המרכזי של המהלך הזה. קובץ שהגיע בלי שיוך אינו יכול לסגור פריט
+    // מבוקש — ובוודאי לא את השלב — כי איש לא אמר איזה פריט הוא. מה שחסר
+    // נשאר חסר עד שמישהו (הנמען בהצהרה, או המשרד) יאמר אחרת.
+    if (isBulk) {
+      const bulk = Array.isArray(payload.bulkUploads) ? [...(payload.bulkUploads as any[])] : [];
+      bulk.push({ documentId: docId, fileName: file.name || "קובץ", at: new Date().toISOString() });
+      const bulkPatch: Record<string, unknown> = { payload: { ...payload, bulkUploads: bulk } };
+      if (step.status === "locked" || step.status === "pending") bulkPatch.status = "in_progress";
+      await admin.from("onboarding_steps").update(bulkPatch).eq("id", stepId);
+
+      await admin.rpc("log_onboarding_event", {
+        p_user_id: step.user_id,
+        p_step_id: stepId,
+        p_engagement_id: step.engagement_id,
+        p_type: "note",
+        p_actor: "system",
+        p_note: `רואה החשבון הקודם העלה קובץ: ${file.name || "קובץ"}`,
+        p_meta: { documentId: docId, unfiled: true, totalUnfiled: bulk.length },
+      });
+
+      const { data: bulkCli } = await admin
+        .from("clients").select("first_name, last_name").eq("id", clientId).maybeSingle();
+      await admin.rpc("queue_accountant_notification", {
+        p_user_id: step.user_id,
+        p_kind: "prev_accountant_document_uploaded",
+        p_client_id: clientId,
+        p_step_id: stepId,
+        p_payload: {
+          clientName: [bulkCli?.first_name, bulkCli?.last_name].filter(Boolean).join(" "),
+          requestTitle: "חומרים מהרו״ח הקודם",
+          lastItem: file.name || "קובץ",
+        },
+      });
+      return json({ ok: true, documentId: docId, unfiled: true, totalUnfiled: bulk.length });
     }
 
     // ── סימון הפריט ועדכון השלב ──────────────────────────────────────────────

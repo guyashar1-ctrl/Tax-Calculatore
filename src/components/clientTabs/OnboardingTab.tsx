@@ -28,7 +28,7 @@ import { flushAccountantNotifications } from '../../lib/notifyAccountant';
 import { supabase } from '../../lib/supabase';
 import { clientFromDb } from '../../lib/dbMappers';
 import {
-  RELEASE_MATERIALS, isOptionalMaterialKey, materialsFromStored,
+  RELEASE_MATERIALS, isOptionalMaterialKey, materialsFromStored, byPriorityFirst,
 } from '../../utils/releaseLetter';
 import { useAuth } from '../../hooks/useAuth';
 import type { DocCategory } from '../../hooks/useDocumentStore';
@@ -2761,6 +2761,21 @@ function KycStepCard({ step, stepById, clientId, busy, highlight, onRun, menu }:
 // תשובה, הושלם — אבל אין לו מכונת מצבים משלו: כל אחד מהמצבים האלה הוא
 // סטטוס גנרי קיים של שלב. הכדור אצל הרו"ח הקודם הוא שהופך "ממתין" ל"נשלח".
 
+/**
+ * חלון ההתייחסות עבר בשקט — ואיש לא הודיע על מניעה.
+ * ‼ תצוגה בלבד, נגזרת מהתאריך ומהיעדר תגובה. אינה סוגרת את השלב ואינה מחליפה
+ * החלטה של הרו"ח — היא רק אומרת בקול את מה שכללי הסגירה כבר יודעים
+ * (isStepSatisfiedForClose): מכתב שחלון ההתייחסות שלו עבר נחשב מסופק.
+ */
+function objectionWindowPassed(step: OnboardingStep): boolean {
+  const due = step.payload.objectionDueDate;
+  if (!due || !step.payload.releaseSentAt) return false;
+  if (step.payload.prevAccountantResponseNote) return false;
+  const end = new Date(due);
+  if (Number.isNaN(end.getTime())) return false;
+  return end < new Date(new Date().toDateString());
+}
+
 /** תרגום הסטטוס הגנרי לשפה של מסלול השחרור. */
 function releaseStatusLabel(step: OnboardingStep, hasEmail: boolean): string {
   const sentAt = step.payload.releaseSentAt;
@@ -2768,7 +2783,11 @@ function releaseStatusLabel(step: OnboardingStep, hasEmail: boolean): string {
   switch (step.status) {
     case 'pending':
     case 'in_progress':    return sentAt ? 'נשלח' : (hasEmail ? 'טיוטה · טרם נשלח' : 'טיוטה');
-    case 'waiting_client': return responded ? 'התקבלה תגובה' : 'נשלח · ממתין לרו״ח הקודם';
+    case 'waiting_client':
+      if (responded) return 'התקבלה תגובה';
+      return objectionWindowPassed(step)
+        ? 'עבר חלון ההתייחסות ללא מניעה'
+        : 'נשלח · ממתין לרו״ח הקודם';
     case 'completed':      return 'התקבלה תגובה';
     case 'verified':       return 'הושלם';
     default:               return STEP_STATUS_LABELS[step.status];
@@ -2784,6 +2803,10 @@ interface HandoffItem {
   uploads: number;
   addedAfterSend?: boolean;
   notifiedAt?: string;
+  /** חשוב במיוחד — ראשון ברשימה, ותג מאופק. אינו מחליש את השאר. */
+  priority?: boolean;
+  /** סומן על סמך הצהרת הרו"ח הקודם ("מה כלל המשלוח") ולא בהעלאה שקושרה לפריט. */
+  declaredByRecipient?: boolean;
 }
 
 interface ReleaseCardProps {
@@ -2853,27 +2876,34 @@ function ReleaseStepCard(p: ReleaseCardProps) {
       ?? RELEASE_MATERIALS.map(m => ({ ...m })),
     [step.payload.releaseDraft]);
 
+  // ‼ חשובים ראשונים — אותו סדר בדיוק שהנמען רואה במייל ובדף (השרת ממיין
+  // באותו כלל). שלושה מקומות שמציגים סדר שונה היו שלושה מקורות אמת.
   const items: HandoffItem[] = useMemo(() => {
-    if (sent && materialsStep) {
-      return (materialsStep.payload.checklist ?? []).map(i => ({
-        key: i.key,
-        label: i.label,
-        done: !!i.done,
-        optional: i.optional || isOptionalMaterialKey(i.key),
-        uploads: (i.documentIds?.length ?? 0) || (i.documentId ? 1 : 0),
-        addedAfterSend: i.addedAfterSend,
-        notifiedAt: typeof i.notifiedAt === 'string' ? i.notifiedAt : undefined,
-      }));
-    }
-    return draftMaterials.filter(m => m.checked).map(m => ({
-      key: m.key, label: m.label, done: false,
-      optional: m.optional || isOptionalMaterialKey(m.key), uploads: 0,
-    }));
+    const rows: HandoffItem[] = (sent && materialsStep)
+      ? (materialsStep.payload.checklist ?? []).map(i => ({
+          key: i.key,
+          label: i.label,
+          done: !!i.done,
+          optional: i.optional || isOptionalMaterialKey(i.key),
+          uploads: (i.documentIds?.length ?? 0) || (i.documentId ? 1 : 0),
+          addedAfterSend: i.addedAfterSend,
+          notifiedAt: typeof i.notifiedAt === 'string' ? i.notifiedAt : undefined,
+          priority: i.priority,
+          declaredByRecipient: i.declaredByRecipient,
+        }))
+      : draftMaterials.filter(m => m.checked).map(m => ({
+          key: m.key, label: m.label, done: false,
+          optional: m.optional || isOptionalMaterialKey(m.key), uploads: 0,
+          priority: m.priority,
+        }));
+    return byPriorityFirst(rows);
   }, [sent, materialsStep, draftMaterials]);
 
   const required = items.filter(i => !i.optional);
   const receivedCount = required.filter(i => i.done).length;
   const pendingFollowUp = items.filter(i => i.addedAfterSend && !i.notifiedAt);
+  /** קבצים שהרו"ח הקודם שלח בלי לשייך לפריט — הם לא סוגרים כלום מעצמם. */
+  const bulkUploads = (materialsStep?.payload.bulkUploads ?? []).length;
 
   async function persistItems(next: HandoffItem[]) {
     setCardError(null);
@@ -2886,6 +2916,11 @@ function ReleaseStepCard(p: ReleaseCardProps) {
         ...(i.optional ? { optional: true } : {}),
         ...(i.addedAfterSend ? { addedAfterSend: true } : {}),
         ...(i.notifiedAt ? { notifiedAt: i.notifiedAt } : {}),
+        priority: i.priority || undefined,
+        // ‼ סימון שהמשרד תיקן ידנית מפסיק להיות "הצהרה של הנמען": הדגל יורד
+        // כדי שהכרטיס לא ימשיך לטעון שהרו"ח הקודם אמר משהו שגיא כבר שינה.
+        declaredByRecipient: i.declaredByRecipient || undefined,
+        ...(i.done ? {} : { doneAt: undefined, documentId: undefined }),
       }));
       const res = await p.advance(materialsStep.id, 'note', { checklist });
       if (!res.ok) setCardError(res.message ?? 'השמירה נכשלה.');
@@ -2894,12 +2929,23 @@ function ReleaseStepCard(p: ReleaseCardProps) {
       // ללקוח חיים באותו אובייקט, ושמירה חלקית הייתה מוחקת אותם.
       const stored = (step.payload.releaseDraft ?? {}) as Record<string, unknown>;
       const byKey = new Map(next.map(i => [i.key, i]));
+      // ‼ priority נלקח מהשורה שנערכה ולא מהטיוטה השמורה: אחרת סימון "חשוב"
+      // לפני השליחה היה נבלע כאן בשקט (הפריט נשמר, הדגל נעלם).
       const kept = draftMaterials
         .filter(m => !m.checked || byKey.has(m.key))
-        .map(m => (byKey.has(m.key) ? { ...m, label: byKey.get(m.key)!.label, checked: true } : m));
+        .map(m => (byKey.has(m.key)
+          ? {
+              ...m, label: byKey.get(m.key)!.label, checked: true,
+              ...(byKey.get(m.key)!.priority ? { priority: true } : { priority: undefined }),
+            }
+          : m));
       const added = next
         .filter(i => !draftMaterials.some(m => m.key === i.key))
-        .map(i => ({ key: i.key, label: i.label, checked: true, ...(i.optional ? { optional: true } : {}) }));
+        .map(i => ({
+          key: i.key, label: i.label, checked: true,
+          ...(i.optional ? { optional: true } : {}),
+          ...(i.priority ? { priority: true } : {}),
+        }));
       const materials = [...kept, ...added];
       const res = await p.advance(step.id, 'note', { releaseDraft: { ...stored, materials } });
       if (!res.ok) setCardError(res.message ?? 'השמירה נכשלה.');
@@ -3036,7 +3082,25 @@ function ReleaseStepCard(p: ReleaseCardProps) {
             <ul className="ob-hand-list">
               {items.map(i => (
                 <li key={i.key} className={`ob-hand-item${i.done ? ' is-done' : ''}`}>
-                  <span className="ob-hand-mark" aria-hidden="true">{sent ? (i.done ? '✓' : '○') : '•'}</span>
+                  {/* ‼ הסימון לחיץ אחרי השליחה: חומרים מגיעים גם במייל ובוואטסאפ,
+                      והצהרה של הרו"ח הקודם היא הצהרה — גיא חייב יכולת לתקן
+                      לשני הכיוונים, בלי לחפש מסך אחר. */}
+                  {sent && itemsEditable && !i.optional ? (
+                    <button type="button" className="ob-hand-mark ob-hand-mark-btn" disabled={saving}
+                      aria-label={i.done ? `סימון ${i.label} כלא התקבל` : `סימון ${i.label} כהתקבל`}
+                      aria-pressed={i.done}
+                      title={i.declaredByRecipient
+                        ? 'סומן לפי הצהרת הרו״ח הקודם — לחיצה מבטלת'
+                        : i.done ? 'התקבל — לחיצה מבטלת' : 'סימון כהתקבל'}
+                      onClick={() => void persistItems(items.map(x =>
+                        (x.key === i.key
+                          ? { ...x, done: !x.done, declaredByRecipient: false }
+                          : x)))}>
+                      {i.done ? '✓' : '○'}
+                    </button>
+                  ) : (
+                    <span className="ob-hand-mark" aria-hidden="true">{sent ? (i.done ? '✓' : '○') : '•'}</span>
+                  )}
                   {editingKey === i.key ? (
                     <input
                       autoFocus value={draftLabel} aria-label="ניסוח הפריט" disabled={saving}
@@ -3049,13 +3113,26 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                   ) : (
                     <span className="ob-hand-label">{i.label || '—'}</span>
                   )}
+                  {i.priority && <span className="ob-hand-tag is-priority">חשוב במיוחד</span>}
                   {i.optional && <span className="ob-hand-tag">רשות</span>}
+                  {i.declaredByRecipient && <span className="ob-hand-tag">לפי הצהרתו</span>}
                   {i.addedAfterSend && !i.notifiedAt && <span className="ob-hand-tag is-new">נוסף — טרם נמסר</span>}
                   {i.optional && i.uploads > 0 && (
                     <span className="ob-hand-tag">{i.uploads} קבצים</span>
                   )}
                   {itemsEditable && editingKey !== i.key && (
                     <span className="ob-hand-rowbtns">
+                      {!i.optional && (
+                        <button type="button" disabled={saving}
+                          aria-label={i.priority ? `ביטול חשוב: ${i.label}` : `סימון כחשוב: ${i.label}`}
+                          aria-pressed={!!i.priority}
+                          title={i.priority ? 'חשוב במיוחד — מופיע ראשון' : 'סימון כחשוב במיוחד'}
+                          style={{ opacity: i.priority ? 1 : .45 }}
+                          onClick={() => void persistItems(items.map(x =>
+                            (x.key === i.key ? { ...x, priority: !x.priority } : x)))}>
+                          {i.priority ? '★' : '☆'}
+                        </button>
+                      )}
                       <button type="button" aria-label={`עריכת ${i.label}`} title="עריכה" disabled={saving}
                         onClick={() => { setEditingKey(i.key); setDraftLabel(i.label); }}>✎</button>
                       <button type="button" aria-label={`הסרת ${i.label}`} title="הסרה" disabled={saving}
@@ -3111,14 +3188,33 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                   <> · חלון התייחסות עד {formatDate(step.payload.objectionDueDate, 'list')}</>
                 )}
               </div>
-              {step.payload.prevAccountantSignedAt ? (
+              {/* ‼ לא מבקשים אישור, ולכן אין "טרם התקבל אישור" (הכרעת גיא
+                  2026-08-18). מה שנאמר כאן הוא מה שבאמת קרה: עבר חלון
+                  ההתייחסות בלי מניעה, או שהוא עדיין פתוח. חתימה שכבר נאספה
+                  בעבר ממשיכה להופיע — היסטוריה שלא נמחקת. */}
+              {step.payload.prevAccountantSignedAt && (
                 <div className="ob-hand-ok">
                   ✓ אישר/ה את ההעברה
                   {step.payload.prevAccountantSignerName && <> · {step.payload.prevAccountantSignerName}</>}
                   {' · '}{formatDate(step.payload.prevAccountantSignedAt, 'list')}
                 </div>
-              ) : (
-                <div className="ob-hand-contact" style={{ display: 'block' }}>טרם התקבל אישור.</div>
+              )}
+              {!step.payload.prevAccountantSignedAt && !step.payload.prevAccountantResponseNote && (
+                <div className="ob-hand-contact" style={{ display: 'block' }}>
+                  {objectionWindowPassed(step)
+                    ? 'עבר חלון ההתייחסות ללא מניעה.'
+                    : 'לא התקבלה מניעה. אם תגיע — היא תופיע כאן.'}
+                </div>
+              )}
+              {/* ‼ קבצים שהגיעו בלי שיוך לפריט. הם **אינם** סוגרים פריטים —
+                  ולכן השורה אומרת גם מה עדיין פתוח, כדי שלא ייווצר הרושם
+                  שהכול הגיע רק כי הגיעו קבצים. הם יושבים במסמכי הלקוח. */}
+              {bulkUploads > 0 && (
+                <div className="ob-hand-contact" style={{ display: 'block' }}>
+                  התקבלו {bulkUploads} קבצים במסמכי הלקוח
+                  {receivedCount < required.length
+                    && <> · {required.length - receivedCount} פריטים עדיין לא סומנו כהתקבלו</>}
+                </div>
               )}
               {step.payload.prevAccountantResponseNote && (
                 <div className={`ob-hand-note${step.payload.responseHandledAt ? '' : ' is-attention'}`}>

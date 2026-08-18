@@ -3202,6 +3202,17 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   background: var(--surface-2); border-radius: 999px; padding: 2px 7px; white-space: nowrap;
 }
 .ob-hand-tag.is-new { color: var(--warn); background: var(--warn-bg, #fbf3e3); }
+/* ‼ "חשוב במיוחד" — הבלטה מאופקת בלבד. אותו צהוב של המרקר במכתב, כדי ששתי
+   ההדגשות ייקראו כאותה שפה. הפריטים האחרים לא נחלשים: כולם עדיין מבוקשים. */
+.ob-hand-tag.is-priority { color: var(--ink-1); background: #fdf3c4; }
+/* סימון הקבלה לחיץ — כפתור שנראה כמו הסימן, כדי שהשורה לא תגדל. */
+.ob-hand-mark-btn {
+  appearance: none; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: 12px; line-height: 1; padding: 2px 3px;
+  border-radius: 5px; min-height: auto; color: inherit;
+}
+.ob-hand-mark-btn:hover:not(:disabled) { background: var(--surface-2); }
+.ob-hand-mark-btn:disabled { cursor: default; }
 /* פקדי השורה — דהויים במנוחה, מתעוררים בריחוף או במיקוד מקלדת. */
 .ob-hand-rowbtns { display: flex; gap: 2px; flex: 0 0 auto; opacity: .35; transition: opacity .15s ease; }
 .ob-hand-item:hover .ob-hand-rowbtns,

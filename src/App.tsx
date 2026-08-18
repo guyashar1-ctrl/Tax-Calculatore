@@ -1520,7 +1520,7 @@ export default function App() {
   function syncRequestedMaterials(
     clientId: string,
     materialKeys: string[],
-    sentMaterials?: { key: string; label: string; optional?: boolean }[],
+    sentMaterials?: { key: string; label: string; optional?: boolean; priority?: boolean }[],
   ) {
     const step = onboarding.steps.find(
       s => s.clientId === clientId && s.stepType === 'materials_received' && s.status !== 'cancelled');
@@ -1539,6 +1539,9 @@ export default function App() {
         label: m.label,
         done: m.optional ? false : (was?.done ?? false),
         ...(m.optional ? { optional: true } : {}),
+        // ‼ סימון "חשוב" נקבע במכתב שנשלח, ולכן הוא נדרס בכל שליחה — בשונה
+        // ממצב הקבלה, שנשמר. פריט שהורד מחשוב לא ישאיר תג ישן בכרטיס.
+        ...(m.priority ? { priority: true } : { priority: undefined }),
       };
     });
     void onboarding.advance(step.id, 'note', {

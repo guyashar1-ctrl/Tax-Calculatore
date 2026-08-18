@@ -220,12 +220,49 @@ export default function TestOnboarding() {
   /* ‼ שני מצבי הייצוג — פתוח (כרטיס פעיל) מול הושלם (אבן-דרך שקטה מעל
      פייפרלס). המתג הזה הוא הדרך היחידה לראות את שניהם על אותה פיקסטורה. */
   const [repDone, setRepDone] = useState(false);
-  const steps = repDone
+  /* ‼ מכתב שנשלח וחלון ההתייחסות שלו עבר בשקט — המצב שבו הכרטיס אומר
+     "עבר חלון ההתייחסות ללא מניעה" בלי שאיש לחץ על כלום. זהו גם המצב שבו
+     נבדקים סימון קבלה ידני, תג "לפי הצהרתו" ומונה הקבצים שלא שויכו. */
+  const [windowPassed, setWindowPassed] = useState(false);
+  const withRep = repDone
     ? STEPS.map(s => (s.stepType === 'representation'
         ? { ...s, status: 'completed' as const, ball: 'me' as const,
             completedAt: '2026-08-04T11:00:00Z' }
         : s))
     : STEPS;
+  const steps = windowPassed
+    ? withRep.map(s => {
+        if (s.stepType === 'release_letter') {
+          return {
+            ...s, status: 'waiting_client' as const, ball: 'prev_accountant' as const,
+            payload: {
+              ...s.payload,
+              releaseSentAt: '2026-08-05T09:00:00Z',
+              releaseSentTo: 'dana@prev-firm.example',
+              objectionDueDate: '2026-08-10',
+            },
+          };
+        }
+        if (s.stepType === 'materials_received') {
+          return {
+            ...s, status: 'in_progress' as const,
+            payload: {
+              ...s.payload,
+              checklist: [
+                { key: 'uniform_file', label: 'קובץ מבנה אחיד 2026', done: true, priority: true, declaredByRecipient: true },
+                { key: 'ledgers', label: 'כרטסות הנהלת חשבונות', done: true },
+                { key: 'trial_balance', label: 'מאזן בוחן', done: false },
+              ],
+              bulkUploads: [
+                { documentId: 'd1', fileName: 'כרטסת-2025.pdf', at: '2026-08-06T10:00:00Z' },
+                { documentId: 'd2', fileName: 'מבנה-אחיד.txt', at: '2026-08-06T10:01:00Z' },
+              ],
+            },
+          };
+        }
+        return s;
+      })
+    : withRep;
   return (
     <div style={{ padding: '1.5rem', maxWidth: 980, margin: '0 auto' }} dir="rtl">
       <h2 style={{ marginBottom: '.3rem' }}>בדיקת לשונית הקליטה — נתונים מדומים</h2>
@@ -248,6 +285,10 @@ export default function TestOnboarding() {
         <button type="button" className="btn btn-sm btn-secondary"
           onClick={() => setRepDone(v => !v)}>
           {repDone ? 'החזר את הייצוג למצב פתוח' : 'סמן את הייצוג כהושלם'}
+        </button>
+        <button type="button" className="btn btn-sm btn-secondary"
+          onClick={() => setWindowPassed(v => !v)}>
+          {windowPassed ? 'חזרה למכתב שטרם נשלח' : 'מכתב שנשלח וחלון ההתייחסות עבר'}
         </button>
       </div>
       <OnboardingTab

@@ -1,13 +1,17 @@
 // ─── דף הרו"ח הקודם (?release=TOKEN) ────────────────────────────────────────
-// מכתב השחרור נשלח אליו במייל, והקישור מוביל לכאן. כאן הוא רואה את המכתב
-// המלא, חותם עליו, ומעלה את החומרים שהתבקשו — פריט-פריט.
+// המכתב נשלח אליו במייל, והכפתור שבו מוביל לכאן.
 //
-// ‼ הכרעת גיא (2026-08-05): הלקוח אינו חותם על המכתב — הוא מכותב בלבד.
-// מי שחותם הוא הרו"ח הקודם.
+// ‼ הכרעת גיא (2026-08-18) — הרו"ח הקודם **אינו המשתמש שלנו**, ולכן הדף הזה
+// מבקש ממנו דבר אחד: לשלוח את החומרים. מה שירד מהזרימה הרגילה:
+//   · החתימה. לא מבקשים אישור ולא חתימה. מי שיש לו מניעה משיב למייל (כלל 16,
+//     כתוב במכתב עצמו). חתימות שכבר נאספו ממשיכות להופיע כהיסטוריה, והפונקציה
+//     בשרת (release_portal_sign) לא נמחקה.
+//   · ההעלאה פריט-פריט. במקומה אזור אחד: קובץ, כמה קבצים או תיקייה.
+// מה שנשאר פנימי אצלנו: צ'קליסט החומרים. הוא מוצג כאן כמידע ("מה ביקשנו"),
+// ולא כטופס שהוא צריך למלא.
 //
-// ‼ הוא לא יעלה הכול בבת אחת, וייתכן שחלק יגיע במייל. לכן הדף נשאר חי גם
-// אחרי החתימה, מקבל העלאות חלקיות לאורך שבועות, והרו"ח החדש ממשיך לסמן
-// ידנית מה שהגיע בדרך אחרת. שני הערוצים מזינים את אותה רשימה.
+// ‼ הוא לא ישלח הכול בבת אחת, וחלק יגיע במייל. הדף נשאר חי לאורך שבועות,
+// מקבל העלאות חלקיות, והמשרד ממשיך לסמן ידנית מה שהגיע בדרך אחרת.
 //
 // ‼ מיתוג המשרד, לא PIVO — כמו כל מה שגורם חיצוני רואה.
 
@@ -16,11 +20,20 @@ import { supabase } from '../lib/supabase';
 import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import { FirmBranding } from '../types/firmProfile';
 import { isOptionalMaterialKey } from '../types/onboarding';
+import { splitHighlights } from '../utils/releaseLetter';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
-import SignaturePad from './SignaturePad';
 
 interface Props {
   token: string;
+}
+
+interface ReleaseMaterialRow {
+  key: string;
+  label: string;
+  done: boolean;
+  optional?: boolean;
+  priority?: boolean;
+  uploads?: number;
 }
 
 interface ReleaseData {
@@ -32,23 +45,29 @@ interface ReleaseData {
   subject?: string;
   body?: string;
   objectionDueDate?: string;
+  objectionWindowPassed?: boolean;
+  /** היסטוריה בלבד — הזרימה הרגילה אינה מבקשת חתימה. */
   signed: boolean;
   signedAt?: string;
   signerName?: string;
-  /** הערה עניינית שכבר נמסרה (הסתייגות, התנגדות, כל דבר שצריך לדעת). */
   responseNote?: string;
   respondedAt?: string;
   responderName?: string;
   materialsStepId?: string;
-  materials: { key: string; label: string; done: boolean; optional?: boolean; uploads?: number }[];
+  materials: ReleaseMaterialRow[];
   materialsDone: number;
   materialsTotal: number;
+  /** כמה קבצים כבר הגיעו בהעלאה מרוכזת (בלי שיוך לפריט). */
+  bulkUploads?: number;
 }
 
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.xls,.xlsx,.csv,.doc,.docx';
 
 /** ‼ אותה תקרה שהשרת אוכף (portal-upload-document). כאן רק כדי לחסוך נסיעה. */
 const MAX_BYTES = 10 * 1024 * 1024;
+
+/** המפתח שאומר לשרת "הקובץ הזה לא משויך לפריט" — ראה portal-upload-document. */
+const BULK_KEY = '__unfiled__';
 
 const UPLOAD_ERRORS: Record<string, string> = {
   too_large: 'הקובץ גדול מדי — עד 10MB.',
@@ -62,19 +81,17 @@ export default function PublicReleasePage({ token }: Props) {
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey(k => k + 1);
 
-  const [signature, setSignature] = useState('');
-  const [signerName, setSignerName] = useState('');
-  const [signing, setSigning] = useState(false);
-  const [signErr, setSignErr] = useState<string | null>(null);
-  // ── הערה עניינית ──────────────────────────────────────────────────────────
-  // ‼ ניסוח ניטרלי בכוונה: הדף אינו קובע מה מותר או אסור לרו"ח הקודם, ואינו
-  // מציג כלל מקצועי כאילו הוא חוק. הוא רק פותח ערוץ מסודר לומר משהו — ושומר
-  // את מה שנאמר כראיה אצל הרו"ח החדש.
+  const [letterOpen, setLetterOpen] = useState(false);
+  // ── הערה / הסתייגות ────────────────────────────────────────────────────────
+  // ‼ ניסוח ניטרלי בכוונה: הדף אינו קובע מה מותר או אסור לרו"ח הקודם. הוא רק
+  // פותח ערוץ מסודר לומר משהו — ושומר את מה שנאמר כראיה אצל הרו"ח החדש.
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [noteName, setNoteName] = useState('');
   const [noteBusy, setNoteBusy] = useState(false);
   const [noteErr, setNoteErr] = useState<string | null>(null);
+  /** נפתח אחרי העלאה מוצלחת — ורק אז. שאלה, לא שלב חובה. */
+  const [justUploaded, setJustUploaded] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,11 +101,9 @@ export default function PublicReleasePage({ token }: Props) {
       const row = res as (ReleaseData & { ok?: boolean }) | null;
       if (error || !row?.ok) { setPhase('invalid'); return; }
       setData(row);
-      if (!signerName && row.prevAccountantName) setSignerName(row.prevAccountantName);
       setPhase('ready');
     })();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, reloadKey]);
 
   if (phase === 'loading') {
@@ -108,20 +123,6 @@ export default function PublicReleasePage({ token }: Props) {
   const brand = deriveQuotationBrand({ firmName: data.firmName, branding: data.branding } as never);
   const accent = brand.accent;
 
-  async function sign() {
-    setSignErr(null);
-    if (!signature) { setSignErr('צריך לחתום במסגרת שלמעלה.'); return; }
-    setSigning(true);
-    const { data: res, error } = await supabase.rpc('release_portal_sign', {
-      p_token: token, p_signature: signature, p_signer_name: signerName.trim() || null,
-    });
-    setSigning(false);
-    const r = res as { ok?: boolean } | null;
-    if (error || !r?.ok) { setSignErr('לא הצלחנו לשמור את החתימה. אפשר לנסות שוב.'); return; }
-    flushAccountantNotifications(token);
-    reload();
-  }
-
   async function sendNote() {
     setNoteErr(null);
     if (!noteText.trim()) { setNoteErr('צריך לכתוב את ההערה.'); return; }
@@ -138,10 +139,11 @@ export default function PublicReleasePage({ token }: Props) {
     reload();
   }
 
-  // ‼ הפריט הפתוח יורד מרשימת "מה התבקש": הוא אינו נספר בהתקדמות, אינו נסגר,
-  // ומקבל אזור העלאה משלו. ערבוב שלו ברשימה הפך אותו לדרישה.
+  // הפריט הפתוח ("חומר נוסף לפי שיקול דעתך") אינו דרישה ואינו נספר. במודל
+  // החדש הוא ממילא מיותר כשורה נפרדת — ההעלאה הראשית מקבלת כל דבר.
   const requested = data.materials.filter(m => !(m.optional || isOptionalMaterialKey(m.key)));
-  const extra = data.materials.find(m => m.optional || isOptionalMaterialKey(m.key));
+  const openItems = requested.filter(m => !m.done);
+  const receivedFiles = data.bulkUploads ?? 0;
 
   const card: React.CSSProperties = {
     background: brand.cardBg, border: `1px solid ${brand.border}`,
@@ -150,6 +152,10 @@ export default function PublicReleasePage({ token }: Props) {
   const title: React.CSSProperties = {
     fontSize: 12, fontWeight: 700, letterSpacing: '.04em',
     color: brand.muted, marginBottom: 10,
+  };
+  const quietLink: React.CSSProperties = {
+    border: 'none', background: 'none', padding: 0, cursor: 'pointer',
+    fontSize: 13, fontWeight: 600, color: accent, textDecoration: 'underline',
   };
 
   return (
@@ -160,65 +166,125 @@ export default function PublicReleasePage({ token }: Props) {
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
         <header style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{data.firmName}</div>
-          <div style={{ fontSize: 13, color: brand.muted, marginTop: 2 }}>
-            {data.subject || `שחרור תיק — ${data.clientName}`}
+          <h1 style={{ fontSize: 21, fontWeight: 700, margin: '6px 0 0', lineHeight: 1.4 }}>
+            העברת חומרים — {data.clientName}
+          </h1>
+          <div style={{ fontSize: 13.5, color: brand.muted, marginTop: 5, lineHeight: 1.7 }}>
+            {data.clientName} עובר/ת לטיפולנו. אפשר לשלוח את החומרים כאן — הכול יחד,
+            בלי למיין ובלי לסדר.
           </div>
         </header>
 
-        {/* ── המכתב ── */}
-        <section style={card}>
-          <div style={title}>המכתב</div>
-          <div style={{ fontSize: 14, lineHeight: 1.85, whiteSpace: 'pre-line' }}>
-            {data.body || `הלקוח ${data.clientName} עובר לטיפולנו. נודה לשחרור התיק ולהעברת החומרים.`}
-          </div>
-          {data.objectionDueDate && (
-            <div style={{ marginTop: 12, fontSize: 12.5, color: brand.muted }}>
-              בהתאם לכלל 16 — אם קיימת התנגדות, אפשר להשיב למייל עד {formatDate(data.objectionDueDate)}.
-            </div>
-          )}
+        {/* ── 1. הפעולה: העלאה אחת ── */}
+        <section style={{ ...card, borderColor: accent, borderWidth: 1.5 }}>
+          <div style={title}>שליחת החומרים</div>
+          <BulkUpload
+            token={token}
+            stepId={data.materialsStepId}
+            alreadyReceived={receivedFiles}
+            brand={brand}
+            accent={accent}
+            onUploaded={n => { setJustUploaded(n); reload(); }}
+          />
+          <p style={{ margin: '12px 0 0', fontSize: 12.5, color: brand.muted, lineHeight: 1.75 }}>
+            אפשר לשלוח בכמה פעמים — הקישור נשאר פעיל.
+            נוח יותר במייל? אפשר להשיב להודעה ששלחנו ולצרף את הקבצים.
+          </p>
         </section>
 
-        {/* ── התשובה ── */}
-        <section style={card}>
-          <div style={title}>התשובה שלך</div>
-          {data.signed ? (
-            <div style={{ fontSize: 14, color: brand.ink }}>
-              <span style={{ color: accent, fontWeight: 700 }}>✓ נחתם</span>
-              {data.signerName && <span> · {data.signerName}</span>}
-              {data.signedAt && <span style={{ color: brand.muted }}> · {formatDate(data.signedAt)}</span>}
+        {/* ── 2. אחרי העלאה: מה כלל המשלוח (רשות) ── */}
+        {justUploaded > 0 && openItems.length > 0 && data.materialsStepId && (
+          <WhatWasSent
+            token={token}
+            items={openItems}
+            brand={brand}
+            accent={accent}
+            onDone={() => { setJustUploaded(0); reload(); }}
+            onSkip={() => setJustUploaded(0)}
+          />
+        )}
+
+        {/* ── 3. מה ביקשנו — מידע, לא טופס ── */}
+        {data.materialsStepId && requested.length > 0 && (
+          <section style={card}>
+            <div style={title}>
+              מה ביקשנו — {requested.filter(m => m.done).length} מתוך {requested.length} סומנו כהתקבלו
             </div>
-          ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              <p style={{ margin: 0, fontSize: 13.5, color: brand.muted, lineHeight: 1.7 }}>
-                חתימה כאן מאשרת את שחרור התיק. אחרי החתימה אפשר להעלות את החומרים —
-                לא חייבים הכול בבת אחת, הדף נשאר פתוח.
-              </p>
-              <input
-                value={signerName}
-                onChange={e => setSignerName(e.target.value)}
-                placeholder="שם החותם"
-                style={{
-                  padding: '8px 10px', fontSize: 14, color: brand.ink, maxWidth: 320,
-                  border: `1px solid ${brand.border}`, borderRadius: brand.radius, background: '#fff',
-                }}
-              />
-              <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, background: '#fff' }}>
-                <SignaturePad value={signature} onChange={setSignature} height={150} />
+            <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 5 }}>
+              {requested.map(m => (
+                <li key={m.key} style={{
+                  display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13.5, lineHeight: 1.6,
+                }}>
+                  <span aria-hidden="true" style={{ color: m.done ? accent : brand.muted, flexShrink: 0 }}>
+                    {m.done ? '✓' : '○'}
+                  </span>
+                  <span style={{
+                    flex: 1, minWidth: 0,
+                    color: m.done ? brand.muted : brand.ink,
+                    fontWeight: m.priority && !m.done ? 600 : 400,
+                  }}>
+                    {m.label}
+                    {/* ‼ הבלטה מאופקת: תג קטן. שאר הפריטים לא נחלשים — כולם מבוקשים. */}
+                    {m.priority && (
+                      <span style={{
+                        marginInlineStart: 7, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                        background: '#fdf3c4', color: brand.ink, padding: '1px 7px', borderRadius: 999,
+                      }}>חשוב במיוחד</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {receivedFiles > 0 && (
+              <div style={{ marginTop: 12, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
+                התקבלו {receivedFiles} קבצים. אם משהו ברשימה עדיין מסומן כחסר ובעצם כבר נשלח —
+                אפשר להתעלם, נעבור על מה שהגיע.
               </div>
-              {signErr && <span style={{ fontSize: 12.5, color: '#a63a3a' }}>{signErr}</span>}
-              <button type="button" onClick={() => void sign()} disabled={signing} style={{
-                justifySelf: 'start', border: 'none', cursor: signing ? 'default' : 'pointer',
-                fontSize: 13.5, fontWeight: 600, padding: '9px 22px',
-                color: '#fff', background: accent, borderRadius: brand.radius, opacity: signing ? .6 : 1,
-              }}>{signing ? 'שומר…' : 'אישור וחתימה'}</button>
+            )}
+          </section>
+        )}
+
+        {/* ── 4. פעולות שקטות ── */}
+        <section style={{ ...card, background: 'transparent', border: 'none', padding: '4px 2px' }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            {data.body && (
+              <button type="button" style={quietLink} onClick={() => setLetterOpen(o => !o)}>
+                {letterOpen ? 'סגירת המכתב' : 'המכתב המלא'}
+              </button>
+            )}
+            {!noteOpen && (
+              <button type="button" style={quietLink}
+                onClick={() => { setNoteOpen(true); setNoteName(n => n || data.prevAccountantName || ''); }}>
+                {data.responseNote ? 'להוספת הערה נוספת' : 'יש מניעה או הסתייגות'}
+              </button>
+            )}
+          </div>
+
+          {letterOpen && data.body && (
+            <div style={{
+              marginTop: 12, padding: '16px 18px', background: brand.cardBg,
+              border: `1px solid ${brand.border}`, borderRadius: brand.radius + 4,
+              fontSize: 13.5, lineHeight: 1.85,
+            }}>
+              <LetterText text={data.body} ink={brand.ink} />
+              {data.objectionDueDate && (
+                <div style={{ marginTop: 12, fontSize: 12.5, color: brand.muted }}>
+                  אם קיימת מניעה או הסתייגות להעברת התיק — נודה לעדכון עד {formatDate(data.objectionDueDate)}.
+                </div>
+              )}
+              {/* ‼ חתימה שנאספה בעבר — היסטוריה בלבד. לא מבקשים חתימה חדשה. */}
+              {data.signed && (
+                <div style={{ marginTop: 10, fontSize: 12.5, color: brand.muted }}>
+                  נחתם על ידך{data.signerName ? ` · ${data.signerName}` : ''}
+                  {data.signedAt ? ` · ${formatDate(data.signedAt)}` : ''}
+                </div>
+              )}
             </div>
           )}
 
-          {/* ── הערה / הסתייגות ──────────────────────────────────────────────
-              זמינה תמיד, גם אחרי חתימה: דבר שצריך לומר לא תמיד מתגלה בהתחלה. */}
           {data.responseNote && (
             <div style={{
-              marginTop: 14, padding: '10px 12px', borderRadius: brand.radius,
+              marginTop: 12, padding: '10px 12px', borderRadius: brand.radius,
               background: '#fbf3e3', fontSize: 13.5, lineHeight: 1.7, color: brand.ink,
             }}>
               <div style={{ fontWeight: 700, marginBottom: 3 }}>
@@ -230,10 +296,14 @@ export default function PublicReleasePage({ token }: Props) {
             </div>
           )}
 
-          {noteOpen ? (
-            <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
+          {noteOpen && (
+            <div style={{
+              display: 'grid', gap: 8, marginTop: 12, padding: '16px 18px',
+              background: brand.cardBg, border: `1px solid ${brand.border}`,
+              borderRadius: brand.radius + 4,
+            }}>
               <p style={{ margin: 0, fontSize: 13.5, color: brand.muted, lineHeight: 1.7 }}>
-                מה שחשוב שנדע — הסתייגות, התנגדות, חוב פתוח, דוח שטרם הוגש, או כל דבר אחר.
+                מה שחשוב שנדע — הסתייגות, מניעה, חוב פתוח, דוח שטרם הוגש, או כל דבר אחר.
                 ההערה מגיעה ישירות אלינו ונשמרת בתיק.
               </p>
               <input
@@ -251,7 +321,7 @@ export default function PublicReleasePage({ token }: Props) {
                   fontFamily: 'inherit', resize: 'vertical',
                 }} />
               {noteErr && <span style={{ fontSize: 12.5, color: '#a63a3a' }}>{noteErr}</span>}
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => void sendNote()} disabled={noteBusy} style={{
                   border: 'none', cursor: noteBusy ? 'default' : 'pointer',
                   fontSize: 13.5, fontWeight: 600, padding: '9px 22px',
@@ -264,138 +334,45 @@ export default function PublicReleasePage({ token }: Props) {
                   }}>ביטול</button>
               </div>
             </div>
-          ) : (
-            <button type="button" onClick={() => { setNoteOpen(true); setNoteName(n => n || data.prevAccountantName || ''); }}
-              style={{
-                marginTop: 12, border: 'none', background: 'none', padding: 0, cursor: 'pointer',
-                fontSize: 13, fontWeight: 600, color: accent, textDecoration: 'underline',
-              }}>
-              {data.responseNote ? 'להוספת הערה נוספת' : 'יש לי הערה או הסתייגות'}
-            </button>
           )}
         </section>
-
-        {/* ── החומרים ── */}
-        {data.materialsStepId && requested.length > 0 && (
-          <section style={card}>
-            <div style={title}>
-              החומרים שהתבקשו — {requested.filter(m => m.done).length} מתוך {requested.length} התקבלו
-            </div>
-            <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 2 }}>
-              {requested.map(m => (
-                <ReleaseUploadItem
-                  key={m.key}
-                  token={token}
-                  stepId={data.materialsStepId!}
-                  itemKey={m.key}
-                  label={m.label}
-                  done={m.done}
-                  brand={brand}
-                  accent={accent}
-                  onDone={reload}
-                />
-              ))}
-            </ul>
-            <p style={{ margin: '12px 0 0', fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
-              אפשר להעלות בכמה פעמים. מה שנוח לשלוח במייל — אפשר גם ככה, ונסמן כאן.
-            </p>
-          </section>
-        )}
-
-        {/* ── חומר נוסף — לפי שיקול דעתו, ולכן לא נספר ולא נסגר ── */}
-        {data.materialsStepId && extra && (
-          <section style={card}>
-            <div style={title}>{extra.label || 'חומר נוסף לפי שיקול דעתך'}</div>
-            <p style={{ margin: '0 0 10px', fontSize: 13.5, color: brand.muted, lineHeight: 1.75 }}>
-              אם יש עוד חומר של הלקוח שלדעתך נכון שיעבור אלינו — אפשר להעלות אותו כאן.
-              קובץ אחד, כמה קבצים או תיקייה שלמה. זה לא חובה, ואין צורך לסדר או למיין.
-            </p>
-            <ExtraMaterialUpload
-              token={token}
-              stepId={data.materialsStepId}
-              itemKey={extra.key}
-              uploaded={extra.uploads ?? 0}
-              brand={brand}
-              accent={accent}
-              onDone={reload}
-            />
-          </section>
-        )}
       </div>
     </div>
   );
 }
 
-function ReleaseUploadItem({ token, stepId, itemKey, label, done, brand, accent, onDone }: {
-  token: string; stepId: string; itemKey: string; label: string; done: boolean;
-  brand: { ink: string; muted: string; border: string; radius: number };
-  accent: string; onDone: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const inputId = `rel-${itemKey}`;
-
-  async function upload(file: File) {
-    setErr(null);
-    setBusy(true);
-    const form = new FormData();
-    form.append('token', token);
-    form.append('tokenKind', 'release');
-    form.append('stepId', stepId);
-    form.append('itemKey', itemKey);
-    form.append('file', file);
-    const { data, error } = await supabase.functions.invoke('portal-upload-document', { body: form });
-    setBusy(false);
-    const res = data as { ok?: boolean; error?: string } | null;
-    if (error || !res?.ok) {
-      setErr(UPLOAD_ERRORS[res?.error ?? ''] ?? 'ההעלאה נכשלה. אפשר לנסות שוב.');
-      return;
-    }
-    flushAccountantNotifications(token);
-    onDone();
-  }
-
+/** גוף המכתב עם ההדגשות שסומנו בו (`==כך==`) — טקסט בלבד, בלי HTML מהמסד. */
+function LetterText({ text, ink }: { text: string; ink: string }) {
   return (
-    <li style={{ display: 'grid', gap: 4, padding: '4px 0' }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span aria-hidden="true" style={{ color: done ? accent : brand.muted }}>{done ? '✓' : '○'}</span>
-        <span style={{
-          flex: 1, minWidth: 130, fontSize: 13.5,
-          color: done ? brand.muted : brand.ink,
-          textDecoration: done ? 'line-through' : 'none',
-        }}>{label}</span>
-        {!done && (
-          <>
-            <input id={inputId} type="file" accept={ACCEPT} disabled={busy} style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
-            <label htmlFor={inputId} style={{
-              flexShrink: 0, cursor: busy ? 'default' : 'pointer',
-              fontSize: 12.5, fontWeight: 600, padding: '5px 14px',
-              color: busy ? brand.muted : accent,
-              border: `1px solid ${busy ? brand.border : accent}`,
-              borderRadius: brand.radius, opacity: busy ? .6 : 1,
-            }}>{busy ? 'מעלה…' : 'העלאה'}</label>
-          </>
-        )}
-      </div>
-      {err && <span style={{ fontSize: 12, color: '#a63a3a', paddingInlineStart: 18 }}>{err}</span>}
-    </li>
+    <div style={{ whiteSpace: 'pre-line' }}>
+      {text.split('\n').map((line, i) => (
+        <div key={i}>
+          {splitHighlights(line).map((part, j) => (
+            part.mark
+              ? <span key={j} style={{ background: '#fdf3c4', padding: '0 3px', borderRadius: 2, color: ink }}>{part.text}</span>
+              : <span key={j}>{part.text}</span>
+          ))}
+          {!line.trim() && ' '}
+        </div>
+      ))}
+    </div>
   );
 }
 
 /**
- * העלאת חומר נוסף — קובץ, כמה קבצים או תיקייה.
+ * אזור ההעלאה הראשי — קובץ, כמה קבצים או תיקייה.
  *
  * ‼ תור סדרתי ולא הצפה במקביל: לשרת יש תקרת קבצים לשעה, והעלאה מקבילה של
  * תיקייה הייתה נחסמת באמצע בלי שאיש יידע אילו קבצים עברו. כאן כל קובץ מקבל
  * שורה משלו עם התוצאה שלו — מה שנכשל נשאר על המסך ואפשר לנסות אותו שוב.
  * ‼ שום ולידציה לא נחלשה: מה שנשלח עובר בדיוק את אותה פונקציה ואת אותן
- * בדיקות (סוג, גודל, טוקן) כמו העלאה בודדת.
+ * בדיקות (סוג, גודל, טוקן) כמו קודם. מה שהשתנה הוא שאין צורך לומר מראש
+ * לאיזה פריט הקובץ שייך.
  */
-function ExtraMaterialUpload({ token, stepId, itemKey, uploaded, brand, accent, onDone }: {
-  token: string; stepId: string; itemKey: string; uploaded: number;
+function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded }: {
+  token: string; stepId?: string; alreadyReceived: number;
   brand: { ink: string; muted: string; border: string; radius: number };
-  accent: string; onDone: () => void;
+  accent: string; onUploaded: (count: number) => void;
 }) {
   type Row = { name: string; status: 'pending' | 'uploading' | 'ok' | 'err'; error?: string };
   const [rows, setRows] = useState<Row[]>([]);
@@ -419,8 +396,8 @@ function ExtraMaterialUpload({ token, stepId, itemKey, uploaded, brand, accent, 
     const form = new FormData();
     form.append('token', token);
     form.append('tokenKind', 'release');
-    form.append('stepId', stepId);
-    form.append('itemKey', itemKey);
+    form.append('stepId', stepId!);
+    form.append('itemKey', BULK_KEY);
     form.append('file', file);
     const { data, error } = await supabase.functions.invoke('portal-upload-document', { body: form });
     const res = data as { ok?: boolean; error?: string } | null;
@@ -430,7 +407,7 @@ function ExtraMaterialUpload({ token, stepId, itemKey, uploaded, brand, accent, 
 
   async function handleFiles(list: FileList | null) {
     const files = Array.from(list ?? []).filter(f => f.size > 0);
-    if (files.length === 0) return;
+    if (files.length === 0 || !stepId) return;
     setRows(files.map(f => ({ name: f.name, status: 'pending' as const })));
     setBusy(true);
     let succeeded = 0;
@@ -442,46 +419,60 @@ function ExtraMaterialUpload({ token, stepId, itemKey, uploaded, brand, accent, 
       if (!err) succeeded++;
     }
     setBusy(false);
-    if (succeeded > 0) { flushAccountantNotifications(token); onDone(); }
+    if (succeeded > 0) { flushAccountantNotifications(token); onUploaded(succeeded); }
   }
 
   const failed = rows.filter(r => r.status === 'err').length;
   const okCount = rows.filter(r => r.status === 'ok').length;
   const doneAll = rows.length > 0 && !busy;
 
-  const pick: React.CSSProperties = {
-    cursor: busy ? 'default' : 'pointer', fontSize: 13, fontWeight: 600,
-    padding: '8px 18px', color: busy ? brand.muted : accent,
+  const primary: React.CSSProperties = {
+    cursor: busy ? 'default' : 'pointer', fontSize: 15, fontWeight: 700,
+    padding: '13px 30px', color: '#fff', background: accent,
+    border: 'none', borderRadius: brand.radius, opacity: busy ? .6 : 1,
+    display: 'inline-block', textAlign: 'center',
+  };
+  const secondary: React.CSSProperties = {
+    cursor: busy ? 'default' : 'pointer', fontSize: 13.5, fontWeight: 600,
+    padding: '12px 20px', color: busy ? brand.muted : accent,
     border: `1px solid ${busy ? brand.border : accent}`,
     borderRadius: brand.radius, opacity: busy ? .6 : 1, display: 'inline-block',
   };
 
+  if (!stepId) {
+    return (
+      <div style={{ fontSize: 13.5, color: brand.muted, lineHeight: 1.7 }}>
+        אפשר להשיב למייל ששלחנו ולצרף את הקבצים — נשמח לקבל אותם כך.
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input id={`extra-files-${itemKey}`} type="file" accept={ACCEPT} multiple disabled={busy}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input id="bulk-files" type="file" accept={ACCEPT} multiple disabled={busy}
           style={{ display: 'none' }}
           onChange={e => { void handleFiles(e.target.files); e.target.value = ''; }} />
-        <label htmlFor={`extra-files-${itemKey}`} style={pick}>
-          {busy ? 'מעלה…' : 'בחירת קבצים'}
+        <label htmlFor="bulk-files" style={primary}>
+          {busy ? 'מעלה…' : 'בחירת קבצים לשליחה'}
         </label>
 
-        <input ref={folderRef} id={`extra-folder-${itemKey}`} type="file" multiple disabled={busy}
+        <input ref={folderRef} id="bulk-folder" type="file" multiple disabled={busy}
           style={{ display: 'none' }}
           onChange={e => { void handleFiles(e.target.files); e.target.value = ''; }} />
         {folderSupported && (
-          <label htmlFor={`extra-folder-${itemKey}`} style={pick}>בחירת תיקייה</label>
-        )}
-
-        {uploaded > 0 && rows.length === 0 && (
-          <span style={{ fontSize: 12.5, color: brand.muted }}>
-            כבר התקבלו {uploaded} קבצים. אפשר להוסיף עוד.
-          </span>
+          <label htmlFor="bulk-folder" style={secondary}>או תיקייה שלמה</label>
         )}
       </div>
 
+      {alreadyReceived > 0 && rows.length === 0 && (
+        <div style={{ marginTop: 10, fontSize: 12.5, color: brand.muted }}>
+          כבר התקבלו {alreadyReceived} קבצים. אפשר להוסיף עוד.
+        </div>
+      )}
+
       {rows.length > 0 && (
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 14 }}>
           <div style={{ fontSize: 12.5, color: brand.muted, marginBottom: 6 }}>
             {busy
               ? `מעלה ${Math.min(okCount + failed + 1, rows.length)} מתוך ${rows.length}…`
@@ -509,6 +500,86 @@ function ExtraMaterialUpload({ token, stepId, itemKey, uploaded, brand, accent, 
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * "מה כלל המשלוח?" — שאלת רשות אחת אחרי העלאה מוצלחת.
+ *
+ * ‼ אינה חוסמת דבר ואפשר לדלג עליה. מה שסומן נרשם אצלנו כהתקבל — אותה רמת
+ * אמון בדיוק כמו ההעלאה פר-פריט שהייתה כאן קודם (גם שם איש לא בדק שהקובץ הוא
+ * באמת מה שביקשנו). המשרד רואה שהסימון הוא הצהרה, ויכול לתקן.
+ */
+function WhatWasSent({ token, items, brand, accent, onDone, onSkip }: {
+  token: string; items: ReleaseMaterialRow[];
+  brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
+  accent: string; onDone: () => void; onSkip: () => void;
+}) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const toggle = (key: string) =>
+    setPicked(p => (p.includes(key) ? p.filter(k => k !== key) : [...p, key]));
+
+  async function submit() {
+    setErr(null);
+    if (picked.length === 0) { onSkip(); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc('release_portal_mark_items', {
+      p_token: token, p_keys: picked,
+    });
+    setBusy(false);
+    const res = data as { ok?: boolean } | null;
+    if (error || !res?.ok) { setErr('לא הצלחנו לשמור את הסימון. אפשר לדלג — הקבצים כבר הגיעו.'); return; }
+    flushAccountantNotifications(token);
+    onDone();
+  }
+
+  return (
+    <section style={{
+      background: brand.cardBg, border: `1px solid ${accent}`,
+      borderRadius: brand.radius + 4, padding: '18px 20px', marginBottom: 16,
+    }}>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>הקבצים התקבלו, תודה</div>
+      <p style={{ margin: '0 0 12px', fontSize: 13.5, color: brand.muted, lineHeight: 1.7 }}>
+        אם נוח — אפשר לסמן מה המשלוח כלל. זה עוזר לנו לדעת מה עוד חסר, ואפשר גם לדלג.
+      </p>
+      <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+        {items.map(m => (
+          <li key={m.key}>
+            <label style={{
+              display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13.5,
+              cursor: 'pointer', lineHeight: 1.6,
+            }}>
+              <input type="checkbox" checked={picked.includes(m.key)} disabled={busy}
+                onChange={() => toggle(m.key)} style={{ flexShrink: 0 }} />
+              <span>
+                {m.label}
+                {m.priority && (
+                  <span style={{
+                    marginInlineStart: 7, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                    background: '#fdf3c4', color: brand.ink, padding: '1px 7px', borderRadius: 999,
+                  }}>חשוב במיוחד</span>
+                )}
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      {err && <div style={{ marginTop: 8, fontSize: 12.5, color: '#a63a3a' }}>{err}</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+        <button type="button" onClick={() => void submit()} disabled={busy} style={{
+          border: 'none', cursor: busy ? 'default' : 'pointer',
+          fontSize: 13.5, fontWeight: 600, padding: '9px 22px',
+          color: '#fff', background: accent, borderRadius: brand.radius, opacity: busy ? .6 : 1,
+        }}>{busy ? 'שומר…' : picked.length ? `סימון ${picked.length} פריטים` : 'סיימתי'}</button>
+        <button type="button" onClick={onSkip} disabled={busy} style={{
+          border: `1px solid ${brand.border}`, background: '#fff', cursor: 'pointer',
+          fontSize: 13.5, padding: '9px 18px', color: brand.ink, borderRadius: brand.radius,
+        }}>דילוג</button>
+      </div>
+    </section>
   );
 }
 

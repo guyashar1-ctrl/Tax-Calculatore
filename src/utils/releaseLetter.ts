@@ -7,7 +7,7 @@ import { PDFDocument, rgb, type RGB } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { embedPdfFonts, layoutMixed, measureMixed } from './pdfHebrew';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
-import { esc, emailFont, emailHeaderRow } from './brandedEmail';
+import { esc, emailFont, buildBrandedEmail } from './brandedEmail';
 import {
   ADDITIONAL_MATERIAL_KEY, ADDITIONAL_MATERIAL_LABEL, isOptionalMaterialKey,
 } from '../types/onboarding';
@@ -29,6 +29,57 @@ export interface ReleaseMaterial {
    * ולא ב-portal-upload-document), אחרת "לפי שיקול דעתך" היה הופך לדרישה.
    */
   optional?: boolean;
+  /**
+   * חשוב במיוחד — עדיפות תקשורתית. ‼ אינו הופך את השאר לרשות: כל הפריטים
+   * נשארים מבוקשים. משפיע על סדר (ראשון) ועל הבלטה מאופקת.
+   */
+  priority?: boolean;
+}
+
+/**
+ * סדר התצוגה: חשובים ראשונים, והשאר בסדר שנקבע. ‼ מיון יציב — פריט שהמשרד
+ * הזיז ידנית שומר על מקומו בתוך הקבוצה שלו.
+ */
+export function byPriorityFirst<T extends { priority?: boolean }>(items: T[]): T[] {
+  return items
+    .map((m, i) => ({ m, i }))
+    .sort((a, b) => Number(!!b.m.priority) - Number(!!a.m.priority) || a.i - b.i)
+    .map(x => x.m);
+}
+
+// ─── הבלטה בטקסט המכתב ───────────────────────────────────────────────────────
+// ‼ הייצוג המינימלי והבטוח ביותר: המכתב נשאר **טקסט פשוט** בכל מקום שהוא
+// נשמר (payload, PDF, טיוטה), והסימון הוא זוג `==` סביב הקטע. אין אחסון HTML,
+// ולכן אין שום נתיב הזרקה — ההמרה ל-HTML קורית רק ברינדור, אחרי בריחה.
+// ‼ שורה בודדת בכוונה: סימון שלא נסגר באותה שורה מוצג כפשוטו ואינו "בולע" את
+// המשך המכתב.
+export const HIGHLIGHT_MARK = '==';
+const HIGHLIGHT_RE = /==([^=\n]+)==/g;
+
+/** מסיר את סימוני ההבלטה ומשאיר את הטקסט — ל-PDF ולכל מקום שאינו מרנדר אותם. */
+export function stripHighlightMarks(text: string): string {
+  return text.replace(HIGHLIGHT_RE, '$1');
+}
+
+/** האם יש בטקסט סימון הבלטה תקין. */
+export function hasHighlightMarks(text: string): boolean {
+  HIGHLIGHT_RE.lastIndex = 0;
+  return HIGHLIGHT_RE.test(text);
+}
+
+/** פירוק שורה לקטעים עם/בלי הבלטה — משמש גם ברינדור HTML וגם ב-PDF. */
+export function splitHighlights(line: string): { text: string; mark: boolean }[] {
+  const out: { text: string; mark: boolean }[] = [];
+  let last = 0;
+  HIGHLIGHT_RE.lastIndex = 0;
+  for (const m of line.matchAll(HIGHLIGHT_RE)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push({ text: line.slice(last, at), mark: false });
+    out.push({ text: m[1], mark: true });
+    last = at + m[0].length;
+  }
+  if (last < line.length) out.push({ text: line.slice(last), mark: false });
+  return out.length ? out : [{ text: line, mark: false }];
 }
 
 // המפתח והתווית של הפריט הפתוח חיים ב-types/onboarding.ts (מקור אחד), ומיוצאים
@@ -74,7 +125,8 @@ function formatHebrewDate(iso: string): string {
 export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: ReleaseOptions): string {
   const to = ctx.prevAccountantName?.trim() ? ctx.prevAccountantName.trim() : 'רו״ח הנכבד';
   const who = ctx.businessName?.trim() ? `${ctx.clientName} (${ctx.businessName})` : ctx.clientName;
-  const picked = opts.materials.filter(m => m.checked && !m.optional);
+  // חשובים ראשונים — גם בנוסח עצמו, כדי שמי שקורא במהירות יראה אותם קודם.
+  const picked = byPriorityFirst(opts.materials.filter(m => m.checked && !m.optional));
   const openItem = opts.materials.find(m => m.checked && m.optional);
 
   const lines: string[] = [
@@ -115,9 +167,13 @@ export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: 
     lines.push('');
   }
 
+  // ‼ מודל האינטראקציה (הכרעת גיא 2026-08-18): לא מבקשים אישור ולא חתימה —
+  // מי שיש לו מניעה מודיע בתשובה למייל. ציטוט כלל 16 נשמר כלשונו: הוא מה
+  // שנותן למכתב את משמעותו המקצועית, ורק אופן המענה הוא שהתנסח מחדש.
   lines.push(
-    'בהתאם לכלל 16 לכללי ההתנהגות המקצועית של לשכת רואי חשבון בישראל, ' +
-    'אנא השב/י לנו במייל בתוך כ-3 ימי עסקים אם קיימת התנגדות למעבר.',
+    'בהתאם לכלל 16 לכללי ההתנהגות המקצועית של לשכת רואי חשבון בישראל — ' +
+    'אם קיימת מניעה או הסתייגות להעברת התיק, נודה לעדכון במייל חוזר ' +
+    'בתוך כ־3 ימי עסקים.',
     '',
     'הלקוח מכותב למכתב זה.',
     '',
@@ -159,6 +215,7 @@ export function materialsFromStored(raw: unknown): ReleaseMaterial[] | null {
       label: String(r.label ?? '').trim(),
       checked: r.checked === undefined ? true : !!r.checked,
       ...(r.optional || isOptionalMaterialKey(key) ? { optional: true } : {}),
+      ...(r.priority ? { priority: true } : {}),
     });
   }
   return out.length ? out : null;
@@ -233,25 +290,138 @@ export function followUpSubject(ctx: ReleaseContext): string {
   return `תוספת לבקשת החומרים — ${ctx.clientName}`;
 }
 
-// HTML ממותג לשליחה בפועל — נגזר במלואו מטוקני העיצוב (אותה שפה של כל המיילים).
-export function buildReleaseEmailHtml(bodyText: string, brand: QuotationBrand): string {
+// ─── HTML של המייל ───────────────────────────────────────────────────────────
+// ‼ עד 2026-08-18 המייל הזה נבנה בתבנית ידנית משלו, שהגדירה כיוון רק על תגית
+// ה-<html> החיצונית. ג'ימייל מסיר את <html>/<body> ומרנדר רק את מה שבפנים —
+// ולכן הכיוון נמחק והמכתב העברי הוצג כמייל שמאלי. הפתרון כבר היה קיים בבנאי
+// המשותף (buildBrandedEmail), ששם dir ויישור על **כל תא**. כאן רק עוברים
+// אליו, במקום לשכפל את הפתרון פעם שנייה.
+
+/** רצפים לועזיים שחייבים להישאר קריאים בתוך משפט עברי (מייל, קישור, קובץ). */
+const LTR_RUN = /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|https?:\/\/[^\s<]+|www\.[^\s<]+|[A-Za-z0-9_-]+\.(?:pdf|xlsx?|docx?|csv|zip|jpe?g|png))/g;
+
+/**
+ * טקסט משתמש → HTML בטוח לשורה אחת: בריחה מלאה, ואז שתי הוספות בלבד —
+ * הבלטה (`==...==`) ועטיפת רצפים לועזיים ב-dir="ltr" כדי שפיסוק עברי לא יקפוץ
+ * לצד הלא נכון. ‼ הבריחה קודמת להכל, ולכן אין שום נתיב להזרקת HTML.
+ */
+function inlineHtml(line: string, brand: QuotationBrand): string {
+  return splitHighlights(line).map(part => {
+    const safe = esc(part.text).replace(
+      LTR_RUN, '<span dir="ltr" style="unicode-bidi:isolate;">$1</span>');
+    // מרקר צהוב עדין. background-color ולא <mark>: תוכנות מייל אינן מעצבות
+    // <mark> באופן אחיד, וצבע ישיר עובד בכולן.
+    return part.mark
+      ? `<span style="background-color:#fdf3c4;padding:0 2px;border-radius:2px;color:${brand.ink};">${safe}</span>`
+      : safe;
+  }).join('');
+}
+
+/**
+ * גוף המכתב (טקסט פשוט) → HTML עם מבנה אמיתי: שורות "• " הופכות לרשימה
+ * (<ul> מיושרת ימין) ולא לתווים בתוך פסקה, ושורות ריקות מפרידות פסקאות.
+ * `materials` משמש רק לזיהוי פריט חשוב לפי הניסוח שלו — בלעדיו הכל מרונדר
+ * כרגיל, וכך מכתב שנערך ידנית לא נשבר.
+ */
+function letterBodyToHtml(
+  bodyText: string, brand: QuotationBrand, materials?: ReleaseMaterial[],
+): string {
   const f = emailFont(brand);
-  const contact = [brand.phone, brand.email].filter((v): v is string => Boolean(v)).map(esc).join(' · ');
-  return `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:${brand.pageBg};font-family:${f};color:${brand.ink};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${brand.pageBg};padding:24px 0;"><tr><td align="center">
-    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${brand.cardBg};border:1px solid ${brand.border};border-radius:${brand.radius + 4}px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.06);">
-      ${emailHeaderRow(brand)}
-      <tr><td style="padding:${brand.headerStyle === 'minimal' ? '20' : '24'}px 40px 26px;font-family:${f};font-size:14.5px;line-height:1.8;color:${brand.ink};white-space:pre-line;">${esc(bodyText)}</td></tr>
-      ${contact ? `<tr><td style="padding:0 40px 28px;"><div style="border-top:1px solid ${brand.border};padding-top:14px;font-family:${f};font-size:12px;color:${brand.muted};">${contact}</div></td></tr>` : ''}
-    </table>
-  </td></tr></table>
-</body></html>`;
+  const priorityLabels = new Set(
+    (materials ?? []).filter(m => m.priority && m.checked).map(m => m.label.trim()));
+  const lines = bodyText.replace(/\r\n/g, '\n').split('\n');
+  const out: string[] = [];
+  let bullets: string[] = [];
+
+  const flushBullets = () => {
+    if (!bullets.length) return;
+    out.push(
+      `<ul dir="rtl" style="direction:rtl;text-align:right;margin:6px 0 12px;padding:0 20px 0 0;list-style-position:outside;">`
+      + bullets.join('') + `</ul>`);
+    bullets = [];
+  };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    const bullet = /^\s*[•\-*]\s+(.*)$/.exec(line);
+    if (bullet) {
+      const label = bullet[1].trim();
+      const isPriority = priorityLabels.has(stripHighlightMarks(label).trim());
+      // ‼ הבלטה מאופקת: תג קטן ליד הפריט, לא צבע על כל השורה. שאר הפריטים
+      // נשארים באותה רשימה ובאותו משקל — הם עדיין מבוקשים.
+      const tag = isPriority
+        ? ` <span style="font-family:${f};font-size:11.5px;font-weight:700;color:${brand.ink};background-color:#fdf3c4;padding:1px 7px;border-radius:999px;white-space:nowrap;">חשוב במיוחד</span>`
+        : '';
+      bullets.push(
+        `<li dir="rtl" style="direction:rtl;text-align:right;font-family:${f};font-size:14.5px;`
+        + `line-height:1.9;color:${brand.ink};${isPriority ? 'font-weight:600;' : ''}">`
+        + inlineHtml(label, brand) + tag + `</li>`);
+      continue;
+    }
+    flushBullets();
+    if (!line.trim()) continue;
+    out.push(
+      `<div dir="rtl" style="direction:rtl;text-align:right;font-family:${f};font-size:14.5px;`
+      + `line-height:1.85;color:${brand.ink};padding-bottom:10px;">${inlineHtml(line, brand)}</div>`);
+  }
+  flushBullets();
+  return out.join('');
+}
+
+/** האם השורות האחרונות הן חתימת המכתב — הבנאי המשותף מרנדר אותה בתחתית בעצמו. */
+function splitTrailingSignature(bodyText: string): { body: string; signature?: string } {
+  const lines = bodyText.replace(/\r\n/g, '\n').split('\n');
+  for (let i = lines.length - 1; i >= 0 && i >= lines.length - 4; i--) {
+    if (/^\s*(בברכה|בכבוד רב)\s*,?\s*$/.test(lines[i])) {
+      const signature = lines.slice(i).filter(l => l.trim()).join('\n');
+      return { body: lines.slice(0, i).join('\n').trimEnd(), signature };
+    }
+  }
+  return { body: bodyText };
+}
+
+export interface ReleaseEmailOptions {
+  /** קישור לדף העברת החומרים — הופך לכפתור הראשי. חסר ⇒ מייל בלי CTA. */
+  uploadUrl?: string;
+  /** רשימת החומרים — לזיהוי פריט חשוב בלבד. */
+  materials?: ReleaseMaterial[];
+  /** כותרת המייל הגדולה. ברירת מחדל: הנדון. */
+  heading?: string;
+}
+
+/**
+ * HTML ממותג לשליחה בפועל, דרך המעטפת האחידה של כל מיילי המשרד.
+ * ‼ הפעולה הראשית היא **העברת החומרים** ולא אישור הבקשה: הרו"ח הקודם אינו
+ * מתבקש לחתום או לאשר (הכרעת גיא 2026-08-18). מי שיש לו מניעה משיב למייל,
+ * וזה כתוב בגוף המכתב עצמו (כלל 16).
+ */
+export function buildReleaseEmailHtml(
+  bodyText: string, brand: QuotationBrand, opts: ReleaseEmailOptions = {},
+): string {
+  const f = emailFont(brand);
+  const { body, signature } = splitTrailingSignature(bodyText);
+  const heading = opts.heading?.trim() || 'העברת חומרים';
+  const replyLine =
+    `<tr><td dir="rtl" align="right" style="direction:rtl;text-align:right;padding:2px 40px 18px;">`
+    + `<div style="font-family:${f};font-size:13px;color:${brand.muted};line-height:1.7;">`
+    + `נוח יותר במייל? אפשר להשיב להודעה הזאת ולצרף את הקבצים.</div></td></tr>`;
+
+  return buildBrandedEmail(brand, {
+    heading,
+    bodyHtml: letterBodyToHtml(body, brand, opts.materials),
+    ...(opts.uploadUrl
+      ? { ctaLabel: 'להעברת החומרים', ctaHref: opts.uploadUrl, ctaArrow: true, showLinkFallback: true }
+      : {}),
+    afterCtaHtml: replyLine,
+    ...(signature ? { signature } : {}),
+  });
 }
 
 // PDF שמשקף את המייל שנשלח — כותרות מאת/אל/תאריך/נושא ואז גוף המכתב.
 export async function generateReleaseEmailPdf(rec: {
   from: string; to: string; date: string; subject: string; bodyText: string;
+  /** הקישור שנשלח ככפתור. נרשם בסוף הראיה — אחרת "מה בדיוק נשלח" חסר אותו. */
+  uploadUrl?: string;
 }, brand: QuotationBrand): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
@@ -270,6 +440,38 @@ export async function generateReleaseEmailPdf(rec: {
     let cx = RIGHT - w;
     for (const seg of segs) { const f = seg.rtl ? fonts.hebrew : fonts.latin; page.drawText(seg.text, { x: cx, y: yy, size, font: f, color }); cx += f.widthOfTextAtSize(seg.text, size); }
   };
+  /**
+   * שורת גוף המכתב, עם הבלטה. ‼ הציור נעשה בשני מעברים על אותה שורה: קודם
+   * מלבנים צהובים מתחת לקטעים המובלטים, ואז הטקסט מעליהם. הרוחב של כל קטע
+   * נמדד בנפרד ומצטבר משמאל לימין — אותה מתמטיקה של rtl() למעלה, ולכן
+   * ההבלטה יושבת בדיוק מתחת למילים שלה גם בשורה מעורבת עברית-לועזית.
+   */
+  const rtlMarked = (parts: { text: string; mark: boolean }[], size: number, yy: number) => {
+    // הסדר הוויזואלי הוא ימין-לשמאל: הקטע הראשון בטקסט מצויר הכי ימינה.
+    const measured = parts.map(p => {
+      const segs = layoutMixed(p.text);
+      return { ...p, segs, w: measureMixed(segs, size, fonts) };
+    });
+    const total = measured.reduce((s, p) => s + p.w, 0);
+    let cx = RIGHT - total;
+    for (const p of [...measured].reverse()) {
+      if (p.mark && p.w > 0) {
+        page.drawRectangle({
+          x: cx - 1, y: yy - size * 0.22, width: p.w + 2, height: size * 1.16,
+          color: rgb(0.99, 0.95, 0.77),
+        });
+      }
+      cx += p.w;
+    }
+    cx = RIGHT - total;
+    for (const p of [...measured].reverse()) {
+      for (const seg of p.segs) {
+        const f = seg.rtl ? fonts.hebrew : fonts.latin;
+        page.drawText(seg.text, { x: cx, y: yy, size, font: f, color: ink });
+        cx += f.widthOfTextAtSize(seg.text, size);
+      }
+    }
+  };
   const ensure = (need: number) => { if (y - need < M) { page = doc.addPage([A4.w, A4.h]); y = A4.h - M; } };
 
   page.drawRectangle({ x: 0, y: A4.h - 5, width: A4.w, height: 5, color: accent });
@@ -286,26 +488,65 @@ export async function generateReleaseEmailPdf(rec: {
   page.drawRectangle({ x: M, y, width: A4.w - M * 2, height: 0.6, color: hexToRgb(brand.border) });
   y -= 18;
 
-  // גוף המכתב
+  // גוף המכתב — עם ההבלטות שסומנו בו (ראה rtlMarked).
   for (const paragraph of rec.bodyText.split('\n')) {
-    for (const line of wrap(paragraph, 92)) {
+    for (const line of wrapMarked(paragraph, 92)) {
       ensure(16);
-      rtl(line || ' ', 11, ink, y);
+      if (line.some(p => p.mark)) rtlMarked(line, 11, y);
+      else rtl(line.map(p => p.text).join('') || ' ', 11, ink, y);
       y -= 16;
     }
+  }
+
+  if (rec.uploadUrl) {
+    y -= 10;
+    ensure(34);
+    rtl('הכפתור במייל הוביל אל:', 10.5, gray, y); y -= 15;
+    // כתובת לועזית — משמאל לימין, כמו שהיא.
+    page.drawText(rec.uploadUrl, { x: M, y, size: 9, font: fonts.latin, color: gray });
   }
   return doc.save();
 }
 
-function wrap(text: string, maxChars: number): string[] {
-  if (!text) return [''];
-  const out: string[] = []; let line = '';
-  for (const word of text.split(/\s+/)) {
-    if ((line + ' ' + word).trim().length > maxChars) { if (line) out.push(line); line = word; }
-    else line = (line + ' ' + word).trim();
+/**
+ * גלישת שורות ששומרת על סימוני ההבלטה. ‼ הגלישה חייבת לעבוד על הטקסט
+ * **בלי** תווי הסימון — אחרת "==" נספר ברוחב השורה, ובשורה שנשברה באמצע
+ * הסימון היה נחתך לשניים ומופיע כטקסט.
+ */
+function wrapMarked(paragraph: string, maxChars: number): { text: string; mark: boolean }[][] {
+  const words: { text: string; mark: boolean }[] = [];
+  for (const part of splitHighlights(paragraph)) {
+    const chunks = part.text.split(/(\s+)/).filter(s => s !== '');
+    for (const c of chunks) words.push({ text: c, mark: part.mark });
   }
-  if (line) out.push(line);
-  return out.length ? out : [''];
+  if (!words.length) return [[{ text: '', mark: false }]];
+
+  const lines: { text: string; mark: boolean }[][] = [];
+  let line: { text: string; mark: boolean }[] = [];
+  let len = 0;
+  for (const w of words) {
+    const isSpace = /^\s+$/.test(w.text);
+    if (len + w.text.length > maxChars && len > 0 && !isSpace) {
+      lines.push(mergeAdjacent(line));
+      line = []; len = 0;
+    }
+    if (isSpace && len === 0) continue;   // רווח בתחילת שורה שנשברה
+    line.push(w);
+    len += w.text.length;
+  }
+  if (line.length) lines.push(mergeAdjacent(line));
+  return lines.length ? lines : [[{ text: '', mark: false }]];
+}
+
+/** איחוד מילים סמוכות בעלות אותו סימון — פחות מקטעים, מדידה יציבה יותר. */
+function mergeAdjacent(parts: { text: string; mark: boolean }[]): { text: string; mark: boolean }[] {
+  const out: { text: string; mark: boolean }[] = [];
+  for (const p of parts) {
+    const prev = out[out.length - 1];
+    if (prev && prev.mark === p.mark) prev.text += p.text;
+    else out.push({ ...p });
+  }
+  return out;
 }
 
 function hexToRgb(hex: string): RGB {
