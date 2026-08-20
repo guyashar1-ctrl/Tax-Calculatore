@@ -2512,8 +2512,14 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .pd-cell:not(:last-child){border-inline-end:0;border-bottom:1px solid var(--hairline-2)}
 }
 .pd-lab{font-size:var(--fs-12);color:var(--ink-3);margin-bottom:3px}
-/* סימון בן/בת הזוג הרשום/ה — נגזר מתיק מס הכנסה, לא סטטוס בפני עצמו */
-.pd-reg{color:var(--br);font-weight:600}
+/* בן/בת הזוג הרשום/ה — נגזר מתיק מס הכנסה, לא סטטוס בפני עצמו.
+   שורה שקטה מתחת לגריד ולא תג בתוכו: תג בן מילה אחת דרש ריחוף כדי להבין
+   מה רשום ואיפה, ולכן לא נקרא. השם מודגש כי הוא כל התשובה. ענבר רק כשהתיק
+   על בן/בת הזוג — שם זה קובע באיזו ת.ז. מתנהלים מול מ"ה; על שם הלקוח זו
+   ברירת המחדל ואין על מה להתריע. */
+.pd-regline{margin-top:7px;font-size:var(--fs-12);color:var(--ink-3);line-height:1.5}
+.pd-regline b{font-weight:600;color:var(--ink-1)}
+.pd-regline.is-spouse b{color:var(--warn)}
 .pd-val{font-size:var(--fs-13);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pd-section{margin-top:20px}
 .pd-st{font-size:var(--fs-13);font-weight:700;margin-bottom:8px}

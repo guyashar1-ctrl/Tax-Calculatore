@@ -56,8 +56,8 @@ interface Props {
 }
 
 /** ‼ ההסבר המלא יושב ב-title ולא על המסך: מי שצריך אותו מרחף, ומי שלא —
- *  רואה מילה אחת. גם אומר איפה משנים, כי התג עצמו אינו ניתן לעריכה. */
-const REG_HINT = 'בן/בת הזוג הרשום/ה — על שמו מתנהל תיק מס הכנסה. משנים בלשונית «תיק מס», בשדה הבעלים של תיק מס הכנסה.';
+ *  רואה שורה קצרה. גם אומר איפה משנים, כי הקו עצמו אינו ניתן לעריכה. */
+const REG_HINT = 'על שמו מתנהל תיק מס הכנסה, וכל ההתנהלות מול מ"ה בת.ז. הזו. משנים בלשונית «תיק מס», בשדה הבעלים של תיק מס הכנסה.';
 
 function relDate(iso: string): string {
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
@@ -73,11 +73,18 @@ export default function PersonQuickView(p: Props) {
   const regFile = p.row.client ? registeredFileInfo(p.row.client) : null;
   const spouseName = p.row.client?.spouseName?.trim();
   /**
-   * ‼ התג מוצג רק כשיש שני אנשים בתא: "רשום" ליד אדם בודד לא מוסיף מידע,
-   * ובזוג הוא כל המידע — הוא אומר על שם מי מהשניים התיק. זה גם מה שמאפשר
-   * לו להישאר מילה אחת: ההקשר עושה את עבודת ההסבר.
+   * ‼ מוצג רק כשיש שני אנשים בתא וגם ידוע מי הרשום: אצל אדם בודד התיק הוא
+   * שלו מעצם הדבר, ובלי תיק מ"ה בכרטיס אין מה לומר. בזוג זה כל המידע — הוא
+   * קובע באיזו ת.ז. מתנהלים מול מ"ה, וזה לא נגזר מהשם שבראש הכרטיס.
+   *
+   * ‼ שורה ולא תג בן מילה אחת (הכרעת גיא 2026-08-20): "· רשום" דרש ריחוף
+   * כדי להבין מה רשום ואיפה, ולכן בפועל לא נקרא.
    */
-  const showReg = !!spouseName;
+  const regLine = spouseName && regFile
+    ? (regFile.owner === 'joint'
+        ? { text: 'תיק מס הכנסה משותף', name: '', spouse: false }
+        : { text: 'תיק מס הכנסה ע״ש', name: regFile.name, spouse: regFile.owner === 'spouse' })
+    : null;
   const spouseDetails = [p.row.client?.spouseIdNumber, p.row.client?.spouseEmail]
     .filter((v): v is string => !!v?.trim());
   const { row } = p;
@@ -117,14 +124,8 @@ export default function PersonQuickView(p: Props) {
         </div>
 
         <div className="pd-info">
-          {/* ‼ תג "רשום" יושב על מי שהתיק על שמו — הלקוח או בן/בת הזוג — ולכן
-              אין צורך בשורה נפרדת שחוזרת על השם והת"ז. מילה אחת, לא משפט:
-              ניסוח ארוך ("רשום במ״ה") נשבר לשתי שורות בתא הצר של הת"ז. */}
           <div className="pd-cell">
-            <div className="pd-lab">
-              תעודת זהות
-              {showReg && regFile?.owner === 'client' && <span className="pd-reg" title={REG_HINT}> · רשום</span>}
-            </div>
+            <div className="pd-lab">תעודת זהות</div>
             <div className="pd-val num">{row.idNumber || 'טרם התקבל'}</div>
           </div>
           <div className="pd-cell">
@@ -143,10 +144,7 @@ export default function PersonQuickView(p: Props) {
               אחרת שם לבד נראה כמו כרטיס שאין בו מה למלא. */}
           {!!spouseName && (
             <div className="pd-cell">
-              <div className="pd-lab">
-                בן/בת זוג
-                {regFile?.owner === 'spouse' && <span className="pd-reg" title={REG_HINT}> · רשום</span>}
-              </div>
+              <div className="pd-lab">בן/בת זוג</div>
               <div className="pd-val">{spouseName}</div>
               {spouseDetails.length
                 ? spouseDetails.map(v => <div className="pd-small pd-ltr" key={v}>{v}</div>)
@@ -154,6 +152,12 @@ export default function PersonQuickView(p: Props) {
             </div>
           )}
         </div>
+
+        {regLine && (
+          <div className={`pd-regline${regLine.spouse ? ' is-spouse' : ''}`} title={REG_HINT}>
+            {regLine.text}{regLine.name && <> <b>{regLine.name}</b></>}
+          </div>
+        )}
 
         {row.kind === 'client' && !!p.charges?.length && (
           <div className="pd-section">
