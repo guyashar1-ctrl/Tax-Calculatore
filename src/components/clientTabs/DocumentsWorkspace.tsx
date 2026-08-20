@@ -73,10 +73,11 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   const [drawerLinkedTasks, setDrawerLinkedTasks] = useState<{ id: string; title: string }[]>([]);
   const [addClientPick, setAddClientPick] = useState('');
   const [renameDraft, setRenameDraft] = useState('');
-  const [transferPick, setTransferPick] = useState('');
-  const [transferBusy, setTransferBusy] = useState(false);
-  const [transferError, setTransferError] = useState('');
-  const [confirmTransfer, setConfirmTransfer] = useState<'move' | 'duplicate' | null>(null);
+  // ‼ העברה ושכפול ירדו מהמגירה ועברו לסרגל הבחירה: הן פועלות על
+  // מסמך אחד או על עשרה באותה מחווה, ולכן מקומן ליד "הורדה" ולא בתוך
+  // כרטיס של מסמך בודד. השאריות כאן משרתות רק את המחיקה מהמגירה.
+  const [docActionBusy, setDocActionBusy] = useState(false);
+  const [docActionError, setDocActionError] = useState('');
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(false);
   const [folderEdit, setFolderEdit] = useState<DocFolder | null>(null);
   const [folderEditName, setFolderEditName] = useState('');
@@ -102,6 +103,23 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
    * tick, ולחיצה כפולה הייתה יוצרת שני מסמכי PDF זהים שאיש לא ביקש.
    */
   const convertRunningRef = useRef(false);
+
+  // ─── פעולות על הבחירה: יעד להעברה/העתקה, מחיקה, גרירה ───────────────
+  const [destModal, setDestModal] = useState<{ mode: 'move' | 'copy'; clientId: string; folderId: string } | null>(null);
+  const [destFolders, setDestFolders] = useState<DocFolder[]>([]);
+  const [destFoldersLoading, setDestFoldersLoading] = useState(false);
+  const [destBusy, setDestBusy] = useState(false);
+  const [destError, setDestError] = useState('');
+  const destRunningRef = useRef(false);
+
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkDeleteBusy, setBulkDeleteBusy] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState('');
+  const bulkDeleteRunningRef = useRef(false);
+
+  /** המסמכים שנגררים כרגע. ריק = אין גרירה פעילה. */
+  const [draggingIds, setDraggingIds] = useState<string[]>([]);
+  const [dropFolderId, setDropFolderId] = useState<string | null>(null);
 
   const { showToast } = useToast();
 
@@ -578,12 +596,12 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     }
     setAddClientPick('');
     setRenameDraft(doc.description || '');
-    setTransferPick(''); setTransferError(''); setConfirmTransfer(null); setConfirmDeleteDoc(false);
+    setDocActionError(''); setConfirmDeleteDoc(false);
     setFileBusy(false); setFileError(''); setConvertError('');
   }
   function closeDrawer() {
     setDrawerDoc(null); setDrawerLinkedClients([]); setDrawerLinkedTasks([]);
-    setTransferPick(''); setTransferError(''); setConfirmTransfer(null); setConfirmDeleteDoc(false);
+    setDocActionError(''); setConfirmDeleteDoc(false);
     setFileBusy(false); setFileError(''); setConvertError('');
   }
 
@@ -603,40 +621,20 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     await saveDrawerMeta({ description: next });
   }
 
-  async function moveDrawerDocToFolder(folderId: string | null) {
-    if (!drawerDoc) return;
-    await db.moveDocsToFolder([drawerDoc.id], folderId);
-    setDrawerDoc({ ...drawerDoc, folderId });
-    void loadAll();
-  }
 
-  /** העברה/שכפול ללקוח אחר — שתי פעולות שונות מאוד, אותה נקודת כניסה. */
-  async function runTransfer(mode: 'move' | 'duplicate') {
-    if (!drawerDoc || !transferPick) return;
-    setTransferBusy(true); setTransferError('');
-    const res = mode === 'move'
-      ? await db.moveDocToClient(drawerDoc.id, transferPick)
-      : await db.duplicateDocToClient(drawerDoc.id, transferPick);
-    setTransferBusy(false);
-    setConfirmTransfer(null);
-    if (!res.ok) { setTransferError(res.error ?? 'הפעולה נכשלה'); return; }
-    if (mode === 'move') closeDrawer();   // המסמך כבר לא שייך ללקוח הזה
-    else setTransferPick('');
-    void loadAll();
-  }
 
   async function deleteDrawerDoc() {
     if (!drawerDoc) return;
-    setTransferBusy(true); setTransferError('');
+    setDocActionBusy(true); setDocActionError('');
     try {
       await db.deleteDoc(drawerDoc.id);
       setConfirmDeleteDoc(false);
       closeDrawer();
       void loadAll();
     } catch (e) {
-      setTransferError(e instanceof Error ? e.message : 'המחיקה נכשלה');
+      setDocActionError(e instanceof Error ? e.message : 'המחיקה נכשלה');
     } finally {
-      setTransferBusy(false);
+      setDocActionBusy(false);
     }
   }
 
@@ -823,6 +821,196 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     }
   }
 
+  // ─── יעד: תיקייה אצל הלקוח הזה, או לקוח אחר + תיקייה אצלו ────────────
+  // ‼ אותו דיאלוג משרת גם העברה וגם העתקה, כי השאלה זהה — "לאן?" —
+  // ורק מה שקורה למקור שונה. שני דיאלוגים נפרדים היו מכריחים את המשתמש
+  // ללמוד פעמיים את אותה היררכיה.
+  const destIsOtherClient = !!destModal && destModal.clientId !== client.id;
+  const destClient = destModal ? allClients.find(c => c.id === destModal.clientId) ?? null : null;
+
+  useEffect(() => {
+    if (!destModal) return;
+    // תיקיות של הלקוח הנוכחי כבר בזיכרון; לכל לקוח אחר שולפים בנפרד.
+    if (destModal.clientId === client.id) { setDestFolders(folders); setDestFoldersLoading(false); return; }
+    let cancelled = false;
+    setDestFoldersLoading(true);
+    void (async () => {
+      const f = await db.getFoldersByClient(destModal.clientId);
+      if (cancelled) return;
+      setDestFolders(f);
+      setDestFoldersLoading(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [destModal?.clientId, client.id, folders]);
+
+  function openDestination(mode: 'move' | 'copy') {
+    if (selectedDocs.length === 0) return;
+    destRunningRef.current = false;
+    setDestError('');
+    // ברירת המחדל היא התיקייה הנוכחית אצל אותו לקוח — הפעולה הנפוצה היא
+    // סידור פנימי, ולא העברה ללקוח אחר.
+    setDestModal({ mode, clientId: client.id, folderId: currentFolderId ?? '' });
+  }
+  function closeDestination() {
+    if (destBusy) return;
+    setDestModal(null);
+    setDestError('');
+  }
+
+  /**
+   * מבצעת את ההעברה/ההעתקה על כל המסמכים שנבחרו.
+   * ‼ מורכבת מהפעולות הקיימות ואינה עוקפת אותן: moveDocToClient מזיז את
+   * הקובץ באחסון ומנקה קישור עודף, duplicateDocToClient יוצר עותק עצמאי,
+   * ו-moveDocsToFolder מניח את התוצאה בתיקיית היעד. כל השמירות שהיו שם
+   * ממשיכות לחול.
+   */
+  async function runDestination() {
+    if (destRunningRef.current || !destModal || destFoldersLoading || selectedDocs.length === 0) return;
+    const { mode, clientId: targetClientId, folderId } = destModal;
+    const targetFolder = folderId || null;
+    const sameClient = targetClientId === client.id;
+    const targets = selectedDocs;
+
+    destRunningRef.current = true;
+    setDestBusy(true); setDestError('');
+    try {
+      const landed: string[] = [];
+      const failed: string[] = [];
+      for (const d of targets) {
+        const name = d.description || d.fileName;
+        if (mode === 'copy') {
+          const res = await db.duplicateDocToClient(d.id, targetClientId);
+          if (!res.ok || !res.id) { failed.push(`${name} — ${res.error ?? 'ההעתקה נכשלה'}`); continue; }
+          landed.push(res.id);
+        } else if (sameClient) {
+          landed.push(d.id);
+        } else {
+          const res = await db.moveDocToClient(d.id, targetClientId);
+          if (!res.ok) { failed.push(`${name} — ${res.error ?? 'ההעברה נכשלה'}`); continue; }
+          landed.push(d.id);
+        }
+      }
+      if (landed.length > 0) await db.moveDocsToFolder(landed, targetFolder);
+
+      if (failed.length > 0) {
+        // ‼ מרעננים גם בכישלון חלקי: חלק מהמסמכים כבר זזו בפועל, ומסך
+        // שממשיך להציג את המצב הישן משקר.
+        void loadAll();
+        clearSelection();
+        setDestError(
+          landed.length === 0
+            ? `הפעולה נכשלה:\n${failed.join('\n')}`
+            : `${landed.length} מתוך ${targets.length} בוצעו. נכשלו:\n${failed.join('\n')}`);
+        return;
+      }
+
+      const where = destinationLabel(targetClientId, targetFolder);
+      const many = targets.length > 1;
+      const verb = mode === 'copy'
+        ? (many ? `${targets.length} עותקים נוצרו ב` : 'נוצר עותק ב')
+        : (many ? `${targets.length} מסמכים הועברו ל` : 'המסמך הועבר ל');
+      setDestModal(null);
+      clearSelection();
+      void loadAll();
+      showToast(`${verb}${where}`);
+    } catch (e) {
+      void loadAll();
+      setDestError(e instanceof Error ? e.message : 'הפעולה נכשלה.');
+    } finally {
+      destRunningRef.current = false;
+      setDestBusy(false);
+    }
+  }
+
+  /** "לקוח › תיקייה" — או רק התיקייה כשהלקוח לא משתנה. */
+  function destinationLabel(targetClientId: string, folderId: string | null): string {
+    const list = targetClientId === client.id ? folders : destFolders;
+    const byId = new Map(list.map(f => [f.id, f]));
+    const folderName = folderId ? folderPathLabel(folderId, byId) : 'הרמה הראשית';
+    if (targetClientId === client.id) return `«${folderName}»`;
+    const c = allClients.find(x => x.id === targetClientId);
+    const who = c ? `${c.firstName} ${c.lastName}`.trim() : 'הלקוח שנבחר';
+    return `${who} › «${folderName}»`;
+  }
+
+  // ─── מחיקה מרובה ──────────────────────────────────────────────────────
+  async function runBulkDelete() {
+    if (bulkDeleteRunningRef.current || selectedDocs.length === 0) return;
+    const targets = selectedDocs;
+    bulkDeleteRunningRef.current = true;
+    setBulkDeleteBusy(true); setBulkDeleteError('');
+    try {
+      const failed: string[] = [];
+      for (const d of targets) {
+        try { await db.deleteDoc(d.id); }
+        catch (e) { failed.push(`${d.description || d.fileName} — ${e instanceof Error ? e.message : 'נכשל'}`); }
+      }
+      void loadAll();
+      if (failed.length > 0) {
+        setBulkDeleteError(`${targets.length - failed.length} מתוך ${targets.length} נמחקו. נכשלו:\n${failed.join('\n')}`);
+        clearSelection();
+        return;
+      }
+      setConfirmBulkDelete(false);
+      clearSelection();
+      showToast(targets.length === 1 ? 'המסמך נמחק' : `${targets.length} מסמכים נמחקו`);
+    } finally {
+      bulkDeleteRunningRef.current = false;
+      setBulkDeleteBusy(false);
+    }
+  }
+
+  // ─── גרירה לתיקייה (שולחן עבודה) ──────────────────────────────────────
+  // ‼ גרירה מזיזה בין תיקיות של אותו לקוח בלבד. מעבר בין לקוחות הוא
+  // שינוי בעלות, והוא נשאר פעולה מפורשת דרך "העברה" — לא משהו שקורה
+  // כשהיד מחליקה. לכן יעדי הנפילה הם שורות התיקיות של המסך הזה בלבד.
+  const canDrag = useMemo(() => (
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  ), []);
+
+  function handleDocDragStart(e: React.DragEvent, doc: StoredDoc) {
+    // מסמך שנגרר מתוך בחירה — כל הבחירה נוסעת איתו. מסמך שאינו בבחירה
+    // נוסע לבדו, בלי לשנות את הבחירה הקיימת.
+    const ids = selectedIds.has(doc.id) ? selectedDocs.map(d => d.id) : [doc.id];
+    setDraggingIds(ids);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', ids.join(','));
+  }
+  function handleDragEnd() {
+    setDraggingIds([]);
+    setDropFolderId(null);
+  }
+  function handleFolderDragOver(e: React.DragEvent, folderId: string) {
+    if (draggingIds.length === 0) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dropFolderId !== folderId) setDropFolderId(folderId);
+  }
+  function handleFolderDragLeave(folderId: string) {
+    if (dropFolderId === folderId) setDropFolderId(null);
+  }
+  async function handleFolderDrop(e: React.DragEvent, folder: DocFolder) {
+    e.preventDefault();
+    const ids = draggingIds;
+    handleDragEnd();
+    if (ids.length === 0) return;
+    // מסמך שכבר יושב בתיקייה הזאת אינו "העברה" — לא כותבים ולא מודיעים.
+    const moving = docs.filter(d => ids.includes(d.id) && (d.folderId ?? null) !== folder.id);
+    if (moving.length === 0) return;
+    try {
+      await db.moveDocsToFolder(moving.map(d => d.id), folder.id);
+      clearSelection();
+      void loadAll();
+      showToast(moving.length === 1
+        ? `המסמך הועבר ל«${folder.name}»`
+        : `${moving.length} מסמכים הועברו ל«${folder.name}»`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ההעברה נכשלה');
+    }
+  }
   const yearOptions = useMemo(() => ['כללי', ...AVAILABLE_YEARS.map(String)], []);
 
   // ‼ "אין פריטים שמתאימים לסינון" זו הודעת סינון — ומוצגת גם ללקוח שמעולם
@@ -917,7 +1105,15 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
           <button type="button" className="docw-bulkbar-clear docw-bulkbar-all" onClick={toggleAllVisible}>
             {allVisibleSelected ? 'בטל בחירת הכל' : `בחר הכל (${visibleDocs.length})`}
           </button>
-          <button type="button" className="btn btn-sm btn-primary" onClick={openZipModal}>הורדת מסמכים</button>
+          <span className="docw-bulkbar-actions">
+            <button type="button" className="btn btn-sm btn-primary" onClick={openZipModal}>הורדה</button>
+            <button type="button" className="btn btn-sm" onClick={() => openDestination('move')}>העברה</button>
+            <button type="button" className="btn btn-sm" onClick={() => openDestination('copy')}>העתקה</button>
+            {/* מחיקה שקטה: אותה שורה, בלי משקל של כפתור מלא — היא הפעולה
+                היחידה כאן שאי אפשר לבטל. */}
+            <button type="button" className="docw-bulkbar-danger"
+              onClick={() => { setBulkDeleteError(''); setConfirmBulkDelete(true); }}>מחיקה</button>
+          </span>
         </div>
       )}
 
@@ -947,9 +1143,13 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
               const label = f.labelId ? labelsById.get(f.labelId) : null;
               return (
                 <div
-                  key={f.id} className="docw-row" role="button" tabIndex={0}
+                  key={f.id} className={`docw-row docw-folder-row${dropFolderId === f.id ? ' is-drop-target' : ''}`}
+                  role="button" tabIndex={0}
                   onClick={() => goInto(f.id)}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goInto(f.id); } }}
+                  onDragOver={e => handleFolderDragOver(e, f.id)}
+                  onDragLeave={() => handleFolderDragLeave(f.id)}
+                  onDrop={e => handleFolderDrop(e, f)}
                 >
                   {/* תיקייה אינה מסמך ואינה נארזת — התא נשאר ריק כדי
                       שהעמודות של שתי סוגי השורות יישארו מיושרות. */}
@@ -977,9 +1177,14 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
             const label = d.labelId ? labelsById.get(d.labelId) : null;
             return (
               <div
-                key={d.id} className={`docw-row${selectedIds.has(d.id) ? ' is-selected' : ''}`} role="button" tabIndex={0}
+                key={d.id}
+                className={`docw-row docw-doc-row${selectedIds.has(d.id) ? ' is-selected' : ''}${draggingIds.includes(d.id) ? ' is-dragging' : ''}${canDrag ? ' is-draggable' : ''}`}
+                role="button" tabIndex={0}
                 onClick={() => openDrawer(d)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(d); } }}
+                draggable={canDrag}
+                onDragStart={canDrag ? e => handleDocDragStart(e, d) : undefined}
+                onDragEnd={canDrag ? handleDragEnd : undefined}
               >
                 {/* ‼ stopPropagation: לחיצה על השורה פותחת את המגירה, וסימון
                     התיבה אינו אמור לפתוח אותה. */}
@@ -1014,13 +1219,38 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
       {drawerDoc && (
         <div className="ial-doc-drawer-shade" onClick={closeDrawer}>
           <div className="ial-doc-drawer" onClick={e => e.stopPropagation()}>
-            <button type="button" className="btn btn-sm" onClick={closeDrawer}>סגור</button>
-            <h3 style={{ margin: '.8rem 0 .2rem' }}>{drawerDoc.description || drawerDoc.fileName}</h3>
-            <div className="csub">מסמך פנימי למשרד · {fmtSize(drawerDoc.fileSize)}</div>
+            {/* ‼ המגירה מתארת מסמך אחד. כל מה שפועל על *אוסף* מסמכים —
+                העברה, העתקה, הורדה — ירד מכאן לסרגל הבחירה, ששם הוא עובד
+                גם על מסמך אחד וגם על עשרה. מה שנשאר: מי המסמך, איך פותחים
+                אותו, והשדות שבאמת שלו. */}
+            <div className="docw-drawer-top">
+              <div className="docw-drawer-id">
+                <h3>{drawerDoc.description || drawerDoc.fileName}</h3>
+                <div className="csub">{drawerDoc.fileName} · {fmtSize(drawerDoc.fileSize)}</div>
+              </div>
+              <button type="button" className="ui-icon-btn" aria-label="סגירה" onClick={closeDrawer}>✕</button>
+            </div>
 
-            {/* ‼ שם התצוגה הוא description; שם הקובץ המקורי (fileName) לא
-                משתנה, כדי שהקובץ שיירד למחשב יישאר מזוהה. */}
-            <label className="lbl" style={{ marginTop: '.6rem' }}>שם המסמך</label>
+            <div className="docw-drawer-actions">
+              <button
+                type="button" className="ui-btn ui-btn-primary"
+                disabled={fileBusy} onClick={openFileInNewTab}
+              >{fileBusy ? 'פותח…' : 'פתח את הקובץ'}</button>
+              {/* מוצג רק על תצלום — מסמך שהוא כבר PDF אין מה להמיר. */}
+              {looksConvertible(drawerDoc.fileType, drawerDoc.fileName) && (
+                <button
+                  type="button" className="ui-btn ui-btn-ghost"
+                  disabled={convertBusy} onClick={convertDrawerDocToPdf}
+                  title="ייווצר מסמך PDF חדש לצד התצלום; המקור נשאר"
+                >{convertBusy ? 'ממיר…' : 'המר ל-PDF'}</button>
+              )}
+            </div>
+            {fileError && <div className="docw-drawer-err">{fileError}</div>}
+            {convertError && <div className="docw-drawer-err">{convertError}</div>}
+
+            {/* ‼ שם התצוגה בלבד. שם הקובץ המקורי אינו משתנה, כדי שהקובץ
+                שיירד למחשב יישאר מזוהה — ולכן הוא מוצג למעלה ליד הגודל. */}
+            <label className="lbl" style={{ marginTop: '.9rem' }}>שם המסמך</label>
             <input
               className="inp"
               value={renameDraft}
@@ -1029,41 +1259,9 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
               onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               placeholder={drawerDoc.fileName}
             />
-            <div className="csub" style={{ marginTop: '.2rem' }}>הקובץ עצמו: {drawerDoc.fileName}</div>
 
-            {/* צפייה בקובץ — פעולה מפורשת, לא תופעת לוואי של לחיצה על השורה */}
-            <button
-              type="button"
-              className="ui-btn ui-btn-primary"
-              style={{ width: '100%', marginTop: '.8rem' }}
-              disabled={fileBusy}
-              onClick={openFileInNewTab}
-            >{fileBusy ? 'פותח…' : 'פתח את הקובץ'}</button>
-            {fileError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{fileError}</div>}
-
-            {/* ‼ מוצג רק על תצלום. מסמך שהוא כבר PDF אינו מקבל את הכפתור
-                — אין מה להמיר, וכפתור שלא עושה כלום קורא כמו תקלה. */}
-            {looksConvertible(drawerDoc.fileType, drawerDoc.fileName) && (
-              <>
-                <button
-                  type="button"
-                  className="ui-btn ui-btn-ghost"
-                  style={{ width: '100%', marginTop: '.5rem' }}
-                  disabled={convertBusy}
-                  onClick={convertDrawerDocToPdf}
-                >{convertBusy ? 'ממיר…' : 'המר ל-PDF'}</button>
-                <div className="csub" style={{ marginTop: '.25rem' }}>
-                  ייווצר מסמך PDF חדש לצד התצלום. המקור נשאר כאן כמו שהוא.
-                </div>
-              </>
-            )}
-            {convertError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{convertError}</div>}
-
-            {/* flex-start: כשנפתח שדה היצירה השורה מתארכת, וכותרת ממורכזת
-                הייתה יורדת לגובה שדה השם במקום להישאר מול הבורר. */}
-            <div className="ial-doc-fact" style={{ marginTop: '.8rem', alignItems: 'flex-start' }}>
+            <div className="ial-doc-fact" style={{ marginTop: '.7rem', alignItems: 'flex-start' }}>
               <label style={{ paddingTop: '.35rem' }}>תווית</label>
-              {/* עמודה, כי שדה היצירה-במקום נפתח מתחת לבורר ולא לצידו */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flex: 1, minWidth: 0 }}>
                 <LabelSelect
                   className=""
@@ -1083,18 +1281,16 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
                 {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
+            {/* התיקייה מוצגת כעובדה ולא כבורר: שינוי מקום נעשה מסרגל
+                הבחירה או בגרירה, ושם הוא עובד גם על כמה מסמכים יחד. */}
             <div className="ial-doc-fact">
               <label>תיקייה</label>
-              <select
-                value={drawerDoc.folderId ?? ''}
-                onChange={e => moveDrawerDocToFolder(e.target.value || null)}
-              >
-                <option value="">הרמה הראשית</option>
-                {folders.map(f => <option key={f.id} value={f.id}>{folderPathLabel(f.id, foldersById)}</option>)}
-              </select>
+              <span>{folderPathLabel(drawerDoc.folderId ?? null, foldersById)}</span>
             </div>
 
-            <div className="ial-doc-sechead">לקוחות מקושרים</div>
+            <div className="ial-doc-sechead" title="קישור = אותו קובץ אצל כמה לקוחות; עריכה משנה אותו אצל כולם">
+              לקוחות מקושרים
+            </div>
             <div className="ial-doc-fact"><b>{client.firstName} {client.lastName}</b><span>ראשי</span></div>
             {drawerLinkedClients.map(cid => {
               const c = allClients.find(x => x.id === cid);
@@ -1106,7 +1302,7 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
                 </div>
               );
             })}
-            <div style={{ display: 'flex', gap: '.4rem', marginTop: '.4rem' }}>
+            <div style={{ display: 'flex', gap: '.4rem', marginTop: '.5rem' }}>
               <select value={addClientPick} onChange={e => setAddClientPick(e.target.value)} style={{ flex: 1 }}>
                 <option value="">קשר ללקוח נוסף…</option>
                 {allClients.filter(c => c.id !== client.id && !drawerLinkedClients.includes(c.id)).map(c => (
@@ -1115,81 +1311,128 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
               </select>
               <button type="button" className="btn btn-sm" disabled={!addClientPick} onClick={addClientLink}>קשר</button>
             </div>
-            <div className="note" style={{ marginTop: '.5rem' }}>
-              <b>קישור</b> = אותו קובץ אצל כמה לקוחות. עריכה משנה אותו אצל כולם.
-            </div>
 
-            {/* ‼ שלוש פעולות שקל לבלבל ביניהן, ולכן כל אחת נפרדת ומנוסחת
-                במה שקורה בפועל — לא בשם הפעולה. ראה moveDocToClient /
-                duplicateDocToClient ב-useDocumentStore. */}
-            <div className="ial-doc-sechead">העברה ושכפול</div>
-            <div style={{ display: 'flex', gap: '.4rem' }}>
-              <select value={transferPick} onChange={e => setTransferPick(e.target.value)} style={{ flex: 1 }}>
-                <option value="">בחר לקוח יעד…</option>
-                {allClients.filter(c => c.id !== client.id).map(c => (
-                  <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: '.4rem', marginTop: '.4rem' }}>
-              <button type="button" className="btn btn-sm" disabled={!transferPick || transferBusy}
-                onClick={() => setConfirmTransfer('move')}>העבר ללקוח</button>
-              <button type="button" className="btn btn-sm" disabled={!transferPick || transferBusy}
-                onClick={() => setConfirmTransfer('duplicate')}>שכפל ללקוח</button>
-            </div>
-            <div className="note" style={{ marginTop: '.5rem' }}>
-              <b>העברה</b> = הקובץ עוזב את {client.firstName} ועובר ליעד. לא יישאר כאן.<br />
-              <b>שכפול</b> = נוצר עותק עצמאי אצל היעד. עריכה בעותק לא תשפיע על הקובץ הזה.
-            </div>
-            {transferError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{transferError}</div>}
+            {/* נפתח רק כשיש מה להראות — כותרת מעל "אין" היא רעש. */}
+            {drawerLinkedTasks.length > 0 && (
+              <>
+                <div className="ial-doc-sechead">משימות מקושרות</div>
+                {drawerLinkedTasks.map(t => <div className="ial-doc-fact" key={t.id}><b>{t.title}</b></div>)}
+              </>
+            )}
 
-            <div className="ial-doc-sechead">משימות מקושרות</div>
-            {drawerLinkedTasks.length === 0
-              ? <div className="csub">אין משימות מקושרות.</div>
-              : drawerLinkedTasks.map(t => <div className="ial-doc-fact" key={t.id}><b>{t.title}</b></div>)}
-
-            <div className="ial-doc-sechead">אזור מסוכן</div>
-            <button type="button" className="btn btn-sm btn-ghost" style={{ color: 'var(--err)' }}
-              onClick={() => setConfirmDeleteDoc(true)}>מחיקת המסמך</button>
+            {docActionError && <div className="docw-drawer-err">{docActionError}</div>}
+            <div className="docw-drawer-foot">
+              <button type="button" className="docw-bulkbar-danger"
+                onClick={() => setConfirmDeleteDoc(true)}>מחיקת המסמך</button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── אישור העברה/שכפול ללקוח אחר ──────────────────────────────── */}
-      {confirmTransfer && drawerDoc && (() => {
-        const target = allClients.find(c => c.id === transferPick);
-        const targetName = target ? `${target.firstName} ${target.lastName}`.trim() : 'הלקוח שנבחר';
-        const docName = drawerDoc.description || drawerDoc.fileName;
-        const isMove = confirmTransfer === 'move';
+      {/* ── יעד: העברה או העתקה של המסמכים שנבחרו ────────────────────── */}
+      {destModal && (() => {
+        const isMove = destModal.mode === 'move';
+        const count = selectedDocs.length;
         return (
-          <div className="modal-backdrop" onClick={() => !transferBusy && setConfirmTransfer(null)}>
-            <div className="modal-box" onClick={e => e.stopPropagation()}>
-              <h3>{isMove ? 'העברת המסמך ללקוח אחר' : 'שכפול המסמך ללקוח אחר'}</h3>
-              <div className="csub" style={{ marginTop: '.5rem', lineHeight: 1.7 }}>
-                {isMove ? (
-                  <>«{docName}» יעבור אל <b>{targetName}</b>.<br />
-                  המסמך <b>לא יישאר</b> אצל {client.firstName} — זו העברה, לא העתקה.</>
-                ) : (
-                  <>ייווצר עותק עצמאי של «{docName}» אצל <b>{targetName}</b>.<br />
-                  המסמך המקורי כאן יישאר ללא שינוי, ועריכה בעותק לא תשפיע עליו.</>
-                )}
+          <div className="modal-backdrop" onClick={closeDestination}>
+            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+              <h3>{isMove ? 'העברת מסמכים' : 'העתקת מסמכים'}</h3>
+              <div className="csub" style={{ marginTop: '.4rem' }}>
+                {isMove
+                  ? (count === 1 ? 'המסמך יעבור ליעד שתבחר.' : `${count} מסמכים יעברו ליעד שתבחר.`)
+                  : (count === 1
+                    ? 'ייווצר עותק ביעד שתבחר. המסמך נשאר גם כאן.'
+                    : `${count} עותקים ייווצרו ביעד שתבחר. המסמכים נשארים גם כאן.`)}
               </div>
+
+              <label className="lbl">לקוח</label>
+              <select
+                className="inp" value={destModal.clientId} disabled={destBusy}
+                onChange={e => setDestModal({ ...destModal, clientId: e.target.value, folderId: '' })}
+              >
+                <option value={client.id}>{client.firstName} {client.lastName} — הלקוח הנוכחי</option>
+                {allClients.filter(c => c.id !== client.id).map(c => (
+                  <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+                ))}
+              </select>
+
+              <label className="lbl">תיקייה</label>
+              <select
+                className="inp" value={destModal.folderId} disabled={destBusy || destFoldersLoading}
+                onChange={e => setDestModal({ ...destModal, folderId: e.target.value })}
+              >
+                <option value="">הרמה הראשית</option>
+                {destFolders.map(f => (
+                  <option key={f.id} value={f.id}>
+                    {folderPathLabel(f.id, new Map(destFolders.map(x => [x.id, x])))}
+                  </option>
+                ))}
+              </select>
+              {destFoldersLoading && <div className="csub" style={{ marginTop: '.25rem' }}>טוען תיקיות…</div>}
+              {!destFoldersLoading && destFolders.length === 0 && (
+                <div className="csub" style={{ marginTop: '.25rem' }}>אין תיקיות אצל הלקוח הזה — היעד יהיה הרמה הראשית.</div>
+              )}
+
+              {/* ‼ ההבחנה שחייבת להיות מפורשת: שינוי תיקייה הוא סידור
+                  פנימי, ומעבר ללקוח אחר הוא שינוי בעלות על הקובץ. */}
+              {destIsOtherClient ? (
+                <div className="note warn">
+                  {isMove ? (
+                    <>הקובץ <b>יעזוב</b> את {client.firstName} ויעבור לבעלות {destClient ? `${destClient.firstName} ${destClient.lastName}`.trim() : 'הלקוח שנבחר'}. לא יישאר כאן עותק.</>
+                  ) : (
+                    <>ייווצר עותק <b>עצמאי</b> אצל {destClient ? `${destClient.firstName} ${destClient.lastName}`.trim() : 'הלקוח שנבחר'}. עריכה בעותק לא תשפיע על המסמך כאן.</>
+                  )}
+                </div>
+              ) : (
+                <div className="note">
+                  {isMove ? 'שינוי תיקייה בלבד — המסמכים נשארים אצל אותו לקוח.' : 'עותק נוסף אצל אותו לקוח.'}
+                </div>
+              )}
+
+              {destError && (
+                <div className="note warn" style={{ marginTop: '.5rem', color: 'var(--err)', whiteSpace: 'pre-line' }}>{destError}</div>
+              )}
               <div className="foot">
-                <button type="button" className="btn btn-primary" disabled={transferBusy}
-                  onClick={() => runTransfer(confirmTransfer)}>
-                  {transferBusy ? 'מבצע…' : isMove ? 'העבר' : 'שכפל'}
+                {/* ‼ אין לאשר בזמן שתיקיות היעד עדיין נטענות: הבורר מציג
+                    אז "הרמה הראשית" כברירת מחדל, ואישור באותו רגע היה
+                    מנחית את המסמכים בשורש במקום בתיקייה שהמשתמש התכוון
+                    אליה — בלי שום סימן שמשהו השתבש. */}
+                <button type="button" className="btn btn-primary"
+                  disabled={destBusy || destFoldersLoading || count === 0} onClick={runDestination}>
+                  {destBusy ? 'מבצע…' : isMove ? 'העבר' : 'העתק'}
                 </button>
-                <button type="button" className="btn" disabled={transferBusy}
-                  onClick={() => setConfirmTransfer(null)}>ביטול</button>
+                <button type="button" className="btn" disabled={destBusy} onClick={closeDestination}>ביטול</button>
               </div>
             </div>
           </div>
         );
       })()}
 
+      {/* ── אישור מחיקה של המסמכים שנבחרו ────────────────────────────── */}
+      {confirmBulkDelete && (
+        <div className="modal-backdrop" onClick={() => !bulkDeleteBusy && setConfirmBulkDelete(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <h3>מחיקת מסמכים</h3>
+            <div className="csub" style={{ marginTop: '.5rem', lineHeight: 1.7 }}>
+              {selectedDocs.length === 1
+                ? <>«{selectedDocs[0].description || selectedDocs[0].fileName}» יימחק לצמיתות, כולל הקובץ עצמו.</>
+                : <>{selectedDocs.length} מסמכים יימחקו לצמיתות, כולל הקבצים עצמם.</>}
+              <br />לא ניתן לשחזר.
+            </div>
+            {bulkDeleteError && (
+              <div className="note warn" style={{ marginTop: '.5rem', color: 'var(--err)', whiteSpace: 'pre-line' }}>{bulkDeleteError}</div>
+            )}
+            <div className="foot">
+              <button type="button" className="btn btn-primary" style={{ background: 'var(--err)', borderColor: 'var(--err)' }}
+                disabled={bulkDeleteBusy} onClick={runBulkDelete}>{bulkDeleteBusy ? 'מוחק…' : 'מחק לצמיתות'}</button>
+              <button type="button" className="btn" disabled={bulkDeleteBusy} onClick={() => setConfirmBulkDelete(false)}>ביטול</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ── אישור מחיקת מסמך ─────────────────────────────────────────── */}
       {confirmDeleteDoc && drawerDoc && (
-        <div className="modal-backdrop" onClick={() => !transferBusy && setConfirmDeleteDoc(false)}>
+        <div className="modal-backdrop" onClick={() => !docActionBusy && setConfirmDeleteDoc(false)}>
           <div className="modal-box" onClick={e => e.stopPropagation()}>
             <h3>מחיקת המסמך</h3>
             <div className="csub" style={{ marginTop: '.5rem', lineHeight: 1.7 }}>
@@ -1197,11 +1440,11 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
               {drawerLinkedClients.length > 0 && <> הוא מקושר גם ל-{drawerLinkedClients.length} לקוחות נוספים — המחיקה תסיר אותו גם אצלם.</>}
               <br />לא ניתן לשחזר.
             </div>
-            {transferError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{transferError}</div>}
+            {docActionError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{docActionError}</div>}
             <div className="foot">
               <button type="button" className="btn btn-primary" style={{ background: 'var(--err)', borderColor: 'var(--err)' }}
-                disabled={transferBusy} onClick={deleteDrawerDoc}>{transferBusy ? 'מוחק…' : 'מחק לצמיתות'}</button>
-              <button type="button" className="btn" disabled={transferBusy} onClick={() => setConfirmDeleteDoc(false)}>ביטול</button>
+                disabled={docActionBusy} onClick={deleteDrawerDoc}>{docActionBusy ? 'מוחק…' : 'מחק לצמיתות'}</button>
+              <button type="button" className="btn" disabled={docActionBusy} onClick={() => setConfirmDeleteDoc(false)}>ביטול</button>
             </div>
           </div>
         </div>
