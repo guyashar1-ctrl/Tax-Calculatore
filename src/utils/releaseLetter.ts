@@ -89,6 +89,35 @@ export function splitHighlights(line: string): { text: string; mark: boolean }[]
   return out.length ? out : [{ text: line, mark: false }];
 }
 
+/**
+ * הפעלה/כיבוי של המרקר על הקטע הנבחר — הלוגיקה שמאחורי הכפתור, משותפת לחלון
+ * המכתב ולעורך התבנית. מחזיר את הטקסט החדש ואת הבחירה שצריכה להישאר מסומנת,
+ * או null כשלא נבחר כלום.
+ */
+export function toggleHighlightAt(
+  text: string, start: number, end: number,
+): { text: string; selection: [number, number] } | null {
+  if (start === end) return null;
+  const before = text.slice(0, start);
+  const sel = text.slice(start, end);
+  const after = text.slice(end);
+  // כבר מובלט — בתוך הבחירה או מסביבה: מסירים.
+  if (before.endsWith(HIGHLIGHT_MARK) && after.startsWith(HIGHLIGHT_MARK)) {
+    return {
+      text: before.slice(0, -HIGHLIGHT_MARK.length) + sel + after.slice(HIGHLIGHT_MARK.length),
+      selection: [start - HIGHLIGHT_MARK.length, end - HIGHLIGHT_MARK.length],
+    };
+  }
+  if (hasHighlightMarks(sel)) {
+    const cleaned = stripHighlightMarks(sel);
+    return { text: before + cleaned + after, selection: [start, start + cleaned.length] };
+  }
+  // ‼ סימון חייב להיות בתוך שורה אחת — מרקר שחוצה שורות אינו מרונדר.
+  const marked = sel.split('\n')
+    .map(l => (l.trim() ? `${HIGHLIGHT_MARK}${l}${HIGHLIGHT_MARK}` : l)).join('\n');
+  return { text: before + marked + after, selection: [start, start + marked.length] };
+}
+
 // המפתח והתווית של הפריט הפתוח חיים ב-types/onboarding.ts (מקור אחד), ומיוצאים
 // גם מכאן כדי שמי שמרכיב את המכתב לא יצטרך לדעת משני מקומות.
 export { ADDITIONAL_MATERIAL_KEY, ADDITIONAL_MATERIAL_LABEL, isOptionalMaterialKey };
@@ -125,10 +154,16 @@ export interface ReleaseOptions {
    * עותק: מכתב שמצהיר על כיתוב שלא קרה מטעה את הרו"ח הקודם.
    */
   ccClient?: boolean;
+  /**
+   * התבנית המשרדית. חסרה ⇒ שלד ברירת המחדל. ‼ התבנית קובעת רק את **הטקסט
+   * הקבוע ואת סדר הסעיפים**; תוכן הסעיפים עצמם נגזר מהשדות שכאן ואי אפשר
+   * לנסח אותו בתבנית — אחרת מכתב שנשלח היה יכול לסתור את מה שסוכם בפועל.
+   */
+  template?: ReleaseTemplate;
 }
 
-export function defaultReleaseSubject(ctx: ReleaseContext): string {
-  return `העברת הטיפול בתיק — ${ctx.clientName}`;
+export function defaultReleaseSubject(ctx: ReleaseContext, template?: ReleaseTemplate): string {
+  return fillVars(template?.subject ?? DEFAULT_RELEASE_TEMPLATE.subject, scalarVars(ctx, ''));
 }
 
 /** 'YYYY-MM' → 'MM/YYYY' — צורת הכתיבה המקובלת לתקופת דיווח. */
@@ -165,102 +200,219 @@ function blockingPhrases(item: TransitionOutstandingItem): {
   };
 }
 
-export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: ReleaseOptions): string {
-  const to = ctx.prevAccountantName?.trim() ? ctx.prevAccountantName.trim() : 'רו״ח הנכבד';
-  const who = ctx.businessName?.trim() ? `${ctx.clientName} (${ctx.businessName})` : ctx.clientName;
-  // חשובים ראשונים — גם בנוסח עצמו, כדי שמי שקורא במהירות יראה אותם קודם.
-  const picked = byPriorityFirst(opts.materials.filter(m => m.checked && !m.optional));
-  const openItem = opts.materials.find(m => m.checked && m.optional);
+// ─── ארבעת הסעיפים הנגזרים ───────────────────────────────────────────────────
+// ‼ כל אחד מהם מוחזר כטקסט מוכן (אולי רב-שורתי, אולי ריק) ונכנס לשלד במקום
+// המשתנה שלו. הם **אינם ניתנים לניסוח בתבנית**: הם מתארים את מה שסוכם בפועל
+// עם הלקוח, ומשרד שיוכל לנסח אותם מחדש יוכל לשלוח מכתב שסותר את הסיכום.
+
+/** ‼ חלוקת האחריות השוטפת — תקופת דיווח, לא "הפסקת התקשרות מתאריך": האחריות
+ *  המקצועית נחתכת לפי תקופות, והנוסח הישן נשמע כהודעת פיטורין. */
+function periodParagraph(opts: ReleaseOptions): string {
+  if (!opts.lastPeriodPrev?.trim()) return '';
+  return `בהתאם לסיכום עם הלקוח, הטיפול השוטף יעבור למשרדנו החל מתקופת הדיווח ${periodLabel(nextPeriod(opts.lastPeriodPrev))}. ` +
+    `נודה להשלמת הדיווחים השוטפים עד וכולל תקופת ${periodLabel(opts.lastPeriodPrev)}.`;
+}
+
+/** ‼ פסקת הייצוג נגזרת מהעבודות החוסמות ואינה מוזנת ביד: דוח שנתי והצהרת הון
+ *  מוגשים רק על ידי המייצג הראשי — ולכן הקודם נשאר ראשי עד ההגשה, והלקוח לא
+ *  נשאר בלי מייצג באמצע. עבודה אחת — משפט אחד; כמה — פסקה אחת. */
+function outstandingSection(opts: ReleaseOptions): string {
   const outstanding = (opts.outstandingItems ?? []).filter(i => i.label.trim());
   const blocking = outstanding.filter(isBlockingOutstanding);
   const others = outstanding.filter(i => !isBlockingOutstanding(i));
+  const blocks: string[] = [];
 
-  const lines: string[] = [
-    `לכבוד ${to},`,
-    '',
-    `הנדון: העברת הטיפול בתיק — ${ctx.clientName}`,
-    '',
-    `${who} פנה למשרדנו להמשך הטיפול בענייניו, לרבות ייצוג מול הרשויות, הנהלת חשבונות ודוחות.`,
-    '',
-  ];
-
-  // ‼ חלוקת האחריות השוטפת — תקופת דיווח, לא "הפסקת התקשרות מתאריך": האחריות
-  // המקצועית נחתכת לפי תקופות, והנוסח הישן נשמע כהודעת פיטורין.
-  if (opts.lastPeriodPrev?.trim()) {
-    lines.push(
-      `בהתאם לסיכום עם הלקוח, הטיפול השוטף יעבור למשרדנו החל מתקופת הדיווח ${periodLabel(nextPeriod(opts.lastPeriodPrev))}. ` +
-      `נודה להשלמת הדיווחים השוטפים עד וכולל תקופת ${periodLabel(opts.lastPeriodPrev)}.`,
-      '');
-  }
-
-  // ‼ פסקת הייצוג נגזרת מהעבודות החוסמות ואינה מוזנת ביד: דוח שנתי והצהרת
-  // הון מוגשים רק על ידי המייצג הראשי — ולכן הקודם נשאר ראשי עד ההגשה,
-  // והלקוח לא נשאר בלי מייצג באמצע. עבודה אחת — משפט אחד; כמה — פסקה אחת
-  // (לא חוזרים על הסבר הייצוג פעמיים).
   if (blocking.length === 1) {
     const s = blockingPhrases(blocking[0]);
-    lines.push(
+    blocks.push(
       `כמו כן, בהתאם לסיכום עם הלקוח, ${s.subject} ${s.verb} על ידי משרדך. ` +
       `${s.until} יישאר משרדך המייצג הראשי, ומשרדנו יירשם בשלב זה כמייצג משני. ` +
-      `נודה לעדכון לאחר ההגשה ולהעברת ${s.copy}, כדי שנוכל להשלים את העברת הייצוג הראשי למשרדנו.`,
-      '');
+      `נודה לעדכון לאחר ההגשה ולהעברת ${s.copy}, כדי שנוכל להשלים את העברת הייצוג הראשי למשרדנו.`);
   } else if (blocking.length > 1) {
-    lines.push('כמו כן, בהתאם לסיכום עם הלקוח, יושלמו על ידי משרדך:');
-    blocking.forEach(b => lines.push(`• ${b.label.trim()}`));
-    lines.push(
+    blocks.push([
+      'כמו כן, בהתאם לסיכום עם הלקוח, יושלמו על ידי משרדך:',
+      ...blocking.map(b => `• ${b.label.trim()}`),
       'עד להשלמת ההגשות יישאר משרדך המייצג הראשי, ומשרדנו יירשם בשלב זה כמייצג משני. ' +
       'נודה לעדכון לאחר כל הגשה ולהעברת העתק מכל מסמך שהוגש, כדי שנוכל להשלים את העברת הייצוג הראשי למשרדנו.',
-      '');
+    ].join('\n'));
   }
 
   // עבודה חופשית — מופיעה ומבוקש עליה עדכון, בלי להמציא לה השלכת ייצוג.
   if (others.length === 1) {
-    lines.push(
+    blocks.push(
       `${blocking.length ? 'בנוסף' : 'כמו כן'}, למיטב ידיעתנו נמצא בטיפולך: ${others[0].label.trim()}. ` +
-      'נודה לעדכון עם ההשלמה.',
-      '');
+      'נודה לעדכון עם ההשלמה.');
   } else if (others.length > 1) {
-    lines.push(`${blocking.length ? 'בנוסף' : 'כמו כן'}, למיטב ידיעתנו נמצאים בטיפולך:`);
-    others.forEach(o => lines.push(`• ${o.label.trim()}`));
-    lines.push('נודה לעדכון עם השלמתם.', '');
+    blocks.push([
+      `${blocking.length ? 'בנוסף' : 'כמו כן'}, למיטב ידיעתנו נמצאים בטיפולך:`,
+      ...others.map(o => `• ${o.label.trim()}`),
+      'נודה לעדכון עם השלמתם.',
+    ].join('\n'));
   }
 
   // מעבר נקי — אומרים זאת במפורש ומזמינים תיקון: זה מה שמונע ממשהו ליפול
   // בין המשרדים כשמסתבר שבכל זאת נשארה עבודה פתוחה.
   if (!outstanding.length) {
-    lines.push('למיטב ידיעתנו לא נותרו בטיפולך דוחות או עבודות פתוחות. אם ידוע לך אחרת — נשמח לעדכון.', '');
+    blocks.push('למיטב ידיעתנו לא נותרו בטיפולך דוחות או עבודות פתוחות. אם ידוע לך אחרת — נשמח לעדכון.');
   }
 
+  return blocks.join('\n\n');
+}
+
+function materialsSection(opts: ReleaseOptions): string {
+  // חשובים ראשונים — גם בנוסח עצמו, כדי שמי שקורא במהירות יראה אותם קודם.
+  const picked = byPriorityFirst(opts.materials.filter(m => m.checked && !m.optional));
+  const openItem = opts.materials.find(m => m.checked && m.optional);
+  const blocks: string[] = [];
   if (picked.length) {
-    lines.push('נודה לקבלת החומרים הבאים:');
-    picked.forEach(m => lines.push(`• ${m.label}`));
-    lines.push('');
+    blocks.push(['נודה לקבלת החומרים הבאים:', ...picked.map(m => `• ${m.label}`)].join('\n'));
   }
-
   // ‼ בקשה פתוחה, לא פריט ברשימה: אנחנו לא יודעים מה עוד קיים אצלו, והוא כן.
   if (openItem) {
-    lines.push('אם יש בידיך חומר נוסף שלדעתך נכון שיעבור אלינו — נשמח לקבל גם אותו.');
-    lines.push('');
+    blocks.push('אם יש בידיך חומר נוסף שלדעתך נכון שיעבור אלינו — נשמח לקבל גם אותו.');
   }
+  return blocks.join('\n\n');
+}
 
-  // ‼ מודל האינטראקציה (הכרעת גיא 2026-08-18): לא מבקשים אישור ולא חתימה —
-  // מי שיש לו מניעה מודיע בתשובה למייל. ציטוט כלל 16 נשמר כלשונו: הוא מה
-  // שנותן למכתב את משמעותו המקצועית, ורק אופן המענה הוא שהתנסח מחדש.
-  lines.push(
+/** ‼ נכתב רק כשהעותק באמת יוצא: המשפט הזה הוא הצהרה לרו"ח הקודם שהלקוח יודע
+ *  על המכתב, ומכתב שמצהיר על כיתוב שלא קרה מטעה אותו. */
+function ccLine(opts: ReleaseOptions): string {
+  return opts.ccClient !== false ? 'הלקוח מכותב למכתב זה.' : '';
+}
+
+// ─── התבנית המשרדית ──────────────────────────────────────────────────────────
+// ‼ השלד הוא הטקסט הקבוע + מיקום ארבעת הסעיפים. המשרד עורך אותו במסך ההגדרות
+// (settings.commTemplates.release_letter), והוא נשמר כטקסט פשוט — כמו המכתב
+// עצמו. משרד שלא נגע בו מקבל בדיוק את הנוסח שלמטה, תו בתו.
+
+export interface ReleaseTemplate { subject: string; body: string }
+
+/** המפתח שתחתיו נשמרת הדריסה המשרדית, לצד תבניות מיילי השלבים. */
+export const RELEASE_TEMPLATE_KEY = 'release_letter';
+
+const SECTION_VARS = ['periodParagraph', 'outstandingSection', 'materialsSection', 'ccLine'] as const;
+type SectionVar = typeof SECTION_VARS[number];
+
+/** המשתנים והסבר קצר לכל אחד — מוצג כמקרא במסך ההגדרות. */
+export const RELEASE_TEMPLATE_VARS: { name: string; hint: string; section?: boolean }[] = [
+  { name: 'prevAccountantName', hint: 'שם הרו״ח הקודם' },
+  { name: 'clientName', hint: 'שם הלקוח' },
+  { name: 'clientRef', hint: 'שם הלקוח, ובסוגריים שם העסק אם יש' },
+  { name: 'firmName', hint: 'שם המשרד שלך' },
+  { name: 'periodParagraph', hint: 'פסקת חלוקת התקופות', section: true },
+  { name: 'outstandingSection', hint: 'העבודות שנשארו פתוחות ופסקת הייצוג', section: true },
+  { name: 'materialsSection', hint: 'רשימת החומרים המבוקשים', section: true },
+  { name: 'ccLine', hint: 'המשפט "הלקוח מכותב"', section: true },
+];
+
+export const DEFAULT_RELEASE_TEMPLATE: ReleaseTemplate = {
+  subject: 'העברת הטיפול בתיק — {{clientName}}',
+  body: [
+    'לכבוד {{prevAccountantName}},',
+    '',
+    'הנדון: העברת הטיפול בתיק — {{clientName}}',
+    '',
+    '{{clientRef}} פנה למשרדנו להמשך הטיפול בענייניו, לרבות ייצוג מול הרשויות, הנהלת חשבונות ודוחות.',
+    '',
+    '{{periodParagraph}}',
+    '',
+    '{{outstandingSection}}',
+    '',
+    '{{materialsSection}}',
+    '',
+    // ‼ מודל האינטראקציה (הכרעת גיא 2026-08-18): לא מבקשים אישור ולא חתימה —
+    // מי שיש לו מניעה מודיע בתשובה למייל. ציטוט כלל 16 נשמר כלשונו: הוא מה
+    // שנותן למכתב את משמעותו המקצועית, ורק אופן המענה הוא שהתנסח מחדש.
     'בהתאם לכלל 16 לכללי ההתנהגות המקצועית של לשכת רואי חשבון בישראל — ' +
     'אם קיימת מניעה או הסתייגות להעברת התיק, נודה לעדכון במייל חוזר ' +
     'בתוך כ־3 ימי עסקים.',
-    '');
+    '',
+    '{{ccLine}}',
+    '',
+    'בברכה,',
+    '{{firmName}}',
+  ].join('\n'),
+};
 
-  // ‼ נכתב רק כשהעותק באמת יוצא: המשפט הזה הוא הצהרה לרו"ח הקודם שהלקוח
-  // יודע על המכתב, ומכתב שמצהיר על כיתוב שלא קרה מטעה אותו.
-  if (opts.ccClient !== false) {
-    lines.push('הלקוח מכותב למכתב זה.', '');
+/** התבנית של המשרד, עם נפילה לשלד ברירת המחדל בכל שדה חסר או ריק. */
+export function releaseTemplateFrom(settings: Record<string, unknown> | null | undefined): ReleaseTemplate {
+  const all = (settings ?? {}).commTemplates as Record<string, { subject?: string; body?: string }> | undefined;
+  const saved = all?.[RELEASE_TEMPLATE_KEY];
+  const pick = (v: unknown, fallback: string) =>
+    typeof v === 'string' && v.trim() ? v : fallback;
+  return {
+    subject: pick(saved?.subject, DEFAULT_RELEASE_TEMPLATE.subject),
+    body: pick(saved?.body, DEFAULT_RELEASE_TEMPLATE.body),
+  };
+}
+
+function scalarVars(ctx: ReleaseContext, firmName: string): Record<string, string> {
+  return {
+    prevAccountantName: ctx.prevAccountantName?.trim() || 'רו״ח הנכבד',
+    clientName: ctx.clientName,
+    clientRef: ctx.businessName?.trim() ? `${ctx.clientName} (${ctx.businessName})` : ctx.clientName,
+    firmName,
+  };
+}
+
+/** משתנה שנשאר בלי ערך מוצג כפי שהוא — כך רואים את הטעות במקום לשלוח חור. */
+function fillVars(line: string, vars: Record<string, string>): string {
+  return line.replace(/\{\{(\w+)\}\}/g, (whole, k: string) => (k in vars ? vars[k] : whole));
+}
+
+/** שורה שכולה משתנה-סעיף, ואולי עטופה במרקר. רק כזו מתרחבת לסעיף שלם. */
+function sectionOnLine(line: string): { name: SectionVar; marked: boolean } | null {
+  const m = /^(==)?\{\{(\w+)\}\}(==)?$/.exec(line.trim());
+  if (!m) return null;
+  const name = m[2] as SectionVar;
+  if (!SECTION_VARS.includes(name)) return null;
+  return { name, marked: !!m[1] && !!m[3] };
+}
+
+/**
+ * שלד → מכתב. ‼ סעיף שהתרוקן לא משאיר חור: השורה שלו יורדת, ואם נוצרו שתי
+ * שורות ריקות צמודות — אחת מהן יורדת גם היא. שורה ריקה שהמשרד כתב בכוונה
+ * במקום אחר נשארת.
+ */
+export function renderReleaseTemplate(
+  templateBody: string, ctx: ReleaseContext, firmName: string, opts: ReleaseOptions,
+): string {
+  const sections: Record<SectionVar, string> = {
+    periodParagraph: periodParagraph(opts),
+    outstandingSection: outstandingSection(opts),
+    materialsSection: materialsSection(opts),
+    ccLine: ccLine(opts),
+  };
+  const vars = { ...scalarVars(ctx, firmName), ...sections };
+
+  // null = שורת סעיף שהתרוקנה. מסומנת ומנוקה בשלב השני.
+  const raw: (string | null)[] = [];
+  for (const line of templateBody.split('\n')) {
+    const section = sectionOnLine(line);
+    if (!section) { raw.push(fillVars(line, vars)); continue; }
+    const text = sections[section.name];
+    if (!text) { raw.push(null); continue; }
+    for (const l of text.split('\n')) {
+      // ‼ המרקר חייב להיסגר בתוך שורה אחת — ולכן כל שורה בסעיף נעטפת לחוד.
+      raw.push(section.marked && l.trim() ? `${HIGHLIGHT_MARK}${stripHighlightMarks(l)}${HIGHLIGHT_MARK}` : l);
+    }
   }
 
-  lines.push('בברכה,', firmName);
+  const out: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const line = raw[i];
+    if (line !== null) { out.push(line); continue; }
+    const prevBlank = out.length > 0 && out[out.length - 1].trim() === '';
+    const next = raw[i + 1];
+    if (prevBlank && next !== null && next !== undefined && next.trim() === '') i++;
+  }
 
-  return lines.join('\n');
+  return out.join('\n').replace(/^\n+/, '').replace(/\n+$/, '');
+}
+
+export function defaultReleaseBody(ctx: ReleaseContext, firmName: string, opts: ReleaseOptions): string {
+  return renderReleaseTemplate(
+    opts.template?.body ?? DEFAULT_RELEASE_TEMPLATE.body, ctx, firmName, opts);
 }
 
 // ─── הטיוטה ──────────────────────────────────────────────────────────────────
@@ -338,7 +490,9 @@ export function materialsFromStored(raw: unknown): ReleaseMaterial[] | null {
   return out.length ? out : null;
 }
 
-export function newReleaseDraft(ctx: ReleaseContext, firmName: string, todayISO: string): ReleaseDraft {
+export function newReleaseDraft(
+  ctx: ReleaseContext, firmName: string, todayISO: string, template?: ReleaseTemplate,
+): ReleaseDraft {
   const materials = RELEASE_MATERIALS.map(m => ({ ...m }));
   // ברירת המחדל: החודש הנוכחי. בחירה מפורשת של המשרד — לא נגזרת מחודש החיוב
   // (הכרעת גיא 2026-08-18: אחריות מקצועית וגבייה הם שני דברים).
@@ -348,8 +502,8 @@ export function newReleaseDraft(ctx: ReleaseContext, firmName: string, todayISO:
     lastPeriodPrev,
     outstandingItems: [],
     ccClient: true,
-    subject: defaultReleaseSubject(ctx),
-    body: defaultReleaseBody(ctx, firmName, { lastPeriodPrev, materials }),
+    subject: defaultReleaseSubject(ctx, template),
+    body: defaultReleaseBody(ctx, firmName, { lastPeriodPrev, materials, template }),
     bodyEdited: false,
   };
 }
@@ -357,8 +511,9 @@ export function newReleaseDraft(ctx: ReleaseContext, firmName: string, todayISO:
 /** קריאת הטיוטה מה-payload של השלב, עם נפילה לברירת המחדל בכל שדה חסר. */
 export function readReleaseDraft(
   stored: unknown, ctx: ReleaseContext, firmName: string, todayISO: string,
+  template?: ReleaseTemplate,
 ): ReleaseDraft {
-  const base = newReleaseDraft(ctx, firmName, todayISO);
+  const base = newReleaseDraft(ctx, firmName, todayISO, template);
   if (!stored || typeof stored !== 'object') return base;
   const d = stored as Record<string, unknown>;
   const materials = materialsFromStored(d.materials) ?? base.materials;
@@ -386,7 +541,7 @@ export function readReleaseDraft(
   const ccClient = true;
   const body = bodyEdited && typeof d.body === 'string' && d.body.trim()
     ? d.body
-    : defaultReleaseBody(ctx, firmName, { lastPeriodPrev, materials, outstandingItems, ccClient });
+    : defaultReleaseBody(ctx, firmName, { lastPeriodPrev, materials, outstandingItems, ccClient, template });
   return {
     materials, lastPeriodPrev, outstandingItems, ccClient,
     subject, body, bodyEdited,

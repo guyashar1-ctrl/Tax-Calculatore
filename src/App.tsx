@@ -44,7 +44,7 @@ import QuotationsPipeline from './components/quotations/QuotationsPipeline';
 import LeadsPanel, { LeadForm } from './components/quotations/LeadsPanel';
 import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
 import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
-import { RELEASE_MATERIALS, readReleaseDraft } from './utils/releaseLetter';
+import { RELEASE_MATERIALS, readReleaseDraft, releaseTemplateFrom } from './utils/releaseLetter';
 import { unfiledBlocking } from './types/onboarding';
 import { applySecondaryLevels } from './types/quotations';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
@@ -2296,8 +2296,10 @@ export default function App() {
           prevAccountantName: releaseFor.prevAccountant.name,
         };
         const brand = deriveQuotationBrand(firmProfile);
+        const releaseTemplate = releaseTemplateFrom(firmProfile?.settings);
         return (
         <ReleaseLetterDialog
+          template={releaseTemplate}
           clientId={releaseFor.clientId}
           clientName={releaseFor.clientName}
           businessName={releaseFor.businessName}
@@ -2308,7 +2310,8 @@ export default function App() {
           mode={releaseFor.mode}
           followUpItems={releaseFor.followUpItems}
           draft={readReleaseDraft(
-            step?.payload.releaseDraft, ctx, brand.firmName, new Date().toISOString().slice(0, 10))}
+            step?.payload.releaseDraft, ctx, brand.firmName,
+            new Date().toISOString().slice(0, 10), releaseTemplate)}
           onSaveDraft={d => void onboarding.advance(releaseFor.stepId, 'note', { releaseDraft: d })}
           onSent={({ materialKeys, objectionDueDate, subject, body, materials, to, draft, lastPeriodPrev, outstandingItems }) => {
             const stepId = releaseFor.stepId;

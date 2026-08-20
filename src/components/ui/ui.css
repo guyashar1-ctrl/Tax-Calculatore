@@ -291,3 +291,65 @@ input.field-missing, select.field-missing, textarea.field-missing {
 @media (hover: none), (pointer: coarse) {
   .ui-hover-actions.ui-hover-actions { opacity: 1; }
 }
+
+/* ── עורך עם מרקר גלוי · מכתב ההעברה ותבנית המשרד ─────────────────────────
+   שתי שכבות באותה מסגרת: שכבת רקע שמציירת את הצהוב, ו-textarea שקוף שמעליה
+   מקבל את ההקלדה. ‼ כל תכונה שמשפיעה על גלישת שורות מוגדרת פעם אחת לשתיהן —
+   גופן, גודל, גובה שורה, ריפוד, רוחב ומקום פס הגלילה. הבדל של פיקסל אחד
+   מזיז את הצהוב מהמילים. scrollbar-gutter: stable שומר את הרזרבה לפס
+   הגלילה בשתיהן, גם כשרק אחת מהן באמת גוללת. */
+.hl-editor { position: relative; }
+
+.hl-editor__backdrop,
+.hl-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: .5rem .75rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: var(--hl-lh, 1.7);
+  direction: rtl;
+  text-align: right;
+  scrollbar-gutter: stable;
+}
+
+.hl-editor__backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: var(--gray-800);
+  pointer-events: none;
+  user-select: none;
+}
+
+.hl-editor textarea {
+  position: relative;
+  display: block;
+  margin: 0;
+  border-color: var(--gray-300);
+  background: transparent;
+  color: transparent;
+  caret-color: var(--gray-800);
+  overflow-y: auto;
+  resize: vertical;
+}
+
+/* ‼ גם כשהשדה נעול הטקסט נשאר קריא — הוא מצויר בשכבת הרקע, ולכן ה-textarea
+   חייב להישאר שקוף לגמרי ולא לקבל את האפרוריות שהדפדפן נותן לשדה מושבת. */
+.hl-editor textarea:disabled {
+  color: transparent;
+  background: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ‼ דיו כהה קבוע ולא color: inherit — במצב כהה הטקסט הרגיל בהיר, ועל הצהוב
+   הוא היה נעלם. זה גם בדיוק מה שהנמען רואה במייל (background + ink כהה). */
+.hl-mark {
+  background: #fdf3c4;
+  color: #25282d;
+  border-radius: 2px;
+}

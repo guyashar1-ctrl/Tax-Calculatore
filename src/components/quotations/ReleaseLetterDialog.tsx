@@ -24,9 +24,10 @@ import type { ReleaseDraft, ReleaseMaterial, TransitionOutstandingItem, Transiti
 import {
   RELEASE_MATERIALS, defaultReleaseSubject, defaultReleaseBody,
   buildReleaseEmailHtml, generateReleaseEmailPdf, followUpBody, followUpSubject,
-  HIGHLIGHT_MARK, hasHighlightMarks, stripHighlightMarks,
-  periodLabel, nextPeriod, newOutstandingItem,
+  toggleHighlightAt, periodLabel, nextPeriod, newOutstandingItem,
+  type ReleaseTemplate,
 } from '../../utils/releaseLetter';
+import HighlightTextarea from '../ui/HighlightTextarea';
 import { isBlockingOutstanding, outstandingLabel } from '../../types/onboarding';
 
 interface Props {
@@ -61,6 +62,8 @@ interface Props {
   followUpItems?: { key: string; label: string }[];
   /** נקרא בסגירה ובשליחה — הטיוטה נשמרת על השלב ולא נמחקת עם החלון. */
   onSaveDraft?: (draft: ReleaseDraft) => void;
+  /** התבנית המשרדית ממסך ההגדרות. חסרה ⇒ נוסח ברירת המחדל. */
+  template?: ReleaseTemplate;
   onClose: () => void;
 }
 
@@ -83,7 +86,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function ReleaseLetterDialog({
   clientId, clientName, businessName, clientEmail, prevAccountant, brand, onSent, onClose, stepId,
-  draft, onSaveDraft, mode = 'letter', followUpItems = [],
+  draft, onSaveDraft, template, mode = 'letter', followUpItems = [],
 }: Props) {
   const followUp = mode === 'follow_up';
   const { saveDoc } = useDocumentStore();
@@ -109,10 +112,11 @@ export default function ReleaseLetterDialog({
     materials: o?.materials ?? materials,
     outstandingItems: o?.outstandingItems ?? outstandingItems,
     ccClient,
+    template,
   });
 
   const [subject, setSubject] = useState(
-    followUp ? followUpSubject(ctx) : (draft?.subject || defaultReleaseSubject(ctx)));
+    followUp ? followUpSubject(ctx) : (draft?.subject || defaultReleaseSubject(ctx, template)));
   const [body, setBody] = useState(() => followUp
     ? followUpBody(ctx, brand.firmName, followUpItems.map(i => i.label))
     : (draft?.body || compose()));
@@ -174,37 +178,15 @@ export default function ReleaseLetterDialog({
   function toggleHighlight() {
     const el = bodyRef.current;
     if (!el) return;
-    const start = el.selectionStart ?? 0;
-    const end = el.selectionEnd ?? 0;
-    if (start === end) {
+    const result = toggleHighlightAt(body, el.selectionStart ?? 0, el.selectionEnd ?? 0);
+    if (!result) {
       setNotice({ kind: 'err', text: 'צריך לסמן קודם את הקטע שרוצים להדגיש.' });
       return;
     }
-    const before = body.slice(0, start);
-    const sel = body.slice(start, end);
-    const after = body.slice(end);
-    // כבר מובלט — בתוך הבחירה או מסביבה: מסירים.
-    const wrapped = before.endsWith(HIGHLIGHT_MARK) && after.startsWith(HIGHLIGHT_MARK);
-    let next: string;
-    let caret: [number, number];
-    if (wrapped) {
-      next = before.slice(0, -2) + sel + after.slice(2);
-      caret = [start - 2, end - 2];
-    } else if (hasHighlightMarks(sel)) {
-      const cleaned = stripHighlightMarks(sel);
-      next = before + cleaned + after;
-      caret = [start, start + cleaned.length];
-    } else {
-      // ‼ סימון חייב להיות בתוך שורה אחת — מרקר שחוצה שורות אינו מרונדר.
-      const marked = sel.split('\n')
-        .map(l => (l.trim() ? `${HIGHLIGHT_MARK}${l}${HIGHLIGHT_MARK}` : l)).join('\n');
-      next = before + marked + after;
-      caret = [start, start + marked.length];
-    }
-    setBody(next);
+    setBody(result.text);
     setEdited(true);
     setNotice(null);
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(caret[0], caret[1]); });
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(...result.selection); });
   }
 
   function moveMaterial(key: string, dir: -1 | 1) {
@@ -542,14 +524,9 @@ export default function ReleaseLetterDialog({
                 </button>
               )}
             </span>
-            <textarea ref={bodyRef} rows={14} value={body} disabled={locked}
-              onChange={e => { setBody(e.target.value); setEdited(true); }}
-              style={{ marginTop: 4, width: '100%', lineHeight: 1.7 }} />
-            {hasHighlightMarks(body) && (
-              <span style={{ fontSize: 11.5, color: 'var(--gray-500)' }}>
-                הקטעים שבין <code>==</code> יופיעו מודגשים בצהוב אצל הנמען.
-              </span>
-            )}
+            <HighlightTextarea ref={bodyRef} rows={14} value={body} disabled={locked}
+              onChange={v => { setBody(v); setEdited(true); }}
+              style={{ marginTop: 4 }} />
           </label>
 
           {notice && (

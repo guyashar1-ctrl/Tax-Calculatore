@@ -12,11 +12,25 @@ import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/on
 import type { Quotation } from '../../types/quotations';
 import OnboardingTab from './OnboardingTab';
 import ReleaseLetterDialog from '../quotations/ReleaseLetterDialog';
+import {
+  DEFAULT_RELEASE_TEMPLATE, RELEASE_TEMPLATE_KEY, releaseTemplateFrom,
+} from '../../utils/releaseLetter';
 import OnboardingGrid from '../OnboardingGrid';
 import ClientsOnboardingSection from '../ClientsOnboardingSection';
 
 const CLIENT_ID = 'fixture-client';
 const ENG_ID = 'fixture-eng';
+
+// תבנית משרדית כפי שהיא נשמרת בהגדרות אחרי סימון פסקת העבודות הפתוחות במרקר —
+// כדי לבדוק שהסימון מגיע כברירת מחדל למכתב, ושאפשר להוריד אותו מהמכתב עצמו.
+const MARKED_TEMPLATE = releaseTemplateFrom({
+  commTemplates: {
+    [RELEASE_TEMPLATE_KEY]: {
+      body: DEFAULT_RELEASE_TEMPLATE.body.replace(
+        '{{outstandingSection}}', '=={{outstandingSection}}=='),
+    },
+  },
+});
 
 const FIXTURE_CLIENT = {
   id: CLIENT_ID, firstName: 'שרון', lastName: 'מזרחי', idNumber: '029384756',
@@ -440,6 +454,7 @@ export default function TestOnboarding() {
             pageBg: '#f8f7f5', cardBg: '#ffffff', border: '#e2e4e7', ink: '#25282d',
             muted: '#63686f', accent: '#3f5f8f', radius: 8, headerStyle: 'minimal',
           } as never}
+          template={MARKED_TEMPLATE}
           onSent={(x) => setMsg(`נשלח · ${x.materialKeys.length} חומרים · התנגדות עד ${x.objectionDueDate}`)}
           onClose={() => setShowRelease(false)}
         />

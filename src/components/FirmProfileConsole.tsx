@@ -34,6 +34,11 @@ import {
   readNotificationPrefs,
   isNotificationEnabled,
 } from '../../supabase/functions/_shared/accountantNotifications.ts';
+import {
+  DEFAULT_RELEASE_TEMPLATE, RELEASE_TEMPLATE_KEY, RELEASE_TEMPLATE_VARS,
+  toggleHighlightAt,
+} from '../utils/releaseLetter';
+import HighlightTextarea from './ui/HighlightTextarea';
 
 const LOGO_BUCKET = 'firm-logos';           // לוגו — ציבורי (מוטבע במיילים ללקוחות)
 const SIGN_BUCKET = FIRM_PRIVATE_BUCKET;     // חתימה/חותמת — פרטי, גישה מאומתת בלבד
@@ -886,6 +891,10 @@ const TEMPLATE_HINT: Record<string, string> = {
 
 interface CommTemplate { subject?: string; body?: string }
 
+/** מכתב ההעברה נשמר לצד תבניות מיילי השלבים, אבל אינו אחד מהם: הוא נשלח
+ *  לרו״ח הקודם ולא ללקוח, והשרת של מיילי השלבים לא נוגע בו. */
+type TemplateKey = StepEmailKind | typeof RELEASE_TEMPLATE_KEY;
+
 function PaperlessCommSection({ profile, onChangeProfile }: { profile: FirmProfile; onChangeProfile: (p: FirmProfile) => void }) {
   const settings = profile.settings ?? {};
   const paperless = (settings.paperless as { inviteUrl?: string } | undefined) ?? {};
@@ -896,10 +905,10 @@ function PaperlessCommSection({ profile, onChangeProfile }: { profile: FirmProfi
   const patchSettings = (patch: Record<string, unknown>) =>
     onChangeProfile({ ...profile, settings: { ...settings, ...patch } });
 
-  const setTemplate = (kind: StepEmailKind, patch: CommTemplate) =>
+  const setTemplate = (kind: TemplateKey, patch: CommTemplate) =>
     patchSettings({ commTemplates: { ...templates, [kind]: { ...(templates[kind] ?? {}), ...patch } } });
 
-  const resetTemplate = (kind: StepEmailKind) => {
+  const resetTemplate = (kind: TemplateKey) => {
     const next = { ...templates };
     delete next[kind];
     patchSettings({ commTemplates: next });
@@ -984,7 +993,132 @@ function PaperlessCommSection({ profile, onChangeProfile }: { profile: FirmProfi
           </div>
         );
       })}
+
+      <ReleaseTemplateCard
+        saved={templates[RELEASE_TEMPLATE_KEY] ?? {}}
+        onChange={patch => setTemplate(RELEASE_TEMPLATE_KEY, patch)}
+        onReset={() => resetTemplate(RELEASE_TEMPLATE_KEY)}
+      />
     </>
+  );
+}
+
+// ───────────────────── תבנית מכתב ההעברה לרו״ח הקודם ─────────────────────
+// ‼ שונה מחמש התבניות שמעליו בשני דברים, ולכן כרטיס משלו: המכתב נשלח לרו״ח
+// הקודם ולא ללקוח, וארבעה מהסעיפים שלו **נגזרים** ממה שסוכם עם הלקוח ואינם
+// ניתנים לניסוח כאן — אפשר להזיז אותם, למחוק אותם או לסמן אותם במרקר, אבל לא
+// לכתוב אותם מחדש. משרד שיוכל לנסח אותם יוכל לשלוח מכתב שסותר את הסיכום.
+//
+// ‼ מרקר שמסומן כאן הוא **ברירת המחדל של כל מכתב חדש**, לא כפייה: הסימון
+// מגיע כטקסט רגיל בגוף המכתב, וכיבוי שלו במכתב אחד נעשה מהמכתב עצמו.
+
+function ReleaseTemplateCard({ saved, onChange, onReset }: {
+  saved: CommTemplate;
+  onChange: (patch: CommTemplate) => void;
+  onReset: () => void;
+}) {
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const [markerHint, setMarkerHint] = useState(false);
+  const overridden = saved.subject !== undefined || saved.body !== undefined;
+  const body = saved.body ?? DEFAULT_RELEASE_TEMPLATE.body;
+
+  // סעיף שנמחק מהשלד לא יופיע במכתב — אזהרה, לא חסימה: יש מי שמנסח אחרת.
+  const missing = RELEASE_TEMPLATE_VARS
+    .filter(v => v.section && !body.includes(`{{${v.name}}}`))
+    .map(v => v.hint);
+
+  function toggleMarker() {
+    const el = bodyRef.current;
+    if (!el) return;
+    const result = toggleHighlightAt(body, el.selectionStart ?? 0, el.selectionEnd ?? 0);
+    if (!result) { setMarkerHint(true); return; }
+    setMarkerHint(false);
+    onChange({ body: result.text });
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(...result.selection); });
+  }
+
+  return (
+    <div style={card}>
+      <details>
+        <summary style={{ cursor: 'pointer' }}>
+          <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)' }}>
+            מכתב העברת טיפול — לרו״ח הקודם
+          </span>
+          <span style={{ fontSize: 'var(--fs-12)', color: overridden ? 'var(--chip-amber-tx)' : 'var(--gray-400)', marginInlineStart: 8 }}>
+            {overridden ? 'נוסח מותאם' : 'נוסח ברירת מחדל'}
+          </span>
+        </summary>
+
+        <div style={{ marginTop: 14, maxWidth: 640 }}>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.7 }}>
+            נשלח לרו״ח הקודם, לא ללקוח. החלקים המשתנים — התקופה, העבודות הפתוחות ורשימת
+            החומרים — נבנים אוטומטית לכל לקוח, ולכן מופיעים כאן כשם בסוגריים כפולות
+            ואי אפשר לנסח אותם מכאן. אפשר להזיז אותם, למחוק אותם או לסמן אותם במרקר.
+            <br />
+            קטע שמסומן כאן במרקר יגיע מסומן בכל מכתב חדש — ואם במכתב מסוים לא תרצה
+            אותו, תסמן אותו שם ותלחץ שוב על מרקר.
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+            {RELEASE_TEMPLATE_VARS.map(v => (
+              <span key={v.name} title={v.hint}
+                style={{
+                  fontSize: 11.5, padding: '3px 8px', borderRadius: 6,
+                  background: v.section ? 'var(--orange-light)' : 'var(--gray-100)',
+                  color: v.section ? 'var(--chip-amber-tx)' : 'var(--gray-600)',
+                  fontFamily: 'monospace', direction: 'ltr',
+                }}>{`{{${v.name}}}`}</span>
+            ))}
+          </div>
+
+          <Field label="נושא המייל">
+            <input
+              value={saved.subject ?? DEFAULT_RELEASE_TEMPLATE.subject}
+              onChange={e => onChange({ subject: e.target.value })}
+            />
+          </Field>
+
+          <div style={{ marginTop: 12 }}>
+            <label style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-600)', display: 'block' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                גוף המכתב
+                <button type="button" className="btn btn-sm btn-ghost" onClick={toggleMarker}
+                  title="מסמנים קטע בטקסט ולוחצים — הוא יופיע עם הדגשה צהובה">
+                  <span style={{ background: '#fdf3c4', padding: '0 5px', borderRadius: 3 }}>מרקר</span>
+                </button>
+              </span>
+              <HighlightTextarea
+                ref={bodyRef}
+                rows={18}
+                value={body}
+                onChange={v => onChange({ body: v })}
+                style={{ marginTop: 4 }}
+              />
+            </label>
+          </div>
+
+          {markerHint && (
+            <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: 'var(--chip-amber-tx)' }}>
+              צריך לסמן קודם את הקטע שרוצים להדגיש.
+            </div>
+          )}
+          {missing.length > 0 && (
+            <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: 'var(--chip-amber-tx)', lineHeight: 1.6 }}>
+              המכתב ייצא בלי {missing.join(', ')}.
+            </div>
+          )}
+
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button className="btn" disabled={!overridden} onClick={onReset} style={{ fontSize: 'var(--fs-13)' }}>
+              שחזר ברירת מחדל
+            </button>
+            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
+              השינויים נשמרים עם כפתור השמירה למעלה.
+            </span>
+          </div>
+        </div>
+      </details>
+    </div>
   );
 }
 
