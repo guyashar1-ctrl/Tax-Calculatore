@@ -35,8 +35,8 @@ interface Props {
   clientName: string;
   /** ת.ז. שעליה מתנהל תיק מס הכנסה — מזהה את התיק אצל הרו״ח הקודם. */
   taxFileNumber?: string;
-  /** שם בן/בת הזוג הרשום, כשהתיק על שמו ולא על שם הלקוח. */
-  registeredSpouseName?: string;
+  /** בן/בת הזוג, כשהלקוח נשוי — שני השמות ושתי הת״זים נכנסים למכתב. */
+  spouse?: { name: string; idNumber?: string };
   clientEmail?: string;
   prevAccountant: { name?: string; email?: string; phone?: string };
   brand: QuotationBrand;
@@ -88,13 +88,13 @@ function addBusinessDays(from: Date, days: number): string {
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function ReleaseLetterDialog({
-  clientId, clientName, taxFileNumber, registeredSpouseName, clientEmail, prevAccountant, brand,
+  clientId, clientName, taxFileNumber, spouse, clientEmail, prevAccountant, brand,
   onSent, onClose, stepId, draft, onSaveDraft, template, mode = 'letter', followUpItems = [],
 }: Props) {
   const followUp = mode === 'follow_up';
   const { saveDoc } = useDocumentStore();
   const ctx: ReleaseContext = {
-    clientName, taxFileNumber, registeredSpouseName, prevAccountantName: prevAccountant.name,
+    clientName, taxFileNumber, spouse, prevAccountantName: prevAccountant.name,
   };
 
   const [toEmail, setToEmail] = useState(prevAccountant.email ?? '');

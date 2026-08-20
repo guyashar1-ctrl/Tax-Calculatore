@@ -29,10 +29,11 @@ export interface ReleaseContext {
    */
   taxFileNumber?: string;
   /**
-   * שם בן/בת הזוג הרשום — רק כשהתיק מתנהל על שמו ולא על שם הלקוח.
-   * ‼ בלעדיו המכתב היה מציג ת.ז. של אדם אחר לצד שם הלקוח, כאילו היא שלו.
+   * בן/בת הזוג, כשהלקוח נשוי. ‼ הכרעת גיא (2026-08-20): במקום לברר מי בן
+   * הזוג הרשום ולנסח סביבו, המכתב פשוט נוקב בשני השמות ובשתי הת״זים — כך
+   * הרו״ח הקודם מזהה את התיק בוודאות בלי שנצטרך להכריע במקומו.
    */
-  registeredSpouseName?: string;
+  spouse?: { name: string; idNumber?: string };
 }
 
 /** פריט חומר שאפשר לבקש מהרו"ח הקודם. `key` תואם לצ'קליסט של שלב קבלת החומרים. */
@@ -311,15 +312,16 @@ export interface ReleaseTemplate { subject: string; body: string }
 /** המפתח שתחתיו נשמרת הדריסה המשרדית, לצד תבניות מיילי השלבים. */
 export const RELEASE_TEMPLATE_KEY = 'release_letter';
 
-const SECTION_VARS = ['periodParagraph', 'outstandingSection', 'materialsSection', 'ccLine'] as const;
+const SECTION_VARS = ['clientIntro', 'periodParagraph', 'outstandingSection', 'materialsSection', 'ccLine'] as const;
 type SectionVar = typeof SECTION_VARS[number];
 
 /** המשתנים והסבר קצר לכל אחד — מוצג כמקרא במסך ההגדרות. */
 export const RELEASE_TEMPLATE_VARS: { name: string; hint: string; section?: boolean }[] = [
   { name: 'prevAccountantName', hint: 'שם הרו״ח הקודם' },
   { name: 'clientName', hint: 'שם הלקוח' },
-  { name: 'clientRef', hint: 'שם הלקוח, ובסוגריים שם העסק אם יש' },
+  { name: 'clientRef', hint: 'שם הלקוח ות.ז. — ואצל זוג נשוי, שניהם' },
   { name: 'firmName', hint: 'שם המשרד שלך' },
+  { name: 'clientIntro', hint: 'משפט הפתיחה — מי פנה אלינו', section: true },
   { name: 'periodParagraph', hint: 'פסקת חלוקת התקופות', section: true },
   { name: 'outstandingSection', hint: 'העבודות שנשארו פתוחות ופסקת הייצוג', section: true },
   { name: 'materialsSection', hint: 'רשימת החומרים המבוקשים', section: true },
@@ -333,7 +335,7 @@ export const DEFAULT_RELEASE_TEMPLATE: ReleaseTemplate = {
     '',
     'הנדון: העברת הטיפול בתיק — {{clientName}}',
     '',
-    '{{clientRef}} פנה למשרדנו להמשך הטיפול בענייניו, לרבות ייצוג מול הרשויות, הנהלת חשבונות ודוחות.',
+    '{{clientIntro}}',
     '',
     '{{periodParagraph}}',
     '',
@@ -367,17 +369,39 @@ export function releaseTemplateFrom(settings: Record<string, unknown> | null | u
   };
 }
 
-/**
- * זיהוי הלקוח בגוף המכתב. ‼ כשהתיק מתנהל על שם בן/בת הזוג — נאמר במפורש על
- * שם מי, אחרת המכתב מציג ת.ז. של אדם אחר צמוד לשם הלקוח.
- */
+const nameWithId = (name: string, id?: string) => {
+  const n = name.trim();
+  const i = (id ?? '').trim();
+  return i ? `${n}, ת.ז. ${i}` : n;
+};
+
+const spouseOf = (ctx: ReleaseContext) =>
+  (ctx.spouse?.name?.trim() ? ctx.spouse : undefined);
+
+const hasAnyId = (ctx: ReleaseContext) =>
+  !!(ctx.taxFileNumber?.trim() || spouseOf(ctx)?.idNumber?.trim());
+
+/** מי הלקוח — שם ות.ז., ואצל זוג נשוי שניהם. בלי פועל, כדי שאפשר יהיה לבנות
+ *  סביבו משפט משלך בתבנית. */
 function clientRef(ctx: ReleaseContext): string {
-  const id = ctx.taxFileNumber?.trim();
-  if (!id) return ctx.clientName;
-  const spouse = ctx.registeredSpouseName?.trim();
-  return spouse
-    ? `${ctx.clientName} (תיק במס הכנסה ${id}, ע״ש ${spouse})`
-    : `${ctx.clientName} (ת.ז. ${id})`;
+  const me = nameWithId(ctx.clientName, ctx.taxFileNumber);
+  const sp = spouseOf(ctx);
+  if (!sp) return me;
+  // הפסיק לפני ו' נדרש רק כשיש פסקאות ת.ז. באמצע, אחרת "א, וב" נקרא שבור.
+  return `${me}${hasAnyId(ctx) ? ', ו' : ' ו'}${nameWithId(sp.name, sp.idNumber)}`;
+}
+
+/**
+ * משפט הפתיחה. ‼ נגזר ולא נכתב בתבנית, כי אצל זוג נשוי הפועל והכינוי משתנים
+ * ("פנו... בענייניהם" מול "פנה... בענייניו"), ותבנית אחת אינה יכולה להיות
+ * נכונה בשני המקרים. מי שרוצה לנסח אחרת ישתמש ב-{{clientRef}} ויכתוב משפט משלו.
+ */
+function clientIntro(ctx: ReleaseContext): string {
+  const sep = hasAnyId(ctx) ? ', ' : ' ';
+  const tail = 'למשרדנו להמשך הטיפול';
+  return spouseOf(ctx)
+    ? `${clientRef(ctx)}${sep}פנו ${tail} בענייניהם, לרבות ייצוג מול הרשויות, הנהלת חשבונות ודוחות.`
+    : `${clientRef(ctx)}${sep}פנה ${tail} בענייניו, לרבות ייצוג מול הרשויות, הנהלת חשבונות ודוחות.`;
 }
 
 function scalarVars(ctx: ReleaseContext, firmName: string): Record<string, string> {
@@ -412,6 +436,7 @@ export function renderReleaseTemplate(
   templateBody: string, ctx: ReleaseContext, firmName: string, opts: ReleaseOptions,
 ): string {
   const sections: Record<SectionVar, string> = {
+    clientIntro: clientIntro(ctx),
     periodParagraph: periodParagraph(opts),
     outstandingSection: outstandingSection(opts),
     materialsSection: materialsSection(opts),

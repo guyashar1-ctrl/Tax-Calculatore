@@ -108,25 +108,27 @@ import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import FailedNotificationsBanner from './components/FailedNotificationsBanner';
 import { useAuth } from './hooks/useAuth';
 import AnnualReport from './features/annualReport/AnnualReport';
-import { registeredFileInfo } from './features/annualReport/profile';
 
 type View = AppRouteView;
 
 /**
- * זהות התיק למכתב ההעברה. ‼ מספר התיק במס הכנסה הוא ת.ז. של **בעל התיק**,
- * ואצל זוג נשוי בעל התיק הוא בן/בת הזוג הרשום — לא בהכרח הלקוח שבכרטיס.
- * `registeredFileInfo` כבר יודע את זה מתיק מ"ה שבכרטיס; בלי תיק מוגדר
- * נופלים לת.ז. של הלקוח, שזה הנכון ברוב המכריע של התיקים.
+ * מי הלקוח, למכתב ההעברה. ‼ הכרעת גיא (2026-08-20): אצל זוג נשוי לא מבררים
+ * מי בן הזוג הרשום ולא מנסחים סביבו — פשוט נוקבים בשני השמות ובשתי הת״זים,
+ * והרו״ח הקודם מזהה את התיק בוודאות. הת.ז. של הלקוח היא גם מספר התיק במ"ה.
  */
-function releaseFileIdentity(client: Client | undefined | null): {
-  taxFileNumber?: string; registeredSpouseName?: string;
+function releaseClientIdentity(client: Client | undefined | null): {
+  taxFileNumber?: string; spouse?: { name: string; idNumber?: string };
 } {
   if (!client) return {};
-  const reg = registeredFileInfo(client);
-  const id = (reg?.idNumber || client.idNumber || '').trim();
-  if (!id) return {};
-  const onSpouse = reg?.owner === 'spouse' && !!reg.name.trim();
-  return { taxFileNumber: id, ...(onSpouse ? { registeredSpouseName: reg.name.trim() } : {}) };
+  const spouseName = (client.spouseName?.trim()
+    || `${client.spouseFirstName ?? ''} ${client.spouseLastName ?? ''}`.trim());
+  const married = client.familyStatus === 'married' && !!spouseName;
+  return {
+    ...(client.idNumber?.trim() ? { taxFileNumber: client.idNumber.trim() } : {}),
+    ...(married
+      ? { spouse: { name: spouseName, idNumber: client.spouseIdNumber?.trim() || undefined } }
+      : {}),
+  };
 }
 
 /** יוצר Client חדש עם ערכי ברירת מחדל */
@@ -425,7 +427,7 @@ export default function App() {
   // שליחה מוצלחת השלב עובר ל"נשלח" והכדור עובר לרו"ח הקודם.
   const [releaseFor, setReleaseFor] = useState<{
     clientId: string; clientName: string; clientEmail?: string;
-    taxFileNumber?: string; registeredSpouseName?: string;
+    taxFileNumber?: string; spouse?: { name: string; idNumber?: string };
     prevAccountant: { name?: string; email?: string; phone?: string };
     stepId: string;
     /** 'follow_up' — פריטים שנוספו אחרי השליחה, על אותו מסלול ואותו קישור. */
@@ -1519,7 +1521,7 @@ export default function App() {
       clientName: client ? `${client.firstName} ${client.lastName}`.trim() : (lead?.fullName ?? ''),
       // ‼ המכתב מזהה את התיק, לא את העסק: מספר התיק במ"ה הוא ת.ז. של בעל
       // התיק — ואצל זוג נשוי זה בן/בת הזוג הרשום, שאינו בהכרח הלקוח שבכרטיס.
-      ...releaseFileIdentity(client),
+      ...releaseClientIdentity(client),
       clientEmail: client?.email || lead?.email,
       prevAccountant: {
         name: client?.prevAccountantName || lead?.prevAccountantName,
@@ -2314,7 +2316,7 @@ export default function App() {
         const ctx = {
           clientName: releaseFor.clientName,
           taxFileNumber: releaseFor.taxFileNumber,
-          registeredSpouseName: releaseFor.registeredSpouseName,
+          spouse: releaseFor.spouse,
           prevAccountantName: releaseFor.prevAccountant.name,
         };
         const brand = deriveQuotationBrand(firmProfile);
@@ -2325,7 +2327,7 @@ export default function App() {
           clientId={releaseFor.clientId}
           clientName={releaseFor.clientName}
           taxFileNumber={releaseFor.taxFileNumber}
-          registeredSpouseName={releaseFor.registeredSpouseName}
+          spouse={releaseFor.spouse}
           clientEmail={releaseFor.clientEmail}
           prevAccountant={releaseFor.prevAccountant}
           brand={brand}
