@@ -402,12 +402,18 @@ export default function ReleaseLetterDialog({
                   <input type="checkbox" checked={m.checked} disabled={locked}
                     aria-label={`לכלול: ${m.label}`}
                     onChange={() => toggleMaterial(m.key)} />
+                  {/* ‼ פריט חשוב נצבע כאן באותו צהוב שבו הוא יֵצא במכתב — כדי
+                      שמה שרואים ברשימה יהיה מה שהרו"ח הקודם יראה, ולא רק כוכב
+                      שמסמן משהו שקורה במקום אחר. */}
                   <input
                     value={m.label} disabled={locked} placeholder="מה מבקשים"
                     aria-label="ניסוח הפריט"
                     onChange={e => renameMaterial(m.key, e.target.value)}
                     style={{ flex: 1, minWidth: 0, fontSize: 12.5, padding: '3px 6px',
-                             opacity: m.checked ? 1 : .55 }} />
+                             opacity: m.checked ? 1 : .55,
+                             ...(m.priority && m.checked
+                               ? { background: '#fdf3c4', borderColor: '#e8d98a', fontWeight: 600 }
+                               : {}) }} />
                   {m.optional && (
                     <span style={{ fontSize: 11, color: 'var(--gray-500)', flexShrink: 0 }}>רשות</span>
                   )}

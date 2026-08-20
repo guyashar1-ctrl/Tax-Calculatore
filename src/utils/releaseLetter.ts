@@ -286,7 +286,13 @@ function materialsSection(opts: ReleaseOptions): string {
   const openItem = opts.materials.find(m => m.checked && m.optional);
   const sentences: string[] = [];
   if (picked.length) {
-    sentences.push(`נודה לקבלת ${joinHe(picked.map(m => m.label.trim()))}.`);
+    // ‼ "חשוב במיוחד" מסומן במרקר ולא במנגנון משלו (הכרעת גיא 2026-08-20):
+    // אותו צהוב, ולכן הוא כבר עובד בעורך, במייל, ב-PDF ובדף של הרו"ח הקודם.
+    // מרגע שהוא טקסט בגוף המכתב אפשר גם להסיר אותו ידנית, כמו כל סימון.
+    sentences.push(`נודה לקבלת ${joinHe(picked.map(m => {
+      const label = m.label.trim();
+      return m.priority ? `${HIGHLIGHT_MARK}${label}${HIGHLIGHT_MARK}` : label;
+    }))}.`);
   }
   // ‼ בקשה פתוחה, לא פריט ברשימה: אנחנו לא יודעים מה עוד קיים אצלו, והוא כן.
   if (openItem) {
@@ -667,32 +673,19 @@ const LTR_RUN = /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|https?:\/\/[^\s
  * הבלטה (`==...==`) ועטיפת רצפים לועזיים ב-dir="ltr" כדי שפיסוק עברי לא יקפוץ
  * לצד הלא נכון. ‼ הבריחה קודמת להכל, ולכן אין שום נתיב להזרקת HTML.
  */
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 /**
- * @param emphasize פריטים שסומנו "חשוב במיוחד". מאז שהרשימה נכתבת בתוך משפט
- *   ולא בתבליטים, ההבלטה היא הדגשה של שם הפריט במקום תג לצד שורה — הסימון
- *   נשמר, רק הצורה שלו הותאמה לטקסט רץ.
+ * ‼ פריט "חשוב במיוחד" אינו מטופל כאן: הוא מגיע כבר עטוף במרקר מ-materialsSection,
+ * ולכן הוא צהוב בכל מקום שהמכתב מרונדר בו — בלי מנגנון הבלטה שני.
  */
-function inlineHtml(line: string, brand: QuotationBrand, emphasize: string[] = []): string {
-  const safe = (t: string) => esc(t).replace(
-    LTR_RUN, '<span dir="ltr" style="unicode-bidi:isolate;">$1</span>');
-  const withEmphasis = (t: string) => {
-    const labels = emphasize.filter(l => l && t.includes(l));
-    if (!labels.length) return safe(t);
-    // הארוך קודם — כך פריט שמכיל שם של פריט אחר אינו נחתך באמצע.
-    const re = new RegExp(`(${labels.sort((a, b) => b.length - a.length).map(escapeRe).join('|')})`, 'g');
-    return t.split(re)
-      .map((seg, i) => (i % 2 ? `<strong style="font-weight:700;">${safe(seg)}</strong>` : safe(seg)))
-      .join('');
-  };
+function inlineHtml(line: string, brand: QuotationBrand): string {
   return splitHighlights(line).map(part => {
-    const html = withEmphasis(part.text);
+    const safe = esc(part.text).replace(
+      LTR_RUN, '<span dir="ltr" style="unicode-bidi:isolate;">$1</span>');
     // מרקר צהוב עדין. background-color ולא <mark>: תוכנות מייל אינן מעצבות
     // <mark> באופן אחיד, וצבע ישיר עובד בכולן.
     return part.mark
-      ? `<span style="background-color:#fdf3c4;padding:0 2px;border-radius:2px;color:${brand.ink};">${html}</span>`
-      : html;
+      ? `<span style="background-color:#fdf3c4;padding:0 2px;border-radius:2px;color:${brand.ink};">${safe}</span>`
+      : safe;
   }).join('');
 }
 
@@ -741,8 +734,7 @@ function letterBodyToHtml(
     if (!line.trim()) continue;
     out.push(
       `<div dir="rtl" style="direction:rtl;text-align:right;font-family:${f};font-size:14.5px;`
-      + `line-height:1.85;color:${brand.ink};padding-bottom:10px;">`
-      + inlineHtml(line, brand, [...priorityLabels]) + `</div>`);
+      + `line-height:1.85;color:${brand.ink};padding-bottom:10px;">${inlineHtml(line, brand)}</div>`);
   }
   flushBullets();
   return out.join('');
