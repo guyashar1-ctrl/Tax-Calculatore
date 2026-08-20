@@ -474,6 +474,8 @@ export default function ClientWorkspace({
   const stage = client.lifecycleStage ?? 'active';
   const showRepBadge = !!client.representationStatus || (stage !== 'lead' && stage !== 'quoted');
   const employee = findEmployee(client.assignedAccountantId);
+  const hasHeaderChips = !!employee || (client.tags ?? []).length > 0
+    || (!isNew && openTasks.length > 0 && !!onOpenClientTasks);
 
   return (
     <div className="cw-root">
@@ -489,7 +491,24 @@ export default function ClientWorkspace({
               {`${client.firstName.charAt(0) || '?'}${client.lastName.charAt(0) || ''}`}
             </div>
             <div>
-              <div className="cw-name">{fullName}</div>
+              {/* ‼ שלב החיים/מצב הייצוג יושב על שורת השם ולא ברצועה שמתחת:
+                  הוא תכונה של האדם, וברצועה הוא היה לרוב הדייר היחיד —
+                  פס אפור שלם שנושא שתי מילים. ראה cw-header-chips למטה. */}
+              <div className="cw-name-line">
+                <div className="cw-name">{fullName}</div>
+                {isArchived && (
+                  <span className="badge badge-gray" title="הכרטיס מוסתר מרשימת הלקוחות. שום נתון לא נמחק.">
+                    {LIFECYCLE_STAGE_LABELS.archived}
+                  </span>
+                )}
+                {showRepBadge ? (
+                  <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`}>
+                    {REPRESENTATION_STATUS_LABELS[status]}
+                  </span>
+                ) : (
+                  <span className="badge badge-gray">{LIFECYCLE_STAGE_LABELS[stage]}</span>
+                )}
+              </div>
               <div className="cw-id-row">
                 {client.idNumber && <span className="mono-text">ת.ז. {client.idNumber}</span>}
                 {client.phone && <span className="mono-text ltr-isolate">{client.phone}</span>}
@@ -565,39 +584,30 @@ export default function ClientWorkspace({
             לאומי, שע״ם ותיק מ"ה ע"ש מי — כולם חיים ב"תיק מס" תחת "מצב מול
             הרשויות", שם הם הרשומה המקצועית ולא קישוט. הצגתם גם בקליפה
             שכפלה את אותה עובדה בשני מקומות והכריחה את העין לסרוק שבע
-            תוויות לפני שהגיעה לעבודה. */}
-        <div className="cw-header-chips">
-          {isArchived && (
-            <span className="badge badge-gray" title="הכרטיס מוסתר מרשימת הלקוחות. שום נתון לא נמחק.">
-              {LIFECYCLE_STAGE_LABELS.archived}
-            </span>
-          )}
+            תוויות לפני שהגיעה לעבודה.
+            ‼ ומאז שהסטטוס עלה לשורת השם, לרוב הלקוחות לא נשאר בה כלום —
+            ולכן היא מוצגת רק כשיש בה תוכן. רצועה אפורה ריקה קוראת כמו
+            אזור שנשבר, לא כמו שקט. */}
+        {hasHeaderChips && (
+          <div className="cw-header-chips">
+            {employee && (
+              <span className="cw-emp-chip" title={employee.role}>
+                <span className="cw-emp-dot" style={{ background: employee.color }}>{employee.initials}</span>
+                {employee.name}
+              </span>
+            )}
 
-          {showRepBadge ? (
-            <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`}>
-              {REPRESENTATION_STATUS_LABELS[status]}
-            </span>
-          ) : (
-            <span className="badge badge-gray">{LIFECYCLE_STAGE_LABELS[stage]}</span>
-          )}
+            {(client.tags ?? []).map(t => <span key={t} className="cw-tag">#{t}</span>)}
 
-          {employee && (
-            <span className="cw-emp-chip" title={employee.role}>
-              <span className="cw-emp-dot" style={{ background: employee.color }}>{employee.initials}</span>
-              {employee.name}
-            </span>
-          )}
-
-          {(client.tags ?? []).map(t => <span key={t} className="cw-tag">#{t}</span>)}
-
-          {/* משימות הלקוח — קיצור הקשרי אל תור העבודה הגלובלי, לא מנהל
-              משימות שני בתוך הכרטיס. */}
-          {!isNew && openTasks.length > 0 && onOpenClientTasks && (
-            <button type="button" className="cw-tasks-link" onClick={() => onOpenClientTasks(client.id)}>
-              {openTasks.length} משימות פתוחות ←
-            </button>
-          )}
-        </div>
+            {/* משימות הלקוח — קיצור הקשרי אל תור העבודה הגלובלי, לא מנהל
+                משימות שני בתוך הכרטיס. */}
+            {!isNew && openTasks.length > 0 && onOpenClientTasks && (
+              <button type="button" className="cw-tasks-link" onClick={() => onOpenClientTasks(client.id)}>
+                {openTasks.length} משימות פתוחות ←
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Header — tabs */}
         <div className="cw-tabs">

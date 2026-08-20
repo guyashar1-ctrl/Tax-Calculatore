@@ -10,9 +10,9 @@
 // מקובלות על הלקוח — המלצה מחושבת מתוך ברירות מחדל הייתה מטעה.
 
 import { useMemo, useState } from 'react';
-import type { Client, RentalTaxTrack, TaxAuthority } from '../../types';
+import type { Client, RentalTaxTrack, TaxAuthority, TaxFileInfo } from '../../types';
 import {
-  TAX_AUTHORITY_LABELS, TAX_FILE_OWNER_LABELS, TAX_FILE_REP_STATUS_LABELS,
+  TAX_AUTHORITY_LABELS, TAX_FILE_REP_STATUS_LABELS,
   FAMILY_STATUS_LABELS,
 } from '../../types';
 import { VAT_FREQ_LABELS, SHAAM_STATUS_LABELS } from '../../types/clientWorkspace';
@@ -20,7 +20,7 @@ import type { TaxFactChange } from '../../types/taxFacts';
 import { TAX_FACT_SOURCE_LABELS } from '../../types/taxFacts';
 import { useTaxFacts } from '../../hooks/useTaxFacts';
 import { shortDate } from '../../utils/clientDerived';
-import { clientDisplayName, spouseDisplayName } from '../../features/annualReport/profile';
+import { clientDisplayName, spouseDisplayName, registeredFileInfo } from '../../features/annualReport/profile';
 import { getTaxYearData } from '../../data/taxData';
 import { calcCreditPoints } from '../../utils/taxCalculations';
 
@@ -114,6 +114,25 @@ function TRow({
 
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return <div><div className="k">{k}</div><div className="v">{v}</div></div>;
+}
+
+/** תא בטבלת הרשויות: מספרי התיקים ששייכים לו, או "—" כשאין תיק כזה.
+ *  תיק שקיים אבל מספרו טרם הוזן אומר זאת במפורש — "—" היה משקר. */
+function fileCellText(cellFiles: TaxFileInfo[], tag?: string): React.ReactNode {
+  if (cellFiles.length === 0) return <span className="txf-mtx-none">—</span>;
+  return (
+    <>
+      {tag && <span className="txf-mtx-tag">{tag}</span>}
+      {cellFiles.map((f, i) => (
+        <span key={f.id}>
+          {i > 0 && <span className="txf-mtx-sep"> · </span>}
+          {f.fileNumber
+            ? <span className="txf-mtx-num">{f.fileNumber}</span>
+            : <span className="txf-mtx-missing">חסר מספר</span>}
+        </span>
+      ))}
+    </>
+  );
 }
 
 function SrcLine({ label, onEdit }: { label: string; onEdit?: () => void }) {
@@ -210,6 +229,93 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
 
   const files = client.taxFiles ?? [];
   const married = client.familyStatus === 'married';
+
+  // ── עמודות טבלת הרשויות: בן זוג מקבל עמודה רק כשהוא באמת קיים בכרטיס ──
+  const clientName = clientDisplayName(client);
+  const spouseName = spouseDisplayName(client);
+  const hasSpouseColumn = married && !!client.spouseName?.trim();
+  const regFile = registeredFileInfo(client);
+  const cols = [
+    // הסימון מוצג רק בזוג: אצל אדם בודד התיק הוא שלו מעצם הדבר
+    { key: 'client' as const, name: clientName, registered: hasSpouseColumn && regFile?.owner === 'client' },
+    ...(hasSpouseColumn
+      ? [{ key: 'spouse' as const, name: spouseName, registered: regFile?.owner === 'spouse' }]
+      : []),
+  ];
+  const niEmployerFiles = files.filter(f => f.authority === 'national_insurance' && f.owner === 'joint');
+
+  function ownerShort(f: TaxFileInfo): string {
+    if (f.authority === 'national_insurance' && f.owner === 'joint') return 'תיק הניכויים';
+    if (f.owner === 'joint') return 'משותף';
+    return f.owner === 'spouse' ? spouseName : clientName;
+  }
+
+  /** הפירוט שנפתח מתחת לשורת הרשות. מספרי התיקים לא חוזרים לכאן — הם כבר
+   *  בטבלה; מה שנשאר הוא מצב התיק (ייצוג, יתרות, דיווחים, הרשאות). */
+  function authorityKVs(authority: TaxAuthority, authFiles: TaxFileInfo[]): { k: string; v: React.ReactNode }[] {
+    const out: { k: string; v: React.ReactNode }[] = [];
+    const add = (k: string, v: React.ReactNode) => out.push({ k, v });
+
+    for (const f of authFiles) {
+      add(authFiles.length > 1 ? `סטטוס ייצוג · ${ownerShort(f)}` : 'סטטוס ייצוג',
+        TAX_FILE_REP_STATUS_LABELS[f.repStatus]);
+    }
+
+    if (authority === 'income_tax') {
+      if (client.pitAdvancePercent) add('מקדמות', `${client.pitAdvancePercent}%`);
+      if (client.bookStatus && client.bookStatus !== 'unknown') {
+        add('ניהול ספרים', <span style={client.bookStatus === 'rejected' ? { color: 'var(--warn)' } : undefined}>{client.bookStatus === 'kosher' ? 'תקין' : 'נפסל'}</span>);
+      }
+      if (client.hasExemptFromWithholding) add('פטור מניכוי במקור', 'כן');
+      if (client.withholdingDetail) add('פירוט ניכוי במקור', client.withholdingDetail);
+      if (client.taxOfficeName) add('פקיד שומה', client.taxOfficeName);
+      if (client.incomeTaxUnit) add('חוליה', client.incomeTaxUnit);
+      if (client.incomeTaxEconomicIndustry) add('ענף כלכלי', client.incomeTaxEconomicIndustry);
+      if (client.incomeTaxBalance != null) add('יתרה במס הכנסה', money(client.incomeTaxBalance));
+      if (client.capitalDeclarationRequired) {
+        add('הצהרת הון', <span style={{ color: 'var(--warn)' }}>דרישה פתוחה{client.capitalDeclarationDeadline ? ` · עד ${shortDate(client.capitalDeclarationDeadline)}` : ''}</span>);
+      }
+      if (client.incomeTaxDebitAuthorization != null) {
+        add('הרשאה לחיוב חשבון', client.incomeTaxDebitAuthorization ? 'קיימת' : <span style={{ color: 'var(--warn)' }}>אין הרשאה</span>);
+      }
+      if (client.incomeTaxReportingStatus) {
+        add('מצב דיווחים', <span style={client.incomeTaxReportingStatus === 'אין דיווחים חסרים' ? undefined : { color: 'var(--warn)' }}>{client.incomeTaxReportingStatus}</span>);
+      }
+    }
+
+    if (authority === 'vat') {
+      if (client.vatFrequency) add('תדירות דיווח', VAT_FREQ_LABELS[client.vatFrequency]);
+      if (client.vatFileType) add('סוג תיק', client.vatFileType);
+      if (client.vatOpeningDate) add('תאריך פתיחת תיק', shortDate(client.vatOpeningDate));
+      if (client.vatPrimaryIndustry) add('ענף עיקרי', client.vatPrimaryIndustry);
+      if (client.vatLastReportPeriod) add('דוח אחרון שהוגש', client.vatLastReportPeriod);
+      if (client.vatBalance != null) add('יתרה במע״מ', money(client.vatBalance));
+      if (client.vatDebitAuthorization != null) {
+        add('הרשאה לחיוב חשבון', client.vatDebitAuthorization ? 'קיימת' : <span style={{ color: 'var(--warn)' }}>אין הרשאה</span>);
+      }
+    }
+
+    if (authority === 'deductions') {
+      if (client.withholdingRate != null) add('שיעור ניכוי', `${client.withholdingRate}%`);
+      if (client.withholdingValidUntil) add('תוקף האישור', shortDate(client.withholdingValidUntil));
+    }
+
+    if (authority === 'national_insurance') {
+      if (client.niAdvanceMonthly) add('מקדמה חודשית', money(client.niAdvanceMonthly));
+      if (client.niIncomeBasisMonthly != null) add('בסיס הכנסה למקדמות', money(client.niIncomeBasisMonthly));
+      if (client.niBalance != null) add('יתרה בביטוח לאומי', money(client.niBalance));
+      if ((client.niOccupations?.length ?? 0) > 0) add('עיסוקים', client.niOccupations!.length);
+      if (client.niDebitAuthorization != null) {
+        add('הרשאה לחיוב חשבון', client.niDebitAuthorization ? 'קיימת' : <span style={{ color: 'var(--warn)' }}>אין הרשאה</span>);
+      }
+    }
+
+    // ‼ שע״ם היא הרשאה אחת לכל הרשויות — היא שייכת למס הכנסה ולא חוזרת
+    // בכל שורה. קודם היא הופיעה ארבע פעמים, כאילו יש ארבע הרשאות.
+    if (authority === 'income_tax' && client.shaamStatus) add('הרשאת שע״ם', SHAAM_STATUS_LABELS[client.shaamStatus]);
+
+    return out;
+  }
   const businesses = client.businesses ?? [];
   const employers = client.employers ?? [];
   const properties = client.properties ?? [];
@@ -300,80 +406,103 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
             )}
           </div>
         ) : (
-          AUTHORITY_ORDER.filter(a => files.some(f => f.authority === a)).map(authority => {
-            const authFiles = files.filter(f => f.authority === authority);
-            const rowId = `auth-${authority}`;
-            const summaryParts: string[] = [];
-            if (authority === 'vat' && client.vatFrequency) summaryParts.push(`דיווח ${VAT_FREQ_LABELS[client.vatFrequency]}`);
-            if (authority === 'deductions' && client.withholdingRate != null) summaryParts.push(`ניכוי ${client.withholdingRate}%`);
-            if (authority === 'income_tax' && client.pitAdvancePercent) summaryParts.push(`מקדמות ${client.pitAdvancePercent}%`);
-            if (authority === 'national_insurance' && client.niAdvanceMonthly) summaryParts.push(`מקדמה ${money(client.niAdvanceMonthly)} לחודש`);
-            const warn = authority === 'income_tax' && client.bookStatus === 'rejected' ? 'ניהול ספרים נפסל' : undefined;
-            return (
-              <TRow
-                key={authority} id={rowId} name={TAX_AUTHORITY_LABELS[authority]}
-                summary={summaryParts.length ? summaryParts.join(' · ') : `${authFiles.length} תיק${authFiles.length > 1 ? 'ים' : ''}`}
-                warn={warn} open={openRows.has(rowId)} onToggle={toggleRow}
-              >
-                <div className="txf-kv">
-                  {authFiles.map(f => (
-                    <KV key={f.id} k={`מספר תיק · ${TAX_FILE_OWNER_LABELS[f.owner]}`} v={f.fileNumber || '—'} />
-                  ))}
-                  {authFiles.map(f => (
-                    <KV key={`${f.id}-rep`} k="סטטוס ייצוג" v={TAX_FILE_REP_STATUS_LABELS[f.repStatus]} />
-                  ))}
-                  {authority === 'vat' && client.vatFrequency && <KV k="תדירות דיווח" v={VAT_FREQ_LABELS[client.vatFrequency]} />}
-                  {authority === 'deductions' && client.withholdingRate != null && <KV k="שיעור ניכוי" v={`${client.withholdingRate}%`} />}
-                  {authority === 'deductions' && client.withholdingValidUntil && <KV k="תוקף האישור" v={shortDate(client.withholdingValidUntil)} />}
-                  {authority === 'income_tax' && client.bookStatus && client.bookStatus !== 'unknown' && (
-                    <KV k="ניהול ספרים" v={<span style={client.bookStatus === 'rejected' ? { color: 'var(--warn)' } : undefined}>{client.bookStatus === 'kosher' ? 'תקין' : 'נפסל'}</span>} />
-                  )}
-                  {authority === 'income_tax' && client.hasExemptFromWithholding && <KV k="פטור מניכוי במקור" v="כן" />}
-                  {authority === 'income_tax' && client.withholdingDetail && <KV k="פירוט ניכוי במקור" v={client.withholdingDetail} />}
-                  {authority === 'income_tax' && client.taxOfficeName && <KV k="פקיד שומה" v={client.taxOfficeName} />}
-                  {authority === 'income_tax' && client.incomeTaxUnit && <KV k="חוליה" v={client.incomeTaxUnit} />}
-                  {authority === 'income_tax' && client.incomeTaxEconomicIndustry && <KV k="ענף כלכלי" v={client.incomeTaxEconomicIndustry} />}
-                  {authority === 'income_tax' && client.incomeTaxBalance != null && <KV k="יתרה במס הכנסה" v={money(client.incomeTaxBalance)} />}
-                  {authority === 'income_tax' && client.capitalDeclarationRequired && (
-                    <KV k="הצהרת הון" v={<span style={{ color: 'var(--warn)' }}>דרישה פתוחה{client.capitalDeclarationDeadline ? ` · עד ${shortDate(client.capitalDeclarationDeadline)}` : ''}</span>} />
-                  )}
-                  {authority === 'income_tax' && client.incomeTaxDebitAuthorization != null && (
-                    <KV k="הרשאה לחיוב חשבון" v={client.incomeTaxDebitAuthorization ? 'קיימת' : <span style={{ color: 'var(--warn)' }}>אין הרשאה</span>} />
-                  )}
-                  {authority === 'income_tax' && client.incomeTaxReportingStatus && (
-                    <KV k="מצב דיווחים" v={<span style={client.incomeTaxReportingStatus === 'אין דיווחים חסרים' ? undefined : { color: 'var(--warn)' }}>{client.incomeTaxReportingStatus}</span>} />
-                  )}
-                  {authority === 'national_insurance' && client.niAdvanceMonthly ? <KV k="מקדמה חודשית" v={money(client.niAdvanceMonthly)} /> : null}
-                  {authority === 'national_insurance' && client.niIncomeBasisMonthly != null && <KV k="בסיס הכנסה למקדמות" v={money(client.niIncomeBasisMonthly)} />}
-                  {authority === 'national_insurance' && client.niBalance != null && <KV k="יתרה בביטוח לאומי" v={money(client.niBalance)} />}
-                  {authority === 'national_insurance' && (client.niOccupations?.length ?? 0) > 0 && <KV k="עיסוקים" v={client.niOccupations!.length} />}
-                  {authority === 'national_insurance' && client.niDebitAuthorization != null && (
-                    <KV k="הרשאה לחיוב חשבון" v={client.niDebitAuthorization ? 'קיימת' : <span style={{ color: 'var(--warn)' }}>אין הרשאה</span>} />
-                  )}
-                  {authority === 'vat' && client.vatFileType && <KV k="סוג תיק" v={client.vatFileType} />}
-                  {authority === 'vat' && client.vatOpeningDate && <KV k="תאריך פתיחת תיק" v={shortDate(client.vatOpeningDate)} />}
-                  {authority === 'vat' && client.vatPrimaryIndustry && <KV k="ענף עיקרי" v={client.vatPrimaryIndustry} />}
-                  {authority === 'vat' && client.vatLastReportPeriod && <KV k="דוח אחרון שהוגש" v={client.vatLastReportPeriod} />}
-                  {authority === 'vat' && client.vatBalance != null && <KV k="יתרה במע״מ" v={money(client.vatBalance)} />}
-                  {authority === 'vat' && client.vatDebitAuthorization != null && (
-                    <KV k="הרשאה לחיוב חשבון" v={client.vatDebitAuthorization ? 'קיימת' : <span style={{ color: 'var(--warn)' }}>אין הרשאה</span>} />
-                  )}
-                  {client.shaamStatus && <KV k="הרשאת שע״ם" v={SHAAM_STATUS_LABELS[client.shaamStatus]} />}
-                </div>
-                <SrcLine label="מקור: תיקי הרשויות בכרטיס הלקוח · עריכה מלאה בפרטי הלקוח" />
-                {(() => {
-                  // ‼ פרובננס עדין — רק בפירוט המורחב, לא במשפט הפתיחה (הכרעת M2).
-                  const authKeys = AUTHORITY_FIELD_KEYS[authority];
-                  const latest = authKeys
-                    .map(k => meta[k])
-                    .filter((m): m is NonNullable<typeof m> => !!m && m.source === 'institution_alignment')
-                    .sort((a, b) => (b.syncedAt ?? '').localeCompare(a.syncedAt ?? ''))[0];
-                  if (!latest) return null;
-                  return <SrcLine label={`מקור: יישור קו מול הרשויות${latest.syncedAt ? ` · עודכן ${shortDate(latest.syncedAt)}` : ''}`} />;
-                })()}
-              </TRow>
-            );
-          })
+          <>
+            {/* ‼ שכבת הסיכום היא מטריצה ולא ארבע שורות טקסט: השאלה שהרו"ח
+                שואל כאן היא "איזה תיק יש לכל אחד מבני הזוג בכל רשות", וזו
+                שאלה דו-ממדית. קודם מספרי התיקים היו קבורים בתוך הפירוט
+                הנפתח, ולכן התשובה דרשה ארבע פתיחות והרכבה בראש.
+                רשות בלי תיק נשארת בטבלה עם "—" — היעדר תיק הוא עובדה
+                מקצועית, לא שורה שצריך להשמיט. */}
+            <div className={`txf-mtx ${cols.length > 1 ? 'is-pair' : 'is-solo'}`}>
+              <div className="txf-mtx-head">
+                <div className="txf-mtx-auth">רשות</div>
+                {cols.map(c => (
+                  <div key={c.key} className="txf-mtx-cell">
+                    <div className="txf-mtx-name">{c.name}</div>
+                    {c.registered && <div className="txf-mtx-reg">בן/בת הזוג הרשום/ה</div>}
+                  </div>
+                ))}
+                <span className="txf-mtx-chev" aria-hidden="true" />
+              </div>
+
+              {AUTHORITY_ORDER.map(authority => {
+                const authFiles = files.filter(f => f.authority === authority);
+                // ב"ל: owner='joint' הוא תיק הניכויים (מעסיק) — שורה משלו, לא תא בטבלה
+                const rowFiles = authority === 'national_insurance'
+                  ? authFiles.filter(f => f.owner !== 'joint') : authFiles;
+                const jointFiles = authority === 'national_insurance'
+                  ? [] : rowFiles.filter(f => f.owner === 'joint');
+                const rowId = `auth-${authority}`;
+                const kvs = authorityKVs(authority, authFiles);
+                const expandable = kvs.length > 0;
+                const open = expandable && openRows.has(rowId);
+                const warn = authority === 'income_tax' && client.bookStatus === 'rejected';
+                const cells = jointFiles.length > 0
+                  ? <div className="txf-mtx-cell txf-mtx-joint">{fileCellText(jointFiles, 'משותף')}</div>
+                  : cols.map(c => (
+                    <div key={c.key} className="txf-mtx-cell">
+                      {/* שם העמודה חוזר בתוך התא — מוצג רק במסך צר, ששם
+                          שורת הכותרת יורדת ובלעדיו התא מאבד את הצד שלו. */}
+                      <span className="txf-mtx-collab">{c.name}</span>
+                      {fileCellText(rowFiles.filter(f => f.owner === c.key))}
+                    </div>
+                  ));
+                return (
+                  <div key={authority} className={`txf-mtx-group ${open ? 'is-open' : ''}`}>
+                    {/* שורה בלי פירוט נשארת div: כפתור שלא עושה דבר משקר לעכבר ולמקלדת */}
+                    {expandable ? (
+                      <button type="button" className="txf-mtx-row" onClick={() => toggleRow(rowId)} aria-expanded={open}>
+                        <div className="txf-mtx-auth">
+                          {TAX_AUTHORITY_LABELS[authority]}
+                          {warn && <span className="txf-warn-inline">⚠ ניהול ספרים נפסל</span>}
+                        </div>
+                        {cells}
+                        <span className="txf-mtx-chev">◂</span>
+                      </button>
+                    ) : (
+                      <div className="txf-mtx-row is-static">
+                        <div className="txf-mtx-auth">{TAX_AUTHORITY_LABELS[authority]}</div>
+                        {cells}
+                        <span className="txf-mtx-chev" aria-hidden="true" />
+                      </div>
+                    )}
+                    {open && (
+                      <div className="txf-mtx-body">
+                        <div className="txf-kv">
+                          {kvs.map((kv, i) => <KV key={i} k={kv.k} v={kv.v} />)}
+                        </div>
+                        <SrcLine label="מקור: תיקי הרשויות בכרטיס הלקוח · עריכה מלאה בפרטי הלקוח" />
+                        {(() => {
+                          // ‼ פרובננס עדין — רק בפירוט המורחב, לא במשפט הפתיחה (הכרעת M2).
+                          const authKeys = AUTHORITY_FIELD_KEYS[authority];
+                          const latest = authKeys
+                            .map(k => meta[k])
+                            .filter((m): m is NonNullable<typeof m> => !!m && m.source === 'institution_alignment')
+                            .sort((a, b) => (b.syncedAt ?? '').localeCompare(a.syncedAt ?? ''))[0];
+                          if (!latest) return null;
+                          return <SrcLine label={`מקור: יישור קו מול הרשויות${latest.syncedAt ? ` · עודכן ${shortDate(latest.syncedAt)}` : ''}`} />;
+                        })()}
+                      </div>
+                    )}
+                    {/* תיק הניכויים בב"ל — שורה משלו מיד מתחת לב"ל האישי,
+                        כי הוא של המעסיק ולא של אף אחד מבני הזוג. */}
+                    {authority === 'national_insurance' && niEmployerFiles.length > 0 && (
+                      <div className="txf-mtx-row is-static is-sub">
+                        <div className="txf-mtx-auth">תיק הניכויים (מעסיק)</div>
+                        <div className="txf-mtx-cell txf-mtx-joint">{fileCellText(niEmployerFiles)}</div>
+                        <span className="txf-mtx-chev" aria-hidden="true" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {onOpenDetails && (
+              <div className="txf-mtx-foot">
+                <button type="button" className="ui-linkbtn" onClick={onOpenDetails}>עריכת תיקי הרשויות ←</button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -481,14 +610,25 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
           >
             <div className="txf-kv">
               <KV k="מצב משפחתי" v={FAMILY_STATUS_LABELS[client.familyStatus]} />
-              {married && <KV k="בן/בת הזוג" v={`${spouseDisplayName(client)}${client.spouseIdNumber ? ` · ת.ז. ${client.spouseIdNumber}` : ''}`} />}
-              {married && <KV k={`תעסוקת ${spouseDisplayName(client)}`} v={client.spouseWorking ? 'שכיר/ה' : 'ללא הכנסה'} />}
+              {married && <KV k="בן/בת הזוג" v={spouseName} />}
+              {/* ‼ ת.ז., טלפון ומייל של בן/בת הזוג הם פרטי קשר וזיהוי מלאים
+                  ולא נספח לשם: הם נדרשים לייפוי כוח, לקישור חתימה אישי
+                  ולפנייה ישירה. קודם הת"ז הייתה משורשרת לשם והטלפון לא הופיע
+                  כאן כלל — הרו"ח שחיפש אותו לא ידע שהוא בכלל קיים בכרטיס. */}
+              {married && <KV k={`ת.ז. ${spouseName}`} v={client.spouseIdNumber || <span style={{ color: 'var(--ink-4)' }}>טרם התקבלה</span>} />}
+              {married && <KV k={`טלפון ${spouseName}`} v={client.spousePhone?.trim()
+                ? <span className="ltr-isolate">{client.spousePhone}</span>
+                : <span style={{ color: 'var(--ink-4)' }}>טרם התקבל</span>} />}
+              {married && <KV k={`אימייל ${spouseName}`} v={client.spouseEmail?.trim()
+                ? <span className="ltr-isolate">{client.spouseEmail}</span>
+                : <span style={{ color: 'var(--ink-4)' }}>טרם התקבל</span>} />}
+              {married && <KV k={`תעסוקת ${spouseName}`} v={client.spouseWorking ? 'שכיר/ה' : 'ללא הכנסה'} />}
               {married && client.spouseWorking && client.spouseIncome ? <KV k="הכנסת בן/בת הזוג (שנתית)" v={money(client.spouseIncome)} /> : null}
               {(client.children ?? []).length > 0 && (
                 <KV k="ילדים" v={`${client.children.length} · שנתונים ${client.children.map(c => c.birthYear).sort().join(', ')}`} />
               )}
             </div>
-            <SrcLine label="מקור: כרטיס הלקוח" />
+            <SrcLine label="מקור: כרטיס הלקוח" onEdit={onOpenDetails} />
           </TRow>
         )}
 

@@ -412,6 +412,13 @@
    מתארות את המצב ה*רגיל* של לקוח: אם כל לקוח פעיל נושא שני כתמים
    ירוקים, הירוק אומר "לקוח", לא "שים לב". לכן המצב התקין הוא טקסט,
    והצבע נשמר למצב שדורש פעולה — "לא פעיל" או "בטיפול". */
+/* התג עבר לשורת השם — אותו טיפול בדיוק שהיה לו ברצועה: טקסט, לא גלולה.
+   בלי זה הוא חוזר להיות כתם ירוק ממולא ליד שם בגודל 24px, וסותר את כל
+   ההיגיון שמתואר למעלה. */
+.cw-name-line{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}
+.cw-name-line .badge{align-self:center}
+
+.cw-name-line .badge,
 .cw-header-chips .badge,
 .cw-rep-status {
   background: transparent !important;
@@ -421,8 +428,11 @@
   font-weight: 400 !important;
   color: var(--ink-3) !important;
 }
+.cw-name-line .badge-orange,
+.cw-name-line .badge-amber,
 .cw-header-chips .badge-orange,
 .cw-header-chips .badge-amber { color: var(--warn) !important; font-weight: 500 !important; }
+.cw-name-line .badge-red,
 .cw-header-chips .badge-red { color: var(--danger) !important; font-weight: 500 !important; }
 
 /* סימני המצב במרכז השליטה — קו עליון בלבד נושא את הרמה */
@@ -2512,6 +2522,23 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .pd-cell:not(:last-child){border-inline-end:0;border-bottom:1px solid var(--hairline-2)}
 }
 .pd-lab{font-size:var(--fs-12);color:var(--ink-3);margin-bottom:3px}
+
+/* ── טבלת בני הזוג — מוחלפת ב-pd-info כשיש בן/בת זוג בכרטיס ─────────────────
+   אותה שפה של pd-info (מסגרת אחת, קווי שערה פנימיים), אבל דו-ממדית: שורה
+   לכל פרט, עמודה לכל אדם. תווית הפרט נקראת פעם אחת בצד ולא פעמיים. */
+.pd-pair{border:1px solid var(--hairline-1);border-radius:var(--r-panel);overflow:hidden}
+.pd-pair-row{display:grid;grid-template-columns:minmax(64px,.8fr) 1fr 1fr;gap:8px 12px;
+  padding:9px 14px;align-items:baseline}
+.pd-pair-row+.pd-pair-row{border-top:1px solid var(--hairline-2)}
+.pd-pair-head{padding-bottom:7px}
+.pd-pair-name{font-size:var(--fs-13);font-weight:700;color:var(--ink-1);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-pair-lab{font-size:var(--fs-12);color:var(--ink-3)}
+.pd-pair-val{font-size:var(--fs-13);font-weight:600;color:var(--ink-1);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* פרט שטרם התקבל אינו נתון — משקל רגיל ואפור, אחרת "טרם התקבל" צועק
+   כמו מספר ת.ז. אמיתי והעין נעצרת עליו לשווא. */
+.pd-pair-val.is-missing{font-weight:400;color:var(--ink-4);font-size:var(--fs-12)}
 /* בן/בת הזוג הרשום/ה — נגזר מתיק מס הכנסה, לא סטטוס בפני עצמו.
    שורה שקטה מתחת לגריד ולא תג בתוכו: תג בן מילה אחת דרש ריחוף כדי להבין
    מה רשום ואיפה, ולכן לא נקרא. השם מודגש כי הוא כל התשובה. ענבר רק כשהתיק
@@ -2663,6 +2690,57 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .txf-srcline button:hover{color:var(--accent-hover)}
 
 .txf-empty{padding:14px 16px;color:var(--ink-3);font-size:var(--fs-13)}
+
+/* ── מטריצת התיקים ברשויות ────────────────────────────────────────────────────
+   שורה לכל רשות, עמודה לכל בן זוג. אין קווי רשת אנכיים ואין מסגרת סביב כל
+   תא: הרשת נקראת מהיישור ומהאוויר, וגריד מלא-קווים בתוך פאנל שכבר ממוסגר
+   קורא כמו גיליון אלקטרוני שנפל לתוך תיק הלקוח (אותו שיקול כמו .docw-row).
+   רק שורת הכותרת נושאת קו תחתון — היא זו שמכריזה על הצירים. */
+.txf-mtx{display:flex;flex-direction:column}
+.txf-mtx-head,.txf-mtx-row{display:grid;gap:10px 16px;align-items:baseline;
+  padding:9px 16px;text-align:start}
+.txf-mtx.is-solo .txf-mtx-head,.txf-mtx.is-solo .txf-mtx-row{grid-template-columns:minmax(80px,1fr) 1.4fr 12px}
+.txf-mtx.is-pair .txf-mtx-head,.txf-mtx.is-pair .txf-mtx-row{grid-template-columns:minmax(80px,.9fr) 1fr 1fr 12px}
+/* תיק משותף (או תיק הניכויים) אינו של אף אחת מהעמודות — הוא נפרש על
+   שתיהן וממורכז ביניהן. בהתחלה הוא היה מיושר לתחילת השורה, ואז הוא נחת
+   בדיוק במקום שבו יושבים המספרים של בן הזוג הראשון ונקרא כשלו. */
+.txf-mtx.is-pair .txf-mtx-joint{grid-column:span 2;text-align:center}
+.txf-mtx-head{border-bottom:1px solid var(--hairline-1);padding-bottom:8px;align-items:end}
+.txf-mtx-head .txf-mtx-auth{font-size:11px;font-weight:700;color:var(--ink-4)}
+.txf-mtx-name{font-size:var(--fs-13);font-weight:600;color:var(--ink-1)}
+/* מי שעל שמו תיק מס ההכנסה — העובדה הקובעת באיזו ת.ז. מתנהלים מול מ"ה.
+   ענבר ולא אפור: זו אינה תווית עמודה אלא הכרעה מקצועית שצריך לראות. */
+.txf-mtx-reg{font-size:11px;color:var(--warn);font-weight:500;margin-top:2px}
+.txf-mtx-row{border-top:1px solid var(--hairline-2);background:none;border-inline:0;
+  border-bottom:0;width:100%;font:inherit;color:inherit;cursor:pointer}
+.txf-mtx-group:first-of-type .txf-mtx-row{border-top:0}
+.txf-mtx-row.is-static{cursor:default}
+.txf-mtx-row:not(.is-static):hover{background:var(--surface-1)}
+.txf-mtx-row.is-sub{padding-top:2px;border-top:0}
+.txf-mtx-row.is-sub .txf-mtx-auth{color:var(--ink-4);font-weight:400;font-size:var(--fs-12);padding-inline-start:10px}
+.txf-mtx-auth{font-weight:600;font-size:var(--fs-13);color:var(--ink-1);
+  display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.txf-mtx-cell{font-size:var(--fs-13);color:var(--ink-1);min-width:0}
+.txf-mtx-num{font-variant-numeric:tabular-nums;unicode-bidi:isolate}
+.txf-mtx-none{color:var(--ink-4)}
+.txf-mtx-missing{color:var(--warn);font-size:var(--fs-12)}
+.txf-mtx-tag{color:var(--ink-3);font-size:var(--fs-12);margin-inline-end:6px}
+.txf-mtx-sep{color:var(--ink-4)}
+.txf-mtx-chev{color:var(--ink-4);font-size:11px;align-self:center;transition:transform .15s}
+.txf-mtx-group.is-open .txf-mtx-chev{transform:rotate(90deg)}
+.txf-mtx-body{border-top:1px dashed var(--hairline-1);background:var(--field-read);padding:10px 16px 14px}
+.txf-mtx-foot{border-top:1px solid var(--hairline-1);padding:9px 16px;font-size:var(--fs-12)}
+.txf-mtx-collab{display:none}
+@media (max-width:640px){
+  /* במסך צר עמודה לכל בן זוג נחנקת — שורת הכותרת יורדת, וכל תא נושא
+     את שם בן הזוג שלו בעצמו כדי שלא יאבד את הצד. */
+  .txf-mtx-head{display:none}
+  .txf-mtx.is-pair .txf-mtx-row,.txf-mtx.is-solo .txf-mtx-row{grid-template-columns:1fr 1fr;gap:4px 12px}
+  .txf-mtx-auth{grid-column:1/-1}
+  .txf-mtx.is-pair .txf-mtx-joint{grid-column:1/-1}
+  .txf-mtx-chev{display:none}
+  .txf-mtx-collab{display:block;font-size:11px;color:var(--ink-4);margin-bottom:1px}
+}
 
 .txf-editor{margin:10px 0 4px;background:var(--surface-0);border:1px solid var(--soft-bd);border-radius:var(--r-input);padding:12px}
 .txf-editor h4{margin:0 0 8px;font-size:var(--fs-13);color:var(--ink-1)}
@@ -2848,8 +2926,33 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .docw-bulkbar-clear{border:0;background:none;padding:0;cursor:pointer;font:inherit;
   font-size:var(--fs-12);color:var(--ink-3)}
 .docw-bulkbar-clear:hover{text-decoration:underline}
-.docw-bulkbar .btn{margin-inline-start:auto}
+.docw-bulkbar-actions{margin-inline-start:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* מחיקה אינה כפתור מלא: היא הפעולה היחידה בסרגל שאין ממנה דרך חזרה,
+   ומשקל ויזואלי שווה לשאר היה מזמין לחיצה מתוך רצף. */
+.docw-bulkbar-danger{border:0;background:none;padding:4px 6px;cursor:pointer;font:inherit;
+  font-size:var(--fs-12);color:var(--err)}
+.docw-bulkbar-danger:hover{text-decoration:underline}
 .docw-bulkbar-all{display:none}
+/* ─── גרירה בין תיקיות ────────────────────────────────────────────────
+   ‼ רק בין תיקיות של אותו לקוח. מעבר בין לקוחות הוא שינוי בעלות ונשאר
+   פעולה מפורשת ב"העברה" — לכן אין כאן שום יעד נפילה שאינו תיקייה במסך. */
+.docw-doc-row.is-draggable{cursor:grab}
+.docw-doc-row.is-draggable:active{cursor:grabbing}
+.docw-doc-row.is-dragging{opacity:.4}
+/* מסגרת פנימית ולא border: border היה מזיז את תוכן השורה בפיקסל ברגע
+   הריחוף, וכל הרשימה הייתה רועדת כשעוברים מעל תיקייה לתיקייה. */
+.docw-folder-row.is-drop-target{background:var(--soft);box-shadow:inset 0 0 0 2px var(--accent)}
+.docw-folder-row.is-drop-target .docw-name{color:var(--accent)}
+
+/* ─── מגירת המסמך ────────────────────────────────────────────────────── */
+.docw-drawer-top{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}
+.docw-drawer-id{min-width:0}
+.docw-drawer-id h3{margin:0 0 2px;font-size:var(--fs-16,16px)}
+.docw-drawer-id .csub{word-break:break-word}
+.docw-drawer-actions{display:flex;gap:8px;margin-top:.8rem}
+.docw-drawer-actions .ui-btn{flex:1}
+.docw-drawer-err{color:var(--err);font-size:var(--fs-12);margin-top:.4rem;white-space:pre-line}
+.docw-drawer-foot{margin-top:1.1rem;padding-top:.6rem;border-top:1px solid var(--hairline-2)}
 .docw-empty{padding:18px 16px;color:var(--ink-3);font-size:var(--fs-13);text-align:center}
 @media (max-width:700px){
   /* ‼ שורת הכותרת מוסתרת במסך צר, ואיתה "בחר הכל" — לכן היא חוזרת
@@ -2857,7 +2960,8 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .docw-head-row{display:none}
   .docw-row{grid-template-columns:22px 1fr auto;grid-auto-flow:dense}
   .docw-row .docw-col-year,.docw-row .docw-col-updated{display:none}
-  .docw-bulkbar .btn{margin-inline-start:0;width:100%}
+  .docw-bulkbar-actions{margin-inline-start:0;width:100%}
+  .docw-bulkbar-actions .btn{flex:1}
   .docw-bulkbar-all{display:inline}
 }
 

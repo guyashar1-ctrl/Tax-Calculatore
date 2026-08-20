@@ -85,9 +85,13 @@ export default function PersonQuickView(p: Props) {
         ? { text: 'תיק מס הכנסה משותף', name: '', spouse: false }
         : { text: 'תיק מס הכנסה ע״ש', name: regFile.name, spouse: regFile.owner === 'spouse' })
     : null;
-  const spouseDetails = [p.row.client?.spouseIdNumber, p.row.client?.spouseEmail]
-    .filter((v): v is string => !!v?.trim());
   const { row } = p;
+  /** שלוש שורות ההשוואה — אותם פרטים לשני בני הזוג, בסדר קבוע. */
+  const pairRows = [
+    { lab: 'תעודת זהות', mine: row.idNumber?.trim(), theirs: p.row.client?.spouseIdNumber?.trim(), ltr: true },
+    { lab: 'טלפון', mine: row.phone?.trim(), theirs: p.row.client?.spousePhone?.trim(), ltr: true },
+    { lab: 'אימייל', mine: row.email?.trim(), theirs: p.row.client?.spouseEmail?.trim(), ltr: true },
+  ];
   return (
     <>
       <div className="pd-qv-head">
@@ -123,35 +127,46 @@ export default function PersonQuickView(p: Props) {
           </div>
         </div>
 
-        <div className="pd-info">
-          <div className="pd-cell">
-            <div className="pd-lab">תעודת זהות</div>
-            <div className="pd-val num">{row.idNumber || 'טרם התקבל'}</div>
-          </div>
-          <div className="pd-cell">
-            <div className="pd-lab">טלפון</div>
-            <div className="pd-val num pd-ltr">{row.phone || '—'}</div>
-          </div>
-          <div className="pd-cell">
-            <div className="pd-lab">אימייל</div>
-            <div className="pd-val pd-ltr">{row.email || '—'}</div>
-          </div>
-          {/* ‼ בן/בת הזוג מופיע/ה רק כשיש כזה בכרטיס. השם נקרא ראשון; הת"ז
-              והמייל הם פרטי היכר שקטים מתחתיו ולא שורות מודגשות משלהם —
-              אחרת תא אחד צועק יותר מכל השאר. כל פרט בשורה נפרדת ולא מחורז
-              בנקודה: בתא צר השרשור נשבר והמפריד נשאר תלוי בסוף השורה.
-              פרט חסר בודד נשמט בשקט, אבל תא בלי שום פרט אומר זאת במפורש —
-              אחרת שם לבד נראה כמו כרטיס שאין בו מה למלא. */}
-          {!!spouseName && (
-            <div className="pd-cell">
-              <div className="pd-lab">בן/בת זוג</div>
-              <div className="pd-val">{spouseName}</div>
-              {spouseDetails.length
-                ? spouseDetails.map(v => <div className="pd-small pd-ltr" key={v}>{v}</div>)
-                : <div className="pd-small">ת.ז. ומייל טרם התקבלו</div>}
+        {/* ‼ יש בן/בת זוג ⇒ טבלת השוואה ולא ארבעה תאים. קודם הלקוח קיבל שלושה
+            תאים מודגשים ובן/בת הזוג תא רביעי צפוף שדחס שם, ת"ז ומייל —
+            והטלפון של בן/בת הזוג לא הופיע כאן כלל. אותם שלושה פרטים לשניהם,
+            זה מול זה, הם גם קריאים יותר וגם מזמינים השוואה, וזו בדיוק
+            הפעולה שעושים כאן (מי מסר מה, למי חסר מה). */}
+        {spouseName ? (
+          <div className="pd-pair">
+            <div className="pd-pair-row pd-pair-head">
+              <div className="pd-pair-lab" />
+              <div className="pd-pair-name">{row.name}</div>
+              <div className="pd-pair-name">{spouseName}</div>
             </div>
-          )}
-        </div>
+            {pairRows.map(r => (
+              <div className="pd-pair-row" key={r.lab}>
+                <div className="pd-pair-lab">{r.lab}</div>
+                <div className={`pd-pair-val${r.ltr ? ' pd-ltr' : ''}${r.mine ? '' : ' is-missing'}`}>
+                  {r.mine || 'טרם התקבל'}
+                </div>
+                <div className={`pd-pair-val${r.ltr ? ' pd-ltr' : ''}${r.theirs ? '' : ' is-missing'}`}>
+                  {r.theirs || 'טרם התקבל'}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="pd-info">
+            <div className="pd-cell">
+              <div className="pd-lab">תעודת זהות</div>
+              <div className="pd-val num">{row.idNumber || 'טרם התקבל'}</div>
+            </div>
+            <div className="pd-cell">
+              <div className="pd-lab">טלפון</div>
+              <div className="pd-val num pd-ltr">{row.phone || '—'}</div>
+            </div>
+            <div className="pd-cell">
+              <div className="pd-lab">אימייל</div>
+              <div className="pd-val pd-ltr">{row.email || '—'}</div>
+            </div>
+          </div>
+        )}
 
         {regLine && (
           <div className={`pd-regline${regLine.spouse ? ' is-spouse' : ''}`} title={REG_HINT}>

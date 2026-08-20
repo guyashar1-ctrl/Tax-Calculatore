@@ -17,6 +17,13 @@ export const SAMPLE_CLIENTS: Client[] = [
     hasTaxCoordination: false, taxCoordinationDetails: '',
     familyStatus: 'married',
     spouseName: 'רחל כהן', spouseIdNumber: '987654321',
+    spousePhone: '050-9876543', spouseEmail: 'rachel@example.com',
+    // שכיר נשוי: תיק מ"ה אחד לתא המשפחתי, וב"ל אישי לכל בן זוג. אין מע"מ/ניכויים.
+    taxFiles: [
+      { id: 'tf-s1-it', authority: 'income_tax', owner: 'client', fileNumber: '123456789', repStatus: 'active' },
+      { id: 'tf-s1-ni1', authority: 'national_insurance', owner: 'client', fileNumber: '123456789', repStatus: 'active' },
+      { id: 'tf-s1-ni2', authority: 'national_insurance', owner: 'spouse', fileNumber: '987654321', repStatus: 'active' },
+    ],
     spouseWorking: true, spouseIncome: 120000,
     spouse: {
       firstName: 'רחל', lastName: 'כהן', idNumber: '987654321',
@@ -208,6 +215,10 @@ export const SAMPLE_CLIENTS: Client[] = [
     familyStatus: 'single',
     spouseName: '', spouseIdNumber: '', spouseWorking: false, spouseIncome: 0,
     spouse: null,
+    taxFiles: [
+      { id: 'tf-s5-it', authority: 'income_tax', owner: 'client', fileNumber: '567890123', repStatus: 'active' },
+      { id: 'tf-s5-ni', authority: 'national_insurance', owner: 'client', fileNumber: '567890123', repStatus: 'none' },
+    ],
     children: [
       { id: 'c9', birthDate: '2022-02-18', birthYear: 2022, hasDisability: false },
     ],
@@ -294,6 +305,18 @@ export const SAMPLE_CLIENTS: Client[] = [
     hasTaxCoordination: false, taxCoordinationDetails: '',
     familyStatus: 'married',
     spouseName: 'תמר בר-לב', spouseIdNumber: '890123456',
+    spousePhone: '054-8901234', spouseEmail: 'tamar@design.co.il',
+    // תא משפחתי ששני בניו עצמאיים: תיק מ"ה אחד על שם רון, אבל מע"מ וב"ל
+    // לכל אחד בנפרד — המקרה שבו הטבלה עונה על השאלה בשורה אחת.
+    taxFiles: [
+      { id: 'tf-s7-it', authority: 'income_tax', owner: 'client', fileNumber: '789012345', repStatus: 'active' },
+      { id: 'tf-s7-vat1', authority: 'vat', owner: 'client', fileNumber: '789012345', repStatus: 'active' },
+      { id: 'tf-s7-vat2', authority: 'vat', owner: 'spouse', fileNumber: '890123456', repStatus: 'active' },
+      { id: 'tf-s7-ded', authority: 'deductions', owner: 'client', fileNumber: '947890123', repStatus: 'active' },
+      { id: 'tf-s7-ni1', authority: 'national_insurance', owner: 'client', fileNumber: '789012345', repStatus: 'active' },
+      { id: 'tf-s7-ni2', authority: 'national_insurance', owner: 'spouse', fileNumber: '890123456', repStatus: 'active' },
+      { id: 'tf-s7-nie', authority: 'national_insurance', owner: 'joint', fileNumber: '947890123', repStatus: 'active' },
+    ],
     spouseWorking: false, spouseIncome: 0,
     spouse: {
       firstName: 'תמר', lastName: 'בר-לב', idNumber: '890123456',
