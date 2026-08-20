@@ -48,6 +48,7 @@ import Modal from '../ui/Modal';
 import AddRequestDialog from './AddRequestDialog';
 import type { RequestTemplate } from '../../lib/requestTemplates';
 import { firstEntry, isSeedTemplate, saveRequestTemplate } from '../../lib/requestTemplates';
+import { createPrevAccountantTrack, isPrevAccountantStep } from '../../lib/prevAccountantTrack';
 import JourneyTemplatesDialog from './JourneyTemplatesDialog';
 import SendPortalDialog from './SendPortalDialog';
 import ClientPagePreviewDialog from './ClientPagePreviewDialog';
@@ -800,18 +801,32 @@ export default function OnboardingTab({
    * "הסר" מ-⋯. שלב שכבר פורסם מסומן pending_cancel (ממתין לפרסום הבא —
    * מיגרציה 101); שלב טיוטה שמעולם לא פורסם מבוטל מיד (advance('cancel'),
    * כמו היום) — שום לקוח לא רואה אותו ממילא, ואין מה לגונן עליו.
+   *
+   * ‼ «חומרים מרו״ח קודם» היא בקשה אחת בעיני הרו"ח, ולכן ההסרה חלה על שלושת
+   * השלבים שמאחוריה. בלי זה נשארו שאריות: הסרת המכתב לבדו הציפה את שאלת
+   * הפרטים ככרטיס עצמאי (renderRow מסתיר אותה רק כשהמכתב חי) והשאירה את
+   * מעקב החומרים תלוי בשלב מבוטל.
    */
   async function removeRow(step: OnboardingStep) {
-    if (step.publishedAt == null) {
-      void run(step, 'cancel', { note: 'הוסר לפני שפורסם' });
-      return;
+    const targets = isPrevAccountantStep(step.stepType)
+      ? clientSteps.filter(s => isPrevAccountantStep(s.stepType) && s.status !== 'cancelled')
+      : [step];
+    /* ‼ המצב הרצוי נגזר מהשלב שעליו לחצו ומוחל על כולם. בלי זה חבר שכבר
+       סומן היה מתהפך בחזרה, ובקשה אחת הייתה מתפצלת לשני מצבים. */
+    const pending = !step.pendingCancel;
+    for (const t of targets) {
+      if (t.publishedAt == null) {
+        if (pending) await run(t, 'cancel', { note: 'הוסר לפני שפורסם' });
+        continue;
+      }
+      if (!!t.pendingCancel === pending) continue;
+      setBusyStepId(t.id);
+      const { error: rpcError } = await supabase.rpc('set_onboarding_step_pending_cancel', {
+        p_step_id: t.id, p_pending: pending,
+      });
+      setBusyStepId(null);
+      if (rpcError) { setError(rpcError.message); return; }
     }
-    setBusyStepId(step.id);
-    const { error: rpcError } = await supabase.rpc('set_onboarding_step_pending_cancel', {
-      p_step_id: step.id, p_pending: !step.pendingCancel,
-    });
-    setBusyStepId(null);
-    if (rpcError) { setError(rpcError.message); return; }
     refresh?.();
   }
 
@@ -870,66 +885,26 @@ export default function OnboardingTab({
     refresh?.();
   }
 
-  /* ── פתיחת מסלול הרו״ח הקודם כשהוא חסר ────────────────────────────────────
-     ‼ אותו מנגנון יצירה של כל בקשה (create_onboarding_request) ואותם שני
-     שלבים שהמחולל בשרת יוצר — מכתב שחרור, ומעקב חומרים שתלוי בו. אין כאן
-     אחסון טיוטה מקביל: הטיוטה תיוולד על השלב עצמו. */
+  /* ── פתיחת «חומרים מרו״ח קודם» כשהיא חסרה ─────────────────────────────────
+     ‼ אותה יצירה בדיוק שרצה מ"+ בקשה" — היא חיה ב-lib/prevAccountantTrack
+     כדי ששתי נקודות הכניסה לא יתפצלו. אין כאן אחסון טיוטה מקביל: הטיוטה
+     תיוולד על השלב עצמו. */
   const [prevTrackBusy, setPrevTrackBusy] = useState(false);
   const needsPrevTrack =
     !!(client.hasPreviousAccountant || client.prevAccountantEmail || client.prevAccountantName)
     && !clientSteps.some(s => s.stepType === 'release_letter' && s.status !== 'cancelled');
 
-  async function createPrevAccountantTrack() {
+  async function openPrevAccountantTrack() {
     setPrevTrackBusy(true);
     setError(null);
-    // ‼ הצעד הראשון של המסלול הוא תמיד שאלה ללקוח (הכרעת גיא 2026-08-18):
-    // בלי פרטים — "מי הרו״ח הקודם שלך?"; עם פרטים — רק לאשר שהם עדכניים.
-    // המכתב נחסם לשליחה רק כשאין אימייל; אחרת הוא נולד פתוח והאישור רץ במקביל.
-    const hasEmail = !!prevAccountant?.email?.trim();
-    const existingDetails = clientSteps.find(
-      s => s.stepType === 'prev_accountant_details' && s.status !== 'cancelled');
-    const det = existingDetails
-      ? { data: { ok: true, stepId: existingDetails.id }, error: null }
-      : await supabase.rpc('create_onboarding_request', {
-      p_client_id: clientId, p_step_type: 'prev_accountant_details',
-      p_payload: hasEmail
-        ? {
-            clientTitle: 'לאשר את פרטי רואה החשבון הקודם',
-            clientSub: 'הפרטים שאצלנו מוצגים למילוי מראש — רק לוודא שהם נכונים',
-            clientCta: 'לאישור',
-          }
-        : {
-            clientTitle: 'פרטי רואה החשבון הקודם שלך',
-            clientSub: 'שם, אימייל וטלפון — כדי שנפנה אליו בשמך',
-            clientCta: 'למילוי',
-          },
-        p_due_date: null, p_depends_on: null, p_published: true,
-        p_required_for_close: !hasEmail, p_owner: 'client', p_stage_id: null,
-      });
-    const detRes = det.data as { ok?: boolean; stepId?: string; error?: string } | null;
-    if (det.error || !detRes?.ok || !detRes.stepId) {
-      setError('פתיחת מסלול הרו״ח הקודם נכשלה.');
-      setPrevTrackBusy(false);
-      return;
-    }
-    const rel = await supabase.rpc('create_onboarding_request', {
-      p_client_id: clientId, p_step_type: 'release_letter', p_payload: {},
-      p_due_date: null, p_depends_on: hasEmail ? null : detRes.stepId, p_published: true,
-      p_required_for_close: true, p_owner: 'me', p_stage_id: null,
-    });
-    const relRes = rel.data as { ok?: boolean; stepId?: string; error?: string } | null;
-    if (rel.error || !relRes?.ok || !relRes.stepId) {
-      setError('פתיחת מסלול הרו״ח הקודם נכשלה.');
-      setPrevTrackBusy(false);
-      return;
-    }
-    // מעקב החומרים נולד ריק ותלוי במכתב — הרשימה שנשלחת בפועל היא שממלאת אותו.
-    await supabase.rpc('create_onboarding_request', {
-      p_client_id: clientId, p_step_type: 'materials_received', p_payload: { checklist: [] },
-      p_due_date: null, p_depends_on: relRes.stepId, p_published: true,
-      p_required_for_close: true, p_owner: 'me', p_stage_id: null,
+    const res = await createPrevAccountantTrack({
+      clientId,
+      steps: clientSteps,
+      prevAccountantEmail: prevAccountant?.email,
+      published: true,
     });
     setPrevTrackBusy(false);
+    if (!res.ok) { setError(res.error); return; }
     refresh?.();
   }
 
@@ -1707,7 +1682,7 @@ export default function OnboardingTab({
                     </div>
                     <div className="ob-card-actions">
                       <button type="button" className="btn btn-sm btn-primary" disabled={prevTrackBusy}
-                        onClick={() => void createPrevAccountantTrack()}>
+                        onClick={() => void openPrevAccountantTrack()}>
                         {prevTrackBusy ? 'פותח…' : 'פתח מסלול רו״ח קודם'}
                       </button>
                     </div>
@@ -1949,6 +1924,7 @@ export default function OnboardingTab({
           clientId={clientId}
           steps={clientSteps}
           processPublished={!!activeEngagement?.processPublishedAt}
+          prevAccountantEmail={prevAccountant?.email}
           onUseTemplate={t => { setAddOpen(false); setTemplateDraft(t); }}
           onClose={() => setAddOpen(false)}
           onCreated={() => refresh?.()}

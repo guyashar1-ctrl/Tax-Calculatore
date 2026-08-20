@@ -20,25 +20,28 @@ import {
 } from '../../lib/documentRequestOptions';
 import type { RequestTemplate } from '../../lib/requestTemplates';
 import { firstEntry, loadRequestTemplates, templateBySeed } from '../../lib/requestTemplates';
+import { createPrevAccountantTrack, missingPrevAccountantSteps } from '../../lib/prevAccountantTrack';
 import { supabase } from '../../lib/supabase';
 
 /** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
- *  'paperless_sequence' ו-'bank_debit' אינם סוגי בקשה במסד — הם תבניות:
- *  הראשונה יוצרת את רצף הפייפרלס (PAPERLESS_SEQUENCE), והשנייה בקשה
- *  חופשית אחת עם דרישת אסמכתה לכל רשות שנבחרה (buildBankDebitPayload). */
+ *  'paperless_sequence', 'prev_accountant_track' ו-'bank_debit' אינם סוגי
+ *  בקשה במסד — הם תבניות: הראשונה יוצרת את רצף הפייפרלס (PAPERLESS_SEQUENCE),
+ *  השנייה את שלושת שלבי «חומרים מרו״ח קודם» (createPrevAccountantTrack),
+ *  והשלישית בקשה חופשית אחת עם דרישת אסמכתה לכל רשות (buildBankDebitPayload). */
 /* ‼ שלושה פריטים ירדו מכאן ב-2026-08: «קבלת חומרים מהרו״ח הקודם»,
    «פתיחת תיקים ברשויות» ו«הכרת הלקוח». כולם נוצרו ריקים ואז נעלמו מהמסך
    (AUTO_OFFICE_TYPES מסנן אותם), כלומר לחיצה לא הביאה שום דבר שאפשר לראות.
-   ‼ היכולות עצמן לא נמחקו: המחולל האוטומטי ממשיך ליצור אותם עם התוכן
-   המלא שלהם, ומעקב החומרים נוצר ומתעדכן מזרימת מכתב השחרור.
-   ‼ «מכתב שחרור לרו״ח הקודם» ירד גם הוא (2026-08-17): הוא אינו בקשה שמוסיפים
-   לרשימה אלא מסלול שלם — פרטים, טיוטה, רשימת חומרים, שליחה, תגובה — והוא חי
-   בכרטיס «פרטי רו״ח קודם» עצמו. שתי דרכים ליצור אותו היו שני מסלולים. */
+   ‼ היכולות עצמן לא נמחקו: המחולל האוטומטי ממשיך ליצור אותם עם התוכן המלא.
+   ‼ «חומרים מרו״ח קודם» (2026-08-20) החליף את «פרטי הרו״ח הקודם» שישב כאן
+   וייצר רק את השאלה ללקוח — בלי מכתב ובלי מעקב חומרים, כך שהיה צריך לזכור
+   לחזור ולפתוח את ההמשך. עכשיו לחיצה אחת מביאה את הבקשה כולה, בדיוק כמו
+   שהכפתור בדף המסע עושה. ‼ הזמינות אינה תלויה ב-hasPreviousAccountant:
+   גיא מסמן "אין רו״ח קודם" ואחר כך מגלה שיש, וזו בקשה ככל בקשה. */
 const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'bank_debit',             hint: 'הלקוח פותח הרשאה בבנק ומעלה אסמכתה — לרשויות שתבחר', once: false },
   { type: 'send_document',          hint: 'מסמך מספריית המשרד — נסגרת כשהלקוח פותח אותו', once: false },
   { type: 'client_documents',       hint: 'רשימת מסמכים שהלקוח מעלה בדף האישי', once: true },
-  { type: 'prev_accountant_details', hint: 'הלקוח מוסר שם, מייל וטלפון של הקודם', once: true },
+  { type: 'prev_accountant_track',  hint: '', once: true },
   { type: 'paperless_sequence',     hint: '', once: true },
   { type: 'intake_questionnaire',   hint: 'רענון תיק המס — שאלון ומסמכים לפי מה שחסר', once: true },
 ];
@@ -98,13 +101,15 @@ interface Props {
    * קריאת create_onboarding_request. ההבדל היחיד הוא שמדלגים על הקטלוג.
    */
   presetType?: OnboardingStep['stepType'];
+  /** האימייל שעל הכרטיס — קובע אם השאלה ב«חומרים מרו״ח קודם» היא מילוי או אישור. */
+  prevAccountantEmail?: string | null;
   /** בחירת תבנית — נמסרת החוצה כדי שהקומפוזר ייפתח במקום שבו הבקשות חיות. */
   onUseTemplate?: (t: RequestTemplate) => void;
   onClose: () => void;
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, presetType, onUseTemplate, onClose, onCreated }: Props) {
+export default function AddRequestDialog({ clientId, steps, processPublished, presetType, prevAccountantEmail, onUseTemplate, onClose, onCreated }: Props) {
   const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document'>('catalog');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -233,8 +238,11 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     [steps],
   );
   const paperlessMissing = PAPERLESS_SEQUENCE.filter(p => !existing.has(p.type));
+  const prevMissing = missingPrevAccountantSteps(steps);
   const available = CATALOG.filter(c => c.type === 'paperless_sequence'
     ? paperlessMissing.length > 0
+    : c.type === 'prev_accountant_track'
+    ? prevMissing.length > 0
     : !(c.once && existing.has(c.type as OnboardingStep['stepType'])));
   const dependencyOptions = steps.filter(s => s.status !== 'cancelled');
   /** ‼ המובנות אינן מוצגות כשורות: הן כבר ברירת המחדל של פריטי הקטלוג
@@ -270,6 +278,20 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     const res = await rpcCreate(stepType, payload, dependsOn || null);
     setBusy(false);
     if ('error' in res) { setError(res.error); return; }
+    onCreated();
+    onClose();
+  }
+
+  /** «חומרים מרו״ח קודם» — שלושת השלבים בלחיצה אחת, כמו הכפתור בדף המסע.
+   *  היצירה עצמה משותפת (lib/prevAccountantTrack) ומשלימה חסרים בלבד. */
+  async function createPrevTrack() {
+    setBusy(true);
+    setError(null);
+    const res = await createPrevAccountantTrack({
+      clientId, steps, prevAccountantEmail, published: processPublished ? sendNow : true,
+    });
+    setBusy(false);
+    if (!res.ok) { setError(res.error); return; }
     onCreated();
     onClose();
   }
@@ -390,6 +412,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                     if (c.type === 'bank_debit') { setMode('bank'); return; }
                     if (c.type === 'send_document') { openDocumentMode(); return; }
                     if (c.type === 'paperless_sequence') { void createPaperlessSequence(); return; }
+                    if (c.type === 'prev_accountant_track') { void createPrevTrack(); return; }
                     /* ‼ תוכן ברירת המחדל מגיע מתבנית מובנית ולא מ-{} ריק.
                        בקשה שנוצרה ריקה הגיעה ללקוח בלי ניסוח ובלי רשימה. */
                     void create(c.type, seedPayload(c.type));
@@ -398,15 +421,21 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                 >
                   <span style={{ fontWeight: 600 }}>
                     {c.type === 'paperless_sequence' ? 'פייפרלס'
+                      : c.type === 'prev_accountant_track' ? 'חומרים מרו״ח קודם'
                       : c.type === 'bank_debit' ? BANK_DEBIT_TITLE
                       : c.type === 'send_document' ? 'שליחת מסמך ללקוח'
                       : STEP_TYPE_LABELS[c.type as OnboardingStep['stepType']]}
                   </span>
                   <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-                    {c.type !== 'paperless_sequence' ? c.hint
-                      : paperlessMissing.length === PAPERLESS_SEQUENCE.length
+                    {c.type === 'paperless_sequence'
+                      ? (paperlessMissing.length === PAPERLESS_SEQUENCE.length
                         ? 'הזמנה, חיבור והרשאה לתשלום חודשי — כל שלב נפתח אחרי הקודם'
-                        : `משלים את הרצף: ${paperlessMissing.map(p => STEP_TYPE_LABELS[p.type]).join(' · ')}`}
+                        : `משלים את הרצף: ${paperlessMissing.map(p => STEP_TYPE_LABELS[p.type]).join(' · ')}`)
+                      : c.type === 'prev_accountant_track'
+                      ? (prevMissing.length === 3
+                        ? 'הלקוח מוסר מי הקודם, אנחנו שולחים מכתב ועוקבים אחרי החומרים'
+                        : `משלים את החסר: ${prevMissing.map(t => STEP_TYPE_LABELS[t as OnboardingStep['stepType']]).join(' · ')}`)
+                      : c.hint}
                   </span>
                 </button>
               ))}
