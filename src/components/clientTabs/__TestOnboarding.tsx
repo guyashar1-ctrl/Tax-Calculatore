@@ -50,7 +50,8 @@ const ENGAGEMENTS_UNPUBLISHED: Engagement[] = [
   { ...ENGAGEMENTS[0], processPublishedAt: undefined },
 ];
 
-/* ההצעה שממנה נולדה ההתקשרות — המקור לאבן-הדרך "הצעת מחיר · אושרה".
+/* ההצעה שממנה נולדה ההתקשרות — המקור לאבן-הדרך "הצעת מחיר · אושרה",
+   וגם לסכום בכרטיס הרשאת התשלום (לפני מע"מ + כולל מע"מ, מהשורות החודשיות).
    רק השדות שהמסך באמת קורא; שאר ההצעה אינה רלוונטית לבדיקה הזאת. */
 const QUOTATIONS = [{
   id: 'fixture-quote',
@@ -58,7 +59,11 @@ const QUOTATIONS = [{
   quotationNumber: 'Q-2026-018',
   revision: 1,
   status: 'approved',
-  items: [], futureServices: [], vatRate: 18, events: [],
+  items: [
+    { id: 'fx-m1', name: 'הנהלת חשבונות', category: 'monthly', clientPrice: 380, catalogPrice: 380, quantity: 1, vatFlag: true, billingStartMonth: '2026-09' },
+    { id: 'fx-m2', name: 'דיווחי שכר', category: 'monthly', clientPrice: 70, catalogPrice: 70, quantity: 1, vatFlag: true, billingStartMonth: '2026-09' },
+  ],
+  futureServices: [], vatRate: 18, events: [],
   approvedAt: '2026-08-01T08:40:00Z',
   approvalSignerName: 'שרון מזרחי',
 } as unknown as Quotation];
@@ -107,9 +112,11 @@ const STEPS: OnboardingStep[] = [
      ונקראת כצעד ההמשך שלו. שלבים כפולים מאותו סוג הוסרו מהפיקסטורה —
      המסד אוסר אותם (אינדקס ייחודי על client_id/engagement_id + step_type),
      ולכן פיקסטורה עם שלוש הרשאות תשלום בדקה מסך שלא קיים בפרודקשן. */
+  /* ‼ בלי amount בעותק שבבקשה — בכוונה: משחזר בקשה שהוסרה ונוספה מחדש דרך
+     הקטלוג (המקרה של יובל גרוסמן, 2026-08-17), שם העותק נמחק. הכרטיס חייב
+     להציג את הסכום מההצעה שאושרה גם במצב הזה. */
   step({ id: 's6', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'locked', ball: 'me', dependsOnStepId: 's5',
-         needsAttention: true, dueDate: '2026-08-20',
-         payload: { amount: 450, billingStartMonth: '2026-09' } }),
+         needsAttention: true, dueDate: '2026-08-20', payload: {} }),
   step({ id: 's7', stepType: 'internal_setup', track: 'internal', scope: 'engagement', status: 'pending', ball: 'me',
          payload: { checklist: [
            { key: 'file_numbers', label: 'מספרי תיקים בכרטיס', done: false },

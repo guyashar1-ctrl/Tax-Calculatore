@@ -20,7 +20,7 @@ import {
   outstandingDeliverableLabel, deliverableKeyFor,
 } from '../../types/onboarding';
 import type { Client, RepAuthorityKind, RepresentationStatus } from '../../types';
-import type { Quotation } from '../../types/quotations';
+import type { Quotation, QuotationItem } from '../../types/quotations';
 import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS } from '../../types';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
@@ -28,7 +28,7 @@ import { NEXT_ACTION, nextStepForClient } from '../../utils/onboardingNext';
 import { representationAction } from '../../utils/representationAction';
 import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
-import { formatILS } from '../../utils/quotationCalc';
+import { calcTotals, formatILS } from '../../utils/quotationCalc';
 import { flushAccountantNotifications } from '../../lib/notifyAccountant';
 import { supabase } from '../../lib/supabase';
 import { clientFromDb } from '../../lib/dbMappers';
@@ -1193,12 +1193,21 @@ export default function OnboardingTab({
               }
 
               if (step.stepType === 'retainer_authorization') {
+                // ‼ הסכום מגיע מההצעה שאושרה — לא מעותק שנשמר בבקשה. עותק כזה
+                // נמחק כשהבקשה הוסרה ונוספה מחדש דרך הקטלוג (המקרה של 2026-08-17).
+                const retainerEng = clientEngagements.find(e => e.id === step.engagementId)
+                  ?? clientEngagements[0];
+                const retainerQuote = retainerEng?.quotationId
+                  ? (quotations ?? []).find(q => q.id === retainerEng.quotationId)
+                  : undefined;
                 return (
                   <RetainerStepCard
                     key={step.id}
                     step={step}
                     stepById={stepById}
                     client={client}
+                    engagement={retainerEng}
+                    quotation={retainerQuote}
                     busy={busy}
                     highlight={highlightStepId === step.id}
                     hasConnectionStep={!!connectionStep}
@@ -2463,6 +2472,10 @@ interface RetainerCardProps {
   stepById: Map<string, OnboardingStep>;
   /** שם העסק שהלקוח הזין — מה שמאשרים בפייפרלס, ולכן מוצג גם כאן. */
   client: Client;
+  /** מקור האמת לסכום וחודש החיוב — לא העותק שנשמר בבקשה, שיכול להימחק. */
+  engagement?: Engagement;
+  /** ההצעה שאושרה — ממנה נגזר גם המע"מ, לפי סימון המע"מ של כל שורה. */
+  quotation?: Quotation;
   busy: boolean;
   highlight: boolean;
   hasConnectionStep: boolean;
@@ -2476,11 +2489,23 @@ function RetainerStepCard(p: RetainerCardProps) {
   const authorizationCreatedAt = String(step.payload.authorizationCreatedAt ?? '');
   const cardEnteredAt = String(step.payload.cardEnteredAt ?? '');
   const retainerChargedAt = String(step.payload.retainerChargedAt ?? '');
-  const [providerRef, setProviderRef] = useState(String(step.payload.providerRef ?? ''));
 
   const locked = step.status === 'locked';
-  const amount = typeof step.payload.amount === 'number' ? step.payload.amount : undefined;
-  const month = monthLabel(step.payload.billingStartMonth as string | undefined);
+  // ‼ הסכום מחושב מההצעה שאושרה בכל רינדור — כולל מע"מ לפי סימון המע"מ של
+  // כל שורה חודשית. העותק שנשמר בבקשה (payload.amount) הוא נסיגה אחרונה
+  // בלבד, לתיקים ישנים בלי הצעה טעונה.
+  const monthlyFromQuote = useMemo(() => {
+    if (!p.quotation) return undefined;
+    const snap = p.quotation.snapshot;
+    const items = (snap?.items ?? p.quotation.items ?? []) as QuotationItem[];
+    const totals = calcTotals(items, snap?.vatRate ?? p.quotation.vatRate).monthly;
+    return totals.beforeVat > 0 ? totals : undefined;
+  }, [p.quotation]);
+  const payloadAmount = typeof step.payload.amount === 'number' ? step.payload.amount : undefined;
+  const beforeVat = monthlyFromQuote?.beforeVat ?? p.engagement?.monthlyTotal ?? payloadAmount;
+  const withVat = monthlyFromQuote?.withVat;
+  const month = monthLabel(p.engagement?.billingStartMonth
+    ?? (step.payload.billingStartMonth as string | undefined));
   // ‼ לקוח שאינו עובד עם פייפרלס: אין הרשאה דיגיטלית, ואין מנעול —
   // אבל יש כסף. הכרטיס מתעד איך גובים במקום.
   const manual = step.payload.method === 'manual_arrangement';
@@ -2508,8 +2533,12 @@ function RetainerStepCard(p: RetainerCardProps) {
 
       <div style={{ display: 'flex', gap: '1.4rem', flexWrap: 'wrap', marginTop: '.45rem' }}>
         <div>
-          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>שכר טרחה חודשי</div>
-          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{amount ? formatILS(amount) : '—'}</div>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>שכר טרחה חודשי (לפני מע"מ)</div>
+          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{beforeVat ? formatILS(beforeVat) : '—'}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>כולל מע"מ — לחיוב בפועל</div>
+          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{withVat ? formatILS(withVat) : '—'}</div>
         </div>
         <div>
           <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>חודש חיוב ראשון</div>
@@ -2599,17 +2628,12 @@ function RetainerStepCard(p: RetainerCardProps) {
               {/* ‼ הפעולה שסוגרת את השלב היא החיוב עצמו — לא ההרשאה ולא
                   הכרטיס. עד היום הקליטה נסגרה בלי שאיש אמר שהכסף נגבה. */}
               {cardEnteredAt && (
-                <>
-                  <input value={providerRef} onChange={e => setProviderRef(e.target.value)}
-                    placeholder="אסמכתא מהספק (לא חובה)" style={{ maxWidth: 220 }} />
-                  <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-                    onClick={() => p.onRun('complete', {
-                      completionMethod: 'manual',
-                      retainerChargedAt: new Date().toISOString(),
-                      note: 'הריטיינר חויב',
-                      ...(providerRef.trim() ? { providerRef: providerRef.trim() } : {}),
-                    })}>הריטיינר חויב</button>
-                </>
+                <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+                  onClick={() => p.onRun('complete', {
+                    completionMethod: 'manual',
+                    retainerChargedAt: new Date().toISOString(),
+                    note: 'הריטיינר חויב',
+                  })}>הריטיינר חויב</button>
               )}
             </div>
           )}

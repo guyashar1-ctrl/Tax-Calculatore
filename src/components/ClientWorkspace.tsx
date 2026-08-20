@@ -767,6 +767,7 @@ export default function ClientWorkspace({
               : undefined}
             clientDisplayName={`${client.firstName} ${client.lastName ?? ''}`.trim()}
             clientEmail={client.email}
+            quotations={quotations ?? []}
           />
         )}
 
