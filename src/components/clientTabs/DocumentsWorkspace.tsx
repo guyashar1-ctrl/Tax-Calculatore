@@ -16,6 +16,7 @@ import { AVAILABLE_YEARS } from '../../data/taxData';
 import { supabase } from '../../lib/supabase';
 import { EmptyState } from '../ui/States';
 import LabelSelect from '../ui/LabelSelect';
+import { buildZip, sanitizeFileBaseName, uniqueEntryName, triggerBlobDownload } from '../../utils/zipArchive';
 
 const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.csv';
 
@@ -84,11 +85,19 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   const [folderBusy, setFolderBusy] = useState(false);
   const [folderError, setFolderError] = useState('');
 
+  // ─── בחירה מרובה והורדה כחבילה ─────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [zipModal, setZipModal] = useState<{ name: string } | null>(null);
+  const [zipBusy, setZipBusy] = useState(false);
+  const [zipProgress, setZipProgress] = useState(0);
+  const [zipError, setZipError] = useState<{ message: string; failed: string[] } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setCurrentFolderId(null);
+    setSelectedIds(new Set());
     void loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id]);
@@ -198,9 +207,156 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     return true;
   });
 
-  function goRoot() { setSearch(''); setCurrentFolderId(null); }
-  function goInto(id: string) { setSearch(''); setCurrentFolderId(id); }
-  function goCrumb(index: number) { setSearch(''); setCurrentFolderId(breadcrumb[index]?.id ?? null); }
+  function goRoot() { clearSelection(); setSearch(''); setCurrentFolderId(null); }
+  function goInto(id: string) { clearSelection(); setSearch(''); setCurrentFolderId(id); }
+  function goCrumb(index: number) { clearSelection(); setSearch(''); setCurrentFolderId(breadcrumb[index]?.id ?? null); }
+
+  // ─── בחירה מרובה ────────────────────────────────────────────────────────
+  // ‼ הבחירה שייכת לתצוגה הנוכחית בלבד. מסמך שסומן ואז יצא מהתצוגה (ניווט,
+  // חיפוש, סינון) לא ייארז — אחרת הייתה יורדת חבילה עם קבצים שאינם על המסך
+  // ואיש אינו זוכר שסימן. לכן גם ניקוי מפורש בכל שינוי תצוגה, וגם חיתוך
+  // בטיחות מול מה שמוצג ברגע ההורדה.
+  const visibleDocs = useMemo(
+    () => filteredRows.filter(r => r.kind === 'file').map(r => r.doc!),
+    [filteredRows],
+  );
+  const selectedDocs = useMemo(
+    () => visibleDocs.filter(d => selectedIds.has(d.id)),
+    [visibleDocs, selectedIds],
+  );
+  const allVisibleSelected = visibleDocs.length > 0 && selectedDocs.length === visibleDocs.length;
+  const someVisibleSelected = selectedDocs.length > 0 && !allVisibleSelected;
+
+  function clearSelection() { setSelectedIds(new Set()); }
+
+  function toggleDoc(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(visibleDocs.map(d => d.id)));
+  }
+
+  // ─── הורדה מרוכזת כחבילה אחת ───────────────────────────────────────────
+  /** מה שכן נאסף כשחלק מהקבצים נכשלו — מיועד להורדה חלקית מפורשת בלבד. */
+  const partialRef = useRef<{ entries: { name: string; data: ArrayBuffer; date: Date }[]; base: string } | null>(null);
+  /**
+   * ‼ נעילת האריזה יושבת ב-ref ולא ב-state בכוונה. שתי לחיצות באותו tick
+   * (הקשה כפולה, או Enter פעמיים ברצף) רצות שתיהן לפני שהרינדור הבא מסמן
+   * את הכפתור כמושבת — ואז zipBusy עדיין false בשתיהן, ויורדות שתי חבילות
+   * זהות. ref מתעדכן מיד ולכן חוסם את השנייה. אומת בדפדפן: לפני התיקון
+   * ירדו שני קבצים, אחרי — אחד.
+   */
+  const zipRunningRef = useRef(false);
+
+  function openZipModal() {
+    if (selectedDocs.length === 0) return;
+    partialRef.current = null;
+    setZipError(null);
+    setZipProgress(0);
+    setZipModal({ name: `${client.firstName} ${client.lastName}`.trim() });
+  }
+  function closeZipModal() {
+    if (zipBusy) return;
+    partialRef.current = null;
+    setZipModal(null);
+    setZipError(null);
+  }
+
+  /** ‼ מי שמקליד 'דוח 2025.zip' מתכוון לשם, לא ל'דוח 2025.zip.zip'. */
+  function zipBaseOf(raw: string): string {
+    return sanitizeFileBaseName(raw).replace(/\.zip$/i, '').trim();
+  }
+  /**
+   * ‼ שם הקובץ לתצוגה בתוך משפט עברי. בלי הסימן U+200E שביניהם, '2025.zip'
+   * מתפרק לשלושה קטעי כיווניות (מספר · נקודה · לטינית) ומוצג «...דוח zip.2025»
+   * — כלומר המסך מבטיח שם קובץ אחר ממה שיירד. הסימן מאחד את הסיומת לקטע
+   * לטיני אחד. אומת בדפדפן על חמישה סוגי שמות (עברי, לטיני, מסתיים בספרה).
+   */
+  function zipDisplayName(base: string): string {
+    return `${base}\u200E.zip`;
+  }
+  const zipBaseName = zipModal ? zipBaseOf(zipModal.name) : '';
+
+  async function runZipDownload() {
+    if (zipRunningRef.current || !zipModal || selectedDocs.length === 0) return;
+    const base = zipBaseOf(zipModal.name);
+    if (!base) return;
+
+    const targets = selectedDocs;
+    zipRunningRef.current = true;
+    setZipBusy(true);
+    setZipError(null);
+    setZipProgress(0);
+    partialRef.current = null;
+    try {
+      const taken = new Set<string>();
+      const entries: { name: string; data: ArrayBuffer; date: Date }[] = [];
+      const failed: string[] = [];
+      for (const d of targets) {
+        // אותו מסלול הרשאות בדיוק כמו 'פתח את הקובץ': getDoc מסנן לפי המשתמש
+        // ו-RLS מסנן שוב בצד השרת. אין כאן ערוץ גישה חדש לקבצים.
+        const full = await db.getDoc(d.id).catch(() => undefined);
+        if (!full || full.fileData.byteLength === 0) {
+          failed.push(d.description || d.fileName);
+        } else {
+          const stamp = new Date(d.uploadedAt);
+          entries.push({
+            name: uniqueEntryName(d.fileName || d.description || 'מסמך', taken),
+            data: full.fileData,
+            date: isNaN(stamp.getTime()) ? new Date() : stamp,
+          });
+        }
+        setZipProgress(n => n + 1);
+      }
+
+      // ‼ לא אורזים בשקט חבילה חסרה: מה שיורד כאן מוגש לרשות, ומסמך שנעדר
+      // בלי שנאמר עליו דבר מתגלה רק שם. עוצרים, מפרטים מה נכשל, ורק בלחיצה
+      // נוספת ומפורשת מוסרים את מה שכן נאסף.
+      if (failed.length > 0) {
+        partialRef.current = entries.length > 0 ? { entries, base } : null;
+        setZipError({
+          message: failed.length === targets.length
+            ? 'אף אחד מהמסמכים שנבחרו לא נמצא באחסון. לא נוצרה חבילה.'
+            : `${failed.length} מתוך ${targets.length} מסמכים לא נמצאו באחסון, ולכן החבילה לא נוצרה.`,
+          failed,
+        });
+        return;
+      }
+
+      triggerBlobDownload(buildZip(entries), `${base}.zip`);
+      setZipModal(null);
+      clearSelection();
+    } catch (e) {
+      const msg = e instanceof Error && e.message === 'ZIP_TOO_LARGE'
+        ? 'החבילה גדולה מדי (מעל 4GB). בחר פחות מסמכים.'
+        : e instanceof Error ? e.message : 'יצירת החבילה נכשלה.';
+      setZipError({ message: msg, failed: [] });
+    } finally {
+      zipRunningRef.current = false;
+      setZipBusy(false);
+    }
+  }
+
+  /** הורדה חלקית — רק אחרי שראו במפורש מה חסר ובחרו בכל זאת. */
+  function downloadPartial() {
+    const pending = partialRef.current;
+    if (!pending || zipRunningRef.current) return;
+    // ‼ מתאפס מיד: אותה לחיצה כפולה שנחסמה למעלה חייבת להיחסם גם כאן.
+    partialRef.current = null;
+    try {
+      triggerBlobDownload(buildZip(pending.entries), `${pending.base}.zip`);
+      setZipModal(null);
+      setZipError(null);
+      clearSelection();
+    } catch (e) {
+      setZipError({ message: e instanceof Error ? e.message : 'יצירת החבילה נכשלה.', failed: [] });
+    }
+  }
 
   // ─── העלאת קובץ ────────────────────────────────────────────────────────
   function openUploadFile() {
@@ -604,13 +760,13 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
           style={{ flex: 1, minWidth: 180 }}
           placeholder="חפש קובץ, תיקייה, תווית או שנה…"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { clearSelection(); setSearch(e.target.value); }}
         />
-        <select value={filterLabel} onChange={e => setFilterLabel(e.target.value)}>
+        <select value={filterLabel} onChange={e => { clearSelection(); setFilterLabel(e.target.value); }}>
           <option value="">כל התוויות</option>
           {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
-        <select value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+        <select value={filterYear} onChange={e => { clearSelection(); setFilterYear(e.target.value); }}>
           <option value="">כל השנים</option>
           {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
@@ -667,6 +823,22 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
         <span className="docw-path-count">{filteredRows.length} פריטים</span>
       </div>
 
+      {/* ‼ סרגל הפעולה נולד מהבחירה ומת איתה. פס הורדה קבוע היה מתחרה
+          בגובה עם "הוסף▾" על מסך שברוב הזמן אין בו בחירה כלל. */}
+      {selectedDocs.length > 0 && (
+        <div className="docw-bulkbar">
+          <span className="docw-bulkbar-count">
+            {selectedDocs.length === 1 ? 'מסמך אחד נבחר' : `${selectedDocs.length} מסמכים נבחרו`}
+          </span>
+          <button type="button" className="docw-bulkbar-clear" onClick={clearSelection}>נקה בחירה</button>
+          {/* במסך צר שורת הכותרת מוסתרת ואיתה "בחר הכל" — כאן היא חוזרת */}
+          <button type="button" className="docw-bulkbar-clear docw-bulkbar-all" onClick={toggleAllVisible}>
+            {allVisibleSelected ? 'בטל בחירת הכל' : `בחר הכל (${visibleDocs.length})`}
+          </button>
+          <button type="button" className="btn btn-sm btn-primary" onClick={openZipModal}>הורדת מסמכים</button>
+        </div>
+      )}
+
       {loading ? (
         <div className="docw-list"><div className="docw-empty">טוען…</div></div>
       ) : filteredRows.length === 0 ? (
@@ -674,6 +846,17 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
       ) : (
         <div className="docw-list">
           <div className="docw-head-row">
+            <span className="docw-sel">
+              <input
+                type="checkbox"
+                aria-label="בחר את כל המסמכים המוצגים"
+                title="בחר את כל המסמכים המוצגים"
+                disabled={visibleDocs.length === 0}
+                checked={allVisibleSelected}
+                ref={el => { if (el) el.indeterminate = someVisibleSelected; }}
+                onChange={toggleAllVisible}
+              />
+            </span>
             <span>שם</span><span>תווית</span><span>שנה</span><span>עודכן</span>
           </div>
           {filteredRows.map(r => {
@@ -686,6 +869,9 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
                   onClick={() => goInto(f.id)}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goInto(f.id); } }}
                 >
+                  {/* תיקייה אינה מסמך ואינה נארזת — התא נשאר ריק כדי
+                      שהעמודות של שתי סוגי השורות יישארו מיושרות. */}
+                  <span className="docw-sel" aria-hidden="true" />
                   <span className="docw-name">
                     📁 {f.name}
                     {r.path && <span className="docw-path-hint">{r.path}</span>}
@@ -709,10 +895,21 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
             const label = d.labelId ? labelsById.get(d.labelId) : null;
             return (
               <div
-                key={d.id} className="docw-row" role="button" tabIndex={0}
+                key={d.id} className={`docw-row${selectedIds.has(d.id) ? ' is-selected' : ''}`} role="button" tabIndex={0}
                 onClick={() => openDrawer(d)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(d); } }}
               >
+                {/* ‼ stopPropagation: לחיצה על השורה פותחת את המגירה, וסימון
+                    התיבה אינו אמור לפתוח אותה. */}
+                <span className="docw-sel" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    aria-label={`בחר את ${d.description || d.fileName}`}
+                    checked={selectedIds.has(d.id)}
+                    onChange={() => toggleDoc(d.id)}
+                    onKeyDown={e => e.stopPropagation()}
+                  />
+                </span>
                 <span className="docw-name">
                   {d.description || d.fileName}
                   <span className="docw-path-hint">{r.path || d.fileName}</span>
@@ -1075,6 +1272,57 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
           onConfirm={confirmFolderUpload}
           confirmLabel="העלה"
         />
+      )}
+
+      {/* ── מודל שם החבילה להורדה ───────────────────────────────────── */}
+      {zipModal && (
+        <div className="modal-backdrop" onClick={closeZipModal}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <h3>הורדת מסמכים</h3>
+            <div className="csub" style={{ marginTop: '.4rem' }}>
+              {selectedDocs.length === 1 ? 'מסמך אחד יירד' : `${selectedDocs.length} מסמכים יירדו`} כקובץ ZIP אחד. המסמכים כאן נשארים כמו שהם.
+            </div>
+            <label className="lbl">שם החבילה</label>
+            <input
+              className="inp"
+              value={zipModal.name}
+              autoFocus
+              disabled={zipBusy}
+              placeholder="לדוגמה: גיא ישר - דוח 2025"
+              onChange={e => { setZipModal({ name: e.target.value }); setZipError(null); }}
+              onKeyDown={e => { if (e.key === 'Enter' && zipBaseName && !zipBusy) void runZipDownload(); }}
+            />
+            {/* הסיומת נוספת מאליה — אין טעם להקליד אותה, ואם הוקלדה היא לא תוכפל */}
+            <div className="csub" style={{ marginTop: '.3rem' }}>
+              {zipBaseName
+                ? `הקובץ יישמר בשם «${zipDisplayName(zipBaseName)}»`
+                : 'צריך שם לחבילה — אותיות, ספרות, מקף או רווח.'}
+            </div>
+            {zipError && (
+              <div className="note warn" style={{ marginTop: '.6rem' }}>
+                <div style={{ color: 'var(--err)' }}>{zipError.message}</div>
+                {zipError.failed.length > 0 && (
+                  <ul style={{ margin: '.4rem 0 0', paddingInlineStart: '1.1rem' }}>
+                    {zipError.failed.map(name => <li key={name}>{name}</li>)}
+                  </ul>
+                )}
+                {partialRef.current && (
+                  <button type="button" className="btn btn-sm" style={{ marginTop: '.5rem' }} onClick={downloadPartial}>
+                    הורד בכל זאת את {partialRef.current.entries.length} המסמכים שנמצאו
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="foot">
+              <button
+                type="button" className="btn btn-primary"
+                disabled={zipBusy || !zipBaseName || selectedDocs.length === 0}
+                onClick={runZipDownload}
+              >{zipBusy ? `אורז ${Math.min(zipProgress + 1, selectedDocs.length)} מתוך ${selectedDocs.length}…` : 'הורדה'}</button>
+              <button type="button" className="btn" disabled={zipBusy} onClick={closeZipModal}>ביטול</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── מודל בקשת מסמך מהלקוח ────────────────────────────────────── */}

@@ -2815,7 +2815,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .docw-path{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;padding:2px 2px;font-size:var(--fs-12);color:var(--ink-3)}
 .docw-path-count{margin-inline-start:auto;color:var(--ink-4)}
 .docw-list{background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:var(--r-panel);overflow:hidden}
-.docw-head-row,.docw-row{display:grid;grid-template-columns:2fr .9fr .55fr .7fr;gap:12px;align-items:center;padding:10px 14px}
+.docw-head-row,.docw-row{display:grid;grid-template-columns:22px 2fr .9fr .55fr .7fr;gap:12px;align-items:center;padding:10px 14px}
 .docw-head-row{color:var(--ink-4);font-size:11px;font-weight:700;border-bottom:1px solid var(--hairline-1)}
 .docw-row{border-top:1px solid var(--hairline-2);cursor:pointer;font-size:var(--fs-13)}
 .docw-row:first-of-type{border-top:0}
@@ -2830,11 +2830,29 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   font-size:var(--fs-12);color:var(--accent)}
 .docw-folder-actions button:hover{text-decoration:underline}
 @media (hover:none){.docw-folder-actions{opacity:1}}
+/* עמודת הבחירה — צרה ושקטה, לא מתחרה בשם המסמך */
+.docw-sel{display:flex;align-items:center;justify-content:center}
+.docw-sel input{width:15px;height:15px;margin:0;cursor:pointer;accent-color:var(--accent)}
+.docw-row.is-selected{background:var(--surface-1)}
+/* ‼ סרגל הבחירה נולד מהבחירה ונעלם איתה — ולכן הוא נשען על ההיררכיה
+   הקיימת (אותו ריפוד ורדיוס כמו הרשימה) במקום להוסיף לעצמו נוכחות. */
+.docw-bulkbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;
+  background:var(--surface-1);border:1px solid var(--hairline-1);border-radius:var(--r-panel)}
+.docw-bulkbar-count{font-size:var(--fs-13);font-weight:600;color:var(--ink-1)}
+.docw-bulkbar-clear{border:0;background:none;padding:0;cursor:pointer;font:inherit;
+  font-size:var(--fs-12);color:var(--ink-3)}
+.docw-bulkbar-clear:hover{text-decoration:underline}
+.docw-bulkbar .btn{margin-inline-start:auto}
+.docw-bulkbar-all{display:none}
 .docw-empty{padding:18px 16px;color:var(--ink-3);font-size:var(--fs-13);text-align:center}
 @media (max-width:700px){
+  /* ‼ שורת הכותרת מוסתרת במסך צר, ואיתה "בחר הכל" — לכן היא חוזרת
+     כשורה משלה בתוך סרגל הבחירה, אחרת אין דרך לסמן הכל בנייד. */
   .docw-head-row{display:none}
-  .docw-row{grid-template-columns:1fr auto;grid-auto-flow:dense}
+  .docw-row{grid-template-columns:22px 1fr auto;grid-auto-flow:dense}
   .docw-row .docw-col-year,.docw-row .docw-col-updated{display:none}
+  .docw-bulkbar .btn{margin-inline-start:0;width:100%}
+  .docw-bulkbar-all{display:inline}
 }
 
 .ial-doc-search{border:1px solid var(--bd-strong);border-radius:var(--r-input);padding:8px 10px;background:var(--surface-0);font:inherit}
