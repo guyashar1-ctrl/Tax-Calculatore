@@ -122,15 +122,19 @@ export function toggleHighlightAt(
 // גם מכאן כדי שמי שמרכיב את המכתב לא יצטרך לדעת משני מקומות.
 export { ADDITIONAL_MATERIAL_KEY, ADDITIONAL_MATERIAL_LABEL, isOptionalMaterialKey };
 
-/** ברירת המחדל — הרשימה שגיא מבקש בפועל. כרטסות ראשונות כי הן העיקר. */
+/**
+ * ברירת המחדל — מה שגיא מבקש בפועל מרו״ח קודם (הכרעה 2026-08-20): קובץ מבנה
+ * אחיד וכרטסת רווח והפסד, שניהם לשנה השוטפת ולשנה הקודמת. ‼ השאר נשארים
+ * ברשימה כאפשרויות מסומנות-לא — הם עדיין נחוצים בחלק מהתיקים, והמרחק אליהם
+ * הוא לחיצה אחת בכרטיס.
+ */
 export const RELEASE_MATERIALS: ReleaseMaterial[] = [
-  { key: 'ledgers', label: 'כרטסות הנהלת חשבונות', checked: true },
-  { key: 'uniform_file', label: 'קובץ מבנה אחיד', checked: true },
-  { key: 'excel_ledger', label: 'כרטסת בפורמט אקסל', checked: true },
-  { key: 'depreciation', label: 'טופס פחת', checked: true },
-  { key: 'last_return', label: 'דוח שנתי אחרון', checked: true },
-  { key: 'capital_declaration', label: 'הצהרת הון אחרונה', checked: true },
-  { key: 'pnl_current', label: 'כרטסת רווח והפסד לשנה השוטפת', checked: true },
+  { key: 'uniform_file', label: 'קובץ מבנה אחיד של השנה ושנה קודמת', checked: true },
+  { key: 'pnl_current', label: 'כרטסת רווח והפסד של השנה ושנה קודמת באקסל', checked: true },
+  { key: 'ledgers', label: 'כרטסות הנהלת חשבונות', checked: false },
+  { key: 'depreciation', label: 'טופס פחת', checked: false },
+  { key: 'last_return', label: 'דוח שנתי אחרון', checked: false },
+  { key: 'capital_declaration', label: 'הצהרת הון אחרונה', checked: false },
   { key: 'trial_balance', label: 'מאזן בוחן', checked: false },
   { key: ADDITIONAL_MATERIAL_KEY, label: ADDITIONAL_MATERIAL_LABEL, checked: true, optional: true },
 ];
@@ -216,6 +220,16 @@ function periodParagraph(opts: ReleaseOptions): string {
 /** ‼ פסקת הייצוג נגזרת מהעבודות החוסמות ואינה מוזנת ביד: דוח שנתי והצהרת הון
  *  מוגשים רק על ידי המייצג הראשי — ולכן הקודם נשאר ראשי עד ההגשה, והלקוח לא
  *  נשאר בלי מייצג באמצע. עבודה אחת — משפט אחד; כמה — פסקה אחת. */
+/**
+ * רשימה בתוך משפט: "א, ב וג". ‼ הכרעת גיא (2026-08-20) — המכתב נקרא כמכתב
+ * בין שני משרדים, לא כטופס. שורות תבליט ירדו מהנוסח הנבנה; הרינדור שלהן
+ * נשאר לטובת מכתב שנוסח ידנית ולמייל ההמשך.
+ */
+function joinHe(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} ו${items[items.length - 1]}`;
+}
+
 function outstandingSection(opts: ReleaseOptions): string {
   const outstanding = (opts.outstandingItems ?? []).filter(i => i.label.trim());
   const blocking = outstanding.filter(isBlockingOutstanding);
@@ -229,12 +243,10 @@ function outstandingSection(opts: ReleaseOptions): string {
       `${s.until} יישאר משרדך המייצג הראשי, ומשרדנו יירשם בשלב זה כמייצג משני. ` +
       `נודה לעדכון לאחר ההגשה ולהעברת ${s.copy}, כדי שנוכל להשלים את העברת הייצוג הראשי למשרדנו.`);
   } else if (blocking.length > 1) {
-    blocks.push([
-      'כמו כן, בהתאם לסיכום עם הלקוח, יושלמו על ידי משרדך:',
-      ...blocking.map(b => `• ${b.label.trim()}`),
+    blocks.push(
+      `כמו כן, בהתאם לסיכום עם הלקוח, יושלמו על ידי משרדך ${joinHe(blocking.map(b => b.label.trim()))}. ` +
       'עד להשלמת ההגשות יישאר משרדך המייצג הראשי, ומשרדנו יירשם בשלב זה כמייצג משני. ' +
-      'נודה לעדכון לאחר כל הגשה ולהעברת העתק מכל מסמך שהוגש, כדי שנוכל להשלים את העברת הייצוג הראשי למשרדנו.',
-    ].join('\n'));
+      'נודה לעדכון לאחר כל הגשה ולהעברת העתק מכל מסמך שהוגש, כדי שנוכל להשלים את העברת הייצוג הראשי למשרדנו.');
   }
 
   // עבודה חופשית — מופיעה ומבוקש עליה עדכון, בלי להמציא לה השלכת ייצוג.
@@ -243,11 +255,9 @@ function outstandingSection(opts: ReleaseOptions): string {
       `${blocking.length ? 'בנוסף' : 'כמו כן'}, למיטב ידיעתנו נמצא בטיפולך: ${others[0].label.trim()}. ` +
       'נודה לעדכון עם ההשלמה.');
   } else if (others.length > 1) {
-    blocks.push([
-      `${blocking.length ? 'בנוסף' : 'כמו כן'}, למיטב ידיעתנו נמצאים בטיפולך:`,
-      ...others.map(o => `• ${o.label.trim()}`),
-      'נודה לעדכון עם השלמתם.',
-    ].join('\n'));
+    blocks.push(
+      `${blocking.length ? 'בנוסף' : 'כמו כן'}, למיטב ידיעתנו נמצאים בטיפולך ` +
+      `${joinHe(others.map(o => o.label.trim()))}. נודה לעדכון עם השלמתם.`);
   }
 
   // מעבר נקי — אומרים זאת במפורש ומזמינים תיקון: זה מה שמונע ממשהו ליפול
@@ -263,15 +273,16 @@ function materialsSection(opts: ReleaseOptions): string {
   // חשובים ראשונים — גם בנוסח עצמו, כדי שמי שקורא במהירות יראה אותם קודם.
   const picked = byPriorityFirst(opts.materials.filter(m => m.checked && !m.optional));
   const openItem = opts.materials.find(m => m.checked && m.optional);
-  const blocks: string[] = [];
+  const sentences: string[] = [];
   if (picked.length) {
-    blocks.push(['נודה לקבלת החומרים הבאים:', ...picked.map(m => `• ${m.label}`)].join('\n'));
+    sentences.push(`נודה לקבלת ${joinHe(picked.map(m => m.label.trim()))}.`);
   }
   // ‼ בקשה פתוחה, לא פריט ברשימה: אנחנו לא יודעים מה עוד קיים אצלו, והוא כן.
   if (openItem) {
-    blocks.push('אם יש בידיך חומר נוסף שלדעתך נכון שיעבור אלינו — נשמח לקבל גם אותו.');
+    sentences.push('אם יש בידיך חומר נוסף שלדעתך נכון שיעבור אלינו — נשמח לקבל גם אותו.');
   }
-  return blocks.join('\n\n');
+  // פסקה אחת: שתי בקשות שקשורות זו לזו לא נקראות כשני עניינים נפרדים.
+  return sentences.join(' ');
 }
 
 /** ‼ נכתב רק כשהעותק באמת יוצא: המשפט הזה הוא הצהרה לרו"ח הקודם שהלקוח יודע
@@ -559,8 +570,8 @@ export function followUpBody(
   const lines: string[] = [
     `לכבוד ${to},`,
     '',
-    `בהמשך למכתבנו בעניין העברת הטיפול בתיק ${ctx.clientName}, נבקש להוסיף לרשימת החומרים:`,
-    ...items.map(t => `• ${t}`),
+    `בהמשך למכתבנו בעניין העברת הטיפול בתיק ${ctx.clientName}, ` +
+    `נבקש להוסיף לרשימת החומרים ${joinHe(items.map(t => t.trim()).filter(Boolean))}.`,
     '',
   ];
   if (link) {
@@ -589,15 +600,32 @@ const LTR_RUN = /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|https?:\/\/[^\s
  * הבלטה (`==...==`) ועטיפת רצפים לועזיים ב-dir="ltr" כדי שפיסוק עברי לא יקפוץ
  * לצד הלא נכון. ‼ הבריחה קודמת להכל, ולכן אין שום נתיב להזרקת HTML.
  */
-function inlineHtml(line: string, brand: QuotationBrand): string {
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * @param emphasize פריטים שסומנו "חשוב במיוחד". מאז שהרשימה נכתבת בתוך משפט
+ *   ולא בתבליטים, ההבלטה היא הדגשה של שם הפריט במקום תג לצד שורה — הסימון
+ *   נשמר, רק הצורה שלו הותאמה לטקסט רץ.
+ */
+function inlineHtml(line: string, brand: QuotationBrand, emphasize: string[] = []): string {
+  const safe = (t: string) => esc(t).replace(
+    LTR_RUN, '<span dir="ltr" style="unicode-bidi:isolate;">$1</span>');
+  const withEmphasis = (t: string) => {
+    const labels = emphasize.filter(l => l && t.includes(l));
+    if (!labels.length) return safe(t);
+    // הארוך קודם — כך פריט שמכיל שם של פריט אחר אינו נחתך באמצע.
+    const re = new RegExp(`(${labels.sort((a, b) => b.length - a.length).map(escapeRe).join('|')})`, 'g');
+    return t.split(re)
+      .map((seg, i) => (i % 2 ? `<strong style="font-weight:700;">${safe(seg)}</strong>` : safe(seg)))
+      .join('');
+  };
   return splitHighlights(line).map(part => {
-    const safe = esc(part.text).replace(
-      LTR_RUN, '<span dir="ltr" style="unicode-bidi:isolate;">$1</span>');
+    const html = withEmphasis(part.text);
     // מרקר צהוב עדין. background-color ולא <mark>: תוכנות מייל אינן מעצבות
     // <mark> באופן אחיד, וצבע ישיר עובד בכולן.
     return part.mark
-      ? `<span style="background-color:#fdf3c4;padding:0 2px;border-radius:2px;color:${brand.ink};">${safe}</span>`
-      : safe;
+      ? `<span style="background-color:#fdf3c4;padding:0 2px;border-radius:2px;color:${brand.ink};">${html}</span>`
+      : html;
   }).join('');
 }
 
@@ -646,7 +674,8 @@ function letterBodyToHtml(
     if (!line.trim()) continue;
     out.push(
       `<div dir="rtl" style="direction:rtl;text-align:right;font-family:${f};font-size:14.5px;`
-      + `line-height:1.85;color:${brand.ink};padding-bottom:10px;">${inlineHtml(line, brand)}</div>`);
+      + `line-height:1.85;color:${brand.ink};padding-bottom:10px;">`
+      + inlineHtml(line, brand, [...priorityLabels]) + `</div>`);
   }
   flushBullets();
   return out.join('');
