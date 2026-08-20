@@ -889,13 +889,73 @@ const TEMPLATE_HINT: Record<string, string> = {
   step_reminder: 'נשלח בלחיצה על "הכן תזכורת", בשלב שממתין ללקוח יותר מדי זמן.',
 };
 
-interface CommTemplate { subject?: string; body?: string }
+/**
+ * ‼ שלוש מדרגות נוסח, לא שתיים:
+ *   נוסח המערכת (בקוד) → נוסח המשרד (`firmDefault`) → מה שכרגע בעריכה.
+ * `subject`/`body` הם מה שנשלח בפועל, ורק אותם השרת קורא. `firmDefault` הוא
+ * עוגן חזרה בלבד — הנוסח שגיא קבע כשלו — וקיומו הוא מה שמאפשר להתנסות בלי
+ * לאבד אותו: "שחזר ברירת מחדל" הישן היה מחזיר לנוסח המערכת ומוחק את עבודתו.
+ */
+interface CommTemplate {
+  subject?: string;
+  body?: string;
+  firmDefault?: { subject: string; body: string };
+}
 
 /** מכתב ההעברה נשמר לצד תבניות מיילי השלבים, אבל אינו אחד מהם: הוא נשלח
  *  לרו״ח הקודם ולא ללקוח, והשרת של מיילי השלבים לא נוגע בו. */
 type TemplateKey = StepEmailKind | typeof RELEASE_TEMPLATE_KEY;
 
-function PaperlessCommSection({ profile, onChangeProfile }: { profile: FirmProfile; onChangeProfile: (p: FirmProfile) => void }) {
+interface TemplateSpec {
+  key: TemplateKey;
+  title: string;
+  hint: React.ReactNode;
+  base: { subject: string; body: string };
+  vars: { label: string; hint?: string; section?: boolean }[];
+  bodyLabel: string;
+  rows: number;
+  /** עורך עם מרקר — רק במכתב ההעברה: שאר המיילים אינם מרנדרים `==`. */
+  marker?: boolean;
+}
+
+function templateSpecs(): TemplateSpec[] {
+  const steps: TemplateSpec[] = TEMPLATE_EDITORS.map(kind => ({
+    key: kind,
+    title: STEP_EMAIL_KIND_LABELS[kind],
+    hint: `${TEMPLATE_HINT[kind]} אפשר לערוך גם לכל שליחה בנפרד, בחלון התצוגה המקדימה.`,
+    base: defaultTemplate(kind),
+    vars: PLACEHOLDERS_BY_KIND[kind].map(p => ({ label: p })),
+    bodyLabel: 'גוף המייל',
+    rows: 10,
+  }));
+
+  return [...steps, {
+    key: RELEASE_TEMPLATE_KEY,
+    title: 'מכתב העברת טיפול — לרו״ח הקודם',
+    // ‼ שונה מחמשת האחרים: הנמען הוא הרו״ח הקודם, וארבעה מהסעיפים נגזרים ממה
+    // שסוכם עם הלקוח. משרד שיוכל לנסח אותם יוכל לשלוח מכתב שסותר את הסיכום.
+    hint: (
+      <>
+        נשלח לרו״ח הקודם, לא ללקוח. החלקים המשתנים — התקופה, העבודות הפתוחות ורשימת
+        החומרים — נבנים אוטומטית לכל לקוח, ולכן מופיעים כאן כשם בסוגריים כפולות
+        ואי אפשר לנסח אותם מכאן. אפשר להזיז אותם, למחוק אותם או לסמן אותם במרקר.
+        <br />
+        קטע שמסומן כאן במרקר יגיע מסומן בכל מכתב חדש — ואם במכתב מסוים לא תרצה
+        אותו, תסמן אותו שם ותלחץ שוב על מרקר.
+      </>
+    ),
+    base: DEFAULT_RELEASE_TEMPLATE,
+    vars: RELEASE_TEMPLATE_VARS.map(v => ({ label: `{{${v.name}}}`, hint: v.hint, section: v.section })),
+    bodyLabel: 'גוף המכתב',
+    rows: 18,
+    marker: true,
+  }];
+}
+
+function PaperlessCommSection({ profile, onChangeProfile }: {
+  profile: FirmProfile;
+  onChangeProfile: React.Dispatch<React.SetStateAction<FirmProfile>>;
+}) {
   const settings = profile.settings ?? {};
   const paperless = (settings.paperless as { inviteUrl?: string } | undefined) ?? {};
   const templates = (settings.commTemplates as Record<string, CommTemplate> | undefined) ?? {};
@@ -903,15 +963,23 @@ function PaperlessCommSection({ profile, onChangeProfile }: { profile: FirmProfi
   const urlInvalid = inviteUrl.trim() !== '' && !inviteUrl.trim().startsWith('https://');
 
   const patchSettings = (patch: Record<string, unknown>) =>
-    onChangeProfile({ ...profile, settings: { ...settings, ...patch } });
+    onChangeProfile(prev => ({ ...prev, settings: { ...(prev.settings ?? {}), ...patch } }));
 
-  const setTemplate = (kind: TemplateKey, patch: CommTemplate) =>
-    patchSettings({ commTemplates: { ...templates, [kind]: { ...(templates[kind] ?? {}), ...patch } } });
-
-  const resetTemplate = (kind: TemplateKey) => {
-    const next = { ...templates };
-    delete next[kind];
-    patchSettings({ commTemplates: next });
+  /**
+   * החלפת רשומה שלמה — כך גם ביטול וגם חזרה לנוסח המערכת מדויקים: שדה שאינו
+   * קיים ברשומה החדשה נמחק, ורשומה שהתרוקנה לגמרי יורדת מההגדרות.
+   * ‼ הכל נגזר מהמצב הקודם ולא מהעותק שברינדור: שני שינויים שנופלים באותו
+   * batch של React (למשל לחיצה שגוררת עריכה) היו דורסים זה את זה.
+   */
+  const replaceTemplate = (kind: TemplateKey, update: (prev: CommTemplate) => CommTemplate) => {
+    onChangeProfile(prev => {
+      const prevSettings = prev.settings ?? {};
+      const all = { ...(prevSettings.commTemplates as Record<string, CommTemplate> | undefined) };
+      const entry = update(all[kind] ?? {});
+      const empty = entry.subject === undefined && entry.body === undefined && !entry.firmDefault;
+      if (empty) delete all[kind]; else all[kind] = entry;
+      return { ...prev, settings: { ...prevSettings, commTemplates: all } };
+    });
   };
 
   return (
@@ -937,163 +1005,153 @@ function PaperlessCommSection({ profile, onChangeProfile }: { profile: FirmProfi
         </div>
       </div>
 
-      {TEMPLATE_EDITORS.map(kind => {
-        const base = defaultTemplate(kind);
-        const saved = templates[kind] ?? {};
-        const overridden = saved.subject !== undefined || saved.body !== undefined;
-        return (
-          <div key={kind} style={card}>
-            <details>
-              <summary style={{ cursor: 'pointer' }}>
-                <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)' }}>
-                  {STEP_EMAIL_KIND_LABELS[kind]}
-                </span>
-                <span style={{ fontSize: 'var(--fs-12)', color: overridden ? 'var(--chip-amber-tx)' : 'var(--gray-400)', marginInlineStart: 8 }}>
-                  {overridden ? 'נוסח מותאם' : 'נוסח ברירת מחדל'}
-                </span>
-              </summary>
-
-              <div style={{ marginTop: 14, maxWidth: 640 }}>
-                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10 }}>
-                  {TEMPLATE_HINT[kind]} אפשר לערוך גם לכל שליחה בנפרד, בחלון התצוגה המקדימה.
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                  {PLACEHOLDERS_BY_KIND[kind].map(p => (
-                    <span key={p} style={{ fontSize: 11.5, background: 'var(--gray-100)', color: 'var(--gray-600)', padding: '3px 8px', borderRadius: 6, fontFamily: 'monospace', direction: 'ltr' }}>{p}</span>
-                  ))}
-                </div>
-
-                <Field label="נושא המייל">
-                  <input
-                    value={saved.subject ?? base.subject}
-                    onChange={e => setTemplate(kind, { subject: e.target.value })}
-                  />
-                </Field>
-                <div style={{ marginTop: 12 }}>
-                  <Field label="גוף המייל">
-                    <textarea
-                      rows={10}
-                      value={saved.body ?? base.body}
-                      onChange={e => setTemplate(kind, { body: e.target.value })}
-                      style={{ width: '100%', resize: 'vertical' }}
-                    />
-                  </Field>
-                </div>
-
-                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button className="btn" disabled={!overridden} onClick={() => resetTemplate(kind)} style={{ fontSize: 'var(--fs-13)' }}>
-                    שחזר ברירת מחדל
-                  </button>
-                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
-                    השינויים נשמרים עם כפתור השמירה למעלה.
-                  </span>
-                </div>
-              </div>
-            </details>
-          </div>
-        );
-      })}
-
-      <ReleaseTemplateCard
-        saved={templates[RELEASE_TEMPLATE_KEY] ?? {}}
-        onChange={patch => setTemplate(RELEASE_TEMPLATE_KEY, patch)}
-        onReset={() => resetTemplate(RELEASE_TEMPLATE_KEY)}
-      />
+      {templateSpecs().map(spec => (
+        <TemplateCard
+          key={spec.key}
+          spec={spec}
+          entry={templates[spec.key] ?? {}}
+          onReplace={update => replaceTemplate(spec.key, update)}
+        />
+      ))}
     </>
   );
 }
 
-// ───────────────────── תבנית מכתב ההעברה לרו״ח הקודם ─────────────────────
-// ‼ שונה מחמש התבניות שמעליו בשני דברים, ולכן כרטיס משלו: המכתב נשלח לרו״ח
-// הקודם ולא ללקוח, וארבעה מהסעיפים שלו **נגזרים** ממה שסוכם עם הלקוח ואינם
-// ניתנים לניסוח כאן — אפשר להזיז אותם, למחוק אותם או לסמן אותם במרקר, אבל לא
-// לכתוב אותם מחדש. משרד שיוכל לנסח אותם יוכל לשלוח מכתב שסותר את הסיכום.
+// ───────────────────────── כרטיס תבנית אחד לכל השישה ─────────────────────────
+// ‼ הפעולות מופיעות רק כשיש להן מה לעשות: כרטיס שלא נגעו בו מציג שורת הסבר
+// בלבד. זה מה שמחזיק שלוש מדרגות נוסח בלי לגדוש את המסך בארבעה כפתורים קבועים.
 //
-// ‼ מרקר שמסומן כאן הוא **ברירת המחדל של כל מכתב חדש**, לא כפייה: הסימון
-// מגיע כטקסט רגיל בגוף המכתב, וכיבוי שלו במכתב אחד נעשה מהמכתב עצמו.
+// ‼ "חזרה לנוסח המערכת" אינו מוחק את נוסח המשרד — הוא מוריד רק את מה שנשלח
+// בפועל. אחרת התנסות אחת הייתה מוחקת את הנוסח שגיא בנה, וזו בדיוק הסיבה
+// שהכפתור הישן היה מסוכן.
 
-function ReleaseTemplateCard({ saved, onChange, onReset }: {
-  saved: CommTemplate;
-  onChange: (patch: CommTemplate) => void;
-  onReset: () => void;
+const TEMPLATE_HISTORY_MAX = 50;
+/** הקלדה רצופה היא צעד אחד — "בטל" חוזר לפני הפסקה, לא תו אחורה. */
+const TYPING_BURST_MS = 700;
+
+function TemplateCard({ spec, entry, onReplace }: {
+  spec: TemplateSpec;
+  entry: CommTemplate;
+  onReplace: (update: (prev: CommTemplate) => CommTemplate) => void;
 }) {
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
   const [markerHint, setMarkerHint] = useState(false);
-  const overridden = saved.subject !== undefined || saved.body !== undefined;
-  const body = saved.body ?? DEFAULT_RELEASE_TEMPLATE.body;
+  const [history, setHistory] = useState<CommTemplate[]>([]);
+  const lastChangeAt = useRef(0);
 
-  // סעיף שנמחק מהשלד לא יופיע במכתב — אזהרה, לא חסימה: יש מי שמנסח אחרת.
-  const missing = RELEASE_TEMPLATE_VARS
-    .filter(v => v.section && !body.includes(`{{${v.name}}}`))
-    .map(v => v.hint);
+  const cur = { subject: entry.subject ?? spec.base.subject, body: entry.body ?? spec.base.body };
+  const firm = entry.firmDefault;
+  const isSystem = entry.subject === undefined && entry.body === undefined;
+  const sameAsFirm = !!firm && firm.subject === cur.subject && firm.body === cur.body;
+  const sameAsSystem = cur.subject === spec.base.subject && cur.body === spec.base.body;
+
+  /** כל שינוי עובר כאן — כדי שגם עריכה, גם מרקר וגם שחזור יהיו ניתנים לביטול. */
+  function apply(update: (prev: CommTemplate) => CommTemplate, checkpoint = false) {
+    const now = Date.now();
+    if (checkpoint || now - lastChangeAt.current > TYPING_BURST_MS) {
+      setHistory(h => [...h.slice(-(TEMPLATE_HISTORY_MAX - 1)), entry]);
+    }
+    lastChangeAt.current = checkpoint ? 0 : now;
+    onReplace(update);
+  }
+
+  function undo() {
+    const prev = history[history.length - 1];
+    if (!prev) return;
+    setHistory(h => h.slice(0, -1));
+    lastChangeAt.current = 0;
+    setMarkerHint(false);
+    onReplace(() => prev);
+  }
+
+  /** הנוסח שכרגע בעריכה, מחושב מהמצב הקודם — לא מהעותק שברינדור. */
+  const currentOf = (p: CommTemplate) => ({
+    subject: p.subject ?? spec.base.subject,
+    body: p.body ?? spec.base.body,
+  });
 
   function toggleMarker() {
     const el = bodyRef.current;
     if (!el) return;
-    const result = toggleHighlightAt(body, el.selectionStart ?? 0, el.selectionEnd ?? 0);
+    const result = toggleHighlightAt(cur.body, el.selectionStart ?? 0, el.selectionEnd ?? 0);
     if (!result) { setMarkerHint(true); return; }
     setMarkerHint(false);
-    onChange({ body: result.text });
+    apply(p => ({ ...p, body: result.text }), true);
     requestAnimationFrame(() => { el.focus(); el.setSelectionRange(...result.selection); });
   }
+
+  // סעיף שנמחק מהשלד לא יופיע במכתב — אזהרה, לא חסימה: יש מי שמנסח אחרת.
+  const missingSections = spec.vars
+    .filter(v => v.section && !cur.body.includes(v.label))
+    .map(v => v.hint ?? v.label);
+
+  const stateLabel = isSystem ? 'נוסח המערכת'
+    : sameAsFirm ? 'נוסח המשרד'
+      : firm ? 'שונה מנוסח המשרד'
+        : 'נוסח מותאם';
+
+  const act: React.CSSProperties = { fontSize: 'var(--fs-12)', color: 'var(--gray-600)' };
 
   return (
     <div style={card}>
       <details>
         <summary style={{ cursor: 'pointer' }}>
           <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)' }}>
-            מכתב העברת טיפול — לרו״ח הקודם
+            {spec.title}
           </span>
-          <span style={{ fontSize: 'var(--fs-12)', color: overridden ? 'var(--chip-amber-tx)' : 'var(--gray-400)', marginInlineStart: 8 }}>
-            {overridden ? 'נוסח מותאם' : 'נוסח ברירת מחדל'}
+          <span style={{
+            fontSize: 'var(--fs-12)', marginInlineStart: 8,
+            color: firm && !sameAsFirm ? 'var(--chip-amber-tx)' : 'var(--gray-400)',
+          }}>
+            {stateLabel}
           </span>
         </summary>
 
         <div style={{ marginTop: 14, maxWidth: 640 }}>
           <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.7 }}>
-            נשלח לרו״ח הקודם, לא ללקוח. החלקים המשתנים — התקופה, העבודות הפתוחות ורשימת
-            החומרים — נבנים אוטומטית לכל לקוח, ולכן מופיעים כאן כשם בסוגריים כפולות
-            ואי אפשר לנסח אותם מכאן. אפשר להזיז אותם, למחוק אותם או לסמן אותם במרקר.
-            <br />
-            קטע שמסומן כאן במרקר יגיע מסומן בכל מכתב חדש — ואם במכתב מסוים לא תרצה
-            אותו, תסמן אותו שם ותלחץ שוב על מרקר.
+            {spec.hint}
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-            {RELEASE_TEMPLATE_VARS.map(v => (
-              <span key={v.name} title={v.hint}
+            {spec.vars.map(v => (
+              <span key={v.label} title={v.hint}
                 style={{
                   fontSize: 11.5, padding: '3px 8px', borderRadius: 6,
                   background: v.section ? 'var(--orange-light)' : 'var(--gray-100)',
                   color: v.section ? 'var(--chip-amber-tx)' : 'var(--gray-600)',
                   fontFamily: 'monospace', direction: 'ltr',
-                }}>{`{{${v.name}}}`}</span>
+                }}>{v.label}</span>
             ))}
           </div>
 
           <Field label="נושא המייל">
-            <input
-              value={saved.subject ?? DEFAULT_RELEASE_TEMPLATE.subject}
-              onChange={e => onChange({ subject: e.target.value })}
-            />
+            <input value={cur.subject} onChange={e => apply(p => ({ ...p, subject: e.target.value }))} />
           </Field>
 
           <div style={{ marginTop: 12 }}>
             <label style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-600)', display: 'block' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                גוף המכתב
-                <button type="button" className="btn btn-sm btn-ghost" onClick={toggleMarker}
-                  title="מסמנים קטע בטקסט ולוחצים — הוא יופיע עם הדגשה צהובה">
-                  <span style={{ background: '#fdf3c4', padding: '0 5px', borderRadius: 3 }}>מרקר</span>
-                </button>
+                {spec.bodyLabel}
+                {spec.marker && (
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={toggleMarker}
+                    title="מסמנים קטע בטקסט ולוחצים — הוא יופיע עם הדגשה צהובה">
+                    <span style={{ background: '#fdf3c4', padding: '0 5px', borderRadius: 3 }}>מרקר</span>
+                  </button>
+                )}
               </span>
-              <HighlightTextarea
-                ref={bodyRef}
-                rows={18}
-                value={body}
-                onChange={v => onChange({ body: v })}
-                style={{ marginTop: 4 }}
-              />
+              {spec.marker ? (
+                <HighlightTextarea
+                  ref={bodyRef} rows={spec.rows} value={cur.body}
+                  onChange={v => apply(p => ({ ...p, body: v }))}
+                  style={{ marginTop: 4 }}
+                />
+              ) : (
+                <textarea
+                  rows={spec.rows} value={cur.body}
+                  onChange={e => apply(p => ({ ...p, body: e.target.value }))}
+                  style={{ marginTop: 4, width: '100%', resize: 'vertical' }}
+                />
+              )}
             </label>
           </div>
 
@@ -1102,18 +1160,46 @@ function ReleaseTemplateCard({ saved, onChange, onReset }: {
               צריך לסמן קודם את הקטע שרוצים להדגיש.
             </div>
           )}
-          {missing.length > 0 && (
+          {missingSections.length > 0 && (
             <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: 'var(--chip-amber-tx)', lineHeight: 1.6 }}>
-              המכתב ייצא בלי {missing.join(', ')}.
+              המכתב ייצא בלי {missingSections.join(', ')}.
             </div>
           )}
 
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button className="btn" disabled={!overridden} onClick={onReset} style={{ fontSize: 'var(--fs-13)' }}>
-              שחזר ברירת מחדל
-            </button>
-            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
-              השינויים נשמרים עם כפתור השמירה למעלה.
+          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {history.length > 0 && (
+              <button type="button" className="btn btn-sm btn-ghost" style={act} onClick={undo}>
+                ↶ בטל
+              </button>
+            )}
+            {!sameAsFirm && !(sameAsSystem && !firm) && (
+              <button type="button" className="btn btn-sm btn-ghost" style={act}
+                title="הנוסח שכרגע בעריכה ייקבע כנוסח הקבוע של המשרד, ותמיד אפשר יהיה לחזור אליו"
+                onClick={() => apply(p => {
+                  const c = currentOf(p);
+                  return { ...p, subject: c.subject, body: c.body, firmDefault: c };
+                }, true)}>
+                קבע כנוסח המשרד
+              </button>
+            )}
+            {firm && !sameAsFirm && (
+              <button type="button" className="btn btn-sm btn-ghost" style={act}
+                onClick={() => apply(p => (
+                  p.firmDefault ? { ...p, subject: p.firmDefault.subject, body: p.firmDefault.body } : p
+                ), true)}>
+                חזרה לנוסח המשרד
+              </button>
+            )}
+            {!sameAsSystem && (
+              <button type="button" className="btn btn-sm btn-ghost" style={act}
+                title="חוזר לנוסח המקורי של המערכת. נוסח המשרד שקבעת נשמר ואפשר לחזור אליו."
+                onClick={() => apply(p => (p.firmDefault ? { firmDefault: p.firmDefault } : {}), true)}>
+                חזרה לנוסח המערכת
+              </button>
+            )}
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }}>
+              נשמר עם כפתור השמירה למעלה
             </span>
           </div>
         </div>
