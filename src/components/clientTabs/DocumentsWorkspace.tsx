@@ -17,6 +17,8 @@ import { supabase } from '../../lib/supabase';
 import { EmptyState } from '../ui/States';
 import LabelSelect from '../ui/LabelSelect';
 import { buildZip, sanitizeFileBaseName, uniqueEntryName, triggerBlobDownload } from '../../utils/zipArchive';
+import { looksConvertible, imageToPdfBytes, pdfFileNameFor, ImageConversionError } from '../../utils/imageToPdf';
+import { useToast } from '../ui/Toast';
 
 const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.csv';
 
@@ -91,6 +93,17 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   const [zipBusy, setZipBusy] = useState(false);
   const [zipProgress, setZipProgress] = useState(0);
   const [zipError, setZipError] = useState<{ message: string; failed: string[] } | null>(null);
+
+  // ─── המרת תצלום ל-PDF ─────────────────────────────────────────────────
+  const [convertBusy, setConvertBusy] = useState(false);
+  const [convertError, setConvertError] = useState('');
+  /**
+   * ‼ אותו לקח כמו נעילת האריזה: state לא מתעדכן בין שתי לחיצות באותו
+   * tick, ולחיצה כפולה הייתה יוצרת שני מסמכי PDF זהים שאיש לא ביקש.
+   */
+  const convertRunningRef = useRef(false);
+
+  const { showToast } = useToast();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -566,12 +579,12 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     setAddClientPick('');
     setRenameDraft(doc.description || '');
     setTransferPick(''); setTransferError(''); setConfirmTransfer(null); setConfirmDeleteDoc(false);
-    setFileBusy(false); setFileError('');
+    setFileBusy(false); setFileError(''); setConvertError('');
   }
   function closeDrawer() {
     setDrawerDoc(null); setDrawerLinkedClients([]); setDrawerLinkedTasks([]);
     setTransferPick(''); setTransferError(''); setConfirmTransfer(null); setConfirmDeleteDoc(false);
-    setFileBusy(false); setFileError('');
+    setFileBusy(false); setFileError(''); setConvertError('');
   }
 
   async function saveDrawerMeta(patch: Partial<Pick<StoredDoc, 'labelId' | 'year' | 'description' | 'folderId'>>) {
@@ -738,6 +751,75 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
       setFileError(e instanceof Error ? e.message : 'פתיחת הקובץ נכשלה.');
     } finally {
       setFileBusy(false);
+    }
+  }
+
+  /**
+   * המרת תצלום ל-PDF. נוצר מסמך *חדש* דרך אותו saveDoc של כל העלאה —
+   * אותו bucket, אותה טבלה, אותו user_id ואותו RLS. המקור אינו נקרא
+   * לכתיבה, אינו נמחק ואינו משתנה: הוא נשאר ברשימה לצד ה-PDF.
+   */
+  async function convertDrawerDocToPdf() {
+    if (convertRunningRef.current || !drawerDoc) return;
+    const source = drawerDoc;
+    convertRunningRef.current = true;
+    setConvertBusy(true); setConvertError('');
+    try {
+      // ‼ הבייטים מגיעים מהאחסון דרך getDoc — אותו מסלול הרשאות של
+      // 'פתח את הקובץ'. סוג הקובץ נקבע מהתוכן שחזר משם ולא מהסיומת.
+      const full = await db.getDoc(source.id);
+      if (!full || full.fileData.byteLength === 0) {
+        setConvertError('הקובץ עצמו אינו זמין באחסון, ולכן אין מה להמיר.');
+        return;
+      }
+      const pdfBytes = await imageToPdfBytes(new Uint8Array(full.fileData));
+
+      // שם פנוי אצל הלקוח שאליו המסמך שייך — לא אצל הלקוח שממנו הסתכלנו
+      const siblings = await db.getDocsByClient(source.clientId);
+      const taken = new Set(siblings.map(d => (d.fileName || '').toLowerCase()));
+      const fileName = uniqueEntryName(pdfFileNameFor(source.fileName), taken);
+
+      const fileData = new ArrayBuffer(pdfBytes.byteLength);
+      new Uint8Array(fileData).set(pdfBytes);
+
+      const created: StoredDoc = {
+        id: crypto.randomUUID(),
+        clientId: source.clientId,
+        fileName,
+        fileType: 'application/pdf',
+        fileSize: fileData.byteLength,
+        category: source.category,
+        year: source.year,
+        uploadedAt: new Date().toISOString(),
+        description: source.description || pdfFileNameFor(source.fileName).replace(/\.pdf$/i, ''),
+        // ‼ המקור נרשם בהערות ולא בשדה חדש: linked_to כבר תפוס למשמעות
+        // אחרת (הצגת המסמך במסך אחר), ומיגרציה רק בשביל שורת ייחוס
+        // אינה מוצדקת. ראה LinkedDocsWidget / InstitutionAlignment.
+        notes: `הומר ל-PDF מתוך «${source.fileName}».`,
+        fileData,
+        folderId: source.folderId ?? null,
+        labelId: source.labelId ?? null,
+      };
+      await db.saveDoc(created);
+
+      // אותו הקשר בדיוק: תצלום שנראה כאן מכוח קישור ללקוח נוסף — גם
+      // ה-PDF שנגזר ממנו ייראה באותם מקומות, אחרת הוא "נעלם" מהמסך
+      // שממנו בוצעה ההמרה.
+      const links = await db.getLinkedClientIds(source.id);
+      for (const cid of links) {
+        if (cid !== source.clientId) await db.linkDocumentClient(created.id, cid);
+      }
+
+      closeDrawer();
+      void loadAll();
+      showToast(`נוצר PDF: ${fileName} · התצלום המקורי נשאר`);
+    } catch (e) {
+      setConvertError(
+        e instanceof ImageConversionError ? e.message
+          : e instanceof Error ? `ההמרה נכשלה: ${e.message}` : 'ההמרה נכשלה.');
+    } finally {
+      convertRunningRef.current = false;
+      setConvertBusy(false);
     }
   }
 
@@ -958,6 +1040,24 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
               onClick={openFileInNewTab}
             >{fileBusy ? 'פותח…' : 'פתח את הקובץ'}</button>
             {fileError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{fileError}</div>}
+
+            {/* ‼ מוצג רק על תצלום. מסמך שהוא כבר PDF אינו מקבל את הכפתור
+                — אין מה להמיר, וכפתור שלא עושה כלום קורא כמו תקלה. */}
+            {looksConvertible(drawerDoc.fileType, drawerDoc.fileName) && (
+              <>
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-ghost"
+                  style={{ width: '100%', marginTop: '.5rem' }}
+                  disabled={convertBusy}
+                  onClick={convertDrawerDocToPdf}
+                >{convertBusy ? 'ממיר…' : 'המר ל-PDF'}</button>
+                <div className="csub" style={{ marginTop: '.25rem' }}>
+                  ייווצר מסמך PDF חדש לצד התצלום. המקור נשאר כאן כמו שהוא.
+                </div>
+              </>
+            )}
+            {convertError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{convertError}</div>}
 
             {/* flex-start: כשנפתח שדה היצירה השורה מתארכת, וכותרת ממורכזת
                 הייתה יורדת לגובה שדה השם במקום להישאר מול הבורר. */}
