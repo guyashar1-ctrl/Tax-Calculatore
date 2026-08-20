@@ -357,6 +357,25 @@ export const DEFAULT_RELEASE_TEMPLATE: ReleaseTemplate = {
   ].join('\n'),
 };
 
+/**
+ * משפט הפתיחה כפי שהיה כתוב בשלד עד 2026-08-20, לפני שהפך לסעיף נגזר.
+ * ‼ תבנית משרדית שנשמרה לפני כן עדיין מחזיקה אותו, והיא גוברת על ברירת
+ * המחדל — ולכן מכתב לזוג נשוי יצא "פנה... בענייניו" במקום "פנו... בענייניהם".
+ */
+const LEGACY_INTRO_LINE =
+  '{{clientRef}} פנה למשרדנו להמשך הטיפול בענייניו, לרבות ייצוג מול הרשויות, הנהלת חשבונות ודוחות.';
+
+/**
+ * מחליף את משפט הפתיחה הישן בסעיף הנגזר. ‼ רק בהתאמה מדויקת של השורה
+ * כולה — משרד שניסח משפט משלו שומר עליו כלשונו, גם אם הוא ביחיד.
+ */
+export function upgradeReleaseTemplateBody(body: string): string {
+  if (!body.includes(LEGACY_INTRO_LINE)) return body;
+  return body.split('\n')
+    .map(l => (l.trim() === LEGACY_INTRO_LINE ? '{{clientIntro}}' : l))
+    .join('\n');
+}
+
 /** התבנית של המשרד, עם נפילה לשלד ברירת המחדל בכל שדה חסר או ריק. */
 export function releaseTemplateFrom(settings: Record<string, unknown> | null | undefined): ReleaseTemplate {
   const all = (settings ?? {}).commTemplates as Record<string, { subject?: string; body?: string }> | undefined;
@@ -365,7 +384,7 @@ export function releaseTemplateFrom(settings: Record<string, unknown> | null | u
     typeof v === 'string' && v.trim() ? v : fallback;
   return {
     subject: pick(saved?.subject, DEFAULT_RELEASE_TEMPLATE.subject),
-    body: pick(saved?.body, DEFAULT_RELEASE_TEMPLATE.body),
+    body: upgradeReleaseTemplateBody(pick(saved?.body, DEFAULT_RELEASE_TEMPLATE.body)),
   };
 }
 

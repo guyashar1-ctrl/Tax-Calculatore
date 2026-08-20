@@ -36,7 +36,7 @@ import {
 } from '../../supabase/functions/_shared/accountantNotifications.ts';
 import {
   DEFAULT_RELEASE_TEMPLATE, RELEASE_TEMPLATE_KEY, RELEASE_TEMPLATE_VARS,
-  toggleHighlightAt,
+  toggleHighlightAt, upgradeReleaseTemplateBody,
 } from '../utils/releaseLetter';
 import HighlightTextarea from './ui/HighlightTextarea';
 
@@ -906,6 +906,21 @@ interface CommTemplate {
  *  לרו״ח הקודם ולא ללקוח, והשרת של מיילי השלבים לא נוגע בו. */
 type TemplateKey = StepEmailKind | typeof RELEASE_TEMPLATE_KEY;
 
+/**
+ * ‼ תבנית שנשמרה לפני שמשפט הפתיחה הפך לסעיף נגזר עדיין מחזיקה אותו ביחיד,
+ * והיא גוברת על ברירת המחדל. משדרגים בקריאה — גם את הנוסח הפעיל וגם את עוגן
+ * «נוסח המשרד», אחרת חזרה לעוגן הייתה מחזירה בדיוק את המשפט השבור.
+ */
+function upgradedEntry(kind: TemplateKey, entry: CommTemplate): CommTemplate {
+  if (kind !== RELEASE_TEMPLATE_KEY) return entry;
+  const body = entry.body === undefined ? undefined : upgradeReleaseTemplateBody(entry.body);
+  const firmDefault = entry.firmDefault
+    ? { ...entry.firmDefault, body: upgradeReleaseTemplateBody(entry.firmDefault.body) }
+    : undefined;
+  if (body === entry.body && firmDefault?.body === entry.firmDefault?.body) return entry;
+  return { ...entry, ...(body !== undefined ? { body } : {}), ...(firmDefault ? { firmDefault } : {}) };
+}
+
 interface TemplateSpec {
   key: TemplateKey;
   title: string;
@@ -1009,7 +1024,7 @@ function PaperlessCommSection({ profile, onChangeProfile }: {
         <TemplateCard
           key={spec.key}
           spec={spec}
-          entry={templates[spec.key] ?? {}}
+          entry={upgradedEntry(spec.key, templates[spec.key] ?? {})}
           onReplace={update => replaceTemplate(spec.key, update)}
         />
       ))}
