@@ -108,8 +108,26 @@ import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import FailedNotificationsBanner from './components/FailedNotificationsBanner';
 import { useAuth } from './hooks/useAuth';
 import AnnualReport from './features/annualReport/AnnualReport';
+import { registeredFileInfo } from './features/annualReport/profile';
 
 type View = AppRouteView;
+
+/**
+ * זהות התיק למכתב ההעברה. ‼ מספר התיק במס הכנסה הוא ת.ז. של **בעל התיק**,
+ * ואצל זוג נשוי בעל התיק הוא בן/בת הזוג הרשום — לא בהכרח הלקוח שבכרטיס.
+ * `registeredFileInfo` כבר יודע את זה מתיק מ"ה שבכרטיס; בלי תיק מוגדר
+ * נופלים לת.ז. של הלקוח, שזה הנכון ברוב המכריע של התיקים.
+ */
+function releaseFileIdentity(client: Client | undefined | null): {
+  taxFileNumber?: string; registeredSpouseName?: string;
+} {
+  if (!client) return {};
+  const reg = registeredFileInfo(client);
+  const id = (reg?.idNumber || client.idNumber || '').trim();
+  if (!id) return {};
+  const onSpouse = reg?.owner === 'spouse' && !!reg.name.trim();
+  return { taxFileNumber: id, ...(onSpouse ? { registeredSpouseName: reg.name.trim() } : {}) };
+}
 
 /** יוצר Client חדש עם ערכי ברירת מחדל */
 function makeEmptyClient(id: string, partial: Partial<Client> = {}): Client {
@@ -406,7 +424,8 @@ export default function App() {
   // מכתב שחרור לרו"ח הקודם. stepId מגיע כשפתחו אותו משלב הקליטה — אחרי
   // שליחה מוצלחת השלב עובר ל"נשלח" והכדור עובר לרו"ח הקודם.
   const [releaseFor, setReleaseFor] = useState<{
-    clientId: string; clientName: string; businessName?: string; clientEmail?: string;
+    clientId: string; clientName: string; clientEmail?: string;
+    taxFileNumber?: string; registeredSpouseName?: string;
     prevAccountant: { name?: string; email?: string; phone?: string };
     stepId: string;
     /** 'follow_up' — פריטים שנוספו אחרי השליחה, על אותו מסלול ואותו קישור. */
@@ -1498,7 +1517,9 @@ export default function App() {
       followUpItems,
       clientId,
       clientName: client ? `${client.firstName} ${client.lastName}`.trim() : (lead?.fullName ?? ''),
-      businessName: client?.businessName || lead?.businessName,
+      // ‼ המכתב מזהה את התיק, לא את העסק: מספר התיק במ"ה הוא ת.ז. של בעל
+      // התיק — ואצל זוג נשוי זה בן/בת הזוג הרשום, שאינו בהכרח הלקוח שבכרטיס.
+      ...releaseFileIdentity(client),
       clientEmail: client?.email || lead?.email,
       prevAccountant: {
         name: client?.prevAccountantName || lead?.prevAccountantName,
@@ -2292,7 +2313,8 @@ export default function App() {
         const step = onboarding.steps.find(s => s.id === releaseFor.stepId);
         const ctx = {
           clientName: releaseFor.clientName,
-          businessName: releaseFor.businessName,
+          taxFileNumber: releaseFor.taxFileNumber,
+          registeredSpouseName: releaseFor.registeredSpouseName,
           prevAccountantName: releaseFor.prevAccountant.name,
         };
         const brand = deriveQuotationBrand(firmProfile);
@@ -2302,7 +2324,8 @@ export default function App() {
           template={releaseTemplate}
           clientId={releaseFor.clientId}
           clientName={releaseFor.clientName}
-          businessName={releaseFor.businessName}
+          taxFileNumber={releaseFor.taxFileNumber}
+          registeredSpouseName={releaseFor.registeredSpouseName}
           clientEmail={releaseFor.clientEmail}
           prevAccountant={releaseFor.prevAccountant}
           brand={brand}

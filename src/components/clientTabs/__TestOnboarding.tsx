@@ -446,7 +446,7 @@ export default function TestOnboarding() {
         <ReleaseLetterDialog
           clientId={CLIENT_ID}
           clientName="שרון מזרחי"
-          businessName="שרון מזרחי — ייעוץ"
+          taxFileNumber="029384756"
           clientEmail="sharon@example.com"
           prevAccountant={{ name: 'רו״ח דנה כהן', email: 'dana@prev-firm.example', phone: '03-1234567' }}
           brand={{

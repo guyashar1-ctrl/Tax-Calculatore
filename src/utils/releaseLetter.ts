@@ -21,8 +21,18 @@ import {
 
 export interface ReleaseContext {
   clientName: string;
-  businessName?: string;
   prevAccountantName?: string;
+  /**
+   * מספר התיק במס הכנסה — ת.ז. של בעל התיק (הכרעת גיא 2026-08-20). זה מה
+   * שמזהה את התיק אצל הרו״ח הקודם, בשונה משם העסק שהופיע כאן קודם ולא זיהה
+   * כלום (ואצל עוסק שנקרא על שמו אף הופיע פעמיים).
+   */
+  taxFileNumber?: string;
+  /**
+   * שם בן/בת הזוג הרשום — רק כשהתיק מתנהל על שמו ולא על שם הלקוח.
+   * ‼ בלעדיו המכתב היה מציג ת.ז. של אדם אחר לצד שם הלקוח, כאילו היא שלו.
+   */
+  registeredSpouseName?: string;
 }
 
 /** פריט חומר שאפשר לבקש מהרו"ח הקודם. `key` תואם לצ'קליסט של שלב קבלת החומרים. */
@@ -357,11 +367,24 @@ export function releaseTemplateFrom(settings: Record<string, unknown> | null | u
   };
 }
 
+/**
+ * זיהוי הלקוח בגוף המכתב. ‼ כשהתיק מתנהל על שם בן/בת הזוג — נאמר במפורש על
+ * שם מי, אחרת המכתב מציג ת.ז. של אדם אחר צמוד לשם הלקוח.
+ */
+function clientRef(ctx: ReleaseContext): string {
+  const id = ctx.taxFileNumber?.trim();
+  if (!id) return ctx.clientName;
+  const spouse = ctx.registeredSpouseName?.trim();
+  return spouse
+    ? `${ctx.clientName} (תיק במס הכנסה ${id}, ע״ש ${spouse})`
+    : `${ctx.clientName} (ת.ז. ${id})`;
+}
+
 function scalarVars(ctx: ReleaseContext, firmName: string): Record<string, string> {
   return {
     prevAccountantName: ctx.prevAccountantName?.trim() || 'רו״ח הנכבד',
     clientName: ctx.clientName,
-    clientRef: ctx.businessName?.trim() ? `${ctx.clientName} (${ctx.businessName})` : ctx.clientName,
+    clientRef: clientRef(ctx),
     firmName,
   };
 }

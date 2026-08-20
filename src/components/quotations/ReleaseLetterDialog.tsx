@@ -25,7 +25,7 @@ import {
   RELEASE_MATERIALS, defaultReleaseSubject, defaultReleaseBody,
   buildReleaseEmailHtml, generateReleaseEmailPdf, followUpBody, followUpSubject,
   toggleHighlightAt, periodLabel, nextPeriod, newOutstandingItem,
-  type ReleaseTemplate,
+  type ReleaseTemplate, type ReleaseContext,
 } from '../../utils/releaseLetter';
 import HighlightTextarea from '../ui/HighlightTextarea';
 import { isBlockingOutstanding, outstandingLabel } from '../../types/onboarding';
@@ -33,7 +33,10 @@ import { isBlockingOutstanding, outstandingLabel } from '../../types/onboarding'
 interface Props {
   clientId: string;
   clientName: string;
-  businessName?: string;
+  /** ת.ז. שעליה מתנהל תיק מס הכנסה — מזהה את התיק אצל הרו״ח הקודם. */
+  taxFileNumber?: string;
+  /** שם בן/בת הזוג הרשום, כשהתיק על שמו ולא על שם הלקוח. */
+  registeredSpouseName?: string;
   clientEmail?: string;
   prevAccountant: { name?: string; email?: string; phone?: string };
   brand: QuotationBrand;
@@ -85,12 +88,14 @@ function addBusinessDays(from: Date, days: number): string {
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export default function ReleaseLetterDialog({
-  clientId, clientName, businessName, clientEmail, prevAccountant, brand, onSent, onClose, stepId,
-  draft, onSaveDraft, template, mode = 'letter', followUpItems = [],
+  clientId, clientName, taxFileNumber, registeredSpouseName, clientEmail, prevAccountant, brand,
+  onSent, onClose, stepId, draft, onSaveDraft, template, mode = 'letter', followUpItems = [],
 }: Props) {
   const followUp = mode === 'follow_up';
   const { saveDoc } = useDocumentStore();
-  const ctx = { clientName, businessName, prevAccountantName: prevAccountant.name };
+  const ctx: ReleaseContext = {
+    clientName, taxFileNumber, registeredSpouseName, prevAccountantName: prevAccountant.name,
+  };
 
   const [toEmail, setToEmail] = useState(prevAccountant.email ?? '');
   // ‼ הלקוח מכותב תמיד (הכרעת גיא 2026-08-18) — זה לא בחירה של המשרד: הוא
