@@ -1002,6 +1002,12 @@ export interface OnboardingPrefill {
   /** שם מפוצל — מגיע מהכרטיס דרך get_onboarding; הרו"ח מזין שם אחד מלא */
   spouseFirstName?: string;
   spouseLastName?: string;
+  /**
+   * על שם מי מתנהל תיק מס הכנסה — בן/בת הזוג הרשום/ה.
+   * ‼ נשאל בבקשת הייצוג, כי שם הרו"ח מזין את הבקשה לשע"ם וכבר יודע. נכתב
+   * לכרטיס כ-`taxFiles[income_tax].owner`, שהוא מקור האמת היחיד לזה.
+   */
+  registeredSpouse?: 'client' | 'spouse';
 }
 
 export type OnboardingSecondaryType = 'parentId' | 'driverLicense' | 'passport';

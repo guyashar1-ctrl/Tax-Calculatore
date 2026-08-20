@@ -20,6 +20,9 @@ import {
   REPRESENTATION_STATUS_LABELS,
   DEFAULT_REQUESTED_DOCS,
   LifecycleStage,
+  OnboardingPrefill,
+  TaxFileInfo,
+  REP_AUTHORITY_ORDER,
 } from './types';
 import { ExtractedClientData } from './utils/geminiVision';
 import { useDocumentDB } from './hooks/useIndexedDB';
@@ -110,6 +113,45 @@ import { useAuth } from './hooks/useAuth';
 import AnnualReport from './features/annualReport/AnnualReport';
 
 type View = AppRouteView;
+
+// ─── בן/בת הזוג הרשום/ה, מבקשת הייצוג ──────────────────────────────────────
+// ‼ מקור האמת הוא `taxFiles[income_tax].owner` (registeredFileInfo), ולכן
+// התשובה מהדיאלוג נכתבת לשם ולא לשדה מקביל.
+//
+// ‼ נכתב **רק כשהתשובה היא בן/בת הזוג** — ולא כשהיא הלקוח, שזו ברירת המחדל:
+// `autofill_internal_setup` בשרת ממלא את התיקים רק כשהם ריקים לגמרי, וכתיבה
+// מוקדמת הייתה חוסמת אותו לכל לקוח. בדיוק מהסיבה הזאת, כשכן כותבים — כותבים
+// שורה לכל רשות שנבחרה, כדי שהחסימה לא תשאיר את שאר התיקים לא-קיימים.
+const REP_AUTHORITY_TO_TAX_FILE: Record<RepAuthorityKind, TaxFileInfo['authority']> = {
+  incomeTax: 'income_tax',
+  withholding: 'deductions',
+  vat: 'vat',
+  nationalInsurance: 'national_insurance',
+};
+
+function taxFilesForRegisteredSpouse(
+  areas: AuthorityRepresentations,
+  prefill: OnboardingPrefill,
+  clientIdNumber: string | undefined,
+): TaxFileInfo[] | undefined {
+  if (prefill.registeredSpouse !== 'spouse') return undefined;
+  const selected = REP_AUTHORITY_ORDER.filter(a => areas[a]);
+  if (!selected.length) return undefined;
+  const spouseId = prefill.spouseIdNumber?.trim();
+  return selected.map(a => {
+    const authority = REP_AUTHORITY_TO_TAX_FILE[a];
+    const onSpouse = authority === 'income_tax';
+    const fileNumber = (onSpouse ? spouseId : clientIdNumber?.trim()) || undefined;
+    return {
+      id: `tf-rep-${a}`,
+      authority,
+      owner: onSpouse ? 'spouse' : 'client',
+      repStatus: 'pending',
+      ...(fileNumber ? { fileNumber } : {}),
+      notes: onSpouse ? 'בן/בת הזוג הרשום/ה — נקבע בבקשת הייצוג' : 'נוצר עם בקשת הייצוג',
+    } satisfies TaxFileInfo;
+  });
+}
 
 /**
  * מי הלקוח, למכתב ההעברה. ‼ הכרעת גיא (2026-08-20): אצל זוג נשוי לא מבררים
@@ -995,6 +1037,10 @@ export default function App() {
       ...(prefill.familyStatusYear && prefill.familyStatus === 'widowed'  ? { widowhoodYear: prefill.familyStatusYear } : {}),
       ...(spouse ? { spouseName: spouse.name } : {}),
       ...(spouse?.idNumber ? { spouseIdNumber: spouse.idNumber } : {}),
+      ...(() => {
+        const files = taxFilesForRegisteredSpouse(areas, prefill, undefined);
+        return files ? { taxFiles: files } : {};
+      })(),
       // מעבר מרו"ח אחר נרשם על הכרטיס מיד: ממנו נגזרים מכתב השחרור ומעקב החומרים.
       hasPreviousAccountant,
       ...(prevAccountant?.name  ? { prevAccountantName: prevAccountant.name } : {}),
@@ -1029,6 +1075,22 @@ export default function App() {
       ...(prefill.familyStatusYear && prefill.familyStatus === 'widowed'  ? { widowhoodYear: prefill.familyStatusYear } : {}),
       ...(spouse ? { spouseName: spouse.name } : {}),
       ...(spouse?.idNumber ? { spouseIdNumber: spouse.idNumber } : {}),
+      // ‼ ללקוח קיים לא דורסים מבנה תיקים שכבר נבנה — רק קובעים את הבעלים
+      // של תיק מ"ה, שזו התשובה שהתקבלה עכשיו.
+      ...(() => {
+        const existing = client.taxFiles ?? [];
+        if (prefill.registeredSpouse !== 'spouse') return {};
+        if (!existing.length) {
+          const files = taxFilesForRegisteredSpouse(areas, prefill, client.idNumber);
+          return files ? { taxFiles: files } : {};
+        }
+        const spouseId = prefill.spouseIdNumber?.trim();
+        return {
+          taxFiles: existing.map(f => (f.authority === 'income_tax'
+            ? { ...f, owner: 'spouse' as const, ...(spouseId ? { fileNumber: spouseId } : {}) }
+            : f)),
+        };
+      })(),
       hasPreviousAccountant,
       ...(prevAccountant?.name  ? { prevAccountantName: prevAccountant.name } : {}),
       ...(prevAccountant?.email ? { prevAccountantEmail: prevAccountant.email } : {}),

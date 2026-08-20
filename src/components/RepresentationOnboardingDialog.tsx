@@ -82,6 +82,8 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   // אפשר לכבות — ואז הייצוג בב"ל הוא לנישום בלבד. ללקוח לא-נשוי אין לזה משמעות.
   const [niCoversSpouse, setNiCoversSpouse] = useState(true);
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
+  // ‼ ברירת המחדל היא הלקוח — כך זה ברוב התיקים, וכך זה נולד עד היום ממילא.
+  const [registeredSpouse, setRegisteredSpouse] = useState<'client' | 'spouse'>('client');
   const [transfer, setTransfer] = useState(isTransfer);
   const [prevAcc, setPrevAcc] = useState({
     name: initialPrevAccountant?.name ?? '',
@@ -112,6 +114,9 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   // הסימון נשמר גם אם מחליפים מצב משפחתי או מבטלים את ב"ל, ולכן הוא נגזר כאן
   // מכל התנאים במקום להתאפס בכל שינוי — כך חזרה ל"נשוי" לא מאבדת את הבחירה.
   const niForSpouse = areas.nationalInsurance.selected && niCoversSpouse && !notMarriedExplicit;
+  // שאלת בן/בת הזוג הרשום/ה רלוונטית רק כשמייצגים במס הכנסה — התיק המשפחתי
+  // האחד הוא שם, ובמע"מ/ניכויים/ב"ל התיקים אישיים.
+  const incomeTaxSelected = areas.incomeTax.selected;
 
   function toggleArea(a: RepAuthorityKind) {
     setAreas(prev => ({ ...prev, [a]: { ...prev[a], selected: !prev[a].selected } }));
@@ -186,6 +191,11 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     if (married && spouseName.trim()) prefill.spouseName = spouseName.trim();
     if (married && spouseIdNumber.trim()) prefill.spouseIdNumber = spouseIdNumber.trim();
     if (married && spouseBirthYear.trim()) prefill.spouseBirthYear = Number(spouseBirthYear);
+    // ‼ נשלח רק כשהוא באמת נגזר ממשהו: זוג נשוי עם שם, וייצוג במ"ה. אחרת אין
+    // תיק משפחתי להצביע עליו, ושליחת 'client' הייתה נראית כהכרעה שלא נעשתה.
+    if (married && incomeTaxSelected && spouseName.trim()) {
+      prefill.registeredSpouse = registeredSpouse;
+    }
 
     // חותם שני נוצר רק אם ידוע שמו. אחרת — הלקוח יצהיר בטופס והחותם ייווצר אז.
     // מייל ריק הוא מצב תקין: הזוג יבחר בשלב החתימה אם לחתום יחד או לקבל קישור.
@@ -608,6 +618,27 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                   <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem', lineHeight: 1.5 }}>
                     גם אלה לא חובה. בלי מייל — הלקוח יבחר בשלב החתימה אם לחתום יחד או לשלוח קישור אישי.
                   </div>
+
+                  {/* ‼ נשאל כאן ולא מאוחר יותר (הכרעת גיא 2026-08-20): בשלב הזה
+                      גיא מזין את הבקשה לשע"ם ובעצם כבר יודע מי הרשום. עד היום
+                      השדה נולד תמיד על שם הלקוח ותוקן ידנית — אם בכלל. */}
+                  {incomeTaxSelected && (
+                    <div className="form-group" style={{ marginTop: '.75rem' }}>
+                      <label>על שם מי מתנהל תיק מס הכנסה?</label>
+                      <select
+                        value={registeredSpouse}
+                        onChange={e => setRegisteredSpouse(e.target.value as 'client' | 'spouse')}
+                        disabled={busy}
+                      >
+                        <option value="client">{name.trim() || 'הלקוח/ה'}</option>
+                        <option value="spouse">{spouseName.trim() || 'בן/בת הזוג'}</option>
+                      </select>
+                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem', lineHeight: 1.5 }}>
+                        במס הכנסה יש תיק אחד לתא המשפחתי, ומספרו הוא ת.ז. של בן/בת הזוג
+                        הרשום/ה. כל ההתנהלות מול מ"ה תהיה בת.ז. הזו.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -635,6 +666,11 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             {married && !spouseName.trim() && <div>{'✓'} חותם שני — הלקוח ימלא את פרטי בן/בת הזוג בקישור</div>}
             {niForSpouse && (
               <div>{'✓'} ייצוג נפרד בביטוח לאומי לבן/בת הזוג {married ? '' : '(אם הלקוח נשוי) '}— שתי אסמכתאות</div>
+            )}
+            {/* מוצג רק בבחירה הלא-שגרתית: "ע״ש הלקוח" הוא ברירת המחדל ואינו
+                חידוש, אבל תיק על שם בן/בת הזוג משנה את כל ההתנהלות מול מ"ה. */}
+            {married && incomeTaxSelected && spouseName.trim() && registeredSpouse === 'spouse' && (
+              <div>{'✓'} תיק מס הכנסה ע״ש {spouseName.trim()} — בן/בת הזוג הרשום/ה</div>
             )}
           </div>
 
