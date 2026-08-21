@@ -19,6 +19,8 @@ import LabelSelect from '../ui/LabelSelect';
 import { buildZip, sanitizeFileBaseName, uniqueEntryName, triggerBlobDownload } from '../../utils/zipArchive';
 import { looksConvertible, imageToPdfBytes, pdfFileNameFor, ImageConversionError } from '../../utils/imageToPdf';
 import { useToast } from '../ui/Toast';
+import PdfOrganizer, { releaseOrganizerCache, type OrganizerSource } from './PdfOrganizer';
+import { looksLikePdf, isPdfBytes, buildPdfFromPlan, defaultOutputName, PdfPlanError, type PlanPage } from '../../utils/pdfPages';
 
 const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.csv';
 
@@ -124,6 +126,15 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   const [dropInvalidId, setDropInvalidId] = useState<string | null>(null);
 
   const { showToast } = useToast();
+
+  // ─── סביבת עמודי PDF ─────────────────────────────────────────────────
+  const [organizer, setOrganizer] = useState<{ sources: OrganizerSource[]; name: string } | null>(null);
+  const [organizerLoading, setOrganizerLoading] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState('');
+  /** ‼ אותו לקח כמו באריזה ובהמרה: state לא מתעדכן בין שתי לחיצות באותו
+   *  tick, ולחיצה כפולה הייתה יוצרת שני מסמכים זהים. */
+  const pdfRunningRef = useRef(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -1122,6 +1133,116 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     showToast(`${movedLabel(folderIds.length - failed.length, docIds.length)} ל«${targetName}»`);
     return { ok: true, failed };
   }
+  // ─── מיזוג וארגון עמודי PDF ───────────────────────────────────────────
+  /** הפעולה מוצעת רק כשכל מה שנבחר הוא PDF — בחירה מעורבת אינה מיזוג. */
+  const pdfSelection = useMemo(
+    () => (selectedDocs.length > 0 && selectedDocs.every(d => looksLikePdf(d.fileType, d.fileName))
+      ? selectedDocs : []),
+    [selectedDocs],
+  );
+
+  async function openOrganizer() {
+    if (organizerLoading || pdfSelection.length === 0) return;
+    setOrganizerLoading(true);
+    setPdfError('');
+    try {
+      const sources: OrganizerSource[] = [];
+      for (const d of pdfSelection) {
+        // אותו מסלול הרשאות של "פתח את הקובץ" — getDoc מסנן לפי המשתמש
+        // וה-RLS מסנן שוב בשרת. אין כאן ערוץ גישה חדש לקבצים.
+        const full = await db.getDoc(d.id);
+        if (!full || full.fileData.byteLength === 0) {
+          showToast(`«${d.description || d.fileName}» אינו זמין באחסון.`);
+          return;
+        }
+        const bytes = new Uint8Array(full.fileData);
+        if (!isPdfBytes(bytes)) {
+          showToast(`«${d.description || d.fileName}» אינו PDF תקין.`);
+          return;
+        }
+        const { loadPdf } = await import('../../utils/pdfRender');
+        let pageCount = 0;
+        try {
+          const loaded = await loadPdf(bytes);
+          pageCount = loaded.numPages;
+          loaded.doc.destroy();
+        } catch {
+          showToast(`«${d.description || d.fileName}» פגום או מוגן בסיסמה.`);
+          return;
+        }
+        sources.push({ docId: d.id, label: d.description || d.fileName, pageCount, bytes });
+      }
+      const first = pdfSelection[0];
+      setOrganizer({
+        sources,
+        name: defaultOutputName(first.description || first.fileName, sources.length > 1),
+      });
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'לא הצלחנו לפתוח את העמודים.');
+    } finally {
+      setOrganizerLoading(false);
+    }
+  }
+
+  function closeOrganizer() {
+    if (pdfRunningRef.current) return;
+    releaseOrganizerCache();
+    setOrganizer(null);
+    setPdfError('');
+  }
+
+  /**
+   * יוצר מסמך PDF *חדש* מהתוכנית. המקורות נקראים בלבד — לא נמחקים, לא
+   * נדרסים ולא משתנים. הבייטים נבנים ומאומתים בזיכרון, ורק אז נשמרים.
+   */
+  async function createFromPlan(plan: PlanPage[], outName: string) {
+    if (pdfRunningRef.current || !organizer) return;
+    pdfRunningRef.current = true;
+    setPdfBusy(true); setPdfError('');
+    try {
+      const bytesBySource = new Map(organizer.sources.map(s => [s.docId, s.bytes]));
+      const out = await buildPdfFromPlan(plan, bytesBySource);
+
+      const first = pdfSelection[0] ?? docs.find(d => d.id === organizer.sources[0].docId);
+      const siblings = await db.getDocsByClient(first!.clientId);
+      const taken = new Set(siblings.map(d => (d.fileName || '').toLowerCase()));
+      const fileName = uniqueEntryName(`${sanitizeFileBaseName(outName) || 'מסמך'}.pdf`, taken);
+
+      const fileData = new ArrayBuffer(out.byteLength);
+      new Uint8Array(fileData).set(out);
+
+      const created: StoredDoc = {
+        id: crypto.randomUUID(),
+        clientId: first!.clientId,
+        fileName,
+        fileType: 'application/pdf',
+        fileSize: fileData.byteLength,
+        category: first!.category,
+        year: first!.year,
+        uploadedAt: new Date().toISOString(),
+        description: sanitizeFileBaseName(outName) || fileName.replace(/\.pdf$/i, ''),
+        notes: organizer.sources.length > 1
+          ? `אוחד מתוך: ${organizer.sources.map(s => s.label).join(' · ')}.`
+          : `אורגן מחדש מתוך «${organizer.sources[0].label}».`,
+        fileData,
+        folderId: first!.folderId ?? null,
+        labelId: first!.labelId ?? null,
+      };
+      await db.saveDoc(created);
+
+      releaseOrganizerCache();
+      setOrganizer(null);
+      clearSelection();
+      void loadAll();
+      showToast(`נוצר ${fileName} · המקורות נשארו כמו שהם`);
+    } catch (e) {
+      setPdfError(e instanceof PdfPlanError ? e.message
+        : e instanceof Error ? `יצירת המסמך נכשלה: ${e.message}` : 'יצירת המסמך נכשלה.');
+    } finally {
+      pdfRunningRef.current = false;
+      setPdfBusy(false);
+    }
+  }
   const yearOptions = useMemo(() => ['כללי', ...AVAILABLE_YEARS.map(String)], []);
 
   // ‼ "אין פריטים שמתאימים לסינון" זו הודעת סינון — ומוצגת גם ללקוח שמעולם
@@ -1224,14 +1345,21 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
             <span className="docw-bulkbar-hint">הורדה, העתקה ומחיקה — למסמכים בלבד</span>
           )}
           <span className="docw-bulkbar-actions">
+            {/* ‼ מוצג רק כשכל הבחירה היא מסמכי PDF. תיקייה בבחירה, בחירה
+                מעורבת או תמונות — אין מה למזג, וכפתור שלא מתאים למה שנבחר
+                קורא כמו תקלה. */}
+            {docsOnly && pdfSelection.length > 0 && (
+              <button type="button" className="btn btn-sm" disabled={organizerLoading} onClick={openOrganizer}>
+                {organizerLoading ? 'פותח…' : pdfSelection.length > 1 ? 'מיזוג PDF' : 'ארגון עמודים'}
+              </button>
+            )}
             {docsOnly && (
               <button type="button" className="btn btn-sm btn-primary" onClick={openZipModal}>הורדה</button>
             )}
             {/* עריכה נוגעת בשם של תיקייה אחת — אין לה משמעות על אוסף */}
             {selectedFolders.length === 1 && !hasDocs && (
               <button type="button" className="btn btn-sm" onClick={() => openFolderEdit(selectedFolders[0])}>עריכה</button>
-            )}
-            <button type="button" className="btn btn-sm" onClick={() => openDestination('move')}>העברה</button>
+            )}            <button type="button" className="btn btn-sm" onClick={() => openDestination('move')}>העברה</button>
             {docsOnly && (
               <button type="button" className="btn btn-sm" onClick={() => openDestination('copy')}>העתקה</button>
             )}
@@ -1783,6 +1911,18 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
           onCancel={() => setFolderUploadModal(null)}
           onConfirm={confirmFolderUpload}
           confirmLabel="העלה"
+        />
+      )}
+
+      {/* ── סביבת עמודי PDF ─────────────────────────────────────────── */}
+      {organizer && (
+        <PdfOrganizer
+          sources={organizer.sources}
+          initialName={organizer.name}
+          busy={pdfBusy}
+          error={pdfError}
+          onCancel={closeOrganizer}
+          onCreate={createFromPlan}
         />
       )}
 

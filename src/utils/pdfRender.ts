@@ -126,3 +126,36 @@ export async function renderPage(
 
   return { width: w, height: h };
 }
+
+/**
+ * רינדור עמוד לתמונה ממוזערת.
+ *
+ * ‼ למה לא renderPage: הוא מצייר דרך `page.render({ canvas })`, והמסלול הזה
+ * ב-pdfjs 5.x לא מסיים כשהלשונית אינה מציירת פריימים (רקע, חלון מוסתר,
+ * הרצה מונחית-כלים). `{ canvasContext }` מצייר בלי להמתין לפריים ולכן הוא
+ * המסלול הנכון לרשת של תמונות ממוזערות שנטענות עצלות.
+ * renderPage נשאר כפי שהוא — חדר החתימה נשען עליו ואין סיבה לגעת בו.
+ */
+export async function renderThumbnail(
+  doc: PdfDocument,
+  pageIndex: number,          // 0-based
+  destCanvas: HTMLCanvasElement,
+  maxEdge = 320,
+): Promise<{ width: number; height: number }> {
+  const page = await doc.getPage(pageIndex + 1);
+  const base = page.getViewport({ scale: 1 });
+  const scale = Math.min(maxEdge / base.width, maxEdge / base.height, 2);
+  const viewport = page.getViewport({ scale });
+  const w = Math.max(1, Math.floor(viewport.width));
+  const h = Math.max(1, Math.floor(viewport.height));
+
+  destCanvas.width = w;
+  destCanvas.height = h;
+  destCanvas.style.direction = 'ltr';
+  const ctx = destCanvas.getContext('2d');
+  if (!ctx) return { width: w, height: h };
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  await page.render({ canvasContext: ctx, viewport } as never).promise;
+  return { width: w, height: h };
+}

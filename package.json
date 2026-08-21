@@ -15,6 +15,7 @@
     "test:status": "node scripts/setup-test-env.mjs --status",
     "test:reset": "node scripts/setup-test-env.mjs --reset-data",
     "test:image-pdf": "node scripts/test-image-pdf.mjs",
+    "test:pdf-pages": "node scripts/test-pdf-pages.mjs",
     "verify:close-rules": "node scripts/verify-close-rules.mjs"
   },
   "dependencies": {
