@@ -353,3 +353,36 @@ input.field-missing, select.field-missing, textarea.field-missing {
   color: #25282d;
   border-radius: 2px;
 }
+
+/* ── שדה כתובת מייל · §3 ─────────────────────────────────────────────────────
+   ‼ direction ולא רק dir: הכלל הגלובלי ב-index.css קובע ‎direction: rtl‎ לכל
+   שדה, וכלל של המחבר גובר על תכונת ה-dir של ה-HTML. בלי השורה הזאת כתובת
+   המייל יושבת בשדה עם כיוון בסיס הפוך, והסימנים בקצה קופצים.
+   יישור לימין כדי שהכתובת תתחיל צמוד לתווית העברית שלה. */
+input.ui-email {
+  direction: ltr;
+  text-align: right;
+}
+input.ui-email::placeholder { text-align: right; }
+
+/* סימון עדין בלבד — אינו חוסם, ומופיע רק אחרי שעוזבים את השדה */
+input.ui-email[aria-invalid="true"] {
+  border-color: var(--danger, #c0392b);
+}
+input.ui-email[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px var(--danger-bg, rgba(192, 57, 43, .12));
+}
+
+/* ── כמה פריטים נפרדים · שורה לכל פריט · §3 ─────────────────────────────────
+   ‼ הרווח קטן במכוון: זו הפרדה, לא פסקאות. מסך לא נעשה גבוה יותר בגלל
+   שלושה פריטים — הוא נעשה קריא. */
+ul.ui-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+ul.ui-lines > li { margin: 0; }
+p.ui-lines { margin: 0; }

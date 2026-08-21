@@ -9,6 +9,8 @@ import {
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { analyzeDocument, isGeminiAvailable } from '../utils/geminiVision';
 import SignaturePad from './SignaturePad';
+import { isValidEmail } from '../utils/email';
+import EmailInput from './ui/EmailInput';
 
 interface Props {
   request: RepresentationRequest;
@@ -168,7 +170,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
     if (!fields.phone.trim()) e.push('יש להזין מספר טלפון');
     else if (!/^[\d\-+\s()]{7,}$/.test(fields.phone.trim())) e.push('מספר טלפון לא תקין');
     if (!fields.email.trim()) e.push('יש להזין מייל');
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email.trim())) e.push('מייל לא תקין');
+    else if (!isValidEmail(fields.email)) e.push('מייל לא תקין');
 
     // מסמכי חובה
     for (const doc of request.requestedDocs) {
@@ -292,7 +294,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
             </div>
             <div className="form-group">
               <label>מייל <span style={{ color: 'var(--danger)' }}>*</span></label>
-              <input type="email" value={fields.email} onChange={e => upd('email', e.target.value)} dir="ltr" />
+              <EmailInput ownAddress value={fields.email} onChange={e => upd('email', e.target.value)} />
             </div>
             <div className="form-group">
               <label>עיר</label>

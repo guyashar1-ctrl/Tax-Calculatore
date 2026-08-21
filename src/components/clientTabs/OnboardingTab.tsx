@@ -60,6 +60,8 @@ import {
   AUTO_OFFICE_TYPES, buildClientFacingRows, CLIENT_FACING_TYPES, isManualInternalTask,
   type ClientFacingRow,
 } from '../../utils/clientFacingRows';
+import EmailInput from '../ui/EmailInput';
+import InfoLines from '../ui/InfoLines';
 
 interface Props {
   clientId: string;
@@ -630,6 +632,8 @@ export default function OnboardingTab({
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+  /** ‼ נפרד מ-linkError: זה לא הודעת שגיאה אלא הקישור עצמו, להעתקה ידנית. */
+  const [linkToCopyManually, setLinkToCopyManually] = useState<string | null>(null);
   /** קשתות התלות (מיגרציה 78): שלב ← כל הוריו. */
   const [depEdges, setDepEdges] = useState<{ stepId: string; parentId: string }[]>([]);
 
@@ -843,6 +847,7 @@ export default function OnboardingTab({
   async function copyPortalLink() {
     setLinkBusy(true);
     setLinkError(null);
+    setLinkToCopyManually(null);
     const { data, error: rpcError } = await supabase.rpc('mint_portal_token', { p_client_id: clientId });
     const token = (data as string | null) ?? null;
     setLinkBusy(false);
@@ -854,7 +859,7 @@ export default function OnboardingTab({
       window.setTimeout(() => setLinkCopied(false), 2000);
     } catch {
       // דפדפן שחוסם גישה ללוח — לא משאירים את הרו"ח בלי הקישור.
-      setLinkError(`העתקה נחסמה בדפדפן. הקישור: ${url}`);
+      setLinkToCopyManually(url);
     }
   }
 
@@ -1472,12 +1477,19 @@ export default function OnboardingTab({
       {/* ‼ המשפט שמסביר את המודל, מאב-הטיפוס המאושר. הוא לא קישוט: בלעדיו
           "למה אין כפתור שליחה על הבקשה הזאת" נשארת שאלה פתוחה על המסך. */}
       {embedded && (
-        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginTop: '-.15rem', lineHeight: 1.6 }}>
-          כל מה שמבקשים מהלקוח חי בדף האישי הזה. בקשות לגורם חיצוני נשלחות בנפרד.
-        </div>
+        <InfoLines style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginTop: '-.15rem', lineHeight: 1.6 }} items={[
+          'כל מה שמבקשים מהלקוח חי בדף האישי הזה',
+          'בקשות לגורם חיצוני נשלחות בנפרד',
+        ]} />
       )}
       {linkError && (
         <div style={{ fontSize: 'var(--fs-12)', color: 'var(--err)' }}>⚠ {linkError}</div>
+      )}
+      {linkToCopyManually && (
+        <InfoLines style={{ fontSize: 'var(--fs-12)', color: 'var(--err)' }} items={[
+          '⚠ העתקה נחסמה בדפדפן — אפשר להעתיק את הקישור מכאן',
+          <span dir="ltr" style={{ display: 'block', textAlign: 'right', wordBreak: 'break-all' }}>{linkToCopyManually}</span>,
+        ]} />
       )}
 
       {/* ── חלון הסגירה — נפתח רק כשהשרת חסם, ונסגר איתו ─────────────────── */}
@@ -3227,8 +3239,8 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                 <input value={form.name} placeholder="שם הרו״ח או המשרד" disabled={saving}
                   aria-label="שם הרו״ח הקודם"
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-                <input value={form.email} placeholder="אימייל" dir="ltr" disabled={saving}
-                  aria-label="מייל הרו״ח הקודם" style={{ textAlign: 'right' }}
+                <EmailInput value={form.email} placeholder="אימייל" disabled={saving}
+                  aria-label="מייל הרו״ח הקודם"
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
                 <input value={form.phone} placeholder="טלפון" dir="ltr" disabled={saving}
                   aria-label="טלפון הרו״ח הקודם" style={{ textAlign: 'right' }}
@@ -3563,9 +3575,10 @@ function ReleaseStepCard(p: ReleaseCardProps) {
         </div>
       )}
 
-      <div style={{ ...label13, marginTop: '.3rem' }}>
-        המכתב נשלח ידנית בלבד. עותק שלו נשמר במסמכי {client.firstName || 'הלקוח'} אחרי כל שליחה.
-      </div>
+      <InfoLines style={{ ...label13, marginTop: '.3rem' }} items={[
+        'המכתב נשלח ידנית בלבד',
+        `עותק שלו נשמר במסמכי ${client.firstName || 'הלקוח'} אחרי כל שליחה`,
+      ]} />
 
       <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
         {!sent && !locked && !closed && (

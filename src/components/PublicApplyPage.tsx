@@ -10,6 +10,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
+import { isValidEmail } from '../utils/email';
+import EmailInput from './ui/EmailInput';
 
 interface Props {
   token: string;
@@ -49,7 +51,7 @@ export default function PublicApplyPage({ token }: Props) {
     const name = fullName.trim();
     const mail = email.trim();
     if (!name) { setFieldError('נא למלא שם מלא'); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { setFieldError('כתובת אימייל לא תקינה'); return; }
+    if (!isValidEmail(mail)) { setFieldError('כתובת אימייל לא תקינה'); return; }
     setFieldError(null);
     setPhase('sending');
     const { data, error } = await supabase.functions.invoke('submit-application', {
@@ -156,13 +158,12 @@ export default function PublicApplyPage({ token }: Props) {
           </div>
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>אימייל</label>
-            <input
-              type="email"
-              style={{ ...inputStyle, direction: 'ltr', textAlign: 'right' }}
+            <EmailInput
+              ownAddress
+              style={inputStyle}
               value={email}
               onChange={e => setEmail(e.target.value)}
               disabled={phase === 'sending'}
-              maxLength={254}
             />
           </div>
           {/* מלכודת דבורים — מוסתר מעין אדם, נגיש לבוטים שממלאים כל שדה בטופס */}

@@ -29,6 +29,8 @@ import {
 } from '../../utils/releaseLetter';
 import HighlightTextarea from '../ui/HighlightTextarea';
 import { isBlockingOutstanding, outstandingLabel } from '../../types/onboarding';
+import EmailInput from '../ui/EmailInput';
+import InfoLines from '../ui/InfoLines';
 
 interface Props {
   clientId: string;
@@ -341,14 +343,18 @@ export default function ReleaseLetterDialog({
           <button className="btn btn-icon btn-ghost" onClick={closeAndSave}>✕</button>
         </div>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ fontSize: 12.5, color: 'var(--gray-600)', background: 'var(--gray-50)', borderRadius: 8, padding: '8px 10px' }}>
-            נשלח מ: <b dir="ltr">{fromLabel}</b>. בדוק ושלח — לא נשלח אוטומטית. עותק יישמר במסמכי הלקוח.
-          </div>
+          <InfoLines
+            style={{ fontSize: 12.5, color: 'var(--gray-600)', background: 'var(--gray-50)', borderRadius: 8, padding: '8px 10px' }}
+            items={[
+              <>נשלח מ: <b dir="ltr">{fromLabel}</b></>,
+              'בדוק ושלח — לא נשלח אוטומטית',
+              'עותק יישמר במסמכי הלקוח',
+            ]} />
 
           <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(14rem, 1fr))' }}>
             <label style={label}>אל (מייל הרו״ח הקודם)
-              <input value={toEmail} onChange={e => setToEmail(e.target.value)} dir="ltr"
-                style={{ textAlign: 'right', marginTop: 4 }} disabled={locked} />
+              <EmailInput value={toEmail} onChange={e => setToEmail(e.target.value)}
+                style={{ marginTop: 4 }} disabled={locked} />
             </label>
             {!followUp && (
               <label style={label}>הרו״ח הקודם מטפל עד וכולל
@@ -377,10 +383,11 @@ export default function ReleaseLetterDialog({
               </span>
             </div>
           ) : (
-            <div className="alert alert-warning" style={{ fontSize: 12.5 }}>
-              אין מייל של {clientName} בכרטיס — המכתב ייצא בלי עותק ללקוח,
-              והמשפט "הלקוח מכותב למכתב זה" לא ייכלל בו. כדאי להוסיף מייל בכרטיס לפני השליחה.
-            </div>
+            <InfoLines className="alert alert-warning" style={{ fontSize: 12.5 }} items={[
+              `אין מייל של ${clientName} בכרטיס — המכתב ייצא בלי עותק ללקוח`,
+              'המשפט "הלקוח מכותב למכתב זה" לא ייכלל בו',
+              'כדאי להוסיף מייל בכרטיס לפני השליחה',
+            ]} />
           )}
 
           {followUp ? (

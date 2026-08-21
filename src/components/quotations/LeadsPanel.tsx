@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { Lead, LeadStatus, LeadDealerType, Quotation } from '../../types/quotations';
 import { LEAD_STATUS_LABELS, LEAD_DEALER_TYPE_LABELS } from '../../types/quotations';
 import { EmptyState, CalmEmpty } from '../ui/States';
+import EmailInput from '../ui/EmailInput';
 
 /** עדכון ליד — רק השדות שהשתנו, לצד המזהה. ראה ההערה ב-LeadForm.submit. */
 export type LeadPatch = Partial<Lead> & { id: string };
@@ -301,7 +302,7 @@ export function LeadForm({ lead, onSave, onCancel }: {
             <input value={v.phone} onChange={e => set({ phone: e.target.value })} dir="ltr" style={{ marginTop: 4, textAlign: 'right' }} />
           </label>
           <label style={label}>מייל
-            <input value={v.email} onChange={e => set({ email: e.target.value })} dir="ltr" style={{ marginTop: 4, textAlign: 'right' }} />
+            <EmailInput value={v.email} onChange={e => set({ email: e.target.value })} style={{ marginTop: 4 }} />
           </label>
         </div>
 
@@ -355,7 +356,7 @@ export function LeadForm({ lead, onSave, onCancel }: {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
               <input placeholder="שם הרו״ח הקודם" value={v.prevAccountantName} onChange={e => set({ prevAccountantName: e.target.value })} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                <input placeholder="מייל הרו״ח הקודם" value={v.prevAccountantEmail} onChange={e => set({ prevAccountantEmail: e.target.value })} dir="ltr" style={{ textAlign: 'right' }} />
+                <EmailInput placeholder="מייל הרו״ח הקודם" value={v.prevAccountantEmail} onChange={e => set({ prevAccountantEmail: e.target.value })} />
                 <input placeholder="טלפון" value={v.prevAccountantPhone} onChange={e => set({ prevAccountantPhone: e.target.value })} dir="ltr" style={{ textAlign: 'right' }} />
               </div>
               <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר הצעה, נכין מכתב העברת טיפול לרו״ח הקודם.</div>

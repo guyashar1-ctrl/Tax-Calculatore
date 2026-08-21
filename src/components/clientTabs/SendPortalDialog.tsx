@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import InfoLines from '../ui/InfoLines';
 
 export type SendPortalMode = 'link' | 'email';
 
@@ -99,10 +100,13 @@ export default function SendPortalDialog({
             <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
           </div>
           <div className="modal-body">
-            <p style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 0 }}>
-              זהו הקישור הקבוע של {clientName || 'הלקוח'}. הוא לא משתנה, ומציג בכל רגע את המצב העדכני —
-              אפשר לשלוח אותו שוב בהמשך במקום להסביר מה נשאר.
-            </p>
+            <InfoLines
+              style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 0 }}
+              items={[
+                `זהו הקישור הקבוע של ${clientName || 'הלקוח'} — הוא לא משתנה`,
+                'בכל פתיחה הוא מציג את המצב העדכני',
+                'אפשר לשלוח אותו שוב בהמשך במקום להסביר מה נשאר',
+              ]} />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.6rem', margin: '1.1rem 0 .9rem' }}>
               <a href={waHref} target="_blank" rel="noopener noreferrer" className="btn"
                 style={{
@@ -140,7 +144,10 @@ export default function SendPortalDialog({
         {confirmRotate && (
           <ConfirmDialog
             title="קישור חדש ללקוח"
-            message="הקישור הקודם יפסיק לעבוד מיד. אם נשלח ללקוח באימייל או בוואטסאפ קודם — יהיה צריך לשלוח לו את הקישור החדש."
+            message={<InfoLines items={[
+              'הקישור הקודם יפסיק לעבוד מיד',
+              'אם כבר נשלח ללקוח באימייל או בוואטסאפ — יהיה צריך לשלוח לו את הקישור החדש',
+            ]} />}
             confirmLabel={rotateBusy ? 'רגע…' : 'הנפקת קישור חדש'}
             onConfirm={() => void rotate()}
             onCancel={() => setConfirmRotate(false)}

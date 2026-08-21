@@ -14,6 +14,7 @@ import type { CustomRequirement, CustomRequirementKind, ExternalPartyConfig, Onb
 import { REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
 import type { TemplateEntry } from '../../lib/requestTemplates';
 import { differsFromTemplate, saveRequestTemplate, updateRequestTemplate } from '../../lib/requestTemplates';
+import EmailInput from '../ui/EmailInput';
 
 /** שם הבקשה בשביל צ'יפ התלות ורשימת הבחירה.
  *  ‼ היה כאן נפילה ל-stepType הגולמי, ולכן תלות בשלב מובנה הוצגה לרו"ח
@@ -499,7 +500,7 @@ export default function InlineComposer({
             <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
               <input style={{ ...field, flex: 1, minWidth: 120 }} placeholder="שם הגורם" value={extContact.name}
                 disabled={busy} onChange={e => setExtContact(c => ({ ...c, name: e.target.value }))} />
-              <input style={{ ...field, flex: 1, minWidth: 150, direction: 'ltr', textAlign: 'right' }} placeholder="אימייל" type="email"
+              <EmailInput style={{ ...field, flex: 1, minWidth: 150 }} placeholder="אימייל"
                 value={extContact.email} disabled={busy}
                 onChange={e => setExtContact(c => ({ ...c, email: e.target.value }))} />
               <input style={{ ...field, width: 130, direction: 'ltr', textAlign: 'right' }} placeholder="טלפון" type="tel"

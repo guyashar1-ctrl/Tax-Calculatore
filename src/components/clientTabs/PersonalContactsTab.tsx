@@ -27,6 +27,7 @@ import { clientDisplayName, spouseDisplayName } from '../../features/annualRepor
 import { getEligibleSettlements, resolveSettlement } from '../../data/eligibleSettlements';
 import { CURRENT_TAX_YEAR } from '../../data/taxData';
 import LinkedDocsWidget from '../LinkedDocsWidget';
+import EmailInput from '../ui/EmailInput';
 import Employer106Details from './Employer106Details';
 import InvestmentAccount867Details from './InvestmentAccount867Details';
 import Business1320Details from './Business1320Details';
@@ -517,7 +518,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
           </div>
           <div className="form-group">
             <label>אימייל</label>
-            <input type="email" value={client.email} onChange={e => update('email', e.target.value)} dir="ltr" />
+            <EmailInput value={client.email} onChange={e => update('email', e.target.value)} />
           </div>
           <div className="form-group span-2">
             <label>כתובת</label>
@@ -642,8 +643,8 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   לפנות אליה גם שנה אחר כך. ניתנת לעריכה ידנית. */}
               <div className="form-group">
                 <label>אימייל בן/בת זוג</label>
-                <input type="email" value={client.spouseEmail ?? ''}
-                  onChange={e => update('spouseEmail', e.target.value)} dir="ltr" />
+                <EmailInput value={client.spouseEmail ?? ''}
+                  onChange={e => update('spouseEmail', e.target.value)} />
               </div>
               {/* פרט קשר קבוע נוסף, באותה מתכונת של המייל שמעליו — ראה ההערה שם. */}
               <div className="form-group">
@@ -1749,9 +1750,8 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                 </div>
                 <div className="form-group">
                   <label>מייל הרו״ח הקודם</label>
-                  <input type="text" value={client.prevAccountantEmail ?? ''}
-                    onChange={e => update('prevAccountantEmail', e.target.value || undefined)}
-                    dir="ltr" style={{ textAlign: 'right' }} />
+                  <EmailInput value={client.prevAccountantEmail ?? ''}
+                    onChange={e => update('prevAccountantEmail', e.target.value || undefined)} />
                 </div>
                 <div className="form-group">
                   <label>טלפון הרו״ח הקודם</label>
@@ -2058,7 +2058,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
             </div>
             <div className="form-group">
               <label>אימייל</label>
-              <input type="email" value={contactDraft.email || ''} onChange={e => setContactDraft({ ...contactDraft, email: e.target.value })} dir="ltr" />
+              <EmailInput value={contactDraft.email || ''} onChange={e => setContactDraft({ ...contactDraft, email: e.target.value })} />
             </div>
             <div className="form-group span-full">
               <label>הערות</label>

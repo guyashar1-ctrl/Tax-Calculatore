@@ -40,7 +40,8 @@ export default function ConfirmDialog({
         </>
       }
     >
-      <p className="ui-confirm-text">{message}</p>
+      {/* div ולא p: ההודעה עשויה להיות רשימת פריטים (InfoLines), ורשימה בתוך p נשברת */}
+      <div className="ui-confirm-text">{message}</div>
     </Modal>
   );
 }

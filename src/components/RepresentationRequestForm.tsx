@@ -6,6 +6,8 @@ import {
   DOC_CATALOG,
   AUTHORITY_LABELS,
 } from '../types';
+import { isValidEmail } from '../utils/email';
+import EmailInput from './ui/EmailInput';
 
 interface Props {
   request: RepresentationRequest | null; // null = new
@@ -87,7 +89,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
   function validate(): string[] {
     const e: string[] = [];
     if (!data.clientEmail.trim()) e.push('יש להזין מייל לקוח');
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.clientEmail.trim())) e.push('מייל לא תקין');
+    else if (!isValidEmail(data.clientEmail)) e.push('מייל לא תקין');
     if (data.authorities.length === 0) e.push('יש לבחור לפחות רשות אחת');
     if (data.requestedDocs.length === 0) e.push('יש לכלול לפחות מסמך אחד נדרש');
     return e;
@@ -168,12 +170,10 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
             </div>
             <div className="form-group">
               <label>מייל הלקוח <span style={{ color: 'var(--danger)' }}>*</span></label>
-              <input
-                type="email"
+              <EmailInput
                 value={data.clientEmail}
                 onChange={e => upd('clientEmail', e.target.value)}
                 placeholder="client@example.com"
-                dir="ltr"
               />
             </div>
           </div>

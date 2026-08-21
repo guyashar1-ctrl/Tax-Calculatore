@@ -33,6 +33,7 @@ import { recordManualFactChange } from '../lib/taxFacts';
 import { clientFromDb } from '../lib/dbMappers';
 import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
 import ActivityTab from './clientTabs/ActivityTab';
+import InfoLines from './ui/InfoLines';
 
 // ארבע לשוניות קבועות — יכולת חדשה בעתיד נכנסת כקטע בתוך "התיק" או אות
 // במרכז השליטה, אף פעם לא כלשונית (ראה הצעת הארכיטקטורה שאושרה 15.07.2026).
@@ -836,7 +837,11 @@ export default function ClientWorkspace({
           title={isArchived ? 'החזרה מארכיון' : 'העברה לארכיון'}
           message={isArchived
             ? <>להחזיר את ״{fullName}״ לרשימת הלקוחות?</>
-            : <>להעביר את ״{fullName}״ לארכיון? הכרטיס יוסתר מהרשימה. שום נתון לא נמחק.</>}
+            : <InfoLines items={[
+                <>להעביר את ״{fullName}״ לארכיון?</>,
+                'הכרטיס יוסתר מהרשימה',
+                'שום נתון לא נמחק',
+              ]} />}
           confirmLabel={archiveBusy
             ? 'רגע…'
             : isArchived ? 'החזר מארכיון' : 'העבר לארכיון'}

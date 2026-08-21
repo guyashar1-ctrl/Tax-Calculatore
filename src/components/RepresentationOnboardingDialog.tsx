@@ -13,6 +13,9 @@ import {
   OnboardingPrefill,
 } from '../types';
 import { isValidIsraeliId } from '../utils/israeliId';
+import { isValidEmail } from '../utils/email';
+import EmailInput from './ui/EmailInput';
+import InfoLines from './ui/InfoLines';
 
 interface CreateResult { link: string; emailSent: boolean; emailError?: string; }
 
@@ -53,10 +56,6 @@ interface Props {
 interface AreaState {
   selected: boolean;
   level: RepLevel;
-}
-
-function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 const hasLevel = (a: RepAuthorityKind) => REP_AUTHORITIES_WITH_LEVEL.includes(a);
@@ -268,14 +267,20 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             )}
             {!result.emailSent && result.emailError && (
               <div style={{ padding: '.7rem .9rem', background: 'transparent', borderRadius: 'var(--radius)', color: 'var(--ink-1)', fontSize: 'var(--fs-13)', marginBottom: '1rem', lineHeight: 1.6 }}>
-                {'⚠'} המייל לא נשלח ({result.emailError}). אפשר לשלוח את הקישור בוואטסאפ.
+                <InfoLines items={[
+                  `⚠ המייל לא נשלח (${result.emailError})`,
+                  'אפשר לשלוח את הקישור בוואטסאפ',
+                ]} />
               </div>
             )}
 
-            <p style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 0 }}>
-              שלחו את הקישור ללקוח. הוא ימלא שם, ת.ז., תאריך לידה, טלפון, מייל, כתובת ומצב משפחתי —
-              והכל ייכנס אוטומטית לכרטיס שלו.
-            </p>
+            <InfoLines
+              style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 0 }}
+              items={[
+                'שלחו את הקישור ללקוח',
+                'הוא ימלא שם, ת.ז., תאריך לידה, טלפון, מייל, כתובת ומצב משפחתי',
+                'הכל ייכנס אוטומטית לכרטיס שלו',
+              ]} />
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.6rem', margin: '1.1rem 0 .9rem' }}>
               <a
@@ -364,7 +369,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.6rem', marginTop: '.5rem' }}>
                   <div className="form-group">
                     <label>מייל</label>
-                    <input type="email" value={prevAcc.email} disabled={busy} dir="ltr" style={{ textAlign: 'right' }}
+                    <EmailInput value={prevAcc.email} disabled={busy}
                       onChange={e => setPrevAcc(v => ({ ...v, email: e.target.value }))} />
                   </div>
                   <div className="form-group">
@@ -490,12 +495,10 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           {sendBy === 'email' && (
             <div className="form-group" style={{ marginTop: '.75rem' }}>
               <label className="required">אימייל הלקוח</label>
-              <input
-                type="email"
+              <EmailInput
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="client@example.com"
-                dir="ltr"
                 disabled={busy}
                 autoFocus
               />
@@ -612,7 +615,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                       {/* לא חובה: מייל של בן/בת הזוג נדרש רק אם יבחרו לשלוח לו/לה
                           קישור חתימה נפרד — והבחירה הזאת נעשית בשלב החתימה. */}
                       <label>אימייל של בן/בת הזוג</label>
-                      <input type="email" value={spouseEmail} onChange={e => setSpouseEmail(e.target.value)} placeholder="spouse@example.com" dir="ltr" disabled={busy} />
+                      <EmailInput value={spouseEmail} onChange={e => setSpouseEmail(e.target.value)} placeholder="spouse@example.com" disabled={busy} />
                     </div>
                   </div>
                   <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem', lineHeight: 1.5 }}>

@@ -17,12 +17,13 @@ import {
 } from '../../types';
 import type { QuotationRepresentation } from '../../types/quotations';
 import { isValidIsraeliId } from '../../utils/israeliId';
+import { isValidEmail } from '../../utils/email';
+import EmailInput from '../ui/EmailInput';
 
 const FAMILY_ORDER: FamilyStatus[] = ['single', 'married', 'divorced', 'widowed', 'singleParent'];
 const CURRENT_YEAR = new Date().getFullYear();
 const hasLevel = (a: RepAuthorityKind) => REP_AUTHORITIES_WITH_LEVEL.includes(a);
 
-const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
 /** האם נלקח ייצוג ב"ל גם עבור בן/בת הזוג — התנאי שהופך את פרטיו לחובה. */
 export function niCoversSpouse(rep: QuotationRepresentation): boolean {
@@ -337,7 +338,7 @@ export default function QuotationRepresentationEditor({
                   {/* לא חובה: המייל נדרש רק אם יבחרו לשלוח לבן/בת הזוג קישור
                       חתימה נפרד — והבחירה הזאת נעשית בשלב החתימה, לא כאן. */}
                   <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block', marginTop: 10 }}>אימייל של בן/בת הזוג
-                    <input type="email" dir="ltr" placeholder="spouse@example.com"
+                    <EmailInput placeholder="spouse@example.com"
                       value={value.spouse?.email ?? ''} style={{ marginTop: 4 }}
                       onChange={e => syncSpouse({ email: e.target.value })} />
                   </label>

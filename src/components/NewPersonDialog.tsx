@@ -15,6 +15,9 @@ import { isValidIsraeliId } from '../utils/israeliId';
 import { findDuplicateMatch, type DuplicateMatch } from '../utils/duplicateCheck';
 import { useToast } from './ui/Toast';
 import Modal from './ui/Modal';
+import InfoLines from './ui/InfoLines';
+import EmailInput from './ui/EmailInput';
+import { isValidEmail } from '../utils/email';
 
 export interface NewPersonBasics {
   firstName: string;
@@ -47,10 +50,6 @@ interface Props {
   continuationFor?: ContinuationTarget;
   /** לבדיקת מסך בלבד (כמו emailsOverride ב-JourneyTab) — קופץ ישר לשלב, עם נתוני דוגמה. */
   initialStepForQA?: 'manual' | 'route' | 'link' | null;
-}
-
-function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 function splitName(fullName: string): { firstName: string; lastName: string } {
@@ -236,9 +235,10 @@ export default function NewPersonDialog({
             <>
               <div className="np-linkbox">
                 <div className="np-linktitle">הקישור מוכן לשליחה</div>
-                <div className="pd-small" style={{ marginTop: 0, marginBottom: 10 }}>
-                  בטופס החיצוני: שם ומייל הם חובה. לאחר השליחה האדם יופיע כאן כ"חדש · ממתין לטיפול".
-                </div>
+                <InfoLines className="pd-small" style={{ marginTop: 0, marginBottom: 10 }} items={[
+                  'בטופס החיצוני: שם ומייל הם חובה',
+                  'לאחר השליחה האדם יופיע כאן כ"חדש · ממתין לטיפול"',
+                ]} />
                 <div className="np-link pd-ltr">{applyLink}</div>
                 <div className="np-linkactions">
                   <button type="button" onClick={async () => {
@@ -260,12 +260,10 @@ export default function NewPersonDialog({
                 </div>
                 {emailFormOpen && (
                   <div className="np-emailrow" style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <input
-                      type="email"
+                    <EmailInput
                       value={sendEmailValue}
                       onChange={e => setSendEmailValue(e.target.value)}
                       placeholder="name@example.com"
-                      dir="ltr"
                       disabled={emailSending}
                       autoFocus
                       style={{ flex: 1 }}
@@ -314,7 +312,7 @@ export default function NewPersonDialog({
             </div>
             <div className="np-field">
               <label>אימייל</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" disabled={busy} />
+              <EmailInput value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" disabled={busy} />
             </div>
             <div className="np-field np-field-full">
               <label>תעודת זהות — אופציונלי</label>

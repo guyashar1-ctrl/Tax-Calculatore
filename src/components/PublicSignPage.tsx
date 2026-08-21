@@ -9,6 +9,9 @@ import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import SigningRoom from './signatureRequest/SigningRoom';
 import ClientPageState from './ui/ClientPageState';
 import NiApprovalNotice from './ui/NiApprovalNotice';
+import { isValidEmail } from '../utils/email';
+import EmailInput from './ui/EmailInput';
+import InfoLines from './ui/InfoLines';
 
 interface Session {
   /** ממתין לחותם הזה אישור ייפוי כוח בב"ל — null כשאין, או כשכבר אישר. */
@@ -57,7 +60,7 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
   }
 
   async function handleSend() {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (!isValidEmail(email)) {
       setErr('כתובת המייל אינה תקינה — בדקו שוב.');
       return;
     }
@@ -89,9 +92,10 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
     return (
       <div style={box}>
         <div style={{ fontSize: 14.5, fontWeight: 600, color: '#111' }}>✓ הקישור נשלח אל <span dir="ltr">{email.trim()}</span></div>
-        <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginTop: 4 }}>
-          {name} יקבל/תקבל מייל עם קישור חתימה אישי. אתם סיימתם — אפשר לסגור את החלון.
-        </div>
+        <InfoLines style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginTop: 4 }} items={[
+          `${name} יקבל/תקבל מייל עם קישור חתימה אישי`,
+          'אתם סיימתם — אפשר לסגור את החלון',
+        ]} />
       </div>
     );
   }
@@ -120,8 +124,8 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
         <div>
           <label style={{ display: 'block', fontSize: 12.5, color: '#6B6B68' }}>
             המייל של {name}
-            <input
-              type="email" inputMode="email" dir="ltr" autoFocus
+            <EmailInput
+              autoFocus
               value={email} onChange={e => setEmail(e.target.value)}
               placeholder="spouse@example.com"
               style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, padding: '11px 13px', fontSize: 14, borderRadius: 10, border: '1px solid #D9D8D3', background: '#fff', color: '#1A1A1A' }} />

@@ -26,6 +26,7 @@ import QuotationEmailsPanel from './QuotationEmailsPanel';
 import QuotationRepresentationEditor, {
   validateQuotationRepresentation, representationSummary,
 } from './QuotationRepresentationEditor';
+import EmailInput from '../ui/EmailInput';
 
 type PreviewTab = 'web' | 'email' | 'pdf' | 'track';
 type Device = 'desktop' | 'mobile';
@@ -1322,10 +1323,9 @@ function RecipientEditor({ leads, clients, value, onPick, invalidStyle }: {
             <input placeholder="טלפון" value={nl.phone} onChange={e => setNl(v => ({ ...v, phone: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
             {/* ‼ האימייל הוא שדה חובה לשליחה: בלעדיו אין לאן לשלוח את ההצעה.
                 הוא לא סומן ככזה, ולכן מי שמילא שם בלבד לא הבין מה חסר. */}
-            <input placeholder="אימייל *" value={nl.email} onChange={e => setNl(v => ({ ...v, email: e.target.value }))}
-              dir="ltr" type="email"
+            <EmailInput placeholder="אימייל *" value={nl.email} onChange={e => setNl(v => ({ ...v, email: e.target.value }))}
               aria-invalid={!!invalidStyle && !nl.email.trim()}
-              style={{ textAlign: 'right', ...(!nl.email.trim() ? invalidStyle : undefined) }} />
+              style={!nl.email.trim() ? invalidStyle : undefined} />
           </div>
           <input placeholder="שם העסק (אופציונלי)" value={nl.businessName} onChange={e => setNl(v => ({ ...v, businessName: e.target.value }))} />
 
@@ -1338,7 +1338,7 @@ function RecipientEditor({ leads, clients, value, onPick, invalidStyle }: {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
                 <input placeholder="שם הרו״ח הקודם" value={prev.name} onChange={e => setPrev(v => ({ ...v, name: e.target.value }))} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                  <input placeholder="מייל הרו״ח הקודם" value={prev.email} onChange={e => setPrev(v => ({ ...v, email: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
+                  <EmailInput placeholder="מייל הרו״ח הקודם" value={prev.email} onChange={e => setPrev(v => ({ ...v, email: e.target.value }))} />
                   <input placeholder="טלפון" value={prev.phone} onChange={e => setPrev(v => ({ ...v, phone: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
                 </div>
                 <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר, נכין מכתב העברת טיפול לרו״ח הקודם.</div>

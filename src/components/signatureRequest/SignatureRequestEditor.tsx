@@ -17,6 +17,7 @@ import {
 import { ClientContact } from '../../types/clientWorkspace';
 import { loadPdf, renderPage, PdfDocument } from '../../utils/pdfRender';
 import { useDocumentDB } from '../../hooks/useIndexedDB';
+import EmailInput from '../ui/EmailInput';
 
 interface Props {
   client: Client | undefined;        // הלקוח שהמשימה משויכת אליו (אם יש)
@@ -491,7 +492,7 @@ function SignersPanel(p: SignersPanelProps) {
                   </div>
                   <div className="form-group">
                     <label>אימייל</label>
-                    <input type="email" value={p.manualDraft.email} onChange={e => p.setManualDraft(d => ({ ...d, email: e.target.value }))} dir="ltr" />
+                    <EmailInput value={p.manualDraft.email} onChange={e => p.setManualDraft(d => ({ ...d, email: e.target.value }))} />
                   </div>
                   <div className="form-group">
                     <label>טלפון (אופציונלי)</label>

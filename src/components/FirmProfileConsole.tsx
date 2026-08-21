@@ -39,6 +39,8 @@ import {
   toggleHighlightAt, upgradeReleaseTemplateBody,
 } from '../utils/releaseLetter';
 import HighlightTextarea from './ui/HighlightTextarea';
+import EmailInput from './ui/EmailInput';
+import InfoLines from './ui/InfoLines';
 
 const LOGO_BUCKET = 'firm-logos';           // לוגו — ציבורי (מוטבע במיילים ללקוחות)
 const SIGN_BUCKET = FIRM_PRIVATE_BUCKET;     // חתימה/חותמת — פרטי, גישה מאומתת בלבד
@@ -533,7 +535,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
             <div style={card}>
               <div style={cardTitle}>פרטי קשר</div>
               <div style={grid2}>
-                <Field label="אימייל ראשי"><input value={draft.email ?? ''} onChange={e => updTop('email', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} placeholder="office@example.co.il" /></Field>
+                <Field label="אימייל ראשי"><EmailInput value={draft.email ?? ''} onChange={e => updTop('email', e.target.value)} placeholder="office@example.co.il" /></Field>
                 <Field label="טלפון"><input value={draft.phone ?? ''} onChange={e => updTop('phone', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} placeholder="03-1234567" /></Field>
                 <Field label="אתר"><input value={draft.website ?? ''} onChange={e => updTop('website', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} placeholder="example.co.il" /></Field>
                 <Field label="כתובת"><input value={draft.address ?? ''} onChange={e => updTop('address', e.target.value)} placeholder="רחוב, עיר" /></Field>
@@ -599,21 +601,26 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
           {section === 'communication' && (
             <div style={card}>
               <div style={cardTitle}>ערוצי תקשורת</div>
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
-                מכאן נשלחים המיילים ללקוחות. השם שיוצג הוא שם המשרד; התשובות יגיעו לכתובת ה-Reply-To.
-              </div>
+              <InfoLines style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }} items={[
+                'מכאן נשלחים המיילים ללקוחות',
+                'השם שיוצג הוא שם המשרד',
+                'התשובות יגיעו לכתובת ה-Reply-To',
+              ]} />
               <div style={grid2}>
                 <Field label="כתובת שולח (From)">
-                  <input value={draft.communication.senderEmail ?? ''} onChange={e => updComm('senderEmail', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} placeholder="ברירת מחדל: כתובת מערכת" />
+                  <EmailInput value={draft.communication.senderEmail ?? ''} onChange={e => updComm('senderEmail', e.target.value)} placeholder="ברירת מחדל: כתובת מערכת" />
                 </Field>
                 <Field label="כתובת לתשובות (Reply-To)">
-                  <input value={draft.communication.replyTo ?? ''} onChange={e => updComm('replyTo', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} placeholder={draft.email || 'office@example.co.il'} />
+                  <EmailInput value={draft.communication.replyTo ?? ''} onChange={e => updComm('replyTo', e.target.value)} placeholder={draft.email || 'office@example.co.il'} />
                 </Field>
               </div>
-              <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 'var(--fs-12)', color: 'var(--gray-600)', lineHeight: 1.6 }}>
-                <NavIcon name="info" size={14} />
-                כדי לשלוח מכתובת שולח משלך צריך לאמת את הדומיין אצל ספק המייל. עד אז נשלח מכתובת מערכת עם שם המשרד שלך והתשובות אליך. כשתאמת דומיין — פשוט עדכן כאן, בלי שינוי קוד.
-              </div>
+              <InfoLines
+                style={{ marginTop: 12, padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 'var(--fs-12)', color: 'var(--gray-600)', lineHeight: 1.6 }}
+                items={[
+                  <><NavIcon name="info" size={14} /> כדי לשלוח מכתובת שולח משלך צריך לאמת את הדומיין אצל ספק המייל</>,
+                  'עד אז נשלח מכתובת מערכת עם שם המשרד שלך, והתשובות מגיעות אליך',
+                  'כשתאמת דומיין — פשוט עדכן כאן, בלי שינוי קוד',
+                ]} />
             </div>
           )}
 

@@ -14,6 +14,7 @@ import { supabase } from '../lib/supabase';
 import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
+import EmailInput from './ui/EmailInput';
 
 interface Props {
   token: string;
@@ -806,7 +807,7 @@ function PrevAccountantForm({ token, stepId, prefill, brand, accent, onDone }: {
     <div style={{ display: 'grid', gap: 8, marginTop: 10, maxWidth: 420 }}>
       <input style={field} value={name} onChange={e => setName(e.target.value)}
         placeholder="שם רואה החשבון או המשרד" disabled={busy} />
-      <input style={{ ...field, direction: 'ltr', textAlign: 'right' }} value={email} type="email"
+      <EmailInput style={field} value={email}
         onChange={e => setEmail(e.target.value)} placeholder="אימייל" disabled={busy} />
       <input style={{ ...field, direction: 'ltr', textAlign: 'right' }} value={phone} type="tel"
         onChange={e => setPhone(e.target.value)} placeholder="טלפון (אופציונלי)" disabled={busy} />

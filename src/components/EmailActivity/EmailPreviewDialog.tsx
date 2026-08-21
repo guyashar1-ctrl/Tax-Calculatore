@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import InfoLines from '../ui/InfoLines';
 
 interface Props {
   /** גוף הבקשה לפונקציה (requestId/stage/signerId/clientId/stepId…). */
@@ -228,9 +229,12 @@ export default function EmailPreviewDialog({ body, fn, editable, preloaded, send
           </div>
         )}
         {sent && (
-          <div style={{ padding: '.6rem .9rem', background: 'var(--green-light, #eaf6f1)', color: 'var(--ok, #17845b)', fontSize: '.85rem' }}>
-            המייל נשלח{loaded ? <> אל <span dir="ltr">{loaded.to}</span></> : ''}. הוא מופיע ברשימת המיילים של הלקוח.
-          </div>
+          <InfoLines
+            style={{ padding: '.6rem .9rem', background: 'var(--green-light, #eaf6f1)', color: 'var(--ok, #17845b)', fontSize: '.85rem' }}
+            items={[
+              loaded ? <>המייל נשלח אל <span dir="ltr">{loaded.to}</span></> : 'המייל נשלח',
+              'הוא מופיע ברשימת המיילים של הלקוח',
+            ]} />
         )}
 
         <div className="modal-footer">

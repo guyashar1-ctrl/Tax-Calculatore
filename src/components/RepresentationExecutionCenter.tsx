@@ -18,6 +18,7 @@ import { useEmailMessages } from '../hooks/useEmailMessages';
 import EmailStatusRow from './EmailActivity/EmailStatusRow';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
+import InfoLines from './ui/InfoLines';
 
 interface Props {
   request: RepresentationRequest;
@@ -319,10 +320,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   </div>
                 ) : (
                   <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
-                    <div style={{ marginBottom: '.4rem' }}>
-                      ℹ הלקוח לא עודכן במייל. המערכת לא שולחת מעצמה — אפשר לשלוח עדכון,
-                      אחרי שרואים בדיוק מה ייצא.
-                    </div>
+                    <InfoLines style={{ marginBottom: '.4rem' }} items={[
+                      'ℹ הלקוח לא עודכן במייל',
+                      'המערכת לא שולחת מעצמה — אפשר לשלוח עדכון אחרי שרואים בדיוק מה ייצא',
+                    ]} />
                     <button className="btn btn-secondary btn-sm" onClick={() => setPreviewActive(true)}>
                       עדכון ללקוח — תצוגה מקדימה
                     </button>

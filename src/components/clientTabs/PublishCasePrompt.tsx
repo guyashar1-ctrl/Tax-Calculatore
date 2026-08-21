@@ -16,6 +16,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import SendPortalDialog from './SendPortalDialog';
+import InfoLines from '../ui/InfoLines';
 
 type Choice = 'update' | 'send' | 'copy';
 
@@ -107,14 +108,16 @@ export default function PublishCasePrompt({
         </div>
 
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '.55rem' }}>
-          <p style={{ margin: 0, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.7 }}>
-            {pendingCount === 1
-              ? `שינוי אחד ממתין — הוא ייכנס לדף האישי של ${clientName}.`
-              : pendingCount
-                ? `${pendingCount} שינויים ממתינים — הם ייכנסו לדף האישי של ${clientName}.`
-                : `השינויים ייכנסו לדף האישי של ${clientName}.`}
-            {' '}לדף יש כתובת אחת קבועה, והיא לא משתנה.
-          </p>
+          <InfoLines
+            style={{ margin: 0, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.7 }}
+            items={[
+              pendingCount === 1
+                ? `שינוי אחד ממתין — הוא ייכנס לדף האישי של ${clientName}`
+                : pendingCount
+                  ? `${pendingCount} שינויים ממתינים — הם ייכנסו לדף האישי של ${clientName}`
+                  : `השינויים ייכנסו לדף האישי של ${clientName}`,
+              'לדף יש כתובת אחת קבועה, והיא לא משתנה',
+            ]} />
 
           {error && (
             <div style={{

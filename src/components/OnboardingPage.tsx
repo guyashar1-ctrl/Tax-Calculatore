@@ -16,6 +16,8 @@ import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import SignaturePad from './SignaturePad';
 import { isValidIsraeliId } from '../utils/israeliId';
+import { isValidEmail } from '../utils/email';
+import EmailInput from './ui/EmailInput';
 
 interface Props {
   token: string;
@@ -163,7 +165,7 @@ export default function OnboardingPage({ token }: Props) {
     }
     if (s === 2) {
       if (!/^[\d\-+\s()]{9,}$/.test(phone.trim())) return 'יש להזין מספר טלפון תקין';
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'יש להזין כתובת מייל תקינה';
+      if (!isValidEmail(email)) return 'יש להזין כתובת מייל תקינה';
       if (!city.trim()) return 'יש להזין עיר מגורים';
       if (!address.trim()) return 'יש להזין כתובת (רחוב ומספר)';
     }
@@ -581,8 +583,8 @@ export default function OnboardingPage({ token }: Props) {
 
             <div style={fieldBox}>
               <label style={label}>כתובת מייל
-                <input style={inputStyle} type="email" inputMode="email" dir="ltr" value={email}
-                  onChange={e => setEmail(e.target.value)} placeholder="israel@example.com" autoComplete="email" />
+                <EmailInput ownAddress style={inputStyle} value={email}
+                  onChange={e => setEmail(e.target.value)} placeholder="israel@example.com" />
               </label>
             </div>
 
