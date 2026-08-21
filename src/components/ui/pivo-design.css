@@ -2923,6 +2923,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .docw-bulkbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;
   background:var(--surface-1);border:1px solid var(--hairline-1);border-radius:var(--r-panel)}
 .docw-bulkbar-count{font-size:var(--fs-13);font-weight:600;color:var(--ink-1)}
+.docw-bulkbar-hint{font-size:var(--fs-12);color:var(--ink-3)}
 .docw-bulkbar-clear{border:0;background:none;padding:0;cursor:pointer;font:inherit;
   font-size:var(--fs-12);color:var(--ink-3)}
 .docw-bulkbar-clear:hover{text-decoration:underline}
@@ -2936,13 +2937,17 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 /* ─── גרירה בין תיקיות ────────────────────────────────────────────────
    ‼ רק בין תיקיות של אותו לקוח. מעבר בין לקוחות הוא שינוי בעלות ונשאר
    פעולה מפורשת ב"העברה" — לכן אין כאן שום יעד נפילה שאינו תיקייה במסך. */
-.docw-doc-row.is-draggable{cursor:grab}
-.docw-doc-row.is-draggable:active{cursor:grabbing}
-.docw-doc-row.is-dragging{opacity:.4}
+.docw-row.is-draggable{cursor:grab}
+.docw-row.is-draggable:active{cursor:grabbing}
+.docw-row.is-dragging{opacity:.4}
 /* מסגרת פנימית ולא border: border היה מזיז את תוכן השורה בפיקסל ברגע
    הריחוף, וכל הרשימה הייתה רועדת כשעוברים מעל תיקייה לתיקייה. */
 .docw-folder-row.is-drop-target{background:var(--soft);box-shadow:inset 0 0 0 2px var(--accent)}
 .docw-folder-row.is-drop-target .docw-name{color:var(--accent)}
+/* יעד שאסור להניח בו — תיקייה לתוך עצמה או לתוך מה שבתוכה. הדפדפן כבר
+   מסמן "אסור" בסמן; הפס האדום אומר *איזו* שורה דחתה. */
+.docw-folder-row.is-drop-invalid{box-shadow:inset 0 0 0 2px var(--err)}
+.docw-folder-row.is-drop-invalid .docw-name{color:var(--err)}
 
 /* ─── מגירת המסמך ────────────────────────────────────────────────────── */
 .docw-drawer-top{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}

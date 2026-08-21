@@ -120,6 +120,8 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   /** המסמכים שנגררים כרגע. ריק = אין גרירה פעילה. */
   const [draggingIds, setDraggingIds] = useState<string[]>([]);
   const [dropFolderId, setDropFolderId] = useState<string | null>(null);
+  /** יעד שנמצא מתחת לסמן אך אינו חוקי — מסומן כדי שהחסימה תיראה. */
+  const [dropInvalidId, setDropInvalidId] = useState<string | null>(null);
 
   const { showToast } = useToast();
 
@@ -251,16 +253,35 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     () => filteredRows.filter(r => r.kind === 'file').map(r => r.doc!),
     [filteredRows],
   );
+  // ‼ תיקיות ומסמכים חולקים קבוצת בחירה אחת — אותה תיבה, אותה עמודה,
+  // אותו "בחר הכל". שתי מערכות בחירה על אותה רשימה היו מכריחות את
+  // המשתמש לנחש איזו מהן פועלת עכשיו. מה שנגזר מכאן הוא *אילו פעולות*
+  // מוצעות, לא איך בוחרים.
+  const visibleFolders = useMemo(
+    () => filteredRows.filter(r => r.kind === 'folder').map(r => r.folder!),
+    [filteredRows],
+  );
   const selectedDocs = useMemo(
     () => visibleDocs.filter(d => selectedIds.has(d.id)),
     [visibleDocs, selectedIds],
   );
-  const allVisibleSelected = visibleDocs.length > 0 && selectedDocs.length === visibleDocs.length;
-  const someVisibleSelected = selectedDocs.length > 0 && !allVisibleSelected;
+  const selectedFolders = useMemo(
+    () => visibleFolders.filter(f => selectedIds.has(f.id)),
+    [visibleFolders, selectedIds],
+  );
+  const visibleCount = visibleDocs.length + visibleFolders.length;
+  const selectedCount = selectedDocs.length + selectedFolders.length;
+  const allVisibleSelected = visibleCount > 0 && selectedCount === visibleCount;
+  const someVisibleSelected = selectedCount > 0 && !allVisibleSelected;
+
+  /** אילו פעולות תקפות לכל מה שנבחר — ולא רק לחלק ממנו. */
+  const hasFolders = selectedFolders.length > 0;
+  const hasDocs = selectedDocs.length > 0;
+  const docsOnly = hasDocs && !hasFolders;
 
   function clearSelection() { setSelectedIds(new Set()); }
 
-  function toggleDoc(id: string) {
+  function toggleItem(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -269,7 +290,32 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   }
 
   function toggleAllVisible() {
-    setSelectedIds(allVisibleSelected ? new Set() : new Set(visibleDocs.map(d => d.id)));
+    setSelectedIds(allVisibleSelected
+      ? new Set()
+      : new Set([...visibleFolders.map(f => f.id), ...visibleDocs.map(d => d.id)]));
+  }
+
+  /**
+   * נוסח הבחירה. ‼ עברית מטה גם את המספר וגם את הפועל: "תיקייה אחת
+   * נבחרה" מול "2 תיקיות נבחרו", ובבחירה מעורבת ו׳ החיבור נצמדת למילה
+   * אבל מקבלת מקף לפני ספרה ("ומסמך אחד" מול "ו-3 מסמכים").
+   */
+  /**
+   * מה שזז, בשמו. ‼ "פריטים" נשמר לבחירה מעורבת בלבד — מסמך בודד
+   * שנגרר לתיקייה צריך להישאר "המסמך הועבר", כפי שהיה.
+   */
+  function movedLabel(nFolders: number, nDocs: number): string {
+    if (nFolders === 0) return nDocs === 1 ? 'המסמך הועבר' : `${nDocs} מסמכים הועברו`;
+    if (nDocs === 0) return nFolders === 1 ? 'התיקייה הועברה' : `${nFolders} תיקיות הועברו`;
+    return `${nFolders + nDocs} פריטים הועברו`;
+  }
+
+  function selectionLabel(nFolders: number, nDocs: number): string {
+    const f = nFolders === 1 ? 'תיקייה אחת' : `${nFolders} תיקיות`;
+    const d = nDocs === 1 ? 'מסמך אחד' : `${nDocs} מסמכים`;
+    if (nFolders === 0) return nDocs === 1 ? `${d} נבחר` : `${d} נבחרו`;
+    if (nDocs === 0) return nFolders === 1 ? `${f} נבחרה` : `${f} נבחרו`;
+    return `${f} ${/^\d/.test(d) ? 'ו-' : 'ו'}${d} נבחרו`;
   }
 
   // ─── הורדה מרוכזת כחבילה אחת ───────────────────────────────────────────
@@ -845,7 +891,7 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   }, [destModal?.clientId, client.id, folders]);
 
   function openDestination(mode: 'move' | 'copy') {
-    if (selectedDocs.length === 0) return;
+    if (selectedCount === 0) return;
     destRunningRef.current = false;
     setDestError('');
     // ברירת המחדל היא התיקייה הנוכחית אצל אותו לקוח — הפעולה הנפוצה היא
@@ -866,17 +912,27 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
    * ממשיכות לחול.
    */
   async function runDestination() {
-    if (destRunningRef.current || !destModal || destFoldersLoading || selectedDocs.length === 0) return;
+    if (destRunningRef.current || !destModal || destFoldersLoading || selectedCount === 0) return;
     const { mode, clientId: targetClientId, folderId } = destModal;
     const targetFolder = folderId || null;
     const sameClient = targetClientId === client.id;
     const targets = selectedDocs;
+    const folderTargets = selectedFolders;
 
     destRunningRef.current = true;
     setDestBusy(true); setDestError('');
     try {
       const landed: string[] = [];
       const failed: string[] = [];
+      let movedFolders = 0;
+
+      // ‼ תיקיות מועברות רק בתוך הלקוח (ראה openDestination) ורק
+      // ב-move — moveFolderToParent חוסמת מעגלים גם אם משהו כאן ישתנה.
+      for (const f of folderTargets) {
+        const res = await db.moveFolderToParent(f.id, targetFolder);
+        if (!res.ok) failed.push(`${f.name} — ${res.error ?? 'ההעברה נכשלה'}`);
+        else movedFolders++;
+      }
       for (const d of targets) {
         const name = d.description || d.fileName;
         if (mode === 'copy') {
@@ -893,23 +949,24 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
       }
       if (landed.length > 0) await db.moveDocsToFolder(landed, targetFolder);
 
+      const done = landed.length + movedFolders;
+      const asked = targets.length + folderTargets.length;
       if (failed.length > 0) {
-        // ‼ מרעננים גם בכישלון חלקי: חלק מהמסמכים כבר זזו בפועל, ומסך
+        // ‼ מרעננים גם בכישלון חלקי: חלק מהפריטים כבר זזו בפועל, ומסך
         // שממשיך להציג את המצב הישן משקר.
         void loadAll();
         clearSelection();
         setDestError(
-          landed.length === 0
+          done === 0
             ? `הפעולה נכשלה:\n${failed.join('\n')}`
-            : `${landed.length} מתוך ${targets.length} בוצעו. נכשלו:\n${failed.join('\n')}`);
+            : `${done} מתוך ${asked} בוצעו. נכשלו:\n${failed.join('\n')}`);
         return;
       }
 
       const where = destinationLabel(targetClientId, targetFolder);
-      const many = targets.length > 1;
       const verb = mode === 'copy'
-        ? (many ? `${targets.length} עותקים נוצרו ב` : 'נוצר עותק ב')
-        : (many ? `${targets.length} מסמכים הועברו ל` : 'המסמך הועבר ל');
+        ? (done > 1 ? `${done} עותקים נוצרו ב` : 'נוצר עותק ב')
+        : `${movedLabel(movedFolders, landed.length)} ל`;
       setDestModal(null);
       clearSelection();
       void loadAll();
@@ -971,10 +1028,12 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     && window.matchMedia('(hover: hover) and (pointer: fine)').matches
   ), []);
 
-  function handleDocDragStart(e: React.DragEvent, doc: StoredDoc) {
-    // מסמך שנגרר מתוך בחירה — כל הבחירה נוסעת איתו. מסמך שאינו בבחירה
+  function handleItemDragStart(e: React.DragEvent, id: string) {
+    // פריט שנגרר מתוך בחירה — כל הבחירה נוסעת איתו. פריט שאינו בבחירה
     // נוסע לבדו, בלי לשנות את הבחירה הקיימת.
-    const ids = selectedIds.has(doc.id) ? selectedDocs.map(d => d.id) : [doc.id];
+    const ids = selectedIds.has(id)
+      ? [...selectedFolders.map(f => f.id), ...selectedDocs.map(d => d.id)]
+      : [id];
     setDraggingIds(ids);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', ids.join(','));
@@ -982,34 +1041,86 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
   function handleDragEnd() {
     setDraggingIds([]);
     setDropFolderId(null);
+    setDropInvalidId(null);
   }
+
+  /**
+   * האם מותר להניח את מה שנגרר בתוך התיקייה הזאת.
+   * ‼ שלוש חסימות, וכולן על מעגלים: תיקייה לתוך עצמה, תיקייה לתוך צאצא
+   * שלה, ותיקייה לתוך ההורה שהיא כבר יושבת בו (אין מה לעשות). מעגל אינו
+   * שגיאה שמתגלה — הוא מנתק את כל תת-העץ מהמסך בשקט.
+   */
+  function dropAllowed(targetId: string): boolean {
+    if (draggingIds.length === 0) return false;
+    if (draggingIds.includes(targetId)) return false;
+    for (const id of draggingIds) {
+      if (!foldersById.has(id)) continue;              // מסמך — אין מה לבדוק
+      if (descendantsOf(id).folderIds.includes(targetId)) return false;
+    }
+    // האם נשאר בכלל משהו לעשות?
+    return movablePayload(targetId).total > 0;
+  }
+
+  /** מה מתוך הנגררים באמת יזוז אל היעד — בלי מי שכבר שם. */
+  function movablePayload(targetId: string | null) {
+    const folderIds = draggingIds.filter(id => {
+      const f = foldersById.get(id);
+      return !!f && (f.parentId ?? null) !== targetId;
+    });
+    const docIds = docs.filter(d => draggingIds.includes(d.id) && (d.folderId ?? null) !== targetId).map(d => d.id);
+    return { folderIds, docIds, total: folderIds.length + docIds.length };
+  }
+
   function handleFolderDragOver(e: React.DragEvent, folderId: string) {
     if (draggingIds.length === 0) return;
+    if (!dropAllowed(folderId)) {
+      // ‼ בלי preventDefault הדפדפן מסמן "אי אפשר להניח כאן" בעצמו,
+      // וזה בדיוק המסר. הסימון האדום רק מחזק אותו על השורה.
+      if (dropInvalidId !== folderId) { setDropInvalidId(folderId); setDropFolderId(null); }
+      return;
+    }
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (dropFolderId !== folderId) setDropFolderId(folderId);
+    if (dropFolderId !== folderId) { setDropFolderId(folderId); setDropInvalidId(null); }
   }
   function handleFolderDragLeave(folderId: string) {
     if (dropFolderId === folderId) setDropFolderId(null);
+    if (dropInvalidId === folderId) setDropInvalidId(null);
   }
   async function handleFolderDrop(e: React.DragEvent, folder: DocFolder) {
     e.preventDefault();
-    const ids = draggingIds;
+    const allowed = dropAllowed(folder.id);
+    const payload = movablePayload(folder.id);
     handleDragEnd();
-    if (ids.length === 0) return;
-    // מסמך שכבר יושב בתיקייה הזאת אינו "העברה" — לא כותבים ולא מודיעים.
-    const moving = docs.filter(d => ids.includes(d.id) && (d.folderId ?? null) !== folder.id);
-    if (moving.length === 0) return;
-    try {
-      await db.moveDocsToFolder(moving.map(d => d.id), folder.id);
-      clearSelection();
-      void loadAll();
-      showToast(moving.length === 1
-        ? `המסמך הועבר ל«${folder.name}»`
-        : `${moving.length} מסמכים הועברו ל«${folder.name}»`);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'ההעברה נכשלה');
+    if (!allowed || payload.total === 0) return;
+    await applyMoveIntoFolder(payload.folderIds, payload.docIds, folder.id, folder.name);
+  }
+
+  /**
+   * ההעברה עצמה — משותפת לגרירה ולפעולת "העברה" בסרגל. תיקיות דרך
+   * moveFolderToParent (שבודקת מעגלים גם בצד השרת), מסמכים דרך
+   * moveDocsToFolder הקיימת.
+   */
+  async function applyMoveIntoFolder(
+    folderIds: string[], docIds: string[], targetId: string | null, targetName: string,
+  ): Promise<{ ok: boolean; failed: string[] }> {
+    const failed: string[] = [];
+    for (const fid of folderIds) {
+      const res = await db.moveFolderToParent(fid, targetId);
+      if (!res.ok) failed.push(`${foldersById.get(fid)?.name ?? 'תיקייה'} — ${res.error ?? 'ההעברה נכשלה'}`);
     }
+    if (docIds.length > 0) {
+      try { await db.moveDocsToFolder(docIds, targetId); }
+      catch (err) { failed.push(err instanceof Error ? err.message : 'העברת המסמכים נכשלה'); }
+    }
+    clearSelection();
+    void loadAll();
+    if (failed.length > 0) {
+      showToast(failed.length === 1 ? failed[0] : `${failed.length} פריטים לא הועברו`);
+      return { ok: false, failed };
+    }
+    showToast(`${movedLabel(folderIds.length - failed.length, docIds.length)} ל«${targetName}»`);
+    return { ok: true, failed };
   }
   const yearOptions = useMemo(() => ['כללי', ...AVAILABLE_YEARS.map(String)], []);
 
@@ -1095,24 +1206,41 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
 
       {/* ‼ סרגל הפעולה נולד מהבחירה ומת איתה. פס הורדה קבוע היה מתחרה
           בגובה עם "הוסף▾" על מסך שברוב הזמן אין בו בחירה כלל. */}
-      {selectedDocs.length > 0 && (
+      {selectedCount > 0 && (
         <div className="docw-bulkbar">
           <span className="docw-bulkbar-count">
-            {selectedDocs.length === 1 ? 'מסמך אחד נבחר' : `${selectedDocs.length} מסמכים נבחרו`}
+            {selectionLabel(selectedFolders.length, selectedDocs.length)}
           </span>
           <button type="button" className="docw-bulkbar-clear" onClick={clearSelection}>נקה בחירה</button>
           {/* במסך צר שורת הכותרת מוסתרת ואיתה "בחר הכל" — כאן היא חוזרת */}
           <button type="button" className="docw-bulkbar-clear docw-bulkbar-all" onClick={toggleAllVisible}>
-            {allVisibleSelected ? 'בטל בחירת הכל' : `בחר הכל (${visibleDocs.length})`}
+            {allVisibleSelected ? 'בטל בחירת הכל' : `בחר הכל (${visibleCount})`}
           </button>
+          {/* ‼ פעולה מוצעת רק כשהיא תקפה לכל מה שנבחר. בבחירה מעורבת
+              נשארת ההעברה בלבד — היא היחידה שמשמעותה זהה לתיקייה
+              ולמסמך. שאר הפעולות אינן "מתעלמות" מהתיקיות: הן פשוט
+              אינן מוצעות, והמשפט הקטן מסביר למה. */}
+          {hasFolders && hasDocs && (
+            <span className="docw-bulkbar-hint">הורדה, העתקה ומחיקה — למסמכים בלבד</span>
+          )}
           <span className="docw-bulkbar-actions">
-            <button type="button" className="btn btn-sm btn-primary" onClick={openZipModal}>הורדה</button>
+            {docsOnly && (
+              <button type="button" className="btn btn-sm btn-primary" onClick={openZipModal}>הורדה</button>
+            )}
+            {/* עריכה נוגעת בשם של תיקייה אחת — אין לה משמעות על אוסף */}
+            {selectedFolders.length === 1 && !hasDocs && (
+              <button type="button" className="btn btn-sm" onClick={() => openFolderEdit(selectedFolders[0])}>עריכה</button>
+            )}
             <button type="button" className="btn btn-sm" onClick={() => openDestination('move')}>העברה</button>
-            <button type="button" className="btn btn-sm" onClick={() => openDestination('copy')}>העתקה</button>
+            {docsOnly && (
+              <button type="button" className="btn btn-sm" onClick={() => openDestination('copy')}>העתקה</button>
+            )}
             {/* מחיקה שקטה: אותה שורה, בלי משקל של כפתור מלא — היא הפעולה
                 היחידה כאן שאי אפשר לבטל. */}
-            <button type="button" className="docw-bulkbar-danger"
-              onClick={() => { setBulkDeleteError(''); setConfirmBulkDelete(true); }}>מחיקה</button>
+            {docsOnly && (
+              <button type="button" className="docw-bulkbar-danger"
+                onClick={() => { setBulkDeleteError(''); setConfirmBulkDelete(true); }}>מחיקה</button>
+            )}
           </span>
         </div>
       )}
@@ -1127,9 +1255,9 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
             <span className="docw-sel">
               <input
                 type="checkbox"
-                aria-label="בחר את כל המסמכים המוצגים"
-                title="בחר את כל המסמכים המוצגים"
-                disabled={visibleDocs.length === 0}
+                aria-label="בחר את כל הפריטים המוצגים"
+                title="בחר את כל הפריטים המוצגים"
+                disabled={visibleCount === 0}
                 checked={allVisibleSelected}
                 ref={el => { if (el) el.indeterminate = someVisibleSelected; }}
                 onChange={toggleAllVisible}
@@ -1143,17 +1271,30 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
               const label = f.labelId ? labelsById.get(f.labelId) : null;
               return (
                 <div
-                  key={f.id} className={`docw-row docw-folder-row${dropFolderId === f.id ? ' is-drop-target' : ''}`}
+                  key={f.id}
+                  className={`docw-row docw-folder-row${selectedIds.has(f.id) ? ' is-selected' : ''}${dropFolderId === f.id ? ' is-drop-target' : ''}${dropInvalidId === f.id ? ' is-drop-invalid' : ''}${draggingIds.includes(f.id) ? ' is-dragging' : ''}${canDrag ? ' is-draggable' : ''}`}
                   role="button" tabIndex={0}
                   onClick={() => goInto(f.id)}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goInto(f.id); } }}
+                  draggable={canDrag}
+                  onDragStart={canDrag ? e => handleItemDragStart(e, f.id) : undefined}
+                  onDragEnd={canDrag ? handleDragEnd : undefined}
                   onDragOver={e => handleFolderDragOver(e, f.id)}
                   onDragLeave={() => handleFolderDragLeave(f.id)}
                   onDrop={e => handleFolderDrop(e, f)}
                 >
-                  {/* תיקייה אינה מסמך ואינה נארזת — התא נשאר ריק כדי
-                      שהעמודות של שתי סוגי השורות יישארו מיושרות. */}
-                  <span className="docw-sel" aria-hidden="true" />
+                  {/* ‼ אותה עמודה ואותה תיבה כמו במסמך — כך רואים בלי
+                      להסביר שגם תיקייה נבחרת. stopPropagation כדי שסימון
+                      לא ייכנס לתיקייה. */}
+                  <span className="docw-sel" onClick={e => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label={`בחר את התיקייה ${f.name}`}
+                      checked={selectedIds.has(f.id)}
+                      onChange={() => toggleItem(f.id)}
+                      onKeyDown={e => e.stopPropagation()}
+                    />
+                  </span>
                   <span className="docw-name">
                     📁 {f.name}
                     {r.path && <span className="docw-path-hint">{r.path}</span>}
@@ -1163,9 +1304,11 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
                   <span className="docw-col-updated">
                     {fmtDate(f.createdAt)}
                     {/* פעולות התיקייה יושבות על השורה שלה — שם הן רלוונטיות */}
+                    {/* ‼ "ערוך" ירד מהשורה: הוא נמצא עכשיו בסרגל הבחירה,
+                        כמו כל פעולה אחרת במסך הזה. מחיקת תיקייה נשארה כאן
+                        כי סמנטיקת המחיקה שלה שונה ממסמך (תת-תיקיות נגררות
+                        איתה, והקבצים עולים לרמה הראשית) ויש לה דיאלוג משלה. */}
                     <span className="docw-folder-actions">
-                      <button type="button" title="שם, תווית ושנה"
-                        onClick={e => { e.stopPropagation(); openFolderEdit(f); }}>ערוך</button>
                       <button type="button" title="מחיקת התיקייה" style={{ color: 'var(--err)' }}
                         onClick={e => { e.stopPropagation(); setConfirmDeleteFolder(f); setFolderError(''); }}>מחק</button>
                     </span>
@@ -1183,7 +1326,7 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
                 onClick={() => openDrawer(d)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(d); } }}
                 draggable={canDrag}
-                onDragStart={canDrag ? e => handleDocDragStart(e, d) : undefined}
+                onDragStart={canDrag ? e => handleItemDragStart(e, d.id) : undefined}
                 onDragEnd={canDrag ? handleDragEnd : undefined}
               >
                 {/* ‼ stopPropagation: לחיצה על השורה פותחת את המגירה, וסימון
@@ -1193,7 +1336,7 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
                     type="checkbox"
                     aria-label={`בחר את ${d.description || d.fileName}`}
                     checked={selectedIds.has(d.id)}
-                    onChange={() => toggleDoc(d.id)}
+                    onChange={() => toggleItem(d.id)}
                     onKeyDown={e => e.stopPropagation()}
                   />
                 </span>
@@ -1332,29 +1475,51 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
       {/* ── יעד: העברה או העתקה של המסמכים שנבחרו ────────────────────── */}
       {destModal && (() => {
         const isMove = destModal.mode === 'move';
-        const count = selectedDocs.length;
+        const count = selectedCount;
+        // ‼ תיקייה שייכת ללקוח שלה: parent_id מצביע על תיקייה של אותו
+        // לקוח, והמסמכים שבתוכה שייכים לו. העברת תיקייה בין לקוחות אינה
+        // נתמכת במודל הנתונים הקיים, ולכן כשיש תיקייה בבחירה בורר הלקוח
+        // נעול — ולא "נכשל בשקט" אחר כך.
+        const clientLocked = hasFolders;
+        // יעדים אסורים: התיקיות שנבחרו עצמן, וכל מה שיושב תחתיהן.
+        const blocked = new Set<string>();
+        if (clientLocked) {
+          for (const f of selectedFolders) {
+            blocked.add(f.id);
+            descendantsOf(f.id).folderIds.forEach(id => blocked.add(id));
+          }
+        }
+        const options = destFolders.filter(f => !blocked.has(f.id));
         return (
           <div className="modal-backdrop" onClick={closeDestination}>
             <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
-              <h3>{isMove ? 'העברת מסמכים' : 'העתקת מסמכים'}</h3>
+              <h3>{isMove ? 'העברה' : 'העתקה'}</h3>
               <div className="csub" style={{ marginTop: '.4rem' }}>
                 {isMove
-                  ? (count === 1 ? 'המסמך יעבור ליעד שתבחר.' : `${count} מסמכים יעברו ליעד שתבחר.`)
+                  ? (count === 1 ? 'הפריט יעבור ליעד שתבחר.' : `${count} פריטים יעברו ליעד שתבחר.`)
                   : (count === 1
                     ? 'ייווצר עותק ביעד שתבחר. המסמך נשאר גם כאן.'
                     : `${count} עותקים ייווצרו ביעד שתבחר. המסמכים נשארים גם כאן.`)}
+                {hasFolders && (isMove
+                  ? ' תיקייה עוברת על כל מה שבתוכה.'
+                  : '')}
               </div>
 
               <label className="lbl">לקוח</label>
               <select
-                className="inp" value={destModal.clientId} disabled={destBusy}
+                className="inp" value={destModal.clientId} disabled={destBusy || clientLocked}
                 onChange={e => setDestModal({ ...destModal, clientId: e.target.value, folderId: '' })}
               >
                 <option value={client.id}>{client.firstName} {client.lastName} — הלקוח הנוכחי</option>
-                {allClients.filter(c => c.id !== client.id).map(c => (
+                {!clientLocked && allClients.filter(c => c.id !== client.id).map(c => (
                   <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
                 ))}
               </select>
+              {clientLocked && (
+                <div className="csub" style={{ marginTop: '.25rem' }}>
+                  תיקייה עוברת בתוך הלקוח הזה בלבד. להעברת מסמכים ללקוח אחר — בחר מסמכים בלי תיקיות.
+                </div>
+              )}
 
               <label className="lbl">תיקייה</label>
               <select
@@ -1362,15 +1527,19 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
                 onChange={e => setDestModal({ ...destModal, folderId: e.target.value })}
               >
                 <option value="">הרמה הראשית</option>
-                {destFolders.map(f => (
+                {options.map(f => (
                   <option key={f.id} value={f.id}>
                     {folderPathLabel(f.id, new Map(destFolders.map(x => [x.id, x])))}
                   </option>
                 ))}
               </select>
               {destFoldersLoading && <div className="csub" style={{ marginTop: '.25rem' }}>טוען תיקיות…</div>}
-              {!destFoldersLoading && destFolders.length === 0 && (
-                <div className="csub" style={{ marginTop: '.25rem' }}>אין תיקיות אצל הלקוח הזה — היעד יהיה הרמה הראשית.</div>
+              {!destFoldersLoading && options.length === 0 && (
+                <div className="csub" style={{ marginTop: '.25rem' }}>
+                  {blocked.size > 0
+                    ? 'אין תיקיית יעד אפשרית — תיקייה אינה יכולה להיכנס לעצמה או למה שבתוכה. היעד יהיה הרמה הראשית.'
+                    : 'אין תיקיות אצל הלקוח הזה — היעד יהיה הרמה הראשית.'}
+                </div>
               )}
 
               {/* ‼ ההבחנה שחייבת להיות מפורשת: שינוי תיקייה הוא סידור

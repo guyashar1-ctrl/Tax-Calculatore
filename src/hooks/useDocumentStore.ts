@@ -429,6 +429,64 @@ export function useDocumentStore() {
     if (error) throw new Error(`מחיקת התיקייה נכשלה: ${error.message || JSON.stringify(error)}`);
   }
 
+  /**
+   * מעבירה תיקייה שלמה למקום אחר בהיררכיה של אותו לקוח. התוכן נוסע איתה
+   * מעצם ההגדרה — parent_id הוא הקשר היחיד, והמסמכים ותת-התיקיות ממשיכים
+   * להצביע על התיקייה הזאת. גם הקבצים ב-Storage אינם זזים (הנתיב הוא
+   * <user_id>/<client_id>/<doc_id>, ראה מיגרציה 67).
+   *
+   * ‼ מעגלים: אין ב-DB שום הגנה מפני parent_id שמצביע על צאצא. תיקייה
+   * שהוכנסה לתוך צאצא שלה מנתקת את עצמה ואת כל מה שתחתיה מהעץ — הן
+   * ואת המסמכים שבהן — ואי אפשר להגיע אליהן משום מסך. לכן הבדיקה כאן
+   * ולא רק אצל הקורא: זו פעולה שאסור לה להצליח בטעות משום מסלול.
+   */
+  async function moveFolderToParent(
+    folderId: string, parentId: string | null,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (!userId) return { ok: false, error: 'אינך מחובר/ת.' };
+    if (parentId === folderId) return { ok: false, error: 'אי אפשר להעביר תיקייה לתוך עצמה.' };
+
+    const { data: self, error: selfErr } = await supabase
+      .from('document_folders').select('client_id, parent_id, name')
+      .eq('id', folderId).eq('user_id', userId).maybeSingle();
+    if (selfErr || !self) return { ok: false, error: 'התיקייה לא נמצאה.' };
+    if ((self.parent_id ?? null) === parentId) return { ok: true };   // כבר שם
+
+    if (parentId) {
+      const { data: rows, error: listErr } = await supabase
+        .from('document_folders').select('id, parent_id, client_id')
+        .eq('client_id', self.client_id).eq('user_id', userId);
+      if (listErr) return { ok: false, error: `בדיקת ההיררכיה נכשלה: ${listErr.message}` };
+      const target = (rows ?? []).find(r => r.id === parentId);
+      if (!target) return { ok: false, error: 'תיקיית היעד אינה שייכת ללקוח הזה.' };
+      // מטפסים מהיעד כלפי מעלה: אם פוגשים את התיקייה עצמה — היעד הוא צאצא שלה.
+      const byId = new Map((rows ?? []).map(r => [r.id, r.parent_id ?? null]));
+      const seen = new Set<string>();
+      let cur: string | null = parentId;
+      while (cur && !seen.has(cur)) {
+        if (cur === folderId) {
+          return { ok: false, error: 'אי אפשר להעביר תיקייה לתוך תיקייה שנמצאת בתוכה.' };
+        }
+        seen.add(cur);
+        cur = byId.get(cur) ?? null;
+      }
+    }
+
+    const { error } = await supabase
+      .from('document_folders').update({ parent_id: parentId })
+      .eq('id', folderId).eq('user_id', userId);
+    if (error) {
+      // ‼ יש אינדקס ייחודי על (לקוח, הורה, שם) — ראה מיגרציה 67. בלי
+      // התרגום הזה המשתמש מקבל "duplicate key value violates..." באנגלית.
+      if ((error as { code?: string }).code === '23505') {
+        return { ok: false, error: `כבר יש ביעד תיקייה בשם «${self.name}».` };
+      }
+      return { ok: false, error: `העברת התיקייה נכשלה: ${error.message || JSON.stringify(error)}` };
+    }
+    window.dispatchEvent(new CustomEvent('crm:docs-changed', { detail: { clientId: self.client_id } }));
+    return { ok: true };
+  }
+
   /** מעביר מסמכים קיימים לתיקייה (או לרמה הראשית כש-folderId=null). */
   async function moveDocsToFolder(docIds: string[], folderId: string | null): Promise<void> {
     if (!userId) throw new Error('אינך מחובר/ת.');
@@ -629,6 +687,7 @@ export function useDocumentStore() {
   return {
     saveDoc, getDocsByClient, getDoc, deleteDoc,
     getFoldersByClient, createFolder, renameFolder, updateFolder, deleteFolder, moveDocsToFolder,
+    moveFolderToParent,
     setFoldersMeta, setDocsMeta,
     getLabels, createLabel, renameLabel, deleteLabel,
     getLinkedClientIds, linkDocumentClient, unlinkDocumentClient, getDocsByClientIncludingLinked,
