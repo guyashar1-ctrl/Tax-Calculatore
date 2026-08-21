@@ -8,6 +8,8 @@
 // ומרכיב מסמך *חדש*; שום פעולה כאן לא נוגעת במסמך שממנו הועתק העמוד.
 
 import { PDFDocument, degrees } from 'pdf-lib';
+import { createBurnContext, drawAnnotations, type Annotation } from './pdfAnnotations';
+import { applyCropToPage, type CropPct, type PdfRect } from './pdfCrop';
 
 export type Quarter = 0 | 90 | 180 | 270;
 
@@ -21,6 +23,8 @@ export interface PlanPage {
   sourceIndex: number;
   /** סיבוב *שנוסף* על הסיבוב שכבר קיים בעמוד המקור. */
   rotation: Quarter;
+  /** חיתוך אזור התצוגה, באחוזים מהעמוד כפי שהוא מוצג. לא הרסני. */
+  crop?: CropPct | null;
 }
 
 export interface PlanSource {
@@ -99,6 +103,74 @@ export function removePage(plan: PlanPage[], id: string): PlanPage[] {
   return plan.filter(p => p.id !== id);
 }
 
+/** מסירה כמה עמודים בבת אחת — לפעולת "הסר את הנבחרים". */
+export function removePages(plan: PlanPage[], ids: Iterable<string>): PlanPage[] {
+  const drop = new Set(ids);
+  return plan.filter(p => !drop.has(p.id));
+}
+
+/** קובע/מבטל חיתוך על עמוד. null מחזיר את העמוד לגודלו המלא. */
+export function setPageCrop(plan: PlanPage[], id: string, crop: CropPct | null): PlanPage[] {
+  return plan.map(p => (p.id === id ? { ...p, crop } : p));
+}
+
+/**
+ * מוסיפה עמודים של מסמך נוסף לתוך התוכנית.
+ * ‼ המזהים נושאים סיומת ריצה: אותו קובץ שנוסף פעמיים יוצר עמודים
+ * נפרדים, ובלי הסיומת שני עותקים היו חולקים מפתח וגרירה הייתה מזיזה
+ * את שניהם.
+ */
+export function insertPages(
+  plan: PlanPage[], source: PlanSource, atIndex: number, stamp: string,
+): PlanPage[] {
+  const added: PlanPage[] = [];
+  for (let i = 0; i < source.pageCount; i++) {
+    added.push({ id: `${source.docId}:${i}:${stamp}`, sourceId: source.docId, sourceIndex: i, rotation: 0 });
+  }
+  const at = Math.max(0, Math.min(plan.length, atIndex));
+  return [...plan.slice(0, at), ...added, ...plan.slice(at)];
+}
+
+/** תוכנית חדשה שמכילה רק את העמודים שנבחרו, בסדר שבו הם מופיעים. */
+export function extractPlan(plan: PlanPage[], ids: Iterable<string>): PlanPage[] {
+  const keep = new Set(ids);
+  return plan.filter(p => keep.has(p.id));
+}
+
+/**
+ * מפצלת את התוכנית לקבוצות רצופות בגודל קבוע — "כל N עמודים לקובץ".
+ * מפרויקט הייחוס: אחד משלושת מצבי הפיצול שם.
+ */
+export function splitPlanEvery(plan: PlanPage[], size: number): PlanPage[][] {
+  const n = Math.max(1, Math.floor(size));
+  const out: PlanPage[][] = [];
+  for (let i = 0; i < plan.length; i += n) out.push(plan.slice(i, i + n));
+  return out;
+}
+
+/**
+ * מפרשת טווחי עמודים בכתיב אנושי — "1-5, 8, 11-12" — למספרי עמודים
+ * מבוססי-1. מתעלמת מרווחים, מקבלת גם פסיק וגם נקודה-פסיק, ומדלגת על
+ * מה שמחוץ לטווח במקום ליפול.
+ */
+export function parsePageRanges(input: string, total: number): number[] {
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const chunk of (input || '').split(/[,;]/)) {
+    const part = chunk.trim();
+    if (!part) continue;
+    const m = /^(\d+)\s*(?:[-–]\s*(\d+))?$/.exec(part);
+    if (!m) continue;
+    const from = parseInt(m[1], 10);
+    const to = m[2] ? parseInt(m[2], 10) : from;
+    const lo = Math.min(from, to), hi = Math.max(from, to);
+    for (let i = lo; i <= hi; i++) {
+      if (i >= 1 && i <= total && !seen.has(i)) { seen.add(i); out.push(i); }
+    }
+  }
+  return out;
+}
+
 // ─── בניית הפלט ────────────────────────────────────────────────────────
 
 /**
@@ -112,6 +184,7 @@ export function removePage(plan: PlanPage[], id: string): PlanPage[] {
 export async function buildPdfFromPlan(
   plan: PlanPage[],
   sourceBytes: Map<string, Uint8Array>,
+  annotations: Annotation[] = [],
 ): Promise<Uint8Array> {
   if (plan.length === 0) {
     throw new PdfPlanError('לא נשארו עמודים במסמך. הוסף עמוד אחד לפחות.');
@@ -155,14 +228,41 @@ export async function buildPdfFromPlan(
     copies.set(sourceId, await out.copyPages(loaded.get(sourceId)!, indices));
   }
 
+  // ‼ הקשר לצריבה נוצר פעם אחת לכל המסמך: הטמעת הגופנים העבריים יקרה,
+  // ואין טעם לחזור עליה לכל עמוד. נוצר רק אם באמת יש מה לצייר.
+  const byPage = new Map<string, Annotation[]>();
+  for (const a of annotations) {
+    const list = byPage.get(a.pageId) ?? [];
+    list.push(a);
+    byPage.set(a.pageId, list);
+  }
+  const ctx = byPage.size > 0 ? await createBurnContext(out) : null;
+
   for (let i = 0; i < plan.length; i++) {
+    const item = plan[i];
     const { sourceId, slot } = slots[i];
     const page = copies.get(sourceId)![slot];
     // ‼ מוסיפים על הסיבוב שכבר יש לעמוד ולא דורסים אותו: דף שנסרק הפוך
     // מגיע עם 180 משלו, וסיבוב של רבע מהמשתמש אמור להצטרף אליו.
     const base = page.getRotation().angle;
-    const total = (((base + plan[i].rotation) % 360) + 360) % 360;
+    const total = (((base + item.rotation) % 360) + 360) % 360;
     page.setRotation(degrees(total));
+
+    // ‼ הסדר קובע: קודם מציירים על העמוד המלא, ורק אז מצמצמים את אזור
+    // התצוגה. חיתוך שנעשה קודם היה גורם לסימונים ליפול מחוץ למה שרואים.
+    const mb = page.getMediaBox();
+    const box = { width: mb.width, height: mb.height, rotation: total };
+    const anns = byPage.get(item.id);
+    if (anns && anns.length > 0 && ctx) {
+      await drawAnnotations(page, anns, ctx, box);
+    }
+    if (item.crop) {
+      const quarter = total === 90 || total === 270;
+      const dW = quarter ? mb.height : mb.width;
+      const dH = quarter ? mb.width : mb.height;
+      const rect = cropPctToRect(box, item.crop, dW, dH);
+      applyCropToPage(page, rect);
+    }
     out.addPage(page);
   }
 
@@ -175,6 +275,26 @@ export async function buildPdfFromPlan(
     throw new PdfPlanError('המסמך שנוצר אינו תואם את סדר העמודים שנבחר. לא נשמר דבר.');
   }
   return bytes;
+}
+
+/**
+ * ממיר חיתוך שנבחר על התצוגה למלבן במרחב העמוד. אותה המרה בדיוק כמו
+ * לסימונים — ציר Y הפוך, וב-90°/270° גם החלפת רוחב וגובה.
+ */
+function cropPctToRect(
+  box: { width: number; height: number; rotation: number },
+  crop: CropPct, dW: number, dH: number,
+): PdfRect {
+  const rot = ((Math.round(box.rotation / 90) * 90) % 360 + 360) % 360;
+  const dx = crop.xPct * dW, dy = crop.yPct * dH;
+  const dw = crop.widthPct * dW, dh = crop.heightPct * dH;
+  const W = box.width, H = box.height;
+  switch (rot) {
+    case 90: return { x: dy, y: dx, width: dh, height: dw };
+    case 180: return { x: W - dx - dw, y: dy, width: dw, height: dh };
+    case 270: return { x: W - dy - dh, y: H - dx - dw, width: dh, height: dw };
+    default: return { x: dx, y: H - dy - dh, width: dw, height: dh };
+  }
 }
 
 /** שם ברירת מחדל לפלט, נגזר משם המקור הראשון. */

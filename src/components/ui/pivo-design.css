@@ -3444,3 +3444,142 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .pdfw-cta{width:100%;margin-inline-start:0}
   .pdfw-cta .btn{flex:1}
 }
+
+/* ─── משטח PDF: מצבים, סרגלים ועריכה ─────────────────────────────────────
+   הדף נשאר הגיבור. הסרגל מציג רק את הכלים של המצב הפעיל, והכלי הנבחר
+   מסומן בבירור — כדי שלא יצטרכו לנחש מה יקרה בלחיצה הבאה. */
+.pdfw-head{gap:16px}
+.pdfw-headmain{min-width:0}
+.pdfw-headside{display:flex;align-items:center;gap:6px}
+.pdfw-hist{width:30px;height:30px;border-radius:8px;border:1px solid var(--hairline-1);
+  background:var(--surface-0);color:var(--ink-2);cursor:pointer;font-size:15px;line-height:1}
+.pdfw-hist:hover:not(:disabled){background:var(--surface-2);color:var(--ink-1)}
+.pdfw-hist:disabled{opacity:.35;cursor:default}
+
+.pdfw-modes{display:flex;gap:2px;background:var(--surface-2);padding:3px;border-radius:10px}
+.pdfw-mode{border:0;background:none;padding:6px 16px;border-radius:8px;cursor:pointer;
+  font:inherit;font-size:var(--fs-13);color:var(--ink-3)}
+.pdfw-mode.is-on{background:var(--surface-0);color:var(--ink-1);font-weight:600;
+  box-shadow:0 1px 3px rgba(16,24,40,.12)}
+
+.pdfw-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:9px 24px;
+  background:var(--surface-0);border-bottom:1px solid var(--hairline-1)}
+.pdfw-bar-sep{width:1px;height:20px;background:var(--hairline-1);margin-inline:4px}
+.pdfw-bar-grow{flex:1}
+.pdfw-bar-hint{font-size:var(--fs-12);color:var(--ink-3)}
+.pdfw-quiet{border:0;background:none;padding:0 4px;cursor:pointer;font:inherit;
+  font-size:var(--fs-12);color:var(--ink-3)}
+.pdfw-quiet:hover{text-decoration:underline;color:var(--ink-1)}
+
+.pdfw-tool{width:32px;height:32px;border-radius:8px;border:1px solid transparent;
+  background:none;color:var(--ink-2);cursor:pointer;font-size:14px;line-height:1;
+  display:flex;align-items:center;justify-content:center}
+.pdfw-tool:hover{background:var(--surface-2)}
+/* ‼ הכלי הפעיל חייב להיות חד-משמעי: אחרת לוחצים על הדף ולא מבינים למה
+   נוצר מלבן במקום טקסט. */
+.pdfw-tool.is-on{background:var(--accent);border-color:var(--accent);color:#fff}
+.pdfw-colors{display:flex;gap:5px;align-items:center}
+.pdfw-swatch{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
+.pdfw-swatch.is-on{border-color:var(--ink-1)}
+
+.pdfw-split{display:flex;gap:24px;flex-wrap:wrap;padding:12px 24px;background:var(--surface-0);
+  border-bottom:1px solid var(--hairline-1)}
+.pdfw-field{display:flex;flex-direction:column;gap:4px}
+.pdfw-field>span{font-size:var(--fs-12);color:var(--ink-3)}
+.pdfw-inline{display:flex;align-items:center;gap:6px}
+.pdfw-inline .inp{margin:0;width:190px}
+.pdfw-unit{font-size:var(--fs-12);color:var(--ink-3)}
+
+/* סימוני מצב על כרטיס העמוד */
+.pdfw-card.is-picked .pdfw-thumb{box-shadow:inset 0 0 0 3px var(--accent)}
+.pdfw-pick{position:absolute;top:6px;inset-inline-start:6px;z-index:2}
+.pdfw-pick input{width:16px;height:16px;margin:0;cursor:pointer;accent-color:var(--accent)}
+.pdfw-badge{position:absolute;bottom:6px;inset-inline-end:6px;font-size:10px;font-weight:700;
+  background:var(--surface-2);color:var(--ink-2);border-radius:5px;padding:2px 6px}
+.pdfw-badge.is-ink{inset-inline-end:auto;inset-inline-start:6px;background:var(--accent);color:#fff}
+.pdfw-tools-float{position:absolute;top:6px;inset-inline-end:6px;display:flex;gap:4px;
+  opacity:0;transition:opacity .12s}
+.pdfw-card:hover .pdfw-tools-float,.pdfw-card:focus-within .pdfw-tools-float{opacity:1}
+.pdfw-tools-float button{width:26px;height:26px;border-radius:7px;border:1px solid var(--hairline-1);
+  background:var(--surface-0);color:var(--ink-2);cursor:pointer;font-size:13px;line-height:1;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(16,24,40,.12)}
+.pdfw-tools-float button:hover{background:var(--surface-2);color:var(--ink-1)}
+.pdfw-tools-float .pdfw-tool-remove:hover{background:var(--err);border-color:var(--err);color:#fff}
+@media (hover:none){.pdfw-tools-float{opacity:1}}
+
+/* ─── מצב עריכה ────────────────────────────────────────────────────────── */
+.pdfw-editwrap{flex:1;display:flex;min-height:0;background:var(--surface-1)}
+.pdfw-strip{width:56px;flex:none;overflow-y:auto;padding:12px 6px;display:flex;flex-direction:column;
+  gap:4px;background:var(--surface-0);border-inline-end:1px solid var(--hairline-1)}
+.pdfw-striprow{position:relative;border:1px solid var(--hairline-1);background:var(--surface-0);
+  border-radius:8px;padding:8px 0;cursor:pointer;font:inherit;font-size:var(--fs-12);color:var(--ink-3)}
+.pdfw-striprow.is-on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.pdfw-dot{position:absolute;top:3px;inset-inline-end:4px;width:6px;height:6px;border-radius:50%;
+  background:var(--accent)}
+.pdfw-striprow.is-on .pdfw-dot{background:#fff}
+
+.pdfw-editmain{flex:1;min-width:0;overflow-y:auto;padding:20px;display:flex;flex-direction:column;
+  align-items:center;gap:14px}
+.pdfe-stage-wrap{display:flex;justify-content:center;width:100%}
+.pdfe-stage{position:relative;display:inline-block;background:#fff;
+  box-shadow:0 6px 24px rgba(16,24,40,.18);max-width:100%}
+.pdfe-stage.is-drawing{cursor:crosshair}
+/* ‼ הדף כולו נכנס למסך: עורכים על מה שרואים, ולא גוללים כדי למצוא
+   איפה נחת הסימון. */
+.pdfe-canvas{display:block;max-width:100%;max-height:calc(100vh - 330px);width:auto;height:auto}
+.pdfe-canvas.is-quarter{max-height:70vh;width:auto}
+.pdfe-loading{position:absolute;inset:0;background:var(--surface-2);opacity:.5;
+  animation:pdfw-pulse 1.1s ease-in-out infinite}
+
+.pdfe-ann{position:absolute;box-sizing:border-box}
+.pdfe-ann.is-selected{outline:2px dashed var(--accent);outline-offset:1px}
+.pdfe-fill,.pdfe-outline{position:absolute;inset:0}
+.pdfe-outline{border:2px solid;background:none}
+.pdfe-outline.is-round{border-radius:50%}
+.pdfe-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.pdfe-img{width:100%;height:100%;object-fit:contain;pointer-events:none}
+.pdfe-text{display:block;width:100%;height:100%;font-size:clamp(9px,1.6vw,16px);line-height:1.32;
+  white-space:pre-wrap;overflow:hidden;word-break:break-word}
+.pdfe-textarea{width:100%;height:100%;border:1px solid var(--accent);border-radius:4px;
+  background:rgba(255,255,255,.94);font:inherit;font-size:clamp(9px,1.6vw,16px);line-height:1.32;
+  padding:2px 4px;resize:none;outline:none}
+.pdfe-del{position:absolute;top:-11px;inset-inline-end:-11px;width:22px;height:22px;border-radius:50%;
+  border:1px solid var(--hairline-1);background:var(--surface-0);color:var(--err);cursor:pointer;
+  font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 4px rgba(16,24,40,.2)}
+.pdfe-handle{position:absolute;bottom:-6px;inset-inline-start:-6px;width:12px;height:12px;
+  border-radius:3px;background:var(--accent);cursor:nwse-resize}
+.pdfe-draft{position:absolute;border:2px dashed;pointer-events:none;opacity:.75}
+.pdfe-draft-highlight{opacity:.3;border-style:solid}
+
+.pdfw-signpad{width:min(420px,100%);display:flex;flex-direction:column;gap:6px;
+  background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:var(--r-panel);padding:12px}
+.pdfw-field-label{font-size:var(--fs-12);color:var(--ink-3)}
+
+/* ─── חיתוך ובחירת קובץ ────────────────────────────────────────────────── */
+.pdfw-cropbox{max-width:620px}
+.pdfw-cropstage{position:relative;margin-top:10px;display:flex;justify-content:center;
+  background:var(--surface-2);border-radius:8px;overflow:hidden;cursor:crosshair;user-select:none}
+.pdfw-cropcanvas{max-width:100%;max-height:52vh;display:block}
+/* ‼ האזור שנשאר בהיר וסביבו כהה — כך רואים מה יישאר, ולא מה נחתך. */
+.pdfw-cropsel{position:absolute;border:2px solid var(--accent);
+  box-shadow:0 0 0 9999px rgba(16,24,40,.45);pointer-events:none}
+
+.pdfw-picklist{display:flex;flex-direction:column;gap:4px;margin-top:10px;max-height:46vh;overflow-y:auto}
+.pdfw-pickrow{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:start;
+  border:1px solid var(--hairline-1);background:var(--surface-0);border-radius:8px;padding:8px 10px;
+  cursor:pointer;font:inherit}
+.pdfw-pickrow:hover{background:var(--surface-2)}
+.pdfw-pickrow b{font-size:var(--fs-13);color:var(--ink-1)}
+.pdfw-pickrow span{font-size:var(--fs-12);color:var(--ink-4)}
+
+@media (max-width:900px){
+  .pdfw-head{flex-wrap:wrap}
+  .pdfw-modes{order:3;width:100%}
+  .pdfw-mode{flex:1}
+  .pdfw-strip{width:44px}
+  .pdfw-editmain{padding:12px}
+  .pdfw-bar{padding:8px 14px}
+  .pdfw-split{padding:10px 14px;gap:14px}
+  .pdfw-inline .inp{width:140px}
+}

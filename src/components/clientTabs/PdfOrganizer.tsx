@@ -1,163 +1,617 @@
-// ─── סביבת העבודה של עמודי PDF ─────────────────────────────────────────
-// המסך שבו רואים את העמודים עצמם ומסדרים אותם לפני שנוצר קובץ. הוא נבנה
-// כמשטח אחד לכל פעולות העמודים (מיזוג, סידור, סיבוב, הסרה) ולא כחלון
-// חד-פעמי למיזוג — כדי שפעולות עתידיות ייכנסו לאותו מודל ולא לבנות משלהן.
+// ─── משטח עמודי PDF ────────────────────────────────────────────────────
+// משטח אחד לכל מה שעושים על PDF, מחולק לשלושה מצבים ולא לשלושה מסכים:
+//   סידור — סדר, סיבוב, הסרה, חיתוך, הוספת קובץ, חילוץ ופיצול
+//   עריכה — טקסט, הדגשה, ציור, צורות, ✓/✗ ותמונה
+//   חתימה — חתימה וחותמת, על אותו מנגנון של שכבת התמונה
 //
-// ‼ העמודים הם הגיבור: תמונות ממוזערות אמיתיות, גדולות, עם מספר סידורי
-// שקט. כפתורי הסיבוב וההסרה מופיעים בריחוף בלבד — משטח שבו כל עמוד נושא
-// שני כפתורים קבועים הופך רשת של 40 עמודים לרעש.
+// ‼ הכול נשען על מודל אחד (PlanPage + Annotation) ולא על מנוע לכל פעולה.
+// לכן "בטל" אחד מכסה גם סידור וגם עריכה, ולכן פעולה חדשה נכנסת בלי לבנות
+// צינור נוסף. פרויקט הייחוס החזיק שתי מחסניות נפרדות — כאן זה מיותר, כי
+// המצב כולו הוא אובייקט אחד.
+//
+// ‼ המקורות נקראים בלבד. שום מצב כאן אינו כותב לקובץ שממנו הגיע העמוד;
+// הפלט תמיד מסמך חדש.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadPdf, renderThumbnail, type PdfDocument } from '../../utils/pdfRender';
 import {
-  buildInitialPlan, movePage, rotatePage, removePage,
+  buildInitialPlan, movePage, rotatePage, removePage, removePages,
+  setPageCrop, insertPages, extractPlan, splitPlanEvery, parsePageRanges,
   type PlanPage, type PlanSource,
 } from '../../utils/pdfPages';
+import type { Annotation } from '../../utils/pdfAnnotations';
+import PdfPageEditor, { mkAnnotation, type EditTool } from './PdfPageEditor';
+import SignaturePad from '../SignaturePad';
 import Icon from '../ui/Icon';
 
 export interface OrganizerSource extends PlanSource {
   bytes: Uint8Array;
+  /** סיבוב מובנה של עמודי המקור, לצורך תצוגה נכונה בעריכה. */
+  rotations?: number[];
+}
+
+export type WorkspaceMode = 'organize' | 'edit' | 'sign';
+
+export interface OrganizerOutput {
+  plan: PlanPage[];
+  annotations: Annotation[];
+  name: string;
+  /** כשמפצלים — כמה מסמכים במקום אחד. */
+  groups?: { plan: PlanPage[]; suffix: string }[];
 }
 
 interface Props {
   sources: OrganizerSource[];
-  /** שם ברירת המחדל לקובץ שייווצר. */
   initialName: string;
   busy: boolean;
   error: string;
+  /** מוסיף קובץ PDF נוסף למשטח; מחזיר מקור מוכן או null אם בוטל/נכשל. */
+  onPickSource: () => Promise<OrganizerSource | null>;
   onCancel: () => void;
-  onCreate: (plan: PlanPage[], name: string) => void;
+  onCreate: (out: OrganizerOutput) => void;
 }
 
-/** צבע עדין לכל מסמך מקור — כדי לדעת מאיפה הגיע עמוד בלי להעמיס טקסט. */
 const SOURCE_TINTS = ['#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ef4444', '#06b6d4'];
+const INK_COLORS = ['#111827', '#e02424', '#1552d8', '#0a8a3c', '#f59e0b'];
+
+interface Snapshot { plan: PlanPage[]; annotations: Annotation[] }
 
 export default function PdfOrganizer({
-  sources, initialName, busy, error, onCancel, onCreate,
+  sources: initialSources, initialName, busy, error, onPickSource, onCancel, onCreate,
 }: Props) {
-  const [plan, setPlan] = useState<PlanPage[]>(() => buildInitialPlan(sources));
+  const [sources, setSources] = useState<OrganizerSource[]>(initialSources);
+  const [state, setState] = useState<Snapshot>(() => ({
+    plan: buildInitialPlan(initialSources), annotations: [],
+  }));
+  const [mode, setMode] = useState<WorkspaceMode>('organize');
   const [name, setName] = useState(initialName);
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900);
+
+  // ─── היסטוריה אחת לכל המצבים ──────────────────────────────────────────
+  const past = useRef<Snapshot[]>([]);
+  const future = useRef<Snapshot[]>([]);
+  const [histTick, setHistTick] = useState(0);
+
+  const commit = useCallback((next: (cur: Snapshot) => Snapshot) => {
+    setState(cur => {
+      const resolved = next(cur);
+      if (resolved === cur) return cur;
+      past.current = [...past.current.slice(-49), cur];
+      future.current = [];
+      return resolved;
+    });
+    setHistTick(t => t + 1);
+  }, []);
+
+  const undo = useCallback(() => {
+    setState(cur => {
+      const prev = past.current.pop();
+      if (!prev) return cur;
+      future.current = [...future.current, cur];
+      return prev;
+    });
+    setHistTick(t => t + 1);
+  }, []);
+
+  const redo = useCallback(() => {
+    setState(cur => {
+      const nxt = future.current.pop();
+      if (!nxt) return cur;
+      past.current = [...past.current, cur];
+      return nxt;
+    });
+    setHistTick(t => t + 1);
+  }, []);
+
+  const { plan, annotations } = state;
+
+  // ─── בחירה, כלים ומצבי משנה ───────────────────────────────────────────
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [editPageId, setEditPageId] = useState<string | null>(null);
+  const [tool, setTool] = useState<EditTool>('select');
+  const [ink, setInk] = useState(INK_COLORS[0]);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [selectedAnn, setSelectedAnn] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
-  const [narrow, setNarrow] = useState(() =>
-    typeof window !== 'undefined' && window.innerWidth < 760);
+  const [cropFor, setCropFor] = useState<string | null>(null);
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [rangeText, setRangeText] = useState('');
+  const [everyN, setEveryN] = useState('1');
+  const [addingSource, setAddingSource] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const stampInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    function onResize() { setNarrow(window.innerWidth < 760); }
+    const onResize = () => setNarrow(window.innerWidth < 900);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Esc סוגר, כמו בכל שאר החלונות במערכת
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !busy) { e.stopPropagation(); onCancel(); }
-    }
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [busy, onCancel]);
-
-  // מונע גלילה של הדף מאחורי המשטח
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, []);
 
+  // ─── מקלדת: Esc, בטל, בצע שוב ─────────────────────────────────────────
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      const typing = el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT';
+      if (e.key === 'Escape' && !busy && !typing) { e.stopPropagation(); onCancel(); return; }
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); }
+    }
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [busy, onCancel, undo, redo]);
+
   const sourceById = useMemo(() => {
-    const m = new Map<string, { source: OrganizerSource; tint: string; index: number }>();
-    sources.forEach((s, i) => m.set(s.docId, { source: s, tint: SOURCE_TINTS[i % SOURCE_TINTS.length], index: i }));
+    const m = new Map<string, { source: OrganizerSource; tint: string }>();
+    sources.forEach((s, i) => m.set(s.docId, { source: s, tint: SOURCE_TINTS[i % SOURCE_TINTS.length] }));
     return m;
   }, [sources]);
-
   const multiSource = sources.length > 1;
 
-  // ─── גרירה ─────────────────────────────────────────────────────────────
+  const editPage = useMemo(
+    () => plan.find(p => p.id === editPageId) ?? plan[0] ?? null,
+    [plan, editPageId],
+  );
+
+  // ─── פעולות סידור ─────────────────────────────────────────────────────
   function handleDrop(targetId: string) {
     if (!dragId || dragId === targetId) { setDragId(null); setOverId(null); return; }
     const targetIndex = plan.findIndex(p => p.id === targetId);
-    setPlan(cur => movePage(cur, dragId, targetIndex));
-    setDragId(null);
-    setOverId(null);
+    const moving = dragId;
+    commit(cur => ({ ...cur, plan: movePage(cur.plan, moving, targetIndex) }));
+    setDragId(null); setOverId(null);
   }
-
-  /** הזזה במקלדת ובמסך צר — גרירה אינה אמינה במגע. */
   function nudge(id: string, delta: -1 | 1) {
     const at = plan.findIndex(p => p.id === id);
     if (at < 0) return;
-    setPlan(cur => movePage(cur, id, at + delta));
+    commit(cur => ({ ...cur, plan: movePage(cur.plan, id, at + delta) }));
+  }
+  function dropPage(id: string) {
+    commit(cur => ({
+      plan: removePage(cur.plan, id),
+      annotations: cur.annotations.filter(a => a.pageId !== id),
+    }));
+    setPicked(s => { const n = new Set(s); n.delete(id); return n; });
+  }
+  function togglePick(id: string) {
+    setPicked(s => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
   }
 
-  const canCreate = plan.length > 0 && name.trim().length > 0 && !busy;
+  async function addSource() {
+    if (addingSource) return;
+    setAddingSource(true);
+    try {
+      const src = await onPickSource();
+      if (!src) return;
+      setSources(cur => (cur.some(s => s.docId === src.docId) ? cur : [...cur, src]));
+      const stamp = Math.random().toString(36).slice(2, 7);
+      commit(cur => ({ ...cur, plan: insertPages(cur.plan, src, cur.plan.length, stamp) }));
+    } finally {
+      setAddingSource(false);
+    }
+  }
+
+  // ─── סימונים ──────────────────────────────────────────────────────────
+  const addAnnotation = useCallback((a: Annotation) => {
+    commit(cur => ({ ...cur, annotations: [...cur.annotations, a] }));
+  }, [commit]);
+
+  // ‼ גרירה מייצרת עשרות עדכונים בשנייה, והם *לא* נכנסים להיסטוריה אחד-אחד:
+  // ההיסטוריה נרשמה כבר בהוספה, ו"בטל" אחרי גרירה אמור להחזיר את הסימון
+  // למצבו הקודם — לא לזוז פיקסל אחורה בכל לחיצה.
+  const updateAnnotation = useCallback((id: string, patch: Partial<Annotation>) => {
+    setState(cur => ({
+      ...cur,
+      annotations: cur.annotations.map(a => (a.id === id ? { ...a, ...patch } : a)),
+    }));
+  }, []);
+
+  const removeAnnotation = useCallback((id: string) => {
+    commit(cur => ({ ...cur, annotations: cur.annotations.filter(a => a.id !== id) }));
+  }, [commit]);
+
+  function pickImage(forSign: boolean) {
+    (forSign ? stampInputRef : imageInputRef).current?.click();
+  }
+  async function onImageChosen(e: React.ChangeEvent<HTMLInputElement>, forSign: boolean) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const dataUrl = await fileToDataUrl(file);
+    if (!dataUrl) return;
+    setPendingImage(dataUrl);
+    setTool('image');
+    if (forSign) setMode('sign');
+    else if (mode === 'organize') setMode('edit');
+  }
+
+  function placeSignature(dataUrl: string) {
+    if (!editPage || !dataUrl) return;
+    addAnnotation({
+      ...mkAnnotation('image', editPage.id, 0.55, 0.72, 0.32, 0.12, ink),
+      imageData: dataUrl,
+    });
+    setTool('select');
+  }
+
+  // ─── יצירה ────────────────────────────────────────────────────────────
+  const cleanName = name.trim();
+  const canCreate = plan.length > 0 && cleanName.length > 0 && !busy;
+
+  function createSingle() {
+    if (!canCreate) return;
+    onCreate({ plan, annotations, name: cleanName });
+  }
+  function createFromSelection() {
+    const subset = extractPlan(plan, picked);
+    if (subset.length === 0 || busy) return;
+    onCreate({
+      plan: subset,
+      annotations: annotations.filter(a => subset.some(p => p.id === a.pageId)),
+      name: `${cleanName} - נבחרים`,
+    });
+  }
+  function createFromRanges() {
+    const nums = parsePageRanges(rangeText, plan.length);
+    if (nums.length === 0 || busy) return;
+    const subset = nums.map(n => plan[n - 1]).filter(Boolean);
+    onCreate({
+      plan: subset,
+      annotations: annotations.filter(a => subset.some(p => p.id === a.pageId)),
+      name: `${cleanName} - עמודים ${rangeText.trim()}`,
+    });
+  }
+  function createSplit() {
+    if (busy) return;
+    const size = Math.max(1, parseInt(everyN, 10) || 1);
+    const groups = splitPlanEvery(plan, size);
+    if (groups.length <= 1) { createSingle(); return; }
+    onCreate({
+      plan, annotations, name: cleanName,
+      groups: groups.map((g, i) => ({ plan: g, suffix: `חלק ${i + 1}` })),
+    });
+  }
+
+  const pageCount = plan.length;
+  const annCount = annotations.length;
+  const cropPage = cropFor ? plan.find(p => p.id === cropFor) : null;
 
   return (
-    <div className="pdfw-scrim" role="dialog" aria-modal="true" aria-label="ארגון עמודי PDF">
+    <div className="pdfw-scrim" role="dialog" aria-modal="true" aria-label="משטח עמודי PDF">
       <div className="pdfw">
         <header className="pdfw-head">
-          <div>
-            <h2 className="pdfw-title">{multiSource ? 'מיזוג PDF' : 'ארגון עמודים'}</h2>
+          <div className="pdfw-headmain">
+            <h2 className="pdfw-title">{multiSource ? 'מיזוג וארגון PDF' : 'עריכת PDF'}</h2>
             <div className="pdfw-sub">
-              {plan.length === 1 ? 'עמוד אחד' : `${plan.length} עמודים`}
-              {multiSource && ` · מתוך ${sources.length} קבצים`}
+              {pageCount === 1 ? 'עמוד אחד' : `${pageCount} עמודים`}
+              {multiSource && ` · ${sources.length} קבצים`}
+              {annCount > 0 && ` · ${annCount} סימונים`}
             </div>
           </div>
-          <button type="button" className="ui-icon-btn" onClick={onCancel} disabled={busy} aria-label="סגירה">
-            <Icon name="close" />
-          </button>
+
+          {/* ‼ שלושה מצבים ולא סרגל אחד עמוס: בכל רגע רואים רק את הכלים
+              של מה שעושים עכשיו. */}
+          <nav className="pdfw-modes" role="tablist" aria-label="מצב עבודה">
+            {([['organize', 'סידור'], ['edit', 'עריכה'], ['sign', 'חתימה']] as const).map(([m, label]) => (
+              <button
+                key={m} type="button" role="tab" aria-selected={mode === m}
+                className={`pdfw-mode${mode === m ? ' is-on' : ''}`}
+                onClick={() => {
+                  setMode(m);
+                  setTool('select');
+                  if (!editPageId) setEditPageId(plan[0]?.id ?? null);
+                }}
+              >{label}</button>
+            ))}
+          </nav>
+
+          <div className="pdfw-headside">
+            <button type="button" className="pdfw-hist" onClick={undo}
+              disabled={past.current.length === 0 || busy} title="בטל (Ctrl+Z)" aria-label="בטל">↶</button>
+            <button type="button" className="pdfw-hist" onClick={redo}
+              disabled={future.current.length === 0 || busy} title="בצע שוב (Ctrl+Shift+Z)" aria-label="בצע שוב">↷</button>
+            <button type="button" className="ui-icon-btn" onClick={onCancel} disabled={busy} aria-label="סגירה">
+              <Icon name="close" />
+            </button>
+          </div>
         </header>
 
-        <div className="pdfw-pages">
-          {plan.map((page, index) => {
-            const meta = sourceById.get(page.sourceId);
-            return (
-              <PageCard
-                key={page.id}
-                page={page}
-                index={index}
-                total={plan.length}
-                tint={multiSource ? meta?.tint : undefined}
-                sourceLabel={multiSource ? meta?.source.label : undefined}
-                bytes={meta?.source.bytes}
-                narrow={narrow}
-                dragging={dragId === page.id}
-                dropTarget={overId === page.id && dragId !== null && dragId !== page.id}
-                disabled={busy}
-                onDragStart={() => setDragId(page.id)}
-                onDragEnd={() => { setDragId(null); setOverId(null); }}
-                onDragOver={() => setOverId(page.id)}
-                onDrop={() => handleDrop(page.id)}
-                onRotate={() => setPlan(cur => rotatePage(cur, page.id, 1))}
-                onRemove={() => setPlan(cur => removePage(cur, page.id))}
-                onNudge={d => nudge(page.id, d)}
-              />
-            );
-          })}
-          {plan.length === 0 && (
-            <div className="pdfw-empty">הסרת את כל העמודים. החזר אחד לפחות כדי ליצור מסמך.</div>
-          )}
-        </div>
+        {/* ── סרגל המצב: רק מה ששייך למה שעושים עכשיו ─────────────────── */}
+        {mode === 'organize' && (
+          <div className="pdfw-bar">
+            <button type="button" className="btn btn-sm" onClick={addSource} disabled={busy || addingSource}>
+              {addingSource ? 'מוסיף…' : 'הוסף קובץ'}
+            </button>
+            <span className="pdfw-bar-sep" />
+            <span className="pdfw-bar-hint">
+              {picked.size > 0 ? `${picked.size} עמודים סומנו` : 'סמן עמודים כדי לחלץ או להסיר'}
+            </span>
+            {picked.size > 0 && (
+              <>
+                <button type="button" className="btn btn-sm" onClick={createFromSelection} disabled={busy}>
+                  צור PDF מהנבחרים
+                </button>
+                <button type="button" className="btn btn-sm" disabled={busy}
+                  onClick={() => {
+                    const ids = new Set(picked);
+                    commit(cur => ({
+                      plan: removePages(cur.plan, ids),
+                      annotations: cur.annotations.filter(a => !ids.has(a.pageId)),
+                    }));
+                    setPicked(new Set());
+                  }}>הסר נבחרים</button>
+                <button type="button" className="pdfw-quiet" onClick={() => setPicked(new Set())}>נקה סימון</button>
+              </>
+            )}
+            <span className="pdfw-bar-grow" />
+            <button type="button" className="pdfw-quiet" onClick={() => setSplitOpen(v => !v)}>
+              פיצול וטווחים
+            </button>
+          </div>
+        )}
+
+        {splitOpen && mode === 'organize' && (
+          <div className="pdfw-split">
+            <label className="pdfw-field">
+              <span>עמודים לקובץ חדש</span>
+              <div className="pdfw-inline">
+                <input className="inp" value={rangeText} placeholder="למשל 1-3, 7"
+                  onChange={e => setRangeText(e.target.value)} />
+                <button type="button" className="btn btn-sm" disabled={busy || !rangeText.trim()}
+                  onClick={createFromRanges}>צור</button>
+              </div>
+            </label>
+            <label className="pdfw-field">
+              <span>פיצול לקבצים של</span>
+              <div className="pdfw-inline">
+                <input className="inp" type="number" min={1} value={everyN} style={{ width: 80 }}
+                  onChange={e => setEveryN(e.target.value)} />
+                <span className="pdfw-unit">עמודים</span>
+                <button type="button" className="btn btn-sm" disabled={busy} onClick={createSplit}>פצל</button>
+              </div>
+            </label>
+          </div>
+        )}
+
+        {(mode === 'edit' || mode === 'sign') && (
+          <div className="pdfw-bar">
+            {mode === 'edit' ? (
+              <>
+                <ToolBtn t="select" cur={tool} set={setTool} label="בחירה והזזה" glyph="⬚" />
+                <span className="pdfw-bar-sep" />
+                <ToolBtn t="text" cur={tool} set={setTool} label="טקסט" glyph="A" />
+                <ToolBtn t="highlight" cur={tool} set={setTool} label="הדגשה" glyph="▬" />
+                <ToolBtn t="draw" cur={tool} set={setTool} label="ציור" glyph="✎" />
+                <ToolBtn t="rectangle" cur={tool} set={setTool} label="מלבן" glyph="▭" />
+                <ToolBtn t="circle" cur={tool} set={setTool} label="עיגול" glyph="◯" />
+                <ToolBtn t="line" cur={tool} set={setTool} label="קו" glyph="╱" />
+                <ToolBtn t="check" cur={tool} set={setTool} label="סימון נכון" glyph="✓" />
+                <ToolBtn t="cross" cur={tool} set={setTool} label="סימון שגוי" glyph="✗" />
+                <button type="button" className="pdfw-tool" title="תמונה" aria-label="תמונה"
+                  onClick={() => pickImage(false)}>🖼</button>
+                <span className="pdfw-bar-sep" />
+                <span className="pdfw-colors">
+                  {INK_COLORS.map(c => (
+                    <button key={c} type="button" aria-label={`צבע ${c}`}
+                      className={`pdfw-swatch${ink === c ? ' is-on' : ''}`}
+                      style={{ background: c }} onClick={() => setInk(c)} />
+                  ))}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="pdfw-bar-hint">חתום למטה, או העלה חותמת — ואז גרור למקום על הדף.</span>
+                <button type="button" className="btn btn-sm" onClick={() => pickImage(true)}>העלה חותמת</button>
+              </>
+            )}
+            <span className="pdfw-bar-grow" />
+            {pendingImage && <span className="pdfw-bar-hint">לחץ על הדף כדי להניח</span>}
+          </div>
+        )}
+
+        {/* ── גוף המשטח ───────────────────────────────────────────────── */}
+        {mode === 'organize' ? (
+          <div className="pdfw-pages">
+            {plan.map((page, index) => {
+              const meta = sourceById.get(page.sourceId);
+              return (
+                <PageCard
+                  key={page.id}
+                  page={page} index={index} total={plan.length}
+                  tint={multiSource ? meta?.tint : undefined}
+                  sourceLabel={multiSource ? meta?.source.label : undefined}
+                  bytes={meta?.source.bytes}
+                  narrow={narrow}
+                  picked={picked.has(page.id)}
+                  hasAnnotations={annotations.some(a => a.pageId === page.id)}
+                  dragging={dragId === page.id}
+                  dropTarget={overId === page.id && dragId !== null && dragId !== page.id}
+                  disabled={busy}
+                  onTogglePick={() => togglePick(page.id)}
+                  onDragStart={() => setDragId(page.id)}
+                  onDragEnd={() => { setDragId(null); setOverId(null); }}
+                  onDragOver={() => setOverId(page.id)}
+                  onDrop={() => handleDrop(page.id)}
+                  onRotate={() => commit(cur => ({ ...cur, plan: rotatePage(cur.plan, page.id, 1) }))}
+                  onRemove={() => dropPage(page.id)}
+                  onCrop={() => setCropFor(page.id)}
+                  onEdit={() => { setEditPageId(page.id); setMode('edit'); }}
+                  onNudge={d => nudge(page.id, d)}
+                />
+              );
+            })}
+            {plan.length === 0 && (
+              <div className="pdfw-empty">הסרת את כל העמודים. החזר אחד לפחות כדי ליצור מסמך.</div>
+            )}
+          </div>
+        ) : (
+          <div className="pdfw-editwrap">
+            <aside className="pdfw-strip" aria-label="עמודים">
+              {plan.map((p, i) => (
+                <button
+                  key={p.id} type="button"
+                  className={`pdfw-striprow${editPage?.id === p.id ? ' is-on' : ''}`}
+                  onClick={() => { setEditPageId(p.id); setSelectedAnn(null); }}
+                >
+                  <span>{i + 1}</span>
+                  {annotations.some(a => a.pageId === p.id) && <i className="pdfw-dot" />}
+                </button>
+              ))}
+            </aside>
+            <div className="pdfw-editmain">
+              {editPage && sourceById.get(editPage.sourceId) && (
+                <PdfPageEditor
+                  key={editPage.id}
+                  page={editPage}
+                  bytes={sourceById.get(editPage.sourceId)!.source.bytes}
+                  sourceRotation={sourceById.get(editPage.sourceId)!.source.rotations?.[editPage.sourceIndex] ?? 0}
+                  annotations={annotations}
+                  tool={mode === 'sign' ? (pendingImage ? 'image' : 'select') : tool}
+                  color={ink}
+                  pendingImage={pendingImage}
+                  selectedId={selectedAnn}
+                  onSelect={setSelectedAnn}
+                  onAdd={a => { addAnnotation(a); if (a.kind === 'image') { setPendingImage(null); setTool('select'); } }}
+                  onUpdate={updateAnnotation}
+                  onRemove={removeAnnotation}
+                />
+              )}
+              {mode === 'sign' && (
+                <div className="pdfw-signpad">
+                  <span className="pdfw-field-label">חתימה</span>
+                  <SignaturePad value="" height={110} onChange={placeSignature} />
+                  <span className="pdfw-bar-hint">החתימה תונח על הדף — אפשר לגרור ולשנות גודל.</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <footer className="pdfw-foot">
           <label className="pdfw-name">
             <span>שם הקובץ</span>
-            <input
-              className="inp" value={name} disabled={busy}
-              onChange={e => setName(e.target.value)}
-              placeholder="לדוגמה: דוח שנתי 2025"
-            />
+            <input className="inp" value={name} disabled={busy}
+              onChange={e => setName(e.target.value)} placeholder="לדוגמה: דוח שנתי 2025" />
           </label>
           {error && <div className="pdfw-error">{error}</div>}
           <div className="pdfw-cta">
             <button type="button" className="btn" onClick={onCancel} disabled={busy}>ביטול</button>
-            <button
-              type="button" className="btn btn-primary"
-              disabled={!canCreate}
-              onClick={() => onCreate(plan, name.trim())}
-            >
-              {busy ? 'יוצר…' : multiSource ? 'צור PDF מאוחד' : 'שמור PDF מאורגן'}
+            <button type="button" className="btn btn-primary" disabled={!canCreate} onClick={createSingle}>
+              {busy ? 'יוצר…' : multiSource ? 'צור PDF מאוחד' : 'שמור PDF חדש'}
             </button>
           </div>
         </footer>
+      </div>
+
+      {cropPage && sourceById.get(cropPage.sourceId) && (
+        <CropDialog
+          page={cropPage}
+          source={sourceById.get(cropPage.sourceId)!.source}
+          onCancel={() => setCropFor(null)}
+          onApply={crop => {
+            const id = cropPage.id;
+            commit(cur => ({ ...cur, plan: setPageCrop(cur.plan, id, crop) }));
+            setCropFor(null);
+          }}
+        />
+      )}
+
+      <input ref={imageInputRef} type="file" accept="image/png,image/jpeg" style={{ display: 'none' }}
+        onChange={e => onImageChosen(e, false)} />
+      <input ref={stampInputRef} type="file" accept="image/png,image/jpeg" style={{ display: 'none' }}
+        onChange={e => onImageChosen(e, true)} />
+      <span hidden data-hist={histTick} />
+    </div>
+  );
+}
+
+function ToolBtn({ t, cur, set, label, glyph }: {
+  t: EditTool; cur: EditTool; set: (t: EditTool) => void; label: string; glyph: string;
+}) {
+  return (
+    <button
+      type="button" title={label} aria-label={label} aria-pressed={cur === t}
+      className={`pdfw-tool${cur === t ? ' is-on' : ''}`}
+      onClick={() => set(t)}
+    >{glyph}</button>
+  );
+}
+
+// ─── חיתוך: בוחרים אזור ורואים מה יישאר ────────────────────────────────
+
+function CropDialog({ page, source, onCancel, onApply }: {
+  page: PlanPage;
+  source: OrganizerSource;
+  onCancel: () => void;
+  onApply: (crop: { xPct: number; yPct: number; widthPct: number; heightPct: number } | null) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState(page.crop ?? { xPct: 0.08, yPct: 0.08, widthPct: 0.84, heightPct: 0.84 });
+  const drag = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const loaded = await loadPdf(source.bytes);
+      if (cancelled) { loaded.doc.destroy(); return; }
+      if (canvasRef.current) await renderThumbnail(loaded.doc, page.sourceIndex, canvasRef.current, 700);
+      loaded.doc.destroy();
+    })();
+    return () => { cancelled = true; };
+  }, [source.bytes, page.sourceIndex]);
+
+  function rel(e: { clientX: number; clientY: number }) {
+    const r = boxRef.current!.getBoundingClientRect();
+    return {
+      x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
+      y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
+    };
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal-box pdfw-cropbox" onClick={e => e.stopPropagation()}>
+        <h3>חיתוך העמוד</h3>
+        <div className="csub">גרור כדי לבחור מה יישאר. התוכן עצמו אינו נמחק — אפשר לבטל בכל שלב.</div>
+        <div
+          ref={boxRef} dir="ltr" className="pdfw-cropstage"
+          onPointerDown={e => { drag.current = rel(e); (e.target as HTMLElement).setPointerCapture?.(e.pointerId); }}
+          onPointerMove={e => {
+            if (!drag.current) return;
+            const p = rel(e);
+            setRect({
+              xPct: Math.min(drag.current.x, p.x), yPct: Math.min(drag.current.y, p.y),
+              widthPct: Math.abs(p.x - drag.current.x), heightPct: Math.abs(p.y - drag.current.y),
+            });
+          }}
+          onPointerUp={() => { drag.current = null; }}
+        >
+          <canvas ref={canvasRef} className="pdfw-cropcanvas" />
+          <div className="pdfw-cropsel" style={{
+            left: `${rect.xPct * 100}%`, top: `${rect.yPct * 100}%`,
+            width: `${rect.widthPct * 100}%`, height: `${rect.heightPct * 100}%`,
+          }} />
+        </div>
+        <div className="foot">
+          <button type="button" className="btn btn-primary"
+            disabled={rect.widthPct < 0.05 || rect.heightPct < 0.05}
+            onClick={() => onApply(rect)}>החל חיתוך</button>
+          <button type="button" className="btn" onClick={() => onApply(null)}>בטל חיתוך</button>
+          <button type="button" className="btn" onClick={onCancel}>סגור</button>
+        </div>
       </div>
     </div>
   );
@@ -166,22 +620,13 @@ export default function PdfOrganizer({
 // ─── כרטיס עמוד ────────────────────────────────────────────────────────
 
 interface CardProps {
-  page: PlanPage;
-  index: number;
-  total: number;
-  tint?: string;
-  sourceLabel?: string;
-  bytes?: Uint8Array;
-  narrow: boolean;
-  dragging: boolean;
-  dropTarget: boolean;
-  disabled: boolean;
-  onDragStart: () => void;
-  onDragEnd: () => void;
-  onDragOver: () => void;
-  onDrop: () => void;
-  onRotate: () => void;
-  onRemove: () => void;
+  page: PlanPage; index: number; total: number;
+  tint?: string; sourceLabel?: string; bytes?: Uint8Array;
+  narrow: boolean; picked: boolean; hasAnnotations: boolean;
+  dragging: boolean; dropTarget: boolean; disabled: boolean;
+  onTogglePick: () => void;
+  onDragStart: () => void; onDragEnd: () => void; onDragOver: () => void; onDrop: () => void;
+  onRotate: () => void; onRemove: () => void; onCrop: () => void; onEdit: () => void;
   onNudge: (d: -1 | 1) => void;
 }
 
@@ -191,8 +636,6 @@ function PageCard(p: CardProps) {
   const [visible, setVisible] = useState(false);
   const [rendered, setRendered] = useState(false);
 
-  // ‼ רינדור עצל: מסמך בן 80 עמודים לא מרנדר 80 קנבסים בבת אחת. העמוד
-  // מצויר רק כשהוא מתקרב לאזור הנראה, ורק פעם אחת.
   useEffect(() => {
     const el = ref.current;
     if (!el || visible) return;
@@ -216,7 +659,7 @@ function PageCard(p: CardProps) {
         });
         if (!cancelled) setRendered(true);
       } catch {
-        if (!cancelled) setRendered(true);   // נכשל — נשאר הריבוע האפור
+        if (!cancelled) setRendered(true);
       }
     })();
     return () => { cancelled = true; };
@@ -231,6 +674,7 @@ function PageCard(p: CardProps) {
         'pdfw-card',
         p.dragging ? 'is-dragging' : '',
         p.dropTarget ? 'is-drop' : '',
+        p.picked ? 'is-picked' : '',
       ].filter(Boolean).join(' ')}
       draggable={!p.disabled}
       onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', p.page.id); p.onDragStart(); }}
@@ -241,7 +685,6 @@ function PageCard(p: CardProps) {
       role="group"
       aria-label={`עמוד ${p.index + 1} מתוך ${p.total}`}
       onKeyDown={e => {
-        // הזזה במקלדת: Ctrl/⌘ + חצים. בלי מקש עזר החצים גוללים כרגיל.
         if (!(e.ctrlKey || e.metaKey)) return;
         if (e.key === 'ArrowRight') { e.preventDefault(); p.onNudge(-1); }
         if (e.key === 'ArrowLeft') { e.preventDefault(); p.onNudge(1); }
@@ -249,23 +692,28 @@ function PageCard(p: CardProps) {
     >
       <div className="pdfw-thumb">
         <div className={`pdfw-thumb-inner${quarter ? ' is-quarter' : ''}`}>
-          <canvas
-            ref={canvasRef}
-            className="pdfw-canvas"
-            style={{ transform: `rotate(${p.page.rotation}deg)` }}
-          />
+          <canvas ref={canvasRef} className="pdfw-canvas" style={{ transform: `rotate(${p.page.rotation}deg)` }} />
         </div>
         {!rendered && <span className="pdfw-loading" aria-hidden="true" />}
+        {p.page.crop && <span className="pdfw-badge" title="העמוד חתוך">חתוך</span>}
+        {p.hasAnnotations && <span className="pdfw-badge is-ink" title="יש סימונים על העמוד">ערוך</span>}
 
-        {/* פעולות העמוד — בריחוף ובמיקוד בלבד */}
-        <div className="pdfw-tools">
-          <button type="button" title="סובב רבע סיבוב" aria-label={`סובב עמוד ${p.index + 1}`}
+        <span className="pdfw-pick" onClick={e => e.stopPropagation()}>
+          <input type="checkbox" checked={p.picked} onChange={p.onTogglePick}
+            aria-label={`סמן עמוד ${p.index + 1}`} />
+        </span>
+
+        <div className="pdfw-tools-float">
+          <button type="button" title="סובב" aria-label={`סובב עמוד ${p.index + 1}`}
             disabled={p.disabled} onClick={p.onRotate}>↻</button>
-          <button type="button" title="הסר מהמסמך" aria-label={`הסר עמוד ${p.index + 1}`}
+          <button type="button" title="ערוך תוכן" aria-label={`ערוך עמוד ${p.index + 1}`}
+            disabled={p.disabled} onClick={p.onEdit}>✎</button>
+          <button type="button" title="חיתוך" aria-label={`חתוך עמוד ${p.index + 1}`}
+            disabled={p.disabled} onClick={p.onCrop}>⌗</button>
+          <button type="button" title="הסר" aria-label={`הסר עמוד ${p.index + 1}`}
             className="pdfw-tool-remove" disabled={p.disabled} onClick={p.onRemove}>✕</button>
         </div>
 
-        {/* במסך צר גרירה אינה אמינה — כאן מזיזים בכפתורים */}
         {p.narrow && (
           <div className="pdfw-move">
             <button type="button" aria-label="הזז אחורה" disabled={p.disabled || p.index === 0}
@@ -289,13 +737,14 @@ function PageCard(p: CardProps) {
   );
 }
 
+// ─── עזרים ─────────────────────────────────────────────────────────────
+
 const THUMB_MAX_EDGE = 320;
 
 /**
  * ‼ תקרה למספר הרינדורים שרצים יחד. בלי זה, מסמך בן מאות עמודים פותח
  * מאות בקשות ציור בבת אחת: הזיכרון מתמלא בקנבסים והעמודים שהמשתמש באמת
- * רואה נדחקים לסוף התור. עם תקרה, מה שנמצא על המסך מצויר ראשון והשאר
- * ממתין בשקט.
+ * רואה נדחקים לסוף התור.
  */
 const MAX_CONCURRENT_RENDERS = 3;
 let activeRenders = 0;
@@ -314,8 +763,6 @@ async function withRenderSlot(job: () => Promise<void>): Promise<void> {
   }
 }
 
-// ‼ מסמך pdfjs אחד לכל מקור, משותף לכל הכרטיסים שלו. בלי זה כל עמוד היה
-// מפרסר מחדש את כל הקובץ — 30 עמודים = 30 פענוחים של אותם בייטים.
 const docCache = new Map<string, Promise<PdfDocument>>();
 
 function getSharedDoc(sourceId: string, bytes: Uint8Array): Promise<PdfDocument> {
@@ -326,10 +773,18 @@ function getSharedDoc(sourceId: string, bytes: Uint8Array): Promise<PdfDocument>
   return promise;
 }
 
-/** משוחרר בסגירת המשטח — אחרת מסמכים נשארים בזיכרון בין פתיחה לפתיחה. */
 export function releaseOrganizerCache() {
   for (const p of docCache.values()) {
     p.then(doc => { try { doc.destroy(); } catch { /* כבר נסגר */ } }).catch(() => { /* לא נטען */ });
   }
   docCache.clear();
+}
+
+function fileToDataUrl(file: File): Promise<string | null> {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
 }

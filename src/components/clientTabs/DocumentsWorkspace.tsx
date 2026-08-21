@@ -19,8 +19,9 @@ import LabelSelect from '../ui/LabelSelect';
 import { buildZip, sanitizeFileBaseName, uniqueEntryName, triggerBlobDownload } from '../../utils/zipArchive';
 import { looksConvertible, imageToPdfBytes, pdfFileNameFor, ImageConversionError } from '../../utils/imageToPdf';
 import { useToast } from '../ui/Toast';
-import PdfOrganizer, { releaseOrganizerCache, type OrganizerSource } from './PdfOrganizer';
-import { looksLikePdf, isPdfBytes, buildPdfFromPlan, defaultOutputName, PdfPlanError, type PlanPage } from '../../utils/pdfPages';
+import PdfOrganizer, { releaseOrganizerCache, type OrganizerSource, type OrganizerOutput } from './PdfOrganizer';
+import { looksLikePdf, isPdfBytes, buildPdfFromPlan, defaultOutputName, PdfPlanError } from '../../utils/pdfPages';
+import { loadPdf as loadPdfDoc } from '../../utils/pdfRender';
 
 const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.csv';
 
@@ -1148,29 +1149,9 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     try {
       const sources: OrganizerSource[] = [];
       for (const d of pdfSelection) {
-        // אותו מסלול הרשאות של "פתח את הקובץ" — getDoc מסנן לפי המשתמש
-        // וה-RLS מסנן שוב בשרת. אין כאן ערוץ גישה חדש לקבצים.
-        const full = await db.getDoc(d.id);
-        if (!full || full.fileData.byteLength === 0) {
-          showToast(`«${d.description || d.fileName}» אינו זמין באחסון.`);
-          return;
-        }
-        const bytes = new Uint8Array(full.fileData);
-        if (!isPdfBytes(bytes)) {
-          showToast(`«${d.description || d.fileName}» אינו PDF תקין.`);
-          return;
-        }
-        const { loadPdf } = await import('../../utils/pdfRender');
-        let pageCount = 0;
-        try {
-          const loaded = await loadPdf(bytes);
-          pageCount = loaded.numPages;
-          loaded.doc.destroy();
-        } catch {
-          showToast(`«${d.description || d.fileName}» פגום או מוגן בסיסמה.`);
-          return;
-        }
-        sources.push({ docId: d.id, label: d.description || d.fileName, pageCount, bytes });
+        const src = await loadSourceFromDoc(d);
+        if (!src) return;
+        sources.push(src);
       }
       const first = pdfSelection[0];
       setOrganizer({
@@ -1184,6 +1165,50 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
     }
   }
 
+  /**
+   * טוען מסמך מהתיק כמקור נוסף למשטח. ‼ אותו מסלול הרשאות: getDoc
+   * מסנן לפי המשתמש וה-RLS מסנן שוב בשרת.
+   */
+  async function loadSourceFromDoc(d: StoredDoc): Promise<OrganizerSource | null> {
+    const full = await db.getDoc(d.id);
+    if (!full || full.fileData.byteLength === 0) {
+      showToast(`«${d.description || d.fileName}» אינו זמין באחסון.`);
+      return null;
+    }
+    const bytes = new Uint8Array(full.fileData);
+    if (!isPdfBytes(bytes)) {
+      showToast(`«${d.description || d.fileName}» אינו PDF תקין.`);
+      return null;
+    }
+    try {
+      const loaded = await loadPdfDoc(bytes);
+      const rotations: number[] = [];
+      for (let i = 1; i <= loaded.numPages; i++) {
+        const pg = await loaded.doc.getPage(i);
+        rotations.push(pg.rotate ?? 0);
+      }
+      loaded.doc.destroy();
+      return { docId: d.id, label: d.description || d.fileName, pageCount: loaded.numPages, bytes, rotations };
+    } catch {
+      showToast(`«${d.description || d.fileName}» פגום או מוגן בסיסמה.`);
+      return null;
+    }
+  }
+
+  /** בורר מסמך נוסף להוספה למשטח — רק PDF של אותו לקוח. */
+  const [addPickerOpen, setAddPickerOpen] = useState(false);
+  const addPickerResolve = useRef<((s: OrganizerSource | null) => void) | null>(null);
+
+  function pickAdditionalSource(): Promise<OrganizerSource | null> {
+    setAddPickerOpen(true);
+    return new Promise(resolve => { addPickerResolve.current = resolve; });
+  }
+  function resolveAddPicker(value: OrganizerSource | null) {
+    setAddPickerOpen(false);
+    addPickerResolve.current?.(value);
+    addPickerResolve.current = null;
+  }
+
   function closeOrganizer() {
     if (pdfRunningRef.current) return;
     releaseOrganizerCache();
@@ -1195,46 +1220,68 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
    * יוצר מסמך PDF *חדש* מהתוכנית. המקורות נקראים בלבד — לא נמחקים, לא
    * נדרסים ולא משתנים. הבייטים נבנים ומאומתים בזיכרון, ורק אז נשמרים.
    */
-  async function createFromPlan(plan: PlanPage[], outName: string) {
+  /**
+   * יוצר מסמך אחד או כמה (בפיצול) מהמשטח.
+   *
+   * ‼ הכול נבנה ומאומת בזיכרון *לפני* שנשמר משהו. פיצול שנכשל באמצע לא
+   * משאיר חצי סדרה בתיק: או שכל החלקים נוצרו, או שאף אחד מהם לא.
+   * ‼ המקורות נקראים בלבד — לא נמחקים, לא נדרסים ולא משתנים.
+   */
+  async function createFromWorkspace(out: OrganizerOutput) {
     if (pdfRunningRef.current || !organizer) return;
     pdfRunningRef.current = true;
     setPdfBusy(true); setPdfError('');
     try {
       const bytesBySource = new Map(organizer.sources.map(s => [s.docId, s.bytes]));
-      const out = await buildPdfFromPlan(plan, bytesBySource);
+      const base = sanitizeFileBaseName(out.name) || 'מסמך';
+      const parts = out.groups && out.groups.length > 1
+        ? out.groups.map(g => ({ plan: g.plan, name: `${base} - ${g.suffix}` }))
+        : [{ plan: out.plan, name: base }];
 
+      // שלב א' — בנייה בזיכרון בלבד
+      const built: { bytes: Uint8Array; name: string }[] = [];
+      for (const part of parts) {
+        const anns = out.annotations.filter(a => part.plan.some(p => p.id === a.pageId));
+        built.push({ bytes: await buildPdfFromPlan(part.plan, bytesBySource, anns), name: part.name });
+      }
+
+      // שלב ב' — שמירה
       const first = pdfSelection[0] ?? docs.find(d => d.id === organizer.sources[0].docId);
       const siblings = await db.getDocsByClient(first!.clientId);
       const taken = new Set(siblings.map(d => (d.fileName || '').toLowerCase()));
-      const fileName = uniqueEntryName(`${sanitizeFileBaseName(outName) || 'מסמך'}.pdf`, taken);
-
-      const fileData = new ArrayBuffer(out.byteLength);
-      new Uint8Array(fileData).set(out);
-
-      const created: StoredDoc = {
-        id: crypto.randomUUID(),
-        clientId: first!.clientId,
-        fileName,
-        fileType: 'application/pdf',
-        fileSize: fileData.byteLength,
-        category: first!.category,
-        year: first!.year,
-        uploadedAt: new Date().toISOString(),
-        description: sanitizeFileBaseName(outName) || fileName.replace(/\.pdf$/i, ''),
-        notes: organizer.sources.length > 1
-          ? `אוחד מתוך: ${organizer.sources.map(s => s.label).join(' · ')}.`
-          : `אורגן מחדש מתוך «${organizer.sources[0].label}».`,
-        fileData,
-        folderId: first!.folderId ?? null,
-        labelId: first!.labelId ?? null,
-      };
-      await db.saveDoc(created);
+      const names: string[] = [];
+      for (const item of built) {
+        const fileName = uniqueEntryName(`${item.name}.pdf`, taken);
+        const fileData = new ArrayBuffer(item.bytes.byteLength);
+        new Uint8Array(fileData).set(item.bytes);
+        const created: StoredDoc = {
+          id: crypto.randomUUID(),
+          clientId: first!.clientId,
+          fileName,
+          fileType: 'application/pdf',
+          fileSize: fileData.byteLength,
+          category: first!.category,
+          year: first!.year,
+          uploadedAt: new Date().toISOString(),
+          description: fileName.replace(/\.pdf$/i, ''),
+          notes: organizer.sources.length > 1
+            ? `נוצר מ: ${organizer.sources.map(s => s.label).join(' · ')}.`
+            : `נוצר מתוך «${organizer.sources[0].label}».`,
+          fileData,
+          folderId: first!.folderId ?? null,
+          labelId: first!.labelId ?? null,
+        };
+        await db.saveDoc(created);
+        names.push(fileName);
+      }
 
       releaseOrganizerCache();
       setOrganizer(null);
       clearSelection();
       void loadAll();
-      showToast(`נוצר ${fileName} · המקורות נשארו כמו שהם`);
+      showToast(names.length === 1
+        ? `נוצר ${names[0]} · המקורות נשארו כמו שהם`
+        : `נוצרו ${names.length} מסמכים · המקורות נשארו כמו שהם`);
     } catch (e) {
       setPdfError(e instanceof PdfPlanError ? e.message
         : e instanceof Error ? `יצירת המסמך נכשלה: ${e.message}` : 'יצירת המסמך נכשלה.');
@@ -1921,10 +1968,41 @@ export default function DocumentsWorkspace({ client, allClients }: Props) {
           initialName={organizer.name}
           busy={pdfBusy}
           error={pdfError}
+          onPickSource={pickAdditionalSource}
           onCancel={closeOrganizer}
-          onCreate={createFromPlan}
+          onCreate={createFromWorkspace}
         />
       )}
+
+      {/* ── בחירת מסמך נוסף למשטח ה-PDF ─────────────────────────────── */}
+      {addPickerOpen && (() => {
+        const used = new Set(organizer?.sources.map(s => s.docId) ?? []);
+        const options = docs.filter(d => looksLikePdf(d.fileType, d.fileName) && !used.has(d.id));
+        return (
+          <div className="modal-backdrop" onClick={() => resolveAddPicker(null)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+              <h3>הוסף קובץ למשטח</h3>
+              <div className="csub">רק מסמכי PDF של הלקוח הזה. העמודים יתווספו בסוף, ואפשר לגרור אותם למקום.</div>
+              <div className="pdfw-picklist">
+                {options.length === 0 && <div className="csub">אין מסמך PDF נוסף להוסיף.</div>}
+                {options.map(d => (
+                  <button key={d.id} type="button" className="pdfw-pickrow"
+                    onClick={async () => {
+                      const src = await loadSourceFromDoc(d);
+                      resolveAddPicker(src);
+                    }}>
+                    <b>{d.description || d.fileName}</b>
+                    <span>{d.fileName}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="foot">
+                <button type="button" className="btn" onClick={() => resolveAddPicker(null)}>ביטול</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── מודל שם החבילה להורדה ───────────────────────────────────── */}
       {zipModal && (

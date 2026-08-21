@@ -49,7 +49,10 @@ export default function SignaturePad({ value, onChange, height = 180 }: Props) {
 
   function handleDown(e: React.PointerEvent<HTMLCanvasElement>) {
     e.preventDefault();
-    (e.target as Element).setPointerCapture(e.pointerId);
+    // ‼ setPointerCapture זורק כשאין מצביע פעיל במזהה הזה (מגע שהשתחרר,
+    // אירוע מסונתז). בלי המעטפת הזו הציור נשבר בשקט — drawing לא נדלק,
+    // והחתימה פשוט לא נרשמת.
+    try { (e.target as Element).setPointerCapture(e.pointerId); } catch { /* אין לכידה — מציירים בלעדיה */ }
     drawing.current = true;
     lastPoint.current = getPoint(e);
   }
