@@ -288,6 +288,13 @@ export default function TestOnboarding() {
                 { documentId: 'd1', fileName: 'כרטסת-2025.pdf', at: '2026-08-06T10:00:00Z' },
                 { documentId: 'd2', fileName: 'מבנה-אחיד.txt', at: '2026-08-06T10:01:00Z' },
               ],
+              // קובץ שהרו"ח הקודם הסיר מהרשימה שלו — הכרטיס אומר שהמסמך נשאר.
+              removedUploads: [
+                {
+                  documentId: 'd3', fileName: 'טיוטה.xlsx', at: '2026-08-06T10:02:00Z',
+                  removedAt: '2026-08-07T08:30:00Z', removedBy: 'prev_accountant',
+                },
+              ],
             },
           };
         }

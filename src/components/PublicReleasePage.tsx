@@ -59,6 +59,16 @@ interface ReleaseData {
   materialsTotal: number;
   /** כמה קבצים כבר הגיעו בהעלאה מרוכזת (בלי שיוך לפריט). */
   bulkUploads?: number;
+  /** מה שהוא שלח בפועל — כדי שיראה מה כבר הגיע ולא ישלח שוב את אותו קובץ. */
+  uploads?: ReleaseUploadRow[];
+  /** עבודות שנשארו בטיפולו (דוח שנתי, הצהרת הון) — כתוב במכתב, ומוצג גם כאן. */
+  outstanding?: Array<{ key: string; label: string }>;
+}
+
+interface ReleaseUploadRow {
+  id: string;
+  name: string;
+  at?: string;
 }
 
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.xls,.xlsx,.csv,.doc,.docx';
@@ -82,11 +92,18 @@ function displayFileName(name: string): string {
 }
 
 /** גוון חלש של צבע המשרד — רקע כרטיס השליחה בזמן גרירה. */
-function tint(hex: string): string {
+function tint(hex: string, alpha = .07): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return 'rgba(0,0,0,.04)';
+  if (!m) return `rgba(0,0,0,${alpha})`;
   const n = parseInt(m[1], 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},.07)`;
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+function shortDate(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? '' : d.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
 }
 
 /** תקרה לגרירת תיקייה, כדי שתיקייה ענקית לא תיתקע בתור אינסופי. */
@@ -216,17 +233,25 @@ export default function PublicReleasePage({ token }: Props) {
           <BulkUpload
             token={token}
             stepId={data.materialsStepId}
-            alreadyReceived={receivedFiles}
             brand={brand}
             accent={accent}
             onUploaded={n => { setJustUploaded(n); reload(); }}
             onDragActive={setDropActive}
           />
           {!dropActive && (
-            <p style={{ margin: '12px 0 0', fontSize: 12.5, color: brand.muted, lineHeight: 1.75 }}>
-              אפשר לשלוח בכמה פעמים — הקישור נשאר פעיל.
-              נוח יותר במייל? אפשר להשיב להודעה ששלחנו ולצרף את הקבצים.
-            </p>
+            <>
+              <SentFiles
+                token={token}
+                files={data.uploads ?? []}
+                brand={brand}
+                accent={accent}
+                onRemoved={reload}
+              />
+              <p style={{ margin: '14px 0 0', fontSize: 12.5, color: brand.muted, lineHeight: 1.75 }}>
+                אפשר לשלוח בכמה פעמים — הקישור נשאר פעיל.
+                יש שאלה, או שנוח יותר לשלוח במייל? אפשר פשוט להשיב להודעה ששלחנו.
+              </p>
+            </>
           )}
         </section>
 
@@ -282,7 +307,30 @@ export default function PublicReleasePage({ token }: Props) {
           </section>
         )}
 
-        {/* ── 4. פעולות שקטות ── */}
+        {/* ── 4. מה נשאר בטיפולו ── */}
+        {/* ‼ לא בקשה ולא צ'קליסט: זה מה שסוכם שהוא מסיים, וכתוב כך במכתב.
+            בלעדיו הוא קורא במכתב שהדוח עליו, ורואה עמוד שמדבר רק על חומרים. */}
+        {(data.outstanding?.length ?? 0) > 0 && (
+          <section style={card}>
+            <div style={title}>מה נשאר בטיפולך</div>
+            <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 5 }}>
+              {data.outstanding!.map(o => (
+                <li key={o.key} style={{
+                  display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13.5, lineHeight: 1.6,
+                }}>
+                  <span aria-hidden="true" style={{ color: brand.muted, flexShrink: 0 }}>·</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>{o.label}</span>
+                </li>
+              ))}
+            </ul>
+            <div style={{ marginTop: 10, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
+              עד ההגשה משרדך נשאר המייצג הראשי. נשמח לעדכון אחרי ההגשה ולהעתק
+              ממה שהוגש — אפשר לצרף אותו כאן, כמו כל חומר אחר.
+            </div>
+          </section>
+        )}
+
+        {/* ── 5. פעולות שקטות ── */}
         <section style={{ ...card, background: 'transparent', border: 'none', padding: '4px 2px' }}>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             {data.body && (
@@ -442,6 +490,95 @@ async function filesFromDrop(dt: DataTransfer): Promise<File[]> {
 }
 
 /**
+ * מה שכבר נשלח — רשימה, לא מונה.
+ *
+ * ‼ הוא שולח לאורך שבועות ובכמה פעימות. מונה ("התקבלו 3 קבצים") לא אומר לו
+ * אם הקובץ שהוא עומד לשלוח כבר נשלח, והתוצאה היא כפילויות אצלנו.
+ * ‼ ההסרה רכה — היא מורידה מהרשימה שלו ולא מוחקת אצלנו. ראה מיגרציה 119.
+ */
+function SentFiles({ token, files, brand, accent, onRemoved }: {
+  token: string; files: ReleaseUploadRow[];
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string; onRemoved: () => void;
+}) {
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  if (files.length === 0) return null;
+
+  async function remove(id: string) {
+    setErr(null);
+    setBusyId(id);
+    const { data, error } = await supabase.rpc('release_portal_remove_upload', {
+      p_token: token, p_document_id: id,
+    });
+    setBusyId(null);
+    setConfirming(null);
+    const res = data as { ok?: boolean } | null;
+    if (error || !res?.ok) { setErr('לא הצלחנו להסיר את הקובץ. אפשר לנסות שוב.'); return; }
+    onRemoved();
+  }
+
+  const action: React.CSSProperties = {
+    border: 'none', background: 'none', padding: 0, cursor: 'pointer',
+    fontSize: 12, fontWeight: 600, color: brand.muted, textDecoration: 'underline',
+    flex: '0 0 auto',
+  };
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontSize: 12.5, color: brand.muted, marginBottom: 7 }}>
+        מה שכבר שלחת ({files.length})
+      </div>
+      <ul style={{
+        margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 1,
+        border: `1px solid ${brand.border}`, borderRadius: brand.radius, overflow: 'hidden',
+      }}>
+        {files.map(f => (
+          <li key={f.id} style={{
+            display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
+            fontSize: 13, padding: '9px 12px', background: '#fff',
+            borderBottom: `1px solid ${brand.border}`,
+          }}>
+            <span aria-hidden="true" style={{ color: accent, flex: '0 0 auto' }}>✓</span>
+            <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', color: brand.ink }}>
+              {displayFileName(f.name)}
+            </span>
+            {f.at && (
+              <span style={{ fontSize: 11.5, color: brand.muted, flex: '0 0 auto' }}>
+                {shortDate(f.at)}
+              </span>
+            )}
+            {confirming === f.id ? (
+              <span style={{ display: 'flex', gap: 10, alignItems: 'center', flex: '0 0 auto' }}>
+                <button type="button" style={{ ...action, color: '#a63a3a' }}
+                  disabled={busyId === f.id} onClick={() => void remove(f.id)}>
+                  {busyId === f.id ? 'מסיר…' : 'להסיר'}
+                </button>
+                <button type="button" style={action} onClick={() => setConfirming(null)}>
+                  ביטול
+                </button>
+              </span>
+            ) : (
+              <button type="button" style={action} onClick={() => setConfirming(f.id)}>
+                הסרה
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {err && (
+        <div style={{ marginTop: 8, fontSize: 12.5, color: '#a63a3a' }}>{err}</div>
+      )}
+      <div style={{ marginTop: 8, fontSize: 12, color: brand.muted, lineHeight: 1.7 }}>
+        הסרה מורידה את הקובץ מהרשימה כאן. אם הסרת בטעות — אפשר פשוט לשלוח שוב.
+      </div>
+    </div>
+  );
+}
+
+/**
  * אזור ההעלאה הראשי — קובץ, כמה קבצים או תיקייה.
  *
  * ‼ תור סדרתי ולא הצפה במקביל: לשרת יש תקרת קבצים לשעה, והעלאה מקבילה של
@@ -453,8 +590,8 @@ async function filesFromDrop(dt: DataTransfer): Promise<File[]> {
  * ‼ הגרירה נתפסת על כל העמוד ולא רק על הכרטיס: שחרור קובץ מחוץ ליעד גורם
  * לדפדפן לפתוח את הקובץ במקום הדף, והרו"ח הקודם מאבד את הקישור.
  */
-function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded, onDragActive }: {
-  token: string; stepId?: string; alreadyReceived: number;
+function BulkUpload({ token, stepId, brand, accent, onUploaded, onDragActive }: {
+  token: string; stepId?: string;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onUploaded: (count: number) => void;
   onDragActive: (active: boolean) => void;
@@ -543,6 +680,7 @@ function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded,
   const failed = rows.filter(r => r.status === 'err').length;
   const okCount = rows.filter(r => r.status === 'ok').length;
   const doneAll = rows.length > 0 && !busy;
+  const visibleRows = busy ? rows : rows.filter(r => r.status === 'err');
 
   const primary: React.CSSProperties = {
     cursor: busy ? 'default' : 'pointer', fontSize: 15, fontWeight: 700,
@@ -562,14 +700,22 @@ function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded,
   if (dragging) {
     return (
       <div style={{
-        minHeight: 96, display: 'flex', flexDirection: 'column',
+        minHeight: 118, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-        borderRadius: brand.radius, padding: '16px 12px',
+        gap: 8, padding: '20px 14px',
+        border: `1.5px solid ${accent}`, borderRadius: brand.radius + 2,
+        background: tint(accent, .1),
       }}>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"
+          stroke={accent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 3v12" />
+          <path d="M7 11l5 5 5-5" />
+          <path d="M4 20h16" />
+        </svg>
         <div style={{ fontSize: 16, fontWeight: 700, color: accent }}>
           שחררו כאן ונתחיל לקבל
         </div>
-        <div style={{ fontSize: 12.5, color: accent, marginTop: 4 }}>
+        <div style={{ fontSize: 12.5, color: accent, opacity: .85 }}>
           אפשר לשחרר גם תיקייה שלמה
         </div>
       </div>
@@ -590,12 +736,6 @@ function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded,
         אפשר גם לגרור לכאן קבצים או תיקייה שלמה
       </div>
 
-      {alreadyReceived > 0 && rows.length === 0 && (
-        <div style={{ marginTop: 10, fontSize: 12.5, color: brand.muted }}>
-          כבר התקבלו {alreadyReceived} קבצים. אפשר להוסיף עוד.
-        </div>
-      )}
-
       {skipped > 0 && (
         <div style={{ marginTop: 10, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
           {skipped === 1 ? 'קובץ אחד דולג' : `${skipped} קבצים דולגו`} — סוג הקובץ
@@ -603,15 +743,18 @@ function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded,
         </div>
       )}
 
-      {rows.length > 0 && (
+      {/* ‼ אחרי שהכול עבר בהצלחה הרשימה הזו נעלמת — הקבצים כבר מופיעים
+          ב"מה שכבר שלחת", ושתי רשימות זהות זו לזו רק מבלבלות. מה שנכשל
+          נשאר, כי הוא לא נמצא בשום מקום אחר. */}
+      {visibleRows.length > 0 && (
         <div style={{ marginTop: 14 }}>
           <div style={{ fontSize: 12.5, color: brand.muted, marginBottom: 6 }}>
             {busy
               ? `מעלה ${Math.min(okCount + failed + 1, rows.length)} מתוך ${rows.length}…`
-              : `הועלו ${okCount} מתוך ${rows.length}${failed ? ` · ${failed} נכשלו` : ''}`}
+              : `${failed} מתוך ${rows.length} לא נשלחו`}
           </div>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 3 }}>
-            {rows.map((r, i) => (
+            {visibleRows.map((r, i) => (
               <li key={`${r.name}-${i}`} style={{
                 display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 12.5,
                 color: r.status === 'err' ? '#a63a3a' : brand.ink,

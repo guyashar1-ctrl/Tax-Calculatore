@@ -489,6 +489,14 @@ export interface StepPayload {
    * בהצהרה שלו ("מה כלל המשלוח") או בסימון של המשרד.
    */
   bulkUploads?: Array<{ documentId: string; fileName: string; at: string }>;
+  /**
+   * מה שהרו"ח הקודם הסיר מהרשימה שלו בדף. ‼ הסרה רכה: הרשומה עוברת לכאן
+   * מ-bulkUploads, והמסמך עצמו נשאר בתיק הלקוח. ראה מיגרציה 119.
+   */
+  removedUploads?: Array<{
+    documentId: string; fileName: string; at: string;
+    removedAt: string; removedBy: string;
+  }>;
   /** תגובה עניינית של הרו"ח הקודם (הערה, הסתייגות, התנגדות) — ראיה שנשמרת. */
   prevAccountantResponseNote?: string;
   prevAccountantRespondedAt?: string;

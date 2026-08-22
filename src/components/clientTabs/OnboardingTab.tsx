@@ -3048,6 +3048,9 @@ function ReleaseStepCard(p: ReleaseCardProps) {
   const pendingFollowUp = items.filter(i => i.addedAfterSend && !i.notifiedAt);
   /** קבצים שהרו"ח הקודם שלח בלי לשייך לפריט — הם לא סוגרים כלום מעצמם. */
   const bulkUploads = (materialsStep?.payload.bulkUploads ?? []).length;
+  /** ‼ מה שהוא הסיר מהרשימה שלו בדף. המסמך עצמו לא נמחק — הוא בתיק הלקוח
+      כרגיל (מיגרציה 119). השורה קיימת כדי שהסרה לא תיראה כמו קובץ שנעלם. */
+  const removedUploads = (materialsStep?.payload.removedUploads ?? []).length;
 
   // ── חלוקת הטיפול והעבודות הפתוחות ──────────────────────────────────────
   // נכתבות בשליחת המכתב (מהחלון); כאן רק מציגים ומסמנים "הוגש". אין להן
@@ -3483,6 +3486,12 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                   התקבלו {bulkUploads} קבצים במסמכי הלקוח
                   {receivedCount < required.length
                     && <> · {required.length - receivedCount} פריטים עדיין לא סומנו כהתקבלו</>}
+                </div>
+              )}
+              {removedUploads > 0 && (
+                <div className="ob-hand-contact" style={{ display: 'block' }}>
+                  {removedUploads === 1 ? 'קובץ אחד הוסר' : `${removedUploads} קבצים הוסרו`} מהרשימה
+                  של הרו״ח הקודם · הקבצים עצמם נשארו במסמכי הלקוח
                 </div>
               )}
               {step.payload.prevAccountantResponseNote && (
