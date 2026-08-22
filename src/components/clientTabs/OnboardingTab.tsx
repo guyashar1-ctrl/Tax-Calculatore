@@ -1296,6 +1296,19 @@ export default function OnboardingTab({
                       <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
                         onClick={() => void run(step, 'verify')}>אמת</button>
                     )}
+                    {/* ‼ סגירה בלחיצה אחת חייבת ביטול בלחיצה אחת. "החומרים
+                        הגיעו" הוא כפתור ראשי ליד "ממתין ללקוח", ולחיצה בטעות
+                        הקפיאה גם את הרשימה עצמה (itemsEditable). הביטול מחזיר
+                        את השלב למי שהחזיק את הכדור, ולא ל"טרם התחיל". */}
+                    {['completed', 'verified'].includes(step.status) && (
+                      <button type="button" className="btn btn-sm btn-ghost" disabled={busy}
+                        title="השלב חוזר להמתנה, בדיוק כפי שהיה לפני הסימון"
+                        onClick={() => void (step.ball && step.ball !== 'me'
+                          ? run(step, 'wait_client', { ball: step.ball })
+                          : run(step, 'reopen'))}>
+                        בטל סימון
+                      </button>
+                    )}
                     {(step.status === 'blocked' || step.status === 'failed') && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
                         onClick={() => void run(step, 'reopen')}>פתח מחדש</button>
@@ -3486,6 +3499,25 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                   התקבלו {bulkUploads} קבצים במסמכי הלקוח
                   {receivedCount < required.length
                     && <> · {required.length - receivedCount} פריטים עדיין לא סומנו כהתקבלו</>}
+                </div>
+              )}
+              {/* ‼ "החומרים הגיעו" סוגר את מעקב החומרים — והכרטיס שלו נעלם
+                  מהרשימה, כי שלב סגור אינו מוצג. לחיצה בטעות הותירה את גיא
+                  בלי שום דרך חזרה, וגם הקפיאה את רשימת החומרים לעריכה.
+                  הביטול יושב כאן דווקא, בכרטיס המכתב שנשאר גלוי. */}
+              {materialsStep && !materialsOpen && materialsStep.status !== 'cancelled' && (
+                <div className="ob-hand-contact" style={{ display: 'block' }}>
+                  מעקב החומרים סגור — סומן שהחומרים הגיעו
+                  <button type="button" className="btn btn-sm btn-ghost"
+                    style={{ marginInlineStart: '.4rem' }} disabled={busy || saving}
+                    onClick={async () => {
+                      setSaving(true);
+                      await p.advance(materialsStep.id, 'wait_client', { ball: 'prev_accountant' });
+                      setSaving(false);
+                      p.refresh?.();
+                    }}>
+                    בטל סימון
+                  </button>
                 </div>
               )}
               {removedUploads > 0 && (

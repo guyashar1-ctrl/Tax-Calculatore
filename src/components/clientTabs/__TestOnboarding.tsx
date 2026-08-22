@@ -241,6 +241,9 @@ export default function TestOnboarding() {
   /* ‼ שני מצבי הייצוג — פתוח (כרטיס פעיל) מול הושלם (אבן-דרך שקטה מעל
      פייפרלס). המתג הזה הוא הדרך היחידה לראות את שניהם על אותה פיקסטורה. */
   const [repDone, setRepDone] = useState(false);
+  /* ‼ "החומרים הגיעו" נסגר בלחיצה אחת, וגם מקפיא את רשימת החומרים. המתג
+     מראה את המצב שאחרי הלחיצה — ואת הביטול שמחזיר ממנו. */
+  const [materialsMarked, setMaterialsMarked] = useState(false);
   /* ‼ מכתב שנשלח וחלון ההתייחסות שלו עבר בשקט — המצב שבו הכרטיס אומר
      "עבר חלון ההתייחסות ללא מניעה" בלי שאיש לחץ על כלום. זהו גם המצב שבו
      נבדקים סימון קבלה ידני, תג "לפי הצהרתו" ומונה הקבצים שלא שויכו.
@@ -276,7 +279,11 @@ export default function TestOnboarding() {
         }
         if (s.stepType === 'materials_received') {
           return {
-            ...s, status: 'in_progress' as const,
+            ...s,
+            // ‼ המצב שאחרי לחיצה על "החומרים הגיעו" — כולל בטעות. המתג הזה
+            // הוא הדרך היחידה לראות את "בטל סימון" ואת הרשימה שנעולה בגללו.
+            status: (materialsMarked ? 'completed' : 'in_progress') as OnboardingStep['status'],
+            ball: 'prev_accountant' as const,
             payload: {
               ...s.payload,
               checklist: [
@@ -385,6 +392,10 @@ export default function TestOnboarding() {
         <button type="button" className="btn btn-sm btn-secondary"
           onClick={() => setWindowPassed(v => !v)}>
           {windowPassed ? 'חזרה למכתב שטרם נשלח' : 'מכתב שנשלח וחלון ההתייחסות עבר'}
+        </button>
+        <button type="button" className="btn btn-sm btn-secondary"
+          onClick={() => setMaterialsMarked(v => !v)}>
+          {materialsMarked ? 'החזר את החומרים למצב פתוח' : 'סומן "החומרים הגיעו"'}
         </button>
         <button type="button" className="btn btn-sm btn-secondary"
           onClick={() => setPaperless(v =>

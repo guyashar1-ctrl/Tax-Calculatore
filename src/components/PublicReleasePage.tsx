@@ -137,6 +137,15 @@ export default function PublicReleasePage({ token }: Props) {
   const [justUploaded, setJustUploaded] = useState(0);
   /** גוררים קבצים מעל העמוד — כרטיס השליחה נדלק כיעד אחד גדול. */
   const [dropActive, setDropActive] = useState(false);
+  /**
+   * אישור הקבלה שיושב ליד הכפתור. ‼ נפרד מ-justUploaded בכוונה: אותו state
+   * נסגר כשעונים על שאלת ההמשך, והאישור חייב להישאר. בלעדיו הרגע היחיד
+   * שאומר "קיבלנו" היה הכרטיס של שאלת ההמשך — שכלל לא מופיע כשאין פריטים
+   * פתוחים, ואז שליחה מוצלחת עברה בלי שום סימן.
+   */
+  const [receipt, setReceipt] = useState(0);
+  /** מזהי הקבצים שכבר היו כאן בכניסה — מה שמעבר להם נשלח עכשיו. */
+  const seenUploadIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +154,9 @@ export default function PublicReleasePage({ token }: Props) {
       if (cancelled) return;
       const row = res as (ReleaseData & { ok?: boolean }) | null;
       if (error || !row?.ok) { setPhase('invalid'); return; }
+      if (seenUploadIds.current === null) {
+        seenUploadIds.current = new Set((row.uploads ?? []).map(u => u.id));
+      }
       setData(row);
       setPhase('ready');
     })();
@@ -213,8 +225,23 @@ export default function PublicReleasePage({ token }: Props) {
       }</style>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
         <header style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{data.firmName}</div>
-          <h1 style={{ fontSize: 21, fontWeight: 700, margin: '6px 0 0', lineHeight: 1.4 }}>
+          {/* ‼ אותה כותרת בדיוק כמו בדף האישי של הלקוח — שני העמודים שגורם
+              חיצוני רואה. לוגו אם הוגדר, ואם לא — ראשי תיבות ושם המשרד. */}
+          {brand.logoUrl ? (
+            <img src={brand.logoUrl} alt={data.firmName} style={{
+              display: 'block', maxHeight: 40 * brand.logoScale,
+              maxWidth: 180 * brand.logoScale, objectFit: 'contain',
+            }} />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%', border: `1.5px solid ${brand.ink}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5,
+              }}>{brand.monogram}</div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{data.firmName}</div>
+            </div>
+          )}
+          <h1 style={{ fontSize: 21, fontWeight: 700, margin: '10px 0 0', lineHeight: 1.4 }}>
             העברת חומרים — {data.clientName}
           </h1>
           <div style={{ fontSize: 13.5, color: brand.muted, marginTop: 5, lineHeight: 1.7 }}>
@@ -235,14 +262,33 @@ export default function PublicReleasePage({ token }: Props) {
             stepId={data.materialsStepId}
             brand={brand}
             accent={accent}
-            onUploaded={n => { setJustUploaded(n); reload(); }}
+            onUploaded={n => { setJustUploaded(n); setReceipt(n); reload(); }}
+            onUploadStart={() => setReceipt(0)}
             onDragActive={setDropActive}
           />
           {!dropActive && (
             <>
+              {receipt > 0 && (
+                <div style={{
+                  marginTop: 14, padding: '11px 13px', borderRadius: brand.radius,
+                  background: tint(accent, .09), display: 'flex', gap: 9, alignItems: 'flex-start',
+                }}>
+                  <span aria-hidden="true" style={{ color: accent, fontSize: 15, lineHeight: 1.4 }}>✓</span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: accent }}>
+                      {receipt === 1 ? 'הקובץ התקבל אצלנו' : `${receipt} קבצים התקבלו אצלנו`}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: accent, marginTop: 2 }}>
+                      {receipt === 1 ? 'אפשר לסגור את החלון — שמרנו אותו.'
+                        : 'אפשר לסגור את החלון — שמרנו אותם.'}
+                    </div>
+                  </div>
+                </div>
+              )}
               <SentFiles
                 token={token}
                 files={data.uploads ?? []}
+                newIds={seenUploadIds.current}
                 brand={brand}
                 accent={accent}
                 onRemoved={reload}
@@ -496,8 +542,10 @@ async function filesFromDrop(dt: DataTransfer): Promise<File[]> {
  * אם הקובץ שהוא עומד לשלוח כבר נשלח, והתוצאה היא כפילויות אצלנו.
  * ‼ ההסרה רכה — היא מורידה מהרשימה שלו ולא מוחקת אצלנו. ראה מיגרציה 119.
  */
-function SentFiles({ token, files, brand, accent, onRemoved }: {
+function SentFiles({ token, files, newIds, brand, accent, onRemoved }: {
   token: string; files: ReleaseUploadRow[];
+  /** מה שכבר היה כאן בכניסה. מה שלא ברשימה — נשלח בביקור הזה. */
+  newIds: Set<string> | null;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onRemoved: () => void;
 }) {
@@ -545,7 +593,13 @@ function SentFiles({ token, files, brand, accent, onRemoved }: {
             <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', color: brand.ink }}>
               {displayFileName(f.name)}
             </span>
-            {f.at && (
+            {newIds && !newIds.has(f.id) ? (
+              <span style={{
+                fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', flex: '0 0 auto',
+                padding: '1px 8px', borderRadius: 999,
+                background: tint(accent, .12), color: accent,
+              }}>נשלח עכשיו</span>
+            ) : f.at && (
               <span style={{ fontSize: 11.5, color: brand.muted, flex: '0 0 auto' }}>
                 {shortDate(f.at)}
               </span>
@@ -590,10 +644,11 @@ function SentFiles({ token, files, brand, accent, onRemoved }: {
  * ‼ הגרירה נתפסת על כל העמוד ולא רק על הכרטיס: שחרור קובץ מחוץ ליעד גורם
  * לדפדפן לפתוח את הקובץ במקום הדף, והרו"ח הקודם מאבד את הקישור.
  */
-function BulkUpload({ token, stepId, brand, accent, onUploaded, onDragActive }: {
+function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, onDragActive }: {
   token: string; stepId?: string;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onUploaded: (count: number) => void;
+  onUploadStart: () => void;
   onDragActive: (active: boolean) => void;
 }) {
   type Row = { name: string; status: 'pending' | 'uploading' | 'ok' | 'err'; error?: string };
@@ -624,6 +679,7 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onDragActive }: 
     const files = dropped ? usable.filter(f => isAccepted(f.name)) : usable;
     setSkipped(dropped ? usable.length - files.length : 0);
     if (files.length === 0) return;
+    onUploadStart();
     setRows(files.map(f => ({ name: f.name, status: 'pending' as const })));
     busyRef.current = true;
     setBusy(true);
