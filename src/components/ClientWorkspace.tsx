@@ -779,6 +779,7 @@ export default function ClientWorkspace({
             clientDisplayName={`${client.firstName} ${client.lastName ?? ''}`.trim()}
             clientEmail={client.email}
             quotations={quotations ?? []}
+            onOpenDocuments={() => { tabPickedByUser.current = true; setTab('docs'); }}
           />
         )}
 

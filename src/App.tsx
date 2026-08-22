@@ -62,6 +62,7 @@ import { SAMPLE_TASKS } from './data/sampleTasks';
 import ClientList from './components/ClientList';
 import PersonDirectory from './components/PersonDirectory';
 import ClientWorkspace, { type TabId as ClientTabId } from './components/ClientWorkspace';
+import { unseenUploadsByClient } from './utils/prevAccountantInbox';
 import { useOnboarding } from './hooks/useOnboarding';
 import EmailPreviewDialog from './components/EmailActivity/EmailPreviewDialog';
 import TaxCalculator from './components/TaxCalculator';
@@ -368,6 +369,15 @@ export default function App() {
   const personDirectory =
     ((firmProfile?.settings?.flags as { personDirectory?: boolean } | undefined)?.personDirectory) !== false;
   const onboarding = useOnboarding(onboardingEnabled ? user?.id : undefined);
+  /** קבצים שהרו״ח הקודם שלח ושעוד לא נפתחו — המונה בכותרת. */
+  const newUploadsByClient = useMemo(
+    () => unseenUploadsByClient(onboarding.steps), [onboarding.steps]);
+  const newUploadsTotal = useMemo(() => {
+    let total = 0;
+    for (const count of newUploadsByClient.values()) total += count;
+    return total;
+  }, [newUploadsByClient]);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const { leads, addLead, updateLead, deleteLead, refreshLeads } = useLeads(user?.id);
   // כרטיס לקוח ↔ הליד שממנו הוא בא. שורה בשלב "ליד" במסך הלקוחות מובילה לשם.
   const leadIdByClient = useMemo(() => {
@@ -1880,6 +1890,54 @@ export default function App() {
               לקוחות ומשימות. הצעה נולדת בהקשר העסקי שלה: במסע של הליד, או
               ב"הסכם ותשלומים" של לקוח קיים לשירות נוסף. הכפתור בכותרת הפך
               את בניית ההצעות לאפליקציה נפרדת שצריך לנווט אליה. */}
+          {/* ‼ מונה החומרים שהגיעו מרו״ח קודם. עד עכשיו שום דבר לא סימן
+              שהגיעו קבצים — לא מייל ולא סימן — והדרך היחידה לדעת הייתה
+              להיכנס ללקוח ולבדוק. הלחיצה מובילה ישר למסמכים, ושם גם נסגר
+              הסימן (ראה unseenUploads). */}
+          {newUploadsTotal > 0 && (
+            <div className="header-account">
+              <button
+                type="button"
+                className={`header-user ${inboxOpen ? 'is-open' : ''}`}
+                aria-label={`${newUploadsTotal} קבצים חדשים מרו״ח קודם`}
+                aria-expanded={inboxOpen}
+                onClick={() => setInboxOpen(v => !v)}
+                style={{ gap: '.3rem', padding: '.2rem .5rem' }}
+              >
+                <span aria-hidden="true" style={{ fontSize: '1rem' }}>📄</span>
+                <span className="nav-badge">{newUploadsTotal}</span>
+              </button>
+              {inboxOpen && (
+                <div style={{
+                  position: 'absolute', insetInlineStart: 0, top: 'calc(100% + .4rem)',
+                  minWidth: '15rem', maxWidth: '20rem', zIndex: 40,
+                  background: 'var(--surface)', border: '1px solid var(--line)',
+                  borderRadius: '.6rem', boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+                  padding: '.4rem',
+                }}>
+                  <div style={{
+                    fontSize: 'var(--fs-12)', color: 'var(--muted)', padding: '.3rem .5rem .4rem',
+                  }}>חומרים שהגיעו מרו״ח קודם</div>
+                  {[...newUploadsByClient.entries()].map(([cid, count]) => {
+                    const c = clients.find(x => x.id === cid);
+                    return (
+                      <button
+                        key={cid}
+                        type="button"
+                        className="btn btn-sm btn-ghost"
+                        style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: '.5rem' }}
+                        onClick={() => { setInboxOpen(false); handleOpenClientDocs(cid); }}
+                      >
+                        <span>{c ? `${c.firstName} ${c.lastName ?? ''}`.trim() : 'לקוח'}</span>
+                        <span className="nav-badge">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="header-account">
             <button
               type="button"

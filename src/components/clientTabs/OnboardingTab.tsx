@@ -36,6 +36,7 @@ import {
   RELEASE_MATERIALS, isOptionalMaterialKey, materialsFromStored, byPriorityFirst,
   outstandingFromStored, periodLabel, nextPeriod,
 } from '../../utils/releaseLetter';
+import { unseenUploads } from '../../utils/prevAccountantInbox';
 import { useAuth } from '../../hooks/useAuth';
 import type { DocCategory } from '../../hooks/useDocumentStore';
 import { DOC_CATEGORY_LABELS, useDocumentStore } from '../../hooks/useDocumentStore';
@@ -92,6 +93,8 @@ interface Props {
   repStatus?: RepresentationStatus;
   /** קפיצה למרכז הייצוג — המסך שבו העבודה באמת נעשית. */
   onOpenRepresentation?: () => void;
+  /** מעבר ללשונית המסמכים — משם ניגשים למה שהרו"ח הקודם שלח. */
+  onOpenDocuments?: () => void;
   /** שם הלקוח לכותרת בונה התהליך. */
   clientDisplayName?: string;
   /** בלי מייל בכרטיס — השליחה ללקוח מציעה קישור בלבד. */
@@ -275,6 +278,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
   prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, onOpenRepresentation,
+  onOpenDocuments,
   clientDisplayName, clientEmail, embedded, ballFilter,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
@@ -1152,6 +1156,7 @@ export default function OnboardingTab({
                     onRun={(action, payload) => void run(step, action, payload)}
                     advance={advance}
                     refresh={refresh}
+                    onOpenDocuments={onOpenDocuments}
                     menu={menu}
                   />
                 );
@@ -2985,6 +2990,7 @@ interface ReleaseCardProps {
   /** שלב "פרטי הרו״ח הקודם" הפתוח — נסגר ברגע שהפרטים הוזנו כאן. */
   detailsStep?: OnboardingStep;
   refresh?: () => void;
+  onOpenDocuments?: () => void;
   menu: React.ReactNode;
 }
 
@@ -3064,6 +3070,8 @@ function ReleaseStepCard(p: ReleaseCardProps) {
   /** ‼ מה שהוא הסיר מהרשימה שלו בדף. המסמך עצמו לא נמחק — הוא בתיק הלקוח
       כרגיל (מיגרציה 119). השורה קיימת כדי שהסרה לא תיראה כמו קובץ שנעלם. */
   const removedUploads = (materialsStep?.payload.removedUploads ?? []).length;
+  /** מה שהגיע ועוד לא נפתח — אותו חישוב שמזין את המונה בסרגל העליון. */
+  const newUploads = unseenUploads(materialsStep);
 
   // ── חלוקת הטיפול והעבודות הפתוחות ──────────────────────────────────────
   // נכתבות בשליחת המכתב (מהחלון); כאן רק מציגים ומסמנים "הוגש". אין להן
@@ -3494,6 +3502,31 @@ function ReleaseStepCard(p: ReleaseCardProps) {
               {/* ‼ קבצים שהגיעו בלי שיוך לפריט. הם **אינם** סוגרים פריטים —
                   ולכן השורה אומרת גם מה עדיין פתוח, כדי שלא ייווצר הרושם
                   שהכול הגיע רק כי הגיעו קבצים. הם יושבים במסמכי הלקוח. */}
+              {/* ‼ הדרך היחידה לדעת שהגיעו חומרים בלי להיכנס ולבדוק. הלחיצה
+                  היא גם מה שמסמן "נקרא" — כניסה למסך לא מאפסת את המונה,
+                  אחרת מעבר מקרי ליד הכרטיס היה מוחק את הסימן. */}
+              {newUploads.length > 0 && (
+                <div className="ob-hand-note is-attention" style={{ display: 'block' }}>
+                  <strong>
+                    {newUploads.length === 1 ? 'קובץ חדש מהרו״ח הקודם'
+                      : `${newUploads.length} קבצים חדשים מהרו״ח הקודם`}
+                  </strong>
+                  <button type="button" className="btn btn-sm btn-secondary"
+                    style={{ marginInlineStart: '.4rem' }} disabled={busy || saving}
+                    onClick={async () => {
+                      if (!materialsStep) return;
+                      setSaving(true);
+                      await p.advance(materialsStep.id, 'note', {
+                        bulkSeenAt: new Date().toISOString(),
+                      });
+                      setSaving(false);
+                      p.refresh?.();
+                      p.onOpenDocuments?.();
+                    }}>
+                    פתח את המסמכים
+                  </button>
+                </div>
+              )}
               {bulkUploads > 0 && (
                 <div className="ob-hand-contact" style={{ display: 'block' }}>
                   התקבלו {bulkUploads} קבצים במסמכי הלקוח
