@@ -7,6 +7,13 @@
 
 import { OnboardingStep } from '../types/onboarding';
 
+/**
+ * התיקייה היציבה בתיק המסמכים — אחת ללקוח, לא אחת לכל בקשה.
+ * ‼ אותו טקסט בדיוק כמו במיגרציה 120 וב-portal-upload-document. שינוי כאן
+ * בלי שינוי שם, וייווצרו שתי תיקיות שנראות זהות.
+ */
+export const PREV_ACCOUNTANT_FOLDER = 'חומרים מרו״ח קודם';
+
 export interface PrevAccountantUpload {
   documentId: string;
   fileName: string;

@@ -202,6 +202,8 @@ export default function ClientWorkspace({
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
   // לקוח חדש נוחת ישר ב"תיק" — שם ממלאים את הפרטים
   const [tab, setTab] = useState<TabId>(initialTab ?? (initialClient ? 'overview' : 'dossier'));
+  /** תיקייה שהמסך צריך לפתוח בלשונית המסמכים — נקבעת בקיצור ממסך הקליטה. */
+  const [docsFolderId, setDocsFolderId] = useState<string | null>(null);
   // ‼ ברענון ישיר של הכתובת הלקוח עוד לא נטען מהמסד ברינדור הראשון, ולכן
   // ברירת המחדל נפלה על "התיק" כאילו זה לקוח חדש. מתקנים פעם אחת כשהוא מגיע,
   // ורק אם המשתמש עוד לא בחר לשונית בעצמו.
@@ -779,7 +781,11 @@ export default function ClientWorkspace({
             clientDisplayName={`${client.firstName} ${client.lastName ?? ''}`.trim()}
             clientEmail={client.email}
             quotations={quotations ?? []}
-            onOpenDocuments={() => { tabPickedByUser.current = true; setTab('docs'); }}
+            onOpenDocuments={(folderId) => {
+              tabPickedByUser.current = true;
+              setDocsFolderId(folderId ?? null);
+              setTab('docs');
+            }}
           />
         )}
 
@@ -787,6 +793,7 @@ export default function ClientWorkspace({
           <DocumentsTab
             client={client}
             allClients={clients}
+            initialFolderId={docsFolderId}
             onDocChange={() => {
               // ריענון רשימת קטגוריות
               db.getDocsByClient(client.id).then(docs =>

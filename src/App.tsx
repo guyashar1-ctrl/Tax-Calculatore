@@ -736,6 +736,17 @@ export default function App() {
     if (reqId) handleSelectRequest(reqId);
   }
 
+  /**
+   * מהמונה שבכותרת אל הבקשה עצמה — לא אל תיק המסמכים.
+   * ‼ שם יושבת המגירה, ופתיחתה היא מה שמסמן "נצפה". ניווט לתיק המסמכים היה
+   * מציג את הקבצים ומשאיר את המונה דלוק לנצח, כי איש לא אישר שראה אותם.
+   */
+  function handleOpenPrevAccountantMaterials(clientId: string) {
+    setClientInitialTab(journeyUi ? 'journey' : 'onboarding');
+    setSelectedId(clientId);
+    setView('form');
+  }
+
   /** כרטיס הלקוח ישר על המסמכים — מהמסך של בקשת הייצוג. */
   function handleOpenClientDocs(clientId: string) {
     setSelectedId(clientId);
@@ -1930,7 +1941,7 @@ export default function App() {
                         type="button"
                         className="btn btn-sm btn-ghost"
                         style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: '.5rem' }}
-                        onClick={() => { setInboxOpen(false); handleOpenClientDocs(cid); }}
+                        onClick={() => { setInboxOpen(false); handleOpenPrevAccountantMaterials(cid); }}
                       >
                         <span>{c ? `${c.firstName} ${c.lastName ?? ''}`.trim() : 'לקוח'}</span>
                         <span className="nav-badge">{count}</span>

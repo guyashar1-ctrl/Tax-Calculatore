@@ -148,6 +148,18 @@ Deno.serve(async (req: Request) => {
     if (upErr) return json({ error: "storage_failed", detail: upErr.message }, 500);
 
     const source = tokenKind === "release" ? "רואה החשבון הקודם" : "הלקוח";
+
+    // ‼ כל מה שמגיע מדף הרו"ח הקודם מתויק בתיקייה אחת יציבה ללקוח, ולא
+    // בשורש התיק. תיקייה אחת ולא אחת לכל בקשה — ראה מיגרציה 120. כישלון
+    // כאן אינו מפיל את ההעלאה: עדיף קובץ בשורש מאשר קובץ שלא הגיע.
+    let folderId: string | null = null;
+    if (tokenKind === "release") {
+      const { data: fid, error: fErr } = await admin.rpc("ensure_prev_accountant_folder", {
+        p_user_id: step.user_id, p_client_id: clientId,
+      });
+      if (fErr) console.error("[portal-upload] folder failed", fErr.message);
+      else folderId = (fid as string) ?? null;
+    }
     // ‼ שנה ותווית מוגדרות מראש על הבקשה (M3 — "בקש מסמך מהלקוח") — לא מנחשים
     // אותן כאן. חסרות ⇒ נופלים ל'כללי'/'לבדיקה' בצד הלקוח (fallback שמרני).
     const { error: docErr } = await admin.from("documents").insert({
@@ -155,6 +167,7 @@ Deno.serve(async (req: Request) => {
       user_id: step.user_id,
       client_id: clientId,
       storage_path: path,
+      folder_id: folderId,
       file_name: file.name || `${itemKey}.pdf`,
       file_type: type,
       file_size: file.size,

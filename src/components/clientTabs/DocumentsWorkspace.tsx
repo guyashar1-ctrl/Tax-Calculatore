@@ -43,17 +43,25 @@ function fmtDate(iso: string): string {
 interface Props {
   client: Client;
   allClients: Client[];
+  /** תיקייה לפתוח בה ישירות — קיצור ממסך אחר, למשל "לכל החומרים מרו״ח קודם". */
+  initialFolderId?: string | null;
 }
 
 interface MetaDraft { year: string; labelId: string }
 
-export default function DocumentsWorkspace({ client, allClients }: Props) {
+export default function DocumentsWorkspace({ client, allClients, initialFolderId }: Props) {
   const db = useDocumentStore();
   const [docs, setDocs] = useState<StoredDoc[]>([]);
   const [folders, setFolders] = useState<DocFolder[]>([]);
   const [labels, setLabels] = useState<DocumentLabel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(initialFolderId ?? null);
+
+  // ‼ קיצור מבחוץ פותח את התיקייה, ורק אותה. ניווט של המשתמש בתוך התיק
+  // גובר — האפקט תלוי במזהה שמגיע מבחוץ ולא ברירת מחדל שרצה כל רינדור.
+  useEffect(() => {
+    if (initialFolderId) setCurrentFolderId(initialFolderId);
+  }, [initialFolderId]);
 
   const [search, setSearch] = useState('');
   const [filterLabel, setFilterLabel] = useState('');

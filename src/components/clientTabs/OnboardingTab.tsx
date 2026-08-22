@@ -37,6 +37,7 @@ import {
   outstandingFromStored, periodLabel, nextPeriod,
 } from '../../utils/releaseLetter';
 import { unseenUploads } from '../../utils/prevAccountantInbox';
+import PrevAccountantDocsDrawer from './PrevAccountantDocsDrawer';
 import { useAuth } from '../../hooks/useAuth';
 import type { DocCategory } from '../../hooks/useDocumentStore';
 import { DOC_CATEGORY_LABELS, useDocumentStore } from '../../hooks/useDocumentStore';
@@ -94,7 +95,7 @@ interface Props {
   /** קפיצה למרכז הייצוג — המסך שבו העבודה באמת נעשית. */
   onOpenRepresentation?: () => void;
   /** מעבר ללשונית המסמכים — משם ניגשים למה שהרו"ח הקודם שלח. */
-  onOpenDocuments?: () => void;
+  onOpenDocuments?: (folderId?: string) => void;
   /** שם הלקוח לכותרת בונה התהליך. */
   clientDisplayName?: string;
   /** בלי מייל בכרטיס — השליחה ללקוח מציעה קישור בלבד. */
@@ -2990,7 +2991,7 @@ interface ReleaseCardProps {
   /** שלב "פרטי הרו״ח הקודם" הפתוח — נסגר ברגע שהפרטים הוזנו כאן. */
   detailsStep?: OnboardingStep;
   refresh?: () => void;
-  onOpenDocuments?: () => void;
+  onOpenDocuments?: (folderId?: string) => void;
   menu: React.ReactNode;
 }
 
@@ -3067,11 +3068,14 @@ function ReleaseStepCard(p: ReleaseCardProps) {
   const pendingFollowUp = items.filter(i => i.addedAfterSend && !i.notifiedAt);
   /** קבצים שהרו"ח הקודם שלח בלי לשייך לפריט — הם לא סוגרים כלום מעצמם. */
   const bulkUploads = (materialsStep?.payload.bulkUploads ?? []).length;
-  /** ‼ מה שהוא הסיר מהרשימה שלו בדף. המסמך עצמו לא נמחק — הוא בתיק הלקוח
-      כרגיל (מיגרציה 119). השורה קיימת כדי שהסרה לא תיראה כמו קובץ שנעלם. */
-  const removedUploads = (materialsStep?.payload.removedUploads ?? []).length;
   /** מה שהגיע ועוד לא נפתח — אותו חישוב שמזין את המונה בסרגל העליון. */
   const newUploads = unseenUploads(materialsStep);
+  /**
+   * ‼ שתי הרשימות הן אותם מסמכים בתיק — ההבדל הוא רק אם הרו"ח הקודם הוריד
+   * אותם מהרשימה שלו (מיגרציה 119). שתיהן חיות בתיקייה אחת (מיגרציה 120).
+   */
+  const receivedDocs = materialsStep?.payload.bulkUploads ?? [];
+  const removedDocs = materialsStep?.payload.removedUploads ?? [];
 
   // ── חלוקת הטיפול והעבודות הפתוחות ──────────────────────────────────────
   // נכתבות בשליחת המכתב (מהחלון); כאן רק מציגים ומסמנים "הוגש". אין להן
@@ -3511,20 +3515,6 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                     {newUploads.length === 1 ? 'קובץ חדש מהרו״ח הקודם'
                       : `${newUploads.length} קבצים חדשים מהרו״ח הקודם`}
                   </strong>
-                  <button type="button" className="btn btn-sm btn-secondary"
-                    style={{ marginInlineStart: '.4rem' }} disabled={busy || saving}
-                    onClick={async () => {
-                      if (!materialsStep) return;
-                      setSaving(true);
-                      await p.advance(materialsStep.id, 'note', {
-                        bulkSeenAt: new Date().toISOString(),
-                      });
-                      setSaving(false);
-                      p.refresh?.();
-                      p.onOpenDocuments?.();
-                    }}>
-                    פתח את המסמכים
-                  </button>
                 </div>
               )}
               {bulkUploads > 0 && (
@@ -3553,11 +3543,24 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                   </button>
                 </div>
               )}
-              {removedUploads > 0 && (
-                <div className="ob-hand-contact" style={{ display: 'block' }}>
-                  {removedUploads === 1 ? 'קובץ אחד הוסר' : `${removedUploads} קבצים הוסרו`} מהרשימה
-                  של הרו״ח הקודם · הקבצים עצמם נשארו במסמכי הלקוח
-                </div>
+              {/* ‼ ההפרדה בין "התקבל" ל"הוסר מרשימתו" חיה במגירה בלבד. שורה
+                  קבועה על כך בכרטיס הוסיפה אוצר מילים של סטטוס למסך שכבר
+                  צפוף, בלי שאיש ביקש לראות את זה כל הזמן. */}
+              {(receivedDocs.length > 0 || removedDocs.length > 0) && (
+                <PrevAccountantDocsDrawer
+                  clientId={p.clientId}
+                  received={receivedDocs}
+                  removed={removedDocs}
+                  onFirstOpen={() => {
+                    if (!materialsStep || newUploads.length === 0) return;
+                    void p.advance(materialsStep.id, 'note', {
+                      bulkSeenAt: new Date().toISOString(),
+                    }).then(() => p.refresh?.());
+                  }}
+                  onOpenFolder={p.onOpenDocuments
+                    ? (folderId) => p.onOpenDocuments?.(folderId)
+                    : undefined}
+                />
               )}
               {step.payload.prevAccountantResponseNote && (
                 <div className={`ob-hand-note${step.payload.responseHandledAt ? '' : ' is-attention'}`}>

@@ -18,13 +18,15 @@ interface Props {
   client: Client;
   allClients: Client[];
   onDocChange: () => void;
+  /** תיקייה שנפתחת ישירות — קיצור ממסך הבקשות. */
+  initialFolderId?: string | null;
 }
 
-export default function DocumentsTab({ client, allClients, onDocChange }: Props) {
+export default function DocumentsTab({ client, allClients, onDocChange, initialFolderId }: Props) {
   return (
     <div className="cw-tabpanel cw-docs-tab">
       <div className="cw-doc-wrap" onClickCapture={() => onDocChange()}>
-        <DocumentsWorkspace client={client} allClients={allClients} />
+        <DocumentsWorkspace client={client} allClients={allClients} initialFolderId={initialFolderId} />
       </div>
     </div>
   );
