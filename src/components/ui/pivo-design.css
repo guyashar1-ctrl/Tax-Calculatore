@@ -3662,3 +3662,166 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .ap-charge{flex-wrap:wrap}
   .ap-mark{margin-inline-start:auto}
 }
+
+/* ═══ בונה הצעות המחיר ════════════════════════════════════════════════════
+   מקור מחייב: docs/prototypes/quotation-builder-exception-based.html
+   מסמך ולא טופס: במנוחה אין אף שדה קלט. מספר אחד גדול, קווי שיער בלבד,
+   פעולות משניות באפור, והכחול היחיד הוא «סקירה ושליחה».
+   ═══════════════════════════════════════════════════════════════════════ */
+.qb{min-height:100%}
+.qb-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;
+  padding:11px 26px;background:var(--surface-0);border-bottom:1px solid var(--hairline-2)}
+.qb-back{border:0;background:none;color:var(--ink-3);padding:5px 8px;border-radius:8px;
+  font:inherit;font-size:var(--fs-13);cursor:pointer}
+.qb-back:hover{background:var(--surface-2);color:var(--ink-1)}
+.qb-status{flex:1;min-width:0;font-size:var(--fs-12);color:var(--ink-4)}
+.qb-status b{color:var(--ink-2);font-weight:500}
+.qb-saved{color:var(--success-text)}
+
+.qb-doc{max-width:708px;margin:0 auto;padding:44px 26px 120px}
+.qb-notice{max-width:708px;margin:12px auto 0;padding:9px 13px;border-radius:var(--r-panel);
+  font-size:var(--fs-13)}
+.qb-notice.ok{background:var(--ok-bg);color:var(--success-text)}
+.qb-notice.err{background:var(--danger-bg);color:var(--danger)}
+.qb-warn{margin-top:10px;font-size:var(--fs-12);color:var(--warn)}
+
+.qb-eyebrow{font-size:var(--fs-12);color:var(--ink-4);display:flex;align-items:center;
+  gap:6px;flex-wrap:wrap}
+.qb-kindtag{color:var(--ink-3)}
+.qb-h1{margin:6px 0 0;font-size:var(--fs-20);font-weight:600;letter-spacing:-.01em}
+.qb-h1btn{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:start}
+
+.qb-hero{margin:26px 0 0}
+.qb-amount{border:0;background:none;padding:0;cursor:pointer;display:inline-flex;
+  align-items:baseline;gap:10px;font-size:clamp(36px,8.5vw,52px);font-weight:600;
+  letter-spacing:-.025em;line-height:1.05;color:var(--ink-1);font-variant-numeric:tabular-nums}
+.qb-vat{font-size:clamp(14px,3vw,17px);font-weight:400;color:var(--ink-4);letter-spacing:0}
+.qb-amount-empty{font-size:var(--fs-20);color:var(--ink-4)}
+.qb-strike{margin-top:9px;font-size:var(--fs-13);color:var(--ink-3);display:flex;
+  align-items:center;gap:9px;flex-wrap:wrap}
+.qb-strike s{color:var(--ink-4)}
+.qb-disc{color:var(--success-text)}
+.qb-under{margin-top:11px;font-size:var(--fs-13)}
+.qb-underbtn{border:0;background:none;padding:0;font:inherit;color:var(--ink-3);cursor:pointer}
+.qb-underdim{color:var(--ink-4)}
+
+.qb-rule{height:1px;background:var(--hairline-2);border:0;margin:30px 0}
+.qb-lbl{font-size:11.5px;font-weight:600;color:var(--ink-4);letter-spacing:.04em;margin-bottom:4px}
+
+.qb-crow{display:flex;align-items:baseline;gap:12px;padding:11px 0;border-top:1px solid var(--hairline-2)}
+.qb-crow:first-of-type{border-top:0}
+.qb-nm{flex:1;min-width:0;font-size:var(--fs-14);color:var(--ink-1)}
+.qb-sub{font-size:var(--fs-12);color:var(--ink-4);margin-top:1px}
+.qb-pr{font-size:var(--fs-14);color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.qb-inlinenum{border:0;background:none;padding:0;font:inherit;font-size:var(--fs-14);
+  color:var(--ink-2);cursor:pointer}
+.qb-included{font-size:var(--fs-13);color:var(--ink-4);padding:11px 0 0;border-top:1px solid var(--hairline-2)}
+.qb-empty{font-size:var(--fs-13);color:var(--ink-4);padding:10px 0}
+.qb-addrow{margin-top:16px}
+.qb-hint{margin-top:34px;font-size:var(--fs-12);color:var(--ink-quiet)}
+
+/* ניתן ללחיצה — מתגלה במעבר עכבר, לא צועק במנוחה */
+.qb .ed{border-radius:7px;padding:2px 5px;margin:0 -5px;transition:background .12s}
+.qb .ed:hover,.qb .ed:focus-visible{background:var(--soft);box-shadow:0 0 0 1px var(--soft-bd);outline:none}
+.qb .ed::after{content:"✎";font-size:.72em;color:var(--accent);opacity:0;margin-inline-start:6px;
+  transition:opacity .12s;vertical-align:middle}
+.qb .ed:hover::after,.qb .ed:focus-visible::after{opacity:.85}
+
+.qb-link{border:0;background:none;padding:0;font:inherit;font-size:var(--fs-12);
+  color:var(--accent);cursor:pointer}
+.qb-link:hover{text-decoration:underline}
+.qb-link.mute{color:var(--ink-4)}
+.qb-link.mute:hover{color:var(--accent)}
+.qb-link.danger{color:var(--danger)}
+
+/* ההשלכה — מידע, לא התראה */
+.qb-conseq{background:var(--note-bg);border-radius:var(--r-panel);padding:15px 17px}
+.qb-conseq.muted{background:var(--surface-2)}
+.qb-conseq-head{display:flex;align-items:baseline;gap:12px}
+.qb-conseq-h{flex:1;min-width:0;font-size:var(--fs-15);color:var(--ink-1);font-weight:500}
+.qb-conseq.muted .qb-conseq-h{color:var(--ink-3);font-weight:400}
+.qb-conseq-b{font-size:12.5px;color:var(--ink-3);margin-top:4px;line-height:1.6}
+
+.qb-quiet{display:flex;align-items:baseline;gap:10px;padding:10px 0;font-size:var(--fs-13);
+  border-top:1px solid var(--hairline-2)}
+.qb-quiet:first-of-type{border-top:0}
+.qb-quiet-k{color:var(--ink-4);flex:none}
+.qb-quiet-v{flex:1;min-width:0;color:var(--ink-2)}
+
+/* ── פופאובר הקשרי ── */
+.qb-scrim{position:fixed;inset:0;z-index:50}
+.qb-pop{position:absolute;z-index:60;width:min(340px,calc(100vw - 28px));
+  background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:var(--r-panel);
+  box-shadow:var(--shadow-lg);padding:15px 16px}
+.qb-pop-h{font-size:var(--fs-14);font-weight:600;margin-bottom:3px}
+.qb-pop-s{font-size:var(--fs-12);color:var(--ink-4);line-height:1.55;margin-bottom:11px}
+.qb-pop-f{margin-top:13px;display:flex;justify-content:space-between;align-items:center;
+  gap:10px;flex-wrap:wrap}
+.qb-chips{display:flex;flex-wrap:wrap;gap:6px}
+.qb-chip{border:1px solid var(--hairline-1);background:var(--surface-0);border-radius:999px;
+  padding:5px 12px;font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer}
+.qb-chip:hover:not(:disabled){background:var(--surface-2)}
+.qb-chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent-text);font-weight:500}
+.qb-chip.wide{border-radius:9px;width:100%}
+.qb-chip:disabled{opacity:.45;cursor:default}
+.qb-fld{display:block;margin-top:11px}
+.qb-fld>span{display:block;font-size:var(--fs-12);color:var(--ink-4);margin-bottom:4px}
+.qb-fld input,.qb-fld select,.qb-fld textarea{width:100%}
+.qb-fld2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.qb-note{font-size:11.5px;color:var(--ink-4);line-height:1.6;margin-top:9px}
+
+/* ── לוחות ── */
+.qb-panel-s{font-size:var(--fs-12);color:var(--ink-4);line-height:1.55;margin-bottom:8px}
+.qb-sect{font-size:11.5px;font-weight:600;color:var(--ink-4);letter-spacing:.04em;margin:20px 0 2px}
+.qb-srow{display:flex;align-items:center;gap:12px;padding:13px 0;border-top:1px solid var(--hairline-2)}
+.qb-srow:first-of-type{border-top:0}
+.qb-sn{flex:1;min-width:0}
+.qb-st{font-size:var(--fs-13);font-weight:500}
+.qb-sm{font-size:11.5px;color:var(--ink-4);margin-top:2px}
+.qb-sp{width:96px;flex:none}
+.qb-sp input{width:100%;text-align:center}
+.qb-x{border:0;background:none;color:var(--ink-4);font-size:15px;padding:3px 6px;
+  border-radius:7px;cursor:pointer}
+.qb-x:hover{background:var(--danger-bg);color:var(--danger)}
+.qb-tag{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:5px;
+  background:var(--surface-2);color:var(--ink-3)}
+.qb-tag.blue{background:var(--soft);color:var(--accent)}
+.qb-search{width:100%;margin:6px 0 2px}
+.qb-selbar{font-size:var(--fs-12);color:var(--ink-4);padding:8px 0 0;display:flex;gap:12px;
+  align-items:center;flex-wrap:wrap}
+.qb-check{display:flex;align-items:center;gap:11px;padding:9px 0;
+  border-top:1px solid var(--hairline-2);font-size:var(--fs-13);cursor:pointer}
+.qb-check input{width:16px;height:16px;accent-color:var(--accent);flex:none}
+.qb-cn{flex:1;min-width:0}
+.qb-cp{font-size:12.5px;color:var(--ink-3);white-space:nowrap}
+.qb-callout{background:var(--surface-2);border-radius:var(--r-panel);padding:12px 14px;
+  font-size:12.5px;color:var(--ink-2);line-height:1.65;margin-top:16px}
+.qb-years{border:1px solid var(--hairline-1);border-radius:var(--r-panel);padding:11px 13px;margin-top:10px}
+.qb-newlead{display:flex;flex-direction:column;gap:9px}
+
+.qb-preview{background:#F4F3EF;border-radius:var(--r-panel);overflow:hidden;margin:10px 0 4px;
+  max-height:min(52vh,520px);overflow-y:auto}
+.qb-review-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  flex-wrap:wrap;width:100%}
+.qb-review-sum{font-size:11.5px;color:var(--ink-4)}
+.qb-review-acts{display:flex;gap:9px}
+
+.qb-milestones{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.qb-ms{border-top:1px solid var(--hairline-2);padding-top:9px}
+.qb-ms-l{font-size:var(--fs-12);font-weight:600}
+.qb-ms-d{font-size:var(--fs-12);color:var(--ink-4);margin-top:3px}
+.qb-sig{max-height:90px;max-width:100%;display:block;background:#fff;
+  border:1px solid var(--hairline-1);border-radius:8px;padding:8px;margin-top:8px}
+
+@media (max-width:680px){
+  .qb-top{padding:9px 14px;gap:8px}
+  .qb-status{display:none}
+  .qb-doc{padding:24px 16px 120px}
+  .qb-rule{margin:24px 0}
+  .qb-fld2{grid-template-columns:1fr}
+  .qb-milestones{grid-template-columns:1fr}
+  .qb-pop{position:fixed;inset-inline:0;bottom:0;top:auto;width:100%;max-height:82vh;
+    overflow:auto;border-radius:16px 16px 0 0;padding:18px 18px 22px;border:0}
+  .qb-srow{flex-wrap:wrap}
+  .qb-sp{width:82px}
+}

@@ -104,6 +104,7 @@ import TestCaseComposer from './components/clientTabs/__TestCaseComposer';
 import TestQuotations from './components/__TestQuotations';
 import TestDeferred from './components/quotations/__TestDeferred';
 import TestAgreement from './components/clientTabs/__TestAgreement';
+import TestBuilder from './components/quotations/__TestBuilder';
 import TestSignDone from './components/ui/__TestSignDone';
 import TestFirmNotifications from './components/__TestFirmNotifications';
 import TestRepDialog from './components/__TestRepDialog';
@@ -289,6 +290,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-agreement')) {
     return <TestAgreement />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-builder')) {
+    return <TestBuilder />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-signdone')) {
     return <TestSignDone />;

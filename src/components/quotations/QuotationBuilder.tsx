@@ -1,53 +1,73 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+// ─── בונה הצעות המחיר ───────────────────────────────────────────────────────
+// מקור UX מחייב: docs/prototypes/quotation-builder-exception-based.html
+//
+// "ההצעה כבר מוכנה — אני עורך רק חריגות."
+//
+// המסך הוא מסמך ולא טופס: במנוחה אין בו אף שדה קלט. התבנית טוענת את הכול,
+// והמסך מציג תוצאה — מספר אחד גדול, רשימה שמסבירה אותו, משפט אחד על ההשלכה,
+// ושתי שורות שקטות. כל מספר נערך בלחיצה עליו, בחלונית עם החלטה אחת בלבד.
+// המכניקה החשבונאית (שנתי ÷ 12, פריסה, הנחות פר-שורה) יושבת ב«עריכת השירותים»,
+// ומע״מ מפורט מופיע רק בסקירה לפני השליחה.
+//
+// ‼ שינוי התנהגות מכוון: שירות שנתי בשכר החודשי נפתח כ-'deferred' ולא 'full'.
+// התרומה החודשית נשארת שנתי ÷ 12 גם כשמתחילים באמצע שנה, והשארית נגבית
+// במועד. פריסה מלאה על פחות חודשים העלתה את התשלום החודשי — ההפך ממה שסוכם.
+//
+// ‼ הנחה על השכר החודשי אינה נוגעת ביתרת הדוח השנתי: היא מחולקת בין השורות
+// החודשיות שאינן שנתיות-במהותן בלבד. הפחתת היתרה היא החלטה נפרדת ומפורשת
+// (popCompletion). ראה גם הרצפה ב-applyAgreedMonthly.
+
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FirmProfile } from '../../types/firmProfile';
 import type { Client } from '../../types';
 import type { Engagement } from '../../types/onboarding';
 import type {
-  Lead, ServiceCatalogItem, ServiceCategory, QuotationTemplate, Quotation, QuotationItem, FutureService,
-  PriceBasis, QuotationRepresentation, QuotationKind,
+  Lead, ServiceCatalogItem, ServiceCategory, QuotationTemplate, Quotation, QuotationItem,
+  FutureService, QuotationRepresentation, QuotationKind,
 } from '../../types/quotations';
 import {
-  SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ORDER, QUOTATION_EVENT_LABELS, QUOTATION_STATUS_LABELS,
   DEFAULT_VAT_RATE, DEFAULT_EXPIRY_BUSINESS_DAYS, DEFAULT_INSTALLMENTS,
-  defaultQuotationRepresentation,
+  defaultQuotationRepresentation, applySecondaryLevels,
 } from '../../types/quotations';
 import { businessDaysExpiry } from '../../utils/businessDays';
-import type { DeferredBase } from '../../utils/quotationCalc';
 import {
   calcTotals, formatILS, itemFinalPrice, itemOriginalPrice, itemDisplayName,
-  monthlyPlan, clampInstallments,
-  currentMonthKey, monthsLeftInYear, formatMonth, formatMonthRange, addMonths,
-  itemDeferred, deferredBase, deferredDetailLines, DEFAULT_DEFERRED_TRIGGER,
+  clampInstallments, currentMonthKey, monthsLeftInYear, formatMonthRange,
+  addMonths, deferredBase, itemDeferred, DEFAULT_DEFERRED_TRIGGER,
 } from '../../utils/quotationCalc';
 import { deriveQuotationBrand } from './quotationBranding';
-import { buildQuotationEmailHtml } from '../../utils/quotationEmailHtml';
 import { generateQuotationPdf, downloadPdf } from '../../utils/quotationPdf';
-import QuotationWebView, { type QuotationWebViewData } from './QuotationWebView';
+import QuotationWebView from './QuotationWebView';
 import QuotationEmailsPanel from './QuotationEmailsPanel';
 import QuotationRepresentationEditor, {
   validateQuotationRepresentation, representationSummary,
 } from './QuotationRepresentationEditor';
-import EmailInput from '../ui/EmailInput';
+import Modal from '../ui/Modal';
 
-type PreviewTab = 'web' | 'email' | 'pdf' | 'track';
-type Device = 'desktop' | 'mobile';
+const MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
+  'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+
+const DEFERRED_TRIGGERS = [DEFAULT_DEFERRED_TRIGGER, 'עם הגשת הצהרת ההון', 'עם סיום הביקורת'];
+
+const YEAR_OPTIONS: number[] = (() => {
+  const y = new Date().getFullYear();
+  return Array.from({ length: 8 }, (_, i) => y - i);
+})();
 
 interface RecipientDraft {
   kind: 'lead' | 'client' | 'new';
-  id?: string;              // עבור lead/client קיים
+  id?: string;
   fullName: string;
   businessName?: string;
   email?: string;
   phone?: string;
   dealerType?: Lead['dealerType'];
-  // רו"ח קודם — נלכד ביצירת ליד חדש; מפעיל את זרימת השחרור אחרי ההמרה
   hasPreviousAccountant?: boolean;
   prevAccountantName?: string;
   prevAccountantEmail?: string;
   prevAccountantPhone?: string;
 }
 
-/** האם הנמען עובר מרו"ח אחר — העובדה שקובעת שהייצוג נפתח כמייצג משני. */
 function isTransferRecipient(r: RecipientDraft, leads: Lead[], clients: Client[]): boolean {
   if (r.kind === 'lead') return !!leads.find(l => l.id === r.id)?.hasPreviousAccountant;
   if (r.kind === 'client') return !!clients.find(c => c.id === r.id)?.hasPreviousAccountant;
@@ -60,15 +80,12 @@ interface Props {
   templates: QuotationTemplate[];
   leads: Lead[];
   clients: Client[];
-  existing?: Quotation | null;               // עריכת טיוטה קיימת
-  initialLeadId?: string;                    // הצעה חדשה שנפתחה מתוך ליד קיים
-  initialClientId?: string;                  // הצעה חדשה שנפתחה מתוך לקוח קיים (שלב 3 / "שירות נוסף")
-  /** הכוונה המסחרית שנבחרה לפני הבונה. ברירת מחדל: הסכם. */
+  existing?: Quotation | null;
+  initialLeadId?: string;
+  initialClientId?: string;
   initialKind?: QuotationKind;
-  /** ההסכם הנוכחי של הלקוח — נקודת הפתיחה של עדכון התקשרות. */
   currentEngagement?: Engagement;
-  existingQuotations: Quotation[];           // לאזהרת "כבר יש הצעה פתוחה"
-  /** כבר קיים ייצוג פעיל/בתהליך למייל הזה? מחזיר הודעת חסימה, או null. */
+  existingQuotations: Quotation[];
   checkRepEmailConflict?: (email: string) => string | null;
   onSaveDraft: (payload: SaveDraftPayload) => Promise<void>;
   onSend: (payload: SaveDraftPayload, isTest: boolean) => Promise<{ ok: boolean; error?: string; link?: string }>;
@@ -88,36 +105,29 @@ export interface SaveDraftPayload {
   templateId?: string;
   expiresAt: string;
   representation: QuotationRepresentation;
-  /** הכוונה המסחרית — נשמרת על ההצעה וקובעת מה יקרה באישור. */
   kind: QuotationKind;
-  /** 'YYYY-MM-DD' — מתי עדכון ההתקשרות נכנס לתוקף. רק בחידוש. */
   effectiveFrom?: string;
 }
 
-// שמונה שנות מס אחרונות — מכסה כל לקוח שמגיע עם שנים פתוחות
-const YEAR_OPTIONS: number[] = (() => {
-  const current = new Date().getFullYear();
-  return Array.from({ length: 8 }, (_, i) => current - i);
-})();
+interface BillingPlan { startMonth: string; installments: number }
 
-// מועדי הגבייה הנפוצים ליתרה. הבחירה היא רשימה ולא שדה חופשי — שדה חופשי
-// שנקרא "מתי נגבית היתרה" הזמין להקליד בו סכום, וזה בדיוק מה שקרה.
-// "אחר…" נשאר, כי גיא ביקש במפורש שאפשר יהיה לנסח מועד שאינו ברשימה.
-const DEFERRED_TRIGGER_PRESETS = [
-  DEFAULT_DEFERRED_TRIGGER,
-  'עם הגשת הצהרת ההון',
-  'עם סיום הביקורת',
-];
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const r0 = (n: number) => Math.round(n);
+const monthLabel = (ym: string) => {
+  const [y, m] = ym.split('-').map(Number);
+  return `${MONTH_NAMES[m - 1]} ${y}`;
+};
 
-// ברירת המחדל לפריסה — תאריך התחלה ומספר תשלומים אחידים לכל השורות.
-// את מספר התשלומים אפשר לשנות גם בכל שורה בנפרד.
-interface BillingPlan {
-  startMonth: string;                 // 'YYYY-MM'
-  installments: number;
-}
+/** האם השורה שנתית-במהותה — כלומר תרומתה החודשית נגזרת ממחיר שנתי. */
+const isAnnualNature = (i: QuotationItem) => i.category === 'monthly' && i.priceBasis === 'annual';
 
+/**
+ * שירות מהקטלוג → שורה בהצעה.
+ * ‼ שירות שנתי נכנס כשורה חודשית שמתומחרת שנתית ונדחית: התרומה החודשית היא
+ * תמיד שנתי ÷ 12, וההפרש נגבה במועד. זו ברירת המחדל המאושרת.
+ */
 function catalogToItem(svc: ServiceCatalogItem, overrides?: Partial<QuotationItem>): QuotationItem {
-  const item: QuotationItem = {
+  const base: QuotationItem = {
     id: crypto.randomUUID(),
     serviceId: svc.id,
     name: svc.name,
@@ -131,24 +141,20 @@ function catalogToItem(svc: ServiceCatalogItem, overrides?: Partial<QuotationIte
     vatFlag: svc.vatFlag,
     ...overrides,
   };
-  // ברירת המחדל של המשרד לדוח שנתי: המחיר שנתי, הגבייה חודשית. הרו"ח ממשיך
-  // לחשוב ב"1,800 ₪ לשנה" והלקוח רואה 12 תשלומים. השורה ניתנת להחזרה לחיוב
-  // שנתי חד־פעמי דרך "תדירות חיוב" בשורה עצמה.
-  if (item.category === 'annual' && overrides?.priceBasis === undefined) {
+  if (base.category === 'annual' && overrides?.priceBasis === undefined) {
     return {
-      ...item,
+      ...base,
       category: 'monthly',
       priceBasis: 'annual',
-      annualPrice: item.clientPrice,
-      prorationMode: 'full',
+      annualPrice: base.clientPrice,
+      clientPrice: r2(base.clientPrice / DEFAULT_INSTALLMENTS),
+      prorationMode: 'deferred',
     };
   }
-  return item;
+  return base;
 }
 
-// החלת הפריסה על שורה. שורה שהמחיר החודשי שלה נקבע ידנית לא נדרסת — זו
-// החלטה של הרו"ח, לא תוצאה של נוסחה.
-// החישוב הוא תמיד מחיר שנתי ÷ מספר תשלומים — כמו שגיא חושב על זה.
+/** החלת הפריסה על שורה חודשית. שורה נדחית שומרת על שנתי ÷ 12. */
 function applyPlanToItem(it: QuotationItem, plan: BillingPlan): QuotationItem {
   if (it.category !== 'monthly') return it;
   const next: QuotationItem = {
@@ -158,409 +164,307 @@ function applyPlanToItem(it: QuotationItem, plan: BillingPlan): QuotationItem {
     installments: plan.installments,
   };
   if (it.prorationMode === 'manual') return next;
-  // שורת יתרה: התשלום החודשי הוא שנתי ÷ 12 ואינו מושפע ממספר התשלומים —
-  // מה שלא נגבה חודשית הופך ליתרה. זו גם הסיבה שהיתרה מתאפסת לבדה כשהפריסה
-  // מגיעה ל-12 תשלומים, בלי שאיש צריך לכבות משהו.
-  if (it.prorationMode === 'deferred') {
-    if (next.priceBasis === 'annual' && it.annualPrice != null) {
+  if (next.priceBasis === 'annual' && it.annualPrice != null) {
+    if (it.prorationMode === 'full') {
+      next.clientPrice = r2(it.annualPrice / plan.installments);
+    } else {
+      next.prorationMode = 'deferred';
       next.clientPrice = r2(it.annualPrice / DEFAULT_INSTALLMENTS);
     }
-    return next;
-  }
-  next.prorationMode = 'full';
-  if (next.priceBasis === 'annual' && it.annualPrice != null) {
-    next.clientPrice = r2(it.annualPrice / plan.installments);
   }
   return next;
 }
 
-function r2(n: number): number {
-  return Math.round(n * 100) / 100;
+/* ─── חישוב העסקה — מה שהמסך מציג ─────────────────────────────────────────── */
+interface Deal {
+  installments: number;
+  monthlyLines: QuotationItem[];
+  separateLines: QuotationItem[];
+  includedLines: QuotationItem[];
+  retainer: number;
+  anchor: number;
+  discount: number;
+  balances: { item: QuotationItem; name: string; value: number; perMonth: number; balance: number }[];
+  rawBalance: number;
+  completionCharge: number;
+  trigger: string;
+  endMonth: string;
 }
 
+function computeDeal(items: QuotationItem[], plan: BillingPlan, vatRate: number): Deal {
+  const monthlyLines = items.filter(i => i.category === 'monthly');
+  const separateLines = items.filter(i => i.category === 'annual' || i.category === 'one_time');
+  const includedLines = items.filter(i => i.category === 'included');
 
+  const retainer = monthlyLines.reduce((s, i) => s + itemFinalPrice(i), 0);
+  const anchor = monthlyLines.reduce((s, i) => s + itemOriginalPrice(i), 0);
+
+  const balances = monthlyLines
+    .map(i => ({ item: i, base: deferredBase(i) }))
+    .filter((x): x is { item: QuotationItem; base: NonNullable<ReturnType<typeof deferredBase>> } => !!x.base)
+    .filter(x => x.base.balance >= 1)
+    .map(x => ({
+      item: x.item,
+      name: itemDisplayName(x.item),
+      value: x.base.totalValue,
+      perMonth: x.base.perPayment,
+      balance: x.base.balance,
+    }));
+
+  const rawBalance = balances.reduce((s, b) => s + b.balance, 0);
+  const completionCharge = balances.reduce((s, b) => {
+    const d = itemDeferred(b.item, vatRate);
+    return s + (d ? d.finalAmount : 0);
+  }, 0);
+
+  const first = balances[0]?.item;
+  const trigger = first?.deferredTrigger?.trim() || DEFAULT_DEFERRED_TRIGGER;
+
+  return {
+    installments: plan.installments,
+    monthlyLines, separateLines, includedLines,
+    retainer: r2(retainer), anchor: r2(anchor), discount: Math.max(0, r2(anchor - retainer)),
+    balances, rawBalance: r2(rawBalance), completionCharge: r2(completionCharge),
+    trigger,
+    endMonth: addMonths(plan.startMonth, plan.installments - 1),
+  };
+}
+
+/* ─── פופאובר הקשרי ───────────────────────────────────────────────────────── */
+type PopKind = 'price' | 'start' | 'completion' | 'template' | 'oneTime' | null;
+
+function Pop({ anchor, onClose, children }: {
+  anchor: HTMLElement | null; onClose: () => void; children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const narrow = typeof window !== 'undefined' && window.innerWidth <= 680;
+
+  useLayoutEffect(() => {
+    if (narrow || !anchor || !ref.current) return;
+    const r = anchor.getBoundingClientRect();
+    const w = ref.current.offsetWidth, h = ref.current.offsetHeight;
+    const left = Math.max(12, Math.min(r.right - w, window.innerWidth - w - 12));
+    let top = r.bottom + window.scrollY + 8;
+    if (r.bottom + h + 20 > window.innerHeight) top = r.top + window.scrollY - h - 8;
+    setPos({ left, top: Math.max(12, top) });
+  }, [anchor, narrow]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <>
+      <div className="qb-scrim" onClick={onClose} />
+      <div ref={ref} className="qb-pop" role="dialog"
+        style={narrow ? undefined : { left: pos?.left ?? -9999, top: pos?.top ?? -9999 }}>
+        {children}
+      </div>
+    </>
+  );
+}
+
+/* ═══ הבונה ═══════════════════════════════════════════════════════════════ */
 export default function QuotationBuilder({
-  profile, services, templates, leads, clients, existing, initialLeadId, initialClientId, existingQuotations,
-  initialKind, currentEngagement, checkRepEmailConflict, onSaveDraft, onSend, onBack,
+  profile, services, templates, leads, clients, existing, initialLeadId, initialClientId,
+  initialKind, currentEngagement, existingQuotations, checkRepEmailConflict,
+  onSaveDraft, onSend, onBack,
 }: Props) {
   const brand = useMemo(() => deriveQuotationBrand(profile), [profile]);
 
   const initialRecipient: RecipientDraft = (() => {
-    if (existing?.leadId) {
-      const l = leads.find(x => x.id === existing.leadId);
-      if (l) return { kind: 'lead', id: l.id, fullName: l.fullName, businessName: l.businessName, email: l.email, phone: l.phone, dealerType: l.dealerType };
-    }
-    if (existing?.clientId) {
-      const c = clients.find(x => x.id === existing.clientId);
-      if (c) return { kind: 'client', id: c.id, fullName: `${c.firstName} ${c.lastName}`.trim(), email: c.email, phone: c.phone };
-    }
-    // הצעה חדשה שנפתחה מכרטיס ליד — הנמען כבר ידוע
-    if (initialLeadId) {
-      const l = leads.find(x => x.id === initialLeadId);
-      if (l) return { kind: 'lead', id: l.id, fullName: l.fullName, businessName: l.businessName, email: l.email, phone: l.phone, dealerType: l.dealerType };
-    }
-    // הצעה חדשה שנפתחה מכרטיס לקוח קיים — "אדם חדש" משלב 3, או "שירות נוסף"
-    if (initialClientId) {
-      const c = clients.find(x => x.id === initialClientId);
-      if (c) return { kind: 'client', id: c.id, fullName: `${c.firstName} ${c.lastName}`.trim(), email: c.email, phone: c.phone };
-    }
+    const fromClient = (c: Client): RecipientDraft => ({
+      kind: 'client', id: c.id, fullName: `${c.firstName} ${c.lastName}`.trim(),
+      businessName: c.businessName, email: c.email, phone: c.phone,
+    });
+    const fromLead = (l: Lead): RecipientDraft => ({
+      kind: 'lead', id: l.id, fullName: l.fullName, businessName: l.businessName,
+      email: l.email, phone: l.phone, dealerType: l.dealerType,
+    });
+    if (existing?.leadId) { const l = leads.find(x => x.id === existing.leadId); if (l) return fromLead(l); }
+    if (existing?.clientId) { const c = clients.find(x => x.id === existing.clientId); if (c) return fromClient(c); }
+    if (initialLeadId) { const l = leads.find(x => x.id === initialLeadId); if (l) return fromLead(l); }
+    if (initialClientId) { const c = clients.find(x => x.id === initialClientId); if (c) return fromClient(c); }
     return { kind: 'new', fullName: '' };
   })();
 
-  const [recipient, setRecipient] = useState<RecipientDraft>(initialRecipient);
-
-  // ─── הכוונה המסחרית ───────────────────────────────────────────────────────
-  // נבחרה לפני הבונה ואינה נערכת כאן: היא קובעת מה יקרה באישור, ושינוי שלה
-  // באמצע הבנייה היה משנה משמעות של הצעה שכבר תומחרה.
   const kind: QuotationKind = existing?.kind ?? initialKind ?? 'engagement';
-  const isRenewal = kind === 'engagement' && !!currentEngagement;
+  const isRenewal = kind === 'engagement' && !!currentEngagement && !existing;
 
-  /** ההסכם החדש נכנס לתוקף בינואר הקרוב — המועד המקובל לעדכון שנתי. */
-  const nextJanuary = (() => {
-    const y = new Date().getFullYear() + 1;
-    return `${y}-01-01`;
-  })();
+  const nextJanuary = `${new Date().getFullYear() + 1}-01-01`;
+
+  const [recipient, setRecipient] = useState<RecipientDraft>(initialRecipient);
   const [effectiveFrom, setEffectiveFrom] = useState<string | undefined>(
-    existing?.effectiveFrom ?? (isRenewal ? nextJanuary : undefined));
+    existing?.effectiveFrom ?? (kind === 'engagement' && currentEngagement ? nextJanuary : undefined));
 
-  /**
-   * חידוש מתחיל מההסכם הנוכחי — הרו"ח עורך רק את מה שהשתנה. השורות מועתקות
-   * מההצעה שמאחורי ההתקשרות, עם מזהים חדשים (שורה היא חלק מההצעה הזאת) ועם
-   * פריסה של שנה מלאה מחודש התוקף — ולכן אין יתרת דוח שנתי.
-   */
-  const renewalItems = useMemo<QuotationItem[]>(() => {
-    if (!isRenewal || existing) return [];
-    const src = existingQuotations.find(q => q.id === currentEngagement?.quotationId);
-    const base = (src?.snapshot?.items ?? src?.items ?? []) as QuotationItem[];
-    const startMonth = (effectiveFrom ?? nextJanuary).slice(0, 7);
-    return base.map(it => ({
-      ...it,
-      id: crypto.randomUUID(),
-      ...(it.category === 'monthly'
-        ? { billingStartMonth: startMonth, installments: DEFAULT_INSTALLMENTS,
-            ...(it.prorationMode === 'deferred' ? { prorationMode: 'full' as const } : {}) }
-        : {}),
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRenewal, existing, currentEngagement?.quotationId]);
-
-  const [items, setItems] = useState<QuotationItem[]>(existing?.items ?? renewalItems);
-  // מחירון שירותים עתידיים — ברירת מחדל בהצעה חדשה: השירותים החד־פעמיים
-  // (הצהרת הון, מעבר מפטור למורשה וכו') — אלה שהלקוח עלול להיות מופתע מהם.
-  const [futureIds, setFutureIds] = useState<Set<string>>(() =>
-    existing
-      ? new Set((existing.futureServices ?? []).map(f => f.serviceId).filter((v): v is string => !!v))
-      : new Set(services.filter(s => s.active && s.defaultPrice > 0 && s.category === 'one_time').map(s => s.id)));
-  const [vatRate] = useState<number>(existing?.vatRate ?? DEFAULT_VAT_RATE);
-  const [templateId, setTemplateId] = useState<string | undefined>(existing?.templateId);
-  const [emailSubject, setEmailSubject] = useState(existing?.emailSubject ?? 'הצעת מחיר מהמשרד');
-  // הודעה אישית אחת שנכנסת גם למייל וגם לעמוד ההצעה. עד 2026-07-30 היו שני
-  // שדות נפרדים, וגיא כתב בשניהם את אותו דבר. טיוטה ישנה שיש בה רק הערת עמוד
-  // נפתחת איתה, כדי שהטקסט שנכתב לא ייעלם.
-  const [emailMessage, setEmailMessage] = useState(
-    existing?.emailMessage || existing?.notesForClient || '');
-  const notesForClient = emailMessage;
-  const [internalNotes, setInternalNotes] = useState(existing?.internalNotes ?? '');
-  const [expiresAt, setExpiresAt] = useState(existing?.expiresAt ?? businessDaysExpiry(DEFAULT_EXPIRY_BUSINESS_DAYS));
-  // הצעה ללקוח קיים היא לרוב שירות נוסף למי שכבר מיוצג — ולכן ברירת המחדל שם
-  // היא לא לפתוח ייצוג. הצעה לליד חדש כן פותחת, שזה כל העניין.
-  const [representation, setRepresentation] = useState<QuotationRepresentation>(() => {
-    if (existing?.representation) return existing.representation;
-    const base = defaultQuotationRepresentation(isTransferRecipient(initialRecipient, leads, clients));
-    return initialRecipient.kind === 'client' ? { ...base, enabled: false } : base;
-  });
-
-  // פריסת התשלומים נגזרת מהשורות הקיימות בעריכת טיוטה, ומתחילה מהחודש הנוכחי
-  // ב-12 תשלומים בהצעה חדשה.
   const initialPlan: BillingPlan = (() => {
     const m = (existing?.items ?? []).find(i => i.category === 'monthly' && !!i.billingStartMonth);
-    return {
-      startMonth: m?.billingStartMonth ?? currentMonthKey(),
-      installments: clampInstallments(m?.installments),
-    };
+    if (m) return { startMonth: m.billingStartMonth!, installments: clampInstallments(m.installments) };
+    if (isRenewal) {
+      const start = (effectiveFrom ?? nextJanuary).slice(0, 7);
+      return { startMonth: start, installments: DEFAULT_INSTALLMENTS };
+    }
+    const start = currentMonthKey();
+    return { startMonth: start, installments: monthsLeftInYear(start) };
   })();
   const [plan, setPlan] = useState<BillingPlan>(initialPlan);
 
-  // הצעה שכבר נשלחה נפתחת ישר על המעקב — זה מה שמעניין אחרי השליחה
-  const hasTracking = !!existing && existing.status !== 'draft';
-  const [tab, setTab] = useState<PreviewTab>(hasTracking ? 'track' : 'web');
+  /** חידוש מתחיל מההסכם הנוכחי; הצעה חדשה מתחילה מהתבנית של סוג העוסק. */
+  const startingTemplateId = (() => {
+    if (existing?.templateId) return existing.templateId;
+    const active = templates.filter(t => t.active);
+    const byKind = initialRecipient.dealerType === 'exempt' ? 'exempt_dealer'
+      : initialRecipient.dealerType === 'company' ? 'company'
+      : initialRecipient.dealerType === 'licensed' ? 'licensed_dealer' : undefined;
+    return (byKind && active.find(t => t.kind === byKind)?.id) ?? active[0]?.id;
+  })();
 
-  // בטלפון אין מקום לשתי עמודות — עוברים לעמודה אחת עם מתג עריכה/תצוגה
-  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 920);
-  const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit');
-  useEffect(() => {
-    const onResize = () => setNarrow(window.innerWidth < 920);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-  const [device, setDevice] = useState<Device>('desktop');
-  const [catalogOpen, setCatalogOpen] = useState(false);
-  const [catalogSearch, setCatalogSearch] = useState('');
+  const [templateId, setTemplateId] = useState<string | undefined>(startingTemplateId);
+
+  const initialItems: QuotationItem[] = (() => {
+    if (existing) return existing.items;
+    if (isRenewal) {
+      const src = existingQuotations.find(q => q.id === currentEngagement?.quotationId);
+      const base = (src?.snapshot?.items ?? src?.items ?? []) as QuotationItem[];
+      if (base.length) {
+        return base.map(it => applyPlanToItem({ ...it, id: crypto.randomUUID() }, initialPlan));
+      }
+    }
+    if (kind === 'one_time') return [];
+    const tpl = templates.find(t => t.id === startingTemplateId);
+    if (!tpl) return [];
+    return tpl.serviceIds
+      .map(sid => services.find(s => s.id === sid))
+      .filter((s): s is ServiceCatalogItem => !!s)
+      .map(s => applyPlanToItem(catalogToItem(s), initialPlan));
+  })();
+
+  const [items, setItems] = useState<QuotationItem[]>(initialItems);
+
+  /** מחירון "אם וכאשר" — ברירת המחדל מגיעה מהתבנית, לא מכל הקטלוג. */
+  const [futureIds, setFutureIds] = useState<Set<string>>(() => {
+    if (existing) return new Set((existing.futureServices ?? []).map(f => f.serviceId).filter((v): v is string => !!v));
+    const tpl = templates.find(t => t.id === startingTemplateId);
+    const used = new Set(initialItems.map(i => i.serviceId).filter(Boolean));
+    return new Set((tpl?.futureServiceIds ?? []).filter(id => !used.has(id)));
+  });
+
+  const [vatRate] = useState<number>(existing?.vatRate ?? DEFAULT_VAT_RATE);
+  const [emailSubject, setEmailSubject] = useState(existing?.emailSubject ?? 'הצעת מחיר מהמשרד');
+  const [emailMessage, setEmailMessage] = useState(existing?.emailMessage || existing?.notesForClient || '');
+  const [internalNotes, setInternalNotes] = useState(existing?.internalNotes ?? '');
+  const [expiresAt, setExpiresAt] = useState(existing?.expiresAt ?? businessDaysExpiry(DEFAULT_EXPIRY_BUSINESS_DAYS));
+  const [representation, setRepresentation] = useState<QuotationRepresentation>(() => {
+    if (existing?.representation) return existing.representation;
+    const base = defaultQuotationRepresentation(isTransferRecipient(initialRecipient, leads, clients));
+    return initialRecipient.kind === 'client' || kind === 'one_time' ? { ...base, enabled: false } : base;
+  });
+
+  // ── מצב מסך ──
+  const [pop, setPop] = useState<{ kind: PopKind; anchor: HTMLElement | null; itemId?: string }>({ kind: null, anchor: null });
+  const [panel, setPanel] = useState<'services' | 'future' | 'rep' | 'review' | 'recipient' | null>(null);
   const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [recipientPicker, setRecipientPicker] = useState(false);
-  // דוחות לשנים פתוחות — לקוח שלא הגיש בשנים האחרונות
-  const [priorServiceId, setPriorServiceId] = useState('');
-  const [priorYears, setPriorYears] = useState<Set<number>>(new Set());
-  const [priorPrice, setPriorPrice] = useState<number | ''>('');
-  const [priorCategory, setPriorCategory] = useState<ServiceCategory>('one_time');
   const [sending, setSending] = useState<'test' | 'send' | null>(null);
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
-  const [pdfBusy, setPdfBusy] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
-  const totals = calcTotals(items, vatRate);
-  const hasMonthly = items.some(i => i.category === 'monthly');
-  // הכרטיס מוצג גם כשאין עדיין שורה חודשית — אחרת אי אפשר לגלות שהפריסה קיימת
-  const hasPriced = items.some(i => i.category !== 'included');
+  const deal = useMemo(() => computeDeal(items, plan, vatRate), [items, plan, vatRate]);
+  const totals = useMemo(() => calcTotals(items, vatRate), [items, vatRate]);
 
-  // "יש שינויים שלא נשמרו" — נגזר מהשוואה לתמונת המצב האחרונה שנשמרה, כדי
-  // שהכפתור לא ייתקע על "נשמר" בזמן שממשיכים לערוך.
-  const stateKey = JSON.stringify([
-    recipient, items, [...futureIds].sort(), emailSubject, emailMessage,
-    notesForClient, internalNotes, templateId, expiresAt, representation,
-  ]);
-  const savedKey = useRef<string | null>(null);
+  const closePop = () => setPop({ kind: null, anchor: null });
+  const openPop = (k: PopKind, e: React.MouseEvent, itemId?: string) =>
+    setPop({ kind: k, anchor: e.currentTarget as HTMLElement, itemId });
 
-  // ─── סימון השדה החסר ──────────────────────────────────────────────────────
-  // ‼ הודעת שגיאה ליד הכפתור היא פסיבית: היא אומרת שמשהו חסר, ומשאירה את
-  // החיפוש למשתמש. שלוש הפעולות נעצרות על שדות שיושבים בראש פאנל העריכה,
-  // ומי שגלל עד לתחתית לא רואה אותם בכלל. לכן: כוכבית אדומה על מה שחסר,
-  // גלילה אוטומטית אליו, והדגשה שנשארת עד שהוא מתוקן.
-  type FieldKey = 'recipient' | 'services' | 'representation';
-  const [invalidField, setInvalidField] = useState<FieldKey | null>(null);
-  const fieldRefs = {
-    recipient: useRef<HTMLDivElement>(null),
-    services: useRef<HTMLDivElement>(null),
-    representation: useRef<HTMLDivElement>(null),
-  };
+  const futureServices: FutureService[] = useMemo(() => {
+    const used = new Set(items.map(i => i.serviceId).filter(Boolean));
+    return services
+      .filter(s => s.active && futureIds.has(s.id) && !used.has(s.id))
+      .map(s => ({
+        id: s.id, serviceId: s.id, name: s.name, description: s.description,
+        category: s.category, price: s.defaultPrice, vatFlag: s.vatFlag,
+        billingType: s.billingType, unitLabel: s.unitLabel,
+      }));
+  }, [services, futureIds, items]);
 
-  /** מסמן שדה כחסר, גולל אליו, ומציג את ההודעה. מחזיר false כדי לעצור זרימה. */
-  function flagField(which: FieldKey, message: string): false {
-    setError(message);
-    setInvalidField(which);
-    // ‼ בטלפון פאנל העריכה מוסתר כשמסתכלים על התצוגה המקדימה. גלילה אל שדה
-    // שאינו על המסך לא עושה כלום, ולכן קודם מחזירים את המשתמש לעריכה.
-    setMobilePane('edit');
-    // ‼ קפיצה מיידית ולא גלילה חלקה. behavior:'smooth' פשוט לא זז בחלק
-    // מהדפדפנים והסביבות (נמדד: 565 → 565), ואז הכפתור "לא עושה כלום" בדיוק
-    // כמו קודם. עדיף קפיצה ודאית על אנימציה שלפעמים קורית.
-    // setTimeout ולא requestAnimationFrame: מחכים שהמעבר לפאנל העריכה יסתיים,
-    // אחרת גוללים אל אלמנט שעדיין מוסתר.
-    setTimeout(() => {
-      const el = fieldRefs[which].current;
-      if (!el) return;
-      el.scrollIntoView({ block: 'center' });
-      // מקבע את המיקוד שם, כדי שגם ניווט במקלדת ימשיך מהשדה החסר.
-      el.querySelector<HTMLElement>('input, select, textarea, button')?.focus({ preventScroll: true });
-    }, 0);
-    return false;
-  }
+  /* ─── עריכות ─────────────────────────────────────────────────────────────── */
 
-  // ההדגשה יורדת ברגע שהשדה תוקן — סימון אדום שנשאר אחרי התיקון מלמד
-  // להתעלם ממנו.
-  useEffect(() => {
-    if (!invalidField) return;
-    const fixed =
-      invalidField === 'recipient' ? !!recipient.fullName.trim()
-      : invalidField === 'services' ? items.length > 0 && items.every(i => i.name.trim())
-      : !validateQuotationRepresentation(representation);
-    if (fixed) { setInvalidField(null); setError(null); }
-  }, [invalidField, recipient.fullName, items, representation]);
-
-  /**
-   * סימון על תיבת הקלט עצמה. מסגרת סביב הכרטיס אומרת "באזור הזה" — היא לא
-   * אומרת באיזו שורה. כשיש בכרטיס כמה שדות, זה ההבדל בין רמז לתשובה.
-   */
-  const invalidInput: React.CSSProperties = {
-    borderColor: 'var(--err)',
-    boxShadow: '0 0 0 1px var(--err)',
-    background: 'var(--red-light)',
-  };
-
-  /** מסגרת + רקע עדין על הכרטיס שחסר בו משהו. */
-  const invalidStyle = (which: FieldKey): React.CSSProperties =>
-    invalidField === which
-      ? {
-          boxShadow: '0 0 0 2px var(--err)',
-          borderRadius: 'var(--radius)',
-          padding: '14px 12px 16px',
-          transition: 'box-shadow .25s ease',
-        }
-      : {};
-
-  /** כוכבית אדומה — מסמנת שדה חובה מהרגע הראשון, לפני שמישהו לחץ על כלום. */
-  const Req = () => (
-    <span title="שדה חובה" style={{ color: 'var(--err)', marginInlineStart: 3, fontWeight: 700 }}>*</span>
-  );
-  const dirty = savedKey.current !== stateKey;
-
-  // ‼ מייעץ בלבד — מייל הוא פרט קשר, לא זיהוי אדם (יכול להיות בן משפחה
-  // שחולק מייל). לעולם לא חוסם שליחה, רק מוצג כאזהרה שקטה בעורך הייצוג.
-  const repEmailConflict = useMemo(() => {
-    if (!representation.enabled || !checkRepEmailConflict) return null;
-    const email = recipient.email?.trim();
-    if (!email) return null;
-    // לקוח קיים שכבר בתהליך אינו "התנגשות" — זו אותה רשומה
-    if (recipient.kind === 'client') return null;
-    return checkRepEmailConflict(email);
-  }, [representation.enabled, recipient.email, recipient.kind, checkRepEmailConflict]);
-
-  // אזהרה: כבר קיימת הצעה פתוחה לאותו נמען
-  const openWarning = useMemo(() => {
-    if (!recipient.id) return null;
-    const open = existingQuotations.find(q =>
-      q.id !== existing?.id &&
-      (q.leadId === recipient.id || q.clientId === recipient.id) &&
-      ['draft', 'sent', 'viewed'].includes(q.status));
-    return open ? `כבר קיימת הצעה (${q_num(open)}) בסטטוס פתוח לנמען זה.` : null;
-  }, [recipient.id, existingQuotations, existing?.id]);
-
-  function applyTemplate(id: string) {
-    setTemplateId(id || undefined);
-    if (!id) return;
-    const tpl = templates.find(t => t.id === id);
-    if (!tpl) return;
-    const svc = tpl.serviceIds
-      .map(sid => services.find(s => s.id === sid))
-      .filter((s): s is ServiceCatalogItem => Boolean(s));
-    setItems(svc.map(s => applyPlanToItem(catalogToItem(s), plan)));
-  }
-
-  function addService(svc: ServiceCatalogItem) {
-    setItems(prev => [...prev, applyPlanToItem(catalogToItem(svc), plan)]);
-  }
-
-  // משבצת חופשית — שירות שלא קיים בקטלוג וממציאים אותו תוך כדי שיחה.
-  // serviceId ריק מסמן שהשם נערך ישירות בשורה.
-  function addCustomItem() {
-    setItems(prev => [...prev, {
-      id: crypto.randomUUID(),
-      name: '',
-      category: 'one_time' as ServiceCategory,
-      billingType: 'fixed' as const,
-      quantity: 1,
-      catalogPrice: 0,
-      clientPrice: 0,
-      vatFlag: true,
-    }]);
-  }
-  function updateItem(id: string, patch: Partial<QuotationItem>) {
-    setItems(prev => prev.map(it => {
-      if (it.id !== id) return it;
-      const next = { ...it, ...patch };
-      // שורה שהפכה לחודשית מקבלת את הפריסה הנוכחית; שורה שיצאה מחודשי
-      // משילה אותה, כדי שסכום חד־פעמי לא יגרור איתו "5 תשלומים".
-      if (patch.category !== undefined && patch.category !== it.category) {
-        return next.category === 'monthly'
-          ? applyPlanToItem(next, plan)
-          : { ...next, priceBasis: undefined, annualPrice: undefined, installments: undefined, billingStartMonth: undefined, prorationMode: undefined };
-      }
-      return next;
-    }));
-  }
-  function removeItem(id: string) {
-    setItems(prev => prev.filter(it => it.id !== id));
-  }
-
-  // שינוי בפריסה מחיל את עצמו על כל השורות החודשיות בבת אחת
   function updatePlan(patch: Partial<BillingPlan>) {
-    const next: BillingPlan = { ...plan, ...patch, installments: clampInstallments(patch.installments ?? plan.installments) };
+    const next: BillingPlan = {
+      ...plan, ...patch,
+      installments: clampInstallments(patch.installments ?? plan.installments),
+    };
     setPlan(next);
     setItems(prev => prev.map(it => applyPlanToItem(it, next)));
   }
 
-  // ─── דוחות לשנים פתוחות ───
-  // כל שנה נוספת כשורה נפרדת: מחיר משלה, הנחה משלה ותדירות חיוב משלה.
-  const annualServices = services.filter(s => s.active && s.category === 'annual');
-  const priorService = annualServices.find(s => s.id === priorServiceId) ?? annualServices[0];
-  const priorPriceValue = priorPrice === '' ? (priorService?.defaultPrice ?? 0) : priorPrice;
-
-  function yearTaken(year: number): boolean {
-    return items.some(it => it.year === year && it.serviceId === priorService?.id);
-  }
-
-  function togglePriorYear(year: number) {
-    setPriorYears(prev => {
-      const next = new Set(prev);
-      next.has(year) ? next.delete(year) : next.add(year);
-      return next;
-    });
-  }
-
-  function addPriorYearReports() {
-    if (!priorService) return;
-    const added = [...priorYears]
-      .sort((a, b) => a - b)
-      .filter(y => !yearTaken(y))
-      .map(y => applyPlanToItem(catalogToItem(priorService, {
-        year: y, category: priorCategory, clientPrice: priorPriceValue,
-      }), plan));
-    if (added.length === 0) return;
-    setItems(prev => [...prev, ...added]);
-    setPriorYears(new Set());
-  }
-
-  // מועמדים לשירותים עתידיים: שירותים פעילים בתשלום שאינם כבר בהצעה
-  const usedIds = new Set(items.map(i => i.serviceId).filter(Boolean));
-  const futureCandidates = services.filter(s => s.active && s.defaultPrice > 0 && !usedIds.has(s.id));
-  const futureServices: FutureService[] = futureCandidates
-    .filter(s => futureIds.has(s.id))
-    .map(s => ({
-      id: s.id, serviceId: s.id, name: s.name, description: s.description,
-      category: s.category, price: s.defaultPrice, vatFlag: s.vatFlag,
-      billingType: s.billingType, unitLabel: s.unitLabel,
-    }));
-
-  const webData: QuotationWebViewData = {
-    quotationNumber: existing?.quotationNumber ?? 'טיוטה',
-    recipientName: recipient.fullName || 'הלקוח',
-    businessName: recipient.businessName,
-    items, futureServices, vatRate, notesForClient, expiresAt,
-    representation,
-  };
-  const emailHtml = useMemo(() => buildQuotationEmailHtml({
-    quotationNumber: existing?.quotationNumber ?? 'טיוטה',
-    recipientName: recipient.fullName || 'הלקוח',
-    businessName: recipient.businessName,
-    items, vatRate, message: emailMessage, quotationLink: '#', expiresAt,
-  }, brand), [items, vatRate, emailMessage, recipient.fullName, recipient.businessName, expiresAt, brand, existing?.quotationNumber]);
-
-  async function handleSave() {
-    setError(null);
-    setInvalidField(null);
-    if (!recipient.fullName.trim()) {
-      flagField('recipient', 'יש לבחור נמען (ליד או לקוח) לפני שמירה.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSaveDraft(buildPayload());
-      savedKey.current = stateKey;
-      setSavedAt(Date.now());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'שמירה נכשלה');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function buildPayload(): SaveDraftPayload {
-    return {
-      id: existing?.id,
-      recipient, items, futureServices, vatRate,
-      emailSubject, emailMessage, notesForClient, internalNotes,
-      templateId, expiresAt,
-      representation: representationWithRecipient(),
-      kind,
-      effectiveFrom: isRenewal ? effectiveFrom : undefined,
-    };
-  }
-
   /**
-   * שם ומייל הנמען נכתבים ל-prefill רק ברגע השמירה, ולא בזמן העריכה: הנמען
-   * עשוי להתחלף אחרי שהייצוג הוגדר, ואז prefill היה נשאר על השם הקודם.
+   * מחיר שסוכם לשכר החודשי. ההפרש מחולק יחסית בין השורות החודשיות שאינן
+   * שנתיות-במהותן — כך שיתרת הדוח השנתי אינה משתנה (הכרעה מאושרת).
+   * הרצפה היא סכום התרומות השנתיות; מתחתיה אי אפשר לרדת בלי לגעת בדוח.
    */
+  function applyAgreedMonthly(target: number) {
+    const fixed = items.filter(isAnnualNature).reduce((s, i) => s + itemFinalPrice(i), 0);
+    const flexible = items.filter(i => i.category === 'monthly' && !isAnnualNature(i));
+    const flexOriginal = flexible.reduce((s, i) => s + itemOriginalPrice(i), 0);
+    if (flexible.length === 0 || flexOriginal <= 0) return;
+    const wanted = Math.max(fixed, target) - fixed;
+    const ratio = Math.min(1, Math.max(0, wanted / flexOriginal));
+    setItems(prev => prev.map(it => {
+      if (it.category !== 'monthly' || isAnnualNature(it)) return it;
+      return { ...it, discountPercent: r2((1 - ratio) * 100) };
+    }));
+  }
+
+  function clearAgreedMonthly() {
+    setItems(prev => prev.map(it =>
+      it.category === 'monthly' && !isAnnualNature(it) ? { ...it, discountPercent: 0 } : it));
+  }
+
+  function setCompletion(patch: { mode?: 'charge' | 'reduce' | 'waive'; amount?: number | null; trigger?: string }) {
+    setItems(prev => prev.map(it => {
+      if (it.prorationMode !== 'deferred') return it;
+      const base = deferredBase(it);
+      if (!base) return it;
+      const next = { ...it };
+      if (patch.trigger !== undefined) {
+        next.deferredTrigger = patch.trigger === DEFAULT_DEFERRED_TRIGGER ? undefined : patch.trigger;
+      }
+      if (patch.mode === 'charge') { next.deferredChargeAmount = undefined; next.deferredDiscount = undefined; }
+      if (patch.mode === 'waive') { next.deferredChargeAmount = 0; }
+      if (patch.amount !== undefined && patch.amount !== null) {
+        next.deferredChargeAmount = Math.max(0, Math.min(patch.amount, base.balance));
+      }
+      return next;
+    }));
+  }
+
+  function applyTemplate(id: string) {
+    const tpl = templates.find(t => t.id === id);
+    if (!tpl) return;
+    if (items.length > 0 && !window.confirm('החלפת תבנית תבנה את ההצעה מחדש. להמשיך?')) return;
+    setTemplateId(id);
+    const svc = tpl.serviceIds.map(sid => services.find(s => s.id === sid)).filter((s): s is ServiceCatalogItem => !!s);
+    const next = svc.map(s => applyPlanToItem(catalogToItem(s), plan));
+    setItems(next);
+    const used = new Set(next.map(i => i.serviceId).filter(Boolean));
+    setFutureIds(new Set((tpl.futureServiceIds ?? []).filter(fid => !used.has(fid))));
+    closePop();
+  }
+
+  function updateItem(id: string, patch: Partial<QuotationItem>) {
+    setItems(prev => prev.map(it => (it.id === id ? applyPlanToItem({ ...it, ...patch }, plan) : it)));
+  }
+  function removeItem(id: string) { setItems(prev => prev.filter(it => it.id !== id)); }
+  function addService(svc: ServiceCatalogItem, overrides?: Partial<QuotationItem>) {
+    setItems(prev => [...prev, applyPlanToItem(catalogToItem(svc, overrides), plan)]);
+    setFutureIds(prev => { const n = new Set(prev); n.delete(svc.id); return n; });
+  }
+
+  /* ─── שמירה ושליחה ───────────────────────────────────────────────────────── */
+
   function representationWithRecipient(): QuotationRepresentation {
     if (!representation.enabled) return representation;
     const parts = recipient.fullName.trim().split(/\s+/).filter(Boolean);
@@ -576,524 +480,889 @@ export default function QuotationBuilder({
     };
   }
 
+  function buildPayload(): SaveDraftPayload {
+    return {
+      id: existing?.id,
+      recipient, items, futureServices, vatRate,
+      emailSubject, emailMessage, notesForClient: emailMessage, internalNotes,
+      templateId, expiresAt,
+      representation: representationWithRecipient(),
+      kind,
+      effectiveFrom: kind === 'engagement' && currentEngagement ? effectiveFrom : undefined,
+    };
+  }
+
+  async function handleSave() {
+    if (!recipient.fullName.trim()) { setPanel('recipient'); return; }
+    setSaving(true);
+    try {
+      await onSaveDraft(buildPayload());
+      setSavedAt(Date.now());
+    } catch (e) {
+      setNotice({ kind: 'err', text: e instanceof Error ? e.message : 'שמירה נכשלה' });
+    } finally { setSaving(false); }
+  }
+
+  function sendBlocker(isTest: boolean): string | null {
+    if (!recipient.fullName.trim()) return 'צריך לבחור למי ההצעה.';
+    if (!isTest && !recipient.email?.trim()) return 'לנמען אין כתובת מייל — אי אפשר לשלוח.';
+    if (items.length === 0) return 'אין שירותים בהצעה.';
+    if (items.some(i => !i.name.trim())) return 'יש שורה בלי שם.';
+    const rep = validateQuotationRepresentation(representation);
+    return rep ? `ייצוג: ${rep}` : null;
+  }
+
   async function handleSend(isTest: boolean) {
-    setError(null);
-    setNotice(null);
-    setInvalidField(null);
-    if (!recipient.fullName.trim()) { flagField('recipient', 'יש לבחור נמען להצעה לפני שליחה.'); return; }
-    if (!isTest && !recipient.email?.trim()) {
-      // ‼ נמען שנבחר מוצג כשורת סיכום, בלי שדות. בלי פתיחת העורך אין מה
-      // לסמן באדום, והמשתמש רואה הודעה על שדה שלא נמצא על המסך.
-      setRecipientPicker(true);
-      flagField('recipient', 'לנמען אין כתובת מייל — לא ניתן לשלוח ללקוח.');
-      return;
-    }
-    if (items.length === 0) { flagField('services', 'אין שירותים בהצעה — יש להוסיף לפחות שירות אחד.'); return; }
-    if (items.some(i => !i.name.trim())) { flagField('services', 'יש שורה חופשית בלי שם — יש לתת לה שם או להסיר אותה לפני שליחה.'); return; }
-    // הייצוג נפתח אוטומטית עם האישור, ואז אין הזדמנות לתקן — ולכן נבדק כאן
-    const repError = validateQuotationRepresentation(representation);
-    if (repError) { flagField('representation', `ייצוג: ${repError}`); return; }
+    const blocker = sendBlocker(isTest);
+    if (blocker) { setNotice({ kind: 'err', text: blocker }); if (!recipient.fullName.trim()) setPanel('recipient'); return; }
     setSending(isTest ? 'test' : 'send');
+    setNotice(null);
     try {
       const res = await onSend(buildPayload(), isTest);
       if (res.ok) {
-        savedKey.current = stateKey;
         setNotice({ kind: 'ok', text: isTest ? 'מייל בדיקה נשלח אליך.' : 'ההצעה נשלחה ללקוח.' });
-        if (!isTest) { setTimeout(onBack, 900); }
+        if (!isTest) setTimeout(onBack, 900);
       } else {
         setNotice({ kind: 'err', text: `השליחה נכשלה: ${res.error ?? 'שגיאה'}` });
       }
-    } finally {
-      setSending(null);
-    }
+    } finally { setSending(null); }
   }
 
-  async function handleDownloadPdf() {
-    setPdfBusy(true);
-    try {
-      const bytes = await generateQuotationPdf({
-        quotationNumber: existing?.quotationNumber ?? 'טיוטה',
-        recipientName: recipient.fullName || 'הלקוח',
-        businessName: recipient.businessName,
-        items, vatRate, notesForClient, expiresAt, representation,
-      }, brand);
-      downloadPdf(bytes, `הצעת מחיר ${existing?.quotationNumber ?? 'טיוטה'}.pdf`);
-    } catch (e) {
-      setNotice({ kind: 'err', text: `הפקת ה-PDF נכשלה: ${e instanceof Error ? e.message : String(e)}` });
-    } finally {
-      setPdfBusy(false);
-    }
+  async function downloadPreviewPdf() {
+    const bytes = await generateQuotationPdf({
+      quotationNumber: existing?.quotationNumber ?? 'טיוטה',
+      recipientName: recipient.fullName || 'הלקוח',
+      businessName: recipient.businessName,
+      items, futureServices, vatRate, notesForClient: emailMessage, expiresAt,
+      representation: representationWithRecipient(),
+    }, brand);
+    downloadPdf(bytes, `הצעת מחיר ${existing?.quotationNumber ?? 'טיוטה'}.pdf`);
   }
 
-  // יציאה עם עריכות פתוחות מאבדת אותן — לכן שואלים לפני
-  function handleBack() {
-    const worthSaving = items.length > 0 || recipient.fullName.trim().length > 0;
-    if (dirty && worthSaving && !window.confirm('יש שינויים שלא נשמרו בהצעה. לצאת בלי לשמור?')) return;
-    onBack();
+  /* ─── הצעה שכבר נשלחה — מעקב ─────────────────────────────────────────────── */
+  if (existing && existing.status !== 'draft') {
+    return <SentQuotation quotation={existing} brand={brand} onBack={onBack} />;
   }
 
-  const catalogFiltered = services.filter(s =>
-    s.active && (!catalogSearch.trim() || s.name.includes(catalogSearch.trim())));
-  const usedServiceIds = new Set(items.map(i => i.serviceId).filter(Boolean));
+  const tpl = templates.find(t => t.id === templateId);
+  const repConflict = representation.enabled && recipient.kind !== 'client' && recipient.email
+    ? checkRepEmailConflict?.(recipient.email) ?? null : null;
+  const openWarning = recipient.id
+    ? existingQuotations.find(q => q.id !== existing?.id && (q.leadId === recipient.id || q.clientId === recipient.id)
+        && ['draft', 'sent', 'viewed'].includes(q.status))
+    : undefined;
 
-  // אותן שלוש פעולות מוצגות פעמיים — בראש המסך ובסוף פאנל העריכה. מי שגלל
-  // עד סוף המילוי סיים בדיוק שם, ולשלוח אותו חזרה לראש המסך זה מסע מיותר.
-  const actionButtons = (full = false) => (
-    <>
-      <button className="btn btn-secondary" style={full ? { flex: 1 } : undefined}
-        onClick={() => handleSend(true)} disabled={sending !== null || saving}>
-        {sending === 'test' ? 'שולח…' : 'מייל בדיקה'}
-      </button>
-      <button className="btn btn-secondary" style={full ? { flex: 1 } : undefined}
-        onClick={handleSave} disabled={saving || sending !== null}>
-        {saving ? 'שומר…' : !dirty && savedAt ? 'נשמר' : 'שמירת טיוטה'}
-      </button>
-      <button className="btn btn-primary" style={full ? { flex: 2 } : undefined}
-        onClick={() => handleSend(false)} disabled={sending !== null || saving}>
-        {sending === 'send' ? 'שולח…' : 'שליחה ללקוח'}
-      </button>
-    </>
-  );
+  const instTxt = deal.installments === 12 ? '12 תשלומים'
+    : deal.installments === 1 ? 'תשלום אחד השנה'
+    : `${deal.installments} תשלומים השנה`;
 
   return (
-    <div dir="rtl">
-      {/* header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button className="btn btn-ghost" onClick={handleBack}>→ חזרה</button>
-        {/* ‼ בטלפון הכותרת תופסת שורה שלמה. עם flex:1 בלבד היא נדחסה לעמודה
-            צרה בין "חזרה" לכפתורי הפעולה, "הצעת מחיר חדשה" נשבר לשתי שורות
-            והמשפט שמתחת התפרק לארבע. הכפתורים יורדים לשורה משלהם. */}
-        <div style={{ flex: narrow ? '1 1 100%' : 1, minWidth: 0 }}>
-          <div style={{ fontSize: 'var(--fs-20)', fontWeight: 600 }}>{existing ? `עריכת הצעה ${existing.quotationNumber}` : 'הצעת מחיר חדשה'}</div>
-          <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', marginTop: 2 }}>
-            {dirty && savedAt ? 'יש שינויים שלא נשמרו'
-              : kind === 'one_time' ? 'שירות חד־פעמי — השכר החודשי של הלקוח לא משתנה'
-              : isRenewal ? `עדכון ההתקשרות — נכנס לתוקף ${effectiveFrom ? new Date(effectiveFrom).toLocaleDateString('he-IL', { month: 'long', year: 'numeric' }) : ''}`
-              : 'בונים, מציגים תצוגה מקדימה ושומרים — הכל במסך אחד'}
-          </div>
+    <div className="qb" dir="rtl">
+      {/* פס עליון — פעולה ראשית אחת */}
+      <div className="qb-top">
+        <button className="qb-back" onClick={onBack}>→ חזרה</button>
+        <div className="qb-status">
+          {existing ? <>טיוטה · הצעה <b>{existing.quotationNumber}</b></> : 'הצעת מחיר חדשה'}
+          {savedAt && <span className="qb-saved"> · נשמר</span>}
         </div>
-        {actionButtons()}
+        <button className="btn btn-sm" onClick={handleSave} disabled={saving}>{saving ? 'שומר…' : 'שמירה'}</button>
+        <button className="btn btn-sm btn-primary" onClick={() => setPanel('review')}>סקירה ושליחה</button>
       </div>
 
-      {error && <div className="alert alert-warning" style={{ marginBottom: 12 }}>{error}</div>}
       {notice && (
-        <div className={`alert ${notice.kind === 'ok' ? 'alert-info' : 'alert-warning'}`} style={{ marginBottom: 12 }}>{notice.text}</div>
+        <div className={`qb-notice ${notice.kind === 'err' ? 'err' : 'ok'}`} role="status">{notice.text}</div>
       )}
 
-      {/* מתג עריכה/תצוגה — רק במסך צר (טלפון) */}
-      {narrow && (
-        <div className="tabs" style={{ marginBottom: 12 }}>
-          <button className={`tab ${mobilePane === 'edit' ? 'active' : ''}`} onClick={() => setMobilePane('edit')}>עריכה</button>
-          <button className={`tab ${mobilePane === 'preview' ? 'active' : ''}`} onClick={() => setMobilePane('preview')}>תצוגה מקדימה</button>
+      <div className="qb-doc">
+        {/* כותרת — מי, ומאיזו תבנית זה נבנה */}
+        <div className="qb-eyebrow">
+          <span>
+            {[recipient.businessName, recipient.dealerType && dealerLabel(recipient.dealerType)]
+              .filter(Boolean).join(' · ') || 'ללא שם עסק'} ·
+          </span>
+          {kind === 'one_time'
+            ? <span className="qb-kindtag">שירות חד־פעמי</span>
+            : <button className="qb-link mute ed" onClick={e => openPop('template', e)}>{tpl?.name ?? 'בחירת תבנית'}</button>}
         </div>
-      )}
+        <h1 className="qb-h1">
+          <button className="ed qb-h1btn" onClick={() => setPanel('recipient')}>
+            {recipient.fullName ? `הצעה ל${recipient.fullName}` : 'בחירת נמען'}
+          </button>
+        </h1>
+        {openWarning && (
+          <div className="qb-warn">כבר קיימת הצעה ({openWarning.quotationNumber}) פתוחה לנמען הזה.</div>
+        )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'minmax(360px, 460px) 1fr', gap: 18, alignItems: 'start' }}>
-
-        {/* ── פאנל בקרה ── */}
-        <div style={{ display: narrow && mobilePane === 'preview' ? 'none' : 'flex', flexDirection: 'column', gap: 14 }}>
-
-          {/* נמען */}
-          <div ref={fieldRefs.recipient} style={{ ...card, ...invalidStyle('recipient') }}>
-            <div style={cardTitle}>
-              נמען ההצעה<Req />
-            </div>
-            {recipient.fullName && !recipientPicker ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 'var(--fs-15)' }}>{recipient.fullName}</div>
-                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
-                    {recipient.kind === 'lead' ? 'ליד' : recipient.kind === 'client' ? 'לקוח קיים' : 'ליד חדש'}
-                    {recipient.email ? ` · ${recipient.email}` : ''}{recipient.phone ? ` · ${recipient.phone}` : ''}
-                  </div>
-                </div>
-                <button className="btn btn-sm btn-secondary" onClick={() => setRecipientPicker(true)}>שינוי</button>
-              </div>
-            ) : (
-              <RecipientEditor
-                invalidStyle={invalidField === 'recipient' ? invalidInput : undefined}
-                leads={leads} clients={clients} value={recipient}
-                onPick={(r) => {
-                  setRecipient(r);
-                  setRecipientPicker(false);
-                  // לקוח שכבר בייצוג — אין מה לפתוח לו ייצוג שני. כיבוי בלבד:
-                  // אם הרו"ח הדליק ידנית, לא נדרוס את הבחירה שלו בכיוון השני.
-                  const picked = r.kind === 'client' ? clients.find(c => c.id === r.id) : undefined;
-                  if (picked?.representationStatus) {
-                    setRepresentation(prev => prev.enabled ? { ...prev, enabled: false } : prev);
-                  }
-                  // ‼ מעבר מרו"ח אחר אינו מוריד יותר את הייצוג למשני (הכרעת
-                  // גיא 2026-08-18): גם מעבר נפתח כמייצג ראשי. משני נרשמים רק
-                  // כשנשארת אצל הקודם עבודה חוסמת — וזה קורה במכתב ההעברה.
-                }}
-              />
-            )}
-            {openWarning && <div className="alert alert-info" style={{ marginTop: 10, fontSize: 'var(--fs-13)' }}>{openWarning}</div>}
-          </div>
-
-          {/* תבנית */}
-          <div style={card}>
-            <div style={cardTitle}>תבנית</div>
-            <select value={templateId ?? ''} onChange={e => applyTemplate(e.target.value)}>
-              <option value="">בחירת תבנית — טעינת שירותים מומלצים…</option>
-              {templates.filter(t => t.active).map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6 }}>בחירת תבנית טוענת שירותים מומלצים. אפשר לערוך הכל אחר כך.</div>
-          </div>
-
-          {/* שירותים */}
-          <div ref={fieldRefs.services} style={{ ...card, ...invalidStyle('services') }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-              <div style={{ ...cardTitle, marginBottom: 0, flex: 1 }}>
-                שירותים<Req />
-              </div>
-              <button className="btn btn-sm btn-secondary" onClick={addCustomItem} title="שורה ריקה עם שם ומחיר חופשיים — למה שלא קיים בקטלוג">+ שורה חופשית</button>
-              {/* שתי דרכים להוסיף שירות הן שתי דרכים, לא ראשית ומשנית.
-                  הכחול המלא כאן התחרה עם "שליחה ללקוח" — הפעולה הראשית
-                  היחידה במסך. שתיהן משניות עכשיו, באותו משקל. */}
-              <button className="btn btn-sm btn-secondary" onClick={() => setCatalogOpen(o => !o)}>+ מהקטלוג</button>
-            </div>
-
-            {catalogOpen && (
-              <div style={{ border: '1px solid var(--gray-200)', borderRadius: 10, padding: 10, marginBottom: 12, background: 'var(--gray-50)' }}>
-                <input placeholder="חיפוש בקטלוג…" value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} style={{ marginBottom: 8 }} />
-                <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {catalogFiltered.length === 0 && <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', padding: 8 }}>הקטלוג ריק — הגדר שירותים בהגדרות המשרד ← הצעות מחיר.</div>}
-                  {catalogFiltered.map(s => (
-                    <button key={s.id} onClick={() => addService(s)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', border: '1px solid var(--gray-200)', borderRadius: 8, background: 'var(--card)', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
-                      <span style={{ flex: 1 }}>
-                        <span style={{ fontWeight: 500, fontSize: 'var(--fs-13)' }}>{s.name}</span>
-                        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)', marginInlineStart: 6 }}>{SERVICE_CATEGORY_LABELS[s.category]}</span>
-                      </span>
-                      <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-600)', fontVariantNumeric: 'tabular-nums' }}>
-                        {s.defaultPrice > 0 ? formatILS(s.defaultPrice) : 'כלול'}{usedServiceIds.has(s.id) ? ' ✓' : ''}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+        {/* הגיבור — העסקה */}
+        {deal.retainer > 0 ? (
+          <div className="qb-hero">
+            <button className="qb-amount ed" onClick={e => openPop('price', e)}>
+              <span className="num">{formatILS(deal.retainer)}</span>
+              <span className="qb-vat">לחודש + מע״מ</span>
+            </button>
+            {deal.discount >= 1 && (
+              <div className="qb-strike">
+                <span>מחיר רגיל <s className="num">{formatILS(deal.anchor)}</s></span>
+                <span className="qb-disc">הנחה <b className="num">{formatILS(deal.discount)}</b> לחודש</span>
               </div>
             )}
-
-            {items.length === 0 ? (
-              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', textAlign: 'center', padding: '16px 0' }}>טרם נוספו שירותים. בחר תבנית או הוסף שירות.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {items.map(item => (
-                  <LineItem key={item.id} item={item} vatRate={vatRate} plan={plan}
-                    flagEmptyName={invalidField === 'services'}
-                    onChange={p => updateItem(item.id, p)} onRemove={() => removeItem(item.id)} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* פריסת תשלומים — חלה על כל השורות החודשיות יחד */}
-          {hasPriced && (
-            <div style={card}>
-              <div style={{ ...cardTitle, marginBottom: 6 }}>פריסת תשלומים</div>
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
-                לקוח שמתחיל באמצע שנה לא משלם 12 תשלומים. כאן קובעים מתי מתחילים וכמה תשלומים — והשורות החודשיות מתעדכנות יחד.
-              </div>
-
-              {!hasMonthly && (
-                <div className="alert alert-info" style={{ fontSize: 'var(--fs-12)', marginBottom: 10, lineHeight: 1.55 }}>
-                  אין עדיין שורה שמשולמת בתשלומים חודשיים. בשורה שרוצים לפרוס — לחץ
-                  {' '}<b>«⤶ לפרוס לתשלומים חודשיים»</b>, והמחיר שלה יהפוך למחיר שנתי שמתחלק כאן.
-                </div>
+            <div className="qb-under">
+              <button className="ed qb-underbtn" onClick={e => openPop('start', e)}>
+                מתחילים ב{monthLabel(plan.startMonth)}
+              </button>
+              <span className="qb-underdim"> · {instTxt}</span>
+              {isRenewal && effectiveFrom && (
+                <span className="qb-underdim"> · בתוקף מ{monthLabel(effectiveFrom.slice(0, 7))}</span>
               )}
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <label style={miniLabel}>חודש התשלום הראשון
-                  <input type="month" value={plan.startMonth} style={miniInput}
-                    onChange={e => e.target.value && updatePlan({ startMonth: e.target.value })} />
-                </label>
-                <label style={miniLabel}>מספר תשלומים
-                  <input type="number" min={1} max={60} value={plan.installments} style={miniInput}
-                    onChange={e => updatePlan({ installments: Number(e.target.value) || 1 })} />
-                </label>
-              </div>
-
-              <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                <PlanChip active={plan.installments === DEFAULT_INSTALLMENTS}
-                  onClick={() => updatePlan({ installments: DEFAULT_INSTALLMENTS })}>
-                  שנה מלאה · 12
-                </PlanChip>
-                <PlanChip active={plan.installments === monthsLeftInYear(plan.startMonth)}
-                  onClick={() => updatePlan({ installments: monthsLeftInYear(plan.startMonth) })}>
-                  עד סוף השנה · {monthsLeftInYear(plan.startMonth)}
-                </PlanChip>
-              </div>
-
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 8, lineHeight: 1.55 }}>
-                בוחרים פעם אחת — וזה חל על כל השורות החודשיות בהצעה.
-              </div>
             </div>
-          )}
-
-          {/* דוחות לשנים פתוחות — לקוח שלא הגיש בשנים האחרונות */}
-          <Section icon="📅" title="דוחות לשנים פתוחות"
-            summary={(() => { const n = items.filter(i => i.year != null).length; return n ? `נוספו ${n} דוחות` : 'לא נדרש? דלג'; })()}>
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
-              בוחרים את השנים שטרם דווחו — כל שנה נוספת כשורה נפרדת בהצעה, עם מחיר, הנחה ותדירות חיוב משלה.
-            </div>
-
-            {annualServices.length === 0 ? (
-              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)' }}>
-                אין שירות בקטגוריית "שנתי" בקטלוג. הוסף אחד בהגדרות המשרד ← הצעות מחיר.
-              </div>
-            ) : (
-              <>
-                <select value={priorService?.id ?? ''} onChange={e => { setPriorServiceId(e.target.value); setPriorPrice(''); }}>
-                  {annualServices.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '10px 0' }}>
-                  {YEAR_OPTIONS.map(y => {
-                    const taken = yearTaken(y);
-                    const on = priorYears.has(y);
-                    return (
-                      <button key={y} onClick={() => togglePriorYear(y)} disabled={taken}
-                        title={taken ? 'כבר נוספה להצעה' : undefined}
-                        style={{
-                          padding: '5px 11px', borderRadius: 999, fontFamily: 'inherit', fontSize: 'var(--fs-13)',
-                          fontVariantNumeric: 'tabular-nums',
-                          cursor: taken ? 'default' : 'pointer',
-                          border: `1px solid ${on ? 'var(--blue)' : 'var(--gray-200)'}`,
-                          background: taken ? 'var(--gray-100)' : on ? 'var(--blue)' : 'var(--card)',
-                          color: taken ? 'var(--gray-400)' : on ? '#fff' : 'var(--gray-700)',
-                          fontWeight: on ? 600 : 400,
-                        }}>
-                        {y}{taken ? ' ✓' : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <label style={miniLabel}>מחיר לדוח
-                    <input type="number" min={0} value={priorPriceValue} style={miniInput}
-                      onChange={e => setPriorPrice(Math.max(0, Number(e.target.value) || 0))} />
-                  </label>
-                  <label style={miniLabel}>תדירות חיוב
-                    <select value={priorCategory} style={miniInput}
-                      onChange={e => setPriorCategory(e.target.value as ServiceCategory)}>
-                      {SERVICE_CATEGORY_ORDER.map(c => (
-                        <option key={c} value={c}>{SERVICE_CATEGORY_LABELS[c]}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                {priorCategory === 'monthly' && priorPriceValue > 0 && (
-                  <div style={{ marginTop: 5, fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
-                    יתווסף כשורה חודשית ויקבל את פריסת התשלומים שלמעלה ({plan.installments} תשלומים).
-                  </div>
-                )}
-
-                <button className="btn btn-sm btn-primary" disabled={priorYears.size === 0}
-                  onClick={addPriorYearReports} style={{ marginTop: 10 }}>
-                  {priorYears.size === 0 ? '+ בחר שנים להוספה'
-                    : priorYears.size === 1 ? '+ הוספת דוח אחד'
-                    : `+ הוספת ${priorYears.size} דוחות`}
-                </button>
-              </>
-            )}
-          </Section>
-
-          {/* שירותים עתידיים — שקיפות מחירים מראש */}
-          <Section icon="🔮" title="שירותים עתידיים"
-            summary={futureServices.length ? `${futureServices.length} במחירון` : 'ללא'}>
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.5 }}>
-              יוצגו ללקוח כמחירון "אם וכאשר", כדי שלא יופתע ממחיר בעתיד. לא נכלל בסכומי ההצעה.
-            </div>
-            {futureCandidates.length === 0 ? (
-              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)' }}>כל השירותים בתשלום כבר כלולים בהצעה.</div>
-            ) : (
-              <div style={{ maxHeight: 190, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {futureCandidates.map(s => (
-                  <label key={s.id} className="checkbox-row" style={{ padding: '4px 0', fontSize: 'var(--fs-13)' }}>
-                    <input type="checkbox" checked={futureIds.has(s.id)} onChange={() => setFutureIds(prev => {
-                      const next = new Set(prev);
-                      next.has(s.id) ? next.delete(s.id) : next.add(s.id);
-                      return next;
-                    })} />
-                    <span style={{ flex: 1 }}>{s.name}</span>
-                    <span style={{ color: 'var(--gray-500)', fontSize: 'var(--fs-12)', whiteSpace: 'nowrap' }}>
-                      {formatILS(s.defaultPrice)}{s.vatFlag ? ' + מע״מ' : ''}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </Section>
-
-          {/* מייל */}
-          <Section icon="✉️" title="מייל"
-            summary={emailMessage.trim() ? 'נושא + הודעה אישית' : emailSubject}>
-            <label style={fieldLabel}>נושא
-              <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={{ marginTop: 4 }} />
-            </label>
-            <label style={{ ...fieldLabel, marginTop: 10 }}>הודעה אישית ללקוח (אופציונלי)
-              <textarea rows={3} value={emailMessage} onChange={e => setEmailMessage(e.target.value)}
-                placeholder="למשל: אחרי שדיברנו הבנתי שהדבר הכי דחוף אצלך הוא לסגור את השנים הפתוחות — התחלתי מזה." style={{ marginTop: 4 }} />
-            </label>
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
-              נכתבת פעם אחת ומופיעה בשני המקומות: במייל, ובעמוד ההצעה מעל המחיר.
-              שתי שורות אמיתיות מהשיחה מוכיחות שההצעה לא נשלחה בהעתק-הדבק.
-              המייל עצמו לא מציג מחירים — הם מחכים בעמוד ההצעה.
-            </div>
-          </Section>
-
-          {/* ייצוג — מה שיקרה ברגע שהלקוח יאשר */}
-          <div ref={fieldRefs.representation} style={invalidStyle('representation')}>
-          <Section icon="⚖️" title="ייצוג מול הרשויות"
-            summary={representationSummary(representation)}
-            defaultOpen={invalidField === 'representation' || !!repEmailConflict || !!validateQuotationRepresentation(representation)}>
-            <QuotationRepresentationEditor
-              value={representation}
-              onChange={setRepresentation}
-              recipientName={recipient.fullName}
-              recipientEmail={recipient.email}
-              emailConflict={repEmailConflict}
-              isTransfer={isTransferRecipient(recipient, leads, clients)}
-            />
-          </Section>
           </div>
-
-          {/* הגדרות */}
-          <Section icon="⚙️" title="פרטי ההצעה"
-            summary={`תוקף עד ${new Date(expiresAt).toLocaleDateString('he-IL')}${internalNotes.trim() ? ' · יש הערה פנימית' : ''}`}>
-            <label style={fieldLabel}>הערה פנימית (לא נשלחת ללקוח)
-              <textarea rows={2} value={internalNotes} onChange={e => setInternalNotes(e.target.value)} style={{ marginTop: 4 }} />
-            </label>
-            <label style={{ ...fieldLabel, marginTop: 10 }}>תוקף ההצעה
-              <input type="date" value={expiresAt.slice(0, 10)}
-                onChange={e => { const d = new Date(e.target.value); d.setHours(23, 59, 0, 0); setExpiresAt(d.toISOString()); }}
-                style={{ marginTop: 4 }} />
-            </label>
-            {/* רק בחידוש: מתי ההסכם המעודכן מחליף את הקיים. עד אז הלקוח
-                ממשיך לשלם את המחיר הנוכחי. */}
-            {isRenewal && (
-              <label style={{ ...fieldLabel, marginTop: 10 }}>ההסכם המעודכן נכנס לתוקף
-                <input type="date" value={(effectiveFrom ?? nextJanuary).slice(0, 10)}
-                  onChange={e => setEffectiveFrom(e.target.value || undefined)}
-                  style={{ marginTop: 4 }} />
-                <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', display: 'block', marginTop: 4 }}>
-                  עד התאריך הזה נשאר ההסכם הנוכחי בתוקף.
-                </span>
-              </label>
-            )}
-          </Section>
-
-          {/* פס סיכום דביק — לאן זה מסתכם, בלי לעזוב את פאנל העריכה */}
-          <div style={{
-            position: 'sticky', bottom: 0, zIndex: 2,
-            background: 'var(--surface-0)', borderTop: '1px solid var(--hairline-1)',
-            padding: '10px 0',
-          }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'baseline' }}>
-              <TotalChip label="חודשי" value={totals.monthly.withVat}
-                suffix={totals.installments && totals.installments !== DEFAULT_INSTALLMENTS ? `× ${totals.installments}` : 'לחודש'} />
-              <TotalChip label="שנתי" value={totals.annual.withVat} suffix="לשנה" />
-              <TotalChip label="חד־פעמי" value={totals.oneTime.withVat} />
-              {totals.deferred.withVat > 0 && <TotalChip label="יתרה במועד" value={totals.deferred.withVat} />}
+        ) : (
+          <div className="qb-hero">
+            <div className="qb-amount-empty">
+              {kind === 'one_time' ? 'שירות חד־פעמי — בלי שכר חודשי' : 'אין עדיין שכר חודשי'}
             </div>
-            {totals.monthly.withVat > 0 && (totals.hasPartialTerm || totals.changesAfterPeriod) && (
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.5 }}>
-                {totals.hasPartialTerm && totals.installments && (
-                  <>סה״כ בתקופה: <b>{formatILS(Math.round(totals.monthlyPeriod.withVat))}</b>
-                    {plan.startMonth ? ` · ${formatMonthRange(plan.startMonth, addMonths(plan.startMonth, totals.installments - 1))}` : ''}</>
-                )}
-                {totals.changesAfterPeriod && (
-                  <> · אחר כך: <b>{formatILS(Math.round(totals.monthlyOngoing.withVat))}</b> לחודש</>
-                )}
+            <div className="qb-under">
+              <button className="qb-link" onClick={() => setPanel('services')}>הוספת שירותים</button>
+            </div>
+          </div>
+        )}
+
+        <hr className="qb-rule" />
+
+        {/* מה כלול */}
+        <div className="qb-lbl">מה כלול</div>
+        {deal.monthlyLines.map(i => (
+          <div className="qb-crow" key={i.id}>
+            <div className="qb-nm">
+              <div>{itemDisplayName(i)}</div>
+              {isAnnualNature(i) && i.annualPrice != null && (
+                <div className="qb-sub">{formatILS(i.annualPrice)} לשנה, נגבה בשכר החודשי</div>
+              )}
+            </div>
+            <div className="qb-pr num">{formatILS(itemFinalPrice(i))} לחודש</div>
+          </div>
+        ))}
+        {deal.separateLines.map(i => (
+          <div className="qb-crow" key={i.id}>
+            <div className="qb-nm">
+              <div>{itemDisplayName(i)}</div>
+              {/* מתי ייגבה הוא אחד משלושת הדברים שצריך לדעת על חיוב חד־פעמי
+                  (מה · כמה · מתי), ולכן הוא השורה שמתחת ולא תווית גנרית. */}
+              <div className="qb-sub">
+                {i.category === 'annual'
+                  ? 'חיוב שנתי נפרד — לא בשכר החודשי'
+                  : (i.clientNote?.trim() || 'חיוב חד־פעמי')}
               </div>
-            )}
-            {items.length === 0 && (
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)', marginTop: 4 }}>אין עדיין שירותים בהצעה.</div>
-            )}
-          </div>
-
-          {/* סוף המילוי — הפעולות כאן, בלי לחזור לראש המסך.
-              ‼ ההודעה חוזרת גם כאן. שלוש הפעולות נעצרות על אותן בדיקות (נמען,
-              שירותים, ייצוג), וההודעה שמסבירה למה הן נעצרו הוצגה רק בראש המסך —
-              מחוץ לשדה הראייה של מי שגלל עד לכאן. התוצאה: הכפתור "לא עובד". */}
-          {(error || notice) && (
-            <div className={`alert ${error || notice?.kind === 'err' ? 'alert-warning' : 'alert-info'}`}
-              style={{ marginTop: 4 }} role="status">
-              {error ?? notice?.text}
             </div>
-          )}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-            {actionButtons(true)}
+            <div className="qb-pr">
+              <button className="ed qb-inlinenum num" onClick={e => openPop('oneTime', e, i.id)}>
+                {formatILS(itemFinalPrice(i))}{i.category === 'annual' ? ' לשנה' : ''}
+              </button>
+            </div>
           </div>
+        ))}
+        {deal.includedLines.length > 0 && (
+          <div className="qb-included">ועוד {deal.includedLines.length} שירותים ללא תוספת תשלום</div>
+        )}
+        {items.length === 0 && <div className="qb-empty">טרם נוספו שירותים.</div>}
+        <div className="qb-addrow">
+          <button className="qb-link mute" onClick={() => setPanel('services')}>עריכת השירותים</button>
         </div>
 
-        {/* ── תצוגה מקדימה חיה ── */}
-        <div style={{ position: narrow ? 'static' : 'sticky', top: 76, display: narrow && mobilePane === 'edit' ? 'none' : undefined }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <div className="tabs" style={{ margin: 0 }}>
-              {hasTracking && <button className={`tab ${tab === 'track' ? 'active' : ''}`} onClick={() => setTab('track')}>מעקב</button>}
-              <button className={`tab ${tab === 'web' ? 'active' : ''}`} onClick={() => setTab('web')}>עמוד ההצעה</button>
-              <button className={`tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>מייל</button>
-              <button className={`tab ${tab === 'pdf' ? 'active' : ''}`} onClick={() => setTab('pdf')}>PDF</button>
-            </div>
-            {tab !== 'pdf' && tab !== 'track' && (
-              <div className="tabs" style={{ margin: 0, marginInlineStart: 'auto' }}>
-                <button className={`tab ${device === 'desktop' ? 'active' : ''}`} onClick={() => setDevice('desktop')}>דסקטופ</button>
-                <button className={`tab ${device === 'mobile' ? 'active' : ''}`} onClick={() => setDevice('mobile')}>מובייל</button>
-              </div>
-            )}
-          </div>
-
-          {/* תצוגה מקדימה של מסמך שהלקוח יקבל — נשארת בהירה גם במצב כהה */}
-          <div className="pivo-light" style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', background: '#F4F3EF', height: 'calc(100vh - 180px)', minHeight: 520 }}>
-            <div style={{ height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
-              <div style={{ width: device === 'mobile' && tab !== 'pdf' && tab !== 'track' ? 390 : '100%', maxWidth: '100%', transition: 'width .2s' }}>
-                {tab === 'track' && existing && <TrackingPanel quotation={existing} brand={brand} />}
-                {tab === 'web' && <QuotationWebView data={webData} brand={brand} compact={device === 'mobile' || narrow} />}
-                {tab === 'email' && (
-                  <iframe title="preview-email" srcDoc={emailHtml} style={{ width: '100%', height: '100%', border: 'none', minHeight: 520 }} />
-                )}
-                {tab === 'pdf' && (
-                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-500)' }}>
-                    <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
-                    <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--gray-700)' }}>ה-PDF של ההצעה</div>
-                    <div style={{ fontSize: 'var(--fs-13)', marginBottom: 16 }}>מופק אוטומטית ותואם לעמוד ההצעה. אפשר להוריד ולבדוק:</div>
-                    <button className="btn btn-primary" disabled={pdfBusy || items.length === 0} onClick={handleDownloadPdf}>
-                      {pdfBusy ? 'מפיק…' : 'הורדת PDF לבדיקה'}
-                    </button>
-                    <div style={{ marginTop: 18, display: 'inline-flex', flexDirection: 'column', gap: 4, textAlign: 'start', background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 10, padding: 16 }}>
-                      {totals.monthly.withVat > 0 && <span>חודשי: <b>{formatILS(Math.round(totals.monthly.withVat))}</b></span>}
-                      {totals.annual.withVat > 0 && <span>שנתי: <b>{formatILS(Math.round(totals.annual.withVat))}</b></span>}
-                      {totals.oneTime.withVat > 0 && <span>חד־פעמי: <b>{formatILS(Math.round(totals.oneTime.withVat))}</b></span>}
-                    </div>
+        {/* ההשלכה — יתרת הדוח השנתי */}
+        {deal.rawBalance >= 1 && (
+          <>
+            <hr className="qb-rule" />
+            <div className={`qb-conseq${deal.completionCharge < 1 ? ' muted' : ''}`}>
+              <div className="qb-conseq-head">
+                {deal.completionCharge < 1 ? (
+                  <div className="qb-conseq-h">יתרת הדוח השנתי — {formatILS(deal.rawBalance)} — לא תיגבה</div>
+                ) : (
+                  <div className="qb-conseq-h">
+                    <b className="num">{formatILS(deal.completionCharge)}</b> נוספים ייגבו {deal.trigger}
                   </div>
                 )}
+                <button className="qb-link mute" onClick={e => openPop('completion', e)}>שינוי</button>
+              </div>
+              <div className="qb-conseq-b">
+                {deal.completionCharge < 1
+                  ? 'ויתרת על היתרה. הלקוח לא יראה סעיף גבייה נוסף.'
+                  : deal.balances.map(b =>
+                      `${b.name} ${formatILS(b.value)} לשנה · ${deal.installments} × ${formatILS(b.perMonth)} נגבים בשכר החודשי`
+                    ).join(' · ')
+                    + (deal.completionCharge < deal.rawBalance
+                      ? ` · היתרה המלאה ${formatILS(deal.rawBalance)}, הפחתת אותה` : '')}
               </div>
             </div>
-          </div>
+          </>
+        )}
+
+        <hr className="qb-rule" />
+
+        {/* שורות שקטות */}
+        <div className="qb-quiet">
+          <span className="qb-quiet-k">שירותים נוספים בעתיד</span>
+          <span className="qb-quiet-v">
+            {futureServices.length ? `${futureServices.length} מחירים יצורפו להצעה` : 'לא יצורף מחירון'}
+          </span>
+          <button className="qb-link mute" onClick={() => setPanel('future')}>עריכה</button>
         </div>
+        <div className="qb-quiet">
+          <span className="qb-quiet-k">ייצוג לאחר אישור</span>
+          <span className="qb-quiet-v">{representationSummary(representation)}</span>
+          <button className="qb-link mute" onClick={() => setPanel('rep')}>שינוי</button>
+        </div>
+        {repConflict && <div className="qb-warn">{repConflict}</div>}
+
+        <div className="qb-addrow">
+          <button className="qb-link mute" onClick={e => openPop('oneTime', e)}>+ הוספת חיוב חד־פעמי</button>
+        </div>
+        <div className="qb-hint">כל מספר במסמך נערך בלחיצה עליו.</div>
       </div>
+
+      {/* ─── פופאוברים ─── */}
+      {pop.kind === 'price' && (
+        <Pop anchor={pop.anchor} onClose={closePop}>
+          <PricePop deal={deal} onApply={v => { applyAgreedMonthly(v); closePop(); }}
+            onReset={() => { clearAgreedMonthly(); closePop(); }}
+            onServices={() => { closePop(); setPanel('services'); }} />
+        </Pop>
+      )}
+      {pop.kind === 'start' && (
+        <Pop anchor={pop.anchor} onClose={closePop}>
+          <StartPop plan={plan} deal={deal} onPick={(startMonth) => { updatePlan({ startMonth, installments: monthsLeftInYear(startMonth) }); closePop(); }}
+            onInstallments={n => { updatePlan({ installments: n }); closePop(); }} />
+        </Pop>
+      )}
+      {pop.kind === 'completion' && (
+        <Pop anchor={pop.anchor} onClose={closePop}>
+          <CompletionPop deal={deal} onSet={p => { setCompletion(p); closePop(); }} />
+        </Pop>
+      )}
+      {pop.kind === 'template' && (
+        <Pop anchor={pop.anchor} onClose={closePop}>
+          <div className="qb-pop-h">תבנית ההצעה</div>
+          <div className="qb-pop-s">התבנית קובעת אילו שירותים ומחירים נטענים. החלפה תבנה את ההצעה מחדש.</div>
+          <div className="qb-chips">
+            {templates.filter(t => t.active).map(t => (
+              <button key={t.id} className={`qb-chip wide${t.id === templateId ? ' on' : ''}`}
+                onClick={() => applyTemplate(t.id)}>{t.name}</button>
+            ))}
+          </div>
+        </Pop>
+      )}
+      {pop.kind === 'oneTime' && (
+        <Pop anchor={pop.anchor} onClose={closePop}>
+          <OneTimePop
+            services={services} items={items} futureIds={futureIds}
+            item={pop.itemId ? items.find(i => i.id === pop.itemId) : undefined}
+            onSave={(patch, svc) => {
+              if (pop.itemId) updateItem(pop.itemId, patch);
+              else if (svc) addService(svc, patch);
+              else setItems(prev => [...prev, {
+                id: crypto.randomUUID(), name: patch.name ?? '', category: 'one_time',
+                billingType: 'fixed', quantity: 1, catalogPrice: patch.clientPrice ?? 0,
+                clientPrice: patch.clientPrice ?? 0, vatFlag: true, clientNote: patch.clientNote,
+              }]);
+              closePop();
+            }}
+            onRemove={() => { if (pop.itemId) removeItem(pop.itemId); closePop(); }} />
+        </Pop>
+      )}
+
+      {/* ─── לוחות ─── */}
+      {panel === 'services' && (
+        <ServicesPanel
+          items={items} services={services} plan={plan} deal={deal} templateName={tpl?.name}
+          onUpdate={updateItem} onRemove={removeItem} onAdd={addService}
+          onClose={() => setPanel(null)} />
+      )}
+      {panel === 'future' && (
+        <FuturePanel
+          services={services} items={items} selected={futureIds} templateName={tpl?.name}
+          templateDefaults={tpl?.futureServiceIds ?? []}
+          onChange={setFutureIds} onClose={() => setPanel(null)} />
+      )}
+      {panel === 'rep' && (
+        <Modal title="ייצוג מול הרשויות" onClose={() => setPanel(null)} width={620}
+          footer={<button className="btn btn-primary" onClick={() => setPanel(null)}>סיום</button>}>
+          <QuotationRepresentationEditor
+            value={representation} onChange={setRepresentation}
+            recipientName={recipient.fullName} recipientEmail={recipient.email}
+            emailConflict={repConflict}
+            isTransfer={isTransferRecipient(recipient, leads, clients)} />
+        </Modal>
+      )}
+      {panel === 'recipient' && (
+        <Modal title="נמען ההצעה" onClose={() => setPanel(null)} width={520} footer={null}>
+          <RecipientPicker leads={leads} clients={clients} value={recipient}
+            onPick={r => {
+              setRecipient(r);
+              setPanel(null);
+              const picked = r.kind === 'client' ? clients.find(c => c.id === r.id) : undefined;
+              if (picked?.representationStatus) setRepresentation(p => (p.enabled ? { ...p, enabled: false } : p));
+              if (isTransferRecipient(r, leads, clients)) {
+                setRepresentation(p => ({ ...p, areas: applySecondaryLevels(p.areas) }));
+              }
+            }} />
+        </Modal>
+      )}
+      {panel === 'review' && (
+        <ReviewPanel
+          data={{
+            quotationNumber: existing?.quotationNumber ?? 'טיוטה',
+            recipientName: recipient.fullName || 'הלקוח',
+            businessName: recipient.businessName,
+            items, futureServices, vatRate, notesForClient: emailMessage, expiresAt,
+            representation,
+          }}
+          brand={brand} totals={totals} deal={deal} vatRate={vatRate}
+          message={emailMessage} onMessage={setEmailMessage}
+          subject={emailSubject} onSubject={setEmailSubject}
+          internalNotes={internalNotes} onInternalNotes={setInternalNotes}
+          expiresAt={expiresAt} onExpires={setExpiresAt}
+          isRenewal={isRenewal} effectiveFrom={effectiveFrom} onEffectiveFrom={setEffectiveFrom}
+          sending={sending} blocker={sendBlocker(false)}
+          onSend={() => handleSend(false)} onTest={() => handleSend(true)}
+          onPdf={downloadPreviewPdf} onClose={() => setPanel(null)} />
+      )}
     </div>
   );
 }
 
-function q_num(q: Quotation): string { return q.quotationNumber; }
+function dealerLabel(d: NonNullable<Lead['dealerType']>): string {
+  return d === 'exempt' ? 'עוסק פטור' : d === 'licensed' ? 'עוסק מורשה' : d === 'company' ? 'חברה' : 'אחר';
+}
 
-// ─── פאנל מעקב להצעה שנשלחה ─────────────────────────────────────────────────
-// עונה על שלוש שאלות בלי לצאת מהמסך: איפה זה עומד (אבני דרך + יומן אירועים),
-// מה בדיוק הלקוח קיבל (העתק המייל שנבנה מה-snapshot הקפוא), ומי חתם.
-function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: ReturnType<typeof deriveQuotationBrand> }) {
+/* ═══ פופאוברים ═══════════════════════════════════════════════════════════ */
+
+function PricePop({ deal, onApply, onReset, onServices }: {
+  deal: Deal; onApply: (v: number) => void; onReset: () => void; onServices: () => void;
+}) {
+  const base = deal.anchor;
+  const step = base >= 1000 ? 100 : base >= 400 ? 25 : 10;
+  const opts: number[] = [];
+  for (let i = 0; i < 4; i++) { const v = r0((base - i * step) / step) * step; if (v > base * 0.6) opts.push(v); }
+  const [custom, setCustom] = useState(String(r0(deal.retainer)));
+
+  return (
+    <>
+      <div className="qb-pop-h">המחיר שסוכם</div>
+      <div className="qb-pop-s">
+        מחיר התבנית: {formatILS(base)} לחודש. סכום נמוך יותר יוצג ללקוח כהנחה, לצד המחיר הרגיל.
+      </div>
+      <div className="qb-chips">
+        {opts.map(v => (
+          <button key={v} className={`qb-chip${Math.abs(v - deal.retainer) < 1 ? ' on' : ''}`}
+            onClick={() => (v === base ? onReset() : onApply(v))}>
+            {formatILS(v)}{v === base ? ' · מלא' : ''}
+          </button>
+        ))}
+      </div>
+      <label className="qb-fld">
+        <span>או סכום אחר לחודש (לפני מע״מ)</span>
+        <input type="number" min={0} value={custom} autoFocus
+          onChange={e => setCustom(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') onApply(Number(custom) || 0); }} />
+      </label>
+      <div className="qb-note">
+        ההנחה חלה על השכר החודשי
+        {deal.rawBalance >= 1 && ` ואינה משנה את יתרת הדוח השנתי (${formatILS(deal.rawBalance)})`}
+        . לתמחור שירות בנפרד — <button className="qb-link" onClick={onServices}>עריכת השירותים</button>.
+      </div>
+      <div className="qb-pop-f">
+        <button className="qb-link" onClick={onReset}>חזרה למחיר התבנית</button>
+        <button className="btn btn-sm btn-primary" onClick={() => onApply(Number(custom) || 0)}>עדכון</button>
+      </div>
+    </>
+  );
+}
+
+function StartPop({ plan, deal, onPick, onInstallments }: {
+  plan: BillingPlan; deal: Deal; onPick: (ym: string) => void; onInstallments: (n: number) => void;
+}) {
+  const year = Number(plan.startMonth.slice(0, 4));
+  const [more, setMore] = useState(false);
+  const [inst, setInst] = useState(String(plan.installments));
+  return (
+    <>
+      <div className="qb-pop-h">חודש התשלום הראשון</div>
+      <div className="qb-pop-s">
+        התשלום הראשון נגבה מיד עם האישור, והבאים ב־1 בכל חודש.
+        מספר התשלומים נגזר לבד — ואיתו יתרת הדוח השנתי.
+      </div>
+      <div className="qb-chips">
+        {MONTH_NAMES.map((m, i) => {
+          const ym = `${year}-${String(i + 1).padStart(2, '0')}`;
+          return (
+            <button key={ym} className={`qb-chip${ym === plan.startMonth ? ' on' : ''}`}
+              onClick={() => onPick(ym)}>{m}</button>
+          );
+        })}
+      </div>
+      <button className="qb-chip wide" style={{ marginTop: 9 }} onClick={() => onPick(`${year + 1}-01`)}>
+        ינואר {year + 1} · שנה מלאה
+      </button>
+      <div className="qb-note">
+        כרגע: {deal.installments} תשלומים · {formatMonthRange(plan.startMonth, deal.endMonth)}.
+        המחיר ממשיך לשנה הבאה ומתחדש אוטומטית, אלא אם תשנה אותו.
+      </div>
+      {more ? (
+        <>
+          <label className="qb-fld"><span>מספר תשלומים</span>
+            <input type="number" min={1} max={24} value={inst} onChange={e => setInst(e.target.value)} />
+          </label>
+          <div className="qb-pop-f">
+            <span />
+            <button className="btn btn-sm" onClick={() => onInstallments(Number(inst) || 1)}>עדכון</button>
+          </div>
+        </>
+      ) : (
+        <button className="qb-link mute" style={{ marginTop: 10 }} onClick={() => setMore(true)}>מספר תשלומים אחר</button>
+      )}
+    </>
+  );
+}
+
+function CompletionPop({ deal, onSet }: {
+  deal: Deal;
+  onSet: (p: { mode?: 'charge' | 'reduce' | 'waive'; amount?: number | null; trigger?: string }) => void;
+}) {
+  const waived = deal.completionCharge < 1;
+  const reduced = !waived && deal.completionCharge < deal.rawBalance;
+  const [mode, setMode] = useState<'charge' | 'reduce' | 'waive'>(waived ? 'waive' : reduced ? 'reduce' : 'charge');
+  const [amount, setAmount] = useState(String(r0(deal.completionCharge)));
+  return (
+    <>
+      <div className="qb-pop-h">יתרת הדוח השנתי</div>
+      <div className="qb-pop-s">
+        {formatILS(deal.rawBalance)} לא נכללים ב{deal.installments} התשלומים של השנה.
+        ברירת המחדל: נגבים עם הגשת הדוח.
+        {deal.discount >= 1 && ' ההנחה על השכר החודשי לא הפחיתה אותה — הפחתה כאן היא החלטה נפרדת.'}
+      </div>
+      <div className="qb-chips">
+        <button className={`qb-chip${mode === 'charge' ? ' on' : ''}`}
+          onClick={() => onSet({ mode: 'charge' })}>לגבות במלואה</button>
+        <button className={`qb-chip${mode === 'reduce' ? ' on' : ''}`}
+          onClick={() => setMode('reduce')}>להפחית</button>
+        <button className={`qb-chip${mode === 'waive' ? ' on' : ''}`}
+          onClick={() => onSet({ mode: 'waive' })}>לוותר</button>
+      </div>
+      {mode === 'reduce' && (
+        <>
+          <label className="qb-fld"><span>כמה ייגבה בפועל (עד {formatILS(deal.rawBalance)})</span>
+            <input type="number" min={0} max={r0(deal.rawBalance)} value={amount} autoFocus
+              onChange={e => setAmount(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') onSet({ mode: 'reduce', amount: Number(amount) || 0 }); }} />
+          </label>
+          <div className="qb-note">ההפרש יוצג ללקוח כהנחה על היתרה. השכר החודשי לא משתנה.</div>
+        </>
+      )}
+      <label className="qb-fld"><span>מתי ייגבה</span>
+        <select value={deal.trigger} onChange={e => onSet({ trigger: e.target.value })}>
+          {DEFERRED_TRIGGERS.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </label>
+      {mode === 'reduce' && (
+        <div className="qb-pop-f">
+          <span />
+          <button className="btn btn-sm btn-primary"
+            onClick={() => onSet({ mode: 'reduce', amount: Number(amount) || 0 })}>עדכון</button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function OneTimePop({ services, items, futureIds, item, onSave, onRemove }: {
+  services: ServiceCatalogItem[]; items: QuotationItem[]; futureIds: Set<string>;
+  item?: QuotationItem;
+  onSave: (patch: Partial<QuotationItem>, svc?: ServiceCatalogItem) => void;
+  onRemove: () => void;
+}) {
+  const used = new Set(items.map(i => i.serviceId).filter(Boolean));
+  /* ההצעות המהירות מתחילות במה שכבר הוצג ללקוח כמחיר עתידי — המסלול
+     "הסכמנו על מחיר לעתיד → הגיע הזמן לגבות". */
+  const disclosed = services.filter(s => s.active && s.category === 'one_time' && futureIds.has(s.id) && !used.has(s.id));
+  const rest = services.filter(s => s.active && s.category === 'one_time' && !used.has(s.id) && !futureIds.has(s.id));
+  const suggestions = [...disclosed, ...rest].slice(0, 5);
+
+  const [name, setName] = useState(item ? item.name : '');
+  const [amount, setAmount] = useState(item ? String(r0(itemFinalPrice(item))) : '');
+  const [when, setWhen] = useState<'immediate' | 'on_service' | 'custom'>(
+    item?.clientNote?.includes('עם ביצוע') ? 'on_service' : item?.clientNote ? 'custom' : 'immediate');
+  const [custom, setCustom] = useState(item?.clientNote ?? '');
+  const [picked, setPicked] = useState<ServiceCatalogItem | undefined>();
+
+  const noteFor = () => when === 'immediate' ? 'ייגבה מיידית עם האישור'
+    : when === 'on_service' ? 'ייגבה עם ביצוע השירות' : custom.trim();
+
+  return (
+    <>
+      <div className="qb-pop-h">{item ? 'חיוב חד־פעמי' : 'הוספת חיוב חד־פעמי'}</div>
+      <div className="qb-pop-s">מה · כמה · מתי.</div>
+      {!item && suggestions.length > 0 && (
+        <div className="qb-chips" style={{ marginBottom: 4 }}>
+          {suggestions.map(s => (
+            <button key={s.id} className="qb-chip" onClick={() => {
+              setPicked(s); setName(s.name); setAmount(String(s.defaultPrice));
+            }}>{s.name}</button>
+          ))}
+        </div>
+      )}
+      <label className="qb-fld"><span>מה</span>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="למשל: מעבר מעוסק פטור למורשה" />
+      </label>
+      <div className="qb-fld2">
+        <label className="qb-fld"><span>כמה (לפני מע״מ)</span>
+          <input type="number" min={0} value={amount} onChange={e => setAmount(e.target.value)} />
+        </label>
+        <label className="qb-fld"><span>מתי</span>
+          <select value={when} onChange={e => setWhen(e.target.value as typeof when)}>
+            <option value="immediate">מיידית</option>
+            <option value="on_service">עם ביצוע השירות</option>
+            <option value="custom">מועד אחר…</option>
+          </select>
+        </label>
+      </div>
+      {when === 'custom' && (
+        <label className="qb-fld"><span>מתי — נוסח חופשי</span>
+          <input value={custom} onChange={e => setCustom(e.target.value)} placeholder="למשל: עם קבלת האישור מהרשות" />
+        </label>
+      )}
+      <div className="qb-pop-f">
+        {item ? <button className="qb-link danger" onClick={onRemove}>הסרה</button> : <span />}
+        <button className="btn btn-sm btn-primary" onClick={() => {
+          const v = Number(amount) || 0;
+          if (!name.trim() || v <= 0) return;
+          onSave({
+            name: name.trim(), clientPrice: v, catalogPrice: picked?.defaultPrice ?? v,
+            discountPercent: 0, clientNote: noteFor(), category: 'one_time',
+          }, picked);
+        }}>{item ? 'עדכון' : 'הוספה'}</button>
+      </div>
+    </>
+  );
+}
+
+/* ═══ לוחות ═══════════════════════════════════════════════════════════════ */
+
+/** כאן, ורק כאן, יושבת המכניקה: שנתי ÷ 12, פריסה, הנחה פר-שורה, שנות מס. */
+function ServicesPanel({ items, services, plan, deal, templateName, onUpdate, onRemove, onAdd, onClose }: {
+  items: QuotationItem[]; services: ServiceCatalogItem[]; plan: BillingPlan; deal: Deal;
+  templateName?: string;
+  onUpdate: (id: string, p: Partial<QuotationItem>) => void;
+  onRemove: (id: string) => void;
+  onAdd: (svc: ServiceCatalogItem, overrides?: Partial<QuotationItem>) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [yearsFor, setYearsFor] = useState<ServiceCatalogItem | null>(null);
+  const [years, setYears] = useState<Set<number>>(new Set());
+
+  const used = new Set(items.map(i => i.serviceId).filter(Boolean));
+  // ‼ גם שירותים "כלולים" ניתנים להוספה: לקוח יכול לקבל ליווי עסקי ללא חיוב
+  // גם כשהתבנית לא כללה אותו. בלי זה היכולת הייתה חד־כיוונית — אפשר להסיר
+  // כלול, אי אפשר להוסיף.
+  const catalog = services.filter(s => s.active
+    && (!used.has(s.id) || s.category === 'annual')
+    && (!search.trim() || s.name.includes(search.trim())));
+
+  const monthly = items.filter(i => i.category === 'monthly');
+  const others = items.filter(i => i.category === 'annual' || i.category === 'one_time');
+  const included = items.filter(i => i.category === 'included');
+
+  return (
+    <Modal title="שירותים ומחירים" onClose={onClose} width={640}
+      footer={<button className="btn btn-primary" onClick={onClose}>סיום</button>}>
+      <div className="qb-panel-s">
+        {templateName ? `תבנית: ${templateName} · ` : ''}השכר החודשי מסתכם ל{formatILS(deal.retainer)} + מע״מ
+      </div>
+
+      <div className="qb-sect">בשכר החודשי</div>
+      {monthly.map(i => (
+        <div className="qb-srow" key={i.id}>
+          <div className="qb-sn">
+            <div className="qb-st">
+              {itemDisplayName(i)}{' '}
+              <span className={`qb-tag${isAnnualNature(i) ? ' blue' : ''}`}>
+                {isAnnualNature(i) ? 'שנתי במהותו' : 'חודשי במהותו'}
+              </span>
+            </div>
+            <div className="qb-sm">
+              {isAnnualNature(i) && i.annualPrice != null
+                ? `${formatILS(i.annualPrice)} לשנה ÷ 12 = ${formatILS(itemFinalPrice(i))} לחודש`
+                : `${formatILS(itemFinalPrice(i))} לחודש`}
+              {itemOriginalPrice(i) > itemFinalPrice(i) && ` · מחירון ${formatILS(itemOriginalPrice(i))}`}
+            </div>
+          </div>
+          <div className="qb-sp">
+            {/* ‼ catalogPrice הוא העוגן שהלקוח רואה מחוק. מחיר נמוך ממנו הוא
+                הנחה, ולכן אסור לדרוס אותו כאן — דריסה הייתה מוחקת בשקט את
+                ההנחה מעמוד ההצעה. מחיר גבוה מהקטלוג פשוט הופך לעוגן בעצמו
+                (itemOriginalPrice לוקח את הגבוה מביניהם). */}
+            <input type="number" min={0}
+              value={r0(isAnnualNature(i) ? (i.annualPrice ?? 0) : itemFinalPrice(i))}
+              title={isAnnualNature(i) ? 'מחיר לשנה' : 'מחיר לחודש'}
+              onChange={e => {
+                const v = Math.max(0, Number(e.target.value) || 0);
+                if (isAnnualNature(i)) onUpdate(i.id, { annualPrice: v, discountPercent: 0 });
+                else onUpdate(i.id, { clientPrice: v, discountPercent: 0 });
+              }} />
+          </div>
+          {isAnnualNature(i) && (
+            <button className="btn btn-sm" title="להוציא מהשכר החודשי"
+              onClick={() => onUpdate(i.id, {
+                category: 'annual', priceBasis: undefined, prorationMode: undefined,
+                clientPrice: i.annualPrice ?? itemFinalPrice(i), installments: undefined,
+                billingStartMonth: undefined, annualPrice: undefined,
+              })}>לחיוב שנתי</button>
+          )}
+          <button className="qb-x" onClick={() => onRemove(i.id)} title="הסרה">✕</button>
+        </div>
+      ))}
+      {monthly.length === 0 && <div className="qb-note">אין שירותים בשכר החודשי.</div>}
+
+      {others.length > 0 && (
+        <>
+          <div className="qb-sect">מחוץ לשכר החודשי</div>
+          {others.map(i => (
+            <div className="qb-srow" key={i.id}>
+              <div className="qb-sn">
+                <div className="qb-st">{itemDisplayName(i)} <span className="qb-tag">{i.category === 'annual' ? 'שנתי' : 'חד־פעמי'}</span></div>
+                <div className="qb-sm">{i.category === 'annual' ? 'חיוב שנתי נפרד' : (i.clientNote || 'חיוב חד־פעמי')}</div>
+              </div>
+              <div className="qb-sp">
+                <input type="number" min={0} value={r0(itemFinalPrice(i))}
+                  onChange={e => onUpdate(i.id, {
+                    clientPrice: Math.max(0, Number(e.target.value) || 0), discountPercent: 0,
+                  })} />
+              </div>
+              {i.category === 'annual' && (
+                <button className="btn btn-sm" onClick={() => onUpdate(i.id, {
+                  category: 'monthly', priceBasis: 'annual', annualPrice: itemFinalPrice(i),
+                  prorationMode: 'deferred', clientPrice: r2(itemFinalPrice(i) / DEFAULT_INSTALLMENTS),
+                  installments: plan.installments, billingStartMonth: plan.startMonth,
+                })}>לשכר החודשי</button>
+              )}
+              <button className="qb-x" onClick={() => onRemove(i.id)}>✕</button>
+            </div>
+          ))}
+        </>
+      )}
+
+      {included.length > 0 && (
+        <>
+          <div className="qb-sect">ללא תוספת תשלום · {included.length}</div>
+          {included.map(i => (
+            <div className="qb-srow" key={i.id}>
+              <div className="qb-sn"><div className="qb-st">{itemDisplayName(i)}</div></div>
+              <button className="qb-x" onClick={() => onRemove(i.id)}>✕</button>
+            </div>
+          ))}
+        </>
+      )}
+
+      <div className="qb-sect">הוספת שירות</div>
+      <input className="qb-search" placeholder="חיפוש בקטלוג…" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="qb-chips" style={{ marginTop: 6 }}>
+        {catalog.slice(0, 8).map(s => (
+          <button key={s.id} className="qb-chip" onClick={() => {
+            if (s.category === 'annual') { setYearsFor(s); setYears(new Set()); }
+            else onAdd(s);
+          }}>{s.name} · {formatILS(s.defaultPrice)}</button>
+        ))}
+        {catalog.length === 0 && <div className="qb-note">אין התאמות.</div>}
+      </div>
+
+      {/* דוחות לשנים פתוחות — בחירת שנים לשירות שנתי */}
+      {yearsFor && (
+        <div className="qb-years">
+          <div className="qb-sm">לאילו שנים? כל שנה נוספת כשורה נפרדת עם מחיר משלה.</div>
+          <div className="qb-chips" style={{ margin: '8px 0' }}>
+            {YEAR_OPTIONS.map(y => {
+              const taken = items.some(i => i.year === y && i.serviceId === yearsFor.id);
+              return (
+                <button key={y} disabled={taken}
+                  className={`qb-chip${years.has(y) ? ' on' : ''}`}
+                  onClick={() => setYears(prev => {
+                    const n = new Set(prev); n.has(y) ? n.delete(y) : n.add(y); return n;
+                  })}>{y}{taken ? ' ✓' : ''}</button>
+              );
+            })}
+          </div>
+          <div className="qb-pop-f">
+            <button className="qb-link mute" onClick={() => setYearsFor(null)}>ביטול</button>
+            <button className="btn btn-sm btn-primary" disabled={years.size === 0} onClick={() => {
+              [...years].sort().forEach(y => onAdd(yearsFor, { year: y }));
+              setYearsFor(null); setYears(new Set());
+            }}>הוספה</button>
+          </div>
+        </div>
+      )}
+
+      <div className="qb-callout">
+        שירות שנתי בשכר החודשי נגבה כחלק מהריטיינר, והמערכת מחשבת לבד מה נשאר לגבייה
+        בסוף השנה. שירות שהוצא לחיוב שנתי נגבה במלואו במועד אחד — ואז אין יתרה.
+      </div>
+    </Modal>
+  );
+}
+
+function FuturePanel({ services, items, selected, templateName, templateDefaults, onChange, onClose }: {
+  services: ServiceCatalogItem[]; items: QuotationItem[]; selected: Set<string>;
+  templateName?: string; templateDefaults: string[];
+  onChange: (s: Set<string>) => void; onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const used = new Set(items.map(i => i.serviceId).filter(Boolean));
+  const groups: [ServiceCategory, string][] = [['one_time', 'חד־פעמיים'], ['annual', 'שנתיים'], ['monthly', 'חודשיים']];
+  const count = [...selected].filter(id => !used.has(id)).length;
+
+  const toggle = (id: string) => {
+    const n = new Set(selected);
+    n.has(id) ? n.delete(id) : n.add(id);
+    onChange(n);
+  };
+
+  return (
+    <Modal title="שירותים נוספים בעתיד" onClose={onClose} width={620}
+      footer={<button className="btn btn-primary" onClick={onClose}>סיום</button>}>
+      <div className="qb-panel-s">
+        מחירון "אם וכאשר" שמצורף להצעה. אינו נכלל בסכומים ואינו מחייב את הלקוח —
+        הוא רק מונע הפתעה כשיזדקק לשירות.
+        {templateName && ` הבחירה הראשונית מגיעה מהתבנית «${templateName}»; שינוי כאן חל על ההצעה הזאת בלבד.`}
+      </div>
+      <input className="qb-search" placeholder="חיפוש בכל הקטלוג…" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="qb-selbar">
+        <b>{count} נבחרו</b>
+        <button className="qb-link" onClick={() => onChange(new Set(templateDefaults.filter(id => !used.has(id))))}>
+          ברירת המחדל של התבנית
+        </button>
+        <button className="qb-link" onClick={() => onChange(new Set(
+          services.filter(s => s.active && s.category !== 'included' && !used.has(s.id)).map(s => s.id)))}>
+          בחירת הכול
+        </button>
+        <button className="qb-link" onClick={() => onChange(new Set())}>ניקוי</button>
+      </div>
+      {groups.map(([cat, label]) => {
+        const list = services.filter(s => s.active && s.category === cat && !used.has(s.id)
+          && (!search.trim() || s.name.includes(search.trim())));
+        if (!list.length) return null;
+        return (
+          <div key={cat}>
+            <div className="qb-sect">{label}</div>
+            {list.map(s => (
+              <label className="qb-check" key={s.id}>
+                <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
+                <span className="qb-cn">{s.name}</span>
+                <span className="qb-cp">
+                  {formatILS(s.defaultPrice)}
+                  {s.category === 'monthly' ? ' לחודש' : s.category === 'annual' ? ' לשנה' : ''} + מע״מ
+                </span>
+              </label>
+            ))}
+          </div>
+        );
+      })}
+    </Modal>
+  );
+}
+
+/** סקירה — כאן, ורק כאן, מע״מ מפורט, הודעה אישית ותוקף. */
+function ReviewPanel({
+  data, brand, totals, deal, vatRate, message, onMessage, subject, onSubject,
+  internalNotes, onInternalNotes, expiresAt, onExpires, isRenewal, effectiveFrom, onEffectiveFrom,
+  sending, blocker, onSend, onTest, onPdf, onClose,
+}: {
+  data: React.ComponentProps<typeof QuotationWebView>['data'];
+  brand: ReturnType<typeof deriveQuotationBrand>;
+  totals: ReturnType<typeof calcTotals>; deal: Deal; vatRate: number;
+  message: string; onMessage: (v: string) => void;
+  subject: string; onSubject: (v: string) => void;
+  internalNotes: string; onInternalNotes: (v: string) => void;
+  expiresAt: string; onExpires: (v: string) => void;
+  isRenewal: boolean; effectiveFrom?: string; onEffectiveFrom: (v: string) => void;
+  sending: 'test' | 'send' | null; blocker: string | null;
+  onSend: () => void; onTest: () => void; onPdf: () => void; onClose: () => void;
+}) {
+  const [settings, setSettings] = useState(false);
+  return (
+    <Modal title="סקירה לפני שליחה" onClose={onClose} width={780}
+      footer={
+        <div className="qb-review-foot">
+          <span className="qb-review-sum">
+            {formatILS(totals.monthly.withVat)} לחודש כולל מע״מ
+            {deal.completionCharge >= 1 && ` · ${formatILS(deal.completionCharge)} ${deal.trigger}`}
+          </span>
+          <span className="qb-review-acts">
+            <button className="btn btn-sm" onClick={onTest} disabled={!!sending}>
+              {sending === 'test' ? 'שולח…' : 'מייל בדיקה'}
+            </button>
+            <button className="btn btn-sm" onClick={onPdf}>PDF</button>
+            <button className="btn btn-sm btn-primary" onClick={onSend} disabled={!!sending}>
+              {sending === 'send' ? 'שולח…' : 'שליחה ללקוח'}
+            </button>
+          </span>
+        </div>
+      }>
+      <div className="qb-panel-s">זה בדיוק מה שהלקוח יראה. אין מסמך שני.</div>
+      {blocker && <div className="qb-warn">{blocker}</div>}
+
+      <div className="qb-preview pivo-light">
+        <QuotationWebView data={data} brand={brand} compact />
+      </div>
+
+      <label className="qb-fld"><span>הודעה אישית ללקוח (אופציונלי) — נכנסת למייל ולראש ההצעה</span>
+        <textarea rows={3} value={message} onChange={e => onMessage(e.target.value)}
+          placeholder="למשל: אחרי שדיברנו הבנתי שהדבר הדחוף אצלך הוא לסגור את השנים הפתוחות — התחלתי מזה." />
+      </label>
+      <div className="qb-note">
+        המייל עצמו לא מציג מחירים — הם מחכים בעמוד ההצעה. תוקף: עד {new Date(expiresAt).toLocaleDateString('he-IL')},
+        ותזכורת אוטומטית יום עסקים לפני הפקיעה. מע״מ {vatRate}% מוצג בעמוד בכל סעיף.
+      </div>
+
+      {settings ? (
+        <>
+          <label className="qb-fld"><span>נושא המייל</span>
+            <input value={subject} onChange={e => onSubject(e.target.value)} />
+          </label>
+          <label className="qb-fld"><span>תוקף ההצעה</span>
+            <input type="date" value={expiresAt.slice(0, 10)}
+              onChange={e => { const d = new Date(e.target.value); d.setHours(23, 59, 0, 0); onExpires(d.toISOString()); }} />
+          </label>
+          {isRenewal && (
+            <label className="qb-fld"><span>ההסכם המעודכן נכנס לתוקף</span>
+              <input type="date" value={(effectiveFrom ?? '').slice(0, 10)}
+                onChange={e => onEffectiveFrom(e.target.value)} />
+              <span className="qb-note">עד התאריך הזה נשאר ההסכם הנוכחי בתוקף.</span>
+            </label>
+          )}
+          <label className="qb-fld"><span>הערה פנימית (לא נשלחת ללקוח)</span>
+            <textarea rows={2} value={internalNotes} onChange={e => onInternalNotes(e.target.value)} />
+          </label>
+        </>
+      ) : (
+        <button className="qb-link mute" onClick={() => setSettings(true)}>נושא המייל, תוקף והערה פנימית</button>
+      )}
+    </Modal>
+  );
+}
+
+/* ═══ הצעה שנשלחה — מעקב ═══════════════════════════════════════════════════ */
+function SentQuotation({ quotation, brand, onBack }: {
+  quotation: Quotation; brand: ReturnType<typeof deriveQuotationBrand>; onBack: () => void;
+}) {
   const [copied, setCopied] = useState(false);
-  const [contractBusy, setContractBusy] = useState(false);
+  const [busy, setBusy] = useState(false);
   const snap = quotation.snapshot;
+  const link = quotation.publicToken ? `${window.location.origin}/?quote=${quotation.publicToken}` : null;
+  const fmt = (iso?: string) => iso
+    ? new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : 'עדיין לא';
 
-  // הורדה ידנית של ההסכם החתום — אותו PDF שנשמר במסמכי הלקוח בהמרה
-  async function downloadContract() {
-    setContractBusy(true);
+  async function contract() {
+    setBusy(true);
     try {
       const bytes = await generateQuotationPdf({
         quotationNumber: quotation.quotationNumber,
@@ -1110,165 +1379,63 @@ function TrackingPanel({ quotation, brand }: { quotation: Quotation; brand: Retu
         },
       }, brand);
       downloadPdf(bytes, `הסכם התקשרות — הצעה ${quotation.quotationNumber}.pdf`);
-    } finally {
-      setContractBusy(false);
-    }
-  }
-  const link = quotation.publicToken ? `${window.location.origin}/?quote=${quotation.publicToken}` : null;
-
-  const applyPlaceholders = (s: string) => {
-    if (!snap || !link) return s;
-    const ctx: Record<string, string> = {
-      '{{clientName}}': snap.recipientName,
-      '{{businessName}}': snap.businessName || snap.recipientName,
-      '{{quotationNumber}}': snap.quotationNumber,
-      '{{quotationLink}}': link,
-    };
-    return Object.entries(ctx).reduce((acc, [k, v]) => acc.split(k).join(v ?? ''), s);
-  };
-
-  // המייל משוחזר מה-snapshot שהוקפא ברגע השליחה — לא מהשדות החיים,
-  // כדי שמה שמוצג כאן יהיה באמת מה שנשלח.
-  const sentEmailHtml = useMemo(() => {
-    if (!snap || !link) return null;
-    return buildQuotationEmailHtml({
-      quotationNumber: snap.quotationNumber,
-      recipientName: snap.recipientName,
-      businessName: snap.businessName,
-      items: snap.items,
-      vatRate: snap.vatRate,
-      message: applyPlaceholders(snap.emailMessage || ''),
-      quotationLink: link,
-      expiresAt: quotation.expiresAt,
-    }, brand);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snap, link, brand, quotation.expiresAt]);
-
-  const fmt = (iso?: string) => iso
-    ? new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : null;
-
-  const events = [...quotation.events].sort((a, b) => (b.at || '').localeCompare(a.at || ''));
-  const reminders = quotation.events.filter(e => e.type === 'reminder_sent' || e.type === 'sent').length - 1;
-
-  const milestones = [
-    { label: 'נשלחה ללקוח', at: quotation.sentAt, icon: '📤' },
-    { label: 'נצפתה לראשונה', at: quotation.firstViewedAt, icon: '👀' },
-    { label: 'אושרה ונחתמה', at: quotation.approvedAt, icon: '✅' },
-  ];
-
-  const panel: React.CSSProperties = { borderTop: '1px solid var(--hairline-2)', padding: '14px 0' };
-
-  async function copyLink() {
-    if (!link) return;
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch { /* דפדפן חוסם — הקישור מוצג וניתן להעתקה ידנית */ }
+    } finally { setBusy(false); }
   }
 
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, direction: 'rtl' }}>
-
-      {/* אבני דרך */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-        {milestones.map(m => (
-          <div key={m.label} style={{ ...panel, padding: '10px 12px', opacity: m.at ? 1 : .55 }}>
-            <div style={{ fontSize: 'var(--fs-12)', fontWeight: 600 }}>{m.icon} {m.label}</div>
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 3 }}>{fmt(m.at) ?? 'עדיין לא'}</div>
-          </div>
-        ))}
+    <div className="qb" dir="rtl">
+      <div className="qb-top">
+        <button className="qb-back" onClick={onBack}>→ חזרה</button>
+        <div className="qb-status">הצעה <b>{quotation.quotationNumber}</b></div>
       </div>
-
-      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
-        סטטוס נוכחי: <b style={{ color: 'var(--gray-800)' }}>{QUOTATION_STATUS_LABELS[quotation.status]}</b>
-        {reminders > 0 ? ` · נשלחו ${reminders} תזכורות` : ''}
-      </div>
-
-      {/* קישור ההצעה */}
-      {link && (
-        <div style={{ ...panel, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 'var(--fs-12)', fontWeight: 600 }}>הקישור שנשלח ללקוח</div>
-          <div dir="ltr" style={{ flex: 1, minWidth: 160, fontSize: 'var(--fs-12)', color: 'var(--gray-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link}</div>
-          <button className="btn btn-sm btn-secondary" onClick={copyLink}>{copied ? 'הועתק' : 'העתקה'}</button>
-          <a className="btn btn-sm btn-ghost" href={link} target="_blank" rel="noreferrer">פתיחה ↗</a>
+      <div className="qb-doc">
+        <div className="qb-lbl">מעקב</div>
+        <div className="qb-milestones">
+          {[
+            { label: 'נשלחה ללקוח', at: quotation.sentAt },
+            { label: 'נצפתה', at: quotation.firstViewedAt },
+            { label: 'אושרה ונחתמה', at: quotation.approvedAt },
+          ].map(m => (
+            <div className="qb-ms" key={m.label} style={{ opacity: m.at ? 1 : 0.5 }}>
+              <div className="qb-ms-l">{m.label}</div>
+              <div className="qb-ms-d">{fmt(m.at)}</div>
+            </div>
+          ))}
         </div>
-      )}
-
-      {/* חתימת הלקוח */}
-      {quotation.approvalSignature && (
-        <div style={panel}>
-          <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600, marginBottom: 8 }}>חתימת הלקוח</div>
-          <div style={{ background: '#fff', border: '1px solid var(--gray-200)', borderRadius: 8, padding: 8, display: 'inline-block' }}>
-            <img src={quotation.approvalSignature} alt="חתימת הלקוח" style={{ maxHeight: 90, maxWidth: '100%', display: 'block' }} />
-          </div>
-          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6 }}>
-            {quotation.approvalSignerName ? `נחתם על ידי ${quotation.approvalSignerName}` : 'נחתם'}
-            {quotation.approvedAt ? ` · ${fmt(quotation.approvedAt)}` : ''}
-          </div>
-          <button className="btn btn-sm btn-secondary" style={{ marginTop: 8 }} disabled={contractBusy} onClick={downloadContract}>
-            {contractBusy ? 'מפיק…' : 'הורדת ההסכם החתום (PDF)'}
-          </button>
-          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 4 }}>
-            ההסכם נשמר אוטומטית במסמכי הלקוח כשהופכים את הליד ללקוח.
-          </div>
-        </div>
-      )}
-
-      {/* מיילים ללקוח — מה יצא, אם הגיע, ואם נפתח */}
-      <QuotationEmailsPanel
-        quotationId={quotation.id}
-        representationRequestId={quotation.representationRequestId}
-      />
-
-      {/* יומן אירועים */}
-      <div style={panel}>
-        <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600, marginBottom: 6 }}>יומן אירועים</div>
-        {events.length === 0 ? (
-          <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)' }}>אין אירועים עדיין.</div>
-        ) : events.map((e, i) => (
-          <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 0', borderTop: i ? '1px solid var(--gray-100)' : 'none', fontSize: 'var(--fs-13)', alignItems: 'baseline' }}>
-            <span style={{ flex: 1 }}>
-              {QUOTATION_EVENT_LABELS[e.type] ?? e.type}
-              {e.note ? <span style={{ color: 'var(--gray-500)' }}> — {e.note}</span> : null}
-            </span>
-            <span style={{ color: 'var(--gray-500)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{fmt(e.at)}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* המייל שנשלח */}
-      <div style={{ ...panel, padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--gray-200)' }}>
-          <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600 }}>המייל שנשלח ללקוח</div>
-          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2 }}>
-            נושא: {applyPlaceholders(snap?.emailSubject || quotation.emailSubject || '') || '—'}
-          </div>
-        </div>
-        {sentEmailHtml ? (
-          <iframe title="sent-email" srcDoc={sentEmailHtml} style={{ width: '100%', height: 480, border: 'none', background: '#fff' }} />
-        ) : (
-          <div style={{ padding: 14, fontSize: 'var(--fs-13)', color: 'var(--gray-500)' }}>
-            ההצעה טרם נשלחה ללקוח — אין העתק שמור של מייל.
+        {link && (
+          <div className="qb-quiet">
+            <span className="qb-quiet-k">הקישור שנשלח</span>
+            <span className="qb-quiet-v" dir="ltr" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{link}</span>
+            <button className="qb-link mute" onClick={async () => {
+              try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* דפדפן חוסם */ }
+            }}>{copied ? 'הועתק' : 'העתקה'}</button>
           </div>
         )}
+        {quotation.approvalSignature && (
+          <>
+            <hr className="qb-rule" />
+            <div className="qb-lbl">חתימת הלקוח</div>
+            <img src={quotation.approvalSignature} alt="חתימת הלקוח" className="qb-sig" />
+            <div className="qb-sub">
+              {quotation.approvalSignerName ? `נחתם על ידי ${quotation.approvalSignerName}` : 'נחתם'}
+              {quotation.approvedAt ? ` · ${fmt(quotation.approvedAt)}` : ''}
+            </div>
+            <div className="qb-addrow">
+              <button className="qb-link" onClick={contract} disabled={busy}>
+                {busy ? 'מפיק…' : 'הורדת ההסכם החתום (PDF)'}
+              </button>
+            </div>
+          </>
+        )}
+        <hr className="qb-rule" />
+        <QuotationEmailsPanel quotationId={quotation.id} representationRequestId={quotation.representationRequestId} />
       </div>
     </div>
   );
 }
 
-/**
- * רשימת הנמענים לבחירה — לידים ולקוחות, כל אחד פעם אחת.
- *
- * ליד שהפך ללקוח לא מוצג פעמיים: הלקוח גובר עליו, כי הוא הרשומה שנושאת את
- * הייצוג ואת התיק. הזיהוי הוא לפי הקישור המפורש, ואם אין — לפי מייל או שם.
- *
- * ליד שמסומן "הומר" אך אין מאחוריו לקוח כן מוצג. זה לא מצב תקין, אבל הסתרתו
- * הפכה אותו לבלתי-נגיש לחלוטין — אי אפשר היה להוציא לו הצעה ואי אפשר היה
- * להבין למה הוא נעלם.
- */
-export function buildRecipientOptions(leads: Lead[], clients: Client[]) {
+/* ═══ בחירת נמען ═══════════════════════════════════════════════════════════ */
+function buildRecipientOptions(leads: Lead[], clients: Client[]) {
   const norm = (s?: string) => (s ?? '').trim().toLowerCase();
   const clientIds = new Set(clients.map(c => c.id));
   const clientEmails = new Set(clients.map(c => norm(c.email)).filter(Boolean));
@@ -1289,135 +1456,91 @@ export function buildRecipientOptions(leads: Lead[], clients: Client[]) {
 
   const clientOptions = clients
     .map(c => ({
-      kind: 'client' as const, id: c.id,
-      fullName: `${c.firstName} ${c.lastName}`.trim(),
-      email: c.email, phone: c.phone,
-      repStatus: c.representationStatus,
+      kind: 'client' as const, id: c.id, fullName: `${c.firstName} ${c.lastName}`.trim(),
+      businessName: c.businessName, email: c.email, phone: c.phone, repStatus: c.representationStatus,
     }))
     .sort((a, b) => a.fullName.localeCompare(b.fullName, 'he'));
 
   return { leadOptions, clientOptions };
 }
 
-function RecipientEditor({ leads, clients, value, onPick, invalidStyle }: {
-  leads: Lead[]; clients: Client[]; value: RecipientDraft;
-  onPick: (r: RecipientDraft) => void;
-  /** סגנון הסימון האדום, כשהנמען הוא מה שחוסם את השליחה. undefined = תקין. */
-  invalidStyle?: React.CSSProperties;
+function RecipientPicker({ leads, clients, value, onPick }: {
+  leads: Lead[]; clients: Client[]; value: RecipientDraft; onPick: (r: RecipientDraft) => void;
 }) {
   const { leadOptions, clientOptions } = buildRecipientOptions(leads, clients);
   const hasExisting = leadOptions.length + clientOptions.length > 0;
-  const [mode, setMode] = useState<'existing' | 'new'>(
-    value.kind === 'client' || value.kind === 'lead' ? 'existing' : hasExisting ? 'existing' : 'new');
-  const [nl, setNl] = useState({ fullName: value.fullName, phone: value.phone ?? '', email: value.email ?? '', businessName: value.businessName ?? '' });
-  const [hasPrev, setHasPrev] = useState(!!value.hasPreviousAccountant);
-  const [prev, setPrev] = useState({ name: value.prevAccountantName ?? '', email: value.prevAccountantEmail ?? '', phone: value.prevAccountantPhone ?? '' });
+  const [mode, setMode] = useState<'existing' | 'new'>(hasExisting ? 'existing' : 'new');
+  const [nl, setNl] = useState({
+    fullName: value.kind === 'new' ? value.fullName : '', phone: '', email: '', businessName: '',
+  });
+  const [hasPrev, setHasPrev] = useState(false);
+  const [prev, setPrev] = useState({ name: '', email: '', phone: '' });
 
-  // תווית שמאפשרת להבדיל בין שני אנשים עם אותו שם, בלי להעמיס את השורה
-  const optionLabel = (o: { fullName: string; businessName?: string; phone?: string; email?: string }) =>
+  const label = (o: { fullName: string; businessName?: string; phone?: string; email?: string }) =>
     [o.fullName || '(ללא שם)', o.businessName, o.phone || o.email].filter(Boolean).join(' · ');
-
-  function handleSelect(key: string) {
-    if (!key) return;
-    const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
-    const picked = kind === 'lead'
-      ? leadOptions.find(o => o.id === id)
-      : clientOptions.find(o => o.id === id);
-    if (!picked) return;
-    const { ...rest } = picked;
-    delete (rest as Record<string, unknown>).repStatus;   // לא חלק מהנמען
-    onPick(rest as RecipientDraft);
-  }
 
   return (
     <div>
-      <div className="tabs" style={{ marginBottom: 10 }}>
-        <button className={`tab ${mode === 'new' ? 'active' : ''}`} onClick={() => setMode('new')}>ליד חדש</button>
-        <button className={`tab ${mode === 'existing' ? 'active' : ''}`} onClick={() => setMode('existing')}>קיים</button>
+      <div className="qb-chips" style={{ marginBottom: 12 }}>
+        <button className={`qb-chip${mode === 'existing' ? ' on' : ''}`} onClick={() => setMode('existing')}>ליד או לקוח קיים</button>
+        <button className={`qb-chip${mode === 'new' ? ' on' : ''}`} onClick={() => setMode('new')}>ליד חדש</button>
       </div>
 
       {mode === 'existing' ? (
-        <>
-          {hasExisting ? (
-            <>
-              <select
-                value={value.id ? `${value.kind}:${value.id}` : ''}
-                onChange={e => handleSelect(e.target.value)}
-                style={invalidStyle}
-                aria-invalid={!!invalidStyle}
-              >
-                <option value="">{'—'} בחר ליד או לקוח {'—'}</option>
-                {leadOptions.length > 0 && (
-                  <optgroup label={`לידים (${leadOptions.length})`}>
-                    {leadOptions.map(o => (
-                      <option key={`lead:${o.id}`} value={`lead:${o.id}`}>{optionLabel(o)}</option>
-                    ))}
-                  </optgroup>
-                )}
-                {clientOptions.length > 0 && (
-                  <optgroup label={`לקוחות (${clientOptions.length})`}>
-                    {clientOptions.map(o => (
-                      <option key={`client:${o.id}`} value={`client:${o.id}`}>
-                        {optionLabel(o)}
-                        {o.repStatus === 'active' ? ' · מיוצג' : o.repStatus ? ' · ייצוג בתהליך' : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
-                ליד שכבר הפך ללקוח מופיע פעם אחת בלבד — ברשימת הלקוחות.
-              </div>
-            </>
-          ) : (
-            <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', padding: 6, lineHeight: 1.6 }}>
-              אין עדיין לידים או לקוחות. אפשר לפתוח ליד חדש בטאב שלצד.
-            </div>
-          )}
-        </>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input placeholder="שם מלא *" value={nl.fullName}
-            onChange={e => setNl(v => ({ ...v, fullName: e.target.value }))}
-            style={!nl.fullName.trim() ? invalidStyle : undefined}
-            aria-invalid={!!invalidStyle && !nl.fullName.trim()} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <input placeholder="טלפון" value={nl.phone} onChange={e => setNl(v => ({ ...v, phone: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
-            {/* ‼ האימייל הוא שדה חובה לשליחה: בלעדיו אין לאן לשלוח את ההצעה.
-                הוא לא סומן ככזה, ולכן מי שמילא שם בלבד לא הבין מה חסר. */}
-            <EmailInput placeholder="אימייל *" value={nl.email} onChange={e => setNl(v => ({ ...v, email: e.target.value }))}
-              aria-invalid={!!invalidStyle && !nl.email.trim()}
-              style={!nl.email.trim() ? invalidStyle : undefined} />
-          </div>
-          <input placeholder="שם העסק (אופציונלי)" value={nl.businessName} onChange={e => setNl(v => ({ ...v, businessName: e.target.value }))} />
-
-          <div style={{ border: '1px solid var(--gray-200)', borderRadius: 8, padding: 10, background: hasPrev ? 'var(--blue-light)' : 'var(--gray-50)' }}>
-            <label className="checkbox-row" style={{ fontWeight: 500 }}>
-              <input type="checkbox" checked={hasPrev} onChange={e => setHasPrev(e.target.checked)} />
-              עובר מרו״ח אחר?
-            </label>
-            {hasPrev && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-                <input placeholder="שם הרו״ח הקודם" value={prev.name} onChange={e => setPrev(v => ({ ...v, name: e.target.value }))} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                  <EmailInput placeholder="מייל הרו״ח הקודם" value={prev.email} onChange={e => setPrev(v => ({ ...v, email: e.target.value }))} />
-                  <input placeholder="טלפון" value={prev.phone} onChange={e => setPrev(v => ({ ...v, phone: e.target.value }))} dir="ltr" style={{ textAlign: 'right' }} />
-                </div>
-                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>לאחר שהלקוח יאשר, נכין מכתב העברת טיפול לרו״ח הקודם.</div>
-              </div>
+        hasExisting ? (
+          <select autoFocus defaultValue={value.id ? `${value.kind}:${value.id}` : ''}
+            onChange={e => {
+              const key = e.target.value;
+              if (!key) return;
+              const [k, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+              const picked = k === 'lead' ? leadOptions.find(o => o.id === id) : clientOptions.find(o => o.id === id);
+              if (!picked) return;
+              const { ...rest } = picked;
+              delete (rest as Record<string, unknown>).repStatus;
+              onPick(rest as RecipientDraft);
+            }}>
+            <option value="">— בחר ליד או לקוח —</option>
+            {leadOptions.length > 0 && (
+              <optgroup label={`לידים (${leadOptions.length})`}>
+                {leadOptions.map(o => <option key={o.id} value={`lead:${o.id}`}>{label(o)}</option>)}
+              </optgroup>
             )}
+            {clientOptions.length > 0 && (
+              <optgroup label={`לקוחות (${clientOptions.length})`}>
+                {clientOptions.map(o => (
+                  <option key={o.id} value={`client:${o.id}`}>
+                    {label(o)}{o.repStatus === 'active' ? ' · מיוצג' : o.repStatus ? ' · ייצוג בתהליך' : ''}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        ) : <div className="qb-note">אין עדיין לידים או לקוחות.</div>
+      ) : (
+        <div className="qb-newlead">
+          <input placeholder="שם מלא *" value={nl.fullName} autoFocus
+            onChange={e => setNl(v => ({ ...v, fullName: e.target.value }))} />
+          <div className="qb-fld2">
+            <input placeholder="טלפון" value={nl.phone} dir="ltr" onChange={e => setNl(v => ({ ...v, phone: e.target.value }))} />
+            <input placeholder="אימייל *" type="email" value={nl.email} dir="ltr" onChange={e => setNl(v => ({ ...v, email: e.target.value }))} />
           </div>
-
-          {/* ‼ הפרטים שמוקלדים כאן אינם הנמען עד שלוחצים. מי שמילא שם ולחץ
-              "שליחה" קיבל "יש לבחור נמען" והסתכל על שם שהוא בדיוק כתב — ההודעה
-              נשמעה כמו באג. כשזה בדיוק המצב, הכפתור הזה הוא מה שחסר, והוא
-              נצבע ואומר את זה במפורש. */}
-          {!!invalidStyle && !!nl.fullName.trim() && (
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--err)', fontWeight: 600 }}>
-              הפרטים עדיין לא נקבעו כנמען — יש ללחוץ על הכפתור שמתחת.
-            </div>
+          <input placeholder="שם העסק (אופציונלי)" value={nl.businessName}
+            onChange={e => setNl(v => ({ ...v, businessName: e.target.value }))} />
+          <label className="qb-check">
+            <input type="checkbox" checked={hasPrev} onChange={e => setHasPrev(e.target.checked)} />
+            <span className="qb-cn">עובר מרו״ח אחר?</span>
+          </label>
+          {hasPrev && (
+            <>
+              <input placeholder="שם הרו״ח הקודם" value={prev.name} onChange={e => setPrev(v => ({ ...v, name: e.target.value }))} />
+              <div className="qb-fld2">
+                <input placeholder="מייל הרו״ח הקודם" value={prev.email} dir="ltr" onChange={e => setPrev(v => ({ ...v, email: e.target.value }))} />
+                <input placeholder="טלפון" value={prev.phone} dir="ltr" onChange={e => setPrev(v => ({ ...v, phone: e.target.value }))} />
+              </div>
+              <div className="qb-note">לאחר שהלקוח יאשר, נכין מכתב שחרור לרו״ח הקודם.</div>
+            </>
           )}
-          <button className="btn btn-sm btn-primary" disabled={!nl.fullName.trim()}
+          <button className="btn btn-primary btn-sm" disabled={!nl.fullName.trim()} style={{ alignSelf: 'flex-start' }}
             onClick={() => onPick({
               kind: 'new', fullName: nl.fullName.trim(),
               phone: nl.phone.trim() || undefined, email: nl.email.trim() || undefined,
@@ -1426,482 +1549,9 @@ function RecipientEditor({ leads, clients, value, onPick, invalidStyle }: {
               prevAccountantName: hasPrev ? prev.name.trim() || undefined : undefined,
               prevAccountantEmail: hasPrev ? prev.email.trim() || undefined : undefined,
               prevAccountantPhone: hasPrev ? prev.phone.trim() || undefined : undefined,
-            })}
-            style={{
-              alignSelf: 'flex-start',
-              ...(!!invalidStyle && !!nl.fullName.trim()
-                ? { boxShadow: '0 0 0 2px var(--err)' } : {}),
-            }}>
-            שימוש בליד זה
-          </button>
+            })}>שימוש בליד זה</button>
         </div>
       )}
     </div>
   );
 }
-
-function LineItem({ item, vatRate, plan, onChange, onRemove, flagEmptyName }: {
-  item: QuotationItem; vatRate: number; plan: BillingPlan;
-  onChange: (p: Partial<QuotationItem>) => void; onRemove: () => void;
-  /** דלוק ⇒ שורה חופשית בלי שם מסומנת באדום. נדלק כשהשליחה נעצרה בגללה. */
-  flagEmptyName?: boolean;
-}) {
-  const final = itemFinalPrice(item);
-  const withVat = item.vatFlag ? Math.round(final * (1 + vatRate / 100)) : final;
-  const isMonthly = item.category === 'monthly';
-  const basis: PriceBasis = item.priceBasis ?? 'monthly';
-  const isManual = item.prorationMode === 'manual';
-  const isDeferred = item.prorationMode === 'deferred';
-  const installments = clampInstallments(item.installments ?? plan.installments);
-  const qty = item.quantity || 1;
-  const deferredBaseView = deferredBase(item);
-  // "אחר…" צריך להישאר פתוח גם לפני שהוקלד בו משהו — ולכן זה מצב מסך ולא נתון
-  const [triggerCustom, setTriggerCustom] = useState(false);
-
-  // מעבר בין תמחור חודשי לשנתי: המחיר השנתי מאותחל מהחודשי (× מספר התשלומים)
-  // כדי שהמספר שעל המסך לא יקפוץ לאפס, ואז התשלום החודשי נגזר ממנו מחדש.
-  function switchBasis(next: PriceBasis) {
-    if (next === 'monthly') {
-      setTriggerCustom(false);
-      onChange({
-        priceBasis: 'monthly', annualPrice: undefined, prorationMode: 'full',
-        deferredTrigger: undefined, deferredDiscount: undefined, deferredChargeAmount: undefined,
-      });
-      return;
-    }
-    const annual = item.annualPrice ?? Math.round(item.clientPrice * installments);
-    onChange({
-      priceBasis: 'annual', annualPrice: annual, prorationMode: 'full',
-      clientPrice: r2(annual / installments),
-    });
-  }
-
-  function setAnnual(annual: number) {
-    if (isManual) { onChange({ annualPrice: annual }); return; }
-    // בשורת יתרה החודשי נגזר משנתי ÷ 12, וההפרש נכנס ליתרה
-    onChange({ annualPrice: annual, clientPrice: r2(annual / (isDeferred ? DEFAULT_INSTALLMENTS : installments)) });
-  }
-
-  // עריכה ידנית של התשלום החודשי מנתקת את השורה מהנוסחה — זו כוונה, לא טעות.
-  // בשורת יתרה זו לא ניתוק אלא הקלט העיקרי: כמה הריטיינר בולע, והשאר יתרה.
-  function setMonthly(value: number) {
-    if (isDeferred) { onChange({ clientPrice: value }); return; }
-    onChange(basis === 'annual' ? { clientPrice: value, prorationMode: 'manual' } : { clientPrice: value });
-  }
-
-  // מעבר בין "פריסת המחיר השנתי" ל"יתרה לתשלום מאוחר". החודשי נגזר מחדש בכל
-  // מעבר, כי זה בדיוק ההבדל בין השניים: 1,800 ÷ 4 מול 1,800 ÷ 12.
-  function switchProration(mode: 'full' | 'deferred') {
-    const annual = item.annualPrice ?? 0;
-    if (mode === 'deferred') {
-      onChange({ prorationMode: 'deferred', clientPrice: r2(annual / DEFAULT_INSTALLMENTS) });
-      return;
-    }
-    setTriggerCustom(false);
-    onChange({
-      prorationMode: 'full', clientPrice: r2(annual / installments),
-      deferredTrigger: undefined, deferredDiscount: undefined, deferredChargeAmount: undefined,
-    });
-  }
-
-  // מחיר יעד: בוחרים כמה זה יעלה בסוף, והמערכת גוזרת את ההנחה. גיא חושב
-  // במחיר לחודש — לכן היעד הוא תמיד על התשלום הבודד, גם כשהוזן מחיר שנתי.
-  const targetBase = item.clientPrice * qty;
-
-  function pickTarget(target: number | null) {
-    if (target == null) { onChange({ discountPercent: 0 }); return; }
-    if (targetBase <= 0) return;
-    onChange({ discountPercent: Math.min(100, Math.max(0, (1 - target / targetBase) * 100)) });
-  }
-
-  return (
-    <div style={{ border: '1px solid var(--gray-200)', borderRadius: 10, padding: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        {/* שורה חופשית (בלי serviceId) — השם נערך ישירות כאן */}
-        {item.serviceId ? (
-          <span style={{ flex: 1, fontWeight: 600, fontSize: 'var(--fs-14)' }}>{itemDisplayName(item)}</span>
-        ) : (
-          <input value={item.name} placeholder="שם השירות (שורה חופשית) *" autoFocus={!item.name}
-            onChange={e => onChange({ name: e.target.value })}
-            aria-invalid={flagEmptyName && !item.name.trim()}
-            style={{
-              flex: 1, fontWeight: 600, fontSize: 'var(--fs-14)', padding: '.3rem .5rem',
-              // ‼ מסמנים את השורה החסרה עצמה. ברשימה של חמישה שירותים, מסגרת
-              // סביב הכרטיס כולו לא אומרת באיזו מהן חסר השם.
-              ...(flagEmptyName && !item.name.trim()
-                ? { borderColor: 'var(--err)', boxShadow: '0 0 0 1px var(--err)', background: 'var(--red-light)' }
-                : {}),
-            }} />
-        )}
-        <button className="btn btn-icon btn-ghost" onClick={onRemove} title="הסרה" style={{ color: 'var(--red)' }}>✕</button>
-      </div>
-      {/* תדירות החיוב ושנת המס נבחרות פר שורה — אותו שירות יכול להיות חודשי
-          ללקוח אחד וחד־פעמי לאחר, ודוח לכל שנה פתוחה מתומחר בנפרד. */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
-        <label style={miniLabel}>תדירות חיוב
-          <select value={item.category} style={miniInput}
-            onChange={e => onChange({ category: e.target.value as ServiceCategory })}>
-            {SERVICE_CATEGORY_ORDER.map(c => (
-              <option key={c} value={c}>{SERVICE_CATEGORY_LABELS[c]}</option>
-            ))}
-          </select>
-        </label>
-        <label style={miniLabel}>שנת מס
-          <select value={item.year ?? ''} style={miniInput}
-            onChange={e => onChange({ year: e.target.value ? Number(e.target.value) : undefined })}>
-            <option value="">— ללא —</option>
-            {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </label>
-      </div>
-      {/* שורה חודשית: מחיר שנתי ← מספר תשלומים ← תשלום חודשי, הכול באותה שורה */}
-      {isMonthly && (
-        <div style={{ display: 'grid', gridTemplateColumns: basis === 'annual' ? '1fr 1fr' : '1fr', gap: 6, marginBottom: 6 }}>
-          <label style={miniLabel}>תמחור
-            <select value={basis} style={miniInput} onChange={e => switchBasis(e.target.value as PriceBasis)}>
-              <option value="monthly">לפי מחיר חודשי</option>
-              <option value="annual">לפי מחיר שנתי</option>
-            </select>
-          </label>
-          {basis === 'annual' && (
-            <label style={miniLabel}>מחיר שנתי
-              <input type="number" min={0} value={item.annualPrice ?? 0} style={miniInput}
-                onChange={e => setAnnual(Math.max(0, Number(e.target.value) || 0))} />
-            </label>
-          )}
-        </div>
-      )}
-      {/* מה קורה עם ההפרש בין המחיר השנתי למה שייגבה בפועל: לפרוס הכול על
-          פחות חודשים (החודשי עולה), או להשאיר את החודשי נמוך ולגבות יתרה. */}
-      {isMonthly && basis === 'annual' && !isManual && (
-        <label style={{ ...miniLabel, marginBottom: 6 }}>מה עם ההפרש עד המחיר השנתי
-          <select value={isDeferred ? 'deferred' : 'full'} style={miniInput}
-            onChange={e => switchProration(e.target.value as 'full' | 'deferred')}>
-            <option value="full">פריסת המחיר השנתי המלא על {installments} תשלומים</option>
-            <option value="deferred">יתרה לתשלום במועד מאוחר</option>
-          </select>
-        </label>
-      )}
-      {isMonthly && basis === 'annual' && isDeferred && deferredBaseView && (
-        <DeferredEditor item={item} vatRate={vatRate} base={deferredBaseView}
-          customTrigger={triggerCustom} onCustomTrigger={setTriggerCustom} onChange={onChange} />
-      )}
-      <div style={{ display: 'grid', gridTemplateColumns: item.billingType === 'per_unit' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 6 }}>
-        {item.billingType === 'per_unit' && (
-          <label style={miniLabel}>{item.unitLabel || 'כמות'}
-            <input type="number" min={1} value={item.quantity} onChange={e => onChange({ quantity: Math.max(1, Number(e.target.value) || 1) })} style={miniInput} />
-          </label>
-        )}
-        <label style={miniLabel}>{isMonthly ? (basis === 'annual' ? `תשלום חודשי${isManual ? ' (ידני)' : ''}` : 'תשלום חודשי') : 'מחיר ליחידה'}
-          <input type="number" min={0} value={item.clientPrice} onChange={e => setMonthly(Math.max(0, Number(e.target.value) || 0))} style={miniInput} />
-        </label>
-        <label style={miniLabel}>הנחה %
-          <input type="number" min={0} max={100} value={Math.round((item.discountPercent ?? 0) * 10) / 10}
-            onChange={e => onChange({ discountPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} style={miniInput} />
-        </label>
-      </div>
-      {item.category !== 'included' && targetBase > 0 && (
-        <TargetPriceSelect base={targetBase} discountPercent={item.discountPercent ?? 0} onPick={pickTarget}
-          label={isMonthly ? 'מחיר יעד לחודש (קובע את ההנחה)' : 'מחיר יעד (קובע את ההנחה)'} />
-      )}
-      {/* העוגן ההתנהגותי בידי הרו"ח: המחיר שיוצג מחוק ללקוח. ריק = אוטומטי
-          (הגבוה מבין מחיר הקטלוג למחיר שהוזן). */}
-      {item.category !== 'included' && (
-        <label style={{ ...miniLabel, marginTop: 6 }}>
-          {isMonthly ? 'מחיר לפני הנחה לחודש — יוצג מחוק ללקוח (ריק = אוטומטי)' : 'מחיר לפני הנחה — יוצג מחוק ללקוח (ריק = אוטומטי)'}
-          <input type="number" min={0} style={miniInput}
-            placeholder={String(Math.round(itemOriginalPrice(item) / qty))}
-            value={item.displayFullPrice ?? ''}
-            onChange={e => onChange({ displayFullPrice: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })} />
-        </label>
-      )}
-      {/* המחיר של השנה הבאה בשליטת הרו"ח: ריק = אוטומטי (שנתי ÷ 12, ובשורה
-          ידנית — אותו מחיר שנקבע). מילוי — קובע בדיוק כמה יופיע "החל מינואר". */}
-      {isMonthly && (
-        <label style={{ ...miniLabel, marginTop: 6 }}>
-          תשלום חודשי מהשנה הבאה (ריק = אוטומטי)
-          <input type="number" min={0} style={miniInput}
-            placeholder={String(Math.round(monthlyPlan({ ...item, ongoingPrice: undefined }).ongoingPerMonth / qty))}
-            value={item.ongoingPrice ?? ''}
-            onChange={e => onChange({ ongoingPrice: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0) })} />
-        </label>
-      )}
-      <ClientPriceHint item={item} />
-      {/* הדרך הקצרה מ"דוח שנתי 6,000 ₪" ל"5 תשלומים של 1,200 ₪": בלי זה צריך
-          לדעת שקודם משנים את תדירות החיוב לחודשי, וזה לא מובן מאליו. */}
-      {!isMonthly && item.category !== 'included' && item.clientPrice > 0 && (
-        <button className="btn btn-sm btn-secondary" style={{ marginTop: 6, fontSize: 'var(--fs-12)', padding: '3px 8px' }}
-          onClick={() => onChange({
-            category: 'monthly', priceBasis: 'annual',
-            annualPrice: item.clientPrice, prorationMode: 'full',
-            installments: plan.installments, billingStartMonth: plan.startMonth,
-            clientPrice: r2(item.clientPrice / plan.installments),
-          })}>
-          ⤶ לפרוס לתשלומים חודשיים
-        </button>
-      )}
-      {isMonthly && basis === 'annual' && isManual && (
-        <button className="btn btn-sm btn-ghost" style={{ marginTop: 4, fontSize: 'var(--fs-12)', padding: '2px 6px' }}
-          onClick={() => onChange({
-            prorationMode: 'full',
-            clientPrice: r2((item.annualPrice ?? 0) / installments),
-          })}>
-          ↺ חזרה לחישוב אוטומטי (שנתי ÷ {installments})
-        </button>
-      )}
-      <PlanHint item={item} />
-      <DeferredHint item={item} vatRate={vatRate} />
-      <input placeholder="הערה שתוצג ללקוח (אופציונלי)" value={item.clientNote ?? ''} onChange={e => onChange({ clientNote: e.target.value })} style={{ marginTop: 6, fontSize: 'var(--fs-12)' }} />
-      <div style={{ textAlign: 'end', marginTop: 6, fontSize: 'var(--fs-12)', color: 'var(--gray-600)' }}>
-        {item.category === 'included' ? 'כלול' : <>סה״כ שורה: <b>{formatILS(withVat)}</b> <span style={{ color: 'var(--gray-400)' }}>כולל מע״מ</span></>}
-      </div>
-    </div>
-  );
-}
-
-// שורת אמת מול הלקוח: בדיוק מה שיופיע בכרטיס השירות בעמוד ההצעה. ירוק כשיש
-// עוגן והנחה, אפור עם רמז לפעולה כשאין — כדי שאי-הצגת הנחה לא תפתיע אף אחד.
-function ClientPriceHint({ item }: { item: QuotationItem }) {
-  if (item.category === 'included') return null;
-  const original = itemOriginalPrice(item);
-  const final = itemFinalPrice(item);
-  if (final <= 0 && original <= 0) return null;
-  const hasDiscount = original - final >= 1;
-  return (
-    <div style={{
-      marginTop: 6, fontSize: 'var(--fs-12)', borderRadius: 8, padding: '5px 9px', lineHeight: 1.6,
-      background: hasDiscount ? 'rgba(16,185,129,.09)' : 'var(--gray-50)',
-      color: hasDiscount ? '#047857' : 'var(--gray-500)',
-      border: `1px solid ${hasDiscount ? 'rgba(16,185,129,.25)' : 'var(--gray-200)'}`,
-    }}>
-      הלקוח יראה:{' '}
-      {hasDiscount ? (
-        <>
-          <s>{formatILS(Math.round(original))}</s>{' ← '}
-          <b>{formatILS(Math.round(final))}</b>
-          {' · '}הנחה {Math.round((1 - final / original) * 100)}%
-        </>
-      ) : (
-        <>
-          <b>{formatILS(Math.round(final))}</b> בלי הנחה מוצגת — למילוי עוגן: "מחיר לפני הנחה" או הנחה %.
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── עריכת היתרה ────────────────────────────────────────────────────────────
-// ‼ למה זה נראה ככה: גיא תמחר דוח שנתי ב-1,800 ₪, 150 ₪ בחודש, 5 תשלומים,
-// ורצה שהלקוח ישלם 600 ₪ מהיתרה. הוא הקליד 1050 בשדה "מתי נגבית היתרה"
-// (טקסט חופשי עם שם שמזמין מספר) ו-500 בשדה ההנחה — כי כדי לגבות 600 היה
-// עליו להזין הנחה של 450, כלומר לחשב אחורה יתרה שמעולם לא הופיעה על המסך.
-// לכן: היתרה מוצגת ראשונה וגלויה, הקלט הוא התוצאה ("כמה ייגבה") וההנחה נגזרת,
-// והמועד הוא רשימה סגורה שאי אפשר להקליד לתוכה סכום.
-function DeferredEditor({ item, vatRate, base, customTrigger, onCustomTrigger, onChange }: {
-  item: QuotationItem; vatRate: number; base: DeferredBase;
-  customTrigger: boolean; onCustomTrigger: (v: boolean) => void;
-  onChange: (p: Partial<QuotationItem>) => void;
-}) {
-  const b = itemDeferred(item, vatRate);
-  const trigger = item.deferredTrigger?.trim() ?? '';
-  const isCustom = customTrigger || (trigger !== '' && !DEFERRED_TRIGGER_PRESETS.includes(trigger));
-  const legacyDiscount = item.deferredChargeAmount == null && (item.deferredDiscount ?? 0) > 0;
-  const charged = b ? b.finalAmount : 0;
-  const balanceDiscount = b ? b.discount : base.balance;
-
-  return (
-    <div style={{ marginBottom: 6, border: '1px solid var(--gray-200)', borderRadius: 8, padding: '8px 9px', background: 'var(--gray-50)' }}>
-      {/* המספר שגיא חישב בראש — עכשיו הוא על המסך */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-1)' }}>יתרה</span>
-        <b style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums', color: 'var(--ink-1)' }}>
-          {formatILS(Math.round(base.balance))}
-        </b>
-      </div>
-      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', lineHeight: 1.5, marginTop: 1 }}>
-        {formatILS(Math.round(base.totalValue))} ערך השירות − {base.installments} × {formatILS(Math.round(base.perPayment))} שנגבים חודשית
-      </div>
-      {/* מצב האפס — כאן, ליד השדות, ולא שלוש שורות מתחת */}
-      {!b && (
-        <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', lineHeight: 1.6, borderRadius: 8, padding: '5px 9px', background: 'var(--surface-0, #fff)', border: '1px solid var(--gray-200)', color: 'var(--gray-600)' }}>
-          {base.balance <= 0
-            ? `אין יתרה — התשלום החודשי מכסה את מלוא ערך השירות (${base.installments} תשלומים × ${formatILS(Math.round(base.perPayment))} = ${formatILS(Math.round(base.totalValue))}). הסעיף לא יוצג ללקוח.`
-            : 'כל היתרה ניתנה כהנחה — הסעיף לא יוצג ללקוח.'}
-        </div>
-      )}
-      {base.balance > 0 && (
-        <>
-          <label style={{ ...miniLabel, marginTop: 8 }}>כמה ייגבה מהיתרה (₪)
-            <input type="number" min={0} max={base.balance} style={miniInput}
-              placeholder={String(Math.round(legacyDiscount ? charged : base.balance))}
-              value={item.deferredChargeAmount ?? ''}
-              onChange={e => onChange({
-                deferredChargeAmount: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value) || 0),
-              })} />
-          </label>
-          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2, lineHeight: 1.5 }}>
-            {legacyDiscount
-              ? `ריק = לפי ההנחה שנשמרה (${formatILS(Math.round(item.deferredDiscount ?? 0))}) — כלומר ${formatILS(Math.round(charged))}`
-              : 'ריק = היתרה במלואה'}
-          </div>
-          {balanceDiscount >= 1 && b && (
-            <div style={{
-              marginTop: 5, fontSize: 'var(--fs-12)', borderRadius: 8, padding: '5px 9px', lineHeight: 1.6,
-              background: 'rgba(16,185,129,.09)', color: '#047857', border: '1px solid rgba(16,185,129,.25)',
-            }}>
-              הנחה על היתרה: <b>{formatILS(Math.round(balanceDiscount))}</b>
-            </div>
-          )}
-        </>
-      )}
-      <label style={{ ...miniLabel, marginTop: 8 }}>מתי ייגבה
-        <select style={miniInput} value={isCustom ? '__custom' : (trigger || DEFAULT_DEFERRED_TRIGGER)}
-          onChange={e => {
-            if (e.target.value === '__custom') { onCustomTrigger(true); return; }
-            onCustomTrigger(false);
-            onChange({ deferredTrigger: e.target.value === DEFAULT_DEFERRED_TRIGGER ? undefined : e.target.value });
-          }}>
-          {DEFERRED_TRIGGER_PRESETS.map(t => <option key={t} value={t}>{t}</option>)}
-          <option value="__custom">אחר…</option>
-        </select>
-      </label>
-      {isCustom && (
-        <input value={trigger} placeholder="מתי ייגבה — נוסח חופשי" autoFocus style={{ ...miniInput, marginTop: 4 }}
-          onChange={e => onChange({ deferredTrigger: e.target.value || undefined })} />
-      )}
-      {/* מספר התשלומים נערך למעלה, בפריסת התשלומים — והיתרה תלויה בו לגמרי */}
-      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)', marginTop: 6, lineHeight: 1.5 }}>
-        לפי {base.installments} תשלומים · לשינוי — פריסת התשלומים למעלה
-      </div>
-    </div>
-  );
-}
-
-// השורות שהלקוח יראה, בזמן שגיא מתמחר. בלי זה הוא צריך להחזיק בראש
-// 1,800 פחות 20% פחות 5×120 פחות 340 — וזו בדיוק החשבונאות שהוא בא לתת בכתב.
-// מצב "אין מה לגבות" מוסבר בעורך היתרה עצמו (DeferredEditor) ולא כאן.
-function DeferredHint({ item, vatRate }: { item: QuotationItem; vatRate: number }) {
-  if (item.prorationMode !== 'deferred') return null;
-  const b = itemDeferred(item, vatRate);
-  if (!b) return null;
-  return (
-    <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', borderRadius: 8, padding: '6px 9px', lineHeight: 1.7, background: 'var(--blue-light, var(--gray-50))', border: '1px solid var(--gray-200)', color: 'var(--gray-600)' }}>
-      {deferredDetailLines(b, item.name).map(r => (
-        <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontWeight: r.strong ? 600 : 400, color: r.strong ? 'var(--ink-1)' : undefined }}>
-          <span>{r.label}</span>
-          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.negative ? '−' : ''}{formatILS(Math.round(r.amount))}</span>
-        </div>
-      ))}
-      <div style={{ color: 'var(--gray-400)', marginTop: 2 }}>
-        {item.vatFlag ? `+ מע״מ ${formatILS(Math.round(b.vat))} · סה״כ ${formatILS(Math.round(b.withVat))}` : 'ללא מע״מ'}
-      </div>
-    </div>
-  );
-}
-
-// רשימת מחירי יעד עגולים מתחת למחיר שהוזן. בוחרים "כמה זה יעלה בסוף" —
-// וההנחה מחושבת לבד, במקום לנחש אחוזים עד שיוצא מספר יפה.
-function TargetPriceSelect({ base, discountPercent, onPick, label }: {
-  base: number; discountPercent: number; onPick: (target: number | null) => void; label: string;
-}) {
-  const step = base >= 4000 ? 250 : base >= 1500 ? 100 : base >= 500 ? 50 : base >= 150 ? 10 : 5;
-  const targets: number[] = [];
-  for (let t = Math.floor((base - 1) / step) * step; t >= base * 0.65 && targets.length < 9; t -= step) {
-    if (t > 0) targets.push(t);
-  }
-  if (targets.length === 0) return null;
-
-  const current = base * (1 - discountPercent / 100);
-  const match = targets.find(t => Math.abs(t - current) < 0.5);
-
-  return (
-    <label style={{ ...miniLabel, marginTop: 6 }}>{label}
-      <select value={match ?? ''} style={miniInput}
-        onChange={e => onPick(e.target.value ? Number(e.target.value) : null)}>
-        <option value="">{discountPercent > 0 && !match ? `לפי הנחה % — ${formatILS(Math.round(current))}` : `מחיר מלא — ${formatILS(Math.round(base))}`}</option>
-        {targets.map(t => (
-          <option key={t} value={t}>
-            {formatILS(t)} · {Math.round((1 - t / base) * 100)}% הנחה
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-// תרגום הפריסה למילים: כמה משלמים, כמה פעמים, מתי זה נגמר וכמה זה יעלה אחר כך.
-// הסכום שאחרי התקופה הוא הנקודה החשובה — בלעדיו הלקוח מניח שהמחיר קבוע לתמיד.
-function PlanHint({ item }: { item: QuotationItem }) {
-  if (item.category !== 'monthly') return null;
-  const p = monthlyPlan(item);
-  if (p.perPayment <= 0) return null;
-  return (
-    <div style={{ marginTop: 5, fontSize: 'var(--fs-12)', color: 'var(--gray-500)', lineHeight: 1.55 }}>
-      {formatILS(p.perPayment)} לחודש × {p.installments} תשלומים
-      {p.startMonth && p.endMonth ? ` · ${formatMonthRange(p.startMonth, p.endMonth)}` : ''}
-      {' · '}סה״כ {formatILS(Math.round(p.periodTotal))}
-      {p.changesAfter && (
-        <div style={{ color: 'var(--orange, #b45309)' }}>
-          {p.nextMonth ? `מ־${formatMonth(p.nextMonth)}: ` : 'אחר כך: '}
-          {formatILS(Math.round(p.ongoingPerMonth))} לחודש
-        </div>
-      )}
-    </div>
-  );
-}
-
-// כרטיס מתקפל — הסעיפים המשניים מתחילים סגורים עם שורת סיכום בכותרת, כדי
-// שהמסך יתמקד בעיקר: נמען, שירותים ופריסת תשלומים. לחיצה על הכותרת פותחת.
-function Section({ icon, title, summary, defaultOpen = false, children }: {
-  icon: string; title: string; summary?: string; defaultOpen?: boolean; children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div style={card}>
-      <button onClick={() => setOpen(o => !o)}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'start' }}>
-        <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)', flex: 1 }}>{icon} {title}</span>
-        {!open && summary ? (
-          <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>
-        ) : null}
-        <span className={`ed-section-caret ${open ? 'is-open' : ''}`}>▾</span>
-      </button>
-      {open && <div style={{ marginTop: 12 }}>{children}</div>}
-    </div>
-  );
-}
-
-function PlanChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} aria-pressed={active} style={{
-      padding: '4px 11px', borderRadius: 'var(--r-chip)', fontFamily: 'inherit',
-      fontSize: 'var(--fs-12)', cursor: 'pointer',
-      border: `1px solid ${active ? 'var(--ink-3)' : 'var(--hairline-1)'}`,
-      background: 'transparent',
-      color: active ? 'var(--ink-1)' : 'var(--ink-3)', fontWeight: active ? 600 : 400,
-      fontVariantNumeric: 'tabular-nums',
-    }}>{children}</button>
-  );
-}
-
-function TotalChip({ label, value, suffix }: { label: string; value: number; suffix?: string }) {
-  if (value <= 0) return null;
-  return (
-    <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
-      {label}{' '}
-      <b style={{ fontSize: 'var(--fs-15)', color: 'var(--gray-800)', fontVariantNumeric: 'tabular-nums' }}>
-        {formatILS(Math.round(value))}
-      </b>
-      {suffix ? <span style={{ fontSize: 'var(--fs-12)', marginInlineStart: 3 }}>{suffix}</span> : null}
-    </span>
-  );
-}
-
-/* קבועי הסגנון של צד העריכה בלבד. הפאנל הימני (‎QuotationWebView‎) הוא
-   המסמך שהלקוח מקבל, והוא נשאר כפי שהוא — כדי שהצעות שכבר נשלחו ונחתמו
-   ייראו בדיוק כמו ביום שנשלחו. חצאי-פיקסלים הוצאו משימוש (אפיון §2). */
-const card: React.CSSProperties = { borderTop: '1px solid var(--hairline-2)', padding: '14px 0 16px' };
-const cardTitle: React.CSSProperties = { fontSize: 'var(--fs-14)', fontWeight: 600, marginBottom: 12, color: 'var(--ink-1)' };
-const fieldLabel: React.CSSProperties = { fontSize: 'var(--fs-12)', color: 'var(--ink-3)', display: 'block' };
-const miniLabel: React.CSSProperties = { fontSize: 'var(--fs-12)', color: 'var(--ink-4)', display: 'flex', flexDirection: 'column', gap: 2 };
-const miniInput: React.CSSProperties = { fontSize: 'var(--fs-13)', padding: '.35rem .5rem' };

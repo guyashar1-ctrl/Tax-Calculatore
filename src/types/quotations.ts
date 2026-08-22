@@ -103,6 +103,12 @@ export interface QuotationTemplate {
   name: string;
   kind: QuotationTemplateKind;
   serviceIds: string[];
+  /**
+   * מחירון "אם וכאשר" שהתבנית ממליצה עליו — ולא כל השירותים החד־פעמיים
+   * שבקטלוג. רשימה קצרה ורלוונטית לסוג הלקוח: לעוסק מורשה אין טעם להציג
+   * "מעבר מפטור למורשה", ולעוסק פטור דווקא כן. ריק ⇒ לא מוצע מחירון.
+   */
+  futureServiceIds?: string[];
   emailSubject?: string;
   emailBody?: string;
   displayOrder: number;

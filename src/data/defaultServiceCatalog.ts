@@ -176,6 +176,12 @@ export interface SeedTemplate {
   name: string;
   kind: QuotationTemplateKind;
   serviceSeedKeys: string[];
+  /**
+   * מחירון "אם וכאשר" שהתבנית ממליצה עליו — רשימה קצרה ורלוונטית לסוג
+   * הלקוח, ולא כל השירותים החד־פעמיים שבקטלוג. לעוסק מורשה אין טעם להציע
+   * "מעבר מפטור למורשה", ולעוסק פטור דווקא כן.
+   */
+  futureSeedKeys?: string[];
   displayOrder: number;
 }
 
@@ -184,18 +190,21 @@ export const DEFAULT_TEMPLATES: SeedTemplate[] = [
     name: 'עוסק פטור',
     kind: 'exempt_dealer',
     serviceSeedKeys: ['bookkeeping_exempt', 'paperless', 'annual_exempt', 'open_files', ...INCLUDED_KEYS],
+    futureSeedKeys: ['exempt_to_licensed', 'capital_declaration_first', 'special_certificate'],
     displayOrder: 10,
   },
   {
     name: 'עוסק מורשה',
     kind: 'licensed_dealer',
     serviceSeedKeys: ['bookkeeping_licensed', 'paperless', 'annual_licensed', 'open_files', ...INCLUDED_KEYS],
+    futureSeedKeys: ['capital_declaration_first', 'capital_declaration_subsequent', 'special_certificate'],
     displayOrder: 20,
   },
   {
     name: 'חברה',
     kind: 'company',
     serviceSeedKeys: ['bookkeeping_licensed', 'paperless', 'payroll', 'annual_licensed', ...INCLUDED_KEYS],
+    futureSeedKeys: ['capital_declaration_first', 'special_certificate'],
     displayOrder: 30,
   },
   {
@@ -209,6 +218,7 @@ export const DEFAULT_TEMPLATES: SeedTemplate[] = [
     name: 'ייצוג בלבד',
     kind: 'representation_only',
     serviceSeedKeys: ['open_files'],
+    futureSeedKeys: ['special_certificate'],
     displayOrder: 50,
   },
 ];
@@ -222,6 +232,9 @@ export function buildTemplateRows(
     name: t.name,
     kind: t.kind,
     serviceIds: t.serviceSeedKeys
+      .map(k => serviceIdBySeedKey[k])
+      .filter((id): id is string => Boolean(id)),
+    futureServiceIds: (t.futureSeedKeys ?? [])
       .map(k => serviceIdBySeedKey[k])
       .filter((id): id is string => Boolean(id)),
     displayOrder: t.displayOrder,
