@@ -66,6 +66,32 @@ const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.xls,.xlsx,.csv,.doc,.docx';
 /** ‼ אותה תקרה שהשרת אוכף (portal-upload-document). כאן רק כדי לחסוך נסיעה. */
 const MAX_BYTES = 10 * 1024 * 1024;
 
+/**
+ * שם קובץ בעברית בתוך שורה מימין לשמאל — הסיומת נשברת מהשם.
+ * "משרד המשפטים 2.pdf" מוצג כ-"משרד המשפטים.2pdf", כי הנקודה נופלת בין
+ * הספרה לאותיות הלטיניות ומקבלת את כיוון השורה. סימון LRM לפני הנקודה מצמיד
+ * את הסיומת למה שלפניה, ושם הקובץ נקרא כפי שהוא נכתב.
+ *
+ * ‼ נכתב כקוד ולא כתו בלתי-נראה בקוד המקור, כדי שלא ייעלם בעריכה.
+ */
+const LRM = String.fromCharCode(0x200E);
+
+function displayFileName(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot <= 0 ? name : `${name.slice(0, dot)}${LRM}${name.slice(dot)}`;
+}
+
+/** גוון חלש של צבע המשרד — רקע כרטיס השליחה בזמן גרירה. */
+function tint(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return 'rgba(0,0,0,.04)';
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},.07)`;
+}
+
+/** תקרה לגרירת תיקייה, כדי שתיקייה ענקית לא תיתקע בתור אינסופי. */
+const MAX_DROP_FILES = 120;
+
 /** המפתח שאומר לשרת "הקובץ הזה לא משויך לפריט" — ראה portal-upload-document. */
 const BULK_KEY = '__unfiled__';
 
@@ -92,6 +118,8 @@ export default function PublicReleasePage({ token }: Props) {
   const [noteErr, setNoteErr] = useState<string | null>(null);
   /** נפתח אחרי העלאה מוצלחת — ורק אז. שאלה, לא שלב חובה. */
   const [justUploaded, setJustUploaded] = useState(0);
+  /** גוררים קבצים מעל העמוד — כרטיס השליחה נדלק כיעד אחד גדול. */
+  const [dropActive, setDropActive] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,6 +191,9 @@ export default function PublicReleasePage({ token }: Props) {
       background: brand.pageBg, minHeight: '100vh', padding: '24px 16px',
       fontFamily: `'${brand.font}', sans-serif`, color: brand.ink, direction: 'rtl',
     }}>
+      <style>{
+        '@media (hover: none), (pointer: coarse) { .release-drop-hint { display: none } }'
+      }</style>
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
         <header style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{data.firmName}</div>
@@ -176,7 +207,11 @@ export default function PublicReleasePage({ token }: Props) {
         </header>
 
         {/* ── 1. הפעולה: העלאה אחת ── */}
-        <section style={{ ...card, borderColor: accent, borderWidth: 1.5 }}>
+        <section style={{
+          ...card, borderColor: accent, borderWidth: dropActive ? 2 : 1.5,
+          background: dropActive ? tint(accent) : card.background,
+          transition: 'background .12s ease',
+        }}>
           <div style={title}>שליחת החומרים</div>
           <BulkUpload
             token={token}
@@ -185,11 +220,14 @@ export default function PublicReleasePage({ token }: Props) {
             brand={brand}
             accent={accent}
             onUploaded={n => { setJustUploaded(n); reload(); }}
+            onDragActive={setDropActive}
           />
-          <p style={{ margin: '12px 0 0', fontSize: 12.5, color: brand.muted, lineHeight: 1.75 }}>
-            אפשר לשלוח בכמה פעמים — הקישור נשאר פעיל.
-            נוח יותר במייל? אפשר להשיב להודעה ששלחנו ולצרף את הקבצים.
-          </p>
+          {!dropActive && (
+            <p style={{ margin: '12px 0 0', fontSize: 12.5, color: brand.muted, lineHeight: 1.75 }}>
+              אפשר לשלוח בכמה פעמים — הקישור נשאר פעיל.
+              נוח יותר במייל? אפשר להשיב להודעה ששלחנו ולצרף את הקבצים.
+            </p>
+          )}
         </section>
 
         {/* ── 2. אחרי העלאה: מה כלל המשלוח (רשות) ── */}
@@ -359,6 +397,50 @@ function LetterText({ text, ink }: { text: string; ink: string }) {
   );
 }
 
+/** הסיומות ש-ACCEPT מתיר — לסינון גרירה, שבה חלון המחשב לא מסנן בשבילנו. */
+const ACCEPTED_EXTS = ACCEPT.split(',').map(s => s.trim().toLowerCase());
+
+const isAccepted = (name: string) =>
+  ACCEPTED_EXTS.some(ext => name.toLowerCase().endsWith(ext));
+
+/**
+ * קריאת תיקייה שנגררה, על כל תת-התיקיות שלה.
+ *
+ * ‼ קיים רק בגרירה. חלון הבחירה של המחשב הוא או קבצים או תיקייה, לא שניהם,
+ * ולכן הכפתור מציע קבצים (הדבר הנפוץ) והתיקייה נתמכת דרך גרירה.
+ */
+async function collectEntry(entry: FileSystemEntry | null, out: File[]): Promise<void> {
+  if (!entry || out.length >= MAX_DROP_FILES) return;
+  if (entry.isFile) {
+    const file = await new Promise<File | null>(resolve => {
+      (entry as FileSystemFileEntry).file(f => resolve(f), () => resolve(null));
+    });
+    if (file) out.push(file);
+    return;
+  }
+  const reader = (entry as FileSystemDirectoryEntry).createReader();
+  for (;;) {
+    const batch = await new Promise<FileSystemEntry[]>(resolve => {
+      reader.readEntries(e => resolve(e), () => resolve([]));
+    });
+    if (batch.length === 0) return;
+    for (const child of batch) await collectEntry(child, out);
+  }
+}
+
+async function filesFromDrop(dt: DataTransfer): Promise<File[]> {
+  const entries = Array.from(dt.items)
+    .filter(i => i.kind === 'file')
+    .map(i => (typeof i.webkitGetAsEntry === 'function' ? i.webkitGetAsEntry() : null));
+
+  if (entries.some(Boolean)) {
+    const out: File[] = [];
+    for (const entry of entries) await collectEntry(entry, out);
+    return out;
+  }
+  return Array.from(dt.files);
+}
+
 /**
  * אזור ההעלאה הראשי — קובץ, כמה קבצים או תיקייה.
  *
@@ -368,28 +450,22 @@ function LetterText({ text, ink }: { text: string; ink: string }) {
  * ‼ שום ולידציה לא נחלשה: מה שנשלח עובר בדיוק את אותה פונקציה ואת אותן
  * בדיקות (סוג, גודל, טוקן) כמו קודם. מה שהשתנה הוא שאין צורך לומר מראש
  * לאיזה פריט הקובץ שייך.
+ * ‼ הגרירה נתפסת על כל העמוד ולא רק על הכרטיס: שחרור קובץ מחוץ ליעד גורם
+ * לדפדפן לפתוח את הקובץ במקום הדף, והרו"ח הקודם מאבד את הקישור.
  */
-function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded }: {
+function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded, onDragActive }: {
   token: string; stepId?: string; alreadyReceived: number;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onUploaded: (count: number) => void;
+  onDragActive: (active: boolean) => void;
 }) {
   type Row = { name: string; status: 'pending' | 'uploading' | 'ok' | 'err'; error?: string };
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
-  const folderRef = useRef<HTMLInputElement | null>(null);
-  const [folderSupported, setFolderSupported] = useState(false);
-
-  // בחירת תיקייה קיימת רק בחלק מהדפדפנים — ולכן היא תוספת, ולא הדרך היחידה.
-  useEffect(() => {
-    const el = folderRef.current;
-    if (!el) return;
-    if ('webkitdirectory' in el) {
-      el.setAttribute('webkitdirectory', '');
-      el.setAttribute('directory', '');
-      setFolderSupported(true);
-    }
-  }, []);
+  const [dragging, setDragging] = useState(false);
+  const [skipped, setSkipped] = useState(0);
+  const busyRef = useRef(false);
+  const dragDepth = useRef(0);
 
   async function uploadOne(file: File): Promise<string | null> {
     if (file.size > MAX_BYTES) return UPLOAD_ERRORS.too_large;
@@ -405,10 +481,14 @@ function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded 
     return null;
   }
 
-  async function handleFiles(list: FileList | null) {
-    const files = Array.from(list ?? []).filter(f => f.size > 0);
-    if (files.length === 0 || !stepId) return;
+  async function handleFiles(incoming: File[], dropped = false) {
+    if (!stepId || busyRef.current) return;
+    const usable = incoming.filter(f => f.size > 0);
+    const files = dropped ? usable.filter(f => isAccepted(f.name)) : usable;
+    setSkipped(dropped ? usable.length - files.length : 0);
+    if (files.length === 0) return;
     setRows(files.map(f => ({ name: f.name, status: 'pending' as const })));
+    busyRef.current = true;
     setBusy(true);
     let succeeded = 0;
     for (let i = 0; i < files.length; i++) {
@@ -418,9 +498,47 @@ function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded 
         idx === i ? { ...r, status: err ? 'err' : 'ok', error: err ?? undefined } : r)));
       if (!err) succeeded++;
     }
+    busyRef.current = false;
     setBusy(false);
     if (succeeded > 0) { flushAccountantNotifications(token); onUploaded(succeeded); }
   }
+
+  useEffect(() => {
+    if (!stepId) return;
+    const carriesFiles = (e: DragEvent) =>
+      Array.from(e.dataTransfer?.types ?? []).includes('Files');
+
+    const onEnter = (e: DragEvent) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current++;
+      if (!busyRef.current) { setDragging(true); onDragActive(true); }
+    };
+    const onOver = (e: DragEvent) => { if (carriesFiles(e)) e.preventDefault(); };
+    const clear = () => { dragDepth.current = 0; setDragging(false); onDragActive(false); };
+    const onLeave = (e: DragEvent) => {
+      if (!carriesFiles(e)) return;
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (dragDepth.current === 0) clear();
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      clear();
+      if (e.dataTransfer) void filesFromDrop(e.dataTransfer).then(files => handleFiles(files, true));
+    };
+
+    window.addEventListener('dragenter', onEnter);
+    window.addEventListener('dragover', onOver);
+    window.addEventListener('dragleave', onLeave);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onEnter);
+      window.removeEventListener('dragover', onOver);
+      window.removeEventListener('dragleave', onLeave);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, [stepId]);
 
   const failed = rows.filter(r => r.status === 'err').length;
   const okCount = rows.filter(r => r.status === 'ok').length;
@@ -432,12 +550,6 @@ function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded 
     border: 'none', borderRadius: brand.radius, opacity: busy ? .6 : 1,
     display: 'inline-block', textAlign: 'center',
   };
-  const secondary: React.CSSProperties = {
-    cursor: busy ? 'default' : 'pointer', fontSize: 13.5, fontWeight: 600,
-    padding: '12px 20px', color: busy ? brand.muted : accent,
-    border: `1px solid ${busy ? brand.border : accent}`,
-    borderRadius: brand.radius, opacity: busy ? .6 : 1, display: 'inline-block',
-  };
 
   if (!stepId) {
     return (
@@ -447,27 +559,47 @@ function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded 
     );
   }
 
+  if (dragging) {
+    return (
+      <div style={{
+        minHeight: 96, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+        borderRadius: brand.radius, padding: '16px 12px',
+      }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: accent }}>
+          שחררו כאן ונתחיל לקבל
+        </div>
+        <div style={{ fontSize: 12.5, color: accent, marginTop: 4 }}>
+          אפשר לשחרר גם תיקייה שלמה
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input id="bulk-files" type="file" accept={ACCEPT} multiple disabled={busy}
-          style={{ display: 'none' }}
-          onChange={e => { void handleFiles(e.target.files); e.target.value = ''; }} />
-        <label htmlFor="bulk-files" style={primary}>
-          {busy ? 'מעלה…' : 'בחירת קבצים לשליחה'}
-        </label>
+      <input id="bulk-files" type="file" accept={ACCEPT} multiple disabled={busy}
+        style={{ display: 'none' }}
+        onChange={e => { void handleFiles(Array.from(e.target.files ?? [])); e.target.value = ''; }} />
+      <label htmlFor="bulk-files" style={primary}>
+        {busy ? 'מעלה…' : 'בחירת קבצים לשליחה'}
+      </label>
 
-        <input ref={folderRef} id="bulk-folder" type="file" multiple disabled={busy}
-          style={{ display: 'none' }}
-          onChange={e => { void handleFiles(e.target.files); e.target.value = ''; }} />
-        {folderSupported && (
-          <label htmlFor="bulk-folder" style={secondary}>או תיקייה שלמה</label>
-        )}
+      {/* הרמז מוצג רק במחשב — בטלפון אין גרירה והשורה רק מבלבלת. */}
+      <div className="release-drop-hint" style={{ fontSize: 12.5, color: brand.muted, marginTop: 10 }}>
+        אפשר גם לגרור לכאן קבצים או תיקייה שלמה
       </div>
 
       {alreadyReceived > 0 && rows.length === 0 && (
         <div style={{ marginTop: 10, fontSize: 12.5, color: brand.muted }}>
           כבר התקבלו {alreadyReceived} קבצים. אפשר להוסיף עוד.
+        </div>
+      )}
+
+      {skipped > 0 && (
+        <div style={{ marginTop: 10, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
+          {skipped === 1 ? 'קובץ אחד דולג' : `${skipped} קבצים דולגו`} — סוג הקובץ
+          לא נתמך. אפשר PDF, תמונה, אקסל או וורד.
         </div>
       )}
 
@@ -487,7 +619,9 @@ function BulkUpload({ token, stepId, alreadyReceived, brand, accent, onUploaded 
                 <span aria-hidden="true" style={{ color: r.status === 'ok' ? accent : brand.muted }}>
                   {r.status === 'ok' ? '✓' : r.status === 'err' ? '!' : r.status === 'uploading' ? '…' : '○'}
                 </span>
-                <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{r.name}</span>
+                <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+                  {displayFileName(r.name)}
+                </span>
                 {r.error && <span style={{ flex: '0 0 auto' }}>{r.error}</span>}
               </li>
             ))}
