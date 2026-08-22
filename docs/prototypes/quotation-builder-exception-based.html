@@ -1,0 +1,1096 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>הצעת מחיר — עריכת חריגות בלבד · V1</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   "ההצעה כבר מוכנה — אני עורך רק חריגות."
+
+   הרכב המסך הוא מסמך, לא לוח בקרה: מספר אחד גדול, רשימה אחת שמסבירה אותו,
+   משפט אחד על ההשלכה, ושלוש שורות שקטות שנסוגות. אין שדות קלט במנוחה —
+   כל מספר נערך בלחיצה, במקום שבו הוא מוצג.
+   פלטת הצבעים היא של הפרודקשן (src/index.css) כדי שהתרגום יהיה ישיר.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --page:#f8f7f5; --card:#fff; --s1:#f5f4f2; --s2:#f3f2f0; --s4:#fafaf9;
+  --tx:#25282d; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b; --quiet:#c3c7cc;
+  --bd:#e2e4e7; --hair:#eeedeb;
+  --br:#3f5f8f; --br-strong:#34507a; --soft:#e8eef5; --soft-bd:#c6d4e6;
+  --ok:#24654e; --ok-bg:#eaf4ef; --ok-bd:#c2ddcf;
+  --warn:#8a5b0f; --note-bg:#fbf9f2; --note-bd:#f0e9d6;
+  --err:#a63a3a; --err-bg:#fbeded;
+  --r:10px; --r-lg:13px;
+  --sh:0 1px 2px rgba(28,30,34,.05),0 1px 3px rgba(28,30,34,.04);
+  --sh-pop:0 18px 40px -18px rgba(28,30,34,.30),0 4px 12px -6px rgba(28,30,34,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page); color:var(--tx);
+  font-family:Heebo,"Segoe UI",Arial,"Noto Sans Hebrew",sans-serif;
+  font-size:14px; line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+b,strong{font-weight:600}
+.num{font-variant-numeric:tabular-nums}
+.hidden{display:none!important}
+
+/* ── פס עליון ── */
+.topbar{
+  position:sticky; top:0; z-index:40; background:rgba(248,247,245,.93);
+  backdrop-filter:blur(8px); border-bottom:1px solid var(--hair);
+  display:flex; align-items:center; gap:14px; padding:11px 26px;
+}
+.topbar .back{border:0;background:none;color:var(--tx2);padding:5px 8px;border-radius:8px;font-size:13px}
+.topbar .back:hover{background:var(--s2);color:var(--tx)}
+.topbar .status{flex:1;min-width:0;font-size:12px;color:var(--tx3)}
+.topbar .status b{color:var(--txc);font-weight:500}
+.btn{border:1px solid var(--bd);background:var(--card);border-radius:9px;padding:8px 15px;font-size:13px;color:var(--txc)}
+.btn:hover{background:var(--s2)}
+.btn.primary{background:var(--br);border-color:var(--br);color:#fff;font-weight:500}
+.btn.primary:hover{background:var(--br-strong)}
+.btn.ghost{border-color:transparent;background:none;color:var(--br)}
+.btn.ghost:hover{background:var(--soft)}
+.btn.sm{padding:5px 11px;font-size:12px}
+.btn:disabled{opacity:.45;pointer-events:none}
+
+/* ── המסמך ── */
+.doc{max-width:760px;margin:0 auto;padding:44px 26px 175px}
+.eyebrow{font-size:12px;color:var(--tx3);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+h1{margin:6px 0 0;font-size:21px;font-weight:600;letter-spacing:-.01em}
+
+.hero{margin:26px 0 0}
+.hero .amount{font-size:clamp(36px,8.5vw,52px);font-weight:600;letter-spacing:-.025em;line-height:1.05;display:inline-flex;align-items:baseline;gap:10px}
+.hero .amount .vat{font-size:clamp(14px,3vw,17px);font-weight:400;color:var(--tx3);letter-spacing:0}
+.hero .strike{margin-top:9px;font-size:13px;color:var(--tx2);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.hero .strike s{color:var(--tx3)}
+.hero .under{margin-top:11px;font-size:13.5px;color:var(--tx2)}
+
+.rule{height:1px;background:var(--hair);border:0;margin:30px 0}
+.rule.tight{margin:22px 0}
+
+.lbl{font-size:11.5px;font-weight:600;color:var(--tx3);letter-spacing:.04em;margin-bottom:4px}
+
+/* שורת שירות — בלי מסגרות, קו שיער בין שורות בלבד */
+.crow{display:flex;align-items:baseline;gap:12px;padding:11px 0;border-top:1px solid var(--hair)}
+.crow:first-of-type{border-top:0}
+.crow .nm{flex:1;min-width:0}
+.crow .nm .sub{font-size:12px;color:var(--tx3);margin-top:1px}
+.crow .pr{font-size:14px;color:var(--txc);white-space:nowrap}
+.crow .pr s{color:var(--tx3);margin-inline-end:6px}
+.included-line{font-size:13px;color:var(--tx3);padding:11px 0 0;border-top:1px solid var(--hair)}
+
+/* ניתן ללחיצה — מתגלה במעבר עכבר, לא צועק במנוחה */
+.ed{border-radius:7px;padding:2px 5px;margin:0 -5px;position:relative;transition:background .12s}
+.ed:hover,.ed.open{background:var(--soft);box-shadow:0 0 0 1px var(--soft-bd)}
+.ed::after{content:"✎";font-size:.72em;color:var(--br);opacity:0;margin-inline-start:6px;transition:opacity .12s;vertical-align:middle}
+.ed:hover::after,.ed.open::after{opacity:.85}
+button.ed{border:0;background:none;text-align:start;font:inherit;color:inherit}
+
+/* ההשלכה — מידע, לא התראה */
+.conseq{background:var(--note-bg);border-radius:var(--r-lg);padding:15px 17px;margin-top:4px}
+.conseq .hrow{display:flex;align-items:baseline;gap:12px}
+.conseq .h{flex:1;min-width:0;font-size:15px;color:var(--tx);font-weight:500}
+.conseq .b{font-size:12.5px;color:var(--tx2);margin-top:4px;line-height:1.6}
+.conseq.muted{background:var(--s1)}
+.conseq.muted .h{color:var(--tx2);font-weight:400}
+
+/* שורות שקטות — ייצוג, שירותים עתידיים */
+.quiet{display:flex;align-items:baseline;gap:10px;padding:10px 0;font-size:13px;color:var(--tx2);border-top:1px solid var(--hair)}
+.quiet:first-of-type{border-top:0}
+.quiet .k{color:var(--tx3);flex:none}
+.quiet .v{flex:1;min-width:0;color:var(--txc)}
+.link{border:0;background:none;padding:0;color:var(--br);font-size:12.5px}
+.link:hover{text-decoration:underline}
+/* ‼ פעולות משניות במסמך נסוגות לאפור. הכחול היחיד במצב מנוחה הוא "סקירה
+   ושליחה" — הפעולה הראשית. הן חוזרות לכחול במעבר עכבר, כך שהן עדיין נקראות
+   כפעולות. בלי זה ארבעה קישורים כחולים התחרו עם המספר הגדול. */
+.link.mute{color:var(--tx3)}
+.link.mute:hover{color:var(--br)}
+.addrow{margin-top:16px;display:flex;gap:16px;flex-wrap:wrap}
+.hint{margin-top:34px;font-size:11.5px;color:var(--tx3);opacity:.85}
+
+/* ── פופאובר הקשרי ── */
+#scrim{position:fixed;inset:0;z-index:50;display:none}
+#scrim.on{display:block}
+.pop{
+  position:absolute;z-index:60;width:min(330px,calc(100vw - 28px));
+  background:var(--card);border:1px solid var(--bd);border-radius:var(--r-lg);
+  box-shadow:var(--sh-pop);padding:15px 16px;
+}
+.pop h4{margin:0 0 3px;font-size:14px;font-weight:600}
+.pop .ph{font-size:12px;color:var(--tx3);line-height:1.55;margin-bottom:11px}
+.pop .pf{margin-top:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--bd);background:var(--card);border-radius:999px;padding:5px 12px;font-size:12.5px;color:var(--txc)}
+.chip:hover{background:var(--s2)}
+.chip.on{background:var(--br);border-color:var(--br);color:#fff;font-weight:500}
+.chip.wide{border-radius:9px}
+.fld{display:block;margin-top:11px}
+.fld>span{display:block;font-size:12px;color:var(--tx3);margin-bottom:4px}
+.fld input,.fld select,.fld textarea{width:100%;border:1px solid var(--bd);border-radius:9px;padding:8px 10px;font-size:13.5px;background:var(--card)}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:0;border-color:var(--soft-bd);box-shadow:0 0 0 3px rgba(63,95,143,.12)}
+.fld textarea{min-height:66px;resize:vertical}
+.inline2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.note{font-size:11.5px;color:var(--tx3);line-height:1.6;margin-top:9px}
+
+/* ── לוחות מלאים (שירותים / עתידיים / ייצוג / סקירה) ── */
+#panelScrim{position:fixed;inset:0;background:rgba(28,30,34,.24);z-index:70;display:none;align-items:flex-start;justify-content:center;padding:34px 18px;overflow:auto}
+#panelScrim.on{display:flex}
+.panel{width:min(660px,100%);background:var(--card);border-radius:16px;box-shadow:var(--sh-pop);overflow:hidden}
+.panel.wide{width:min(760px,100%)}
+.phead{padding:17px 22px 14px;border-bottom:1px solid var(--hair)}
+.phead h3{margin:0;font-size:17px;font-weight:600}
+.phead .s{font-size:12.5px;color:var(--tx3);margin-top:3px;line-height:1.55}
+.pbody{padding:6px 22px 20px;max-height:min(66vh,600px);overflow:auto}
+/* הסקירה היא המסמך המלא — היא צריכה גובה, אחרת היא נחתכת בשורה השלישית */
+.panel.wide .pbody{max-height:min(80vh,860px)}
+.pfoot{padding:13px 22px;border-top:1px solid var(--hair);display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--s4);flex-wrap:wrap}
+.pfoot .fn{font-size:11.5px;color:var(--tx3);flex:1;min-width:140px;line-height:1.5}
+
+.srow{display:flex;align-items:center;gap:12px;padding:13px 0;border-top:1px solid var(--hair)}
+.srow:first-child{border-top:0}
+.srow .sn{flex:1;min-width:0}
+.srow .sn .t{font-size:13.5px;font-weight:500}
+.srow .sn .m{font-size:11.5px;color:var(--tx3);margin-top:2px}
+.srow .sp{width:96px;flex:none}
+.srow .sp input{width:100%;border:1px solid var(--bd);border-radius:8px;padding:6px 8px;font-size:13px;text-align:center}
+.srow .x{border:0;background:none;color:var(--tx3);font-size:15px;padding:3px 6px;border-radius:7px}
+.srow .x:hover{background:var(--err-bg);color:var(--err)}
+.tag{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:5px;background:var(--s2);color:var(--tx2)}
+.tag.blue{background:var(--soft);color:var(--br)}
+.tag.green{background:var(--ok-bg);color:var(--ok)}
+.sect{font-size:11.5px;font-weight:600;color:var(--tx3);letter-spacing:.04em;margin:20px 0 2px}
+.crow-check{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--hair);font-size:13.5px}
+.crow-check:first-of-type{border-top:0}
+.crow-check input{width:16px;height:16px;accent-color:var(--br);flex:none}
+.crow-check .cn{flex:1;min-width:0}
+.crow-check .cn .m{display:block;font-size:11.5px;color:var(--tx3);line-height:1.5;margin-top:1px}
+.crow-check .cp{font-size:12.5px;color:var(--tx2);white-space:nowrap}
+.search{width:100%;border:1px solid var(--bd);border-radius:9px;padding:9px 11px;font-size:13.5px;margin:6px 0 2px}
+.selbar{font-size:12px;color:var(--tx3);padding:8px 0 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+
+/* ייצוג */
+.auth{display:flex;align-items:center;gap:11px;padding:12px 0;border-top:1px solid var(--hair)}
+.auth:first-of-type{border-top:0}
+.auth input[type=checkbox]{width:16px;height:16px;accent-color:var(--br);flex:none}
+.auth .an{flex:1;min-width:0;font-size:13.5px}
+.auth .an .m{font-size:11.5px;color:var(--tx3);margin-top:1px}
+.auth select{border:1px solid var(--bd);border-radius:8px;padding:5px 8px;font-size:12.5px;background:var(--card)}
+.auth .single{font-size:11.5px;color:var(--tx3)}
+.sub-opt{margin:2px 0 0 0;padding:9px 0 2px;padding-inline-start:27px;border-top:1px dashed var(--bd)}
+.sub-opt label{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--txc)}
+.sub-opt input{width:15px;height:15px;accent-color:var(--br);flex:none;margin-top:2px}
+.callout{background:var(--s1);border-radius:var(--r);padding:12px 14px;font-size:12.5px;color:var(--txc);line-height:1.65;margin-top:16px}
+.callout b{color:var(--tx)}
+
+/* סקירה — המסמך של הלקוח */
+.rv{background:#F4F3EF;padding:24px 22px;border-radius:13px;margin-top:12px}
+.rv .rvh{font-size:12px;color:var(--tx3);margin-bottom:14px}
+.rv .greet{font-size:15px;margin-bottom:16px}
+.rv .rsect{font-size:11.5px;font-weight:600;color:var(--tx3);letter-spacing:.04em;margin:18px 0 6px}
+.rv .ritem{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid #e6e4de;font-size:13.5px}
+.rv .ritem:first-of-type{border-top:0}
+.rv .ritem .rp{white-space:nowrap;color:var(--txc)}
+.rv .pills{display:flex;flex-wrap:wrap;gap:6px}
+.rv .pill{background:#fff;border:1px solid #e6e4de;border-radius:999px;padding:4px 10px;font-size:12px;color:var(--txc)}
+.sumbox{background:#fff;border-radius:12px;padding:15px 17px;margin-top:8px}
+.sumbox .sl{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--tx2);padding:3px 0}
+.sumbox .st{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border-top:1px solid var(--hair);margin-top:8px;padding-top:9px}
+.sumbox .st .k{font-size:13px;color:var(--txc)}
+.sumbox .st .v{font-size:20px;font-weight:600}
+.sumbox.amber{background:var(--note-bg)}
+.sumbox .cap{font-size:11.5px;color:var(--tx3);margin-bottom:7px;font-weight:600}
+.after{font-size:13px;color:var(--txc);line-height:1.85;margin-top:6px}
+.after li{margin-bottom:2px}
+
+/* מצב "נשלח" */
+.sentwrap{max-width:520px;margin:0 auto;padding:80px 26px;text-align:center}
+.sentwrap .ic{font-size:34px}
+.sentwrap h2{font-size:21px;font-weight:600;margin:12px 0 6px}
+.sentwrap p{font-size:13.5px;color:var(--tx2);line-height:1.75;margin:0 0 6px}
+
+/* מדף הדגמה — סקפולד של אב־טיפוס, לא חלק מהמוצר */
+#demo{position:fixed;bottom:0;inset-inline-start:0;z-index:90;background:rgba(37,40,45,.94);color:#e8e8ea;padding:7px 11px;border-start-end-radius:12px;font-size:11.5px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;max-width:calc(100vw - 20px)}
+#demoBody{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+#demoToggle{background:none!important;padding:2px 4px!important;color:#fff;font-weight:600}
+#demo:not(.open) #demoBody{display:none}
+#demo button{background:rgba(255,255,255,.11);border:0;color:#e8e8ea;border-radius:7px;padding:4px 9px;font-size:11.5px}
+#demo button:hover{background:rgba(255,255,255,.22)}
+#demo label{display:flex;gap:5px;align-items:center;color:#c9c9cd}
+#demo input{accent-color:#9db4d6}
+#toast{position:fixed;bottom:22px;inset-inline-end:22px;z-index:95;background:var(--tx);color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .22s,transform .22s;transform:translateY(6px)}
+#toast.on{opacity:1;transform:none}
+
+/* ── מובייל ── */
+@media (max-width:680px){
+  .topbar{padding:9px 14px;gap:8px}
+  .topbar .status{display:none}
+  .doc{padding:26px 16px 150px}
+  .rule{margin:24px 0}
+  .pop{position:fixed!important;inset-inline:0!important;bottom:0!important;top:auto!important;
+       width:100%!important;max-height:82vh;overflow:auto;border-radius:16px 16px 0 0;padding:18px 18px 22px;border:0}
+  #panelScrim{padding:0;align-items:flex-end}
+  .panel{width:100%;border-radius:16px 16px 0 0;max-height:94vh;display:flex;flex-direction:column}
+  .pbody{max-height:none;flex:1}
+  .srow{flex-wrap:wrap}
+  .srow .sp{width:82px}
+  .inline2{grid-template-columns:1fr}
+  #demo{font-size:11px;padding:6px 10px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <button class="back" onclick="toast('חזרה לצינור ההצעות')">→ חזרה</button>
+  <div class="status" id="status"></div>
+  <button class="btn sm" id="btnSave" onclick="toast('הטיוטה נשמרה')">שמירה</button>
+  <button class="btn primary sm" onclick="openReview()">סקירה ושליחה</button>
+</div>
+
+<main id="app"></main>
+
+<div id="scrim" onclick="closePop()"></div>
+<div id="panelScrim" onclick="if(event.target===this)closePanel()"></div>
+<div id="toast"></div>
+
+<!-- סקפולד הדגמה — לא חלק מהמוצר. מתקפל, כדי שלא יכסה פעולות אמיתיות במובייל. -->
+<div id="demo">
+  <button id="demoToggle" onclick="document.getElementById('demo').classList.toggle('open')">⚙ הדגמה</button>
+  <span id="demoBody">
+    <button onclick="demoDefault()">ברירת מחדל</button>
+    <button onclick="demoDiscount()">הנחה</button>
+    <button onclick="demoJan()">התחלה בינואר</button>
+    <button onclick="demoComplex()">הצעה מורכבת</button>
+    <label><input type="checkbox" id="dTransfer" onchange="setTransfer(this.checked)"> עובר מרו״ח אחר</label>
+  </span>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   קטלוג ותבניות — מבוססים על defaultServiceCatalog.ts בפרודקשן.
+   nature: 'monthly' = חודשי במהותו · 'annual' = שנתי במהותו · 'one_time' · 'included'
+   ═══════════════════════════════════════════════════════════════════════════ */
+const CATALOG = [
+  {id:'bk_lic',   name:'הנהלת חשבונות',              nature:'monthly',  price:250,  vat:true},
+  {id:'bk_ex',    name:'הנהלת חשבונות — עוסק פטור',  nature:'monthly',  price:80,   vat:true},
+  {id:'payroll',  name:'חשבות שכר',                  nature:'monthly',  price:80,   vat:true, unit:'עובד'},
+  {id:'annual',   name:'דוח שנתי',                   nature:'annual',   price:1800, vat:true},
+  {id:'annual_ex',name:'דוח שנתי — עוסק פטור',       nature:'annual',   price:1400, vat:true},
+  {id:'annual_py',name:'דוח שנתי — שנה פתוחה',       nature:'annual',   price:1800, vat:true},
+
+  {id:'open_files', name:'פתיחת תיקים ברשויות',        nature:'one_time', price:300,  vat:true},
+  {id:'close_files',name:'סגירת תיקים',               nature:'one_time', price:300,  vat:true},
+  {id:'to_licensed',name:'מעבר מעוסק פטור למורשה',    nature:'one_time', price:350,  vat:true},
+  {id:'cap_1',      name:'הצהרת הון ראשונה',          nature:'one_time', price:1200, vat:true},
+  {id:'cap_2',      name:'הצהרת הון נוספת',           nature:'one_time', price:2000, vat:true},
+  {id:'cert',       name:'אישור רו״ח מיוחד',          nature:'one_time', price:200,  vat:true},
+  {id:'audit',      name:'ליווי ביקורת מס',           nature:'one_time', price:2500, vat:true},
+  {id:'reconcile',  name:'תיאום מס',                  nature:'one_time', price:400,  vat:true},
+  {id:'refund',     name:'בקשה להחזר מס',             nature:'one_time', price:900,  vat:true},
+  {id:'status',     name:'שינוי סטטוס / ענף',         nature:'one_time', price:250,  vat:true},
+  {id:'extra_file', name:'פתיחת תיק נוסף',            nature:'one_time', price:300,  vat:true},
+  {id:'installments',name:'הסדר תשלומים מול הרשויות', nature:'one_time', price:600,  vat:true},
+
+  {id:'paperless', name:'תוכנת הנהלת חשבונות',        nature:'included', price:30, vat:true},
+  {id:'quarterly', name:'תכנון מס רבעוני',            nature:'included', price:0,  vat:false},
+  {id:'biz',       name:'ליווי עסקי שוטף',            nature:'included', price:0,  vat:false},
+  {id:'pension',   name:'המלצה פנסיונית',             nature:'included', price:0,  vat:false},
+  {id:'advice',    name:'ייעוץ שוטף בטלפון',          nature:'included', price:0,  vat:false},
+  {id:'fines',     name:'טיפול בקנסות ובדרישות',      nature:'included', price:0,  vat:false},
+];
+const byId = id => CATALOG.find(c=>c.id===id);
+
+/* ‼ future = מחירון "אם וכאשר" שהתבנית ממליצה עליו — ולא כל השירותים
+   החד־פעמיים שבקטלוג. זו רשימה קצרה ורלוונטית לסוג הלקוח: לעוסק מורשה אין
+   טעם להציג "מעבר מפטור למורשה", ולעוסק פטור דווקא כן. הרו״ח יכול לערוך
+   את הבחירה בהצעה הזאת בלי לשנות את התבנית. */
+const TEMPLATES = [
+  {id:'lic',  name:'עוסק מורשה — מלא', services:['bk_lic','annual'],
+   included:['paperless','quarterly','biz','pension','advice','fines'],
+   future:['cap_1','cert','audit','reconcile','status','extra_file']},
+  {id:'ex',   name:'עוסק פטור', services:['bk_ex','annual_ex'],
+   included:['paperless','quarterly','advice','fines'],
+   future:['to_licensed','cap_1','cert','reconcile']},
+  {id:'comp', name:'חברה', services:['bk_lic','annual'],
+   included:['paperless','quarterly','biz','pension','advice','fines'],
+   future:['cap_1','cert','audit','installments']},
+  {id:'rep',  name:'ייצוג בלבד', services:['open_files'], included:[], future:['cap_1','cert']},
+];
+const templateById = id => TEMPLATES.find(t=>t.id===id);
+
+const VAT = 18;
+const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const AUTHORITIES = [
+  {key:'incomeTax',         label:'מס הכנסה',    level:true},
+  {key:'withholding',       label:'ניכויים',      level:true},
+  {key:'vat',               label:'מע״מ',        level:true},
+  /* ‼ ביטוח לאומי הוא ייצוג יחיד — לכל מבוטח תיק נפרד, ואין ראשי/משני.
+     כלל אמת מהמוצר (REP_AUTHORITIES_WITH_LEVEL ב-types/index.ts). */
+  {key:'nationalInsurance', label:'ביטוח לאומי', level:false},
+];
+
+/* ─── מצב ─────────────────────────────────────────────────────────────────── */
+let S, POP=null, PANEL=null, SEQ=1;
+const uid = p => p+(SEQ++);
+
+function fresh(){
+  const t = TEMPLATES[0];
+  return {
+    client:{name:'ישראל ישראלי', business:'ישראל ישראלי הובלות', email:'israel@example.co.il', kind:'עוסק מורשה', transfer:false},
+    quotationNumber:'2026-0043',
+    templateId:t.id,
+    lines:t.services.map(id=>({key:uid('l'), catId:id, price:byId(id).price, inRetainer:true})),
+    included:[...t.included],
+    startMonth:'2026-08',
+    installmentsOverride:null,
+    agreedMonthly:null,            // דריסה ברמת העסקה — ריק = מחיר התבנית
+    completion:{mode:'charge', amount:null, trigger:'עם הגשת הדוח השנתי'},
+    oneTimes:[],
+    future:new Set(t.future),
+    rep:{enabled:true, areas:{incomeTax:{level:'primary'}, vat:{level:'primary'}, nationalInsurance:{coversSpouse:true}}},
+    message:'',
+    sent:false,
+  };
+}
+
+/* ─── חישוב — כל מה שהמערכת גוזרת לבד ────────────────────────────────────── */
+const r0 = n => Math.round(n);
+const ils = n => '₪' + r0(n).toLocaleString('he-IL');
+const monthLabel = ym => { const [y,m]=ym.split('-').map(Number); return MONTHS[m-1]+' '+y; };
+const monthsLeft  = ym => { const m=Number(ym.split('-')[1]); return m>=1&&m<=12 ? 13-m : 12; };
+const addMonths = (ym,n) => { const [y,m]=ym.split('-').map(Number); const t=y*12+(m-1)+n; return Math.floor(t/12)+'-'+String(t%12+1).padStart(2,'0'); };
+const rangeLabel = (from,to) => {
+  const [fy,fm]=from.split('-').map(Number), [ty,tyy]=to.split('-').map(Number);
+  return fy===ty ? MONTHS[fm-1]+' עד '+MONTHS[tyy-1]+' '+ty : monthLabel(from)+' עד '+monthLabel(to);
+};
+
+function calc(){
+  const inst = S.installmentsOverride ?? monthsLeft(S.startMonth);
+  const retainerLines=[], separate=[];
+  for(const l of S.lines){
+    const c = byId(l.catId);
+    if(c.nature==='included') continue;
+    if(c.nature==='one_time'){ separate.push({l,c,kind:'one_time',amount:l.price}); continue; }
+    if(c.nature==='annual' && !l.inRetainer){ separate.push({l,c,kind:'annual',amount:l.price}); continue; }
+    const perMonth = c.nature==='annual' ? l.price/12 : l.price;
+    const listPer  = c.nature==='annual' ? c.price/12 : c.price;
+    retainerLines.push({l,c,perMonth,listPer});
+  }
+  const listRetainer  = retainerLines.reduce((s,x)=>s+x.listPer,0);
+  const linesRetainer = retainerLines.reduce((s,x)=>s+x.perMonth,0);
+  const retainer = S.agreedMonthly ?? linesRetainer;
+  // עוגן ההנחה: המחיר הגבוה מבין מחיר התבנית למה שהוזן בשורות
+  const anchor   = Math.max(listRetainer, linesRetainer);
+  const discount = Math.max(0, anchor - retainer);
+
+  // יתרת הדוח השנתי — נגזרת מהשורה עצמה: ערך שנתי פחות מה שהריטיינר בולע
+  const balances = retainerLines
+    .filter(x=>x.c.nature==='annual')
+    .map(x=>{ const collected=x.perMonth*inst; return {name:x.c.name, value:x.l.price, perMonth:x.perMonth, collected, balance:Math.max(0, x.l.price-collected)}; })
+    .filter(x=>x.balance>=1);
+  const rawBalance = balances.reduce((s,x)=>s+x.balance,0);
+  let completionCharge = rawBalance;
+  if(S.completion.mode==='waive') completionCharge = 0;
+  if(S.completion.mode==='reduce' && S.completion.amount!=null) completionCharge = Math.min(S.completion.amount, rawBalance);
+
+  const oneTimeTotal = S.oneTimes.reduce((s,o)=>s+o.amount,0);
+  const separateAnnual = separate.filter(x=>x.kind==='annual').reduce((s,x)=>s+x.amount,0);
+  const separateOneTime = separate.filter(x=>x.kind==='one_time').reduce((s,x)=>s+x.amount,0);
+
+  const vat = n => n*VAT/100;
+  return {
+    inst, retainerLines, separate, retainer, listRetainer, anchor, discount,
+    balances, rawBalance, completionCharge,
+    oneTimeTotal: oneTimeTotal + separateOneTime,
+    annualTotal: separateAnnual,
+    endMonth: addMonths(S.startMonth, inst-1),
+    nextMonth: addMonths(S.startMonth, inst),
+    vat, retainerVat:vat(retainer), retainerWithVat:retainer+vat(retainer),
+  };
+}
+
+/* ─── ציור המסמך ─────────────────────────────────────────────────────────── */
+function render(){
+  const c = calc();
+  document.getElementById('status').innerHTML = S.sent
+    ? 'הצעה <b>'+S.quotationNumber+'</b> · נשלחה'
+    : 'טיוטה · הצעה <b>'+S.quotationNumber+'</b>';
+  document.getElementById('btnSave').classList.toggle('hidden', S.sent);
+  document.getElementById('dTransfer').checked = S.client.transfer;
+
+  if(S.sent){ renderSent(); return; }
+
+  const tpl = TEMPLATES.find(t=>t.id===S.templateId);
+  const A = [];
+
+  /* כותרת — העסק וסוגו. שם הלקוח לא חוזר כאן, הוא עומד בכותרת שמתחת.
+     התבנית היא הפעולה השקטה בקצה השורה ולא פריט מידע שמתחרה. */
+  A.push('<div class="eyebrow"><span>'+S.client.business+' · '+S.client.kind+' ·</span>'
+    +'<button class="link mute ed" onclick="popTemplate(this)">'+tpl.name+'</button></div>');
+  A.push('<h1>הצעה ל'+S.client.name+'</h1>');
+
+  /* הגיבור — העסקה */
+  A.push('<div class="hero">');
+  A.push('<button class="amount ed" onclick="popPrice(this)"><span class="num">'+ils(c.retainer)+'</span>'
+    +'<span class="vat">לחודש + מע״מ</span></button>');
+  if(c.discount>=1){
+    /* בלי לחזור על המספר שכבר עומד למעלה בגודל 52 פיקסל — רק העוגן וההנחה. */
+    A.push('<div class="strike"><span>מחיר רגיל <s class="num">'+ils(c.anchor)+'</s></span>'
+      +'<span style="color:var(--ok)">הנחה <b class="num">'+ils(c.discount)+'</b> לחודש</span></div>');
+  }
+  /* המשפט כולו הוא כפתור אחד — הצמדת "ב" לכפתור יצרה תפר גלוי ושטח לחיצה צר. */
+  const instTxt = c.inst===12 ? '12 תשלומים'
+    : c.inst===1 ? 'תשלום אחד השנה'
+    : c.inst+' תשלומים השנה';
+  A.push('<div class="under"><button class="ed" onclick="popStart(this)" style="color:var(--tx2)">'
+    +'מתחילים ב'+monthLabel(S.startMonth)+'</button><span style="color:var(--tx3)"> · '+instTxt+'</span></div>');
+  A.push('</div>');
+
+  A.push('<hr class="rule">');
+
+  /* מה כלול — הרכב הריטיינר */
+  A.push('<div class="lbl">מה כלול</div>');
+  for(const x of c.retainerLines){
+    const sub = x.c.nature==='annual' ? ils(x.l.price)+' לשנה, נגבה בשכר החודשי' : '';
+    A.push('<div class="crow"><div class="nm"><div>'+x.c.name+'</div>'
+      +(sub?'<div class="sub">'+sub+'</div>':'')+'</div>'
+      +'<div class="pr num">'+ils(x.perMonth)+' לחודש</div></div>');
+  }
+  for(const s of c.separate){
+    A.push('<div class="crow"><div class="nm"><div>'+s.c.name+'</div>'
+      +'<div class="sub">'+(s.kind==='annual'?'חיוב שנתי נפרד — לא בשכר החודשי':'חיוב חד־פעמי')+'</div></div>'
+      +'<div class="pr num">'+ils(s.amount)+(s.kind==='annual'?' לשנה':'')+'</div></div>');
+  }
+  /* שמות הכלולים ירדו מכאן — הם מופיעים במלואם בסקירה ובלוח השירותים.
+     במנוחה מספיק לדעת שהם שם. */
+  if(S.included.length){
+    A.push('<div class="included-line">ועוד '+S.included.length+' שירותים ללא תוספת תשלום</div>');
+  }
+  A.push('<div class="addrow"><button class="link mute" onclick="openServices()">עריכת השירותים</button></div>');
+
+  /* ההשלכה — יתרת הדוח השנתי. קיימת רק כשיש לה סיבה להתקיים. */
+  if(c.rawBalance>=1){
+    A.push('<hr class="rule">');
+    const waived = S.completion.mode==='waive';
+    const reduced = S.completion.mode==='reduce' && c.completionCharge<c.rawBalance;
+    A.push('<div class="conseq'+(waived?' muted':'')+'"><div class="hrow">');
+    A.push(waived
+      ? '<div class="h">יתרת הדוח השנתי — '+ils(c.rawBalance)+' — לא תיגבה</div>'
+      : '<div class="h"><b class="num">'+ils(c.completionCharge)+'</b> נוספים ייגבו '+S.completion.trigger+'</div>');
+    A.push('<button class="link mute" onclick="popCompletion(this)">שינוי</button></div>');
+    if(waived){
+      A.push('<div class="b">ויתרת על היתרה. הלקוח לא יראה סעיף גבייה נוסף.</div>');
+    }else{
+      /* משפט אחד קצר במקום פסקה: מה השירות שווה, וכמה ממנו כבר נגבה. */
+      const bd = c.balances.map(b=>b.name+' '+ils(b.value)+' לשנה · '+c.inst+' × '+ils(b.perMonth)+' נגבים בשכר החודשי').join(' · ');
+      A.push('<div class="b">'+bd+(reduced?' · היתרה המלאה '+ils(c.rawBalance)+', הפחתת אותה':'')+'</div>');
+    }
+    A.push('</div>');
+  }
+
+  /* חיובים חד־פעמיים — תופסים מקום רק כשהם קיימים */
+  if(S.oneTimes.length){
+    A.push('<hr class="rule tight">');
+    A.push('<div class="lbl">חיובים חד־פעמיים</div>');
+    for(const o of S.oneTimes){
+      A.push('<div class="crow"><div class="nm"><div>'+o.name+'</div><div class="sub">'+whenLabel(o)+'</div></div>'
+        +'<div class="pr"><button class="link ed num" onclick="popOneTime(this,\''+o.id+'\')" style="font-size:14px;color:var(--txc)">'+ils(o.amount)+'</button></div></div>');
+    }
+  }
+
+  A.push('<hr class="rule">');
+
+  /* השורות השקטות — נסוגות ויזואלית, נפתחות בלחיצה */
+  const futN = [...S.future].filter(id=>!pricedCatIds().has(id)).length;
+  A.push('<div class="quiet"><span class="k">שירותים נוספים בעתיד</span>'
+    +'<span class="v">'+(futN ? futN+' מחירים יצורפו להצעה' : 'לא יצורף מחירון')+'</span>'
+    +'<button class="link mute" onclick="openFuture()">עריכה</button></div>');
+  A.push('<div class="quiet"><span class="k">ייצוג לאחר אישור</span>'
+    +'<span class="v">'+repSummary()+'</span>'
+    +'<button class="link mute" onclick="openRep()">שינוי</button></div>');
+
+  A.push('<div class="addrow"><button class="link mute" onclick="popOneTime(this,null)">+ הוספת חיוב חד־פעמי</button></div>');
+  A.push('<div class="hint">כל מספר במסמך נערך בלחיצה עליו.</div>');
+
+  document.getElementById('app').innerHTML = '<div class="doc">'+A.join('')+'</div>';
+}
+
+function whenLabel(o){
+  if(o.when==='immediate') return 'ייגבה מיידית עם האישור';
+  if(o.when==='on_service') return 'ייגבה עם ביצוע השירות';
+  return 'ייגבה '+(o.customWhen||'במועד שייקבע');
+}
+
+function repSummary(){
+  if(!S.rep.enabled) return 'לא ייפתח ייצוג — הצעת שירות בלבד';
+  const on = AUTHORITIES.filter(a=>S.rep.areas[a.key]);
+  if(!on.length) return 'לא נבחרה רשות';
+  const names = on.map(a=>{
+    const ar = S.rep.areas[a.key];
+    return a.label + (a.level && ar.level==='secondary' ? ' (משני)' : '');
+  });
+  let s = names.join(' · ');
+  if(S.rep.areas.nationalInsurance?.coversSpouse) s += ' · כולל בן/בת זוג בב״ל';
+  return s;
+}
+
+function renderSent(){
+  const c = calc();
+  document.getElementById('app').innerHTML = '<div class="sentwrap"><div class="ic">✓</div>'
+    +'<h2>ההצעה נשלחה ל'+S.client.name+'</h2>'
+    +'<p>'+ils(c.retainer)+' לחודש + מע״מ · תוקף 3 ימי עסקים.</p>'
+    +'<p style="color:var(--tx3)">כרטיס הלקוח והדף האישי נפתחו עם השליחה. כשהלקוח יחתום — הייצוג ייפתח לבד, '
+    +'והוא יועבר ישירות למילוי הפרטים ומצב משפחתי.</p>'
+    +'<div style="margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">'
+    +'<button class="btn" onclick="demoDefault()">הצעה חדשה</button>'
+    +'<button class="btn ghost" onclick="toast(\'מעבר לכרטיס הלקוח\')">לכרטיס הלקוח</button></div></div>';
+}
+
+/* ═══ פופאוברים הקשריים ════════════════════════════════════════════════════ */
+function openPop(anchor, html){
+  closePop();
+  const p = document.createElement('div');
+  p.className='pop'; p.id='pop'; p.innerHTML=html;
+  p.onclick = e => e.stopPropagation();
+  document.body.appendChild(p);
+  document.getElementById('scrim').classList.add('on');
+  anchor.classList.add('open');
+  POP = {el:p, anchor};
+  if(window.innerWidth>680){
+    const r = anchor.getBoundingClientRect();
+    const w = p.offsetWidth, h = p.offsetHeight;
+    let left = r.right - w;                                  // RTL: מיושר לקצה הימני של העוגן
+    left = Math.max(12, Math.min(left, window.innerWidth-w-12));
+    let top = r.bottom + window.scrollY + 8;
+    if(r.bottom + h + 20 > window.innerHeight) top = r.top + window.scrollY - h - 8;
+    p.style.left = left+'px'; p.style.top = Math.max(12, top)+'px';
+  }
+  const f = p.querySelector('input,select,textarea');
+  if(f && window.innerWidth>680) f.focus();
+}
+function closePop(){
+  if(POP){ POP.el.remove(); POP.anchor.classList.remove('open'); POP=null; }
+  document.getElementById('scrim').classList.remove('on');
+}
+function applyPop(fn){ fn(); closePop(); render(); }
+
+/* ── עריכת המחיר שסוכם ── */
+function popPrice(a){
+  const c = calc();
+  const base = c.anchor;
+  const step = base>=1000?100:base>=400?25:10;
+  /* ארבע אפשרויות — נכנסות בשורה אחת בשולחני ובמובייל. חמישית נשברה לשורה שנייה. */
+  const opts=[]; for(let i=0;i<4;i++){ const v=r0((base-i*step)/step)*step; if(v>base*.6) opts.push(v); }
+  openPop(a, '<h4>המחיר שסוכם</h4>'
+    +'<div class="ph">מחיר התבנית: '+ils(base)+' לחודש. סכום נמוך יותר יוצג ללקוח כהנחה, לצד המחיר הרגיל.</div>'
+    +'<div class="chips">'+opts.map(v=>'<button class="chip'+(Math.abs(v-c.retainer)<1?' on':'')+'" onclick="applyPop(()=>{S.agreedMonthly='
+      +(v===base?'null':v)+'})">'+ils(v)+(v===base?' · מלא':'')+'</button>').join('')+'</div>'
+    +'<label class="fld"><span>או סכום אחר לחודש (לפני מע״מ)</span>'
+    +'<input type="number" min="0" id="pMonthly" value="'+r0(c.retainer)+'" onkeydown="if(event.key===\'Enter\')savePrice()"></label>'
+    /* ‼ הכרעה מוצרית: המערכת לא מנחשת איך הנחה כללית מתחלקת בין השירותים,
+       ולכן היא לא נוגעת ביתרת הדוח השנתי. נאמר כאן, ברגע ההחלטה, ולא כסעיף
+       קבוע במסך. */
+    +'<div class="note">ההנחה חלה על השכר החודשי'
+    +(c.rawBalance>=1 ? ' ואינה משנה את יתרת הדוח השנתי ('+ils(c.rawBalance)+')' : '')
+    +'. לתמחור שירות בנפרד — '
+    +'<button class="link" onclick="closePop();openServices()">עריכת השירותים</button>.</div>'
+    +'<div class="pf"><button class="link" onclick="applyPop(()=>{S.agreedMonthly=null})">חזרה למחיר התבנית</button>'
+    +'<button class="btn primary sm" onclick="savePrice()">עדכון</button></div>');
+}
+function savePrice(){
+  const v = Number(document.getElementById('pMonthly').value)||0;
+  applyPop(()=>{ S.agreedMonthly = v>0 ? v : null; });
+}
+
+/* ── עריכת חודש ההתחלה ── */
+function popStart(a){
+  const c = calc();
+  const cur = S.startMonth;
+  const cells = MONTHS.map((m,i)=>{
+    const ym='2026-'+String(i+1).padStart(2,'0');
+    return '<button class="chip'+(ym===cur?' on':'')+'" onclick="applyPop(()=>{S.startMonth=\''+ym+'\';S.installmentsOverride=null})">'+m+'</button>';
+  }).join('');
+  openPop(a, '<h4>חודש התשלום הראשון</h4>'
+    +'<div class="ph">התשלום הראשון נגבה מיד עם האישור, והבאים ב־1 בכל חודש. '
+    +'מספר התשלומים נגזר לבד — ואיתו יתרת הדוח השנתי.</div>'
+    +'<div class="chips">'+cells+'</div>'
+    +'<button class="chip wide" style="margin-top:9px" onclick="applyPop(()=>{S.startMonth=\'2027-01\';S.installmentsOverride=null})">ינואר 2027 · שנה מלאה</button>'
+    +'<div class="note">כרגע: '+c.inst+' תשלומים · '+rangeLabel(S.startMonth,c.endMonth)+'. '
+    +'המחיר ממשיך לשנה הבאה ומתחדש אוטומטית, אלא אם תשנה אותו.</div>'
+    +'<details style="margin-top:10px"><summary style="font-size:12px;color:var(--tx3);cursor:pointer">מספר תשלומים אחר</summary>'
+    +'<label class="fld"><span>מספר תשלומים</span><input type="number" min="1" max="24" id="pInst" value="'+c.inst+'"></label>'
+    +'<button class="btn sm" style="margin-top:8px" onclick="applyPop(()=>{S.installmentsOverride=Number(document.getElementById(\'pInst\').value)||null})">עדכון</button>'
+    +'</details>');
+}
+
+/* ── עריכת יתרת הדוח השנתי ── */
+function popCompletion(a){
+  const c = calc();
+  const m = S.completion.mode;
+  openPop(a, '<h4>יתרת הדוח השנתי</h4>'
+    +'<div class="ph">'+ils(c.rawBalance)+' לא נכללים ב'+c.inst+' התשלומים של השנה. ברירת המחדל: נגבים עם הגשת הדוח.'
+    +(c.discount>=1 ? ' ההנחה על השכר החודשי לא הפחיתה אותה — הפחתה כאן היא החלטה נפרדת.' : '')+'</div>'
+    +'<div class="chips">'
+    +'<button class="chip'+(m==='charge'?' on':'')+'" onclick="applyPop(()=>{S.completion.mode=\'charge\';S.completion.amount=null})">לגבות במלואה</button>'
+    +'<button class="chip'+(m==='reduce'?' on':'')+'" onclick="setCompMode(\'reduce\')">להפחית</button>'
+    +'<button class="chip'+(m==='waive'?' on':'')+'" onclick="applyPop(()=>{S.completion.mode=\'waive\'})">לוותר</button>'
+    +'</div>'
+    +(m==='reduce'
+      ? '<label class="fld"><span>כמה ייגבה בפועל (עד '+ils(c.rawBalance)+')</span>'
+        +'<input type="number" min="0" max="'+r0(c.rawBalance)+'" id="pComp" value="'+r0(c.completionCharge)+'"'
+        +' onkeydown="if(event.key===\'Enter\')saveComp()"></label>'
+        +'<div class="note">ההפרש יוצג ללקוח כהנחה על היתרה. השכר החודשי לא משתנה.</div>'
+      : '')
+    +'<label class="fld"><span>מתי ייגבה</span><select id="pTrig" onchange="applyPop(()=>{S.completion.trigger=this_val(\'pTrig\')})">'
+    +['עם הגשת הדוח השנתי','עם הגשת הצהרת ההון','עם סיום הביקורת'].map(t=>'<option'+(t===S.completion.trigger?' selected':'')+'>'+t+'</option>').join('')
+    +'</select></label>'
+    +(m==='reduce'?'<div class="pf"><span></span><button class="btn primary sm" onclick="saveComp()">עדכון</button></div>':''));
+}
+const this_val = id => document.getElementById(id).value;
+/* "להפחית" הוא המצב היחיד שדורש שדה נוסף — ולכן הפופאובר נפתח מחדש עם השדה,
+   במקום להיסגר ולדרוש לחיצה שנייה על "שינוי". */
+function setCompMode(mode){
+  S.completion.mode=mode;
+  if(mode==='reduce'&&S.completion.amount==null) S.completion.amount=calc().rawBalance;
+  closePop(); render();
+  setTimeout(()=>{ const el=document.querySelector('.conseq .link'); if(el) popCompletion(el); },0);
+}
+function saveComp(){ const v=Number(document.getElementById('pComp').value); applyPop(()=>{S.completion.mode='reduce';S.completion.amount=isNaN(v)?null:v}); }
+
+/* ── בחירת תבנית ── */
+function popTemplate(a){
+  openPop(a, '<h4>תבנית ההצעה</h4>'
+    +'<div class="ph">התבנית קובעת אילו שירותים ומחירים נטענים. החלפה תבנה את ההצעה מחדש ותאפס עריכות מחיר.</div>'
+    +'<div class="chips">'+TEMPLATES.map(t=>'<button class="chip wide'+(t.id===S.templateId?' on':'')
+      +'" onclick="applyTemplate(\''+t.id+'\')">'+t.name+'</button>').join('')+'</div>');
+}
+function applyTemplate(id){
+  if(id!==S.templateId && !confirm('החלפת תבנית תבנה את ההצעה מחדש. להמשיך?')) return;
+  const t = TEMPLATES.find(x=>x.id===id);
+  applyPop(()=>{
+    S.templateId=id;
+    S.lines=t.services.map(sid=>({key:uid('l'), catId:sid, price:byId(sid).price, inRetainer:true}));
+    S.included=[...t.included]; S.future=new Set(t.future);
+    S.agreedMonthly=null; S.completion={mode:'charge',amount:null,trigger:'עם הגשת הדוח השנתי'};
+  });
+  toast('התבנית נטענה: '+t.name);
+}
+
+/* ── חיוב חד־פעמי ── */
+function popOneTime(a, id){
+  const o = id ? S.oneTimes.find(x=>x.id===id) : null;
+  /* ההצעות המהירות מתחילות במה שכבר הוצג ללקוח כמחיר עתידי: זה בדיוק המסלול
+     "הסכמנו על מחיר לעתיד → הגיע הזמן לגבות". אחר כך שאר החד־פעמיים בקטלוג. */
+  const used = pricedCatIds();
+  const disclosed = [...S.future].map(byId).filter(x=>x && x.nature==='one_time');
+  const rest = CATALOG.filter(x=>x.nature==='one_time' && !used.has(x.id) && !S.future.has(x.id));
+  const sugg = [...disclosed, ...rest].slice(0,5);
+  openPop(a, '<h4>'+(o?'חיוב חד־פעמי':'הוספת חיוב חד־פעמי')+'</h4>'
+    +'<div class="ph">מה · כמה · מתי.</div>'
+    +(o?'':'<div class="chips" style="margin-bottom:4px">'+sugg.map(s=>'<button class="chip" onclick="fillOT(\''+s.id+'\')">'+s.name+'</button>').join('')+'</div>')
+    +'<label class="fld"><span>מה</span><input id="otName" value="'+(o?o.name:'')+'" placeholder="למשל: מעבר מעוסק פטור למורשה"></label>'
+    +'<div class="inline2"><label class="fld"><span>כמה (לפני מע״מ)</span><input type="number" min="0" id="otAmount" value="'+(o?o.amount:'')+'"></label>'
+    +'<label class="fld"><span>מתי</span><select id="otWhen" onchange="document.getElementById(\'otCustomWrap\').style.display=this.value===\'custom\'?\'block\':\'none\'">'
+    +'<option value="immediate"'+(o&&o.when==='immediate'?' selected':'')+'>מיידית</option>'
+    +'<option value="on_service"'+(o&&o.when==='on_service'?' selected':'')+'>עם ביצוע השירות</option>'
+    +'<option value="custom"'+(o&&o.when==='custom'?' selected':'')+'>מועד אחר…</option></select></label></div>'
+    +'<div id="otCustomWrap" style="display:'+(o&&o.when==='custom'?'block':'none')+'">'
+    +'<label class="fld"><span>מתי — נוסח חופשי</span><input id="otCustom" value="'+(o&&o.customWhen?o.customWhen:'')+'" placeholder="למשל: עם קבלת האישור מהרשות"></label></div>'
+    +'<div class="pf">'+(o?'<button class="link" style="color:var(--err)" onclick="applyPop(()=>{S.oneTimes=S.oneTimes.filter(x=>x.id!==\''+o.id+'\')})">הסרה</button>':'<span></span>')
+    +'<button class="btn primary sm" onclick="saveOT('+(o?"'"+o.id+"'":'null')+')">'+(o?'עדכון':'הוספה')+'</button></div>');
+}
+let OT_CAT = null;      // מאיזה שירות בקטלוג נולד החיוב — כדי שלא יופיע גם במחירון העתידי
+function fillOT(catId){
+  const c = byId(catId);
+  OT_CAT = catId;
+  document.getElementById('otName').value = c.name;
+  document.getElementById('otAmount').value = c.price;
+}
+function saveOT(id){
+  const name=document.getElementById('otName').value.trim();
+  const amount=Number(document.getElementById('otAmount').value)||0;
+  const when=document.getElementById('otWhen').value;
+  const customWhen=document.getElementById('otCustom')?document.getElementById('otCustom').value.trim():'';
+  if(!name||amount<=0){ toast('צריך שם וסכום'); return; }
+  const catId = OT_CAT; OT_CAT = null;
+  applyPop(()=>{
+    if(id){ const o=S.oneTimes.find(x=>x.id===id); Object.assign(o,{name,amount,when,customWhen}); }
+    else S.oneTimes.push({id:uid('o'),name,amount,when,customWhen,catId});
+    /* ‼ שירות שנגבה עכשיו לא יכול להופיע גם כ"מחיר לעתיד" — אחרת ההצעה
+       מציגה לו שני מחירים שונים באותו עמוד. */
+    if(catId) S.future.delete(catId);
+  });
+}
+/** כל מה שכבר מתומחר בהצעה — שורות שירות וגם חיובים חד־פעמיים מהקטלוג. */
+function pricedCatIds(){
+  const s = new Set(S.lines.map(l=>l.catId));
+  for(const o of S.oneTimes) if(o.catId) s.add(o.catId);
+  return s;
+}
+
+/* ═══ לוחות ════════════════════════════════════════════════════════════════ */
+function openPanel(html, wide){
+  const s=document.getElementById('panelScrim');
+  s.innerHTML='<div class="panel'+(wide?' wide':'')+'">'+html+'</div>';
+  s.classList.add('on');
+  document.body.style.overflow='hidden';
+}
+function closePanel(){
+  document.getElementById('panelScrim').classList.remove('on');
+  document.body.style.overflow='';
+  PANEL=null; render();
+}
+
+/* ── שירותים ומחירים — כאן, ורק כאן, יושבת המכניקה החשבונאית ── */
+function openServices(){ PANEL='services'; drawServices(); }
+function drawServices(){
+  const c = calc();
+  const A=[];
+  A.push('<div class="phead"><h3>שירותים ומחירים</h3>'
+    +'<div class="s">תבנית: '+TEMPLATES.find(t=>t.id===S.templateId).name
+    +' · השכר החודשי מסתכם ל'+ils(c.retainer)+' + מע״מ</div></div><div class="pbody">');
+
+  A.push('<div class="sect">בשכר החודשי</div>');
+  const inRet = S.lines.filter(l=>{const cc=byId(l.catId); return cc.nature==='monthly'||(cc.nature==='annual'&&l.inRetainer)});
+  for(const l of inRet){
+    const cc=byId(l.catId);
+    const per = cc.nature==='annual' ? l.price/12 : l.price;
+    A.push('<div class="srow"><div class="sn"><div class="t">'+cc.name+' '
+      +(cc.nature==='annual'?'<span class="tag blue">שנתי במהותו</span>':'<span class="tag">חודשי במהותו</span>')+'</div>'
+      +'<div class="m">'+(cc.nature==='annual'
+        ? ils(l.price)+' לשנה ÷ 12 = '+ils(per)+' לחודש · '+(l.price!==cc.price?'מחיר מחירון '+ils(cc.price):'לפי המחירון')
+        : ils(per)+' לחודש · '+(l.price!==cc.price?'מחיר מחירון '+ils(cc.price):'לפי המחירון'))+'</div></div>'
+      +'<div class="sp"><input type="number" min="0" value="'+r0(l.price)+'" onchange="setLinePrice(\''+l.key+'\',this.value)"'
+      +' title="'+(cc.nature==='annual'?'מחיר לשנה':'מחיר לחודש')+'"></div>'
+      +(cc.nature==='annual'
+        ? '<button class="btn sm" onclick="setInRetainer(\''+l.key+'\',false)" title="להוציא מהשכר החודשי">לחיוב שנתי</button>'
+        : '')
+      +'<button class="x" onclick="removeLine(\''+l.key+'\')" title="הסרה">✕</button></div>');
+  }
+  if(!inRet.length) A.push('<div class="note">אין שירותים בשכר החודשי.</div>');
+
+  const outRet = S.lines.filter(l=>{const cc=byId(l.catId); return cc.nature==='one_time'||(cc.nature==='annual'&&!l.inRetainer)});
+  if(outRet.length){
+    A.push('<div class="sect">מחוץ לשכר החודשי</div>');
+    for(const l of outRet){
+      const cc=byId(l.catId);
+      A.push('<div class="srow"><div class="sn"><div class="t">'+cc.name+' <span class="tag">'+(cc.nature==='annual'?'שנתי':'חד־פעמי')+'</span></div>'
+        +'<div class="m">'+(cc.nature==='annual'?'חיוב שנתי נפרד':'חיוב חד־פעמי')+'</div></div>'
+        +'<div class="sp"><input type="number" min="0" value="'+r0(l.price)+'" onchange="setLinePrice(\''+l.key+'\',this.value)"></div>'
+        +(cc.nature==='annual'?'<button class="btn sm" onclick="setInRetainer(\''+l.key+'\',true)">לשכר החודשי</button>':'')
+        +'<button class="x" onclick="removeLine(\''+l.key+'\')">✕</button></div>');
+    }
+  }
+
+  A.push('<div class="sect">ללא תוספת תשלום · '+S.included.length+'</div>');
+  for(const cc of CATALOG.filter(x=>x.nature==='included')){
+    const on = S.included.includes(cc.id);
+    A.push('<label class="crow-check"><input type="checkbox" '+(on?'checked':'')+' onchange="toggleIncluded(\''+cc.id+'\')">'
+      +'<span class="cn">'+cc.name+(cc.price>0?'<span class="m"> · שווי '+ils(cc.price)+' לחודש, מוצג ללקוח כמחיר מבוטל</span>':'')+'</span></label>');
+  }
+
+  A.push('<div class="sect">הוספת שירות</div>');
+  A.push('<input class="search" id="svcSearch" placeholder="חיפוש בקטלוג…" oninput="drawSvcAdd()">');
+  A.push('<div id="svcAdd"></div>');
+
+  A.push('<div class="callout">שירות שנתי בשכר החודשי נגבה כחלק מהריטיינר, והמערכת מחשבת לבד מה נשאר לגבייה '
+    +'בסוף השנה. שירות שהוצא לחיוב שנתי נגבה במלואו במועד אחד — ואז אין יתרה.</div>');
+  A.push('</div><div class="pfoot"><span class="fn">שינויים נשמרים מיד. המחיר שסוכם: '+ils(c.retainer)+' לחודש + מע״מ.</span>'
+    +'<button class="btn primary sm" onclick="closePanel()">סיום</button></div>');
+  openPanel(A.join(''));
+  drawSvcAdd();
+}
+function drawSvcAdd(){
+  const el=document.getElementById('svcAdd'); if(!el) return;
+  const q=(document.getElementById('svcSearch')?.value||'').trim();
+  const used=pricedCatIds();
+  const list=CATALOG.filter(c=>c.nature!=='included'&&!used.has(c.id)&&(!q||c.name.includes(q))).slice(0,7);
+  el.innerHTML = list.length
+    ? '<div class="chips" style="margin-top:6px">'+list.map(c=>'<button class="chip" onclick="addLine(\''+c.id+'\')">'
+        +c.name+' · '+ils(c.price)+'</button>').join('')+'</div>'
+    : '<div class="note">אין התאמות.</div>';
+}
+function setLinePrice(key,v){ const l=S.lines.find(x=>x.key===key); l.price=Math.max(0,Number(v)||0); S.agreedMonthly=null; drawServices(); }
+function setInRetainer(key,v){ S.lines.find(x=>x.key===key).inRetainer=v; S.agreedMonthly=null; drawServices(); }
+function removeLine(key){ S.lines=S.lines.filter(x=>x.key!==key); S.agreedMonthly=null; drawServices(); }
+function toggleIncluded(id){ S.included = S.included.includes(id) ? S.included.filter(x=>x!==id) : [...S.included,id]; drawServices(); }
+function addLine(id){ S.lines.push({key:uid('l'),catId:id,price:byId(id).price,inRetainer:true}); S.agreedMonthly=null; S.future.delete(id); drawServices(); }
+
+/* ── שירותים עתידיים — קטלוג גדול, מחוץ למסך הרגיל ── */
+function openFuture(){ PANEL='future'; drawFuture(); }
+function drawFuture(){
+  const A=[];
+  const tplName = templateById(S.templateId).name;
+  A.push('<div class="phead"><h3>שירותים נוספים בעתיד</h3>'
+    +'<div class="s">מחירון "אם וכאשר" שמצורף להצעה. אינו נכלל בסכומים ואינו מחייב את הלקוח — '
+    +'הוא רק מונע הפתעה כשיזדקק לשירות. הבחירה הראשונית מגיעה מהתבנית «'+tplName+'»; '
+    +'שינוי כאן חל על ההצעה הזאת בלבד.</div></div><div class="pbody">');
+  A.push('<input class="search" id="futSearch" placeholder="חיפוש בכל הקטלוג…" oninput="drawFutList()">');
+  A.push('<div class="selbar"><b id="futCount"></b>'
+    +'<button class="link" onclick="futReset()">ברירת המחדל של התבנית</button>'
+    +'<button class="link" onclick="futAll(true)">בחירת הכול</button>'
+    +'<button class="link" onclick="futAll(false)">ניקוי</button></div>');
+  A.push('<div id="futList"></div>');
+  A.push('</div><div class="pfoot"><span class="fn">מוצג ללקוח כרשימה מקופלת בתחתית ההצעה.</span>'
+    +'<button class="btn primary sm" onclick="closePanel()">סיום</button></div>');
+  openPanel(A.join(''));
+  drawFutList();
+}
+function drawFutList(){
+  const q=(document.getElementById('futSearch')?.value||'').trim();
+  const used=pricedCatIds();
+  const groups=[['one_time','חד־פעמיים'],['annual','שנתיים'],['monthly','חודשיים']];
+  const A=[];
+  for(const [nat,label] of groups){
+    const list=CATALOG.filter(c=>c.nature===nat&&!used.has(c.id)&&(!q||c.name.includes(q)));
+    if(!list.length) continue;
+    A.push('<div class="sect">'+label+'</div>');
+    for(const c of list){
+      A.push('<label class="crow-check"><input type="checkbox" '+(S.future.has(c.id)?'checked':'')+' onchange="futToggle(\''+c.id+'\')">'
+        +'<span class="cn">'+c.name+'</span><span class="cp">'+ils(c.price)
+        +(c.nature==='monthly'?' לחודש':c.nature==='annual'?' לשנה':'')+' + מע״מ</span></label>');
+    }
+  }
+  document.getElementById('futList').innerHTML = A.length?A.join(''):'<div class="note">אין התאמות.</div>';
+  document.getElementById('futCount').textContent = S.future.size+' נבחרו';
+}
+function futToggle(id){ S.future.has(id)?S.future.delete(id):S.future.add(id); drawFutList(); }
+/** חזרה למה שהתבנית ממליצה — בלי מה שכבר מתומחר בהצעה עצמה. */
+function futReset(){
+  const used=pricedCatIds();
+  S.future = new Set(templateById(S.templateId).future.filter(id=>!used.has(id)));
+  drawFutList();
+}
+function futAll(on){
+  const used=pricedCatIds();
+  if(on) CATALOG.filter(c=>c.nature!=='included'&&!used.has(c.id)).forEach(c=>S.future.add(c.id));
+  else S.future.clear();
+  drawFutList();
+}
+
+/* ── ייצוג — לא חלק מהמחיר, ולכן לא באזור הכספי ── */
+function openRep(){ PANEL='rep'; drawRep(); }
+function drawRep(){
+  const A=[];
+  A.push('<div class="phead"><h3>ייצוג מול הרשויות</h3>'
+    +'<div class="s">לא משפיע על המחיר. נקבע כאן כדי שברגע שהלקוח יאשר, הייצוג ייפתח לבד — בלי להגדיר שוב.</div></div><div class="pbody">');
+  A.push('<label class="crow-check" style="padding:12px 0"><input type="checkbox" '+(S.rep.enabled?'checked':'')+' onchange="S.rep.enabled=this.checked;drawRep()">'
+    +'<span class="cn"><b>אישור ההצעה פותח את הייצוג אוטומטית</b>'
+    +'<span class="m">כיבוי = הצעת שירות בלבד; לא ייפתחו בקשת ייצוג וחותמים.</span></span></label>');
+
+  if(S.rep.enabled){
+    A.push('<div class="sect">אילו רשויות לייצג</div>');
+    for(const a of AUTHORITIES){
+      const ar = S.rep.areas[a.key];
+      A.push('<div class="auth"><input type="checkbox" '+(ar?'checked':'')+' onchange="toggleAuth(\''+a.key+'\')">'
+        +'<span class="an">'+a.label
+        +(a.key==='nationalInsurance'?'<div class="m">לכל מבוטח תיק נפרד בב״ל — אין מייצג ראשי ומשני</div>':'')+'</span>'
+        +(ar && a.level
+          ? '<select onchange="S.rep.areas.'+a.key+'.level=this.value;drawRep()">'
+            +'<option value="primary"'+(ar.level==='primary'?' selected':'')+'>מייצג ראשי</option>'
+            +'<option value="secondary"'+(ar.level==='secondary'?' selected':'')+'>מייצג משני</option></select>'
+          : ar ? '<span class="single">ייצוג יחיד</span>' : '')
+        +'</div>');
+      if(a.key==='nationalInsurance' && ar){
+        A.push('<div class="sub-opt"><label><input type="checkbox" '+(ar.coversSpouse?'checked':'')
+          +' onchange="S.rep.areas.nationalInsurance.coversSpouse=this.checked?true:undefined;drawRep()">'
+          +'<span>אם הלקוח נשוי — ייצוג בביטוח לאומי גם לבן/בת הזוג'
+          +'<div style="font-size:11.5px;color:var(--tx3);margin-top:2px">ייפוי כוח נפרד לכל אחד. יחול רק אם הלקוח יצהיר שהוא נשוי.</div></span></label></div>');
+      }
+    }
+    if(S.client.transfer){
+      A.push('<div class="callout">הלקוח עובר מרו״ח אחר, ולכן הרשויות שנושאות רמת ייצוג נפתחות כ<b>מייצג משני</b>: '
+        +'הרו״ח הקודם עדיין תופס את מקום המייצג הראשי עד שישחרר אותו. אחרי מכתב השחרור אפשר לעלות לראשי.</div>');
+    }
+    A.push('<div class="callout"><b>פרטי בן/בת הזוג לא נשאלים כאן.</b> אחרי האישור הלקוח מגיע לטופס שבו הוא מצהיר '
+      +'על מצב משפחתי, וממלא בעצמו שם, ת״ז ושנת לידה של בן/בת הזוג — ארבעת השדות שייפוי הכוח בב״ל דורש. '
+      +'המידע נשמר בכרטיס הלקוח, וכתובת המייל של בן/בת הזוג נאספת בשלב החתימה.</div>');
+    A.push('<div class="sect">מה ייווצר עם האישור</div>');
+    A.push('<div class="after"><ul style="margin:4px 0;padding-inline-start:18px">'
+      +'<li>כרטיס הלקוח והדף האישי — נפתחו כבר עם שליחת ההצעה</li>'
+      +'<li>בקשת ייצוג ל'+AUTHORITIES.filter(a=>S.rep.areas[a.key]).map(a=>a.label).join(' · ')+'</li>'
+      +'<li>קישור חתימה ללקוח, ולבן/בת הזוג אם יצהיר שהוא נשוי</li>'
+      +'<li>הסכם ההתקשרות החתום נשמר במסמכי הלקוח</li>'
+      +(S.client.transfer?'<li>מכתב שחרור לרו״ח הקודם</li>':'')
+      +'</ul></div>');
+  }
+  A.push('</div><div class="pfoot"><span class="fn">'+repSummary()+'</span>'
+    +'<button class="btn primary sm" onclick="closePanel()">סיום</button></div>');
+  openPanel(A.join(''));
+}
+function toggleAuth(key){
+  if(S.rep.areas[key]) delete S.rep.areas[key];
+  else{
+    const a=AUTHORITIES.find(x=>x.key===key);
+    S.rep.areas[key] = a.level ? {level:S.client.transfer?'secondary':'primary'} : {coversSpouse:true};
+  }
+  drawRep();
+}
+
+/* ── סקירה ושליחה — כאן, ולא לפני, מופיעים מע״מ מפורט, הודעה אישית ותוקף ── */
+function openReview(){ PANEL='review'; drawReview(); }
+function drawReview(){
+  const c = calc();
+  const A=[];
+  A.push('<div class="phead"><h3>סקירה לפני שליחה</h3><div class="s">זה בדיוק מה שישראל יראה. אין מסמך שני.</div></div><div class="pbody">');
+
+  A.push('<div class="rv"><div class="rvh">הצעה מס׳ '+S.quotationNumber+' · '+S.client.business+'</div>');
+  A.push('<div class="greet">ישראל, זו ההצעה שהכנתי עבורך.</div>');
+
+  A.push('<div class="rsect">מה תקבל במסגרת הליווי</div>');
+  for(const x of c.retainerLines){
+    A.push('<div class="ritem"><span>'+x.c.name+(x.c.nature==='annual'?' <span style="color:var(--tx3);font-size:12px">('+ils(x.l.price)+' לשנה)</span>':'')
+      +'</span><span class="rp num">'+ils(x.perMonth)+' לחודש</span></div>');
+  }
+  for(const s of c.separate)
+    A.push('<div class="ritem"><span>'+s.c.name+'</span><span class="rp num">'+ils(s.amount)+(s.kind==='annual'?' לשנה':'')+'</span></div>');
+  for(const o of S.oneTimes)
+    A.push('<div class="ritem"><span>'+o.name+' <span style="color:var(--tx3);font-size:12px">('+whenLabel(o).replace('ייגבה ','')+')</span></span>'
+      +'<span class="rp num">'+ils(o.amount)+'</span></div>');
+
+  if(S.included.length){
+    A.push('<div class="rsect">כלול בליווי — ללא תוספת תשלום</div><div class="pills">');
+    for(const id of S.included){ const cc=byId(id);
+      A.push('<span class="pill">'+cc.name+(cc.price>0?' <s style="color:var(--err)">'+ils(cc.price)+'</s>':'')+'</span>'); }
+    A.push('</div>');
+  }
+
+  A.push('<div class="rsect">סיכום התמחור</div>');
+  A.push('<div class="sumbox"><div class="cap">שכר חודשי</div>');
+  if(c.discount>=1){
+    A.push('<div class="sl"><span>מחיר רגיל</span><span class="num"><s>'+ils(c.anchor)+'</s></span></div>');
+    A.push('<div class="sl" style="color:var(--ok)"><span>הנחה</span><span class="num">−'+ils(c.discount)+'</span></div>');
+    A.push('<div class="sl"><span>מחיר שסוכם</span><span class="num">'+ils(c.retainer)+'</span></div>');
+  }else{
+    A.push('<div class="sl"><span>לפני מע״מ</span><span class="num">'+ils(c.retainer)+'</span></div>');
+  }
+  A.push('<div class="sl"><span>מע״מ '+VAT+'%</span><span class="num">'+ils(c.retainerVat)+'</span></div>');
+  A.push('<div class="st"><span class="k">לתשלום חודשי כולל מע״מ</span><span class="v num">'+ils(c.retainerWithVat)+'</span></div>');
+  A.push('<div class="sl" style="margin-top:8px;color:var(--tx3);font-size:12px"><span>'
+    +c.inst+' תשלומים · '+rangeLabel(S.startMonth,c.endMonth)+' · התשלום הראשון מיד, הבאים ב־1 בחודש</span><span></span></div>');
+  if(c.inst!==12) A.push('<div class="sl" style="color:var(--tx3);font-size:12px"><span>מ'+monthLabel(c.nextMonth)
+    +': '+ils(c.retainerWithVat)+' לחודש, 12 תשלומים בשנה</span><span></span></div>');
+  A.push('</div>');
+
+  if(c.annualTotal>0){
+    A.push('<div class="sumbox"><div class="cap">חיוב שנתי</div>'
+      +'<div class="sl"><span>לפני מע״מ</span><span class="num">'+ils(c.annualTotal)+'</span></div>'
+      +'<div class="sl"><span>מע״מ</span><span class="num">'+ils(c.vat(c.annualTotal))+'</span></div>'
+      +'<div class="st"><span class="k">לשנה כולל מע״מ</span><span class="v num">'+ils(c.annualTotal*1.18)+'</span></div></div>');
+  }
+  if(c.oneTimeTotal>0){
+    A.push('<div class="sumbox"><div class="cap">חד־פעמי</div>'
+      +'<div class="sl"><span>לפני מע״מ</span><span class="num">'+ils(c.oneTimeTotal)+'</span></div>'
+      +'<div class="sl"><span>מע״מ</span><span class="num">'+ils(c.vat(c.oneTimeTotal))+'</span></div>'
+      +'<div class="st"><span class="k">סה״כ כולל מע״מ</span><span class="v num">'+ils(c.oneTimeTotal*1.18)+'</span></div></div>');
+  }
+  if(c.completionCharge>=1){
+    A.push('<div class="sumbox amber"><div class="cap">⏳ לא נגבה עכשיו · ייגבה '+S.completion.trigger+'</div>');
+    for(const b of c.balances){
+      A.push('<div class="sl"><span>ערך '+b.name+'</span><span class="num">'+ils(b.value)+'</span></div>');
+      A.push('<div class="sl"><span>כלול בשכר החודשי</span><span class="num">'+ils(b.collected)+'</span></div>');
+    }
+    A.push('<div class="sl"><span>יתרה</span><span class="num">'+ils(c.rawBalance)+'</span></div>');
+    if(c.completionCharge<c.rawBalance)
+      A.push('<div class="sl" style="color:var(--ok)"><span>הנחה על היתרה</span><span class="num">−'+ils(c.rawBalance-c.completionCharge)+'</span></div>');
+    A.push('<div class="sl"><span>מע״מ</span><span class="num">'+ils(c.vat(c.completionCharge))+'</span></div>');
+    A.push('<div class="st"><span class="k">ייגבה '+S.completion.trigger+'</span><span class="v num">'+ils(c.completionCharge*1.18)+'</span></div>');
+    A.push('<div class="sl" style="color:var(--tx3);font-size:11.5px"><span>אינו חלק מהתשלום החודשי</span><span></span></div></div>');
+  }
+
+  const futList = [...S.future].filter(id=>!pricedCatIds().has(id));
+  if(futList.length){
+    A.push('<div class="rsect">מחירון שירותים נוספים · '+futList.length+' שירותים</div>');
+    A.push('<div class="note" style="margin:0 0 6px">אינם כלולים בהצעה. תחויב רק אם תבקש אותם.</div><div class="pills">');
+    for(const id of futList){ const cc=byId(id); A.push('<span class="pill">'+cc.name+' · '+ils(cc.price)+'</span>'); }
+    A.push('</div>');
+  }
+
+  A.push('<div class="rsect">מה קורה אחרי האישור</div><div class="after"><ul style="margin:4px 0;padding-inline-start:18px">');
+  A.push('<li>חותם על ההצעה — והיא הופכת להסכם ההתקשרות</li>');
+  if(S.rep.enabled) A.push('<li>ממלא פרטים ומצב משפחתי, וחותם על ייפוי הכוח לרשויות</li>');
+  A.push('<li>אנחנו מתחילים לעבוד — התשלום הראשון נגבה מיד</li></ul></div>');
+  A.push('</div>');   /* .rv */
+
+  A.push('<label class="fld"><span>הודעה אישית ללקוח (אופציונלי) — נכנסת למייל ולראש ההצעה</span>'
+    +'<textarea id="rvMsg" placeholder="למשל: אחרי שדיברנו הבנתי שהדבר הדחוף אצלך הוא לסגור את השנים הפתוחות — התחלתי מזה.">'+S.message+'</textarea></label>');
+  A.push('<div class="note">המייל עצמו לא מציג מחירים — הם מחכים בעמוד ההצעה. תוקף: 3 ימי עסקים, '
+    +'ותזכורת אוטומטית יום עסקים לפני הפקיעה.</div>');
+
+  A.push('</div><div class="pfoot"><span class="fn">'+ils(c.retainerWithVat)+' לחודש כולל מע״מ · '
+    +(S.rep.enabled?'האישור יפתח ייצוג':'ללא ייצוג')+'</span>'
+    +'<span style="display:flex;gap:9px"><button class="btn sm" onclick="closePanel()">חזרה לעריכה</button>'
+    +'<button class="btn primary sm" onclick="sendIt()">שליחה ללקוח</button></span></div>');
+  openPanel(A.join(''), true);
+}
+function sendIt(){
+  const t=document.getElementById('rvMsg'); if(t) S.message=t.value;
+  S.sent=true; closePanel(); toast('ההצעה נשלחה · כרטיס הלקוח והדף האישי נפתחו');
+}
+
+/* ─── הדגמה ──────────────────────────────────────────────────────────────── */
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2300); }
+function demoDefault(){ S=fresh(); render(); window.scrollTo(0,0); }
+function demoDiscount(){ S=fresh(); S.agreedMonthly=350; render(); toast('מחיר שסוכם ₪350 — ההנחה מוצגת מעצמה'); }
+function demoJan(){ S=fresh(); S.startMonth='2027-01'; render(); toast('12 תשלומים — סעיף היתרה נעלם לבד'); }
+function demoComplex(){
+  S=fresh();
+  S.startMonth='2026-10';
+  S.agreedMonthly=380;
+  S.lines.push({key:uid('l'),catId:'annual_py',price:1800,inRetainer:false});
+  S.lines.push({key:uid('l'),catId:'payroll',price:80,inRetainer:true});
+  S.oneTimes.push({id:uid('o'),name:'מעבר מעוסק פטור למורשה',amount:350,when:'immediate',customWhen:'',catId:'to_licensed'});
+  S.oneTimes.push({id:uid('o'),name:'אישור רו״ח מיוחד',amount:500,when:'on_service',customWhen:'',catId:'cert'});
+  S.future.delete('to_licensed'); S.future.delete('cert');
+  S.completion={mode:'reduce',amount:900,trigger:'עם הגשת הדוח השנתי'};
+  S.rep.areas.withholding={level:'primary'};
+  render(); toast('הצעה מורכבת — שנה פתוחה, שכר, שני חד־פעמיים והנחה');
+}
+function setTransfer(on){
+  S.client.transfer=on;
+  if(on) AUTHORITIES.filter(a=>a.level).forEach(a=>{ if(S.rep.areas[a.key]) S.rep.areas[a.key].level='secondary'; });
+  render();
+  if(PANEL==='rep') drawRep();
+  toast(on?'עובר מרו״ח אחר — הייצוג נפתח כמייצג משני':'לקוח חדש — ייצוג ראשי');
+}
+
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(POP) closePop(); else if(PANEL) closePanel(); } });
+/* פופאובר נסגר רק כשהפריסה עוברת בין שולחני למובייל (אז המיקום שלו כבר לא
+   תקף). שינוי גודל חלון סתם לא אמור לבטל עריכה שהתחילה. */
+let LAST_MODE = window.innerWidth>680;
+window.addEventListener('resize', ()=>{
+  const mode = window.innerWidth>680;
+  if(mode!==LAST_MODE){ LAST_MODE=mode; if(POP) closePop(); }
+});
+
+/* מצב פתיחה לפי כתובת — כדי שאפשר יהיה לשתף מצב מסוים ולצלם אותו.
+   #discount · #jan · #complex · #services · #rep · #future · #review · #price · #start · #sent */
+function bootState(){
+  demoDefault();
+  const h=(location.hash||'').replace('#','');
+  if(h==='discount') demoDiscount();
+  else if(h==='jan') demoJan();
+  else if(h==='complex') demoComplex();
+  else if(h==='sent'){ S.sent=true; render(); }
+  if(h==='services') openServices();
+  if(h==='rep') openRep();
+  if(h==='future') openFuture();
+  if(h==='review') openReview();
+  if(h==='complex-review'){ demoComplex(); openReview(); }
+  if(h==='price') document.querySelector('.hero .amount').click();
+  if(h==='start') document.querySelector('.hero .under .ed').click();
+  if(h==='balance') document.querySelector('.conseq .link')?.click();
+  if(h==='onetime'){ demoComplex(); }
+}
+window.addEventListener('hashchange', bootState);
+/* מדף ההדגמה פתוח בשולחני, מקופל במובייל — שם הוא מכסה את "סיום"/"עדכון". */
+if(window.innerWidth>680) document.getElementById('demo').classList.add('open');
+bootState();
+</script>
+</body>
+</html>

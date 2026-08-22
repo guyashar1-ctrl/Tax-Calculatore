@@ -355,8 +355,12 @@ export default function OnboardingTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, loading, steps]);
 
+  // ‼ מ-118 יש ללקוח יותר מהתקשרות אחת (חידוש שאושר, הסכמים שהסתיימו).
+  // הקליטה רצה רק על ההתקשרות החיה — הסכם שהסתיים או שטרם נכנס לתוקף אינו
+  // מביא איתו קליטה חדשה.
   const clientEngagements = useMemo(
-    () => engagements.filter(e => e.clientId === clientId),
+    () => engagements.filter(e => e.clientId === clientId
+      && e.status !== 'ended' && e.status !== 'cancelled' && e.status !== 'scheduled'),
     [engagements, clientId]);
   /**
    * שכבה אופטימית של הקומפוזר: בקשה שנשמרה מופיעה מיד, בלי לחכות לרענון

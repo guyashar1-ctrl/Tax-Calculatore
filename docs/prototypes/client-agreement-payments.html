@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>הסכם ותשלומים — V1</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   "כמה הוא משלם לי · מה עוד לגבות · מה לעשות עכשיו"
+
+   אותה שפה של docs/prototypes/quotation-builder-exception-based.html:
+   מסמך ולא לוח מחוונים, מספר אחד גדול, מעט מסגרות, פעולות משניות באפור,
+   ופרטים רק כשמבקשים אותם. עשר שורות "כלול בריטיינר" יורדות מברירת המחדל
+   ועוברות ל«פרטי ההתקשרות».
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --page:#f8f7f5; --card:#fff; --s1:#f5f4f2; --s2:#f3f2f0; --s4:#fafaf9;
+  --tx:#25282d; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b; --quiet:#c3c7cc;
+  --bd:#e2e4e7; --hair:#eeedeb;
+  --br:#3f5f8f; --br-strong:#34507a; --soft:#e8eef5; --soft-bd:#c6d4e6;
+  --ok:#24654e; --ok-bg:#eaf4ef;
+  --warn:#8a5b0f; --note-bg:#fbf9f2;
+  --err:#a63a3a; --err-bg:#fbeded;
+  --r:10px; --r-lg:13px;
+  --sh-pop:0 18px 40px -18px rgba(28,30,34,.30),0 4px 12px -6px rgba(28,30,34,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--page);color:var(--tx);
+  font-family:Heebo,"Segoe UI",Arial,"Noto Sans Hebrew",sans-serif;
+  font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+b,strong{font-weight:600}
+.num{font-variant-numeric:tabular-nums}
+.hidden{display:none!important}
+
+/* ── מסגרת כרטיס הלקוח ── */
+.chead{background:var(--card);border-bottom:1px solid var(--hair);padding:14px 26px 0}
+.chead .in{max-width:760px;margin:0 auto}
+.chead .crumb{font-size:12px;color:var(--tx3)}
+.chead h1{margin:3px 0 0;font-size:19px;font-weight:600}
+.chead .meta{font-size:12.5px;color:var(--tx3);margin-top:2px}
+.tabs{display:flex;gap:20px;margin-top:12px;overflow-x:auto}
+.tabs button{border:0;background:none;padding:0 1px 10px;color:var(--tx3);white-space:nowrap;border-bottom:2px solid transparent}
+.tabs button.on{color:var(--tx);font-weight:600;border-bottom-color:var(--br)}
+
+.doc{max-width:760px;margin:0 auto;padding:34px 26px 175px}
+.lbl{font-size:11.5px;font-weight:600;color:var(--tx3);letter-spacing:.04em;margin-bottom:4px}
+
+/* ── הגיבור — כמה הוא משלם ── */
+.hero .amount{font-size:clamp(34px,8vw,50px);font-weight:600;letter-spacing:-.025em;line-height:1.05;display:inline-flex;align-items:baseline;gap:10px}
+.hero .amount .vat{font-size:clamp(13px,3vw,16px);font-weight:400;color:var(--tx3);letter-spacing:0}
+.hero .what{margin-top:10px;font-size:13.5px;color:var(--txc)}
+.hero .when{margin-top:3px;font-size:12.5px;color:var(--tx3)}
+.hero .acts{margin-top:13px;display:flex;gap:16px;flex-wrap:wrap}
+
+.rule{height:1px;background:var(--hair);border:0;margin:28px 0}
+.link{border:0;background:none;padding:0;color:var(--br);font-size:12.5px}
+.link:hover{text-decoration:underline}
+.link.mute{color:var(--tx3)}
+.link.mute:hover{color:var(--br)}
+
+/* ── מה עוד לגבות ── */
+.chg{display:flex;align-items:baseline;gap:14px;padding:13px 0;border-top:1px solid var(--hair)}
+.chg:first-of-type{border-top:0}
+.chg .amt{font-size:17px;font-weight:600;min-width:74px;flex:none}
+.chg .nm{flex:1;min-width:0}
+.chg .nm .t{font-size:13.5px}
+.chg .nm .m{font-size:12px;color:var(--tx3);margin-top:1px}
+/* מספר הצעה לא נשבר באמצע — "#2026-" בשורה אחת ו"0043" בשורה הבאה נקרא כשגיאה. */
+.nb{white-space:nowrap}
+.chg .act{flex:none}
+.chg.due .amt{color:var(--warn)}
+.pill{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:5px;background:var(--s2);color:var(--tx2);margin-inline-start:6px}
+.pill.warn{background:var(--note-bg);color:var(--warn)}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+
+/* ── שינוי ממתין ── */
+.pending{background:var(--note-bg);border-radius:var(--r-lg);padding:14px 16px;margin-top:16px}
+.pending .h{font-size:14.5px;font-weight:500}
+.pending .b{font-size:12.5px;color:var(--tx2);margin-top:3px}
+.pending .a{margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+
+/* ── שורות שקטות ── */
+.quiet{display:flex;align-items:baseline;gap:10px;padding:10px 0;font-size:13px;border-top:1px solid var(--hair)}
+.quiet:first-of-type{border-top:0}
+.quiet .k{color:var(--tx3);flex:none}
+.quiet .v{flex:1;min-width:0;color:var(--txc)}
+.addrow{margin-top:18px}
+.hint{margin-top:30px;font-size:11.5px;color:var(--tx3);opacity:.85}
+.empty{font-size:13.5px;color:var(--tx2);padding:6px 0}
+
+/* ── פופאובר / לוח (זהים לאב־טיפוס ההצעה) ── */
+#scrim{position:fixed;inset:0;z-index:50;display:none}
+#scrim.on{display:block}
+.pop{position:absolute;z-index:60;width:min(340px,calc(100vw - 28px));background:var(--card);
+  border:1px solid var(--bd);border-radius:var(--r-lg);box-shadow:var(--sh-pop);padding:15px 16px}
+.pop h4{margin:0 0 3px;font-size:14px;font-weight:600}
+.pop .ph{font-size:12px;color:var(--tx3);line-height:1.55;margin-bottom:11px}
+.choice{display:block;width:100%;text-align:start;border:1px solid var(--bd);background:var(--card);
+  border-radius:10px;padding:11px 13px;margin-top:8px}
+.choice:hover{background:var(--s2)}
+.choice b{display:block;font-size:13.5px;font-weight:600}
+.choice span{display:block;font-size:12px;color:var(--tx3);margin-top:2px;line-height:1.5}
+
+#panelScrim{position:fixed;inset:0;background:rgba(28,30,34,.24);z-index:70;display:none;
+  align-items:flex-start;justify-content:center;padding:34px 18px;overflow:auto}
+#panelScrim.on{display:flex}
+.panel{width:min(660px,100%);background:var(--card);border-radius:16px;box-shadow:var(--sh-pop);overflow:hidden}
+.phead{padding:17px 22px 14px;border-bottom:1px solid var(--hair)}
+.phead h3{margin:0;font-size:17px;font-weight:600}
+.phead .s{font-size:12.5px;color:var(--tx3);margin-top:3px;line-height:1.55}
+.pbody{padding:6px 22px 20px;max-height:min(72vh,700px);overflow:auto}
+.pfoot{padding:13px 22px;border-top:1px solid var(--hair);display:flex;justify-content:space-between;
+  align-items:center;gap:12px;background:var(--s4);flex-wrap:wrap}
+.pfoot .fn{font-size:11.5px;color:var(--tx3);flex:1;min-width:140px;line-height:1.5}
+.btn{border:1px solid var(--bd);background:var(--card);border-radius:9px;padding:8px 15px;font-size:13px;color:var(--txc)}
+.btn:hover{background:var(--s2)}
+.btn.primary{background:var(--br);border-color:var(--br);color:#fff;font-weight:500}
+.btn.primary:hover{background:var(--br-strong)}
+.btn.sm{padding:5px 11px;font-size:12px}
+/* פעולת "סמן כשולם" נוכחת אך לא מתחרה עם הסכומים — מסגרת רק במעבר עכבר. */
+.btn.ghost{border-color:transparent;background:none;color:var(--tx3)}
+.btn.ghost:hover{border-color:var(--bd);background:var(--card);color:var(--txc)}
+
+.sect{font-size:11.5px;font-weight:600;color:var(--tx3);letter-spacing:.04em;margin:20px 0 2px}
+.drow{display:flex;align-items:baseline;gap:12px;padding:9px 0;border-top:1px solid var(--hair);font-size:13.5px}
+.drow:first-of-type{border-top:0}
+.drow .dn{flex:1;min-width:0}
+.drow .dn .m{font-size:11.5px;color:var(--tx3);margin-top:1px}
+.drow .dp{white-space:nowrap;color:var(--txc)}
+.drow .dp.free{color:var(--tx3);font-size:12.5px}
+.callout{background:var(--s1);border-radius:var(--r);padding:12px 14px;font-size:12.5px;color:var(--txc);line-height:1.65;margin-top:16px}
+.callout b{color:var(--tx)}
+.tl{border-inline-start:2px solid var(--hair);padding-inline-start:14px;margin-top:8px}
+.tl .ev{padding:7px 0;font-size:13px}
+.tl .ev .d{font-size:11.5px;color:var(--tx3)}
+
+/* מדף הדגמה */
+#demo{position:fixed;bottom:0;inset-inline-start:0;z-index:90;background:rgba(37,40,45,.94);color:#e8e8ea;
+  padding:7px 11px;border-start-end-radius:12px;font-size:11.5px;display:flex;gap:7px;align-items:center;
+  flex-wrap:wrap;max-width:calc(100vw - 20px)}
+#demoBody{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+#demoToggle{background:none!important;padding:2px 4px!important;color:#fff;font-weight:600;border:0}
+#demo:not(.open) #demoBody{display:none}
+#demo button{background:rgba(255,255,255,.11);border:0;color:#e8e8ea;border-radius:7px;padding:4px 9px;font-size:11.5px}
+#demo button:hover{background:rgba(255,255,255,.22)}
+#toast{position:fixed;bottom:22px;inset-inline-end:22px;z-index:95;background:var(--tx);color:#fff;border-radius:10px;
+  padding:10px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .22s,transform .22s;transform:translateY(6px)}
+#toast.on{opacity:1;transform:none}
+
+@media (max-width:680px){
+  .chead{padding:11px 14px 0}
+  .doc{padding:22px 16px 150px}
+  .rule{margin:22px 0}
+  .chg{flex-wrap:wrap}
+  .chg .act{width:100%}
+  .pop{position:fixed!important;inset-inline:0!important;bottom:0!important;top:auto!important;width:100%!important;
+       max-height:82vh;overflow:auto;border-radius:16px 16px 0 0;padding:18px 18px 22px;border:0}
+  #panelScrim{padding:0;align-items:flex-end}
+  .panel{width:100%;border-radius:16px 16px 0 0;max-height:94vh;display:flex;flex-direction:column}
+  .pbody{max-height:none;flex:1}
+}
+</style>
+</head>
+<body>
+
+<div class="chead"><div class="in">
+  <div class="crumb">לקוחות ›</div>
+  <h1 id="cName">ישראל ישראלי</h1>
+  <div class="meta" id="cMeta">עוסק מורשה · ישראל ישראלי הובלות</div>
+  <div class="tabs">
+    <button onclick="toast('לשונית התהליך — מחוץ לאב־טיפוס')">תהליך</button>
+    <button onclick="toast('תיק מס — מחוץ לאב־טיפוס')">תיק מס</button>
+    <button onclick="toast('מסמכים — מחוץ לאב־טיפוס')">מסמכים</button>
+    <button class="on">הסכם ותשלומים</button>
+    <button onclick="toast('פעילות — מחוץ לאב־טיפוס')">פעילות</button>
+  </div>
+</div></div>
+
+<main id="app"></main>
+
+<div id="scrim" onclick="closePop()"></div>
+<div id="panelScrim" onclick="if(event.target===this)closePanel()"></div>
+<div id="toast"></div>
+
+<div id="demo">
+  <button id="demoToggle" onclick="document.getElementById('demo').classList.toggle('open')">⚙ הדגמה</button>
+  <span id="demoBody">
+    <button onclick="setState('default')">ברירת מחדל</button>
+    <button onclick="setState('clean')">בלי חיובים עתידיים</button>
+    <button onclick="setState('pending')">שינוי ממתין לאישור</button>
+    <button onclick="setState('renewed')">אחרי חידוש</button>
+    <button onclick="setState('none')">בלי התקשרות</button>
+  </span>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   נתונים — נאמנים למודל האמיתי:
+   engagements(monthly_total, billing_start_month, status, quotation_id)
+   additional_charges(description, amount, due_date, status, source_*)
+   quotations(items[] בתוך snapshot קפוא)
+   ═══════════════════════════════════════════════════════════════════════════ */
+const VAT = 18;
+const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const ils = n => '₪' + Math.round(n).toLocaleString('he-IL');
+const monthLabel = ym => { const [y,m]=ym.split('-').map(Number); return MONTHS[m-1]+' '+y; };
+const fmtDate = d => { const [y,m,dd]=d.split('-'); return dd+'/'+m+'/'+y; };
+
+/* פריטי ההצעה שמאחורי ההתקשרות — כולל שורות "כלול", שיושבות בפרטים בלבד */
+const ITEMS = [
+  {name:'הנהלת חשבונות', kind:'monthly', month:250, list:250},
+  {name:'דוח שנתי 2026', kind:'annual',  month:150, list:150, annual:1800, note:'₪1,800 לשנה · נגבה בשכר החודשי'},
+  {name:'תוכנת הנהלת חשבונות', kind:'included', worth:30},
+  {name:'תכנון מס רבעוני', kind:'included'},
+  {name:'ליווי עסקי שוטף', kind:'included'},
+  {name:'המלצה פנסיונית', kind:'included'},
+  {name:'ייעוץ שוטף בטלפון', kind:'included'},
+  {name:'טיפול בקנסות ובדרישות', kind:'included'},
+];
+
+const BASE = {
+  client:{name:'ישראל ישראלי', business:'ישראל ישראלי הובלות', kind:'עוסק מורשה'},
+  eng:{
+    monthly:365, listMonthly:400, start:'2026-08', status:'active',
+    quotationNumber:'2026-0043', approvedAt:'2026-08-04', items:ITEMS,
+  },
+  charges:[
+    {id:'c1', desc:'השלמה לדוח שנתי 2026', amount:1050, when:'עם הגשת הדוח השנתי',
+     source:'הצעה #2026-0043', kind:'deferred', status:'pending'},
+    {id:'c2', desc:'מעבר מעוסק פטור למורשה', amount:350, due:'2026-09-15',
+     source:'הצעה #2026-0043', kind:'one_time', status:'requested'},
+  ],
+  history:[
+    {id:'h1', desc:'פתיחת תיקים ברשויות', amount:300, paidAt:'2026-08-06', source:'הצעה #2026-0043'},
+    {id:'h2', desc:'אישור רו״ח מיוחד', amount:200, paidAt:'2026-09-02', source:'הזנה ידנית'},
+  ],
+  pendingChange:null,
+  previous:[],
+};
+
+let S, POP=null, PANEL=null;
+const clone = o => JSON.parse(JSON.stringify(o));
+
+function setState(name){
+  S = clone(BASE); S.stateName = name;
+  if(name==='clean'){ S.charges=[]; }
+  if(name==='pending'){
+    S.charges = S.charges.filter(c=>c.kind==='deferred');
+    S.pendingChange = {quotationNumber:'2026-0051', monthly:410, from:'2027-01', sentAt:'2026-11-18', viewed:true};
+  }
+  if(name==='renewed'){
+    S.charges = [];
+    S.eng = {...S.eng, monthly:410, listMonthly:410, start:'2027-01', quotationNumber:'2026-0051', approvedAt:'2026-11-24',
+             items:ITEMS.map(i=> i.kind==='monthly' ? {...i, month:280, list:280} : i)};
+    S.previous = [{quotationNumber:'2026-0043', monthly:365, from:'2026-08', to:'2026-12'}];
+    S.history = [...S.history, {id:'h3', desc:'השלמה לדוח שנתי 2026', amount:1050, paidAt:'2027-04-11', source:'הצעה #2026-0043'}];
+  }
+  if(name==='none'){ S.eng=null; S.charges=[]; S.history=[]; }
+  render(); window.scrollTo(0,0);
+}
+
+/* ─── ציור ─────────────────────────────────────────────────────────────────── */
+function render(){
+  const A=[];
+  const e = S.eng;
+
+  if(!e){
+    A.push('<div class="lbl">התקשרות</div>');
+    A.push('<div class="empty">אין עדיין הסכם פעיל ללקוח הזה.</div>');
+    A.push('<div class="addrow"><button class="link" onclick="popNewQuote(this)">+ הצעת מחיר חדשה</button></div>');
+    document.getElementById('app').innerHTML='<div class="doc">'+A.join('')+'</div>';
+    return;
+  }
+
+  /* ① כמה הוא משלם לי היום */
+  A.push('<div class="lbl">התקשרות נוכחית</div>');
+  A.push('<div class="hero">');
+  A.push('<div class="amount"><span class="num">'+ils(e.monthly)+'</span><span class="vat">לחודש + מע״מ</span></div>');
+  const monthly = e.items.filter(i=>i.kind!=='included');
+  const inc = e.items.filter(i=>i.kind==='included').length;
+  A.push('<div class="what">'+monthly.map(i=>i.name).join(' · ')
+    +(inc?' <span style="color:var(--tx3)">· ועוד '+inc+' שירותים ללא תוספת</span>':'')+'</div>');
+  A.push('<div class="when">מ'+monthLabel(e.start)+' · לפי הצעה #'+e.quotationNumber+'</div>');
+  A.push('<div class="acts"><button class="link mute" onclick="openDetail()">פרטי ההתקשרות</button>'
+    + (S.previous.length ? '<button class="link mute" onclick="openHistoryAgreements()">התקשרויות קודמות</button>' : '')
+    +'</div>');
+  A.push('</div>');
+
+  /* ② שינוי מסחרי שממתין ללקוח — התשובה ל"אני צריך לעשות משהו?" */
+  if(S.pendingChange){
+    const p=S.pendingChange;
+    A.push('<div class="pending"><div class="h">הצעה #'+p.quotationNumber+' ממתינה לאישור הלקוח</div>'
+      +'<div class="b">'+ils(p.monthly)+' לחודש מ'+monthLabel(p.from)+' · נשלחה '+fmtDate(p.sentAt)
+      +(p.viewed?' · נצפתה':'')+'. ההתקשרות הנוכחית ממשיכה עד שהיא תאושר.</div>'
+      +'<div class="a"><button class="link" onclick="toast(\'תזכורת נשלחה ללקוח\')">שליחת תזכורת</button>'
+      +'<button class="link mute" onclick="toast(\'מעבר לצפייה בהצעה\')">צפייה בהצעה</button></div></div>');
+  }
+
+  /* ③ מה עוד לגבות — קיים רק כשיש מה */
+  if(S.charges.length){
+    A.push('<hr class="rule">');
+    A.push('<div class="lbl">מה עוד לגבות</div>');
+    const today='2026-09-20';
+    for(const c of S.charges){
+      const due = c.due && c.due<=today;
+      A.push('<div class="chg'+(due?' due':'')+'">'
+        +'<div class="amt num">'+ils(c.amount)+'</div>'
+        +'<div class="nm"><div class="t">'+c.desc
+        +(c.status==='requested'?'<span class="pill">נשלחה דרישה</span>':'')+'</div>'
+        +'<div class="m">'+(c.when ? c.when : (due?'הגיע מועד התשלום · '+fmtDate(c.due):'לתשלום '+fmtDate(c.due)))
+        +' · <span class="nb">'+c.source+'</span></div></div>'
+        +'<div class="act"><button class="btn sm ghost" onclick="markPaid(\''+c.id+'\')">סמן כשולם</button></div></div>');
+    }
+  }
+
+  /* ④ הפעולה המסחרית האחת */
+  A.push('<hr class="rule">');
+  A.push('<div><button class="link" onclick="popNewQuote(this)">+ הצעת מחיר חדשה</button></div>');
+
+  /* ⑤ היסטוריה — נוכחת, לא מתחרה */
+  A.push('<div style="margin-top:22px">');
+  A.push('<div class="quiet"><span class="k">היסטוריית תשלומים</span>'
+    +'<span class="v">'+(S.history.length ? S.history.length+' תשלומים · '+ils(S.history.reduce((s,h)=>s+h.amount,0))+' סה״כ' : 'אין עדיין')+'</span>'
+    +(S.history.length?'<button class="link mute" onclick="openPayHistory()">הצגה</button>':'')+'</div>');
+  A.push('</div>');
+
+  A.push('<div class="hint">שכר חודשי ותשלומים חד־פעמיים מוצגים בנפרד — הם לא מתאחדים לסכום אחד.</div>');
+  document.getElementById('app').innerHTML='<div class="doc">'+A.join('')+'</div>';
+}
+
+function markPaid(id){
+  const c=S.charges.find(x=>x.id===id); if(!c) return;
+  S.charges=S.charges.filter(x=>x.id!==id);
+  S.history.unshift({id:'p'+id, desc:c.desc, amount:c.amount, paidAt:'2026-09-20', source:c.source});
+  render(); toast(c.desc+' סומן כשולם');
+}
+
+/* ─── פופאובר ─────────────────────────────────────────────────────────────── */
+function openPop(anchor, html){
+  closePop();
+  const p=document.createElement('div'); p.className='pop'; p.id='pop'; p.innerHTML=html;
+  p.onclick=e=>e.stopPropagation();
+  document.body.appendChild(p);
+  document.getElementById('scrim').classList.add('on');
+  POP={el:p,anchor};
+  if(window.innerWidth>680){
+    const r=anchor.getBoundingClientRect(), w=p.offsetWidth, h=p.offsetHeight;
+    let left=Math.max(12,Math.min(r.right-w, window.innerWidth-w-12));
+    let top=r.bottom+window.scrollY+8;
+    if(r.bottom+h+20>window.innerHeight) top=r.top+window.scrollY-h-8;
+    p.style.left=left+'px'; p.style.top=Math.max(12,top)+'px';
+  }
+}
+function closePop(){ if(POP){POP.el.remove();POP=null;} document.getElementById('scrim').classList.remove('on'); }
+
+/* ─── הפעולה המסחרית: שתי כוונות שונות ────────────────────────────────────── */
+function popNewQuote(a){
+  const e=S.eng;
+  openPop(a, '<h4>הצעת מחיר חדשה</h4>'
+    +'<div class="ph">מה מטרת ההצעה? הבחירה קובעת ממה הבונה מתחיל.</div>'
+    +'<button class="choice" onclick="handoff(\'one_time\')"><b>שירות חד־פעמי</b>'
+    +'<span>אישור מיוחד, הצהרת הון, עבודה חריגה. השכר החודשי לא משתנה.</span></button>'
+    +(e?'<button class="choice" onclick="handoff(\'renew\')"><b>עדכון ההתקשרות / שנה הבאה</b>'
+    +'<span>מתחיל מההתקשרות הנוכחית ('+ils(e.monthly)+' לחודש) ומעדכן רק מה שהשתנה.</span></button>':'')
+    +'<div class="ph" style="margin:11px 0 0">שתיהן נפתחות באותו בונה הצעות ונשלחות ללקוח לאישור.</div>');
+}
+
+/* מסך המסירה — מסביר מה יטען מראש, ומעביר לאב־טיפוס ההצעה */
+function handoff(kind){
+  closePop();
+  const e=S.eng;
+  const one = kind==='one_time';
+  const A=[];
+  A.push('<div class="phead"><h3>'+(one?'הצעה לשירות חד־פעמי':'עדכון ההתקשרות')+'</h3>'
+    +'<div class="s">'+(one
+      ? 'הצעה נפרדת שאינה נוגעת בשכר החודשי. אחרי אישור הלקוח היא הופכת לחיוב חד־פעמי ברשימת «מה עוד לגבות».'
+      : 'ההתקשרות הנוכחית היא נקודת הפתיחה. עורכים רק את מה שהשתנה, קובעים ממתי — והלקוח מאשר.')
+    +'</div></div><div class="pbody">');
+
+  A.push('<div class="sect">מה ייטען מראש בבונה</div>');
+  if(one){
+    A.push('<div class="drow"><div class="dn"><div>נמען</div><div class="m">הלקוח כבר קיים — לא ייפתח כרטיס חדש</div></div>'
+      +'<div class="dp">'+S.client.name+'</div></div>');
+    A.push('<div class="drow"><div class="dn"><div>שירותים</div><div class="m">בוחרים מהקטלוג; מחירי המחירון נטענים לבד</div></div>'
+      +'<div class="dp free">ריק — לבחירה</div></div>');
+    A.push('<div class="drow"><div class="dn"><div>שכר חודשי</div><div class="m">לא נכלל בהצעה הזאת</div></div>'
+      +'<div class="dp free">ללא שינוי</div></div>');
+    A.push('<div class="drow"><div class="dn"><div>ייצוג</div><div class="m">הלקוח כבר מיוצג — האישור לא יפתח ייצוג נוסף</div></div>'
+      +'<div class="dp free">כבוי</div></div>');
+    A.push('<div class="callout">מה שצריך להחליט בהצעה כזאת הוא שלושה דברים בלבד: <b>מה · כמה · מתי ייגבה</b>. '
+      +'מועד הגבייה יכול להיות מיידי, עם ביצוע השירות, או מועד אחר.</div>');
+  }else{
+    A.push('<div class="drow"><div class="dn"><div>שירותים ומחירים</div><div class="m">מועתקים מההתקשרות הנוכחית</div></div>'
+      +'<div class="dp">'+e.items.filter(i=>i.kind!=='included').length+' בתשלום · '+e.items.filter(i=>i.kind==='included').length+' כלולים</div></div>');
+    A.push('<div class="drow"><div class="dn"><div>שכר חודשי מוצע</div><div class="m">נקודת הפתיחה — לעריכה בבונה</div></div>'
+      +'<div class="dp num">'+ils(e.monthly)+' לחודש</div></div>');
+    A.push('<div class="drow"><div class="dn"><div>תחילת התוקף</div><div class="m">ברירת מחדל: ינואר הקרוב</div></div>'
+      +'<div class="dp">ינואר 2027</div></div>');
+    A.push('<div class="drow"><div class="dn"><div>מספר תשלומים</div><div class="m">שנה מלאה ⇒ אין יתרת דוח שנתי</div></div>'
+      +'<div class="dp">12</div></div>');
+    A.push('<div class="callout">בשנה מלאה הדוח השנתי נגבה במלואו דרך השכר החודשי, ולכן <b>סעיף היתרה לא יופיע</b> — '
+      +'הוא נוצר רק כשמתחילים באמצע שנה.</div>');
+  }
+
+  A.push('<div class="sect">מה יקרה אחרי אישור הלקוח</div>');
+  A.push('<div class="tl">');
+  if(one){
+    A.push('<div class="ev">הלקוח חותם על ההצעה<div class="d">ההצעה החתומה נשמרת במסמכי הלקוח</div></div>');
+    A.push('<div class="ev">נוצר חיוב חד־פעמי<div class="d">מופיע כאן ב«מה עוד לגבות» עם הסכום ומועד הגבייה</div></div>');
+    A.push('<div class="ev">השכר החודשי נשאר '+ils(e?e.monthly:0)+'<div class="d">ההתקשרות הנוכחית לא משתנה</div></div>');
+  }else{
+    A.push('<div class="ev">הלקוח חותם על ההצעה החדשה<div class="d">ההסכם החדש נשמר לצד הקודם</div></div>');
+    A.push('<div class="ev">ההתקשרות הנוכחית נסגרת בתאריך התוקף<div class="d">עוברת ל«התקשרויות קודמות» עם טווח התאריכים שלה</div></div>');
+    A.push('<div class="ev">ההתקשרות החדשה נכנסת לתוקף<div class="d">המספר הגדול במסך הזה מתעדכן במועד, לא לפניו</div></div>');
+  }
+  A.push('</div>');
+
+  A.push('<div class="callout" style="background:var(--note-bg)"><b>הערת אב־טיפוס.</b> '
+    +'המסלול הזה מתאר את הכיוון המוצרי המבוקש. במימוש הנוכחי בשרת אישור הצעה '
+    +'<b>תמיד</b> פותח התקשרות חדשה בלי לסגור את הקודמת ובלי תאריך תוקף — ראה הדוח המצורף.</div>');
+
+  A.push('</div><div class="pfoot"><span class="fn">בונה ההצעות הוא מסך נפרד ומאושר — הוא לא משוכפל כאן.</span>'
+    +'<span style="display:flex;gap:9px"><button class="btn sm" onclick="closePanel()">ביטול</button>'
+    +'<a class="btn primary sm" style="text-decoration:none" href="quotation-builder-exception-based.html'
+    +(one?'':'#complex')+'">פתיחת בונה ההצעות ↗</a></span></div>');
+  openPanel(A.join(''));
+}
+
+/* ─── לוחות ───────────────────────────────────────────────────────────────── */
+function openPanel(html){
+  const s=document.getElementById('panelScrim');
+  s.innerHTML='<div class="panel">'+html+'</div>';
+  s.classList.add('on'); document.body.style.overflow='hidden';
+}
+function closePanel(){
+  document.getElementById('panelScrim').classList.remove('on');
+  document.body.style.overflow=''; PANEL=null;
+}
+
+/* פרטי ההתקשרות — כאן, ורק כאן, יושבות שורות "כלול בריטיינר" */
+function openDetail(){
+  const e=S.eng, A=[];
+  A.push('<div class="phead"><h3>פרטי ההתקשרות</h3>'
+    +'<div class="s">לפי הצעה #'+e.quotationNumber+' שאושרה '+fmtDate(e.approvedAt)+' · בתוקף מ'+monthLabel(e.start)+'</div></div><div class="pbody">');
+
+  A.push('<div class="sect">בשכר החודשי</div>');
+  for(const i of e.items.filter(x=>x.kind!=='included')){
+    A.push('<div class="drow"><div class="dn"><div>'+i.name+'</div>'
+      +(i.note?'<div class="m">'+i.note+'</div>':'')+'</div>'
+      +'<div class="dp num">'+ils(i.month)+' לחודש'
+      +(i.list&&i.list>i.month?' <span style="color:var(--tx3);font-size:12px">(מחירון '+ils(i.list)+')</span>':'')
+      +'</div></div>');
+  }
+  const sum=e.items.filter(x=>x.kind!=='included').reduce((s,i)=>s+i.month,0);
+  A.push('<div class="drow" style="border-top:1px solid var(--bd)"><div class="dn"><b>סה״כ חודשי</b>'
+    +(sum!==e.monthly?'<div class="m">מחיר שסוכם — הנחה של '+ils(sum-e.monthly)+' לחודש</div>':'')
+    +'</div><div class="dp"><b class="num">'+ils(e.monthly)+'</b> + מע״מ</div></div>');
+  A.push('<div class="drow"><div class="dn"><div>כולל מע״מ '+VAT+'%</div></div>'
+    +'<div class="dp num">'+ils(e.monthly*(1+VAT/100))+' לחודש</div></div>');
+
+  A.push('<div class="sect">כלול — ללא תוספת תשלום</div>');
+  for(const i of e.items.filter(x=>x.kind==='included')){
+    A.push('<div class="drow"><div class="dn"><div>'+i.name+'</div></div>'
+      +'<div class="dp free">'+(i.worth?'שווי '+ils(i.worth)+' — ניתן ללא חיוב':'כלול')+'</div></div>');
+  }
+
+  A.push('<div class="sect">תנאי התשלום</div>');
+  A.push('<div class="drow"><div class="dn"><div>תחילת חיוב</div></div><div class="dp">'+monthLabel(e.start)+'</div></div>');
+  A.push('<div class="drow"><div class="dn"><div>מועד החיוב</div><div class="m">הראשון נגבה עם האישור</div></div>'
+    +'<div class="dp">ב־1 בכל חודש</div></div>');
+  A.push('<div class="drow"><div class="dn"><div>חידוש</div><div class="m">המחיר ממשיך לשנה הבאה אלא אם יוסכם אחרת</div></div>'
+    +'<div class="dp">אוטומטי</div></div>');
+
+  A.push('<div class="callout">שינוי מסחרי מהותי אינו נערך כאן. הוא נעשה בהצעת מחיר חדשה, כדי שיישאר תיעוד '
+    +'של מה סוכם, מתי, ועל סמך מה הלקוח חתם.</div>');
+  A.push('</div><div class="pfoot"><span class="fn">'+ils(e.monthly)+' לחודש + מע״מ · מ'+monthLabel(e.start)+'</span>'
+    +'<span style="display:flex;gap:9px"><button class="btn sm" onclick="toast(\'פתיחת ההסכם החתום (PDF)\')">ההסכם החתום</button>'
+    +'<button class="btn primary sm" onclick="closePanel()">סגירה</button></span></div>');
+  openPanel(A.join(''));
+}
+
+function openHistoryAgreements(){
+  const A=[];
+  A.push('<div class="phead"><h3>התקשרויות קודמות</h3>'
+    +'<div class="s">כל שינוי מסחרי נשמר כהסכם נפרד עם התאריכים שלו.</div></div><div class="pbody">');
+  A.push('<div class="drow"><div class="dn"><div>הצעה #'+S.eng.quotationNumber+' <span class="pill ok">נוכחית</span></div>'
+    +'<div class="m">מ'+monthLabel(S.eng.start)+'</div></div><div class="dp num">'+ils(S.eng.monthly)+' לחודש</div></div>');
+  for(const p of S.previous){
+    A.push('<div class="drow"><div class="dn"><div>הצעה #'+p.quotationNumber+'</div>'
+      +'<div class="m">'+monthLabel(p.from)+' עד '+monthLabel(p.to)+'</div></div>'
+      +'<div class="dp num" style="color:var(--tx3)">'+ils(p.monthly)+' לחודש</div></div>');
+  }
+  A.push('</div><div class="pfoot"><span class="fn"></span><button class="btn primary sm" onclick="closePanel()">סגירה</button></div>');
+  openPanel(A.join(''));
+}
+
+function openPayHistory(){
+  const A=[];
+  A.push('<div class="phead"><h3>היסטוריית תשלומים</h3>'
+    +'<div class="s">חיובים חד־פעמיים שסומנו כשולמו. השכר החודשי נגבה בהוראת קבע ואינו מופיע כאן.</div></div><div class="pbody">');
+  for(const h of S.history){
+    A.push('<div class="drow"><div class="dn"><div>'+h.desc+'</div><div class="m">'+h.source+' · '+fmtDate(h.paidAt)+'</div></div>'
+      +'<div class="dp num">'+ils(h.amount)+'</div></div>');
+  }
+  A.push('<div class="drow" style="border-top:1px solid var(--bd)"><div class="dn"><b>סה״כ</b></div>'
+    +'<div class="dp"><b class="num">'+ils(S.history.reduce((s,h)=>s+h.amount,0))+'</b></div></div>');
+  A.push('</div><div class="pfoot"><span class="fn">סימון «שולם» הוא ידני — אין סליקה במערכת.</span>'
+    +'<button class="btn primary sm" onclick="closePanel()">סגירה</button></div>');
+  openPanel(A.join(''));
+}
+
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2300); }
+
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(POP) closePop(); else if(PANEL!==null||document.getElementById('panelScrim').classList.contains('on')) closePanel(); }});
+let LAST=window.innerWidth>680;
+window.addEventListener('resize', ()=>{ const m=window.innerWidth>680; if(m!==LAST){LAST=m; if(POP) closePop();} });
+
+function boot(){
+  const h=(location.hash||'').replace('#','');
+  setState(['clean','pending','renewed','none'].includes(h)?h:'default');
+  if(h==='detail') openDetail();
+  if(h==='newquote') popNewQuote(document.querySelector('.addrow .link, .doc .link'));
+  if(h==='onetime') handoff('one_time');
+  if(h==='renewflow') handoff('renew');
+  if(h==='payhistory') openPayHistory();
+}
+window.addEventListener('hashchange', boot);
+if(window.innerWidth>680) document.getElementById('demo').classList.add('open');
+boot();
+</script>
+</body>
+</html>

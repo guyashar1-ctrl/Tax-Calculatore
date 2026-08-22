@@ -26,7 +26,7 @@ import OnboardingTab from './clientTabs/OnboardingTab';
 import TaxFileTab from './clientTabs/TaxFileTab';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboarding';
 import { isStepOpen, stepAwaitsMe } from '../types/onboarding';
-import type { Lead } from '../types/quotations';
+import type { Lead, QuotationKind } from '../types/quotations';
 import type { AdvanceResult } from '../hooks/useOnboarding';
 import { GOVERNED_FACT_KEYS, GOVERNED_FIELD_LABELS, governedValuesEqual } from '../types/taxFacts';
 import { recordManualFactChange } from '../lib/taxFacts';
@@ -119,7 +119,7 @@ interface Props {
   journeyUi?: boolean;
   quotations?: import('../types/quotations').Quotation[];
   onOpenQuotation?: (quotationId: string) => void;
-  onNewQuotation?: (clientId: string) => void;
+  onNewQuotation?: (clientId: string, kind: QuotationKind) => void;
   /** רשומת הליד שממנה נולד הכרטיס — «מה ידוע עליו» ומצב «לא רלוונטי». */
   lead?: Lead;
   onEditLead?: (leadId: string) => void;
@@ -663,7 +663,7 @@ export default function ClientWorkspace({
             advance={advanceOnboardingStep ?? (async () => ({ ok: false, message: 'הקליטה מכובה.' }))}
             refreshOnboarding={refreshOnboarding}
             onOpenQuotation={onOpenQuotation}
-            onNewQuotation={onNewQuotation ? () => onNewQuotation(client.id) : undefined}
+            onNewQuotation={onNewQuotation ? () => onNewQuotation(client.id, 'engagement') : undefined}
             lead={lead}
             onEditLead={onEditLead}
             onOpenRepresentation={onOpenRepresentation ? () => onOpenRepresentation(client.id) : undefined}
@@ -698,7 +698,7 @@ export default function ClientWorkspace({
             engagements={engagements ?? []}
             charges={clientCharges}
             onMarkChargePaid={onMarkChargePaid ?? (async (c) => c)}
-            onNewQuotation={onNewQuotation ? () => onNewQuotation(client.id) : undefined}
+            onNewQuotation={onNewQuotation ? (kind) => onNewQuotation(client.id, kind) : undefined}
           />
         )}
 

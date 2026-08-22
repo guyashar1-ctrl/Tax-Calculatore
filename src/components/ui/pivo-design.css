@@ -3583,3 +3583,82 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .pdfw-split{padding:10px 14px;gap:14px}
   .pdfw-inline .inp{width:140px}
 }
+
+/* ═══ הסכם ותשלומים ═══════════════════════════════════════════════════════
+   מקור מחייב: docs/prototypes/client-agreement-payments.html
+   מסמך ולא לוח מחוונים: מספר אחד גדול, קו מפריד אחד, פעולות משניות באפור,
+   ואפס קופסאות במצב הרגיל. כל תוספת ויזואלית כאן היא ליקוי — ראה ההערה
+   בראש AgreementPaymentsTab.tsx.
+   ═══════════════════════════════════════════════════════════════════════ */
+/* רוחב עמודת התוכן ומידת המספר הגדול נלקחים מהמקור המאושר
+   (docs/prototypes/client-agreement-payments.html): 708px ו-50px ב-1280. */
+.ap{max-width:708px}
+.ap-label{font-size:11.5px;font-weight:600;color:var(--ink-4);letter-spacing:.04em;margin-bottom:4px}
+.ap-empty{font-size:var(--fs-13);color:var(--ink-3);padding:6px 0}
+
+.ap-amount{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ap-amount-num{font-size:clamp(34px,8vw,50px);font-weight:600;letter-spacing:-.025em;line-height:1.05;
+  color:var(--ink-1);font-variant-numeric:tabular-nums}
+.ap-amount-vat{font-size:var(--fs-15);font-weight:400;color:var(--ink-4)}
+
+.ap-what{margin-top:10px;font-size:var(--fs-13);color:var(--ink-2)}
+.ap-what-more{color:var(--ink-4)}
+.ap-when{margin-top:3px;font-size:var(--fs-12);color:var(--ink-4)}
+.ap-actions{margin-top:13px;display:flex;gap:16px;flex-wrap:wrap}
+
+/* פעולות משניות נסוגות לאפור; הכחול היחיד הוא הפעולה המסחרית. */
+.ap-link{border:0;background:none;padding:0;font:inherit;font-size:var(--fs-12);
+  color:var(--ink-4);cursor:pointer}
+.ap-link:hover{color:var(--accent);text-decoration:underline}
+.ap-link-primary{color:var(--accent)}
+
+/* שינוי מסחרי עתידי — משפט, לא כרטיס. */
+.ap-note{margin-top:16px;font-size:var(--fs-13);color:var(--ink-2)}
+.ap-note b{color:var(--ink-1)}
+
+.ap-rule{height:1px;background:var(--hairline-1);border:0;margin:28px 0}
+
+.ap-charge{display:flex;align-items:baseline;gap:14px;padding:13px 0;border-top:1px solid var(--hairline-2)}
+.ap-charge:first-of-type{border-top:0}
+.ap-charge-amt{font-size:var(--fs-17);font-weight:600;min-width:74px;flex:none;
+  color:var(--ink-1);font-variant-numeric:tabular-nums}
+.ap-charge-name{flex:1;min-width:0;font-size:var(--fs-13);color:var(--ink-2)}
+.ap-charge-meta{font-size:var(--fs-12);color:var(--ink-4);margin-top:1px}
+/* "סמן כשולם" נוכח אך לא מתחרה עם הסכומים — מסגרת רק במעבר עכבר. */
+.ap-mark{flex:none;border:1px solid transparent;background:none;border-radius:8px;
+  padding:5px 11px;font:inherit;font-size:var(--fs-12);color:var(--ink-4);cursor:pointer}
+.ap-mark:hover:not(:disabled){border-color:var(--hairline-1);background:var(--surface-0);color:var(--ink-2)}
+.ap-mark:disabled{opacity:.5;cursor:default}
+.ap-error{color:var(--danger);font-size:var(--fs-12);margin-top:.4rem}
+
+.ap-history{display:flex;align-items:baseline;gap:10px;padding:10px 0;margin-top:22px;
+  font-size:var(--fs-13);border-top:1px solid var(--hairline-2)}
+.ap-history-k{color:var(--ink-4);flex:none}
+.ap-history-v{flex:1;min-width:0;color:var(--ink-2)}
+.ap-hint{margin-top:28px;font-size:var(--fs-12);color:var(--ink-4);opacity:.85}
+
+/* ── בתוך החלונות: פירוט, היסטוריה, בחירת כוונה ── */
+.ap-detail-sub{font-size:var(--fs-12);color:var(--ink-4);line-height:1.55;margin-bottom:6px}
+.ap-detail-sect{font-size:11.5px;font-weight:600;color:var(--ink-4);letter-spacing:.04em;margin:18px 0 2px}
+.ap-detail-row{display:flex;align-items:baseline;gap:12px;padding:9px 0;
+  border-top:1px solid var(--hairline-2);font-size:var(--fs-13)}
+.ap-detail-row:first-of-type{border-top:0}
+.ap-detail-name{flex:1;min-width:0;color:var(--ink-2)}
+.ap-detail-meta{font-size:11.5px;color:var(--ink-4);margin-top:1px}
+.ap-detail-val{white-space:nowrap;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.ap-detail-free{color:var(--ink-4);font-size:var(--fs-12)}
+.ap-detail-total{border-top:1px solid var(--hairline-1)}
+.ap-callout{background:var(--surface-2);border-radius:var(--r-panel);padding:12px 14px;
+  font-size:var(--fs-12);color:var(--ink-2);line-height:1.65;margin-top:16px}
+
+.ap-choice{display:block;width:100%;text-align:start;border:1px solid var(--hairline-1);
+  background:var(--surface-0);border-radius:10px;padding:11px 13px;margin-top:8px;
+  font:inherit;cursor:pointer}
+.ap-choice:hover{background:var(--surface-2)}
+.ap-choice b{display:block;font-size:var(--fs-13);font-weight:600;color:var(--ink-1)}
+.ap-choice span{display:block;font-size:var(--fs-12);color:var(--ink-4);margin-top:2px;line-height:1.5}
+
+@media (max-width:680px){
+  .ap-charge{flex-wrap:wrap}
+  .ap-mark{margin-inline-start:auto}
+}

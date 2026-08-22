@@ -21,6 +21,12 @@ export interface AdditionalCharge {
   status: ChargeStatus;
   /** ISO date (YYYY-MM-DD) — חובה בהזנה ידנית חדשה; ריק בחיובים ישנים/מהצעה (אין תאריך יעד אמיתי במקור). */
   dueDate?: string;
+  /**
+   * תנאי עסקי במקום תאריך — "עם הגשת הדוח השנתי". יתרת דוח שנתי נגבית
+   * באירוע ולא בתאריך, ותאריך מדומה היה משקר ומפעיל התראות "הגיע המועד".
+   * כשהוא מלא, dueDate נשאר ריק והמסך מציג את המשפט.
+   */
+  dueTrigger?: string;
   requestedAt?: string;
   paidAt?: string;
   sourceType: ChargeSourceType;

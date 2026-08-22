@@ -50,10 +50,11 @@ import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
 import { RELEASE_MATERIALS, readReleaseDraft, releaseTemplateFrom } from './utils/releaseLetter';
 import { unfiledBlocking } from './types/onboarding';
 import { applySecondaryLevels } from './types/quotations';
+import { currentEngagement } from './utils/engagementSelectors';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
 import { generateQuotationPdf } from './utils/quotationPdf';
-import type { Lead, Quotation } from './types/quotations';
+import type { Lead, Quotation, QuotationKind } from './types/quotations';
 import FirmProfileConsole from './components/FirmProfileConsole';
 import type { FirmProfile } from './types/firmProfile';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
@@ -101,6 +102,7 @@ import TestPortalPreview from './components/clientTabs/__TestPortalPreview';
 import TestCaseComposer from './components/clientTabs/__TestCaseComposer';
 import TestQuotations from './components/__TestQuotations';
 import TestDeferred from './components/quotations/__TestDeferred';
+import TestAgreement from './components/clientTabs/__TestAgreement';
 import TestSignDone from './components/ui/__TestSignDone';
 import TestFirmNotifications from './components/__TestFirmNotifications';
 import TestRepDialog from './components/__TestRepDialog';
@@ -284,6 +286,9 @@ export default function App() {
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-deferred')) {
     return <TestDeferred />;
   }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-agreement')) {
+    return <TestAgreement />;
+  }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-signdone')) {
     return <TestSignDone />;
   }
@@ -455,6 +460,7 @@ export default function App() {
   const [newQuotationLeadId, setNewQuotationLeadId] = useState<string | null>(null);
   // הצעה חדשה שנפתחה מ"אדם חדש" (שלב 3) או מ"שירות נוסף" ללקוח קיים
   const [newQuotationClientId, setNewQuotationClientId] = useState<string | null>(null);
+  const [newQuotationKind, setNewQuotationKind] = useState<QuotationKind>('engagement');
   const [convertingQuotation, setConvertingQuotation] = useState<Quotation | null>(null);
   // הכרטיס שההצעה זה עתה נשלחה אליו — היעד שאליו הבונה סוגר את עצמו (§"הכפתור
   // ששולח הוא הכפתור שמסיים"). בלי זה הבונה חזר למסך ההצעות הישן, שכבר אינו
@@ -1365,10 +1371,16 @@ export default function App() {
   }
 
   /** הצעה חדשה שנפתחת מכרטיס לקוח קיים (אדם חדש משלב 3) — הנמען ממולא מראש */
-  function handleNewQuotationForClient(clientId: string) {
+  /**
+   * הצעה ללקוח קיים. הכוונה המסחרית נבחרת לפני הבונה ונשמרת על ההצעה:
+   * 'one_time' מוכרת שירות לצד ההסכם, 'engagement' מעדכנת את ההסכם עצמו.
+   * ‼ עדכון התקשרות מתחיל מההסכם הנוכחי — הרו"ח עורך רק את מה שהשתנה.
+   */
+  function handleNewQuotationForClient(clientId: string, kind: QuotationKind = 'engagement') {
     setEditingQuotationId(null);
     setNewQuotationLeadId(null);
     setNewQuotationClientId(clientId);
+    setNewQuotationKind(kind);
     setView('quotationBuilder');
   }
 
@@ -1416,11 +1428,15 @@ export default function App() {
         templateId: payload.templateId,
         expiresAt: payload.expiresAt,
         representation: payload.representation,
+        kind: payload.kind,
+        effectiveFrom: payload.effectiveFrom,
         events: [...existing.events, { type: 'edited', at: new Date().toISOString() }],
       });
     }
     return addQuotation({
       leadId, clientId, revision: 1, status: 'draft',
+      kind: payload.kind,
+      effectiveFrom: payload.effectiveFrom,
       items: payload.items,
       futureServices: payload.futureServices,
       vatRate: payload.vatRate,
@@ -2083,7 +2099,7 @@ export default function App() {
               const q = quotations.find(x => x.id === id);
               if (q) handleOpenQuotation(q);
             }}
-            onNewQuotation={(clientId) => handleNewQuotationForClient(clientId)}
+            onNewQuotation={(clientId, kind) => handleNewQuotationForClient(clientId, kind)}
             lead={leads.find(l => l.convertedClientId === selectedClient?.id)}
             onEditLead={(leadId) => { setFocusLeadId(leadId); if (!journeyUi) setView('quotations'); }}
             charges={charges}
@@ -2180,6 +2196,8 @@ export default function App() {
             existing={editingQuotation}
             initialLeadId={newQuotationLeadId ?? undefined}
             initialClientId={newQuotationClientId ?? undefined}
+            initialKind={newQuotationKind}
+            currentEngagement={newQuotationClientId ? currentEngagement(onboarding.engagements, newQuotationClientId) : undefined}
             existingQuotations={quotations}
             checkRepEmailConflict={repEmailConflictMessage}
             onSaveDraft={handleSaveQuotationDraft}

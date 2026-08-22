@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FirmProfile } from '../../types/firmProfile';
 import type { Client } from '../../types';
+import type { Engagement } from '../../types/onboarding';
 import type {
   Lead, ServiceCatalogItem, ServiceCategory, QuotationTemplate, Quotation, QuotationItem, FutureService,
-  PriceBasis, QuotationRepresentation,
+  PriceBasis, QuotationRepresentation, QuotationKind,
 } from '../../types/quotations';
 import {
   SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ORDER, QUOTATION_EVENT_LABELS, QUOTATION_STATUS_LABELS,
@@ -62,6 +63,10 @@ interface Props {
   existing?: Quotation | null;               // עריכת טיוטה קיימת
   initialLeadId?: string;                    // הצעה חדשה שנפתחה מתוך ליד קיים
   initialClientId?: string;                  // הצעה חדשה שנפתחה מתוך לקוח קיים (שלב 3 / "שירות נוסף")
+  /** הכוונה המסחרית שנבחרה לפני הבונה. ברירת מחדל: הסכם. */
+  initialKind?: QuotationKind;
+  /** ההסכם הנוכחי של הלקוח — נקודת הפתיחה של עדכון התקשרות. */
+  currentEngagement?: Engagement;
   existingQuotations: Quotation[];           // לאזהרת "כבר יש הצעה פתוחה"
   /** כבר קיים ייצוג פעיל/בתהליך למייל הזה? מחזיר הודעת חסימה, או null. */
   checkRepEmailConflict?: (email: string) => string | null;
@@ -83,6 +88,10 @@ export interface SaveDraftPayload {
   templateId?: string;
   expiresAt: string;
   representation: QuotationRepresentation;
+  /** הכוונה המסחרית — נשמרת על ההצעה וקובעת מה יקרה באישור. */
+  kind: QuotationKind;
+  /** 'YYYY-MM-DD' — מתי עדכון ההתקשרות נכנס לתוקף. רק בחידוש. */
+  effectiveFrom?: string;
 }
 
 // שמונה שנות מס אחרונות — מכסה כל לקוח שמגיע עם שנים פתוחות
@@ -172,7 +181,7 @@ function r2(n: number): number {
 
 export default function QuotationBuilder({
   profile, services, templates, leads, clients, existing, initialLeadId, initialClientId, existingQuotations,
-  checkRepEmailConflict, onSaveDraft, onSend, onBack,
+  initialKind, currentEngagement, checkRepEmailConflict, onSaveDraft, onSend, onBack,
 }: Props) {
   const brand = useMemo(() => deriveQuotationBrand(profile), [profile]);
 
@@ -199,7 +208,43 @@ export default function QuotationBuilder({
   })();
 
   const [recipient, setRecipient] = useState<RecipientDraft>(initialRecipient);
-  const [items, setItems] = useState<QuotationItem[]>(existing?.items ?? []);
+
+  // ─── הכוונה המסחרית ───────────────────────────────────────────────────────
+  // נבחרה לפני הבונה ואינה נערכת כאן: היא קובעת מה יקרה באישור, ושינוי שלה
+  // באמצע הבנייה היה משנה משמעות של הצעה שכבר תומחרה.
+  const kind: QuotationKind = existing?.kind ?? initialKind ?? 'engagement';
+  const isRenewal = kind === 'engagement' && !!currentEngagement;
+
+  /** ההסכם החדש נכנס לתוקף בינואר הקרוב — המועד המקובל לעדכון שנתי. */
+  const nextJanuary = (() => {
+    const y = new Date().getFullYear() + 1;
+    return `${y}-01-01`;
+  })();
+  const [effectiveFrom, setEffectiveFrom] = useState<string | undefined>(
+    existing?.effectiveFrom ?? (isRenewal ? nextJanuary : undefined));
+
+  /**
+   * חידוש מתחיל מההסכם הנוכחי — הרו"ח עורך רק את מה שהשתנה. השורות מועתקות
+   * מההצעה שמאחורי ההתקשרות, עם מזהים חדשים (שורה היא חלק מההצעה הזאת) ועם
+   * פריסה של שנה מלאה מחודש התוקף — ולכן אין יתרת דוח שנתי.
+   */
+  const renewalItems = useMemo<QuotationItem[]>(() => {
+    if (!isRenewal || existing) return [];
+    const src = existingQuotations.find(q => q.id === currentEngagement?.quotationId);
+    const base = (src?.snapshot?.items ?? src?.items ?? []) as QuotationItem[];
+    const startMonth = (effectiveFrom ?? nextJanuary).slice(0, 7);
+    return base.map(it => ({
+      ...it,
+      id: crypto.randomUUID(),
+      ...(it.category === 'monthly'
+        ? { billingStartMonth: startMonth, installments: DEFAULT_INSTALLMENTS,
+            ...(it.prorationMode === 'deferred' ? { prorationMode: 'full' as const } : {}) }
+        : {}),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRenewal, existing, currentEngagement?.quotationId]);
+
+  const [items, setItems] = useState<QuotationItem[]>(existing?.items ?? renewalItems);
   // מחירון שירותים עתידיים — ברירת מחדל בהצעה חדשה: השירותים החד־פעמיים
   // (הצהרת הון, מעבר מפטור למורשה וכו') — אלה שהלקוח עלול להיות מופתע מהם.
   const [futureIds, setFutureIds] = useState<Set<string>>(() =>
@@ -507,6 +552,8 @@ export default function QuotationBuilder({
       emailSubject, emailMessage, notesForClient, internalNotes,
       templateId, expiresAt,
       representation: representationWithRecipient(),
+      kind,
+      effectiveFrom: isRenewal ? effectiveFrom : undefined,
     };
   }
 
@@ -619,7 +666,10 @@ export default function QuotationBuilder({
         <div style={{ flex: narrow ? '1 1 100%' : 1, minWidth: 0 }}>
           <div style={{ fontSize: 'var(--fs-20)', fontWeight: 600 }}>{existing ? `עריכת הצעה ${existing.quotationNumber}` : 'הצעת מחיר חדשה'}</div>
           <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-500)', marginTop: 2 }}>
-            {dirty && savedAt ? 'יש שינויים שלא נשמרו' : 'בונים, מציגים תצוגה מקדימה ושומרים — הכל במסך אחד'}
+            {dirty && savedAt ? 'יש שינויים שלא נשמרו'
+              : kind === 'one_time' ? 'שירות חד־פעמי — השכר החודשי של הלקוח לא משתנה'
+              : isRenewal ? `עדכון ההתקשרות — נכנס לתוקף ${effectiveFrom ? new Date(effectiveFrom).toLocaleDateString('he-IL', { month: 'long', year: 'numeric' }) : ''}`
+              : 'בונים, מציגים תצוגה מקדימה ושומרים — הכל במסך אחד'}
           </div>
         </div>
         {actionButtons()}
@@ -923,6 +973,18 @@ export default function QuotationBuilder({
                 onChange={e => { const d = new Date(e.target.value); d.setHours(23, 59, 0, 0); setExpiresAt(d.toISOString()); }}
                 style={{ marginTop: 4 }} />
             </label>
+            {/* רק בחידוש: מתי ההסכם המעודכן מחליף את הקיים. עד אז הלקוח
+                ממשיך לשלם את המחיר הנוכחי. */}
+            {isRenewal && (
+              <label style={{ ...fieldLabel, marginTop: 10 }}>ההסכם המעודכן נכנס לתוקף
+                <input type="date" value={(effectiveFrom ?? nextJanuary).slice(0, 10)}
+                  onChange={e => setEffectiveFrom(e.target.value || undefined)}
+                  style={{ marginTop: 4 }} />
+                <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', display: 'block', marginTop: 4 }}>
+                  עד התאריך הזה נשאר ההסכם הנוכחי בתוקף.
+                </span>
+              </label>
+            )}
           </Section>
 
           {/* פס סיכום דביק — לאן זה מסתכם, בלי לעזוב את פאנל העריכה */}

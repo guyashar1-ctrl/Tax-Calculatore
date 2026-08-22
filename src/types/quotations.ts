@@ -325,10 +325,25 @@ export interface QuotationSnapshot {
   representation?: QuotationRepresentation;
 }
 
+/**
+ * הכוונה המסחרית של ההצעה.
+ *   engagement — יוצרת או משנה את ההסכם של הלקוח.
+ *   one_time   — מוכרת שירות לצד ההסכם הקיים; הריטיינר לא זז.
+ *
+ * ‼ נשמרת ואינה נגזרת מקיום שורות חודשיות: לקוח שיורד ל"דוח שנתי בלבד,
+ * בחיוב שנתי" שולח הצעת התקשרות בלי שורה חודשית אחת, וגזירה הייתה מסווגת
+ * אותה כמכירה חד־פעמית ומשאירה את הריטיינר הישן בתוקף — טעות כספית שקטה.
+ */
+export type QuotationKind = 'engagement' | 'one_time';
+
 export interface Quotation {
   id: string;
   leadId?: string;            // הצעה לליד (לקוח חדש) — או —
   clientId?: string;          // הצעה ללקוח קיים (שירות נוסף)
+  /** ריק בהצעות שקדמו לשדה — נקראות כ-'engagement', כמו שהתנהגו תמיד. */
+  kind?: QuotationKind;
+  /** 'YYYY-MM-DD' — מתי ההסכם המעודכן נכנס לתוקף. רלוונטי לחידוש בלבד. */
+  effectiveFrom?: string;
   quotationNumber: string;
   revision: number;
   status: QuotationStatus;

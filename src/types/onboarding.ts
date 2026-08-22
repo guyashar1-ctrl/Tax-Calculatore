@@ -4,7 +4,11 @@
 // ‼ סטטוס של שלב משתנה אך ורק דרך advance_onboarding_step בשרת — שם נאכפת
 // התלות הקשיחה "חיבור פייפרלס לפני הרשאת תשלום" (ראה supabase/31-onboarding-engine.sql).
 
-export type EngagementStatus = 'onboarding' | 'active' | 'ended' | 'cancelled';
+// ‼ 'scheduled' = הסכם שאושר וטרם נכנס לתוקף. במכוון לא 'onboarding':
+// derive_lifecycle_stage מסווג לקוח עם התקשרות 'onboarding' כ"בקליטה", וחידוש
+// היה מחזיר לקוח פעיל למצב קליטה. אינו מוצג למשתמש כמונח — ראה
+// docs/prototypes/client-agreement-payments.html.
+export type EngagementStatus = 'onboarding' | 'active' | 'ended' | 'cancelled' | 'scheduled';
 
 export interface Engagement {
   id: string;
@@ -14,6 +18,10 @@ export interface Engagement {
   status: EngagementStatus;
   monthlyTotal?: number;
   billingStartMonth?: string;   // 'YYYY-MM'
+  /** 'YYYY-MM-DD' — מתי ההתקשרות נעשית הנוכחית. "נוכחית" נגזרת מהתאריך. */
+  effectiveFrom?: string;
+  /** ההתקשרות שההסכם הזה מחליף. ריק = ההסכם הראשון של הלקוח. */
+  supersedesEngagementId?: string;
   approvedAt?: string;
   activatedAt?: string;
   /** מתי התהליך נפתח ללקוח בבונה. ריק ⇒ הלקוח רואה רק את ייפוי הכוח. */
@@ -28,6 +36,7 @@ export const ENGAGEMENT_STATUS_LABELS: Record<EngagementStatus, string> = {
   active: 'פעילה',
   ended: 'הסתיימה',
   cancelled: 'בוטלה',
+  scheduled: 'נכנסת לתוקף בהמשך',
 };
 
 export type OnboardingStepType =
