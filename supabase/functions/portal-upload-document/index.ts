@@ -153,12 +153,22 @@ Deno.serve(async (req: Request) => {
     // בשורש התיק. תיקייה אחת ולא אחת לכל בקשה — ראה מיגרציה 120. כישלון
     // כאן אינו מפיל את ההעלאה: עדיף קובץ בשורש מאשר קובץ שלא הגיע.
     let folderId: string | null = null;
+    // ‼ המקור הוא תווית, לא שם. תיק המסמכים מציג את description כשם הראשי,
+    // וכשכתבנו שם את מקור הקובץ כל הקבצים נראו בעלי אותו שם ושם הקובץ
+    // האמיתי ירד לשורה משנית — ראה מיגרציה 122.
+    let releaseLabelId: string | null = null;
     if (tokenKind === "release") {
       const { data: fid, error: fErr } = await admin.rpc("ensure_prev_accountant_folder", {
         p_user_id: step.user_id, p_client_id: clientId,
       });
       if (fErr) console.error("[portal-upload] folder failed", fErr.message);
       else folderId = (fid as string) ?? null;
+
+      const { data: lid, error: lErr } = await admin.rpc("ensure_prev_accountant_label", {
+        p_user_id: step.user_id,
+      });
+      if (lErr) console.error("[portal-upload] label failed", lErr.message);
+      else releaseLabelId = (lid as string) ?? null;
     }
     // ‼ שנה ותווית מוגדרות מראש על הבקשה (M3 — "בקש מסמך מהלקוח") — לא מנחשים
     // אותן כאן. חסרות ⇒ נופלים ל'כללי'/'לבדיקה' בצד הלקוח (fallback שמרני).
@@ -173,10 +183,11 @@ Deno.serve(async (req: Request) => {
       file_size: file.size,
       category: tokenKind === "release" ? "business_document" : (CATEGORY_BY_KEY[itemKey] || "other"),
       year: String(payload?.documentYear ?? "general"),
-      label_id: payload?.documentLabelId ?? null,
-      // ‼ בהעלאה מרוכזת itemLabel הוא "חומרים מהרו״ח הקודם" ולא שם פריט —
-      // הקובץ לא נענה לבקשה מסוימת, ובתיק המסמכים אסור שייראה כאילו כן.
-      description: itemLabel,
+      label_id: payload?.documentLabelId ?? releaseLabelId,
+      // ‼ מדף הרו"ח הקודם: השם הוא שם הקובץ ששלח, ולכן description נשאר ריק
+      // (תיק המסמכים נופל ל-fileName). השיוך לפריט חי ב-checklist של השלב,
+      // והמקור נקרא מהתווית — לא מהשם.
+      description: tokenKind === "release" ? "" : itemLabel,
       notes: `הועלה על ידי ${source} מהדף הציבורי`,
       status: "received",
     });

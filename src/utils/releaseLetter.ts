@@ -140,8 +140,13 @@ export { ADDITIONAL_MATERIAL_KEY, ADDITIONAL_MATERIAL_LABEL, isOptionalMaterialK
  * הוא לחיצה אחת בכרטיס.
  */
 export const RELEASE_MATERIALS: ReleaseMaterial[] = [
-  { key: 'uniform_file', label: 'קובץ מבנה אחיד של השנה ושנה קודמת', checked: true },
-  { key: 'pnl_current', label: 'כרטסת רווח והפסד של השנה ושנה קודמת באקסל', checked: true },
+  // ‼ ארבע בקשות ולא שתיים (הכרעת גיא 2026-08-23): "של השנה ושנה קודמת" הוא
+  // שני קבצים נפרדים, ופריט אחד לשניהם אינו ניתן למעקב — הרו"ח הקודם ששלח
+  // רק את השנה השוטפת סימן "התקבל", ואצלנו נרשם שהכל הגיע.
+  { key: 'uniform_file', label: 'קובץ מבנה אחיד — השנה', checked: true },
+  { key: 'uniform_file_prev', label: 'קובץ מבנה אחיד — שנה קודמת', checked: true },
+  { key: 'pnl_current', label: 'כרטסת רווח והפסד באקסל — השנה', checked: true },
+  { key: 'pnl_prev', label: 'כרטסת רווח והפסד באקסל — שנה קודמת', checked: true },
   { key: 'ledgers', label: 'כרטסות הנהלת חשבונות', checked: false },
   { key: 'depreciation', label: 'טופס פחת', checked: false },
   { key: 'last_return', label: 'דוח שנתי אחרון', checked: false },

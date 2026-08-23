@@ -34,6 +34,11 @@ interface ReleaseMaterialRow {
   optional?: boolean;
   priority?: boolean;
   uploads?: number;
+  /**
+   * הוא עצמו הצהיר שזה נשלח. ‼ רק מה שהוא סימן ניתן לביטול על ידו — פריט
+   * שהמשרד סימן הוא קביעה של המשרד, וגורם חיצוני אינו מבטל אותה מכאן.
+   */
+  declaredByRecipient?: boolean;
 }
 
 interface ReleaseData {
@@ -146,6 +151,9 @@ export default function PublicReleasePage({ token }: Props) {
   const [receipt, setReceipt] = useState(0);
   /** מזהי הקבצים שכבר היו כאן בכניסה — מה שמעבר להם נשלח עכשיו. */
   const seenUploadIds = useRef<Set<string> | null>(null);
+  /** סימון/ביטול של פריט ברשימת מה שביקשנו. */
+  const [markBusy, setMarkBusy] = useState<string | null>(null);
+  const [markErr, setMarkErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,6 +188,28 @@ export default function PublicReleasePage({ token }: Props) {
   const brand = deriveQuotationBrand({ firmName: data.firmName, branding: data.branding } as never);
   const accent = brand.accent;
 
+  /**
+   * ‼ השרת מכריע מה מותר: ביטול אפשרי רק למה שהוא עצמו הצהיר
+   * (release_portal_set_item, מיגרציה 121). הדף רק לא מציע את מה שאסור.
+   */
+  async function setItem(key: string, done: boolean) {
+    setMarkErr(null);
+    setMarkBusy(key);
+    const { data: res, error } = await supabase.rpc('release_portal_set_item', {
+      p_token: token, p_key: key, p_done: done,
+    });
+    setMarkBusy(null);
+    const r = res as { ok?: boolean; error?: string } | null;
+    if (error || !r?.ok) {
+      setMarkErr(r?.error === 'not_yours'
+        ? 'הפריט הזה סומן על ידי המשרד — אי אפשר לבטל אותו מכאן.'
+        : 'לא הצלחנו לעדכן את הסימון. אפשר לנסות שוב.');
+      return;
+    }
+    flushAccountantNotifications(token);
+    reload();
+  }
+
   async function sendNote() {
     setNoteErr(null);
     if (!noteText.trim()) { setNoteErr('צריך לכתוב את ההערה.'); return; }
@@ -200,7 +230,6 @@ export default function PublicReleasePage({ token }: Props) {
   // החדש הוא ממילא מיותר כשורה נפרדת — ההעלאה הראשית מקבלת כל דבר.
   const requested = data.materials.filter(m => !(m.optional || isOptionalMaterialKey(m.key)));
   const openItems = requested.filter(m => !m.done);
-  const receivedFiles = data.bulkUploads ?? 0;
 
   const card: React.CSSProperties = {
     background: brand.cardBg, border: `1px solid ${brand.border}`,
@@ -324,9 +353,28 @@ export default function PublicReleasePage({ token }: Props) {
                 <li key={m.key} style={{
                   display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13.5, lineHeight: 1.6,
                 }}>
-                  <span aria-hidden="true" style={{ color: m.done ? accent : brand.muted, flexShrink: 0 }}>
-                    {m.done ? '✓' : '○'}
-                  </span>
+                  {/* ‼ סימון וביטול באותו מקום. קודם הסימון היה אפשרי רק
+                      בכרטיס שמופיע מיד אחרי העלאה, ומי שסימן בטעות נשאר בלי
+                      שום דרך חזרה. פריט שהמשרד סימן נשאר טקסט. */}
+                  {(!m.done || m.declaredByRecipient) ? (
+                    <button type="button" aria-pressed={m.done} disabled={markBusy === m.key}
+                      aria-label={m.done ? `ביטול הסימון: ${m.label}` : `סימון שנשלח: ${m.label}`}
+                      title={m.done ? 'סימנת שזה נשלח — לחיצה מבטלת' : 'סימון שהחומר הזה נשלח'}
+                      onClick={() => void setItem(m.key, !m.done)}
+                      style={{
+                        border: 'none', background: 'none', cursor: 'pointer',
+                        color: m.done ? accent : brand.muted, flexShrink: 0,
+                        fontSize: 13.5, lineHeight: 1.6, opacity: markBusy === m.key ? .5 : 1,
+                        // ‼ שטח נגיעה, לא רק סימן. הגליף עצמו רחב 10px — בטלפון
+                        // זה מחטיא. הריפוד מגדיל את היעד והשוליים השליליים
+                        // מחזירים את המיקום החזותי לשורה.
+                        padding: '5px 9px', margin: '-5px -9px', minWidth: 28,
+                      }}>
+                      {m.done ? '✓' : '○'}
+                    </button>
+                  ) : (
+                    <span aria-hidden="true" style={{ color: accent, flexShrink: 0 }}>✓</span>
+                  )}
                   <span style={{
                     flex: 1, minWidth: 0,
                     color: m.done ? brand.muted : brand.ink,
@@ -344,12 +392,12 @@ export default function PublicReleasePage({ token }: Props) {
                 </li>
               ))}
             </ul>
-            {receivedFiles > 0 && (
-              <div style={{ marginTop: 12, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
-                התקבלו {receivedFiles} קבצים. אם משהו ברשימה עדיין מסומן כחסר ובעצם כבר נשלח —
-                אפשר להתעלם, נעבור על מה שהגיע.
-              </div>
+            {markErr && (
+              <div style={{ marginTop: 10, fontSize: 12.5, color: '#a63a3a' }}>{markErr}</div>
             )}
+            <div style={{ marginTop: 12, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
+              אפשר לסמן מה כבר נשלח, ואפשר גם לבטל סימון — זה רק עוזר לנו לדעת מה עוד חסר.
+            </div>
           </section>
         )}
 
