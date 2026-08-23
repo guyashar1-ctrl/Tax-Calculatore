@@ -21,8 +21,12 @@ interface Props {
   clientId: string;
   received: PrevAccountantUpload[];
   removed: RemovedUpload[];
-  /** נקרא בפתיחה הראשונה בלבד — זו נקודת ה"נצפה" של המונה בכותרת. */
-  onFirstOpen?: () => void;
+  /**
+   * ‼ הפתיחה נשלטת מבחוץ. הכפתור "הצג מסמכים" הוא הפעולה הראשית של קטע
+   * החומרים ויושב בשורת הפעולות שלו; אילו הוא היה כאן, הפאנל היה נלכד
+   * בתוך פריט flex צר במקום להיפרש מתחת לשורה.
+   */
+  open: boolean;
   /** מעבר לתיק המסמכים עם התיקייה פתוחה. חסר ⇒ הקישור לא מוצג. */
   onOpenFolder?: (folderId: string) => void;
 }
@@ -35,15 +39,13 @@ function shortDate(iso?: string): string {
 }
 
 export default function PrevAccountantDocsDrawer(
-  { clientId, received, removed, onFirstOpen, onOpenFolder }: Props,
+  { clientId, received, removed, open, onOpenFolder }: Props,
 ) {
   const db = useDocumentStore();
-  const [open, setOpen] = useState(false);
   const [removedOpen, setRemovedOpen] = useState(false);
   const [folderId, setFolderId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const opened = useState({ done: false })[0];
 
   useEffect(() => {
     if (!open || !onOpenFolder) return;
@@ -57,15 +59,7 @@ export default function PrevAccountantDocsDrawer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, clientId]);
 
-  if (received.length === 0 && removed.length === 0) return null;
-
-  function toggle() {
-    setOpen(v => {
-      const next = !v;
-      if (next && !opened.done) { opened.done = true; onFirstOpen?.(); }
-      return next;
-    });
-  }
+  if (!open || (received.length === 0 && removed.length === 0)) return null;
 
   /**
    * ‼ אותה התנהגות של תיק המסמכים: הלשונית נפתחת לפני ההורדה, אחרת חוסם
@@ -110,54 +104,41 @@ export default function PrevAccountantDocsDrawer(
   );
 
   return (
-    <div style={{ marginTop: '.35rem' }}>
-      <button type="button" className="btn btn-sm btn-ghost" aria-expanded={open} onClick={toggle}>
-        {open ? 'הסתר מסמכים' : 'הצג מסמכים'}
-      </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
+      {received.length > 0 && (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {received.map(f => row(f))}
+        </ul>
+      )}
 
-      {open && (
-        <div style={{ marginTop: '.4rem' }}>
-          {received.length > 0 && (
+      {removed.length > 0 && (
+        <div>
+          <button type="button" className="pa-mat-quiet"
+            aria-expanded={removedOpen} onClick={() => setRemovedOpen(v => !v)}>
+            מסמכים שהוסרו ({removed.length}) {removedOpen ? '⌄' : '›'}
+          </button>
+          {removedOpen && (
             <>
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--muted)' }}>
-                מסמכים שהתקבלו ({received.length})
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                הוסרו מרשימת הרו״ח הקודם. הקבצים עצמם נשארו בתיק.
               </div>
-              <ul style={{ listStyle: 'none', margin: '.15rem 0 0', padding: 0 }}>
-                {received.map(f => row(f))}
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {removed.map(f => row(f, true))}
               </ul>
             </>
           )}
-
-          {removed.length > 0 && (
-            <div style={{ marginTop: received.length > 0 ? '.5rem' : 0 }}>
-              <button type="button" className="btn btn-sm btn-ghost"
-                aria-expanded={removedOpen} onClick={() => setRemovedOpen(v => !v)}>
-                מסמכים שהוסרו ({removed.length}) {removedOpen ? '⌄' : '›'}
-              </button>
-              {removedOpen && (
-                <>
-                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--muted)', marginTop: '.2rem' }}>
-                    הוסרו מרשימת הרו״ח הקודם. הקבצים עצמם נשארו בתיק.
-                  </div>
-                  <ul style={{ listStyle: 'none', margin: '.15rem 0 0', padding: 0 }}>
-                    {removed.map(f => row(f, true))}
-                  </ul>
-                </>
-              )}
-            </div>
-          )}
-
-          {error && (
-            <div style={{ marginTop: '.35rem', fontSize: 'var(--fs-12)', color: 'var(--err)' }}>{error}</div>
-          )}
-
-          {folderId && onOpenFolder && (
-            <button type="button" className="btn btn-sm btn-ghost" style={{ marginTop: '.35rem' }}
-              onClick={() => onOpenFolder(folderId)}>
-              לכל החומרים מרו״ח קודם →
-            </button>
-          )}
         </div>
+      )}
+
+      {error && (
+        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--err)' }}>{error}</div>
+      )}
+
+      {folderId && onOpenFolder && (
+        <button type="button" className="pa-mat-quiet" style={{ textAlign: 'start' }}
+          onClick={() => onOpenFolder(folderId)}>
+          לכל החומרים מרו״ח קודם →
+        </button>
       )}
     </div>
   );

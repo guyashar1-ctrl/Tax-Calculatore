@@ -3025,6 +3025,9 @@ function ReleaseStepCard(p: ReleaseCardProps) {
     name: prevAccountant?.name ?? '', email: prevAccountant?.email ?? '', phone: prevAccountant?.phone ?? '',
   });
   const [saving, setSaving] = useState(false);
+  /** קטע החומרים: המסמכים ופרטי המכתב — שניהם סגורים כברירת מחדל. */
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [letterInfoOpen, setLetterInfoOpen] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState('');
@@ -3076,6 +3079,34 @@ function ReleaseStepCard(p: ReleaseCardProps) {
    */
   const receivedDocs = materialsStep?.payload.bulkUploads ?? [];
   const removedDocs = materialsStep?.payload.removedUploads ?? [];
+  const hasMaterialDocs = receivedDocs.length > 0 || removedDocs.length > 0;
+
+  /**
+   * מצב אחד לקטע החומרים, ומתוכו נגזרים גם הניסוח וגם הפעולה.
+   * ‼ "הגיע הכול" אינו רק מעקב סגור: גם כשכל הפריטים המבוקשים סומנו, אין מה
+   * לחכות לו. שני המסלולים מגיעים לאותה שורת מצב, אחרת אותו מצב עסקי היה
+   * נראה אחרת לפי איך הגיע לשם.
+   */
+  const openRequired = Math.max(0, required.length - receivedCount);
+  const materialsClosed = !!materialsStep && !materialsOpen && materialsStep.status !== 'cancelled';
+  const matState: 'done' | 'partial' | 'wait' =
+    materialsClosed || (required.length > 0 && openRequired === 0) ? 'done'
+      : (bulkUploads > 0 || receivedCount > 0) ? 'partial'
+        : 'wait';
+  const matStatusText =
+    matState === 'done' ? '✓ החומרים הגיעו'
+      : matState === 'partial' ? 'התקבל חלק'
+        : 'ממתין לחומרים';
+  /**
+   * ‼ עובדה אחת תומכת, לא שלוש. מה שפתוח כבר כתוב בכותרת "מה אנחנו מבקשים
+   * — N מתוך M התקבלו" שממש מעל, וחזרה עליו כאן היא בדיוק הכפילות שהפכה את
+   * הקטע ליומן. כשיש חדשים — הם העובדה; הסך הכול מצטרף רק אם הוא גדול מהם.
+   */
+  const matSubText = matState === 'wait' ? ''
+    : newUploads.length > 0
+      ? (bulkUploads > newUploads.length ? `${bulkUploads} בסך הכול` : '')
+      : bulkUploads === 0 ? ''
+        : bulkUploads === 1 ? 'קובץ אחד התקבל' : `${bulkUploads} קבצים התקבלו`;
 
   // ── חלוקת הטיפול והעבודות הפתוחות ──────────────────────────────────────
   // נכתבות בשליחת המכתב (מהחלון); כאן רק מציגים ומסמנים "הוגש". אין להן
@@ -3474,65 +3505,53 @@ function ReleaseStepCard(p: ReleaseCardProps) {
             )}
           </div>
 
-          {/* ── מה חזר ── */}
+          {/* ── חומרים מהרו״ח הקודם ──────────────────────────────────────────
+              ‼ מצב → פעולה → פרטים. הקטע הזה היה יומן: תאריך שליחה, כתובת,
+              חלון התייחסות, מונה קבצים, סטטוס מעקב ומצב מסירה — שש שורות
+              באותו משקל, ובלי לקרוא אותן אי אפשר היה לדעת אם הגיע משהו ומה
+              ללחוץ. עכשיו: שורת מצב אחת, פעולה אחת, והשאר מאחורי "פרטים".
+              ‼ מה שדורש טיפול (הערה מהרו״ח הקודם) נשאר גלוי — הוא לא פרט. */}
           {sent && (
             <div className="ob-hand-block">
-              <div className="ob-hand-head"><span className="ob-hand-title">תגובת הרו״ח הקודם</span></div>
-              <div className="ob-hand-contact" style={{ display: 'block' }}>
-                נשלח {formatDate(sentAt!, 'list')}
-                {step.payload.releaseSentTo && <> · <span dir="ltr">{step.payload.releaseSentTo}</span></>}
-                {step.payload.objectionDueDate && !step.payload.prevAccountantSignedAt && (
-                  <> · חלון התייחסות עד {formatDate(step.payload.objectionDueDate, 'list')}</>
-                )}
+              <div className="pa-mat-head">
+                <span className="ob-hand-title">חומרים מהרו״ח הקודם</span>
+                <span className={`pa-mat-status is-${matState}`}>{matStatusText}</span>
               </div>
-              {/* ‼ לא מבקשים אישור, ולכן אין "טרם התקבל אישור" (הכרעת גיא
-                  2026-08-18). מה שנאמר כאן הוא מה שבאמת קרה: עבר חלון
-                  ההתייחסות בלי מניעה, או שהוא עדיין פתוח. חתימה שכבר נאספה
-                  בעבר ממשיכה להופיע — היסטוריה שלא נמחקת. */}
-              {step.payload.prevAccountantSignedAt && (
-                <div className="ob-hand-ok">
-                  ✓ אישר/ה את ההעברה
-                  {step.payload.prevAccountantSignerName && <> · {step.payload.prevAccountantSignerName}</>}
-                  {' · '}{formatDate(step.payload.prevAccountantSignedAt, 'list')}
+
+              {(newUploads.length > 0 || matSubText) && (
+                <div className="pa-mat-sub">
+                  {newUploads.length > 0 && (
+                    <strong>
+                      {newUploads.length === 1 ? 'קובץ חדש' : `${newUploads.length} קבצים חדשים`}
+                    </strong>
+                  )}
+                  {newUploads.length > 0 && matSubText && ' · '}
+                  {matSubText}
                 </div>
               )}
-              {!step.payload.prevAccountantSignedAt && !step.payload.prevAccountantResponseNote && (
-                <div className="ob-hand-contact" style={{ display: 'block' }}>
-                  {objectionWindowPassed(step)
-                    ? 'עבר חלון ההתייחסות ללא מניעה.'
-                    : 'לא התקבלה מניעה. אם תגיע — היא תופיע כאן.'}
-                </div>
-              )}
-              {/* ‼ קבצים שהגיעו בלי שיוך לפריט. הם **אינם** סוגרים פריטים —
-                  ולכן השורה אומרת גם מה עדיין פתוח, כדי שלא ייווצר הרושם
-                  שהכול הגיע רק כי הגיעו קבצים. הם יושבים במסמכי הלקוח. */}
-              {/* ‼ הדרך היחידה לדעת שהגיעו חומרים בלי להיכנס ולבדוק. הלחיצה
-                  היא גם מה שמסמן "נקרא" — כניסה למסך לא מאפסת את המונה,
-                  אחרת מעבר מקרי ליד הכרטיס היה מוחק את הסימן. */}
-              {newUploads.length > 0 && (
-                <div className="ob-hand-note is-attention" style={{ display: 'block' }}>
-                  <strong>
-                    {newUploads.length === 1 ? 'קובץ חדש מהרו״ח הקודם'
-                      : `${newUploads.length} קבצים חדשים מהרו״ח הקודם`}
-                  </strong>
-                </div>
-              )}
-              {bulkUploads > 0 && (
-                <div className="ob-hand-contact" style={{ display: 'block' }}>
-                  התקבלו {bulkUploads} קבצים במסמכי הלקוח
-                  {receivedCount < required.length
-                    && <> · {required.length - receivedCount} פריטים עדיין לא סומנו כהתקבלו</>}
-                </div>
-              )}
-              {/* ‼ "החומרים הגיעו" סוגר את מעקב החומרים — והכרטיס שלו נעלם
-                  מהרשימה, כי שלב סגור אינו מוצג. לחיצה בטעות הותירה את גיא
-                  בלי שום דרך חזרה, וגם הקפיאה את רשימת החומרים לעריכה.
-                  הביטול יושב כאן דווקא, בכרטיס המכתב שנשאר גלוי. */}
-              {materialsStep && !materialsOpen && materialsStep.status !== 'cancelled' && (
-                <div className="ob-hand-contact" style={{ display: 'block' }}>
-                  מעקב החומרים סגור — סומן שהחומרים הגיעו
-                  <button type="button" className="btn btn-sm btn-ghost"
-                    style={{ marginInlineStart: '.4rem' }} disabled={busy || saving}
+
+              <div className="pa-mat-actions">
+                {hasMaterialDocs && (
+                  <button type="button" className="btn btn-sm pa-mat-cta"
+                    aria-expanded={docsOpen}
+                    onClick={() => {
+                      const next = !docsOpen;
+                      setDocsOpen(next);
+                      // ‼ פתיחה מכוונת היא נקודת ה"נצפה" של המונה בכותרת.
+                      // מעבר מקרי במסך אינו מאפס אותו.
+                      if (next && materialsStep && newUploads.length > 0) {
+                        void p.advance(materialsStep.id, 'note', {
+                          bulkSeenAt: new Date().toISOString(),
+                        }).then(() => p.refresh?.());
+                      }
+                    }}>
+                    {docsOpen ? 'הסתר מסמכים' : 'הצג מסמכים'}
+                  </button>
+                )}
+                {/* ‼ תיקון טעות, לא פעולה בזרימה — ולכן נוכחות של קישור. */}
+                {materialsStep && !materialsOpen && materialsStep.status !== 'cancelled' && (
+                  <button type="button" className="pa-mat-quiet" disabled={busy || saving}
+                    title="השלב חוזר להמתנה, בדיוק כפי שהיה לפני הסימון"
                     onClick={async () => {
                       setSaving(true);
                       await p.advance(materialsStep.id, 'wait_client', { ball: 'prev_accountant' });
@@ -3541,26 +3560,54 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                     }}>
                     בטל סימון
                   </button>
-                </div>
-              )}
-              {/* ‼ ההפרדה בין "התקבל" ל"הוסר מרשימתו" חיה במגירה בלבד. שורה
-                  קבועה על כך בכרטיס הוסיפה אוצר מילים של סטטוס למסך שכבר
-                  צפוף, בלי שאיש ביקש לראות את זה כל הזמן. */}
-              {(receivedDocs.length > 0 || removedDocs.length > 0) && (
+                )}
+                <button type="button" className="pa-mat-quiet" aria-expanded={letterInfoOpen}
+                  onClick={() => setLetterInfoOpen(v => !v)}>
+                  פרטים {letterInfoOpen ? '⌄' : '›'}
+                </button>
+              </div>
+
+              {hasMaterialDocs && (
                 <PrevAccountantDocsDrawer
                   clientId={p.clientId}
                   received={receivedDocs}
                   removed={removedDocs}
-                  onFirstOpen={() => {
-                    if (!materialsStep || newUploads.length === 0) return;
-                    void p.advance(materialsStep.id, 'note', {
-                      bulkSeenAt: new Date().toISOString(),
-                    }).then(() => p.refresh?.());
-                  }}
+                  open={docsOpen}
                   onOpenFolder={p.onOpenDocuments
                     ? (folderId) => p.onOpenDocuments?.(folderId)
                     : undefined}
                 />
+              )}
+
+              {/* ‼ הכל כאן הוא היסטוריה של המכתב, לא מצב החומרים. הוא נשמר
+                  ונגיש, ואינו תופס את המסך כשאין בו צורך. */}
+              {letterInfoOpen && (
+                <div className="pa-mat-details">
+                  <div>
+                    נשלח {formatDate(sentAt!, 'list')}
+                    {step.payload.releaseSentTo && <> · <span dir="ltr">{step.payload.releaseSentTo}</span></>}
+                    {step.payload.objectionDueDate && !step.payload.prevAccountantSignedAt && (
+                      <> · חלון התייחסות עד {formatDate(step.payload.objectionDueDate, 'list')}</>
+                    )}
+                  </div>
+                  {/* ‼ לא מבקשים אישור, ולכן אין "טרם התקבל אישור" (הכרעת גיא
+                      2026-08-18). חתימה שכבר נאספה ממשיכה להופיע — היסטוריה. */}
+                  {step.payload.prevAccountantSignedAt && (
+                    <div>
+                      ✓ אישר/ה את ההעברה
+                      {step.payload.prevAccountantSignerName && <> · {step.payload.prevAccountantSignerName}</>}
+                      {' · '}{formatDate(step.payload.prevAccountantSignedAt, 'list')}
+                    </div>
+                  )}
+                  {!step.payload.prevAccountantSignedAt && !step.payload.prevAccountantResponseNote && (
+                    <div>
+                      {objectionWindowPassed(step)
+                        ? 'עבר חלון ההתייחסות ללא מניעה.'
+                        : 'לא התקבלה מניעה. אם תגיע — היא תופיע כאן.'}
+                    </div>
+                  )}
+                  <ReleaseDelivery clientId={p.clientId} />
+                </div>
               )}
               {step.payload.prevAccountantResponseNote && (
                 <div className={`ob-hand-note${step.payload.responseHandledAt ? '' : ' is-attention'}`}>
@@ -3591,7 +3638,6 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                   )}
                 </div>
               )}
-              <ReleaseDelivery clientId={p.clientId} />
             </div>
           )}
 

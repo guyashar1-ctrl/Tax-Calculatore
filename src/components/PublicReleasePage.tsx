@@ -345,59 +345,26 @@ export default function PublicReleasePage({ token }: Props) {
         {/* ── 3. מה ביקשנו — מידע, לא טופס ── */}
         {data.materialsStepId && requested.length > 0 && (
           <section style={card}>
-            <div style={title}>
-              מה ביקשנו — {requested.filter(m => m.done).length} מתוך {requested.length} סומנו כהתקבלו
+            {/* ‼ הוראה אחת קצרה במקום פסקה. האינטראקציה עצמה מלמדת את השאר. */}
+            <div style={{ ...title, marginBottom: 4 }}>סמן מה כבר שלחת</div>
+            <div style={{ fontSize: 12.5, color: brand.muted, marginBottom: 10 }}>
+              {requested.filter(m => m.done).length} מתוך {requested.length}
             </div>
-            <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 5 }}>
+            <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 2 }}>
               {requested.map(m => (
-                <li key={m.key} style={{
-                  display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13.5, lineHeight: 1.6,
-                }}>
-                  {/* ‼ סימון וביטול באותו מקום. קודם הסימון היה אפשרי רק
-                      בכרטיס שמופיע מיד אחרי העלאה, ומי שסימן בטעות נשאר בלי
-                      שום דרך חזרה. פריט שהמשרד סימן נשאר טקסט. */}
-                  {(!m.done || m.declaredByRecipient) ? (
-                    <button type="button" aria-pressed={m.done} disabled={markBusy === m.key}
-                      aria-label={m.done ? `ביטול הסימון: ${m.label}` : `סימון שנשלח: ${m.label}`}
-                      title={m.done ? 'סימנת שזה נשלח — לחיצה מבטלת' : 'סימון שהחומר הזה נשלח'}
-                      onClick={() => void setItem(m.key, !m.done)}
-                      style={{
-                        border: 'none', background: 'none', cursor: 'pointer',
-                        color: m.done ? accent : brand.muted, flexShrink: 0,
-                        fontSize: 13.5, lineHeight: 1.6, opacity: markBusy === m.key ? .5 : 1,
-                        // ‼ שטח נגיעה, לא רק סימן. הגליף עצמו רחב 10px — בטלפון
-                        // זה מחטיא. הריפוד מגדיל את היעד והשוליים השליליים
-                        // מחזירים את המיקום החזותי לשורה.
-                        padding: '5px 9px', margin: '-5px -9px', minWidth: 28,
-                      }}>
-                      {m.done ? '✓' : '○'}
-                    </button>
-                  ) : (
-                    <span aria-hidden="true" style={{ color: accent, flexShrink: 0 }}>✓</span>
-                  )}
-                  <span style={{
-                    flex: 1, minWidth: 0,
-                    color: m.done ? brand.muted : brand.ink,
-                    fontWeight: m.priority && !m.done ? 600 : 400,
-                  }}>
-                    {m.label}
-                    {/* ‼ הבלטה מאופקת: תג קטן. שאר הפריטים לא נחלשים — כולם מבוקשים. */}
-                    {m.priority && (
-                      <span style={{
-                        marginInlineStart: 7, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-                        background: '#fdf3c4', color: brand.ink, padding: '1px 7px', borderRadius: 999,
-                      }}>חשוב במיוחד</span>
-                    )}
-                  </span>
-                </li>
+                <MaterialCheckRow
+                  key={m.key}
+                  item={m}
+                  busy={markBusy === m.key}
+                  brand={brand}
+                  accent={accent}
+                  onToggle={() => void setItem(m.key, !m.done)}
+                />
               ))}
             </ul>
             {markErr && (
               <div style={{ marginTop: 10, fontSize: 12.5, color: '#a63a3a' }}>{markErr}</div>
             )}
-            <div style={{ marginTop: 12, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
-              אפשר לסמן מה כבר נשלח, ואפשר גם לבטל סימון — זה רק עוזר לנו לדעת מה עוד חסר.
-            </div>
           </section>
         )}
 
@@ -581,6 +548,92 @@ async function filesFromDrop(dt: DataTransfer): Promise<File[]> {
     return out;
   }
   return Array.from(dt.files);
+}
+
+/**
+ * שורה אחת ברשימת "סמן מה כבר שלחת".
+ *
+ * ‼ צ'קבוקס, לא עיגול. העיגול הקטן נראה כמו סימן מצב פסיבי ולא כמו משהו
+ * שאפשר ללחוץ עליו — הרו"ח הקודם לא הבין שמבקשים ממנו לסמן. עכשיו: תיבה
+ * מרובעת עם מסגרת, **כל השורה** היא היעד, ויש מצב ריחוף וריכוז.
+ *
+ * ‼ פריט שהמשרד סימן אינו כפתור כלל — לא מעומעם ולא נעול, פשוט טקסט עם ✓.
+ * גורם חיצוני אינו מבטל קביעה של המשרד, וזה נאכף גם בשרת.
+ */
+function MaterialCheckRow({ item, busy, brand, accent, onToggle }: {
+  item: ReleaseMaterialRow; busy: boolean;
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string; onToggle: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  const editable = !item.done || !!item.declaredByRecipient;
+
+  const label = (
+    <span style={{ flex: 1, minWidth: 0, lineHeight: 1.5 }}>
+      <span style={{
+        color: item.done ? brand.muted : brand.ink,
+        textDecoration: item.done ? 'line-through' : 'none',
+      }}>{item.label}</span>
+      {item.priority && !item.done && (
+        <span style={{
+          marginInlineStart: 7, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+          background: '#fdf3c4', color: brand.ink, padding: '1px 7px', borderRadius: 999,
+        }}>חשוב במיוחד</span>
+      )}
+    </span>
+  );
+
+  const box = (
+    <span aria-hidden="true" style={{
+      flex: '0 0 auto', width: 20, height: 20, borderRadius: 5,
+      border: `1.5px solid ${item.done ? accent : (hover ? accent : brand.border)}`,
+      background: item.done ? accent : '#fff',
+      color: '#fff', fontSize: 13, fontWeight: 700, lineHeight: '17px', textAlign: 'center',
+      transition: 'border-color .12s, background .12s',
+    }}>{item.done ? '✓' : ''}</span>
+  );
+
+  if (!editable) {
+    return (
+      <li style={{
+        display: 'flex', gap: 10, alignItems: 'center', fontSize: 13.5,
+        padding: '9px 10px', color: brand.muted,
+      }}>
+        {box}
+        {label}
+        <span style={{ fontSize: 11.5, flex: '0 0 auto' }}>סומן אצלנו</span>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={item.done}
+        disabled={busy}
+        onClick={onToggle}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onFocus={() => setHover(true)}
+        onBlur={() => setHover(false)}
+        style={{
+          // ‼ כל השורה היא היעד — לא הסימן. בטלפון אי אפשר לכוון לתיבה של 20px.
+          display: 'flex', gap: 10, alignItems: 'center', width: '100%',
+          minHeight: 44, padding: '9px 10px', textAlign: 'start',
+          font: 'inherit', fontSize: 13.5, color: brand.ink,
+          background: hover ? tint(accent, .06) : 'transparent',
+          border: 'none', borderRadius: brand.radius,
+          cursor: busy ? 'default' : 'pointer', opacity: busy ? .5 : 1,
+          transition: 'background .12s',
+        }}
+      >
+        {box}
+        {label}
+      </button>
+    </li>
+  );
 }
 
 /**

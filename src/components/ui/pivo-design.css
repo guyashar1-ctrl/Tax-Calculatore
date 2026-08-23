@@ -3366,6 +3366,41 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .ob-hand-note.is-attention { background: var(--warn-bg, #fbf3e3); color: var(--ink-1); }
 .ob-hand-actions { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 2px; }
 
+/* ── חומרים מהרו"ח הקודם: מצב → פעולה → פרטים לפי דרישה ───────────────────
+   ‼ הקטע הזה היה יומן: מונה קבצים, סטטוס מעקב, תאריך שליחה, כתובת מייל,
+   חלון התייחסות ומצב מסירה — כולם באותו משקל ויזואלי, זה מתחת לזה. אי אפשר
+   היה לדעת בהצצה אם הגיע משהו ומה לעשות. עכשיו: שורת מצב אחת, פעולה אחת,
+   וכל השאר מאחורי "פרטים".
+   ‼ בלי צבע שאינו אומר משהו: ירוק רק כשבאמת הגיע הכול. */
+.pa-mat-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.pa-mat-status { font-size: var(--fs-13); font-weight: 700; margin-inline-start: auto; }
+.pa-mat-status.is-done { color: var(--ok, #187a53); }
+.pa-mat-status.is-partial { color: var(--ink-1); }
+.pa-mat-status.is-wait { color: var(--ink-3); font-weight: 600; }
+.pa-mat-sub { font-size: var(--fs-13); color: var(--ink-2); line-height: 1.6; }
+.pa-mat-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* ‼ חריגה מקומית ומודעת: במערכת כפתור משני מאבד מסגרת (ראה .btn-secondary),
+   וכאן זה הפך את הפעולה היחידה של הקטע לטקסט שנראה כמו כל השאר. הפעולה
+   הראשית של הכרטיס היא צ'יפ כחול ("שלח מכתב שוב"), ולכן צ'יפ שני היה מתחרה
+   בו. מסגרת: נקרא כלחיץ, לא מתחרה בצבע. */
+.pa-mat-cta.btn {
+  border: 1px solid var(--bd); background: var(--card);
+  color: var(--ink-1); font-weight: 600;
+}
+.pa-mat-cta.btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--ink-4); }
+.pa-mat-cta.btn[aria-expanded="true"] { background: var(--surface-2); }
+/* פעולת תיקון ופרטים — נוכחות של קישור, לא של כפתור. */
+.pa-mat-quiet {
+  appearance: none; border: 0; background: none; padding: 0; font: inherit;
+  font-size: var(--fs-12); color: var(--ink-3); cursor: pointer; min-height: 28px;
+}
+.pa-mat-quiet:hover:not(:disabled) { color: var(--ink-1); text-decoration: underline; }
+.pa-mat-quiet:disabled { opacity: .5; cursor: default; }
+.pa-mat-details {
+  font-size: var(--fs-12); color: var(--ink-3); line-height: 1.75;
+  display: flex; flex-direction: column; gap: 2px;
+}
+
 @media (max-width: 640px) {
   .ob-hand-form { max-width: none; }
   .ob-hand-rowbtns { opacity: 1; }
