@@ -3176,6 +3176,24 @@ function ReleaseStepCard(p: ReleaseCardProps) {
     setAdding(false);
   }
 
+  /**
+   * ‼ הוספה מהקטלוג. עד כה "הוסף פריט" היה שדה טקסט חופשי בלבד — פריט
+   * שהקטלוג מכיר ("דוח שנתי אחרון") לא היה ניתן לבחירה כאן, והדרך היחידה
+   * להוסיף אותו הייתה להקליד אותו מחדש. זה גם יצר לו מפתח custom_* במקום
+   * last_return, כך שהוא מנותק מהקטלוג לכל אורך הדרך.
+   */
+  const catalogToAdd = RELEASE_MATERIALS.filter(m => !items.some(i => i.key === m.key));
+
+  function addFromCatalog(m: { key: string; label: string; optional?: boolean }) {
+    void persistItems([...items, {
+      key: m.key, label: m.label, done: false, uploads: 0,
+      ...(m.optional ? { optional: true } : {}),
+      ...(sent ? { addedAfterSend: true } : {}),
+    }]);
+    setAdding(false);
+    setNewLabel('');
+  }
+
   function commitLabel(key: string) {
     const label = draftLabel.trim();
     setEditingKey(null);
@@ -3477,7 +3495,19 @@ function ReleaseStepCard(p: ReleaseCardProps) {
             </ul>
             {itemsEditable && (adding ? (
               <div className="ob-hand-form" style={{ marginTop: '.35rem' }}>
-                <input autoFocus value={newLabel} placeholder="מה עוד מבקשים?" disabled={saving}
+                {/* ‼ הקטלוג קודם, טקסט חופשי אחריו. פריט מוכר נבחר בלחיצה
+                    ושומר על המפתח שלו; ההקלדה נשארת למה שאין לו שם בקטלוג. */}
+                {catalogToAdd.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+                    {catalogToAdd.map(m => (
+                      <button key={m.key} type="button" className="btn btn-sm btn-secondary"
+                        disabled={saving} onClick={() => addFromCatalog(m)}>
+                        ＋ {m.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input autoFocus value={newLabel} placeholder="או פריט אחר — מה עוד מבקשים?" disabled={saving}
                   aria-label="פריט חדש"
                   onChange={e => setNewLabel(e.target.value)}
                   onKeyDown={e => {
