@@ -66,6 +66,9 @@ export default function PdfOrganizer({
   const [mode, setMode] = useState<WorkspaceMode>('organize');
   const [name, setName] = useState(initialName);
   const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900);
+  const [zoom, setZoom] = useState(1);
+  /** סימון שהועתק — Ctrl+C/X/V, כמו בפרויקט הייחוס. */
+  const clipboardRef = useRef<Annotation | null>(null);
 
   // ─── היסטוריה אחת לכל המצבים ──────────────────────────────────────────
   const past = useRef<Snapshot[]>([]);
@@ -104,6 +107,8 @@ export default function PdfOrganizer({
   }, []);
 
   const { plan, annotations } = state;
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
 
   // ─── בחירה, כלים ומצבי משנה ───────────────────────────────────────────
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -140,14 +145,76 @@ export default function PdfOrganizer({
       const el = e.target as HTMLElement | null;
       const typing = el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT';
       if (e.key === 'Escape' && !busy && !typing) { e.stopPropagation(); onCancel(); return; }
+
+      const sel = selectedAnnRef.current;
+      const inEditor = modeRef.current !== 'organize';
+
+      if (!typing && inEditor && sel) {
+        // מחיקה וחצים על הסימון הנבחר — כמו בפרויקט הייחוס
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          commit(cur => ({ ...cur, annotations: cur.annotations.filter(a => a.id !== sel) }));
+          setSelectedAnn(null);
+          return;
+        }
+        const arrow: Record<string, [number, number]> = {
+          ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+        };
+        if (arrow[e.key]) {
+          e.preventDefault();
+          const [dx, dy] = arrow[e.key];
+          const step = e.shiftKey ? 0.02 : 0.004;
+          commit(cur => ({
+            ...cur,
+            annotations: cur.annotations.map(a => (a.id === sel ? {
+              ...a,
+              xPct: Math.min(1 - a.widthPct, Math.max(0, a.xPct + dx * step)),
+              yPct: Math.min(1 - a.heightPct, Math.max(0, a.yPct + dy * step)),
+            } : a)),
+          }));
+          return;
+        }
+      }
+
       if (!(e.ctrlKey || e.metaKey)) return;
       const k = e.key.toLowerCase();
-      if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
-      else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); }
+      if (k === 'z' && !e.shiftKey && !typing) { e.preventDefault(); undo(); }
+      else if (((k === 'z' && e.shiftKey) || k === 'y') && !typing) { e.preventDefault(); redo(); }
+      else if (!typing && inEditor && (k === 'c' || k === 'x') && sel) {
+        const ann = stateRef.current.annotations.find(a => a.id === sel);
+        if (!ann) return;
+        e.preventDefault();
+        clipboardRef.current = { ...ann, points: ann.points?.map(p => ({ ...p })) };
+        if (k === 'x') {
+          commit(cur => ({ ...cur, annotations: cur.annotations.filter(a => a.id !== sel) }));
+          setSelectedAnn(null);
+        }
+      } else if (!typing && inEditor && k === 'v' && clipboardRef.current) {
+        e.preventDefault();
+        const src = clipboardRef.current;
+        const target = editPageRef.current;
+        if (!target) return;
+        // ‼ הדבקה בהיסט קטן, כמו בייחוס — אחרת העותק מסתיר את המקור בדיוק
+        const copy: Annotation = {
+          ...src,
+          id: `an-${Math.random().toString(36).slice(2, 10)}`,
+          pageId: target,
+          xPct: Math.min(1 - src.widthPct, src.xPct + 0.02),
+          yPct: Math.min(1 - src.heightPct, src.yPct + 0.02),
+          points: src.points?.map(p => ({ ...p })),
+        };
+        commit(cur => ({ ...cur, annotations: [...cur.annotations, copy] }));
+        setSelectedAnn(copy.id);
+      }
     }
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [busy, onCancel, undo, redo]);
+  }, [busy, onCancel, undo, redo, commit]);
+
+  // refs למקלדת — הערכים העדכניים בלי לרשום מחדש את המאזין
+  const selectedAnnRef = useRef<string | null>(null);
+  const modeRef = useRef<WorkspaceMode>('organize');
+  const editPageRef = useRef<string | null>(null);
 
   const sourceById = useMemo(() => {
     const m = new Map<string, { source: OrganizerSource; tint: string }>();
@@ -156,10 +223,15 @@ export default function PdfOrganizer({
   }, [sources]);
   const multiSource = sources.length > 1;
 
+  useEffect(() => { selectedAnnRef.current = selectedAnn; }, [selectedAnn]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+
   const editPage = useMemo(
     () => plan.find(p => p.id === editPageId) ?? plan[0] ?? null,
     [plan, editPageId],
   );
+
+  useEffect(() => { editPageRef.current = editPage?.id ?? null; }, [editPage]);
 
   // ─── פעולות סידור ─────────────────────────────────────────────────────
   function handleDrop(targetId: string) {
@@ -217,6 +289,31 @@ export default function PdfOrganizer({
       annotations: cur.annotations.map(a => (a.id === id ? { ...a, ...patch } : a)),
     }));
   }, []);
+
+  /**
+   * ‼ גרירה מייצרת עשרות עדכונים בשנייה. ההיסטוריה מקבלת רשומה אחת:
+   * תצלום-מצב נלקח בתחילת המחווה, ונרשם רק אם בסופה משהו באמת השתנה.
+   * "בטל" אחרי גרירה מחזיר את הסימון למקומו — לא פיקסל אחורה בכל לחיצה.
+   */
+  const gestureSnap = useRef<Snapshot | null>(null);
+  const beginGesture = useCallback(() => { gestureSnap.current = stateRef.current; }, []);
+  const endGesture = useCallback(() => {
+    const snap = gestureSnap.current;
+    gestureSnap.current = null;
+    if (snap && snap.annotations !== stateRef.current.annotations) {
+      past.current = [...past.current.slice(-49), snap];
+      future.current = [];
+      setHistTick(t => t + 1);
+    }
+  }, []);
+
+  /** שינוי תכונה מהסרגל הצף — פעולה אחת, נכנסת להיסטוריה. */
+  const commitPatch = useCallback((id: string, patch: Partial<Annotation>) => {
+    commit(cur => ({
+      ...cur,
+      annotations: cur.annotations.map(a => (a.id === id ? { ...a, ...patch } : a)),
+    }));
+  }, [commit]);
 
   const removeAnnotation = useCallback((id: string) => {
     commit(cur => ({ ...cur, annotations: cur.annotations.filter(a => a.id !== id) }));
@@ -406,7 +503,8 @@ export default function PdfOrganizer({
                   {INK_COLORS.map(c => (
                     <button key={c} type="button" aria-label={`צבע ${c}`}
                       className={`pdfw-swatch${ink === c ? ' is-on' : ''}`}
-                      style={{ background: c }} onClick={() => setInk(c)} />
+                      style={{ background: c }}
+                      onClick={() => { setInk(c); if (selectedAnn) commitPatch(selectedAnn, { color: c }); }} />
                   ))}
                 </span>
               </>
@@ -418,6 +516,14 @@ export default function PdfOrganizer({
             )}
             <span className="pdfw-bar-grow" />
             {pendingImage && <span className="pdfw-bar-hint">לחץ על הדף כדי להניח</span>}
+            <span className="pdfw-zoom">
+              <button type="button" aria-label="הקטן תצוגה" disabled={zoom <= 0.5}
+                onClick={() => setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))}>−</button>
+              <button type="button" className="pdfw-zoom-val" title="חזרה להתאמה למסך"
+                onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
+              <button type="button" aria-label="הגדל תצוגה" disabled={zoom >= 2}
+                onClick={() => setZoom(z => Math.min(2, +(z + 0.25).toFixed(2)))}>+</button>
+            </span>
           </div>
         )}
 
@@ -481,10 +587,14 @@ export default function PdfOrganizer({
                   tool={mode === 'sign' ? (pendingImage ? 'image' : 'select') : tool}
                   color={ink}
                   pendingImage={pendingImage}
+                  zoom={zoom}
                   selectedId={selectedAnn}
                   onSelect={setSelectedAnn}
                   onAdd={a => { addAnnotation(a); if (a.kind === 'image') { setPendingImage(null); setTool('select'); } }}
-                  onUpdate={updateAnnotation}
+                  onLiveUpdate={updateAnnotation}
+                  onCommitPatch={commitPatch}
+                  onGestureStart={beginGesture}
+                  onGestureEnd={endGesture}
                   onRemove={removeAnnotation}
                 />
               )}

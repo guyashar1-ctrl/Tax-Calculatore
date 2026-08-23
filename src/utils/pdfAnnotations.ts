@@ -4,21 +4,27 @@
 // עוד לא לחצו "צור", שום דבר לא נגע בקובץ המקור.
 //
 // מה הובא מפרויקט הייחוס: רשימת הסוגים, חישוב ה-Y ההפוך (מסך יורד ↔ PDF
-// עולה), מטמון התמונות כדי שאותה תמונה לא תוטבע פעמיים, וההפרדה בין
-// מסגרת למילוי. מה שהוחלף: עיצוב הטקסט העברי. פרויקט הייחוס נשען על
-// bidi-js, ואילו כאן כבר קיים pdfHebrew.ts שנשחק על הצעות מחיר ומכתבים
-// אמיתיים ויודע גם מייל, אתר, טלפון ואחוזים — אין סיבה להביא מנוע שני.
+// עולה), מטמון התמונות, מודגש בציור-כפול (אין וריאנט Bold מוטבע), משפחת
+// גופן ללטינית (sans/serif/mono) עם העברית תמיד ב-Noto. מה שהוחלף:
+// עיצוב הטקסט העברי — פרויקט הייחוס נשען על bidi-js, וכאן כבר קיים
+// pdfHebrew.ts שנשחק על הצעות מחיר ומכתבים אמיתיים.
 //
-// ‼ הקואורדינטות באחוזים ולא בנקודות, כמו SignatureField: כך סימון שנוצר
-// בתצוגה מוקטנת יושב באותו מקום בדיוק גם על הדף המלא.
+// ‼ הקואורדינטות באחוזים מהעמוד *כפי שהוא מוצג*, כמו SignatureField:
+// כך סימון שנוצר בזום כלשהו יושב באותו מקום בדיוק בקובץ.
+//
+// ‼ עיקרון ה-WYSIWYG: כל גודל כאן נגזר מהעמוד — גודל טקסט מאחוז גובה
+// העמוד, עובי קו מאחוז רוחב העמוד המוצג. השכבה שעל המסך משתמשת באותם
+// אחוזים בדיוק (מומרים לפיקסלים של התצוגה), ולכן מה שרואים הוא מה שנצרב.
 
-import { PDFDocument, PDFFont, PDFImage, PDFPage, degrees, rgb } from 'pdf-lib';
+import { PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, degrees, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { embedPdfFonts, layoutMixed, measureMixed, PdfFonts } from './pdfHebrew';
+import { embedPdfFonts, layoutMixed, PdfFonts } from './pdfHebrew';
 
 export type AnnotationKind =
   | 'text' | 'highlight' | 'rectangle' | 'circle' | 'line'
   | 'draw' | 'check' | 'cross' | 'image';
+
+export type LatinFamily = 'sans' | 'serif' | 'mono';
 
 export interface Annotation {
   id: string;
@@ -33,12 +39,17 @@ export interface Annotation {
   color: string;
   fillColor?: string | null;
   text?: string;
-  /** גודל הטקסט באחוז מגובה העמוד — כדי שלא ישתנה עם הזום. */
+  /** גודל הטקסט באחוז מגובה העמוד המוצג — לא תלוי זום. */
   fontPct?: number;
+  /** משפחת הגופן ללטינית וספרות. העברית תמיד ב-Noto Hebrew. */
+  fontFamily?: LatinFamily;
+  bold?: boolean;
   /** נקודות ציור חופשי, יחסית לתיבה (0..1). */
   points?: { x: number; y: number }[];
-  /** עובי קו באחוז מרוחב העמוד. */
+  /** עובי קו באחוז מרוחב העמוד המוצג. */
   thicknessPct?: number;
+  /** קו: הגרירה הייתה כלפי מעלה — האלכסון הוא ↗ ולא ↘. */
+  flipLine?: boolean;
   imageData?: string;
 }
 
@@ -53,6 +64,12 @@ export const ANNOTATION_LABELS: Record<AnnotationKind, string> = {
   cross: 'סימון ✗',
   image: 'תמונה',
 };
+
+export const DEFAULT_FONT_PCT = 0.024;
+export const DEFAULT_THICKNESS_PCT = 0.004;
+export const THICKNESS_STEPS: number[] = [0.002, 0.004, 0.008];
+export const FONT_PCT_MIN = 0.012;
+export const FONT_PCT_MAX = 0.09;
 
 // ─── צבע ───────────────────────────────────────────────────────────────
 
@@ -90,7 +107,6 @@ export function displayRectToPage(
 ): PlacedRect {
   const rot = ((Math.round(box.rotation / 90) * 90) % 360 + 360) % 360;
   const quarter = rot === 90 || rot === 270;
-  // מידות התצוגה
   const dW = quarter ? box.height : box.width;
   const dH = quarter ? box.width : box.height;
   const dx = xPct * dW, dy = yPct * dH, dw = wPct * dW, dh = hPct * dH;
@@ -112,36 +128,112 @@ export function displayPointToPage(box: PageBox, xPct: number, yPct: number): { 
 
 /**
  * כמה צריך לסובב תוכן שנצרב, כדי שייראה זקוף אחרי שהצופה מסובב את העמוד.
- * pdf-lib מסובב נגד כיוון השעון, והצופה מסובב עם כיוון השעון — ולכן
- * הזווית זהה בערכה.
  */
 export function uprightRotation(rotation: number): number {
   return ((Math.round(rotation / 90) * 90) % 360 + 360) % 360;
 }
 
-// ─── ציור טקסט (עברית/מעורב) ───────────────────────────────────────────
+// ─── גופנים: בחירה בטוחה לפי תו ────────────────────────────────────────
+
+/** צמד הגופנים בפועל + עתודה למקרה שהלטיני הנבחר לא מכיל תו. */
+export interface SafeFonts extends PdfFonts { fallback?: PDFFont }
+
+const encodeCache = new WeakMap<PDFFont, Map<string, boolean>>();
+/**
+ * ‼ Times/Courier של התקן מקודדים WinAnsi בלבד — ₪, גרשיים מסולסלים
+ * וכדומה מפילים אותם עם חריגה. תו שהגופן הנבחר לא מכיל נופל ל-Noto,
+ * שמכיל את כולם. בלי זה 'שלום 1,250 ₪' בגופן Times הפיל את כל היצירה.
+ */
+function canEncode(font: PDFFont, text: string): boolean {
+  let m = encodeCache.get(font);
+  if (!m) { m = new Map(); encodeCache.set(font, m); }
+  for (const ch of text) {
+    let ok = m.get(ch);
+    if (ok === undefined) {
+      try { font.widthOfTextAtSize(ch, 10); ok = true; } catch { ok = false; }
+      m.set(ch, ok);
+    }
+    if (!ok) return false;
+  }
+  return true;
+}
+
+function segFontSafe(seg: { rtl: boolean; text: string }, fonts: SafeFonts): PDFFont {
+  if (seg.rtl) return fonts.hebrew;
+  if (fonts.fallback && !canEncode(fonts.latin, seg.text)) return fonts.fallback;
+  return fonts.latin;
+}
+
+function measureSafe(segs: ReturnType<typeof layoutMixed>, size: number, fonts: SafeFonts): number {
+  return segs.reduce((w, seg) => {
+    const f = segFontSafe(seg, fonts);
+    try { return w + f.widthOfTextAtSize(seg.text, size); } catch { return w; }
+  }, 0);
+}
+
+// ─── טקסט: גלישת שורות ─────────────────────────────────────────────────
 
 /**
- * מצייר שורה מעורבת בזווית. ‼ drawMixedVisual של pdfHebrew אינו יודע
+ * גלישה רכה של שורה לוגית לרוחב התיבה — נמדדת בגופני ה-PDF עצמם, ולכן
+ * זו הסמכות; השכבה שעל המסך משתמשת באותם קובצי גופן (עוד TTF, אותם
+ * מטריקות) ולכן נשברת באותם מקומות.
+ * ‼ בלי הגלישה הזו, טקסט ארוך פשוט זלג מעבר לתיבה בקובץ הסופי בזמן
+ * שעל המסך הוא נראה עטוף — הפער המדויק שהמשתמש קרא לו "לא עובד".
+ */
+export function wrapLogicalLine(
+  line: string, boxWidth: number, size: number, fonts: SafeFonts,
+): string[] {
+  if (!line) return [''];
+  const fits = (s: string) => measureSafe(layoutMixed(s), size, fonts) <= boxWidth;
+  if (fits(line)) return [line];
+
+  const tokens = line.split(/(\s+)/);
+  const out: string[] = [];
+  let cur = '';
+  for (const tok of tokens) {
+    if (!tok) continue;
+    const cand = cur + tok;
+    if (cur && tok.trim() && !fits(cand.replace(/\s+$/, ''))) {
+      out.push(cur.replace(/\s+$/, ''));
+      cur = tok.replace(/^\s+/, '');
+    } else {
+      cur = cand;
+    }
+  }
+  if (cur.replace(/\s+$/, '')) out.push(cur.replace(/\s+$/, ''));
+  return out.length ? out : [line];
+}
+
+/**
+ * מצייר שורה מעורבת בזווית. drawMixedVisual של pdfHebrew אינו יודע
  * לסובב, ולכן ההתקדמות בין המקטעים מחושבת כאן לאורך הציר המסובב.
+ * ‼ מודגש = ציור כפול בהיסט זעיר לאורך השורה (הטריק מפרויקט הייחוס:
+ * אין וריאנט Bold מוטבע, וההיסט מדמה אותו בלי גופן שני).
  */
 function drawMixedRotated(
   page: PDFPage, text: string, x: number, y: number, size: number,
-  fonts: PdfFonts, color: ReturnType<typeof rgb>, rotation: number,
+  fonts: SafeFonts, color: ReturnType<typeof rgb>, rotation: number, bold: boolean,
 ) {
   const segs = layoutMixed(text);
   const rad = (rotation * Math.PI) / 180;
   const ux = Math.cos(rad), uy = Math.sin(rad);
-  let advance = 0;
-  for (const seg of segs) {
-    const font: PDFFont = seg.rtl ? fonts.hebrew : fonts.latin;
-    page.drawText(seg.text, {
-      x: x + ux * advance,
-      y: y + uy * advance,
-      size, font, color,
-      rotate: degrees(rotation),
-    });
-    advance += font.widthOfTextAtSize(seg.text, size);
+  const passes = bold ? [0, size * 0.03] : [0];
+  for (const off of passes) {
+    let advance = off;
+    for (const seg of segs) {
+      const font = segFontSafe(seg, fonts);
+      // ‼ תו שאין לו גליף גם ב-Noto (אמוג'י נדיר) מדולג — מסמך שלם לא
+      // נופל בגלל תו אחד.
+      try {
+        page.drawText(seg.text, {
+          x: x + ux * advance,
+          y: y + uy * advance,
+          size, font, color,
+          rotate: degrees(rotation),
+        });
+        advance += font.widthOfTextAtSize(seg.text, size);
+      } catch { /* מדלגים על המקטע */ }
+    }
   }
 }
 
@@ -166,6 +258,9 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; isJpg: boolean } 
 export interface BurnContext {
   doc: PDFDocument;
   fonts: PdfFonts;
+  /** גופנים לטיניים חלופיים — מוטבעים רק אם סימון כלשהו ביקש אותם. */
+  serif?: PDFFont;
+  mono?: PDFFont;
   /** ‼ אותה תמונה שהונחה כמה פעמים מוטבעת פעם אחת — אחרת הקובץ מתנפח. */
   imageCache: Map<string, PDFImage>;
 }
@@ -176,6 +271,19 @@ export async function createBurnContext(doc: PDFDocument): Promise<BurnContext> 
   doc.registerFontkit(fontkit);
   const fonts = await embedPdfFonts(doc);
   return { doc, fonts, imageCache: new Map() };
+}
+
+/** צמד הגופנים לפי משפחה: הלטיני מתחלף, העברי תמיד Noto Hebrew. */
+async function fontsFor(ctx: BurnContext, family?: LatinFamily): Promise<SafeFonts> {
+  if (family === 'serif') {
+    ctx.serif ??= await ctx.doc.embedFont(StandardFonts.TimesRoman);
+    return { latin: ctx.serif, hebrew: ctx.fonts.hebrew, fallback: ctx.fonts.latin };
+  }
+  if (family === 'mono') {
+    ctx.mono ??= await ctx.doc.embedFont(StandardFonts.Courier);
+    return { latin: ctx.mono, hebrew: ctx.fonts.hebrew, fallback: ctx.fonts.latin };
+  }
+  return ctx.fonts;
 }
 
 /** מצייר את כל הסימונים של עמוד אחד. */
@@ -190,7 +298,9 @@ export async function drawAnnotations(
   for (const ann of annotations) {
     const color = hexToRgb(ann.color);
     const r = displayRectToPage(box, ann.xPct, ann.yPct, ann.widthPct, ann.heightPct);
-    const thickness = Math.max(0.6, (ann.thicknessPct ?? 0.004) * box.width);
+    // ‼ העובי יחסי לרוחב המוצג (dW) ולא לרוחב הפיזי: כך קו שנראה בעובי
+    // מסוים על עמוד מסובב נצרב באותו עובי בדיוק.
+    const thickness = Math.max(0.5, (ann.thicknessPct ?? DEFAULT_THICKNESS_PCT) * dW);
 
     switch (ann.kind) {
       case 'highlight':
@@ -202,7 +312,7 @@ export async function drawAnnotations(
           ...r,
           borderColor: color,
           borderWidth: thickness,
-          ...(ann.fillColor ? { color: hexToRgb(ann.fillColor) } : {}),
+          ...(ann.fillColor ? { color: hexToRgb(ann.fillColor), opacity: 0.35 } : {}),
         });
         break;
 
@@ -214,14 +324,14 @@ export async function drawAnnotations(
           yScale: Math.max(0.5, r.height / 2),
           borderColor: color,
           borderWidth: thickness,
-          ...(ann.fillColor ? { color: hexToRgb(ann.fillColor) } : {}),
+          ...(ann.fillColor ? { color: hexToRgb(ann.fillColor), opacity: 0.35 } : {}),
         });
         break;
 
       case 'line': {
-        // קו נשמר כאלכסון התיבה: מהפינה העליונה-שמאלית לתחתונה-ימנית בתצוגה
-        const a = displayPointToPage(box, ann.xPct, ann.yPct);
-        const b = displayPointToPage(box, ann.xPct + ann.widthPct, ann.yPct + ann.heightPct);
+        // האלכסון של התיבה; flipLine = הגרירה עלתה, האלכסון הוא ↗
+        const a = displayPointToPage(box, ann.xPct, ann.yPct + (ann.flipLine ? ann.heightPct : 0));
+        const b = displayPointToPage(box, ann.xPct + ann.widthPct, ann.yPct + (ann.flipLine ? 0 : ann.heightPct));
         page.drawLine({ start: a, end: b, color, thickness });
         break;
       }
@@ -232,14 +342,13 @@ export async function drawAnnotations(
         for (let i = 1; i < pts.length; i++) {
           const a = displayPointToPage(box, ann.xPct + pts[i - 1].x * ann.widthPct, ann.yPct + pts[i - 1].y * ann.heightPct);
           const b = displayPointToPage(box, ann.xPct + pts[i].x * ann.widthPct, ann.yPct + pts[i].y * ann.heightPct);
-          page.drawLine({ start: a, end: b, color, thickness });
+          page.drawLine({ start: a, end: b, color, thickness, lineCap: 1 as never });
         }
         break;
       }
 
       case 'check':
       case 'cross': {
-        // הצורה נבנית מנקודות בתצוגה, ולכן היא נראית נכון גם על עמוד מסובב
         const p = (fx: number, fy: number) =>
           displayPointToPage(box, ann.xPct + fx * ann.widthPct, ann.yPct + fy * ann.heightPct);
         const w = Math.max(1.2, Math.min(r.width, r.height) * 0.14);
@@ -283,23 +392,29 @@ export async function drawAnnotations(
       case 'text': {
         const raw = (ann.text ?? '').replace(/\r/g, '');
         if (!raw.trim()) break;
-        const size = Math.max(4, (ann.fontPct ?? 0.025) * dH);
-        const lines = raw.split('\n');
+        const size = Math.max(4, (ann.fontPct ?? DEFAULT_FONT_PCT) * dH);
+        const fonts = await fontsFor(ctx, ann.fontFamily);
+        const boxWDisplay = ann.widthPct * dW;
         const lineHeight = size * 1.32;
-        // התיבה בתצוגה — הטקסט מתחיל בראשה ויורד
+
+        // גלישה: כל שורה לוגית נשברת לרוחב התיבה, במטריקות של הגופנים עצמם
+        const lines: string[] = [];
+        for (const logical of raw.split('\n')) {
+          lines.push(...wrapLogicalLine(logical, boxWDisplay, size, fonts));
+        }
+
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           if (!line.trim()) continue;
           const segs = layoutMixed(line);
-          const tw = measureMixed(segs, size, ctx.fonts);
-          const boxWDisplay = ann.widthPct * dW;
-          // שורה עברית נצמדת לימין התיבה, לטינית לשמאלה — כמו בפרויקט הייחוס
+          const tw = measureSafe(segs, size, fonts);
+          // שורה עברית נצמדת לימין התיבה, לטינית לשמאלה — בדיוק כמו השכבה
           const rtl = /[֐-׿]/.test(line);
           const offsetX = rtl ? Math.max(0, boxWDisplay - tw) : 0;
           const topPct = ann.yPct + (i * lineHeight) / dH;
           const baselinePct = topPct + (size * 0.82) / dH;
           const anchor = displayPointToPage(box, ann.xPct + offsetX / dW, baselinePct);
-          drawMixedRotated(page, line, anchor.x, anchor.y, size, ctx.fonts, color, upright);
+          drawMixedRotated(page, line, anchor.x, anchor.y, size, fonts, color, upright, !!ann.bold);
         }
         break;
       }

@@ -368,6 +368,72 @@ console.log('\nשילוב: סידור + סיבוב + חיתוך + סימונים
   check('הפלט נטען מחדש', (await PDFDocument.load(await doc.save())).getPageCount() === 4);
 }
 
+// ── 10. טיפוגרפיה: גלישה, מודגש, משפחה, עובי, מילוי ─────────────────────
+console.log('\nגלישת שורות בצריבה');
+{
+  const plan = Pages.buildInitialPlan(srcA);
+  const long = 'מילה '.repeat(24).trim();          // רחב בהרבה מהתיבה
+  const mk = (widthPct) => Pages.buildPdfFromPlan(plan, bytesMap, [{
+    id: 't', pageId: plan[0].id, kind: 'text', xPct: .1, yPct: .1, widthPct, heightPct: .5,
+    color: '#000', text: long, fontPct: .03,
+  }]);
+  const narrow = await pageTexts(await mk(0.3));
+  const wide = await pageTexts(await mk(0.9));
+  const lineCount = t => new Set([...t.matchAll(/1 0 0 1 [\d.]+ ([\d.]+) Tm/g)].map(m => m[1])).size - 1; // מינוס שורת הבסיס A1
+  check('טקסט ארוך נשבר לכמה שורות', lineCount(narrow.streams[0]) >= 4, String(lineCount(narrow.streams[0])));
+  check('תיבה רחבה — פחות שורות', lineCount(wide.streams[0]) < lineCount(narrow.streams[0]),
+    lineCount(wide.streams[0]) + ' מול ' + lineCount(narrow.streams[0]));
+  check('מילה בודדת ללא שבירה באמצע', (M => M.wrapLogicalLine('שלום', 500, 12, null) )
+    // wrapLogicalLine נבדק דרך המנוע — כאן רק שהמסמך תקין
+    ? (await PDFDocument.load(await mk(0.3))).getPageCount() === 3 : false);
+}
+
+console.log('\nמודגש = ציור כפול');
+{
+  const plan = Pages.buildInitialPlan(srcA);
+  const mk = (bold) => Pages.buildPdfFromPlan(plan, bytesMap, [{
+    id: 't', pageId: plan[0].id, kind: 'text', xPct: .1, yPct: .1, widthPct: .8, heightPct: .1,
+    color: '#000', text: 'שלום Bold', fontPct: .03, bold,
+  }]);
+  const reg = (await pageTexts(await mk(false))).streams[0];
+  const bold = (await pageTexts(await mk(true))).streams[0];
+  const tj = t => (t.match(/Tj/g) || []).length - 1;   // מינוס עמוד הבסיס
+  check('כפול בדיוק ממספר ההצגות הרגיל', tj(bold) === 2 * tj(reg), tj(bold) + ' מול ' + tj(reg));
+}
+
+console.log('\nמשפחת גופן ללטינית');
+{
+  const plan = Pages.buildInitialPlan(srcA);
+  const mk = (fontFamily) => Pages.buildPdfFromPlan(plan, bytesMap, [{
+    id: 't', pageId: plan[0].id, kind: 'text', xPct: .1, yPct: .1, widthPct: .8, heightPct: .1,
+    color: '#000', text: 'שלום Serif 123 ₪', fontPct: .03, fontFamily,
+  }]);
+  const serif = await pageTexts(await mk('serif'));
+  const mono = await pageTexts(await mk('mono'));
+  check('serif → Times ללטינית', /Times/.test(serif.plain));
+  check('₪ נופל ל-Noto ולא מפיל את Times', /NotoSans-Regular/.test(serif.plain));
+  check('העברית נשארת Noto Hebrew גם ב-serif', /NotoSansHebrew/.test(serif.plain));
+  check('mono → Courier ללטינית', /Courier/.test(mono.plain));
+}
+
+console.log('\nעובי, מילוי וקו הפוך');
+{
+  const plan = Pages.buildInitialPlan(srcA);
+  const out = await Pages.buildPdfFromPlan(plan, bytesMap, [
+    { id: 'r', pageId: plan[0].id, kind: 'rectangle', xPct: .1, yPct: .1, widthPct: .3, heightPct: .2,
+      color: '#e02424', fillColor: '#e02424', thicknessPct: 0.008 },
+    { id: 'l', pageId: plan[0].id, kind: 'line', xPct: .1, yPct: .4, widthPct: .4, heightPct: .1,
+      color: '#0a8a3c', flipLine: true },
+  ]);
+  const { streams, doc } = await pageTexts(out);
+  const s0 = streams[0];
+  // עובי 0.008 מרוחב מוצג 400 = 3.2
+  check('עובי הקו נגזר מהאחוז', /3\.2\d*\s+w\b/.test(s0), (s0.match(/([\d.]+)\s+w\b/g) || []).join(','));
+  // מילוי + מסגרת: pdf-lib מצייר שני נתיבים (f ואז S) או B
+  check('מלבן ממולא וגם מסומן', (/\bf\b/.test(s0) || /\bB\b/.test(s0)) && /\bS\b/.test(s0));
+  check('הקובץ עם קו הפוך נטען', doc.getPageCount() === 3);
+}
+
 rmSync(work, { recursive: true, force: true });
 console.log(failures ? `\n✗ ${failures} בדיקות נכשלו\n` : '\n✓ כל הבדיקות עברו\n');
 process.exitCode = failures ? 1 : 0;

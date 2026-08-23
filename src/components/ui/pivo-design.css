@@ -3860,3 +3860,74 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .qb-srow{flex-wrap:wrap}
   .qb-sp{width:82px}
 }
+
+/* ─── עורך ה-PDF: WYSIWYG ואינטראקציה ───────────────────────────────────
+   אותם קובצי TTF שמוטבעים ב-PDF נטענים כאן כ-webfont — לכן רוחב טקסט
+   וגלישת שורות על המסך זהים לקובץ שנוצר. serif/mono ממופים לגופני מערכת
+   תואמי-מטריקה ל-Times/Courier של תקן ה-PDF. */
+@font-face{font-family:'NotoSansPDF';src:url('/fonts/NotoSans-Regular.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'NotoSansHebrewPDF';src:url('/fonts/NotoSansHebrew-Regular.ttf') format('truetype');font-display:swap}
+
+/* ‼ safe center: בזום, דף רחב מהמסך נגלל עד הקצה במקום להיחתך בצד */
+.pdfe-stage-wrap{display:flex;justify-content:safe center;width:100%}
+
+/* סמן לפי הכלי — יודעים מה תעשה הלחיצה עוד לפני שלוחצים */
+.pdfe-stage[data-tool="text"]{cursor:text}
+.pdfe-stage[data-tool="check"],.pdfe-stage[data-tool="cross"],.pdfe-stage[data-tool="image"]{cursor:copy}
+
+/* ‼ כשכלי ציור פעיל, הסימונים שקופים ללחיצות: משיכה שנייה מעל קו קיים
+   מציירת ולא גוררת אותו. תיבת טקסט שנערכת כרגע נשארת אינטראקטיבית. */
+.pdfe-stage.is-drawing .pdfe-ann{pointer-events:none}
+.pdfe-stage .pdfe-ann.is-editing{pointer-events:auto}
+
+.pdfe-ann{position:absolute;box-sizing:border-box;touch-action:none}
+.pdfe-stage:not(.is-drawing) .pdfe-ann{cursor:move}
+.pdfe-ann.is-selected{outline:1.5px dashed var(--accent);outline-offset:2px}
+.pdfe-outline{border-style:solid}
+
+/* טקסט — בלי ריפוד: הצריבה מציירת מפינת התיבה בדיוק */
+.pdfe-text{display:block;width:100%;height:100%;white-space:pre-wrap;overflow-wrap:normal;
+  word-break:normal;overflow:visible;padding:0;text-align:start;unicode-bidi:plaintext}
+.pdfe-textarea{display:block;width:100%;height:100%;border:1px dashed var(--accent);border-radius:2px;
+  background:rgba(255,255,255,.92);padding:0;margin:0;resize:none;outline:none;overflow:hidden;
+  white-space:pre-wrap;overflow-wrap:normal;word-break:normal;text-align:start;unicode-bidi:plaintext}
+
+/* קו-חי בזמן ציור — נראה בדיוק כמו התוצאה */
+.pdfe-livedraw{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+
+/* ─── 8 ידיות שינוי גודל ──────────────────────────────────────────────── */
+.pdfe-h{position:absolute;width:12px;height:12px;background:var(--surface-0);
+  border:1.5px solid var(--accent);border-radius:3px;z-index:3}
+/* אזור פגיעה נדיב מהריבוע המצויר — קל לתפוס גם סימון קטן */
+.pdfe-h::after{content:'';position:absolute;inset:-6px}
+.pdfe-h-nw{top:-6px;left:-6px;cursor:nwse-resize}
+.pdfe-h-n{top:-6px;left:calc(50% - 6px);cursor:ns-resize}
+.pdfe-h-ne{top:-6px;right:-6px;cursor:nesw-resize}
+.pdfe-h-e{top:calc(50% - 6px);right:-6px;cursor:ew-resize}
+.pdfe-h-se{bottom:-6px;right:-6px;cursor:nwse-resize}
+.pdfe-h-s{bottom:-6px;left:calc(50% - 6px);cursor:ns-resize}
+.pdfe-h-sw{bottom:-6px;left:-6px;cursor:nesw-resize}
+.pdfe-h-w{top:calc(50% - 6px);left:-6px;cursor:ew-resize}
+
+/* ─── הסרגל הצף של הסימון הנבחר ────────────────────────────────────────── */
+.pdfe-ctx{position:absolute;z-index:5;display:flex;align-items:center;gap:2px;
+  background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:9px;
+  padding:3px;box-shadow:0 4px 16px rgba(16,24,40,.18)}
+.pdfe-ctx button{min-width:28px;height:28px;border:0;border-radius:6px;background:none;
+  color:var(--ink-2);cursor:pointer;font:inherit;font-size:13px;line-height:1;
+  display:flex;align-items:center;justify-content:center;padding:0 5px}
+.pdfe-ctx button:hover{background:var(--surface-2);color:var(--ink-1)}
+.pdfe-ctx button.is-on{background:var(--accent);color:#fff}
+.pdfe-ctx-sep{width:1px;height:16px;background:var(--hairline-1);margin-inline:2px}
+.pdfe-ctx-del{color:var(--err)}
+.pdfe-ctx-del:hover{background:var(--err);color:#fff}
+.pdfe-ctx-stroke{display:block;width:16px;border-radius:2px;background:currentColor}
+
+/* ─── זום ──────────────────────────────────────────────────────────────── */
+.pdfw-zoom{display:flex;align-items:center;gap:2px;background:var(--surface-2);
+  border-radius:8px;padding:2px}
+.pdfw-zoom button{border:0;background:none;min-width:26px;height:26px;border-radius:6px;
+  cursor:pointer;font:inherit;font-size:13px;color:var(--ink-2);line-height:1}
+.pdfw-zoom button:hover:not(:disabled){background:var(--surface-0);color:var(--ink-1)}
+.pdfw-zoom button:disabled{opacity:.35;cursor:default}
+.pdfw-zoom-val{font-size:var(--fs-12);min-width:44px}

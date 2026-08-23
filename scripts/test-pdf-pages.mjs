@@ -213,7 +213,7 @@ console.log('\nמסמך גדול');
 
 console.log('\nשם ברירת מחדל');
 check('מיזוג', M.defaultOutputName('דוח שנתי.pdf', true) === 'דוח שנתי - מאוחד', M.defaultOutputName('דוח שנתי.pdf', true));
-check('ארגון', M.defaultOutputName('דוח שנתי.pdf', false) === 'דוח שנתי - מאורגן');
+check('ארגון', M.defaultOutputName('דוח שנתי.pdf', false) === 'דוח שנתי - ערוך');
 check('בלי סיומת', M.defaultOutputName('סריקה', true) === 'סריקה - מאוחד');
 check('שם ריק', M.defaultOutputName('', true) === 'מסמך - מאוחד');
 

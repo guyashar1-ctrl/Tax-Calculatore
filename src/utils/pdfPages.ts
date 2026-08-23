@@ -300,5 +300,5 @@ function cropPctToRect(
 /** שם ברירת מחדל לפלט, נגזר משם המקור הראשון. */
 export function defaultOutputName(firstSourceName: string, merged: boolean): string {
   const base = (firstSourceName || 'מסמך').replace(/\.pdf$/i, '').trim() || 'מסמך';
-  return merged ? `${base} - מאוחד` : `${base} - מאורגן`;
+  return merged ? `${base} - מאוחד` : `${base} - ערוך`;
 }
