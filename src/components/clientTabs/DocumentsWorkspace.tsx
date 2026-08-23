@@ -1487,11 +1487,13 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                   <span className="docw-col-updated">
                     {fmtDate(f.createdAt)}
                     {/* פעולות התיקייה יושבות על השורה שלה — שם הן רלוונטיות */}
-                    {/* ‼ "ערוך" ירד מהשורה: הוא נמצא עכשיו בסרגל הבחירה,
-                        כמו כל פעולה אחרת במסך הזה. מחיקת תיקייה נשארה כאן
-                        כי סמנטיקת המחיקה שלה שונה ממסמך (תת-תיקיות נגררות
-                        איתה, והקבצים עולים לרמה הראשית) ויש לה דיאלוג משלה. */}
+                    {/* ‼ "ערוך" חזר לשורה. כשהוא ישב רק בסרגל הבחירה, הדרך
+                        היחידה לשנות שם או תווית של תיקייה הייתה לסמן אותה
+                        בתיבה — ולחיצה על השורה נכנסת פנימה, כך שהמסך נקרא
+                        כאילו אי אפשר לערוך תיקייה בכלל. */}
                     <span className="docw-folder-actions">
+                      <button type="button" title="שם, תווית ושנה"
+                        onClick={e => { e.stopPropagation(); openFolderEdit(f); }}>ערוך</button>
                       <button type="button" title="מחיקת התיקייה" style={{ color: 'var(--err)' }}
                         onClick={e => { e.stopPropagation(); setConfirmDeleteFolder(f); setFolderError(''); }}>מחק</button>
                     </span>
