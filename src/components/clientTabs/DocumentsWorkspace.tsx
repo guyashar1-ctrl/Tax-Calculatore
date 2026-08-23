@@ -1217,6 +1217,25 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     addPickerResolve.current = null;
   }
 
+  /**
+   * פותח את משטח ה-PDF על מסמך אחד, מתוך המגירה.
+   * ‼ אותו מסלול בדיוק של הפתיחה מסרגל הבחירה — אותו getDoc, אותה
+   * בדיקת תוכן ואותו משטח. רק נקודת הכניסה שונה.
+   */
+  async function openOrganizerForDoc(d: StoredDoc) {
+    if (organizerLoading) return;
+    setOrganizerLoading(true);
+    setPdfError('');
+    try {
+      const src = await loadSourceFromDoc(d);
+      if (!src) return;
+      closeDrawer();
+      setOrganizer({ sources: [src], name: defaultOutputName(d.description || d.fileName, false) });
+    } finally {
+      setOrganizerLoading(false);
+    }
+  }
+
   function closeOrganizer() {
     if (pdfRunningRef.current) return;
     releaseOrganizerCache();
@@ -1405,7 +1424,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                 קורא כמו תקלה. */}
             {docsOnly && pdfSelection.length > 0 && (
               <button type="button" className="btn btn-sm" disabled={organizerLoading} onClick={openOrganizer}>
-                {organizerLoading ? 'פותח…' : pdfSelection.length > 1 ? 'מיזוג PDF' : 'ארגון עמודים'}
+                {organizerLoading ? 'פותח…' : pdfSelection.length > 1 ? 'מיזוג PDF' : 'ערוך PDF'}
               </button>
             )}
             {docsOnly && (
@@ -1564,6 +1583,14 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                 type="button" className="ui-btn ui-btn-primary"
                 disabled={fileBusy} onClick={openFileInNewTab}
               >{fileBusy ? 'פותח…' : 'פתח את הקובץ'}</button>
+              {/* PDF — כניסה למשטח העריכה: ציור, טקסט, סימונים, עמודים וחתימה */}
+              {looksLikePdf(drawerDoc.fileType, drawerDoc.fileName) && (
+                <button
+                  type="button" className="ui-btn ui-btn-ghost"
+                  disabled={organizerLoading} onClick={() => openOrganizerForDoc(drawerDoc)}
+                  title="ציור, טקסט, סימונים, סידור עמודים וחתימה — נוצר קובץ חדש"
+                >{organizerLoading ? 'פותח…' : 'ערוך PDF'}</button>
+              )}
               {/* מוצג רק על תצלום — מסמך שהוא כבר PDF אין מה להמיר. */}
               {looksConvertible(drawerDoc.fileType, drawerDoc.fileName) && (
                 <button
