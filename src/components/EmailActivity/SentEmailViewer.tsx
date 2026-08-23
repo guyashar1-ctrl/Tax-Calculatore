@@ -3,6 +3,7 @@
 // להריץ סקריפטים או לגעת באפליקציה.
 
 import { EmailMessage } from '../../types/emailActivity';
+import { EMAIL_PREVIEW_SANDBOX, withExternalLinks } from '../../utils/emailPreviewHtml';
 
 function fmtTime(iso?: string): string {
   if (!iso) return '—';
@@ -25,8 +26,8 @@ export default function SentEmailViewer({ message, onClose }: { message: EmailMe
         <div style={{ flex: 1, overflow: 'hidden', background: 'var(--gray-100, #eee)' }}>
           <iframe
             title="תצוגת המייל שנשלח"
-            srcDoc={message.html}
-            sandbox=""
+            srcDoc={withExternalLinks(message.html)}
+            sandbox={EMAIL_PREVIEW_SANDBOX}
             style={{ width: '100%', height: '70vh', border: 'none', background: '#fff' }}
           />
         </div>

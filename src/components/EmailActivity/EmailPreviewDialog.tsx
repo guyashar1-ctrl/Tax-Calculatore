@@ -4,6 +4,7 @@
 // לא שחזור שלו.
 
 import { useEffect, useState } from 'react';
+import { EMAIL_PREVIEW_SANDBOX, withExternalLinks } from '../../utils/emailPreviewHtml';
 import { supabase } from '../../lib/supabase';
 import InfoLines from '../ui/InfoLines';
 
@@ -212,8 +213,8 @@ export default function EmailPreviewDialog({ body, fn, editable, preloaded, send
           {loaded ? (
             <iframe
               title="תצוגה מקדימה של המייל"
-              srcDoc={loaded.html}
-              sandbox=""
+              srcDoc={withExternalLinks(loaded.html)}
+              sandbox={EMAIL_PREVIEW_SANDBOX}
               style={{ width: '100%', height: '62vh', border: 'none', background: '#fff' }}
             />
           ) : (
