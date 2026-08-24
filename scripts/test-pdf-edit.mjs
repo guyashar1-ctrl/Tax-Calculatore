@@ -19,7 +19,7 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import zlib from 'node:zlib';
 import { build } from 'esbuild';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, PDFName, StandardFonts, rgb } from 'pdf-lib';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -244,6 +244,11 @@ console.log('\nסימונים נצרבים לקובץ');
     { id: 'a6', pageId: id, kind: 'check', xPct: .7, yPct: .5, widthPct: .08, heightPct: .05, color: '#0a8a3c' },
     { id: 'a7', pageId: id, kind: 'cross', xPct: .8, yPct: .5, widthPct: .08, heightPct: .05, color: '#e02424' },
   ];
+  // ‼ צילום של בייטי המקור *לפני* הצריבה. קודם נבדק כאן מול מקור שנוצר
+  // מחדש — ו-pdf-lib חורט בכל מסמך תאריך יצירה, ולכן הבדיקה נכשלה בכל
+  // פעם ששתי היצירות נפלו משני צדי אותה שנייה. מה שרוצים לבדוק הוא
+  // שהצריבה אינה נוגעת במערך הנכנס, וזה בדיוק מה שנמדד עכשיו.
+  const sourceBefore = Buffer.from(A);
   const out = await Pages.buildPdfFromPlan(plan, bytesMap, anns);
   const { doc, streams } = await pageTexts(out);
   check('מספר העמודים לא השתנה', doc.getPageCount() === 3);
@@ -253,7 +258,7 @@ console.log('\nסימונים נצרבים לקובץ');
   check('הדגשה — מילוי שקוף', /\bgs\b/.test(s0) && /\bf\b/.test(s0));
   check('קווים צוירו (ציור/קו/✓/✗)', (s0.match(/\bl\b/g) || []).length >= 6, String((s0.match(/\bl\b/g) || []).length));
   check('עמוד ללא סימונים נשאר נקי', streams[1].length < s0.length);
-  check('המקור לא השתנה', Buffer.from(A).toString('base64') === Buffer.from(await makeSource('A', 3)).toString('base64'));
+  check('המקור לא השתנה', Buffer.compare(sourceBefore, Buffer.from(A)) === 0);
 }
 
 // ── 6. טקסט עברי/מעורב ──────────────────────────────────────────────────
@@ -432,6 +437,121 @@ console.log('\nעובי, מילוי וקו הפוך');
   // מילוי + מסגרת: pdf-lib מצייר שני נתיבים (f ואז S) או B
   check('מלבן ממולא וגם מסומן', (/\bf\b/.test(s0) || /\bB\b/.test(s0)) && /\bS\b/.test(s0));
   check('הקובץ עם קו הפוך נטען', doc.getPageCount() === 3);
+}
+
+
+console.log('\nמילוי ומסגרת עצמאיים');
+{
+  const plan = Pages.buildInitialPlan(srcA);
+  // ‼ המקרים שהמשתמש ביקש במפורש, כל אחד נמדד בזרם התוכן של העמוד:
+  // gs מגדיר שקיפות, f/B מציינים מילוי, S מציין קו.
+  const burn = (extra) => Pages.buildPdfFromPlan(plan, bytesMap, [{
+    id: 'r', pageId: plan[0].id, kind: 'rectangle', xPct: .1, yPct: .1, widthPct: .3, heightPct: .2,
+    color: '#111827', ...extra,
+  }]);
+  const streamOf = async (extra) => (await pageTexts(await burn(extra))).streams[0];
+
+  const outlineOnly = await streamOf({ fillColor: null });
+  check('מלבן שקוף עם מסגרת — מסגרת בלבד', /\bS\b/.test(outlineOnly) && !/\bB\b/.test(outlineOnly));
+
+  const solidNoBorder = await streamOf({ fillColor: '#ffffff', fillOpacity: 1, noStroke: true });
+  check('מלבן לבן אטום ללא מסגרת — מילוי בלבד', /\bf\b/.test(solidNoBorder) && !/\bS\b/.test(solidNoBorder));
+
+  const both = await streamOf({ fillColor: '#f59e0b', fillOpacity: 1 });
+  check('מילוי + מסגרת יחד', /\bB\b/.test(both) || (/\bf\b/.test(both) && /\bS\b/.test(both)));
+
+  // שקיפות מילוי חלקית מחייבת ExtGState; מסגרת מלאה אינה דוהה איתה
+  const translucent = await streamOf({ fillColor: '#facc15', fillOpacity: .3, strokeOpacity: 1 });
+  check('שקיפות מילוי נצרבת כמצב גרפי', /\/GS\d+\s+gs/.test(translucent) || /gs/.test(translucent));
+
+  // אותו מלבן בשקיפויות שונות אינו מייצר פלט זהה
+  // ‼ השקיפות אינה בזרם התוכן אלא ב-ExtGState של משאבי העמוד, ולכן
+  // נקראת דרך ה-API אחרי טעינה מחדש — כמו שקורא PDF אמיתי יראה אותה.
+  const twoOpacities = await Pages.buildPdfFromPlan(plan, bytesMap, [
+    { id: 'a', pageId: plan[0].id, kind: 'rectangle', xPct: .1, yPct: .1, widthPct: .3, heightPct: .1,
+      color: '#111827', fillColor: '#facc15', fillOpacity: .3, noStroke: true },
+    { id: 'b', pageId: plan[0].id, kind: 'rectangle', xPct: .1, yPct: .4, widthPct: .3, heightPct: .1,
+      color: '#111827', fillColor: '#facc15', fillOpacity: .9, noStroke: true },
+  ]);
+  const reloaded = await PDFDocument.load(twoOpacities);
+  const gsDict = reloaded.getPage(0).node.Resources().lookup(PDFName.of('ExtGState'));
+  const alphas = [];
+  for (const [, v] of gsDict.entries()) {
+    const m = reloaded.context.lookup(v).toString().match(/\/ca ([\d.]+)/);
+    if (m) alphas.push(+m[1]);
+  }
+  check('שקיפות 30% נשמרה בקובץ', alphas.some(a => Math.abs(a - .3) < .01), alphas.join(','));
+  check('שקיפות 90% נשמרה בקובץ', alphas.some(a => Math.abs(a - .9) < .01), alphas.join(','));
+  check('לכל סימון השקיפות שלו', new Set(alphas).size >= 2, alphas.join(','));
+}
+
+console.log('\nהסתרה והדגשה — ברירות המחדל של הכלי');
+{
+  const plan = Pages.buildInitialPlan(srcA);
+  const white = Ann.presetFor('whiteout', '#111827');
+  check('הסתרה נולדת לבנה ואטומה', white.fillColor === '#ffffff' && white.fillOpacity === 1);
+  check('הסתרה נולדת בלי מסגרת', white.noStroke === true);
+  const hl = Ann.presetFor('highlight', '#facc15');
+  check('הדגשה נולדת שקופה בצבע הכלי', hl.fillColor === '#facc15' && hl.fillOpacity === Ann.HIGHLIGHT_OPACITY);
+  check('הדגשה נולדת בלי מסגרת', hl.noStroke === true);
+
+  const out = await Pages.buildPdfFromPlan(plan, bytesMap, [
+    { id: 'w', pageId: plan[0].id, kind: 'whiteout', xPct: .1, yPct: .1, widthPct: .5, heightPct: .1,
+      color: '#111827', ...white },
+    { id: 'h', pageId: plan[0].id, kind: 'highlight', xPct: .1, yPct: .3, widthPct: .5, heightPct: .05,
+      color: '#facc15', ...hl },
+  ]);
+  const { streams, doc } = await pageTexts(out);
+  check('שתיהן נצרבו כמילוי', (streams[0].match(/\bf\b/g) || []).length >= 2);
+  check('הפלט נטען מחדש', doc.getPageCount() === 3);
+}
+
+console.log('\nרקע לתיבת טקסט');
+{
+  const plan = Pages.buildInitialPlan(srcA);
+  const mk = (extra) => Pages.buildPdfFromPlan(plan, bytesMap, [{
+    id: 't', pageId: plan[0].id, kind: 'text', xPct: .1, yPct: .1, widthPct: .6, heightPct: .08,
+    color: '#111827', text: 'טקסט על רקע', fontPct: .03, ...extra,
+  }]);
+  const plain = (await pageTexts(await mk({}))).streams[0];
+  const onYellow = (await pageTexts(await mk({ fillColor: '#facc15', fillOpacity: .4 }))).streams[0];
+  check('בלי רקע — לא מצויר מלבן נוסף', (plain.match(/\bf\b/g) || []).length === 0);
+  check('עם רקע — נוסף מלבן מתחת לאותיות', (onYellow.match(/\bf\b/g) || []).length >= 1);
+  check('האותיות עדיין נצרבות', /Tj/.test(onYellow));
+  const bgIndex = onYellow.indexOf(' f' + String.fromCharCode(10));
+  check('הרקע מצויר לפני הטקסט', bgIndex === -1 || bgIndex < onYellow.indexOf('Tj'));
+}
+
+console.log('\nקו לפי שתי נקודות קצה');
+{
+  const plan = Pages.buildInitialPlan(srcA);
+  const mkLine = (ends) => ({ id: 'l', pageId: plan[0].id, kind: 'line', color: '#0a8a3c',
+    thicknessPct: .004, ...Ann.withLineEnds(ends) });
+
+  const diag = Ann.withLineEnds({ x1: .2, y1: .8, x2: .7, y2: .2 });
+  check('התיבה נגזרת מהנקודות', diag.xPct === .2 && Math.abs(diag.widthPct - .5) < 1e-9);
+  check('גובה התיבה מוחלט', Math.abs(diag.heightPct - .6) < 1e-9);
+  check('הנקודות נשמרות כפי שהן', diag.x1Pct === .2 && diag.y1Pct === .8);
+
+  // קו אופקי מושלם — תיבה בגובה 0, מצב תקין ולא שגיאה
+  const flat = Ann.lineEnds({ ...mkLine({ x1: .1, y1: .5, x2: .9, y2: .5 }) });
+  check('קו אופקי נשמר אופקי', flat.y1 === .5 && flat.y2 === .5);
+  const vert = Ann.lineEnds({ ...mkLine({ x1: .5, y1: .1, x2: .5, y2: .9 }) });
+  check('קו אנכי נשמר אנכי', vert.x1 === .5 && vert.x2 === .5);
+
+  // סימון ישן (תיבה + flipLine) עדיין נקרא נכון
+  const legacy = Ann.lineEnds({ xPct: .1, yPct: .2, widthPct: .4, heightPct: .3, flipLine: true });
+  check('קו ישן עם flipLine — האלכסון עולה', legacy.y1 === .5 && legacy.y2 === .2);
+
+  const out = await Pages.buildPdfFromPlan(plan, bytesMap, [
+    mkLine({ x1: .1, y1: .5, x2: .9, y2: .5 }),
+  ]);
+  const { streams, doc } = await pageTexts(out);
+  const seg = [...streams[0].matchAll(/([\d.]+) ([\d.]+) (m|l)/g)].map(m => ({ x: +m[1], y: +m[2] }));
+  const move = seg.find(p => p.x > 30 && p.x < 60), line = seg.find(p => p.x > 300);
+  check('הקו האופקי נצרב באותו גובה', !!move && !!line && Math.abs(move.y - line.y) < 0.01, JSON.stringify(seg));
+  check('הקו נמתח לרוחב שביקשנו', !!move && !!line && line.x - move.x > 250, JSON.stringify(seg));
+  check('הפלט עם קו אופקי נטען', doc.getPageCount() === 3);
 }
 
 rmSync(work, { recursive: true, force: true });

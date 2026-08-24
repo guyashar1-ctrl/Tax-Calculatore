@@ -21,7 +21,7 @@ import fontkit from '@pdf-lib/fontkit';
 import { embedPdfFonts, layoutMixed, PdfFonts } from './pdfHebrew';
 
 export type AnnotationKind =
-  | 'text' | 'highlight' | 'rectangle' | 'circle' | 'line'
+  | 'text' | 'highlight' | 'whiteout' | 'rectangle' | 'circle' | 'line'
   | 'draw' | 'check' | 'cross' | 'image';
 
 export type LatinFamily = 'sans' | 'serif' | 'mono';
@@ -36,8 +36,19 @@ export interface Annotation {
   yPct: number;
   widthPct: number;
   heightPct: number;
+  /** צבע הקו/המסגרת, ובטקסט — צבע האותיות. */
   color: string;
+  /**
+   * ‼ מילוי ומסגרת הם שתי תכונות עצמאיות, ולכל אחת שקיפות משלה. עד כה
+   * המילוי נצרב תמיד ב-0.35 קבוע, וכל הצורות היו חייבות מסגרת: אי אפשר
+   * היה ליצור לא ריבוע לבן אטום להסתרה ולא הדגשה בעוצמה אחרת.
+   * null/undefined ב-fillColor = אין מילוי כלל.
+   */
   fillColor?: string | null;
+  fillOpacity?: number;
+  strokeOpacity?: number;
+  /** אין מסגרת — הצורה היא המילוי בלבד. */
+  noStroke?: boolean;
   text?: string;
   /** גודל הטקסט באחוז מגובה העמוד המוצג — לא תלוי זום. */
   fontPct?: number;
@@ -48,7 +59,16 @@ export interface Annotation {
   points?: { x: number; y: number }[];
   /** עובי קו באחוז מרוחב העמוד המוצג. */
   thicknessPct?: number;
-  /** קו: הגרירה הייתה כלפי מעלה — האלכסון הוא ↗ ולא ↘. */
+  /**
+   * ‼ קו: שתי נקודות הקצה הן הסמכות, והתיבה נגזרת מהן. קודם הקו היה
+   * האלכסון של תיבה + דגל כיוון, ולכן אי אפשר היה לגרור קצה אחד בלי
+   * להזיז את השני, ולא היו קווים אופקיים או אנכיים באמת (תיבה בגובה 0
+   * נדחקה למינימום). flipLine נשאר לקריאת סימונים ישנים.
+   */
+  x1Pct?: number;
+  y1Pct?: number;
+  x2Pct?: number;
+  y2Pct?: number;
   flipLine?: boolean;
   imageData?: string;
 }
@@ -56,6 +76,7 @@ export interface Annotation {
 export const ANNOTATION_LABELS: Record<AnnotationKind, string> = {
   text: 'טקסט',
   highlight: 'הדגשה',
+  whiteout: 'הסתרה',
   rectangle: 'מלבן',
   circle: 'עיגול',
   line: 'קו',
@@ -70,6 +91,120 @@ export const DEFAULT_THICKNESS_PCT = 0.004;
 export const THICKNESS_STEPS: number[] = [0.002, 0.004, 0.008];
 export const FONT_PCT_MIN = 0.012;
 export const FONT_PCT_MAX = 0.09;
+export const HIGHLIGHT_OPACITY = 0.35;
+export const WHITEOUT_COLOR = '#ffffff';
+
+// ─── יכולות לפי סוג ────────────────────────────────────────────────────
+// ‼ מקור אמת אחד: גם הסרגל המוצג למשתמש וגם הצריבה נגזרים מכאן, ולכן
+// אי אפשר להציג פקד לתכונה שלא תיצרב, או לצרוב תכונה שאין דרך לשנות.
+
+export interface KindCaps {
+  fill: boolean;
+  stroke: boolean;
+  /** למילוי יש שקיפות שאפשר לשנות (מלבן, עיגול, הדגשה, רקע טקסט). */
+  fillOpacity: boolean;
+  text: boolean;
+  /** התיבה משתנה ב-8 ידיות (קו מקבל שתי נקודות קצה במקום). */
+  boxResize: boolean;
+}
+
+const CAPS: Record<AnnotationKind, KindCaps> = {
+  text: { fill: true, stroke: false, fillOpacity: true, text: true, boxResize: true },
+  highlight: { fill: true, stroke: false, fillOpacity: true, text: false, boxResize: true },
+  whiteout: { fill: true, stroke: false, fillOpacity: true, text: false, boxResize: true },
+  rectangle: { fill: true, stroke: true, fillOpacity: true, text: false, boxResize: true },
+  circle: { fill: true, stroke: true, fillOpacity: true, text: false, boxResize: true },
+  line: { fill: false, stroke: true, fillOpacity: false, text: false, boxResize: false },
+  draw: { fill: false, stroke: true, fillOpacity: false, text: false, boxResize: true },
+  check: { fill: false, stroke: true, fillOpacity: false, text: false, boxResize: true },
+  cross: { fill: false, stroke: true, fillOpacity: false, text: false, boxResize: true },
+  image: { fill: false, stroke: false, fillOpacity: false, text: false, boxResize: true },
+};
+
+export function capsOf(kind: AnnotationKind): KindCaps {
+  return CAPS[kind];
+}
+
+/** ברירות המחדל של הכלי — מה שנוצר בלחיצה אחת, בלי לעבור דרך הגדרות. */
+export function presetFor(kind: AnnotationKind, color: string): Partial<Annotation> {
+  switch (kind) {
+    // הדגשה = מילוי שקוף בלי מסגרת. אין סיבה לעבור דרך "מלבן ואז לבחור".
+    case 'highlight':
+      return { fillColor: color, fillOpacity: HIGHLIGHT_OPACITY, noStroke: true };
+    // ‼ הסתרה = לבן אטום בלי מסגרת. זו הסתרה ויזואלית בלבד: הטקסט שמתחת
+    // נשאר בקובץ וניתן לחילוץ. אינה מחיקה מאובטחת.
+    case 'whiteout':
+      return { fillColor: WHITEOUT_COLOR, fillOpacity: 1, noStroke: true };
+    case 'rectangle':
+    case 'circle':
+      return { fillColor: null, fillOpacity: 1, noStroke: false };
+    case 'text':
+      return { fillColor: null, fillOpacity: 1 };
+    default:
+      return {};
+  }
+}
+
+/** שקיפות המילוי בפועל — ברירת מחדל לפי הסוג. */
+export function fillOpacityOf(a: Annotation): number {
+  const v = a.fillOpacity;
+  if (typeof v === 'number' && Number.isFinite(v)) return Math.min(1, Math.max(0, v));
+  return a.kind === 'highlight' ? HIGHLIGHT_OPACITY : 1;
+}
+
+export function strokeOpacityOf(a: Annotation): number {
+  const v = a.strokeOpacity;
+  if (typeof v === 'number' && Number.isFinite(v)) return Math.min(1, Math.max(0, v));
+  return 1;
+}
+
+export function fillColorOf(a: Annotation): string | null {
+  if (!capsOf(a.kind).fill) return null;
+  if (a.fillColor === null) return null;
+  if (a.fillColor) return a.fillColor;
+  // הדגשה/הסתרה ישנות שנוצרו לפני שהמילוי היה שדה נפרד
+  if (a.kind === 'highlight') return a.color;
+  if (a.kind === 'whiteout') return WHITEOUT_COLOR;
+  return null;
+}
+
+export function strokeVisible(a: Annotation): boolean {
+  return capsOf(a.kind).stroke && !a.noStroke;
+}
+
+// ─── קו: שתי נקודות קצה ────────────────────────────────────────────────
+
+export interface LineEnds { x1: number; y1: number; x2: number; y2: number }
+
+/** נקודות הקצה של קו — מהשדות החדשים, ואם אין מהתיבה הישנה + flipLine. */
+export function lineEnds(a: Annotation): LineEnds {
+  if (typeof a.x1Pct === 'number' && typeof a.y1Pct === 'number'
+    && typeof a.x2Pct === 'number' && typeof a.y2Pct === 'number') {
+    return { x1: a.x1Pct, y1: a.y1Pct, x2: a.x2Pct, y2: a.y2Pct };
+  }
+  return a.flipLine
+    ? { x1: a.xPct, y1: a.yPct + a.heightPct, x2: a.xPct + a.widthPct, y2: a.yPct }
+    : { x1: a.xPct, y1: a.yPct, x2: a.xPct + a.widthPct, y2: a.yPct + a.heightPct };
+}
+
+/** התיבה החוסמת של קו — נשמרת מסונכרנת כדי שכל שאר המודל ימשיך לעבוד. */
+export function lineBox(e: LineEnds): Pick<Annotation, 'xPct' | 'yPct' | 'widthPct' | 'heightPct'> {
+  return {
+    xPct: Math.min(e.x1, e.x2),
+    yPct: Math.min(e.y1, e.y2),
+    widthPct: Math.abs(e.x2 - e.x1),
+    heightPct: Math.abs(e.y2 - e.y1),
+  };
+}
+
+/** קו עם נקודות קצה חדשות — התיבה נגזרת, ואין צורך לזכור לעדכן אותה. */
+export function withLineEnds(e: LineEnds): Partial<Annotation> {
+  return {
+    x1Pct: e.x1, y1Pct: e.y1, x2Pct: e.x2, y2Pct: e.y2,
+    flipLine: undefined,
+    ...lineBox(e),
+  };
+}
 
 // ─── צבע ───────────────────────────────────────────────────────────────
 
@@ -302,18 +437,22 @@ export async function drawAnnotations(
     // מסוים על עמוד מסובב נצרב באותו עובי בדיוק.
     const thickness = Math.max(0.5, (ann.thicknessPct ?? DEFAULT_THICKNESS_PCT) * dW);
 
+    // ‼ מילוי ומסגרת נגזרים בנפרד ומצוירים בשקיפויות נפרדות. אין כאן
+    // "אטימות של האובייקט": מלבן שקוף עם מסגרת שחורה מלאה הוא צירוף
+    // תקין, וכך גם ריבוע לבן אטום בלי מסגרת כלל.
+    const fillHex = fillColorOf(ann);
+    const fillPaint = fillHex
+      ? { color: hexToRgb(fillHex), opacity: fillOpacityOf(ann) }
+      : {};
+    const strokePaint = strokeVisible(ann)
+      ? { borderColor: color, borderWidth: thickness, borderOpacity: strokeOpacityOf(ann) }
+      : { borderWidth: 0 };
+
     switch (ann.kind) {
       case 'highlight':
-        page.drawRectangle({ ...r, color, opacity: 0.35, rotate: degrees(0) });
-        break;
-
+      case 'whiteout':
       case 'rectangle':
-        page.drawRectangle({
-          ...r,
-          borderColor: color,
-          borderWidth: thickness,
-          ...(ann.fillColor ? { color: hexToRgb(ann.fillColor), opacity: 0.35 } : {}),
-        });
+        page.drawRectangle({ ...r, ...fillPaint, ...strokePaint, rotate: degrees(0) });
         break;
 
       case 'circle':
@@ -322,27 +461,27 @@ export async function drawAnnotations(
           y: r.y + r.height / 2,
           xScale: Math.max(0.5, r.width / 2),
           yScale: Math.max(0.5, r.height / 2),
-          borderColor: color,
-          borderWidth: thickness,
-          ...(ann.fillColor ? { color: hexToRgb(ann.fillColor), opacity: 0.35 } : {}),
+          ...fillPaint,
+          ...strokePaint,
         });
         break;
 
       case 'line': {
-        // האלכסון של התיבה; flipLine = הגרירה עלתה, האלכסון הוא ↗
-        const a = displayPointToPage(box, ann.xPct, ann.yPct + (ann.flipLine ? ann.heightPct : 0));
-        const b = displayPointToPage(box, ann.xPct + ann.widthPct, ann.yPct + (ann.flipLine ? 0 : ann.heightPct));
-        page.drawLine({ start: a, end: b, color, thickness });
+        const e = lineEnds(ann);
+        const a = displayPointToPage(box, e.x1, e.y1);
+        const b = displayPointToPage(box, e.x2, e.y2);
+        page.drawLine({ start: a, end: b, color, thickness, opacity: strokeOpacityOf(ann) });
         break;
       }
 
       case 'draw': {
         const pts = ann.points ?? [];
         if (pts.length < 2) break;
+        const opacity = strokeOpacityOf(ann);
         for (let i = 1; i < pts.length; i++) {
           const a = displayPointToPage(box, ann.xPct + pts[i - 1].x * ann.widthPct, ann.yPct + pts[i - 1].y * ann.heightPct);
           const b = displayPointToPage(box, ann.xPct + pts[i].x * ann.widthPct, ann.yPct + pts[i].y * ann.heightPct);
-          page.drawLine({ start: a, end: b, color, thickness, lineCap: 1 as never });
+          page.drawLine({ start: a, end: b, color, thickness, opacity, lineCap: 1 as never });
         }
         break;
       }
@@ -352,12 +491,13 @@ export async function drawAnnotations(
         const p = (fx: number, fy: number) =>
           displayPointToPage(box, ann.xPct + fx * ann.widthPct, ann.yPct + fy * ann.heightPct);
         const w = Math.max(1.2, Math.min(r.width, r.height) * 0.14);
+        const o = strokeOpacityOf(ann);
         if (ann.kind === 'check') {
-          page.drawLine({ start: p(0.12, 0.52), end: p(0.42, 0.84), color, thickness: w });
-          page.drawLine({ start: p(0.42, 0.84), end: p(0.88, 0.16), color, thickness: w });
+          page.drawLine({ start: p(0.12, 0.52), end: p(0.42, 0.84), color, thickness: w, opacity: o });
+          page.drawLine({ start: p(0.42, 0.84), end: p(0.88, 0.16), color, thickness: w, opacity: o });
         } else {
-          page.drawLine({ start: p(0.14, 0.14), end: p(0.86, 0.86), color, thickness: w });
-          page.drawLine({ start: p(0.86, 0.14), end: p(0.14, 0.86), color, thickness: w });
+          page.drawLine({ start: p(0.14, 0.14), end: p(0.86, 0.86), color, thickness: w, opacity: o });
+          page.drawLine({ start: p(0.86, 0.14), end: p(0.14, 0.86), color, thickness: w, opacity: o });
         }
         break;
       }
@@ -392,6 +532,9 @@ export async function drawAnnotations(
       case 'text': {
         const raw = (ann.text ?? '').replace(/\r/g, '');
         if (!raw.trim()) break;
+        // ‼ הרקע נצרב לפני האותיות ובגבולות התיבה עצמה — כך "טקסט שחור על
+        // רקע צהוב 40%" הוא צירוף אחד ולא שני סימונים שצריך ליישר ביד.
+        if (fillHex) page.drawRectangle({ ...r, ...fillPaint, borderWidth: 0 });
         const size = Math.max(4, (ann.fontPct ?? DEFAULT_FONT_PCT) * dH);
         const fonts = await fontsFor(ctx, ann.fontFamily);
         const boxWDisplay = ann.widthPct * dW;

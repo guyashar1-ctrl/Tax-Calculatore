@@ -19,8 +19,9 @@ import {
   setPageCrop, insertPages, extractPlan, splitPlanEvery, parsePageRanges,
   type PlanPage, type PlanSource,
 } from '../../utils/pdfPages';
-import type { Annotation } from '../../utils/pdfAnnotations';
+import { capsOf, type Annotation } from '../../utils/pdfAnnotations';
 import PdfPageEditor, { mkAnnotation, type EditTool } from './PdfPageEditor';
+import PdfStyleBar from './PdfStyleBar';
 import SignaturePad from '../SignaturePad';
 import Icon from '../ui/Icon';
 
@@ -52,7 +53,9 @@ interface Props {
 }
 
 const SOURCE_TINTS = ['#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ef4444', '#06b6d4'];
-const INK_COLORS = ['#111827', '#e02424', '#1552d8', '#0a8a3c', '#f59e0b'];
+const INK_COLORS = ['#111827', '#e02424', '#1552d8', '#0a8a3c', '#f59e0b', '#facc15'];
+/** ‼ למרקר צבע משלו: הדגשה בצבע הדיו הכהה מכסה את הטקסט במקום להבליט אותו. */
+const HIGHLIGHT_DEFAULT = '#facc15';
 
 interface Snapshot { plan: PlanPage[]; annotations: Annotation[] }
 
@@ -77,46 +80,61 @@ export default function PdfOrganizer({
   const future = useRef<Snapshot[]>([]);
   const [histTick, setHistTick] = useState(0);
 
-  const commit = useCallback((next: (cur: Snapshot) => Snapshot) => {
-    setState(cur => {
-      const resolved = next(cur);
-      if (resolved === cur) return cur;
-      past.current = [...past.current.slice(-49), cur];
-      future.current = [];
-      return resolved;
-    });
-    setHistTick(t => t + 1);
-  }, []);
-
-  const undo = useCallback(() => {
-    setState(cur => {
-      const prev = past.current.pop();
-      if (!prev) return cur;
-      future.current = [...future.current, cur];
-      return prev;
-    });
-    setHistTick(t => t + 1);
-  }, []);
-
-  const redo = useCallback(() => {
-    setState(cur => {
-      const nxt = future.current.pop();
-      if (!nxt) return cur;
-      past.current = [...past.current, cur];
-      return nxt;
-    });
-    setHistTick(t => t + 1);
-  }, []);
-
   const { plan, annotations } = state;
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
+
+  /**
+   * ‼ המצב נכתב דרך הפונקציה הזו בלבד, ו-stateRef מתעדכן *מיד* ולא
+   * ממתין ל-effect: כל חשבונאות ההיסטוריה קוראת ממנו, ומחווה מהירה
+   * (גרירה, מחוון) מייצרת כמה כתיבות באותו tick.
+   */
+  const applyState = useCallback((next: Snapshot) => {
+    stateRef.current = next;
+    setState(next);
+  }, []);
+
+  /**
+   * ‼ רישום ההיסטוריה קורה *מחוץ* לפונקציית העדכון של React ולא בתוכה.
+   * React קורא לפונקציית עדכון פעמיים במצב פיתוח, וכשהדחיפה והשליפה של
+   * המחסניות ישבו בתוכה — "בצע שוב" שלף את הרשומה בקריאה הראשונה, לא
+   * מצא דבר בשנייה, והחזיר את המצב המקורי. התוצאה: כפתור שנדלק, נכבה,
+   * ולא עשה כלום.
+   */
+  const commit = useCallback((next: (cur: Snapshot) => Snapshot) => {
+    const cur = stateRef.current;
+    const resolved = next(cur);
+    if (resolved === cur) return;
+    past.current = [...past.current.slice(-49), cur];
+    future.current = [];
+    applyState(resolved);
+    setHistTick(t => t + 1);
+  }, [applyState]);
+
+  const undo = useCallback(() => {
+    const prev = past.current.pop();
+    if (!prev) return;
+    future.current = [...future.current, stateRef.current];
+    applyState(prev);
+    setHistTick(t => t + 1);
+  }, [applyState]);
+
+  const redo = useCallback(() => {
+    const nxt = future.current.pop();
+    if (!nxt) return;
+    past.current = [...past.current, stateRef.current];
+    applyState(nxt);
+    setHistTick(t => t + 1);
+  }, [applyState]);
 
   // ─── בחירה, כלים ומצבי משנה ───────────────────────────────────────────
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [editPageId, setEditPageId] = useState<string | null>(null);
   const [tool, setTool] = useState<EditTool>('select');
   const [ink, setInk] = useState(INK_COLORS[0]);
+  const [hlColor, setHlColor] = useState(HIGHLIGHT_DEFAULT);
+  /** הצבע הפעיל תלוי בכלי: המרקר זוכר את שלו, כל השאר חולקים את הדיו. */
+  const activeColor = tool === 'highlight' ? hlColor : ink;
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [selectedAnn, setSelectedAnn] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -251,6 +269,11 @@ export default function PdfOrganizer({
     [plan, editPageId],
   );
 
+  const selectedAnnObj = useMemo(
+    () => (selectedAnn ? annotations.find(a => a.id === selectedAnn) ?? null : null),
+    [annotations, selectedAnn],
+  );
+
   useEffect(() => { editPageRef.current = editPage?.id ?? null; }, [editPage]);
 
   // ─── פעולות סידור ─────────────────────────────────────────────────────
@@ -304,11 +327,12 @@ export default function PdfOrganizer({
   // ההיסטוריה נרשמה כבר בהוספה, ו"בטל" אחרי גרירה אמור להחזיר את הסימון
   // למצבו הקודם — לא לזוז פיקסל אחורה בכל לחיצה.
   const updateAnnotation = useCallback((id: string, patch: Partial<Annotation>) => {
-    setState(cur => ({
+    const cur = stateRef.current;
+    applyState({
       ...cur,
       annotations: cur.annotations.map(a => (a.id === id ? { ...a, ...patch } : a)),
-    }));
-  }, []);
+    });
+  }, [applyState]);
 
   /** סגירת המשטח — אם יש עבודה שלא נשמרה, שואלים קודם. */
   const requestClose = useCallback(() => {
@@ -519,6 +543,9 @@ export default function PdfOrganizer({
                 <span className="pdfw-bar-sep" />
                 <ToolBtn t="text" cur={tool} set={setTool} label="טקסט" glyph="A" />
                 <ToolBtn t="highlight" cur={tool} set={setTool} label="הדגשה" glyph="▬" />
+                {/* ‼ הסתרה היא כלי בפני עצמו ולא מלבן שצריך להלבין ביד:
+                    גרירה אחת = ריבוע לבן אטום בלי מסגרת. */}
+                <ToolBtn t="whiteout" cur={tool} set={setTool} label="הסתרה" glyph="▧" />
                 <ToolBtn t="draw" cur={tool} set={setTool} label="ציור" glyph="✎" />
                 <ToolBtn t="rectangle" cur={tool} set={setTool} label="מלבן" glyph="▭" />
                 <ToolBtn t="circle" cur={tool} set={setTool} label="עיגול" glyph="◯" />
@@ -531,9 +558,17 @@ export default function PdfOrganizer({
                 <span className="pdfw-colors">
                   {INK_COLORS.map(c => (
                     <button key={c} type="button" aria-label={`צבע ${c}`}
-                      className={`pdfw-swatch${ink === c ? ' is-on' : ''}`}
+                      className={`pdfw-swatch${activeColor === c ? ' is-on' : ''}`}
                       style={{ background: c }}
-                      onClick={() => { setInk(c); if (selectedAnn) commitPatch(selectedAnn, { color: c }); }} />
+                      onClick={() => {
+                        if (tool === 'highlight') setHlColor(c); else setInk(c);
+                        // ‼ על אובייקט שכולו מילוי (הדגשה/הסתרה) הצבע הראשי
+                        // הוא המילוי; אחרת הוא צבע הקו או האותיות.
+                        if (!selectedAnnObj) return;
+                        const caps = capsOf(selectedAnnObj.kind);
+                        commitPatch(selectedAnnObj.id,
+                          caps.stroke || caps.text ? { color: c } : { fillColor: c });
+                      }} />
                   ))}
                 </span>
               </>
@@ -554,6 +589,32 @@ export default function PdfOrganizer({
                 onClick={() => setZoom(z => Math.min(2, +(z + 0.25).toFixed(2)))}>+</button>
             </span>
           </div>
+        )}
+
+        {/* ── עיצוב הסימון הנבחר ───────────────────────────────────────
+            ‼ השורה קיימת תמיד, גם כשאין בחירה. אם היא נפתחת רק בבחירה,
+            הדף קופץ 47 פיקסלים בדיוק ברגע שמסיימים לצייר — ואז הידיות
+            אינן מתחת לסמן, והמשך הגרירה נופל על מקום אחר. */}
+        {(mode === 'edit' || mode === 'sign') && (
+          selectedAnnObj ? (
+            <PdfStyleBar
+              ann={selectedAnnObj}
+              onPatch={p => commitPatch(selectedAnnObj.id, p)}
+              onLive={p => updateAnnotation(selectedAnnObj.id, p)}
+              onGestureStart={beginGesture}
+              onGestureEnd={endGesture}
+              onEditText={() => setEditRequest({ id: selectedAnnObj.id, n: Date.now() })}
+              onDelete={() => { removeAnnotation(selectedAnnObj.id); setSelectedAnn(null); }}
+            />
+          ) : (
+            <div className="pdfe-style is-empty" dir="rtl">
+              <span className="pdfe-style-hint">
+                {tool === 'select'
+                  ? 'לחץ על סימון כדי להזיז, לשנות גודל ולעצב אותו'
+                  : 'גרור על הדף כדי ליצור - הסימון ייבחר מיד ואפשר יהיה לעצב אותו כאן'}
+              </span>
+            </div>
+          )
         )}
 
         {/* ── גוף המשטח ───────────────────────────────────────────────── */}
@@ -614,7 +675,7 @@ export default function PdfOrganizer({
                   sourceRotation={sourceById.get(editPage.sourceId)!.source.rotations?.[editPage.sourceIndex] ?? 0}
                   annotations={annotations}
                   tool={mode === 'sign' ? (pendingImage ? 'image' : 'select') : tool}
-                  color={ink}
+                  color={activeColor}
                   pendingImage={pendingImage}
                   zoom={zoom}
                   selectedId={selectedAnn}
@@ -625,14 +686,13 @@ export default function PdfOrganizer({
                     // מופיעות באותה שנייה ואפשר לתפוס ולשנות. קודם הכלי נשאר
                     // חמוש: ניסיון לגעת בצורה יצר עוד אחת, והידיות לא הופיעו
                     // כלל. עיפרון ו-✓/✗ נשארים חמושים — אותם מניחים ברצף.
-                    if (['rectangle', 'circle', 'line', 'highlight', 'image'].includes(a.kind)) {
+                    if (['rectangle', 'circle', 'line', 'highlight', 'whiteout', 'image'].includes(a.kind)) {
                       if (a.kind === 'image') setPendingImage(null);
                       setTool('select');
                       setSelectedAnn(a.id);
                     }
                   }}
                   onLiveUpdate={updateAnnotation}
-                  onCommitPatch={commitPatch}
                   onGestureStart={beginGesture}
                   onGestureEnd={endGesture}
                   editRequest={editRequest}

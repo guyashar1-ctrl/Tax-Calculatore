@@ -3574,12 +3574,16 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
    איפה נחת הסימון. */
 .pdfe-canvas{display:block;max-width:100%;max-height:calc(100vh - 330px);width:auto;height:auto}
 .pdfe-canvas.is-quarter{max-height:70vh;width:auto}
+/* ‼ מסך הטעינה לעולם אינו קולט לחיצות. כשהוא כן קלט אותן, רינדור שנתקע
+   (מלכודת מוכרת של pdfjs) הפך את כל הדף לבלתי לחיץ — הכלים נראו תקינים
+   ושום דבר לא הגיב. */
 .pdfe-loading{position:absolute;inset:0;background:var(--surface-2);opacity:.5;
-  animation:pdfw-pulse 1.1s ease-in-out infinite}
+  pointer-events:none;animation:pdfw-pulse 1.1s ease-in-out infinite}
 
 .pdfe-ann{position:absolute;box-sizing:border-box}
 .pdfe-ann.is-selected{outline:2px dashed var(--accent);outline-offset:1px}
 .pdfe-fill,.pdfe-outline{position:absolute;inset:0}
+.pdfe-fill.is-round{border-radius:50%}
 .pdfe-outline{border:2px solid;background:none}
 .pdfe-outline.is-round{border-radius:50%}
 .pdfe-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
@@ -3888,7 +3892,10 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 
 /* ‼ כשכלי ציור פעיל, הסימונים שקופים ללחיצות: משיכה שנייה מעל קו קיים
    מציירת ולא גוררת אותו. תיבת טקסט שנערכת כרגע נשארת אינטראקטיבית. */
-.pdfe-stage.is-drawing .pdfe-ann{pointer-events:none}
+.pdfe-stage.is-drawing .pdfe-ann,
+/* ‼ גם אזור התפיסה של קו קיים משתחרר בזמן ציור — אחרת קו חדש שמתחיל
+   מעל קו קיים היה גורר אותו במקום להיווצר. */
+.pdfe-stage.is-drawing .pdfe-linehit{pointer-events:none}
 .pdfe-stage .pdfe-ann.is-editing{pointer-events:auto}
 
 .pdfe-ann{position:absolute;box-sizing:border-box;touch-action:none}
@@ -3920,19 +3927,73 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .pdfe-h-sw{bottom:-7px;left:-7px;cursor:nesw-resize}
 .pdfe-h-w{top:calc(50% - 7px);left:-7px;cursor:ew-resize}
 
-/* ─── הסרגל הצף של הסימון הנבחר ────────────────────────────────────────── */
-.pdfe-ctx{position:absolute;z-index:5;display:flex;align-items:center;gap:2px;
-  background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:9px;
-  padding:3px;box-shadow:0 4px 16px rgba(16,24,40,.18)}
-.pdfe-ctx button{min-width:28px;height:28px;border:0;border-radius:6px;background:none;
-  color:var(--ink-2);cursor:pointer;font:inherit;font-size:13px;line-height:1;
-  display:flex;align-items:center;justify-content:center;padding:0 5px}
-.pdfe-ctx button:hover{background:var(--surface-2);color:var(--ink-1)}
-.pdfe-ctx button.is-on{background:var(--accent);color:#fff}
-.pdfe-ctx-sep{width:1px;height:16px;background:var(--hairline-1);margin-inline:2px}
-.pdfe-ctx-del{color:var(--err)}
-.pdfe-ctx-del:hover{background:var(--err);color:#fff}
-.pdfe-ctx-stroke{display:block;width:16px;border-radius:2px;background:currentColor}
+/* ─── סרגל העיצוב של הסימון הנבחר ──────────────────────────────────────
+   שורה קבועה מתחת לכלים — אינה מכסה את הדף, אינה זזה בגלילה ובזום, ואינה
+   צריכה לחשב מיקום מול הדף. */
+/* ‼ min-height קבוע: השורה תופסת אותו מקום ריקה ומלאה, ולכן בחירת סימון
+   אינה מזיזה את הדף מתחת ליד. */
+.pdfe-style{flex:none;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:47px;
+  padding:8px 24px;background:var(--surface-0);border-bottom:1px solid var(--hairline-1);
+  box-shadow:inset 0 2px 0 var(--accent)}
+.pdfe-style.is-empty{box-shadow:none}
+.pdfe-style-label{font-size:var(--fs-12);font-weight:700;color:var(--ink-1);
+  background:var(--surface-2);border-radius:7px;padding:3px 9px}
+.pdfe-style-group{display:flex;align-items:center;gap:2px;background:var(--surface-2);
+  border-radius:8px;padding:2px}
+.pdfe-style-val{font-size:var(--fs-12);color:var(--ink-3);min-width:22px;text-align:center}
+.pdfe-style-grow{flex:1}
+.pdfe-style-hint{font-size:var(--fs-12);color:var(--ink-4)}
+.pdfe-style-pop{position:relative;display:inline-flex}
+.pdfe-style-name{font-size:var(--fs-12);color:var(--ink-2)}
+
+.pdfe-sb{min-width:30px;height:30px;border:1px solid transparent;border-radius:8px;
+  background:none;color:var(--ink-2);cursor:pointer;font:inherit;font-size:13px;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 8px}
+.pdfe-sb:hover{background:var(--surface-2);color:var(--ink-1)}
+.pdfe-sb.is-on{background:var(--accent);border-color:var(--accent);color:#fff}
+.pdfe-sb-wide{border-color:var(--hairline-1);font-size:var(--fs-12)}
+.pdfe-sb-del{color:var(--err)}
+.pdfe-sb-del:hover{background:var(--err);color:#fff}
+.pdfe-sb-swatch{border-color:var(--hairline-1)}
+/* משבצת הצבע הנוכחי — "ללא" נראה כמשבצת חצויה בקו אלכסוני */
+.pdfe-chip{width:16px;height:16px;border-radius:5px;border:1px solid var(--bd-strong);flex:none}
+.pdfe-chip.is-none{background:
+  linear-gradient(to top left,transparent 46%,var(--err) 46%,var(--err) 54%,transparent 54%),
+  var(--surface-0)}
+
+.pdfe-pop-scrim{position:fixed;inset:0;z-index:40;border:0;background:none;cursor:default}
+.pdfe-pop{position:absolute;z-index:41;top:calc(100% + 6px);inset-inline-start:0;min-width:236px;
+  display:flex;flex-direction:column;gap:8px;background:var(--surface-0);
+  border:1px solid var(--hairline-1);border-radius:11px;padding:10px;
+  box-shadow:0 8px 28px rgba(16,24,40,.2)}
+.pdfe-pop-row{display:flex;align-items:center;gap:8px}
+.pdfe-pop-label{font-size:var(--fs-12);color:var(--ink-3);white-space:nowrap}
+.pdfe-pop-val{font-size:var(--fs-12);color:var(--ink-3);min-width:38px;text-align:end}
+.pdfe-colorrow{display:flex;gap:6px;flex-wrap:wrap}
+.pdfe-colordot{width:22px;height:22px;border-radius:50%;border:2px solid transparent;
+  box-shadow:inset 0 0 0 1px var(--bd-strong);cursor:pointer;padding:0}
+.pdfe-colordot.is-on{border-color:var(--ink-1)}
+.pdfe-colordot.is-none{background:
+  linear-gradient(to top left,transparent 44%,var(--err) 44%,var(--err) 56%,transparent 56%),
+  var(--surface-0)}
+.pdfe-range{flex:1;accent-color:var(--accent);min-width:110px}
+.pdfe-widths{display:flex;gap:4px}
+.pdfe-width{width:34px;height:26px;border:1px solid var(--hairline-1);border-radius:7px;
+  background:var(--surface-0);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.pdfe-width.is-on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.pdfe-width i{display:block;width:18px;border-radius:2px;background:var(--ink-2)}
+
+/* ─── קו: גוף אחד ושתי נקודות קצה ──────────────────────────────────────
+   הידיות עגולות ולא מרובעות — הן מזיזות נקודה, לא משנות תיבה. */
+.pdfe-line-obj{position:absolute;inset:0;pointer-events:none}
+.pdfe-linesvg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.pdfe-linehit{pointer-events:stroke;cursor:move}
+.pdfe-line-obj.is-selected .pdfe-linesvg line:first-child{filter:drop-shadow(0 0 2px var(--accent))}
+.pdfe-end{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;
+  background:var(--surface-0);border:2px solid var(--accent);cursor:grab;pointer-events:auto;
+  box-shadow:0 1px 4px rgba(16,24,40,.28);z-index:4}
+.pdfe-end:active{cursor:grabbing}
+.pdfe-end::after{content:'';position:absolute;inset:-7px}
 
 /* ─── זום ──────────────────────────────────────────────────────────────── */
 .pdfw-zoom{display:flex;align-items:center;gap:2px;background:var(--surface-2);
@@ -3950,3 +4011,25 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .pdfe-stage img,.pdfe-stage canvas{-webkit-user-drag:none;user-drag:none}
 /* אובייקט מרגיש "ניתן לתפיסה" עוד לפני הלחיצה */
 .pdfe-stage:not(.is-drawing) .pdfe-ann:not(.is-selected):hover{outline:1px dashed rgba(59,91,219,.55);outline-offset:2px}
+/* הסמן מספר מה תעשה הלחיצה: גרירה על הגוף, כתיבה בתיבה שנערכת */
+.pdfe-stage:not(.is-drawing) .pdfe-ann.is-editing{cursor:text}
+
+/* ─── שלד המשטח: הכלים אף פעם לא נדחקים מהמסך ──────────────────────────
+   ‼ רק אזור העמוד גדל ומצטמצם. הכותרת, סרגל הכלים, סרגל העיצוב והתחתית
+   הם flex:none — כך גלילה בתוך מסמך ארוך, זום 200% או מסך נמוך אינם
+   דוחפים את הכלים אל מחוץ לחלון. */
+.pdfw{height:100%;max-height:100%;overflow:hidden}
+.pdfw-head,.pdfw-bar,.pdfw-split,.pdfw-foot{flex:none}
+.pdfw-editwrap{min-height:0}
+@media (max-width:640px){
+  /* ברוחב קטן הכלים נגללים לרוחב במקום לגלוש ולבלוע את הדף */
+  .pdfw-bar{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding-inline:12px}
+  .pdfe-style{padding-inline:12px}
+  .pdfe-style-hint{display:none}
+  .pdfw-tool{flex:none}
+  /* ‼ במסך צר החלונית נמתחת על רוחב השורה ולא נתלית מתחת למשבצת:
+     משבצת שיושבת בקצה הייתה פותחת חלונית שחורגת מהמסך. */
+  .pdfe-style{position:relative}
+  .pdfe-style-pop{position:static}
+  .pdfe-pop{inset-inline:8px;top:calc(100% + 4px);min-width:0}
+}

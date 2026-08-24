@@ -18,8 +18,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { loadPdf, renderThumbnail, type PdfDocument } from '../../utils/pdfRender';
 import {
-  DEFAULT_FONT_PCT, DEFAULT_THICKNESS_PCT, FONT_PCT_MAX, FONT_PCT_MIN, THICKNESS_STEPS,
-  type Annotation, type AnnotationKind, type LatinFamily,
+  DEFAULT_FONT_PCT, DEFAULT_THICKNESS_PCT,
+  fillColorOf, fillOpacityOf, lineEnds, presetFor, strokeOpacityOf, strokeVisible, withLineEnds,
+  type Annotation, type AnnotationKind, type LatinFamily, type LineEnds,
 } from '../../utils/pdfAnnotations';
 import type { PlanPage } from '../../utils/pdfPages';
 
@@ -37,8 +38,6 @@ interface Props {
   onAdd: (a: Annotation) => void;
   /** עדכון תוך-כדי-גרירה — לא נכנס להיסטוריה. */
   onLiveUpdate: (id: string, patch: Partial<Annotation>) => void;
-  /** עדכון תכונה מהסרגל הצף — נכנס להיסטוריה. */
-  onCommitPatch: (id: string, patch: Partial<Annotation>) => void;
   /** תיחום מחווה: ההיסטוריה מקבלת רשומה אחת לגרירה שלמה, לא לכל פיקסל. */
   onGestureStart: () => void;
   onGestureEnd: () => void;
@@ -57,16 +56,22 @@ const TEXT_W = 0.42;
 type Handle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 const HANDLES: Handle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
-type Draft = { x: number; y: number; w: number; h: number; up?: boolean; pts?: { x: number; y: number }[] };
+type Draft = {
+  x: number; y: number; w: number; h: number;
+  pts?: { x: number; y: number }[];
+  /** קו בטיוטה — הנקודות עצמן, ולא רק התיבה שסביבן. */
+  ends?: LineEnds;
+};
 type Drag =
   | { mode: 'create'; startX: number; startY: number }
   | { mode: 'maybe-move'; id: string; startX: number; startY: number; orig: Annotation }
   | { mode: 'move'; id: string; startX: number; startY: number; orig: Annotation }
-  | { mode: 'resize'; id: string; handle: Handle; startX: number; startY: number; orig: Annotation };
+  | { mode: 'resize'; id: string; handle: Handle; startX: number; startY: number; orig: Annotation }
+  | { mode: 'endpoint'; id: string; end: 1 | 2; orig: Annotation };
 
 export default function PdfPageEditor({
   page, bytes, sourceRotation, annotations, tool, color, zoom, pendingImage,
-  onAdd, onLiveUpdate, onCommitPatch, onGestureStart, onGestureEnd,
+  onAdd, onLiveUpdate, onGestureStart, onGestureEnd,
   onRemove, selectedId, onSelect, editRequest, onTextDone,
 }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -96,7 +101,13 @@ export default function PdfPageEditor({
         docRef.current?.destroy();
         docRef.current = loaded.doc;
         if (canvasRef.current) {
-          await renderThumbnail(loaded.doc, page.sourceIndex, canvasRef.current, 1600);
+          // ‼ מרוץ מול שעון: רינדור של pdfjs עלול לא להסתיים כלל בלשונית
+          // שאינה מציירת פריימים. בלי המרוץ, ready נשאר false לנצח והמסך
+          // ממשיך להציג שכבת טעינה מעל עמוד שכבר צויר.
+          await Promise.race([
+            renderThumbnail(loaded.doc, page.sourceIndex, canvasRef.current, 1600),
+            new Promise(res => setTimeout(res, 2500)),
+          ]);
         }
         if (!cancelled) setReady(true);
       } catch {
@@ -171,7 +182,8 @@ export default function PdfPageEditor({
   }
 
   const isShape = (t: EditTool) =>
-    t === 'highlight' || t === 'rectangle' || t === 'circle' || t === 'line' || t === 'draw';
+    t === 'highlight' || t === 'whiteout' || t === 'rectangle'
+    || t === 'circle' || t === 'line' || t === 'draw';
 
   /** תיבת טקסט קיימת שמכילה את הנקודה — כלי הטקסט עורך אותה במקום ליצור חדשה. */
   function textAnnAt(p: { x: number; y: number }): Annotation | null {
@@ -219,8 +231,22 @@ export default function PdfPageEditor({
     }
     if (isShape(tool)) {
       dragRef.current = { mode: 'create', startX: p.x, startY: p.y };
-      setDraft({ x: p.x, y: p.y, w: 0, h: 0, pts: tool === 'draw' ? [{ x: p.x, y: p.y }] : undefined });
+      setDraft({
+        x: p.x, y: p.y, w: 0, h: 0,
+        pts: tool === 'draw' ? [{ x: p.x, y: p.y }] : undefined,
+        ends: tool === 'line' ? { x1: p.x, y1: p.y, x2: p.x, y2: p.y } : undefined,
+      });
     }
+  }
+
+  /** גרירת נקודת קצה של קו — הקצה השני לא זז. */
+  function onStartEndpoint(e: React.PointerEvent, ann: Annotation, end: 1 | 2) {
+    e.stopPropagation();
+    e.preventDefault();
+    capturePointer(e);
+    onSelect(ann.id);
+    onGestureStart();
+    dragRef.current = { mode: 'endpoint', id: ann.id, end, orig: ann };
   }
 
   function onPointerMove(e: React.PointerEvent) {
@@ -239,14 +265,28 @@ export default function PdfPageEditor({
         const minX = Math.min(cur.x, p.x), minY = Math.min(cur.y, p.y);
         const maxX = Math.max(cur.x + cur.w, p.x), maxY = Math.max(cur.y + cur.h, p.y);
         setDraft({ x: minX, y: minY, w: maxX - minX, h: maxY - minY, pts: [...pts, { x: p.x, y: p.y }] });
+      } else if (tool === 'line') {
+        // ‼ הקו נשמר כשתי נקודות ולא כתיבה: כך נשמר איזה קצה התחיל היכן,
+        // וקו אופקי או אנכי גמור הוא מצב תקין ולא תיבה בגובה אפס.
+        setDraft({
+          ...draftLineBox(d.startX, d.startY, p.x, p.y),
+          ends: { x1: d.startX, y1: d.startY, x2: p.x, y2: p.y },
+        });
       } else {
         setDraft({
           x: Math.min(d.startX, p.x), y: Math.min(d.startY, p.y),
           w: Math.abs(p.x - d.startX), h: Math.abs(p.y - d.startY),
-          up: p.y < d.startY !== p.x < d.startX ? undefined : undefined,
-          ...(tool === 'line' ? { up: (p.x - d.startX) * (p.y - d.startY) < 0 } : {}),
         });
       }
+      return;
+    }
+
+    if (d.mode === 'endpoint') {
+      const cur = lineEnds(d.orig);
+      const next: LineEnds = d.end === 1
+        ? { ...cur, x1: p.x, y1: p.y }
+        : { ...cur, x2: p.x, y2: p.y };
+      onLiveUpdate(d.id, withLineEnds(next));
       return;
     }
 
@@ -262,10 +302,18 @@ export default function PdfPageEditor({
     if (dd.mode === 'move') {
       const maxX = Math.max(0, 1 - dd.orig.widthPct);
       const maxY = Math.max(0, 1 - dd.orig.heightPct);
-      onLiveUpdate(dd.id, {
-        xPct: Math.min(maxX, Math.max(0, dd.orig.xPct + (p.x - dd.startX))),
-        yPct: Math.min(maxY, Math.max(0, dd.orig.yPct + (p.y - dd.startY))),
-      });
+      const nx = Math.min(maxX, Math.max(0, dd.orig.xPct + (p.x - dd.startX)));
+      const ny = Math.min(maxY, Math.max(0, dd.orig.yPct + (p.y - dd.startY)));
+      if (dd.orig.kind === 'line') {
+        // ‼ הזזת קו מזיזה את שתי הנקודות באותה מידה — הזווית והאורך נשמרים.
+        const e = lineEnds(dd.orig);
+        const dx = nx - dd.orig.xPct, dy = ny - dd.orig.yPct;
+        onLiveUpdate(dd.id, withLineEnds({
+          x1: e.x1 + dx, y1: e.y1 + dy, x2: e.x2 + dx, y2: e.y2 + dy,
+        }));
+        return;
+      }
+      onLiveUpdate(dd.id, { xPct: nx, yPct: ny });
       return;
     }
     if (dd.mode === 'resize') {
@@ -278,7 +326,7 @@ export default function PdfPageEditor({
     dragRef.current = null;
     if (!d) return;
 
-    if (d.mode === 'move' || d.mode === 'resize') { onGestureEnd(); return; }
+    if (d.mode === 'move' || d.mode === 'resize' || d.mode === 'endpoint') { onGestureEnd(); return; }
     if (d.mode === 'maybe-move') return;   // לחיצה בלבד — בחירה כבר קרתה
 
     const draft = draftRef.current;
@@ -293,15 +341,19 @@ export default function PdfPageEditor({
         a.points = pts.map(pt => ({ x: (pt.x - draft.x) / w, y: (pt.y - draft.y) / h }));
         onAdd(a);
       }
+    } else if (tool === 'line') {
+      // קו נמדד באורכו ולא בתיבתו — אחרת קו אופקי מושלם היה נדחה
+      const e = draft.ends;
+      if (e && Math.hypot(e.x2 - e.x1, e.y2 - e.y1) > minSize) {
+        const a = mkAnnotation('line', page.id, draft.x, draft.y, draft.w, draft.h, color);
+        onAdd({ ...a, ...withLineEnds(e) });
+      }
     } else if (draft.w > minSize && draft.h > minSize) {
-      const a = mkAnnotation(tool as AnnotationKind, page.id, draft.x, draft.y, draft.w, draft.h, color);
-      if (tool === 'line' && draft.up) a.flipLine = true;
-      onAdd(a);
+      onAdd(mkAnnotation(tool as AnnotationKind, page.id, draft.x, draft.y, draft.w, draft.h, color));
     }
   }
 
   const pageAnns = useMemo(() => annotations.filter(a => a.pageId === page.id), [annotations, page.id]);
-  const selected = selectedId ? pageAnns.find(a => a.id === selectedId) ?? null : null;
   const drawing = tool !== 'select';
 
   const fitHeight = `calc((100vh - 345px) * ${zoom})`;
@@ -326,46 +378,76 @@ export default function PdfPageEditor({
         />
         {!ready && <span className="pdfe-loading" aria-hidden="true" />}
 
-        {pageAnns.map(a => (
-          <AnnotationBox
-            key={a.id}
-            ann={a}
-            stagePx={stagePx}
-            selected={selectedId === a.id}
-            editing={editingText === a.id}
-            selectTool={tool === 'select'}
-            onPointerDownBox={e => {
-              if (tool !== 'select') return;
-              e.stopPropagation();
-              e.preventDefault();
-              capturePointer(e);
-              onSelect(a.id);
-              const p = rel(e);
-              dragRef.current = { mode: 'maybe-move', id: a.id, startX: p.x, startY: p.y, orig: a };
-            }}
-            onStartResize={(e, handle) => {
-              e.stopPropagation();
-              e.preventDefault();
-              const p = rel(e);
-              onGestureStart();
-              dragRef.current = { mode: 'resize', id: a.id, handle, startX: p.x, startY: p.y, orig: a };
-              stageRef.current?.setPointerCapture?.((e as React.PointerEvent).pointerId);
-            }}
-            onText={v => onLiveUpdate(a.id, { text: v })}
-            onAutoHeight={hPct => onLiveUpdate(a.id, { heightPct: hPct })}
-            onDoneText={finishText}
-            onEditText={() => { if (tool === 'select') { onSelect(a.id); setEditingText(a.id); } }}
-            onDelete={() => { onRemove(a.id); onSelect(null); }}
-          />
-        ))}
+        {pageAnns.map(a => {
+          const onDownBox = (e: React.PointerEvent) => {
+            if (tool !== 'select') return;
+            e.stopPropagation();
+            e.preventDefault();
+            capturePointer(e);
+            onSelect(a.id);
+            const p = rel(e);
+            dragRef.current = { mode: 'maybe-move', id: a.id, startX: p.x, startY: p.y, orig: a };
+          };
+          // ‼ קו אינו תיבה: הוא נשלט בשתי נקודות קצה, ולכן הוא לא מקבל
+          // את 8 הידיות אלא רכיב משלו. תיבה חוסמת של קו אלכסוני מכסה שטח
+          // גדול שאינו הקו, ולחיצה בתוכה נתפסה כאילו נגעו בו.
+          if (a.kind === 'line') {
+            return (
+              <LineObject
+                key={a.id}
+                ann={a}
+                stagePx={stagePx}
+                selected={selectedId === a.id}
+                selectTool={tool === 'select'}
+                onPointerDownLine={onDownBox}
+                onStartEndpoint={(e, end) => onStartEndpoint(e, a, end)}
+              />
+            );
+          }
+          return (
+            <AnnotationBox
+              key={a.id}
+              ann={a}
+              stagePx={stagePx}
+              selected={selectedId === a.id}
+              editing={editingText === a.id}
+              selectTool={tool === 'select'}
+              onPointerDownBox={onDownBox}
+              onStartResize={(e, handle) => {
+                e.stopPropagation();
+                e.preventDefault();
+                const p = rel(e);
+                onGestureStart();
+                dragRef.current = { mode: 'resize', id: a.id, handle, startX: p.x, startY: p.y, orig: a };
+                capturePointer(e);
+              }}
+              onText={v => onLiveUpdate(a.id, { text: v })}
+              onAutoHeight={hPct => onLiveUpdate(a.id, { heightPct: hPct })}
+              onDoneText={finishText}
+              onEditText={() => { if (tool === 'select') { onSelect(a.id); setEditingText(a.id); } }}
+              onDelete={() => { onRemove(a.id); onSelect(null); }}
+            />
+          );
+        })}
 
-        {draft && tool !== 'draw' && (
+        {draft && tool === 'line' && draft.ends && (
+          <svg className="pdfe-livedraw" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <line
+              x1={draft.ends.x1 * 100} y1={draft.ends.y1 * 100}
+              x2={draft.ends.x2 * 100} y2={draft.ends.y2 * 100}
+              stroke={color} strokeWidth={Math.max(1, DEFAULT_THICKNESS_PCT * stagePx.w)}
+              vectorEffect="non-scaling-stroke" strokeLinecap="round"
+            />
+          </svg>
+        )}
+        {draft && tool !== 'draw' && tool !== 'line' && (
           <div
             className={`pdfe-draft pdfe-draft-${tool}`}
             style={{
               left: `${draft.x * 100}%`, top: `${draft.y * 100}%`,
               width: `${draft.w * 100}%`, height: `${draft.h * 100}%`,
-              borderColor: color, background: tool === 'highlight' ? color : undefined,
+              borderColor: color,
+              background: tool === 'highlight' ? color : tool === 'whiteout' ? '#fff' : undefined,
             }}
           />
         )}
@@ -381,14 +463,60 @@ export default function PdfPageEditor({
         )}
       </div>
 
-      {/* סרגל צף לסימון הנבחר — רק התכונות של הסוג הזה */}
-      {selected && tool === 'select' && !editingText && (
-        <ContextBar
-          ann={selected}
-          stagePx={stagePx}
-          onPatch={patch => onCommitPatch(selected.id, patch)}
-          onDelete={() => { onRemove(selected.id); onSelect(null); }}
+    </div>
+  );
+}
+
+/** התיבה החוסמת של קו בטיוטה — לתצוגה בלבד; הנקודות הן הסמכות. */
+function draftLineBox(x1: number, y1: number, x2: number, y2: number) {
+  return {
+    x: Math.min(x1, x2), y: Math.min(y1, y2),
+    w: Math.abs(x2 - x1), h: Math.abs(y2 - y1),
+  };
+}
+
+// ─── קו: גוף אחד ושתי נקודות קצה ───────────────────────────────────────
+// ‼ ה-SVG פרוש על כל הדף ואינו קולט לחיצות; רק שני הקווים שבתוכו כן —
+// הקו הנראה, ומעליו קו שקוף ועבה שהוא אזור התפיסה. כך אפשר לתפוס גם קו
+// דק בלי לכוון לפיקסל, ובלי שהתיבה החוסמת תחטוף לחיצות שאינן עליו.
+
+const LINE_HIT_PX = 14;
+
+function LineObject({ ann, stagePx, selected, selectTool, onPointerDownLine, onStartEndpoint }: {
+  ann: Annotation;
+  stagePx: { w: number; h: number };
+  selected: boolean;
+  selectTool: boolean;
+  onPointerDownLine: (e: React.PointerEvent) => void;
+  onStartEndpoint: (e: React.PointerEvent, end: 1 | 2) => void;
+}) {
+  const e = lineEnds(ann);
+  const strokePx = Math.max(1, (ann.thicknessPct ?? DEFAULT_THICKNESS_PCT) * stagePx.w);
+  const pt = (x: number, y: number) => ({ left: `${x * 100}%`, top: `${y * 100}%` });
+
+  return (
+    <div className={`pdfe-line-obj${selected ? ' is-selected' : ''}`}>
+      <svg className="pdfe-linesvg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <line
+          x1={e.x1 * 100} y1={e.y1 * 100} x2={e.x2 * 100} y2={e.y2 * 100}
+          stroke={ann.color} strokeWidth={strokePx} strokeOpacity={strokeOpacityOf(ann)}
+          vectorEffect="non-scaling-stroke" strokeLinecap="round"
         />
+        <line
+          className="pdfe-linehit"
+          x1={e.x1 * 100} y1={e.y1 * 100} x2={e.x2 * 100} y2={e.y2 * 100}
+          stroke="transparent" strokeWidth={LINE_HIT_PX}
+          vectorEffect="non-scaling-stroke" strokeLinecap="round"
+          onPointerDown={onPointerDownLine}
+        />
+      </svg>
+      {selected && selectTool && (
+        <>
+          <span className="pdfe-end pdfe-end-1" style={pt(e.x1, e.y1)} title="נקודת ההתחלה"
+            onPointerDown={ev => onStartEndpoint(ev, 1)} />
+          <span className="pdfe-end pdfe-end-2" style={pt(e.x2, e.y2)} title="נקודת הסיום"
+            onPointerDown={ev => onStartEndpoint(ev, 2)} />
+        </>
       )}
     </div>
   );
@@ -455,6 +583,9 @@ function AnnotationBox({
   const fontPx = (ann.fontPct ?? DEFAULT_FONT_PCT) * stagePx.h;
   const strokePx = Math.max(1, (ann.thicknessPct ?? DEFAULT_THICKNESS_PCT) * stagePx.w);
   const markPx = Math.max(1.2, Math.min(ann.widthPct * stagePx.w, ann.heightPct * stagePx.h) * 0.14);
+  const fill = fillColorOf(ann);
+  const stroke = strokeVisible(ann);
+  const shape = ['highlight', 'whiteout', 'rectangle', 'circle'].includes(ann.kind);
 
   const textStyle: React.CSSProperties = {
     color: ann.color,
@@ -493,26 +624,15 @@ function AnnotationBox({
       onDoubleClick={() => { if (ann.kind === 'text') onEditText(); }}
       title={ann.kind === 'text' && selectTool && !editing ? 'לחיצה כפולה או Enter לעריכה' : undefined}
     >
-      {ann.kind === 'highlight' && <span className="pdfe-fill" style={{ background: ann.color, opacity: .35 }} />}
-      {ann.kind === 'rectangle' && (
-        <span className="pdfe-outline" style={{
-          borderColor: ann.color, borderWidth: strokePx,
-          background: ann.fillColor ? ann.fillColor : undefined, opacity: ann.fillColor ? .5 : undefined,
-        }} />
+      {/* ‼ המילוי והמסגרת הם שתי שכבות נפרדות, בדיוק כמו בצריבה: השקיפות
+          של המילוי אינה נוגעת במסגרת, ומסגרת אפשר לכבות לגמרי. */}
+      {shape && fill && (
+        <span className={`pdfe-fill${ann.kind === 'circle' ? ' is-round' : ''}`}
+          style={{ background: fill, opacity: fillOpacityOf(ann) }} />
       )}
-      {ann.kind === 'circle' && (
-        <span className="pdfe-outline is-round" style={{
-          borderColor: ann.color, borderWidth: strokePx,
-          background: ann.fillColor ? ann.fillColor : undefined, opacity: ann.fillColor ? .5 : undefined,
-        }} />
-      )}
-      {ann.kind === 'line' && (
-        <svg className="pdfe-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <line
-            x1="0" y1={ann.flipLine ? 100 : 0} x2="100" y2={ann.flipLine ? 0 : 100}
-            stroke={ann.color} strokeWidth={strokePx} vectorEffect="non-scaling-stroke" strokeLinecap="round"
-          />
-        </svg>
+      {shape && stroke && (
+        <span className={`pdfe-outline${ann.kind === 'circle' ? ' is-round' : ''}`}
+          style={{ borderColor: ann.color, borderWidth: strokePx, opacity: strokeOpacityOf(ann) }} />
       )}
       {ann.kind === 'draw' && ann.points && (
         <svg className="pdfe-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -538,6 +658,10 @@ function AnnotationBox({
       )}
       {ann.kind === 'image' && ann.imageData && (
         <img className="pdfe-img" src={ann.imageData} alt="" draggable={false} />
+      )}
+      {/* רקע תיבת הטקסט — שכבה מתחת לאותיות, בשקיפות משלה */}
+      {ann.kind === 'text' && fill && (
+        <span className="pdfe-fill" style={{ background: fill, opacity: fillOpacityOf(ann) }} />
       )}
       {ann.kind === 'text' && (
         editing ? (
@@ -581,83 +705,23 @@ function AnnotationBox({
   );
 }
 
-// ─── סרגל צף לסימון הנבחר ──────────────────────────────────────────────
-// ‼ progressive disclosure: מוצג רק כשסימון נבחר, ורק התכונות של הסוג
-// הזה. טקסט מקבל גודל/מודגש/גופן; קווים וצורות מקבלים עובי; מלבן ועיגול
-// גם מילוי. תמונה — כלום (יש לה ידיות ומחיקה, אין לה תכונות).
-
-const FAMILY_ORDER: LatinFamily[] = ['sans', 'serif', 'mono'];
-const FAMILY_LABEL: Record<LatinFamily, string> = { sans: 'Aa', serif: 'Tt', mono: 'Mm' };
-
-function ContextBar({ ann, stagePx, onPatch, onDelete }: {
-  ann: Annotation;
-  stagePx: { w: number; h: number };
-  onPatch: (p: Partial<Annotation>) => void;
-  onDelete: () => void;
-}) {
-  const isText = ann.kind === 'text';
-  const hasStroke = ['draw', 'line', 'rectangle', 'circle'].includes(ann.kind);
-  const hasFill = ann.kind === 'rectangle' || ann.kind === 'circle';
-  if (!isText && !hasStroke && !hasFill) return null;
-
-  const fontPct = ann.fontPct ?? DEFAULT_FONT_PCT;
-  const thickness = ann.thicknessPct ?? DEFAULT_THICKNESS_PCT;
-  const thickIdx = THICKNESS_STEPS.findIndex(t => Math.abs(t - thickness) < 0.0005);
-  const family = ann.fontFamily ?? 'sans';
-
-  // מעל הסימון; כשהוא צמוד לראש הדף — מתחתיו
-  const below = ann.yPct * stagePx.h < 44;
-  const style: React.CSSProperties = {
-    left: `${Math.min(78, Math.max(2, ann.xPct * 100))}%`,
-    top: below ? `calc(${(ann.yPct + ann.heightPct) * 100}% + 8px)` : `calc(${ann.yPct * 100}% - 40px)`,
-  };
-
-  return (
-    <div className="pdfe-ctx" dir="rtl" style={style} onPointerDown={e => e.stopPropagation()}>
-      {isText && (
-        <>
-          <button type="button" title="הקטן טקסט" aria-label="הקטן טקסט"
-            onClick={() => onPatch({ fontPct: Math.max(FONT_PCT_MIN, fontPct / 1.2) })}>א−</button>
-          <button type="button" title="הגדל טקסט" aria-label="הגדל טקסט"
-            onClick={() => onPatch({ fontPct: Math.min(FONT_PCT_MAX, fontPct * 1.2) })}>א+</button>
-          <button type="button" title="מודגש" aria-label="מודגש" aria-pressed={!!ann.bold}
-            className={ann.bold ? 'is-on' : ''}
-            onClick={() => onPatch({ bold: !ann.bold })}><b>B</b></button>
-          <button type="button" title="גופן לטיני" aria-label="גופן לטיני"
-            onClick={() => onPatch({ fontFamily: FAMILY_ORDER[(FAMILY_ORDER.indexOf(family) + 1) % FAMILY_ORDER.length] })}
-          >{FAMILY_LABEL[family]}</button>
-        </>
-      )}
-      {hasStroke && (
-        <button type="button" title="עובי קו" aria-label="עובי קו"
-          onClick={() => onPatch({ thicknessPct: THICKNESS_STEPS[(thickIdx + 1) % THICKNESS_STEPS.length] })}>
-          <span className="pdfe-ctx-stroke" style={{ height: 1 + ((thickIdx + 1) % THICKNESS_STEPS.length) * 2 }} />
-        </button>
-      )}
-      {hasFill && (
-        <button type="button" title="מילוי" aria-label="מילוי" aria-pressed={!!ann.fillColor}
-          className={ann.fillColor ? 'is-on' : ''}
-          onClick={() => onPatch({ fillColor: ann.fillColor ? null : ann.color })}>▨</button>
-      )}
-      <span className="pdfe-ctx-sep" />
-      <button type="button" title="מחק" aria-label="מחק" className="pdfe-ctx-del" onClick={onDelete}>✕</button>
-    </div>
-  );
-}
-
 // ─── יצירת סימון ───────────────────────────────────────────────────────
 
 export function mkAnnotation(
   kind: AnnotationKind, pageId: string, x: number, y: number, w: number, h: number, color: string,
 ): Annotation {
+  // ‼ לקו אין רצפת מידות: קו אופקי הוא תיבה בגובה אפס, וזה מצב תקין.
+  const floor = kind === 'line' ? 0 : 0.01;
   return {
     id: `an-${Math.random().toString(36).slice(2, 10)}`,
     pageId, kind,
     xPct: Math.min(1, Math.max(0, x)),
     yPct: Math.min(1, Math.max(0, y)),
-    widthPct: Math.max(0.01, w),
-    heightPct: Math.max(0.01, h),
+    widthPct: Math.max(floor, w),
+    heightPct: Math.max(floor, h),
     color,
     thicknessPct: DEFAULT_THICKNESS_PCT,
+    // ברירות המחדל של הכלי — הדגשה שקופה, הסתרה לבנה אטומה וכו'
+    ...presetFor(kind, color),
   };
 }
