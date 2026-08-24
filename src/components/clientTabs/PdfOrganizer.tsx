@@ -69,6 +69,8 @@ export default function PdfOrganizer({
   const [zoom, setZoom] = useState(1);
   /** סימון שהועתק — Ctrl+C/X/V, כמו בפרויקט הייחוס. */
   const clipboardRef = useRef<Annotation | null>(null);
+  /** Enter על טקסט נבחר פותח אותו לעריכה — הבקשה עוברת לעורך כ-prop. */
+  const [editRequest, setEditRequest] = useState<{ id: string; n: number } | null>(null);
 
   // ─── היסטוריה אחת לכל המצבים ──────────────────────────────────────────
   const past = useRef<Snapshot[]>([]);
@@ -144,7 +146,25 @@ export default function PdfOrganizer({
     function onKey(e: KeyboardEvent) {
       const el = e.target as HTMLElement | null;
       const typing = el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT';
-      if (e.key === 'Escape' && !busy && !typing) { e.stopPropagation(); onCancel(); return; }
+      if (e.key === 'Escape' && !busy && !typing) {
+        e.stopPropagation();
+        // ‼ סולם יציאה: קודם ביטול בחירה, רק אחר כך סגירת המשטח.
+        // קודם Esc סגר את הכול ומחק את העבודה בשקט — הרגל אצבעות טבעי
+        // שעלה בכל הסימונים שנעשו.
+        if (selectedAnnRef.current) { setSelectedAnn(null); return; }
+        requestClose();
+        return;
+      }
+
+      // Enter על טקסט נבחר פותח אותו לעריכה — בלי לחפש את הלחיצה הכפולה
+      if (!typing && e.key === 'Enter' && modeRef.current !== 'organize' && selectedAnnRef.current) {
+        const ann = stateRef.current.annotations.find(a => a.id === selectedAnnRef.current);
+        if (ann?.kind === 'text') {
+          e.preventDefault();
+          setEditRequest({ id: ann.id, n: Date.now() });
+          return;
+        }
+      }
 
       const sel = selectedAnnRef.current;
       const inEditor = modeRef.current !== 'organize';
@@ -168,8 +188,8 @@ export default function PdfOrganizer({
             ...cur,
             annotations: cur.annotations.map(a => (a.id === sel ? {
               ...a,
-              xPct: Math.min(1 - a.widthPct, Math.max(0, a.xPct + dx * step)),
-              yPct: Math.min(1 - a.heightPct, Math.max(0, a.yPct + dy * step)),
+              xPct: Math.min(Math.max(0, 1 - a.widthPct), Math.max(0, a.xPct + dx * step)),
+              yPct: Math.min(Math.max(0, 1 - a.heightPct), Math.max(0, a.yPct + dy * step)),
             } : a)),
           }));
           return;
@@ -289,6 +309,15 @@ export default function PdfOrganizer({
       annotations: cur.annotations.map(a => (a.id === id ? { ...a, ...patch } : a)),
     }));
   }, []);
+
+  /** סגירת המשטח — אם יש עבודה שלא נשמרה, שואלים קודם. */
+  const requestClose = useCallback(() => {
+    if (busy) return;
+    const dirty = past.current.length > 0 || future.current.length > 0
+      || stateRef.current.annotations.length > 0;
+    if (dirty && !window.confirm('לסגור את העורך? הסימונים והשינויים שלא נשמרו יימחקו.')) return;
+    onCancel();
+  }, [busy, onCancel]);
 
   /**
    * ‼ גרירה מייצרת עשרות עדכונים בשנייה. ההיסטוריה מקבלת רשומה אחת:
@@ -419,7 +448,7 @@ export default function PdfOrganizer({
               disabled={past.current.length === 0 || busy} title="בטל (Ctrl+Z)" aria-label="בטל">↶</button>
             <button type="button" className="pdfw-hist" onClick={redo}
               disabled={future.current.length === 0 || busy} title="בצע שוב (Ctrl+Shift+Z)" aria-label="בצע שוב">↷</button>
-            <button type="button" className="ui-icon-btn" onClick={onCancel} disabled={busy} aria-label="סגירה">
+            <button type="button" className="ui-icon-btn" onClick={requestClose} disabled={busy} aria-label="סגירה">
               <Icon name="close" />
             </button>
           </div>
@@ -590,11 +619,27 @@ export default function PdfOrganizer({
                   zoom={zoom}
                   selectedId={selectedAnn}
                   onSelect={setSelectedAnn}
-                  onAdd={a => { addAnnotation(a); if (a.kind === 'image') { setPendingImage(null); setTool('select'); } }}
+                  onAdd={a => {
+                    addAnnotation(a);
+                    // ‼ צורה שנוצרה נבחרת מיד והכלי חוזר לבחירה — הידיות
+                    // מופיעות באותה שנייה ואפשר לתפוס ולשנות. קודם הכלי נשאר
+                    // חמוש: ניסיון לגעת בצורה יצר עוד אחת, והידיות לא הופיעו
+                    // כלל. עיפרון ו-✓/✗ נשארים חמושים — אותם מניחים ברצף.
+                    if (['rectangle', 'circle', 'line', 'highlight', 'image'].includes(a.kind)) {
+                      if (a.kind === 'image') setPendingImage(null);
+                      setTool('select');
+                      setSelectedAnn(a.id);
+                    }
+                  }}
                   onLiveUpdate={updateAnnotation}
                   onCommitPatch={commitPatch}
                   onGestureStart={beginGesture}
                   onGestureEnd={endGesture}
+                  editRequest={editRequest}
+                  onTextDone={(id, kept) => {
+                    setEditRequest(null);
+                    if (kept) { setTool('select'); setSelectedAnn(id); }
+                  }}
                   onRemove={removeAnnotation}
                 />
               )}

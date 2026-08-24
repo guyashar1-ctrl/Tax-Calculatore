@@ -45,6 +45,10 @@ interface Props {
   onRemove: (id: string) => void;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  /** Enter על טקסט נבחר — ההורה מבקש לפתוח אותו לעריכה. */
+  editRequest: { id: string; n: number } | null;
+  /** טקסט נסגר; kept=false אם היה ריק ונמחק. ההורה עובר לכלי הבחירה. */
+  onTextDone: (id: string, kept: boolean) => void;
 }
 
 const TAP_SIZE = { w: 0.07, h: 0.05 };
@@ -63,7 +67,7 @@ type Drag =
 export default function PdfPageEditor({
   page, bytes, sourceRotation, annotations, tool, color, zoom, pendingImage,
   onAdd, onLiveUpdate, onCommitPatch, onGestureStart, onGestureEnd,
-  onRemove, selectedId, onSelect,
+  onRemove, selectedId, onSelect, editRequest, onTextDone,
 }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -129,6 +133,16 @@ export default function PdfPageEditor({
     return () => { window.removeEventListener('resize', measureStage); ro?.disconnect(); };
   }, [measureStage]);
 
+  /**
+   * ‼ לכידת המצביע אל הדף בכל מחווה. בלי זה, ברגע שהעכבר חוצה את שולי
+   * הדף באמצע גרירה — האירועים מפסיקים להגיע והאובייקט 'נתקע'. זה היה
+   * חלק גדול מ'ההזזה לא עובדת' בעכבר אמיתי; באירועים סינתטיים זה לא
+   * נראה, כי הם נשלחים ישירות לדף.
+   */
+  function capturePointer(e: React.PointerEvent) {
+    try { stageRef.current?.setPointerCapture(e.pointerId); } catch { /* מגע שהשתחרר */ }
+  }
+
   // ─── מיקום יחסי בתוך הדף ─────────────────────────────────────────────
   function rel(e: { clientX: number; clientY: number }) {
     const r = stageRef.current!.getBoundingClientRect();
@@ -138,13 +152,22 @@ export default function PdfPageEditor({
     };
   }
 
-  /** סוגרת תיבת טקסט פתוחה; ריקה — נמחקת. */
+  useEffect(() => {
+    if (!editRequest) return;
+    const ann = annotations.find(a => a.id === editRequest.id);
+    if (ann?.kind === 'text') { onSelect(ann.id); setEditingText(ann.id); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editRequest]);
+
+  /** סוגרת תיבת טקסט פתוחה; ריקה — נמחקת. ההורה מקבל דיווח. */
   function finishText() {
     const id = editingText;
     setEditingText(null);
     if (!id) return;
     const ann = annotations.find(a => a.id === id);
-    if (ann && !(ann.text ?? '').trim()) onRemove(id);
+    const kept = !!ann && !!(ann.text ?? '').trim();
+    if (ann && !kept) onRemove(id);
+    onTextDone(id, kept);
   }
 
   const isShape = (t: EditTool) =>
@@ -162,10 +185,14 @@ export default function PdfPageEditor({
 
   function onPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
+    // ‼ בלי זה, גרירה אמיתית מעל טקסט מתחילה סימון-טקסט של הדפדפן
+    // שחוטף את המחווה (לעיתים עד pointercancel). לא נראה באירועים
+    // סינתטיים — ולכן שרד את סבב ה-QA הקודם.
+    e.preventDefault();
     if (editingText) { finishText(); return; }
     if (tool === 'select') { onSelect(null); return; }
     const p = rel(e);
-    stageRef.current?.setPointerCapture?.(e.pointerId);
+    capturePointer(e);
 
     if (tool === 'check' || tool === 'cross') {
       onAdd(mkAnnotation(tool, page.id, p.x - TAP_SIZE.w / 2, p.y - TAP_SIZE.h / 2, TAP_SIZE.w, TAP_SIZE.h, color));
@@ -233,9 +260,11 @@ export default function PdfPageEditor({
 
     const dd = dragRef.current!;
     if (dd.mode === 'move') {
+      const maxX = Math.max(0, 1 - dd.orig.widthPct);
+      const maxY = Math.max(0, 1 - dd.orig.heightPct);
       onLiveUpdate(dd.id, {
-        xPct: Math.min(1 - dd.orig.widthPct, Math.max(0, dd.orig.xPct + (p.x - dd.startX))),
-        yPct: Math.min(1 - dd.orig.heightPct, Math.max(0, dd.orig.yPct + (p.y - dd.startY))),
+        xPct: Math.min(maxX, Math.max(0, dd.orig.xPct + (p.x - dd.startX))),
+        yPct: Math.min(maxY, Math.max(0, dd.orig.yPct + (p.y - dd.startY))),
       });
       return;
     }
@@ -288,6 +317,7 @@ export default function PdfPageEditor({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onDragStart={e => e.preventDefault()}
       >
         <canvas
           ref={canvasRef}
@@ -307,12 +337,15 @@ export default function PdfPageEditor({
             onPointerDownBox={e => {
               if (tool !== 'select') return;
               e.stopPropagation();
+              e.preventDefault();
+              capturePointer(e);
               onSelect(a.id);
               const p = rel(e);
               dragRef.current = { mode: 'maybe-move', id: a.id, startX: p.x, startY: p.y, orig: a };
             }}
             onStartResize={(e, handle) => {
               e.stopPropagation();
+              e.preventDefault();
               const p = rel(e);
               onGestureStart();
               dragRef.current = { mode: 'resize', id: a.id, handle, startX: p.x, startY: p.y, orig: a };
@@ -443,7 +476,11 @@ function AnnotationBox({
   const syncHeight = () => {
     const ta = taRef.current;
     if (!ta || stagePx.h <= 1) return;
-    const hPct = Math.max((ta.scrollHeight + 2) / stagePx.h, fontPx * 1.5 / stagePx.h);
+    const prevH = ta.style.height;
+    ta.style.height = '0px';
+    const content = ta.scrollHeight;
+    ta.style.height = prevH || '100%';
+    const hPct = Math.min(0.92, Math.max((content + 2) / stagePx.h, (fontPx * 1.5) / stagePx.h));
     if (Math.abs(hPct - ann.heightPct) > 0.004) onAutoHeight(hPct);
   };
   useLayoutEffect(() => { if (editing) syncHeight(); });   // אחרי כל עדכון טקסט/גופן
@@ -454,6 +491,7 @@ function AnnotationBox({
       style={style}
       onPointerDown={onPointerDownBox}
       onDoubleClick={() => { if (ann.kind === 'text') onEditText(); }}
+      title={ann.kind === 'text' && selectTool && !editing ? 'לחיצה כפולה או Enter לעריכה' : undefined}
     >
       {ann.kind === 'highlight' && <span className="pdfe-fill" style={{ background: ann.color, opacity: .35 }} />}
       {ann.kind === 'rectangle' && (

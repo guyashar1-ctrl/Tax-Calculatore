@@ -3907,18 +3907,18 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .pdfe-livedraw{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 
 /* ─── 8 ידיות שינוי גודל ──────────────────────────────────────────────── */
-.pdfe-h{position:absolute;width:12px;height:12px;background:var(--surface-0);
+.pdfe-h{position:absolute;width:14px;height:14px;background:var(--surface-0);
   border:1.5px solid var(--accent);border-radius:3px;z-index:3}
 /* אזור פגיעה נדיב מהריבוע המצויר — קל לתפוס גם סימון קטן */
 .pdfe-h::after{content:'';position:absolute;inset:-6px}
-.pdfe-h-nw{top:-6px;left:-6px;cursor:nwse-resize}
-.pdfe-h-n{top:-6px;left:calc(50% - 6px);cursor:ns-resize}
-.pdfe-h-ne{top:-6px;right:-6px;cursor:nesw-resize}
-.pdfe-h-e{top:calc(50% - 6px);right:-6px;cursor:ew-resize}
-.pdfe-h-se{bottom:-6px;right:-6px;cursor:nwse-resize}
-.pdfe-h-s{bottom:-6px;left:calc(50% - 6px);cursor:ns-resize}
-.pdfe-h-sw{bottom:-6px;left:-6px;cursor:nesw-resize}
-.pdfe-h-w{top:calc(50% - 6px);left:-6px;cursor:ew-resize}
+.pdfe-h-nw{top:-7px;left:-7px;cursor:nwse-resize}
+.pdfe-h-n{top:-7px;left:calc(50% - 7px);cursor:ns-resize}
+.pdfe-h-ne{top:-7px;right:-7px;cursor:nesw-resize}
+.pdfe-h-e{top:calc(50% - 7px);right:-7px;cursor:ew-resize}
+.pdfe-h-se{bottom:-7px;right:-7px;cursor:nwse-resize}
+.pdfe-h-s{bottom:-7px;left:calc(50% - 7px);cursor:ns-resize}
+.pdfe-h-sw{bottom:-7px;left:-7px;cursor:nesw-resize}
+.pdfe-h-w{top:calc(50% - 7px);left:-7px;cursor:ew-resize}
 
 /* ─── הסרגל הצף של הסימון הנבחר ────────────────────────────────────────── */
 .pdfe-ctx{position:absolute;z-index:5;display:flex;align-items:center;gap:2px;
@@ -3942,3 +3942,11 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .pdfw-zoom button:hover:not(:disabled){background:var(--surface-0);color:var(--ink-1)}
 .pdfw-zoom button:disabled{opacity:.35;cursor:default}
 .pdfw-zoom-val{font-size:var(--fs-12);min-width:44px}
+
+/* ─── עורך PDF: עכבר אמיתי ─────────────────────────────────────────────
+   בלי user-select, גרירה מעל טקסט מתחילה סימון-טקסט של הדפדפן שחוטף את
+   המחווה. בלי touch-action, מגע גולל במקום לצייר. */
+.pdfe-stage{user-select:none;-webkit-user-select:none;touch-action:none}
+.pdfe-stage img,.pdfe-stage canvas{-webkit-user-drag:none;user-drag:none}
+/* אובייקט מרגיש "ניתן לתפיסה" עוד לפני הלחיצה */
+.pdfe-stage:not(.is-drawing) .pdfe-ann:not(.is-selected):hover{outline:1px dashed rgba(59,91,219,.55);outline-offset:2px}
