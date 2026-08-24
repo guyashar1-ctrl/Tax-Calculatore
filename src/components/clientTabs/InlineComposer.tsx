@@ -48,9 +48,9 @@ const ERRORS: Record<string, string> = {
   select_needs_options: 'בחירה מרשימה צריכה לפחות שתי אפשרויות (מופרדות בפסיק).',
   bad_requirement_kind: 'סוג פריט לא מוכר.',
   missing_external_party: 'צריך לבחור מי הגורם החיצוני.',
-  stage_not_found: 'השלב לא נמצא — נסו לרענן.',
+  stage_not_found: 'השלב לא נמצא - נסו לרענן.',
   dependency_cycle: 'התלות הזאת יוצרת מעגל.',
-  step_terminal: 'הבקשה כבר נסגרה — אי אפשר לערוך אותה.',
+  step_terminal: 'הבקשה כבר נסגרה - אי אפשר לערוך אותה.',
   not_editable: 'את הבקשה הזאת עורכים במסך שלה.',
 };
 
@@ -196,7 +196,7 @@ export default function InlineComposer({
 
   function buildPayload(): Record<string, unknown> | { error: string } {
     const title = name.trim();
-    if (!title) return { error: 'צריך שם לבקשה — הוא גם מה שהלקוח יראה.' };
+    if (!title) return { error: 'צריך שם לבקשה - הוא גם מה שהלקוח יראה.' };
 
     const activeRows = owner === 'client' ? rows.filter(r => r.label.trim()) : [];
     if (owner === 'client' && activeRows.length === 0) {
@@ -286,7 +286,7 @@ export default function InlineComposer({
         const depRes = depData as { ok?: boolean; error?: string } | null;
         if (depErr || !depRes?.ok) {
           setBusy(false);
-          setError(ERRORS[depRes?.error ?? ''] ?? 'התלות לא נשמרה — שאר השינויים כן.');
+          setError(ERRORS[depRes?.error ?? ''] ?? 'התלות לא נשמרה - שאר השינויים כן.');
           return;
         }
       }
@@ -426,7 +426,7 @@ export default function InlineComposer({
                 type="button"
                 onClick={() => setRow(i, { required: !r.required })}
                 aria-pressed={r.required}
-                title={r.required ? 'חובה — חוסם את השלמת הבקשה' : 'רשות — לא חוסם'}
+                title={r.required ? 'חובה - חוסם את השלמת הבקשה' : 'רשות - לא חוסם'}
                 style={{
                   font: 'inherit', fontSize: 'var(--fs-12)', fontWeight: 600, cursor: 'pointer',
                   padding: '.2rem .55rem', borderRadius: 999, minHeight: 32,
@@ -484,7 +484,7 @@ export default function InlineComposer({
           </span>
           {extKind === 'prev_accountant' ? (
             <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
-              פרטי קשר: מתוך «פרטי רו״ח קודם» בכרטיס —
+              פרטי קשר: מתוך «פרטי רו״ח קודם» בכרטיס -
               {prevEmail
                 ? <span dir="ltr" style={{ marginInlineStart: 4 }}>{prevEmail}</span>
                 : <span style={{ color: 'var(--warn)' }}> טרם התקבלו</span>}
@@ -492,7 +492,7 @@ export default function InlineComposer({
                 /* ‼ דרישת-מערכת, לא תלות: אי אפשר להסיר אותה. הפעולה כלפי
                    הגורם תמתין לפרטים גם בלי שום צ'יפ תלות (Correction 1). */
                 <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>
-                  המשימה תמתין לפרטי הקשר — הם יגיעו מהבקשה «פרטי רו״ח קודם» או מהכרטיס.
+                  המשימה תמתין לפרטי הקשר - הם יגיעו מהבקשה «פרטי רו״ח קודם» או מהכרטיס.
                 </div>
               )}
             </div>
@@ -510,7 +510,7 @@ export default function InlineComposer({
           )}
           {contactGap && extKind === 'other' && (
             <span style={{ fontSize: 'var(--fs-12)', color: 'var(--warn)' }}>
-              {contactGap} — המשימה תמתין עד שיהיה למי לפנות.
+              {contactGap} - המשימה תמתין עד שיהיה למי לפנות.
             </span>
           )}
 
@@ -534,7 +534,7 @@ export default function InlineComposer({
             />
           </label>
           <label style={{ display: 'grid', gap: '.2rem', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
-            תיאור פנימי (רק בשבילך — לא נשלח)
+            תיאור פנימי (רק בשבילך - לא נשלח)
             <input style={field} value={internalNote} disabled={busy}
               placeholder="למשל: לוודא שמגיעות גם הכרטסות של 2024"
               onChange={e => setInternalNote(e.target.value)} />
@@ -542,7 +542,7 @@ export default function InlineComposer({
           {/* ‼ מה שאב-הטיפוס הראה ואין לו כיסוי בשרת — נאמר במפורש ולא
               מוצג ככפתור מת: אין היום צירוף קבצים בשום מייל יוצא במערכת. */}
           <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', lineHeight: 1.6 }}>
-            צירוף קבצים למייל אינו נתמך עדיין — אפשר לכתוב בגוף המייל שהמסמכים יישלחו בנפרד.
+            צירוף קבצים למייל אינו נתמך עדיין - אפשר לכתוב בגוף המייל שהמסמכים יישלחו בנפרד.
           </span>
         </div>
       )}
@@ -568,11 +568,11 @@ export default function InlineComposer({
               שני היה שני מקומות שאפשר לשכוח לעדכן. */}
           <div style={{ display: 'grid', gap: '.25rem' }}>
             <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-2)' }}>
-              {owner === 'external' ? 'מתי שולחים — רק אחרי…' : 'מתי זה נפתח ללקוח — רק אחרי…'}
+              {owner === 'external' ? 'מתי שולחים - רק אחרי…' : 'מתי זה נפתח ללקוח - רק אחרי…'}
             </span>
             <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
               {deps.length === 0
-                ? (owner === 'external' ? 'בלי תנאי — אפשר לשלוח מיד.' : 'בלי תנאי — זמין ללקוח מרגע הפרסום.')
+                ? (owner === 'external' ? 'בלי תנאי - אפשר לשלוח מיד.' : 'בלי תנאי - זמין ללקוח מרגע הפרסום.')
                 : (owner === 'external'
                     ? 'עד שהתנאי יתקיים הבקשה נעולה ואי אפשר לשלוח אותה.'
                     : 'הלקוח יראה את הבקשה כשלב נעול עם ההסבר מה פותח אותה, והיא תיפתח מעצמה.')}
@@ -647,11 +647,11 @@ export default function InlineComposer({
               </span>
               <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', lineHeight: 1.5 }}>
                 {auto
-                  ? <>כשכל התנאים יתמלאו — יישלח אוטומטית מייל על הבקשה
+                  ? <>כשכל התנאים יתמלאו - יישלח אוטומטית מייל על הבקשה
                       {owner === 'external'
                         ? (extKind === 'prev_accountant' ? ' לרו״ח הקודם' : ` ל${extContact.name.trim() || 'גורם'}`)
                         : ' ללקוח'}.
-                      {' '}נחמש רק אחרי ״עדכן את דף הלקוח״ — טיוטה לא שולחת.</>
+                      {' '}נחמש רק אחרי ״עדכן את דף הלקוח״ - טיוטה לא שולחת.</>
                   : 'כשהתנאים יתמלאו הבקשה תסומן כמוכנה, והשליחה תישאר בידיים שלך.'}
               </span>
             </div>

@@ -188,12 +188,12 @@ function degreePointsForYear(d: DegreeInfo, taxYear: number): { pts: number; lab
   switch (d.kind) {
     case 'bachelor': {
       const years = Math.min(d.studyYears ?? 3, 3);
-      if (isNewRule) return since <= years ? { pts: 1, label: `תואר ראשון — שנה ${since} מתוך ${years}` } : null;
-      return since <= 1 ? { pts: 1, label: 'תואר ראשון — שנה אחת (מסיימי 2014–2022)' } : null;
+      if (isNewRule) return since <= years ? { pts: 1, label: `תואר ראשון - שנה ${since} מתוך ${years}` } : null;
+      return since <= 1 ? { pts: 1, label: 'תואר ראשון - שנה אחת (מסיימי 2014–2022)' } : null;
     }
     case 'master': {
-      if (isNewRule) return since <= 2 ? { pts: 0.5, label: `תואר שני — שנה ${since} מתוך 2` } : null;
-      return since <= 1 ? { pts: 0.5, label: 'תואר שני — שנה אחת (מסיימי 2014–2022)' } : null;
+      if (isNewRule) return since <= 2 ? { pts: 0.5, label: `תואר שני - שנה ${since} מתוך 2` } : null;
+      return since <= 1 ? { pts: 0.5, label: 'תואר שני - שנה אחת (מסיימי 2014–2022)' } : null;
     }
     case 'phdDirect': {
       if (isNewRule) return since <= 2 ? { pts: 0.5, label: 'דוקטורט במסלול ישיר' } : null;
@@ -201,18 +201,18 @@ function degreePointsForYear(d: DegreeInfo, taxYear: number): { pts: number; lab
     }
     case 'medicine': {
       if (isNewRule) {
-        if (since <= 3) return { pts: 1, label: `רפואה — שנה ${since} (נקודה מלאה)` };
-        if (since <= 5) return { pts: 0.5, label: `רפואה — שנה ${since} (חצי נקודה)` };
+        if (since <= 3) return { pts: 1, label: `רפואה - שנה ${since} (נקודה מלאה)` };
+        if (since <= 5) return { pts: 0.5, label: `רפואה - שנה ${since} (חצי נקודה)` };
         return null;
       }
-      if (since === 1) return { pts: 1, label: 'רפואה — שנה ראשונה' };
-      if (since === 2) return { pts: 0.5, label: 'רפואה — שנה שנייה' };
+      if (since === 1) return { pts: 1, label: 'רפואה - שנה ראשונה' };
+      if (since === 2) return { pts: 0.5, label: 'רפואה - שנה שנייה' };
       return null;
     }
     case 'vocational': {
       const years = Math.min(d.studyYears ?? 1, 3);
-      if (isNewRule) return since <= years ? { pts: 1, label: `לימודי מקצוע — שנה ${since}` } : null;
-      return since <= 1 ? { pts: 1, label: 'לימודי מקצוע — שנה אחת' } : null;
+      if (isNewRule) return since <= years ? { pts: 1, label: `לימודי מקצוע - שנה ${since}` } : null;
+      return since <= 1 ? { pts: 1, label: 'לימודי מקצוע - שנה אחת' } : null;
     }
   }
 }
@@ -244,7 +244,7 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
     const cp = childPoints(age, role, !!profile.deferredBirthYearPoint);
     if (cp) {
       add(
-        `ילד/ה ${child.birthYear} — ${cp.label}`,
+        `ילד/ה ${child.birthYear} - ${cp.label}`,
         'סעיפים 40(ב), 66(ג)',
         cp.pts,
         role === 'allowanceParent'
@@ -257,9 +257,9 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
         `ילד/ה נטול/ת יכולת (${child.birthYear})`,
         'סעיף 45',
         2,
-        'נקודות קבועות — אינן תלויות באחוז נכות. נדרש טופס 116א או אישור גמלת ילד נכה',
+        'נקודות קבועות - אינן תלויות באחוז נכות. נדרש טופס 116א או אישור גמלת ילד נכה',
       );
-      notes.push('ילד נטול יכולת: רק אחד ההורים מקבל את הנקודות (לבחירתם); הורים פרודים — כל אחד זכאי. חלופה: זיכוי 35% מהוצאות דיור חוץ-ביתי (סעיף 44).');
+      notes.push('ילד נטול יכולת: רק אחד ההורים מקבל את הנקודות (לבחירתם); הורים פרודים - כל אחד זכאי. חלופה: זיכוי 35% מהוצאות דיור חוץ-ביתי (סעיף 44).');
     }
   }
   if (profile.deferredBirthYearPoint) {
@@ -269,7 +269,7 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
   // 4. מצבים משפחתיים
   if (profile.isSoleParent && profile.children.length > 0) {
     add('הורה אחד (ההורה השני נפטר/אינו רשום)', 'סעיף 40(ב)(1ב)', 1);
-    notes.push('"הורה אחד" זכאי גם לשני מסלולי נקודות הילדים (מסלול האם + מסלול הפעוט) — ודא ששני המסלולים סומנו.');
+    notes.push('"הורה אחד" זכאי גם לשני מסלולי נקודות הילדים (מסלול האם + מסלול הפעוט) - ודא ששני המסלולים סומנו.');
   }
   if (profile.participatesInChildSupport) {
     add('גרוש/פרוד המשתתף בכלכלת ילדיו', 'סעיף 40(ב)(1)', 1, 'נקודה אחת ללא תלות במספר הילדים; נשללת מההורה המשמורן אם נישא מחדש');
@@ -287,11 +287,11 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
     const pts = immigrantPointsForYear(profile.aliyahYear, profile.aliyahMonth ?? 1, year);
     if (pts > 0) {
       const track = profile.aliyahYear >= 2022 ? '54 חודשים (עלייה מ-2022)' : '42 חודשים (עלייה לפני 2022)';
-      add(`עולה חדש — מסלול ${track}`, 'סעיף 35', pts,
+      add(`עולה חדש - מסלול ${track}`, 'סעיף 35', pts,
         'מחושב לפי חודשי ותק בשנת המס. המניין נעצר בשירות סדיר או לימודים');
     }
     if (profile.aliyahYear >= 2025) {
-      notes.push('עולים שהגיעו בין 5.11.2025 ל-31.12.2026 עשויים לזכות גם בפטור ממס על הכנסה מיגיעה אישית בישראל (הוראת שעה "עידוד עלייה", תקרת 2026: 600,000 ₪) — בנוסף לנקודות הזיכוי.');
+      notes.push('עולים שהגיעו בין 5.11.2025 ל-31.12.2026 עשויים לזכות גם בפטור ממס על הכנסה מיגיעה אישית בישראל (הוראת שעה "עידוד עלייה", תקרת 2026: 600,000 ₪) - בנוסף לנקודות הזיכוי.');
     }
   }
 
@@ -304,7 +304,7 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
         profile.service.kind === 'military' ? 'חייל/ת משוחרר/ת' : 'מסיים/ת שירות לאומי-אזרחי',
         'סעיף 39א',
         pts,
-        `${rate} נקודות לשנה למשך 36 חודשים מהחודש שאחרי השחרור — חושב יחסית לחודשי הזכאות בשנה זו`,
+        `${rate} נקודות לשנה למשך 36 חודשים מהחודש שאחרי השחרור - חושב יחסית לחודשי הזכאות בשנה זו`,
       );
     }
   }
@@ -313,7 +313,7 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
   if (profile.reserveCombatDaysPrevYear && profile.reserveCombatDaysPrevYear > 0) {
     const pts = reservePoints(profile.reserveCombatDaysPrevYear, year);
     if (pts > 0) {
-      add(`לוחם/ת מילואים — ${profile.reserveCombatDaysPrevYear} ימים בשנה הקודמת`, 'סעיף 39ב (תיקון 283)', pts,
+      add(`לוחם/ת מילואים - ${profile.reserveCombatDaysPrevYear} ימים בשנה הקודמת`, 'סעיף 39ב (תיקון 283)', pts,
         'זיכוי חדש מ-2026, לפי ימי מילואים כלוחם בשנה הקודמת');
     } else if (year < 2026) {
       notes.push('נקודות זיכוי ללוחמי מילואים (סעיף 39ב) חלות רק משנת המס 2026 ואילך.');
@@ -348,8 +348,8 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
         `פטור סעיף 9(5) לעיוור/נכה 100% (או 90%+ משוקלל, 185 ימים ומעלה): ` +
         `הכנסה מיגיעה אישית פטורה עד ${ceiling.toLocaleString('he-IL')} ₪ לשנה` +
         (profile.isPreferentialDisabled ? ' (תקרה מוגדלת לזכאי תגמול לפי חוק הנכים/נפגעי איבה)' : '') +
-        `; הכנסה אחרת — עד ${DISABILITY_CEILING_OTHER_INCOME.toLocaleString('he-IL')} ₪. ` +
-        'זהו פטור על ההכנסה — לא נקודות זיכוי.',
+        `; הכנסה אחרת - עד ${DISABILITY_CEILING_OTHER_INCOME.toLocaleString('he-IL')} ₪. ` +
+        'זהו פטור על ההכנסה - לא נקודות זיכוי.',
     };
   }
 

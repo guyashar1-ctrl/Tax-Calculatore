@@ -163,7 +163,7 @@ export async function imageToPdfBytes(bytes: Uint8Array): Promise<Uint8Array> {
   try {
     image = kind === 'image/jpeg' ? await pdf.embedJpg(bytes) : await pdf.embedPng(bytes);
   } catch {
-    throw new ImageConversionError('לא הצלחנו לקרוא את התצלום — ייתכן שהקובץ פגום.');
+    throw new ImageConversionError('לא הצלחנו לקרוא את התצלום - ייתכן שהקובץ פגום.');
   }
 
   const orientation = kind === 'image/jpeg' ? readJpegOrientation(bytes) : 1;

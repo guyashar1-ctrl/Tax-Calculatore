@@ -532,7 +532,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
 
         {/* ── יישוב מוטב ── */}
         <div className="cw-subsection" style={{ marginTop: '.75rem' }}>
-          <div className="cw-subsection-title">יישוב מוטב (זיכוי באחוזים מההכנסה — סעיף 11)</div>
+          <div className="cw-subsection-title">יישוב מוטב (זיכוי באחוזים מההכנסה - סעיף 11)</div>
           <div className="form-grid form-grid-3">
             <div className="form-group">
               <label>יישוב מוטב</label>
@@ -546,7 +546,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   });
                 }}
               >
-                <option value="">— לא יישוב מוטב —</option>
+                <option value="">- לא יישוב מוטב -</option>
                 {getEligibleSettlements(CURRENT_TAX_YEAR).map(s => (
                   <option key={s.name} value={s.name}>{s.name} ({s.ratePercent}%)</option>
                 ))}
@@ -558,7 +558,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
               )}
               {client.qualifyingSettlementId && !resolvedSettlement && (
                 <div className="cw-field-meta" style={{ color: 'var(--red, var(--err))' }}>
-                  "{client.qualifyingSettlementId}" אינו ברשימת היישובים המוטבים הרשמית — יש לבחור מחדש
+                  "{client.qualifyingSettlementId}" אינו ברשימת היישובים המוטבים הרשמית - יש לבחור מחדש
                 </div>
               )}
             </div>
@@ -570,7 +570,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   checked={!client.qualifyingSettlementOverride}
                   onChange={() => syncSettlementFromCity()}
                 />
-                סנכרן אוטומטית מהעיר ({client.city || '—'})
+                סנכרן אוטומטית מהעיר ({client.city || '-'})
               </label>
             </div>
           </div>
@@ -580,7 +580,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         <div className="cw-subsection">
           <div className="cw-subsection-title">אזרחויות נוספות</div>
           <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .5rem' }}>
-            אם יש אזרחות זרה — חשוב לדיווח FATCA/CRS ולשימוש באמנות מס. ישראלית נרשמת אוטומטית, אין צורך להוסיף.
+            אם יש אזרחות זרה - חשוב לדיווח FATCA/CRS ולשימוש באמנות מס. ישראלית נרשמת אוטומטית, אין צורך להוסיף.
           </p>
           <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <input
@@ -962,7 +962,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                       <input type="number" min={0} step={100} value={a.annualIncome ?? ''} onChange={e => updateForeignAccount(a.id, 'annualIncome', Number(e.target.value) || undefined)} dir="ltr" />
                     </div>
                     <div className="form-group">
-                      <label>מס ששולם בחו״ל (₪) — לזיכוי</label>
+                      <label>מס ששולם בחו״ל (₪) - לזיכוי</label>
                       <input type="number" min={0} step={100} value={a.foreignTaxPaid ?? ''} onChange={e => updateForeignAccount(a.id, 'foreignTaxPaid', Number(e.target.value) || undefined)} dir="ltr" />
                     </div>
                     <div className="form-group span-full">
@@ -973,7 +973,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <LinkedDocsWidget
                     clientId={client.id}
                     linkKey={`personal:foreign:${a.id}`}
-                    linkLabel={`מסמכים — ${a.institutionName || 'חשבון זר'}`}
+                    linkLabel={`מסמכים - ${a.institutionName || 'חשבון זר'}`}
                     defaultCategory="other"
                     compact
                   />
@@ -1067,7 +1067,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                       checked={client.isSubstantialShareholder ?? false}
                       onChange={e => update('isSubstantialShareholder', e.target.checked)}
                     />
-                    בעל מניות מהותי (10%+) — מס 30% במקום 25%
+                    בעל מניות מהותי (10%+) - מס 30% במקום 25%
                   </label>
                 </div>
               </>
@@ -1141,7 +1141,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                 />
                 ביטוח אובדן כושר עבודה
               </label>
-              <div className="cw-field-meta">שדה 112 ב-1301 — ניכוי עד 3.5% מההכנסה</div>
+              <div className="cw-field-meta">שדה 112 ב-1301 - ניכוי עד 3.5% מההכנסה</div>
             </div>
             {client.hasDisabilityInsurance && (
               <div className="form-group">
@@ -1304,7 +1304,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <LinkedDocsWidget
                     clientId={client.id}
                     linkKey={`personal:property:${p.id}`}
-                    linkLabel={`מסמכי נכס — ${p.address || `נכס ${idx + 1}`}`}
+                    linkLabel={`מסמכי נכס - ${p.address || `נכס ${idx + 1}`}`}
                     defaultCategory="other"
                     compact
                   />
@@ -1506,7 +1506,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         action={<button type="button" className="btn btn-secondary btn-sm" onClick={addBankAccount}>+ הוסף חשבון</button>}
       >
         <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
-          סמן חשבון אחד כ"ראשי" — לשם זה יועברו החזרי מס. כל חשבון עם ריבית מחייב 867 מהבנק.
+          סמן חשבון אחד כ"ראשי" - לשם זה יועברו החזרי מס. כל חשבון עם ריבית מחייב 867 מהבנק.
         </p>
         {getBankAccounts().length === 0 ? (
           <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '14px' }}>אין חשבונות בנק. לחץ "+ הוסף חשבון" כדי להוסיף.</p>
@@ -1644,7 +1644,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
         action={<button type="button" className="btn btn-secondary btn-sm" onClick={addDependent}>+ הוסף קרוב</button>}
       >
         <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
-          החזקה של הורה / בן זוג / אח נטול יכולת במוסד מיוחד — מקנה זיכוי של 35% מסכום ההוצאה (סעיף 44ב לפקודה).
+          החזקה של הורה / בן זוג / אח נטול יכולת במוסד מיוחד - מקנה זיכוי של 35% מסכום ההוצאה (סעיף 44ב לפקודה).
         </p>
         {getDependents().length === 0 ? (
           <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '14px' }}>אין קרובים תלויים. לחץ "+ הוסף קרוב" אם רלוונטי.</p>
@@ -1726,7 +1726,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
               <label>שם העסק</label>
               <input type="text" value={client.businessName ?? ''}
                 onChange={e => update('businessName', e.target.value || undefined)}
-                placeholder="השם שבו העסק מוכר — מופיע במכתב לרו״ח הקודם" />
+                placeholder="השם שבו העסק מוכר - מופיע במכתב לרו״ח הקודם" />
             </div>
             <div className="form-group">
               <label>מקור ההפניה</label>
@@ -1769,7 +1769,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
 
         <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
           רשימה לעצמאי עם <strong>2 עסקים או יותר</strong> (חנות + שותפות + פרילנס וכו'). כל עסק = נספח א' (1320) נפרד בדוח 1301.
-          לעצמאי עם עסק יחיד — די בשדות businessDescription/vatStatus ברמת הלקוח.
+          לעצמאי עם עסק יחיד - די בשדות businessDescription/vatStatus ברמת הלקוח.
         </p>
         {getBusinesses().length === 0 ? (
           <p style={{ color: 'var(--gray-500)', margin: 0, fontSize: '14px' }}>אין עסקים נוספים. לחץ "+ הוסף עסק" אם רלוונטי.</p>
@@ -1811,7 +1811,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <div className="form-group">
                     <label>תדירות מע"מ</label>
                     <select value={b.vatFrequency ?? ''} onChange={e => updateBusiness(b.id, 'vatFrequency', (e.target.value || undefined) as 'monthly' | 'bi_monthly' | undefined)}>
-                      <option value="">—</option>
+                      <option value="">-</option>
                       <option value="monthly">חודשי</option>
                       <option value="bi_monthly">דו-חודשי</option>
                     </select>
@@ -1866,7 +1866,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
           ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_SPECIAL} icon="📋" label="דיווחי חובה ומצבים מיוחדים">
         <p style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '0 0 .75rem' }}>
-          דגלי "כן/לא" למקרים מיוחדים. סמן רק אם רלוונטי — כל אחד מהם מחייב התייחסות נפרדת בדוח 1301.
+          דגלי "כן/לא" למקרים מיוחדים. סמן רק אם רלוונטי - כל אחד מהם מחייב התייחסות נפרדת בדוח 1301.
         </p>
         <div className="form-grid form-grid-2">
           {/* חברה משפחתית */}
@@ -1875,7 +1875,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
               <input type="checkbox" checked={client.isFamilyCompanyMember ?? false} onChange={e => update('isFamilyCompanyMember', e.target.checked)} />
               בעלים בחברה משפחתית
             </label>
-            <div className="cw-field-meta">חישוב מס שונה — ההכנסה מיוחסת לבעל המניות</div>
+            <div className="cw-field-meta">חישוב מס שונה - ההכנסה מיוחסת לבעל המניות</div>
           </div>
           {client.isFamilyCompanyMember && (
             <div className="form-group">
@@ -1914,7 +1914,7 @@ export default function PersonalContactsTab({ client, update, patch, employees }
               <input type="checkbox" checked={client.isKibbutzMember ?? false} onChange={e => update('isKibbutzMember', e.target.checked)} />
               חבר קיבוץ / מושב שיתופי
             </label>
-            <div className="cw-field-meta">הקיבוץ הוא בר השומה — חישוב מס שונה לחלוטין</div>
+            <div className="cw-field-meta">הקיבוץ הוא בר השומה - חישוב מס שונה לחלוטין</div>
           </div>
           {client.isKibbutzMember && (
             <div className="form-group">
@@ -1981,14 +1981,14 @@ export default function PersonalContactsTab({ client, update, patch, employees }
           8. אנשי קשר — הנישום + אנשי קשר נוספים, עם סימון ראשי ════════════════════════════════════════════════════════════ */}
       <ColoredSection color={COLOR_CONTACTS} icon="📞" label="אנשי קשר">
         <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '.6rem' }}>
-          לחיצה על מסמנת את איש הקשר הראשי — זה מי שמופיע בטבלת הלקוחות וזה אליו פונים בפועל.
+          לחיצה על מסמנת את איש הקשר הראשי - זה מי שמופיע בטבלת הלקוחות וזה אליו פונים בפועל.
         </div>
 
         {/* כרטיס הנישום עצמו — נמשך מהפרטים האישיים, לא ניתן לעריכה כאן */}
         <div className="cw-contacts">
           <div
             className={`cw-contact-card cw-contact-self${isClientPrimary ? ' cw-contact-primary' : ''}`}
-            title="פרטים נשלפים מ'פרטי נישום' למעלה — שינוי שם/טלפון/אימייל ייעשה שם"
+            title="פרטים נשלפים מ'פרטי נישום' למעלה - שינוי שם/טלפון/אימייל ייעשה שם"
           >
             <div className="cw-contact-head">
               <button
@@ -2003,8 +2003,8 @@ export default function PersonalContactsTab({ client, update, patch, employees }
               <span className="badge badge-blue cl-mini-badge">הנישום</span>
             </div>
             <div className="cw-contact-meta">
-              {client.phone ? <span dir="ltr">{client.phone}</span> : <span style={{ color: 'var(--gray-400)' }}>— אין טלפון</span>}
-              {client.email ? <span dir="ltr">{client.email}</span> : <span style={{ color: 'var(--gray-400)' }}>— אין אימייל</span>}
+              {client.phone ? <span dir="ltr">{client.phone}</span> : <span style={{ color: 'var(--gray-400)' }}>- אין טלפון</span>}
+              {client.email ? <span dir="ltr">{client.email}</span> : <span style={{ color: 'var(--gray-400)' }}>- אין אימייל</span>}
             </div>
             <div className="cw-contact-notes" style={{ fontStyle: 'normal', color: 'var(--gray-500)' }}>
               לעריכה: גלילה ל"פרטי נישום" למעלה.

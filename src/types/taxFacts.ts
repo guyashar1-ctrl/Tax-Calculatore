@@ -101,15 +101,15 @@ export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   withholdingRate: 'שיעור ניכוי במקור', hasExemptFromWithholding: 'פטור מניכוי במקור',
   niAdvanceMonthly: 'מקדמה חודשית בביטוח לאומי', taxOfficeName: 'פקיד שומה',
   niBalance: 'יתרה בביטוח לאומי', niOccupations: 'עיסוקים בביטוח לאומי',
-  niDebitAuthorization: 'הרשאת חיוב — ביטוח לאומי',
-  vatBalance: 'יתרה במע״מ', vatDebitAuthorization: 'הרשאת חיוב — מע״מ',
+  niDebitAuthorization: 'הרשאת חיוב - ביטוח לאומי',
+  vatBalance: 'יתרה במע״מ', vatDebitAuthorization: 'הרשאת חיוב - מע״מ',
   vatFileType: 'סוג תיק מע״מ', vatOpeningDate: 'תאריך פתיחת תיק מע״מ',
   vatPrimaryIndustry: 'ענף עיקרי (מע״מ)', vatLastReportPeriod: 'דוח מע״מ אחרון שהוגש',
   incomeTaxBalance: 'יתרה במס הכנסה', incomeTaxFileType: 'סוג תיק מס הכנסה',
   incomeTaxUnit: 'חוליה', incomeTaxEconomicIndustry: 'ענף כלכלי',
-  incomeTaxDebitAuthorization: 'הרשאת חיוב — מס הכנסה', withholdingDetail: 'פירוט ניכוי במקור',
+  incomeTaxDebitAuthorization: 'הרשאת חיוב - מס הכנסה', withholdingDetail: 'פירוט ניכוי במקור',
   capitalDeclarationRequired: 'דרישת הצהרת הון פתוחה', capitalDeclarationDeadline: 'מועד להגשת הצהרת הון',
-  niIncomeBasisMonthly: 'בסיס הכנסה למקדמות — ביטוח לאומי', incomeTaxReportingStatus: 'מצב דיווחים',
+  niIncomeBasisMonthly: 'בסיס הכנסה למקדמות - ביטוח לאומי', incomeTaxReportingStatus: 'מצב דיווחים',
 };
 
 /** השוואה עמוקה מספיק לשדות מנוהלים — כולל מערכים/אובייקטים (ילדים, מעבידים וכו'). */

@@ -189,7 +189,7 @@ export function buildProfileBlocks(client: Client, latestModel?: TaxpayerModel |
         label: 'שכיר/ה',
         value: employers.length > 0
           ? employers.filter((e) => !e.endDate).map((e) => e.name).join(', ') || 'מעסיקים לשעבר בלבד'
-          : saysSalary ? 'כן — שם המעסיק טרם הוזן' : 'לא',
+          : saysSalary ? 'כן - שם המעסיק טרם הוזן' : 'לא',
         metaKey: 'employers',
         missing: employers.length === 0 && saysSalary,
       },
@@ -197,7 +197,7 @@ export function buildProfileBlocks(client: Client, latestModel?: TaxpayerModel |
         label: 'עסק עצמאי',
         value: businesses.length > 0
           ? businesses.map((b) => b.name).join(', ')
-          : saysBusiness ? 'כן — פרטי העסק טרם הוזנו' : 'אין',
+          : saysBusiness ? 'כן - פרטי העסק טרם הוזנו' : 'אין',
         metaKey: 'businesses',
         missing: businesses.length === 0 && saysBusiness,
       },
@@ -205,7 +205,7 @@ export function buildProfileBlocks(client: Client, latestModel?: TaxpayerModel |
         label: 'נדל"ן',
         value: client.hasResidentialProperty || properties.length > 0
           ? `${properties.length || client.numberOfProperties || 1} נכס/ים${properties.some((p) => p.isRented) ? ' (מושכר)' : ''}`
-          : saysRental ? 'כן — פרטי הנכס טרם הוזנו' : 'אין',
+          : saysRental ? 'כן - פרטי הנכס טרם הוזנו' : 'אין',
         metaKey: 'properties',
         missing: properties.length === 0 && saysRental,
       },
@@ -264,24 +264,24 @@ export interface RecurringDoc {
 export function deriveRecurringDocs(client: Client): RecurringDoc[] {
   const docs: RecurringDoc[] = [];
   for (const e of (client.employers ?? []).filter((e) => !e.endDate)) {
-    docs.push({ code: `106-${e.id}`, name: `טופס 106 — ${e.name}`, from: 'מהמעסיק' });
+    docs.push({ code: `106-${e.id}`, name: `טופס 106 - ${e.name}`, from: 'מהמעסיק' });
   }
   for (const b of client.businesses ?? []) {
-    docs.push({ code: `pnl-${b.id}`, name: `דוח רווח-הפסד — ${b.name}`, from: 'הנהלת חשבונות' });
-    docs.push({ code: `857-${b.id}`, name: `אישורי ניכוי במקור (857) — ${b.name}`, from: 'מלקוחות העסק' });
+    docs.push({ code: `pnl-${b.id}`, name: `דוח רווח-הפסד - ${b.name}`, from: 'הנהלת חשבונות' });
+    docs.push({ code: `857-${b.id}`, name: `אישורי ניכוי במקור (857) - ${b.name}`, from: 'מלקוחות העסק' });
   }
   for (const a of (client.investmentAccounts ?? []).filter((a) => !a.isClosed)) {
-    docs.push({ code: `867-${a.id}`, name: `טופס 867 — ${a.institutionName}`, from: 'מבית ההשקעות' });
+    docs.push({ code: `867-${a.id}`, name: `טופס 867 - ${a.institutionName}`, from: 'מבית ההשקעות' });
   }
   for (const b of client.bankAccounts ?? []) {
-    docs.push({ code: `867b-${b.id}`, name: `טופס 867 — ${b.bankName}`, from: 'מהבנק' });
+    docs.push({ code: `867b-${b.id}`, name: `טופס 867 - ${b.bankName}`, from: 'מהבנק' });
   }
   for (const p of (client.pensionFunds ?? []).filter((p) => p.hasSelfDeposits)) {
-    docs.push({ code: `pension-${p.id}`, name: `אישור הפקדות — ${p.institutionName}`, from: 'מהקופה' });
+    docs.push({ code: `pension-${p.id}`, name: `אישור הפקדות - ${p.institutionName}`, from: 'מהקופה' });
   }
   const rentedProps = (client.properties ?? []).filter((p) => p.isRented);
   for (const p of rentedProps) {
-    docs.push({ code: `rent-${p.id}`, name: `חוזה שכירות — ${p.address || 'נכס'}`, from: 'מהלקוח' });
+    docs.push({ code: `rent-${p.id}`, name: `חוזה שכירות - ${p.address || 'נכס'}`, from: 'מהלקוח' });
   }
   if ((client.donationsAnnual ?? 0) > 0) {
     docs.push({ code: 'donations', name: 'קבלות תרומות (סעיף 46)', from: 'מהלקוח' });

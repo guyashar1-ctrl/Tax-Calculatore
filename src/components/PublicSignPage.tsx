@@ -61,7 +61,7 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
 
   async function handleSend() {
     if (!isValidEmail(email)) {
-      setErr('כתובת המייל אינה תקינה — בדקו שוב.');
+      setErr('כתובת המייל אינה תקינה - בדקו שוב.');
       return;
     }
     setBusy('send');
@@ -73,7 +73,7 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
       if (error || !data?.ok) throw new Error(error?.message || data?.error || 'failed');
       setMode('sent');
     } catch {
-      setErr('שליחת המייל נכשלה. אפשר לנסות שוב — או שהמשרד ישלח את הקישור.');
+      setErr('שליחת המייל נכשלה. אפשר לנסות שוב - או שהמשרד ישלח את הקישור.');
     } finally {
       setBusy(null);
     }
@@ -94,7 +94,7 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
         <div style={{ fontSize: 14.5, fontWeight: 600, color: '#111' }}>✓ הקישור נשלח אל <span dir="ltr">{email.trim()}</span></div>
         <InfoLines style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginTop: 4 }} items={[
           `${name} יקבל/תקבל מייל עם קישור חתימה אישי`,
-          'אתם סיימתם — אפשר לסגור את החלון',
+          'אתם סיימתם - אפשר לסגור את החלון',
         ]} />
       </div>
     );
@@ -106,7 +106,7 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
         נשארה החתימה של {name}
       </div>
       <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginBottom: 12 }}>
-        הפרטים כבר מולאו — נשארה רק חתימה. איך נוח לכם?
+        הפרטים כבר מולאו - נשארה רק חתימה. איך נוח לכם?
       </div>
 
       {mode === 'choice' ? (
@@ -174,7 +174,7 @@ export default function PublicSignPage({ token }: { token: string }) {
         // ‼ הלקוח לא רואה את הטקסט הטכני: הוא לרוב באנגלית, לא אומר לו כלום,
         //   ולפעמים חושף פרטי שרת. הפירוט נשאר ב-console לצורך אבחון.
         console.error('[PublicSignPage] טעינת המסמך נכשלה', e);
-        setErrMsg('לא הצלחנו לטעון את המסמך. נסו לרענן את הדף, ואם זה חוזר — פנו למשרד.');
+        setErrMsg('לא הצלחנו לטעון את המסמך. נסו לרענן את הדף, ואם זה חוזר - פנו למשרד.');
         setPhase('error');
       }
     })();
@@ -196,7 +196,7 @@ export default function PublicSignPage({ token }: { token: string }) {
       setPhase('done');
     } catch (e) {
       console.error('[PublicSignPage] שליחת החתימה נכשלה', e);
-      setErrMsg('החתימה לא נשלחה. נסו שוב, ואם זה חוזר — פנו למשרד.');
+      setErrMsg('החתימה לא נשלחה. נסו שוב, ואם זה חוזר - פנו למשרד.');
       setPhase('error');
     }
   }
@@ -223,7 +223,7 @@ export default function PublicSignPage({ token }: { token: string }) {
       mark="✓"
       title="החתימה כבר התקבלה"
       body={<>
-        <div>תודה{hi}!{session?.ni ? ' נשאר צעד אחד — אישור בביטוח הלאומי.' : ''}</div>
+        <div>תודה{hi}!{session?.ni ? ' נשאר צעד אחד - אישור בביטוח הלאומי.' : ''}</div>
         {session?.ni && <NiApprovalNotice referenceNumber={session.ni.referenceNumber} deadline={session.ni.deadline} />}
         {spouseBlock}
       </>}
@@ -239,7 +239,7 @@ export default function PublicSignPage({ token }: { token: string }) {
     <ClientPageState
       wide
       mark="✓"
-      title={session?.ni ? 'החתימה התקבלה — נשאר צעד אחד' : 'החתימה התקבלה'}
+      title={session?.ni ? 'החתימה התקבלה - נשאר צעד אחד' : 'החתימה התקבלה'}
       body={<>
         <div>תודה{hi}! {session?.firmName || 'המשרד'} יגיש עכשיו את בקשת הייצוג לרשויות.{session?.ni ? ' הפעולה האחרונה שנשארה היא שלכם:' : ''}</div>
         {session?.ni && <NiApprovalNotice referenceNumber={session.ni.referenceNumber} deadline={session.ni.deadline} />}
@@ -279,7 +279,7 @@ export default function PublicSignPage({ token }: { token: string }) {
       // אינו עניינו, ורק מעלה שאלות על טופס שנראה חסר.
       hiddenSignerIds={['accountant']}
       initialValues={session.values}
-      title={`✍ חתימה על ייפוי כוח — ${session.signerName}`}
+      title={`✍ חתימה על ייפוי כוח - ${session.signerName}`}
       onComplete={handleComplete}
       onCancel={() => window.location.reload()}
     />

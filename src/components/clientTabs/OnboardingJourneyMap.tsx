@@ -126,8 +126,8 @@ export default function OnboardingJourneyMap({ steps, onSelect }: Props) {
                     <button
                       type="button"
                       onClick={() => onSelect(s.id)}
-                      title={`${STEP_TYPE_LABELS[s.stepType]} — ${STEP_STATUS_LABELS[s.status]} · הכדור ${STEP_BALL_LABELS[s.ball]}`}
-                      aria-label={`${STEP_TYPE_LABELS[s.stepType]} — ${STEP_STATUS_LABELS[s.status]}`}
+                      title={`${STEP_TYPE_LABELS[s.stepType]} - ${STEP_STATUS_LABELS[s.status]} · הכדור ${STEP_BALL_LABELS[s.ball]}`}
+                      aria-label={`${STEP_TYPE_LABELS[s.stepType]} - ${STEP_STATUS_LABELS[s.status]}`}
                       style={{
                         width: 22, height: 22, borderRadius: 999, borderWidth: 1.5,
                         borderStyle: 'solid', padding: 0, cursor: 'pointer', flexShrink: 0,
@@ -153,7 +153,7 @@ export default function OnboardingJourneyMap({ steps, onSelect }: Props) {
           marginTop: '.6rem', paddingTop: '.5rem', borderTop: '1px solid var(--hairline-2)',
           fontSize: 'var(--fs-12)', color: 'var(--ink-3)',
         }}>
-          🔒 הרשאת התשלום נעולה עד שתאשר את החיבור לפייפרלס — ההרשאה נוצרת בתוך
+          🔒 הרשאת התשלום נעולה עד שתאשר את החיבור לפייפרלס - ההרשאה נוצרת בתוך
           חשבון הפייפרלס של הלקוח.
         </div>
       )}
@@ -194,7 +194,7 @@ export function MiniJourney({ steps }: { steps: OnboardingStep[] }) {
         const st = NODE_STYLE[tone];
         return (
           <span key={s.id} aria-hidden="true"
-            title={`${STEP_TYPE_LABELS[s.stepType]} — ${STEP_STATUS_LABELS[s.status]}`}
+            title={`${STEP_TYPE_LABELS[s.stepType]} - ${STEP_STATUS_LABELS[s.status]}`}
             style={{
               width: 10, height: 10, borderRadius: 999, borderWidth: 1.5, borderStyle: st.borderStyle ?? 'solid',
               display: 'inline-block', background: st.background, borderColor: st.borderColor,

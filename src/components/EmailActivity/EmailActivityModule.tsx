@@ -12,7 +12,7 @@ interface Props {
 }
 
 function fmtTime(iso?: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
   return d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
@@ -47,7 +47,7 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
         return;
       }
       const parts = [`שוחזרו ${data.filled} מיילים`];
-      if (data.remaining > 0) parts.push(`נותרו ${data.remaining} — אפשר להריץ שוב`);
+      if (data.remaining > 0) parts.push(`נותרו ${data.remaining} - אפשר להריץ שוב`);
       if (data.failures?.length) parts.push(`${data.failures.length} לא נמצאו ב-Resend`);
       setBackfillNote({ ok: true, text: parts.join(' · ') });
       await reload();
@@ -144,7 +144,7 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
                 {rows.map(m => (
                   <tr key={m.id} style={{ borderBottom: '0.5px solid var(--gray-100, #eee)' }}>
                     <td style={{ padding: '10px 12px' }} dir="ltr" align="right">{m.toEmail}</td>
-                    <td style={{ padding: '10px 8px' }}>{m.subject || '—'}</td>
+                    <td style={{ padding: '10px 8px' }}>{m.subject || '-'}</td>
                     <td style={{ padding: '10px 8px' }}>
                       <StatusChip status={m.status} />
                       {m.error && <div style={{ fontSize: 'var(--fs-12)', color: 'var(--err)', marginTop: 3 }}>{m.error}</div>}
@@ -154,7 +154,7 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
                       {m.html ? (
                         <button className="btn btn-secondary btn-sm" onClick={() => setViewing(m)}>צפייה</button>
                       ) : (
-                        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }} title="נשלח לפני שהמערכת התחילה לשמור עותק">—</span>
+                        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }} title="נשלח לפני שהמערכת התחילה לשמור עותק">-</span>
                       )}
                     </td>
                   </tr>

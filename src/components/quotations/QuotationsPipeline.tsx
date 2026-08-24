@@ -118,7 +118,7 @@ export default function QuotationsPipeline({
     const name = `${q.quotationNumber} (${recipientName(q)})`;
     const message = q.status === 'draft'
       ? `למחוק את טיוטת הצעה ${name}?\n\nלא ניתן לשחזר.`
-      : `למחוק לצמיתות את הצעה ${name}?\n\nיימחקו גם המעקב, יומן האירועים${q.approvalSignature ? ' וחתימת הלקוח' : ''} — ולא ניתן לשחזר.`;
+      : `למחוק לצמיתות את הצעה ${name}?\n\nיימחקו גם המעקב, יומן האירועים${q.approvalSignature ? ' וחתימת הלקוח' : ''} - ולא ניתן לשחזר.`;
     if (!window.confirm(message)) return;
     setRowBusy(q.id);
     setToast(null);
@@ -150,7 +150,7 @@ export default function QuotationsPipeline({
   const recipientName = (q: Quotation): string => {
     if (q.leadId) { const l = leads.find(x => x.id === q.leadId); if (l) return l.fullName; }
     if (q.clientId) { const c = clients.find(x => x.id === q.clientId); if (c) return `${c.firstName} ${c.lastName}`.trim(); }
-    return q.snapshot?.recipientName || '—';
+    return q.snapshot?.recipientName || '-';
   };
 
   // ‼ "הומר" = נפתחה התקשרות להצעה הזו. קיום clientId על ההצעה כבר לא מעיד
@@ -289,9 +289,9 @@ export default function QuotationsPipeline({
 
       {reminderFailures.length > 0 && (
         <div className="alert alert-warning" style={{ marginBottom: 12, flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
-          <div style={{ fontWeight: 600 }}>תזכורת אוטומטית נכשלה ל־{reminderFailures.length} הצעות — נדרש טיפול:</div>
+          <div style={{ fontWeight: 600 }}>תזכורת אוטומטית נכשלה ל־{reminderFailures.length} הצעות - נדרש טיפול:</div>
           {reminderFailures.map(q => (
-            <div key={q.id} style={{ fontSize: 12.5 }}>• {q.quotationNumber} ({recipientName(q)}) — {q.autoReminderError}. אפשר לשלוח תזכורת ידנית מהשורה.</div>
+            <div key={q.id} style={{ fontSize: 12.5 }}>• {q.quotationNumber} ({recipientName(q)}) - {q.autoReminderError}. אפשר לשלוח תזכורת ידנית מהשורה.</div>
           ))}
         </div>
       )}
@@ -301,8 +301,8 @@ export default function QuotationsPipeline({
           <div style={{ fontWeight: 600 }}>ב־{repEmailFailures.length} הצעות ניסיון שליחת מייל ייצוג נכשל:</div>
           {repEmailFailures.map(q => (
             <div key={q.id} style={{ fontSize: 12.5 }}>
-              • {q.quotationNumber} ({recipientName(q)}){q.representationError ? ` — ${q.representationError}` : ''}.
-              אין ניסיון חוזר אוטומטי — יש לשלוח שוב מכרטיס הלקוח.
+              • {q.quotationNumber} ({recipientName(q)}){q.representationError ? ` - ${q.representationError}` : ''}.
+              אין ניסיון חוזר אוטומטי - יש לשלוח שוב מכרטיס הלקוח.
             </div>
           ))}
         </div>
@@ -312,10 +312,10 @@ export default function QuotationsPipeline({
           וכאן זה לא קרה. אם ההצעה הוסיפה רשויות, הן נרשמו בכרטיס הקיים. */}
       {repReused.length > 0 && (
         <div className="alert alert-info" style={{ marginBottom: 12, flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
-          <div style={{ fontWeight: 600 }}>ℹ ב־{repReused.length} הצעות לא נפתחה בקשת ייצוג חדשה — ללקוח כבר קיים תהליך ייצוג:</div>
+          <div style={{ fontWeight: 600 }}>ℹ ב־{repReused.length} הצעות לא נפתחה בקשת ייצוג חדשה - ללקוח כבר קיים תהליך ייצוג:</div>
           {repReused.map(q => (
             <div key={q.id} style={{ fontSize: 12.5 }}>
-              • {q.quotationNumber} ({recipientName(q)}) — {reuseNote(q) || 'נצמדה לתהליך הקיים'}.
+              • {q.quotationNumber} ({recipientName(q)}) - {reuseNote(q) || 'נצמדה לתהליך הקיים'}.
               <button className="btn btn-sm btn-ghost" style={{ marginInlineStart: 6 }} onClick={() => onConvert(q)}>לכרטיס הלקוח ←</button>
             </div>
           ))}
@@ -329,7 +329,7 @@ export default function QuotationsPipeline({
         /* מצב ריק · D14 — כפתור כחול אחד בדיוק, והשלבים מלמדים את המחזור */
         <EmptyState
           headline="עוד לא הפקת הצעת מחיר"
-          sentence="ההצעה נשלחת לנמען, והליד נוצר אוטומטית — גם אם הוא לא קיים במערכת."
+          sentence="ההצעה נשלחת לנמען, והליד נוצר אוטומטית - גם אם הוא לא קיים במערכת."
           steps={[
             { t: 'בונים את ההצעה', p: 'בוחרים תבנית, מוסיפים שירותים, ורואים במקביל את העמוד שהלקוח יקבל.' },
             { t: 'שולחים לנמען', p: 'הליד נוצר מעצמו. אין צורך להקים אותו לפני כן.' },
@@ -369,17 +369,17 @@ export default function QuotationsPipeline({
                             <td className="mono-text">{q.quotationNumber}{q.revision > 1 ? ` · גרסה ${q.revision}` : ''}</td>
                             <td style={{ fontWeight: 600, color: 'var(--gray-900)' }}>{recipientName(q)}</td>
                             <td className="number">
-                              {amounts.length === 0 ? '—' : amounts.map((a, i) => (
+                              {amounts.length === 0 ? '-' : amounts.map((a, i) => (
                                 <div key={a.label} style={i === 0 ? undefined : { fontSize: 11.5, color: 'var(--gray-500)', fontWeight: 400 }}>
                                   {formatILS(a.value)} {a.label}
                                 </div>
                               ))}
                             </td>
                             <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>
-                              {q.expiresAt ? new Date(q.expiresAt).toLocaleDateString('he-IL') : '—'}
+                              {q.expiresAt ? new Date(q.expiresAt).toLocaleDateString('he-IL') : '-'}
                               {expiringSoon && <span className="badge badge-orange" style={{ marginInlineStart: 6, fontSize: 10 }}>{days === 0 ? 'פג היום' : days === 1 ? 'פג ביום עסקים הבא' : `פג בעוד ${days} ימי עסקים`}</span>}
                             </td>
-                            <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>{q.updatedAt ? new Date(q.updatedAt).toLocaleDateString('he-IL') : '—'}</td>
+                            <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>{q.updatedAt ? new Date(q.updatedAt).toLocaleDateString('he-IL') : '-'}</td>
                             <td style={{ textAlign: 'end', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                               {(g.status === 'sent' || g.status === 'viewed') && (
                                 <>
@@ -394,10 +394,10 @@ export default function QuotationsPipeline({
                                   {q.representationRequestId ? (
                                     // האוטומציה כבר עשתה את העבודה — אין מה "להפוך"
                                     <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>
-                                      {q.representationSentAt ? 'ייצוג נפתח — לכרטיס ←' : 'ייצוג נפתח — לכרטיס ←'}
+                                      {q.representationSentAt ? 'ייצוג נפתח - לכרטיס ←' : 'ייצוג נפתח - לכרטיס ←'}
                                     </button>
                                   ) : converted ? (
-                                    <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>לקוח — לכרטיס ←</button>
+                                    <button className="btn btn-sm btn-ghost" onClick={() => onConvert(q)}>לקוח - לכרטיס ←</button>
                                   ) : (
                                     <button className="btn btn-sm btn-green" onClick={() => onConvert(q)}>הפוך ללקוח והתחל ייצוג ←</button>
                                   )}

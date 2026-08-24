@@ -63,7 +63,7 @@ const POPULATED: Record<InstitutionKey, Record<string, unknown>> = {
     ],
   },
   vat: {
-    vatFileType: 'עוסק מורשה', vatOpeningDate: '2021-03-01', vatPrimaryIndustry: '7311 — פרסום',
+    vatFileType: 'עוסק מורשה', vatOpeningDate: '2021-03-01', vatPrimaryIndustry: '7311 - פרסום',
     vatFrequency: 'דו-חודשי', vatLastReportPeriod: '05-06/2026', vatBalance: '0',
   },
   income: {

@@ -87,7 +87,7 @@ function buildCalendar(client: Client, latest: AnnualReportSession | null): CalI
 
   if ((client.taxFiles ?? []).some((f) => f.authority === 'deductions')) {
     const { period, due } = filingPeriod(client.withholdingFrequency === 'monthly' ? 'monthly' : 'bi_monthly');
-    items.push({ label: 'דוח 102 — ניכויים', period, ...dueState(due) });
+    items.push({ label: 'דוח 102 - ניכויים', period, ...dueState(due) });
   }
   if (client.vatStatus === 'authorizedDealer') {
     const freq = client.vatFrequency === 'monthly' ? 'monthly' : 'bi_monthly';
@@ -111,8 +111,8 @@ function buildCalendar(client: Client, latest: AnnualReportSession | null): CalI
   if (client.hasWealthDeclaration) {
     items.push({
       label: 'הצהרת הון',
-      period: client.lastWealthDeclarationYear ? String(client.lastWealthDeclarationYear) : '—',
-      due: '—',
+      period: client.lastWealthDeclarationYear ? String(client.lastWealthDeclarationYear) : '-',
+      due: '-',
       state: client.lastWealthDeclarationYear ? `הוגשה ${client.lastWealthDeclarationYear}` : 'נדרשת',
       tone: client.lastWealthDeclarationYear ? 'ok' : 'idle',
     });
@@ -154,7 +154,7 @@ export default function ClientCockpitTab({
       out.push({
         key: 'report',
         level: latest.status === 'review' ? 'warn' : latest.status === 'in_progress' ? 'warn' : 'ok',
-        title: `דוח ${latest.taxYear} — ${meta.label}`,
+        title: `דוח ${latest.taxYear} - ${meta.label}`,
         subtitle: latest.status === 'review' ? 'ממתין לבדיקה שלך' : latest.status === 'in_progress' ? 'שאלון באמצע' : 'מיפוי הושלם',
         onClick: onOpenYear ? () => onOpenYear(latest.taxYear) : undefined,
       });
@@ -220,7 +220,7 @@ export default function ClientCockpitTab({
           {exceptions.length > 0 && <span className="cw-section-count">{exceptions.length}</span>}
         </div>
         {exceptions.length === 0 ? (
-          <div className="cw-empty">אין חריגה פתוחה — אין הגשה באיחור ואין פרט חסר שידוע לנו.</div>
+          <div className="cw-empty">אין חריגה פתוחה - אין הגשה באיחור ואין פרט חסר שידוע לנו.</div>
         ) : (
           <div>
             {exceptions.map((s) => (
@@ -319,7 +319,7 @@ export default function ClientCockpitTab({
                     {BALL_WITH_LABELS[t.ballWith]}
                   </span>
                   <span className={`cw-due-date due due-${tone}`}>
-                    {t.dueDate ? formatDate(t.dueDate, 'list') : '—'}
+                    {t.dueDate ? formatDate(t.dueDate, 'list') : '-'}
                   </span>
                 </button>
               );

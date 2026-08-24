@@ -61,7 +61,7 @@ function CatalogTab({ catalog }: { catalog: ReturnType<typeof useQuotationCatalo
     <div>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
         <div style={{ flex: 1, fontSize: 12.5, color: 'var(--gray-500)' }}>
-          שירותי המשרד והמחירים. שינוי מחיר משפיע רק על הצעות עתידיות — הצעות שנשלחו נשמרות כפי שהיו.
+          שירותי המשרד והמחירים. שינוי מחיר משפיע רק על הצעות עתידיות - הצעות שנשלחו נשמרות כפי שהיו.
         </div>
         <button className="btn btn-sm btn-primary" onClick={() => setEditing('new')}>+ שירות חדש</button>
       </div>

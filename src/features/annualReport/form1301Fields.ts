@@ -116,7 +116,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'spouse.registeredRole',
     sourceQuestionIds: ['marital_status', 'registered_spouse_role'],
     requiredDocuments: [],
-    legalReference: 'הוראות פקודה — בחירת בן זוג רשום',
+    legalReference: 'הוראות פקודה - בחירת בן זוג רשום',
   },
   {
     fieldNumber: 'S-calc',
@@ -169,7 +169,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 40(ב) לפקודה',
     dataLayer: 'question',
     codes: { registered: '026' },
-    officialRef: 'מדריך 2025 עמ\' 31 — משפחה חד-הורית',
+    officialRef: 'מדריך 2025 עמ\' 31 - משפחה חד-הורית',
   },
   {
     // חדש: 029/129 הרשמיים = זיכוי כלכלת ילדים להורה פרוד שאינו משמורן.
@@ -186,7 +186,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 40(ב)(1) לפקודה',
     dataLayer: 'question',
     codes: { registered: '029', spouse: '129' },
-    officialRef: 'מדריך 2025 עמ\' 31 — כלכלת ילדים',
+    officialRef: 'מדריך 2025 עמ\' 31 - כלכלת ילדים',
   },
 
   // ═══ חלק 3 — הכנסות מעבודה ═══════════════════════════════════════════════
@@ -203,7 +203,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '158', spouse: '172' },
-    officialRef: 'מדריך 2025 עמ\' 12 — משכורת ושכר עבודה',
+    officialRef: 'מדריך 2025 עמ\' 12 - משכורת ושכר עבודה',
   },
   {
     fieldNumber: '042',
@@ -218,7 +218,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '042', spouse: '044' },
-    officialRef: 'מדריך 2025 עמ\' 37 — ניכוי במקור משכר/קצבאות',
+    officialRef: 'מדריך 2025 עמ\' 37 - ניכוי במקור משכר/קצבאות',
   },
   {
     // תוקן 2026-07: 170 הרשמי = הכנסת עסק של בן הזוג. ספירת 106 היא נתון פנימי.
@@ -231,7 +231,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     sourceQuestionIds: ['salary_employer_count'],
     requiredDocuments: [],
     dataLayer: 'auto',
-    officialRef: 'נתון עזר פנימי — נגזר ממספר המעסיקים',
+    officialRef: 'נתון עזר פנימי - נגזר ממספר המעסיקים',
   },
   {
     // תוקן 2026-07: מענק פרישה חייב מדווח בשדות 258/272 (לא 037 שהוא תרומות).
@@ -243,13 +243,13 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'income.severance.amount',
     sourceQuestionIds: ['received_severance'],
     requiredDocuments: [
-      { code: '161', name: 'טופס 161 מהמעביד', reason: 'פירוט המענק — חלק חייב וחלק פטור' },
+      { code: '161', name: 'טופס 161 מהמעביד', reason: 'פירוט המענק - חלק חייב וחלק פטור' },
       { code: '134', name: 'אישור פקיד שומה לפריסה (אם בוצעה)', reason: 'פריסה למספר שנות מס' },
     ],
     legalReference: 'סעיף 9(7א) לפקודה',
     dataLayer: 'document',
     codes: { registered: '258', spouse: '272' },
-    officialRef: 'מדריך 2025 עמ\' 12–13 — קצבאות ומענקי פרישה',
+    officialRef: 'מדריך 2025 עמ\' 12–13 - קצבאות ומענקי פרישה',
   },
   {
     fieldNumber: '009',
@@ -264,11 +264,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'question',
     codes: { registered: '009' },
-    officialRef: 'מדריך 2025 עמ\' 38 — פריסת פיצויי פיטורים',
+    officialRef: 'מדריך 2025 עמ\' 38 - פריסת פיצויי פיטורים',
   },
   {
     fieldNumber: '172',
-    hebrewLabel: 'הכנסה ברוטו ממשכורת — בן/בת הזוג',
+    hebrewLabel: 'הכנסה ברוטו ממשכורת - בן/בת הזוג',
     section: '3_income_salary',
     required: 'conditional',
     conditionalOn: (m) => isMarried(m) && m.identity?.spouseHasIncome === true && m.spouse?.has106 === true, // נגזר משאלת מקורות בן הזוג
@@ -294,7 +294,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '068', spouse: '069' },
-    officialRef: 'מדריך 2025 עמ\' 12, 34 — משמרות בתעשייה',
+    officialRef: 'מדריך 2025 עמ\' 12, 34 - משמרות בתעשייה',
   },
   {
     fieldNumber: '282',
@@ -326,7 +326,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 2(1) לפקודה',
     dataLayer: 'document',
     codes: { registered: '150', spouse: '170' },
-    officialRef: 'מדריך 2025 עמ\' 11 — הכנסה מעסק/משלח יד',
+    officialRef: 'מדריך 2025 עמ\' 11 - הכנסה מעסק/משלח יד',
   },
   {
     fieldNumber: '6111-req',
@@ -337,7 +337,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'income.business.requires6111',
     sourceQuestionIds: ['business_kind'],
     requiredDocuments: [
-      { code: '6111', name: 'טופס 6111 — מאזן ודוח רווח-הפסד מקודד', reason: 'חובה לעסק עם מחזור מעל 300,000 ₪ (הוראות 2025)' },
+      { code: '6111', name: 'טופס 6111 - מאזן ודוח רווח-הפסד מקודד', reason: 'חובה לעסק עם מחזור מעל 300,000 ₪ (הוראות 2025)' },
     ],
   },
   {
@@ -349,7 +349,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'income.business.clientWithholding',
     sourceQuestionIds: ['business_kind'],
     requiredDocuments: [
-      { code: '857', name: 'טופס 857 — אישור ניכוי במקור', reason: 'סך הניכוי במקור מלקוחות לעצמאי' },
+      { code: '857', name: 'טופס 857 - אישור ניכוי במקור', reason: 'סך הניכוי במקור מלקוחות לעצמאי' },
     ],
   },
 
@@ -370,11 +370,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'חוק פטור ממס על דמי שכירות התש"ן-1990',
     dataLayer: 'question',
     codes: { joint: '332' },
-    officialRef: 'מדריך 2025 עמ\' 14 — הכנסות פטורות משכ"ד למגורים',
+    officialRef: 'מדריך 2025 עמ\' 14 - הכנסות פטורות משכ"ד למגורים',
   },
   {
     fieldNumber: 'R-flat10',
-    hebrewLabel: 'הכנסה משכ"ד למגורים — מסלול 10% (סעיף 122)',
+    hebrewLabel: 'הכנסה משכ"ד למגורים - מסלול 10% (סעיף 122)',
     section: '5_income_passive',
     required: 'conditional',
     conditionalOn: (m) => has(m, 'rental') && m.income?.rentalTrack === 'flat10',
@@ -386,11 +386,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     legalReference: 'סעיף 122 לפקודה',
     dataLayer: 'question',
-    officialRef: 'מדריך 2025 עמ\' 14 — אשף שכ"ד במערכת השידור; אין קוד יחיד — מוזן באשף',
+    officialRef: 'מדריך 2025 עמ\' 14 - אשף שכ"ד במערכת השידור; אין קוד יחיד - מוזן באשף',
   },
   {
     fieldNumber: 'R-marginal',
-    hebrewLabel: 'הכנסה משכ"ד — מס שולי (עם הוצאות, נספח ב\')',
+    hebrewLabel: 'הכנסה משכ"ד - מס שולי (עם הוצאות, נספח ב\')',
     section: '5_income_passive',
     required: 'conditional',
     conditionalOn: (m) => has(m, 'rental') && m.income?.rentalTrack === 'regular',
@@ -403,7 +403,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '059', spouse: '201', joint: '301' },
-    officialRef: 'מדריך 2025 עמ\' 14 — הכנסות מנכס בית דרך נספח ב\'',
+    officialRef: 'מדריך 2025 עמ\' 14 - הכנסות מנכס בית דרך נספח ב\'',
     accountantAction: 'בניית נספח ב\' (1321) עם פחת והוצאות',
   },
   {
@@ -419,7 +419,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     legalReference: 'סעיף 122(ו) לפקודה',
     dataLayer: 'question',
-    officialRef: 'תיקון 2023 — משכיר שגר בשכירות; מוזן במחשבון האופטימיזציה',
+    officialRef: 'תיקון 2023 - משכיר שגר בשכירות; מוזן במחשבון האופטימיזציה',
     accountantAction: 'הרצת מחשבון השכירות ובחירת מסלול (שאלת rental_track בשער הכיסוי)',
   },
   {
@@ -436,13 +436,13 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '120', spouse: '220' },
-    officialRef: 'מדריך 2025 עמ\' 13 — השכרת נכס ששימש בעסק',
+    officialRef: 'מדריך 2025 עמ\' 13 - השכרת נכס ששימש בעסק',
   },
   // ריבית — הטופס מפצל לפי שיעור מס (10%/15%/20%/25%). הערכים נשלפים מ-867;
   // ללקוח יש שאלת טריגר אחת בלבד. הפיצול לשדות נעשה בשכבת המסמכים.
   {
     fieldNumber: '076',
-    hebrewLabel: 'ריבית מפיקדונות ותוכניות חיסכון — 10%',
+    hebrewLabel: 'ריבית מפיקדונות ותוכניות חיסכון - 10%',
     section: '5_income_passive',
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasInterestIncome === true,
@@ -453,11 +453,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '076', spouse: '216', joint: '316' },
-    officialRef: 'מדריך 2025 עמ\' 38 — ריבית פיקדונות 10% (לא צמוד)',
+    officialRef: 'מדריך 2025 עמ\' 38 - ריבית פיקדונות 10% (לא צמוד)',
   },
   {
     fieldNumber: '074',
-    hebrewLabel: 'ריבית על ני"ע — 10%',
+    hebrewLabel: 'ריבית על ני"ע - 10%',
     section: '5_income_passive',
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasInterestIncome === true,
@@ -470,7 +470,7 @@ export const form1301Fields: Form1301FieldDef[] = [
   },
   {
     fieldNumber: '060',
-    hebrewLabel: 'ריבית ורווחים — 15% (כולל רווחי קופ"ג ודיבידנד מפעל מאושר)',
+    hebrewLabel: 'ריבית ורווחים - 15% (כולל רווחי קופ"ג ודיבידנד מפעל מאושר)',
     section: '5_income_passive',
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasInterestIncome === true,
@@ -479,11 +479,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     requiredDocuments: [{ code: '867', name: 'טופס 867(ג)', reason: 'מקור הנתון' }],
     dataLayer: 'document',
     codes: { registered: '060', spouse: '211', joint: '311' },
-    officialRef: 'מדריך 2025 עמ\' 15 — ריבית בשיעור 15%',
+    officialRef: 'מדריך 2025 עמ\' 15 - ריבית בשיעור 15%',
   },
   {
     fieldNumber: '067',
-    hebrewLabel: 'ריבית — עד 20% (צמוד)',
+    hebrewLabel: 'ריבית - עד 20% (צמוד)',
     section: '5_income_passive',
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasInterestIncome === true,
@@ -492,11 +492,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     requiredDocuments: [{ code: '867', name: 'טופס 867(ג)', reason: 'מקור הנתון' }],
     dataLayer: 'document',
     codes: { registered: '067', spouse: '228', joint: '328' },
-    officialRef: 'מדריך 2025 עמ\' 15 — ריבית בשיעור 20%',
+    officialRef: 'מדריך 2025 עמ\' 15 - ריבית בשיעור 20%',
   },
   {
     fieldNumber: '157',
-    hebrewLabel: 'ריבית — עד 25% (משיכות קופ"ג 2012+)',
+    hebrewLabel: 'ריבית - עד 25% (משיכות קופ"ג 2012+)',
     section: '5_income_passive',
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasInterestIncome === true,
@@ -505,7 +505,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     requiredDocuments: [{ code: '867', name: 'טופס 867(ג)', reason: 'מקור הנתון' }],
     dataLayer: 'document',
     codes: { registered: '157', spouse: '257', joint: '357' },
-    officialRef: 'מדריך 2025 עמ\' 16 — ריבית בשיעור 25%',
+    officialRef: 'מדריך 2025 עמ\' 16 - ריבית בשיעור 25%',
   },
   {
     fieldNumber: '043',
@@ -520,7 +520,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { joint: '043' },
-    officialRef: 'מדריך 2025 — ניכוי במקור מריבית',
+    officialRef: 'מדריך 2025 - ניכוי במקור מריבית',
   },
   {
     // תוקן 2026-07: קצבאות חייבות מדווחות בשדות 258/272 (יחד עם מענקי פרישה).
@@ -536,7 +536,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '258', spouse: '272' },
-    officialRef: 'מדריך 2025 עמ\' 12–13 — קצבאות ומענקי פרישה',
+    officialRef: 'מדריך 2025 עמ\' 12–13 - קצבאות ומענקי פרישה',
   },
   {
     fieldNumber: '101',
@@ -547,12 +547,12 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'income.hasExemptPensions',
     sourceQuestionIds: ['exempt_pensions'],
     requiredDocuments: [
-      { code: 'exempt_pension_cert', name: 'אישור על הקצבה הפטורה', reason: 'דיווח אינפורמטיבי — סעיפים 9א/9ב' },
+      { code: 'exempt_pension_cert', name: 'אישור על הקצבה הפטורה', reason: 'דיווח אינפורמטיבי - סעיפים 9א/9ב' },
     ],
     legalReference: 'סעיפים 9א, 9ב לפקודה',
     dataLayer: 'document',
     codes: { registered: '101', spouse: '102' },
-    officialRef: 'מדריך 2025 עמ\' 23 — קצבאות פטורות',
+    officialRef: 'מדריך 2025 עמ\' 23 - קצבאות פטורות',
   },
   {
     fieldNumber: '209',
@@ -569,14 +569,14 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '209' },
-    officialRef: 'מדריך 2025 עמ\' 23 — סה"כ הכנסות פטורות',
+    officialRef: 'מדריך 2025 עמ\' 23 - סה"כ הכנסות פטורות',
     accountantAction: 'ריכוז ההכנסות הפטורות ובדיקת השלכות (מס יסף, החזרים)',
   },
   // תוקן 2026-07: המבנה הרשמי (מדריך עמ' 11–12) — ההבחנה היא מעמד × בעלות,
   // לא סוג קצבה: 194/196 = תקבולים כשכיר (רשום/בן זוג), 250/270 = כעצמאי.
   {
     fieldNumber: 'NI-employee',
-    hebrewLabel: 'תקבולי ביטוח לאומי חייבים — כשכיר (לידה, אבטלה, מילואים, פגיעה)',
+    hebrewLabel: 'תקבולי ביטוח לאומי חייבים - כשכיר (לידה, אבטלה, מילואים, פגיעה)',
     section: '5_income_passive',
     required: 'conditional',
     conditionalOn: (m) =>
@@ -588,11 +588,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '194', spouse: '196' },
-    officialRef: 'מדריך 2025 עמ\' 12 — תקבולים כשכיר מהמוסד לביטוח לאומי',
+    officialRef: 'מדריך 2025 עמ\' 12 - תקבולים כשכיר מהמוסד לביטוח לאומי',
   },
   {
     fieldNumber: 'NI-self',
-    hebrewLabel: 'תקבולי ביטוח לאומי חייבים — כעצמאי (מילואים, לידה, פגיעה)',
+    hebrewLabel: 'תקבולי ביטוח לאומי חייבים - כעצמאי (מילואים, לידה, פגיעה)',
     section: '5_income_passive',
     required: 'conditional',
     conditionalOn: (m) => anyNiBenefit(m) && has(m, 'business'),
@@ -603,7 +603,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '250', spouse: '270' },
-    officialRef: 'מדריך 2025 עמ\' 11 — תקבולים כעצמאי מהמוסד לביטוח לאומי',
+    officialRef: 'מדריך 2025 עמ\' 11 - תקבולים כעצמאי מהמוסד לביטוח לאומי',
   },
   {
     fieldNumber: '9-21',
@@ -636,7 +636,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { joint: '256' },
-    officialRef: 'מדריך 2025 עמ\' 50–56 — ני"ע סחירים; סיכומי מכירות לשדה 256',
+    officialRef: 'מדריך 2025 עמ\' 50–56 - ני"ע סחירים; סיכומי מכירות לשדה 256',
     accountantAction: 'בניית נספח ג\' מכל טפסי ה-867; בדיקת קיזוזי הפסדים',
   },
   {
@@ -650,7 +650,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     requiredDocuments: [],
     dataLayer: 'auto',
     codes: { joint: '054' },
-    officialRef: 'מדריך 2025 עמ\' 14 — מספר טופסי רווח הון ושבח',
+    officialRef: 'מדריך 2025 עמ\' 14 - מספר טופסי רווח הון ושבח',
   },
   {
     fieldNumber: '253',
@@ -665,7 +665,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { joint: '253' },
-    officialRef: 'מדריך 2025 עמ\' 37 — מתואם עם שדה 040',
+    officialRef: 'מדריך 2025 עמ\' 37 - מתואם עם שדה 040',
   },
   {
     // תוקן 2026-07: 054 הרשמי = מספר טופסי רווח הון. שבח מקרקעין נקבע בשומת
@@ -682,7 +682,7 @@ export const form1301Fields: Form1301FieldDef[] = [
       { code: 'sale_contract', name: 'חוזה מכר', reason: 'אסמכתא לעסקה' },
     ],
     dataLayer: 'accountant',
-    officialRef: 'מדריך 2025 עמ\' 36–37 — מס שבח בשומת מסמ"ק, שדה 041',
+    officialRef: 'מדריך 2025 עמ\' 36–37 - מס שבח בשומת מסמ"ק, שדה 041',
     accountantAction: 'בדיקת שומת השבח, שילוב בשדה 041 וקוד חריגה 114 במידת הצורך',
   },
   {
@@ -701,7 +701,7 @@ export const form1301Fields: Form1301FieldDef[] = [
   {
     // תוקן 2026-07: דיבידנד רגיל 25% = 141/241/341 (036 הרשמי הוא ביטוח חיים).
     fieldNumber: '141',
-    hebrewLabel: 'דיבידנד — 25% (רגיל) / 30% (בעל מניות מהותי)',
+    hebrewLabel: 'דיבידנד - 25% (רגיל) / 30% (בעל מניות מהותי)',
     section: '6_capital',
     required: 'conditional',
     conditionalOn: (m) => has(m, 'dividend'),
@@ -712,11 +712,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '141', spouse: '241', joint: '341' },
-    officialRef: 'מדריך 2025 עמ\' 15–16 — דיבידנד 25%; בעל מניות מהותי 30%',
+    officialRef: 'מדריך 2025 עמ\' 15–16 - דיבידנד 25%; בעל מניות מהותי 30%',
   },
   {
     fieldNumber: '173',
-    hebrewLabel: 'דיבידנד ממפעל מועדף / מאושר / מוטב — 20%',
+    hebrewLabel: 'דיבידנד ממפעל מועדף / מאושר / מוטב - 20%',
     section: '6_capital',
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasPreferredEnterpriseDividend === true,
@@ -728,7 +728,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'חוק עידוד השקעות הון',
     dataLayer: 'document',
     codes: { registered: '173', spouse: '275', joint: '375' },
-    officialRef: 'מדריך 2025 עמ\' 15–16 — דיבידנד מפעל מועדף',
+    officialRef: 'מדריך 2025 עמ\' 15–16 - דיבידנד מפעל מועדף',
   },
   {
     fieldNumber: '427',
@@ -744,7 +744,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 2א לפקודה',
     dataLayer: 'document',
     codes: { joint: '427' },
-    officialRef: 'מדריך 2025 עמ\' 47 — הימורים והגרלות',
+    officialRef: 'מדריך 2025 עמ\' 47 - הימורים והגרלות',
   },
 
   // ═══ חלק 7 — הכנסות חו"ל ═══════════════════════════════════════════════
@@ -758,7 +758,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     sourceQuestionIds: ['foreign_paid_tax_abroad'],
     requiredDocuments: [
       { code: 'foreign_tax_cert', name: 'אישור על מס זר ששולם', reason: 'בסיס לזיכוי לפי אמנת מס' },
-      { code: 'annex_1325', name: 'טופס 1325 — בקשה לזיכוי מס זר', reason: 'תביעת זיכוי' },
+      { code: 'annex_1325', name: 'טופס 1325 - בקשה לזיכוי מס זר', reason: 'תביעת זיכוי' },
     ],
   },
 
@@ -777,12 +777,12 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 46 לפקודה',
     dataLayer: 'question',
     codes: { registered: '037', spouse: '237' },
-    officialRef: 'מדריך 2025 עמ\' 34–35 — תרומות; מינ\' 207 ₪, זיכוי 35%',
+    officialRef: 'מדריך 2025 עמ\' 34–35 - תרומות; מינ\' 207 ₪, זיכוי 35%',
   },
   {
     // תוקן 2026-07: ביטוח חיים = 036/081 (045 הרשמי הוא זיכוי עמית שכיר).
     fieldNumber: '036',
-    hebrewLabel: 'דמי ביטוח חיים — לזיכוי 25%',
+    hebrewLabel: 'דמי ביטוח חיים - לזיכוי 25%',
     section: '8_deductions',
     required: 'conditional',
     conditionalOn: (m) => (m.deductionsCredits?.lifeInsuranceAnnual ?? 0) > 0,
@@ -794,12 +794,12 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 45א לפקודה',
     dataLayer: 'question',
     codes: { registered: '036', spouse: '081' },
-    officialRef: 'מדריך 2025 עמ\' 33 — זיכוי ביטוח חיים',
+    officialRef: 'מדריך 2025 עמ\' 33 - זיכוי ביטוח חיים',
   },
   {
     // תוקן 2026-07: הפקדה עצמאית לקצבה — ניכוי בשדות 135/180 (עמית עצמאי).
     fieldNumber: '135',
-    hebrewLabel: 'תשלומים לקופ"ג לקצבה — "עמית עצמאי" (ניכוי)',
+    hebrewLabel: 'תשלומים לקופ"ג לקצבה - "עמית עצמאי" (ניכוי)',
     section: '8_deductions',
     required: 'conditional',
     conditionalOn: (m) => (m.deductionsCredits?.selfPensionDeposits ?? 0) > 0 || m.deductionsCredits?.hasSelfPensionDeposits === true,
@@ -811,11 +811,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 47 לפקודה',
     dataLayer: 'question',
     codes: { registered: '135', spouse: '180' },
-    officialRef: 'מדריך 2025 עמ\' 28–29 — עמית עצמאי; תקרת עמית מוטב 24,069 ₪',
+    officialRef: 'מדריך 2025 עמ\' 28–29 - עמית עצמאי; תקרת עמית מוטב 24,069 ₪',
   },
   {
     fieldNumber: '268',
-    hebrewLabel: 'תשלומים לקופ"ג לקצבה — זיכוי "עמית עצמאי" (35%)',
+    hebrewLabel: 'תשלומים לקופ"ג לקצבה - זיכוי "עמית עצמאי" (35%)',
     section: '8_deductions',
     required: 'conditional',
     conditionalOn: (m) => (m.deductionsCredits?.selfPensionDeposits ?? 0) > 0 || m.deductionsCredits?.hasSelfPensionDeposits === true,
@@ -825,7 +825,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 45א לפקודה',
     dataLayer: 'auto',
     codes: { registered: '268', spouse: '269' },
-    officialRef: 'מדריך 2025 עמ\' 33 — זיכוי קצבה עמית עצמאי; חלוקה אופטימלית בין ניכוי לזיכוי',
+    officialRef: 'מדריך 2025 עמ\' 33 - זיכוי קצבה עמית עצמאי; חלוקה אופטימלית בין ניכוי לזיכוי',
     accountantAction: 'אופטימיזציית פיצול ההפקדה בין ניכוי (135) לזיכוי (268)',
   },
   {
@@ -842,7 +842,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 17(5א) לפקודה',
     dataLayer: 'document',
     codes: { registered: '136', spouse: '137' },
-    officialRef: 'מדריך 2025 עמ\' 28 — קרן השתלמות לעצמאים',
+    officialRef: 'מדריך 2025 עמ\' 28 - קרן השתלמות לעצמאים',
   },
   {
     fieldNumber: '25-alimony-paid',
@@ -853,7 +853,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'deductionsCredits.alimonyPaidAnnual',
     sourceQuestionIds: ['alimony_paid'],
     requiredDocuments: [
-      { code: 'alimony_decree_paid', name: 'פסק דין מזונות + אישורי תשלום', reason: 'זיכוי לפי סעיף 25 — בלבד אם מעוגן בפסק דין' },
+      { code: 'alimony_decree_paid', name: 'פסק דין מזונות + אישורי תשלום', reason: 'זיכוי לפי סעיף 25 - בלבד אם מעוגן בפסק דין' },
     ],
     legalReference: 'סעיף 25 לפקודה',
   },
@@ -886,7 +886,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 39א לפקודה',
     dataLayer: 'question',
     codes: { registered: '024', spouse: '124' },
-    officialRef: 'מדריך 2025 עמ\' 32 — חייל משוחרר',
+    officialRef: 'מדריך 2025 עמ\' 32 - חייל משוחרר',
   },
   {
     fieldNumber: '181',
@@ -902,11 +902,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיפים 40ג–40ה לפקודה',
     dataLayer: 'question',
     codes: { registered: '181', spouse: '182' },
-    officialRef: 'מדריך 2025 עמ\' 32–33 — סיום לימודים',
+    officialRef: 'מדריך 2025 עמ\' 32–33 - סיום לימודים',
   },
   {
     fieldNumber: '045',
-    hebrewLabel: 'זיכוי קצבה — "עמית שכיר" (מטופס 106)',
+    hebrewLabel: 'זיכוי קצבה - "עמית שכיר" (מטופס 106)',
     section: '9_credits',
     required: 'conditional',
     conditionalOn: (m) => has(m, 'salary'),
@@ -918,7 +918,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 45א לפקודה',
     dataLayer: 'document',
     codes: { registered: '045', spouse: '086' },
-    officialRef: 'מדריך 2025 עמ\' 33 — זיכוי עמית שכיר',
+    officialRef: 'מדריך 2025 עמ\' 33 - זיכוי עמית שכיר',
   },
   {
     fieldNumber: '140',
@@ -933,7 +933,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'question',
     codes: { registered: '140', spouse: '240' },
-    officialRef: 'מדריך 2025 עמ\' 33 — קצבת שאירים',
+    officialRef: 'מדריך 2025 עמ\' 33 - קצבת שאירים',
   },
   {
     fieldNumber: '132',
@@ -945,13 +945,13 @@ export const form1301Fields: Form1301FieldDef[] = [
     sourceQuestionIds: ['extra_deductions'],
     requiredDocuments: [
       { code: 'institution_receipts', name: 'קבלות מקוריות מהמוסד', reason: 'זיכוי 35% מהחלק שמעל 12.5% מההכנסה' },
-      { code: '127', name: 'טופס 127 — תעודה רפואית', reason: 'הוכחת מצב בן המשפחה' },
+      { code: '127', name: 'טופס 127 - תעודה רפואית', reason: 'הוכחת מצב בן המשפחה' },
     ],
     legalReference: 'סעיף 44 לפקודה',
     dataLayer: 'question',
     codes: { registered: '132', spouse: '232' },
-    officialRef: 'מדריך 2025 עמ\' 34 — החזקת בן משפחה במוסד; מגבלות הכנסה 301/188 אלף ₪',
-    accountantAction: 'בדיקת חלופת זיכוי נכות (127) מול זיכוי מוסד — בוחרים אחד',
+    officialRef: 'מדריך 2025 עמ\' 34 - החזקת בן משפחה במוסד; מגבלות הכנסה 301/188 אלף ₪',
+    accountantAction: 'בדיקת חלופת זיכוי נכות (127) מול זיכוי מוסד - בוחרים אחד',
   },
   {
     fieldNumber: '046',
@@ -966,7 +966,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'question',
     codes: { registered: '046', spouse: '048' },
-    officialRef: 'מדריך 2025 עמ\' 35 — תרומות ארה"ב',
+    officialRef: 'מדריך 2025 עמ\' 35 - תרומות ארה"ב',
   },
   {
     fieldNumber: '364',
@@ -979,7 +979,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     requiredDocuments: [],
     dataLayer: 'accountant',
     codes: { registered: '364', spouse: '292' },
-    officialRef: 'מדריך 2025 עמ\' 35 — עודפי תרומות',
+    officialRef: 'מדריך 2025 עמ\' 35 - עודפי תרומות',
     accountantAction: 'איתור עודפים מדוחות קודמים והזנתם',
   },
   {
@@ -996,7 +996,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'חוק אזור סחר חופשי באילת',
     dataLayer: 'question',
     codes: { registered: '139', spouse: '183' },
-    officialRef: 'מדריך 2025 עמ\' 35 — תושב אילת',
+    officialRef: 'מדריך 2025 עמ\' 35 - תושב אילת',
   },
   {
     fieldNumber: '287',
@@ -1011,7 +1011,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'question',
     codes: { registered: '287', spouse: '327' },
-    officialRef: 'מדריך 2025 עמ\' 35–36 — יישובים מזכים (אשף); מעבר בין ישובים: 096/111',
+    officialRef: 'מדריך 2025 עמ\' 35–36 - יישובים מזכים (אשף); מעבר בין ישובים: 096/111',
   },
   {
     fieldNumber: '044',
@@ -1027,7 +1027,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 35 לפקודה',
     dataLayer: 'auto',
     codes: { registered: '044', spouse: '088' },
-    officialRef: 'מדריך 2025 עמ\' 32 — כללי נ"ז חדשים לעולים מ-1.1.2025 (54 חודשים)',
+    officialRef: 'מדריך 2025 עמ\' 32 - כללי נ"ז חדשים לעולים מ-1.1.2025 (54 חודשים)',
     accountantAction: 'חישוב מסלול נ"ז לפי תאריך עלייה (מסלול ישן/חדש)',
   },
 
@@ -1107,12 +1107,12 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'losses.kinds',
     sourceQuestionIds: ['carried_losses'],
     requiredDocuments: [
-      { code: '1344', name: 'טופס 1344 — הפסדים מועברים', reason: 'פירוט יתרת ההפסד' },
+      { code: '1344', name: 'טופס 1344 - הפסדים מועברים', reason: 'פירוט יתרת ההפסד' },
       { code: 'last_year_assessment', name: 'שומה אחרונה', reason: 'אימות היתרה' },
     ],
     dataLayer: 'accountant',
     codes: { joint: '079' },
-    officialRef: 'מדריך 2025 עמ\' 26 — הפסד מעסק מועבר',
+    officialRef: 'מדריך 2025 עמ\' 26 - הפסד מעסק מועבר',
     accountantAction: 'מילוי 1344 ואימות היתרה מול השומה',
   },
   {
@@ -1128,7 +1128,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '179' },
-    officialRef: 'מדריך 2025 עמ\' 26 — הפסד מנכס בית',
+    officialRef: 'מדריך 2025 עמ\' 26 - הפסד מנכס בית',
   },
   {
     fieldNumber: '166',
@@ -1144,7 +1144,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '166' },
-    officialRef: 'מדריך 2025 עמ\' 26–27 — הפסדי הון מועברים',
+    officialRef: 'מדריך 2025 עמ\' 26–27 - הפסדי הון מועברים',
   },
   {
     fieldNumber: '160',
@@ -1159,7 +1159,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '160' },
-    officialRef: 'מדריך 2025 עמ\' 27 — הפסדי ני"ע ישנים (כללי קיזוז שונים)',
+    officialRef: 'מדריך 2025 עמ\' 27 - הפסדי ני"ע ישנים (כללי קיזוז שונים)',
   },
   {
     fieldNumber: '299',
@@ -1170,11 +1170,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'losses.kinds',
     sourceQuestionIds: ['carried_losses', 'foreign_income_kinds'],
     requiredDocuments: [
-      { code: 'annex_d', name: 'נספח ד\' — פירוט הפסדי חו"ל (479/480/481/466)', reason: 'העברת יתרות לשנה הבאה' },
+      { code: 'annex_d', name: 'נספח ד\' - פירוט הפסדי חו"ל (479/480/481/466)', reason: 'העברת יתרות לשנה הבאה' },
     ],
     dataLayer: 'accountant',
     codes: { joint: '299' },
-    officialRef: 'מדריך 2025 עמ\' 49 — יתרות הפסדים מחו"ל',
+    officialRef: 'מדריך 2025 עמ\' 49 - יתרות הפסדים מחו"ל',
   },
   {
     fieldNumber: '319',
@@ -1185,11 +1185,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'losses.kinds',
     sourceQuestionIds: ['carried_losses'],
     requiredDocuments: [
-      { code: 'rnd_invest_cert', name: 'אישור ההשקעה בחברת המו"פ', reason: 'הטבה לפי חוק האנג\'לים — תקרה 5 מ\' ₪' },
+      { code: 'rnd_invest_cert', name: 'אישור ההשקעה בחברת המו"פ', reason: 'הטבה לפי חוק האנג\'לים - תקרה 5 מ\' ₪' },
     ],
     dataLayer: 'accountant',
     codes: { joint: '319' },
-    officialRef: 'מדריך 2025 עמ\' 25 — השקעה מזכה בחברת מו"פ',
+    officialRef: 'מדריך 2025 עמ\' 25 - השקעה מזכה בחברת מו"פ',
   },
   {
     fieldNumber: 'W-decl',
@@ -1215,11 +1215,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     sourceQuestionIds: ['extra_deductions'],
     requiredDocuments: [
       { code: 'ak_insurance_cert', name: 'אישור מבטח על פרמיית אובדן כושר', reason: 'ניכוי עד 3.5% מההכנסה, תקרה 399,480 ₪' },
-      { code: '134-ak', name: 'טופס 134 (לשכיר)', reason: 'חישוב הניכוי לשכיר — שדות 206/207' },
+      { code: '134-ak', name: 'טופס 134 (לשכיר)', reason: 'חישוב הניכוי לשכיר - שדות 206/207' },
     ],
     dataLayer: 'question',
     codes: { registered: '112', spouse: '113' },
-    officialRef: 'מדריך 2025 עמ\' 27 — אובדן כושר עבודה (שכיר: 206/207)',
+    officialRef: 'מדריך 2025 עמ\' 27 - אובדן כושר עבודה (שכיר: 206/207)',
   },
   {
     fieldNumber: '030',
@@ -1234,7 +1234,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '030', spouse: '089' },
-    officialRef: 'מדריך 2025 עמ\' 28 — דמי ב"ל עצמאי; שכיר לתקופת עצמאות: 130/189',
+    officialRef: 'מדריך 2025 עמ\' 28 - דמי ב"ל עצמאי; שכיר לתקופת עצמאות: 130/189',
   },
   {
     fieldNumber: '244',
@@ -1249,7 +1249,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '244', spouse: '245' },
-    officialRef: 'מדריך 2025 עמ\' 29 — הכנסה מבוטחת; הפקדות: 248/249',
+    officialRef: 'מדריך 2025 עמ\' 29 - הכנסה מבוטחת; הפקדות: 248/249',
   },
   {
     fieldNumber: 'SI-invest',
@@ -1263,7 +1263,7 @@ export const form1301Fields: Form1301FieldDef[] = [
       { code: 'invest_certs', name: 'אישורי ההשקעה (מדען ראשי / טופס 858 / אישור ועדה)', reason: 'מחקר: 005/006, נפט: 116/117, סרטים: 118/119' },
     ],
     dataLayer: 'accountant',
-    officialRef: 'מדריך 2025 עמ\' 28–29 — מחקר (סעיף 20א), נפט (858), סרטים',
+    officialRef: 'מדריך 2025 עמ\' 28–29 - מחקר (סעיף 20א), נפט (858), סרטים',
     accountantAction: 'חישוב תקרות הניכוי (40% מהכנסה חייבת למחקר) והזנה בשדות הנכונים',
   },
 
@@ -1282,7 +1282,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 64א לפקודה',
     dataLayer: 'accountant',
     codes: { registered: '367', spouse: '204', joint: '304' },
-    officialRef: 'מדריך 2025 עמ\' 14 — חברה משפחתית; מחזור החברה מתווסף ל-294',
+    officialRef: 'מדריך 2025 עמ\' 14 - חברה משפחתית; מחזור החברה מתווסף ל-294',
   },
   {
     fieldNumber: '159',
@@ -1298,7 +1298,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 64 לפקודה',
     dataLayer: 'accountant',
     codes: { registered: '159', spouse: '202', joint: '302' },
-    officialRef: 'מדריך 2025 עמ\' 14 — חברת בית',
+    officialRef: 'מדריך 2025 עמ\' 14 - חברת בית',
   },
   {
     fieldNumber: '167',
@@ -1313,7 +1313,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { registered: '167', spouse: '205', joint: '305' },
-    officialRef: 'מדריך 2025 עמ\' 14 — הכנסות אחרות',
+    officialRef: 'מדריך 2025 עמ\' 14 - הכנסות אחרות',
   },
   {
     fieldNumber: '061',
@@ -1324,15 +1324,15 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'income.hasPatentOrPostMortemIncome',
     sourceQuestionIds: ['companies_situations'],
     requiredDocuments: [
-      { code: 'patent_docs', name: 'הסכם מכירת הפטנט / אסמכתת ההכנסה', reason: 'מס מוגבל 40% — מכירה חד-פעמית שלא במסגרת עיסוק' },
+      { code: 'patent_docs', name: 'הסכם מכירת הפטנט / אסמכתת ההכנסה', reason: 'מס מוגבל 40% - מכירה חד-פעמית שלא במסגרת עיסוק' },
     ],
     dataLayer: 'accountant',
     codes: { registered: '061', spouse: '214', joint: '314' },
-    officialRef: 'מדריך 2025 עמ\' 15 — פטנט והכנסה לאחר פטירה',
+    officialRef: 'מדריך 2025 עמ\' 15 - פטנט והכנסה לאחר פטירה',
   },
   {
     fieldNumber: '323',
-    hebrewLabel: 'משיכת בעל מניות מחברה — סעיף 3(ט1)',
+    hebrewLabel: 'משיכת בעל מניות מחברה - סעיף 3(ט1)',
     section: '11_special',
     required: 'conditional',
     conditionalOn: (m) => m.income?.hasOwnerWithdrawals === true,
@@ -1343,7 +1343,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     legalReference: 'סעיף 3(ט1) לפקודה',
     dataLayer: 'accountant',
-    officialRef: 'מדריך 2025 עמ\' 25–26 — משיכות מעל 100,000 ₪ מצטבר',
+    officialRef: 'מדריך 2025 עמ\' 25–26 - משיכות מעל 100,000 ₪ מצטבר',
     accountantAction: 'סיווג המשיכה ומילוי 1350; רישום מקביל בשדות ההכנסה המתאימים',
   },
   {
@@ -1355,33 +1355,33 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'income.hasCloseCompanyPassthrough',
     sourceQuestionIds: ['companies_situations'],
     requiredDocuments: [
-      { code: 'co_62a_reports', name: 'דוחות החברה + ייחוס ההכנסה', reason: 'חברת ארנק — ההכנסה מיוחסת לבעל המניות המהותי' },
+      { code: 'co_62a_reports', name: 'דוחות החברה + ייחוס ההכנסה', reason: 'חברת ארנק - ההכנסה מיוחסת לבעל המניות המהותי' },
     ],
     legalReference: 'סעיף 62א לפקודה',
     dataLayer: 'accountant',
     codes: { joint: '351' },
-    officialRef: 'מדריך 2025 עמ\' 26 — סעיף 62א; רישום מקביל ב-158/172 או 150/170',
+    officialRef: 'מדריך 2025 עמ\' 26 - סעיף 62א; רישום מקביל ב-158/172 או 150/170',
   },
   {
     fieldNumber: '1504',
-    hebrewLabel: 'שותפות — ייחוס חלק יחסי',
+    hebrewLabel: 'שותפות - ייחוס חלק יחסי',
     section: '11_special',
     required: 'conditional',
     conditionalOn: (m) => m.income?.isPartnershipMember === true,
     modelPath: 'income.isPartnershipMember',
     sourceQuestionIds: ['partnership_member'],
     requiredDocuments: [
-      { code: '1504', name: 'טופס 1504 — הצהרה על שותפות', reason: 'ייחוס חלק יחסי במחזור, מלאי ורווח גולמי' },
+      { code: '1504', name: 'טופס 1504 - הצהרה על שותפות', reason: 'ייחוס חלק יחסי במחזור, מלאי ורווח גולמי' },
     ],
     dataLayer: 'accountant',
-    officialRef: 'מדריך 2025 עמ\' 8 — שותפות',
+    officialRef: 'מדריך 2025 עמ\' 8 - שותפות',
     accountantAction: 'מילוי 1504 וייחוס החלק היחסי בשדות העסק',
   },
 
   // ═══ הצהרות הפתיחה של הדוח (מדריך עמ' 5–9) ═════════════════════════════
   {
     fieldNumber: 'D-trust',
-    hebrewLabel: 'נאמנות — יוצר / נהנה (שדה 271 לחלוקות)',
+    hebrewLabel: 'נאמנות - יוצר / נהנה (שדה 271 לחלוקות)',
     section: '11_special',
     required: 'conditional',
     conditionalOn: (m) => (m.openingDeclarations?.trustRole ?? 'none') !== 'none',
@@ -1393,7 +1393,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיפים 75ג–75יח לפקודה',
     dataLayer: 'accountant',
     codes: { joint: '271' },
-    officialRef: 'מדריך 2025 עמ\' 7 — נאמנויות; נהנה מעל גיל 25 עם נכסים 500K+ חייב דיווח',
+    officialRef: 'מדריך 2025 עמ\' 7 - נאמנויות; נהנה מעל גיל 25 עם נכסים 500K+ חייב דיווח',
     accountantAction: 'זיהוי סוג הנאמנות ומילוי הטפסים הנלווים',
   },
   {
@@ -1408,7 +1408,7 @@ export const form1301Fields: Form1301FieldDef[] = [
       { code: 'transfer_docs', name: 'אסמכתאות ההעברה', reason: 'חובת דיווח בשנת ההעברה ובשנה שאחריה' },
     ],
     dataLayer: 'accountant',
-    officialRef: 'מדריך 2025 עמ\' 6 — העברות כספים לחו"ל',
+    officialRef: 'מדריך 2025 עמ\' 6 - העברות כספים לחו"ל',
   },
   {
     fieldNumber: 'D-foreign-assets',
@@ -1422,7 +1422,7 @@ export const form1301Fields: Form1301FieldDef[] = [
       { code: 'foreign_assets_list', name: 'רשימת נכסי חו"ל ושוויים', reason: 'כולל נכסי בן זוג וילדים עד 18; פטור לעולה/תושב חוזר 10 שנים' },
     ],
     dataLayer: 'accountant',
-    officialRef: 'מדריך 2025 עמ\' 6 — נכסים בחו"ל',
+    officialRef: 'מדריך 2025 עמ\' 6 - נכסים בחו"ל',
   },
   {
     fieldNumber: 'D-sec-turnover',
@@ -1434,7 +1434,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     sourceQuestionIds: ['capital_has_securities'],
     requiredDocuments: [],
     dataLayer: 'auto',
-    officialRef: 'מדריך 2025 עמ\' 6 — טריגר חובת הגשה; נגזר מסך המכירות ב-867',
+    officialRef: 'מדריך 2025 עמ\' 6 - טריגר חובת הגשה; נגזר מסך המכירות ב-867',
   },
   {
     fieldNumber: 'D-related-party',
@@ -1449,7 +1449,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     legalReference: 'סעיף 85א לפקודה',
     dataLayer: 'accountant',
-    officialRef: 'מדריך 2025 עמ\' 8 — מחירי העברה',
+    officialRef: 'מדריך 2025 עמ\' 8 - מחירי העברה',
   },
   {
     fieldNumber: 'D-opinion',
@@ -1463,7 +1463,7 @@ export const form1301Fields: Form1301FieldDef[] = [
       { code: '1345_1213', name: 'טופס 1345 / 1213 לפי העניין', reason: 'דיווח לפי סעיפים 131ד–131ה' },
     ],
     dataLayer: 'accountant',
-    officialRef: 'מדריך 2025 עמ\' 8–9 — חוות דעת ועמדות חייבות בדיווח',
+    officialRef: 'מדריך 2025 עמ\' 8–9 - חוות דעת ועמדות חייבות בדיווח',
   },
   {
     fieldNumber: 'D-non-resident',
@@ -1474,10 +1474,10 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'openingDeclarations.claimsNonResidencyDaysPresumption',
     sourceQuestionIds: ['residency_type'],
     requiredDocuments: [
-      { code: '1348', name: 'טופס 1348 — הצהרת תושבות', reason: 'פירוט ימי שהייה וזיקות' },
+      { code: '1348', name: 'טופס 1348 - הצהרת תושבות', reason: 'פירוט ימי שהייה וזיקות' },
     ],
     dataLayer: 'accountant',
-    officialRef: 'מדריך 2025 עמ\' 6 — חזקת ימי שהייה',
+    officialRef: 'מדריך 2025 עמ\' 6 - חזקת ימי שהייה',
   },
   {
     fieldNumber: '307',
@@ -1490,21 +1490,21 @@ export const form1301Fields: Form1301FieldDef[] = [
     requiredDocuments: [],
     dataLayer: 'question',
     codes: { joint: '307' },
-    officialRef: 'מדריך 2025 עמ\' 9 — קודי פעילות בשדה 307',
+    officialRef: 'מדריך 2025 עמ\' 9 - קודי פעילות בשדה 307',
   },
   {
     fieldNumber: 'D-construction',
-    hebrewLabel: 'קבלן — דיווח סיום בנייה (702)',
+    hebrewLabel: 'קבלן - דיווח סיום בנייה (702)',
     section: '11_special',
     required: 'conditional',
     conditionalOn: (m) => m.openingDeclarations?.hasConstructionCompletion === true,
     modelPath: 'openingDeclarations.hasConstructionCompletion',
     sourceQuestionIds: ['special_situations_select'],
     requiredDocuments: [
-      { code: '702', name: 'טופס 702 — סיום בנייה', reason: 'דיווח פרויקט שהסתיים' },
+      { code: '702', name: 'טופס 702 - סיום בנייה', reason: 'דיווח פרויקט שהסתיים' },
     ],
     dataLayer: 'accountant',
-    officialRef: 'מדריך 2025 עמ\' 9 — קבלנים',
+    officialRef: 'מדריך 2025 עמ\' 9 - קבלנים',
   },
   {
     fieldNumber: 'D-maternity-spread',
@@ -1516,11 +1516,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     sourceQuestionIds: ['ni_benefits'],
     requiredDocuments: [],
     dataLayer: 'question',
-    officialRef: 'מדריך 2025 עמ\' 9 — פריסת דמי לידה',
+    officialRef: 'מדריך 2025 עמ\' 9 - פריסת דמי לידה',
   },
   {
     fieldNumber: 'D-surtax',
-    hebrewLabel: 'מס יסף — הכנסה חייבת מעל 721,560 ₪ (3%)',
+    hebrewLabel: 'מס יסף - הכנסה חייבת מעל 721,560 ₪ (3%)',
     section: '11_special',
     required: 'conditional',
     conditionalOn: () => false, // נגזר אוטומטית בשלב עיבוד הנתונים — לא מהשאלון
@@ -1529,7 +1529,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     requiredDocuments: [],
     legalReference: 'סעיף 121ב לפקודה',
     dataLayer: 'auto',
-    officialRef: 'מדריך 2025 עמ\' 6 — מס יסף; מחושב אוטומטית מסך ההכנסות',
+    officialRef: 'מדריך 2025 עמ\' 6 - מס יסף; מחושב אוטומטית מסך ההכנסות',
   },
 
   // ═══ נספח ד' — הכנסות חו"ל (מדריך עמ' 40–49) ════════════════════════════
@@ -1547,7 +1547,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '450/401' },
-    officialRef: 'מדריך 2025 עמ\' 41 — הכנסות עסק מחו"ל',
+    officialRef: 'מדריך 2025 עמ\' 41 - הכנסות עסק מחו"ל',
   },
   {
     fieldNumber: 'FD-salary',
@@ -1562,7 +1562,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '458/403' },
-    officialRef: 'מדריך 2025 עמ\' 41 — משכורת מחו"ל',
+    officialRef: 'מדריך 2025 עמ\' 41 - משכורת מחו"ל',
   },
   {
     fieldNumber: 'FD-pension',
@@ -1573,11 +1573,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'income.foreignIncomeKinds',
     sourceQuestionIds: ['foreign_income_kinds'],
     requiredDocuments: [
-      { code: 'foreign_pension_docs', name: 'אישורי קצבה + מס זר', reason: 'קצבת עבודה → 258/272; סעיף 9ג — מס מוגבל למס הזר' },
+      { code: 'foreign_pension_docs', name: 'אישורי קצבה + מס זר', reason: 'קצבת עבודה → 258/272; סעיף 9ג - מס מוגבל למס הזר' },
     ],
     dataLayer: 'accountant',
     codes: { joint: '445/404' },
-    officialRef: 'מדריך 2025 עמ\' 42, 46 — קצבאות מחו"ל',
+    officialRef: 'מדריך 2025 עמ\' 42, 46 - קצבאות מחו"ל',
   },
   {
     fieldNumber: 'FD-rental',
@@ -1592,7 +1592,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '459/405' },
-    officialRef: 'מדריך 2025 עמ\' 43, 46 — שכ"ד חו"ל; חלופת 122א בשדה 482',
+    officialRef: 'מדריך 2025 עמ\' 43, 46 - שכ"ד חו"ל; חלופת 122א בשדה 482',
     accountantAction: 'השוואת מסלול רגיל מול 15% ובחירת הזול',
   },
   {
@@ -1608,7 +1608,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '467/406' },
-    officialRef: 'מדריך 2025 עמ\' 43–45 — ריבית מחו"ל לפי שיעורים',
+    officialRef: 'מדריך 2025 עמ\' 43–45 - ריבית מחו"ל לפי שיעורים',
   },
   {
     fieldNumber: 'FD-dividend',
@@ -1623,7 +1623,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '462/431' },
-    officialRef: 'מדריך 2025 עמ\' 44–45 — דיבידנד מחו"ל',
+    officialRef: 'מדריך 2025 עמ\' 44–45 - דיבידנד מחו"ל',
   },
   {
     fieldNumber: 'FD-capital',
@@ -1638,7 +1638,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '438/420' },
-    officialRef: 'מדריך 2025 עמ\' 45–46 — רווח הון מחו"ל',
+    officialRef: 'מדריך 2025 עמ\' 45–46 - רווח הון מחו"ל',
   },
   {
     fieldNumber: 'FD-gambling',
@@ -1653,7 +1653,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'accountant',
     codes: { joint: '427/416' },
-    officialRef: 'מדריך 2025 עמ\' 45 — הגרלות מחו"ל',
+    officialRef: 'מדריך 2025 עמ\' 45 - הגרלות מחו"ל',
   },
   {
     fieldNumber: '290',
@@ -1664,16 +1664,16 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'income.foreignCountries',
     sourceQuestionIds: ['foreign_countries', 'foreign_income_kinds'],
     requiredDocuments: [
-      { code: 'annex_d', name: 'נספח ד\' מלא — עד 10 מדינות', reason: 'הסיכום עובר לטופס הראשי; תקרת זיכוי לפי סלים' },
+      { code: 'annex_d', name: 'נספח ד\' מלא - עד 10 מדינות', reason: 'הסיכום עובר לטופס הראשי; תקרת זיכוי לפי סלים' },
     ],
     dataLayer: 'accountant',
     codes: { joint: '290' },
-    officialRef: 'מדריך 2025 עמ\' 40–41, 49 — נספח ד\'; מחזור עסקי חו"ל: 493',
+    officialRef: 'מדריך 2025 עמ\' 40–41, 49 - נספח ד\'; מחזור עסקי חו"ל: 493',
     accountantAction: 'בניית נספח ד\' לפי מדינות; חישוב תקרות זיכוי ועודף זיכוי (5 שנים)',
   },
   {
     fieldNumber: 'F-CFC',
-    hebrewLabel: 'חנ"ז — דיבידנד רעיוני (472–477)',
+    hebrewLabel: 'חנ"ז - דיבידנד רעיוני (472–477)',
     section: '7_foreign',
     required: 'conditional',
     conditionalOn: (m) => m.specialSituations?.isForeignControllingShareholder === true,
@@ -1685,7 +1685,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     legalReference: 'סעיף 75ב לפקודה',
     dataLayer: 'accountant',
     codes: { joint: '472' },
-    officialRef: 'מדריך 2025 עמ\' 47–48 — חנ"ז; חמי"ז: 463–465 (23%)',
+    officialRef: 'מדריך 2025 עמ\' 47–48 - חנ"ז; חמי"ז: 463–465 (23%)',
     accountantAction: 'חישוב הדיבידנד הרעיוני ומעקב יתרות (473/475/476)',
   },
 
@@ -1701,7 +1701,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     requiredDocuments: [],
     dataLayer: 'document',
     codes: { joint: '294' },
-    officialRef: 'מדריך 2025 עמ\' 36 — מחזור; כולל מחזור חברה משפחתית לנישום המייצג',
+    officialRef: 'מדריך 2025 עמ\' 36 - מחזור; כולל מחזור חברה משפחתית לנישום המייצג',
   },
   {
     fieldNumber: '041',
@@ -1718,7 +1718,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     dataLayer: 'document',
     codes: { joint: '041' },
-    officialRef: 'מדריך 2025 עמ\' 37 — מס שבח; קודי חריגה בשדה 114',
+    officialRef: 'מדריך 2025 עמ\' 37 - מס שבח; קודי חריגה בשדה 114',
   },
   {
     fieldNumber: '353',
@@ -1742,11 +1742,11 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'taxPaid.withholdingTotal',
     sourceQuestionIds: ['year_map'],
     requiredDocuments: [
-      { code: '857_837_867', name: 'אישורי ניכוי במקור (857/837/867)', reason: 'סכום כולל לקיזוז — מתואם עם שדה 040' },
+      { code: '857_837_867', name: 'אישורי ניכוי במקור (857/837/867)', reason: 'סכום כולל לקיזוז - מתואם עם שדה 040' },
     ],
     dataLayer: 'document',
     codes: { joint: '253' },
-    officialRef: 'מדריך 2025 עמ\' 37 — ניכוי במקור מהכנסות אחרות',
+    officialRef: 'מדריך 2025 עמ\' 37 - ניכוי במקור מהכנסות אחרות',
   },
 
   // ═══ חלק 12 — חתימה ═════════════════════════════════════════════════════

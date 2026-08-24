@@ -55,7 +55,7 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
           <div style={{ background: brand.pageBg, borderRadius: brand.radius, padding: '12px 13px', marginBottom: 20, textAlign: 'start' }}>
             <div style={{ fontSize: 11, letterSpacing: '.06em', color: brand.muted, marginBottom: 9 }}>איך זה עובד</div>
             {[
-              ['הפרטים שלכם', 'ממלאים כאן — וזהו'],
+              ['הפרטים שלכם', 'ממלאים כאן - וזהו'],
               ['חתימה על ייפוי הכוח', 'נשלח לכם קישור אישי. חותמים בלחיצה, גם מהטלפון.'],
               ['אנחנו מגישים לרשויות', 'אחרי החתימה אנחנו פותחים עבורכם בקשת ייצוג מול הרשויות'],
               ['הייצוג פעיל', 'מרגע שהרשויות מאשרות, אנחנו מטפלים בכל עבורכם.'],
@@ -78,7 +78,7 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
             {['שם פרטי', 'שם משפחה'].map(l => (
               <div key={l} style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, color: brand.muted, marginBottom: 4 }}>{l}</div>
-                <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: '11px 13px', fontSize: 13, color: '#bbb', background: brand.cardBg }}>—</div>
+                <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: '11px 13px', fontSize: 13, color: '#bbb', background: brand.cardBg }}>-</div>
               </div>
             ))}
           </div>
@@ -86,7 +86,7 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
             {['תעודת זהות', 'תאריך לידה'].map(l => (
               <div key={l}>
                 <div style={{ fontSize: 12, color: brand.muted, marginBottom: 4 }}>{l}</div>
-                <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: '11px 13px', fontSize: 13, color: '#bbb', background: brand.cardBg }}>—</div>
+                <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: '11px 13px', fontSize: 13, color: '#bbb', background: brand.cardBg }}>-</div>
               </div>
             ))}
           </div>
@@ -98,7 +98,7 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
         </div>
       </div>
       <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11.5, color: brand.muted }}>
-        תצוגה מקדימה — המסך הראשון מתוך שלושה שהלקוח ממלא
+        תצוגה מקדימה - המסך הראשון מתוך שלושה שהלקוח ממלא
       </div>
     </div>
   );

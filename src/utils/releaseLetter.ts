@@ -143,10 +143,10 @@ export const RELEASE_MATERIALS: ReleaseMaterial[] = [
   // ‼ ארבע בקשות ולא שתיים (הכרעת גיא 2026-08-23): "של השנה ושנה קודמת" הוא
   // שני קבצים נפרדים, ופריט אחד לשניהם אינו ניתן למעקב — הרו"ח הקודם ששלח
   // רק את השנה השוטפת סימן "התקבל", ואצלנו נרשם שהכל הגיע.
-  { key: 'uniform_file', label: 'קובץ מבנה אחיד — השנה', checked: true },
-  { key: 'uniform_file_prev', label: 'קובץ מבנה אחיד — שנה קודמת', checked: true },
-  { key: 'pnl_current', label: 'כרטסת רווח והפסד באקסל — השנה', checked: true },
-  { key: 'pnl_prev', label: 'כרטסת רווח והפסד באקסל — שנה קודמת', checked: true },
+  { key: 'uniform_file', label: 'קובץ מבנה אחיד - השנה', checked: true },
+  { key: 'uniform_file_prev', label: 'קובץ מבנה אחיד - שנה קודמת', checked: true },
+  { key: 'pnl_current', label: 'כרטסת רווח והפסד באקסל - השנה', checked: true },
+  { key: 'pnl_prev', label: 'כרטסת רווח והפסד באקסל - שנה קודמת', checked: true },
   { key: 'ledgers', label: 'כרטסות הנהלת חשבונות', checked: false },
   { key: 'depreciation', label: 'טופס פחת', checked: false },
   { key: 'last_return', label: 'דוח שנתי אחרון', checked: false },
@@ -279,7 +279,7 @@ function outstandingSection(opts: ReleaseOptions): string {
   // מעבר נקי — אומרים זאת במפורש ומזמינים תיקון: זה מה שמונע ממשהו ליפול
   // בין המשרדים כשמסתבר שבכל זאת נשארה עבודה פתוחה.
   if (!outstanding.length) {
-    blocks.push('למיטב ידיעתנו לא נותרו בטיפולך דוחות או עבודות פתוחות. אם ידוע לך אחרת — נשמח לעדכון.');
+    blocks.push('למיטב ידיעתנו לא נותרו בטיפולך דוחות או עבודות פתוחות. אם ידוע לך אחרת - נשמח לעדכון.');
   }
 
   return blocks.join('\n\n');
@@ -301,7 +301,7 @@ function materialsSection(opts: ReleaseOptions): string {
   }
   // ‼ בקשה פתוחה, לא פריט ברשימה: אנחנו לא יודעים מה עוד קיים אצלו, והוא כן.
   if (openItem) {
-    sentences.push('אם יש בידיך חומר נוסף שלדעתך נכון שיעבור אלינו — נשמח לקבל גם אותו.');
+    sentences.push('אם יש בידיך חומר נוסף שלדעתך נכון שיעבור אלינו - נשמח לקבל גם אותו.');
   }
   // פסקה אחת: שתי בקשות שקשורות זו לזו לא נקראות כשני עניינים נפרדים.
   return sentences.join(' ');
@@ -330,9 +330,9 @@ type SectionVar = typeof SECTION_VARS[number];
 export const RELEASE_TEMPLATE_VARS: { name: string; hint: string; section?: boolean }[] = [
   { name: 'prevAccountantName', hint: 'שם הרו״ח הקודם' },
   { name: 'clientName', hint: 'שם הלקוח' },
-  { name: 'clientRef', hint: 'שם הלקוח ות.ז. — ואצל זוג נשוי, שניהם' },
+  { name: 'clientRef', hint: 'שם הלקוח ות.ז. - ואצל זוג נשוי, שניהם' },
   { name: 'firmName', hint: 'שם המשרד שלך' },
-  { name: 'clientIntro', hint: 'משפט הפתיחה — מי פנה אלינו', section: true },
+  { name: 'clientIntro', hint: 'משפט הפתיחה - מי פנה אלינו', section: true },
   { name: 'periodParagraph', hint: 'פסקת חלוקת התקופות', section: true },
   { name: 'outstandingSection', hint: 'העבודות שנשארו פתוחות ופסקת הייצוג', section: true },
   { name: 'materialsSection', hint: 'רשימת החומרים המבוקשים', section: true },
@@ -340,11 +340,11 @@ export const RELEASE_TEMPLATE_VARS: { name: string; hint: string; section?: bool
 ];
 
 export const DEFAULT_RELEASE_TEMPLATE: ReleaseTemplate = {
-  subject: 'העברת הטיפול בתיק — {{clientName}}',
+  subject: 'העברת הטיפול בתיק - {{clientName}}',
   body: [
     'לכבוד {{prevAccountantName}},',
     '',
-    'הנדון: העברת הטיפול בתיק — {{clientName}}',
+    'הנדון: העברת הטיפול בתיק - {{clientName}}',
     '',
     '{{clientIntro}}',
     '',
@@ -357,7 +357,7 @@ export const DEFAULT_RELEASE_TEMPLATE: ReleaseTemplate = {
     // ‼ מודל האינטראקציה (הכרעת גיא 2026-08-18): לא מבקשים אישור ולא חתימה —
     // מי שיש לו מניעה מודיע בתשובה למייל. ציטוט כלל 16 נשמר כלשונו: הוא מה
     // שנותן למכתב את משמעותו המקצועית, ורק אופן המענה הוא שהתנסח מחדש.
-    'בהתאם לכלל 16 לכללי ההתנהגות המקצועית של לשכת רואי חשבון בישראל — ' +
+    'בהתאם לכלל 16 לכללי ההתנהגות המקצועית של לשכת רואי חשבון בישראל - ' +
     'אם קיימת מניעה או הסתייגות להעברת התיק, נודה לעדכון במייל חוזר ' +
     'בתוך כ־3 ימי עסקים.',
     '',
@@ -660,7 +660,7 @@ export function followUpBody(
 }
 
 export function followUpSubject(ctx: ReleaseContext): string {
-  return `תוספת לבקשת החומרים — ${ctx.clientName}`;
+  return `תוספת לבקשת החומרים - ${ctx.clientName}`;
 }
 
 // ─── HTML של המייל ───────────────────────────────────────────────────────────
@@ -853,7 +853,7 @@ export async function generateReleaseEmailPdf(rec: {
 
   page.drawRectangle({ x: 0, y: A4.h - 5, width: A4.w, height: 5, color: accent });
   rtl(brand.firmName, 15, ink, y); y -= 30;
-  rtl('העברת הטיפול בתיק — רו״ח קודם', 12, accent, y); y -= 22;
+  rtl('העברת הטיפול בתיק - רו״ח קודם', 12, accent, y); y -= 22;
 
   // בלוק כותרות המייל
   for (const [label, val] of [['מאת', rec.from], ['אל', rec.to], ['תאריך', rec.date], ['נושא', rec.subject]]) {

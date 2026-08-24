@@ -95,13 +95,13 @@ export default function TaxFilesSection({ client, update }: Props) {
       {itOnSpouse && (
         <div className="tf-spouse-warn">
           בן/בת הזוג הרשום/ה במס הכנסה: {spouseDisplayName(client)}
-          {itFile?.fileNumber ? ` — ת.ז. ${itFile.fileNumber}` : ''}. כל התנהלות מול מ"ה בת.ז. הזו.
+          {itFile?.fileNumber ? ` - ת.ז. ${itFile.fileNumber}` : ''}. כל התנהלות מול מ"ה בת.ז. הזו.
         </div>
       )}
 
       {files.length === 0 ? (
         <div className="cw-empty">
-          לא הוגדרו תיקים. "צור מבנה מומלץ" מרכיב שלד לפי הכרטיס — מס הכנסה, מע"מ/ניכויים אם יש עסק, וב"ל לכל בן זוג.
+          לא הוגדרו תיקים. "צור מבנה מומלץ" מרכיב שלד לפי הכרטיס - מס הכנסה, מע"מ/ניכויים אם יש עסק, וב"ל לכל בן זוג.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
@@ -157,7 +157,7 @@ export default function TaxFilesSection({ client, update }: Props) {
         </div>
       )}
       <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '.5rem' }}>
-        במס הכנסה תיק אחד לתא המשפחתי — מי שעליו התיק הוא בן/בת הזוג הרשום/ה. במע"מ/ניכויים ייתכן תיק לכל בן זוג. בב"ל התיק אישי — שורה לכל בן זוג, ועוד שורה לייצוג בתיק הניכויים אם קיים.
+        במס הכנסה תיק אחד לתא המשפחתי - מי שעליו התיק הוא בן/בת הזוג הרשום/ה. במע"מ/ניכויים ייתכן תיק לכל בן זוג. בב"ל התיק אישי - שורה לכל בן זוג, ועוד שורה לייצוג בתיק הניכויים אם קיים.
       </div>
     </div>
   );

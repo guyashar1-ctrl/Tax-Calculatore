@@ -38,12 +38,12 @@ import { supabase } from '../../lib/supabase';
    שהכפתור בדף המסע עושה. ‼ הזמינות אינה תלויה ב-hasPreviousAccountant:
    גיא מסמן "אין רו״ח קודם" ואחר כך מגלה שיש, וזו בקשה ככל בקשה. */
 const CATALOG: { type: string; hint: string; once: boolean }[] = [
-  { type: 'bank_debit',             hint: 'הלקוח פותח הרשאה בבנק ומעלה אסמכתה — לרשויות שתבחר', once: false },
-  { type: 'send_document',          hint: 'מסמך מספריית המשרד — נסגרת כשהלקוח פותח אותו', once: false },
+  { type: 'bank_debit',             hint: 'הלקוח פותח הרשאה בבנק ומעלה אסמכתה - לרשויות שתבחר', once: false },
+  { type: 'send_document',          hint: 'מסמך מספריית המשרד - נסגרת כשהלקוח פותח אותו', once: false },
   { type: 'client_documents',       hint: 'רשימת מסמכים שהלקוח מעלה בדף האישי', once: true },
   { type: 'prev_accountant_track',  hint: '', once: true },
   { type: 'paperless_sequence',     hint: '', once: true },
-  { type: 'intake_questionnaire',   hint: 'רענון תיק המס — שאלון ומסמכים לפי מה שחסר', once: true },
+  { type: 'intake_questionnaire',   hint: 'רענון תיק המס - שאלון ומסמכים לפי מה שחסר', once: true },
 ];
 
 /** רצף הפייפרלס — תבנית מוכרת, לא תצורה. שלושה שלבים, ובעלות שונה לכל אחד:
@@ -321,7 +321,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     const main = ask.trim();
     if (!main) { setError('צריך לכתוב מה מבקשים מהלקוח.'); return; }
     if (extraReqs.some(r => !r.label.trim())) {
-      setError('לכל דרישה צריך תיאור — מה בדיוק הלקוח צריך לעשות.');
+      setError('לכל דרישה צריך תיאור - מה בדיוק הלקוח צריך לעשות.');
       return;
     }
     const requirements: CustomRequirement[] = [
@@ -341,7 +341,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
 
   function submitBankDebit() {
     if (debitAuthorities.length === 0) {
-      setError('צריך לבחור לפחות רשות אחת — אחרת אין ללקוח מה להקים.');
+      setError('צריך לבחור לפחות רשות אחת - אחרת אין ללקוח מה להקים.');
       return;
     }
     const ordered = DEBIT_INSTITUTION_ORDER.filter(k => debitAuthorities.includes(k));
@@ -392,7 +392,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
               </div>
             ) : (
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
-                הבקשה תיווצר במודל הבקשות המאוחד ותופיע ללקוח בדף האישי — כמו כל בקשה אחרת.
+                הבקשה תיווצר במודל הבקשות המאוחד ותופיע ללקוח בדף האישי - כמו כל בקשה אחרת.
               </div>
             )
           )}
@@ -429,7 +429,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
                     {c.type === 'paperless_sequence'
                       ? (paperlessMissing.length === PAPERLESS_SEQUENCE.length
-                        ? 'הזמנה, חיבור והרשאה לתשלום חודשי — כל שלב נפתח אחרי הקודם'
+                        ? 'הזמנה, חיבור והרשאה לתשלום חודשי - כל שלב נפתח אחרי הקודם'
                         : `משלים את הרצף: ${paperlessMissing.map(p => STEP_TYPE_LABELS[p.type]).join(' · ')}`)
                       : c.type === 'prev_accountant_track'
                       ? (prevMissing.length === 3
@@ -443,7 +443,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
               <button type="button" disabled={busy} onClick={() => setMode('custom')} style={rowBtn}>
                 <span style={{ fontWeight: 600 }}>בקשה חופשית</span>
                 <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-                  אתה מגדיר מה הלקוח צריך לעשות — לאשר, לענות, או להעלות
+                  אתה מגדיר מה הלקוח צריך לעשות - לאשר, לענות, או להעלות
                 </span>
               </button>
 
@@ -461,7 +461,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                       onClick={() => onUseTemplate?.(t)}>
                       <span style={{ fontWeight: 600 }}>{t.name}</span>
                       <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-                        {t.description || 'תבנית שמורה — נפתחת לעריכה לפני היצירה'}
+                        {t.description || 'תבנית שמורה - נפתחת לעריכה לפני היצירה'}
                       </span>
                     </button>
                   ))}
@@ -508,7 +508,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
               ) : (
                 <>
                   <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
-                    הלקוח יראה בקשה עם כפתור אחד שפותח את המסמך. אין מה למלא ואין מה לאשר —
+                    הלקוח יראה בקשה עם כפתור אחד שפותח את המסמך. אין מה למלא ואין מה לאשר -
                     הפתיחה עצמה סוגרת את הבקשה, והיא תסומן כאן כהושלמה.
                   </div>
                   <label style={lbl}>
@@ -534,7 +534,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
               <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600 }}>
                 אילו מסמכים לבקש
                 <span style={{ fontWeight: 400, color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
-                  {' '}— לכל מסומן הלקוח יקבל מקום נפרד להעלות
+                  {' '}- לכל מסומן הלקוח יקבל מקום נפרד להעלות
                 </span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
@@ -560,7 +560,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   אחרת אותו מסמך היה מוקלד מחדש בכל פעם. */}
               <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
                 <input className="input" style={{ flex: 1 }} value={newDocLabel}
-                  placeholder="מסמך אחר — למשל: טופס 106"
+                  placeholder="מסמך אחר - למשל: טופס 106"
                   onChange={e => setNewDocLabel(e.target.value)}
                   onKeyDown={e => {
                     if (e.key === 'Enter') { e.preventDefault(); void addDocOption(); }
@@ -720,7 +720,7 @@ function Shared({
         <label style={{ ...lbl, flex: 1, minWidth: 180 }}>
           ייפתח רק אחרי (לא חובה)
           <select className="input" value={dependsOn} onChange={e => setDependsOn(e.target.value)}>
-            <option value="">— בלי תלות —</option>
+            <option value="">- בלי תלות -</option>
             {dependencyOptions.map(s => (
               <option key={s.id} value={s.id}>{STEP_TYPE_LABELS[s.stepType]}</option>
             ))}
@@ -734,7 +734,7 @@ function Shared({
         <input type="checkbox" checked={requiredForClose} onChange={e => setRequiredForClose(e.target.checked)} />
         נדרש לסגירת הקליטה
         <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
-          (לא מסומן ⇒ רשות — לא יחסום את הסגירה)
+          (לא מסומן ⇒ רשות - לא יחסום את הסגירה)
         </span>
       </label>
 

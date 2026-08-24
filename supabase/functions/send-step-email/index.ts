@@ -389,8 +389,8 @@ Deno.serve(async (req: Request) => {
       type: "email_sent",
       // ‼ ביומן חייב להיות ברור שזה בוצע אוטומטית — לא ביד של גיא (D3 כלל 6).
       actor: isAuto ? "system" : "accountant",
-      note: (isAuto ? "בוצע אוטומטית — נשלח מייל: " : "נשלח מייל: ") + rendered.subject
-        + (logged ? "" : " (לא נרשם ביומן הדואר — ראה לוג השרת)"),
+      note: (isAuto ? "בוצע אוטומטית - נשלח מייל: " : "נשלח מייל: ") + rendered.subject
+        + (logged ? "" : " (לא נרשם ביומן הדואר - ראה לוג השרת)"),
       meta: { kind, to: toEmail, resend_id: body.id, logged, automatic: isAuto },
     });
 

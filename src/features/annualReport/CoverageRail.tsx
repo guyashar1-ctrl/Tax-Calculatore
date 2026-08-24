@@ -126,7 +126,7 @@ export default function CoverageRail({ model, answeredQuestionIds, currentQuesti
         >
           <div style={{ background: 'var(--surface-0)', maxWidth: 1220, margin: '0 auto', borderRadius: 14, padding: '1rem 0 2rem', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 1.5rem' }}>
-              <strong>מפת העץ המלאה — המסלול הנוכחי מודגש</strong>
+              <strong>מפת העץ המלאה - המסלול הנוכחי מודגש</strong>
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setMapOpen(false)}>סגור</button>
             </div>
             <TreeMapView

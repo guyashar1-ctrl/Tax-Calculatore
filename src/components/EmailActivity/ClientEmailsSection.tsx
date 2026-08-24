@@ -54,7 +54,7 @@ function Row({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) {
         <span style={{ flex: 1 }} />
         <span style={{ display: 'flex', gap: '.5rem', fontSize: '.75rem' }}>
           {failed
-            ? <span style={{ color: 'var(--red)' }}>{m.status === 'bounced' ? 'חזר — כתובת שגויה' : 'השליחה נכשלה'}</span>
+            ? <span style={{ color: 'var(--red)' }}>{m.status === 'bounced' ? 'חזר - כתובת שגויה' : 'השליחה נכשלה'}</span>
             : <>{chip('הגיע', delivered)}{chip('נפתח', opened)}</>}
         </span>
         <button

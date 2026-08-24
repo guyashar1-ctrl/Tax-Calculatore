@@ -92,7 +92,7 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
   let exemptTaxable = 0;
   let exemptTax = 0;
   if (zone === 'full') {
-    exemptSteps.push(`שכ"ד ${fmt(R)} ₪/חודש ≤ תקרה ${fmt(T)} ₪ — פטור מלא, מס 0.`);
+    exemptSteps.push(`שכ"ד ${fmt(R)} ₪/חודש ≤ תקרה ${fmt(T)} ₪ - פטור מלא, מס 0.`);
   } else if (zone === 'partial') {
     exemptSteps.push(`חריגה מהתקרה: ${fmt(R)} − ${fmt(T)} = ${fmt(excess)} ₪`);
     exemptSteps.push(`תקרה מתואמת (הפטור בפועל): ${fmt(T)} − ${fmt(excess)} = ${fmt(adjustedExemption)} ₪`);
@@ -107,7 +107,7 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
     exemptTax = exemptTaxable * rate;
     exemptSteps.push(`מס: ${fmt(exemptTaxable)} × ${input.marginalRatePct}% = ${fmt(exemptTax)} ₪/שנה`);
   } else {
-    exemptSteps.push(`שכ"ד ${fmt(R)} ₪ ≥ פי 2 מהתקרה (${fmt(2 * T)} ₪) — הפטור מתאפס לחלוטין.`);
+    exemptSteps.push(`שכ"ד ${fmt(R)} ₪ ≥ פי 2 מהתקרה (${fmt(2 * T)} ₪) - הפטור מתאפס לחלוטין.`);
     exemptTaxable = Math.max(0, annualRent - input.annualExpenses - input.annualDepreciation);
     exemptTax = exemptTaxable * rate;
     exemptSteps.push(`בפועל זהה למסלול השולי: מס ≈ ${fmt(exemptTax)} ₪/שנה`);
@@ -129,11 +129,11 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
       'פטור מדמי ביטוח לאומי',
     ],
     cons: [
-      'הפטור נשחק שקל מול שקל מעל התקרה — כל שקל חריגה מוסיף 2 ₪ לחלק החייב',
+      'הפטור נשחק שקל מול שקל מעל התקרה - כל שקל חריגה מוסיף 2 ₪ לחלק החייב',
       'התקרה משותפת לכל דירות התא המשפחתי (כולל דירות במסלול 10%)',
     ],
     warnings: [
-      'במכירה עתידית חייבת במס שבח — רשות המסים מנכה משווי הרכישה את הפחת שניתן היה לדרוש (הו"ב 5/2007), גם אם לא נדרש בפועל.',
+      'במכירה עתידית חייבת במס שבח - רשות המסים מנכה משווי הרכישה את הפחת שניתן היה לדרוש (הו"ב 5/2007), גם אם לא נדרש בפועל.',
     ],
   };
 
@@ -145,13 +145,13 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
   const flat10Base = Math.max(0, annualRent - rentPaidDeduction);
   const flat10Tax = flat10Base * 0.10;
   const flat10Steps = [
-    `בסיס: מלוא דמי השכירות ברוטו — ${fmt(annualRent)} ₪/שנה (ללא ניכוי הוצאות ופחת)`,
+    `בסיס: מלוא דמי השכירות ברוטו - ${fmt(annualRent)} ₪/שנה (ללא ניכוי הוצאות ופחת)`,
   ];
   if (rentPaidDeduction > 0) {
     flat10Steps.push(`ניכוי דמי שכירות מוטבים (סעיף 122(ו)): −${fmt(rentPaidDeduction)} ₪ (עד 90,000 ₪, דירה יחידה + שכירות/בית אבות)`);
   }
   flat10Steps.push(`מס: ${fmt(flat10Base)} × 10% = ${fmt(flat10Tax)} ₪/שנה`);
-  flat10Steps.push(`מועד תשלום: עד 30 בינואר ${input.year + 1} — איחור גורר הצמדה וריבית.`);
+  flat10Steps.push(`מועד תשלום: עד 30 בינואר ${input.year + 1} - איחור גורר הצמדה וריבית.`);
 
   const flat10Route: RouteResult = {
     key: 'flat10',
@@ -165,15 +165,15 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
       'שיעור קבוע ונמוך, ללא תלות במס השולי',
       'פטור מדמי ביטוח לאומי',
       'דיווח מקוצר (עד ~375,000 ₪ הכנסת שכירות, אם אין חובת דוח אחרת)',
-      ...(rentPaidDeduction > 0 ? ['ניכוי 122(ו) — הטבה ייחודית למשכיר דירה יחידה שגר בשכירות/בית אבות'] : []),
+      ...(rentPaidDeduction > 0 ? ['ניכוי 122(ו) - הטבה ייחודית למשכיר דירה יחידה שגר בשכירות/בית אבות'] : []),
     ],
     cons: [
       'אין ניכוי הוצאות, פחת, קיזוזים או פטורים אישיים',
       'ההכנסה במסלול זה נספרת לבדיקת תקרת הפטור של דירות אחרות',
     ],
     warnings: [
-      'סעיף 122(ג): במכירה חייבת, הפחת המרבי שניתן היה לנכות מתווסף לשווי המכירה — "פצצת פחת" שחובה להציג ללקוח.',
-      'תשלום עד 30.1 של השנה העוקבת — מקור החיכוך הנפוץ ביותר במסלול.',
+      'סעיף 122(ג): במכירה חייבת, הפחת המרבי שניתן היה לנכות מתווסף לשווי המכירה - "פצצת פחת" שחובה להציג ללקוח.',
+      'תשלום עד 30.1 של השנה העוקבת - מקור החיכוך הנפוץ ביותר במסלול.',
     ],
   };
 
@@ -191,17 +191,17 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
       `הכנסה: ${fmt(annualRent)} ₪ − הוצאות ${fmt(input.annualExpenses)} ₪ − פחת ${fmt(input.annualDepreciation)} ₪ = ${fmt(marginalTaxable)} ₪`,
       `מס: ${fmt(marginalTaxable)} × ${input.marginalRatePct}% = ${fmt(marginalTax)} ₪/שנה`,
       input.isAge60Plus
-        ? 'בני 60+ — מדרגות מלאות החל מ-10% גם על הכנסה פסיבית'
-        : 'מתחת לגיל 60 — מדרגת פתיחה 31% על הכנסה פסיבית',
+        ? 'בני 60+ - מדרגות מלאות החל מ-10% גם על הכנסה פסיבית'
+        : 'מתחת לגיל 60 - מדרגת פתיחה 31% על הכנסה פסיבית',
     ],
     pros: [
       'ניכוי מלוא ההוצאות והפחת (ריבית משכנתא, תיקונים, ניהול, ביטוח)',
-      'לבני 60+ — לעיתים המסלול הזול ביותר (מדרגות מ-10% + נקודות זיכוי)',
+      'לבני 60+ - לעיתים המסלול הזול ביותר (מדרגות מ-10% + נקודות זיכוי)',
       'הפסד שוטף ניתן לקיזוז כנגד הכנסות מאותו נכס בעתיד (סעיף 28(ח))',
     ],
     cons: [
       'חובת הגשת דוח שנתי מלא',
-      'מתחת לגיל 60 — מס גבוה (31%+) אלא אם ההוצאות כבדות',
+      'מתחת לגיל 60 - מס גבוה (31%+) אלא אם ההוצאות כבדות',
     ],
     warnings: [],
   };
@@ -212,11 +212,11 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
   const best = [...routes].sort((a, b) => a.taxAnnual - b.taxAnnual)[0];
   let recommendationNote = '';
   if (best.key === 'exempt' && zone === 'full') {
-    recommendationNote = 'עד התקרה — הפטור תמיד עדיף. שים לב לפחת הרעיוני במכירה עתידית חייבת.';
+    recommendationNote = 'עד התקרה - הפטור תמיד עדיף. שים לב לפחת הרעיוני במכירה עתידית חייבת.';
   } else if (best.key === 'exempt') {
     recommendationNote = 'בפטור חלקי המס נמוך יותר כל עוד השכירות קרובה לתקרה; נקודת האיזון מול 10% היא סביב 6,700–6,800 ₪/חודש (ללא הוצאות, 31%).';
   } else if (best.key === 'flat10') {
-    recommendationNote = 'מסלול 10% משתלם בדרך כלל משכירות של כ-6,800 ₪/חודש ומעלה — אלא אם יש הוצאות/פחת כבדים (מעל כ-68% מההכנסה) או שהמשכיר בן 60+ עם מדרגות נמוכות.';
+    recommendationNote = 'מסלול 10% משתלם בדרך כלל משכירות של כ-6,800 ₪/חודש ומעלה - אלא אם יש הוצאות/פחת כבדים (מעל כ-68% מההכנסה) או שהמשכיר בן 60+ עם מדרגות נמוכות.';
   } else {
     recommendationNote = input.isAge60Plus
       ? 'לבני 60+ עם הכנסות נמוכות, המסלול השולי (מ-10%) עם ניכוי הוצאות עשוי להיות הזול ביותר.'
@@ -224,14 +224,14 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
   }
 
   const generalWarnings: string[] = [
-    'ההשוואה היא כלי עזר להתלבטות — הבחירה הסופית דורשת שיקול דעת מקצועי מלא (מכירה צפויה, הכנסות אחרות, בני זוג).',
-    'התקרה נבחנת על סך שכר הדירה של התא המשפחתי (בני זוג + ילדים עד 18) — אין תקרה כפולה לבני זוג.',
-    'כל המסלולים פטורים מדמי ביטוח לאומי (סעיף 350(א)(7)) — כל עוד ההשכרה אינה מגיעה כדי עסק.',
+    'ההשוואה היא כלי עזר להתלבטות - הבחירה הסופית דורשת שיקול דעת מקצועי מלא (מכירה צפויה, הכנסות אחרות, בני זוג).',
+    'התקרה נבחנת על סך שכר הדירה של התא המשפחתי (בני זוג + ילדים עד 18) - אין תקרה כפולה לבני זוג.',
+    'כל המסלולים פטורים מדמי ביטוח לאומי (סעיף 350(א)(7)) - כל עוד ההשכרה אינה מגיעה כדי עסק.',
   ];
   if (input.propertyCount >= 10) {
-    generalWarnings.unshift('10 דירות ומעלה — חזקת עסק לפי הפסיקה (לשם/בירן): אין פטור ואין מסלול 10%, ההכנסה חייבת במס שולי מלא + ביטוח לאומי.');
+    generalWarnings.unshift('10 דירות ומעלה - חזקת עסק לפי הפסיקה (לשם/בירן): אין פטור ואין מסלול 10%, ההכנסה חייבת במס שולי מלא + ביטוח לאומי.');
   } else if (input.propertyCount >= 6) {
-    generalWarnings.unshift('6–9 דירות — אזור אפור לפי הפסיקה: ייתכן סיווג כעסק. נדרשת בחינה פרטנית.');
+    generalWarnings.unshift('6–9 דירות - אזור אפור לפי הפסיקה: ייתכן סיווג כעסק. נדרשת בחינה פרטנית.');
   }
 
   return {
@@ -333,11 +333,11 @@ export function optimizeApartmentRoutes(
     : { tax: allFlatTax, label: 'כל הדירות במסלול 10%' };
 
   const notes: string[] = [
-    `התקרה המתואמת חושבה לפי סך השכירות מכל הדירות (${Math.round(totalRent).toLocaleString('he-IL')} ₪/חודש) — גם דירות במסלול 10% נספרות בבדיקת התקרה.`,
+    `התקרה המתואמת חושבה לפי סך השכירות מכל הדירות (${Math.round(totalRent).toLocaleString('he-IL')} ₪/חודש) - גם דירות במסלול 10% נספרות בבדיקת התקרה.`,
     'החישוב ללא הוצאות ופחת פר-דירה; דירה עם ריבית משכנתא כבדה עשויה להצדיק מסלול שולי פרטני.',
   ];
   if (adjustedExemption === 0) {
-    notes.unshift('סך השכירות מעל כפל התקרה — הפטור התאפס לחלוטין, ולכן ההשוואה היא בעיקר 10% מול שולי.');
+    notes.unshift('סך השכירות מעל כפל התקרה - הפטור התאפס לחלוטין, ולכן ההשוואה היא בעיקר 10% מול שולי.');
   }
 
   return {

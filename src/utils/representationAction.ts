@@ -20,7 +20,7 @@ export interface RepresentationAction {
 const ACTIONS: Record<RepresentationStatus, RepresentationAction> = {
   pending_fill: {
     action: 'ממתין שהלקוח ימלא את פרטיו',
-    why: 'הקישור נשלח אליו. כשימלא — הפרטים ייכנסו לכרטיס מעצמם.',
+    why: 'הקישור נשלח אליו. כשימלא - הפרטים ייכנסו לכרטיס מעצמם.',
     mine: false, ball: 'אצל הלקוח',
   },
   awaiting_accountant: {
@@ -30,7 +30,7 @@ const ACTIONS: Record<RepresentationStatus, RepresentationAction> = {
   },
   pending_signature: {
     action: 'ממתין לחתימת הלקוח',
-    why: 'הטופס נשלח אליו. אחרי שיחתום — תגיע החתימה והחותמת שלך.',
+    why: 'הטופס נשלח אליו. אחרי שיחתום - תגיע החתימה והחותמת שלך.',
     mine: false, ball: 'אצל הלקוח',
   },
   awaiting_stamp: {
@@ -40,7 +40,7 @@ const ACTIONS: Record<RepresentationStatus, RepresentationAction> = {
   },
   awaiting_authorities: {
     action: 'ממתין לאישור הרשויות',
-    why: 'הטופס הוגש בשע״ם. כשיאושר — לסמן כמיוצג פעיל.',
+    why: 'הטופס הוגש בשע״ם. כשיאושר - לסמן כמיוצג פעיל.',
     mine: false, ball: 'אצל הרשות',
   },
   active: {

@@ -112,9 +112,9 @@ export default function PublishCasePrompt({
             style={{ margin: 0, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.7 }}
             items={[
               pendingCount === 1
-                ? `שינוי אחד ממתין — הוא ייכנס לדף האישי של ${clientName}`
+                ? `שינוי אחד ממתין - הוא ייכנס לדף האישי של ${clientName}`
                 : pendingCount
-                  ? `${pendingCount} שינויים ממתינים — הם ייכנסו לדף האישי של ${clientName}`
+                  ? `${pendingCount} שינויים ממתינים - הם ייכנסו לדף האישי של ${clientName}`
                   : `השינויים ייכנסו לדף האישי של ${clientName}`,
               'לדף יש כתובת אחת קבועה, והיא לא משתנה',
             ]} />
@@ -139,12 +139,12 @@ export default function PublishCasePrompt({
             <>
               <button type="button" style={rowBtn} disabled={!!busy} onClick={() => void choose('update')}>
                 <span style={{ fontWeight: 600 }}>{busy === 'update' ? 'מעדכן…' : 'רק לעדכן'}</span>
-                <span style={sub}>הדף מתעדכן. לא נשלח שום דבר — הלקוח יראה בכניסה הבאה.</span>
+                <span style={sub}>הדף מתעדכן. לא נשלח שום דבר - הלקוח יראה בכניסה הבאה.</span>
               </button>
 
               <button type="button" style={rowBtn} disabled={!!busy} onClick={() => void choose('send')}>
                 <span style={{ fontWeight: 600 }}>{busy === 'send' ? 'מעדכן…' : 'לעדכן ולשלוח קישור'}</span>
-                <span style={sub}>מתעדכן, ואז נפתחת השליחה — מייל או וואטסאפ, לאותו קישור קבוע.</span>
+                <span style={sub}>מתעדכן, ואז נפתחת השליחה - מייל או וואטסאפ, לאותו קישור קבוע.</span>
               </button>
 
               <button type="button" style={rowBtn} disabled={!!busy} onClick={() => void choose('copy')}>

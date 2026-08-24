@@ -44,7 +44,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           </h2>
           <p style={{ color: 'var(--gray-600)', fontSize: '.9rem', lineHeight: 1.7, margin: '0 0 1.25rem' }}>
             נתקלנו בבעיה בהצגת המסך הזה, כנראה בגלל רשומה עם נתון חסר או פגום.
-            שאר המערכת פועלת — אפשר לעבור ללשונית אחרת. אם זה חוזר, ספרו לנו מה ניסיתם לפתוח.
+            שאר המערכת פועלת - אפשר לעבור ללשונית אחרת. אם זה חוזר, ספרו לנו מה ניסיתם לפתוח.
           </p>
           <div style={{ display: 'flex', gap: '.6rem', justifyContent: 'center' }}>
             <button className="btn btn-secondary" onClick={() => this.setState({ error: null })}>נסה שוב</button>

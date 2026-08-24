@@ -105,7 +105,7 @@ export default function PersonQuickView(p: Props) {
       <div className="pd-qv-body">
         {p.possibleMatch && (
           <div className="pd-dupbox">
-            ייתכן שכבר קיים אדם תואם — {p.possibleMatch.clientName}.{' '}
+            ייתכן שכבר קיים אדם תואם - {p.possibleMatch.clientName}.{' '}
             <button type="button" className="ui-linkbtn" onClick={p.possibleMatch.onOpen}>
               פתח את הכרטיס הקיים
             </button>
@@ -159,11 +159,11 @@ export default function PersonQuickView(p: Props) {
             </div>
             <div className="pd-cell">
               <div className="pd-lab">טלפון</div>
-              <div className="pd-val num pd-ltr">{row.phone || '—'}</div>
+              <div className="pd-val num pd-ltr">{row.phone || '-'}</div>
             </div>
             <div className="pd-cell">
               <div className="pd-lab">אימייל</div>
-              <div className="pd-val pd-ltr">{row.email || '—'}</div>
+              <div className="pd-val pd-ltr">{row.email || '-'}</div>
             </div>
           </div>
         )}

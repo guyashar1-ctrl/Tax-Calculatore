@@ -97,7 +97,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
             {apartments.map((rent, i) => (
               <div key={i} className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>
-                  {propertyCount === 1 ? 'שכ"ד חודשי ₪' : `דירה ${i + 1} — שכ"ד חודשי ₪`}
+                  {propertyCount === 1 ? 'שכ"ד חודשי ₪' : `דירה ${i + 1} - שכ"ד חודשי ₪`}
                 </label>
                 <input
                   type="number" min={0} value={rent || ''} placeholder="0"
@@ -129,7 +129,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
                 {MARGINAL_RATES.filter(r => isAge60Plus || r >= 31).map(r => <option key={r} value={r}>{r}%</option>)}
               </select>
               <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-                {isAge60Plus ? 'בני 60+ — מדרגות מלאות מ-10%' : 'מתחת לגיל 60 — מינימום 31% על הכנסה פסיבית'}
+                {isAge60Plus ? 'בני 60+ - מדרגות מלאות מ-10%' : 'מתחת לגיל 60 - מינימום 31% על הכנסה פסיבית'}
               </span>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -156,7 +156,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
             </label>
             {eligible122f && propertyCount > 1 && (
               <div style={{ fontSize: '12px', color: 'var(--warn)', marginTop: '.3rem' }}>
-                הניכוי לפי 122(ו) מיועד לבעל <strong>דירה יחידה</strong> — עם {propertyCount} דירות מושכרות הוא לא חל, ולכן <strong>לא הופעל בחישוב</strong>.
+                הניכוי לפי 122(ו) מיועד לבעל <strong>דירה יחידה</strong> - עם {propertyCount} דירות מושכרות הוא לא חל, ולכן <strong>לא הופעל בחישוב</strong>.
               </div>
             )}
             {eligible122f && propertyCount <= 1 && (
@@ -176,7 +176,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
       {/* ── ויזואליזציה: הפטור המתקפל ── */}
       <div className="card">
         <div className="card-header">
-          <span className="card-title">מנגנון הפטור המתקפל — {year}</span>
+          <span className="card-title">מנגנון הפטור המתקפל - {year}</span>
           <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
             תקרה: {fmt(m.ceiling)}/חודש · נקודת איפוס: {fmt(m.zeroPoint)}/חודש
           </span>
@@ -226,11 +226,11 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
           </div>
           {dragEnabled ? (
             <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '.25rem' }}>
-              אפשר לגרור את הסמן על הציר — שכ"ד החודשי יתעדכן בהתאם
+              אפשר לגרור את הסמן על הציר - שכ"ד החודשי יתעדכן בהתאם
             </div>
           ) : (
             <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '.25rem' }}>
-              הסמן מציג את סך השכירות מכל {propertyCount} הדירות — זה הסכום שנבחן מול התקרה
+              הסמן מציג את סך השכירות מכל {propertyCount} הדירות - זה הסכום שנבחן מול התקרה
             </div>
           )}
 
@@ -250,7 +250,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
             </div>
           )}
           <div className="alert alert-info" style={{ marginTop: '.75rem' }}>
-            כל שקל חריגה מהתקרה מקטין את הפטור בשקל — כלומר מוסיף <strong>2 ₪</strong> להכנסה החייבת. זו הנקודה שהכי קשה להסביר ללקוחות, והגרף למעלה עושה את זה.
+            כל שקל חריגה מהתקרה מקטין את הפטור בשקל - כלומר מוסיף <strong>2 ₪</strong> להכנסה החייבת. זו הנקודה שהכי קשה להסביר ללקוחות, והגרף למעלה עושה את זה.
           </div>
         </div>
       </div>
@@ -259,9 +259,9 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
       {mixed && (
         <div className="card">
           <div className="card-header">
-            <span className="card-title">שיוך מסלולים חכם — {propertyCount} דירות</span>
+            <span className="card-title">שיוך מסלולים חכם - {propertyCount} דירות</span>
             <span style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
-              הבחירה במסלול היא לכל דירה בנפרד — והשיוך הנכון חוסך מס
+              הבחירה במסלול היא לכל דירה בנפרד - והשיוך הנכון חוסך מס
             </span>
           </div>
           <div className="card-body">
@@ -288,10 +288,10 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
                         </span>
                       </td>
                       <td style={{ padding: '.45rem .8rem', textAlign: 'center', color: 'var(--chip-green-tx)' }}>
-                        {a.exemptionUsedMonthly > 0 ? fmt(a.exemptionUsedMonthly) + '/חודש' : '—'}
+                        {a.exemptionUsedMonthly > 0 ? fmt(a.exemptionUsedMonthly) + '/חודש' : '-'}
                       </td>
                       <td style={{ padding: '.45rem .8rem', textAlign: 'center' }}>
-                        {a.taxableMonthly > 0 ? fmt(a.taxableMonthly) + '/חודש' : '—'}
+                        {a.taxableMonthly > 0 ? fmt(a.taxableMonthly) + '/חודש' : '-'}
                       </td>
                       <td style={{ padding: '.45rem .8rem', textAlign: 'center', fontSize: 'var(--fs-14)', fontWeight: 600 }}>{fmt(a.taxAnnual)}</td>
                     </tr>
@@ -319,7 +319,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
               }}>
                 {mixed.savingVsUniform > 0
                   ? <>חיסכון מהשיוך החכם: <strong style={{ color: 'var(--chip-green-tx)' }}>{fmt(mixed.savingVsUniform)}</strong> לשנה</>
-                  : 'במקרה הזה אין יתרון לפיצול — השיוך האחיד הוא גם האופטימלי'}
+                  : 'במקרה הזה אין יתרון לפיצול - השיוך האחיד הוא גם האופטימלי'}
               </div>
             </div>
 
@@ -376,7 +376,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
           return (
             <div className="alert alert-info" style={{ marginBottom: 0 }}>
               <strong>שורה תחתונה:</strong> גם הפטור וגם מסלול 10% (עם ניכוי 122(ו)) יוצאים כאן אפס מס.
-              במצב כזה מסלול הפטור פשוט יותר — אין תשלום עד 30.1 ואין דיווח מקוצר. הניכוי לפי 122(ו)
+              במצב כזה מסלול הפטור פשוט יותר - אין תשלום עד 30.1 ואין דיווח מקוצר. הניכוי לפי 122(ו)
               הופך קריטי רק כשהשכירות מעל התקרה.
             </div>
           );
@@ -384,7 +384,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
         return (
           <div className="alert alert-info" style={{ marginBottom: 0 }}>
             <strong>שורה תחתונה:</strong> {mixed && mixed.savingVsUniform > 0
-              ? `עם ${propertyCount} דירות — השיוך החכם למעלה חוסך ${fmt(mixed.savingVsUniform)} לשנה לעומת מסלול אחיד. `
+              ? `עם ${propertyCount} דירות - השיוך החכם למעלה חוסך ${fmt(mixed.savingVsUniform)} לשנה לעומת מסלול אחיד. `
               : result.recommendationNote}
           </div>
         );

@@ -50,7 +50,7 @@ export interface PersonRow {
 }
 
 const clientName = (c: Client) =>
-  `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || c.businessName || c.idNumber || '—';
+  `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || c.businessName || c.idNumber || '-';
 
 function initialsOf(name: string): string {
   const words = name.split(/\s+/).filter(Boolean);
@@ -169,7 +169,7 @@ export function buildPersonRows(clients: Client[], leads: Lead[], charges: Addit
     // ‼ 'converted' בלי convertedClientId הוא מצב יתום (למשל עריכה ידנית של
     // סטטוס) — עדיין לא אמור להישאר ברשימה הרגילה כאילו הוא "חדש וממתין".
     if (l.convertedClientId || l.status === 'converted') continue;
-    const name = l.fullName?.trim() || l.businessName || '—';
+    const name = l.fullName?.trim() || l.businessName || '-';
     rows.push({
       id: l.id,
       kind: 'lead',

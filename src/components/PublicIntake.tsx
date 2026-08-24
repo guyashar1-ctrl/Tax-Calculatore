@@ -132,7 +132,7 @@ export default function PublicIntake({ token, firstName, ink, onDone }: Props) {
         <div>
           <div style={{ fontSize: 11, letterSpacing: '.08em', color: '#9A9A95', marginBottom: 4 }}>שאלון היכרות</div>
           <div style={{ fontSize: 19, fontWeight: 500, color: '#111' }}>
-            {isGate ? `עוד צעד אחד${firstName ? `, ${firstName}` : ''} — כמה שאלות קצרות` : 'כמה שאלות קצרות'}
+            {isGate ? `עוד צעד אחד${firstName ? `, ${firstName}` : ''} - כמה שאלות קצרות` : 'כמה שאלות קצרות'}
           </div>
         </div>
         {!isGate && (
@@ -143,7 +143,7 @@ export default function PublicIntake({ token, firstName, ink, onDone }: Props) {
       </div>
       {isGate && (
         <div style={{ fontSize: 13, lineHeight: 1.6, color: '#6B6B68', marginBottom: 14 }}>
-          התשובות עוזרות לנו להכיר אתכם ולבקש רק את המסמכים הנכונים. לא בטוחים במשהו? יש כפתור "לא בטוח" — נבדוק את זה יחד.
+          התשובות עוזרות לנו להכיר אתכם ולבקש רק את המסמכים הנכונים. לא בטוחים במשהו? יש כפתור "לא בטוח" - נבדוק את זה יחד.
         </div>
       )}
 
@@ -157,7 +157,7 @@ export default function PublicIntake({ token, firstName, ink, onDone }: Props) {
 
       {saveError && (
         <div style={{ marginTop: 12, padding: '10px 12px', background: '#FCEBEB', color: '#A32D2D', borderRadius: 9, fontSize: 12.5 }}>
-          החיבור נכשל והתשובה לא נשמרה — נסו שוב.
+          החיבור נכשל והתשובה לא נשמרה - נסו שוב.
         </div>
       )}
 

@@ -271,7 +271,7 @@ export default function ReleaseLetterDialog({
       const html = buildReleaseEmailHtml(finalBody, brand, {
         uploadUrl,
         materials,
-        heading: followUp ? 'תוספת לבקשת החומרים' : `העברת חומרים — ${clientName}`,
+        heading: followUp ? 'תוספת לבקשת החומרים' : `העברת חומרים - ${clientName}`,
       });
       const { data: res, error } = await supabase.functions.invoke('send-release-email', {
         body: { clientId, to: toEmail.trim(), ccClient: wantsCc, subject, html },
@@ -291,7 +291,7 @@ export default function ReleaseLetterDialog({
         uploadUrl,
       }, brand);
       const docId = crypto.randomUUID();
-      const docTitle = followUp ? 'תוספת לבקשת החומרים — רו״ח קודם' : 'מכתב העברת טיפול — רו״ח קודם';
+      const docTitle = followUp ? 'תוספת לבקשת החומרים - רו״ח קודם' : 'מכתב העברת טיפול - רו״ח קודם';
       await saveDoc({
         id: docId, clientId,
         fileName: `${docTitle} ${dateStr}.pdf`,
@@ -347,7 +347,7 @@ export default function ReleaseLetterDialog({
             style={{ fontSize: 12.5, color: 'var(--gray-600)', background: 'var(--gray-50)', borderRadius: 8, padding: '8px 10px' }}
             items={[
               <>נשלח מ: <b dir="ltr">{fromLabel}</b></>,
-              'בדוק ושלח — לא נשלח אוטומטית',
+              'בדוק ושלח - לא נשלח אוטומטית',
               'עותק יישמר במסמכי הלקוח',
             ]} />
 
@@ -384,7 +384,7 @@ export default function ReleaseLetterDialog({
             </div>
           ) : (
             <InfoLines className="alert alert-warning" style={{ fontSize: 12.5 }} items={[
-              `אין מייל של ${clientName} בכרטיס — המכתב ייצא בלי עותק ללקוח`,
+              `אין מייל של ${clientName} בכרטיס - המכתב ייצא בלי עותק ללקוח`,
               'המשפט "הלקוח מכותב למכתב זה" לא ייכלל בו',
               'כדאי להוסיף מייל בכרטיס לפני השליחה',
             ]} />
@@ -431,7 +431,7 @@ export default function ReleaseLetterDialog({
                     <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
                       aria-label={m.priority ? `ביטול סימון חשוב: ${m.label}` : `סימון כחשוב: ${m.label}`}
                       aria-pressed={!!m.priority}
-                      title={m.priority ? 'חשוב במיוחד — יופיע ראשון ומודגש' : 'סימון כחשוב במיוחד'}
+                      title={m.priority ? 'חשוב במיוחד - יופיע ראשון ומודגש' : 'סימון כחשוב במיוחד'}
                       style={{ padding: '0 .25rem', flexShrink: 0, opacity: m.priority ? 1 : .4 }}
                       onClick={() => togglePriority(m.key)}>
                       {m.priority ? '★' : '☆'}
@@ -475,7 +475,7 @@ export default function ReleaseLetterDialog({
                     <div key={i.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {i.kind === 'other' ? (
                         <input value={i.label} disabled={locked} autoFocus={!i.label}
-                          placeholder="מה נשאר אצלו — למשל: דיון שומה פתוח במע״מ לשנת 2023"
+                          placeholder="מה נשאר אצלו - למשל: דיון שומה פתוח במע״מ לשנת 2023"
                           aria-label="עבודה פתוחה אצל הרו״ח הקודם"
                           onChange={e => setOutstandingLabel(i.key, e.target.value)}
                           style={{ flex: 1, minWidth: 0, fontSize: 12.5, padding: '3px 6px' }} />
@@ -532,7 +532,7 @@ export default function ReleaseLetterDialog({
               {followUp ? 'תוכן ההודעה' : 'תוכן המכתב'}
               <button type="button" className="btn btn-sm btn-ghost" disabled={locked}
                 onClick={toggleHighlight}
-                title="מסמנים קטע בטקסט ולוחצים — הוא יופיע עם הדגשה צהובה">
+                title="מסמנים קטע בטקסט ולוחצים - הוא יופיע עם הדגשה צהובה">
                 <span style={{ background: '#fdf3c4', padding: '0 5px', borderRadius: 3 }}>מרקר</span>
               </button>
               {edited && !followUp && (

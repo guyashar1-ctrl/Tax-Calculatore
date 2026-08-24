@@ -100,7 +100,7 @@ export default function LegacyMigrationBanner({ knownClientIds }: Props) {
           <div className="lmb-text">
             <strong>זוהו {count} קבצים שנשמרו רק במחשב הזה.</strong>
             <div className="lmb-sub">
-              עברנו לאחסון בענן. כדי שהקבצים יהיו זמינים גם במכשירים אחרים — צריך להעלות אותם פעם אחת.
+              עברנו לאחסון בענן. כדי שהקבצים יהיו זמינים גם במכשירים אחרים - צריך להעלות אותם פעם אחת.
             </div>
           </div>
           <button className="btn btn-primary btn-sm" onClick={startMigration}>

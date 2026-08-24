@@ -112,14 +112,14 @@ export function computeClientAlerts(
 
 /** פורמט תאריך עברי קצר */
 export function shortDate(iso?: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export function shortDateTime(iso?: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleString('he-IL', {
@@ -130,7 +130,7 @@ export function shortDateTime(iso?: string): string {
 
 /** "לפני 3 ימים" / "לפני שעה" */
 export function relativeTime(iso?: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   const diffMs = Date.now() - d.getTime();

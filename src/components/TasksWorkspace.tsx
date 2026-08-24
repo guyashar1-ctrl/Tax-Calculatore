@@ -80,9 +80,9 @@ function orderedOpenTasks(tasks: Task[]): Task[] {
 function journeyLine(sum: ClientOnboardingSummary): string {
   if (sum.bucket === 'stuck' && sum.stuck) {
     const name = STEP_TYPE_LABELS[sum.stuck.stepType];
-    if (sum.stuck.status === 'blocked') return `${name} — חסום`;
-    if (sum.stuck.status === 'failed') return `${name} — נכשל`;
-    return `${name} — דורש תשומת לב`;
+    if (sum.stuck.status === 'blocked') return `${name} - חסום`;
+    if (sum.stuck.status === 'failed') return `${name} - נכשל`;
+    return `${name} - דורש תשומת לב`;
   }
   if (sum.next) return NEXT_ACTION[sum.next.stepType];
   return 'הכול סגור';
@@ -209,7 +209,7 @@ export default function TasksWorkspace({
       <div className="tasks-page">
         <EmptyState
           headline="עוד אין משימות"
-          sentence="משימה קושרת אותך ללקוח ומסמנת אצל מי הכדור — אצלך, אצלו, או אצל הרשות."
+          sentence="משימה קושרת אותך ללקוח ומסמנת אצל מי הכדור - אצלך, אצלו, או אצל הרשות."
           action={{ label: '+ משימה חדשה', onClick: () => onAddTask() }}
           quietLink={onLoadSampleTasks ? { label: 'טען משימות לדוגמה', onClick: onLoadSampleTasks } : undefined}
         />
@@ -354,7 +354,7 @@ export default function TasksWorkspace({
             )}
           </div>
           <div className="tw-hint">
-            אפשר לגרור כדי לקבוע סדר — מה שלמעלה הוא מה שבחרת לקדם. תאריך שהגיע קופץ לראש מעצמו.
+            אפשר לגרור כדי לקבוע סדר - מה שלמעלה הוא מה שבחרת לקדם. תאריך שהגיע קופץ לראש מעצמו.
           </div>
 
           {/* ‼ "ממתין לאחרים" הוא מקטע שקט ומתקפל, לא טאב שווה — הכדור לא אצלי,
@@ -397,7 +397,7 @@ export default function TasksWorkspace({
                     ))}
                   </div>
                   <div className="tw-waiting-hint">
-                    אלה אינם על השולחן שלך — הם נגזרים ממה שכבר נשלח וממתין לתשובה. אין מה לעשות בהם עד שיחזור משהו.
+                    אלה אינם על השולחן שלך - הם נגזרים ממה שכבר נשלח וממתין לתשובה. אין מה לעשות בהם עד שיחזור משהו.
                   </div>
                 </>
               )}
@@ -441,7 +441,7 @@ export default function TasksWorkspace({
                 <b>משימה</b><span>משהו שאתה צריך לעשות</span>
               </button>
               <button type="button" onClick={() => openRequestModal()}>
-                <b>בקשת מסמכים</b><span>בקשה מהלקוח — נכנסת לדף הלקוח ול״ממתין לאחרים״</span>
+                <b>בקשת מסמכים</b><span>בקשה מהלקוח - נכנסת לדף הלקוח ול״ממתין לאחרים״</span>
               </button>
             </div>
             <div className="foot">
@@ -455,10 +455,10 @@ export default function TasksWorkspace({
         <div className="modal-backdrop" onClick={() => !reqBusy && setReqModal(null)}>
           <div className="modal-box" onClick={e => e.stopPropagation()}>
             <h3>בקשת מסמכים מהלקוח</h3>
-            <div className="csub">קיצור דרך לבקשת לקוח רגילה — טיוטה, לא נשלחת אוטומטית.</div>
+            <div className="csub">קיצור דרך לבקשת לקוח רגילה - טיוטה, לא נשלחת אוטומטית.</div>
             <label className="lbl required">לקוח</label>
             <select className="inp" value={reqModal.clientId} onChange={e => setReqModal({ ...reqModal, clientId: e.target.value })}>
-              <option value="">— בחר —</option>
+              <option value="">- בחר -</option>
               {[...clients].sort((a, b) => clientName(a).localeCompare(clientName(b), 'he')).map(c => (
                 <option key={c.id} value={c.id}>{clientName(c)}</option>
               ))}

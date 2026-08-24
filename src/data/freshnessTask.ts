@@ -32,14 +32,14 @@ export function buildQuarterlyFreshnessTask(now = new Date()): Task {
   const due = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 14);
   const dueStr = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
   const checklist = DATASETS
-    .map(d => `☐ ${d.icon} ${d.label} — ${d.covers}\n   מקורות: ${d.officialSources.join(' · ')}`)
+    .map(d => `☐ ${d.icon} ${d.label} - ${d.covers}\n   מקורות: ${d.officialSources.join(' · ')}`)
     .join('\n');
 
   return {
     id: crypto.randomUUID(),
     clientId: SYSTEM_CLIENT_ID,
     category: 'management',
-    title: `בדיקת עדכניות נתוני מרכז הידע — ${quarterLabel(q)} ${quarterTag(now)}`,
+    title: `בדיקת עדכניות נתוני מרכז הידע - ${quarterLabel(q)} ${quarterTag(now)}`,
     description:
 `בדיקה רבעונית של כל מאגרי המידע במרכז ידע מס מול מקורות רשמיים בלבד.
 

@@ -14,7 +14,7 @@ interface Props {
 
 const BASIS_NOTE: Record<BenefitBlock['basis'], string | null> = {
   sourced: null,
-  derived: 'סכום מחושב — לא תקרה אוניברסלית',
+  derived: 'סכום מחושב - לא תקרה אוניברסלית',
   needsCheck: 'לאימות לפני הסתמכות',
 };
 
@@ -93,7 +93,7 @@ function Track({ track, onOpenExpenseTopic }: { track: SavingsTrack; onOpenExpen
 
       <div className="sv-track-foot">
         <button type="button" className="bk-link" onClick={() => onOpenExpenseTopic(track.expenseTopicId)}>
-          הדין המלא, המקורות והדוגמאות — בכרטיס ההוצאה ←
+          הדין המלא, המקורות והדוגמאות - בכרטיס ההוצאה ←
         </button>
         <span className="sv-sources">
           מקורות: {track.sources.map((s, i) => (
@@ -113,7 +113,7 @@ export default function SavingsBenefits({ year, onOpenExpenseTopic }: Props) {
     <div className="sv-page">
       {year !== SAVINGS_DATA_YEAR && (
         <div className="alert alert-warning">
-          כל הסכומים במסך הזה שייכים לשנת המס {SAVINGS_DATA_YEAR}. לשנת {year} טרם אומתו ערכים במאגר —
+          כל הסכומים במסך הזה שייכים לשנת המס {SAVINGS_DATA_YEAR}. לשנת {year} טרם אומתו ערכים במאגר -
           אין להסתמך על המספרים כאן לשנה שנבחרה.
         </div>
       )}
@@ -121,7 +121,7 @@ export default function SavingsBenefits({ year, onOpenExpenseTopic }: Props) {
       {/* המקרא — קודם המנגנונים, אחר כך המספרים. בלעדיו כל הסכומים
           נקראים כאותו סוג של הטבה, וזו בדיוק הטעות שהמסך בא למנוע. */}
       <section className="sv-legend">
-        <div className="sv-legend-title">שלושה מנגנונים שונים — לא להחליף ביניהם</div>
+        <div className="sv-legend-title">שלושה מנגנונים שונים - לא להחליף ביניהם</div>
         <div className="sv-legend-items">
           {(['deduction', 'credit', 'capitalGains'] as const).map(k => (
             <div key={k} className="sv-legend-item">
@@ -137,7 +137,7 @@ export default function SavingsBenefits({ year, onOpenExpenseTopic }: Props) {
       ))}
 
       <div className="alert alert-info">
-        המסך מציג את מבנה ההטבה ואת התקרות — לא חישוב אישי. החיסכון בפועל תלוי בשיעור המס השולי,
+        המסך מציג את מבנה ההטבה ואת התקרות - לא חישוב אישי. החיסכון בפועל תלוי בשיעור המס השולי,
         בשילוב שכיר/עצמאי ובהפקדות שכבר בוצעו; בכל תיק נדרש חישוב פרטני.
       </div>
     </div>

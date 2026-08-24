@@ -36,8 +36,8 @@ export default function BookkeepingKnowledge() {
       <div className="bk-intro">
         <div className="bk-intro-title">הוראות ניהול ספרים</div>
         <div className="bk-intro-text">
-          כל עוסק חייב להשתייך לאחת מ-15 התוספות של הוראות ניהול פנקסי חשבונות (תשל"ג-1973) — לפי סוג העסק.
-          בתוך התוספת, רשימת הספרים נקבעת לפי מדרגה (מחזור / מועסקים). מי שלא נכנס לאף תוספת ייעודית — שייך לתוספת יא' (סעיף הסל).
+          כל עוסק חייב להשתייך לאחת מ-15 התוספות של הוראות ניהול פנקסי חשבונות (תשל"ג-1973) - לפי סוג העסק.
+          בתוך התוספת, רשימת הספרים נקבעת לפי מדרגה (מחזור / מועסקים). מי שלא נכנס לאף תוספת ייעודית - שייך לתוספת יא' (סעיף הסל).
         </div>
       </div>
 
@@ -107,7 +107,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
                 <span style={{ fontSize: '20px' }}>{a.icon}</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: '14px' }}>{e.label}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>תוספת {a.letter} — {a.title}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>תוספת {a.letter} - {a.title}</div>
                 </div>
               </div>
             );
@@ -116,7 +116,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
 
         {query.trim() && results.length === 0 && (
           <div style={{ ...card, color: 'var(--gray-600)', fontSize: '14px' }}>
-            לא נמצא ברשימה — נסו ניסוח אחר, או השתמשו בשאלות ההכרעה למטה. מי שלא נכנס לאף תוספת — שייך לתוספת יא' (סעיף הסל).
+            לא נמצא ברשימה - נסו ניסוח אחר, או השתמשו בשאלות ההכרעה למטה. מי שלא נכנס לאף תוספת - שייך לתוספת יא' (סעיף הסל).
           </div>
         )}
 
@@ -165,7 +165,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
           <span style={{ fontSize: '34px' }}>{addendum!.icon}</span>
           <div>
             <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{picked.label}</div>
-            <div style={{ fontWeight: 600, fontSize: '17px' }}>תוספת {addendum!.letter} — {addendum!.title}</div>
+            <div style={{ fontWeight: 600, fontSize: '17px' }}>תוספת {addendum!.letter} - {addendum!.title}</div>
             {picked.reasoning && <div style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: '.2rem' }}>{picked.reasoning}</div>}
             {picked.caveat && (
               <div className="bk-caveat">
@@ -179,7 +179,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
       {/* קלטי מדרגה */}
       {(addendum!.wizard.askTurnover || addendum!.wizard.askEmployees) && (
         <div style={card}>
-          <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '.5rem' }}>נתוני העסק — לקביעת המדרגה</div>
+          <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '.5rem' }}>נתוני העסק - לקביעת המדרגה</div>
           <div style={{ display: 'flex', gap: '.7rem', flexWrap: 'wrap' }}>
             {addendum!.wizard.askTurnover && (
               <label style={{ fontSize: '13px', color: 'var(--gray-600)' }}>
@@ -200,7 +200,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
       )}
       {addendum!.wizard.customQuestion && (
         <div style={{ ...card, fontSize: '14px', color: 'var(--gray-700)' }}>
-          {addendum!.wizard.customQuestion} — בחרו את המדרגה המתאימה למטה.
+          {addendum!.wizard.customQuestion} - בחרו את המדרגה המתאימה למטה.
         </div>
       )}
 
@@ -268,7 +268,7 @@ function BookLine({ name, sectionRef, details }: { name: string; sectionRef?: st
       <div onClick={() => dict && setOpen(!open)} style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', cursor: dict ? 'pointer' : 'default', alignItems: 'center' }}>
         <div style={{ fontSize: '14px', fontWeight: 600 }}>
           {dict?.icon ?? '📘'} {name}
-          {dict && <span style={{ color: 'var(--blue)', fontSize: '12px', fontWeight: 400 }}> — {open ? 'סגור' : 'מה זה?'}</span>}
+          {dict && <span style={{ color: 'var(--blue)', fontSize: '12px', fontWeight: 400 }}> - {open ? 'סגור' : 'מה זה?'}</span>}
         </div>
         {sectionRef && <span style={{ fontSize: '12px', color: 'var(--gray-400)', whiteSpace: 'nowrap' }}>{sectionRef}</span>}
       </div>
@@ -317,7 +317,7 @@ function AddendumDetail({ addendum, onBack }: { addendum: BookkeepingAddendum; o
         <div style={{ display: 'flex', gap: '.7rem', alignItems: 'center' }}>
           <span style={{ fontSize: '34px' }}>{addendum.icon}</span>
           <div>
-            <div style={{ fontWeight: 600, fontSize: '17px' }}>תוספת {addendum.letter} — {addendum.title}</div>
+            <div style={{ fontWeight: 600, fontSize: '17px' }}>תוספת {addendum.letter} - {addendum.title}</div>
             <div style={{ fontSize: '14px', color: 'var(--gray-600)', marginTop: '.2rem' }}>{addendum.appliesTo}</div>
           </div>
         </div>
@@ -325,7 +325,7 @@ function AddendumDetail({ addendum, onBack }: { addendum: BookkeepingAddendum; o
           <div style={{ marginTop: '.6rem', borderTop: '1px solid var(--gray-100)', paddingTop: '.5rem' }}>
             {addendum.definitions.map((d, i) => (
               <div key={i} style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: '.2rem' }}>
-                <b>"{d.term}"</b> — {d.definition}
+                <b>"{d.term}"</b> - {d.definition}
               </div>
             ))}
           </div>
@@ -451,7 +451,7 @@ function GeneralRules() {
       </div>
 
       <div style={card}>
-        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem' }}>הקלות — סעיף 3</div>
+        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem' }}>הקלות - סעיף 3</div>
         <div style={{ fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.6 }}>{RELIEFS.mechanism}</div>
         <div style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: '.4rem' }}>
           <b>אישור אוטומטי ("שתיקה כהסכמה"):</b>
@@ -474,7 +474,7 @@ function GeneralRules() {
       </div>
 
       <div style={card}>
-        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem' }}>מסלול "נישום זכאי" — יומן העסק</div>
+        <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600, marginBottom: '.4rem' }}>מסלול "נישום זכאי" - יומן העסק</div>
         <div style={{ fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.6 }}>
           <div><b>למי:</b> {ELIGIBLE_TAXPAYER.who}</div>
           <div style={{ marginTop: '.3rem' }}>{ELIGIBLE_TAXPAYER.what}</div>
@@ -488,7 +488,7 @@ function GeneralRules() {
       </div>
 
       <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>
-        מקור: הוראות מס הכנסה (ניהול פנקסי חשבונות), תשל"ג-1973 — נוסח משולב מעודכן. מועד האימות האחרון מוצג בתג העדכניות שבראש המסך.
+        מקור: הוראות מס הכנסה (ניהול פנקסי חשבונות), תשל"ג-1973 - נוסח משולב מעודכן. מועד האימות האחרון מוצג בתג העדכניות שבראש המסך.
       </div>
     </div>
   );

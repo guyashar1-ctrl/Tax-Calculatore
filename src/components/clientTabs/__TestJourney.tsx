@@ -129,7 +129,7 @@ const ENGAGEMENT: Engagement = {
 
 const STEPS: OnboardingStep[] = [
   { id: 'st1', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'client_documents', title: 'אישורי תרומות 2025', status: 'waiting_client', ball: 'client', payload: { published: true }, sortOrder: 1 },
-  { id: 'st2', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'custom_request', title: 'עדכון תמונת מס — מחזור 2026', status: 'pending', ball: 'me', payload: { published: false }, sortOrder: 2 },
+  { id: 'st2', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'custom_request', title: 'עדכון תמונת מס - מחזור 2026', status: 'pending', ball: 'me', payload: { published: false }, sortOrder: 2 },
   { id: 'st3', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'representation', title: 'ייפוי כוח', status: 'completed', ball: 'me', payload: {}, sortOrder: 0 },
   // ‼ M2 — יישור קו: btl הושלם, vat/income פתוחים, opening_call נעול עד ששלושתם יושלמו.
   { id: 'ial-btl', clientId: CLIENT_ID, engagementId: 'fixture-eng', stepType: 'institution_alignment_btl', status: 'completed', ball: 'me', payload: { institution: 'btl', checkedAt: '2026-08-01T09:00:00Z', collected: { niBalance: 0, niAdvanceMonthly: 2150 } }, sortOrder: 3 },

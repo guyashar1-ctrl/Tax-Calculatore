@@ -23,10 +23,10 @@ AS $function$
 declare
   -- ‼ חייב להיות זהה ל-RELEASE_MATERIALS ב-src/utils/releaseLetter.ts.
   CATALOG constant jsonb := jsonb_build_array(
-    jsonb_build_object('key','uniform_file',       'label','קובץ מבנה אחיד — השנה'),
-    jsonb_build_object('key','uniform_file_prev',  'label','קובץ מבנה אחיד — שנה קודמת'),
-    jsonb_build_object('key','pnl_current',        'label','כרטסת רווח והפסד באקסל — השנה'),
-    jsonb_build_object('key','pnl_prev',           'label','כרטסת רווח והפסד באקסל — שנה קודמת'),
+    jsonb_build_object('key','uniform_file',       'label','קובץ מבנה אחיד - השנה'),
+    jsonb_build_object('key','uniform_file_prev',  'label','קובץ מבנה אחיד - שנה קודמת'),
+    jsonb_build_object('key','pnl_current',        'label','כרטסת רווח והפסד באקסל - השנה'),
+    jsonb_build_object('key','pnl_prev',           'label','כרטסת רווח והפסד באקסל - שנה קודמת'),
     jsonb_build_object('key','ledgers',            'label','כרטסות הנהלת חשבונות'),
     jsonb_build_object('key','depreciation',       'label','טופס פחת'),
     jsonb_build_object('key','last_return',        'label','דוח שנתי אחרון'),

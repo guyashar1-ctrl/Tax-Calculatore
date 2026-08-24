@@ -188,7 +188,7 @@ export default function SigningRoom(p: Props) {
               : <>לחצו על מקום החתימה המסומן כדי לחתום. נותרו <strong>{myFields.length - doneCount}</strong> מקומות.</>}
             {p.adjustable && (
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: 2 }}>
-                כל חתימה על הטופס — שלכם ושל הלקוח — ניתנת לגרירה, ולשינוי גודל מהפינה. כך היא תיצרב ב-PDF.
+                כל חתימה על הטופס - שלכם ושל הלקוח - ניתנת לגרירה, ולשינוי גודל מהפינה. כך היא תיצרב ב-PDF.
               </div>
             )}
           </div>
@@ -419,8 +419,8 @@ function SigningPage(p: PageProps) {
             onPointerMove={movable ? moveDrag : undefined}
             onPointerUp={movable ? endDrag : undefined}
             onPointerCancel={movable ? endDrag : undefined}
-            title={movable ? `${label} של ${signer?.name || ''} — גררו להזזה, מהפינה לשינוי גודל`
-              : mine ? (filled ? `${label} — לחץ להחלפה` : `לחץ ל${label}`) : `${label} של ${signer?.name || 'חותם אחר'}`}
+            title={movable ? `${label} של ${signer?.name || ''} - גררו להזזה, מהפינה לשינוי גודל`
+              : mine ? (filled ? `${label} - לחץ להחלפה` : `לחץ ל${label}`) : `${label} של ${signer?.name || 'חותם אחר'}`}
             style={{
               position: 'absolute',
               left: `${f.xPct * 100}%`,

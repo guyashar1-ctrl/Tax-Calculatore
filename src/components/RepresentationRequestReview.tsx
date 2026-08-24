@@ -278,7 +278,7 @@ export default function RepresentationRequestReview({
       await db.saveDoc({
         id: storedId,
         clientId: request.linkedClientId,
-        fileName: `${request.clientName || 'לקוח'} — ייפוי כוח חתום.pdf`,
+        fileName: `${request.clientName || 'לקוח'} - ייפוי כוח חתום.pdf`,
         fileType: 'application/pdf',
         fileSize: burned.byteLength,
         category: 'other',
@@ -412,7 +412,7 @@ export default function RepresentationRequestReview({
             <button
               className="btn btn-secondary"
               onClick={() => onOpenClientDocs(request.linkedClientId)}
-              title="כרטיס הלקוח — מסמכים, פרטים ומשימות"
+              title="כרטיס הלקוח - מסמכים, פרטים ומשימות"
             >מסמכי הלקוח</button>
           )}
           {!isNewOnboarding && request.status === 'pending_fill' && (
@@ -431,14 +431,14 @@ export default function RepresentationRequestReview({
             </button>
           )}
           {request.status === 'awaiting_stamp' && setup && request.signedPdfStoredId && (
-            <button className="btn btn-secondary" onClick={() => void openStampRoom()} title="פתיחת חדר החתימה מחדש — מייצר PDF סופי חדש">
+            <button className="btn btn-secondary" onClick={() => void openStampRoom()} title="פתיחת חדר החתימה מחדש - מייצר PDF סופי חדש">
               ↺ חתום מחדש
             </button>
           )}
           <button
             className="btn btn-danger"
             onClick={() => {
-              if (confirm('למחוק את הבקשה? פעולה זו תמחק את הקבצים שהועלו לבקשה. הלקוח המקושר יישאר בכרטיס שלו — רק שדות הייצוג יתאפסו.')) onDelete(request.id);
+              if (confirm('למחוק את הבקשה? פעולה זו תמחק את הקבצים שהועלו לבקשה. הלקוח המקושר יישאר בכרטיס שלו - רק שדות הייצוג יתאפסו.')) onDelete(request.id);
             }}
           >מחק</button>
         </div>
@@ -465,7 +465,7 @@ export default function RepresentationRequestReview({
           <div className="form-grid form-grid-2">
             <div>
               <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>שם לקוח</div>
-              <div style={{ fontWeight: 500 }}>{request.clientName || '—'}</div>
+              <div style={{ fontWeight: 500 }}>{request.clientName || '-'}</div>
             </div>
             <div>
               <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>מייל</div>
@@ -658,7 +658,7 @@ export default function RepresentationRequestReview({
                 <div className="card-body">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
                     <span style={{ fontSize: 'var(--fs-24)' }}>✍️</span>
-                    <strong style={{ color: 'var(--orange)' }}>נשלח לחתימה — קישור אישי לכל חותם</strong>
+                    <strong style={{ color: 'var(--orange)' }}>נשלח לחתימה - קישור אישי לכל חותם</strong>
                   </div>
                   {getRequestSigners(request).map(s => {
                     const signed = effectiveSignStatus(request, s) === 'signed';
@@ -666,7 +666,7 @@ export default function RepresentationRequestReview({
                     return (
                       <div key={s.id} style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '.5rem' }}>
                         <span style={{ minWidth: 150, fontSize: 'var(--fs-13)', fontWeight: signed ? 600 : 400, color: signed ? 'var(--ok)' : 'var(--ink-2)' }}>
-                          {s.name} — {signed ? 'חתם/ה' : '⏳ ממתין/ה'}
+                          {s.name} - {signed ? 'חתם/ה' : '⏳ ממתין/ה'}
                         </span>
                         {/* ‼ אין כאן כפתור שליחה. השליחה נעשית ממקום אחד בלבד —
                             הכפתור בכרטיס "מה עכשיו" — ששולח לכל החותמים יחד ומצרף
@@ -706,7 +706,7 @@ export default function RepresentationRequestReview({
                 <strong style={{ color: 'var(--orange)' }}>ממתין למילוי הלקוח</strong>
               </div>
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginBottom: '.6rem' }}>
-                שלחו ללקוח את קישור ההזדהות. כשימלא — הפרטים יופיעו כאן.
+                שלחו ללקוח את קישור ההזדהות. כשימלא - הפרטים יופיעו כאן.
               </div>
               <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
                 <input readOnly value={onboardingLink} dir="ltr" style={{ flex: 1, minWidth: 180, fontSize: 'var(--fs-13)' }} onFocus={e => e.currentTarget.select()} />
@@ -815,7 +815,7 @@ export default function RepresentationRequestReview({
               <div>
                 <strong style={{ color: 'var(--orange)' }}>הלקוח עדיין לא מילא את הטופס</strong>
                 <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginTop: 4 }}>
-                  במצב הדגמה — לחץ על "הדמיית מילוי" כדי לפתוח את הטופס מנקודת המבט של הלקוח.
+                  במצב הדגמה - לחץ על "הדמיית מילוי" כדי לפתוח את הטופס מנקודת המבט של הלקוח.
                 </div>
               </div>
             </div>
@@ -882,7 +882,7 @@ export default function RepresentationRequestReview({
           fields={setup.fields}
           signers={[
             ...getRequestSigners(request).map((s, i) => ({ id: s.id, source: 'manual' as const, name: s.name, email: s.email, order: i + 1 })),
-            { id: 'accountant', source: 'manual' as const, name: 'אני — רו"ח', email: '', order: 99 },
+            { id: 'accountant', source: 'manual' as const, name: 'אני - רו"ח', email: '', order: 99 },
           ]}
           activeSignerId="accountant"
           savedMarks={stampRoom.marks}
@@ -904,7 +904,7 @@ export default function RepresentationRequestReview({
           (בין הדפדפן של הלקוח לרשת הביטחון) אינה חלה כאן. */}
       {resendPreview && (
         <EmailPreviewDialog
-          heading="שליחה חוזרת — קישור ההזדהות ללקוח"
+          heading="שליחה חוזרת - קישור ההזדהות ללקוח"
           body={{ requestId: request.id, stage: 'onboard', force: true }}
           onSent={() => setEmailStatus(`✓ מייל נשלח ל-${request.clientEmail}`)}
           onClose={() => setResendPreview(false)}
@@ -918,7 +918,7 @@ function Field({ label, value, ltr }: { label: string; value: string; ltr?: bool
   return (
     <div>
       <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{label}</div>
-      <div style={{ fontWeight: 500 }} dir={ltr ? 'ltr' : undefined}>{value || '—'}</div>
+      <div style={{ fontWeight: 500 }} dir={ltr ? 'ltr' : undefined}>{value || '-'}</div>
     </div>
   );
 }

@@ -148,7 +148,7 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
 
   if (included.length > 0) {
     y -= 6;
-    sectionLine('כלול בליווי — ללא תוספת תשלום');
+    sectionLine('כלול בליווי - ללא תוספת תשלום');
     for (const item of included) {
       ensureSpace(16);
       rtl(`•  ${itemDisplayName(item)}`, 10.5, bodyGray, y);

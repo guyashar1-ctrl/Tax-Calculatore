@@ -115,7 +115,7 @@ export interface PortalItem {
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.xls,.xlsx,.csv,.doc,.docx';
 
 const UPLOAD_ERRORS: Record<string, string> = {
-  too_large: 'הקובץ גדול מדי — עד 10MB.',
+  too_large: 'הקובץ גדול מדי - עד 10MB.',
   type_not_allowed: 'סוג הקובץ הזה לא נתמך. אפשר PDF, תמונה, אקסל או וורד.',
   rate_limited: 'הועלו הרבה קבצים בזמן קצר. אפשר לנסות שוב בעוד כמה דקות.',
   not_published: 'הבקשה הזאת עדיין לא נפתחה.',
@@ -742,7 +742,7 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
       {asksBusiness && (
         <label style={{ display: 'grid', gap: 4, maxWidth: 420 }}>
           <span style={{ fontSize: 12.5, color: brand.muted }}>
-            שם העסק{item.businessName ? ' — לאישור או לתיקון' : ''}
+            שם העסק{item.businessName ? ' - לאישור או לתיקון' : ''}
           </span>
           <input
             value={businessName}
@@ -816,7 +816,7 @@ function PrevAccountantForm({ token, stepId, prefill, brand, accent, onDone }: {
         justifySelf: 'start', border: 'none', cursor: 'pointer',
         fontSize: 13.5, fontWeight: 600, padding: '9px 20px',
         color: '#fff', background: accent, borderRadius: brand.radius,
-      }}>{busy ? 'שומר…' : hasPrefill ? 'הפרטים נכונים — אישור' : 'שליחה'}</button>
+      }}>{busy ? 'שומר…' : hasPrefill ? 'הפרטים נכונים - אישור' : 'שליחה'}</button>
     </div>
   );
 }
@@ -965,7 +965,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
         {future.length > 0 && (
           <>
             <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || office.length > 0) ? 20 : 16 }}>
-              בהמשך — ייפתח אוטומטית
+              בהמשך - ייפתח אוטומטית
             </div>
             {future.map(item => (
               <div key={item.key} style={{
@@ -988,7 +988,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
               </div>
             ))}
             <div style={{ fontSize: 11.5, color: brand.muted, opacity: .8, marginTop: 8 }}>
-              אין מה לעשות עם אלה עכשיו — הם ייפתחו כאן מעצמם.
+              אין מה לעשות עם אלה עכשיו - הם ייפתחו כאן מעצמם.
             </div>
           </>
         )}

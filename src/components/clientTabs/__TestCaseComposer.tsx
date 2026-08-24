@@ -35,7 +35,7 @@ export default function TestCaseComposer() {
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '1rem', display: 'grid', gap: '.8rem' }}>
-      <h2 style={{ margin: 0 }}>מרכז התיק — הרצה אמיתית על לקוח הבדיקה</h2>
+      <h2 style={{ margin: 0 }}>מרכז התיק - הרצה אמיתית על לקוח הבדיקה</h2>
       <OnboardingTab
         embedded
         clientId={clientId}

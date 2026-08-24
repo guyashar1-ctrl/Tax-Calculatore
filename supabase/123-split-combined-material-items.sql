@@ -24,10 +24,10 @@ AS $function$
 declare
   OLD_UNIFORM constant text := 'קובץ מבנה אחיד של השנה ושנה קודמת';
   OLD_PNL     constant text := 'כרטסת רווח והפסד של השנה ושנה קודמת באקסל';
-  NEW_UNIFORM constant text := 'קובץ מבנה אחיד — השנה';
-  NEW_UNIFORM_P constant text := 'קובץ מבנה אחיד — שנה קודמת';
-  NEW_PNL     constant text := 'כרטסת רווח והפסד באקסל — השנה';
-  NEW_PNL_P   constant text := 'כרטסת רווח והפסד באקסל — שנה קודמת';
+  NEW_UNIFORM constant text := 'קובץ מבנה אחיד - השנה';
+  NEW_UNIFORM_P constant text := 'קובץ מבנה אחיד - שנה קודמת';
+  NEW_PNL     constant text := 'כרטסת רווח והפסד באקסל - השנה';
+  NEW_PNL_P   constant text := 'כרטסת רווח והפסד באקסל - שנה קודמת';
 
   r          record;
   v_item     jsonb;

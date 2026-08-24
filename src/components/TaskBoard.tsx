@@ -323,7 +323,7 @@ export default function TaskBoard({
       <div className="tasks-page">
         <EmptyState
           headline="עוד אין משימות"
-          sentence="משימה קושרת אותך ללקוח ומסמנת אצל מי הכדור — אצלך, אצלו, או אצל הרשות."
+          sentence="משימה קושרת אותך ללקוח ומסמנת אצל מי הכדור - אצלך, אצלו, או אצל הרשות."
           action={{ label: '+ משימה חדשה', onClick: onAddTask }}
           quietLink={onLoadSampleTasks ? { label: 'טען משימות לדוגמה', onClick: onLoadSampleTasks } : undefined}
         />
@@ -434,7 +434,7 @@ export default function TaskBoard({
         ...(pinned.length > 0 ? [{
           k: 'pinned',
           label: 'מוצמדות',
-          hint: pinned.length > 7 ? 'הרבה מוצמדות — שווה לשחרר כמה' : 'מה שאני עושה היום',
+          hint: pinned.length > 7 ? 'הרבה מוצמדות - שווה לשחרר כמה' : 'מה שאני עושה היום',
           items: pinned,
         }] : []),
         ...TASK_STAGE_ORDER.map(k => ({ k: k as string, label: TASK_STAGE_LABELS[k], hint: TASK_STAGE_HINTS[k], items: byStage[k] })),

@@ -45,7 +45,7 @@ export function validateQuotationRepresentation(rep: QuotationRepresentation): s
   const yearLabel = p.familyStatus ? FAMILY_STATUS_YEAR_LABELS[p.familyStatus] : undefined;
   if (yearLabel && p.familyStatusYear != null) {
     const y = Number(p.familyStatusYear);
-    if (!Number.isInteger(y) || y < 1900 || y > CURRENT_YEAR) return `${yearLabel} — יש להזין שנה תקינה.`;
+    if (!Number.isInteger(y) || y < 1900 || y > CURRENT_YEAR) return `${yearLabel} - יש להזין שנה תקינה.`;
   }
   if (p.spouseIdNumber && !isValidIsraeliId(p.spouseIdNumber)) {
     return 'תעודת הזהות של בן/בת הזוג אינה תקינה.';
@@ -166,7 +166,7 @@ export default function QuotationRepresentationEditor({
             אישור ההצעה פותח את הייצוג אוטומטית
           </span>
           <span style={{ display: 'block', fontSize: 11.5, color: 'var(--gray-600)', lineHeight: 1.6, marginTop: 2 }}>
-            ברגע שהלקוח יחתום — ייפתח לו כרטיס לקוח, תיפתח בקשת ייצוג, וקישור השלמת
+            ברגע שהלקוח יחתום - ייפתח לו כרטיס לקוח, תיפתח בקשת ייצוג, וקישור השלמת
             הפרטים יוצג לו מיד וגם יישלח במייל. בלי שתצטרך להיכנס למערכת.
           </span>
         </span>
@@ -196,7 +196,7 @@ export default function QuotationRepresentationEditor({
           </div>
           {isTransfer && (
             <div style={{ fontSize: 11.5, color: 'var(--gray-600)', marginBottom: 6, lineHeight: 1.55 }}>
-              הלקוח עובר מרו״ח אחר — הייצוג נפתח כמייצג ראשי. אם במכתב העברת
+              הלקוח עובר מרו״ח אחר - הייצוג נפתח כמייצג ראשי. אם במכתב העברת
               הטיפול יסומן שנשארו אצלו דוח שנתי או הצהרת הון, הרישום יירד
               למשני עד השלמתם.
             </div>
@@ -231,7 +231,7 @@ export default function QuotationRepresentationEditor({
           </div>
           <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
             מ"ה, ניכויים ומע"מ נכנסים לטופס 2279א'5 (שע"ם). ביטוח לאומי הוא ייצוג
-            נפרד עם טופס ואסמכתא משלו — המערכת מטפלת בשניהם באותו תהליך.
+            נפרד עם טופס ואסמכתא משלו - המערכת מטפלת בשניהם באותו תהליך.
           </div>
 
           {/* חתימה ≠ ייצוג. בב"ל לכל מבוטח תיק נפרד; ברירת המחדל ללקוח נשוי —
@@ -248,11 +248,11 @@ export default function QuotationRepresentationEditor({
                   onChange={e => setNiForSpouse(e.target.checked)} />
                 <span>
                   <span style={{ fontSize: 12.5, fontWeight: 600 }}>
-                    {married ? 'ייצוג בביטוח לאומי גם לבן/בת הזוג' : 'אם הלקוח נשוי — ייצוג בביטוח לאומי גם לבן/בת הזוג'}
+                    {married ? 'ייצוג בביטוח לאומי גם לבן/בת הזוג' : 'אם הלקוח נשוי - ייצוג בביטוח לאומי גם לבן/בת הזוג'}
                   </span>
                   <span style={{ display: 'block', fontSize: 11, color: 'var(--gray-600)', lineHeight: 1.6, marginTop: 2 }}>
                     בב"ל לכל אחד תיק נפרד: שני ייפויי כוח, שתי אסמכתאות, וכל אחד מאשר את שלו.
-                    את פרטי בן/בת הזוג הלקוח ממלא בעצמו בקישור — אין צורך לדעת אותם כאן.
+                    את פרטי בן/בת הזוג הלקוח ממלא בעצמו בקישור - אין צורך לדעת אותם כאן.
                   </span>
                 </span>
               </label>
@@ -266,7 +266,7 @@ export default function QuotationRepresentationEditor({
             {showKnown ? '▾' : '▸'} פרטים שכבר ידועים לי (לא חובה)
           </button>
           <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 2, lineHeight: 1.5 }}>
-            כל מה שלא תמלא כאן — הלקוח ימלא בעצמו בקישור.
+            כל מה שלא תמלא כאן - הלקוח ימלא בעצמו בקישור.
           </div>
 
           {showKnown && (
@@ -296,12 +296,12 @@ export default function QuotationRepresentationEditor({
                       },
                     });
                   }}>
-                  <option value="">— שהלקוח יבחר —</option>
+                  <option value="">- שהלקוח יבחר -</option>
                   {FAMILY_ORDER.map(f => <option key={f} value={f}>{FAMILY_STATUS_LABELS[f]}</option>)}
                 </select>
               </label>
               <div style={{ fontSize: 10.5, color: 'var(--gray-500)', marginTop: 3 }}>
-                כפי שרשום בתעודת הזהות — הרשויות בודקות מול מרשם האוכלוסין.
+                כפי שרשום בתעודת הזהות - הרשויות בודקות מול מרשם האוכלוסין.
               </div>
 
               {yearLabel && (
@@ -325,7 +325,7 @@ export default function QuotationRepresentationEditor({
                       onChange={e => syncSpouse({ idNumber: e.target.value.replace(/\D/g, '') })} />
                   </label>
                   <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.55 }}>
-                    נשוי/אה ← שני בני הזוג חותמים על ייפוי הכוח. מה שלא תמלא — הלקוח ימלא בקישור.
+                    נשוי/אה ← שני בני הזוג חותמים על ייפוי הכוח. מה שלא תמלא - הלקוח ימלא בקישור.
                   </div>
 
                   <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block', marginTop: 10 }}>
@@ -343,7 +343,7 @@ export default function QuotationRepresentationEditor({
                       onChange={e => syncSpouse({ email: e.target.value })} />
                   </label>
                   <div style={{ fontSize: 10.5, color: 'var(--gray-500)', marginTop: 4, lineHeight: 1.5 }}>
-                    גם אלה לא חובה. בלי מייל — הלקוח יבחר בשלב החתימה אם לחתום יחד או לשלוח קישור אישי.
+                    גם אלה לא חובה. בלי מייל - הלקוח יבחר בשלב החתימה אם לחתום יחד או לשלוח קישור אישי.
                   </div>
                 </div>
               )}
@@ -359,14 +359,14 @@ export default function QuotationRepresentationEditor({
           {/* מה ייווצר — אותו סיכום של דיאלוג הייצוג, כדי שלא תהיה הפתעה */}
           <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 9, fontSize: 11.5, color: 'var(--gray-700)', lineHeight: 1.8 }}>
             <div style={{ fontWeight: 600, marginBottom: 2 }}>מה ייווצר עם האישור</div>
-            <div>כרטיס לקוח — {recipientName || 'נמען ההצעה'}</div>
+            <div>כרטיס לקוח - {recipientName || 'נמען ההצעה'}</div>
             <div>{selected.length > 0 ? `${selected.length} סטטוסי ייצוג "בתהליך": ${selected.map(a => REP_AUTHORITY_LABELS[a]).join(', ')}` : 'בחר רשויות'}</div>
             <div>בקשת ייצוג + קישור השלמת פרטים ללקוח</div>
             <div>משימה פנימית למעקב</div>
             <div>ההצעה החתומה נשמרת כהסכם התקשרות במסמכי הלקוח</div>
-            {value.spouse?.name && <div>חותם שני — {value.spouse.name}</div>}
-            {married && !value.spouse?.name && <div>חותם שני — הלקוח ימלא את פרטי בן/בת הזוג בקישור</div>}
-            {forSpouse && <div>ייצוג נפרד בב"ל לבן/בת הזוג {married ? '' : '(אם הלקוח נשוי) '}— שתי אסמכתאות</div>}
+            {value.spouse?.name && <div>חותם שני - {value.spouse.name}</div>}
+            {married && !value.spouse?.name && <div>חותם שני - הלקוח ימלא את פרטי בן/בת הזוג בקישור</div>}
+            {forSpouse && <div>ייצוג נפרד בב"ל לבן/בת הזוג {married ? '' : '(אם הלקוח נשוי) '}- שתי אסמכתאות</div>}
           </div>
         </>
       )}

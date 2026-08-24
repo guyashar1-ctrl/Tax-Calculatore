@@ -182,7 +182,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
 
       {/* רשויות שמולן מבקשים ייצוג */}
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="card-header"><div className="card-title">רשויות מס לייצוג (השעמ — ייצוג ראשי)</div></div>
+        <div className="card-header"><div className="card-title">רשויות מס לייצוג (השעמ - ייצוג ראשי)</div></div>
         <div className="card-body">
           <div className="form-group">
             <label>סמן את הרשויות שמולן מבקשים ייצוג <span style={{ color: 'var(--danger)' }}>*</span></label>
@@ -324,7 +324,7 @@ export default function RepresentationRequestForm({ request, onSave, onCancel, o
             <strong style={{ color: 'var(--blue-dark)' }}>הדגמה מקומית</strong>
           </div>
           <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginBottom: '.75rem' }}>
-            במצב הדגמה — השמירה תיצור בקשה במערכת ותוכל לפתוח את טופס המילוי באופן מקומי כדי לראות מה הלקוח יראה.
+            במצב הדגמה - השמירה תיצור בקשה במערכת ותוכל לפתוח את טופס המילוי באופן מקומי כדי לראות מה הלקוח יראה.
             כשתחבר backend בעתיד, השליחה תתבצע במייל.
           </div>
           <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>

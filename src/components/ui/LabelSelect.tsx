@@ -99,7 +99,7 @@ export default function LabelSelect({
       )}
       {creating && !error && (
         <div className="csub" style={{ marginTop: '.3rem', width: '100%' }}>
-          התווית תתווסף לרשימת התוויות של המשרד — אצל כל הלקוחות.
+          התווית תתווסף לרשימת התוויות של המשרד - אצל כל הלקוחות.
         </div>
       )}
       {error && (

@@ -21,10 +21,10 @@ CREATE OR REPLACE FUNCTION public.align_unsent_release_drafts(
  SET search_path TO 'public'
 AS $function$
 declare
-  NEW_UNIFORM   constant text := 'קובץ מבנה אחיד — השנה';
-  NEW_UNIFORM_P constant text := 'קובץ מבנה אחיד — שנה קודמת';
-  NEW_PNL       constant text := 'כרטסת רווח והפסד באקסל — השנה';
-  NEW_PNL_P     constant text := 'כרטסת רווח והפסד באקסל — שנה קודמת';
+  NEW_UNIFORM   constant text := 'קובץ מבנה אחיד - השנה';
+  NEW_UNIFORM_P constant text := 'קובץ מבנה אחיד - שנה קודמת';
+  NEW_PNL       constant text := 'כרטסת רווח והפסד באקסל - השנה';
+  NEW_PNL_P     constant text := 'כרטסת רווח והפסד באקסל - שנה קודמת';
   r         record;
   v_item    jsonb;
   v_out     jsonb;

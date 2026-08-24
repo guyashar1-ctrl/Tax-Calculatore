@@ -77,7 +77,7 @@ export default function ClientDeleteDialog({ client, tasks, onArchive, onDelete,
   const destroyed = c ? [
     clientTasks.length > 0 && `${clientTasks.length} משימות${openTasks > 0 ? ` (מתוכן ${openTasks} פתוחות)` : ''}`,
     c.documents > 0 && `${c.documents} מסמכים`,
-    c.onboardingSteps > 0 && `תהליך קליטה — ${c.onboardingSteps} שלבים`,
+    c.onboardingSteps > 0 && `תהליך קליטה - ${c.onboardingSteps} שלבים`,
     c.annualReports > 0 && `${c.annualReports} דוחות שנתיים`,
   ].filter(Boolean) as string[] : [];
 
@@ -138,7 +138,7 @@ export default function ClientDeleteDialog({ client, tasks, onArchive, onDelete,
 
       {failed && (
         <p className="ui-confirm-text" style={{ color: 'var(--err)' }}>
-          לא הצלחתי לבדוק מה קשור לכרטיס. מחיקה כאן עלולה למחוק דברים שלא ידעת עליהם —
+          לא הצלחתי לבדוק מה קשור לכרטיס. מחיקה כאן עלולה למחוק דברים שלא ידעת עליהם -
           עדיף להעביר לארכיון ולבדוק אחר כך.
         </p>
       )}
@@ -160,7 +160,7 @@ export default function ClientDeleteDialog({ client, tasks, onArchive, onDelete,
               מחיקה לצמיתות תמחק גם:
             </div>
             {destroyed.length === 0 ? (
-              <div style={{ color: 'var(--ink-2)' }}>את כרטיס הלקוח בלבד — אין לו נתונים קשורים.</div>
+              <div style={{ color: 'var(--ink-2)' }}>את כרטיס הלקוח בלבד - אין לו נתונים קשורים.</div>
             ) : (
               <ul style={{ margin: 0, paddingInlineStart: '1.1rem', color: 'var(--ink-2)' }}>
                 {destroyed.map(line => <li key={line}>{line}</li>)}

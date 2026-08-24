@@ -62,7 +62,7 @@ export default function LinkedDocsWidget({
     if (!clientId) return;
     try {
       const all = await db.getDocsByClient(clientId);
-      console.log('[LinkedDocs.reload]', all.length, 'docs for client', clientId, '— filtering by linkKey:', linkKey);
+      console.log('[LinkedDocs.reload]', all.length, 'docs for client', clientId, '- filtering by linkKey:', linkKey);
       setAllClientDocs(all);
       const filtered = all.filter(d => d.linkedTo === linkKey);
       console.log('[LinkedDocs.reload] showing', filtered.length, 'after filter');
@@ -119,7 +119,7 @@ export default function LinkedDocsWidget({
     if (errs.length) { setErrors(errs); return; }
 
     if (!clientId) {
-      setErrors(['חסר מזהה לקוח — לא ניתן לשמור. אנא רענן ונסה שוב.']);
+      setErrors(['חסר מזהה לקוח - לא ניתן לשמור. אנא רענן ונסה שוב.']);
       return;
     }
 

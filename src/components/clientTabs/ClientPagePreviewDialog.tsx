@@ -86,7 +86,7 @@ export default function ClientPagePreviewDialog({ clientId, clientName, onClose 
             <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
               {mode === 'preview'
                 ? (draftCount > 0 ? `כולל ${draftCount} טיוטות שסומנו · הפעולות כבויות` : 'הפעולות כבויות בתצוגה')
-                : 'המצב החי — בדיוק מה שנטען אצלו'}
+                : 'המצב החי - בדיוק מה שנטען אצלו'}
             </span>
           </div>
           <div className="pivo-light" style={{ maxHeight: '68vh', overflowY: 'auto' }}>

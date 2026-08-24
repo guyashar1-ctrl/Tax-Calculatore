@@ -125,7 +125,7 @@ Deno.serve(async (req: Request) => {
       const fail = async (msg: string) => {
         // שחרור התפיסה + תיעוד שגיאה — לא מסמנים שנשלח (כלל 6)
         await admin.from("quotations").update({ auto_reminder_sent_at: null, auto_reminder_error: msg.slice(0, 300), auto_reminder_error_at: nowIso }).eq("id", q.id);
-        await admin.from("email_messages").insert({ user_id: q.user_id, client_id: q.client_id || null, to_email: toEmail || null, subject: "תזכורת — הצעת מחיר", kind: "quotation_reminder", status: "failed", error: msg.slice(0, 500), meta: { quotationId: q.id, quotationNumber: q.quotation_number, auto: true } });
+        await admin.from("email_messages").insert({ user_id: q.user_id, client_id: q.client_id || null, to_email: toEmail || null, subject: "תזכורת - הצעת מחיר", kind: "quotation_reminder", status: "failed", error: msg.slice(0, 500), meta: { quotationId: q.id, quotationNumber: q.quotation_number, auto: true } });
         failed++; results.push({ id: q.id, status: "failed", error: msg });
       };
 
@@ -146,7 +146,7 @@ Deno.serve(async (req: Request) => {
       const replyTo = (comm.replyTo && String(comm.replyTo).trim()) || profile?.email || undefined;
       const link = `${APP_URL}/?quote=${q.public_token}`;
       const expiry = new Date(q.expires_at).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
-      const subject = `תזכורת — הצעת המחיר שלך בתוקף עד ${expiry}`;
+      const subject = `תזכורת - הצעת המחיר שלך בתוקף עד ${expiry}`;
       // אותו קישור קבוע שנשלח עם ההצעה. הלקוח מקבל דלת אחת בלבד לכל התהליך,
       // ולכן גם התזכורת מזכירה אותה ולא ממציאה מסלול חדש.
       let portalNote = "";
@@ -154,7 +154,7 @@ Deno.serve(async (req: Request) => {
         const { data: pc } = await admin.from("clients").select("portal_token").eq("id", q.client_id).maybeSingle();
         const pt = String(pc?.portal_token || "").trim();
         if (pt) {
-          portalNote = `<br><br>אפשר גם להיכנס ל<a href="${APP_URL}/?portal=${pt}" style="color:${brand.accent};font-weight:600;text-decoration:none;">דף האישי שלכם</a> — כל התהליך מרוכז בו.`;
+          portalNote = `<br><br>אפשר גם להיכנס ל<a href="${APP_URL}/?portal=${pt}" style="color:${brand.accent};font-weight:600;text-decoration:none;">דף האישי שלכם</a> - כל התהליך מרוכז בו.`;
         }
       }
       const html = buildBrandedEmail(brand, {

@@ -69,7 +69,7 @@ function checklistCount(s: OnboardingStep, all: OnboardingStep[]): string | null
 /** מצב עמודה אחת: מה קורה בקבוצת השלבים שלה, בלשון קצרה. */
 function cellFor(steps: OnboardingStep[], kinds: OnboardingStepType[]): Cell {
   const group = steps.filter(s => kinds.includes(s.stepType) && s.status !== 'cancelled');
-  if (group.length === 0) return { text: '—', tone: 'none' };
+  if (group.length === 0) return { text: '-', tone: 'none' };
 
   const open = group.filter(s => isStepOpen(s.status));
   if (open.length === 0) {
@@ -167,7 +167,7 @@ export default function OnboardingGrid({ clients, steps, engagements, onOpen }: 
 
       {shown.length === 0 ? (
         <p style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', margin: '.4rem 0' }}>
-          אין כרגע קליטה שמחכה לך — הכל אצל הלקוחות או אצל גורמי חוץ.
+          אין כרגע קליטה שמחכה לך - הכל אצל הלקוחות או אצל גורמי חוץ.
         </p>
       ) : (
         <div className="cl-table-wrap">
@@ -188,7 +188,7 @@ export default function OnboardingGrid({ clients, steps, engagements, onOpen }: 
                       ? STEP_TYPE_LABELS[r.step.stepType]
                       : r.needsMe
                         ? NEXT_ACTION[r.step.stepType]
-                        : `${STEP_TYPE_LABELS[r.step.stepType]} — ${r.step.ball === 'client' ? 'אצל הלקוח' : 'ממתין'}`)
+                        : `${STEP_TYPE_LABELS[r.step.stepType]} - ${r.step.ball === 'client' ? 'אצל הלקוח' : 'ממתין'}`)
                   : 'הכל סגור';
                 return (
                   <tr key={r.clientId} onClick={() => onOpen(r.clientId)} style={{ cursor: 'pointer' }}>

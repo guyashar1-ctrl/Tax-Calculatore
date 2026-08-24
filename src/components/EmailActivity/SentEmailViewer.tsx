@@ -6,7 +6,7 @@ import { EmailMessage } from '../../types/emailActivity';
 import { EMAIL_PREVIEW_SANDBOX, withExternalLinks } from '../../utils/emailPreviewHtml';
 
 function fmtTime(iso?: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 

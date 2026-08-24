@@ -153,7 +153,7 @@ const STEPS: OnboardingStep[] = [
   step({ id: 's11', stepType: 'prev_accountant_details', track: 'prev_accountant', scope: 'person', status: 'waiting_client', ball: 'client',
          payload: {
            clientTitle: 'פרטי רואה החשבון הקודם שלך',
-           clientSub: 'שם, אימייל וטלפון — כדי שנפנה אליו בשמך',
+           clientSub: 'שם, אימייל וטלפון - כדי שנפנה אליו בשמך',
            clientCta: 'למילוי',
          } }),
 ];
@@ -361,7 +361,7 @@ export default function TestOnboarding() {
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: 980, margin: '0 auto' }} dir="rtl">
-      <h2 style={{ marginBottom: '.3rem' }}>בדיקת לשונית הקליטה — נתונים מדומים</h2>
+      <h2 style={{ marginBottom: '.3rem' }}>בדיקת לשונית הקליטה - נתונים מדומים</h2>
       <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: '1rem' }}>
         לא מחובר למסד. פעולות מדפיסות את מה שהיה נשלח לשרת.
         {msg && (
@@ -440,7 +440,7 @@ export default function TestOnboarding() {
         repStatusLabel="בקשת ייצוג · ממתין למילוי הלקוח"
         onOpenRepresentation={() => setMsg('קפיצה למרכז הייצוג')}
       />
-      <h3 style={{ marginTop: '2rem' }}>מקטע "לקוחות בתהליך" — ראש מסך הלקוחות</h3>
+      <h3 style={{ marginTop: '2rem' }}>מקטע "לקוחות בתהליך" - ראש מסך הלקוחות</h3>
       <ClientsOnboardingSection
         clients={GRID_CLIENTS}
         steps={GRID_STEPS}
@@ -448,7 +448,7 @@ export default function TestOnboarding() {
         onOpen={(id) => setMsg(`פתיחת דף המסע של ${id}`)}
       />
 
-      <h3 style={{ marginTop: '2rem' }}>הרשת — מסך הבוקר</h3>
+      <h3 style={{ marginTop: '2rem' }}>הרשת - מסך הבוקר</h3>
       {/* overflow-x — הטבלה רחבה מ-375px, ובלעדיו היא גוררת את כל העמוד
           לגלילה אופקית ושוברת צילומי מובייל של החלקים שמעליה. */}
       <div className="card" style={{ padding: '.5rem .7rem', overflowX: 'auto' }}>

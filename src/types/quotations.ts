@@ -152,7 +152,7 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
 export type ProrationMode = 'prorata' | 'full' | 'deferred' | 'manual';
 
 export const PRORATION_MODE_LABELS: Record<ProrationMode, string> = {
-  prorata: 'יחסי — רק על החודשים שנותרו',
+  prorata: 'יחסי - רק על החודשים שנותרו',
   full: 'פריסת המחיר השנתי המלא',
   deferred: 'יתרה לתשלום במועד מאוחר',
   manual: 'סכום חודשי שקבעתי',

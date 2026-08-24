@@ -102,7 +102,7 @@ export default function SyncConfirmation({ session, client, onProposeChanges, on
         <h2 style={{ margin: 0, fontSize: '24px' }}>עדכונים לתיק המס</h2>
         <p style={{ margin: '.4rem 0 0', color: 'var(--gray-600)', fontSize: '14px' }}>
           זוהו {diffs.length} שינויים בין התשובות בשאלון לבין תיק המס. סמן אילו להציע.
-          העדכון עצמו לא קורה כאן — הוא ממתין לאישורך בתיק המס, כדי שלא ידרוס בשקט ערך שנקבע ידנית.
+          העדכון עצמו לא קורה כאן - הוא ממתין לאישורך בתיק המס, כדי שלא ידרוס בשקט ערך שנקבע ידנית.
         </p>
         {error && (
           <p style={{ margin: '.6rem 0 0', color: 'var(--red)', fontSize: '13px' }}>⚠ {error}</p>
@@ -381,7 +381,7 @@ function computeDiffs(session: AnnualReportSession, client: Client): Diff[] {
     if (!itFile || itFile.owner !== wantOwner) {
       out.push({
         key: 'itFileOwner',
-        label: 'תיק מס הכנסה — על שם מי',
+        label: 'תיק מס הכנסה - על שם מי',
         fromCard: itFile ? `ע"ש ${itFile.owner === 'spouse' ? spouseDisplayName(client) : clientDisplayName(client)}` : 'לא מוגדר תיק',
         fromQuestionnaire: `ע"ש ${wantOwner === 'spouse' ? spouseDisplayName(client) : clientDisplayName(client)} (בן/בת הזוג הרשום/ה)`,
         apply: (c) => {

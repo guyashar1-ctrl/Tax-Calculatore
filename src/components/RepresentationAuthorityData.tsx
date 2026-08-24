@@ -58,7 +58,7 @@ function CopyRow({ row }: { row: Row }) {
           fontFamily: 'var(--font-mono, monospace)', wordBreak: 'break-word',
         }}
       >
-        {row.value || '—'}
+        {row.value || '-'}
       </span>
       <button
         type="button"
@@ -194,14 +194,14 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse }:
           rows={incomeTaxRows}
         />
         <Block
-          title={niCoversSpouse ? `ביטוח לאומי — ${firstName || 'הנישום'}` : 'ביטוח לאומי'}
+          title={niCoversSpouse ? `ביטוח לאומי - ${firstName || 'הנישום'}` : 'ביטוח לאומי'}
           subtitle="בדיוק ארבעת השדות של ״הוספת ייפוי כח מבוטח״, לפי הסדר"
           rows={niRows}
         />
         {niCoversSpouse && (
           <Block
-            title={`ביטוח לאומי — ${spouseFirst || 'בן/בת הזוג'}`}
-            subtitle="ייפוי כוח שני, נפרד — בב״ל לכל מבוטח תיק משלו"
+            title={`ביטוח לאומי - ${spouseFirst || 'בן/בת הזוג'}`}
+            subtitle="ייפוי כוח שני, נפרד - בב״ל לכל מבוטח תיק משלו"
             rows={niSpouseRows}
           />
         )}

@@ -17,10 +17,10 @@ type Tool =
   | 'overview' | 'expenses' | 'savings' | 'bookkeeping' | 'wizard' | 'rental' | 'incomeTax' | 'ni' | 'settlements' | 'topics';
 
 const TOOLS: { key: Tool; label: string; desc: string }[] = [
-  { key: 'expenses',     label: 'הוצאות מוכרות',       desc: '"אפשר לנכות את זה?" — תשובה בשניות: מס הכנסה, מע"מ, מקורות ופסיקה' },
-  { key: 'savings',      label: 'פנסיה וקרן השתלמות',  desc: 'שתי ההטבות הגדולות של עצמאי — ניכוי, זיכוי ופטור ממס רווחי הון, כל אחד בנפרד' },
-  { key: 'bookkeeping',  label: 'ניהול ספרים',          desc: 'איזו תוספת ואילו ספרים כל עוסק חייב — אשף, 15 התוספות ומילון הספרים' },
-  { key: 'wizard',       label: 'אשף נקודות זיכוי',   desc: 'עונים על שאלות — המערכת קובעת את הנקודות ומסבירה למה' },
+  { key: 'expenses',     label: 'הוצאות מוכרות',       desc: '"אפשר לנכות את זה?" - תשובה בשניות: מס הכנסה, מע"מ, מקורות ופסיקה' },
+  { key: 'savings',      label: 'פנסיה וקרן השתלמות',  desc: 'שתי ההטבות הגדולות של עצמאי - ניכוי, זיכוי ופטור ממס רווחי הון, כל אחד בנפרד' },
+  { key: 'bookkeeping',  label: 'ניהול ספרים',          desc: 'איזו תוספת ואילו ספרים כל עוסק חייב - אשף, 15 התוספות ומילון הספרים' },
+  { key: 'wizard',       label: 'אשף נקודות זיכוי',   desc: 'עונים על שאלות - המערכת קובעת את הנקודות ומסבירה למה' },
   { key: 'rental',       label: 'מחשבון שכר דירה',     desc: 'השוואת פטור / 10% / שולי, כולל הפטור המתקפל ו-122(ו)' },
   { key: 'incomeTax',    label: 'מדרגות ומס יסף',      desc: 'מדרגות עדכניות, מס יסף דו-שכבתי וחישוב מהיר' },
   { key: 'ni',           label: 'ביטוח לאומי',          desc: 'שיעורים, תקרות ומחשבון לכל סוגי המבוטחים' },
@@ -116,7 +116,7 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
           <div className="pg-head-main">
             <div className="pg-title pg-title-lg">{current ? current.label : 'מרכז ידע מס'}</div>
             <div className="pg-status">
-              {current ? current.desc : 'כלי החלטה, מחשבונים ונתונים מאומתים — לא עוד דפדוף בטבלאות'}
+              {current ? current.desc : 'כלי החלטה, מחשבונים ונתונים מאומתים - לא עוד דפדוף בטבלאות'}
             </div>
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
             <FreshnessPanel checkTaskExists={freshnessTaskExists} onCreateCheckTask={onCreateFreshnessTask} />
 
             <div className="alert alert-info">
-              שנים 2025–2027: רוב התקרות מוקפאות (חוק ההתייעלות — הקפאת עדכוני מס).
+              שנים 2025–2027: רוב התקרות מוקפאות (חוק ההתייעלות - הקפאת עדכוני מס).
             </div>
           </>
         )}

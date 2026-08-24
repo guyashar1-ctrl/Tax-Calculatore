@@ -77,7 +77,7 @@ export default function EmailStatusRow({ message, note, onRemind, onChanged }: P
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ color: 'var(--gray-700)' }}>{fmt(message.sentAt)}</span>
         {failed ? (
-          <span style={{ color: 'var(--red)' }}>{message.status === 'bounced' ? 'חזר — כתובת שגויה' : 'השליחה נכשלה'}</span>
+          <span style={{ color: 'var(--red)' }}>{message.status === 'bounced' ? 'חזר - כתובת שגויה' : 'השליחה נכשלה'}</span>
         ) : (
           <>
             {chip('הגיע', delivered)}

@@ -49,7 +49,7 @@ interface Loaded { subject: string; to: string; from?: string; html: string; bod
 const ERROR_TEXT: Record<string, string> = {
   'no client email': 'אין כתובת מייל ללקוח בבקשה הזו.',
   'not found': 'הבקשה לא נמצאה.',
-  unauthorized: 'ההתחברות פגה — יש להיכנס מחדש.',
+  unauthorized: 'ההתחברות פגה - יש להיכנס מחדש.',
   'signer not found': 'לא נמצא חותם עם כתובת מייל.',
   missing_reference_number: 'חסר מספר אסמכתא של הביטוח הלאומי.',
   resend_failed: 'שרת המייל דחה את השליחה.',

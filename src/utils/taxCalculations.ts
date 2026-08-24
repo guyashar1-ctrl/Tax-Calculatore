@@ -247,7 +247,7 @@ function calcNI(input: NIInput, taxData: TaxYearData): {
       );
       const deductible = niSE_insurance * 0.52;
       breakdown.push(
-        `ניכוי ב"ל ממס הכנסה (סעיף 47א): 52% × ₪${fmt(Math.round(niSE_insurance))} = ₪${fmt(Math.round(deductible))} — יופחת מההכנסה החייבת`
+        `ניכוי ב"ל ממס הכנסה (סעיף 47א): 52% × ₪${fmt(Math.round(niSE_insurance))} = ₪${fmt(Math.round(deductible))} - יופחת מההכנסה החייבת`
       );
     }
   }
@@ -257,7 +257,7 @@ function calcNI(input: NIInput, taxData: TaxYearData): {
     const income = seNet + input.otherIncome;
     if (income > 0) {
       if (income <= exempt25A) {
-        breakdown.push(`עצמאי שאינו עונה להגדרה: הכנסה ₪${fmt(income)} עד 25% מהשכר הממוצע (₪${fmt(exempt25A)}) — פטור מדמי ביטוח`);
+        breakdown.push(`עצמאי שאינו עונה להגדרה: הכנסה ₪${fmt(income)} עד 25% מהשכר הממוצע (₪${fmt(exempt25A)}) - פטור מדמי ביטוח`);
       } else {
         // מעל הפטור — חיוב על מלוא ההכנסה בשיעורי הכנסה פסיבית
         const insured = Math.min(income, maxA);
@@ -286,11 +286,11 @@ function calcNI(input: NIInput, taxData: TaxYearData): {
     // שכ"ד למגורים (פטור/10%/שולי), דיבידנד 125ב, ריבית 125ג ורווח הון —
     // פטורים מדמי ביטוח לפי סעיף 350(א). חיוב רק על הכנסה פסיבית אחרת.
     const rentalNote = input.rentalIncome > 0
-      ? 'שכ"ד למגורים — פטור מדמי ביטוח בכל המסלולים (סעיף 350(א)(7)). '
+      ? 'שכ"ד למגורים - פטור מדמי ביטוח בכל המסלולים (סעיף 350(א)(7)). '
       : '';
     const income = input.otherIncome;
     if (income <= exempt25A) {
-      breakdown.push(`${rentalNote}הכנסה פסיבית אחרת ₪${fmt(income)} עד הפטור (₪${fmt(exempt25A)}) — אין דמי ביטוח`);
+      breakdown.push(`${rentalNote}הכנסה פסיבית אחרת ₪${fmt(income)} עד הפטור (₪${fmt(exempt25A)}) - אין דמי ביטוח`);
     } else {
       const insured = Math.min(income, maxA);
       const low = Math.min(insured, threshold60A);
@@ -317,7 +317,7 @@ function calcNI(input: NIInput, taxData: TaxYearData): {
         `${(taxData.earlyPensionNI.lowRate + taxData.earlyPensionNI.healthLowRate).toFixed(2)}% עד המדרגה / ` +
         `${(taxData.earlyPensionNI.highRate + taxData.earlyPensionNI.healthHighRate).toFixed(2)}% מעליה = ₪${fmt(Math.round(niSE_insurance + niSE_health))}`
       );
-      breakdown.push('מגיל פרישה / מקבל קצבת אזרח ותיק — חלים פטורים ושיעורים מופחתים אחרים');
+      breakdown.push('מגיל פרישה / מקבל קצבת אזרח ותיק - חלים פטורים ושיעורים מופחתים אחרים');
     }
   }
 
@@ -386,7 +386,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   const niDeductionSE = niCalc.niSE_insurance * 0.52;
   if (niDeductionSE > 0 && (client.niType === 'selfEmployed' || client.niType === 'employeeAndSE')) {
     deductionBreakdown.push(
-      `ניכוי ביטוח לאומי לעצמאי (52% × ₪${fmt(Math.round(niCalc.niSE_insurance))}): ₪${fmt(Math.round(niDeductionSE))} — סעיף 47א לפקודה`
+      `ניכוי ביטוח לאומי לעצמאי (52% × ₪${fmt(Math.round(niCalc.niSE_insurance))}): ₪${fmt(Math.round(niDeductionSE))} - סעיף 47א לפקודה`
     );
   }
   const niDeductionApplies = client.niType === 'selfEmployed' || client.niType === 'employeeAndSE';
@@ -400,7 +400,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     const eligibleContribution = Math.min(contribution, 0.07 * Math.min(grossSalary, qualifyingAnnual));
     pensionCredit = eligibleContribution * 0.35;
     deductionBreakdown.push(
-      `זיכוי פנסיה לשכיר (סעיף 45א): 35% × ₪${fmt(Math.round(eligibleContribution))} (עד 7% מההכנסה המזכה) = ₪${fmt(Math.round(pensionCredit))} — זיכוי מהמס, לא ניכוי מההכנסה`
+      `זיכוי פנסיה לשכיר (סעיף 45א): 35% × ₪${fmt(Math.round(eligibleContribution))} (עד 7% מההכנסה המזכה) = ₪${fmt(Math.round(pensionCredit))} - זיכוי מהמס, לא ניכוי מההכנסה`
     );
   }
 
@@ -452,11 +452,11 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
         rentalExplanation = `פטור חלקי (תקרה מתואמת): חריגה ₪${fmt(Math.round(excessMonthly))} → פטור ₪${fmt(Math.round(adjustedExempt))} → חייב ₪${fmt(Math.round(taxableRental))}/שנה. כל שקל חריגה מוסיף 2 ₪ לחלק החייב.`;
       } else {
         taxableRental = Math.max(0, rentalIncome - rentalExp);
-        rentalExplanation = `שכ"ד ₪${fmt(Math.round(monthlyRent))}/חודש ≥ פי 2 מהתקרה — הפטור התאפס; חייב במלואו ₪${fmt(Math.round(taxableRental))}.`;
+        rentalExplanation = `שכ"ד ₪${fmt(Math.round(monthlyRent))}/חודש ≥ פי 2 מהתקרה - הפטור התאפס; חייב במלואו ₪${fmt(Math.round(taxableRental))}.`;
       }
     } else if (input.rentalTaxTrack === 'flat10') {
       taxableRental = 0;
-      rentalExplanation = `מסלול 10% (סעיף 122): ₪${fmt(rentalIncome)} × 10% = ₪${fmt(Math.round(rentalIncome * 0.1))} — ללא הוצאות/פחת; לשלם עד 30.1.${input.year + 1}.`;
+      rentalExplanation = `מסלול 10% (סעיף 122): ₪${fmt(rentalIncome)} × 10% = ₪${fmt(Math.round(rentalIncome * 0.1))} - ללא הוצאות/פחת; לשלם עד 30.1.${input.year + 1}.`;
     } else {
       taxableRental = Math.max(0, rentalIncome - rentalExp);
       rentalExplanation = `שכירות מסלול רגיל: ₪${fmt(rentalIncome)} − הוצאות ₪${fmt(rentalExp)} = ₪${fmt(Math.round(taxableRental))}.`;
@@ -475,7 +475,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     if (exemptPersonal > 0) {
       taxableIncome = Math.max(0, taxableIncome - exemptPersonal);
       deductionBreakdown.push(
-        `פטור נכה/עיוור (סעיף 9(5)): הכנסה מיגיעה אישית פטורה עד ₪${fmt(cpResult.disabilityExemption.personalExertionCeiling)} — הופחתו ₪${fmt(Math.round(exemptPersonal))}`
+        `פטור נכה/עיוור (סעיף 9(5)): הכנסה מיגיעה אישית פטורה עד ₪${fmt(cpResult.disabilityExemption.personalExertionCeiling)} - הופחתו ₪${fmt(Math.round(exemptPersonal))}`
       );
     }
   }
@@ -488,7 +488,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
 
   // ── ה. נקודות זיכוי ──
   const creditPointLines = input.overrideCreditPoints
-    ? [{ description: 'נקודות זיכוי — הזנה ידנית', legalBasis: '', points: input.manualCreditPoints, valueNIS: input.manualCreditPoints * taxData.creditPointValue }]
+    ? [{ description: 'נקודות זיכוי - הזנה ידנית', legalBasis: '', points: input.manualCreditPoints, valueNIS: input.manualCreditPoints * taxData.creditPointValue }]
     : cpResult.lines;
 
   const totalCreditPoints = creditPointLines.reduce((s, l) => s + l.points, 0);
@@ -506,7 +506,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
       settlementCredit = sc.credit;
       settlementCreditExplanation = sc.explanation;
     } else {
-      settlementCreditExplanation = `היישוב שנבחר ("${client.qualifyingSettlementId}") אינו ברשימת היישובים המוטבים הרשמית לשנת ${input.year} — יש לעדכן בכרטיס הלקוח.`;
+      settlementCreditExplanation = `היישוב שנבחר ("${client.qualifyingSettlementId}") אינו ברשימת היישובים המוטבים הרשמית לשנת ${input.year} - יש לעדכן בכרטיס הלקוח.`;
     }
   }
 
@@ -517,7 +517,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     donationCredit = eligibleDonation * 0.35;
     deductionBreakdown.push(`זיכוי תרומות (סעיף 46): 35% × ₪${fmt(Math.round(eligibleDonation))} = ₪${fmt(Math.round(donationCredit))}`);
   } else if (input.donationsSection46 > 0) {
-    deductionBreakdown.push(`תרומות ₪${fmt(input.donationsSection46)} — מתחת למינימום לזיכוי (207 ₪)`);
+    deductionBreakdown.push(`תרומות ₪${fmt(input.donationsSection46)} - מתחת למינימום לזיכוי (207 ₪)`);
   }
 
   // ── ח. מס הכנסה (זיכויים אינם יוצרים מס שלילי) ──
@@ -536,10 +536,10 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   if (input.gamblingIncome && input.gamblingIncome > 0) {
     const ceiling = taxData.gamblingExemptionCeiling;
     if (ceiling == null) {
-      sepBreakdown.push(`הגרלות: אין תקרת פטור מאומתת לשנת ${input.year} — חושב 35% על מלוא הזכייה`);
+      sepBreakdown.push(`הגרלות: אין תקרת פטור מאומתת לשנת ${input.year} - חושב 35% על מלוא הזכייה`);
       gamblingTaxable = input.gamblingIncome;
     } else if (input.gamblingIncome <= ceiling) {
-      sepBreakdown.push(`הגרלות: זכייה ₪${fmt(input.gamblingIncome)} עד תקרת הפטור ₪${fmt(ceiling)} — פטור מלא`);
+      sepBreakdown.push(`הגרלות: זכייה ₪${fmt(input.gamblingIncome)} עד תקרת הפטור ₪${fmt(ceiling)} - פטור מלא`);
     } else if (input.gamblingIncome < ceiling * 2) {
       // פטור מתקפל: הפטור קטן בגובה החריגה מהתקרה
       const reducedExemption = Math.max(0, ceiling - (input.gamblingIncome - ceiling));
@@ -547,7 +547,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
       sepBreakdown.push(`הגרלות (פטור מתקפל): פטור ₪${fmt(reducedExemption)} → חייב ₪${fmt(gamblingTaxable)} × 35% = ₪${fmt(Math.round(gamblingTaxable * 0.35))}`);
     } else {
       gamblingTaxable = input.gamblingIncome;
-      sepBreakdown.push(`הגרלות: זכייה מעל כפל התקרה — חייבת במלואה: ₪${fmt(gamblingTaxable)} × 35% = ₪${fmt(Math.round(gamblingTaxable * 0.35))}`);
+      sepBreakdown.push(`הגרלות: זכייה מעל כפל התקרה - חייבת במלואה: ₪${fmt(gamblingTaxable)} × 35% = ₪${fmt(Math.round(gamblingTaxable * 0.35))}`);
     }
     gamblingTax = gamblingTaxable * 0.35;
   }

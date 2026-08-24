@@ -257,7 +257,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
       const cappedIncome = Math.min(effectiveIncome, maxIncome);
 
       if (income > 0 && income < threshold25) {
-        steps.push(`הכנסה ${fmt(income)} נמוכה מהמינימום (${fmt(threshold25)} = 25% משכר ממוצע) — חישוב לפי מינימום`);
+        steps.push(`הכנסה ${fmt(income)} נמוכה מהמינימום (${fmt(threshold25)} = 25% משכר ממוצע) - חישוב לפי מינימום`);
       }
 
       if (cappedIncome <= threshold60) {
@@ -382,7 +382,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
         const remainingCeiling = Math.max(0, maxIncome - empCapped);
         const seEffective = Math.min(passiveIncome, remainingCeiling);
         if (seEffective <= 0 && passiveIncome > 0) {
-          steps.push(`הכנסה עצמאית: הגיע לתקרת ב"ל (${fmt(maxIncome)}) מהשכר — אין תשלום נוסף`);
+          steps.push(`הכנסה עצמאית: הגיע לתקרת ב"ל (${fmt(maxIncome)}) מהשכר - אין תשלום נוסף`);
         }
         const sePart = seEffective > 0 ? calcSelfEmployed(seEffective) : { ni: 0, health: 0 };
         ni = empPart.ni + sePart.ni;
@@ -676,7 +676,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
       {/* ═══════════════ PART 3: NI Calculator ═══════════════ */}
       <div className="ni-calc">
         <div className="ni-calc-head">
-          <span style={{ fontSize: 'var(--fs-17)', fontWeight: 600 }}>מחשבון ביטוח לאומי — {year}</span>
+          <span style={{ fontSize: 'var(--fs-17)', fontWeight: 600 }}>מחשבון ביטוח לאומי - {year}</span>
           <span className="ni-calc-tag">חישוב מיידי</span>
         </div>
         <div className="ni-calc-body">
@@ -814,7 +814,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
               {/* 52% deduction highlight */}
               {calcResult.deduction52 !== undefined && (
                 <div className="ni-note">
-                  <strong>ניכוי 52% מב"ל:</strong> {fmt(calcResult.deduction52)}/חודש | {fmt(calcResult.deduction52 * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}/שנה — ניתן לניכוי ממס הכנסה (סעיף 17(5))
+                  <strong>ניכוי 52% מב"ל:</strong> {fmt(calcResult.deduction52)}/חודש | {fmt(calcResult.deduction52 * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}/שנה - ניתן לניכוי ממס הכנסה (סעיף 17(5))
                 </div>
               )}
 

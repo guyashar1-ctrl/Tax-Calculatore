@@ -195,7 +195,7 @@ export default function QuestionCard({
                 onClick={() => onSubmit('unknown')}
                 disabled={disabled}
                 style={{ color: 'var(--gray-500)' }}
-                title="נמשיך הלאה — רואה החשבון יבדוק את זה איתך"
+                title="נמשיך הלאה - רואה החשבון יבדוק את זה איתך"
               >
                 לא בטוח/ה
               </button>

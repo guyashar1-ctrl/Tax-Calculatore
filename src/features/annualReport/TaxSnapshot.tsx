@@ -53,7 +53,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
           <span>
             {regFile.owner === 'spouse' ? '⚠ ' : '🗄️ '}
             תיק מס הכנסה ע"ש <b>{regFile.name}</b>
-            {(client.familyStatus === 'married' || !!client.spouseName?.trim()) && <> — <b>בן/בת הזוג הרשום/ה</b></>}
+            {(client.familyStatus === 'married' || !!client.spouseName?.trim()) && <> - <b>בן/בת הזוג הרשום/ה</b></>}
             {regFile.idNumber ? <> · ת.ז. <span className="num" dir="ltr">{regFile.idNumber}</span></> : ''}
             {regFile.owner === 'spouse' ? ' · כל ההתנהלות מול מ"ה בת.ז. הזו' : ''}
           </span>
@@ -61,7 +61,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
             <select
               value={regFile.owner}
               onChange={(e) => changeItOwner(e.target.value as TaxFileOwner)}
-              title="החלפת בן הזוג הרשום — נשמר מיד ומעדכן את הת.ז. של התיק"
+              title="החלפת בן הזוג הרשום - נשמר מיד ומעדכן את הת.ז. של התיק"
               style={{
                 padding: '.2rem .45rem', borderRadius: 'var(--r-chip)', border: 0,
                 fontSize: 'var(--fs-13)', fontWeight: 500, background: 'var(--surface-2)',
@@ -195,7 +195,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
       {/* ── מסמכים קבועים ── */}
       {!compact && (
         <div className="cw-section">
-          <div className="cw-section-head"><span>מסמכים קבועים — נדרש כל שנה ({docs.length})</span></div>
+          <div className="cw-section-head"><span>מסמכים קבועים - נדרש כל שנה ({docs.length})</span></div>
           {docs.length === 0 ? (
             <div className="cw-empty">הרשימה תיבנה אוטומטית ככל שהפרופיל יתמלא (מעסיקים, חשבונות, נכסים...).</div>
           ) : (

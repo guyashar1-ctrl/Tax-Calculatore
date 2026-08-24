@@ -65,9 +65,9 @@ const PROFILES: Record<string, ClientWorkspaceExtensions> = {
     lastWealthDeclarationYear: 2020,
     activity: mkActivity([
       { kind: 'task_created', text: 'נוצרה משימה: דיווח שנתי 2025', daysAgo: 5 },
-      { kind: 'doc_uploaded', text: 'הועלה: טופס 106 — חברת הייטק', daysAgo: 12 },
-      { kind: 'note', text: 'שיחה עם דוד — מאשר את החזר המס. מעדכן בהמשך.', daysAgo: 18 },
-      { kind: 'status_change', text: 'שע״ם — חודש בהצלחה לשנה הקרובה', daysAgo: 45 },
+      { kind: 'doc_uploaded', text: 'הועלה: טופס 106 - חברת הייטק', daysAgo: 12 },
+      { kind: 'note', text: 'שיחה עם דוד - מאשר את החזר המס. מעדכן בהמשך.', daysAgo: 18 },
+      { kind: 'status_change', text: 'שע״ם - חודש בהצלחה לשנה הקרובה', daysAgo: 45 },
     ]),
   },
 
@@ -77,7 +77,7 @@ const PROFILES: Record<string, ClientWorkspaceExtensions> = {
     tags: ['הורה יחיד', 'מורה', 'נכות בילד'],
     pinnedNote: 'מקבלת קבצים בוואטסאפ. לא לשלוח SMS אוטומטיים.',
     additionalContacts: [
-      { id: 'k2', role: 'עו״ד גירושין', name: 'יעל בכר', phone: '03-1234567', email: 'yael@law.co.il', notes: 'משלמת מזונות — לבדוק זיכויים' },
+      { id: 'k2', role: 'עו״ד גירושין', name: 'יעל בכר', phone: '03-1234567', email: 'yael@law.co.il', notes: 'משלמת מזונות - לבדוק זיכויים' },
     ],
     pitAdvancePercent: 0,
     withholdingFrequency: 'none',
@@ -89,7 +89,7 @@ const PROFILES: Record<string, ClientWorkspaceExtensions> = {
     taxOfficeName: 'ירושלים 1',
     niBranchName: 'ירושלים',
     activity: mkActivity([
-      { kind: 'doc_uploaded', text: 'הועלה: אישור נכות 50% — ילד', daysAgo: 8 },
+      { kind: 'doc_uploaded', text: 'הועלה: אישור נכות 50% - ילד', daysAgo: 8 },
       { kind: 'task_completed', text: 'הסתיימה: בקשת נקודות זיכוי הורה יחיד', daysAgo: 25 },
       { kind: 'note', text: 'מבקשת בדיקה האם זכאית ל-2 נקודות נוספות', daysAgo: 40 },
     ]),
@@ -124,7 +124,7 @@ const PROFILES: Record<string, ClientWorkspaceExtensions> = {
     activity: mkActivity([
       { kind: 'doc_uploaded', text: 'הועלה: חשבוניות רבעון 1', daysAgo: 2 },
       { kind: 'task_created', text: 'נוצרה משימה: דיווח מע״מ מרץ-אפריל', daysAgo: 4 },
-      { kind: 'status_change', text: 'שע״ם — שימוש אחרון לחיתוך נתוני בנק', daysAgo: 3 },
+      { kind: 'status_change', text: 'שע״ם - שימוש אחרון לחיתוך נתוני בנק', daysAgo: 3 },
       { kind: 'note', text: 'יוסי מבקש לעבור לדיווח חד-חודשי בשנה הבאה', daysAgo: 22 },
       { kind: 'task_completed', text: 'הסתיימה: שומה 2024', daysAgo: 60 },
     ]),
@@ -174,7 +174,7 @@ const PROFILES: Record<string, ClientWorkspaceExtensions> = {
     taxOfficeName: 'נתניה',
     niBranchName: 'נתניה',
     activity: mkActivity([
-      { kind: 'note', text: 'הוגשה בקשת הרשאת שע״ם — ממתין לאישור הרשות', daysAgo: 14 },
+      { kind: 'note', text: 'הוגשה בקשת הרשאת שע״ם - ממתין לאישור הרשות', daysAgo: 14 },
       { kind: 'doc_uploaded', text: 'הועלה: תעודת עלייה 2023', daysAgo: 60 },
     ]),
   },
@@ -206,7 +206,7 @@ const PROFILES: Record<string, ClientWorkspaceExtensions> = {
   'sample-7': {
     assignedAccountantId: 'emp-self',
     tags: ['עוסק מורשה', 'הכנסה גבוהה', 'תא משפחתי', 'דיון שומה'],
-    pinnedNote: 'תיק מורכב — תא משפחתי + שניהם עצמאיים. תמיד לסקור עם רון לפני הגשה.',
+    pinnedNote: 'תיק מורכב - תא משפחתי + שניהם עצמאיים. תמיד לסקור עם רון לפני הגשה.',
     additionalContacts: [
       { id: 'k8', role: 'בת זוג', name: 'תמר בר-לב', phone: '054-8901234', email: 'tamar@design.co.il' },
       { id: 'k9', role: 'יועצת השקעות', name: 'מיכל אורן', phone: '03-7654321', email: 'michal@inv.co.il' },
@@ -232,8 +232,8 @@ const PROFILES: Record<string, ClientWorkspaceExtensions> = {
     lastWealthDeclarationYear: 2018,
     activity: mkActivity([
       { kind: 'task_created', text: 'נוצרה משימה: דיון שומה 2022 עם רפרנט', daysAgo: 3 },
-      { kind: 'note', text: 'התקשר רון — דורש פגישה לפני הדיון. נקבע ל-2026-05-15.', daysAgo: 4 },
-      { kind: 'status_change', text: 'הרשאת שע״ם — בוטלה (לא חודשה בזמן)', daysAgo: 60 },
+      { kind: 'note', text: 'התקשר רון - דורש פגישה לפני הדיון. נקבע ל-2026-05-15.', daysAgo: 4 },
+      { kind: 'status_change', text: 'הרשאת שע״ם - בוטלה (לא חודשה בזמן)', daysAgo: 60 },
       { kind: 'doc_uploaded', text: 'הועלו: כל החשבוניות 2025 רבעון 1', daysAgo: 25 },
     ]),
   },

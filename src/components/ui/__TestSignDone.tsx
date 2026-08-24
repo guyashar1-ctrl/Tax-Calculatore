@@ -21,7 +21,7 @@ export default function TestSignDone() {
       <ClientPageState
         wide
         mark="✓"
-        title="החתימה התקבלה — נשאר צעד אחד"
+        title="החתימה התקבלה - נשאר צעד אחד"
         body={<>
           <div>תודה, ישראל ישראלי! משרד גיא ישר יגיש עכשיו את בקשת הייצוג לרשויות. הפעולה האחרונה שנשארה היא שלכם:</div>
           <NiApprovalNotice referenceNumber={NI.referenceNumber} deadline={NI.deadline} />
@@ -37,7 +37,7 @@ export default function TestSignDone() {
         mark="✓"
         title="החתימה כבר התקבלה"
         body={<>
-          <div>תודה, ישראל ישראלי! נשאר צעד אחד — אישור בביטוח הלאומי.</div>
+          <div>תודה, ישראל ישראלי! נשאר צעד אחד - אישור בביטוח הלאומי.</div>
           <NiApprovalNotice referenceNumber={NI.referenceNumber} deadline={NI.deadline} />
         </>}
       />

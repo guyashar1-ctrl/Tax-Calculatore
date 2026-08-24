@@ -84,7 +84,7 @@ export default function TaskLinkedDocuments({ clientId, taskId, taskTitle }: Pro
         category: 'other',
         year: uploadDraft.year === 'כללי' ? 'general' : (Number(uploadDraft.year) || 'general'),
         uploadedAt: new Date().toISOString(),
-        description: taskTitle ? `מסמך משימה — ${taskTitle}` : uploadDraft.file.name.replace(/\.[^./\\]+$/, ''),
+        description: taskTitle ? `מסמך משימה - ${taskTitle}` : uploadDraft.file.name.replace(/\.[^./\\]+$/, ''),
         notes: '',
         fileData: buf,
         folderId: null,
@@ -121,7 +121,7 @@ export default function TaskLinkedDocuments({ clientId, taskId, taskTitle }: Pro
       {picking && (
         <div style={{ display: 'flex', gap: '.4rem', marginTop: '.4rem', alignItems: 'center' }}>
           <select value={pickValue} onChange={(e) => setPickValue(e.target.value)} style={{ flex: 1 }}>
-            <option value="">— בחר מסמך מהתיק —</option>
+            <option value="">- בחר מסמך מהתיק -</option>
             {unlinkedDocs.map(d => (
               <option key={d.id} value={d.id}>{d.fileName}</option>
             ))}

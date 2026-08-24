@@ -124,7 +124,7 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
       const title = e.type === 'approved' ? 'הצעת מחיר אושרה'
         : e.type === 'viewed' ? 'הצעת המחיר נצפתה'
         : e.type === 'expired' ? 'הצעת המחיר פגה'
-        : `הצעת מחיר — ${QUOTATION_STATUS_LABELS[e.type as keyof typeof QUOTATION_STATUS_LABELS] ?? e.type}`;
+        : `הצעת מחיר - ${QUOTATION_STATUS_LABELS[e.type as keyof typeof QUOTATION_STATUS_LABELS] ?? e.type}`;
       items.push({
         id: `q-${q.id}-${e.type}-${e.at}`, at: e.at, cat: 'commercial',
         title, meta: `${q.quotationNumber ? `#${q.quotationNumber} · ` : ''}${e.note ?? ''}`.trim() || undefined,

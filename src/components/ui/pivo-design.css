@@ -3338,14 +3338,25 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 /* ‼ "חשוב במיוחד" — הבלטה מאופקת בלבד. אותו צהוב של המרקר במכתב, כדי ששתי
    ההדגשות ייקראו כאותה שפה. הפריטים האחרים לא נחלשים: כולם עדיין מבוקשים. */
 .ob-hand-tag.is-priority { color: var(--ink-1); background: #fdf3c4; }
-/* סימון הקבלה לחיץ — כפתור שנראה כמו הסימן, כדי שהשורה לא תגדל. */
+/* סימון הקבלה לחיץ — צ'קבוקס מרובע, אותה שפה כמו הצ'קליסט בדף הרו"ח הקודם.
+   ‼ העיגול הקטן נראה כסימן מצב פסיבי ולא כמשהו שלוחצים עליו (אותה בעיה
+   שתוקנה בדף הציבורי). תיבה מרובעת עם מסגרת אומרת "אפשר לסמן" בלי מילים. */
 .ob-hand-mark-btn {
-  appearance: none; border: 0; background: none; cursor: pointer;
-  font: inherit; font-size: 12px; line-height: 1; padding: 2px 3px;
-  border-radius: 5px; min-height: auto; color: inherit;
+  appearance: none; cursor: pointer;
+  width: 16px; height: 16px; flex: 0 0 auto;
+  border: 1.5px solid var(--bd); border-radius: 4px;
+  background: var(--card); color: transparent;
+  font: inherit; font-size: 11px; font-weight: 700; line-height: 13px;
+  padding: 0; min-height: auto; text-align: center;
+  transition: border-color .12s, background .12s;
 }
-.ob-hand-mark-btn:hover:not(:disabled) { background: var(--surface-2); }
-.ob-hand-mark-btn:disabled { cursor: default; }
+.ob-hand-mark-btn:hover:not(:disabled) { border-color: var(--accent); }
+/* ‼ הסלקטור כולל is-done כדי לגבור על הצבע הירוק של סימן-מצב רגיל. */
+.ob-hand-mark-btn[aria-pressed="true"],
+.ob-hand-item.is-done .ob-hand-mark-btn[aria-pressed="true"] {
+  border-color: var(--accent); background: var(--accent); color: var(--on-accent, #fff);
+}
+.ob-hand-mark-btn:disabled { cursor: default; opacity: .55; }
 /* פקדי השורה — דהויים במנוחה, מתעוררים בריחוף או במיקוד מקלדת. */
 .ob-hand-rowbtns { display: flex; gap: 2px; flex: 0 0 auto; opacity: .35; transition: opacity .15s ease; }
 .ob-hand-item:hover .ob-hand-rowbtns,

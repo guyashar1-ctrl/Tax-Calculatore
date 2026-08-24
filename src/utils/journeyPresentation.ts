@@ -93,7 +93,7 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
     if (lead?.status === 'closed') return null; // מטופל במצב "לא רלוונטי" הנפרד
     return {
       headline: `לבנות הצעת מחיר ל${name}`,
-      detail: 'טרם נשלחה הצעה. הכרטיס הקבוע והדף האישי של הלקוח נולדים ברגע השליחה — עד אז זו רשומת ליד בלבד.',
+      detail: 'טרם נשלחה הצעה. הכרטיס הקבוע והדף האישי של הלקוח נולדים ברגע השליחה - עד אז זו רשומת ליד בלבד.',
       tone: 'normal',
       buttons: [
         { label: 'בנה הצעה', kind: 'primary', action: 'newQuotation' },
@@ -111,7 +111,7 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
       return {
         // ‼ הניסוח עודכן לשמות שקיימים באמת: הלשונית היא «בקשות», ואין יותר
         // מסך "בונה תהליך" נפרד. הכפתור שחושף ללקוח הוא «עדכן את דף הלקוח».
-        headline: 'ההצעה אושרה — להרכיב את הבקשות',
+        headline: 'ההצעה אושרה - להרכיב את הבקשות',
         detail: 'ייפוי הכוח נפתח ללקוח מיד. שאר הבקשות ממתינות לך כטיוטה בלשונית «בקשות», ואף אחת מהן אינה נחשפת לפני «עדכן את דף הלקוח».',
         tone: 'normal',
         buttons: [{ label: 'פתח את ההצעה', kind: 'secondary', action: 'openQuotation', quotationId: q.id }],
@@ -123,7 +123,7 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
     if (expired) {
       const since = daysSince(q.expiresAt) ?? 0;
       return {
-        headline: 'ההצעה פגה ולא אושרה — להחליט אם לחדש',
+        headline: 'ההצעה פגה ולא אושרה - להחליט אם לחדש',
         detail: [
           q.expiresAt ? `הייתה בתוקף עד ${formatDate(q.expiresAt, 'list')}` : null,
           since > 0 ? `${since} ימים בלי תשובה` : null,
@@ -136,7 +136,7 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
     if (q.firstViewedAt) {
       const ballDays = daysSince(q.firstViewedAt);
       return {
-        headline: 'ההצעה נצפתה ולא אושרה — לשלוח תזכורת',
+        headline: 'ההצעה נצפתה ולא אושרה - לשלוח תזכורת',
         detail: [
           `נצפתה ${formatDate(q.firstViewedAt, 'list')}`,
           q.expiresAt ? `בתוקף עד ${formatDate(q.expiresAt, 'list')}` : null,
@@ -323,8 +323,8 @@ export function leadKnownFacts(lead: Lead): KnownFact[] {
   out.push({
     label: 'רו״ח קודם',
     value: lead.hasPreviousAccountant
-      ? (lead.prevAccountantName || 'יש — השם טרם נרשם')
-      : lead.businessTransfer === false ? 'אין — עסק חדש' : 'אין',
+      ? (lead.prevAccountantName || 'יש - השם טרם נרשם')
+      : lead.businessTransfer === false ? 'אין - עסק חדש' : 'אין',
   });
   if (lead.referralSource) out.push({ label: 'מאיפה הגיע', value: lead.referralSource });
   if (lead.notes) out.push({ label: 'מה ביקש', value: lead.notes });

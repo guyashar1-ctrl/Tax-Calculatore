@@ -32,9 +32,9 @@ const SAMPLE: QuotationWebViewData = {
   businessName: 'ישראל ישראלי בע״מ',
   vatRate: 18,
   items: [
-    { id: '1', name: 'הנהלת חשבונות — עוסק מורשה', description: 'ניהול שוטף כולל דיווחי מע״מ ומקדמות', category: 'monthly', billingType: 'fixed', quantity: 1, catalogPrice: 350, clientPrice: 350, vatFlag: true },
+    { id: '1', name: 'הנהלת חשבונות - עוסק מורשה', description: 'ניהול שוטף כולל דיווחי מע״מ ומקדמות', category: 'monthly', billingType: 'fixed', quantity: 1, catalogPrice: 350, clientPrice: 350, vatFlag: true },
     { id: '2', name: 'חשבות שכר', category: 'monthly', billingType: 'per_unit', unitLabel: 'עובד', quantity: 2, catalogPrice: 80, clientPrice: 80, vatFlag: true },
-    { id: '3', name: 'דוח שנתי — עוסק מורשה', category: 'annual', billingType: 'fixed', quantity: 1, catalogPrice: 1800, clientPrice: 1800, vatFlag: true, clientNote: 'כולל תיאום מס' },
+    { id: '3', name: 'דוח שנתי - עוסק מורשה', category: 'annual', billingType: 'fixed', quantity: 1, catalogPrice: 1800, clientPrice: 1800, vatFlag: true, clientNote: 'כולל תיאום מס' },
     { id: '4', name: 'פתיחת תיקים ברשויות', category: 'one_time', billingType: 'fixed', quantity: 1, catalogPrice: 300, clientPrice: 300, vatFlag: true },
     { id: '5', name: 'תכנון מס רבעוני', category: 'included', billingType: 'fixed', quantity: 1, catalogPrice: 0, clientPrice: 0, vatFlag: false },
     { id: '6', name: 'ייעוץ שוטף', category: 'included', billingType: 'fixed', quantity: 1, catalogPrice: 0, clientPrice: 0, vatFlag: false },
@@ -59,7 +59,7 @@ export default function QuotationDesignStudio({ profile, onChange }: Props) {
   const emailHtml = useMemo(() => buildQuotationEmailHtml({
     quotationNumber: SAMPLE.quotationNumber, recipientName: SAMPLE.recipientName,
     businessName: SAMPLE.businessName, items: SAMPLE.items, vatRate: SAMPLE.vatRate,
-    message: 'שמחים על ההזדמנות ללוות אתכם — מצורפת הצעה אישית.', quotationLink: '#',
+    message: 'שמחים על ההזדמנות ללוות אתכם - מצורפת הצעה אישית.', quotationLink: '#',
   }, brand), [brand]);
 
   const set = <K extends keyof FirmDocDesign>(key: K, val: FirmDocDesign[K]) =>
@@ -73,7 +73,7 @@ export default function QuotationDesignStudio({ profile, onChange }: Props) {
 
       {/* ── בקרות ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Group title="תבנית עיצוב" hint="נקודת פתיחה — אפשר לכוונן כל פרט אחריה">
+        <Group title="תבנית עיצוב" hint="נקודת פתיחה - אפשר לכוונן כל פרט אחריה">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {DESIGN_PRESETS.map(p => {
               const selected = dd.preset === p.id && !hasOverrides(dd);
@@ -103,8 +103,8 @@ export default function QuotationDesignStudio({ profile, onChange }: Props) {
         </Group>
 
         <Group title="צבעים">
-          <ColorField label="אקסנט — כפתורים ומחירים" value={brand.accent} onChange={v => set('accent', v)} />
-          <ColorField label="כהה — כותרות ומשטח האישור" value={brand.ink} onChange={v => set('ink', v)} />
+          <ColorField label="אקסנט - כפתורים ומחירים" value={brand.accent} onChange={v => set('accent', v)} />
+          <ColorField label="כהה - כותרות ומשטח האישור" value={brand.ink} onChange={v => set('ink', v)} />
           <ColorField label="רקע העמוד" value={brand.pageBg} onChange={v => set('pageBg', v)} last />
         </Group>
 

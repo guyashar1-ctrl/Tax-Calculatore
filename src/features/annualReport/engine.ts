@@ -48,7 +48,7 @@ export function formatAnswerForDisplay(
   }
   if (node.type === 'multi_select') {
     const arr = Array.isArray(value) ? value : [];
-    if (arr.length === 0) return '—';
+    if (arr.length === 0) return '-';
     return arr.map((v) => node.options?.find((o) => o.value === v)?.label ?? v).join(', ');
   }
   if (node.type === 'number') {
@@ -58,7 +58,7 @@ export function formatAnswerForDisplay(
   }
   if (node.type === 'text') {
     const s = String(value || '');
-    return s || '—';
+    return s || '-';
   }
   return String(value);
 }

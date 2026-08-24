@@ -54,14 +54,14 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '1.5rem' }}>
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div className="card-header">
-          <h2 className="card-title">דוח שנתי 1301 — התחלת תהליך</h2>
+          <h2 className="card-title">דוח שנתי 1301 - התחלת תהליך</h2>
         </div>
         <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div>
             <p className="are-lede">
-              המערכת תוביל אותך בשאלון מובנה שמתאים את עצמו לפרופיל הלקוח —
+              המערכת תוביל אותך בשאלון מובנה שמתאים את עצמו לפרופיל הלקוח -
               ובסופו תוכל לראות בשקיפות מלאה: אילו מסמכים נדרשים, אילו נספחים יש לצרף,
-              ואילו ערכים יוזנו לטופס 1301 — שדה אחרי שדה, עם הסבר מאיפה כל ערך הגיע.
+              ואילו ערכים יוזנו לטופס 1301 - שדה אחרי שדה, עם הסבר מאיפה כל ערך הגיע.
             </p>
           </div>
 
@@ -176,7 +176,7 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
               </select>
               {existingForSelection && (
                 <div style={{ marginTop: '.75rem', fontSize: '14px', color: 'var(--blue)' }}>
-                  קיים תהליך — לחיצה תמשיך מהמקום בו עצרת.
+                  קיים תהליך - לחיצה תמשיך מהמקום בו עצרת.
                 </div>
               )}
             </div>

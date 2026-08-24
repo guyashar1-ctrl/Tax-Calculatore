@@ -49,9 +49,9 @@ export default function TaxConstantsDashboard() {
       legalReference: 'סעיף 33 לפקודה',
     },
     {
-      title: 'מס יסף — סף שנתי',
+      title: 'מס יסף - סף שנתי',
       primary: fmtCurrency(data.surtaxThreshold),
-      detail: 'מעל סף זה — מס נוסף 3%',
+      detail: 'מעל סף זה - מס נוסף 3%',
       citation: {
         documentLabel: 'דע את זכויותיך 2025',
         quote: 'כאשר הכנסה החייבת עולה על 721,560 ש"ח בשנת 2025... מס על הכנסות גבוהות.',
@@ -59,7 +59,7 @@ export default function TaxConstantsDashboard() {
       legalReference: 'סעיף 121ב לפקודה',
     },
     {
-      title: 'פטור שכר דירה — חודשי',
+      title: 'פטור שכר דירה - חודשי',
       primary: fmtCurrency(data.rentalExemptMonthly),
       detail: `תקרה שנתית: ${fmtCurrency(data.rentalExemptMonthly * 12)}`,
       citation: {
@@ -71,7 +71,7 @@ export default function TaxConstantsDashboard() {
     {
       title: 'תקרת זיכוי תרומות',
       primary: '30% או 10,354,816 ₪',
-      detail: 'מההכנסה החייבת — הנמוך מבין השניים; זיכוי 35% מהתרומה',
+      detail: 'מההכנסה החייבת - הנמוך מבין השניים; זיכוי 35% מהתרומה',
       citation: {
         documentLabel: 'דע את זכויותיך 2025',
         quote: 'זיכוי של 35% מסכום התרומה בתנאי שהזיכוי לא יותר לגבי חלק מהתרומה העולה על ₪ 10,354,816 או על 30%.',
@@ -104,7 +104,7 @@ export default function TaxConstantsDashboard() {
         <div>
           <h2 style={{ margin: 0, fontSize: '24px' }}>מסד נתוני מס {year}</h2>
           <p className="tcd-lede">
-            כל קבועי החישוב שעליהם המערכת מתבססת. עבור על הכרטיסיות — כל כרטיסייה מציגה גם את הציטוט מהמקור הרשמי.
+            כל קבועי החישוב שעליהם המערכת מתבססת. עבור על הכרטיסיות - כל כרטיסייה מציגה גם את הציטוט מהמקור הרשמי.
           </p>
         </div>
         <div>
@@ -123,18 +123,18 @@ export default function TaxConstantsDashboard() {
 
       {!isCurrent2025 && (
         <div className="tcd-warn">
-          ℹ הציטוטים בכרטיסיות מתייחסים לחוברת 2025 הרשמית; ערכי הנתונים — לשנת המס {year}.
+          ℹ הציטוטים בכרטיסיות מתייחסים לחוברת 2025 הרשמית; ערכי הנתונים - לשנת המס {year}.
         </div>
       )}
 
       {/* ─── מדרגות מס — כרטיסייה מורחבת ─── */}
       <div className="card" style={{ marginBottom: '1.25rem' }}>
         <div className="card-header">
-          <h3 className="card-title">מדרגות מס הכנסה — {year}</h3>
+          <h3 className="card-title">מדרגות מס הכנסה - {year}</h3>
         </div>
         <div className="card-body">
           <p className="tcd-lede">
-            מדרגות מס שולי על יגיעה אישית. הכנסה מעל המדרגה האחרונה — חייבת ב-50% מס, וגם במס יסף נוסף.
+            מדרגות מס שולי על יגיעה אישית. הכנסה מעל המדרגה האחרונה - חייבת ב-50% מס, וגם במס יסף נוסף.
           </p>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -166,7 +166,7 @@ export default function TaxConstantsDashboard() {
           <details style={{ marginTop: '1rem', fontSize: '14px' }}>
             <summary style={{ cursor: 'pointer', color: 'var(--blue)', fontWeight: 600 }}>הצג מקור</summary>
             <div className="tcd-note">
-              <strong>מקור:</strong> דע את זכויותיך 2025, פרק ז — "המס המצטבר לפי מדרגות המס".
+              <strong>מקור:</strong> דע את זכויותיך 2025, פרק ז - "המס המצטבר לפי מדרגות המס".
               <br />
               <em style={{ color: 'var(--gray-600)' }}>
                 "מדרגות המס לשנת 2025 הוקפאו ברמת 2024 בעקבות הוראת השעה". סעיף 121 לפקודת מס הכנסה.
@@ -184,7 +184,7 @@ export default function TaxConstantsDashboard() {
       </div>
 
       <div className="tcd-foot">
-        כל הנתונים מנוהלים בקובץ <code>src/data/taxData.ts</code>. עדכון שנתי של ערכים נעשה שם בלבד — אין שום ערך hard-coded ב-UI או בלוגיקה של הדוח.
+        כל הנתונים מנוהלים בקובץ <code>src/data/taxData.ts</code>. עדכון שנתי של ערכים נעשה שם בלבד - אין שום ערך hard-coded ב-UI או בלוגיקה של הדוח.
       </div>
     </div>
   );

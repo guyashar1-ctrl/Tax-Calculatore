@@ -128,7 +128,7 @@ export function buildDocumentChecklist(
           if (!emp.name) continue;
           addOrMerge(
             `106-${emp.id}`,
-            `טופס 106 — ${emp.name}`,
+            `טופס 106 - ${emp.name}`,
             doc.reason,
             f.fieldNumber,
           );
@@ -141,7 +141,7 @@ export function buildDocumentChecklist(
           if (!inv.institutionName || inv.isClosed) continue;
           addOrMerge(
             `867-inv-${inv.id}`,
-            `אישור 867 — ${inv.institutionName}`,
+            `אישור 867 - ${inv.institutionName}`,
             doc.reason,
             f.fieldNumber,
           );
@@ -154,7 +154,7 @@ export function buildDocumentChecklist(
           if (!bank.bankName) continue;
           addOrMerge(
             `867-bank-${bank.id}`,
-            `אישור 867 — ${bank.bankName}`,
+            `אישור 867 - ${bank.bankName}`,
             doc.reason,
             f.fieldNumber,
           );
@@ -169,7 +169,7 @@ export function buildDocumentChecklist(
             if (!p.institutionName) continue;
             addOrMerge(
               `pension-self-${p.id}`,
-              `אישור הפקדות עצמאיות — ${p.institutionName}`,
+              `אישור הפקדות עצמאיות - ${p.institutionName}`,
               doc.reason,
               f.fieldNumber,
             );

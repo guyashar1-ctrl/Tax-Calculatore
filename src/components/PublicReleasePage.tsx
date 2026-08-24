@@ -118,7 +118,7 @@ const MAX_DROP_FILES = 120;
 const BULK_KEY = '__unfiled__';
 
 const UPLOAD_ERRORS: Record<string, string> = {
-  too_large: 'הקובץ גדול מדי — עד 10MB.',
+  too_large: 'הקובץ גדול מדי - עד 10MB.',
   type_not_allowed: 'סוג הקובץ הזה לא נתמך. אפשר PDF, תמונה, אקסל או וורד.',
   rate_limited: 'הועלו הרבה קבצים בזמן קצר. אפשר לנסות שוב בעוד כמה דקות.',
 };
@@ -202,7 +202,7 @@ export default function PublicReleasePage({ token }: Props) {
     const r = res as { ok?: boolean; error?: string } | null;
     if (error || !r?.ok) {
       setMarkErr(r?.error === 'not_yours'
-        ? 'הפריט הזה סומן על ידי המשרד — אי אפשר לבטל אותו מכאן.'
+        ? 'הפריט הזה סומן על ידי המשרד - אי אפשר לבטל אותו מכאן.'
         : 'לא הצלחנו לעדכן את הסימון. אפשר לנסות שוב.');
       return;
     }
@@ -271,10 +271,10 @@ export default function PublicReleasePage({ token }: Props) {
             </div>
           )}
           <h1 style={{ fontSize: 21, fontWeight: 700, margin: '10px 0 0', lineHeight: 1.4 }}>
-            העברת חומרים — {data.clientName}
+            העברת חומרים - {data.clientName}
           </h1>
           <div style={{ fontSize: 13.5, color: brand.muted, marginTop: 5, lineHeight: 1.7 }}>
-            {data.clientName} עובר/ת לטיפולנו. אפשר לשלוח את החומרים כאן — הכול יחד,
+            {data.clientName} עובר/ת לטיפולנו. אפשר לשלוח את החומרים כאן - הכול יחד,
             בלי למיין ובלי לסדר.
           </div>
         </header>
@@ -308,8 +308,8 @@ export default function PublicReleasePage({ token }: Props) {
                       {receipt === 1 ? 'הקובץ התקבל אצלנו' : `${receipt} קבצים התקבלו אצלנו`}
                     </div>
                     <div style={{ fontSize: 12.5, color: accent, marginTop: 2 }}>
-                      {receipt === 1 ? 'אפשר לסגור את החלון — שמרנו אותו.'
-                        : 'אפשר לסגור את החלון — שמרנו אותם.'}
+                      {receipt === 1 ? 'אפשר לסגור את החלון - שמרנו אותו.'
+                        : 'אפשר לסגור את החלון - שמרנו אותם.'}
                     </div>
                   </div>
                 </div>
@@ -323,7 +323,7 @@ export default function PublicReleasePage({ token }: Props) {
                 onRemoved={reload}
               />
               <p style={{ margin: '14px 0 0', fontSize: 12.5, color: brand.muted, lineHeight: 1.75 }}>
-                אפשר לשלוח בכמה פעמים — הקישור נשאר פעיל.
+                אפשר לשלוח בכמה פעמים - הקישור נשאר פעיל.
                 יש שאלה, או שנוח יותר לשלוח במייל? אפשר פשוט להשיב להודעה ששלחנו.
               </p>
             </>
@@ -386,7 +386,7 @@ export default function PublicReleasePage({ token }: Props) {
             </ul>
             <div style={{ marginTop: 10, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
               עד ההגשה משרדך נשאר המייצג הראשי. נשמח לעדכון אחרי ההגשה ולהעתק
-              ממה שהוגש — אפשר לצרף אותו כאן, כמו כל חומר אחר.
+              ממה שהוגש - אפשר לצרף אותו כאן, כמו כל חומר אחר.
             </div>
           </section>
         )}
@@ -416,7 +416,7 @@ export default function PublicReleasePage({ token }: Props) {
               <LetterText text={data.body} ink={brand.ink} />
               {data.objectionDueDate && (
                 <div style={{ marginTop: 12, fontSize: 12.5, color: brand.muted }}>
-                  אם קיימת מניעה או הסתייגות להעברת התיק — נודה לעדכון עד {formatDate(data.objectionDueDate)}.
+                  אם קיימת מניעה או הסתייגות להעברת התיק - נודה לעדכון עד {formatDate(data.objectionDueDate)}.
                 </div>
               )}
               {/* ‼ חתימה שנאספה בעבר — היסטוריה בלבד. לא מבקשים חתימה חדשה. */}
@@ -450,7 +450,7 @@ export default function PublicReleasePage({ token }: Props) {
               borderRadius: brand.radius + 4,
             }}>
               <p style={{ margin: 0, fontSize: 13.5, color: brand.muted, lineHeight: 1.7 }}>
-                מה שחשוב שנדע — הסתייגות, מניעה, חוב פתוח, דוח שטרם הוגש, או כל דבר אחר.
+                מה שחשוב שנדע - הסתייגות, מניעה, חוב פתוח, דוח שטרם הוגש, או כל דבר אחר.
                 ההערה מגיעה ישירות אלינו ונשמרת בתיק.
               </p>
               <input
@@ -727,7 +727,7 @@ function SentFiles({ token, files, newIds, brand, accent, onRemoved }: {
         <div style={{ marginTop: 8, fontSize: 12.5, color: '#a63a3a' }}>{err}</div>
       )}
       <div style={{ marginTop: 8, fontSize: 12, color: brand.muted, lineHeight: 1.7 }}>
-        הסרה מורידה את הקובץ מהרשימה כאן. אם הסרת בטעות — אפשר פשוט לשלוח שוב.
+        הסרה מורידה את הקובץ מהרשימה כאן. אם הסרת בטעות - אפשר פשוט לשלוח שוב.
       </div>
     </div>
   );
@@ -849,7 +849,7 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, o
   if (!stepId) {
     return (
       <div style={{ fontSize: 13.5, color: brand.muted, lineHeight: 1.7 }}>
-        אפשר להשיב למייל ששלחנו ולצרף את הקבצים — נשמח לקבל אותם כך.
+        אפשר להשיב למייל ששלחנו ולצרף את הקבצים - נשמח לקבל אותם כך.
       </div>
     );
   }
@@ -895,7 +895,7 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, o
 
       {skipped > 0 && (
         <div style={{ marginTop: 10, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
-          {skipped === 1 ? 'קובץ אחד דולג' : `${skipped} קבצים דולגו`} — סוג הקובץ
+          {skipped === 1 ? 'קובץ אחד דולג' : `${skipped} קבצים דולגו`} - סוג הקובץ
           לא נתמך. אפשר PDF, תמונה, אקסל או וורד.
         </div>
       )}
@@ -928,7 +928,7 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, o
           </ul>
           {doneAll && failed > 0 && (
             <div style={{ marginTop: 8, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
-              מה שנכשל לא נשמר — אפשר לבחור את הקבצים האלה שוב, או לשלוח אותם במייל.
+              מה שנכשל לא נשמר - אפשר לבחור את הקבצים האלה שוב, או לשלוח אותם במייל.
             </div>
           )}
         </div>
@@ -965,7 +965,7 @@ function WhatWasSent({ token, items, brand, accent, onDone, onSkip }: {
     });
     setBusy(false);
     const res = data as { ok?: boolean } | null;
-    if (error || !res?.ok) { setErr('לא הצלחנו לשמור את הסימון. אפשר לדלג — הקבצים כבר הגיעו.'); return; }
+    if (error || !res?.ok) { setErr('לא הצלחנו לשמור את הסימון. אפשר לדלג - הקבצים כבר הגיעו.'); return; }
     flushAccountantNotifications(token);
     onDone();
   }
@@ -977,7 +977,7 @@ function WhatWasSent({ token, items, brand, accent, onDone, onSkip }: {
     }}>
       <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>הקבצים התקבלו, תודה</div>
       <p style={{ margin: '0 0 12px', fontSize: 13.5, color: brand.muted, lineHeight: 1.7 }}>
-        אם נוח — אפשר לסמן מה המשלוח כלל. זה עוזר לנו לדעת מה עוד חסר, ואפשר גם לדלג.
+        אם נוח - אפשר לסמן מה המשלוח כלל. זה עוזר לנו לדעת מה עוד חסר, ואפשר גם לדלג.
       </p>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
         {items.map(m => (

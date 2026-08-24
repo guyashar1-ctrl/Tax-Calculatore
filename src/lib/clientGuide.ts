@@ -150,7 +150,7 @@ export function buildDocumentRequestPayload(doc: ClientDocument): Record<string,
   return {
     title: doc.label,
     clientTitle: doc.label,
-    clientSub: 'מסמך מהמשרד — כמה דקות קריאה',
+    clientSub: 'מסמך מהמשרד - כמה דקות קריאה',
     clientCta: 'לפתיחת המסמך',
     clientResource: doc.id,
     requirements: [

@@ -141,7 +141,7 @@ export default function ClientDossierTab({ client, update, patch, employees, isN
               {regFile && client.familyStatus === 'married' && (
                 <div className="dossier-spouse-note" style={{ color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--ink-3)' }}>
                   {regFile.owner === 'spouse' ? '⚠ ' : ''}בן/בת הזוג הרשום/ה: {regFile.name}
-                  {regFile.idNumber ? ` · ת.ז. ${regFile.idNumber}` : ''} — כל ההתנהלות מול מ"ה בת.ז. הזו
+                  {regFile.idNumber ? ` · ת.ז. ${regFile.idNumber}` : ''} - כל ההתנהלות מול מ"ה בת.ז. הזו
                 </div>
               )}
             </>

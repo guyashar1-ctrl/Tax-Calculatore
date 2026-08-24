@@ -510,7 +510,7 @@ export default function PdfOrganizer({
               </>
             ) : (
               <>
-                <span className="pdfw-bar-hint">חתום למטה, או העלה חותמת — ואז גרור למקום על הדף.</span>
+                <span className="pdfw-bar-hint">חתום למטה, או העלה חותמת - ואז גרור למקום על הדף.</span>
                 <button type="button" className="btn btn-sm" onClick={() => pickImage(true)}>העלה חותמת</button>
               </>
             )}
@@ -602,7 +602,7 @@ export default function PdfOrganizer({
                 <div className="pdfw-signpad">
                   <span className="pdfw-field-label">חתימה</span>
                   <SignaturePad value="" height={110} onChange={placeSignature} />
-                  <span className="pdfw-bar-hint">החתימה תונח על הדף — אפשר לגרור ולשנות גודל.</span>
+                  <span className="pdfw-bar-hint">החתימה תונח על הדף - אפשר לגרור ולשנות גודל.</span>
                 </div>
               )}
             </div>
@@ -695,7 +695,7 @@ function CropDialog({ page, source, onCancel, onApply }: {
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal-box pdfw-cropbox" onClick={e => e.stopPropagation()}>
         <h3>חיתוך העמוד</h3>
-        <div className="csub">גרור כדי לבחור מה יישאר. התוכן עצמו אינו נמחק — אפשר לבטל בכל שלב.</div>
+        <div className="csub">גרור כדי לבחור מה יישאר. התוכן עצמו אינו נמחק - אפשר לבטל בכל שלב.</div>
         <div
           ref={boxRef} dir="ltr" className="pdfw-cropstage"
           onPointerDown={e => { drag.current = rel(e); (e.target as HTMLElement).setPointerCapture?.(e.pointerId); }}

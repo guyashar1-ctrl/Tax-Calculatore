@@ -36,7 +36,7 @@ export default function SettlementLookup({ year }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div className="alert alert-info" style={{ marginBottom: 0 }}>
         <strong>המנגנון (סעיף 11 לפקודה):</strong> תושב יישוב מוטב זכאי לזיכוי ממס בשיעור <strong>7%–20% מההכנסה החייבת מיגיעה אישית</strong>, עד תקרת הכנסה שנתית שנקבעת לכל יישוב.
-        זה <u>אינו</u> "נקודות זיכוי" — הזיכוי מחושב מההכנסה ומופחת מהמס (ואינו מוחזר).
+        זה <u>אינו</u> "נקודות זיכוי" - הזיכוי מחושב מההכנסה ומופחת מהמס (ואינו מוחזר).
         נדרשים 12 חודשי מגורים רצופים, מרכז חיים ביישוב ואישור תושבות שנתי (טופס 1312א).
         ברשימת {year}: <strong>{list.length} יישובים</strong> (ההודעה הרשמית בקובץ התקנות, ינואר {year}).
       </div>
@@ -89,7 +89,7 @@ export default function SettlementLookup({ year }: Props) {
                 ))}
                 {filtered.length === 0 && eclMatches.length === 0 && (
                   <tr><td colSpan={income > 0 ? 5 : 4} style={{ padding: '1rem', textAlign: 'center', color: 'var(--gray-500)' }}>
-                    לא נמצא — היישוב אינו ברשימה הרשמית לשנת {year} (ואינו זכאי להטבה)
+                    לא נמצא - היישוב אינו ברשימה הרשמית לשנת {year} (ואינו זכאי להטבה)
                   </td></tr>
                 )}
               </tbody>
@@ -110,7 +110,7 @@ export default function SettlementLookup({ year }: Props) {
                 זיכוי <b>{EASTERN_CONFRONTATION_LINE.ratePercent}%</b> עד תקרת {fmt(EASTERN_CONFRONTATION_LINE.ceilingAnnual)} לשנה
                 (זיכוי מרבי {fmt(EASTERN_CONFRONTATION_LINE.ceilingAnnual * EASTERN_CONFRONTATION_LINE.ratePercent / 100)})
                 {income > 0 && <> · זיכוי בפועל: <b style={{ color: 'var(--green-dark)' }}>{fmt(eclCredit)}</b></>}
-                — רטרואקטיבית מ-1.1.2026.
+                - רטרואקטיבית מ-1.1.2026.
               </div>
               <div style={{ fontSize: '13px', color: 'var(--gray-600)', marginTop: '.35rem' }}>
                 {EASTERN_CONFRONTATION_LINE.conditions.map((c, i) => <div key={i}>• {c}</div>)}
@@ -118,7 +118,7 @@ export default function SettlementLookup({ year }: Props) {
             </div>
           )}
           {filtered.length > 200 && (
-            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '.4rem' }}>מוצגים 200 ראשונים — צמצמו בחיפוש</div>
+            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '.4rem' }}>מוצגים 200 ראשונים - צמצמו בחיפוש</div>
           )}
         </div>
       </div>
@@ -127,18 +127,18 @@ export default function SettlementLookup({ year }: Props) {
         <div className="card-body" style={{ fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
           <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>מקרים מיוחדים שחשוב להכיר</div>
           <div>
-            🌴 <strong>אילת אינה ברשימת סעיף 11</strong> — ההטבה שלה נקבעת בחוק אזור סחר חופשי באילת:
+            🌴 <strong>אילת אינה ברשימת סעיף 11</strong> - ההטבה שלה נקבעת בחוק אזור סחר חופשי באילת:
             {' '}{EILAT_BENEFIT.ratePercent}% מההכנסה מיגיעה אישית שהופקה באזור אילת, עד {fmt(EILAT_BENEFIT.ceilingAnnual)} לשנה (בתוקף עד 2027).
           </div>
           <div>
-            🏚 <strong>מפוני המלחמה:</strong> תושבי יישובים שפונו (בארי, כפר עזה, ניר עוז ועוד) שומרים על ההטבה גם ללא מגורים בפועל, לפי הנחיות רשות המסים — עם תאריכי תפוגה פרטניים (ניר עוז: עד 31.8.2027). נדרשת הצהרה למעסיק.
+            🏚 <strong>מפוני המלחמה:</strong> תושבי יישובים שפונו (בארי, כפר עזה, ניר עוז ועוד) שומרים על ההטבה גם ללא מגורים בפועל, לפי הנחיות רשות המסים - עם תאריכי תפוגה פרטניים (ניר עוז: עד 31.8.2027). נדרשת הצהרה למעסיק.
           </div>
           <div>
-            🆕 <strong>"קו עימות מזרחי" (ס"ח 3531, יוני 2026):</strong> {EASTERN_CONFRONTATION_LINE.settlements.length} יישובי יו"ש בהוראת שעה — 7% עד {fmt(EASTERN_CONFRONTATION_LINE.ceilingAnnual)}, רטרואקטיבית מ-1.1.2026 ועד סוף 2027.
+            🆕 <strong>"קו עימות מזרחי" (ס"ח 3531, יוני 2026):</strong> {EASTERN_CONFRONTATION_LINE.settlements.length} יישובי יו"ש בהוראת שעה - 7% עד {fmt(EASTERN_CONFRONTATION_LINE.ceilingAnnual)}, רטרואקטיבית מ-1.1.2026 ועד סוף 2027.
             הרשימה המלאה כלולה בחיפוש למעלה (לפי הוראת ביצוע רשות המסים 2026-000832 מ-9.7.2026; אומת 07/2026). שימו לב: תושבות כל השנה + בחירה בין הטבות.
           </div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-            מקורות: הודעת מס הכנסה (רשימת יישובים מוטבים) לשנת {year}, קובץ התקנות · כל-זכות — זיכוי ממס לתושבי פריפריה · הנחיית רשות המסים למעסיקים 6.1.2026
+            מקורות: הודעת מס הכנסה (רשימת יישובים מוטבים) לשנת {year}, קובץ התקנות · כל-זכות - זיכוי ממס לתושבי פריפריה · הנחיית רשות המסים למעסיקים 6.1.2026
           </div>
         </div>
       </div>

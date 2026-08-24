@@ -115,7 +115,7 @@ export default function NewPersonDialog({
       const token = await onMintApplyLink(true);
       if (!token) throw new Error('לא הצלחנו להחליף את הקישור');
       setApplyToken(token);
-      showToast('הקישור הוחלף — הקישור הקודם כבר לא פעיל.');
+      showToast('הקישור הוחלף - הקישור הקודם כבר לא פעיל.');
     } catch (e) {
       setLinkError(e instanceof Error ? e.message : 'שגיאה בהחלפת הקישור');
     } finally {
@@ -156,7 +156,7 @@ export default function NewPersonDialog({
     if (email.trim() && !isValidEmail(email)) { setFieldError('כתובת אימייל לא תקינה'); return; }
     if (idNumber.trim()) {
       if (!/^\d{9}$/.test(idNumber.trim())) { setFieldError('תעודת זהות חייבת להכיל 9 ספרות'); return; }
-      if (!isValidIsraeliId(idNumber.trim())) { setFieldError('תעודת הזהות אינה תקינה — כדאי לבדוק את הספרות'); return; }
+      if (!isValidIsraeliId(idNumber.trim())) { setFieldError('תעודת הזהות אינה תקינה - כדאי לבדוק את הספרות'); return; }
     }
     const match = findDuplicateMatch(clients, { idNumber, phone, email });
     setFieldError(null);
@@ -280,7 +280,7 @@ export default function NewPersonDialog({
               </div>
               <div className="np-sim">
                 <button type="button" className="ui-linkbtn" onClick={rotateLink} disabled={linkBusy}>
-                  החלף קישור — הקישור הנוכחי יפסיק לעבוד
+                  החלף קישור - הקישור הנוכחי יפסיק לעבוד
                 </button>
               </div>
             </>
@@ -295,7 +295,7 @@ export default function NewPersonDialog({
           </p>
           {exactBlock && (
             <div className="pd-dupbox" style={{ marginBottom: 16 }}>
-              כבר קיים אדם עם תעודת הזהות הזו — {clientName(exactBlock.client)}.{' '}
+              כבר קיים אדם עם תעודת הזהות הזו - {clientName(exactBlock.client)}.{' '}
               <button type="button" className="ui-linkbtn" onClick={() => onOpenExisting(exactBlock.client.id)}>
                 פתח את הכרטיס הקיים
               </button>
@@ -315,7 +315,7 @@ export default function NewPersonDialog({
               <EmailInput value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" disabled={busy} />
             </div>
             <div className="np-field np-field-full">
-              <label>תעודת זהות — אופציונלי</label>
+              <label>תעודת זהות - אופציונלי</label>
               <input
                 value={idNumber}
                 inputMode="numeric"
@@ -335,7 +335,7 @@ export default function NewPersonDialog({
           <div className="np-preview">{fullName.trim()} · {phone.trim() || email.trim()}</div>
           {probableWarn && (
             <div className="pd-dupbox" style={{ marginBottom: 16 }}>
-              ייתכן שכבר קיים אדם תואם — {clientName(probableWarn.client)}.{' '}
+              ייתכן שכבר קיים אדם תואם - {clientName(probableWarn.client)}.{' '}
               <button type="button" className="ui-linkbtn" onClick={() => onOpenExisting(probableWarn.client.id)}>
                 פתח את הכרטיס
               </button>

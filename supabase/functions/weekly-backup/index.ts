@@ -86,16 +86,16 @@ Deno.serve(async (req: Request) => {
 
     // ── דיווח מצב במייל — בלי נתונים, בלי קובץ מצורף ──
     const uploadFailed = !!up.error;
-    const subject = `${uploadFailed ? "גיבוי שבועי נכשל" : "גיבוי שבועי הושלם"} — ${dateStr}`;
+    const subject = `${uploadFailed ? "גיבוי שבועי נכשל" : "גיבוי שבועי הושלם"} - ${dateStr}`;
     const statusLine = uploadFailed
       ? `<p style="color:#B42318;font-weight:700;">הגיבוי לא נשמר. שגיאה: ${up.error?.message ?? "לא ידועה"}</p>`
       : `<p style="color:#067647;font-weight:700;">הגיבוי נשמר בדלי הפרטי "backups".</p>`;
     const html = `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;">
-      <h2 style="margin:0 0 8px;">גיבוי שבועי — ${dateStr}</h2>
+      <h2 style="margin:0 0 8px;">גיבוי שבועי - ${dateStr}</h2>
       ${statusLine}
       <p style="color:#555;">שם הקובץ: <strong dir="ltr">${filename}</strong> (${sizeKb}KB)</p>
       <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-size:12px;line-height:1.6;">${summaryLines}</pre>
-      <p style="color:#888;font-size:12px;">המייל הזה הוא דיווח בלבד — הנתונים עצמם אינם נשלחים במייל. הגיבוי אינו כולל את הקבצים עצמם (מסמכים/PDF).</p>
+      <p style="color:#888;font-size:12px;">המייל הזה הוא דיווח בלבד - הנתונים עצמם אינם נשלחים במייל. הגיבוי אינו כולל את הקבצים עצמם (מסמכים/PDF).</p>
     </div>`;
 
     // כל בעל פרופיל מקבל את הדיווח שלו, מהכתובת השולחת של המשרד שלו.

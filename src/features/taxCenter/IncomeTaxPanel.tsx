@@ -53,7 +53,7 @@ export default function IncomeTaxPanel({ taxData, year }: Props) {
       {/* גרף + טבלה */}
       <div className="card">
         <div className="card-header">
-          <span className="card-title">מדרגות מס — {year} {year === 2026 && <span className="badge badge-blue" style={{ marginRight: '.5rem' }}>מדרגות 3–4 הורחבו רטרואקטיבית מ-1.1.2026</span>}</span>
+          <span className="card-title">מדרגות מס - {year} {year === 2026 && <span className="badge badge-blue" style={{ marginRight: '.5rem' }}>מדרגות 3–4 הורחבו רטרואקטיבית מ-1.1.2026</span>}</span>
         </div>
         <div className="card-body">
           <ResponsiveContainer width="100%" height={200}>
@@ -97,7 +97,7 @@ export default function IncomeTaxPanel({ taxData, year }: Props) {
             </table>
           </div>
           <div className="alert alert-info" style={{ marginTop: '.75rem', marginBottom: 0, fontSize: '14px' }}>
-            הכנסה שאינה מיגיעה אישית (מתחת לגיל 60): מדרגת פתיחה <strong>31%</strong>. בני 60+ — מדרגות מלאות גם על הכנסה פסיבית.
+            הכנסה שאינה מיגיעה אישית (מתחת לגיל 60): מדרגת פתיחה <strong>31%</strong>. בני 60+ - מדרגות מלאות גם על הכנסה פסיבית.
           </div>
         </div>
       </div>
@@ -105,18 +105,18 @@ export default function IncomeTaxPanel({ taxData, year }: Props) {
       {/* מס יסף */}
       <div className="card" style={{ border: '1px solid var(--chip-red-bd)' }}>
         <div className="card-header" style={{ background: 'var(--chip-red-bg)' }}>
-          <span className="card-title">מס יסף — שתי שכבות (סעיף 121ב)</span>
+          <span className="card-title">מס יסף - שתי שכבות (סעיף 121ב)</span>
         </div>
         <div className="card-body" style={{ fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
           <div>
-            <strong>שכבה 1 — 3%</strong> על כלל ההכנסה החייבת מעל <strong>{fmt(taxData.surtaxThreshold)}</strong> לשנה (הסף הוקפא עד 2027).
+            <strong>שכבה 1 - 3%</strong> על כלל ההכנסה החייבת מעל <strong>{fmt(taxData.surtaxThreshold)}</strong> לשנה (הסף הוקפא עד 2027).
           </div>
           {taxData.surtaxCapitalExtraRate > 0 ? (
             <div>
-              <strong>שכבה 2 — {taxData.surtaxCapitalExtraRate}% נוסף</strong> (מ-2025, תיקון 276) על הכנסות שאינן מיגיעה אישית — רווח הון, שבח, דיבידנד, ריבית ושכירות — <u>רק אם ההכנסות ההוניות לבדן</u> עולות על הסף. סה"כ עד <strong>5%</strong> על הכנסות הוניות.
+              <strong>שכבה 2 - {taxData.surtaxCapitalExtraRate}% נוסף</strong> (מ-2025, תיקון 276) על הכנסות שאינן מיגיעה אישית - רווח הון, שבח, דיבידנד, ריבית ושכירות - <u>רק אם ההכנסות ההוניות לבדן</u> עולות על הסף. סה"כ עד <strong>5%</strong> על הכנסות הוניות.
             </div>
           ) : (
-            <div>בשנת {year} — אין עדיין את השכבה השנייה (נכנסה לתוקף ב-2025).</div>
+            <div>בשנת {year} - אין עדיין את השכבה השנייה (נכנסה לתוקף ב-2025).</div>
           )}
           <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
             מס יסף מחושב ליחיד (סף מלא לכל בן זוג בחישוב נפרד). שבח ממכירת דירת מגורים מתחת לתקרת ~5.38 מיליון ₪ מוחרג. מקור: הוראת ביצוע 5/2025.
@@ -127,7 +127,7 @@ export default function IncomeTaxPanel({ taxData, year }: Props) {
       {/* מחשבון מהיר */}
       <div className="card" style={{ border: '2px solid var(--blue-border)' }}>
         <div className="card-header" style={{ background: 'var(--blue-light)' }}>
-          <span className="card-title" style={{ color: 'var(--blue-dark)' }}>חישוב מהיר — {year}</span>
+          <span className="card-title" style={{ color: 'var(--blue-dark)' }}>חישוב מהיר - {year}</span>
         </div>
         <div className="card-body">
           <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap', marginBottom: '.75rem' }}>
@@ -164,7 +164,7 @@ export default function IncomeTaxPanel({ taxData, year }: Props) {
               </div>
               {calc.surtax3 > 0 && calc.surtax2 === 0 && capitalIncome > 0 && taxData.surtaxCapitalExtraRate > 0 && (
                 <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
-                  היסף ההוני (2%) לא חל: ההכנסות ההוניות לבדן ({fmt(capitalIncome)}) אינן מעל הסף ({fmt(taxData.surtaxThreshold)}) — כך לפי הדוגמאות הרשמיות בהו"ב 5/2025.
+                  היסף ההוני (2%) לא חל: ההכנסות ההוניות לבדן ({fmt(capitalIncome)}) אינן מעל הסף ({fmt(taxData.surtaxThreshold)}) - כך לפי הדוגמאות הרשמיות בהו"ב 5/2025.
                 </div>
               )}
             </>

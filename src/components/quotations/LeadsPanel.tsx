@@ -89,7 +89,7 @@ export default function LeadsPanel({
       ? `\n\nל${lead.fullName} משויכות ${related.length} הצעות מחיר. הן יישארו במערכת, אבל ינותקו מהליד.`
       : '';
     const converted = lead.convertedClientId
-      ? '\n\nהליד כבר הפך ללקוח — כרטיס הלקוח והמסמכים שלו יישארו כמו שהם.'
+      ? '\n\nהליד כבר הפך ללקוח - כרטיס הלקוח והמסמכים שלו יישארו כמו שהם.'
       : '';
     if (!window.confirm(`למחוק את הליד ${lead.fullName}?${extra}${converted}\n\nלא ניתן לשחזר.`)) return;
     setBusy(lead.id);
@@ -152,7 +152,7 @@ export default function LeadsPanel({
         /* אותו מצב ריק של העמוד — טקסט שמלמד, וכפתור כחול אחד (D14) */
         <EmptyState
           headline="אין עדיין לידים"
-          sentence="ליד נוצר אוטומטית כשמפיקים הצעת מחיר לנמען חדש — או ידנית כאן, אחרי שיחת טלפון."
+          sentence="ליד נוצר אוטומטית כשמפיקים הצעת מחיר לנמען חדש - או ידנית כאן, אחרי שיחת טלפון."
           action={{ label: '+ ליד חדש', onClick: () => onCreatingChange?.(true) }}
         />
       ) : visible.length === 0 ? (
@@ -181,11 +181,11 @@ export default function LeadsPanel({
                         <span className="badge badge-orange" style={{ marginInlineStart: 6, fontSize: 10 }}>מרו״ח אחר</span>
                       )}
                     </td>
-                    <td style={{ fontSize: 12.5, color: 'var(--gray-600)' }}>{l.businessName || '—'}</td>
-                    <td style={{ fontSize: 12.5, color: 'var(--gray-600)' }} dir="ltr">{l.phone || '—'}</td>
-                    <td style={{ fontSize: 12.5, color: 'var(--gray-600)' }} dir="ltr">{l.email || '—'}</td>
+                    <td style={{ fontSize: 12.5, color: 'var(--gray-600)' }}>{l.businessName || '-'}</td>
+                    <td style={{ fontSize: 12.5, color: 'var(--gray-600)' }} dir="ltr">{l.phone || '-'}</td>
+                    <td style={{ fontSize: 12.5, color: 'var(--gray-600)' }} dir="ltr">{l.email || '-'}</td>
                     <td><span className={`badge ${STATUS_BADGE[l.status]}`}>{LEAD_STATUS_LABELS[l.status]}</span></td>
-                    <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>{related.length || '—'}</td>
+                    <td style={{ fontSize: 12.5, color: 'var(--gray-500)' }}>{related.length || '-'}</td>
                     <td style={{ textAlign: 'end', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                       {l.status !== 'converted' && (
                         <button className="btn btn-sm btn-ghost" onClick={() => onNewQuotation(l)}>הצעה חדשה</button>
@@ -313,7 +313,7 @@ export function LeadForm({ lead, onSave, onCancel }: {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
           <label style={label}>סוג עוסק
             <select value={v.dealerType} onChange={e => set({ dealerType: e.target.value as LeadDealerType | '' })} style={{ marginTop: 4 }}>
-              <option value="">— לא נקבע —</option>
+              <option value="">- לא נקבע -</option>
               {(Object.keys(LEAD_DEALER_TYPE_LABELS) as LeadDealerType[]).map(k => (
                 <option key={k} value={k}>{LEAD_DEALER_TYPE_LABELS[k]}</option>
               ))}

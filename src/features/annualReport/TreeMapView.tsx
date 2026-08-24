@@ -169,7 +169,7 @@ export default function TreeMapView({ clients, sessions, initialOverlaySessionId
           value={overlaySessionId}
           onChange={(e) => setOverlaySessionId(e.target.value)}
         >
-          <option value="">— ללא —</option>
+          <option value="">- ללא -</option>
           {sessions.map((s) => (
             <option key={s.id} value={s.id}>
               {clientNameFor(s)} · {s.taxYear} · {s.status === 'in_progress' ? 'בתהליך' : 'הושלם'}
@@ -283,7 +283,7 @@ function NodeInspector({ node }: { node: QuestionNode }) {
       )}
 
       <InspectorTitle>שדות 1301 שהשאלה מזינה ({fields.length})</InspectorTitle>
-      {fields.length === 0 && <div style={{ fontSize: '13px', color: 'var(--gray-400)' }}>שאלת ניתוב — לא מזינה שדה ישירות</div>}
+      {fields.length === 0 && <div style={{ fontSize: '13px', color: 'var(--gray-400)' }}>שאלת ניתוב - לא מזינה שדה ישירות</div>}
       {fields.map((f) => {
         const layer = LAYER_LABELS[f.dataLayer ?? 'question'];
         const codes = f.codes ? [f.codes.registered, f.codes.spouse, f.codes.joint].filter(Boolean).join(' / ') : f.fieldNumber;

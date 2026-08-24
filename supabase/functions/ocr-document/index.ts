@@ -36,7 +36,7 @@ function buildPrompt(docType: DocType): string {
 - "gender": "male" או "female"
 - "city": עיר מגורים
 - "address": כתובת מלאה
-אם יש ספח — חלץ גם פרטי בן/בת זוג וילדים ב-additionalFields.`;
+אם יש ספח - חלץ גם פרטי בן/בת זוג וילדים ב-additionalFields.`;
     case "drivers_license":
       return `${base}
 

@@ -31,7 +31,7 @@ export default function RepresentationNextStep({ request, niIncluded, niCoversSp
   if (status === 'pending_fill') {
     ball = 'client';
     title = 'ממתינים שהלקוח ימלא את פרטיו';
-    sub = 'הקישור נשלח. כשימלא — הפרטים ייכנסו אוטומטית לכרטיס.';
+    sub = 'הקישור נשלח. כשימלא - הפרטים ייכנסו אוטומטית לכרטיס.';
   } else if (status === 'awaiting_accountant' && !(it.enteredAt && (!niIncluded || niEntered))) {
     title = 'להזין את פרטי הלקוח ברשויות';
     const niLeft = niIncluded && !niEntered
@@ -41,12 +41,12 @@ export default function RepresentationNextStep({ request, niIncluded, niCoversSp
     sub = `נשאר להזין ב: ${left.join(' ו-')}. הפרטים להעתקה בכרטיס שמתחת.`;
   } else if (status === 'awaiting_accountant') {
     title = 'להפיק את טופס ייפוי הכוח';
-    sub = 'במשבצת מס הכנסה — העלאת הטופס וסימון אזורי החתימה.';
+    sub = 'במשבצת מס הכנסה - העלאת הטופס וסימון אזורי החתימה.';
   } else if (status === 'pending_signature' && !exec.signatureEmailSentAt) {
     title = 'לשלוח ללקוח';
     sub = niIncluded
       ? 'במשבצת מס הכנסה. מייל אחד לחתימה ולאישור בביטוח הלאומי.'
-      : 'במשבצת מס הכנסה — מייל עם קישור לחתימה.';
+      : 'במשבצת מס הכנסה - מייל עם קישור לחתימה.';
   } else if (status === 'pending_signature') {
     ball = 'client';
     title = 'ממתינים לחתימת הלקוח';
@@ -64,7 +64,7 @@ export default function RepresentationNextStep({ request, niIncluded, niCoversSp
     sub = niIncluded && !niConfirmed
       ? (niCoversSpouse
           ? `מס הכנסה הושלם. בביטוח לאומי ממתינים לאישור: ${[!ni.confirmedAt && 'הנישום', !niSpouse.confirmedAt && 'בן/בת הזוג'].filter(Boolean).join(' ו-')}.`
-          : 'מס הכנסה הושלם. בביטוח לאומי — ודאו שהלקוח אישר את האסמכתא.')
+          : 'מס הכנסה הושלם. בביטוח לאומי - ודאו שהלקוח אישר את האסמכתא.')
       : 'הלקוח מיוצג מול כל הרשויות שנבחרו.';
   }
 

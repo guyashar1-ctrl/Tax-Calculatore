@@ -491,7 +491,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
   async function handleDeleteFolder(folder: DocFolder) {
     const count = folderItemCount.get(folder.id) || 0;
     const msg = count > 0
-      ? `למחוק את התיקייה "${folder.name}"?\n\n${count} המסמכים שבתוכה לא יימחקו — הם יעברו לרמה הראשית של המסמכים.`
+      ? `למחוק את התיקייה "${folder.name}"?\n\n${count} המסמכים שבתוכה לא יימחקו - הם יעברו לרמה הראשית של המסמכים.`
       : `למחוק את התיקייה "${folder.name}"?`;
     if (!confirm(msg)) return;
     try {
@@ -1354,12 +1354,12 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
             </div>
             <div className="doc-modal-body">
               <div style={{ marginBottom: '.9rem', fontSize: '.9rem' }}>
-                תיקייה <strong>{folderUpload.rootName}</strong> — {folderUpload.files.length} קבצים
+                תיקייה <strong>{folderUpload.rootName}</strong> - {folderUpload.files.length} קבצים
                 {' '}({fmt(folderUpload.files.reduce((s, f) => s + f.size, 0))})
                 {currentFolderId && <> תיכנס אל <strong>{folderPathText(currentFolderId)}</strong></>}
               </div>
               <div style={{ fontSize: '.8125rem', color: 'var(--gray-500)', marginBottom: '.9rem' }}>
-                מבנה תת-התיקיות יישמר. התיאור של כל מסמך יהיה שם הקובץ — אפשר לערוך אחר כך.
+                מבנה תת-התיקיות יישמר. התיאור של כל מסמך יהיה שם הקובץ - אפשר לערוך אחר כך.
               </div>
               <div className="form-grid form-grid-2">
                 <div className="form-group">
@@ -1460,9 +1460,9 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                     <label className="required">לקוח יעד</label>
                     <select value={copyTargetId} onChange={e => setCopyTargetId(e.target.value)}>
                       <option value="">בחר לקוח...</option>
-                      <option value={client.id}>{'\uD83D\uDD04'} {client.firstName} {client.lastName} (לקוח נוכחי — שכפול)</option>
+                      <option value={client.id}>{'\uD83D\uDD04'} {client.firstName} {client.lastName} (לקוח נוכחי - שכפול)</option>
                       {allClients.filter(c => c.id !== client.id).map(c => (
-                        <option key={c.id} value={c.id}>{c.firstName} {c.lastName} — {c.idNumber}</option>
+                        <option key={c.id} value={c.id}>{c.firstName} {c.lastName} - {c.idNumber}</option>
                       ))}
                     </select>
                   </div>
@@ -1568,7 +1568,7 @@ export default function DocumentManager({ client, allClients, onBack, onApplyExt
                   <label>החלפת הקובץ עצמו (אופציונלי)</label>
                   <div style={{ fontSize: '.8125rem', color: 'var(--gray-500)', marginBottom: '.4rem' }}>
                     הקובץ הנוכחי: <strong>{editModal.fileName}</strong> ({fmt(editModal.fileSize)}).
-                    בחר קובץ חדש כדי להחליף אותו — אם לא תבחר, הקובץ יישאר כפי שהוא.
+                    בחר קובץ חדש כדי להחליף אותו - אם לא תבחר, הקובץ יישאר כפי שהוא.
                   </div>
                   <input
                     ref={editFileRef}

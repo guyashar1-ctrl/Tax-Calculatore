@@ -225,7 +225,7 @@ export default function AgreementPaymentsTab({
         </div>
       )}
 
-      <div className="ap-hint">שכר חודשי ותשלומים חד־פעמיים מוצגים בנפרד — הם לא מתאחדים לסכום אחד.</div>
+      <div className="ap-hint">שכר חודשי ותשלומים חד־פעמיים מוצגים בנפרד - הם לא מתאחדים לסכום אחד.</div>
 
       {detailOpen && (
         <EngagementDetail
@@ -281,7 +281,7 @@ function EngagementDetail({ engagement, quotation, items, onClose }: {
       <div className="ap-detail-row ap-detail-total">
         <div className="ap-detail-name">
           <b>סה״כ חודשי</b>
-          {discount >= 1 && <div className="ap-detail-meta">מחיר שסוכם — הנחה של {formatILS(discount)} לחודש</div>}
+          {discount >= 1 && <div className="ap-detail-meta">מחיר שסוכם - הנחה של {formatILS(discount)} לחודש</div>}
         </div>
         <div className="ap-detail-val"><b>{formatILS(agreed)}</b> + מע״מ</div>
       </div>
@@ -306,7 +306,7 @@ function EngagementDetail({ engagement, quotation, items, onClose }: {
 
       {included.length > 0 && (
         <>
-          <div className="ap-detail-sect">כלול — ללא תוספת תשלום</div>
+          <div className="ap-detail-sect">כלול - ללא תוספת תשלום</div>
           {included.map(i => (
             <div className="ap-detail-row" key={i.id}>
               <div className="ap-detail-name">{itemLabel(i)}</div>

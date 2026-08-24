@@ -156,7 +156,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           מגדר · ילדים) הוא ההקשר שקובע כל מספר במסך, ולכן הוא משפט המצב. */}
       <div className="pg-head">
         <div className="pg-head-main">
-          <div className="pg-title pg-title-lg">מחשבון מס — {client.firstName} {client.lastName}</div>
+          <div className="pg-title pg-title-lg">מחשבון מס - {client.firstName} {client.lastName}</div>
           <div className="pg-status">
             מ"ה: {IT_LABELS[type]} · ב"ל: {NI_LABELS[client.niType]}
             {client.gender === 'female' ? ' · נקבה' : ' · זכר'}
@@ -176,7 +176,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
       {taxData?.isEstimated && (
         <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
-          נתוני שנת המס {year} הם הערכה — יש לאמת מול פרסומי רשות המיסים.
+          נתוני שנת המס {year} הם הערכה - יש לאמת מול פרסומי רשות המיסים.
         </div>
       )}
 
@@ -363,7 +363,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                 <div className="stat-card green" style={{ background: result.remainingFreeIncomeCapacity > 0 ? 'var(--green-light)' : 'var(--gray-50)', borderColor: result.remainingFreeIncomeCapacity > 0 ? 'var(--chip-green-bd)' : 'var(--gray-200)' }}>
                   <div className="stat-label">פוטנציאל הכנסה ב-0% מס</div>
                   <div className="stat-value" style={{ fontSize: '1.1rem', color: result.remainingFreeIncomeCapacity > 0 ? 'var(--green)' : 'var(--gray-500)' }}>
-                    {result.remainingFreeIncomeCapacity > 0 ? `₪${fmt(Math.round(result.remainingFreeIncomeCapacity))}` : '—'}
+                    {result.remainingFreeIncomeCapacity > 0 ? `₪${fmt(Math.round(result.remainingFreeIncomeCapacity))}` : '-'}
                   </div>
                   <div className="stat-sub">
                     {result.remainingFreeIncomeCapacity > 0
@@ -374,7 +374,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                 <div className="stat-card" style={{ background: 'var(--orange-light)', borderColor: 'var(--chip-amber-bd)' }}>
                   <div className="stat-label">מרחק למדרגה {result.nextBracketRate}%</div>
                   <div className="stat-value" style={{ fontSize: '1.1rem', color: 'var(--orange)' }}>
-                    {result.distanceToNextBracket > 0 ? `₪${fmt(Math.round(result.distanceToNextBracket))}` : '—'}
+                    {result.distanceToNextBracket > 0 ? `₪${fmt(Math.round(result.distanceToNextBracket))}` : '-'}
                   </div>
                   <div className="stat-sub">
                     {result.distanceToNextBracket > 0 ? `עד שיעור ${result.nextBracketRate}%` : 'במדרגה העליונה'}
@@ -455,7 +455,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           {/* BAR: Tax brackets */}
           <div className="card">
             <div className="card-header">
-              <span className="card-title">מדרגות מס הכנסה — {year}</span>
+              <span className="card-title">מדרגות מס הכנסה - {year}</span>
               <span style={{ fontSize: '.8125rem', color: 'var(--gray-500)' }}>הכנסה חייבת: ₪{fmt(Math.round(result.taxableIncome))}</span>
             </div>
             <div className="card-body">
@@ -537,7 +537,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                       <tr>
                         <td>זיכוי תרומות 35%</td>
                         <td style={{ fontSize: '.8rem' }}>סעיף 46</td>
-                        <td className="number">—</td>
+                        <td className="number">-</td>
                         <td className="number">₪{fmt(Math.round(result.donationCredit))}</td>
                       </tr>
                     )}
@@ -573,7 +573,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                 )}
                 {result.surtaxCapitalExtra > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--red)', marginBottom: '.3rem' }}>
-                    <span>מס יסף נוסף 2% — הכנסות הוניות (תיקון 276):</span>
+                    <span>מס יסף נוסף 2% - הכנסות הוניות (תיקון 276):</span>
                     <span style={{ fontWeight: 600 }}>+₪{fmt(Math.round(result.surtaxCapitalExtra))}</span>
                   </div>
                 )}
@@ -591,7 +591,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           {/* BAR: National Insurance breakdown */}
           {niChartData.length > 0 && (
             <div className="card">
-              <div className="card-header"><span className="card-title">ביטוח לאומי — פירוט מדרגות</span></div>
+              <div className="card-header"><span className="card-title">ביטוח לאומי - פירוט מדרגות</span></div>
               <div className="card-body">
                 {taxData && (
                   <div className="alert alert-info" style={{ marginBottom: '1rem', fontSize: '.875rem' }}>
@@ -690,7 +690,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
             <div className="card" style={{ border: '2px solid var(--purple)', borderRadius: 'var(--radius-lg)' }}>
               <div className="card-header" style={{ background: 'var(--purple-light)' }}>
                 <span className="card-title" style={{ color: 'var(--purple)' }}>
-                  {'\u{1F491}'} סיכום תא מ��פחתי — {client.firstName} + {client.spouse!.firstName}
+                  {'\u{1F491}'} סיכום תא מ��פחתי - {client.firstName} + {client.spouse!.firstName}
                 </span>
               </div>
               <div className="card-body">
@@ -775,8 +775,8 @@ export default function TaxCalculator({ client, onBack }: Props) {
                 {/* Surtax note */}
                 {familyResult.combinedSurtax > 0 && (
                   <div className="alert alert-info" style={{ marginTop: '.75rem' }}>
-                    מס יסף מוטל על כל יחיד בנפרד — בחישוב נפרד כל בן זוג נהנה מסף מלא.
-                    הכנסות שאינן מיגיעה אישית מיוחסות בדרך כלל לבן הזוג בעל ההכנסה הגבוהה מיגיעה אישית; הכנסה מרכוש משותף ניתנת לפיצול (הו"ב 9/2015) — נקודת תכנון חשובה.
+                    מס יסף מוטל על כל יחיד בנפרד - בחישוב נפרד כל בן זוג נהנה מסף מלא.
+                    הכנסות שאינן מיגיעה אישית מיוחסות בדרך כלל לבן הזוג בעל ההכנסה הגבוהה מיגיעה אישית; הכנסה מרכוש משותף ניתנת לפיצול (הו"ב 9/2015) - נקודת תכנון חשובה.
                   </div>
                 )}
 
@@ -784,7 +784,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                 {spouseResult.creditPointLines.length > 0 && (
                   <div style={{ marginTop: '1rem' }}>
                     <div style={{ fontSize: '.875rem', fontWeight: 600, color: 'var(--gray-700)', marginBottom: '.5rem' }}>
-                      {'\u2B50'} נקודות זיכוי — {client.spouse!.firstName}:
+                      {'\u2B50'} נקודות זיכוי - {client.spouse!.firstName}:
                     </div>
                     <div className="table-wrap">
                       <table>

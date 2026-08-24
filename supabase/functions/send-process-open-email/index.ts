@@ -71,11 +71,11 @@ Deno.serve(async (req: Request) => {
     if (actions.length === 0) {
       return json({
         error: "no_open_requests",
-        detail: { message: "אין כרגע בקשות שממתינות ללקוח — אין על מה להודיע." },
+        detail: { message: "אין כרגע בקשות שממתינות ללקוח - אין על מה להודיע." },
       }, 400);
     }
     const requestList = actions
-      .map(i => "· " + String(i.label || "").trim() + (i.sub ? ` — ${String(i.sub).trim()}` : ""))
+      .map(i => "· " + String(i.label || "").trim() + (i.sub ? ` - ${String(i.sub).trim()}` : ""))
       .join("\n");
 
     const { data: profile } = await admin.from("profiles").select("*").eq("id", userId).single();
@@ -177,7 +177,7 @@ Deno.serve(async (req: Request) => {
       type: "email_sent",
       actor: "accountant",
       note: `הדף האישי נשלח ללקוח: ${rendered.subject}`
-        + (logged ? "" : " (לא נרשם ביומן הדואר — ראה לוג השרת)"),
+        + (logged ? "" : " (לא נרשם ביומן הדואר - ראה לוג השרת)"),
       meta: { kind: KIND, to: toEmail, resend_id: body.id, openRequests: actions.length, logged },
     });
 

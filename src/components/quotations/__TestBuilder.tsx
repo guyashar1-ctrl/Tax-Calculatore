@@ -23,10 +23,10 @@ const svc = (
 
 const SERVICES: ServiceCatalogItem[] = [
   svc('bk', 'הנהלת חשבונות', 'monthly', 250, 10),
-  svc('bk_ex', 'הנהלת חשבונות — עוסק פטור', 'monthly', 80, 20),
+  svc('bk_ex', 'הנהלת חשבונות - עוסק פטור', 'monthly', 80, 20),
   svc('payroll', 'חשבות שכר', 'monthly', 80, 30),
   svc('annual', 'דוח שנתי', 'annual', 1800, 40),
-  svc('annual_prior', 'דוח שנתי — שנה פתוחה', 'annual', 1800, 50),
+  svc('annual_prior', 'דוח שנתי - שנה פתוחה', 'annual', 1800, 50),
   svc('open_files', 'פתיחת תיקים ברשויות', 'one_time', 300, 60),
   svc('to_licensed', 'מעבר מעוסק פטור לעוסק מורשה', 'one_time', 200, 70),
   svc('capital1', 'הצהרת הון ראשונה', 'one_time', 1200, 80),

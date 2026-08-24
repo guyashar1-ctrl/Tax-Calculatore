@@ -73,7 +73,7 @@ export default function AnnualReportOutput({ session, clientName, client, onBack
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '1rem 1.5rem 2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '24px' }}>תוצאות תהליך — {clientName}, שנת {session.taxYear}</h2>
+          <h2 style={{ margin: 0, fontSize: '24px' }}>תוצאות תהליך - {clientName}, שנת {session.taxYear}</h2>
           <p style={{ margin: '.3rem 0 0', color: 'var(--gray-600)', fontSize: '14px' }}>
             סטטוס: <strong>{statusLabel(session.status)}</strong> · עודכן: {new Date(session.updatedAt).toLocaleString('he-IL')}
           </p>
@@ -191,7 +191,7 @@ function SummaryView({ session, attachments, docs, mapped, tax }: {
       </SummaryCard>
       <SummaryCard title="אומדן מס לתשלום">
         <div style={{ fontSize: '24px', fontWeight: 600, color: 'var(--gray-800)' }}>{tax.netTax.toLocaleString('he-IL')} ₪</div>
-        <div style={{ color: 'var(--gray-600)', fontSize: '14px', marginTop: '.3rem' }}>אומדן בלבד — לפני נתוני 106/867</div>
+        <div style={{ color: 'var(--gray-600)', fontSize: '14px', marginTop: '.3rem' }}>אומדן בלבד - לפני נתוני 106/867</div>
       </SummaryCard>
     </div>
   );
@@ -286,7 +286,7 @@ function ChecklistView({ docs, attachments, missingClientFields }: {
         <div className="card-header"><h3 className="card-title">נספחים לטופס 1301 ({attachments.length})</h3></div>
         <div className="card-body">
           {attachments.length === 0 ? (
-            <p style={{ color: 'var(--gray-500)', margin: 0 }}>אין נספחים חובה — דוח רגיל מספיק.</p>
+            <p style={{ color: 'var(--gray-500)', margin: 0 }}>אין נספחים חובה - דוח רגיל מספיק.</p>
           ) : (
             <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
               {attachments.map((a, i) => (
@@ -425,8 +425,8 @@ function FieldRow({ fws }: { fws: FieldWithStatus }) {
         </td>
         <td style={{ padding: '.6rem', fontWeight: field.value ? 600 : 400 }}>
           {fws.status === 'pruned' ? (
-            <span style={{ color: 'var(--gray-400)', fontStyle: 'italic' }}>—</span>
-          ) : field.value ?? <span style={{ color: 'var(--gray-400)' }}>—</span>}
+            <span style={{ color: 'var(--gray-400)', fontStyle: 'italic' }}>-</span>
+          ) : field.value ?? <span style={{ color: 'var(--gray-400)' }}>-</span>}
         </td>
         <td style={{ padding: '.6rem' }}>
           <span className="ar-pill" style={{ color: traceColor(field.trace.kind) }}>
@@ -471,9 +471,9 @@ function statusIcon(s: FieldStatus): string {
   return s === 'active' ? '🟢' : s === 'pruned' ? '🔴' : '🟡';
 }
 function statusLabelFor(s: FieldStatus): string {
-  if (s === 'active')  return 'רלוונטי לפרופיל — ייכנס לטופס';
-  if (s === 'pruned')  return 'נפסל ע"י השאלון — לא רלוונטי';
-  return 'ממתין — השאלון לא הגיע לכאן עדיין';
+  if (s === 'active')  return 'רלוונטי לפרופיל - ייכנס לטופס';
+  if (s === 'pruned')  return 'נפסל ע"י השאלון - לא רלוונטי';
+  return 'ממתין - השאלון לא הגיע לכאן עדיין';
 }
 function statusRowStyle(s: FieldStatus): React.CSSProperties {
   if (s === 'active')  return { background: 'rgba(16, 185, 129, 0.05)' };
@@ -485,7 +485,7 @@ function TaxView({ tax }: { tax: ReturnType<typeof computeTransparentTax> }) {
   return (
     <div className="card">
       <div className="card-header">
-        <h3 className="card-title">חישוב מס שקוף — אומדן</h3>
+        <h3 className="card-title">חישוב מס שקוף - אומדן</h3>
       </div>
       <div className="card-body">
         <p className="ar-note is-warn" style={{ margin: '0 0 1rem' }}>

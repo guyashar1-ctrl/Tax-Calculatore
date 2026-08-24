@@ -60,7 +60,7 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
           {conf && (
             <div className={`ed-meta tone-${conf.tone}`}>
               {conf.label}
-              {topic.confidence!.level !== 'high' && <> — {topic.confidence!.reason}</>}
+              {topic.confidence!.level !== 'high' && <> - {topic.confidence!.reason}</>}
             </div>
           )}
         </div>
@@ -91,11 +91,11 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
         <p className="ed-say-text">{topic.clientAnswer}</p>
       </section>
 
-      <Section icon="🏛️" title="מס הכנסה — הדין המלא" defaultOpen>
+      <Section icon="🏛️" title="מס הכנסה - הדין המלא" defaultOpen>
         <Bullets items={topic.incomeTax.detail} />
       </Section>
 
-      <Section icon="🧾" title='מע"מ — קיזוז תשומות' defaultOpen>
+      <Section icon="🧾" title='מע"מ - קיזוז תשומות' defaultOpen>
         {topic.vat.legalBasis && (
           <div className="ed-basis"><span className="ed-lead">בסיס חוקי: </span>{topic.vat.legalBasis}</div>
         )}

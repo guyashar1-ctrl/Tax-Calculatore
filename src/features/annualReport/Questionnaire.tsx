@@ -131,7 +131,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
     <span
       className={`ar-pill ${regFile.owner === 'spouse' ? 'is-warn' : ''}`}
       style={{ marginInlineEnd: '.5rem' }}
-      title="על שם מי מתנהל תיק מס הכנסה — נקבע בכרטיס הלקוח"
+      title="על שם מי מתנהל תיק מס הכנסה - נקבע בכרטיס הלקוח"
     >
       התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
     </span>
@@ -321,7 +321,7 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
                     )}
                     {priorAnswers.has(node.id) && (
                       <div className="ar-note" style={{ marginBottom: '.75rem' }}>
-                        ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת — לחץ "המשך" לאישור, או שנה לפי הצורך.
+                        ℹ ענית על השאלה הזו קודם. התשובה כבר מסומנת - לחץ "המשך" לאישור, או שנה לפי הצורך.
                       </div>
                     )}
                     <QuestionCard

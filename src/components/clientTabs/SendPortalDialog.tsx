@@ -87,7 +87,7 @@ export default function SendPortalDialog({
     const first = clientName.trim().split(/\s+/)[0] || '';
     const shareText =
       `${first ? `היי ${first},` : 'היי,'}\n` +
-      `פתחנו לך דף אישי שבו מרוכז כל תהליך ההצטרפות — מה כבר הושלם, מה בטיפולנו, ומה ממתין לך:\n` +
+      `פתחנו לך דף אישי שבו מרוכז כל תהליך ההצטרפות - מה כבר הושלם, מה בטיפולנו, ומה ממתין לך:\n` +
       `${link}\n` +
       `הדף מתעדכן מעצמו, אפשר לחזור אליו מאותו קישור בכל שלב.`;
     const waHref = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
@@ -103,7 +103,7 @@ export default function SendPortalDialog({
             <InfoLines
               style={{ fontSize: 'var(--fs-14)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 0 }}
               items={[
-                `זהו הקישור הקבוע של ${clientName || 'הלקוח'} — הוא לא משתנה`,
+                `זהו הקישור הקבוע של ${clientName || 'הלקוח'} - הוא לא משתנה`,
                 'בכל פתיחה הוא מציג את המצב העדכני',
                 'אפשר לשלוח אותו שוב בהמשך במקום להסביר מה נשאר',
               ]} />
@@ -146,7 +146,7 @@ export default function SendPortalDialog({
             title="קישור חדש ללקוח"
             message={<InfoLines items={[
               'הקישור הקודם יפסיק לעבוד מיד',
-              'אם כבר נשלח ללקוח באימייל או בוואטסאפ — יהיה צריך לשלוח לו את הקישור החדש',
+              'אם כבר נשלח ללקוח באימייל או בוואטסאפ - יהיה צריך לשלוח לו את הקישור החדש',
             ]} />}
             confirmLabel={rotateBusy ? 'רגע…' : 'הנפקת קישור חדש'}
             onConfirm={() => void rotate()}
@@ -175,7 +175,7 @@ export default function SendPortalDialog({
           </label>
           <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap' }}>
             {([
-              { key: 'link' as const, icon: '🔗', title: 'קישור לשליחה', sub: 'וואטסאפ, SMS או העתקה — בלי מייל' },
+              { key: 'link' as const, icon: '🔗', title: 'קישור לשליחה', sub: 'וואטסאפ, SMS או העתקה - בלי מייל' },
               { key: 'email' as const, icon: '📧', title: 'שליחה במייל', sub: hasEmail ? `אל ${clientEmail}` : 'אין מייל בכרטיס הלקוח' },
             ]).map(opt => {
               const disabled = opt.key === 'email' && !hasEmail;
@@ -201,7 +201,7 @@ export default function SendPortalDialog({
 
           <p style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6, marginBottom: 0 }}>
             {mode === 'email'
-              ? 'המייל ייפתח לתצוגה מקדימה עם רשימת מה שממתין לו — אפשר לערוך לפני השליחה.'
+              ? 'המייל ייפתח לתצוגה מקדימה עם רשימת מה שממתין לו - אפשר לערוך לפני השליחה.'
               : 'הקישור יופק ויוצג כאן, מוכן להדבקה בוואטסאפ.'}
           </p>
 

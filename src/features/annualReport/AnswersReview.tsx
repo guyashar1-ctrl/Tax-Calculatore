@@ -60,9 +60,9 @@ export default function AnswersReview({ session, clientName, onStartEdit, onBack
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '1rem 1.5rem 2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '24px' }}>התשובות שניתנו — {clientName}, שנת {session.taxYear}</h2>
+          <h2 style={{ margin: 0, fontSize: '24px' }}>התשובות שניתנו - {clientName}, שנת {session.taxYear}</h2>
           <p style={{ margin: '.3rem 0 0', color: 'var(--gray-600)', fontSize: '14px' }}>
-            צפייה בלבד. לעריכה — לחץ על "ערוך תשובות בעץ ההחלטות" למטה. השאלון ירוץ מההתחלה, התשובות הקיימות יהיו מסומנות מראש, ותוכל לשנות כל אחת — וגם להישאל שאלות חדשות אם השינוי פותח ענף חדש.
+            צפייה בלבד. לעריכה - לחץ על "ערוך תשובות בעץ ההחלטות" למטה. השאלון ירוץ מההתחלה, התשובות הקיימות יהיו מסומנות מראש, ותוכל לשנות כל אחת - וגם להישאל שאלות חדשות אם השינוי פותח ענף חדש.
           </p>
         </div>
         <button className="btn btn-secondary" onClick={onBackToOutput}>חזרה לפלט ולמיפוי</button>

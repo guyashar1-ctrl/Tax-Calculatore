@@ -40,7 +40,7 @@ export default function TestQuotations() {
   const noop = async () => {};
   return (
     <div style={{ padding: '1.5rem', maxWidth: 1080, margin: '0 auto' }} dir="rtl">
-      <h2 style={{ marginBottom: '.3rem' }}>בדיקת מסך ההצעות — כפתור המחיקה</h2>
+      <h2 style={{ marginBottom: '.3rem' }}>בדיקת מסך ההצעות - כפתור המחיקה</h2>
       <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: '1rem' }}>
         צפוי: פח על Q-2026-001 (טיוטה) ועל Q-2026-003 (הלקוח נמחק) · בלי פח על Q-2026-002 (הלקוח קיים)
         {msg && <strong> · {msg}</strong>}

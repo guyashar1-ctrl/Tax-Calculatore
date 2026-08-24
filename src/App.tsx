@@ -152,7 +152,7 @@ function taxFilesForRegisteredSpouse(
       owner: onSpouse ? 'spouse' : 'client',
       repStatus: 'pending',
       ...(fileNumber ? { fileNumber } : {}),
-      notes: onSpouse ? 'בן/בת הזוג הרשום/ה — נקבע בבקשת הייצוג' : 'נוצר עם בקשת הייצוג',
+      notes: onSpouse ? 'בן/בת הזוג הרשום/ה - נקבע בבקשת הייצוג' : 'נוצר עם בקשת הייצוג',
     } satisfies TaxFileInfo;
   });
 }
@@ -948,7 +948,7 @@ export default function App() {
   function repEmailConflictMessage(email: string, excludeClientId?: string): string | null {
     const c = repEmailConflict(email, excludeClientId);
     if (!c) return null;
-    return `המייל הזה משויך גם ל${c.name} — ${REPRESENTATION_STATUS_LABELS[c.status] ?? 'לקוח פעיל'}. אפשר להמשיך; זה יכול להיות בן משפחה שחולק את אותו מייל.`;
+    return `המייל הזה משויך גם ל${c.name} - ${REPRESENTATION_STATUS_LABELS[c.status] ?? 'לקוח פעיל'}. אפשר להמשיך; זה יכול להיות בן משפחה שחולק את אותו מייל.`;
   }
 
   /**
@@ -1708,7 +1708,7 @@ export default function App() {
    * שום מייל ללקוח אינו יוצא בלי שנראה קודם (מדיניות התקשורת).
    */
   function handleRemindQuotation(q: Quotation): Promise<{ ok: boolean; error?: string; deferred?: boolean }> {
-    if (!q.publicToken) return Promise.resolve({ ok: false, error: 'להצעה אין קישור ציבורי — שלח אותה קודם.' });
+    if (!q.publicToken) return Promise.resolve({ ok: false, error: 'להצעה אין קישור ציבורי - שלח אותה קודם.' });
     const link = `${window.location.origin}/?quote=${q.publicToken}`;
     const brand = deriveQuotationBrand(firmProfile);
     const snap = q.snapshot;
@@ -1722,7 +1722,7 @@ export default function App() {
       quotationLink: link,
       expiresAt: q.expiresAt,
     }, brand);
-    const subject = q.emailSubject || snap?.emailSubject || 'תזכורת — הצעת מחיר';
+    const subject = q.emailSubject || snap?.emailSubject || 'תזכורת - הצעת מחיר';
     // הנמען נקבע בשרת מהליד/הלקוח של ההצעה; כאן מוצג אותו מקור, לידיעה.
     const lead = q.leadId ? leads.find(l => l.id === q.leadId) : undefined;
     const client = q.clientId ? clients.find(c => c.id === q.clientId) : undefined;
@@ -1800,13 +1800,13 @@ export default function App() {
       await db.saveDoc({
         id: `engagement-${q.id}`,
         clientId,
-        fileName: `הסכם התקשרות — הצעה ${q.quotationNumber}.pdf`,
+        fileName: `הסכם התקשרות - הצעה ${q.quotationNumber}.pdf`,
         fileType: 'application/pdf',
         fileSize: bytes.byteLength,
         category: 'engagement_contract',
         year: 'general',
         uploadedAt: new Date().toISOString(),
-        description: `הצעת מחיר ${q.quotationNumber} שאושרה ונחתמה${q.approvalSignerName ? ` על ידי ${q.approvalSignerName}` : ''} — נשמרה אוטומטית עם פתיחת הלקוח`,
+        description: `הצעת מחיר ${q.quotationNumber} שאושרה ונחתמה${q.approvalSignerName ? ` על ידי ${q.approvalSignerName}` : ''} - נשמרה אוטומטית עם פתיחת הלקוח`,
         notes: '',
         fileData: bytes.slice().buffer,
       });
@@ -2456,7 +2456,7 @@ export default function App() {
 
       {remindPreview && (
         <EmailPreviewDialog
-          heading={`תזכורת ללקוח — הצעה ${remindPreview.quotation.quotationNumber}`}
+          heading={`תזכורת ללקוח - הצעה ${remindPreview.quotation.quotationNumber}`}
           preloaded={{ subject: remindPreview.subject, to: remindPreview.to, html: remindPreview.html }}
           sendVia={sendQuotationReminder}
           onSent={() => { /* החלון מציג את האישור; ההצעה כבר עודכנה */ }}

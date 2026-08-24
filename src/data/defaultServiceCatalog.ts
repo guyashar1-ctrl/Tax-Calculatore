@@ -13,7 +13,7 @@ export const DEFAULT_SERVICES: SeedService[] = [
   // ─── חודשי ───
   {
     seedKey: 'bookkeeping_exempt',
-    name: 'הנהלת חשבונות — עוסק פטור',
+    name: 'הנהלת חשבונות - עוסק פטור',
     category: 'monthly',
     description: 'ניהול שוטף של הנהלת החשבונות, כולל דיווחים תקופתיים',
     defaultPrice: 80, vatFlag: true, billingType: 'fixed',
@@ -21,7 +21,7 @@ export const DEFAULT_SERVICES: SeedService[] = [
   },
   {
     seedKey: 'bookkeeping_licensed',
-    name: 'הנהלת חשבונות — עוסק מורשה',
+    name: 'הנהלת חשבונות - עוסק מורשה',
     category: 'monthly',
     description: 'ניהול שוטף של הנהלת החשבונות, כולל דיווחי מע"מ ומקדמות',
     defaultPrice: 350, vatFlag: true, billingType: 'fixed',
@@ -38,7 +38,7 @@ export const DEFAULT_SERVICES: SeedService[] = [
   // ─── שנתי ───
   {
     seedKey: 'annual_exempt',
-    name: 'דוח שנתי — עוסק פטור',
+    name: 'דוח שנתי - עוסק פטור',
     category: 'annual',
     description: 'הכנה והגשה של הדוח השנתי למס הכנסה',
     defaultPrice: 1400, vatFlag: true, billingType: 'fixed',
@@ -46,7 +46,7 @@ export const DEFAULT_SERVICES: SeedService[] = [
   },
   {
     seedKey: 'annual_licensed',
-    name: 'דוח שנתי — עוסק מורשה',
+    name: 'דוח שנתי - עוסק מורשה',
     category: 'annual',
     description: 'הכנה והגשה של הדוח השנתי למס הכנסה',
     defaultPrice: 1800, vatFlag: true, billingType: 'fixed',
@@ -55,7 +55,7 @@ export const DEFAULT_SERVICES: SeedService[] = [
   {
     // לקוח שמגיע עם שנים פתוחות — כל שנה מתומחרת כשורה נפרדת בבונה ההצעות
     seedKey: 'annual_prior_year',
-    name: 'דוח שנתי — שנה פתוחה',
+    name: 'דוח שנתי - שנה פתוחה',
     category: 'annual',
     description: 'הכנה והגשה של דוח שנתי לשנה שטרם דווחה',
     defaultPrice: 1800, vatFlag: true, billingType: 'fixed',
@@ -117,7 +117,7 @@ export const DEFAULT_SERVICES: SeedService[] = [
     seedKey: 'paperless',
     name: 'תוכנת הנהלת חשבונות',
     category: 'included',
-    description: 'סריקה, שמירה וניהול דיגיטלי של החשבוניות והקבלות — ללא ניירת',
+    description: 'סריקה, שמירה וניהול דיגיטלי של החשבוניות והקבלות - ללא ניירת',
     defaultPrice: 30, vatFlag: true, billingType: 'fixed',
     includeByDefault: true, active: true, displayOrder: 118,
   },

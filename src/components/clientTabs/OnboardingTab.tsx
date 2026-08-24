@@ -42,7 +42,8 @@ import { useAuth } from '../../hooks/useAuth';
 import type { DocCategory } from '../../hooks/useDocumentStore';
 import { DOC_CATEGORY_LABELS, useDocumentStore } from '../../hooks/useDocumentStore';
 import { useEmailMessages } from '../../hooks/useEmailMessages';
-import { EMAIL_STATUS_LABEL } from '../../types/emailActivity';
+import { EMAIL_STATUS_LABEL, EmailMessage } from '../../types/emailActivity';
+import SentEmailViewer from '../EmailActivity/SentEmailViewer';
 import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import OnboardingJourneyMap from './OnboardingJourneyMap';
@@ -484,7 +485,7 @@ export default function OnboardingTab({
     if (!retainer || retainer.payload.authorizationCreatedAt) return;
     await advance(retainer.id, 'note', {
       authorizationCreatedAt: new Date().toISOString(),
-      note: 'הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי — הלקוח יתבקש להזין כרטיס',
+      note: 'הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי - הלקוח יתבקש להזין כרטיס',
     });
     refresh?.();
   }
@@ -521,7 +522,7 @@ export default function OnboardingTab({
         const closed = await advance(connection.id, 'complete', {
           completionMethod: 'manual',
           checklist,
-          note: 'הלקוח הזין כרטיס אשראי בפייפרלס — ההקמה בפייפרלס הושלמה',
+          note: 'הלקוח הזין כרטיס אשראי בפייפרלס - ההקמה בפייפרלס הושלמה',
         });
         if (!closed.ok) { setError(closed.message ?? 'סגירת החיבור נכשלה.'); return; }
       }
@@ -740,10 +741,10 @@ export default function OnboardingTab({
   const ballTitle = !nextStep
     ? 'הקליטה הושלמה'
     : nextStep.status === 'locked'
-      ? `${STEP_TYPE_LABELS[nextStep.stepType]} — ${lockHint(nextStep, stepById, depParents.get(nextStep.id))}`
+      ? `${STEP_TYPE_LABELS[nextStep.stepType]} - ${lockHint(nextStep, stepById, depParents.get(nextStep.id))}`
       : nextStep.ball === 'me'
         ? NEXT_ACTION[nextStep.stepType]
-        : `${STEP_TYPE_LABELS[nextStep.stepType]} — ${stepStatusLabel(nextStep)}`;
+        : `${STEP_TYPE_LABELS[nextStep.stepType]} - ${stepStatusLabel(nextStep)}`;
 
   const openCount = clientSteps.filter(s => isStepOpen(s.status)).length;
   const activeEngagement = clientEngagements[0];
@@ -892,7 +893,7 @@ export default function OnboardingTab({
     const res = data as { ok?: boolean; error?: string } | null;
     if (rpcError || !res?.ok) {
       setError(res?.error === 'step_closed'
-        ? 'השלב כבר נסגר — אי אפשר לשנות אם הוא נדרש.'
+        ? 'השלב כבר נסגר - אי אפשר לשנות אם הוא נדרש.'
         : (rpcError?.message ?? 'עדכון הבקשה נכשל.'));
       return;
     }
@@ -1045,7 +1046,7 @@ export default function OnboardingTab({
                               </button>
                               <button type="button" role="menuitem" className={mi}
                                 onClick={() => { setMenuStepId(null); setTemplatesOpen(true); }}
-                                title="שמירת הבקשות של הלקוח כתבנית — כולל התלות ביניהן">
+                                title="שמירת הבקשות של הלקוח כתבנית - כולל התלות ביניהן">
                                 שמור את כל המסע כתבנית
                               </button>
                             </>
@@ -1058,8 +1059,8 @@ export default function OnboardingTab({
                             <button type="button" role="menuitem"
                               className={`${mi} ${step.pendingCancel ? '' : 'is-danger'}`} disabled={busy}
                               onClick={() => { setMenuStepId(null); void removeRow(step); }}
-                              title={step.publishedAt == null ? 'הבקשה עוד לא פורסמה — ההסרה מיידית'
-                                : step.pendingCancel ? 'ההסרה ממתינה לפרסום — לחיצה תבטל אותה'
+                              title={step.publishedAt == null ? 'הבקשה עוד לא פורסמה - ההסרה מיידית'
+                                : step.pendingCancel ? 'ההסרה ממתינה לפרסום - לחיצה תבטל אותה'
                                 : 'הבקשה תוסר מדף הלקוח בעדכון הבא'}>
                               {step.pendingCancel ? 'בטל את ההסרה' : 'הסר את הבקשה'}
                             </button>
@@ -1087,7 +1088,7 @@ export default function OnboardingTab({
                     subject: String(step.payload.emailSubject ?? ''),
                     body: String(step.payload.emailBody ?? ''),
                   })}
-                  title="נפתחת טיוטה לעריכה ואישור — שום דבר לא נשלח לפני שתלחץ שלח">
+                  title="נפתחת טיוטה לעריכה ואישור - שום דבר לא נשלח לפני שתלחץ שלח">
                   {extAlreadySent ? 'שלח תזכורת' : 'פתח טיוטת מייל לשליחה'}
                 </button>
               ) : null;
@@ -1425,7 +1426,7 @@ export default function OnboardingTab({
             המצב העדכני, ולכן אין "איזה קישור שלחתי" — יש קישור אחד. */}
         <button type="button" className="btn btn-sm btn-ghost"
           onClick={() => setPreviewOpen(true)}
-          title="הדף האישי כפי שהלקוח רואה אותו — כולל טיוטות שטרם פורסמו">
+          title="הדף האישי כפי שהלקוח רואה אותו - כולל טיוטות שטרם פורסמו">
           הדף של הלקוח
         </button>
         <button type="button" className="btn btn-sm btn-ghost"
@@ -1444,7 +1445,7 @@ export default function OnboardingTab({
         {activeEngagement?.status === 'onboarding' && (
           <button type="button" className="btn btn-sm btn-ghost" disabled={closing}
             onClick={() => void closeOnboarding(false)}
-            title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
+            title="מעביר את הלקוח לשוטף - אחרי בדיקת התנאים">
             {closing ? 'סוגר…' : 'סגור קליטה'}
           </button>
         )}
@@ -1464,11 +1465,11 @@ export default function OnboardingTab({
       {embedded && (
         <div className="ob-clientpage">
           <span className="ob-clientpage-lead">
-            הדף של {clientDisplayName ?? 'הלקוח'} — קישור קבוע אחד:
+            הדף של {clientDisplayName ?? 'הלקוח'} - קישור קבוע אחד:
           </span>
           <button type="button" className="ui-linkbtn" disabled={linkBusy}
             onClick={() => void copyPortalLink()}
-            title="מעתיק את הקישור לדף האישי — לוואטסאפ או לכל מקום אחר">
+            title="מעתיק את הקישור לדף האישי - לוואטסאפ או לכל מקום אחר">
             {linkCopied ? 'הועתק ✓' : linkBusy ? 'מכין…' : 'העתק קישור'}
           </button>
           <button type="button" className="ui-linkbtn"
@@ -1478,7 +1479,7 @@ export default function OnboardingTab({
           </button>
           <button type="button" className="ui-linkbtn"
             onClick={() => setPreviewOpen(true)}
-            title="הדף האישי כפי שהלקוח רואה אותו — כולל טיוטות שטרם פורסמו">
+            title="הדף האישי כפי שהלקוח רואה אותו - כולל טיוטות שטרם פורסמו">
             מה הלקוח רואה
           </button>
           <span style={{ flex: 1 }} />
@@ -1491,7 +1492,7 @@ export default function OnboardingTab({
           {activeEngagement?.status === 'onboarding' && (
             <button type="button" className="btn btn-sm btn-ghost" disabled={closing}
               onClick={() => void closeOnboarding(false)}
-              title="מעביר את הלקוח לשוטף — אחרי בדיקת התנאים">
+              title="מעביר את הלקוח לשוטף - אחרי בדיקת התנאים">
               {closing ? 'סוגר…' : 'סגור קליטה'}
             </button>
           )}
@@ -1510,7 +1511,7 @@ export default function OnboardingTab({
       )}
       {linkToCopyManually && (
         <InfoLines style={{ fontSize: 'var(--fs-12)', color: 'var(--err)' }} items={[
-          '⚠ העתקה נחסמה בדפדפן — אפשר להעתיק את הקישור מכאן',
+          '⚠ העתקה נחסמה בדפדפן - אפשר להעתיק את הקישור מכאן',
           <span dir="ltr" style={{ display: 'block', textAlign: 'right', wordBreak: 'break-all' }}>{linkToCopyManually}</span>,
         ]} />
       )}
@@ -1720,8 +1721,8 @@ export default function OnboardingTab({
                       <div className="ob-card-title">רו״ח קודם</div>
                       <div className="ob-card-meta">
                         {prevAccountant?.name
-                          ? `${prevAccountant.name} רשום בכרטיס — עוד לא נפתח מסלול העברה.`
-                          : 'רשום שהלקוח הגיע מרו״ח אחר — עוד לא נפתח מסלול העברה.'}
+                          ? `${prevAccountant.name} רשום בכרטיס - עוד לא נפתח מסלול העברה.`
+                          : 'רשום שהלקוח הגיע מרו״ח אחר - עוד לא נפתח מסלול העברה.'}
                       </div>
                     </div>
                     <div className="ob-card-actions">
@@ -1783,10 +1784,10 @@ export default function OnboardingTab({
                     <div className="ob-card-title">יישור קו ללקוח</div>
                     <div className="ob-card-meta">
                       {alignSteps.length === 0
-                        ? 'ביטוח לאומי, מע״מ ומס הכנסה — לאן להיכנס, מה להעתיק, מה חריג'
+                        ? 'ביטוח לאומי, מע״מ ומס הכנסה - לאן להיכנס, מה להעתיק, מה חריג'
                         : alignDone
                           ? `הושלם${alignSteps[0]?.payload.checkedAt ? ' · נבדק לאחרונה ' + formatDate(String(alignSteps[0].payload.checkedAt), 'list') : ''}`
-                          : 'בתהליך — נכנסים לכל רשות ומיישרים קו'}
+                          : 'בתהליך - נכנסים לכל רשות ומיישרים קו'}
                     </div>
                   </div>
                   {(alignSteps.length === 0 || alignDone) && (
@@ -1865,7 +1866,7 @@ export default function OnboardingTab({
                       {s.stepType === 'paperless_invite' && (
                         <button type="button" className="btn btn-sm btn-ghost"
                           disabled={busyStepId === s.id}
-                          title="הלקוח אישר שנרשם, אבל בפועל לא — השלב חוזר אליו"
+                          title="הלקוח אישר שנרשם, אבל בפועל לא - השלב חוזר אליו"
                           onClick={e => { e.stopPropagation(); void reopenRegistration(s); }}>
                           בטל אישור
                         </button>
@@ -2240,7 +2241,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
                 של הלקוח, ככל בקשה אחרת — לא במייל נפרד לבקשה הזאת. */}
             {isInvite && open && path !== 'none' && path !== undefined && (
               <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
-                onClick={() => p.onRun('skip', { reason: 'already_connected', note: 'הלקוח כבר בפייפרלס — אין צורך בהרשמה' })}>
+                onClick={() => p.onRun('skip', { reason: 'already_connected', note: 'הלקוח כבר בפייפרלס - אין צורך בהרשמה' })}>
                 סמן שאין צורך בהרשמה
               </button>
             )}
@@ -2249,7 +2250,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
                 או שראינו אותו בפייפרלס — בדיוק כמו "הלקוח השלים" בשאר הבקשות. */}
             {isInvite && open && (
               <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
-                title="לשימוש כשהלקוח הודיע מחוץ למערכת — בדרך כלל הוא מאשר בעצמו בדף האישי"
+                title="לשימוש כשהלקוח הודיע מחוץ למערכת - בדרך כלל הוא מאשר בעצמו בדף האישי"
                 onClick={() => p.onRun('complete', { completionMethod: 'manual' })}>הלקוח נרשם</button>
             )}
 
@@ -2285,7 +2286,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
                 כאן, ורק על ההרשמה: שלב החיבור חוזר לנעול אם עוד לא נגעו בו. */}
             {isInvite && !open && step.status !== 'cancelled' && (
               <button type="button" className="btn btn-sm btn-ghost" disabled={busy}
-                title="הלקוח אישר שנרשם, אבל בפועל לא — השלב חוזר אליו"
+                title="הלקוח אישר שנרשם, אבל בפועל לא - השלב חוזר אליו"
                 onClick={p.onReopen}>בטל את אישור ההרשמה</button>
             )}
 
@@ -2312,7 +2313,7 @@ function InviteBody({ path, status }: { path?: PaperlessStatus; status: string }
   if (path === 'other_rep') {
     return (
       <div style={cardNote}>
-        הלקוח כבר קיים בפייפרלס אצל המייצג הקודם — אין לו מה להירשם. ההמשך
+        הלקוח כבר קיים בפייפרלס אצל המייצג הקודם - אין לו מה להירשם. ההמשך
         נעשה בשלב החיבור, שהוא שלנו.
       </div>
     );
@@ -2360,7 +2361,7 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
   if (path === 'not_applicable') {
     return (
       <div style={cardNote}>
-        אין חיבור לפייפרלס ללקוח הזה. אם זה ישתנה — "שנה מסלול" יחזיר את
+        אין חיבור לפייפרלס ללקוח הזה. אם זה ישתנה - "שנה מסלול" יחזיר את
         ההזמנה והחיבור, והתשלום יחזור להיות תלוי בהם.
       </div>
     );
@@ -2428,7 +2429,7 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
               }}>
                 <input type="checkbox" checked={item.done} disabled readOnly
                   style={{ marginTop: 2 }}
-                  title={item.done ? 'סומן על ידך — אי אפשר לבטל כרטיס שהוזן' : undefined} />
+                  title={item.done ? 'סומן על ידך - אי אפשר לבטל כרטיס שהוזן' : undefined} />
                 <span style={{
                   display: 'flex', gap: '.45rem', alignItems: 'baseline', flexWrap: 'wrap',
                   textDecoration: item.done ? 'line-through' : 'none',
@@ -2437,7 +2438,7 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
                   {waiting && <span style={{ color: 'var(--ink-4)' }}>· אחרי ארבעת הסעיפים שמעל</span>}
                   {!item.done && cardStepReady && (
                     <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-                      title="לסמן אחרי שראית בפייפרלס שהלקוח הזין כרטיס — זה מה שמשחרר את הרשאת התשלום"
+                      title="לסמן אחרי שראית בפייפרלס שהלקוח הזין כרטיס - זה מה שמשחרר את הרשאת התשלום"
                       onClick={onCardEntered}>סמן כבוצע</button>
                   )}
                 </span>
@@ -2472,9 +2473,9 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
         {!cardItem
           ? 'אחרי «סיימתי» נפתח כרטיס התשלום החודשי, ושם ממשיכים: הכרטיס שהלקוח מזין, והחיוב עצמו.'
           : cardItem.done
-            ? 'הכרטיס הוזן וההקמה בפייפרלס הושלמה. ההמשך בכרטיס התשלום החודשי — החיוב עצמו.'
+            ? 'הכרטיס הוזן וההקמה בפייפרלס הושלמה. ההמשך בכרטיס התשלום החודשי - החיוב עצמו.'
             : items.find(i => i.key === RETAINER_CARD_KEY)?.done
-              ? 'הריטיינר עודכן לכרטיס — מכאן פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. כשתראה שהכרטיס הוזן — לסמן כאן, וכרטיס התשלום החודשי ייפתח.'
+              ? 'הריטיינר עודכן לכרטיס - מכאן פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. כשתראה שהכרטיס הוזן - לסמן כאן, וכרטיס התשלום החודשי ייפתח.'
               : 'אחרי עדכון הריטיינר פייפרלס תבקש מהלקוח את הכרטיס. הסימון שהוא הוזן הוא מה שיפתח את כרטיס התשלום החודשי.'}
       </div>
 
@@ -2569,22 +2570,22 @@ function RetainerStepCard(p: RetainerCardProps) {
       <div style={{ display: 'flex', gap: '1.4rem', flexWrap: 'wrap', marginTop: '.45rem' }}>
         <div>
           <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>שכר טרחה חודשי (לפני מע"מ)</div>
-          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{beforeVat ? formatILS(beforeVat) : '—'}</div>
+          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{beforeVat ? formatILS(beforeVat) : '-'}</div>
         </div>
         <div>
-          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>כולל מע"מ — לחיוב בפועל</div>
-          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{withVat ? formatILS(withVat) : '—'}</div>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>כולל מע"מ - לחיוב בפועל</div>
+          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{withVat ? formatILS(withVat) : '-'}</div>
         </div>
         <div>
           <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>חודש חיוב ראשון</div>
-          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{month || '—'}</div>
+          <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>{month || '-'}</div>
         </div>
       </div>
 
       {manual ? (
         <>
           <div style={cardNote}>
-            הלקוח לא עובד עם פייפרלס — אין כאן הרשאה דיגיטלית ואין מייל ללקוח.
+            הלקוח לא עובד עם פייפרלס - אין כאן הרשאה דיגיטלית ואין מייל ללקוח.
             רושמים איך גובים בפועל, ומסמנים כשההסדר הוקם.
           </div>
           {isStepOpen(step.status) && (
@@ -2596,7 +2597,7 @@ function RetainerStepCard(p: RetainerCardProps) {
               <button type="button" className="btn btn-sm btn-primary" disabled={busy || !method}
                 onClick={() => p.onRun('complete', {
                   completionMethod: 'manual', collectionMethod: method,
-                  note: `הסדר גבייה הוקם — ${method}`,
+                  note: `הסדר גבייה הוקם - ${method}`,
                 })}>ההסדר הוקם</button>
             </div>
           )}
@@ -2629,11 +2630,11 @@ function RetainerStepCard(p: RetainerCardProps) {
               תיקון, לא הדרך הרגילה — ואסור להסיר אותם. */}
           <div style={cardNote}>
             {!authorizationCreatedAt
-              ? <>הלקוח מחובר לפייפרלס. מה שפותח את בקשת הכרטיס אצלו הוא עדכון הריטיינר לתשלום בכרטיס אשראי — הסעיף הרביעי ברשימת החיבור, ואפשר לסמן אותו גם כאן.</>
+              ? <>הלקוח מחובר לפייפרלס. מה שפותח את בקשת הכרטיס אצלו הוא עדכון הריטיינר לתשלום בכרטיס אשראי - הסעיף הרביעי ברשימת החיבור, ואפשר לסמן אותו גם כאן.</>
               : !cardEnteredAt
-                ? <>הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי ({formatDate(authorizationCreatedAt, 'list')}). הלקוח רואה בדף האישי שפייפרלס תבקש ממנו כרטיס, וגם שייתכן חיוב אימות בסך 1 ₪. כשתראה בפייפרלס שהכרטיס הוזן — לסמן כאן.</>
+                ? <>הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי ({formatDate(authorizationCreatedAt, 'list')}). הלקוח רואה בדף האישי שפייפרלס תבקש ממנו כרטיס, וגם שייתכן חיוב אימות בסך 1 ₪. כשתראה בפייפרלס שהכרטיס הוזן - לסמן כאן.</>
                 : !retainerChargedAt
-                  ? <>הכרטיס הוזן {formatDate(cardEnteredAt, 'list')}. נשאר לחייב את הריטיינר שסוכם — ואז לסמן כאן. זה מה שסוגר את השלב.</>
+                  ? <>הכרטיס הוזן {formatDate(cardEnteredAt, 'list')}. נשאר לחייב את הריטיינר שסוכם - ואז לסמן כאן. זה מה שסוגר את השלב.</>
                   : <>הריטיינר חויב {formatDate(retainerChargedAt, 'list')}.</>}
           </div>
 
@@ -2644,7 +2645,7 @@ function RetainerStepCard(p: RetainerCardProps) {
                   title="אותה פעולה בדיוק כמו הסעיף האחרון ברשימת החיבור"
                   onClick={() => p.onRun('note', {
                     authorizationCreatedAt: new Date().toISOString(),
-                    note: 'הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי — הלקוח יתבקש להזין כרטיס',
+                    note: 'הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי - הלקוח יתבקש להזין כרטיס',
                   })}>
                   עדכנתי את הריטיינר לכרטיס אשראי
                 </button>
@@ -2713,7 +2714,7 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
       danger={step.needsAttention}>
       {step.needsAttention && (
         <div style={{ marginTop: '.35rem', fontSize: 'var(--fs-13)', color: 'var(--err)', fontWeight: 600 }}>
-          {ready ? 'אפשר לעבור לייצוג ראשי — הרו״ח הקודם השלים את העבודה שנותרה אצלו' : 'הגיע מועד התזכורת'}
+          {ready ? 'אפשר לעבור לייצוג ראשי - הרו״ח הקודם השלים את העבודה שנותרה אצלו' : 'הגיע מועד התזכורת'}
         </div>
       )}
 
@@ -2725,8 +2726,8 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
 
       <div style={cardNote}>
         {ready
-          ? 'העבודה שנותרה אצל הרו״ח הקודם הושלמה. לשנות את רמת הייצוג בכרטיס ל״מייצג ראשי״ — והשלב ייסגר מעצמו.'
-          : 'הרו״ח הקודם עדיין רשום כמייצג הראשי. כשהוא ישוחרר — לשנות את רמת הייצוג בכרטיס ל״מייצג ראשי״, והשלב ייסגר מעצמו.'}
+          ? 'העבודה שנותרה אצל הרו״ח הקודם הושלמה. לשנות את רמת הייצוג בכרטיס ל״מייצג ראשי״ - והשלב ייסגר מעצמו.'
+          : 'הרו״ח הקודם עדיין רשום כמייצג הראשי. כשהוא ישוחרר - לשנות את רמת הייצוג בכרטיס ל״מייצג ראשי״, והשלב ייסגר מעצמו.'}
       </div>
 
       {isStepOpen(step.status) && (
@@ -2779,7 +2780,7 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
       <div style={cardNote}>
         {act ? act.why
           : open ? 'הבדיקה, החתימה וההגשה נעשות במרכז הייצוג.'
-            : 'הייצוג הושלם. הפירוט המלא — במרכז הייצוג.'}
+            : 'הייצוג הושלם. הפירוט המלא - במרכז הייצוג.'}
       </div>
       {onOpen && (
         <div style={{ marginTop: '.55rem' }}>
@@ -2815,7 +2816,7 @@ function IntakeStepCard({ step, stepById, busy, highlight, onRun, menu }: {
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}>
       <div style={cardNote}>
         {sent
-          ? 'השאלון פתוח ללקוח בדף האישי. ברגע שיסיים למלא — השלב ייסגר מעצמו והתשובות יופיעו בכרטיס.'
+          ? 'השאלון פתוח ללקוח בדף האישי. ברגע שיסיים למלא - השלב ייסגר מעצמו והתשובות יופיעו בכרטיס.'
           : 'שאלון שממפה את מצב המס של הלקוח: מצב משפחתי וילדים, מקורות הכנסה, הפקדות לפנסיה וקרן השתלמות, ונכסים להצהרת הון. מה שיענה כאן לא ייאסף שוב בדוח השנתי.'}
       </div>
 
@@ -2883,7 +2884,7 @@ function KycStepCard({ step, stepById, clientId, busy, highlight, onRun, menu }:
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}>
       <div style={cardNote}>
         {docs.length > 0 ? (
-          <>נאספו בתהליך הייצוג — נשאר לוודא שהם קריאים ותואמים לפרטי הלקוח:</>
+          <>נאספו בתהליך הייצוג - נשאר לוודא שהם קריאים ותואמים לפרטי הלקוח:</>
         ) : checked ? (
           <>לא נמצאו מסמכי זיהוי בתיק. אפשר להעלות אותם בלשונית המסמכים, או לאשר
             אם הזיהוי נעשה בדרך אחרת.</>
@@ -2896,7 +2897,7 @@ function KycStepCard({ step, stepById, clientId, busy, highlight, onRun, menu }:
           fontSize: 'var(--fs-13)', color: 'var(--ink-2)',
         }}>
           {docs.map(d => (
-            <li key={d.id}>{DOC_CATEGORY_LABELS[d.category]} — {d.name}</li>
+            <li key={d.id}>{DOC_CATEGORY_LABELS[d.category]} - {d.name}</li>
           ))}
         </ul>
       )}
@@ -2905,7 +2906,7 @@ function KycStepCard({ step, stepById, clientId, busy, highlight, onRun, menu }:
         <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem' }}>
           <button type="button" className="btn btn-sm btn-primary" disabled={busy}
             onClick={() => onRun('complete', { completionMethod: 'manual', note: 'הזיהוי נבדק ואושר' })}>
-            בדקתי — מאושר
+            בדקתי - מאושר
           </button>
         </div>
       )}
@@ -3249,7 +3250,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
     const verb = item.kind === 'capital_declaration' ? 'הוגשה' : item.kind === 'annual_report' ? 'הוגש' : 'הושלם';
     const res = await p.advance(step.id, 'note', {
       outstandingItems: next,
-      note: `${item.label} — ${verb} על ידי הרו״ח הקודם`,
+      note: `${item.label} - ${verb} על ידי הרו״ח הקודם`,
     });
     if (!res.ok) {
       setCardError(res.message ?? 'השמירה נכשלה.');
@@ -3282,7 +3283,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
       if (upgrade) {
         await p.advance(upgrade.id, 'note', {
           upgradeReadyAt: nowIso,
-          note: 'הרו״ח הקודם השלים את העבודה שנותרה אצלו — אפשר לעבור לייצוג ראשי',
+          note: 'הרו״ח הקודם השלים את העבודה שנותרה אצלו - אפשר לעבור לייצוג ראשי',
         });
         await supabase.rpc('set_step_attention', { p_step_id: upgrade.id, p_on: true });
       }
@@ -3339,7 +3340,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                 {email && <span dir="ltr">{email}</span>}
                 {prevAccountant?.phone && <span dir="ltr">{prevAccountant.phone}</span>}
                 {!prevAccountant?.name && !email && !prevAccountant?.phone && !detailsOpen && (
-                  <span style={{ color: 'var(--err)' }}>עדיין אין פרטים — בלי אימייל אי אפשר לשלוח.</span>
+                  <span style={{ color: 'var(--err)' }}>עדיין אין פרטים - בלי אימייל אי אפשר לשלוח.</span>
                 )}
               </div>
             )}
@@ -3347,7 +3348,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                 כשהיא פתוחה אין "חסר" ואין אדום: מישהו כבר עובד על זה. */}
             {detailsOpen && !email && !editingDetails && (
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>
-                ביקשנו מ{client.firstName || 'הלקוח'} את הפרטים — ממתין.
+                ביקשנו מ{client.firstName || 'הלקוח'} את הפרטים - ממתין.
                 אפשר לערוך את המכתב בינתיים; השליחה תיפתח כשיהיה אימייל.
               </div>
             )}
@@ -3357,7 +3358,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
               </div>
             )}
             {!email && !editingDetails && !detailsOpen && (prevAccountant?.name || prevAccountant?.phone) && (
-              <div className="ob-hand-warn">חסר אימייל — בלעדיו אי אפשר לשלוח את המכתב.</div>
+              <div className="ob-hand-warn">חסר אימייל - בלעדיו אי אפשר לשלוח את המכתב.</div>
             )}
           </div>
 
@@ -3376,7 +3377,9 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                 <ul className="ob-hand-list">
                   {outstandingItems.map(i => (
                     <li key={i.key} className={`ob-hand-item${i.filedAt ? ' is-done' : ''}`}>
-                      <span className="ob-hand-mark" aria-hidden="true">{i.filedAt ? '✓' : '○'}</span>
+                      {/* ‼ לא צ'קבוקס: ההגשה נסגרת בכפתור מפורש ("הדוח הוגש"),
+                          כי היא גוררת מעבר ייצוג — לא סימון אגבי. נקודה = מצב. */}
+                      <span className="ob-hand-mark" aria-hidden="true">{i.filedAt ? '✓' : '•'}</span>
                       <span className="ob-hand-label">{i.label}</span>
                       {i.filedAt ? (
                         <span className="ob-hand-tag">
@@ -3436,14 +3439,19 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                       aria-label={i.done ? `סימון ${i.label} כלא התקבל` : `סימון ${i.label} כהתקבל`}
                       aria-pressed={i.done}
                       title={i.declaredByRecipient
-                        ? 'סומן לפי הצהרת הרו״ח הקודם — לחיצה מבטלת'
-                        : i.done ? 'התקבל — לחיצה מבטלת' : 'סימון כהתקבל'}
+                        ? 'סומן לפי הצהרת הרו״ח הקודם - לחיצה מבטלת'
+                        : i.done ? 'התקבל - לחיצה מבטלת' : 'סימון כהתקבל'}
                       onClick={() => void persistItems(items.map(x =>
                         (x.key === i.key
                           ? { ...x, done: !x.done, declaredByRecipient: false }
                           : x)))}>
                       {i.done ? '✓' : '○'}
                     </button>
+                  ) : i.optional ? (
+                    /* ‼ הפריט הפתוח אינו צ'קבוקס: הוא הזמנה פתוחה שאינה
+                       "מושלמת" לעולם ואינה נספרת. עיגול לצידו נראה כמו
+                       סימון שלא עובד. רווח שומר על היישור, התג אומר "רשות". */
+                    <span className="ob-hand-mark" aria-hidden="true" style={{ display: 'inline-block', width: 16 }} />
                   ) : (
                     <span className="ob-hand-mark" aria-hidden="true">{sent ? (i.done ? '✓' : '○') : '•'}</span>
                   )}
@@ -3457,12 +3465,12 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                         if (e.key === 'Escape') setEditingKey(null);
                       }} />
                   ) : (
-                    <span className="ob-hand-label">{i.label || '—'}</span>
+                    <span className="ob-hand-label">{i.label || '-'}</span>
                   )}
                   {i.priority && <span className="ob-hand-tag is-priority">חשוב במיוחד</span>}
                   {i.optional && <span className="ob-hand-tag">רשות</span>}
                   {i.declaredByRecipient && <span className="ob-hand-tag">לפי הצהרתו</span>}
-                  {i.addedAfterSend && !i.notifiedAt && <span className="ob-hand-tag is-new">נוסף — טרם נמסר</span>}
+                  {i.addedAfterSend && !i.notifiedAt && <span className="ob-hand-tag is-new">נוסף - טרם נמסר</span>}
                   {i.optional && i.uploads > 0 && (
                     <span className="ob-hand-tag">{i.uploads} קבצים</span>
                   )}
@@ -3472,7 +3480,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                         <button type="button" disabled={saving}
                           aria-label={i.priority ? `ביטול חשוב: ${i.label}` : `סימון כחשוב: ${i.label}`}
                           aria-pressed={!!i.priority}
-                          title={i.priority ? 'חשוב במיוחד — מופיע ראשון' : 'סימון כחשוב במיוחד'}
+                          title={i.priority ? 'חשוב במיוחד - מופיע ראשון' : 'סימון כחשוב במיוחד'}
                           style={{ opacity: i.priority ? 1 : .45 }}
                           onClick={() => void persistItems(items.map(x =>
                             (x.key === i.key ? { ...x, priority: !x.priority } : x)))}>
@@ -3507,7 +3515,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                     ))}
                   </div>
                 )}
-                <input autoFocus value={newLabel} placeholder="או פריט אחר — מה עוד מבקשים?" disabled={saving}
+                <input autoFocus value={newLabel} placeholder="או פריט אחר - מה עוד מבקשים?" disabled={saving}
                   aria-label="פריט חדש"
                   onChange={e => setNewLabel(e.target.value)}
                   onKeyDown={e => {
@@ -3530,7 +3538,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                 {pendingFollowUp.length === 1
                   ? 'פריט אחד נוסף אחרי שהמכתב נשלח, והוא כבר מופיע בדף של הרו״ח הקודם'
                   : `${pendingFollowUp.length} פריטים נוספו אחרי שהמכתב נשלח, והם כבר מופיעים בדף של הרו״ח הקודם`}
-                {' '}— כדאי לעדכן אותו במייל.
+                {' '}- כדאי לעדכן אותו במייל.
               </div>
             )}
           </div>
@@ -3633,7 +3641,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                     <div>
                       {objectionWindowPassed(step)
                         ? 'עבר חלון ההתייחסות ללא מניעה.'
-                        : 'לא התקבלה מניעה. אם תגיע — היא תופיע כאן.'}
+                        : 'לא התקבלה מניעה. אם תגיע - היא תופיע כאן.'}
                     </div>
                   )}
                   <ReleaseDelivery clientId={p.clientId} />
@@ -3707,7 +3715,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
       }>
       {locked && (
         <div style={{ ...cardNote, color: 'var(--warn)' }}>
-          השליחה ממתינה לפרטי הרו״ח הקודם — המכתב והרשימה פתוחים לעריכה כבר עכשיו.
+          השליחה ממתינה לפרטי הרו״ח הקודם - המכתב והרשימה פתוחים לעריכה כבר עכשיו.
           {email && (
             <button type="button" className="btn btn-sm btn-secondary" style={{ marginInlineStart: '.4rem' }}
               disabled={busy || saving || !p.detailsStep}
@@ -3720,7 +3728,7 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                 setSaving(false);
                 p.refresh?.();
               }}>
-              הפרטים כבר כאן — פתח את המכתב
+              הפרטים כבר כאן - פתח את המכתב
             </button>
           )}
         </div>
@@ -3776,12 +3784,37 @@ function ReleaseDelivery({ clientId }: { clientId: string }) {
       .slice()
       .sort((a, b) => (b.sentAt || '').localeCompare(a.sentAt || ''))[0],
     [messages, clientId]);
+  /** ‼ אותו SentEmailViewer של לשונית הפעילות — לא תצוגה שנייה. */
+  const [viewing, setViewing] = useState<EmailMessage | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [viewErr, setViewErr] = useState<string | null>(null);
 
   if (!last) return null;
+
+  /** אין עותק שמור (מייל ישן) ⇒ נמשך מ-Resend ונפתח באותה לחיצה. */
+  async function view() {
+    if (last.html) { setViewing(last); return; }
+    setFetching(true);
+    setViewErr(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('backfill-email-html', { body: { messageId: last.id } });
+      if (error || !data?.ok || !data.html) setViewErr('העותק אינו זמין - אפשר לצפות מלשונית הפעילות.');
+      else setViewing({ ...last, html: data.html });
+    } catch {
+      setViewErr('העותק אינו זמין - אפשר לצפות מלשונית הפעילות.');
+    } finally { setFetching(false); }
+  }
+
   return (
     <div style={{ ...cardNote, marginTop: '.4rem' }}>
       מכתב אחרון אל <span dir="ltr">{last.toEmail}</span> · {relativeTime(last.sentAt)} · {EMAIL_STATUS_LABEL[last.status] ?? last.status}
       {last.openedAt && <> · נפתח {relativeTime(last.openedAt)}</>}
+      {' · '}
+      <button type="button" className="pa-mat-quiet" disabled={fetching} onClick={() => void view()}>
+        {fetching ? 'טוען…' : 'צפייה במייל'}
+      </button>
+      {viewErr && <span style={{ color: 'var(--warn)' }}> {viewErr}</span>}
+      {viewing && <SentEmailViewer message={viewing} onClose={() => setViewing(null)} />}
     </div>
   );
 }
@@ -3830,7 +3863,7 @@ function OpeningCallCard({ step, busy, highlight, onRun, menu }: {
         </ul>
       )}
       {open && step.status !== 'locked' && clarifications.length > 0 && (
-        <div style={{ ...cardNote, marginTop: '.4rem' }}>הפריטים האלה נועדו לבירור בשיחה — לא בקשות ללקוח.</div>
+        <div style={{ ...cardNote, marginTop: '.4rem' }}>הפריטים האלה נועדו לבירור בשיחה - לא בקשות ללקוח.</div>
       )}
     </StepCardShell>
   );
@@ -3905,7 +3938,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
   const isAutomatic = step.payload.autoAction?.kind === 'email';
   const autoLabel = !isAutomatic ? null
     : step.payload.autoExecutedAt ? '⚡ בוצע אוטומטית'
-    : step.payload.autoError ? '⚡ אוטומטי · הניסיון נכשל — יינסה שוב'
+    : step.payload.autoError ? '⚡ אוטומטי · הניסיון נכשל - יינסה שוב'
     : '⚡ אוטומטי';
   // "משחרר:" — אילו שלבים פתוחים ממתינים לשלב הזה. רק כשפתוח, ובשקט.
   const releases = (depChildren?.get(step.id) ?? [])

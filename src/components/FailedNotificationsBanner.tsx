@@ -40,7 +40,7 @@ export default function FailedNotificationsBanner({ failures }: Props) {
         <div key={f.id} style={{ fontSize: 12.5 }}>
           • {emailKindLabel(`notify_${f.kind}`)}
           {f.createdAt ? ` · ${new Date(f.createdAt).toLocaleDateString('he-IL')}` : ''}
-          {f.error ? ` — ${f.error}` : ''}
+          {f.error ? ` - ${f.error}` : ''}
         </div>
       ))}
       <div>

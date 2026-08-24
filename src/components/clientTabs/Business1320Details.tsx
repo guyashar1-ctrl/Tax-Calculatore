@@ -81,8 +81,8 @@ export default function Business1320Details({
   const filled = [...PNL, ...TAX_PAYMENTS].filter(d => typeof business[d.key] === 'number').length;
   const total = PNL.length + TAX_PAYMENTS.length;
   const summary = filled > 0
-    ? `פרטי נספח א' (1320) — ${filled}/${total} שדות מולאו`
-    : 'פרטי נספח א\' (1320) — סכומי השנה (לחץ למילוי)';
+    ? `פרטי נספח א' (1320) - ${filled}/${total} שדות מולאו`
+    : 'פרטי נספח א\' (1320) - סכומי השנה (לחץ למילוי)';
 
   return (
     <details className="cw-collapse-details" style={{ marginTop: 12, borderTop: '1px solid var(--gray-200)', paddingTop: 12 }}>

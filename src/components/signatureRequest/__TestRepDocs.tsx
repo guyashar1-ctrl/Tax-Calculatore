@@ -82,14 +82,14 @@ const doc = (id: string, description: string): StoredDoc => ({
   _remote: true,
 });
 
-const UNSIGNED = doc(`poa-pdf-${REQ_ID}`, 'טופס ייפוי כוח — לחתימה');
+const UNSIGNED = doc(`poa-pdf-${REQ_ID}`, 'טופס ייפוי כוח - לחתימה');
 const SIGNED = doc(`signed-poa-${REQ_ID}`, 'ייפוי כוח חתום (כל החותמים + חותמת המשרד)');
 const CONTRACT = doc('engagement-q-1', 'הצעת מחיר שאושרה ונחתמה');
 
 export default function TestRepDocs() {
   const [log, setLog] = useState<string[]>([]);
   const [screen, setScreen] = useState<'list' | 'review' | 'card'>('list');
-  const push = (s: string) => setLog(l => [`${new Date().toLocaleTimeString('he-IL')} — ${s}`, ...l]);
+  const push = (s: string) => setLog(l => [`${new Date().toLocaleTimeString('he-IL')} - ${s}`, ...l]);
 
   const beforeSign = [UNSIGNED, CONTRACT];
   const afterSign = [UNSIGNED, SIGNED, CONTRACT];
@@ -137,12 +137,12 @@ export default function TestRepDocs() {
           clients={[CLIENT]}
           requests={[REQUEST]}
           tasks={[]}
-          onSelect={id => push(`onSelect (כרטיס הלקוח) — ${id}`)}
+          onSelect={id => push(`onSelect (כרטיס הלקוח) - ${id}`)}
           onAdd={() => push('onAdd')}
-          onDelete={id => push(`onDelete — ${id}`)}
+          onDelete={id => push(`onDelete - ${id}`)}
           onLoadSamples={() => push('onLoadSamples')}
           onAddRequest={() => push('onAddRequest')}
-          onSelectRequest={id => push(`onSelectRequest (מסך הבקשה) — ${id}`)}
+          onSelectRequest={id => push(`onSelectRequest (מסך הבקשה) - ${id}`)}
         />
       ) : screen === 'card' ? (
         <ClientWorkspace
@@ -152,15 +152,15 @@ export default function TestRepDocs() {
           initialTab="docs"
           onSave={() => push('onSave')}
           onCancel={() => push('onCancel')}
-          onDelete={id => push(`onDelete — ${id}`)}
-          onAddTaskForClient={id => push(`onAddTaskForClient — ${id}`)}
-          onSelectTask={id => push(`onSelectTask — ${id}`)}
-          onToggleTaskDone={id => push(`onToggleTaskDone — ${id}`)}
+          onDelete={id => push(`onDelete - ${id}`)}
+          onAddTaskForClient={id => push(`onAddTaskForClient - ${id}`)}
+          onSelectTask={id => push(`onSelectTask - ${id}`)}
+          onToggleTaskDone={id => push(`onToggleTaskDone - ${id}`)}
           onChangeTaskStatus={() => push('onChangeTaskStatus')}
           onChangeTaskBall={() => push('onChangeTaskBall')}
           onChangeTaskCategory={() => push('onChangeTaskCategory')}
           onReorderTask={() => push('onReorderTask')}
-          onDeleteTask={id => push(`onDeleteTask — ${id}`)}
+          onDeleteTask={id => push(`onDeleteTask - ${id}`)}
         />
       ) : (
         <RepresentationRequestReview
@@ -171,9 +171,9 @@ export default function TestRepDocs() {
           onMarkSentToShaam={() => push('onMarkSentToShaam')}
           onSign={() => push('onSign')}
           onMarkActive={() => push('onMarkActive')}
-          onDelete={id => push(`onDelete — ${id}`)}
-          onOpenFill={id => push(`onOpenFill — ${id}`)}
-          onOpenClientDocs={id => push(`onOpenClientDocs (כרטיס + לשונית מסמכים) — ${id}`)}
+          onDelete={id => push(`onDelete - ${id}`)}
+          onOpenFill={id => push(`onOpenFill - ${id}`)}
+          onOpenClientDocs={id => push(`onOpenClientDocs (כרטיס + לשונית מסמכים) - ${id}`)}
           niIncluded={false}
           onSaveExecution={() => push('onSaveExecution')}
         />

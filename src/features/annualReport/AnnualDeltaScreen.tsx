@@ -180,7 +180,7 @@ export default function AnnualDeltaScreen({ clientName, taxYear, priorYear, prio
           היי {clientName} בואו נעדכן את {taxYear}
         </div>
         <div style={{ fontSize: '14px', color: 'var(--gray-600)', margin: '.2rem 0 1.1rem' }}>
-          זה מה שידוע לנו מ-{priorYear}. סמנו "ללא שינוי" על מה שנשאר אותו דבר — נשאל רק על מה שהשתנה.
+          זה מה שידוע לנו מ-{priorYear}. סמנו "ללא שינוי" על מה שנשאר אותו דבר - נשאל רק על מה שהשתנה.
         </div>
 
         {cards.map((c) => {

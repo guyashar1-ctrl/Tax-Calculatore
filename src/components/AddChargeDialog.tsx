@@ -50,7 +50,7 @@ export default function AddChargeDialog({ clientName, onCancel, onSubmit }: Prop
   return (
     <Modal title="חיוב נוסף" onClose={onCancel} footer={footer} width={500}>
       <p style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 0, marginBottom: 16 }}>
-        הוסף סכום חד־פעמי מעבר לריטיינר — עבור {clientName}
+        הוסף סכום חד־פעמי מעבר לריטיינר - עבור {clientName}
       </p>
       <div className="np-form">
         <div className="np-field np-field-full">
@@ -83,7 +83,7 @@ export default function AddChargeDialog({ clientName, onCancel, onSubmit }: Prop
         </div>
       </div>
       <div className="pd-small" style={{ marginTop: 12 }}>
-        החיוב נשמר כפריט כספי פשוט. אם אחר כך צריך הצעה, חתימה או חומרים — אפשר להתחיל תהליך מתוך התיק המלא.
+        החיוב נשמר כפריט כספי פשוט. אם אחר כך צריך הצעה, חתימה או חומרים - אפשר להתחיל תהליך מתוך התיק המלא.
       </div>
       {error && <div className="np-error">{error}</div>}
     </Modal>

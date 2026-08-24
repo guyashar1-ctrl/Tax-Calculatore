@@ -165,8 +165,8 @@ export default function QuotationWebView({
                 {/* בלי קישור השלמה אין צעד נוסף ללקוח — למשל כשכבר השלים
                     את פרטי הזיהוי בתהליך ייצוג קודם. */}
                 {hasRep && nextStepLink
-                  ? 'ההצעה אושרה. תודה — נשאר צעד אחד קצר.'
-                  : 'ההצעה אושרה. תודה — אצור איתך קשר להמשך.'}
+                  ? 'ההצעה אושרה. תודה - נשאר צעד אחד קצר.'
+                  : 'ההצעה אושרה. תודה - אצור איתך קשר להמשך.'}
               </div>
             )}
             {isDead && (
@@ -187,7 +187,7 @@ export default function QuotationWebView({
             {included.length > 0 && (
               <>
                 <div style={{ height: 18 }} />
-                <SectionLabel brand={brand}>כלול בליווי — ללא תוספת תשלום</SectionLabel>
+                <SectionLabel brand={brand}>כלול בליווי - ללא תוספת תשלום</SectionLabel>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
                   {included.map(item => (
                     <div key={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: brand.pageBg, borderRadius: 999, padding: '7px 14px', fontSize: 12.5, color: brand.ink, fontWeight: 500, border: `1px solid ${brand.border}` }}>
@@ -255,7 +255,7 @@ export default function QuotationWebView({
                   headerStrip={`לא נגבה עכשיו · ייגבה ${g.trigger}`}
                   rows={deferredSummaryRows(g)} />
               ))}
-              {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>—</div>}
+              {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>-</div>}
             </div>
             <div style={{ marginTop: 14, fontSize: 11.5, color: brand.muted, lineHeight: 1.6 }}>
               חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד{totals.deferred.withVat > 0 ? ', וכך גם סכום שנגבה במועד מאוחר' : ''}. הסכומים הסופיים כוללים מע״מ.
@@ -322,12 +322,12 @@ export default function QuotationWebView({
             {isApproved && nextStepLink && (
               <div style={{ background: '#fff', borderRadius: brand.radius + 2, padding: compact ? 14 : 18, marginBottom: 14, textAlign: 'start' }}>
                 <div style={{ fontSize: compact ? 14.5 : 15.5, fontWeight: 600, color: '#1f2937', marginBottom: 5 }}>
-                  {nextStepAuto ? 'ההצעה אושרה — מעביר אותך להשלמת הפרטים' : 'נשאר צעד אחד — פרטי הזיהוי'}
+                  {nextStepAuto ? 'ההצעה אושרה - מעביר אותך להשלמת הפרטים' : 'נשאר צעד אחד - פרטי הזיהוי'}
                 </div>
                 <div style={{ fontSize: 12.5, color: '#6b7280', lineHeight: 1.65, marginBottom: 12 }}>
                   {nextStepAuto
                     ? 'עוד רגע ייפתח מסך קצר להשלמת פרטי הזיהוי. לוקח פחות מדקה.'
-                    : 'נשאר להשלים מסך קצר של פרטי זיהוי — פחות מדקה. שלחתי לך את הקישור גם במייל.'}
+                    : 'נשאר להשלים מסך קצר של פרטי זיהוי - פחות מדקה. שלחתי לך את הקישור גם במייל.'}
                 </div>
                 <a
                   href={nextStepLink}
@@ -357,7 +357,7 @@ export default function QuotationWebView({
               </button>
             )}
             {!interactive && (
-              <div style={{ marginTop: 12, textAlign: 'center', color: 'rgba(255,255,255,.5)', fontSize: 11.5 }}>תצוגה מקדימה — כך הלקוח יראה את עמוד האישור</div>
+              <div style={{ marginTop: 12, textAlign: 'center', color: 'rgba(255,255,255,.5)', fontSize: 11.5 }}>תצוגה מקדימה - כך הלקוח יראה את עמוד האישור</div>
             )}
           </div>
         </div>

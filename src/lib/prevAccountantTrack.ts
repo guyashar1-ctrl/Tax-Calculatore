@@ -83,12 +83,12 @@ export async function createPrevAccountantTrack(
     hasEmail
       ? {
           clientTitle: 'לאשר את פרטי רואה החשבון הקודם',
-          clientSub: 'הפרטים שאצלנו מוצגים למילוי מראש — רק לוודא שהם נכונים',
+          clientSub: 'הפרטים שאצלנו מוצגים למילוי מראש - רק לוודא שהם נכונים',
           clientCta: 'לאישור',
         }
       : {
           clientTitle: 'פרטי רואה החשבון הקודם שלך',
-          clientSub: 'שם, אימייל וטלפון — כדי שנפנה אליו בשמך',
+          clientSub: 'שם, אימייל וטלפון - כדי שנפנה אליו בשמך',
           clientCta: 'למילוי',
         },
     null, 'client', !hasEmail,

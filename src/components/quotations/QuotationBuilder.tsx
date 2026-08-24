@@ -505,7 +505,7 @@ export default function QuotationBuilder({
 
   function sendBlocker(isTest: boolean): string | null {
     if (!recipient.fullName.trim()) return 'צריך לבחור למי ההצעה.';
-    if (!isTest && !recipient.email?.trim()) return 'לנמען אין כתובת מייל — אי אפשר לשלוח.';
+    if (!isTest && !recipient.email?.trim()) return 'לנמען אין כתובת מייל - אי אפשר לשלוח.';
     if (items.length === 0) return 'אין שירותים בהצעה.';
     if (items.some(i => !i.name.trim())) return 'יש שורה בלי שם.';
     const rep = validateQuotationRepresentation(representation);
@@ -619,7 +619,7 @@ export default function QuotationBuilder({
         ) : (
           <div className="qb-hero">
             <div className="qb-amount-empty">
-              {kind === 'one_time' ? 'שירות חד־פעמי — בלי שכר חודשי' : 'אין עדיין שכר חודשי'}
+              {kind === 'one_time' ? 'שירות חד־פעמי - בלי שכר חודשי' : 'אין עדיין שכר חודשי'}
             </div>
             <div className="qb-under">
               <button className="qb-link" onClick={() => setPanel('services')}>הוספת שירותים</button>
@@ -650,7 +650,7 @@ export default function QuotationBuilder({
                   (מה · כמה · מתי), ולכן הוא השורה שמתחת ולא תווית גנרית. */}
               <div className="qb-sub">
                 {i.category === 'annual'
-                  ? 'חיוב שנתי נפרד — לא בשכר החודשי'
+                  ? 'חיוב שנתי נפרד - לא בשכר החודשי'
                   : (i.clientNote?.trim() || 'חיוב חד־פעמי')}
               </div>
             </div>
@@ -676,7 +676,7 @@ export default function QuotationBuilder({
             <div className={`qb-conseq${deal.completionCharge < 1 ? ' muted' : ''}`}>
               <div className="qb-conseq-head">
                 {deal.completionCharge < 1 ? (
-                  <div className="qb-conseq-h">יתרת הדוח השנתי — {formatILS(deal.rawBalance)} — לא תיגבה</div>
+                  <div className="qb-conseq-h">יתרת הדוח השנתי - {formatILS(deal.rawBalance)} - לא תיגבה</div>
                 ) : (
                   <div className="qb-conseq-h">
                     <b className="num">{formatILS(deal.completionCharge)}</b> נוספים ייגבו {deal.trigger}
@@ -868,7 +868,7 @@ function PricePop({ deal, onApply, onReset, onServices }: {
       <div className="qb-note">
         ההנחה חלה על השכר החודשי
         {deal.rawBalance >= 1 && ` ואינה משנה את יתרת הדוח השנתי (${formatILS(deal.rawBalance)})`}
-        . לתמחור שירות בנפרד — <button className="qb-link" onClick={onServices}>עריכת השירותים</button>.
+        . לתמחור שירות בנפרד - <button className="qb-link" onClick={onServices}>עריכת השירותים</button>.
       </div>
       <div className="qb-pop-f">
         <button className="qb-link" onClick={onReset}>חזרה למחיר התבנית</button>
@@ -889,7 +889,7 @@ function StartPop({ plan, deal, onPick, onInstallments }: {
       <div className="qb-pop-h">חודש התשלום הראשון</div>
       <div className="qb-pop-s">
         התשלום הראשון נגבה מיד עם האישור, והבאים ב־1 בכל חודש.
-        מספר התשלומים נגזר לבד — ואיתו יתרת הדוח השנתי.
+        מספר התשלומים נגזר לבד - ואיתו יתרת הדוח השנתי.
       </div>
       <div className="qb-chips">
         {MONTH_NAMES.map((m, i) => {
@@ -938,7 +938,7 @@ function CompletionPop({ deal, onSet }: {
       <div className="qb-pop-s">
         {formatILS(deal.rawBalance)} לא נכללים ב{deal.installments} התשלומים של השנה.
         ברירת המחדל: נגבים עם הגשת הדוח.
-        {deal.discount >= 1 && ' ההנחה על השכר החודשי לא הפחיתה אותה — הפחתה כאן היא החלטה נפרדת.'}
+        {deal.discount >= 1 && ' ההנחה על השכר החודשי לא הפחיתה אותה - הפחתה כאן היא החלטה נפרדת.'}
       </div>
       <div className="qb-chips">
         <button className={`qb-chip${mode === 'charge' ? ' on' : ''}`}
@@ -1026,7 +1026,7 @@ function OneTimePop({ services, items, futureIds, item, onSave, onRemove }: {
         </label>
       </div>
       {when === 'custom' && (
-        <label className="qb-fld"><span>מתי — נוסח חופשי</span>
+        <label className="qb-fld"><span>מתי - נוסח חופשי</span>
           <input value={custom} onChange={e => setCustom(e.target.value)} placeholder="למשל: עם קבלת האישור מהרשות" />
         </label>
       )}
@@ -1203,7 +1203,7 @@ function ServicesPanel({ items, services, plan, deal, templateName, onUpdate, on
 
       <div className="qb-callout">
         שירות שנתי בשכר החודשי נגבה כחלק מהריטיינר, והמערכת מחשבת לבד מה נשאר לגבייה
-        בסוף השנה. שירות שהוצא לחיוב שנתי נגבה במלואו במועד אחד — ואז אין יתרה.
+        בסוף השנה. שירות שהוצא לחיוב שנתי נגבה במלואו במועד אחד - ואז אין יתרה.
       </div>
     </Modal>
   );
@@ -1229,7 +1229,7 @@ function FuturePanel({ services, items, selected, templateName, templateDefaults
     <Modal title="שירותים נוספים בעתיד" onClose={onClose} width={620}
       footer={<button className="btn btn-primary" onClick={onClose}>סיום</button>}>
       <div className="qb-panel-s">
-        מחירון "אם וכאשר" שמצורף להצעה. אינו נכלל בסכומים ואינו מחייב את הלקוח —
+        מחירון "אם וכאשר" שמצורף להצעה. אינו נכלל בסכומים ואינו מחייב את הלקוח -
         הוא רק מונע הפתעה כשיזדקק לשירות.
         {templateName && ` הבחירה הראשונית מגיעה מהתבנית «${templateName}»; שינוי כאן חל על ההצעה הזאת בלבד.`}
       </div>
@@ -1313,12 +1313,12 @@ function ReviewPanel({
         <QuotationWebView data={data} brand={brand} compact />
       </div>
 
-      <label className="qb-fld"><span>הודעה אישית ללקוח (אופציונלי) — נכנסת למייל ולראש ההצעה</span>
+      <label className="qb-fld"><span>הודעה אישית ללקוח (אופציונלי) - נכנסת למייל ולראש ההצעה</span>
         <textarea rows={3} value={message} onChange={e => onMessage(e.target.value)}
-          placeholder="למשל: אחרי שדיברנו הבנתי שהדבר הדחוף אצלך הוא לסגור את השנים הפתוחות — התחלתי מזה." />
+          placeholder="למשל: אחרי שדיברנו הבנתי שהדבר הדחוף אצלך הוא לסגור את השנים הפתוחות - התחלתי מזה." />
       </label>
       <div className="qb-note">
-        המייל עצמו לא מציג מחירים — הם מחכים בעמוד ההצעה. תוקף: עד {new Date(expiresAt).toLocaleDateString('he-IL')},
+        המייל עצמו לא מציג מחירים - הם מחכים בעמוד ההצעה. תוקף: עד {new Date(expiresAt).toLocaleDateString('he-IL')},
         ותזכורת אוטומטית יום עסקים לפני הפקיעה. מע״מ {vatRate}% מוצג בעמוד בכל סעיף.
       </div>
 
@@ -1378,7 +1378,7 @@ function SentQuotation({ quotation, brand, onBack }: {
           approvedAt: quotation.approvedAt,
         },
       }, brand);
-      downloadPdf(bytes, `הסכם התקשרות — הצעה ${quotation.quotationNumber}.pdf`);
+      downloadPdf(bytes, `הסכם התקשרות - הצעה ${quotation.quotationNumber}.pdf`);
     } finally { setBusy(false); }
   }
 
@@ -1499,7 +1499,7 @@ function RecipientPicker({ leads, clients, value, onPick }: {
               delete (rest as Record<string, unknown>).repStatus;
               onPick(rest as RecipientDraft);
             }}>
-            <option value="">— בחר ליד או לקוח —</option>
+            <option value="">- בחר ליד או לקוח -</option>
             {leadOptions.length > 0 && (
               <optgroup label={`לידים (${leadOptions.length})`}>
                 {leadOptions.map(o => <option key={o.id} value={`lead:${o.id}`}>{label(o)}</option>)}

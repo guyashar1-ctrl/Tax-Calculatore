@@ -32,7 +32,7 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
     const list: Signer[] = reps.map((s, i) => ({
       id: s.id, source: 'manual', name: s.name, email: s.email, order: i + 1,
     }));
-    list.push({ id: 'accountant', source: 'manual', name: 'אני — רו"ח', email: '', order: list.length + 1 });
+    list.push({ id: 'accountant', source: 'manual', name: 'אני - רו"ח', email: '', order: list.length + 1 });
     return list;
   }, [request]);
 
@@ -72,7 +72,7 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
         category: 'other',
         year: 'general',
         uploadedAt: new Date().toISOString(),
-        description: 'טופס ייפוי כוח — לחתימה',
+        description: 'טופס ייפוי כוח - לחתימה',
         notes: '',
         fileData: bytes.slice(0),
         linkedTo: `rep:${request.id}`,
@@ -163,7 +163,7 @@ export default function PoaProduceEditor({ request, onContinue, onCancel }: Prop
     <div className="modal-backdrop" style={{ alignItems: 'stretch' }}>
       <div className="modal sig-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 1060, width: '100%', display: 'flex', flexDirection: 'column', maxHeight: '96vh' }}>
         <div className="modal-header">
-          <h3>הפקת טופס — סימון אזורי חתימה</h3>
+          <h3>הפקת טופס - סימון אזורי חתימה</h3>
           <button type="button" className="btn btn-ghost btn-icon" onClick={onCancel} disabled={busy}>✕</button>
         </div>
 

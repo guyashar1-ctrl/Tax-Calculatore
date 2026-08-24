@@ -145,7 +145,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     }
     if (yearLabel && familyYear.trim()) {
       const y = Number(familyYear);
-      if (!Number.isInteger(y) || y < 1900 || y > CURRENT_YEAR) return `${yearLabel} — יש להזין שנה תקינה`;
+      if (!Number.isInteger(y) || y < 1900 || y > CURRENT_YEAR) return `${yearLabel} - יש להזין שנה תקינה`;
     }
     if (married && spouseIdNumber.trim() && !isValidIsraeliId(spouseIdNumber)) {
       return 'תעודת הזהות של בן/בת הזוג אינה תקינה';
@@ -236,7 +236,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     if (e && typeof e === 'object') {
       const obj = e as { message?: string; details?: string; hint?: string };
       const parts = [obj.message, obj.details, obj.hint].filter(Boolean);
-      if (parts.length > 0) return parts.join(' — ');
+      if (parts.length > 0) return parts.join(' - ');
     }
     return 'שגיאה לא ידועה ביצירת בקשת הייצוג';
   }
@@ -358,7 +358,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
               <div style={{ marginTop: '.6rem' }}>
                 <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.55, marginBottom: '.5rem' }}>
                   הייצוג נפתח כמייצג ראשי גם במעבר. אם במכתב העברת הטיפול יסומן
-                  שנשארו אצל הקודם דוח שנתי או הצהרת הון — הרישום יירד למשני עד השלמתם.
+                  שנשארו אצל הקודם דוח שנתי או הצהרת הון - הרישום יירד למשני עד השלמתם.
                 </div>
                 <div className="form-group">
                   <label>שם הרו״ח הקודם (לא חובה)</label>
@@ -379,12 +379,12 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                   </div>
                 </div>
                 <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.5rem', lineHeight: 1.5 }}>
-                  מה שלא ידוע כאן — אפשר לבקש מהלקוח בדף האישי, ומכתב העברת הטיפול ייבנה ממנו.
+                  מה שלא ידוע כאן - אפשר לבקש מהלקוח בדף האישי, ומכתב העברת הטיפול ייבנה ממנו.
                 </div>
               </div>
             ) : (
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: '.4rem', lineHeight: 1.5 }}>
-                לקוח חדש לגמרי — נכנסים כמייצג ראשי, בלי מכתב לרו״ח קודם.
+                לקוח חדש לגמרי - נכנסים כמייצג ראשי, בלי מכתב לרו״ח קודם.
               </div>
             )}
           </div>
@@ -453,11 +453,11 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                   onChange={e => setNiCoversSpouse(e.target.checked)} style={{ marginTop: 3 }} />
                 <span>
                   <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>
-                    {'🛡'} {married ? 'ייצוג בביטוח לאומי גם לבן/בת הזוג' : 'אם הלקוח נשוי — ייצוג בביטוח לאומי גם לבן/בת הזוג'}
+                    {'🛡'} {married ? 'ייצוג בביטוח לאומי גם לבן/בת הזוג' : 'אם הלקוח נשוי - ייצוג בביטוח לאומי גם לבן/בת הזוג'}
                   </span>
                   <span style={{ display: 'block', fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 2 }}>
                     בביטוח לאומי לכל אחד תיק נפרד: שני ייפויי כוח, שתי אסמכתאות, וכל אחד מאשר
-                    את שלו. את פרטי בן/בת הזוג הלקוח ממלא בעצמו בקישור — אין צורך לדעת אותם כאן.
+                    את שלו. את פרטי בן/בת הזוג הלקוח ממלא בעצמו בקישור - אין צורך לדעת אותם כאן.
                   </span>
                 </span>
               </label>
@@ -470,7 +470,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           </label>
           <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap' }}>
             {([
-              { key: 'link' as const, icon: '\u{1F517}', title: 'קישור לשליחה', sub: 'וואטסאפ, SMS או העתקה — בלי מייל' },
+              { key: 'link' as const, icon: '\u{1F517}', title: 'קישור לשליחה', sub: 'וואטסאפ, SMS או העתקה - בלי מייל' },
               { key: 'email' as const, icon: '\u{1F4E7}', title: 'שליחה במייל', sub: 'המערכת שולחת אוטומטית ללקוח' },
             ]).map(opt => {
               const sel = sendBy === opt.key;
@@ -524,7 +524,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             {showDetails ? '▾' : '▸'} פרטים שכבר ידועים לי (לא חובה)
           </button>
           <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: '.25rem', lineHeight: 1.5 }}>
-            כל מה שלא תמלא כאן — הלקוח ימלא בעצמו בקישור.
+            כל מה שלא תמלא כאן - הלקוח ימלא בעצמו בקישור.
           </div>
 
           {showDetails && (
@@ -547,13 +547,13 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                   onChange={(e) => { setFamilyStatus(e.target.value as FamilyStatus | ''); setFamilyYear(''); }}
                   disabled={busy}
                 >
-                  <option value="">{'—'} שהלקוח יבחר {'—'}</option>
+                  <option value="">{'-'} שהלקוח יבחר {'-'}</option>
                   {FAMILY_ORDER.map(f => (
                     <option key={f} value={f}>{FAMILY_STATUS_LABELS[f]}</option>
                   ))}
                 </select>
                 <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 4 }}>
-                  כפי שרשום בתעודת הזהות — הרשויות בודקות מול מרשם האוכלוסין.
+                  כפי שרשום בתעודת הזהות - הרשויות בודקות מול מרשם האוכלוסין.
                 </div>
               </div>
 
@@ -595,7 +595,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                     </div>
                   </div>
                   <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginBottom: '.5rem' }}>
-                    נשוי/אה {'←'} שני בני הזוג חותמים על ייפוי הכוח. מה שלא תמלא — הלקוח ימלא בקישור.
+                    נשוי/אה {'←'} שני בני הזוג חותמים על ייפוי הכוח. מה שלא תמלא - הלקוח ימלא בקישור.
                   </div>
 
                   <div className="form-grid form-grid-2">
@@ -619,7 +619,7 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                     </div>
                   </div>
                   <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem', lineHeight: 1.5 }}>
-                    גם אלה לא חובה. בלי מייל — הלקוח יבחר בשלב החתימה אם לחתום יחד או לשלוח קישור אישי.
+                    גם אלה לא חובה. בלי מייל - הלקוח יבחר בשלב החתימה אם לחתום יחד או לשלוח קישור אישי.
                   </div>
 
                   {/* ‼ נשאל כאן ולא מאוחר יותר (הכרעת גיא 2026-08-20): בשלב הזה
@@ -657,23 +657,23 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             color: 'var(--ink-2)',
           }}>
             <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>{'✨'} מה ייווצר</div>
-            <div>{'✓'} קישור אישי {sendBy === 'email' ? '— וגם יישלח במייל אוטומטית' : 'לשליחה בוואטסאפ'}</div>
-            <div>{'✓'} כרטיס לקוח {name.trim() ? `— ${name.trim()}` : '— יקבל שם כשהלקוח ימלא'}</div>
+            <div>{'✓'} קישור אישי {sendBy === 'email' ? '- וגם יישלח במייל אוטומטית' : 'לשליחה בוואטסאפ'}</div>
+            <div>{'✓'} כרטיס לקוח {name.trim() ? `- ${name.trim()}` : '- יקבל שם כשהלקוח ימלא'}</div>
             <div>
               {'✓'} {selectedKeys.length > 0
                 ? `${selectedKeys.length} סטטוסי ייצוג "בתהליך": ${selectedKeys.map(a => REP_AUTHORITY_LABELS[a]).join(', ')}`
                 : 'בחר רשויות כדי ליצור סטטוסי ייצוג'}
             </div>
             <div>{'✓'} משימה פנימית למעקב</div>
-            {married && spouseName.trim() && <div>{'✓'} חותם שני — {spouseName.trim()}</div>}
-            {married && !spouseName.trim() && <div>{'✓'} חותם שני — הלקוח ימלא את פרטי בן/בת הזוג בקישור</div>}
+            {married && spouseName.trim() && <div>{'✓'} חותם שני - {spouseName.trim()}</div>}
+            {married && !spouseName.trim() && <div>{'✓'} חותם שני - הלקוח ימלא את פרטי בן/בת הזוג בקישור</div>}
             {niForSpouse && (
-              <div>{'✓'} ייצוג נפרד בביטוח לאומי לבן/בת הזוג {married ? '' : '(אם הלקוח נשוי) '}— שתי אסמכתאות</div>
+              <div>{'✓'} ייצוג נפרד בביטוח לאומי לבן/בת הזוג {married ? '' : '(אם הלקוח נשוי) '}- שתי אסמכתאות</div>
             )}
             {/* מוצג רק בבחירה הלא-שגרתית: "ע״ש הלקוח" הוא ברירת המחדל ואינו
                 חידוש, אבל תיק על שם בן/בת הזוג משנה את כל ההתנהלות מול מ"ה. */}
             {married && incomeTaxSelected && spouseName.trim() && registeredSpouse === 'spouse' && (
-              <div>{'✓'} תיק מס הכנסה ע״ש {spouseName.trim()} — בן/בת הזוג הרשום/ה</div>
+              <div>{'✓'} תיק מס הכנסה ע״ש {spouseName.trim()} - בן/בת הזוג הרשום/ה</div>
             )}
           </div>
 

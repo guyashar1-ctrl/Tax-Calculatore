@@ -168,7 +168,7 @@ export default function PersonDirectory(p: Props) {
     const client = p.clients.find(c => c.id === row.matchClientId);
     if (!client) return null;
     const name = `${client.firstName ?? ''} ${client.lastName ?? ''}`.trim()
-      || client.businessName || client.idNumber || '—';
+      || client.businessName || client.idNumber || '-';
     const clientId = client.id;
     return { clientName: name, onOpen: () => p.onOpenFullCase(clientId) };
   }
@@ -182,13 +182,13 @@ export default function PersonDirectory(p: Props) {
         .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0];
 
       const now = lead.status === 'quoted'
-        ? { title: 'הצעת מחיר', detail: 'ההצעה נשלחה — ממתינים לתשובת הלקוח' }
+        ? { title: 'הצעת מחיר', detail: 'ההצעה נשלחה - ממתינים לתשובת הלקוח' }
         : lead.status === 'closed'
           ? { title: 'ליד', detail: 'הליד סגור' }
           : {
               title: 'ליד',
               detail: lead.source === 'self_intake'
-                ? 'התקבל מקישור מילוי פרטים — טרם טופל'
+                ? 'התקבל מקישור מילוי פרטים - טרם טופל'
                 : 'טרם נשלחה הצעה',
             };
 
@@ -303,8 +303,8 @@ export default function PersonDirectory(p: Props) {
       {newSelfIntakeCount > 0 && (
         <div className="pd-notice">
           {newSelfIntakeCount === 1
-            ? 'התקבלה הגשה חדשה מקישור מילוי הפרטים — ממתינה לטיפול.'
-            : `התקבלו ${newSelfIntakeCount} הגשות חדשות מקישור מילוי הפרטים — ממתינות לטיפול.`}
+            ? 'התקבלה הגשה חדשה מקישור מילוי הפרטים - ממתינה לטיפול.'
+            : `התקבלו ${newSelfIntakeCount} הגשות חדשות מקישור מילוי הפרטים - ממתינות לטיפול.`}
         </div>
       )}
 
@@ -331,13 +331,13 @@ export default function PersonDirectory(p: Props) {
                 <div className="pd-meta">
                   {row.idNumber
                     ? <>ת.ז. <span className="num">{row.idNumber}</span></>
-                    : <span className="num pd-ltr">{row.phone || row.email || '—'}</span>}
+                    : <span className="num pd-ltr">{row.phone || row.email || '-'}</span>}
                 </div>
               </div>
             </div>
             <div className="pd-contact">
-              <span className="num pd-ltr">{row.phone || '—'}</span><br />
-              <span className="pd-ltr">{row.email || '—'}</span>
+              <span className="num pd-ltr">{row.phone || '-'}</span><br />
+              <span className="pd-ltr">{row.email || '-'}</span>
             </div>
             <div>
               <span className={`pd-badge ${row.badge.cls}`}>{row.badge.label}</span>

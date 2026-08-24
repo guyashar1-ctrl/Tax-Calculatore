@@ -88,7 +88,7 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
   const portalPointer = data.portalLink
     ? `<tr><td dir="rtl" align="right" style="text-align:right;padding:14px 40px 0;">
         <div dir="rtl" style="font-family:${f};font-size:13.5px;color:${brand.ink};opacity:0.85;line-height:1.7;text-align:right;">
-          זה גם <a href="${esc(data.portalLink)}" style="color:${brand.accent};font-weight:600;text-decoration:none;">הדף האישי שלך</a>${brand.firmName ? ` אצל ${esc(brand.firmName)}` : ''} — כל התהליך מרוכז בו. שווה לשמור את הקישור.
+          זה גם <a href="${esc(data.portalLink)}" style="color:${brand.accent};font-weight:600;text-decoration:none;">הדף האישי שלך</a>${brand.firmName ? ` אצל ${esc(brand.firmName)}` : ''} - כל התהליך מרוכז בו. שווה לשמור את הקישור.
         </div>
       </td></tr>`
     : '';
@@ -104,7 +104,7 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
     extraHtml: servicesCard + messageBlock + availability + pricePointer + portalPointer,
     ctaLabel: 'צפייה ואישור ההצעה',
     ctaHref: data.quotationLink,
-    footerNote: expiryLabel ? `ההצעה בתוקף עד ${expiryLabel}.` : 'לצפייה בפרטים המלאים ולאישור — לחיצה אחת.',
+    footerNote: expiryLabel ? `ההצעה בתוקף עד ${expiryLabel}.` : 'לצפייה בפרטים המלאים ולאישור - לחיצה אחת.',
     showLinkFallback: true,
   });
 }

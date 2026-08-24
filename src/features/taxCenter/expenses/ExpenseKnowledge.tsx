@@ -108,7 +108,7 @@ export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
       {/* טבלת עיון מהיר */}
       <div className="card">
         <div className="card-header">
-          <span className="card-title">עיון מהיר — האם ההוצאה מוכרת?</span>
+          <span className="card-title">עיון מהיר - האם ההוצאה מוכרת?</span>
           <span className="ek-count">{filtered.length} נושאים</span>
         </div>
         <div className="card-body">
@@ -136,7 +136,7 @@ export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
             ))}
             {filtered.length === 0 && (
               <div className="ek-none">
-                לא נמצא נושא מתאים — נסו מילה אחרת ("רכב", "ביגוד", "השתלמות"...)
+                לא נמצא נושא מתאים - נסו מילה אחרת ("רכב", "ביגוד", "השתלמות"...)
               </div>
             )}
           </div>
@@ -145,7 +145,7 @@ export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
 
       <div className="alert alert-info">
         התוכן אומת מול פקודת מס הכנסה, חוק מע"מ, התקנות, חוזרי רשות המסים ופסיקה מעשית (יולי 2026).
-        הוא כלי עזר מקצועי — לא תחליף לשיקול דעת במקרה קונקרטי. פריטים המסומנים "לאמת" דורשים בדיקה נוספת.
+        הוא כלי עזר מקצועי - לא תחליף לשיקול דעת במקרה קונקרטי. פריטים המסומנים "לאמת" דורשים בדיקה נוספת.
       </div>
     </div>
   );

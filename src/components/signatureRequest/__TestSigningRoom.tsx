@@ -13,7 +13,7 @@ const TEMPLATE_URL =
 
 const SIGNERS: Signer[] = [
   { id: 'client', source: 'client_self', name: 'רותי לקוח', email: 'ruti@example.com', order: 1 },
-  { id: 'accountant', source: 'manual', name: 'אני — רו"ח', email: '', order: 2 },
+  { id: 'accountant', source: 'manual', name: 'אני - רו"ח', email: '', order: 2 },
 ];
 
 // שדות דמה על עמוד 0 של טופס 2279 — חתימה, חותמת וטקסט תאריך
@@ -25,7 +25,7 @@ const FIELDS: SignatureField[] = [
   { id: 'accSig', signerId: 'accountant', kind: 'signature', pageIndex: 0, xPct: 0.06, yPct: 0.80, widthPct: 0.22, heightPct: 0.05 },
   { id: 'accStamp', signerId: 'accountant', kind: 'stamp', pageIndex: 0, xPct: 0.32, yPct: 0.78, widthPct: 0.12, heightPct: 0.09 },
   // תוכן קבוע — נצרב בלי ערך מחותם, ומוצג לכולם
-  { id: 'lbl1', signerId: 'static', kind: 'label', pageIndex: 0, xPct: 0.10, yPct: 0.30, widthPct: 0.20, heightPct: 0.03, staticText: 'רישום מיוצג — בדיקה' },
+  { id: 'lbl1', signerId: 'static', kind: 'label', pageIndex: 0, xPct: 0.10, yPct: 0.30, widthPct: 0.20, heightPct: 0.03, staticText: 'רישום מיוצג - בדיקה' },
   { id: 'chk1', signerId: 'static', kind: 'check', pageIndex: 0, xPct: 0.85, yPct: 0.44, widthPct: 0.035, heightPct: 0.025 },
   { id: 'x1', signerId: 'static', kind: 'cross', pageIndex: 0, xPct: 0.12, yPct: 0.72, widthPct: 0.035, heightPct: 0.025 },
 ];

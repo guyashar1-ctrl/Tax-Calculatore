@@ -244,7 +244,7 @@ export default function TaxNITab({ client, update, hideFiles }: Props) {
 
           {client.vatStatus === 'none' && (
             <div className="form-group span-2 cw-info-line">
-              <div className="cw-empty">לקוח לא רשום במע״מ — אין דיווחי מע״מ</div>
+              <div className="cw-empty">לקוח לא רשום במע״מ - אין דיווחי מע״מ</div>
             </div>
           )}
         </div>

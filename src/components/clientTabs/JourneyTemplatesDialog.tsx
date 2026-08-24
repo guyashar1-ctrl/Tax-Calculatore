@@ -171,7 +171,7 @@ export default function JourneyTemplatesDialog({ clientId, clientName, onClose, 
           {tab === 'save' && (
             <>
               <p style={{ margin: 0, fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.7 }}>
-                נשמרות הבקשות של {clientName} עם הניסוח והמסמכים שלהן — לא הסטטוס,
+                נשמרות הבקשות של {clientName} עם הניסוח והמסמכים שלהן - לא הסטטוס,
                 לא התאריכים, ולא מה שכבר התקבל.
               </p>
               <label style={{ display: 'flex', flexDirection: 'column', gap: '.25rem', fontSize: 'var(--fs-13)' }}>

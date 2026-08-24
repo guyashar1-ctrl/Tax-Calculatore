@@ -22,12 +22,12 @@ const SITUATION_CARDS: { key: CardKey; icon: string; label: string; hint: string
   { key: 'children',   icon: '👶', label: 'ילדים',                hint: 'נקודות לפי גיל כל ילד' },
   { key: 'family',     icon: '👨‍👩‍👧', label: 'גרוש/ה · הורה עצמאי · מזונות', hint: 'מצבים משפחתיים מיוחדים' },
   { key: 'service',    icon: '🎖️', label: 'שירות צבאי/לאומי',     hint: '36 חודשים מהשחרור' },
-  { key: 'reserve',    icon: '🪖', label: 'מילואים — לוחם/ת',      hint: 'חדש מ-2026 (סעיף 39ב)' },
+  { key: 'reserve',    icon: '🪖', label: 'מילואים - לוחם/ת',      hint: 'חדש מ-2026 (סעיף 39ב)' },
   { key: 'degree',     icon: '🎓', label: 'תואר / לימודי מקצוע',   hint: 'לפי שנת הסיום' },
   { key: 'immigrant',  icon: '🆕', label: 'עולה חדש',              hint: 'לפי חודשי ותק' },
-  { key: 'disability', icon: '♿', label: 'נכות / עיוורון',        hint: 'פטור 9(5) — לא נקודות' },
+  { key: 'disability', icon: '♿', label: 'נכות / עיוורון',        hint: 'פטור 9(5) - לא נקודות' },
   { key: 'settlement', icon: '🏡', label: 'יישוב מוטב',            hint: 'זיכוי 7%–20% עד תקרה' },
-  { key: 'spouse',     icon: '💑', label: 'בן/בת זוג ללא הכנסה',   hint: 'סעיף 37 — בתנאים' },
+  { key: 'spouse',     icon: '💑', label: 'בן/בת זוג ללא הכנסה',   hint: 'סעיף 37 - בתנאים' },
 ];
 
 const DEGREE_KINDS: { value: DegreeKind; label: string }[] = [
@@ -169,7 +169,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
               מה מתאר את הנישום? סמנו את כל מה שרלוונטי
             </div>
             <div style={{ fontSize: '14px', color: 'var(--gray-500)' }}>
-              המערכת שואלת רק את השאלות הנדרשות וקובעת את הנקודות אוטומטית — כמו במערכת תיאום מס
+              המערכת שואלת רק את השאלות הנדרשות וקובעת את הנקודות אוטומטית - כמו במערכת תיאום מס
             </div>
           </div>
 
@@ -188,7 +188,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 0, minWidth: 220 }}>
-              <label>הכנסה שנתית מיגיעה אישית (לא חובה — לניתוח ניצול)</label>
+              <label>הכנסה שנתית מיגיעה אישית (לא חובה - לניתוח ניצול)</label>
               <input type="number" min={0} value={annualIncome || ''} placeholder="0"
                 onChange={e => setAnnualIncome(+e.target.value)} />
             </div>
@@ -224,14 +224,14 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 <label>מי ההורה שמקבל את קצבת הילדים / הילדים בחזקתו?</label>
                 <select value={parentRole} onChange={e => setParentRole(e.target.value as typeof parentRole)}>
                   <option value="auto">{gender === 'female' ? 'הנישומה (ברירת מחדל לאם)' : 'ההורה השני (ברירת מחדל לאב)'}</option>
-                  <option value="allowanceParent">הנישום/ה — מסלול מקבל הקצבה</option>
-                  <option value="otherParent">ההורה השני מקבל — מסלול ההורה השני</option>
+                  <option value="allowanceParent">הנישום/ה - מסלול מקבל הקצבה</option>
+                  <option value="otherParent">ההורה השני מקבל - מסלול ההורה השני</option>
                 </select>
               </div>
               {children.map((c, i) => (
                 <div key={c.key} style={{ display: 'flex', gap: '.6rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '.5rem' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label>שנת לידה — ילד/ה {i + 1}</label>
+                    <label>שנת לידה - ילד/ה {i + 1}</label>
                     <input type="number" min={year - 19} max={year} value={c.birthYear}
                       onChange={e => setChildren(arr => arr.map(x => x.key === c.key ? { ...x, birthYear: +e.target.value } : x))}
                       style={{ width: 110 }} />
@@ -263,7 +263,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
               <div style={secTitle}>👨‍👩‍👧 מצב משפחתי</div>
               <label className="checkbox-row">
                 <input type="checkbox" checked={isSoleParent} onChange={e => setIsSoleParent(e.target.checked)} />
-                "הורה אחד" — ההורה השני נפטר או אינו רשום (+1 נק' ושני מסלולי ילדים)
+                "הורה אחד" - ההורה השני נפטר או אינו רשום (+1 נק' ושני מסלולי ילדים)
               </label>
               <label className="checkbox-row">
                 <input type="checkbox" checked={paysChildSupport} onChange={e => setPaysChildSupport(e.target.checked)} />
@@ -310,7 +310,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
           {active.has('reserve') && (
             <div style={secStyle}>
-              <div style={secTitle}>מילואים — לוחם/ת (סעיף 39ב)</div>
+              <div style={secTitle}>מילואים - לוחם/ת (סעיף 39ב)</div>
               <div className="form-group" style={{ maxWidth: 260 }}>
                 <label>ימי מילואים כלוחם/ת בשנת {year - 1}</label>
                 <input type="number" min={0} max={365} value={reserveDays || ''} placeholder="0" onChange={e => setReserveDays(+e.target.value)} />
@@ -385,9 +385,9 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
 
           {active.has('disability') && (
             <div style={secStyle}>
-              <div style={secTitle}>נכות / עיוורון — פטור סעיף 9(5)</div>
+              <div style={secTitle}>נכות / עיוורון - פטור סעיף 9(5)</div>
               <div className="alert alert-info" style={{ fontSize: '13px' }}>
-                בניגוד לתפיסה נפוצה — <strong>אין נקודות זיכוי לפי אחוזי נכות</strong>. ההטבה היא פטור ממס על ההכנסה, לעיוור או נכה 100% (או 90%+ משוקלל) שנקבעה ל-185 ימים ומעלה.
+                בניגוד לתפיסה נפוצה - <strong>אין נקודות זיכוי לפי אחוזי נכות</strong>. ההטבה היא פטור ממס על ההכנסה, לעיוור או נכה 100% (או 90%+ משוקלל) שנקבעה ל-185 ימים ומעלה.
               </div>
               <label className="checkbox-row">
                 <input type="checkbox" checked={disabilityQualifies} onChange={e => setDisabilityQualifies(e.target.checked)} />
@@ -397,7 +397,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 <>
                   <label className="checkbox-row">
                     <input type="checkbox" checked={disabilityFullYear} onChange={e => setDisabilityFullYear(e.target.checked)} />
-                    הנכות נקבעה ל-365 ימים ומעלה (אחרת — תקרה מוקטנת)
+                    הנכות נקבעה ל-365 ימים ומעלה (אחרת - תקרה מוקטנת)
                   </label>
                   <label className="checkbox-row">
                     <input type="checkbox" checked={disabilityPreferential} onChange={e => setDisabilityPreferential(e.target.checked)} />
@@ -433,7 +433,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                     ))}
                     {searchSettlements(settlementQuery, year).length === 0 && (
                       <div style={{ padding: '.45rem .75rem', color: 'var(--gray-500)', fontSize: '14px' }}>
-                        לא נמצא ברשימת {year} — ייתכן שהיישוב אינו זכאי
+                        לא נמצא ברשימת {year} - ייתכן שהיישוב אינו זכאי
                       </div>
                     )}
                   </div>
@@ -467,7 +467,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
       <div style={{ position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
         <div className="card" style={{ border: '2px solid var(--blue-border)' }}>
           <div className="card-header" style={{ background: 'var(--blue-light)' }}>
-            <span className="card-title" style={{ color: 'var(--blue-dark)' }}>סיכום — {year}</span>
+            <span className="card-title" style={{ color: 'var(--blue-dark)' }}>סיכום - {year}</span>
           </div>
           <div className="card-body">
             <div style={{ textAlign: 'center', marginBottom: '.75rem' }}>
@@ -520,7 +520,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 </div>
                 {taxAnalysis.unused > 0 && (
                   <div style={{ marginTop: '.4rem', fontSize: '12px', color: 'var(--warn)' }}>
-                    {fmt(taxAnalysis.unused)} מהזיכויים לא מנוצלים — נקודות זיכוי אינן מוחזרות ואינן נצברות
+                    {fmt(taxAnalysis.unused)} מהזיכויים לא מנוצלים - נקודות זיכוי אינן מוחזרות ואינן נצברות
                   </div>
                 )}
               </div>

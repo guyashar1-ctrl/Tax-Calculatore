@@ -950,20 +950,20 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
       // ב-move — moveFolderToParent חוסמת מעגלים גם אם משהו כאן ישתנה.
       for (const f of folderTargets) {
         const res = await db.moveFolderToParent(f.id, targetFolder);
-        if (!res.ok) failed.push(`${f.name} — ${res.error ?? 'ההעברה נכשלה'}`);
+        if (!res.ok) failed.push(`${f.name} - ${res.error ?? 'ההעברה נכשלה'}`);
         else movedFolders++;
       }
       for (const d of targets) {
         const name = d.description || d.fileName;
         if (mode === 'copy') {
           const res = await db.duplicateDocToClient(d.id, targetClientId);
-          if (!res.ok || !res.id) { failed.push(`${name} — ${res.error ?? 'ההעתקה נכשלה'}`); continue; }
+          if (!res.ok || !res.id) { failed.push(`${name} - ${res.error ?? 'ההעתקה נכשלה'}`); continue; }
           landed.push(res.id);
         } else if (sameClient) {
           landed.push(d.id);
         } else {
           const res = await db.moveDocToClient(d.id, targetClientId);
-          if (!res.ok) { failed.push(`${name} — ${res.error ?? 'ההעברה נכשלה'}`); continue; }
+          if (!res.ok) { failed.push(`${name} - ${res.error ?? 'ההעברה נכשלה'}`); continue; }
           landed.push(d.id);
         }
       }
@@ -1021,7 +1021,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
       const failed: string[] = [];
       for (const d of targets) {
         try { await db.deleteDoc(d.id); }
-        catch (e) { failed.push(`${d.description || d.fileName} — ${e instanceof Error ? e.message : 'נכשל'}`); }
+        catch (e) { failed.push(`${d.description || d.fileName} - ${e instanceof Error ? e.message : 'נכשל'}`); }
       }
       void loadAll();
       if (failed.length > 0) {
@@ -1127,7 +1127,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     const failed: string[] = [];
     for (const fid of folderIds) {
       const res = await db.moveFolderToParent(fid, targetId);
-      if (!res.ok) failed.push(`${foldersById.get(fid)?.name ?? 'תיקייה'} — ${res.error ?? 'ההעברה נכשלה'}`);
+      if (!res.ok) failed.push(`${foldersById.get(fid)?.name ?? 'תיקייה'} - ${res.error ?? 'ההעברה נכשלה'}`);
     }
     if (docIds.length > 0) {
       try { await db.moveDocsToFolder(docIds, targetId); }
@@ -1416,7 +1416,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
               ולמסמך. שאר הפעולות אינן "מתעלמות" מהתיקיות: הן פשוט
               אינן מוצעות, והמשפט הקטן מסביר למה. */}
           {hasFolders && hasDocs && (
-            <span className="docw-bulkbar-hint">הורדה, העתקה ומחיקה — למסמכים בלבד</span>
+            <span className="docw-bulkbar-hint">הורדה, העתקה ומחיקה - למסמכים בלבד</span>
           )}
           <span className="docw-bulkbar-actions">
             {/* ‼ מוצג רק כשכל הבחירה היא מסמכי PDF. תיקייה בבחירה, בחירה
@@ -1502,7 +1502,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                     {r.path && <span className="docw-path-hint">{r.path}</span>}
                   </span>
                   <span>{label && <span className="ial-doc-label-chip">{label.name}</span>}</span>
-                  <span className="docw-col-year">{f.year || '—'}</span>
+                  <span className="docw-col-year">{f.year || '-'}</span>
                   <span className="docw-col-updated">
                     {fmtDate(f.createdAt)}
                     {/* פעולות התיקייה יושבות על השורה שלה — שם הן רלוונטיות */}
@@ -1557,7 +1557,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
         </div>
       )}
       <div className="csub" style={{ margin: '.5rem .2rem 0', fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-        המסמכים פנימיים למשרד. הלקוח אינו רואה אותם — מה שמבקשים ממנו עובר דרך בקשת לקוח.
+        המסמכים פנימיים למשרד. הלקוח אינו רואה אותם - מה שמבקשים ממנו עובר דרך בקשת לקוח.
       </div>
       </>
       )}
@@ -1588,7 +1588,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                 <button
                   type="button" className="ui-btn ui-btn-ghost"
                   disabled={organizerLoading} onClick={() => openOrganizerForDoc(drawerDoc)}
-                  title="ציור, טקסט, סימונים, סידור עמודים וחתימה — נוצר קובץ חדש"
+                  title="ציור, טקסט, סימונים, סידור עמודים וחתימה - נוצר קובץ חדש"
                 >{organizerLoading ? 'פותח…' : 'ערוך PDF'}</button>
               )}
               {/* מוצג רק על תצלום — מסמך שהוא כבר PDF אין מה להמיר. */}
@@ -1722,14 +1722,14 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                 className="inp" value={destModal.clientId} disabled={destBusy || clientLocked}
                 onChange={e => setDestModal({ ...destModal, clientId: e.target.value, folderId: '' })}
               >
-                <option value={client.id}>{client.firstName} {client.lastName} — הלקוח הנוכחי</option>
+                <option value={client.id}>{client.firstName} {client.lastName} - הלקוח הנוכחי</option>
                 {!clientLocked && allClients.filter(c => c.id !== client.id).map(c => (
                   <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
                 ))}
               </select>
               {clientLocked && (
                 <div className="csub" style={{ marginTop: '.25rem' }}>
-                  תיקייה עוברת בתוך הלקוח הזה בלבד. להעברת מסמכים ללקוח אחר — בחר מסמכים בלי תיקיות.
+                  תיקייה עוברת בתוך הלקוח הזה בלבד. להעברת מסמכים ללקוח אחר - בחר מסמכים בלי תיקיות.
                 </div>
               )}
 
@@ -1749,8 +1749,8 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
               {!destFoldersLoading && options.length === 0 && (
                 <div className="csub" style={{ marginTop: '.25rem' }}>
                   {blocked.size > 0
-                    ? 'אין תיקיית יעד אפשרית — תיקייה אינה יכולה להיכנס לעצמה או למה שבתוכה. היעד יהיה הרמה הראשית.'
-                    : 'אין תיקיות אצל הלקוח הזה — היעד יהיה הרמה הראשית.'}
+                    ? 'אין תיקיית יעד אפשרית - תיקייה אינה יכולה להיכנס לעצמה או למה שבתוכה. היעד יהיה הרמה הראשית.'
+                    : 'אין תיקיות אצל הלקוח הזה - היעד יהיה הרמה הראשית.'}
                 </div>
               )}
 
@@ -1766,7 +1766,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                 </div>
               ) : (
                 <div className="note">
-                  {isMove ? 'שינוי תיקייה בלבד — המסמכים נשארים אצל אותו לקוח.' : 'עותק נוסף אצל אותו לקוח.'}
+                  {isMove ? 'שינוי תיקייה בלבד - המסמכים נשארים אצל אותו לקוח.' : 'עותק נוסף אצל אותו לקוח.'}
                 </div>
               )}
 
@@ -1818,7 +1818,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
             <h3>מחיקת המסמך</h3>
             <div className="csub" style={{ marginTop: '.5rem', lineHeight: 1.7 }}>
               «{drawerDoc.description || drawerDoc.fileName}» יימחק לצמיתות, כולל הקובץ עצמו.
-              {drawerLinkedClients.length > 0 && <> הוא מקושר גם ל-{drawerLinkedClients.length} לקוחות נוספים — המחיקה תסיר אותו גם אצלם.</>}
+              {drawerLinkedClients.length > 0 && <> הוא מקושר גם ל-{drawerLinkedClients.length} לקוחות נוספים - המחיקה תסיר אותו גם אצלם.</>}
               <br />לא ניתן לשחזר.
             </div>
             {docActionError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{docActionError}</div>}
@@ -1868,8 +1868,8 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
               />
               <div className={changesContent && inside ? 'note warn' : 'note'}>
                 {inside
-                  ? <>התווית והשנה של התיקייה חלות על כל מה שבתוכה — {inside}.{changesContent && <> <b>שינוי שביצעת יוחל עליהם עכשיו.</b></>}</>
-                  : <>התיקייה ריקה — התווית והשנה ישמשו כברירת מחדל למה שייכנס אליה.</>}
+                  ? <>התווית והשנה של התיקייה חלות על כל מה שבתוכה - {inside}.{changesContent && <> <b>שינוי שביצעת יוחל עליהם עכשיו.</b></>}</>
+                  : <>התיקייה ריקה - התווית והשנה ישמשו כברירת מחדל למה שייכנס אליה.</>}
               </div>
               {folderError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{folderError}</div>}
               <div className="foot">
@@ -1895,7 +1895,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                 «{confirmDeleteFolder.name}» תימחק.
                 {(inside > 0 || subFolders > 0)
                   ? <> יש בה {inside > 0 ? `${inside} מסמכים` : ''}{inside > 0 && subFolders > 0 ? ' ו-' : ''}{subFolders > 0 ? `${subFolders} תת-תיקיות` : ''}.
-                      <br />‼ מומלץ להעביר אותם קודם — אחרת הם עלולים להישאר בלי תיקייה.</>
+                      <br />‼ מומלץ להעביר אותם קודם - אחרת הם עלולים להישאר בלי תיקייה.</>
                   : <> התיקייה ריקה.</>}
               </div>
               {folderError && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', marginTop: '.4rem' }}>{folderError}</div>}
@@ -1984,7 +1984,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
       {/* ── מודל העלאת תיקייה מהמחשב ─────────────────────────────────── */}
       {folderUploadModal && (
         <MetaModal
-          title={`העלה תיקייה — ${folderUploadModal.files.length} קבצים`}
+          title={`העלה תיקייה - ${folderUploadModal.files.length} קבצים`}
           meta={folderUploadModal.meta}
           labels={labels}
           yearOptions={yearOptions}
@@ -2063,7 +2063,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
             <div className="csub" style={{ marginTop: '.3rem' }}>
               {zipBaseName
                 ? `הקובץ יישמר בשם «${zipDisplayName(zipBaseName)}»`
-                : 'צריך שם לחבילה — אותיות, ספרות, מקף או רווח.'}
+                : 'צריך שם לחבילה - אותיות, ספרות, מקף או רווח.'}
             </div>
             {zipError && (
               <div className="note warn" style={{ marginTop: '.6rem' }}>
@@ -2097,7 +2097,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
         <div className="modal-backdrop" onClick={() => !requestBusy && setRequestModal(null)}>
           <div className="modal-box" onClick={e => e.stopPropagation()}>
             <h3>בקש מסמך מהלקוח</h3>
-            <div className="csub">קיצור דרך לבקשת לקוח רגילה — טיוטה, לא נשלחת אוטומטית. הקובץ שיתקבל יישמר כאן עם השנה והתווית שנבחרו.</div>
+            <div className="csub">קיצור דרך לבקשת לקוח רגילה - טיוטה, לא נשלחת אוטומטית. הקובץ שיתקבל יישמר כאן עם השנה והתווית שנבחרו.</div>
             <label className="lbl">מה לבקש?</label>
             <input className="inp" value={requestModal.title} onChange={e => setRequestModal({ ...requestModal, title: e.target.value })} />
             <label className="lbl">שנה למסמך שיתקבל</label>
@@ -2158,7 +2158,7 @@ function MetaFields({ meta, labels, yearOptions, rootRequiresExplicit, onChange,
         onCreated={onLabelCreated}
       />
       {rootRequiresExplicit ? (
-        <div className="note warn">שורש המסמכים — אין תיקייה שממנה לרשת. בחר שנה ותווית.</div>
+        <div className="note warn">שורש המסמכים - אין תיקייה שממנה לרשת. בחר שנה ותווית.</div>
       ) : (meta.year && meta.labelId) ? (
         <div className="note">נבחר אוטומטית לפי התיקייה. אפשר לשנות.</div>
       ) : null}

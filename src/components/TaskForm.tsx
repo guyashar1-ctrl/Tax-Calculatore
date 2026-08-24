@@ -163,13 +163,13 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                   disabled={isLocked}
                   aria-invalid={!!errors.client}
                 >
-                  {!isLocked && <option value="">— בחר —</option>}
+                  {!isLocked && <option value="">- בחר -</option>}
                   {clientOptions.map(c => (
                     <option key={c.id} value={c.id}>
                       {`${c.lastName} ${c.firstName}`.trim() || c.idNumber || 'ללא שם'}
                     </option>
                   ))}
-                  {!isLocked && <option value={INTERNAL}>— משימה פנימית (ללא לקוח) —</option>}
+                  {!isLocked && <option value={INTERNAL}>- משימה פנימית (ללא לקוח) -</option>}
                 </select>
                 {errors.client && <span className="field-error">חובה לבחור לקוח, או לסמן שזו משימה פנימית</span>}
                 {!errors.client && data.clientId === INTERNAL && (
@@ -260,7 +260,7 @@ export default function TaskForm({ task, clients, presetClientId, onSave, onCanc
                 <LinkedDocsWidget
                   clientId={data.clientId}
                   linkKey={`task:${data.id}`}
-                  linkLabel={`מסמך משימה — ${data.title || 'ללא כותרת'}`}
+                  linkLabel={`מסמך משימה - ${data.title || 'ללא כותרת'}`}
                   defaultCategory="other"
                   compact
                 />

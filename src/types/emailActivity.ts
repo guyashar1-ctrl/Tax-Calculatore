@@ -44,15 +44,15 @@ export const EMAIL_STATUS_LABEL: Record<EmailStatus, string> = {
 // שם המייל בשפה של הרו"ח. ה-kind נשמר באנגלית ע"י פונקציות השרת, וברשימה של
 // הלקוח צריך לקרוא "בקשת חתימה" ולא "sign".
 export const EMAIL_KIND_LABEL: Record<string, string> = {
-  onboard: 'קישור ייצוג — אימות זהות',
-  onboarding: 'קישור ייצוג — אימות זהות',   // שם ישן של אותו מייל
+  onboard: 'קישור ייצוג - אימות זהות',
+  onboarding: 'קישור ייצוג - אימות זהות',   // שם ישן של אותו מייל
   sign: 'בקשת חתימה על ייפוי הכוח',
   active: 'הייצוג אושר',
   intake: 'שאלון עדכון פרטים',
   intake_questionnaire: 'עדכון סטטוס מס',
   ni_approve: 'אישור ייפוי כוח בביטוח לאומי',
   quotation: 'הצעת מחיר',
-  quotation_test: 'הצעת מחיר — שליחת בדיקה',
+  quotation_test: 'הצעת מחיר - שליחת בדיקה',
   quotation_reminder: 'תזכורת להצעת מחיר',
   release: 'מכתב העברת טיפול לרו״ח הקודם',
   // מיילים של שלבי הקליטה
@@ -61,9 +61,9 @@ export const EMAIL_KIND_LABEL: Record<string, string> = {
   step_reminder: 'תזכורת קליטה',
   weekly_backup: 'גיבוי שבועי',
   // התראות פנימיות — נשלחות לרו"ח עצמו, לא ללקוח
-  notify_quotation_approved: 'התראה — הצעה אושרה',
-  notify_onboarding_submitted: 'התראה — מולאו פרטי ייצוג',
-  notify_poa_signed: 'התראה — נחתם ייפוי כוח',
+  notify_quotation_approved: 'התראה - הצעה אושרה',
+  notify_onboarding_submitted: 'התראה - מולאו פרטי ייצוג',
+  notify_poa_signed: 'התראה - נחתם ייפוי כוח',
 };
 
 export const emailKindLabel = (kind?: string): string =>

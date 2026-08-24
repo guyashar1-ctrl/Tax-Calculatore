@@ -142,7 +142,7 @@ export default function PublicApplyPage({ token }: Props) {
         <Header />
         <div style={{ fontSize: 16, fontWeight: 500, color: brand.ink, marginBottom: 4 }}>יצירת קשר</div>
         <div style={{ fontSize: 13, color: brand.muted, marginBottom: 20, lineHeight: 1.5 }}>
-          שם ואימייל מספיקים כדי שנתחיל — נחזור אליך בהקדם.
+          שם ואימייל מספיקים כדי שנתחיל - נחזור אליך בהקדם.
         </div>
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 14 }}>

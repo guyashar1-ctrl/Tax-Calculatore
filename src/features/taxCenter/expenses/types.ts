@@ -115,9 +115,9 @@ export const RISK_META: Record<RiskLevel, { label: string; short: string; tone: 
 };
 
 export const CONFIDENCE_META: Record<ConfidenceLevel, { label: string; color: string; bg: string; tone: VerdictTone }> = {
-  high:   { label: 'ודאות גבוהה — דין מיושב',          tone: 'na',    color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
-  medium: { label: 'ודאות בינונית — תלוי נסיבות',       tone: 'limit', color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
-  low:    { label: 'ודאות נמוכה — נדרש שיקול דעת',      tone: 'no',    color: 'var(--err)', bg: 'var(--chip-red-bg)' },
+  high:   { label: 'ודאות גבוהה - דין מיושב',          tone: 'na',    color: 'var(--chip-green-tx)', bg: 'var(--chip-green-bg)' },
+  medium: { label: 'ודאות בינונית - תלוי נסיבות',       tone: 'limit', color: 'var(--warn)', bg: 'var(--chip-yellow-bg)' },
+  low:    { label: 'ודאות נמוכה - נדרש שיקול דעת',      tone: 'no',    color: 'var(--err)', bg: 'var(--chip-red-bg)' },
 };
 
 // ─── חיפוש חכם ───────────────────────────────────────────────────────────────

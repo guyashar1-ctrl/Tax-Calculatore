@@ -168,7 +168,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       return;
     }
     if (emailable.length === 0) {
-      setNote({ kind: 'err', text: 'אין למי לשלוח — לאף חותם ממתין אין כתובת מייל.' });
+      setNote({ kind: 'err', text: 'אין למי לשלוח - לאף חותם ממתין אין כתובת מייל.' });
       setBusy(null);
       return;
     }
@@ -188,7 +188,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     setNote({
       kind: 'ok',
       text: `נשלח ל-${emailable.map(s => s.email).join(', ')}` + (skipped.length > 0
-        ? ` · ל${skipped.map(s => s.name || 'בן/בת הזוג').join(', ')} אין מייל — הלקוח יבחר בשלב החתימה אם לחתום יחד או להזין מייל`
+        ? ` · ל${skipped.map(s => s.name || 'בן/בת הזוג').join(', ')} אין מייל - הלקוח יבחר בשלב החתימה אם לחתום יחד או להזין מייל`
         : ''),
     });
     setBusy(null);
@@ -222,7 +222,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // שמות המבוטחים לכותרות המסלולים — כשיש שניים, "ביטוח לאומי" לבדו לא מספיק
   const nameOf = (role: 'client' | 'spouse') =>
     signers.find(s => s.role === role)?.name?.trim();
-  const clientNiTitle = niCoversSpouse ? `ב״ל — ${nameOf('client') || 'הנישום'}` : 'ביטוח לאומי';
+  const clientNiTitle = niCoversSpouse ? `ב״ל - ${nameOf('client') || 'הנישום'}` : 'ביטוח לאומי';
   // מי מבין השניים תקוע בלי אסמכתא — כדי שהחסימה תגיד לאן ללכת, ולא רק שנחסם
   const missingRefFor = !niCoversSpouse ? '' : [
     !ni.referenceNumber && (nameOf('client') || 'הנישום'),
@@ -260,7 +260,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
             <Step n={2} title="טופס ייפוי הכוח הועלה ואזורי החתימה סומנו" done={formReady}
               hint={formReady
-                ? `${request.signatureSetup?.pdfFileName || 'הטופס'} — מוכן לשליחה`
+                ? `${request.signatureSetup?.pdfFileName || 'הטופס'} - מוכן לשליחה`
                 : 'העלו את קובץ ייפוי הכוח וסמנו איפה כל אחד חותם'}>
               <button className="btn btn-secondary btn-sm" onClick={onProduce}>
                 {formReady ? '↺ החלף טופס או ערוך אזורים' : 'העלה טופס וסמן אזורי חתימה'}
@@ -271,7 +271,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 בפס המשותף שמתחת לשתי המשבצות — כפתור אחד, במקום אחד. */}
             <Step n={3} title="נשלח לחתימת הלקוח" done={!!exec.signatureEmailSentAt}
               hint={exec.signatureEmailSentAt ? undefined
-                : formReady ? 'השליחה בפס המשותף שמתחת — מייל אחד לשתי הרשויות'
+                : formReady ? 'השליחה בפס המשותף שמתחת - מייל אחד לשתי הרשויות'
                   : 'אפשרי אחרי הפקת הטופס'} />
 
             <Step n={4} title="כל החותמים חתמו" done={signed}>
@@ -290,7 +290,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             <Step n={5} title="חתמתי והוספתי חותמת" done={stamped}
               hint={stamped
                 ? 'הטופס החתום מוכן להגשה'
-                : signed ? 'הלקוח חתם — נשארה החתימה והחותמת שלכם' : 'אפשרי אחרי שכל החותמים חתמו'}>
+                : signed ? 'הלקוח חתם - נשארה החתימה והחותמת שלכם' : 'אפשרי אחרי שכל החותמים חתמו'}>
               {signed && !stamped && (
                 <button className="btn btn-green btn-sm" onClick={onStamp}>חתום + הוסף חותמת</button>
               )}
@@ -304,7 +304,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             </Step>
 
             <Step n={7} title="הייצוג פעיל" done={status === 'active'}
-              hint={status === 'awaiting_authorities' ? 'כשהייצוג יאושר בשע״ם — סמנו כאן' : undefined}>
+              hint={status === 'awaiting_authorities' ? 'כשהייצוג יאושר בשע״ם - סמנו כאן' : undefined}>
               {status === 'awaiting_authorities' && (
                 <button className="btn btn-green btn-sm" onClick={onMarkActive}>סמן כמיוצג פעיל</button>
               )}
@@ -322,10 +322,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
                     <InfoLines style={{ marginBottom: '.4rem' }} items={[
                       'ℹ הלקוח לא עודכן במייל',
-                      'המערכת לא שולחת מעצמה — אפשר לשלוח עדכון אחרי שרואים בדיוק מה ייצא',
+                      'המערכת לא שולחת מעצמה - אפשר לשלוח עדכון אחרי שרואים בדיוק מה ייצא',
                     ]} />
                     <button className="btn btn-secondary btn-sm" onClick={() => setPreviewActive(true)}>
-                      עדכון ללקוח — תצוגה מקדימה
+                      עדכון ללקוח - תצוגה מקדימה
                     </button>
                   </div>
                 )
@@ -348,7 +348,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               />
               {niCoversSpouse && (
                 <NiTrack
-                  title={`ב״ל — ${nameOf('spouse') || 'בן/בת הזוג'}`}
+                  title={`ב״ל - ${nameOf('spouse') || 'בן/בת הזוג'}`}
                   ni={niSpouse}
                   busy={busy}
                   busyPrefix="nis"
@@ -383,7 +383,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           </div>
           <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.6 }}>
             {niIncluded
-              ? 'מייל אחד לשתי הרשויות — קישור אישי לחתימה על ייפוי הכוח, ומתחתיו האסמכתא והוראות האישור בביטוח הלאומי.'
+              ? 'מייל אחד לשתי הרשויות - קישור אישי לחתימה על ייפוי הכוח, ומתחתיו האסמכתא והוראות האישור בביטוח הלאומי.'
               : 'מייל עם קישור אישי לחתימה על ייפוי הכוח, לכל חותם.'}
           </div>
 
@@ -418,7 +418,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               )}
               {niRefMissing && (
                 <div style={{ margin: '.55rem auto 0', maxWidth: 460, padding: '.45rem .6rem', background: 'transparent', borderRadius: 'var(--radius)', fontSize: 'var(--fs-13)', color: 'var(--ink-1)', lineHeight: 1.6 }}>
-                  חסום עד להזנת מספר האסמכתא{missingRefFor ? ` של ${missingRefFor}` : ''} במשבצת הביטוח הלאומי —
+                  חסום עד להזנת מספר האסמכתא{missingRefFor ? ` של ${missingRefFor}` : ''} במשבצת הביטוח הלאומי -
                   אחרת {niCoversSpouse ? 'מי שחסרה לו אסמכתא יקבל מייל בלי חלק הב״ל' : 'הלקוח יקבל מייל בלי חלק הב״ל'}.
                 </div>
               )}
@@ -448,7 +448,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
       {previewActive && (
         <EmailPreviewDialog
-          heading="עדכון ללקוח — הייצוג אושר"
+          heading="עדכון ללקוח - הייצוג אושר"
           body={{ requestId: request.id, stage: 'active' }}
           onSent={reloadEmails}
           onClose={() => setPreviewActive(false)}
@@ -458,7 +458,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       {previewSignerId && (
         <EmailPreviewDialog
           readOnly
-          heading="תצוגה מקדימה — מייל החתימה"
+          heading="תצוגה מקדימה - מייל החתימה"
           body={{ requestId: request.id, stage: 'sign', signerId: previewSignerId }}
           onSent={reloadEmails}
           onClose={() => setPreviewSignerId(null)}
@@ -490,7 +490,7 @@ function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
 
   const dLeft = daysUntil(ni.deadline);
   const deadlineTone = dLeft === null ? null
-    : dLeft < 0 ? { bg: 'var(--red-light)', fg: 'var(--danger)', text: `המועד עבר לפני ${Math.abs(dLeft)} ימים — יש להזין מחדש בב"ל` }
+    : dLeft < 0 ? { bg: 'var(--red-light)', fg: 'var(--danger)', text: `המועד עבר לפני ${Math.abs(dLeft)} ימים - יש להזין מחדש בב"ל` }
     : dLeft <= 14 ? { bg: 'var(--orange-light)', fg: 'var(--ink-1)', text: `⏳ נותרו ${dLeft} ימים לאישור` }
     : { bg: 'var(--surface-2)', fg: 'var(--ink-3)', text: `נותרו ${dLeft} ימים לאישור` };
 
@@ -503,7 +503,7 @@ function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
       tone="🛡"
     >
       <Step n={1} title="ייפוי הכוח הוזן באתר ב״ל" done={!!ni.enteredAt}
-        hint={ni.enteredAt ? `סומן ב-${fmt(ni.enteredAt)}` : 'מסך "הוספת ייפוי כח מבוטח" — ארבעת השדות מהבלוק שמעל'}>
+        hint={ni.enteredAt ? `סומן ב-${fmt(ni.enteredAt)}` : 'מסך "הוספת ייפוי כח מבוטח" - ארבעת השדות מהבלוק שמעל'}>
         {!ni.enteredAt && (
           <button className="btn btn-secondary btn-sm" disabled={busy === k('entered')}
             onClick={() => onPatch({ enteredAt: new Date().toISOString() }, k('entered'))}>
@@ -540,7 +540,7 @@ function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
 
       <Step n={3} title="ההוראות הגיעו למבוטח" done={sentWithSignature || !!ni.instructionsSentAt}
         hint={
-          sentWithSignature ? 'נכללו במייל בקשת החתימה — מייל אחד לשתי הפעולות'
+          sentWithSignature ? 'נכללו במייל בקשת החתימה - מייל אחד לשתי הפעולות'
           : ni.instructionsSentAt ? `נשלחו בנפרד ב-${fmt(ni.instructionsSentAt)}`
           : `יישלחו יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}`
         }>
@@ -558,7 +558,7 @@ function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
         )}
       </Step>
 
-      <Step n={4} title="אושר — הייצוג בב״ל פעיל" done={!!ni.confirmedAt}
+      <Step n={4} title="אושר - הייצוג בב״ל פעיל" done={!!ni.confirmedAt}
         hint={ni.confirmedAt ? `אושר ב-${fmt(ni.confirmedAt)}` : 'בדקו באתר ב״ל שהאישור נקלט'}>
         {!ni.confirmedAt && (
           <button className="btn btn-secondary btn-sm" disabled={busy === k('conf')}

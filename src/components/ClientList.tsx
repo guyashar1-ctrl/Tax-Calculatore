@@ -612,7 +612,7 @@ export default function ClientList({
       {clients.length === 0 ? (
         <EmptyState
           headline="עוד אין לקוחות"
-          sentence="לקוח חדש נפתח עם חמישה פרטים בלבד — את שאר התיק משלימים אחר כך."
+          sentence="לקוח חדש נפתח עם חמישה פרטים בלבד - את שאר התיק משלימים אחר כך."
           action={{ label: '+ לקוח חדש', onClick: onAdd }}
           quietLink={{ label: 'טען לקוחות לדוגמה', onClick: onLoadSamples }}
         />
@@ -660,7 +660,7 @@ export default function ClientList({
                 {isNarrowed
                   ? 'אפשר לנקות את הסינון ולראות את כולם.'
                   : onboardingCount > 0
-                    ? `${onboardingCount} בתהליך קליטה — הם מופיעים במקטע שלמעלה.`
+                    ? `${onboardingCount} בתהליך קליטה - הם מופיעים במקטע שלמעלה.`
                     : 'אדם שנשלחה לו הצעה מופיע כאן עם התווית "בהצעה".'}
               </div>
               {isNarrowed && (
@@ -758,20 +758,20 @@ export default function ClientList({
                           </div>
                         </div>
                       </td>
-                      <td className="mono-text col-id">{client.idNumber || '—'}</td>
-                      <td className="hide-mobile">{client.city || '—'}</td>
+                      <td className="mono-text col-id">{client.idNumber || '-'}</td>
+                      <td className="hide-mobile">{client.city || '-'}</td>
                       <td className="mono-text hide-mobile" dir="ltr" style={{ textAlign: 'right' }}>
                         {pc.phone ? (
                           <span title={primaryNote ? `איש קשר ראשי: ${primaryNote}` : ''}>
                             {pc.phone}
                             {primaryNote && <span className="cl-primary-mark">· {primaryNote}</span>}
                           </span>
-                        ) : '—'}
+                        ) : '-'}
                       </td>
                       <td className="mono-text hide-mobile col-email" dir="ltr" style={{ textAlign: 'right' }}>
                         {pc.email ? (
                           <span title={primaryNote ? `איש קשר ראשי: ${primaryNote}` : ''}>{pc.email}</span>
-                        ) : '—'}
+                        ) : '-'}
                       </td>
                       <td className="hide-mobile">
                         {/* התוויות "מ״ה: · ב״ל: · מע״מ:" חזרו בכל שורה — 21 פעמים
@@ -822,7 +822,7 @@ export default function ClientList({
                             <span className={`cl-metric-num ${m.upcomingDebtsCount > 0 ? 'warn' : ''}`}>{m.openTasksCount}</span>
                             {m.upcomingDebtsCount > 0 && <span className="cl-metric-tag">{m.upcomingDebtsCount}</span>}
                           </div>
-                        ) : <span className="cl-metric-zero">—</span>}
+                        ) : <span className="cl-metric-zero">-</span>}
                       </td>
                       <td className="hide-mobile col-shaam" style={{ textAlign: 'center' }}>
                         {/* רק חריגה מסומנת. "פעיל" הוא המצב הצפוי ולא צריך סימן (§4.5) */}

@@ -41,11 +41,11 @@ const FIXTURE: PortalData = {
       canUpload: true,
       note: BANK.clientNote, refs: BANK.clientRefs, noteAfter: BANK.clientNoteAfter,
       requirements: [
-        { key: 'debit_income', kind: 'file', label: 'אסמכתה — מס הכנסה', done: false, required: true },
-        { key: 'debit_vat', kind: 'file', label: 'אסמכתה — מע״מ', done: false, required: true },
+        { key: 'debit_income', kind: 'file', label: 'אסמכתה - מס הכנסה', done: false, required: true },
+        { key: 'debit_vat', kind: 'file', label: 'אסמכתה - מע״מ', done: false, required: true },
       ] },
     { bucket: 'action', key: 'custom_guide', label: 'מדריך הוצאות מוכרות',
-      sub: 'מסמך מהמשרד — כמה דקות קריאה',
+      sub: 'מסמך מהמשרד - כמה דקות קריאה',
       actionKind: 'portal', actionValue: 'step4', kind: 'guide', cta: 'לפתיחת המסמך',
       resourceKey: 'expenses_guide', resourceUrl: 'https://example.com/guide.pdf',
       requirements: [
@@ -96,7 +96,7 @@ export default function TestPortalPreview() {
       <h2 style={{ margin: 0 }}>בדיקת תצוגה מקדימה של הדף האישי</h2>
 
       <section>
-        <h3>1 · PortalView על נתוני דמה — מצב preview (פעולות כבויות, טיוטות מסומנות)</h3>
+        <h3>1 · PortalView על נתוני דמה - מצב preview (פעולות כבויות, טיוטות מסומנות)</h3>
         <div className="pivo-light" style={{ border: '1px solid #ccc', borderRadius: 8, overflow: 'hidden' }}>
           <PortalView data={FIXTURE} preview embed />
         </div>
@@ -106,14 +106,14 @@ export default function TestPortalPreview() {
           אצל הלקוח. כאן אותם פריטים בלי preview — הטוקן ריק, ולכן לחיצה
           מקבלת 'invalid' מהשרת ומציגה את הודעת השגיאה. שום נתון לא נוגע. */}
       <section>
-        <h3>2 · אותם פריטים במצב חי (טוקן ריק — לחיצה נכשלת בכוונה)</h3>
+        <h3>2 · אותם פריטים במצב חי (טוקן ריק - לחיצה נכשלת בכוונה)</h3>
         <div className="pivo-light" style={{ border: '1px solid #ccc', borderRadius: 8, overflow: 'hidden' }}>
           <PortalView data={{ ...FIXTURE, items: FIXTURE.items.filter(i => i.bucket === 'action') }} embed />
         </div>
       </section>
 
       <section>
-        <h3>3 · הדיאלוג האמיתי — לקוחות ה-DB של משתמש הפיתוח</h3>
+        <h3>3 · הדיאלוג האמיתי - לקוחות ה-DB של משתמש הפיתוח</h3>
         {!sessionReady && <p>ממתין להתחברות…</p>}
         {sessionReady && clients.length === 0 && <p>למשתמש הזה אין לקוחות ב-DB.</p>}
         <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>

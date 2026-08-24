@@ -17,7 +17,7 @@ const ERROR_TEXT: Record<string, string> = {
   forbidden: 'אין הרשאה לשלב הזה.',
   unknown_action: 'הפעולה אינה מוכרת.',
   locked: 'השלב נעול עד להשלמת השלב שהוא תלוי בו.',
-  paperless_required: 'קיימת הרשאת תשלום שממתינה — אי אפשר לדלג על הפייפרלס.',
+  paperless_required: 'קיימת הרשאת תשלום שממתינה - אי אפשר לדלג על הפייפרלס.',
 };
 
 export function useOnboarding(userId: string | undefined, clientId?: string) {

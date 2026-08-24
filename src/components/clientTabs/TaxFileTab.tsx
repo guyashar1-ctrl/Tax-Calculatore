@@ -119,7 +119,7 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
 /** תא בטבלת הרשויות: מספרי התיקים ששייכים לו, או "—" כשאין תיק כזה.
  *  תיק שקיים אבל מספרו טרם הוזן אומר זאת במפורש — "—" היה משקר. */
 function fileCellText(cellFiles: TaxFileInfo[], tag?: string): React.ReactNode {
-  if (cellFiles.length === 0) return <span className="txf-mtx-none">—</span>;
+  if (cellFiles.length === 0) return <span className="txf-mtx-none">-</span>;
   return (
     <>
       {tag && <span className="txf-mtx-tag">{tag}</span>}
@@ -173,7 +173,7 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
       // הערך המקובל השתנה אחרי שההצעה נוצרה — לא נדרס בשקט, מסבירים ומרעננים
       // את הרשימה כדי שהרו"ח יראה מצב עדכני לפני שיחליט שוב.
       const msg = res.error === 'stale_conflict'
-        ? 'הערך בתיק השתנה אחרי שההצעה הזו נוצרה — נדרשת בדיקה מחדש. רענן ונסה שוב.'
+        ? 'הערך בתיק השתנה אחרי שההצעה הזו נוצרה - נדרשת בדיקה מחדש. רענן ונסה שוב.'
         : (res.error || 'שגיאה בעדכון');
       setChangeErrors(e => ({ ...e, [change.id]: msg }));
       return;
@@ -193,7 +193,7 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
     setSavingEdit(true);
     const res = await recordManualEdit(
       client.id, 'donationsAnnual', 'תרומות שנתיות',
-      money(client.donationsAnnual) ?? '—', money(val) ?? '—',
+      money(client.donationsAnnual) ?? '-', money(val) ?? '-',
       { donationsAnnual: val },
     );
     setSavingEdit(false);
@@ -203,7 +203,7 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
     setSavingEdit(true);
     const res = await recordManualEdit(
       client.id, 'rentalTaxTrack', 'מסלול מיסוי שכירות',
-      client.rentalTaxTrack ? RENTAL_TRACK_LABELS[client.rentalTaxTrack] : '—', RENTAL_TRACK_LABELS[rentalDraft],
+      client.rentalTaxTrack ? RENTAL_TRACK_LABELS[client.rentalTaxTrack] : '-', RENTAL_TRACK_LABELS[rentalDraft],
       { rentalTaxTrack: rentalDraft },
     );
     setSavingEdit(false);
@@ -346,7 +346,7 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
       <div className="txf-head">
         <div>
           <h2>תיק מס</h2>
-          <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>הרשומה המקצועית של הלקוח. עריכה — מתוך הפירוט בלבד.</div>
+          <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>הרשומה המקצועית של הלקוח. עריכה - מתוך הפירוט בלבד.</div>
         </div>
         {/* ‼ "עדכון סטטוס מס" ולא "שאלון": השאלון הוא אחד המקורות לרענון
             התיק, לא הרשומה עצמה, והוא אינו שייך רק לעונת הדוח השנתי. הרשומה
@@ -378,7 +378,7 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
             {open && (
               <div className="txf-qchange-body">
                 <div className="txf-oldnew">
-                  <div><div className="k">בתיק היום</div>{change.oldValue?.display ?? '—'}</div>
+                  <div><div className="k">בתיק היום</div>{change.oldValue?.display ?? '-'}</div>
                   <div><div className="k">מ{TAX_FACT_SOURCE_LABELS[change.source]} ({shortDate(change.createdAt)})</div>{change.newValue.display}</div>
                 </div>
                 <div className="txf-editor-actions">
@@ -519,11 +519,11 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
               >
                 <div className="txf-kv">
                   {businesses.length > 0 ? businesses.map(b => (
-                    <KV key={b.id} k={b.name} v={`${b.description || '—'}${b.revenueAnnual ? ` · מחזור ${money(b.revenueAnnual)}` : ''}`} />
+                    <KV key={b.id} k={b.name} v={`${b.description || '-'}${b.revenueAnnual ? ` · מחזור ${money(b.revenueAnnual)}` : ''}`} />
                   )) : (
                     <>
-                      <KV k="תיאור העיסוק" v={client.businessDescription || '—'} />
-                      <KV k="סיווג מע״מ" v={client.vatStatus === 'authorizedDealer' ? 'עוסק מורשה' : client.vatStatus === 'exemptDealer' ? 'עוסק פטור' : '—'} />
+                      <KV k="תיאור העיסוק" v={client.businessDescription || '-'} />
+                      <KV k="סיווג מע״מ" v={client.vatStatus === 'authorizedDealer' ? 'עוסק מורשה' : client.vatStatus === 'exemptDealer' ? 'עוסק פטור' : '-'} />
                     </>
                   )}
                 </div>
@@ -542,7 +542,7 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
                     <KV key={`${e.id}-n`} k="מעסיק" v={e.name} />,
                     e.grossSalaryAnnual ? <KV key={`${e.id}-s`} k="שכר ברוטו שנתי" v={money(e.grossSalaryAnnual)} /> : null,
                     e.startDate ? <KV key={`${e.id}-d`} k="תחילת עבודה" v={shortDate(e.startDate)} /> : null,
-                  ]) : <KV k="סיווג" v="שכיר — אין פירוט מעביד בתיק" />}
+                  ]) : <KV k="סיווג" v="שכיר - אין פירוט מעביד בתיק" />}
                 </div>
                 <SrcLine label="מקור: כרטיס הלקוח · עריכה מלאה בפרטי הלקוח" />
               </TRow>
@@ -657,7 +657,7 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
           >
             <div className="txf-kv">
               {otherProperties.map(p => <KV key={p.id} k="נכס דיור" v={`${p.address}${p.city ? `, ${p.city}` : ''}`} />)}
-              {bankAccounts.map(b => <KV key={b.id} k={b.bankName} v={b.isPrimary ? 'חשבון ראשי — להחזרי מס' : (b.branchName || '—')} />)}
+              {bankAccounts.map(b => <KV key={b.id} k={b.bankName} v={b.isPrimary ? 'חשבון ראשי - להחזרי מס' : (b.branchName || '-')} />)}
               {foreignAccounts.length > 0 && <KV k="נכסים בחו״ל" v={foreignAccounts.map(a => a.country || a.institutionName).filter(Boolean).join(', ') || `${foreignAccounts.length}`} />}
             </div>
             <SrcLine label="מקור: כרטיס הלקוח" />
@@ -681,13 +681,13 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
               {client.hasKrenHashtalmut && <KV k="קרן השתלמות" v={client.krenHashtalmutMonthly ? `${money(client.krenHashtalmutMonthly)} לחודש` : 'קיימת'} />}
               {client.hasLifeInsurance && <KV k="ביטוח חיים" v={client.lifeInsuranceAnnual ? `${money(client.lifeInsuranceAnnual)} לשנה` : 'קיים'} />}
               {client.hasDisabilityInsurance && <KV k="אובדן כושר עבודה" v="קיים" />}
-              <KV k="תרומות (מוכרות סעיף 46)" v={money(client.donationsAnnual) ?? '—'} />
+              <KV k="תרומות (מוכרות סעיף 46)" v={money(client.donationsAnnual) ?? '-'} />
             </div>
             {editingField === 'donations' ? (
               <div className="txf-editor">
                 <h4>עריכת תרומות שנתיות</h4>
                 <input inputMode="numeric" value={donationsDraft} onChange={e => setDonationsDraft(e.target.value)} placeholder="0" style={{ width: 140 }} />
-                <div className="txf-note">עריכה ידנית הופכת לערך המקובל. הערך הקודם נשמר בהיסטוריה, ומקור חדש שיחלוק עליו יופיע כשינוי ממתין — לא ידרוס.</div>
+                <div className="txf-note">עריכה ידנית הופכת לערך המקובל. הערך הקודם נשמר בהיסטוריה, ומקור חדש שיחלוק עליו יופיע כשינוי ממתין - לא ידרוס.</div>
                 <div className="txf-editor-actions">
                   <button type="button" className="ui-btn ui-btn-primary" disabled={savingEdit} onClick={saveDonations}>{savingEdit ? 'שומר…' : 'שמור'}</button>
                   <button type="button" className="ui-btn" onClick={() => setEditingField(null)}>ביטול</button>

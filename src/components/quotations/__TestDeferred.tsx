@@ -114,16 +114,16 @@ export default function TestDeferred() {
   return (
     <div dir="rtl">
       <div style={{ padding: '1rem 1.5rem', maxWidth: 980, margin: '0 auto' }}>
-        <h2 style={{ marginBottom: '.3rem' }}>בדיקת יתרה לתשלום מאוחר — נתונים מדומים</h2>
+        <h2 style={{ marginBottom: '.3rem' }}>בדיקת יתרה לתשלום מאוחר - נתונים מדומים</h2>
         <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: '.8rem', lineHeight: 1.7 }}>
           לקוח שנכנס באוגוסט: ריטיינר 450 ₪ × 5, דוח שנתי שמחירו 1,800 ₪ עם הנחה של 20% (360 ₪),
-          כלומר 1,440 ₪ — מהם 600 ₪ כלולים בחודשי (5 × 120 ₪). היתרה 840 ₪, וסוכם שייגבו ממנה 500 ₪ —
+          כלומר 1,440 ₪ - מהם 600 ₪ כלולים בחודשי (5 × 120 ₪). היתרה 840 ₪, וסוכם שייגבו ממנה 500 ₪ -
           כלומר עוד 340 ₪ הנחה, וסך הכול 700 ₪ הנחה על השורה.
-          שורת 2027 היא אותה שורה ב-12 תשלומים — ולכן אסור שיופיע לה סעיף יתרה.
+          שורת 2027 היא אותה שורה ב-12 תשלומים - ולכן אסור שיופיע לה סעיף יתרה.
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, fontSize: 13, marginBottom: '1rem' }}>
           <div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>שורת 2026 (5 תשלומים) — מול הצפוי</div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>שורת 2026 (5 תשלומים) - מול הצפוי</div>
             {rows.map(([label, amount, expected]) => {
               const ok = amount.replace(/[₪−-]/g, '') === expected.replace(/[₪−-]/g, '');
               return (
@@ -139,7 +139,7 @@ export default function TestDeferred() {
           <div>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>שורת 2027 (12 תשלומים)</div>
             <div style={{ color: nextYear ? 'var(--red)' : 'var(--green, #059669)' }}>
-              {nextYear ? `‼ נותרה יתרה של ${formatILS(nextYear.finalAmount)} — שגיאה` : '✓ אין יתרה — הסעיף נעלם מעצמו'}
+              {nextYear ? `‼ נותרה יתרה של ${formatILS(nextYear.finalAmount)} - שגיאה` : '✓ אין יתרה - הסעיף נעלם מעצמו'}
             </div>
           </div>
         </div>

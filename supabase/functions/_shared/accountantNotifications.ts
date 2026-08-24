@@ -67,7 +67,7 @@ export const ACCOUNTANT_NOTIFICATIONS: AccountantNotificationDef[] = [
   {
     kind: 'poa_signed',
     label: 'לקוח חתם על בקשת ייצוג',
-    hint: 'על כל חתימה. בתא משפחתי — גם על חתימת בן/בת הזוג בנפרד.',
+    hint: 'על כל חתימה. בתא משפחתי - גם על חתימת בן/בת הזוג בנפרד.',
     group: 'הלקוח',
     defaultOn: true,
   },
@@ -81,7 +81,7 @@ export const ACCOUNTANT_NOTIFICATIONS: AccountantNotificationDef[] = [
   {
     kind: 'lead_self_submitted',
     label: 'התקבלה הגשה מקישור מילוי פרטים',
-    hint: 'מישהו מילא שם ואימייל בקישור הציבורי ("שליחת קישור למילוי פרטים") — ליד חדש ממתין לטיפול.',
+    hint: 'מישהו מילא שם ואימייל בקישור הציבורי ("שליחת קישור למילוי פרטים") - ליד חדש ממתין לטיפול.',
     group: 'הלקוח',
     defaultOn: true,
   },
@@ -104,7 +104,7 @@ export const ACCOUNTANT_NOTIFICATIONS: AccountantNotificationDef[] = [
     // ‼ ברירת מחדל דלוקה, בשונה משאר ההתראות של המסלול: הסתייגות היא הדבר
     // היחיד כאן שמחייב תשובה, וגילוי מאוחר שלה עולה זמן ולקוח.
     label: 'רו״ח קודם השיב או הסתייג',
-    hint: 'הערה שהרו״ח הקודם כתב בדף השחרור — הסתייגות, חוב פתוח או כל דבר שצריך לדעת.',
+    hint: 'הערה שהרו״ח הקודם כתב בדף השחרור - הסתייגות, חוב פתוח או כל דבר שצריך לדעת.',
     group: 'הרו״ח הקודם',
     defaultOn: true,
   },
@@ -118,7 +118,7 @@ export const ACCOUNTANT_NOTIFICATIONS: AccountantNotificationDef[] = [
   {
     kind: 'onboarding_closed',
     label: 'תהליך קליטה הושלם',
-    hint: 'כשההתקשרות עוברת מקליטה לשוטף — כולל סגירה בכפייה עם סיבה.',
+    hint: 'כשההתקשרות עוברת מקליטה לשוטף - כולל סגירה בכפייה עם סיבה.',
     group: 'תהליך הקליטה',
     defaultOn: false,
   },
@@ -140,7 +140,7 @@ export const ACCOUNTANT_NOTIFICATIONS: AccountantNotificationDef[] = [
     // כשהיא כבויה — משימת התזמון היומית לא שולחת כלום ולא תופסת תביעה.
     kind: 'quotation_expiry_reminder',
     label: 'תזכורת אוטומטית ללקוח לפני שהצעה פוקעת',
-    hint: '‼ מייל שיוצא ללקוח עצמו, בלי שתאשר כל פעם — יום עסקים אחד לפני שההצעה פוקעת. כבוי כברירת מחדל.',
+    hint: '‼ מייל שיוצא ללקוח עצמו, בלי שתאשר כל פעם - יום עסקים אחד לפני שההצעה פוקעת. כבוי כברירת מחדל.',
     group: 'מיילים אוטומטיים ללקוח',
     defaultOn: false,
     audience: 'client',
@@ -150,7 +150,7 @@ export const ACCOUNTANT_NOTIFICATIONS: AccountantNotificationDef[] = [
     // ההבטחה היא שכל מייל אל המשרד ניתן לכיבוי מהמסך הזה, ולא רק אלה שבתור.
     kind: 'weekly_backup',
     label: 'דוח הגיבוי השבועי',
-    hint: 'סיכום שבועי — שם קובץ הגיבוי וספירת השורות. הגיבוי עצמו יירשם גם אם המייל כבוי.',
+    hint: 'סיכום שבועי - שם קובץ הגיבוי וספירת השורות. הגיבוי עצמו יירשם גם אם המייל כבוי.',
     group: 'המערכת',
     defaultOn: true,
   },

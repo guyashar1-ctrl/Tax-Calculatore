@@ -158,7 +158,7 @@ export default function OnboardingPage({ token }: Props) {
       if (!firstName.trim()) return 'יש להזין שם פרטי';
       if (!lastName.trim()) return 'יש להזין שם משפחה';
       if (!/^\d{9}$/.test(idNumber.trim())) return 'יש להזין 9 ספרות בתעודת הזהות';
-      if (!isValidIsraeliId(idNumber.trim())) return 'מספר תעודת הזהות אינו תקין — בדקו שוב';
+      if (!isValidIsraeliId(idNumber.trim())) return 'מספר תעודת הזהות אינו תקין - בדקו שוב';
       if (!birthDate) return 'יש להזין תאריך לידה';
       if (new Date(birthDate) > new Date()) return 'תאריך הלידה לא יכול להיות בעתיד';
       if (!secondaryValue.trim()) return `יש להזין ${ONBOARDING_SECONDARY_LABELS[secondaryType]}`;
@@ -174,7 +174,7 @@ export default function OnboardingPage({ token }: Props) {
       if (yearLabel) {
         const y = Number(familyYear);
         if (!familyYear.trim()) return `יש להזין ${yearLabel}`;
-        if (!Number.isInteger(y) || y < 1900 || y > CURRENT_YEAR) return `${yearLabel} — יש להזין שנה תקינה`;
+        if (!Number.isInteger(y) || y < 1900 || y > CURRENT_YEAR) return `${yearLabel} - יש להזין שנה תקינה`;
       }
       if (familyStatus === 'married') {
         if (!spouseFirstName.trim()) return 'יש להזין את השם הפרטי של בן/בת הזוג';
@@ -227,7 +227,7 @@ export default function OnboardingPage({ token }: Props) {
       p_spouse_birth_year: familyStatus === 'married' && spouseBirthYear.trim() ? Number(spouseBirthYear) : null,
     });
     if (error || data === false) {
-      setError('השליחה לא הצליחה. נסו שוב, ואם זה חוזר — פנו למשרד.');
+      setError('השליחה לא הצליחה. נסו שוב, ואם זה חוזר - פנו למשרד.');
       setBusy(false);
       return;
     }
@@ -244,7 +244,7 @@ export default function OnboardingPage({ token }: Props) {
     setError(null);
     const { data, error } = await supabase.rpc('submit_signature', { p_token: token, p_signature: signature });
     if (error || data === false) {
-      setError('השליחה לא הצליחה. נסו שוב, ואם זה חוזר — פנו למשרד.');
+      setError('השליחה לא הצליחה. נסו שוב, ואם זה חוזר - פנו למשרד.');
       setBusy(false);
       return;
     }
@@ -322,11 +322,11 @@ export default function OnboardingPage({ token }: Props) {
               לרשויות → ייצוג פעיל. אין הגשה לרשויות לפני החתימה. */}
           <div style={{ background: accent, color: '#fff', borderRadius: '10px 10px 0 0', padding: '13px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 17, fontWeight: 600 }}>
-              {info?.niIncluded ? 'עוד לא סיימנו — נשארו שתי פעולות' : 'עוד לא סיימנו — נשארה פעולה אחת'}
+              {info?.niIncluded ? 'עוד לא סיימנו - נשארו שתי פעולות' : 'עוד לא סיימנו - נשארה פעולה אחת'}
             </div>
             <div style={{ fontSize: 13, fontWeight: 500, opacity: .92, marginTop: 3 }}>
               {info?.niIncluded
-                ? 'קישור החתימה יגיע בשעות הקרובות, ואישור הביטוח הלאומי — אחרי שנגיש'
+                ? 'קישור החתימה יגיע בשעות הקרובות, ואישור הביטוח הלאומי - אחרי שנגיש'
                 : 'נשלח לכם קישור אישי לחתימה, בשעות הקרובות'}
             </div>
           </div>
@@ -339,14 +339,14 @@ export default function OnboardingPage({ token }: Props) {
               margin: '8px 0 16px', padding: '11px 12px', background: '#F7F6F3', borderRadius: 8,
               fontSize: 15, fontWeight: 600, color: '#111', textAlign: 'center', wordBreak: 'break-all',
             }}>
-              {email.trim() || info?.knownEmail || '—'}
+              {email.trim() || info?.knownEmail || '-'}
             </div>
 
             <NextAction n={1} title="חתימה על ייפוי הכוח" tone={accent}
               text="חתימה דיגיטלית בלחיצה, גם מהטלפון. אחרי החתימה נגיש את בקשת הייצוג לרשויות." />
             {info?.niIncluded && (
               <NextAction n={2} title="אישור בביטוח הלאומי" tone="#C2410C"
-                text="אחרי ההגשה נשלח לכם מספר אסמכתא. מאשרים באתר הביטוח הלאומי או בטלפון — לוקח כדקה." />
+                text="אחרי ההגשה נשלח לכם מספר אסמכתא. מאשרים באתר הביטוח הלאומי או בטלפון - לוקח כדקה." />
             )}
 
             <div style={{ fontSize: 12.5, color: '#8A4B00', background: '#FFF4E0', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6, marginTop: 14, textAlign: 'center' }}>
@@ -466,7 +466,7 @@ export default function OnboardingPage({ token }: Props) {
    */
   function ProcessMap({ current }: { current: 1 | 2 }) {
     const steps = [
-      { n: 1, title: 'הפרטים שלכם', text: 'ממלאים כאן — וזהו' },
+      { n: 1, title: 'הפרטים שלכם', text: 'ממלאים כאן - וזהו' },
       { n: 2, title: 'חתימה על ייפוי הכוח', text: 'נשלח לכם קישור אישי. חותמים בלחיצה, גם מהטלפון.' },
       { n: 3, title: 'אנחנו מגישים לרשויות', text: 'אחרי החתימה אנחנו פותחים עבורכם בקשת ייצוג מול הרשויות' },
       { n: 4, title: 'הייצוג פעיל', text: 'מרגע שהרשויות מאשרות, אנחנו מטפלים בכל עבורכם.' },
@@ -545,7 +545,7 @@ export default function OnboardingPage({ token }: Props) {
             </div>
 
             <div style={{ marginBottom: 22 }}>
-              <div style={{ ...label, marginBottom: 8 }}>אמצעי זיהוי נוסף <span style={{ color: '#9A9A95' }}>— בחרו אחד</span></div>
+              <div style={{ ...label, marginBottom: 8 }}>אמצעי זיהוי נוסף <span style={{ color: '#9A9A95' }}>- בחרו אחד</span></div>
               <div style={{ display: 'flex', gap: 7, marginBottom: 12 }}>
                 {SECONDARY_ORDER.map(t => {
                   const sel = secondaryType === t;
@@ -615,7 +615,7 @@ export default function OnboardingPage({ token }: Props) {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: '#F7F6F3', borderRadius: 9, padding: '10px 12px', marginBottom: 22 }}>
               <span style={{ marginTop: 1 }}>{'\u{1FAAA}'}</span>
               <span style={{ fontSize: 12.5, lineHeight: 1.55, color: '#6B6B68' }}>
-                <strong style={{ color: '#111' }}>לפי מה שרשום בתעודת הזהות שלכם</strong> — הרשויות בודקות מול מרשם האוכלוסין, ופרט שאינו תואם מעכב את הייצוג.
+                <strong style={{ color: '#111' }}>לפי מה שרשום בתעודת הזהות שלכם</strong> - הרשויות בודקות מול מרשם האוכלוסין, ופרט שאינו תואם מעכב את הייצוג.
               </span>
             </div>
 
@@ -655,7 +655,7 @@ export default function OnboardingPage({ token }: Props) {
             {familyStatus === 'married' && (
               <div style={{ marginTop: 6, paddingTop: 16, borderTop: '1px solid #F0EFEB' }}>
                 <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginBottom: 14 }}>
-                  {'\u{1F491}'} ספרו לנו על בן/בת הזוג — הפרטים נדרשים לייפויי הכוח של
+                  {'\u{1F491}'} ספרו לנו על בן/בת הזוג - הפרטים נדרשים לייפויי הכוח של
                   שניכם. את אופן החתימה של בן/בת הזוג תבחרו בשלב החתימה.
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>

@@ -150,7 +150,7 @@ export function formatILS(n: number): string {
 // שם השורה כפי שהוא מוצג ללקוח. שורה עם שנת מס מקבלת את השנה בשמה, כדי
 // שכמה דוחות של שנים פתוחות ייקראו כשורות נפרדות ולא כשכפול של אותו שירות.
 export function itemDisplayName(item: { name: string; year?: number }): string {
-  return item.year ? `${item.name} — שנת ${item.year}` : item.name;
+  return item.year ? `${item.name} - שנת ${item.year}` : item.name;
 }
 
 // ─── פריסת תשלומים ──────────────────────────────────────────────────────────

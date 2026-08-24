@@ -17,9 +17,9 @@ const MAIL_STATES: { label: string; msg: EmailMessage }[] = [
 // רשימת המיילים כפי שהיא נראית בכרטיס הלקוח — כולל מייל עם עותק שמור,
 // מייל ישן בלי עותק, ומייל שחזר.
 const CLIENT_MAILS: EmailMessage[] = [
-  { id: 'c1', toEmail: 'ruti@example.com', kind: 'active', subject: 'הייצוג אושר — נתחיל לעבוד', status: 'opened', sentAt: '2026-07-20T09:30:00.000Z', deliveredAt: '2026-07-20T09:30:07.000Z', openedAt: '2026-07-20T11:02:00.000Z', html: '<html><body dir="rtl" style="font-family:Arial"><h1>הכול מוכן, רותי</h1><p>הייצוג שלכם מול רשויות המס אושר בהצלחה.</p></body></html>' },
-  { id: 'c2', toEmail: 'ruti@example.com', kind: 'sign', subject: 'הטופס מוכן — נשאר רק לחתום', status: 'clicked', sentAt: '2026-07-03T10:00:00.000Z', deliveredAt: '2026-07-03T10:00:05.000Z', openedAt: '2026-07-03T12:00:00.000Z', clickedAt: '2026-07-03T12:01:00.000Z' },
-  { id: 'c3', toEmail: 'ruti@old-address.com', kind: 'onboard', subject: 'ברוכים הבאים — נשאר רק לאמת את הזהות', status: 'bounced', sentAt: '2026-07-01T08:00:00.000Z' },
+  { id: 'c1', toEmail: 'ruti@example.com', kind: 'active', subject: 'הייצוג אושר - נתחיל לעבוד', status: 'opened', sentAt: '2026-07-20T09:30:00.000Z', deliveredAt: '2026-07-20T09:30:07.000Z', openedAt: '2026-07-20T11:02:00.000Z', html: '<html><body dir="rtl" style="font-family:Arial"><h1>הכול מוכן, רותי</h1><p>הייצוג שלכם מול רשויות המס אושר בהצלחה.</p></body></html>' },
+  { id: 'c2', toEmail: 'ruti@example.com', kind: 'sign', subject: 'הטופס מוכן - נשאר רק לחתום', status: 'clicked', sentAt: '2026-07-03T10:00:00.000Z', deliveredAt: '2026-07-03T10:00:05.000Z', openedAt: '2026-07-03T12:00:00.000Z', clickedAt: '2026-07-03T12:01:00.000Z' },
+  { id: 'c3', toEmail: 'ruti@old-address.com', kind: 'onboard', subject: 'ברוכים הבאים - נשאר רק לאמת את הזהות', status: 'bounced', sentAt: '2026-07-01T08:00:00.000Z' },
 ];
 
 const BASE: RepresentationRequest = {
@@ -64,7 +64,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'awaiting',
-    label: '5. הוגש לשע״ם — ממתין לאישור',
+    label: '5. הוגש לשע״ם - ממתין לאישור',
     req: { ...BASE, ...withSetup, status: 'awaiting_authorities', signedPdfStoredId: 'doc-signed', execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' }, signatureEmailSentAt: '2026-07-03T10:00:00.000Z', nationalInsurance: { enteredAt: '2026-07-02T09:00:00.000Z', referenceNumber: '73882698', deadline: '2028-01-01', instructionsSentAt: '2026-07-03T10:00:00.000Z', instructionsSentWith: 'signature', confirmedAt: '2026-07-05T10:00:00.000Z' } }) } as unknown as RepresentationRequest,
   },
   {

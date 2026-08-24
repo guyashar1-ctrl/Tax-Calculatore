@@ -19,7 +19,7 @@ const ACCEPTED = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
 
 const SURFACES: { id: LogoSurface; hint: string }[] = [
   { id: 'app', hint: 'ברירת המחדל. מוצג בעמודי הלקוח על רקע בהיר. כל פורמט, כולל SVG.' },
-  { id: 'dark', hint: 'לרצועות הכהות — ראש המייל וראש הצעת המחיר. העלה את הגרסה הלבנה, ועדיף פריסה רחבה: הרצועה נמוכה, ובלוגו מוערם הכיתוב מתחת לשם נעשה זעיר.' },
+  { id: 'dark', hint: 'לרצועות הכהות - ראש המייל וראש הצעת המחיר. העלה את הגרסה הלבנה, ועדיף פריסה רחבה: הרצועה נמוכה, ובלוגו מוערם הכיתוב מתחת לשם נעשה זעיר.' },
   { id: 'email', hint: 'בגוף המייל, על רקע בהיר. גם כאן עדיפה פריסה רחבה.' },
 ];
 
@@ -60,7 +60,7 @@ export default function LogoAssetsPanel({
         file = res.file;
         setNote(res.fontsEmbedded
           ? `הקובץ הומר אוטומטית ל-PNG (${res.width}×${res.height}) עם הפונטים המקוריים, כדי שיוצג גם בג׳ימייל ובאאוטלוק.`
-          : `הקובץ הומר ל-PNG (${res.width}×${res.height}). לא הצלחתי לטעון את הפונטים המקוריים — כדאי להשוות לתצוגה למטה.`);
+          : `הקובץ הומר ל-PNG (${res.width}×${res.height}). לא הצלחתי לטעון את הפונטים המקוריים - כדאי להשוות לתצוגה למטה.`);
       } catch (e) {
         onError(`ההמרה ל-PNG נכשלה: ${e instanceof Error ? e.message : String(e)}`);
         return;
@@ -68,11 +68,11 @@ export default function LogoAssetsPanel({
     }
 
     if (!ACCEPTED.includes(file.type)) {
-      onError('פורמט לא נתמך — יש להעלות PNG, JPG, SVG או WEBP');
+      onError('פורמט לא נתמך - יש להעלות PNG, JPG, SVG או WEBP');
       return;
     }
     if (file.size > MAX_BYTES) {
-      onError('הקובץ גדול מדי — עד 2MB');
+      onError('הקובץ גדול מדי - עד 2MB');
       return;
     }
     await onUpload({ surface, file });
@@ -83,9 +83,9 @@ export default function LogoAssetsPanel({
       try {
         const res = await svgFileToPng(incoming);
         await onUpload({ surface: 'email', file: res.file });
-        setNote(`הלוגו הראשי הוא SVG, שתוכנות מייל אינן מציגות — לכן יצרתי ממנו גם גרסת PNG (${res.width}×${res.height}) והצבתי אותה כלוגו למיילים. אפשר להחליף אותה בכל רגע.`);
+        setNote(`הלוגו הראשי הוא SVG, שתוכנות מייל אינן מציגות - לכן יצרתי ממנו גם גרסת PNG (${res.width}×${res.height}) והצבתי אותה כלוגו למיילים. אפשר להחליף אותה בכל רגע.`);
       } catch {
-        setNote('הלוגו הראשי הוא SVG. תוכנות מייל אינן מציגות SVG — כדאי להעלות גם קובץ PNG במשבצת «לוגו למיילים».');
+        setNote('הלוגו הראשי הוא SVG. תוכנות מייל אינן מציגות SVG - כדאי להעלות גם קובץ PNG במשבצת «לוגו למיילים».');
       }
     }
   }
@@ -95,7 +95,7 @@ export default function LogoAssetsPanel({
       <div style={card}>
         <div style={cardTitle}>הלוגו של המשרד</div>
         <div style={sub}>
-          כל מקום שלא הועלה אליו לוגו משתמש בלוגו הראשי — אז מספיק להעלות אחד כדי להתחיל.
+          כל מקום שלא הועלה אליו לוגו משתמש בלוגו הראשי - אז מספיק להעלות אחד כדי להתחיל.
         </div>
 
         {note && (
@@ -268,7 +268,7 @@ function LogoPreviewCard({ branding, darkBg, firmName }: { branding: FirmBrandin
       {darkIsFallback && (
         <div style={{ marginTop: 14, padding: '.65rem .85rem', borderRadius: 8, background: 'var(--chip-amber-bg)', color: 'var(--chip-amber-tx)', fontSize: 'var(--fs-13)', lineHeight: 1.65 }}>
           לרצועה הכהה אין עדיין לוגו משלה, ולכן הלוגו הראשי מוצג כצללית לבנה אחידה.
-          אם יש בערכה גרסה לבנה של הלוגו — כדאי להעלות אותה למקום «לוגו לרקע כהה».
+          אם יש בערכה גרסה לבנה של הלוגו - כדאי להעלות אותה למקום «לוגו לרקע כהה».
         </div>
       )}
     </div>

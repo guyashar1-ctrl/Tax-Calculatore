@@ -200,11 +200,11 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
     if (!file) return;
     setError(null);
     if (!LOGO_MIME.includes(file.type)) {
-      setError('פורמט לא נתמך — יש להעלות PNG, JPG, SVG או WEBP');
+      setError('פורמט לא נתמך - יש להעלות PNG, JPG, SVG או WEBP');
       return;
     }
     if (file.size > LOGO_MAX_BYTES) {
-      setError('הקובץ גדול מדי — עד 2MB');
+      setError('הקובץ גדול מדי - עד 2MB');
       return;
     }
     setStampBusy(true);
@@ -248,11 +248,11 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
     if (!file) return;
     setError(null);
     if (!LOGO_MIME.includes(file.type)) {
-      setError('פורמט לא נתמך — יש להעלות PNG, JPG, SVG או WEBP');
+      setError('פורמט לא נתמך - יש להעלות PNG, JPG, SVG או WEBP');
       return;
     }
     if (file.size > LOGO_MAX_BYTES) {
-      setError('הקובץ גדול מדי — עד 2MB');
+      setError('הקובץ גדול מדי - עד 2MB');
       return;
     }
     setSigBusy(true);
@@ -418,7 +418,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
             <div key={g.group}>
               <div className="fp-rail-group">{g.group}</div>
               {g.items.map(it => (
-                <div key={it.label} title="בקרוב — עדיין לא פעיל" className="fp-rail-soon">
+                <div key={it.label} title="בקרוב - עדיין לא פעיל" className="fp-rail-soon">
                   <NavIcon name={it.icon} />
                   {it.label}
                   <span className="fp-rail-soon-tag">בקרוב</span>
@@ -443,7 +443,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 'var(--fs-15)', fontWeight: 500 }}>{draft.firmName || 'שם המשרד'}</div>
                     <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2 }}>
-                      {draft.representativeNumber ? `מספר מייצג ${draft.representativeNumber}` : 'מספר מייצג —'} · {draft.representativeType || 'רואה חשבון'}
+                      {draft.representativeNumber ? `מספר מייצג ${draft.representativeNumber}` : 'מספר מייצג -'} · {draft.representativeType || 'רואה חשבון'}
                     </div>
                   </div>
                   <button className="btn" onClick={() => setSection('branding')} style={{ fontSize: 'var(--fs-12)', padding: '5px 10px' }}>
@@ -521,7 +521,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
               <div style={card}>
                 <div style={cardTitle}>מונוגרמה</div>
                 <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
-                  ראשי התיבות שמוצגים ללקוח כשאין לוגו. אם ריק — נגזר משם המשרד.
+                  ראשי התיבות שמוצגים ללקוח כשאין לוגו. אם ריק - נגזר משם המשרד.
                 </div>
                 <div style={{ maxWidth: 220 }}>
                   <input value={draft.branding.monogram ?? ''} onChange={e => updBranding('monogram', e.target.value)} placeholder={deriveMonogram(draft.firmName)} maxLength={2} />
@@ -548,7 +548,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
             <div style={card}>
               <div style={cardTitle}>החתימה הדיגיטלית שלי</div>
               <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
-                תמונת החתימה שלך (סריקה או צילום, רצוי PNG עם רקע שקוף). בחדר החתימה תוכל להוסיף אותה בלחיצה על כל מקום שדורש את חתימתך — בלי לצייר מחדש.
+                תמונת החתימה שלך (סריקה או צילום, רצוי PNG עם רקע שקוף). בחדר החתימה תוכל להוסיף אותה בלחיצה על כל מקום שדורש את חתימתך - בלי לצייר מחדש.
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <div style={{ width: 150, height: 80, borderRadius: 'var(--r-panel)', border: '1px dashed var(--hairline-1)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
@@ -619,7 +619,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
                 items={[
                   <><NavIcon name="info" size={14} /> כדי לשלוח מכתובת שולח משלך צריך לאמת את הדומיין אצל ספק המייל</>,
                   'עד אז נשלח מכתובת מערכת עם שם המשרד שלך, והתשובות מגיעות אליך',
-                  'כשתאמת דומיין — פשוט עדכן כאן, בלי שינוי קוד',
+                  'כשתאמת דומיין - פשוט עדכן כאן, בלי שינוי קוד',
                 ]} />
             </div>
           )}
@@ -681,7 +681,7 @@ function ClientDocumentsSection({ profile, onChangeProfile }: { profile: FirmPro
 
   async function put(file: File, id: string): Promise<DocVersion | null> {
     if (file.type !== 'application/pdf') { setErr('אפשר להעלות PDF בלבד.'); return null; }
-    if (file.size > 10 * 1024 * 1024) { setErr('הקובץ גדול מדי — עד 10MB.'); return null; }
+    if (file.size > 10 * 1024 * 1024) { setErr('הקובץ גדול מדי - עד 10MB.'); return null; }
     // ‼ שם ייחודי לכל העלאה, בלי upsert: הגרסה הקודמת נשארת במקומה, וגם
     // מדיניות הדלי חוסמת upsert (אותו לקח כמו בלוגו).
     const path = `${profile.id}/${id}-${Date.now()}.pdf`;
@@ -727,7 +727,7 @@ function ClientDocumentsSection({ profile, onChangeProfile }: { profile: FirmPro
     <div style={card}>
       <div style={cardTitle}>מסמכים ללקוחות</div>
       <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 6, lineHeight: 1.6 }}>
-        קבצים משותפים לכל הלקוחות. שולחים אותם מלשונית «בקשות» של הלקוח, ב«שליחת מסמך ללקוח» —
+        קבצים משותפים לכל הלקוחות. שולחים אותם מלשונית «בקשות» של הלקוח, ב«שליחת מסמך ללקוח» -
         הבקשה נסגרת לבד ברגע שהוא פותח את המסמך.
       </div>
 
@@ -784,7 +784,7 @@ function ClientDocumentsSection({ profile, onChangeProfile }: { profile: FirmPro
       )}
 
       <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 10 }}>
-        PDF עד 10MB. ‼ החלפת קובץ משנה מיד את מה שייפתח בכל הבקשות — גם אלה שכבר נשלחו.
+        PDF עד 10MB. ‼ החלפת קובץ משנה מיד את מה שייפתח בכל הבקשות - גם אלה שכבר נשלחו.
         לשמירה יש ללחוץ «שמירת שינויים» למעלה.
       </div>
 
@@ -820,11 +820,11 @@ function OfficeNotificationsSection({ profile, onChangeProfile }: { profile: Fir
     <div style={card}>
       <div style={cardTitle}>התראות למשרד</div>
       <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 18, lineHeight: 1.7 }}>
-        אילו אירועים שולחים לך מייל. אלה ההתראות אליך בלבד — המיילים ללקוחות
+        אילו אירועים שולחים לך מייל. אלה ההתראות אליך בלבד - המיילים ללקוחות
         אינם מושפעים מכאן.
         {destination
           ? <> נשלחות אל <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{destination}</span>, מהלשונית "פרטי קשר".</>
-          : <> <span style={{ color: 'var(--red)' }}>אין כתובת אימייל במשרד — בלעדיה שום התראה לא תישלח. יש למלא אותה בלשונית "פרטי קשר".</span></>}
+          : <> <span style={{ color: 'var(--red)' }}>אין כתובת אימייל במשרד - בלעדיה שום התראה לא תישלח. יש למלא אותה בלשונית "פרטי קשר".</span></>}
         {' '}דולקות כרגע: {onCount} מתוך {ACCOUNTANT_NOTIFICATIONS.length}.
       </div>
 
@@ -873,7 +873,7 @@ function OfficeNotificationsSection({ profile, onChangeProfile }: { profile: Fir
 
       <div style={{ padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 'var(--fs-12)', color: 'var(--gray-600)', lineHeight: 1.6 }}>
         <NavIcon name="info" size={14} />
-        אירוע שכיביתָ עדיין נרשם ביומן ההתקדמות של הלקוח — רק המייל לא יוצא.
+        אירוע שכיביתָ עדיין נרשם ביומן ההתקדמות של הלקוח - רק המייל לא יוצא.
         השינויים נשמרים עם כפתור השמירה למעלה.
       </div>
     </div>
@@ -889,7 +889,7 @@ function OfficeNotificationsSection({ profile, onChangeProfile }: { profile: Fir
 const TEMPLATE_EDITORS: StepEmailKind[] = ['process_open', 'paperless_invite', 'retainer_request', 'intake_questionnaire', 'step_reminder'];
 
 const TEMPLATE_HINT: Record<string, string> = {
-  process_open: 'נשלח בלחיצה על "שלח ללקוח" בכרטיס הלקוח. רשימת מה שממתין ללקוח נבנית מהדף האישי עצמו — אין צורך לפרט אותה בנוסח.',
+  process_open: 'נשלח בלחיצה על "שלח ללקוח" בכרטיס הלקוח. רשימת מה שממתין ללקוח נבנית מהדף האישי עצמו - אין צורך לפרט אותה בנוסח.',
   paperless_invite: 'נשלח מכרטיס הלקוח, בשלב "הזמנה לפייפרלס". הקישור עצמו נוסף ככפתור בסוף המייל.',
   retainer_request: 'נשלח בשלב "הרשאה לתשלום חודשי", אחרי שהוזן קישור ההרשאה מפייפרלס.',
   intake_questionnaire: 'נשלח בשלב "עדכון סטטוס מס". קישור השאלון האישי נוסף ככפתור בסוף המייל.',
@@ -953,16 +953,16 @@ function templateSpecs(): TemplateSpec[] {
 
   return [...steps, {
     key: RELEASE_TEMPLATE_KEY,
-    title: 'מכתב העברת טיפול — לרו״ח הקודם',
+    title: 'מכתב העברת טיפול - לרו״ח הקודם',
     // ‼ שונה מחמשת האחרים: הנמען הוא הרו״ח הקודם, וארבעה מהסעיפים נגזרים ממה
     // שסוכם עם הלקוח. משרד שיוכל לנסח אותם יוכל לשלוח מכתב שסותר את הסיכום.
     hint: (
       <>
-        נשלח לרו״ח הקודם, לא ללקוח. החלקים המשתנים — התקופה, העבודות הפתוחות ורשימת
-        החומרים — נבנים אוטומטית לכל לקוח, ולכן מופיעים כאן כשם בסוגריים כפולות
+        נשלח לרו״ח הקודם, לא ללקוח. החלקים המשתנים - התקופה, העבודות הפתוחות ורשימת
+        החומרים - נבנים אוטומטית לכל לקוח, ולכן מופיעים כאן כשם בסוגריים כפולות
         ואי אפשר לנסח אותם מכאן. אפשר להזיז אותם, למחוק אותם או לסמן אותם במרקר.
         <br />
-        קטע שמסומן כאן במרקר יגיע מסומן בכל מכתב חדש — ואם במכתב מסוים לא תרצה
+        קטע שמסומן כאן במרקר יגיע מסומן בכל מכתב חדש - ואם במכתב מסוים לא תרצה
         אותו, תסמן אותו שם ותלחץ שוב על מרקר.
       </>
     ),
@@ -1156,7 +1156,7 @@ function TemplateCard({ spec, entry, onReplace }: {
                 {spec.bodyLabel}
                 {spec.marker && (
                   <button type="button" className="btn btn-sm btn-ghost" onClick={toggleMarker}
-                    title="מסמנים קטע בטקסט ולוחצים — הוא יופיע עם הדגשה צהובה">
+                    title="מסמנים קטע בטקסט ולוחצים - הוא יופיע עם הדגשה צהובה">
                     <span style={{ background: '#fdf3c4', padding: '0 5px', borderRadius: 3 }}>מרקר</span>
                   </button>
                 )}
@@ -1277,7 +1277,7 @@ function DesignStudioPointer({ brand, onOpen }: { brand: ReturnType<typeof deriv
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 'var(--fs-13)', fontWeight: 500 }}>עיצוב עמודי הלקוח והמיילים</div>
         <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2 }}>
-          תצוגה מקדימה חיה ועריכה מלאה — תבניות, צבעים, פונטים וכפתורים
+          תצוגה מקדימה חיה ועריכה מלאה - תבניות, צבעים, פונטים וכפתורים
         </div>
       </div>
       <span style={{ color: ACCENT, fontSize: 'var(--fs-13)', fontWeight: 500, whiteSpace: 'nowrap' }}>לסטודיו ←</span>
@@ -1303,7 +1303,7 @@ function extractErr(e: unknown): string {
   if (e && typeof e === 'object') {
     const o = e as { message?: string; details?: string; hint?: string };
     const parts = [o.message, o.details, o.hint].filter(Boolean);
-    if (parts.length) return parts.join(' — ');
+    if (parts.length) return parts.join(' - ');
   }
   return 'שגיאה בשמירת הפרופיל';
 }

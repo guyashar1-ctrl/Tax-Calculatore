@@ -24,12 +24,12 @@ interface Props {
 /** מה כתוב בשורה של לקוח תקוע — הסיבה, לא רק העובדה. */
 function stuckLine(s: OnboardingStep): string {
   const name = STEP_TYPE_LABELS[s.stepType];
-  if (s.status === 'blocked') return `${name} — חסום`;
-  if (s.status === 'failed') return `${name} — נכשל`;
-  if (s.stepType === 'retainer_authorization') return `${name} — חודש החיוב מתקרב`;
-  if (s.ball === 'client') return `${name} — הלקוח לא הגיב`;
-  if (s.ball === 'prev_accountant') return `${name} — הרו״ח הקודם לא הגיב`;
-  return `${name} — ${STEP_STATUS_LABELS[s.status]}`;
+  if (s.status === 'blocked') return `${name} - חסום`;
+  if (s.status === 'failed') return `${name} - נכשל`;
+  if (s.stepType === 'retainer_authorization') return `${name} - חודש החיוב מתקרב`;
+  if (s.ball === 'client') return `${name} - הלקוח לא הגיב`;
+  if (s.ball === 'prev_accountant') return `${name} - הרו״ח הקודם לא הגיב`;
+  return `${name} - ${STEP_STATUS_LABELS[s.status]}`;
 }
 
 export default function OnboardingWaitingSection({ steps, clients, onOpen, onRemind }: Props) {
@@ -103,7 +103,7 @@ export default function OnboardingWaitingSection({ steps, clients, onOpen, onRem
               <div style={{
                 fontSize: 'var(--fs-12)', fontWeight: 600, color: 'var(--err)',
                 padding: '.4rem .2rem .1rem',
-              }}>⚠ תקוע — טפל היום</div>
+              }}>⚠ תקוע - טפל היום</div>
               {stuck.map(s => row(s, 'stuck'))}
             </>
           )}
@@ -130,7 +130,7 @@ export default function OnboardingWaitingSection({ steps, clients, onOpen, onRem
                 }}>
                 <span style={{ fontSize: 'var(--fs-12)' }}>{othersOpen ? '▾' : '◂'}</span>
                 <span style={{ fontSize: 'var(--fs-13)' }}>
-                  {others.length} {others.length === 1 ? 'קליטה ממתינה' : 'קליטות ממתינות'} לאחרים —
+                  {others.length} {others.length === 1 ? 'קליטה ממתינה' : 'קליטות ממתינות'} לאחרים -
                   לקוח, רשות או רו״ח קודם. אין מה לעשות בהן כרגע.
                 </span>
               </button>
@@ -142,7 +142,7 @@ export default function OnboardingWaitingSection({ steps, clients, onOpen, onRem
                 }}>
                   <span style={{ minWidth: 120 }}>{nameOf(sum.clientId)}</span>
                   <span style={{ flex: 1, minWidth: 150 }}>
-                    {sum.next ? STEP_TYPE_LABELS[sum.next.stepType] : '—'}
+                    {sum.next ? STEP_TYPE_LABELS[sum.next.stepType] : '-'}
                     {sum.next && <> · הכדור {STEP_BALL_LABELS[sum.next.ball]}</>}
                   </span>
                   <span style={{ fontSize: 'var(--fs-12)', whiteSpace: 'nowrap' }}>

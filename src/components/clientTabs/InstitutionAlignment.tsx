@@ -134,7 +134,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
         key: 'niDebitAuthorization', label: 'הרשאה לחיוב חשבון', options: AUTH_OPTS, badValues: ['אין הרשאה'],
         governedKey: 'niDebitAuthorization', governedPatch: bad => !bad,
         where: ['הוראות כספיות → הרשאות לחיוב'],
-        outcome: () => ({ kind: 'request', title: 'הקמת הרשאה לחיוב בביטוח לאומי — קוד מוטב 28900',
+        outcome: () => ({ kind: 'request', title: 'הקמת הרשאה לחיוב בביטוח לאומי - קוד מוטב 28900',
           sub: 'להקים הרשאה לחיוב חשבון בביטוח לאומי, קוד מוטב 28900.' }),
       },
     ],
@@ -151,7 +151,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
             toPatchValue: v => v || null },
           { key: 'vatPrimaryIndustry', label: 'ענף עיקרי', placeholder: 'קוד/תיאור ענף',
             governedKey: 'vatPrimaryIndustry',
-            note: 'טקסט חופשי בשלב זה — אין עדיין תשתית קודי ענף לחיפוש.' },
+            note: 'טקסט חופשי בשלב זה - אין עדיין תשתית קודי ענף לחיפוש.' },
         ],
       },
       {
@@ -171,7 +171,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'reportMissing', label: 'נראה שחסר דיווח?', options: YES_NO_UNCLEAR, badValues: ['כן', 'לא ברור'],
         outcome: bad => ({ kind: 'clarification',
-          text: bad === 'כן' ? 'נראה שחסר דיווח מע״מ — לברר בשיחת הפתיחה.' : 'לא ברור אם קיים דיווח מע״מ חסר — לבדוק.' }),
+          text: bad === 'כן' ? 'נראה שחסר דיווח מע״מ - לברר בשיחת הפתיחה.' : 'לא ברור אם קיים דיווח מע״מ חסר - לבדוק.' }),
       },
       {
         key: 'vatDebitAuthorization', label: 'הרשאה לחיוב חשבון', options: AUTH_OPTS, badValues: ['אין הרשאה'],
@@ -227,14 +227,14 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
         where: ['אזור אישי → דרישות להצהרת הון'],
         guide: {
           label: 'איך בודקים בשע״ם?',
-          intro: 'בשאילתת AHZM — דרישות להצהרת הון:',
+          intro: 'בשאילתת AHZM - דרישות להצהרת הון:',
           steps: [
             'הזן את תיק הלקוח.',
             'בדוק האם קיימת דרישה להצהרת הון ובאיזו שנה.',
             'לפי פרטי ההיענות ניתן לראות אם הדרישה טופלה ולזהות את הצהרת ההון האחרונה שמופיעה במערכת.',
           ],
         },
-        outcome: () => ({ kind: 'clarification', text: 'קיימת דרישה פתוחה להצהרת הון — לברר מועד הגשה עם הלקוח.' }),
+        outcome: () => ({ kind: 'clarification', text: 'קיימת דרישה פתוחה להצהרת הון - לברר מועד הגשה עם הלקוח.' }),
         extraFieldWhenBad: { key: 'capitalDeclarationDeadline', label: 'מועד להגשה', type: 'date',
           governedKey: 'capitalDeclarationDeadline', toPatchValue: v => v || null },
       },
@@ -248,7 +248,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
     ],
     derivedClarifications: collected => {
       const out: string[] = [];
-      if (collected.withholdingStatus === 'אין אישור תקף') out.push('אין אישור ניכוי במקור תקף — לברר עם הלקוח.');
+      if (collected.withholdingStatus === 'אין אישור תקף') out.push('אין אישור ניכוי במקור תקף - לברר עם הלקוח.');
       if (collected.bookStatus && collected.bookStatus !== 'תקין') out.push('אין אישור ניהול ספרים תקף.');
       return out;
     },
@@ -270,7 +270,7 @@ async function proposeAndAccept(
   const propose = await proposeTaxFacts(client.id, 'institution_alignment', sourceRef, [
     {
       fieldKey, label,
-      oldValue: { display: String(oldRaw ?? '—'), patch: { [fieldKey]: oldRaw ?? null } },
+      oldValue: { display: String(oldRaw ?? '-'), patch: { [fieldKey]: oldRaw ?? null } },
       newValue: { display, patch: { [fieldKey]: patch } },
     },
   ]);
@@ -303,7 +303,7 @@ async function createDebitAuthRequest(
 
 function displayValue(_f: AlignmentField, raw: unknown): string {
   const s = String(raw ?? '').trim();
-  return s || '—';
+  return s || '-';
 }
 
 // ─── "איפה מוצאים?" — ההסבר צמוד לשדה שהוא מסביר ─────────────────────────────
@@ -570,7 +570,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
       if (key === 'btl') {
         const res = await proposeAndAccept(
           latestClient, step.id, 'niOccupations', 'עיסוקים בביטוח לאומי',
-          selectedOccupations.length ? `${selectedOccupations.length} עיסוקים` : '—', selectedOccupations);
+          selectedOccupations.length ? `${selectedOccupations.length} עיסוקים` : '-', selectedOccupations);
         if (res.client) latestClient = res.client;
         if (res.pending) pendingCount++;
       }
@@ -679,7 +679,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
                   {f.type === 'select' ? (
                     <select className="inp" value={String(collected[f.key] ?? '')}
                       onChange={e => setField(f.key, e.target.value)}>
-                      <option value="">—</option>
+                      <option value="">-</option>
                       {(f.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   ) : (
@@ -756,7 +756,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
               <span>{f.label}</span><b>{displayValue(f, collected[f.key])}</b>
             </div>
           ))}
-          {key === 'btl' && <div className="ial-srow"><span>עיסוקים</span><b>{selectedOccupations.length || '—'}</b></div>}
+          {key === 'btl' && <div className="ial-srow"><span>עיסוקים</span><b>{selectedOccupations.length || '-'}</b></div>}
         </div>
 
         {error && (

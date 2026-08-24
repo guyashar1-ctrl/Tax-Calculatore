@@ -254,7 +254,7 @@ async function buildEmail(
       subject: `📋 ${name} מילא את פרטי הייצוג`,
       html: buildBrandedEmail(brand, {
         heading: "פרטי הייצוג הושלמו",
-        bodyHtml: esc(`${name} שלח את פרטי הזיהוי. הכדור עבר אליך — להכין את ייפוי הכוח ולשלוח לחתימה.`),
+        bodyHtml: esc(`${name} שלח את פרטי הזיהוי. הכדור עבר אליך - להכין את ייפוי הכוח ולשלוח לחתימה.`),
         extraHtml: card(brand, rows),
         ctaLabel: "לכרטיס הלקוח",
         ctaHref: `${appUrl}/`,
@@ -279,12 +279,12 @@ async function buildEmail(
 
     return {
       subject: partial
-        ? `✍️ ${name} — נחתם ייפוי כוח (${signed}/${total})`
+        ? `✍️ ${name} - נחתם ייפוי כוח (${signed}/${total})`
         : `✍️ ${name} חתם על ייפוי הכוח`,
       html: buildBrandedEmail(brand, {
         heading: partial ? "ייפוי הכוח נחתם חלקית" : "ייפוי הכוח נחתם",
         bodyHtml: esc(partial
-          ? `${p.signedNames} חתם/ו. עדיין ממתינים לחתימת שאר החותמים — הייצוג ייכנס לתוקף רק כששניהם יחתמו.`
+          ? `${p.signedNames} חתם/ו. עדיין ממתינים לחתימת שאר החותמים - הייצוג ייכנס לתוקף רק כששניהם יחתמו.`
           : `החתימה הושלמה. אפשר להמשיך להזנת הייצוג ברשויות.`),
         extraHtml: card(brand, rows),
         ctaLabel: "לכרטיס הלקוח",
@@ -310,7 +310,7 @@ async function buildEmail(
       html: buildBrandedEmail(brand, {
         heading: "התקבלה הגשה מהקישור הציבורי",
         bodyHtml: esc(matchName
-          ? `${leadName} מילא את הפרטים בקישור הציבורי. שים לב — ייתכן שכבר קיים אדם תואם במערכת.`
+          ? `${leadName} מילא את הפרטים בקישור הציבורי. שים לב - ייתכן שכבר קיים אדם תואם במערכת.`
           : `${leadName} מילא את הפרטים בקישור הציבורי וממתין לטיפול.`),
         extraHtml: card(brand, rows),
         ctaLabel: "לרשימת הלקוחות",
@@ -340,11 +340,11 @@ async function buildEmail(
     ].join("");
 
     return {
-      subject: `📎 ${name} — התקבל ${item}`,
+      subject: `📎 ${name} - התקבל ${item}`,
       html: buildBrandedEmail(brand, {
         heading: byPrev ? "הרו״ח הקודם העלה חומר" : "הלקוח העלה מסמך",
         bodyHtml: esc(remaining === 0
-          ? `${who} העלה את "${item}", וזה היה הפריט האחרון — הרשימה הושלמה והכדור חזר אליך.`
+          ? `${who} העלה את "${item}", וזה היה הפריט האחרון - הרשימה הושלמה והכדור חזר אליך.`
           : `${who} העלה את "${item}". ממתינים לעוד ${remaining} פריטים.`),
         extraHtml: card(brand, rows),
         ctaLabel: "לכרטיס הלקוח",
@@ -394,7 +394,7 @@ async function buildEmail(
     ].join("");
 
     return {
-      subject: `⚠️ ${name} — הרו״ח הקודם השיב`,
+      subject: `⚠️ ${name} - הרו״ח הקודם השיב`,
       html: buildBrandedEmail(brand, {
         heading: "התקבלה תגובה מהרו״ח הקודם",
         bodyHtml: esc(who
@@ -419,7 +419,7 @@ async function buildEmail(
     ].join("");
 
     return {
-      subject: `📝 ${name} — מכתב השחרור נחתם`,
+      subject: `📝 ${name} - מכתב השחרור נחתם`,
       html: buildBrandedEmail(brand, {
         heading: "הרו״ח הקודם חתם על מכתב השחרור",
         bodyHtml: esc(signer
@@ -444,7 +444,7 @@ async function buildEmail(
     ].join("");
 
     return {
-      subject: `🏁 ${name} — הקליטה הושלמה`,
+      subject: `🏁 ${name} - הקליטה הושלמה`,
       html: buildBrandedEmail(brand, {
         heading: "תהליך הקליטה הושלם",
         bodyHtml: esc(`${name} עבר מקליטה לטיפול שוטף.`),

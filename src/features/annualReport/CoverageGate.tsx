@@ -173,12 +173,12 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
     <div style={{ maxWidth: 980, margin: '1.5rem auto', padding: '0 1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '.5rem' }}>
         <h2 style={{ margin: 0 }}>
-          מאזן כיסוי 1301 — {clientName} · {session.taxYear}
+          מאזן כיסוי 1301 - {clientName} · {session.taxYear}
           {regFile && (
             <span
               className={`ar-pill ${regFile.owner === 'spouse' ? 'is-warn' : ''}`}
               style={{ marginInlineEnd: '.6rem', verticalAlign: 'middle' }}
-              title="על שם מי מתנהל תיק מס הכנסה — נקבע בכרטיס הלקוח"
+              title="על שם מי מתנהל תיק מס הכנסה - נקבע בכרטיס הלקוח"
             >
               התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
             </span>
@@ -200,7 +200,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
           <div className="card-body">
             <h3 style={{ marginTop: 0 }}>🧑‍💼 החלטות מקצועיות פתוחות ({pendingDecisions.length})</h3>
             <p style={{ fontSize: '14px', color: 'var(--gray-600)', marginTop: 0 }}>
-              אלה הכרעות שלך, לא של הלקוח — למשל בחירת מסלול שכירות אחרי הרצת מחשבון האופטימיזציה.
+              אלה הכרעות שלך, לא של הלקוח - למשל בחירת מסלול שכירות אחרי הרצת מחשבון האופטימיזציה.
             </p>
             {pendingDecisions.map((n) => (
               <div key={n.id} style={{ borderTop: '1px solid var(--gray-100)', padding: '.6rem 0' }}>
@@ -232,7 +232,7 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
           <div className="card-body">
             <h3 style={{ marginTop: 0 }}>לוודא מול הלקוח ({unknownNodes.length})</h3>
             <p style={{ fontSize: '14px', color: 'var(--gray-600)', marginTop: 0 }}>
-              הלקוח ענה "לא בטוח" — שיחה קצרה סוגרת את זה, והתשובה נקלטת כאן.
+              הלקוח ענה "לא בטוח" - שיחה קצרה סוגרת את זה, והתשובה נקלטת כאן.
             </p>
             {unknownNodes.map((n) => (
               <div key={n.id} style={{ borderTop: '1px solid var(--gray-100)', padding: '.6rem 0' }}>

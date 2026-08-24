@@ -101,7 +101,7 @@ export default function TestJourneyBall() {
             : STEPS}
           onboardingEvents={[]}
           advanceOnboardingStep={async () => ({ ok: true })}
-          onOpenRepresentation={id => push(`נפתח מרכז הייצוג — ${id}`)}
+          onOpenRepresentation={id => push(`נפתח מרכז הייצוג - ${id}`)}
           onSave={() => push('onSave')}
           onCancel={() => push('onCancel')}
           onDelete={() => push('onDelete')}

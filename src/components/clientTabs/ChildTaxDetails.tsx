@@ -18,8 +18,8 @@ export default function ChildTaxDetails({
     + (typeof child.educationCostsAnnual === 'number' ? 1 : 0)
   );
   const summary = filled > 0
-    ? `פרטי מס לילד — ${filled}/7 שדות מולאו`
-    : 'פרטי מס לילד (משמורת, מזונות, לימוד) — לחץ למילוי';
+    ? `פרטי מס לילד - ${filled}/7 שדות מולאו`
+    : 'פרטי מס לילד (משמורת, מזונות, לימוד) - לחץ למילוי';
 
   return (
     <details className="cw-collapse-details" style={{ marginTop: 8, flexBasis: '100%', width: '100%', borderTop: '1px solid var(--gray-200)', paddingTop: 8 }}>
@@ -70,7 +70,7 @@ export default function ChildTaxDetails({
               value={child.custody ?? ''}
               onChange={ev => onUpdate('custody', (ev.target.value || undefined) as ChildCustody | undefined)}
             >
-              <option value="">—</option>
+              <option value="">-</option>
               {(Object.entries(CHILD_CUSTODY_LABELS) as [ChildCustody, string][]).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
               ))}

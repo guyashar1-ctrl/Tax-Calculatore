@@ -141,11 +141,11 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
             setOcrStatus(`הפרטים חולצו ומולאו אוטומטית מ${docItemId === 'id_card' ? 'תעודת הזהות' : 'רישיון הנהיגה'}`);
             setTimeout(() => setOcrStatus(''), 4000);
           } else {
-            setOcrStatus(`לא הצלחנו לחלץ פרטים אוטומטית — אנא מלא ידנית`);
+            setOcrStatus(`לא הצלחנו לחלץ פרטים אוטומטית - אנא מלא ידנית`);
             setTimeout(() => setOcrStatus(''), 4000);
           }
         } catch {
-          setOcrStatus('שגיאה בניתוח אוטומטי — אנא מלא ידנית');
+          setOcrStatus('שגיאה בניתוח אוטומטי - אנא מלא ידנית');
           setTimeout(() => setOcrStatus(''), 4000);
         }
       }
@@ -216,7 +216,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
     <div>
       <div className="pg-head">
         <div className="pg-head-main">
-          <div className="pg-title pg-title-lg">בקשת ייצוג — מילוי פרטים</div>
+          <div className="pg-title pg-title-lg">בקשת ייצוג - מילוי פרטים</div>
           <div className="pg-status">ייפוי כוח ראשי (השעמ) מול: {authorityList}</div>
         </div>
         <div className="pg-actions">
@@ -384,7 +384,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
 
       {/* ייפוי כוח + חתימה */}
       <div className="card" style={{ marginBottom: '1rem' }}>
-        <div className="card-header"><div className="card-title">ייפוי כוח (טופס 2279א'5 — השעמ)</div></div>
+        <div className="card-header"><div className="card-title">ייפוי כוח (טופס 2279א'5 - השעמ)</div></div>
         <div className="card-body">
           <div
             style={{
@@ -408,7 +408,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
             </p>
             <p>
               ייפוי כוח זה תקף ל-24 חודשים מיום קליטתו או חתימתו (לפי המאוחר) אם הוא מיועד לטיפול
-              בהחזר מס ליחיד שאינו חייב בהגשת דו"ח (סוג תיק 9.1). במקרים אחרים — תקף עד למתן הודעת ביטול.
+              בהחזר מס ליחיד שאינו חייב בהגשת דו"ח (סוג תיק 9.1). במקרים אחרים - תקף עד למתן הודעת ביטול.
             </p>
             <p>
               הייצוג כולל סמכות לפעול מול הרשויות הבאות: <strong>{authorityList}</strong>.

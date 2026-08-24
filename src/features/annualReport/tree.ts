@@ -19,8 +19,8 @@ export const annualReportTree: QuestionTree = {
     // אריח שלא סומן = ענף שלם שנגזם. זה מסך אחד שחוסך עשרות שאלות "האם יש לך...".
     year_map: {
       id: 'year_map',
-      question: 'מה היה לך בשנת המס? סמנו כל מה שרלוונטי — גם אם אינכם בטוחים',
-      helpText: 'לפי הסימון נדע בדיוק מה לשאול. כל מה שלא סומן — לא יישאל עליו כלום.',
+      question: 'מה היה לך בשנת המס? סמנו כל מה שרלוונטי - גם אם אינכם בטוחים',
+      helpText: 'לפי הסימון נדע בדיוק מה לשאול. כל מה שלא סומן - לא יישאל עליו כלום.',
       type: 'multi_select',
       required: true,
       options: [
@@ -59,7 +59,7 @@ export const annualReportTree: QuestionTree = {
     identity_basics: {
       id: 'identity_basics',
       question: 'האם הנתונים האלה מהכרטיס מעודכנים ונכונים?',
-      helpText: 'שדות חסרים יתווספו אוטומטית לרשימת הדרישות בסוף התהליך — אין צורך לעצור עכשיו.',
+      helpText: 'שדות חסרים יתווספו אוטומטית לרשימת הדרישות בסוף התהליך - אין צורך לעצור עכשיו.',
       type: 'boolean',
       required: true,
       applyToModel: (m) => m,
@@ -331,7 +331,7 @@ export const annualReportTree: QuestionTree = {
       id: 'elects_section_14',
       audience: 'accountant',
       question: 'החלטת רו"ח: החלת פטור סעיף 14 (10 שנים על הכנסות חו"ל)?',
-      helpText: 'הזכאות פוקעת אוטומטית 10 שנים מיום העלייה/החזרה. אם פוקעת בשנת המס — חישוב חלקי.',
+      helpText: 'הזכאות פוקעת אוטומטית 10 שנים מיום העלייה/החזרה. אם פוקעת בשנת המס - חישוב חלקי.',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -348,7 +348,7 @@ export const annualReportTree: QuestionTree = {
     qualifying_settlement: {
       id: 'qualifying_settlement',
       question: 'האם הלקוח מתגורר ביישוב מזכה?',
-      helpText: 'נקבע אוטומטית לפי הכתובת בכרטיס. תיקון — דרך שדה "יישוב מזכה" בכרטיס הלקוח.',
+      helpText: 'נקבע אוטומטית לפי הכתובת בכרטיס. תיקון - דרך שדה "יישוב מזכה" בכרטיס הלקוח.',
       type: 'boolean',
       required: false,
       applyToModel: (m, a) => ({
@@ -433,7 +433,7 @@ export const annualReportTree: QuestionTree = {
     salary_employer_count: {
       id: 'salary_employer_count',
       question: 'אצל כמה מעסיקים עבדת בשנת המס?',
-      helpText: 'אם הרשימה מהכרטיס נכונה — תכניס את אותו המספר. אחרת — תזכור להוסיף/להסיר מעבידים בכרטיס.',
+      helpText: 'אם הרשימה מהכרטיס נכונה - תכניס את אותו המספר. אחרת - תזכור להוסיף/להסיר מעבידים בכרטיס.',
       type: 'number',
       required: true,
       applyToModel: (m, a) => ({
@@ -453,7 +453,7 @@ export const annualReportTree: QuestionTree = {
           return [{ label: 'מעבידים בכרטיס', value: '', missing: true }];
         }
         return employers.map((e) => ({
-          label: e.endDate ? `(לשעבר) ${e.name || '—'}` : e.name || '—',
+          label: e.endDate ? `(לשעבר) ${e.name || '-'}` : e.name || '-',
           value: e.taxId ? `ע.מ ${e.taxId}` : (e.endDate ? `סיים ${e.endDate}` : 'מועסק'),
           missing: !e.name,
         })).concat(active.length > 0 ? [] : [{ label: 'הערה', value: 'אין מעבידים פעילים בכרטיס', missing: false }]);
@@ -478,8 +478,8 @@ export const annualReportTree: QuestionTree = {
     severance_spread: {
       id: 'severance_spread',
       audience: 'accountant',
-      question: 'החלטת רו"ח: פריסת פיצויים — כמה שנות פריסה נותרו (לא כולל השנה)?',
-      helpText: 'פריסה מאושרת ע"י פקיד השומה עד 5 שנים. אם אין פריסה — השאירו 0.',
+      question: 'החלטת רו"ח: פריסת פיצויים - כמה שנות פריסה נותרו (לא כולל השנה)?',
+      helpText: 'פריסה מאושרת ע"י פקיד השומה עד 5 שנים. אם אין פריסה - השאירו 0.',
       type: 'number',
       required: false,
       applyToModel: (m, a) => ({
@@ -539,7 +539,7 @@ export const annualReportTree: QuestionTree = {
     business_asset_rental: {
       id: 'business_asset_rental',
       question: 'האם אתם משכירים נכס ששימש בעסק שלכם 10 שנים ומעלה?',
-      helpText: 'השכרה כזו נחשבת הכנסה מיגיעה אישית (שדות 120/220) — מדרגות מס נמוכות יותר.',
+      helpText: 'השכרה כזו נחשבת הכנסה מיגיעה אישית (שדות 120/220) - מדרגות מס נמוכות יותר.',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -594,7 +594,7 @@ export const annualReportTree: QuestionTree = {
     rents_own_home: {
       id: 'rents_own_home',
       question: 'האם אתם עצמכם גרים בשכירות (משלמים שכר דירה על דירת המגורים)?',
-      helpText: 'משכיר דירה שגר בעצמו בשכירות זכאי להקלה משמעותית (סעיף 122(ו)) — זה משפיע על בחירת המסלול.',
+      helpText: 'משכיר דירה שגר בעצמו בשכירות זכאי להקלה משמעותית (סעיף 122(ו)) - זה משפיע על בחירת המסלול.',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -757,7 +757,7 @@ export const annualReportTree: QuestionTree = {
     has_interest_income: {
       id: 'has_interest_income',
       question: 'האם קיבלת ריבית מפיקדונות / אג"ח / תוכניות חיסכון?',
-      helpText: 'אם כן — נצטרך 867 מכל בנק בהמשך.',
+      helpText: 'אם כן - נצטרך 867 מכל בנק בהמשך.',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -788,7 +788,7 @@ export const annualReportTree: QuestionTree = {
     bank_names: {
       id: 'bank_names',
       question: 'באילו בנקים מתנהלים חשבונות העו"ש שלכם?',
-      helpText: 'למשל: לאומי, הפועלים. עוזר לנו לדעת מאילו בנקים לבקש אישורים (867) — וחשוב גם להצהרת הון.',
+      helpText: 'למשל: לאומי, הפועלים. עוזר לנו לדעת מאילו בנקים לבקש אישורים (867) - וחשוב גם להצהרת הון.',
       type: 'text',
       required: true,
       applyToModel: (m, a) => ({
@@ -868,7 +868,7 @@ export const annualReportTree: QuestionTree = {
     ni_benefits: {
       id: 'ni_benefits',
       question: 'אילו תקבולים קיבלת מביטוח לאומי השנה? סמנו הכל (או המשיכו אם כלום)',
-      helpText: 'תקבולים אלה חייבים במס. נבקש אישור שנתי אחד מביטוח לאומי — מי קיבל וכמה כתוב שם.',
+      helpText: 'תקבולים אלה חייבים במס. נבקש אישור שנתי אחד מביטוח לאומי - מי קיבל וכמה כתוב שם.',
       type: 'multi_select',
       required: false,
       options: [
@@ -899,7 +899,7 @@ export const annualReportTree: QuestionTree = {
       id: 'maternity_spread',
       audience: 'accountant',
       question: 'החלטת רו"ח: לבקש פריסת דמי הלידה לשנת המס הבאה?',
-      helpText: 'פריסה משתלמת כשההכנסה בשנת הלידה גבוהה מהצפוי בשנה הבאה — נבדוק ונמליץ.',
+      helpText: 'פריסה משתלמת כשההכנסה בשנת הלידה גבוהה מהצפוי בשנה הבאה - נבדוק ונמליץ.',
       type: 'boolean',
       required: false,
       applyToModel: (m, a) => ({
@@ -1010,7 +1010,7 @@ export const annualReportTree: QuestionTree = {
     foreign_assets: {
       id: 'foreign_assets',
       question: 'האם שווי כלל הנכסים בחו"ל (שלך, של בן/בת הזוג וילדים עד 18) עולה על כ-2.09 מיליון ₪?',
-      helpText: 'נכסים: נדל"ן, חשבונות בנק, ני"ע, זכויות בחברות. מעל הסף — קיימת חובת הגשת דוח גם ללא הכנסה.',
+      helpText: 'נכסים: נדל"ן, חשבונות בנק, ני"ע, זכויות בחברות. מעל הסף - קיימת חובת הגשת דוח גם ללא הכנסה.',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -1092,7 +1092,7 @@ export const annualReportTree: QuestionTree = {
     extra_deductions: {
       id: 'extra_deductions',
       question: 'האם אחד מהבאים רלוונטי? סמנו הכל (או המשיכו אם לא)',
-      helpText: 'אלה זיכויים שרוב הלקוחות מפספסים — שווה לעצור ולחשוב רגע.',
+      helpText: 'אלה זיכויים שרוב הלקוחות מפספסים - שווה לעצור ולחשוב רגע.',
       type: 'multi_select',
       required: false,
       options: [
@@ -1124,7 +1124,7 @@ export const annualReportTree: QuestionTree = {
 
     alimony_received: {
       id: 'alimony_received',
-      question: 'האם קיבלת דמי מזונות השנה? אם כן — סכום שנתי (₪).',
+      question: 'האם קיבלת דמי מזונות השנה? אם כן - סכום שנתי (₪).',
       helpText: 'מזונות חייבים חלקית במס לפי סעיף 9(21).',
       type: 'number',
       required: false,
@@ -1139,8 +1139,8 @@ export const annualReportTree: QuestionTree = {
 
     alimony_paid: {
       id: 'alimony_paid',
-      question: 'האם הנישום שילם דמי מזונות השנה? אם כן — סכום שנתי (₪).',
-      helpText: 'זיכוי לפי סעיף 25 — בלבד אם התשלום מעוגן בפסק דין.',
+      question: 'האם הנישום שילם דמי מזונות השנה? אם כן - סכום שנתי (₪).',
+      helpText: 'זיכוי לפי סעיף 25 - בלבד אם התשלום מעוגן בפסק דין.',
       type: 'number',
       required: false,
       applyToModel: (m, a) => ({
@@ -1156,7 +1156,7 @@ export const annualReportTree: QuestionTree = {
     self_pension: {
       id: 'self_pension',
       question: 'האם הפקדת השנה כספים לפנסיה או קופת גמל באופן עצמאי (לא דרך המעסיק)?',
-      helpText: 'אם כן — נבקש את האישור השנתי מהקופה; הסכום המדויק כתוב שם.',
+      helpText: 'אם כן - נבקש את האישור השנתי מהקופה; הסכום המדויק כתוב שם.',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -1217,7 +1217,7 @@ export const annualReportTree: QuestionTree = {
     soldier_service_months: {
       id: 'soldier_service_months',
       question: 'כמה חודשי שירות סדיר הושלמו?',
-      helpText: 'מעל 23 חודשים — נקודת זיכוי מלאה יותר. הזיכוי נמשך 36 חודשים מהשחרור.',
+      helpText: 'מעל 23 חודשים - נקודת זיכוי מלאה יותר. הזיכוי נמשך 36 חודשים מהשחרור.',
       type: 'number',
       required: true,
       applyToModel: (m, a) => ({
@@ -1257,14 +1257,14 @@ export const annualReportTree: QuestionTree = {
     // ═══ ו2. חברות, שותפויות ומשיכות (אריח "חברות") ═══════════════════════
     companies_situations: {
       id: 'companies_situations',
-      question: 'בנוגע לחברות בבעלותך — סמן כל מה שקרה השנה',
+      question: 'בנוגע לחברות בבעלותך - סמן כל מה שקרה השנה',
       helpText: 'כל סימון פותח טיפול ייעודי אצל רואה החשבון + רשימת הטפסים הנדרשים.',
       type: 'multi_select',
       required: false,
       options: [
         { value: 'own_dividend', label: 'קיבלתי דיבידנד מהחברה שלי' },
         { value: 'owner_withdrawals', label: 'משכתי כספים מהחברה (מעל 100 אלף ₪ מצטבר)' },
-        { value: 'close_company_62a', label: 'חברת ארנק — הכנסתה מיוחסת אליי (סעיף 62א)' },
+        { value: 'close_company_62a', label: 'חברת ארנק - הכנסתה מיוחסת אליי (סעיף 62א)' },
         { value: 'house_company', label: 'חברת בית (חברה שמחזיקה נדל"ן, סעיף 64)' },
         { value: 'patent', label: 'מכרתי פטנט / זכות יוצרים (מכירה חד-פעמית)' },
         { value: 'preferred_dividend', label: 'דיבידנד ממפעל מועדף / מאושר' },
@@ -1303,7 +1303,7 @@ export const annualReportTree: QuestionTree = {
     // ═══ ח. נסיבות מיוחדות — שאלה מרוכזת אחת במקום שרשרת ═══════════════════
     special_situations_select: {
       id: 'special_situations_select',
-      question: 'לסיום — האם אחד מהמצבים הבאים חל עליך? (רוב הלקוחות ממשיכים ישר)',
+      question: 'לסיום - האם אחד מהמצבים הבאים חל עליך? (רוב הלקוחות ממשיכים ישר)',
       helpText: 'אלה מצבים נדירים עם חובות דיווח מיוחדות. סימון = רואה החשבון יטפל, לא תישאלו עוד.',
       type: 'multi_select',
       required: false,
@@ -1313,7 +1313,7 @@ export const annualReportTree: QuestionTree = {
         { value: 'related_party', label: 'עסקאות עם חברות קשורות בחו"ל' },
         { value: 'opinion', label: 'קיבלתי חוות דעת מס / נקטתי עמדה חייבת בדיווח' },
         { value: 'internet_energy', label: 'הכנסות מפעילות אינטרנט / אנרגיה מתחדשת (סולארי)' },
-        { value: 'construction', label: 'קבלן — הסתיים פרויקט בנייה' },
+        { value: 'construction', label: 'קבלן - הסתיים פרויקט בנייה' },
         { value: 'non_resident', label: 'שהיתי בישראל אך אני טוען/ת שאינני תושב/ת' },
       ],
       applyToModel: (m, a) => {
@@ -1371,7 +1371,7 @@ export const annualReportTree: QuestionTree = {
       id: 'carried_losses',
       audience: 'accountant',
       question: 'החלטת רו"ח: אילו הפסדים מועברים יש (לפי השומה האחרונה)?',
-      helpText: 'סמנו סוגים קיימים; היתרות המדויקות מהשומה/דוח קודם. אין — השאירו ריק ושמרו.',
+      helpText: 'סמנו סוגים קיימים; היתרות המדויקות מהשומה/דוח קודם. אין - השאירו ריק ושמרו.',
       type: 'multi_select',
       required: false,
       visibleWhen: (m) => {
@@ -1422,7 +1422,7 @@ export const annualReportTree: QuestionTree = {
     is_foreign_controlling_shareholder: {
       id: 'is_foreign_controlling_shareholder',
       question: 'האם הנישום הוא בעל שליטה בחברה זרה (10%+)?',
-      helpText: 'חברה זרה נשלטת (CFC) — סעיף 75ב. רווחי החברה הזרה מיוחסים לבעל השליטה גם אם לא חולקו.',
+      helpText: 'חברה זרה נשלטת (CFC) - סעיף 75ב. רווחי החברה הזרה מיוחסים לבעל השליטה גם אם לא חולקו.',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -1443,7 +1443,7 @@ export const annualReportTree: QuestionTree = {
     is_kibbutz_member: {
       id: 'is_kibbutz_member',
       question: 'האם הנישום חבר קיבוץ או מושב שיתופי?',
-      helpText: 'חישוב המס לחברי קיבוץ שונה — סעיפים 54-58 לפקודה.',
+      helpText: 'חישוב המס לחברי קיבוץ שונה - סעיפים 54-58 לפקודה.',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -1484,7 +1484,7 @@ export const annualReportTree: QuestionTree = {
     pension_provider_names: {
       id: 'pension_provider_names',
       question: 'באילו חברות או קרנות מתנהלות ההפקדות?',
-      helpText: 'שמות בלבד — מגדל, כלל, הראל, אלטשולר וכד׳. האישורים השנתיים יגיעו מהן.',
+      helpText: 'שמות בלבד - מגדל, כלל, הראל, אלטשולר וכד׳. האישורים השנתיים יגיעו מהן.',
       type: 'text',
       required: false,
       applyToModel: (m, a) => ({
@@ -1511,7 +1511,7 @@ export const annualReportTree: QuestionTree = {
     has_disability_insurance: {
       id: 'has_disability_insurance',
       question: 'יש לך ביטוח אובדן כושר עבודה?',
-      helpText: 'הפרמיה מוכרת כניכוי — שדות 112/113 לעצמאי, 206/207 לשכיר.',
+      helpText: 'הפרמיה מוכרת כניכוי - שדות 112/113 לעצמאי, 206/207 לשכיר.',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({
@@ -1550,7 +1550,7 @@ export const annualReportTree: QuestionTree = {
     owns_vehicles: {
       id: 'owns_vehicles',
       question: 'יש בבעלותך רכב או כלי רכב אחר?',
-      helpText: 'נדרש להצהרת הון. רכב ליסינג או רכב חברה — לא נחשב בבעלות.',
+      helpText: 'נדרש להצהרת הון. רכב ליסינג או רכב חברה - לא נחשב בבעלות.',
       type: 'boolean',
       required: true,
       applyToModel: (m, a) => ({

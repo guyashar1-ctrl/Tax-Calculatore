@@ -42,7 +42,7 @@ export function buildBankDebitPayload(selected: InstitutionKey[]): StepPayload {
   return {
     title: BANK_DEBIT_TITLE,
     clientTitle: BANK_DEBIT_TITLE,
-    clientSub: 'מעבר לתשלומים מקוונים למוסדות — בלי שיקים',
+    clientSub: 'מעבר לתשלומים מקוונים למוסדות - בלי שיקים',
     clientNote: NOTE,
     clientRefs: selected.map(k => ({
       label: INSTITUTION_NAMES[k],
@@ -54,7 +54,7 @@ export function buildBankDebitPayload(selected: InstitutionKey[]): StepPayload {
     requirements: selected.map(k => ({
       key: debitRequirementKey(k),
       kind: 'file' as const,
-      label: `אסמכתה — ${INSTITUTION_NAMES[k]}`,
+      label: `אסמכתה - ${INSTITUTION_NAMES[k]}`,
       done: false,
       required: true,
     })),

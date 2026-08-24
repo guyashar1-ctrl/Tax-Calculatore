@@ -84,12 +84,12 @@ Deno.serve(async (req: Request) => {
     const dueDateFmt = claimed.due_date
       ? (() => { const [y, m, d] = String(claimed.due_date).split("-"); return `${d}.${m}.${y}`; })()
       : null;
-    const subject = `דרישת תשלום — ${claimed.description}`;
+    const subject = `דרישת תשלום - ${claimed.description}`;
     const dueLine = dueDateFmt ? ` התשלום נדרש עד ${dueDateFmt}.` : "";
     const html = buildBrandedEmail(brand, {
       heading: "דרישת תשלום",
       bodyHtml: esc(`שלום ${clientName}, בנוסף לטיפול השוטף מבקשים תשלום עבור "${claimed.description}", בסך ${amountFmt}.${dueLine} ניתן ליצור קשר עם המשרד לתיאום התשלום.`),
-      footerTagline: "דרישת תשלום — חיוב נוסף",
+      footerTagline: "דרישת תשלום - חיוב נוסף",
     });
 
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;

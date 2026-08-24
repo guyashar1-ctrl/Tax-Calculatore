@@ -242,7 +242,7 @@ export default function SignatureRequestEditor({
         return;
       }
     } else {
-      console.warn('[sig] no client context — PDF not saved to cloud (test mode?)');
+      console.warn('[sig] no client context - PDF not saved to cloud (test mode?)');
     }
     setPdfFileName(file.name);
     // אם כבר היו סימונים — שאל לפני שאתה דורס.
@@ -255,7 +255,7 @@ export default function SignatureRequestEditor({
   // ── שדות (סימונים) ──
   function addFieldAt(pageIndex: number, xPct: number, yPct: number) {
     if (!activeSignerId) {
-      console.warn('[sig] click ignored — no active signer');
+      console.warn('[sig] click ignored - no active signer');
       return;
     }
     const id = `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -332,7 +332,7 @@ export default function SignatureRequestEditor({
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal sig-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>מסמך לחתימה {initial ? '— עריכה' : ''}</h3>
+          <h3>מסמך לחתימה {initial ? '- עריכה' : ''}</h3>
           <button type="button" className="btn btn-ghost btn-icon" onClick={onCancel}>✕</button>
         </div>
 
@@ -616,7 +616,7 @@ export function FieldsPanel(p: FieldsPanelProps) {
           <div className="empty-state">
             <div className="empty-state-icon">📄</div>
             <div className="empty-state-title">העלה את ה-PDF לחתימה</div>
-            <div className="empty-state-desc">לאחר ההעלאה — לחץ על מקום בעמוד כדי לסמן איפה כל חותם יחתום או יכתוב טקסט.</div>
+            <div className="empty-state-desc">לאחר ההעלאה - לחץ על מקום בעמוד כדי לסמן איפה כל חותם יחתום או יכתוב טקסט.</div>
             {p.pdfLoadError && (
               <div style={{
                 background: 'transparent', color: 'var(--danger)',
@@ -641,9 +641,9 @@ export function FieldsPanel(p: FieldsPanelProps) {
             </span>
             <div className="sig-instruction-text">
               {STATIC_KINDS.includes(p.activeKind) ? (
-                <><strong>לחץ על המקום בעמוד</strong> שבו להוסיף {KIND_TOGGLE_LABELS[p.activeKind]} — ייכתב על הטופס לפני השליחה.</>
+                <><strong>לחץ על המקום בעמוד</strong> שבו להוסיף {KIND_TOGGLE_LABELS[p.activeKind]} - ייכתב על הטופס לפני השליחה.</>
               ) : (
-                <><strong>לחץ על המקום בעמוד</strong> שבו <strong style={{ color: activeColor }}>{activeSigner?.name || '—'}</strong>{' '}
+                <><strong>לחץ על המקום בעמוד</strong> שבו <strong style={{ color: activeColor }}>{activeSigner?.name || '-'}</strong>{' '}
                 צריך {p.activeKind === 'signature' ? 'לחתום' : p.activeKind === 'stamp' ? 'להטביע חותמת' : 'לכתוב טקסט'}.</>
               )}
               {' '}
@@ -891,7 +891,7 @@ function PdfPageWithMarkers({
                 borderColor: color,
                 background: `${color}22`,
               }}
-              title={`${f.kind === 'signature' ? 'חתימה' : f.kind === 'stamp' ? 'חותמת' : 'טקסט'} · ${signer?.name ?? 'חותם'} — גרור להזיז, גרור פינה לשנות גודל`}
+              title={`${f.kind === 'signature' ? 'חתימה' : f.kind === 'stamp' ? 'חותמת' : 'טקסט'} · ${signer?.name ?? 'חותם'} - גרור להזיז, גרור פינה לשנות גודל`}
               onMouseDown={(e) => startDrag(e, f)}
             >
               {/* סימון סטטי: מציגים את התוכן שייכתב על הטופס. סימון של חותם: דרופדאון להחלפה */}

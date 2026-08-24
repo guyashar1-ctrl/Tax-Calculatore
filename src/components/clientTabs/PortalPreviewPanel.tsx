@@ -43,13 +43,13 @@ export default function PortalPreviewPanel({ clientId, mode, onModeChange }: {
       </div>
       <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.5rem' }}>
         {mode === 'live'
-          ? 'זה הדף האמיתי — לא תצוגה תיאורטית.'
+          ? 'זה הדף האמיתי - לא תצוגה תיאורטית.'
           : (draftCount || removingCount)
             ? [
                 draftCount > 0 ? `${draftCount} יתווספו` : null,
                 removingCount > 0 ? `${removingCount} יוסרו` : null,
-              ].filter(Boolean).join(' · ') + ' — אחרי "עדכן את דף הלקוח"'
-            : 'אין שינויים ממתינים — זהה למה שהלקוח כבר רואה.'}
+              ].filter(Boolean).join(' · ') + ' - אחרי "עדכן את דף הלקוח"'
+            : 'אין שינויים ממתינים - זהה למה שהלקוח כבר רואה.'}
       </div>
       <div className="pivo-light" style={{
         border: '1px solid var(--bd)', borderRadius: 'var(--r-panel, .7rem)',

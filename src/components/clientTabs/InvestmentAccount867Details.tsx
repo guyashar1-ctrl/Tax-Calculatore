@@ -75,8 +75,8 @@ export default function InvestmentAccount867Details({
   const filled = [...INCOME, ...WITHHOLDING].filter(d => typeof account[d.key] === 'number').length;
   const total = INCOME.length + WITHHOLDING.length;
   const summary = filled > 0
-    ? `פרטי 867 — ${filled}/${total} שדות מולאו`
-    : 'פרטי 867 — סכומי השנה (לחץ למילוי)';
+    ? `פרטי 867 - ${filled}/${total} שדות מולאו`
+    : 'פרטי 867 - סכומי השנה (לחץ למילוי)';
 
   return (
     <details className="cw-collapse-details" style={{ marginTop: 12, borderTop: '1px solid var(--gray-200)', paddingTop: 12 }}>
