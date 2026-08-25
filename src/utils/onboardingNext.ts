@@ -15,6 +15,7 @@ export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   materials_received: 'לאסוף את החומרים מהרו״ח הקודם',
   paperless_invite: 'ממתינים שהלקוח יירשם לפייפרלס',
   paperless_connection: 'להיכנס לחשבון הפייפרלס ולהשלים את החיבור',
+  paperless_tax_authority: 'ממתינים שהלקוח יחבר את פייפרלס לרשות המסים',
   data_import: 'לייבא את ההיסטוריה לפייפרלס',
   data_verification: 'לאמת את הנתונים בפייפרלס',
   retainer_authorization: 'להקים את הרשאת התשלום החודשי',

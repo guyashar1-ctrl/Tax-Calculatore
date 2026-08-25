@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import type { Client } from '../../types';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
+import { paperlessTaxAuthorityPayload } from '../../types/onboarding';
 import type { Quotation } from '../../types/quotations';
 import OnboardingTab from './OnboardingTab';
 import ReleaseLetterDialog from '../quotations/ReleaseLetterDialog';
@@ -121,6 +122,11 @@ const STEPS: OnboardingStep[] = [
                     clientTitle: 'הרשמה לפייפרלס', clientCta: 'נרשמתי לפייפרלס' } }),
   step({ id: 's5', stepType: 'paperless_connection', track: 'tools', scope: 'person', status: 'locked', ball: 'me', dependsOnStepId: 's4',
          payload: { clientTitle: 'חיבור לפייפרלס' } }),
+  /* ── חיבור לרשות המסים: תלוי בחיבור, והכדור אצל הלקוח ──
+     ‼ יורד לתוך כרטיס הפייפרלס בדיוק כמו הרשאת התשלום — שניהם תלויים
+     באותו שלב, ושניהם צריכים להיקרא כצעד המשך ולא ככרטיס עצמאי. */
+  step({ id: 's5b', stepType: 'paperless_tax_authority', track: 'tools', scope: 'person', status: 'pending', ball: 'client', dependsOnStepId: 's5',
+         payload: paperlessTaxAuthorityPayload() }),
   /* ── הרשאת תשלום: נעולה עד חיבור הפייפרלס ──
      ‼ זה מקרה־הייחוס של אב-הטיפוס: בקשה תלויה שיורדת לתוך כרטיס ההורה
      ונקראת כצעד ההמשך שלו. שלבים כפולים מאותו סוג הוסרו מהפיקסטורה —

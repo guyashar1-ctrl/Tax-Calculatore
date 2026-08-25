@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CustomRequirement, CustomRequirementKind, InstitutionKey, OnboardingStep } from '../../types/onboarding';
 import {
   DEBIT_INSTITUTION_ORDER, INSTITUTION_DEBIT_CODES, INSTITUTION_NAMES,
-  REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS,
+  REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS, paperlessTaxAuthorityPayload,
 } from '../../types/onboarding';
 import { BANK_DEBIT_TITLE, buildBankDebitPayload } from '../../lib/bankDebitRequest';
 import type { ClientDocument } from '../../lib/clientGuide';
@@ -43,6 +43,8 @@ const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'client_documents',       hint: 'רשימת מסמכים שהלקוח מעלה בדף האישי', once: true },
   { type: 'prev_accountant_track',  hint: '', once: true },
   { type: 'paperless_sequence',     hint: '', once: true },
+  { type: 'paperless_tax_authority',
+    hint: 'לעוסק מורשה - הלקוח מחבר את פייפרלס לרשות המסים, ומשם החשבוניות מקבלות מספר הקצאה', once: true },
   { type: 'intake_questionnaire',   hint: 'רענון תיק המס - שאלון ומסמכים לפי מה שחסר', once: true },
 ];
 
@@ -317,6 +319,24 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     onClose();
   }
 
+  /** חיבור פייפרלס לרשות המסים — פעולה של הלקוח, אחרי שהחיבור הבסיסי נסגר.
+   *  ‼ התלות נקבעת כאן ולא נבחרת: בלי שם עסק ומשיכת עוסקים בחשבון אין מה
+   *  לחבר, ובקשה שנפתחת מוקדם מדי הייתה שולחת את הלקוח למסך שלא מוכן לו.
+   *  כשאין שלב חיבור (לקוח שכבר מחובר לפייפרלס) היא נפתחת מיד. */
+  async function createTaxAuthority() {
+    setBusy(true);
+    setError(null);
+    const connection = steps.find(
+      s => s.stepType === 'paperless_connection' && s.status !== 'cancelled');
+    const res = await rpcCreate(
+      'paperless_tax_authority', paperlessTaxAuthorityPayload(),
+      dependsOn || connection?.id || null, 'client');
+    setBusy(false);
+    if ('error' in res) { setError(res.error); return; }
+    onCreated();
+    onClose();
+  }
+
   function submitCustom() {
     const main = ask.trim();
     if (!main) { setError('צריך לכתוב מה מבקשים מהלקוח.'); return; }
@@ -412,6 +432,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                     if (c.type === 'bank_debit') { setMode('bank'); return; }
                     if (c.type === 'send_document') { openDocumentMode(); return; }
                     if (c.type === 'paperless_sequence') { void createPaperlessSequence(); return; }
+                    if (c.type === 'paperless_tax_authority') { void createTaxAuthority(); return; }
                     if (c.type === 'prev_accountant_track') { void createPrevTrack(); return; }
                     /* ‼ תוכן ברירת המחדל מגיע מתבנית מובנית ולא מ-{} ריק.
                        בקשה שנוצרה ריקה הגיעה ללקוח בלי ניסוח ובלי רשימה. */

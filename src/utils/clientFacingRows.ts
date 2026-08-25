@@ -36,6 +36,10 @@ export interface ClientFacingRow {
  */
 export const CLIENT_FACING_TYPES: OnboardingStepType[] = [
   'client_documents', 'prev_accountant_details', 'paperless_invite', 'paperless_connection',
+  // ‼ אינו חבר בשרשרת הפייפרלס אלא כרטיס בפני עצמו: הוא תלוי בחיבור,
+  // ולכן הקינון לפי תלות מציב אותו מתחתיו — באותה צורה שהרשאת התשלום
+  // יושבת שם. חברות בשרשרת הייתה מסתירה אותו מאחורי כותרת "פייפרלס".
+  'paperless_tax_authority',
   'retainer_authorization', 'intake_questionnaire', 'custom_request',
   'release_letter', 'materials_received',
 ];

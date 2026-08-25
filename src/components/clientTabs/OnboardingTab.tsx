@@ -16,6 +16,7 @@ import {
   paperlessSetupItems,
   PAPERLESS_RETAINER_CARD_KEY as RETAINER_CARD_KEY,
   PAPERLESS_CARD_ENTERED_KEY as CARD_ENTERED_KEY,
+  PAPERLESS_TAX_AUTHORITY,
   isBlockingOutstanding, unfiledBlocking,
   outstandingDeliverableLabel, deliverableKeyFor,
 } from '../../types/onboarding';
@@ -1276,9 +1277,18 @@ export default function OnboardingTab({
                     {locked && !extCfg && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled>התחל</button>
                     )}
-                    {step.status === 'pending' && !extSendable && (
+                    {/* ‼ "התחל" הוא כפתור של מי שעושה את העבודה. בחיבור לרשות
+                        המסים העבודה היא של הלקוח, ולכן מה שצריך כאן הוא סגירה
+                        בלחיצה אחת — לרוב אחרי שהוא אמר בטלפון שביצע. */}
+                    {step.status === 'pending' && !extSendable
+                      && step.stepType !== 'paperless_tax_authority' && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
                         onClick={() => void run(step, 'start')}>התחל</button>
+                    )}
+                    {step.status === 'pending' && step.stepType === 'paperless_tax_authority' && (
+                      <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+                        title="הלקוח מסמן בעצמו בדף האישי - זה כאן למקרה שהוא עדכן אותך אחרת"
+                        onClick={() => void run(step, 'complete')}>הלקוח השלים</button>
                     )}
                     {step.status === 'in_progress' && (
                       <>
@@ -1355,6 +1365,7 @@ export default function OnboardingTab({
                     </div>
                   )}
                   {step.stepType === 'custom_request' && <CustomRequestBody step={step} />}
+                  {step.stepType === 'paperless_tax_authority' && <TaxAuthorityBody step={step} />}
                 </JourneyRow>
               );
             };
@@ -2042,6 +2053,41 @@ export default function OnboardingTab({
       )}
     </div>
     </RowOpenContext.Provider>
+  );
+}
+
+/**
+ * חיבור פייפרלס לרשות המסים — מה שהלקוח רואה, מוצג גם כאן.
+ *
+ * ‼ טקסט ולא צ'קליסט: הצעדים הם שלו, ולא שלנו, וסימון שלנו על פעולה שקורית
+ * בחשבון שלו היה מונה שאף אחד לא מתחזק. מה שסוגר את הבקשה הוא ההצהרה שלו
+ * בדף האישי — או "הלקוח השלים" כשהוא מודיע בטלפון.
+ * ‼ הניסוח מגיע מהקבוע המשותף ולא מה-payload: בקשה שנוצרה בגרסה קודמת
+ * ממשיכה להציג את הנוסח המעודכן, בדיוק כמו רשימת ההקמה בפייפרלס.
+ */
+function TaxAuthorityBody({ step }: { step: OnboardingStep }) {
+  const connectedAt = String(step.payload.connectedAt ?? '');
+  return (
+    <div style={{ marginTop: '.4rem', display: 'grid', gap: '.35rem' }}>
+      <ol style={{
+        margin: 0, paddingInlineStart: '1.1rem', display: 'grid', gap: '.15rem',
+        fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.6,
+      }}>
+        {PAPERLESS_TAX_AUTHORITY.steps.map(s => <li key={s}>{s}</li>)}
+      </ol>
+      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+        {PAPERLESS_TAX_AUTHORITY.after}
+      </div>
+      {connectedAt && (
+        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+          הלקוח דיווח שביצע את החיבור ב-{new Date(connectedAt).toLocaleDateString('he-IL')}
+        </div>
+      )}
+      <a href={PAPERLESS_TAX_AUTHORITY.guideUrl} target="_blank" rel="noopener noreferrer"
+        style={{ fontSize: 'var(--fs-12)', color: 'var(--brand)', width: 'fit-content' }}>
+        המדריך של פייפרלס, עם צילומי מסך ←
+      </a>
+    </div>
   );
 }
 

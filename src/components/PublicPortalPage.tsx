@@ -62,7 +62,10 @@ export interface PortalItem {
    * ‼ 'info' — הכדור אצל הלקוח אבל הפעולה עצמה קורית מחוץ לדף (בפייפרלס),
    * ולכן כרטיס בלי שום פקד: אין לנו מה לאמת, ואישור-דמה היה מידע כוזב.
    */
-  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info';
+  /* ‼ 'declare' — הוראות + הצהרה. הפעולה קורית מחוץ לדף (בפייפרלס ובאתר
+     רשות המסים), אבל בניגוד ל-'info' יש מה לאשר: הלקוח הוא היחיד שיודע
+     שהיא בוצעה, וההצהרה שלו היא מה שסוגר את הבקשה. */
+  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info' | 'declare';
   /**
    * פרטי הרו״ח הקודם שכבר בכרטיס — מילוי-מראש לאישור. כמו businessName:
    * מקור האמת הוא הכרטיס, ומה שהלקוח שולח חוזר אליו (וגובר, מיגרציה 115).
@@ -425,6 +428,8 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
    * באמת אצלו, וכרטיס שקוף שמסתיר את זה בטור "בטיפול המשרד" היה שקר.
    */
   const info = item.kind === 'info';
+  /** הוראות + הצהרה, הכל גלוי מיד: בלי ההוראות אין מה לאשר. */
+  const declare = inPage && item.kind === 'declare';
   const prog = progressLine(item);
 
   const primaryBtn: React.CSSProperties = {
@@ -468,6 +473,10 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
       ) : signup ? (
         <div style={{ marginTop: 11 }}>
           <PaperlessSignupBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+        </div>
+      ) : declare ? (
+        <div style={{ marginTop: 11 }}>
+          <DeclareBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       ) : (
         <div style={{ marginTop: 11 }}>
@@ -762,6 +771,70 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
         <button type="button" style={{ ...confirmBtn, opacity: missingBusiness ? .55 : confirmBtn.opacity }}
           disabled={previewMode || busy} onClick={() => void confirm()}>
           {busy ? 'רגע…' : (item.cta || 'נרשמתי')}
+        </button>
+        {error && <div style={{ width: '100%', fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * הוראות + הצהרה — פעולה שהלקוח מבצע במקום אחר, ומאשר כאן שביצע.
+ *
+ * ‼ ההוראות גלויות מיד ולא מאחורי כפתור פתיחה: הן לא "פרטים נוספים", הן
+ * הבקשה עצמה. הצרכן הראשון הוא חיבור פייפרלס לרשות המסים, אבל אין כאן
+ * שום דבר ייעודי לו — כל בקשה שהיא "לך תעשה, ותגיד לנו" נראית ככה.
+ * ‼ הצהרה ולא אימות, בדיוק כמו "נרשמתי לפייפרלס": אין לנו גישה לחשבון
+ * שלו ברשות המסים, והרו"ח יכול לפתוח את הבקשה מחדש אם התברר אחרת.
+ */
+function DeclareBlock({ token, item, brand, accent, onDone }: {
+  token: string; item: PortalItem;
+  brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
+  accent: string; onDone: () => void;
+}) {
+  const previewMode = useContext(PreviewCtx);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirm() {
+    if (previewMode || !item.actionValue) return;
+    setBusy(true);
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc('portal_submit_step', {
+      p_token: token, p_step_id: item.actionValue, p_data: {},
+    });
+    const res = data as { ok?: boolean; error?: string } | null;
+    setBusy(false);
+    if (rpcError || !res?.ok) {
+      setError('לא הצלחנו לשמור את האישור. אפשר לנסות שוב.');
+      return;
+    }
+    flushAccountantNotifications(token);
+    onDone();
+  }
+
+  const linkBtn: React.CSSProperties = {
+    display: 'inline-block', textDecoration: 'none', cursor: 'pointer',
+    fontSize: 13.5, fontWeight: 600, padding: '9px 18px', borderRadius: brand.radius,
+    color: '#fff', background: accent, border: 'none',
+  };
+  const confirmBtn: React.CSSProperties = {
+    display: 'inline-block', cursor: previewMode || busy ? 'default' : 'pointer',
+    fontSize: 13.5, fontWeight: 600, padding: '9px 18px', borderRadius: brand.radius,
+    color: brand.ink, background: 'transparent', border: `1px solid ${brand.border}`,
+    opacity: previewMode || busy ? .55 : 1,
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <RequestGuide item={item} brand={brand} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        {item.linkUrl && (previewMode
+          ? <span style={{ ...linkBtn, opacity: .55, pointerEvents: 'none' }}>למדריך המלא ←</span>
+          : <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={linkBtn}>למדריך המלא ←</a>)}
+        <button type="button" style={confirmBtn} disabled={previewMode || busy}
+          onClick={() => void confirm()}>
+          {busy ? 'רגע…' : (item.cta || 'ביצעתי')}
         </button>
         {error && <div style={{ width: '100%', fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
       </div>

@@ -40,7 +40,7 @@ const WAIT_DAYS = 7;
 const COLUMNS: { key: string; label: string; kinds: OnboardingStepType[] }[] = [
   { key: 'prev', label: 'רו״ח קודם', kinds: ['prev_accountant_details', 'release_letter', 'materials_received'] },
   { key: 'docs', label: 'מסמכים', kinds: ['client_documents'] },
-  { key: 'paperless', label: 'פייפרלס', kinds: ['paperless_invite', 'paperless_connection'] },
+  { key: 'paperless', label: 'פייפרלס', kinds: ['paperless_invite', 'paperless_connection', 'paperless_tax_authority'] },
   { key: 'billing', label: 'הרשאת חיוב', kinds: ['retainer_authorization'] },
   { key: 'rep', label: 'ייצוג', kinds: ['representation', 'representation_upgrade', 'file_opening'] },
 ];

@@ -48,6 +48,9 @@ export type OnboardingStepType =
   | 'materials_received'
   | 'paperless_invite'
   | 'paperless_connection'
+  // ‼ הפעולה היחידה בפייפרלס שהיא של הלקוח ולא שלנו — ההזדהות מול רשות
+  // המסים היא בת"ז ובקוד האישי שלו. לעוסק מורשה ולחברה בלבד.
+  | 'paperless_tax_authority'
   | 'data_import'
   | 'data_verification'
   | 'retainer_authorization'
@@ -78,6 +81,7 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   // האישי. "הזמנה" תיאר מייל שהמשרד שולח, וזה כבר לא המודל.
   paperless_invite: 'הרשמה לפייפרלס',
   paperless_connection: 'חיבור לפייפרלס',
+  paperless_tax_authority: 'חיבור פייפרלס לרשות המסים',
   data_import: 'ייבוא היסטוריה',
   data_verification: 'אימות הנתונים',
   retainer_authorization: 'הרשאה לתשלום חודשי',
@@ -369,6 +373,49 @@ export function paperlessSetupItems(
         ...(isCard && cardEnteredAt ? { doneAt: cardEnteredAt } : {}),
       };
     });
+}
+
+/**
+ * חיבור פייפרלס לרשות המסים — מה שגורם לחשבוניות לקבל מספר הקצאה.
+ *
+ * ‼ עוסק מורשה וחברה בלבד. עוסק פטור אינו מוציא חשבונית מס ואין לו מה
+ * להקצות, ולכן המחולל בשרת גוזר את הזכאות מתבנית ההצעה ובהיעדרה מסוג
+ * העוסק שעל הכרטיס. כשאין אף אחד מהם לא ממציאים — הבקשה זמינה תמיד
+ * מ"+ בקשה חדשה".
+ * ‼ הפעולה היא של הלקוח, בניגוד לשאר ההקמה בפייפרלס: ההזדהות מול רשות
+ * המסים היא בתעודת הזהות ובקוד הקבוע שלו, ואין לנו דרך לעשות אותה בשמו.
+ * ‼ החיבור פג אחרי שלושה חודשים. כרגע נשמרת רק חותמת הביצוע
+ * (connectedAt) — החידוש עצמו עוד לא מומש (הכרעת גיא, 2026-08-25).
+ * ‼ הניסוחים משוכפלים בכוונה ב-build_client_portal (מיגרציה 130): הדף
+ * האישי נבנה בשרת. שינוי כאן בלי שינוי שם ישנה רק את כרטיס המשרד.
+ */
+export const PAPERLESS_TAX_AUTHORITY = {
+  title: 'חיבור פייפרלס לרשות המסים',
+  sub: 'כדי שהחשבוניות שלך יקבלו מספר הקצאה',
+  cta: 'ביצעתי את החיבור',
+  guideUrl: 'https://academy-bu.paperless.tax/he/articles/11424861-%D7%97%D7%99%D7%91%D7%95%D7%A8-%D7%94%D7%9E%D7%A2%D7%A8%D7%9B%D7%AA-%D7%9C%D7%A8%D7%A9%D7%95%D7%AA-%D7%94%D7%9E%D7%99%D7%A1%D7%99%D7%9D',
+  steps: [
+    'בפייפרלס: הגדרות ← חיבורים והרשאות, ולחיצה על אייקון הקישור.',
+    'נפתח אתר רשות המסים ומבקש הזדהות - תעודת זהות וקוד קבוע (לא כרטיס חכם). מאשרים את ההרשאה.',
+    'חוזרים לפייפרלס ולוחצים "המשך".',
+  ],
+  after: 'החיבור תקף לשלושה חודשים ואז צריך לחדש אותו - נזכיר לך כשיגיע הזמן. אם החיבור נכשל, ממתינים כשלוש שעות ומנסים שוב.',
+} as const;
+
+/** ההסבר כפסקה אחת - זה מה שנשמר ב-payload ומוצג בדף האישי. */
+export const paperlessTaxAuthorityNote = (): string =>
+  PAPERLESS_TAX_AUTHORITY.steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
+
+/** ה-payload של הבקשה. אותם שדות בדיוק שהמחולל בשרת כותב. */
+export function paperlessTaxAuthorityPayload(): Record<string, unknown> {
+  return {
+    clientTitle: PAPERLESS_TAX_AUTHORITY.title,
+    clientSub: PAPERLESS_TAX_AUTHORITY.sub,
+    clientNote: paperlessTaxAuthorityNote(),
+    clientNoteAfter: PAPERLESS_TAX_AUTHORITY.after,
+    clientCta: PAPERLESS_TAX_AUTHORITY.cta,
+    clientLinkUrl: PAPERLESS_TAX_AUTHORITY.guideUrl,
+  };
 }
 
 /** מה נדרש מהלקוח בבקשה חופשית. שילובים מותרים באותה בקשה.
