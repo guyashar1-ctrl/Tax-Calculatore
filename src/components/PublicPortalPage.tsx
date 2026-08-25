@@ -76,6 +76,9 @@ export interface PortalItem {
   resourceKey?: string;
   /** קישור יוצא שנלווה לפעולה בעמוד (הרשמה לפייפרלס). אינו מחליף את ההשלמה. */
   linkUrl?: string;
+  /** ‼ מה כתוב על הקישור. "למדריך המלא" נכון למדריך, ושקר כשהקישור מוביל
+   *  לאתר שבו הלקוח מבצע את הפעולה עצמה (האזור האישי ברשות המסים). */
+  linkLabel?: string;
   /**
    * שם העסק — נשאל בכרטיס ההרשמה לפייפרלס, כי זה מה שהמשרד מזין שם.
    * ‼ מקור האמת הוא clients.business_name: הערך כאן הוא מילוי-מראש לאישור,
@@ -830,8 +833,8 @@ function DeclareBlock({ token, item, brand, accent, onDone }: {
       <RequestGuide item={item} brand={brand} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         {item.linkUrl && (previewMode
-          ? <span style={{ ...linkBtn, opacity: .55, pointerEvents: 'none' }}>למדריך המלא ←</span>
-          : <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={linkBtn}>למדריך המלא ←</a>)}
+          ? <span style={{ ...linkBtn, opacity: .55, pointerEvents: 'none' }}>{item.linkLabel || 'למדריך המלא'} ←</span>
+          : <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={linkBtn}>{item.linkLabel || 'למדריך המלא'} ←</a>)}
         <button type="button" style={confirmBtn} disabled={previewMode || busy}
           onClick={() => void confirm()}>
           {busy ? 'רגע…' : (item.cta || 'ביצעתי')}

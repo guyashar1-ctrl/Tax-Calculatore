@@ -10,6 +10,7 @@ import { isStepOpen } from '../types/onboarding';
 export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   representation: 'להמשיך את תהליך הייצוג',
   representation_upgrade: 'לשדרג את הייצוג למייצג ראשי',
+  rep_client_approval: 'לבדוק בשע״ם אם האישור של הלקוח נקלט',
   file_opening: 'לפתוח את התיקים ברשויות',
   release_letter: 'לשלוח לרו״ח הקודם את מכתב העברת הטיפול',
   materials_received: 'לאסוף את החומרים מהרו״ח הקודם',

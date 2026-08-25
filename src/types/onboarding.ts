@@ -43,6 +43,10 @@ export type OnboardingStepType =
   | 'representation'
   // נפתח אוטומטית כשקיים ייצוג ברמת "משני", ונסגר מעצמו כשלא נותר אף אחד כזה.
   | 'representation_upgrade'
+  // ‼ זירוז ולא תנאי: הלקוח מאשר את המשרד כמייצג באזור האישי של רשות המסים
+  // במקום להמתין לקליטה האוטומטית. נולד כשהבקשה מוגשת לשע"ם, ולעולם אינו
+  // חוסם סגירת קליטה — מי שנתקע בהזדהות לא אמור לתקוע את התיק.
+  | 'rep_client_approval'
   | 'file_opening'
   | 'release_letter'
   | 'materials_received'
@@ -74,6 +78,7 @@ export type OnboardingStepType =
 export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   representation: 'ייצוג מול הרשויות',
   representation_upgrade: 'שדרוג לייצוג ראשי',
+  rep_client_approval: 'אישור המייצג באזור האישי',
   file_opening: 'פתיחת תיקים ברשויות',
   release_letter: 'מכתב העברת טיפול לרו״ח הקודם',
   materials_received: 'קבלת חומרים מהרו״ח הקודם',
@@ -379,9 +384,13 @@ export function paperlessSetupItems(
  * חיבור פייפרלס לרשות המסים — מה שגורם לחשבוניות לקבל מספר הקצאה.
  *
  * ‼ עוסק מורשה וחברה בלבד. עוסק פטור אינו מוציא חשבונית מס ואין לו מה
- * להקצות, ולכן המחולל בשרת גוזר את הזכאות מתבנית ההצעה ובהיעדרה מסוג
- * העוסק שעל הכרטיס. כשאין אף אחד מהם לא ממציאים — הבקשה זמינה תמיד
- * מ"+ בקשה חדשה".
+ * להקצות. שלוש ראיות, בשרת: תבנית ההצעה, סוג העוסק שעל הכרטיס
+ * (`clients.dealer_type`), וסיווג המע"מ בתיק המס (`vat_status`). כשאין אף
+ * אחת מהן לא ממציאים — הבקשה זמינה תמיד מ"+ בקשה חדשה".
+ * ‼ עוסק פטור שהופך למורשה מקבל אותה **מעצמו**: טריגר על הכרטיס
+ * (מיגרציה 131) יוצר אותה ברגע שסיווג המע"מ או סוג העוסק משתנים. אי אפשר
+ * לגזור את זה מ"שירותים עתידיים" בהצעה — «מעבר לעוסק מורשה» יושב שם בכל
+ * הצעת עוסק פטור כפריט מחירון, ולכן אינו מעיד על לקוח מסוים.
  * ‼ הפעולה היא של הלקוח, בניגוד לשאר ההקמה בפייפרלס: ההזדהות מול רשות
  * המסים היא בתעודת הזהות ובקוד הקבוע שלו, ואין לנו דרך לעשות אותה בשמו.
  * ‼ החיבור פג אחרי שלושה חודשים. כרגע נשמרת רק חותמת הביצוע
@@ -415,6 +424,41 @@ export function paperlessTaxAuthorityPayload(): Record<string, unknown> {
     clientNoteAfter: PAPERLESS_TAX_AUTHORITY.after,
     clientCta: PAPERLESS_TAX_AUTHORITY.cta,
     clientLinkUrl: PAPERLESS_TAX_AUTHORITY.guideUrl,
+  };
+}
+
+/** אישור המייצג באזור האישי — זירוז של הקליטה בשע"ם, לא תנאי לה.
+ *  ‼ הניסוח הוא חצי מהפיצ'ר: "מקצר את ההמתנה" ולא "נדרש ממך". לקוח שנתקע
+ *  בהזדהות מול רשות המסים ומאמין שהוא תקוע — מתקשר, ותהליך שהתקדם לבד
+ *  נראה לו עצור. ה-after הוא מה שמונע את זה, ואסור להוריד אותו.
+ *  ‼ הפיצול "יש לך משתמש / אין לך" הוא הכשל האמיתי: רוב מי שנתקע נתקע
+ *  ברישום ובהזדהות, לא בלחיצה על "אישור". */
+export const REP_CLIENT_APPROVAL = {
+  title: 'אישור המייצג באזור האישי',
+  sub: 'שלוש דקות שמקצרות את ההמתנה לאישור הרשויות',
+  cta: 'אישרתי באזור האישי',
+  portalUrl: 'https://www.gov.il/he/service/personal_area_taxes',
+  // ‼ הקישור מוביל למקום שבו הפעולה נעשית, לא למדריך — ולכן תווית משלו.
+  portalLinkLabel: 'לכניסה לאזור האישי',
+  note: [
+    'יש לך כבר משתמש באזור האישי של רשות המסים?',
+    'כן - נכנסים בקישור, לוחצים "לכניסה למערכת" ומזדהים. מחפשים את הבקשה שבה מופיע שם המשרד כמייצג, ובוחרים אישור. שתי דקות.',
+    'לא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.',
+    'אם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.',
+  ],
+  after: 'ואם לא הסתדר - אין בעיה. הייצוג ייכנס לתוקף גם בלי זה, זה פשוט לוקח כמה ימים יותר.',
+} as const;
+
+/** ה-payload של הבקשה. אותם שדות בדיוק שהשרת כותב (מיגרציה 131). */
+export function repClientApprovalPayload(): Record<string, unknown> {
+  return {
+    clientTitle: REP_CLIENT_APPROVAL.title,
+    clientSub: REP_CLIENT_APPROVAL.sub,
+    clientNote: REP_CLIENT_APPROVAL.note.join('\n\n'),
+    clientNoteAfter: REP_CLIENT_APPROVAL.after,
+    clientCta: REP_CLIENT_APPROVAL.cta,
+    clientLinkUrl: REP_CLIENT_APPROVAL.portalUrl,
+    clientLinkLabel: REP_CLIENT_APPROVAL.portalLinkLabel,
   };
 }
 
@@ -735,6 +779,9 @@ export function stepAwaitsMe(s: Pick<OnboardingStep, 'status' | 'ball'>): boolea
 export const DEFAULT_OPTIONAL_STEP_TYPES: OnboardingStepType[] = [
   'representation_upgrade',
   'first_month_review',
+  // ‼ זירוז, לא תנאי: הקליטה בשע"ם תקרה גם בלי האישור הזה — הוא רק מקצר
+  // אותה. לקוח שנתקע בהזדהות מול רשות המסים לא יחסום את סגירת התיק.
+  'rep_client_approval',
 ];
 
 /**

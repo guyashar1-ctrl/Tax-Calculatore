@@ -40,6 +40,9 @@ export const CLIENT_FACING_TYPES: OnboardingStepType[] = [
   // ולכן הקינון לפי תלות מציב אותו מתחתיו — באותה צורה שהרשאת התשלום
   // יושבת שם. חברות בשרשרת הייתה מסתירה אותו מאחורי כותרת "פייפרלס".
   'paperless_tax_authority',
+  // ‼ מוצג אף שהכדור עובר אליי אחרי ההצהרה: זו בקשה מהלקוח לכל דבר, והשלב
+  // שאחריה ("לבדוק בשע״ם") הוא ההמשך שלה ולא פריט אחר.
+  'rep_client_approval',
   'retainer_authorization', 'intake_questionnaire', 'custom_request',
   'release_letter', 'materials_received',
 ];

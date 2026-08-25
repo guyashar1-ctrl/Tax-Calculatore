@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import type { Client } from '../../types';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
-import { paperlessTaxAuthorityPayload } from '../../types/onboarding';
+import { paperlessTaxAuthorityPayload, repClientApprovalPayload } from '../../types/onboarding';
 import type { Quotation } from '../../types/quotations';
 import OnboardingTab from './OnboardingTab';
 import ReleaseLetterDialog from '../quotations/ReleaseLetterDialog';
@@ -127,6 +127,12 @@ const STEPS: OnboardingStep[] = [
      באותו שלב, ושניהם צריכים להיקרא כצעד המשך ולא ככרטיס עצמאי. */
   step({ id: 's5b', stepType: 'paperless_tax_authority', track: 'tools', scope: 'person', status: 'pending', ball: 'client', dependsOnStepId: 's5',
          payload: paperlessTaxAuthorityPayload() }),
+  /* ── אישור המייצג באזור האישי: אחרי שההצהרה של הלקוח הגיעה ──
+     ‼ במצב "הכדור חזר אליי": השלב עדיין פתוח, כי ההצהרה אינה הוכחה שהאישור
+     נקלט. זה המצב שקל לשבור — כרטיס שנראה "בוצע" אצל הרו"ח בלי שאיש בדק. */
+  step({ id: 's5c', stepType: 'rep_client_approval', track: 'authorities', scope: 'person',
+         status: 'in_progress', ball: 'me', needsAttention: true, requiredForClose: false,
+         payload: { ...repClientApprovalPayload(), clientDeclaredAt: '2026-08-24T09:12:00.000Z' } }),
   /* ── הרשאת תשלום: נעולה עד חיבור הפייפרלס ──
      ‼ זה מקרה־הייחוס של אב-הטיפוס: בקשה תלויה שיורדת לתוך כרטיס ההורה
      ונקראת כצעד ההמשך שלו. שלבים כפולים מאותו סוג הוסרו מהפיקסטורה —
