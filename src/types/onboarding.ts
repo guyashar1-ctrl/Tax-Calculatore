@@ -434,8 +434,8 @@ export function paperlessTaxAuthorityPayload(): Record<string, unknown> {
  *  ‼ הפיצול "יש לך משתמש / אין לך" הוא הכשל האמיתי: רוב מי שנתקע נתקע
  *  ברישום ובהזדהות, לא בלחיצה על "אישור". */
 export const REP_CLIENT_APPROVAL = {
-  title: 'אישור המייצג באזור האישי',
-  sub: 'שלוש דקות שמקצרות את ההמתנה לאישור הרשויות',
+  title: 'זירוז אישור הייצוג באזור האישי',
+  sub: 'אופציונלי - שלוש דקות שמקצרות את ההמתנה לאישור הרשויות',
   cta: 'אישרתי באזור האישי',
   portalUrl: 'https://www.gov.il/he/service/personal_area_taxes',
   // ‼ הקישור מוביל למקום שבו הפעולה נעשית, לא למדריך — ולכן תווית משלו.

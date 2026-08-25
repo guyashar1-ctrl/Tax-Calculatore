@@ -11,7 +11,6 @@ import type { CustomRequirement, CustomRequirementKind, InstitutionKey, Onboardi
 import {
   DEBIT_INSTITUTION_ORDER, INSTITUTION_DEBIT_CODES, INSTITUTION_NAMES,
   REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS, paperlessTaxAuthorityPayload,
-  repClientApprovalPayload,
 } from '../../types/onboarding';
 import { BANK_DEBIT_TITLE, buildBankDebitPayload } from '../../lib/bankDebitRequest';
 import type { ClientDocument } from '../../lib/clientGuide';
@@ -47,9 +46,12 @@ const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'paperless_tax_authority',
     hint: 'לעוסק מורשה - הלקוח מחבר את פייפרלס לרשות המסים, ומשם החשבוניות מקבלות מספר הקצאה', once: true },
   { type: 'intake_questionnaire',   hint: 'רענון תיק המס - שאלון ומסמכים לפי מה שחסר', once: true },
-  { type: 'rep_client_approval',
-    hint: 'הלקוח מאשר אותנו כמייצג באזור האישי, במקום להמתין לקליטה בשע״ם', once: true },
 ];
+/* ‼ «אישור המייצג באזור האישי» ירד מכאן (הכרעת גיא, 2026-08-25). הוא אינו
+   בקשה שמוסיפים אלא צעד בתוך ביצוע הייצוג: נוצר לבד כשהייצוג מוגש לשע"ם
+   ונסגר לבד כשהוא מסומן כפעיל, ומנוהל בבלוק "מס הכנסה" שבמרכז הביצוע.
+   פריט קטלוג היה מאפשר להוסיף אותו ללקוח שאין לו ייצוג בדרך לרשויות —
+   כלומר לשלוח אותו לאשר משהו שאינו קיים. */
 
 /** רצף הפייפרלס — תבנית מוכרת, לא תצורה. שלושה שלבים, ובעלות שונה לכל אחד:
  *
@@ -341,23 +343,6 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
     onClose();
   }
 
-  /** אישור המייצג באזור האישי. בדרך כלל נוצר לבד כשהייצוג מוגש לשע"ם
-   *  (מיגרציה 131) — כאן להוספה ידנית: ייצוג שהוגש לפני הפיצ'ר, או בקשה
-   *  שהוסרה וגיא רוצה להחזיר. הכדור אצל הלקוח, בלי תלות: אין במה לתלות
-   *  אותה — הבקשה כבר בדרך לרשויות. */
-  async function createRepApproval() {
-    setBusy(true);
-    setError(null);
-    // ‼ false קשיח, ולא מה שהמתג בחלון אומר: זירוז אינו יכול לחסום סגירה,
-    // וזהות התנהגות עם היצירה האוטומטית חשובה יותר מהמתג הכללי כאן.
-    const res = await rpcCreate(
-      'rep_client_approval', repClientApprovalPayload(), dependsOn || null, 'client', false);
-    setBusy(false);
-    if ('error' in res) { setError(res.error); return; }
-    onCreated();
-    onClose();
-  }
-
   function submitCustom() {
     const main = ask.trim();
     if (!main) { setError('צריך לכתוב מה מבקשים מהלקוח.'); return; }
@@ -454,7 +439,6 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                     if (c.type === 'send_document') { openDocumentMode(); return; }
                     if (c.type === 'paperless_sequence') { void createPaperlessSequence(); return; }
                     if (c.type === 'paperless_tax_authority') { void createTaxAuthority(); return; }
-                    if (c.type === 'rep_client_approval') { void createRepApproval(); return; }
                     if (c.type === 'prev_accountant_track') { void createPrevTrack(); return; }
                     /* ‼ תוכן ברירת המחדל מגיע מתבנית מובנית ולא מ-{} ריק.
                        בקשה שנוצרה ריקה הגיעה ללקוח בלי ניסוח ובלי רשימה. */

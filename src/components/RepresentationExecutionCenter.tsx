@@ -6,7 +6,7 @@
 //     ומי שמאשר בסוף הוא הלקוח. כל השלבים כאן נשמרים ב-execution.
 // המטרה: להיכנס לבקשה ולדעת בשנייה מה נשאר לעשות ואצל מי הכדור.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   RepresentationRequest,
   RepresentationExecution,
@@ -15,6 +15,10 @@ import {
 } from '../types';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { useEmailMessages } from '../hooks/useEmailMessages';
+import {
+  useRepApprovalStep, isRepApprovalClosed, isRepApprovalDeclared,
+} from '../hooks/useRepApprovalStep';
+import type { RepApprovalStep } from '../hooks/useRepApprovalStep';
 import EmailStatusRow from './EmailActivity/EmailStatusRow';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
@@ -39,6 +43,12 @@ interface Props {
   onSendToSigner: (s: RepSigner) => Promise<string | null>;
   /** בעל החשבון — לטעינת יומן המיילים של הבקשה. */
   userId: string | undefined;
+  /**
+   * דריסת הנתיב המזורז — למסך הבדיקה בלבד (__TestExecutionCenter), שרץ בלי
+   * מסד ולכן ה-hook מחזיר בו null תמיד. `undefined` = התנהגות רגילה.
+   * ‼ לא להשתמש בזה בקוד אמיתי: המקור היחיד הוא onboarding_steps.
+   */
+  repApprovalOverride?: RepApprovalStep | null;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -58,6 +68,56 @@ function daysUntil(deadline?: string): number | null {
   today.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
   return Math.round((d.getTime() - today.getTime()) / 86400000);
+}
+
+/**
+ * נתיב מזורז — שלב ביניים שאינו חלק מהשרשרת.
+ *
+ * ‼ בלי מספר, ובכוונה: מספר היה הופך אותו לשלב שביעי שחייבים לעבור בו,
+ * בעוד שהייצוג נכנס לתוקף גם בלעדיו. מוזח פנימה ונשען על קו, כדי שייקרא
+ * כענף של השלב שמעליו ולא כשורה שווה לו.
+ * ‼ גם אינו נספר במונה המסלול — "6 מתוך 8" היה מציג תהליך שלא הושלם
+ * כשהוא למעשה הושלם.
+ */
+function SideStep({ title, done, tone, hint, children }: {
+  title: string; done: boolean; tone?: 'wait' | 'attention';
+  hint?: string; children?: React.ReactNode;
+}) {
+  const dot = done ? 'var(--success)'
+    : tone === 'attention' ? 'var(--orange)' : 'var(--ink-4)';
+  return (
+    <div style={{
+      display: 'flex', gap: '.65rem', padding: '.45rem 0 .45rem .9rem',
+      marginInlineStart: '.55rem', borderInlineStart: '2px solid var(--hairline-2)',
+    }}>
+      <div style={{
+        flex: '0 0 auto', width: 14, height: 14, borderRadius: '50%', marginTop: 4,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 9, fontWeight: 700,
+        background: done ? 'var(--success)' : 'transparent',
+        border: done ? 'none' : `1.5px solid ${dot}`,
+        color: 'var(--on-accent)',
+      }}>
+        {done ? '✓' : ''}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 'var(--fs-13)', fontWeight: done ? 400 : 500,
+          color: done ? 'var(--ink-3)' : 'var(--ink-2)',
+        }}>
+          {title}
+          <span style={{
+            marginInlineStart: '.4rem', fontSize: 'var(--fs-11)',
+            fontWeight: 400, color: 'var(--ink-4)',
+          }}>
+            אופציונלי
+          </span>
+        </div>
+        {hint && <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>{hint}</div>}
+        {children && <div style={{ marginTop: '.4rem' }}>{children}</div>}
+      </div>
+    </div>
+  );
 }
 
 function Step({ n, title, done, hint, children }: {
@@ -117,7 +177,7 @@ function Track({ title, subtitle, done, total, tone, children }: {
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride }: Props) {
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
@@ -216,7 +276,16 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     }
   }
 
+  // ‼ הנתיב המזורז נטען כאן ואינו מגיע כ-prop — ראה useRepApprovalStep.
+  // מרוענן כשהסטטוס משתנה, כי המעבר ל-awaiting_authorities הוא שיוצר אותו.
+  const { step: loadedRepApproval, reload: reloadRepApproval } = useRepApprovalStep(request.linkedClientId);
+  const repApproval = repApprovalOverride !== undefined ? repApprovalOverride : loadedRepApproval;
+  const declared = isRepApprovalDeclared(repApproval);
+  useEffect(() => { void reloadRepApproval(); }, [status, reloadRepApproval]);
+
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
+  // ‼ הנתיב המזורז אינו כאן: הוא אופציונלי, וספירתו הייתה מציגה מסלול שהושלם
+  // כאילו נשאר בו צעד.
   const itSteps = [!!it.enteredAt, formReady, !!exec.signatureEmailSentAt, signed, stamped, sentToShaam, status === 'active'];
 
   // שמות המבוטחים לכותרות המסלולים — כשיש שניים, "ביטוח לאומי" לבדו לא מספיק
@@ -302,6 +371,34 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 <button className="btn btn-green btn-sm" onClick={onMarkSentToShaam}>נשלח לשע"ם</button>
               )}
             </Step>
+
+            {/* ── נתיב מזורז: הלקוח מאשר אותנו באזור האישי ──────────────────
+                ‼ נפתח עם ההגשה לשע"ם ולא לפני — קודם לכן אין לו שם מה לאשר.
+                ‼ שני שלבי אימות: הצהרת הלקוח מזיזה את הכדור אלינו ואינה
+                סוגרת (אין לנו גישה לאזור האישי שלו), והסגירה קורית בכפתור
+                של שלב 7 — אותו כפתור, לא כפתור שני. */}
+            {repApproval && (
+              <SideStep
+                title="זירוז אישור הייצוג באזור האישי"
+                done={isRepApprovalClosed(repApproval)}
+                tone={declared ? 'attention' : 'wait'}
+                hint={
+                  isRepApprovalClosed(repApproval)
+                    ? undefined
+                    : declared
+                      ? 'הלקוח דיווח שאישר - ממתין לאימות בשע״ם'
+                      : 'ממתין ללקוח - הבקשה מופיעה בדף האישי שלו'
+                }>
+                {declared && (
+                  /* ‼ גודל מוקטן במפורש: ברירת המחדל של ui-lines גדולה מהשורה
+                     שהיא שייכת לה, וטקסט העזר היה מושך יותר תשומת לב מהכותרת. */
+                  <InfoLines style={{ fontSize: 'var(--fs-12)' }} items={[
+                    'בדקו בשע״ם אם הייצוג נקלט',
+                    'נקלט ⇒ סמנו "מיוצג פעיל" בשלב הבא, וזה סוגר גם את השורה הזו',
+                  ]} />
+                )}
+              </SideStep>
+            )}
 
             <Step n={7} title="הייצוג פעיל" done={status === 'active'}
               hint={status === 'awaiting_authorities' ? 'כשהייצוג יאושר בשע״ם - סמנו כאן' : undefined}>

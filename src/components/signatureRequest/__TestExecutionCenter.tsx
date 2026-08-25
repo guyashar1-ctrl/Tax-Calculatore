@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { RepresentationRequest, RepresentationExecution } from '../../types';
 import { EmailMessage } from '../../types/emailActivity';
 import RepresentationExecutionCenter from '../RepresentationExecutionCenter';
+import type { RepApprovalStep } from '../../hooks/useRepApprovalStep';
 import EmailStatusRow from '../EmailActivity/EmailStatusRow';
 import { ClientEmailsList } from '../EmailActivity/ClientEmailsSection';
 
@@ -33,6 +34,23 @@ const BASE: RepresentationRequest = {
     { id: 'spouse', role: 'spouse', source: 'spouse', name: 'דני לקוח', email: 'dani@example.com', order: 2, signStatus: 'pending' },
   ],
 } as unknown as RepresentationRequest;
+
+/* הנתיב המזורז בכל מצביו. ‼ מוזרק ולא נטען: המסך הזה רץ בלי מסד, ובלי
+   הזרקה אי אפשר לראות כאן את השורה בכלל. במסך האמיתי המקור הוא
+   onboarding_steps — ראה useRepApprovalStep. */
+const REP_APPROVAL_STATES: Record<string, RepApprovalStep | null> = {
+  none: null,
+  pending: { id: 'ra1', status: 'pending', ball: 'client' },
+  declared: { id: 'ra1', status: 'in_progress', ball: 'me', clientDeclaredAt: '2026-08-24T09:12:00.000Z' },
+  done: { id: 'ra1', status: 'completed', ball: 'me', clientDeclaredAt: '2026-08-24T09:12:00.000Z' },
+};
+
+const APPROVAL_LABELS: Record<string, string> = {
+  none: 'אין נתיב מזורז',
+  pending: 'ממתין ללקוח',
+  declared: 'הלקוח דיווח',
+  done: 'נסגר',
+};
 
 type Scenario = { key: string; label: string; req: RepresentationRequest };
 
@@ -79,9 +97,19 @@ export default function TestExecutionCenter() {
   // ?req=<id> — מריץ את התרחישים מול בקשה אמיתית, כדי לבדוק את התצוגה המקדימה
   // של המייל (שנבנית בשרת מהבקשה עצמה) בלי לשלוח דבר.
   const realRequestId = new URLSearchParams(window.location.search).get('req');
+  // ?client=<id> — הנתיב המזורז ("זירוז אישור הייצוג") נטען מ-onboarding_steps
+  // ולא מהבקשה, ולכן פיקסטורה לבדה לא מציגה אותו. מזהה אמיתי מראה את השורה
+  // במצבה האמיתי: ממתין ללקוח, הלקוח דיווח, או סגור.
+  // ‼ עם ?client= לא דורסים את הנתיב המזורז: שם רוצים בדיוק את מה שבמסד.
+  const realClientId = new URLSearchParams(window.location.search).get('client');
   const [key, setKey] = useState('ready');
   const [niIncluded, setNiIncluded] = useState(true);
   const [niSpouse, setNiSpouse] = useState(false);
+  // ?approval=none|pending|declared|done — כדי שאפשר יהיה לפתוח מצב ישירות
+  // (ולצלם אותו) בלי ללחוץ, למשל בדפדפן ללא-ראש.
+  const approvalFromUrl = new URLSearchParams(window.location.search).get('approval');
+  const [approval, setApproval] = useState(
+    approvalFromUrl && approvalFromUrl in REP_APPROVAL_STATES ? approvalFromUrl : 'pending');
   const sc = SCENARIOS.find(s => s.key === key)!;
 
   return (
@@ -99,10 +127,20 @@ export default function TestExecutionCenter() {
         <button className="btn btn-secondary btn-sm" onClick={() => setNiSpouse(v => !v)}>
           ב״ל גם לבן/בת הזוג: {niSpouse ? 'כן' : 'לא'}
         </button>
+        {Object.keys(REP_APPROVAL_STATES).map(k => (
+          <button key={k} className={`btn btn-sm ${approval === k ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setApproval(k)}>
+            זירוז: {APPROVAL_LABELS[k]}
+          </button>
+        ))}
       </div>
       <RepresentationExecutionCenter
-        key={`${key}-${niIncluded}-${niSpouse}`}
-        request={realRequestId ? { ...sc.req, id: realRequestId } : sc.req}
+        key={`---`}
+        request={{
+          ...sc.req,
+          ...(realRequestId ? { id: realRequestId } : {}),
+          ...(realClientId ? { linkedClientId: realClientId } : {}),
+        }}
         niIncluded={niIncluded}
         niCoversSpouse={niSpouse}
         onSaveExecution={() => {}}
@@ -112,6 +150,7 @@ export default function TestExecutionCenter() {
         onMarkActive={() => {}}
         onSendToSigner={async () => null}
         userId={undefined}
+        repApprovalOverride={realClientId ? undefined : REP_APPROVAL_STATES[approval]}
       />
 
       <h2 style={{ marginTop: '2rem' }}>מיילים בכרטיס הלקוח</h2>

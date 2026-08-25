@@ -61,7 +61,8 @@ import PortalPreviewPanel from './PortalPreviewPanel';
 import PublishCasePrompt from './PublishCasePrompt';
 import InlineComposer from './InlineComposer';
 import {
-  AUTO_OFFICE_TYPES, buildClientFacingRows, CLIENT_FACING_TYPES, isManualInternalTask,
+  AUTO_OFFICE_TYPES, buildClientFacingRows, CLIENT_FACING_TYPES, EXECUTION_OWNED_TYPES,
+  isManualInternalTask,
   type ClientFacingRow,
 } from '../../utils/clientFacingRows';
 import EmailInput from '../ui/EmailInput';
@@ -770,7 +771,9 @@ export default function OnboardingTab({
      גיא). יישור קו מיוצג בכרטיס אחד קבוע ב"העבודה שלי" ונפתח למסך שלו;
      השאר פשוט לא מוצג כאן. הנתונים לא נמחקו — ראה AUTO_OFFICE_TYPES. */
   const onSurface = (s: OnboardingStep) =>
-    !AUTO_OFFICE_TYPES.includes(s.stepType) && !s.stepType.startsWith('institution_alignment_');
+    !AUTO_OFFICE_TYPES.includes(s.stepType)
+    && !EXECUTION_OWNED_TYPES.includes(s.stepType)
+    && !s.stepType.startsWith('institution_alignment_');
 
   const visibleSteps = clientSteps.filter(s => matchesBall(s) && onSurface(s));
   const openSteps = visibleSteps.filter(s => isStepOpen(s.status));
