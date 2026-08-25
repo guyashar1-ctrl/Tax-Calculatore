@@ -1,0 +1,1062 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ברירת המחדל של הבקשות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   פרוטוטייפ · «בקשות מסמכים» במסך המשרד
+   הטוקנים מועתקים מ-src/index.css (ערכה בהירה) כדי שהמסך ייראה כמו המוצר.
+   נתונים מזויפים; שום דבר כאן אינו מחובר לשרת.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --desk:#edeceA; --page:#f8f7f5; --card:#fff; --bd:#e2e4e7; --bd-strong:#d3d6da;
+  --tx:#25282d; --txb:#3b3f45; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b;
+  --br:#3f5f8f; --br-strong:#34507a; --on-br:#fff; --soft:#e8eef5; --soft-bd:#c6d4e6;
+  --s1:#f5f4f2; --s2:#f3f2f0; --s4:#fafaf9;
+  --ok:#24654e; --ok-bg:#eaf4ef; --warn:#8a5b0f; --warn-bg:#fbf3e4;
+  --ink-1:var(--tx); --ink-2:var(--txc); --ink-3:var(--tx2); --ink-4:var(--tx3); --ink-quiet:#c3c7cc;
+  --accent:var(--br); --accent-hover:var(--br-strong); --accent-fill:var(--br); --on-accent:#fff;
+  --surface-0:var(--card); --surface-1:var(--s4); --surface-2:var(--s2);
+  --hairline-1:var(--bd); --hairline-2:#eeedeb; --canvas:var(--desk);
+  --note-bg:#fbf9f2; --note-text:#7a5216;
+  --fs-12:12px; --fs-13:13px; --fs-14:14px; --fs-15:15px; --fs-17:17px; --fs-20:20px; --fs-24:24px;
+  --r-chip:6px; --r-input:8px; --r-panel:12px; --r-modal:14px;
+  --shadow-lg:0 18px 40px -24px rgba(28,30,34,.35), 0 4px 10px -6px rgba(28,30,34,.1);
+  --workspace-max:1280px;
+}
+/* הכיוון מוצהר גם ב-CSS ולא רק על תגית html, כדי שהמסך יישאר RTL גם כשהקובץ
+   מוגש בתוך מעטפת של מישהו אחר (תצוגה מקדימה, ארטיפקט). */
+html{direction:rtl}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--ink-1);font-family:'Heebo',system-ui,sans-serif;
+  font-size:var(--fs-14);line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+
+/* ── מעטפת האפליקציה ─────────────────────────────────────────────────────── */
+.appbar{background:var(--card);border-bottom:1px solid var(--hairline-1)}
+.appbar-in{max-width:var(--workspace-max);margin:0 auto;padding:10px 24px;
+  display:flex;align-items:center;gap:14px}
+.logo{display:flex;align-items:center;gap:8px;font-size:var(--fs-17);font-weight:600;color:var(--br);letter-spacing:.04em}
+.logo-dot{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--br);display:inline-block}
+.appbar-sp{flex:1}
+.appbar-nav{display:flex;gap:18px;font-size:var(--fs-13);color:var(--ink-3)}
+.appbar-nav .on{color:var(--ink-1);font-weight:500}
+
+.page{max-width:var(--workspace-max);margin:0 auto;padding:22px 24px 80px}
+.page-head{display:flex;align-items:flex-start;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--hairline-1)}
+.page-head h1{font-size:var(--fs-20);font-weight:600}
+.page-head p{font-size:var(--fs-13);color:var(--ink-3);margin-top:3px}
+.page-head-sp{flex:1}
+.savebar{display:flex;align-items:center;gap:10px}
+.saved-note{font-size:var(--fs-12);color:var(--ink-4)}
+
+.grid{display:grid;grid-template-columns:184px 1fr;gap:18px;align-items:start;margin-top:16px}
+
+/* ── מסילת הניווט ────────────────────────────────────────────────────────── */
+.rail{padding-inline-end:14px;border-inline-end:1px solid var(--hairline-2);position:sticky;top:16px}
+.rail-group{font-size:var(--fs-12);letter-spacing:.06em;color:var(--ink-4);padding:14px 0 5px}
+.rail-item{display:flex;align-items:center;gap:9px;width:100%;padding:7px 0;margin-bottom:1px;
+  border-inline-start:2px solid transparent;padding-inline-start:9px;margin-inline-start:-11px;
+  font-size:var(--fs-13);color:var(--ink-3);text-align:start}
+.rail-item:hover{color:var(--ink-1)}
+.rail-item.is-active{color:var(--ink-1);font-weight:500;border-inline-start-color:var(--accent)}
+.rail-soon{display:flex;align-items:center;gap:9px;padding:6px 0;color:var(--ink-quiet);font-size:var(--fs-12)}
+.rail-soon-tag{margin-inline-start:auto;font-size:var(--fs-12);color:var(--ink-quiet)}
+.rail svg{flex-shrink:0}
+
+/* ── ראש המקטע ───────────────────────────────────────────────────────────── */
+.types{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--hairline-1);background:var(--surface-0);border-radius:999px;
+  padding:5px 13px;font-size:12.5px;color:var(--ink-2)}
+.chip:hover{background:var(--surface-2)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:500}
+
+.sec-head{margin:22px 0 2px}
+.sec-head h2{font-size:var(--fs-17);font-weight:600}
+.sec-head .lead{font-size:var(--fs-13);color:var(--ink-3);margin-top:4px;max-width:62ch;line-height:1.65}
+.sec-head .life{font-size:var(--fs-12);color:var(--ink-4);margin-top:6px}
+
+/* ── רשימת המסע ──────────────────────────────────────────────────────────── */
+.flow{margin-top:20px;max-width:620px}
+/* אבן דרך — לא בקשה, ולכן בלי נקודה ובלי מתג. מיושרת לטקסט של השורות
+   כדי שתיקרא כתחילת אותו ציר, ולא כפתיח נפרד. */
+.milestone{padding-block-end:15px;padding-inline-start:56px}
+.milestone .ms-mark{font-size:11px;color:var(--ink-4);border:1px solid var(--hairline-1);
+  border-radius:var(--r-chip);padding:1px 6px;margin-inline-end:8px;vertical-align:1px}
+.milestone .ms-t{font-size:var(--fs-14);color:var(--ink-2)}
+.milestone .ms-m{font-size:var(--fs-12);color:var(--ink-4);margin-top:4px;line-height:1.55}
+
+.req{position:relative;padding-inline-start:24px}
+.req::before{content:"";position:absolute;inset-inline-start:5px;top:20px;bottom:-2px;width:1px;background:var(--hairline-1)}
+.req.last::before{display:none}
+.dot{position:absolute;inset-inline-start:0;top:15px;width:11px;height:11px;border-radius:50%;
+  background:var(--card);border:1.5px solid var(--soft-bd)}
+.req.off>.dot{border-color:var(--ink-quiet);border-style:dashed}
+.req.child{padding-inline-start:22px}
+
+.rowhead{display:flex;align-items:flex-start;gap:8px;padding:11px 8px 11px 6px;border-radius:var(--r-input);
+  border-bottom:1px solid var(--hairline-2);width:100%;text-align:start}
+.rowhead:hover{background:var(--surface-1)}
+.rowhead:focus-visible{outline:2px solid rgba(63,95,143,.42);outline-offset:-2px}
+.grip{width:16px;flex-shrink:0;color:var(--ink-quiet);font-size:13px;line-height:1.6;cursor:grab;
+  opacity:0;transition:opacity .12s;text-align:center;align-self:center;touch-action:none;
+  -webkit-user-select:none;user-select:none}
+.grip:focus-visible{opacity:1;outline:2px solid rgba(63,95,143,.42);outline-offset:1px;border-radius:4px}
+.req:hover>.rowwrap>.rowhead .grip,.rowhead:focus-within .grip{opacity:1}
+.grip.fixed{cursor:default}
+.rowmain{flex:1;min-width:0}
+.rowtitle{font-size:var(--fs-14);color:var(--ink-1);font-weight:500}
+.rowmeta{font-size:var(--fs-12);color:var(--ink-4);margin-top:3px;line-height:1.55}
+.rowmeta .lock{color:var(--ink-4)}
+.byoffice{font-size:11px;color:var(--ink-4);border:1px solid var(--hairline-1);border-radius:var(--r-chip);
+  padding:1px 6px;margin-inline-start:6px;font-weight:400;vertical-align:1px}
+.rowaside{display:flex;align-items:center;gap:10px;flex-shrink:0;align-self:center}
+.toggle{font-size:var(--fs-12);color:var(--ink-4);opacity:0;transition:opacity .12s;white-space:nowrap;
+  padding:3px 7px;border-radius:var(--r-chip)}
+.req:hover>.rowwrap>.rowhead .toggle,.rowhead:focus-within .toggle,.toggle:focus-visible{opacity:1}
+.toggle:hover{background:var(--surface-2);color:var(--ink-2)}
+.chev{color:var(--ink-quiet);font-size:11px;transition:transform .15s;align-self:center}
+.req.open>.rowwrap>.rowhead .chev{transform:rotate(180deg)}
+
+.req.off>.rowwrap>.rowhead .rowtitle{color:var(--ink-4);font-weight:400}
+.req.off>.rowwrap>.rowhead .rowmeta{display:none}
+.req.off>.rowwrap>.rowhead .toggle{opacity:1;color:var(--ink-4)}
+.offtag{font-size:var(--fs-12);color:var(--ink-4)}
+
+/* גוף שנפתח */
+.body{padding:4px 30px 16px 6px;border-bottom:1px solid var(--hairline-2)}
+.b-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.b-lab{font-size:11px;letter-spacing:.05em;color:var(--ink-4);margin-bottom:6px}
+.preview{background:var(--s1);border-radius:var(--r-input);padding:11px 13px}
+.pv-t{font-size:var(--fs-14);color:var(--ink-1);font-weight:500}
+.pv-s{font-size:var(--fs-12);color:var(--ink-3);margin-top:3px;line-height:1.6}
+.pv-c{display:inline-block;margin-top:9px;background:var(--accent-fill);color:#fff;border-radius:var(--r-input);
+  padding:4px 12px;font-size:var(--fs-12);font-weight:500}
+.items{list-style:none;font-size:var(--fs-13);color:var(--ink-2)}
+.items li{padding:4px 0;border-bottom:1px solid var(--hairline-2);display:flex;gap:7px;align-items:center}
+.items li:last-child{border-bottom:0}
+.items li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--ink-quiet);flex-shrink:0}
+.items li span{flex:1}
+.idel{color:var(--ink-quiet);font-size:15px;line-height:1;padding:2px 5px;border-radius:var(--r-chip);opacity:0;transition:opacity .12s}
+.items li:hover .idel,.idel:focus-visible{opacity:1}
+.idel:hover{background:var(--surface-2);color:var(--danger)}
+.items li.iadd::before{display:none}
+.items li.iadd{padding-top:7px}
+.items li.iadd input{width:100%;border:1px solid var(--bd-strong);border-radius:var(--r-input);
+  padding:5px 9px;font:inherit;font-size:var(--fs-13);background:var(--card);color:var(--ink-1)}
+.pv-derived{font-size:11px;color:var(--ink-4);margin-top:6px}
+
+/* ── מצבים (רמה 2) ───────────────────────────────────────────────────────── */
+.vbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:7px}
+.vlab{font-size:11px;letter-spacing:.05em;color:var(--ink-4);margin-inline-end:3px}
+.vchip{border:1px solid var(--hairline-1);background:var(--card);border-radius:999px;
+  padding:3px 11px;font-size:var(--fs-12);color:var(--ink-3)}
+.vchip:hover{background:var(--surface-2);color:var(--ink-1)}
+.vchip.on{background:var(--surface-2-active,var(--surface-2));border-color:var(--bd-strong);
+  color:var(--ink-1);font-weight:500}
+.vadd{margin-inline-start:2px}
+.vcond{font-size:var(--fs-12);color:var(--ink-4);line-height:1.7;margin-bottom:13px;
+  display:flex;flex-direction:column;gap:2px}
+.vcond b{color:var(--ink-2);font-weight:500}
+.vwarn{color:var(--warn)}
+.vdel{margin-inline-start:8px}
+.deprow{font-size:var(--fs-12);color:var(--ink-4);margin-top:13px;padding-top:11px;
+  border-top:1px solid var(--hairline-2);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.depwhy{color:var(--ink-3)}
+.b-note{font-size:var(--fs-12);color:var(--ink-4);line-height:1.7;margin-top:14px;
+  padding-top:11px;border-top:1px solid var(--hairline-2)}
+.b-acts{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+.link{font-size:var(--fs-12);color:var(--accent);font-weight:500}
+.link:hover{text-decoration:underline}
+.link.mute{color:var(--ink-4);font-weight:400}
+.link.mute:hover{color:var(--accent)}
+
+/* הוספה */
+.add{width:100%;border:1px dashed var(--bd-strong);border-radius:var(--r-input);padding:11px;
+  color:var(--ink-3);font-size:var(--fs-13);margin-top:16px;background:transparent}
+.add:hover{border-color:var(--accent);color:var(--accent);background:var(--surface-1)}
+
+/* מגירות משניות */
+.drawer{margin-top:10px;border-top:1px solid var(--hairline-2)}
+.drawer-h{display:flex;align-items:center;gap:8px;width:100%;padding:11px 6px;text-align:start;
+  font-size:var(--fs-13);color:var(--ink-3)}
+.drawer-h:hover{color:var(--ink-1)}
+.drawer-h .cnt{color:var(--ink-4);font-size:var(--fs-12)}
+.drawer-h .caret{margin-inline-start:auto;color:var(--ink-quiet);font-size:11px;transition:transform .15s}
+.drawer.open .caret{transform:rotate(180deg)}
+.drawer-b{display:none;padding:2px 6px 16px}
+.drawer.open .drawer-b{display:block}
+.trow{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--hairline-2);font-size:var(--fs-13)}
+.trow:last-child{border-bottom:0}
+.trow .tmain{flex:1;min-width:0}
+.trow .tsub{font-size:var(--fs-12);color:var(--ink-4);margin-top:2px}
+.quiet-list{font-size:var(--fs-13);color:var(--ink-3);line-height:2}
+
+/* כפתורים */
+.btn{border:1px solid var(--hairline-1);border-radius:var(--r-input);padding:.42rem .95rem;
+  font-size:var(--fs-13);font-weight:500;color:var(--ink-2);background:var(--card)}
+.btn:hover{background:var(--surface-2)}
+.btn-primary{background:var(--accent-fill);border-color:var(--accent-fill);color:#fff}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn-ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn-ghost:hover{background:var(--surface-2)}
+
+/* חלון */
+.ov{position:fixed;inset:0;background:rgba(32,43,60,.22);display:none;align-items:center;
+  justify-content:center;padding:20px;z-index:50}
+.ov.open{display:flex}
+.modal{width:min(540px,100%);background:var(--card);border-radius:var(--r-modal);padding:20px;
+  box-shadow:var(--shadow-lg);max-height:86vh;overflow:auto}
+.modal h3{font-size:var(--fs-15);font-weight:600}
+.modal .msub{font-size:var(--fs-12);color:var(--ink-4);margin-top:3px;line-height:1.6}
+.choices{display:grid;gap:7px;margin-top:16px}
+.choice{border:1px solid var(--hairline-1);border-radius:var(--r-input);padding:11px 13px;text-align:start}
+.choice:hover{background:var(--surface-1);border-color:var(--soft-bd)}
+.choice b{display:block;font-size:var(--fs-13);font-weight:500}
+.choice span{display:block;font-size:var(--fs-12);color:var(--ink-4);margin-top:2px;line-height:1.55}
+.choice[disabled]{opacity:.45}
+.mfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:16px;
+  border-top:1px solid var(--hairline-2);padding-top:13px;flex-wrap:wrap}
+.mfoot .note{font-size:var(--fs-12);color:var(--ink-4);max-width:46ch;line-height:1.5}
+
+/* גרירה */
+.req.dragging>.rowwrap>.rowhead{background:var(--soft);border-radius:var(--r-input)}
+.req.dragging .grip{opacity:1;cursor:grabbing}
+
+#toast{position:fixed;bottom:24px;inset-inline-start:50%;transform:translateX(50%);
+  background:var(--tx);color:#fff;border-radius:var(--r-input);padding:10px 18px;font-size:var(--fs-13);
+  z-index:99;opacity:0;pointer-events:none;transition:opacity .25s;max-width:90vw;text-align:center}
+#toast.on{opacity:1}
+
+@media (max-width:820px){
+  .grid{grid-template-columns:1fr;gap:0}
+  .rail{display:none}
+  .appbar-nav{display:none}
+  .page{padding:16px 14px 60px}
+  .page-head{flex-wrap:wrap}
+  .b-grid{grid-template-columns:1fr;gap:14px}
+  /* במגע אין ריחוף: הידית, המתג וכפתור ההסרה גלויים תמיד */
+  .grip{opacity:1}
+  .idel{opacity:1}
+  .toggle{opacity:1}
+  .req:hover>.rowwrap>.rowhead .toggle{opacity:1}
+  .body{padding-inline:8px 6px}
+  .rowaside{align-self:flex-start;padding-top:2px}
+}
+</style>
+</head>
+<body>
+
+<div class="appbar"><div class="appbar-in">
+  <span class="logo"><span class="logo-dot"></span>PIVO</span>
+  <div class="appbar-sp"></div>
+  <nav class="appbar-nav"><span>לקוחות</span><span>משימות</span><span>מחשבון</span><span class="on">המשרד</span></nav>
+</div></div>
+
+<main class="page">
+
+  <div class="page-head">
+    <div>
+      <h1>המשרד</h1>
+      <p>מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח</p>
+    </div>
+    <div class="page-head-sp"></div>
+    <div class="savebar">
+      <span class="saved-note" id="dirtyNote"></span>
+      <button class="btn btn-primary" id="saveBtn" disabled onclick="save()">שמירת שינויים</button>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ── מסילת הניווט ─────────────────────────────────────────────────── -->
+    <nav class="rail" id="rail"></nav>
+
+    <!-- ── תוכן ─────────────────────────────────────────────────────────── -->
+    <div>
+
+      <div class="types" id="types"></div>
+
+      <div class="sec-head">
+        <h2 id="secTitle"></h2>
+        <div class="lead">אלו הבקשות שייכנסו אוטומטית למסע של לקוח חדש מסוג זה.
+          הסוג נקבע מתבנית ההצעה, ובהיעדר הצעה - מסוג העוסק שעל כרטיס הלקוח.</div>
+        <div class="life">מסע שכבר נפתח ממשיך לפי ברירת המחדל שהייתה בפתיחתו · שינוי כאן אינו חוזר אחורה</div>
+      </div>
+
+      <div class="flow">
+        <div id="milestone"></div>
+        <div id="list"></div>
+
+        <button class="add" onclick="openCatalog()">＋ הוסף בקשה</button>
+
+        <div class="drawer" id="dInternal">
+          <button class="drawer-h" onclick="toggleDrawer('dInternal')">
+            <span>עבודה פנימית שנוצרת גם כן</span>
+            <span class="cnt" id="internalCount"></span>
+            <span class="caret">⌄</span>
+          </button>
+          <div class="drawer-b">
+            <div class="quiet-list" id="internalList"></div>
+            <div class="b-note" style="border:0;padding:0;margin-top:10px">
+              נוצרת אוטומטית ואינה מופיעה בדף האישי של הלקוח. מנוהלת ממסך הלקוח, לא מכאן.
+            </div>
+          </div>
+        </div>
+
+        <div class="drawer" id="dTpl">
+          <button class="drawer-h" onclick="toggleDrawer('dTpl')">
+            <span>תבניות שמורות</span>
+            <span class="cnt">3</span>
+            <span class="caret">⌄</span>
+          </button>
+          <div class="drawer-b">
+            <div id="tplList"></div>
+            <div class="b-note" style="border:0;padding:0;margin-top:12px">
+              תבנית היא נקודת התחלה. הוספה למסלול יוצרת עותק — עריכה כאן לא תשנה את התבנית.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ── קטלוג הבקשות ───────────────────────────────────────────────────────── -->
+<div class="ov" id="ovCatalog" onclick="if(event.target===this)closeOv('ovCatalog')">
+  <div class="modal">
+    <h3>הוספת בקשה לברירת המחדל</h3>
+    <div class="msub" id="catSub"></div>
+    <div class="choices" id="catList"></div>
+    <div class="mfoot">
+      <span class="note">בקשה חד־פעמית ללקוח מסוים מוסיפים ממסך הלקוח, לא כאן.</span>
+      <button class="btn btn-ghost" onclick="closeOv('ovCatalog')">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── רמה 3 · העובדות שאפשר להתנות בהן ─────────────────────────────────────── -->
+<div class="ov" id="ovFacts" onclick="if(event.target===this)closeOv('ovFacts')">
+  <div class="modal">
+    <h3>מצב נוסף</h3>
+    <div class="msub" id="factsSub"></div>
+    <div class="choices" id="factsList"></div>
+    <div class="mfoot">
+      <span class="note">המצבים נבדקים לפי הסדר, וברירת המחדל אחרונה. אין ניסוח חופשי - אלו כל העובדות שקיימות.</span>
+      <button class="btn btn-ghost" onclick="closeOv('ovFacts')">סגור</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   נתונים — מועתקים מהתנאים האמיתיים ב-generate_onboarding_steps
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const TYPES = [
+  { k:'exempt_dealer',      label:'עוסק פטור' },
+  { k:'licensed_dealer',    label:'עוסק מורשה' },
+  { k:'company',            label:'חברה' },
+  { k:'tax_refund',         label:'החזר מס' },
+  { k:'representation_only',label:'ייצוג בלבד' },
+];
+
+/* התנאים כפי שהם בקוד. `fixed` = תנאי מערכת שאי אפשר לערוך מכאן. */
+const DEF = {
+  client_documents: {
+    name:'מסמכים מהלקוח', owner:'הלקוח מעלה', cond:'תמיד', src:'system',
+    pv:{ t:'להעלות 3 מסמכים', s:'אישור בנק · דוח שנתי · ת.ז.', c:'להעלאה' },
+    items:['אישור ניהול חשבון בנק','דוח שנתי אחרון','טופס 106'],
+  },
+  prev_accountant_details: {
+    name:'פרטי הרו״ח הקודם', owner:'הלקוח ממלא', cond:'כשיש רו״ח קודם ואין המייל שלו בכרטיס', src:'system',
+    pv:{ t:'פרטי רואה החשבון הקודם שלך', s:'שם, אימייל וטלפון — כדי שנפנה אליו בשמך', c:'למילוי' },
+    items:['שם רואה החשבון','כתובת אימייל','טלפון'],
+    note:'בלי מייל אין למי לשלוח את מכתב ההעברה, ולכן המכתב תלוי בבקשה הזאת ולא נולד פתוח לחינם.',
+  },
+  release_letter: {
+    name:'מכתב העברת טיפול', owner:'נשלח לרו״ח הקודם', cond:'כשיש רו״ח קודם', src:'system',
+    dep:'פרטי הרו״ח הקודם', extern:true,
+    items:['שלד המכתב שהמשרד עורך','ארבעה סעיפים שנגזרים מההצעה'],
+    note:'הנמען הוא הרו״ח הקודם ולא הלקוח, ולכן הבקשה אינה מופיעה בדף האישי. הנוסח נערך ב«פייפרלס ותקשורת».',
+  },
+  materials_received: {
+    name:'קבלת חומרים מהרו״ח הקודם', owner:'הרו״ח הקודם מעלה', cond:'כשיש רו״ח קודם', src:'system',
+    dep:'מכתב העברת טיפול', extern:true,
+    items:['כרטסות הנהלת חשבונות','קובץ מבנה אחיד','כרטסת אקסל','טופס פחת','דוח שנתי אחרון','הצהרת הון אחרונה','כרטסת רווח והפסד שוטפת','מאזן בוחן'],
+    note:'שמונת הפריטים הם ברירת המחדל. אפשר להוריד פריטים מהרשימה — כל לקוח יתחיל ממה שנשאר כאן.',
+  },
+  paperless_invite: {
+    name:'הרשמה לפייפרלס', owner:'הלקוח נרשם', cond:'כשההצעה כוללת שירות חודשי או הנהלת חשבונות', src:'system',
+    pv:{ t:'הרשמה לפייפרלס', s:'שתי דקות, ומשם רק מצלמים קבלות מהטלפון', c:'נרשמתי לפייפרלס' },
+    items:['אישור שההרשמה בוצעה'],
+    note:'ראש רצף הפייפרלס. שלוש הבקשות שמתחתיו נפתחות בשרשרת ולא בסדר שנקבע כאן.',
+  },
+  paperless_connection: {
+    name:'חיבור לפייפרלס', owner:'בטיפול המשרד', cond:'עם ההרשמה לפייפרלס', src:'system',
+    dep:'הרשמה לפייפרלס',
+    items:['חמישה סעיפי הקמה בחשבון','הזנת פרטי האשראי'],
+    note:'הפעולה נעשית בתוך חשבון הפייפרלס ולכן היא של המשרד. הלקוח רואה אותה כ«בטיפול המשרד» בלי שום כפתור.',
+  },
+  paperless_tax_authority: {
+    hint:'לעוסק מורשה ולחברה - הלקוח מחבר את פייפרלס לרשות המסים',
+    name:'חיבור פייפרלס לרשות המסים', owner:'הלקוח מחבר', cond:'עוסק מורשה וחברה בלבד', src:'system',
+    dep:'חיבור לפייפרלס',
+    pv:{ t:'חיבור פייפרלס לרשות המסים', s:'משם החשבוניות מקבלות מספר הקצאה', c:'לחיבור' },
+    items:['הזדהות בת.ז. ובקוד הקבוע','אישור שהחיבור בוצע'],
+    note:'עוסק פטור אינו מוציא חשבונית מס ואין לו מה להקצות, ולכן הבקשה אינה נוצרת לו. היא נשארת זמינה תמיד מ«הוסף בקשה».',
+  },
+  retainer_authorization: {
+    name:'הרשאה לתשלום חודשי', owner:'הלקוח מזין', cond:'כשיש סכום חודשי בהצעה', src:'system',
+    dep:'חיבור לפייפרלס',
+    pv:{ t:'להזין אמצעי תשלום', s:'הסכום שסוכם בהצעה, כהרשאה קבועה', c:'להזנה' },
+    items:['אמצעי תשלום','אישור הסכום החודשי'],
+    note:'הסכום מגיע מההצעה שאושרה. נפתחת רק אחרי שהחיבור לפייפרלס הושלם.',
+  },
+  intake_questionnaire: {
+    hint:'רענון תיק המס - שאלון ומסמכים לפי מה שחסר',
+    name:'עדכון סטטוס מס', owner:'הלקוח ממלא', cond:'תמיד', src:'system',
+    pv:{ t:'רענון תיק המס', s:'שאלון קצר ומסמכים לפי מה שחסר', c:'למילוי' },
+    items:['שאלון היכרות','מסמכים משלימים לפי התשובות'],
+    note:'לא נוצר מההצעה אלא נפתח בנפרד. הפעלה כאן תכניס אותו למסע של כל לקוח חדש מסוג זה.',
+  },
+  fee_ack: {
+    hint:'אישור קצר שהלקוח קורא וחותם עליו בדף האישי',
+    name:'אישור תנאי שכר טרחה', owner:'הלקוח מאשר', cond:'תמיד', src:'office',
+    pv:{ t:'אישור תנאי ההתקשרות', s:'קריאה קצרה ואישור — שתי דקות', c:'למילוי' },
+    items:['קראתי ואני מאשר את תנאי שכר הטרחה'],
+  },
+  car_expenses: {
+    hint:'אישור קריאה, מספר רישוי וצילום רישיון הרכב',
+    name:'פרטי רכב להכרה בהוצאות', owner:'הלקוח ממלא', cond:'תמיד', src:'office',
+    pv:{ t:'פרטי הרכב לצורך הכרה בהוצאות', s:'אישור קריאה, מספר רישוי וצילום רישיון', c:'למילוי' },
+    items:['קראתי והבנתי את כללי ההכרה בהוצאות רכב','מספר רישוי הרכב','צילום רישיון הרכב'],
+  },
+  bank_debit: {
+    hint:'הלקוח פותח הרשאה בבנק ומעלה אסמכתה - לרשויות שתבחר',
+    name:'הרשאה לחיוב בבנק', owner:'הלקוח פותח', cond:'תמיד', src:'office',
+    pv:{ t:'הרשאה לחיוב חשבון', s:'פותחים בבנק ומעלים אסמכתה לכל רשות', c:'להעלאה' },
+    items:['אסמכתה — מס הכנסה','אסמכתה — מע״מ','אסמכתה — ביטוח לאומי'],
+    note:'קוד ההרשאה של כל רשות מוצג ללקוח בדף האישי.',
+  },
+  send_document: {
+    hint:'מסמך מספריית המשרד - נסגרת כשהלקוח פותח אותו',
+    name:'שליחת מסמך ללקוח', owner:'הלקוח קורא', cond:'תמיד', src:'office',
+    pv:{ t:'מסמך לעיון', s:'נסגרת לבד ברגע שהלקוח פותח את המסמך', c:'לצפייה' },
+    items:['קובץ מספריית «מסמכים ללקוחות»'],
+    note:'הקובץ עצמו מנוהל במסך «מסמכים ללקוחות».',
+  },
+};
+
+/* ── וריאציות ────────────────────────────────────────────────────────────────
+   ‼ רק שתי בקשות מסתעפות היום, ושתיהן נלקחו מהקוד החי ולא הומצאו:
+   «מסמכים מהלקוח» (שלוש רשימות) ו«פרטי הרו״ח הקודם» (שני נוסחים).
+   הענף האחרון הוא תמיד «ברירת מחדל» — הוא הנופל־אחורה ולכן אינו נמחק ואינו זז.
+   ההכרעה היא בהתאמה ראשונה, בדיוק כמו ה-if/elsif/else שבמחולל. */
+const VARIANTS = {
+  client_documents: [
+    { key:'new_business', label:'עסק חדש',
+      when:'כשעל הכרטיס מסומן במפורש שזה אינו עסק שעבר אלינו, ואין רו״ח קודם',
+      warn:'השדה «העברת עסק» ריק ברוב הכרטיסים, ואז הענף הזה לא נכנס לפעולה',
+      items:['תעודת עוסק','צילום תעודת זהות','אישור ניהול חשבון בנק'] },
+    { key:'has_prev', label:'מגיע מרו״ח אחר',
+      when:'כשיש רו״ח קודם',
+      items:['אישור ניהול חשבון בנק','דוח שנתי אחרון','טופס 106'] },
+    { key:'default', label:'ברירת מחדל',
+      when:'כל השאר - כולל כשלא ידוע אם העסק חדש',
+      items:['צילום תעודת זהות','אישור ניהול חשבון בנק'] },
+  ],
+  prev_accountant_details: [
+    { key:'no_email', label:'אין מייל בכרטיס',
+      when:'כשאין מייל של הרו״ח הקודם על כרטיס הלקוח',
+      note:'בענף הזה הבקשה גם חוסמת את סגירת הקליטה - בלי מייל אין למי לשלוח את המכתב',
+      pv:{ t:'פרטי רואה החשבון הקודם שלך', s:'שם, אימייל וטלפון - כדי שנפנה אליו בשמך', c:'למילוי' },
+      items:['שם רואה החשבון','כתובת אימייל','טלפון'] },
+    { key:'default', label:'ברירת מחדל',
+      when:'כשהמייל כבר על הכרטיס',
+      pv:{ t:'לאשר את פרטי רואה החשבון הקודם', s:'הפרטים שאצלנו מוצגים למילוי מראש - רק לוודא שהם נכונים', c:'לאישור' },
+      items:['אישור שהפרטים נכונים'] },
+  ],
+};
+
+/** בקשה בלי הסתעפות מקבלת ענף יחיד בשעת הצורך — כך אין הבדל מבני בין השתיים. */
+function variantsOf(id){
+  if (!VARIANTS[id]) {
+    const d = DEF[id];
+    VARIANTS[id] = [{ key:'default', label:'ברירת מחדל', when:d.cond, pv:d.pv, items:[...d.items] }];
+  }
+  return VARIANTS[id];
+}
+
+/* ‼ אוצר מילים סגור, לא בונה חוקים. שבע העובדות הן בדיוק מה שהמחולל יודע
+   לשאול על לקוח — אין שמינית, ולכן אין מה לנסח בחופשי. */
+const FACTS = [
+  { k:'monthly',      label:'שירות חודשי בהצעה',            when:'כשההצעה כוללת שירות חודשי' },
+  { k:'paperless',    label:'פייפרלס או הנהלת חשבונות בהצעה', when:'כשההצעה כוללת הנהלת חשבונות או פייפרלס' },
+  { k:'licensed',     label:'עוסק מורשה או חברה',            when:'כשהלקוח עוסק מורשה או חברה' },
+  { k:'rep',          label:'ההצעה כוללת ייצוג',             when:'כשההצעה כוללת ייצוג' },
+  { k:'has_prev',     label:'יש רו״ח קודם',                  when:'כשיש רו״ח קודם' },
+  { k:'new_business', label:'עסק חדש',                      when:'כשעל הכרטיס מסומן במפורש שזה אינו עסק שעבר אלינו, ואין רו״ח קודם' },
+  { k:'no_email',     label:'אין מייל של הרו״ח הקודם',        when:'כשאין מייל של הרו״ח הקודם על כרטיס הלקוח' },
+];
+
+/* התבניות ששמורות היום במסד. «מעבר מרו״ח אחר» היא תבנית אמיתית של המשרד —
+   שמונה בקשות שנשמרו מצילום של מסע לקוח. היא נמצאת כאן כדי שנראה במו עינינו
+   כמה ממנה כבר מכוסה על ידי ברירת המחדל, ולא כדי להישאר מנגנון מקביל. */
+const TEMPLATES = [
+  { name:'מעבר מרו״ח אחר', sub:'נשמרה מהמסע של דנה כהן',
+    entries:['client_documents','prev_accountant_details','car_expenses','materials_received',
+             'paperless_invite','release_letter','#kyc','fee_ack'] },
+  { name:'מסמכים מהלקוח',    sub:'תבנית מובנית', entries:['client_documents'] },
+  { name:'פרטי הרו״ח הקודם', sub:'תבנית מובנית', entries:['prev_accountant_details'] },
+];
+/* '#kyc' = «הכרת הלקוח», שנוצרת תמיד כעבודה פנימית ולכן נחשבת מכוסה. */
+
+/* אבן הדרך — ייצוג. לא בקשה, ולכן היא מוצגת מעל הרשימה ולא בתוכה. */
+const MILESTONE = { name:'ייצוג מול הרשויות', cond:'כשההצעה כוללת ייצוג' };
+
+/* עבודה פנימית שהמרכיב יוצר ואינה מוצגת במשטח הבקשות. */
+const INTERNAL = {
+  exempt_dealer:      ['הקמה פנימית','הכרת הלקוח','ביקורת חודש ראשון'],
+  licensed_dealer:    ['הקמה פנימית','הכרת הלקוח','ביקורת חודש ראשון'],
+  company:            ['הקמה פנימית','הכרת הלקוח','ביקורת חודש ראשון'],
+  tax_refund:         ['הקמה פנימית','הכרת הלקוח'],
+  representation_only:['הקמה פנימית','הכרת הלקוח','פתיחת תיקים ברשויות · כשזה עסק חדש'],
+};
+
+/* המסע ההתחלתי לכל סוג. ילדים = תלות אמיתית בקוד, ולכן אינם ניתנים לגרירה. */
+function seed() {
+  const chainPrev = () => ({ id:'prev_accountant_details', on:true, kids:[
+    { id:'release_letter', on:true, kids:[ { id:'materials_received', on:true, kids:[] } ] },
+  ]});
+  const chainPaperless = (withTaxAuth) => ({ id:'paperless_invite', on:true, kids:[
+    { id:'paperless_connection', on:true, kids:[
+      ...(withTaxAuth ? [{ id:'paperless_tax_authority', on:true, kids:[] }] : []),
+      { id:'retainer_authorization', on:true, kids:[] },
+    ]},
+  ]});
+  return {
+    exempt_dealer: [
+      { id:'client_documents', on:true, kids:[] },
+      chainPrev(),
+      chainPaperless(false),
+      { id:'intake_questionnaire', on:false, kids:[] },
+    ],
+    licensed_dealer: [
+      { id:'client_documents', on:true, kids:[] },
+      chainPrev(),
+      chainPaperless(true),
+      { id:'fee_ack', on:true, kids:[] },
+      { id:'intake_questionnaire', on:false, kids:[] },
+    ],
+    company: [
+      { id:'client_documents', on:true, kids:[] },
+      chainPrev(),
+      chainPaperless(true),
+      { id:'intake_questionnaire', on:false, kids:[] },
+    ],
+    tax_refund: [
+      { id:'client_documents', on:true, kids:[] },
+      { id:'intake_questionnaire', on:true, kids:[] },
+    ],
+    representation_only: [
+      { id:'client_documents', on:true, kids:[] },
+      chainPrev(),
+    ],
+  };
+}
+
+const JOURNEY = seed();
+let type = 'licensed_dealer';
+const dirty = {};
+const open = new Set();
+/** איזה מצב נבחר בכל בקשה פתוחה, ואיזו בקשה נמצאת כרגע בהוספת פריט. */
+const vsel = {};
+let addItemFor = null;
+let factsFor = null;
+
+/** למה כל תלות קיימת — משפט אחד, לקריאה בלבד. */
+const DEP_WHY = {
+  paperless_connection: 'אי אפשר להיכנס לחשבון ולהשלים את ההקמה לפני שהלקוח נרשם.',
+  paperless_tax_authority: 'בלי שם עסק ומשיכת עוסקים בחשבון אין מה לחבר לרשות המסים.',
+  retainer_authorization: 'ההרשאה נפתחת בפייפרלס, ולכן היא ממתינה לחיבור.',
+  release_letter: 'בלי המייל של הרו״ח הקודם אין למי לשלוח את המכתב.',
+  materials_received: 'החומרים מגיעים בעקבות המכתב, ולכן אין מה לפתוח לפניו.',
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ניווט המשרד — הפריט החדש בין «פייפרלס ותקשורת» ל«מסמכים ללקוחות»
+   ═══════════════════════════════════════════════════════════════════════════ */
+const ICONS = {
+  identity:'M4 5h16v14H4z M10 11a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M8.5 16.5c.4-1.3 1.8-2 3.5-2s3.1.7 3.5 2',
+  branding:'M12 21a9 9 0 1 1 0-18 8 8 0 0 1 8 8h-3.5a2.5 2.5 0 0 0 0 5H18a2 2 0 0 1 0 5z M7.5 10.5h.01 M11 7.5h.01 M15 9h.01',
+  design:'M4 20s3 .8 5-1.2c1.5-1.5 1-4 3-5l7-7-2-2-7 7c-1 2-3.5 1.5-5 3-2 2-1 5.2-1 5.2z',
+  contact:'M6 3h13v18H6z M6 3v18 M11 10a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M10.5 16c.3-1.1 1.4-1.7 2.5-1.7s2.2.6 2.5 1.7',
+  signature:'M3 19c3 0 5-2 6-5s2-6 4-6 2 3 0 6-4 4-6 4c3 0 6 1 8 1s3-1 3-1',
+  communication:'M8 9h8 M8 13h5 M4 5h16v11H9l-5 4z',
+  bell:'M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6 M9 17v1a3 3 0 0 0 6 0v-1',
+  mailCog:'M3 6h18v7 M3 7l9 6 9-6 M17.5 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0',
+  requests:'M9 4h6v3H9z M7 5H5v15h14V5h-2 M9 12h6 M9 16h4',
+  fileUpload:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M12 17v-5 M9.5 14.5 12 12l2.5 2.5',
+  emailActivity:'M3 6h18v12H3z M3 7l9 6 9-6',
+  quotations:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4',
+  employees:'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M17.5 5.2a3 3 0 0 1 0 5.6 M21 20v-1a4 4 0 0 0-3-3.85',
+  bolt:'M13 2 4 14h7l-1 8 9-12h-7z',
+  userCheck:'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M16 12.5l2 2 4-4',
+  dashboard:'M4 4h7v7H4z M13 4h7v4h-7z M13 10h7v10h-7z M4 13h7v7H4z',
+  shieldLock:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M12 11v3',
+};
+const icon = n => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICONS[n]||''}"/></svg>`;
+
+const RAIL = [
+  ['המשרד', null],
+  [null,['זהות','identity'],['מותג','branding'],['עיצוב עמודי לקוח','design'],['פרטי קשר','contact'],
+        ['חתימת מייל','signature'],['ערוצי תקשורת','communication'],['התראות למשרד','bell'],
+        ['פייפרלס ותקשורת','mailCog'],['בקשות מסמכים','requests','active'],['מסמכים ללקוחות','fileUpload'],
+        ['פעילות מייל','emailActivity'],['הצעות מחיר','quotations']],
+  ['צוות', null],
+  [null,['עובדים','employees']],
+  ['תקשורת ואוטומציה', null],
+  [null,['אוטומציות','bolt','soon']],
+  ['חוויות לקוח', null],
+  [null,['עמודי הזדהות','userCheck','soon'],['חתימה דיגיטלית','signature','soon'],['פורטל לקוחות','dashboard','soon']],
+  ['מערכת', null],
+  [null,['הרשאות ותפקידים','shieldLock','soon']],
+];
+
+function renderRail(){
+  let h = '';
+  for (const grp of RAIL) {
+    if (grp[1] === null && typeof grp[0] === 'string') { h += `<div class="rail-group">${grp[0]}</div>`; continue; }
+    for (let i = 1; i < grp.length; i++) {
+      const [label, ic, flag] = grp[i];
+      if (flag === 'soon') h += `<div class="rail-soon" title="בקרוב - עדיין לא פעיל">${icon(ic)}${label}<span class="rail-soon-tag">בקרוב</span></div>`;
+      else h += `<button class="rail-item${flag==='active'?' is-active':''}">${icon(ic)}${label}</button>`;
+    }
+  }
+  document.getElementById('rail').innerHTML = h;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   רינדור
+   ═══════════════════════════════════════════════════════════════════════════ */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const typeLabel = k => TYPES.find(t => t.k === k).label;
+
+function renderTypes(){
+  document.getElementById('types').innerHTML = TYPES.map(t =>
+    `<button class="chip${t.k===type?' on':''}" onclick="setType('${t.k}')">${t.label}</button>`).join('');
+  document.getElementById('secTitle').textContent = `ברירת המחדל — ${typeLabel(type)}`;
+}
+
+function renderMilestone(){
+  const has = type !== 'tax_refund';
+  document.getElementById('milestone').innerHTML = has
+    ? `<div class="milestone">
+         <div class="ms-t"><span class="ms-mark">אבן דרך</span>${MILESTONE.name}</div>
+         <div class="ms-m">${MILESTONE.cond} · מוצגת מעל הבקשות ולא כבקשה, ולכן אינה נכבית מכאן</div>
+       </div>`
+    : '';
+}
+
+function rowHtml(node, depth, isLastTop){
+  const d = DEF[node.id];
+  const isOpen = open.has(node.id);
+  const meta = d.dep
+    ? `<span class="lock">נפתחת אחרי «${esc(d.dep)}»</span> · ${esc(d.owner)}`
+    : `${esc(d.cond)} · ${esc(d.owner)}`;
+
+  const kids = (node.kids||[]).map(k => rowHtml(k, depth+1, false)).join('');
+
+  return `
+  <div class="req${depth?' child':''}${node.on?'':' off'}${isOpen?' open':''}${isLastTop&&!kids?' last':''}"
+       data-id="${node.id}" ${depth===0?'draggable="false"':''}>
+    <span class="dot"></span>
+    <div class="rowwrap">
+      <div class="rowhead" tabindex="0" role="button" aria-expanded="${isOpen}"
+           onclick="toggleOpen('${node.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleOpen('${node.id}')}">
+        ${depth===0
+          ? `<span class="grip" tabindex="0" role="button" aria-label="שינוי מיקום"
+               title="גרירה משנה את הסדר · אפשר גם בחצים למעלה/למטה"
+               onclick="event.stopPropagation()"
+               onkeydown="gripKey(event,'${node.id}')">⠿</span>`
+          : `<span class="grip fixed" title="הסדר נקבע על ידי התלות ולא ניתן לגרירה">↳</span>`}
+        <div class="rowmain">
+          <div class="rowtitle">${esc(d.name)}${d.src==='office'?'<span class="byoffice">נוסף על ידך</span>':''}</div>
+          <div class="rowmeta">${meta}</div>
+        </div>
+        <div class="rowaside">
+          ${node.on?'':'<span class="offtag">כבוי</span>'}
+          <button class="toggle" onclick="event.stopPropagation();flip('${node.id}')">${node.on?'כבה':'הפעל'}</button>
+          <span class="chev">⌄</span>
+        </div>
+      </div>
+      ${isOpen ? bodyHtml(node, d) : ''}
+    </div>
+    ${kids}
+  </div>`;
+}
+
+function bodyHtml(node, d){
+  const vs = variantsOf(node.id);
+  const sel = Math.min(vsel[node.id] ?? 0, vs.length - 1);
+  const v = vs[sel];
+  const multi = vs.length > 1;
+
+  /* ‼ ב«מסמכים מהלקוח» הכותרת והשורה שמתחתיה נגזרות מהרשימה ואינן נוסח כתוב —
+     כך זה בקוד היום, וכך זה חייב להיראות כאן, אחרת נבטיח שליטה שלא קיימת. */
+  const derived = node.id === 'client_documents';
+  const pvData = derived
+    ? { t:`להעלות ${v.items.length} מסמכים`, s:v.items.join(' · '), c:'להעלאה' }
+    : (v.pv || d.pv);
+
+  const pv = pvData ? `
+      <div class="preview">
+        <div class="pv-t">${esc(pvData.t)}</div>
+        <div class="pv-s">${esc(pvData.s)}</div>
+        <div class="pv-c">${esc(pvData.c)}</div>
+      </div>
+      ${derived ? '<div class="pv-derived">הכותרת והשורה שמתחתיה נגזרות מהרשימה</div>' : ''}`
+    : `<div class="preview"><div class="pv-s">${d.extern
+        ? 'לא מופיע בדף האישי — הפנייה יוצאת לגורם חיצוני.'
+        : 'לא מופיע כפעולה — הלקוח רואה «בטיפול המשרד».'}</div></div>`;
+
+  /* רמה 2: הבורר מופיע רק כשיש באמת יותר ממצב אחד. */
+  const vbar = multi ? `
+    <div class="vbar">
+      <span class="vlab">לפי מצב הלקוח</span>
+      ${vs.map((x, i) => `<button class="vchip${i===sel?' on':''}"
+         onclick="pickVariant('${node.id}',${i})">${esc(x.label)}</button>`).join('')}
+      <button class="link mute vadd" onclick="openFacts('${node.id}')">＋ מצב</button>
+    </div>
+    <div class="vcond">
+      <div><b>${esc(v.label)}</b> — ${esc(v.when)}${v.key==='default' ? '' : ' · נבדק לפני ברירת המחדל'}</div>
+      ${v.warn ? `<div class="vwarn">⚠ ${esc(v.warn)}</div>` : ''}
+      ${v.note ? `<div>${esc(v.note)}</div>` : ''}
+      ${v.key !== 'default'
+        ? `<div><button class="link mute" onclick="dropVariant('${node.id}',${sel})">הסר מצב</button></div>` : ''}
+    </div>` : '';
+
+  const items = v.items.map((label, i) => `
+    <li><span>${esc(label)}</span>
+      <button class="idel" title="הסרה" onclick="dropItem('${node.id}',${sel},${i})">×</button></li>`).join('');
+
+  const adder = addItemFor === node.id
+    ? `<li class="iadd"><input id="itemInput" placeholder="שם הפריט" autocomplete="off"
+         onkeydown="itemKey(event,'${node.id}',${sel})" onblur="cancelItem()"></li>`
+    : `<li class="iadd"><button class="link mute" onclick="startItem('${node.id}')">＋ פריט</button></li>`;
+
+  return `
+  <div class="body" onclick="event.stopPropagation()">
+    ${vbar}
+    <div class="b-grid">
+      <div>
+        <div class="b-lab">מה הלקוח רואה</div>
+        ${pv}
+      </div>
+      <div>
+        <div class="b-lab">${d.extern ? 'מה מבקשים' : 'מה נדרש'}</div>
+        <ul class="items">${items}${adder}</ul>
+      </div>
+    </div>
+    ${d.dep ? `
+    <div class="deprow">
+      תלות: נפתחת אחרי «${esc(d.dep)}»
+      <button class="link mute" onclick="whyDep('${node.id}')">למה?</button>
+      <span class="depwhy" id="why-${node.id}" hidden>${esc(DEP_WHY[node.id] || '')}</span>
+    </div>` : ''}
+    <div class="b-note">
+      ${!node.on
+        ? 'כבויה — לא תיווצר ללקוח חדש, ולכן גם לא תיחשב כדרישה שחוסמת את סגירת הקליטה.<br>'
+        : ''}
+      ${d.src === 'system'
+        ? `נוצרת על ידי המערכת — <b style="font-weight:500">${esc(d.cond)}</b>. את התנאי אי אפשר לשנות מכאן; אפשר לכבות את הבקשה, לשנות את מקומה ולערוך את מה שהיא מבקשת.`
+        : 'בקשה שהמשרד הוסיף — אין לה תנאי מערכת, והיא תיווצר לכל לקוח חדש מסוג זה.'}
+      ${node.on && d.src === 'system' && d.cond !== 'תמיד'
+        ? '<br>אם התנאי יתקיים רק בהמשך, הבקשה תיוולד אז - במקום הזה במסלול של הלקוח ולא בסופו.'
+        : ''}
+      ${d.note ? `<br>${esc(d.note)}` : ''}
+    </div>
+    <div class="b-acts">
+      ${!multi ? `<button class="link" onclick="openFacts('${node.id}')">＋ מצב נוסף</button>` : ''}
+      <button class="link mute" onclick="toast('נשמר כתבנית — לא ממומש בפרוטוטייפ')">שמור כתבנית</button>
+      ${d.src === 'office'
+        ? `<button class="link mute" onclick="removeRow('${node.id}')">הסר מברירת המחדל</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function render(){
+  renderTypes();
+  renderMilestone();
+  const rows = JOURNEY[type];
+  document.getElementById('list').innerHTML =
+    rows.map((n,i) => rowHtml(n, 0, i === rows.length-1)).join('');
+  const inl = INTERNAL[type];
+  document.getElementById('internalCount').textContent = inl.length;
+  document.getElementById('internalList').innerHTML = inl.map(x => `<div>${esc(x)}</div>`).join('');
+  renderTemplates();
+  wireDrag();
+  /* הרשימה נבנית מחדש בכל שינוי, ולכן המיקוד בשדה הפריט מוחזר ביד. */
+  if (addItemFor) document.getElementById('itemInput')?.focus();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   אינטראקציה
+   ═══════════════════════════════════════════════════════════════════════════ */
+function setType(k){ type = k; open.clear(); addItemFor = null; render(); renderSave(); }
+function toggleOpen(id){ open.has(id) ? open.delete(id) : open.add(id); addItemFor = null; render(); }
+
+/* ── רמה 2: מצבים ─────────────────────────────────────────────────────────── */
+function pickVariant(id, i){ vsel[id] = i; addItemFor = null; render(); }
+
+function dropVariant(id, i){
+  const vs = variantsOf(id);
+  if (vs[i].key === 'default') return;   // הנופל־אחורה אינו נמחק
+  vs.splice(i, 1);
+  vsel[id] = 0;
+  markDirty(); render();
+  toast('המצב הוסר · הבקשה תיווצר לפי ברירת המחדל');
+}
+
+function dropItem(id, vi, ii){
+  variantsOf(id)[vi].items.splice(ii, 1);
+  markDirty(); render();
+}
+function startItem(id){ addItemFor = id; render(); }
+function cancelItem(){ if (addItemFor) { addItemFor = null; render(); } }
+function itemKey(e, id, vi){
+  if (e.key === 'Escape') { e.target.blur(); return; }
+  if (e.key !== 'Enter') return;
+  const label = e.target.value.trim();
+  if (!label) { e.target.blur(); return; }
+  variantsOf(id)[vi].items.push(label);
+  e.target.value = '';
+  markDirty(); render();
+  document.getElementById('itemInput')?.focus();
+}
+
+function whyDep(id){
+  const el = document.getElementById('why-' + id);
+  if (el) el.hidden = !el.hidden;
+}
+
+/* ── רמה 3: מצב נוסף — בחירה מרשימה סגורה, לא ניסוח חופשי ─────────────────── */
+function openFacts(id){
+  factsFor = id;
+  const used = new Set(variantsOf(id).map(v => v.key));
+  document.getElementById('factsSub').textContent =
+    `הבקשה «${DEF[id].name}» תיווצר אחרת כשהעובדה נכונה. אלו כל העובדות שהמערכת יודעת על לקוח.`;
+  document.getElementById('factsList').innerHTML = FACTS.map(f => {
+    const on = used.has(f.k);
+    return `<button class="choice" ${on?'disabled':''} onclick="addVariant('${f.k}')">
+      <b>${esc(f.label)}</b><span>${on ? 'כבר מוגדר לבקשה הזאת' : esc(f.when)}</span></button>`;
+  }).join('');
+  document.getElementById('ovFacts').classList.add('open');
+}
+
+function addVariant(k){
+  const id = factsFor, f = FACTS.find(x => x.k === k);
+  const vs = variantsOf(id);
+  const base = vs[vs.length - 1];                 // מתחילים מברירת המחדל
+  vs.splice(vs.length - 1, 0, {
+    key:f.k, label:f.label, when:f.when,
+    pv: base.pv ? { ...base.pv } : undefined,
+    items:[...base.items],
+  });
+  vsel[id] = vs.length - 2;
+  closeOv('ovFacts'); markDirty(); render();
+  toast(`נוסף מצב «${f.label}» · מתחיל מהעתק של ברירת המחדל`);
+}
+
+function find(id, list = JOURNEY[type]){
+  for (const n of list){
+    if (n.id === id) return n;
+    const f = find(id, n.kids||[]);
+    if (f) return f;
+  }
+  return null;
+}
+function setSubtree(node, on){ node.on = on; (node.kids||[]).forEach(k => setSubtree(k, on)); }
+
+function flip(id){
+  const n = find(id);
+  const turningOff = n.on;
+  /* כיבוי ראש שרשרת מכבה את מה שתלוי בו — אחרת היינו מבטיחים בקשה שלא תוכל להיפתח */
+  setSubtree(n, !turningOff);
+  if (turningOff && (n.kids||[]).length) toast(`«${DEF[id].name}» כובתה — גם מה שתלוי בה`);
+  markDirty();
+  render();
+}
+
+function removeRow(id){
+  const strip = list => list.filter(n => { n.kids = strip(n.kids||[]); return n.id !== id; });
+  JOURNEY[type] = strip(JOURNEY[type]);
+  open.delete(id);
+  markDirty();
+  render();
+  toast('הוסרה מברירת המחדל');
+}
+
+/* ‼ הסימון «לא נשמר» הוא לכל סוג בנפרד — ההודעה בשמירה מבטיחה סוג אחד,
+   ולכן היא לא תהיה נכונה אם עריכה של סוג אחר תיסחף איתה. */
+function markDirty(){ dirty[type] = true; renderSave(); }
+function renderSave(){
+  const on = !!dirty[type];
+  document.getElementById('saveBtn').disabled = !on;
+  document.getElementById('dirtyNote').textContent = on ? 'יש שינויים שלא נשמרו' : '';
+}
+function save(){
+  delete dirty[type];
+  renderSave();
+  toast(`נשמר · יחול על לקוחות חדשים מסוג «${typeLabel(type)}»`);
+}
+
+/* ── קטלוג ─────────────────────────────────────────────────────────────── */
+function openCatalog(){
+  const inUse = new Set();
+  (function walk(l){ l.forEach(n => { inUse.add(n.id); walk(n.kids||[]); }); })(JOURNEY[type]);
+  const offer = ['fee_ack','car_expenses','bank_debit','send_document','intake_questionnaire','paperless_tax_authority'];
+  document.getElementById('catSub').textContent =
+    `הבקשה תיווצר לכל לקוח חדש מסוג «${typeLabel(type)}». לקוחות שכבר במסע לא יושפעו.`;
+  document.getElementById('catList').innerHTML = offer.map(k => {
+    const d = DEF[k], used = inUse.has(k);
+    const na = k === 'paperless_tax_authority' && !['licensed_dealer','company'].includes(type);
+    const line = used ? 'כבר בברירת המחדל'
+      : na ? 'לא נוצרת לבד לסוג הזה - הוספה כאן תכניס אותה בכל זאת'
+      : d.hint;
+    return `<button class="choice" ${used?'disabled':''} onclick="addFromCatalog('${k}')">
+      <b>${esc(d.name)}</b><span>${esc(line)}</span></button>`;
+  }).join('');
+  document.getElementById('ovCatalog').classList.add('open');
+}
+function addFromCatalog(k){
+  JOURNEY[type].push({ id:k, on:true, kids:[] });
+  closeOv('ovCatalog'); markDirty(); open.add(k); render();
+  toast(`«${DEF[k].name}» נוספה לברירת המחדל`);
+}
+/** מה מהתבנית עדיין חסר בברירת המחדל של הסוג שנבחר. */
+const tplMissing = t => t.entries.filter(k => k !== '#kyc' && !find(k));
+
+function renderTemplates(){
+  document.getElementById('tplList').innerHTML = TEMPLATES.map((t, i) => {
+    const miss = tplMissing(t);
+    const total = t.entries.length;
+    const names = miss.map(k => DEF[k].name);
+    const short = names.length > 2 ? `${names.slice(0,2).join(', ')} ועוד ${names.length-2}` : names.join(', ');
+    const line = miss.length === 0
+      ? (total === 1 ? 'הבקשה כבר בברירת המחדל' : `כל ${total} הבקשות כבר בברירת המחדל`)
+      : total === 1
+        ? 'עדיין לא בברירת המחדל'
+        : `${total - miss.length} מתוך ${total} כבר בברירת המחדל · חסר: ${short}`;
+    return `<div class="trow">
+      <div class="tmain"><div>${esc(t.name)}</div><div class="tsub">${esc(t.sub)} · ${esc(line)}</div></div>
+      ${miss.length
+        ? `<button class="link" onclick="applyTpl(${i})">הוסף את החסר</button>`
+        : `<span class="tsub">אין מה להוסיף</span>`}
+    </div>`;
+  }).join('');
+}
+
+function applyTpl(i){
+  const t = TEMPLATES[i];
+  const miss = tplMissing(t);
+  miss.forEach(k => JOURNEY[type].push({ id:k, on:true, kids:[] }));
+  if (miss.length) markDirty();
+  render();
+  toast(`«${t.name}» — נוספו ${miss.length}, והשאר כבר היו בברירת המחדל`);
+}
+function closeOv(id){ document.getElementById(id).classList.remove('open'); }
+function toggleDrawer(id){ document.getElementById(id).classList.toggle('open'); }
+
+/* ‼ סידור גם במקלדת: גרירה לבדה משאירה את הפעולה בלתי-נגישה, ובמסך שכולו
+   סדר זה לא פרט. שורה תלויה אינה ניתנת להזזה בשום דרך — הסדר שלה אמיתי. */
+function gripKey(e, id){
+  e.stopPropagation();
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  e.preventDefault();
+  move(id, e.key === 'ArrowUp' ? -1 : 1);
+}
+function move(id, delta){
+  const list = JOURNEY[type];
+  const i = list.findIndex(n => n.id === id), j = i + delta;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  markDirty(); render();
+  const el = document.querySelector(`#list > .req[data-id="${id}"] .grip`);
+  if (el) el.focus();
+}
+
+/* ── גרירה · רק בין שורות עליונות ──────────────────────────────────────────
+   ‼ Pointer Events ולא HTML5 drag-and-drop: הראשון עובד גם במגע, ואפשר
+   לבדוק אותו בפועל. תוך כדי הגרירה מזיזים את ה-DOM בלבד; המודל מסונכרן
+   בשחרור, אחרת רינדור מחדש באמצע הגרירה היה מנתק את לכידת המצביע. */
+let drag = null;
+function wireDrag(){
+  document.querySelectorAll('#list > .req').forEach(el => {
+    const grip = el.querySelector(':scope > .rowwrap > .rowhead > .grip');
+    if (!grip || grip.classList.contains('fixed')) return;
+
+    grip.addEventListener('pointerdown', e => {
+      /* ‼ בלי preventDefault: הוא היה מבטל גם את המיקוד שהדפדפן נותן ללחיצה,
+         והחצים (מסלול המקלדת) מתחילים ממנו. בחירת טקסט נמנעת ב-CSS. */
+      e.stopPropagation();
+      grip.setPointerCapture(e.pointerId);
+      drag = { id: el.dataset.id, el };
+      el.classList.add('dragging');
+    });
+
+    grip.addEventListener('pointermove', e => {
+      if (!drag) return;
+      for (const r of document.querySelectorAll('#list > .req')) {
+        if (r === drag.el) continue;
+        const b = r.getBoundingClientRect();
+        if (e.clientY < b.top || e.clientY > b.bottom) continue;
+        const after = e.clientY > b.top + b.height / 2;
+        r.parentNode.insertBefore(drag.el, after ? r.nextSibling : r);
+        break;
+      }
+    });
+
+    const finish = () => {
+      if (!drag) return;
+      const order = [...document.querySelectorAll('#list > .req')].map(r => r.dataset.id);
+      const before = JOURNEY[type].map(n => n.id).join();
+      JOURNEY[type].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+      const id = drag.id;
+      drag.el.classList.remove('dragging');
+      drag = null;
+      /* רינדור מחדש רק כשהסדר באמת השתנה — אחרת לחיצה על הידית הייתה בונה
+         את הרשימה מחדש ומאבדת את המיקוד, וממנו עובדים החצים. */
+      if (JOURNEY[type].map(n => n.id).join() !== before) { markDirty(); render(); }
+      const back = document.querySelector(`#list > .req[data-id="${id}"] .grip`);
+      if (back) back.focus();
+    };
+    grip.addEventListener('pointerup', finish);
+    grip.addEventListener('pointercancel', finish);
+  });
+}
+
+let toastT;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('on'), 2600);
+}
+
+renderRail();
+render();
+</script>
+</body>
+</html>
