@@ -389,6 +389,17 @@ export default function OnboardingTab({
       optimisticPatches[s.id] ? { ...s, ...optimisticPatches[s.id] } : s);
   }, [steps, clientId, optimisticSteps, optimisticPatches]);
 
+  /* ‼ חתימת מצב הבקשות עבור פאנל "מה הלקוח רואה". כל דבר שמשנה את הדף האישי
+     נכנס לכאן — קיום, מצב, פרסום, עריכה ממתינה, הסרה ממתינה וסידור. בלי זה
+     הפאנל נשלף פעם אחת בכניסה ללשונית ונשאר תקוע על תמונה ישנה. */
+  const portalRefreshKey = useMemo(
+    () => clientSteps
+      .map(s => [s.id, s.status, s.publishedAt ?? '', s.draftPayload ? 'd' : '',
+                 s.pendingCancel ? 'x' : '', s.pendingSortOrder ?? '', s.updatedAt ?? ''].join('~'))
+      .sort()
+      .join('|'),
+    [clientSteps]);
+
   const stepById = useMemo(() => {
     const m = new Map<string, OnboardingStep>();
     clientSteps.forEach(s => m.set(s.id, s));
@@ -750,6 +761,14 @@ export default function OnboardingTab({
 
   const openCount = clientSteps.filter(s => isStepOpen(s.status)).length;
   const activeEngagement = clientEngagements[0];
+
+  /* ‼ עוד לא נמכר כלום ⇒ בקשה חדשה היא הכנה ולא שליחה, והשרת מחזיק אותה
+     (מיגרציה 135). המסך חייב לומר את אותו דבר, אחרת הרו"ח מוסיף בקשה ולא
+     מבין למה היא לא מגיעה. הגבול זהה לזה שבשרת: derive_lifecycle_stage.
+     ‼ לקוח בלי הצעה ובלי התקשרות בכלל הוא 'active'/'onboarding' ולא נכנס
+     לכאן - רוב הכרטיסים במסד הם כאלה, והם ממשיכים לעבוד כרגיל. */
+  const awaitingQuoteApproval =
+    client.lifecycleStage === 'quoted' || client.lifecycleStage === 'lead';
   const ballSub = !nextStep
     ? activeEngagement ? `ההתקשרות ${ENGAGEMENT_STATUS_LABELS[activeEngagement.status]}.` : ''
     : `${TRACK_LABELS[nextStep.track]} · נותרו ${openCount} שלבים פתוחים${nextStep.dueDate ? ` · עד ${formatDate(nextStep.dueDate, 'list')}` : ''}`;
@@ -1587,10 +1606,14 @@ export default function OnboardingTab({
           }}>
             <span aria-hidden="true" style={{ color: '#b45309' }}>●</span>
             <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-1)' }}>
-              {dirty.length === 1 ? 'שינוי אחד שלא פורסם' : `${dirty.length} שינויים שלא פורסמו`}
+              {awaitingQuoteApproval
+                ? (dirty.length === 1 ? 'בקשה אחת מוכנה' : `${dirty.length} בקשות מוכנות`)
+                : (dirty.length === 1 ? 'שינוי אחד שלא פורסם' : `${dirty.length} שינויים שלא פורסמו`)}
             </span>
             <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', flex: 1 }}>
-              {dirty.length === 1 ? 'הלקוח לא יראה אותו עד שמעדכנים את הדף' : 'הלקוח לא יראה אותם עד שמעדכנים את הדף'}
+              {awaitingQuoteApproval
+                ? 'יתפרסמו בדף האישי מעצמן ברגע שההצעה תאושר'
+                : dirty.length === 1 ? 'הלקוח לא יראה אותו עד שמעדכנים את הדף' : 'הלקוח לא יראה אותם עד שמעדכנים את הדף'}
             </span>
             <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPreviewOpen(true)}>
               תצוגה מקדימה
@@ -1600,11 +1623,15 @@ export default function OnboardingTab({
               {discarding ? 'מבטל…' : 'בטל שינויים'}
             </button>
             {/* ‼ הבחירה קודמת לפרסום: "רק לעדכן" חייב להיות הפעולה עצמה,
-                ולא "סגור" אחרי שכבר פורסם. הפעולה היחידה ברמת הדף. */}
+                ולא "סגור" אחרי שכבר פורסם. הפעולה היחידה ברמת הדף.
+                ‼ לפני אישור ההצעה אין כפתור בכלל: השרת דוחה את הפרסום
+                (מיגרציה 135), וכפתור שמוביל לשגיאה גרוע מכפתור שאינו קיים. */}
+            {!awaitingQuoteApproval && (
             <button type="button" className="btn btn-sm btn-primary"
               onClick={() => { setPendingCount(dirty.length); setPublishPromptOpen(true); }}>
               עדכן את דף הלקוח
             </button>
+            )}
           </div>
         );
       })()}
@@ -1901,7 +1928,8 @@ export default function OnboardingTab({
 
       </div>
       <aside>
-        <PortalPreviewPanel clientId={clientId} mode={sidebarPreviewMode} onModeChange={setSidebarPreviewMode} />
+        <PortalPreviewPanel clientId={clientId} mode={sidebarPreviewMode} onModeChange={setSidebarPreviewMode}
+          refreshKey={portalRefreshKey} />
       </aside>
       </div>
       )}
@@ -1983,6 +2011,7 @@ export default function OnboardingTab({
           clientId={clientId}
           steps={clientSteps}
           processPublished={!!activeEngagement?.processPublishedAt}
+          awaitingQuoteApproval={awaitingQuoteApproval}
           prevAccountantEmail={prevAccountant?.email}
           onUseTemplate={t => { setAddOpen(false); setTemplateDraft(t); }}
           onClose={() => setAddOpen(false)}

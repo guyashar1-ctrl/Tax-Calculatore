@@ -18,8 +18,13 @@ const ERRORS: Record<string, string> = {
 /**
  * שליפת הדף האישי — משותפת לדיאלוג ולפאנל המוטבע במסך "תהליך". שני הצרכנים
  * מרנדרים את אותו PortalView בדיוק על אותם נתונים; ההבדל היחיד הוא העטיפה.
+ *
+ * ‼ refreshKey — הפאנל המוטבע קבוע על המסך לצד הבקשות, ולכן שליפה חד-פעמית
+ * בכניסה ללשונית הפכה אותו לשקר: מוסיפים בקשה, והחלון שאמור להוכיח שהיא
+ * הגיעה ללקוח ממשיך להראות את התמונה מלפני ההוספה. הצרכן מעביר חתימה של
+ * מצב הבקשות, וכל שינוי בה שולף מחדש. הדיאלוג נפתח וסוגר, ולכן אינו צריך.
  */
-export function usePortalPreview(clientId: string, mode: PortalPreviewMode) {
+export function usePortalPreview(clientId: string, mode: PortalPreviewMode, refreshKey?: string) {
   const [data, setData] = useState<PortalData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,7 +47,7 @@ export function usePortalPreview(clientId: string, mode: PortalPreviewMode) {
       setData(row);
     })();
     return () => { cancelled = true; };
-  }, [clientId, mode]);
+  }, [clientId, mode, refreshKey]);
 
   return { data, error, loading };
 }

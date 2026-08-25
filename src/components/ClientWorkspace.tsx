@@ -833,6 +833,7 @@ export default function ClientWorkspace({
           clientId={client.id}
           steps={clientSteps}
           processPublished={!!activeEngagement?.processPublishedAt}
+          awaitingQuoteApproval={client.lifecycleStage === 'quoted' || client.lifecycleStage === 'lead'}
           prevAccountantEmail={client.prevAccountantEmail}
           presetType="intake_questionnaire"
           onClose={() => setIntakeModalOpen(false)}

@@ -248,6 +248,13 @@ export default function TestOnboarding() {
   // זה עדיין קובע את הצ'יפ "דף הלקוח פעיל" ואת שער התצוגה בפורטל.
   // ?test-onboarding&builder פותח ישר במצב "טרם נשלח" — לצילום מסך ללא-ראש.
   const [published, setPublished] = useState(!window.location.search.includes('builder'));
+  /* ?test-onboarding&quoted — הצעה נשלחה ולא אושרה: אין התקשרות, והבקשות
+     מוחזקות עד האישור (מיגרציה 135). המצב היחיד שבו הפס הצהוב אינו מציע
+     "עדכן את דף הלקוח", ולכן אי אפשר לראות אותו על הפיקסטורה הרגילה. */
+  const [quoted, setQuoted] = useState(window.location.search.includes('quoted'));
+  /* ?drafts — בקשות שטרם פורסמו בלי קשר לשלב, כדי לראות את הפס הצהוב הרגיל
+     ("X שינויים שלא פורסמו" + "עדכן את דף הלקוח") ולוודא שלא נשבר. */
+  const drafts = quoted || window.location.search.includes('drafts');
   const [showRelease, setShowRelease] = useState(false);
   // המסך המאוחד רץ תמיד ב-embedded (כמו בייצור, בתוך דף המסע). מצב לא-מוטבע
   // הוא מסך ישן ונפרד (ClientWorkspace.tsx) שלא נגעתי בו — נשאר לבדיקת רגרסיה.
@@ -396,6 +403,10 @@ export default function TestOnboarding() {
           {published ? 'הצג לפני שנשלח ללקוח' : 'חזרה למצב שנשלח'}
         </button>
         <button type="button" className="btn btn-sm btn-secondary"
+          onClick={() => setQuoted(v => !v)}>
+          {quoted ? 'חזרה ללקוח שאישר הצעה' : 'הצג הצעה שנשלחה ולא אושרה'}
+        </button>
+        <button type="button" className="btn btn-sm btn-secondary"
           onClick={() => setEmbedded(v => !v)}>
           {embedded ? 'עבור למסך הישן (לא מוטבע)' : 'חזרה למסך המאוחד (מוטבע)'}
         </button>
@@ -424,13 +435,14 @@ export default function TestOnboarding() {
       </div>
       <OnboardingTab
         clientId={CLIENT_ID}
-        client={FIXTURE_CLIENT}
+        client={quoted ? { ...FIXTURE_CLIENT, lifecycleStage: 'quoted' } : FIXTURE_CLIENT}
         onClientPersisted={() => setMsg('onClientPersisted()')}
         clientDisplayName="שרון מזרחי"
         clientEmail="sharon.m@example.invalid"
         embedded={embedded}
-        engagements={published ? ENGAGEMENTS : ENGAGEMENTS_UNPUBLISHED}
-        steps={paperlessSteps}
+        engagements={quoted ? [] : published ? ENGAGEMENTS : ENGAGEMENTS_UNPUBLISHED}
+        /* לפני אישור אין שום דבר שפורסם: כל בקשה שהוכנה היא טיוטה מוחזקת. */
+        steps={drafts ? paperlessSteps.map(s => ({ ...s, publishedAt: null })) : paperlessSteps}
         quotations={QUOTATIONS}
         events={EVENTS}
         /* ‼ מצטבר ולא דורס: פעולה אחת במסך יכולה לשלוח שתי קריאות לשרת (למשל

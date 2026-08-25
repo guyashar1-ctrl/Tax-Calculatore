@@ -103,6 +103,11 @@ interface Props {
   /** לפני פרסום התהליך אין מושג "טיוטה" — הכל ממילא עוד לא נחשף. */
   processPublished: boolean;
   /**
+   * ההצעה עוד לא אושרה (ליד / הצעה שנשלחה). ‼ אין כאן בחירה: השרת מחזיק
+   * כל בקשה כזו עד האישור (מיגרציה 135). המסך רק אומר את זה מראש.
+   */
+  awaitingQuoteApproval?: boolean;
+  /**
    * סוג בקשה מסומן מראש — לנקודת כניסה הקשרית (למשל "עדכון סטטוס מס"
    * מתוך תיק מס). ‼ זו אינה זרימה שנייה: אותו חלון, אותו state, ואותה
    * קריאת create_onboarding_request. ההבדל היחיד הוא שמדלגים על הקטלוג.
@@ -116,7 +121,7 @@ interface Props {
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, presetType, prevAccountantEmail, onUseTemplate, onClose, onCreated }: Props) {
+export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, presetType, prevAccountantEmail, onUseTemplate, onClose, onCreated }: Props) {
   const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document'>('catalog');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -520,7 +525,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   </label>
                 ))}
               </div>
-              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
             </>
           )}
 
@@ -550,7 +555,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                       לצפייה בקובץ שיישלח ←
                     </a>
                   )}
-                  <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+                  <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
                 </>
               )}
             </>
@@ -598,7 +603,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                   {savingOption ? 'שומר…' : 'הוספה'}
                 </button>
               </div>
-              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
             </>
           )}
 
@@ -671,12 +676,12 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
                 </div>
               )}
 
-              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
             </>
           )}
 
           {presetType && !existing.has(presetType) && (
-            <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+            <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
           )}
         </div>
 
@@ -728,12 +733,13 @@ export default function AddRequestDialog({ clientId, steps, processPublished, pr
 /** שדות שמשותפים לכל סוגי הבקשות — יעד, תלות, ומתי הלקוח יראה. */
 function Shared({
   dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions,
-  processPublished, sendNow, setSendNow, requiredForClose, setRequiredForClose,
+  processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose,
 }: {
   dueDate: string; setDueDate: (v: string) => void;
   dependsOn: string; setDependsOn: (v: string) => void;
   dependencyOptions: OnboardingStep[];
   processPublished: boolean;
+  awaitingQuoteApproval?: boolean;
   sendNow: boolean; setSendNow: (v: boolean) => void;
   requiredForClose: boolean; setRequiredForClose: (v: boolean) => void;
 }) {
@@ -765,7 +771,7 @@ function Shared({
         </span>
       </label>
 
-      {processPublished && (
+      {processPublished && !awaitingQuoteApproval && (
         <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)' }}>
           <input type="checkbox" checked={sendNow} onChange={e => setSendNow(e.target.checked)} />
           לפתוח מיד ללקוח בדף האישי
@@ -773,6 +779,14 @@ function Shared({
             (לא מסומן ⇒ נשמר כטיוטה אצלך)
           </span>
         </label>
+      )}
+
+      {/* ‼ לפני אישור ההצעה אין בחירה - השרת מחזיק את הבקשה בכל מקרה
+          (מיגרציה 135). אומרים את זה כאן, במקום שהרו"ח יגלה בדיעבד. */}
+      {awaitingQuoteApproval && (
+        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+          ההצעה עוד לא אושרה - הבקשה נשמרת מוכנה אצלך, ותיפתח ללקוח מעצמה כשיאשר.
+        </div>
       )}
     </>
   );

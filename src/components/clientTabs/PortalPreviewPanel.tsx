@@ -8,12 +8,14 @@
 import { usePortalPreview, type PortalPreviewMode } from './ClientPagePreviewDialog';
 import { PortalView } from '../PublicPortalPage';
 
-export default function PortalPreviewPanel({ clientId, mode, onModeChange }: {
+export default function PortalPreviewPanel({ clientId, mode, onModeChange, refreshKey }: {
   clientId: string;
   mode: PortalPreviewMode;
   onModeChange: (m: PortalPreviewMode) => void;
+  /** חתימת מצב הבקשות — משתנה ⇒ שליפה מחדש. ראה usePortalPreview. */
+  refreshKey?: string;
 }) {
-  const { data, error, loading } = usePortalPreview(clientId, mode);
+  const { data, error, loading } = usePortalPreview(clientId, mode, refreshKey);
 
   const draftCount = mode === 'preview' ? (data?.items ?? []).filter(i => i.draft).length : 0;
   const removingCount = mode === 'preview' ? (data?.items ?? []).filter(i => i.removing).length : 0;

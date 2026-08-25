@@ -42,7 +42,11 @@ export default function PublishCasePrompt({
     const { data, error: rpcError } = await supabase.rpc('publish_case_changes', { p_client_id: clientId });
     const res = data as { ok?: boolean; error?: string } | null;
     if (rpcError || !res?.ok) {
-      setError('העדכון נכשל. אפשר לנסות שוב.');
+      // ‼ מיגרציה 135 — לפני אישור ההצעה הפרסום נדחה בשרת. זו אינה תקלה,
+      // ולכן היא לא נאמרת כ"נסה שוב": אין מה לנסות עד שהלקוח יאשר.
+      setError(res?.error === 'quotation_not_approved'
+        ? 'ההצעה עוד לא אושרה. הבקשות מוכנות, והן ייפתחו ללקוח מעצמן ברגע שיאשר.'
+        : 'העדכון נכשל. אפשר לנסות שוב.');
       return false;
     }
     onPublished?.();
