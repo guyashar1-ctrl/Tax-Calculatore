@@ -11,6 +11,7 @@ import LogoAssetsPanel, { type LogoUploadRequest } from './LogoAssetsPanel';
 import { Client } from '../types';
 import EmployeesPanel from './EmployeesPanel';
 import EmailActivityModule from './EmailActivity/EmailActivityModule';
+import RequestDefaultsSection from './office/RequestDefaultsSection';
 import QuotationSettings from './quotations/QuotationSettings';
 import QuotationDesignStudio from './quotations/QuotationDesignStudio';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
@@ -53,7 +54,7 @@ interface Props {
   onSave: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'notifications' | 'paperless' | 'clientDocs' | 'emailActivity' | 'quotations' | 'employees';
+type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'notifications' | 'paperless' | 'requestDefaults' | 'clientDocs' | 'emailActivity' | 'quotations' | 'employees';
 
 // אייקוני הניווט כ-SVG מוטמע. (הפרויקט לא טוען את פונט Tabler, ולכן ה-<i class="ti">
 // שהיו כאן קודם פשוט לא הוצגו — זה מחליף אותם באייקונים שבאמת נראים.)
@@ -69,6 +70,7 @@ const ICON_PATHS: Record<string, string> = {
   quotations: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4',
   employees: 'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M17.5 5.2a3 3 0 0 1 0 5.6 M21 20v-1a4 4 0 0 0-3-3.85',
   mailCog: 'M3 6h18v7 M3 7l9 6 9-6 M17.5 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0',
+  requests: 'M9 4h6v3H9z M7 5H5v15h14V5h-2 M9 12h6 M9 16h4',
   bolt: 'M13 2 4 14h7l-1 8 9-12h-7z',
   userCheck: 'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M16 12.5l2 2 4-4',
   fileUpload: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M12 17v-5 M9.5 14.5 12 12l2.5 2.5',
@@ -98,6 +100,7 @@ const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'communication', label: 'ערוצי תקשורת', icon: 'communication' },
   { id: 'notifications', label: 'התראות למשרד', icon: 'bell' },
   { id: 'paperless', label: 'פייפרלס ותקשורת', icon: 'mailCog' },
+  { id: 'requestDefaults', label: 'בקשות מסמכים', icon: 'requests' },
   { id: 'clientDocs', label: 'מסמכים ללקוחות', icon: 'fileUpload' },
   { id: 'emailActivity', label: 'פעילות מייל', icon: 'emailActivity' },
   { id: 'quotations', label: 'הצעות מחיר', icon: 'quotations' },
@@ -116,8 +119,9 @@ const SOON_GROUPS: { group: string; items: { label: string; icon: string }[] }[]
   {
     group: 'חוויות לקוח',
     items: [
+      // ‼ «בקשות מסמכים» ירד מכאן ב-2026-08-25 — הוא נבנה, ויושב בסרגל הפעיל
+      // בין «פייפרלס ותקשורת» ל«מסמכים ללקוחות». שני פריטים לאותו דבר בלבלו.
       { label: 'עמודי הזדהות', icon: 'userCheck' },
-      { label: 'בקשות מסמכים', icon: 'fileUpload' },
       { label: 'חתימה דיגיטלית', icon: 'signature' },
       { label: 'פורטל לקוחות', icon: 'dashboard' },
     ],
@@ -383,7 +387,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
         <div style={{ marginBottom: 12, padding: '.65rem .85rem', background: 'var(--red-light)', color: 'var(--red)', borderRadius: 'var(--radius)', fontSize: '.875rem' }}>{error}</div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '184px 1fr', gap: 18, alignItems: 'start' }}>
+      <div className="fp-grid">
 
         {/* מסילת הניווט. הפריטים היו ‎<div onClick>‎ ולכן לא היו נגישים
             במקלדת; עכשיו הם כפתורים. הסימון הפעיל הוא קו וּמשקל — לא
@@ -630,6 +634,10 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 
           {section === 'paperless' && (
             <PaperlessCommSection profile={draft} onChangeProfile={setDraft} />
+          )}
+
+          {section === 'requestDefaults' && (
+            <RequestDefaultsSection officeId={profile.id} />
           )}
 
           {section === 'clientDocs' && (
