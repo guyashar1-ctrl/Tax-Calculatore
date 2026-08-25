@@ -10,7 +10,7 @@ import type { RepAuthorityKind } from '../../types';
 import { REP_AUTHORITY_ORDER } from '../../types';
 import type { QuotationBrand } from './quotationBranding';
 import {
-  calcTotals, itemFinalPrice, itemOriginalPrice, formatILS, itemDisplayName,
+  calcTotals, itemFinalPrice, itemOriginalPrice, itemAnnualAnchor, formatILS, itemDisplayName,
   monthlyPlan, formatMonth, formatMonthRange,
   itemDeferred, deferredGroups, deferredDetailLines,
 } from '../../utils/quotationCalc';
@@ -486,6 +486,10 @@ function ServiceCard({ item, brand, compact, vatRate }: { item: QuotationItem; b
   // שורה שתומחרה שנתית ונגבית חודשית — מציינים כמה תשלומים, ולא את הסכום
   // השנתי. החלטת גיא: הלקוח רואה מחיר אחד, מה שהוא משלם בחודש.
   const spread = item.category === 'monthly' && item.priceBasis === 'annual' ? monthlyPlan(item) : null;
+  // ‼ "הנחה 17%" ליד 120 ← 100 נקרא כהנחה של 20 ₪, בזמן שההנחה ניתנה על השנה
+  // (1,440 ← 1,200). בשורת יתרה הפירוט שמתחת כבר מספר את זה במלואו, ולכן
+  // השורה הזו מופיעה רק כשאין פירוט — אחרת אותו משפט נאמר פעמיים בכרטיס אחד.
+  const annual = !deferred && hasDiscount ? itemAnnualAnchor(item) : null;
   return (
     <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: compact ? 14 : 16, background: brand.cardBg }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -516,6 +520,11 @@ function ServiceCard({ item, brand, compact, vatRate }: { item: QuotationItem; b
             {formatILS(Math.round(finalBeforeVat))}
           </div>
           <div style={{ fontSize: 10.5, color: brand.muted }}>{item.vatFlag ? '+ מע״מ' : 'ללא מע״מ'}</div>
+          {annual && annual.list - annual.value >= 1 && (
+            <div style={{ fontSize: 11, color: '#047857', marginTop: 4 }}>
+              {formatILS(Math.round(annual.value))} לשנה במקום {formatILS(Math.round(annual.list))}
+            </div>
+          )}
         </div>
       </div>
       {deferred && <DeferredDetail b={deferred} itemName={item.name} brand={brand} compact={compact} />}

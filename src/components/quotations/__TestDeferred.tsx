@@ -74,6 +74,26 @@ const DEFERRED_FULL_YEAR: QuotationItem = {
   clientNote: undefined,
 };
 
+// התרחיש של הצעה 2026-027: הרו"ח הוריד את המחיר השנתי מ-1,440 ל-1,200 בשדה
+// המחיר, בלי להזין אחוזי הנחה. ההנחה (240 ₪ לשנה, 17%) חייבת להופיע בפירוט
+// ולא רק כתגית ליד 120 ← 100, שנקראת כהנחה של 20 ₪.
+const DEFERRED_PRICE_CUT: QuotationItem = {
+  id: 'fx-deferred-cut',
+  name: 'דוח שנתי - עוסק פטור',
+  description: 'הכנה והגשה של הדוח השנתי למס הכנסה',
+  category: 'monthly',
+  billingType: 'fixed',
+  quantity: 1,
+  catalogPrice: 1440,
+  clientPrice: 100,
+  vatFlag: true,
+  priceBasis: 'annual',
+  annualPrice: 1200,
+  installments: 5,
+  billingStartMonth: '2026-08',
+  prorationMode: 'deferred',
+};
+
 const ONE_TIME: QuotationItem = {
   id: 'fx-onetime',
   name: 'פתיחת תיקים ברשויות',
@@ -86,7 +106,7 @@ const ONE_TIME: QuotationItem = {
   vatFlag: true,
 };
 
-const ITEMS: QuotationItem[] = [RETAINER, DEFERRED, DEFERRED_FULL_YEAR, ONE_TIME];
+const ITEMS: QuotationItem[] = [RETAINER, DEFERRED, DEFERRED_FULL_YEAR, DEFERRED_PRICE_CUT, ONE_TIME];
 
 const DATA: QuotationWebViewData = {
   quotationNumber: 'TEST-001',
@@ -111,6 +131,16 @@ export default function TestDeferred() {
     ['סך ההנחה על השורה', formatILS(guy.totalDiscount), '700'],
   ] : [];
 
+  const cut = itemDeferred(DEFERRED_PRICE_CUT, VAT_RATE);
+  const cutRows: [string, string, string][] = cut ? [
+    [`מחיר ${DEFERRED_PRICE_CUT.name}`, formatILS(cut.listPrice), '1,440'],
+    ['הנחה 17%', `−${formatILS(cut.percentDiscount)}`, '−240'],
+    ['ערך אחרי הנחה', formatILS(cut.totalValue), '1,200'],
+    ['כלול בשכר החודשי', formatILS(cut.includedInMonthly), '500'],
+    ['יתרה', formatILS(cut.balance), '700'],
+    ['לתשלום עם ההגשה', formatILS(cut.finalAmount), '700'],
+  ] : [];
+
   return (
     <div dir="rtl">
       <div style={{ padding: '1rem 1.5rem', maxWidth: 980, margin: '0 auto' }}>
@@ -125,6 +155,20 @@ export default function TestDeferred() {
           <div>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>שורת 2026 (5 תשלומים) - מול הצפוי</div>
             {rows.map(([label, amount, expected]) => {
+              const ok = amount.replace(/[₪−-]/g, '') === expected.replace(/[₪−-]/g, '');
+              return (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, minWidth: 300 }}>
+                  <span style={{ color: 'var(--ink-3)' }}>{label}</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums', color: ok ? undefined : 'var(--red)' }}>
+                    {amount}{ok ? ' ✓' : ` ‼ צפוי ${expected}`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>הורדת מחיר שנתי 1,440 ← 1,200 (בלי אחוזים)</div>
+            {cutRows.map(([label, amount, expected]) => {
               const ok = amount.replace(/[₪−-]/g, '') === expected.replace(/[₪−-]/g, '');
               return (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, minWidth: 300 }}>

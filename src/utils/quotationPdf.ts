@@ -10,7 +10,7 @@ import type { QuotationItem, FutureService, QuotationRepresentation } from '../t
 import { SERVICE_CATEGORY_LABELS } from '../types/quotations';
 import { REP_AUTHORITY_LABELS, REP_AUTHORITY_ORDER } from '../types';
 import {
-  calcTotals, itemFinalPrice, itemOriginalPrice, itemDisplayName, monthlyPlan, formatMonth, formatMonthRange,
+  calcTotals, itemFinalPrice, itemOriginalPrice, itemAnnualAnchor, itemDisplayName, monthlyPlan, formatMonth, formatMonthRange,
   itemDeferred, deferredGroups, deferredDetailLines,
 } from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
@@ -117,7 +117,14 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     const before = orig - finalP >= 1 ? ` (במקום ${money(orig)})` : '';
     ltr(`${money(finalP)}${item.vatFlag ? ' + מע״מ' : ''}${before}`, 11.5, ink, y);
     y -= 15;
-    const meta = `${SERVICE_CATEGORY_LABELS[item.category]}${item.billingType === 'per_unit' && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}${item.description ? ` · ${item.description}` : ''}`;
+    // פירוט היתרה — אותו נוסח בדיוק כמו בעמוד ההצעה
+    const def = itemDeferred(item, data.vatRate);
+    // ‼ "במקום 120" נקרא כהנחה של 20 ₪, בזמן שההנחה ניתנה על השנה
+    // (1,440 ← 1,200). בשורת יתרה הפירוט שמתחת אומר זאת במלואו.
+    const annual = !def && orig - finalP >= 1 ? itemAnnualAnchor(item) : null;
+    const annualNote = annual && annual.list - annual.value >= 1
+      ? ` · ${money(annual.value)} לשנה במקום ${money(annual.list)}` : '';
+    const meta = `${SERVICE_CATEGORY_LABELS[item.category]}${item.billingType === 'per_unit' && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}${item.description ? ` · ${item.description}` : ''}${annualNote}`;
     rtl(meta, 8.5, gray, y);
     y -= 15;
     // ההערה שהרו"ח כתב לשורה מוצגת בעמוד ההצעה — ולכן חייבת להופיע גם במסמך
@@ -129,8 +136,6 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
         y -= 12;
       }
     }
-    // פירוט היתרה — אותו נוסח בדיוק כמו בעמוד ההצעה
-    const def = itemDeferred(item, data.vatRate);
     if (def) {
       for (const r of deferredDetailLines(def, item.name)) {
         ensureSpace(14);

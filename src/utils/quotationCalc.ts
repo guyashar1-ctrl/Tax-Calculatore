@@ -71,6 +71,22 @@ export function itemOriginalPrice(item: QuotationItem): number {
   return round2(Math.max(item.clientPrice, item.catalogPrice) * qty);
 }
 
+// אותו עוגן בדיוק, בסקאלה שנתית — כלומר itemOriginalPrice כפול מספר התשלומים.
+// ‼ למה: הנחה על שורה שתומחרה שנתית ניתנת על השנה (1,440 ← 1,200), וזו הסקאלה
+// היחידה שבה היא מובנת. כשהעוגן נגזר מ-annualPrice בלבד, הפירוט פותח ב"ערך
+// השירות 1,200" ומכחיש את "הנחה 17%" שמופיע באותו כרטיס עצמו.
+export function itemAnnualAnchor(item: QuotationItem): { list: number; value: number } | null {
+  if (item.priceBasis !== 'annual' || item.annualPrice == null) return null;
+  const qty = item.quantity || 1;
+  const afterPercent = item.discountPercent ? 1 - item.discountPercent / 100 : 1;
+  const value = round2(item.annualPrice * qty * afterPercent);
+  const n = item.prorationMode === 'deferred' ? DEFAULT_INSTALLMENTS : clampInstallments(item.installments);
+  const list = item.displayFullPrice != null && item.displayFullPrice > 0
+    ? round2(item.displayFullPrice * n * qty)
+    : round2(Math.max(item.annualPrice, item.catalogPrice) * qty);
+  return { list: Math.max(list, value), value };
+}
+
 export function calcTotals(items: QuotationItem[], vatRate: number): QuotationTotals {
   const empty = (): CategoryTotal => ({ fullBeforeVat: 0, discount: 0, beforeVat: 0, vat: 0, withVat: 0 });
   const buckets: Record<'monthly' | 'annual' | 'oneTime', CategoryTotal> = {
@@ -249,12 +265,10 @@ export interface DeferredBase {
 // ולכן הוא לא יכול להסתמך על itemDeferred שמחזיר null בדיוק במקרים האלה.
 export function deferredBase(item: QuotationItem): DeferredBase | null {
   if (item.prorationMode !== 'deferred') return null;
-  if (item.priceBasis !== 'annual' || item.annualPrice == null) return null;
+  const annual = itemAnnualAnchor(item);
+  if (!annual) return null;
 
-  const qty = item.quantity || 1;
-  const afterPercent = item.discountPercent ? 1 - item.discountPercent / 100 : 1;
-  const listPrice = round2(item.annualPrice * qty);
-  const totalValue = round2(item.annualPrice * qty * afterPercent);
+  const { list: listPrice, value: totalValue } = annual;
   const installments = clampInstallments(item.installments);
   // itemFinalPrice כבר כולל כמות והנחה באחוזים — אסור להכפיל אותן שוב
   const perPayment = itemFinalPrice(item);
