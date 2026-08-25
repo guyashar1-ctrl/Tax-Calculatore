@@ -7,6 +7,8 @@
 // &s=jan                   — התחלה בינואר (אין יתרת דוח)
 // &s=onetime               — הצעה לשירות חד־פעמי ללקוח קיים
 // &s=renewal               — עדכון התקשרות ללקוח עם הסכם קיים
+// &rep=none                — אותו לקוח, בלי ייצוג קיים (בודק את ברירת המחדל)
+// &prev=1                  — הנמען עובר מרו"ח אחר
 
 import type { Client } from '../../types';
 import type { Engagement } from '../../types/onboarding';
@@ -95,6 +97,10 @@ export default function TestBuilder() {
   const s = p.get('s') ?? '';
   const kind: QuotationKind = s === 'onetime' ? 'one_time' : 'engagement';
   const forClient = s === 'onetime' || s === 'renewal';
+  const lead: Lead = p.get('prev') === '1' ? { ...LEAD, hasPreviousAccountant: true } : LEAD;
+  const client = p.get('rep') === 'none'
+    ? ({ ...CLIENT, representationStatus: undefined } as Client)
+    : CLIENT;
 
   return (
     <div style={{ background: 'var(--canvas)', minHeight: '100vh' }}>
@@ -102,8 +108,8 @@ export default function TestBuilder() {
         profile={null}
         services={SERVICES}
         templates={TEMPLATES}
-        leads={[LEAD]}
-        clients={[CLIENT]}
+        leads={[lead]}
+        clients={[client]}
         existing={null}
         initialLeadId={forClient ? undefined : 'l1'}
         initialClientId={forClient ? 'c1' : undefined}

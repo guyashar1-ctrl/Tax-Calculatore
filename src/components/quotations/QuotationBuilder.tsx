@@ -27,7 +27,7 @@ import type {
 } from '../../types/quotations';
 import {
   DEFAULT_VAT_RATE, DEFAULT_EXPIRY_BUSINESS_DAYS, DEFAULT_INSTALLMENTS,
-  defaultQuotationRepresentation, applySecondaryLevels,
+  defaultQuotationRepresentation,
 } from '../../types/quotations';
 import { businessDaysExpiry } from '../../utils/businessDays';
 import {
@@ -360,7 +360,11 @@ export default function QuotationBuilder({
   const [representation, setRepresentation] = useState<QuotationRepresentation>(() => {
     if (existing?.representation) return existing.representation;
     const base = defaultQuotationRepresentation(isTransferRecipient(initialRecipient, leads, clients));
-    return initialRecipient.kind === 'client' || kind === 'one_time' ? { ...base, enabled: false } : base;
+    // ‼ כל הצעה נפתחת עם ייצוג מלא (הכרעת גיא 2026-08-25) — גם חד־פעמית וגם
+    // ללקוח קיים. היחיד שנפתח כבוי הוא לקוח שכבר מיוצג: אין מה לפתוח פעמיים.
+    const already = initialRecipient.kind === 'client'
+      && !!clients.find(c => c.id === initialRecipient.id)?.representationStatus;
+    return already ? { ...base, enabled: false } : base;
   });
 
   // ── מצב מסך ──
@@ -799,11 +803,11 @@ export default function QuotationBuilder({
             onPick={r => {
               setRecipient(r);
               setPanel(null);
+              // מי שכבר מיוצג לא נפתח שוב; כל השאר מקבל את ברירת המחדל המלאה,
+              // כולל מי שעובר מרו"ח אחר — הוא נרשם ראשי, וירידה למשני נגזרת
+              // ממכתב העברת הטיפול ולא מכאן.
               const picked = r.kind === 'client' ? clients.find(c => c.id === r.id) : undefined;
               if (picked?.representationStatus) setRepresentation(p => (p.enabled ? { ...p, enabled: false } : p));
-              if (isTransferRecipient(r, leads, clients)) {
-                setRepresentation(p => ({ ...p, areas: applySecondaryLevels(p.areas) }));
-              }
             }} />
         </Modal>
       )}

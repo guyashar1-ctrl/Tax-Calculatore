@@ -252,7 +252,8 @@ export function applySecondaryLevels(areas: AuthorityRepresentations): Authority
 }
 
 /**
- * ברירת המחדל — זהה לדיאלוג הייצוג: מ"ה, מע"מ וב"ל.
+ * ברירת המחדל — ייצוג בכל הרשויות (הכרעת גיא 2026-08-25): מ"ה, ניכויים, מע"מ
+ * וב"ל. הצעה בלי ייצוג היא היוצא מן הכלל, ולכן היא כיבוי מפורש ולא ברירה.
  * ‼ גם לקוח שעובר מרו"ח אחר נפתח כמייצג ראשי (הכרעת גיא 2026-08-18): במעבר
  * נקי אין סיבה להמתין כמשני. משני נרשמים רק כשנשארת אצל הקודם עבודה שמחייבת
  * אותו להישאר ראשי (דוח שנתי / הצהרת הון) — וזה נגזר במכתב העברת הטיפול,
@@ -261,6 +262,7 @@ export function applySecondaryLevels(areas: AuthorityRepresentations): Authority
 export function defaultQuotationRepresentation(_isTransfer = false): QuotationRepresentation {
   const areas: AuthorityRepresentations = {
     incomeTax: { status: 'in_process', level: 'primary' },
+    withholding: { status: 'in_process', level: 'primary' },
     vat: { status: 'in_process', level: 'primary' },
     // ‼ ברירת המחדל ללקוח נשוי: ייצוג בב"ל לשני בני הזוג (הכרעה 2026-08-17).
     // הדגל חל רק אם הלקוח נשוי בפועל — לקוח לא-נשוי פשוט לא מושפע ממנו.
