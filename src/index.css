@@ -2846,12 +2846,16 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
    וגם בין חמשת הטאבים. ראה --content-max ב-index.css. */
 .cw-root { display: flex; flex-direction: column; gap: 0; max-width: var(--content-max); margin-inline: auto; width: 100%; }
 
+/* ‼ בלי overflow: hidden. הוא היה כאן כדי שהשורות הפנימיות לא יזלגו מעבר
+   לפינות המעוגלות של הכרטיס — אבל pivo-design.css הסיר מהכותרת את הרקע,
+   המסגרת, הצל והפינות, ומאז לא נשאר לו מה לעגל. מה שכן נשאר לו זה לחתוך:
+   תפריט "⋯" (‎.cw-more-menu‎) נפתח כלפי מטה, גבוה מהכותרת אצל ליד שאין לו
+   שורת שבבים, וכל מה שחרג מהקו התחתון נעלם — וגם הפסיק להיות לחיץ. */
 .cw-header {
   background: var(--card); border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   margin-bottom: 1rem;
   box-shadow: var(--shadow);
-  overflow: hidden;
 }
 
 .cw-header-top {
