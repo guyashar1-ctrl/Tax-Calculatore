@@ -25,17 +25,35 @@
 -- חלקית שנראית כמו הצלחה.
 
 -- ── 1. הסוג החדש מותר בעמודה ────────────────────────────────────────────────
-alter table public.onboarding_steps drop constraint if exists onboarding_steps_step_type_check;
-alter table public.onboarding_steps add constraint onboarding_steps_step_type_check
-  check (step_type = any (array[
-    'representation', 'file_opening', 'representation_upgrade', 'release_letter',
-    'materials_received', 'paperless_invite', 'paperless_connection',
-    'paperless_tax_authority',
-    'data_import', 'data_verification', 'retainer_authorization', 'internal_setup',
-    'kyc_identification', 'first_month_review', 'intake_questionnaire',
-    'client_documents', 'prev_accountant_details', 'custom_request',
-    'institution_alignment_btl', 'institution_alignment_vat',
-    'institution_alignment_income', 'opening_call']));
+-- ‼ תוספת ולא כתיבה מחדש. הגרסה הראשונה כאן הייתה רשימה קשיחה, ובאותו יום
+-- בדיוק סשן מקביל הוסיף `rep_client_approval` — כלומר הרצה חוזרת של הקובץ
+-- הזה הייתה מוחקת סוג שלב חי, עם שורות במסד. הבלוק קורא את הרשימה
+-- הקיימת ומוסיף לה, ולכן הוא בטוח בכל סדר ובכל מספר הרצות.
+do $do$
+declare
+  v_types text[];
+begin
+  select array_agg(x) into v_types
+    from (select unnest(enum_or_check_values) x
+            from (select regexp_matches(pg_get_constraintdef(oid),
+                          '''([a-z_]+)''::text', 'g') as enum_or_check_values
+                    from pg_constraint
+                   where conname = 'onboarding_steps_step_type_check'
+                     and conrelid = 'public.onboarding_steps'::regclass) s) t;
+
+  if v_types is null then
+    raise exception '130: אילוץ step_type לא נמצא - לא מנחשים רשימה';
+  end if;
+  if 'paperless_tax_authority' = any (v_types) then
+    raise notice '130: הסוג כבר מותר בעמודה - מדלגים';
+    return;
+  end if;
+
+  v_types := v_types || 'paperless_tax_authority';
+  execute 'alter table public.onboarding_steps drop constraint onboarding_steps_step_type_check';
+  execute format('alter table public.onboarding_steps add constraint onboarding_steps_step_type_check
+                    check (step_type = any (%L))', v_types);
+end $do$;
 
 -- ── 2. המסלול שלו — כלים, כמו שאר הפייפרלס ─────────────────────────────────
 CREATE OR REPLACE FUNCTION public.onboarding_track_for(p_step_type text)
