@@ -637,7 +637,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
           )}
 
           {section === 'requestDefaults' && (
-            <RequestDefaultsSection officeId={profile.id} />
+            <RequestDefaultsSection profile={draft} />
           )}
 
           {section === 'clientDocs' && (

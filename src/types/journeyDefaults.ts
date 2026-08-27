@@ -6,6 +6,8 @@
 // ‼ אוצר המילים של העובדות סגור. שבע, בדיוק אלה שהמחולל יודע לשאול על לקוח.
 // אין ניסוח חופשי ואין IF/THEN — תנאי שהשרת לא יידע להעריך לא ניתן להגדרה.
 
+import type { InstitutionKey } from './onboarding';
+
 export type ClientKind =
   | 'exempt_dealer' | 'licensed_dealer' | 'company' | 'tax_refund' | 'representation_only';
 
@@ -74,6 +76,11 @@ export interface DefaultVariant {
 }
 
 export interface DefaultEntry {
+  /**
+   * ‼ המפתח, לא סוג השלב, הוא הזהות. ארבע הבקשות שהמשרד מוסיף הן כולן
+   * `custom_request` במסד, ולכן `stepType` אינו ייחודי ואינו יכול לשמש
+   * מזהה — לא ברשימה, לא בשמירה ולא בזיהוי בשרת.
+   */
   key: string;
   stepType: string;
   enabled: boolean;
@@ -85,6 +92,16 @@ export interface DefaultEntry {
   /** לתצוגה בלבד — האכיפה בשרת. */
   dependsOn: string | null;
   variants: DefaultVariant[];
+  /** «הקמת הרשאות לחיוב לרשויות» — הרשויות שנבחרו. */
+  authorities?: InstitutionKey[];
+  /** «שליחת מסמך ללקוח» — המסמך מספריית המשרד. */
+  documentId?: string;
+  /**
+   * ‼ בקשה של המשרד בלבד: ה-payload המוכן, כפי שהשרת ייצור אותו.
+   * נבנה ב-officeDefaultRequests.ts בזמן השמירה, כדי של-SQL לא יהיה
+   * עותק שני של הניסוח.
+   */
+  payload?: Record<string, unknown> | null;
 }
 
 // ─── מטא-דאטה לתצוגה ────────────────────────────────────────────────────────
@@ -158,7 +175,7 @@ export const REQUEST_META: Record<string, RequestMeta> = {
   },
 };
 
-/** הבקשות שאפשר להוסיף לברירת המחדל מהקטלוג. */
+/** בקשות המערכת שאפשר להחזיר לברירת המחדל מהקטלוג. */
 export const CATALOG_STEP_TYPES = [
   'client_documents', 'prev_accountant_details', 'release_letter', 'materials_received',
   'paperless_invite', 'paperless_connection', 'paperless_tax_authority',

@@ -72,7 +72,7 @@
 .ojd-byoffice {
   font-size: 11px; color: var(--ink-4); border: 1px solid var(--hairline-1);
   border-radius: var(--r-chip); padding: 1px 6px; margin-inline-start: 6px;
-  font-weight: 400; vertical-align: 1px;
+  font-weight: 400; vertical-align: 1px; white-space: nowrap;
 }
 .ojd-rowaside { display: flex; align-items: center; gap: 10px; flex-shrink: 0; align-self: center; }
 .ojd-toggle {
@@ -227,4 +227,34 @@
   .ojd-rowaside { align-self: flex-start; padding-top: 2px; }
   .ojd-milestone { padding-inline-start: 24px; }
   .ojd-top { flex-direction: column; align-items: stretch; }
+}
+
+/* ── קטלוג: שתי משפחות תחת אותה רשימה ─────────────────────────────────────── */
+.ojd-cat-group {
+  font-size: 11px; letter-spacing: .05em; color: var(--ink-4);
+  padding: 10px 2px 2px;
+}
+.ojd-choices .ojd-cat-group:first-child { padding-top: 0; }
+
+/* ── תצורה של בקשה חופשית (רשויות / מסמך) ─────────────────────────────────── */
+.ojd-config { margin-bottom: 14px; }
+.ojd-auth { display: flex; flex-direction: column; gap: 2px; }
+.ojd-authrow {
+  display: flex; align-items: center; gap: 9px; padding: 6px 8px;
+  border-radius: var(--r-input); cursor: pointer; font-size: var(--fs-13); color: var(--ink-2);
+}
+.ojd-authrow:hover { background: var(--surface-1); }
+.ojd-authrow.on { color: var(--ink-1); }
+.ojd-authrow input { margin: 0; }
+.ojd-authname { flex: 1; }
+.ojd-authcode { font-size: var(--fs-12); color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.ojd-select {
+  width: 100%; max-width: 320px; border: 1px solid var(--bd-strong); border-radius: var(--r-input);
+  padding: 6px 9px; font: inherit; font-size: var(--fs-13); background: var(--card); color: var(--ink-1);
+}
+.ojd-warn { font-size: var(--fs-12); color: var(--warn); margin-top: 7px; line-height: 1.6; }
+.ojd-incomplete {
+  font-size: 11px; color: var(--warn); border: 1px solid var(--chip-amber-bd);
+  background: var(--chip-amber-bg); border-radius: var(--r-chip);
+  padding: 1px 6px; margin-inline-start: 6px; font-weight: 400; vertical-align: 1px; white-space: nowrap;
 }

@@ -17,10 +17,39 @@ import {
   CATALOG_STEP_TYPES, CLIENT_KIND_LABELS, CLIENT_KIND_ORDER, FACTS,
   factWhen, metaFor, variantLabel,
 } from '../../types/journeyDefaults';
+import {
+  DEBIT_AUTHORITIES, OFFICE_REQUEST_KINDS, officeEntryPayload, officeEntryReady,
+  officeEntrySummary, officeKindSpec,
+} from '../../lib/officeDefaultRequests';
+import { documentLibrary } from '../../lib/clientGuide';
+import type { FirmProfile } from '../../types/firmProfile';
+import type { InstitutionKey } from '../../types/onboarding';
+import { INSTITUTION_DEBIT_CODES } from '../../types/onboarding';
 import { useJourneyDefaults } from '../../hooks/useJourneyDefaults';
 import './requestDefaults.css';
 
-interface Props { officeId: string | undefined }
+interface Props { profile: FirmProfile }
+
+/**
+ * שם, תנאי ובעלים — לבקשת מערכת מ-REQUEST_META, לבקשה של המשרד מהמפרט שלה.
+ * ‼ לפי `key` ולא לפי `stepType`: ארבע הבקשות של המשרד הן כולן custom_request.
+ */
+function entryMeta(e: DefaultEntry) {
+  if (e.source === 'office') {
+    const spec = officeKindSpec(e.key);
+    return {
+      name: spec?.name ?? e.key,
+      cond: 'תמיד',
+      owner: spec?.owner ?? 'הלקוח',
+      note: spec?.note,
+      extern: false,
+      derivedCopy: false,
+      depWhy: undefined as string | undefined,
+    };
+  }
+  const m = metaFor(e.stepType);
+  return { ...m, depWhy: m.depWhy };
+}
 
 /** עבודה פנימית שנוצרת גם כן ואינה מוצגת במשטח הבקשות (סיווג C במלאי). */
 const INTERNAL_WORK: Record<ClientKind, string[]> = {
@@ -33,15 +62,20 @@ const INTERNAL_WORK: Record<ClientKind, string[]> = {
 
 interface Node { entry: DefaultEntry; kids: Node[] }
 
-/** בונה את העץ מהתלות. שורש = בקשה בלי תלות, או שההורה שלה אינו ברשימה. */
+/**
+ * בונה את העץ מהתלות. שורש = בקשה בלי תלות, או שההורה שלה אינו ברשימה.
+ * ‼ התלות מוצהרת בין סוגי שלב (כך היא נאכפת בשרת), ולכן המיפוי הוא
+ * stepType→node — אבל הזהות של רשומה היא ה-key שלה.
+ */
 function toTree(entries: DefaultEntry[]): Node[] {
-  const byType = new Map(entries.map(e => [e.stepType, e]));
-  const nodes = new Map<string, Node>(entries.map(e => [e.stepType, { entry: e, kids: [] }]));
+  const nodes = new Map<string, Node>(entries.map(e => [e.key, { entry: e, kids: [] }]));
+  const byType = new Map<string, Node>();
+  for (const e of entries) if (!byType.has(e.stepType)) byType.set(e.stepType, nodes.get(e.key)!);
   const roots: Node[] = [];
   for (const e of entries) {
-    const node = nodes.get(e.stepType)!;
-    const parent = e.dependsOn && byType.has(e.dependsOn) ? nodes.get(e.dependsOn) : undefined;
-    if (parent) parent.kids.push(node); else roots.push(node);
+    const node = nodes.get(e.key)!;
+    const parent = e.dependsOn ? byType.get(e.dependsOn) : undefined;
+    if (parent && parent !== node) parent.kids.push(node); else roots.push(node);
   }
   return roots;
 }
@@ -49,7 +83,8 @@ function toTree(entries: DefaultEntry[]): Node[] {
 const flatten = (nodes: Node[]): DefaultEntry[] =>
   nodes.flatMap(n => [n.entry, ...flatten(n.kids)]);
 
-export default function RequestDefaultsSection({ officeId }: Props) {
+export default function RequestDefaultsSection({ profile }: Props) {
+  const officeId = profile.id;
   const { byKind, loading, error, saving, save } = useJourneyDefaults(officeId);
   const [kind, setKind] = useState<ClientKind>('licensed_dealer');
   const [draft, setDraft] = useState<Partial<Record<ClientKind, DefaultEntry[]>>>({});
@@ -82,44 +117,46 @@ export default function RequestDefaultsSection({ officeId }: Props) {
     if (markDirty) setDirty(d => ({ ...d, [kind]: true }));
   }
 
-  function patch(stepType: string, fn: (e: DefaultEntry) => DefaultEntry) {
-    mutate(entries.map(e => (e.stepType === stepType ? fn(e) : e)));
+  function patch(key: string, fn: (e: DefaultEntry) => DefaultEntry) {
+    mutate(entries.map(e => (e.key === key ? fn(e) : e)));
   }
 
   /** כיבוי ראש שרשרת מכבה גם את מה שתלוי בו — אחרת נבטיח בקשה שלא תוכל להיפתח. */
-  function flip(stepType: string) {
-    const target = entries.find(e => e.stepType === stepType);
+  function flip(key: string) {
+    const target = entries.find(e => e.key === key);
     if (!target) return;
     const on = !target.enabled;
-    const affected = new Set<string>([stepType]);
+    // התלות מוצהרת בין סוגי שלב, ולכן ההתפשטות עוברת דרך stepType
+    const affectedTypes = new Set<string>([target.stepType]);
     let grew = true;
     while (grew) {
       grew = false;
       for (const e of entries) {
-        if (e.dependsOn && affected.has(e.dependsOn) && !affected.has(e.stepType)) {
-          affected.add(e.stepType); grew = true;
+        if (e.dependsOn && affectedTypes.has(e.dependsOn) && !affectedTypes.has(e.stepType)) {
+          affectedTypes.add(e.stepType); grew = true;
         }
       }
     }
-    mutate(entries.map(e => (affected.has(e.stepType) ? { ...e, enabled: on } : e)));
-    if (!on && affected.size > 1) setNotice(`«${metaFor(stepType).name}» כובתה — גם מה שתלוי בה`);
+    const affected = new Set(entries.filter(e => e.key === key || affectedTypes.has(e.stepType)).map(e => e.key));
+    mutate(entries.map(e => (affected.has(e.key) ? { ...e, enabled: on } : e)));
+    if (!on && affected.size > 1) setNotice(`«${entryMeta(target).name}» כובתה — גם מה שתלוי בה`);
   }
 
   /** סידור מחדש בין שורשים בלבד. בן זז עם ההורה שלו. */
-  function moveRoot(stepType: string, delta: number) {
-    const rootTypes = tree.map(n => n.entry.stepType);
-    const i = rootTypes.indexOf(stepType);
+  function moveRoot(key: string, delta: number) {
+    const keys = tree.map(n => n.entry.key);
+    const i = keys.indexOf(key);
     const j = i + delta;
-    if (i < 0 || j < 0 || j >= rootTypes.length) return;
-    const order = [...rootTypes];
+    if (i < 0 || j < 0 || j >= keys.length) return;
+    const order = [...keys];
     [order[i], order[j]] = [order[j], order[i]];
     applyRootOrder(order);
   }
 
-  function applyRootOrder(rootTypes: string[]) {
-    const byRoot = new Map(tree.map(n => [n.entry.stepType, n]));
-    const next = rootTypes.flatMap(t => {
-      const n = byRoot.get(t);
+  function applyRootOrder(rootKeys: string[]) {
+    const byRoot = new Map(tree.map(n => [n.entry.key, n]));
+    const next = rootKeys.flatMap(k => {
+      const n = byRoot.get(k);
       return n ? flatten([n]) : [];
     });
     if (next.length !== entries.length) return;
@@ -127,18 +164,18 @@ export default function RequestDefaultsSection({ officeId }: Props) {
   }
 
   // ── גרירה · לכידת המצביע על המכל, כדי שרינדור מחדש לא ינתק אותה ──────────
-  function onGripDown(stepType: string, ev: React.PointerEvent) {
+  function onGripDown(key: string, ev: React.PointerEvent) {
     ev.preventDefault();
     ev.stopPropagation();
     (ev.currentTarget as HTMLElement).focus();
-    dragRef.current = stepType;
+    dragRef.current = key;
     listRef.current?.setPointerCapture(ev.pointerId);
   }
   function onListMove(ev: React.PointerEvent) {
     const dragging = dragRef.current;
     if (!dragging || !listRef.current) return;
-    const rows = Array.from(listRef.current.querySelectorAll<HTMLElement>('[data-root-type]'));
-    const order = rows.map(r => r.dataset.rootType!);
+    const rows = Array.from(listRef.current.querySelectorAll<HTMLElement>('[data-root-key]'));
+    const order = rows.map(r => r.dataset.rootKey!);
     const from = order.indexOf(dragging);
     if (from < 0) return;
     for (let i = 0; i < rows.length; i++) {
@@ -165,11 +202,11 @@ export default function RequestDefaultsSection({ officeId }: Props) {
     if (e.variants.length) return e.variants;
     return [{ key: 'default', fact: null, items: [] }];
   }
-  function setVariants(stepType: string, vs: DefaultVariant[]) {
-    patch(stepType, e => ({ ...e, variants: vs }));
+  function setVariants(key: string, vs: DefaultVariant[]) {
+    patch(key, e => ({ ...e, variants: vs }));
   }
-  function addVariant(stepType: string, fact: FactKey) {
-    const e = entries.find(x => x.stepType === stepType);
+  function addVariant(key: string, fact: FactKey) {
+    const e = entries.find(x => x.key === key);
     if (!e) return;
     const vs = variantsOf(e);
     const base = vs[vs.length - 1];
@@ -179,59 +216,86 @@ export default function RequestDefaultsSection({ officeId }: Props) {
       items: base.items ? [...base.items] : [],
       copy: base.copy ? { ...base.copy } : undefined,
     });
-    setVariants(stepType, next);
-    setVsel(s => ({ ...s, [stepType]: next.length - 2 }));
+    setVariants(key, next);
+    setVsel(s => ({ ...s, [key]: next.length - 2 }));
     setFactsFor(null);
     setNotice(`נוסף מצב «${FACTS.find(f => f.key === fact)?.label}» · מתחיל מהעתק של ברירת המחדל`);
   }
-  function dropVariant(stepType: string, idx: number) {
-    const e = entries.find(x => x.stepType === stepType);
+  function dropVariant(key: string, idx: number) {
+    const e = entries.find(x => x.key === key);
     if (!e) return;
     const vs = variantsOf(e);
     if (vs[idx]?.fact === null) return;         // הנופל־אחורה אינו נמחק
-    setVariants(stepType, vs.filter((_, i) => i !== idx));
-    setVsel(s => ({ ...s, [stepType]: 0 }));
+    setVariants(key, vs.filter((_, i) => i !== idx));
+    setVsel(s => ({ ...s, [key]: 0 }));
     setNotice('המצב הוסר · הבקשה תיווצר לפי ברירת המחדל');
   }
   /** סדר המצבים משנה התנהגות (התאמה ראשונה), ולכן הוא ניתן לשינוי. */
-  function moveVariant(stepType: string, idx: number, delta: number) {
-    const e = entries.find(x => x.stepType === stepType);
+  function moveVariant(key: string, idx: number, delta: number) {
+    const e = entries.find(x => x.key === key);
     if (!e) return;
     const vs = [...variantsOf(e)];
     const j = idx + delta;
     if (j < 0 || j >= vs.length - 1 || vs[idx].fact === null) return;  // הנופל־אחורה נשאר אחרון
     [vs[idx], vs[j]] = [vs[j], vs[idx]];
-    setVariants(stepType, vs);
-    setVsel(s => ({ ...s, [stepType]: j }));
+    setVariants(key, vs);
+    setVsel(s => ({ ...s, [key]: j }));
   }
-  function editItems(stepType: string, vIdx: number, fn: (items: { key?: string; label: string }[]) => { key?: string; label: string }[]) {
-    const e = entries.find(x => x.stepType === stepType);
+  function editItems(key: string, vIdx: number, fn: (items: { key?: string; label: string }[]) => { key?: string; label: string }[]) {
+    const e = entries.find(x => x.key === key);
     if (!e) return;
     const vs = variantsOf(e).map((v, i) => (i === vIdx ? { ...v, items: fn(v.items ?? []) } : v));
-    setVariants(stepType, vs);
+    setVariants(key, vs);
   }
 
   // ── קטלוג ────────────────────────────────────────────────────────────────
-  function addFromCatalog(stepType: string) {
+  /** בקשת מערכת שהוחזרה לברירת המחדל. */
+  function addSystemFromCatalog(stepType: string) {
     const meta = metaFor(stepType);
     mutate([...entries, {
       key: stepType, stepType, enabled: true,
       sortIndex: (entries.length + 1) * 10,
-      source: 'office', requiredForClose: null, dueInDays: null, dependsOn: null,
+      source: 'system', requiredForClose: null, dueInDays: null, dependsOn: null,
       variants: [],
     }]);
     setCatalogOpen(false);
     setOpen(s => new Set(s).add(stepType));
     setNotice(`«${meta.name}» נוספה לברירת המחדל`);
   }
-  function removeEntry(stepType: string) {
-    mutate(entries.filter(e => e.stepType !== stepType && e.dependsOn !== stepType));
+
+  /** בקשה חופשית של המשרד — נולדת מהמפרט, ונשמרת כ-custom_request. */
+  function addOfficeFromCatalog(kindKey: string) {
+    const spec = officeKindSpec(kindKey);
+    if (!spec) return;
+    mutate([...entries, {
+      key: spec.key, stepType: 'custom_request', enabled: true,
+      sortIndex: (entries.length + 1) * 10,
+      source: 'office', requiredForClose: null, dueInDays: null, dependsOn: null,
+      variants: [{ key: 'default', fact: null, items: [...spec.items], copy: { ...spec.copy } }],
+      authorities: spec.config === 'authorities' ? [] : undefined,
+      documentId: undefined,
+    }]);
+    setCatalogOpen(false);
+    setOpen(s => new Set(s).add(spec.key));
+    setNotice(`«${spec.name}» נוספה לברירת המחדל`);
+  }
+  /** ‼ הרשויות נשמרות ברשומה; ה-payload נבנה מהן ברגע השמירה. */
+  function setAuthorities(key: string, a: InstitutionKey[]) {
+    patch(key, e => ({ ...e, authorities: a }));
+  }
+  function setDocument(key: string, id: string) {
+    patch(key, e => ({ ...e, documentId: id || undefined }));
+  }
+
+  function removeEntry(key: string) {
+    const gone = entries.find(e => e.key === key);
+    mutate(entries.filter(e => e.key !== key && !(gone && e.dependsOn === gone.stepType)));
     setNotice('הוסרה מברירת המחדל');
   }
 
   async function doSave() {
     setSaveErr(null);
-    const err = await save(kind, entries);
+    const err = await save(kind, entries, profile);
     if (err) { setSaveErr(err); return; }
     setDirty(d => ({ ...d, [kind]: false }));
     setNotice(`נשמר · יחול על לקוחות חדשים מסוג «${CLIENT_KIND_LABELS[kind]}»`);
@@ -296,14 +360,14 @@ export default function RequestDefaultsSection({ officeId }: Props) {
         ) : (
           <div ref={listRef} onPointerMove={onListMove} onPointerUp={onListUp} onPointerCancel={onListUp}>
             {tree.map((n, i) => (
-              <Row key={n.entry.stepType} node={n} depth={0} last={i === tree.length - 1}
-                   state={{ open, vsel, addItemFor, whyOpen }}
+              <Row key={n.entry.key} node={n} depth={0} last={i === tree.length - 1}
+                   state={{ open, vsel, addItemFor, whyOpen, profile }}
                    api={{
                      toggleOpen: (t) => setOpen(s => { const n2 = new Set(s); n2.has(t) ? n2.delete(t) : n2.add(t); return n2; }),
                      flip, moveRoot, onGripDown,
                      pickVariant: (t, i2) => setVsel(s => ({ ...s, [t]: i2 })),
                      addVariantOpen: setFactsFor, dropVariant, moveVariant,
-                     editItems, setAddItemFor, removeEntry,
+                     editItems, setAddItemFor, removeEntry, setAuthorities, setDocument,
                      toggleWhy: (t) => setWhyOpen(s => { const n2 = new Set(s); n2.has(t) ? n2.delete(t) : n2.add(t); return n2; }),
                      variantsOf,
                    }} />
@@ -337,14 +401,28 @@ export default function RequestDefaultsSection({ officeId }: Props) {
           sub={`הבקשה תיווצר לכל לקוח חדש מסוג «${CLIENT_KIND_LABELS[kind]}». לקוחות שכבר במסע לא יושפעו.`}
           note="בקשה חד־פעמית ללקוח מסוים מוסיפים ממסך הלקוח, לא כאן."
           onClose={() => setCatalogOpen(false)}>
+          {/* ‼ שתי משפחות באותו קטלוג: בקשות שהמערכת יוצרת מתנאי, ובקשות
+              שהמשרד מוסיף בעצמו. ההפרדה היא בכותרת, לא בלשונית. */}
+          <div className="ojd-cat-group">בקשות של המערכת</div>
           {CATALOG_STEP_TYPES.map(t => {
-            const used = entries.some(e => e.stepType === t);
+            const used = entries.some(e => e.stepType === t && e.source === 'system');
             const meta = metaFor(t);
             return (
               <button key={t} type="button" className="ojd-choice" disabled={used}
-                onClick={() => addFromCatalog(t)}>
+                onClick={() => addSystemFromCatalog(t)}>
                 <b>{meta.name}</b>
                 <span>{used ? 'כבר בברירת המחדל' : meta.hint}</span>
+              </button>
+            );
+          })}
+          <div className="ojd-cat-group">בקשות שהמשרד מוסיף</div>
+          {OFFICE_REQUEST_KINDS.map(spec => {
+            const used = entries.some(e => e.key === spec.key);
+            return (
+              <button key={spec.key} type="button" className="ojd-choice" disabled={used}
+                onClick={() => addOfficeFromCatalog(spec.key)}>
+                <b>{spec.name}</b>
+                <span>{used ? 'כבר בברירת המחדל' : spec.hint}</span>
               </button>
             );
           })}
@@ -353,11 +431,11 @@ export default function RequestDefaultsSection({ officeId }: Props) {
 
       {factsFor && (
         <Modal title="מצב נוסף"
-          sub={`הבקשה «${metaFor(factsFor).name}» תיווצר אחרת כשהעובדה נכונה. אלו כל העובדות שהמערכת יודעת על לקוח.`}
+          sub={`הבקשה «${entries.find(x => x.key === factsFor) ? entryMeta(entries.find(x => x.key === factsFor)!).name : factsFor}» תיווצר אחרת כשהעובדה נכונה. אלו כל העובדות שהמערכת יודעת על לקוח.`}
           note="המצבים נבדקים לפי הסדר, וברירת המחדל אחרונה. אין ניסוח חופשי - אלו כל העובדות שקיימות."
           onClose={() => setFactsFor(null)}>
           {FACTS.map(f => {
-            const e = entries.find(x => x.stepType === factsFor);
+            const e = entries.find(x => x.key === factsFor);
             const used = !!e && variantsOf(e).some(v => v.fact === f.key);
             return (
               <button key={f.key} type="button" className="ojd-choice" disabled={used}
@@ -382,52 +460,59 @@ interface RowState {
   vsel: Record<string, number>;
   addItemFor: string | null;
   whyOpen: Set<string>;
+  profile: FirmProfile;
 }
 interface RowApi {
-  toggleOpen: (t: string) => void;
-  flip: (t: string) => void;
-  moveRoot: (t: string, d: number) => void;
-  onGripDown: (t: string, ev: React.PointerEvent) => void;
-  pickVariant: (t: string, i: number) => void;
-  addVariantOpen: (t: string) => void;
-  dropVariant: (t: string, i: number) => void;
-  moveVariant: (t: string, i: number, d: number) => void;
-  editItems: (t: string, vi: number, fn: (items: { key?: string; label: string }[]) => { key?: string; label: string }[]) => void;
-  setAddItemFor: (t: string | null) => void;
-  removeEntry: (t: string) => void;
-  toggleWhy: (t: string) => void;
+  toggleOpen: (k: string) => void;
+  flip: (k: string) => void;
+  moveRoot: (k: string, d: number) => void;
+  onGripDown: (k: string, ev: React.PointerEvent) => void;
+  pickVariant: (k: string, i: number) => void;
+  addVariantOpen: (k: string) => void;
+  dropVariant: (k: string, i: number) => void;
+  moveVariant: (k: string, i: number, d: number) => void;
+  editItems: (k: string, vi: number, fn: (items: { key?: string; label: string }[]) => { key?: string; label: string }[]) => void;
+  setAddItemFor: (k: string | null) => void;
+  removeEntry: (k: string) => void;
+  setAuthorities: (k: string, a: InstitutionKey[]) => void;
+  setDocument: (k: string, id: string) => void;
+  toggleWhy: (k: string) => void;
   variantsOf: (e: DefaultEntry) => DefaultVariant[];
 }
 
 function Row({ node, depth, last, state, api }:
   { node: Node; depth: number; last: boolean; state: RowState; api: RowApi }) {
   const e = node.entry;
-  const meta = metaFor(e.stepType);
-  const isOpen = state.open.has(e.stepType);
+  const meta = entryMeta(e);
+  const isOpen = state.open.has(e.key);
   const dependent = !!e.dependsOn;
+  const summary = e.source === 'office' ? officeEntrySummary(e, state.profile) : null;
+  // ‼ בקשה של המשרד שהתצורה שלה חסרה לא תיווצר — נאמר את זה בשורה עצמה,
+  // ולא נחכה שהמשרד יגלה את זה כשלקוח לא יקבל אותה.
+  const incomplete = e.source === 'office' && e.enabled && !officeEntryReady(e, state.profile);
 
   const metaLine = dependent
     ? <><span>נפתחת אחרי «{metaFor(e.dependsOn!).name}»</span> · {meta.owner}</>
-    : <>{meta.cond} · {meta.owner}</>;
+    : <>{meta.cond} · {meta.owner}{summary ? <> · {summary}</> : null}</>;
 
   return (
     <div className={`ojd-req${depth ? ' child' : ''}${e.enabled ? '' : ' off'}${isOpen ? ' open' : ''}${last && !node.kids.length ? ' last' : ''}`}
-         {...(depth === 0 ? { 'data-root-type': e.stepType } : {})}>
+         {...(depth === 0 ? { 'data-root-key': e.key } : {})}>
       <span className="ojd-dot" aria-hidden="true" />
       <div>
         <div className="ojd-rowhead" role="button" tabIndex={0}
              aria-expanded={isOpen}
-             onClick={() => api.toggleOpen(e.stepType)}
-             onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); api.toggleOpen(e.stepType); } }}>
+             onClick={() => api.toggleOpen(e.key)}
+             onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); api.toggleOpen(e.key); } }}>
           {depth === 0 ? (
             <span className="ojd-grip" tabIndex={0} role="button" aria-label="שינוי מיקום"
                   title="גרירה משנה את הסדר · אפשר גם בחצים למעלה/למטה"
                   onClick={ev => ev.stopPropagation()}
-                  onPointerDown={ev => api.onGripDown(e.stepType, ev)}
+                  onPointerDown={ev => api.onGripDown(e.key, ev)}
                   onKeyDown={ev => {
                     ev.stopPropagation();
-                    if (ev.key === 'ArrowUp') { ev.preventDefault(); api.moveRoot(e.stepType, -1); }
-                    if (ev.key === 'ArrowDown') { ev.preventDefault(); api.moveRoot(e.stepType, 1); }
+                    if (ev.key === 'ArrowUp') { ev.preventDefault(); api.moveRoot(e.key, -1); }
+                    if (ev.key === 'ArrowDown') { ev.preventDefault(); api.moveRoot(e.key, 1); }
                   }}>⠿</span>
           ) : (
             <span className="ojd-grip fixed" title="הסדר נקבע על ידי התלות ולא ניתן לגרירה">↳</span>
@@ -436,13 +521,14 @@ function Row({ node, depth, last, state, api }:
             <div className="ojd-rowtitle">
               {meta.name}
               {e.source === 'office' && <span className="ojd-byoffice">נוסף על ידך</span>}
+              {incomplete && <span className="ojd-incomplete">חסרה תצורה</span>}
             </div>
             <div className="ojd-rowmeta">{metaLine}</div>
           </div>
           <div className="ojd-rowaside">
             {!e.enabled && <span className="ojd-offtag">כבוי</span>}
             <button type="button" className="ojd-toggle"
-              onClick={ev => { ev.stopPropagation(); api.flip(e.stepType); }}>
+              onClick={ev => { ev.stopPropagation(); api.flip(e.key); }}>
               {e.enabled ? 'כבה' : 'הפעל'}
             </button>
             <span className="ojd-chev" aria-hidden="true">⌄</span>
@@ -451,7 +537,7 @@ function Row({ node, depth, last, state, api }:
         {isOpen && <Body entry={e} state={state} api={api} />}
       </div>
       {node.kids.map((k, i) => (
-        <Row key={k.entry.stepType} node={k} depth={depth + 1}
+        <Row key={k.entry.key} node={k} depth={depth + 1}
              last={last && i === node.kids.length - 1} state={state} api={api} />
       ))}
     </div>
@@ -459,20 +545,32 @@ function Row({ node, depth, last, state, api }:
 }
 
 function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api: RowApi }) {
-  const meta = metaFor(entry.stepType);
+  const meta = entryMeta(entry);
+  const spec = entry.source === 'office' ? officeKindSpec(entry.key) : undefined;
   const vs = api.variantsOf(entry);
-  const sel = Math.min(state.vsel[entry.stepType] ?? 0, vs.length - 1);
+  const sel = Math.min(state.vsel[entry.key] ?? 0, vs.length - 1);
   const v = vs[sel];
   const multi = vs.length > 1;
-  const items = v.items ?? [];
 
-  // ‼ ב«מסמכים מהלקוח» הכותרת והשורה שמתחתיה נגזרות מהרשימה ואינן נוסח כתוב —
-  // כך זה בשרת, וכך זה חייב להיראות כאן.
-  const pv = meta.derivedCopy
-    ? { t: `להעלות ${items.length} מסמכים`, s: items.map(i => i.label).join(' · '), c: 'להעלאה' }
-    : v.copy
-      ? { t: v.copy.clientTitle ?? '', s: v.copy.clientSub ?? '', c: v.copy.clientCta ?? '' }
-      : null;
+  /* ‼ בקשה של המשרד עם תצורה משלה (רשויות / מסמך) — התצוגה והפריטים נגזרים
+     מה-payload שייווצר בפועל, ולא מרשימה שנערכת ביד. כך «מה שאתה רואה» הוא
+     בדיוק מה שהלקוח יקבל, ואי אפשר לערוך פריט שהבונה יידרוס. */
+  const built = spec?.config ? officeEntryPayload(entry, state.profile) : null;
+  const derivedItems = built
+    ? ((built.requirements as { label: string }[] | undefined) ?? []).map(r => ({ label: r.label }))
+    : null;
+  const items = derivedItems ?? v.items ?? [];
+  const editableItems = !spec?.config;
+
+  const pv = built
+    ? { t: String(built.clientTitle ?? ''), s: String(built.clientSub ?? ''), c: String(built.clientCta ?? '') }
+    : meta.derivedCopy
+      ? { t: `להעלות ${items.length} מסמכים`, s: items.map(i => i.label).join(' · '), c: 'להעלאה' }
+      : v.copy
+        ? { t: v.copy.clientTitle ?? '', s: v.copy.clientSub ?? '', c: v.copy.clientCta ?? '' }
+        : null;
+
+  const docs = spec?.config === 'document' ? documentLibrary(state.profile) : [];
 
   return (
     <div className="ojd-body" onClick={ev => ev.stopPropagation()}>
@@ -482,12 +580,12 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
             <span className="ojd-vlab">לפי מצב הלקוח</span>
             {vs.map((x, i) => (
               <button key={x.key} type="button" className={`ojd-vchip${i === sel ? ' on' : ''}`}
-                onClick={() => api.pickVariant(entry.stepType, i)}>{
+                onClick={() => api.pickVariant(entry.key, i)}>{
                 variantLabel(x.key, x.fact)
               }</button>
             ))}
             <button type="button" className="ojd-link mute"
-              onClick={() => api.addVariantOpen(entry.stepType)}>＋ מצב</button>
+              onClick={() => api.addVariantOpen(entry.key)}>＋ מצב</button>
           </div>
           <div className="ojd-vcond">
             <div>
@@ -498,15 +596,63 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
             {v.fact !== null && (
               <div className="ojd-vacts">
                 <button type="button" className="ojd-link mute"
-                  onClick={() => api.moveVariant(entry.stepType, sel, -1)}>הקדם</button>
+                  onClick={() => api.moveVariant(entry.key, sel, -1)}>הקדם</button>
                 <button type="button" className="ojd-link mute"
-                  onClick={() => api.moveVariant(entry.stepType, sel, 1)}>אחר</button>
+                  onClick={() => api.moveVariant(entry.key, sel, 1)}>אחר</button>
                 <button type="button" className="ojd-link mute"
-                  onClick={() => api.dropVariant(entry.stepType, sel)}>הסר מצב</button>
+                  onClick={() => api.dropVariant(entry.key, sel)}>הסר מצב</button>
               </div>
             )}
           </div>
         </>
+      )}
+
+      {/* ── תצורת «הקמת הרשאות לחיוב לרשויות» ─────────────────────────────
+          ‼ אין סימון מראש. הרו״ח בוחר לאילו רשויות הלקוח באמת צריך הרשאה,
+          וקוד המוסד מוצג כאן כדי שיהיה אפשר לוודא מולו. */}
+      {spec?.config === 'authorities' && (
+        <div className="ojd-config">
+          <div className="ojd-lab">לאילו רשויות</div>
+          <div className="ojd-auth">
+            {DEBIT_AUTHORITIES.map(a => {
+              const on = (entry.authorities ?? []).includes(a.key);
+              return (
+                <label key={a.key} className={`ojd-authrow${on ? ' on' : ''}`}>
+                  <input type="checkbox" checked={on}
+                    onChange={() => api.setAuthorities(entry.key,
+                      on ? (entry.authorities ?? []).filter(x => x !== a.key)
+                         : [...(entry.authorities ?? []), a.key])} />
+                  <span className="ojd-authname">{a.label}</span>
+                  <span className="ojd-authcode">קוד מוסד {INSTITUTION_DEBIT_CODES[a.key]}</span>
+                </label>
+              );
+            })}
+          </div>
+          {(entry.authorities ?? []).length === 0 && (
+            <div className="ojd-warn">בלי רשות אחת לפחות הבקשה לא תיווצר ללקוח.</div>
+          )}
+        </div>
+      )}
+
+      {/* ── תצורת «שליחת מסמך ללקוח» ─────────────────────────────────────── */}
+      {spec?.config === 'document' && (
+        <div className="ojd-config">
+          <div className="ojd-lab">איזה מסמך</div>
+          {docs.length === 0 ? (
+            <div className="ojd-warn">
+              ספריית המסמכים ריקה. מוסיפים מסמכים ב«מסמכים ללקוחות», ואז חוזרים לכאן.
+            </div>
+          ) : (
+            <select value={entry.documentId ?? ''} className="ojd-select"
+              onChange={ev => api.setDocument(entry.key, ev.target.value)}>
+              <option value="">בחירת מסמך…</option>
+              {docs.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+            </select>
+          )}
+          {docs.length > 0 && !entry.documentId && (
+            <div className="ojd-warn">בלי מסמך נבחר הבקשה לא תיווצר ללקוח.</div>
+          )}
+        </div>
       )}
 
       <div className="ojd-grid">
@@ -522,13 +668,18 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
               {meta.derivedCopy && (
                 <div className="ojd-pv-derived">הכותרת והשורה שמתחתיה נגזרות מהרשימה</div>
               )}
+              {spec?.config && (
+                <div className="ojd-pv-derived">הנוסח נבנה מהתצורה שלמעלה</div>
+              )}
             </>
           ) : (
             <div className="ojd-preview">
               <div className="ojd-pv-s">
-                {meta.extern
-                  ? 'לא מופיע בדף האישי — הפנייה יוצאת לגורם חיצוני.'
-                  : 'לא מופיע כפעולה — הלקוח רואה «בטיפול המשרד».'}
+                {spec?.config === 'authorities' ? 'בחר רשות אחת לפחות כדי לראות מה הלקוח יקבל.'
+                  : spec?.config === 'document' ? 'בחר מסמך כדי לראות מה הלקוח יקבל.'
+                  : meta.extern
+                    ? 'לא מופיע בדף האישי — הפנייה יוצאת לגורם חיצוני.'
+                    : 'לא מופיע כפעולה — הלקוח רואה «בטיפול המשרד».'}
               </div>
             </div>
           )}
@@ -537,30 +688,34 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
           <div className="ojd-lab">{meta.extern ? 'מה מבקשים' : 'מה נדרש'}</div>
           <ul className="ojd-items">
             {items.map((it, i) => (
-              <li key={`${it.key ?? it.label}-${i}`}>
+              <li key={`${(it as { key?: string }).key ?? it.label}-${i}`}>
                 <span>{it.label}</span>
-                <button type="button" className="ojd-idel" title="הסרה"
-                  onClick={() => api.editItems(entry.stepType, sel, xs => xs.filter((_, j) => j !== i))}>×</button>
+                {editableItems && (
+                  <button type="button" className="ojd-idel" title="הסרה"
+                    onClick={() => api.editItems(entry.key, sel, xs => xs.filter((_, j) => j !== i))}>×</button>
+                )}
               </li>
             ))}
-            <li className="ojd-iadd">
-              {state.addItemFor === entry.stepType ? (
-                <input autoFocus placeholder="שם הפריט" autoComplete="off"
-                  onBlur={() => api.setAddItemFor(null)}
-                  onKeyDown={ev => {
-                    if (ev.key === 'Escape') { (ev.target as HTMLInputElement).blur(); return; }
-                    if (ev.key !== 'Enter') return;
-                    const el = ev.target as HTMLInputElement;
-                    const label = el.value.trim();
-                    if (!label) { el.blur(); return; }
-                    api.editItems(entry.stepType, sel, xs => [...xs, { label }]);
-                    el.value = '';
-                  }} />
-              ) : (
-                <button type="button" className="ojd-link mute"
-                  onClick={() => api.setAddItemFor(entry.stepType)}>＋ פריט</button>
-              )}
-            </li>
+            {editableItems && (
+              <li className="ojd-iadd">
+                {state.addItemFor === entry.key ? (
+                  <input autoFocus placeholder="שם הפריט" autoComplete="off"
+                    onBlur={() => api.setAddItemFor(null)}
+                    onKeyDown={ev => {
+                      if (ev.key === 'Escape') { (ev.target as HTMLInputElement).blur(); return; }
+                      if (ev.key !== 'Enter') return;
+                      const el = ev.target as HTMLInputElement;
+                      const label = el.value.trim();
+                      if (!label) { el.blur(); return; }
+                      api.editItems(entry.key, sel, xs => [...xs, { label }]);
+                      el.value = '';
+                    }} />
+                ) : (
+                  <button type="button" className="ojd-link mute"
+                    onClick={() => api.setAddItemFor(entry.key)}>＋ פריט</button>
+                )}
+              </li>
+            )}
           </ul>
         </div>
       </div>
@@ -569,8 +724,8 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
         <div className="ojd-deprow">
           <span>תלות: נפתחת אחרי «{metaFor(entry.dependsOn).name}»</span>
           <button type="button" className="ojd-link mute"
-            onClick={() => api.toggleWhy(entry.stepType)}>למה?</button>
-          {state.whyOpen.has(entry.stepType) && <span className="ojd-depwhy">{meta.depWhy}</span>}
+            onClick={() => api.toggleWhy(entry.key)}>למה?</button>
+          {state.whyOpen.has(entry.key) && <span className="ojd-depwhy">{meta.depWhy}</span>}
         </div>
       )}
 
@@ -588,13 +743,13 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
       </div>
 
       <div className="ojd-acts">
-        {!multi && (
+        {!multi && entry.source === 'system' && (
           <button type="button" className="ojd-link"
-            onClick={() => api.addVariantOpen(entry.stepType)}>＋ מצב נוסף</button>
+            onClick={() => api.addVariantOpen(entry.key)}>＋ מצב נוסף</button>
         )}
         {entry.source === 'office' && (
           <button type="button" className="ojd-link mute"
-            onClick={() => api.removeEntry(entry.stepType)}>הסר מברירת המחדל</button>
+            onClick={() => api.removeEntry(entry.key)}>הסר מברירת המחדל</button>
         )}
       </div>
     </div>

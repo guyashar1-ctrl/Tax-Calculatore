@@ -9,6 +9,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ClientKind, DefaultEntry } from '../types/journeyDefaults';
 import { CLIENT_KIND_ORDER } from '../types/journeyDefaults';
+import type { FirmProfile } from '../types/firmProfile';
+import { officeEntryPayload } from '../lib/officeDefaultRequests';
 import { supabase } from '../lib/supabase';
 
 type ByKind = Partial<Record<ClientKind, DefaultEntry[]>>;
@@ -25,6 +27,9 @@ function normalizeEntry(raw: unknown): DefaultEntry | null {
     requiredForClose: typeof e.requiredForClose === 'boolean' ? e.requiredForClose : null,
     dueInDays: typeof e.dueInDays === 'number' ? e.dueInDays : null,
     dependsOn: typeof e.dependsOn === 'string' ? e.dependsOn : null,
+    authorities: Array.isArray(e.authorities) ? (e.authorities as never) : undefined,
+    documentId: typeof e.documentId === 'string' ? e.documentId : undefined,
+    payload: (e.payload && typeof e.payload === 'object' ? e.payload : null) as never,
     variants: Array.isArray(e.variants)
       ? (e.variants as Record<string, unknown>[]).map((v, i) => ({
           key: typeof v.key === 'string' ? v.key : `v${i}`,
@@ -71,13 +76,23 @@ export function useJourneyDefaults(officeId: string | undefined) {
 
   useEffect(() => { void load(); }, [load]);
 
-  /** שומרת סוג אחד. מחזירה הודעת שגיאה, או null בהצלחה. */
-  const save = useCallback(async (kind: ClientKind, entries: DefaultEntry[]): Promise<string | null> => {
+  /**
+   * שומרת סוג אחד. מחזירה הודעת שגיאה, או null בהצלחה.
+   * ‼ ה-payload של בקשה חופשית נבנה כאן, ברגע השמירה, ונשמר בתוך הרשומה.
+   * השרת מעביר אותו כמות שהוא — ולכן אין ל-SQL עותק שני של הניסוח.
+   */
+  const save = useCallback(async (
+    kind: ClientKind, entries: DefaultEntry[], profile?: FirmProfile | null,
+  ): Promise<string | null> => {
     if (!officeId) return 'אין משרד מחובר.';
     setSaving(true);
     // ‼ המקום השמור נגזר מהסדר על המסך ולא נשמר כפי שהיה: גרירה משנה מיקום,
     // והמספרים חייבים לשקף אותו. כפולות של 10, כמו reorder_onboarding_steps.
-    const payload = entries.map((e, i) => ({ ...e, sortIndex: (i + 1) * 10 }));
+    const payload = entries.map((e, i) => ({
+      ...e,
+      sortIndex: (i + 1) * 10,
+      payload: e.source === 'office' ? officeEntryPayload(e, profile) : undefined,
+    }));
     const { error: e } = await supabase
       .from('office_journey_defaults')
       .update({ entries: payload })
