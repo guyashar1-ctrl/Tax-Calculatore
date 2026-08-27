@@ -622,12 +622,14 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                     גם אלה לא חובה. בלי מייל - הלקוח יבחר בשלב החתימה אם לחתום יחד או לשלוח קישור אישי.
                   </div>
 
-                  {/* ‼ נשאל כאן ולא מאוחר יותר (הכרעת גיא 2026-08-20): בשלב הזה
-                      גיא מזין את הבקשה לשע"ם ובעצם כבר יודע מי הרשום. עד היום
-                      השדה נולד תמיד על שם הלקוח ותוקן ידנית — אם בכלל. */}
+                  {/* ‼ נשאל כאן ולא מאוחר יותר (הכרעת גיא 2026-08-20), אבל
+                      כ**כוונה ולא כידיעה** (2026-08-27): בפתיחת הבקשה עוד לא
+                      ראינו מה רשום בפועל במ"ה. התשובה נשמרת מסומנת "טרם אומת",
+                      וההכרעה נעשית בשלב "הפרטים הוזנו בשע״ם" שבמרכז ביצוע
+                      הייצוג — שם רואים את הרשום האמיתי. */}
                   {incomeTaxSelected && (
                     <div className="form-group" style={{ marginTop: '.75rem' }}>
-                      <label>על שם מי מתנהל תיק מס הכנסה?</label>
+                      <label>מי יהיה בן/בת הזוג הרשום/ה במס הכנסה?</label>
                       <select
                         value={registeredSpouse}
                         onChange={e => setRegisteredSpouse(e.target.value as 'client' | 'spouse')}
@@ -639,6 +641,9 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                       <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem', lineHeight: 1.5 }}>
                         במס הכנסה יש תיק אחד לתא המשפחתי, ומספרו הוא ת.ז. של בן/בת הזוג
                         הרשום/ה. כל ההתנהלות מול מ"ה תהיה בת.ז. הזו.
+                        <br />
+                        זו הכוונה שלך, לא בדיקה מול מ"ה - השם יסומן <b>«טרם אומת»</b> בכל
+                        המערכת. כשתזינו את הפרטים בשע״ם תראו מי רשום באמת, ותכריעו שם בלחיצה.
                       </div>
                     </div>
                   )}
@@ -670,10 +675,13 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             {niForSpouse && (
               <div>{'✓'} ייצוג נפרד בביטוח לאומי לבן/בת הזוג {married ? '' : '(אם הלקוח נשוי) '}- שתי אסמכתאות</div>
             )}
-            {/* מוצג רק בבחירה הלא-שגרתית: "ע״ש הלקוח" הוא ברירת המחדל ואינו
-                חידוש, אבל תיק על שם בן/בת הזוג משנה את כל ההתנהלות מול מ"ה. */}
-            {married && incomeTaxSelected && spouseName.trim() && registeredSpouse === 'spouse' && (
-              <div>{'✓'} תיק מס הכנסה ע״ש {spouseName.trim()} - בן/בת הזוג הרשום/ה</div>
+            {/* ‼ מוצג לשתי הבחירות ולא רק ל"בן/בת הזוג": מאז שהשדה הוא כוונה
+                ולא ידיעה, גם "ע״ש הלקוח" הוא נתון שטרם אומת — וצריך לומר את זה. */}
+            {married && incomeTaxSelected && spouseName.trim() && (
+              <div>
+                {'✓'} תיק מס הכנסה ע״ש {registeredSpouse === 'spouse' ? spouseName.trim() : (name.trim() || 'הלקוח/ה')} -
+                בן/בת הזוג הרשום/ה · טרם אומת מול מ"ה
+              </div>
             )}
           </div>
 

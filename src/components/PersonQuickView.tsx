@@ -7,7 +7,7 @@
 //   שעורכת במקביל הייתה יוצרת שני בעלים לאותה רשומה.
 
 import type { PersonRow } from '../utils/personDirectory';
-import { registeredFileInfo } from '../features/annualReport/profile';
+import { registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from '../features/annualReport/profile';
 import type { RecentDoc } from '../hooks/useRecentDocuments';
 import type { AdditionalCharge } from '../types/charges';
 import { CHARGE_STATUS_LABELS, CHARGE_STATUS_BADGE, CHARGE_NEXT_ACTION } from '../types/charges';
@@ -82,8 +82,8 @@ export default function PersonQuickView(p: Props) {
    */
   const regLine = spouseName && regFile
     ? (regFile.owner === 'joint'
-        ? { text: 'תיק מס הכנסה משותף', name: '', spouse: false }
-        : { text: 'תיק מס הכנסה ע״ש', name: regFile.name, spouse: regFile.owner === 'spouse' })
+        ? { text: 'תיק מס הכנסה משותף', name: '', spouse: false, unverified: false }
+        : { text: 'תיק מס הכנסה ע״ש', name: regFile.name, spouse: regFile.owner === 'spouse', unverified: regFile.unverified })
     : null;
   const { row } = p;
   /** שלוש שורות ההשוואה — אותם פרטים לשני בני הזוג, בסדר קבוע. */
@@ -171,6 +171,7 @@ export default function PersonQuickView(p: Props) {
         {regLine && (
           <div className={`pd-regline${regLine.spouse ? ' is-spouse' : ''}`} title={REG_HINT}>
             {regLine.text}{regLine.name && <> <b>{regLine.name}</b></>}
+            {regLine.unverified && <> · <span className="reg-unverified">{REGISTERED_UNVERIFIED_LABEL}</span></>}
           </div>
         )}
 

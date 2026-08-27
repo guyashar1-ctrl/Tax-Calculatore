@@ -20,7 +20,16 @@ export interface RegisteredFileInfo {
   /** ת.ז. שעליה מתנהל התיק. */
   idNumber: string;
   fileNumber?: string;
+  /**
+   * השם נקבע בבקשת הייצוג כ**כוונה** וטרם נראה מול מ"ה. כל מקום שמציג את
+   * בן הזוג הרשום מוסיף אז את `REGISTERED_UNVERIFIED_LABEL` — כדי שלא נסתמך
+   * על נתון שלא נבדק. נסגר בשלב "הפרטים הוזנו בשע״ם" שבמרכז ביצוע הייצוג.
+   */
+  unverified: boolean;
 }
+
+/** תווית אחידה לבן זוג רשום שנקבע כוונתית ועדיין לא נראה מול מ"ה. */
+export const REGISTERED_UNVERIFIED_LABEL = 'טרם אומת מול מ"ה';
 
 /**
  * שדה "על שם מי התיק במס הכנסה" בכרטיס הוא המקור הקובע לבן הזוג הרשום.
@@ -38,6 +47,7 @@ export function registeredFileInfo(client: Client): RegisteredFileInfo | null {
     name: isSpouse ? (spouseName || 'בן/בת הזוג') : clientName,
     idNumber: (isSpouse ? client.spouseIdNumber : client.idNumber) || file.fileNumber || '',
     fileNumber: file.fileNumber,
+    unverified: !!client.registeredSpouseUnverified,
   };
 }
 
@@ -49,6 +59,26 @@ export function spouseDisplayName(client: Client): string {
   return client.spouseName?.trim()
     || (client.spouse ? `${client.spouse.firstName ?? ''} ${client.spouse.lastName ?? ''}`.trim() : '')
     || 'בן/בת הזוג';
+}
+
+/**
+ * המשפט שמסכם את ההכרעה: "מיכל סלע היא בת הזוג הרשומה במס הכנסה".
+ *
+ * ‼ מגדר רק כשהוא ידוע בפועל — מגדר הלקוח מהכרטיס, או `spouse.gender` כשיש
+ * רשומת בן/בת זוג מלאה. לבן/בת זוג שנקלט/ה בבקשת ייצוג אין שדה מגדר, ושם
+ * נשארת הצורה הכפולה: עדיף מאשר לנחש מגדר של אדם אמיתי לפי שם.
+ */
+export function registeredSpouseSentence(client: Client, owner: 'client' | 'spouse'): string {
+  const name = owner === 'spouse' ? spouseDisplayName(client) : clientDisplayName(client);
+  const gender = owner === 'spouse' ? client.spouse?.gender : client.gender;
+  if (gender === 'female') return `${name} היא בת הזוג הרשומה במס הכנסה`;
+  if (gender === 'male') return `${name} הוא בן הזוג הרשום במס הכנסה`;
+  return `${name} - בן/בת הזוג הרשום/ה במס הכנסה`;
+}
+
+/** האם יש בכלל שני בני זוג שאפשר לבחור ביניהם. */
+export function hasRegisteredSpouseChoice(client: Client): boolean {
+  return client.familyStatus === 'married' || !!client.spouseName?.trim();
 }
 
 /**

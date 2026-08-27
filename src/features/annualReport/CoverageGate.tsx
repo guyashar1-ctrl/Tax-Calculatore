@@ -11,7 +11,7 @@ import { SECTION_LABELS } from './form1301Fields';
 import { computeAllFieldStatuses, getQuestionById, nodeInFlow, buildRequiredDocs, DOC_SOURCE_LABELS } from './engine';
 import { annualReportTree, chaptersForModel } from './tree';
 import { getAnswersForSession, saveAnswer, updateSessionState } from './repository';
-import { registeredFileInfo } from './profile';
+import { registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from './profile';
 import QuestionCard from './QuestionCard';
 
 type DocStatus = 'pending' | 'requested' | 'received' | 'not_relevant';
@@ -176,11 +176,14 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
           מאזן כיסוי 1301 - {clientName} · {session.taxYear}
           {regFile && (
             <span
-              className={`ar-pill ${regFile.owner === 'spouse' ? 'is-warn' : ''}`}
+              className={`ar-pill ${regFile.owner === 'spouse' || regFile.unverified ? 'is-warn' : ''}`}
               style={{ marginInlineEnd: '.6rem', verticalAlign: 'middle' }}
-              title="על שם מי מתנהל תיק מס הכנסה - נקבע בכרטיס הלקוח"
+              title={regFile.unverified
+                ? 'בן הזוג הרשום נקבע כוונתית בפתיחת הייצוג ועדיין לא אומת מול מ"ה - מכריעים בשלב «הפרטים הוזנו בשע״ם» שבמרכז ביצוע הייצוג'
+                : 'על שם מי מתנהל תיק מס הכנסה - נקבע בכרטיס הלקוח'}
             >
               התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
+              {regFile.unverified ? ` · ${REGISTERED_UNVERIFIED_LABEL}` : ''}
             </span>
           )}
         </h2>

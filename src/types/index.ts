@@ -512,6 +512,14 @@ export interface Client {
   divorceYear?: number;     // familyStatus === 'divorced' — שנת הגירושין ברבנות
   widowhoodYear?: number;   // familyStatus === 'widowed' — שנת הפטירה
 
+  /**
+   * בן/בת הזוג הרשום/ה נקבע בבקשת הייצוג כ**כוונה**, לא כעובדה: ברגע פתיחת
+   * הבקשה עוד לא ראינו מה רשום בפועל במ"ה. נשאר true עד שלב "הפרטים הוזנו
+   * בשע״ם" במרכז ביצוע הייצוג, שם הרו"ח רואה מי רשום ומכריע. משפיע רק על
+   * התצוגה — הבעלים עצמו נשאר `taxFiles[income_tax].owner`, מקור האמת היחיד.
+   */
+  registeredSpouseUnverified?: boolean;
+
   // ── נתוני בן/בת זוג מלאים (לחישוב תא משפחתי) ──
   spouse: SpouseData | null;
 
@@ -1003,9 +1011,10 @@ export interface OnboardingPrefill {
   spouseFirstName?: string;
   spouseLastName?: string;
   /**
-   * על שם מי מתנהל תיק מס הכנסה — בן/בת הזוג הרשום/ה.
-   * ‼ נשאל בבקשת הייצוג, כי שם הרו"ח מזין את הבקשה לשע"ם וכבר יודע. נכתב
-   * לכרטיס כ-`taxFiles[income_tax].owner`, שהוא מקור האמת היחיד לזה.
+   * על שם מי יתנהל תיק מס הכנסה — בן/בת הזוג הרשום/ה.
+   * ‼ זו **כוונה ולא ידיעה** (הכרעת גיא 2026-08-27): ברגע פתיחת הבקשה עוד לא
+   * ראינו מה רשום במ"ה. נכתב לכרטיס כ-`taxFiles[income_tax].owner` (מקור
+   * האמת היחיד) יחד עם `registeredSpouseUnverified`, שמסמן שטרם אומת.
    */
   registeredSpouse?: 'client' | 'spouse';
 }

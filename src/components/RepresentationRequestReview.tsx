@@ -9,7 +9,9 @@ import {
   REPRESENTATION_STATUS_BADGE,
   RepresentationExecution,
   RepSigner,
+  Client,
 } from '../types';
+import { registeredFileInfo } from '../features/annualReport/profile';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
@@ -46,6 +48,10 @@ interface Props {
   /** הייצוג בב"ל נלקח גם לבן/בת הזוג — שני מסלולים, שתי אסמכתאות. */
   niCoversSpouse?: boolean;
   onSaveExecution: (req: RepresentationRequest, execution: RepresentationExecution) => Promise<void> | void;
+  /** הלקוח המקושר — לשם הרשום בטופס, ולשלב שמכריע מיהו. חסר = טרם מקושר. */
+  linkedClient?: Client;
+  /** עובר כמו שהוא לשלב "הפרטים הוזנו בשע״ם" במרכז הביצוע, שם ההכרעה נעשית. */
+  onConfirmRegisteredSpouse?: (clientId: string, owner: 'client' | 'spouse') => Promise<void> | void;
 }
 
 const REP_TYPE_OPTIONS = [
@@ -68,6 +74,8 @@ export default function RepresentationRequestReview({
   niIncluded,
   niCoversSpouse,
   onSaveExecution,
+  linkedClient,
+  onConfirmRegisteredSpouse,
 }: Props) {
   const db = useDocumentDB();
   const { user } = useAuth();
@@ -143,6 +151,20 @@ export default function RepresentationRequestReview({
 
   const submission = request.submission;
   const authorityList = request.authorities.map(a => AUTHORITY_LABELS[a]).join(', ');
+
+  // ── בן/בת הזוג הרשום/ה — נצרך כאן, לא נקבע כאן ─────────────────────────────
+  // ‼ ההכרעה נעשית פעם אחת, בשלב "הפרטים הוזנו בשע״ם" שבמרכז הביצוע. המסך
+  // הזה רק משתמש בתוצאה: שם הנישום בחלק ב' של הטופס ומספר התיק במ"ה שייכים
+  // לבעל התיק — ראה טופס 2279א'5, שבו כל שורה בחלק ב' היא צמד שם+מספר.
+  const registered = linkedClient ? registeredFileInfo(linkedClient) : null;
+  const registeredVerified = !!registered && !registered.unverified;
+
+  // מספר התיק במ"ה הוא ת.ז. של הרשום. ממלאים מראש רק כשהוא אומת, ורק לשדה
+  // ריק — מספר שהוקלד ידנית או נשמר בבקשה גובר.
+  useEffect(() => {
+    if (!registeredVerified || !registered?.idNumber) return;
+    setPartB(p => (p.incomeTaxFileNumber ? p : { ...p, incomeTaxFileNumber: registered.idNumber }));
+  }, [registeredVerified, registered?.idNumber]);
 
   // בקשות אונבורדינג חדשות (Phase 2): מזוהות ע"י טוקן; הזרימה הישנה (מסמכים/הדמיה/חתימה) לא רלוונטית להן.
   const isNewOnboarding = !!request.onboardingToken;
@@ -320,6 +342,7 @@ export default function RepresentationRequestReview({
       const pdfBytes = await generateSignedPoaPdf({
         request: { ...request, submission: sub, partB: filledPartB },
         stampDataUrl,
+        registeredTaxpayerName: registeredVerified ? registered?.name : undefined,
       });
 
       // שמירה ל-IndexedDB
@@ -361,7 +384,10 @@ export default function RepresentationRequestReview({
     if (!request.partB) return;
     setGenerating(true);
     try {
-      const pdfBytes = await generateSignedPoaPdf({ request });
+      const pdfBytes = await generateSignedPoaPdf({
+        request,
+        registeredTaxpayerName: registeredVerified ? registered?.name : undefined,
+      });
       const storedId = request.signedPdfStoredId || `signed-poa-${request.id}`;
       const sub = request.submission!;
       const fileName = `${sub.lastName} ${sub.firstName} ייפוי כוח חתום.pdf`;
@@ -526,6 +552,14 @@ export default function RepresentationRequestReview({
                 <div className="form-group">
                   <label>מספר תיק במס הכנסה (אופציונלי)</label>
                   <input value={partB.incomeTaxFileNumber} onChange={e => setPartB(p => ({ ...p, incomeTaxFileNumber: e.target.value }))} dir="ltr" />
+                  {/* ‼ לא שואל שוב — רק מראה מה ייכתב, ומפנה לשלב שבו זה נקבע */}
+                  {registered && (
+                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.3rem', lineHeight: 1.5 }}>
+                      {registeredVerified
+                        ? <>שם הנישום שיודפס: <b>{registered.name}</b> - בעל התיק במ״ה</>
+                        : <>טרם נקבע מי הרשום במ״ה. נקבע בשלב «הפרטים הוזנו בשע״ם» שבמרכז הביצוע.</>}
+                    </div>
+                  )}
                 </div>
               )}
               {request.authorities.includes('vat') && (
@@ -651,6 +685,8 @@ export default function RepresentationRequestReview({
               onMarkSentToShaam={() => void onMarkSentToShaam(request)}
               onMarkActive={() => onMarkActive(request)}
               onSendToSigner={sendSignatureEmail}
+              linkedClient={linkedClient}
+              onConfirmRegisteredSpouse={onConfirmRegisteredSpouse}
             />
 
             {request.status === 'pending_signature' && setup && (

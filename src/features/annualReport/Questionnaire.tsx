@@ -5,7 +5,7 @@ import CoverageRail from './CoverageRail';
 import CardSectionEditor from './CardSectionEditor';
 import AnnualDeltaScreen, { type DeltaResult } from './AnnualDeltaScreen';
 import { replayAnswers } from './engine';
-import { seedModelFromClient, registeredFileInfo } from './profile';
+import { seedModelFromClient, registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from './profile';
 import { findSession, saveAnswer, updateSessionState } from './repository';
 import { useAnnualReportFlow } from './useAnnualReportSession';
 import { getQuestionById } from './engine';
@@ -129,11 +129,14 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
   const regFile = client ? registeredFileInfo(client) : null;
   const regChip = regFile && (
     <span
-      className={`ar-pill ${regFile.owner === 'spouse' ? 'is-warn' : ''}`}
+      className={`ar-pill ${regFile.owner === 'spouse' || regFile.unverified ? 'is-warn' : ''}`}
       style={{ marginInlineEnd: '.5rem' }}
-      title="על שם מי מתנהל תיק מס הכנסה - נקבע בכרטיס הלקוח"
+      title={regFile.unverified
+        ? 'בן הזוג הרשום נקבע כוונתית בפתיחת הייצוג ועדיין לא אומת מול מ"ה - מכריעים בשלב «הפרטים הוזנו בשע״ם» שבמרכז ביצוע הייצוג'
+        : 'על שם מי מתנהל תיק מס הכנסה - נקבע בכרטיס הלקוח'}
     >
       התיק ע"ש {regFile.name}{regFile.idNumber ? ` · ${regFile.idNumber}` : ''}
+      {regFile.unverified ? ` · ${REGISTERED_UNVERIFIED_LABEL}` : ''}
     </span>
   );
 

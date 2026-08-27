@@ -1768,6 +1768,10 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   border-block: 1px solid var(--hairline-2);
 }
 .ts-reg.is-spouse { color: var(--warn); border-block-color: var(--warn); }
+/* בן הזוג הרשום שטרם אומת — תווית קצרה שנוסעת לכל מקום שמציג את השם */
+.reg-unverified {
+  font-size: var(--fs-12); font-weight: 600; color: var(--warn); white-space: nowrap;
+}
 .ts-file {
   padding: .4rem 0; font-size: var(--fs-13);
   display: flex; align-items: center; gap: .45rem;

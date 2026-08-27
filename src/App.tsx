@@ -109,6 +109,7 @@ import TestSignDone from './components/ui/__TestSignDone';
 import TestFirmNotifications from './components/__TestFirmNotifications';
 import TestRepDialog from './components/__TestRepDialog';
 import TestAddRequestDialog from './components/__TestAddRequestDialog';
+import TestRegisteredSpouse from './components/__TestRegisteredSpouse';
 import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
@@ -305,6 +306,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-addrequest')) {
     return <TestAddRequestDialog />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-regspouse')) {
+    return <TestRegisteredSpouse />;
   }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {
@@ -1072,6 +1076,8 @@ export default function App() {
         const files = taxFilesForRegisteredSpouse(areas, prefill, undefined);
         return files ? { taxFiles: files } : {};
       })(),
+      // הכוונה נרשמה — ועד שנראה מה רשום בפועל במ"ה היא מסומנת כלא-מאומתת
+      ...(prefill.registeredSpouse ? { registeredSpouseUnverified: true } : {}),
       // מעבר מרו"ח אחר נרשם על הכרטיס מיד: ממנו נגזרים מכתב השחרור ומעקב החומרים.
       hasPreviousAccountant,
       ...(prevAccountant?.name  ? { prevAccountantName: prevAccountant.name } : {}),
@@ -1122,6 +1128,8 @@ export default function App() {
             : f)),
         };
       })(),
+      // הכוונה נרשמה — ועד שנראה מה רשום בפועל במ"ה היא מסומנת כלא-מאומתת
+      ...(prefill.registeredSpouse ? { registeredSpouseUnverified: true } : {}),
       hasPreviousAccountant,
       ...(prevAccountant?.name  ? { prevAccountantName: prevAccountant.name } : {}),
       ...(prevAccountant?.email ? { prevAccountantEmail: prevAccountant.email } : {}),
@@ -1129,6 +1137,45 @@ export default function App() {
     });
     void syncLifecycleStage(client.id);
     return saveRepresentationRequest(client.id, reqId, data);
+  }
+
+  /**
+   * ההכרעה מי בן/בת הזוג הרשום/ה — מגיעה משלב "הפרטים הוזנו בשע״ם" שבמרכז
+   * ביצוע הייצוג, הרגע היחיד בתהליך שבו הרו"ח רואה מול מ"ה מי רשום בפועל.
+   * כאן נסגר הסימון «טרם אומת», ואם המציאות שונה מהכוונה — גם הבעלים ומספר
+   * התיק מתוקנים באותה לחיצה.
+   */
+  async function handleConfirmRegisteredSpouse(clientId: string, owner: 'client' | 'spouse') {
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+    const ownerId = (owner === 'spouse' ? client.spouseIdNumber : client.idNumber)?.trim();
+    const existing = client.taxFiles ?? [];
+    const patched = existing.length
+      ? existing.map(f => (f.authority === 'income_tax'
+          ? {
+              ...f,
+              owner,
+              // מספר התיק במ"ה הוא ת.ז. של הרשום. נדרס רק כשהוא ריק או מחזיק
+              // את הת.ז. של בן הזוג השני — מספר שהוזן ידנית נשאר.
+              ...(ownerId && (!f.fileNumber || f.fileNumber === client.idNumber || f.fileNumber === client.spouseIdNumber)
+                ? { fileNumber: ownerId }
+                : {}),
+            }
+          : f))
+      // אין עדיין מבנה תיקים. ל"ע״ש הלקוח" אין מה לכתוב (autofill_internal_setup
+      // ייצור בדיוק את זה), אבל תיק על שם בן/בת הזוג חייב להירשם עכשיו.
+      : (owner === 'spouse'
+          ? taxFilesForRegisteredSpouse(
+              client.authorityRepresentations ?? {},
+              { registeredSpouse: 'spouse', spouseIdNumber: client.spouseIdNumber },
+              client.idNumber,
+            )
+          : undefined);
+    await updateClient({
+      ...client,
+      ...(patched ? { taxFiles: patched } : {}),
+      registeredSpouseUnverified: false,
+    });
   }
 
   function handleSelectRequest(id: string) {
@@ -2331,6 +2378,8 @@ export default function App() {
               niIncluded={!!clients.find(c => c.id === selectedRequest.linkedClientId)?.authorityRepresentations?.nationalInsurance}
               niCoversSpouse={effectiveNiCoversSpouse(clients.find(c => c.id === selectedRequest.linkedClientId))}
               onSaveExecution={handleSaveExecution}
+              linkedClient={clients.find(c => c.id === selectedRequest.linkedClientId)}
+              onConfirmRegisteredSpouse={handleConfirmRegisteredSpouse}
             />
           ) : (
             <div className="empty-state">

@@ -12,7 +12,12 @@ import {
   RepresentationExecution,
   NiTracking,
   NI_APPROVAL_PHONE,
+  Client,
 } from '../types';
+import {
+  registeredFileInfo, registeredSpouseSentence, hasRegisteredSpouseChoice,
+  clientDisplayName, spouseDisplayName,
+} from '../features/annualReport/profile';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { useEmailMessages } from '../hooks/useEmailMessages';
 import {
@@ -49,6 +54,14 @@ interface Props {
    * ‼ לא להשתמש בזה בקוד אמיתי: המקור היחיד הוא onboarding_steps.
    */
   repApprovalOverride?: RepApprovalStep | null;
+  /** הלקוח המקושר — לשמות בני הזוג ולמצב "מי הרשום במ"ה". */
+  linkedClient?: Client;
+  /**
+   * ‼ ההכרעה מי בן/בת הזוג הרשום/ה יושבת **בתוך** שלב "הפרטים הוזנו בשע״ם"
+   * (הכרעת גיא 2026-08-27): זה הרגע שבו הרו"ח פותח את הבקשה בשע״ם ורואה מה
+   * רשום שם באמת. אין שלב נוסף, אין מסך אימות שני — הבחירה **היא** הסימון.
+   */
+  onConfirmRegisteredSpouse?: (clientId: string, owner: 'client' | 'spouse') => Promise<void> | void;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -177,7 +190,7 @@ function Track({ title, subtitle, done, total, tone, children }: {
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, linkedClient, onConfirmRegisteredSpouse }: Props) {
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
@@ -276,6 +289,41 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     }
   }
 
+  // ── מי בן/בת הזוג הרשום/ה במס הכנסה ───────────────────────────────────────
+  // ‼ ההכרעה נעשית כאן ורק כאן. עד הרגע הזה מה שיש בכרטיס הוא הכוונה שנרשמה
+  // בפתיחת הייצוג, מסומנת «טרם אומת מול מ"ה»; פתיחת הבקשה בשע״ם היא הרגע
+  // שבו רואים מי רשום באמת, ולכן הבחירה כאן היא גם הסימון של השלב.
+  const regOwner: 'client' | 'spouse' =
+    (linkedClient && registeredFileInfo(linkedClient)?.owner === 'spouse') ? 'spouse' : 'client';
+  const regUnverified = !!linkedClient?.registeredSpouseUnverified;
+  const regChoice = !!linkedClient && !!onConfirmRegisteredSpouse && hasRegisteredSpouseChoice(linkedClient);
+  const regSentence = linkedClient ? registeredSpouseSentence(linkedClient, regOwner) : '';
+
+  /** סימון "הוזן בשע״ם". `owner` מסופק כשיש שני בני זוג — ואז הוא גם ההכרעה. */
+  async function markEnteredInShaam(owner?: 'client' | 'spouse') {
+    if (owner && linkedClient && onConfirmRegisteredSpouse) {
+      setBusy('it');
+      try {
+        await onConfirmRegisteredSpouse(linkedClient.id, owner);
+      } catch (e) {
+        setNote({ kind: 'err', text: e instanceof Error ? e.message : 'השמירה נכשלה' });
+        setBusy(null);
+        return;
+      }
+    }
+    // שלב שכבר סומן (נתון ישן שנשאר לא-מאומת) — רק ההכרעה נשמרת, בלי לדרוס תאריך
+    if (it.enteredAt) { setBusy(null); return; }
+    await patch({ ...exec, incomeTax: { ...it, enteredAt: new Date().toISOString() } }, 'it');
+  }
+
+  /** שמות שני בני הזוג לכפתורי ההכרעה — השם עצמו הוא הכפתור. */
+  const regNames: { owner: 'client' | 'spouse'; label: string }[] = linkedClient
+    ? [
+        { owner: 'client', label: clientDisplayName(linkedClient) },
+        { owner: 'spouse', label: spouseDisplayName(linkedClient) },
+      ]
+    : [];
+
   // ‼ הנתיב המזורז נטען כאן ואינו מגיע כ-prop — ראה useRepApprovalStep.
   // מרוענן כשהסטטוס משתנה, כי המעבר ל-awaiting_authorities הוא שיוצר אותו.
   const { step: loadedRepApproval, reload: reloadRepApproval } = useRepApprovalStep(request.linkedClientId);
@@ -317,11 +365,45 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             total={itSteps.length}
             tone="🏛"
           >
-            <Step n={1} title="הפרטים הוזנו בשע״ם" done={!!it.enteredAt}
-              hint={it.enteredAt ? `סומן ב-${fmt(it.enteredAt)}` : 'פתחו בקשת ייצוג באתר שע״ם עם הפרטים שלמעלה'}>
-              {!it.enteredAt && (
+            {/* ‼ שלב אחד, לא שניים: הסימון "הוזן בשע״ם" **הוא** ההכרעה מי בן/בת
+                הזוג הרשום/ה — לכן כשיש שני בני זוג, השמות הם הכפתורים ואין
+                כפתור "סמן כהוזן" נפרד. אחרי ההכרעה השאלה לא נשאלת שוב בשום
+                מסך, וגם הפקת הטופס נשענת עליה. */}
+            <Step
+              n={1}
+              title={it.enteredAt && !regUnverified && regChoice
+                ? `הפרטים הוזנו בשע״ם · ${regSentence}`
+                : 'הפרטים הוזנו בשע״ם'}
+              done={!!it.enteredAt}
+              hint={it.enteredAt
+                ? (regChoice && regUnverified ? undefined : `סומן ב-${fmt(it.enteredAt)}`)
+                : regChoice && regUnverified
+                  ? 'פתחו בקשת ייצוג באתר שע״ם עם הפרטים שלמעלה. מי מבין השניים רשום שם במס הכנסה?'
+                  : 'פתחו בקשת ייצוג באתר שע״ם עם הפרטים שלמעלה'}>
+              {regChoice && regUnverified ? (
+                <>
+                  {it.enteredAt && (
+                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.4rem' }}>
+                      סומן ב-{fmt(it.enteredAt)}, אבל טרם נרשם מי הרשום במ״ה. מי מבין השניים?
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+                    {regNames.map(r => (
+                      <button
+                        key={r.owner}
+                        className={`btn btn-sm ${r.owner === regOwner ? 'btn-green' : 'btn-secondary'}`}
+                        disabled={busy === 'it'}
+                        title={r.owner === regOwner ? 'זו הכוונה שנרשמה בפתיחת הייצוג' : 'שונה מהכוונה שנרשמה - יעדכן את התיק'}
+                        onClick={() => void markEnteredInShaam(r.owner)}
+                      >
+                        {busy === 'it' ? 'שומר…' : r.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : !it.enteredAt && (
                 <button className="btn btn-secondary btn-sm" disabled={busy === 'it'}
-                  onClick={() => patch({ ...exec, incomeTax: { ...it, enteredAt: new Date().toISOString() } }, 'it')}>
+                  onClick={() => void markEnteredInShaam()}>
                   {busy === 'it' ? 'שומר…' : 'סמן כהוזן'}
                 </button>
               )}

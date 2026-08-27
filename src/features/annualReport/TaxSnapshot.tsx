@@ -8,7 +8,7 @@ import type { AnnualReportSession } from './types';
 import {
   buildProfileBlocks, deriveRecurringDocs, buildKeyAmounts,
   summarizeYearFile, provenanceLabel, SESSION_STATUS_META, registeredFileInfo,
-  taxFileOwnerLabel, clientDisplayName, spouseDisplayName,
+  taxFileOwnerLabel, clientDisplayName, spouseDisplayName, REGISTERED_UNVERIFIED_LABEL,
 } from './profile';
 
 interface Props {
@@ -56,6 +56,7 @@ export default function TaxSnapshot({ client, sessions, loading, variant = 'full
             {(client.familyStatus === 'married' || !!client.spouseName?.trim()) && <> - <b>בן/בת הזוג הרשום/ה</b></>}
             {regFile.idNumber ? <> · ת.ז. <span className="num" dir="ltr">{regFile.idNumber}</span></> : ''}
             {regFile.owner === 'spouse' ? ' · כל ההתנהלות מול מ"ה בת.ז. הזו' : ''}
+            {regFile.unverified && <> · <span className="reg-unverified">{REGISTERED_UNVERIFIED_LABEL}</span></>}
           </span>
           {onUpdateTaxFiles && (
             <select

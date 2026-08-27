@@ -213,9 +213,23 @@ export interface PdfGenerationInput {
   request: RepresentationRequest;
   /** חותמת המשרד כ-dataURL (PNG/JPG) — תוטבע לצד חתימת המייצג. אופציונלי. */
   stampDataUrl?: string;
+  /**
+   * "שם הנישום" בשורת מס הכנסה של חלק ב' — שמו של בעל התיק, כלומר בן/בת הזוג
+   * הרשום/ה.
+   *
+   * ‼ בחלק ב' של טופס 2279א'5 כל שורה היא צמד: «שם הנישום» מול «מספר תיק במס
+   * הכנסה», «שם העוסק» מול «מספר עוסק במע"מ» וכן הלאה. מספר התיק במ"ה הוא
+   * ת.ז. של בן/בת הזוג הרשום/ה (ראה `TaxFileInfo.fileNumber`), ולכן השם באותה
+   * שורה חייב להיות שלו/ה — ולא בהכרח של מי שמילא את חלק א'. הטופס עצמו מבחין
+   * בין השניים: בתחתית חלק א' יש «חתימת "בן זוג רשום"» ולצידה «חתימת בן/בת
+   * הזוג».
+   *
+   * חסר ⇒ נשמרת ההתנהגות הישנה (שמו של מי שמילא את חלק א').
+   */
+  registeredTaxpayerName?: string;
 }
 
-export async function generateSignedPoaPdf({ request, stampDataUrl }: PdfGenerationInput): Promise<Uint8Array> {
+export async function generateSignedPoaPdf({ request, stampDataUrl, registeredTaxpayerName }: PdfGenerationInput): Promise<Uint8Array> {
   if (!request.submission) throw new Error('אין נתוני מילוי של הלקוח');
   if (!request.partB) throw new Error('המייצג עדיין לא מילא את חלק ב\'');
 
@@ -267,8 +281,12 @@ export async function generateSignedPoaPdf({ request, stampDataUrl }: PdfGenerat
   const fullName = `${sub.firstName} ${sub.lastName}`.trim();
   // שמות נישום/עוסק/מנכה — right-anchored בצד ימין של כל שורה (x≈530)
   // מספרי תיק — מרוכזים בתוך תיבות הקווקו (center x≈285) באמצעות drawLTRCentered
+  // ‼ שורת מס הכנסה נושאת את שם **בעל התיק** — ראה registeredTaxpayerName.
+  // מע"מ וניכויים נשארים על שם ממלא חלק א': לתיקים האלה יכול להיות בעלים
+  // נפרד לכל בן זוג, ואין לנו עליו נתון מאומת. ראה גם TaxFileInfo.owner.
   if (request.authorities.includes('incomeTax')) {
-    drawHebrew(page, fullName, FIELDS.taxpayerName.x, FIELDS.taxpayerName.y, font);
+    const taxpayerName = registeredTaxpayerName?.trim() || fullName;
+    drawHebrew(page, taxpayerName, FIELDS.taxpayerName.x, FIELDS.taxpayerName.y, font);
     if (part.incomeTaxFileNumber) {
       drawLTRCentered(page, part.incomeTaxFileNumber, FIELDS.incomeTaxFileNumber.x, FIELDS.incomeTaxFileNumber.y, font);
     }

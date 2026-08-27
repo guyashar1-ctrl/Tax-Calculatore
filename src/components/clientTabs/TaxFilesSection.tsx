@@ -6,7 +6,7 @@ import type { Client, TaxFileInfo, TaxAuthority, TaxFileOwner, TaxFileRepStatus 
 import {
   TAX_AUTHORITY_LABELS, TAX_FILE_REP_STATUS_LABELS,
 } from '../../types';
-import { clientDisplayName, spouseDisplayName } from '../../features/annualReport/profile';
+import { clientDisplayName, spouseDisplayName, REGISTERED_UNVERIFIED_LABEL } from '../../features/annualReport/profile';
 
 interface Props {
   client: Client;
@@ -67,6 +67,11 @@ export default function TaxFilesSection({ client, update }: Props) {
       }
       return next;
     }));
+    // קביעה ידנית של הבעלים היא ידיעה, לא כוונה — ולכן סוגרת את «טרם אומת»
+    const target = files.find((f) => f.id === id);
+    if (target?.authority === 'income_tax' && patch.owner && client.registeredSpouseUnverified) {
+      update('registeredSpouseUnverified', false);
+    }
   }
   function removeFile(id: string) {
     setFiles(files.filter((f) => f.id !== id));
@@ -139,6 +144,7 @@ export default function TaxFilesSection({ client, update }: Props) {
                 {f.authority === 'income_tax' && f.owner !== 'joint' && client.familyStatus === 'married' && (
                   <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--warn)', whiteSpace: 'nowrap' }}>
                     ← בן/בת הזוג הרשום/ה
+                    {client.registeredSpouseUnverified ? ` · ${REGISTERED_UNVERIFIED_LABEL}` : ''}
                   </span>
                 )}
               </label>
