@@ -68,3 +68,8 @@ verify_jwt = true
 
 [functions.backfill-email-html]
 verify_jwt = false
+
+# צילום התעודה בקליטת הייצוג. מסלול ציבורי — הלקוח מעלה מקישור הקליטה בלי
+# התחברות, והזיהוי הוא טוקן הקליטה האקראי עצמו (כמו portal-upload-document).
+[functions.onboarding-upload-id]
+verify_jwt = false

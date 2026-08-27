@@ -11,7 +11,14 @@ import {
   FamilyStatus,
   FAMILY_STATUS_LABELS,
   FAMILY_STATUS_YEAR_LABELS,
+  AuthorityRepresentations,
+  RepTarget,
 } from '../types';
+import type { ScopePeople } from '../utils/repScope';
+import {
+  identityRequirements, missingIdentity,
+  type IdentityRequirement, type IdentityDocsMap,
+} from '../utils/identityEvidence';
 import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import SignaturePad from './SignaturePad';
@@ -36,6 +43,8 @@ interface OnboardingInfo {
   knownLastName: string;
   knownEmail: string;
   niIncluded: boolean;
+  /** ההיקף שהתבקש — קובע ממי מבקשים צילום תעודה. */
+  scope?: AuthorityRepresentations;
 }
 
 // הקישור הזה מסיים בבקשת הייצוג בלבד. שאלון ההיכרות נשלח בנפרד מכרטיס הלקוח
@@ -76,6 +85,12 @@ export default function OnboardingPage({ token }: Props) {
   const [spouseIdNumber, setSpouseIdNumber] = useState('');
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
 
+  // ── צילומי תעודות ──
+  // ‼ הזנת המספר אינה מספיקה. ממי מבקשים נגזר מהיקף הייצוג, ואיזו תעודה —
+  //   מאמצעי הזיהוי שנבחר. ראה utils/identityEvidence.
+  const [idDocs, setIdDocs] = useState<IdentityDocsMap>({});
+  const [uploading, setUploading] = useState<RepTarget | null>(null);
+
   const [signature, setSignature] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +120,9 @@ export default function OnboardingPage({ token }: Props) {
         knownLastName: row.known_last_name || '',
         knownEmail: row.known_email || '',
         niIncluded: !!row.ni_included,
+        scope: (row.scope || {}) as AuthorityRepresentations,
       });
+      setIdDocs((row.identity_docs || {}) as IdentityDocsMap);
       // מה שהרו"ח כבר מילא (או שכבר רשום בכרטיס) נכנס כערך פתיחה; מה שלא —
       // נשאר ריק והלקוח ימלא. הכול ניתן לתיקון: הלקוח הוא מקור האמת.
       if (prefill.firstName) setFirstName(prefill.firstName);
@@ -148,10 +165,49 @@ export default function OnboardingPage({ token }: Props) {
   const greetName = (firstName || info?.clientName || '').trim().split(/\s+/)[0] || '';
 
   const yearLabel = familyStatus ? FAMILY_STATUS_YEAR_LABELS[familyStatus] : undefined;
+
+  // ── מי חייב לצלם תעודה, ואיזו ──────────────────────────────────────────────
+  // ‼ לפי אדם ולא לפי רשות: מי שמופיע בשלוש רשויות מעלה פעם אחת.
+  const scopePeople: ScopePeople = {
+    married: familyStatus === 'married',
+    clientName: `${firstName} ${lastName}`.trim(),
+    spouseName: `${spouseFirstName} ${spouseLastName}`.trim(),
+  };
+  const idRequirements = identityRequirements(info?.scope, scopePeople, { client: secondaryType });
+  const idMissing = missingIdentity(idRequirements, idDocs);
+
+  async function uploadIdDoc(r: IdentityRequirement, file: File) {
+    setUploading(r.person);
+    setError(null);
+    try {
+      const body = new FormData();
+      body.append('token', token);
+      body.append('person', r.person);
+      body.append('docKind', r.kind);
+      body.append('file', file);
+      const { data, error: fnErr } = await supabase.functions.invoke('onboarding-upload-id', { body });
+      if (fnErr || !data?.ok) {
+        const code = data?.error;
+        setError(
+          code === 'too_large' ? 'הקובץ גדול מדי - עד 10MB'
+            : code === 'type_not_allowed' ? 'אפשר לצרף תמונה או PDF בלבד'
+              : code === 'rate_limited' ? 'הועלו יותר מדי קבצים. נסו שוב בעוד שעה'
+                : 'ההעלאה לא הצליחה. נסו שוב, ואם זה חוזר - פנו למשרד.',
+        );
+        return;
+      }
+      setIdDocs(prev => ({
+        ...prev,
+        [r.person]: [...(prev[r.person] ?? []), { documentId: data.documentId, docKind: r.kind, fileName: file.name }],
+      }));
+    } finally {
+      setUploading(null);
+    }
+  }
   // שלב המצב המשפחתי מוצג תמיד, גם כשהרו"ח כבר בחר: הערך מגיע מסומן מראש,
   // אבל הלקוח יכול לתקן — הוא המקור המוסמך על המצב המשפחתי של עצמו.
   // (בעבר בחירה לא-נשואה של הרו"ח דילגה על השלב, והלקוח לא יכול היה לתקן טעות.)
-  const lastStep = 3;
+  const lastStep = 4;
 
   function validateStep(s: number): string | null {
     if (s === 1) {
@@ -168,6 +224,12 @@ export default function OnboardingPage({ token }: Props) {
       if (!isValidEmail(email)) return 'יש להזין כתובת מייל תקינה';
       if (!city.trim()) return 'יש להזין עיר מגורים';
       if (!address.trim()) return 'יש להזין כתובת (רחוב ומספר)';
+    }
+    if (s === 4) {
+      // ‼ חוסם את ההגשה: הרשויות דורשות את התעודה עצמה, ובלעדיה הבקשה לא
+      // תיקלט. השגיאה נוקבת בשם — "יש לצרף צילום" סתמי שולח לחפש איפה.
+      const m = missingIdentity(idRequirements, idDocs);
+      if (m.length) return `יש לצרף ${m[0].prompt} של ${m[0].personName}`;
     }
     if (s === 3) {
       if (!familyStatus) return 'יש לבחור מצב משפחתי';
@@ -427,7 +489,7 @@ export default function OnboardingPage({ token }: Props) {
 
   // phase === 'form' — טופס רב-שלבי. במסך טלפון שלושה מסכים קצרים עדיפים על
   // טופס אחד ארוך: פחות גלילה, ושגיאה מסומנת ליד השדה שגרם לה.
-  const stepTitles = ['הפרטים שלכם', 'איך נשיג אתכם', 'מצב משפחתי'];
+  const stepTitles = ['הפרטים שלכם', 'איך נשיג אתכם', 'מצב משפחתי', 'צילום תעודות'];
   const fieldBox = { marginBottom: 16 } as React.CSSProperties;
 
   function Progress() {
@@ -680,6 +742,75 @@ export default function OnboardingPage({ token }: Props) {
                       onChange={e => setSpouseBirthYear(e.target.value.replace(/\D/g, ''))} placeholder={String(CURRENT_YEAR - 40)} />
                   </label>
                 </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {step === 4 && (
+          <>
+            <div style={{ fontSize: 24, fontWeight: 500, color: '#111', marginBottom: 6 }}>צילום התעודות</div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: '#6B6B68', marginBottom: 26 }}>
+              הרשויות מבקשות לראות את התעודה עצמה, לא רק את המספר. צילום מהטלפון מספיק -
+              רק שכל הפרטים יהיו קריאים.
+            </div>
+
+            {idRequirements.length === 0 && (
+              <div style={{ fontSize: 13.5, color: '#6B6B68', marginBottom: 20 }}>
+                לבקשה הזאת לא נדרש צילום תעודה. אפשר לשלוח.
+              </div>
+            )}
+
+            {idRequirements.map(r => {
+              const have = idDocs[r.person] ?? [];
+              const busyMe = uploading === r.person;
+              return (
+                <div key={r.person} style={{
+                  marginBottom: 14, padding: '14px 14px 12px', borderRadius: 10,
+                  border: `1px solid ${have.length ? '#CFE3D4' : '#E3E2DD'}`,
+                  background: have.length ? '#F5FAF6' : '#fff',
+                }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 2 }}>
+                    {r.prompt}
+                  </div>
+                  {/* ‼ אומרים במפורש של מי — בטופס אחד מבקשים שתי תעודות */}
+                  <div style={{ fontSize: 12.5, color: '#6B6B68', marginBottom: 10 }}>
+                    של {r.personName}
+                  </div>
+
+                  {have.map(d => (
+                    <div key={d.documentId} style={{ fontSize: 12.5, color: '#2E7D53', marginBottom: 6 }}>
+                      {'✓'} {d.fileName || 'הקובץ התקבל'}
+                    </div>
+                  ))}
+
+                  <label style={{
+                    display: 'inline-block', cursor: busyMe ? 'default' : 'pointer',
+                    border: `1px solid ${ink}`, borderRadius: btnRadius, padding: '9px 16px',
+                    fontSize: 13.5, color: ink, opacity: busyMe ? 0.6 : 1,
+                  }}>
+                    {busyMe ? 'מעלה…' : have.length ? 'צירוף צילום נוסף' : `${'\u{1F4F7}'} צילום או קובץ`}
+                    {/* capture — בטלפון נפתחת המצלמה ישירות, במחשב בוחר קובץ */}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      capture="environment"
+                      disabled={busyMe}
+                      style={{ display: 'none' }}
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        e.target.value = '';
+                        if (f) void uploadIdDoc(r, f);
+                      }}
+                    />
+                  </label>
+                </div>
+              );
+            })}
+
+            {idMissing.length > 0 && idRequirements.length > 1 && (
+              <div style={{ fontSize: 12.5, color: '#6B6B68', marginTop: 4, marginBottom: 18 }}>
+                נשאר לצרף: {idMissing.map(m => m.personName).join(', ')}
               </div>
             )}
           </>

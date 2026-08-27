@@ -75,7 +75,14 @@ const REQUEST = {
   linkedClientId: CLIENT_ID,
   clientName: 'יאיר סלע',
   clientEmail: 'test@example.com',
-  authorities: ['incomeTax'],
+  authorities: ['incomeTax', 'vat', 'withholding'],
+  // ‼ ההיקף ההיסטורי: מ"ה למשק הבית, מע"מ לבן/בת הזוג בלבד, ניכויים לשניהם
+  scope: {
+    incomeTax: { status: 'in_process', level: 'primary' },
+    vat: { status: 'in_process', level: 'primary', targets: ['spouse'] },
+    withholding: { status: 'in_process', level: 'primary', targets: ['client', 'spouse'] },
+    nationalInsurance: { status: 'in_process', coversSpouse: true },
+  },
   requestedDocs: [],
   notes: '',
   status: 'awaiting_accountant',

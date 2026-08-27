@@ -1768,6 +1768,27 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   border-block: 1px solid var(--hairline-2);
 }
 .ts-reg.is-spouse { color: var(--warn); border-block-color: var(--warn); }
+/* «עבור מי» בשורת הרשות — צ׳יפ קטן, לא כפתור מלא: הוא מבהיר את הבחירה
+   שכבר נעשתה בשורה ואינו מתחרה בה על תשומת הלב. */
+.rep-who {
+  border: 1px solid var(--hairline-1); background: var(--surface-2); color: var(--ink-2);
+  border-radius: var(--r-chip); padding: .1rem .6rem; font-size: var(--fs-12);
+  cursor: pointer; white-space: nowrap; line-height: 1.7;
+}
+.rep-who.is-on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.rep-who:disabled { cursor: default; opacity: .6; }
+
+/* שורות ההיקף בעמוד הבקשה: רשות · עבור מי */
+.rep-scope { display: flex; flex-wrap: wrap; gap: .35rem; }
+.rep-scope-item {
+  display: inline-flex; align-items: baseline; gap: .3rem; white-space: nowrap;
+  border: 1px solid var(--hairline-1); border-radius: var(--r-chip);
+  padding: .1rem .6rem; font-size: var(--fs-13);
+}
+.rep-scope-item b { font-weight: 600; }
+.rep-scope-item .sep { color: var(--ink-4); }
+.rep-scope-item.is-household { border-color: transparent; background: var(--surface-2); }
+
 /* בן הזוג הרשום שטרם אומת — תווית קצרה שנוסעת לכל מקום שמציג את השם */
 .reg-unverified {
   font-size: var(--fs-12); font-weight: 600; color: var(--warn); white-space: nowrap;

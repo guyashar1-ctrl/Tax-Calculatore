@@ -1011,6 +1011,9 @@ export default function App() {
       onboardingSubmittedAt: null,
       prefill,
       signers,
+      // ‼ תמונת ההיקף נכתבת פעם אחת ולא מתעדכנת: היא עונה על "מה ביקשנו ולמי"
+      // גם אחרי שהמרשם בכרטיס והתיקים בפועל ימשיכו לזוז. ראה `scope`.
+      scope: areas,
     };
     await addRequest(request);
 

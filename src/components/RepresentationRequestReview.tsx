@@ -12,6 +12,8 @@ import {
   Client,
 } from '../types';
 import { registeredFileInfo, hasRegisteredSpouseChoice } from '../features/annualReport/profile';
+import { scopeLines, requestScope, peopleFromClient } from '../utils/repScope';
+import { identityRequirements } from '../utils/identityEvidence';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
@@ -162,6 +164,21 @@ export default function RepresentationRequestReview({
   // עדיין שורת תיק מ"ה, ובלי זה השורה הזאת נעלמה לגמרי — והטופס היה מודפס
   // עם שם ממלא חלק א' בלי שאיש יידע. עכשיו נאמר במפורש שטרם נקבע.
   const registeredRelevant = !!linkedClient && hasRegisteredSpouseChoice(linkedClient);
+
+  // ── מה ביקשנו, ולמי ────────────────────────────────────────────────────────
+  // ‼ ההיקף מגיע מהבקשה (`scope`), לא משוחזר מהתיקים או מהמרשם שבכרטיס —
+  // אלה מתארים את ההווה ומשתנים, והשאלה כאן היא מה התבקש אז. השמות בלבד
+  // נקראים מהכרטיס, כדי ש"בן/בת הזוג" יתחלף בשם האמיתי אחרי הקליטה.
+  const people = peopleFromClient(linkedClient);
+  const scope = scopeLines(requestScope(request, linkedClient), people);
+  const scopeIsPerPerson = people.married && scope.some(l => !l.household);
+
+  // ממי ביקשנו צילום תעודה, ומה כבר הגיע. הדרישה נגזרת מאותו היקף היסטורי,
+  // כדי שהמסך של הרו"ח והמסך של הלקוח לא ייתנו שתי תשובות שונות.
+  const idEvidence = identityRequirements(
+    requestScope(request, linkedClient), people,
+    { client: request.identification?.secondaryType },
+  ).map(r => ({ name: r.personName, got: !!request.identityDocs?.[r.person]?.length }));
 
   // מספר התיק במ"ה הוא ת.ז. של הרשום. ממלאים מראש רק כשהוא אומת, ורק לשדה
   // ריק — מספר שהוקלד ידנית או נשמר בבקשה גובר.
@@ -505,9 +522,31 @@ export default function RepresentationRequestReview({
               <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>סוג ייפוי כוח</div>
               <div style={{ fontWeight: 500 }}>ייפוי כוח ראשי (השעמ)</div>
             </div>
-            <div>
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>רשויות</div>
-              <div style={{ fontWeight: 500 }}>{authorityList}</div>
+            {/* ‼ «מה ביקשנו, ולמי» — שתי השאלות הראשונות שעמוד הבקשה צריך לענות
+                עליהן, ולכן הן יושבות בשדה שכבר היה כאן ולא בכרטיס חדש. ההיקף
+                נקרא מהבקשה עצמה (תמונה היסטורית), והשמות מתעדכנים מהכרטיס. */}
+            <div className={scope.length > 2 ? 'span-2' : undefined}>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                {scopeIsPerPerson ? 'ייצוג שהתבקש · עבור מי' : 'רשויות'}
+              </div>
+              {scope.length > 0 ? (
+                <div className="rep-scope" style={{ marginTop: '.2rem' }}>
+                  {scope.map(l => (
+                    <span key={l.authority} className={`rep-scope-item${l.household ? ' is-household' : ''}`}>
+                      {l.authorityLabel}<span className="sep">·</span><b>{l.whoLabel}</b>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontWeight: 500 }}>{authorityList}</div>
+              )}
+              {/* ‼ שורה אחת ולא כרטיס: מה שמעניין הוא "הגיע/לא הגיע", והקבצים
+                  עצמם כבר יושבים בתיק המסמכים של הלקוח. */}
+              {idEvidence.length > 0 && (
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem' }}>
+                  צילומי תעודות: {idEvidence.map(e => `${e.name} ${e.got ? '✓' : '- טרם התקבל'}`).join(' · ')}
+                </div>
+              )}
             </div>
             {request.notes && (
               <div className="span-2">

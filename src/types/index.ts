@@ -899,6 +899,21 @@ export interface RepresentationRequest {
   signatureSetup?: SignatureSetup | null;
   // ערכי החתימות שנאספו מכל החותמים: fieldId → ערך (תמונה/טקסט).
   signatureValues?: Record<string, SignatureValue> | null;
+  /**
+   * ההיקף שהתבקש — **תמונת מצב היסטורית**, נכתבת פעם אחת בפתיחת הבקשה.
+   *
+   * ‼ זה מקור האמת ל"מה ביקשנו ולמי", ולא `clients.authorityRepresentations`
+   * (שממשיך לזוז עם הזמן) ולא `tax_files` (שמתאר תיקים בפועל, וגם הם
+   * משתנים). פותחים בקשה אחרי חודש ורואים בדיוק מה ביקשנו אז.
+   * ‼ חסר ⇒ בקשה שנוצרה לפני המהלך; נופלים למרשם של הכרטיס.
+   */
+  scope?: AuthorityRepresentations | null;
+  /**
+   * צילומי התעודות שהתקבלו בקליטה, לפי אדם. הקבצים עצמם נשמרים כמסמכים
+   * רגילים בתיק הלקוח (category='id_card'); כאן רק המפתח, כדי לדעת מה הגיע.
+   * נכתב ע"י `onboarding-upload-id` בלבד.
+   */
+  identityDocs?: Partial<Record<RepTarget, { documentId: string; docKind: string; fileName?: string; at?: string }[]>> | null;
 }
 
 /** הגדרת מסמך החתימה — נוצרת בשלב "הפקת טופס" אצל הרו"ח */
@@ -974,6 +989,16 @@ export interface RepresentationExecution {
     /** הפרטים הוזנו בשע"ם ונפתחה בקשת ייצוג */
     enteredAt?: string;
   };
+  /**
+   * הזנות שע״ם נוספות — רשות × אדם, לפי מפתח `ShaamSubmission.key`
+   * (למשל `vat:spouse`). מע"מ וניכויים הם תיק של אדם, ולכן שני בני זוג
+   * שמיוצגים בשניהם = שתי הגשות נפרדות שכל אחת נסגרת בנפרד.
+   *
+   * ‼ מס הכנסה **אינו** כאן: הוא נשאר ב-`incomeTax` לעיל, כי הוא הגשה אחת
+   * למשק הבית וכי שם כבר חי מחזור בן-הזוג-הרשום. בקשה ישנה שאין לה את
+   * המפה הזאת מציגה בדיוק את מה שהציגה קודם.
+   */
+  shaamEntries?: Record<string, { enteredAt?: string }>;
   /** ב"ל של הנישום עצמו */
   nationalInsurance?: NiTracking;
   /** ב"ל של בן/בת הזוג — קיים רק כשנלקח ייצוג ב"ל גם עבורו/ה */
@@ -1120,6 +1145,24 @@ export type RepAreaStatus = 'none' | 'in_process' | 'active';
 /** סוג/רמת הייצוג — רלוונטי למ"ה / ניכויים / מע"מ; ביטוח לאומי ללא סוג */
 export type RepLevel = 'primary' | 'secondary';
 
+/** עבור מי הייצוג — האדם, לא התיק. */
+export type RepTarget = 'client' | 'spouse';
+
+export const REP_TARGET_LABELS: Record<RepTarget, string> = {
+  client: 'הלקוח/ה',
+  spouse: 'בן/בת הזוג',
+};
+
+/**
+ * הרשויות שבהן הייצוג שייך ל**אדם** ולא לתא המשפחתי, ולכן ייתכן תיק נפרד
+ * לכל בן זוג ושתי הגשות נפרדות בשע״ם.
+ *
+ * ‼ מס הכנסה אינו כאן ולעולם לא יהיה: במ"ה יש תיק אחד לתא המשפחתי, ומי
+ * שעליו הוא מתנהל נקבע במחזור בן-הזוג-הרשום (`registeredSpouseVerified`).
+ * ביטוח לאומי אינו כאן כי הוא נשלט ב-`coversSpouse` — נשוי ⇒ שני בני הזוג.
+ */
+export const REP_AUTHORITIES_WITH_TARGETS: RepAuthorityKind[] = ['vat', 'withholding'];
+
 /** רשומת הייצוג מול רשות בודדת. מתוכננת להתרחב (היסטוריה, הגשות, מסמכים). */
 export interface AuthorityRepresentation {
   status: RepAreaStatus;
@@ -1127,9 +1170,17 @@ export interface AuthorityRepresentation {
   /**
    * הייצוג נלקח גם עבור בן/בת הזוג. רלוונטי לביטוח לאומי בלבד: שם לכל אדם
    * תיק נפרד, ולכן זוג נשוי דורש שני ייפויי כוח ושתי אסמכתאות. במס הכנסה זוג
-   * נשוי מדווח כתא משפחתי וייצוג אחד מכסה את שניהם, ובמע"מ התיק על שם העוסק.
+   * נשוי מדווח כתא משפחתי וייצוג אחד מכסה את שניהם.
    */
   coversSpouse?: boolean;
+  /**
+   * עבור מי התבקש הייצוג — מע"מ וניכויים בלבד.
+   *
+   * ‼ **חסר = `['client']`** — בדיוק מה שכל בקשה קיימת אמרה כשנוצרה, ולא
+   * פרשנות חדשה. בקשות חדשות כותבות את השדה תמיד במפורש.
+   * ‼ שני יעדים = **שתי הגשות נפרדות בשע״ם**, כל אחת על התיק של אותו אדם.
+   */
+  targets?: RepTarget[];
 }
 
 export type AuthorityRepresentations = Partial<Record<RepAuthorityKind, AuthorityRepresentation>>;

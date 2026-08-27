@@ -6,12 +6,15 @@ import {
   REP_AUTHORITY_ORDER,
   REP_AUTHORITY_LABELS,
   REP_AUTHORITIES_WITH_LEVEL,
+  REP_AUTHORITIES_WITH_TARGETS,
   REP_LEVEL_LABELS,
+  RepTarget,
   FamilyStatus,
   FAMILY_STATUS_LABELS,
   FAMILY_STATUS_YEAR_LABELS,
   OnboardingPrefill,
 } from '../types';
+import { scopeLines } from '../utils/repScope';
 import { isValidIsraeliId } from '../utils/israeliId';
 import { isValidEmail } from '../utils/email';
 import EmailInput from './ui/EmailInput';
@@ -56,6 +59,8 @@ interface Props {
 interface AreaState {
   selected: boolean;
   level: RepLevel;
+  /** מע"מ/ניכויים בלבד — עבור מי. תמיד לפחות אחד כשהרשות מסומנת. */
+  targets: RepTarget[];
 }
 
 const hasLevel = (a: RepAuthorityKind) => REP_AUTHORITIES_WITH_LEVEL.includes(a);
@@ -93,10 +98,10 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   // להמתין כמשני. משני נרשמים רק כשנשארת אצל הקודם עבודה חוסמת (דוח שנתי /
   // הצהרת הון) — וזה נגזר במכתב העברת הטיפול, לא כאן. אפשר לשנות ידנית.
   const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>(() => ({
-    incomeTax: { selected: true, level: 'primary' },
-    withholding: { selected: false, level: 'primary' },
-    vat: { selected: true, level: 'primary' },
-    nationalInsurance: { selected: true, level: 'primary' },
+    incomeTax: { selected: true, level: 'primary', targets: ['client'] },
+    withholding: { selected: false, level: 'primary', targets: ['client'] },
+    vat: { selected: true, level: 'primary', targets: ['client'] },
+    nationalInsurance: { selected: true, level: 'primary', targets: ['client'] },
   }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,12 +122,50 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   // האחד הוא שם, ובמע"מ/ניכויים/ב"ל התיקים אישיים.
   const incomeTaxSelected = areas.incomeTax.selected;
 
+  /**
+   * מתי מוצגת שאלת "עבור מי" — רק כשידוע שיש בן/בת זוג.
+   *
+   * ‼ בכוונה **לא** מוצג במצב משפחתי לא-ידוע, בניגוד לצ'קבוקס הב"ל: החלון
+   * המקופל הוא המסך שנפתח בכל בקשה, ורובן ליחיד. שאלה שמופיעה שם בכל פעם
+   * הייתה מייקרת את ברירת המחדל כדי לשרת מיעוט. מי שיודע שיש בן/בת זוג
+   * פותח "פרטים שכבר ידועים לי" ומסמן — ואז השאלה מופיעה, עם השם או בלעדיו.
+   */
+  const spouseKnown = married || !!spouseName.trim();
+
+  function showTargets(a: RepAuthorityKind): boolean {
+    return areas[a].selected && REP_AUTHORITIES_WITH_TARGETS.includes(a) && spouseKnown;
+  }
+
+  /** "מה ייווצר" מדבר באותו דקדוק של עמוד הבקשה ושל מרכז הביצוע. */
+  const summaryLines = scopeLines(
+    Object.fromEntries(selectedKeys.map(a => [a, {
+      status: 'in_process' as const,
+      ...(REP_AUTHORITIES_WITH_TARGETS.includes(a) ? { targets: notMarriedExplicit ? ['client' as RepTarget] : areas[a].targets } : {}),
+      ...(a === 'nationalInsurance' ? { coversSpouse: niForSpouse } : {}),
+    }])),
+    { married: spouseKnown, clientName: name.trim(), spouseName: spouseName.trim() },
+  );
+
   function toggleArea(a: RepAuthorityKind) {
     setAreas(prev => ({ ...prev, [a]: { ...prev[a], selected: !prev[a].selected } }));
   }
 
   function setLevel(a: RepAuthorityKind, level: RepLevel) {
     setAreas(prev => ({ ...prev, [a]: { ...prev[a], level } }));
+  }
+
+  /**
+   * הדלקה/כיבוי של אדם ברשות. ‼ אי אפשר לכבות את האחרון: רשות מסומנת בלי
+   * אף אדם היא בקשה שאי אפשר להגיש. במקום שגיאה אחרי הלחיצה — הלחיצה
+   * האחרונה פשוט לא נענית.
+   */
+  function toggleTarget(a: RepAuthorityKind, t: RepTarget) {
+    setAreas(prev => {
+      const cur = prev[a].targets;
+      const next = cur.includes(t) ? cur.filter(x => x !== t) : [...cur, t];
+      if (next.length === 0) return prev;
+      return { ...prev, [a]: { ...prev[a], targets: next } };
+    });
   }
 
   // סימון המעבר גורר את הרמה איתו: כל עוד הרו"ח הקודם לא שוחרר הוא המייצג
@@ -175,6 +218,11 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
       built[a] = hasLevel(a)
         ? { status: 'in_process', level: areas[a].level }
         : { status: 'in_process' };
+      // ‼ נכתב תמיד ובמפורש, גם כשהוא ['client'] — כדי שבקשה חדשה תאמר מה
+      // ביקשה, ולא תסתמך על אותה נפילה-לאחור שנועדה לבקשות ישנות.
+      if (REP_AUTHORITIES_WITH_TARGETS.includes(a)) {
+        built[a] = { ...built[a]!, targets: notMarriedExplicit ? ['client'] : areas[a].targets };
+      }
     }
     // ייצוג ב"ל לבן/בת הזוג תקף רק כשיש בן/בת זוג ידוע שאפשר להזין בב"ל
     if (niForSpouse) built.nationalInsurance = { ...built.nationalInsurance!, coversSpouse: true };
@@ -435,6 +483,36 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                   ) : (
                     <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>{'ℹ'} ייצוג יחיד</span>
                   )}
+
+                  {/* ‼ "עבור מי" יושב **בתוך** שורת הרשות ולא במקטע נפרד: בחירת
+                      מע"מ ובחירת האדם הן החלטה אחת, ופיצולן לשני מקומות במסך
+                      היה מזמין בקשה שסומנה לאדם הלא נכון. מופיע רק כשיש בכלל
+                      שאלה — לקוח לא-נשוי רואה בדיוק את המסך של אתמול. */}
+                  {showTargets(a) && (
+                    <div
+                      style={{ flexBasis: '100%', display: 'flex', gap: '.35rem', flexWrap: 'wrap', alignItems: 'center', paddingInlineStart: '1.7rem' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>עבור מי?</span>
+                      {(['client', 'spouse'] as RepTarget[]).map(t => {
+                        const on = st.targets.includes(t);
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            disabled={busy}
+                            onClick={() => toggleTarget(a, t)}
+                            className={`rep-who${on ? ' is-on' : ''}`}
+                          >
+                            {on ? '✓ ' : ''}{t === 'spouse' ? (spouseName.trim() || 'בן/בת הזוג') : (name.trim() || 'הלקוח/ה')}
+                          </button>
+                        );
+                      })}
+                      {st.targets.length === 2 && (
+                        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{'·'} שתי הגשות נפרדות בשע״ם</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -664,11 +742,18 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             <div style={{ fontWeight: 600, marginBottom: '.4rem' }}>{'✨'} מה ייווצר</div>
             <div>{'✓'} קישור אישי {sendBy === 'email' ? '- וגם יישלח במייל אוטומטית' : 'לשליחה בוואטסאפ'}</div>
             <div>{'✓'} כרטיס לקוח {name.trim() ? `- ${name.trim()}` : '- יקבל שם כשהלקוח ימלא'}</div>
-            <div>
-              {'✓'} {selectedKeys.length > 0
-                ? `${selectedKeys.length} סטטוסי ייצוג "בתהליך": ${selectedKeys.map(a => REP_AUTHORITY_LABELS[a]).join(', ')}`
-                : 'בחר רשויות כדי ליצור סטטוסי ייצוג'}
-            </div>
+            {/* ‼ הרשויות כבר לא נמנות כרשימה שטוחה: שורה לכל רשות עם "עבור מי",
+                באותו דקדוק שילווה את הבקשה בעמוד שלה ובמרכז הביצוע. */}
+            {selectedKeys.length === 0 && <div>{'✓'} בחר רשויות כדי ליצור סטטוסי ייצוג</div>}
+            {selectedKeys.length > 0 && !spouseKnown && (
+              /* ליחיד אין "עבור מי" — שורה לכל רשות הייתה מוסיפה אורך בלי מידע */
+              <div>{'✓'} {selectedKeys.length} סטטוסי ייצוג "בתהליך": {selectedKeys.map(a => REP_AUTHORITY_LABELS[a]).join(', ')}</div>
+            )}
+            {selectedKeys.length > 0 && spouseKnown && summaryLines.map(l => (
+              <div key={l.authority}>
+                {'✓'} {l.authorityLabel} {'·'} <b>{l.whoLabel}</b>
+              </div>
+            ))}
             <div>{'✓'} משימה פנימית למעקב</div>
             {married && spouseName.trim() && <div>{'✓'} חותם שני - {spouseName.trim()}</div>}
             {married && !spouseName.trim() && <div>{'✓'} חותם שני - הלקוח ימלא את פרטי בן/בת הזוג בקישור</div>}

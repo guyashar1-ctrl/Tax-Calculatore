@@ -19,6 +19,7 @@ import {
   clientDisplayName, spouseDisplayName,
 } from '../features/annualReport/profile';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
+import { shaamSubmissions, requestScope, peopleFromClient } from '../utils/repScope';
 import { useEmailMessages } from '../hooks/useEmailMessages';
 import {
   useRepApprovalStep, isRepApprovalClosed, isRepApprovalDeclared,
@@ -211,6 +212,22 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // הזוג מיוצג — חסרה אסמכתא אחת מספיקה כדי לעצור, אחרת אחד מהם יקבל מייל חסר.
   const niRefMissing = niIncluded && (!ni.referenceNumber || (!!niCoversSpouse && !niSpouse.referenceNumber));
 
+  // ── הזנות שע״ם נוספות: מע"מ/ניכויים לפי אדם ────────────────────────────────
+  // ‼ שני בני זוג עם תיקי מע"מ = שתי הגשות נפרדות, ולכן שני שלבים שנסגרים
+  // בנפרד. קיפול שלהם ל"מע"מ הוזן" אחד היה מסתיר חצי מהעבודה.
+  // ‼ מס הכנסה אינו ברשימה — הוא נשאר שלב 1, משק בית, עם הכרעת הרשום.
+  const scopePeople = peopleFromClient(linkedClient);
+  const extraEntries = shaamSubmissions(requestScope(request, linkedClient), scopePeople)
+    .filter(s => s.authority !== 'incomeTax');
+  const entryAt = (key: string) => exec.shaamEntries?.[key]?.enteredAt;
+
+  async function markEntry(key: string) {
+    await patch({
+      ...exec,
+      shaamEntries: { ...(exec.shaamEntries ?? {}), [key]: { enteredAt: new Date().toISOString() } },
+    }, `entry-${key}`);
+  }
+
   // המיילים של הבקשה — מוצגים בתוך השלב שהם שייכים אליו
   const { messages, reload: reloadEmails } = useEmailMessages(userId);
   const signatureEmails = messages.filter(m => m.requestId === request.id && m.kind === 'sign');
@@ -350,7 +367,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
   // ‼ הנתיב המזורז אינו כאן: הוא אופציונלי, וספירתו הייתה מציגה מסלול שהושלם
   // כאילו נשאר בו צעד.
-  const itSteps = [!!it.enteredAt, formReady, !!exec.signatureEmailSentAt, signed, stamped, sentToShaam, status === 'active'];
+  const itSteps = [!!it.enteredAt, ...extraEntries.map(s => !!entryAt(s.key)), formReady, !!exec.signatureEmailSentAt, signed, stamped, sentToShaam, status === 'active'];
 
   // שמות המבוטחים לכותרות המסלולים — כשיש שניים, "ביטוח לאומי" לבדו לא מספיק
   const nameOf = (role: 'client' | 'spouse') =>
@@ -429,7 +446,30 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               )}
             </Step>
 
-            <Step n={2} title="טופס ייפוי הכוח הועלה ואזורי החתימה סומנו" done={formReady}
+            {/* ‼ שלב לכל הגשה בשע״ם — מע"מ/ניכויים הם תיק של אדם. שני בני זוג
+                עם תיקי מע"מ = שתי בקשות רישום נפרדות, ולכן שני שלבים שנסגרים
+                בנפרד; "מע"מ הוזן" אחד היה מסתיר חצי מהעבודה. */}
+            {extraEntries.map((sub, i) => {
+              const at = entryAt(sub.key);
+              return (
+                <Step
+                  key={sub.key}
+                  n={2 + i}
+                  title={`הפרטים הוזנו בשע״ם · ${sub.title}`}
+                  done={!!at}
+                  hint={at ? `סומן ב-${fmt(at)}` : 'בקשת רישום נפרדת בשע״ם, על התיק של אותו אדם'}
+                >
+                  {!at && (
+                    <button className="btn btn-secondary btn-sm" disabled={busy === `entry-${sub.key}`}
+                      onClick={() => void markEntry(sub.key)}>
+                      {busy === `entry-${sub.key}` ? 'שומר…' : 'סמן כהוזן'}
+                    </button>
+                  )}
+                </Step>
+              );
+            })}
+
+            <Step n={2 + extraEntries.length} title="טופס ייפוי הכוח הועלה ואזורי החתימה סומנו" done={formReady}
               hint={formReady
                 ? `${request.signatureSetup?.pdfFileName || 'הטופס'} - מוכן לשליחה`
                 : 'העלו את קובץ ייפוי הכוח וסמנו איפה כל אחד חותם'}>
@@ -440,12 +480,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
             {/* ‼ אין כאן כפתור. השליחה שייכת לשתי הרשויות גם יחד ולכן היא יושבת
                 בפס המשותף שמתחת לשתי המשבצות — כפתור אחד, במקום אחד. */}
-            <Step n={3} title="נשלח לחתימת הלקוח" done={!!exec.signatureEmailSentAt}
+            <Step n={3 + extraEntries.length} title="נשלח לחתימת הלקוח" done={!!exec.signatureEmailSentAt}
               hint={exec.signatureEmailSentAt ? undefined
                 : formReady ? 'השליחה בפס המשותף שמתחת - מייל אחד לשתי הרשויות'
                   : 'אפשרי אחרי הפקת הטופס'} />
 
-            <Step n={4} title="כל החותמים חתמו" done={signed}>
+            <Step n={4 + extraEntries.length} title="כל החותמים חתמו" done={signed}>
               {signers.length > 0 && !signed && (
                 <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.7 }}>
                   {signers.map(s => (
@@ -458,7 +498,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             </Step>
 
             {/* החתימה והחותמת שלי — הטופס אינו שלם בלעדיהן, ואסור להגיש לשע״ם לפני */}
-            <Step n={5} title="חתמתי והוספתי חותמת" done={stamped}
+            <Step n={5 + extraEntries.length} title="חתמתי והוספתי חותמת" done={stamped}
               hint={stamped
                 ? 'הטופס החתום מוכן להגשה'
                 : signed ? 'הלקוח חתם - נשארה החתימה והחותמת שלכם' : 'אפשרי אחרי שכל החותמים חתמו'}>
@@ -467,7 +507,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               )}
             </Step>
 
-            <Step n={6} title="נשלח לשע״ם" done={sentToShaam}
+            <Step n={6 + extraEntries.length} title="נשלח לשע״ם" done={sentToShaam}
               hint={stamped && !sentToShaam ? 'הגישו את הטופס החתום בשע״ם, ואז סמנו' : undefined}>
               {stamped && !sentToShaam && (
                 <button className="btn btn-green btn-sm" onClick={onMarkSentToShaam}>נשלח לשע"ם</button>
@@ -502,7 +542,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               </SideStep>
             )}
 
-            <Step n={7} title="הייצוג פעיל" done={status === 'active'}
+            <Step n={7 + extraEntries.length} title="הייצוג פעיל" done={status === 'active'}
               hint={status === 'awaiting_authorities' ? 'כשהייצוג יאושר בשע״ם - סמנו כאן' : undefined}>
               {status === 'awaiting_authorities' && (
                 <button className="btn btn-green btn-sm" onClick={onMarkActive}>סמן כמיוצג פעיל</button>
