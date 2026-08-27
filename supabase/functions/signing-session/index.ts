@@ -44,8 +44,18 @@ Deno.serve(async (req: Request) => {
     const me = signers.find((s) => s?.signToken === token);
     if (!me) return json({ error: "not_found" }, 404);
 
+    // ── מסמכי הבקשה ──────────────────────────────────────────────────────────
+    // בקשה של משק בית עשויה להוליד כמה טופסי 2279: מע"מ וניכויים מוגשים בנפרד
+    // לכל אדם. ‼ אין רשימה ⇒ מסמך יחיד מהשדות הישנים — בקשה שנוצרה לפני
+    // המהלך ממשיכה לעבוד בלי מיגרציה. אותו כלל בדיוק כמו ב-repDocuments.ts.
     const setup = reqRow.signature_setup;
-    if (!setup?.pdfDocId || !Array.isArray(setup?.fields)) return json({ error: "no_setup" }, 409);
+    const docList: any[] = Array.isArray(reqRow.signature_documents) && reqRow.signature_documents.length
+      ? reqRow.signature_documents
+      : (setup?.pdfDocId && Array.isArray(setup?.fields)
+          ? [{ key: "incomeTax", title: "ייפוי כוח", pdfDocId: setup.pdfDocId, pdfFileName: setup.pdfFileName, fields: setup.fields }]
+          : []);
+    if (!docList.length) return json({ error: "no_setup" }, 409);
+    const allFields: any[] = docList.flatMap((d) => Array.isArray(d.fields) ? d.fields : []);
 
     // מצב בן/בת הזוג, לבחירת "יחד או בנפרד" של הנישום. מוצג רק לנישום עצמו.
     const pendingSpouseOf = (list: any[]) =>
@@ -58,18 +68,29 @@ Deno.serve(async (req: Request) => {
     };
 
     if (action === "get") {
-      // קישור חתום ל-PDF (שעה) מתוך מאגר המסמכים
-      const { data: doc } = await admin
-        .from("documents")
-        .select("storage_path, file_name")
-        .eq("id", setup.pdfDocId)
-        .eq("user_id", reqRow.user_id)
-        .maybeSingle();
-      if (!doc?.storage_path) return json({ error: "pdf_missing" }, 404);
-      const { data: signed, error: urlErr } = await admin.storage
-        .from("client-documents")
-        .createSignedUrl(doc.storage_path, 3600);
-      if (urlErr || !signed?.signedUrl) return json({ error: "url_failed" }, 500);
+      // קישור חתום לכל מסמך (שעה). ‼ כשמסמך אחד חסר במאגר — כל החתימה נעצרת,
+      // כי חתימה על חלק מהטפסים משאירה בקשה שאי אפשר להגיש.
+      const withUrls: any[] = [];
+      for (const d of docList) {
+        const { data: doc } = await admin
+          .from("documents")
+          .select("storage_path, file_name")
+          .eq("id", d.pdfDocId)
+          .eq("user_id", reqRow.user_id)
+          .maybeSingle();
+        if (!doc?.storage_path) return json({ error: "pdf_missing" }, 404);
+        const { data: su, error: urlErr } = await admin.storage
+          .from("client-documents")
+          .createSignedUrl(doc.storage_path, 3600);
+        if (urlErr || !su?.signedUrl) return json({ error: "url_failed" }, 500);
+        withUrls.push({
+          key: d.key, title: d.title || "ייפוי כוח",
+          fields: Array.isArray(d.fields) ? d.fields : [],
+          pdfUrl: su.signedUrl,
+          pdfFileName: d.pdfFileName || doc.file_name,
+        });
+      }
+      const signed = { signedUrl: withUrls[0].pdfUrl };
 
       const { data: profile } = await admin.from("profiles").select("firm_name, branding").eq("id", reqRow.user_id).maybeSingle();
 
@@ -112,11 +133,14 @@ Deno.serve(async (req: Request) => {
         clientName: reqRow.client_name,
         firmName: profile?.firm_name || "",
         branding: profile?.branding || {},
-        fields: setup.fields,
+        // ‼ נשמרים גם השדות הישנים (מסמך ראשון) — לשונית שעוד רצה עם קוד
+        // ישן ממשיכה לחתום על הטופס הראשון במקום ליפול.
+        fields: withUrls[0].fields,
+        documents: withUrls,
         signersPublic: signers.map((s) => ({ id: s.id, name: s.name, signStatus: s.signStatus })),
         values: reqRow.signature_values || {},
         pdfUrl: signed.signedUrl,
-        pdfFileName: setup.pdfFileName || doc.file_name,
+        pdfFileName: withUrls[0].pdfFileName,
       });
     }
 
@@ -125,8 +149,11 @@ Deno.serve(async (req: Request) => {
       if (me.signStatus === "signed") return json({ error: "already_signed" }, 409);
       if (!values || typeof values !== "object") return json({ error: "missing values" }, 400);
 
-      // מותר לחותם למלא רק את השדות שלו; כל שדות החובה שלו חייבים להיות מלאים
-      const myFields = setup.fields.filter((f: any) => f.signerId === me.id);
+      // מותר לחותם למלא רק את השדות שלו, **בכל המסמכים**.
+      // ‼ זו נקודת הכשל המרכזית של המעבר לריבוי טפסים: signStatus הוא ברמת
+      // הבקשה, ולכן אישור על סמך מסמך אחד היה מסמן את החותם כגמור ומקדם את
+      // הבקשה ל"ממתין לחותמת" בזמן שנותרו טפסים לא-חתומים.
+      const myFields = allFields.filter((f: any) => f.signerId === me.id);
       const cleaned: Record<string, any> = {};
       for (const f of myFields) {
         const v = (values as any)[f.id];

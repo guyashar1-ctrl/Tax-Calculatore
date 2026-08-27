@@ -37,6 +37,11 @@ interface Props {
   hiddenSignerIds?: string[];
   /** מאפשר לגרור ולשנות גודל של חתימות שכבר מולאו — לפני שה-PDF הסופי נצרב. */
   adjustable?: boolean;
+  /**
+   * תווית כפתור הסיום. ‼ כשיש עוד טופס אחרי זה — "סיום וחתימה" משקר: הלקוח
+   * חושב שסיים וסוגר את החלון, ונשאר טופס לא חתום. ברירת המחדל נשמרת.
+   */
+  completeLabel?: string;
   onComplete: (values: Record<string, SignatureValue>, fields: SignatureField[]) => void;
   onCancel: () => void;
 }
@@ -234,7 +239,7 @@ export default function SigningRoom(p: Props) {
             disabled={!allDone}
             onClick={() => p.onComplete(values, fields)}
           >
-            {allDone ? 'סיום וחתימה' : `נותרו ${myFields.length - doneCount} מקומות`}
+            {allDone ? (p.completeLabel || 'סיום וחתימה') : `נותרו ${myFields.length - doneCount} מקומות`}
           </button>
         </div>
       </div>

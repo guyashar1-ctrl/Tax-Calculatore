@@ -897,7 +897,17 @@ export interface RepresentationRequest {
   // ── הגדרת מסמך החתימה (שלב "הפקת טופס"): ה-PDF שהרו"ח העלה + אזורי החתימה ──
   // קיום setup ⇒ הבקשה עובדת בזרימת החתימה החדשה (חדר חתימה על PDF אמיתי).
   signatureSetup?: SignatureSetup | null;
+  /**
+   * כל טופסי ה-2279 של הבקשה. חסר ⇒ בקשה מלפני המהלך, ואז המסמך היחיד נגזר
+   * מ-`signatureSetup` + `signedPdfStoredId` (ראה `signatureDocumentsOf`).
+   *
+   * ‼ המסמך הראשון ממשיך להישמר גם בשדות הישנים, כדי שכל מי שקורא אותם —
+   * `get_onboarding.has_setup`, `submit_signature`, מסכי הסטטוס — ימשיך
+   * לעבוד בלי לדעת על הרשימה.
+   */
+  signatureDocuments?: RepSignatureDocument[] | null;
   // ערכי החתימות שנאספו מכל החותמים: fieldId → ערך (תמונה/טקסט).
+  // ‼ מפתח שטוח על פני כל המסמכים — מזהי השדות ייחודיים גלובלית.
   signatureValues?: Record<string, SignatureValue> | null;
   /**
    * ההיקף שהתבקש — **תמונת מצב היסטורית**, נכתבת פעם אחת בפתיחת הבקשה.
@@ -922,6 +932,29 @@ export interface SignatureSetup {
   pdfFileName: string;
   fields: SignatureField[]; // signerId ∈ 'client' | 'spouse' | 'accountant'
   createdAt: string;
+}
+
+/**
+ * טופס 2279 אחד מתוך הבקשה. בקשה של משק בית עשויה להוליד כמה טפסים: מע"מ
+ * וניכויים מוגשים בנפרד לכל אדם, ואי אפשר לדחוס שני תיקי מע"מ לטופס אחד
+ * (בחלק ב' יש שורת «שם העוסק» אחת).
+ *
+ * ‼ החותמים **אינם** משתנים בין המסמכים. לפי הכלל שאושר, מיקומי החתימה
+ * נגזרים מיחסי בן-הזוג-הרשום ולא ממי שהתיק שלו: הרשום חותם תמיד במקום
+ * «בן זוג רשום» והשני במקום «בן/בת הזוג», בכל טופס. מה שמשתנה הוא התיק
+ * שהטופס מייצג. לכן `signers` נשאר ברמת הבקשה.
+ */
+export interface RepSignatureDocument {
+  /** מפתח ההגשה — `ShaamSubmission.key`: 'incomeTax' | 'vat:spouse' … */
+  key: string;
+  /** "מס הכנסה · משק הבית" / "מע\"מ · מיכל סלע" — התיק שהטופס מייצג. */
+  title: string;
+  pdfDocId: string;
+  pdfFileName: string;
+  fields: SignatureField[];
+  createdAt: string;
+  /** ה-PDF הסופי של המסמך הזה (חתימות + חותמת). ריק = טרם הוחתם. */
+  signedPdfStoredId?: string | null;
 }
 
 /** פרטי הזדהות שהלקוח מילא בעמוד הציבורי */

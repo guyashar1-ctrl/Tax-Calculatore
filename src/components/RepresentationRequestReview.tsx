@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   RepresentationRequest,
   RequestSubmission,
@@ -10,9 +10,12 @@ import {
   RepresentationExecution,
   RepSigner,
   Client,
+  RepSignatureDocument,
+  AuthorityKind,
 } from '../types';
 import { registeredFileInfo, hasRegisteredSpouseChoice } from '../features/annualReport/profile';
-import { scopeLines, requestScope, peopleFromClient } from '../utils/repScope';
+import { scopeLines, requestScope, peopleFromClient, shaamSubmissions } from '../utils/repScope';
+import { signatureDocumentsOf, signedDocIdFor } from '../utils/repDocuments';
 import { identityRequirements } from '../utils/identityEvidence';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
@@ -26,7 +29,7 @@ import RepresentationExecutionCenter from './RepresentationExecutionCenter';
 import RepresentationNextStep from './RepresentationNextStep';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import { isSpouseRequest, getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
-import { SignatureField, SignatureSetup, SignatureValue } from '../types';
+import { SignatureField, SignatureValue } from '../types';
 import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
 import SigningRoom, { SavedMarks } from './signatureRequest/SigningRoom';
 import { burnSignaturesIntoPdf } from '../utils/signaturePdf';
@@ -35,9 +38,9 @@ interface Props {
   request: RepresentationRequest;
   onBack: () => void;
   /** שלב הפקת הטופס: ה-PDF הועלה, האזורים סומנו — לשלוח קישורי חתימה */
-  onProduceWithSetup: (req: RepresentationRequest, setup: SignatureSetup) => Promise<void> | void;
+  onProduceWithSetup: (req: RepresentationRequest, docs: RepSignatureDocument[]) => Promise<void> | void;
   /** ה-PDF הסופי (חתום + חותמת) נשמר; ממתין ל"נשלח לשע"ם" */
-  onSaveSignedPdf: (req: RepresentationRequest, values: Record<string, SignatureValue>, signedPdfStoredId: string) => Promise<void> | void;
+  onSaveSignedPdf: (req: RepresentationRequest, values: Record<string, SignatureValue>, docs: RepSignatureDocument[]) => Promise<void> | void;
   onMarkSentToShaam: (req: RepresentationRequest) => Promise<void> | void;
   onSign: (req: RepresentationRequest, partB: AccountantPartB, signedPdfStoredId: string) => void;
   onMarkActive: (req: RepresentationRequest) => void;
@@ -290,21 +293,36 @@ export default function RepresentationRequestReview({
   // ── זרימת החתימה החדשה: עורך הפקה + חדר חתימה של הרו"ח ──
   const setup = request.signatureSetup;
   const [showProduceEditor, setShowProduceEditor] = useState(false);
-  const [stampRoom, setStampRoom] = useState<{ pdfBytes: ArrayBuffer; marks: SavedMarks } | null>(null);
+  const [stampRoom, setStampRoom] = useState<{ doc: RepSignatureDocument; pdfBytes: ArrayBuffer; marks: SavedMarks } | null>(null);
   const [stampError, setStampError] = useState('');
   const [finalizing, setFinalizing] = useState(false);
 
-  async function openStampRoom() {
-    if (!setup) return;
+  // ── טופס לכל הגשה בשע״ם ────────────────────────────────────────────────────
+  // ‼ מע"מ וניכויים מוגשים בנפרד לכל אדם, ובחלק ב' יש שורת «שם העוסק» אחת —
+  // שני תיקי מע"מ אינם נכנסים לטופס אחד. החותמים ותפקידיהם זהים בכל הטפסים
+  // (נגזרים מיחסי בן-הזוג-הרשום), ולכן `signers` נשאר ברמת הבקשה.
+  const docTargets = useMemo(() => {
+    const subs = shaamSubmissions(requestScope(request, linkedClient), people)
+      .filter(s => request.authorities.includes(s.authority as AuthorityKind));
+    return subs.length ? subs.map(s => ({ key: s.key, title: s.title })) : [{ key: 'incomeTax', title: 'ייפוי כוח' }];
+  }, [request, linkedClient, people]);
+
+  const poaDocs = signatureDocumentsOf(request);
+  /** המסמך הבא שממתין לחתימה+חותמת שלי. null = כולם הוחתמו. */
+  const nextUnstamped = poaDocs.find(d => !d.signedPdfStoredId) ?? null;
+
+  async function openStampRoom(target?: RepSignatureDocument) {
+    const d = target ?? nextUnstamped ?? poaDocs[0];
+    if (!d) return;
     setStampError('');
     try {
-      const doc = await db.getDoc(setup.pdfDocId);
-      if (!doc || doc.fileData.byteLength === 0) throw new Error('ה-PDF שהועלה לא נמצא במאגר המסמכים');
+      const stored = await db.getDoc(d.pdfDocId);
+      if (!stored || stored.fileData.byteLength === 0) throw new Error('ה-PDF שהועלה לא נמצא במאגר המסמכים');
       const [sig, stamp] = await Promise.all([
         loadBrandingImage(profile?.branding?.signaturePath),
         loadBrandingImage(profile?.branding?.stampPath),
       ]);
-      setStampRoom({ pdfBytes: doc.fileData, marks: { signature: sig, stamp } });
+      setStampRoom({ doc: d, pdfBytes: stored.fileData, marks: { signature: sig, stamp } });
     } catch (e) {
       setStampError(e instanceof Error ? e.message : String(e));
     }
@@ -312,26 +330,29 @@ export default function RepresentationRequestReview({
 
   /** fields = השדות כפי שהם אחרי גרירה/שינוי גודל בחדר החתימה, ולכן הם שנצרבים. */
   async function handleStampComplete(values: Record<string, SignatureValue>, fields?: SignatureField[]) {
-    if (!setup || !stampRoom) return;
+    if (!stampRoom) return;
+    const target = stampRoom.doc;
     setFinalizing(true);
     try {
       const merged = { ...(request.signatureValues || {}), ...values };
-      const burned = await burnSignaturesIntoPdf(stampRoom.pdfBytes.slice(0), fields || setup.fields, merged);
-      const storedId = `signed-poa-${request.id}`;
+      const burned = await burnSignaturesIntoPdf(stampRoom.pdfBytes.slice(0), fields || target.fields, merged);
+      const storedId = signedDocIdFor(request.id, target.key);
       await db.saveDoc({
         id: storedId,
         clientId: request.linkedClientId,
-        fileName: `${request.clientName || 'לקוח'} - ייפוי כוח חתום.pdf`,
+        fileName: `${request.clientName || 'לקוח'} - ייפוי כוח חתום${poaDocs.length > 1 ? ` - ${target.title}` : ''}.pdf`,
         fileType: 'application/pdf',
         fileSize: burned.byteLength,
         category: 'other',
         year: 'general',
         uploadedAt: new Date().toISOString(),
-        description: 'ייפוי כוח חתום (כל החותמים + חותמת המשרד)',
+        description: `ייפוי כוח חתום (כל החותמים + חותמת המשרד)${poaDocs.length > 1 ? ` - ${target.title}` : ''}`,
         notes: '',
         fileData: toPureArrayBuffer(burned),
       });
-      await onSaveSignedPdf(request, merged, storedId);
+      // ‼ רק המסמך הזה מסומן כהוחתם. הסטטוס יתקדם רק כשכולם יוחתמו.
+      await onSaveSignedPdf(request, merged,
+        poaDocs.map(d => d.key === target.key ? { ...d, signedPdfStoredId: storedId } : d));
       const blob = new Blob([toPureArrayBuffer(burned)], { type: 'application/pdf' });
       if (generatedPdfUrl) URL.revokeObjectURL(generatedPdfUrl);
       setGeneratedPdfUrl(URL.createObjectURL(blob));
@@ -948,17 +969,18 @@ export default function RepresentationRequestReview({
       {showProduceEditor && (
         <PoaProduceEditor
           request={request}
+          targets={docTargets}
           onCancel={() => setShowProduceEditor(false)}
-          onContinue={async (s) => { await onProduceWithSetup(request, s); setShowProduceEditor(false); }}
+          onContinue={async (docs) => { await onProduceWithSetup(request, docs); setShowProduceEditor(false); }}
         />
       )}
 
       {/* חדר החתימה של הרו"ח — חתימה + חותמת על ה-PDF שהלקוחות כבר חתמו */}
-      {stampRoom && setup && (
+      {stampRoom && (
         <SigningRoom
           pdfBytes={stampRoom.pdfBytes.slice(0)}
-          pdfFileName={setup.pdfFileName}
-          fields={setup.fields}
+          pdfFileName={stampRoom.doc.pdfFileName}
+          fields={stampRoom.doc.fields}
           signers={[
             ...getRequestSigners(request).map((s, i) => ({ id: s.id, source: 'manual' as const, name: s.name, email: s.email, order: i + 1 })),
             { id: 'accountant', source: 'manual' as const, name: 'אני - רו"ח', email: '', order: 99 },
@@ -966,7 +988,9 @@ export default function RepresentationRequestReview({
           activeSignerId="accountant"
           savedMarks={stampRoom.marks}
           initialValues={request.signatureValues || {}}
-          title={finalizing ? 'מייצר PDF סופי…' : 'חתימה + חותמת המשרד'}
+          /* ‼ הכותרת נושאת את שם הטופס: כשיש כמה, חייבים לדעת על מה חותמים */
+          title={finalizing ? 'מייצר PDF סופי…'
+            : poaDocs.length > 1 ? `חתימה + חותמת · ${stampRoom.doc.title}` : 'חתימה + חותמת המשרד'}
           adjustable
           onComplete={(v, f) => void handleStampComplete(v, f)}
           onCancel={() => setStampRoom(null)}

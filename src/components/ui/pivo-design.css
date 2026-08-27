@@ -1778,6 +1778,20 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .rep-who.is-on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .rep-who:disabled { cursor: default; opacity: .6; }
 
+/* רצועת הטפסים בעורך ההפקה — מופיעה רק כשיש יותר מטופס אחד */
+.poa-doctabs {
+  display: flex; gap: .3rem; flex-wrap: wrap;
+  padding: .5rem 1rem; border-bottom: 1px solid var(--hairline-1); background: var(--surface-2);
+}
+.poa-doctab {
+  border: 1px solid var(--hairline-1); background: var(--card); color: var(--ink-2);
+  border-radius: var(--r-chip); padding: .2rem .8rem; font-size: var(--fs-13); cursor: pointer;
+  white-space: nowrap;
+}
+.poa-doctab.is-active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.poa-doctab.is-done { color: var(--success); border-color: var(--success); }
+.poa-doctab.is-done.is-active { background: var(--surface-2); }
+
 /* שורות ההיקף בעמוד הבקשה: רשות · עבור מי */
 .rep-scope { display: flex; flex-wrap: wrap; gap: .35rem; }
 .rep-scope-item {

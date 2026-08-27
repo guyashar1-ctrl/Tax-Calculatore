@@ -20,6 +20,7 @@ import {
 } from '../features/annualReport/profile';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { shaamSubmissions, requestScope, peopleFromClient } from '../utils/repScope';
+import { signatureDocumentsOf, allDocumentsStamped } from '../utils/repDocuments';
 import { useEmailMessages } from '../hooks/useEmailMessages';
 import {
   useRepApprovalStep, isRepApprovalClosed, isRepApprovalDeclared,
@@ -205,9 +206,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const pendingSigners = signers.filter(s => effectiveSignStatus(request, s) === 'pending');
   const signed = ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(status);
   const sentToShaam = ['awaiting_authorities', 'active'].includes(status);
-  const formReady = !!request.signatureSetup || signed;
+  // ‼ "הופק" ו"הוחתם" הם **כל** הטפסים: בקשה עם מע"מ לשני בני הזוג מולידה
+  // שני טפסים, ומסך שמראה "מוכן" אחרי אחד מהם היה שולח חצי בקשה.
+  const poaDocs = signatureDocumentsOf(request);
+  const formReady = (poaDocs.length > 0 && poaDocs.every(d => !!d.pdfDocId)) || signed;
   // ה-PDF הסופי (חתימות + חותמת המשרד) נוצר ונשמר
-  const stamped = !!request.signedPdfStoredId || sentToShaam;
+  const stamped = allDocumentsStamped(request) || sentToShaam;
   // בלי אסמכתא המייל ייצא בלי חלק הב"ל, והמבוטח יזדקק למייל שני. כשגם בן/בת
   // הזוג מיוצג — חסרה אסמכתא אחת מספיקה כדי לעצור, אחרת אחד מהם יקבל מייל חסר.
   const niRefMissing = niIncluded && (!ni.referenceNumber || (!!niCoversSpouse && !niSpouse.referenceNumber));
@@ -471,8 +475,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
             <Step n={2 + extraEntries.length} title="טופס ייפוי הכוח הועלה ואזורי החתימה סומנו" done={formReady}
               hint={formReady
-                ? `${request.signatureSetup?.pdfFileName || 'הטופס'} - מוכן לשליחה`
-                : 'העלו את קובץ ייפוי הכוח וסמנו איפה כל אחד חותם'}>
+                ? (poaDocs.length > 1
+                    ? `${poaDocs.length} טפסים - מוכנים לשליחה`
+                    : `${poaDocs[0]?.pdfFileName || 'הטופס'} - מוכן לשליחה`)
+                : extraEntries.length
+                  ? 'טופס לכל הגשה בשע״ם - מע"מ וניכויים מוגשים בנפרד לכל אדם'
+                  : 'העלו את קובץ ייפוי הכוח וסמנו איפה כל אחד חותם'}>
               <button className="btn btn-secondary btn-sm" onClick={onProduce}>
                 {formReady ? '↺ החלף טופס או ערוך אזורים' : 'העלה טופס וסמן אזורי חתימה'}
               </button>

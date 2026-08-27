@@ -14,7 +14,7 @@ import {
   AuthorityRepresentations,
   RepAuthorityKind,
   RepSigner,
-  SignatureSetup,
+  RepSignatureDocument,
   SignatureValue,
   RepresentationStatus,
   REPRESENTATION_STATUS_LABELS,
@@ -85,6 +85,7 @@ import LoginScreen from './components/LoginScreen';
 import NoAccessScreen from './components/NoAccessScreen';
 import NewPersonDialog, { type NewPersonBasics } from './components/NewPersonDialog';
 import RepresentationOnboardingDialog, { CreateRepresentationInput } from './components/RepresentationOnboardingDialog';
+import { withLegacyMirror } from './utils/repDocuments';
 import OnboardingPage from './components/OnboardingPage';
 import PublicIntakePage from './components/PublicIntakePage';
 import PublicPortalPage from './components/PublicPortalPage';
@@ -1297,14 +1298,15 @@ export default function App() {
    * הרו"ח סיים לסמן את אזורי החתימה על ה-PDF ("הפקת טופס") — שומרים את ההגדרה,
    * עוברים ל"נשלח לחתימה", ושולחים לכל חותם קישור חתימה אישי למייל שלו.
    */
-  async function handleProduceFormWithSetup(req: RepresentationRequest, setup: SignatureSetup) {
+  async function handleProduceFormWithSetup(req: RepresentationRequest, docs: RepSignatureDocument[]) {
     // ודא שלכל חותם יש טוקן חתימה (בקשות ותיקות נוצרו לפני שהיו טוקנים)
     const signers: RepSigner[] = (req.signers && req.signers.length > 0
       ? req.signers
       : [{ id: 'client', role: 'client' as const, name: req.clientName || '', email: req.clientEmail || '', signStatus: 'pending' as const }]
     ).map(s => s.signToken ? s : { ...s, signToken: crypto.randomUUID().replace(/-/g, '') });
 
-    await updateRequest({ ...req, signers, signatureSetup: setup, status: 'pending_signature' });
+    // ‼ המסמך הראשון ממשיך להישמר גם בשדות הישנים — ראה withLegacyMirror.
+    await updateRequest({ ...req, signers, ...withLegacyMirror(docs), status: 'pending_signature' });
     const linkedClient = clients.find(c => c.id === req.linkedClientId);
     if (linkedClient) {
       await updateClient({ ...linkedClient, representationStatus: 'pending_signature' });
@@ -1316,8 +1318,8 @@ export default function App() {
   }
 
   /** נשמר ה-PDF הסופי (חתימות + חותמת צרובות) — עדיין בסטטוס awaiting_stamp עד "נשלח לשע"ם" */
-  async function handleSaveSignedPdf(req: RepresentationRequest, values: Record<string, SignatureValue>, signedPdfStoredId: string) {
-    await updateRequest({ ...req, signatureValues: values, signedPdfStoredId });
+  async function handleSaveSignedPdf(req: RepresentationRequest, values: Record<string, SignatureValue>, docs: RepSignatureDocument[]) {
+    await updateRequest({ ...req, signatureValues: values, ...withLegacyMirror(docs) });
   }
 
   /**

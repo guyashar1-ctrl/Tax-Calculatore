@@ -3,6 +3,7 @@
 // הרשות שאליה הן שייכות, כדי שלא יהיו חצי פעולות למעלה וחצי למטה.
 
 import { RepresentationRequest } from '../types';
+import { allDocumentsStamped } from '../utils/repDocuments';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 
 interface Props {
@@ -52,7 +53,8 @@ export default function RepresentationNextStep({ request, niIncluded, niCoversSp
     title = 'ממתינים לחתימת הלקוח';
     sub = pending.length > 0 ? `ממתינים ל: ${pending.map(s => s.name || s.email).join(', ')}.` : 'כל החותמים חתמו.';
   } else if (status === 'awaiting_stamp') {
-    title = request.signedPdfStoredId ? 'להגיש את הטופס בשע״ם' : 'לחתום ולהוסיף חותמת';
+    // ‼ כמה טפסים ⇒ "להגיש" רק כשכולם הוחתמו
+    title = allDocumentsStamped(request) ? 'להגיש את הטופס בשע״ם' : 'לחתום ולהוסיף חותמת';
     sub = 'במשבצת מס הכנסה.';
   } else if (status === 'awaiting_authorities') {
     ball = 'authority';

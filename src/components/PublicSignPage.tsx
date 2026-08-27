@@ -27,6 +27,12 @@ interface Session {
   values: Record<string, SignatureValue>;
   pdfUrl: string;
   pdfFileName: string;
+  /**
+   * כל טופסי ה-2279 של הבקשה. מע"מ וניכויים מוגשים בנפרד לכל אדם, ולכן
+   * למשק בית אחד עשויים להיות כמה טפסים — והחותם חותם על כולם ברצף,
+   * בקישור אחד. חסר ⇒ שרת ישן; נופלים למסמך היחיד מהשדות שלצידו.
+   */
+  documents?: { key: string; title: string; fields: SignatureField[]; pdfUrl: string; pdfFileName: string }[];
   /** חתימת בן/בת הזוג עוד ממתינה — מוחזר רק לנישום, לבחירת "יחד או בנפרד". */
   spousePending?: boolean;
   spouseName?: string;
@@ -154,6 +160,9 @@ export default function PublicSignPage({ token }: { token: string }) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [session, setSession] = useState<Session | null>(null);
   const [pdfBytes, setPdfBytes] = useState<ArrayBuffer | null>(null);
+  /** על איזה טופס חותמים עכשיו, ומה נאסף עד כה מכולם. */
+  const [docIndex, setDocIndex] = useState(0);
+  const [collected, setCollected] = useState<Record<string, SignatureValue>>({});
   const [errMsg, setErrMsg] = useState('');
   // מצב בן/בת הזוג מתעדכן גם מתשובת submit — לא רק מהטעינה הראשונה
   const [spouse, setSpouse] = useState<{ pending: boolean; name: string }>({ pending: false, name: '' });
@@ -166,7 +175,8 @@ export default function PublicSignPage({ token }: { token: string }) {
         setSession(data as Session);
         setSpouse({ pending: !!data.spousePending, name: data.spouseName || '' });
         if (data.alreadySigned || data.requestStatus !== 'pending_signature') { setPhase('already'); return; }
-        const res = await fetch(data.pdfUrl);
+        const first = (data.documents?.[0]?.pdfUrl) || data.pdfUrl;
+        const res = await fetch(first);
         if (!res.ok) throw new Error('טעינת המסמך נכשלה');
         setPdfBytes(await res.arrayBuffer());
         setPhase('sign');
@@ -180,14 +190,44 @@ export default function PublicSignPage({ token }: { token: string }) {
     })();
   }, [token]);
 
+  /** רשימת המסמכים, עם נפילה-לאחור לשרת שעוד לא מכיר ריבוי טפסים. */
+  function docsOf(sess: Session) {
+    return sess.documents?.length
+      ? sess.documents
+      : [{ key: 'incomeTax', title: 'ייפוי כוח', fields: sess.fields, pdfUrl: sess.pdfUrl, pdfFileName: sess.pdfFileName }];
+  }
+
+  /**
+   * סיום טופס. ‼ השליחה נעשית **פעם אחת בסוף**, אחרי כל הטפסים: השרת מסמן
+   * את החותם כגמור רק כששדותיו מלאים בכולם, ושליחה באמצע הייתה נדחית
+   * כ"לא שלם" ומשאירה את החותם בלי דרך להתקדם.
+   */
   async function handleComplete(values: Record<string, SignatureValue>) {
     if (!session) return;
+    const list = docsOf(session);
+    const merged = { ...collected, ...values };
+    if (docIndex < list.length - 1) {
+      setCollected(merged);
+      setPhase('loading');
+      try {
+        const res = await fetch(list[docIndex + 1].pdfUrl);
+        if (!res.ok) throw new Error('טעינת המסמך נכשלה');
+        setPdfBytes(await res.arrayBuffer());
+        setDocIndex(docIndex + 1);
+        setPhase('sign');
+      } catch (e) {
+        console.error('[PublicSignPage] טעינת המסמך הבא נכשלה', e);
+        setErrMsg('לא הצלחנו לטעון את המסמך הבא. נסו לרענן את הדף, ואם זה חוזר - פנו למשרד.');
+        setPhase('error');
+      }
+      return;
+    }
     setPhase('submitting');
     try {
-      // שולחים רק את הערכים של השדות שלי
-      const myFieldIds = new Set(session.fields.filter(f => f.signerId === session.signerId).map(f => f.id));
+      // שולחים רק את הערכים של השדות שלי, מכל הטפסים
+      const myFieldIds = new Set(list.flatMap(d => d.fields).filter(f => f.signerId === session.signerId).map(f => f.id));
       const mine: Record<string, SignatureValue> = {};
-      for (const [k, v] of Object.entries(values)) if (myFieldIds.has(k)) mine[k] = v;
+      for (const [k, v] of Object.entries(merged)) if (myFieldIds.has(k)) mine[k] = v;
       const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'submit', token, values: mine } });
       if (error || !data?.ok) throw new Error(error?.message || data?.error || 'שליחה נכשלה');
       setSpouse({ pending: !!data.spousePending, name: data.spouseName || '' });
@@ -268,18 +308,27 @@ export default function PublicSignPage({ token }: { token: string }) {
   if (!signers.some(s => s.id === 'accountant')) {
     signers.push({ id: 'accountant', source: 'manual', name: session.firmName || 'רו"ח', email: '', order: signers.length + 1 });
   }
+  const list = docsOf(session);
+  const current = list[docIndex];
+  const many = list.length > 1;
   return (
     <SigningRoom
+      key={current.key}
       pdfBytes={pdfBytes.slice(0)}
-      pdfFileName={session.pdfFileName}
-      fields={session.fields}
+      pdfFileName={current.pdfFileName}
+      fields={current.fields}
       signers={signers}
       activeSignerId={session.signerId}
       // הלקוח רואה רק איפה הוא (ובן/בת זוגו) חותמים. מקום החתימה של הרו"ח
       // אינו עניינו, ורק מעלה שאלות על טופס שנראה חסר.
       hiddenSignerIds={['accountant']}
-      initialValues={session.values}
-      title={`✍ חתימה על ייפוי כוח - ${session.signerName}`}
+      initialValues={{ ...session.values, ...collected }}
+      /* ‼ כשיש כמה טפסים הכותרת אומרת על מה חותמים ואיפה זה עומד — אחרת
+         נראה כאילו אותו מסך חוזר על עצמו בלי סיבה. */
+      title={many
+        ? `✍ טופס ${docIndex + 1} מתוך ${list.length} · ${current.title}`
+        : `✍ חתימה על ייפוי כוח - ${session.signerName}`}
+      completeLabel={many && docIndex < list.length - 1 ? 'המשך לטופס הבא' : undefined}
       onComplete={handleComplete}
       onCancel={() => window.location.reload()}
     />
