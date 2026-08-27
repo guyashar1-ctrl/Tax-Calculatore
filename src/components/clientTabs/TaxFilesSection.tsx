@@ -67,10 +67,11 @@ export default function TaxFilesSection({ client, update }: Props) {
       }
       return next;
     }));
-    // קביעה ידנית של הבעלים היא ידיעה, לא כוונה — ולכן סוגרת את «טרם אומת»
+    // קביעה ידנית של הבעלים היא ידיעה, לא כוונה — ולכן סוגרת את «טרם אומת».
+    // זו גם דרך המילוט היחידה לבקשות ישנות, שאין להן מרכז ביצוע ייצוג.
     const target = files.find((f) => f.id === id);
-    if (target?.authority === 'income_tax' && patch.owner && client.registeredSpouseUnverified) {
-      update('registeredSpouseUnverified', false);
+    if (target?.authority === 'income_tax' && patch.owner && !client.registeredSpouseVerified) {
+      update('registeredSpouseVerified', true);
     }
   }
   function removeFile(id: string) {
@@ -144,7 +145,7 @@ export default function TaxFilesSection({ client, update }: Props) {
                 {f.authority === 'income_tax' && f.owner !== 'joint' && client.familyStatus === 'married' && (
                   <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--warn)', whiteSpace: 'nowrap' }}>
                     ← בן/בת הזוג הרשום/ה
-                    {client.registeredSpouseUnverified ? ` · ${REGISTERED_UNVERIFIED_LABEL}` : ''}
+                    {client.registeredSpouseVerified ? '' : ` · ${REGISTERED_UNVERIFIED_LABEL}`}
                   </span>
                 )}
               </label>

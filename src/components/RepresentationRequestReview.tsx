@@ -11,7 +11,7 @@ import {
   RepSigner,
   Client,
 } from '../types';
-import { registeredFileInfo } from '../features/annualReport/profile';
+import { registeredFileInfo, hasRegisteredSpouseChoice } from '../features/annualReport/profile';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
@@ -158,6 +158,10 @@ export default function RepresentationRequestReview({
   // לבעל התיק — ראה טופס 2279א'5, שבו כל שורה בחלק ב' היא צמד שם+מספר.
   const registered = linkedClient ? registeredFileInfo(linkedClient) : null;
   const registeredVerified = !!registered && !registered.unverified;
+  // ‼ הרלוונטיות נגזרת מהתא המשפחתי ולא מקיום תיק בכרטיס: ללקוח ותיק אין
+  // עדיין שורת תיק מ"ה, ובלי זה השורה הזאת נעלמה לגמרי — והטופס היה מודפס
+  // עם שם ממלא חלק א' בלי שאיש יידע. עכשיו נאמר במפורש שטרם נקבע.
+  const registeredRelevant = !!linkedClient && hasRegisteredSpouseChoice(linkedClient);
 
   // מספר התיק במ"ה הוא ת.ז. של הרשום. ממלאים מראש רק כשהוא אומת, ורק לשדה
   // ריק — מספר שהוקלד ידנית או נשמר בבקשה גובר.
@@ -553,9 +557,9 @@ export default function RepresentationRequestReview({
                   <label>מספר תיק במס הכנסה (אופציונלי)</label>
                   <input value={partB.incomeTaxFileNumber} onChange={e => setPartB(p => ({ ...p, incomeTaxFileNumber: e.target.value }))} dir="ltr" />
                   {/* ‼ לא שואל שוב — רק מראה מה ייכתב, ומפנה לשלב שבו זה נקבע */}
-                  {registered && (
+                  {registeredRelevant && (
                     <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.3rem', lineHeight: 1.5 }}>
-                      {registeredVerified
+                      {registeredVerified && registered
                         ? <>שם הנישום שיודפס: <b>{registered.name}</b> - בעל התיק במ״ה</>
                         : <>טרם נקבע מי הרשום במ״ה. נקבע בשלב «הפרטים הוזנו בשע״ם» שבמרכז הביצוע.</>}
                     </div>

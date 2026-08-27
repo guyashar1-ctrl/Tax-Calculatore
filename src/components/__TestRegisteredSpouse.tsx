@@ -4,11 +4,15 @@
 // אחת, בתוך שלב "הפרטים הוזנו בשע״ם" שבמרכז הביצוע — הרגע שבו הרו"ח פותח את
 // הבקשה בשע״ם ורואה מי רשום שם באמת. אין מסך אימות שני.
 //
-// ארבעת התרחישים שנבדקים כאן:
+// התרחישים שנבדקים כאן:
 //   1. כוונה = הלקוח   → שע״ם מאשר את הלקוח
 //   2. כוונה = בן הזוג → שע״ם מאשר את בן הזוג
 //   3. כוונה = הלקוח   → מתברר שבן הזוג הוא הרשום
 //   4. כוונה = בן הזוג → מתברר שהלקוח הוא הרשום
+//   5. לקוח ותיק — אין תיק מ"ה ואיש לא נשאל. חייב להישאל, ואסור שתופיע
+//      הצהרה «X הוא בן הזוג הרשום» לפני שהכריעו.
+//   6. לקוח ותיק ששלב שע״ם שלו כבר סומן — משלים רק את ההכרעה החסרה, ותאריך
+//      הסימון המקורי נשאר.
 //
 // המצב נשמר ב-localStorage כדי שרענון יראה מה נטען מחדש — סימולציה של
 // טעינת כרטיס שכבר אומת. הפרסיסטנטיות האמיתית היא בעמודה במסד.
@@ -24,7 +28,8 @@ const REQ_ID = 'req-test-regspouse';
 const CLIENT_ID = 'client-test-regspouse';
 const STORE_KEY = 'test-regspouse-client';
 
-function baseClient(intent: 'client' | 'spouse'): Client {
+// intent=null מדמה לקוח ותיק: אין תיק מ"ה בכרטיס, ואיש מעולם לא נשאל.
+function baseClient(intent: 'client' | 'spouse' | null): Client {
   return {
     id: CLIENT_ID,
     idNumber: '314667346',
@@ -49,8 +54,7 @@ function baseClient(intent: 'client' | 'spouse'): Client {
     representationStatus: 'awaiting_accountant',
     representationRequestId: REQ_ID,
     authorityRepresentations: { incomeTax: { status: 'in_process', level: 'primary' } },
-    registeredSpouseUnverified: true,
-    taxFiles: [
+    taxFiles: intent === null ? [] : [
       {
         id: 'tf-it',
         authority: 'income_tax',
@@ -93,12 +97,13 @@ const REQUEST = {
 } as unknown as RepresentationRequest;
 
 export default function TestRegisteredSpouse() {
-  // ‼ ‎?intent=spouse&verified=1‎ — כדי שאפשר יהיה לצלם כל מצב בלי ללחוץ
+  // ‼ ‎?intent=spouse|client|legacy&verified=1‎ — כדי שאפשר יהיה לצלם כל מצב בלי ללחוץ
   const [client, setClient] = useState<Client>(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.has('intent') || q.has('verified')) {
-      const c = baseClient(q.get('intent') === 'spouse' ? 'spouse' : 'client');
-      return q.get('verified') === '1' ? { ...c, registeredSpouseUnverified: false } : c;
+      const i = q.get('intent');
+      const c = baseClient(i === 'spouse' ? 'spouse' : i === 'legacy' ? null : 'client');
+      return q.get('verified') === '1' ? { ...c, registeredSpouseVerified: true } : c;
     }
     try {
       const raw = localStorage.getItem(STORE_KEY);
@@ -117,7 +122,7 @@ export default function TestRegisteredSpouse() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(next)); } catch { /* לא חוסם */ }
   }
 
-  function reset(intent: 'client' | 'spouse') {
+  function reset(intent: 'client' | 'spouse' | null) {
     save(baseClient(intent));
     setRequest(REQUEST);
   }
@@ -134,7 +139,12 @@ export default function TestRegisteredSpouse() {
             : {}),
         }
       : f));
-    save({ ...client, taxFiles: files, registeredSpouseUnverified: false });
+    // ללקוח ותיק אין עדיין תיק מ"ה — ההכרעה יוצרת אותו, כמו ב-App
+    const next = files.length ? files : [{
+      id: 'tf-it', authority: 'income_tax' as const, owner,
+      fileNumber: ownerId, repStatus: 'pending' as const,
+    }];
+    save({ ...client, taxFiles: next, registeredSpouseVerified: true });
   }
 
   const itFile = (client.taxFiles ?? []).find(f => f.authority === 'income_tax');
@@ -148,14 +158,16 @@ export default function TestRegisteredSpouse() {
         <button className="btn btn-secondary btn-sm" onClick={() => setRequest(r => ({ ...r, status: 'awaiting_stamp' }))}>
           קפוץ לחתימת המייצג
         </button>
+        {/* לקוח ותיק: אין תיק מ"ה, השדה מעולם לא אותחל (NULL) */}
+        <button className="btn btn-secondary btn-sm" onClick={() => reset(null)}>לקוח ותיק</button>
         {/* נתון מלפני המהלך: השלב סומן, אבל אף אחד לא הכריע מי הרשום */}
         <button className="btn btn-secondary btn-sm" onClick={() => {
-          save(baseClient('client'));
+          save(baseClient(null));
           setRequest(r => ({ ...r, status: 'awaiting_accountant', execution: { incomeTax: { enteredAt: '2026-08-10T08:00:00.000Z' } } }));
-        }}>מצב ישן: הוזן בלי הכרעה</button>
+        }}>ותיק + הוזן כבר</button>
         <span id="tst-state">
-          מצב: {client.registeredSpouseUnverified ? 'טרם אומת' : 'אומת'} · ע״ש {itFile?.owner} ·
-          מספר {itFile?.fileNumber} · הוזן בשע״ם: {request.execution?.incomeTax?.enteredAt ? 'כן' : 'לא'}
+          מצב: {client.registeredSpouseVerified ? 'אומת' : 'טרם אומת'} · ע״ש {itFile?.owner ?? '—'} ·
+          מספר {itFile?.fileNumber ?? '—'} · הוזן בשע״ם: {request.execution?.incomeTax?.enteredAt ? 'כן' : 'לא'}
         </span>
       </div>
 

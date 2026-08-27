@@ -1076,8 +1076,6 @@ export default function App() {
         const files = taxFilesForRegisteredSpouse(areas, prefill, undefined);
         return files ? { taxFiles: files } : {};
       })(),
-      // הכוונה נרשמה — ועד שנראה מה רשום בפועל במ"ה היא מסומנת כלא-מאומתת
-      ...(prefill.registeredSpouse ? { registeredSpouseUnverified: true } : {}),
       // מעבר מרו"ח אחר נרשם על הכרטיס מיד: ממנו נגזרים מכתב השחרור ומעקב החומרים.
       hasPreviousAccountant,
       ...(prevAccountant?.name  ? { prevAccountantName: prevAccountant.name } : {}),
@@ -1128,8 +1126,6 @@ export default function App() {
             : f)),
         };
       })(),
-      // הכוונה נרשמה — ועד שנראה מה רשום בפועל במ"ה היא מסומנת כלא-מאומתת
-      ...(prefill.registeredSpouse ? { registeredSpouseUnverified: true } : {}),
       hasPreviousAccountant,
       ...(prevAccountant?.name  ? { prevAccountantName: prevAccountant.name } : {}),
       ...(prevAccountant?.email ? { prevAccountantEmail: prevAccountant.email } : {}),
@@ -1174,7 +1170,7 @@ export default function App() {
     await updateClient({
       ...client,
       ...(patched ? { taxFiles: patched } : {}),
-      registeredSpouseUnverified: false,
+      registeredSpouseVerified: true,
     });
   }
 

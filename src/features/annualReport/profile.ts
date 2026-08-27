@@ -21,9 +21,12 @@ export interface RegisteredFileInfo {
   idNumber: string;
   fileNumber?: string;
   /**
-   * השם נקבע בבקשת הייצוג כ**כוונה** וטרם נראה מול מ"ה. כל מקום שמציג את
-   * בן הזוג הרשום מוסיף אז את `REGISTERED_UNVERIFIED_LABEL` — כדי שלא נסתמך
-   * על נתון שלא נבדק. נסגר בשלב "הפרטים הוזנו בשע״ם" שבמרכז ביצוע הייצוג.
+   * מותר להסתמך על השם? `false` רק אחרי שהרו"ח הכריע מול שע״ם. כל מקום
+   * שמציג את בן הזוג הרשום מוסיף אז את `REGISTERED_UNVERIFIED_LABEL`.
+   *
+   * ‼ נכון גם ללקוח ותיק שמעולם לא נשאל: הבעלים שלו נולד מברירת מחדל
+   * (`autofill_internal_setup` כותב 'client'), ולא מידיעה. רלוונטי רק
+   * כשיש שני בני זוג — לרווק אין בכלל שאלה כזאת.
    */
   unverified: boolean;
 }
@@ -47,8 +50,19 @@ export function registeredFileInfo(client: Client): RegisteredFileInfo | null {
     name: isSpouse ? (spouseName || 'בן/בת הזוג') : clientName,
     idNumber: (isSpouse ? client.spouseIdNumber : client.idNumber) || file.fileNumber || '',
     fileNumber: file.fileNumber,
-    unverified: !!client.registeredSpouseUnverified,
+    unverified: needsRegisteredSpouseVerification(client),
   };
+}
+
+/**
+ * האם עוד צריך להכריע מי בן/בת הזוג הרשום/ה במס הכנסה.
+ *
+ * ‼ נגזר מהמצב העסקי ולא מדגל שנכתב פעם אחת: יש שני בני זוג, ואיש עדיין לא
+ * קבע מי מהם רשום. כך גם לקוח ותיק (שאצלו השדה מעולם לא אותחל) נכנס לגדר
+ * "צריך להכריע", במקום להיחשב בטעות כמאומת. ראה `registeredSpouseVerified`.
+ */
+export function needsRegisteredSpouseVerification(client: Client): boolean {
+  return hasRegisteredSpouseChoice(client) && !client.registeredSpouseVerified;
 }
 
 export function clientDisplayName(client: Client): string {
@@ -76,7 +90,10 @@ export function registeredSpouseSentence(client: Client, owner: 'client' | 'spou
   return `${name} - בן/בת הזוג הרשום/ה במס הכנסה`;
 }
 
-/** האם יש בכלל שני בני זוג שאפשר לבחור ביניהם. */
+/**
+ * האם יש בכלל שני בני זוג שאפשר לבחור ביניהם. נשוי מספיק — שם בן/בת הזוג
+ * מגיע לרוב רק כשהלקוח ממלא את טופס הקליטה, ואין סיבה לדחות עד אז את השאלה.
+ */
 export function hasRegisteredSpouseChoice(client: Client): boolean {
   return client.familyStatus === 'married' || !!client.spouseName?.trim();
 }

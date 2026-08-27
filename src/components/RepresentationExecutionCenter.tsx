@@ -293,11 +293,27 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ‼ ההכרעה נעשית כאן ורק כאן. עד הרגע הזה מה שיש בכרטיס הוא הכוונה שנרשמה
   // בפתיחת הייצוג, מסומנת «טרם אומת מול מ"ה»; פתיחת הבקשה בשע״ם היא הרגע
   // שבו רואים מי רשום באמת, ולכן הבחירה כאן היא גם הסימון של השלב.
-  const regOwner: 'client' | 'spouse' =
-    (linkedClient && registeredFileInfo(linkedClient)?.owner === 'spouse') ? 'spouse' : 'client';
-  const regUnverified = !!linkedClient?.registeredSpouseUnverified;
-  const regChoice = !!linkedClient && !!onConfirmRegisteredSpouse && hasRegisteredSpouseChoice(linkedClient);
-  const regSentence = linkedClient ? registeredSpouseSentence(linkedClient, regOwner) : '';
+  //
+  // ‼ הצורך להכריע נגזר מהמצב העסקי — נשוי + ייצוג במ"ה + טרם הוכרע — ולא
+  // מדגל שנכתב רק בפתיחת ייצוג חדשה. אחרת לקוח ותיק, שהבעלים שלו נולד
+  // מברירת מחדל, היה מדלג על השאלה בדיוק כמו מי שכבר ענה עליה.
+  const itRequested = request.authorities.includes('incomeTax');
+  const regVerified = !!linkedClient?.registeredSpouseVerified;
+  const regChoice = !!linkedClient && !!onConfirmRegisteredSpouse
+    && itRequested && hasRegisteredSpouseChoice(linkedClient);
+
+  // הכוונה שנרשמה בפתיחת הייצוג, אם נרשמה. null = אין רמז, ואז אף כפתור
+  // אינו מודגש — הדגשה בלי כיסוי הייתה נראית כהמלצה שמישהו נתן.
+  const regIntent: 'client' | 'spouse' | null =
+    linkedClient && (linkedClient.taxFiles ?? []).some(f => f.authority === 'income_tax')
+      ? (registeredFileInfo(linkedClient)?.owner === 'spouse' ? 'spouse' : 'client')
+      : null;
+
+  // ‼ המשפט נבנה אך ורק ממה שאומת. לפני האימות אין ניסוח בכלל — המערכת לא
+  // מצהירה מי הרשום על סמך ברירת מחדל.
+  const regSentence = linkedClient && regVerified
+    ? registeredSpouseSentence(linkedClient, registeredFileInfo(linkedClient)?.owner === 'spouse' ? 'spouse' : 'client')
+    : '';
 
   /** סימון "הוזן בשע״ם". `owner` מסופק כשיש שני בני זוג — ואז הוא גם ההכרעה. */
   async function markEnteredInShaam(owner?: 'client' | 'spouse') {
@@ -371,16 +387,16 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 מסך, וגם הפקת הטופס נשענת עליה. */}
             <Step
               n={1}
-              title={it.enteredAt && !regUnverified && regChoice
+              title={it.enteredAt && regChoice && regVerified
                 ? `הפרטים הוזנו בשע״ם · ${regSentence}`
                 : 'הפרטים הוזנו בשע״ם'}
               done={!!it.enteredAt}
               hint={it.enteredAt
-                ? (regChoice && regUnverified ? undefined : `סומן ב-${fmt(it.enteredAt)}`)
-                : regChoice && regUnverified
+                ? (regChoice && !regVerified ? undefined : `סומן ב-${fmt(it.enteredAt)}`)
+                : regChoice && !regVerified
                   ? 'פתחו בקשת ייצוג באתר שע״ם עם הפרטים שלמעלה. מי מבין השניים רשום שם במס הכנסה?'
                   : 'פתחו בקשת ייצוג באתר שע״ם עם הפרטים שלמעלה'}>
-              {regChoice && regUnverified ? (
+              {regChoice && !regVerified ? (
                 <>
                   {it.enteredAt && (
                     <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.4rem' }}>
@@ -391,9 +407,13 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                     {regNames.map(r => (
                       <button
                         key={r.owner}
-                        className={`btn btn-sm ${r.owner === regOwner ? 'btn-green' : 'btn-secondary'}`}
+                        className={`btn btn-sm ${r.owner === regIntent ? 'btn-green' : 'btn-secondary'}`}
                         disabled={busy === 'it'}
-                        title={r.owner === regOwner ? 'זו הכוונה שנרשמה בפתיחת הייצוג' : 'שונה מהכוונה שנרשמה - יעדכן את התיק'}
+                        title={regIntent === null
+                          ? 'טרם נקבע מי הרשום - הבחירה כאן היא שתקבע'
+                          : r.owner === regIntent
+                            ? 'זו הכוונה שנרשמה בפתיחת הייצוג'
+                            : 'שונה מהכוונה שנרשמה - יעדכן את התיק'}
                         onClick={() => void markEnteredInShaam(r.owner)}
                       >
                         {busy === 'it' ? 'שומר…' : r.label}
