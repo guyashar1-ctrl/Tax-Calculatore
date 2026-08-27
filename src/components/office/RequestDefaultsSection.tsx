@@ -14,7 +14,7 @@ import type {
   ClientKind, DefaultEntry, DefaultVariant, FactKey,
 } from '../../types/journeyDefaults';
 import {
-  CATALOG_STEP_TYPES, CLIENT_KIND_LABELS, CLIENT_KIND_ORDER, FACTS,
+  CATALOG_STEP_TYPES, CLIENT_KIND_LABELS, CLIENT_KIND_ORDER, FACTS, SYSTEM_DEPENDS_ON,
   factWhen, metaFor, variantLabel,
 } from '../../types/journeyDefaults';
 import {
@@ -83,23 +83,6 @@ function toTree(entries: DefaultEntry[]): Node[] {
 const flatten = (nodes: Node[]): DefaultEntry[] =>
   nodes.flatMap(n => [n.entry, ...flatten(n.kids)]);
 
-/**
- * מפריד פעילות מכבויות **בכל עומק** — «הרשאה לתשלום חודשי» היא בת של «חיבור
- * לפייפרלס», ולכן סינון ברמת השורש בלבד היה משאיר אותה ברשימה.
- * ‼ ענף שכובה נודד שלם: כיבוי הורה מכבה גם את מה שתלוי בו, וכך הם נשארים יחד.
- */
-function splitTree(nodes: Node[]): { live: Node[]; off: Node[] } {
-  const live: Node[] = [];
-  const off: Node[] = [];
-  for (const n of nodes) {
-    if (!n.entry.enabled) { off.push(n); continue; }
-    const sub = splitTree(n.kids);
-    live.push({ entry: n.entry, kids: sub.live });
-    off.push(...sub.off);
-  }
-  return { live, off };
-}
-
 export default function RequestDefaultsSection({ profile }: Props) {
   const officeId = profile.id;
   const { byKind, loading, error, saving, save } = useJourneyDefaults(officeId);
@@ -112,7 +95,7 @@ export default function RequestDefaultsSection({ profile }: Props) {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [factsFor, setFactsFor] = useState<string | null>(null);
   const [whyOpen, setWhyOpen] = useState<Set<string>>(new Set());
-  const [drawer, setDrawer] = useState<{ internal: boolean; off: boolean }>({ internal: false, off: false });
+  const [drawer, setDrawer] = useState<{ internal: boolean }>({ internal: false });
   const [notice, setNotice] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -127,12 +110,7 @@ export default function RequestDefaultsSection({ profile }: Props) {
 
   const entries = draft[kind] ?? [];
   const tree = useMemo(() => toTree(entries), [entries]);
-  /* ‼ בקשה כבויה יורדת מהרשימה למגירה, אבל **נשארת ברשומות**: רשומה שחסרה
-     מברירת המחדל גורמת לשרת ליפול להתנהגות הקוד — כלומר הבקשה הייתה חוזרת.
-     כיבוי הוא המחיקה; המגירה היא רק איפה שהיא יושבת. */
-  const split = useMemo(() => splitTree(tree), [tree]);
-  const liveTree = split.live;
-  const offTree = split.off;
+
   const isDirty = !!dirty[kind];
 
   function mutate(next: DefaultEntry[], markDirty = true) {
@@ -144,25 +122,30 @@ export default function RequestDefaultsSection({ profile }: Props) {
     mutate(entries.map(e => (e.key === key ? fn(e) : e)));
   }
 
-  /** כיבוי ראש שרשרת מכבה גם את מה שתלוי בו — אחרת נבטיח בקשה שלא תוכל להיפתח. */
+  /**
+   * ‼ פעולה אחת בלבד: הסרה. אין «כבוי» — בקשה נמצאת ברשימה או שאינה, והקטלוג
+   * מציע בחזרה את מה שהוסר. הסרת ראש שרשרת מסירה גם את מה שתלוי בו, אחרת
+   * תישאר בקשה שלא תוכל להיפתח לעולם.
+   */
   function flip(key: string) {
     const target = entries.find(e => e.key === key);
     if (!target) return;
-    const on = !target.enabled;
     // התלות מוצהרת בין סוגי שלב, ולכן ההתפשטות עוברת דרך stepType
-    const affectedTypes = new Set<string>([target.stepType]);
+    const goneTypes = new Set([target.stepType]);
     let grew = true;
     while (grew) {
       grew = false;
       for (const e of entries) {
-        if (e.dependsOn && affectedTypes.has(e.dependsOn) && !affectedTypes.has(e.stepType)) {
-          affectedTypes.add(e.stepType); grew = true;
+        if (e.dependsOn && goneTypes.has(e.dependsOn) && !goneTypes.has(e.stepType)) {
+          goneTypes.add(e.stepType); grew = true;
         }
       }
     }
-    const affected = new Set(entries.filter(e => e.key === key || affectedTypes.has(e.stepType)).map(e => e.key));
-    mutate(entries.map(e => (affected.has(e.key) ? { ...e, enabled: on } : e)));
-    if (!on && affected.size > 1) setNotice(`«${entryMeta(target).name}» כובתה — גם מה שתלוי בה`);
+    const gone = new Set(entries.filter(e => e.key === key || goneTypes.has(e.stepType)).map(e => e.key));
+    mutate(entries.filter(e => !gone.has(e.key)));
+    setNotice(gone.size > 1
+      ? `«${entryMeta(target).name}» הוסרה - גם מה שתלוי בה. אפשר להחזיר מ«הוסף בקשה».`
+      : `«${entryMeta(target).name}» הוסרה. אפשר להחזיר מ«הוסף בקשה».`);
   }
 
   /** סידור מחדש בין שורשים בלבד. בן זז עם ההורה שלו. */
@@ -278,7 +261,8 @@ export default function RequestDefaultsSection({ profile }: Props) {
     mutate([...entries, {
       key: stepType, stepType, enabled: true,
       sortIndex: (entries.length + 1) * 10,
-      source: 'system', requiredForClose: null, dueInDays: null, dependsOn: null,
+      source: 'system', requiredForClose: null, dueInDays: null,
+      dependsOn: SYSTEM_DEPENDS_ON[stepType] ?? null,
       variants: [],
     }]);
     setCatalogOpen(false);
@@ -310,11 +294,6 @@ export default function RequestDefaultsSection({ profile }: Props) {
     patch(key, e => ({ ...e, documentId: id || undefined }));
   }
 
-  function removeEntry(key: string) {
-    const gone = entries.find(e => e.key === key);
-    mutate(entries.filter(e => e.key !== key && !(gone && e.dependsOn === gone.stepType)));
-    setNotice('הוסרה מברירת המחדל');
-  }
 
   async function doSave() {
     setSaveErr(null);
@@ -330,7 +309,7 @@ export default function RequestDefaultsSection({ profile }: Props) {
     flip, moveRoot, onGripDown,
     pickVariant: (t, i2) => setVsel(s2 => ({ ...s2, [t]: i2 })),
     addVariantOpen: setFactsFor, dropVariant, moveVariant,
-    editItems, setAddItemFor, removeEntry, setAuthorities, setDocument,
+    editItems, setAddItemFor, setAuthorities, setDocument,
     toggleWhy: (t) => setWhyOpen(s2 => { const n2 = new Set(s2); n2.has(t) ? n2.delete(t) : n2.add(t); return n2; }),
     variantsOf,
   };
@@ -389,12 +368,12 @@ export default function RequestDefaultsSection({ profile }: Props) {
           </div>
         )}
 
-        {liveTree.length === 0 ? (
-          <div className="ojd-state">אין בקשות פעילות בברירת המחדל לסוג הזה. אפשר להוסיף מהקטלוג.</div>
+        {tree.length === 0 ? (
+          <div className="ojd-state">אין בקשות בברירת המחדל לסוג הזה. אפשר להוסיף מהקטלוג.</div>
         ) : (
           <div ref={listRef} onPointerMove={onListMove} onPointerUp={onListUp} onPointerCancel={onListUp}>
-            {liveTree.map((n, i) => (
-              <Row key={n.entry.key} node={n} depth={0} last={i === liveTree.length - 1}
+            {tree.map((n, i) => (
+              <Row key={n.entry.key} node={n} depth={0} last={i === tree.length - 1}
                    state={{ open, vsel, addItemFor, whyOpen, profile }}
                    api={rowApi} />
             ))}
@@ -402,27 +381,6 @@ export default function RequestDefaultsSection({ profile }: Props) {
         )}
 
         <button type="button" className="ojd-add" onClick={() => setCatalogOpen(true)}>＋ הוסף בקשה</button>
-
-        {offTree.length > 0 && (
-          <div className={`ojd-drawer${drawer.off ? ' open' : ''}`}>
-            <button type="button" className="ojd-drawer-h"
-              aria-expanded={drawer.off}
-              onClick={() => setDrawer(d => ({ ...d, off: !d.off }))}>
-              <span>כבויות - לא ייווצרו ללקוח חדש</span>
-              <span className="cnt">{offTree.length}</span>
-              <span className="caret" aria-hidden="true">⌄</span>
-            </button>
-            {drawer.off && (
-              <div className="ojd-drawer-b">
-                {offTree.map((n, i) => (
-                  <Row key={n.entry.key} node={n} depth={0} last={i === offTree.length - 1}
-                       state={{ open, vsel, addItemFor, whyOpen, profile }}
-                       api={rowApi} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         <div className={`ojd-drawer${drawer.internal ? ' open' : ''}`}>
           <button type="button" className="ojd-drawer-h"
@@ -520,7 +478,6 @@ interface RowApi {
   moveVariant: (k: string, i: number, d: number) => void;
   editItems: (k: string, vi: number, fn: (items: { key?: string; label: string }[]) => { key?: string; label: string }[]) => void;
   setAddItemFor: (k: string | null) => void;
-  removeEntry: (k: string) => void;
   setAuthorities: (k: string, a: InstitutionKey[]) => void;
   setDocument: (k: string, id: string) => void;
   toggleWhy: (k: string) => void;
@@ -573,11 +530,8 @@ function Row({ node, depth, last, state, api }:
             <div className="ojd-rowmeta">{metaLine}</div>
           </div>
           <div className="ojd-rowaside">
-            {!e.enabled && <span className="ojd-offtag">כבוי</span>}
             <button type="button" className="ojd-toggle"
-              onClick={ev => { ev.stopPropagation(); api.flip(e.key); }}>
-              {e.enabled ? 'כבה' : 'הפעל'}
-            </button>
+              onClick={ev => { ev.stopPropagation(); api.flip(e.key); }}>הסר</button>
             <span className="ojd-chev" aria-hidden="true">⌄</span>
           </div>
         </div>
@@ -777,9 +731,6 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
       )}
 
       <div className="ojd-note">
-        {!entry.enabled && (
-          <>כבויה — לא תיווצר ללקוח חדש, ולכן גם לא תיחשב כדרישה שחוסמת את סגירת הקליטה.<br /></>
-        )}
         {entry.source === 'system'
           ? <>נוצרת על ידי המערכת — <b style={{ fontWeight: 500 }}>{meta.cond}</b>. את התנאי אי אפשר לשנות מכאן; אפשר לכבות את הבקשה, לשנות את מקומה ולערוך את מה שהיא מבקשת.</>
           : <>בקשה שהמשרד הוסיף — אין לה תנאי מערכת, והיא תיווצר לכל לקוח חדש מסוג זה.</>}
@@ -793,10 +744,6 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
         {!multi && entry.source === 'system' && (
           <button type="button" className="ojd-link"
             onClick={() => api.addVariantOpen(entry.key)}>＋ מצב נוסף</button>
-        )}
-        {entry.source === 'office' && (
-          <button type="button" className="ojd-link mute"
-            onClick={() => api.removeEntry(entry.key)}>הסר מברירת המחדל</button>
         )}
       </div>
     </div>

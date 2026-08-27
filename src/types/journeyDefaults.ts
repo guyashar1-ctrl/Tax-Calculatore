@@ -175,6 +175,19 @@ export const REQUEST_META: Record<string, RequestMeta> = {
   },
 };
 
+/**
+ * התלות הקנונית בין בקשות המערכת — אותה שרשרת שהזריעה כותבת ושהשרת אוכף.
+ * ‼ נדרשת כשמחזירים בקשה מהקטלוג: בלעדיה היא הייתה חוזרת כשורש בודד,
+ * והנעילה שבשרת הייתה סותרת את מה שהמסך מראה.
+ */
+export const SYSTEM_DEPENDS_ON: Record<string, string | null> = {
+  release_letter: 'prev_accountant_details',
+  materials_received: 'release_letter',
+  paperless_connection: 'paperless_invite',
+  paperless_tax_authority: 'paperless_connection',
+  retainer_authorization: 'paperless_connection',
+};
+
 /** בקשות המערכת שאפשר להחזיר לברירת המחדל מהקטלוג. */
 export const CATALOG_STEP_TYPES = [
   'client_documents', 'prev_accountant_details', 'release_letter', 'materials_received',
