@@ -83,6 +83,23 @@ function toTree(entries: DefaultEntry[]): Node[] {
 const flatten = (nodes: Node[]): DefaultEntry[] =>
   nodes.flatMap(n => [n.entry, ...flatten(n.kids)]);
 
+/**
+ * מפריד פעילות מכבויות **בכל עומק** — «הרשאה לתשלום חודשי» היא בת של «חיבור
+ * לפייפרלס», ולכן סינון ברמת השורש בלבד היה משאיר אותה ברשימה.
+ * ‼ ענף שכובה נודד שלם: כיבוי הורה מכבה גם את מה שתלוי בו, וכך הם נשארים יחד.
+ */
+function splitTree(nodes: Node[]): { live: Node[]; off: Node[] } {
+  const live: Node[] = [];
+  const off: Node[] = [];
+  for (const n of nodes) {
+    if (!n.entry.enabled) { off.push(n); continue; }
+    const sub = splitTree(n.kids);
+    live.push({ entry: n.entry, kids: sub.live });
+    off.push(...sub.off);
+  }
+  return { live, off };
+}
+
 export default function RequestDefaultsSection({ profile }: Props) {
   const officeId = profile.id;
   const { byKind, loading, error, saving, save } = useJourneyDefaults(officeId);
@@ -95,7 +112,7 @@ export default function RequestDefaultsSection({ profile }: Props) {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [factsFor, setFactsFor] = useState<string | null>(null);
   const [whyOpen, setWhyOpen] = useState<Set<string>>(new Set());
-  const [drawer, setDrawer] = useState<{ internal: boolean }>({ internal: false });
+  const [drawer, setDrawer] = useState<{ internal: boolean; off: boolean }>({ internal: false, off: false });
   const [notice, setNotice] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +127,12 @@ export default function RequestDefaultsSection({ profile }: Props) {
 
   const entries = draft[kind] ?? [];
   const tree = useMemo(() => toTree(entries), [entries]);
+  /* ‼ בקשה כבויה יורדת מהרשימה למגירה, אבל **נשארת ברשומות**: רשומה שחסרה
+     מברירת המחדל גורמת לשרת ליפול להתנהגות הקוד — כלומר הבקשה הייתה חוזרת.
+     כיבוי הוא המחיקה; המגירה היא רק איפה שהיא יושבת. */
+  const split = useMemo(() => splitTree(tree), [tree]);
+  const liveTree = split.live;
+  const offTree = split.off;
   const isDirty = !!dirty[kind];
 
   function mutate(next: DefaultEntry[], markDirty = true) {
@@ -301,6 +324,17 @@ export default function RequestDefaultsSection({ profile }: Props) {
     setNotice(`נשמר · יחול על לקוחות חדשים מסוג «${CLIENT_KIND_LABELS[kind]}»`);
   }
 
+  /* אותו אוסף פעולות לשתי הרשימות — הפעילה והמגירה של הכבויות. */
+  const rowApi: RowApi = {
+    toggleOpen: (t) => setOpen(s2 => { const n2 = new Set(s2); n2.has(t) ? n2.delete(t) : n2.add(t); return n2; }),
+    flip, moveRoot, onGripDown,
+    pickVariant: (t, i2) => setVsel(s2 => ({ ...s2, [t]: i2 })),
+    addVariantOpen: setFactsFor, dropVariant, moveVariant,
+    editItems, setAddItemFor, removeEntry, setAuthorities, setDocument,
+    toggleWhy: (t) => setWhyOpen(s2 => { const n2 = new Set(s2); n2.has(t) ? n2.delete(t) : n2.add(t); return n2; }),
+    variantsOf,
+  };
+
   if (loading) return <div className="ojd-state">טוען את ברירת המחדל…</div>;
   if (error) return <div className="alert alert-warning">טעינת ברירת המחדל נכשלה: {error}</div>;
 
@@ -355,27 +389,40 @@ export default function RequestDefaultsSection({ profile }: Props) {
           </div>
         )}
 
-        {entries.length === 0 ? (
-          <div className="ojd-state">אין בקשות בברירת המחדל לסוג הזה. אפשר להוסיף מהקטלוג.</div>
+        {liveTree.length === 0 ? (
+          <div className="ojd-state">אין בקשות פעילות בברירת המחדל לסוג הזה. אפשר להוסיף מהקטלוג.</div>
         ) : (
           <div ref={listRef} onPointerMove={onListMove} onPointerUp={onListUp} onPointerCancel={onListUp}>
-            {tree.map((n, i) => (
-              <Row key={n.entry.key} node={n} depth={0} last={i === tree.length - 1}
+            {liveTree.map((n, i) => (
+              <Row key={n.entry.key} node={n} depth={0} last={i === liveTree.length - 1}
                    state={{ open, vsel, addItemFor, whyOpen, profile }}
-                   api={{
-                     toggleOpen: (t) => setOpen(s => { const n2 = new Set(s); n2.has(t) ? n2.delete(t) : n2.add(t); return n2; }),
-                     flip, moveRoot, onGripDown,
-                     pickVariant: (t, i2) => setVsel(s => ({ ...s, [t]: i2 })),
-                     addVariantOpen: setFactsFor, dropVariant, moveVariant,
-                     editItems, setAddItemFor, removeEntry, setAuthorities, setDocument,
-                     toggleWhy: (t) => setWhyOpen(s => { const n2 = new Set(s); n2.has(t) ? n2.delete(t) : n2.add(t); return n2; }),
-                     variantsOf,
-                   }} />
+                   api={rowApi} />
             ))}
           </div>
         )}
 
         <button type="button" className="ojd-add" onClick={() => setCatalogOpen(true)}>＋ הוסף בקשה</button>
+
+        {offTree.length > 0 && (
+          <div className={`ojd-drawer${drawer.off ? ' open' : ''}`}>
+            <button type="button" className="ojd-drawer-h"
+              aria-expanded={drawer.off}
+              onClick={() => setDrawer(d => ({ ...d, off: !d.off }))}>
+              <span>כבויות - לא ייווצרו ללקוח חדש</span>
+              <span className="cnt">{offTree.length}</span>
+              <span className="caret" aria-hidden="true">⌄</span>
+            </button>
+            {drawer.off && (
+              <div className="ojd-drawer-b">
+                {offTree.map((n, i) => (
+                  <Row key={n.entry.key} node={n} depth={0} last={i === offTree.length - 1}
+                       state={{ open, vsel, addItemFor, whyOpen, profile }}
+                       api={rowApi} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className={`ojd-drawer${drawer.internal ? ' open' : ''}`}>
           <button type="button" className="ojd-drawer-h"

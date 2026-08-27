@@ -10,7 +10,7 @@
 // בצילום. השרת (מיגרציה 137) מעביר אותה כמות שהיא ל-create_onboarding_request.
 // הבנייה נשארת במקום אחד; ל-SQL אין לוגיקת ניסוח משלו שתסחף.
 
-import { buildBankDebitPayload } from './bankDebitRequest';
+import { BANK_DEBIT_TITLE, buildBankDebitPayload } from './bankDebitRequest';
 import { buildDocumentRequestPayload, documentLibrary } from './clientGuide';
 import type { ClientDocument } from './clientGuide';
 import type { FirmProfile } from '../types/firmProfile';
@@ -64,9 +64,9 @@ export const OFFICE_REQUEST_KINDS: OfficeKindSpec[] = [
   },
   {
     key: 'authority_debit',
-    // ‼ השם המאושר. הבקשה עצמה נבנית מ-buildBankDebitPayload, אותו בונה
-    // שמשמש את «+ בקשה» בכרטיס הלקוח — אין כאן עותק שני של הניסוח.
-    name: 'הקמת הרשאות לחיוב לרשויות',
+    // ‼ שם אחד לשני המשטחים: אותה מחרוזת שמופיעה ב«+ בקשה» בכרטיס הלקוח,
+    // ומאותו בונה. שני שמות לאותה בקשה היו נקראים כשתי בקשות שונות.
+    name: BANK_DEBIT_TITLE,
     hint: 'הלקוח פותח הרשאה בבנק ומעלה אסמכתה - לרשויות שתבחר',
     owner: 'הלקוח פותח',
     config: 'authorities',

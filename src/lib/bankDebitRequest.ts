@@ -10,7 +10,7 @@
 import type { InstitutionKey, StepPayload } from '../types/onboarding';
 import { INSTITUTION_DEBIT_CODES, INSTITUTION_NAMES } from '../types/onboarding';
 
-export const BANK_DEBIT_TITLE = 'הקמת הרשאה לחיוב חשבון';
+export const BANK_DEBIT_TITLE = 'הקמת הרשאה לחיוב חשבון במוסדות';
 
 /**
  * הסבר "למה" ו"איפה" — לשון הלקוח, בלי מונחים פנימיים.
