@@ -945,7 +945,7 @@ export interface SignatureSetup {
  * שהטופס מייצג. לכן `signers` נשאר ברמת הבקשה.
  */
 export interface RepSignatureDocument {
-  /** מפתח ההגשה — `ShaamSubmission.key`: 'incomeTax' | 'vat:spouse' … */
+  /** מפתח ההגשה — `ShaamSubmission.key`: 'person:client' | 'person:spouse'. */
   key: string;
   /** "מס הכנסה · משק הבית" / "מע\"מ · מיכל סלע" — התיק שהטופס מייצג. */
   title: string;
@@ -1023,13 +1023,12 @@ export interface RepresentationExecution {
     enteredAt?: string;
   };
   /**
-   * הזנות שע״ם נוספות — רשות × אדם, לפי מפתח `ShaamSubmission.key`
-   * (למשל `vat:spouse`). מע"מ וניכויים הם תיק של אדם, ולכן שני בני זוג
-   * שמיוצגים בשניהם = שתי הגשות נפרדות שכל אחת נסגרת בנפרד.
+   * הזנות שע״ם נוספות, לפי מפתח `ShaamSubmission.key` (`person:spouse`).
    *
-   * ‼ מס הכנסה **אינו** כאן: הוא נשאר ב-`incomeTax` לעיל, כי הוא הגשה אחת
-   * למשק הבית וכי שם כבר חי מחזור בן-הזוג-הרשום. בקשה ישנה שאין לה את
-   * המפה הזאת מציגה בדיוק את מה שהציגה קודם.
+   * ‼ בשע״ם נכנסים עם ת.ז. אחת ומזינים את כל המוסדות של אותו אדם בבת אחת,
+   * ולכן ההזנה היא **לכל אדם** ולא לכל רשות. ההזנה הראשונה נשמרת ב-
+   * `incomeTax` לעיל (תאימות לאחור), והשאר כאן. בקשה ישנה שאין לה את המפה
+   * הזאת מציגה בדיוק את מה שהציגה קודם.
    */
   shaamEntries?: Record<string, { enteredAt?: string }>;
   /** ב"ל של הנישום עצמו */

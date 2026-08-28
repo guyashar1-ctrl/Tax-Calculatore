@@ -190,12 +190,14 @@ export function partBPartyNames(
     return f.owner === 'spouse' ? 'spouse' : 'client';
   };
 
+  // ‼ טופס אחד = אדם אחד. כשידוע לאיזה אדם הטופס שייך ('person:spouse'),
+  // **כל** שורות חלק ב' הן שלו — זה בדיוק מה שהטופס מתאר.
+  const docPerson: RepTarget | null =
+    docKey === 'person:spouse' ? 'spouse' : docKey === 'person:client' ? 'client' : null;
+
   const nameFor = (a: RepAuthorityKind, fileAuthority: 'vat' | 'deductions'): string | undefined => {
-    // 1 — הטופס נוצר עבור הגשה מסוימת
-    if (docKey && docKey.startsWith(`${a}:`)) {
-      const t = docKey.slice(a.length + 1) as RepTarget;
-      if (t === 'client' || t === 'spouse') return targetName(people, t);
-    }
+    // 1 — הטופס של אדם מסוים
+    if (docPerson) return targetName(people, docPerson);
     // 2 — הבעלים של התיק בכרטיס
     const owner = ownerOfFile(fileAuthority);
     if (owner) return targetName(people, owner);
@@ -206,52 +208,85 @@ export function partBPartyNames(
   };
 
   return {
-    // ‼ רק כשאומת. לפני כן אין למערכת דעה מי הרשום — ראה registeredSpouseVerified.
-    taxpayer: reg && !reg.unverified ? reg.name : undefined,
+    // ‼ שורת הנישום: בטופס של אדם מסוים — הוא. אחרת רק כשהרשום אומת; לפני כן
+    // אין למערכת דעה מי הרשום (ראה registeredSpouseVerified).
+    taxpayer: docPerson ? targetName(people, docPerson)
+      : (reg && !reg.unverified ? reg.name : undefined),
     dealer: nameFor('vat', 'vat'),
     withholder: nameFor('withholding', 'deductions'),
   };
 }
 
 /**
- * ההגשות בפועל בשע״ם: רשות × אדם. מ"ה הוא הגשה אחת למשק הבית; מע"מ/ניכויים
- * הגשה לכל אדם שביקשנו עבורו. ב"ל אינו כאן — מסלול נפרד לגמרי.
+ * ההגשות בפועל בשע״ם — **אחת לכל אדם**, לא אחת לכל רשות.
+ *
+ * ‼ הכרעת גיא (2026-08-28): בשע״ם נכנסים עם ת.ז. אחת ומזינים בבת אחת את כל
+ * המוסדות של אותו אדם. שתי שורות «מע"מ · יאיר» ו«ניכויים · יאיר» תיארו עבודה
+ * שלא קיימת — זו הזנה אחת. כשגם לבן/בת הזוג יש תיקים, זו הזנה שנייה נפרדת
+ * על ת.ז. שלו/ה.
+ *
+ * ‼ זה גם מבנה הטופס: בחלק ב' יש שלוש שורות (מ"ה / מע"מ / ניכויים) על טופס
+ * **אחד** — טופס אחד = אדם אחד, עם כל התיקים שלו.
+ *
+ * מס הכנסה נכנס אצל **בן/בת הזוג הרשום/ה**, כי מספר התיק במ"ה הוא ת.ז. שלו/ה
+ * ושם הוא מופיע בשע״ם. כל עוד לא הוכרע מי הרשום — הוא נספר אצל הנישום, וזו
+ * בדיוק השאלה שנשאלת בשלב הזה.
+ *
+ * ביטוח לאומי אינו כאן — מסלול נפרד לגמרי, עם אסמכתאות משלו.
  */
 export interface ShaamSubmission {
-  key: string;                    // 'incomeTax' | 'vat:spouse' …
-  authority: RepAuthorityKind;
+  /** 'person:client' | 'person:spouse' */
+  key: string;
   target: RepTarget;
-  authorityLabel: string;
-  /** "מס הכנסה · משק הבית" / "מע\"מ · מיכל סלע" */
+  personName: string;
+  /** המוסדות שנכנסים בהזנה הזאת. */
+  authorities: RepAuthorityKind[];
+  /** "יאיר סלע" — אצל רווק ריק, כי אין למי להשוות. */
   title: string;
+  /** "מס הכנסה, מע\"מ" — מה נכנס בהזנה. */
+  authoritiesLabel: string;
+  /** ההזנה הזאת נושאת את תיק מס הכנסה של משק הבית. */
+  carriesIncomeTax: boolean;
 }
 
 export function shaamSubmissions(
   areas: AuthorityRepresentations | undefined,
   people: ScopePeople,
+  /** מי בן/בת הזוג הרשום/ה, כשהוכרע. חסר ⇒ מ"ה נספר אצל הנישום. */
+  registeredOwner?: RepTarget,
 ): ShaamSubmission[] {
-  const out: ShaamSubmission[] = [];
   const married = people.married;
-  for (const a of ['incomeTax', 'vat', 'withholding'] as RepAuthorityKind[]) {
+  const itRequested = !!areas?.incomeTax && areas.incomeTax.status !== 'none';
+  const itOwner: RepTarget = married ? (registeredOwner ?? 'client') : 'client';
+
+  const byPerson = new Map<RepTarget, RepAuthorityKind[]>();
+  const add = (t: RepTarget, a: RepAuthorityKind) => {
+    if (t === 'spouse' && !married) return;
+    const cur = byPerson.get(t) ?? [];
+    if (!cur.includes(a)) cur.push(a);
+    byPerson.set(t, cur);
+  };
+
+  if (itRequested) add(itOwner, 'incomeTax');
+  for (const a of ['vat', 'withholding'] as RepAuthorityKind[]) {
     const rec = areas?.[a];
     if (!rec || rec.status === 'none') continue;
-    if (a === 'incomeTax') {
-      out.push({
-        key: 'incomeTax', authority: a, target: 'client',
-        authorityLabel: REP_AUTHORITY_LABELS[a],
-        title: married ? 'מס הכנסה · משק הבית' : REP_AUTHORITY_LABELS[a],
-      });
-      continue;
-    }
-    for (const t of targetsOf(areas, a)) {
-      if (t === 'spouse' && !married) continue;
-      out.push({
-        key: `${a}:${t}`, authority: a, target: t,
-        authorityLabel: REP_AUTHORITY_LABELS[a],
-        // אצל רווק אין למי להשוות, ולכן השם רק מוסיף רעש
-        title: married ? `${REP_AUTHORITY_LABELS[a]} · ${targetName(people, t)}` : REP_AUTHORITY_LABELS[a],
-      });
-    }
+    for (const t of targetsOf(areas, a)) add(t, a);
   }
-  return out;
+
+  return (['client', 'spouse'] as RepTarget[])
+    .filter(t => (byPerson.get(t) ?? []).length > 0)
+    .map(t => {
+      // סדר קבוע, לא סדר ההוספה
+      const auths = REP_AUTHORITY_ORDER.filter(a => (byPerson.get(t) ?? []).includes(a));
+      return {
+        key: `person:${t}`,
+        target: t,
+        personName: targetName(people, t),
+        authorities: auths,
+        title: married ? targetName(people, t) : '',
+        authoritiesLabel: auths.map(a => REP_AUTHORITY_LABELS[a]).join(', '),
+        carriesIncomeTax: auths.includes('incomeTax'),
+      };
+    });
 }

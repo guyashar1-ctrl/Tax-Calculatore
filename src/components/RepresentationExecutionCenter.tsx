@@ -216,13 +216,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // הזוג מיוצג — חסרה אסמכתא אחת מספיקה כדי לעצור, אחרת אחד מהם יקבל מייל חסר.
   const niRefMissing = niIncluded && (!ni.referenceNumber || (!!niCoversSpouse && !niSpouse.referenceNumber));
 
-  // ── הזנות שע״ם נוספות: מע"מ/ניכויים לפי אדם ────────────────────────────────
-  // ‼ שני בני זוג עם תיקי מע"מ = שתי הגשות נפרדות, ולכן שני שלבים שנסגרים
-  // בנפרד. קיפול שלהם ל"מע"מ הוזן" אחד היה מסתיר חצי מהעבודה.
-  // ‼ מס הכנסה אינו ברשימה — הוא נשאר שלב 1, משק בית, עם הכרעת הרשום.
+  // ── הזנות שע״ם: אחת לכל אדם ────────────────────────────────────────────────
+  // ‼ בשע״ם נכנסים עם ת.ז. אחת ומזינים את כל המוסדות של אותו אדם בבת אחת
+  // (הכרעת גיא 2026-08-28). שורה נפרדת לכל רשות תיארה עבודה שלא קיימת.
+  // כשגם לבן/בת הזוג יש תיקים — הזנה שנייה, על ת.ז. שלו/ה.
   const scopePeople = peopleFromClient(linkedClient);
-  const extraEntries = shaamSubmissions(requestScope(request, linkedClient), scopePeople)
-    .filter(s => s.authority !== 'incomeTax');
   const entryAt = (key: string) => exec.shaamEntries?.[key]?.enteredAt;
 
   // הטופס הבא שממתין לחתימה+חותמת שלי, וכמה נשארו. ‼ נגזר מהמסמכים ולא
@@ -230,7 +228,19 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const nextToStamp = poaDocs.find(d => !d.signedPdfStoredId) ?? null;
   const stampsLeft = poaDocs.filter(d => !d.signedPdfStoredId).length;
 
-  async function markEntry(key: string) {
+  /** סימון הזנה של אדם. `owner` מסופק כשההזנה הזאת נושאת גם את ההכרעה במ"ה. */
+  async function markEntry(key: string, owner?: 'client' | 'spouse') {
+    if (owner && linkedClient && onConfirmRegisteredSpouse) {
+      setBusy(`entry-${key}`);
+      try {
+        await onConfirmRegisteredSpouse(linkedClient.id, owner);
+      } catch (e) {
+        setNote({ kind: 'err', text: e instanceof Error ? e.message : 'השמירה נכשלה' });
+        setBusy(null);
+        return;
+      }
+    }
+    if (entryAt(key)) { setBusy(null); return; }   // נתון ישן — רק ההכרעה נשמרת
     await patch({
       ...exec,
       shaamEntries: { ...(exec.shaamEntries ?? {}), [key]: { enteredAt: new Date().toISOString() } },
@@ -335,6 +345,20 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       ? (registeredFileInfo(linkedClient)?.owner === 'spouse' ? 'spouse' : 'client')
       : null;
 
+  // ‼ תיק מס הכנסה נכנס בהזנה של בן/בת הזוג הרשום/ה — מספרו הוא ת.ז. שלו/ה,
+  // ושם הוא מופיע בשע״ם. כל עוד לא הוכרע, הוא נספר אצל הנישום, וזו בדיוק
+  // השאלה שנשאלת בשלב הזה.
+  const submissions = shaamSubmissions(
+    requestScope(request, linkedClient), scopePeople,
+    regVerified ? (registeredFileInfo(linkedClient!)?.owner === 'spouse' ? 'spouse' : 'client') : undefined,
+  );
+  // ההזנה הראשונה היא שלב 1; השאר נספרים אחריה.
+  const firstEntry = submissions[0] ?? null;
+  const extraEntries = submissions.slice(1);
+
+  // ‼ שאלת "מי הרשום" יושבת בהזנה שנושאת את תיק מ"ה — שם היא נענית בפועל.
+  const regRowKey = submissions.find(x => x.carriesIncomeTax)?.key ?? firstEntry?.key ?? null;
+
   // ‼ המשפט נבנה אך ורק ממה שאומת. לפני האימות אין ניסוח בכלל — המערכת לא
   // מצהירה מי הרשום על סמך ברירת מחדל.
   const regSentence = linkedClient && regVerified
@@ -407,71 +431,66 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             total={itSteps.length}
             tone="🏛"
           >
-            {/* ‼ שלב אחד, לא שניים: הסימון "הוזן בשע״ם" **הוא** ההכרעה מי בן/בת
-                הזוג הרשום/ה — לכן כשיש שני בני זוג, השמות הם הכפתורים ואין
-                כפתור "סמן כהוזן" נפרד. אחרי ההכרעה השאלה לא נשאלת שוב בשום
-                מסך, וגם הפקת הטופס נשענת עליה. */}
-            <Step
-              n={1}
-              title={it.enteredAt && regChoice && regVerified
-                ? `הפרטים הוזנו בשע״ם · ${regSentence}`
-                : 'הפרטים הוזנו בשע״ם'}
-              done={!!it.enteredAt}
-              hint={it.enteredAt
-                ? (regChoice && !regVerified ? undefined : `סומן ב-${fmt(it.enteredAt)}`)
-                : regChoice && !regVerified
-                  ? 'פתחו בקשת ייצוג באתר שע״ם עם הפרטים שלמעלה. מי מבין השניים רשום שם במס הכנסה?'
-                  : 'פתחו בקשת ייצוג באתר שע״ם עם הפרטים שלמעלה'}>
-              {regChoice && !regVerified ? (
-                <>
-                  {it.enteredAt && (
-                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.4rem' }}>
-                      סומן ב-{fmt(it.enteredAt)}, אבל טרם נרשם מי הרשום במ״ה. מי מבין השניים?
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
-                    {regNames.map(r => (
-                      <button
-                        key={r.owner}
-                        className={`btn btn-sm ${r.owner === regIntent ? 'btn-green' : 'btn-secondary'}`}
-                        disabled={busy === 'it'}
-                        title={regIntent === null
-                          ? 'טרם נקבע מי הרשום - הבחירה כאן היא שתקבע'
-                          : r.owner === regIntent
-                            ? 'זו הכוונה שנרשמה בפתיחת הייצוג'
-                            : 'שונה מהכוונה שנרשמה - יעדכן את התיק'}
-                        onClick={() => void markEnteredInShaam(r.owner)}
-                      >
-                        {busy === 'it' ? 'שומר…' : r.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : !it.enteredAt && (
-                <button className="btn btn-secondary btn-sm" disabled={busy === 'it'}
-                  onClick={() => void markEnteredInShaam()}>
-                  {busy === 'it' ? 'שומר…' : 'סמן כהוזן'}
-                </button>
-              )}
-            </Step>
-
-            {/* ‼ שלב לכל הגשה בשע״ם — מע"מ/ניכויים הם תיק של אדם. שני בני זוג
-                עם תיקי מע"מ = שתי בקשות רישום נפרדות, ולכן שני שלבים שנסגרים
-                בנפרד; "מע"מ הוזן" אחד היה מסתיר חצי מהעבודה. */}
-            {extraEntries.map((sub, i) => {
-              const at = entryAt(sub.key);
+            {/* ‼ הזנה אחת לכל אדם, לא אחת לכל רשות: בשע״ם נכנסים עם ת.ז. אחת
+                ומזינים את כל המוסדות של אותו אדם בבת אחת. השלב מפרט מה נכנס
+                בהזנה הזאת, כדי שיהיה ברור מה כוסה בה.
+                ‼ שאלת "מי הרשום במ״ה" יושבת בהזנה שנושאת את תיק מס הכנסה —
+                שם היא נענית בפועל — והסימון של אותה הזנה **הוא** ההכרעה. */}
+            {submissions.map((sub, i) => {
+              const first = i === 0;
+              const at = first ? it.enteredAt : entryAt(sub.key);
+              const asksHere = regChoice && !regVerified && sub.key === regRowKey;
+              const busyKey = first ? 'it' : `entry-${sub.key}`;
+              const mark = (owner?: 'client' | 'spouse') => first
+                ? markEnteredInShaam(owner)
+                : markEntry(sub.key, owner);
+              const what = sub.authoritiesLabel;
               return (
                 <Step
                   key={sub.key}
-                  n={2 + i}
-                  title={`הפרטים הוזנו בשע״ם · ${sub.title}`}
+                  n={i + 1}
+                  title={sub.title
+                    ? `הפרטים הוזנו בשע״ם · ${sub.title}`
+                    : 'הפרטים הוזנו בשע״ם'}
                   done={!!at}
-                  hint={at ? `סומן ב-${fmt(at)}` : 'בקשת רישום נפרדת בשע״ם, על התיק של אותו אדם'}
+                  hint={at
+                    ? (asksHere ? undefined
+                        : sub.carriesIncomeTax && regVerified && regSentence
+                          ? `${what} · ${regSentence} · סומן ב-${fmt(at)}`
+                          : `${what} · סומן ב-${fmt(at)}`)
+                    : asksHere
+                      ? `${what}. מי מבין השניים רשום שם במס הכנסה?`
+                      : `${what} · הזנה אחת בשע״ם, על ת.ז. של ${sub.personName}`}
                 >
-                  {!at && (
-                    <button className="btn btn-secondary btn-sm" disabled={busy === `entry-${sub.key}`}
-                      onClick={() => void markEntry(sub.key)}>
-                      {busy === `entry-${sub.key}` ? 'שומר…' : 'סמן כהוזן'}
+                  {asksHere ? (
+                    <>
+                      {at && (
+                        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.4rem' }}>
+                          סומן ב-{fmt(at)}, אבל טרם נרשם מי הרשום במ״ה. מי מבין השניים?
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
+                        {regNames.map(r => (
+                          <button
+                            key={r.owner}
+                            className={`btn btn-sm ${r.owner === regIntent ? 'btn-green' : 'btn-secondary'}`}
+                            disabled={busy === busyKey}
+                            title={regIntent === null
+                              ? 'טרם נקבע מי הרשום - הבחירה כאן היא שתקבע'
+                              : r.owner === regIntent
+                                ? 'זו הכוונה שנרשמה בפתיחת הייצוג'
+                                : 'שונה מהכוונה שנרשמה - יעדכן את התיק'}
+                            onClick={() => void mark(r.owner)}
+                          >
+                            {busy === busyKey ? 'שומר…' : r.label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : !at && (
+                    <button className="btn btn-secondary btn-sm" disabled={busy === busyKey}
+                      onClick={() => void mark()}>
+                      {busy === busyKey ? 'שומר…' : 'סמן כהוזן'}
                     </button>
                   )}
                 </Step>
@@ -484,7 +503,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                     ? `${poaDocs.length} טפסים - מוכנים לשליחה`
                     : `${poaDocs[0]?.pdfFileName || 'הטופס'} - מוכן לשליחה`)
                 : extraEntries.length
-                  ? 'טופס לכל הגשה בשע״ם - מע"מ וניכויים מוגשים בנפרד לכל אדם'
+                  ? 'טופס לכל אדם - כל אחד עם התיקים שלו'
                   : 'העלו את קובץ ייפוי הכוח וסמנו איפה כל אחד חותם'}>
               <button className="btn btn-secondary btn-sm" onClick={onProduce}>
                 {formReady ? '↺ החלף טופס או ערוך אזורים' : 'העלה טופס וסמן אזורי חתימה'}

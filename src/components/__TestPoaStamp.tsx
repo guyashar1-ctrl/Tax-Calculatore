@@ -60,7 +60,7 @@ const CLIENT = {
 
 const DOCS: RepSignatureDocument[] = [
   {
-    key: 'incomeTax', title: 'מס הכנסה · משק הבית',
+    key: 'person:client', title: 'יאיר סלע · ניכויים',
     pdfDocId: `poa-pdf-${REQ_ID}`, pdfFileName: 'poa-it.pdf', createdAt: '2026-08-02T08:00:00.000Z',
     signedPdfStoredId: null,
     fields: [
@@ -70,8 +70,8 @@ const DOCS: RepSignatureDocument[] = [
     ],
   },
   {
-    key: 'vat:spouse', title: 'מע"מ · מיכל סלע',
-    pdfDocId: `poa-pdf-${REQ_ID}-vat-spouse`, pdfFileName: 'poa-vat.pdf', createdAt: '2026-08-02T08:00:00.000Z',
+    key: 'person:spouse', title: 'מיכל סלע · מס הכנסה, מע"מ',
+    pdfDocId: `poa-pdf-${REQ_ID}-person-spouse`, pdfFileName: 'poa-vat.pdf', createdAt: '2026-08-02T08:00:00.000Z',
     signedPdfStoredId: null,
     fields: [
       { id: 'f-vat-client', signerId: 'client', kind: 'signature', pageIndex: 0, xPct: 0.10, yPct: 0.70, widthPct: 0.25, heightPct: 0.06 },

@@ -12,7 +12,7 @@
 --
 -- `signature_documents`: [{key,title,pdfDocId,pdfFileName,fields[],createdAt,
 --                          signedPdfStoredId}]
---   key = מפתח ההגשה בשע״ם ('incomeTax' | 'vat:spouse' …).
+--   key = מפתח ההגשה בשע״ם — אחת לכל אדם ('person:client' | 'person:spouse').
 --
 -- ‼ תאימות לאחור בלי מיגרציית נתונים: **אין רשימה ⇒ מסמך יחיד מהשדות
 -- הישנים**, וזו בדיוק המשמעות של כל בקשה קיימת. בקשה חדשה כותבת את הרשימה

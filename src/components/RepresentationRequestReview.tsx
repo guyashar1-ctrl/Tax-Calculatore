@@ -11,7 +11,6 @@ import {
   RepSigner,
   Client,
   RepSignatureDocument,
-  AuthorityKind,
 } from '../types';
 import { registeredFileInfo, hasRegisteredSpouseChoice } from '../features/annualReport/profile';
 import { scopeLines, requestScope, peopleFromClient, shaamSubmissions, partBPartyNames } from '../utils/repScope';
@@ -301,11 +300,19 @@ export default function RepresentationRequestReview({
   // ‼ מע"מ וניכויים מוגשים בנפרד לכל אדם, ובחלק ב' יש שורת «שם העוסק» אחת —
   // שני תיקי מע"מ אינם נכנסים לטופס אחד. החותמים ותפקידיהם זהים בכל הטפסים
   // (נגזרים מיחסי בן-הזוג-הרשום), ולכן `signers` נשאר ברמת הבקשה.
+  // ‼ טופס אחד לכל אדם — לא לכל רשות. בחלק ב' של 2279 יש שלוש שורות
+  // (מ"ה / מע"מ / ניכויים) על טופס אחד, כי טופס אחד הוא אדם אחד עם כל
+  // התיקים שלו. זה גם מה שקורה בשע״ם: הזנה אחת לכל ת.ז.
   const docTargets = useMemo(() => {
-    const subs = shaamSubmissions(requestScope(request, linkedClient), people)
-      .filter(s => request.authorities.includes(s.authority as AuthorityKind));
-    return subs.length ? subs.map(s => ({ key: s.key, title: s.title })) : [{ key: 'incomeTax', title: 'ייפוי כוח' }];
-  }, [request, linkedClient, people]);
+    const owner = registeredVerified
+      ? (registered?.owner === 'spouse' ? 'spouse' as const : 'client' as const)
+      : undefined;
+    const subs = shaamSubmissions(requestScope(request, linkedClient), people, owner);
+    return subs.length
+      ? subs.map(s => ({ key: s.key, title: s.title ? `${s.title} · ${s.authoritiesLabel}` : s.authoritiesLabel }))
+      : [{ key: 'incomeTax', title: 'ייפוי כוח' }];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request, linkedClient, people, registeredVerified, registered?.owner]);
 
   // ‼ שמות חלק ב' — לכל שורה, בעל התיק שהיא מייצגת. בלי זה שורת המע"מ נשאה
   // את שם ממלא חלק א' לצד מספר תיק של אדם אחר. ראה partBPartyNames.
