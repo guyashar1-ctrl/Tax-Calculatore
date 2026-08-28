@@ -173,7 +173,11 @@ export default function RepresentationRequestReview({
   // אלה מתארים את ההווה ומשתנים, והשאלה כאן היא מה התבקש אז. השמות בלבד
   // נקראים מהכרטיס, כדי ש"בן/בת הזוג" יתחלף בשם האמיתי אחרי הקליטה.
   const people = peopleFromClient(linkedClient);
-  const scope = scopeLines(requestScope(request, linkedClient), people);
+  const scope = scopeLines(
+    requestScope(request, linkedClient), people,
+    // ‼ רק כשאומת — לפני כן אין למערכת דעה מי הרשום.
+    registeredVerified ? (registered?.owner === 'spouse' ? 'spouse' : 'client') : undefined,
+  );
   const scopeIsPerPerson = people.married && scope.some(l => !l.household);
 
   // ממי ביקשנו צילום תעודה, ומה כבר הגיע. הדרישה נגזרת מאותו היקף היסטורי,
@@ -580,6 +584,7 @@ export default function RepresentationRequestReview({
                   {scope.map(l => (
                     <span key={l.authority} className={`rep-scope-item${l.household ? ' is-household' : ''}`}>
                       {l.authorityLabel}<span className="sep">·</span><b>{l.whoLabel}</b>
+                      {l.ownerNote && <><span className="sep">·</span>{l.ownerNote}</>}
                     </span>
                   ))}
                 </div>

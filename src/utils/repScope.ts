@@ -66,6 +66,12 @@ export interface ScopeLine {
   /** משק בית = מ"ה. משנה את הצבע/המשקל בתצוגה. */
   household: boolean;
   targets: RepTarget[];
+  /**
+   * "ע״ש יאיר סלע" — על שם מי מתנהל התיק, כשזה כבר אומת. רלוונטי למס הכנסה:
+   * הייצוג הוא של התא המשפחתי, אבל התיק יושב על ת.ז. של אחד מבני הזוג, וזה
+   * מה שהרו"ח רוצה לראות אחרי שהכריע. ריק ⇒ טרם אומת, ואז לא נוקבים בשם.
+   */
+  ownerNote?: string;
 }
 
 /**
@@ -78,6 +84,8 @@ export interface ScopeLine {
 export function scopeLines(
   areas: AuthorityRepresentations | undefined,
   people: ScopePeople,
+  /** מי בן/בת הזוג הרשום/ה, כשהוכרע. חסר ⇒ לא נוקבים בשם. */
+  registeredOwner?: RepTarget,
 ): ScopeLine[] {
   const out: ScopeLine[] = [];
   for (const a of REP_AUTHORITY_ORDER) {
@@ -90,6 +98,10 @@ export function scopeLines(
         authority: a, authorityLabel: REP_AUTHORITY_LABELS[a],
         whoLabel: married ? 'משק הבית' : targetName(people, 'client'),
         household: married, targets: ['client'],
+        // הייצוג הוא של התא המשפחתי; התיק יושב על ת.ז. של הרשום/ה.
+        ...(married && registeredOwner
+          ? { ownerNote: `ע״ש ${targetName(people, registeredOwner)}` }
+          : {}),
       });
       continue;
     }

@@ -199,6 +199,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const niSpouse = exec.nationalInsuranceSpouse || {};
 
   const [busy, setBusy] = useState<string | null>(null);
+  /**
+   * הזנה שנפתחה לתיקון. ‼ הלחיצה על שם היא לא רק סימון — היא קובעת מי הרשום
+   * ומשנה את הבעלים ומספר התיק בכרטיס. טעות בלחיצה חייבת להיות הפיכה.
+   */
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [note, setNote] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const status = request.status;
@@ -227,6 +232,21 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // מהסטטוס: הסטטוס מתקדם רק כשכולם נצרבו.
   const nextToStamp = poaDocs.find(d => !d.signedPdfStoredId) ?? null;
   const stampsLeft = poaDocs.filter(d => !d.signedPdfStoredId).length;
+
+  /**
+   * ביטול סימון ההזנה. ‼ אינו מבטל את ההכרעה מי הרשום: אלה שתי עובדות
+   * נפרדות, ומי שרק טעה בסימון לא אמור לאבד גם את מה שראה בשע״ם.
+   * ההזנה הראשונה נשמרת בשדה הישן `incomeTax` (תאימות), והשאר במפה.
+   */
+  async function unmarkEntry(key: string, isFirst: boolean) {
+    if (isFirst) {
+      await patch({ ...exec, incomeTax: { ...it, enteredAt: undefined } }, 'it');
+      return;
+    }
+    const next = { ...(exec.shaamEntries ?? {}) };
+    delete next[key];
+    await patch({ ...exec, shaamEntries: next }, `entry-${key}`);
+  }
 
   /** סימון הזנה של אדם. `owner` מסופק כשההזנה הזאת נושאת גם את ההכרעה במ"ה. */
   async function markEntry(key: string, owner?: 'client' | 'spouse') {
@@ -462,12 +482,20 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                       ? `${what}. מי מבין השניים רשום שם במס הכנסה?`
                       : `${what} · הזנה אחת בשע״ם, על ת.ז. של ${sub.personName}`}
                 >
-                  {asksHere ? (
+                  {asksHere || editingKey === sub.key ? (
                     <>
                       {at && (
                         <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.4rem' }}>
-                          סומן ב-{fmt(at)}, אבל טרם נרשם מי הרשום במ״ה. מי מבין השניים?
+                          {editingKey === sub.key && regVerified
+                            ? 'מי רשום במס הכנסה? הבחירה תעדכן את הבעלים ואת מספר התיק בכרטיס.'
+                            : `סומן ב-${fmt(at)}, אבל טרם נרשם מי הרשום במ״ה. מי מבין השניים?`}
                         </div>
+                      )}
+                      {editingKey === sub.key && (
+                        <button type="button" className="btn btn-ghost btn-sm" style={{ marginBottom: '.35rem' }}
+                          onClick={() => setEditingKey(null)}>
+                          ביטול
+                        </button>
                       )}
                       <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
                         {regNames.map(r => (
@@ -480,18 +508,33 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                               : r.owner === regIntent
                                 ? 'זו הכוונה שנרשמה בפתיחת הייצוג'
                                 : 'שונה מהכוונה שנרשמה - יעדכן את התיק'}
-                            onClick={() => void mark(r.owner)}
+                            onClick={() => { setEditingKey(null); void mark(r.owner); }}
                           >
                             {busy === busyKey ? 'שומר…' : r.label}
                           </button>
                         ))}
                       </div>
                     </>
-                  ) : !at && (
+                  ) : !at ? (
                     <button className="btn btn-secondary btn-sm" disabled={busy === busyKey}
                       onClick={() => void mark()}>
                       {busy === busyKey ? 'שומר…' : 'סמן כהוזן'}
                     </button>
+                  ) : (
+                    /* ‼ חזרה לאחור. קישורים שקטים ולא כפתורים: זו פעולת תיקון,
+                       והיא לא צריכה להתחרות בשלב הבא על תשומת הלב. */
+                    <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+                      {sub.carriesIncomeTax && regChoice && regVerified && (
+                        <button type="button" className="btn btn-ghost btn-sm" disabled={busy === busyKey}
+                          onClick={() => setEditingKey(sub.key)}>
+                          שינוי בן/בת הזוג הרשום/ה
+                        </button>
+                      )}
+                      <button type="button" className="btn btn-ghost btn-sm" disabled={busy === busyKey}
+                        onClick={() => void unmarkEntry(sub.key, first)}>
+                        {busy === busyKey ? 'שומר…' : 'ביטול הסימון'}
+                      </button>
+                    </div>
                   )}
                 </Step>
               );
