@@ -237,9 +237,21 @@ export interface PdfGenerationInput {
    * שדה חסר ⇒ נפילה לשם ממלא חלק א', בדיוק כמו קודם.
    */
   partyNames?: { taxpayer?: string; dealer?: string; withholder?: string };
+  /**
+   * אילו שורות למלא בחלק ב' — **המוסדות של האדם שהטופס הזה שלו**.
+   *
+   * ‼ טופס 2279 הוא של אדם אחד: בשע״ם נכנסים עם ת.ז. אחת ומזינים את כל
+   * המוסדות שלה. עד כה נגזרו שלוש השורות מ-`request.authorities` — כל מה
+   * שהתבקש בבקשה — ולכן טופס של אדם אחד היה מקבל גם שורות של תיקים שאינם
+   * שלו. ראה `shaamSubmissions`.
+   *
+   * חסר ⇒ `request.authorities`, בדיוק כמו קודם. כך בקשה ותיקה, שאין בה
+   * חלוקה לאנשים, מפיקה טופס זהה לזה שהפיקה תמיד.
+   */
+  authorities?: AuthorityKind[];
 }
 
-export async function generateSignedPoaPdf({ request, stampDataUrl, registeredTaxpayerName, partyNames }: PdfGenerationInput): Promise<Uint8Array> {
+export async function generateSignedPoaPdf({ request, stampDataUrl, registeredTaxpayerName, partyNames, authorities }: PdfGenerationInput): Promise<Uint8Array> {
   if (!request.submission) throw new Error('אין נתוני מילוי של הלקוח');
   if (!request.partB) throw new Error('המייצג עדיין לא מילא את חלק ב\'');
 
@@ -294,20 +306,23 @@ export async function generateSignedPoaPdf({ request, stampDataUrl, registeredTa
   // ‼ כל שורה בחלק ב' נושאת את שם **בעל התיק שהיא מייצגת**, ולא את שמו של
   // מי שמילא את חלק א'. תיק מע"מ של בן/בת הזוג היה מקבל עד כה שם של אדם
   // אחד ומספר תיק של אחר. ראה partBPartyNames.
-  if (request.authorities.includes('incomeTax')) {
+  // ‼ ואילו שורות בכלל מצוירות — המוסדות של האדם שהטופס שלו, ולא כל מה
+  // שהתבקש בבקשה. חסר ⇒ כל הבקשה, כמו קודם.
+  const rows = authorities ?? request.authorities;
+  if (rows.includes('incomeTax')) {
     const taxpayerName = partyNames?.taxpayer?.trim() || registeredTaxpayerName?.trim() || fullName;
     drawHebrew(page, taxpayerName, FIELDS.taxpayerName.x, FIELDS.taxpayerName.y, font);
     if (part.incomeTaxFileNumber) {
       drawLTRCentered(page, part.incomeTaxFileNumber, FIELDS.incomeTaxFileNumber.x, FIELDS.incomeTaxFileNumber.y, font);
     }
   }
-  if (request.authorities.includes('vat')) {
+  if (rows.includes('vat')) {
     drawHebrew(page, partyNames?.dealer?.trim() || fullName, FIELDS.dealerName.x, FIELDS.dealerName.y, font);
     if (part.vatDealerNumber) {
       drawLTRCentered(page, part.vatDealerNumber, FIELDS.vatDealerNumber.x, FIELDS.vatDealerNumber.y, font);
     }
   }
-  if (request.authorities.includes('withholding')) {
+  if (rows.includes('withholding')) {
     drawHebrew(page, partyNames?.withholder?.trim() || fullName, FIELDS.withholdingPayerName.x, FIELDS.withholdingPayerName.y, font);
     if (part.withholdingFileNumber) {
       drawLTRCentered(page, part.withholdingFileNumber, FIELDS.withholdingFileNumber.x, FIELDS.withholdingFileNumber.y, font);
@@ -347,7 +362,7 @@ export async function generateSignedPoaPdf({ request, stampDataUrl, registeredTa
   }
 
   // הערה קטנה בתחתית — אילו רשויות נבחרו (חיווי לרו"ח)
-  const note = `רשויות: ${authoritiesNote(request.authorities)}`;
+  const note = `רשויות: ${authoritiesNote(rows)}`;
   drawHebrew(page, note, 555, 25, font, 7);
 
   // למניעת אזהרה

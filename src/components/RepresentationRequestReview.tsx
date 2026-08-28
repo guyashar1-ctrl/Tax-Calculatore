@@ -11,6 +11,7 @@ import {
   RepSigner,
   Client,
   RepSignatureDocument,
+  AuthorityKind,
 } from '../types';
 import { registeredFileInfo, hasRegisteredSpouseChoice } from '../features/annualReport/profile';
 import { scopeLines, requestScope, peopleFromClient, shaamSubmissions, partBPartyNames } from '../utils/repScope';
@@ -309,8 +310,13 @@ export default function RepresentationRequestReview({
       : undefined;
     const subs = shaamSubmissions(requestScope(request, linkedClient), people, owner);
     return subs.length
-      ? subs.map(s => ({ key: s.key, title: s.title ? `${s.title} · ${s.authoritiesLabel}` : s.authoritiesLabel }))
-      : [{ key: 'incomeTax', title: 'ייפוי כוח' }];
+      ? subs.map(s => ({
+          key: s.key,
+          title: s.title ? `${s.title} · ${s.authoritiesLabel}` : s.authoritiesLabel,
+          // ‼ המוסדות של אותו אדם — הם שקובעים אילו שורות ימולאו בחלק ב'.
+          authorities: s.authorities.filter(a => a !== 'nationalInsurance') as AuthorityKind[],
+        }))
+      : [{ key: 'incomeTax', title: 'ייפוי כוח', authorities: undefined as AuthorityKind[] | undefined }];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request, linkedClient, people, registeredVerified, registered?.owner]);
 
@@ -319,6 +325,10 @@ export default function RepresentationRequestReview({
   const partyNames = partBPartyNames(linkedClient, requestScope(request, linkedClient));
 
   const poaDocs = signatureDocumentsOf(request);
+  // ‼ המחולל הישן מפיק טופס אחד. השורות שלו הן המוסדות של האדם שהטופס שלו;
+  // כשאין חלוקה לאנשים (בקשה ותיקה) — `undefined`, והמחולל נופל לכל הבקשה.
+  const primaryDocKey = poaDocs[0]?.key ?? docTargets[0]?.key;
+  const primaryAuthorities = docTargets.find(t => t.key === primaryDocKey)?.authorities;
   /** המסמך הבא שממתין לחתימה+חותמת שלי. null = כולם הוחתמו. */
   const nextUnstamped = poaDocs.find(d => !d.signedPdfStoredId) ?? null;
 
@@ -397,6 +407,7 @@ export default function RepresentationRequestReview({
         stampDataUrl,
         registeredTaxpayerName: registeredVerified ? registered?.name : undefined,
         partyNames,
+        authorities: primaryAuthorities,
       });
 
       // שמירה ל-IndexedDB
@@ -442,6 +453,7 @@ export default function RepresentationRequestReview({
         request,
         registeredTaxpayerName: registeredVerified ? registered?.name : undefined,
         partyNames,
+        authorities: primaryAuthorities,
       });
       const storedId = request.signedPdfStoredId || `signed-poa-${request.id}`;
       const sub = request.submission!;
