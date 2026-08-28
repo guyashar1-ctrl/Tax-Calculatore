@@ -111,6 +111,7 @@ import TestFirmNotifications from './components/__TestFirmNotifications';
 import TestRepDialog from './components/__TestRepDialog';
 import TestAddRequestDialog from './components/__TestAddRequestDialog';
 import TestRegisteredSpouse from './components/__TestRegisteredSpouse';
+import TestPoaStamp from './components/__TestPoaStamp';
 import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
@@ -310,6 +311,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-regspouse')) {
     return <TestRegisteredSpouse />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-poastamp')) {
+    return <TestPoaStamp />;
   }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {

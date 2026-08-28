@@ -225,6 +225,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     .filter(s => s.authority !== 'incomeTax');
   const entryAt = (key: string) => exec.shaamEntries?.[key]?.enteredAt;
 
+  // הטופס הבא שממתין לחתימה+חותמת שלי, וכמה נשארו. ‼ נגזר מהמסמכים ולא
+  // מהסטטוס: הסטטוס מתקדם רק כשכולם נצרבו.
+  const nextToStamp = poaDocs.find(d => !d.signedPdfStoredId) ?? null;
+  const stampsLeft = poaDocs.filter(d => !d.signedPdfStoredId).length;
+
   async function markEntry(key: string) {
     await patch({
       ...exec,
@@ -505,13 +510,29 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               )}
             </Step>
 
-            {/* החתימה והחותמת שלי — הטופס אינו שלם בלעדיהן, ואסור להגיש לשע״ם לפני */}
+            {/* החתימה והחותמת שלי — הטופס אינו שלם בלעדיהן, ואסור להגיש לשע״ם לפני.
+                ‼ כשיש כמה טפסים, כל אחד נחתם ונצרב בנפרד: השלב אומר על מה חותמים
+                עכשיו וכמה נשארו, אחרת נראה כאילו לחיצה אחת לא עשתה כלום. */}
             <Step n={5 + extraEntries.length} title="חתמתי והוספתי חותמת" done={stamped}
               hint={stamped
-                ? 'הטופס החתום מוכן להגשה'
-                : signed ? 'הלקוח חתם - נשארה החתימה והחותמת שלכם' : 'אפשרי אחרי שכל החותמים חתמו'}>
+                ? (poaDocs.length > 1 ? `${poaDocs.length} טפסים חתומים - מוכנים להגשה` : 'הטופס החתום מוכן להגשה')
+                : signed
+                  ? (nextToStamp && poaDocs.length > 1
+                      ? `נשארו ${stampsLeft} מתוך ${poaDocs.length} - הבא: ${nextToStamp.title}`
+                      : 'הלקוח חתם - נשארה החתימה והחותמת שלכם')
+                  : 'אפשרי אחרי שכל החותמים חתמו'}>
               {signed && !stamped && (
-                <button className="btn btn-green btn-sm" onClick={onStamp}>חתום + הוסף חותמת</button>
+                <button className="btn btn-green btn-sm" onClick={onStamp}>
+                  {poaDocs.length > 1 && nextToStamp
+                    ? `חתום + הוסף חותמת · ${nextToStamp.title}`
+                    : 'חתום + הוסף חותמת'}
+                </button>
+              )}
+              {/* מה כבר נצרב — כדי שאחרי כל טופס יהיה חיווי שהוא נשמר */}
+              {poaDocs.length > 1 && poaDocs.some(d => d.signedPdfStoredId) && !stamped && (
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.4rem' }}>
+                  {poaDocs.filter(d => d.signedPdfStoredId).map(d => `✓ ${d.title}`).join(' · ')}
+                </div>
               )}
             </Step>
 

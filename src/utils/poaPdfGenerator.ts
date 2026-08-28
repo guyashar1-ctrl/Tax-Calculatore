@@ -227,9 +227,19 @@ export interface PdfGenerationInput {
    * חסר ⇒ נשמרת ההתנהגות הישנה (שמו של מי שמילא את חלק א').
    */
   registeredTaxpayerName?: string;
+  /**
+   * שמות שלוש שורות חלק ב' — לכל שורה, בעל התיק שהיא מייצגת.
+   *
+   * ‼ עד כה שלוש השורות נשאו את שמו של מי שמילא את חלק א', וזה נכון רק
+   * כשכל התיקים שלו. כשתיק המע"מ הוא של בן/בת הזוג, הטופס נשא שם של אדם
+   * אחד ומספר תיק של אחר. ראה `partBPartyNames`.
+   *
+   * שדה חסר ⇒ נפילה לשם ממלא חלק א', בדיוק כמו קודם.
+   */
+  partyNames?: { taxpayer?: string; dealer?: string; withholder?: string };
 }
 
-export async function generateSignedPoaPdf({ request, stampDataUrl, registeredTaxpayerName }: PdfGenerationInput): Promise<Uint8Array> {
+export async function generateSignedPoaPdf({ request, stampDataUrl, registeredTaxpayerName, partyNames }: PdfGenerationInput): Promise<Uint8Array> {
   if (!request.submission) throw new Error('אין נתוני מילוי של הלקוח');
   if (!request.partB) throw new Error('המייצג עדיין לא מילא את חלק ב\'');
 
@@ -281,24 +291,24 @@ export async function generateSignedPoaPdf({ request, stampDataUrl, registeredTa
   const fullName = `${sub.firstName} ${sub.lastName}`.trim();
   // שמות נישום/עוסק/מנכה — right-anchored בצד ימין של כל שורה (x≈530)
   // מספרי תיק — מרוכזים בתוך תיבות הקווקו (center x≈285) באמצעות drawLTRCentered
-  // ‼ שורת מס הכנסה נושאת את שם **בעל התיק** — ראה registeredTaxpayerName.
-  // מע"מ וניכויים נשארים על שם ממלא חלק א': לתיקים האלה יכול להיות בעלים
-  // נפרד לכל בן זוג, ואין לנו עליו נתון מאומת. ראה גם TaxFileInfo.owner.
+  // ‼ כל שורה בחלק ב' נושאת את שם **בעל התיק שהיא מייצגת**, ולא את שמו של
+  // מי שמילא את חלק א'. תיק מע"מ של בן/בת הזוג היה מקבל עד כה שם של אדם
+  // אחד ומספר תיק של אחר. ראה partBPartyNames.
   if (request.authorities.includes('incomeTax')) {
-    const taxpayerName = registeredTaxpayerName?.trim() || fullName;
+    const taxpayerName = partyNames?.taxpayer?.trim() || registeredTaxpayerName?.trim() || fullName;
     drawHebrew(page, taxpayerName, FIELDS.taxpayerName.x, FIELDS.taxpayerName.y, font);
     if (part.incomeTaxFileNumber) {
       drawLTRCentered(page, part.incomeTaxFileNumber, FIELDS.incomeTaxFileNumber.x, FIELDS.incomeTaxFileNumber.y, font);
     }
   }
   if (request.authorities.includes('vat')) {
-    drawHebrew(page, fullName, FIELDS.dealerName.x, FIELDS.dealerName.y, font);
+    drawHebrew(page, partyNames?.dealer?.trim() || fullName, FIELDS.dealerName.x, FIELDS.dealerName.y, font);
     if (part.vatDealerNumber) {
       drawLTRCentered(page, part.vatDealerNumber, FIELDS.vatDealerNumber.x, FIELDS.vatDealerNumber.y, font);
     }
   }
   if (request.authorities.includes('withholding')) {
-    drawHebrew(page, fullName, FIELDS.withholdingPayerName.x, FIELDS.withholdingPayerName.y, font);
+    drawHebrew(page, partyNames?.withholder?.trim() || fullName, FIELDS.withholdingPayerName.x, FIELDS.withholdingPayerName.y, font);
     if (part.withholdingFileNumber) {
       drawLTRCentered(page, part.withholdingFileNumber, FIELDS.withholdingFileNumber.x, FIELDS.withholdingFileNumber.y, font);
     }

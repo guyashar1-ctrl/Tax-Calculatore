@@ -12,7 +12,7 @@ import type {
   Client, AuthorityRepresentations, RepAuthorityKind, RepTarget, RepresentationRequest,
 } from '../types';
 import { REP_AUTHORITY_ORDER, REP_AUTHORITY_LABELS, REP_AUTHORITIES_WITH_TARGETS } from '../types';
-import { clientDisplayName, spouseDisplayName, hasRegisteredSpouseChoice } from '../features/annualReport/profile';
+import { clientDisplayName, spouseDisplayName, hasRegisteredSpouseChoice, registeredFileInfo } from '../features/annualReport/profile';
 
 /** האם לרשות הזאת יש בכלל שאלת "עבור מי". */
 export function authorityHasTargets(a: RepAuthorityKind): boolean {
@@ -156,6 +156,61 @@ export function peopleInScope(
     }
   }
   return (['client', 'spouse'] as RepTarget[]).filter(t => set.has(t));
+}
+
+/**
+ * שמות חלק ב' של טופס 2279 — לכל שורה, **בעל התיק שהשורה מייצגת**.
+ *
+ * ‼ בחלק ב' כל שורה היא צמד: «שם הנישום» מול «מספר תיק במס הכנסה»,
+ * «שם העוסק» מול «מספר עוסק במע"מ», «שם המנכה» מול «מספר תיק ניכויים».
+ * עד כה שלוש השורות נשאו את שמו של מי שמילא את חלק א' — נכון רק כשכל
+ * התיקים שלו. כשתיק המע"מ הוא של בן/בת הזוג, הטופס נשא שם אחד ומספר של
+ * אדם אחר.
+ *
+ * סדר העדיפויות, מהוודאי לפחות ודאי:
+ *   1. `docKey` — הטופס הזה נוצר עבור הגשה מסוימת ('vat:spouse'), וזו תשובה.
+ *   2. הבעלים של התיק בכרטיס (`tax_files[<רשות>].owner`) — מקור האמת לתיקים.
+ *   3. היעד שהתבקש בהיקף, כשהוא יחיד.
+ *   4. חסר ⇒ המחולל נופל לשמו של ממלא חלק א', כמו קודם.
+ *
+ * מס הכנסה נשאר על מחזור בן-הזוג-הרשום: שם רק אימות מול שע״ם קובע.
+ */
+export function partBPartyNames(
+  client: Client | undefined | null,
+  areas: AuthorityRepresentations | undefined,
+  docKey?: string,
+): { taxpayer?: string; dealer?: string; withholder?: string } {
+  if (!client) return {};
+  const people = peopleFromClient(client);
+  const reg = registeredFileInfo(client);
+
+  const ownerOfFile = (authority: 'vat' | 'deductions'): RepTarget | null => {
+    const f = (client.taxFiles ?? []).find(x => x.authority === authority);
+    if (!f || f.owner === 'joint') return null;
+    return f.owner === 'spouse' ? 'spouse' : 'client';
+  };
+
+  const nameFor = (a: RepAuthorityKind, fileAuthority: 'vat' | 'deductions'): string | undefined => {
+    // 1 — הטופס נוצר עבור הגשה מסוימת
+    if (docKey && docKey.startsWith(`${a}:`)) {
+      const t = docKey.slice(a.length + 1) as RepTarget;
+      if (t === 'client' || t === 'spouse') return targetName(people, t);
+    }
+    // 2 — הבעלים של התיק בכרטיס
+    const owner = ownerOfFile(fileAuthority);
+    if (owner) return targetName(people, owner);
+    // 3 — יעד יחיד שהתבקש
+    const targets = targetsOf(areas, a);
+    if (targets.length === 1) return targetName(people, targets[0]);
+    return undefined;
+  };
+
+  return {
+    // ‼ רק כשאומת. לפני כן אין למערכת דעה מי הרשום — ראה registeredSpouseVerified.
+    taxpayer: reg && !reg.unverified ? reg.name : undefined,
+    dealer: nameFor('vat', 'vat'),
+    withholder: nameFor('withholding', 'deductions'),
+  };
 }
 
 /**

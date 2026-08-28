@@ -14,7 +14,7 @@ import {
   AuthorityKind,
 } from '../types';
 import { registeredFileInfo, hasRegisteredSpouseChoice } from '../features/annualReport/profile';
-import { scopeLines, requestScope, peopleFromClient, shaamSubmissions } from '../utils/repScope';
+import { scopeLines, requestScope, peopleFromClient, shaamSubmissions, partBPartyNames } from '../utils/repScope';
 import { signatureDocumentsOf, signedDocIdFor } from '../utils/repDocuments';
 import { identityRequirements } from '../utils/identityEvidence';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
@@ -307,6 +307,10 @@ export default function RepresentationRequestReview({
     return subs.length ? subs.map(s => ({ key: s.key, title: s.title })) : [{ key: 'incomeTax', title: 'ייפוי כוח' }];
   }, [request, linkedClient, people]);
 
+  // ‼ שמות חלק ב' — לכל שורה, בעל התיק שהיא מייצגת. בלי זה שורת המע"מ נשאה
+  // את שם ממלא חלק א' לצד מספר תיק של אדם אחר. ראה partBPartyNames.
+  const partyNames = partBPartyNames(linkedClient, requestScope(request, linkedClient));
+
   const poaDocs = signatureDocumentsOf(request);
   /** המסמך הבא שממתין לחתימה+חותמת שלי. null = כולם הוחתמו. */
   const nextUnstamped = poaDocs.find(d => !d.signedPdfStoredId) ?? null;
@@ -385,6 +389,7 @@ export default function RepresentationRequestReview({
         request: { ...request, submission: sub, partB: filledPartB },
         stampDataUrl,
         registeredTaxpayerName: registeredVerified ? registered?.name : undefined,
+        partyNames,
       });
 
       // שמירה ל-IndexedDB
@@ -429,6 +434,7 @@ export default function RepresentationRequestReview({
       const pdfBytes = await generateSignedPoaPdf({
         request,
         registeredTaxpayerName: registeredVerified ? registered?.name : undefined,
+        partyNames,
       });
       const storedId = request.signedPdfStoredId || `signed-poa-${request.id}`;
       const sub = request.submission!;
