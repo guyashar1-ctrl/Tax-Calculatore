@@ -76,6 +76,21 @@ export function spouseDisplayName(client: Client): string {
 }
 
 /**
+ * מי בן/בת הזוג הרשום/ה — **רק כשזו עובדה שנקבעה**. null = לא הוכרע.
+ *
+ * ‼ הדגל `registeredSpouseVerified` אומר שהרו"ח הכריע, אבל לא **במי**; ה"מי"
+ * חי אך ורק ב-`taxFiles[income_tax].owner`. השניים יכולים להיפרד: כשההכרעה
+ * נשמרה בלי שנוצרה שורת תיק, נשאר דגל בלי בעלים. נפילה ל-'client' במצב הזה
+ * הייתה מייצרת בדיוק את מה שאסור — הצהרה על אדם מסוים שאיש לא קבע. לכן
+ * "יש דגל אבל אין תיק" נחשב לא-הוכרע, והשאלה נשאלת שוב בשלב שע״ם.
+ */
+export function registeredOwnerOf(client: Client): 'client' | 'spouse' | null {
+  const file = registeredFileInfo(client);
+  if (!file || file.unverified) return null;
+  return file.owner === 'spouse' ? 'spouse' : 'client';
+}
+
+/**
  * המשפט שמסכם את ההכרעה: "מיכל סלע היא בת הזוג הרשומה במס הכנסה".
  *
  * ‼ מגדר רק כשהוא ידוע בפועל — מגדר הלקוח מהכרטיס, או `spouse.gender` כשיש

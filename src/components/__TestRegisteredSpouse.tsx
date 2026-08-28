@@ -13,6 +13,8 @@
 //      הצהרה «X הוא בן הזוג הרשום» לפני שהכריעו.
 //   6. לקוח ותיק ששלב שע״ם שלו כבר סומן — משלים רק את ההכרעה החסרה, ותאריך
 //      הסימון המקורי נשאר.
+//   7. «דגל בלי תיק» — ההכרעה נשמרה כ-registeredSpouseVerified=true אבל שורת
+//      תיק מ"ה לא נוצרה, ולכן אין **מי**. חייב להישאל שוב, ואסור שיוצג שם.
 //
 // המצב נשמר ב-localStorage כדי שרענון יראה מה נטען מחדש — סימולציה של
 // טעינת כרטיס שכבר אומת. הפרסיסטנטיות האמיתית היא בעמודה במסד.
@@ -109,8 +111,9 @@ export default function TestRegisteredSpouse() {
     const q = new URLSearchParams(window.location.search);
     if (q.has('intent') || q.has('verified')) {
       const i = q.get('intent');
-      const c = baseClient(i === 'spouse' ? 'spouse' : i === 'legacy' ? null : 'client');
-      return q.get('verified') === '1' ? { ...c, registeredSpouseVerified: true } : c;
+      // ‼ orphan = הבאג שנמצא בייצור: דגל "אומת" בלי שורת תיק מ"ה.
+      const c = baseClient(i === 'spouse' ? 'spouse' : (i === 'legacy' || i === 'orphan') ? null : 'client');
+      return (q.get('verified') === '1' || i === 'orphan') ? { ...c, registeredSpouseVerified: true } : c;
     }
     try {
       const raw = localStorage.getItem(STORE_KEY);
@@ -146,11 +149,16 @@ export default function TestRegisteredSpouse() {
             : {}),
         }
       : f));
-    // ללקוח ותיק אין עדיין תיק מ"ה — ההכרעה יוצרת אותו, כמו ב-App
-    const next = files.length ? files : [{
-      id: 'tf-it', authority: 'income_tax' as const, owner,
-      fileNumber: ownerId, repStatus: 'pending' as const,
-    }];
+    // ללקוח ותיק אין עדיין תיק מ"ה — ההכרעה יוצרת אותו, כמו ב-App, ולכל
+    // רשות שנבחרה (אחרת autofill_internal_setup היה נחסם באמצע).
+    const next = files.length ? files : Object.keys(client.authorityRepresentations ?? {}).map(a => ({
+      id: `tf-rep-${a}`,
+      authority: (a === 'incomeTax' ? 'income_tax' : a === 'withholding' ? 'deductions'
+        : a === 'nationalInsurance' ? 'national_insurance' : 'vat') as TaxFileInfo['authority'],
+      owner: a === 'incomeTax' ? owner : ('client' as const),
+      fileNumber: a === 'incomeTax' ? ownerId : client.idNumber,
+      repStatus: 'pending' as const,
+    }));
     save({ ...client, taxFiles: next, registeredSpouseVerified: true });
   }
 
@@ -172,6 +180,11 @@ export default function TestRegisteredSpouse() {
           save(baseClient(null));
           setRequest(r => ({ ...r, status: 'awaiting_accountant', execution: { incomeTax: { enteredAt: '2026-08-10T08:00:00.000Z' } } }));
         }}>ותיק + הוזן כבר</button>
+        {/* הבאג מהייצור: ההכרעה נשמרה כדגל, אבל בלי שורת תיק אין **מי** */}
+        <button className="btn btn-secondary btn-sm" onClick={() => {
+          save({ ...baseClient(null), registeredSpouseVerified: true });
+          setRequest(REQUEST);
+        }}>דגל בלי תיק</button>
         <span id="tst-state">
           מצב: {client.registeredSpouseVerified ? 'אומת' : 'טרם אומת'} · ע״ש {itFile?.owner ?? '—'} ·
           מספר {itFile?.fileNumber ?? '—'} · הוזן בשע״ם: {request.execution?.incomeTax?.enteredAt ? 'כן' : 'לא'}

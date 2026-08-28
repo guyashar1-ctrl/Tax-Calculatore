@@ -13,7 +13,7 @@ import {
   RepSignatureDocument,
   AuthorityKind,
 } from '../types';
-import { registeredFileInfo, hasRegisteredSpouseChoice } from '../features/annualReport/profile';
+import { registeredFileInfo, hasRegisteredSpouseChoice, registeredOwnerOf } from '../features/annualReport/profile';
 import { scopeLines, requestScope, peopleFromClient, shaamSubmissions, partBPartyNames } from '../utils/repScope';
 import { signatureDocumentsOf, signedDocIdFor } from '../utils/repDocuments';
 import { identityRequirements } from '../utils/identityEvidence';
@@ -162,7 +162,9 @@ export default function RepresentationRequestReview({
   // הזה רק משתמש בתוצאה: שם הנישום בחלק ב' של הטופס ומספר התיק במ"ה שייכים
   // לבעל התיק — ראה טופס 2279א'5, שבו כל שורה בחלק ב' היא צמד שם+מספר.
   const registered = linkedClient ? registeredFileInfo(linkedClient) : null;
-  const registeredVerified = !!registered && !registered.unverified;
+  // ‼ אומת = ידוע מי. שורת תיק חסרה היא היעדר תשובה, לא תשובה "הלקוח".
+  const registeredOwner = linkedClient ? registeredOwnerOf(linkedClient) : null;
+  const registeredVerified = !!registeredOwner;
   // ‼ הרלוונטיות נגזרת מהתא המשפחתי ולא מקיום תיק בכרטיס: ללקוח ותיק אין
   // עדיין שורת תיק מ"ה, ובלי זה השורה הזאת נעלמה לגמרי — והטופס היה מודפס
   // עם שם ממלא חלק א' בלי שאיש יידע. עכשיו נאמר במפורש שטרם נקבע.
@@ -176,7 +178,7 @@ export default function RepresentationRequestReview({
   const scope = scopeLines(
     requestScope(request, linkedClient), people,
     // ‼ רק כשאומת — לפני כן אין למערכת דעה מי הרשום.
-    registeredVerified ? (registered?.owner === 'spouse' ? 'spouse' : 'client') : undefined,
+    registeredOwner ?? undefined,
   );
   const scopeIsPerPerson = people.married && scope.some(l => !l.household);
 

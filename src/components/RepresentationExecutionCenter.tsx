@@ -15,7 +15,7 @@ import {
   Client,
 } from '../types';
 import {
-  registeredFileInfo, registeredSpouseSentence, hasRegisteredSpouseChoice,
+  registeredFileInfo, registeredSpouseSentence, hasRegisteredSpouseChoice, registeredOwnerOf,
   clientDisplayName, spouseDisplayName,
 } from '../features/annualReport/profile';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
@@ -354,7 +354,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // מדגל שנכתב רק בפתיחת ייצוג חדשה. אחרת לקוח ותיק, שהבעלים שלו נולד
   // מברירת מחדל, היה מדלג על השאלה בדיוק כמו מי שכבר ענה עליה.
   const itRequested = request.authorities.includes('incomeTax');
-  const regVerified = !!linkedClient?.registeredSpouseVerified;
+  // ‼ "הוכרע" = ידוע **מי**, לא רק שהדגל נכתב. דגל בלי שורת תיק מ"ה אינו
+  // תשובה, ולכן השלב שואל שוב במקום להצהיר על מי שאיש לא קבע.
+  const regOwner = linkedClient ? registeredOwnerOf(linkedClient) : null;
+  const regVerified = !!regOwner;
   const regChoice = !!linkedClient && !!onConfirmRegisteredSpouse
     && itRequested && hasRegisteredSpouseChoice(linkedClient);
 
@@ -369,8 +372,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ושם הוא מופיע בשע״ם. כל עוד לא הוכרע, הוא נספר אצל הנישום, וזו בדיוק
   // השאלה שנשאלת בשלב הזה.
   const submissions = shaamSubmissions(
-    requestScope(request, linkedClient), scopePeople,
-    regVerified ? (registeredFileInfo(linkedClient!)?.owner === 'spouse' ? 'spouse' : 'client') : undefined,
+    requestScope(request, linkedClient), scopePeople, regOwner ?? undefined,
   );
   // ההזנה הראשונה היא שלב 1; השאר נספרים אחריה.
   const firstEntry = submissions[0] ?? null;
@@ -381,8 +383,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
   // ‼ המשפט נבנה אך ורק ממה שאומת. לפני האימות אין ניסוח בכלל — המערכת לא
   // מצהירה מי הרשום על סמך ברירת מחדל.
-  const regSentence = linkedClient && regVerified
-    ? registeredSpouseSentence(linkedClient, registeredFileInfo(linkedClient)?.owner === 'spouse' ? 'spouse' : 'client')
+  const regSentence = linkedClient && regOwner
+    ? registeredSpouseSentence(linkedClient, regOwner)
     : '';
 
   /** סימון "הוזן בשע״ם". `owner` מסופק כשיש שני בני זוג — ואז הוא גם ההכרעה. */

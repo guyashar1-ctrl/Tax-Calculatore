@@ -136,18 +136,28 @@ const REP_AUTHORITY_TO_TAX_FILE: Record<RepAuthorityKind, TaxFileInfo['authority
   nationalInsurance: 'national_insurance',
 };
 
-function taxFilesForRegisteredSpouse(
+/**
+ * מבנה תיקים ראשוני שמקבע מי בן/בת הזוג הרשום/ה במ"ה.
+ *
+ * ‼ שורה לכל רשות שנבחרה ולא רק למ"ה: `autofill_internal_setup` בשרת מוותר
+ * על היצירה ברגע שיש **תיק אחד** עם מספר, ולכן כתיבה חלקית הייתה משאירה את
+ * שאר הרשויות בלי תיק לתמיד.
+ *
+ * ‼ תיק מ"ה נרשם על שם הרשום — מספרו הוא ת.ז. שלו/ה. השאר תמיד על הלקוח:
+ * תיק מע"מ/ניכויים של בן/בת הזוג נקבע בהיקף הייצוג ולא כאן.
+ */
+function taxFilesForRegisteredOwner(
   areas: AuthorityRepresentations,
-  prefill: OnboardingPrefill,
+  owner: 'client' | 'spouse',
   clientIdNumber: string | undefined,
+  spouseIdNumber: string | undefined,
 ): TaxFileInfo[] | undefined {
-  if (prefill.registeredSpouse !== 'spouse') return undefined;
   const selected = REP_AUTHORITY_ORDER.filter(a => areas[a]);
   if (!selected.length) return undefined;
-  const spouseId = prefill.spouseIdNumber?.trim();
+  const spouseId = spouseIdNumber?.trim();
   return selected.map(a => {
     const authority = REP_AUTHORITY_TO_TAX_FILE[a];
-    const onSpouse = authority === 'income_tax';
+    const onSpouse = authority === 'income_tax' && owner === 'spouse';
     const fileNumber = (onSpouse ? spouseId : clientIdNumber?.trim()) || undefined;
     return {
       id: `tf-rep-${a}`,
@@ -158,6 +168,20 @@ function taxFilesForRegisteredSpouse(
       notes: onSpouse ? 'בן/בת הזוג הרשום/ה - נקבע בבקשת הייצוג' : 'נוצר עם בקשת הייצוג',
     } satisfies TaxFileInfo;
   });
+}
+
+/**
+ * הכוונה שנרשמה **בפתיחת** הייצוג. ‼ רק 'spouse' נכתב: "ע״ש הלקוח" בשלב הזה
+ * הוא ברירת מחדל ולא ידיעה, וכתיבתו הייתה חוסמת את `autofill_internal_setup`
+ * לכל לקוח. ההכרעה עצמה (אחרי שע״ם) עוברת דרך handleConfirmRegisteredSpouse.
+ */
+function taxFilesForRegisteredSpouse(
+  areas: AuthorityRepresentations,
+  prefill: OnboardingPrefill,
+  clientIdNumber: string | undefined,
+): TaxFileInfo[] | undefined {
+  if (prefill.registeredSpouse !== 'spouse') return undefined;
+  return taxFilesForRegisteredOwner(areas, 'spouse', clientIdNumber, prefill.spouseIdNumber);
 }
 
 /**
@@ -1166,15 +1190,17 @@ export default function App() {
                 : {}),
             }
           : f))
-      // אין עדיין מבנה תיקים. ל"ע״ש הלקוח" אין מה לכתוב (autofill_internal_setup
-      // ייצור בדיוק את זה), אבל תיק על שם בן/בת הזוג חייב להירשם עכשיו.
-      : (owner === 'spouse'
-          ? taxFilesForRegisteredSpouse(
-              client.authorityRepresentations ?? {},
-              { registeredSpouse: 'spouse', spouseIdNumber: client.spouseIdNumber },
-              client.idNumber,
-            )
-          : undefined);
+      // ‼ אין עדיין מבנה תיקים — ואז נכתב אחד, **גם** כשהתשובה היא הלקוח.
+      // קודם נכתב רק 'spouse', מתוך הנחה ש-autofill_internal_setup ייצור את
+      // השאר; אצל לקוח שהאוטופיל לא רץ עליו נשאר דגל "אומת" בלי שום בעלים,
+      // וכל מסך שמציג את הרשום חזר ל"לא הוכרע" למרות שהרו"ח הכריע.
+      // התוצאה ל'client' זהה למה שהאוטופיל היה יוצר, ולכן חסימתו לא גורעת.
+      : taxFilesForRegisteredOwner(
+          client.authorityRepresentations ?? {},
+          owner,
+          client.idNumber,
+          client.spouseIdNumber,
+        );
     await updateClient({
       ...client,
       ...(patched ? { taxFiles: patched } : {}),
