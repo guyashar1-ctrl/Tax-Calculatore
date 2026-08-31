@@ -54,6 +54,13 @@ interface Props {
   isTransfer?: boolean;
   /** פרטי הרו"ח הקודם שכבר ידועים (מהליד) — ערכי פתיחה לשדות. */
   initialPrevAccountant?: { name?: string; email?: string; phone?: string };
+  /**
+   * רשויות שכבר קיים להן ייצוג — של האדם עצמו, או של הזוג דרך בן/בת הזוג
+   * המקושר/ת (150). מוצג כשורת מידע קבועה ולא כצ'קבוקס: הרו"ח לא אמור
+   * לזכור מאיפה זה הגיע, ולא מבקשים את זה שוב. ‼ מחושב מראש ע"י הקורא
+   * (App.tsx) ולא כאן — הדיאלוג לא צריך לדעת על כרטיסים מקושרים בעצמו.
+   */
+  alreadyRepresented?: Partial<Record<RepAuthorityKind, string>>;
 }
 
 interface AreaState {
@@ -69,7 +76,10 @@ const FAMILY_ORDER: FamilyStatus[] = ['single', 'married', 'divorced', 'widowed'
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-export default function RepresentationOnboardingDialog({ onCreate, onCancel, checkEmailConflict, initialName, initialEmail, isTransfer = false, initialPrevAccountant }: Props) {
+export default function RepresentationOnboardingDialog({
+  onCreate, onCancel, checkEmailConflict, initialName, initialEmail, isTransfer = false, initialPrevAccountant,
+  alreadyRepresented,
+}: Props) {
   const [name, setName] = useState(initialName ?? '');
   const [email, setEmail] = useState(initialEmail ?? '');
   // הגעה עם מייל ידוע (הפיכת ליד ללקוח) ⇒ שליחה במייל היא ברירת המחדל ההגיונית
@@ -82,9 +92,6 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   const [spouseName, setSpouseName] = useState('');
   const [spouseIdNumber, setSpouseIdNumber] = useState('');
   const [spouseEmail, setSpouseEmail] = useState('');
-  // ‼ ברירת המחדל ללקוח נשוי: ייצוג בב"ל לשני בני הזוג (הכרעה 2026-08-17).
-  // אפשר לכבות — ואז הייצוג בב"ל הוא לנישום בלבד. ללקוח לא-נשוי אין לזה משמעות.
-  const [niCoversSpouse, setNiCoversSpouse] = useState(true);
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
   // ‼ ברירת המחדל היא הלקוח — כך זה ברוב התיקים, וכך זה נולד עד היום ממילא.
   const [registeredSpouse, setRegisteredSpouse] = useState<'client' | 'spouse'>('client');
@@ -101,23 +108,29 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     incomeTax: { selected: true, level: 'primary', targets: ['client'] },
     withholding: { selected: false, level: 'primary', targets: ['client'] },
     vat: { selected: true, level: 'primary', targets: ['client'] },
-    nationalInsurance: { selected: true, level: 'primary', targets: ['client'] },
+    // ‼ ברירת המחדל ללקוח נשוי: ייצוג בב"ל לשני בני הזוג (הכרעה 2026-08-17,
+    // נשמרת אחרי שב"ל הצטרף ל-"עבור מי" ב-31.8) — הצ'יפים מוצגים רק כשיש
+    // בן/בת זוג ידוע (showTargets), אז ברירת המחדל כאן נראית רק אז.
+    nationalInsurance: { selected: true, level: 'primary', targets: ['client', 'spouse'] },
   }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CreateResult | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const selectedKeys = REP_AUTHORITY_ORDER.filter(a => areas[a].selected);
+  // ‼ רשות שכבר מיוצגת (alreadyRepresented) לעולם לא נכנסת ל-selectedKeys —
+  // גם אם הצ'קבוקס שלה איכשהו מסומן ב-state: אין לה שורת בחירה בכלל,
+  // ואי אפשר לבקש אותה שוב מהמסך הזה.
+  const selectedKeys = REP_AUTHORITY_ORDER.filter(a => areas[a].selected && !alreadyRepresented?.[a]);
   const emailConflict = checkEmailConflict && isValidEmail(email) ? checkEmailConflict(email) : null;
   const married = familyStatus === 'married';
   const yearLabel = familyStatus ? FAMILY_STATUS_YEAR_LABELS[familyStatus] : undefined;
   // "לא נשוי" מפורש מכבה את שאלת בן/בת הזוג; מצב לא ידוע ('') משאיר את ברירת
   // המחדל פעילה — אם הלקוח יצהיר בקישור שהוא נשוי, הייצוג יכסה את שניהם.
   const notMarriedExplicit = familyStatus !== '' && familyStatus !== 'married';
-  // הסימון נשמר גם אם מחליפים מצב משפחתי או מבטלים את ב"ל, ולכן הוא נגזר כאן
-  // מכל התנאים במקום להתאפס בכל שינוי — כך חזרה ל"נשוי" לא מאבדת את הבחירה.
-  const niForSpouse = areas.nationalInsurance.selected && niCoversSpouse && !notMarriedExplicit;
+  /** ב"ל לבן/בת הזוג — לתקציר "מה ייווצר" בלבד; הבחירה עצמה חיה ב-areas.nationalInsurance.targets. */
+  const niForSpouse = areas.nationalInsurance.selected && !notMarriedExplicit
+    && areas.nationalInsurance.targets.includes('spouse');
   // שאלת בן/בת הזוג הרשום/ה רלוונטית רק כשמייצגים במס הכנסה — התיק המשפחתי
   // האחד הוא שם, ובמע"מ/ניכויים/ב"ל התיקים אישיים.
   const incomeTaxSelected = areas.incomeTax.selected;
@@ -141,7 +154,6 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
     Object.fromEntries(selectedKeys.map(a => [a, {
       status: 'in_process' as const,
       ...(REP_AUTHORITIES_WITH_TARGETS.includes(a) ? { targets: notMarriedExplicit ? ['client' as RepTarget] : areas[a].targets } : {}),
-      ...(a === 'nationalInsurance' ? { coversSpouse: niForSpouse } : {}),
     }])),
     { married: spouseKnown, clientName: name.trim(), spouseName: spouseName.trim() },
   );
@@ -224,8 +236,6 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
         built[a] = { ...built[a]!, targets: notMarriedExplicit ? ['client'] : areas[a].targets };
       }
     }
-    // ייצוג ב"ל לבן/בת הזוג תקף רק כשיש בן/בת זוג ידוע שאפשר להזין בב"ל
-    if (niForSpouse) built.nationalInsurance = { ...built.nationalInsurance!, coversSpouse: true };
 
     const trimmedName = name.trim();
     const nameParts = trimmedName.split(/\s+/);
@@ -489,6 +499,26 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
             {REP_AUTHORITY_ORDER.map(a => {
+              const already = alreadyRepresented?.[a];
+              if (already) {
+                // ‼ שורת מידע קבועה, לא צ'קבוקס: אין כאן החלטה לקבל, ואין
+                // מה לבטל. "כבר מיוצג" הוא עובדה שנקבעה בכרטיס אחר.
+                return (
+                  <div key={a} style={{
+                    display: 'flex', alignItems: 'center', gap: '.75rem',
+                    padding: '.7rem .8rem', border: '1px solid var(--hairline-1)',
+                    borderRadius: 'var(--radius)', background: 'var(--surface-2)',
+                  }}>
+                    <span style={{ fontSize: 'var(--fs-15)' }}>{'✓'}</span>
+                    <span style={{ flex: 1, fontSize: 'var(--fs-15)' }}>
+                      {REP_AUTHORITY_LABELS[a]}
+                      <span style={{ display: 'block', fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>
+                        כבר מיוצג/ת {'·'} {already} {'·'} אין צורך בבקשה נוספת
+                      </span>
+                    </span>
+                  </div>
+                );
+              }
               const st = areas[a];
               return (
                 <div
@@ -564,29 +594,9 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
             })}
           </div>
 
-          {/* חתימה ≠ ייצוג. בב"ל לכל מבוטח תיק נפרד; ברירת המחדל ללקוח נשוי —
-              ייצוג לשני בני הזוג, וכאן אפשר לצמצם לנישום בלבד. הבחירה חלה רק
-              אם הלקוח נשוי בפועל, ולכן היא מוצגת גם כשהמצב המשפחתי טרם ידוע. */}
-          {areas.nationalInsurance.selected && !notMarriedExplicit && (
-            <div style={{
-              marginTop: '.6rem', padding: '.6rem .7rem', borderRadius: 'var(--radius)',
-              border: `1px solid ${niCoversSpouse ? 'var(--accent)' : 'var(--hairline-1)'}`,
-            }}>
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', cursor: busy ? 'default' : 'pointer' }}>
-                <input type="checkbox" checked={niCoversSpouse} disabled={busy}
-                  onChange={e => setNiCoversSpouse(e.target.checked)} style={{ marginTop: 3 }} />
-                <span>
-                  <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>
-                    {'🛡'} {married ? 'ייצוג בביטוח לאומי גם לבן/בת הזוג' : 'אם הלקוח נשוי - ייצוג בביטוח לאומי גם לבן/בת הזוג'}
-                  </span>
-                  <span style={{ display: 'block', fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 2 }}>
-                    בביטוח לאומי לכל אחד תיק נפרד: שני ייפויי כוח, שתי אסמכתאות, וכל אחד מאשר
-                    את שלו. את פרטי בן/בת הזוג הלקוח ממלא בעצמו בקישור - אין צורך לדעת אותם כאן.
-                  </span>
-                </span>
-              </label>
-            </div>
-          )}
+          {/* ‼ אין כאן יותר צ'קבוקס נפרד לביטוח לאומי (31.8): הוא הצטרף לצ'יפי
+              "עבור מי" בתוך שורת הרשות שלמעלה, בדיוק כמו מע"מ וניכויים —
+              אותו מודל בדיוק, לא מודל שלישי. */}
 
           {/* איך הקישור מגיע ללקוח — הבחירה קובעת אם המייל נדרש */}
           <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', margin: '1.25rem 0 .5rem' }}>

@@ -1,17 +1,20 @@
 // ─── עזרי חותמים על בקשת ייצוג ────────────────────────────────────────────
 import { Client, RepresentationRequest, RepSigner, RepSignStatus } from '../types';
+import { targetsOf } from './repScope';
 
 /**
- * האם הייצוג בב"ל מכסה בפועל גם את בן/בת הזוג. הדגל coversSpouse הוא "ברירת
- * המחדל ללקוח נשוי" (110) — הוא נקבע עוד לפני שהלקוח הצהיר על מצבו המשפחתי,
- * ולכן הוא חל רק כשהלקוח נשוי בפועל. לקוח שהצהיר שאינו נשוי ⇒ מסלול יחיד,
- * בלי קשר לדגל.
+ * האם הייצוג בב"ל מכסה בפועל גם את בן/בת הזוג.
+ *
+ * ‼ עובר דרך `targetsOf` (31.8) — ביטוח לאומי הצטרף ל"עבור מי", ו-`targetsOf`
+ * כבר יודע לתרגם גם רשומות ישנות שכתבו את זה כדגל `coversSpouse`. "נשוי
+ * בפועל" נשאר תנאי נוסף: `coversSpouse` נקבע כברירת מחדל עוד לפני שהלקוח
+ * הצהיר על מצבו המשפחתי (110), ולקוח שהצהיר לא-נשוי הוא תמיד מסלול יחיד.
  */
 export function effectiveNiCoversSpouse(
   client: Pick<Client, 'familyStatus' | 'authorityRepresentations'> | undefined | null,
 ): boolean {
-  return !!client?.authorityRepresentations?.nationalInsurance?.coversSpouse
-    && client.familyStatus === 'married';
+  if (!client || client.familyStatus !== 'married') return false;
+  return targetsOf(client.authorityRepresentations, 'nationalInsurance').includes('spouse');
 }
 
 /**

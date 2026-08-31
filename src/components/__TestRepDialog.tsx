@@ -23,6 +23,10 @@ export default function TestRepDialog() {
           isTransfer={new URLSearchParams(window.location.search).has('transfer')}
           onCreate={async (data) => { setSent(data); setOpen(false); return { link: 'https://example.test/?onboard=demo', emailSent: false }; }}
           onCancel={() => setOpen(false)}
+          // ?spouse=1 — מדמה בן/בת זוג מקושר/ת שכבר מיוצג/ת בב"ל ובמס הכנסה (150)
+          {...(new URLSearchParams(window.location.search).has('spouse')
+            ? { alreadyRepresented: { nationalInsurance: 'הושג בקליטה של יאיר סלע', incomeTax: 'תיק משותף — הושג בקליטה של יאיר סלע' } }
+            : {})}
         />
       )}
     </div>

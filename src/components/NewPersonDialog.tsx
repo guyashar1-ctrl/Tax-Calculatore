@@ -25,6 +25,12 @@ export interface NewPersonBasics {
   idNumber: string;
   phone: string;
   email: string;
+  /**
+   * ת.ז. שהוקלדה תואמת ל-spouseIdNumber על הכרטיס הזה — האדם כבר "קיים"
+   * כבן/בת זוג שם. הרו"ח אישר לקשר; הכרטיס החדש נזרע מהנתונים שכבר קיימים
+   * (ראה `seedClientFromEmbeddedSpouse`) והקישור נכתב לשני הכיוונים.
+   */
+  linkSpouseClientId?: string;
 }
 
 type Step = 'choose' | 'manual' | 'link' | 'route';
@@ -76,6 +82,9 @@ export default function NewPersonDialog({
   const [idNumber, setIdNumber] = useState('');
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<DuplicateMatch | null>(null);
+  // ‼ ברירת המחדל לקשר דלוקה: זו בדיוק ההצעה שהמסך עצמו עושה. הרו"ח יכול
+  // לכבות — למשל שתי אחיות עם ת.ז. שהוקלדה בטעות בשדה בן/בת הזוג של מישהי.
+  const [linkSpouse, setLinkSpouse] = useState(true);
   const [route, setRoute] = useState<Route | null>(null);
   const [busy, setBusy] = useState(false);
   const [busyError, setBusyError] = useState<string | null>(null);
@@ -145,7 +154,7 @@ export default function NewPersonDialog({
   function resetToChoose() {
     setStep('choose');
     setFullName(''); setPhone(''); setEmail(''); setIdNumber('');
-    setFieldError(null); setDuplicate(null); setRoute(null); setBusyError(null);
+    setFieldError(null); setDuplicate(null); setLinkSpouse(true); setRoute(null); setBusyError(null);
     setEmailFormOpen(false); setSendEmailValue(''); setEmailSendError(null); setEmailSentTo(null);
   }
 
@@ -168,7 +177,10 @@ export default function NewPersonDialog({
   async function handleConfirmRoute() {
     if (!route) return;
     const { firstName, lastName } = splitName(fullName);
-    const basics: NewPersonBasics = { firstName, lastName, idNumber: idNumber.trim(), phone: phone.trim(), email: email.trim() };
+    const basics: NewPersonBasics = {
+      firstName, lastName, idNumber: idNumber.trim(), phone: phone.trim(), email: email.trim(),
+      ...(spouseOfMatch && linkSpouse ? { linkSpouseClientId: spouseOfMatch.client.id } : {}),
+    };
     setBusy(true);
     setBusyError(null);
     try {
@@ -184,6 +196,7 @@ export default function NewPersonDialog({
 
   const exactBlock = duplicate?.kind === 'exact' ? duplicate : null;
   const probableWarn = duplicate?.kind === 'probable' ? duplicate : null;
+  const spouseOfMatch = duplicate?.kind === 'spouse_of' ? duplicate : null;
   const canGoBack = step !== 'choose' && !continuationFor;
 
   const shareText = applyLink
@@ -333,6 +346,21 @@ export default function NewPersonDialog({
       {step === 'route' && (
         <div>
           <div className="np-preview">{fullName.trim()} · {phone.trim() || email.trim()}</div>
+          {spouseOfMatch && (
+            /* ‼ הצעה, לא כפילות: האדם הזה כבר "קיים" כבן/בת הזוג של מישהו
+               אחר. SPEC.md — "לא מחייב, רק מציע". קישור מזרע את הכרטיס
+               מהנתונים שכבר קיימים, ופותח קריאה חוצה-כרטיסים לייצוג
+               ברמת-אדם (מע"מ/ניכויים/ב"ל) ולמס הכנסה המשותף. */
+            <div className="pd-dupbox" style={{ marginBottom: 16, borderColor: 'var(--accent)' }}>
+              <div style={{ marginBottom: 6 }}>
+                {'💍'} זו/הו בן/בת הזוג של {clientName(spouseOfMatch.client)} - לקשר את הכרטיסים?
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontWeight: 400, cursor: 'pointer' }}>
+                <input type="checkbox" checked={linkSpouse} onChange={e => setLinkSpouse(e.target.checked)} />
+                קשר כבן/בת זוג — ישתמש בייצוג הקיים (ביטוח לאומי/מס הכנסה) במקום לבקש שוב
+              </label>
+            </div>
+          )}
           {probableWarn && (
             <div className="pd-dupbox" style={{ marginBottom: 16 }}>
               ייתכן שכבר קיים אדם תואם - {clientName(probableWarn.client)}.{' '}

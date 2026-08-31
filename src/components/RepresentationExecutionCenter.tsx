@@ -19,7 +19,7 @@ import {
   clientDisplayName, spouseDisplayName,
 } from '../features/annualReport/profile';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
-import { shaamSubmissions, requestScope, peopleFromClient } from '../utils/repScope';
+import { shaamSubmissions, requestScope, peopleFromClient, targetsOf } from '../utils/repScope';
 import { signatureDocumentsOf, allDocumentsStamped } from '../utils/repDocuments';
 import { useEmailMessages } from '../hooks/useEmailMessages';
 import {
@@ -198,6 +198,16 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const ni = exec.nationalInsurance || {};
   const niSpouse = exec.nationalInsuranceSpouse || {};
 
+  /**
+   * ‼ ביטוח לאומי הוא "עבור מי" לכל דבר (31.8) — כולל התבקש *רק* לבן/בת
+   * הזוג, בלי מסלול לנישום בכלל. `targetsOf` הוא מקור האמת; ה-props
+   * `niIncluded`/`niCoversSpouse` נשארים לתאימות (הרמונים החיצוניים שעדיין
+   * לא הועברו) ומשמשים נפילה-לאחור כש-`linkedClient` חסר (למשל בבדיקות).
+   */
+  const niTargets = linkedClient ? targetsOf(linkedClient.authorityRepresentations, 'nationalInsurance') : null;
+  const niTargetsClient = niTargets ? niTargets.includes('client') : niIncluded;
+  const niTargetsSpouse = niTargets ? niTargets.includes('spouse') : !!niCoversSpouse;
+
   const [busy, setBusy] = useState<string | null>(null);
   /**
    * הזנה שנפתחה לתיקון. ‼ הלחיצה על שם היא לא רק סימון — היא קובעת מי הרשום
@@ -219,7 +229,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const stamped = allDocumentsStamped(request) || sentToShaam;
   // בלי אסמכתא המייל ייצא בלי חלק הב"ל, והמבוטח יזדקק למייל שני. כשגם בן/בת
   // הזוג מיוצג — חסרה אסמכתא אחת מספיקה כדי לעצור, אחרת אחד מהם יקבל מייל חסר.
-  const niRefMissing = niIncluded && (!ni.referenceNumber || (!!niCoversSpouse && !niSpouse.referenceNumber));
+  // ‼ נבדק רק במסלולים שבאמת התבקשו (לא "הנישום תמיד") — ראה niTargets*.
+  const niRefMissing = (niTargetsClient || niTargetsSpouse)
+    && ((niTargetsClient && !ni.referenceNumber) || (niTargetsSpouse && !niSpouse.referenceNumber));
 
   // ── הזנות שע״ם: אחת לכל אדם ────────────────────────────────────────────────
   // ‼ בשע״ם נכנסים עם ת.ז. אחת ומזינים את כל המוסדות של אותו אדם בבת אחת
@@ -311,8 +323,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     await onSaveExecution({
       ...exec,
       signatureEmailSentAt: now,
-      ...(niIncluded ? { nationalInsurance: stampSent(ni) } : {}),
-      ...(niIncluded && niCoversSpouse ? { nationalInsuranceSpouse: stampSent(niSpouse) } : {}),
+      ...(niTargetsClient ? { nationalInsurance: stampSent(ni) } : {}),
+      ...(niTargetsSpouse ? { nationalInsuranceSpouse: stampSent(niSpouse) } : {}),
     });
     setNote({
       kind: 'ok',
@@ -427,9 +439,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // שמות המבוטחים לכותרות המסלולים — כשיש שניים, "ביטוח לאומי" לבדו לא מספיק
   const nameOf = (role: 'client' | 'spouse') =>
     signers.find(s => s.role === role)?.name?.trim();
-  const clientNiTitle = niCoversSpouse ? `ב״ל - ${nameOf('client') || 'הנישום'}` : 'ביטוח לאומי';
+  const clientNiTitle = niTargetsSpouse ? `ב״ל - ${nameOf('client') || 'הנישום'}` : 'ביטוח לאומי';
   // מי מבין השניים תקוע בלי אסמכתא — כדי שהחסימה תגיד לאן ללכת, ולא רק שנחסם
-  const missingRefFor = !niCoversSpouse ? '' : [
+  const missingRefFor = !niTargetsSpouse ? '' : [
     !ni.referenceNumber && (nameOf('client') || 'הנישום'),
     !niSpouse.referenceNumber && (nameOf('spouse') || 'בן/בת הזוג'),
   ].filter(Boolean).join(' ו-');
@@ -668,17 +680,19 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           {/* ─────────── ביטוח לאומי ─────────── */}
           {/* מסלול לכל מבוטח: בב"ל לכל אחד תיק ואסמכתא נפרדים, ואיחוד שלהם
               לעמודה אחת היה מסתיר איזה מהשניים עדיין לא אושר. */}
-          {niIncluded ? (
+          {(niTargetsClient || niTargetsSpouse) ? (
             <>
-              <NiTrack
-                title={clientNiTitle}
-                ni={ni}
-                busy={busy}
-                busyPrefix="ni"
-                hasSignatureEmails={signatureEmails.length > 0}
-                onPatch={(p, label) => patch({ ...exec, nationalInsurance: { ...ni, ...p } }, label)}
-              />
-              {niCoversSpouse && (
+              {niTargetsClient && (
+                <NiTrack
+                  title={clientNiTitle}
+                  ni={ni}
+                  busy={busy}
+                  busyPrefix="ni"
+                  hasSignatureEmails={signatureEmails.length > 0}
+                  onPatch={(p, label) => patch({ ...exec, nationalInsurance: { ...ni, ...p } }, label)}
+                />
+              )}
+              {niTargetsSpouse && (
                 <NiTrack
                   title={`ב״ל - ${nameOf('spouse') || 'בן/בת הזוג'}`}
                   ni={niSpouse}
@@ -714,7 +728,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             </span>
           </div>
           <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.6 }}>
-            {niIncluded
+            {(niTargetsClient || niTargetsSpouse)
               ? 'מייל אחד לשתי הרשויות - קישור אישי לחתימה על ייפוי הכוח, ומתחתיו האסמכתא והוראות האישור בביטוח הלאומי.'
               : 'מייל עם קישור אישי לחתימה על ייפוי הכוח, לכל חותם.'}
           </div>
@@ -751,7 +765,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               {niRefMissing && (
                 <div style={{ margin: '.55rem auto 0', maxWidth: 460, padding: '.45rem .6rem', background: 'transparent', borderRadius: 'var(--radius)', fontSize: 'var(--fs-13)', color: 'var(--ink-1)', lineHeight: 1.6 }}>
                   חסום עד להזנת מספר האסמכתא{missingRefFor ? ` של ${missingRefFor}` : ''} במשבצת הביטוח הלאומי -
-                  אחרת {niCoversSpouse ? 'מי שחסרה לו אסמכתא יקבל מייל בלי חלק הב״ל' : 'הלקוח יקבל מייל בלי חלק הב״ל'}.
+                  אחרת {niTargetsSpouse ? 'מי שחסרה לו אסמכתא יקבל מייל בלי חלק הב״ל' : 'הלקוח יקבל מייל בלי חלק הב״ל'}.
                 </div>
               )}
             </div>

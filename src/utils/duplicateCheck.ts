@@ -9,7 +9,13 @@ import { normalizeIdNumber, normalizePhone, normalizeEmail } from './identity';
 
 export type DuplicateMatch =
   | { kind: 'exact'; client: Client }
-  | { kind: 'probable'; client: Client };
+  | { kind: 'probable'; client: Client }
+  /**
+   * הת.ז. שהוקלדה תואמת ל-spouseIdNumber על כרטיס קיים — כלומר האדם שנוצר
+   * עכשיו כבר "קיים" כבן/בת זוג של מישהו. לא כפילות במשמעות הרגילה
+   * (אין עדיין כרטיס משלו/ה), אלא הזדמנות לקשר. לעולם לא חוסם.
+   */
+  | { kind: 'spouse_of'; client: Client };
 
 export interface DuplicateCheckInput {
   idNumber?: string;
@@ -18,14 +24,19 @@ export interface DuplicateCheckInput {
 }
 
 /**
- * ת"ז זהה ⇒ חוסמים (אותו אדם, בטעות פעם שנייה). אימייל/טלפון תואמים בלי
- * ת"ז תואמת ⇒ מזהירים בלבד — אפשר שזה בן משפחה על אותו טלפון, או טעות הקלדה.
+ * ת"ז זהה לכרטיס קיים ⇒ חוסמים (אותו אדם, בטעות פעם שנייה).
+ * ת"ז זהה ל-spouseIdNumber על כרטיס קיים ⇒ **לא** חוסמים — מציעים קישור
+ * (ראה `spouse_of` למעלה). SPEC.md §"קישור אוטומטי": "לא מחייב — רק מציע".
+ * אימייל/טלפון תואמים בלי ת"ז תואמת ⇒ מזהירים בלבד — אפשר שזה בן משפחה
+ * על אותו טלפון, או טעות הקלדה.
  */
 export function findDuplicateMatch(clients: Client[], input: DuplicateCheckInput): DuplicateMatch | null {
   const id = normalizeIdNumber(input.idNumber);
   if (id) {
     const exact = clients.find(c => normalizeIdNumber(c.idNumber) === id);
     if (exact) return { kind: 'exact', client: exact };
+    const asSpouse = clients.find(c => !!c.spouseIdNumber && normalizeIdNumber(c.spouseIdNumber) === id);
+    if (asSpouse) return { kind: 'spouse_of', client: asSpouse };
   }
   const email = normalizeEmail(input.email);
   const phone = normalizePhone(input.phone);

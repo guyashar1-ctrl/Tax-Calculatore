@@ -375,6 +375,9 @@ export default function PersonDirectory(p: Props) {
               onRequestChargePayment={handleRequestChargePayment}
               onMarkChargePaid={handleMarkChargePaid}
               chargeBusyId={chargeBusyId}
+              spouseClient={selected.client?.spouseClientId
+                ? p.clients.find(c => c.id === selected.client!.spouseClientId)
+                : undefined}
               onClose={() => p.onQuickView(null)}
             />
           </Sheet>

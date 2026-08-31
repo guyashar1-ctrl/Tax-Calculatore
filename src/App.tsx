@@ -32,6 +32,10 @@ import Icon from './components/ui/Icon';
 import { supabase } from './lib/supabase';
 import { edgeFunctionError } from './utils/functionError';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
+import { targetsOf } from './utils/repScope';
+import {
+  seedClientFromEmbeddedSpouse, findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold,
+} from './utils/personRepresentation';
 import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
@@ -111,6 +115,7 @@ import TestBuilder from './components/quotations/__TestBuilder';
 import TestSignDone from './components/ui/__TestSignDone';
 import TestFirmNotifications from './components/__TestFirmNotifications';
 import TestRepDialog from './components/__TestRepDialog';
+import TestSpouseLink from './components/__TestSpouseLink';
 import TestAddRequestDialog from './components/__TestAddRequestDialog';
 import TestRegisteredSpouse from './components/__TestRegisteredSpouse';
 import TestPoaStamp from './components/__TestPoaStamp';
@@ -334,6 +339,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-repdialog')) {
     return <TestRepDialog />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-spouselink')) {
+    return <TestSpouseLink />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-addrequest')) {
     return <TestAddRequestDialog />;
@@ -811,14 +819,25 @@ export default function App() {
    * ביטול הדיאלוג לפני שנבחר מסלול לא מגיע לכאן כלל, ולכן אינו יוצר כלום.
    */
   async function createPersonFromBasics(basics: NewPersonBasics): Promise<Client> {
+    // ‼ אישר לקשר כבן/בת זוג (duplicateCheck.ts kind:'spouse_of') — מזרעים
+    // מהנתונים שכבר קיימים על הכרטיס השני, כדי שלא יוקלדו פעם שנייה, ואת
+    // הקישור עצמו כותבים לשני הכיוונים באותה פעולה. הפרטים שהרו"ח הקליד
+    // כרגע (basics) גוברים על מה שנזרע — הוא הקלד אותם עכשיו במפורש.
+    const owner = basics.linkSpouseClientId ? clients.find(c => c.id === basics.linkSpouseClientId) : undefined;
+    const seed = owner ? seedClientFromEmbeddedSpouse(owner) : {};
     const draft = makeEmptyClient(crypto.randomUUID(), {
+      ...seed,
       firstName: basics.firstName,
       lastName: basics.lastName,
       idNumber: basics.idNumber,
       phone: basics.phone,
       email: basics.email,
     });
-    return addClient(draft);
+    const created = await addClient(draft);
+    if (owner) {
+      await updateClient({ ...owner, spouseClientId: created.id });
+    }
+    return created;
   }
 
   async function handleConfirmNewPersonQuote(basics: NewPersonBasics) {
@@ -1135,6 +1154,27 @@ export default function App() {
   }
 
   /**
+   * מה כבר מיוצג עבור הכרטיס הזה, דרך בן/בת הזוג המקושר/ת (150) — כדי
+   * שדיאלוג פתיחת הייצוג לא יציע לבקש מחדש מע"מ/ניכויים/ב"ל/מ"ה שכבר
+   * קיימים. ‼ בלי בן/בת זוג מקושר/ת מחזיר אובייקט ריק — אין מה לקרוא.
+   */
+  function alreadyRepresentedFor(client: Client): Partial<Record<RepAuthorityKind, string>> {
+    const spouse = findSpouseClient(client, clients);
+    if (!spouse) return {};
+    const spouseLabel = `${spouse.firstName} ${spouse.lastName}`.trim() || 'בן/בת הזוג';
+    const out: Partial<Record<RepAuthorityKind, string>> = {};
+    for (const a of ['vat', 'withholding', 'nationalInsurance'] as RepAuthorityKind[]) {
+      const r = resolvePersonAuthority(client, spouse, a);
+      if (r.represented && r.source === 'spouse') out[a] = `הושג בקליטה של ${spouseLabel}`;
+    }
+    const it = resolveIncomeTaxHousehold(client, spouse);
+    if (it.represented && it.holder === 'spouse') {
+      out.incomeTax = `תיק משותף — הושג בקליטה של ${spouseLabel}`;
+    }
+    return out;
+  }
+
+  /**
    * "התחלת ייצוג ללא הצעה" משלב 3: האדם כבר קיים (נוצר ברגע אישור המסלול,
    * או לקוח ותיק) — כאן רק מצמידים אליו בקשת ייצוג, בלי ליצור כרטיס שני.
    * ‼ שם/מייל שהוקלדו בדיאלוג מתעדכנים על הכרטיס: הם המקור העדכני ביותר.
@@ -1374,10 +1414,14 @@ export default function App() {
     await updateRequest({ ...req, execution });
     const linkedClient = clients.find(c => c.id === req.linkedClientId);
     const niRegistered = linkedClient?.authorityRepresentations?.nationalInsurance;
-    // כשהייצוג נלקח גם לבן/בת הזוג, הוא פעיל רק אחרי ששניהם אישרו — אישור אחד
-    // מותיר את התיק השני בלי ייצוג בפועל, וסימון "פעיל" היה מסתיר את זה.
-    const niConfirmed = !!execution.nationalInsurance?.confirmedAt
-      && (!niRegistered?.coversSpouse || !!execution.nationalInsuranceSpouse?.confirmedAt);
+    // ‼ ביטוח לאומי הוא "עבור מי" לכל דבר (31.8) — כולל המקרה שהוא התבקש
+    // *רק* לבן/בת הזוג (targets=['spouse'], בלי מסלול לנישום בכלל). "פעיל"
+    // נבדק רק במסלולים שבאמת התבקשו: אישור אחד מותיר את המסלול השני (אם
+    // התבקש) בלי ייצוג בפועל, וסימון "פעיל" היה מסתיר את זה.
+    const niTargets = targetsOf(linkedClient?.authorityRepresentations, 'nationalInsurance');
+    const niConfirmed = (niTargets.includes('client') || niTargets.includes('spouse'))
+      && (!niTargets.includes('client') || !!execution.nationalInsurance?.confirmedAt)
+      && (!niTargets.includes('spouse') || !!execution.nationalInsuranceSpouse?.confirmedAt);
     if (linkedClient && niConfirmed && niRegistered && niRegistered.status !== 'active') {
       await updateClient({
         ...linkedClient,
@@ -2523,6 +2567,7 @@ export default function App() {
           checkEmailConflict={(email) => repEmailConflictMessage(email, pendingRepresentationClient.id)}
           initialName={`${pendingRepresentationClient.firstName} ${pendingRepresentationClient.lastName}`.trim()}
           initialEmail={pendingRepresentationClient.email || undefined}
+          alreadyRepresented={alreadyRepresentedFor(pendingRepresentationClient)}
         />
       )}
 

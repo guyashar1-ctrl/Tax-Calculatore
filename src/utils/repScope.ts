@@ -22,13 +22,20 @@ export function authorityHasTargets(a: RepAuthorityKind): boolean {
 /**
  * עבור מי התבקש הייצוג ברשות. מחזיר תמיד לפחות אדם אחד.
  * ‼ חסר ⇒ `['client']` (ראה כותרת הקובץ).
+ *
+ * ‼ נפילה-לאחור לביטוח לאומי (31.8): לפני שהצטרף ל-`targets[]`, "עבור מי"
+ * היה מבוטא בדגל `coversSpouse`. רשומה ישנה עם הדגל אבל בלי `targets` מתורגמת
+ * כאן ל-`['client','spouse']` — כך שהקורא היחיד לא צריך לדעת ששני הביטויים
+ * קיימים.
  */
 export function targetsOf(areas: AuthorityRepresentations | undefined, a: RepAuthorityKind): RepTarget[] {
   const rec = areas?.[a];
   if (!rec) return [];
   if (!authorityHasTargets(a)) return ['client'];
   const t = rec.targets;
-  return t && t.length ? t : ['client'];
+  if (t && t.length) return t;
+  if (a === 'nationalInsurance' && rec.coversSpouse) return ['client', 'spouse'];
+  return ['client'];
 }
 
 /**
@@ -105,16 +112,9 @@ export function scopeLines(
       });
       continue;
     }
-    if (a === 'nationalInsurance') {
-      const both = !!rec.coversSpouse && people.married;
-      const targets: RepTarget[] = both ? ['client', 'spouse'] : ['client'];
-      out.push({
-        authority: a, authorityLabel: REP_AUTHORITY_LABELS[a],
-        whoLabel: targets.map(t => targetName(people, t)).join(' + '),
-        household: false, targets,
-      });
-      continue;
-    }
+    // ‼ ביטוח לאומי (31.8): אותו מודל בדיוק כמו מע"מ/ניכויים — נופל לענף
+    // הגנרי מטה, ש-`targetsOf` כבר יודע לתרגם עבורו גם רשומות ישנות עם
+    // `coversSpouse` (ראה targetsOf).
     const targets = targetsOf(areas, a);
     out.push({
       authority: a, authorityLabel: REP_AUTHORITY_LABELS[a],
@@ -155,11 +155,6 @@ export function peopleInScope(
     if (a === 'incomeTax') {
       set.add('client');
       if (married) set.add('spouse');   // שני בני הזוג חותמים על ייפוי הכוח
-      continue;
-    }
-    if (a === 'nationalInsurance') {
-      set.add('client');
-      if (rec.coversSpouse && married) set.add('spouse');
       continue;
     }
     for (const t of targetsOf(areas, a)) {

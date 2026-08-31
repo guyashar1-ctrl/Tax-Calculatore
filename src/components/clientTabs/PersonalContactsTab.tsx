@@ -664,6 +664,23 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   <input type="number" value={client.spouseIncome} onChange={e => update('spouseIncome', Number(e.target.value))} dir="ltr" />
                 </div>
               )}
+              {/*
+                ‼ "יש עסק" ≠ "הוא/היא הלקוח/ה שלנו" (150). בלי הסימון הזה,
+                בן/בת זוג עם עסק היה עלול להיקרא בשקט כמי שאנחנו מייצגים
+                במע"מ/ב"ל — וזה בדיוק אסור: לא מנהלים ייצוג שלא ביקשנו
+                עליו במפורש. מס הכנסה משותף עדיין רלוונטי גם כשמסומן.
+              */}
+              <div className="form-group">
+                <label className="checkbox-row" style={{ marginTop: '.4rem' }}>
+                  <input type="checkbox" checked={!!client.spouseRepresentedElsewhere}
+                    onChange={e => update('spouseRepresentedElsewhere', e.target.checked)} />
+                  לבן/בת הזוג יש עסק, מיוצג/ת ע"י רו"ח אחר
+                </label>
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 4 }}>
+                  לא מנהלים כאן את המע"מ/ביטוח הלאומי שלו/ה — רק סימון שיש עסק,
+                  לצורך ההקשר המשותף במס הכנסה.
+                </div>
+              </div>
             </>
           )}
         </div>

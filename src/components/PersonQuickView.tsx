@@ -6,8 +6,10 @@
 // ‼ קריאה בלבד בכוונה: התיק המלא מחזיק עותק עריכה משלו של הכרטיס, ותצוגה
 //   שעורכת במקביל הייתה יוצרת שני בעלים לאותה רשומה.
 
+import type { Client } from '../types';
 import type { PersonRow } from '../utils/personDirectory';
 import { registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from '../features/annualReport/profile';
+import { resolveIncomeTaxHousehold, resolvePersonAuthority } from '../utils/personRepresentation';
 import type { RecentDoc } from '../hooks/useRecentDocuments';
 import type { AdditionalCharge } from '../types/charges';
 import { CHARGE_STATUS_LABELS, CHARGE_STATUS_BADGE, CHARGE_NEXT_ACTION } from '../types/charges';
@@ -53,6 +55,12 @@ interface Props {
   onMarkChargePaid?: (charge: AdditionalCharge) => void;
   /** מזהה החיוב שנמצא עכשיו בפעולה (שליחה/סימון) — מנטרל את הכפתור שלו בלבד. */
   chargeBusyId?: string | null;
+  /**
+   * הכרטיס של בן/בת הזוג, כשהוא/היא לקוח/ה בפני עצמו/ה (150) — לצורך
+   * "מס הכנסה משותף" ו"כבר מיוצג דרך X" סימטריים. undefined = לא מקושר,
+   * לא רק "טרם נטען" — התצוגה נופלת בחזרה לשדות השטוחים הישנים.
+   */
+  spouseClient?: Client;
 }
 
 /** ‼ ההסבר המלא יושב ב-title ולא על המסך: מי שצריך אותו מרחף, ומי שלא —
@@ -69,8 +77,13 @@ function relDate(iso: string): string {
 }
 
 export default function PersonQuickView(p: Props) {
-  /** בן/בת הזוג הרשום/ה — נגזר מתיק מס הכנסה בכרטיס, לא נשמר כאן שוב. */
-  const regFile = p.row.client ? registeredFileInfo(p.row.client) : null;
+  /**
+   * בן/בת הזוג הרשום/ה — תיק אחד לזוג, לא אחד לכל כרטיס (150). כשהכרטיס הזה
+   * לא מחזיק את תיק מס ההכנסה בעצמו, קוראים אותו דרך `spouseClient` — הוא
+   * לא "טרם התבקש", הוא כבר קיים על כרטיס אחר. ראה `resolveIncomeTaxHousehold`.
+   */
+  const household = p.row.client ? resolveIncomeTaxHousehold(p.row.client, p.spouseClient) : null;
+  const regFile = household?.holderClient ? registeredFileInfo(household.holderClient) : null;
   const spouseName = p.row.client?.spouseName?.trim();
   /**
    * ‼ מוצג רק כשיש שני אנשים בתא וגם ידוע מי הרשום: אצל אדם בודד התיק הוא
@@ -79,11 +92,32 @@ export default function PersonQuickView(p: Props) {
    *
    * ‼ שורה ולא תג בן מילה אחת (הכרעת גיא 2026-08-20): "· רשום" דרש ריחוף
    * כדי להבין מה רשום ואיפה, ולכן בפועל לא נקרא.
+   *
+   * ‼ דגל is-spouse מתהפך כשהתיק מוחזק דרך `spouseClient` (holder='spouse'):
+   * `regFile.owner` שם הוא יחסי לכרטיס המחזיק, לא לכרטיס הזה. ראה
+   * `resolveIncomeTaxHousehold`.
    */
+  const regSpouseFlag = !regFile ? false
+    : household?.holder === 'spouse' ? regFile.owner === 'client'
+    : regFile.owner === 'spouse';
   const regLine = spouseName && regFile
     ? (regFile.owner === 'joint'
         ? { text: 'תיק מס הכנסה משותף', name: '', spouse: false, unverified: false }
-        : { text: 'תיק מס הכנסה ע״ש', name: regFile.name, spouse: regFile.owner === 'spouse', unverified: regFile.unverified })
+        : {
+            text: household?.holder === 'spouse' ? 'תיק מס הכנסה משותף ע״ש' : 'תיק מס הכנסה ע״ש',
+            name: regFile.name, spouse: regSpouseFlag, unverified: regFile.unverified,
+          })
+    : null;
+  /**
+   * ביטוח לאומי שהושג עבור בן/בת הזוג דרך הכרטיס השני — לא "טרם התבקש".
+   * ‼ לא מציג את הסטטוס של האדם עצמו (שם יש לכך שורה מלאה במסך הביצוע) —
+   * רק שהוא/היא כבר מיוצג/ת, ואיפה, כדי שלא יתבקש שוב.
+   */
+  const niViaSpouse = p.row.client && p.spouseClient
+    ? resolvePersonAuthority(p.row.client, p.spouseClient, 'nationalInsurance')
+    : null;
+  const niViaSpouseLine = niViaSpouse?.source === 'spouse' && niViaSpouse.sourceClient
+    ? `כבר מיוצג/ת בביטוח לאומי — הושג בקליטה של ${niViaSpouse.sourceClient.firstName} ${niViaSpouse.sourceClient.lastName}`.trim()
     : null;
   const { row } = p;
   /** שלוש שורות ההשוואה — אותם פרטים לשני בני הזוג, בסדר קבוע. */
@@ -173,6 +207,10 @@ export default function PersonQuickView(p: Props) {
             {regLine.text}{regLine.name && <> <b>{regLine.name}</b></>}
             {regLine.unverified && <> · <span className="reg-unverified">{REGISTERED_UNVERIFIED_LABEL}</span></>}
           </div>
+        )}
+
+        {niViaSpouseLine && (
+          <div className="pd-regline">{niViaSpouseLine}</div>
         )}
 
         {row.kind === 'client' && !!p.charges?.length && (
