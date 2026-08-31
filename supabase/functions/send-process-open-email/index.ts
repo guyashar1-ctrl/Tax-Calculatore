@@ -1,9 +1,14 @@
 // Edge Function: send-process-open-email
-// המייל שפותח את התהליך — "פתחנו לך דף אישי, הנה מה שנשאר".
+// המייל ללקוח על מצב התהליך — והנושא שלו נגזר מה**אירוע**, לא ממסגרת קבועה.
 //
 // ‼ זה המייל היחיד שאינו תלוי בשלב אחד. כל שאר המיילים (הזמנה לפייפרלס,
 // שאלון, הרשאה, תזכורת) מדברים על בקשה בודדת ולכן חיים ב-send-step-email.
 // כאן הנושא הוא התהליך כולו, ולכן הקלט הוא הלקוח ולא השלב.
+//
+// ‼ שם הפונקציה נשאר process-open לתאימות (הדפדפן קורא לה בשם הזה, ויומן
+// הדואר מלא ברשומות שלה). מה שהשתנה הוא מה שהיא בונה: הכותרת, הנוסח,
+// ה-CTA וסוג הרישום נגזרים מהאירוע — מסמכים חדשים, בקשה שממתינה, או עדכון
+// סטטוס בלבד.
 //
 // ‼ רשימת הבקשות שבמייל נלקחת מ-get_client_portal — אותה פונקציה שמייצרת את
 // הדף האישי. מייל שמפרט רשימה משלו היה מבטיח ללקוח דבר אחד ומראה לו אחר,
@@ -13,12 +18,26 @@
 // send-step-email. הנמען נקבע מהכרטיס בלבד — כתובת שמגיעה בגוף הבקשה
 // מתעלמים ממנה.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
+import { resolveBrand, buildBrandedEmail, emailFont, esc } from "../_shared/designSystem.ts";
 import { defaultTemplate, renderTemplate, type StepEmailTemplate } from "../_shared/stepTemplates.ts";
 
-const KIND = "process_open";
+/**
+ * ‼ המייל נגזר מה**אירוע**, לא ממסגרת אחת לכולם. עד כה כל שליחה יצאה כ-
+ * "ברוכים הבאים · מה ממתין לכם", גם בשליחה החמישית וגם כשלא ממתין ללקוח
+ * דבר — והפונקציה אפילו סירבה לשלוח כשלא היו בקשות פתוחות. לקוח יכול להיות
+ * באמצע קליטה, בלי שום פעולה שנדרשת ממנו, ובאותו רגע לקבל שני מסמכים
+ * חדשים; אז המסמכים הם הכותרת, וסטטוס הקליטה הוא הקשר משני.
+ */
+type EmailEvent = "process_open" | "documents_sent" | "status_update";
 
-interface PortalItem { bucket?: string; label?: string; sub?: string }
+interface PortalRes { key?: string; label?: string; done?: boolean }
+interface PortalItem {
+  bucket?: string; label?: string; sub?: string; kind?: string;
+  resources?: PortalRes[];
+}
+
+/** מסמך שהמשרד שלח — אותו כלל בדיוק שהדף האישי מפעיל. */
+const isSentDoc = (i: PortalItem) => Array.isArray(i.resources) && i.resources.length > 0;
 
 Deno.serve(async (req: Request) => {
   const cors: Record<string, string> = {
@@ -67,16 +86,47 @@ Deno.serve(async (req: Request) => {
     const items: PortalItem[] = Array.isArray((portal as { items?: PortalItem[] })?.items)
       ? (portal as { items: PortalItem[] }).items
       : [];
-    const actions = items.filter(i => i.bucket === "action");
-    if (actions.length === 0) {
+    // ── מה האירוע ────────────────────────────────────────────────────────
+    // ‼ אותה היררכיה בדיוק כמו בדף האישי: מה שנדרש מהלקוח · מה חדש לו · מה
+    // אצלנו. מסמך שנשלח אינו "מה צריך ממך", ולכן הוא יוצא מ-actions.
+    const actions = items.filter(i => i.bucket === "action" && !isSentDoc(i));
+    const newDocs = items
+      .filter(i => isSentDoc(i) && i.bucket !== "future")
+      .flatMap(i => (i.resources || []).filter(r => !r.done))
+      .map(r => String(r.label || "").trim())
+      .filter(Boolean);
+    const officeItems = items.filter(i => i.bucket === "office" && i.kind !== "message");
+
+    const event: EmailEvent = actions.length > 0 ? "process_open"
+      : newDocs.length > 0 ? "documents_sent"
+      : "status_update";
+
+    // ‼ מסרבים לשלוח רק כשבאמת אין על מה להודיע. קודם נחסמה כל שליחה שבה לא
+    // ממתינה ללקוח בקשה — כלומר בדיוק המקרה של "שלחנו לך מסמכים ואין ממך
+    // שום צורך בפעולה", שהוא המקרה הנפוץ ביותר.
+    if (event === "status_update" && officeItems.length === 0) {
       return json({
-        error: "no_open_requests",
-        detail: { message: "אין כרגע בקשות שממתינות ללקוח - אין על מה להודיע." },
+        error: "nothing_to_say",
+        detail: { message: "אין בקשות שממתינות ללקוח, אין מסמכים חדשים ואין עבודה בטיפולנו - אין על מה להודיע." },
       }, 400);
     }
-    const requestList = actions
-      .map(i => "· " + String(i.label || "").trim() + (i.sub ? ` - ${String(i.sub).trim()}` : ""))
-      .join("\n");
+
+    const line = (i: PortalItem) =>
+      "· " + String(i.label || "").trim() + (i.sub ? ` - ${String(i.sub).trim()}` : "");
+    const requestList = actions.map(line).join("\n");
+    const statusList = officeItems.map(line).join("\n");
+    const documentList = newDocs.map(n => "· " + n).join("\n");
+    const documentsPhrase = newDocs.length === 1
+      ? "מסמך חדש"
+      : `${newDocs.length} מסמכים חדשים`;
+
+    // ‼ "ברוכים הבאים" רק כשזו באמת הפעם הראשונה. שליחה חוזרת שפותחת ב"שמחים
+    // להתחיל לעבוד יחד" קוראת כמו מייל אוטומטי שלא יודע עם מי הוא מדבר.
+    const { count: priorCount } = await admin
+      .from("email_messages").select("id", { count: "exact", head: true })
+      .eq("client_id", client.id)
+      .in("kind", ["process_open", "documents_sent", "status_update"]);
+    const isFirst = (priorCount ?? 0) === 0;
 
     const { data: profile } = await admin.from("profiles").select("*").eq("id", userId).single();
     const brand = resolveBrand({
@@ -91,8 +141,8 @@ Deno.serve(async (req: Request) => {
     const replyTo = (comm.replyTo && String(comm.replyTo).trim()) || profile?.email || undefined;
     const settings = (profile?.settings || {}) as Record<string, any>;
 
-    const base = defaultTemplate(KIND);
-    const saved = (settings?.commTemplates || {})[KIND] || {};
+    const base = defaultTemplate(event);
+    const saved = (settings?.commTemplates || {})[event] || {};
     const merged: StepEmailTemplate = {
       subject: String(overrides?.subject ?? saved.subject ?? base.subject).trim() || base.subject,
       body: String(overrides?.body ?? saved.body ?? base.body),
@@ -104,16 +154,54 @@ Deno.serve(async (req: Request) => {
       clientName: clientFull || clientFirst,
       firmName: brand.firmName,
       requestList,
+      statusList,
+      documentList,
+      documentsPhrase,
+      welcomeLine: isFirst ? "שמחים להתחיל לעבוד יחד.\n" : "",
     });
 
+    const heading = event === "documents_sent"
+      ? (clientFirst ? `${clientFirst}, שלחנו לך ${documentsPhrase}` : `שלחנו לך ${documentsPhrase}`)
+      : event === "status_update"
+      ? "עדכון על התהליך" + (clientFirst ? ", " + clientFirst : "")
+      : isFirst
+      ? "ברוכים הבאים" + (clientFirst ? ", " + clientFirst : "")
+      : (clientFirst ? `${clientFirst}, יש דברים שממתינים לך` : "יש דברים שממתינים לך");
+
+    /**
+     * ‼ סטטוס הקליטה **מתחת ל-CTA**, לא בגוף המייל. כשהאירוע הוא מסמכים,
+     * הקליטה היא הקשר משני — ופסקה מעל הכפתור הייתה דוחפת את הפעולה
+     * הראשית מטה ומתחרה בכותרת. הבלוק נבנה בשרת ואינו חלק מהתבנית הניתנת
+     * לעריכה, כדי שיישאר נכון לכל לקוח.
+     */
+    const statusBlock = event === "documents_sent" && (officeItems.length > 0 || actions.length === 0)
+      ? `<tr><td dir="rtl" align="right" style="text-align:right;padding:18px 40px 4px;">`
+        + `<div style="border-top:1px solid ${brand.border};padding-top:14px;">`
+        + `<div style="font-family:${emailFont(brand)};font-size:12.5px;font-weight:700;color:${brand.muted};letter-spacing:.02em;">תהליך הקליטה שלך</div>`
+        + `<div style="font-family:${emailFont(brand)};font-size:13.5px;color:${brand.muted};line-height:1.7;padding-top:5px;">`
+        + (officeItems.length > 0
+            ? esc(officeItems.map(i => String(i.sub || i.label || "").trim()).filter(Boolean).join("\n"))
+                .replace(/\n/g, "<br />") + "<br />"
+            : "")
+        + "כרגע אין צורך בפעולה מצידך."
+        + `</div></div></td></tr>`
+      : "";
+
     const html = buildBrandedEmail(brand, {
-      heading: "ברוכים הבאים" + (clientFirst ? ", " + clientFirst : ""),
+      heading,
       bodyHtml: esc(rendered.body).replace(/\n/g, "<br />"),
-      ctaLabel: "לדף האישי שלך",
+      afterCtaHtml: statusBlock,
+      // ‼ CTA ספציפי לאירוע. "לדף האישי שלך" על מייל שכולו מסמכים אינו אומר
+      // ללקוח מה הוא ימצא שם.
+      ctaLabel: event === "documents_sent" ? "לצפייה במסמכים בדף האישי" : "לדף האישי שלך",
       ctaHref: portalUrl,
       ctaArrow: true,
       showLinkFallback: true,
-      footerTagline: actions.length === 1 ? "פעולה אחת ממתינה" : `${actions.length} פעולות ממתינות`,
+      // ‼ שורת "N פעולות ממתינות" רק כשבאמת ממתינות. על מייל מסמכים היא
+      // הייתה הופכת מסירה למטלה.
+      footerTagline: event === "process_open"
+        ? (actions.length === 1 ? "פעולה אחת ממתינה" : `${actions.length} פעולות ממתינות`)
+        : undefined,
     });
 
     const from = `${brand.firmName} <${fromAddress}>`;
@@ -122,7 +210,8 @@ Deno.serve(async (req: Request) => {
       return json({
         ok: true, preview: true,
         subject: rendered.subject, subjectText: merged.subject, bodyText: merged.body,
-        to: toEmail, from, html, openRequests: actions.length,
+        to: toEmail, from, html,
+        event, openRequests: actions.length, newDocuments: newDocs.length,
       });
     }
 
@@ -137,7 +226,7 @@ Deno.serve(async (req: Request) => {
 
     const logBase = {
       user_id: userId, client_id: client.id, to_email: toEmail,
-      subject: rendered.subject, kind: KIND, html,
+      subject: rendered.subject, kind: event, html,
     };
 
     if (!r.ok) {
@@ -150,8 +239,8 @@ Deno.serve(async (req: Request) => {
     // רץ ולא נחסמת — אותו כלל כמו במיילי השלבים.
     const { count } = await admin
       .from("email_messages").select("id", { count: "exact", head: true })
-      .eq("client_id", client.id).eq("kind", KIND);
-    const idempotencyKey = `client:${client.id}:${KIND}:${(count ?? 0) + 1}`;
+      .eq("client_id", client.id).eq("kind", event);
+    const idempotencyKey = `client:${client.id}:${event}:${(count ?? 0) + 1}`;
 
     const { error: logErr } = await admin.from("email_messages")
       .insert({ ...logBase, resend_id: body.id, status: "sent", idempotency_key: idempotencyKey });
@@ -161,7 +250,7 @@ Deno.serve(async (req: Request) => {
     if (logErr) {
       const { error: minErr } = await admin.from("email_messages").insert({
         user_id: userId, client_id: client.id, to_email: toEmail,
-        subject: rendered.subject, kind: KIND, status: "sent", resend_id: body.id,
+        subject: rendered.subject, kind: event, status: "sent", resend_id: body.id,
         error: `log_failed: ${logErr.code ?? ""} ${String(logErr.message ?? "").slice(0, 200)}`,
       });
       logged = !minErr;
@@ -178,7 +267,7 @@ Deno.serve(async (req: Request) => {
       actor: "accountant",
       note: `הדף האישי נשלח ללקוח: ${rendered.subject}`
         + (logged ? "" : " (לא נרשם ביומן הדואר - ראה לוג השרת)"),
-      meta: { kind: KIND, to: toEmail, resend_id: body.id, openRequests: actions.length, logged },
+      meta: { kind: event, to: toEmail, resend_id: body.id, openRequests: actions.length, newDocuments: newDocs.length, logged },
     });
 
     return json({ ok: true, id: body.id, logged });

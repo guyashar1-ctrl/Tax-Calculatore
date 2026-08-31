@@ -894,10 +894,12 @@ function OfficeNotificationsSection({ profile, onChangeProfile }: { profile: Fir
 //
 // עורך מבוקר על אותה טיוטה של המסך — בלי שמירה משלו, כמו לשונית ההצעות.
 
-const TEMPLATE_EDITORS: StepEmailKind[] = ['process_open', 'paperless_invite', 'retainer_request', 'intake_questionnaire', 'step_reminder'];
+const TEMPLATE_EDITORS: StepEmailKind[] = ['process_open', 'documents_sent', 'status_update', 'paperless_invite', 'retainer_request', 'intake_questionnaire', 'step_reminder'];
 
 const TEMPLATE_HINT: Record<string, string> = {
-  process_open: 'נשלח בלחיצה על "שלח ללקוח" בכרטיס הלקוח. רשימת מה שממתין ללקוח נבנית מהדף האישי עצמו - אין צורך לפרט אותה בנוסח.',
+  process_open: 'נשלח ב"שלח ללקוח" כשממתינה ללקוח בקשה. רשימת מה שממתין נבנית מהדף האישי עצמו - אין צורך לפרט אותה בנוסח.',
+  documents_sent: 'נשלח באותו "שלח ללקוח", כשאין מה שממתין ללקוח אבל שלחת לו מסמכים שטרם פתח. שמות המסמכים וסטטוס הקליטה נבנים לבד.',
+  status_update: 'נשלח באותו "שלח ללקוח", כשאין בקשות ואין מסמכים חדשים - רק מה שבטיפולנו.',
   paperless_invite: 'נשלח מכרטיס הלקוח, בשלב "הזמנה לפייפרלס". הקישור עצמו נוסף ככפתור בסוף המייל.',
   retainer_request: 'נשלח בשלב "הרשאה לתשלום חודשי", אחרי שהוזן קישור ההרשאה מפייפרלס.',
   intake_questionnaire: 'נשלח בשלב "עדכון סטטוס מס". קישור השאלון האישי נוסף ככפתור בסוף המייל.',

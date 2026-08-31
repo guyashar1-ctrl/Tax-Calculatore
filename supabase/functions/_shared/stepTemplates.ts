@@ -13,7 +13,13 @@
 //  ועריכה לפני שליחה דורסת את שתיהן. הנוסח כאן הוא מה שיוצא כשלא נגעו בכלום.
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const STEP_EMAIL_KINDS = ['paperless_invite', 'retainer_request', 'step_reminder', 'intake_questionnaire', 'process_open'] as const;
+// ‼ המייל נגזר מה**אירוע** שגרם לו, לא ממסגרת קליטה אחת לכולם. לקוח יכול
+// להיות באמצע קליטה, בלי שום פעולה שנדרשת ממנו, ובאותו רגע לקבל שני מסמכים
+// חדשים — ואז המסמכים הם הכותרת, וסטטוס הקליטה הוא הקשר משני.
+//   process_open     – יש בקשות שממתינות ללקוח (וגם מייל הפתיחה הראשון)
+//   documents_sent   – המשרד שלח מסמכים, ואין מה שממתין ללקוח
+//   status_update    – אין בקשות ואין מסמכים חדשים; רק מה שבטיפולנו
+export const STEP_EMAIL_KINDS = ['paperless_invite', 'retainer_request', 'step_reminder', 'intake_questionnaire', 'process_open', 'documents_sent', 'status_update'] as const;
 
 export type StepEmailKind = typeof STEP_EMAIL_KINDS[number];
 
@@ -29,6 +35,8 @@ export const STEP_EMAIL_KIND_LABELS: Record<StepEmailKind, string> = {
   step_reminder: 'תזכורת קליטה',
   intake_questionnaire: 'עדכון סטטוס מס',
   process_open: 'פתיחת התהליך - הדף האישי',
+  documents_sent: 'שליחת מסמכים ללקוח',
+  status_update: 'עדכון סטטוס - בלי פעולה נדרשת',
 };
 
 /** השדות שיוחלפו בערכים אמיתיים. מוצג כמקרא במסך ההגדרות. */
@@ -40,6 +48,10 @@ export const STEP_TEMPLATE_PLACEHOLDERS = [
   '{{billingStartMonth}}',
   '{{authUrl}}',
   '{{requestList}}',
+  '{{welcomeLine}}',
+  '{{documentList}}',
+  '{{documentsPhrase}}',
+  '{{statusList}}',
 ] as const;
 
 /** השדות הרלוונטיים לכל סוג מייל — מקרא ממוקד במקום רשימה שכולה לא רלוונטית. */
@@ -48,7 +60,9 @@ export const PLACEHOLDERS_BY_KIND: Record<StepEmailKind, string[]> = {
   retainer_request: ['{{clientName}}', '{{firmName}}', '{{amount}}', '{{billingStartMonth}}', '{{authUrl}}'],
   step_reminder: ['{{clientName}}', '{{firmName}}', '{{requestTitle}}', '{{requestSub}}'],
   intake_questionnaire: ['{{clientName}}', '{{firmName}}'],
-  process_open: ['{{clientName}}', '{{firmName}}', '{{requestList}}'],
+  process_open: ['{{clientName}}', '{{firmName}}', '{{welcomeLine}}', '{{requestList}}'],
+  documents_sent: ['{{clientName}}', '{{firmName}}', '{{documentsPhrase}}', '{{documentList}}'],
+  status_update: ['{{clientName}}', '{{firmName}}', '{{statusList}}'],
 };
 
 // ‼ הנוסחים נכתבים בגוף שני רבים ("אתם") כמו שאר המיילים ללקוחות במערכת.
@@ -118,13 +132,32 @@ const TEMPLATES: Record<StepEmailKind, StepEmailTemplate> = {
   process_open: {
     subject: 'פתחנו לכם דף אישי - הנה מה שנשאר',
     body:
-      'שמחים להתחיל לעבוד יחד.\n' +
-      'ריכזנו את כל תהליך ההצטרפות בדף אישי אחד: מה כבר הושלם, מה בטיפולנו, ומה ממתין לכם.\n' +
+      '{{welcomeLine}}ריכזנו את כל תהליך ההצטרפות בדף אישי אחד: מה כבר הושלם, מה בטיפולנו, ומה ממתין לכם.\n' +
       '\n' +
       'מה ממתין לכם כרגע:\n' +
       '{{requestList}}\n' +
       '\n' +
       'אין צורך לשמור את המייל הזה - הדף מתעדכן מעצמו, ואפשר לחזור אליו מאותו קישור בכל שלב.',
+  },
+  // ‼ המסמכים הם הכותרת, לא הקליטה. הלקוח לא נדרש לשום דבר כאן, ולכן אין
+  // במייל הזה שום ניסוח של מטלה, דחיפות או "ממתין לך". סטטוס הקליטה מגיע
+  // כהקשר משני, בבלוק נפרד שהשרת מוסיף — ולא כפסקה שמתחרה במסמכים.
+  documents_sent: {
+    subject: 'שלחנו לך {{documentsPhrase}}',
+    body:
+      '{{documentList}}\n' +
+      '\n' +
+      'המסמכים מחכים לכם בדף האישי - אפשר לצפות בהם ולהוריד אותם בכל שלב.',
+  },
+  // ‼ אין בקשות ואין מסמכים חדשים: המייל היחיד שנשאר לומר הוא "מה קורה אצלנו".
+  status_update: {
+    subject: 'עדכון על התהליך שלכם',
+    body:
+      'רצינו לעדכן איפה הדברים עומדים:\n' +
+      '\n' +
+      '{{statusList}}\n' +
+      '\n' +
+      'כרגע אין צורך בפעולה מצידכם - נעדכן אתכם כאן ברגע שיהיה מה לעשות.',
   },
 };
 

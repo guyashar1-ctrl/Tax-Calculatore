@@ -72,7 +72,10 @@ export default function SendPortalDialog({
   if (stage === 'email') {
     return (
       <EmailPreviewDialog
-        heading="מייל פתיחת התהליך"
+        /* ‼ לא "מייל פתיחת התהליך": השרת גוזר את המייל מהאירוע — מסמכים
+           חדשים, בקשה שממתינה או עדכון סטטוס — וכותרת קבועה הייתה משקרת
+           בשני מהשלושה. */
+        heading="מייל ללקוח"
         fn="send-process-open-email"
         editable
         body={{ clientId }}
