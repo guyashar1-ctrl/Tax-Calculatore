@@ -184,6 +184,10 @@ export default function RepresentationRequestReview({
 
   // ממי ביקשנו צילום תעודה, ומה כבר הגיע. הדרישה נגזרת מאותו היקף היסטורי,
   // כדי שהמסך של הרו"ח והמסך של הלקוח לא ייתנו שתי תשובות שונות.
+  // שתי עובדות חיוביות, לא דגל: התבקש ולא הושלם ⇒ ממתינים.
+  const spouseFillPending = !!request.identification?.spouseFillRequestedAt
+    && !request.identification?.spouseFillSubmittedAt;
+
   const idEvidence = identityRequirements(
     requestScope(request, linkedClient), people,
     // איזו תעודה מצלמים — לפי אמצעי הזיהוי שכל אדם בחר; לבן/בת הזוג יש
@@ -600,6 +604,14 @@ export default function RepresentationRequestReview({
               {idEvidence.length > 0 && (
                 <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem' }}>
                   צילומי תעודות: {idEvidence.map(e => `${e.name} ${e.got ? '✓' : '- טרם התקבל'}`).join(' · ')}
+                </div>
+              )}
+              {/* ‼ הלקוח לא ידע את פרטי בן/בת הזוג ומסר לו/ה קישור להשלמה (149).
+                  זה לא חסם - הלקוח כבר הגיש - אבל בלי השורה הזאת הרו"ח היה
+                  מגלה את החוסר רק מול שע״ם, ולא יודע שכבר יש מי שאחראי עליו. */}
+              {spouseFillPending && (
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--warning, #9A6B00)', marginTop: '.35rem' }}>
+                  {'⏳'} בן/בת הזוג ממלא/ת את הפרטים שלו/ה בקישור נפרד - טרם התקבלו
                 </div>
               )}
             </div>

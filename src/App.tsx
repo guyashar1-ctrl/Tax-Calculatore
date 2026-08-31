@@ -87,6 +87,7 @@ import NewPersonDialog, { type NewPersonBasics } from './components/NewPersonDia
 import RepresentationOnboardingDialog, { CreateRepresentationInput } from './components/RepresentationOnboardingDialog';
 import { withLegacyMirror } from './utils/repDocuments';
 import OnboardingPage from './components/OnboardingPage';
+import SpouseFillPage from './components/SpouseFillPage';
 import PublicIntakePage from './components/PublicIntakePage';
 import PublicPortalPage from './components/PublicPortalPage';
 import PublicReleasePage from './components/PublicReleasePage';
@@ -352,6 +353,10 @@ export default function App() {
     );
     const onboardToken = new URLSearchParams(window.location.search).get('onboard');
     if (onboardToken) return asClientPage(<OnboardingPage token={onboardToken} />);
+
+    // הדף של בן/בת הזוג — נולד מ"אין לי מושג" שבטופס הקליטה (149)
+    const spouseFillToken = new URLSearchParams(window.location.search).get('spousefill');
+    if (spouseFillToken) return asClientPage(<SpouseFillPage token={spouseFillToken} />);
     // עמוד חתימה ציבורי — קישור אישי לכל חותם (נישום / בן זוג).
     const signToken = new URLSearchParams(window.location.search).get('sign');
     if (signToken) return asClientPage(<PublicSignPage token={signToken} />);

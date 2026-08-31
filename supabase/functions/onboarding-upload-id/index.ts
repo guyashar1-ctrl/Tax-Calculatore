@@ -45,12 +45,12 @@ Deno.serve(async (req: Request) => {
   try {
     const form = await req.formData();
     const token = String(form.get("token") || "");
-    const person = String(form.get("person") || "client");
+    const personParam = String(form.get("person") || "client");
     const docKind = String(form.get("docKind") || "idCard");
     const file = form.get("file");
 
     if (!token) return json({ error: "missing_token" }, 400);
-    if (!["client", "spouse"].includes(person)) return json({ error: "bad_person" }, 400);
+    if (!["client", "spouse"].includes(personParam)) return json({ error: "bad_person" }, 400);
     if (!KIND_LABEL[docKind]) return json({ error: "bad_kind" }, 400);
     if (!(file instanceof File)) return json({ error: "missing_file" }, 400);
     if (file.size === 0) return json({ error: "empty_file" }, 400);
@@ -65,14 +65,32 @@ Deno.serve(async (req: Request) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    const { data: reqRow } = await admin
-      .from("representation_requests")
-      .select("id, user_id, linked_client_id, onboarding_status, identity_docs")
-      .eq("onboarding_token", token)
-      .maybeSingle();
+    // ‼ שני קישורים מגיעים לכאן: זה של הלקוח, וזה של בן/בת הזוג (149) שנפתח
+    // כשהלקוח לא ידע את פרטיו/ה. הטוקן הוא גם ההרשאה וגם הזהות: מי שהגיע
+    // בטוקן של בן/בת הזוג יכול להעלות **רק** את התעודה שלו/ה.
+    const sel = "id, user_id, linked_client_id, onboarding_status, identity_docs, identification";
+    let { data: reqRow } = await admin
+      .from("representation_requests").select(sel)
+      .eq("onboarding_token", token).maybeSingle();
+    let viaSpouseLink = false;
+    if (!reqRow) {
+      const alt = await admin
+        .from("representation_requests").select(sel)
+        .eq("spouse_onboarding_token", token).maybeSingle();
+      reqRow = alt.data;
+      viaSpouseLink = !!reqRow;
+    }
     if (!reqRow) return json({ error: "invalid_token" }, 403);
-    // אחרי ההגשה הקישור אינו ערוץ העלאה — המשרד מעלה מהכרטיס.
-    if (reqRow.onboarding_status === "submitted") return json({ error: "already_submitted" }, 409);
+
+    const person = viaSpouseLink ? "spouse" : personParam;
+    if (viaSpouseLink) {
+      // ההשלמה חיה אחרי הגשת הלקוח — היא בדיוק המקרה שבו הוא הגיש בלעדיה.
+      const ident = (reqRow.identification ?? {}) as Record<string, string>;
+      if (ident.spouseFillSubmittedAt) return json({ error: "already_submitted" }, 409);
+    } else if (reqRow.onboarding_status === "submitted") {
+      // אחרי ההגשה הקישור אינו ערוץ העלאה — המשרד מעלה מהכרטיס.
+      return json({ error: "already_submitted" }, 409);
+    }
 
     const clientId = reqRow.linked_client_id as string;
     if (!clientId) return json({ error: "no_client" }, 409);

@@ -88,6 +88,14 @@ export default function OnboardingPage({ token }: Props) {
   const [spouseBirthDate, setSpouseBirthDate] = useState('');
   const [spouseSecondaryType, setSpouseSecondaryType] = useState<OnboardingSecondaryType>('parentId');
   const [spouseSecondaryValue, setSpouseSecondaryValue] = useState('');
+  // ── «בלי בן/בת הזוג אני אבוד/ה» ────────────────────────────────────────
+  // ‼ הפרטים האלה הם של אדם אחר, ולרוב פשוט לא יודעים אותם. במקום להיתקע -
+  // קישור להשלמה עצמית (149). ‼ אינו חוסם: הלקוח מגיש את החלק שלו ומסיים.
+  const [spouseLink, setSpouseLink] = useState('');
+
+  const [spouseLinkBusy, setSpouseLinkBusy] = useState(false);
+  const [spouseLinkCopied, setSpouseLinkCopied] = useState(false);
+  const spouseDelegated = !!spouseLink;
 
   // ── צילומי תעודות ──
   // ‼ הזנת המספר אינה מספיקה. ממי מבקשים נגזר מהיקף הייצוג, ואיזו תעודה —
@@ -185,11 +193,36 @@ export default function OnboardingPage({ token }: Props) {
   const spouseSub = familyStatus === 'married'
     ? shaamSubmissions(info?.scope, scopePeople, info?.prefill.registeredSpouse).find(x => x.target === 'spouse')
     : undefined;
+  // ‼ מה שנמסר לבן/בת הזוג יורד מהרשימה כאן, ולא רק מהחובה: דרישה שמוצגת
+  // לממלא נקראת כמשהו ש**הוא** צריך לעשות, והתעודה הזאת אינה שלו.
   const idRequirements = identityRequirements(info?.scope, scopePeople, {
     client: secondaryType,
     ...(spouseSub ? { spouse: spouseSecondaryType } : {}),
-  });
+  }).filter(r => !(spouseDelegated && r.person === 'spouse'));
   const idMissing = missingIdentity(idRequirements, idDocs);
+
+  /**
+   * פותח לבן/בת הזוג קישור משלו/ה להשלמת הפרטים שלו/ה.
+   * ‼ אינו מגיש ואינו חוסם: הממלא ממשיך ומסיים את החלק שלו באותו רגע.
+   */
+  async function makeSpouseLink() {
+    setSpouseLinkBusy(true);
+    setError(null);
+    try {
+      const { data, error: e } = await supabase.rpc('request_spouse_onboarding', {
+        p_token: token,
+        p_spouse_email: null,
+      });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (e || !row?.spouse_token) {
+        setError('לא הצלחנו ליצור קישור. נסו שוב, ואם זה חוזר - פנו למשרד.');
+        return;
+      }
+      setSpouseLink(`${window.location.origin}/?spousefill=${row.spouse_token}`);
+    } finally {
+      setSpouseLinkBusy(false);
+    }
+  }
 
   async function uploadIdDoc(r: IdentityRequirement, file: File) {
     setUploading(r.person);
@@ -256,14 +289,19 @@ export default function OnboardingPage({ token }: Props) {
       if (familyStatus === 'married') {
         if (!spouseFirstName.trim()) return 'יש להזין את השם הפרטי של בן/בת הזוג';
         if (!spouseLastName.trim()) return 'יש להזין את שם המשפחה של בן/בת הזוג';
-        if (!spouseIdNumber.trim()) return 'יש להזין את תעודת הזהות של בן/בת הזוג';
-        if (!isValidIsraeliId(spouseIdNumber.trim())) return 'תעודת הזהות של בן/בת הזוג אינה תקינה';
-        if (spouseSub) {
+        // ‼ הת.ז. היא בדיוק מה שלא יודעים על אדם אחר. כשנמסר לבן/בת הזוג
+        // היא יורדת מהחובה; מה שכן הוקלד עדיין נבדק, כדי שטעות הקלדה לא תעבור.
+        if (!spouseDelegated && !spouseIdNumber.trim()) return 'יש להזין את תעודת הזהות של בן/בת הזוג';
+        if (spouseIdNumber.trim() && !isValidIsraeliId(spouseIdNumber.trim())) return 'תעודת הזהות של בן/בת הזוג אינה תקינה';
+        if (spouseSub && !spouseDelegated) {
           // ‼ יש לו/לה תיק ⇒ הזנה נפרדת בשע״ם על הת.ז. שלו/ה, וצריך את אותה
           // ערכת הזדהות כמו של הממלא. אין תיק ⇒ מספיקה שנת לידה (לב"ל).
+          // ‼ נמסר לבן/בת הזוג ⇒ החלק הזה כבר לא באחריות הממלא, והוא מסיים.
           if (!spouseBirthDate) return 'יש להזין את תאריך הלידה של בן/בת הזוג';
           if (new Date(spouseBirthDate) > new Date()) return 'תאריך הלידה של בן/בת הזוג לא יכול להיות בעתיד';
           if (!spouseSecondaryValue.trim()) return `יש להזין ${ONBOARDING_SECONDARY_LABELS[spouseSecondaryType]} של בן/בת הזוג`;
+        } else if (spouseSub && spouseDelegated) {
+          // ת.ז. עדיין נדרשת מהממלא רק אם הוא הקליד אותה; ריקה - בן/בת הזוג ימלא.
         } else {
           const by = Number(spouseBirthYear);
           if (!spouseBirthYear.trim()) return 'יש להזין את שנת הלידה של בן/בת הזוג';
@@ -770,7 +808,55 @@ export default function OnboardingPage({ token }: Props) {
                     עליו/ה) ⇒ הגשה נפרדת בשע״ם על הת.ז. שלו/ה, וצריך את אותה ערכת
                     הזדהות: תאריך לידה מלא + רישיון/דרכון/ת.ז. הורה. אין תיק ⇒
                     מספיקה שנת לידה, לייפוי הכוח בביטוח לאומי. */}
-                {spouseSub ? (
+                {spouseSub && spouseDelegated ? (
+                  /* ‼ נמסר לבן/בת הזוג. השדות יורדים מהמסך לגמרי ולא רק
+                     מהחובה — שדה ריק שנשאר קורא כמו משהו שעוד צריך למלא. */
+                  <div style={{
+                    marginBottom: 22, padding: '14px 14px 12px', borderRadius: 10,
+                    border: '1px solid #CFE3D4', background: '#F5FAF6',
+                  }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 6 }}>
+                      {'✓'} הקישור מוכן - שלחו אותו לבן/בת הזוג
+                    </div>
+                    <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginBottom: 10 }}>
+                      אתם יכולים להמשיך ולסיים עכשיו - לא צריך לחכות להם.
+                    </div>
+                    <div style={{
+                      fontSize: 12, direction: 'ltr', textAlign: 'left', wordBreak: 'break-all',
+                      background: '#fff', border: '1px solid #E3E2DD', borderRadius: 8, padding: '8px 10px',
+                      marginBottom: 10,
+                    }}>{spouseLink}</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {/* ‼ וואטסאפ ולא מייל: הלקוח באמצע טופס בטלפון, ובן/בת הזוג
+                          במרחק הודעה אחת. שליחת מייל מכאן הייתה דורשת ערוץ שרת
+                          נוסף — וקישור שאפשר להדביק עובד בכל ערוץ שהם משתמשים בו. */}
+                      <a
+                        href={`https://wa.me/?text=${encodeURIComponent(
+                          `היי, אני ממלא/ת טופס ייצוג מול רשויות המס ב${info?.firmName || 'משרד רואי החשבון'} וצריך את הפרטים שלך. אפשר להשלים כאן: ${spouseLink}`,
+                        )}`}
+                        target="_blank" rel="noopener noreferrer"
+                        style={{
+                          border: 'none', borderRadius: btnRadius, padding: '9px 16px',
+                          fontSize: 13.5, color: '#fff', background: '#25D366',
+                          textDecoration: 'none', display: 'inline-block',
+                        }}>
+                        שליחה בוואטסאפ
+                      </a>
+                      <button type="button" onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(spouseLink);
+                          setSpouseLinkCopied(true);
+                          setTimeout(() => setSpouseLinkCopied(false), 1800);
+                        } catch { /* דפדפן חסם - הקישור גלוי לסימון ידני */ }
+                      }} style={{
+                        border: `1px solid ${ink}`, borderRadius: btnRadius, padding: '9px 16px',
+                        fontSize: 13.5, color: ink, background: 'transparent', cursor: 'pointer',
+                      }}>
+                        {spouseLinkCopied ? '✓ הועתק' : 'העתקת הקישור'}
+                      </button>
+                    </div>
+                  </div>
+                ) : spouseSub ? (
                   <>
                     <div style={{ marginBottom: 22 }}>
                       <label style={label}>תאריך לידה של בן/בת הזוג
@@ -804,6 +890,31 @@ export default function OnboardingPage({ token }: Props) {
                       <input style={inputStyle} dir="ltr" value={spouseSecondaryValue}
                         onChange={e => setSpouseSecondaryValue(e.target.value)}
                         placeholder={ONBOARDING_SECONDARY_LABELS[spouseSecondaryType]} />
+                    </div>
+
+                    {/* ── מוצא, ולא קיר ─────────────────────────────────────
+                        ‼ אלה פרטים של אדם אחר, ולרוב פשוט לא יודעים אותם בעל
+                        פה. בלי המוצא הזה הטופס נתקע בדיוק כאן. הניסוח קליל
+                        בכוונה: מי שלא יודע לא צריך להרגיש שנכשל. */}
+                    <div style={{
+                      marginBottom: 22, padding: '14px 14px 12px', borderRadius: 10,
+                      border: '1px dashed #E3E2DD', background: '#FBFBFA',
+                    }}>
+                      <div style={{ fontSize: 13.5, color: '#111', lineHeight: 1.6, marginBottom: 4 }}>
+                        {'🤷'} אין לי מושג, בלי אשתי/בעלי אני אבוד/ה
+                      </div>
+                      <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginBottom: 12 }}>
+                        שלחו לבן/בת הזוג קישור והם ישלימו את הפרטים בעצמם.
+                        אתם ממשיכים ומסיימים - לא צריך לחכות להם.
+                      </div>
+                      <button type="button" disabled={spouseLinkBusy} onClick={() => void makeSpouseLink()}
+                        style={{
+                          border: `1px solid ${ink}`, borderRadius: btnRadius, padding: '9px 16px',
+                          fontSize: 13.5, color: ink, background: 'transparent',
+                          cursor: spouseLinkBusy ? 'default' : 'pointer', opacity: spouseLinkBusy ? 0.6 : 1,
+                        }}>
+                        {spouseLinkBusy ? 'רגע…' : 'יצירת קישור לבן/בת הזוג'}
+                      </button>
                     </div>
                   </>
                 ) : (

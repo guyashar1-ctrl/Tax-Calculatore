@@ -997,6 +997,9 @@ export interface OnboardingIdentification {
   spouseBirthDate?: string;
   spouseSecondaryType?: OnboardingSecondaryType;
   spouseSecondaryValue?: string;
+  /** נמסר לבן/בת הזוג להשלמה עצמית (149). ממתינים = התבקש ולא הושלם. */
+  spouseFillRequestedAt?: string;
+  spouseFillSubmittedAt?: string;
 }
 
 /**
