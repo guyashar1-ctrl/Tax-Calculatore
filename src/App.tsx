@@ -29,6 +29,7 @@ import { useDocumentDB } from './hooks/useIndexedDB';
 import { useTheme } from './hooks/useTheme';
 import { PivoMark } from './components/PivoMark';
 import Icon from './components/ui/Icon';
+import AuthorityConnectionButtons from './components/AuthorityConnectionButtons';
 import { supabase } from './lib/supabase';
 import { edgeFunctionError } from './utils/functionError';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
@@ -2036,6 +2037,13 @@ export default function App() {
             </button>
           ))}
         </nav>
+
+        {/* נוריות החיבור לרשויות — צמודות לניווט, כי הן מצב גלובלי של
+            המשרד ולא פעולה על מסך מסוים.
+            ‼ מאחורי אותו דגל כמו לשונית "בדיקות": בלי עובד מקומי פעיל שתי
+            הנוריות אפורות ומושבתות, ואין טעם להוסיף לכותרת של הפרודקשן שני
+            כפתורים שאי אפשר ללחוץ עליהם. */}
+        {checksTab && <AuthorityConnectionButtons userId={user?.id} />}
 
         <div className="header-actions">
           {/* אשכול הכלים — מופרד מהניווט בקו, כדי שיהיה ברור שזה לא מקום עבודה.

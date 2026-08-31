@@ -1,0 +1,198 @@
+// browserSession.mjs — the one shared browser primitive every SHAAM handler
+// builds on. No LLM, no visual AI, no agentic decisions here or anywhere in
+// this file — fixed URLs, fixed timeouts, fixed string/title checks only.
+//
+// ─── למה פרופיל ייעודי, ולא ה-Chrome הרגיל ─────────────────────────────────
+// ‼ זו אינה העדפה — זו מגבלה של Chrome עצמו, שאומתה מול הגרסה המותקנת
+// (151.0.7922.175) ומול התיעוד הרשמי:
+// https://developer.chrome.com/blog/remote-debugging-port
+//
+// מ-Chrome 136 ואילך, ‎--remote-debugging-port‎ **אינו מכובד** כשהוא מופנה
+// לתיקיית הנתונים הרגילה של Chrome. חובה ‎--user-data-dir‎ לתיקייה שאינה
+// ברירת המחדל. הנימוק של Google: תוקפים ניצלו ניפוי-שגיאות מרחוק כדי לחלץ
+// עוגיות, ולכן פרופיל לא-סטנדרטי מוצפן במפתח אחר — והנתונים של הפרופיל
+// הרגיל מוגנים ממנו.
+//
+// המשמעות המעשית, ולטובה: הפורט הזה לעולם לא יכול לחשוף את הגלישה הרגילה
+// של הרו"ח. הוא רואה אך ורק את פרופיל האוטומציה הייעודי.
+//
+// ‼ העובד **מתחבר** לחלון קיים, לעולם לא משגר אותו ולא סוגר אותו. מחזור
+// החיים של הדפדפן שייך לרו"ח (launch-shaam-chrome.bat): הוא פותח אותו,
+// הוא מתחבר לשע״ם בעצמו (אישור + PIN), והחלון נשאר פתוח. סגירה של החלון
+// מתוך הקוד הייתה מוחקת את הסשן המאומת שהרו"ח בנה ידנית.
+
+import { chromium } from 'playwright-core';
+import { spawn, execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { mkdirSync, existsSync } from 'node:fs';
+
+const CDP_URL = 'http://localhost:9222';
+const SHAAM_ROOT = 'https://shaam.taxes.gov.il/';
+const SHAAM_ORIGIN = 'https://shaam.taxes.gov.il';
+
+// ‼ מחוץ לריפו בכוונה: הפרופיל מחזיק סשן מחובר חי. בתוך הריפו הוא היה נצפה
+// על ידי שרת הפיתוח (קרס ב-EBUSY על קובץ Cookies נעול — קרה בפועל), נראה
+// ל-git, ונגרר עם עותקי קוד.
+const PROFILE_DIR = resolve(
+  process.env.LOCALAPPDATA || process.env.HOME || '.',
+  'PIVO', 'shaam-chrome-profile',
+);
+const CHROME_EXE = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+
+/**
+ * פותח את חלון Chrome הייעודי. **לא מתחבר** — רק פותח חלון גלוי שבו הרו"ח
+ * יבצע את האימות בעצמו. נקרא רק מפעולת "התחברות" מפורשת של המשתמש.
+ */
+export function launchDedicatedChrome() {
+  if (!existsSync(PROFILE_DIR)) mkdirSync(PROFILE_DIR, { recursive: true });
+  const child = spawn(CHROME_EXE, [
+    '--remote-debugging-port=9222',
+    `--user-data-dir=${PROFILE_DIR}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    SHAAM_ROOT,
+  ], { detached: true, stdio: 'ignore' });
+  child.unref();
+}
+
+/**
+ * סוגר את חלון Chrome הייעודי — פעולת "התנתקות" מפורשת.
+ * ‼ מזוהה לפי נתיב הפרופיל, כדי שלעולם לא ייסגר Chrome הרגיל של הרו"ח.
+ */
+export function closeDedicatedChrome() {
+  const ps =
+    `Get-CimInstance Win32_Process -Filter "Name='chrome.exe'" | ` +
+    `Where-Object { $_.CommandLine -like '*shaam-chrome-profile*' } | ` +
+    `ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+  try {
+    execFileSync('powershell', ['-NoProfile', '-Command', ps], { timeout: 15000, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * מתחבר לחלון Chrome הייעודי. כשל חיבור אינו שגיאת מערכת — הוא אומר
+ * "החלון הייעודי לא פתוח", ומטופל ב-handlers כ-needs_human.
+ *
+ * ‼ מחזיר גם את `browser`, כדי שאפשר יהיה להתנתק בסוף כל משימה. חיבור
+ * שנשאר פתוח בין משימות היה מחזיק socket ל-Chrome לנצח.
+ */
+export async function attach() {
+  // ‼ שני שלבים, ולא אחד — אומת בפועל: כשדיאלוג בחירת האישור פתוח, נקודת
+  // הקצה ה-HTTP של CDP עדיין עונה כרגיל, אבל חיבור ה-WebSocket נתקע עד
+  // timeout. בלי ההפרדה הזו, "Chrome לא פתוח" ו"Chrome פתוח וממתין
+  // לאישור" נראים זהים — ואז היינו שולחים את הרו"ח לפתוח חלון שכבר פתוח.
+  const running = await isDebugEndpointUp();
+  try {
+    const browser = await chromium.connectOverCDP(CDP_URL, { timeout: 5000 });
+    const context = browser.contexts()[0];
+    if (!context) {
+      await detach(browser);
+      return { ok: false, reason: 'no_context', detail: 'no_browser_context' };
+    }
+    const page = context.pages()[0] ?? await context.newPage();
+    return { ok: true, browser, page };
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      reason: running ? 'blocked' : 'not_running',
+      detail: detail.slice(0, 200),
+    };
+  }
+}
+
+/** האם תהליך Chrome עם פורט ניפוי חי בכלל. HTTP בלבד — לא נתקע מול דיאלוג. */
+async function isDebugEndpointUp() {
+  try {
+    const res = await fetch(`${CDP_URL}/json/version`, { signal: AbortSignal.timeout(2000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * מנתק את החיבור בלבד. ‼ עבור דפדפן שחובר ב-connectOverCDP, close() מנתק
+ * את הלקוח ואינו הורג את תהליך Chrome — זה מה שמאפשר "התחבר, בצע, התנתק"
+ * שוב ושוב מול אותו חלון מאומת. אומת בבדיקה חוזרת מול תהליך חי.
+ */
+export async function detach(browser) {
+  try { await browser?.close(); } catch { /* החיבור כבר נסגר — לא מעניין */ }
+}
+
+/**
+ * שלב 1 — "מצא את שע״ם". לא שופט אימות.
+ *
+ * ‼ אם הדף כבר נמצא בשע״ם — לא מנווטים מחדש. ניווט מיותר מפריע לרו"ח
+ * שעומד באמצע מסך, ובמקרה הגרוע מפיל אותו חזרה לדף הבית. עצם היותו שם
+ * הוא כבר הראייה שהדומיין מגיב.
+ */
+export async function detectShaam(page, { timeoutMs = 12000 } = {}) {
+  if (page.url().startsWith(SHAAM_ORIGIN)) {
+    return { reachable: true, detail: 'already_on_shaam', title: await safeTitle(page), url: page.url() };
+  }
+  try {
+    await page.goto(SHAAM_ROOT, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    return { reachable: true, detail: 'navigated', title: await safeTitle(page), url: page.url() };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (NETWORK_FAILURE.test(msg)) {
+      return { reachable: false, detail: msg.slice(0, 200), title: null, url: null };
+    }
+    // ‼ כל דבר אחר — כולל Timeout וכולל net::ERR_ABORTED — נחשב "חסום",
+    // לא "לא קיים". אומת בפועל: הקריאה הראשונה בזמן שדיאלוג בחירת האישור
+    // פתוח מחזירה Timeout; קריאה שנייה על אותו דף בזמן שהדיאלוג עדיין פתוח
+    // מחזירה net::ERR_ABORTED — שתי חתימות שונות לאותה סיבה בדיוק
+    // (screens.md: "דיאלוג בחירת אישור חוסם את ה-renderer").
+    return { reachable: true, detail: 'navigation_blocked_likely_dialog', title: null, url: null };
+  }
+}
+
+// כשלים ברורים של רשת/DNS בלבד — לא קשורים לדיאלוג אימות שממתין ללחיצה.
+const NETWORK_FAILURE = /net::ERR_NAME_NOT_RESOLVED|net::ERR_CONNECTION_REFUSED|net::ERR_INTERNET_DISCONNECTED|net::ERR_CONNECTION_RESET|net::ERR_NETWORK_CHANGED/i;
+
+/**
+ * שלב 2 — "בדוק התחברות לשע״ם". כותרת הטאב 'HomePage' היא סימן ההצלחה
+ * המתועד (shaam-login skill · screens.md · מסך E). כל דבר אחר נחשב
+ * "לא מאומת", בלי לנחש למה.
+ */
+export async function classifyShaamAuth(page, { timeoutMs = 12000 } = {}) {
+  const probe = await detectShaam(page, { timeoutMs });
+  if (!probe.reachable) return { authenticated: false, state: 'unreachable', detail: probe.detail };
+  if (probe.detail === 'navigation_blocked_likely_dialog') {
+    return { authenticated: false, state: 'auth_required', detail: 'navigation_blocked' };
+  }
+  if (probe.title === 'HomePage') return { authenticated: true, state: 'authenticated' };
+  if (probe.title && /Error_nocard/i.test(probe.title)) {
+    return { authenticated: false, state: 'card_not_recognized', detail: probe.title };
+  }
+  return { authenticated: false, state: 'unknown', detail: probe.title ?? 'no_title' };
+}
+
+/**
+ * "נגיעה" קלה שמחזיקה את הסשן בשרת ער, בלי לנווט ובלי לשנות שום דבר על
+ * המסך שהרו"ח רואה. בקשה מתוך הדף עצמו — ולכן היא נושאת את הסשן של הדף.
+ * ‼ ניווט/רענון כאמצעי keep-alive נפסל בכוונה: הוא היה קופץ לרו"ח מהמסך
+ * שהוא עומד בו באמצע עבודה.
+ */
+export async function keepAlive(page) {
+  if (!page.url().startsWith(SHAAM_ORIGIN)) return { ok: false, detail: 'not_on_shaam' };
+  try {
+    const status = await page.evaluate(async () => {
+      try {
+        const r = await fetch('/', { method: 'HEAD', cache: 'no-store', credentials: 'include' });
+        return r.status;
+      } catch { return 0; }
+    });
+    return { ok: status > 0, status };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message.slice(0, 120) : String(e) };
+  }
+}
+
+async function safeTitle(page) {
+  try { return await page.title(); } catch { return null; }
+}

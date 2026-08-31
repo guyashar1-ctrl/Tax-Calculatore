@@ -13,9 +13,12 @@ export interface AutomationJobRpcResult {
   job?: AutomationJob;
 }
 
-/** יוצרת משימה, או מחזירה את הפתוחה הקיימת לאותו (לקוח, פעולה) — לא כפילות. */
+/**
+ * יוצרת משימה, או מחזירה את הפתוחה הקיימת לאותו (לקוח, פעולה) — לא כפילות.
+ * `clientId: null` ⇒ משימת מערכת שאינה שייכת ללקוח (חיבור/ניתוק לרשות).
+ */
 export async function createAutomationJob(
-  clientId: string,
+  clientId: string | null,
   actionType: string,
   input: Record<string, unknown> = {},
 ): Promise<AutomationJobRpcResult> {

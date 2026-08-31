@@ -7,6 +7,7 @@ import { USER_ID, WORKER_ID, POLL_SECONDS, LEASE_SECONDS } from './config.mjs';
 import { claim, heartbeat, complete, fail } from './apiClient.mjs';
 import { handlerFor, supportedActionTypes } from './dispatcher.mjs';
 import { NeedsHumanError, PermanentError } from './errors.mjs';
+import { tickConnectionMonitor, invalidateConnectionCache } from './connectionMonitor.mjs';
 
 const VERSION = '0.1.0';
 let stopping = false;
@@ -77,6 +78,8 @@ async function tick() {
     const job = normalizeJob(j.job);
     log(`▶ תפסתי משימה ${job.id} · ${job.actionType} · ניסיון #${job.attempts}`);
     await runJob(job);
+    // חיבור/ניתוק משנים את מצב הנורית — לא ממתינים למחזור הבדיקה הרגיל.
+    if (job.actionType.startsWith('shaam.')) invalidateConnectionCache();
     return true; // רץ עוד סבב מיד — אולי יש עוד עבודה בתור
   }
   // אין עבודה — פעימת נוכחות ריקה, כדי ש-PIVO ידע שהמחשב הזה חי
@@ -90,6 +93,10 @@ async function main() {
   log(`תשאול כל ${POLL_SECONDS}s · חכירה ${LEASE_SECONDS}s`);
   while (!stopping) {
     const found = await tick();
+    // ניטור החיבור רץ באותה לולאה ולא בטיימר נפרד — כדי ששני הדברים לא
+    // ייגעו ב-Chrome בו-זמנית ויתחרו על אותו חיבור CDP.
+    await tickConnectionMonitor(USER_ID, WORKER_ID, log).catch((e) =>
+      log('ניטור חיבור נכשל:', e?.message ?? e));
     if (!found && !stopping) await sleep(POLL_SECONDS * 1000);
   }
   log('להתראות.');

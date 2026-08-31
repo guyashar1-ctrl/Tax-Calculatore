@@ -4221,7 +4221,37 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .txf-qt-old,.txf-qt-new{grid-column:1/-1}
 }
 
-/* ── בדיקות (checksTab) — סקאפולד זמני, ראה ChecksTab.tsx ── */
+/* ── נוריות חיבור לרשויות בכותרת (AuthorityConnectionButtons.tsx) ──
+   ‼ הצבע הוא המידע היחיד כאן: אפור = לא מחובר, ירוק = מחובר. אין רקע
+   צבעוני ואין מסגרת — הכותרת נשארת שקטה, בדיוק כמו שאר הכפתורים בה. */
+.authconn{display:flex;align-items:center;gap:.45rem;margin-inline-start:.6rem}
+.authconn-btn{
+  display:inline-flex;align-items:center;gap:.35rem;
+  background:transparent;border:1px solid var(--hairline-1);
+  border-radius:999px;padding:.2rem .6rem;
+  font-size:var(--fs-12);color:var(--ink-3);cursor:pointer;
+}
+.authconn-btn:hover:not(:disabled){color:var(--ink-1);border-color:var(--hairline-2)}
+.authconn-btn:disabled{opacity:.55;cursor:default}
+.authconn-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--ink-4);flex:none;
+}
+.authconn-btn.is-on{color:var(--ink-1);border-color:var(--success)}
+.authconn-btn.is-on .authconn-dot{background:var(--success)}
+.authconn-note{font-size:var(--fs-12);color:var(--warn);max-width:22ch}
+
+/* ── בדיקות (checksTab) — הרתך פיתוח, ראה ChecksTab.tsx ── */
+/* ‼ משטח פיתוח בכוונה: הרבה כרטיסים קטנים זה אחר זה. הכותרות מפרידות בין
+   קבוצות primitives כדי שהרשימה תישאר קריאה גם כשיצטברו עוד. */
+.checks-section{margin-bottom:1.8rem}
+.checks-section-title{
+  font-size:var(--fs-13);font-weight:600;color:var(--ink-3);
+  letter-spacing:.02em;margin:0 0 .5rem;
+  padding-bottom:.35rem;border-bottom:1px solid var(--hairline-2);
+}
+.checks-section-note{color:var(--ink-3);font-size:var(--fs-12);max-width:66ch;margin:0 0 .7rem}
+.checks-section-note code{font-size:.95em}
 .checks-tab-intro{margin-bottom:1.1rem}
 .checks-tab-intro p{color:var(--ink-3);font-size:var(--fs-13);max-width:60ch;margin:.35rem 0 0}
 .checks-dev-badge{

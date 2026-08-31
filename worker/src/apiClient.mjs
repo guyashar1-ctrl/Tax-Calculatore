@@ -23,3 +23,7 @@ export const complete = (workerId, jobId, result, artifacts) =>
 
 export const fail = (workerId, jobId, errorCode, errorDetail, needsHuman) =>
   call({ op: 'fail', workerId, jobId, errorCode, errorDetail, needsHuman });
+
+/** מצב חיבור לרשויות — דגלים בלבד. לעולם לא עוגיות/טוקנים/PIN. */
+export const reportStatus = (userId, workerId, status) =>
+  call({ op: 'status', userId, workerId, status });

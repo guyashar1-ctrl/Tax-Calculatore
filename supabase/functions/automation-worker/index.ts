@@ -10,7 +10,7 @@
 // עצמו יושב רק כאן, על השרת, ולעולם לא מגיע לתהליך העובד על מחשב המשרד.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-type Op = "claim" | "heartbeat" | "complete" | "fail";
+type Op = "claim" | "heartbeat" | "complete" | "fail" | "status";
 
 interface Body {
   op: Op;
@@ -25,6 +25,8 @@ interface Body {
   errorCode?: string;
   errorDetail?: string;
   needsHuman?: string;
+  /** מצב חיבור לרשויות — דגלים בלבד, לעולם לא מידע אימות. */
+  status?: Record<string, unknown>;
 }
 
 Deno.serve(async (req: Request) => {
@@ -72,6 +74,17 @@ Deno.serve(async (req: Request) => {
         p_job_id: body.jobId ?? null,
         p_lease_seconds: body.leaseSeconds ?? 60,
         p_worker_version: body.workerVersion ?? null,
+      });
+      if (error) return json({ ok: false, error: error.message }, 500);
+      return json(data);
+    }
+
+    if (body.op === "status") {
+      if (!body.userId) return json({ ok: false, error: "bad_request: userId required" }, 400);
+      const { data, error } = await admin.rpc("report_worker_status", {
+        p_user_id: body.userId,
+        p_worker_id: body.workerId,
+        p_status: body.status ?? {},
       });
       if (error) return json({ ok: false, error: error.message }, 500);
       return json(data);

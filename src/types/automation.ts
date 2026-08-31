@@ -50,13 +50,45 @@ export interface AutomationWorker {
   userId: string;
   version?: string;
   lastSeenAt: string;
+  /** מצב חיבור לרשויות. דגלים בלבד — אין ולא יהיה כאן מידע אימות. */
+  status?: AutomationWorkerStatus;
 }
+
+export interface AuthorityConnection {
+  connected: boolean;
+  checkedAt?: string;
+}
+
+export interface AutomationWorkerStatus {
+  shaam?: AuthorityConnection;
+  btl?: AuthorityConnection;
+}
+
+/** הרשויות שמוצגות בכותרת. btl עדיין ללא פונקציונליות — תצוגה בלבד. */
+export type AuthorityKey = 'shaam' | 'btl';
+
+export const AUTHORITY_LABELS: Record<AuthorityKey, string> = {
+  shaam: 'שע״ם',
+  btl: 'ביטוח לאומי',
+};
+
+/** מעל זה — העובד המקומי נחשב כבוי, וכל מצב חיבור שדיווח כבר לא רלוונטי. */
+export const WORKER_STALE_AFTER_MS = 90_000;
 
 // ── פעולת הפיתוח היחידה של אבן דרך 1 — לא לבלבל עם פעולה אמיתית ─────────────
 // ‼ שם עם קידומת dev. כדי שלעולם לא יתבלבל עם action_type אמיתי (למשל
 // shaam.withholding_certificate) — לא ב-UI ולא בלוגים.
 export const DEV_STUB_ACTION_TYPE = 'dev.test_automation';
 
-// ‼ אבן הדרך הראשונה מוכיחה את הצנרת בלבד, לא בדיקת שע״ם אמיתית. הפעולה
-// שאליה זה מכוון בעתיד — לתצוגה בלבד, עדיין לא הפעולה שרצה בפועל.
-export const WITHHOLDING_CERTIFICATE_ACTION_TYPE = 'shaam.withholding_certificate';
+// ── תשתית שע״ם: primitives דטרמיניסטיים, אחד לכל כפתור ──────────────────────
+// כל אחד מוכיח יכולת אחת בלבד ולא מנחש את מה שאחריה. ראה worker/src/handlers/.
+// שם הפעולה בכוונה כללי (shaam.*), לא shaam.open_income_tax_file — עוד לא
+// ידוע אם/איך primitives אלה יורכבו לפעולת מוצר אחת.
+/** שלב 1 — יש דפדפן שמיש, ושע״ם מגיב (בלי לשפוט אימות). */
+export const SHAAM_DETECT_ACTION_TYPE = 'shaam.detect';
+/** שלב 2 — מאומת/לא-מאומת, דטרמיניסטית. לא-מאומת ⇒ needs_human, לעולם לא ניסיון עקיפה. */
+export const SHAAM_CHECK_AUTH_ACTION_TYPE = 'shaam.check_auth';
+/** כפתור "התחברות" בכותרת — פותח את חלון שע״ם. האימות עצמו נשאר אצל הרו"ח. */
+export const SHAAM_CONNECT_ACTION_TYPE = 'shaam.connect';
+/** כפתור "התנתקות" בכותרת — סוגר את חלון שע״ם הייעודי. */
+export const SHAAM_DISCONNECT_ACTION_TYPE = 'shaam.disconnect';
