@@ -1,0 +1,11 @@
+{
+  "name": "pivo-automation-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "עובד אוטומציה מקומי ל-PIVO — רץ על מחשב המשרד, לא חלק מאפליקציית הדפדפן.",
+  "scripts": {
+    "start": "node src/index.mjs"
+  },
+  "dependencies": {}
+}

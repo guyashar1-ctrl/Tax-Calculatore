@@ -14,6 +14,7 @@ import type {
 import type { Engagement, OnboardingStep, OnboardingEvent } from '../types/onboarding';
 import type { AdditionalCharge } from '../types/charges';
 import type { TaxFactChange } from '../types/taxFacts';
+import type { AutomationJob, AutomationWorker } from '../types/automation';
 
 function toSnake(s: string): string {
   // Convert camelCase / PascalCase to snake_case, treating runs of uppercase
@@ -282,4 +283,20 @@ export function eventFromDb(row: Record<string, any>): OnboardingEvent {
 
 export function taxFactChangeFromDb(row: Record<string, any>): TaxFactChange {
   return rowToObject<TaxFactChange>(row);
+}
+
+// ────────────────────────── יסוד האוטומציה — קריאה בלבד ────────────────────
+// כתיבה עוברת רק דרך create_automation_job/cancel_automation_job (הדפדפן)
+// או claim/heartbeat/complete/fail (העובד המקומי, דרך automation-worker) —
+// ראה supabase/150-automation-jobs.sql.
+
+export function automationJobFromDb(row: Record<string, any>): AutomationJob {
+  const j = rowToObject<AutomationJob>(row);
+  if (!j.input) j.input = {};
+  if (!j.artifacts) j.artifacts = [];
+  return j;
+}
+
+export function automationWorkerFromDb(row: Record<string, any>): AutomationWorker {
+  return rowToObject<AutomationWorker>(row);
 }

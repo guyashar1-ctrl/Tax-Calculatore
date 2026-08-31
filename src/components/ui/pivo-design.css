@@ -4219,3 +4219,18 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .txf-qt-new::before{content:"מוצע: ";color:var(--ink-4)}
   .txf-qt-old,.txf-qt-new{grid-column:1/-1}
 }
+
+/* ── בדיקות (checksTab) — סקאפולד זמני, ראה ChecksTab.tsx ── */
+.checks-tab-intro{margin-bottom:1.1rem}
+.checks-tab-intro p{color:var(--ink-3);font-size:var(--fs-13);max-width:60ch;margin:.35rem 0 0}
+.checks-dev-badge{
+  font-size:11px;font-weight:600;letter-spacing:.02em;
+  color:var(--warn);background:var(--warn-bg);
+  border-radius:var(--r-chip);padding:.15rem .55rem;
+}
+.checks-action-body{display:flex;flex-direction:column;gap:.75rem}
+.checks-action-hint{color:var(--ink-3);font-size:var(--fs-13);margin:0}
+.checks-result{margin-top:.3rem;font-size:var(--fs-13);color:var(--ink-2)}
+.checks-result-time{color:var(--ink-4)}
+.checks-error-code{margin-inline-start:.5rem}
+.checks-action-buttons{display:flex;gap:.6rem;flex-wrap:wrap}

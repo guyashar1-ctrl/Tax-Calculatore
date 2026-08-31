@@ -36,6 +36,7 @@ import { recordManualFactChange } from '../lib/taxFacts';
 import { clientFromDb } from '../lib/dbMappers';
 import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
 import ActivityTab from './clientTabs/ActivityTab';
+import ChecksTab from './clientTabs/ChecksTab';
 import InfoLines from './ui/InfoLines';
 
 // ארבע לשוניות קבועות — יכולת חדשה בעתיד נכנסת כקטע בתוך "התיק" או אות
@@ -48,7 +49,7 @@ import InfoLines from './ui/InfoLines';
 // אותן כאזורים מאושרים שווי-משקל ל"תיק מס"/"מסמכים" — שתיהן כבר לשוניות —
 // בתוך client-case-simplified-exploration-v3-final2.html (טאבים process/tax/
 // docs/pay/log). המקור הזה חדש ומחייב יותר מהכלל מ-15.07; לא בוטל, לא נסתר.
-export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding' | 'journey' | 'taxfile' | 'pay' | 'log';
+export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding' | 'journey' | 'taxfile' | 'pay' | 'log' | 'checks';
 
 // שמות הלשוניות נושאים את המשמעות; האייקון ירד (§3.16)
 const TABS: { id: TabId; label: string }[] = [
@@ -80,6 +81,12 @@ const JOURNEY_TABS: { id: TabId; label: string }[] = [
   { id: 'pay',      label: 'הסכם ותשלומים' },
   { id: 'log',      label: 'פעילות' },
 ];
+
+// ‼ "בדיקות" — סקאפולד זמני ליסוד האוטומציה (settings.flags.checksTab, כבוי
+// כברירת מחדל), לא לשונית שישית "מאושרת" באותו מובן כמו החמש שמעליה. ראה
+// docs/PIVO-AUTOMATION-FOUNDATION.html §A: מקומה הקבוע (אם בכלל) ייקבע אחרי
+// שיש שתי אוטומציות ולא אחת. מיד אחרי "פעילות", כמבוקש.
+const CHECKS_TAB: { id: TabId; label: string } = { id: 'checks', label: 'בדיקות' };
 
 interface Props {
   client: Client | null;
@@ -121,6 +128,8 @@ interface Props {
   // ─── דף המסע ───
   /** כבוי ⇒ חמש הלשוניות הישנות חוזרות (settings.flags.journeyUi=false). */
   journeyUi?: boolean;
+  /** דלוק ⇒ לשונית "בדיקות" זמנית נוספת (settings.flags.checksTab). כבוי כברירת מחדל. */
+  checksTabEnabled?: boolean;
   quotations?: import('../types/quotations').Quotation[];
   onOpenQuotation?: (quotationId: string) => void;
   onNewQuotation?: (clientId: string, kind: QuotationKind) => void;
@@ -193,6 +202,7 @@ export default function ClientWorkspace({
   onOpenReleaseLetter,
   onOpenRepresentation,
   journeyUi,
+  checksTabEnabled,
   quotations,
   onOpenQuotation,
   onNewQuotation,
@@ -418,9 +428,9 @@ export default function ClientWorkspace({
   );
   const visibleTabs = useMemo(
     () => journeyUi
-      ? JOURNEY_TABS
+      ? (checksTabEnabled ? [...JOURNEY_TABS, CHECKS_TAB] : JOURNEY_TABS)
       : TABS.filter(t => t.id !== 'onboarding' || hasOnboarding),
-    [journeyUi, hasOnboarding]);
+    [journeyUi, hasOnboarding, checksTabEnabled]);
 
   // ── התג על לשונית «המסע» ──────────────────────────────────────────────────
   // ‼ סופר רק מה שאפשר לעשות עכשיו. תג שסופר גם שלבים נעולים מבטיח עבודה
@@ -529,11 +539,14 @@ export default function ClientWorkspace({
   // שלב החיים — הוא ממשיך להתנקז ל"המסע" כמו קודם.
   useEffect(() => {
     if (!journeyUi) {
-      // ‼ pay/log קיימות רק ב-JOURNEY_TABS. בלי ההחזרה הזו, מי שכיבה את
-      // הקילל-סוויץ' בזמן שהוא עומד עליהן היה נתקע על לשונית שאין לה כפתור.
-      if (tab === 'journey' || tab === 'pay' || tab === 'log') setTab('overview');
+      // ‼ pay/log/checks קיימות רק ב-JOURNEY_TABS. בלי ההחזרה הזו, מי שכיבה
+      // את הקילל-סוויץ' בזמן שהוא עומד עליהן היה נתקע על לשונית שאין לה כפתור.
+      if (tab === 'journey' || tab === 'pay' || tab === 'log' || tab === 'checks') setTab('overview');
       return;
     }
+    // ‼ אותו טעם: "בדיקות" קיימת רק כש-checksTabEnabled דלוק. כיבוי הדגל
+    // בזמן שעומדים עליה לא אמור להשאיר מסך בלי לשונית פעילה.
+    if (tab === 'checks' && !checksTabEnabled) { setTab('overview'); return; }
     if (tab !== 'overview' && tab !== 'onboarding') return;
     if (!tabPickedByUser.current && initialClient?.id) {
       const stage = initialClient.lifecycleStage ?? 'active';
@@ -541,7 +554,7 @@ export default function ClientWorkspace({
     } else {
       setTab('journey');
     }
-  }, [journeyUi, tab, initialClient?.id]);
+  }, [journeyUi, tab, initialClient?.id, checksTabEnabled]);
 
   const fullName = `${client.firstName} ${client.lastName}`.trim() || (isNew ? 'לקוח חדש' : '(ללא שם)');
   const status = client.representationStatus ?? 'active';
@@ -805,6 +818,10 @@ export default function ClientWorkspace({
             quotations={quotations ?? []}
             charges={clientCharges}
           />
+        )}
+
+        {!alignmentStatusOpen && tab === 'checks' && checksTabEnabled && (
+          <ChecksTab client={client} />
         )}
 
         {!alignmentStatusOpen && tab === 'overview' && (

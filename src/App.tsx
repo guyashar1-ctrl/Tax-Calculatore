@@ -414,6 +414,11 @@ export default function App() {
   // (ClientList) חוזר במלואו. תצוגה בלבד, שום נתון לא תלוי בו. יוסר בשלב הניקוי.
   const personDirectory =
     ((firmProfile?.settings?.flags as { personDirectory?: boolean } | undefined)?.personDirectory) !== false;
+  // ‼ סקאפולד זמני ליסוד האוטומציה (docs/PIVO-AUTOMATION-FOUNDATION.html):
+  // דלוק במפורש בלבד, לא ברירת מחדל כמו הדגלים שמעליו — זה מרכז עבודה של
+  // פיתוח, לא יכולת מוצר מוגמרת. ראה src/components/clientTabs/ChecksTab.tsx.
+  const checksTab =
+    ((firmProfile?.settings?.flags as { checksTab?: boolean } | undefined)?.checksTab) === true;
   const onboarding = useOnboarding(onboardingEnabled ? user?.id : undefined);
   /** קבצים שהרו״ח הקודם שלח ושעוד לא נפתחו — המונה בכותרת. */
   const newUploadsByClient = useMemo(
@@ -2254,6 +2259,7 @@ export default function App() {
             onOpenReleaseLetter={(clientId, stepId, mode) => openReleaseLetter(clientId, stepId, mode)}
             onOpenRepresentation={handleOpenClientRepresentation}
             journeyUi={journeyUi}
+            checksTabEnabled={checksTab}
             quotations={quotations}
             onOpenQuotation={(id) => {
               const q = quotations.find(x => x.id === id);

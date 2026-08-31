@@ -2,7 +2,10 @@
 // הערך המקובל של כל עובדה נשאר על Client (השדות הקיימים). הטיפוס הזה מתאר
 // רק מעברים: הצעה ממתינה, החלטה, והיסטוריה. ראה supabase/90-tax-fact-reconciliation.sql.
 
-export type TaxFactSource = 'questionnaire' | 'manual' | 'institution_alignment' | 'import';
+// ‼ 'automation' נוסף 31.8.2026 ליסוד האוטומציה — תוצאה של בדיקה אוטומטית
+// מול רשות היא הצעה כמו כל מקור אחר, לעולם לא כתיבה ישירה. ראה
+// supabase/151-tax-fact-source-automation.sql.
+export type TaxFactSource = 'questionnaire' | 'manual' | 'institution_alignment' | 'import' | 'automation';
 export type TaxFactStatus = 'pending' | 'accepted' | 'rejected';
 
 /** מה שרואים בעמודת "לפני"/"אחרי" — לא בהכרח ערך גולמי, לפעמים תיאור אנושי. */
@@ -42,6 +45,7 @@ export const TAX_FACT_SOURCE_LABELS: Record<TaxFactSource, string> = {
   manual: 'עריכה ידנית',
   institution_alignment: 'יישור קו מול הרשויות',
   import: 'יבוא',
+  automation: 'בדיקה אוטומטית',
 };
 
 /** פריט להצעה — נשלח כמו שהוא ל-propose_tax_facts. */

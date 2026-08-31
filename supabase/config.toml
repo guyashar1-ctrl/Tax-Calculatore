@@ -42,6 +42,10 @@ verify_jwt = false
 [functions.weekly-backup]
 verify_jwt = false
 
+# העובד המקומי (worker/) — סוד משלו ב-x-worker-secret, לא JWT של משתמש.
+[functions.automation-worker]
+verify_jwt = false
+
 # מיילים של שלבי הקליטה (הזמנה לפייפרלס, הרשאת תשלום, תזכורת). אין לה מסלול
 # ציבורי — האימות נעשה בתוכה מה-JWT של הרו"ח, ובלעדיו היא מחזירה 401.
 [functions.send-step-email]
