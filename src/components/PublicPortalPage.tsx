@@ -1174,31 +1174,28 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                 last={i === actions.length - 1} onDone={reload} />
             ))}
           </>
-        ) : done.length > 0 && future.length === 0 && office.length === 0 && !hasUnopenedDoc ? (
+        ) : hasUnopenedDoc ? (
+          /* ‼ מוביל במה שרלוונטי, לא בהיעדר חובות. "אין לך משימות" ראשון
+             נקרא כ"אין כאן שום דבר בשבילי" — גם כשמיד מתחתיו מחכה מסמך
+             שהמשרד שלח. מסמך שטרם נפתח אינו חובה, אבל הוא כן הדבר הרלוונטי
+             ביותר על המסך, והפתיחה שלו היא הצעד הטבעי הבא. */
+          <div style={{ fontSize: 15, fontWeight: 550, color: brand.ink, margin: '18px 0 4px' }}>
+            {unopenedCount === 1
+              ? 'המשרד שלח לך מסמך חדש.'
+              : `המשרד שלח לך ${unopenedCount} מסמכים חדשים.`}
+          </div>
+        ) : done.length > 0 && future.length === 0 && office.length === 0 ? (
           /* ‼ "הכול הושלם" רק כשבאמת אין המשך. עם שלב עתידי נעול או עם משהו
              שבטיפולנו זה היה שקר קטן שמייצר פנייה: הלקוח קורא שסיים, ואז
-             נפתח לו עוד שלב.
-             ‼ וגם לא כשממתין לו מסמך שטרם פתח: הוא אינו חייב לפתוח אותו,
-             ולכן זה לא "ממתין לך" — אבל 🎉 מעל מסמך שלא נפתח קורא כמו טעות. */
+             נפתח לו עוד שלב. מסמך שטרם נפתח כבר נתפס בענף שמעל. */
           <div style={{ fontSize: 15, color: brand.ink, margin: '18px 0 4px' }}>
             הכול הושלם{firstName ? `, ${firstName}` : ''} 🎉
           </div>
         ) : (
-          /* ‼ המשפט מדבר על **אחריות** ולא על "מה יש בדף": "אין כרגע משהו
-             שממתין לך" מעל מסמך שטרם נפתח נקרא כסתירה — יש משהו בדף, הוא
-             פשוט לא חובה. לכן שני משפטים נפרדים לשתי עובדות נפרדות:
-             אין לך משימות ≠ אין שום דבר חדש. */
-          <div style={{ margin: '18px 0 4px' }}>
-            <div style={{ fontSize: 13.5, color: brand.muted }}>
-              אין לך משימות לביצוע כרגע.
-            </div>
-            {hasUnopenedDoc && (
-              <div style={{ fontSize: 14, fontWeight: 500, color: brand.ink, marginTop: 5 }}>
-                {unopenedCount === 1
-                  ? 'המשרד שלח לך מסמך חדש.'
-                  : `המשרד שלח לך ${unopenedCount} מסמכים חדשים.`}
-              </div>
-            )}
+          /* ‼ המשפט הרגוע שמור למצב שבו באמת אין מה לעשות **ואין שום דבר
+             חדש**: לא חובות, ולא מסמך שממתין לעיון. */
+          <div style={{ fontSize: 13.5, color: brand.muted, margin: '18px 0 4px' }}>
+            אין כרגע משהו שדורש את טיפולך.
           </div>
         )}
 
