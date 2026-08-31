@@ -125,10 +125,10 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
   /**
    * מתי מוצגת שאלת "עבור מי" — רק כשידוע שיש בן/בת זוג.
    *
-   * ‼ בכוונה **לא** מוצג במצב משפחתי לא-ידוע, בניגוד לצ'קבוקס הב"ל: החלון
-   * המקופל הוא המסך שנפתח בכל בקשה, ורובן ליחיד. שאלה שמופיעה שם בכל פעם
-   * הייתה מייקרת את ברירת המחדל כדי לשרת מיעוט. מי שיודע שיש בן/בת זוג
-   * פותח "פרטים שכבר ידועים לי" ומסמן — ואז השאלה מופיעה, עם השם או בלעדיו.
+   * ‼ בכוונה **לא** מוצג במצב משפחתי לא-ידוע, בניגוד לצ'קבוקס הב"ל: רוב
+   * הבקשות הן ליחיד, ושאלה שמופיעה בכל אחת מהן הייתה מייקרת את ברירת המחדל
+   * כדי לשרת מיעוט. מאז שהמצב המשפחתי הוא השאלה הראשונה במסך (31.8) הסימון
+   * "נשוי" נמצא במרחק לחיצה אחת מכאן, ובאותה זרימה — ולא מאחורי מקטע מקופל.
    */
   const spouseKnown = married || !!spouseName.trim();
 
@@ -387,6 +387,52 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
         </div>
 
         <div className="modal-body">
+          {/* ── מצב משפחתי — השאלה הראשונה ────────────────────────────────────
+              ‼ הכרעת גיא (31.8): היא נשאלת **לפני** הרשויות, כי היא זו שפותחת
+              את "עבור מי" בתוך שורת הרשות. קודם היא ישבה במקטע המקופל שמתחת,
+              ולכן מי שרצה לסמן תיק על שם בן/בת הזוג היה צריך לגלול למטה, לפתוח
+              מקטע, לבחור — ולחזור למעלה לרשויות. עכשיו זה קורה בזרימה אחת.
+              "שהלקוח יבחר" נשאר ברירת המחדל: לרוב באמת לא יודעים. */}
+          <div style={{
+            padding: '.7rem .8rem', marginBottom: '1.1rem',
+            border: `1px solid ${familyStatus ? 'var(--accent)' : 'var(--hairline-1)'}`,
+            borderRadius: 'var(--radius)',
+          }}>
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginBottom: '.4rem' }}>
+              מצב משפחתי
+            </label>
+            <select
+              value={familyStatus}
+              onChange={(e) => { setFamilyStatus(e.target.value as FamilyStatus | ''); setFamilyYear(''); }}
+              disabled={busy}
+            >
+              <option value="">{'-'} שהלקוח יבחר {'-'}</option>
+              {FAMILY_ORDER.map(f => (
+                <option key={f} value={f}>{FAMILY_STATUS_LABELS[f]}</option>
+              ))}
+            </select>
+            {yearLabel && (
+              <div className="form-group" style={{ marginTop: '.5rem' }}>
+                <label>{yearLabel}</label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={familyYear}
+                  onChange={(e) => setFamilyYear(e.target.value)}
+                  placeholder={`לדוגמה: ${CURRENT_YEAR - 5}`}
+                  min={1900}
+                  max={CURRENT_YEAR}
+                  disabled={busy}
+                />
+              </div>
+            )}
+            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.4rem', lineHeight: 1.5 }}>
+              {married
+                ? 'בכל רשות שהתיק בה אישי אפשר לסמן עכשיו על שם מי הוא.'
+                : 'כפי שרשום בתעודת הזהות. אם נשוי - ייפתח בכל רשות "עבור מי".'}
+            </div>
+          </div>
+
           {/* ‼ השאלה הזאת נשאלת לפני הרשויות ולא אחריהן: היא זו שקובעת אם
               נכנסים כמייצג ראשי או משני, והיא זו שמולידה את מכתב השחרור.
               קודם היא נגזרה מהליד בלבד — ובבקשת ייצוג ישירה לא היה איפה לסמן. */}
@@ -618,38 +664,6 @@ export default function RepresentationOnboardingDialog({ onCreate, onCancel, che
                 />
               </div>
 
-              <div className="form-group" style={{ marginTop: '.5rem' }}>
-                <label>מצב משפחתי</label>
-                <select
-                  value={familyStatus}
-                  onChange={(e) => { setFamilyStatus(e.target.value as FamilyStatus | ''); setFamilyYear(''); }}
-                  disabled={busy}
-                >
-                  <option value="">{'-'} שהלקוח יבחר {'-'}</option>
-                  {FAMILY_ORDER.map(f => (
-                    <option key={f} value={f}>{FAMILY_STATUS_LABELS[f]}</option>
-                  ))}
-                </select>
-                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 4 }}>
-                  כפי שרשום בתעודת הזהות - הרשויות בודקות מול מרשם האוכלוסין.
-                </div>
-              </div>
-
-              {yearLabel && (
-                <div className="form-group" style={{ marginTop: '.5rem' }}>
-                  <label>{yearLabel}</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={familyYear}
-                    onChange={(e) => setFamilyYear(e.target.value)}
-                    placeholder={`לדוגמה: ${CURRENT_YEAR - 5}`}
-                    min={1900}
-                    max={CURRENT_YEAR}
-                    disabled={busy}
-                  />
-                </div>
-              )}
 
               {married && (
                 <div style={{ marginTop: '.75rem', paddingTop: '.75rem', borderTop: '1px solid var(--hairline-1)' }}>
