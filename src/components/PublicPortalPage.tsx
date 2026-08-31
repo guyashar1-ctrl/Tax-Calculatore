@@ -659,9 +659,23 @@ function DocumentRow({ token, file, brand, accent, onDone }: {
         flex: 1, minWidth: 0, fontSize: 14, color: accent,
         fontWeight: opened ? 400 : 550, overflowWrap: 'anywhere',
       }}>{file.label}</span>
-      <span style={{ flexShrink: 0, fontSize: 12, color: brand.muted }}>
-        {opened ? 'נפתח' : 'לפתיחה ←'}
-      </span>
+      {/* ‼ «חדש» ולא «לפתיחה ←»: חץ-פעולה הופך מסירה להוראה, וזו בדיוק
+          הסתירה שמתחת ל"אין לך משימות". השם בצבע קישור והאייקון כבר אומרים
+          שלוחצים; התגית רק אומרת מה טרם ראית. מתאר בצבע המותג — לא כתום,
+          לא אזהרה, לא מטלה. */}
+      {opened ? (
+        <span style={{ flexShrink: 0, fontSize: 12, color: brand.muted }}>נפתח</span>
+      ) : (
+        <span style={{
+          flexShrink: 0, fontSize: 11, fontWeight: 700, lineHeight: 1.7,
+          padding: '0 8px', borderRadius: 999, whiteSpace: 'nowrap',
+          color: accent, border: '1px solid currentColor', opacity: .8,
+        }}>חדש</span>
+      )}
+      {/* תגיות התצוגה המקדימה צמודות לשורה שהן מדברות עליה — תגית שצפה
+          לבדה מתחת לכותרת הקטע לא אמרה על מה היא חלה. */}
+      {previewMode && item.draft && <DraftChip />}
+      {previewMode && item.removing && <RemovingChip />}
     </>
   );
 
@@ -1125,7 +1139,6 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
     .map(i => ({
       key: i.key,
       note: isSentDoc(i) ? i.note : undefined,
-      draft: i.draft, removing: i.removing,
       files: i.resources?.length
         ? i.resources.map(f => ({
             key: `${i.key}-${f.key}`, label: f.label, opened: f.done,
@@ -1138,7 +1151,9 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           }],
     }))
     .sort((a, b) => Number(b.files.some(f => !f.opened)) - Number(a.files.some(f => !f.opened)));
-  const hasUnopenedDoc = docGroups.some(g => g.files.some(f => !f.opened));
+  const unopenedCount = docGroups.reduce(
+    (n, g) => n + g.files.filter(f => !f.opened).length, 0);
+  const hasUnopenedDoc = unopenedCount > 0;
   const firstName = data.clientFirstName;
 
   return (
@@ -1169,8 +1184,21 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             הכול הושלם{firstName ? `, ${firstName}` : ''} 🎉
           </div>
         ) : (
-          <div style={{ fontSize: 13.5, color: brand.muted, margin: '18px 0 4px' }}>
-            אין כרגע משהו שממתין לך.
+          /* ‼ המשפט מדבר על **אחריות** ולא על "מה יש בדף": "אין כרגע משהו
+             שממתין לך" מעל מסמך שטרם נפתח נקרא כסתירה — יש משהו בדף, הוא
+             פשוט לא חובה. לכן שני משפטים נפרדים לשתי עובדות נפרדות:
+             אין לך משימות ≠ אין שום דבר חדש. */
+          <div style={{ margin: '18px 0 4px' }}>
+            <div style={{ fontSize: 13.5, color: brand.muted }}>
+              אין לך משימות לביצוע כרגע.
+            </div>
+            {hasUnopenedDoc && (
+              <div style={{ fontSize: 14, fontWeight: 500, color: brand.ink, marginTop: 5 }}>
+                {unopenedCount === 1
+                  ? 'המשרד שלח לך מסמך חדש.'
+                  : `המשרד שלח לך ${unopenedCount} מסמכים חדשים.`}
+              </div>
+            )}
           </div>
         )}
 
@@ -1234,12 +1262,6 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                     margin: '6px 0 2px', fontSize: 12.5, lineHeight: 1.7,
                     color: brand.muted, whiteSpace: 'pre-line',
                   }}>{g.note}</p>
-                )}
-                {preview && (g.draft || g.removing) && (
-                  <div style={{ display: 'flex', gap: 6, margin: '4px 0' }}>
-                    {g.draft && <DraftChip />}
-                    {g.removing && <RemovingChip />}
-                  </div>
                 )}
                 {g.files.map(f => (
                   <DocumentRow key={f.key} token={token} file={f} brand={brand} accent={accent}
