@@ -106,6 +106,13 @@ interface InstitutionConfig {
 const YES_NO_UNCLEAR = ['לא', 'כן', 'לא ברור'];
 const AUTH_OPTS = ['קיימת', 'אין הרשאה'];
 
+/**
+ * מוסכמת הסימן ליתרות. ‼ אותה מוסכמת בדיוק נקראת בכיוון ההפוך במחולל הדגלים
+ * (utils/authorityFlags.ts) — יתרה חיובית היא חוב. בלי ההסבר הזה בשדה עצמו,
+ * רו"ח שיקליד חוב כמספר שלילי יקבל "יתרת זכות" בתמונת המצב.
+ */
+const BALANCE_NOTE = 'כפי שמופיע בפורטל: מספר חיובי = חוב, שלילי = יתרת זכות, 0 = אין יתרה.';
+
 const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
   btl: {
     occupationsWhere: ['פרטים כלליים → ריכוז מידע → עיסוק', 'עיסוקים והכנסות → רשימת עיסוקים'],
@@ -115,6 +122,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
         fields: [
           { key: 'niBalance', label: 'יתרה בביטוח לאומי', type: 'number', governedKey: 'niBalance',
             where: ['מצב חשבון → לפי ימי ערך ריאלי'],
+            note: BALANCE_NOTE,
             toPatchValue: v => v === '' ? null : Number(v) },
         ],
       },
@@ -163,6 +171,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
             toPatchValue: v => v === 'חודשי' ? 'monthly' : 'bi_monthly' },
           { key: 'vatLastReportPeriod', label: 'דוח אחרון שהוגש', placeholder: '06/2026', governedKey: 'vatLastReportPeriod' },
           { key: 'vatBalance', label: 'יתרה במע״מ', type: 'number', governedKey: 'vatBalance',
+            note: BALANCE_NOTE,
             toPatchValue: v => v === '' ? null : Number(v) },
         ],
       },
@@ -197,6 +206,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
             options: ['חודשי', 'דו-חודשי'], governedKey: 'pitAdvanceFrequency',
             toPatchValue: v => v === 'חודשי' ? 'monthly' : 'bi_monthly' },
           { key: 'incomeTaxBalance', label: 'יתרה במס הכנסה', type: 'number', governedKey: 'incomeTaxBalance',
+            note: BALANCE_NOTE,
             toPatchValue: v => v === '' ? null : Number(v) },
           { key: 'reportingStatus', label: 'מצב דיווחים', placeholder: 'למשל: אין דיווחים חסרים / חסר דיווח',
             governedKey: 'incomeTaxReportingStatus' },
@@ -206,8 +216,13 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
         kicker: 'ניכוי במקור וניהול ספרים',
         where: ['אישורי ניכוי במקור וניהול ספרים'],
         fields: [
+          // ‼ נכתב כעובדה מנוהלת ולא רק כ-payload: 'שיעורים' ו'אין אישור תקף'
+          // שניהם hasExemptFromWithholding=false, ולכן בלי השדה הזה הדגל
+          // "אין אישור ניכוי במקור בתוקף" אינו ניתן לגזירה. ראה supabase/146.
           { key: 'withholdingStatus', label: 'מצב ניכוי במקור', type: 'select',
             options: ['פטור מניכוי', 'שיעור/ים לפי פעילות', 'אין אישור תקף'],
+            governedKey: 'withholdingStatus',
+            toPatchValue: v => v === 'פטור מניכוי' ? 'exempt' : v === 'אין אישור תקף' ? 'none' : 'rates',
             attach: { docKey: 'withholdingCertificate', linkLabel: 'אישור ניכוי מס במקור',
               category: 'business_document' } },
           { key: 'withholdingDetail', label: 'פירוט (כפי שמופיע באישור)', governedKey: 'withholdingDetail',
@@ -280,14 +295,19 @@ async function proposeAndAccept(
   return { client: accept.client ? clientFromDb(accept.client) : null, pending: false };
 }
 
+/**
+ * ‼ flagKey הוא מפתח יציב שמאפשר לתמונת המצב לזהות שכבר נוצרה בקשה לדגל הזה
+ * ולהציג "נוצרה בקשה ללקוח" במקום כפתור. זיהוי לפי הכותרת היה נשבר בכל שינוי
+ * ניסוח — ראה system-task-identity-is-its-title.
+ */
 async function createDebitAuthRequest(
-  clientId: string, stageId: string | null, title: string, sub: string,
+  clientId: string, stageId: string | null, title: string, sub: string, flagKey: string,
 ): Promise<void> {
   await supabase.rpc('create_onboarding_request', {
     p_client_id: clientId,
     p_step_type: 'custom_request',
     p_payload: {
-      title, clientTitle: title, clientSub: sub, clientCta: 'לאישור',
+      title, clientTitle: title, clientSub: sub, clientCta: 'לאישור', flagKey,
       requirements: [{ key: 'debit_auth_confirm', kind: 'confirm', label: 'הקמתי את הרשאת החיוב', done: false }],
     },
     p_due_date: null,
@@ -609,7 +629,9 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
         const outcome = exc.outcome(val);
         if (outcome.kind === 'clarification') clarifications.push(outcome.text);
         else if (outcome.kind === 'request') {
-          await createDebitAuthRequest(client.id, step.stageId ?? null, outcome.title, outcome.sub ?? outcome.title);
+          await createDebitAuthRequest(
+            client.id, step.stageId ?? null, outcome.title, outcome.sub ?? outcome.title,
+            exc.governedKey ?? exc.key);
         }
       }
       (cfg.derivedClarifications?.(fullCollected) ?? []).forEach(t => clarifications.push(t));

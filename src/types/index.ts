@@ -743,6 +743,12 @@ export interface Client {
   incomeTaxDebitAuthorization?: boolean;
   /** תיאור חופשי כשהניכוי במקור אינו שיעור בודד (למשל "5% שירותים / 10% מוצרים"). withholdingRate נשאר לשיעור הפשוט. */
   withholdingDetail?: string;
+  /**
+   * מצב אישור הניכוי במקור. ‼ 'rates' ו-'none' אינם ניתנים להבחנה דרך
+   * hasExemptFromWithholding (שניהם false) — ובלי ההבחנה הזו "אין אישור תקף"
+   * אינו ניתן לזיהוי כדגל שדורש טיפול. ראה supabase/146.
+   */
+  withholdingStatus?: 'exempt' | 'rates' | 'none';
   /** מצב דיווחים במס הכנסה, כפי שנרשם ב-134 מקדמות (למשל "אין דיווחים חסרים" / "חסר דיווח"). עובדה מקצועית מאושרת (M2 fix). */
   incomeTaxReportingStatus?: string;
 
