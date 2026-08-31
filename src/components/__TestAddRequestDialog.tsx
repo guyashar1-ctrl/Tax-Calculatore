@@ -6,7 +6,7 @@
 //
 // פתיחה:  http://localhost:5173/?test-addrequest   (DEV בלבד)
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { OnboardingStep } from '../types/onboarding';
 import { supabase } from '../lib/supabase';
 import AddRequestDialog from './clientTabs/AddRequestDialog';
@@ -136,6 +136,26 @@ export default function TestAddRequestDialog() {
    *  המסמכים. `?test-addrequest&send` מאפשר גם צילום בכרום ללא-ראש. */
   const [sendMode, setSendMode] = useState(
     typeof window !== 'undefined' && window.location.search.includes('send'));
+
+  /**
+   * `?test-addrequest&upload` — מזריק קובץ מהמחשב לתוך החלון, כדי שאפשר יהיה
+   * לראות (ולצלם) את שורת התיוק שמופיעה רק להעלאה חדשה.
+   * ‼ נוגע ב-DOM ולא ב-props של החלון: זה נתיב בדיקה בלבד, ואין סיבה
+   * שהרכיב האמיתי יכיר אותו.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.location.search.includes('upload')) return;
+    const t = window.setInterval(() => {
+      const input = document.querySelector<HTMLInputElement>('.modal input[type=file]');
+      if (!input) return;
+      window.clearInterval(t);
+      const dt = new DataTransfer();
+      dt.items.add(new File(['%PDF-1.4 demo'], 'פטור מניכוי מס במקור.pdf', { type: 'application/pdf' }));
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, 200);
+    return () => window.clearInterval(t);
+  }, []);
 
   const refresh = () => {
     setSent(calls.length === 0 ? 'טרם נשלח' : JSON.stringify(calls, null, 2));

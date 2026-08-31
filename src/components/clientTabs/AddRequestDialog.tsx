@@ -17,8 +17,10 @@ import type { ClientDocument } from '../../lib/clientGuide';
 import { documentLibrary } from '../../lib/clientGuide';
 import type { SendResource } from '../../lib/sendDocuments';
 import { buildSendDocumentsPayload, documentLabel, resourceKey } from '../../lib/sendDocuments';
-import type { StoredDoc } from '../../hooks/useDocumentStore';
+import type { DocumentLabel, StoredDoc } from '../../hooks/useDocumentStore';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
+import { AVAILABLE_YEARS } from '../../data/taxData';
+import LabelSelect from '../ui/LabelSelect';
 import {
   BUILT_IN_DOC_OPTIONS, allDocOptions, withDocOption, withoutDocOption,
 } from '../../lib/documentRequestOptions';
@@ -102,12 +104,25 @@ interface PickedFile {
   documentId?: string;
   label: string;
   fileName?: string;
+  /**
+   * קובץ מהמחשב שעוד לא נשמר.
+   * ‼ נשמר רק בשליחה, ולא ברגע הבחירה: כך ביטול החלון אינו משאיר קובץ יתום
+   * בתיק, וגם השנה והתווית שנבחרו נכנסות איתו מלכתחילה במקום להיכתב אחר כך.
+   */
+  file?: File;
 }
 
 /** אותו קובץ ממש — כדי שבחירה כפולה לא תשלח אותו פעמיים. */
 const sameFile = (a: PickedFile, b: PickedFile) =>
-  a.source === b.source &&
-  (a.source === 'office' ? a.officeId === b.officeId : a.documentId === b.documentId);
+  a.source === b.source && (
+    a.source === 'office' ? a.officeId === b.officeId
+      : (a.documentId && b.documentId) ? a.documentId === b.documentId
+      : a.uid === b.uid);
+
+/** ‼ ברירת מחדל אמיתית ולא «כללי»: מסמך שנשלח ללקוח הוא כמעט תמיד של השנה
+ *  הנוכחית (אישור ניהול ספרים, פטור מניכוי), ו«כללי» היה מוחק את ההבדל בין
+ *  האישור של השנה לזה של שנה שעברה — שנושאים בדיוק אותו שם. */
+const CURRENT_YEAR = String(new Date().getFullYear());
 
 
 /** טקסט הכפתור אצל הלקוח, כשלא נכתב אחר. סוג הדרישה כבר אומר מה עושים. */
@@ -198,6 +213,15 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const db = useDocumentStore();
+  /**
+   * שנה ותווית לקבצים שהועלו מהמחשב.
+   * ‼ אותו כלל שחל בכל העלאה אחרת במערכת: שנה ותווית הן חובה, ו'לבדיקה'
+   * (התווית השמורה ל-legacy שטרם סווג) לעולם אינה נבחרת מאליה. קובץ שנשלח
+   * ללקוח הוא מסמך לכל דבר בתיק שלו, ואין סיבה שהוא ייכנס פחות מסודר.
+   */
+  const [uploadMeta, setUploadMeta] = useState<{ year: string; labelId: string }>(
+    { year: CURRENT_YEAR, labelId: '' });
+  const [labels, setLabels] = useState<DocumentLabel[]>([]);
 
   // ‼ נטענת מיד עם פתיחת החלון, ולא רק כשנכנסים למסך המסמך: הקטלוג צריך
   // לדעת מראש אם יש מה לשלוח, כדי להשבית את הפריט במקום לגלות בסוף.
@@ -227,6 +251,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     setMessage('');
     setPicker(null);
     setDocSearch('');
+    setUploadMeta({ year: CURRENT_YEAR, labelId: '' });
     // שליחת מסמך אינה עבודה שחוסמת סגירת קליטה — היא חומר עזר.
     setRequiredForClose(false);
   }
@@ -246,61 +271,82 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   const removePick = (uid: string) => setPicked(list => list.filter(x => x.uid !== uid));
 
   /**
-   * העלאה מהמחשב — הקובץ נשמר **בתיק של הלקוח** ומשם נשלח.
+   * קובץ מהמחשב נכנס לרשימה — ונשמר רק בשליחה.
    *
-   * ‼ פעולה אחת ולא שתיים, וזו הנקודה: "לשלוח וגם שיישמר אצלו" היה עד היום
-   * העלאה בתיק ואז בקשה נפרדת. הקובץ קיים במקום אחד בלבד, ולכן גם אין עותק
-   * שני שיכול להתיישן.
-   * ‼ בלי לשאול תווית ושנה: הבחירה הזאת שייכת לתיוק, והיא היתה הופכת שליחת
-   * מסמך לטופס. נכנס תחת 'לבדיקה' — התווית השמורה למה שטרם סווג — וגיא
-   * מתייק אחר כך אם ירצה.
+   * ‼ "לשלוח וגם שיישמר אצלו" היה עד היום העלאה בתיק ואז בקשה נפרדת. כאן
+   * זו פעולה אחת והקובץ קיים במקום אחד בלבד, ולכן אין עותק שני שיתיישן.
    */
-  async function uploadAndPick(files: File[]) {
+  function pickFromComputer(files: File[]) {
     if (files.length === 0) return;
-    setUploading(true);
     setError(null);
-    try {
-      const labels = await db.getLabels();
-      const reserved = labels.find(l => l.isReserved)?.id ?? null;
-      for (const file of files) {
-        const id = crypto.randomUUID();
-        const label = file.name.replace(/\.[^./\\]+$/, '');
-        await db.saveDoc({
-          id,
-          clientId,
-          fileName: file.name,
-          fileType: file.type || 'application/octet-stream',
-          fileSize: file.size,
-          category: 'other',
-          year: 'general',
-          uploadedAt: new Date().toISOString(),
-          description: label,
-          notes: '',
-          fileData: await file.arrayBuffer(),
-          folderId: null,
-          labelId: reserved,
-        });
-        addPick({ uid: id, source: 'client', documentId: id, label, fileName: file.name });
-      }
-      // התיק נטען מחדש כדי שהקובץ שהועלה יופיע גם בבורר, ולא רק ברשימה.
-      setClientDocs(undefined);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'ההעלאה נכשלה.');
+    // ‼ התוויות נטענות רק עכשיו: רק העלאה מהמחשב זקוקה להן.
+    if (labels.length === 0) void db.getLabels().then(setLabels);
+    for (const file of files) {
+      addPick({
+        uid: `new-${crypto.randomUUID()}`, source: 'client', file,
+        label: documentLabel({ fileName: file.name }), fileName: file.name,
+      });
     }
-    setUploading(false);
   }
 
-  function submitSendDocuments() {
+  /** הקבצים החדשים נשמרים בתיק של הלקוח, ומחזירים את המזהים שלהם. */
+  async function persistPending(): Promise<Map<string, string>> {
+    const ids = new Map<string, string>();
+    const year = uploadMeta.year === 'כללי' ? 'general' : (Number(uploadMeta.year) || 'general');
+    for (const p of picked) {
+      if (!p.file) continue;
+      const id = crypto.randomUUID();
+      await db.saveDoc({
+        id,
+        clientId,
+        fileName: p.file.name,
+        fileType: p.file.type || 'application/octet-stream',
+        fileSize: p.file.size,
+        category: 'other',
+        year,
+        uploadedAt: new Date().toISOString(),
+        description: p.label,
+        notes: '',
+        fileData: await p.file.arrayBuffer(),
+        folderId: null,
+        labelId: uploadMeta.labelId,
+      });
+      ids.set(p.uid, id);
+    }
+    return ids;
+  }
+
+  async function submitSendDocuments() {
     const text = message.trim();
     if (picked.length === 0 && !text) {
       setError('צריך לבחור לפחות קובץ אחד, או לכתוב הודעה.');
       return;
     }
+    if (hasNewFiles && (!uploadMeta.year || !uploadMeta.labelId)) {
+      setError('לקבצים שהעלית צריך שנה ותווית - כך הם נשמרים בתיק של הלקוח.');
+      return;
+    }
+
+    // ‼ קודם שומרים, ורק אז יוצרים את הבקשה: בקשה שמצביעה לקובץ שלא נשמר
+    // הייתה נפתחת אצל הלקוח לשום מקום.
+    let ids = new Map<string, string>();
+    if (hasNewFiles) {
+      setUploading(true);
+      try {
+        ids = await persistPending();
+      } catch (e) {
+        setUploading(false);
+        setError(e instanceof Error ? e.message : 'שמירת הקבצים נכשלה.');
+        return;
+      }
+      setUploading(false);
+    }
+
     const resources: SendResource[] = picked.map((p, i) => ({
       key: resourceKey(i),
       source: p.source,
       officeId: p.officeId,
-      documentId: p.documentId,
+      documentId: p.documentId ?? ids.get(p.uid),
       label: p.label,
       fileName: p.fileName,
     }));
@@ -389,6 +435,9 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     : !(c.once && existing.has(c.type as OnboardingStep['stepType'])));
   const dependencyOptions = steps.filter(s => s.status !== 'cancelled');
   /** תיק גדול הוא רשימה ארוכה — החיפוש הוא מה שהופך אותו לשמיש. */
+  /** יש בין הנבחרים קובץ מהמחשב שעוד לא נשמר — ולכן צריך לתייק אותו. */
+  const hasNewFiles = picked.some(p => !!p.file);
+  const yearOptions = useMemo(() => ['כללי', ...AVAILABLE_YEARS.map(String)], []);
   const visibleClientDocs = useMemo(() => {
     const q = docSearch.trim().toLowerCase();
     const all = clientDocs ?? [];
@@ -691,7 +740,9 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                       <span aria-hidden="true" style={{ opacity: .6 }}>📄</span>
                       <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{f.label}</span>
                       <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
-                        {f.source === 'office' ? 'ספריית המשרד' : 'התיקייה של הלקוח'}
+                        {f.source === 'office' ? 'ספריית המשרד'
+                          : f.file ? 'חדש - יישמר בתיקייה'
+                          : 'התיקייה של הלקוח'}
                       </span>
                       <button type="button" className="btn btn-sm btn-ghost"
                         aria-label={`הסרת ${f.label}`} onClick={() => removePick(f.uid)}>✕</button>
@@ -711,15 +762,55 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 </button>
                 <button type="button" className="btn btn-sm btn-secondary" disabled={busy || uploading}
                   onClick={() => fileInputRef.current?.click()}>
-                  {uploading ? 'מעלה…' : '+ העלאה מהמחשב'}
+                  + העלאה מהמחשב
                 </button>
                 <input ref={fileInputRef} type="file" multiple hidden
                   onChange={e => {
                     const files = Array.from(e.target.files || []);
                     e.target.value = '';
-                    void uploadAndPick(files);
+                    pickFromComputer(files);
                   }} />
               </div>
+
+              {/* ── תיוק הקבצים החדשים ──────────────────────────────────────
+                  ‼ מופיע רק כשהעלית קובץ מהמחשב. קובץ מספריית המשרד או
+                  מהתיקייה של הלקוח כבר מתויק, ואין מה לשאול עליו. */}
+              {hasNewFiles && (
+                <div style={{
+                  display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'flex-start',
+                  padding: '.5rem .6rem', borderRadius: 'var(--radius)',
+                  border: '1px solid var(--hairline-2)', background: 'var(--gray-50)',
+                }}>
+                  <div style={{ width: '100%', fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                    איך יישמרו בתיק של הלקוח
+                  </div>
+                  <label style={{ ...lbl, flex: 1, minWidth: 110 }}>
+                    שנה
+                    <select className="input" value={uploadMeta.year}
+                      onChange={e => setUploadMeta(m => ({ ...m, year: e.target.value }))}>
+                      {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ ...lbl, flex: 2, minWidth: 170 }}>
+                    תווית
+                    <LabelSelect
+                      className="input"
+                      value={uploadMeta.labelId}
+                      labels={labels}
+                      /* ‼ 'לבדיקה' שמורה למסמכים ישנים שלא סווגו — לא לקובץ
+                         חדש שאתה מעלה עכשיו ויודע בדיוק מה הוא. */
+                      includeReserved={false}
+                      onChange={id => setUploadMeta(m => ({ ...m, labelId: id }))}
+                      onCreated={l => setLabels(list => [...list, l])}
+                    />
+                  </label>
+                  {!uploadMeta.labelId && (
+                    <div style={{ width: '100%', fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
+                      תווית נדרשת לכל מסמך בתיק - בלעדיה אי אפשר לשלוח.
+                    </div>
+                  )}
+                </div>
+              )}
 
               {picker === 'office' && (
                 <div style={pickerBox}>
@@ -942,9 +1033,11 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
           )}
           {mode === 'document' && !presetType && (
             <button type="button" className="btn btn-primary"
-              disabled={busy || uploading || (picked.length === 0 && !message.trim())}
-              onClick={submitSendDocuments}>
-              {busy ? 'שולח…'
+              disabled={busy || uploading || (picked.length === 0 && !message.trim())
+                || (hasNewFiles && !uploadMeta.labelId)}
+              onClick={() => { void submitSendDocuments(); }}>
+              {uploading ? 'שומר בתיק…'
+                : busy ? 'שולח…'
                 : picked.length === 0 ? 'שלח הודעה'
                 : picked.length === 1 ? 'שלח מסמך'
                 : `שלח ${picked.length} מסמכים`}
