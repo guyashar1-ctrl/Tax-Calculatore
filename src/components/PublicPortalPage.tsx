@@ -463,9 +463,9 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
   const inPage = item.actionKind === 'portal';
   const expandable = inPage && (item.kind === 'documents' || item.kind === 'custom' || item.kind === 'prev_accountant');
   const signup = inPage && item.kind === 'paperless_signup';
-  /** חומר עזר — הכל גלוי מיד: כפתור הפתיחה והסימון, בלי כרטיס שנפתח.
-   *  ‼ 144: או רשימת קבצים, כשהבקשה נושאת כמה. */
-  const guide = inPage && item.kind === 'guide' && (!!item.resourceUrl || !!item.resources?.length);
+  /** חומר עזר שעדיין מבקש הצהרה ("עברתי עליו") — הכל גלוי מיד: כפתור
+   *  הפתיחה והסימון, בלי כרטיס שנפתח. ‼ מסמך שנשלח ללקוח אינו מגיע לכאן. */
+  const guide = inPage && item.kind === 'guide' && !!item.resourceUrl;
   /**
    * כרטיס מידע — מה שממתין ללקוח קורה מחוץ לדף (פייפרלס מבקשת ממנו כרטיס
    * אשראי), ולכן אין כאן שום פקד. ‼ הוא כן יושב תחת «מה צריך ממך»: הכדור
@@ -512,13 +512,6 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
         ) : null
       ) : guide ? (
         <div style={{ marginTop: 11 }}>
-          {/* ‼ המלל שהמשרד צירף לקבצים — מעליהם, כי הוא מסביר מה הם. */}
-          {item.note && (
-            <p style={{
-              margin: '0 0 10px', fontSize: 13, lineHeight: 1.7, color: brand.ink,
-              whiteSpace: 'pre-line',
-            }}>{item.note}</p>
-          )}
           <GuideBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       ) : signup ? (
@@ -586,23 +579,9 @@ function GuideBlock({ token, item, brand, accent, onDone }: {
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
-  // ‼ 144: בקשה שנושאת רשימת קבצים היא שורה לכל קובץ, ולא כפתור אחד. אין כאן
-  // הצהרת "עברתי" — הפתיחה עצמה היא מה שסוגר, ולכן אין מה לסמן מלבד הקבצים.
-  if (item.resources?.length) {
-    // ‼ קובץ אחד ⇒ כפתור, לא שורה. כותרת הכרטיס היא כבר שם הקובץ, ושורה
-    // שחוזרת עליו נקראת כמו תקלה. משניים והלאה הכותרת גנרית ("3 מסמכים
-    // מהמשרד") ואז השורות הן מה שאומר מה יש בפנים.
-    const single = item.resources.length === 1;
-    return (
-      <div style={{ display: 'grid', gap: 6, width: single ? 'auto' : '100%', justifyItems: 'start' }}>
-        {item.resources.map(r => (
-          <ResourceRow key={r.key} token={token} item={item} res={r} variant={single ? 'button' : 'row'}
-            brand={brand} accent={accent} onDone={onDone} />
-        ))}
-      </div>
-    );
-  }
-
+  // ‼ מסמך שנשלח ללקוח אינו מגיע לכאן כלל: הוא אינו "מה צריך ממך" ויושב
+  // בקטע «מסמכים מהמשרד». כאן נשאר רק המדריך הוותיק, שבו יש דרישה אמיתית
+  // — הצהרת "עברתי עליו".
   const marks = (item.requirements ?? []).filter(r => r.kind === 'confirm' && r.key !== 'opened');
   return (
     <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
@@ -615,27 +594,42 @@ function GuideBlock({ token, item, brand, accent, onDone }: {
   );
 }
 
+/** קובץ אחד בקטע «מסמכים מהמשרד», אחרי שהבקשה נפרשה לשורות. */
+export interface PortalDocFile {
+  key: string;
+  label: string;
+  opened: boolean;
+  href: string | null;
+  item: PortalItem;
+  /** חסר במדריך ותיק שהושלם — אין לו רשימת קבצים, ואין מה לרשום. */
+  res?: NonNullable<PortalItem['resources']>[number];
+}
+
 /**
- * שורת קובץ אחד. הלחיצה פותחת ורושמת — ולכן היא גם מה שסוגר את הבקשה כשכל
- * הקבצים נפתחו.
+ * שורת מסמך שהמשרד שלח.
+ *
+ * ‼ שורה ולא כרטיס-עם-כפתור: כפתור מלא נקרא כמטלה, וזו המשמעות ההפוכה
+ * מ"קיבלת מאיתנו מסמך". המשקל הוויזואלי כאן נמוך במכוון — שם הקובץ בצבע
+ * ההדגשה כי הוא קישור, וכל השאר אפור ושקט.
+ *
+ * ‼ הלחיצה פותחת **ורושמת**, ולכן היא גם מה שסוגר את הבקשה אצל הרו"ח כשכל
+ * הקבצים נפתחו. זו מדידה שלנו ואינה מוצגת ללקוח כדרישה.
  *
  * ‼ <a target="_blank"> ולא window.open אחרי await, מאותה סיבה שב-
  * GuideOpenButton: חלון שנפתח אחרי המתנה נבלע בחוסמי חלונות קופצים. הרישום
  * רץ במקביל, וכישלון שלו משאיר את השורה פתוחה לניסיון הבא — הקובץ כבר נפתח.
  */
-function ResourceRow({ token, item, res, variant, brand, accent, onDone }: {
-  token: string; item: PortalItem;
-  res: NonNullable<PortalItem['resources']>[number];
-  variant: 'row' | 'button';
+function DocumentRow({ token, file, brand, accent, onDone }: {
+  token: string; file: PortalDocFile;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
   const previewMode = useContext(PreviewCtx);
   const [busy, setBusy] = useState(false);
-  const href = resourceHref(token, item.stepId ?? item.actionValue, res);
+  const { item, res, opened } = file;
 
   async function record() {
-    if (previewMode || busy || res.done || !item.actionValue) return;
+    if (previewMode || busy || opened || !res || !item.actionValue) return;
     setBusy(true);
     await supabase.rpc('portal_submit_step', {
       p_token: token, p_step_id: item.actionValue, p_data: { key: res.key },
@@ -645,38 +639,35 @@ function ResourceRow({ token, item, res, variant, brand, accent, onDone }: {
     onDone();
   }
 
-  const asButton = variant === 'button';
-  const style: React.CSSProperties = asButton ? {
-    display: 'inline-block', flexShrink: 0, textDecoration: 'none',
-    fontSize: 13.5, fontWeight: 600, padding: '9px 18px', color: '#fff',
-    background: accent, borderRadius: brand.radius, border: 'none',
+  const style: React.CSSProperties = {
+    display: 'flex', alignItems: 'baseline', gap: 9, width: '100%',
+    padding: '11px 0', textDecoration: 'none', boxSizing: 'border-box',
+    borderTop: `1px solid ${brand.border}`,
     cursor: previewMode ? 'default' : 'pointer',
-    opacity: previewMode ? .55 : 1, pointerEvents: previewMode ? 'none' : undefined,
-  } : {
-    display: 'flex', alignItems: 'center', gap: 9, width: '100%',
-    padding: '10px 12px', textDecoration: 'none', boxSizing: 'border-box',
-    border: `1px solid ${brand.border}`, borderRadius: brand.radius,
-    background: '#fff', cursor: previewMode ? 'default' : 'pointer',
     opacity: previewMode ? .6 : 1, pointerEvents: previewMode ? 'none' : undefined,
   };
 
-  const body = asButton ? (
-    <>{item.cta || 'לפתיחת המסמך'}{res.done ? ' ✓' : ''}</>
-  ) : (
+  const body = (
     <>
-      <span aria-hidden="true" style={{ fontSize: 14, flexShrink: 0, opacity: .7 }}>📄</span>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: accent }}>
-        {res.label}
-      </span>
+      {/* ✓ אחרי הפתיחה — סימון שקט במקום האייקון, בלי שורת הסבר נוספת. */}
+      <span aria-hidden="true" style={{
+        flexShrink: 0, fontSize: opened ? 12 : 13,
+        color: opened ? accent : undefined, opacity: opened ? 1 : .6,
+      }}>{opened ? '✓' : '📄'}</span>
+      {/* ‼ overflowWrap: שמות מסמכים ארוכים גולשים במובייל אחרת. */}
+      <span style={{
+        flex: 1, minWidth: 0, fontSize: 14, color: accent,
+        fontWeight: opened ? 400 : 550, overflowWrap: 'anywhere',
+      }}>{file.label}</span>
       <span style={{ flexShrink: 0, fontSize: 12, color: brand.muted }}>
-        {res.done ? '✓ נפתח' : 'לפתיחה ←'}
+        {opened ? 'נפתח' : 'לפתיחה ←'}
       </span>
     </>
   );
 
-  if (!href) return <div style={{ ...style, cursor: 'default' }}>{body}</div>;
+  if (!file.href) return <div style={{ ...style, cursor: 'default' }}>{body}</div>;
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" style={style}
+    <a href={file.href} target="_blank" rel="noopener noreferrer" style={style}
       onClick={() => { void record(); }}>{body}</a>
   );
 }
@@ -1095,24 +1086,59 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   // יפתח אותו — מפת דרכים במקום הפתעות.
   // ‼ הגבול שנשאר: טיוטה אינה מגיעה לכאן בכלל (השרת מסנן לפי published_at),
   // ולכן "נעול" לעולם אינו חושף בקשה שהרו"ח עוד לא פרסם.
-  const actions = data.items.filter(i => i.bucket === 'action');
+  /**
+   * ‼ מסמך שהמשרד שלח **אינו** "מה צריך ממך".
+   *
+   * "מה צריך ממך" היא רשימת החובות של הלקוח כלפינו — תמלא, תחתום, תעלה.
+   * מסמך שאנחנו שולחים הוא בדיוק הכיוון ההפוך: שירות שהוא קיבל. כשהוא ישב
+   * שם, ליד "מילוי פרטים וייפוי כוח", הלקוח סרק את הרשימה וראה עוד שורה
+   * בחוב שלו — ודחה אותה כמו מטלה.
+   *
+   * ‼ הפתיחה עדיין סוגרת את הבקשה אצל הרו"ח. זו מדידה שלנו, ואסור שהיא
+   * תעצב את המודל המנטלי של הלקוח.
+   *
+   * ‼ הגבול הסמנטי: מדריך ותיק שמבקש "עברתי עליו" **נשאר** ב"מה צריך ממך",
+   * כי שם באמת מבקשים ממנו משהו. מה שנשלח בלי דרישה — יורד לכאן.
+   */
+  const isSentDoc = (i: PortalItem) => !!i.resources?.length;
+  /** מדריך ותיק שכבר הושלם — אין בו יותר דרישה, ולכן מקומו כאן. */
+  const isDoneLegacyDoc = (i: PortalItem) => i.bucket === 'done' && !!i.resourceUrl && !isSentDoc(i);
+
+  const actions  = data.items.filter(i => i.bucket === 'action' && !isSentDoc(i));
   // ‼ הודעה מהמשרד אינה "בטיפול המשרד": אין מאחוריה עבודה שמתבצעת, ולכן היא
   // יוצאת מהקבוצה הזאת ומקבלת מקום משלה. אחרת היא נקראת כמו הבטחה לטיפול.
   const messages = data.items.filter(i => i.kind === 'message');
   const office   = data.items.filter(i => i.bucket === 'office' && i.kind !== 'message');
+  // בקשת מסמכים נעולה נשארת ב"בהמשך" — היא עדיין לא נשלחה.
   const future   = data.items.filter(i => i.bucket === 'future');
-  // ‼ חומר עזר שכבר נפתח יורד מ"הושלמו" ומקבל מקום קבוע משלו: הבקשה נסגרה,
-  // אבל המסמך עצמו נשאר שימושי — וללקוח צריכה להישאר דרך לחזור אליו.
-  const hasFiles  = (i: PortalItem) => !!i.resourceUrl || !!i.resources?.length;
-  const resources = data.items.filter(i => i.bucket === 'done' && hasFiles(i));
-  const done      = data.items.filter(i => i.bucket === 'done' && !hasFiles(i));
-  // בקשה עם כמה קבצים נפרשת לשורה לכל קובץ — הלקוח מחפש מסמך, לא בקשה.
-  const resourceLinks = resources.flatMap(i => i.resources?.length
-    ? i.resources.map(f => ({
-        key: `${i.key}-${f.key}`, label: f.label,
-        href: resourceHref(token, i.stepId ?? i.actionValue, f),
-      }))
-    : [{ key: i.key, label: i.label, href: i.resourceUrl ?? null }]);
+  const done     = data.items.filter(i =>
+    i.bucket === 'done' && !isSentDoc(i) && !isDoneLegacyDoc(i));
+
+  /**
+   * בית אחד לכל מה שהמשרד שלח — שנפתח ושלא. הלקוח מחפש מסמך, לא בקשה,
+   * ולכן כל קובץ הוא שורה ובקשה שנושאת כמה מהם נפרשת.
+   * ‼ מה שטרם נפתח קודם: זה מה שחדש לו, וזה גם מה שמצדיק את הקטע.
+   */
+  const docItems = data.items.filter(i =>
+    (isSentDoc(i) && i.bucket !== 'future') || isDoneLegacyDoc(i));
+  const docGroups = docItems
+    .map(i => ({
+      key: i.key,
+      note: isSentDoc(i) ? i.note : undefined,
+      draft: i.draft, removing: i.removing,
+      files: i.resources?.length
+        ? i.resources.map(f => ({
+            key: `${i.key}-${f.key}`, label: f.label, opened: f.done,
+            href: resourceHref(token, i.stepId ?? i.actionValue, f),
+            item: i, res: f,
+          }))
+        : [{
+            key: i.key, label: i.label, opened: true,
+            href: i.resourceUrl ?? null, item: i, res: undefined,
+          }],
+    }))
+    .sort((a, b) => Number(b.files.some(f => !f.opened)) - Number(a.files.some(f => !f.opened)));
+  const hasUnopenedDoc = docGroups.some(g => g.files.some(f => !f.opened));
   const firstName = data.clientFirstName;
 
   return (
@@ -1133,10 +1159,12 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                 last={i === actions.length - 1} onDone={reload} />
             ))}
           </>
-        ) : done.length > 0 && future.length === 0 && office.length === 0 ? (
+        ) : done.length > 0 && future.length === 0 && office.length === 0 && !hasUnopenedDoc ? (
           /* ‼ "הכול הושלם" רק כשבאמת אין המשך. עם שלב עתידי נעול או עם משהו
              שבטיפולנו זה היה שקר קטן שמייצר פנייה: הלקוח קורא שסיים, ואז
-             נפתח לו עוד שלב. */
+             נפתח לו עוד שלב.
+             ‼ וגם לא כשממתין לו מסמך שטרם פתח: הוא אינו חייב לפתוח אותו,
+             ולכן זה לא "ממתין לך" — אבל 🎉 מעל מסמך שלא נפתח קורא כמו טעות. */
           <div style={{ fontSize: 15, color: brand.ink, margin: '18px 0 4px' }}>
             הכול הושלם{firstName ? `, ${firstName}` : ''} 🎉
           </div>
@@ -1188,12 +1216,46 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           </>
         )}
 
+        {/* ── מסמכים מהמשרד ───────────────────────────────────────────────
+            ‼ שורות, לא כרטיסים: כרטיס עם כפתור נקרא כמטלה, וזו בדיוק
+            המשמעות ההפוכה. אין כאן כותרת פנימית לבקשה — היא הייתה חוזרת על
+            כותרת הקטע. המשקל הוויזואלי נמוך מ"מה צריך ממך" (הכותרת אפורה
+            ולא בצבע ההדגשה), כדי שסדר הסריקה יישאר: קודם מה שצריך ממני. */}
+        {docGroups.length > 0 && (
+          <>
+            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || messages.length > 0) ? 20 : 16 }}>
+              מסמכים מהמשרד
+            </div>
+            {docGroups.map(g => (
+              <div key={g.key}>
+                {/* המילים שצורפו לקבצים — הקשר, לא הוראה. */}
+                {g.note && (
+                  <p style={{
+                    margin: '6px 0 2px', fontSize: 12.5, lineHeight: 1.7,
+                    color: brand.muted, whiteSpace: 'pre-line',
+                  }}>{g.note}</p>
+                )}
+                {preview && (g.draft || g.removing) && (
+                  <div style={{ display: 'flex', gap: 6, margin: '4px 0' }}>
+                    {g.draft && <DraftChip />}
+                    {g.removing && <RemovingChip />}
+                  </div>
+                )}
+                {g.files.map(f => (
+                  <DocumentRow key={f.key} token={token} file={f} brand={brand} accent={accent}
+                    onDone={reload} />
+                ))}
+              </div>
+            ))}
+          </>
+        )}
+
         {/* ── בטיפול המשרד ────────────────────────────────────────────────
             מה שאנחנו עושים עכשיו. שקט ובלי פקדים — זו תשובה לשאלה "ומה
             עכשיו?", לא עוד רשימת מטלות. */}
         {office.length > 0 && (
           <>
-            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || messages.length > 0) ? 20 : 16 }}>
+            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || messages.length > 0 || docGroups.length > 0) ? 20 : 16 }}>
               בטיפול המשרד
             </div>
             {office.map(item => (
@@ -1224,7 +1286,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             לא רשימת מטלות: אסור שתתחרה ב"מה צריך ממך" שמעליה. */}
         {future.length > 0 && (
           <>
-            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || office.length > 0 || messages.length > 0) ? 20 : 16 }}>
+            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || office.length > 0 || messages.length > 0 || docGroups.length > 0) ? 20 : 16 }}>
               בהמשך - ייפתח אוטומטית
             </div>
             {future.map(item => (
@@ -1261,28 +1323,9 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           </div>
         )}
 
-        {/* ── מסמכים שימושיים ─────────────────────────────────────────────
-            ‼ מתחת להכול ובלי כרטיס: זה חומר עזר שזמין תמיד, לא משהו
-            שממתין. ברגע שהוא ייראה כמו בקשה — הוא ייקרא כעוד מטלה פתוחה. */}
-        {resourceLinks.length > 0 && (
-          <>
-            <div style={{ ...sectionTitle, marginTop: 20 }}>מסמכים שימושיים</div>
-            {resourceLinks.map(r => (
-              <a key={r.key} href={r.href ?? undefined} target="_blank" rel="noopener noreferrer" style={{
-                display: 'flex', alignItems: 'baseline', gap: 8, padding: '8px 0',
-                borderTop: `1px solid ${brand.border}`, textDecoration: 'none',
-              }}>
-                <span aria-hidden="true" style={{ fontSize: 12, color: accent }}>✓</span>
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: 'block', fontSize: 13.5, color: accent }}>{r.label}</span>
-                  <span style={{ display: 'block', fontSize: 12, color: brand.muted, marginTop: 2 }}>
-                    נפתח · אפשר לחזור אליו בכל שלב
-                  </span>
-                </span>
-              </a>
-            ))}
-          </>
-        )}
+        {/* ‼ «מסמכים שימושיים» בוטל: מסמך שנפתח נשאר במקום שבו הוא היה,
+            תחת «מסמכים מהמשרד», עם סימון שקט. שני קטעים לאותם קבצים אילצו
+            את הלקוח לזכור לאיזה מהם ללכת. */}
 
         <div style={{
           marginTop: 22, paddingTop: 12, borderTop: `1px solid ${brand.border}`,

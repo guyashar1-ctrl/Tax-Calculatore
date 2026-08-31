@@ -54,6 +54,21 @@ const FIXTURE: PortalData = {
       ] },
     { bucket: 'action', key: 'rep_sign', label: 'חתימה על ייפוי הכוח', sub: 'כדקה',
       actionKind: 'sign', actionValue: 'tok' },
+    /* ‼ מסמכים שהמשרד שלח — אינם "מה צריך ממך" ומצוירים בקטע «מסמכים
+       מהמשרד». כאן מצב מעורב (אחד נפתח ואחד לא) עם שם ארוך, כדי לראות
+       גם את הסימון השקט וגם את שבירת השורה. */
+    { bucket: 'action', key: 'custom_sent', label: '2 מסמכים מהמשרד', sub: '2 קבצים',
+      actionKind: 'portal', actionValue: 'step5', stepId: 'step5', kind: 'guide',
+      note: 'שלום, מצורפים שני האישורים לשנת המס. אין צורך להחזיר לנו כלום.',
+      resources: [
+        { key: 'a1', label: 'אישור ניהול ספרים לשנת המס 2026 - עותק עבור הלקוח והרשויות',
+          url: 'https://example.com/books.pdf', done: true },
+        { key: 'a2', label: 'פטור מניכוי מס במקור', url: 'https://example.com/exempt.pdf', done: false },
+      ] },
+    { bucket: 'done', key: 'custom_sent_old', label: 'נוהל העבודה במשרד',
+      stepId: 'step6', resources: [
+        { key: 'a1', label: 'נוהל העבודה במשרד', url: 'https://example.com/policy.pdf', done: true },
+      ], draft: true },
     { bucket: 'done', key: 'quotation', label: 'הצעת המחיר אושרה' },
     { bucket: 'office', key: 'files_office', label: 'פתיחת התיקים ברשויות', sub: 'בטיפולנו', draft: true },
     { bucket: 'future', key: 'retainer_future', label: 'הרשאת התשלום החודשי', sub: 'תופיע כאן אחרי חיבור הפייפרלס' },

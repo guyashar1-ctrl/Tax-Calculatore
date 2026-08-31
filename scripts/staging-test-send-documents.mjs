@@ -129,6 +129,8 @@ ok('SD-4b עברה ל«הושלמו»', two?.bucket === 'done', two?.bucket);
 ok('SD-4c הקבצים נשארו זמינים', two?.resources?.length === 2 && !!two?.resources?.[0]?.url,
   JSON.stringify(two?.resources));
 ok('SD-4d גם אחרי הסגירה יש stepId — אחרת קובץ פרטי אינו נגיש', two?.stepId === twoId, two?.stepId);
+// ‼ 147: המלל חי באותו קטע כמו הקבצים, ואסור שייעלם בפתיחה האחרונה.
+ok('SD-4e והמלל שצורף לקבצים שרד את הסגירה', two?.note === 'שני הקבצים שדיברנו עליהם.', two?.note);
 
 // ── SD-5 · קובץ מהתיק של הלקוח ──────────────────────────────────────────────
 const privId = await create({
