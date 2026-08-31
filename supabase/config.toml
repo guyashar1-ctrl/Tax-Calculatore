@@ -73,3 +73,9 @@ verify_jwt = false
 # התחברות, והזיהוי הוא טוקן הקליטה האקראי עצמו (כמו portal-upload-document).
 [functions.onboarding-upload-id]
 verify_jwt = false
+
+# פתיחת מסמך פרטי שנשלח ללקוח, מהדף האישי. מסלול ציבורי — הזיהוי הוא טוקן הדף
+# עצמו, והפונקציה חותמת קישור ל-5 דקות רק אחרי שווידאה שהמסמך אכן נשלח ללקוח
+# הזה (מיגרציה 144). הקובץ עצמו נשאר ב-bucket הפרטי.
+[functions.portal-open-document]
+verify_jwt = false

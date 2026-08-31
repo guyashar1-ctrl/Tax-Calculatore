@@ -22,6 +22,10 @@ import { useToast } from '../ui/Toast';
 import PdfOrganizer, { releaseOrganizerCache, type OrganizerSource, type OrganizerOutput } from './PdfOrganizer';
 import { looksLikePdf, isPdfBytes, buildPdfFromPlan, defaultOutputName, PdfPlanError } from '../../utils/pdfPages';
 import { loadPdf as loadPdfDoc } from '../../utils/pdfRender';
+import type { OnboardingStep } from '../../types/onboarding';
+import { stepFromDb } from '../../lib/dbMappers';
+import { documentLabel } from '../../lib/sendDocuments';
+import AddRequestDialog from './AddRequestDialog';
 
 const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.csv';
 
@@ -72,6 +76,17 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
   const [folderModal, setFolderModal] = useState<{ name: string; meta: MetaDraft } | null>(null);
   const [folderUploadModal, setFolderUploadModal] = useState<{ files: File[]; meta: MetaDraft } | null>(null);
   const [requestModal, setRequestModal] = useState<{ title: string; year: string; labelId: string } | null>(null);
+  /**
+   * «שליחה ללקוח» מתוך המגירה של המסמך — אותו חלון בקשות, עם הקובץ כבר מסומן.
+   * ‼ נטען כאן ולא מועבר מבחוץ: המסך הזה אינו מכיר את המסע, והחלון צריך את
+   * הבקשות הקיימות (לבורר התלות) ואת מצב הפרסום. שאילתה אחת, רק בלחיצה.
+   */
+  const [sendToClient, setSendToClient] = useState<{
+    docs: { documentId: string; label: string; fileName?: string }[];
+    steps: OnboardingStep[];
+    processPublished: boolean;
+  } | null>(null);
+  const [sendBusy, setSendBusy] = useState(false);
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestError, setRequestError] = useState('');
   const [labelManagerOpen, setLabelManagerOpen] = useState(false);
@@ -563,6 +578,25 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     }
     setFolderUploadModal(null);
     void loadAll();
+  }
+
+  // ─── שלח מסמך ללקוח — אותו קיצור, בכיוון ההפוך ──────────────────────────
+  async function openSendToClient(doc: StoredDoc) {
+    setSendBusy(true);
+    setDocActionError('');
+    const [stepRes, engRes] = await Promise.all([
+      supabase.from('onboarding_steps').select('*').eq('client_id', client.id)
+        .order('sort_order', { ascending: true, nullsFirst: true })
+        .order('created_at', { ascending: true }),
+      supabase.from('engagements').select('process_published_at').eq('client_id', client.id),
+    ]);
+    setSendBusy(false);
+    if (stepRes.error) { setDocActionError('לא הצלחנו לטעון את הבקשות של הלקוח.'); return; }
+    setSendToClient({
+      docs: [{ documentId: doc.id, label: documentLabel(doc), fileName: doc.fileName }],
+      steps: (stepRes.data ?? []).map(stepFromDb),
+      processPublished: (engRes.data ?? []).some(e => e.process_published_at != null),
+    });
   }
 
   // ─── בקש מסמך מהלקוח — קיצור דרך למערכת הבקשות הקיימת ───────────────────
@@ -1557,7 +1591,10 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
         </div>
       )}
       <div className="csub" style={{ margin: '.5rem .2rem 0', fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-        המסמכים פנימיים למשרד. הלקוח אינו רואה אותם - מה שמבקשים ממנו עובר דרך בקשת לקוח.
+        {/* ‼ הניסוח עודכן ב-144: "הלקוח אינו רואה אותם" הפך לחצי-אמת ברגע
+            שאפשר לשלוח מסמך מכאן. ברירת המחדל עדיין פנימית — וזה מה שנאמר. */}
+        המסמכים פנימיים למשרד; הלקוח רואה רק מה ששולחים לו במפורש - «שליחה ללקוח» על המסמך.
+        מה שמבקשים ממנו עובר דרך בקשת לקוח.
       </div>
       </>
       )}
@@ -1583,6 +1620,13 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                 type="button" className="ui-btn ui-btn-primary"
                 disabled={fileBusy} onClick={openFileInNewTab}
               >{fileBusy ? 'פותח…' : 'פתח את הקובץ'}</button>
+              {/* ‼ כאן, ולא רק במסך הבקשות: המקום שבו רואים את הקובץ הוא
+                  המקום שבו נזכרים שצריך לשלוח אותו. */}
+              <button
+                type="button" className="ui-btn ui-btn-ghost"
+                disabled={sendBusy} onClick={() => { void openSendToClient(drawerDoc); }}
+                title="הקובץ יופיע בדף האישי של הלקוח, לצפייה ולהורדה"
+              >{sendBusy ? 'פותח…' : 'שליחה ללקוח'}</button>
               {/* PDF — כניסה למשטח העריכה: ציור, טקסט, סימונים, עמודים וחתימה */}
               {looksLikePdf(drawerDoc.fileType, drawerDoc.fileName) && (
                 <button
@@ -1682,6 +1726,18 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── שליחת המסמך ללקוח — חלון הבקשות עצמו, עם הקובץ כבר מסומן ──── */}
+      {sendToClient && (
+        <AddRequestDialog
+          clientId={client.id}
+          steps={sendToClient.steps}
+          processPublished={sendToClient.processPublished}
+          presetDocuments={sendToClient.docs}
+          onClose={() => setSendToClient(null)}
+          onCreated={() => { setSendToClient(null); showToast('המסמך נשלח לדף האישי של הלקוח'); }}
+        />
       )}
 
       {/* ── יעד: העברה או העתקה של המסמכים שנבחרו ────────────────────── */}

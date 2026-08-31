@@ -13,6 +13,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import { FirmBranding } from '../types/firmProfile';
+import { MESSAGE_DEFAULT_TITLE } from '../lib/sendDocuments';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import EmailInput from './ui/EmailInput';
 
@@ -65,7 +66,10 @@ export interface PortalItem {
   /* ‼ 'declare' — הוראות + הצהרה. הפעולה קורית מחוץ לדף (בפייפרלס ובאתר
      רשות המסים), אבל בניגוד ל-'info' יש מה לאשר: הלקוח הוא היחיד שיודע
      שהיא בוצעה, וההצהרה שלו היא מה שסוגר את הבקשה. */
-  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info' | 'declare';
+  /* ‼ 'message' — הודעה מהמשרד, בלי שום פעולה ובלי מונה. היא אינה יושבת תחת
+     «מה צריך ממך» (אין מה לעשות) ולא תחת «בטיפול המשרד» (לא בהכרח מטפלים
+     במשהו) — יש לה מקום שקט משלה. יורדת מהדף כשהמשרד סוגר אותה. */
+  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info' | 'declare' | 'message';
   /**
    * פרטי הרו״ח הקודם שכבר בכרטיס — מילוי-מראש לאישור. כמו businessName:
    * מקור האמת הוא הכרטיס, ומה שהלקוח שולח חוזר אליו (וגובר, מיגרציה 115).
@@ -74,6 +78,24 @@ export interface PortalItem {
   /** חומר עזר של המשרד — הקובץ העדכני, נפתר בשרת בכל טעינה. */
   resourceUrl?: string;
   resourceKey?: string;
+  /**
+   * מיגרציה 144 — כמה קבצים בבקשה אחת, משני מקורות.
+   * ‼ `url` קיים רק לקובץ מספריית המשרד (ציבורי). קובץ מהתיק של הלקוח פרטי,
+   * ולכן מגיע כ-`documentId` בלבד ונפתח דרך portal-open-document, שחותם
+   * קישור זמני אחרי שהוא מוודא שהקובץ אכן נשלח ללקוח הזה.
+   * `key` הוא גם מפתח הדרישה שנסגרת בפתיחה — ולכן `done` הוא "כבר נפתח".
+   */
+  resources?: {
+    key: string;
+    label: string;
+    url?: string;
+    documentId?: string;
+    fileName?: string;
+    done: boolean;
+  }[];
+  /** מזהה הבקשה שהקבצים שייכים לה. ‼ נמסר גם אחרי שהיא נסגרה — בלעדיו קובץ
+   *  פרטי היה מאבד את הדרך להיפתח בדיוק כשהוא עובר ל«מסמכים שימושיים». */
+  stepId?: string;
   /** קישור יוצא שנלווה לפעולה בעמוד (הרשמה לפייפרלס). אינו מחליף את ההשלמה. */
   linkUrl?: string;
   /** ‼ מה כתוב על הקישור. "למדריך המלא" נכון למדריך, ושקר כשהקישור מוביל
@@ -156,6 +178,24 @@ function actionHref(item: PortalItem): string | null {
     // 'portal' מטופל בעמוד עצמו ואין לו כתובת.
     default: return null;
   }
+}
+
+/**
+ * הכתובת שפותחת קובץ אחד שנשלח ללקוח.
+ *
+ * ‼ קובץ מספריית המשרד נפתח ישירות — הוא ציבורי ממילא. קובץ מהתיק של הלקוח
+ * עובר דרך portal-open-document, שהוא היחיד שיכול לחתום קישור אל ה-bucket
+ * הפרטי, ורק אחרי שווידא שהקובץ באמת נשלח ללקוח הזה.
+ */
+function resourceHref(
+  token: string, stepId: string | undefined,
+  r: NonNullable<PortalItem['resources']>[number],
+): string | null {
+  if (r.url) return r.url;
+  if (!r.documentId || !stepId) return null;
+  const base = import.meta.env.VITE_SUPABASE_URL;
+  const q = new URLSearchParams({ token, stepId, docId: r.documentId });
+  return `${base}/functions/v1/portal-open-document?${q}`;
 }
 
 /**
@@ -423,8 +463,9 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
   const inPage = item.actionKind === 'portal';
   const expandable = inPage && (item.kind === 'documents' || item.kind === 'custom' || item.kind === 'prev_accountant');
   const signup = inPage && item.kind === 'paperless_signup';
-  /** חומר עזר — הכל גלוי מיד: כפתור הפתיחה והסימון, בלי כרטיס שנפתח. */
-  const guide = inPage && item.kind === 'guide' && !!item.resourceUrl;
+  /** חומר עזר — הכל גלוי מיד: כפתור הפתיחה והסימון, בלי כרטיס שנפתח.
+   *  ‼ 144: או רשימת קבצים, כשהבקשה נושאת כמה. */
+  const guide = inPage && item.kind === 'guide' && (!!item.resourceUrl || !!item.resources?.length);
   /**
    * כרטיס מידע — מה שממתין ללקוח קורה מחוץ לדף (פייפרלס מבקשת ממנו כרטיס
    * אשראי), ולכן אין כאן שום פקד. ‼ הוא כן יושב תחת «מה צריך ממך»: הכדור
@@ -471,6 +512,13 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
         ) : null
       ) : guide ? (
         <div style={{ marginTop: 11 }}>
+          {/* ‼ המלל שהמשרד צירף לקבצים — מעליהם, כי הוא מסביר מה הם. */}
+          {item.note && (
+            <p style={{
+              margin: '0 0 10px', fontSize: 13, lineHeight: 1.7, color: brand.ink,
+              whiteSpace: 'pre-line',
+            }}>{item.note}</p>
+          )}
           <GuideBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       ) : signup ? (
@@ -538,6 +586,23 @@ function GuideBlock({ token, item, brand, accent, onDone }: {
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
+  // ‼ 144: בקשה שנושאת רשימת קבצים היא שורה לכל קובץ, ולא כפתור אחד. אין כאן
+  // הצהרת "עברתי" — הפתיחה עצמה היא מה שסוגר, ולכן אין מה לסמן מלבד הקבצים.
+  if (item.resources?.length) {
+    // ‼ קובץ אחד ⇒ כפתור, לא שורה. כותרת הכרטיס היא כבר שם הקובץ, ושורה
+    // שחוזרת עליו נקראת כמו תקלה. משניים והלאה הכותרת גנרית ("3 מסמכים
+    // מהמשרד") ואז השורות הן מה שאומר מה יש בפנים.
+    const single = item.resources.length === 1;
+    return (
+      <div style={{ display: 'grid', gap: 6, width: single ? 'auto' : '100%', justifyItems: 'start' }}>
+        {item.resources.map(r => (
+          <ResourceRow key={r.key} token={token} item={item} res={r} variant={single ? 'button' : 'row'}
+            brand={brand} accent={accent} onDone={onDone} />
+        ))}
+      </div>
+    );
+  }
+
   const marks = (item.requirements ?? []).filter(r => r.kind === 'confirm' && r.key !== 'opened');
   return (
     <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
@@ -547,6 +612,72 @@ function GuideBlock({ token, item, brand, accent, onDone }: {
           brand={brand} accent={accent} onDone={onDone} />
       ))}
     </div>
+  );
+}
+
+/**
+ * שורת קובץ אחד. הלחיצה פותחת ורושמת — ולכן היא גם מה שסוגר את הבקשה כשכל
+ * הקבצים נפתחו.
+ *
+ * ‼ <a target="_blank"> ולא window.open אחרי await, מאותה סיבה שב-
+ * GuideOpenButton: חלון שנפתח אחרי המתנה נבלע בחוסמי חלונות קופצים. הרישום
+ * רץ במקביל, וכישלון שלו משאיר את השורה פתוחה לניסיון הבא — הקובץ כבר נפתח.
+ */
+function ResourceRow({ token, item, res, variant, brand, accent, onDone }: {
+  token: string; item: PortalItem;
+  res: NonNullable<PortalItem['resources']>[number];
+  variant: 'row' | 'button';
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string; onDone: () => void;
+}) {
+  const previewMode = useContext(PreviewCtx);
+  const [busy, setBusy] = useState(false);
+  const href = resourceHref(token, item.stepId ?? item.actionValue, res);
+
+  async function record() {
+    if (previewMode || busy || res.done || !item.actionValue) return;
+    setBusy(true);
+    await supabase.rpc('portal_submit_step', {
+      p_token: token, p_step_id: item.actionValue, p_data: { key: res.key },
+    });
+    setBusy(false);
+    flushAccountantNotifications(token);
+    onDone();
+  }
+
+  const asButton = variant === 'button';
+  const style: React.CSSProperties = asButton ? {
+    display: 'inline-block', flexShrink: 0, textDecoration: 'none',
+    fontSize: 13.5, fontWeight: 600, padding: '9px 18px', color: '#fff',
+    background: accent, borderRadius: brand.radius, border: 'none',
+    cursor: previewMode ? 'default' : 'pointer',
+    opacity: previewMode ? .55 : 1, pointerEvents: previewMode ? 'none' : undefined,
+  } : {
+    display: 'flex', alignItems: 'center', gap: 9, width: '100%',
+    padding: '10px 12px', textDecoration: 'none', boxSizing: 'border-box',
+    border: `1px solid ${brand.border}`, borderRadius: brand.radius,
+    background: '#fff', cursor: previewMode ? 'default' : 'pointer',
+    opacity: previewMode ? .6 : 1, pointerEvents: previewMode ? 'none' : undefined,
+  };
+
+  const body = asButton ? (
+    <>{item.cta || 'לפתיחת המסמך'}{res.done ? ' ✓' : ''}</>
+  ) : (
+    <>
+      <span aria-hidden="true" style={{ fontSize: 14, flexShrink: 0, opacity: .7 }}>📄</span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: accent }}>
+        {res.label}
+      </span>
+      <span style={{ flexShrink: 0, fontSize: 12, color: brand.muted }}>
+        {res.done ? '✓ נפתח' : 'לפתיחה ←'}
+      </span>
+    </>
+  );
+
+  if (!href) return <div style={{ ...style, cursor: 'default' }}>{body}</div>;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" style={style}
+      onClick={() => { void record(); }}>{body}</a>
   );
 }
 
@@ -965,12 +1096,23 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   // ‼ הגבול שנשאר: טיוטה אינה מגיעה לכאן בכלל (השרת מסנן לפי published_at),
   // ולכן "נעול" לעולם אינו חושף בקשה שהרו"ח עוד לא פרסם.
   const actions = data.items.filter(i => i.bucket === 'action');
-  const office  = data.items.filter(i => i.bucket === 'office');
-  const future  = data.items.filter(i => i.bucket === 'future');
+  // ‼ הודעה מהמשרד אינה "בטיפול המשרד": אין מאחוריה עבודה שמתבצעת, ולכן היא
+  // יוצאת מהקבוצה הזאת ומקבלת מקום משלה. אחרת היא נקראת כמו הבטחה לטיפול.
+  const messages = data.items.filter(i => i.kind === 'message');
+  const office   = data.items.filter(i => i.bucket === 'office' && i.kind !== 'message');
+  const future   = data.items.filter(i => i.bucket === 'future');
   // ‼ חומר עזר שכבר נפתח יורד מ"הושלמו" ומקבל מקום קבוע משלו: הבקשה נסגרה,
   // אבל המסמך עצמו נשאר שימושי — וללקוח צריכה להישאר דרך לחזור אליו.
-  const resources = data.items.filter(i => i.bucket === 'done' && !!i.resourceUrl);
-  const done      = data.items.filter(i => i.bucket === 'done' && !i.resourceUrl);
+  const hasFiles  = (i: PortalItem) => !!i.resourceUrl || !!i.resources?.length;
+  const resources = data.items.filter(i => i.bucket === 'done' && hasFiles(i));
+  const done      = data.items.filter(i => i.bucket === 'done' && !hasFiles(i));
+  // בקשה עם כמה קבצים נפרשת לשורה לכל קובץ — הלקוח מחפש מסמך, לא בקשה.
+  const resourceLinks = resources.flatMap(i => i.resources?.length
+    ? i.resources.map(f => ({
+        key: `${i.key}-${f.key}`, label: f.label,
+        href: resourceHref(token, i.stepId ?? i.actionValue, f),
+      }))
+    : [{ key: i.key, label: i.label, href: i.resourceUrl ?? null }]);
   const firstName = data.clientFirstName;
 
   return (
@@ -1004,12 +1146,54 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           </div>
         )}
 
+        {/* ── הודעה מהמשרד ────────────────────────────────────────────────
+            ‼ מלל בלבד, בלי שום פקד: אין כאן מה לאשר ואין מה לפתוח. היא
+            יושבת מתחת ל"מה צריך ממך" כדי לא להתחרות בו, ומעל השאר כדי
+            שתיקרא. יורדת מהדף כשהמשרד סוגר אותה. */}
+        {messages.length > 0 && (
+          <>
+            <div style={{ ...sectionTitle, marginTop: actions.length > 0 ? 20 : 16 }}>
+              {messages.length === 1 ? 'הודעה מהמשרד' : 'הודעות מהמשרד'}
+            </div>
+            {messages.map(item => {
+              // ‼ כותרת שחוזרת על כותרת הקטע היא רעש: "הודעה מהמשרד" פעמיים
+              // זה בדיוק מה שנראה כמו תקלה. שם אמיתי — כן מוצג.
+              const named = item.label && item.label !== MESSAGE_DEFAULT_TITLE;
+              return (
+                <div key={item.key} style={{
+                  padding: '13px 15px', marginBottom: 8,
+                  background: brand.cardBg, border: `1px solid ${brand.border}`,
+                  borderRadius: brand.radius + 2,
+                }}>
+                  {(named || (preview && (item.draft || item.removing))) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      {named && (
+                        <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: brand.ink }}>
+                          {item.label}
+                        </span>
+                      )}
+                      {preview && item.draft && <DraftChip />}
+                      {preview && item.removing && <RemovingChip />}
+                    </div>
+                  )}
+                  {item.note && (
+                    <p style={{
+                      margin: 0, fontSize: 13, lineHeight: 1.7,
+                      color: brand.ink, whiteSpace: 'pre-line',
+                    }}>{item.note}</p>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
+
         {/* ── בטיפול המשרד ────────────────────────────────────────────────
             מה שאנחנו עושים עכשיו. שקט ובלי פקדים — זו תשובה לשאלה "ומה
             עכשיו?", לא עוד רשימת מטלות. */}
         {office.length > 0 && (
           <>
-            <div style={{ ...sectionTitle, marginTop: actions.length > 0 ? 20 : 16 }}>
+            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || messages.length > 0) ? 20 : 16 }}>
               בטיפול המשרד
             </div>
             {office.map(item => (
@@ -1040,7 +1224,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             לא רשימת מטלות: אסור שתתחרה ב"מה צריך ממך" שמעליה. */}
         {future.length > 0 && (
           <>
-            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || office.length > 0) ? 20 : 16 }}>
+            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || office.length > 0 || messages.length > 0) ? 20 : 16 }}>
               בהמשך - ייפתח אוטומטית
             </div>
             {future.map(item => (
@@ -1080,11 +1264,11 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
         {/* ── מסמכים שימושיים ─────────────────────────────────────────────
             ‼ מתחת להכול ובלי כרטיס: זה חומר עזר שזמין תמיד, לא משהו
             שממתין. ברגע שהוא ייראה כמו בקשה — הוא ייקרא כעוד מטלה פתוחה. */}
-        {resources.length > 0 && (
+        {resourceLinks.length > 0 && (
           <>
             <div style={{ ...sectionTitle, marginTop: 20 }}>מסמכים שימושיים</div>
-            {resources.map(r => (
-              <a key={r.key} href={r.resourceUrl} target="_blank" rel="noopener noreferrer" style={{
+            {resourceLinks.map(r => (
+              <a key={r.key} href={r.href ?? undefined} target="_blank" rel="noopener noreferrer" style={{
                 display: 'flex', alignItems: 'baseline', gap: 8, padding: '8px 0',
                 borderTop: `1px solid ${brand.border}`, textDecoration: 'none',
               }}>

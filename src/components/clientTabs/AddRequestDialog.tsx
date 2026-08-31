@@ -6,7 +6,7 @@
 // הרו"ח ולא אצל הלקוח, עד שהוא לוחץ "שלח ללקוח". בלי זה כל תיקון קטן בניסוח
 // היה קופץ מיד למסך של הלקוח.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CustomRequirement, CustomRequirementKind, InstitutionKey, OnboardingStep } from '../../types/onboarding';
 import {
   DEBIT_INSTITUTION_ORDER, INSTITUTION_DEBIT_CODES, INSTITUTION_NAMES,
@@ -14,7 +14,11 @@ import {
 } from '../../types/onboarding';
 import { BANK_DEBIT_TITLE, buildBankDebitPayload } from '../../lib/bankDebitRequest';
 import type { ClientDocument } from '../../lib/clientGuide';
-import { buildDocumentRequestPayload, documentLibrary } from '../../lib/clientGuide';
+import { documentLibrary } from '../../lib/clientGuide';
+import type { SendResource } from '../../lib/sendDocuments';
+import { buildSendDocumentsPayload, documentLabel, resourceKey } from '../../lib/sendDocuments';
+import type { StoredDoc } from '../../hooks/useDocumentStore';
+import { useDocumentStore } from '../../hooks/useDocumentStore';
 import {
   BUILT_IN_DOC_OPTIONS, allDocOptions, withDocOption, withoutDocOption,
 } from '../../lib/documentRequestOptions';
@@ -39,7 +43,7 @@ import { supabase } from '../../lib/supabase';
    גיא מסמן "אין רו״ח קודם" ואחר כך מגלה שיש, וזו בקשה ככל בקשה. */
 const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'bank_debit',             hint: 'הלקוח פותח הרשאה בבנק ומעלה אסמכתה - לרשויות שתבחר', once: false },
-  { type: 'send_document',          hint: 'מסמך מספריית המשרד - נסגרת כשהלקוח פותח אותו', once: false },
+  { type: 'send_document',          hint: 'מספריית המשרד, מהתיקייה של הלקוח או מהמחשב - וגם הודעה', once: false },
   { type: 'client_documents',       hint: 'רשימת מסמכים שהלקוח מעלה בדף האישי', once: true },
   { type: 'prev_accountant_track',  hint: '', once: true },
   { type: 'paperless_sequence',     hint: '', once: true },
@@ -90,6 +94,22 @@ const PAPERLESS_SEQUENCE: {
 
 const KINDS: CustomRequirementKind[] = ['confirm', 'text', 'file'];
 
+/** קובץ שנבחר לשליחה, לפני שנקבע לו מפתח. `uid` הוא מפתח תצוגה בלבד. */
+interface PickedFile {
+  uid: string;
+  source: 'office' | 'client';
+  officeId?: string;
+  documentId?: string;
+  label: string;
+  fileName?: string;
+}
+
+/** אותו קובץ ממש — כדי שבחירה כפולה לא תשלח אותו פעמיים. */
+const sameFile = (a: PickedFile, b: PickedFile) =>
+  a.source === b.source &&
+  (a.source === 'office' ? a.officeId === b.officeId : a.documentId === b.documentId);
+
+
 /** טקסט הכפתור אצל הלקוח, כשלא נכתב אחר. סוג הדרישה כבר אומר מה עושים. */
 const CTA_BY_KIND: Partial<Record<CustomRequirementKind, string>> & { [k: string]: string } = {
   confirm: 'לאישור',
@@ -113,6 +133,13 @@ interface Props {
    * קריאת create_onboarding_request. ההבדל היחיד הוא שמדלגים על הקטלוג.
    */
   presetType?: OnboardingStep['stepType'];
+  /**
+   * מסמכים מהתיק שכבר מסומנים לשליחה — נקודת כניסה מתוך תיקיית המסמכים.
+   * ‼ אותו חלון ואותו RPC, רק בלי לעבור דרך הקטלוג ובלי לחפש את הקובץ:
+   * המקום שבו חושבים "צריך לשלוח את זה" הוא המקום שבו הקובץ נמצא.
+   * ‼ נשלח מיד כברירת מחדל — קיצור שמייצר טיוטה נחווה כאילו לא קרה כלום.
+   */
+  presetDocuments?: { documentId: string; label: string; fileName?: string }[];
   /** האימייל שעל הכרטיס — קובע אם השאלה ב«חומרים מרו״ח קודם» היא מילוי או אישור. */
   prevAccountantEmail?: string | null;
   /** בחירת תבנית — נמסרת החוצה כדי שהקומפוזר ייפתח במקום שבו הבקשות חיות. */
@@ -121,8 +148,9 @@ interface Props {
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, presetType, prevAccountantEmail, onUseTemplate, onClose, onCreated }: Props) {
-  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document'>('catalog');
+export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, presetType, presetDocuments, prevAccountantEmail, onUseTemplate, onClose, onCreated }: Props) {
+  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document'>(
+    presetDocuments?.length ? 'document' : 'catalog');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,8 +164,9 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   const [clientSub, setClientSub] = useState('');
   /** ריק ⇒ נגזר מסוג הדרישה. מה שהוקלד כאן ידנית גובר. */
   const [clientCta, setClientCta] = useState('');
-  /** האם הבקשה חוסמת סגירת קליטה. ברירת מחדל: כן — בקשה שביקשתי היא עבודה. */
-  const [requiredForClose, setRequiredForClose] = useState(true);
+  /** האם הבקשה חוסמת סגירת קליטה. ברירת מחדל: כן — בקשה שביקשתי היא עבודה.
+   *  שליחת מסמך אינה עבודה של הלקוח, ולכן היא נפתחת כרשות. */
+  const [requiredForClose, setRequiredForClose] = useState(!presetDocuments?.length);
   /** דרישות **נוספות** מעבר לראשונה. הראשונה חיה ב-ask/askKind. */
   const [extraReqs, setExtraReqs] = useState<{ kind: CustomRequirementKind; label: string }[]>([]);
   // מסמכים מהלקוח
@@ -151,7 +180,24 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   const [debitAuthorities, setDebitAuthorities] = useState<InstitutionKey[]>([]);
   /** ספריית המסמכים של המשרד. undefined = עוד לא נטענה. */
   const [library, setLibrary] = useState<ClientDocument[] | undefined>(undefined);
-  const [docId, setDocId] = useState<string>('');
+
+  // ─── שליחת מסמכים ללקוח ────────────────────────────────────────────────
+  /** מה שנבחר לשליחה, בסדר שבו ייראה אצל הלקוח. `uid` הוא מפתח תצוגה בלבד —
+   *  המפתח שנשמר על הבקשה נקבע בשליחה, לפי המיקום ברשימה. */
+  const [picked, setPicked] = useState<PickedFile[]>(
+    (presetDocuments ?? []).map(d => ({
+      uid: `client-${d.documentId}`, source: 'client',
+      documentId: d.documentId, label: d.label, fileName: d.fileName,
+    })));
+  const [message, setMessage] = useState('');
+  /** איזה בורר פתוח כרגע. אחד בכל רגע — שניים פתוחים הם בדיוק הרעש שנמנע. */
+  const [picker, setPicker] = useState<null | 'office' | 'client'>(null);
+  /** המסמכים שבתיק של הלקוח. undefined = עוד לא נטענו (נטענים בפתיחת הבורר). */
+  const [clientDocs, setClientDocs] = useState<StoredDoc[] | undefined>(undefined);
+  const [docSearch, setDocSearch] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const db = useDocumentStore();
 
   // ‼ נטענת מיד עם פתיחת החלון, ולא רק כשנכנסים למסך המסמך: הקטלוג צריך
   // לדעת מראש אם יש מה לשלוח, כדי להשבית את הפריט במקום לגלות בסוף.
@@ -164,9 +210,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
       ]);
       if (!alive) return;
       const settings = (prof?.settings ?? {}) as Record<string, unknown>;
-      const lib = documentLibrary({ settings });
-      setLibrary(lib);
-      setDocId(lib[0]?.id ?? '');
+      setLibrary(documentLibrary({ settings }));
       setTemplates(tpls);
       setProfileId((prof?.id as string | undefined) ?? null);
       setDocOptions(allDocOptions(settings));
@@ -179,8 +223,93 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   function openDocumentMode() {
     setMode('document');
     setError(null);
+    setPicked([]);
+    setMessage('');
+    setPicker(null);
+    setDocSearch('');
     // שליחת מסמך אינה עבודה שחוסמת סגירת קליטה — היא חומר עזר.
     setRequiredForClose(false);
+  }
+
+  /** ‼ נטענים רק כשנפתח הבורר: לרוב הבקשות אין בהם צורך, ותיק גדול הוא
+   *  שאילתה מיותרת בכל פתיחה של החלון. */
+  async function openClientPicker() {
+    setPicker(p => (p === 'client' ? null : 'client'));
+    if (clientDocs !== undefined) return;
+    setClientDocs(await db.getDocsByClient(clientId));
+  }
+
+  const addPick = (p: PickedFile) => {
+    setPicked(list => list.some(x => sameFile(x, p)) ? list : [...list, p]);
+    setError(null);
+  };
+  const removePick = (uid: string) => setPicked(list => list.filter(x => x.uid !== uid));
+
+  /**
+   * העלאה מהמחשב — הקובץ נשמר **בתיק של הלקוח** ומשם נשלח.
+   *
+   * ‼ פעולה אחת ולא שתיים, וזו הנקודה: "לשלוח וגם שיישמר אצלו" היה עד היום
+   * העלאה בתיק ואז בקשה נפרדת. הקובץ קיים במקום אחד בלבד, ולכן גם אין עותק
+   * שני שיכול להתיישן.
+   * ‼ בלי לשאול תווית ושנה: הבחירה הזאת שייכת לתיוק, והיא היתה הופכת שליחת
+   * מסמך לטופס. נכנס תחת 'לבדיקה' — התווית השמורה למה שטרם סווג — וגיא
+   * מתייק אחר כך אם ירצה.
+   */
+  async function uploadAndPick(files: File[]) {
+    if (files.length === 0) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const labels = await db.getLabels();
+      const reserved = labels.find(l => l.isReserved)?.id ?? null;
+      for (const file of files) {
+        const id = crypto.randomUUID();
+        const label = file.name.replace(/\.[^./\\]+$/, '');
+        await db.saveDoc({
+          id,
+          clientId,
+          fileName: file.name,
+          fileType: file.type || 'application/octet-stream',
+          fileSize: file.size,
+          category: 'other',
+          year: 'general',
+          uploadedAt: new Date().toISOString(),
+          description: label,
+          notes: '',
+          fileData: await file.arrayBuffer(),
+          folderId: null,
+          labelId: reserved,
+        });
+        addPick({ uid: id, source: 'client', documentId: id, label, fileName: file.name });
+      }
+      // התיק נטען מחדש כדי שהקובץ שהועלה יופיע גם בבורר, ולא רק ברשימה.
+      setClientDocs(undefined);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ההעלאה נכשלה.');
+    }
+    setUploading(false);
+  }
+
+  function submitSendDocuments() {
+    const text = message.trim();
+    if (picked.length === 0 && !text) {
+      setError('צריך לבחור לפחות קובץ אחד, או לכתוב הודעה.');
+      return;
+    }
+    const resources: SendResource[] = picked.map((p, i) => ({
+      key: resourceKey(i),
+      source: p.source,
+      officeId: p.officeId,
+      documentId: p.documentId,
+      label: p.label,
+      fileName: p.fileName,
+    }));
+    // ‼ הודעה בלי קבצים היא בבעלות המשרד ולא הלקוח: אין לו מה לעשות איתה,
+    // והיא נסגרת רק כשגיא מסיר אותה. זה גם מה שמאפשר בקשה בלי דרישות —
+    // create_onboarding_request מוודא דרישות רק כשהכדור אצל הלקוח.
+    // ‼ ולעולם לא חוסמת סגירת קליטה: הודעה אינה עבודה.
+    void create('custom_request', buildSendDocumentsPayload({ resources, message: text }),
+      resources.length === 0 ? { owner: 'me', requiredForClose: false } : undefined);
   }
 
   /** תוכן ברירת המחדל של סוג בקשה, מהתבנית המובנית. ריק ⇒ {} כמו קודם. */
@@ -243,7 +372,9 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
 
   const [dueDate, setDueDate] = useState('');
   const [dependsOn, setDependsOn] = useState('');
-  const [sendNow, setSendNow] = useState(!processPublished);
+  // ‼ קיצור מתיקיית המסמכים נשלח מיד: מי שלוחץ "שליחה ללקוח" על קובץ מתכוון
+  // לשלוח אותו, וטיוטה שקטה שם נחווית כאילו לא קרה כלום.
+  const [sendNow, setSendNow] = useState(!processPublished || !!presetDocuments?.length);
 
   const existing = useMemo(
     () => new Set(steps.filter(s => s.status !== 'cancelled').map(s => s.stepType)),
@@ -257,6 +388,15 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     ? prevMissing.length > 0
     : !(c.once && existing.has(c.type as OnboardingStep['stepType'])));
   const dependencyOptions = steps.filter(s => s.status !== 'cancelled');
+  /** תיק גדול הוא רשימה ארוכה — החיפוש הוא מה שהופך אותו לשמיש. */
+  const visibleClientDocs = useMemo(() => {
+    const q = docSearch.trim().toLowerCase();
+    const all = clientDocs ?? [];
+    if (!q) return all.slice(0, 60);
+    return all.filter(d =>
+      (d.description || '').toLowerCase().includes(q) ||
+      (d.fileName || '').toLowerCase().includes(q)).slice(0, 60);
+  }, [clientDocs, docSearch]);
   /** ‼ המובנות אינן מוצגות כשורות: הן כבר ברירת המחדל של פריטי הקטלוג
    *  שמעליהן, והצגתן פעמיים הייתה כפילות. */
   const savedTemplates = templates.filter(t => t.officeId !== null && !!onUseTemplate);
@@ -285,10 +425,15 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     return { id: res.stepId ?? '' };
   }
 
-  async function create(stepType: string, payload: Record<string, unknown>) {
+  async function create(
+    stepType: string,
+    payload: Record<string, unknown>,
+    opts?: { owner?: string; requiredForClose?: boolean },
+  ) {
     setBusy(true);
     setError(null);
-    const res = await rpcCreate(stepType, payload, dependsOn || null);
+    const res = await rpcCreate(stepType, payload, dependsOn || null,
+      opts?.owner, opts?.requiredForClose);
     setBusy(false);
     if ('error' in res) { setError(res.error); return; }
     onCreated();
@@ -399,7 +544,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
               : mode === 'catalog' ? 'הוספת בקשה'
               : mode === 'custom' ? 'בקשה חופשית'
               : mode === 'bank' ? BANK_DEBIT_TITLE
-              : mode === 'document' ? 'שליחת מסמך ללקוח'
+              : mode === 'document' ? 'שליחת מסמכים ללקוח'
               : 'מסמכים מהלקוח'}
           </h3>
           <button type="button" className="btn btn-sm btn-ghost" onClick={onClose} aria-label="סגירה">✕</button>
@@ -455,7 +600,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                     {c.type === 'paperless_sequence' ? 'פייפרלס'
                       : c.type === 'prev_accountant_track' ? 'חומרים מרו״ח קודם'
                       : c.type === 'bank_debit' ? BANK_DEBIT_TITLE
-                      : c.type === 'send_document' ? 'שליחת מסמך ללקוח'
+                      : c.type === 'send_document' ? 'שליחת מסמכים ללקוח'
                       : STEP_TYPE_LABELS[c.type as OnboardingStep['stepType']]}
                   </span>
                   <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
@@ -531,33 +676,113 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
 
           {mode === 'document' && (
             <>
-              {library === undefined ? (
-                <div className="cw-empty">טוען…</div>
-              ) : library.length === 0 ? (
-                <div className="cw-empty">
-                  ספריית המסמכים ריקה. מוסיפים מסמכים במסך המשרד ← «מסמכים ללקוחות», ואז חוזרים לכאן.
+              {/* ── מה נשלח ────────────────────────────────────────────────
+                  ‼ הרשימה היא המסך: בוחרים קבצים, ואם רוצים מוסיפים מילים.
+                  אין שדה חובה אחד — שליחת מסמך צריכה להיות קלה משליחת מייל. */}
+              {picked.length === 0 ? (
+                <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
+                  בוחרים קבצים - או כותבים רק הודעה. הלקוח יראה אותם בדף האישי,
+                  ופתיחת כולם סוגרת את הבקשה.
                 </div>
               ) : (
-                <>
-                  <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
-                    הלקוח יראה בקשה עם כפתור אחד שפותח את המסמך. אין מה למלא ואין מה לאשר -
-                    הפתיחה עצמה סוגרת את הבקשה, והיא תסומן כאן כהושלמה.
-                  </div>
-                  <label style={lbl}>
-                    איזה מסמך לשלוח
-                    <select className="input" value={docId} onChange={e => setDocId(e.target.value)}>
-                      {library.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-                    </select>
-                  </label>
-                  {library.find(d => d.id === docId) && (
-                    <a href={library.find(d => d.id === docId)!.url} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 'var(--fs-12)', color: 'var(--accent)' }}>
-                      לצפייה בקובץ שיישלח ←
-                    </a>
-                  )}
-                  <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
-                </>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                  {picked.map(f => (
+                    <div key={f.uid} style={pickedRow}>
+                      <span aria-hidden="true" style={{ opacity: .6 }}>📄</span>
+                      <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{f.label}</span>
+                      <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
+                        {f.source === 'office' ? 'ספריית המשרד' : 'התיקייה של הלקוח'}
+                      </span>
+                      <button type="button" className="btn btn-sm btn-ghost"
+                        aria-label={`הסרת ${f.label}`} onClick={() => removePick(f.uid)}>✕</button>
+                    </div>
+                  ))}
+                </div>
               )}
+
+              <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+                  onClick={() => setPicker(p => (p === 'office' ? null : 'office'))}>
+                  + מספריית המשרד
+                </button>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
+                  onClick={() => { void openClientPicker(); }}>
+                  + מהתיקייה של הלקוח
+                </button>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={busy || uploading}
+                  onClick={() => fileInputRef.current?.click()}>
+                  {uploading ? 'מעלה…' : '+ העלאה מהמחשב'}
+                </button>
+                <input ref={fileInputRef} type="file" multiple hidden
+                  onChange={e => {
+                    const files = Array.from(e.target.files || []);
+                    e.target.value = '';
+                    void uploadAndPick(files);
+                  }} />
+              </div>
+
+              {picker === 'office' && (
+                <div style={pickerBox}>
+                  {library === undefined ? (
+                    <div className="cw-empty">טוען…</div>
+                  ) : library.length === 0 ? (
+                    <div className="cw-empty">
+                      ספריית המסמכים ריקה. מוסיפים מסמכים במסך המשרד ← «מסמכים ללקוחות».
+                    </div>
+                  ) : library.map(d => {
+                    const taken = picked.some(p => p.source === 'office' && p.officeId === d.id);
+                    return (
+                      <button key={d.id} type="button" style={pickRow} disabled={taken}
+                        onClick={() => addPick({ uid: `office-${d.id}`, source: 'office', officeId: d.id, label: d.label, fileName: d.fileName })}>
+                        <span style={{ flex: 1, minWidth: 0 }}>{d.label}</span>
+                        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
+                          {taken ? 'נבחר' : 'הוספה'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {picker === 'client' && (
+                <div style={pickerBox}>
+                  {clientDocs === undefined ? (
+                    <div className="cw-empty">טוען…</div>
+                  ) : clientDocs.length === 0 ? (
+                    <div className="cw-empty">אין עדיין מסמכים בתיקייה של הלקוח.</div>
+                  ) : (
+                    <>
+                      <input className="input" value={docSearch} placeholder="חיפוש בתיקייה…"
+                        onChange={e => setDocSearch(e.target.value)}
+                        style={{ marginBottom: '.35rem' }} />
+                      {visibleClientDocs.length === 0 ? (
+                        <div className="cw-empty">אין מסמך בשם הזה.</div>
+                      ) : visibleClientDocs.map(d => {
+                        const taken = picked.some(p => p.source === 'client' && p.documentId === d.id);
+                        const label = documentLabel(d);
+                        return (
+                          <button key={d.id} type="button" style={pickRow} disabled={taken}
+                            onClick={() => addPick({ uid: `client-${d.id}`, source: 'client', documentId: d.id, label, fileName: d.fileName })}>
+                            <span style={{ flex: 1, minWidth: 0 }}>{label}</span>
+                            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
+                              {taken ? 'נבחר' : 'הוספה'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              )}
+
+              <label style={lbl}>
+                כמה מילים ללקוח (לא חובה)
+                <textarea className="input" rows={3} value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  placeholder="למשל: מצורף הדוח השנתי לחתימה. נשמח שתעבור עליו." />
+              </label>
+
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
             </>
           )}
 
@@ -686,7 +911,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
         </div>
 
         <div className="modal-foot" style={{ display: 'flex', gap: '.4rem', justifyContent: 'flex-end' }}>
-          {mode !== 'catalog' && !presetType && (
+          {mode !== 'catalog' && !presetType && !presetDocuments?.length && (
             <button type="button" className="btn btn-secondary" disabled={busy}
               onClick={() => { setMode('catalog'); setError(null); }}>חזרה</button>
           )}
@@ -715,13 +940,14 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
               {busy ? 'מוסיף…' : 'הוסף בקשה'}
             </button>
           )}
-          {mode === 'document' && !presetType && !!library?.length && (
-            <button type="button" className="btn btn-primary" disabled={busy || !docId}
-              onClick={() => {
-                const doc = library.find(d => d.id === docId);
-                if (doc) void create('custom_request', buildDocumentRequestPayload(doc));
-              }}>
-              {busy ? 'מוסיף…' : 'הוסף בקשה'}
+          {mode === 'document' && !presetType && (
+            <button type="button" className="btn btn-primary"
+              disabled={busy || uploading || (picked.length === 0 && !message.trim())}
+              onClick={submitSendDocuments}>
+              {busy ? 'שולח…'
+                : picked.length === 0 ? 'שלח הודעה'
+                : picked.length === 1 ? 'שלח מסמך'
+                : `שלח ${picked.length} מסמכים`}
             </button>
           )}
         </div>
@@ -794,6 +1020,28 @@ function Shared({
 
 const lbl: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: '.25rem', fontSize: 'var(--fs-13)',
+};
+
+/** שורת קובץ שנבחר לשליחה. */
+const pickedRow: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: '.45rem',
+  padding: '.35rem .5rem', borderRadius: 'var(--radius)',
+  border: '1px solid var(--hairline-2)', fontSize: 'var(--fs-13)',
+};
+
+/** הבורר שנפתח מתחת לכפתורים — קופסה אחת, גוללת, ולא חלון נוסף. */
+const pickerBox: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', gap: '.15rem',
+  maxHeight: 210, overflowY: 'auto',
+  padding: '.4rem', borderRadius: 'var(--radius)',
+  border: '1px solid var(--hairline-2)', background: 'var(--gray-50)',
+};
+
+const pickRow: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: '.4rem', textAlign: 'start',
+  padding: '.35rem .45rem', borderRadius: 'var(--radius)',
+  border: 'none', background: 'transparent', font: 'inherit',
+  fontSize: 'var(--fs-13)', color: 'var(--ink-1)', cursor: 'pointer', width: '100%',
 };
 
 const rowBtn: React.CSSProperties = {
