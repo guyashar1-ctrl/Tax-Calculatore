@@ -54,7 +54,7 @@ const CTA_LABEL: Record<StepEmailKind, string> = {
 
 const FOOTER_TAGLINE: Record<StepEmailKind, string> = {
   paperless_invite: "פתיחת החשבון · כדקה",
-  retainer_request: "מאובטח · פחות מדקה",
+  retainer_request: "",
   step_reminder: "",
   intake_questionnaire: "עונים רק על מה שרלוונטי",
 };

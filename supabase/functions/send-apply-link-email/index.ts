@@ -71,7 +71,6 @@ Deno.serve(async (req: Request) => {
       ctaHref: link,
       ctaArrow: true,
       showLinkFallback: true,
-      footerTagline: "מאובטח · פחות מדקה",
     });
 
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;

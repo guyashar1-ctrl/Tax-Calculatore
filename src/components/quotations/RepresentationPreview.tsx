@@ -94,7 +94,6 @@ export default function RepresentationPreview({ brand, compact }: { brand: Quota
           <button disabled style={{ width: '100%', padding: compact ? '13px' : '15px', borderRadius: btnRadius, fontSize: compact ? 15 : 16, fontWeight: 600, fontFamily: 'inherit', cursor: 'default', ...btnStyle }}>
             המשך&nbsp;&nbsp;←
           </button>
-          <div style={{ marginTop: 14, textAlign: 'center', fontSize: 11, color: brand.muted }}>מאובטח · פחות מדקה</div>
         </div>
       </div>
       <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11.5, color: brand.muted }}>
