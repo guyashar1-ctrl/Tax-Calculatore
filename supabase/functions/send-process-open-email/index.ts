@@ -64,7 +64,7 @@ Deno.serve(async (req: Request) => {
     if (!clientId) return json({ error: "missing clientId" }, 400);
 
     const { data: client } = await admin
-      .from("clients").select("id,user_id,first_name,last_name,email,portal_token")
+      .from("clients").select("id,user_id,first_name,last_name,email,portal_token,lifecycle_stage")
       .eq("id", clientId).maybeSingle();
     if (!client || client.user_id !== userId) return json({ error: "not found" }, 404);
     const toEmail = String(client.email || "").trim();
@@ -96,6 +96,16 @@ Deno.serve(async (req: Request) => {
       .map(r => String(r.label || "").trim())
       .filter(Boolean);
     const officeItems = items.filter(i => i.bucket === "office" && i.kind !== "message");
+    /**
+     * ‼ לקוח שסיים להיקלט אינו "בתהליך קליטה", ואין לו מה לקרוא על כך.
+     *
+     * ‼ המקור הוא `clients.lifecycle_stage` (lead/quoted/onboarding/active),
+     * שמתוחזק בטריגרים — ולא `journeyStage` של הדף. נבדק: journeyStage הוא
+     * "כמה מהדף הושלם", ומסמך שטרם נפתח נספר בו — כלומר לקוח פעיל לגמרי
+     * חוזר כ-'setup' בדיוק בגלל המסמך שבשבילו נשלח המייל. אות שמושפע
+     * מהאירוע שהוא אמור לתאר אינו אות.
+     */
+    const stillOnboarding = String(client.lifecycle_stage || "") !== "active";
 
     const event: EmailEvent = actions.length > 0 ? "process_open"
       : newDocs.length > 0 ? "documents_sent"
@@ -173,17 +183,20 @@ Deno.serve(async (req: Request) => {
      * הקליטה היא הקשר משני — ופסקה מעל הכפתור הייתה דוחפת את הפעולה
      * הראשית מטה ומתחרה בכותרת. הבלוק נבנה בשרת ואינו חלק מהתבנית הניתנת
      * לעריכה, כדי שיישאר נכון לכל לקוח.
+     *
+     * ‼ שני תנאים, ושניהם נדרשים:
+     *   · הלקוח עדיין בקליטה — ללקוח פעיל אין "תהליך קליטה" לדבר עליו.
+     *   · יש עבודה אמיתית בטיפולנו — אחרת הבלוק הוא כותרת ומשפט אחד שלא
+     *     אומר כלום, ומוסיף רעש למייל שכולו מסירת מסמכים.
      */
-    const statusBlock = event === "documents_sent" && (officeItems.length > 0 || actions.length === 0)
+    const statusBlock = event === "documents_sent" && stillOnboarding && officeItems.length > 0
       ? `<tr><td dir="rtl" align="right" style="text-align:right;padding:18px 40px 4px;">`
         + `<div style="border-top:1px solid ${brand.border};padding-top:14px;">`
         + `<div style="font-family:${emailFont(brand)};font-size:12.5px;font-weight:700;color:${brand.muted};letter-spacing:.02em;">תהליך הקליטה שלך</div>`
         + `<div style="font-family:${emailFont(brand)};font-size:13.5px;color:${brand.muted};line-height:1.7;padding-top:5px;">`
-        + (officeItems.length > 0
-            ? esc(officeItems.map(i => String(i.sub || i.label || "").trim()).filter(Boolean).join("\n"))
-                .replace(/\n/g, "<br />") + "<br />"
-            : "")
-        + "כרגע אין צורך בפעולה מצידך."
+        + esc(officeItems.map(i => String(i.sub || i.label || "").trim()).filter(Boolean).join("\n"))
+            .replace(/\n/g, "<br />")
+        + "<br />כרגע אין צורך בפעולה מצידך."
         + `</div></div></td></tr>`
       : "";
 
