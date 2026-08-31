@@ -150,7 +150,9 @@ export default function TestAddRequestDialog() {
       if (!input) return;
       window.clearInterval(t);
       const dt = new DataTransfer();
-      dt.items.add(new File(['%PDF-1.4 demo'], 'פטור מניכוי מס במקור.pdf', { type: 'application/pdf' }));
+      // שניים, כי זה בדיוק המקרה שבו לכל קובץ צריך תיוק משלו.
+      dt.items.add(new File(['%PDF-1.4 a'], 'פטור מניכוי מס במקור.pdf', { type: 'application/pdf' }));
+      dt.items.add(new File(['%PDF-1.4 b'], 'אישור ניהול ספרים.pdf', { type: 'application/pdf' }));
       input.files = dt.files;
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }, 200);
