@@ -264,11 +264,11 @@ export function defaultQuotationRepresentation(_isTransfer = false): QuotationRe
     incomeTax: { status: 'in_process', level: 'primary' },
     withholding: { status: 'in_process', level: 'primary' },
     vat: { status: 'in_process', level: 'primary' },
-    // ‼ ברירת המחדל ללקוח נשוי: ייצוג בב"ל לשני בני הזוג (הכרעה 2026-08-17).
-    // הדגל חל רק אם הלקוח נשוי בפועל — לקוח לא-נשוי פשוט לא מושפע ממנו.
-    // הערך נכתב כאן במפורש (ולא נגזר מהיעדרו) כדי שרשומות ישנות, שבהן היעדר
-    // הדגל פירושו "לא נבחר", ימשיכו להתנהג כפי שהיו.
-    nationalInsurance: { status: 'in_process', coversSpouse: true },
+    // ‼ ברירת המחדל ללקוח נשוי: ייצוג בב"ל לשני בני הזוג (הכרעה 2026-08-17,
+    // נשמרת אחרי שב"ל הצטרף ל-"עבור מי" ב-31.8). הצ'יפים חלים רק אם הלקוח
+    // נשוי בפועל — לקוח לא-נשוי פשוט לא מושפע מהערך הזה (ראה notMarriedExplicit
+    // בעורך). נכתב במפורש כ-`targets`, כמו כל בקשה חדשה מאז 31.8.
+    nationalInsurance: { status: 'in_process', targets: ['client', 'spouse'] },
   };
   return {
     enabled: true,

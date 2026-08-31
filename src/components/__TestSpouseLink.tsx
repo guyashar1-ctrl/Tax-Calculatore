@@ -7,6 +7,8 @@ import type { Client } from '../types';
 import NewPersonDialog, { type NewPersonBasics } from './NewPersonDialog';
 import PersonQuickView from './PersonQuickView';
 import PersonalContactsTab from './clientTabs/PersonalContactsTab';
+import TaxFileTab from './clientTabs/TaxFileTab';
+import ClientDossierTab from './clientTabs/ClientDossierTab';
 import { buildPersonRows } from '../utils/personDirectory';
 import { seedClientFromEmbeddedSpouse } from '../utils/personRepresentation';
 
@@ -52,7 +54,9 @@ export default function TestSpouseLink() {
   const [open, setOpen] = useState(true);
   const [confirmed, setConfirmed] = useState<NewPersonBasics | null>(null);
   const [contactsClient, setContactsClient] = useState<Client>(YAIR);
+  const [verified, setVerified] = useState(false);
 
+  const yairForHousehold: Client = { ...YAIR_LINKED, registeredSpouseVerified: verified };
   const michalRow = buildPersonRows([MICHAL_LINKED], [], [])[0];
   const yairRow = buildPersonRows([YAIR_LINKED], [], [])[0];
   const noop = { label: '', run: () => {} };
@@ -83,12 +87,16 @@ export default function TestSpouseLink() {
       )}
 
       <h3 style={{ marginTop: '2rem' }}>אחרי הקישור — תצוגה מהירה של כל כרטיס</h3>
+      <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <input type="checkbox" checked={verified} onChange={e => setVerified(e.target.checked)} />
+        בן/בת הזוג הרשום/ה אומת/ה מול שע״ם
+      </label>
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
         <div id="tst-quickview-michal" style={{ width: 380, border: '1px solid var(--hairline-1)', borderRadius: 8 }}>
           <PersonQuickView
             row={michalRow} now={{ title: 'ממתינה למילוי פרטים' }} docs={[]} docsLoading={false}
             quickAction={null} primary={noop} onClose={() => {}}
-            spouseClient={YAIR_LINKED}
+            spouseClient={yairForHousehold}
           />
         </div>
         <div id="tst-quickview-yair" style={{ width: 380, border: '1px solid var(--hairline-1)', borderRadius: 8 }}>
@@ -98,6 +106,33 @@ export default function TestSpouseLink() {
             spouseClient={MICHAL_LINKED}
           />
         </div>
+      </div>
+
+      <h3 style={{ marginTop: '2rem' }}>תיק מס (TaxFileTab) — "מול הרשויות" משני הכרטיסים</h3>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div id="tst-taxfile-michal" style={{ width: 480, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>מיכל (הכרטיס המקושר החדש)</div>
+          <TaxFileTab
+            client={MICHAL_LINKED} spouseClient={yairForHousehold}
+            onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+          />
+        </div>
+        <div id="tst-taxfile-yair" style={{ width: 480, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>יאיר (הכרטיס המקורי)</div>
+          <TaxFileTab
+            client={yairForHousehold} spouseClient={MICHAL_LINKED}
+            onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+          />
+        </div>
+      </div>
+
+      <h3 style={{ marginTop: '2rem' }}>ההתיק (ClientDossierTab) — עורך תיקי הרשויות, מכרטיס מיכל</h3>
+      <div id="tst-dossier-michal" style={{ maxWidth: 900, border: '1px solid var(--hairline-1)', borderRadius: 8 }}>
+        <ClientDossierTab
+          client={MICHAL_LINKED} spouseClient={yairForHousehold}
+          update={() => {}} patch={() => {}} patchAndSave={async () => {}}
+          employees={[]} sessions={[]}
+        />
       </div>
 
       <h3 style={{ marginTop: '2rem' }}>PersonalContactsTab — "יש עסק, מיוצג/ת ע"י רו"ח אחר"</h3>

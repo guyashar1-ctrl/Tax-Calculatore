@@ -3,19 +3,22 @@
 // רק שהן נשאלות מראש: ברגע שהלקוח מאשר את ההצעה אין אף אחד שיבחר רשויות, ולכן
 // הבחירה חייבת להיות שמורה על ההצעה. מה שלא ימולא כאן — הלקוח ימלא בקישור.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   RepAuthorityKind,
   RepLevel,
+  RepTarget,
   REP_AUTHORITY_ORDER,
   REP_AUTHORITY_LABELS,
   REP_AUTHORITIES_WITH_LEVEL,
+  REP_AUTHORITIES_WITH_TARGETS,
   REP_LEVEL_LABELS,
   FamilyStatus,
   FAMILY_STATUS_LABELS,
   FAMILY_STATUS_YEAR_LABELS,
 } from '../../types';
 import type { QuotationRepresentation } from '../../types/quotations';
+import { targetsOf } from '../../utils/repScope';
 import { isValidIsraeliId } from '../../utils/israeliId';
 import { isValidEmail } from '../../utils/email';
 import EmailInput from '../ui/EmailInput';
@@ -24,10 +27,15 @@ const FAMILY_ORDER: FamilyStatus[] = ['single', 'married', 'divorced', 'widowed'
 const CURRENT_YEAR = new Date().getFullYear();
 const hasLevel = (a: RepAuthorityKind) => REP_AUTHORITIES_WITH_LEVEL.includes(a);
 
-
-/** האם נלקח ייצוג ב"ל גם עבור בן/בת הזוג — התנאי שהופך את פרטיו לחובה. */
+/**
+ * האם נלקח ייצוג ב"ל גם עבור בן/בת הזוג.
+ *
+ * ‼ עובר דרך `targetsOf` (31.8) — ביטוח לאומי הצטרף ל"עבור מי", אותו מודל
+ * בדיוק כמו מע"מ/ניכויים. `targetsOf` מתרגם גם רשומות ישנות עם `coversSpouse`
+ * הגולמי, אז אין כאן שני מקורות אמת.
+ */
 export function niCoversSpouse(rep: QuotationRepresentation): boolean {
-  return !!rep.areas?.nationalInsurance?.coversSpouse;
+  return targetsOf(rep.areas, 'nationalInsurance').includes('spouse');
 }
 
 /**
@@ -83,10 +91,17 @@ interface Props {
   emailConflict?: string | null;
   /** הנמען עובר מרו"ח אחר ⇒ רמת הייצוג נפתחת כמשנית, וזה נאמר על המסך. */
   isTransfer?: boolean;
+  /**
+   * רשויות שכבר קיים להן ייצוג — של הנמען עצמו, או של הזוג דרך בן/בת הזוג
+   * המקושר/ת (150). כשהנמען כבר לקוח קיים ומקושר, מוצג כשורת מידע קבועה
+   * במקום צ'קבוקס, בדיוק כמו בדיאלוג "קישור ייצוג חדש". ‼ מחושב מראש
+   * ע"י הקורא (QuotationBuilder) — העורך הזה לא צריך לדעת על כרטיסים.
+   */
+  alreadyRepresented?: Partial<Record<RepAuthorityKind, string>>;
 }
 
 export default function QuotationRepresentationEditor({
-  value, onChange, recipientName, recipientEmail, emailConflict, isTransfer = false,
+  value, onChange, recipientName, recipientEmail, emailConflict, isTransfer = false, alreadyRepresented,
 }: Props) {
   const [showKnown, setShowKnown] = useState(false);
   const p = value.prefill ?? {};
@@ -95,13 +110,41 @@ export default function QuotationRepresentationEditor({
   // המחדל פעילה — אם הלקוח יצהיר בקישור שהוא נשוי, הייצוג יכסה את שניהם.
   const notMarriedExplicit = !!p.familyStatus && p.familyStatus !== 'married';
   const yearLabel = p.familyStatus ? FAMILY_STATUS_YEAR_LABELS[p.familyStatus] : undefined;
-  const niSelected = !!value.areas?.nationalInsurance;
   const forSpouse = niCoversSpouse(value) && !notMarriedExplicit;
-  const selected = REP_AUTHORITY_ORDER.filter(a => !!value.areas?.[a]);
+  // ‼ רשות שכבר מיוצגת (alreadyRepresented) לעולם לא נכנסת ל-selected — גם
+  // אם היא איכשהו נשארה מסומנת ב-state. אין לה שורת בחירה, ואי אפשר לבקש
+  // אותה שוב מהמסך הזה. ראה RepresentationOnboardingDialog, אותו כלל.
+  const selected = REP_AUTHORITY_ORDER.filter(a => !!value.areas?.[a] && !alreadyRepresented?.[a]);
   const validation = validateQuotationRepresentation(value);
+
+  // ‼ שאלת "עבור מי" מוצגת רק כשידוע שיש בן/בת זוג — כמו בדיאלוג הראשי.
+  // רוב ההצעות הן ליחיד, ושאלה שמופיעה בכל אחת מהן מייקרת את ברירת המחדל.
+  const spouseKnown = married || !!p.spouseName?.trim();
 
   const patch = (next: Partial<QuotationRepresentation>) => onChange({ ...value, ...next });
   const patchPrefill = (next: Partial<typeof p>) => patch({ prefill: { ...p, ...next } });
+
+  function showTargets(a: RepAuthorityKind): boolean {
+    return !!value.areas?.[a] && REP_AUTHORITIES_WITH_TARGETS.includes(a) && spouseKnown && !alreadyRepresented?.[a];
+  }
+
+  /**
+   * ‼ קריטי: `defaultQuotationRepresentation` מסמן את כל הרשויות מראש, בלי
+   * לדעת על קישור בן-זוג. בלי הניקוי הזה, רשות שכבר "מיוצג/ת" (מוצגת כשורת
+   * מידע, לא ניתנת לביטול ידני) הייתה נשארת פעילה ב-`value.areas` ונשלחת
+   * שוב באישור ההצעה — בדיוק הכפילות שאסור ליצור. פועל פעם אחת לכל רשות
+   * שכבר טופלה (לא חוזר אם הרו"ח יבחר להוסיף אותה מחדש ביודעין... אבל היא
+   * לא ניתנת לבחירה מהמסך הזה כלל, ולכן "פעם אחת" תמיד מספיק כאן).
+   */
+  useEffect(() => {
+    if (!alreadyRepresented) return;
+    const toStrip = REP_AUTHORITY_ORDER.filter(a => !!alreadyRepresented[a] && !!value.areas?.[a]);
+    if (toStrip.length === 0) return;
+    const areas = { ...(value.areas ?? {}) };
+    for (const a of toStrip) delete areas[a];
+    patch({ areas });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alreadyRepresented, value.areas]);
 
   function toggleArea(a: RepAuthorityKind) {
     const areas = { ...(value.areas ?? {}) };
@@ -109,9 +152,10 @@ export default function QuotationRepresentationEditor({
     // ‼ ראשי גם במעבר מרו"ח אחר (הכרעת גיא 2026-08-18) — משני נרשמים רק
     // כשנשארת אצל הקודם עבודה חוסמת, וזה נגזר במכתב העברת הטיפול.
     else areas[a] = hasLevel(a)
-      ? { status: 'in_process', level: 'primary' }
-      // ב"ל חוזר עם ברירת המחדל: ייצוג לשני בני הזוג אם הלקוח נשוי
-      : { status: 'in_process', coversSpouse: true };
+      ? { status: 'in_process', level: 'primary', targets: ['client'] }
+      // ‼ ביטוח לאומי הוא "עבור מי" לכל דבר (31.8), אבל ברירת המחדל שלו
+      // שונה: ייצוג לשני בני הזוג כשהלקוח נשוי (הכרעה 2026-08-17).
+      : { status: 'in_process', targets: ['client', 'spouse'] };
     patch({ areas });
   }
 
@@ -121,11 +165,16 @@ export default function QuotationRepresentationEditor({
     patch({ areas });
   }
 
-  function setNiForSpouse(on: boolean) {
+  /** הדלקה/כיבוי של אדם ברשות. אי אפשר לכבות את האחרון — רשות בלי אף אדם
+      היא בקשה שאי אפשר להגיש; הלחיצה האחרונה פשוט לא נענית. */
+  function toggleTarget(a: RepAuthorityKind, t: RepTarget) {
     const areas = { ...(value.areas ?? {}) };
-    if (areas.nationalInsurance) {
-      areas.nationalInsurance = { ...areas.nationalInsurance, coversSpouse: on || undefined };
-    }
+    const rec = areas[a];
+    if (!rec) return;
+    const cur = rec.targets && rec.targets.length ? rec.targets : (['client'] as RepTarget[]);
+    const next = cur.includes(t) ? cur.filter(x => x !== t) : [...cur, t];
+    if (next.length === 0) return;
+    areas[a] = { ...rec, targets: next };
     patch({ areas });
   }
 
@@ -203,10 +252,30 @@ export default function QuotationRepresentationEditor({
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {REP_AUTHORITY_ORDER.map(a => {
+              const already = alreadyRepresented?.[a];
+              if (already) {
+                // ‼ שורת מידע קבועה, לא צ'קבוקס — בדיוק כמו ב-RepresentationOnboardingDialog.
+                // "כבר מיוצג" הוא עובדה שנקבעה בכרטיס אחר, לא החלטה לקבל כאן.
+                return (
+                  <div key={a} style={{
+                    display: 'flex', alignItems: 'center', gap: 9, padding: '7px 10px',
+                    border: '1px solid var(--gray-200)', background: 'var(--gray-50)', borderRadius: 9,
+                  }}>
+                    <span style={{ fontSize: 13 }}>{'✓'}</span>
+                    <span style={{ flex: 1, fontSize: 13 }}>
+                      {REP_AUTHORITY_LABELS[a]}
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--gray-500)', marginTop: 1 }}>
+                        כבר מיוצג/ת {'·'} {already} {'·'} אין צורך בבקשה נוספת
+                      </span>
+                    </span>
+                  </div>
+                );
+              }
               const on = !!value.areas?.[a];
               return (
                 <div key={a} onClick={() => toggleArea(a)} style={{
                   display: 'flex', alignItems: 'center', gap: 9, padding: '7px 10px', cursor: 'pointer',
+                  flexWrap: 'wrap',
                   border: `1px solid ${on ? 'var(--blue)' : 'var(--gray-200)'}`,
                   background: on ? 'var(--blue-light)' : 'var(--card)', borderRadius: 9,
                 }}>
@@ -225,6 +294,34 @@ export default function QuotationRepresentationEditor({
                   ) : (
                     <span style={{ fontSize: 11, color: 'var(--gray-500)' }}>ייצוג יחיד</span>
                   )}
+
+                  {/* ‼ "עבור מי" בתוך שורת הרשות, כמו ב-RepresentationOnboardingDialog —
+                      בחירת הרשות ובחירת האדם הן החלטה אחת. */}
+                  {showTargets(a) && (
+                    <div style={{ flexBasis: '100%', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', paddingInlineStart: 28 }}
+                      onClick={e => e.stopPropagation()}>
+                      <span style={{ fontSize: 11, color: 'var(--gray-500)' }}>עבור מי?</span>
+                      {(['client', 'spouse'] as RepTarget[]).map(t => {
+                        const targets = value.areas?.[a]?.targets && value.areas![a]!.targets!.length
+                          ? value.areas![a]!.targets!
+                          : ['client'];
+                        const onT = targets.includes(t);
+                        return (
+                          <button
+                            key={t} type="button"
+                            onClick={() => toggleTarget(a, t)}
+                            style={{
+                              fontSize: 11, padding: '3px 8px', borderRadius: 999, cursor: 'pointer',
+                              border: `1px solid ${onT ? 'var(--blue)' : 'var(--gray-300)'}`,
+                              background: onT ? 'var(--blue)' : 'var(--card)', color: onT ? '#fff' : 'var(--gray-700)',
+                            }}
+                          >
+                            {onT ? '✓ ' : ''}{t === 'spouse' ? (p.spouseName?.trim() || 'בן/בת הזוג') : (recipientName.trim() || 'הלקוח/ה')}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -234,30 +331,9 @@ export default function QuotationRepresentationEditor({
             נפרד עם טופס ואסמכתא משלו - המערכת מטפלת בשניהם באותו תהליך.
           </div>
 
-          {/* חתימה ≠ ייצוג. בב"ל לכל מבוטח תיק נפרד; ברירת המחדל ללקוח נשוי —
-              ייצוג לשני בני הזוג, וכאן אפשר לצמצם לנישום בלבד. הבחירה חלה רק
-              אם הלקוח נשוי בפועל, ולכן מוצגת גם כשהמצב המשפחתי טרם ידוע. */}
-          {niSelected && !notMarriedExplicit && (
-            <div style={{
-              marginTop: 8, padding: '9px 10px', borderRadius: 9,
-              border: `1px solid ${forSpouse ? 'var(--blue)' : 'var(--gray-200)'}`,
-              background: forSpouse ? 'var(--blue-light)' : 'var(--card)',
-            }}>
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" checked={forSpouse} style={{ marginTop: 3 }}
-                  onChange={e => setNiForSpouse(e.target.checked)} />
-                <span>
-                  <span style={{ fontSize: 12.5, fontWeight: 600 }}>
-                    {married ? 'ייצוג בביטוח לאומי גם לבן/בת הזוג' : 'אם הלקוח נשוי - ייצוג בביטוח לאומי גם לבן/בת הזוג'}
-                  </span>
-                  <span style={{ display: 'block', fontSize: 11, color: 'var(--gray-600)', lineHeight: 1.6, marginTop: 2 }}>
-                    בב"ל לכל אחד תיק נפרד: שני ייפויי כוח, שתי אסמכתאות, וכל אחד מאשר את שלו.
-                    את פרטי בן/בת הזוג הלקוח ממלא בעצמו בקישור - אין צורך לדעת אותם כאן.
-                  </span>
-                </span>
-              </label>
-            </div>
-          )}
+          {/* ‼ אין כאן יותר צ'קבוקס נפרד לביטוח לאומי (31.8): הוא הצטרף לצ'יפי
+              "עבור מי" בתוך שורת הרשות שלמעלה, בדיוק כמו מע"מ וניכויים —
+              אותו מודל בדיוק, לא מודל שלישי. */}
 
           {/* מה שכבר ידוע — כל השאר אופציונלי */}
           <button type="button" className="btn btn-ghost btn-sm"
@@ -281,8 +357,13 @@ export default function QuotationRepresentationEditor({
                     // משאיר הכול — הלקוח יכריע בקישור, והפרטים ישמשו אם נשוי.
                     const dropSpouse = fs !== '' && fs !== 'married';
                     const areas = { ...(value.areas ?? {}) };
-                    if (dropSpouse && areas.nationalInsurance) {
-                      areas.nationalInsurance = { ...areas.nationalInsurance, coversSpouse: undefined };
+                    // ‼ מצטמצם ל-['client'] בכל הרשויות עם "עבור מי" — לא רק ב"ל.
+                    // מע"מ/ניכויים שסומנו גם לבן/בת הזוג לפני שהתברר שהלקוח לא
+                    // נשוי לא אמורים להישאר עם יעד לאדם שלא קיים.
+                    if (dropSpouse) {
+                      for (const a of REP_AUTHORITIES_WITH_TARGETS) {
+                        if (areas[a]) areas[a] = { ...areas[a]!, targets: ['client'] };
+                      }
                     }
                     onChange({
                       ...value,

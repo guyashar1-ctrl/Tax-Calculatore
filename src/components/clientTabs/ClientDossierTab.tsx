@@ -13,6 +13,7 @@ import type { Client } from '../../types';
 import type { Employee } from '../../types/clientWorkspace';
 import type { AnnualReportSession } from '../../features/annualReport/types';
 import { registeredFileInfo } from '../../features/annualReport/profile';
+import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 import TaxFilesSection from './TaxFilesSection';
 import PersonalContactsTab from './PersonalContactsTab';
 import TaxNITab from './TaxNITab';
@@ -20,6 +21,8 @@ import { DossierFilterProvider, DOSSIER_GROUPS } from './dossierSection';
 
 interface Props {
   client: Client;
+  /** הכרטיס של בן/בת הזוג, כשהוא/היא לקוח/ה בפני עצמו/ה (150). */
+  spouseClient?: Client;
   update: <K extends keyof Client>(key: K, value: Client[K]) => void;
   patch: (partial: Partial<Client>) => void;
   patchAndSave: (partial: Partial<Client>) => Promise<void>;
@@ -56,8 +59,11 @@ function groupState(client: Client, label: string): { text: string; todo: boolea
   }
 }
 
-export default function ClientDossierTab({ client, update, patch, employees, isNew }: Props) {
-  const regFile = registeredFileInfo(client);
+export default function ClientDossierTab({ client, spouseClient, update, patch, employees, isNew }: Props) {
+  // ‼ תיק מס הכנסה אחד לזוג (150) — כשהוא לא על הכרטיס הזה, נקרא דרך
+  // household ולא מוצג כאילו אף אחד לא רשום.
+  const household = resolveIncomeTaxHousehold(client, spouseClient);
+  const regFile = household.holderClient ? registeredFileInfo(household.holderClient) : null;
   const [active, setActive] = useState<string>(isNew ? 'פרטי נישום' : ANCHOR);
   const [query, setQuery] = useState('');
 
@@ -137,13 +143,22 @@ export default function ClientDossierTab({ client, update, patch, employees, isN
                   </div>
                 </div>
               )}
-              <TaxFilesSection client={client} update={update} />
-              {regFile && client.familyStatus === 'married' && (
-                <div className="dossier-spouse-note" style={{ color: regFile.owner === 'spouse' ? 'var(--warn)' : 'var(--ink-3)' }}>
-                  {regFile.owner === 'spouse' ? '⚠ ' : ''}בן/בת הזוג הרשום/ה: {regFile.name}
-                  {regFile.idNumber ? ` · ת.ז. ${regFile.idNumber}` : ''} - כל ההתנהלות מול מ"ה בת.ז. הזו
-                </div>
-              )}
+              <TaxFilesSection client={client} update={update} spouseClient={spouseClient} />
+              {regFile && client.familyStatus === 'married' && (() => {
+                // ‼ regFile.owner יחסי לכרטיס שמחזיק את התיק (household.holderClient),
+                // לא לכרטיס הזה. כשהתיק אצל בן/בת הזוג, ההיפוך נחוץ — ראה PersonQuickView.
+                const spouseIsRegistered = household.holder === 'spouse'
+                  ? regFile.owner === 'client' : regFile.owner === 'spouse';
+                return (
+                  <div className="dossier-spouse-note" style={{ color: spouseIsRegistered ? 'var(--warn)' : 'var(--ink-3)' }}>
+                    {spouseIsRegistered ? '⚠ ' : ''}
+                    {household.holder === 'spouse' ? 'תיק מס הכנסה משותף · ' : ''}
+                    בן/בת הזוג הרשום/ה: {regFile.name}
+                    {regFile.idNumber ? ` · ת.ז. ${regFile.idNumber}` : ''} - כל ההתנהלות מול מ"ה בת.ז. הזו
+                    {household.holder === 'spouse' ? ` (מנוהל בכרטיס של ${spouseClient?.firstName ?? ''} ${spouseClient?.lastName ?? ''})` : ''}
+                  </div>
+                );
+              })()}
             </>
           )}
 

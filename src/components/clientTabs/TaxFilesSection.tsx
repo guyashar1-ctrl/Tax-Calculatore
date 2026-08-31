@@ -7,10 +7,13 @@ import {
   TAX_AUTHORITY_LABELS, TAX_FILE_REP_STATUS_LABELS,
 } from '../../types';
 import { clientDisplayName, spouseDisplayName, REGISTERED_UNVERIFIED_LABEL } from '../../features/annualReport/profile';
+import { resolveIncomeTaxHousehold, resolvePersonAuthority } from '../../utils/personRepresentation';
 
 interface Props {
   client: Client;
   update: <K extends keyof Client>(key: K, value: Client[K]) => void;
+  /** הכרטיס של בן/בת הזוג, כשהוא/היא לקוח/ה בפני עצמו/ה (150). */
+  spouseClient?: Client;
 }
 
 const AUTHORITY_ORDER: TaxAuthority[] = ['income_tax', 'vat', 'deductions', 'national_insurance'];
@@ -48,8 +51,18 @@ function ownerOptionLabel(client: Client, authority: TaxAuthority, owner: TaxFil
   return owner === 'spouse' ? spouseDisplayName(client) : clientDisplayName(client);
 }
 
-export default function TaxFilesSection({ client, update }: Props) {
+export default function TaxFilesSection({ client, update, spouseClient }: Props) {
   const files = client.taxFiles ?? [];
+  // ‼ ייצוג שכבר קיים דרך בן/בת הזוג המקושר/ת (150) — לא נוסף ל-taxFiles
+  // של הכרטיס הזה (זה היה מכפיל את מקור האמת), אבל "לא הוגדרו תיקים"
+  // היה שקר קטן כשהוא כן מיוצג, רק במקום אחר.
+  const household = resolveIncomeTaxHousehold(client, spouseClient);
+  const spouseLabel = spouseClient ? `${spouseClient.firstName} ${spouseClient.lastName}`.trim() || 'בן/בת הזוג' : '';
+  const viaSpouseAuthorities = spouseClient
+    ? (['vat', 'withholding', 'nationalInsurance'] as const)
+        .filter(a => resolvePersonAuthority(client, spouseClient, a).source === 'spouse')
+    : [];
+  const AUTH_LABEL = { vat: 'מע"מ', withholding: 'ניכויים', nationalInsurance: 'ביטוח לאומי' } as const;
 
   function setFiles(next: TaxFileInfo[]) {
     update('taxFiles', next);
@@ -105,9 +118,25 @@ export default function TaxFilesSection({ client, update }: Props) {
         </div>
       )}
 
+      {/* ‼ תיק מס הכנסה אחד לזוג (150) — כשהוא אצל בן/בת הזוג המקושר/ת ולא
+          אצל הכרטיס הזה, זו לא היעדר תיק. לא נוסף ל-taxFiles כאן: זה היה
+          יוצר עותק שני למקור אמת אחד. */}
+      {household.holder === 'spouse' && (
+        <div className="tf-spouse-warn">
+          תיק מס הכנסה משותף — מנוהל בכרטיס של {spouseLabel}.
+        </div>
+      )}
+      {viaSpouseAuthorities.length > 0 && (
+        <div className="tf-spouse-warn">
+          כבר מיוצג/ת ב{viaSpouseAuthorities.map(a => AUTH_LABEL[a]).join(', ')} — הושג בקליטה של {spouseLabel}. אין צורך בבקשה נוספת.
+        </div>
+      )}
+
       {files.length === 0 ? (
         <div className="cw-empty">
-          לא הוגדרו תיקים. "צור מבנה מומלץ" מרכיב שלד לפי הכרטיס - מס הכנסה, מע"מ/ניכויים אם יש עסק, וב"ל לכל בן זוג.
+          {household.holder === 'spouse' || viaSpouseAuthorities.length > 0
+            ? 'לא הוגדרו תיקים על הכרטיס הזה — הייצוג הקיים מוצג למעלה. "צור מבנה מומלץ" מוסיף כאן רק תיקים חדשים.'
+            : 'לא הוגדרו תיקים. "צור מבנה מומלץ" מרכיב שלד לפי הכרטיס - מס הכנסה, מע"מ/ניכויים אם יש עסק, וב"ל לכל בן זוג.'}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem' }}>

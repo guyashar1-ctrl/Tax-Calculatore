@@ -42,6 +42,8 @@ import QuotationEmailsPanel from './QuotationEmailsPanel';
 import QuotationRepresentationEditor, {
   validateQuotationRepresentation, representationSummary,
 } from './QuotationRepresentationEditor';
+import type { RepAuthorityKind } from '../../types';
+import { findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 import Modal from '../ui/Modal';
 
 const MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
@@ -72,6 +74,32 @@ function isTransferRecipient(r: RecipientDraft, leads: Lead[], clients: Client[]
   if (r.kind === 'lead') return !!leads.find(l => l.id === r.id)?.hasPreviousAccountant;
   if (r.kind === 'client') return !!clients.find(c => c.id === r.id)?.hasPreviousAccountant;
   return !!r.hasPreviousAccountant;
+}
+
+/**
+ * מה כבר מיוצג עבור נמען ההצעה, דרך בן/בת הזוג המקושר/ת (150) — כדי
+ * שהעורך לא יציע ייצוג שכבר קיים. ‼ רלוונטי רק כשהנמען כבר לקוח קיים
+ * (kind='client'): ליד/נמען חדש עוד אין להם קישור בכלל.
+ */
+function alreadyRepresentedForRecipient(
+  r: RecipientDraft, clients: Client[],
+): Partial<Record<RepAuthorityKind, string>> {
+  if (r.kind !== 'client' || !r.id) return {};
+  const client = clients.find(c => c.id === r.id);
+  if (!client) return {};
+  const spouse = findSpouseClient(client, clients);
+  if (!spouse) return {};
+  const spouseLabel = `${spouse.firstName} ${spouse.lastName}`.trim() || 'בן/בת הזוג';
+  const out: Partial<Record<RepAuthorityKind, string>> = {};
+  for (const a of ['vat', 'withholding', 'nationalInsurance'] as RepAuthorityKind[]) {
+    const res = resolvePersonAuthority(client, spouse, a);
+    if (res.represented && res.source === 'spouse') out[a] = `הושג בקליטה של ${spouseLabel}`;
+  }
+  const it = resolveIncomeTaxHousehold(client, spouse);
+  if (it.represented && it.holder === 'spouse') {
+    out.incomeTax = `תיק משותף — הושג בקליטה של ${spouseLabel}`;
+  }
+  return out;
 }
 
 interface Props {
@@ -366,6 +394,24 @@ export default function QuotationBuilder({
       && !!clients.find(c => c.id === initialRecipient.id)?.representationStatus;
     return already ? { ...base, enabled: false } : base;
   });
+
+  /**
+   * ‼ קריטי: `defaultQuotationRepresentation` מסמן מראש את כל הרשויות, בלי
+   * לדעת על קישור בן-זוג (150). כשהנמען כבר לקוח מקושר עם ייצוג קיים
+   * בחלקן, חייבים להוציא אותן כאן — לא רק כשהעורך נפתח (`panel==='rep'`):
+   * הצעה שאושרה בלי שהרו"ח פתח את הפאנל הייתה שולחת בקשת ייצוג כפולה.
+   */
+  useEffect(() => {
+    const already = alreadyRepresentedForRecipient(recipient, clients);
+    setRepresentation(prev => {
+      const toStrip = (Object.keys(already) as RepAuthorityKind[]).filter(a => !!prev.areas?.[a]);
+      if (toStrip.length === 0) return prev;
+      const areas = { ...(prev.areas ?? {}) };
+      for (const a of toStrip) delete areas[a];
+      return { ...prev, areas };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipient.kind, recipient.id, clients]);
 
   // ── מצב מסך ──
   const [pop, setPop] = useState<{ kind: PopKind; anchor: HTMLElement | null; itemId?: string }>({ kind: null, anchor: null });
@@ -794,7 +840,8 @@ export default function QuotationBuilder({
             value={representation} onChange={setRepresentation}
             recipientName={recipient.fullName} recipientEmail={recipient.email}
             emailConflict={repConflict}
-            isTransfer={isTransferRecipient(recipient, leads, clients)} />
+            isTransfer={isTransferRecipient(recipient, leads, clients)}
+            alreadyRepresented={alreadyRepresentedForRecipient(recipient, clients)} />
         </Modal>
       )}
       {panel === 'recipient' && (

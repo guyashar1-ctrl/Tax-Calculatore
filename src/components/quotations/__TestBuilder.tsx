@@ -75,6 +75,24 @@ const CLIENT = {
   email: 'yuval@example.co.il', representationStatus: 'active',
 } as unknown as Client;
 
+// ‼ &spouse=1 — הצעה חדשה למיכל, שכבר מקושרת ליאיר (150): מס הכנסה וב"ל
+// כבר מיוצגים דרך הקישור, ורק מע"מ אמור להיות פתוח לבחירה.
+const YAIR_FOR_QUOTE = {
+  id: 'y1', firstName: 'יאיר', lastName: 'סלע', familyStatus: 'married',
+  spouseName: 'מיכל סלע', spouseIdNumber: '022321673', spouseClientId: 'm1',
+  authorityRepresentations: {
+    incomeTax: { status: 'active', level: 'primary' },
+    nationalInsurance: { status: 'active', level: 'primary', targets: ['client', 'spouse'] },
+  },
+  taxFiles: [{ id: 'tf-it', authority: 'income_tax', owner: 'client', fileNumber: '314667346', repStatus: 'active' }],
+} as unknown as Client;
+const MICHAL_FOR_QUOTE = {
+  id: 'm1', firstName: 'מיכל', lastName: 'סלע', businessName: 'מיכל עיצוב גרפי',
+  email: 'michal@example.co.il', familyStatus: 'married',
+  spouseName: 'יאיר סלע', spouseIdNumber: '314667346', spouseClientId: 'y1',
+  authorityRepresentations: {}, taxFiles: [],
+} as unknown as Client;
+
 const CURRENT_Q = {
   id: 'q_cur', clientId: 'c1', quotationNumber: '2026-016', revision: 1, status: 'approved',
   kind: 'engagement', vatRate: 18, futureServices: [], events: [],
@@ -98,9 +116,11 @@ export default function TestBuilder() {
   const kind: QuotationKind = s === 'onetime' ? 'one_time' : 'engagement';
   const forClient = s === 'onetime' || s === 'renewal';
   const lead: Lead = p.get('prev') === '1' ? { ...LEAD, hasPreviousAccountant: true } : LEAD;
+  const spouseMode = p.get('spouse') === '1';
   const client = p.get('rep') === 'none'
     ? ({ ...CLIENT, representationStatus: undefined } as Client)
     : CLIENT;
+  const clientsFixture = spouseMode ? [YAIR_FOR_QUOTE, MICHAL_FOR_QUOTE] : [client];
 
   return (
     <div style={{ background: 'var(--canvas)', minHeight: '100vh' }}>
@@ -109,10 +129,10 @@ export default function TestBuilder() {
         services={SERVICES}
         templates={TEMPLATES}
         leads={[lead]}
-        clients={[client]}
+        clients={clientsFixture}
         existing={null}
-        initialLeadId={forClient ? undefined : 'l1'}
-        initialClientId={forClient ? 'c1' : undefined}
+        initialLeadId={spouseMode ? undefined : (forClient ? undefined : 'l1')}
+        initialClientId={spouseMode ? 'm1' : (forClient ? 'c1' : undefined)}
         initialKind={kind}
         currentEngagement={forClient ? ENGAGEMENT : undefined}
         existingQuotations={[CURRENT_Q]}
