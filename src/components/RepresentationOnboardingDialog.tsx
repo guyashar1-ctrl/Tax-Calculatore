@@ -594,9 +594,43 @@ export default function RepresentationOnboardingDialog({
             })}
           </div>
 
-          {/* ‼ אין כאן יותר צ'קבוקס נפרד לביטוח לאומי (31.8): הוא הצטרף לצ'יפי
-              "עבור מי" בתוך שורת הרשות שלמעלה, בדיוק כמו מע"מ וניכויים —
-              אותו מודל בדיוק, לא מודל שלישי. */}
+          {/* ‼ ביטוח לאומי הצטרף לצ'יפי "עבור מי" בתוך שורת הרשות (31.8) —
+              אבל הצ'יפים מוצגים רק כשידוע שיש בן/בת זוג (showTargets).
+              במצב משפחתי לא-ידוע נשארת **כוונה מותנית**, וזה הביטוי שלה:
+              "אם הלקוח נשוי — גם לבן/בת הזוג".
+
+              ‼ בלי זה נוצר מצב גרוע משני הכיוונים: ברירת המחדל (שני בני
+              הזוג) נשלחה בשקט, בלי שהיא מוצגת ובלי דרך לכבות אותה. צ'יפים
+              אי אפשר להציג כאן — "בן/בת הזוג בלבד" חסר משמעות כשלא ידוע
+              אם יש כזה — ולכן זה צ'קבוקס, ולא אותו רכיב. */}
+          {areas.nationalInsurance.selected && !notMarriedExplicit && !spouseKnown && (
+            <div style={{
+              marginTop: '.6rem', padding: '.6rem .7rem', borderRadius: 'var(--radius)',
+              border: `1px solid ${niForSpouse ? 'var(--accent)' : 'var(--hairline-1)'}`,
+            }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', cursor: busy ? 'default' : 'pointer' }}>
+                <input
+                  type="checkbox" checked={niForSpouse} disabled={busy} style={{ marginTop: 3 }}
+                  onChange={e => setAreas(prev => ({
+                    ...prev,
+                    nationalInsurance: {
+                      ...prev.nationalInsurance,
+                      targets: e.target.checked ? ['client', 'spouse'] : ['client'],
+                    },
+                  }))}
+                />
+                <span>
+                  <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600 }}>
+                    {'🛡'} אם הלקוח נשוי - ייצוג בביטוח לאומי גם לבן/בת הזוג
+                  </span>
+                  <span style={{ display: 'block', fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 2 }}>
+                    בביטוח לאומי לכל אחד תיק נפרד: שני ייפויי כוח, שתי אסמכתאות, וכל אחד מאשר
+                    את שלו. את פרטי בן/בת הזוג הלקוח ממלא בעצמו בקישור - אין צורך לדעת אותם כאן.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
 
           {/* איך הקישור מגיע ללקוח — הבחירה קובעת אם המייל נדרש */}
           <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', margin: '1.25rem 0 .5rem' }}>
