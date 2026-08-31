@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>תמונת מצב מול הרשויות — V1</title>
+<style>
+/* ── אותה שפה חזותית של התיק: רגוע, מעט מסגרות, צבע רק כשהוא אומר משהו ── */
+:root{
+ --bg:#f6f7f9;--card:#fff;--ink:#1c2433;--muted:#717a8a;--faint:#9aa2b1;--line:#e7eaef;
+ --accent:#2e5f92;--accent-soft:#eef4fa;--accent-bd:#cfdeed;
+ --green:#187a53;--green-soft:#ecf7f1;
+ --amber:#9c6a0d;--amber-soft:#fff6e2;--amber-bd:#eedcab;
+ --red:#b3453e;--red-soft:#fdf0ef;--red-bd:#f2d2cf;
+ --r:12px;--shadow:0 1px 2px rgba(16,24,40,.06)
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,Arial,"Noto Sans Hebrew",sans-serif;font-size:13.5px;line-height:1.55}
+button{font:inherit;color:inherit}
+b{font-weight:600}
+.top{height:56px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:22px;padding:0 26px;position:sticky;top:0;z-index:9}
+.logo{font-weight:700;letter-spacing:.06em}
+.nav{display:flex;gap:2px}
+.nav button{border:0;background:none;padding:6px 12px;border-radius:8px;color:var(--muted);cursor:pointer}
+.nav .on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.wrap{max-width:1060px;margin:auto;padding:22px 20px 70px}
+.crumb{font-size:11.5px;color:var(--faint);margin-bottom:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.btn{border:1px solid #d1d7df;background:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.ghost{border-color:transparent;color:var(--accent)}
+.btn.small{padding:4px 10px;font-size:11.5px}
+
+/* ── כותרת הדף ── */
+.phead{display:flex;align-items:flex-start;gap:14px;margin-bottom:6px}
+.phead h1{margin:0;font-size:20px}
+.phead .sub{font-size:12px;color:var(--muted);margin-top:3px}
+.phead .acts{margin-inline-start:auto;display:flex;gap:8px;align-items:center}
+.stamps{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}
+.stamp{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 11px}
+.stamp::before{content:"✓";color:var(--green);font-weight:700}
+.stamp.missing{color:var(--faint)}
+.stamp.missing::before{content:"·";color:var(--faint)}
+
+/* ── דורש טיפול ── */
+.secthead{font-size:11px;font-weight:700;color:var(--faint);letter-spacing:.02em;margin:0 2px 8px}
+.flags{overflow:hidden;margin-bottom:20px}
+.flag{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}
+.flag:first-child{border-top:0}
+.fdot{width:9px;height:9px;border-radius:50%;flex:none}
+.flag.red .fdot{background:var(--red)}
+.flag.amber .fdot{background:#e3a53a}
+.flag.info .fdot{background:#c9d0da}
+.ftext{flex:1;min-width:0}
+.ftext b{display:block}
+.ftext .why{font-size:11.5px;color:var(--muted)}
+.fact{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.fact .btn{white-space:nowrap}
+.flag .done-note{font-size:11px;color:var(--green);background:var(--green-soft);border-radius:6px;padding:3px 8px;white-space:nowrap}
+.allgood{display:flex;align-items:center;gap:10px;padding:13px 16px;color:var(--green);font-size:13px}
+
+/* ── רשת הרשויות ── */
+.auths{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
+@media(max-width:860px){.auths{grid-template-columns:1fr}}
+.auth{overflow:hidden}
+.ahead{display:flex;align-items:baseline;gap:8px;padding:13px 16px 10px;border-bottom:1px solid var(--line)}
+.ahead b{font-size:14px}
+.ahead .when{font-size:11px;color:var(--faint);margin-inline-start:auto}
+.arow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 16px;border-top:1px solid #f0f2f5;font-size:12.5px}
+.arow:first-of-type{border-top:0}
+.arow .k{color:var(--muted);flex:none}
+.arow .v{text-align:left;font-weight:500}
+.arow .v.warn{color:var(--red);font-weight:600}
+.arow .v.ok{color:var(--green)}
+.diff{display:block;font-size:10.5px;color:var(--amber);font-weight:400;text-align:left}
+.chgdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#e3a53a;margin-inline-start:5px;vertical-align:2px}
+.asub{font-size:10.5px;font-weight:700;color:var(--faint);padding:10px 16px 2px}
+.docline{display:flex;align-items:center;gap:7px;padding:9px 16px;border-top:1px dashed var(--line);font-size:12px;background:#fcfcfd}
+.docline a{color:var(--accent);text-decoration:none}
+.docline .exp{color:var(--muted);font-size:11px}
+.docline .exp.bad{color:var(--red)}
+
+/* ── מקרא + היסטוריה ── */
+.legend{display:flex;gap:16px;align-items:center;font-size:11.5px;color:var(--muted);margin:16px 2px 24px}
+.legend .chgdot{margin:0 0 0 4px}
+.history{margin-top:26px}
+.hrow{display:flex;gap:12px;align-items:baseline;padding:10px 16px;border-top:1px solid var(--line);font-size:12.5px}
+.hrow:first-child{border-top:0}
+.hrow .d{color:var(--muted);white-space:nowrap;font-size:12px}
+.hrow .t{flex:1}
+.hrow .btn{flex:none}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="logo">PIVO ◎</div>
+  <div class="nav">
+    <button>לקוחות</button><button class="on">דניאל כהן</button><button>משימות 4</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="crumb">לקוחות ‹ דניאל כהן ‹ תיק מס</div>
+
+  <!-- כותרת: מתי בוצע, ומכאן גם מריצים שוב -->
+  <div class="phead">
+    <div>
+      <h1>תמונת מצב מול הרשויות</h1>
+      <div class="sub">מה שנמצא ברשויות ביישור הקו האחרון, והמסקנות שנגזרות ממנו.</div>
+    </div>
+    <div class="acts">
+      <button class="btn">הדפס / שמור PDF</button>
+      <button class="btn primary">בצע יישור קו מחדש</button>
+    </div>
+  </div>
+  <div class="stamps">
+    <span class="stamp">ביטוח לאומי · נבדק 17.08.2026</span>
+    <span class="stamp">מע״מ · נבדק 17.08.2026</span>
+    <span class="stamp">מס הכנסה · נבדק 17.08.2026</span>
+  </div>
+
+  <!-- ① קודם המסקנות. כל דגל נגזר אוטומטית מהנתונים למטה, ולידו הפעולה -->
+  <div class="secthead">דורש טיפול · 4</div>
+  <div class="card flags">
+    <div class="flag red">
+      <span class="fdot"></span>
+      <div class="ftext">
+        <b>חוב במע״מ — ‏8,340 ₪</b>
+        <span class="why">יתרה לחובה נכון ל-17.08. לבדוק מקור החוב ולתאם הסדר או תשלום.</span>
+      </div>
+      <div class="fact"><button class="btn small">צור משימה</button></div>
+    </div>
+    <div class="flag red">
+      <span class="fdot"></span>
+      <div class="ftext">
+        <b>אין אישור ניכוי מס במקור בתוקף</b>
+        <span class="why">לקוחות המשלמים לו ינכו מס מלא. לטפל בחידוש האישור מול פקיד השומה.</span>
+      </div>
+      <div class="fact"><button class="btn small">צור משימה</button></div>
+    </div>
+    <div class="flag amber">
+      <span class="fdot"></span>
+      <div class="ftext">
+        <b>דרישת הצהרת הון פתוחה — להגשה עד 30.11.2026</b>
+        <span class="why">נותרו 3 חודשים. הלקוח טרם קיבל מאיתנו רשימת מסמכים.</span>
+      </div>
+      <div class="fact"><button class="btn small">צור בקשה ללקוח</button><button class="btn small">צור משימה</button></div>
+    </div>
+    <div class="flag amber">
+      <span class="fdot"></span>
+      <div class="ftext">
+        <b>אין הרשאה לחיוב חשבון בביטוח לאומי</b>
+        <span class="why">המקדמות לא נגבות אוטומטית. להקים הרשאה — קוד מוטב 28900.</span>
+      </div>
+      <div class="fact"><span class="done-note">✓ נוצרה בקשה ללקוח</span></div>
+    </div>
+    <div class="flag info">
+      <span class="fdot"></span>
+      <div class="ftext">
+        <b>שים לב: דיווח מע״מ חודשי (לא דו-חודשי)</b>
+        <span class="why">משפיע על קצב העבודה השוטף מול הלקוח.</span>
+      </div>
+      <div class="fact"></div>
+    </div>
+  </div>
+
+  <!-- ② כל הנתונים גלויים, לפי רשות. בלי לפתוח כלום. -->
+  <div class="secthead">הנתונים המלאים</div>
+  <div class="auths">
+
+    <div class="card auth">
+      <div class="ahead"><b>ביטוח לאומי</b><span class="when">17.08.2026</span></div>
+      <div class="arow"><span class="k">יתרה</span><span class="v ok">0 ₪ · אין חוב</span></div>
+      <div class="arow"><span class="k">בסיס הכנסה למקדמות</span>
+        <span class="v">9,500 ₪ לחודש<span class="chgdot"></span><span class="diff">היה 7,200 ₪ ביישור הקודם</span></span></div>
+      <div class="arow"><span class="k">מקדמה חודשית</span>
+        <span class="v">612 ₪<span class="chgdot"></span><span class="diff">היה 464 ₪ ביישור הקודם</span></span></div>
+      <div class="arow"><span class="k">עיסוקים</span><span class="v">עצמאי מ-03/2023 · שכיר אצל טכנוסופט בע״מ</span></div>
+      <div class="arow"><span class="k">הרשאה לחיוב חשבון</span><span class="v warn">אין הרשאה</span></div>
+    </div>
+
+    <div class="card auth">
+      <div class="ahead"><b>מע״מ</b><span class="when">17.08.2026</span></div>
+      <div class="arow"><span class="k">סוג תיק</span><span class="v">עוסק מורשה</span></div>
+      <div class="arow"><span class="k">פתיחת תיק</span><span class="v">15.03.2023</span></div>
+      <div class="arow"><span class="k">ענף עיקרי</span><span class="v">ייעוץ והדרכה</span></div>
+      <div class="arow"><span class="k">תדירות דיווח</span><span class="v">חודשי</span></div>
+      <div class="arow"><span class="k">דוח אחרון שהוגש</span><span class="v">06/2026</span></div>
+      <div class="arow"><span class="k">יתרה</span>
+        <span class="v warn">חוב של 8,340 ₪<span class="chgdot"></span><span class="diff">היה 0 ₪ ביישור הקודם</span></span></div>
+      <div class="arow"><span class="k">הרשאה לחיוב חשבון</span><span class="v ok">קיימת</span></div>
+    </div>
+
+    <div class="card auth">
+      <div class="ahead"><b>מס הכנסה</b><span class="when">17.08.2026</span></div>
+      <div class="arow"><span class="k">סוג תיק</span><span class="v">94 · עצמאי</span></div>
+      <div class="arow"><span class="k">פקיד שומה</span><span class="v">תל אביב 3 · חוליה 21</span></div>
+      <div class="arow"><span class="k">ענף כלכלי</span><span class="v">7020 · ייעוץ ניהולי</span></div>
+      <div class="arow"><span class="k">מקדמות</span><span class="v">6% · דו-חודשי</span></div>
+      <div class="arow"><span class="k">יתרה</span><span class="v ok">0 ₪ · אין חוב</span></div>
+      <div class="arow"><span class="k">מצב דיווחים</span><span class="v ok">אין דיווחים חסרים</span></div>
+      <div class="arow"><span class="k">הצהרת הון</span><span class="v warn">דרישה פתוחה · עד 30.11.2026</span></div>
+      <div class="arow"><span class="k">הרשאה לחיוב חשבון</span><span class="v ok">קיימת</span></div>
+
+      <div class="asub">ניכוי במקור וניהול ספרים</div>
+      <div class="arow"><span class="k">ניכוי מס במקור</span><span class="v warn">אין אישור תקף</span></div>
+      <div class="arow"><span class="k">ניהול ספרים</span><span class="v ok">תקין</span></div>
+      <div class="docline">📎 <a href="#">אישור ניהול ספרים.pdf</a><span class="exp">בתוקף עד 31.03.2027</span></div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <span><span class="chgdot"></span> השתנה מאז היישור הקודם (12.01.2026)</span>
+    <span>אדום — דורש טיפול · ירוק — תקין</span>
+  </div>
+
+  <!-- ③ הטקס השנתי: כל ריצה היא צילום מצב שנשמר -->
+  <div class="secthead">יישורי קו קודמים</div>
+  <div class="card history">
+    <div class="hrow"><span class="d">17.08.2026</span><span class="t"><b>היישור הנוכחי</b> · 3 רשויות · 4 דגלים</span></div>
+    <div class="hrow"><span class="d">12.01.2026</span><span class="t">3 רשויות · דגל אחד (הרשאת חיוב בב״ל)</span><button class="btn small ghost">צפה</button></div>
+    <div class="hrow"><span class="d">14.03.2023</span><span class="t">יישור קליטה · 3 רשויות</span><button class="btn small ghost">צפה</button></div>
+  </div>
+
+</div>
+</body>
+</html>

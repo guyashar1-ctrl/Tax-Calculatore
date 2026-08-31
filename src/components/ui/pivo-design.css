@@ -4087,3 +4087,135 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .pdfe-style-pop{position:static}
   .pdfe-pop{inset-inline:8px;top:calc(100% + 4px);min-width:0}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   תמונת מצב מול הרשויות — התוצר של יישור הקו
+   מקור: docs/prototypes/institution-alignment-status-v1.html (מאושר).
+   קידומת alst- (alignment status) כדי לא להתנגש ב-ial-* (מסכי המילוי)
+   וב-txf-* (תיק מס).
+
+   ‼ רחב מ---focus-max בכוונה: שלוש הרשויות זו לצד זו הן כל הרעיון — השוואה
+   במבט אחד. מסך מיקוד צר היה מכריח לגלול ביניהן ולזכור.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.alst-root{max-width:1060px;margin:0 auto}
+.alst-back{border:0;background:none;color:var(--accent);cursor:pointer;font-size:var(--fs-12);
+  padding:0;margin-bottom:12px;font-family:inherit}
+.alst-back:hover{color:var(--accent-hover)}
+
+.alst-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.alst-head h2{margin:0;font-size:var(--fs-17);font-weight:700;color:var(--ink-1)}
+.alst-sub{font-size:var(--fs-12);color:var(--ink-3);margin-top:3px}
+.alst-head-act{display:flex;gap:8px;flex-wrap:wrap}
+
+.alst-empty{margin-top:16px;background:var(--surface-0);border:1px solid var(--hairline-1);
+  border-radius:var(--r-panel);padding:20px;font-size:var(--fs-14);color:var(--ink-2)}
+.alst-empty span{display:block;font-size:var(--fs-12);color:var(--ink-3);margin-top:6px}
+
+/* ── חותמות "נבדק" — מתי, לכל רשות ── */
+.alst-stamps{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 18px}
+.alst-stamp{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-3);
+  background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:999px;padding:4px 11px}
+.alst-stamp::before{content:"✓";color:var(--ok);font-weight:700}
+.alst-stamp.is-missing{color:var(--ink-4)}
+.alst-stamp.is-missing::before{content:"·";color:var(--ink-4)}
+
+.alst-secthead{font-size:var(--fs-12);font-weight:700;color:var(--ink-3);margin:18px 2px 8px}
+
+/* ── דורש טיפול — המסקנות, לפני הנתונים ──
+   ‼ נקודת צבע ולא רקע צבוע לכל השורה: חמישה דגלים עם רקע היו הופכים את
+   העמוד לשלט אזהרה אחד גדול, ואז שום דגל לא בולט. */
+.alst-flags{background:var(--surface-0);border:1px solid var(--hairline-1);
+  border-radius:var(--r-panel);overflow:hidden}
+.alst-flag{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--hairline-1)}
+.alst-flag:first-child{border-top:0}
+.alst-flag-dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--ink-4)}
+.alst-flag.is-high .alst-flag-dot{background:var(--err)}
+.alst-flag.is-medium .alst-flag-dot{background:var(--warn)}
+.alst-flag-text{flex:1;min-width:0}
+.alst-flag-text b{display:block;font-size:var(--fs-13);color:var(--ink-1);font-weight:600}
+.alst-flag-why{display:block;font-size:11.5px;color:var(--ink-3);line-height:1.5}
+.alst-flag-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.alst-flag-act .ui-btn{white-space:nowrap}
+.alst-flag-done{font-size:11px;color:var(--ok);background:var(--ok-bg);border-radius:7px;
+  padding:3px 9px;white-space:nowrap}
+.alst-allgood{padding:14px 16px;color:var(--ok);font-size:var(--fs-13)}
+
+/* ── שלוש הרשויות זו לצד זו ── */
+.alst-auths{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
+.alst-auth{background:var(--surface-0);border:1px solid var(--hairline-1);
+  border-radius:var(--r-panel);overflow:hidden}
+.alst-auth-head{display:flex;align-items:baseline;gap:8px;padding:12px 16px 10px;
+  border-bottom:1px solid var(--hairline-1)}
+.alst-auth-head b{font-size:var(--fs-14);color:var(--ink-1)}
+.alst-auth-when{font-size:11px;color:var(--ink-4);margin-inline-start:auto}
+.alst-auth-empty{padding:12px 16px;font-size:var(--fs-12);color:var(--ink-4)}
+.alst-arow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  padding:8px 16px;border-top:1px solid var(--hairline-2);font-size:var(--fs-12)}
+.alst-arow:first-of-type{border-top:0}
+.alst-arow-k{color:var(--ink-3);flex:none}
+.alst-arow-v{text-align:end;color:var(--ink-1)}
+.alst-arow-v.is-warn{color:var(--err);font-weight:600}
+.alst-arow-v.is-ok{color:var(--ok)}
+/* ‼ נקודת השינוי היא סימן, לא צבע של הערך: הערך עצמו נשאר בצבע שאומר אם
+   הוא תקין או בעייתי, והנקודה רק אומרת "זה זז מאז הפעם הקודמת". */
+.alst-chg{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--warn);
+  margin-inline-end:5px;vertical-align:2px}
+.alst-diff{display:block;font-size:10.5px;color:var(--warn);font-weight:400}
+
+.alst-legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;
+  font-size:11.5px;color:var(--ink-3);margin:14px 2px 4px}
+
+.alst-runs{background:var(--surface-0);border:1px solid var(--hairline-1);
+  border-radius:var(--r-panel);overflow:hidden}
+.alst-run{display:flex;gap:12px;align-items:baseline;padding:10px 16px;
+  border-top:1px solid var(--hairline-1);font-size:var(--fs-12)}
+.alst-run:first-child{border-top:0}
+.alst-run-date{color:var(--ink-3);white-space:nowrap}
+.alst-run-text{flex:1;color:var(--ink-1)}
+
+@media (max-width:860px){
+  .alst-auths{grid-template-columns:1fr}
+  .alst-flag{align-items:flex-start;flex-wrap:wrap}
+  .alst-flag-act{width:100%;justify-content:flex-start;padding-inline-start:21px}
+}
+
+/* ── הדפסה / שמירה כ-PDF ──
+   ‼ בלי max-width קשיח: הוא תופס גם בהדפסה ומשאיר שוליים ריקים בצד אחד
+   של הדף (ראה rtl-print-traps). הכפתורים והניווט יורדים — דף מודפס עם
+   כפתור "צור משימה" מבלבל את מי שקורא אותו על נייר. */
+@media print{
+  .alst-back,.alst-head-act,.alst-flag-act{display:none!important}
+  .alst-root{max-width:none}
+  .alst-auths{grid-template-columns:repeat(3,1fr)}
+  .alst-flags,.alst-auth,.alst-runs{break-inside:avoid;border-color:#ccc}
+  .alst-secthead{margin-top:12px}
+}
+
+/* ── עדכונים ממתינים: טבלה אחת לריצה, לא כרטיס לכל שדה ──
+   ‼ הכרטיס הצהוב מייצג עכשיו *ריצה* (מקור + יום). לפני כן הוא ייצג שדה
+   בודד, ויישור קו אחד ייצר עשרים כרטיסים זהים שהעלימו את התוכן. */
+.txf-secthead-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.txf-qtable{display:flex;flex-direction:column;margin-bottom:10px;background:var(--surface-0);
+  border:1px solid var(--hairline-1);border-radius:9px;overflow:hidden}
+/* ‼ עמודת הפעולות ברוחב קבוע ולא auto: כל שורה היא רשת נפרדת, ולכן עמודת
+   auto מתרחבת לפי תוכן השורה שלה בלבד — שורת הכותרת (תא ריק) יצאה צרה
+   ב-70px מהשורות, וכל העמודות "זזו" ביחס לכותרת שלהן. */
+.txf-qtable-head,.txf-qtable-row{display:grid;grid-template-columns:1.2fr 1fr 1fr 86px;
+  gap:8px 12px;padding:7px 11px;align-items:baseline;font-size:var(--fs-12)}
+.txf-qtable-head{color:var(--ink-4);font-size:11px;font-weight:600;background:var(--surface-1)}
+.txf-qtable-row{border-top:1px solid var(--hairline-2)}
+.txf-qt-label{color:var(--ink-1);font-weight:600}
+.txf-qt-old{color:var(--ink-4)}
+.txf-qt-new{color:var(--ink-1)}
+.txf-qt-act{display:flex;gap:8px;white-space:nowrap}
+.txf-qt-act .ui-linkbtn.is-quiet{color:var(--ink-4)}
+.txf-qt-act .ui-linkbtn.is-quiet:hover{color:var(--ink-2)}
+.txf-qt-err{grid-column:1/-1;font-size:11px;color:var(--err)}
+
+@media (max-width:640px){
+  .txf-qtable-head{display:none}
+  .txf-qtable-row{grid-template-columns:1fr auto}
+  .txf-qt-old::before{content:"בתיק היום: ";color:var(--ink-4)}
+  .txf-qt-new::before{content:"מוצע: ";color:var(--ink-4)}
+  .txf-qt-old,.txf-qt-new{grid-column:1/-1}
+}

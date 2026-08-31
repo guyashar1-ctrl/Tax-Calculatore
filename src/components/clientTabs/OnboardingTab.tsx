@@ -110,6 +110,12 @@ interface Props {
   embedded?: boolean;
   /** סינון לפי אצל-מי-הכדור, מרצועת המונים בדף המסע. null = הכול. */
   ballFilter?: 'me' | 'client' | 'third' | 'stuck' | 'done' | null;
+  /**
+   * פתיחת "תמונת מצב מול הרשויות". ‼ נקראת כשנסגר המוסד האחרון — הרו"ח סיים
+   * לאסוף, וזה הרגע שבו התוצר נהיה רלוונטי. נחיתה חזרה ברשימת הבקשות הייתה
+   * מסתירה בדיוק את מה שהעבודה נעשתה בשבילו.
+   */
+  onOpenAlignmentStatus?: () => void;
 }
 
 /**
@@ -283,7 +289,7 @@ export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
   prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, onOpenRepresentation,
   onOpenDocuments,
-  clientDisplayName, clientEmail, embedded, ballFilter,
+  clientDisplayName, clientEmail, embedded, ballFilter, onOpenAlignmentStatus,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
@@ -733,7 +739,12 @@ export default function OnboardingTab({
             openingCallStep={openingCallStepForFocus}
             returnLabel={returnLabel}
             onClose={() => setFocusedInstitutionKey(null)}
-            onAdvanceInstitution={next => setFocusedInstitutionKey(next)}
+            /* ‼ נגמרו המוסדות ⇒ נוחתים על תמונת המצב, לא ברשימת הבקשות.
+               זה התוצר שבשבילו נעשתה כל ההקלדה. */
+            onAdvanceInstitution={next => {
+              setFocusedInstitutionKey(next);
+              if (next === null) onOpenAlignmentStatus?.();
+            }}
           />
         </div>
       );
@@ -1843,6 +1854,10 @@ export default function OnboardingTab({
                 {alignSteps.length > 0 && (
                   <div className="ob-card-body">
                     <InstitutionAlignmentGroup steps={alignSteps} onOpen={setFocusedInstitutionKey} />
+                    {alignDone && onOpenAlignmentStatus && (
+                      <button type="button" className="ui-linkbtn" style={{ marginTop: 8 }}
+                        onClick={onOpenAlignmentStatus}>תמונת מצב מלאה ←</button>
+                    )}
                   </div>
                 )}
               </div>

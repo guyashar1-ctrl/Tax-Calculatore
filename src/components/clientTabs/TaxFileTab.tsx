@@ -37,6 +37,14 @@ interface Props {
    * נשמרה — היא נפתחת מכאן, מתוך הרשומה עצמה, כפעולה משנית.
    */
   onOpenDetails?: () => void;
+  /**
+   * פתיחת "תמונת מצב מול הרשויות" — התוצר של יישור הקו. ‼ אותו מסך בדיוק
+   * שנפתח בסיום יישור הקו במסע; הוא חי ב-ClientWorkspace כדי ששתי הכניסות
+   * יגיעו לעותק אחד.
+   */
+  onOpenAlignmentStatus?: () => void;
+  /** בוצע יישור קו בעבר — משנה את ניסוח הקישור ("תמונת מצב" מול "התחל"). */
+  hasAlignment?: boolean;
 }
 
 const RENTAL_TRACK_LABELS: Record<RentalTaxTrack, string> = {
@@ -144,11 +152,12 @@ function SrcLine({ label, onEdit }: { label: string; onEdit?: () => void }) {
   );
 }
 
-export default function TaxFileTab({ client, onClientPersisted, onSendQuestionnaire, onOpenDetails }: Props) {
+export default function TaxFileTab({ client, onClientPersisted, onSendQuestionnaire, onOpenDetails, onOpenAlignmentStatus, hasAlignment }: Props) {
   const { pending, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [openChanges, setOpenChanges] = useState<Set<string>>(new Set());
   const [busyChangeId, setBusyChangeId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [changeErrors, setChangeErrors] = useState<Record<string, string>>({});
   const [editingField, setEditingField] = useState<'donations' | 'rental' | null>(null);
   const [donationsDraft, setDonationsDraft] = useState('');
@@ -188,6 +197,35 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
     if (!res.ok) setChangeErrors(e => ({ ...e, [change.id]: res.error || 'שגיאה בדחייה' }));
   }
 
+  /**
+   * "אשר הכול" — סדרתי, ו‼ שורה שנכשלת אינה עוצרת את השאר: קונפליקט בשדה
+   * אחד לא אמור לחסום עשרים שדות תקינים. הכישלון נשאר גלוי על אותה שורה.
+   */
+  async function acceptGroup(changes: TaxFactChange[]) {
+    setBulkBusy(true);
+    for (const change of changes) {
+      const res = await acceptFact(change);
+      if (!res.ok) {
+        const msg = res.error === 'stale_conflict'
+          ? 'הערך בתיק השתנה אחרי שההצעה נוצרה - נדרשת בדיקה מחדש.'
+          : (res.error || 'שגיאה בעדכון');
+        setChangeErrors(e => ({ ...e, [change.id]: msg }));
+      } else if (res.client) {
+        onClientPersisted(res.client);
+      }
+    }
+    setBulkBusy(false);
+  }
+
+  async function rejectGroup(changes: TaxFactChange[]) {
+    setBulkBusy(true);
+    for (const change of changes) {
+      const res = await rejectFact(change.id);
+      if (!res.ok) setChangeErrors(e => ({ ...e, [change.id]: res.error || 'שגיאה בדחייה' }));
+    }
+    setBulkBusy(false);
+  }
+
   async function saveDonations() {
     const val = Math.max(0, Number(donationsDraft.replace(/[^\d.-]/g, '')) || 0);
     setSavingEdit(true);
@@ -211,6 +249,19 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
   }
 
   const sentence = useMemo(() => buildSentence(client), [client]);
+
+  /** קיבוץ ההצעות הממתינות לפי מקור ויום — הכרטיס הוא הריצה, לא השדה. */
+  const pendingGroups = useMemo(() => {
+    const map = new Map<string, { key: string; source: TaxFactChange['source']; at: string; changes: TaxFactChange[] }>();
+    for (const change of pending) {
+      const day = (change.createdAt ?? '').slice(0, 10);
+      const key = `${change.source}|${day}`;
+      const g = map.get(key);
+      if (g) g.changes.push(change);
+      else map.set(key, { key, source: change.source, at: change.createdAt, changes: [change] });
+    }
+    return [...map.values()].sort((a, b) => b.at.localeCompare(a.at));
+  }, [pending]);
 
   const year = new Date().getFullYear();
   const taxData = getTaxYearData(year) ?? getTaxYearData(year - 1);
@@ -365,29 +416,54 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
 
       <div className="txf-sentence">{sentence}</div>
 
-      {pending.map(change => {
-        const open = openChanges.has(change.id);
-        const busy = busyChangeId === change.id;
+      {/* ‼ כרטיס אחד לכל מקור+יום, לא כרטיס לכל שדה. יישור קו יחיד מייצר
+          עשרות עובדות, ועשרים כרטיסים צהובים זהים הפכו את הרשומה לערימה
+          שאי אפשר לקרוא ממנה מה בעצם השתנה. הטבלה אומרת את זה במבט אחד. */}
+      {pendingGroups.map(group => {
+        const open = openChanges.has(group.key);
         return (
-          <div key={change.id} className={`txf-qchange ${open ? 'open' : ''}`}>
-            <button type="button" className="txf-qchange-head" onClick={() => toggleChange(change.id)}>
-              <b>עדכון מ{TAX_FACT_SOURCE_LABELS[change.source]} ממתין לאישורך</b>
-              <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>{change.label}</span>
+          <div key={group.key} className={`txf-qchange ${open ? 'open' : ''}`}>
+            <button type="button" className="txf-qchange-head" onClick={() => toggleChange(group.key)}>
+              <b>עדכון מ{TAX_FACT_SOURCE_LABELS[group.source]} ממתין לאישורך</b>
+              <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+                {shortDate(group.at)} · {group.changes.length} שדות
+              </span>
               <span style={{ marginInlineStart: 'auto', color: 'var(--ink-4)', fontSize: 11 }}>{open ? 'סגור ‹' : 'פתח ›'}</span>
             </button>
             {open && (
               <div className="txf-qchange-body">
-                <div className="txf-oldnew">
-                  <div><div className="k">בתיק היום</div>{change.oldValue?.display ?? '-'}</div>
-                  <div><div className="k">מ{TAX_FACT_SOURCE_LABELS[change.source]} ({shortDate(change.createdAt)})</div>{change.newValue.display}</div>
+                <div className="txf-qtable">
+                  <div className="txf-qtable-head">
+                    <span>שדה</span><span>בתיק היום</span><span>הערך המוצע</span><span />
+                  </div>
+                  {group.changes.map(change => {
+                    const busy = busyChangeId === change.id;
+                    return (
+                      <div className="txf-qtable-row" key={change.id}>
+                        <span className="txf-qt-label">{change.label}</span>
+                        <span className="txf-qt-old">{change.oldValue?.display ?? '-'}</span>
+                        <span className="txf-qt-new">{change.newValue.display}</span>
+                        <span className="txf-qt-act">
+                          <button type="button" className="ui-linkbtn" disabled={busy}
+                            onClick={() => handleAccept(change)}>{busy ? 'רגע…' : 'אשר'}</button>
+                          <button type="button" className="ui-linkbtn is-quiet" disabled={busy}
+                            onClick={() => handleReject(change)}>דחה</button>
+                        </span>
+                        {changeErrors[change.id] && (
+                          <span className="txf-qt-err">{changeErrors[change.id]}</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="txf-editor-actions">
-                  <button type="button" className="ui-btn ui-btn-primary" disabled={busy} onClick={() => handleAccept(change)}>
-                    {busy ? 'רגע…' : 'אשר ועדכן בתיק'}
+                  <button type="button" className="ui-btn ui-btn-primary" disabled={bulkBusy}
+                    onClick={() => void acceptGroup(group.changes)}>
+                    {bulkBusy ? 'מאשר…' : `אשר הכול (${group.changes.length})`}
                   </button>
-                  <button type="button" className="ui-btn" disabled={busy} onClick={() => handleReject(change)}>השאר את הערך הנוכחי</button>
+                  <button type="button" className="ui-btn" disabled={bulkBusy}
+                    onClick={() => void rejectGroup(group.changes)}>השאר את הערכים הנוכחיים</button>
                 </div>
-                {changeErrors[change.id] && <div className="txf-qchange-error">{changeErrors[change.id]}</div>}
                 <div className="txf-note">ההחלטה נרשמת ביומן: מקור, ערך קודם, ערך חדש ומועד.</div>
               </div>
             )}
@@ -396,7 +472,16 @@ export default function TaxFileTab({ client, onClientPersisted, onSendQuestionna
       })}
 
       {/* א · מצב מול הרשויות */}
-      <div className="txf-secthead">מצב מול הרשויות</div>
+      {/* ‼ הקישור יושב על כותרת המקטע ולא בתחתיתו: התמונה המלאה היא התשובה
+          לאותה שאלה שהמקטע הזה פותח, ומי שמחפש אותה מחפש אותה כאן. */}
+      <div className="txf-secthead txf-secthead-row">
+        <span>מצב מול הרשויות</span>
+        {onOpenAlignmentStatus && (
+          <button type="button" className="ui-linkbtn" onClick={onOpenAlignmentStatus}>
+            {hasAlignment ? 'תמונת מצב מלאה ←' : 'בצע יישור קו מול הרשויות ←'}
+          </button>
+        )}
+      </div>
       <div className="txf-sect">
         {files.length === 0 ? (
           <div className="txf-empty">

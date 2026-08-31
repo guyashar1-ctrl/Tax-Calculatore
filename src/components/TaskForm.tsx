@@ -25,6 +25,13 @@ interface Props {
   task: Task | null;                     // null = יצירה חדשה
   clients: Client[];
   presetClientId?: string | null;        // אם נפתח מתוך תיק לקוח — נעול
+  /**
+   * כותרת מוכנה מראש. ‼ הטופס עדיין נפתח ונשמר ידנית — דגל בתמונת המצב
+   * ממלא את הכותרת, לא יוצר משימה מאחורי הגב. משימה שנוצרת בלי שראו אותה
+   * היא בדיוק ההפך מ"הכפתור שמסיים הוא הכפתור ששולח".
+   */
+  presetTitle?: string;
+  presetCategory?: TaskCategory;
   onSave: (task: Task) => void;
   onCancel: () => void;
   onDelete?: (id: string) => void;
@@ -32,13 +39,13 @@ interface Props {
   onUpdateClient?: (client: Client) => void;
 }
 
-function blankTask(clientId: string): Task {
+function blankTask(clientId: string, title = '', category: TaskCategory = 'not_selected'): Task {
   const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
     clientId,
-    category: 'not_selected',
-    title: '',
+    category,
+    title,
     description: '',
     ballWith: 'me',
     status: 'open',
@@ -63,10 +70,10 @@ const PROGRESS_OPTIONS: TaskProgress[] = ['new', 'in_progress'];
 // 'system' הוא המזהה שהאפליקציה נותנת ל-client_id ריק במסד (ראה dbMappers).
 const INTERNAL = 'system';
 
-export default function TaskForm({ task, clients, presetClientId, onSave, onCancel, onDelete, onUpdateClient }: Props) {
+export default function TaskForm({ task, clients, presetClientId, presetTitle, presetCategory, onSave, onCancel, onDelete, onUpdateClient }: Props) {
   // ‼ בלי ברירת מחדל ללקוח הראשון ברשימה: משימה שנשמרת על לקוח אקראי גרועה
   // ממשימה שדורשת בחירה.
-  const [data, setData] = useState<Task>(task ?? blankTask(presetClientId ?? ''));
+  const [data, setData] = useState<Task>(task ?? blankTask(presetClientId ?? '', presetTitle, presetCategory));
   const [showSignatureEditor, setShowSignatureEditor] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<{ title?: string; client?: string }>({});

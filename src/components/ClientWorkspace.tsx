@@ -24,6 +24,9 @@ import ClientCockpitTab from './clientTabs/ClientCockpitTab';
 import JourneyTab from './clientTabs/JourneyTab';
 import OnboardingTab from './clientTabs/OnboardingTab';
 import TaxFileTab from './clientTabs/TaxFileTab';
+import AlignmentStatusView from './clientTabs/AlignmentStatusView';
+import type { AuthorityFlag } from '../utils/authorityFlags';
+import { supabase } from '../lib/supabase';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboarding';
 import { isStepOpen, stepAwaitsMe } from '../types/onboarding';
 import type { Lead, QuotationKind } from '../types/quotations';
@@ -87,7 +90,8 @@ interface Props {
   onDelete: (id: string) => void;
   /** העברה לארכיון והחזרה ממנו — הכתיבה היחידה של שלב הכרטיס מהמסך */
   onSetLifecycleStage?: (id: string, stage: LifecycleStage) => Promise<void>;
-  onAddTaskForClient: (clientId: string) => void;
+  /** presetTitle — דגל בתמונת המצב פותח את הטופס עם כותרת מוכנה, לא יוצר בשקט. */
+  onAddTaskForClient: (clientId: string, presetTitle?: string) => void;
   onSelectTask: (id: string) => void;
   onToggleTaskDone: (id: string) => void;
   // הועבר מה-TaskBoard הראשי כדי להציג גם בלשונית של הלקוח
@@ -211,6 +215,14 @@ export default function ClientWorkspace({
   const [docCategories, setDocCategories] = useState<Set<string>>(new Set());
   const [dirty, setDirty] = useState(false);
   const [intakeModalOpen, setIntakeModalOpen] = useState(false);
+  /**
+   * תמונת המצב מול הרשויות — השתלטות על גוף הכרטיס, לא לשונית.
+   * ‼ נמצאת כאן ולא בתוך אחת הלשוניות כי יש לה שתי כניסות (סיום יישור הקו
+   * במסע, וקישור מתיק המס) והן חייבות להגיע לאותו מסך — לא לשני עותקים.
+   */
+  const [alignmentStatusOpen, setAlignmentStatusOpen] = useState(false);
+  const [alignRerunBusy, setAlignRerunBusy] = useState(false);
+  const [creatingRequestKey, setCreatingRequestKey] = useState<string | null>(null);
 
   const db = useDocumentDB();
   const { employees, findEmployee } = useEmployees();
@@ -428,6 +440,67 @@ export default function ClientWorkspace({
   const clientSteps = useMemo(
     () => (onboardingSteps ?? []).filter(s => s.clientId === client.id && s.status !== 'cancelled'),
     [onboardingSteps, client.id]);
+  /** שלושת שלבי יישור הקו — מקור החותמות, ההיסטוריה והדיפים בתמונת המצב. */
+  const alignmentSteps = useMemo(
+    () => clientSteps.filter(s => s.stepType.startsWith('institution_alignment_')),
+    [clientSteps]);
+  const clientOnboardingSteps = clientSteps;
+
+  /**
+   * "בצע יישור קו מחדש" — אותו מנגנון בדיוק של הכרטיס בלשונית הבקשות:
+   * אין שלבים ⇒ יוצרים; יש ⇒ פותחים כל אחד מחדש (וההיסטוריה נשמרת בשרת).
+   */
+  async function rerunAlignment() {
+    setAlignRerunBusy(true);
+    try {
+      if (alignmentSteps.length === 0) {
+        await supabase.rpc('ensure_institution_alignment_steps', {
+          p_client_id: client.id,
+          p_engagement_id: activeEngagement?.id ?? null,
+          p_include_opening_call: false,
+        });
+      } else {
+        for (const s of alignmentSteps) {
+          await supabase.rpc('reopen_institution_alignment', { p_step_id: s.id });
+        }
+      }
+      refreshOnboarding?.();
+      // הריצה החדשה מתחילה בלשונית הבקשות, שם נמצאים מסכי המילוי.
+      setAlignmentStatusOpen(false);
+      setTab('journey');
+    } finally {
+      setAlignRerunBusy(false);
+    }
+  }
+
+  /** בקשת לקוח מתוך דגל — טיוטה, כמו כל בקשה. flagKey מסמן שכבר נוצרה. */
+  async function createFlagRequest(flag: AuthorityFlag) {
+    if (!flag.requestTitle) return;
+    setCreatingRequestKey(flag.key);
+    try {
+      await supabase.rpc('create_onboarding_request', {
+        p_client_id: client.id,
+        p_step_type: 'custom_request',
+        p_payload: {
+          title: flag.requestTitle,
+          clientTitle: flag.requestTitle,
+          clientSub: flag.requestSub ?? flag.why,
+          clientCta: 'לאישור',
+          flagKey: flag.key,
+          requirements: [{ key: 'flag_confirm', kind: 'confirm', label: 'טופל', done: false }],
+        },
+        p_due_date: null,
+        p_depends_on: null,
+        p_published: false,
+        p_required_for_close: false,
+        p_owner: 'client',
+        p_stage_id: null,
+      });
+      refreshOnboarding?.();
+    } finally {
+      setCreatingRequestKey(null);
+    }
+  }
   /** ההתקשרות הפעילה — קובעת אם התהליך כבר פורסם ללקוח (מצב "טיוטה"). */
   const activeEngagement = useMemo(
     () => (engagements ?? []).find(e => e.clientId === client.id && e.status !== 'cancelled'),
@@ -649,7 +722,24 @@ export default function ClientWorkspace({
 
       {/* ─── תוכן הלשונית ─────────────────────────────────────── */}
       <div className="cw-body">
-        {tab === 'journey' && (
+        {/* ‼ תמונת המצב משתלטת על גוף הכרטיס ומחליפה את הלשונית הפעילה.
+            החזרה מחזירה בדיוק ללשונית שממנה הגיעו — אין ניווט חדש. */}
+        {alignmentStatusOpen && (
+          <AlignmentStatusView
+            client={client}
+            steps={alignmentSteps}
+            allSteps={clientOnboardingSteps}
+            returnLabel={tab === 'taxfile' ? 'חזרה לתיק המס' : 'חזרה לבקשות'}
+            onClose={() => setAlignmentStatusOpen(false)}
+            onRerun={() => void rerunAlignment()}
+            rerunBusy={alignRerunBusy}
+            onCreateTask={(title) => onAddTaskForClient(client.id, title)}
+            onCreateRequest={(flag) => void createFlagRequest(flag)}
+            creatingRequestKey={creatingRequestKey}
+          />
+        )}
+
+        {!alignmentStatusOpen && tab === 'journey' && (
           <JourneyTab
             client={client}
             tasks={tasks}
@@ -681,19 +771,22 @@ export default function ClientWorkspace({
             onOpenYear={openYear}
             onSelectTask={onSelectTask}
             onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
+            onOpenAlignmentStatus={() => setAlignmentStatusOpen(true)}
           />
         )}
 
-        {tab === 'taxfile' && (
+        {!alignmentStatusOpen && tab === 'taxfile' && (
           <TaxFileTab
             client={client}
             onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
             onOpenDetails={() => setTab('dossier')}
+            onOpenAlignmentStatus={() => setAlignmentStatusOpen(true)}
+            hasAlignment={alignmentSteps.some(s => !!s.payload.checkedAt)}
           />
         )}
 
-        {tab === 'pay' && (
+        {!alignmentStatusOpen && tab === 'pay' && (
           <AgreementPaymentsTab
             client={client}
             quotations={quotations ?? []}
@@ -704,7 +797,7 @@ export default function ClientWorkspace({
           />
         )}
 
-        {tab === 'log' && (
+        {!alignmentStatusOpen && tab === 'log' && (
           <ActivityTab
             client={client}
             clientSteps={clientSteps}
@@ -714,7 +807,7 @@ export default function ClientWorkspace({
           />
         )}
 
-        {tab === 'overview' && (
+        {!alignmentStatusOpen && tab === 'overview' && (
           <ClientCockpitTab
             client={client}
             tasks={tasks}
@@ -733,14 +826,14 @@ export default function ClientWorkspace({
 
         {/* ‼ "התיק" אינה לשונית עמיתה יותר — נכנסים אליה מתוך "תיק מס". ולכן
             היא חייבת דרך חזרה משלה: מסך בלי כפתור חזרה הוא מסך שנתקעים בו. */}
-        {tab === 'dossier' && (
+        {!alignmentStatusOpen && tab === 'dossier' && (
           <div className="cw-subscreen-back">
             <button type="button" className="ui-linkbtn" onClick={() => setTab('taxfile')}>
               <Icon name="chevron-start" size={13} /> חזרה לתיק מס
             </button>
           </div>
         )}
-        {tab === 'dossier' && (
+        {!alignmentStatusOpen && tab === 'dossier' && (
           <ClientDossierTab
             client={client}
             update={update}
@@ -752,7 +845,7 @@ export default function ClientWorkspace({
           />
         )}
 
-        {tab === 'onboarding' && hasOnboarding && advanceOnboardingStep && (
+        {!alignmentStatusOpen && tab === 'onboarding' && hasOnboarding && advanceOnboardingStep && (
           <OnboardingTab
             clientId={client.id}
             client={client}
@@ -789,7 +882,7 @@ export default function ClientWorkspace({
           />
         )}
 
-        {tab === 'docs' && (
+        {!alignmentStatusOpen && tab === 'docs' && (
           <DocumentsTab
             client={client}
             allClients={clients}

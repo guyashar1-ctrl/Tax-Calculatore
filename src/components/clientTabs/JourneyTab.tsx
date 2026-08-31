@@ -58,6 +58,8 @@ interface Props {
   onPinNote: (text: string) => void;
   onAddNote: (text: string) => void;
   onGotoTab: (tab: 'overview' | 'dossier' | 'docs' | 'tasks') => void;
+  /** פתיחת "תמונת מצב מול הרשויות" — נקראת בסיום המוסד האחרון ביישור הקו. */
+  onOpenAlignmentStatus?: () => void;
   /** מ-M2: יישור קו כותב עובדות מקצועיות ישירות דרך M1 — צריך לשקף מיד. */
   onClientPersisted: (c: Client) => void;
   taxSessions: AnnualReportSession[];
@@ -339,6 +341,7 @@ export default function JourneyTab(p: Props) {
           repStatusLabel={p.repStatusLabel}
           repStatus={p.repStatus}
           onOpenRepresentation={p.onOpenRepresentation}
+          onOpenAlignmentStatus={p.onOpenAlignmentStatus}
         />
       )}
 
