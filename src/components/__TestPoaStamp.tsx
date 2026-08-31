@@ -88,7 +88,14 @@ const BASE = {
   createdAt: '2026-08-01T08:00:00.000Z', updatedAt: '2026-08-01T08:00:00.000Z',
   submission: null, submittedAt: null, partB: null, ocrExtracted: null,
   onboardingToken: 'stamptoken', onboardingStatus: 'submitted',
-  identification: { idNumber: '314667346', firstName: 'יאיר', lastName: 'סלע' },
+  identification: {
+    idNumber: '314667346', firstName: 'יאיר', lastName: 'סלע',
+    birthDate: '1980-05-05', secondaryType: 'driverLicense', secondaryValue: '7654321',
+    familyStatus: 'married',
+    spouseFirstName: 'מיכל', spouseLastName: 'סלע', spouseIdNumber: '022321673',
+    // ערכת ההזדהות של בעלת התיקים (148) — מוצגת בבלוק ההגשה שלה
+    spouseBirthDate: '1982-03-03', spouseSecondaryType: 'passport', spouseSecondaryValue: 'P1234567',
+  },
   onboardingSubmittedAt: '2026-08-02T08:00:00.000Z',
   execution: { incomeTax: { enteredAt: '2026-08-03T08:00:00.000Z' } },
   scope: {

@@ -14,7 +14,7 @@ import {
   AuthorityRepresentations,
   RepTarget,
 } from '../types';
-import type { ScopePeople } from '../utils/repScope';
+import { shaamSubmissions, type ScopePeople } from '../utils/repScope';
 import {
   identityRequirements, missingIdentity,
   type IdentityRequirement, type IdentityDocsMap,
@@ -84,6 +84,10 @@ export default function OnboardingPage({ token }: Props) {
   const [spouseLastName, setSpouseLastName] = useState('');
   const [spouseIdNumber, setSpouseIdNumber] = useState('');
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
+  // ── פרטי הזדהות של בן/בת הזוג — רק כשיש לו/לה הגשה משלו/ה בשע״ם ──
+  const [spouseBirthDate, setSpouseBirthDate] = useState('');
+  const [spouseSecondaryType, setSpouseSecondaryType] = useState<OnboardingSecondaryType>('parentId');
+  const [spouseSecondaryValue, setSpouseSecondaryValue] = useState('');
 
   // ── צילומי תעודות ──
   // ‼ הזנת המספר אינה מספיקה. ממי מבקשים נגזר מהיקף הייצוג, ואיזו תעודה —
@@ -173,7 +177,18 @@ export default function OnboardingPage({ token }: Props) {
     clientName: `${firstName} ${lastName}`.trim(),
     spouseName: `${spouseFirstName} ${spouseLastName}`.trim(),
   };
-  const idRequirements = identityRequirements(info?.scope, scopePeople, { client: secondaryType });
+  // ── האם לבן/בת הזוג יש הגשה משלו/ה בשע״ם ─────────────────────────────────
+  // ‼ הכרעת גיא (31.8): מי שיש לו תיק צריך את ערכת ההזדהות שלו — ת.ז. +
+  // רישיון/דרכון/ת.ז. הורה. אין תיק — לא מטריחים. "יש תיק" = יש לו/לה הגשה
+  // בשע״ם: תיק מע"מ/ניכויים על שמו/ה, או שתיק מ"ה מתנהל עליו/ה (לפי הכוונה
+  // שנרשמה בפתיחה — ההכרעה הסופית ממילא נעשית מול שע״ם).
+  const spouseSub = familyStatus === 'married'
+    ? shaamSubmissions(info?.scope, scopePeople, info?.prefill.registeredSpouse).find(x => x.target === 'spouse')
+    : undefined;
+  const idRequirements = identityRequirements(info?.scope, scopePeople, {
+    client: secondaryType,
+    ...(spouseSub ? { spouse: spouseSecondaryType } : {}),
+  });
   const idMissing = missingIdentity(idRequirements, idDocs);
 
   async function uploadIdDoc(r: IdentityRequirement, file: File) {
@@ -243,9 +258,17 @@ export default function OnboardingPage({ token }: Props) {
         if (!spouseLastName.trim()) return 'יש להזין את שם המשפחה של בן/בת הזוג';
         if (!spouseIdNumber.trim()) return 'יש להזין את תעודת הזהות של בן/בת הזוג';
         if (!isValidIsraeliId(spouseIdNumber.trim())) return 'תעודת הזהות של בן/בת הזוג אינה תקינה';
-        const by = Number(spouseBirthYear);
-        if (!spouseBirthYear.trim()) return 'יש להזין את שנת הלידה של בן/בת הזוג';
-        if (!Number.isInteger(by) || by < 1900 || by > CURRENT_YEAR) return 'שנת הלידה של בן/בת הזוג אינה תקינה';
+        if (spouseSub) {
+          // ‼ יש לו/לה תיק ⇒ הזנה נפרדת בשע״ם על הת.ז. שלו/ה, וצריך את אותה
+          // ערכת הזדהות כמו של הממלא. אין תיק ⇒ מספיקה שנת לידה (לב"ל).
+          if (!spouseBirthDate) return 'יש להזין את תאריך הלידה של בן/בת הזוג';
+          if (new Date(spouseBirthDate) > new Date()) return 'תאריך הלידה של בן/בת הזוג לא יכול להיות בעתיד';
+          if (!spouseSecondaryValue.trim()) return `יש להזין ${ONBOARDING_SECONDARY_LABELS[spouseSecondaryType]} של בן/בת הזוג`;
+        } else {
+          const by = Number(spouseBirthYear);
+          if (!spouseBirthYear.trim()) return 'יש להזין את שנת הלידה של בן/בת הזוג';
+          if (!Number.isInteger(by) || by < 1900 || by > CURRENT_YEAR) return 'שנת הלידה של בן/בת הזוג אינה תקינה';
+        }
       }
     }
     return null;
@@ -286,7 +309,14 @@ export default function OnboardingPage({ token }: Props) {
       p_spouse_id_number: familyStatus === 'married' ? spouseIdNumber.trim() : null,
       p_spouse_first_name: familyStatus === 'married' ? spouseFirstName.trim() : null,
       p_spouse_last_name: familyStatus === 'married' ? spouseLastName.trim() : null,
-      p_spouse_birth_year: familyStatus === 'married' && spouseBirthYear.trim() ? Number(spouseBirthYear) : null,
+      // כשנאסף תאריך מלא — שנת הלידה (שב"ל צריך) נגזרת ממנו
+      p_spouse_birth_year: familyStatus === 'married'
+        ? (spouseSub && spouseBirthDate ? Number(spouseBirthDate.slice(0, 4))
+            : spouseBirthYear.trim() ? Number(spouseBirthYear) : null)
+        : null,
+      p_spouse_birth_date: familyStatus === 'married' && spouseSub ? (spouseBirthDate || null) : null,
+      p_spouse_secondary_type: familyStatus === 'married' && spouseSub ? spouseSecondaryType : null,
+      p_spouse_secondary_value: familyStatus === 'married' && spouseSub ? (spouseSecondaryValue.trim() || null) : null,
     });
     if (error || data === false) {
       setError('השליחה לא הצליחה. נסו שוב, ואם זה חוזר - פנו למשרד.');
@@ -736,12 +766,54 @@ export default function OnboardingPage({ token }: Props) {
                       onChange={e => setSpouseIdNumber(e.target.value.replace(/\D/g, ''))} placeholder="9 ספרות" />
                   </label>
                 </div>
-                <div style={{ marginBottom: 22 }}>
-                  <label style={label}>שנת לידה של בן/בת הזוג
-                    <input style={inputStyle} inputMode="numeric" maxLength={4} dir="ltr" value={spouseBirthYear}
-                      onChange={e => setSpouseBirthYear(e.target.value.replace(/\D/g, ''))} placeholder={String(CURRENT_YEAR - 40)} />
-                  </label>
-                </div>
+                {/* ‼ יש לבן/בת הזוג תיק (מע"מ/ניכויים על שמו/ה, או תיק מ"ה שמתנהל
+                    עליו/ה) ⇒ הגשה נפרדת בשע״ם על הת.ז. שלו/ה, וצריך את אותה ערכת
+                    הזדהות: תאריך לידה מלא + רישיון/דרכון/ת.ז. הורה. אין תיק ⇒
+                    מספיקה שנת לידה, לייפוי הכוח בביטוח לאומי. */}
+                {spouseSub ? (
+                  <>
+                    <div style={{ marginBottom: 22 }}>
+                      <label style={label}>תאריך לידה של בן/בת הזוג
+                        <input style={inputStyle} type="date" value={spouseBirthDate} max={new Date().toISOString().slice(0, 10)}
+                          onChange={e => setSpouseBirthDate(e.target.value)} />
+                      </label>
+                    </div>
+                    <div style={{ marginBottom: 22 }}>
+                      <div style={{ ...label, marginBottom: 8 }}>
+                        אמצעי זיהוי נוסף של בן/בת הזוג <span style={{ color: '#9A9A95' }}>- בחרו אחד</span>
+                      </div>
+                      <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginBottom: 10 }}>
+                        יש על שמו/ה תיק ({spouseSub.authoritiesLabel}), ולכן הרישום ברשויות נעשה גם
+                        על הפרטים שלו/ה.
+                      </div>
+                      <div style={{ display: 'flex', gap: 7, marginBottom: 12 }}>
+                        {SECONDARY_ORDER.map(t => {
+                          const sel = spouseSecondaryType === t;
+                          const short = t === 'parentId' ? 'ת.ז. הורה' : t === 'driverLicense' ? 'רישיון נהיגה' : 'דרכון';
+                          return (
+                            <div key={t} onClick={() => setSpouseSecondaryType(t)}
+                              style={{ flex: 1, textAlign: 'center', cursor: 'pointer', fontSize: 12.5, fontWeight: sel ? 500 : 400,
+                                padding: '8px 6px', borderRadius: 8,
+                                background: sel ? ink : '#fff', color: sel ? '#fff' : '#6B6B68',
+                                border: sel ? `1px solid ${ink}` : '1px solid #E3E2DD' }}>
+                              {short}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <input style={inputStyle} dir="ltr" value={spouseSecondaryValue}
+                        onChange={e => setSpouseSecondaryValue(e.target.value)}
+                        placeholder={ONBOARDING_SECONDARY_LABELS[spouseSecondaryType]} />
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ marginBottom: 22 }}>
+                    <label style={label}>שנת לידה של בן/בת הזוג
+                      <input style={inputStyle} inputMode="numeric" maxLength={4} dir="ltr" value={spouseBirthYear}
+                        onChange={e => setSpouseBirthYear(e.target.value.replace(/\D/g, ''))} placeholder={String(CURRENT_YEAR - 40)} />
+                    </label>
+                  </div>
+                )}
               </div>
             )}
           </>

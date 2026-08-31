@@ -6,10 +6,13 @@
 import { useState } from 'react';
 import {
   RepresentationRequest,
+  Client,
   FAMILY_STATUS_LABELS,
   FAMILY_STATUS_YEAR_LABELS,
   ONBOARDING_SECONDARY_LABELS,
 } from '../types';
+import { requestScope, shaamSubmissions, type ScopePeople } from '../utils/repScope';
+import { registeredOwnerOf } from '../features/annualReport/profile';
 
 interface Row {
   label: string;
@@ -115,10 +118,12 @@ function Block({ title, subtitle, rows }: { title: string; subtitle: string; row
   );
 }
 
-export default function RepresentationAuthorityData({ request, niCoversSpouse }: {
+export default function RepresentationAuthorityData({ request, niCoversSpouse, linkedClient }: {
   request: RepresentationRequest;
   /** הייצוג בב"ל נלקח גם לבן/בת הזוג — צריך גם את ארבעת השדות שלו/ה */
   niCoversSpouse?: boolean;
+  /** לגזירת ההגשות בשע״ם (מי הרשום, של מי כל תיק) — ההיקף עצמו מגיע מהבקשה */
+  linkedClient?: Client | null;
 }) {
   const id = request.identification;
   if (!id) return null;
@@ -160,6 +165,38 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse }:
     incomeTaxRows.push({ label: 'ת.ז. בן/בת הזוג', value: id.spouseIdNumber || pre.spouseIdNumber || '' });
   }
 
+  // ── הגשה בשע״ם היא לכל אדם — וכך גם הנתונים ─────────────────────────────
+  // ‼ הכרעת גיא (31.8): כשהתיק (מע"מ/ניכויים, או מ"ה אצל הרשום/ה) על שם
+  // בן/בת הזוג, ההזנה בשע״ם נעשית על הת.ז. **שלו/ה** — ולכן הבלוק מציג את
+  // ערכת ההזדהות של בעל ההגשה, לא של מי שמילא את הטופס.
+  // גם מהשדות המפוצלים — בדיוק כמו niSpouseRows למטה: רשומה שנכתבה עם שם
+  // מפוצל בלבד היא עדיין משק בית נשוי.
+  const spouseFullForScope = (
+    (id.spouseName || pre.spouseName || '').trim()
+    || `${id.spouseFirstName || pre.spouseFirstName || ''} ${id.spouseLastName || pre.spouseLastName || ''}`.trim()
+  );
+  const scopePeople: ScopePeople = {
+    married: (id.familyStatus || pre.familyStatus) === 'married' && !!spouseFullForScope,
+    clientName: `${firstName} ${lastName}`.trim(),
+    spouseName: spouseFullForScope,
+  };
+  const submissions = shaamSubmissions(
+    requestScope(request, linkedClient), scopePeople,
+    // רק הכרעה שנקבעה; לפני כן תיק מ"ה נספר אצל הנישום — כמו במרכז הביצוע
+    (linkedClient ? registeredOwnerOf(linkedClient) : null) ?? undefined,
+  );
+
+  const spouseShaamRows: Row[] = [
+    { label: 'שם פרטי', value: id.spouseFirstName || pre.spouseFirstName || '' },
+    { label: 'שם משפחה', value: id.spouseLastName || pre.spouseLastName || '' },
+    { label: 'תעודת זהות', value: id.spouseIdNumber || pre.spouseIdNumber || '' },
+    { label: 'תאריך לידה', value: birthDateDisplay(id.spouseBirthDate), copyValue: birthDateCopy(id.spouseBirthDate) },
+    {
+      label: id.spouseSecondaryType ? ONBOARDING_SECONDARY_LABELS[id.spouseSecondaryType] : 'מזהה משני',
+      value: id.spouseSecondaryValue || '',
+    },
+  ];
+
   // סדר השדות זהה לטופס "הוספת ייפוי כח מבוטח" באתר ביטוח לאומי, כדי שאפשר
   // יהיה לרוץ עליו מלמעלה למטה בלי לחפש.
   const niRows: Row[] = [
@@ -188,11 +225,33 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse }:
         <div className="card-title">נתונים לביצוע הייצוג</div>
       </div>
       <div className="card-body">
-        <Block
-          title="מס הכנסה"
-          subtitle="הפרטים לטופס ייפוי הכוח ולפתיחת הייצוג בשע״ם"
-          rows={incomeTaxRows}
-        />
+        {/* ‼ הבלוק של הממלא נשאר תמיד — הוא נושא גם את פרטי טופס ייפוי הכוח
+            ואת נתוני משק הבית. כשיש לבן/בת הזוג הגשה משלו/ה בשע״ם — בלוק שני
+            עם ערכת ההזדהות שלו/ה: ההזנה נעשית על הת.ז. של בעל ההגשה. */}
+        {(() => {
+          const clientSub = submissions.find(s => s.target === 'client');
+          const spouseSub = submissions.find(s => s.target === 'spouse');
+          return (
+            <>
+              <Block
+                title={spouseSub ? `שע״ם - ${scopePeople.clientName || 'הנישום'}` : 'מס הכנסה'}
+                subtitle={spouseSub
+                  ? (clientSub
+                      ? `ההזנה על ת.ז. שלו/ה: ${clientSub.authoritiesLabel} · והפרטים לטופס ייפוי הכוח`
+                      : 'אין הגשה על שמו/ה - הפרטים לטופס ייפוי הכוח ולמשק הבית')
+                  : 'הפרטים לטופס ייפוי הכוח ולפתיחת הייצוג בשע״ם'}
+                rows={incomeTaxRows}
+              />
+              {spouseSub && (
+                <Block
+                  title={`שע״ם - ${spouseSub.personName}`}
+                  subtitle={`ההזנה על ת.ז. שלו/ה: ${spouseSub.authoritiesLabel}`}
+                  rows={spouseShaamRows}
+                />
+              )}
+            </>
+          );
+        })()}
         <Block
           title={niCoversSpouse ? `ביטוח לאומי - ${firstName || 'הנישום'}` : 'ביטוח לאומי'}
           subtitle="בדיוק ארבעת השדות של ״הוספת ייפוי כח מבוטח״, לפי הסדר"

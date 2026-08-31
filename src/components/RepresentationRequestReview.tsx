@@ -186,7 +186,9 @@ export default function RepresentationRequestReview({
   // כדי שהמסך של הרו"ח והמסך של הלקוח לא ייתנו שתי תשובות שונות.
   const idEvidence = identityRequirements(
     requestScope(request, linkedClient), people,
-    { client: request.identification?.secondaryType },
+    // איזו תעודה מצלמים — לפי אמצעי הזיהוי שכל אדם בחר; לבן/בת הזוג יש
+    // בחירה משלו/ה כשיש לו/לה תיק (148)
+    { client: request.identification?.secondaryType, spouse: request.identification?.spouseSecondaryType },
   ).map(r => ({ name: r.personName, got: !!request.identityDocs?.[r.person]?.length }));
 
   // מספר התיק במ"ה הוא ת.ז. של הרשום. ממלאים מראש רק כשהוא אומת, ורק לשדה
@@ -768,7 +770,7 @@ export default function RepresentationRequestReview({
           <>
             {/* אין כאן כרטיס "פרטי הזדהות" נפרד — אותם שדות בדיוק מוצגים בכרטיס
                 הנתונים שמתחת, שם הם גם ניתנים להעתקה. */}
-            <RepresentationAuthorityData request={request} niCoversSpouse={niCoversSpouse} />
+            <RepresentationAuthorityData request={request} niCoversSpouse={niCoversSpouse} linkedClient={linkedClient} />
 
             <RepresentationExecutionCenter
               request={request}

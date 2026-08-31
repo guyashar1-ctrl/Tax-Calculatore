@@ -991,6 +991,12 @@ export interface OnboardingIdentification {
   spouseFirstName?: string;
   spouseLastName?: string;
   spouseBirthYear?: number;
+  // ── פרטי הזדהות מלאים של בן/בת הזוג — נאספים רק כשיש לו/לה תיק ────────
+  // ‼ הכרעת גיא (31.8): מי שיש לו הגשה בשע״ם צריך את ערכת ההזדהות שלו
+  // (ת.ז. + רישיון/דרכון/ת.ז. הורה). אין תיק — לא מטריחים.
+  spouseBirthDate?: string;
+  spouseSecondaryType?: OnboardingSecondaryType;
+  spouseSecondaryValue?: string;
 }
 
 /**
