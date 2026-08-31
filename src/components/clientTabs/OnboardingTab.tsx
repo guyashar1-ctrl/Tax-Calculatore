@@ -329,6 +329,9 @@ export default function OnboardingTab({
   const [alignBusy, setAlignBusy] = useState(false);
   /** מוסד במיקוד — כשמוגדר, המסך משתלט לגמרי (המודל המאושר: בידוד חזותי וקוגניטיבי). */
   const [focusedInstitutionKey, setFocusedInstitutionKey] = useState<InstitutionKey | null>(null);
+  /** מסלול הרו"ח הקודם. ‼ חייב לשבת כאן ולא ליד המשתמשים בו (שורה ~940) —
+      שם הוא אחרי ה-return המוקדם של מסך המיקוד, וכל כניסה למוסד קורסת. */
+  const [prevTrackBusy, setPrevTrackBusy] = useState(false);
   const highlightTimer = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -937,8 +940,10 @@ export default function OnboardingTab({
   /* ── פתיחת «חומרים מרו״ח קודם» כשהיא חסרה ─────────────────────────────────
      ‼ אותה יצירה בדיוק שרצה מ"+ בקשה" — היא חיה ב-lib/prevAccountantTrack
      כדי ששתי נקודות הכניסה לא יתפצלו. אין כאן אחסון טיוטה מקביל: הטיוטה
-     תיוולד על השלב עצמו. */
-  const [prevTrackBusy, setPrevTrackBusy] = useState(false);
+     תיוולד על השלב עצמו.
+     ‼ ה-useState של המסלול הזה יושב למעלה, עם שאר ה-hooks — לא כאן. הוא ישב
+     כאן פיזית, אחרי ה-return המוקדם של מסך המיקוד (שורה ~722), וכל כניסה
+     למוסד ביישור קו קרסה עם React #300: ברינדור הממוקד ה-hook לא רץ. */
   const needsPrevTrack =
     !!(client.hasPreviousAccountant || client.prevAccountantEmail || client.prevAccountantName)
     && !clientSteps.some(s => s.stepType === 'release_letter' && s.status !== 'cancelled');
