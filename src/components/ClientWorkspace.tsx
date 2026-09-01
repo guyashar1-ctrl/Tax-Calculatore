@@ -35,8 +35,17 @@ import { clientFromDb } from '../lib/dbMappers';
 import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
 import ActivityTab from './clientTabs/ActivityTab';
 import ChecksTab from './clientTabs/ChecksTab';
-import TaxFileEdit from './clientTabs/TaxFileEdit';
 import type { FamilyKey } from '../features/taxFile/editModel';
+
+/** משפחה בתיק המס ⇄ הקבוצה המקבילה במסך המאוחד («התיק»). */
+const DOSSIER_GROUP_FOR_FAMILY: Record<FamilyKey, string> = {
+  auth: 'מס הכנסה',
+  income: 'מעבידים',
+  family: 'מצב משפחתי',
+  assets: 'נכסים והשקעות',
+  deductions: 'קופות פנסיה וחיסכון',
+  foreign: 'דיווחי חובה ומצבים מיוחדים',
+};
 import type { AuthorityFlag } from '../utils/authorityFlags';
 import InfoLines from './ui/InfoLines';
 
@@ -252,7 +261,12 @@ export default function ClientWorkspace({
    * מצב העריכה של תיק המס. ‼ null = קריאה. זו אינה לשונית נפרדת ולא מסך
    * שני — זה המצב השני של אותה לשונית, ולכן החזרה נוחתת בדיוק במקום.
    */
-  const [editFamily, setEditFamily] = useState<FamilyKey | null>(null);
+  // ‼ המפה הזאת היא כל מה שנשאר מהעורך הישן: המשפחה שממנה נלחצה «עריכה»
+  // בתיק המס מתורגמת לקבוצה במסך המאוחד, כדי שהלחיצה תנחת על אותו נושא.
+  // ‼ העורך המסך-מלא «עריכת תיק המס» ירד ממסלול המוצר. עריכת תיק המס
+  // מתרחשת במסך המאוחד (לשונית «התיק»), ולכן כל «עריכה» בתיק המס פותחת
+  // אותו — על הקבוצה שממנה נלחצה, ולא על עוגן קבוע.
+  const [dossierGroup, setDossierGroup] = useState<string | undefined>(undefined);
   const [creatingRequestKey, setCreatingRequestKey] = useState<string | null>(null);
   const [alignRerunBusy, setAlignRerunBusy] = useState(false);
 
@@ -811,20 +825,7 @@ export default function ClientWorkspace({
           />
         )}
 
-        {tab === 'taxfile' && editFamily && (
-          <TaxFileEdit
-            client={client}
-            initialFamily={editFamily}
-            onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
-            onPatchAndSave={patchAndSaveImmediate}
-            onClose={() => setEditFamily(null)}
-            onRunAlignment={() => void rerunAlignment()}
-            alignBusy={alignRerunBusy}
-            onOpenDetails={() => { setEditFamily(null); setTab('dossier'); }}
-          />
-        )}
-
-        {tab === 'taxfile' && !editFamily && (
+        {tab === 'taxfile' && (
           <TaxFileTab
             client={client}
             spouseClient={spouseClient}
@@ -843,7 +844,7 @@ export default function ClientWorkspace({
             onCreateTask={(title) => onAddTaskForClient(client.id, title)}
             onCreateRequest={(flag) => void createFlagRequest(flag)}
             creatingRequestKey={creatingRequestKey}
-            onEditFamily={(f) => setEditFamily(f)}
+            onEditFamily={(f) => { setDossierGroup(DOSSIER_GROUP_FOR_FAMILY[f]); setTab('dossier'); }}
           />
         )}
 
@@ -912,6 +913,7 @@ export default function ClientWorkspace({
             isNew={isNew}
             onCreateSpouseClient={onCreateSpouseClient ? () => onCreateSpouseClient(client) : undefined}
             onOpenSpouseClient={onOpenClient}
+            initialGroup={dossierGroup}
           />
         )}
 

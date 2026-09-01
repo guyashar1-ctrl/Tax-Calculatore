@@ -33,6 +33,12 @@ interface Props {
   onCreateSpouseClient?: () => Promise<void> | void;
   /** פותח את כרטיס בן/בת הזוג הקיים — כשהוא כבר מקושר (client.spouseClientId). */
   onOpenSpouseClient?: (clientId: string) => void;
+  /**
+   * הקבוצה שנפתחת עם הכניסה. ‼ נחוצה מאז ש«עריכה» בתיק המס מובילה לכאן
+   * במקום לעורך המסך-מלא הישן: בלעדיה כל לחיצת עריכה הייתה נוחתת על עוגן
+   * אחד קבוע, והרו"ח היה מחפש את המקטע שממנו יצא.
+   */
+  initialGroup?: string;
 }
 
 const ANCHOR = 'תיקים ברשויות';
@@ -65,12 +71,13 @@ function groupState(client: Client, label: string): { text: string; todo: boolea
 
 export default function ClientDossierTab({
   client, spouseClient, update, patch, employees, isNew, onCreateSpouseClient, onOpenSpouseClient,
+  initialGroup,
 }: Props) {
   // ‼ תיק מס הכנסה אחד לזוג (150) — כשהוא לא על הכרטיס הזה, נקרא דרך
   // household ולא מוצג כאילו אף אחד לא רשום.
   const household = resolveIncomeTaxHousehold(client, spouseClient);
   const regFile = household.holderClient ? registeredFileInfo(household.holderClient) : null;
-  const [active, setActive] = useState<string>(isNew ? 'פרטי נישום' : ANCHOR);
+  const [active, setActive] = useState<string>(initialGroup ?? (isNew ? 'פרטי נישום' : ANCHOR));
   const [query, setQuery] = useState('');
 
   const rail = useMemo(
