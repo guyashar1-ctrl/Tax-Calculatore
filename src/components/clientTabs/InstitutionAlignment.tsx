@@ -20,7 +20,9 @@ import { supabase } from '../../lib/supabase';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { DocCategory, StoredDoc } from '../../hooks/useDocumentStore';
 import { CURRENT_TAX_YEAR } from '../../data/taxData';
-import ShaamIncomeTaxSync from './ShaamIncomeTaxSync';
+import ShaamFieldSync from './ShaamFieldSync';
+import { useAutomationJob } from '../../hooks/useAutomationJobs';
+import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
 
 // ─── תצורת השדות — אחת לכל מוסד ─────────────────────────────────────────────
 
@@ -548,6 +550,13 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ‼ קריאה אחת משע״ם משרתת את כל שדות מס הכנסה. הכפתורים הם שדה-שדה
+  // (זה המודל בשלב הלמידה), אבל המשימה משותפת — אחרת ארבע לחיצות היו
+  // פותחות ארבעה סבבים מול אותה מערכת חד-סשן.
+  const shaamSync = useAutomationJob(client.id, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
+  const incomeTaxFileNumber = ((client.taxFiles ?? [])
+    .find(t => t.authority === 'income_tax')?.fileNumber ?? '').replace(/\D/g, '');
+
   const remaining = (['btl', 'vat', 'income'] as InstitutionKey[]).filter(k => {
     const s = allSteps.find(x => x.payload.institution === k);
     return k !== key && s && s.status !== 'completed' && s.status !== 'verified';
@@ -695,13 +704,6 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
         {cfg.sections.map(section => (
           <div className="ial-step" key={section.kicker}>
             <SectionHead kicker={section.kicker} where={section.where} />
-            {key === 'income' && section.kicker === 'תיק ומקדמות' && (
-              <ShaamIncomeTaxSync
-                client={client}
-                current={k => String(collected[k] ?? '')}
-                onAdopt={(k, v) => setField(k, v)}
-              />
-            )}
             <div className="ial-fgrid">
               {section.fields.map(f => (
                 <div key={f.key}>
@@ -716,6 +718,17 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
                     <input className="inp" type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
                       placeholder={f.placeholder} value={String(collected[f.key] ?? '')}
                       onChange={e => setField(f.key, e.target.value)} />
+                  )}
+                  {key === 'income' && (
+                    <ShaamFieldSync
+                      fieldKey={f.key}
+                      currentValue={String(collected[f.key] ?? '')}
+                      onAdopt={v => setField(f.key, v)}
+                      job={shaamSync.job}
+                      busy={shaamSync.busy}
+                      fileNumber={incomeTaxFileNumber}
+                      onRun={() => { void shaamSync.run({ fileNumber: incomeTaxFileNumber }); }}
+                    />
                   )}
                   {f.note && <div className="ial-where">{f.note}</div>}
                   <WhereHint where={f.where} />

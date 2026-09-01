@@ -18,6 +18,7 @@ import type { OnboardingStep } from '../../types/onboarding';
 import { INSTITUTION_NAMES } from '../../types/onboarding';
 import type { InstitutionKey } from '../../types/onboarding';
 import { NI_OCCUPATION_TYPE_LABELS } from '../../types';
+import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
 import type { AuthorityFlag } from '../../utils/authorityFlags';
 import { shortDate } from '../../utils/clientDerived';
@@ -76,7 +77,20 @@ function authRow(label: string, value: boolean | undefined, diffKey: string): Ro
     : { k: label, v: 'אין הרשאה', tone: 'warn', diffKey };
 }
 
-/** שורות הרשות — רק ממה שבאמת קיים על הלקוח. שדה ריק אינו שורה. */
+/** מציין "אין ערך" אחיד — כדי ששורה ריקה תיראה ריקה, ולא תיעלם. */
+const EMPTY = '—';
+const orDash = (v: string | undefined | null): React.ReactNode =>
+  v && String(v).trim() ? String(v) : <span className="ial-st-empty">{EMPTY}</span>;
+
+/** סוג תיק: הקוד הגולמי כפי שהתקבל, ולצידו הפירוש מהטבלה הממוספרת. */
+function fileTypeCell(code: string | undefined): React.ReactNode {
+  if (!code || !code.trim()) return <span className="ial-st-empty">{EMPTY}</span>;
+  const meta = incomeTaxFileType(code);
+  return meta ? <>{code} · {meta.description}</> : code;
+}
+
+/** שורות הרשות — רק ממה שבאמת קיים על הלקוח. שדה ריק אינו שורה.
+ *  ‼ פרט למס הכנסה, שבו כל שדה נרשם תמיד — ראה ההערה שם. */
 function rowsFor(key: InstitutionKey, client: Client): Row[] {
   const out: (Row | null)[] = [];
 
@@ -118,16 +132,20 @@ function rowsFor(key: InstitutionKey, client: Client): Row[] {
   }
 
   if (key === 'income') {
-    if (client.incomeTaxFileType) out.push({ k: 'סוג תיק', v: client.incomeTaxFileType, diffKey: 'incomeTaxFileType' });
-    if (client.taxOfficeName) {
-      out.push({ k: 'פקיד שומה', v: client.incomeTaxUnit ? `${client.taxOfficeName} · חוליה ${client.incomeTaxUnit}` : client.taxOfficeName, diffKey: 'taxOfficeName' });
-    }
-    if (client.incomeTaxEconomicIndustry) {
-      out.push({ k: 'ענף כלכלי', v: client.incomeTaxEconomicIndustry, diffKey: 'incomeTaxEconomicIndustry' });
-    }
-    if (client.pitAdvancePercent != null) {
+    // ‼ בניגוד לשאר הרשויות, שדות מס הכנסה נרשמים **תמיד** — גם ריקים, עם
+    // "—". מבנה קבוע הוא מה שמאפשר לראות לפני סנכרון מה חסר ואחריו מה
+    // התמלא; שורה שנעלמת כשאין ערך מסתירה בדיוק את מה שבאים לבדוק.
+    out.push({ k: 'סוג תיק', v: fileTypeCell(client.incomeTaxFileType), diffKey: 'incomeTaxFileType' });
+    out.push({ k: 'פקיד שומה', v: orDash(client.taxOfficeName), diffKey: 'taxOfficeName' });
+    out.push({ k: 'חוליה', v: orDash(client.incomeTaxUnit), diffKey: 'incomeTaxUnit' });
+    out.push({ k: 'ענף כלכלי', v: orDash(client.incomeTaxEconomicIndustry), diffKey: 'incomeTaxEconomicIndustry' });
+    {
       const freq = client.pitAdvanceFrequency ? ` · ${VAT_FREQ_LABELS[client.pitAdvanceFrequency]}` : '';
-      out.push({ k: 'מקדמות', v: `${client.pitAdvancePercent}%${freq}`, diffKey: 'pitAdvancePercent' });
+      out.push({
+        k: 'מקדמות',
+        v: client.pitAdvancePercent != null ? `${client.pitAdvancePercent}%${freq}` : EMPTY,
+        diffKey: 'pitAdvancePercent',
+      });
     }
     out.push(balanceRow('יתרה', client.incomeTaxBalance, 'incomeTaxBalance'));
     if (client.incomeTaxReportingStatus) {

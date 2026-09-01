@@ -53,6 +53,9 @@ const FULL: Partial<Client> = {
 /** לקוח תקין לגמרי — לאמת שהמסך אומר "אין מה לטפל" ולא ממציא דגלים. */
 const CLEAN: Partial<Client> = {
   ...FULL,
+  // ‼ קוד גולמי כפי ששע״ם מחזירה — כדי שהתרחיש הזה יכסה את הצגת הפירוש
+  // מהטבלה, בעוד FULL נשאר עם הניסוח הישן ומכסה מעבר-דרך של ערך לא מוכר.
+  incomeTaxFileType: '52',
   vatBalance: 0,
   vatFrequency: 'bi_monthly',
   niDebitAuthorization: true,
@@ -76,7 +79,10 @@ const BASE = {
 
 const CLIENT = {
   ...BASE,
-  ...(CASE === 'clean' ? CLEAN : CASE === 'empty' ? {} : FULL),
+  // ‼ 'sparse' — יישור קו **בוצע** אבל שדות מס הכנסה ריקים. זה המצב של גיא
+  // כלקוח ה-QA הראשון, וזה מה שמאמת שכל שדה נרשם גם בלי ערך («—») במקום
+  // להיעלם. 'empty' הוא משהו אחר לגמרי: יישור קו שטרם בוצע.
+  ...(CASE === 'clean' ? CLEAN : (CASE === 'empty' || CASE === 'sparse') ? {} : FULL),
 } as unknown as Client;
 
 /** היסטוריה = ריצה קודמת. ב-case=first אין היסטוריה ⇒ אסור שיופיעו סימוני שינוי. */
@@ -142,6 +148,7 @@ export default function TestAlignmentStatus() {
         <a href="?test-alignment-status&case=full">מלא</a>
         <a href="?test-alignment-status&case=clean">תקין</a>
         <a href="?test-alignment-status&case=first">ריצה ראשונה</a>
+        <a href="?test-alignment-status&case=sparse">נבדק אך ריק</a>
         <a href="?test-alignment-status&case=empty">טרם בוצע</a>
       </div>
 

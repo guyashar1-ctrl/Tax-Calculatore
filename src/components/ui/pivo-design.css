@@ -4535,19 +4535,25 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .txf-details-entry > span{flex-basis:100%}
 }
 
-/* ── קריאה משע״ם בתוך יישור הקו (InstitutionAlignment → תיק ומקדמות) ──
-   ‼ מציג להשוואה בלבד. שום ערך לא נכנס לכרטיס בלי לחיצה על «אמץ». */
-.ial-sync{margin:0 0 12px}
-.ial-sync-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.ial-sync-note{font-size:11px;line-height:1.5;color:var(--ink-4)}
-.ial-sync-off{font-size:11px;line-height:1.5;color:var(--ink-4)}
-.ial-sync-msg{margin-top:8px;font-size:12px;line-height:1.5;color:var(--ink-3)}
-.ial-sync-err{color:var(--danger)}
-.ial-sync-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}
-.ial-sync-table th{text-align:right;font-weight:600;font-size:11px;color:var(--ink-4);
-  padding:0 8px 5px;border-bottom:1px solid var(--bd)}
-.ial-sync-table td{padding:7px 8px;border-bottom:1px solid var(--bd);vertical-align:top}
-.ial-sync-table tr:last-child td{border-bottom:0}
-.ial-sync-hint{font-size:11px;line-height:1.45;color:var(--ink-4);margin-top:2px}
-.ial-sync-empty{color:var(--ink-4)}
-.ial-sync-same{font-size:11px;color:var(--ink-4)}
+
+/* ── סנכרון שדה בודד מול שע״ם (ShaamFieldSync) ──────────────────────────
+   ‼ פרימיטיב לשדה, לא לסעיף: כפתור קטן ליד כל שדה שיש לו מקור מוכח.
+   מציג להשוואה — הערך נכנס לטופס רק בלחיצה על «אמץ». */
+.ial-fsync{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px}
+.ial-fsync-btn{flex:none;width:22px;height:22px;line-height:1;padding:0;
+  border:1px solid var(--bd);border-radius:6px;background:var(--card);
+  color:var(--ink-3);font-size:12px;cursor:pointer}
+.ial-fsync-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.ial-fsync-btn:disabled{opacity:.4;cursor:default}
+.ial-fsync-val{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
+.ial-fsync-tag{font-size:11px;color:var(--ink-4)}
+.ial-fsync-adopt{border:1px solid var(--bd);border-radius:6px;background:var(--card);
+  color:var(--accent);font:inherit;font-size:11px;padding:1px 8px;cursor:pointer}
+.ial-fsync-adopt:hover{border-color:var(--accent)}
+.ial-fsync-same{font-size:11px;color:var(--ink-4)}
+.ial-fsync-msg{font-size:11px;line-height:1.5;color:var(--ink-4)}
+.ial-fsync-err{color:var(--danger)}
+.ial-fsync-hint{flex-basis:100%;font-size:11px;line-height:1.45;color:var(--ink-4)}
+
+/* שדה ריק בתמונת המצב — נראה ריק, לא נעלם. */
+.ial-st-empty{color:var(--ink-4)}
