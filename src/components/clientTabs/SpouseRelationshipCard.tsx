@@ -15,7 +15,7 @@
 
 import { useState } from 'react';
 import type { Client } from '../../types';
-import { spouseDisplayName } from '../../features/annualReport/profile';
+import { spouseDisplayName, registeredFileInfo } from '../../features/annualReport/profile';
 import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 
 interface Props {
@@ -45,9 +45,15 @@ export default function SpouseRelationshipCard({ client, spouseClient, onCreateS
     }
   }
 
-  // ‼ תיק מס הכנסה אחד לזוג (150) — נקרא, לא נגזר משדה על הכרטיס הזה,
-  // כדי שאותה שורה תופיע זהה משני הכרטיסים אחרי הקישור.
-  const household = linked ? resolveIncomeTaxHousehold(client, spouseClient) : null;
+  // ‼ (159) תיק מס הכנסה אחד לזוג (150) — נקרא תמיד, לא רק כשיש spouseClientId.
+  // אצל לקוח ותיק בן/בת הזוג לרוב אינם כרטיס נפרד בכלל, והתיק המשותף רשום
+  // דרך taxFiles[income_tax].owner==='spouse' על הכרטיס הזה עצמו (בעלות
+  // legacy) — לא על spouseClient. תלייה ב-linked כאן השאירה את השורה
+  // הזאת ריקה בדיוק ללקוחות הוותיקים ביותר, ההפך הגמור מהכוונה.
+  const household = resolveIncomeTaxHousehold(client, spouseClient);
+  const registeredWith = household.represented && household.holderClient
+    ? registeredFileInfo(household.holderClient)
+    : null;
 
   const status = linked
     ? 'בן/בת זוג · לקוח/ה'
@@ -62,8 +68,10 @@ export default function SpouseRelationshipCard({ client, spouseClient, onCreateS
         <span className={'txf-spouse-status' + (linked ? ' is-linked' : elsewhere ? ' is-elsewhere' : '')}>
           {status}
         </span>
-        {household?.represented && (
-          <span className="txf-spouse-note">מס הכנסה משותף</span>
+        {household.represented && (
+          <span className="txf-spouse-note">
+            מס הכנסה משותף{registeredWith?.name ? ` · התיק רשום על ${registeredWith.name}` : ''}
+          </span>
         )}
       </div>
       <div className="txf-spouse-action">

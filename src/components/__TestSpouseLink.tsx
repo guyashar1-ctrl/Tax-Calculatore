@@ -198,6 +198,109 @@ function GoldenFlowDemo() {
   );
 }
 
+// ‼ (159) שחזור מדויק של הצורה האמיתית ב-DB — לקוח ותיק: married, שדות
+// spouse* שטוחים בלבד (בלי spouse blob), spouse_client_id NULL, ותיק מס
+// הכנסה על taxFiles[].owner==='spouse'. זו בדיוק הצורה שהכרטיס נכשל
+// עליה בייצור (129 — לקוח אמיתי, שם הוחלף לשם בדיוני לבדיקה).
+const LEGACY_BASE: Client = {
+  id: 'fixture-legacy', idNumber: '111222333', firstName: 'משה', lastName: 'כהן',
+  email: 'moshe@example.test', phone: '0509998888', city: '', address: '',
+  birthDate: '1975-01-01', gender: 'male',
+  incomeTaxType: 'employee', vatStatus: 'none', businessDescription: '', hasExemptFromWithholding: false,
+  niType: 'employee', hasTaxCoordination: false, taxCoordinationDetails: '',
+  familyStatus: 'married',
+  spouseName: 'רחל כהן', spouseIdNumber: '444555666', spouseFirstName: 'רחל', spouseLastName: 'כהן',
+  spouseWorking: true, spouseIncome: 0,
+  spouse: null, children: [], tags: [], additionalContacts: [], activity: [],
+  representationStatus: 'active',
+  authorityRepresentations: {
+    incomeTax: { status: 'active', level: 'primary' },
+    vat: { status: 'active', level: 'primary', targets: ['client'] },
+  },
+  taxFiles: [],
+  createdAt: '2018-01-01T08:00:00.000Z', updatedAt: '2018-01-01T08:00:00.000Z',
+} as unknown as Client;
+
+// 1/6 — בן/בת זוג שטוח/ה, בלי כרטיס נפרד, בלי תיק מס הכנסה רשום עדיין.
+const LEGACY_1_EMBEDDED_ONLY: Client = { ...LEGACY_BASE, id: 'fixture-legacy-1' };
+
+// 2 — בדיוק המקרה בייצור: תיק מס הכנסה משותף, רשום על בן/בת הזוג (owner:'spouse'),
+// בלי spouseClientId בכלל.
+const LEGACY_2_IT_ON_SPOUSE: Client = {
+  ...LEGACY_BASE, id: 'fixture-legacy-2',
+  taxFiles: [{ id: 'tf-legacy-1', authority: 'income_tax', owner: 'spouse', fileNumber: '444555666', repStatus: 'active' }],
+} as unknown as Client;
+
+// 3 — בן/בת הזוג הפכ/ה ללקוח/ה נפרד/ת, ותיק מס הכנסה עדיין רשום על הלקוח הנוכחי.
+const LEGACY_3_SPOUSE_ID = 'fixture-legacy-3-spouse';
+const LEGACY_3_CLIENT: Client = {
+  ...LEGACY_BASE, id: 'fixture-legacy-3', spouseClientId: LEGACY_3_SPOUSE_ID,
+  taxFiles: [{ id: 'tf-legacy-3', authority: 'income_tax', owner: 'client', fileNumber: '111222333', repStatus: 'active' }],
+} as unknown as Client;
+const LEGACY_3_SPOUSE: Client = {
+  ...LEGACY_BASE, id: LEGACY_3_SPOUSE_ID, firstName: 'רחל', lastName: 'כהן', idNumber: '444555666',
+  spouseName: 'משה כהן', spouseFirstName: 'משה', spouseLastName: 'כהן', spouseIdNumber: '111222333',
+  spouseClientId: 'fixture-legacy-3', taxFiles: [], authorityRepresentations: {},
+} as unknown as Client;
+
+// 4 — מקושרים, אבל התיק המשותף רשום על *בן/בת הזוג* המקושר/ת (לא על מי שהכרטיס שלו/ה פתוח).
+const LEGACY_4_SPOUSE_ID = 'fixture-legacy-4-spouse';
+const LEGACY_4_CLIENT: Client = {
+  ...LEGACY_BASE, id: 'fixture-legacy-4', spouseClientId: LEGACY_4_SPOUSE_ID, taxFiles: [],
+} as unknown as Client;
+const LEGACY_4_SPOUSE: Client = {
+  ...LEGACY_BASE, id: LEGACY_4_SPOUSE_ID, firstName: 'רחל', lastName: 'כהן', idNumber: '444555666',
+  spouseName: 'משה כהן', spouseFirstName: 'משה', spouseLastName: 'כהן', spouseIdNumber: '111222333',
+  spouseClientId: 'fixture-legacy-4',
+  taxFiles: [{ id: 'tf-legacy-4', authority: 'income_tax', owner: 'client', fileNumber: '444555666', repStatus: 'active' }],
+} as unknown as Client;
+
+// 5 — יש שם לבן/בת הזוג, אין ת.ז. — היצירה/התצוגה לא אמורות להיתקע על זה.
+const LEGACY_5_NO_ID: Client = { ...LEGACY_2_IT_ON_SPOUSE, id: 'fixture-legacy-5', spouseIdNumber: '' };
+
+// 7 — לא נשוי/אה בכלל: אין כרטיס בן/בת זוג.
+const LEGACY_7_UNMARRIED: Client = { ...LEGACY_BASE, id: 'fixture-legacy-7', familyStatus: 'single', spouseName: '' };
+
+// 8 — נשוי/אה, אבל שום פרט על בן/בת הזוג לא ידוע — אסור להמציא זהות.
+const LEGACY_8_UNKNOWN_SPOUSE: Client = {
+  ...LEGACY_BASE, id: 'fixture-legacy-8',
+  spouseName: '', spouseIdNumber: '', spouseFirstName: undefined, spouseLastName: undefined,
+} as unknown as Client;
+
+/** תרחיש 159 — צורת DB אמיתית של לקוח ותיק, בלי spouse blob ובלי spouse_client_id. */
+function LegacyClientMatrix() {
+  const rows: { title: string; client: Client; spouseClient?: Client }[] = [
+    { title: '1. בן/בת זוג שטוח/ה בלבד, בלי תיק מס הכנסה רשום', client: LEGACY_1_EMBEDDED_ONLY },
+    { title: '2/6. בדיוק הייצור: תיק מס הכנסה משותף רשום על בן/בת הזוג, בלי spouse_client_id', client: LEGACY_2_IT_ON_SPOUSE },
+    { title: '3. מקושר/ת, תיק רשום על הלקוח הנוכחי', client: LEGACY_3_CLIENT, spouseClient: LEGACY_3_SPOUSE },
+    { title: '4. מקושר/ת, תיק רשום על בן/בת הזוג המקושר/ת', client: LEGACY_4_CLIENT, spouseClient: LEGACY_4_SPOUSE },
+    { title: '5. שם בן/בת זוג בלי ת.ז.', client: LEGACY_5_NO_ID },
+    { title: '7. לא נשוי/אה — בלי כרטיס בן/בת זוג', client: LEGACY_7_UNMARRIED },
+    { title: '8. נשוי/אה, שום פרט על בן/בת הזוג לא ידוע', client: LEGACY_8_UNKNOWN_SPOUSE },
+  ];
+  const [log, setLog] = useState<string[]>([]);
+  return (
+    <div>
+      <div id="tst-legacy-log" style={{ padding: '.5rem 1rem', background: 'var(--surface-2)', fontSize: 12, marginBottom: '.5rem' }}>
+        {log.length === 0 ? '(אין אירועים עדיין)' : log.join(' · ')}
+      </div>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        {rows.map(r => (
+          <div key={r.client.id} id={`tst-${r.client.id}`} style={{ width: 420, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>{r.title}</div>
+            <TaxFileTab
+              client={r.client} spouseClient={r.spouseClient}
+              onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+              onCreateSpouseClient={() => setLog(l => [...l, `create עבור ${r.title}`])}
+              onOpenSpouseClient={(id) => setLog(l => [...l, `open(${id}) עבור ${r.title}`])}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function TestSpouseLink() {
   const [open, setOpen] = useState(true);
   const [confirmed, setConfirmed] = useState<NewPersonBasics | null>(null);
@@ -414,6 +517,9 @@ export default function TestSpouseLink() {
 
       <h3 style={{ marginTop: '2rem' }}>המסלול המוזהב (158, תרחיש 4) — יאיר → יצירת מיכל → הכול חוזר</h3>
       <GoldenFlowDemo />
+
+      <h3 style={{ marginTop: '2rem' }}>צורת DB אמיתית של לקוח ותיק (159) — בלי spouse blob, בלי spouse_client_id בהכרח</h3>
+      <LegacyClientMatrix />
     </div>
   );
 }
