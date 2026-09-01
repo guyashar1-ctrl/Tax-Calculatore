@@ -103,3 +103,5 @@ export const SHAAM_CONNECT_ACTION_TYPE = 'shaam.connect';
 export const SHAAM_DISCONNECT_ACTION_TYPE = 'shaam.disconnect';
 /** «פתח מס הכנסה» — ניווט למערכת גביית מס הכנסה מתוך סשן מאומת. */
 export const SHAAM_OPEN_INCOME_TAX_ACTION_TYPE = 'shaam.open_income_tax';
+/** «פתח פרטי תיק» — שאילתה 181 ב-GMF עבור מספר תיק שמגיע מ-PIVO. */
+export const SHAAM_OPEN_CLIENT_FILE_ACTION_TYPE = 'shaam.open_client_file';

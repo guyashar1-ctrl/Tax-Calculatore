@@ -36,6 +36,7 @@ import {
   readGmfOnCurrentPage, openGmfAndCheck,
   readVatOnCurrentPage, openVatAndCheck,
   readNikuiOnCurrentPage, openNikuiAndCheck,
+  isOnWorkScreen,
 } from './browserSession.mjs';
 import { reportStatus } from './apiClient.mjs';
 
@@ -106,7 +107,11 @@ export async function tickConnectionMonitor(userId, workerId, log) {
 
         // שכבה אחת בכל סבב, לפי הסדר, ורק כשהיא עוד לא אושרה כמוכנה.
         if (now - lastSubNav >= SUB_RECHECK_MS) {
-          if (!gmf) {
+          if (await isOnWorkScreen(conn.page)) {
+            // בדיקת מוכנות לא שווה את זה שהמסך שהרו"ח פתח ייעלם מתחת לידיו.
+            lastSubNav = now;
+            log('דילוג על בדיקת שכבה: הדפדפן עומד על מסך שנפתח עבור הרו"ח');
+          } else if (!gmf) {
             lastSubNav = now;
             const checked = await openGmfAndCheck(conn.page);
             gmf = checked.ready;

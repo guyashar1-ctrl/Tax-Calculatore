@@ -282,6 +282,28 @@ export const GMF_PATH = '/gmf-main-menu';
 export const VAT_URL = 'https://shaam.taxes.gov.il/emhanmainmenu';
 export const VAT_PATH = '/emhanmainmenu';
 
+/**
+ * מחזיר לשונית שכבר עומדת על המערכת במצב שמיש — ואם יש כזו, לא מנווטים.
+ *
+ * ‼ מערכות המיינפריים של שע״ם הן חד-סשן: פתיחת אותה מערכת בלשונית שנייה
+ * מפילה את הראשונה (זה מקורו האמיתי של frmTabErr במגן). הצופה עשה בדיוק
+ * את זה — ניווט הלשונית שלו ל-GMF זרק החוצה את הלשונית שבה הרו"ח בדיוק
+ * סיים להתחבר, ואז דיווח "לא מוכנה" על סמך ההרס שהוא עצמו גרם. נצפה
+ * בפועל: לשונית התפריט הועפה ל-/myz/Pages/HomePage.aspx.
+ */
+async function reuseOpenSystemPage(context, pathPrefix, evaluate) {
+  for (const p of context.pages()) {
+    let path;
+    try { path = new URL(p.url()).pathname; } catch { continue; }
+    if (!path.startsWith(pathPrefix)) continue;
+    let s;
+    try { s = await snapPage(p); } catch { continue; }
+    const verdict = evaluate(s);
+    if (verdict.ready) return { ...verdict, pathname: s.pathname, reused: true };
+  }
+  return null;
+}
+
 /** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על מע״מ. */
 export async function readVatOnCurrentPage(page) {
   const s = await snapPage(page);
@@ -289,17 +311,21 @@ export async function readVatOnCurrentPage(page) {
   return { onVat: true, ready: !s.hasPasswordField, pathname: s.pathname };
 }
 
+// ‼ במע״מ הכתובת אינה משתנה בין מחובר ללא־מחובר (WebForms, action="./"),
+// ולכן שדה הסיסמה הוא הסימן היחיד. נצפה בפועל.
+const vatState = (s) => {
+  if (!s.pathname.startsWith(VAT_PATH)) return { ready: false, reason: 'unexpected_destination' };
+  if (s.hasPasswordField) return { ready: false, reason: 'login_required' };
+  return { ready: true, reason: 'menu' };
+};
+
 /** מנווט למע״מ ומחזיר את מצבה אחרי התייצבות. משאיר את הדפדפן שם. */
 export async function openVatAndCheck(page) {
+  const reused = await reuseOpenSystemPage(page.context(), VAT_PATH, vatState);
+  if (reused) return reused;
   await page.goto(VAT_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
   const s = await settlePage(page);
-  if (!s.pathname.startsWith(VAT_PATH)) {
-    return { ready: false, reason: 'unexpected_destination', pathname: s.pathname };
-  }
-  // ‼ במע״מ הכתובת אינה משתנה בין מחובר ללא־מחובר (WebForms, action="./"),
-  // ולכן שדה הסיסמה הוא הסימן היחיד. נצפה בפועל.
-  if (s.hasPasswordField) return { ready: false, reason: 'login_required', pathname: s.pathname };
-  return { ready: true, pathname: s.pathname };
+  return { ...vatState(s), pathname: s.pathname };
 }
 
 // ─── שכבה רביעית: מגן — מערכת גביית ניכויים ────────────────────────────────
@@ -338,29 +364,219 @@ export async function readNikuiOnCurrentPage(page) {
 
 /** מנווט למגן ומחזיר את מצבה אחרי התייצבות. משאיר את הדפדפן שם. */
 export async function openNikuiAndCheck(page) {
+  const reused = await reuseOpenSystemPage(page.context(), NIKUI_PATH, nikuiState);
+  if (reused) return reused;
   await page.goto(NIKUI_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
   const s = await settlePage(page);
   return { ...nikuiState(s), pathname: s.pathname };
 }
 
+// ─── «פרטי תיק» — שאילתה 181 במערכת גביית מס הכנסה ─────────────────────────
+// ‼ כל המזהים כאן נלקחו מהמסך החי, לא נוחשו:
+//   #gmftxtMisTik — תווית "מספר תיק", 9 תווים.
+//   #mavarShilta  — תווית "איתור שאילתא", 3 תווים (name=misShilta).
+//   הקישור "פרטי תיק" הוא שאילתה 181 בתפריט, עם href="javascript: void(0);"
+//   וללא onclick — כלומר מטופל ב-Angular, ולכן לוחצים עליו לחיצה אמיתית.
+//
+// ‼ מספר התיק במס הכנסה הוא ת.ז. של בן/בת הזוג הרשום/ה — כך זה מתועד גם
+// ב-TaxFileInfo.fileNumber. הערך מגיע מ-PIVO ולא נגזר כאן.
+export const GMF_TIK_INPUT = '#gmftxtMisTik';
+export const GMF_SHILTA_INPUT = '#mavarShilta';
+export const GMF_SUBMIT_BUTTON = '#gmfBtnHmse';
+export const GMF_QUERY_FILE_DETAILS = '181';
+// הנתיב שאליו שע״ם מנתבת אחרי הרצת שאילתה 181. נצפה בפועל: מסך התפריט הוא
+// /gmf-main-menu/main/home, ואחרי ההגשה — /gmf-181/main/main181.
+export const GMF_181_PATH = '/gmf-181';
+
+/**
+ * חומה חוסמת מעל תפריט GMF — למשל «פג תוקף האימות», שדורשת קוד חד-פעמי.
+ *
+ * ‼ הסשן יכול להיות חי לגמרי (אין מסך סיסמה, הנתיב הוא GMF) ועדיין כל
+ * המסך מכוסה בחלונית שחוסמת כל לחיצה. בלי הבדיקה הזאת האוטומציה "ממלאת
+ * שדה, לוחצת, לא קורה כלום" — ואם בולעים את שגיאת הלחיצה זה נראה כהצלחה.
+ *
+ * ‼ האוטומציה **לא** נוגעת בחלונית הזאת: לא שולחת קוד אימות ולא בוחרת
+ * «הזכר לי מאוחר יותר». זו הכרעת אימות של אדם מול רשות, ולכן עוצרים.
+ */
+export async function readGmfBlockingModal(page) {
+  try {
+    return await page.evaluate(() => {
+      const modal = document.querySelector('.modal.d-block, .modal.show');
+      if (!modal) return { blocked: false };
+      const r = modal.getBoundingClientRect();
+      if (r.width < 50 || r.height < 50) return { blocked: false };
+      const title = (modal.innerText || '').trim().split('\n')[0].slice(0, 60);
+      return { blocked: true, title };
+    });
+  } catch {
+    return { blocked: false };
+  }
+}
+
+/**
+ * פותח «פרטי תיק» עבור מספר תיק נתון, מתוך תפריט GMF.
+ * מחזיר את מצב המסך אחרי ההתייצבות — בלי לקרוא נתוני לקוח.
+ */
+export async function openClientFileDetails(page, fileNumber) {
+  // ‼ קודם מחפשים לשונית שכבר עומדת על התפריט. ניווט מיותר על לשונית אחרת
+  // הוא מה שגרם ל"החיבור אינו מוכן" בזמן שהתפריט היה פתוח ומוכן ליד.
+  const context = page.context();
+  let work = await pickPageOn(context, GMF_PATH, GMF_TIK_INPUT);
+
+  if (!work) {
+    work = page;
+    await work.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
+    const landed = await settlePage(work);
+    if (!landed.pathname.startsWith(GMF_PATH) || landed.hasPasswordField) {
+      return { ok: false, reason: 'gmf_not_ready', pathname: landed.pathname };
+    }
+  }
+  const landed = await snapPage(work);
+
+  const modal = await readGmfBlockingModal(work);
+  if (modal.blocked) {
+    return { ok: false, reason: 'blocked_by_modal', modalTitle: modal.title, pathname: landed.pathname };
+  }
+
+  const tik = await work.$(GMF_TIK_INPUT);
+  const shilta = await work.$(GMF_SHILTA_INPUT);
+  if (!tik || !shilta) return { ok: false, reason: 'menu_fields_missing', pathname: landed.pathname };
+
+  // ‼ fill ולא type: fill מנקה קודם. בלי זה ערך שנשאר משאילתה קודמת היה
+  // מצטרף למספר החדש ופותח תיק של מישהו אחר.
+  await tik.fill('');
+  await tik.fill(fileNumber);
+  await shilta.fill('');
+  await shilta.fill(GMF_QUERY_FILE_DETAILS);
+
+  // ‼ השאילתה נפתחת בדפוס המיינפריים: מספר תיק + קוד שאילתא, ואז כפתור
+  // ההמשך. הרשימה הממוספרת בתפריט היא רפרנס — לחיצה על הקישור שם אינה
+  // המסלול הדטרמיניסטי.
+  const submit = work.locator(GMF_SUBMIT_BUTTON);
+  if (!(await submit.count())) {
+    return { ok: false, reason: 'submit_button_missing', pathname: landed.pathname };
+  }
+
+  // ‼ בלי catch: לחיצה שנחסמת חייבת להישמע. בליעת השגיאה כאן היא בדיוק מה
+  // שגרם לריצה להיראות מוצלחת בזמן שדבר לא קרה.
+  const before = context.pages().length;
+  try {
+    await submit.click({ timeout: 10000 });
+  } catch (e) {
+    return { ok: false, reason: 'submit_click_blocked', detail: String(e).slice(0, 120), pathname: landed.pathname };
+  }
+  await work.waitForTimeout(2500);
+
+  // שאילתה עשויה להיפתח בלשונית חדשה — אם כן, ממשיכים לבדוק אותה.
+  const pages = context.pages();
+  const opened = pages.length > before ? pages[pages.length - 1] : work;
+
+  const after = await settlePage(opened, { idleMs: 15000, watchMs: 6000 });
+  return {
+    ok: true, page: opened, usedNewTab: opened !== work,
+    pageCountBefore: before, pageCountAfter: pages.length,
+    pathname: after.pathname, href: after.href,
+  };
+}
+
+/**
+ * אימות מבני שהמסך שנפתח שייך לתיק שביקשנו.
+ * ‼ משווה מול המספר ש**אנחנו** שלחנו — לא חילוץ נתוני לקוח, ושום ערך
+ * מהמסך אינו מוחזר החוצה. בלי האימות הזה "הצלחה" הייתה אומרת רק
+ * "נפתח מסך כלשהו", וזו בדיוק הטעות שכבר נתפסה פעם אחת בפרויקט הזה.
+ */
+export async function verifyFileDetailsFor(page, fileNumber) {
+  try {
+    return await page.evaluate((wanted) => {
+      const text = document.body ? document.body.innerText : '';
+      const digits = String(wanted).replace(/\D/g, '');
+      const path = location.pathname;
+
+      // ‼ הסימן לכך שבאמת עזבנו את התפריט הוא **הנתיב**, לא נוכחות שדה
+      // "מספר תיק": כותרת המיינפריים עם השדה הזה מופיעה בכל מסך ב-GMF,
+      // גם אחרי שהשאילתה נפתחה. בדיקה לפי השדה הכריזה "עדיין בתפריט"
+      // כשהדפדפן כבר עמד על /gmf-181/main/main181.
+      const leftMenu = !path.startsWith('/gmf-main-menu');
+      const onFileDetailsScreen = path.startsWith('/gmf-181');
+
+      // ‼ ההשוואה היא מול **טקסט** המסך בלבד. ערכים של שדות קלט מוחרגים
+      // בכוונה: לתוך אחד מהם אנחנו עצמנו הקלדנו את המספר, ולכן הוא היה
+      // מאשר את עצמו ומדווח הצלחה גם כשלא נפתח כלום. זה קרה בפועל.
+      const fileNumberInScreenText =
+        digits.length > 0 && text.replace(/[^\d]/g, '').includes(digits);
+
+      return {
+        matchesRequestedFile: leftMenu && onFileDetailsScreen && fileNumberInScreenText,
+        leftMenu,
+        onFileDetailsScreen,
+        fileNumberInScreenText,
+        pathname: path,
+        hasContent: text.trim().length > 200,
+        hasPasswordField: !!document.querySelector('input[type=password]'),
+        // ‼ ספירות בלבד — לעולם לא הערכים עצמם.
+        digitRunsInText: (text.match(/\d{9}/g) || []).length,
+      };
+    }, fileNumber);
+  } catch (e) {
+    return { matchesRequestedFile: false, error: String(e).slice(0, 100) };
+  }
+}
+
+/**
+ * מאתר בין הלשוניות הפתוחות את זו שכבר עומדת על המערכת המבוקשת.
+ *
+ * ‼ הכרחי, לא נוחות: attach() מחזיר את הלשונית ה**ראשונה** בחלון. אחרי
+ * התחברות מחדש נשארה בחלון לשונית ישנה על מסך הכניסה, והעובד עבד עליה
+ * שוב ושוב בזמן שהתפריט האמיתי היה פתוח בלשונית שנייה — ודיווח "החיבור
+ * אינו מוכן" על סמך לשונית מתה. גרוע מכך: ניווט על הלשונית המתה יכול
+ * להיראות כאילו הסשן נפל.
+ */
+export async function pickPageOn(context, pathPrefix, selector) {
+  for (const p of context.pages()) {
+    let path;
+    try { path = new URL(p.url()).pathname; } catch { continue; }
+    if (!path.startsWith(pathPrefix)) continue;
+    if (selector) {
+      try { if (!(await p.$(selector))) continue; } catch { continue; }
+    }
+    return p;
+  }
+  return null;
+}
+
 /** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על GMF. */
+const gmfState = (s) => {
+  if (!s.pathname.startsWith(GMF_PATH)) return { ready: false, reason: 'unexpected_destination' };
+  if (s.hasPasswordField || s.pathname.includes('/login')) return { ready: false, reason: 'login_required' };
+  return { ready: true, reason: 'menu' };
+};
+
+/**
+ * האם הדפדפן עומד על מסך שאילתה שנפתח **עבור הרו"ח** (למשל 181), להבדיל
+ * מהתפריט.
+ *
+ * ‼ הצופה לא רשאי לנווט משם. נצפה בפועל: הפעולה פתחה את פרטי התיק, וחמש
+ * שניות אחר כך בדיקת המוכנות של מע״מ ניווטה את אותה לשונית — כך שהמסך
+ * שהרו"ח נשלח להסתכל בו נעלם לפני שהספיק להביט בו.
+ */
+export async function isOnWorkScreen(page) {
+  const s = await snapPage(page);
+  return /^\/gmf-(?!main-menu)/.test(s.pathname);
+}
+
 export async function readGmfOnCurrentPage(page) {
   const s = await snapPage(page);
   if (!s.pathname.startsWith(GMF_PATH)) return { onGmf: false, ready: null };
-  return { onGmf: true, ready: !s.hasPasswordField && !s.pathname.includes('/login'), pathname: s.pathname };
+  return { onGmf: true, ...gmfState(s), pathname: s.pathname };
 }
 
 /** מנווט ל-GMF ומחזיר את מצבה אחרי התייצבות. משאיר את הדפדפן שם. */
 export async function openGmfAndCheck(page) {
+  const reused = await reuseOpenSystemPage(page.context(), GMF_PATH, gmfState);
+  if (reused) return reused;
   await page.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
   const s = await settlePage(page);
-  if (!s.pathname.startsWith(GMF_PATH)) {
-    return { ready: false, reason: 'unexpected_destination', pathname: s.pathname };
-  }
-  if (s.hasPasswordField || s.pathname.includes('/login')) {
-    return { ready: false, reason: 'login_required', pathname: s.pathname };
-  }
-  return { ready: true, pathname: s.pathname };
+  return { ...gmfState(s), pathname: s.pathname };
 }
 
 /**

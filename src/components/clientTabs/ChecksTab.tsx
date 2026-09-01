@@ -15,6 +15,7 @@ import {
   SHAAM_DETECT_ACTION_TYPE,
   SHAAM_CHECK_AUTH_ACTION_TYPE,
   SHAAM_OPEN_INCOME_TAX_ACTION_TYPE,
+  SHAAM_OPEN_CLIENT_FILE_ACTION_TYPE,
 } from '../../types/automation';
 import AutomationCheckCard from './checks/AutomationCheckCard';
 
@@ -23,6 +24,12 @@ interface Props {
 }
 
 export default function ChecksTab({ client }: Props) {
+  // ‼ מספר התיק במס הכנסה = ת.ז. של בן/בת הזוג הרשום/ה, ומקורו היחיד הוא
+  // TaxFileInfo.fileNumber שבכרטיס. נשלח מפורשות ל-input של המשימה — העובד
+  // לא קורא את טבלת הלקוחות ולא גוזר מזהה בעצמו.
+  const incomeTaxFile = (client.taxFiles ?? []).find((f) => f.authority === 'income_tax');
+  const fileNumber = (incomeTaxFile?.fileNumber ?? '').replace(/\D/g, '');
+
   return (
     <div className="cw-tabpanel checks-tab">
       <div className="checks-tab-intro">
@@ -103,6 +110,23 @@ export default function ChecksTab({ client }: Props) {
           }
           runLabel="פתח מס הכנסה"
           renderSuccess={() => 'נפתח אזור מס הכנסה בשע״ם'}
+        />
+
+        <AutomationCheckCard
+          client={client}
+          actionType={SHAAM_OPEN_CLIENT_FILE_ACTION_TYPE}
+          title="4 · פתח פרטי תיק"
+          devBadge
+          description={
+            fileNumber
+              ? 'פותח את שאילתה 181 («פרטי תיק») במערכת גביית מס הכנסה, עבור מספר ' +
+                'התיק של הלקוח הזה. רק פותח — עדיין לא קורא נתונים מהמסך.'
+              : '‼ ללקוח הזה אין מספר תיק במס הכנסה בכרטיס, ולכן אין מה לפתוח. ' +
+                'יש להשלים אותו בתיק המס (מספר התיק = ת.ז. של בן/בת הזוג הרשום/ה).'
+          }
+          runLabel="פתח פרטי תיק"
+          runInput={{ fileNumber }}
+          renderSuccess={() => 'נפתח מסך פרטי התיק של הלקוח בשע״ם'}
         />
       </section>
 
