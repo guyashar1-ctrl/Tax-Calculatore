@@ -260,6 +260,69 @@ export async function probeServerSession(page) {
   }
 }
 
+// ─── שכבה שנייה: מערכת גביית מס הכנסה (GMF) ────────────────────────────────
+// ‼ שתי שכבות אימות נפרדות, וזו לא בחירה שלנו: לפורטל יש כרטיס חכם + PIN,
+// ול-GMF יש שם משתמש וסיסמה משלה. "מחובר לשע״ם" מבחינת הרו"ח פירושו ששתיהן
+// מוכנות — אחרת כל אוטומציה תיתקל בקיר סיסמה באמצע.
+//
+// ‼ אין דרך לבדוק את GMF בלי לנווט אליה. נבדק בפועל: בקשת fetch לכל מסלול
+// של GMF מחזירה את אותו שלד SPA באורך זהה (5,238 בייט) בין אם יש סשן ובין
+// אם לא — השרת אינו מפנה, וההכרעה נעשית בצד הלקוח. לכן הבדיקה היא ניווט
+// והתייצבות, ולא בקשה שקטה ברקע.
+export const GMF_URL = 'https://shaam.taxes.gov.il/gmf-main-menu?browser=Chrome';
+export const GMF_PATH = '/gmf-main-menu';
+
+/** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על GMF. */
+export async function readGmfOnCurrentPage(page) {
+  const s = await snapPage(page);
+  if (!s.pathname.startsWith(GMF_PATH)) return { onGmf: false, ready: null };
+  return { onGmf: true, ready: !s.hasPasswordField && !s.pathname.includes('/login'), pathname: s.pathname };
+}
+
+/** מנווט ל-GMF ומחזיר את מצבה אחרי התייצבות. משאיר את הדפדפן שם. */
+export async function openGmfAndCheck(page) {
+  await page.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
+  const s = await settlePage(page);
+  if (!s.pathname.startsWith(GMF_PATH)) {
+    return { ready: false, reason: 'unexpected_destination', pathname: s.pathname };
+  }
+  if (s.hasPasswordField || s.pathname.includes('/login')) {
+    return { ready: false, reason: 'login_required', pathname: s.pathname };
+  }
+  return { ready: true, pathname: s.pathname };
+}
+
+/**
+ * ממתין שאפליקציית העמוד היחיד תסיים, ואז מחזיר את המצב האמיתי.
+ *
+ * ‼ "הכתובת לא השתנתה בין שתי דגימות" נוסה ונכשל: ההפניה למסך ההתחברות
+ * מגיעה אחרי יותר משנייה, והבדיקה הכריזה הצלחה מעל מסך סיסמה. אומת מול
+ * הדפדפן. לכן: קודם המתנה לשקט ברשת, ואז דגימה עד סוף החלון — יציאה
+ * מוקדמת רק כששדה הסיסמה הופיע, כי זו הכרעה ודאית.
+ */
+export async function settlePage(page, { idleMs = 15000, watchMs = 6000, stepMs = 500 } = {}) {
+  await page.waitForLoadState('networkidle', { timeout: idleMs }).catch(() => {});
+  const deadline = Date.now() + watchMs;
+  let s = await snapPage(page);
+  while (Date.now() < deadline) {
+    if (s.hasPasswordField) return s;
+    await page.waitForTimeout(stepMs);
+    s = await snapPage(page);
+  }
+  return s;
+}
+
+export async function snapPage(page) {
+  const href = page.url();
+  let hasPasswordField = false;
+  try {
+    hasPasswordField = await page.evaluate(() => !!document.querySelector('input[type=password]'));
+  } catch { /* ניווט באמצע — ננסה בדגימה הבאה */ }
+  let pathname = '/';
+  try { pathname = new URL(href).pathname; } catch { /* about:blank וכדומה */ }
+  return { href, pathname, hasPasswordField };
+}
+
 async function safeTitle(page) {
   try { return await page.title(); } catch { return null; }
 }

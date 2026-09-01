@@ -14,6 +14,7 @@ import {
   DEV_STUB_ACTION_TYPE,
   SHAAM_DETECT_ACTION_TYPE,
   SHAAM_CHECK_AUTH_ACTION_TYPE,
+  SHAAM_OPEN_INCOME_TAX_ACTION_TYPE,
 } from '../../types/automation';
 import AutomationCheckCard from './checks/AutomationCheckCard';
 
@@ -89,13 +90,27 @@ export default function ChecksTab({ client }: Props) {
             r?.authenticated ? 'הסשן בחלון Chrome הייעודי מאומת מול שע״ם.' : 'הסתיים.'
           }
         />
+
+        <AutomationCheckCard
+          client={client}
+          actionType={SHAAM_OPEN_INCOME_TAX_ACTION_TYPE}
+          title="3 · פתח מס הכנסה"
+          devBadge
+          description={
+            'מנווט מהסשן המאומת אל מערכת גביית מס הכנסה. ‼ למערכת הזאת יש התחברות ' +
+            'משלה (שם משתמש וסיסמה) שאינה הכרטיס החכם — אם היא נדרשת, המשימה עוברת ' +
+            'ל«דרוש אישור» ואתם מזינים אותה בחלון. האוטומציה לא מזינה סיסמאות.'
+          }
+          runLabel="פתח מס הכנסה"
+          renderSuccess={() => 'נפתח אזור מס הכנסה בשע״ם'}
+        />
       </section>
 
       <section className="checks-section">
         <h3 className="checks-section-title">בהמשך</h3>
         <p className="checks-section-note">
-          «פתח מס הכנסה», «מצא מסך פרטי תיק» ו«פתח פרטי תיק» ייבנו רק אחרי שנראה את
-          המסכים האמיתיים — לא על סמך ניחוש של מבנה הניווט בשע״ם.
+          «מצא מסך פרטי תיק» ו«פתח פרטי תיק» ייבנו רק אחרי שנראה את המסכים
+          האמיתיים — לא על סמך ניחוש של מבנה הניווט בשע״ם.
         </p>
       </section>
     </div>

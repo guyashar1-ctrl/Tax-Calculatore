@@ -17,10 +17,11 @@ const POLL_MS = 4000;
  */
 export type AuthorityPhase =
   | 'worker_offline'
-  | 'disconnected'
+  | 'shaam_disconnected'
   | 'opening'
-  | 'awaiting_auth'
-  | 'connected';
+  | 'awaiting_shaam_auth'
+  | 'awaiting_gmf_auth'
+  | 'ready';
 
 export interface AuthorityConnectionState {
   phase: AuthorityPhase;
@@ -69,24 +70,33 @@ export function useAuthorityConnections(userId: string | undefined) {
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [refresh]);
 
-  const connected = !!status.shaam?.connected;
+  // ‼ ירוק = **שתי** השכבות מוכנות. פורטל מאומת לבדו אינו "מוכן": כל
+  // אוטומציה אמיתית תיתקל אחריו בקיר הסיסמה של מערכת הגבייה.
+  const shaamAlive = !!status.shaam?.connected;
+  const gmfReady = !!status.gmf?.ready;
+  const ready = shaamAlive && gmfReady;
 
-  // ‼ ברגע שהחיבור עלה, משימת ה"התחברות" שנותרה פתוחה כבר לא מתארת כלום —
+  // ‼ ברגע שהחיבור הושלם, משימת ה"התחברות" שנותרה פתוחה כבר לא מתארת כלום —
   // והיא חוסמת יצירת משימה חדשה (אינדקס ייחודי על משימה פתוחה אחת). בלי
   // הניקוי הזה הלחיצה הבאה על הכפתור הייתה מחזירה את אותה משימה ישנה ולא
   // עושה כלום — כפתור שנראה תקין ולא מגיב.
   useEffect(() => {
-    if (connected && job && job.status === 'needs_human') {
+    if (ready && job && job.status === 'needs_human') {
       void cancelAutomationJob(job.id).then(() => refresh());
     }
-  }, [connected, job, refresh]);
+  }, [ready, job, refresh]);
 
+  // ‼ מצב החיבור שהעובד מדווח גובר על סטטוס המשימה: אחרי שהרו"ח מקליד PIN
+  // העובד ממשיך ל-GMF לבד, והמשימה הישנה עדיין תקועה על "ממתין לאישור
+  // הפורטל". בלי הקדימות הזאת הכותרת הייתה מציגה שלב שכבר עבר.
   const phase: AuthorityPhase =
-    connected ? 'connected'
-      : workerOffline ? 'worker_offline'
-        : job?.status === 'needs_human' ? 'awaiting_auth'
-          : job ? 'opening'
-            : 'disconnected';
+    workerOffline ? 'worker_offline'
+      : ready ? 'ready'
+        : shaamAlive ? 'awaiting_gmf_auth'
+          : job?.status === 'needs_human'
+            ? (job.errorCode === 'awaiting_gmf_auth' ? 'awaiting_gmf_auth' : 'awaiting_shaam_auth')
+            : job ? 'opening'
+              : 'shaam_disconnected';
 
   const connect = useCallback(async () => {
     setBusy(true);
@@ -115,7 +125,8 @@ export function useAuthorityConnections(userId: string | undefined) {
 
   const message =
     uiError
-      ?? (phase === 'awaiting_auth' ? (job?.needsHuman ?? null) : null)
+      ?? ((phase === 'awaiting_shaam_auth' || phase === 'awaiting_gmf_auth')
+        ? (job?.needsHuman ?? null) : null)
       ?? (job?.status === 'failed' ? (job.errorDetail ?? null) : null);
 
   return {

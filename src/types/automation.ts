@@ -59,8 +59,15 @@ export interface AuthorityConnection {
   checkedAt?: string;
 }
 
+/**
+ * ‼ שתי שכבות אימות נפרדות, ו"ירוק" פירושו ששתיהן מוכנות:
+ *   shaam — פורטל שע״ם (כרטיס חכם + PIN)
+ *   gmf   — מערכת גביית מס הכנסה (שם משתמש וסיסמה משלה)
+ * ירוק שמסתמך רק על הראשונה היה שולח כל אוטומציה היישר לקיר סיסמה.
+ */
 export interface AutomationWorkerStatus {
   shaam?: AuthorityConnection;
+  gmf?: { ready: boolean; checkedAt?: string };
   btl?: AuthorityConnection;
 }
 
@@ -92,3 +99,5 @@ export const SHAAM_CHECK_AUTH_ACTION_TYPE = 'shaam.check_auth';
 export const SHAAM_CONNECT_ACTION_TYPE = 'shaam.connect';
 /** כפתור "התנתקות" בכותרת — סוגר את חלון שע״ם הייעודי. */
 export const SHAAM_DISCONNECT_ACTION_TYPE = 'shaam.disconnect';
+/** «פתח מס הכנסה» — ניווט למערכת גביית מס הכנסה מתוך סשן מאומת. */
+export const SHAAM_OPEN_INCOME_TAX_ACTION_TYPE = 'shaam.open_income_tax';

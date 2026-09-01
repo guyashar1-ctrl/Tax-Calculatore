@@ -1,25 +1,30 @@
 // shaamConnect.mjs — מה שקורה כשהרו"ח לוחץ "שע״ם" בכותרת של PIVO.
 //
-// שלושה מצבים, בסדר הזה בדיוק:
-//   1. כבר מאומת        ⇒ לא נוגעים בכלום, מדווחים "מחובר".
-//   2. החלון פתוח       ⇒ מביאים לחזית ומנווטים לשע״ם אם צריך. לא פותחים שני.
-//   3. החלון סגור       ⇒ פותחים אותו.
-// בשני האחרונים התוצאה היא needs_human: הרו"ח משלים אישור + PIN בחלון,
-// וניטור החיבור מדליק את הנורית לירוק תוך שניות.
+// ‼ "מחובר" פירושו **הסביבה מוכנה לאוטומציה**, לא "נכנסתי לפורטל". יש שתי
+// שכבות אימות נפרדות, ואם השנייה לא מוכנה כל אוטומציה תיתקל בקיר סיסמה
+// באמצע הדרך:
+//   1. פורטל שע״ם  — אישור דיגיטלי + PIN (כרטיס חכם).
+//   2. מערכת גביית מס הכנסה (GMF) — שם משתמש וסיסמה משלה.
+// שתיהן מוזנות **ידנית** על ידי הרו"ח בחלון הגלוי. האוטומציה מביאה אותו
+// לנקודה הנכונה ועוצרת — היא לא מקלידה אישור, PIN, OTP או סיסמה. אף פעם.
 //
-// ‼ הגבול המוחלט: הפונקציה פותחת/ממקדת חלון בלבד. בחירת אישור דיגיטלי,
-// PIN ו-OTP נעשים על ידי הרו"ח. אין כאן שום ניסיון למלא, ללחוץ או לעקוף
-// דיאלוג אימות — לא היום ולא בהמשך.
+// הזרימה: חלון קיים? לנצל. סגור? לפתוח. פורטל לא מאומת? לעצור שם.
+// פורטל מאומת אך GMF לא? להביא למסך ה-GMF ולעצור שם. שתיהן מוכנות? ירוק.
 import {
-  attach, detach, classifyShaamAuth, launchDedicatedChrome, focusShaamWindow,
+  attach, detach, classifyShaamAuth, probeServerSession,
+  launchDedicatedChrome, focusShaamWindow, openGmfAndCheck,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 
 export const actionType = 'shaam.connect';
 
-const AUTH_PENDING =
+const SHAAM_AUTH_PENDING =
   'חלון שע״ם פתוח וממתין לך. יש להשלים בו בחירת אישור דיגיטלי והזנת PIN — ' +
-  'ואז הנורית בכותרת תידלק בירוק תוך כמה שניות.';
+  'ואז אמשיך אוטומטית, בלי צורך ללחוץ שוב.';
+
+const GMF_AUTH_PENDING =
+  'נותרה שכבה אחת: מערכת גביית מס הכנסה מבקשת שם משתמש וסיסמה. הזינו אותם ' +
+  'בחלון שע״ם שנפתח — ואז הנורית תידלק בירוק לבד. האוטומציה לא מזינה סיסמאות.';
 
 const CHROME_NOT_FOUND =
   'לא נמצאה התקנה של Google Chrome במחשב הזה. התקינו Chrome, או הגדירו את הנתיב ' +
@@ -30,50 +35,54 @@ export async function preflight() {
 }
 
 export async function run(ctx) {
-  // ── 1. כבר מאומת? לא נוגעים. ──
   let conn = await attach();
-  if (conn.ok) {
-    try {
-      const auth = await classifyShaamAuth(conn.page);
-      if (auth.authenticated) {
-        ctx.log('כבר מאומת — לא נוגע בחלון');
-        return { result: { connected: true, system: 'shaam', action: 'none' } };
-      }
-      // ── 2. פתוח אבל לא מאומת: לחזית, לא חלון נוסף. ──
-      ctx.log('החלון פתוח ולא מאומת — מביא לחזית');
+
+  // ── חלון סגור: לפתוח. ──
+  if (!conn.ok && conn.reason === 'not_running') {
+    ctx.log('החלון סגור — פותח חלון Chrome ייעודי');
+    const launched = launchDedicatedChrome();
+    if (!launched.ok) throw new PermanentError(CHROME_NOT_FOUND, launched.reason);
+    await new Promise((r) => setTimeout(r, 4000));
+    conn = await attach();
+  }
+
+  // 'blocked' = החלון פתוח ודיאלוג אישור/PIN כבר ממתין.
+  if (!conn.ok) {
+    ctx.log('לא ניתן להתחבר לחלון:', conn.reason);
+    throw new NeedsHumanError(SHAAM_AUTH_PENDING, 'awaiting_shaam_auth');
+  }
+
+  try {
+    // ── שכבה 1: פורטל שע״ם ──
+    const local = await classifyShaamAuth(conn.page);
+    if (!local.authenticated) {
+      ctx.log('הפורטל אינו מאומת — מביא את החלון לנקודת ההתחברות');
       await focusShaamWindow(conn.page);
-      throw new NeedsHumanError(AUTH_PENDING, 'awaiting_manual_auth');
-    } finally {
-      await detach(conn.browser);
+      throw new NeedsHumanError(SHAAM_AUTH_PENDING, 'awaiting_shaam_auth');
     }
-  }
+    const session = await probeServerSession(conn.page);
+    if (!session.authenticated) {
+      ctx.log('סשן הפורטל פג מול השרת');
+      await focusShaamWindow(conn.page);
+      throw new NeedsHumanError(SHAAM_AUTH_PENDING, 'awaiting_shaam_auth');
+    }
+    ctx.log('שכבה 1 — פורטל שע״ם: מאומת');
 
-  // 'blocked' = החלון פתוח אבל דיאלוג אישור/PIN כבר ממתין. אין מה לפתוח.
-  if (conn.reason === 'blocked') {
-    ctx.log('החלון פתוח וחסום מול דיאלוג אימות');
-    throw new NeedsHumanError(AUTH_PENDING, 'awaiting_manual_auth');
-  }
-
-  // ── 3. סגור: פותחים. ──
-  ctx.log('החלון סגור — פותח חלון Chrome ייעודי');
-  const launched = launchDedicatedChrome();
-  if (!launched.ok) {
-    throw new PermanentError(CHROME_NOT_FOUND, launched.reason);
-  }
-
-  // המתנה קצרה שהחלון יעלה, ואז בדיקה אחת. לא ממתינים לאימות עצמו —
-  // זה יכול לקחת דקות, והעובד מריץ משימה אחת בכל רגע.
-  await new Promise((r) => setTimeout(r, 4000));
-  conn = await attach();
-  if (conn.ok) {
-    try {
-      const auth = await classifyShaamAuth(conn.page);
-      if (auth.authenticated) {
-        return { result: { connected: true, system: 'shaam', action: 'launched' } };
+    // ── שכבה 2: מערכת גביית מס הכנסה ──
+    const gmf = await openGmfAndCheck(conn.page);
+    ctx.log(`שכבה 2 — GMF: ${gmf.ready ? 'מוכנה' : `דרושה התחברות (${gmf.reason})`} · ${gmf.pathname}`);
+    if (!gmf.ready) {
+      if (gmf.reason === 'unexpected_destination') {
+        throw new PermanentError(
+          `הניווט למערכת הגבייה הגיע ליעד לא צפוי (${gmf.pathname}).`,
+          'gmf_unexpected_destination',
+        );
       }
-    } finally {
-      await detach(conn.browser);
+      throw new NeedsHumanError(GMF_AUTH_PENDING, 'awaiting_gmf_auth');
     }
+
+    return { result: { ready: true, system: 'shaam', shaam: true, gmf: true } };
+  } finally {
+    await detach(conn.browser);
   }
-  throw new NeedsHumanError(AUTH_PENDING, 'awaiting_manual_auth');
 }
