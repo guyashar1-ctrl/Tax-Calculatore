@@ -3,3 +3,6 @@
 .shaam-chrome-profile/
 .env
 *.png
+# פלט ריצה של העובד (נכתב ע"י start-worker.vbs). מקומי בלבד.
+worker.log
+*.log

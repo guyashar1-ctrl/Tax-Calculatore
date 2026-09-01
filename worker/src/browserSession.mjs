@@ -210,23 +210,53 @@ export async function classifyShaamAuth(page, { timeoutMs = 12000 } = {}) {
 }
 
 /**
- * "נגיעה" קלה שמחזיקה את הסשן בשרת ער, בלי לנווט ובלי לשנות שום דבר על
- * המסך שהרו"ח רואה. בקשה מתוך הדף עצמו — ולכן היא נושאת את הסשן של הדף.
- * ‼ ניווט/רענון כאמצעי keep-alive נפסל בכוונה: הוא היה קופץ לרו"ח מהמסך
- * שהוא עומד בו באמצע עבודה.
+ * בדיקת אמת מול השרת — **ולא** קריאה של הדף שכבר טעון.
+ *
+ * ‼ למה זה קיים, וזה חשוב: `classifyShaamAuth` קורא את כותרת הטאב של דף
+ * שכבר נטען. אם שע״ם מנתק את הסשן בצד השרת, הדף הטעון ממשיך להציג
+ * "HomePage" — והעובד היה ממשיך לדווח "מחובר" מעל סשן מת. הנורית הייתה
+ * ירוקה ושקרית. לכן מצב החיבור חייב להישען על תשובה טרייה מהשרת.
+ *
+ * ‼ שתי מטרות בבקשה אחת: היא גם מאמתת שהסשן חי וגם **מחזיקה אותו ער**.
+ * שתי מכניקות נפרדות היו נותנות שני מקורות אמת שיכולים לסתור זה את זה.
+ *
+ * ‼ בקשה מתוך הדף (fetch) ולא ניווט: ניווט היה קופץ לרו"ח מהמסך שהוא עומד
+ * בו באמצע עבודה. כאן שום דבר גלוי לא זז.
+ *
+ * ‼ קוד 200 **אינו** סימן לחיים. נמדד בפועל מול הפורטל: אותה בקשה בדיוק,
+ * פעם עם הסשן ופעם בלעדיו, החזירה 200 בשני המקרים —
+ *   עם סשן : 94,622 בייט, נשאר ב-homepage.aspx, ויש "יציאה"
+ *   בלי סשן:  3,341 בייט, מופנה ל-/taxes-login/login/otpCts, אין "יציאה"
+ * לכן ההכרעה היא לפי **לאן הבקשה נחתה**, ולא לפי הסטטוס.
+ *
+ * שני סימנים, והחזק שבהם ראשון:
+ *   1. הפניה ל-/taxes-login/ ⇒ מנותק. מבני, לא תלוי בשפה או בניסוח.
+ *   2. קישור "יציאה" בגוף העמוד ⇒ מחובר (screens.md · מסך E).
  */
-export async function keepAlive(page) {
-  if (!page.url().startsWith(SHAAM_ORIGIN)) return { ok: false, detail: 'not_on_shaam' };
+const LOGIN_REDIRECT = '/taxes-login/';
+export async function probeServerSession(page) {
+  if (!page.url().startsWith(SHAAM_ORIGIN)) return { ok: false, authenticated: false, detail: 'not_on_shaam' };
   try {
-    const status = await page.evaluate(async () => {
+    const r = await page.evaluate(async () => {
       try {
-        const r = await fetch('/', { method: 'HEAD', cache: 'no-store', credentials: 'include' });
-        return r.status;
-      } catch { return 0; }
+        const res = await fetch('/myz/pages/homepage.aspx', {
+          method: 'GET', cache: 'no-store', credentials: 'include', redirect: 'follow',
+        });
+        const body = await res.text();
+        return { status: res.status, finalUrl: res.url, len: body.length, hasLogout: body.includes('יציאה') };
+      } catch (e) { return { status: 0, err: String(e).slice(0, 120) }; }
     });
-    return { ok: status > 0, status };
+    if (!r.status) return { ok: false, authenticated: false, detail: r.err ?? 'fetch_failed' };
+    const redirectedToLogin = (r.finalUrl ?? '').includes(LOGIN_REDIRECT);
+    return {
+      ok: true,
+      status: r.status,
+      finalUrl: r.finalUrl,
+      authenticated: r.status === 200 && !redirectedToLogin && !!r.hasLogout,
+      detail: `status=${r.status} login_redirect=${redirectedToLogin} logout=${!!r.hasLogout} len=${r.len}`,
+    };
   } catch (e) {
-    return { ok: false, detail: e instanceof Error ? e.message.slice(0, 120) : String(e) };
+    return { ok: false, authenticated: false, detail: e instanceof Error ? e.message.slice(0, 120) : String(e) };
   }
 }
 
