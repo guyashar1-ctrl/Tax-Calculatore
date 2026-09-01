@@ -1,12 +1,21 @@
 // מסך בדיקה (?test-startrep) — כניסת "התחלת ייצוג" ללקוח קיים בלי שום בקשת
-// ייצוג (156). מרכיב את ClientWorkspace המלא עם כרטיס "הדסה סלע": נשואה,
+// ייצוג (156, 157). מרכיב את ClientWorkspace המלא עם כרטיס "הדסה סלע": נשואה,
 // יש לה עסק, לבעלה אין עסק, ואין לה representationStatus בכלל — בדיוק
-// התרחיש שדווח (לא ניתן היה למצוא כניסה ללשונית "בקשות").
+// התרחיש שדווח. ‼ בררר שלב חיים/סטטוס ייצוג כדי לבדוק את כל הענפים
+// (ליד/הצעה/פעיל, עם/בלי ייצוג בתהליך) בלי לבנות כמה כרטיסים.
 
 import { useState } from 'react';
-import type { Client } from '../types';
+import type { Client, LifecycleStage, RepresentationStatus } from '../types';
+import type { Quotation } from '../types/quotations';
 import ClientWorkspace from './ClientWorkspace';
 import RepresentationOnboardingDialog, { CreateRepresentationInput } from './RepresentationOnboardingDialog';
+
+const STAGES: LifecycleStage[] = ['lead', 'quoted', 'active'];
+const REP_STATES: { key: string; label: string; value: RepresentationStatus | undefined }[] = [
+  { key: 'none', label: 'אין ייצוג בכלל', value: undefined },
+  { key: 'pending', label: 'ייצוג בתהליך (pending_fill)', value: 'pending_fill' },
+  { key: 'active', label: 'ייצוג פעיל', value: 'active' },
+];
 
 const HADASSA: Client = {
   id: 'fixture-hadassa', idNumber: '203456789', firstName: 'הדסה', lastName: 'סלע',
@@ -33,11 +42,19 @@ const HADASSA: Client = {
   notes: '',
   assignedAccountantId: 'emp-self',
   tags: [], additionalContacts: [], activity: [],
-  // ‼ בדיוק התרחיש שדווח: לקוח פעיל, בלי representationStatus, בלי
-  // authorityRepresentations ובלי taxFiles — מעולם לא נפתח לה ייצוג.
-  lifecycleStage: 'active',
+  // ‼ בדיוק התרחיש שדווח: ליד, בלי representationStatus, בלי הצעה — מעולם
+  // לא נפתח לה ייצוג. lifecycleStage/representationStatus נשלטים בבדיקה.
+  lifecycleStage: 'lead',
   createdAt: '2026-06-01T08:00:00.000Z', updatedAt: '2026-06-01T08:00:00.000Z',
 } as unknown as Client;
+
+// ‼ (157) הצעה "נשלחה" בלי אישור — כדי לבדוק ששלב 'quoted' לא מסתיר ייצוג
+// שכבר בתהליך משלו מאחורי "ההצעה נשלחה וטרם נצפתה".
+const SENT_QUOTATION: Quotation = {
+  id: 'q-hadassa-1', clientId: HADASSA.id, quotationNumber: 'Q-1001', revision: 1,
+  status: 'sent', items: [], futureServices: [], vatRate: 18, events: [],
+  sentAt: '2026-08-20T08:00:00.000Z',
+} as unknown as Quotation;
 
 export default function TestStartRepresentation() {
   const [client, setClient] = useState<Client>(HADASSA);
@@ -47,6 +64,27 @@ export default function TestStartRepresentation() {
 
   return (
     <div style={{ direction: 'rtl' }}>
+      <div id="tst-controls" style={{ padding: '.75rem 1rem', background: 'var(--surface-2)', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: 13 }}>
+        <div>
+          <b>שלב חיים:</b>{' '}
+          {STAGES.map(s => (
+            <label key={s} style={{ marginInlineEnd: 10 }}>
+              <input type="radio" name="stage" checked={client.lifecycleStage === s}
+                onChange={() => setClient(c => ({ ...c, lifecycleStage: s }))} /> {s}
+            </label>
+          ))}
+        </div>
+        <div>
+          <b>סטטוס ייצוג:</b>{' '}
+          {REP_STATES.map(r => (
+            <label key={r.key} style={{ marginInlineEnd: 10 }}>
+              <input type="radio" name="repstatus"
+                checked={(client.representationStatus ?? undefined) === r.value}
+                onChange={() => setClient(c => ({ ...c, representationStatus: r.value }))} /> {r.label}
+            </label>
+          ))}
+        </div>
+      </div>
       <div id="tst-log" style={{ padding: '.5rem 1rem', background: 'var(--surface-2)', fontSize: 12 }}>
         {log.length === 0 ? '(אין אירועים עדיין)' : log.join(' · ')}
       </div>
@@ -75,7 +113,7 @@ export default function TestStartRepresentation() {
           setLog(l => [...l, `onStartRepresentation(${id})`]);
           setPending(client);
         }}
-        quotations={[]}
+        quotations={client.lifecycleStage === 'quoted' ? [SENT_QUOTATION] : []}
       />
       {pending && (
         <RepresentationOnboardingDialog

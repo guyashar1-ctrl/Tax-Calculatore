@@ -88,9 +88,42 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
     openRequests = [], representationPending } = ctx;
   const name = displayName(client);
 
+  /**
+   * ‼ (157) קריאה אחת, לא שלוש: ייצוג בתהליך הוא זרימה עצמאית מהצעת מחיר,
+   * ואסור שהוא "ייעלם" מאחורי מצב ליד/הצעה. משמשת גם ב"ליד" וגם ב"הצעה" —
+   * בלי זה, לקוח שהתחיל ייצוג בלי הצעה (או לפני שהצעה נשלחה) חוזר לראות
+   * "בנה הצעה"/"ההצעה נשלחה" ברגע שההצעה זזה משלב, בלי זכר לייצוג שבתהליך.
+   */
+  const pendingRepAction = (): NextAction => ({
+    headline: 'הייצוג טרם הושלם',
+    detail: representationPending!,
+    tone: 'normal',
+    buttons: [{ label: 'מרכז הייצוג', kind: 'secondary', action: 'openRepresentation' }],
+  });
+
   // ── ליד ────────────────────────────────────────────────────────────────────
   if (stage === 'lead') {
     if (lead?.status === 'closed') return null; // מטופל במצב "לא רלוונטי" הנפרד
+    if (representationPending) return pendingRepAction();
+    /**
+     * ‼ (157) הצעת מחיר היא צעד מסחרי אופציונלי; בקשת ייצוג היא זרימה
+     * מקצועית עצמאית שאינה תלויה בה. עד עכשיו "ליד" תמיד הציג רק "בנה
+     * הצעה" — גם כשהרו"ח פתח כבר כרטיס קבוע ורוצה להתחיל ייצוג בלי שום
+     * כוונה להציע מחיר בכלל. כשאין ייצוג, ההצעה יורדת למשנית, לא נעלמת —
+     * חלק מהלקוחות כן ירצו אותה בהמשך, רק לא כתנאי לייצוג.
+     */
+    if (!client.representationStatus) {
+      return {
+        headline: `לפתוח ייצוג ל${name}`,
+        detail: 'עוד לא נפתחה בקשת ייצוג. הצעת מחיר היא צעד נפרד ואופציונלי - אפשר להתחיל ייצוג גם בלעדיה.',
+        tone: 'normal',
+        buttons: [
+          { label: 'התחלת ייצוג', kind: 'primary', action: 'startRepresentation' },
+          { label: 'בנה הצעה', kind: 'secondary', action: 'newQuotation' },
+          ...(lead ? [{ label: 'ערוך פרטי ליד', kind: 'ghost', action: 'editLead' } as NextActionButton] : []),
+        ],
+      };
+    }
     return {
       headline: `לבנות הצעת מחיר ל${name}`,
       detail: 'טרם נשלחה הצעה. הכרטיס הקבוע והדף האישי של הלקוח נולדים ברגע השליחה - עד אז זו רשומת ליד בלבד.',
@@ -117,6 +150,11 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
         buttons: [{ label: 'פתח את ההצעה', kind: 'secondary', action: 'openQuotation', quotationId: q.id }],
       };
     }
+
+    // ‼ (157) הצעה שטרם אושרה לא מסתירה ייצוג שכבר בתהליך משלו — ראה
+    // pendingRepAction למעלה. הצעה שאושרה כן זוכה לניסוח הספציפי שלה
+    // (מעל), כי היא זו שפותחת את הייצוג ברגע החתימה.
+    if (representationPending) return pendingRepAction();
 
     const expired = q.status === 'expired'
       || (!!q.expiresAt && new Date(q.expiresAt).getTime() < Date.now());
@@ -203,14 +241,7 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
       buttons: [],
     };
   }
-  if (representationPending) {
-    return {
-      headline: 'הייצוג טרם הושלם',
-      detail: representationPending,
-      tone: 'normal',
-      buttons: [{ label: 'מרכז הייצוג', kind: 'secondary', action: 'openRepresentation' }],
-    };
-  }
+  if (representationPending) return pendingRepAction();
   /**
    * ‼ (156) לקוח פעיל בלי שום בקשת ייצוג היה נופל בשקט ל"הכול מסודר" —
    * בדיוק ההפך ממה שההערה למעלה מתכוונת. אין כאן ייצוג "בתהליך" (representationPending
