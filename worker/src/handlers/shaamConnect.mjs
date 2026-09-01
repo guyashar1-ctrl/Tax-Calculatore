@@ -1,46 +1,79 @@
-// shaamConnect.mjs — "התחברות לשע״ם" מהכותרת. פותח את חלון Chrome הייעודי
-// אם הוא סגור, ומדווח מה מצב האימות.
+// shaamConnect.mjs — מה שקורה כשהרו"ח לוחץ "שע״ם" בכותרת של PIVO.
 //
-// ‼ הגבול נשמר: הפונקציה פותחת חלון בלבד. את בחירת האישור הדיגיטלי ואת
-// ה-PIN מבצע הרו"ח בעצמו, בחלון הגלוי. אין כאן ולא יהיה כאן שום ניסיון
-// לעקוף, למלא או ללחוץ על דיאלוג אימות.
-import { attach, detach, classifyShaamAuth, launchDedicatedChrome } from '../browserSession.mjs';
-import { NeedsHumanError } from '../errors.mjs';
+// שלושה מצבים, בסדר הזה בדיוק:
+//   1. כבר מאומת        ⇒ לא נוגעים בכלום, מדווחים "מחובר".
+//   2. החלון פתוח       ⇒ מביאים לחזית ומנווטים לשע״ם אם צריך. לא פותחים שני.
+//   3. החלון סגור       ⇒ פותחים אותו.
+// בשני האחרונים התוצאה היא needs_human: הרו"ח משלים אישור + PIN בחלון,
+// וניטור החיבור מדליק את הנורית לירוק תוך שניות.
+//
+// ‼ הגבול המוחלט: הפונקציה פותחת/ממקדת חלון בלבד. בחירת אישור דיגיטלי,
+// PIN ו-OTP נעשים על ידי הרו"ח. אין כאן שום ניסיון למלא, ללחוץ או לעקוף
+// דיאלוג אימות — לא היום ולא בהמשך.
+import {
+  attach, detach, classifyShaamAuth, launchDedicatedChrome, focusShaamWindow,
+} from '../browserSession.mjs';
+import { NeedsHumanError, PermanentError } from '../errors.mjs';
 
 export const actionType = 'shaam.connect';
 
 const AUTH_PENDING =
-  'חלון שע״ם נפתח. יש להשלים בו את בחירת האישור הדיגיטלי ואת קוד ה-PIN. ' +
-  'מיד לאחר מכן הנורית בכותרת תידלק בירוק.';
+  'חלון שע״ם פתוח וממתין לך. יש להשלים בו בחירת אישור דיגיטלי והזנת PIN — ' +
+  'ואז הנורית בכותרת תידלק בירוק תוך כמה שניות.';
+
+const CHROME_NOT_FOUND =
+  'לא נמצאה התקנה של Google Chrome במחשב הזה. התקינו Chrome, או הגדירו את הנתיב ' +
+  'אליו במשתנה הסביבה PIVO_CHROME_EXE של העובד המקומי.';
 
 export async function preflight() {
   return { ok: true };
 }
 
 export async function run(ctx) {
+  // ── 1. כבר מאומת? לא נוגעים. ──
   let conn = await attach();
-
-  if (!conn.ok && conn.reason === 'not_running') {
-    ctx.log('החלון סגור — פותח חלון Chrome ייעודי');
-    launchDedicatedChrome();
-    // המתנה קצרה שהדפדפן יעלה. אם עדיין לא — הרו"ח יראה "דרוש אישור"
-    // ויוכל ללחוץ שוב; לא נועלים את המשימה בלולאת המתנה ארוכה.
-    await new Promise((r) => setTimeout(r, 4000));
-    conn = await attach();
+  if (conn.ok) {
+    try {
+      const auth = await classifyShaamAuth(conn.page);
+      if (auth.authenticated) {
+        ctx.log('כבר מאומת — לא נוגע בחלון');
+        return { result: { connected: true, system: 'shaam', action: 'none' } };
+      }
+      // ── 2. פתוח אבל לא מאומת: לחזית, לא חלון נוסף. ──
+      ctx.log('החלון פתוח ולא מאומת — מביא לחזית');
+      await focusShaamWindow(conn.page);
+      throw new NeedsHumanError(AUTH_PENDING, 'awaiting_manual_auth');
+    } finally {
+      await detach(conn.browser);
+    }
   }
 
-  if (!conn.ok) {
-    // 'blocked' = החלון פתוח וממתין לאישור/PIN — בדיוק המצב שבו הרו"ח
-    // צריך לפעול, ולכן needs_human ולא כישלון.
-    throw new NeedsHumanError(AUTH_PENDING, `chrome_${conn.reason ?? 'not_running'}`);
+  // 'blocked' = החלון פתוח אבל דיאלוג אישור/PIN כבר ממתין. אין מה לפתוח.
+  if (conn.reason === 'blocked') {
+    ctx.log('החלון פתוח וחסום מול דיאלוג אימות');
+    throw new NeedsHumanError(AUTH_PENDING, 'awaiting_manual_auth');
   }
 
-  try {
-    const auth = await classifyShaamAuth(conn.page);
-    ctx.log('מצב אימות:', auth);
-    if (auth.authenticated) return { result: { connected: true, system: 'shaam' } };
-    throw new NeedsHumanError(AUTH_PENDING, auth.state);
-  } finally {
-    await detach(conn.browser);
+  // ── 3. סגור: פותחים. ──
+  ctx.log('החלון סגור — פותח חלון Chrome ייעודי');
+  const launched = launchDedicatedChrome();
+  if (!launched.ok) {
+    throw new PermanentError(CHROME_NOT_FOUND, launched.reason);
   }
+
+  // המתנה קצרה שהחלון יעלה, ואז בדיקה אחת. לא ממתינים לאימות עצמו —
+  // זה יכול לקחת דקות, והעובד מריץ משימה אחת בכל רגע.
+  await new Promise((r) => setTimeout(r, 4000));
+  conn = await attach();
+  if (conn.ok) {
+    try {
+      const auth = await classifyShaamAuth(conn.page);
+      if (auth.authenticated) {
+        return { result: { connected: true, system: 'shaam', action: 'launched' } };
+      }
+    } finally {
+      await detach(conn.browser);
+    }
+  }
+  throw new NeedsHumanError(AUTH_PENDING, 'awaiting_manual_auth');
 }

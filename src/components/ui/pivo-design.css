@@ -4239,7 +4239,12 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 }
 .authconn-btn.is-on{color:var(--ink-1);border-color:var(--success)}
 .authconn-btn.is-on .authconn-dot{background:var(--success)}
-.authconn-note{font-size:var(--fs-12);color:var(--warn);max-width:22ch}
+/* ממתין לפעולה של הרו"ח — כתום, כי זה המצב היחיד כאן שדורש ממנו משהו */
+.authconn-btn.is-pending{color:var(--ink-1);border-color:var(--warn)}
+.authconn-btn.is-pending .authconn-dot{background:var(--warn)}
+/* מחשב האוטומציה כבוי — הכפתור עדיין נראה, אבל מעומעם ולא לחיץ */
+.authconn-btn.is-off{opacity:.5}
+.authconn-note{font-size:var(--fs-12);color:var(--ink-3);max-width:34ch;line-height:1.35}
 
 /* ── בדיקות (checksTab) — הרתך פיתוח, ראה ChecksTab.tsx ── */
 /* ‼ משטח פיתוח בכוונה: הרבה כרטיסים קטנים זה אחר זה. הכותרות מפרידות בין

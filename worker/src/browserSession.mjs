@@ -16,10 +16,14 @@
 // המשמעות המעשית, ולטובה: הפורט הזה לעולם לא יכול לחשוף את הגלישה הרגילה
 // של הרו"ח. הוא רואה אך ורק את פרופיל האוטומציה הייעודי.
 //
-// ‼ העובד **מתחבר** לחלון קיים, לעולם לא משגר אותו ולא סוגר אותו. מחזור
-// החיים של הדפדפן שייך לרו"ח (launch-shaam-chrome.bat): הוא פותח אותו,
-// הוא מתחבר לשע״ם בעצמו (אישור + PIN), והחלון נשאר פתוח. סגירה של החלון
-// מתוך הקוד הייתה מוחקת את הסשן המאומת שהרו"ח בנה ידנית.
+// ─── מי אחראי על מחזור החיים של החלון ───────────────────────────────────────
+// ‼ העובד **פותח** את החלון הייעודי כשהרו"ח לוחץ "שע״ם" בכותרת — זו פעולת
+// מוצר, לא כלי פיתוח. הקובץ launch-shaam-chrome.bat נשאר ככלי שחזור בלבד.
+//
+// ‼ אבל העובד לעולם לא **סוגר** חלון מאומת, ולא משגר שני חלונות: חלון פתוח
+// מנוצל מחדש (bringToFront), וסשן מאומת לא מופרע כלל. סגירה/שיגור מחדש
+// היו מוחקים את האימות שהרו"ח ביצע ידנית — וזה הדבר היחיד כאן שאי אפשר
+// לשחזר אוטומטית.
 
 import { chromium } from 'playwright-core';
 import { spawn, execFileSync } from 'node:child_process';
@@ -37,15 +41,34 @@ const PROFILE_DIR = resolve(
   process.env.LOCALAPPDATA || process.env.HOME || '.',
   'PIVO', 'shaam-chrome-profile',
 );
-const CHROME_EXE = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+// ‼ נתיב Chrome אינו קבוע בין מחשבים: 64-bit, 32-bit, והתקנה למשתמש יחיד
+// יושבות בשלושה מקומות שונים. נתיב אחד קשיח היה עובד כאן ונשבר אצל מישהו
+// אחר, עם הודעת שגיאה שלא מסבירה כלום.
+const CHROME_CANDIDATES = [
+  process.env.PIVO_CHROME_EXE,
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  process.env.LOCALAPPDATA
+    ? resolve(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe')
+    : null,
+].filter(Boolean);
+
+export function findChromeExe() {
+  return CHROME_CANDIDATES.find((p) => existsSync(p)) ?? null;
+}
 
 /**
  * פותח את חלון Chrome הייעודי. **לא מתחבר** — רק פותח חלון גלוי שבו הרו"ח
- * יבצע את האימות בעצמו. נקרא רק מפעולת "התחברות" מפורשת של המשתמש.
+ * יבצע את האימות בעצמו. נקרא מלחיצת "התחברות" בכותרת.
+ *
+ * מחזיר { ok } או { ok:false, reason:'chrome_not_found' } — כדי שההודעה
+ * לרו"ח תהיה "לא נמצא Chrome" ולא כשל גנרי.
  */
 export function launchDedicatedChrome() {
+  const exe = findChromeExe();
+  if (!exe) return { ok: false, reason: 'chrome_not_found' };
   if (!existsSync(PROFILE_DIR)) mkdirSync(PROFILE_DIR, { recursive: true });
-  const child = spawn(CHROME_EXE, [
+  const child = spawn(exe, [
     '--remote-debugging-port=9222',
     `--user-data-dir=${PROFILE_DIR}`,
     '--no-first-run',
@@ -53,6 +76,20 @@ export function launchDedicatedChrome() {
     SHAAM_ROOT,
   ], { detached: true, stdio: 'ignore' });
   child.unref();
+  return { ok: true };
+}
+
+/**
+ * מביא את החלון הייעודי לחזית ומוודא שהוא עומד על שע״ם — בלי לפתוח חלון
+ * שני ובלי לגעת בסשן מאומת.
+ */
+export async function focusShaamWindow(page) {
+  try { await page.bringToFront(); } catch { /* לא קריטי — החלון עדיין נפתח */ }
+  if (!page.url().startsWith(SHAAM_ORIGIN)) {
+    // ניווט רק כשהחלון עומד במקום אחר לגמרי (למשל about:blank אחרי פתיחה).
+    await page.goto(SHAAM_ROOT, { waitUntil: 'domcontentloaded', timeout: 12000 })
+      .catch(() => { /* דיאלוג אישור חוסם — זה בדיוק המצב שמחכים לו */ });
+  }
 }
 
 /**
