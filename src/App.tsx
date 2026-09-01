@@ -117,6 +117,7 @@ import TestBuilder from './components/quotations/__TestBuilder';
 import TestSignDone from './components/ui/__TestSignDone';
 import TestFirmNotifications from './components/__TestFirmNotifications';
 import TestRepDialog from './components/__TestRepDialog';
+import TestStartRepresentation from './components/__TestStartRepresentation';
 import TestSpouseLink from './components/__TestSpouseLink';
 import TestAddRequestDialog from './components/__TestAddRequestDialog';
 import TestRegisteredSpouse from './components/__TestRegisteredSpouse';
@@ -344,6 +345,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-repdialog')) {
     return <TestRepDialog />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-startrep')) {
+    return <TestStartRepresentation />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-spouselink')) {
     return <TestSpouseLink />;
@@ -794,6 +798,19 @@ export default function App() {
     const reqId = c?.representationRequestId
       ?? requests.find(r => r.linkedClientId === clientId)?.id;
     if (reqId) handleSelectRequest(reqId);
+  }
+
+  /**
+   * (156) פותח RepresentationOnboardingDialog עבור כרטיס קיים שעדיין אין
+   * לו שום בקשת ייצוג — לא רק לקוח חדש. ‼ אין דיאלוג מקביל: זה בדיוק אותו
+   * pendingRepresentationClient שמשמש היום את "+ אדם חדש" והמרת ליד
+   * (handleConfirmNewPersonRepresentation/handleContinueLeadRepresentation).
+   * handleAttachRepresentation כבר נכתב תוך שמירה על מבנה תיקים קיים ללקוח
+   * ותיק — לכן שימוש חוזר כאן בטוח בלי שינוי.
+   */
+  function handleStartRepresentation(clientId: string) {
+    const c = clients.find(x => x.id === clientId);
+    if (c) setPendingRepresentationClient(c);
   }
 
   /**
@@ -2245,6 +2262,7 @@ export default function App() {
             onOpenRequest={handleSelectRequest}
             onOpenTask={openEditTaskModal}
             onOpenRepresentation={handleOpenClientRepresentation}
+            onStartRepresentation={handleStartRepresentation}
             onContinueLead={handleContinueLead}
             onDeleteLead={async (lead) => { await deleteLead(lead.id); }}
             charges={charges}
@@ -2329,6 +2347,7 @@ export default function App() {
             refreshOnboarding={onboarding.refresh}
             onOpenReleaseLetter={(clientId, stepId, mode) => openReleaseLetter(clientId, stepId, mode)}
             onOpenRepresentation={handleOpenClientRepresentation}
+            onStartRepresentation={handleStartRepresentation}
             journeyUi={journeyUi}
             checksTabEnabled={checksTab}
             quotations={quotations}

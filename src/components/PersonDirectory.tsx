@@ -47,6 +47,9 @@ interface Props {
   onOpenRequest: (requestId: string) => void;
   onOpenTask: (taskId: string) => void;
   onOpenRepresentation: (clientId: string) => void;
+  /** פותח RepresentationOnboardingDialog עבור כרטיס שעדיין אין לו שום
+   *  בקשת ייצוג (156). נפרד מ-onOpenRepresentation, שרק מנווט לבקשה קיימת. */
+  onStartRepresentation: (clientId: string) => void;
   /** שלב 4: "המשך טיפול" בליד שהגיע מקישור המילוי הציבורי — פותח את בורר המסלול. */
   onContinueLead: (lead: Lead) => void;
   /** מחיקת ליד שטרם הפך ללקוח. אין השפעה על כרטיס לקוח קיים. */
@@ -156,6 +159,7 @@ export default function PersonDirectory(p: Props) {
           break;
         }
         case 'openRepresentation': if (client) p.onOpenRepresentation(client.id); break;
+        case 'startRepresentation': if (client) p.onStartRepresentation(client.id); break;
         default: p.onOpenFullCase(row.id); break;
       }
     };
