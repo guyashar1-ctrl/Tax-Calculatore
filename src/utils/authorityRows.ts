@@ -14,10 +14,21 @@ import { VAT_FREQ_LABELS, SHAAM_STATUS_LABELS } from '../types/clientWorkspace';
 import { shortDate } from './clientDerived';
 import { resolvePersonAuthority, resolveIncomeTaxHousehold } from './personRepresentation';
 import { registeredFileInfo } from '../features/annualReport/profile';
+import { incomeTaxFileType } from '../data/incomeTaxFileTypes';
 
 const PERSON_AUTHORITY: Partial<Record<TaxAuthority, 'vat' | 'withholding' | 'nationalInsurance'>> = {
   vat: 'vat', deductions: 'withholding', national_insurance: 'nationalInsurance',
 };
+
+/** מציין «אין ערך» אחיד בכרטיס מס הכנסה. */
+const EMPTY = '—';
+
+/** סוג תיק: הקוד הגולמי כפי שהתקבל, ולצידו הפירוש מהטבלה הממוספרת. */
+function fileTypeText(code: string | undefined): string {
+  if (!code || !code.trim()) return EMPTY;
+  const meta = incomeTaxFileType(code);
+  return meta ? `${code} · ${meta.description}` : code;
+}
 
 export interface AuthorityException {
   text: string;
@@ -102,7 +113,7 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
   {
     const facts: AuthorityRow['facts'] = [];
     const num = numbersOf('income_tax');
-    if (num) facts.push({ k: 'מספר תיק', v: num });
+    facts.push({ k: 'מספר תיק', v: num || EMPTY });
     // ‼ התיק אצל בן/בת הזוג המקושר/ת — לא "עדיין לא נבדק", אלא תיק משותף
     // שכבר קיים, בכתובת אחרת. שם ומצב האימות מגיעים דרך registeredFileInfo
     // על הכרטיס שמחזיק את התיק בפועל, לא על הכרטיס הזה.
@@ -116,44 +127,59 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
         });
       }
     }
-    if (client.incomeTaxFileType) facts.push({ k: 'סוג תיק', v: client.incomeTaxFileType });
-    if (client.taxOfficeName) {
-      facts.push({ k: 'פקיד שומה' + (client.incomeTaxUnit ? ' · חוליה' : ''),
-        v: client.incomeTaxUnit ? `${client.taxOfficeName} · ${client.incomeTaxUnit}` : client.taxOfficeName });
-    }
-    if (client.incomeTaxEconomicIndustry) facts.push({ k: 'ענף כלכלי', v: client.incomeTaxEconomicIndustry });
+    // ‼ שדות מס הכנסה נרשמים **תמיד**, גם ריקים, עם «—». זה ההבדל מהרשויות
+    // האחרות, והוא מכוון: לפני סנכרון מול שע״ם צריך לראות מה חסר, ואחריו מה
+    // התמלא. שורה שנעלמת כשאין לה ערך מסתירה בדיוק את מה שבאים לבדוק.
+    // ‼ חוליה יצאה משורת «פקיד שומה» לשורה משלה — שדה עם סנכרון משלו צריך
+    // להיראות כשדה, לא כזנב של אחר.
+    facts.push({ k: 'סוג תיק', v: fileTypeText(client.incomeTaxFileType) });
+    facts.push({ k: 'פקיד שומה', v: client.taxOfficeName || EMPTY });
+    facts.push({ k: 'חוליה', v: client.incomeTaxUnit || EMPTY });
+    facts.push({ k: 'ענף כלכלי', v: client.incomeTaxEconomicIndustry || EMPTY });
     const adv = client.pitAdvancePercent != null
       ? `${client.pitAdvancePercent}%${client.pitAdvanceFrequency ? ` · ${VAT_FREQ_LABELS[client.pitAdvanceFrequency]}` : ''}`
       : null;
-    if (adv) facts.push({ k: 'מקדמות', v: adv });
+    facts.push({ k: 'שיעור מקדמות', v: client.pitAdvancePercent != null ? `${client.pitAdvancePercent}%` : EMPTY });
+    facts.push({
+      k: 'תדירות מקדמות',
+      v: client.pitAdvanceFrequency ? VAT_FREQ_LABELS[client.pitAdvanceFrequency] : EMPTY,
+    });
     const bal = balanceText(client.incomeTaxBalance);
-    if (bal) facts.push({ k: 'יתרה', v: bal.text, tone: bal.tone });
+    facts.push(bal ? { k: 'יתרה', v: bal.text, tone: bal.tone } : { k: 'יתרה', v: EMPTY });
     if (client.incomeTaxReportingStatus) {
       const ok = client.incomeTaxReportingStatus.trim() === 'אין דיווחים חסרים';
       facts.push({ k: 'מצב דיווחים', v: client.incomeTaxReportingStatus, tone: ok ? 'ok' : 'warn' });
+    } else {
+      facts.push({ k: 'מצב דיווחים', v: EMPTY });
     }
     if (client.capitalDeclarationRequired != null) {
       facts.push(client.capitalDeclarationRequired
         ? { k: 'הצהרת הון', tone: 'warn',
             v: `דרישה פתוחה${client.capitalDeclarationDeadline ? ` · עד ${shortDate(client.capitalDeclarationDeadline)}` : ''}` }
         : { k: 'הצהרת הון', v: 'אין דרישה פתוחה', tone: 'ok' });
+    } else {
+      facts.push({ k: 'הצהרת הון', v: EMPTY });
     }
     if (client.withholdingStatus) {
       const t = WITHHOLDING_LABELS[client.withholdingStatus];
       facts.push({ k: 'ניכוי מס במקור',
         v: client.withholdingStatus === 'rates' && client.withholdingDetail ? `${t} · ${client.withholdingDetail}` : t,
         tone: client.withholdingStatus === 'none' ? 'warn' : 'ok' });
+    } else {
+      facts.push({ k: 'ניכוי מס במקור', v: EMPTY });
     }
     if (client.bookStatus && client.bookStatus !== 'unknown') {
       facts.push({ k: 'ניהול ספרים', v: client.bookStatus === 'kosher' ? 'תקין' : 'נפסל',
         tone: client.bookStatus === 'kosher' ? 'ok' : 'warn' });
+    } else {
+      facts.push({ k: 'ניהול ספרים', v: EMPTY });
     }
     const auth = authText(client.incomeTaxDebitAuthorization);
-    if (auth) facts.push({ k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone });
+    facts.push(auth ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone } : { k: 'הרשאה לחיוב', v: EMPTY });
     // ‼ שע״ם היא הרשאה אחת לכל הרשויות ולכן יושבת כאן בלבד, לא בכל שורה.
-    if (client.shaamStatus) facts.push({ k: 'הרשאת שע״ם', v: SHAAM_STATUS_LABELS[client.shaamStatus] });
+    facts.push({ k: 'הרשאת שע״ם', v: client.shaamStatus ? SHAAM_STATUS_LABELS[client.shaamStatus] : EMPTY });
     const rep = repOf('income_tax');
-    if (rep) facts.push({ k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined });
+    facts.push(rep ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined } : { k: 'ייצוג', v: EMPTY });
 
     let exception: AuthorityException | null = null;
     if (client.withholdingStatus === 'none') exception = { text: 'אין אישור ניכוי במקור', tone: 'high' };
