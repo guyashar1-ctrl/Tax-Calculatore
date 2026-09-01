@@ -21,6 +21,7 @@ export type AuthorityPhase =
   | 'opening'
   | 'awaiting_shaam_auth'
   | 'awaiting_gmf_auth'
+  | 'awaiting_vat_auth'
   | 'ready';
 
 export interface AuthorityConnectionState {
@@ -74,7 +75,8 @@ export function useAuthorityConnections(userId: string | undefined) {
   // אוטומציה אמיתית תיתקל אחריו בקיר הסיסמה של מערכת הגבייה.
   const shaamAlive = !!status.shaam?.connected;
   const gmfReady = !!status.gmf?.ready;
-  const ready = shaamAlive && gmfReady;
+  const vatReady = !!status.vat?.ready;
+  const ready = shaamAlive && gmfReady && vatReady;
 
   // ‼ ברגע שהחיבור הושלם, משימת ה"התחברות" שנותרה פתוחה כבר לא מתארת כלום —
   // והיא חוסמת יצירת משימה חדשה (אינדקס ייחודי על משימה פתוחה אחת). בלי
@@ -89,12 +91,17 @@ export function useAuthorityConnections(userId: string | undefined) {
   // ‼ מצב החיבור שהעובד מדווח גובר על סטטוס המשימה: אחרי שהרו"ח מקליד PIN
   // העובד ממשיך ל-GMF לבד, והמשימה הישנה עדיין תקועה על "ממתין לאישור
   // הפורטל". בלי הקדימות הזאת הכותרת הייתה מציגה שלב שכבר עבר.
+  // ‼ מצב החיבור שהעובד מדווח גובר על סטטוס המשימה: אחרי שהרו"ח מקליד
+  // סיסמה העובד ממשיך לשכבה הבאה לבד, והמשימה הישנה עדיין תקועה על השלב
+  // הקודם. בלי הקדימות הזאת הכותרת הייתה מציגה שלב שכבר עבר.
   const phase: AuthorityPhase =
     workerOffline ? 'worker_offline'
       : ready ? 'ready'
-        : shaamAlive ? 'awaiting_gmf_auth'
+        : shaamAlive ? (gmfReady ? 'awaiting_vat_auth' : 'awaiting_gmf_auth')
           : job?.status === 'needs_human'
-            ? (job.errorCode === 'awaiting_gmf_auth' ? 'awaiting_gmf_auth' : 'awaiting_shaam_auth')
+            ? (job.errorCode === 'awaiting_vat_auth' ? 'awaiting_vat_auth'
+              : job.errorCode === 'awaiting_gmf_auth' ? 'awaiting_gmf_auth'
+                : 'awaiting_shaam_auth')
             : job ? 'opening'
               : 'shaam_disconnected';
 
@@ -125,7 +132,8 @@ export function useAuthorityConnections(userId: string | undefined) {
 
   const message =
     uiError
-      ?? ((phase === 'awaiting_shaam_auth' || phase === 'awaiting_gmf_auth')
+      ?? ((phase === 'awaiting_shaam_auth' || phase === 'awaiting_gmf_auth'
+        || phase === 'awaiting_vat_auth')
         ? (job?.needsHuman ?? null) : null)
       ?? (job?.status === 'failed' ? (job.errorDetail ?? null) : null);
 

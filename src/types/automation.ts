@@ -68,6 +68,7 @@ export interface AuthorityConnection {
 export interface AutomationWorkerStatus {
   shaam?: AuthorityConnection;
   gmf?: { ready: boolean; checkedAt?: string };
+  vat?: { ready: boolean; checkedAt?: string };
   btl?: AuthorityConnection;
 }
 

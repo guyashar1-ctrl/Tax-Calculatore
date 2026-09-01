@@ -272,6 +272,36 @@ export async function probeServerSession(page) {
 export const GMF_URL = 'https://shaam.taxes.gov.il/gmf-main-menu?browser=Chrome';
 export const GMF_PATH = '/gmf-main-menu';
 
+// ─── שכבה שלישית: מע״מ — מערכת גבייה ───────────────────────────────────────
+// ‼ אותו origin כמו GMF (shaam.taxes.gov.il), ולכן סיסמה שנשמרה במנהל
+// הסיסמאות של Chrome עבור האתר הזה משרתת את שתיהן. זה מה שהופך "התחברות
+// אחת בבוקר" למציאותי בלי שנגע בסיסמה בעצמנו.
+//
+// ‼ שם המשתמש בטופס הזה הוא readOnly ומגיע מהכרטיס החכם — נצפה בפועל.
+// כלומר הסיסמה לבדה אינה ניתנת לשימוש עם זהות אחרת כאן.
+export const VAT_URL = 'https://shaam.taxes.gov.il/emhanmainmenu';
+export const VAT_PATH = '/emhanmainmenu';
+
+/** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על מע״מ. */
+export async function readVatOnCurrentPage(page) {
+  const s = await snapPage(page);
+  if (!s.pathname.startsWith(VAT_PATH)) return { onVat: false, ready: null };
+  return { onVat: true, ready: !s.hasPasswordField, pathname: s.pathname };
+}
+
+/** מנווט למע״מ ומחזיר את מצבה אחרי התייצבות. משאיר את הדפדפן שם. */
+export async function openVatAndCheck(page) {
+  await page.goto(VAT_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
+  const s = await settlePage(page);
+  if (!s.pathname.startsWith(VAT_PATH)) {
+    return { ready: false, reason: 'unexpected_destination', pathname: s.pathname };
+  }
+  // ‼ במע״מ הכתובת אינה משתנה בין מחובר ללא־מחובר (WebForms, action="./"),
+  // ולכן שדה הסיסמה הוא הסימן היחיד. נצפה בפועל.
+  if (s.hasPasswordField) return { ready: false, reason: 'login_required', pathname: s.pathname };
+  return { ready: true, pathname: s.pathname };
+}
+
 /** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על GMF. */
 export async function readGmfOnCurrentPage(page) {
   const s = await snapPage(page);

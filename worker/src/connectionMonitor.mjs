@@ -28,18 +28,20 @@
 import {
   attach, detach, classifyShaamAuth, probeServerSession,
   readGmfOnCurrentPage, openGmfAndCheck,
+  readVatOnCurrentPage, openVatAndCheck,
 } from './browserSession.mjs';
 import { reportStatus } from './apiClient.mjs';
 
 const LOCAL_CHECK_MS = 30_000;
 const SERVER_PROBE_MS = 4 * 60_000;
-const GMF_RECHECK_MS = 60_000;
+const SUB_RECHECK_MS = 60_000;
 
 let lastCheck = 0;
 let lastProbe = 0;
-let lastGmfNav = 0;
+let lastSubNav = 0;
 let shaamReported = null;
 let gmfReported = null;
+let vatReported = null;
 
 export async function tickConnectionMonitor(userId, workerId, log) {
   const now = Date.now();
@@ -48,6 +50,7 @@ export async function tickConnectionMonitor(userId, workerId, log) {
 
   let shaam = false;
   let gmf = gmfReported ?? false;
+  let vat = vatReported ?? false;
 
   const conn = await attach();
   if (conn.ok) {
@@ -70,19 +73,37 @@ export async function tickConnectionMonitor(userId, workerId, log) {
         }
       }
 
-      // ── שכבה 2 ──
+      // ── שכבות 2 ו-3, ברצף ובאותה לשונית ──
+      // ‼ הסדר הוא גם ההתקדמות האוטומטית: אחרי שהרו"ח מזין סיסמה ל-GMF,
+      // הסבב הבא רואה GMF מוכנה ועובר מעצמו למע״מ. בלי לחיצה נוספת ב-PIVO.
+      // ‼ אף פעם לא שתי מערכות בו-זמנית: הן מסרבות להיפתח פעמיים במקביל.
       if (!shaam) {
-        // בלי הפורטל אין מה לבדוק, ובוודאי לא לנווט.
         gmf = false;
+        vat = false;
       } else {
-        const onPage = await readGmfOnCurrentPage(conn.page);
-        if (onPage.onGmf) {
-          gmf = onPage.ready;           // חינם: כבר שם
-        } else if (!gmf && now - lastGmfNav >= GMF_RECHECK_MS) {
-          lastGmfNav = now;
-          const checked = await openGmfAndCheck(conn.page);
-          gmf = checked.ready;
-          log(`בדיקת GMF: ${checked.ready ? 'מוכנה' : `דרושה התחברות (${checked.reason})`}`);
+        const onGmf = await readGmfOnCurrentPage(conn.page);
+        const onVat = await readVatOnCurrentPage(conn.page);
+
+        // ‼ רק "מוכנה" נקראת בחינם. עמידה על מסך ההתחברות **אינה** עדות
+        // ל"לא מוכנה": ייתכן שהסשן חי לגמרי והדף פשוט נשאר שם אחרי ניווט.
+        // כשקראנו גם את זה כאמת, הנורית נתקעה כתומה לצמיתות — הקריאה
+        // ה"חינמית" גם סתמה את הניווט שהיה מתקן אותה. קרה בפועל.
+        if (onGmf.onGmf && onGmf.ready) gmf = true;
+        if (onVat.onVat && onVat.ready) vat = true;
+
+        // שכבה אחת בכל סבב, לפי הסדר, ורק כשהיא עוד לא אושרה כמוכנה.
+        if (now - lastSubNav >= SUB_RECHECK_MS) {
+          if (!gmf) {
+            lastSubNav = now;
+            const checked = await openGmfAndCheck(conn.page);
+            gmf = checked.ready;
+            log(`בדיקת GMF: ${checked.ready ? 'מוכנה' : `דרושה התחברות (${checked.reason})`}`);
+          } else if (!vat) {
+            lastSubNav = now;
+            const checked = await openVatAndCheck(conn.page);
+            vat = checked.ready;
+            log(`בדיקת מע״מ: ${checked.ready ? 'מוכנה' : `דרושה התחברות (${checked.reason})`}`);
+          }
         }
       }
     } finally {
@@ -90,17 +111,21 @@ export async function tickConnectionMonitor(userId, workerId, log) {
     }
   } else {
     gmf = false;
+    vat = false;
   }
 
-  if (shaam !== shaamReported || gmf !== gmfReported) {
-    log(`מצב: פורטל=${shaam ? 'מחובר' : 'מנותק'} · GMF=${gmf ? 'מוכנה' : 'לא מוכנה'}`);
+  if (shaam !== shaamReported || gmf !== gmfReported || vat !== vatReported) {
+    log(`מצב: פורטל=${shaam ? 'מחובר' : 'מנותק'} · GMF=${gmf ? 'מוכנה' : 'לא מוכנה'} · מע״מ=${vat ? 'מוכנה' : 'לא מוכנה'}`);
   }
   shaamReported = shaam;
   gmfReported = gmf;
+  vatReported = vat;
 
+  const at = new Date(now).toISOString();
   await reportStatus(userId, workerId, {
-    shaam: { connected: shaam, checkedAt: new Date(now).toISOString() },
-    gmf: { ready: gmf, checkedAt: new Date(now).toISOString() },
+    shaam: { connected: shaam, checkedAt: at },
+    gmf: { ready: gmf, checkedAt: at },
+    vat: { ready: vat, checkedAt: at },
   }).catch(() => { /* דיווח מצב שנכשל לא מפיל את העובד */ });
 }
 
@@ -108,5 +133,5 @@ export async function tickConnectionMonitor(userId, workerId, log) {
 export function invalidateConnectionCache() {
   lastCheck = 0;
   lastProbe = 0;
-  lastGmfNav = 0;
+  lastSubNav = 0;
 }

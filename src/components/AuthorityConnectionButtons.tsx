@@ -23,6 +23,7 @@ const PHASE_CLASS: Record<AuthorityPhase, string> = {
   opening: 'is-pending',
   awaiting_shaam_auth: 'is-pending',
   awaiting_gmf_auth: 'is-pending',
+  awaiting_vat_auth: 'is-pending',
   ready: 'is-on',
 };
 
@@ -31,8 +32,9 @@ const PHASE_TITLE: Record<AuthorityPhase, string> = {
     'מחשב האוטומציה אינו פעיל. יש להפעיל את העובד המקומי במחשב המשרד כדי להתחבר לשע״ם.',
   shaam_disconnected: 'לא מחובר לשע״ם · לחצו כדי לפתוח את חלון ההתחברות',
   opening: 'מכין את החיבור לשע״ם…',
-  awaiting_shaam_auth: 'שלב 1 מתוך 2 — יש להשלים אישור דיגיטלי ו-PIN בחלון שע״ם',
-  awaiting_gmf_auth: 'שלב 2 מתוך 2 — יש להזין סיסמה למערכת גביית מס הכנסה בחלון שע״ם',
+  awaiting_shaam_auth: 'שלב 1 מתוך 3 — יש להשלים אישור דיגיטלי ו-PIN בחלון שע״ם',
+  awaiting_gmf_auth: 'שלב 2 מתוך 3 — יש להזין סיסמה למערכת גביית מס הכנסה בחלון שע״ם',
+  awaiting_vat_auth: 'שלב 3 מתוך 3 — יש להזין סיסמה למע״מ בחלון שע״ם',
   ready: 'שע״ם מוכן לאוטומציה · לחצו כדי להתנתק',
 };
 
@@ -73,6 +75,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
       {/* ‼ הודעת "מה לעשות עכשיו" מוצגת בכותרת ולא רק ב-tooltip: הרו"ח לא
           ינחש שצריך לרחף מעל כפתור אפור כדי לגלות שהמחשב כבוי. */}
       {(phase === 'awaiting_shaam_auth' || phase === 'awaiting_gmf_auth'
+        || phase === 'awaiting_vat_auth'
         || phase === 'worker_offline' || shaam.message) && (
         <span className="authconn-note">
           {shaam.message ?? PHASE_TITLE[phase]}

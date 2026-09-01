@@ -12,7 +12,7 @@
 // פורטל מאומת אך GMF לא? להביא למסך ה-GMF ולעצור שם. שתיהן מוכנות? ירוק.
 import {
   attach, detach, classifyShaamAuth, probeServerSession,
-  launchDedicatedChrome, focusShaamWindow, openGmfAndCheck,
+  launchDedicatedChrome, focusShaamWindow, openGmfAndCheck, openVatAndCheck,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 
@@ -23,8 +23,12 @@ const SHAAM_AUTH_PENDING =
   'ואז אמשיך אוטומטית, בלי צורך ללחוץ שוב.';
 
 const GMF_AUTH_PENDING =
-  'נותרה שכבה אחת: מערכת גביית מס הכנסה מבקשת שם משתמש וסיסמה. הזינו אותם ' +
-  'בחלון שע״ם שנפתח — ואז הנורית תידלק בירוק לבד. האוטומציה לא מזינה סיסמאות.';
+  'שלב 2 מתוך 3 — מערכת גביית מס הכנסה מבקשת סיסמה. הזינו אותה בחלון שע״ם ' +
+  'שנפתח, ואמשיך משם לבד. האוטומציה לא מזינה סיסמאות.';
+
+const VAT_AUTH_PENDING =
+  'שלב 3 מתוך 3 — מע״מ מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואז הנורית ' +
+  'תידלק בירוק לבד. האוטומציה לא מזינה סיסמאות.';
 
 const CHROME_NOT_FOUND =
   'לא נמצאה התקנה של Google Chrome במחשב הזה. התקינו Chrome, או הגדירו את הנתיב ' +
@@ -69,6 +73,9 @@ export async function run(ctx) {
     ctx.log('שכבה 1 — פורטל שע״ם: מאומת');
 
     // ── שכבה 2: מערכת גביית מס הכנסה ──
+    // ‼ ברצף, באותה לשונית. המערכות האלה מסרבות להיפתח פעמיים במקביל
+    // ("למניעת שיבוש הנתונים לא ניתן לפתוח את אותו הישום" — נצפה במגן),
+    // ולכן פתיחה מקבילה או בלשוניות נוספות הייתה מייצרת שגיאות בעצמה.
     const gmf = await openGmfAndCheck(conn.page);
     ctx.log(`שכבה 2 — GMF: ${gmf.ready ? 'מוכנה' : `דרושה התחברות (${gmf.reason})`} · ${gmf.pathname}`);
     if (!gmf.ready) {
@@ -81,7 +88,20 @@ export async function run(ctx) {
       throw new NeedsHumanError(GMF_AUTH_PENDING, 'awaiting_gmf_auth');
     }
 
-    return { result: { ready: true, system: 'shaam', shaam: true, gmf: true } };
+    // ── שכבה 3: מע״מ ──
+    const vat = await openVatAndCheck(conn.page);
+    ctx.log(`שכבה 3 — מע״מ: ${vat.ready ? 'מוכנה' : `דרושה התחברות (${vat.reason})`} · ${vat.pathname}`);
+    if (!vat.ready) {
+      if (vat.reason === 'unexpected_destination') {
+        throw new PermanentError(
+          `הניווט למע״מ הגיע ליעד לא צפוי (${vat.pathname}).`,
+          'vat_unexpected_destination',
+        );
+      }
+      throw new NeedsHumanError(VAT_AUTH_PENDING, 'awaiting_vat_auth');
+    }
+
+    return { result: { ready: true, system: 'shaam', shaam: true, gmf: true, vat: true } };
   } finally {
     await detach(conn.browser);
   }
