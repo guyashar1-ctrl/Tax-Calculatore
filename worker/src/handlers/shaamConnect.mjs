@@ -12,7 +12,8 @@
 // פורטל מאומת אך GMF לא? להביא למסך ה-GMF ולעצור שם. שתיהן מוכנות? ירוק.
 import {
   attach, detach, classifyShaamAuth, probeServerSession,
-  launchDedicatedChrome, focusShaamWindow, openGmfAndCheck, openVatAndCheck,
+  launchDedicatedChrome, focusShaamWindow,
+  openGmfAndCheck, openVatAndCheck, openNikuiAndCheck,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 
@@ -27,8 +28,15 @@ const GMF_AUTH_PENDING =
   'שנפתח, ואמשיך משם לבד. האוטומציה לא מזינה סיסמאות.';
 
 const VAT_AUTH_PENDING =
-  'שלב 3 מתוך 3 — מע״מ מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואז הנורית ' +
-  'תידלק בירוק לבד. האוטומציה לא מזינה סיסמאות.';
+  'שלב 3 מתוך 4 — מע״מ מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם ' +
+  'לבד. האוטומציה לא מזינה סיסמאות.';
+
+const NIKUI_AUTH_PENDING =
+  'שלב 4 מתוך 4 — מגן (ניכויים) מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ' +
+  'ואז הנורית תידלק בירוק לבד. האוטומציה לא מזינה סיסמאות.';
+
+// ‼ "היישום כבר פתוח" אינו מטופל כאן כשגיאה — ראה nikuiState ב-browserSession:
+// הוא מעיד על סשן קיים ולכן נחשב מוכן. אין מה לבקש מהרו"ח במצב הזה.
 
 const CHROME_NOT_FOUND =
   'לא נמצאה התקנה של Google Chrome במחשב הזה. התקינו Chrome, או הגדירו את הנתיב ' +
@@ -101,7 +109,22 @@ export async function run(ctx) {
       throw new NeedsHumanError(VAT_AUTH_PENDING, 'awaiting_vat_auth');
     }
 
-    return { result: { ready: true, system: 'shaam', shaam: true, gmf: true, vat: true } };
+    // ── שכבה 4: מגן (ניכויים) ──
+    const nikui = await openNikuiAndCheck(conn.page);
+    ctx.log(`שכבה 4 — מגן: ${nikui.ready ? 'מוכנה' : `לא מוכנה (${nikui.reason})`} · ${nikui.pathname}`);
+    if (!nikui.ready) {
+      if (nikui.reason === 'unexpected_destination') {
+        throw new PermanentError(
+          `הניווט למגן הגיע ליעד לא צפוי (${nikui.pathname}).`,
+          'nikui_unexpected_destination',
+        );
+      }
+      throw new NeedsHumanError(NIKUI_AUTH_PENDING, 'awaiting_nikui_auth');
+    }
+
+    return {
+      result: { ready: true, system: 'shaam', shaam: true, gmf: true, vat: true, nikui: true },
+    };
   } finally {
     await detach(conn.browser);
   }

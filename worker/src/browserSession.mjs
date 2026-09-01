@@ -302,6 +302,47 @@ export async function openVatAndCheck(page) {
   return { ready: true, pathname: s.pathname };
 }
 
+// ─── שכבה רביעית: מגן — מערכת גביית ניכויים ────────────────────────────────
+// ‼ אותו origin, ולכן אותה סשן-שער. נצפה בפועל: אחרי אישור דיגיטלי + PIN
+// בלבד היא נחתה על frmMainMenu.aspx עם אפס שדות סיסמה — בלי שהוזנה לה
+// סיסמה מעולם בפרופיל הזה.
+//
+// ‼ המערכת הזאת מסרבת להיפתח פעמיים במקביל ("למניעת שיבוש הנתונים לא ניתן
+// לפתוח את אותו הישום") ואז מחזירה frmTabErr.aspx. לכן היא נבדקת לבדה,
+// ברצף, ולעולם לא במקביל לשכבה אחרת.
+export const NIKUI_URL = 'https://shaam.taxes.gov.il/nikmainmenu';
+export const NIKUI_PATH = '/nikmainmenu';
+const NIKUI_TAB_CONFLICT = /frmTabErr/i;
+
+// ‼ "היישום כבר פתוח" (frmTabErr) נחשב **מוכן**, וזו מסקנה מראיות ולא נוחות:
+//   מנותק           ⇒ frmLogin.aspx     (נצפה לפני שהוזנה סיסמה כלשהי)
+//   מחובר, פתיחה 1  ⇒ frmMainMenu.aspx  (נצפה בבדיקת השחזור)
+//   מחובר, פתיחה 2  ⇒ frmTabErr.aspx    (נצפה בבדיקה חוזרת)
+// כלומר אי אפשר להגיע ל-frmTabErr בלי סשן. השאלה שהמצב הזה עונה עליה —
+// "האם אוטומציה תיתקל בקיר סיסמה?" — נענית בשלילה, ולכן זו לא סיבה לעצור
+// את הרו"ח. בלי זה נוצרה לולאה: כל בדיקה השאירה את מגן "פתוחה", הבדיקה
+// הבאה קיבלה frmTabErr, והנורית נתקעה כתומה לנצח. קרה בפועל.
+const nikuiState = (s) => {
+  if (!s.pathname.startsWith(NIKUI_PATH)) return { ready: false, reason: 'unexpected_destination' };
+  if (NIKUI_TAB_CONFLICT.test(s.pathname)) return { ready: true, reason: 'already_open' };
+  if (s.hasPasswordField) return { ready: false, reason: 'login_required' };
+  return { ready: true, reason: 'menu' };
+};
+
+/** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על מגן. */
+export async function readNikuiOnCurrentPage(page) {
+  const s = await snapPage(page);
+  if (!s.pathname.startsWith(NIKUI_PATH)) return { onNikui: false, ready: null };
+  return { onNikui: true, ...nikuiState(s), pathname: s.pathname };
+}
+
+/** מנווט למגן ומחזיר את מצבה אחרי התייצבות. משאיר את הדפדפן שם. */
+export async function openNikuiAndCheck(page) {
+  await page.goto(NIKUI_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
+  const s = await settlePage(page);
+  return { ...nikuiState(s), pathname: s.pathname };
+}
+
 /** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על GMF. */
 export async function readGmfOnCurrentPage(page) {
   const s = await snapPage(page);

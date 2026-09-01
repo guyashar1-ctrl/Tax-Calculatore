@@ -15,8 +15,9 @@ interface Props {
   userId: string | undefined;
 }
 
-// ‼ אפור = מנותק · כתום = דרושה פעולה שלך · ירוק = **הסביבה מוכנה לאוטומציה**,
-// כלומר שתי שכבות האימות מוכנות (פורטל שע״ם + מערכת גביית מס הכנסה).
+// ‼ אפור = מנותק · כתום = בהכנה/דרושה פעולה שלך · ירוק = **הסביבה מוכנה
+// לאוטומציה**, כלומר כל ארבע השכבות מוכנות: פורטל שע״ם, מערכת גביית מס
+// הכנסה, מע״מ ומגן. במסלול הרגיל אישור דיגיטלי ו-PIN מספיקים לכולן.
 const PHASE_CLASS: Record<AuthorityPhase, string> = {
   worker_offline: 'is-off',
   shaam_disconnected: '',
@@ -24,6 +25,7 @@ const PHASE_CLASS: Record<AuthorityPhase, string> = {
   awaiting_shaam_auth: 'is-pending',
   awaiting_gmf_auth: 'is-pending',
   awaiting_vat_auth: 'is-pending',
+  awaiting_nikui_auth: 'is-pending',
   ready: 'is-on',
 };
 
@@ -32,9 +34,10 @@ const PHASE_TITLE: Record<AuthorityPhase, string> = {
     'מחשב האוטומציה אינו פעיל. יש להפעיל את העובד המקומי במחשב המשרד כדי להתחבר לשע״ם.',
   shaam_disconnected: 'לא מחובר לשע״ם · לחצו כדי לפתוח את חלון ההתחברות',
   opening: 'מכין את החיבור לשע״ם…',
-  awaiting_shaam_auth: 'שלב 1 מתוך 3 — יש להשלים אישור דיגיטלי ו-PIN בחלון שע״ם',
-  awaiting_gmf_auth: 'שלב 2 מתוך 3 — יש להזין סיסמה למערכת גביית מס הכנסה בחלון שע״ם',
-  awaiting_vat_auth: 'שלב 3 מתוך 3 — יש להזין סיסמה למע״מ בחלון שע״ם',
+  awaiting_shaam_auth: 'שלב 1 מתוך 4 — יש להשלים אישור דיגיטלי ו-PIN בחלון שע״ם',
+  awaiting_gmf_auth: 'שלב 2 מתוך 4 — מערכת גביית מס הכנסה עדיין לא מוכנה',
+  awaiting_vat_auth: 'שלב 3 מתוך 4 — מע״מ עדיין לא מוכנה',
+  awaiting_nikui_auth: 'שלב 4 מתוך 4 — מגן (ניכויים) עדיין לא מוכנה',
   ready: 'שע״ם מוכן לאוטומציה · לחצו כדי להתנתק',
 };
 
@@ -75,7 +78,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
       {/* ‼ הודעת "מה לעשות עכשיו" מוצגת בכותרת ולא רק ב-tooltip: הרו"ח לא
           ינחש שצריך לרחף מעל כפתור אפור כדי לגלות שהמחשב כבוי. */}
       {(phase === 'awaiting_shaam_auth' || phase === 'awaiting_gmf_auth'
-        || phase === 'awaiting_vat_auth'
+        || phase === 'awaiting_vat_auth' || phase === 'awaiting_nikui_auth'
         || phase === 'worker_offline' || shaam.message) && (
         <span className="authconn-note">
           {shaam.message ?? PHASE_TITLE[phase]}
