@@ -27,6 +27,7 @@ import type { FamilyKey } from '../../features/taxFile/editModel';
 import type { AuthorityFlag } from '../../utils/authorityFlags';
 import { findUnsyncedSession, syncIntakeSession } from '../../lib/intakeSync';
 import type { IntakeSyncResult } from '../../lib/intakeSync';
+import SpouseRelationshipCard from './SpouseRelationshipCard';
 
 interface Props {
   client: Client;
@@ -37,6 +38,10 @@ interface Props {
    * מהתנהגות שהייתה לפני 150.
    */
   spouseClient?: Client;
+  /** פותח כרטיס לקוח נפרד לבן/בת הזוג, מזורע ומקושר דו-כיווני (150, 158). */
+  onCreateSpouseClient?: () => Promise<void> | void;
+  /** פותח את כרטיס בן/בת הזוג הקיים — כשהוא כבר מקושר. */
+  onOpenSpouseClient?: (clientId: string) => void;
   /** סנכרון עותק הלקוח המקומי ב-ClientWorkspace אחרי כתיבה טרנזקציונית שקרתה
    *  בשרת (accept/manual-edit) ולא דרך onSave הרגיל. */
   onClientPersisted: (c: Client) => void;
@@ -154,6 +159,32 @@ function TRow({
   );
 }
 
+/**
+ * כותרת קטע עם זהות משפחת-המס — נקודה, שם, ולמה הקבוצה קיימת.
+ * מקור: docs/prototypes/tax-file-edit-v1.html (.sect-h).
+ *
+ * ‼ ה"למה" אינו קישוט: בלעדיו «השקעות, נכסים והון» היא רשימת שדות, ואיתו
+ * היא אומרת לרו"ח מה סוג המס שהוא מסתכל עליו. הנקודה היא סימן ניווט בלבד —
+ * היא לעולם לא אומרת טוב/רע, וזה מה שמפריד אותה מצבעי הסטטוס.
+ */
+function SectHead({ family, title, why, onEdit, children }: {
+  family: FamilyKey; title: string; why: string;
+  onEdit?: () => void; children?: React.ReactNode;
+}) {
+  return (
+    <div className={`txf-secthead txf-secthead-fam is-${family}`}>
+      <span className="txf-sect-cat" aria-hidden="true" />
+      <span className="txf-sect-nm">{title}</span>
+      <span className="txf-sect-why">{why}</span>
+      <span className="txf-sect-sp" />
+      {children}
+      {onEdit && (
+        <button type="button" className="txf-sect-edit" onClick={onEdit}>עריכה</button>
+      )}
+    </div>
+  );
+}
+
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return <div><div className="k">{k}</div><div className="v">{v}</div></div>;
 }
@@ -169,7 +200,8 @@ function SrcLine({ label, onEdit }: { label: string; onEdit?: () => void }) {
 }
 
 export default function TaxFileTab({
-  client, spouseClient, onClientPersisted, onSendQuestionnaire, onOpenDetails, onEditFamily,
+  client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
+  onClientPersisted, onSendQuestionnaire, onOpenDetails, onEditFamily,
   onRunAlignment, alignBusy, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
 }: Props) {
   const { pending, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
@@ -506,7 +538,28 @@ export default function TaxFileTab({
             נראו כשתי יכולות. היא נשארה במקום אחד — ליד המידע שהיא מרעננת. */}
       </div>
 
+      {/* ‼ מחליף המצב הוא הכניסה הראשית לעריכה, ולכן הוא יושב כאן ולא
+          בתחתית: קריאה ועריכה הם שני מצבים של אותו תיק, וזה מה שהמתג אומר.
+          קודם הכניסה הבולטת היחידה הובילה לעורך הישן — והמצב החדש נשאר
+          מוסתר מאחורי קישור זעיר שאיש לא ראה. */}
+      {onEditFamily && (
+        <div className="txf-modebar" role="group" aria-label="מצב תיק המס">
+          <button type="button" className="is-on" aria-pressed="true">קריאה</button>
+          <button type="button" onClick={() => onEditFamily('auth')} aria-pressed="false">
+            עריכה מלאה
+          </button>
+        </div>
+      )}
+
       <div className="txf-sentence">{sentence}</div>
+
+      {/* ‼ נוכחות אחת קבועה למי בן/בת הזוג — לא רק בתוך "התיק" (158). ראה
+          SpouseRelationshipCard: מציגה בלבד, בלי מנגנון שני. */}
+      <SpouseRelationshipCard
+        client={client} spouseClient={spouseClient}
+        onCreateSpouseClient={onCreateSpouseClient} onOpenSpouseClient={onOpenSpouseClient}
+      />
+
       {/* ═══ דורש טיפול ═══════════════════════════════════════════════════
           ‼ רק חריגות אמיתיות, לא כל שדה חסר. פריט שכבר נוצרה לו בקשה נשאר
           גלוי אבל אפור ובלי כפתור — «אל תשאל אותי שוב על מה שכבר בטיפול». */}
@@ -647,13 +700,10 @@ export default function TaxFileTab({
           המספרים חיים עכשיו בפירוט הפתוח, פעם אחת.
           ‼ יישור הקו מופעל מכאן — הוא מרענן את המצב הזה, ואין לו יעד קבוע
           נפרד: בסיומו חוזרים לאותו תיק. */}
-      <div className="txf-secthead txf-secthead-row">
-        <span>מול הרשויות</span>
+      <SectHead family="auth" title="מול הרשויות"
+        why="עובדות תפעוליות — מתעדכנות ביישור קו"
+        onEdit={onEditFamily && (() => onEditFamily('auth'))}>
         <span className="txf-align-meta">
-          {onEditFamily && (
-            <button type="button" className="txf-sect-edit"
-              onClick={() => onEditFamily('auth')}>עריכה</button>
-          )}
           <span>{alignedAt ? 'יישור קו אחרון: ' + shortDate(alignedAt) : 'טרם בוצע יישור קו'}</span>
           {onRunAlignment && (
             <button type="button" className="ui-btn ui-btn-sm" disabled={alignBusy}
@@ -662,7 +712,7 @@ export default function TaxFileTab({
             </button>
           )}
         </span>
-      </div>
+      </SectHead>
 
       {authorityRows.length === 0 ? (
         <div className="txf-sect">
@@ -752,7 +802,8 @@ export default function TaxFileTab({
       {/* ב · הפעילות הכלכלית */}
       {(showBusinessRow || showSalaryRow || showRentalRow || showCapitalRow || unknownIn('income')) && (
         <>
-          <div className="txf-secthead">הכנסות{onEditFamily && (<button type="button" className="txf-sect-edit" onClick={() => onEditFamily('income')}>עריכה</button>)}</div>
+          <SectHead family="income" title="הכנסות" why="מה שנכנס — ומשפיע על ההכנסה החייבת"
+            onEdit={onEditFamily && (() => onEditFamily('income'))} />
           <div className="txf-sect">
             {showBusinessRow && (
               <TRow
@@ -850,7 +901,8 @@ export default function TaxFileTab({
       )}
 
       {/* ג · משפחה וזכאות */}
-      <div className="txf-secthead">משפחה וזכאות{onEditFamily && (<button type="button" className="txf-sect-edit" onClick={() => onEditFamily('family')}>עריכה</button>)}</div>
+      <SectHead family="family" title="משפחה וזכאות" why="עובדות שמשנות זכאות ונקודות זיכוי"
+        onEdit={onEditFamily && (() => onEditFamily('family'))} />
       <div className="txf-sect">
         {showFamilyRow && (
           <TRow
@@ -916,7 +968,8 @@ export default function TaxFileTab({
       {/* ד · השקעות, נכסים והון */}
       {(showPropertyRow || showCryptoRow || showForeignRow || showBankRow || unknownIn('assets')) && (
         <>
-          <div className="txf-secthead">השקעות, נכסים והון{onEditFamily && (<button type="button" className="txf-sect-edit" onClick={() => onEditFamily('assets')}>עריכה</button>)}</div>
+          <SectHead family="assets" title="השקעות, נכסים והון" why="נדל״ן, שוק ההון וקריפטו — מיסוי רווחי הון"
+            onEdit={onEditFamily && (() => onEditFamily('assets'))} />
           <div className="txf-sect">
             {showPropertyRow && (
               <TRow
@@ -990,7 +1043,8 @@ export default function TaxFileTab({
       {/* ה · הפקדות, ביטוחים וזיכויים */}
       {(showPensionRow || showInsuranceRow || showDonationsRow || unknownIn('deposits')) && (
         <>
-          <div className="txf-secthead">הפקדות, ביטוחים וזיכויים{onEditFamily && (<button type="button" className="txf-sect-edit" onClick={() => onEditFamily('deductions')}>עריכה</button>)}</div>
+          <SectHead family="deductions" title="הפקדות, ביטוחים וזיכויים" why="מה שמקטין את המס — ניכויים וזיכויים"
+            onEdit={onEditFamily && (() => onEditFamily('deductions'))} />
           <div className="txf-sect">
             {showPensionRow && (
               <TRow
@@ -1051,14 +1105,22 @@ export default function TaxFileTab({
 
       {/* ‼ הכניסה לעריכה המלאה — פעולה משנית בתחתית הרשומה, לא לשונית עמיתה.
           כך נשארת רשומה מקצועית אחת, והעריכה היא משהו שנכנסים אליו מתוכה. */}
-      {onOpenDetails && (
-        <div className="txf-details-entry">
+      {/* ‼ שתי כניסות, ובסדר הנכון. קודם הייתה כאן כניסה בולטת אחת שהובילה
+          לעורך בן 20 הקבוצות — כלומר מי שרצה לערוך את תיק המס נחת בעורך של
+          מסד הנתונים. העריכה המלאה היא הראשית; הישן נשאר נגיש, ומנוסח כמה
+          שהוא באמת: פרטי לקוח ותפעול משרד, לא תיק מס. */}
+      <div className="txf-details-entry">
+        {onEditFamily && (
+          <button type="button" className="ui-btn ui-btn-primary"
+            onClick={() => onEditFamily('auth')}>עריכה מלאה של תיק המס</button>
+        )}
+        {onOpenDetails && (
           <button type="button" className="ui-linkbtn" onClick={onOpenDetails}>
-            עריכת פרטי הלקוח המלאים ←
+            פרטי לקוח ותפעול ←
           </button>
-          <span>שדות הכרטיס, תיקי הרשויות ופרטי הזיהוי. נתונים מנוהלים ממשיכים לעבור דרך התאמה.</span>
-        </div>
-      )}
+        )}
+        <span>אנשי קשר, תגיות, עובד מטפל ושדות תפעול נוספים — מחוץ לתיק המס.</span>
+      </div>
     </div>
   );
 }

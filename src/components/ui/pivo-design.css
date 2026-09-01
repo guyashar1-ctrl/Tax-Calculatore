@@ -4343,6 +4343,23 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .txf-ready{padding:9px 12px}
 }
 
+/* ── כרטיס יחסי בן/בת זוג (158) — זהות + סטטוס בצד אחד, פעולה הקשרית
+   בצד השני. שקט ומשני: אין תיבה גדולה, אין ריבוי צ'יפים. ── */
+.txf-spouse{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:11px 15px;border-radius:var(--r-panel);margin-bottom:4px;
+  background:var(--surface-0);border:1px solid var(--hairline-1)}
+.txf-spouse-id{display:flex;flex-direction:column;gap:1px;min-width:0}
+.txf-spouse-name{font-size:var(--fs-13);font-weight:600;color:var(--ink-1)}
+.txf-spouse-status{font-size:11.5px;color:var(--ink-3)}
+.txf-spouse-status.is-linked{color:var(--ok)}
+.txf-spouse-status.is-elsewhere{color:var(--ink-4)}
+.txf-spouse-note{font-size:11px;color:var(--ink-4)}
+.txf-spouse-action{margin-inline-start:auto}
+@media (max-width:640px){
+  .txf-spouse{flex-direction:column;align-items:flex-start}
+  .txf-spouse-action{margin-inline-start:0}
+}
+
 /* ── כרטיס יישור הקו: שורות מוסדות ──
    מקור מחייב: client-case-simplified-exploration-v3-final2.html (.insts/.inst).
    ‼ החליף שלושה אריחים (.ial-box) שבהם הסטטוס והפעולה נבלעו ולא נאמר
@@ -4458,7 +4475,57 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .txe-fam-head{padding:14px}
 }
 
-/* קישור «עריכה» בכותרת קטע בתיק — פעולה משנית, בלי משקל של כפתור. */
-.txf-sect-edit{border:0;background:none;color:var(--accent);font-size:var(--fs-11);
-  padding:0;margin-inline-start:10px;cursor:pointer}
-.txf-sect-edit:hover{text-decoration:underline}
+
+/* ═══ תיק מס · זהות משפחה במצב קריאה + מחליף מצב ═══════════════════════════
+   מקור: docs/prototypes/tax-file-edit-v1.html (.modebar, .sect-h)
+   ‼ אותם גוונים בדיוק כמו במצב העריכה — כך שהרו"ח רואה «משפחה וזכאות»
+   באותו סימן בשני המצבים, והמעבר ביניהם נקרא כאותו מקום ולא כשני מסכים. */
+
+.txf-root{
+  --fam-auth:#4263eb; --fam-inc:#0b7a63; --fam-fam:#6741d9;
+  --fam-ast:#0f7fa8;  --fam-ded:#846215; --fam-for:#a61e4d;
+}
+:root[data-theme="dark"] .txf-root, [data-theme="dark"] .txf-root{
+  --fam-auth:#8da2fb; --fam-inc:#5fc4ae; --fam-fam:#b197fc;
+  --fam-ast:#67c7e4;  --fam-ded:#d8b45f; --fam-for:#f08bb0;
+}
+
+/* ── מחליף המצב — הכניסה הראשית לעריכה ── */
+/* ‼ width:fit-content ולא inline-flex לבד — ההורה מותח את הילדים, והמתג
+   נפרש על כל רוחב הדף במקום להיות פקד קומפקטי כמו במוקאפ. */
+.txf-modebar{display:flex;width:fit-content;align-self:flex-start;
+  border:1px solid var(--hairline-1);border-radius:10px;
+  overflow:hidden;margin:2px 0 18px;background:var(--surface-0)}
+.txf-modebar button{border:0;background:none;padding:7px 22px;font-size:var(--fs-13);
+  color:var(--ink-3);cursor:pointer;white-space:nowrap}
+.txf-modebar button:hover{background:var(--surface-1);color:var(--ink-2)}
+.txf-modebar button.is-on{background:var(--ink-1);color:var(--surface-0);font-weight:600}
+.txf-modebar button.is-on:hover{background:var(--ink-1)}
+
+/* ── כותרת קטע עם זהות משפחה ── */
+.txf-secthead-fam{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.txf-sect-cat{width:8px;height:8px;border-radius:2px;flex:none;background:var(--fam);opacity:.9}
+.txf-secthead-fam.is-auth{--fam:var(--fam-auth)} .txf-secthead-fam.is-income{--fam:var(--fam-inc)}
+.txf-secthead-fam.is-family{--fam:var(--fam-fam)} .txf-secthead-fam.is-assets{--fam:var(--fam-ast)}
+.txf-secthead-fam.is-deductions{--fam:var(--fam-ded)} .txf-secthead-fam.is-foreign{--fam:var(--fam-for)}
+.txf-sect-nm{font-size:var(--fs-12);font-weight:600;color:var(--ink-2);letter-spacing:-.01em}
+/* ‼ ה"למה" — במשקל נמוך, אבל קיים. הוא מה שהופך רשימת שדות לקבוצת-מס. */
+.txf-sect-why{font-size:var(--fs-11);color:var(--ink-4)}
+.txf-sect-sp{flex:1}
+/* ‼ «עריכה» היה טקסט זעיר שאיש לא ראה. עכשיו כפתור-רפאים מרוסן: ניכר
+   בסריקה, ועדיין לא מתחרה בפעולה הראשית של הקטע. */
+.txf-sect-edit{border:1px solid var(--hairline-1);background:var(--surface-0);
+  color:var(--accent);font-size:var(--fs-11);border-radius:8px;padding:3px 12px;cursor:pointer}
+.txf-sect-edit:hover{background:var(--soft);border-color:var(--soft-bd)}
+
+/* ── הכניסות בתחתית — ראשית וברורה, משנית ומנוסחת נכון ── */
+.txf-details-entry{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin-top:26px;padding-top:16px;border-top:1px solid var(--hairline-2)}
+.txf-details-entry > span{font-size:var(--fs-11);color:var(--ink-4);flex:1;min-width:180px}
+
+@media (max-width:640px){
+  .txf-sect-why{display:none}
+  .txf-modebar{width:100%}
+  .txf-modebar button{flex:1;padding:8px 0}
+  .txf-details-entry > span{flex-basis:100%}
+}
