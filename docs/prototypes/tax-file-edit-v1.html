@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תיק מס — קריאה ועריכה · V1</title>
+<style>
+/* ─── בסיס ─────────────────────────────────────────────────────────────── */
+:root{
+  --bg:#f7f8fa; --card:#fff; --line:#e6e9ee; --line2:#f0f2f5;
+  --ink:#1c2333; --ink2:#4a5568; --muted:#7b8494; --faint:#a8b0bd;
+  --accent:#3556c4; --accent-soft:#eef2fd;
+  /* ── צבעי סטטוס — תמיד בצ'יפ עם אייקון, לעולם לא כפס-קטגוריה ── */
+  --ok:#2b8a3e; --ok-soft:#e8f5ec;
+  --warn:#c92a2a; --warn-soft:#fdeeee;
+  --med:#b35c00; --med-soft:#fdf3e6;
+  /* ── צבעי משפחות-מס — תמיד פס-שוליים/כותרת, לעולם לא צ'יפ-סטטוס ──
+     המשמעות: הצבע אומר "איזה סוג מידע מס זה", לא "טוב/רע". */
+  --c-auth:#4263eb;   --c-auth-soft:#edf1fd;   /* רשויות — תפעולי        */
+  --c-inc:#0b7a63;    --c-inc-soft:#e9f6f2;    /* הכנסות                  */
+  --c-fam:#7048e8;    --c-fam-soft:#f2eefc;    /* משפחה ← נקודות זיכוי   */
+  --c-ast:#0f7fa8;    --c-ast-soft:#e9f5fa;    /* נכסים והון              */
+  --c-ded:#8a6116;    --c-ded-soft:#f8f2e4;    /* הפקדות וניכויים         */
+  --c-for:#c2255c;    --c-for-soft:#fceef3;    /* חו"ל ומצבים מיוחדים    */
+}
+*{box-sizing:border-box;margin:0}
+body{font:14px/1.55 -apple-system,'Segoe UI',Rubik,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+button{font:inherit;cursor:pointer}
+input,select{font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+input:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.wrap{max-width:860px;margin:0 auto;padding:18px 16px 80px}
+
+/* ─── סרגל התרחישים (של האב-טיפוס בלבד) ── */
+.demo{position:sticky;top:0;z-index:50;background:#1c2333;color:#dfe4ee;display:flex;gap:8px;align-items:center;
+  padding:8px 14px;font-size:12px}
+.demo b{color:#fff}
+.demo button{background:#2c3651;border:1px solid #45507a;color:#dfe4ee;border-radius:8px;padding:4px 12px;font-size:12px}
+.demo button.on{background:#fff;color:#1c2333;border-color:#fff;font-weight:600}
+.demo .sp{flex:1}
+
+/* ─── כותרת התיק ── */
+.head{display:flex;align-items:baseline;gap:12px;margin:6px 0 2px}
+.head h1{font-size:20px}
+.head .sub{font-size:12px;color:var(--muted)}
+.modebar{display:flex;gap:0;margin:12px 0 16px;border:1px solid var(--line);border-radius:10px;overflow:hidden;width:fit-content;background:#fff}
+.modebar button{border:0;background:#fff;padding:7px 22px;font-size:13px;color:var(--muted)}
+.modebar button.on{background:var(--ink);color:#fff;font-weight:600}
+
+/* ─── משפט + מוכנות ── */
+.sentence{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:10px}
+.ready{display:flex;gap:8px;align-items:baseline;font-size:12px;border-radius:10px;padding:8px 14px;margin-bottom:8px}
+.ready.ok{background:var(--ok-soft);color:var(--ok)}
+.ready.gaps{background:#fff;border:1px solid var(--line);color:var(--muted)}
+.ready.gaps b{color:var(--ink)}
+
+/* ─── קטע במצב קריאה — עם זהות-משפחה ── */
+.sect{margin-top:18px}
+.sect-h{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.sect-h .cat{width:9px;height:9px;border-radius:3px;flex:none}
+.sect-h .nm{font-size:13px;font-weight:700}
+.sect-h .why{font-size:11px;color:var(--faint)}
+.sect-h .sp{flex:1}
+.sect-h .editlnk{border:0;background:none;color:var(--accent);font-size:12px;padding:0}
+.sect-h .editlnk:hover{text-decoration:underline}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.card.acc{border-inline-start:3px solid var(--cc,var(--line))}
+.row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--line2);cursor:pointer}
+.row:first-child{border-top:0}
+.row .nm{font-weight:600;min-width:96px}
+.row .sum{flex:1;color:var(--ink2);font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row .chev{color:var(--faint);font-size:11px}
+.row-body{padding:4px 14px 12px;border-top:1px dashed var(--line2);background:#fcfcfd;display:none}
+.row.open + .row-body{display:block}
+.kv{display:grid;grid-template-columns:170px 1fr;gap:3px 14px;font-size:12.5px;padding:8px 0}
+.kv .k{color:var(--muted)}
+.src{font-size:11px;color:var(--faint);border-top:1px dashed var(--line2);padding-top:7px;display:flex;gap:10px;align-items:center}
+.src button{border:0;background:none;color:var(--accent);font-size:11px;padding:0}
+
+/* ─── צ'יפי מצב — צורה אחידה: אייקון + מילה. לא צבע-משפחה. ── */
+.chip{font-size:11px;border-radius:999px;padding:1px 9px;white-space:nowrap}
+.chip.unknown{background:#f1f3f6;color:var(--muted);font-style:italic}
+.chip.none{background:#f1f3f6;color:var(--ink2)}
+.chip.stale{background:var(--med-soft);color:var(--med)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.calc{background:var(--accent-soft);color:var(--accent)}
+.chip.srcchip{background:#f1f3f6;color:var(--muted)}
+
+/* ─── דורש טיפול ── */
+.att{display:flex;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line2)}
+.att:first-child{border-top:0}
+.att .dot{width:7px;height:7px;border-radius:50%;flex:none}
+.att .t{flex:1}
+.att .t b{display:block;font-size:13px}
+.att .t span{font-size:11.5px;color:var(--muted)}
+.att button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px;font-size:12px}
+
+/* ─── מצב עריכה ── */
+.legend{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 14px}
+.legend span{font-size:11px;border-radius:999px;padding:3px 11px;border:1px solid transparent}
+.fam{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:12px;overflow:hidden;
+  border-inline-start:4px solid var(--cc)}
+.fam-h{display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;background:
+  linear-gradient(to left,var(--ccsoft),#fff 55%)}
+.fam-h .nm{font-weight:700;font-size:14.5px}
+.fam-h .why{font-size:11.5px;color:var(--muted)}
+.fam-h .sp{flex:1}
+.fam-h .mini{font-size:12px;color:var(--ink2)}
+.fam-h .chev{color:var(--faint)}
+.fam-b{display:none;border-top:1px solid var(--line2)}
+.fam.open .fam-b{display:block}
+.sub{border-top:1px solid var(--line2)}
+.sub:first-child{border-top:0}
+.sub-h{display:flex;gap:10px;align-items:center;padding:9px 16px;cursor:pointer}
+.sub-h .nm{font-weight:600;font-size:13px;min-width:130px}
+.sub-h .sum{flex:1;font-size:12.5px;color:var(--ink2);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sub-h .chev{font-size:10px;color:var(--faint)}
+.sub-b{display:none;padding:4px 16px 14px;background:#fcfcfd;border-top:1px dashed var(--line2)}
+.sub.open .sub-b{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 14px;padding-top:10px}
+.fld label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:3px}
+.fld input,.fld select{width:100%}
+.fld .note{font-size:10.5px;color:var(--faint);margin-top:2px}
+.fld.affects label::after{content:'★';color:var(--c-fam);margin-inline-start:4px;font-size:10px}
+.subnote{font-size:11.5px;color:var(--muted);background:#f6f8fa;border-radius:8px;padding:8px 11px;margin-top:10px}
+.subnote.warn{background:var(--warn-soft);color:var(--warn)}
+.authnote{display:flex;gap:8px;align-items:center;font-size:11.5px;color:var(--muted);margin-top:10px;
+  border-top:1px dashed var(--line2);padding-top:8px}
+.authnote button{border:0;background:none;color:var(--accent);font-size:11.5px;padding:0}
+.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:6px 14px;font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.ghost{border-color:transparent;color:var(--accent)}
+
+/* ─── פאנל נקודות זיכוי ── */
+.cred{background:linear-gradient(to left,var(--c-fam-soft),#fff 65%);border:1px solid var(--line);
+  border-radius:12px;padding:12px 16px;margin:10px 16px 14px}
+.cred h4{font-size:13px;color:var(--c-fam);margin-bottom:6px}
+.cred table{width:100%;border-collapse:collapse;font-size:12.5px}
+.cred td{padding:3px 0;border-top:1px dashed var(--line2)}
+.cred tr:first-child td{border-top:0}
+.cred td:last-child{text-align:left;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cred .tot td{font-weight:700;border-top:1px solid var(--line)}
+.cred .off td{color:var(--faint);text-decoration:line-through}
+.cred .why{font-size:11px;color:var(--muted)}
+
+/* ─── מובייל ── */
+@media (max-width:640px){
+  .kv{grid-template-columns:1fr}
+  .kv .k{margin-top:5px}
+  .row .nm{min-width:0}
+  .sub-h{flex-wrap:wrap}
+  .sub-h .nm{min-width:0}
+  .fam-h .why{display:none}
+  .grid{grid-template-columns:1fr}
+  .att{flex-wrap:wrap}
+  .att button{margin-inline-start:17px}
+  .sect-h .why{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="demo">
+  <b>אב-טיפוס · תיק מס — קריאה ↔ עריכה</b>
+  <span class="sp"></span>
+  תרחיש:
+  <button id="scComplex" class="on" onclick="setScenario('complex')">יעל — מורכבת</button>
+  <button id="scSparse" onclick="setScenario('sparse')">דנה — דלה</button>
+</div>
+
+<div class="wrap">
+  <div class="head">
+    <h1>תיק מס</h1>
+    <span class="sub" id="clientName">יעל ברק · ת.ז. 027455811</span>
+  </div>
+
+  <div class="modebar">
+    <button id="mRead" class="on" onclick="setMode('read')">קריאה</button>
+    <button id="mEdit" onclick="setMode('edit')">עריכה מלאה</button>
+  </div>
+
+  <!-- ═══════════════ מצב קריאה ═══════════════ -->
+  <div id="readView"></div>
+
+  <!-- ═══════════════ מצב עריכה ═══════════════ -->
+  <div id="editView" style="display:none">
+    <div class="legend" aria-hidden="true">
+      <span style="background:var(--c-auth-soft);color:var(--c-auth)">רשויות — תפעולי</span>
+      <span style="background:var(--c-inc-soft);color:var(--c-inc)">הכנסות</span>
+      <span style="background:var(--c-fam-soft);color:var(--c-fam)">משפחה ← נק׳ זיכוי</span>
+      <span style="background:var(--c-ast-soft);color:var(--c-ast)">נכסים והון</span>
+      <span style="background:var(--c-ded-soft);color:var(--c-ded)">הפקדות וניכויים</span>
+      <span style="background:var(--c-for-soft);color:var(--c-for)">חו"ל ומיוחדים</span>
+    </div>
+    <div id="editFams"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn primary" onclick="setMode('read')">שמור וחזור לתיק</button>
+      <button class="btn" onclick="setMode('read')">חזרה בלי שמירה</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════ נתוני שני התרחישים ════════ */
+const YAEL = {
+  name:'יעל ברק · ת.ז. 027455811',
+  sentence:'עוסקת מורשה (אדריכלות ועיצוב פנים), נשואה + 2. הכנסות: עסק, משכורת, שכירות, שוק ההון. מקדמות מס הכנסה 12%.',
+  ready:{ok:true},
+  atts:[
+    {tone:'var(--warn)',t:'אין אישור ניכוי מס במקור בתוקף',s:'לקוחות שמשלמים לה ינכו מס מלא. לטפל מול פקיד השומה.',btn:'פתח משימה'},
+    {tone:'var(--med)', t:'דרישת הצהרת הון פתוחה — להגשה עד 31.1.2027',s:'איסוף מסמכים מהלקוחה — כדאי להתחיל מוקדם.',btn:'בקש מסמכים מהלקוחה'},
+  ],
+  auth:[
+    {nm:'מס הכנסה',sum:'מקדמות 12% · דו-חודשי · אין יתרה',exc:{c:'warn',t:'⚠ אין אישור ניכוי במקור'},
+     kv:[['מספר תיק','027455811'],['פקיד שומה · חוליה','חיפה · 5'],['מקדמות','12% · דו-חודשי'],['יתרה','אין יתרה'],
+         ['ניכוי במקור','אין אישור תקף'],['ניהול ספרים','תקין'],['הצהרת הון','דרישה פתוחה · עד 31.01.2027'],['ייצוג','פעיל']]},
+    {nm:'מע״מ',sum:'עוסקת מורשה · דיווח דו-חודשי · דוח אחרון 06/2026',exc:null,
+     kv:[['מספר עוסק','027455811'],['תדירות','דו-חודשי'],['דוח אחרון','06/2026'],['יתרה','אין'],['הרשאה לחיוב','קיימת']]},
+    {nm:'ביטוח לאומי',sum:'מקדמה 2,940 ₪ · אין יתרה',exc:null,
+     kv:[['מקדמה חודשית','2,940 ₪'],['בסיס הכנסה','24,500 ₪ לחודש'],['עיסוק','עצמאית + שכירה']]},
+  ],
+  read:[
+    {fam:'inc',rows:[
+      {nm:'עסק',sum:'סטודיו ברק · מחזור ₪890,000',kv:[['תיאור','אדריכלות ועיצוב פנים'],['מחזור 2025','890,000 ₪ · פייפרלס'],['נתוני הנהלה','התקבלו ✓']],src:'מחזור והוצאות — פייפרלס. כאן רק סימון הקבלה.'},
+      {nm:'שכר',sum:'הטכניון · ₪84,000 לשנה',kv:[['מעסיקה','הטכניון · מרצה אורחת'],['ברוטו שנתי','84,000 ₪']],src:'כרטיס הלקוח'},
+      {nm:'שכירות',sum:'₪72,000 לשנה · מסלול 10%',kv:[['נכס','הנשיא 12, חיפה'],['שכ״ד','6,000 ₪/חודש'],['מסלול','10% על המחזור'],['הוצאות על הנכס','לא רלוונטי במסלול 10%']],src:'שאלון · 08.2026'},
+      {nm:'שוק ההון',sum:'2 תיקים · רווח הון ₪18,500 · דיבידנד ₪6,200',kv:[['תיקים','אקסלנס · מיטב'],['רווחי הון','18,500 ₪'],['דיבידנד וריבית','6,200 ₪']],src:'שאלון · 08.2026'},
+    ]},
+    {fam:'fam',rows:[
+      {nm:'משפחה',sum:'נשואה · עמית (עצמאי) · 2 ילדים',kv:[['בן הזוג','עמית ברק · עצמאי'],['ילדים','2016, 2019'],['מזונות','אין']],src:'כרטיס הלקוח'},
+      {nm:'זיכויים',sum:'7.25 נק׳ — ילדים (4.00) + תושבות (2.75) + מילואים (0.5)',chip:{c:'calc',t:'מחושב'},kv:[['תושבת ישראל','2.25'],['תוספת לאישה','0.5'],['ילדים','4.00'],['לוחמת מילואים · 32 ימים','0.5'],['סה״כ','7.25 נק׳ · ₪21,054']],src:'מחושב חי מהתיק · 2026'},
+    ]},
+    {fam:'ast',rows:[
+      {nm:'נדל״ן',sum:'2 נכסים · אחד מושכר',kv:[['מגורים','רמת אלמוגי 8, חיפה'],['מושכר','הנשיא 12, חיפה']],src:'כרטיס הלקוח'},
+      {nm:'קריפטו',sum:'ארנק Kraken · מדווח ברווחי ההון',kv:[['ארנק','Kraken'],['מיסוי','רווחי הון 25%']],src:'שאלון · 08.2026'},
+      {nm:'חשבונות בנק',sum:'2 · לאומי (ראשי להחזרים)',kv:[['לאומי 902','ראשי'],['דיסקונט 10','עו״ש']],src:'כרטיס הלקוח'},
+    ]},
+    {fam:'ded',rows:[
+      {nm:'פנסיה והשתלמות',sum:'3 קופות · הפקדה כעצמאית ₪18,800',kv:[['פנסיה','מנורה'],['השתלמות עצמאית','אלטשולר · 18,800 ₪/שנה'],['ניכוי סעיף 47','נגזר בחישוב']],src:'שאלון · 08.2026'},
+      {nm:'ביטוחים',sum:'חיים ₪4,200 · אכ״ע ₪3,100',kv:[['ביטוח חיים','4,200 ₪/שנה'],['אובדן כושר','3,100 ₪/שנה']],src:'שאלון · 08.2026'},
+      {nm:'תרומות',sum:'₪4,800 · סעיף 46',kv:[['תרומות 2026','4,800 ₪'],['קבלות','3 מוסדות מוכרים']],src:'שאלון · 08.2026'},
+    ]},
+    {fam:'for',rows:[
+      {nm:'חו״ל',sum:'חשבון מסחר בארה״ב · אזרחות אמריקאית',kv:[['חשבון','Charles Schwab'],['אזרחות נוספת','ארה״ב'],['מס זר ששולם','2,100 ₪'],['חובת דיווח','נכסי חוץ בדוח']],src:'שאלון · 08.2026'},
+      {nm:'מצבים מיוחדים',sum:'אין — נבדק',chip:{c:'none',t:'אין · נבדק'},kv:[['חברה משפחתית','לא'],['בעלת מניות מהותית','לא'],['קיבוץ','לא']],src:'שאלון · 08.2026'},
+    ]},
+  ],
+};
+
+const DANA = {
+  name:'דנה שגב · ת.ז. 034889210',
+  sentence:'שכירה, רווקה. הכנסות: משכורת.',
+  ready:{ok:false,unknown:['שוק ההון','קריפטו','נדל״ן','שכירות','פעילות בחו״ל','תרומות','מילואים']},
+  atts:[],
+  auth:[
+    {nm:'מס הכנסה',sum:'אין יתרה',exc:null,kv:[['מספר תיק','034889210'],['יתרה','אין']]},
+  ],
+  read:[
+    {fam:'inc',rows:[
+      {nm:'שכר',sum:'בית חולים רמב״ם · ₪156,000 לשנה',kv:[['מעסיק','רמב״ם'],['ברוטו שנתי','156,000 ₪']],src:'כרטיס הלקוח'},
+      {nm:'שכירות',sum:'',chip:{c:'unknown',t:'טרם ביררנו ?'},kv:[['מה חסר','הכנסות משכירות ומסלול המיסוי']],src:'ישאל בשאלון סטטוס מס'},
+    ]},
+    {fam:'fam',rows:[
+      {nm:'זיכויים',sum:'2.75 נק׳ — תושבות (2.25) + אישה (0.5)',chip:{c:'calc',t:'מחושב'},kv:[['תושבת ישראל','2.25'],['תוספת לאישה','0.5']],src:'מחושב חי · 2026'},
+      {nm:'מילואים',sum:'',chip:{c:'unknown',t:'טרם ביררנו ?'},kv:[['מה חסר','ימי מילואים כלוחמת — מזכה בנק׳ זיכוי']],src:'ישאל בשאלון'},
+    ]},
+    {fam:'ast',rows:[
+      {nm:'שוק ההון',sum:'',chip:{c:'unknown',t:'טרם ביררנו ?'},kv:[['מה חסר','תיקי השקעות · אישורי 867']],src:'ישאל בשאלון'},
+      {nm:'קריפטו',sum:'',chip:{c:'unknown',t:'טרם ביררנו ?'},kv:[['מה חסר','החזקה ומכירות']],src:'ישאל בשאלון'},
+      {nm:'נדל״ן',sum:'',chip:{c:'unknown',t:'טרם ביררנו ?'},kv:[['מה חסר','בעלות על נכסים']],src:'ישאל בשאלון'},
+    ]},
+    {fam:'ded',rows:[
+      {nm:'פנסיה',sum:'קיימת · אין — נבדק ב-08.26 לגבי השתלמות',chip:{c:'stale',t:'⏱ נבדק לפני שנה'},kv:[['פנסיה','קיימת'],['השתלמות','אין · 08.2025']],src:'שאלון · 08.2025'},
+      {nm:'תרומות',sum:'',chip:{c:'unknown',t:'טרם ביררנו ?'},kv:[['מה חסר','תרומות מוכרות סעיף 46']],src:'ישאל בשאלון'},
+    ]},
+    {fam:'for',rows:[
+      {nm:'חו״ל',sum:'',chip:{c:'unknown',t:'טרם ביררנו ?'},kv:[['מה חסר','נכסים או הכנסות מחוץ לישראל']],src:'ישאל בשאלון'},
+    ]},
+  ],
+};
+
+/* ════════ מילון המשפחות ════════ */
+const FAMS = {
+  auth:{nm:'זהות ומצב מול הרשויות', why:'עובדות תפעוליות — תיקים, מקדמות, יתרות, אישורים', c:'var(--c-auth)', soft:'var(--c-auth-soft)'},
+  inc: {nm:'הכנסות',                why:'מה נכנס — עסק, שכר, שכירות, הון', c:'var(--c-inc)', soft:'var(--c-inc-soft)'},
+  fam: {nm:'משפחה, זכאות ונקודות זיכוי', why:'עובדות שמשנות נקודות זיכוי ★', c:'var(--c-fam)', soft:'var(--c-fam-soft)'},
+  ast: {nm:'נכסים, השקעות והון',   why:'נדל״ן, תיקים, קריפטו, בנקים', c:'var(--c-ast)', soft:'var(--c-ast-soft)'},
+  ded: {nm:'הפקדות, ביטוחים וניכויים', why:'מה שמקטין את המס — פנסיה, ביטוחים, תרומות', c:'var(--c-ded)', soft:'var(--c-ded-soft)'},
+  for: {nm:'חו״ל ומצבים מיוחדים',  why:'נכסי חוץ, מס זר, חברה משפחתית, בעלי שליטה', c:'var(--c-for)', soft:'var(--c-for-soft)'},
+};
+
+let scenario='complex', mode='read';
+const D=()=>scenario==='complex'?YAEL:DANA;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ════════ מצב קריאה ════════ */
+function chip(ch){ return ch?`<span class="chip ${ch.c}">${esc(ch.t)}</span>`:''; }
+
+function renderRead(){
+  const d=D();
+  document.getElementById('clientName').textContent=d.name;
+  let h=`<div class="sentence">${esc(d.sentence)}</div>`;
+  h+= d.ready.ok
+    ? `<div class="ready ok">✓ יש מספיק מידע להערכת מס.</div>`
+    : `<div class="ready gaps">להערכת מס אמינה — טרם ביררנו: <b>${d.ready.unknown.join(' · ')}</b></div>`;
+
+  if(d.atts.length){
+    h+=`<div class="sect"><div class="sect-h"><span class="nm">דורש טיפול · ${d.atts.length}</span></div><div class="card">`;
+    for(const a of d.atts) h+=`<div class="att"><span class="dot" style="background:${a.tone}"></span>
+      <span class="t"><b>${esc(a.t)}</b><span>${esc(a.s)}</span></span><button>${esc(a.btn)}</button></div>`;
+    h+=`</div></div>`;
+  }
+
+  /* מול הרשויות — אותה משפחה כחולה כמו בעריכה */
+  h+=`<div class="sect"><div class="sect-h">
+    <span class="cat" style="background:var(--c-auth)"></span><span class="nm">מול הרשויות</span>
+    <span class="why">עובדות תפעוליות · מתעדכן ביישור קו</span><span class="sp"></span>
+    <button class="editlnk" onclick="alert('בהדגמה: מפעיל יישור קו')">בצע יישור קו מחדש</button>
+    <button class="editlnk" onclick="openEdit('auth')">עריכה</button></div>
+    <div class="card acc" style="--cc:var(--c-auth)">`;
+  for(const a of d.auth){
+    h+=`<div class="row" onclick="this.classList.toggle('open')"><span class="nm">${esc(a.nm)}</span>
+      <span class="sum">${esc(a.sum)} ${a.exc?`<span class="chip ${a.exc.c}">${esc(a.exc.t)}</span>`:''}</span><span class="chev">◂</span></div>
+      <div class="row-body"><div class="kv">${a.kv.map(([k,v])=>`<div class="k">${esc(k)}</div><div>${esc(v)}</div>`).join('')}</div>
+      <div class="src"><span>מקור: יישור קו מול הרשויות · 19.08.2026</span></div></div>`;
+  }
+  h+=`</div></div>`;
+
+  /* תמונת המס — קבוצות עם זהות משפחה + עריכה */
+  for(const g of d.read){
+    const f=FAMS[g.fam];
+    h+=`<div class="sect"><div class="sect-h">
+      <span class="cat" style="background:${f.c}"></span><span class="nm">${esc(f.nm)}</span>
+      <span class="why">${esc(f.why)}</span><span class="sp"></span>
+      <button class="editlnk" onclick="openEdit('${g.fam}')">עריכה</button></div>
+      <div class="card acc" style="--cc:${f.c}">`;
+    for(const r of g.rows){
+      h+=`<div class="row" onclick="this.classList.toggle('open')"><span class="nm">${esc(r.nm)}</span>
+        <span class="sum">${esc(r.sum)} ${chip(r.chip)}</span><span class="chev">◂</span></div>
+        <div class="row-body"><div class="kv">${r.kv.map(([k,v])=>`<div class="k">${esc(k)}</div><div>${esc(v)}</div>`).join('')}</div>
+        <div class="src"><span>מקור: ${esc(r.src)}</span><button onclick="event.stopPropagation();openEdit('${g.fam}')">ערוך</button></div></div>`;
+    }
+    h+=`</div></div>`;
+  }
+  document.getElementById('readView').innerHTML=h;
+}
+
+/* ════════ מצב עריכה ════════ */
+/* נקודות זיכוי — דמו חי: שלושה מתגים משנים את הטבלה */
+const credState={reserve:true, degree:false, oleh:false};
+function credRows(){
+  const sparse=scenario==='sparse';
+  const rows=[
+    {t:'תושבת ישראל',b:'סעיף 34',p:2.25,on:true},
+    {t:'תוספת לאישה',b:'סעיף 36א',p:0.5,on:true},
+    ...(sparse?[]:[
+      {t:'ילד/ה 2016 · גיל 10',b:'סעיף 40',p:2,on:true},
+      {t:'ילד/ה 2019 · גיל 7',b:'סעיף 40',p:2,on:true},
+      {t:'לוחמת מילואים · 32 ימים',b:'סעיף 39ב',p:0.5,on:credState.reserve},
+    ]),
+    {t:'תואר אקדמי ראשון',b:'סעיף 40ג',p:1,on:credState.degree},
+    {t:'עולה חדשה (שנה 1)',b:'סעיף 35',p:3,on:credState.oleh},
+  ];
+  const tot=rows.filter(r=>r.on).reduce((s,r)=>s+r.p,0);
+  return {rows,tot};
+}
+function renderCred(){
+  const {rows,tot}=credRows();
+  const el=document.getElementById('credPanel'); if(!el) return;
+  el.innerHTML=`<h4>נקודות הזיכוי — מחושבות חי מהשדות שמסביב</h4>
+    <table>${rows.map(r=>`<tr class="${r.on?'':'off'}"><td>${esc(r.t)} <span class="why">· ${esc(r.b)}</span></td><td>${r.p.toFixed(2)}</td></tr>`).join('')}
+    <tr class="tot"><td>סה״כ</td><td>${tot.toFixed(2)} נק׳ · ₪${Math.round(tot*2904).toLocaleString('he-IL')}</td></tr></table>
+    <div class="why" style="margin-top:6px">כל שדה מסומן ★ במשפחה הזו משנה את הטבלה. שינוי — והסכום מתעדכן מיד.</div>`;
+}
+function tgl(k,v){ credState[k]=v; renderCred(); }
+
+function famCard(key,openIt,mini,body){
+  const f=FAMS[key];
+  return `<div class="fam ${openIt?'open':''}" id="fam-${key}" style="--cc:${f.c};--ccsoft:${f.soft}">
+    <div class="fam-h" onclick="this.parentElement.classList.toggle('open')">
+      <span class="nm" style="color:${f.c}">${esc(f.nm)}</span>
+      <span class="why">${esc(f.why)}</span><span class="sp"></span>
+      <span class="mini">${mini}</span><span class="chev">◂</span></div>
+    <div class="fam-b">${body}</div></div>`;
+}
+function subSec(nm,sum,openIt,body){
+  return `<div class="sub ${openIt?'open':''}"><div class="sub-h" onclick="this.parentElement.classList.toggle('open')">
+    <span class="nm">${esc(nm)}</span><span class="sum">${sum}</span><span class="chev">◂</span></div>
+    <div class="sub-b">${body}</div></div>`;
+}
+const fld=(l,v,{note='',affects=false,type='text'}={})=>
+  `<div class="fld ${affects?'affects':''}"><label>${esc(l)}</label><input type="${type}" value="${esc(v)}">${note?`<div class="note">${esc(note)}</div>`:''}</div>`;
+const sel=(l,opts,cur,{affects=false,note=''}={})=>
+  `<div class="fld ${affects?'affects':''}"><label>${esc(l)}</label><select>${opts.map(o=>`<option ${o===cur?'selected':''}>${esc(o)}</option>`).join('')}</select>${note?`<div class="note">${esc(note)}</div>`:''}</div>`;
+const chk=(l,on,extra='')=>
+  `<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;padding:4px 0"><input type="checkbox" ${on?'checked':''} ${extra} style="width:auto"> ${esc(l)}</label>`;
+
+function renderEdit(){
+  const sparse=scenario==='sparse';
+  document.getElementById('clientName').textContent=D().name;
+  const U='<span class="chip unknown">טרם ביררנו ?</span>';
+  let h='';
+
+  /* ─ 1 · רשויות ─ */
+  h+=famCard('auth', false,
+    sparse?'תיק מ״ה בלבד · השאר טרם':'3 תיקים פעילים · אישור ניכוי חסר',
+    subSec('פרטי נישום','ת.ז., לידה, קשר',false,
+      `<div class="grid">${fld('ת.ז.','027455811')+fld('תאריך לידה','12.04.1985')+fld('טלפון','050-2214467')+fld('אימייל','yael@example.com')}</div>`)
+    +subSec('תיקים ברשויות','מ״ה · מע״מ · ב״ל — על שם הלקוחה',false,
+      `<div class="grid">${sel('תיק מס הכנסה — על שם',['הלקוחה','בן/בת הזוג'],'הלקוחה')+fld('מספר תיק','027455811')+sel('ייצוג',['פעיל','בתהליך','אין'],'פעיל')}</div>
+       <div class="subnote">תיק מס הכנסה אחד לזוג. מע״מ, ניכויים וב״ל — לפי אדם.</div>`)
+    +subSec('מס הכנסה — תפעולי',
+      `מקדמות 12% · אין יתרה <span class="chip srcchip">יישור קו · 19.08</span>`,true,
+      `<div class="grid">
+        ${fld('שיעור מקדמות','12%',{note:'מקור: יישור קו · 19.08.2026'})}
+        ${sel('תדירות',['חודשי','דו-חודשי'],'דו-חודשי')}
+        ${fld('יתרה','0',{note:'חיובי = חוב'})}
+        ${sel('ניכוי במקור',['פטור','שיעורים','אין אישור תקף'],'אין אישור תקף',{note:'⚠ מניע דגל בתיק'})}
+        ${sel('ניהול ספרים',['תקין','נפסל','לא ידוע'],'תקין')}
+        ${sel('הצהרת הון',['אין דרישה','דרישה פתוחה'],'דרישה פתוחה')}
+      </div>
+      <div class="authnote">⟳ השדות האלה מגיעים מהרשויות. עריכה ידנית נרשמת כדריסה —
+        <button onclick="alert('בהדגמה: מפעיל יישור קו')">בצע יישור קו במקום</button></div>`)
+    +subSec('מע״מ — תפעולי',`דו-חודשי · דוח אחרון 06/2026 <span class="chip srcchip">יישור קו</span>`,false,
+      `<div class="grid">${sel('סיווג',['עוסקת מורשה','עוסקת פטורה','אין'],'עוסקת מורשה')+fld('דוח אחרון','06/2026')+fld('יתרה','0')}</div>`)
+    +subSec('ביטוח לאומי — תפעולי',`מקדמה 2,940 ₪ <span class="chip srcchip">יישור קו</span>`,false,
+      `<div class="grid">${fld('מקדמה חודשית','2,940')+fld('בסיס הכנסה חודשי','24,500')+sel('סוג',['עצמאית','שכירה','שתיהן'],'שתיהן')}</div>`)
+  );
+
+  /* ─ 2 · הכנסות ─ */
+  h+=famCard('inc', false,
+    sparse?'שכר בלבד · שכירות טרם':'עסק · שכר · שכירות · הון',
+    subSec('עסק',sparse?U:'סטודיו ברק · נתוני הנהלה התקבלו',false,
+      `<div class="grid">${fld('שם העסק','סטודיו ברק')+fld('תיאור','אדריכלות ועיצוב פנים')+sel('נתוני הנהלת חשבונות',['התקבלו','ממתינים','לא רלוונטי'],'התקבלו')}</div>
+       <div class="subnote">מחזור, הוצאות מוכרות ורווח — <b>בפייפרלס</b>, לא כאן. כאן רק סימון שהנתונים בידינו.</div>`)
+    +subSec('מעסיקים',sparse?'רמב״ם · ₪156,000':'הטכניון · ₪84,000',false,
+      `<div class="grid">${fld('מעסיק','הטכניון')+fld('ברוטו שנתי (106)','84,000')+fld('הפרשה לפנסיה %','6')}</div>`)
+    +subSec('שכירות',sparse?U:'₪72,000 · מסלול 10%',!sparse,
+      `<div class="grid">
+        ${fld('הכנסה שנתית','72,000',{note:'נגזר מהנכס המושכר'})}
+        ${sel('מסלול מיסוי',['פטור','10% על המחזור','מסלול רגיל'],'10% על המחזור')}
+        ${fld('הוצאות על הנכס','—',{note:'רלוונטי רק במסלול רגיל'})}
+      </div>`)
+    +subSec('שוק ההון והכנסות אחרות',sparse?U:'רווח הון ₪18,500 · דיבידנד ₪6,200',false,
+      `<div class="grid">${fld('רווחי הון','18,500')+fld('דיבידנד וריבית','6,200')+fld('הכנסה אחרת','0',{note:'שאינה עסק/שכר/שכירות/הון'})+fld('הימורים והגרלות','0')}</div>`)
+  );
+
+  /* ─ 3 · משפחה ← נקודות זיכוי ─ */
+  h+=famCard('fam', true,
+    sparse?'רווקה · 2.75 נק׳':'נשואה + 2 · 7.25 נק׳',
+    `<div class="cred" id="credPanel"></div>`
+    +subSec('מצב משפחתי ובן/בת זוג',sparse?'רווקה':'נשואה · עמית — עצמאי',true,
+      `<div class="grid">
+        ${sel('מצב משפחתי',['רווקה','נשואה','גרושה','אלמנה','הורה עצמאי'],'נשואה',{affects:true})}
+        ${fld('בן/בת הזוג','עמית ברק')}
+        ${sel('תעסוקת בן/בת הזוג',['עובד/ת','ללא הכנסה'],'עובד/ת',{affects:true,note:'«ללא הכנסה» עשוי לזכות בנק׳ (סעיף 37)'})}
+        ${sel('מזונות',['אין','משלמת לגרוש','משתתפת בכלכלת ילדים'],'אין',{affects:true})}
+      </div>`)
+    +subSec('ילדים',sparse?'אין':'2 · שנתונים 2016, 2019',false,
+      `<div class="grid">${fld('שנת לידה','2016',{affects:true})+fld('שנת לידה','2019',{affects:true})}</div>
+       ${chk('פעוט/ה עם מוגבלות (נק׳ נוספות)',false)}`)
+    +subSec('שירות, מילואים ולימודים',sparse?U+' — מילואים טרם נשאל':'צה״ל 2007 · 32 ימי מילואים · בלי תואר',true,
+      `<div class="grid">
+        ${sel('שירות',['צה״ל','שירות לאומי','לא'],'צה״ל',{affects:true})}
+        ${fld('שנת שחרור','2007',{affects:true})}
+        ${fld('ימי מילואים כלוחמת (שנה קודמת)','32',{affects:true,note:'סעיף 39ב · מ-2026',type:'number'})}
+      </div>
+      ${chk('★ ימי המילואים נספרים בזיכוי',credState.reserve,`onchange="tgl('reserve',this.checked)"`)}
+      ${chk('★ תואר אקדמי (שנה לאחר סיום)',credState.degree,`onchange="tgl('degree',this.checked)"`)}`)
+    +subSec('עלייה, תושבות ויישוב','תושבת ותיקה · חיפה — לא מזכה',false,
+      `<div class="grid">
+        ${sel('סטטוס',['תושבת ותיקה','עולה חדשה','תושבת חוזרת'],'תושבת ותיקה',{affects:true})}
+        ${fld('יישוב מזכה','— אין',{affects:true,note:'חיפוש מרשימת היישובים'})}
+      </div>
+      ${chk('★ עולה חדשה — שנה ראשונה',credState.oleh,`onchange="tgl('oleh',this.checked)"`)}`)
+    +subSec('נכות ותלויים','אין — נבדק',false,
+      `<div class="grid">${fld('אחוז נכות','0',{affects:true,note:'90%+ ⇒ מועמדות לפטור 9(5)'})}</div>`)
+  );
+
+  /* ─ 4 · נכסים והון ─ */
+  h+=famCard('ast', false,
+    sparse?'הכול טרם בירור':'2 נכסים · 2 תיקים · קריפטו',
+    subSec('נדל״ן',sparse?U:'2 נכסים · אחד מושכר',false,
+      `<div class="grid">${fld('כתובת','רמת אלמוגי 8, חיפה')+sel('שימוש',['מגורים','מושכר'],'מגורים')}</div>
+       <div class="grid">${fld('כתובת','הנשיא 12, חיפה')+sel('שימוש',['מגורים','מושכר'],'מושכר')+fld('שכ״ד חודשי','6,000')}</div>
+       <div class="subnote">נכס מושכר מזין את שורת «שכירות» בהכנסות — מקום אחד לנתון.</div>`)
+    +subSec('תיקי השקעות',sparse?U:'אקסלנס · מיטב',false,
+      `<div class="grid">${fld('בית השקעות','אקסלנס')+fld('בית השקעות','מיטב')}</div>`)
+    +subSec('קריפטו',sparse?U:'ארנק Kraken',false,
+      `<div class="grid">${fld('זירה / ארנק','Kraken')}</div>
+       <div class="subnote">החזקה אינה אירוע מס — רק מכירה. המכירות מדווחות ברווחי ההון.</div>`)
+    +subSec('חשבונות בנק ובעלי עניין','לאומי (ראשי) · דיסקונט',false,
+      `<div class="grid">${fld('בנק ראשי להחזרים','לאומי 902')}</div>
+       ${chk('בעלת מניות מהותית (10%+)',false)}`)
+  );
+
+  /* ─ 5 · הפקדות וניכויים ─ */
+  h+=famCard('ded', false,
+    sparse?'פנסיה ⏱ · השאר טרם':'3 קופות · ביטוחים · תרומות',
+    subSec('פנסיה וגמל',sparse?'קיימת ⏱ 08.2025':'מנורה · הפקדה כעצמאית ₪18,800',false,
+      `<div class="grid">${fld('קופה','מנורה מבטחים')+fld('הפקדה שנתית כעצמאית','18,800',{note:'ניכוי אישי סעיף 47'})}</div>`)
+    +subSec('קרן השתלמות',sparse?U:'אלטשולר · כעצמאית',false,
+      `<div class="grid">${fld('קרן','אלטשולר שחם')+fld('הפקדה שנתית כעצמאית','12,700')}</div>`)
+    +subSec('ביטוחים',sparse?U:'חיים ₪4,200 · אכ״ע ₪3,100',false,
+      `<div class="grid">${fld('ביטוח חיים — שנתי','4,200')+fld('אובדן כושר עבודה — שנתי','3,100')}</div>`)
+    +subSec('תרומות',sparse?U:'₪4,800 · סעיף 46',false,
+      `<div class="grid">${fld('תרומות מוכרות — שנתי','4,800',{note:'מינ׳ 207 ₪ · זיכוי 35%'})}</div>`)
+  );
+
+  /* ─ 6 · חו"ל ומיוחדים ─ */
+  h+=famCard('for', false,
+    sparse?'טרם בירור':'חשבון ארה״ב · אזרחות · מס זר',
+    subSec('נכסים והכנסות בחו״ל',sparse?U:'Charles Schwab · ארה״ב',false,
+      `<div class="grid">${fld('מוסד','Charles Schwab')+fld('מדינה','ארה״ב')+fld('הכנסה שנתית מחו״ל','0')+fld('מס זר ששולם','2,100',{note:'לזיכוי מס זר'})}</div>`)
+    +subSec('אזרחות ותושבות זרה',sparse?U:'אזרחות אמריקאית',false,
+      `${chk('אזרחות נוספת',true)}<div class="subnote">אזרחות אמריקאית + חשבונות חוץ ⇒ דיווחי FATCA/CRS.</div>`)
+    +subSec('מבנים מיוחדים','אין — נבדק',false,
+      `${chk('חברה משפחתית',false)}${chk('חברת בית',false)}${chk('קיבוץ / מושב שיתופי',false)}${chk('בעלת שליטה בחבר-בני-אדם זר',false)}${chk('עסקאות עם צדדים קשורים בחו״ל',false)}`)
+  );
+
+  document.getElementById('editFams').innerHTML=h;
+  renderCred();
+}
+
+/* ════════ ניווט ════════ */
+function setMode(m){
+  mode=m;
+  document.getElementById('mRead').classList.toggle('on',m==='read');
+  document.getElementById('mEdit').classList.toggle('on',m==='edit');
+  document.getElementById('readView').style.display=m==='read'?'':'none';
+  document.getElementById('editView').style.display=m==='edit'?'':'none';
+  if(m==='edit') renderEdit(); else renderRead();
+  window.scrollTo({top:0});
+}
+function openEdit(fam){
+  setMode('edit');
+  document.querySelectorAll('.fam').forEach(f=>f.classList.remove('open'));
+  const el=document.getElementById('fam-'+fam);
+  if(el){ el.classList.add('open'); el.scrollIntoView({block:'start',behavior:'smooth'}); }
+}
+function setScenario(s){
+  scenario=s;
+  document.getElementById('scComplex').classList.toggle('on',s==='complex');
+  document.getElementById('scSparse').classList.toggle('on',s==='sparse');
+  setMode(mode);
+}
+renderRead();
+</script>
+</body>
+</html>

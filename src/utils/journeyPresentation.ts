@@ -37,7 +37,7 @@ export type NextActionTone = 'urgent' | 'normal' | 'calm';
 export interface NextActionButton {
   label: string;
   kind: 'primary' | 'secondary' | 'ghost';
-  action: 'newQuotation' | 'openQuotation' | 'openTask' | 'openYear' | 'editLead' | 'openRepresentation' | 'gotoTasks';
+  action: 'newQuotation' | 'openQuotation' | 'openTask' | 'openYear' | 'editLead' | 'openRepresentation' | 'startRepresentation' | 'gotoTasks';
   taskId?: string;
   taxYear?: number;
   quotationId?: string;
@@ -209,6 +209,21 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
       detail: representationPending,
       tone: 'normal',
       buttons: [{ label: 'מרכז הייצוג', kind: 'secondary', action: 'openRepresentation' }],
+    };
+  }
+  /**
+   * ‼ (156) לקוח פעיל בלי שום בקשת ייצוג היה נופל בשקט ל"הכול מסודר" —
+   * בדיוק ההפך ממה שההערה למעלה מתכוונת. אין כאן ייצוג "בתהליך" (representationPending
+   * דורש representationStatus קיים), אז זו קטגוריה נפרדת: ייצוג שמעולם לא
+   * התחיל. stage === 'active' בלבד — לקוח בארכיון לא מקבל הצעה יזומה, וליד/
+   * הצעה/קליטה כבר מטופלים למעלה.
+   */
+  if (stage === 'active' && !client.representationStatus) {
+    return {
+      headline: `לפתוח ייצוג ל${name}`,
+      detail: 'עוד לא נפתחה בקשת ייצוג ללקוח/ה הזה/הזאת.',
+      tone: 'normal',
+      buttons: [{ label: 'התחלת ייצוג', kind: 'primary', action: 'startRepresentation' }],
     };
   }
   if (openRequests.length > 0) {

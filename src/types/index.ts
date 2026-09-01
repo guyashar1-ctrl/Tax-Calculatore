@@ -796,6 +796,12 @@ export interface Client {
   foreignIncomeAnnual?: number;
   /** ימי מילואים כלוחם בשנה הקודמת — סעיף 39ב, מ-2026. מזין את creditPoints. */
   reserveCombatDaysPrevYear?: number;
+  /**
+   * זכאות לנקודה בגין בן/בת זוג ללא הכנסה — סעיף 37 (153).
+   * ‼ אינו נגזר מ-spouseWorking: הסעיף דורש גם שאחד מבני הזוג הגיע לגיל
+   * פרישה או שהוא עיוור/נכה. undefined = טרם נקבע, ולא «לא זכאי».
+   */
+  spouseNoIncomeEligible?: boolean;
   /** עוגן ידיעה לקריפטו. הפירוט חי ב-investmentAccounts (ישראל) וב-foreignAccounts (חו״ל). */
   hasCrypto?: boolean;
   /**

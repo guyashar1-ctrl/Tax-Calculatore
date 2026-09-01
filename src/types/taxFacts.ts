@@ -90,6 +90,11 @@ export const GOVERNED_FACT_KEYS: ReadonlySet<string> = new Set([
   'foreignTaxPaid', 'hasForeignIncome', 'foreignIncomeAnnual',
   'reserveCombatDaysPrevYear', 'hasCrypto', 'businessDataStatus',
   'hasRentalIncome', 'hasKrenHashtalmut', 'hasDisabilityInsurance', 'hasMedicalInsurance',
+  // ── 153 — מה שחוויית העריכה המלאה כותבת ──
+  'spouseNoIncomeEligible', 'capitalGainsAnnual', 'dividendInterestAnnual',
+  'rentalIncomeAnnual', 'gamblingIncomeAnnual', 'qualifyingSettlementId',
+  'academicDegreeType', 'properties', 'foreignAccounts',
+  'disabilityInsuranceAnnual', 'medicalInsuranceAnnual', 'businessDescription',
 ]);
 
 export const GOVERNED_FIELD_LABELS: Record<string, string> = {
@@ -126,7 +131,13 @@ export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   otherIncome: 'הכנסה אחרת', rentalExpenses: 'הוצאות על נכס מושכר',
   selfEmployedPensionAmount: 'הפקדת עצמאי לפנסיה', krenHashtalmutSE: 'הפקדת עצמאי לקרן השתלמות',
   foreignTaxPaid: 'מס ששולם בחו״ל', hasForeignIncome: 'הכנסה מחו״ל',
-  foreignIncomeAnnual: 'הכנסה שנתית מחו״ל', reserveCombatDaysPrevYear: 'ימי מילואים כלוחם',
+  foreignIncomeAnnual: 'הכנסה שנתית מחו״ל',
+  spouseNoIncomeEligible: 'בן/בת זוג ללא הכנסה (סעיף 37)', capitalGainsAnnual: 'רווחי הון שנתיים',
+  dividendInterestAnnual: 'דיבידנד וריבית', rentalIncomeAnnual: 'הכנסה שנתית משכירות',
+  gamblingIncomeAnnual: 'זכיות והגרלות', qualifyingSettlementId: 'יישוב מזכה',
+  academicDegreeType: 'סוג התואר', properties: 'נכסי מקרקעין', foreignAccounts: 'חשבונות בחו״ל',
+  disabilityInsuranceAnnual: 'ביטוח אובדן כושר עבודה', medicalInsuranceAnnual: 'ביטוח בריאות',
+  businessDescription: 'תיאור העיסוק', reserveCombatDaysPrevYear: 'ימי מילואים כלוחם',
   hasCrypto: 'קריפטו', businessDataStatus: 'נתוני הנהלת החשבונות',
   hasRentalIncome: 'הכנסה משכירות', hasKrenHashtalmut: 'קרן השתלמות',
   hasDisabilityInsurance: 'ביטוח אובדן כושר עבודה', hasMedicalInsurance: 'ביטוח בריאות',

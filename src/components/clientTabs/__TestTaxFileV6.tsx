@@ -7,7 +7,10 @@
 //         &case=complex|salary|sparse|stale|never|business
 
 import type { Client } from '../../types';
+import { useState } from 'react';
 import TaxFileTab from './TaxFileTab';
+import TaxFileEdit from './TaxFileEdit';
+import type { FamilyKey } from '../../features/taxFile/editModel';
 
 {
   const t = /[?&]theme=(light|dark)/.exec(window.location.search)?.[1];
@@ -119,9 +122,28 @@ const NEVER = {
   niBalance: undefined, niDebitAuthorization: undefined,
 } as unknown as Client;
 
+/** עצמאי בלבד — בלי שכר, עם הפקדות עצמאי ומילואים. */
+const SELF = {
+  ...COMPLEX, firstName: 'איתי', lastName: 'נבו', gender: 'male',
+  familyStatus: 'married', employers: [], incomeTaxType: 'selfEmployed',
+  selfEmployedPensionAmount: 24_000, krenHashtalmutSE: 12_700, hasKrenHashtalmut: true,
+  reserveCombatDaysPrevYear: 45, spouseNoIncomeEligible: true,
+} as unknown as Client;
+
+/** «אין» מאומת מול «טרם ביררנו» — אותם דומיינים, שתי משמעויות. */
+const NONE = {
+  ...SALARY, firstName: 'אורי', lastName: 'כספי',
+  hasInvestments: false, hasCrypto: false, hasResidentialProperty: false,
+  hasRentalIncome: false, hasForeignAssets: false, donationsAnnual: 0,
+  fieldMeta: meta({
+    hasInvestments: 3, hasCrypto: 3, hasResidentialProperty: 3, hasRentalIncome: 3,
+    hasForeignAssets: 3, donationsAnnual: 3, hasPension: 3, hasLifeInsurance: 3,
+    reserveCombatDaysPrevYear: 3,
+  }),
+} as unknown as Client;
 const CLIENTS: Record<string, Client> = {
   complex: COMPLEX, salary: SALARY, sparse: SPARSE, stale: STALE,
-  never: NEVER, business: COMPLEX,
+  never: NEVER, business: COMPLEX, self: SELF, none: NONE,
 };
 
 const STEPS_ALIGNED = [
@@ -131,6 +153,7 @@ const STEPS_ALIGNED = [
 const STEPS_WAITING = [{ stepType: 'institution_alignment_btl', status: 'completed' }];
 
 export default function TestTaxFileV6() {
+  const [edit, setEdit] = useState<FamilyKey | null>(null);
   const client = CLIENTS[CASE] ?? COMPLEX;
   const aligned = CASE !== 'never';
   const steps = CASE === 'business' ? STEPS_WAITING : STEPS_ALIGNED;
@@ -140,11 +163,22 @@ export default function TestTaxFileV6() {
       <div style={{ marginBottom: 14, fontSize: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <b>מסך בדיקה · תיק מס V6</b>
         <span>תרחיש: {CASE}</span>
-        {['complex', 'salary', 'sparse', 'stale', 'never', 'business'].map(c => (
+        {['complex', 'salary', 'sparse', 'stale', 'never', 'business', 'self', 'none'].map(c => (
           <a key={c} href={`?test-taxfile&case=${c}`}>{c}</a>
         ))}
       </div>
       <div className="cw-body" style={{ maxWidth: 900, margin: '0 auto' }}>
+        {edit ? (
+          <TaxFileEdit
+            client={client}
+            initialFamily={edit}
+            onClientPersisted={() => {}}
+            onPatchAndSave={async () => { alert('בהדגמה — שמירה רגילה'); }}
+            onClose={() => setEdit(null)}
+            onRunAlignment={() => alert('בהדגמה — מפעיל יישור קו')}
+            onOpenDetails={() => alert('בהדגמה — פרטי הלקוח המלאים')}
+          />
+        ) : (
         <TaxFileTab
           client={client}
           onClientPersisted={() => {}}
@@ -156,7 +190,9 @@ export default function TestTaxFileV6() {
           steps={steps}
           onCreateTask={(t) => alert('משימה: ' + t)}
           onCreateRequest={(f) => alert('בקשה ללקוח: ' + f.requestTitle)}
+          onEditFamily={(f) => setEdit(f)}
         />
+        )}
       </div>
     </div>
   );

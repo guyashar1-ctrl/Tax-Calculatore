@@ -4360,3 +4360,105 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .ial-inst-btn{border:1px solid var(--soft-bd);background:var(--soft);color:var(--accent);
   border-radius:8px;padding:4px 11px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .ial-inst-btn:hover{background:var(--accent-soft,var(--soft));color:var(--accent-hover)}
+
+/* ═══ תיק מס · מצב עריכה (TaxFileEdit) ═════════════════════════════════════
+   מקור: docs/prototypes/tax-file-edit-v1.html
+   ‼ עקרון העיצוב: המידע ראשון, מערכת הצבע שנייה. גוון המשפחה מופיע כנקודה
+   קטנה וכפס שוליים דק בלבד — אין כרטיסים צבועים, אין מילויים רוויים ואין
+   גרדיאנטים. הדף חייב להיראות רגוע גם כששש המשפחות מלאות. */
+
+/* גווני המשפחות — סימן ניווט, לא סטטוס. נפרדים לחלוטין מ-ok/warn/err. */
+.txe-root{
+  --fam-auth:#4263eb; --fam-inc:#0b7a63; --fam-fam:#6741d9;
+  --fam-ast:#0f7fa8;  --fam-ded:#846215; --fam-for:#a61e4d;
+  max-width:840px;
+}
+:root[data-theme="dark"] .txe-root, [data-theme="dark"] .txe-root{
+  --fam-auth:#8da2fb; --fam-inc:#5fc4ae; --fam-fam:#b197fc;
+  --fam-ast:#67c7e4;  --fam-ded:#d8b45f; --fam-for:#f08bb0;
+}
+.txe-fam.is-auth{--fam:var(--fam-auth)} .txe-fam.is-inc{--fam:var(--fam-inc)}
+.txe-fam.is-fam{--fam:var(--fam-fam)}   .txe-fam.is-ast{--fam:var(--fam-ast)}
+.txe-fam.is-ded{--fam:var(--fam-ded)}   .txe-fam.is-for{--fam:var(--fam-for)}
+
+.txe-head{display:flex;align-items:flex-start;gap:16px;margin-bottom:22px}
+.txe-head h2{font-size:var(--fs-18);font-weight:600;letter-spacing:-.01em}
+.txe-head p{font-size:var(--fs-12);color:var(--ink-3);margin-top:3px}
+.txe-head-actions{margin-inline-start:auto;display:flex;gap:8px;flex:none}
+
+.txe-err{font-size:var(--fs-12);color:var(--err);background:var(--err-bg);
+  border-radius:10px;padding:9px 14px;margin-bottom:12px}
+.txe-saved{font-size:var(--fs-12);color:var(--ok);background:var(--ok-bg);
+  border-radius:10px;padding:9px 14px;margin-bottom:12px}
+
+/* ── משפחה ── פס שוליים דק בלבד; בלי רקע צבעוני ובלי גרדיאנט. */
+.txe-fam{border:1px solid var(--hairline-1);border-radius:14px;background:var(--surface-0);
+  margin-bottom:10px;overflow:hidden;transition:border-color .15s}
+.txe-fam.is-open{border-inline-start:2px solid var(--fam)}
+.txe-fam-head{width:100%;display:flex;align-items:center;gap:11px;padding:15px 18px;
+  background:none;border:0;text-align:start;cursor:pointer}
+.txe-fam-head:hover{background:var(--surface-1)}
+.txe-fam-dot{width:7px;height:7px;border-radius:2px;background:var(--fam);flex:none;opacity:.85}
+.txe-fam-title{font-size:var(--fs-14);font-weight:600;color:var(--ink-1);letter-spacing:-.01em}
+.txe-fam-why{font-size:var(--fs-11);color:var(--ink-4)}
+.txe-fam-mini{margin-inline-start:auto;font-size:var(--fs-12);color:var(--ink-3);white-space:nowrap}
+.txe-fam-chev{font-size:10px;color:var(--ink-4);flex:none}
+.txe-fam.is-open .txe-fam-chev{transform:rotate(-90deg)}
+.txe-fam-body{border-top:1px solid var(--hairline-2)}
+
+/* ── מקטע בתוך משפחה ── */
+.txe-sec{border-top:1px solid var(--hairline-2)}
+.txe-sec:first-child{border-top:0}
+.txe-sec-head{width:100%;display:flex;align-items:baseline;gap:12px;padding:11px 18px;
+  background:none;border:0;text-align:start;cursor:pointer}
+.txe-sec-head:hover{background:var(--surface-1)}
+.txe-sec-name{font-size:var(--fs-13);font-weight:500;color:var(--ink-1);min-width:132px;flex:none}
+.txe-sec-sum{flex:1;font-size:var(--fs-12);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.txe-sec-chev{font-size:9px;color:var(--ink-4);flex:none}
+.txe-sec.is-open .txe-sec-chev{transform:rotate(-90deg)}
+.txe-sec-body{padding:2px 18px 18px}
+
+.txe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));
+  gap:14px 18px;padding-top:10px}
+.txe-fld label{display:block;font-size:var(--fs-11);color:var(--ink-3);margin-bottom:5px}
+.txe-fld input,.txe-fld select{width:100%}
+.txe-fld-note{font-size:10.5px;color:var(--ink-4);margin-top:4px;line-height:1.4}
+.txe-fld-src{font-size:10.5px;color:var(--ink-4);margin-top:4px}
+/* ★ — סימן עדין ליד התווית, לא הדגשה של השדה כולו. */
+.txe-star{color:var(--fam-fam);font-size:9px;margin-inline-start:4px;vertical-align:super}
+
+.txe-note{font-size:var(--fs-11);color:var(--ink-3);background:var(--surface-1);
+  border-radius:9px;padding:9px 12px;margin-top:12px;line-height:1.5}
+.txe-auth{display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:var(--fs-11);
+  color:var(--ink-3);margin-top:10px;padding-top:9px;border-top:1px dashed var(--hairline-2)}
+
+/* ── פאנל נקודות הזיכוי ── רקע שקט מאוד; המספרים נושאים את המסך. */
+.txe-cred{margin:16px 18px;padding:14px 16px;border:1px solid var(--hairline-1);
+  border-radius:12px;background:var(--surface-1)}
+.txe-cred h4{font-size:var(--fs-12);font-weight:600;color:var(--ink-2);margin-bottom:9px}
+.txe-cred-rows > div{display:flex;align-items:baseline;gap:12px;font-size:var(--fs-12);
+  padding:4px 0;border-top:1px solid var(--hairline-2)}
+.txe-cred-rows > div:first-child{border-top:0}
+.txe-cred-rows span{flex:1;color:var(--ink-2)}
+.txe-cred-rows em{font-style:normal;color:var(--ink-4);font-size:10.5px;margin-inline-start:7px}
+.txe-cred-rows b{font-variant-numeric:tabular-nums;color:var(--ink-1);white-space:nowrap}
+.txe-cred-tot{border-top:1px solid var(--hairline-1)!important;margin-top:3px;padding-top:7px!important}
+.txe-cred-tot span{font-weight:600;color:var(--ink-1)}
+.txe-cred p{font-size:10.5px;color:var(--ink-4);margin-top:9px;line-height:1.5}
+
+@media (max-width:640px){
+  .txe-head{flex-wrap:wrap}
+  .txe-head-actions{margin-inline-start:0;flex-basis:100%}
+  .txe-fam-why{display:none}
+  .txe-sec-head{flex-wrap:wrap}
+  .txe-sec-name{min-width:0;flex-basis:100%}
+  .txe-grid{grid-template-columns:1fr}
+  .txe-cred{margin:14px 14px}
+  .txe-sec-body{padding:2px 14px 16px}
+  .txe-fam-head{padding:14px}
+}
+
+/* קישור «עריכה» בכותרת קטע בתיק — פעולה משנית, בלי משקל של כפתור. */
+.txf-sect-edit{border:0;background:none;color:var(--accent);font-size:var(--fs-11);
+  padding:0;margin-inline-start:10px;cursor:pointer}
+.txf-sect-edit:hover{text-decoration:underline}

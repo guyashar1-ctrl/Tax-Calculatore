@@ -36,27 +36,39 @@ function defaultInput(client: Client, year: number): TaxCalcInput {
     ? (client.gamblingIncomeAnnual ?? 0)
     : 0;
 
-  // הכנסות הון מקומיות
-  const capitalGains = client.hasCapitalIncome ? (client.capitalGainsAnnual ?? 0) : 0;
-  const dividendInterest = client.hasCapitalIncome ? (client.dividendInterestAnnual ?? 0) : 0;
+  // ‼ הכרעה 1 — הסכומים אינם מותנים בבוליאן. hasInvestments הוא **עוגן
+  //   ידיעה** («האם בכלל יש פעילות בשוק ההון»), לא מתג שמכבה נתון שהוקלד.
+  //   קודם סכום שהוזן נעלם מהחישוב בשקט אם הצ׳קבוקס לא סומן.
+  const capitalGains = client.capitalGainsAnnual ?? 0;
+  const dividendInterest = client.dividendInterestAnnual ?? 0;
 
-  // מס זר ששולם — סכום משדה foreignTaxPaid בכל החשבונות הזרים
-  const foreignTaxPaid = (client.foreignAccounts ?? [])
+  // ‼ הכרעה 3 — מסלול חישוב אחד: הסכימה מחשבונות החוץ היא העובדה.
+  //   client.foreignTaxPaid הוא **דריסה מפורשת** ולא מקור אמת שני — הוא
+  //   נכנס רק כשהוזן, ומנוסח כך גם במסך העריכה.
+  const foreignFromAccounts = (client.foreignAccounts ?? [])
     .reduce((sum, a) => sum + (a.foreignTaxPaid ?? 0), 0);
+  const foreignTaxPaid = client.foreignTaxPaid && client.foreignTaxPaid > 0
+    ? client.foreignTaxPaid
+    : foreignFromAccounts;
 
   return {
     client, year,
     grossSalary: 0,
     employeePensionPct: client.employeePensionPct || 0,
+    // ‼ מחזור והוצאות מוכרות של העסק נשארים 0 **בכוונה** — הם של פייפרלס
+    //   ואינם עובדה של תיק המס. כל השאר נקרא מהתיק (הכרעה 6): שדות שהרו״ח
+    //   או הלקוח יכולים למלא לא ייכנסו לחישוב כאפס שקט.
     selfEmployedGrossIncome: 0,
     recognizedExpenses: 0,
-    selfEmployedPensionAmount: 0,
+    selfEmployedPensionAmount: client.selfEmployedPensionAmount ?? 0,
     rentalIncome: rentalFromProps,
-    rentalExpenses: 0,
+    rentalExpenses: client.rentalExpenses ?? 0,
     rentalTaxTrack: rentalTrackFromProps,
-    otherIncome: 0,
+    otherIncome: client.otherIncome ?? 0,
     donationsSection46: client.donationsAnnual ?? 0,
-    krenHashtalmutSE: client.krenHashtalmutMonthly ? client.krenHashtalmutMonthly * 12 : 0,
+    // ‼ הכרעה 4 — השנתי הוא הקנוני. החודשי נשאר גיבוי לרשומות שטרם הומרו.
+    krenHashtalmutSE: client.krenHashtalmutSE
+      || (client.krenHashtalmutMonthly ? client.krenHashtalmutMonthly * 12 : 0),
     overrideCreditPoints: false,
     manualCreditPoints: 0,
     // הכנסות במס נפרד

@@ -35,6 +35,8 @@ import { clientFromDb } from '../lib/dbMappers';
 import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
 import ActivityTab from './clientTabs/ActivityTab';
 import ChecksTab from './clientTabs/ChecksTab';
+import TaxFileEdit from './clientTabs/TaxFileEdit';
+import type { FamilyKey } from '../features/taxFile/editModel';
 import type { AuthorityFlag } from '../utils/authorityFlags';
 import InfoLines from './ui/InfoLines';
 
@@ -124,6 +126,9 @@ interface Props {
   onOpenReleaseLetter?: (clientId: string, stepId: string, mode?: 'letter' | 'follow_up') => void;
   /** קפיצה למרכז הייצוג של הלקוח — מהכרטיס, בלי לעבור דרך מסך הלקוחות. */
   onOpenRepresentation?: (clientId: string) => void;
+  /** פותח RepresentationOnboardingDialog עבור הכרטיס הזה — ללקוח שעדיין
+   *  אין לו שום בקשת ייצוג (156). ראה ההערה המקבילה ב-JourneyTab. */
+  onStartRepresentation?: (clientId: string) => void;
   // ─── דף המסע ───
   /** כבוי ⇒ חמש הלשוניות הישנות חוזרות (settings.flags.journeyUi=false). */
   journeyUi?: boolean;
@@ -204,6 +209,7 @@ export default function ClientWorkspace({
   refreshOnboarding,
   onOpenReleaseLetter,
   onOpenRepresentation,
+  onStartRepresentation,
   journeyUi,
   checksTabEnabled,
   quotations,
@@ -242,6 +248,11 @@ export default function ClientWorkspace({
    * ‼ נמצאת כאן ולא בתוך אחת הלשוניות כי יש לה שתי כניסות (סיום יישור הקו
    * במסע, וקישור מתיק המס) והן חייבות להגיע לאותו מסך — לא לשני עותקים.
    */
+  /**
+   * מצב העריכה של תיק המס. ‼ null = קריאה. זו אינה לשונית נפרדת ולא מסך
+   * שני — זה המצב השני של אותה לשונית, ולכן החזרה נוחתת בדיוק במקום.
+   */
+  const [editFamily, setEditFamily] = useState<FamilyKey | null>(null);
   const [creatingRequestKey, setCreatingRequestKey] = useState<string | null>(null);
   const [alignRerunBusy, setAlignRerunBusy] = useState(false);
 
@@ -580,10 +591,12 @@ export default function ClientWorkspace({
 
   const fullName = `${client.firstName} ${client.lastName}`.trim() || (isNew ? 'לקוח חדש' : '(ללא שם)');
   const status = client.representationStatus ?? 'active';
-  // מי שרק קיבל הצעה עדיין לא נמצא בשום תהליך ייצוג — תג "מיוצג פעיל" עליו
-  // יסתור את שלב החיים שמוצג לידו.
   const stage = client.lifecycleStage ?? 'active';
-  const showRepBadge = !!client.representationStatus || (stage !== 'lead' && stage !== 'quoted');
+  // ‼ (156) התג הצבעוני מציג רק סטטוס ייצוג *אמיתי*. לקוח בלי representationStatus
+  // בכלל — לא רק מי שקיבל הצעה, גם לקוח פעיל ותיק שמעולם לא נפתח לו ייצוג —
+  // מקבל את תג שלב החיים הרגיל. הגרסה הקודמת נפלה כאן ל-'active' כברירת
+  // מחדל וזה בדיוק מה שגרם לתג "מיוצג פעיל" להופיע ללקוח שאין לו שום ייצוג.
+  const showRepBadge = !!client.representationStatus;
   const employee = findEmployee(client.assignedAccountantId);
   const hasHeaderChips = !!employee || (client.tags ?? []).length > 0
     || (!isNew && openTasks.length > 0 && !!onOpenClientTasks);
@@ -781,6 +794,7 @@ export default function ClientWorkspace({
             lead={lead}
             onEditLead={onEditLead}
             onOpenRepresentation={onOpenRepresentation ? () => onOpenRepresentation(client.id) : undefined}
+            onStartRepresentation={onStartRepresentation ? () => onStartRepresentation(client.id) : undefined}
             onPrepareReleaseLetter={onOpenReleaseLetter
               ? (stepId, mode) => onOpenReleaseLetter(client.id, stepId, mode) : undefined}
             repStatusLabel={client.representationStatus ? REPRESENTATION_STATUS_LABELS[client.representationStatus] : undefined}
@@ -797,7 +811,20 @@ export default function ClientWorkspace({
           />
         )}
 
-        {tab === 'taxfile' && (
+        {tab === 'taxfile' && editFamily && (
+          <TaxFileEdit
+            client={client}
+            initialFamily={editFamily}
+            onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
+            onPatchAndSave={patchAndSaveImmediate}
+            onClose={() => setEditFamily(null)}
+            onRunAlignment={() => void rerunAlignment()}
+            alignBusy={alignRerunBusy}
+            onOpenDetails={() => { setEditFamily(null); setTab('dossier'); }}
+          />
+        )}
+
+        {tab === 'taxfile' && !editFamily && (
           <TaxFileTab
             client={client}
             spouseClient={spouseClient}
@@ -814,6 +841,7 @@ export default function ClientWorkspace({
             onCreateTask={(title) => onAddTaskForClient(client.id, title)}
             onCreateRequest={(flag) => void createFlagRequest(flag)}
             creatingRequestKey={creatingRequestKey}
+            onEditFamily={(f) => setEditFamily(f)}
           />
         )}
 

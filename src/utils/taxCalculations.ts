@@ -42,6 +42,7 @@ interface TaxPerson {
   nationalServiceYear: number;
   qualifyingSettlementId: string;
   reserveCombatDaysPrevYear?: number;
+  spouseNoIncomeEligible?: boolean;
 }
 
 function clientToTaxPerson(client: Client): TaxPerson {
@@ -61,6 +62,7 @@ function clientToTaxPerson(client: Client): TaxPerson {
     nationalServiceYear: client.nationalServiceYear,
     qualifyingSettlementId: client.qualifyingSettlementId,
     reserveCombatDaysPrevYear: client.reserveCombatDaysPrevYear,
+    spouseNoIncomeEligible: client.spouseNoIncomeEligible,
   };
 }
 
@@ -110,6 +112,8 @@ function personToProfile(person: TaxPerson, year: number): CreditProfile {
     isNewImmigrant: person.isNewImmigrant,
     aliyahYear: person.aliyahYear || undefined,
     reserveCombatDaysPrevYear: person.reserveCombatDaysPrevYear || undefined,
+    // ‼ רק לנשואים — סעיף 37 חל על בני זוג בלבד.
+    spouseNoIncomeEligible: person.familyStatus === 'married' && person.spouseNoIncomeEligible === true,
     service: person.completedIdf && person.idfReleaseYear > 0
       ? { kind: 'military', months: 24, releaseYear: person.idfReleaseYear }
       : person.completedNationalService && person.nationalServiceYear > 0

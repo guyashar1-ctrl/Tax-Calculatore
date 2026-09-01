@@ -50,6 +50,10 @@ interface Props {
   /** דריסת יומן המיילים — לבדיקת המסך עם נתונים מדומים, כמו ב-ClientEmailsList. */
   emailsOverride?: EmailMessage[];
   onOpenRepresentation?: () => void;
+  /** פותח את RepresentationOnboardingDialog עבור הכרטיס הזה — ללקוח שעדיין
+   *  אין לו שום בקשת ייצוג (156). נפרד מ-onOpenRepresentation, שרק מנווט
+   *  לבקשה קיימת ולא עושה כלום כשאין כזו. */
+  onStartRepresentation?: () => void;
   onPrepareReleaseLetter?: (stepId: string, mode?: 'letter' | 'follow_up') => void;
   repStatusLabel?: string;
   /** אותו מצב, גולמי — כדי לגזור ממנו את הפעולה עצמה ולא רק את שמו. */
@@ -131,6 +135,7 @@ export default function JourneyTab(p: Props) {
       case 'openYear': if (b.taxYear) p.onOpenYear?.(b.taxYear); break;
       case 'editLead': if (p.lead) p.onEditLead?.(p.lead.id); break;
       case 'openRepresentation': p.onOpenRepresentation?.(); break;
+      case 'startRepresentation': p.onStartRepresentation?.(); break;
       case 'gotoTasks': p.onGotoTab('tasks'); break;
     }
   }

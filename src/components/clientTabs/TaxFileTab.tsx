@@ -23,6 +23,7 @@ import { buildAuthorityRows } from '../../utils/authorityRows';
 import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 import { domainKnowledge, taxReadiness } from '../../utils/taxKnowledge';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
+import type { FamilyKey } from '../../features/taxFile/editModel';
 import type { AuthorityFlag } from '../../utils/authorityFlags';
 import { findUnsyncedSession, syncIntakeSession } from '../../lib/intakeSync';
 import type { IntakeSyncResult } from '../../lib/intakeSync';
@@ -60,6 +61,12 @@ interface Props {
   steps?: { stepType: string; status: string; payload?: Record<string, unknown> }[];
   /** פותח משימה עם כותרת מוכנה, מתוך דגל. */
   onCreateTask?: (title: string) => void;
+  /**
+   * פותח את מצב העריכה על משפחת-המס שממנה נלחץ. ‼ זה קריטריון הקבלה של
+   * הרציפות: מי שקורא «משפחה וזכאות» ולוחץ «עריכה» חייב לנחות על אותה
+   * משפחה פתוחה — לא בראש עורך ענק.
+   */
+  onEditFamily?: (family: FamilyKey) => void;
   /** פותח בקשה ללקוח מתוך דגל — כשהממצא דורש חומר שרק הלקוח יכול לתת. */
   onCreateRequest?: (flag: AuthorityFlag) => void;
   creatingRequestKey?: string | null;
@@ -162,7 +169,7 @@ function SrcLine({ label, onEdit }: { label: string; onEdit?: () => void }) {
 }
 
 export default function TaxFileTab({
-  client, spouseClient, onClientPersisted, onSendQuestionnaire, onOpenDetails,
+  client, spouseClient, onClientPersisted, onSendQuestionnaire, onOpenDetails, onEditFamily,
   onRunAlignment, alignBusy, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
 }: Props) {
   const { pending, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
@@ -643,6 +650,10 @@ export default function TaxFileTab({
       <div className="txf-secthead txf-secthead-row">
         <span>מול הרשויות</span>
         <span className="txf-align-meta">
+          {onEditFamily && (
+            <button type="button" className="txf-sect-edit"
+              onClick={() => onEditFamily('auth')}>עריכה</button>
+          )}
           <span>{alignedAt ? 'יישור קו אחרון: ' + shortDate(alignedAt) : 'טרם בוצע יישור קו'}</span>
           {onRunAlignment && (
             <button type="button" className="ui-btn ui-btn-sm" disabled={alignBusy}
@@ -741,7 +752,7 @@ export default function TaxFileTab({
       {/* ב · הפעילות הכלכלית */}
       {(showBusinessRow || showSalaryRow || showRentalRow || showCapitalRow || unknownIn('income')) && (
         <>
-          <div className="txf-secthead">הכנסות</div>
+          <div className="txf-secthead">הכנסות{onEditFamily && (<button type="button" className="txf-sect-edit" onClick={() => onEditFamily('income')}>עריכה</button>)}</div>
           <div className="txf-sect">
             {showBusinessRow && (
               <TRow
@@ -839,7 +850,7 @@ export default function TaxFileTab({
       )}
 
       {/* ג · משפחה וזכאות */}
-      <div className="txf-secthead">משפחה וזכאות</div>
+      <div className="txf-secthead">משפחה וזכאות{onEditFamily && (<button type="button" className="txf-sect-edit" onClick={() => onEditFamily('family')}>עריכה</button>)}</div>
       <div className="txf-sect">
         {showFamilyRow && (
           <TRow
@@ -905,7 +916,7 @@ export default function TaxFileTab({
       {/* ד · השקעות, נכסים והון */}
       {(showPropertyRow || showCryptoRow || showForeignRow || showBankRow || unknownIn('assets')) && (
         <>
-          <div className="txf-secthead">השקעות, נכסים והון</div>
+          <div className="txf-secthead">השקעות, נכסים והון{onEditFamily && (<button type="button" className="txf-sect-edit" onClick={() => onEditFamily('assets')}>עריכה</button>)}</div>
           <div className="txf-sect">
             {showPropertyRow && (
               <TRow
@@ -979,7 +990,7 @@ export default function TaxFileTab({
       {/* ה · הפקדות, ביטוחים וזיכויים */}
       {(showPensionRow || showInsuranceRow || showDonationsRow || unknownIn('deposits')) && (
         <>
-          <div className="txf-secthead">הפקדות, ביטוחים וזיכויים</div>
+          <div className="txf-secthead">הפקדות, ביטוחים וזיכויים{onEditFamily && (<button type="button" className="txf-sect-edit" onClick={() => onEditFamily('deductions')}>עריכה</button>)}</div>
           <div className="txf-sect">
             {showPensionRow && (
               <TRow
