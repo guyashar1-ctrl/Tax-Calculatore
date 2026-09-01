@@ -98,10 +98,17 @@ interface Props {
    * ע"י הקורא (QuotationBuilder) — העורך הזה לא צריך לדעת על כרטיסים.
    */
   alreadyRepresented?: Partial<Record<RepAuthorityKind, string>>;
+  /**
+   * מה **בן/בת הזוג** כבר מיוצג/ת בו כאדם (159). ‼ אותו כלל בדיוק כמו
+   * ב-RepresentationOnboardingDialog: אין להציע 'spouse' כיעד למי שכבר
+   * מיוצג/ת שם. מחושב ע"י הקורא דרך `spousePersonAuthorities`.
+   */
+  spouseAlreadyRepresented?: Partial<Record<RepAuthorityKind, string>>;
 }
 
 export default function QuotationRepresentationEditor({
   value, onChange, recipientName, recipientEmail, emailConflict, isTransfer = false, alreadyRepresented,
+  spouseAlreadyRepresented,
 }: Props) {
   const [showKnown, setShowKnown] = useState(false);
   const p = value.prefill ?? {};
@@ -110,7 +117,11 @@ export default function QuotationRepresentationEditor({
   // המחדל פעילה — אם הלקוח יצהיר בקישור שהוא נשוי, הייצוג יכסה את שניהם.
   const notMarriedExplicit = !!p.familyStatus && p.familyStatus !== 'married';
   const yearLabel = p.familyStatus ? FAMILY_STATUS_YEAR_LABELS[p.familyStatus] : undefined;
-  const forSpouse = niCoversSpouse(value) && !notMarriedExplicit;
+  /** ‼ (159) אותו חסם דו-כיווני של הדיאלוג הראשי — ראה spouseTargetBlocked שם. */
+  const spouseTargetBlocked = (a: RepAuthorityKind) =>
+    !!alreadyRepresented?.[a] || !!spouseAlreadyRepresented?.[a];
+  const forSpouse = niCoversSpouse(value) && !notMarriedExplicit
+    && !spouseTargetBlocked('nationalInsurance');
   // ‼ רשות שכבר מיוצגת (alreadyRepresented) לעולם לא נכנסת ל-selected — גם
   // אם היא איכשהו נשארה מסומנת ב-state. אין לה שורת בחירה, ואי אפשר לבקש
   // אותה שוב מהמסך הזה. ראה RepresentationOnboardingDialog, אותו כלל.
@@ -132,7 +143,8 @@ export default function QuotationRepresentationEditor({
    * ביטוח לאומי ברמת-אדם וממשיך להיפתח מנישואין בלבד, בדיוק כמו קודם.
    */
   function showTargets(a: RepAuthorityKind): boolean {
-    if (!value.areas?.[a] || !REP_AUTHORITIES_WITH_TARGETS.includes(a) || !!alreadyRepresented?.[a]) return false;
+    if (!value.areas?.[a] || !REP_AUTHORITIES_WITH_TARGETS.includes(a)) return false;
+    if (spouseTargetBlocked(a)) return false;
     if (a === 'nationalInsurance') return spouseKnown;
     return spouseKnown && spouseHasBusiness;
   }

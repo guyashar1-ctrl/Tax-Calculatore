@@ -135,3 +135,30 @@ export function seedClientFromEmbeddedSpouse(owner: Client): Partial<Client> {
   }
   return base;
 }
+
+/**
+ * מה **בן/בת הזוג כאדם** כבר מיוצג/ת בו — מנקודת המבט שלהם, לא של הכרטיס
+ * שפתוח עכשיו (159).
+ *
+ * ‼ למה זה נחוץ בנפרד מ-`resolvePersonAuthority(client, spouse, a)`: זו
+ * שאלה הפוכה. הראשונה שואלת "האם *ללקוח הזה* כבר יש ייצוג, אולי דרך
+ * בן/בת הזוג". כאן שואלים "האם *בן/בת הזוג* כבר מיוצג/ת" — וזו השאלה
+ * שקובעת אם מותר בכלל להציע 'spouse' כיעד. בלי זה, כרטיס חדש של בן/בת
+ * זוג הציע לייצג בב"ל גם את מי שכבר מיוצג שם שנים.
+ *
+ * ‼ אותו resolver בדיוק, רק עם הארגומנטים הפוכים — לא מנגנון שני.
+ */
+export function spousePersonAuthorities(
+  client: Client | undefined | null,
+  spouseClient: Client | undefined | null,
+): Partial<Record<RepAuthorityKind, string>> {
+  if (!spouseClient) return {};
+  const label = `${spouseClient.firstName} ${spouseClient.lastName}`.trim() || 'בן/בת הזוג';
+  const out: Partial<Record<RepAuthorityKind, string>> = {};
+  for (const a of ['vat', 'withholding', 'nationalInsurance'] as RepAuthorityKind[]) {
+    if (resolvePersonAuthority(spouseClient, client, a).represented) {
+      out[a] = `${label} כבר מיוצג/ת`;
+    }
+  }
+  return out;
+}

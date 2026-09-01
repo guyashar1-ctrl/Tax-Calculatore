@@ -43,7 +43,7 @@ import QuotationRepresentationEditor, {
   validateQuotationRepresentation, representationSummary,
 } from './QuotationRepresentationEditor';
 import type { RepAuthorityKind } from '../../types';
-import { findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
+import { findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold, spousePersonAuthorities } from '../../utils/personRepresentation';
 import Modal from '../ui/Modal';
 
 const MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
@@ -100,6 +100,16 @@ function alreadyRepresentedForRecipient(
     out.incomeTax = `תיק משותף — הושג בקליטה של ${spouseLabel}`;
   }
   return out;
+}
+
+/** ‼ (159) מה **בן/בת הזוג** כבר מיוצג/ת בו כאדם — חוסם הצעת יעד 'spouse'. */
+function spouseRepresentedForRecipient(
+  r: RecipientDraft, clients: Client[],
+): Partial<Record<RepAuthorityKind, string>> {
+  if (r.kind !== 'client' || !r.id) return {};
+  const client = clients.find(c => c.id === r.id);
+  if (!client) return {};
+  return spousePersonAuthorities(client, findSpouseClient(client, clients));
 }
 
 interface Props {
@@ -841,7 +851,8 @@ export default function QuotationBuilder({
             recipientName={recipient.fullName} recipientEmail={recipient.email}
             emailConflict={repConflict}
             isTransfer={isTransferRecipient(recipient, leads, clients)}
-            alreadyRepresented={alreadyRepresentedForRecipient(recipient, clients)} />
+            alreadyRepresented={alreadyRepresentedForRecipient(recipient, clients)}
+            spouseAlreadyRepresented={spouseRepresentedForRecipient(recipient, clients)} />
         </Modal>
       )}
       {panel === 'recipient' && (

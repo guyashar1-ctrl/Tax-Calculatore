@@ -36,6 +36,7 @@ import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { targetsOf } from './utils/repScope';
 import {
   seedClientFromEmbeddedSpouse, findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold,
+  spousePersonAuthorities,
 } from './utils/personRepresentation';
 import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
@@ -90,6 +91,8 @@ import LoginScreen from './components/LoginScreen';
 import NoAccessScreen from './components/NoAccessScreen';
 import NewPersonDialog, { type NewPersonBasics } from './components/NewPersonDialog';
 import RepresentationOnboardingDialog, { CreateRepresentationInput } from './components/RepresentationOnboardingDialog';
+import SpouseToClientDialog from './components/clientTabs/SpouseToClientDialog';
+import { spouseDisplayName } from './features/annualReport/profile';
 import { withLegacyMirror } from './utils/repDocuments';
 import OnboardingPage from './components/OnboardingPage';
 import SpouseFillPage from './components/SpouseFillPage';
@@ -567,6 +570,9 @@ export default function App() {
   // "התחלת ייצוג ללא הצעה" משלב 3: האדם כבר נוצר, והדיאלוג נפתח מצומד אליו —
   // בשונה מ-showOnboarding (שם עדיין נוצר אדם חדש בתוך הדיאלוג עצמו).
   const [pendingRepresentationClient, setPendingRepresentationClient] = useState<Client | null>(null);
+  /** (159) הכרטיס שממנו נלחץ "פתיחת כרטיס לקוח לבן/בת הזוג" — שלב המעבר הקל. */
+  const [spousePromotionOwner, setSpousePromotionOwner] = useState<Client | null>(null);
+  const [spousePromotionBusy, setSpousePromotionBusy] = useState(false);
   // "המשך טיפול" בליד שהגיע מקישור המילוי הציבורי (שלב 4) — פותח את בורר
   // המסלול ממולא מראש, בלי לאסוף פרטים מחדש (הם כבר על הליד).
   const [continuationLead, setContinuationLead] = useState<Lead | null>(null);
@@ -868,12 +874,40 @@ export default function App() {
    * ולכן אין כאן שום בדיקת התאמת ת.ז. — רק זריעה וקישור דו-כיווני, באותו
    * דפוס בדיוק כמו ה-owner ב-createPersonFromBasics, בלי דיאלוג ביניים.
    */
-  async function handleCreateClientFromSpouse(owner: Client) {
-    const seed = seedClientFromEmbeddedSpouse(owner);
-    const draft = makeEmptyClient(crypto.randomUUID(), seed);
-    const created = await addClient(draft);
-    await updateClient({ ...owner, spouseClientId: created.id });
-    handleSelectClient(created.id);
+  /**
+   * ‼ (159) הלחיצה כבר לא יוצרת כרטיס — היא פותחת שלב מעבר קל
+   * (SpouseToClientDialog) ששואל רק מה שהשתנה. יצירת כרטיס היא תוצאה של
+   * תשובה, לא של לחיצה: "יש עסק ואנחנו מטפלים בו".
+   */
+  function handleCreateClientFromSpouse(owner: Client) {
+    setSpousePromotionOwner(owner);
+  }
+
+  /** ההכרעה משלב המעבר. יוצר כרטיס רק כשבאמת יש עסק שאנחנו מנהלים. */
+  async function handleSpousePromotion(
+    owner: Client,
+    decision: { hasBusiness: boolean; owner: 'us' | 'other' | 'undecided' },
+  ) {
+    setSpousePromotionBusy(true);
+    try {
+      if (!decision.hasBusiness || decision.owner !== 'us') {
+        // ‼ "רו"ח אחר" היא עובדה שכדאי לשמור — היא מונעת שאלה חוזרת, והיא
+        // בדיוק מה שמכבה את הצעת המע"מ/ניכויים לבן/בת הזוג (155).
+        if (decision.hasBusiness && decision.owner === 'other') {
+          await updateClient({ ...owner, spouseRepresentedElsewhere: true });
+        }
+        setSpousePromotionOwner(null);
+        return;
+      }
+      const seed = seedClientFromEmbeddedSpouse(owner);
+      const draft = makeEmptyClient(crypto.randomUUID(), seed);
+      const created = await addClient(draft);
+      await updateClient({ ...owner, spouseClientId: created.id, spouseRepresentedElsewhere: false });
+      setSpousePromotionOwner(null);
+      handleSelectClient(created.id);
+    } finally {
+      setSpousePromotionBusy(false);
+    }
   }
 
   async function handleConfirmNewPersonQuote(basics: NewPersonBasics) {
@@ -2616,6 +2650,19 @@ export default function App() {
           initialName={`${pendingRepresentationClient.firstName} ${pendingRepresentationClient.lastName}`.trim()}
           initialEmail={pendingRepresentationClient.email || undefined}
           alreadyRepresented={alreadyRepresentedFor(pendingRepresentationClient)}
+          spouseAlreadyRepresented={spousePersonAuthorities(
+            pendingRepresentationClient, findSpouseClient(pendingRepresentationClient, clients))}
+        />
+      )}
+
+      {/* ‼ (159) שלב מעבר קל לפני יצירת כרטיס לבן/בת הזוג — ראה SpouseToClientDialog. */}
+      {spousePromotionOwner && (
+        <SpouseToClientDialog
+          spouseName={spouseDisplayName(spousePromotionOwner)}
+          knownRepresentedElsewhere={!!spousePromotionOwner.spouseRepresentedElsewhere}
+          busy={spousePromotionBusy}
+          onCancel={() => setSpousePromotionOwner(null)}
+          onConfirm={(d) => void handleSpousePromotion(spousePromotionOwner, d)}
         />
       )}
 

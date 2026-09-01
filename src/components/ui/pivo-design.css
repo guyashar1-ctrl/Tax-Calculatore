@@ -1777,6 +1777,11 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 }
 .rep-who.is-on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .rep-who:disabled { cursor: default; opacity: .6; }
+/* ‼ (159) בטלפון הצ'יפ הזה הוא **ההכרעה עצמה** (כן/לא, מי מטפל בעסק) ולא
+   קישוט — 25px גובה הם יעד מגע שקשה לפגוע בו. בדסקטופ נשאר קומפקטי. */
+@media (max-width: 640px) {
+  .rep-who { min-height: 40px; padding-inline: .9rem; font-size: var(--fs-13); }
+}
 
 /* רצועת הטפסים בעורך ההפקה — מופיעה רק כשיש יותר מטופס אחד */
 .poa-doctabs {

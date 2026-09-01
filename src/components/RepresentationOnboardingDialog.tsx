@@ -61,6 +61,12 @@ interface Props {
    * (App.tsx) ולא כאן — הדיאלוג לא צריך לדעת על כרטיסים מקושרים בעצמו.
    */
   alreadyRepresented?: Partial<Record<RepAuthorityKind, string>>;
+  /**
+   * מה **בן/בת הזוג** כבר מיוצג/ת בו כאדם (159) — לא מה שהלקוח הזה מיוצג בו.
+   * ‼ זו השאלה שקובעת אם מותר להציע 'spouse' כיעד: אין טעם (ואסור) לבקש
+   * ייצוג ב"ל למי שכבר מיוצג שם. מחושב ע"י הקורא דרך `spousePersonAuthorities`.
+   */
+  spouseAlreadyRepresented?: Partial<Record<RepAuthorityKind, string>>;
 }
 
 interface AreaState {
@@ -78,7 +84,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 
 export default function RepresentationOnboardingDialog({
   onCreate, onCancel, checkEmailConflict, initialName, initialEmail, isTransfer = false, initialPrevAccountant,
-  alreadyRepresented,
+  alreadyRepresented, spouseAlreadyRepresented,
 }: Props) {
   const [name, setName] = useState(initialName ?? '');
   const [email, setEmail] = useState(initialEmail ?? '');
@@ -131,8 +137,17 @@ export default function RepresentationOnboardingDialog({
   // "לא נשוי" מפורש מכבה את שאלת בן/בת הזוג; מצב לא ידוע ('') משאיר את ברירת
   // המחדל פעילה — אם הלקוח יצהיר בקישור שהוא נשוי, הייצוג יכסה את שניהם.
   const notMarriedExplicit = familyStatus !== '' && familyStatus !== 'married';
+  /**
+   * ‼ (159) מותר בכלל להציע 'spouse' כיעד ברשות הזאת? שתי חסימות נפרדות:
+   * הרשות כבר מכוסה עבור הלקוח הזה (alreadyRepresented), או **בן/בת הזוג
+   * כבר מיוצג/ת בה כאדם** (spouseAlreadyRepresented). השנייה היא הבאג
+   * שדווח: כרטיס חדש של בן/בת זוג הציע לייצג בב"ל את מי שכבר מיוצג שם.
+   */
+  const spouseTargetBlocked = (a: RepAuthorityKind) =>
+    !!alreadyRepresented?.[a] || !!spouseAlreadyRepresented?.[a];
   /** ב"ל לבן/בת הזוג — לתקציר "מה ייווצר" בלבד; הבחירה עצמה חיה ב-areas.nationalInsurance.targets. */
   const niForSpouse = areas.nationalInsurance.selected && !notMarriedExplicit
+    && !spouseTargetBlocked('nationalInsurance')
     && areas.nationalInsurance.targets.includes('spouse');
   // שאלת בן/בת הזוג הרשום/ה רלוונטית רק כשמייצגים במס הכנסה — התיק המשפחתי
   // האחד הוא שם, ובמע"מ/ניכויים/ב"ל התיקים אישיים.
@@ -156,6 +171,9 @@ export default function RepresentationOnboardingDialog({
    */
   function showTargets(a: RepAuthorityKind): boolean {
     if (!areas[a].selected || !REP_AUTHORITIES_WITH_TARGETS.includes(a)) return false;
+    // ‼ (159) אין "עבור מי" כשהיעד היחיד שאפשר להוסיף כבר מיוצג — נשארת
+    // רשות של אדם אחד, ושאלה עם תשובה אחת אינה שאלה.
+    if (spouseTargetBlocked(a)) return false;
     if (a === 'nationalInsurance') return spouseKnown;
     return spouseKnown && spouseHasBusiness;
   }
@@ -167,6 +185,9 @@ export default function RepresentationOnboardingDialog({
    */
   function effectiveTargets(a: RepAuthorityKind): RepTarget[] {
     if (notMarriedExplicit) return ['client'];
+    // ‼ (159) גם בפלט, לא רק בתצוגה: יעד שהצ'יפ שלו נחסם לא נשאר תקוע
+    // ב-state ונשלח בשקט. זה מה שמונע בקשת ב"ל כפולה על אותו אדם.
+    if (spouseTargetBlocked(a)) return ['client'];
     if (a !== 'nationalInsurance' && !spouseHasBusiness) return ['client'];
     return areas[a].targets;
   }
@@ -638,7 +659,18 @@ export default function RepresentationOnboardingDialog({
               הזוג) נשלחה בשקט, בלי שהיא מוצגת ובלי דרך לכבות אותה. צ'יפים
               אי אפשר להציג כאן — "בן/בת הזוג בלבד" חסר משמעות כשלא ידוע
               אם יש כזה — ולכן זה צ'קבוקס, ולא אותו רכיב. */}
-          {areas.nationalInsurance.selected && !notMarriedExplicit && !spouseKnown && (
+          {/* ‼ (159) הבאג שדווח: הצ'קבוקס הזה נגזר מ-areas.nationalInsurance.selected
+              הגולמי — מצב פנימי שנשאר דלוק גם כשהרשות כבר מיוצגת ולכן ירדה
+              מ-selectedKeys ומהפלט. התוצאה: כרטיס חדש של בן/בת זוג שאל אם
+              לייצג בב"ל גם את מי שכבר מיוצג שם. spouseTargetBlocked סוגר את
+              שני הכיוונים — הלקוח הזה, ובן/בת הזוג כאדם. */}
+          {spouseAlreadyRepresented?.nationalInsurance && areas.nationalInsurance.selected && (
+            <div style={{ marginTop: '.6rem', fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+              {'ℹ'} {spouseAlreadyRepresented.nationalInsurance} בביטוח לאומי - הבקשה הזאת היא עבור {name.trim() || 'הלקוח/ה'} בלבד.
+            </div>
+          )}
+          {areas.nationalInsurance.selected && !notMarriedExplicit && !spouseKnown
+            && !spouseTargetBlocked('nationalInsurance') && (
             <div style={{
               marginTop: '.6rem', padding: '.6rem .7rem', borderRadius: 'var(--radius)',
               border: `1px solid ${niForSpouse ? 'var(--accent)' : 'var(--hairline-1)'}`,

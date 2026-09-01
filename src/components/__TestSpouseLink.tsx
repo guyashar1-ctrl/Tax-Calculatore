@@ -12,8 +12,10 @@ import TaxFileTab from './clientTabs/TaxFileTab';
 import ClientDossierTab from './clientTabs/ClientDossierTab';
 import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
 import RepresentationOnboardingDialog, { CreateRepresentationInput } from './RepresentationOnboardingDialog';
+import SpouseToClientDialog from './clientTabs/SpouseToClientDialog';
+import { spouseDisplayName } from '../features/annualReport/profile';
 import { buildPersonRows } from '../utils/personDirectory';
-import { seedClientFromEmbeddedSpouse, resolvePersonAuthority, resolveIncomeTaxHousehold } from '../utils/personRepresentation';
+import { seedClientFromEmbeddedSpouse, resolvePersonAuthority, resolveIncomeTaxHousehold, spousePersonAuthorities } from '../utils/personRepresentation';
 
 /** בדיוק alreadyRepresentedFor מ-App.tsx — מה שכבר הושג דרך בן/בת הזוג המקושר/ת. */
 function computeAlreadyRepresented(client: Client, spouse: Client | undefined): Partial<Record<RepAuthorityKind, string>> {
@@ -301,6 +303,148 @@ function LegacyClientMatrix() {
   );
 }
 
+// ═══ (159) התרחיש האמיתי שדווח: גיא לקוח פעיל, נשוי לדין, ב"ל של גיא כבר
+// פעיל **וגם מכסה את דין** (targets כולל spouse), ותיק מס הכנסה משותף רשום
+// על דין. דין הופכת ללקוחה כי נפתח לה עסק. ═══════════════════════════════
+const GUY: Client = {
+  id: 'fx-guy', idNumber: '314667346', firstName: 'גיא', lastName: 'ישר',
+  email: 'guy@example.test', phone: '0501112222', city: '', address: '',
+  birthDate: '1985-01-01', gender: 'male',
+  incomeTaxType: 'selfEmployed', vatStatus: 'authorizedDealer', businessDescription: 'ייעוץ',
+  hasExemptFromWithholding: false,
+  niType: 'selfEmployed', hasTaxCoordination: false, taxCoordinationDetails: '',
+  familyStatus: 'married',
+  spouseName: 'דין ישר', spouseIdNumber: '209422500', spouseFirstName: 'דין', spouseLastName: 'ישר',
+  spouseWorking: true, spouseIncome: 0, spouse: null,
+  children: [], tags: [], additionalContacts: [], activity: [],
+  representationStatus: 'active',
+  // ‼ בדיוק הייצור: ב"ל פעיל ומכסה **את שניהם**; מס הכנסה משותף.
+  authorityRepresentations: {
+    incomeTax: { status: 'active', level: 'primary' },
+    vat: { status: 'active', level: 'primary', targets: ['client'] },
+    nationalInsurance: { status: 'active', level: 'primary', targets: ['client', 'spouse'] },
+  },
+  taxFiles: [
+    { id: 'tf-guy-it', authority: 'income_tax', owner: 'spouse', fileNumber: '209422500', repStatus: 'active' },
+    { id: 'tf-guy-ni', authority: 'national_insurance', owner: 'client', fileNumber: '314667346', repStatus: 'active' },
+  ],
+  createdAt: '2024-01-01T08:00:00.000Z', updatedAt: '2024-01-01T08:00:00.000Z',
+} as unknown as Client;
+
+/** התרחיש המלא של 159 — כולל שלב המעבר הקל ודיאלוג הייצוג של דין. */
+function GuyDinFlow() {
+  const [clients, setClients] = useState<Client[]>([GUY]);
+  const [promotionOpen, setPromotionOpen] = useState(false);
+  const [dinId, setDinId] = useState<string | null>(null);
+  const [repOpen, setRepOpen] = useState(false);
+  const [sent, setSent] = useState<CreateRepresentationInput | null>(null);
+  const [log, setLog] = useState<string[]>([]);
+
+  const guy = clients.find(c => c.id === GUY.id)!;
+  const din = dinId ? clients.find(c => c.id === dinId) : undefined;
+
+  // מדמה בדיוק את handleSpousePromotion ב-App.tsx.
+  function promote(decision: { hasBusiness: boolean; owner: 'us' | 'other' | 'undecided' }) {
+    if (!decision.hasBusiness || decision.owner !== 'us') {
+      if (decision.hasBusiness && decision.owner === 'other') {
+        setClients(l => l.map(c => (c.id === guy.id ? { ...c, spouseRepresentedElsewhere: true } : c)));
+        setLog(l => [...l, 'נסגר בלי כרטיס · נרשם "מיוצג/ת אצל רו״ח אחר"']);
+      } else {
+        setLog(l => [...l, 'נסגר בלי יצירת כרטיס']);
+      }
+      setPromotionOpen(false);
+      return;
+    }
+    const seed = seedClientFromEmbeddedSpouse(guy);
+    const created = {
+      id: 'fx-din', birthDate: '', gender: 'female', city: '', address: '',
+      incomeTaxType: 'selfEmployed', niType: 'selfEmployed', vatStatus: 'authorizedDealer',
+      businessDescription: 'עסק חדש', hasExemptFromWithholding: false,
+      hasTaxCoordination: false, taxCoordinationDetails: '',
+      spouseWorking: false, spouseIncome: 0, spouse: null, children: [],
+      isNewImmigrant: false, aliyahYear: 0, isReturningResident: false, returningYear: 0,
+      disabilityPercentage: 0, disabilityType: '', hasAcademicDegree: false,
+      academicDegreeYear: 0, academicDegreeType: '', completedIdf: false, idfReleaseYear: 0,
+      completedNationalService: false, nationalServiceYear: 0,
+      qualifyingSettlementId: '', qualifyingSettlementOverride: false, qualifyingSettlementCreditPoints: 0,
+      hasResidentialProperty: false, propertyAddress: '', numberOfProperties: 0,
+      hasPension: false, pensionFundName: '', employeePensionPct: 0, employerPensionPct: 0,
+      hasKupotGemel: false, hasKrenHashtalmut: false, krenHashtalmutMonthly: 0,
+      notes: '', assignedAccountantId: 'emp-self', tags: [], additionalContacts: [], activity: [],
+      authorityRepresentations: {}, taxFiles: [],
+      createdAt: '2026-09-01T08:00:00.000Z', updatedAt: '2026-09-01T08:00:00.000Z',
+      ...seed,
+    } as unknown as Client;
+    setClients(l => [...l.map(c => (c.id === guy.id ? { ...c, spouseClientId: created.id } : c)), created]);
+    setDinId(created.id);
+    setPromotionOpen(false);
+    setLog(l => [...l, 'נוצר כרטיס לדין ומקושר דו-כיווני']);
+  }
+
+  const alreadyForDin = din ? computeAlreadyRepresented(din, guy) : {};
+  const spouseAlreadyForDin = din ? spousePersonAuthorities(din, guy) : {};
+
+  return (
+    <div>
+      <div id="tst-guydin-log" style={{ padding: '.5rem 1rem', background: 'var(--surface-2)', fontSize: 12, marginBottom: '.5rem' }}>
+        {log.length === 0 ? '(אין אירועים עדיין)' : log.join(' · ')}
+      </div>
+      <pre id="tst-guydin-state" style={{ padding: '.5rem 1rem', background: 'var(--surface-2)', fontSize: 11, direction: 'ltr', marginBottom: '.5rem' }}>
+        {JSON.stringify({ alreadyForDin, spouseAlreadyForDin, dinCreated: !!din }, null, 1)}
+      </pre>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div id="tst-guydin-guy" style={{ width: 460, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>גיא (לקוח פעיל, ב"ל מכסה גם את דין)</div>
+          <TaxFileTab
+            client={guy} spouseClient={din}
+            onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+            onCreateSpouseClient={() => setPromotionOpen(true)}
+            onOpenSpouseClient={() => setLog(l => [...l, 'ניווט → כרטיס דין'])}
+          />
+        </div>
+        {din && (
+          <div id="tst-guydin-din" style={{ width: 460, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>דין (נוצרה עכשיו)</div>
+            <TaxFileTab
+              client={din} spouseClient={guy}
+              onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+              onOpenSpouseClient={() => setLog(l => [...l, 'ניווט → חזרה לגיא'])}
+            />
+            <div style={{ padding: 8 }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setRepOpen(true)}>
+                פתיחת ייצוג לדין
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      {promotionOpen && (
+        <SpouseToClientDialog
+          spouseName={spouseDisplayName(guy)}
+          knownRepresentedElsewhere={!!guy.spouseRepresentedElsewhere}
+          onCancel={() => setPromotionOpen(false)}
+          onConfirm={promote}
+        />
+      )}
+      {repOpen && din && (
+        <RepresentationOnboardingDialog
+          onCreate={async (data) => { setSent(data); setRepOpen(false); return { link: 'x', emailSent: false }; }}
+          onCancel={() => setRepOpen(false)}
+          initialName={`${din.firstName} ${din.lastName}`.trim()}
+          initialEmail={din.email || undefined}
+          alreadyRepresented={alreadyForDin}
+          spouseAlreadyRepresented={spouseAlreadyForDin}
+        />
+      )}
+      {sent && (
+        <pre id="tst-guydin-sent" style={{ marginTop: '1rem', padding: '1rem', background: 'var(--surface-2)', fontSize: 12, direction: 'ltr' }}>
+          {JSON.stringify(sent, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 export default function TestSpouseLink() {
   const [open, setOpen] = useState(true);
   const [confirmed, setConfirmed] = useState<NewPersonBasics | null>(null);
@@ -514,6 +658,9 @@ export default function TestSpouseLink() {
           {'openLog: ' + JSON.stringify(openLog) + '\n' + 'quotationLog: ' + JSON.stringify(quotationLog)}
         </pre>
       )}
+
+      <h3 style={{ marginTop: '2rem' }}>(159) גיא → דין — שלב מעבר קל + ייצוג בלי ב"ל כפול</h3>
+      <GuyDinFlow />
 
       <h3 style={{ marginTop: '2rem' }}>המסלול המוזהב (158, תרחיש 4) — יאיר → יצירת מיכל → הכול חוזר</h3>
       <GoldenFlowDemo />
