@@ -99,16 +99,22 @@ export function findSpouseClient(
  * מזרעים מהנתונים שכבר קיימים על הכרטיס המקורי, כדי שלא יוקלדו פעם שנייה.
  *
  * ‼ לא מזרעים תאריך לידה מדויק משנת לידה בלבד (`spouseBirthYear`) — ניחוש
- * תאריך הוא נתון שגוי במסווה של נתון אמיתי. שדה ריק שמחכה למילוי עדיף.
+ * תאריך הוא נתון שגוי במסווה של נתון אמיתי. שדה ריק שמחכה למילוי עדיף. אבל
+ * `spouse` (Client.spouse) הוא תאריך מלא שכבר הוזן בעבר לחישוב תא משפחתי —
+ * זה לא ניחוש, ומזרעים אותו וגם את שאר סיווגי המס/עסק שכבר נאספו שם.
+ * שדות כספיים מחושבים (שכר, זיכויים, פנסיה) לא מועברים בכוונה: הם שייכים
+ * לחישוב התא הישן כ"מפרנס/ת שני/ה", וכשהופכים לכרטיס עצמאי הם צריכים
+ * דו"ח שנתי משלהם, לא מספרים ישנים שיוצגו כמעודכנים.
  */
 export function seedClientFromEmbeddedSpouse(owner: Client): Partial<Client> {
+  const embedded = owner.spouse;
   const parts = (owner.spouseName || '').trim().split(/\s+/).filter(Boolean);
-  return {
-    firstName: owner.spouseFirstName || parts[0] || '',
-    lastName: owner.spouseLastName || parts.slice(1).join(' ') || '',
-    idNumber: owner.spouseIdNumber || '',
+  const base: Partial<Client> = {
+    firstName: owner.spouseFirstName || embedded?.firstName || parts[0] || '',
+    lastName: owner.spouseLastName || embedded?.lastName || parts.slice(1).join(' ') || '',
+    idNumber: owner.spouseIdNumber || embedded?.idNumber || '',
     email: owner.spouseEmail || '',
-    phone: owner.spousePhone || '',
+    phone: owner.spousePhone || embedded?.phone || '',
     familyStatus: 'married',
     marriageYear: owner.marriageYear,
     spouseName: `${owner.firstName} ${owner.lastName}`.trim(),
@@ -119,4 +125,13 @@ export function seedClientFromEmbeddedSpouse(owner: Client): Partial<Client> {
     spousePhone: owner.phone || undefined,
     spouseClientId: owner.id,
   };
+  if (embedded) {
+    if (embedded.birthDate) base.birthDate = embedded.birthDate;
+    base.gender = embedded.gender;
+    base.incomeTaxType = embedded.incomeTaxType;
+    base.vatStatus = embedded.vatStatus;
+    if (embedded.businessDescription) base.businessDescription = embedded.businessDescription;
+    base.niType = embedded.niType;
+  }
+  return base;
 }

@@ -83,6 +83,14 @@ interface Props {
   update: <K extends keyof Client>(key: K, value: Client[K]) => void;
   patch: (partial: Partial<Client>) => void;
   employees: Employee[];
+  /**
+   * פותח כרטיס לקוח נפרד לבן/בת הזוג, מזורע מהפרטים שכבר כאן וקושר
+   * דו-כיווני (150). ‼ בלי בדיקת ת.ז.: זה בא מתוך קשר בן-זוג קיים על
+   * הכרטיס הזה, ולכן הזהות כבר ודאית — לא כפילות שצריך לזהות.
+   */
+  onCreateSpouseClient?: () => Promise<void> | void;
+  /** פותח את כרטיס בן/בת הזוג הקיים — כשהוא כבר מקושר (client.spouseClientId). */
+  onOpenSpouseClient?: (clientId: string) => void;
 }
 
 const FAMILY_LABELS: Record<FamilyStatus, string> = {
@@ -110,7 +118,19 @@ function ageFromBirthDate(birthDate?: string): string {
   return `(גיל ${age})`;
 }
 
-export default function PersonalContactsTab({ client, update, patch, employees }: Props) {
+export default function PersonalContactsTab({
+  client, update, patch, employees, onCreateSpouseClient, onOpenSpouseClient,
+}: Props) {
+  const [creatingSpouseClient, setCreatingSpouseClient] = useState(false);
+  async function handleCreateSpouseClient() {
+    if (!onCreateSpouseClient || creatingSpouseClient) return;
+    setCreatingSpouseClient(true);
+    try {
+      await onCreateSpouseClient();
+    } finally {
+      setCreatingSpouseClient(false);
+    }
+  }
   const [tagDraft, setTagDraft] = useState('');
   const [contactDraft, setContactDraft] = useState<Partial<ClientContact>>({ role: '', name: '', phone: '', email: '' });
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
@@ -680,6 +700,37 @@ export default function PersonalContactsTab({ client, update, patch, employees }
                   לא מנהלים כאן את המע"מ/ביטוח הלאומי שלו/ה — רק סימון שיש עסק,
                   לצורך ההקשר המשותף במס הכנסה.
                 </div>
+              </div>
+
+              {/* ‼ כניסה שנייה לאותו מצב מקושר שכבר קיים דרך "+ אדם חדש" (150) —
+                  שם, כדי שאפשר יהיה למצוא אותה גם בלי להקליד ת.ז. ידנית.
+                  שלושה מצבים, לא שניים: מקושר כבר → קישור לכרטיס הקיים;
+                  "מיוצג/ת במקום אחר" → לא מציעים בהבלטה, רק משאירים דלת
+                  שקטה; אחרת → הפעולה המשנית הרגילה. */}
+              <div className="form-group span-full">
+                {client.spouseClientId ? (
+                  onOpenSpouseClient && (
+                    <button type="button" className="ui-linkbtn"
+                      onClick={() => onOpenSpouseClient(client.spouseClientId!)}>
+                      {'→'} פתיחת כרטיס הלקוח של {spouseDisplayName(client)}
+                    </button>
+                  )
+                ) : client.spouseRepresentedElsewhere ? (
+                  onCreateSpouseClient && (
+                    <button type="button" className="ui-linkbtn" disabled={creatingSpouseClient}
+                      style={{ color: 'var(--ink-4)', fontWeight: 400 }}
+                      onClick={() => void handleCreateSpouseClient()}>
+                      {creatingSpouseClient ? 'יוצר/ת…' : `בכל זאת, פתיחת כרטיס לקוח ל${spouseDisplayName(client)}`}
+                    </button>
+                  )
+                ) : (
+                  onCreateSpouseClient && (
+                    <button type="button" className="ui-linkbtn" disabled={creatingSpouseClient}
+                      onClick={() => void handleCreateSpouseClient()}>
+                      {creatingSpouseClient ? 'יוצר/ת…' : 'לבן/בת הזוג יש עסק? פתיחת כרטיס לקוח'}
+                    </button>
+                  )
+                )}
               </div>
             </>
           )}

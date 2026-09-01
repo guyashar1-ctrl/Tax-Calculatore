@@ -29,6 +29,10 @@ interface Props {
   employees: Employee[];
   sessions: AnnualReportSession[];
   isNew?: boolean;
+  /** פותח כרטיס לקוח נפרד לבן/בת הזוג, מזורע ומקושר דו-כיווני (150). */
+  onCreateSpouseClient?: () => Promise<void> | void;
+  /** פותח את כרטיס בן/בת הזוג הקיים — כשהוא כבר מקושר (client.spouseClientId). */
+  onOpenSpouseClient?: (clientId: string) => void;
 }
 
 const ANCHOR = 'תיקים ברשויות';
@@ -59,7 +63,9 @@ function groupState(client: Client, label: string): { text: string; todo: boolea
   }
 }
 
-export default function ClientDossierTab({ client, spouseClient, update, patch, employees, isNew }: Props) {
+export default function ClientDossierTab({
+  client, spouseClient, update, patch, employees, isNew, onCreateSpouseClient, onOpenSpouseClient,
+}: Props) {
   // ‼ תיק מס הכנסה אחד לזוג (150) — כשהוא לא על הכרטיס הזה, נקרא דרך
   // household ולא מוצג כאילו אף אחד לא רשום.
   const household = resolveIncomeTaxHousehold(client, spouseClient);
@@ -164,7 +170,10 @@ export default function ClientDossierTab({ client, spouseClient, update, patch, 
 
           <DossierFilterProvider value={{ active: searching ? null : active, query }}>
             {showPersonal && (
-              <PersonalContactsTab client={client} update={update} patch={patch} employees={employees} />
+              <PersonalContactsTab
+                client={client} update={update} patch={patch} employees={employees}
+                onCreateSpouseClient={onCreateSpouseClient} onOpenSpouseClient={onOpenSpouseClient}
+              />
             )}
             {showTax && <TaxNITab client={client} update={update} hideFiles />}
           </DossierFilterProvider>

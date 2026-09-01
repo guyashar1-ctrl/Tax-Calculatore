@@ -845,6 +845,20 @@ export default function App() {
     return created;
   }
 
+  /**
+   * "לבן/בת הזוג יש עסק? פתיחת כרטיס לקוח" — מהאזור האישי של כרטיס קיים,
+   * לא דרך "+ אדם חדש". הזהות כבר ודאית (זו קשר בן-זוג קיים על `owner`),
+   * ולכן אין כאן שום בדיקת התאמת ת.ז. — רק זריעה וקישור דו-כיווני, באותו
+   * דפוס בדיוק כמו ה-owner ב-createPersonFromBasics, בלי דיאלוג ביניים.
+   */
+  async function handleCreateClientFromSpouse(owner: Client) {
+    const seed = seedClientFromEmbeddedSpouse(owner);
+    const draft = makeEmptyClient(crypto.randomUUID(), seed);
+    const created = await addClient(draft);
+    await updateClient({ ...owner, spouseClientId: created.id });
+    handleSelectClient(created.id);
+  }
+
   async function handleConfirmNewPersonQuote(basics: NewPersonBasics) {
     const client = await createPersonFromBasics(basics);
     setShowNewPerson(false);
@@ -2327,6 +2341,8 @@ export default function App() {
             charges={charges}
             onMarkChargePaid={markChargePaid}
             onOpenClientTasks={(clientId) => { setTasksClientFilter(clientId); setSelectedId(null); setView('tasks'); }}
+            onCreateSpouseClient={handleCreateClientFromSpouse}
+            onOpenClient={handleSelectClient}
           />
         )}
 

@@ -140,6 +140,10 @@ interface Props {
   onMarkChargePaid?: (charge: import('../types/charges').AdditionalCharge) => Promise<import('../types/charges').AdditionalCharge>;
   /** פתיחת מסך המשימות הגלובלי מסונן ללקוח הזה — במקום לשונית משימות בכרטיס. */
   onOpenClientTasks?: (clientId: string) => void;
+  /** פותח כרטיס לקוח נפרד לבן/בת הזוג של הכרטיס הזה, מזורע ומקושר דו-כיווני (150). */
+  onCreateSpouseClient?: (owner: Client) => Promise<void> | void;
+  /** ניווט לכרטיס לקוח אחר — למשל בן/בת הזוג הכבר-מקושר/ת. */
+  onOpenClient?: (clientId: string) => void;
 }
 
 function newEmptyClient(): Client {
@@ -210,6 +214,8 @@ export default function ClientWorkspace({
   charges,
   onMarkChargePaid,
   onOpenClientTasks,
+  onCreateSpouseClient,
+  onOpenClient,
 }: Props) {
   const isNew = !initialClient;
   const [client, setClient] = useState<Client>(initialClient ?? newEmptyClient());
@@ -872,6 +878,8 @@ export default function ClientWorkspace({
             employees={employees}
             sessions={taxSessions}
             isNew={isNew}
+            onCreateSpouseClient={onCreateSpouseClient ? () => onCreateSpouseClient(client) : undefined}
+            onOpenSpouseClient={onOpenClient}
           />
         )}
 

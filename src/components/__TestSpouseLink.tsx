@@ -55,6 +55,18 @@ export default function TestSpouseLink() {
   const [confirmed, setConfirmed] = useState<NewPersonBasics | null>(null);
   const [contactsClient, setContactsClient] = useState<Client>(YAIR);
   const [verified, setVerified] = useState(false);
+  const [createLog, setCreateLog] = useState<string[]>([]);
+  const [openLog, setOpenLog] = useState<string[]>([]);
+
+  // מדמה בדיוק את handleCreateClientFromSpouse ב-App.tsx: זריעה + מציג את
+  // מה שהיה נכתב לכרטיס החדש, בלי DB אמיתי.
+  function simulateCreate(owner: Client) {
+    const seed = seedClientFromEmbeddedSpouse(owner);
+    setCreateLog(l => [...l, JSON.stringify(seed)]);
+  }
+  function simulateOpen(clientId: string) {
+    setOpenLog(l => [...l, clientId]);
+  }
 
   const yairForHousehold: Client = { ...YAIR_LINKED, registeredSpouseVerified: verified };
   const michalRow = buildPersonRows([MICHAL_LINKED], [], [])[0];
@@ -135,17 +147,42 @@ export default function TestSpouseLink() {
         />
       </div>
 
-      <h3 style={{ marginTop: '2rem' }}>PersonalContactsTab — "יש עסק, מיוצג/ת ע"י רו"ח אחר"</h3>
+      <h3 style={{ marginTop: '2rem' }}>PersonalContactsTab — כניסת "פתיחת כרטיס לקוח" מאזור בן/בת הזוג (לא מקושר עדיין)</h3>
       <div id="tst-spouse-elsewhere" style={{ maxWidth: 640 }}>
         <div style={{ marginBottom: '.5rem', fontSize: 13 }}>
-          spouseRepresentedElsewhere: {String(!!contactsClient.spouseRepresentedElsewhere)}
+          spouseRepresentedElsewhere: {String(!!contactsClient.spouseRepresentedElsewhere)} |
+          {' '}spouseIdNumber: "{contactsClient.spouseIdNumber}"
         </div>
         <PersonalContactsTab
           client={contactsClient}
           update={(k, v) => setContactsClient(c => ({ ...c, [k]: v }))}
           patch={(p) => setContactsClient(c => ({ ...c, ...p }))}
           employees={[]}
+          onCreateSpouseClient={() => simulateCreate(contactsClient)}
+          onOpenSpouseClient={simulateOpen}
         />
+        {createLog.length > 0 && (
+          <pre id="tst-create-log" style={{ marginTop: '1rem', padding: '.75rem', background: 'var(--surface-2)', fontSize: 12, direction: 'ltr', whiteSpace: 'pre-wrap' }}>
+            {createLog.join('\n')}
+          </pre>
+        )}
+      </div>
+
+      <h3 style={{ marginTop: '2rem' }}>PersonalContactsTab — בן/בת הזוג כבר מקושר/ת (YAIR_LINKED) — בלי כפתור יצירה</h3>
+      <div id="tst-spouse-linked" style={{ maxWidth: 640 }}>
+        <PersonalContactsTab
+          client={YAIR_LINKED}
+          update={() => {}}
+          patch={() => {}}
+          employees={[]}
+          onCreateSpouseClient={() => simulateCreate(YAIR_LINKED)}
+          onOpenSpouseClient={simulateOpen}
+        />
+        {openLog.length > 0 && (
+          <pre id="tst-open-log" style={{ marginTop: '1rem', padding: '.75rem', background: 'var(--surface-2)', fontSize: 12, direction: 'ltr' }}>
+            {openLog.join('\n')}
+          </pre>
+        )}
       </div>
     </div>
   );
