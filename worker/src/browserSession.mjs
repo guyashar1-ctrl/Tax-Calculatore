@@ -388,6 +388,105 @@ export const GMF_QUERY_FILE_DETAILS = '181';
 // /gmf-main-menu/main/home, ואחרי ההגשה — /gmf-181/main/main181.
 export const GMF_181_PATH = '/gmf-181';
 
+// ─── שאילתה 134 — «מקדמות: פרטי דרישה ודיווח» ──────────────────────────────
+// ‼ שני שלבים, שניהם נצפו במסך החי:
+//   1. /gmf-134/main/knisa — מסך כניסה. ברירות המחדל כבר נכונות: «שנה שוטפת»
+//      (#ex1) ו«מידע לתיק» (#entranceRadioList-1). הכפתור כאן הוא #btnContinue
+//      ולא כפתור התפריט — לחיצה על זה של התפריט נכשלת בפסק זמן.
+//   2. /gmf-134/main/meda — המסך עם הנתונים.
+//
+// ‼ הרדיו מעוצב ומוסתר ולכן לא ניתן ללחיצה. לא כופים עליו — מאמתים שברירת
+// המחדל היא מה שציפינו, ואם לא — עוצרים במקום להמשיך על מסך אחר.
+export const GMF_134_ENTRY_PATH = '/gmf-134/main/knisa';
+export const GMF_134_DATA_PATH = '/gmf-134/main/meda';
+const GMF_134_CONTINUE = '#btnContinue';
+const GMF_134_YEAR_RADIO = '#ex1';
+const GMF_134_INFO_RADIO = '#entranceRadioList-1';
+
+export async function openAdvancesInfo(page, fileNumber) {
+  const context = page.context();
+  let work = await pickPageOn(context, GMF_PATH, GMF_TIK_INPUT);
+  if (!work) {
+    work = page;
+    await work.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
+    const landed = await settlePage(work);
+    if (!landed.pathname.startsWith(GMF_PATH) || landed.hasPasswordField) {
+      return { ok: false, reason: 'gmf_not_ready', pathname: landed.pathname };
+    }
+  }
+
+  const modal = await readGmfBlockingModal(work);
+  if (modal.blocked) return { ok: false, reason: 'blocked_by_modal', modalTitle: modal.title };
+
+  const tik = await work.$(GMF_TIK_INPUT);
+  const shilta = await work.$(GMF_SHILTA_INPUT);
+  if (!tik || !shilta) return { ok: false, reason: 'menu_fields_missing' };
+  await tik.fill('');
+  await tik.fill(fileNumber);
+  await shilta.fill('');
+  await shilta.fill('134');
+  try {
+    await work.locator(GMF_SUBMIT_BUTTON).click({ timeout: 10000 });
+  } catch (e) {
+    return { ok: false, reason: 'submit_click_blocked', detail: String(e).slice(0, 120) };
+  }
+  await work.waitForTimeout(2500);
+  const entry = await settlePage(work, { idleMs: 15000, watchMs: 6000 });
+  if (!entry.pathname.startsWith(GMF_134_ENTRY_PATH)) {
+    return { ok: false, reason: 'entry_screen_missing', pathname: entry.pathname };
+  }
+
+  const defaults = await work.evaluate((sel) => {
+    const y = document.querySelector(sel.year);
+    const i = document.querySelector(sel.info);
+    return { year: !!y && y.checked, info: !!i && i.checked };
+  }, { year: GMF_134_YEAR_RADIO, info: GMF_134_INFO_RADIO });
+  if (!defaults.year || !defaults.info) {
+    return { ok: false, reason: 'entry_defaults_changed', detail: JSON.stringify(defaults) };
+  }
+
+  try {
+    await work.locator(GMF_134_CONTINUE).click({ timeout: 10000 });
+  } catch (e) {
+    return { ok: false, reason: 'continue_click_blocked', detail: String(e).slice(0, 120) };
+  }
+  await work.waitForTimeout(2500);
+  const data = await settlePage(work, { idleMs: 15000, watchMs: 6000 });
+  if (!data.pathname.startsWith(GMF_134_DATA_PATH)) {
+    return { ok: false, reason: 'data_screen_missing', pathname: data.pathname };
+  }
+  return { ok: true, page: work, pathname: data.pathname };
+}
+
+/**
+ * מחלץ את שדות ראש התיק ממסך 134.
+ *
+ * ‼ העוגן הוא מבני ולא ויזואלי ולא לפי סדר: כל תווית היא span.small עם טקסט
+ * מדויק, והערך הוא **האח הבא של עוטף התווית**. נצפה במסך החי, וכל אחת מהן
+ * מופיעה בדיוק פעם אחת בתוך span.small. אם תווית חדלה להיות יחידה — מחזירים
+ * ambiguous ולא מנחשים איזו מהן נכונה.
+ */
+export async function extractIncomeTaxFileFacts(page) {
+  return page.evaluate(() => {
+    const read = (label) => {
+      const hits = [...document.querySelectorAll('span.small')]
+        .filter((e) => (e.innerText || '').trim() === label);
+      if (hits.length !== 1) return { ok: false, reason: hits.length ? 'ambiguous' : 'missing', n: hits.length };
+      const value = hits[0].parentElement?.nextElementSibling;
+      if (!value) return { ok: false, reason: 'no_value_node' };
+      const text = (value.innerText || '').replace(/\s+/g, ' ').trim();
+      return text ? { ok: true, text } : { ok: false, reason: 'empty' };
+    };
+    return {
+      pathname: location.pathname,
+      taxOffice: read('פקיד שומה'),
+      fileType: read('סוג תיק'),
+      unit: read('חולייה'),
+      economicIndustry: read('ענף כלכלי'),
+    };
+  });
+}
+
 /**
  * חומה חוסמת מעל תפריט GMF — למשל «פג תוקף האימות», שדורשת קוד חד-פעמי.
  *

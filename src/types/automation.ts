@@ -105,3 +105,5 @@ export const SHAAM_DISCONNECT_ACTION_TYPE = 'shaam.disconnect';
 export const SHAAM_OPEN_INCOME_TAX_ACTION_TYPE = 'shaam.open_income_tax';
 /** «פתח פרטי תיק» — שאילתה 181 ב-GMF עבור מספר תיק שמגיע מ-PIVO. */
 export const SHAAM_OPEN_CLIENT_FILE_ACTION_TYPE = 'shaam.open_client_file';
+/** «קרא משע״ם» — שאילתה 134, שדות ראש התיק במס הכנסה. */
+export const SHAAM_SYNC_INCOME_TAX_ACTION_TYPE = 'shaam.sync_income_tax_file';

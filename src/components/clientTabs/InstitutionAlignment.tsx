@@ -20,6 +20,7 @@ import { supabase } from '../../lib/supabase';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { DocCategory, StoredDoc } from '../../hooks/useDocumentStore';
 import { CURRENT_TAX_YEAR } from '../../data/taxData';
+import ShaamIncomeTaxSync from './ShaamIncomeTaxSync';
 
 // ─── תצורת השדות — אחת לכל מוסד ─────────────────────────────────────────────
 
@@ -694,6 +695,13 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
         {cfg.sections.map(section => (
           <div className="ial-step" key={section.kicker}>
             <SectionHead kicker={section.kicker} where={section.where} />
+            {key === 'income' && section.kicker === 'תיק ומקדמות' && (
+              <ShaamIncomeTaxSync
+                client={client}
+                current={k => String(collected[k] ?? '')}
+                onAdopt={(k, v) => setField(k, v)}
+              />
+            )}
             <div className="ial-fgrid">
               {section.fields.map(f => (
                 <div key={f.key}>

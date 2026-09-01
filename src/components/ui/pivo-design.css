@@ -4534,3 +4534,20 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .txf-modebar button{flex:1;padding:8px 0}
   .txf-details-entry > span{flex-basis:100%}
 }
+
+/* ── קריאה משע״ם בתוך יישור הקו (InstitutionAlignment → תיק ומקדמות) ──
+   ‼ מציג להשוואה בלבד. שום ערך לא נכנס לכרטיס בלי לחיצה על «אמץ». */
+.ial-sync{margin:0 0 12px}
+.ial-sync-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ial-sync-note{font-size:11px;line-height:1.5;color:var(--ink-4)}
+.ial-sync-off{font-size:11px;line-height:1.5;color:var(--ink-4)}
+.ial-sync-msg{margin-top:8px;font-size:12px;line-height:1.5;color:var(--ink-3)}
+.ial-sync-err{color:var(--danger)}
+.ial-sync-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}
+.ial-sync-table th{text-align:right;font-weight:600;font-size:11px;color:var(--ink-4);
+  padding:0 8px 5px;border-bottom:1px solid var(--bd)}
+.ial-sync-table td{padding:7px 8px;border-bottom:1px solid var(--bd);vertical-align:top}
+.ial-sync-table tr:last-child td{border-bottom:0}
+.ial-sync-hint{font-size:11px;line-height:1.45;color:var(--ink-4);margin-top:2px}
+.ial-sync-empty{color:var(--ink-4)}
+.ial-sync-same{font-size:11px;color:var(--ink-4)}

@@ -34,7 +34,10 @@ const CLIENT: Client = {
   email: 'ilan.s@example.invalid',
   city: 'תל אביב',
   notes: '',
-  taxFiles: [],
+  // ‼ נחוץ כדי ש«קרא משע״ם» בסעיף מס הכנסה ייראה בכלל: הוא מותנה בקיום
+  // מספר תיק במס הכנסה. עם ?client=<uuid> אמיתי, ההוק מושך את המשימה
+  // האחרונה של אותו לקוח ומציג את התוצאה האמיתית.
+  taxFiles: [{ id: 'fixture-tf-1', authority: 'income_tax', fileNumber: '000000000', owner: 'client', repStatus: 'active' }],
   lifecycleStage: 'active',
 } as unknown as Client;
 
