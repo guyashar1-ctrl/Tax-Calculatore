@@ -434,6 +434,9 @@ function GuyDinFlow() {
           initialEmail={din.email || undefined}
           alreadyRepresented={alreadyForDin}
           spouseAlreadyRepresented={spouseAlreadyForDin}
+          initialFamilyStatus={din.familyStatus || undefined}
+          initialSpouseName={din.spouseName || undefined}
+          initialSpouseIdNumber={din.spouseIdNumber || undefined}
         />
       )}
       {sent && (

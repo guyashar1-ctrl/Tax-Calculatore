@@ -67,6 +67,17 @@ interface Props {
    * ייצוג ב"ל למי שכבר מיוצג שם. מחושב ע"י הקורא דרך `spousePersonAuthorities`.
    */
   spouseAlreadyRepresented?: Partial<Record<RepAuthorityKind, string>>;
+  /**
+   * מצב משפחתי וזהות בן/בת הזוג שכבר **ידועים** על הכרטיס (160).
+   *
+   * ‼ עד עכשיו הדיאלוג תמיד נפתח ב"- שהלקוח יבחר -", גם כשהגענו אליו
+   * מתוך קשר בן-זוג מפורש (הפיכת בן/בת הזוג ללקוח/ה). הנתון היה קיים על
+   * הכרטיס — הוא פשוט לא נמסר לכאן, והרו"ח נשאל שוב על עובדה ידועה.
+   * ‼ אינו יוצר קשר חדש: זו קריאה של `Client.familyStatus`/`spouseName`.
+   */
+  initialFamilyStatus?: FamilyStatus;
+  initialSpouseName?: string;
+  initialSpouseIdNumber?: string;
 }
 
 interface AreaState {
@@ -85,6 +96,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 export default function RepresentationOnboardingDialog({
   onCreate, onCancel, checkEmailConflict, initialName, initialEmail, isTransfer = false, initialPrevAccountant,
   alreadyRepresented, spouseAlreadyRepresented,
+  initialFamilyStatus, initialSpouseName, initialSpouseIdNumber,
 }: Props) {
   const [name, setName] = useState(initialName ?? '');
   const [email, setEmail] = useState(initialEmail ?? '');
@@ -92,16 +104,19 @@ export default function RepresentationOnboardingDialog({
   const [sendBy, setSendBy] = useState<'link' | 'email'>(initialEmail ? 'email' : 'link');
   // נפתח מראש רק כשהגענו לכאן עם פרטים ידועים (הפיכת ליד ללקוח)
   const [showDetails, setShowDetails] = useState(!!initialName);
-  // '' = לא נבחר ⇒ הלקוח יישאל בטופס
-  const [familyStatus, setFamilyStatus] = useState<FamilyStatus | ''>('');
+  // '' = לא נבחר ⇒ הלקוח יישאל בטופס. ‼ (160) כשהמצב כבר ידוע מהכרטיס
+  // (למשל אחרי הפיכת בן/בת הזוג ללקוח/ה) לא שואלים עליו מחדש.
+  const [familyStatus, setFamilyStatus] = useState<FamilyStatus | ''>(initialFamilyStatus ?? '');
   const [familyYear, setFamilyYear] = useState('');
-  const [spouseName, setSpouseName] = useState('');
-  const [spouseIdNumber, setSpouseIdNumber] = useState('');
+  const [spouseName, setSpouseName] = useState(initialSpouseName ?? '');
+  const [spouseIdNumber, setSpouseIdNumber] = useState(initialSpouseIdNumber ?? '');
   const [spouseEmail, setSpouseEmail] = useState('');
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
   // ‼ עובדה נפרדת לגמרי ממצב משפחתי (155) — ראה showTargets. לא לגזור
   // "יש עסק" מ"נשוי/אה"; מע"מ/ניכויים הם תיק אישי, לא נגזר מנישואין.
   const [spouseHasBusiness, setSpouseHasBusiness] = useState(false);
+  /** (160) רשויות שהרו"ח ביקש במפורש לפתוח בהן את בורר רמת הייצוג. */
+  const [levelOpen, setLevelOpen] = useState<Set<RepAuthorityKind>>(new Set());
   // ‼ ברירת המחדל היא הלקוח — כך זה ברוב התיקים, וכך זה נולד עד היום ממילא.
   const [registeredSpouse, setRegisteredSpouse] = useState<'client' | 'spouse'>('client');
   const [transfer, setTransfer] = useState(isTransfer);
@@ -131,6 +146,9 @@ export default function RepresentationOnboardingDialog({
   // גם אם הצ'קבוקס שלה איכשהו מסומן ב-state: אין לה שורת בחירה בכלל,
   // ואי אפשר לבקש אותה שוב מהמסך הזה.
   const selectedKeys = REP_AUTHORITY_ORDER.filter(a => areas[a].selected && !alreadyRepresented?.[a]);
+  /** (160) שתי הקבוצות שהמסך מציג — "כבר קיים" מול "מה לבקש עכשיו". */
+  const existingKeys = REP_AUTHORITY_ORDER.filter(a => !!alreadyRepresented?.[a]);
+  const requestKeys = REP_AUTHORITY_ORDER.filter(a => !alreadyRepresented?.[a]);
   const emailConflict = checkEmailConflict && isValidEmail(email) ? checkEmailConflict(email) : null;
   const married = familyStatus === 'married';
   const yearLabel = familyStatus ? FAMILY_STATUS_YEAR_LABELS[familyStatus] : undefined;
@@ -441,6 +459,22 @@ export default function RepresentationOnboardingDialog({
         </div>
 
         <div className="modal-body">
+          {/* ‼ (160) נושא הבקשה — השורה הראשונה במסך. עד עכשיו היה צריך
+              להסיק אותו מהשם שבתחתית או מהמיקרו-קופי, והמסך נקרא כמו קליטת
+              זוג ולא כמו בקשה עבור אדם אחד. */}
+          {name.trim() && (
+            <div style={{ marginBottom: '1.1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: 'var(--fs-16)', color: 'var(--ink-1)' }}>
+                ייצוג עבור {name.trim()}
+              </div>
+              {spouseKnown && spouseName.trim() && (
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>
+                  נשוי/אה ל{spouseName.trim()}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── מצב משפחתי — השאלה הראשונה ────────────────────────────────────
               ‼ הכרעת גיא (31.8): היא נשאלת **לפני** הרשויות, כי היא זו שפותחת
               את "עבור מי" בתוך שורת הרשות. קודם היא ישבה במקטע המקופל שמתחת,
@@ -549,32 +583,41 @@ export default function RepresentationOnboardingDialog({
             )}
           </div>
 
-          {/* רשויות — הבחירה היחידה שנדרשת */}
-          <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginBottom: '.5rem' }}>
-            אילו רשויות לייצג? <span style={{ color: 'var(--danger)' }}>*</span>
-          </label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-            {REP_AUTHORITY_ORDER.map(a => {
-              const already = alreadyRepresented?.[a];
-              if (already) {
-                // ‼ שורת מידע קבועה, לא צ'קבוקס: אין כאן החלטה לקבל, ואין
-                // מה לבטל. "כבר מיוצג" הוא עובדה שנקבעה בכרטיס אחר.
-                return (
+          {/* ═══ (160) שתי קבוצות, לא רשימה אחת ═══════════════════════════
+              "כבר קיים" ו"מה נבקש עכשיו" הן שתי קטגוריות שונות, וערבובן
+              ברשימה אחת הכריח את הרו"ח לקרוא מיקרו-קופי בכל שורה כדי לדעת
+              באיזו קטגוריה היא. עכשיו זה נקרא במבט. */}
+          {existingKeys.length > 0 && (
+            <>
+              <div style={{ fontWeight: 600, fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginBottom: '.35rem' }}>
+                כבר קיים
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', marginBottom: '1rem' }}>
+                {existingKeys.map(a => (
+                  // ‼ שורת מידע קבועה, לא צ'קבוקס: אין כאן החלטה לקבל.
                   <div key={a} style={{
-                    display: 'flex', alignItems: 'center', gap: '.75rem',
-                    padding: '.7rem .8rem', border: '1px solid var(--hairline-1)',
-                    borderRadius: 'var(--radius)', background: 'var(--surface-2)',
+                    display: 'flex', alignItems: 'baseline', gap: '.55rem',
+                    padding: '.5rem .7rem', borderRadius: 'var(--radius)', background: 'var(--surface-2)',
                   }}>
-                    <span style={{ fontSize: 'var(--fs-15)' }}>{'✓'}</span>
-                    <span style={{ flex: 1, fontSize: 'var(--fs-15)' }}>
+                    <span style={{ color: 'var(--ok)', fontSize: 'var(--fs-13)' }}>{'✓'}</span>
+                    <span style={{ flex: 1, fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
                       {REP_AUTHORITY_LABELS[a]}
-                      <span style={{ display: 'block', fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>
-                        כבר מיוצג/ת {'·'} {already} {'·'} אין צורך בבקשה נוספת
+                      <span style={{ display: 'block', fontSize: 'var(--fs-12)', color: 'var(--ink-4)', marginTop: 1 }}>
+                        {alreadyRepresented?.[a]}
                       </span>
                     </span>
                   </div>
-                );
-              }
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* רשויות — הבחירה היחידה שנדרשת */}
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', marginBottom: '.5rem' }}>
+            {existingKeys.length > 0 ? 'מה לבקש עכשיו' : 'אילו רשויות לייצג?'} <span style={{ color: 'var(--danger)' }}>*</span>
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+            {requestKeys.map(a => {
               const st = areas[a];
               return (
                 <div
@@ -600,18 +643,49 @@ export default function RepresentationOnboardingDialog({
                   />
                   <span style={{ flex: 1, fontSize: 'var(--fs-15)', fontWeight: st.selected ? 600 : 400 }}>
                     {REP_AUTHORITY_LABELS[a]}
+                    {/* ‼ (160) "עבור X" על השורה עצמה — הנושא, לא מודל היעדים.
+                        מוצג רק כשיש בכלל בן/בת זוג, אחרת זו מילה מיותרת. */}
+                    {spouseKnown && name.trim() && !showTargets(a) && a !== 'incomeTax' && (
+                      <span style={{ fontWeight: 400, color: 'var(--ink-3)' }}> {'—'} עבור {name.trim()}</span>
+                    )}
+                    {/* ‼ (160) הקשר פסיבי — ורק בביטוח לאומי. שם זו באמת שאלה
+                        שעולה בראש ("ומה עם בן/בת הזוג?"), כי ב"ל הוא ברמת-אדם
+                        לזוג. במע"מ/ניכויים התיק אישי ממילא, ואזכור בן/בת הזוג
+                        רק היה גורם לו/ה להיראות כחלק מהבקשה הזאת. */}
+                    {a === 'nationalInsurance' && spouseAlreadyRepresented?.[a] && spouseName.trim() && (
+                      <span style={{ display: 'block', fontSize: 'var(--fs-12)', color: 'var(--ink-4)', fontWeight: 400, marginTop: 2 }}>
+                        {spouseName.trim()} כבר מיוצג/ת
+                      </span>
+                    )}
                   </span>
+                  {/* ‼ (160) רמת הייצוג היא ברירת מחדל מכנית: כמעט תמיד "ראשי",
+                      ו"משני" נגזר ממכתב העברת הטיפול ולא נבחר כאן (הכרעת גיא
+                      2026-08-18). שלושה תפריטים בולטים על המסך תחרו על תשומת
+                      הלב עם ההחלטה האמיתית. היכולת **לא הוסרה** — היא נפתחת
+                      בלחיצה, וגם נפתחת לבד כשהיא באמת רלוונטית (מעבר מרו"ח
+                      אחר, או ערך שכבר שונה ידנית). */}
                   {hasLevel(a) ? (
-                    <select
-                      value={st.level}
-                      onChange={(e) => setLevel(a, e.target.value as RepLevel)}
-                      onClick={(e) => e.stopPropagation()}
-                      disabled={busy || !st.selected}
-                      style={{ width: 'auto', minWidth: 120 }}
-                    >
-                      <option value="primary">{REP_LEVEL_LABELS.primary}</option>
-                      <option value="secondary">{REP_LEVEL_LABELS.secondary}</option>
-                    </select>
+                    (transfer || levelOpen.has(a) || st.level !== 'primary') ? (
+                      <select
+                        value={st.level}
+                        onChange={(e) => setLevel(a, e.target.value as RepLevel)}
+                        onClick={(e) => e.stopPropagation()}
+                        disabled={busy || !st.selected}
+                        style={{ width: 'auto', minWidth: 120 }}
+                      >
+                        <option value="primary">{REP_LEVEL_LABELS.primary}</option>
+                        <option value="secondary">{REP_LEVEL_LABELS.secondary}</option>
+                      </select>
+                    ) : (
+                      <button
+                        type="button" className="ui-linkbtn" disabled={busy || !st.selected}
+                        onClick={(e) => { e.stopPropagation(); setLevelOpen(s => new Set(s).add(a)); }}
+                        style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)', whiteSpace: 'nowrap' }}
+                        title="שינוי רמת הייצוג"
+                      >
+                        {REP_LEVEL_LABELS.primary} {'·'} שינוי
+                      </button>
+                    )
                   ) : (
                     <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)' }}>{'ℹ'} ייצוג יחיד</span>
                   )}
@@ -664,11 +738,8 @@ export default function RepresentationOnboardingDialog({
               מ-selectedKeys ומהפלט. התוצאה: כרטיס חדש של בן/בת זוג שאל אם
               לייצג בב"ל גם את מי שכבר מיוצג שם. spouseTargetBlocked סוגר את
               שני הכיוונים — הלקוח הזה, ובן/בת הזוג כאדם. */}
-          {spouseAlreadyRepresented?.nationalInsurance && areas.nationalInsurance.selected && (
-            <div style={{ marginTop: '.6rem', fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-              {'ℹ'} {spouseAlreadyRepresented.nationalInsurance} בביטוח לאומי - הבקשה הזאת היא עבור {name.trim() || 'הלקוח/ה'} בלבד.
-            </div>
-          )}
+          {/* ‼ (160) שורת ההקשר הפסיבית עברה אל **תוך** שורת הרשות עצמה
+              ("גיא ישר כבר מיוצג/ת"), במקום בלוק נפרד מתחת לרשימה. */}
           {areas.nationalInsurance.selected && !notMarriedExplicit && !spouseKnown
             && !spouseTargetBlocked('nationalInsurance') && (
             <div style={{
@@ -880,6 +951,16 @@ export default function RepresentationOnboardingDialog({
               </div>
             ))}
             <div>{'✓'} משימה פנימית למעקב</div>
+            {/* ‼ (160) "כבר קיים" מופרד מתחת לקו — הוא **לא** חלק ממה שנוצר
+                עכשיו, וערבובו ברשימה שלמעלה קרא כאילו מבקשים אותו שוב. */}
+            {existingKeys.length > 0 && (
+              <div style={{ marginTop: '.5rem', paddingTop: '.5rem', borderTop: '1px solid var(--hairline-1)', color: 'var(--ink-4)' }}>
+                <div style={{ fontWeight: 600, marginBottom: '.2rem' }}>כבר קיים - לא נבקש שוב</div>
+                {existingKeys.map(a => (
+                  <div key={a}>{'✓'} {REP_AUTHORITY_LABELS[a]}</div>
+                ))}
+              </div>
+            )}
             {married && spouseName.trim() && <div>{'✓'} חותם שני - {spouseName.trim()}</div>}
             {married && !spouseName.trim() && <div>{'✓'} חותם שני - הלקוח ימלא את פרטי בן/בת הזוג בקישור</div>}
             {niForSpouse && (

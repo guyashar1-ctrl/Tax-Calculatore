@@ -286,12 +286,13 @@ export default function QuotationRepresentationEditor({
               למשני עד השלמתם.
             </div>
           )}
+          {/* ‼ (160) אותו מודל מנטלי של הדיאלוג הראשי — "כבר קיים" מופרד
+              מ"מה נבקש", ולא מעורבב באותה רשימה. הפריסה שונה כי ההקשר שונה
+              (מקטע בתוך בונה ההצעה, לא חלון), המשמעות זהה. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {REP_AUTHORITY_ORDER.map(a => {
+            {REP_AUTHORITY_ORDER.filter(a => !!alreadyRepresented?.[a]).map(a => {
               const already = alreadyRepresented?.[a];
-              if (already) {
-                // ‼ שורת מידע קבועה, לא צ'קבוקס — בדיוק כמו ב-RepresentationOnboardingDialog.
-                // "כבר מיוצג" הוא עובדה שנקבעה בכרטיס אחר, לא החלטה לקבל כאן.
+              {
                 return (
                   <div key={a} style={{
                     display: 'flex', alignItems: 'center', gap: 9, padding: '7px 10px',
@@ -307,6 +308,8 @@ export default function QuotationRepresentationEditor({
                   </div>
                 );
               }
+            })}
+            {REP_AUTHORITY_ORDER.filter(a => !alreadyRepresented?.[a]).map(a => {
               const on = !!value.areas?.[a];
               return (
                 <div key={a} onClick={() => toggleArea(a)} style={{

@@ -2649,6 +2649,9 @@ export default function App() {
           checkEmailConflict={(email) => repEmailConflictMessage(email, pendingRepresentationClient.id)}
           initialName={`${pendingRepresentationClient.firstName} ${pendingRepresentationClient.lastName}`.trim()}
           initialEmail={pendingRepresentationClient.email || undefined}
+          initialFamilyStatus={pendingRepresentationClient.familyStatus || undefined}
+          initialSpouseName={pendingRepresentationClient.spouseName || undefined}
+          initialSpouseIdNumber={pendingRepresentationClient.spouseIdNumber || undefined}
           alreadyRepresented={alreadyRepresentedFor(pendingRepresentationClient)}
           spouseAlreadyRepresented={spousePersonAuthorities(
             pendingRepresentationClient, findSpouseClient(pendingRepresentationClient, clients))}
