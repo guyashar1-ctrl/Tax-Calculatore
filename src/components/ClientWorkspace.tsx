@@ -820,11 +820,13 @@ export default function ClientWorkspace({
         {tab === 'pay' && (
           <AgreementPaymentsTab
             client={client}
+            spouseClient={spouseClient}
             quotations={quotations ?? []}
             engagements={engagements ?? []}
             charges={clientCharges}
             onMarkChargePaid={onMarkChargePaid ?? (async (c) => c)}
             onNewQuotation={onNewQuotation ? (kind) => onNewQuotation(client.id, kind) : undefined}
+            onOpenClient={onOpenClient}
           />
         )}
 

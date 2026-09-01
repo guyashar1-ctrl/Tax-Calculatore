@@ -4,11 +4,13 @@
 
 import { useState } from 'react';
 import type { Client } from '../types';
+import type { Engagement } from '../types/onboarding';
 import NewPersonDialog, { type NewPersonBasics } from './NewPersonDialog';
 import PersonQuickView from './PersonQuickView';
 import PersonalContactsTab from './clientTabs/PersonalContactsTab';
 import TaxFileTab from './clientTabs/TaxFileTab';
 import ClientDossierTab from './clientTabs/ClientDossierTab';
+import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
 import { buildPersonRows } from '../utils/personDirectory';
 import { seedClientFromEmbeddedSpouse } from '../utils/personRepresentation';
 
@@ -50,6 +52,19 @@ const MICHAL: Client = {
 const YAIR_LINKED: Client = { ...YAIR, spouseClientId: MICHAL.id };
 const MICHAL_LINKED: Client = { ...MICHAL, spouseClientId: YAIR_LINKED.id };
 
+// ‼ בעלות מסחרית (154) — התקשרות אחת אצל יאיר, מיכל בלי משלה. הגזירה
+// (resolveBillingOwnership) קוראת את זו של יאיר בשבילה — לא מעתיקה כלום.
+const ENG_YAIR_ONLY: Engagement = {
+  id: 'eng-yair-1', clientId: YAIR_LINKED.id, status: 'active',
+  monthlyTotal: 450, effectiveFrom: '2026-01-01', createdAt: '2026-01-01T08:00:00.000Z',
+};
+// ‼ תרחיש E — לשני בני הזוג יש התקשרות עצמאית משלהם. אסור שהגזירה תמזג:
+// כל אחד צריך להישאר עם שלו, ו-coversSpouse צריך להיות undefined אצל שניהם.
+const ENG_MICHAL_OWN: Engagement = {
+  id: 'eng-michal-1', clientId: MICHAL_LINKED.id, status: 'active',
+  monthlyTotal: 280, effectiveFrom: '2026-06-01', createdAt: '2026-06-01T08:00:00.000Z',
+};
+
 export default function TestSpouseLink() {
   const [open, setOpen] = useState(true);
   const [confirmed, setConfirmed] = useState<NewPersonBasics | null>(null);
@@ -57,6 +72,7 @@ export default function TestSpouseLink() {
   const [verified, setVerified] = useState(false);
   const [createLog, setCreateLog] = useState<string[]>([]);
   const [openLog, setOpenLog] = useState<string[]>([]);
+  const [quotationLog, setQuotationLog] = useState<string[]>([]);
 
   // מדמה בדיוק את handleCreateClientFromSpouse ב-App.tsx: זריעה + מציג את
   // מה שהיה נכתב לכרטיס החדש, בלי DB אמיתי.
@@ -184,6 +200,60 @@ export default function TestSpouseLink() {
           </pre>
         )}
       </div>
+
+      <h3 style={{ marginTop: '2rem' }}>AgreementPaymentsTab (154) — א/ד: מיכל בלי התקשרות משלה, יאיר עם התקשרות</h3>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div id="tst-billing-michal" style={{ width: 420, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>מיכל (בלי התקשרות עצמאית)</div>
+          <AgreementPaymentsTab
+            client={MICHAL_LINKED} spouseClient={YAIR_LINKED}
+            quotations={[]} engagements={[ENG_YAIR_ONLY]} charges={[]}
+            onMarkChargePaid={async (c) => c}
+            onNewQuotation={(kind) => setQuotationLog(l => [...l, `onNewQuotation(${kind}) עבור מיכל`])}
+            onOpenClient={simulateOpen}
+          />
+        </div>
+        <div id="tst-billing-yair" style={{ width: 420, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>יאיר (בעל ההתקשרות)</div>
+          <AgreementPaymentsTab
+            client={YAIR_LINKED} spouseClient={MICHAL_LINKED}
+            quotations={[]} engagements={[ENG_YAIR_ONLY]} charges={[]}
+            onMarkChargePaid={async (c) => c}
+            onNewQuotation={(kind) => setQuotationLog(l => [...l, `onNewQuotation(${kind}) עבור יאיר`])}
+            onOpenClient={simulateOpen}
+          />
+        </div>
+      </div>
+
+      <h3 style={{ marginTop: '2rem' }}>AgreementPaymentsTab (154) — ה: לשני בני הזוג יש התקשרות עצמאית — בלי מיזוג</h3>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div id="tst-billing-both-michal" style={{ width: 420, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>מיכל (התקשרות עצמאית משלה)</div>
+          <AgreementPaymentsTab
+            client={MICHAL_LINKED} spouseClient={YAIR_LINKED}
+            quotations={[]} engagements={[ENG_YAIR_ONLY, ENG_MICHAL_OWN]} charges={[]}
+            onMarkChargePaid={async (c) => c}
+            onNewQuotation={(kind) => setQuotationLog(l => [...l, `onNewQuotation(${kind}) עבור מיכל (יש לה כבר)`])}
+            onOpenClient={simulateOpen}
+          />
+        </div>
+        <div id="tst-billing-both-yair" style={{ width: 420, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>יאיר (התקשרות עצמאית משלו)</div>
+          <AgreementPaymentsTab
+            client={YAIR_LINKED} spouseClient={MICHAL_LINKED}
+            quotations={[]} engagements={[ENG_YAIR_ONLY, ENG_MICHAL_OWN]} charges={[]}
+            onMarkChargePaid={async (c) => c}
+            onNewQuotation={(kind) => setQuotationLog(l => [...l, `onNewQuotation(${kind}) עבור יאיר (יש לו כבר)`])}
+            onOpenClient={simulateOpen}
+          />
+        </div>
+      </div>
+
+      {(openLog.length > 0 || quotationLog.length > 0) && (
+        <pre id="tst-billing-log" style={{ marginTop: '1rem', padding: '.75rem', background: 'var(--surface-2)', fontSize: 12, direction: 'ltr', whiteSpace: 'pre-wrap' }}>
+          {'openLog: ' + JSON.stringify(openLog) + '\n' + 'quotationLog: ' + JSON.stringify(quotationLog)}
+        </pre>
+      )}
     </div>
   );
 }

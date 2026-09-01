@@ -20,18 +20,24 @@ import type { Engagement } from '../../types/onboarding';
 import type { Quotation, QuotationItem, QuotationKind } from '../../types/quotations';
 import { itemFinalPrice, formatILS } from '../../utils/quotationCalc';
 import { currentEngagement, upcomingEngagement, previousEngagements } from '../../utils/engagementSelectors';
+import { resolveBillingOwnership } from '../../utils/billingOwnership';
+import { clientDisplayName } from '../../features/annualReport/profile';
 import Modal from '../ui/Modal';
 
 const VAT_RATE = 18;
 
 interface Props {
   client: Client;
+  /** הכרטיס של בן/בת הזוג, כשהוא/היא לקוח/ה בפני עצמו/ה (150). */
+  spouseClient?: Client;
   quotations: Quotation[];
   engagements: Engagement[];
   charges: AdditionalCharge[];
   onMarkChargePaid: (charge: AdditionalCharge) => Promise<AdditionalCharge>;
   /** פותח את בונה ההצעות עם הכוונה המסחרית שנבחרה. */
   onNewQuotation?: (kind: QuotationKind) => void;
+  /** ניווט לכרטיס לקוח אחר — למשל בן/בת הזוג שמחזיק/ה את ההתקשרות בפועל. */
+  onOpenClient?: (clientId: string) => void;
 }
 
 function fmtMonth(ym?: string): string {
@@ -56,7 +62,7 @@ function fromMonth(ym?: string): string {
 }
 
 export default function AgreementPaymentsTab({
-  client, quotations, engagements, charges, onMarkChargePaid, onNewQuotation,
+  client, spouseClient, quotations, engagements, charges, onMarkChargePaid, onNewQuotation, onOpenClient,
 }: Props) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -73,6 +79,15 @@ export default function AgreementPaymentsTab({
   const current = useMemo(() => currentEngagement(engagements, client.id), [engagements, client.id]);
   const upcoming = useMemo(() => upcomingEngagement(engagements, client.id), [engagements, client.id]);
   const previous = useMemo(() => previousEngagements(engagements, client.id), [engagements, client.id]);
+
+  // ‼ בעלות מסחרית (154) נגזרת בלייב, לא נשמרת — ראה billingOwnership.ts.
+  const billing = useMemo(
+    () => resolveBillingOwnership(client, spouseClient, engagements),
+    [client, spouseClient, engagements]);
+  /** לכרטיס הזה יש התקשרות משלו, ולבן/בת הזוג המקושר/ת אין — ההתקשרות הזו מכסה גם אותו/ה. */
+  const coversSpouse = useMemo(
+    () => (spouseClient && !currentEngagement(engagements, spouseClient.id) ? spouseClient : undefined),
+    [spouseClient, engagements]);
 
   const quotationOf = (e?: Engagement) => e?.quotationId ? clientQuotations.find(q => q.id === e.quotationId) : undefined;
   const currentQuotation = quotationOf(current);
@@ -129,7 +144,34 @@ export default function AgreementPaymentsTab({
     </button>
   );
 
-  // ── אין הסכם: שורה אחת ופעולה, בלי שלושה מקטעים ריקים ──
+  // ‼ אין הסכם על הכרטיס הזה, אבל בן/בת הזוג המקושר/ת כן — ברירת המחדל
+  // המסחרית (154) קוראת את ההתקשרות שלו/ה במקום להראות מצב ריק ומטעה,
+  // כאילו אין שום הסדר תשלום. לא מעתיקים כלום, רק מציגים קישור וניווט.
+  if (!current && billing.owner === 'spouse' && billing.ownerClient) {
+    const owner = billing.ownerClient;
+    return (
+      <div className="cw-tabpanel ap">
+        <div className="ap-label">התקשרות</div>
+        <div className="ap-note">
+          החיוב מנוהל בכרטיס של <b>{clientDisplayName(owner)}</b>
+        </div>
+        <div className="ap-actions">
+          {onOpenClient && (
+            <button type="button" className="ap-link" onClick={() => onOpenClient(owner.id)}>
+              {'→'} פתיחת ההתקשרות בכרטיס של {clientDisplayName(owner)}
+            </button>
+          )}
+          {onNewQuotation && (
+            <button type="button" className="ap-link" onClick={() => onNewQuotation('engagement')}>
+              + הצעת מחיר נפרדת ללקוח/ה הזה/הזאת
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── אין הסכם, ואין גם אצל בן/בת הזוג: שורה אחת ופעולה, בלי שלושה מקטעים ריקים ──
   if (!current) {
     return (
       <div className="cw-tabpanel ap">
@@ -168,6 +210,11 @@ export default function AgreementPaymentsTab({
         <button type="button" className="ap-link" onClick={() => setDetailOpen(true)}>פרטי ההתקשרות</button>
         {previous.length > 0 && (
           <button type="button" className="ap-link" onClick={() => setPrevOpen(true)}>התקשרויות קודמות</button>
+        )}
+        {coversSpouse && onOpenClient && (
+          <button type="button" className="ap-link" onClick={() => onOpenClient(coversSpouse.id)}>
+            מכסה גם את {clientDisplayName(coversSpouse)}
+          </button>
         )}
       </div>
 
