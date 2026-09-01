@@ -3,10 +3,14 @@
 
 import { useState } from 'react';
 import RepresentationOnboardingDialog, { CreateRepresentationInput } from './RepresentationOnboardingDialog';
+import QuotationRepresentationEditor from './quotations/QuotationRepresentationEditor';
+import { defaultQuotationRepresentation } from '../types/quotations';
+import type { QuotationRepresentation } from '../types/quotations';
 
 export default function TestRepDialog() {
   const [sent, setSent] = useState<CreateRepresentationInput | null>(null);
   const [open, setOpen] = useState(true);
+  const [repValue, setRepValue] = useState<QuotationRepresentation>(defaultQuotationRepresentation());
 
   return (
     <div style={{ padding: '1.5rem', direction: 'rtl' }}>
@@ -14,7 +18,7 @@ export default function TestRepDialog() {
         פתיחת הדיאלוג
       </button>
       {sent && (
-        <pre style={{ marginTop: '1rem', padding: '1rem', background: 'var(--surface-2)', fontSize: 12, direction: 'ltr' }}>
+        <pre id="tst-rep-sent" style={{ marginTop: '1rem', padding: '1rem', background: 'var(--surface-2)', fontSize: 12, direction: 'ltr' }}>
           {JSON.stringify(sent, null, 2)}
         </pre>
       )}
@@ -29,6 +33,19 @@ export default function TestRepDialog() {
             : {})}
         />
       )}
+
+      <h3 style={{ marginTop: '2rem' }}>QuotationRepresentationEditor (155) — אותה בדיקה: מע"מ/ניכויים לא נגזרים מנישואין</h3>
+      <div style={{ maxWidth: 480, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '1rem' }} id="tst-qre">
+        <QuotationRepresentationEditor
+          value={repValue}
+          onChange={setRepValue}
+          recipientName="מיכל סלע"
+          recipientEmail="michal@example.test"
+        />
+      </div>
+      <pre id="tst-qre-value" style={{ marginTop: '1rem', padding: '1rem', background: 'var(--surface-2)', fontSize: 12, direction: 'ltr' }}>
+        {JSON.stringify(repValue, null, 2)}
+      </pre>
     </div>
   );
 }

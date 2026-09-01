@@ -1146,6 +1146,15 @@ export interface OnboardingPrefill {
    * ראה `Client.registeredSpouseVerified`.
    */
   registeredSpouse?: 'client' | 'spouse';
+  /**
+   * לבן/בת הזוג יש עסק שאנחנו מנהלים/קולטים **בבקשה הזאת** — עובדה נפרדת
+   * לגמרי ממצב משפחתי (155). ‼ אף פעם לא לגזור "יש עסק" מ"נשוי/אה": מע"מ
+   * וניכויים הם תיק אישי, לא נגזר מנישואין. בלי הדגל הזה, "עבור מי" במע"מ/
+   * ניכויים לא מוצג בכלל — לא רק לא מסומן. השדה משפיע רק על מע"מ/ניכויים;
+   * ביטוח לאומי הוא ברמת-אדם וממשיך להיפתח לבן/בת הזוג רק מנישואין
+   * (`spouseKnown`), בלי תלות בדגל הזה.
+   */
+  spouseHasBusiness?: boolean;
 }
 
 export type OnboardingSecondaryType = 'parentId' | 'driverLicense' | 'passport';

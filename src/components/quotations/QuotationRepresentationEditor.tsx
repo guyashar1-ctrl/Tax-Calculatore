@@ -120,12 +120,21 @@ export default function QuotationRepresentationEditor({
   // ‼ שאלת "עבור מי" מוצגת רק כשידוע שיש בן/בת זוג — כמו בדיאלוג הראשי.
   // רוב ההצעות הן ליחיד, ושאלה שמופיעה בכל אחת מהן מייקרת את ברירת המחדל.
   const spouseKnown = married || !!p.spouseName?.trim();
+  /** מע"מ/ניכויים הם תיק אישי (155) — לא נגזר מנישואין, רק מעדות מפורשת. */
+  const spouseHasBusiness = !!p.spouseHasBusiness;
 
   const patch = (next: Partial<QuotationRepresentation>) => onChange({ ...value, ...next });
   const patchPrefill = (next: Partial<typeof p>) => patch({ prefill: { ...p, ...next } });
 
+  /**
+   * ‼ מע"מ/ניכויים לא נגזרים מנישואין (155): הצ'יפ "עבור מי" מוצג רק כשיש
+   * עדות מפורשת שלבן/בת הזוג יש עסק שאנחנו מנהלים/קולטים (spouseHasBusiness).
+   * ביטוח לאומי ברמת-אדם וממשיך להיפתח מנישואין בלבד, בדיוק כמו קודם.
+   */
   function showTargets(a: RepAuthorityKind): boolean {
-    return !!value.areas?.[a] && REP_AUTHORITIES_WITH_TARGETS.includes(a) && spouseKnown && !alreadyRepresented?.[a];
+    if (!value.areas?.[a] || !REP_AUTHORITIES_WITH_TARGETS.includes(a) || !!alreadyRepresented?.[a]) return false;
+    if (a === 'nationalInsurance') return spouseKnown;
+    return spouseKnown && spouseHasBusiness;
   }
 
   /**
@@ -197,6 +206,21 @@ export default function QuotationRepresentationEditor({
       },
       spouse: name ? { name, email, idNumber: idNumber || undefined } : null,
     });
+  }
+
+  /**
+   * ‼ ביטול "יש עסק לבן/בת הזוג" חייב לנקות יעד מע"מ/ניכויים שכבר סומן —
+   * אחרת הצ'יפ נעלם (showTargets) אבל היעד נשאר תקוע ב-state ונשלח בשקט.
+   * ביטוח לאומי לא נוגע כאן: הוא לא תלוי ב-spouseHasBusiness.
+   */
+  function setSpouseHasBusiness(on: boolean) {
+    const areas = { ...(value.areas ?? {}) };
+    if (!on) {
+      for (const a of REP_AUTHORITIES_WITH_TARGETS) {
+        if (a !== 'nationalInsurance' && areas[a]) areas[a] = { ...areas[a]!, targets: ['client'] };
+      }
+    }
+    onChange({ ...value, areas, prefill: { ...p, spouseHasBusiness: on || undefined } });
   }
 
   return (
@@ -373,7 +397,7 @@ export default function QuotationRepresentationEditor({
                         ...p,
                         familyStatus: fs || undefined,
                         familyStatusYear: undefined,
-                        ...(dropSpouse ? { spouseName: undefined, spouseIdNumber: undefined, spouseBirthYear: undefined } : {}),
+                        ...(dropSpouse ? { spouseName: undefined, spouseIdNumber: undefined, spouseBirthYear: undefined, spouseHasBusiness: undefined } : {}),
                       },
                     });
                   }}>
@@ -396,7 +420,17 @@ export default function QuotationRepresentationEditor({
 
               {married && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--gray-200)' }}>
-                  <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block' }}>שם בן/בת הזוג
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={spouseHasBusiness} style={{ marginTop: 3 }}
+                      onChange={e => setSpouseHasBusiness(e.target.checked)} />
+                    <span>
+                      <span style={{ fontSize: 12, color: 'var(--gray-700)' }}>לבן/בת הזוג יש עסק שאנחנו מנהלים/קולטים בבקשה הזאת</span>
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--gray-500)', marginTop: 2, lineHeight: 1.5 }}>
+                        מסמנים רק אם ידוע שיש לבן/בת הזוג תיק מע"מ/ניכויים שנפתח כאן. נישואין בלבד לא אומרים שיש עסק.
+                      </span>
+                    </span>
+                  </label>
+                  <label style={{ fontSize: 12, color: 'var(--gray-600)', display: 'block', marginTop: 12 }}>שם בן/בת הזוג
                     <input type="text" value={p.spouseName ?? ''} placeholder="שם פרטי ושם משפחה" style={{ marginTop: 4 }}
                       onChange={e => syncSpouse({ name: e.target.value })} />
                   </label>

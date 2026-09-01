@@ -93,6 +93,9 @@ export default function RepresentationOnboardingDialog({
   const [spouseIdNumber, setSpouseIdNumber] = useState('');
   const [spouseEmail, setSpouseEmail] = useState('');
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
+  // ‼ עובדה נפרדת לגמרי ממצב משפחתי (155) — ראה showTargets. לא לגזור
+  // "יש עסק" מ"נשוי/אה"; מע"מ/ניכויים הם תיק אישי, לא נגזר מנישואין.
+  const [spouseHasBusiness, setSpouseHasBusiness] = useState(false);
   // ‼ ברירת המחדל היא הלקוח — כך זה ברוב התיקים, וכך זה נולד עד היום ממילא.
   const [registeredSpouse, setRegisteredSpouse] = useState<'client' | 'spouse'>('client');
   const [transfer, setTransfer] = useState(isTransfer);
@@ -145,15 +148,34 @@ export default function RepresentationOnboardingDialog({
    */
   const spouseKnown = married || !!spouseName.trim();
 
+  /**
+   * מע"מ/ניכויים הם תיק אישי (155) — לא נגזר מנישואין. הצ'יפ "עבור מי"
+   * מוצג רק כשיש עדות מפורשת שלבן/בת הזוג יש עסק שאנחנו מנהלים/קולטים
+   * בבקשה הזאת (spouseHasBusiness). ביטוח לאומי הוא ברמת-אדם ולכן ממשיך
+   * להיפתח מנישואין בלבד, בדיוק כמו קודם.
+   */
   function showTargets(a: RepAuthorityKind): boolean {
-    return areas[a].selected && REP_AUTHORITIES_WITH_TARGETS.includes(a) && spouseKnown;
+    if (!areas[a].selected || !REP_AUTHORITIES_WITH_TARGETS.includes(a)) return false;
+    if (a === 'nationalInsurance') return spouseKnown;
+    return spouseKnown && spouseHasBusiness;
+  }
+
+  /**
+   * היעד האמיתי שיישלח/יוצג — לא בהכרח `areas[a].targets` הגולמי: אם
+   * "יש עסק לבן/בת הזוג" בוטל אחרי שהצ'יפ כבר סומן, אסור שהיעד יישאר תקוע
+   * ב-state בלי שהצ'יפ עצמו מוצג. אותו כלל בדיוק כמו notMarriedExplicit.
+   */
+  function effectiveTargets(a: RepAuthorityKind): RepTarget[] {
+    if (notMarriedExplicit) return ['client'];
+    if (a !== 'nationalInsurance' && !spouseHasBusiness) return ['client'];
+    return areas[a].targets;
   }
 
   /** "מה ייווצר" מדבר באותו דקדוק של עמוד הבקשה ושל מרכז הביצוע. */
   const summaryLines = scopeLines(
     Object.fromEntries(selectedKeys.map(a => [a, {
       status: 'in_process' as const,
-      ...(REP_AUTHORITIES_WITH_TARGETS.includes(a) ? { targets: notMarriedExplicit ? ['client' as RepTarget] : areas[a].targets } : {}),
+      ...(REP_AUTHORITIES_WITH_TARGETS.includes(a) ? { targets: effectiveTargets(a) } : {}),
     }])),
     { married: spouseKnown, clientName: name.trim(), spouseName: spouseName.trim() },
   );
@@ -233,7 +255,7 @@ export default function RepresentationOnboardingDialog({
       // ‼ נכתב תמיד ובמפורש, גם כשהוא ['client'] — כדי שבקשה חדשה תאמר מה
       // ביקשה, ולא תסתמך על אותה נפילה-לאחור שנועדה לבקשות ישנות.
       if (REP_AUTHORITIES_WITH_TARGETS.includes(a)) {
-        built[a] = { ...built[a]!, targets: notMarriedExplicit ? ['client'] : areas[a].targets };
+        built[a] = { ...built[a]!, targets: effectiveTargets(a) };
       }
     }
 
@@ -248,6 +270,7 @@ export default function RepresentationOnboardingDialog({
     if (married && spouseName.trim()) prefill.spouseName = spouseName.trim();
     if (married && spouseIdNumber.trim()) prefill.spouseIdNumber = spouseIdNumber.trim();
     if (married && spouseBirthYear.trim()) prefill.spouseBirthYear = Number(spouseBirthYear);
+    if (married && spouseHasBusiness) prefill.spouseHasBusiness = true;
     // ‼ נשלח רק כשהוא באמת נגזר ממשהו: זוג נשוי עם שם, וייצוג במ"ה. אחרת אין
     // תיק משפחתי להצביע עליו, ושליחת 'client' הייתה נראית כהכרעה שלא נעשתה.
     if (married && incomeTaxSelected && spouseName.trim()) {
@@ -438,9 +461,21 @@ export default function RepresentationOnboardingDialog({
             )}
             <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.4rem', lineHeight: 1.5 }}>
               {married
-                ? 'בכל רשות שהתיק בה אישי אפשר לסמן עכשיו על שם מי הוא.'
-                : 'כפי שרשום בתעודת הזהות. אם נשוי - ייפתח בכל רשות "עבור מי".'}
+                ? 'בביטוח לאומי אפשר לסמן עכשיו גם עבור בן/בת הזוג. במע"מ/ניכויים זה תלוי אם גם לבן/בת הזוג יש עסק - ראה למטה.'
+                : 'כפי שרשום בתעודת הזהות. אם נשוי - ייפתח ביטוח לאומי "עבור מי".'}
             </div>
+            {married && (
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', marginTop: '.6rem', cursor: busy ? 'default' : 'pointer' }}>
+                <input type="checkbox" checked={spouseHasBusiness} disabled={busy} style={{ marginTop: 3 }}
+                  onChange={e => setSpouseHasBusiness(e.target.checked)} />
+                <span>
+                  <span style={{ fontSize: 'var(--fs-13)' }}>לבן/בת הזוג יש עסק שאנחנו מנהלים/קולטים בבקשה הזאת</span>
+                  <span style={{ display: 'block', fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2, lineHeight: 1.5 }}>
+                    מסמן/ת רק אם ידוע שיש לבן/בת הזוג תיק מע"מ/ניכויים שאנחנו פותחים כאן. נישואין בלבד לא אומרים שיש עסק.
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
 
           {/* ‼ השאלה הזאת נשאלת לפני הרשויות ולא אחריהן: היא זו שקובעת אם
