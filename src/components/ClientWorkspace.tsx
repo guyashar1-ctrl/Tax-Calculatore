@@ -35,6 +35,7 @@ import { clientFromDb } from '../lib/dbMappers';
 import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
 import ActivityTab from './clientTabs/ActivityTab';
 import ChecksTab from './clientTabs/ChecksTab';
+import type { AuthorityFlag } from '../utils/authorityFlags';
 import InfoLines from './ui/InfoLines';
 
 // ארבע לשוניות קבועות — יכולת חדשה בעתיד נכנסת כקטע בתוך "התיק" או אות
@@ -235,6 +236,7 @@ export default function ClientWorkspace({
    * ‼ נמצאת כאן ולא בתוך אחת הלשוניות כי יש לה שתי כניסות (סיום יישור הקו
    * במסע, וקישור מתיק המס) והן חייבות להגיע לאותו מסך — לא לשני עותקים.
    */
+  const [creatingRequestKey, setCreatingRequestKey] = useState<string | null>(null);
   const [alignRerunBusy, setAlignRerunBusy] = useState(false);
 
   const db = useDocumentDB();
@@ -493,10 +495,38 @@ export default function ClientWorkspace({
     }
   }
 
-  // ‼ כאן ישבה createFlagRequest — יצירת בקשת לקוח מתוך דגל רשות. היא הייתה
-  // נגישה אך ורק מדף הסטטוס שירד ב-V6, ולכן נותרה בלי שום כניסה. שכבת
-  // «דורש טיפול» בתיק המס מציעה פתיחת משימה. אם נרצה גם בקשת לקוח מדגל —
-  // זו החלטת מוצר, וההיסטוריה שומרת את המימוש.
+  /**
+   * בקשת לקוח מתוך דגל — טיוטה, כמו כל בקשה. flagKey מסמן שכבר נוצרה.
+   * ‼ נכנסת מתוך שכבת «דורש טיפול» בתיק המס, כמו במוקאפ המאושר: ממצא
+   * שדורש חומר שרק הלקוח יכול לתת אינו משימה שלנו אלא בקשה בדף האישי.
+   */
+  async function createFlagRequest(flag: AuthorityFlag) {
+    if (!flag.requestTitle) return;
+    setCreatingRequestKey(flag.key);
+    try {
+      await supabase.rpc('create_onboarding_request', {
+        p_client_id: client.id,
+        p_step_type: 'custom_request',
+        p_payload: {
+          title: flag.requestTitle,
+          clientTitle: flag.requestTitle,
+          clientSub: flag.requestSub ?? flag.why,
+          clientCta: 'לאישור',
+          flagKey: flag.key,
+          requirements: [{ key: 'flag_confirm', kind: 'confirm', label: 'טופל', done: false }],
+        },
+        p_due_date: null,
+        p_depends_on: null,
+        p_published: false,
+        p_required_for_close: false,
+        p_owner: 'client',
+        p_stage_id: null,
+      });
+      refreshOnboarding?.();
+    } finally {
+      setCreatingRequestKey(null);
+    }
+  }
   /** ההתקשרות הפעילה — קובעת אם התהליך כבר פורסם ללקוח (מצב "טיוטה"). */
   const activeEngagement = useMemo(
     () => (engagements ?? []).find(e => e.clientId === client.id && e.status !== 'cancelled'),
@@ -776,6 +806,8 @@ export default function ClientWorkspace({
             alignedAt={latestAlignedAt}
             steps={clientOnboardingSteps}
             onCreateTask={(title) => onAddTaskForClient(client.id, title)}
+            onCreateRequest={(flag) => void createFlagRequest(flag)}
+            creatingRequestKey={creatingRequestKey}
           />
         )}
 

@@ -41,6 +41,7 @@ interface TaxPerson {
   completedNationalService: boolean;
   nationalServiceYear: number;
   qualifyingSettlementId: string;
+  reserveCombatDaysPrevYear?: number;
 }
 
 function clientToTaxPerson(client: Client): TaxPerson {
@@ -59,6 +60,7 @@ function clientToTaxPerson(client: Client): TaxPerson {
     completedNationalService: client.completedNationalService,
     nationalServiceYear: client.nationalServiceYear,
     qualifyingSettlementId: client.qualifyingSettlementId,
+    reserveCombatDaysPrevYear: client.reserveCombatDaysPrevYear,
   };
 }
 
@@ -107,6 +109,7 @@ function personToProfile(person: TaxPerson, year: number): CreditProfile {
     participatesInChildSupport: (person.familyStatus === 'divorced' && person.children.length > 0) || anyAlimonyPaid,
     isNewImmigrant: person.isNewImmigrant,
     aliyahYear: person.aliyahYear || undefined,
+    reserveCombatDaysPrevYear: person.reserveCombatDaysPrevYear || undefined,
     service: person.completedIdf && person.idfReleaseYear > 0
       ? { kind: 'military', months: 24, releaseYear: person.idfReleaseYear }
       : person.completedNationalService && person.nationalServiceYear > 0

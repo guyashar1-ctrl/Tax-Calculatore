@@ -1046,7 +1046,7 @@ export const annualReportTree: QuestionTree = {
         ...m,
         deductionsCredits: { ...m.deductionsCredits, donationAmount: Number(a) || 0 },
       }),
-      next: () => 'life_insurance',
+      next: () => 'reserve_days',
       targetFieldCodes: ['037'],
       validationMode: true,
       editTarget: 'identity',
@@ -1057,6 +1057,30 @@ export const annualReportTree: QuestionTree = {
           label: 'תרומות בכרטיס',
           value: amt > 0 ? `${amt.toLocaleString('he-IL')} ₪/שנה` : 'לא הוזן',
           missing: !amt,
+        }];
+      },
+    },
+
+    reserve_days: {
+      id: 'reserve_days',
+      question: 'כמה ימי מילואים כלוחם/ת נעשו בשנה הקודמת?',
+      helpText: 'זיכוי חדש לפי סעיף 39ב, חל משנת המס 2026 ואילך. אפס אם לא היו.',
+      type: 'number',
+      required: false,
+      applyToModel: (m, a) => ({
+        ...m,
+        deductionsCredits: { ...m.deductionsCredits, reserveCombatDaysPrevYear: Number(a) || 0 },
+      }),
+      next: () => 'life_insurance',
+      validationMode: true,
+      editTarget: 'identity',
+      deriveAnswerFromCard: ({ client }) => client?.reserveCombatDaysPrevYear ?? 0,
+      dataPreview: ({ client }) => {
+        const d = client?.reserveCombatDaysPrevYear ?? 0;
+        return [{
+          label: 'ימי מילואים בכרטיס',
+          value: d > 0 ? `${d} ימים` : 'לא הוזן',
+          missing: !d,
         }];
       },
     },

@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>תיק מס חי — V6</title>
+<style>
+:root{
+ --bg:#f6f7f9;--card:#fff;--ink:#1c2433;--muted:#717a8a;--faint:#9aa2b1;--line:#e7eaef;--line2:#f0f2f5;
+ --accent:#2e5f92;--accent-soft:#eef4fa;--accent-bd:#cfdeed;--accent-hover:#24507d;
+ --green:#187a53;--green-soft:#ecf7f1;--green-bd:#d8ece2;
+ --amber:#9c6a0d;--amber-soft:#fff6e2;--amber-bd:#eedcab;
+ --red:#b3453e;--red-soft:#fdf0ef;
+ --r:12px;--shadow:0 1px 2px rgba(16,24,40,.06)
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,Arial,"Noto Sans Hebrew",sans-serif;font-size:13.5px;line-height:1.55}
+button{font:inherit;color:inherit}
+b{font-weight:600}
+
+.demo{position:sticky;top:0;z-index:30;background:#1c2433;color:#fff;padding:7px 16px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;font-size:11.5px}
+.demo b{color:#8f9bb0;font-weight:500}
+.demo button{border:1px solid #3d4759;background:#2a3446;color:#cfd6e2;border-radius:7px;padding:3px 9px;cursor:pointer;font-size:11px;white-space:nowrap}
+.demo button:hover{background:#333f54}
+.demo button.on{background:#fff;color:#1c2433;border-color:#fff;font-weight:600}
+.demo .reset{margin-inline-start:auto;border-color:#54607a}
+
+.top{height:50px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:20px;padding:0 24px}
+.logo{font-weight:700;letter-spacing:.06em}
+.nav{display:flex;gap:16px;margin-inline-start:auto;font-size:13px;color:var(--muted)}
+.nav .on{color:var(--ink);font-weight:600}
+.wrap{max-width:880px;margin:auto;padding:18px 20px 90px}
+
+.chead{display:flex;align-items:baseline;gap:10px}
+.chead h1{margin:0;font-size:19px}
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--green-soft);color:var(--green)}
+.cmeta{font-size:12px;color:var(--muted);margin-bottom:13px}
+.ctabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:15px;font-size:13px}
+.ctabs span{padding:0 2px 8px;color:var(--muted);cursor:pointer}
+.ctabs span.on{color:var(--ink);font-weight:600;border-bottom:2px solid var(--accent)}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.btn{border:1px solid #d1d7df;background:#fff;border-radius:8px;padding:5px 11px;cursor:pointer;font-size:12.5px;white-space:nowrap}
+.btn:hover{background:#fafbfc}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn.sm{padding:4px 9px;font-size:11.5px}
+.btn:disabled{opacity:.55;cursor:default}
+.linkbtn{border:0;background:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0}
+.linkbtn:hover{text-decoration:underline}
+.hidden{display:none!important}
+
+h2.taxh{margin:0 0 9px;font-size:16px}
+.sentence{padding:11px 15px;font-size:13px;line-height:1.65;margin-bottom:15px}
+
+.secthead{font-size:11.5px;font-weight:700;color:var(--faint);margin:17px 2px 7px;display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.secthead .r{font-weight:400;color:var(--muted);display:flex;align-items:center;gap:9px;font-size:11.5px}
+.secthead:first-of-type{margin-top:0}
+
+/* ① דורש טיפול */
+.arow{display:flex;align-items:center;gap:11px;padding:10px 14px;border-top:1px solid var(--line2)}
+.arow:first-child{border-top:0}
+.adot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--red)}
+.arow.med .adot{background:#e3a53a}
+.atxt{flex:1;min-width:0;font-size:13px}
+.atxt .sub{display:block;font-size:11px;color:var(--muted);line-height:1.45}
+.arow.done{background:#fcfdfc}
+.arow.done .adot{background:var(--green)}
+.arow.done .atxt,.arow.done .atxt b{color:var(--muted);font-weight:500}
+.astamp{font-size:11px;color:var(--green);white-space:nowrap}
+.allgood{display:flex;align-items:center;gap:9px;padding:11px 15px;font-size:13px;color:var(--green);
+  background:var(--green-soft);border:1px solid var(--green-bd);border-radius:var(--r)}
+.allgood .when{margin-inline-start:auto;font-size:11.5px;color:var(--muted)}
+
+/* ② מה חדש */
+.nrow{border-top:1px solid var(--line2)}
+.nrow:first-child{border-top:0}
+.nhead{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;width:100%;border:0;background:none;text-align:start;font:inherit}
+.nhead:hover{background:#fafbfc}
+.nico{width:18px;height:18px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;background:var(--accent-soft);color:var(--accent)}
+.nrow.ask .nico{background:var(--amber-soft);color:var(--amber)}
+.ntxt{flex:1;font-size:13px}
+.nrow.ask .ntxt b{color:var(--amber)}
+.nwhen{font-size:11px;color:var(--faint);white-space:nowrap}
+.nchev{font-size:11px;color:var(--faint);white-space:nowrap}
+.nbody{padding:2px 14px 13px;background:#fcfcfd;border-top:1px dashed var(--line)}
+.nlist{display:grid;grid-template-columns:1fr 1fr;gap:0 22px;margin-top:6px}
+.nlist>div{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:4px 0;border-bottom:1px solid var(--line2)}
+.nlist .k{color:var(--muted)}
+.nlist .v{font-weight:500;text-align:end}
+.ngrp{grid-column:1/-1;font-size:10.5px;font-weight:700;color:var(--faint);padding:10px 0 2px!important;border:0!important;display:block!important}
+.cf{background:#fff;border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin-top:9px}
+.cf-t{font-size:13px;font-weight:600;margin-bottom:4px}
+.cf-s{font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:10px}
+.cf-s b{color:var(--ink);font-weight:600}
+.cf-act{display:flex;gap:7px;flex-wrap:wrap}
+
+/* ③ שורות — רשויות ותמונת המס */
+.sect{overflow:hidden}
+.trow{border-top:1px solid var(--line2)}
+.trow:first-child{border-top:0}
+.thead{display:flex;align-items:baseline;gap:12px;padding:11px 15px;cursor:pointer;width:100%;border:0;background:none;text-align:start;font:inherit}
+.thead:hover{background:#fafbfc}
+.tname{font-weight:600;min-width:96px;flex:none}
+.tsum{flex:1;color:var(--muted);font-size:12.5px}
+.exc{display:inline-flex;gap:4px;align-items:center;font-size:11.5px;color:var(--red);background:var(--red-soft);border-radius:6px;padding:1px 7px;margin-inline-start:5px;white-space:nowrap}
+.exc.w{color:var(--amber);background:var(--amber-soft)}
+.exc.ok{color:var(--green);background:var(--green-soft)}
+.tchev{color:var(--faint);font-size:11px;flex:none;transition:transform .15s}
+.trow.open .tchev{transform:rotate(90deg)}
+.tbody{padding:10px 15px 13px;background:#fcfcfd;border-top:1px dashed var(--line)}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:9px 18px}
+.kv .k{font-size:10.5px;color:var(--faint)}
+.kv .v{font-size:12.5px}
+.kv .v.warn{color:var(--red);font-weight:600}
+.kv .v.ok{color:var(--green)}
+.hist{margin-top:11px;padding-top:9px;border-top:1px solid var(--line2)}
+.hist-t{font-size:10.5px;font-weight:700;color:var(--faint);margin-bottom:4px}
+.hist-r{display:flex;gap:9px;font-size:11.5px;color:var(--muted);padding:2px 0}
+.hist-r .d{color:var(--faint);white-space:nowrap;min-width:40px}
+.tfoot{display:flex;justify-content:flex-end;gap:9px;margin-top:10px}
+.tnote{font-size:11.5px;color:var(--muted);padding:2px 0 4px}
+
+/* ── מצבי ידיעה: לא-ידוע / אין / מיושן ──
+   ‼ "לא יודעים" הוא מידע מקצועי, לא שורה חסרה. הוא מוצג בשקט — טקסט מוטה
+   וסימן שאלה קטן — לא בצבע אזהרה, כדי שקיר של לא-ידועים לא ייראה כשריפה. */
+.tsum .unk{color:var(--faint);font-style:italic}
+.qmark{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;
+  background:#eef0f3;color:var(--muted);font-size:10px;font-weight:700;margin-inline-start:5px;vertical-align:-2px}
+.stale{display:inline-flex;gap:4px;font-size:11px;color:var(--amber);margin-inline-start:5px;white-space:nowrap}
+
+/* ── מוכנות להערכת מס — שורה אחת, לא לוח מחוונים ── */
+.ready{display:flex;align-items:baseline;gap:8px;font-size:12px;padding:9px 14px;border-radius:10px;margin:0 0 10px}
+.ready.ok{background:var(--green-soft);color:var(--green)}
+.ready.gaps{background:#fbfcfd;border:1px solid var(--line);color:var(--muted)}
+.ready.gaps b{color:var(--ink)}
+
+.blank{padding:18px 16px}
+.blank b{display:block;font-size:14px;margin-bottom:4px}
+.blank p{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.6;max-width:54ch}
+
+.bigdiv{display:flex;align-items:baseline;gap:12px;margin:26px 0 3px;padding-top:16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.bigdiv h3{margin:0;font-size:14px;font-weight:700}
+.bigdiv .sub{font-size:11.5px;color:var(--muted)}
+.bigdiv .qside{margin-inline-start:auto;display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--muted)}
+
+.foot{margin-top:17px;padding-top:12px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.foot span{font-size:11px;color:var(--faint)}
+
+.toast{position:fixed;bottom:20px;right:50%;transform:translateX(50%) translateY(80px);background:#1c2433;color:#fff;
+  padding:9px 16px;border-radius:9px;font-size:12.5px;box-shadow:0 6px 24px rgba(16,24,40,.2);z-index:40;
+  opacity:0;transition:all .22s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(50%) translateY(0)}
+.busy{display:inline-block;width:11px;height:11px;border:2px solid var(--accent-bd);border-top-color:var(--accent);
+  border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-inline-end:5px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ═══════ חוויית הלקוח — השאלון ═══════
+   ‼ עולם ויזואלי נפרד בכוונה: זה מה שהלקוח רואה בדף האישי, לא עוד מסך משרד. */
+.portal{max-width:520px;margin:auto;padding:26px 20px 60px}
+.p-head{text-align:center;margin-bottom:18px}
+.p-brand{font-size:12px;letter-spacing:.14em;color:var(--muted);margin-bottom:14px}
+.p-head h1{margin:0 0 6px;font-size:20px}
+.p-head p{margin:0;font-size:13px;color:var(--muted);line-height:1.6}
+.p-steps{display:flex;gap:5px;justify-content:center;margin:16px 0 20px}
+.p-steps span{width:26px;height:4px;border-radius:99px;background:var(--line)}
+.p-steps span.on{background:var(--accent)}
+.p-card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px}
+.worlds{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.world{border:1.5px solid var(--line);border-radius:12px;background:#fff;padding:13px 12px;cursor:pointer;
+  text-align:center;font:inherit;transition:all .12s}
+.world:hover{border-color:var(--accent-bd)}
+.world.on{border-color:var(--accent);background:var(--accent-soft)}
+.world .ic{font-size:20px;display:block;margin-bottom:5px}
+.world b{display:block;font-size:13px}
+.world .d{display:block;font-size:11px;color:var(--muted);margin-top:1px;line-height:1.4}
+.p-act{display:flex;justify-content:space-between;gap:9px;margin-top:16px}
+.p-act .btn{padding:8px 18px;border-radius:9px}
+.q-item{padding:13px 2px;border-top:1px solid var(--line2)}
+.q-item:first-child{border-top:0}
+.q-item .q{font-size:13.5px;font-weight:600;margin-bottom:8px}
+.q-item .hint{font-size:11.5px;color:var(--muted);margin:-4px 0 8px}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:6px 15px;cursor:pointer;font-size:13px}
+.chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.p-inp{border:1.5px solid var(--line);border-radius:9px;padding:8px 11px;font:inherit;width:120px}
+.p-done{text-align:center;padding:26px 10px}
+.p-done .big{font-size:34px;margin-bottom:8px}
+.p-done b{display:block;font-size:16px;margin-bottom:5px}
+.p-done p{font-size:13px;color:var(--muted);margin:0}
+
+@media (max-width:700px){
+  .nlist{grid-template-columns:1fr}
+  .thead{flex-wrap:wrap}
+  .tname{min-width:0}
+  .tsum{flex-basis:100%;order:3;margin-top:3px}
+  .arow{flex-wrap:wrap}
+  .arow .btn{margin-inline-start:18px}
+  .worlds{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="demo" id="demo">
+  <b>תרחיש:</b>
+  <button data-s="complex">★ לקוח מורכב</button>
+  <button data-s="healthy">תקין</button>
+  <button data-s="gaps">דל · חסרים</button>
+  <button data-s="never">טרם יושר</button>
+  <button data-s="fresh">יישור הושלם</button>
+  <button data-s="conflict">סתירת רשות</button>
+  <button data-s="quest">מסע השאלון</button>
+  <button class="reset" onclick="load(CUR)">↺ אפס תרחיש</button>
+</div>
+
+<!-- ═══ מסך הרו"ח ═══ -->
+<div id="accView">
+  <div class="top">
+    <div class="logo">PIVO ◎</div>
+    <div class="nav"><span>משימות</span><span class="on">לקוחות</span></div>
+  </div>
+
+  <div class="wrap">
+    <div class="chead"><h1 id="cName"></h1><span class="badge" id="cBadge"></span></div>
+    <div class="cmeta" id="cMeta"></div>
+    <div class="ctabs">
+      <span onclick="toast('בהדגמה')">בקשות</span><span class="on">תיק מס</span>
+      <span onclick="toast('בהדגמה')">מסמכים</span><span onclick="toast('בהדגמה')">הסכם ותשלומים</span>
+      <span onclick="toast('בהדגמה')">פעילות</span>
+    </div>
+
+    <h2 class="taxh">תיק מס</h2>
+    <div class="card sentence" id="sentence"></div>
+
+    <div id="attSect"></div>
+    <div id="newsSect"></div>
+    <div id="authSect"></div>
+    <div id="pictureSect"></div>
+
+    <div class="foot">
+      <button class="linkbtn" onclick="toast('נפתח מסך עריכת פרטי הלקוח')">עריכת פרטי הלקוח ←</button>
+      <span>כל שדות הכרטיס, תיקי הרשויות ופרטי הזיהוי</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ חוויית הלקוח — השאלון ═══ -->
+<div id="portalView" class="hidden">
+  <div class="portal">
+    <div class="p-head">
+      <div class="p-brand">גיא ישר · רואה חשבון</div>
+      <h1 id="pTitle">עדכון סטטוס מס</h1>
+      <p id="pSub">כמה שאלות קצרות כדי שנוכל לוודא שהתיק שלך מעודכן.<br>לוקח כשתי דקות.</p>
+    </div>
+    <div class="p-steps" id="pSteps"><span class="on"></span><span></span><span></span></div>
+    <div class="p-card" id="pCard"></div>
+    <div style="text-align:center;margin-top:16px">
+      <button class="linkbtn" onclick="exitPortal(false)">← חזרה למסך הרו״ח (הדגמה)</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════
+// כל שדה מגיע מהמודל האמיתי (types/index.ts). פערים מצוינים בדוח, לא כאן.
+// ════════════════════════════════════════════════════════════════════
+
+const ATT = {
+  wh:{key:'wh', sev:'high', title:'אין אישור ניכוי מס במקור בתוקף',
+      why:'לקוחות ינכו מס בשיעור המלא עד שיוצא אישור.', cta:'פתח משימה', doneWhy:'נפתחה משימה · אצלך'},
+  cap:{key:'cap', sev:'med', title:'הצהרת הון להגשה עד 31.01.2027',
+       why:'שני נכסים, חשבונות בחו״ל ותיקי השקעות — כדאי להתחיל באיסוף מוקדם.',
+       cta:'בקש מסמכים מהלקוח', doneWhy:'נשלחה בקשה ללקוח'},
+  debt:{key:'debt', sev:'high', title:'חוב במע״מ — 8,340 ₪',
+        why:'נרשם ביישור הקו האחרון. חוב שלא מטופל צובר ריבית והצמדה.', cta:'פתח משימה', doneWhy:'נפתחה משימה'},
+  auth:{key:'auth', sev:'med', title:'אין הרשאה לחיוב בביטוח לאומי',
+        why:'המקדמות לא נגבות אוטומטית ונוצרים פיגורים.', cta:'בקש מהלקוח להקים', doneWhy:'נשלחה בקשה ללקוח'},
+};
+
+function itRow(o={}){ return { key:'it', name:'מס הכנסה',
+  summary:o.summary ?? 'מקדמות 12% דו-חודשי · אין יתרה', exception:o.exception ?? null,
+  facts:o.facts ?? [['מספר תיק','027455811'],['סוג תיק','42 · עצמאית'],['פקיד שומה · חוליה','חיפה · 5'],
+    ['מקדמות','12% · דו-חודשי'],['יתרה','אין יתרה','ok'],['מצב דיווחים','אין דיווחים חסרים','ok'],
+    ['הצהרת הון', o.cap ?? 'אין דרישה פתוחה', o.capTone ?? 'ok'],
+    ['ניכוי מס במקור', o.wh ?? 'פטור עד 31.12.2026', o.whTone ?? 'ok'],
+    ['ניהול ספרים','תקין','ok'],['הרשאה לחיוב','קיימת','ok']],
+  history:o.history ?? [['21.08','נבדק ביישור קו מול הרשויות']] }; }
+function vatRow(o={}){ return { key:'vat', name:'מע״מ',
+  summary:o.summary ?? 'עוסקת מורשה · דיווח דו-חודשי · דוח אחרון 06/2026', exception:o.exception ?? null,
+  facts:o.facts ?? [['מספר עוסק','027455811'],['תדירות דיווח','דו-חודשי'],['דוח אחרון שהוגש','06/2026'],
+    ['יתרה', o.bal ?? 'אין יתרה', o.balTone ?? 'ok'],['הרשאה לחיוב','קיימת','ok']],
+  history:o.history ?? [['21.08','נבדק ביישור קו מול הרשויות']] }; }
+function btlRow(o={}){ return { key:'btl', name:'ביטוח לאומי',
+  summary:o.summary ?? 'עצמאית + שכירה · מקדמה 2,940 ₪ · אין יתרה', exception:o.exception ?? null,
+  facts:o.facts ?? [['עיסוקים','עצמאית · שכירה — הטכניון'],['בסיס למקדמות','24,500 ₪ לחודש'],
+    ['מקדמה חודשית','2,940 ₪'],['יתרה','אין יתרה','ok'],
+    ['הרשאה לחיוב', o.auth ?? 'קיימת', o.authTone ?? 'ok']],
+  history:o.history ?? [['21.08','נבדק ביישור קו מול הרשויות']] }; }
+
+// ── תמונת המס של הלקוחה המורכבת — יעל ──
+const PICTURE_YAEL = [
+  {h:'הכנסות', rows:[
+    {key:'biz', name:'עסק', summary:'סטודיו לאדריכלות · מחזור 890,000 ₪ (2025)',
+     facts:[['תיאור','אדריכלות ועיצוב פנים'],['סיווג מע״מ','עוסקת מורשה'],['מחזור 2025','890,000 ₪'],['שנת הקמה','2018']]},
+    {key:'sal', name:'שכר', summary:'הטכניון · 84,000 ₪ לשנה · משרה חלקית',
+     facts:[['מעסיק','הטכניון · מרצה אורחת'],['ברוטו שנתי (106)','84,000 ₪'],['תיאום מס','קיים · 2026']]},
+    {key:'rent', name:'שכירות', summary:'דירה בחיפה · 72,000 ₪ לשנה · מסלול 10%',
+     facts:[['נכס','הנשיא 12, חיפה · 3 חד׳'],['בעלות','משותפת · 50/50'],['שכ״ד חודשי','6,000 ₪'],['מסלול מיסוי','10% על המחזור']]},
+    {key:'cap', name:'שוק ההון', summary:'2 חשבונות · רווח הון 18,500 ₪ · דיבידנד 6,200 ₪',
+     facts:[['חשבונות','אקסלנס · מיטב (אישור 867 לכל אחד)'],['רווחי הון 2025','18,500 ₪'],['דיבידנד וריבית','6,200 ₪'],['בעלת מניות מהותית','לא']]},
+  ]},
+  {h:'משפחה וזכאות', rows:[
+    {key:'fam', name:'משפחה', summary:'נשואה · עמית (עצמאי) · 3 ילדים',
+     facts:[['בן הזוג','עמית ברק · עצמאי, צילום'],['ילדים','3 · שנתונים 2016, 2019, 2024'],['חזקה','משותפת']]},
+    {key:'cred', name:'זיכויים', summary:'5.75 נק׳ — תושבות (2.75) + ילדים (3.00)',
+     facts:[['תושבת ישראל','2.75 נק׳'],['ילדים','3.00 נק׳'],['ישוב מזכה','לא'],['תואר / מילואים','לא רלוונטי — נבדק'],
+            ['שווי שנתי','כ-17,400 ₪']]},
+  ]},
+  {h:'השקעות, נכסים והון', rows:[
+    {key:'prop', name:'נדל״ן', summary:'2 דירות · אחת מושכרת',
+     facts:[['מגורים','רמת אלמוגי 8, חיפה'],['מושכרת','הנשיא 12, חיפה · 6,000 ₪ לחודש']]},
+    {key:'crypto', name:'קריפטו', summary:'ארנק ב-Kraken · מדווח במסגרת רווחי ההון',
+     facts:[['חשבון','Kraken · סוג: קריפטו (חשבון חוץ)'],['מיסוי','במסגרת רווחי הון · 25%'],['מכירות 2025','כלולות ב-18,500 ₪']]},
+    {key:'abroad', name:'חו״ל', summary:'חשבון מסחר בארה״ב · אזרחות אמריקאית',
+     facts:[['חשבון','Charles Schwab · מסחר'],['אזרחות נוספת','ארה״ב'],['חובת דיווח','CRS/FATCA']],
+     note:'אזרחות אמריקאית + חשבונות חוץ ⇒ הדוח כולל דיווח נכסי חוץ.'},
+    {key:'bank', name:'חשבונות בנק', summary:'2 · לאומי (ראשי להחזרים)',
+     facts:[['לאומי 902','ראשי — להחזרי מס'],['דיסקונט 10','עו״ש נוסף']]},
+  ]},
+  {h:'הפקדות, ביטוחים וזיכויים', rows:[
+    {key:'pen', name:'פנסיה והשתלמות', summary:'3 קופות · עודכן השנה',
+     facts:[['פנסיה','מנורה מבטחים'],['גמל','אנליסט'],['השתלמות (עצמאית)','אלטשולר · 1,570 ₪ לחודש']]},
+    {key:'ins', name:'ביטוחים', summary:'חיים 4,200 ₪ · אכ״ע 3,100 ₪ לשנה',
+     facts:[['ביטוח חיים','4,200 ₪ לשנה'],['אובדן כושר עבודה (112)','3,100 ₪ לשנה']]},
+    {key:'don', name:'תרומות', summary:'4,800 ₪ · סעיף 46 · קבלות התקבלו',
+     facts:[['תרומות 2026','4,800 ₪'],['קבלות','3 מוסדות מוכרים']]},
+  ]},
+];
+
+// ── דניאל — לקוח בינוני לתרחישי הרשויות והשאלון ──
+const PICTURE_DANIEL = [
+  {h:'הכנסות', rows:[
+    {key:'biz', name:'עסק', summary:'ייעוץ עסקי · מחזור 640,000 ₪ (2025)',
+     facts:[['תיאור','ייעוץ ניהולי'],['סיווג מע״מ','עוסק מורשה'],['מחזור 2025','640,000 ₪']]},
+    {key:'sal', name:'שכר', summary:'טכנוסופט בע״מ · 114,000 ₪ לשנה',
+     facts:[['מעסיק','טכנוסופט בע״מ'],['ברוטו שנתי (106)','114,000 ₪']]},
+  ]},
+  {h:'משפחה וזכאות', rows:[
+    {key:'fam', name:'משפחה', summary:'נשוי · מיכל (שכירה) · 2 ילדים',
+     facts:[['בת הזוג','מיכל כהן · שכירה'],['ילדים','2 · שנתונים 2019, 2022']]},
+    {key:'cred', name:'זיכויים', summary:'2.25 נק׳ — תושבות',
+     facts:[['תושב ישראל','2.25 נק׳'],['שווי שנתי','6,750 ₪']]},
+  ]},
+  {h:'השקעות, נכסים והון', rows:[
+    {key:'cap', name:'שוק ההון', summary:'טרם ביררנו', state:'unknown',
+     facts:[['מה חסר','האם יש תיקי השקעות, רווחי הון או דיבידנדים']]},
+    {key:'crypto', name:'קריפטו', summary:'טרם ביררנו', state:'unknown',
+     facts:[['מה חסר','החזקות או מכירות של מטבעות דיגיטליים']]},
+  ]},
+  {h:'הפקדות, ביטוחים וזיכויים', rows:[
+    {key:'pen', name:'פנסיה והשתלמות', summary:'מנורה · השתלמות 1,570 ₪ לחודש',
+     facts:[['פנסיה','מנורה מבטחים'],['השתלמות','אלטשולר · 1,570 ₪ לחודש']]},
+    {key:'don', name:'תרומות', summary:'1,200 ₪ · עודכן 2024', state:'stale',
+     facts:[['תרומות (2024)','1,200 ₪'],['הערה','ייתכן שהשתנה — לברר בשאלון']]},
+  ]},
+];
+
+// ── רונית — דלה, עם לא-ידועים שחוסמים הערכה ──
+const PICTURE_RONIT = [
+  {h:'הכנסות', rows:[
+    {key:'sal', name:'שכר', summary:'בית חולים רמב״ם · 156,000 ₪ לשנה',
+     facts:[['מעסיק','רמב״ם'],['ברוטו שנתי (106)','156,000 ₪']]},
+    {key:'rent', name:'שכירות', summary:'אין — נבדק 08.26', state:'none',
+     facts:[['סטטוס','אין הכנסות שכירות · אומת מול הלקוחה']]},
+  ]},
+  {h:'משפחה וזכאות', rows:[
+    {key:'fam', name:'משפחה', summary:'רווקה', facts:[['מצב משפחתי','רווקה']]},
+    {key:'cred', name:'זיכויים', summary:'2.75 נק׳ — תושבות',
+     facts:[['תושבת ישראל','2.75 נק׳']]},
+  ]},
+  {h:'השקעות, נכסים והון', rows:[
+    {key:'cap', name:'שוק ההון', summary:'טרם ביררנו', state:'unknown',
+     facts:[['מה חסר','תיקי השקעות · אישורי 867']]},
+    {key:'prop', name:'נדל״ן', summary:'טרם ביררנו', state:'unknown',
+     facts:[['מה חסר','בעלות על נכסים']]},
+  ]},
+  {h:'הפקדות, ביטוחים וזיכויים', rows:[
+    {key:'pen', name:'פנסיה והשתלמות', summary:'טרם ביררנו', state:'unknown',
+     facts:[['מה חסר','קופות, השתלמות, ביטוחים — משפיע ישירות על הזיכויים']]},
+  ]},
+];
+
+const FRESH_VALUES = [
+  ['grp','מס הכנסה'],['שיעור מקדמות','15% · דו-חודשי'],['יתרה','אין יתרה'],['ניהול ספרים','תקין'],
+  ['ניכוי מס במקור','אין אישור תקף'],['הצהרת הון','דרישה פתוחה · 30.11.26'],
+  ['grp','מע״מ'],['תדירות דיווח','חד-חודשי'],['יתרה','חוב 8,340 ₪'],['הרשאה לחיוב','קיימת'],
+  ['grp','ביטוח לאומי'],['בסיס למקדמות','16,500 ₪ לחודש'],['מקדמה חודשית','2,055 ₪'],['הרשאה לחיוב','אין הרשאה'],
+];
+
+// ════════ תרחישים ════════
+const S = {
+  complex:{ client:{name:'יעל ברק', badge:'מיוצגת פעילה', meta:'ת.ז. 027455811 · 050-2214467 · חיפה',
+      sentence:'עוסקת מורשה (אדריכלות), נשואה + 3. הכנסות: עסק, משכורת, שכירות, שוק ההון. מקדמות מס הכנסה 12%.'},
+    alignedAt:'21.08.2026', quest:{state:'done', when:'14.08.2026'},
+    att:[ATT.wh, ATT.cap], news:[],
+    auths:[itRow({exception:{text:'אין אישור ניכוי במקור',tone:''}, wh:'אין אישור תקף', whTone:'warn',
+                  cap:'דרישה פתוחה · עד 31.01.27', capTone:'warn'}), vatRow(), btlRow()],
+    picture:PICTURE_YAEL },
+
+  healthy:{ client:{name:'יעל ברק', badge:'מיוצגת פעילה', meta:'ת.ז. 027455811 · 050-2214467 · חיפה',
+      sentence:'עוסקת מורשה (אדריכלות), נשואה + 3. הכנסות: עסק, משכורת, שכירות, שוק ההון.'},
+    alignedAt:'21.08.2026', quest:{state:'done', when:'14.08.2026'},
+    att:[], news:[],
+    auths:[itRow(), vatRow(), btlRow()],
+    picture:JSON.parse(JSON.stringify(PICTURE_YAEL)).map(g => ({...g, rows:g.rows})) },
+
+  gaps:{ client:{name:'רונית אלמוג', badge:'מיוצגת פעילה', meta:'ת.ז. 034889210 · 052-4471180 · חיפה',
+      sentence:'שכירה. תיק פעיל במס הכנסה בלבד.'},
+    alignedAt:'12.08.2026', quest:{state:'none'},
+    att:[], news:[],
+    auths:[{key:'it', name:'מס הכנסה', summary:'שכירה · אין יתרה · אין דיווחים חסרים', exception:null,
+            facts:[['מספר תיק','034889210'],['יתרה','אין יתרה','ok'],['מצב דיווחים','אין דיווחים חסרים','ok']],
+            history:[['12.08','נבדק ביישור קו']],
+            note:'אין תיק מע״מ ואין תיק ניכויים — לשכירה בלי עסק זה המצב הרגיל.'}],
+    picture:PICTURE_RONIT },
+
+  never:{ client:{name:'דניאל כהן', badge:'מיוצג פעיל', meta:'ת.ז. 209132901 · 054-5538494 · תל אביב',
+      sentence:'עוסק מורשה (ייעוץ עסקי), נשוי + 2. הכנסות: עסק, משכורת.'},
+    alignedAt:null, quest:{state:'none'},
+    att:[], news:[], auths:[], picture:PICTURE_DANIEL },
+
+  fresh:{ client:{name:'דניאל כהן', badge:'מיוצג פעיל', meta:'ת.ז. 209132901 · 054-5538494 · תל אביב',
+      sentence:'עוסק מורשה (ייעוץ עסקי), נשוי + 2. הכנסות: עסק, משכורת. מקדמות מס הכנסה 15%.'},
+    alignedAt:'היום', quest:{state:'none'},
+    att:[ATT.debt, {...ATT.wh}, ATT.auth],
+    news:[{kind:'info', key:'batch', title:'23 ערכים עודכנו ביישור קו מול הרשויות', when:'היום',
+           values:FRESH_VALUES, note:'אלה הערכים שהקלדת ביישור הקו. הם כבר בתיק — הרשימה כאן כדי לוודא.'}],
+    auths:[itRow({summary:'מקדמות 15% דו-חודשי · אין יתרה', exception:{text:'אין אישור ניכוי במקור',tone:''},
+                  wh:'אין אישור תקף', whTone:'warn', history:[['היום','נאספו 12 ערכים · יישור קו']]}),
+           vatRow({summary:'עוסק מורשה · דיווח חד-חודשי', exception:{text:'חוב 8,340 ₪',tone:''},
+                  bal:'חוב 8,340 ₪', balTone:'warn', history:[['היום','נאספו 7 ערכים · יישור קו']]}),
+           btlRow({summary:'עצמאי + שכיר · מקדמה 2,055 ₪', exception:{text:'אין הרשאה לחיוב',tone:'w'},
+                  auth:'אין הרשאה', authTone:'warn', history:[['היום','נאספו 4 ערכים · יישור קו']]})],
+    picture:PICTURE_DANIEL },
+
+  conflict:{ client:{name:'דניאל כהן', badge:'מיוצג פעיל', meta:'ת.ז. 209132901 · 054-5538494 · תל אביב',
+      sentence:'עוסק מורשה (ייעוץ עסקי), נשוי + 2. הכנסות: עסק, משכורת.'},
+    alignedAt:'היום', quest:{state:'none'},
+    att:[],
+    news:[{kind:'ask', key:'authconf', title:'ביישור הקו נמצא ערך שונה ממה שרשום בתיק', when:'היום', openByDefault:true,
+           conflicts:[{key:'advrate', title:'שיעור מקדמות מס הכנסה',
+             sentence:'בתיק רשום <b>6%</b> (עודכן ידנית ב-03.2026). ביישור הקו מול שע״ם נמצא <b>15%</b>. אם 15% נכון — המקדמה הדו-חודשית קופצת מ-1,640 ₪ לכ-4,100 ₪.',
+             accept:'עדכן ל-15%', keep:'השאר 6%', onAccept:'שיעור המקדמות עודכן ל-15%'}]}],
+    auths:[itRow({summary:'מקדמות 6% דו-חודשי · אין יתרה'}), vatRow(), btlRow()],
+    picture:PICTURE_DANIEL },
+
+  quest:{ client:{name:'דניאל כהן', badge:'מיוצג פעיל', meta:'ת.ז. 209132901 · 054-5538494 · תל אביב',
+      sentence:'עוסק מורשה (ייעוץ עסקי), נשוי + 2. הכנסות: עסק, משכורת.'},
+    alignedAt:'17.08.2026', quest:{state:'none'},
+    att:[], news:[],
+    auths:[itRow(), vatRow(), btlRow()],
+    picture:PICTURE_DANIEL },
+};
+
+// ════════════════════════════════════════════════════════════════════
+let CUR = 'complex';
+let st = null;
+const open = new Set();
+const $ = s => document.querySelector(s);
+
+function load(name){
+  CUR = name;
+  st = JSON.parse(JSON.stringify(S[name]));
+  open.clear();
+  (st.news||[]).forEach(n => { if (n.openByDefault) open.add('n:'+n.key); });
+  document.querySelectorAll('[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === name));
+  exitPortal(false);
+  render();
+}
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function toggle(id){ open.has(id) ? open.delete(id) : open.add(id); render(); }
+function esc(s){ return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function excHtml(e){ return e ? `<span class="exc ${e.tone}">${e.tone==='ok'?'✓':'⚠'} ${esc(e.text)}</span>` : ''; }
+function pictureRow(key){
+  for (const g of st.picture){ const r = g.rows.find(r => r.key === key); if (r) return r; }
+  return null;
+}
+
+function doAtt(key){
+  const it = st.att.find(a => a.key === key);
+  if (!it) return;
+  it.done = true;
+  toast(it.cta.includes('משימה') ? 'נפתחה משימה · תופיע ברשימת המשימות שלך' : 'נשלחה בקשה ללקוח');
+  render();
+}
+
+function resolveConf(newsKey, confKey, accepted){
+  const n = st.news.find(x => x.key === newsKey);
+  const c = n.conflicts.find(x => x.key === confKey);
+  if (accepted){
+    if (c.key === 'kids'){
+      const fam = pictureRow('fam');
+      if (fam){ fam.summary = 'נשוי · מיכל (שכירה) · 3 ילדים';
+        const f = fam.facts.find(f => f[0] === 'ילדים'); if (f) f[1] = '3 · שנתונים 2019, 2022, 2026'; }
+      const cred = pictureRow('cred');
+      if (cred){ cred.summary = '4.75 נק׳ — תושבות (2.25) + ילדים (2.50)';
+        cred.facts = [['תושב ישראל','2.25 נק׳'],['ילדים','2.50 נק׳'],['שווי שנתי','כ-14,400 ₪']]; }
+    }
+    if (c.key === 'advrate'){
+      const a = st.auths.find(a => a.key === 'it');
+      if (a){ a.summary = 'מקדמות 15% דו-חודשי · אין יתרה';
+        const f = a.facts.find(f => f[0] === 'מקדמות'); if (f) f[1] = '15% · דו-חודשי';
+        a.history = [['היום','שיעור מקדמות: 6% ← 15% · הוכרע מיישור קו'], ...(a.history||[])]; }
+    }
+  }
+  toast(accepted ? c.onAccept : 'הערך בתיק נשאר כפי שהיה');
+  n.conflicts = n.conflicts.filter(x => x.key !== confKey);
+  if (!n.conflicts.length) st.news = st.news.filter(x => x.key !== newsKey);
+  render();
+}
+
+function runAlignment(){
+  const b = $('#alignBtn');
+  if (b){ b.disabled = true; b.innerHTML = '<span class="busy"></span>נכנסים לרשויות…'; }
+  setTimeout(() => load('fresh'), 1000);
+}
+
+// ════════ מסע השאלון ════════
+function sendQuestionnaire(){
+  st.quest = { state:'waiting', when:'עכשיו' };
+  toast('השאלון נוסף לדף האישי של דניאל ונשלח אליו במייל');
+  render();
+}
+
+let P = null; // מצב חוויית הלקוח
+function openPortal(){
+  P = { step:1, worlds:new Set(['work']), kids:'', invest:null, crypto:null, donations:'' };
+  $('#accView').classList.add('hidden');
+  $('#portalView').classList.remove('hidden');
+  renderPortal();
+}
+function exitPortal(submitted){
+  $('#portalView').classList.add('hidden');
+  $('#accView').classList.remove('hidden');
+  if (submitted) applyQuestionnaire();
+}
+
+const WORLDS = [
+  {id:'work',    ic:'💼', t:'עבודה והכנסות', d:'עסק, משכורת'},
+  {id:'family',  ic:'👨‍👩‍👧', t:'משפחה', d:'בן/בת זוג, ילדים'},
+  {id:'realty',  ic:'🏠', t:'נדל״ן', d:'דירות, שכירות'},
+  {id:'invest',  ic:'📈', t:'השקעות ושוק ההון', d:'תיקי ני״ע'},
+  {id:'crypto',  ic:'🪙', t:'קריפטו', d:'מטבעות דיגיטליים'},
+  {id:'pension', ic:'🐷', t:'פנסיה והשתלמות', d:'קופות והפקדות'},
+  {id:'donate',  ic:'🤝', t:'תרומות', d:'מוסדות מוכרים'},
+  {id:'abroad',  ic:'🌍', t:'חו״ל', d:'חשבונות ונכסים'},
+];
+
+function renderPortal(){
+  const steps = $('#pSteps');
+  steps.innerHTML = [1,2,3].map(i => `<span class="${P.step >= i ? 'on' : ''}"></span>`).join('');
+  const card = $('#pCard');
+
+  if (P.step === 1){
+    $('#pTitle').textContent = 'עדכון סטטוס מס';
+    $('#pSub').innerHTML = 'מה מהדברים הבאים נוגע אליך היום?<br>אפשר לסמן כמה שצריך — נשאל רק על מה שסימנת.';
+    card.innerHTML = `
+      <div class="worlds">${WORLDS.map(w => `
+        <button class="world ${P.worlds.has(w.id) ? 'on' : ''}" onclick="togWorld('${w.id}')">
+          <span class="ic">${w.ic}</span><b>${esc(w.t)}</b><span class="d">${esc(w.d)}</span>
+        </button>`).join('')}</div>
+      <div class="p-act">
+        <span></span>
+        <button class="btn primary" onclick="P.step=2;renderPortal()">המשך</button>
+      </div>`;
+  }
+
+  if (P.step === 2){
+    $('#pTitle').textContent = 'כמה פרטים';
+    $('#pSub').textContent = 'רק על מה שסימנת.';
+    const parts = [];
+    if (P.worlds.has('family')) parts.push(`
+      <div class="q-item"><div class="q">כמה ילדים מתחת לגיל 18?</div>
+        <div class="hint">אצלנו רשומים 2 — אם השתנה, עדכן.</div>
+        <div class="chips">${[1,2,3,4].map(n =>
+          `<button class="chip ${P.kids === n ? 'on' : ''}" onclick="P.kids=${n};renderPortal()">${n}</button>`).join('')}
+        </div></div>`);
+    if (P.worlds.has('invest')) parts.push(`
+      <div class="q-item"><div class="q">יש לך תיק השקעות או חשבון מסחר?</div>
+        <div class="chips">
+          <button class="chip ${P.invest === true ? 'on' : ''}" onclick="P.invest=true;renderPortal()">כן</button>
+          <button class="chip ${P.invest === false ? 'on' : ''}" onclick="P.invest=false;renderPortal()">לא</button>
+        </div></div>`);
+    if (P.worlds.has('crypto')) parts.push(`
+      <div class="q-item"><div class="q">החזקת או מכרת מטבעות דיגיטליים השנה?</div>
+        <div class="chips">
+          <button class="chip ${P.crypto === true ? 'on' : ''}" onclick="P.crypto=true;renderPortal()">כן</button>
+          <button class="chip ${P.crypto === false ? 'on' : ''}" onclick="P.crypto=false;renderPortal()">לא</button>
+        </div></div>`);
+    if (!parts.length) parts.push(`<div class="q-item"><div class="q">אין שאלות נוספות 🙂</div>
+      <div class="hint">לא סימנת נושאים שדורשים פירוט.</div></div>`);
+    card.innerHTML = parts.join('') + `
+      <div class="p-act">
+        <button class="btn" onclick="P.step=1;renderPortal()">חזרה</button>
+        <button class="btn primary" onclick="P.step=3;renderPortal()">סיום</button>
+      </div>`;
+  }
+
+  if (P.step === 3){
+    $('#pTitle').textContent = '';
+    $('#pSub').textContent = '';
+    card.innerHTML = `
+      <div class="p-done">
+        <div class="big">✓</div>
+        <b>תודה, דניאל!</b>
+        <p>התשובות הועברו לגיא. אם משהו ידרוש הבהרה — הוא יחזור אליך.</p>
+        <div style="margin-top:16px">
+          <button class="btn primary" onclick="exitPortal(true)">חזרה למסך הרו״ח — וצפייה במה שקרה בתיק</button>
+        </div>
+      </div>`;
+  }
+}
+function togWorld(id){ P.worlds.has(id) ? P.worlds.delete(id) : P.worlds.add(id); renderPortal(); }
+
+/** תשובות הלקוח נוחתות בתיק: מה שלא סותר — נכנס; סתירה — עולה להכרעה. */
+function applyQuestionnaire(){
+  st.quest = { state:'done', when:'היום' };
+  const updates = [];
+  if (P.invest === true){
+    const r = pictureRow('cap');
+    if (r){ r.state = undefined; r.summary = 'קיים תיק השקעות · פרטים בהמשך';
+      r.facts = [['מקור','דיווח הלקוח בשאלון · היום'],['הצעד הבא','לבקש אישורי 867']]; }
+    updates.push(['שוק ההון','קיים תיק השקעות (היה: טרם ביררנו)']);
+  } else if (P.invest === false){
+    const r = pictureRow('cap');
+    if (r){ r.state = 'none'; r.summary = 'אין — דיווח הלקוח היום';
+      r.facts = [['סטטוס','אין תיקי השקעות · דיווח עצמי']]; }
+    updates.push(['שוק ההון','אין (היה: טרם ביררנו)']);
+  }
+  if (P.crypto === true){
+    const r = pictureRow('crypto');
+    if (r){ r.state = undefined; r.summary = 'יש החזקות · פרטים בהמשך';
+      r.facts = [['מקור','דיווח הלקוח בשאלון · היום'],['הצעד הבא','לברר זירה והיקף מכירות']]; }
+    updates.push(['קריפטו','יש החזקות (היה: טרם ביררנו)']);
+  } else if (P.crypto === false){
+    const r = pictureRow('crypto');
+    if (r){ r.state = 'none'; r.summary = 'אין — דיווח הלקוח היום';
+      r.facts = [['סטטוס','אין החזקות קריפטו · דיווח עצמי']]; }
+    updates.push(['קריפטו','אין (היה: טרם ביררנו)']);
+  }
+
+  st.news = st.news.filter(n => n.key !== 'qbatch' && n.key !== 'qconf');
+  if (updates.length){
+    st.news.unshift({kind:'info', key:'qbatch',
+      title:`${updates.length} עדכונים מהשאלון של דניאל`, when:'היום',
+      values:updates, note:'תשובות שלא סותרות את התיק נכנסו ישירות. הרשימה כאן כדי לוודא.'});
+  }
+  if (P.kids && P.kids !== 2){
+    st.news.unshift({kind:'ask', key:'qconf', openByDefault:true,
+      title:'דניאל דיווח נתון שונה ממה שרשום בתיק', when:'היום',
+      conflicts:[{key:'kids', title:'מספר ילדים',
+        sentence:`בתיק רשומים <b>2 ילדים</b>. בשאלון שמילא היום דניאל סימן <b>${P.kids}</b>. הנתון משפיע על נקודות הזיכוי.`,
+        accept:`עדכן ל-${P.kids} ילדים`, keep:'השאר 2',
+        onAccept:'מספר הילדים עודכן · נקודות הזיכוי חושבו מחדש'}]});
+    open.add('n:qconf');
+  }
+  toast('התשובות של דניאל נקלטו בתיק');
+  render();
+}
+
+// ════════ רינדור מסך הרו"ח ════════
+function renderAtt(){
+  const el = $('#attSect');
+  if (st.alignedAt === null && !st.att.length){ el.innerHTML = ''; return; }
+  if (!st.att.length){
+    el.innerHTML = `<div class="allgood"><span>✓</span><span>אין נקודות פתוחות מול הרשויות.</span>
+      <span class="when">נבדק ${esc(st.alignedAt)}</span></div>`;
+    return;
+  }
+  const openN = st.att.filter(a => !a.done).length;
+  el.innerHTML = `
+    <div class="secthead"><span>דורש טיפול${openN ? ' · ' + openN : ''}</span></div>
+    <div class="card">${st.att.map(a => a.done ? `
+      <div class="arow done"><span class="adot"></span>
+        <div class="atxt"><b>${esc(a.title)}</b><span class="sub">${esc(a.doneWhy)}</span></div>
+        <span class="astamp">בטיפול</span></div>` : `
+      <div class="arow ${a.sev === 'med' ? 'med' : ''}"><span class="adot"></span>
+        <div class="atxt"><b>${esc(a.title)}</b><span class="sub">${esc(a.why)}</span></div>
+        <button class="btn sm" onclick="doAtt('${a.key}')">${esc(a.cta)}</button></div>`).join('')}</div>`;
+}
+
+function renderNews(){
+  const el = $('#newsSect');
+  if (!st.news || !st.news.length){ el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="secthead"><span>מה חדש</span></div>
+    <div class="card">${st.news.map(n => {
+      const id = 'n:' + n.key, isOpen = open.has(id);
+      let body = '';
+      if (n.kind === 'info'){
+        body = `<div class="nbody"><div class="tnote">${esc(n.note ?? '')}</div>
+          <div class="nlist">${n.values.map(v => v[0] === 'grp'
+            ? `<div class="ngrp">${esc(v[1])}</div>`
+            : `<div><span class="k">${esc(v[0])}</span><span class="v">${esc(v[1])}</span></div>`).join('')}</div></div>`;
+      } else {
+        body = `<div class="nbody">${n.conflicts.map(c => `
+          <div class="cf"><div class="cf-t">${esc(c.title)}</div>
+            <div class="cf-s">${c.sentence}</div>
+            <div class="cf-act">
+              <button class="btn primary sm" onclick="resolveConf('${n.key}','${c.key}',true)">${esc(c.accept)}</button>
+              <button class="btn sm" onclick="resolveConf('${n.key}','${c.key}',false)">${esc(c.keep)}</button>
+            </div></div>`).join('')}</div>`;
+      }
+      return `<div class="nrow ${n.kind === 'ask' ? 'ask' : ''} ${isOpen ? 'open' : ''}">
+        <button class="nhead" onclick="toggle('${id}')">
+          <span class="nico">${n.kind === 'ask' ? '?' : '✓'}</span>
+          <span class="ntxt"><b>${esc(n.title)}</b></span>
+          <span class="nwhen">${esc(n.when)}</span>
+          <span class="nchev">${isOpen ? 'סגור ‹' : (n.kind === 'ask' ? 'הכרע ›' : 'הצג ›')}</span>
+        </button>${isOpen ? body : ''}</div>`;
+    }).join('')}</div>`;
+}
+
+function rowHtml(r, ns){
+  const id = ns + ':' + r.key, isOpen = open.has(id);
+  let sum;
+  if (r.state === 'unknown') sum = `<span class="unk">${esc(r.summary)}</span><span class="qmark">?</span>`;
+  else if (r.state === 'stale') sum = `${esc(r.summary)}<span class="stale">⏱</span>`;
+  else sum = esc(r.summary);
+  return `<div class="trow ${isOpen ? 'open' : ''}">
+    <button class="thead" onclick="toggle('${id}')">
+      <span class="tname">${esc(r.name)}</span>
+      <span class="tsum">${sum}${excHtml(r.exception)}</span>
+      <span class="tchev">◂</span>
+    </button>
+    ${isOpen ? `<div class="tbody">
+      ${r.note ? `<div class="tnote">${esc(r.note)}</div>` : ''}
+      <div class="kv">${r.facts.map(f =>
+        `<div><div class="k">${esc(f[0])}</div><div class="v ${f[2] || ''}">${esc(f[1])}</div></div>`).join('')}</div>
+      ${(r.history && r.history.length) ? `<div class="hist"><div class="hist-t">שינויים אחרונים</div>
+        ${r.history.map(h => `<div class="hist-r"><span class="d">${esc(h[0])}</span><span>${esc(h[1])}</span></div>`).join('')}</div>` : ''}
+      <div class="tfoot"><button class="linkbtn" onclick="event.stopPropagation();toast('נפתח עורך · ${esc(r.name)}')">ערוך</button></div>
+    </div>` : ''}</div>`;
+}
+
+function renderAuth(){
+  const el = $('#authSect');
+  if (st.alignedAt === null){
+    el.innerHTML = `
+      <div class="secthead"><span>מול הרשויות</span></div>
+      <div class="card"><div class="blank">
+        <b>עוד לא בדקנו את ${esc(st.client.name.split(' ')[0])} מול הרשויות</b>
+        <p>יישור קו אחד עובר על ביטוח לאומי, מע״מ ומס הכנסה ואוסף יתרות, מקדמות,
+           ניהול ספרים ואישורים. משם התיק מתעדכן לבד.</p>
+        <button class="btn primary" id="alignBtn" onclick="runAlignment()">בצע יישור קו מול הרשויות</button>
+      </div></div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="secthead"><span>מול הרשויות</span>
+      <span class="r"><span>יישור קו אחרון: ${esc(st.alignedAt)}</span>
+        <button class="btn sm" onclick="runAlignment()">בצע יישור קו מחדש</button></span></div>
+    <div class="card sect">${st.auths.map(a => rowHtml(a, 'a')).join('')}</div>`;
+}
+
+/** מוכנות להערכת מס — נגזרת ממצבי הידיעה, שורה אחת ולא לוח מחוונים. */
+function readiness(){
+  const unknowns = st.picture.flatMap(g => g.rows).filter(r => r.state === 'unknown').map(r => r.name);
+  const stale = st.picture.flatMap(g => g.rows).filter(r => r.state === 'stale').map(r => r.name);
+  if (!unknowns.length && !stale.length)
+    return `<div class="ready ok">✓ יש מספיק מידע להערכת מס.</div>`;
+  const parts = [];
+  if (unknowns.length) parts.push(`טרם ביררנו: <b>${unknowns.map(esc).join(' · ')}</b>`);
+  if (stale.length) parts.push(`ייתכן שהשתנה: <b>${stale.map(esc).join(' · ')}</b>`);
+  return `<div class="ready gaps">להערכת מס אמינה — ${parts.join(' · ')}</div>`;
+}
+
+function questStatus(){
+  const q = st.quest ?? {state:'none'};
+  if (q.state === 'waiting')
+    return `<span>שאלון סטטוס מס: נשלח · ממתין ללקוח</span>
+      <button class="btn sm" onclick="openPortal()">פתח את חוויית הלקוח ›</button>`;
+  if (q.state === 'done')
+    return `<span>שאלון סטטוס מס: הושלם ${esc(q.when)}</span>
+      <button class="btn sm" onclick="sendQuestionnaire()">שלח שוב</button>`;
+  return `<span>שאלון סטטוס מס: טרם נשלח</span>
+    <button class="btn sm" onclick="sendQuestionnaire()">שלח שאלון עדכון</button>`;
+}
+
+function renderPicture(){
+  const el = $('#pictureSect');
+  if (!st.picture){ el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="bigdiv">
+      <h3>תמונת המס</h3><span class="sub">מה שידוע, מה חסר — ומה זה אומר על המס</span>
+      <span class="qside">${questStatus()}</span>
+    </div>
+    ${readiness()}
+    ${st.picture.map(g => `
+      <div class="secthead"><span>${esc(g.h)}</span></div>
+      <div class="card sect">${g.rows.map(r => rowHtml(r, 'p')).join('')}</div>`).join('')}`;
+}
+
+function render(){
+  $('#cName').textContent = st.client.name;
+  $('#cBadge').textContent = st.client.badge;
+  $('#cMeta').textContent = st.client.meta;
+  $('#sentence').textContent = st.client.sentence;
+  renderAtt(); renderNews(); renderAuth(); renderPicture();
+}
+
+document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => load(b.dataset.s));
+const Q0 = new URLSearchParams(location.search);
+load(Q0.get('s') || 'complex');
+(Q0.get('open') || '').split(',').filter(Boolean).forEach(id => open.add(id));
+if (Q0.get('open')) render();
+if (Q0.get('view') === 'portal'){ openPortal(); const ps = Number(Q0.get('pstep')); if (ps) { P.step = ps; if (ps >= 2){ P.worlds = new Set(['family','invest','crypto']); P.kids = 3; P.invest = true; P.crypto = true; } renderPortal(); } }
+// ?after=1 — מצב "אחרי שהלקוח ענה" לצילומי מסך: מריץ את המסלול ומחיל
+if (Q0.get('after') === '1'){ P = { step:3, worlds:new Set(['family','invest','crypto']), kids:3, invest:true, crypto:true }; applyQuestionnaire(); }
+</script>
+</body>
+</html>

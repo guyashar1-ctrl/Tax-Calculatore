@@ -10,7 +10,7 @@ import type { Client } from '../../types';
 import type { OnboardingStep } from '../../types/onboarding';
 import { INSTITUTION_NAMES } from '../../types/onboarding';
 import type { InstitutionKey } from '../../types/onboarding';
-import { InstitutionFocus } from './InstitutionAlignment';
+import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
 
 // ?theme=light|dark — קיבוע ערכה לצילומי מסך ללא-ראש (אין App שמפעיל useTheme).
 {
@@ -126,6 +126,12 @@ export default function TestInstitutions() {
         <span style={{ flex: 1 }} />
         <button type="button" className="btn" onClick={populate}>מלא ערכים</button>
         <button type="button" className="btn" onClick={reset}>אפס</button>
+      </div>
+
+      {/* ‼ תצוגת השורות — זו הסטייה שתוקנה מהמוקאפ המאושר (אריחים ⇐ שורות),
+          ולכן היא חייבת להיות ניתנת לבדיקה בעין ולא רק דרך הקוד. */}
+      <div style={{ maxWidth: 780, margin: '0 auto 22px' }}>
+        <InstitutionAlignmentGroup steps={steps} onOpen={setFocus} />
       </div>
 
       <InstitutionFocus

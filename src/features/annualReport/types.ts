@@ -234,6 +234,8 @@ export interface TaxpayerModel {
     selfStudyFundDeposits?: number;
     hasKerenHashtalmutSelf?: boolean;
     isDischargedSoldier?: boolean;
+    /** ימי מילואים כלוחם בשנה הקודמת — סעיף 39ב, מזכה מ-2026 ואילך. */
+    reserveCombatDaysPrevYear?: number;
     hasAcademicDegree?: boolean;
     /** מזונות שהתקבלו (₪/שנה) — שדה 9(21). */
     alimonyReceivedAnnual?: number;
@@ -424,6 +426,7 @@ export interface QuestionPreviewClient {
   // ─── סכומים שנתיים לזיכויים ──────────────────────────────────────────
   donationsAnnual?: number;
   lifeInsuranceAnnual?: number;
+  reserveCombatDaysPrevYear?: number;
 
   // ─── ילדים — רשימה מפורטת ───────────────────────────────────────────
   children?: Array<{ id: string; firstName?: string; birthDate: string; birthYear: number; hasDisability: boolean }>;

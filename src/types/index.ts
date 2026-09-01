@@ -83,6 +83,7 @@ export type InvestmentAccountKind =
   | 'kupat_hishtalmut_ira' // קרן השתלמות IRA
   | 'mutual_funds'         // קרנות נאמנות
   | 'broker_account'       // חשבון ברוקר רגיל
+  | 'crypto'               // זירת מסחר/ארנק קריפטו בישראל (בחו״ל — foreignAccounts)
   | 'other';
 
 export const INVESTMENT_ACCOUNT_KIND_LABELS: Record<InvestmentAccountKind, string> = {
@@ -92,6 +93,7 @@ export const INVESTMENT_ACCOUNT_KIND_LABELS: Record<InvestmentAccountKind, strin
   kupat_hishtalmut_ira:   'השתלמות IRA',
   mutual_funds:           'קרנות נאמנות',
   broker_account:         'חשבון ברוקר',
+  crypto:                 'זירת קריפטו (ישראל)',
   other:                  'אחר',
 };
 
@@ -776,6 +778,32 @@ export interface Client {
 
   capitalDeclarationRequired?: boolean;
   capitalDeclarationDeadline?: string;
+
+  // ── V6 — עובדות מס אישיות שאינן הנהלת חשבונות של העסק (מיגרציה 152) ──
+  // ‼ מחזור העסק והוצאות מוכרות **אינם כאן בכוונה**: הם שייכים לפייפרלס.
+  // מה שכאן הוא ניכוי/הכנסה של הנישום עצמו, שנכנס לדוח בנפרד מספרי העסק.
+  /** הכנסה אחרת שאינה עסק/שכר/שכירות/שוק ההון. */
+  otherIncome?: number;
+  /** הוצאות על נכס מושכר (מסלול רגיל) — הוצאה אישית, לא ספרי העסק. */
+  rentalExpenses?: number;
+  /** הפקדת עצמאי לפנסיה/גמל — ניכוי אישי לפי סעיף 47. */
+  selfEmployedPensionAmount?: number;
+  /** הפקדת עצמאי לקרן השתלמות — ניכוי אישי. */
+  krenHashtalmutSE?: number;
+  /** מס ששולם בחו״ל — לזיכוי מס זר. */
+  foreignTaxPaid?: number;
+  hasForeignIncome?: boolean;
+  foreignIncomeAnnual?: number;
+  /** ימי מילואים כלוחם בשנה הקודמת — סעיף 39ב, מ-2026. מזין את creditPoints. */
+  reserveCombatDaysPrevYear?: number;
+  /** עוגן ידיעה לקריפטו. הפירוט חי ב-investmentAccounts (ישראל) וב-foreignAccounts (חו״ל). */
+  hasCrypto?: boolean;
+  /**
+   * האם נתוני הנהלת החשבונות של העסק בידינו. ‼ סימון בלבד — לא הנתונים
+   * עצמם, ולא העמדת פנים שקיימת אינטגרציה לפייפרלס. חסר ⇒ נגזר משלב
+   * data_verification בקליטה.
+   */
+  businessDataStatus?: 'received' | 'waiting' | 'not_applicable';
 
   fieldMeta?: Record<string, import('./clientWorkspace').FieldMeta>;
   activity?: import('./clientWorkspace').ActivityEntry[];

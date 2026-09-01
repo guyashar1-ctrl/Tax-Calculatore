@@ -870,24 +870,44 @@ interface GroupProps {
   onOpen: (key: InstitutionKey) => void;
 }
 
-/** כרטיס הקבוצה — שלושת המוסדות. פתיחה קופצת להשתלטות מלאה על המסך אצל ההורה. */
+/**
+ * כרטיס הקבוצה — שלושת המוסדות.
+ *
+ * ‼ שורות ולא אריחים. מקור UX מחייב:
+ * docs/prototypes/client-case-simplified-exploration-v3-final2.html (‏cc2878e),
+ * מקטע `.insts` — נקודת מצב · שם · סטטוס · «כניסה», וכותרת «הושלם X מתוך 3».
+ * הייצור הציג שלושה אריחים בגודל זהה, שבהם הסטטוס והפעולה נבלעו: אריח לא
+ * אומר "כמה נשאר" ולא מבדיל בין מה שהושלם למה שמחכה. שורה כן.
+ * פתיחה קופצת להשתלטות מלאה על המסך אצל ההורה — כמו קודם.
+ */
 export default function InstitutionAlignmentGroup({ steps, onOpen }: GroupProps) {
   const instSteps = (['btl', 'vat', 'income'] as InstitutionKey[])
     .map(k => steps.find(s => s.payload.institution === k))
     .filter((s): s is OnboardingStep => !!s);
 
+  const doneCount = instSteps.filter(s => s.status === 'completed' || s.status === 'verified').length;
+
   return (
-    <div className="ial-grid">
+    <div className="ial-insts">
+      {instSteps.length > 1 && (
+        <div className="ial-insts-head">הושלם {doneCount} מתוך {instSteps.length}</div>
+      )}
       {instSteps.map(s => {
         const k = s.payload.institution as InstitutionKey;
         const done = s.status === 'completed' || s.status === 'verified';
-        const checkedAt = s.payload.checkedAt ? new Date(String(s.payload.checkedAt)).toLocaleDateString('he-IL') : null;
+        const checkedAt = s.payload.checkedAt
+          ? new Date(String(s.payload.checkedAt)).toLocaleDateString('he-IL') : null;
         return (
-          <button type="button" key={k} className={`ial-box ${done ? 'is-done' : ''}`}
-            onClick={() => onOpen(k)} style={{ textAlign: 'right', cursor: 'pointer' }}>
-            <b>{INSTITUTION_NAMES[k]}</b>
-            <div className="m">{done ? `נבדק ${checkedAt ? '· ' + checkedAt : ''}` : 'טרם בוצע'}</div>
-          </button>
+          <div className="ial-inst" key={k}>
+            <span className={`ial-inst-dot ${done ? 'is-done' : ''}`} aria-hidden="true" />
+            <span className="ial-inst-nm">{INSTITUTION_NAMES[k]}</span>
+            <span className={`ial-inst-stt ${done ? 'is-done' : ''}`}>
+              {done ? `הושלם${checkedAt ? ' · ' + checkedAt : ''}` : 'טרם בוצע'}
+            </span>
+            <button type="button" className="ial-inst-btn" onClick={() => onOpen(k)}>
+              {done ? 'פתח' : 'כניסה'}
+            </button>
+          </div>
         );
       })}
     </div>

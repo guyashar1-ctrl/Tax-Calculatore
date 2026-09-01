@@ -84,6 +84,12 @@ export const GOVERNED_FACT_KEYS: ReadonlySet<string> = new Set([
   'niIncomeBasisMonthly', 'incomeTaxReportingStatus',
   // ── M3 — מצב אישור הניכוי במקור, בלעדיו "אין אישור תקף" אינו דגל (146) ──
   'withholdingStatus',
+  // ── V6 (152) — עובדות מס אישיות + עוגני ידיעה. ‼ מחזור והוצאות מוכרות
+  //    של העסק אינם כאן: הם של פייפרלס, לא של תיק המס.
+  'otherIncome', 'rentalExpenses', 'selfEmployedPensionAmount', 'krenHashtalmutSE',
+  'foreignTaxPaid', 'hasForeignIncome', 'foreignIncomeAnnual',
+  'reserveCombatDaysPrevYear', 'hasCrypto', 'businessDataStatus',
+  'hasRentalIncome', 'hasKrenHashtalmut', 'hasDisabilityInsurance', 'hasMedicalInsurance',
 ]);
 
 export const GOVERNED_FIELD_LABELS: Record<string, string> = {
@@ -117,6 +123,13 @@ export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   capitalDeclarationRequired: 'דרישת הצהרת הון פתוחה', capitalDeclarationDeadline: 'מועד להגשת הצהרת הון',
   niIncomeBasisMonthly: 'בסיס הכנסה למקדמות - ביטוח לאומי', incomeTaxReportingStatus: 'מצב דיווחים',
   withholdingStatus: 'מצב ניכוי במקור',
+  otherIncome: 'הכנסה אחרת', rentalExpenses: 'הוצאות על נכס מושכר',
+  selfEmployedPensionAmount: 'הפקדת עצמאי לפנסיה', krenHashtalmutSE: 'הפקדת עצמאי לקרן השתלמות',
+  foreignTaxPaid: 'מס ששולם בחו״ל', hasForeignIncome: 'הכנסה מחו״ל',
+  foreignIncomeAnnual: 'הכנסה שנתית מחו״ל', reserveCombatDaysPrevYear: 'ימי מילואים כלוחם',
+  hasCrypto: 'קריפטו', businessDataStatus: 'נתוני הנהלת החשבונות',
+  hasRentalIncome: 'הכנסה משכירות', hasKrenHashtalmut: 'קרן השתלמות',
+  hasDisabilityInsurance: 'ביטוח אובדן כושר עבודה', hasMedicalInsurance: 'ביטוח בריאות',
 };
 
 /** השוואה עמוקה מספיק לשדות מנוהלים — כולל מערכים/אובייקטים (ילדים, מעבידים וכו'). */

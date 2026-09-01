@@ -48,4 +48,12 @@ function srcStampPlugin() {
 
 export default defineConfig({
   plugins: [react(), srcStampPlugin()],
+  server: {
+    watch: {
+      // ‼ תיקיות עבודה מקבילות יושבות בתוך הפרויקט ומכילות פרופיל דפדפן חי.
+      // קובץ ה-Cookies שלו נעול על ידי התהליך, והצופה של vite קרס עם EBUSY
+      // והפיל את השרת כולו. אין שום סיבה לצפות בהן — הן ריפו נפרד.
+      ignored: ['**/.claude/worktrees/**'],
+    },
+  },
 })

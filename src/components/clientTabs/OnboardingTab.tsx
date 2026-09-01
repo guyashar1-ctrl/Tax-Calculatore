@@ -115,7 +115,8 @@ interface Props {
    * לאסוף, וזה הרגע שבו התוצר נהיה רלוונטי. נחיתה חזרה ברשימת הבקשות הייתה
    * מסתירה בדיוק את מה שהעבודה נעשתה בשבילו.
    */
-  onOpenAlignmentStatus?: () => void;
+  /** פותח את תיק המס — היעד היחיד של יישור הקו. */
+  onOpenTaxFile?: () => void;
 }
 
 /**
@@ -289,7 +290,7 @@ export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
   prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, onOpenRepresentation,
   onOpenDocuments,
-  clientDisplayName, clientEmail, embedded, ballFilter, onOpenAlignmentStatus,
+  clientDisplayName, clientEmail, embedded, ballFilter, onOpenTaxFile,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
@@ -742,11 +743,12 @@ export default function OnboardingTab({
             openingCallStep={openingCallStepForFocus}
             returnLabel={returnLabel}
             onClose={() => setFocusedInstitutionKey(null)}
-            /* ‼ נגמרו המוסדות ⇒ נוחתים על תמונת המצב, לא ברשימת הבקשות.
-               זה התוצר שבשבילו נעשתה כל ההקלדה. */
+            /* ‼ נגמרו המוסדות ⇒ נוחתים בתיק המס. קודם נפתח כאן דף סטטוס
+               נפרד, וזו בדיוק הכפילות ש-V6 ביטל: ליישור הקו אין יעד משלו,
+               הוא מרענן את התיק והתשובה נקראת שם. */
             onAdvanceInstitution={next => {
               setFocusedInstitutionKey(next);
-              if (next === null) onOpenAlignmentStatus?.();
+              if (next === null) onOpenTaxFile?.();
             }}
           />
         </div>
@@ -1859,9 +1861,9 @@ export default function OnboardingTab({
                 {alignSteps.length > 0 && (
                   <div className="ob-card-body">
                     <InstitutionAlignmentGroup steps={alignSteps} onOpen={setFocusedInstitutionKey} />
-                    {alignDone && onOpenAlignmentStatus && (
+                    {alignDone && onOpenTaxFile && (
                       <button type="button" className="ui-linkbtn" style={{ marginTop: 8 }}
-                        onClick={onOpenAlignmentStatus}>תמונת מצב מלאה ←</button>
+                        onClick={onOpenTaxFile}>לתיק המס ←</button>
                     )}
                   </div>
                 )}

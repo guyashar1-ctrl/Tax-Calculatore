@@ -23,6 +23,7 @@ import { buildAuthorityRows } from '../../utils/authorityRows';
 import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 import { domainKnowledge, taxReadiness } from '../../utils/taxKnowledge';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
+import type { AuthorityFlag } from '../../utils/authorityFlags';
 import { findUnsyncedSession, syncIntakeSession } from '../../lib/intakeSync';
 import type { IntakeSyncResult } from '../../lib/intakeSync';
 
@@ -59,6 +60,9 @@ interface Props {
   steps?: { stepType: string; status: string; payload?: Record<string, unknown> }[];
   /** פותח משימה עם כותרת מוכנה, מתוך דגל. */
   onCreateTask?: (title: string) => void;
+  /** פותח בקשה ללקוח מתוך דגל — כשהממצא דורש חומר שרק הלקוח יכול לתת. */
+  onCreateRequest?: (flag: AuthorityFlag) => void;
+  creatingRequestKey?: string | null;
 }
 
 const RENTAL_TRACK_LABELS: Record<RentalTaxTrack, string> = {
@@ -159,7 +163,7 @@ function SrcLine({ label, onEdit }: { label: string; onEdit?: () => void }) {
 
 export default function TaxFileTab({
   client, spouseClient, onClientPersisted, onSendQuestionnaire, onOpenDetails,
-  onRunAlignment, alignBusy, alignedAt, steps, onCreateTask,
+  onRunAlignment, alignBusy, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
 }: Props) {
   const { pending, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
@@ -513,12 +517,22 @@ export default function TaxFileTab({
                     <b>{f.title}</b>
                     <span>{f.why}</span>
                   </div>
+                  {/* ‼ שתי פעולות שונות, ולא אחת: ממצא שהטיפול בו הוא אצלנו
+                      נפתח כמשימה, וממצא שדורש חומר מהלקוח נפתח כבקשה בדף
+                      האישי. במוקאפ המאושר זו בדיוק ההבחנה בין «פתח משימה»
+                      ל«בקש מסמכים מהלקוח». */}
                   {f.requestExists
                     ? <span className="txf-att-stamp">בטיפול</span>
-                    : f.taskTitle && onCreateTask
+                    : f.requestTitle && onCreateRequest
                       ? <button type="button" className="ui-btn ui-btn-sm"
-                          onClick={() => onCreateTask(f.taskTitle!)}>פתח משימה</button>
-                      : null}
+                          disabled={creatingRequestKey === f.key}
+                          onClick={() => onCreateRequest(f)}>
+                          {creatingRequestKey === f.key ? 'יוצר…' : 'בקש מסמכים מהלקוח'}
+                        </button>
+                      : f.taskTitle && onCreateTask
+                        ? <button type="button" className="ui-btn ui-btn-sm"
+                            onClick={() => onCreateTask(f.taskTitle!)}>פתח משימה</button>
+                        : null}
                 </div>
               ))}
             </div>
