@@ -19,6 +19,13 @@ import type { FamilyKey } from '../../features/taxFile/editModel';
 
 const CASE = new URLSearchParams(window.location.search).get('case') ?? 'complex';
 
+/**
+ * ?client=<uuid> — מריץ את המסך על לקוח אמיתי של משתמש הבדיקה. נחוץ כדי
+ * לאמת את «קרא משע״ם»: המשימה נשלפת לפי מזהה לקוח, ולקוח מדומה אין לו
+ * שורה במסד ולכן אין לו משימות. שאר השדות נשארים מהפיקסצ׳ר.
+ */
+const CLIENT_ID_OVERRIDE = new URLSearchParams(window.location.search).get('client');
+
 const DAY = 86_400_000;
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY).toISOString();
 
@@ -32,7 +39,7 @@ function meta(keys: Record<string, number>): Client['fieldMeta'] {
 }
 
 const BASE = {
-  id: 'fixture-v6', idNumber: '027455811', firstName: 'יעל', lastName: 'ברק',
+  id: CLIENT_ID_OVERRIDE || 'fixture-v6', idNumber: '027455811', firstName: 'יעל', lastName: 'ברק',
   birthDate: '1985-04-12', gender: 'female', phone: '050-2214467',
   email: 'yael@example.invalid', city: 'חיפה', address: 'רמת אלמוגי 8',
   familyStatus: 'married', spouseName: 'עמית ברק', spouseIdNumber: '038117762',

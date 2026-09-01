@@ -20,6 +20,9 @@ import {
 import { shortDate } from '../../utils/clientDerived';
 import { useSectionVisible } from './dossierSection';
 import TaxFilesSection from './TaxFilesSection';
+import ShaamFieldSync from './ShaamFieldSync';
+import { useAutomationJob } from '../../hooks/useAutomationJobs';
+import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
 
 interface Props {
   client: Client;
@@ -88,6 +91,13 @@ const COLOR_WEALTH    = 'var(--chip-pink-tx)';  // פוקסיה
 export default function TaxNITab({ client, update, hideFiles }: Props) {
   const meta = client.fieldMeta ?? {};
 
+  // ‼ הקריאה משע״ם יושבת כאן ולא רק במסך יישור הקו: זה מסך העריכה שהרו"ח
+  // באמת פותח כדי לעדכן את סעיף מס הכנסה. ‼ ההוק חייב להישאר לפני ה-return
+  // של הקומפוננטה — ראה hooks-after-institution-focus-return.
+  const shaamSync = useAutomationJob(client.id, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
+  const incomeTaxFileNumber = ((client.taxFiles ?? [])
+    .find(t => t.authority === 'income_tax')?.fileNumber ?? '').replace(/\D/g, '');
+
   return (
     <div className="cw-tab cw-tax-tab">
 
@@ -117,6 +127,17 @@ export default function TaxNITab({ client, update, hideFiles }: Props) {
             <div className="form-group">
               <label>פקיד שומה</label>
               <input type="text" value={client.taxOfficeName ?? ''} onChange={e => update('taxOfficeName', e.target.value || undefined)} placeholder="ת״א 4 / ירושלים 1..." />
+              {/* ‼ מציע ולא שומר: «אמץ» מכניס את הערך לשדה, והשמירה נשארת
+                  כפתור השמירה של הכרטיס. */}
+              <ShaamFieldSync
+                fieldKey="taxOfficeName"
+                currentValue={client.taxOfficeName ?? ''}
+                onAdopt={v => update('taxOfficeName', v)}
+                job={shaamSync.job}
+                busy={shaamSync.busy}
+                fileNumber={incomeTaxFileNumber}
+                onRun={() => { void shaamSync.run({ fileNumber: incomeTaxFileNumber }); }}
+              />
             </div>
           </div>
         </div>
