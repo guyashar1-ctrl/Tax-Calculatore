@@ -828,6 +828,8 @@ export default function ClientWorkspace({
           <TaxFileTab
             client={client}
             spouseClient={spouseClient}
+            onCreateSpouseClient={onCreateSpouseClient ? () => onCreateSpouseClient(client) : undefined}
+            onOpenSpouseClient={onOpenClient}
             onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
             onOpenDetails={() => setTab('dossier')}

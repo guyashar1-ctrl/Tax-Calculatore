@@ -727,7 +727,7 @@ export default function PersonalContactsTab({
                   onCreateSpouseClient && (
                     <button type="button" className="ui-linkbtn" disabled={creatingSpouseClient}
                       onClick={() => void handleCreateSpouseClient()}>
-                      {creatingSpouseClient ? 'יוצר/ת…' : 'לבן/בת הזוג יש עסק? פתיחת כרטיס לקוח'}
+                      {creatingSpouseClient ? 'יוצר/ת…' : `פתיחת כרטיס לקוח ל${spouseDisplayName(client)}`}
                     </button>
                   )
                 )}

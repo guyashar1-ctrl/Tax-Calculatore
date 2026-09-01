@@ -3,7 +3,7 @@
 // בלי DB — ומציג בדיוק מה היה נשלח הלאה, כולל seedClientFromEmbeddedSpouse.
 
 import { useState } from 'react';
-import type { Client } from '../types';
+import type { Client, RepAuthorityKind } from '../types';
 import type { Engagement } from '../types/onboarding';
 import NewPersonDialog, { type NewPersonBasics } from './NewPersonDialog';
 import PersonQuickView from './PersonQuickView';
@@ -11,8 +11,25 @@ import PersonalContactsTab from './clientTabs/PersonalContactsTab';
 import TaxFileTab from './clientTabs/TaxFileTab';
 import ClientDossierTab from './clientTabs/ClientDossierTab';
 import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
+import RepresentationOnboardingDialog, { CreateRepresentationInput } from './RepresentationOnboardingDialog';
 import { buildPersonRows } from '../utils/personDirectory';
-import { seedClientFromEmbeddedSpouse } from '../utils/personRepresentation';
+import { seedClientFromEmbeddedSpouse, resolvePersonAuthority, resolveIncomeTaxHousehold } from '../utils/personRepresentation';
+
+/** בדיוק alreadyRepresentedFor מ-App.tsx — מה שכבר הושג דרך בן/בת הזוג המקושר/ת. */
+function computeAlreadyRepresented(client: Client, spouse: Client | undefined): Partial<Record<RepAuthorityKind, string>> {
+  if (!spouse) return {};
+  const spouseLabel = `${spouse.firstName} ${spouse.lastName}`.trim() || 'בן/בת הזוג';
+  const out: Partial<Record<RepAuthorityKind, string>> = {};
+  for (const a of ['vat', 'withholding', 'nationalInsurance'] as RepAuthorityKind[]) {
+    const r = resolvePersonAuthority(client, spouse, a);
+    if (r.represented && r.source === 'spouse') out[a] = `הושג בקליטה של ${spouseLabel}`;
+  }
+  const it = resolveIncomeTaxHousehold(client, spouse);
+  if (it.represented && it.holder === 'spouse') {
+    out.incomeTax = `תיק משותף — הושג בקליטה של ${spouseLabel}`;
+  }
+  return out;
+}
 
 const YAIR: Client = {
   id: 'fixture-yair', idNumber: '314667346', firstName: 'יאיר', lastName: 'סלע',
@@ -64,6 +81,122 @@ const ENG_MICHAL_OWN: Engagement = {
   id: 'eng-michal-1', clientId: MICHAL_LINKED.id, status: 'active',
   monthlyTotal: 280, effectiveFrom: '2026-06-01', createdAt: '2026-06-01T08:00:00.000Z',
 };
+
+// ‼ תרחיש 4 (המסלול המוזהב) — יאיר מתחיל *בלי* כרטיס נפרד למיכל (רק שדות
+// שטוחים על הכרטיס שלו), עם ב"ל שכבר מכסה אותה וייצוג מלא. גם בלי ת.ז.
+// לבן/בת הזוג — מוכיח שהיצירה עובדת בלעדיה (תרחיש 6/F) באותו מעבר.
+const YAIR_GOLDEN_BASE: Client = { ...YAIR, id: 'fixture-yair-golden', spouseIdNumber: '', spouseClientId: undefined };
+const ENG_GOLDEN_YAIR: Engagement = {
+  id: 'eng-yair-golden-1', clientId: YAIR_GOLDEN_BASE.id, status: 'active',
+  monthlyTotal: 450, effectiveFrom: '2026-01-01', createdAt: '2026-01-01T08:00:00.000Z',
+};
+
+/** תרחיש 4 (D) — יאיר → יצירת מיכל → מצב מקושר → ייצוג רק על מה שבאמת חסר → חיוב חוזר ליאיר. */
+function GoldenFlowDemo() {
+  const [clients, setClients] = useState<Client[]>([YAIR_GOLDEN_BASE]);
+  const [michalId, setMichalId] = useState<string | null>(null);
+  const [pendingRep, setPendingRep] = useState(false);
+  const [sentRep, setSentRep] = useState<CreateRepresentationInput | null>(null);
+  const [log, setLog] = useState<string[]>([]);
+
+  const yair = clients.find(c => c.id === YAIR_GOLDEN_BASE.id)!;
+  const michal = michalId ? clients.find(c => c.id === michalId) : undefined;
+
+  async function handleCreateMichal() {
+    const seed = seedClientFromEmbeddedSpouse(yair);
+    const created: Client = {
+      id: 'fixture-michal-golden',
+      idNumber: seed.idNumber ?? '', firstName: seed.firstName ?? '', lastName: seed.lastName ?? '',
+      birthDate: '', gender: 'female', phone: seed.phone ?? '', email: seed.email ?? '', city: '', address: '',
+      incomeTaxType: 'employee', niType: 'employee', vatStatus: 'none', businessDescription: '', hasExemptFromWithholding: false,
+      hasTaxCoordination: false, taxCoordinationDetails: '',
+      familyStatus: 'married', spouseWorking: false, spouseIncome: 0, spouse: null, children: [],
+      isNewImmigrant: false, aliyahYear: 0, isReturningResident: false, returningYear: 0,
+      disabilityPercentage: 0, disabilityType: '', hasAcademicDegree: false, academicDegreeYear: 0, academicDegreeType: '',
+      completedIdf: false, idfReleaseYear: 0, completedNationalService: false, nationalServiceYear: 0,
+      qualifyingSettlementId: '', qualifyingSettlementOverride: false, qualifyingSettlementCreditPoints: 0,
+      hasResidentialProperty: false, propertyAddress: '', numberOfProperties: 0,
+      hasPension: false, pensionFundName: '', employeePensionPct: 0, employerPensionPct: 0,
+      hasKupotGemel: false, hasKrenHashtalmut: false, krenHashtalmutMonthly: 0,
+      notes: '', assignedAccountantId: 'emp-self', tags: [], additionalContacts: [], activity: [],
+      authorityRepresentations: {}, taxFiles: [],
+      createdAt: '2026-09-01T08:00:00.000Z', updatedAt: '2026-09-01T08:00:00.000Z',
+      ...seed,
+    } as unknown as Client;
+    setClients(list => [
+      ...list.map(c => (c.id === yair.id ? { ...c, spouseClientId: created.id } : c)),
+      created,
+    ]);
+    setMichalId(created.id);
+    setLog(l => [...l, `1. נוצר כרטיס למיכל (בלי ת.ז. בן/בת זוג בכרטיס המקור) — seed: ${JSON.stringify(seed)}`]);
+  }
+
+  function openMichal() { setLog(l => [...l, '2. ניווט → כרטיס של מיכל']); }
+  function openYair() { setLog(l => [...l, '5. ניווט → חזרה לכרטיס של יאיר']); }
+
+  const alreadyForMichal = michal ? computeAlreadyRepresented(michal, yair) : {};
+
+  return (
+    <div>
+      <div id="tst-golden-log" style={{ padding: '.5rem 1rem', background: 'var(--surface-2)', fontSize: 12, marginBottom: '.5rem' }}>
+        {log.length === 0 ? '(אין אירועים עדיין)' : log.join(' · ')}
+      </div>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div id="tst-golden-yair" style={{ width: 480, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>יאיר (התיק המקורי)</div>
+          <TaxFileTab
+            client={yair} spouseClient={michal}
+            onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+            onCreateSpouseClient={handleCreateMichal}
+            onOpenSpouseClient={openMichal}
+          />
+        </div>
+        {michal && (
+          <div id="tst-golden-michal" style={{ width: 480, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>מיכל (נוצרה עכשיו)</div>
+            <TaxFileTab
+              client={michal} spouseClient={yair}
+              onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+              onOpenSpouseClient={openYair}
+            />
+            <div style={{ padding: '8px' }}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setLog(l => [...l, '3. פתיחת דיאלוג ייצוג למיכל']); setPendingRep(true); }}>
+                3. התחלת ייצוג למיכל
+              </button>
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 600, padding: '8px' }}>4. הסכם ותשלומים אצל מיכל (חיוב חוזר ליאיר)</div>
+            <AgreementPaymentsTab
+              client={michal} spouseClient={yair}
+              quotations={[]} engagements={[ENG_GOLDEN_YAIR]} charges={[]}
+              onMarkChargePaid={async c => c}
+              onNewQuotation={() => setLog(l => [...l, 'onNewQuotation נקרא (לא אמור לקרות אוטומטית)'])}
+              onOpenClient={openYair}
+            />
+          </div>
+        )}
+      </div>
+      {pendingRep && michal && (
+        <RepresentationOnboardingDialog
+          onCreate={async (data) => {
+            setSentRep(data);
+            setPendingRep(false);
+            setLog(l => [...l, '(3) הייצוג נשלח']);
+            return { link: 'https://example.test/?onboard=demo', emailSent: false };
+          }}
+          onCancel={() => setPendingRep(false)}
+          initialName={`${michal.firstName} ${michal.lastName}`.trim()}
+          initialEmail={michal.email || undefined}
+          alreadyRepresented={alreadyForMichal}
+        />
+      )}
+      {sentRep && (
+        <pre id="tst-golden-sent" style={{ marginTop: '1rem', padding: '1rem', background: 'var(--surface-2)', fontSize: 12, direction: 'ltr' }}>
+          {JSON.stringify(sentRep, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
 
 export default function TestSpouseLink() {
   const [open, setOpen] = useState(true);
@@ -136,13 +269,15 @@ export default function TestSpouseLink() {
         </div>
       </div>
 
-      <h3 style={{ marginTop: '2rem' }}>תיק מס (TaxFileTab) — "מול הרשויות" משני הכרטיסים</h3>
+      <h3 style={{ marginTop: '2rem' }}>תיק מס (TaxFileTab) — "מול הרשויות" משני הכרטיסים (תרחישים 2/5/7/H/I)</h3>
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div id="tst-taxfile-michal" style={{ width: 480, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
           <div style={{ fontSize: 12, fontWeight: 600, padding: '8px 0' }}>מיכל (הכרטיס המקושר החדש)</div>
           <TaxFileTab
             client={MICHAL_LINKED} spouseClient={yairForHousehold}
             onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+            onCreateSpouseClient={() => simulateCreate(MICHAL_LINKED)}
+            onOpenSpouseClient={simulateOpen}
           />
         </div>
         <div id="tst-taxfile-yair" style={{ width: 480, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
@@ -150,8 +285,30 @@ export default function TestSpouseLink() {
           <TaxFileTab
             client={yairForHousehold} spouseClient={MICHAL_LINKED}
             onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+            onCreateSpouseClient={() => simulateCreate(yairForHousehold)}
+            onOpenSpouseClient={simulateOpen}
           />
         </div>
+      </div>
+
+      <h3 style={{ marginTop: '2rem' }}>SpouseRelationshipCard (158) — תרחיש 1: לא מקושר/ת, בלי עסק חיצוני</h3>
+      <div id="tst-taxfile-unlinked" style={{ maxWidth: 480, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+        <TaxFileTab
+          client={YAIR} spouseClient={undefined}
+          onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+          onCreateSpouseClient={() => simulateCreate(YAIR)}
+          onOpenSpouseClient={simulateOpen}
+        />
+      </div>
+
+      <h3 style={{ marginTop: '2rem' }}>SpouseRelationshipCard (158) — תרחיש 3: לא מקושר/ת, מיוצג/ת אצל רו"ח אחר</h3>
+      <div id="tst-taxfile-elsewhere" style={{ maxWidth: 480, border: '1px solid var(--hairline-1)', borderRadius: 8, padding: '0 8px' }}>
+        <TaxFileTab
+          client={{ ...YAIR, spouseRepresentedElsewhere: true }} spouseClient={undefined}
+          onClientPersisted={() => {}} onSendQuestionnaire={() => {}}
+          onCreateSpouseClient={() => simulateCreate(YAIR)}
+          onOpenSpouseClient={simulateOpen}
+        />
       </div>
 
       <h3 style={{ marginTop: '2rem' }}>ההתיק (ClientDossierTab) — עורך תיקי הרשויות, מכרטיס מיכל</h3>
@@ -254,6 +411,9 @@ export default function TestSpouseLink() {
           {'openLog: ' + JSON.stringify(openLog) + '\n' + 'quotationLog: ' + JSON.stringify(quotationLog)}
         </pre>
       )}
+
+      <h3 style={{ marginTop: '2rem' }}>המסלול המוזהב (158, תרחיש 4) — יאיר → יצירת מיכל → הכול חוזר</h3>
+      <GoldenFlowDemo />
     </div>
   );
 }
