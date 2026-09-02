@@ -1,6 +1,10 @@
 // connectionMonitor.mjs — מה שמדליק את הנורית בכותרת של PIVO, ומה ששומר
 // על הסשן ער.
 //
+// ‼ שתי רשויות בלתי תלויות, כל אחת עם חלון Chrome משלה: שע״ם (פורט 9222)
+// וביטוח לאומי (פורט 9223). נורית אחת לכל אחת, ואף אחת לא מדברת על השנייה.
+//
+// ── שע״ם ──
 // ‼ ארבע שכבות, ו"ירוק" פירושו שכולן מוכנות:
 //   1. פורטל שע״ם — כרטיס חכם + PIN.
 //   2. מערכת גביית מס הכנסה (GMF).
@@ -38,6 +42,9 @@ import {
   readNikuiOnCurrentPage, openNikuiAndCheck,
   isOnWorkScreen,
 } from './browserSession.mjs';
+import {
+  attachBtl, detachBtl, classifyBtlAuth, probeBtlSession, pickBtlPage,
+} from './btlSession.mjs';
 import { reportStatus } from './apiClient.mjs';
 
 const LOCAL_CHECK_MS = 30_000;
@@ -47,10 +54,46 @@ const SUB_RECHECK_MS = 60_000;
 let lastCheck = 0;
 let lastProbe = 0;
 let lastSubNav = 0;
+let lastBtlProbe = 0;
 let shaamReported = null;
 let gmfReported = null;
 let vatReported = null;
 let nikuiReported = null;
+let btlReported = null;
+
+/**
+ * הנורית של ביטוח לאומי — חלון נפרד, פורט נפרד, סשן נפרד משע״ם.
+ *
+ * ‼ שכבה אחת בלבד: «מערכת ייצוג לקוחות» היא יעד אחד מאחורי שער אימות אחד.
+ * אין כאן ניווט בין מערכות ולכן גם אין את כל מנגנון ה-Tier-B של שע״ם.
+ *
+ * ‼ אותה אסימטריה שנלמדה בשע״ם: הקריאה המקומית יכולה רק **להעלות**
+ * ל«מחובר». הורדה ל«מנותק» שמורה לבדיקת השרת — אחרת לשונית שנשארה על מסך
+ * הכניסה הייתה מכבה נורית שמעליה סשן חי לגמרי.
+ */
+async function checkBtl(now, log) {
+  const conn = await attachBtl();
+  if (!conn.ok) return false;
+  try {
+    const page = await pickBtlPage(conn.context, conn.page);
+    const local = await classifyBtlAuth(page);
+    let btl = local.connected ? true : (btlReported ?? false);
+
+    if (now - lastBtlProbe >= SERVER_PROBE_MS) {
+      lastBtlProbe = now;
+      const probe = await probeBtlSession(page);
+      if (probe.ok) {
+        btl = probe.connected;
+        log(`בדיקת סשן ביטוח לאומי: ${probe.connected ? 'חי' : 'פג'} · ${probe.detail}`);
+      } else {
+        log(`בדיקת סשן ביטוח לאומי נכשלה: ${probe.detail}`);
+      }
+    }
+    return btl;
+  } finally {
+    await detachBtl(conn.browser);
+  }
+}
 
 export async function tickConnectionMonitor(userId, workerId, log) {
   const now = Date.now();
@@ -138,13 +181,19 @@ export async function tickConnectionMonitor(userId, workerId, log) {
     nikui = false;
   }
 
-  if (shaam !== shaamReported || gmf !== gmfReported || vat !== vatReported || nikui !== nikuiReported) {
-    log(`מצב: פורטל=${shaam ? 'מחובר' : 'מנותק'} · GMF=${gmf ? 'מוכנה' : 'לא מוכנה'} · מע״מ=${vat ? 'מוכנה' : 'לא מוכנה'} · מגן=${nikui ? 'מוכנה' : 'לא מוכנה'}`);
+  // ‼ רשות נפרדת לגמרי: כישלון בבדיקת ב״ל לא נוגע בנורית של שע״ם ולהפך.
+  // חלון ב״ל סגור אינו תקלה — הוא פשוט «לא מחובר».
+  const btl = await checkBtl(now, log).catch(() => false);
+
+  if (shaam !== shaamReported || gmf !== gmfReported || vat !== vatReported
+    || nikui !== nikuiReported || btl !== btlReported) {
+    log(`מצב: פורטל=${shaam ? 'מחובר' : 'מנותק'} · GMF=${gmf ? 'מוכנה' : 'לא מוכנה'} · מע״מ=${vat ? 'מוכנה' : 'לא מוכנה'} · מגן=${nikui ? 'מוכנה' : 'לא מוכנה'} · ב״ל=${btl ? 'מחובר' : 'מנותק'}`);
   }
   shaamReported = shaam;
   gmfReported = gmf;
   vatReported = vat;
   nikuiReported = nikui;
+  btlReported = btl;
 
   const at = new Date(now).toISOString();
   await reportStatus(userId, workerId, {
@@ -152,6 +201,7 @@ export async function tickConnectionMonitor(userId, workerId, log) {
     gmf: { ready: gmf, checkedAt: at },
     vat: { ready: vat, checkedAt: at },
     nikui: { ready: nikui, checkedAt: at },
+    btl: { connected: btl, checkedAt: at },
   }).catch(() => { /* דיווח מצב שנכשל לא מפיל את העובד */ });
 }
 
@@ -160,4 +210,5 @@ export function invalidateConnectionCache() {
   lastCheck = 0;
   lastProbe = 0;
   lastSubNav = 0;
+  lastBtlProbe = 0;
 }

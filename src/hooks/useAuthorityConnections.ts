@@ -5,6 +5,8 @@ import { automationJobFromDb } from '../lib/dbMappers';
 import {
   SHAAM_CONNECT_ACTION_TYPE,
   SHAAM_DISCONNECT_ACTION_TYPE,
+  BTL_CONNECT_ACTION_TYPE,
+  BTL_DISCONNECT_ACTION_TYPE,
 } from '../types/automation';
 import type { AutomationJob } from '../types/automation';
 import { useShaamReadiness } from './shaamReadiness';
@@ -25,8 +27,20 @@ export type AuthorityPhase =
   | 'awaiting_nikui_auth'
   | 'ready';
 
-export interface AuthorityConnectionState {
-  phase: AuthorityPhase;
+/**
+ * ‼ שלבים משלה, לא שימוש חוזר בשל שע״ם: לביטוח לאומי יש שכבת אימות **אחת**
+ * (קוד משתמש + סיסמה + קוד חד-פעמי לנייד), ואין לה GMF/מע״מ/מגן. איחוד
+ * שתי הרשויות לרשימת שלבים אחת היה יוצר מצבים שאי אפשר להגיע אליהם.
+ */
+export type BtlPhase =
+  | 'worker_offline'
+  | 'btl_disconnected'
+  | 'opening'
+  | 'awaiting_btl_auth'
+  | 'ready';
+
+export interface AuthorityConnectionState<P = AuthorityPhase> {
+  phase: P;
   busy: boolean;
   /** הסבר מה לעשות עכשיו — מוצג כשיש פעולה אנושית ממתינה או תקלה. */
   message: string | null;
@@ -36,27 +50,38 @@ export interface AuthorityConnectionState {
  * מצב החיבור לרשויות עבור הכותרת. הדפדפן לא יכול לדבר עם העובד המקומי
  * ישירות, ולכן Supabase הוא הצינור: העובד מדווח, המסך קורא.
  *
+ * ‼ שתי רשויות בלתי תלויות. שע״ם וביטוח לאומי הן שני חלונות, שני סשנים
+ * ושתי נוריות — מצב של אחת לעולם אינו משפיע על השנייה.
+ *
  * ‼ אין כאן שום מידע אימות — רק דגל "מחובר" וחותמת זמן.
  */
 export function useAuthorityConnections(userId: string | undefined) {
   const readiness = useShaamReadiness();
   const { status, workerOffline } = readiness;
-  const [job, setJob] = useState<AutomationJob | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [uiError, setUiError] = useState<string | null>(null);
+  const [shaamJob, setShaamJob] = useState<AutomationJob | null>(null);
+  const [btlJob, setBtlJob] = useState<AutomationJob | null>(null);
+  const [busy, setBusy] = useState<'shaam' | 'btl' | null>(null);
+  // ‼ השגיאה נושאת איתה את שם הרשות. `busy` אינו מספיק: הוא מתאפס באותה
+  // מנת עדכון שבה השגיאה נקבעת, ולכן ברגע הרינדור כבר אי אפשר לדעת ממנו מי
+  // נכשל — וכשל של ביטוח לאומי היה מוצג ככשל של שע״ם.
+  const [uiError, setUiError] = useState<{ authority: 'shaam' | 'btl'; text: string } | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ‼ המוכנות **אינה** נקראת כאן. היא מגיעה מ-ShaamReadinessProvider, מקור
   // האמת היחיד שגם פקדי השדות קוראים ממנו. כשהיו שני מקורות, הכותרת הייתה
-  // ירוקה בזמן שהפקד בשדה הכריז "לא מוכן". כאן נשארת רק משימת ההתחברות.
+  // ירוקה בזמן שהפקד בשדה הכריז "לא מוכן". כאן נשארות רק משימות ההתחברות.
   const refresh = useCallback(async () => {
     if (!userId) return;
+    // ‼ שאילתה אחת לשתי הרשויות. האינדקס הייחודי על משימת מערכת פתוחה מבטיח
+    // לכל היותר אחת פתוחה לכל action_type, ולכן די בראשונה שמתאימה.
     const jobRes = await supabase.from('automation_jobs').select('*')
       .is('client_id', null)
-      .eq('action_type', SHAAM_CONNECT_ACTION_TYPE)
+      .in('action_type', [SHAAM_CONNECT_ACTION_TYPE, BTL_CONNECT_ACTION_TYPE])
       .in('status', ['queued', 'running', 'needs_human'])
-      .order('created_at', { ascending: false }).limit(1).maybeSingle();
-    setJob(jobRes.data ? automationJobFromDb(jobRes.data) : null);
+      .order('created_at', { ascending: false });
+    const rows = (jobRes.data ?? []).map(automationJobFromDb);
+    setShaamJob(rows.find((j) => j.actionType === SHAAM_CONNECT_ACTION_TYPE) ?? null);
+    setBtlJob(rows.find((j) => j.actionType === BTL_CONNECT_ACTION_TYPE) ?? null);
     await readiness.refresh();
   }, [userId, readiness]);
 
@@ -74,16 +99,24 @@ export function useAuthorityConnections(userId: string | undefined) {
   const vatReady = !!status.vat?.ready;
   // ‼ אותו ערך בדיוק שפקדי השדות קוראים — לא חישוב מקביל.
   const ready = readiness.ready;
+  // ‼ לביטוח לאומי אין שכבות משנה, ולכן "מחובר" הוא כל הסיפור.
+  const btlConnected = !workerOffline && !!status.btl?.connected;
 
   // ‼ ברגע שהחיבור הושלם, משימת ה"התחברות" שנותרה פתוחה כבר לא מתארת כלום —
   // והיא חוסמת יצירת משימה חדשה (אינדקס ייחודי על משימה פתוחה אחת). בלי
   // הניקוי הזה הלחיצה הבאה על הכפתור הייתה מחזירה את אותה משימה ישנה ולא
   // עושה כלום — כפתור שנראה תקין ולא מגיב.
   useEffect(() => {
-    if (ready && job && job.status === 'needs_human') {
-      void cancelAutomationJob(job.id).then(() => refresh());
+    if (ready && shaamJob && shaamJob.status === 'needs_human') {
+      void cancelAutomationJob(shaamJob.id).then(() => refresh());
     }
-  }, [ready, job, refresh]);
+  }, [ready, shaamJob, refresh]);
+
+  useEffect(() => {
+    if (btlConnected && btlJob && btlJob.status === 'needs_human') {
+      void cancelAutomationJob(btlJob.id).then(() => refresh());
+    }
+  }, [btlConnected, btlJob, refresh]);
 
   // ‼ מצב החיבור שהעובד מדווח גובר על סטטוס המשימה: אחרי שהרו"ח משלים שלב,
   // העובד ממשיך לשכבה הבאה לבד בעוד המשימה הישנה עדיין תקועה על השלב הקודם.
@@ -93,50 +126,79 @@ export function useAuthorityConnections(userId: string | undefined) {
       : ready ? 'ready'
         : shaamAlive
           ? (!gmfReady ? 'awaiting_gmf_auth' : !vatReady ? 'awaiting_vat_auth' : 'awaiting_nikui_auth')
-          : job?.status === 'needs_human'
-            ? (job.errorCode === 'awaiting_vat_auth' ? 'awaiting_vat_auth'
-              : job.errorCode === 'awaiting_nikui_auth' ? 'awaiting_nikui_auth'
-                : job.errorCode === 'awaiting_gmf_auth' ? 'awaiting_gmf_auth'
+          : shaamJob?.status === 'needs_human'
+            ? (shaamJob.errorCode === 'awaiting_vat_auth' ? 'awaiting_vat_auth'
+              : shaamJob.errorCode === 'awaiting_nikui_auth' ? 'awaiting_nikui_auth'
+                : shaamJob.errorCode === 'awaiting_gmf_auth' ? 'awaiting_gmf_auth'
                 : 'awaiting_shaam_auth')
-            : job ? 'opening'
+            : shaamJob ? 'opening'
               : 'shaam_disconnected';
 
-  const connect = useCallback(async () => {
-    setBusy(true);
-    setUiError(null);
-    // משימה תקועה מסבב קודם — מנקים לפני שיוצרים חדשה, אחרת האינדקס
-    // הייחודי יחזיר את הישנה והעובד לא ירים כלום.
-    if (job && (job.status === 'needs_human' || job.status === 'queued')) {
-      await cancelAutomationJob(job.id);
-    }
-    const r = await createAutomationJob(null, SHAAM_CONNECT_ACTION_TYPE, {});
-    setBusy(false);
-    if (!r.ok) setUiError(r.error ?? 'לא הצלחתי ליצור את הפעולה');
-    await refresh();
-    return r;
-  }, [job, refresh]);
+  // ‼ אותה קדימות בדיוק: אחרי שהרו"ח סיים להזין את הקוד החד-פעמי, העובד
+  // רואה סשן חי בסבב הבא — גם אם המשימה עדיין תקועה על "ממתין לך".
+  const btlPhase: BtlPhase =
+    workerOffline ? 'worker_offline'
+      : btlConnected ? 'ready'
+        : btlJob?.status === 'needs_human' ? 'awaiting_btl_auth'
+          : btlJob ? 'opening'
+            : 'btl_disconnected';
 
-  const disconnect = useCallback(async () => {
-    setBusy(true);
+  // משימה תקועה מסבב קודם — מנקים לפני שיוצרים חדשה, אחרת האינדקס
+  // הייחודי יחזיר את הישנה והעובד לא ירים כלום.
+  const start = useCallback(async (
+    authority: 'shaam' | 'btl',
+    actionType: string,
+    open: AutomationJob | null,
+    clearStale: boolean,
+  ) => {
+    setBusy(authority);
     setUiError(null);
-    const r = await createAutomationJob(null, SHAAM_DISCONNECT_ACTION_TYPE, {});
-    setBusy(false);
-    if (!r.ok) setUiError(r.error ?? 'לא הצלחתי ליצור את הפעולה');
+    if (clearStale && open && (open.status === 'needs_human' || open.status === 'queued')) {
+      await cancelAutomationJob(open.id);
+    }
+    const r = await createAutomationJob(null, actionType, {});
+    setBusy(null);
+    if (!r.ok) setUiError({ authority, text: r.error ?? 'לא הצלחתי ליצור את הפעולה' });
     await refresh();
     return r;
   }, [refresh]);
 
+  const connect = useCallback(
+    () => start('shaam', SHAAM_CONNECT_ACTION_TYPE, shaamJob, true),
+    [start, shaamJob],
+  );
+  const disconnect = useCallback(
+    () => start('shaam', SHAAM_DISCONNECT_ACTION_TYPE, null, false),
+    [start],
+  );
+  const connectBtl = useCallback(
+    () => start('btl', BTL_CONNECT_ACTION_TYPE, btlJob, true),
+    [start, btlJob],
+  );
+  const disconnectBtl = useCallback(
+    () => start('btl', BTL_DISCONNECT_ACTION_TYPE, null, false),
+    [start],
+  );
+
   const message =
-    uiError
+    (uiError?.authority === 'shaam' ? uiError.text : null)
       ?? ((phase === 'awaiting_shaam_auth' || phase === 'awaiting_gmf_auth'
         || phase === 'awaiting_vat_auth' || phase === 'awaiting_nikui_auth')
-        ? (job?.needsHuman ?? null) : null)
-      ?? (job?.status === 'failed' ? (job.errorDetail ?? null) : null);
+        ? (shaamJob?.needsHuman ?? null) : null)
+      ?? (shaamJob?.status === 'failed' ? (shaamJob.errorDetail ?? null) : null);
+
+  const btlMessage =
+    (uiError?.authority === 'btl' ? uiError.text : null)
+      ?? (btlPhase === 'awaiting_btl_auth' ? (btlJob?.needsHuman ?? null) : null)
+      ?? (btlJob?.status === 'failed' ? (btlJob.errorDetail ?? null) : null);
 
   return {
-    shaam: { phase, busy, message } as AuthorityConnectionState,
+    shaam: { phase, busy: busy === 'shaam', message } as AuthorityConnectionState,
+    btl: { phase: btlPhase, busy: busy === 'btl', message: btlMessage } as AuthorityConnectionState<BtlPhase>,
     connect,
     disconnect,
+    connectBtl,
+    disconnectBtl,
     refresh,
   };
 }

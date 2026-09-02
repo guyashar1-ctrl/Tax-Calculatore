@@ -73,7 +73,7 @@ export interface AutomationWorkerStatus {
   btl?: AuthorityConnection;
 }
 
-/** הרשויות שמוצגות בכותרת. btl עדיין ללא פונקציונליות — תצוגה בלבד. */
+/** הרשויות שמוצגות בכותרת. לכל אחת חלון ייעודי משלה ונורית עצמאית. */
 export type AuthorityKey = 'shaam' | 'btl';
 
 export const AUTHORITY_LABELS: Record<AuthorityKey, string> = {
@@ -107,3 +107,12 @@ export const SHAAM_OPEN_INCOME_TAX_ACTION_TYPE = 'shaam.open_income_tax';
 export const SHAAM_OPEN_CLIENT_FILE_ACTION_TYPE = 'shaam.open_client_file';
 /** «קרא משע״ם» — שאילתה 134, שדות ראש התיק במס הכנסה. */
 export const SHAAM_SYNC_INCOME_TAX_ACTION_TYPE = 'shaam.sync_income_tax_file';
+
+// ── ביטוח לאומי: «מערכת ייצוג לקוחות» ──────────────────────────────────────
+// ‼ רשות נפרדת לחלוטין משע״ם — חלון Chrome ייעודי משלה, סשן משלה, ונורית
+// משלה. אימות: ת.ז. + קוד משתמש + סיסמה + קוד חד-פעמי לנייד, וכולו מוזן
+// ידנית על ידי הרו"ח. שע״ם וב״ל לא מושפעות זו מזו בשום מצב.
+/** כפתור «ביטוח לאומי» בכותרת — פותח את חלון מערכת הייצוג. */
+export const BTL_CONNECT_ACTION_TYPE = 'btl.connect';
+/** לחיצה כשמחובר — סוגרת את חלון ביטוח לאומי הייעודי. */
+export const BTL_DISCONNECT_ACTION_TYPE = 'btl.disconnect';
