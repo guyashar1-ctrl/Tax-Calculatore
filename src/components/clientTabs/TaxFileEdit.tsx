@@ -18,10 +18,6 @@ import { getTaxYearData } from '../../data/taxData';
 import { calcCreditPoints } from '../../utils/taxCalculations';
 import { shortDate } from '../../utils/clientDerived';
 import { TAX_FACT_SOURCE_LABELS } from '../../types/taxFacts';
-import type { AutomationJob } from '../../types/automation';
-import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
-import { useAutomationJob } from '../../hooks/useAutomationJobs';
-import ShaamFieldSync from './ShaamFieldSync';
 import {
   TAX_FAMILIES, SECTIONS_BY_FAMILY, type FamilyKey, type EditField, type EditSection,
 } from '../../features/taxFile/editModel';
@@ -70,13 +66,8 @@ export default function TaxFileEdit({
   const [err, setErr] = useState<string | null>(null);
   const [savedCount, setSavedCount] = useState(0);
 
-  // ‼ קריאה משע״ם לשדות תפעוליים. זה המסך שהרו"ח באמת פותח כדי לערוך את
-  // סעיף מס הכנסה («עריכה מלאה» → «מס הכנסה — תפעולי»), ולכן הכפתור חייב
-  // לשבת כאן. ההוק לפני כל return מותנה — ראה hooks-after-institution-focus-return.
-  const shaamSync = useAutomationJob(client.id || undefined, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
-  const incomeTaxFileNumber = ((client.taxFiles ?? [])
-    .find(t => t.authority === 'income_tax')?.fileNumber ?? '').replace(/\D/g, '');
-
+  // ‼ אין כאן קריאה משע״ם. משטח הסנכרון היחיד הוא הכרטיס ב«תיק מס»
+  // (מול הרשויות ← מס הכנסה). ראה income-tax-card-is-the-surface.
   const meta = client.fieldMeta ?? {};
   const year = new Date().getFullYear();
   const taxData = getTaxYearData(year) ?? getTaxYearData(year - 1);
@@ -221,12 +212,7 @@ export default function TaxFileEdit({
                               {sec.fields.map(f => (
                                 <Field key={f.key} f={f} meta={meta}
                                   value={drafts[f.key] ?? fieldValue(client, f)}
-                                  onChange={v => setDrafts(d => ({ ...d, [f.key]: v }))}
-                                  shaam={{
-                                    job: shaamSync.job, busy: shaamSync.busy,
-                                    fileNumber: incomeTaxFileNumber,
-                                    onRun: () => { void shaamSync.run({ fileNumber: incomeTaxFileNumber }); },
-                                  }} />
+                                  onChange={v => setDrafts(d => ({ ...d, [f.key]: v }))} />
                               ))}
                             </div>
                           )}
@@ -289,19 +275,11 @@ function miniOf(secs: EditSection[], c: Client): string {
   return `${filled} מתוך ${secs.length}`;
 }
 
-function Field({ f, meta, value, onChange, shaam }: {
+function Field({ f, meta, value, onChange }: {
   f: EditField;
   meta: NonNullable<Client['fieldMeta']>;
   value: string;
   onChange: (v: string) => void;
-  /** ‼ נוכח על כל שדה, אבל ShaamFieldSync מצייר משהו רק לשדה שיש לו מקור
-   *  מוכח בשאילתה 134. שדה בלי מקור מקבל null ולא כפתור מטעה. */
-  shaam?: {
-    job: AutomationJob | null;
-    busy: boolean;
-    fileNumber: string;
-    onRun: () => void;
-  };
 }) {
   const m = meta[f.key as keyof typeof meta];
   // ‼ הפרובננס מוצג רק כשהוא אומר משהו — על שדה תפעולי, או כשמקורו אינו
@@ -337,18 +315,6 @@ function Field({ f, meta, value, onChange, shaam }: {
         <input id={`f-${f.key}`} type={f.kind === 'text' ? 'text' : 'text'}
           inputMode={f.kind === 'text' ? undefined : 'numeric'}
           value={value} placeholder="—" onChange={e => onChange(e.target.value)} />
-      )}
-
-      {shaam && (
-        <ShaamFieldSync
-          fieldKey={f.key}
-          currentValue={value}
-          onAdopt={onChange}
-          job={shaam.job}
-          busy={shaam.busy}
-          fileNumber={shaam.fileNumber}
-          onRun={shaam.onRun}
-        />
       )}
 
       {f.note && <div className="txe-fld-note">{f.note}</div>}
