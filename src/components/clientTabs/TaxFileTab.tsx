@@ -1584,7 +1584,7 @@ export default function TaxFileTab({
                 id="abroad" name="חו״ל" stale={isStale('foreign')} summary={foreignSummary}
                 open={openRows.has('abroad')} onToggle={toggleRow}
               >
-                {editingSection === 'abroad' ? renderLists() : (
+                {editingSection === 'abroad' ? renderLists() : foreignAccounts.length > 0 && (
                   <div className="txf-kv">
                     {foreignAccounts.map(a => (
                       <KV key={a.id} k={a.institutionName || 'חשבון בחו״ל'} v={a.country || '-'} />
@@ -1683,7 +1683,7 @@ export default function TaxFileTab({
                 id="pen" name="פנסיה והשתלמות" stale={isStale('pension')} summary={pensionSummary}
                 open={openRows.has('pen')} onToggle={toggleRow}
               >
-                {editingSection === 'pen' ? renderLists() : (
+                {editingSection === 'pen' ? renderLists() : pensionFunds.length > 0 && (
                   <div className="txf-kv">
                     {pensionFunds.map(p => <KV key={p.id} k="פנסיה / השתלמות" v={p.institutionName} />)}
                   </div>
