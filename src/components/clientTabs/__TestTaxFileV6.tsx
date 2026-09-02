@@ -7,8 +7,10 @@
 //         &case=complex|salary|sparse|stale|never|business
 
 import type { Client } from '../../types';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TaxFileTab from './TaxFileTab';
+import { ShaamReadinessProvider } from '../../hooks/shaamReadiness';
+import { supabase } from '../../lib/supabase';
 import TaxFileEdit from './TaxFileEdit';
 import type { FamilyKey } from '../../features/taxFile/editModel';
 
@@ -165,7 +167,13 @@ export default function TestTaxFileV6() {
   const aligned = CASE !== 'never';
   const steps = CASE === 'business' ? STEPS_WAITING : STEPS_ALIGNED;
 
+  // ‼ מסך הבדיקה עוטף ב-ShaamReadinessProvider בדיוק כמו האפליקציה, אחרת
+  // הפקדים נופלים לברירת המחדל «לא מוכן» ואי אפשר לבדוק לחיצה אמיתית.
+  const [uid, setUid] = useState<string | undefined>(undefined);
+  useEffect(() => { void supabase.auth.getUser().then(r => setUid(r.data.user?.id)); }, []);
+
   return (
+    <ShaamReadinessProvider userId={uid}>
     <div style={{ padding: 18, background: 'var(--bg)', minHeight: '100vh' }}>
       <div style={{ marginBottom: 14, fontSize: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <b>מסך בדיקה · תיק מס V6</b>
@@ -202,5 +210,6 @@ export default function TestTaxFileV6() {
         )}
       </div>
     </div>
+    </ShaamReadinessProvider>
   );
 }

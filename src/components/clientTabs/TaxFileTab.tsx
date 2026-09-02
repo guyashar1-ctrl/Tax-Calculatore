@@ -899,6 +899,7 @@ export default function TaxFileTab({
                         busy={shaamSync.busy || adoptingKey === f.syncKey}
                         fileNumber={incomeTaxFileNumber}
                         onRun={() => { void shaamSync.run({ fileNumber: incomeTaxFileNumber }); }}
+                        runError={shaamSync.error}
                       />
                     )}
                     {f.syncKey && adoptError && (

@@ -69,10 +69,12 @@ interface Props {
   /** ריק ⇒ אין מספר תיק בכרטיס, ואין מה למשוך. */
   fileNumber: string;
   onRun: () => void;
+  /** כשל ביצירת הקריאה עצמה — חייב להיראות, אחרת הלחיצה "לא עשתה כלום". */
+  runError?: string | null;
 }
 
 export default function ShaamFieldSync({
-  fieldKey, currentValue, onAdopt, job, busy, fileNumber, onRun,
+  fieldKey, currentValue, onAdopt, job, busy, fileNumber, onRun, runError,
 }: Props) {
   // ‼ מוכנות **לפעולה הזאת**, לא מוכנות גלובלית: קריאת 134 צריכה עובד חי,
   // פורטל מאומת ו-GMF. מע"מ ומגן אינן תלות שלה, וחסימה בגללן היא חסימה
@@ -129,6 +131,9 @@ export default function ShaamFieldSync({
           שהסתיימה זה עתה. אחרת זו היסטוריה שמתחזה למצב. */}
       {cap.ready && jobIsCurrent && job?.status === 'needs_human' && (
         <span className="ial-fsync-msg">{job.needsHuman ?? 'דרושה פעולה בחלון שע״ם.'}</span>
+      )}
+      {runError && (
+        <span className="ial-fsync-msg ial-fsync-err">{runError}</span>
       )}
       {jobIsCurrent && job?.status === 'failed' && (
         <span className="ial-fsync-msg ial-fsync-err">{job.errorDetail ?? 'הקריאה נכשלה.'}</span>

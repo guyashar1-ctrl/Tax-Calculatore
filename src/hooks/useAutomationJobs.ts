@@ -38,13 +38,42 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [job, reload]);
 
+  /**
+   * ‼ לחיצה מפורשת פירושה «הרץ עכשיו», ולכן משימה מתה חוסמת אותה.
+   *
+   * create_automation_job מוגנת באינדקס ייחודי על משימה **פתוחה** אחת לכל
+   * (לקוח, פעולה) — ו-needs_human נחשב פתוח. לכן לחיצה על לקוח שיש לו
+   * needs_human מסבב קודם החזירה את המשימה הישנה (created=false) במקום
+   * ליצור חדשה: הכפתור לא נכנס לטעינה (הסטטוס אינו queued/running),
+   * וההודעה הישנה כבר התיישנה ולכן הוסתרה — כלומר **לחיצה שלא עשתה כלום
+   * ולא אמרה כלום**. קרה בייצור עם משימה בת שש שעות.
+   *
+   * needs_human הוא מבוי סתום: הוא ממתין לאדם, והאדם בדיוק לחץ. מבטלים
+   * אותו ויוצרים חדשה. משימה שבאמת רצה (queued/running) לא מבוטלת — שם
+   * החזרת הקיימת היא ההתנהגות הנכונה, והכפתור מציג «⋯».
+   */
   const run = useCallback(async (input: Record<string, unknown> = {}) => {
     if (!clientId) return { ok: false, error: 'no_client' };
     setBusy(true);
+    setError(null);
+
+    const existing = await fetchLatestAutomationJob(clientId, actionType);
+    if (existing.job && existing.job.status === 'needs_human') {
+      await cancelAutomationJob(existing.job.id);
+    }
+
     const r = await createAutomationJob(clientId, actionType, input);
     setBusy(false);
-    if (r.ok && r.job) setJob(r.job);
-    else if (!r.ok) setError(r.error ?? 'שגיאה לא ידועה');
+    if (!r.ok) {
+      setError(r.error ?? 'שגיאה לא ידועה');
+      return r;
+    }
+    if (r.job) setJob(r.job);
+    // ‼ שקט אינו תוצאה. אם אחרי הכול לא נוצרה משימה חדשה ולא רצה שום דבר,
+    // אומרים זאת במקום להיראות כאילו הלחיצה נקלטה.
+    if (!r.created && r.job && !OPEN_AUTOMATION_STATUSES.has(r.job.status)) {
+      setError('לא נפתחה קריאה חדשה — נסו שוב.');
+    }
     return r;
   }, [clientId, actionType]);
 
