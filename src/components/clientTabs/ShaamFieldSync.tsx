@@ -17,12 +17,44 @@ import { useShaamReadiness } from '../../hooks/shaamReadiness';
 /** ‼ אחרי זה, הודעת משימה היא היסטוריה ולא מצב. */
 const JOB_MESSAGE_MAX_AGE_MS = 10 * 60_000;
 
-/** מפתח השדה בטופס ⇄ המפתח שהעובד מחזיר. רק שדות עם מקור מוכח. */
-export const SHAAM_134_FIELD_SOURCES: Record<string, string> = {
-  incomeTaxFileType: 'fileType',
-  taxOfficeName: 'taxOffice',
-  incomeTaxUnit: 'unit',
-  incomeTaxEconomicIndustry: 'economicIndustry',
+/**
+ * תדירות מקדמות: הטקסט של שע״ם ⇄ הערך של PIVO.
+ *
+ * ‼ שע״ם כותבת «דו-חדשי» (בלי יו״ד), ו-PIVO שומרת 'bi_monthly'. ממפים
+ * **רק** צורות חד-משמעיות; כל טקסט אחר מוחזר כלא-ממופה, מוצג כמו שהוא,
+ * ובלי כפתור אימוץ. עדיף לא להציע מאשר להציע ניחוש.
+ */
+function mapAdvanceFrequency(raw: string): string | null {
+  const t = raw.replace(/\s+/g, '').replace(/["'׳״]/g, '');
+  if (/^דו-?ח[ו]?דשי$/.test(t)) return 'bi_monthly';
+  if (/^ח[ו]?דשי$/.test(t)) return 'monthly';
+  return null;
+}
+
+/** «15%» ⇒ «15». שומר את המספר כפי שהוא, בלי לעגל ובלי להמציא. */
+function mapAdvanceRate(raw: string): string | null {
+  const m = raw.replace(/\s+/g, '').match(/^(\d+(?:\.\d+)?)%$/);
+  return m ? m[1] : null;
+}
+
+interface ShaamFieldSource {
+  /** המפתח שהעובד מחזיר ב-result.fields. */
+  source: string;
+  /**
+   * המרה לערך שנשמר ב-PIVO. מחזיר null ⇒ לא ניתן למפות חד-משמעית,
+   * ואז מציגים את הערך הגולמי בלי אפשרות אימוץ.
+   */
+  normalize?: (raw: string) => string | null;
+}
+
+/** מפתח השדה בכרטיס ⇄ המקור בשאילתה 134. רק שדות עם מיפוי מוכח חי. */
+export const SHAAM_134_FIELD_SOURCES: Record<string, ShaamFieldSource> = {
+  incomeTaxFileType: { source: 'fileType' },
+  taxOfficeName: { source: 'taxOffice' },
+  incomeTaxUnit: { source: 'unit' },
+  incomeTaxEconomicIndustry: { source: 'economicIndustry' },
+  pitAdvancePercent: { source: 'advanceRate', normalize: mapAdvanceRate },
+  pitAdvanceFrequency: { source: 'advanceFrequency', normalize: mapAdvanceFrequency },
 };
 
 interface Props {
@@ -43,8 +75,8 @@ export default function ShaamFieldSync({
   fieldKey, currentValue, onAdopt, job, busy, fileNumber, onRun,
 }: Props) {
   const readiness = useShaamReadiness();
-  const sourceKey = SHAAM_134_FIELD_SOURCES[fieldKey];
-  if (!sourceKey) return null;
+  const spec = SHAAM_134_FIELD_SOURCES[fieldKey];
+  if (!spec) return null;
 
   const pending = job?.status === 'queued' || job?.status === 'running';
 
@@ -59,7 +91,13 @@ export default function ShaamFieldSync({
   const fields = job?.status === 'succeeded'
     ? (job.result as { fields?: Record<string, string> } | undefined)?.fields
     : undefined;
-  const shaamValue = (fields?.[sourceKey] ?? '').trim();
+  /** מה שע״ם החזירה, מילה במילה — זה מה שמוצג לרו"ח. */
+  const rawValue = (fields?.[spec.source] ?? '').trim();
+  /** מה שיישמר ב-PIVO. null ⇒ הוחזר ערך שאי אפשר למפות חד-משמעית. */
+  const normalized = rawValue === ''
+    ? '' : (spec.normalize ? spec.normalize(rawValue) : rawValue);
+  const unmappable = rawValue !== '' && normalized === null;
+  const shaamValue = normalized ?? '';
   const same = shaamValue !== '' && shaamValue === currentValue.trim();
   const meta = fieldKey === 'incomeTaxFileType' ? incomeTaxFileType(shaamValue) : undefined;
 
@@ -80,13 +118,10 @@ export default function ShaamFieldSync({
         {pending ? '⋯' : '⟳'}
       </button>
 
-      {/* ‼ מצב החיבור מגיע **רק** מהחוזה המשותף, לעולם לא מהמשימה האחרונה.
-          המשימה היא אירוע שקרה פעם; המוכנות היא מצב עכשיו. כשקראנו מצב
-          מתוך אירוע, הכותרת הייתה ירוקה והשדה הכריז "לא מוכן" — אותו רגע,
-          אותו מסך. */}
-      {!readiness.ready && (
-        <span className="ial-fsync-msg">{readiness.blockedReason}</span>
-      )}
+      {/* ‼ סיבת החוסם **אינה** מוצגת כאן אלא פעם אחת בכרטיס. עם שישה
+          פקדים באותו כרטיס אותו משפט הופיע שש פעמים והכפיל את גובה
+          התאים. הכפתור עצמו מושבת, והסיבה יושבת ב-title שלו. מצב החיבור
+          עדיין מגיע רק מהחוזה המשותף — לא מהמשימה האחרונה. */}
       {/* הודעת המשימה מוצגת רק כשהיא עדיין רלוונטית: משימה פתוחה, או כזו
           שהסתיימה זה עתה. אחרת זו היסטוריה שמתחזה למצב. */}
       {readiness.ready && jobIsCurrent && job?.status === 'needs_human' && (
@@ -96,12 +131,21 @@ export default function ShaamFieldSync({
         <span className="ial-fsync-msg ial-fsync-err">{job.errorDetail ?? 'הקריאה נכשלה.'}</span>
       )}
 
-      {fields && shaamValue === '' && (
+      {fields && rawValue === '' && (
         <span className="ial-fsync-msg">שע״ם לא החזירה ערך לשדה הזה.</span>
+      )}
+      {/* ‼ ערך שהוחזר אך אינו ממופה חד-משמעית מוצג כמו שהוא, בלי «אמץ».
+          ניחוש היה נכנס לכרטיס כעובדה מקצועית. */}
+      {unmappable && (
+        <span className="ial-fsync-val">
+          <span className="ial-fsync-tag">שע״ם:</span> {rawValue}
+          <span className="ial-fsync-msg">לא ניתן למפות לערך של PIVO — יש להזין ידנית.</span>
+        </span>
       )}
       {shaamValue !== '' && (
         <span className="ial-fsync-val">
-          <span className="ial-fsync-tag">שע״ם:</span> {shaamValue}
+          {/* מציגים את הערך הגולמי של שע״ם — זה מה שהרו"ח משווה מולו. */}
+          <span className="ial-fsync-tag">שע״ם:</span> {rawValue}
           {same ? (
             <span className="ial-fsync-same">זהה</span>
           ) : (

@@ -479,12 +479,45 @@ export async function extractIncomeTaxFileFacts(page) {
       const text = (value.innerText || '').replace(/\s+/g, ' ').trim();
       return text ? { ok: true, text } : { ok: false, reason: 'empty' };
     };
+    /**
+     * שיעור המקדמות ותדירותן.
+     *
+     * ‼ העוגן נלקח מהמסך החי אצל לקוח עם מקדמות פעילות: בכל המסך יש
+     * **בדיוק אלמנט אחד** שכל הטקסט שלו הוא אחוז (`15%`), והוא LABEL שני
+     * בתוך H2.withColor שהראשון בו הוא התדירות (`דו-חדשי`).
+     * ‼ יותר מאחד ⇒ דו-משמעי, ולא קוראים. אפס ⇒ אין ערך — וזה המצב אצל
+     * לקוח שהמקדמות שלו בוטלו, ולא תקלה.
+     */
+    const readAdvance = () => {
+      const PCT = /^\d+(\.\d+)?%$/;
+      const hits = [...document.querySelectorAll('*')]
+        .filter((e) => e.children.length === 0 && PCT.test((e.innerText || '').replace(/\s+/g, ' ').trim()));
+      if (hits.length !== 1) {
+        return {
+          rate: { ok: false, reason: hits.length ? 'ambiguous' : 'missing', n: hits.length },
+          frequency: { ok: false, reason: hits.length ? 'ambiguous' : 'missing', n: hits.length },
+        };
+      }
+      const el = hits[0];
+      const rateText = (el.innerText || '').replace(/\s+/g, ' ').trim();
+      const freqEl = el.previousElementSibling ?? el.parentElement?.children?.[0];
+      const freqText = freqEl && freqEl !== el
+        ? (freqEl.innerText || '').replace(/\s+/g, ' ').trim() : '';
+      return {
+        rate: { ok: true, text: rateText },
+        frequency: freqText ? { ok: true, text: freqText } : { ok: false, reason: 'missing' },
+      };
+    };
+    const adv = readAdvance();
+
     return {
       pathname: location.pathname,
       taxOffice: read('פקיד שומה'),
       fileType: read('סוג תיק'),
       unit: read('חולייה'),
       economicIndustry: read('ענף כלכלי'),
+      advanceRate: adv.rate,
+      advanceFrequency: adv.frequency,
     };
   });
 }

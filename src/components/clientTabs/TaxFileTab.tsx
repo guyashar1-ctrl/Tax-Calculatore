@@ -29,6 +29,7 @@ import ShaamFieldSync from './ShaamFieldSync';
 import BtlFieldSync from './BtlFieldSync';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
+import { useShaamReadiness } from '../../hooks/shaamReadiness';
 import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 import { domainKnowledge, taxReadiness } from '../../utils/taxKnowledge';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
@@ -223,6 +224,7 @@ export default function TaxFileTab({
   // ‼ קריאה משע״ם על הכרטיס עצמו. ההוק לפני כל return מותנה —
   // ראה hooks-after-institution-focus-return.
   const shaamSync = useAutomationJob(client.id || undefined, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
+  const shaamReadiness = useShaamReadiness();
   const [adoptingKey, setAdoptingKey] = useState<string | null>(null);
   const [adoptError, setAdoptError] = useState<string | null>(null);
   const [adoptNotice, setAdoptNotice] = useState<string | null>(null);
@@ -882,7 +884,14 @@ export default function TaxFileTab({
                     {f.syncKey && (
                       <ShaamFieldSync
                         fieldKey={f.syncKey}
-                        currentValue={f.v === '—' ? '' : f.v}
+                        // ‼ הערך הגולמי מהכרטיס, לא הטקסט שמוצג: «סוג תיק»
+                        // מוצג כ«52 · חד-צדית…» בעוד שע״ם מחזירה «52».
+                        // השוואה מול הטקסט המוצג הייתה מכריזה «שונה» תמיד.
+                        currentValue={
+                          EDIT_FIELD_BY_KEY[f.syncKey]
+                            ? editFieldValue(client, EDIT_FIELD_BY_KEY[f.syncKey])
+                            : (f.v === '—' ? '' : f.v)
+                        }
                         onAdopt={v => { void adoptShaamValue(f.syncKey!, f.k, v); }}
                         job={shaamSync.job}
                         busy={shaamSync.busy || adoptingKey === f.syncKey}
@@ -904,6 +913,12 @@ export default function TaxFileTab({
                   );
                 })}
               </div>
+
+              {/* ‼ סיבת החוסם פעם אחת לכרטיס ולא ליד כל שדה — אותו משפט
+                  שש פעמים הכפיל את גובה התאים ולא הוסיף מידע. */}
+              {!shaamReadiness.ready && row.facts.some(f => f.syncKey) && (
+                <div className="txf-note">{shaamReadiness.blockedReason}</div>
+              )}
 
               {/* ‼ פעולות העריכה יושבות בתוך הכרטיס. «ביטול» מחזיר לתצוגה
                   בלי לכתוב כלום; «שמור» כותב רק שדות שהשתנו. */}

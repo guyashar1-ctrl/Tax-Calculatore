@@ -146,18 +146,19 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
     // התמלא. שורה שנעלמת כשאין לה ערך מסתירה בדיוק את מה שבאים לבדוק.
     // ‼ חוליה יצאה משורת «פקיד שומה» לשורה משלה — שדה עם סנכרון משלו צריך
     // להיראות כשדה, לא כזנב של אחר.
-    facts.push({ k: 'סוג תיק', v: fileTypeText(client.incomeTaxFileType), editKey: 'incomeTaxFileType' });
+    facts.push({ k: 'סוג תיק', v: fileTypeText(client.incomeTaxFileType), editKey: 'incomeTaxFileType', syncKey: 'incomeTaxFileType' });
     facts.push({ k: 'פקיד שומה', v: client.taxOfficeName || EMPTY, syncKey: 'taxOfficeName', editKey: 'taxOfficeName' });
-    facts.push({ k: 'חוליה', v: client.incomeTaxUnit || EMPTY, editKey: 'incomeTaxUnit' });
-    facts.push({ k: 'ענף כלכלי', v: client.incomeTaxEconomicIndustry || EMPTY, editKey: 'incomeTaxEconomicIndustry' });
+    facts.push({ k: 'חוליה', v: client.incomeTaxUnit || EMPTY, editKey: 'incomeTaxUnit', syncKey: 'incomeTaxUnit' });
+    facts.push({ k: 'ענף כלכלי', v: client.incomeTaxEconomicIndustry || EMPTY, editKey: 'incomeTaxEconomicIndustry', syncKey: 'incomeTaxEconomicIndustry' });
     const adv = client.pitAdvancePercent != null
       ? `${client.pitAdvancePercent}%${client.pitAdvanceFrequency ? ` · ${VAT_FREQ_LABELS[client.pitAdvanceFrequency]}` : ''}`
       : null;
-    facts.push({ k: 'שיעור מקדמות', v: client.pitAdvancePercent != null ? `${client.pitAdvancePercent}%` : EMPTY, editKey: 'pitAdvancePercent' });
+    facts.push({ k: 'שיעור מקדמות', v: client.pitAdvancePercent != null ? `${client.pitAdvancePercent}%` : EMPTY, editKey: 'pitAdvancePercent', syncKey: 'pitAdvancePercent' });
     facts.push({
       k: 'תדירות מקדמות',
       v: client.pitAdvanceFrequency ? VAT_FREQ_LABELS[client.pitAdvanceFrequency] : EMPTY,
       editKey: 'pitAdvanceFrequency',
+      syncKey: 'pitAdvanceFrequency',
     });
     const bal = balanceText(client.incomeTaxBalance);
     facts.push(bal ? { k: 'יתרה', v: bal.text, tone: bal.tone, editKey: 'incomeTaxBalance' } : { k: 'יתרה', v: EMPTY, editKey: 'incomeTaxBalance' });
