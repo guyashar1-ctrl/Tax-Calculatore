@@ -12,7 +12,7 @@
 
 import type { AutomationJob } from '../../types/automation';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
-import { useShaamReadiness } from '../../hooks/shaamReadiness';
+import { useShaamReadiness, SHAAM_READ_134 } from '../../hooks/shaamReadiness';
 
 /** ‼ אחרי זה, הודעת משימה היא היסטוריה ולא מצב. */
 const JOB_MESSAGE_MAX_AGE_MS = 10 * 60_000;
@@ -74,7 +74,10 @@ interface Props {
 export default function ShaamFieldSync({
   fieldKey, currentValue, onAdopt, job, busy, fileNumber, onRun,
 }: Props) {
-  const readiness = useShaamReadiness();
+  // ‼ מוכנות **לפעולה הזאת**, לא מוכנות גלובלית: קריאת 134 צריכה עובד חי,
+  // פורטל מאומת ו-GMF. מע"מ ומגן אינן תלות שלה, וחסימה בגללן היא חסימה
+  // על משהו שאינו נדרש.
+  const cap = useShaamReadiness().capability(SHAAM_READ_134);
   const spec = SHAAM_134_FIELD_SOURCES[fieldKey];
   if (!spec) return null;
 
@@ -105,14 +108,14 @@ export default function ShaamFieldSync({
   // בכותרת. אסור שהכפתור כאן יאמר "לא מוכן" בזמן שהכותרת ירוקה.
   const title = !fileNumber
     ? 'אין מספר תיק במס הכנסה בכרטיס — אין מה למשוך'
-    : !readiness.ready
-      ? (readiness.blockedReason ?? 'החיבור לשע״ם אינו מוכן')
+    : !cap.ready
+      ? (cap.blockedReason ?? 'החיבור לשע״ם אינו מוכן')
       : 'קרא את הערך הזה משע״ם (שאילתה 134)';
 
   return (
     <div className="ial-fsync">
       <button type="button" className="ial-fsync-btn" title={title}
-        disabled={!fileNumber || busy || pending || !readiness.ready}
+        disabled={!fileNumber || busy || pending || !cap.ready}
         onClick={onRun}
         aria-label={title}>
         {pending ? '⋯' : '⟳'}
@@ -124,7 +127,7 @@ export default function ShaamFieldSync({
           עדיין מגיע רק מהחוזה המשותף — לא מהמשימה האחרונה. */}
       {/* הודעת המשימה מוצגת רק כשהיא עדיין רלוונטית: משימה פתוחה, או כזו
           שהסתיימה זה עתה. אחרת זו היסטוריה שמתחזה למצב. */}
-      {readiness.ready && jobIsCurrent && job?.status === 'needs_human' && (
+      {cap.ready && jobIsCurrent && job?.status === 'needs_human' && (
         <span className="ial-fsync-msg">{job.needsHuman ?? 'דרושה פעולה בחלון שע״ם.'}</span>
       )}
       {jobIsCurrent && job?.status === 'failed' && (

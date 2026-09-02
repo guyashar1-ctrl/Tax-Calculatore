@@ -25,6 +25,36 @@ import type { AutomationWorkerStatus } from '../types/automation';
 
 const POLL_MS = 4000;
 
+/** שכבות שע״ם שהעובד מדווח עליהן. */
+export type ShaamLayer = 'portal' | 'gmf' | 'vat' | 'nikui';
+
+/**
+ * מה כל יכולת דורשת בפועל — נגזר מהמימוש של ה-handler, לא מהתחושה.
+ *
+ * ‼ «מוכנות גלובלית» ו«מוכנות לפעולה» אינם אותו דבר. הנורית בכותרת אומרת
+ * «הכול מוכן ליום עבודה», אבל פעולה בודדת נחסמת רק על מה שהיא באמת צריכה.
+ * חסימת קריאת 134 בגלל שמע״מ לא מוכנה היא חסימה על תלות שאינה קיימת.
+ *
+ * shaam.read_134 (shaamSyncIncomeTaxFile): attach → probeServerSession →
+ * openAdvancesInfo. כלומר עובד חי + פורטל מאומת + GMF. מע״מ ומגן אינן
+ * נוגעות בו.
+ *
+ * ‼ אוטומציה חדשה מצהירה כאן על התלויות שלה — לא במסך שמציג אותה.
+ */
+export const SHAAM_CAPABILITIES: Record<string, ShaamLayer[]> = {
+  'shaam.read_134': ['portal', 'gmf'],
+};
+
+/** מפתח היכולת של קריאת שאילתה 134. */
+export const SHAAM_READ_134 = 'shaam.read_134';
+
+export interface ShaamCapability {
+  /** אפשר להריץ **את הפעולה הזאת** עכשיו. */
+  ready: boolean;
+  /** התלות שחוסמת בפועל — לא «שע״ם לא מוכנה» באופן כללי. */
+  blockedReason: string | null;
+}
+
 export interface ShaamReadiness {
   /** מוכן להריץ אוטומציה **עכשיו**. ירוק בכותרת = הערך הזה, ותו לא. */
   ready: boolean;
@@ -33,14 +63,22 @@ export interface ShaamReadiness {
   status: AutomationWorkerStatus;
   /** מה חוסם — משפט אחד לרו"ח. null כשמוכן. */
   blockedReason: string | null;
+  /**
+   * מוכנות לפעולה מסוימת, נגזרת מ**אותו** מצב עובד. לא שליפה נוספת ולא
+   * מקור אמת שני — רק חיתוך אחר של אותה אמת.
+   */
+  capability: (name: string) => ShaamCapability;
   refresh: () => Promise<void>;
 }
+
+const UNKNOWN_REASON = 'מצב החיבור לשע״ם אינו ידוע.';
 
 const FALLBACK: ShaamReadiness = {
   ready: false,
   workerOffline: true,
   status: {},
-  blockedReason: 'מצב החיבור לשע״ם אינו ידוע.',
+  blockedReason: UNKNOWN_REASON,
+  capability: () => ({ ready: false, blockedReason: UNKNOWN_REASON }),
   refresh: async () => {},
 };
 
@@ -81,16 +119,37 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
   const nikui = !!status.nikui?.ready;
   const ready = !workerOffline && shaam && gmf && vat && nikui;
 
-  const blockedReason = workerOffline
-    ? 'מחשב האוטומציה אינו פעיל, ולכן אי אפשר לקרוא משע״ם.'
-    : !shaam ? 'אין חיבור פעיל לפורטל שע״ם.'
-      : !gmf ? 'מערכת גביית מס הכנסה אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.'
-        : !vat ? 'מערכת מע״מ אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.'
-          : !nikui ? 'מערכת מגן (ניכויים) אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.'
-            : null;
+  const WORKER_OFF = 'מחשב האוטומציה אינו פעיל, ולכן אי אפשר לקרוא משע״ם.';
+  const LAYER_REASON: Record<ShaamLayer, string> = {
+    portal: 'אין חיבור פעיל לפורטל שע״ם.',
+    gmf: 'מערכת גביית מס הכנסה אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
+    vat: 'מערכת מע״מ אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
+    nikui: 'מערכת מגן (ניכויים) אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
+  };
+  const LAYER_OK: Record<ShaamLayer, boolean> = { portal: shaam, gmf, vat, nikui };
+
+  const blockedReason = workerOffline ? WORKER_OFF
+    : (['portal', 'gmf', 'vat', 'nikui'] as ShaamLayer[]).find(l => !LAYER_OK[l]) !== undefined
+      ? LAYER_REASON[(['portal', 'gmf', 'vat', 'nikui'] as ShaamLayer[]).find(l => !LAYER_OK[l])!]
+      : null;
+
+  /**
+   * ‼ נחסם רק על מה שהפעולה באמת צריכה, והסיבה מצביעה על התלות החוסמת
+   * עצמה — לא על «שע״ם לא מוכנה» כללי. יכולת לא מוכרת נחשבת חסומה, כדי
+   * שהוספת אוטומציה בלי הצהרת תלויות לא תיפתח בטעות.
+   */
+  function capability(name: string): ShaamCapability {
+    if (workerOffline) return { ready: false, blockedReason: WORKER_OFF };
+    const needed = SHAAM_CAPABILITIES[name];
+    if (!needed) return { ready: false, blockedReason: UNKNOWN_REASON };
+    const missing = needed.find(l => !LAYER_OK[l]);
+    return missing
+      ? { ready: false, blockedReason: LAYER_REASON[missing] }
+      : { ready: true, blockedReason: null };
+  }
 
   return (
-    <Ctx.Provider value={{ ready, workerOffline, status, blockedReason, refresh }}>
+    <Ctx.Provider value={{ ready, workerOffline, status, blockedReason, capability, refresh }}>
       {children}
     </Ctx.Provider>
   );

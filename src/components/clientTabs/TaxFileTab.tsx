@@ -29,7 +29,7 @@ import ShaamFieldSync from './ShaamFieldSync';
 import BtlFieldSync from './BtlFieldSync';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
-import { useShaamReadiness } from '../../hooks/shaamReadiness';
+import { useShaamReadiness, SHAAM_READ_134 } from '../../hooks/shaamReadiness';
 import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 import { domainKnowledge, taxReadiness } from '../../utils/taxKnowledge';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
@@ -224,7 +224,9 @@ export default function TaxFileTab({
   // ‼ קריאה משע״ם על הכרטיס עצמו. ההוק לפני כל return מותנה —
   // ראה hooks-after-institution-focus-return.
   const shaamSync = useAutomationJob(client.id || undefined, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
-  const shaamReadiness = useShaamReadiness();
+  // ‼ הכרטיס מציג את הסיבה של **היכולת** (קריאת 134), לא של המוכנות
+  // הגלובלית. הנורית בכותרת ממשיכה לייצג את כל השכבות.
+  const shaamCap = useShaamReadiness().capability(SHAAM_READ_134);
   const [adoptingKey, setAdoptingKey] = useState<string | null>(null);
   const [adoptError, setAdoptError] = useState<string | null>(null);
   const [adoptNotice, setAdoptNotice] = useState<string | null>(null);
@@ -916,8 +918,8 @@ export default function TaxFileTab({
 
               {/* ‼ סיבת החוסם פעם אחת לכרטיס ולא ליד כל שדה — אותו משפט
                   שש פעמים הכפיל את גובה התאים ולא הוסיף מידע. */}
-              {!shaamReadiness.ready && row.facts.some(f => f.syncKey) && (
-                <div className="txf-note">{shaamReadiness.blockedReason}</div>
+              {!shaamCap.ready && row.facts.some(f => f.syncKey) && (
+                <div className="txf-note">{shaamCap.blockedReason}</div>
               )}
 
               {/* ‼ פעולות העריכה יושבות בתוך הכרטיס. «ביטול» מחזיר לתצוגה
