@@ -539,7 +539,9 @@ export default function TaxFileTab({
     const toPropose: ProposedFact[] = [];
     for (const f of changed) {
       const def = EDIT_FIELD_BY_KEY[f.fieldKey];
-      const newPatch = def ? coerceEditField(def, f.authorityValue!) : f.authorityValue!;
+      // ‼ patchValue גובר: «אין תדירות» הוא ניקוי השדה (null), ולא מחרוזת ריקה.
+      const newPatch = f.patchValue !== undefined ? f.patchValue
+        : def ? coerceEditField(def, f.authorityValue!) : f.authorityValue!;
       const oldRaw = (client as unknown as Record<string, unknown>)[f.fieldKey] ?? null;
       const dup = existing.find(c => c.fieldKey === f.fieldKey && c.source === 'automation'
         && JSON.stringify(c.newValue.patch?.[f.fieldKey]) === JSON.stringify(newPatch));
@@ -547,7 +549,13 @@ export default function TaxFileTab({
       toPropose.push({
         fieldKey: f.fieldKey, label: f.label,
         oldValue: { display: String(oldRaw ?? '') || '—', patch: { [f.fieldKey]: oldRaw } },
-        newValue: { display: f.authorityRaw ?? f.authorityValue!, patch: { [f.fieldKey]: newPatch } },
+        newValue: {
+          display: f.authorityDisplay ?? f.authorityRaw ?? f.authorityValue!,
+          patch: { [f.fieldKey]: newPatch },
+        },
+        // ‼ הראיה הגולמית מהרשות נשמרת בהצעה עצמה — אחרת «0%» היה נכנס
+        // לתיק בלי שום זכר לכך שהמקור היה «בוטלה (שעור דו)».
+        note: f.provenance ? `שע״ם: ${f.provenance}` : undefined,
       });
     }
     if (toPropose.length > 0) {

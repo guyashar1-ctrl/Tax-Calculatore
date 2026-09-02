@@ -4587,6 +4587,8 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .txf-check-line .ui-btn{margin-inline-start:auto}
 .txf-check-err{font-size:var(--fs-12);color:var(--danger)}
 .txf-check-note{font-size:11px;color:var(--ink-3)}
+.txf-check-grp{color:var(--ink-4)}
+.txf-check-grp::after{content:' ·'}
 @media (max-width:640px){
   .txf-row-headwrap{flex-wrap:wrap}
   .txf-row-act{width:100%;padding:0 16px 10px;justify-content:flex-start}

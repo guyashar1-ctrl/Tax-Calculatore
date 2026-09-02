@@ -45,12 +45,37 @@ export interface AuthorityFieldResult {
   authorityRaw?: string;
   /** הערך שיישמר בתיק אם השינוי יאושר (מנורמל). קיים רק ב-changed. */
   authorityValue?: string;
+  /** איך מציגים את ערך הרשות לרו"ח («0%», «אין»). ברירת מחדל: הגולמי. */
+  authorityDisplay?: string;
+  /**
+   * הערך המדויק שייכתב בפאץ'. `undefined` ⇒ נגזר מ-authorityValue דרך
+   * coerceEditField. ‼ קיים כי «אין תדירות» הוא **ניקוי** השדה (null),
+   * ומחרוזת ריקה בעמודה מוגבלת-ערכים אינה אותו דבר.
+   */
+  patchValue?: unknown;
   /** תוספת פירוש לתצוגה (למשל תיאור קוד סוג התיק). */
   hint?: string;
-  /** טקסט המצב העסקי — ב-info בלבד. */
-  businessStatus?: string;
+  /**
+   * קבוצת שדות שחולקת הסבר עסקי אחד (למשל 'advances'). ההסבר מוצג פעם
+   * אחת לקבוצה ולא מתחת לכל שדה — ראה groupNotes.
+   */
+  group?: string;
+  /**
+   * הראיה הגולמית מהרשות כשהערך נגזר ממצב עסקי ולא נקרא ישירות (למשל
+   * «בוטלה (שעור דו) · ביטול שעור»). ‼ נשמרת בהצעה כ-note — כדי שהמקור
+   * לא ייעלם אחרי שהערך נורמל ל-0%.
+   */
+  provenance?: string;
   /** מה השתבש — ב-failed בלבד. משפט אחד. */
   error?: string;
+}
+
+/** הסבר עסקי אחד לקבוצת שדות — מוצג פעם אחת, בטקסט משני קומפקטי. */
+export interface AuthorityGroupNote {
+  group: string;
+  /** שם הקבוצה לרו"ח («מקדמות»). */
+  label: string;
+  text: string;
 }
 
 export interface AuthorityCheckSummary {
@@ -66,6 +91,8 @@ export interface AuthorityCheckResult {
   checkedAt?: string;
   fields: AuthorityFieldResult[];
   summary: AuthorityCheckSummary;
+  /** הסברים עסקיים ברמת קבוצה — פעם אחת כל אחד. */
+  groupNotes: AuthorityGroupNote[];
   /**
    * כשל ברמת הריצה (לא ברמת שדה): המשימה נכשלה או ממתינה לאדם. מופיע
    * **פעם אחת** בכרטיס, לא ליד כל שדה.
@@ -99,6 +126,8 @@ export interface AuthorityAutomationSpec {
   buildInput?: (client: Client) => { input: Record<string, unknown> } | { blocked: string };
   /** הופך תוצאת משימה גולמית לסט השוואה. */
   interpret?: (job: AutomationJob | null, client: Client, supportedKeys: readonly string[]) => AuthorityFieldResult[];
+  /** הסברים עסקיים ברמת קבוצה, מתוך תוצאת המשימה. */
+  groupNotes?: (fields: Record<string, string>) => AuthorityGroupNote[];
 }
 
 // ─── מס הכנסה — שאילתה 134 ─────────────────────────────────────────────────────
@@ -142,27 +171,43 @@ function mapBalance(raw: string): string | null {
  * ‼ «לא נדרש במקדמה» וגם «בוטלה» אינם כישלון קריאה — שתי עובדות עסקיות
  * ששע״ם מדווחת במפורש (advanceStatus/advanceReason), ושתיהן **שונות**:
  *   · no_advance — אין כרגע חבות מקדמה כלל (למשל בגלל בסיס אפס).
- *   · cancelled  — היה שיעור מוקצה לתיק, והוא בוטל. לא 0%, ולא "לא רלוונטי".
- * בשני המצבים אין אחוז מספרי במסך, ולכן לא מציעים ערך — רק אומרים מה המצב.
+ *   · cancelled  — היה שיעור מוקצה לתיק, והוא בוטל.
+ * ‼ החלטת מוצר (2.9.2026): בשני המצבים המשמעות ב-PIVO היא «אין כרגע חבות
+ * מקדמה», ולכן הייצוג בכרטיס הוא **שיעור 0% ותדירות «אין»** — לא הודעה
+ * שחוזרת מתחת לשני השדות. הראיה הגולמית (הטקסט של שע״ם והסיבה) נשמרת
+ * בתוצאת המשימה **וגם** בהצעה עצמה (note), כדי שהמקור לא ייעלם אחרי
+ * הנרמול. ההסבר מוצג פעם אחת לקבוצת «מקדמות».
  */
-function advanceBusinessStatus(fields: Record<string, string>): string | null {
+function advanceBusinessState(
+  fields: Record<string, string>,
+): { note: string; raw: string } | null {
   const reason = (fields.advanceReason ?? '').trim();
+  const rawStatus = (fields.advanceStatusRaw ?? '').trim();
+  const withReason = (head: string) => (reason ? `${head} — ${reason}` : head);
   if (fields.advanceStatus === 'no_advance') {
-    return reason ? `לא נדרש במקדמה (סיבה: ${reason})` : 'לא נדרש במקדמה';
+    return { note: withReason('לא נדרש במקדמה'), raw: withReason(rawStatus || 'לא נדרש במקדמה') };
   }
   if (fields.advanceStatus === 'cancelled') {
-    return reason ? `המקדמה הקודמת בוטלה — ${reason}` : 'המקדמה הקודמת בוטלה';
+    return { note: withReason('המקדמות בוטלו'), raw: withReason(rawStatus || 'בוטלה') };
   }
   return null;
 }
+
+/**
+ * מה שדה מציג ומציע כשהרשות החזירה מצב עסקי במקום ערך.
+ * `'info'` ⇒ אין ערך ואין הצעה, רק סמן ניטרלי (ההסבר בקבוצה).
+ */
+type BusinessValue = { value: string; display: string; patch?: unknown } | 'info' | null;
 
 interface Shaam134FieldSource {
   /** המפתח שהעובד מחזיר ב-result.fields. */
   source: string;
   /** המרה לערך שנשמר ב-PIVO. null ⇒ לא ניתן למפות חד-משמעית. */
   normalize?: (raw: string) => string | null;
-  /** מצב עסקי כש-source ריק, לפי שדות אחרים בתוצאה. null ⇒ זה כישלון. */
-  businessStatus?: (fields: Record<string, string>) => string | null;
+  /** הייצוג ב-PIVO כש-source ריק בגלל מצב עסקי. null ⇒ זה כישלון. */
+  businessValue?: (fields: Record<string, string>) => BusinessValue;
+  /** קבוצת ההסבר המשותף. */
+  group?: string;
   /** תוספת פירוש לערך שהוחזר. */
   hint?: (value: string) => string | undefined;
 }
@@ -179,11 +224,24 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
   taxOfficeName: { source: 'taxOffice' },
   incomeTaxUnit: { source: 'unit' },
   incomeTaxEconomicIndustry: { source: 'economicIndustry' },
-  pitAdvancePercent: { source: 'advanceRate', normalize: mapAdvanceRate, businessStatus: advanceBusinessStatus },
-  pitAdvanceFrequency: { source: 'advanceFrequency', normalize: mapAdvanceFrequency, businessStatus: advanceBusinessStatus },
+  // ‼ מצב עסקי ⇒ 0% ו«אין». «אין תדירות» הוא **ניקוי** השדה: הטיפוס
+  // (VATFrequency) מכיר רק חודשי/דו-חודשי, ואין בו ערך «אין» להמציא.
+  pitAdvancePercent: {
+    source: 'advanceRate', normalize: mapAdvanceRate, group: 'advances',
+    businessValue: (f) => (advanceBusinessState(f) ? { value: '0', display: '0%' } : null),
+  },
+  pitAdvanceFrequency: {
+    source: 'advanceFrequency', normalize: mapAdvanceFrequency, group: 'advances',
+    businessValue: (f) => (advanceBusinessState(f) ? { value: '', display: 'אין', patch: null } : null),
+  },
   // ‼ «יתרה» ב-134 היא יתרת חשבון המקדמות לשנה — מופתה לשדה הזה לפי
-  // החלטת מוצר. נעדרת אצל no_advance (נצפה חי), ולכן חולקת את המצב העסקי.
-  incomeTaxBalance: { source: 'balance', normalize: mapBalance, businessStatus: advanceBusinessStatus },
+  // החלטת מוצר. כשאין חבות מקדמה כלל שע״ם לא מציגה קופסת יתרה (נצפה חי
+  // אצל no_advance), ולכן: סמן ניטרלי בלי ערך ובלי הצעה — **לא** 0
+  // מומצא, ולא אדום. ההסבר מגיע מהקבוצה.
+  incomeTaxBalance: {
+    source: 'balance', normalize: mapBalance, group: 'advances',
+    businessValue: (f) => (advanceBusinessState(f) ? 'info' : null),
+  },
 };
 
 /** הערך הגולמי בתיק — לא הטקסט המוצג. «סוג תיק» מוצג «52 · חד-צדית…» ושע״ם מחזירה «52». */
@@ -210,26 +268,43 @@ function interpretShaam134(
 
     const raw = (fields[spec.source] ?? '').trim();
     if (raw === '') {
-      const business = spec.businessStatus?.(fields) ?? null;
-      if (business) return { fieldKey, label, status: 'info', currentValue, businessStatus: business };
+      const business = spec.businessValue?.(fields) ?? null;
+      if (business === 'info') {
+        return { fieldKey, label, status: 'info', currentValue, group: spec.group };
+      }
+      if (business) {
+        // ‼ מצב עסקי הוא תוצאה מוצלחת: הוא נכנס להשוואה הרגילה. תואם ⇒
+        // ירוק (ולא «מידע»), שונה ⇒ כתום עם הצעה — כמו כל שדה אחר.
+        const same = business.value === currentValue.trim();
+        return {
+          fieldKey, label, status: same ? 'match' : 'changed', currentValue,
+          authorityValue: business.value, authorityDisplay: business.display,
+          patchValue: 'patch' in business ? business.patch : undefined,
+          provenance: advanceBusinessState(fields)?.raw, group: spec.group,
+        };
+      }
       const why = unavailable.find(u => u.key === spec.source)?.reason;
       return {
-        fieldKey, label, status: 'failed', currentValue,
+        fieldKey, label, status: 'failed', currentValue, group: spec.group,
         error: why === 'ambiguous' ? 'המסך החזיר יותר מערך אחד — לא ניתן להכריע.' : 'שע״ם לא החזירה ערך לשדה הזה.',
       };
     }
     const normalized = spec.normalize ? spec.normalize(raw) : raw;
     if (normalized === null) {
       return {
-        fieldKey, label, status: 'failed', currentValue, authorityRaw: raw,
+        fieldKey, label, status: 'failed', currentValue, authorityRaw: raw, group: spec.group,
         error: 'הערך לא ניתן למיפוי אוטומטי — יש להזין ידנית.',
       };
     }
     const hint = spec.hint?.(normalized);
-    if (normalized === currentValue.trim()) {
-      return { fieldKey, label, status: 'match', currentValue, authorityRaw: raw, authorityValue: normalized, hint };
-    }
-    return { fieldKey, label, status: 'changed', currentValue, authorityRaw: raw, authorityValue: normalized, hint };
+    const base = {
+      fieldKey, label, currentValue, authorityRaw: raw, authorityDisplay: raw,
+      authorityValue: normalized, hint, group: spec.group,
+    };
+    // ‼ ההשוואה היא בין הערכים המנורמלים, ולכן «0» של שע״ם מול «0» בתיק
+    // הוא **תואם**, ואפס אינו מקרה מיוחד. שדה ריק בתיק («—») מול ערך
+    // שנקרא הוא שינוי אמיתי — בדיוק כמו בכל שדה אחר.
+    return { ...base, status: normalized === currentValue.trim() ? 'match' : 'changed' };
   });
 }
 
@@ -260,6 +335,10 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
         : { blocked: 'אין מספר תיק במס הכנסה בכרטיס — אין מה למשוך.' };
     },
     interpret: interpretShaam134,
+    groupNotes: (fields) => {
+      const state = advanceBusinessState(fields);
+      return state ? [{ group: 'advances', label: 'מקדמות', text: state.note }] : [];
+    },
   },
   national_insurance: {
     authority: 'national_insurance',
@@ -316,9 +395,16 @@ export function buildAuthorityCheck(
   if (job.status === 'failed') runError = job.errorDetail ?? 'הקריאה נכשלה.';
   else if (job.status === 'needs_human') runError = job.needsHuman ?? 'דרושה פעולה בחלון הרשות.';
 
+  // ‼ ההסבר העסקי מוצג פעם אחת לקבוצה, ורק אם הקבוצה בכלל נוכחת בכרטיס.
+  const resultFields = succeeded
+    ? ((job.result as { fields?: Record<string, string> } | undefined)?.fields ?? {})
+    : {};
+  const groups = new Set(fields.map(f => f.group).filter(Boolean));
+  const groupNotes = (spec.groupNotes?.(resultFields) ?? []).filter(n => groups.has(n.group));
+
   return {
     authority: spec.authority,
     checkedAt: succeeded ? (job.finishedAt ?? job.updatedAt) : undefined,
-    fields, summary, runError,
+    fields, summary, groupNotes, runError,
   };
 }

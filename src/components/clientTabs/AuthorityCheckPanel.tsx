@@ -22,20 +22,20 @@ export function FieldStatusMark({ status, title }: { status: AuthorityFieldStatu
 }
 
 /**
- * שורת הרשות מתחת לערך — **רק** כשיש מה לומר: ערך שונה, מצב עסקי, או כשל.
+ * שורת הרשות מתחת לערך — **רק** כשיש מה לומר: ערך שונה או כשל.
  * ‼ שדה ירוק (תואם) לא מקבל שורה: "הרשות אומרת אותו דבר" הוא רעש.
+ * ‼ שדה במצב עסקי (info) גם הוא לא מקבל שורה — ההסבר מוצג פעם אחת
+ * לקבוצה (groupNotes). קודם אותו משפט הופיע מתחת לשיעור, לתדירות
+ * **ולַיתרה** — שלוש פעמים אותו דבר בארבע שורות.
  */
 export function FieldAuthorityLine({ field, sourceLabel }: { field: AuthorityFieldResult; sourceLabel: string }) {
   if (field.status === 'changed') {
     return (
       <div className="txf-authline is-changed">
-        <span className="txf-authline-tag">{sourceLabel}:</span> {field.authorityRaw}
+        <span className="txf-authline-tag">{sourceLabel}:</span> {field.authorityDisplay ?? field.authorityRaw}
         {field.hint && <span className="txf-authline-hint">{field.hint}</span>}
       </div>
     );
-  }
-  if (field.status === 'info') {
-    return <div className="txf-authline is-info"><span className="txf-authline-tag">{sourceLabel}:</span> {field.businessStatus}</div>;
   }
   if (field.status === 'failed') {
     return (
@@ -130,6 +130,12 @@ export function AuthorityCheckSummary({
           )}
         </div>
       )}
+      {/* ‼ ההסבר העסקי — פעם אחת לקבוצה, בטקסט משני. לא מתחת לכל שדה. */}
+      {result?.groupNotes.map(n => (
+        <div className="txf-check-note" key={n.group}>
+          <span className="txf-check-grp">{n.label}</span> {n.text}
+        </div>
+      ))}
       {/* ‼ שגיאה אחת, פעם אחת. לא ליד כל שדה. */}
       {(runError || result?.runError) && (
         <div className="txf-check-err">{runError ?? result?.runError}</div>
