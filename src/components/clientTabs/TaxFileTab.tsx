@@ -870,7 +870,7 @@ export default function TaxFileTab({
                             {def.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                           </select>
                         ) : (
-                          <input type="text"
+                          <input type={def.kind === 'date' ? 'date' : 'text'}
                             inputMode={def.kind === 'number' || def.kind === 'money' ? 'numeric' : undefined}
                             value={authDrafts[def.key] ?? ''} placeholder="—"
                             onChange={e => setAuthDrafts(d => ({ ...d, [def.key]: e.target.value }))} />

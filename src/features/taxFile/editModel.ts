@@ -58,7 +58,10 @@ export const ROW_TO_FAMILY: Record<string, FamilyKey> = {
   abroad: 'foreign', 'dom-foreign': 'foreign', 'dom-rental': 'income',
 };
 
-export type FieldKind = 'text' | 'number' | 'money' | 'bool' | 'select';
+// ‼ 'date' הוא שדה תאריך אמיתי (‎<input type="date">‎) ולא טקסט חופשי:
+// תאריך פתיחת תיק מע״מ נקרא מהפורטל ומוקלד, והקלדה חופשית של תאריך היא
+// הזמנה לפורמט שגוי. הערך נשמר כמחרוזת, כמו שהוא נשמר היום.
+export type FieldKind = 'text' | 'number' | 'money' | 'bool' | 'select' | 'date';
 
 export interface EditField {
   /** מפתח על Client. חייב להיות ב-GOVERNED_FACT_KEYS אם governed=true. */
@@ -151,10 +154,20 @@ export const EDIT_SECTIONS: EditSection[] = [
     fields: [
       { key: 'vatStatus', label: 'סיווג', kind: 'select',
         options: [['authorizedDealer', 'עוסק מורשה'], ['exemptDealer', 'עוסק פטור'], ['none', 'אין']] },
+      // ‼ האפשרויות זהות תו-בתו לאלה שבמסך יישור הקו, והערך הנשמר הוא
+      // התווית עצמה — כך זה נשמר שם היום. שתי רשימות שונות לאותו שדה היו
+      // יוצרות ערכים שלא מתאימים זה לזה בין שני המסכים.
+      { key: 'vatFileType', label: 'סוג תיק', kind: 'select', authority: true, governed: true,
+        options: [['עוסק מורשה', 'עוסק מורשה'], ['עוסק פטור', 'עוסק פטור'],
+          ['חברה', 'חברה'], ['מלכ״ר', 'מלכ״ר'], ['אחר', 'אחר']] },
+      { key: 'vatOpeningDate', label: 'תאריך פתיחה', kind: 'date', authority: true, governed: true },
+      { key: 'vatPrimaryIndustry', label: 'ענף עיקרי', kind: 'text', authority: true, governed: true,
+        note: 'טקסט חופשי — אין עדיין תשתית קודי ענף לחיפוש.' },
       { key: 'vatFrequency', label: 'תדירות דיווח', kind: 'select', authority: true, governed: true,
         options: [['monthly', 'חודשי'], ['bi_monthly', 'דו-חודשי']] },
       { key: 'vatLastReportPeriod', label: 'דוח אחרון שהוגש', kind: 'text', authority: true, governed: true },
       { key: 'vatBalance', label: 'יתרה', kind: 'money', authority: true, governed: true },
+      { key: 'vatDebitAuthorization', label: 'הרשאה לחיוב', kind: 'bool', authority: true, governed: true },
     ],
     note: 'מקור: יישור קו מול הרשויות.',
   },
@@ -165,7 +178,20 @@ export const EDIT_SECTIONS: EditSection[] = [
       { key: 'niAdvanceMonthly', label: 'מקדמה חודשית', kind: 'money', authority: true, governed: true },
       { key: 'niIncomeBasisMonthly', label: 'בסיס הכנסה לחודש', kind: 'money', authority: true, governed: true },
       { key: 'niBalance', label: 'יתרה', kind: 'money', authority: true, governed: true },
+      { key: 'niDebitAuthorization', label: 'הרשאה לחיוב', kind: 'bool', authority: true, governed: true },
     ],
+    note: 'מקור: יישור קו מול הרשויות.',
+  },
+  {
+    id: 'authNikui', family: 'auth', title: 'ניכויים — תפעולי',
+    summary: c => join(c.withholdingRate != null && `ניכוי ${c.withholdingRate}%`) || UNKNOWN,
+    fields: [
+      { key: 'withholdingRate', label: 'שיעור ניכוי', kind: 'number', authority: true, governed: true,
+        note: 'באחוזים. השיעור הפשוט; פירוט מורכב נרשם בשדה «פירוט» שבסעיף מס הכנסה.' },
+    ],
+    // ‼ «תוקף האישור» (withholdingValidUntil) אינו כאן, ובכוונה: הוא אינו
+    // ב-GOVERNED_FACT_KEYS ולכן אין לו מסלול כתיבה מנוהל. הוספתו לרשימה
+    // דורשת גם את allowlist השרת — הכרעת מוצר/נתונים, לא שינוי מסך.
     note: 'מקור: יישור קו מול הרשויות.',
   },
 
@@ -411,6 +437,9 @@ export function editFieldValue(client: Client, f: EditField): string {
   const raw = (client as unknown as Record<string, unknown>)[f.key];
   if (raw === undefined || raw === null) return '';
   if (typeof raw === 'boolean') return raw ? 'true' : 'false';
+  // ‼ ‎<input type="date">‎ מקבל YYYY-MM-DD בלבד. ערך עם חותמת זמן היה
+  // מוצג כשדה ריק, והרו"ח היה חושב שהתאריך נמחק.
+  if (f.kind === 'date') return String(raw).slice(0, 10);
   return String(raw);
 }
 

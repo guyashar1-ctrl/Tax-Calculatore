@@ -229,14 +229,21 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
     const auth = authText(client.vatDebitAuthorization);
     const rep = repOf('vat');
 
+    // ‼ «מספר עוסק» ו«ייצוג» נגזרים מ-taxFiles ולכן נשארים לקריאה — בדיוק
+    // כמו «מספר תיק» במס הכנסה. שאר השדות הם עובדות מנוהלות עם מסלול
+    // כתיבה קיים, ולכן נערכים במקום.
     facts.push({ k: 'מספר עוסק', v: num || EMPTY });
-    facts.push({ k: 'סוג תיק', v: client.vatFileType || EMPTY });
-    facts.push({ k: 'תאריך פתיחה', v: client.vatOpeningDate ? shortDate(client.vatOpeningDate) : EMPTY });
-    facts.push({ k: 'ענף עיקרי', v: client.vatPrimaryIndustry || EMPTY });
-    facts.push({ k: 'תדירות דיווח', v: freq || EMPTY });
-    facts.push({ k: 'דוח אחרון שהוגש', v: client.vatLastReportPeriod || EMPTY });
-    facts.push(bal ? { k: 'יתרה', v: bal.text, tone: bal.tone } : { k: 'יתרה', v: EMPTY });
-    facts.push(auth ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone } : { k: 'הרשאה לחיוב', v: EMPTY });
+    facts.push({ k: 'סוג תיק', v: client.vatFileType || EMPTY, editKey: 'vatFileType' });
+    facts.push({ k: 'תאריך פתיחה', v: client.vatOpeningDate ? shortDate(client.vatOpeningDate) : EMPTY, editKey: 'vatOpeningDate' });
+    facts.push({ k: 'ענף עיקרי', v: client.vatPrimaryIndustry || EMPTY, editKey: 'vatPrimaryIndustry' });
+    facts.push({ k: 'תדירות דיווח', v: freq || EMPTY, editKey: 'vatFrequency' });
+    facts.push({ k: 'דוח אחרון שהוגש', v: client.vatLastReportPeriod || EMPTY, editKey: 'vatLastReportPeriod' });
+    facts.push(bal
+      ? { k: 'יתרה', v: bal.text, tone: bal.tone, editKey: 'vatBalance' }
+      : { k: 'יתרה', v: EMPTY, editKey: 'vatBalance' });
+    facts.push(auth
+      ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone, editKey: 'vatDebitAuthorization' }
+      : { k: 'הרשאה לחיוב', v: EMPTY, editKey: 'vatDebitAuthorization' });
     // ‼ שורת ייצוג אחת בלבד. קודם «ייצוג» יכול היה להופיע פעמיים — פעם דרך
     // בן/בת הזוג ופעם מהתיק עצמו — ושתי שורות באותו שם באותו כרטיס נקראות
     // כסתירה.
@@ -274,19 +281,30 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
       || client.niAdvanceMonthly != null || !!bal || !!auth;
     const niViaSpouse = !hasOwnData ? viaSpouse('national_insurance') : null;
 
+    // ‼ «מספר תיק» ו«ייצוג» נגזרים מ-taxFiles ⇒ לקריאה. «עיסוקים» הוא רשימה
+    // (niOccupations) שנערכת בעורך הייעודי שלה במסך יישור הקו — תא בודד
+    // בכרטיס אינו יכול לייצג אותה, ולכן היא נשארת לקריאה כאן.
     facts.push({ k: 'מספר תיק', v: num || EMPTY });
     facts.push({ k: 'עיסוקים', v: occ.length ? `${occ.length} עיסוקים` : EMPTY });
     facts.push({
       k: 'בסיס למקדמות',
       v: client.niIncomeBasisMonthly != null ? `${money(client.niIncomeBasisMonthly)} לחודש` : EMPTY,
+      editKey: 'niIncomeBasisMonthly',
     });
-    facts.push({ k: 'מקדמה חודשית', v: client.niAdvanceMonthly != null ? money(client.niAdvanceMonthly) : EMPTY });
+    facts.push({
+      k: 'מקדמה חודשית',
+      v: client.niAdvanceMonthly != null ? money(client.niAdvanceMonthly) : EMPTY,
+      editKey: 'niAdvanceMonthly',
+    });
     // ‼ השדה היחיד בביטוח לאומי שיש לו כרגע מקור ודאי בפורטל, ולכן היחיד
-    // שמקבל כפתור קריאה. ראה BtlFieldSync.
+    // שמקבל כפתור קריאה. ‼ הכפתור **וגם** העריכה — הקריאה מהרשות אינה
+    // מחליפה את היכולת לתקן ידנית, בדיוק כמו «פקיד שומה» במס הכנסה.
     facts.push(bal
-      ? { k: 'יתרה', v: bal.text, tone: bal.tone, btlSyncKey: 'niBalance' }
-      : { k: 'יתרה', v: EMPTY, btlSyncKey: 'niBalance' });
-    facts.push(auth ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone } : { k: 'הרשאה לחיוב', v: EMPTY });
+      ? { k: 'יתרה', v: bal.text, tone: bal.tone, btlSyncKey: 'niBalance', editKey: 'niBalance' }
+      : { k: 'יתרה', v: EMPTY, btlSyncKey: 'niBalance', editKey: 'niBalance' });
+    facts.push(auth
+      ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone, editKey: 'niDebitAuthorization' }
+      : { k: 'הרשאה לחיוב', v: EMPTY, editKey: 'niDebitAuthorization' });
     facts.push(rep
       ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined }
       : niViaSpouse ? { k: 'ייצוג', v: niViaSpouse, tone: 'ok' } : { k: 'ייצוג', v: EMPTY });
@@ -304,16 +322,26 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
 
   // ── ניכויים — ‼ רק כשיש תיק ניכויים בפועל. לקוח בלי עובדים לא מקבל שורה ריקה. ──
   {
+    // ‼ אותו מבנה קבוע כמו שאר הרשויות — ראה ההערה בסעיף מע״מ.
     const dedFiles = filesOf('deductions');
     const facts: AuthorityRow['facts'] = [];
     const num = numbersOf('deductions');
-    if (num) facts.push({ k: 'תיק ניכויים', v: num });
-    if (client.withholdingRate != null) facts.push({ k: 'שיעור ניכוי', v: `${client.withholdingRate}%` });
-    if (client.withholdingValidUntil) facts.push({ k: 'תוקף האישור', v: shortDate(client.withholdingValidUntil) });
     const rep = repOf('deductions');
-    if (rep) facts.push({ k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined });
     const dedViaSpouse = !num && !rep ? viaSpouse('deductions') : null;
-    if (dedViaSpouse) facts.push({ k: 'ייצוג', v: dedViaSpouse, tone: 'ok' });
+
+    facts.push({ k: 'תיק ניכויים', v: num || EMPTY });
+    facts.push({
+      k: 'שיעור ניכוי',
+      v: client.withholdingRate != null ? `${client.withholdingRate}%` : EMPTY,
+      editKey: 'withholdingRate',
+    });
+    // ‼ «תוקף האישור» נשאר לקריאה בלבד: withholdingValidUntil אינו עובדה
+    // מנוהלת (אינו ב-GOVERNED_FACT_KEYS), ולכן אין לו מסלול כתיבה עם
+    // פרובננס. עריכה כאן הייתה עוקפת את ההיסטוריה בשקט.
+    facts.push({ k: 'תוקף האישור', v: client.withholdingValidUntil ? shortDate(client.withholdingValidUntil) : EMPTY });
+    facts.push(rep
+      ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined }
+      : dedViaSpouse ? { k: 'ייצוג', v: dedViaSpouse, tone: 'ok' } : { k: 'ייצוג', v: EMPTY });
 
     rows.push({
       authority: 'deductions', name: TAX_AUTHORITY_LABELS.deductions,
@@ -321,7 +349,10 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
         client.withholdingRate != null ? `ניכוי ${client.withholdingRate}%` : null])
         || dedViaSpouse || 'טרם נאספו נתונים',
       exception: null, facts,
-      present: dedFiles.length > 0 || facts.length > 0 || !!dedViaSpouse,
+      // ‼ נגזר מהנתונים ולא מאורך הרשימה: לקוח בלי עובדים עדיין לא מקבל
+      // כרטיס ניכויים ריק.
+      present: dedFiles.length > 0 || !!num || client.withholdingRate != null
+        || !!client.withholdingValidUntil || !!rep || !!dedViaSpouse,
     });
   }
 
