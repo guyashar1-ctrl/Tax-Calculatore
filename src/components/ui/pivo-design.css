@@ -4557,3 +4557,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 
 /* שדה ריק בתמונת המצב — נראה ריק, לא נעלם. */
 .ial-st-empty{color:var(--ink-4)}
+
+/* ⟳ בתוך שורת עובדה בכרטיס הרשות (txf-kv) — קומפקטי, לא שובר את הרשת. */
+.txf-kv .ial-fsync{margin-top:3px;gap:6px}
+.txf-kv .ial-fsync-val{font-size:11px}

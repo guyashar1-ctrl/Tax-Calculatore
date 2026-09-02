@@ -23,7 +23,10 @@ export interface TaxFactRpcResult {
 /** מציע שינויים — לעולם לא כותב ל-clients. כל פריט נוחת כ-pending. */
 export async function proposeTaxFacts(
   clientId: string,
-  source: 'questionnaire' | 'institution_alignment' | 'import',
+  // ‼ 'automation' — ערך שנקרא מהרשות על-ידי העובד המקומי ואומץ בלחיצה.
+  // רישומו כ-'manual' היה אומר שהרו"ח הקליד אותו, וזה פשוט לא נכון.
+  // מיגרציה 151 הוסיפה את המקור הזה בשרת בדיוק בשביל זה.
+  source: 'questionnaire' | 'institution_alignment' | 'import' | 'automation',
   sourceRef: string | null,
   items: ProposedFact[],
 ): Promise<TaxFactRpcResult> {

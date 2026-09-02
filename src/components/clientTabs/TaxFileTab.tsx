@@ -14,12 +14,16 @@ import type { Client, RentalTaxTrack } from '../../types';
 import { FAMILY_STATUS_LABELS } from '../../types';
 import type { TaxFactChange } from '../../types/taxFacts';
 import { TAX_FACT_SOURCE_LABELS } from '../../types/taxFacts';
+import { proposeTaxFacts } from '../../lib/taxFacts';
 import { useTaxFacts } from '../../hooks/useTaxFacts';
 import { shortDate } from '../../utils/clientDerived';
 import { spouseDisplayName, registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from '../../features/annualReport/profile';
 import { getTaxYearData } from '../../data/taxData';
 import { calcCreditPoints } from '../../utils/taxCalculations';
 import { buildAuthorityRows } from '../../utils/authorityRows';
+import ShaamFieldSync from './ShaamFieldSync';
+import { useAutomationJob } from '../../hooks/useAutomationJobs';
+import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
 import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 import { domainKnowledge, taxReadiness } from '../../utils/taxKnowledge';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
@@ -204,12 +208,54 @@ export default function TaxFileTab({
   onClientPersisted, onSendQuestionnaire, onOpenDetails, onEditFamily,
   onRunAlignment, alignBusy, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
 }: Props) {
-  const { pending, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
+  const { pending, refresh, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [openChanges, setOpenChanges] = useState<Set<string>>(new Set());
   const [busyChangeId, setBusyChangeId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [changeErrors, setChangeErrors] = useState<Record<string, string>>({});
+
+  // ‼ קריאה משע״ם על הכרטיס עצמו. ההוק לפני כל return מותנה —
+  // ראה hooks-after-institution-focus-return.
+  const shaamSync = useAutomationJob(client.id || undefined, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
+  const [adoptingKey, setAdoptingKey] = useState<string | null>(null);
+  const [adoptError, setAdoptError] = useState<string | null>(null);
+  const [adoptNotice, setAdoptNotice] = useState<string | null>(null);
+  const incomeTaxFileNumber = ((client.taxFiles ?? [])
+    .find(t => t.authority === 'income_tax')?.fileNumber ?? '').replace(/\D/g, '');
+
+  /**
+   * ‼ אימוץ ערך מהרשות הוא לחיצה מפורשת של הרו"ח, ולכן הוא נרשם דרך מסלול
+   * העובדות המנוהלות — עם פרובננס והיסטוריה — ולא ככתיבה שקטה ל-clients.
+   * שום דבר לא נשמר מעצם הקריאה משע״ם; רק «אמץ» כותב.
+   */
+  async function adoptShaamValue(fieldKey: string, label: string, value: string) {
+    if (!client.id) return;
+    setAdoptingKey(fieldKey);
+    const oldRaw = (client as unknown as Record<string, unknown>)[fieldKey] ?? null;
+    const propose = await proposeTaxFacts(client.id, 'automation', 'shaam-134', [{
+      fieldKey, label,
+      oldValue: { display: String(oldRaw ?? '') || '—', patch: { [fieldKey]: oldRaw } },
+      newValue: { display: value, patch: { [fieldKey]: value } },
+    }]);
+    // ‼ כישלון כאן חייב להיראות. אימוץ ששותק נראה בדיוק כמו אימוץ שעבד,
+    // והרו"ח נשאר עם ערך ישן בכרטיס בלי לדעת.
+    //
+    // ‼ propose_tax_facts מחזירה {ok, proposed} ו**לא** אובייקט change.
+    // בדיקה על change.id הפכה הצעה שהצליחה לכישלון שקט — קרה בפועל.
+    if (!propose.ok) {
+      setAdoptError(propose.error ?? 'ההצעה נכשלה');
+      setAdoptingKey(null);
+      return;
+    }
+    // ‼ ההצעה נוחתת כ«ממתינה» ומופיעה ברשימת השינויים של הכרטיס, שם הרו"ח
+    // מאשר או דוחה. זו בדיוק המשמעות של «מציע ולא שומר» — ולא כתיבה
+    // שקטה לכרטיס ברגע הלחיצה.
+    setAdoptError(null);
+    setAdoptNotice('הערך מהרשות הוצע — ממתין לאישורך ברשימת השינויים בכרטיס.');
+    refresh();
+    setAdoptingKey(null);
+  }
   const [editingField, setEditingField] = useState<'donations' | 'rental' | null>(null);
   const [donationsDraft, setDonationsDraft] = useState('');
   const [rentalDraft, setRentalDraft] = useState<RentalTaxTrack>(client.rentalTaxTrack ?? 'regular');
@@ -747,6 +793,26 @@ export default function TaxFileTab({
                   <div key={i}>
                     <div className="k">{f.k}</div>
                     <div className={'v ' + (f.tone ?? '')}>{f.v}</div>
+                    {/* ‼ הכפתור יושב על השורה שבכרטיס — זה המסך שהרו"ח קורא
+                        בו את מצב התיק, ולכן זה המקום שבו «לקרוא מהרשות»
+                        אמור להיות. מציע ולא שומר: «אמץ» הוא לחיצה נפרדת. */}
+                    {f.syncKey && (
+                      <ShaamFieldSync
+                        fieldKey={f.syncKey}
+                        currentValue={f.v === '—' ? '' : f.v}
+                        onAdopt={v => { void adoptShaamValue(f.syncKey!, f.k, v); }}
+                        job={shaamSync.job}
+                        busy={shaamSync.busy || adoptingKey === f.syncKey}
+                        fileNumber={incomeTaxFileNumber}
+                        onRun={() => { void shaamSync.run({ fileNumber: incomeTaxFileNumber }); }}
+                      />
+                    )}
+                    {f.syncKey && adoptError && (
+                      <div className="ial-fsync-msg ial-fsync-err">{adoptError}</div>
+                    )}
+                    {f.syncKey && !adoptError && adoptNotice && (
+                      <div className="ial-fsync-msg">{adoptNotice}</div>
+                    )}
                   </div>
                 ))}
               </div>

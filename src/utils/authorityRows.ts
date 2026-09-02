@@ -40,7 +40,12 @@ export interface AuthorityRow {
   name: string;
   summary: string;
   exception: AuthorityException | null;
-  facts: { k: string; v: string; tone?: 'warn' | 'ok' }[];
+  /**
+   * `syncKey` — מפתח השדה בכרטיס הלקוח, כשיש לו מקור מוכח בשע״ם. קיים ⇒
+   * הכרטיס מצייר לידו כפתור קריאה. ‼ נקבע כאן ולא במסך, כדי שהידע "לשדה
+   * הזה יש מקור ודאי" יישב במקום אחד.
+   */
+  facts: { k: string; v: string; tone?: 'warn' | 'ok'; syncKey?: string }[];
   /** יש בכלל מה להציג על הרשות הזו. רשות בלי תיק ובלי נתון אינה שורה. */
   present: boolean;
 }
@@ -133,7 +138,7 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
     // ‼ חוליה יצאה משורת «פקיד שומה» לשורה משלה — שדה עם סנכרון משלו צריך
     // להיראות כשדה, לא כזנב של אחר.
     facts.push({ k: 'סוג תיק', v: fileTypeText(client.incomeTaxFileType) });
-    facts.push({ k: 'פקיד שומה', v: client.taxOfficeName || EMPTY });
+    facts.push({ k: 'פקיד שומה', v: client.taxOfficeName || EMPTY, syncKey: 'taxOfficeName' });
     facts.push({ k: 'חוליה', v: client.incomeTaxUnit || EMPTY });
     facts.push({ k: 'ענף כלכלי', v: client.incomeTaxEconomicIndustry || EMPTY });
     const adv = client.pitAdvancePercent != null
