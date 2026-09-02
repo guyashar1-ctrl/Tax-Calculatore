@@ -531,9 +531,16 @@ export default function App() {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(initialRoute.requestId ?? null);
   // התצוגה המהירה במסך הלקוחות — חיה בכתובת (#/clients/p/{id}) כדי ש"אחורה" יסגור
   const [quickViewId, setQuickViewId] = useState<string | null>(initialRoute.quickId ?? null);
+  /**
+   * ‼ «התיק» אינו יעד קישור לגיטימי. הוא עורך הפרטים המלא הישן, והוחלט
+   * שהוא אינו חלק ממסלול תיק המס — לא ככפתור ולא ככתובת שמורה. קישור ישן
+   * מהצורה ‎#/client/<id>/dossier‎ ייפתח על הנחיתה הרגילה במקום לפתוח אותו.
+   */
+  const clientTabFromRoute = (t: string | undefined): ClientTabId | undefined =>
+    t && t !== 'dossier' ? (t as ClientTabId) : undefined;
   // לשונית הפתיחה של כרטיס הלקוח — נקבעת רק כשהגיעו אליו בשביל דבר מסוים
   const [clientInitialTab, setClientInitialTab] = useState<ClientTabId | undefined>(
-    initialRoute.clientTab as ClientTabId | undefined
+    clientTabFromRoute(initialRoute.clientTab)
   );
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(initialRoute.quotationId ?? null);
   // ליד שהגיעו אליו מחיפוש במסך הלקוחות — מסך הלידים נפתח עליו
@@ -625,7 +632,7 @@ export default function App() {
       syncedPath.current = formatRoute(route);
       setView(route.view);
       setSelectedId(route.clientId ?? null);
-      setClientInitialTab(route.clientTab as ClientTabId | undefined);
+      setClientInitialTab(clientTabFromRoute(route.clientTab));
       setQuickViewId(route.quickId ?? null);
       setSelectedRequestId(route.requestId ?? null);
       setEditingQuotationId(route.quotationId ?? null);
@@ -2377,6 +2384,10 @@ export default function App() {
               setView('annualReport');
             }}
             initialTab={clientInitialTab}
+            /* ‼ אין מזהה בכתובת ⇒ באמת יוצרים לקוח חדש. יש מזהה אבל הכרטיס
+               עוד לא הגיע מהמסד ⇒ לקוח קיים שנטען, ואסור להתייחס אליו כחדש:
+               בדיוק שם נפל הרענון לעורך «התיק» הישן. */
+            creatingNewClient={!selectedId}
             onboardingEnabled={onboardingEnabled}
             engagements={onboarding.engagements}
             onboardingSteps={onboarding.steps}

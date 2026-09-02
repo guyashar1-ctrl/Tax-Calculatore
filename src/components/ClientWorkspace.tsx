@@ -35,17 +35,6 @@ import { clientFromDb } from '../lib/dbMappers';
 import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
 import ActivityTab from './clientTabs/ActivityTab';
 import ChecksTab from './clientTabs/ChecksTab';
-import type { FamilyKey } from '../features/taxFile/editModel';
-
-/** משפחה בתיק המס ⇄ הקבוצה המקבילה במסך המאוחד («התיק»). */
-const DOSSIER_GROUP_FOR_FAMILY: Record<FamilyKey, string> = {
-  auth: 'מס הכנסה',
-  income: 'מעבידים',
-  family: 'מצב משפחתי',
-  assets: 'נכסים והשקעות',
-  deductions: 'קופות פנסיה וחיסכון',
-  foreign: 'דיווחי חובה ומצבים מיוחדים',
-};
 import type { AuthorityFlag } from '../utils/authorityFlags';
 import InfoLines from './ui/InfoLines';
 
@@ -121,6 +110,13 @@ interface Props {
   onOpenAnnualReport?: (clientId: string, taxYear: number) => void;
   // לשונית הפתיחה — למי שהגיע לכאן בשביל דבר מסוים (למשל מסמכי הייצוג)
   initialTab?: TabId;
+  /**
+   * ‼ «לקוח חדש» ו«הלקוח עוד לא נטען» נראים זהים מבפנים — בשני המקרים
+   * `client` הוא null. בלי ההבחנה הזו כל רענון של כרטיס קיים נחת בעורך
+   * «התיק» הישן, כאילו התבקשה יצירת לקוח. רק המסך שמעל יודע להבדיל:
+   * יש מזהה בכתובת ⇒ לקוח קיים שעוד נטען.
+   */
+  creatingNewClient?: boolean;
   // ─── קליטה ───
   /** כבוי ⇒ הלשונית לא קיימת (settings.flags.onboardingTab=false). */
   onboardingEnabled?: boolean;
@@ -209,6 +205,7 @@ export default function ClientWorkspace({
   onDeleteTask,
   onOpenAnnualReport,
   initialTab,
+  creatingNewClient,
   onboardingEnabled,
   engagements,
   onboardingSteps,
@@ -241,8 +238,11 @@ export default function ClientWorkspace({
    * מוצגים. ראה docs/PLAN-PERSON-AND-COUPLE-MODEL.md.
    */
   const spouseClient = client.spouseClientId ? clients.find(c => c.id === client.spouseClientId) : undefined;
-  // לקוח חדש נוחת ישר ב"תיק" — שם ממלאים את הפרטים
-  const [tab, setTab] = useState<TabId>(initialTab ?? (initialClient ? 'overview' : 'dossier'));
+  // לקוח חדש נוחת ישר ב"תיק" — שם ממלאים את הפרטים.
+  // ‼ **רק** לקוח חדש באמת. קודם התנאי היה `initialClient ? ... : 'dossier'`,
+  // וברענון או בקישור עומק הכרטיס עוד לא נטען ברינדור הראשון — כך שכל כניסה
+  // ישירה לכרטיס לקוח קיים נחתה בעורך «התיק» הישן ונשארה שם.
+  const [tab, setTab] = useState<TabId>(initialTab ?? (creatingNewClient ? 'dossier' : 'overview'));
   /** תיקייה שהמסך צריך לפתוח בלשונית המסמכים — נקבעת בקיצור ממסך הקליטה. */
   const [docsFolderId, setDocsFolderId] = useState<string | null>(null);
   // ‼ ברענון ישיר של הכתובת הלקוח עוד לא נטען מהמסד ברינדור הראשון, ולכן
@@ -260,13 +260,9 @@ export default function ClientWorkspace({
   /**
    * מצב העריכה של תיק המס. ‼ null = קריאה. זו אינה לשונית נפרדת ולא מסך
    * שני — זה המצב השני של אותה לשונית, ולכן החזרה נוחתת בדיוק במקום.
+   * ‼ העריכה כולה חיה בתוך TaxFileTab עצמו, בתא של הערך. אין כאן יותר שום
+   * מצב שמנווט למסך אחר — «התיק» ירד ממסלול תיק המס.
    */
-  // ‼ המפה הזאת היא כל מה שנשאר מהעורך הישן: המשפחה שממנה נלחצה «עריכה»
-  // בתיק המס מתורגמת לקבוצה במסך המאוחד, כדי שהלחיצה תנחת על אותו נושא.
-  // ‼ העורך המסך-מלא «עריכת תיק המס» ירד ממסלול המוצר. עריכת תיק המס
-  // מתרחשת במסך המאוחד (לשונית «התיק»), ולכן כל «עריכה» בתיק המס פותחת
-  // אותו — על הקבוצה שממנה נלחצה, ולא על עוגן קבוע.
-  const [dossierGroup, setDossierGroup] = useState<string | undefined>(undefined);
   const [creatingRequestKey, setCreatingRequestKey] = useState<string | null>(null);
   const [alignRerunBusy, setAlignRerunBusy] = useState(false);
 
@@ -595,13 +591,18 @@ export default function ClientWorkspace({
     // בזמן שעומדים עליה לא אמור להשאיר מסך בלי לשונית פעילה.
     if (tab === 'checks' && !checksTabEnabled) { setTab('overview'); return; }
     if (tab !== 'overview' && tab !== 'onboarding') return;
-    if (!tabPickedByUser.current && initialClient?.id) {
+    // לקוח חדש באמת — «התיק» הוא המסך שבו ממלאים אותו, ואין לאן לנחות.
+    if (creatingNewClient) return;
+    // ‼ עוד לא נטען ⇒ אין החלטה, ממתינים לסבב הבא. בלי זה נחיתת ברירת
+    // המחדל רצה על כרטיס ריק ומקבעת לשונית שגויה לפני שהנתונים הגיעו.
+    if (!initialClient?.id) return;
+    if (!tabPickedByUser.current) {
       const stage = initialClient.lifecycleStage ?? 'active';
       setTab(stage === 'active' || stage === 'archived' ? 'taxfile' : 'journey');
     } else {
       setTab('journey');
     }
-  }, [journeyUi, tab, initialClient?.id, checksTabEnabled]);
+  }, [journeyUi, tab, initialClient?.id, checksTabEnabled, creatingNewClient]);
 
   const fullName = `${client.firstName} ${client.lastName}`.trim() || (isNew ? 'לקוח חדש' : '(ללא שם)');
   const status = client.representationStatus ?? 'active';
@@ -833,7 +834,12 @@ export default function ClientWorkspace({
             onOpenSpouseClient={onOpenClient}
             onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
-            onOpenDetails={() => setTab('dossier')}
+            /* ‼ `onOpenDetails` ו-`onEditFamily` **אינם מועברים יותר, בכוונה.**
+               שניהם ניווטו לעורך «התיק» הישן — מסך עם עשרים קבוצות שדות
+               שהציג את עצמו כרשומה מקצועית שנייה. יש משטח אחד לתיק המס:
+               המסך הזה. צפייה, עריכה ואוטומציה קורות כאן, בתא של הערך עצמו.
+               הכפתורים שהיו תלויים בשתי הפרופס האלה פשוט אינם מצוירים —
+               TaxFileTab מציג אותם רק כשהפרופ קיים. */
             /* ‼ יישור הקו מופעל מתיק המס וחוזר אליו — אין יעד קבוע נפרד
                לתוצאה. rerunAlignment מעביר ללשונית הבקשות רק לזמן ההזנה,
                כי שם חיים מסכי המיקוד לכל מוסד. */
@@ -844,7 +850,6 @@ export default function ClientWorkspace({
             onCreateTask={(title) => onAddTaskForClient(client.id, title)}
             onCreateRequest={(flag) => void createFlagRequest(flag)}
             creatingRequestKey={creatingRequestKey}
-            onEditFamily={(f) => { setDossierGroup(DOSSIER_GROUP_FOR_FAMILY[f]); setTab('dossier'); }}
           />
         )}
 
@@ -913,7 +918,6 @@ export default function ClientWorkspace({
             isNew={isNew}
             onCreateSpouseClient={onCreateSpouseClient ? () => onCreateSpouseClient(client) : undefined}
             onOpenSpouseClient={onOpenClient}
-            initialGroup={dossierGroup}
           />
         )}
 
