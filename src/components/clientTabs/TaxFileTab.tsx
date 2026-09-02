@@ -12,9 +12,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Client, RentalTaxTrack, TaxAuthority, NiOccupation } from '../../types';
 import { FAMILY_STATUS_LABELS, TAX_AUTHORITY_LABELS } from '../../types';
-import type { TaxFactChange } from '../../types/taxFacts';
+import type { TaxFactChange, ProposedFact } from '../../types/taxFacts';
 import { TAX_FACT_SOURCE_LABELS } from '../../types/taxFacts';
-import { proposeTaxFacts } from '../../lib/taxFacts';
+import { proposeTaxFacts, listPendingTaxFactChanges } from '../../lib/taxFacts';
 import { useTaxFacts } from '../../hooks/useTaxFacts';
 import { shortDate } from '../../utils/clientDerived';
 import { spouseDisplayName, registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from '../../features/annualReport/profile';
@@ -29,11 +29,12 @@ import type { EditField, FamilyKey } from '../../features/taxFile/editModel';
 import { LIST_SPECS, cleanList } from '../../features/taxFile/listModel';
 import type { ListKey, ListItem } from '../../features/taxFile/listModel';
 import ListEditor from '../../features/taxFile/ListEditor';
-import ShaamFieldSync from './ShaamFieldSync';
-import BtlFieldSync from './BtlFieldSync';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
-import { useShaamReadiness, SHAAM_READ_134 } from '../../hooks/shaamReadiness';
+import { useShaamReadiness } from '../../hooks/shaamReadiness';
+import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
+import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
+import { AuthorityCheckButton, AuthorityCheckSummary, FieldStatusMark, FieldAuthorityLine } from './AuthorityCheckPanel';
 import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 import { domainKnowledge, taxReadiness } from '../../utils/taxKnowledge';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
@@ -294,10 +295,11 @@ export default function TaxFileTab({
   const shaamSync = useAutomationJob(client.id || undefined, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
   // ‼ הכרטיס מציג את הסיבה של **היכולת** (קריאת 134), לא של המוכנות
   // הגלובלית. הנורית בכותרת ממשיכה לייצג את כל השכבות.
-  const shaamCap = useShaamReadiness().capability(SHAAM_READ_134);
-  const [adoptingKey, setAdoptingKey] = useState<string | null>(null);
-  const [adoptError, setAdoptError] = useState<string | null>(null);
-  const [adoptNotice, setAdoptNotice] = useState<string | null>(null);
+  const shaamReadiness = useShaamReadiness();
+  // ‼ אישור מקובץ — פעם אחת לכרטיס, לא לשדה. ראה approveAuthorityChanges.
+  const [approvingAuthority, setApprovingAuthority] = useState<TaxAuthority | null>(null);
+  const [approveError, setApproveError] = useState<string | null>(null);
+  const [approveNotice, setApproveNotice] = useState<string | null>(null);
 
   // ─── עריכה במקום — מנגנון אחד לכל תיק המס ──────────────────────────────────
   // ‼ המודל המאושר: צפייה, עריכה ואוטומציה באותו מסך. «ערוך» פותח שדות
@@ -1515,7 +1517,7 @@ export default function TaxFileTab({
                 id="abroad" name="חו״ל" stale={isStale('foreign')} summary={foreignSummary}
                 open={openRows.has('abroad')} onToggle={toggleRow}
               >
-                {editingSection === 'abroad' ? renderLists() : (
+                {editingSection === 'abroad' ? renderLists() : foreignAccounts.length > 0 && (
                   <div className="txf-kv">
                     {foreignAccounts.map(a => (
                       <KV key={a.id} k={a.institutionName || 'חשבון בחו״ל'} v={a.country || '-'} />
@@ -1614,7 +1616,7 @@ export default function TaxFileTab({
                 id="pen" name="פנסיה והשתלמות" stale={isStale('pension')} summary={pensionSummary}
                 open={openRows.has('pen')} onToggle={toggleRow}
               >
-                {editingSection === 'pen' ? renderLists() : (
+                {editingSection === 'pen' ? renderLists() : pensionFunds.length > 0 && (
                   <div className="txf-kv">
                     {pensionFunds.map(p => <KV key={p.id} k="פנסיה / השתלמות" v={p.institutionName} />)}
                   </div>
