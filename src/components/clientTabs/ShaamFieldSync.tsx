@@ -42,16 +42,26 @@ function mapAdvanceRate(raw: string): string | null {
 }
 
 /**
- * ‼ «לא נדרש במקדמה» אינו כישלון קריאה — זו עובדה עסקית ששע״ם מדווחת
- * במפורש (ראה advanceStatus/advanceReason ב-extractIncomeTaxFileFacts).
- * אין שם אחוז מספרי בשום מקום במסך, ולכן **לא** מציגים "0": זה היה נתון
- * שהומצא, לא נתון שנקרא. שני השדות (שיעור ותדירות) חולקים את אותה הודעה,
- * כי שניהם חסרים מאותה סיבה עסקית אחת.
+ * ‼ «לא נדרש במקדמה» וגם «בוטלה» אינם כישלון קריאה — שתי עובדות עסקיות
+ * ששע״ם מדווחת במפורש (advanceStatus/advanceReason/advanceStatusRaw
+ * ב-extractIncomeTaxFileFacts), ושתיהן **שונות זו מזו**:
+ *   · no_advance — אין כרגע חבות מקדמה כלל (למשל בגלל בסיס אפס).
+ *   · cancelled  — היה שיעור מוקצה לתיק, והוא **בוטל**. זו לא "0%" וזו
+ *     לא "לא רלוונטי" — יש הבדל עסקי בין "מעולם לא היה חיוב" ל"היה
+ *     חיוב וכעת בוטל", ולכן הודעה נפרדת שאומרת את זה במפורש.
+ * בשני המצבים אין שם אחוז מספרי בשום מקום במסך, ולכן **לא** מציגים "0":
+ * זה היה נתון שהומצא, לא נתון שנקרא. שני השדות (שיעור ותדירות) חולקים
+ * את אותה הודעה בכל מצב, כי שניהם חסרים מאותה סיבה עסקית אחת.
  */
 function advanceEmptyReason(fields: Record<string, string>): string | null {
-  if (fields.advanceStatus !== 'no_advance') return null;
   const reason = (fields.advanceReason ?? '').trim();
-  return reason ? `שע״ם: לא נדרש במקדמה (סיבה: ${reason})` : 'שע״ם: לא נדרש במקדמה.';
+  if (fields.advanceStatus === 'no_advance') {
+    return reason ? `שע״ם: לא נדרש במקדמה (סיבה: ${reason})` : 'שע״ם: לא נדרש במקדמה.';
+  }
+  if (fields.advanceStatus === 'cancelled') {
+    return reason ? `שע״ם: המקדמה הקודמת בוטלה — ${reason}` : 'שע״ם: המקדמה הקודמת בוטלה.';
+  }
+  return null;
 }
 
 /**
@@ -99,8 +109,9 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, ShaamFieldSource> = {
   pitAdvanceFrequency: { source: 'advanceFrequency', normalize: mapAdvanceFrequency, emptyReason: advanceEmptyReason },
   // ‼ «יתרה» כאן היא יתרת חשבון המקדמות לשנה, לא יתרת חשבון מס הכנסה
   // כללית — ומופתה במפורש לשדה הזה לפי החלטת מוצר, לא כי שני המושגים
-  // זהים. נעדרת בדיוק כשאין מקדמה (advanceStatus='no_advance'), ולכן
-  // חולקת את אותה הודעה.
+  // זהים. נעדרת אצל no_advance (נצפה חי); קיימת גם אצל cancelled (נצפה
+  // חי — 0 בשני לקוחות). ה-emptyReason חוברה בכל זאת ליתרה כרשת ביטחון:
+  // אם אי-פעם תיעדר גם שם, תוצג סיבה עסקית ולא "לא החזירה ערך".
   incomeTaxBalance: { source: 'balance', normalize: mapBalance, emptyReason: advanceEmptyReason },
 };
 

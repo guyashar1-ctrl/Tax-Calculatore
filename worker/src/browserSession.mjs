@@ -561,30 +561,44 @@ export async function extractIncomeTaxFileFacts(page) {
       return text ? { ok: true, text } : { ok: false, reason: 'empty' };
     };
     /**
-     * מצב המקדמות: פעילה (שיעור+תדירות) או «לא נדרש במקדמה» (עם סיבה).
+     * מצב המקדמות: פעילה / «לא נדרש במקדמה» (עם סיבה) / «בוטלה» (עם סיבה).
      *
      * ‼ העוגן הוא <app-meda-header>, רכיב Angular ייעודי שקיים בדיוק פעם
-     * אחת במסך /gmf-134/main/meda בשני המצבים גם יחד — נצפה חי אצל שני
-     * לקוחות אמיתיים. בתוכו h2.withColor הוא **תמיד** קופסת המצב הנוכחי,
-     * וילדיו (LABEL) הם ההבדל היחיד בין המצבים:
+     * אחת במסך /gmf-134/main/meda בשלושת המצבים גם יחד — נצפה חי אצל
+     * שלושה לקוחות אמיתיים. בתוכו h2.withColor הוא **תמיד** קופסת המצב
+     * הנוכחי, וילדיו (LABEL) הם ההבדל היחיד בין המצבים:
      *   · שני LABEL   ⇒ פעילה: [0]=תדירות («דו-חדשי»), [1]=שיעור («15%»).
      *   · LABEL אחד, «לא נדרש במקדמה» ⇒ אין מקדמה. הסיבה («בסיס אפס» וכו')
      *     יושבת בתווית "סיבת אי חיוב" שבתוך אותו הרכיב.
+     *   · LABEL אחד שמתחיל ב-«בוטלה» (למשל «בוטלה (שעור דו)») ⇒ השיעור
+     *     שהיה מוקצה לתיק בוטל. **אינו** 0% ואינו "לא רלוונטי" — זו עובדה
+     *     שלישית, נפרדת, שנחשפה חי אצל לקוח שלישי. הסיבה יושבת בתווית
+     *     שמתחילה ב-"החלטה" בתוך תיבת המטא-דאטה (.whitediv) של אותו רכיב
+     *     — אותה תיבה שקיימת גם אצל לקוח פעיל, רק עם החלטה אחרת בתוכה.
      * זה חזק בהרבה מ"האלמנט היחיד שמסתיים ב-%": בעבר לא היה עוגן קונטיינר
      * בכלל, ולכן "אפס % במסך" ו"אין % כי הרכיב לא בכלל שם" לא היו ניתנים
-     * להבחנה. עכשיו שניהם עוברים דרך אותו רכיב, ורק תוכנו קובע.
+     * להבחנה, ו"בוטלה" לא היה מזוהה כלל (נפל לדו-משמעי).
      * ‼ כל צורה אחרת (0 או >1 <app-meda-header>, 0 או >1 h2.withColor,
      * תווית אחת בטקסט לא-מוכר, שיעור שאינו תואם %) ⇒ דו-משמעי. לא מנחשים.
      */
     const readAdvance = () => {
       const NO_ADVANCE_LABEL = 'לא נדרש במקדמה';
+      const CANCELLED_PREFIX = /^בוטלה/;
       const PCT = /^\d+(\.\d+)?%$/;
       const fail = (reason) => ({
         status: { ok: false, reason },
+        statusRaw: { ok: false, reason },
         rate: { ok: false, reason },
         frequency: { ok: false, reason },
         reason: { ok: false, reason: 'not_applicable' },
       });
+      /** «החלטה: X» בתוך תיבת המטא-דאטה — אותו מבנה שמסביר גם למה הופעל. */
+      const decisionReason = (header) => {
+        const label = [...header.querySelectorAll('.whitediv label')]
+          .find((l) => (l.innerText || '').trim().startsWith('החלטה'));
+        if (!label) return '';
+        return (label.innerText || '').replace(/\s+/g, ' ').trim().replace(/^החלטה\s*/, '');
+      };
 
       const headers = document.querySelectorAll('app-meda-header');
       if (headers.length !== 1) return fail(headers.length ? 'ambiguous_header' : 'header_missing');
@@ -602,29 +616,48 @@ export async function extractIncomeTaxFileFacts(page) {
         if (!freqText || !PCT.test(rateText)) return fail('unrecognized_active_shape');
         return {
           status: { ok: true, text: 'active' },
+          statusRaw: { ok: true, text: 'active' },
           rate: { ok: true, text: rateText },
           frequency: { ok: true, text: freqText },
           reason: { ok: false, reason: 'not_applicable' },
         };
       }
 
-      if (labels.length === 1 && (labels[0].innerText || '').trim() === NO_ADVANCE_LABEL) {
-        // ‼ «סיבת אי חיוב» (reason for no charge) יושבת ב-.mt-1 עם שני span:
-        // התווית ("סיבת אי חיוב") והערך ("בסיס אפס"). לא קיימת אצל לקוח
-        // פעיל — נצפה: אין שם צורך "להסביר" חיוב שקיים.
-        const reasonBlock = [...header.querySelectorAll('.mt-1')]
-          .find((d) => (d.innerText || '').includes('סיבת אי חיוב'));
-        const reasonSpans = reasonBlock ? [...reasonBlock.querySelectorAll('span')] : [];
-        const reasonText = reasonSpans.length >= 2
-          ? (reasonSpans[1].innerText || '').replace(/\s+/g, ' ').trim() : '';
-        return {
-          status: { ok: true, text: 'no_advance' },
-          // ‼ לא 0: שע״ם לא מציגה שיעור מספרי כלשהו למצב הזה — אין שם %
-          // בשום מקום. "0" היה נתון שהומצא, לא נתון שנקרא.
-          rate: { ok: false, reason: 'not_applicable' },
-          frequency: { ok: false, reason: 'not_applicable' },
-          reason: reasonText ? { ok: true, text: reasonText } : { ok: false, reason: 'no_reason_shown' },
-        };
+      if (labels.length === 1) {
+        const labelText = (labels[0].innerText || '').replace(/\s+/g, ' ').trim();
+
+        if (labelText === NO_ADVANCE_LABEL) {
+          // ‼ «סיבת אי חיוב» (reason for no charge) יושבת ב-.mt-1 עם שני
+          // span: התווית ("סיבת אי חיוב") והערך ("בסיס אפס"). לא קיימת
+          // אצל לקוח פעיל — נצפה: אין שם צורך "להסביר" חיוב שקיים.
+          const reasonBlock = [...header.querySelectorAll('.mt-1')]
+            .find((d) => (d.innerText || '').includes('סיבת אי חיוב'));
+          const reasonSpans = reasonBlock ? [...reasonBlock.querySelectorAll('span')] : [];
+          const reasonText = reasonSpans.length >= 2
+            ? (reasonSpans[1].innerText || '').replace(/\s+/g, ' ').trim() : '';
+          return {
+            status: { ok: true, text: 'no_advance' },
+            statusRaw: { ok: true, text: labelText },
+            // ‼ לא 0: שע״ם לא מציגה שיעור מספרי כלשהו למצב הזה — אין שם %
+            // בשום מקום. "0" היה נתון שהומצא, לא נתון שנקרא.
+            rate: { ok: false, reason: 'not_applicable' },
+            frequency: { ok: false, reason: 'not_applicable' },
+            reason: reasonText ? { ok: true, text: reasonText } : { ok: false, reason: 'no_reason_shown' },
+          };
+        }
+
+        if (CANCELLED_PREFIX.test(labelText)) {
+          const reasonText = decisionReason(header);
+          return {
+            status: { ok: true, text: 'cancelled' },
+            // ‼ הטקסט הגולמי המלא, כולל הפרטים בסוגריים (למשל «(שעור דו)»)
+            // — נשמר, אבל **לא** נגזר ממנו שיעור/תדירות "כאילו עדיין פעיל".
+            statusRaw: { ok: true, text: labelText },
+            rate: { ok: false, reason: 'not_applicable' },
+            frequency: { ok: false, reason: 'not_applicable' },
+            reason: reasonText ? { ok: true, text: reasonText } : { ok: false, reason: 'no_reason_shown' },
+          };
+        }
       }
 
       return fail('unrecognized_label_text');
@@ -660,6 +693,7 @@ export async function extractIncomeTaxFileFacts(page) {
       unit: read('חולייה'),
       economicIndustry: read('ענף כלכלי'),
       advanceStatus: adv.status,
+      advanceStatusRaw: adv.statusRaw,
       advanceRate: adv.rate,
       advanceFrequency: adv.frequency,
       advanceReason: adv.reason,
