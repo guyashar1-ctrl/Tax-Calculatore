@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { createAutomationJob, cancelAutomationJob } from '../lib/automationJobs';
-import { automationWorkerFromDb, automationJobFromDb } from '../lib/dbMappers';
+import { automationJobFromDb } from '../lib/dbMappers';
 import {
   SHAAM_CONNECT_ACTION_TYPE,
   SHAAM_DISCONNECT_ACTION_TYPE,
-  WORKER_STALE_AFTER_MS,
 } from '../types/automation';
-import type { AutomationJob, AutomationWorkerStatus } from '../types/automation';
+import type { AutomationJob } from '../types/automation';
+import { useShaamReadiness } from './shaamReadiness';
 
 const POLL_MS = 4000;
 
@@ -39,31 +39,26 @@ export interface AuthorityConnectionState {
  * ‼ אין כאן שום מידע אימות — רק דגל "מחובר" וחותמת זמן.
  */
 export function useAuthorityConnections(userId: string | undefined) {
-  const [status, setStatus] = useState<AutomationWorkerStatus>({});
-  const [workerOffline, setWorkerOffline] = useState(true);
+  const readiness = useShaamReadiness();
+  const { status, workerOffline } = readiness;
   const [job, setJob] = useState<AutomationJob | null>(null);
   const [busy, setBusy] = useState(false);
   const [uiError, setUiError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ‼ המוכנות **אינה** נקראת כאן. היא מגיעה מ-ShaamReadinessProvider, מקור
+  // האמת היחיד שגם פקדי השדות קוראים ממנו. כשהיו שני מקורות, הכותרת הייתה
+  // ירוקה בזמן שהפקד בשדה הכריז "לא מוכן". כאן נשארת רק משימת ההתחברות.
   const refresh = useCallback(async () => {
     if (!userId) return;
-    const [workerRes, jobRes] = await Promise.all([
-      supabase.from('automation_workers').select('*')
-        .order('last_seen_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('automation_jobs').select('*')
-        .is('client_id', null)
-        .eq('action_type', SHAAM_CONNECT_ACTION_TYPE)
-        .in('status', ['queued', 'running', 'needs_human'])
-        .order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    ]);
-
-    const w = workerRes.data ? automationWorkerFromDb(workerRes.data) : null;
-    const stale = !w || !(Date.now() - new Date(w.lastSeenAt).getTime() < WORKER_STALE_AFTER_MS);
-    setWorkerOffline(stale);
-    setStatus(stale ? {} : (w?.status ?? {}));
+    const jobRes = await supabase.from('automation_jobs').select('*')
+      .is('client_id', null)
+      .eq('action_type', SHAAM_CONNECT_ACTION_TYPE)
+      .in('status', ['queued', 'running', 'needs_human'])
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
     setJob(jobRes.data ? automationJobFromDb(jobRes.data) : null);
-  }, [userId]);
+    await readiness.refresh();
+  }, [userId, readiness]);
 
   useEffect(() => {
     void refresh();
@@ -77,8 +72,8 @@ export function useAuthorityConnections(userId: string | undefined) {
   const shaamAlive = !!status.shaam?.connected;
   const gmfReady = !!status.gmf?.ready;
   const vatReady = !!status.vat?.ready;
-  const nikuiReady = !!status.nikui?.ready;
-  const ready = shaamAlive && gmfReady && vatReady && nikuiReady;
+  // ‼ אותו ערך בדיוק שפקדי השדות קוראים — לא חישוב מקביל.
+  const ready = readiness.ready;
 
   // ‼ ברגע שהחיבור הושלם, משימת ה"התחברות" שנותרה פתוחה כבר לא מתארת כלום —
   // והיא חוסמת יצירת משימה חדשה (אינדקס ייחודי על משימה פתוחה אחת). בלי

@@ -30,6 +30,7 @@ import { useTheme } from './hooks/useTheme';
 import { PivoMark } from './components/PivoMark';
 import Icon from './components/ui/Icon';
 import AuthorityConnectionButtons from './components/AuthorityConnectionButtons';
+import { ShaamReadinessProvider } from './hooks/shaamReadiness';
 import { supabase } from './lib/supabase';
 import { edgeFunctionError } from './utils/functionError';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
@@ -2068,6 +2069,10 @@ export default function App() {
       ];
 
   return (
+    // ‼ מקור אמת אחד למוכנות שע״ם, סביב כל האפליקציה: הנורית בכותרת ופקדי
+    // הסנכרון בשדות קוראים מאותו ספק. כשהיו שני מקורות הם סתרו זה את זה על
+    // אותו מסך — ירוק בכותרת מול "לא מוכן" בשדה.
+    <ShaamReadinessProvider userId={user?.id}>
     <div className="app">
       <header className="header">
         {/* אלמנט שאפשר ללחוץ עליו חייב להיות נגיש גם במקלדת (§6.4) */}
@@ -2816,5 +2821,6 @@ export default function App() {
         );
       })()}
     </div>
+    </ShaamReadinessProvider>
   );
 }

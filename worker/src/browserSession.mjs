@@ -299,7 +299,9 @@ async function reuseOpenSystemPage(context, pathPrefix, evaluate) {
     let s;
     try { s = await snapPage(p); } catch { continue; }
     const verdict = evaluate(s);
-    if (verdict.ready) return { ...verdict, pathname: s.pathname, reused: true };
+    // ‼ מחזירים גם את הדף עצמו: מי שקורא צריך לאמת עליו חסימות שאינן
+    // נראות בצילום המצב (למשל חומת אימות).
+    if (verdict.ready) return { ...verdict, page: p, pathname: s.pathname, reused: true };
   }
   return null;
 }
@@ -663,19 +665,39 @@ export async function isOnWorkScreen(page) {
   return /^\/gmf-(?!main-menu)/.test(s.pathname);
 }
 
+/**
+ * ‼ חומת אימות = **לא מוכנה**, גם כשהנתיב תקין ואין שדה סיסמה.
+ *
+ * בלי זה הנורית מדווחת «מוכנה» בזמן שכל פעולה תיחסם מיד ב«פג תוקף האימות»
+ * — ירוק שקרי. נצפה בפועל: GMF=מוכנה, ובאותה דקה הפעולה חזרה «דרוש אדם».
+ */
+async function gmfStateOnPage(page, snap) {
+  const base = gmfState(snap);
+  if (!base.ready) return base;
+  const modal = await readGmfBlockingModal(page);
+  return modal.blocked
+    ? { ready: false, reason: 'auth_wall', detail: modal.title }
+    : base;
+}
+
 export async function readGmfOnCurrentPage(page) {
   const s = await snapPage(page);
   if (!s.pathname.startsWith(GMF_PATH)) return { onGmf: false, ready: null };
-  return { onGmf: true, ...gmfState(s), pathname: s.pathname };
+  return { onGmf: true, ...(await gmfStateOnPage(page, s)), pathname: s.pathname };
 }
 
 /** מנווט ל-GMF ומחזיר את מצבה אחרי התייצבות. משאיר את הדפדפן שם. */
 export async function openGmfAndCheck(page) {
   const reused = await reuseOpenSystemPage(page.context(), GMF_PATH, gmfState);
-  if (reused) return reused;
+  if (reused) {
+    // ‼ גם לשונית שנמצאה «מוכנה» נבדקת מול חומת האימות — אחרת השימוש
+    // מחדש היה הדרך העוקפת שמחזירה ירוק שקרי.
+    const verified = await gmfStateOnPage(reused.page, await snapPage(reused.page));
+    return { ...reused, ...verified };
+  }
   await page.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
   const s = await settlePage(page);
-  return { ...gmfState(s), pathname: s.pathname };
+  return { ...(await gmfStateOnPage(page, s)), pathname: s.pathname };
 }
 
 /**
