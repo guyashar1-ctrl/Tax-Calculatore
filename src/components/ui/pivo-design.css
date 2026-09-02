@@ -4561,3 +4561,15 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 /* ⟳ בתוך שורת עובדה בכרטיס הרשות (txf-kv) — קומפקטי, לא שובר את הרשת. */
 .txf-kv .ial-fsync{margin-top:3px;gap:6px}
 .txf-kv .ial-fsync-val{font-size:11px}
+
+/* ── עריכה במקום בכרטיס הרשות ────────────────────────────────────────────
+   ‼ אותו מקום שבו יושב הערך. הרשת, הסדר וההיררכיה של הכרטיס לא משתנים —
+   רק תא הערך מתחלף בשדה קלט. */
+.txf-inline-edit input,
+.txf-inline-edit select{width:100%;max-width:220px;font:inherit;font-size:12px;
+  padding:3px 6px;border:1px solid var(--bd-strong);border-radius:6px;
+  background:var(--card);color:var(--ink-1)}
+.txf-inline-edit input:focus,
+.txf-inline-edit select:focus{outline:none;border-color:var(--accent)}
+.txf-inline-edit .txf-note{margin-top:3px;font-size:11px;line-height:1.45;color:var(--ink-4)}
+.txf-editor-err{font-size:12px;color:var(--danger);margin-inline-start:10px}

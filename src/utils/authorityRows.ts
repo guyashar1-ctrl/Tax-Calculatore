@@ -45,7 +45,11 @@ export interface AuthorityRow {
    * הכרטיס מצייר לידו כפתור קריאה. ‼ נקבע כאן ולא במסך, כדי שהידע "לשדה
    * הזה יש מקור ודאי" יישב במקום אחד.
    */
-  facts: { k: string; v: string; tone?: 'warn' | 'ok'; syncKey?: string }[];
+  /**
+   * `editKey` — מפתח השדה ב-editModel, כשהעובדה ניתנת לעריכה **במקום**
+   * בכרטיס. חסר ⇒ נגזרת (למשל מספר תיק מתוך taxFiles) ולכן לקריאה בלבד.
+   */
+  facts: { k: string; v: string; tone?: 'warn' | 'ok'; syncKey?: string; editKey?: string }[];
   /** יש בכלל מה להציג על הרשות הזו. רשות בלי תיק ובלי נתון אינה שורה. */
   present: boolean;
 }
@@ -137,50 +141,51 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
     // התמלא. שורה שנעלמת כשאין לה ערך מסתירה בדיוק את מה שבאים לבדוק.
     // ‼ חוליה יצאה משורת «פקיד שומה» לשורה משלה — שדה עם סנכרון משלו צריך
     // להיראות כשדה, לא כזנב של אחר.
-    facts.push({ k: 'סוג תיק', v: fileTypeText(client.incomeTaxFileType) });
-    facts.push({ k: 'פקיד שומה', v: client.taxOfficeName || EMPTY, syncKey: 'taxOfficeName' });
-    facts.push({ k: 'חוליה', v: client.incomeTaxUnit || EMPTY });
-    facts.push({ k: 'ענף כלכלי', v: client.incomeTaxEconomicIndustry || EMPTY });
+    facts.push({ k: 'סוג תיק', v: fileTypeText(client.incomeTaxFileType), editKey: 'incomeTaxFileType' });
+    facts.push({ k: 'פקיד שומה', v: client.taxOfficeName || EMPTY, syncKey: 'taxOfficeName', editKey: 'taxOfficeName' });
+    facts.push({ k: 'חוליה', v: client.incomeTaxUnit || EMPTY, editKey: 'incomeTaxUnit' });
+    facts.push({ k: 'ענף כלכלי', v: client.incomeTaxEconomicIndustry || EMPTY, editKey: 'incomeTaxEconomicIndustry' });
     const adv = client.pitAdvancePercent != null
       ? `${client.pitAdvancePercent}%${client.pitAdvanceFrequency ? ` · ${VAT_FREQ_LABELS[client.pitAdvanceFrequency]}` : ''}`
       : null;
-    facts.push({ k: 'שיעור מקדמות', v: client.pitAdvancePercent != null ? `${client.pitAdvancePercent}%` : EMPTY });
+    facts.push({ k: 'שיעור מקדמות', v: client.pitAdvancePercent != null ? `${client.pitAdvancePercent}%` : EMPTY, editKey: 'pitAdvancePercent' });
     facts.push({
       k: 'תדירות מקדמות',
       v: client.pitAdvanceFrequency ? VAT_FREQ_LABELS[client.pitAdvanceFrequency] : EMPTY,
+      editKey: 'pitAdvanceFrequency',
     });
     const bal = balanceText(client.incomeTaxBalance);
-    facts.push(bal ? { k: 'יתרה', v: bal.text, tone: bal.tone } : { k: 'יתרה', v: EMPTY });
+    facts.push(bal ? { k: 'יתרה', v: bal.text, tone: bal.tone, editKey: 'incomeTaxBalance' } : { k: 'יתרה', v: EMPTY, editKey: 'incomeTaxBalance' });
     if (client.incomeTaxReportingStatus) {
       const ok = client.incomeTaxReportingStatus.trim() === 'אין דיווחים חסרים';
-      facts.push({ k: 'מצב דיווחים', v: client.incomeTaxReportingStatus, tone: ok ? 'ok' : 'warn' });
+      facts.push({ k: 'מצב דיווחים', v: client.incomeTaxReportingStatus, tone: ok ? 'ok' : 'warn', editKey: 'incomeTaxReportingStatus' });
     } else {
-      facts.push({ k: 'מצב דיווחים', v: EMPTY });
+      facts.push({ k: 'מצב דיווחים', v: EMPTY, editKey: 'incomeTaxReportingStatus' });
     }
     if (client.capitalDeclarationRequired != null) {
       facts.push(client.capitalDeclarationRequired
-        ? { k: 'הצהרת הון', tone: 'warn',
+        ? { k: 'הצהרת הון', tone: 'warn', editKey: 'capitalDeclarationRequired',
             v: `דרישה פתוחה${client.capitalDeclarationDeadline ? ` · עד ${shortDate(client.capitalDeclarationDeadline)}` : ''}` }
-        : { k: 'הצהרת הון', v: 'אין דרישה פתוחה', tone: 'ok' });
+        : { k: 'הצהרת הון', v: 'אין דרישה פתוחה', tone: 'ok', editKey: 'capitalDeclarationRequired' });
     } else {
-      facts.push({ k: 'הצהרת הון', v: EMPTY });
+      facts.push({ k: 'הצהרת הון', v: EMPTY, editKey: 'capitalDeclarationRequired' });
     }
     if (client.withholdingStatus) {
       const t = WITHHOLDING_LABELS[client.withholdingStatus];
       facts.push({ k: 'ניכוי מס במקור',
         v: client.withholdingStatus === 'rates' && client.withholdingDetail ? `${t} · ${client.withholdingDetail}` : t,
-        tone: client.withholdingStatus === 'none' ? 'warn' : 'ok' });
+        tone: client.withholdingStatus === 'none' ? 'warn' : 'ok', editKey: 'withholdingStatus' });
     } else {
-      facts.push({ k: 'ניכוי מס במקור', v: EMPTY });
+      facts.push({ k: 'ניכוי מס במקור', v: EMPTY, editKey: 'withholdingStatus' });
     }
     if (client.bookStatus && client.bookStatus !== 'unknown') {
       facts.push({ k: 'ניהול ספרים', v: client.bookStatus === 'kosher' ? 'תקין' : 'נפסל',
-        tone: client.bookStatus === 'kosher' ? 'ok' : 'warn' });
+        tone: client.bookStatus === 'kosher' ? 'ok' : 'warn', editKey: 'bookStatus' });
     } else {
-      facts.push({ k: 'ניהול ספרים', v: EMPTY });
+      facts.push({ k: 'ניהול ספרים', v: EMPTY, editKey: 'bookStatus' });
     }
     const auth = authText(client.incomeTaxDebitAuthorization);
-    facts.push(auth ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone } : { k: 'הרשאה לחיוב', v: EMPTY });
+    facts.push(auth ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone, editKey: 'incomeTaxDebitAuthorization' } : { k: 'הרשאה לחיוב', v: EMPTY, editKey: 'incomeTaxDebitAuthorization' });
     // ‼ שע״ם היא הרשאה אחת לכל הרשויות ולכן יושבת כאן בלבד, לא בכל שורה.
     facts.push({ k: 'הרשאת שע״ם', v: client.shaamStatus ? SHAAM_STATUS_LABELS[client.shaamStatus] : EMPTY });
     const rep = repOf('income_tax');

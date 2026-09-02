@@ -10,7 +10,7 @@
 // מקובלות על הלקוח — המלצה מחושבת מתוך ברירות מחדל הייתה מטעה.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Client, RentalTaxTrack } from '../../types';
+import type { Client, RentalTaxTrack, TaxAuthority } from '../../types';
 import { FAMILY_STATUS_LABELS } from '../../types';
 import type { TaxFactChange } from '../../types/taxFacts';
 import { TAX_FACT_SOURCE_LABELS } from '../../types/taxFacts';
@@ -21,6 +21,10 @@ import { spouseDisplayName, registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } fr
 import { getTaxYearData } from '../../data/taxData';
 import { calcCreditPoints } from '../../utils/taxCalculations';
 import { buildAuthorityRows } from '../../utils/authorityRows';
+import type { AuthorityRow } from '../../utils/authorityRows';
+import {
+  EDIT_FIELD_BY_KEY, editFieldValue, coerceEditField, editFieldDisplay,
+} from '../../features/taxFile/editModel';
 import ShaamFieldSync from './ShaamFieldSync';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
@@ -221,6 +225,63 @@ export default function TaxFileTab({
   const [adoptingKey, setAdoptingKey] = useState<string | null>(null);
   const [adoptError, setAdoptError] = useState<string | null>(null);
   const [adoptNotice, setAdoptNotice] = useState<string | null>(null);
+
+  // ─── עריכה במקום בכרטיס הרשות ─────────────────────────────────────────────
+  // ‼ המודל המאושר: צפייה, עריכה ואוטומציה באותו מסך. «ערוך» פותח שדות
+  // בתוך הכרטיס עצמו ולא מנווט לשום עורך אחר. השדות, הסוגים והוולידציה
+  // מגיעים מ-editModel — אותן הגדרות שהעורך הישן השתמש בהן, לא עותק שני.
+  const [editingAuthority, setEditingAuthority] = useState<TaxAuthority | null>(null);
+  const [authDrafts, setAuthDrafts] = useState<Record<string, string>>({});
+  const [authSaving, setAuthSaving] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  function startAuthorityEdit(authority: TaxAuthority, facts: AuthorityRow['facts']) {
+    const drafts: Record<string, string> = {};
+    for (const f of facts) {
+      const def = f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined;
+      if (def) drafts[def.key] = editFieldValue(client, def);
+    }
+    setAuthDrafts(drafts);
+    setAuthError(null);
+    setEditingAuthority(authority);
+  }
+
+  function cancelAuthorityEdit() {
+    setEditingAuthority(null);
+    setAuthDrafts({});
+    setAuthError(null);
+  }
+
+  /**
+   * ‼ נשמר דרך אותו מסלול עובדות שהעורך הישן השתמש בו
+   * (record_manual_fact_change): הערך נכתב **ונרשם** עם פרובננס manual
+   * והיסטוריה. שמירה רגילה הייתה מוחקת פרובננס של עובדות מיישור קו/שאלון.
+   * ‼ רק שדות שהשתנו נשלחים — כדי לא לרשום «עריכה ידנית» על ערך שלא נגעו בו.
+   */
+  async function saveAuthorityEdit() {
+    if (!client.id) return;
+    setAuthSaving(true);
+    setAuthError(null);
+    for (const [key, raw] of Object.entries(authDrafts)) {
+      const def = EDIT_FIELD_BY_KEY[key];
+      if (!def) continue;
+      const before = editFieldValue(client, def);
+      if (raw === before) continue;
+      const res = await recordManualEdit(
+        client.id, def.key, def.label,
+        editFieldDisplay(def, before), editFieldDisplay(def, raw),
+        { [def.key]: coerceEditField(def, raw) } as Partial<Client>,
+      );
+      if (!res.ok) {
+        setAuthError(`${def.label}: ${res.error ?? 'השמירה נכשלה'}`);
+        setAuthSaving(false);
+        return;
+      }
+      if (res.client) onClientPersisted(res.client);
+    }
+    setAuthSaving(false);
+    cancelAuthorityEdit();
+  }
   const incomeTaxFileNumber = ((client.taxFiles ?? [])
     .find(t => t.authority === 'income_tax')?.fileNumber ?? '').replace(/\D/g, '');
 
@@ -584,18 +645,8 @@ export default function TaxFileTab({
             נראו כשתי יכולות. היא נשארה במקום אחד — ליד המידע שהיא מרעננת. */}
       </div>
 
-      {/* ‼ מחליף המצב הוא הכניסה הראשית לעריכה, ולכן הוא יושב כאן ולא
-          בתחתית: קריאה ועריכה הם שני מצבים של אותו תיק, וזה מה שהמתג אומר.
-          קודם הכניסה הבולטת היחידה הובילה לעורך הישן — והמצב החדש נשאר
-          מוסתר מאחורי קישור זעיר שאיש לא ראה. */}
-      {onEditFamily && (
-        <div className="txf-modebar" role="group" aria-label="מצב תיק המס">
-          <button type="button" className="is-on" aria-pressed="true">קריאה</button>
-          <button type="button" onClick={() => onEditFamily('auth')} aria-pressed="false">
-            עריכה מלאה
-          </button>
-        </div>
-      )}
+      {/* ‼ מתג «קריאה / עריכה מלאה» ירד: אין יותר חוויית עריכה נפרדת לתיק
+          המס. הצפייה, העריכה והאוטומציה קורות באותו מסך, בתוך הכרטיס. */}
 
       <div className="txf-sentence">{sentence}</div>
 
@@ -746,9 +797,10 @@ export default function TaxFileTab({
           המספרים חיים עכשיו בפירוט הפתוח, פעם אחת.
           ‼ יישור הקו מופעל מכאן — הוא מרענן את המצב הזה, ואין לו יעד קבוע
           נפרד: בסיומו חוזרים לאותו תיק. */}
+      {/* ‼ אין «עריכה» ברמת המקטע: העריכה היא בתוך כרטיס הרשות עצמו,
+          כי שם יושבים השדות. כפתור כאן היה מוביל שוב למסך אחר. */}
       <SectHead family="auth" title="מול הרשויות"
-        why="עובדות תפעוליות — מתעדכנות ביישור קו"
-        onEdit={onEditFamily && (() => onEditFamily('auth'))}>
+        why="עובדות תפעוליות — מתעדכנות ביישור קו">
         <span className="txf-align-meta">
           <span>{alignedAt ? 'יישור קו אחרון: ' + shortDate(alignedAt) : 'טרם בוצע יישור קו'}</span>
           {onRunAlignment && (
@@ -789,10 +841,40 @@ export default function TaxFileTab({
               onToggle={toggleRow}
             >
               <div className="txf-kv">
-                {row.facts.map((f, i) => (
+                {row.facts.map((f, i) => {
+                  const def = f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined;
+                  const editing = editingAuthority === row.authority && !!def;
+                  return (
                   <div key={i}>
                     <div className="k">{f.k}</div>
-                    <div className={'v ' + (f.tone ?? '')}>{f.v}</div>
+                    {/* ‼ באותו מקום בדיוק שבו יושב הערך — לא בטופס נפרד ולא
+                        במסך אחר. שדה בלי הגדרת עריכה נשאר לקריאה עם «—». */}
+                    {editing && def ? (
+                      <div className="v txf-inline-edit">
+                        {def.kind === 'bool' ? (
+                          <select value={authDrafts[def.key] ?? ''}
+                            onChange={e => setAuthDrafts(d => ({ ...d, [def.key]: e.target.value }))}>
+                            <option value="">טרם ביררנו</option>
+                            <option value="true">כן</option>
+                            <option value="false">לא — נבדק</option>
+                          </select>
+                        ) : def.options ? (
+                          <select value={authDrafts[def.key] ?? ''}
+                            onChange={e => setAuthDrafts(d => ({ ...d, [def.key]: e.target.value }))}>
+                            <option value="">טרם ביררנו</option>
+                            {def.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                          </select>
+                        ) : (
+                          <input type="text"
+                            inputMode={def.kind === 'number' || def.kind === 'money' ? 'numeric' : undefined}
+                            value={authDrafts[def.key] ?? ''} placeholder="—"
+                            onChange={e => setAuthDrafts(d => ({ ...d, [def.key]: e.target.value }))} />
+                        )}
+                        {def.note && <div className="txf-note">{def.note}</div>}
+                      </div>
+                    ) : (
+                      <div className={'v ' + (f.tone ?? '')}>{f.v}</div>
+                    )}
                     {/* ‼ הכפתור יושב על השורה שבכרטיס — זה המסך שהרו"ח קורא
                         בו את מצב התיק, ולכן זה המקום שבו «לקרוא מהרשות»
                         אמור להיות. מציע ולא שומר: «אמץ» הוא לחיצה נפרדת. */}
@@ -814,11 +896,33 @@ export default function TaxFileTab({
                       <div className="ial-fsync-msg">{adoptNotice}</div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
+
+              {/* ‼ פעולות העריכה יושבות בתוך הכרטיס. «ביטול» מחזיר לתצוגה
+                  בלי לכתוב כלום; «שמור» כותב רק שדות שהשתנו. */}
+              {editingAuthority === row.authority && (
+                <div className="txf-editor-actions">
+                  <button type="button" className="ui-btn ui-btn-primary"
+                    disabled={authSaving} onClick={() => { void saveAuthorityEdit(); }}>
+                    {authSaving ? 'שומר…' : 'שמור'}
+                  </button>
+                  <button type="button" className="ui-btn" disabled={authSaving}
+                    onClick={cancelAuthorityEdit}>ביטול</button>
+                  {authError && <span className="txf-editor-err">{authError}</span>}
+                </div>
+              )}
+              {/* ‼ «ערוך» פותח עריכה **כאן**, בכרטיס. הוא לא מנווט לשום
+                  עורך אחר — זה כל המודל המאושר. כרטיס בלי שדות הניתנים
+                  לעריכה לא מקבל כפתור, כדי שלא יבטיח מה שאין. */}
               <SrcLine
                 label={alignedAt ? 'יישור קו מול הרשויות · ' + shortDate(alignedAt) : 'תיקי הרשויות בכרטיס הלקוח'}
-                onEdit={onOpenDetails}
+                onEdit={
+                  editingAuthority === row.authority || !row.facts.some(f => f.editKey)
+                    ? undefined
+                    : () => startAuthorityEdit(row.authority, row.facts)
+                }
               />
             </TRow>
           ))}
@@ -1176,10 +1280,6 @@ export default function TaxFileTab({
           מסד הנתונים. העריכה המלאה היא הראשית; הישן נשאר נגיש, ומנוסח כמה
           שהוא באמת: פרטי לקוח ותפעול משרד, לא תיק מס. */}
       <div className="txf-details-entry">
-        {onEditFamily && (
-          <button type="button" className="ui-btn ui-btn-primary"
-            onClick={() => onEditFamily('auth')}>עריכה מלאה של תיק המס</button>
-        )}
         {onOpenDetails && (
           <button type="button" className="ui-linkbtn" onClick={onOpenDetails}>
             פרטי לקוח ותפעול ←

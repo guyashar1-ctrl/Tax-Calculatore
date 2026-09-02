@@ -121,7 +121,16 @@ export const EDIT_SECTIONS: EditSection[] = [
       c.incomeTaxBalance === 0 ? 'אין יתרה' : c.incomeTaxBalance ? `חוב ${money(c.incomeTaxBalance)}` : '',
     ) || UNKNOWN,
     fields: [
+      // ‼ ארבעת אלה הוצגו בכרטיס «מול הרשויות» אך לא היה להם שדה עריכה בשום
+      // מודל — ולכן לא היה אפשר לתקן אותם במסך שבו רואים אותם. סוג התיק,
+      // החוליה והענף הם גם השדות שיש להם מקור מוכח בשע״ם (שאילתה 134).
+      { key: 'incomeTaxFileType', label: 'סוג תיק', kind: 'text', authority: true, governed: true,
+        note: 'הקוד כפי שמופיע בשע״ם, למשל 52.' },
       { key: 'taxOfficeName', label: 'פקיד שומה', kind: 'text', authority: true, governed: true },
+      { key: 'incomeTaxUnit', label: 'חוליה', kind: 'text', authority: true, governed: true },
+      { key: 'incomeTaxEconomicIndustry', label: 'ענף כלכלי', kind: 'text', authority: true, governed: true },
+      { key: 'incomeTaxReportingStatus', label: 'מצב דיווחים', kind: 'text', authority: true, governed: true },
+      { key: 'incomeTaxDebitAuthorization', label: 'הרשאה לחיוב', kind: 'bool', authority: true, governed: true },
       { key: 'pitAdvancePercent', label: 'שיעור מקדמות', kind: 'number', authority: true, governed: true },
       { key: 'pitAdvanceFrequency', label: 'תדירות מקדמות', kind: 'select', authority: true, governed: true,
         options: [['monthly', 'חודשי'], ['bi_monthly', 'דו-חודשי']] },
@@ -391,3 +400,41 @@ export const SECTIONS_BY_FAMILY = (f: FamilyKey) => EDIT_SECTIONS.filter(s => s.
 /** כל השדות שמשנים נקודות זיכוי — משמש גם למסך וגם לבדיקה. */
 export const CREDIT_FIELDS: string[] =
   EDIT_SECTIONS.flatMap(s => s.fields.filter(f => f.credit).map(f => f.key));
+
+// ─── עזרי ערך משותפים ───────────────────────────────────────────────────────
+// ‼ יושבים כאן, ליד הגדרות השדות, כדי שיהיה עותק אחד: גם מסך תיק המס
+// (עריכה במקום) וגם העורך הישן משתמשים בהם. שכפול היה מאפשר לשני המסכים
+// לפרש את אותו שדה אחרת.
+
+/** ערך לתצוגה בשדה. ‼ undefined ⇒ ריק, ולא 0 — «לא ידוע» אינו אפס. */
+export function editFieldValue(client: Client, f: EditField): string {
+  const raw = (client as unknown as Record<string, unknown>)[f.key];
+  if (raw === undefined || raw === null) return '';
+  if (typeof raw === 'boolean') return raw ? 'true' : 'false';
+  return String(raw);
+}
+
+/** מחרוזת מהטופס ⇒ הערך שנשמר על Client, לפי סוג השדה. */
+export function coerceEditField(f: EditField, v: string): unknown {
+  if (f.kind === 'bool') return v === 'true';
+  if (f.kind === 'number' || f.kind === 'money') {
+    const n = Number(v.replace(/[^\d.-]/g, ''));
+    return v.trim() === '' ? undefined : (Number.isNaN(n) ? undefined : n);
+  }
+  return v;
+}
+
+/** תווית לתצוגה של ערך שנשמר — לשורת ההיסטוריה של שינוי עובדה. */
+export function editFieldDisplay(f: EditField, v: string): string {
+  if (v === '' || v == null) return '—';
+  if (f.kind === 'bool') return v === 'true' ? 'כן' : 'לא';
+  if (f.options) return f.options.find(([val]) => val === v)?.[1] ?? v;
+  return v;
+}
+
+/**
+ * כל שדות העריכה לפי מפתח. ‼ מקור אחד: גם מסך תיק המס (עריכה במקום) וגם
+ * העורך הישן שואבים מכאן, כדי שאותו שדה לא ייערך לפי שתי הגדרות שונות.
+ */
+export const EDIT_FIELD_BY_KEY: Record<string, EditField> =
+  Object.fromEntries(EDIT_SECTIONS.flatMap(s => s.fields).map(f => [f.key, f]));
