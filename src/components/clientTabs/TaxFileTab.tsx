@@ -26,6 +26,9 @@ import {
   EDIT_FIELD_BY_KEY, EDIT_SECTIONS, editFieldValue, coerceEditField, editFieldDisplay,
 } from '../../features/taxFile/editModel';
 import type { EditField, FamilyKey } from '../../features/taxFile/editModel';
+import { LIST_SPECS, cleanList } from '../../features/taxFile/listModel';
+import type { ListKey, ListItem } from '../../features/taxFile/listModel';
+import ListEditor from '../../features/taxFile/ListEditor';
 import ShaamFieldSync from './ShaamFieldSync';
 import BtlFieldSync from './BtlFieldSync';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
@@ -312,6 +315,12 @@ export default function TaxFileTab({
   // (שמחזיק רק מחרוזות). רלוונטית רק כשעורכים את כרטיס ב״ל, אך תמיד קיימת
   // כדי שלא לשמור state מותנה.
   const [sectionOccDrafts, setSectionOccDrafts] = useState<OccupationDraft[]>([]);
+  // ‼ אותו רעיון בדיוק, לשבע הרשימות המובנות (ילדים, מעסיקים, נכסים, חשבונות
+  // בנק, קופות, תיקי השקעות וחשבונות בחו״ל): טיוטה מקומית שנשמרת רק ב«שמור».
+  // `sectionListKeys` זוכר אילו רשימות שייכות לשורה שבעריכה — כדי שהשמירה
+  // לא תיגע ברשימה שלא נפתחה לעריכה בכלל.
+  const [sectionListKeys, setSectionListKeys] = useState<ListKey[]>([]);
+  const [sectionListDrafts, setSectionListDrafts] = useState<Record<string, ListItem[]>>({});
 
   /** מפתח taxFiles בתוך sectionDrafts — קידומת כדי שלא יתנגש עם editKey אמיתי. */
   function taxFileNumberKey(authority: TaxAuthority) { return `__taxFileNumber:${authority}`; }
@@ -340,13 +349,21 @@ export default function TaxFileTab({
     }];
   }
 
-  function startSectionEdit(id: string, fields: EditField[], opts?: { taxFileAuthority?: TaxAuthority }) {
+  function startSectionEdit(
+    id: string, fields: EditField[],
+    opts?: { taxFileAuthority?: TaxAuthority; lists?: ListKey[] },
+  ) {
     const drafts: Record<string, string> = {};
     for (const f of fields) drafts[f.key] = editFieldValue(client, f);
     if (opts?.taxFileAuthority) {
       drafts[taxFileNumberKey(opts.taxFileAuthority)] = currentTaxFile(opts.taxFileAuthority)?.fileNumber ?? '';
     }
     setSectionDrafts(drafts);
+    setSectionListKeys(opts?.lists ?? []);
+    // ‼ העתק עמוק — כדי שעריכת שדה בפריט לא תשנה את הכרטיס עצמו לפני «שמור».
+    setSectionListDrafts(Object.fromEntries(
+      (opts?.lists ?? []).map(k => [k, ((client[k] as ListItem[] | undefined) ?? []).map(o => ({ ...o }))]),
+    ));
     // ‼ תמיד לפחות שורה ריקה אחת, כמו במסך יישור הקו — כדי שיהיה איפה
     // להתחיל להוסיף עיסוק ראשון בלי כפתור "הוסף" נוסף בלחיצה הראשונה.
     setSectionOccDrafts(
@@ -362,6 +379,8 @@ export default function TaxFileTab({
     setEditingSection(null);
     setSectionDrafts({});
     setSectionOccDrafts([]);
+    setSectionListKeys([]);
+    setSectionListDrafts({});
     setSectionError(null);
   }
 
@@ -408,6 +427,28 @@ export default function TaxFileTab({
       }
       if (res.client) onClientPersisted(res.client);
     }
+    // ‼ הרשימות המובנות — אותו מסלול עובדות בדיוק, פריט אחד בהיסטוריה לכל
+    // רשימה שהשתנתה. נשמרת הרשימה **המנוקה**: פריט שנפתח ולא מולא לא נשמר,
+    // והנרמול (שנת לידה מהתאריך, חשבון ראשי יחיד) רץ לפני הכתיבה.
+    for (const key of sectionListKeys) {
+      const spec = LIST_SPECS[key];
+      const next = cleanList(spec, sectionListDrafts[key] ?? []);
+      const before = ((client[key] as ListItem[] | undefined) ?? []);
+      if (JSON.stringify(next) === JSON.stringify(before)) continue;
+      const res = await recordManualEdit(
+        client.id, key, spec.label,
+        before.length ? `${before.length} ${spec.itemLabel}` : '—',
+        next.length ? `${next.length} ${spec.itemLabel}` : '—',
+        { [key]: next, ...(spec.raised?.(next) ?? {}) } as Partial<Client>,
+      );
+      if (!res.ok) {
+        setSectionError(`${spec.label}: ${res.error ?? 'השמירה נכשלה'}`);
+        setSectionSaving(false);
+        return;
+      }
+      if (res.client) onClientPersisted(res.client);
+    }
+
     // עיסוקים בביטוח לאומי — רק כשכרטיס ב״ל הוא זה שבעריכה, ורק אם השתנה.
     if (editingSection === 'auth-national_insurance') {
       const selected = sectionOccDrafts.filter((o): o is NiOccupation => o.type !== '');
@@ -429,6 +470,20 @@ export default function TaxFileTab({
     }
     setSectionSaving(false);
     cancelSectionEdit();
+  }
+
+  /**
+   * עורכי הרשימות של השורה שבעריכה.
+   * ‼ פונקציה שמחזירה JSX ולא רכיב מקונן: רכיב שמוגדר בתוך הרינדור מקבל
+   * זהות חדשה בכל הקלדה, ריאקט היה מפרק ובונה מחדש את השדות, והפוקוס היה
+   * קופץ אחרי כל תו. כאן האלמנטים נכנסים ישירות לעץ ההורה.
+   */
+  function renderLists() {
+    return sectionListKeys.map(k => (
+      <ListEditor key={k} spec={LIST_SPECS[k]}
+        items={sectionListDrafts[k] ?? []}
+        onChange={next => setSectionListDrafts(d => ({ ...d, [k]: next }))} />
+    ));
   }
 
   /** כפתורי שמור/ביטול — אותו בלוק בכל שורה שנמצאת בעריכה. */
@@ -802,12 +857,17 @@ export default function TaxFileTab({
   const showPropertyRow = properties.length > 0 || !!client.hasResidentialProperty;
   const showForeignRow = foreignAccounts.length > 0 || !!client.hasForeignAssets
     || !!client.hasForeignIncome || !!client.foreignIncomeAnnual;
-  const showBankRow = bankAccounts.length > 0;
+  // ‼ שתי השורות האלה קבועות, ולא מותנות ברשימה שלהן. לכל שאר השורות יש דגל
+  // שמחזיק אותן פתוחות גם כשהרשימה ריקה («יש נכס», «יש פנסיה»…) — לחשבונות
+  // הבנק ולתא המשפחתי אין. כשהן היו מותנות, ללקוח בלי חשבון רשום פשוט לא
+  // הייתה שורה, ולכן גם לא הייתה דרך להוסיף אליה חשבון ראשון בלי לצאת לעורך
+  // הישן. סיכום ריק («טרם נרשם») עדיף על שורה שלא קיימת.
+  const showBankRow = true;
   const showPensionRow = pensionFunds.length > 0 || !!client.hasPension || !!client.hasKrenHashtalmut;
   const showInsuranceRow = !!client.hasLifeInsurance || !!client.hasDisabilityInsurance;
   const showDonationsRow = !!client.donationsAnnual || !!meta.donationsAnnual;
 
-  const showFamilyRow = married || (client.children ?? []).length > 0 || client.familyStatus !== 'single';
+  const showFamilyRow = true;
 
   return (
     <div className="txf-root">
@@ -1196,14 +1256,21 @@ export default function TaxFileTab({
                 summary={salarySummary}
                 open={openRows.has('sal')} onToggle={toggleRow}
               >
-                <div className="txf-kv">
-                  {employers.length > 0 ? employers.flatMap(e => [
-                    <KV key={`${e.id}-n`} k="מעסיק" v={e.name} />,
-                    e.grossSalaryAnnual ? <KV key={`${e.id}-s`} k="שכר ברוטו שנתי" v={money(e.grossSalaryAnnual)} /> : null,
-                    e.startDate ? <KV key={`${e.id}-d`} k="תחילת עבודה" v={shortDate(e.startDate)} /> : null,
-                  ]) : <KV k="סיווג" v="שכיר - אין פירוט מעביד בתיק" />}
-                </div>
-                <SrcLine label="מקור: כרטיס הלקוח · עריכה מלאה בפרטי הלקוח" />
+                {editingSection === 'sal' ? renderLists() : (
+                  <div className="txf-kv">
+                    {employers.length > 0 ? employers.flatMap(e => [
+                      <KV key={`${e.id}-n`} k="מעסיק" v={e.name} />,
+                      e.grossSalaryAnnual ? <KV key={`${e.id}-s`} k="שכר ברוטו שנתי" v={money(e.grossSalaryAnnual)} /> : null,
+                      e.startDate ? <KV key={`${e.id}-d`} k="תחילת עבודה" v={shortDate(e.startDate)} /> : null,
+                    ]) : <KV k="סיווג" v="שכיר - אין פירוט מעביד בתיק" />}
+                  </div>
+                )}
+                {editingSection === 'sal' && <EditActions />}
+                {/* ‼ סכומי 106 (ברוטו, מס שנוכה, הפקדות) אינם נערכים כאן אלא
+                    בעורך פרטי 106 הייעודי — כאן נערך *מי* המעסיק, לא כמה. */}
+                <SrcLine label="מקור: כרטיס הלקוח"
+                  onEdit={editingSection === 'sal' ? undefined
+                    : () => startSectionEdit('sal', [], { lists: ['employers'] })} />
               </TRow>
             )}
 
@@ -1248,11 +1315,15 @@ export default function TaxFileTab({
                 summary={capitalSummary}
                 open={openRows.has('cap')} onToggle={toggleRow}
               >
+                {editingSection === 'cap' ? renderLists() : (
+                  <div className="txf-kv">
+                    {investmentAccounts.map(a => <KV key={a.id} k={a.institutionName} v={a.accountNumber ? `חשבון ${a.accountNumber}` : 'ללא מספר חשבון רשום'} />)}
+                    {investmentAccounts.length === 0 && (
+                      <KV k="תיקי השקעות" v="ידוע שיש הכנסה משוק ההון, אך לא נרשם תיק" />
+                    )}
+                  </div>
+                )}
                 <div className="txf-kv">
-                  {investmentAccounts.map(a => <KV key={a.id} k={a.institutionName} v={a.accountNumber ? `חשבון ${a.accountNumber}` : 'ללא מספר חשבון רשום'} />)}
-                  {investmentAccounts.length === 0 && (
-                    <KV k="תיקי השקעות" v="ידוע שיש הכנסה משוק ההון, אך לא נרשם תיק" />
-                  )}
                   {editingSection === 'cap'
                     ? fieldsOf('capital').map(f => (
                         <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
@@ -1270,7 +1341,8 @@ export default function TaxFileTab({
                 </div>
                 {editingSection === 'cap' && <EditActions />}
                 <SrcLine label="מקור: כרטיס הלקוח"
-                  onEdit={editingSection === 'cap' ? undefined : () => startSectionEdit('cap', fieldsOf('capital'))} />
+                  onEdit={editingSection === 'cap' ? undefined
+                    : () => startSectionEdit('cap', fieldsOf('capital'), { lists: ['investmentAccounts'] })} />
               </TRow>
             )}
             <UnknownRows section="income" />
@@ -1324,13 +1396,15 @@ export default function TaxFileTab({
                 : <span style={{ color: 'var(--ink-4)' }}>טרם התקבל</span>} />}
               {editingSection !== 'family' && married && <KV k={`תעסוקת ${spouseName}`} v={client.spouseWorking ? 'שכיר/ה' : 'ללא הכנסה'} />}
               {married && client.spouseWorking && client.spouseIncome ? <KV k="הכנסת בן/בת הזוג (שנתית)" v={money(client.spouseIncome)} /> : null}
-              {(client.children ?? []).length > 0 && (
+              {editingSection !== 'family' && (client.children ?? []).length > 0 && (
                 <KV k="ילדים" v={`${client.children.length} · שנתונים ${client.children.map(c => c.birthYear).sort().join(', ')}`} />
               )}
             </div>
+            {editingSection === 'family' && renderLists()}
             {editingSection === 'family' && <EditActions />}
             <SrcLine label="מקור: כרטיס הלקוח"
-              onEdit={editingSection === 'family' ? undefined : () => startSectionEdit('family', fieldsOf('famStatus'))} />
+              onEdit={editingSection === 'family' ? undefined
+                : () => startSectionEdit('family', fieldsOf('famStatus'), { lists: ['children'] })} />
           </TRow>
         )}
 
@@ -1377,23 +1451,32 @@ export default function TaxFileTab({
                 id="prop" name="נדל״ן" stale={isStale('realestate')} summary={propertySummary}
                 open={openRows.has('prop')} onToggle={toggleRow}
               >
-                <div className="txf-kv">
-                  {properties.map(p => (
-                    <KV key={p.id} k={p.isRented ? 'מושכר' : 'מגורים'}
-                      v={`${p.address}${p.city ? `, ${p.city}` : ''}${p.isRented && p.monthlyRent ? ` · ${money(p.monthlyRent)} לחודש` : ''}`} />
-                  ))}
-                  {properties.length === 0 && (
-                    editingSection === 'prop'
-                      ? fieldsOf('realestate').map(f => (
-                          <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
-                            onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))} />
-                        ))
-                      : <KV k="נכס מגורים" v="ידוע שקיים, אך לא נרשמה כתובת" />
-                  )}
-                </div>
+                {editingSection === 'prop' ? (
+                  <>
+                    {renderLists()}
+                    {/* ‼ הדגלים («יש נכס מגורים», «מספר נכסים») נשארים לעריכה
+                        גם כשיש רשימה: הם עובדה בפני עצמה, ורשימה חלקית לא
+                        אמורה לסתור אותם בשקט. */}
+                    <div className="txf-kv">
+                      {fieldsOf('realestate').map(f => (
+                        <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
+                          onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))} />
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="txf-kv">
+                    {properties.map(p => (
+                      <KV key={p.id} k={p.isRented ? 'מושכר' : 'מגורים'}
+                        v={`${p.address}${p.city ? `, ${p.city}` : ''}${p.isRented && p.monthlyRent ? ` · ${money(p.monthlyRent)} לחודש` : ''}`} />
+                    ))}
+                    {properties.length === 0 && <KV k="נכס מגורים" v="ידוע שקיים, אך לא נרשמה כתובת" />}
+                  </div>
+                )}
                 {editingSection === 'prop' && <EditActions />}
                 <SrcLine label="מקור: כרטיס הלקוח"
-                  onEdit={editingSection === 'prop' ? undefined : () => startSectionEdit('prop', fieldsOf('realestate'))} />
+                  onEdit={editingSection === 'prop' ? undefined
+                    : () => startSectionEdit('prop', fieldsOf('realestate'), { lists: ['properties'] })} />
               </TRow>
             )}
 
@@ -1432,10 +1515,14 @@ export default function TaxFileTab({
                 id="abroad" name="חו״ל" stale={isStale('foreign')} summary={foreignSummary}
                 open={openRows.has('abroad')} onToggle={toggleRow}
               >
+                {editingSection === 'abroad' ? renderLists() : (
+                  <div className="txf-kv">
+                    {foreignAccounts.map(a => (
+                      <KV key={a.id} k={a.institutionName || 'חשבון בחו״ל'} v={a.country || '-'} />
+                    ))}
+                  </div>
+                )}
                 <div className="txf-kv">
-                  {foreignAccounts.map(a => (
-                    <KV key={a.id} k={a.institutionName || 'חשבון בחו״ל'} v={a.country || '-'} />
-                  ))}
                   {editingSection === 'abroad'
                     ? fieldsOf('foreignAssets').map(f => (
                         <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
@@ -1451,7 +1538,8 @@ export default function TaxFileTab({
                 </div>
                 {editingSection === 'abroad' && <EditActions />}
                 <SrcLine label={metaSrc('hasForeignAssets')}
-                  onEdit={editingSection === 'abroad' ? undefined : () => startSectionEdit('abroad', fieldsOf('foreignAssets'))} />
+                  onEdit={editingSection === 'abroad' ? undefined
+                    : () => startSectionEdit('abroad', fieldsOf('foreignAssets'), { lists: ['foreignAccounts'] })} />
               </TRow>
             )}
 
@@ -1460,12 +1548,20 @@ export default function TaxFileTab({
                 id="bank" name="חשבונות בנק" summary={bankSummary}
                 open={openRows.has('bank')} onToggle={toggleRow}
               >
-                <div className="txf-kv">
-                  {bankAccounts.map(b => (
-                    <KV key={b.id} k={b.bankName} v={b.isPrimary ? 'ראשי - להחזרי מס' : (b.branchName || 'חשבון נוסף')} />
-                  ))}
-                </div>
-                <SrcLine label="מקור: כרטיס הלקוח" onEdit={onOpenDetails} />
+                {editingSection === 'bank' ? renderLists() : (
+                  <div className="txf-kv">
+                    {bankAccounts.map(b => (
+                      <KV key={b.id} k={b.bankName} v={b.isPrimary ? 'ראשי - להחזרי מס' : (b.branchName || 'חשבון נוסף')} />
+                    ))}
+                    {bankAccounts.length === 0 && <KV k="חשבון להחזרי מס" v="טרם נרשם" />}
+                  </div>
+                )}
+                {editingSection === 'bank' && <EditActions />}
+                {/* ‼ קודם «ערוך» כאן הוביל לעורך הלקוח הישן — הכניסה היחידה
+                    בתיק המס שעדיין ניווטה החוצה. עכשיו נערך במקום. */}
+                <SrcLine label="מקור: כרטיס הלקוח"
+                  onEdit={editingSection === 'bank' ? undefined
+                    : () => startSectionEdit('bank', [], { lists: ['bankAccounts'] })} />
               </TRow>
             )}
 
@@ -1518,10 +1614,12 @@ export default function TaxFileTab({
                 id="pen" name="פנסיה והשתלמות" stale={isStale('pension')} summary={pensionSummary}
                 open={openRows.has('pen')} onToggle={toggleRow}
               >
+                {editingSection === 'pen' ? renderLists() : (
+                  <div className="txf-kv">
+                    {pensionFunds.map(p => <KV key={p.id} k="פנסיה / השתלמות" v={p.institutionName} />)}
+                  </div>
+                )}
                 <div className="txf-kv">
-                  {pensionFunds.length > 0
-                    ? pensionFunds.map(p => <KV key={p.id} k="פנסיה / השתלמות" v={p.institutionName} />)
-                    : null}
                   {editingSection === 'pen'
                     ? fieldsOf('pension').map(f => (
                         <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
@@ -1537,7 +1635,8 @@ export default function TaxFileTab({
                 </div>
                 {editingSection === 'pen' && <EditActions />}
                 <SrcLine label={metaSrc('hasPension')}
-                  onEdit={editingSection === 'pen' ? undefined : () => startSectionEdit('pen', fieldsOf('pension'))} />
+                  onEdit={editingSection === 'pen' ? undefined
+                    : () => startSectionEdit('pen', fieldsOf('pension'), { lists: ['pensionFunds'] })} />
               </TRow>
             )}
 

@@ -2911,6 +2911,11 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .ial-add-occ{border:1px dashed var(--bd-strong);background:none;border-radius:var(--r-input);color:var(--accent);
   cursor:pointer;font-size:var(--fs-12);padding:6px 12px;margin-top:10px;font-family:inherit}
 .ial-add-occ:hover{background:var(--surface-2)}
+/* עורך רשימה בתיק המס — אותה שורה של עורך העיסוקים, רק שבכותרת יושב שם
+   הפריט במקום בורר סוג, והוא זה שדוחף את «הסר» לקצה. */
+.ial-occ-nm{flex:1;min-width:0;font-size:11px;color:var(--ink-4)}
+.txf-list-edit{margin-top:8px}
+.txf-list-edit + .txf-kv{margin-top:10px}
 
 /* ── "מה נשמר לתיק המס" ── */
 .ial-saved{background:var(--field-read);padding:14px 18px}
