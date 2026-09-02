@@ -17,7 +17,6 @@ import type { AdvanceResult } from '../../hooks/useOnboarding';
 import { proposeTaxFacts, acceptTaxFactChange } from '../../lib/taxFacts';
 import { clientFromDb } from '../../lib/dbMappers';
 import { supabase } from '../../lib/supabase';
-import BtlFieldSync from './BtlFieldSync';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { DocCategory, StoredDoc } from '../../hooks/useDocumentStore';
 import { CURRENT_TAX_YEAR } from '../../data/taxData';
@@ -548,10 +547,10 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ‼ אין כאן קריאה משע״ם. משטח הסנכרון היחיד הוא הכרטיס ב«תיק מס»
-  // (מול הרשויות ← מס הכנסה). ראה income-tax-card-is-the-surface.
-  // ‼ ביטוח לאומי שונה, ובכוונה: השדות שלה נקראים ומוקלדים כאן, ולכן כאן
-  // יושב גם כפתור הקריאה שלה (BtlFieldSync) — על השדה עצמו.
+  // ‼ אין כאן קריאה מאף רשות — לא משע״ם ולא מביטוח לאומי. משטח הסנכרון
+  // היחיד הוא הכרטיס ב«תיק מס» (מול הרשויות), וזה המסך שהרו"ח קורא בו את
+  // מצב התיק. פקד שני כאן היה מכריח לנווט למסך אחר כדי לראות אותו, ושני
+  // פקדים לאותו שדה נקראים כשתי אמיתות. ראה income-tax-card-is-the-surface.
   const remaining = (['btl', 'vat', 'income'] as InstitutionKey[]).filter(k => {
     const s = allSteps.find(x => x.payload.institution === k);
     return k !== key && s && s.status !== 'completed' && s.status !== 'verified';
@@ -714,10 +713,6 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
                       placeholder={f.placeholder} value={String(collected[f.key] ?? '')}
                       onChange={e => setField(f.key, e.target.value)} />
                   )}
-                  {/* ‼ הכפתור יושב על השדה עצמו — זה המסך שבו הרו"ח קורא את
-                      הערך מהפורטל ומקליד אותו, ולכן זה המקום שבו «לקרוא
-                      מהרשות» אמור להיות. שדה-שדה בלבד, בלי «סנכרן הכול». */}
-                  {key === 'btl' && <BtlFieldSync fieldKey={f.key} />}
                   {f.note && <div className="ial-where">{f.note}</div>}
                   <WhereHint where={f.where} />
                   {f.attach && (

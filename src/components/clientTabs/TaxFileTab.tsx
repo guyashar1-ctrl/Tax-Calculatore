@@ -26,6 +26,7 @@ import {
   EDIT_FIELD_BY_KEY, editFieldValue, coerceEditField, editFieldDisplay,
 } from '../../features/taxFile/editModel';
 import ShaamFieldSync from './ShaamFieldSync';
+import BtlFieldSync from './BtlFieldSync';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
 import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
@@ -895,6 +896,10 @@ export default function TaxFileTab({
                     {f.syncKey && !adoptError && adoptNotice && (
                       <div className="ial-fsync-msg">{adoptNotice}</div>
                     )}
+                    {/* ‼ ביטוח לאומי — אותו מקום ואותו עיצוב, פקד נפרד: זו
+                        רשות אחרת עם חלון וסשן משלה. כרגע מציין מקום ומצב
+                        בלבד, בלי קריאה — ראה BtlFieldSync. */}
+                    {f.btlSyncKey && <BtlFieldSync fieldKey={f.btlSyncKey} />}
                   </div>
                   );
                 })}

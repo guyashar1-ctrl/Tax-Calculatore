@@ -49,7 +49,12 @@ export interface AuthorityRow {
    * `editKey` — מפתח השדה ב-editModel, כשהעובדה ניתנת לעריכה **במקום**
    * בכרטיס. חסר ⇒ נגזרת (למשל מספר תיק מתוך taxFiles) ולכן לקריאה בלבד.
    */
-  facts: { k: string; v: string; tone?: 'warn' | 'ok'; syncKey?: string; editKey?: string }[];
+  /**
+   * `btlSyncKey` — כמו `syncKey`, אך עבור ביטוח לאומי. ‼ שדה נפרד ולא דגל
+   * על `syncKey`: שתי הרשויות הן שני חלונות, שני סשנים ושני פקדים, ואיחודן
+   * למפתח אחד היה מזמין רגרסיה בנתיב של שע״ם שכבר עובד בייצור.
+   */
+  facts: { k: string; v: string; tone?: 'warn' | 'ok'; syncKey?: string; btlSyncKey?: string; editKey?: string }[];
   /** יש בכלל מה להציג על הרשות הזו. רשות בלי תיק ובלי נתון אינה שורה. */
   present: boolean;
 }
@@ -208,24 +213,35 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
   }
 
   // ── מע״מ ──
+  // ‼ מבנה קבוע, כמו במס הכנסה: **כל** השדות נרשמים תמיד, וריק נראה «—».
+  // קודם הם נדחפו בתנאי, ולכן שדה חסר פשוט נעלם — והכרטיס שהרו"ח קורא בו
+  // את מצב התיק הסתיר בדיוק את מה שבאים לבדוק. «אין ערך» הוא מידע.
+  //
+  // ‼ הופעת **הכרטיס** לא השתנתה: `present` נגזר מהנתונים עצמם ולא מאורך
+  // הרשימה. אחרת לקוח בלי מע״מ בכלל היה מקבל כרטיס ריק חדש.
   {
     const facts: AuthorityRow['facts'] = [];
     const num = numbersOf('vat');
-    if (num) facts.push({ k: 'מספר עוסק', v: num });
     const vatViaSpouse = !num ? viaSpouse('vat') : null;
-    if (vatViaSpouse) facts.push({ k: 'ייצוג', v: vatViaSpouse, tone: 'ok' });
-    if (client.vatFileType) facts.push({ k: 'סוג תיק', v: client.vatFileType });
-    if (client.vatOpeningDate) facts.push({ k: 'תאריך פתיחה', v: shortDate(client.vatOpeningDate) });
-    if (client.vatPrimaryIndustry) facts.push({ k: 'ענף עיקרי', v: client.vatPrimaryIndustry });
     const freq = client.vatFrequency ? VAT_FREQ_LABELS[client.vatFrequency] : null;
-    if (freq) facts.push({ k: 'תדירות דיווח', v: freq });
-    if (client.vatLastReportPeriod) facts.push({ k: 'דוח אחרון שהוגש', v: client.vatLastReportPeriod });
     const bal = balanceText(client.vatBalance);
-    if (bal) facts.push({ k: 'יתרה', v: bal.text, tone: bal.tone });
     const auth = authText(client.vatDebitAuthorization);
-    if (auth) facts.push({ k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone });
     const rep = repOf('vat');
-    if (rep) facts.push({ k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined });
+
+    facts.push({ k: 'מספר עוסק', v: num || EMPTY });
+    facts.push({ k: 'סוג תיק', v: client.vatFileType || EMPTY });
+    facts.push({ k: 'תאריך פתיחה', v: client.vatOpeningDate ? shortDate(client.vatOpeningDate) : EMPTY });
+    facts.push({ k: 'ענף עיקרי', v: client.vatPrimaryIndustry || EMPTY });
+    facts.push({ k: 'תדירות דיווח', v: freq || EMPTY });
+    facts.push({ k: 'דוח אחרון שהוגש', v: client.vatLastReportPeriod || EMPTY });
+    facts.push(bal ? { k: 'יתרה', v: bal.text, tone: bal.tone } : { k: 'יתרה', v: EMPTY });
+    facts.push(auth ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone } : { k: 'הרשאה לחיוב', v: EMPTY });
+    // ‼ שורת ייצוג אחת בלבד. קודם «ייצוג» יכול היה להופיע פעמיים — פעם דרך
+    // בן/בת הזוג ופעם מהתיק עצמו — ושתי שורות באותו שם באותו כרטיס נקראות
+    // כסתירה.
+    facts.push(rep
+      ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined }
+      : vatViaSpouse ? { k: 'ייצוג', v: vatViaSpouse, tone: 'ok' } : { k: 'ייצוג', v: EMPTY });
 
     rows.push({
       authority: 'vat', name: TAX_AUTHORITY_LABELS.vat,
@@ -233,32 +249,46 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
         client.vatLastReportPeriod ? `דוח אחרון ${client.vatLastReportPeriod}` : null])
         || vatViaSpouse || 'טרם נאספו נתונים',
       exception: (client.vatBalance ?? 0) > 0 ? { text: `חוב ${money(client.vatBalance)}`, tone: 'high' } : null,
-      facts, present: facts.length > 0,
+      facts,
+      present: !!num || !!client.vatFileType || !!client.vatOpeningDate || !!client.vatPrimaryIndustry
+        || !!freq || !!client.vatLastReportPeriod || !!bal || !!auth || !!rep || !!vatViaSpouse,
     });
   }
 
   // ── ביטוח לאומי ──
+  // ‼ אותו מבנה קבוע כמו מע״מ ומס הכנסה — ראה ההערה בסעיף מע״מ.
   {
     const facts: AuthorityRow['facts'] = [];
     const num = numbersOf('national_insurance');
-    if (num) facts.push({ k: 'מספר תיק', v: num });
     const occ = client.niOccupations ?? [];
-    if (occ.length) {
-      facts.push({ k: 'עיסוקים', v: `${occ.length} עיסוקים` });
-    }
-    if (client.niIncomeBasisMonthly != null) {
-      facts.push({ k: 'בסיס למקדמות', v: `${money(client.niIncomeBasisMonthly)} לחודש` });
-    }
-    if (client.niAdvanceMonthly != null) facts.push({ k: 'מקדמה חודשית', v: money(client.niAdvanceMonthly) });
     const bal = balanceText(client.niBalance);
-    if (bal) facts.push({ k: 'יתרה', v: bal.text, tone: bal.tone });
     const auth = authText(client.niDebitAuthorization);
-    if (auth) facts.push({ k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone });
+    const rep = repOf('national_insurance');
     // ‼ אין כאן נתון תפעולי משלו/ה (מקדמה, יתרה...) — אבל ייתכן שהייצוג
     // עצמו כבר הושג דרך בן/בת הזוג המקושר/ת. "אין נתונים" ו"לא מיוצג" הם
     // שני דברים שונים; הראשון לא אמור להישמע כמו השני.
-    const niViaSpouse = facts.length === 0 ? viaSpouse('national_insurance') : null;
-    if (niViaSpouse) facts.push({ k: 'ייצוג', v: niViaSpouse, tone: 'ok' });
+    // ‼ נגזר מהנתונים ולא מאורך רשימת השדות — מאז שהשדות נרשמים תמיד,
+    // «הרשימה ריקה» כבר לא מעיד על היעדר נתון.
+    const hasOwnData = !!num || occ.length > 0 || client.niIncomeBasisMonthly != null
+      || client.niAdvanceMonthly != null || !!bal || !!auth;
+    const niViaSpouse = !hasOwnData ? viaSpouse('national_insurance') : null;
+
+    facts.push({ k: 'מספר תיק', v: num || EMPTY });
+    facts.push({ k: 'עיסוקים', v: occ.length ? `${occ.length} עיסוקים` : EMPTY });
+    facts.push({
+      k: 'בסיס למקדמות',
+      v: client.niIncomeBasisMonthly != null ? `${money(client.niIncomeBasisMonthly)} לחודש` : EMPTY,
+    });
+    facts.push({ k: 'מקדמה חודשית', v: client.niAdvanceMonthly != null ? money(client.niAdvanceMonthly) : EMPTY });
+    // ‼ השדה היחיד בביטוח לאומי שיש לו כרגע מקור ודאי בפורטל, ולכן היחיד
+    // שמקבל כפתור קריאה. ראה BtlFieldSync.
+    facts.push(bal
+      ? { k: 'יתרה', v: bal.text, tone: bal.tone, btlSyncKey: 'niBalance' }
+      : { k: 'יתרה', v: EMPTY, btlSyncKey: 'niBalance' });
+    facts.push(auth ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone } : { k: 'הרשאה לחיוב', v: EMPTY });
+    facts.push(rep
+      ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined }
+      : niViaSpouse ? { k: 'ייצוג', v: niViaSpouse, tone: 'ok' } : { k: 'ייצוג', v: EMPTY });
 
     rows.push({
       authority: 'national_insurance', name: TAX_AUTHORITY_LABELS.national_insurance,
@@ -267,7 +297,7 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
         bal?.text,
       ]) || (niViaSpouse ? niViaSpouse : null) || 'טרם נאספו נתונים',
       exception: client.niDebitAuthorization === false ? { text: 'אין הרשאה לחיוב', tone: 'warn' } : null,
-      facts, present: facts.length > 0,
+      facts, present: hasOwnData || !!rep || !!niViaSpouse,
     });
   }
 
@@ -297,8 +327,11 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
   // ‼ «טרם נאספו נתונים» על שורה שיש בה עובדות הוא שקר קטן: הרו"ח קורא
   // שורה ריקה וממשיך, בזמן שהנתון קיים בפנים. כשהתקציר המתוכנן לא נבנה —
   // מציגים את מה שכן ידוע, ולא הצהרה על היעדר.
+  // ‼ שדות ריקים מדולגים כאן: מאז שהמבנה קבוע, «—» הוא ערך לגיטימי בשורה
+  // אבל חסר ערך בתקציר. בלי הסינון התקציר היה נקרא «מספר עוסק: — · סוג
+  // תיק: —» — הצהרה על היעדר שתופסת את המקום של מה שכן ידוע.
   return rows.filter(r => r.present).map(r => r.summary !== 'טרם נאספו נתונים' ? r : {
     ...r,
-    summary: r.facts.slice(0, 2).map(f => `${f.k}: ${f.v}`).join(' · ') || r.summary,
+    summary: r.facts.filter(f => f.v !== EMPTY).slice(0, 2).map(f => `${f.k}: ${f.v}`).join(' · ') || r.summary,
   });
 }
