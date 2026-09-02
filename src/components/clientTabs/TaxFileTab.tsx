@@ -12,9 +12,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Client, RentalTaxTrack, TaxAuthority, NiOccupation } from '../../types';
 import { FAMILY_STATUS_LABELS, TAX_AUTHORITY_LABELS } from '../../types';
-import type { TaxFactChange } from '../../types/taxFacts';
+import type { TaxFactChange, ProposedFact } from '../../types/taxFacts';
 import { TAX_FACT_SOURCE_LABELS } from '../../types/taxFacts';
-import { proposeTaxFacts } from '../../lib/taxFacts';
+import { proposeTaxFacts, listPendingTaxFactChanges } from '../../lib/taxFacts';
 import { useTaxFacts } from '../../hooks/useTaxFacts';
 import { shortDate } from '../../utils/clientDerived';
 import { spouseDisplayName, registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from '../../features/annualReport/profile';
@@ -29,11 +29,12 @@ import type { EditField, FamilyKey } from '../../features/taxFile/editModel';
 import { LIST_SPECS, cleanList } from '../../features/taxFile/listModel';
 import type { ListKey, ListItem } from '../../features/taxFile/listModel';
 import ListEditor from '../../features/taxFile/ListEditor';
-import ShaamFieldSync from './ShaamFieldSync';
-import BtlFieldSync from './BtlFieldSync';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
-import { useShaamReadiness, SHAAM_READ_134 } from '../../hooks/shaamReadiness';
+import { useShaamReadiness } from '../../hooks/shaamReadiness';
+import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
+import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
+import { AuthorityCheckButton, AuthorityCheckSummary, FieldStatusMark, FieldAuthorityLine } from './AuthorityCheckPanel';
 import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 import { domainKnowledge, taxReadiness } from '../../utils/taxKnowledge';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
@@ -139,30 +140,40 @@ function buildSentence(client: Client): string {
  * אינו תקלה. קיר של לא-ידועים צבוע באדום היה נקרא כשריפה.
  */
 function TRow({
-  id, name, summary, warn, exception, unknown, stale, open, onToggle, children,
+  id, name, summary, warn, exception, unknown, stale, open, onToggle, action, children,
 }: {
   id: string; name: string; summary: string; warn?: string;
   exception?: { text: string; tone: 'high' | 'warn' | 'ok' } | null;
   unknown?: boolean; stale?: boolean;
-  open: boolean; onToggle: (id: string) => void; children: React.ReactNode;
+  open: boolean; onToggle: (id: string) => void;
+  /**
+   * פקד הפעולה של הכרטיס (למשל «בדוק מול שע״ם») — **ליד** כפתור הפתיחה,
+   * לא בתוכו: כפתור בתוך כפתור אינו HTML תקין, ולחיצה עליו הייתה גם פותחת
+   * וגם מריצה.
+   */
+  action?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <div className={`txf-row ${open ? 'is-open' : ''}`}>
-      <button type="button" className="txf-row-head" onClick={() => onToggle(id)} aria-expanded={open}>
-        <span className="txf-row-name">{name}</span>
-        <span className="txf-row-sum">
-          <span className={unknown ? 'txf-unknown' : ''}>{summary}</span>
-          {unknown && <span className="txf-qmark" aria-hidden="true">?</span>}
-          {stale && <span className="txf-stale">⏱</span>}
-          {warn && <span className="txf-warn-inline">⚠ {warn}</span>}
-          {exception && (
-            <span className={`txf-exc is-${exception.tone}`}>
-              {exception.tone === 'ok' ? '✓' : '⚠'} {exception.text}
-            </span>
-          )}
-        </span>
-        <span className="txf-row-chev">◂</span>
-      </button>
+      <div className="txf-row-headwrap">
+        <button type="button" className="txf-row-head" onClick={() => onToggle(id)} aria-expanded={open}>
+          <span className="txf-row-name">{name}</span>
+          <span className="txf-row-sum">
+            <span className={unknown ? 'txf-unknown' : ''}>{summary}</span>
+            {unknown && <span className="txf-qmark" aria-hidden="true">?</span>}
+            {stale && <span className="txf-stale">⏱</span>}
+            {warn && <span className="txf-warn-inline">⚠ {warn}</span>}
+            {exception && (
+              <span className={`txf-exc is-${exception.tone}`}>
+                {exception.tone === 'ok' ? '✓' : '⚠'} {exception.text}
+              </span>
+            )}
+          </span>
+          <span className="txf-row-chev">◂</span>
+        </button>
+        {action && <span className="txf-row-act">{action}</span>}
+      </div>
       {open && <div className="txf-row-body">{children}</div>}
     </div>
   );
@@ -294,10 +305,11 @@ export default function TaxFileTab({
   const shaamSync = useAutomationJob(client.id || undefined, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
   // ‼ הכרטיס מציג את הסיבה של **היכולת** (קריאת 134), לא של המוכנות
   // הגלובלית. הנורית בכותרת ממשיכה לייצג את כל השכבות.
-  const shaamCap = useShaamReadiness().capability(SHAAM_READ_134);
-  const [adoptingKey, setAdoptingKey] = useState<string | null>(null);
-  const [adoptError, setAdoptError] = useState<string | null>(null);
-  const [adoptNotice, setAdoptNotice] = useState<string | null>(null);
+  const shaamReadiness = useShaamReadiness();
+  // ‼ אישור מקובץ — פעם אחת לכרטיס, לא לשדה. ראה approveAuthorityChanges.
+  const [approvingAuthority, setApprovingAuthority] = useState<TaxAuthority | null>(null);
+  const [approveError, setApproveError] = useState<string | null>(null);
+  const [approveNotice, setApproveNotice] = useState<string | null>(null);
 
   // ─── עריכה במקום — מנגנון אחד לכל תיק המס ──────────────────────────────────
   // ‼ המודל המאושר: צפייה, עריכה ואוטומציה באותו מסך. «ערוך» פותח שדות
@@ -500,40 +512,77 @@ export default function TaxFileTab({
     );
   }
 
-  const incomeTaxFileNumber = ((client.taxFiles ?? [])
-    .find(t => t.authority === 'income_tax')?.fileNumber ?? '').replace(/\D/g, '');
-
   /**
-   * ‼ אימוץ ערך מהרשות הוא לחיצה מפורשת של הרו"ח, ולכן הוא נרשם דרך מסלול
-   * העובדות המנוהלות — עם פרובננס והיסטוריה — ולא ככתיבה שקטה ל-clients.
-   * שום דבר לא נשמר מעצם הקריאה משע״ם; רק «אמץ» כותב.
+   * «אשר N שינויים» — האישור המקובץ של כרטיס הרשות.
+   *
+   * ‼ עובר דרך מסלול העובדות המנוהלות ולא עוקף אותו: כל שדה ששונה מוצע
+   * (propose_tax_facts, מקור 'automation', עם הערך הישן כתמונת מצב) ואז
+   * מאושר (accept_tax_fact_change) — כך נשמרים פרובננס, היסטוריה, ובדיקת
+   * stale_conflict בשרת. הרו"ח כבר ראה כל השוואה בכרטיס לפני הלחיצה; זו
+   * הלחיצה המפורשת. שום דבר לא נכתב מעצם הקריאה מהרשות.
+   * ‼ בלי כפילויות: הצעה ממתינה קיימת לאותו שדה ואותו ערך מאושרת במקומה,
+   * ולא נוצרת שוב. שדה שנכשל (למשל הערך בתיק השתנה בינתיים) לא עוצר את
+   * השאר — ההצעה שלו נשארת ממתינה ברשימת השינויים, והכישלון מדווח פעם אחת.
+   * ‼ הפאץ' עובר דרך coerceEditField: שע״ם מחזירה טקסט, והשדה בתיק עשוי
+   * להיות מספרי (שיעור מקדמות, יתרה). מחרוזת בעמודה מספרית היא באג שקט.
    */
-  async function adoptShaamValue(fieldKey: string, label: string, value: string) {
+  async function approveAuthorityChanges(spec: AuthorityAutomationSpec, check: AuthorityCheckResult) {
     if (!client.id) return;
-    setAdoptingKey(fieldKey);
-    const oldRaw = (client as unknown as Record<string, unknown>)[fieldKey] ?? null;
-    const propose = await proposeTaxFacts(client.id, 'automation', 'shaam-134', [{
-      fieldKey, label,
-      oldValue: { display: String(oldRaw ?? '') || '—', patch: { [fieldKey]: oldRaw } },
-      newValue: { display: value, patch: { [fieldKey]: value } },
-    }]);
-    // ‼ כישלון כאן חייב להיראות. אימוץ ששותק נראה בדיוק כמו אימוץ שעבד,
-    // והרו"ח נשאר עם ערך ישן בכרטיס בלי לדעת.
-    //
-    // ‼ propose_tax_facts מחזירה {ok, proposed} ו**לא** אובייקט change.
-    // בדיקה על change.id הפכה הצעה שהצליחה לכישלון שקט — קרה בפועל.
-    if (!propose.ok) {
-      setAdoptError(propose.error ?? 'ההצעה נכשלה');
-      setAdoptingKey(null);
-      return;
+    const changed = check.fields.filter(f => f.status === 'changed' && f.fieldKey && f.authorityValue != null);
+    if (changed.length === 0) return;
+    setApprovingAuthority(spec.authority);
+    setApproveError(null);
+    setApproveNotice(null);
+
+    const existing = await listPendingTaxFactChanges(client.id);
+    const reuse = new Map<string, TaxFactChange>();
+    const toPropose: ProposedFact[] = [];
+    for (const f of changed) {
+      const def = EDIT_FIELD_BY_KEY[f.fieldKey];
+      const newPatch = def ? coerceEditField(def, f.authorityValue!) : f.authorityValue!;
+      const oldRaw = (client as unknown as Record<string, unknown>)[f.fieldKey] ?? null;
+      const dup = existing.find(c => c.fieldKey === f.fieldKey && c.source === 'automation'
+        && JSON.stringify(c.newValue.patch?.[f.fieldKey]) === JSON.stringify(newPatch));
+      if (dup) { reuse.set(f.fieldKey, dup); continue; }
+      toPropose.push({
+        fieldKey: f.fieldKey, label: f.label,
+        oldValue: { display: String(oldRaw ?? '') || '—', patch: { [f.fieldKey]: oldRaw } },
+        newValue: { display: f.authorityRaw ?? f.authorityValue!, patch: { [f.fieldKey]: newPatch } },
+      });
     }
-    // ‼ ההצעה נוחתת כ«ממתינה» ומופיעה ברשימת השינויים של הכרטיס, שם הרו"ח
-    // מאשר או דוחה. זו בדיוק המשמעות של «מציע ולא שומר» — ולא כתיבה
-    // שקטה לכרטיס ברגע הלחיצה.
-    setAdoptError(null);
-    setAdoptNotice('הערך מהרשות הוצע — ממתין לאישורך ברשימת השינויים בכרטיס.');
+    if (toPropose.length > 0) {
+      const res = await proposeTaxFacts(client.id, 'automation', spec.sourceRef ?? null, toPropose);
+      // ‼ כישלון כאן חייב להיראות. אישור ששותק נראה בדיוק כמו אישור שעבד.
+      if (!res.ok) {
+        setApproveError(res.error ?? 'ההצעה נכשלה');
+        setApprovingAuthority(null);
+        return;
+      }
+    }
+    const after = toPropose.length > 0 ? await listPendingTaxFactChanges(client.id) : existing;
+
+    const failures: string[] = [];
+    let approved = 0;
+    for (const f of changed) {
+      const change = reuse.get(f.fieldKey)
+        ?? [...after].reverse().find(c => c.fieldKey === f.fieldKey && c.source === 'automation');
+      if (!change) { failures.push(f.label); continue; }
+      const r = await acceptFact(change);
+      if (!r.ok) {
+        failures.push(r.error === 'stale_conflict' ? `${f.label} (הערך בתיק השתנה בינתיים)` : f.label);
+        continue;
+      }
+      if (r.client) onClientPersisted(r.client);
+      approved++;
+    }
+    setApprovingAuthority(null);
+    if (failures.length > 0) {
+      setApproveError(`לא אושרו: ${failures.join(' · ')}. ההצעות נשארו ממתינות ברשימת השינויים.`);
+    }
+    setApproveNotice(approved > 0
+      ? `${approved === 1 ? 'שינוי אחד אושר' : `${approved} שינויים אושרו`} ונרשמו ביומן.`
+      : null);
     refresh();
-    setAdoptingKey(null);
   }
   // ‼ תרומות נשארה מחוץ למנגנון הכללי בכוונה — היא הייתה שם ראשונה ועובדת,
   // ואין סיבה למחזר אותה רק בשביל האחידות. שכירות עברה למנגנון הכללי, כי
@@ -1068,6 +1117,33 @@ export default function TaxFileTab({
           {authorityRows.map(row => {
             const sectionId = 'auth-' + row.authority;
             const editingThis = editingSection === sectionId;
+
+            // ── אוטומציה ברמת הכרטיס — ראה authorityAutomation.ts ──
+            // ‼ המשימה מגיעה מהוק אחד שנקרא תמיד (shaamSync); כרטיס בלי
+            // action_type תואם פשוט לא מקבל משימה. הסט כולו נגזר מהמשימה
+            // האחרונה + הכרטיס, ולכן אחרי אישור המצבים מתיישבים מעצמם.
+            const spec = AUTHORITY_AUTOMATION[row.authority];
+            const job = spec?.actionType === SHAAM_SYNC_INCOME_TAX_ACTION_TYPE ? shaamSync.job : null;
+            const cardFields = row.facts.map(f => ({ label: f.k, fieldKey: f.syncKey ?? f.btlSyncKey ?? f.editKey }));
+            const check = spec ? buildAuthorityCheck(spec, job, client, cardFields) : null;
+            const cap = spec?.capability ? shaamReadiness.capability(spec.capability) : null;
+            const inputRes = spec?.buildInput?.(client);
+            const blocked = !spec ? null
+              : !spec.available ? (spec.unavailableReason ?? 'האוטומציה עוד לא נבנתה לרשות הזו.')
+              : inputRes && 'blocked' in inputRes ? inputRes.blocked
+              : cap && !cap.ready ? cap.blockedReason
+              : null;
+            const running = !!spec?.available
+              && (shaamSync.busy || job?.status === 'queued' || job?.status === 'running');
+            const runCheck = () => {
+              if (!spec?.available || !inputRes || !('input' in inputRes)) return;
+              setApproveError(null);
+              setApproveNotice(null);
+              // ‼ פותחים את הכרטיס — התוצאות יושבות בו, ובדיקה שלא רואים היא לחיצה שלא עשתה כלום.
+              setOpenRows(s => new Set(s).add(sectionId));
+              void shaamSync.run(inputRes.input);
+            };
+
             return (
             <TRow
               key={row.authority}
@@ -1077,15 +1153,22 @@ export default function TaxFileTab({
               exception={row.exception}
               open={openRows.has(sectionId)}
               onToggle={toggleRow}
+              action={spec && (
+                <AuthorityCheckButton label={spec.actionLabel} ready={!blocked} blockedReason={blocked}
+                  running={running} onRun={runCheck} />
+              )}
             >
               <div className="txf-kv">
                 {row.facts.map((f, i) => {
                   const def = f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined;
                   const editingScalar = editingThis && !!def;
                   const editingTaxFileNumber = editingThis && !!f.taxFileNumberAuthority;
+                  const fieldCheck = check?.checkedAt ? check.fields[i] : undefined;
                   return (
                   <div key={i}>
-                    <div className="k">{f.k}</div>
+                    {/* ‼ סמן המצב לפני התווית, קטן וללא מילים. מופיע רק אחרי
+                        בדיקה — לפני כן אין מה לסמן, וקיר של אפורים הוא רעש. */}
+                    <div className="k">{fieldCheck && <FieldStatusMark status={fieldCheck.status} />}{f.k}</div>
                     {/* ‼ באותו מקום בדיוק שבו יושב הערך — לא בטופס נפרד ולא
                         במסך אחר. שדה בלי הגדרת עריכה נשאר לקריאה עם «—». */}
                     {editingScalar && def ? (
@@ -1105,38 +1188,12 @@ export default function TaxFileTab({
                     ) : (
                       <div className={'v ' + (f.tone ?? '')}>{f.v}</div>
                     )}
-                    {/* ‼ הכפתור יושב על השורה שבכרטיס — זה המסך שהרו"ח קורא
-                        בו את מצב התיק, ולכן זה המקום שבו «לקרוא מהרשות»
-                        אמור להיות. מציע ולא שומר: «אמץ» הוא לחיצה נפרדת. */}
-                    {f.syncKey && (
-                      <ShaamFieldSync
-                        fieldKey={f.syncKey}
-                        // ‼ הערך הגולמי מהכרטיס, לא הטקסט שמוצג: «סוג תיק»
-                        // מוצג כ«52 · חד-צדית…» בעוד שע״ם מחזירה «52».
-                        // השוואה מול הטקסט המוצג הייתה מכריזה «שונה» תמיד.
-                        currentValue={
-                          EDIT_FIELD_BY_KEY[f.syncKey]
-                            ? editFieldValue(client, EDIT_FIELD_BY_KEY[f.syncKey])
-                            : (f.v === '—' ? '' : f.v)
-                        }
-                        onAdopt={v => { void adoptShaamValue(f.syncKey!, f.k, v); }}
-                        job={shaamSync.job}
-                        busy={shaamSync.busy || adoptingKey === f.syncKey}
-                        fileNumber={incomeTaxFileNumber}
-                        onRun={() => { void shaamSync.run({ fileNumber: incomeTaxFileNumber }); }}
-                        runError={shaamSync.error}
-                      />
+                    {/* ‼ שורת הרשות רק כשיש מה לומר (שונה / מצב עסקי / כשל).
+                        שדה תואם לא מקבל שורה, ואין כאן שום כפתור — האישור
+                        מקובץ בסיכום הכרטיס. */}
+                    {fieldCheck && !editingThis && spec && (
+                      <FieldAuthorityLine field={fieldCheck} sourceLabel={spec.sourceLabel} />
                     )}
-                    {f.syncKey && adoptError && (
-                      <div className="ial-fsync-msg ial-fsync-err">{adoptError}</div>
-                    )}
-                    {f.syncKey && !adoptError && adoptNotice && (
-                      <div className="ial-fsync-msg">{adoptNotice}</div>
-                    )}
-                    {/* ‼ ביטוח לאומי — אותו מקום ואותו עיצוב, פקד נפרד: זו
-                        רשות אחרת עם חלון וסשן משלה. כרגע מציין מקום ומצב
-                        בלבד, בלי קריאה — ראה BtlFieldSync. */}
-                    {f.btlSyncKey && <BtlFieldSync fieldKey={f.btlSyncKey} />}
                   </div>
                   );
                 })}
@@ -1153,10 +1210,22 @@ export default function TaxFileTab({
                 </div>
               )}
 
-              {/* ‼ סיבת החוסם פעם אחת לכרטיס ולא ליד כל שדה — אותו משפט
-                  שש פעמים הכפיל את גובה התאים ולא הוסיף מידע. */}
-              {!shaamCap.ready && row.facts.some(f => f.syncKey) && (
-                <div className="txf-note">{shaamCap.blockedReason}</div>
+              {/* ‼ סיכום הבדיקה פעם אחת לכרטיס: מה נבדק, כמה שינויים, כפתור
+                  אישור אחד. גם שגיאת ריצה וגם סיבת חסימה מופיעות כאן פעם
+                  אחת — לא ליד כל שדה (אותו משפט שש פעמים הכפיל את גובה
+                  התאים ולא הוסיף מידע). */}
+              {spec?.available && !editingThis && (
+                <AuthorityCheckSummary
+                  result={check}
+                  sourceLabel={spec.sourceLabel}
+                  runError={shaamSync.error}
+                  approving={approvingAuthority === row.authority}
+                  approveError={approvingAuthority === null ? approveError : null}
+                  approveNotice={approvingAuthority === null ? approveNotice : null}
+                  onApprove={() => { if (check) void approveAuthorityChanges(spec, check); }}
+                >
+                  {blocked && !running && <div className="txf-check-note">{blocked}</div>}
+                </AuthorityCheckSummary>
               )}
 
               {/* ‼ פעולות העריכה יושבות בתוך הכרטיס. «ביטול» מחזיר לתצוגה

@@ -96,7 +96,8 @@ export const WORKER_STALE_AFTER_MS = 90_000;
  * (LOCAL_CHECK_MS=30s ב-connectionMonitor.mjs). 10 דקות משאירות מרווח
  * נדיב לעבודה רציפה על אותו מסך בזמן שהפורטל מתאושש, בלי להישאר "מוכן"
  * שעות אחרי שהמצב האמיתי כבר לא ידוע — אותו סף בדיוק כמו התיישנות הודעת
- * משימה ב-ShaamFieldSync.tsx (JOB_MESSAGE_MAX_AGE_MS), מאותה משפחת החלטות.
+ * כשל של משימה בכרטיס הרשות (JOB_ERROR_MAX_AGE_MS ב-authorityAutomation.ts),
+ * מאותה משפחת החלטות.
  */
 export const SUBSYSTEM_STALE_AFTER_MS = 10 * 60_000;
 

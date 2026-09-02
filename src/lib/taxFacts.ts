@@ -4,7 +4,8 @@
 // לא הוק. ראה supabase/90-tax-fact-reconciliation.sql לסמנטיקה המלאה.
 
 import { supabase } from './supabase';
-import type { ProposedFact } from '../types/taxFacts';
+import type { ProposedFact, TaxFactChange } from '../types/taxFacts';
+import { taxFactChangeFromDb } from './dbMappers';
 
 export interface TaxFactRpcResult {
   ok: boolean;
@@ -42,6 +43,22 @@ export async function proposeTaxFacts(
   });
   if (error) return { ok: false, error: error.message };
   return data as TaxFactRpcResult;
+}
+
+/**
+ * ההצעות הממתינות של לקוח — לשימוש מיידי אחרי propose, כשצריך את המזהים
+ * כדי לאשר. ‼ propose_tax_facts מחזירה {ok, proposed} בלבד ולא מזהים, ולכן
+ * האישור המקובץ («אשר N שינויים») קורא כאן אחרי ההצעה, ומאשר לפי מפתח שדה.
+ */
+export async function listPendingTaxFactChanges(clientId: string): Promise<TaxFactChange[]> {
+  const { data, error } = await supabase
+    .from('tax_fact_changes')
+    .select('*')
+    .eq('client_id', clientId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (error || !data) return [];
+  return data.map(taxFactChangeFromDb);
 }
 
 export async function acceptTaxFactChange(changeId: string): Promise<TaxFactRpcResult> {

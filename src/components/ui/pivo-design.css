@@ -4544,28 +4544,54 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 /* ── סנכרון שדה בודד מול שע״ם (ShaamFieldSync) ──────────────────────────
    ‼ פרימיטיב לשדה, לא לסעיף: כפתור קטן ליד כל שדה שיש לו מקור מוכח.
    מציג להשוואה — הערך נכנס לטופס רק בלחיצה על «אמץ». */
-.ial-fsync{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px}
-.ial-fsync-btn{flex:none;width:22px;height:22px;line-height:1;padding:0;
-  border:1px solid var(--bd);border-radius:6px;background:var(--card);
-  color:var(--ink-3);font-size:12px;cursor:pointer}
-.ial-fsync-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
-.ial-fsync-btn:disabled{opacity:.4;cursor:default}
-.ial-fsync-val{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
-.ial-fsync-tag{font-size:11px;color:var(--ink-4)}
-.ial-fsync-adopt{border:1px solid var(--bd);border-radius:6px;background:var(--card);
-  color:var(--accent);font:inherit;font-size:11px;padding:1px 8px;cursor:pointer}
-.ial-fsync-adopt:hover{border-color:var(--accent)}
-.ial-fsync-same{font-size:11px;color:var(--ink-4)}
-.ial-fsync-msg{font-size:11px;line-height:1.5;color:var(--ink-4)}
-.ial-fsync-err{color:var(--danger)}
-.ial-fsync-hint{flex-basis:100%;font-size:11px;line-height:1.45;color:var(--ink-4)}
-
 /* שדה ריק בתמונת המצב — נראה ריק, לא נעלם. */
 .ial-st-empty{color:var(--ink-4)}
 
-/* ⟳ בתוך שורת עובדה בכרטיס הרשות (txf-kv) — קומפקטי, לא שובר את הרשת. */
-.txf-kv .ial-fsync{margin-top:3px;gap:6px}
-.txf-kv .ial-fsync-val{font-size:11px}
+/* ── אוטומציה ברמת כרטיס הרשות ───────────────────────────────────────────
+   ‼ פקד אחד בכותרת, סמן אחד ליד השדה, שורת השוואה רק לשדה ששונה, סיכום
+   אחד. הצבע הוא הסמן — לא התא ולא הכרטיס. ראה AuthorityCheckPanel.tsx. */
+.txf-row-headwrap{display:flex;align-items:stretch}
+.txf-row-headwrap .txf-row-head{flex:1;min-width:0}
+.txf-row-act{display:flex;align-items:center;padding-inline-end:14px;flex:none}
+.txf-check-btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;
+  border:1px solid var(--bd);border-radius:7px;background:var(--card);color:var(--ink-2);
+  font:inherit;font-size:var(--fs-12);cursor:pointer;white-space:nowrap}
+.txf-check-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.txf-check-btn:disabled{opacity:.45;cursor:default}
+.txf-check-btn.is-running{color:var(--ink-3)}
+.txf-check-ic{font-size:12px;line-height:1}
+
+/* סמן מצב: עיגול 7px לפני תווית השדה. */
+.txf-fstat{display:inline-block;width:7px;height:7px;border-radius:50%;margin-inline-end:5px;
+  vertical-align:middle;position:relative;top:-1px;background:var(--ink-4);opacity:.45}
+.txf-fstat.is-match{background:var(--ok);opacity:1}
+.txf-fstat.is-changed{background:var(--warn);opacity:1}
+.txf-fstat.is-failed{background:var(--danger);opacity:1}
+.txf-fstat.is-info{background:transparent;border:1.5px solid var(--info);opacity:1;width:6px;height:6px}
+.txf-fstat.is-unsupported{opacity:.35}
+
+/* שורת הרשות מתחת לערך — קומפקטית, לא שוברת את הרשת. */
+.txf-authline{font-size:11px;line-height:1.5;margin-top:2px;color:var(--ink-3)}
+.txf-authline.is-changed{color:var(--warn)}
+.txf-authline.is-info{color:var(--ink-3)}
+.txf-authline.is-failed{color:var(--danger)}
+.txf-authline-tag{color:var(--ink-4);margin-inline-end:2px}
+.txf-authline-hint{display:block;color:var(--ink-4)}
+
+/* סיכום הבדיקה — שורה אחת, וכפתור אחד כשיש מה לאשר. */
+.txf-check{margin-top:12px;padding-top:9px;border-top:1px solid var(--hairline-2);
+  display:flex;flex-direction:column;gap:6px}
+.txf-check-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:var(--fs-12)}
+.txf-check-sum{color:var(--ink-2)}
+.txf-check-at{color:var(--ink-4);font-size:11px}
+.txf-check-line .ui-btn{margin-inline-start:auto}
+.txf-check-err{font-size:var(--fs-12);color:var(--danger)}
+.txf-check-note{font-size:11px;color:var(--ink-3)}
+@media (max-width:640px){
+  .txf-row-headwrap{flex-wrap:wrap}
+  .txf-row-act{width:100%;padding:0 16px 10px;justify-content:flex-start}
+  .txf-check-line .ui-btn{margin-inline-start:0;width:100%}
+}
 
 /* ── עריכה במקום בכרטיס הרשות ────────────────────────────────────────────
    ‼ אותו מקום שבו יושב הערך. הרשת, הסדר וההיררכיה של הכרטיס לא משתנים —

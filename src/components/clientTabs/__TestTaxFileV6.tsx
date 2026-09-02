@@ -7,10 +7,11 @@
 //         &case=complex|salary|sparse|stale|never|business
 
 import type { Client } from '../../types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import TaxFileTab from './TaxFileTab';
 import { ShaamReadinessProvider } from '../../hooks/shaamReadiness';
 import { supabase } from '../../lib/supabase';
+import { clientFromDb } from '../../lib/dbMappers';
 import TaxFileEdit from './TaxFileEdit';
 import type { FamilyKey } from '../../features/taxFile/editModel';
 
@@ -163,7 +164,7 @@ const STEPS_WAITING = [{ stepType: 'institution_alignment_btl', status: 'complet
 
 export default function TestTaxFileV6() {
   const [edit, setEdit] = useState<FamilyKey | null>(null);
-  const client = CLIENTS[CASE] ?? COMPLEX;
+  const fixture = CLIENTS[CASE] ?? COMPLEX;
   const aligned = CASE !== 'never';
   const steps = CASE === 'business' ? STEPS_WAITING : STEPS_ALIGNED;
 
@@ -171,6 +172,22 @@ export default function TestTaxFileV6() {
   // הפקדים נופלים לברירת המחדל «לא מוכן» ואי אפשר לבדוק לחיצה אמיתית.
   const [uid, setUid] = useState<string | undefined>(undefined);
   useEffect(() => { void supabase.auth.getUser().then(r => setUid(r.data.user?.id)); }, []);
+
+  // ‼ עם ?client= — הערכים האמיתיים מהמסד נשפכים על הפיקסצ׳ר, ואישור
+  // שמחזיר לקוח מעודכן נקלט כאן. בלי זה האישור המקובץ («אשר N שינויים»)
+  // תמיד היה נופל על stale_conflict (התמונה בפיקסצ׳ר ≠ המסד), והמצבים לא
+  // היו מתיישבים אחרי אישור — כלומר אי אפשר היה לבדוק את המסלול המוצלח.
+  const [live, setLive] = useState<Partial<Client> | null>(null);
+  useEffect(() => {
+    if (!CLIENT_ID_OVERRIDE) return;
+    void supabase.from('clients').select('*').eq('id', CLIENT_ID_OVERRIDE).maybeSingle()
+      .then(r => { if (r.data) setLive(clientFromDb(r.data)); });
+  }, []);
+  const client = useMemo(
+    () => (live ? { ...fixture, ...live, id: CLIENT_ID_OVERRIDE || fixture.id } as Client : fixture),
+    [fixture, live],
+  );
+  const onClientPersisted = (c: Client) => setLive(prev => ({ ...(prev ?? {}), ...c }));
 
   return (
     <ShaamReadinessProvider userId={uid}>
@@ -187,7 +204,7 @@ export default function TestTaxFileV6() {
           <TaxFileEdit
             client={client}
             initialFamily={edit}
-            onClientPersisted={() => {}}
+            onClientPersisted={onClientPersisted}
             onPatchAndSave={async () => { alert('בהדגמה — שמירה רגילה'); }}
             onClose={() => setEdit(null)}
             onRunAlignment={() => alert('בהדגמה — מפעיל יישור קו')}
@@ -196,7 +213,7 @@ export default function TestTaxFileV6() {
         ) : (
         <TaxFileTab
           client={client}
-          onClientPersisted={() => {}}
+          onClientPersisted={onClientPersisted}
           onSendQuestionnaire={() => alert('בהדגמה — נפתח חלון שליחת שאלון')}
           onOpenDetails={() => alert('בהדגמה — עריכת פרטי הלקוח')}
           onRunAlignment={() => alert('בהדגמה — מפעיל יישור קו')}
