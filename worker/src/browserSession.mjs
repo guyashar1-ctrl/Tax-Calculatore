@@ -385,6 +385,14 @@ export async function openNikuiAndCheck(page) {
 export const GMF_TIK_INPUT = '#gmftxtMisTik';
 export const GMF_SHILTA_INPUT = '#mavarShilta';
 export const GMF_SUBMIT_BUTTON = '#gmfBtnHmse';
+
+/**
+ * ‼ כפתור ההגשה בכותרת **אינו אותו כפתור בכל מסך**: בתפריט וב-/meda הוא
+ * #gmfBtnHmse, ובמסך הכניסה של 134 הוא #gmfBtnGoTo. נצפה חי. בחירה בשם
+ * אחד בלבד היא בדיוק מה שהפך את הזרימה ללא-אמינה — הלחיצה נתקעה בפסק זמן
+ * בכל פעם שהדפדפן חנה על מסך הכניסה.
+ */
+export const GMF_HEADER_SUBMIT = '#gmfBtnHmse, #gmfBtnGoTo';
 export const GMF_QUERY_FILE_DETAILS = '181';
 // הנתיב שאליו שע״ם מנתבת אחרי הרצת שאילתה 181. נצפה בפועל: מסך התפריט הוא
 // /gmf-main-menu/main/home, ואחרי ההגשה — /gmf-181/main/main181.
@@ -399,65 +407,138 @@ export const GMF_181_PATH = '/gmf-181';
 //
 // ‼ הרדיו מעוצב ומוסתר ולכן לא ניתן ללחיצה. לא כופים עליו — מאמתים שברירת
 // המחדל היא מה שציפינו, ואם לא — עוצרים במקום להמשיך על מסך אחר.
+/** קוד השאילתה של «מקדמות — פרטי דרישה ודיווח». */
+export const GMF_QUERY_ADVANCES = '134';
 export const GMF_134_ENTRY_PATH = '/gmf-134/main/knisa';
 export const GMF_134_DATA_PATH = '/gmf-134/main/meda';
 const GMF_134_CONTINUE = '#btnContinue';
 const GMF_134_YEAR_RADIO = '#ex1';
 const GMF_134_INFO_RADIO = '#entranceRadioList-1';
 
+/** תווית האפשרות שאנחנו חייבים לבחור במסך הכניסה. נבדקת, לא מונחת. */
+const GMF_134_INFO_LABEL = 'מידע לתיק';
+
+/** ממלא שדה של Angular ומאמת שהערך באמת נכנס ל-DOM. */
+async function fillAndVerify(page, selector, value) {
+  await page.fill(selector, '');
+  await page.fill(selector, value);
+  const got = await page.$eval(selector, (e) => e.value).catch(() => null);
+  return { ok: got === value, got: got == null ? null : String(got).length };
+}
+
+/**
+ * פותח «מקדמות — פרטי דרישה ודיווח» (134) עבור מספר תיק נתון.
+ *
+ * ‼ הזרימה נלמדה מהמסך החי ומונעת שלוש תקלות אמיתיות:
+ *
+ * 1. **עובדים על הלשונית שכבר על GMF**, כל מסך שהוא — לא רק התפריט. קודם
+ *    חיפשנו רק /gmf-main-menu, ולכן כשהדפדפן חנה על /knisa או /meda
+ *    (כלומר אחרי כל ריצה מוצלחת) הקוד עבר ללשונית אחרת וניווט אותה.
+ * 2. **כותרת המיינפריים קיימת בכל מסך GMF**, ולכן אפשר להזין מספר תיק +
+ *    קוד שאילתא ולהגיש מכל מקום, בלי לחזור לתפריט.
+ * 3. **מספר התיק נגרר** ממסך למסך. בלי לכתוב אותו מחדש **ולאמת** לפני
+ *    ההגשה, «המשך» היה פותח את התיק של הלקוח הקודם.
+ *
+ * ‼ המתנה לפי כתובת ולא לפי שינה קבועה — זה מה שהפך את הזרימה לא-אמינה.
+ */
 export async function openAdvancesInfo(page, fileNumber) {
+  const steps = [];
+  const note = (s) => { steps.push(s); };
+
   const context = page.context();
-  let work = await pickPageOn(context, GMF_PATH, GMF_TIK_INPUT);
-  if (!work) {
+  // כל מסך GMF משמש כנקודת התחלה; אחרת מנווטים לתפריט.
+  let work = await pickPageOn(context, '/gmf-', GMF_TIK_INPUT);
+  if (work) {
+    note(`start:reuse ${new URL(work.url()).pathname}`);
+  } else {
     work = page;
     await work.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
     const landed = await settlePage(work);
-    if (!landed.pathname.startsWith(GMF_PATH) || landed.hasPasswordField) {
-      return { ok: false, reason: 'gmf_not_ready', pathname: landed.pathname };
+    note(`start:navigated ${landed.pathname}`);
+    if (!GMF_ANY_PATH.test(landed.pathname) || landed.hasPasswordField) {
+      return { ok: false, reason: 'gmf_not_ready', pathname: landed.pathname, steps };
     }
   }
 
   const modal = await readGmfBlockingModal(work);
-  if (modal.blocked) return { ok: false, reason: 'blocked_by_modal', modalTitle: modal.title };
+  if (modal.blocked) return { ok: false, reason: 'blocked_by_modal', modalTitle: modal.title, steps };
 
-  const tik = await work.$(GMF_TIK_INPUT);
-  const shilta = await work.$(GMF_SHILTA_INPUT);
-  if (!tik || !shilta) return { ok: false, reason: 'menu_fields_missing' };
-  await tik.fill('');
-  await tik.fill(fileNumber);
-  await shilta.fill('');
-  await shilta.fill('134');
-  try {
-    await work.locator(GMF_SUBMIT_BUTTON).click({ timeout: 10000 });
-  } catch (e) {
-    return { ok: false, reason: 'submit_click_blocked', detail: String(e).slice(0, 120) };
-  }
-  await work.waitForTimeout(2500);
-  const entry = await settlePage(work, { idleMs: 15000, watchMs: 6000 });
+  // ‼ כשכבר עומדים על מסך הכניסה של 134 — לא עוברים דרך הכותרת בכלל.
+  // זה גם מיותר וגם היה **הכשל בפועל**: כפתור ההגשה בכותרת אינו אותו
+  // כפתור בכל מסך (ראה GMF_HEADER_SUBMIT), ובמסך הכניסה הוא פשוט לא קיים
+  // בשם שחיפשנו — ולכן הלחיצה נתקעה בפסק זמן. וזה בדיוק המסך שבו הדפדפן
+  // חונה אחרי כל ריצה מוצלחת, ולכן הריצה **הבאה** תמיד נכשלה.
+  let entry = await snapPage(work);
   if (!entry.pathname.startsWith(GMF_134_ENTRY_PATH)) {
-    return { ok: false, reason: 'entry_screen_missing', pathname: entry.pathname };
+    if (!(await work.$(GMF_TIK_INPUT)) || !(await work.$(GMF_SHILTA_INPUT))) {
+      return { ok: false, reason: 'header_fields_missing', steps };
+    }
+    const tikSet = await fillAndVerify(work, GMF_TIK_INPUT, fileNumber);
+    const qSet = await fillAndVerify(work, GMF_SHILTA_INPUT, GMF_QUERY_ADVANCES);
+    note(`header:tik=${tikSet.ok ? 'ok' : 'MISMATCH'}(${tikSet.got}) query=${qSet.ok ? 'ok' : 'MISMATCH'}`);
+    if (!tikSet.ok || !qSet.ok) return { ok: false, reason: 'header_value_not_applied', steps };
+
+    const submit = work.locator(GMF_HEADER_SUBMIT).first();
+    if (!(await submit.count())) return { ok: false, reason: 'header_submit_missing', steps };
+    try {
+      await submit.click({ timeout: 10000 });
+    } catch (e) {
+      return { ok: false, reason: 'submit_click_blocked', detail: String(e).slice(0, 120), steps };
+    }
+    // ‼ ממתינים לכתובת, לא לשעון.
+    await work.waitForURL((u) => new URL(u).pathname.startsWith(GMF_134_ENTRY_PATH), { timeout: 25000 })
+      .catch(() => {});
+    entry = await settlePage(work, { idleMs: 15000, watchMs: 4000 });
+  } else {
+    note('entry:already-on-knisa (header skipped)');
+  }
+  note(`entry:${entry.pathname}`);
+  if (!entry.pathname.startsWith(GMF_134_ENTRY_PATH)) {
+    return { ok: false, reason: 'entry_screen_missing', pathname: entry.pathname, steps };
   }
 
-  const defaults = await work.evaluate((sel) => {
-    const y = document.querySelector(sel.year);
-    const i = document.querySelector(sel.info);
-    return { year: !!y && y.checked, info: !!i && i.checked };
-  }, { year: GMF_134_YEAR_RADIO, info: GMF_134_INFO_RADIO });
-  if (!defaults.year || !defaults.info) {
-    return { ok: false, reason: 'entry_defaults_changed', detail: JSON.stringify(defaults) };
+  // ‼ מוודאים את האפשרות לפי **תווית**, ובוחרים אותה אם אינה מסומנת —
+  // לא מסתמכים על סדר האפשרויות ולא רק על ברירת המחדל.
+  const choice = await work.evaluate((sel) => {
+    const info = document.querySelector(sel.info);
+    const label = info ? document.querySelector(`label[for="${CSS.escape(info.id)}"]`) : null;
+    const year = document.querySelector(sel.year);
+    return {
+      infoExists: !!info, infoChecked: !!info && info.checked,
+      labelText: label ? (label.innerText || '').trim() : null,
+      yearChecked: !!year && year.checked,
+    };
+  }, { info: GMF_134_INFO_RADIO, year: GMF_134_YEAR_RADIO });
+  if (!choice.infoExists || choice.labelText !== GMF_134_INFO_LABEL) {
+    return { ok: false, reason: 'entry_option_changed', detail: JSON.stringify(choice), steps };
   }
+  if (!choice.infoChecked) {
+    await work.locator(GMF_134_INFO_RADIO).click({ timeout: 8000 }).catch(() => {});
+  }
+  if (!choice.yearChecked) {
+    await work.locator(GMF_134_YEAR_RADIO).click({ timeout: 8000 }).catch(() => {});
+  }
+  note(`choice:${GMF_134_INFO_LABEL} checked=${choice.infoChecked} year=${choice.yearChecked}`);
+
+  // ‼ מספר התיק נגרר בכותרת בין מסכים. כותבים אותו מחדש ומאמתים כאן,
+  // אחרת «המשך» ייפתח על התיק הקודם.
+  const tikOnEntry = await fillAndVerify(work, GMF_TIK_INPUT, fileNumber);
+  note(`entry:tik=${tikOnEntry.ok ? 'ok' : 'MISMATCH'}(${tikOnEntry.got})`);
+  if (!tikOnEntry.ok) return { ok: false, reason: 'entry_file_not_applied', steps };
 
   try {
     await work.locator(GMF_134_CONTINUE).click({ timeout: 10000 });
   } catch (e) {
-    return { ok: false, reason: 'continue_click_blocked', detail: String(e).slice(0, 120) };
+    return { ok: false, reason: 'continue_click_blocked', detail: String(e).slice(0, 120), steps };
   }
-  await work.waitForTimeout(2500);
-  const data = await settlePage(work, { idleMs: 15000, watchMs: 6000 });
+  await work.waitForURL((u) => new URL(u).pathname.startsWith(GMF_134_DATA_PATH), { timeout: 30000 })
+    .catch(() => {});
+  const data = await settlePage(work, { idleMs: 15000, watchMs: 4000 });
+  note(`data:${data.pathname}`);
   if (!data.pathname.startsWith(GMF_134_DATA_PATH)) {
-    return { ok: false, reason: 'data_screen_missing', pathname: data.pathname };
+    return { ok: false, reason: 'data_screen_missing', pathname: data.pathname, steps };
   }
-  return { ok: true, page: work, pathname: data.pathname };
+  return { ok: true, page: work, pathname: data.pathname, steps };
 }
 
 /**

@@ -39,6 +39,7 @@ export async function run(ctx, input) {
 
     ctx.log(`קורא «מקדמות — פרטי דרישה ודיווח» (134) · ${fileNumber.length} ספרות`);
     const opened = await openAdvancesInfo(conn.page, fileNumber);
+    if (opened.steps) for (const st of opened.steps) ctx.log(`   · ${st}`);
     if (!opened.ok) {
       if (opened.reason === 'gmf_not_ready') {
         throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
