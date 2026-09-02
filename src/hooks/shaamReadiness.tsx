@@ -10,9 +10,24 @@
 // וכולם קוראים ממנו. הכותרת ופקדי השדות לא יכולים לסתור זה את זה, כי אין
 // להם שני מקורות.
 //
+// ‼ שלושה מושגים שונים, שבעבר נדחסו לדגל "פורטל" אחד:
+//   · BOOTSTRAP — פורטל שע״ם (כרטיס חכם + PIN) הוא הדרך להקים/להקים-מחדש
+//     סשן. זה shaam.connect בכותרת, לא תלות של פעולת קריאה.
+//   · CAPABILITY — כל תת-מערכת (GMF/מע״מ/מגן) נמדדת ונקראת **בנפרד**.
+//     סשן GMF יכול להיות חי לגמרי בזמן שהפורטל דורש אימות מחדש — נצפה
+//     בפועל, ולכן פעולה בודדת נחסמת רק על מה שהיא באמת צריכה.
+//   · GLOBAL — הכותרת היא סיכום, לא תלות: כל הרשויות מוכנות ליום עבודה.
+// ראה docs/PIVO-AUTOMATION-FOUNDATION.html לניתוח המלא של ההפרדה הזאת.
+//
 // ‼ הכללים, במקום אחד:
-//   · מוכן = ארבע השכבות מוכנות **וגם** פעימת הלב טרייה.
-//   · פעימת לב ישנה מ-WORKER_STALE_AFTER_MS ⇒ לא מוכן. מצב לא ידוע אינו ירוק.
+//   · מוכנות **גלובלית** (הנורית בכותרת) = ארבע השכבות מוכנות **וגם**
+//     פעימת הלב טרייה.
+//   · מוכנות **ליכולת** נגזרת מ-SHAAM_CAPABILITIES: רק השכבות שהפעולה
+//     הזאת מצהירה עליהן, לא כל הארבע.
+//   · פעימת לב ישנה מ-WORKER_STALE_AFTER_MS ⇒ לא מוכן. מצב לא ידוע אינו
+//     ירוק. אותו עיקרון חל **לכל שכבת GMF/מע״מ/מגן בנפרד**: מדידה ישנה
+//     מ-SUBSYSTEM_STALE_AFTER_MS (checkedAt) נחשבת "לא ידוע" גם אם
+//     ready=true — ראה ההגדרה שם למה.
 //   · אין שורת עובד כלל ⇒ לא מוכן.
 // שום מסך לא מוסיף כלל משלו.
 
@@ -20,7 +35,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type { ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { automationWorkerFromDb } from '../lib/dbMappers';
-import { WORKER_STALE_AFTER_MS } from '../types/automation';
+import { WORKER_STALE_AFTER_MS, SUBSYSTEM_STALE_AFTER_MS } from '../types/automation';
 import type { AutomationWorkerStatus } from '../types/automation';
 
 const POLL_MS = 4000;
@@ -35,14 +50,17 @@ export type ShaamLayer = 'portal' | 'gmf' | 'vat' | 'nikui';
  * «הכול מוכן ליום עבודה», אבל פעולה בודדת נחסמת רק על מה שהיא באמת צריכה.
  * חסימת קריאת 134 בגלל שמע״מ לא מוכנה היא חסימה על תלות שאינה קיימת.
  *
- * shaam.read_134 (shaamSyncIncomeTaxFile): attach → probeServerSession →
- * openAdvancesInfo. כלומר עובד חי + פורטל מאומת + GMF. מע״מ ומגן אינן
- * נוגעות בו.
+ * shaam.read_134 (shaamSyncIncomeTaxFile): attach → openAdvancesInfo, שבודקת
+ * ישירות את GMF (נתיב, שדה סיסמה, חומת אימות). כלומר עובד חי + GMF —
+ * **לא** פורטל: סשן GMF שכבר בעבודה אינו תלוי בכך שהפורטל מדווח מוכן
+ * ברגע הזה, ו-handler ה-134 עצמו כבר לא בודק את הפורטל (הוסר מכוון —
+ * ראה worker/src/handlers/shaamSyncIncomeTaxFile.mjs). מע״מ ומגן אינן
+ * נוגעות בו כלל.
  *
  * ‼ אוטומציה חדשה מצהירה כאן על התלויות שלה — לא במסך שמציג אותה.
  */
 export const SHAAM_CAPABILITIES: Record<string, ShaamLayer[]> = {
-  'shaam.read_134': ['portal', 'gmf'],
+  'shaam.read_134': ['gmf'],
 };
 
 /** מפתח היכולת של קריאת שאילתה 134. */
@@ -113,10 +131,21 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [refresh]);
 
+  /**
+   * ‼ "מוכן" של שכבת Tier-B דורש גם checkedAt טרי — לא רק ready=true.
+   * הצופה מדווח checkedAt של המדידה **הישירה** האחרונה (ראה
+   * connectionMonitor.mjs), כולל כשהפורטל למטה והערך רק נשמר מסבב קודם.
+   * בלי הבדיקה כאן, ערך ששמור מזמן היה מוצג "מוכן" בלי גבול זמן.
+   */
+  const freshLayer = (layer?: { ready: boolean; checkedAt?: string }): boolean => {
+    if (!layer?.ready || !layer.checkedAt) return false;
+    return Date.now() - new Date(layer.checkedAt).getTime() < SUBSYSTEM_STALE_AFTER_MS;
+  };
+
   const shaam = !!status.shaam?.connected;
-  const gmf = !!status.gmf?.ready;
-  const vat = !!status.vat?.ready;
-  const nikui = !!status.nikui?.ready;
+  const gmf = freshLayer(status.gmf);
+  const vat = freshLayer(status.vat);
+  const nikui = freshLayer(status.nikui);
   const ready = !workerOffline && shaam && gmf && vat && nikui;
 
   const WORKER_OFF = 'מחשב האוטומציה אינו פעיל, ולכן אי אפשר לקרוא משע״ם.';

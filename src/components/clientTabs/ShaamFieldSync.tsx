@@ -76,9 +76,11 @@ interface Props {
 export default function ShaamFieldSync({
   fieldKey, currentValue, onAdopt, job, busy, fileNumber, onRun, runError,
 }: Props) {
-  // ‼ מוכנות **לפעולה הזאת**, לא מוכנות גלובלית: קריאת 134 צריכה עובד חי,
-  // פורטל מאומת ו-GMF. מע"מ ומגן אינן תלות שלה, וחסימה בגללן היא חסימה
-  // על משהו שאינו נדרש.
+  // ‼ מוכנות **לפעולה הזאת**, לא מוכנות גלובלית: קריאת 134 צריכה רק עובד
+  // חי + GMF. פורטל, מע"מ ומגן אינם תלות שלה — סשן GMF יכול להיות חי גם
+  // כשהפורטל מבקש אימות מחדש, וחסימה על תלות שאינה קיימת היא בדיוק מה
+  // שגרם לששת הכפתורים להיחסם בזמן שהקריאה הייתה עובדת. ראה
+  // SHAAM_CAPABILITIES ב-shaamReadiness.tsx.
   const cap = useShaamReadiness().capability(SHAAM_READ_134);
   const spec = SHAAM_134_FIELD_SOURCES[fieldKey];
   if (!spec) return null;

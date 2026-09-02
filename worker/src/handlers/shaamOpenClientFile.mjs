@@ -9,7 +9,7 @@
 // ‼ עדיין לא מחלצת שום נתון מקצועי מהמסך. היא פותחת ומאמתת שנפתח התיק
 // הנכון, וזהו.
 import {
-  attach, detach, probeServerSession, openClientFileDetails, verifyFileDetailsFor,
+  attach, detach, openClientFileDetails, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 
@@ -35,9 +35,8 @@ export async function run(ctx, input) {
   if (!conn.ok) throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
 
   try {
-    const session = await probeServerSession(conn.page);
-    if (!session.authenticated) throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
-
+    // ‼ אין שער נפרד של פורטל כאן — ראה shaamSyncIncomeTaxFile.mjs. הבדיקה
+    // התפעולית האמיתית קיימת ב-openClientFileDetails, והיא הסמכות היחידה.
     ctx.log(`פותח «פרטי תיק» (שאילתה 181) · ${fileNumber.length} ספרות`);
     const opened = await openClientFileDetails(conn.page, fileNumber);
     if (!opened.ok) {

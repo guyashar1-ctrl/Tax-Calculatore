@@ -10,7 +10,7 @@
 // אם בכל זאת נתקלים כאן בקיר סיסמה, זו עדות שהחיבור לא הושלם: המשימה
 // נעצרת עם "החיבור אינו מוכן" ומפנה לכותרת, במקום לפתוח תהליך התחברות
 // שני מתוך כפתור בדיקה. האוטומציה לעולם אינה מקלידה סיסמה, PIN או OTP.
-import { attach, detach, probeServerSession } from '../browserSession.mjs';
+import { attach, detach } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 
 export const actionType = 'shaam.open_income_tax';
@@ -40,16 +40,9 @@ export async function run(ctx) {
   }
 
   try {
-    // ‼ בדיקת אמת מול השרת ולא כותרת הטאב: דף טעון ממשיך להיראות מחובר גם
-    // אחרי שהסשן פג. בלי זה היינו מנווטים לתוך סשן מת ומדווחים הצלחה.
-    const session = await probeServerSession(conn.page);
-    if (!session.authenticated) {
-      throw new NeedsHumanError(
-        'הסשן בשע״ם אינו פעיל. לחצו על "שע״ם" בכותרת והתחברו, ואז נסו שוב.',
-        'shaam_session_expired',
-      );
-    }
-
+    // ‼ אין בדיקת פורטל נפרדת כאן: מוכנות GMF אינה נגזרת ממוכנות הפורטל.
+    // הבדיקה התפעולית האמיתית — הנתיב ושדה הסיסמה אחרי ההתייצבות, למטה —
+    // כבר מזהה סשן מת (הפניה ל-/login) והיא הסמכות היחידה.
     ctx.log('מנווט למערכת גביית מס הכנסה');
     await conn.page.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 25000 })
       .catch((e) => ctx.log('ניווט הסתיים עם אזהרה:', String(e).split('\n')[0]));
@@ -62,6 +55,16 @@ export async function run(ctx) {
     ctx.log(`נחת ב: ${settled.pathname} · שדה סיסמה: ${settled.hasPasswordField}`);
 
     if (!settled.pathname.startsWith(GMF_PATH)) {
+      // ‼ הפניה לכניסת הפורטל (למשל אחרי חומת OTP, או סשן שער שפג) היא
+      // עדות ל"החיבור אינו מוכן" — לא לתקלה מבנית. בלי ההבחנה הזאת, פורטל
+      // שנפל היה נופל כאן ל-PermanentError, שאין ממנו חזרה בלי התערבות.
+      if (settled.pathname.includes('/taxes-login/')) {
+        throw new NeedsHumanError(
+          'הפורטל של שע״ם מבקש אימות מחדש. לחצו על "שע״ם" בכותרת והשלימו את ' +
+          'ההתחברות בחלון הייעודי, ואז הריצו שוב.',
+          'shaam_portal_auth_required',
+        );
+      }
       throw new PermanentError(
         `הניווט לא הגיע למערכת הגבייה (${settled.pathname}).`,
         'unexpected_destination',

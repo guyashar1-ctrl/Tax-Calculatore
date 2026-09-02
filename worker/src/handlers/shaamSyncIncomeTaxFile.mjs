@@ -9,7 +9,7 @@
 // החי. שיעור המקדמה ותדירות הדיווח **לא** נכללים — ראה דוח המיפוי; אין
 // להם תווית ייעודית במסך הזה, וניחוש היה גרוע מכלום.
 import {
-  attach, detach, probeServerSession, openAdvancesInfo,
+  attach, detach, openAdvancesInfo,
   extractIncomeTaxFileFacts, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
@@ -34,9 +34,10 @@ export async function run(ctx, input) {
   if (!conn.ok) throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
 
   try {
-    const session = await probeServerSession(conn.page);
-    if (!session.authenticated) throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
-
+    // ‼ אין כאן שער נפרד של פורטל (probeServerSession): מוכנות GMF אינה
+    // נגזרת ממוכנות הפורטל, וסשן GMF יכול להיות חי גם כשהפורטל דורש
+    // אימות מחדש. הבדיקה התפעולית האמיתית — נתיב, שדה סיסמה, חומת אימות
+    // — כבר קיימת ב-openAdvancesInfo, והיא הסמכות היחידה כאן.
     ctx.log(`קורא «מקדמות — פרטי דרישה ודיווח» (134) · ${fileNumber.length} ספרות`);
     const opened = await openAdvancesInfo(conn.page, fileNumber);
     if (opened.steps) for (const st of opened.steps) ctx.log(`   · ${st}`);
