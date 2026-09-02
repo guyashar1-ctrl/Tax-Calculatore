@@ -448,8 +448,13 @@ export function coerceEditField(f: EditField, v: string): unknown {
   if (f.kind === 'bool') return v === 'true';
   if (f.kind === 'number' || f.kind === 'money') {
     const n = Number(v.replace(/[^\d.-]/g, ''));
-    return v.trim() === '' ? undefined : (Number.isNaN(n) ? undefined : n);
+    // ‼ null ולא undefined. ‎JSON.stringify‎ משמיט מפתח שערכו undefined,
+    // ולכן ניקוי שדה מספרי שלח patch **ריק**: ההיסטוריה נרשמה «7 ← —»
+    // בזמן שהערך נשאר 7. שקר שקט בתיק, ונתפס בבדיקה בייצור.
+    return v.trim() === '' || Number.isNaN(n) ? null : n;
   }
+  // ‼ אותה סיבה, ובנוסף עמודת date במסד דוחה מחרוזת ריקה.
+  if (f.kind === 'date') return v.trim() === '' ? null : v;
   return v;
 }
 
