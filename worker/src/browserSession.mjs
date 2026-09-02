@@ -679,10 +679,22 @@ export async function pickPageOn(context, pathPrefix, selector) {
 }
 
 /** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על GMF. */
+/**
+ * ‼ כל מסך של גביית מס הכנסה, לא רק התפריט.
+ *
+ * מסך שאילתה פתוח (למשל /gmf-134/...) הוא **עדות חזקה יותר** לסשן מאומת
+ * מאשר התפריט: אי אפשר להגיע אליו בלי להיות מחובר. כשהבדיקה הכירה רק
+ * ב-/gmf-main-menu נוצר קיפאון אמיתי בייצור: הדפדפן חנה על מסך 134 עובד,
+ * הקריאה החינמית החזירה «לא על GMF», והצופה דילג על הניווט שהיה מתקן —
+ * כי הוא מגן על המסך שנפתח לרו"ח. התוצאה: GMF=לא מוכנה לנצח, וששת
+ * פקדי הסנכרון מושבתים בזמן ש-GMF עובדת מול העיניים.
+ */
+const GMF_ANY_PATH = /^\/gmf-/;
+
 const gmfState = (s) => {
-  if (!s.pathname.startsWith(GMF_PATH)) return { ready: false, reason: 'unexpected_destination' };
+  if (!GMF_ANY_PATH.test(s.pathname)) return { ready: false, reason: 'unexpected_destination' };
   if (s.hasPasswordField || s.pathname.includes('/login')) return { ready: false, reason: 'login_required' };
-  return { ready: true, reason: 'menu' };
+  return { ready: true, reason: s.pathname.startsWith(GMF_PATH) ? 'menu' : 'work_screen' };
 };
 
 /**
@@ -715,7 +727,8 @@ async function gmfStateOnPage(page, snap) {
 
 export async function readGmfOnCurrentPage(page) {
   const s = await snapPage(page);
-  if (!s.pathname.startsWith(GMF_PATH)) return { onGmf: false, ready: null };
+  // ‼ כל מסך GMF נחשב — כולל מסך שאילתה. ראה GMF_ANY_PATH.
+  if (!GMF_ANY_PATH.test(s.pathname)) return { onGmf: false, ready: null };
   return { onGmf: true, ...(await gmfStateOnPage(page, s)), pathname: s.pathname };
 }
 
