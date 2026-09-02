@@ -805,13 +805,14 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
 const OCC_TYPES = Object.keys(NI_OCCUPATION_TYPE_LABELS) as NiOccupationType[];
 
 /** שורה שעדיין לא נבחר בה עיסוק. נשמר רק מה שנבחר — ראה selectedOccupations. */
-type OccupationDraft = Omit<NiOccupation, 'type'> & { type: NiOccupationType | '' };
+export type OccupationDraft = Omit<NiOccupation, 'type'> & { type: NiOccupationType | '' };
 
-function newOccupationRow(index: number): OccupationDraft {
+/** ‼ מיוצא כדי שתיק המס יוכל להרכיב את אותו עורך בכרטיס ב״ל — לא עותק שני. */
+export function newOccupationRow(index: number): OccupationDraft {
   return { id: `occ_${Date.now()}_${index}`, type: '' };
 }
 
-function OccupationsEditor({ occupations, onChange }: { occupations: OccupationDraft[]; onChange: (o: OccupationDraft[]) => void }) {
+export function OccupationsEditor({ occupations, onChange }: { occupations: OccupationDraft[]; onChange: (o: OccupationDraft[]) => void }) {
   function update(id: string, patch: Partial<OccupationDraft>) {
     onChange(occupations.map(o => o.id === id ? { ...o, ...patch } : o));
   }

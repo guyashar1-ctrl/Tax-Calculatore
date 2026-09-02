@@ -205,7 +205,6 @@ export default function TestTaxFileV6() {
           steps={steps}
           onCreateTask={(t) => alert('משימה: ' + t)}
           onCreateRequest={(f) => alert('בקשה ללקוח: ' + f.requestTitle)}
-          onEditFamily={(f) => setEdit(f)}
         />
         )}
       </div>

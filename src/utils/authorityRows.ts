@@ -54,7 +54,17 @@ export interface AuthorityRow {
    * על `syncKey`: שתי הרשויות הן שני חלונות, שני סשנים ושני פקדים, ואיחודן
    * למפתח אחד היה מזמין רגרסיה בנתיב של שע״ם שכבר עובד בייצור.
    */
-  facts: { k: string; v: string; tone?: 'warn' | 'ok'; syncKey?: string; btlSyncKey?: string; editKey?: string }[];
+  /**
+   * `taxFileNumberAuthority` — קיים על שורת «מספר תיק/עוסק» כשהערך נגזר
+   * מ-`taxFiles`, לא משדה שטוח על הלקוח. אין לזה `editKey` (אין שדה כזה
+   * ב-editModel — המבנה הוא רשימה), ולכן המסך צריך לדעת בנפרד: זו עדיין
+   * שורה הניתנת לעריכה, רק דרך מסלול `taxFiles` ולא דרך `EDIT_FIELD_BY_KEY`.
+   */
+  facts: {
+    k: string; v: string; tone?: 'warn' | 'ok';
+    syncKey?: string; btlSyncKey?: string; editKey?: string;
+    taxFileNumberAuthority?: TaxAuthority;
+  }[];
   /** יש בכלל מה להציג על הרשות הזו. רשות בלי תיק ובלי נתון אינה שורה. */
   present: boolean;
 }
@@ -127,7 +137,7 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
   {
     const facts: AuthorityRow['facts'] = [];
     const num = numbersOf('income_tax');
-    facts.push({ k: 'מספר תיק', v: num || EMPTY });
+    facts.push({ k: 'מספר תיק', v: num || EMPTY, taxFileNumberAuthority: 'income_tax' });
     // ‼ התיק אצל בן/בת הזוג המקושר/ת — לא "עדיין לא נבדק", אלא תיק משותף
     // שכבר קיים, בכתובת אחרת. שם ומצב האימות מגיעים דרך registeredFileInfo
     // על הכרטיס שמחזיק את התיק בפועל, לא על הכרטיס הזה.
@@ -176,6 +186,11 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
     } else {
       facts.push({ k: 'הצהרת הון', v: EMPTY, editKey: 'capitalDeclarationRequired' });
     }
+    facts.push({
+      k: 'מועד הצהרת הון',
+      v: client.capitalDeclarationDeadline ? shortDate(client.capitalDeclarationDeadline) : EMPTY,
+      editKey: 'capitalDeclarationDeadline',
+    });
     if (client.withholdingStatus) {
       const t = WITHHOLDING_LABELS[client.withholdingStatus];
       facts.push({ k: 'ניכוי מס במקור',
@@ -184,6 +199,7 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
     } else {
       facts.push({ k: 'ניכוי מס במקור', v: EMPTY, editKey: 'withholdingStatus' });
     }
+    facts.push({ k: 'פירוט ניכוי', v: client.withholdingDetail || EMPTY, editKey: 'withholdingDetail' });
     if (client.bookStatus && client.bookStatus !== 'unknown') {
       facts.push({ k: 'ניהול ספרים', v: client.bookStatus === 'kosher' ? 'תקין' : 'נפסל',
         tone: client.bookStatus === 'kosher' ? 'ok' : 'warn', editKey: 'bookStatus' });
@@ -232,7 +248,7 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
     // ‼ «מספר עוסק» ו«ייצוג» נגזרים מ-taxFiles ולכן נשארים לקריאה — בדיוק
     // כמו «מספר תיק» במס הכנסה. שאר השדות הם עובדות מנוהלות עם מסלול
     // כתיבה קיים, ולכן נערכים במקום.
-    facts.push({ k: 'מספר עוסק', v: num || EMPTY });
+    facts.push({ k: 'מספר עוסק', v: num || EMPTY, taxFileNumberAuthority: 'vat' });
     facts.push({ k: 'סוג תיק', v: client.vatFileType || EMPTY, editKey: 'vatFileType' });
     facts.push({ k: 'תאריך פתיחה', v: client.vatOpeningDate ? shortDate(client.vatOpeningDate) : EMPTY, editKey: 'vatOpeningDate' });
     facts.push({ k: 'ענף עיקרי', v: client.vatPrimaryIndustry || EMPTY, editKey: 'vatPrimaryIndustry' });
@@ -281,10 +297,15 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
       || client.niAdvanceMonthly != null || !!bal || !!auth;
     const niViaSpouse = !hasOwnData ? viaSpouse('national_insurance') : null;
 
-    // ‼ «מספר תיק» ו«ייצוג» נגזרים מ-taxFiles ⇒ לקריאה. «עיסוקים» הוא רשימה
-    // (niOccupations) שנערכת בעורך הייעודי שלה במסך יישור הקו — תא בודד
-    // בכרטיס אינו יכול לייצג אותה, ולכן היא נשארת לקריאה כאן.
-    facts.push({ k: 'מספר תיק', v: num || EMPTY });
+    // ‼ ת.ז. הלקוח מוצגת כאן כהקשר מזהה בלבד — לקריאה, לא לעריכה בתיק הזה.
+    // ‼ **אינה** מספר התיק בביטוח לאומי. שתי הרשות שונות: ת.ז. היא זהות
+    // הלקוח, «מספר תיק» הוא רישום נפרד ברשות שלא תמיד קיים ולא נגזר מהת.ז.
+    facts.push({ k: 'ת.ז.', v: client.idNumber || EMPTY });
+    // ‼ «ייצוג» נגזר מ-taxFiles ⇒ לקריאה. «מספר תיק» נגזר מ-taxFiles גם הוא,
+    // אך כן ניתן לעריכה — דרך מסלול נפרד (taxFileNumberAuthority), לא
+    // editKey, כי הערך יושב ברשימה ולא בשדה שטוח. «עיסוקים» הוא רשימה
+    // (niOccupations) עם עורך מובנה משלה — התיק מרכיב אותו בעצמו בעריכה.
+    facts.push({ k: 'מספר תיק', v: num || EMPTY, taxFileNumberAuthority: 'national_insurance' });
     facts.push({ k: 'עיסוקים', v: occ.length ? `${occ.length} עיסוקים` : EMPTY });
     facts.push({
       k: 'בסיס למקדמות',
@@ -329,7 +350,7 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
     const rep = repOf('deductions');
     const dedViaSpouse = !num && !rep ? viaSpouse('deductions') : null;
 
-    facts.push({ k: 'תיק ניכויים', v: num || EMPTY });
+    facts.push({ k: 'תיק ניכויים', v: num || EMPTY, taxFileNumberAuthority: 'deductions' });
     facts.push({
       k: 'שיעור ניכוי',
       v: client.withholdingRate != null ? `${client.withholdingRate}%` : EMPTY,
