@@ -171,7 +171,13 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
       syncKey: 'pitAdvanceFrequency',
     });
     const bal = balanceText(client.incomeTaxBalance);
-    facts.push(bal ? { k: 'יתרה', v: bal.text, tone: bal.tone, editKey: 'incomeTaxBalance' } : { k: 'יתרה', v: EMPTY, editKey: 'incomeTaxBalance' });
+    // ‼ syncKey נוסף לשורה הקיימת — לא שורה חדשה. עד עכשיו הוחסר בכוונה:
+    // «יתרה» ב-134 היא יתרת חשבון המקדמות לשנה, לא יתרת חשבון מס הכנסה
+    // הכללית שהשדה הזה מתאר, וההבדל הזה תועד במפורש (786468f). זו החלטת
+    // מוצר מודעת למפות בכל זאת — לא תיקון של אותה הסתייגות.
+    facts.push(bal
+      ? { k: 'יתרה', v: bal.text, tone: bal.tone, editKey: 'incomeTaxBalance', syncKey: 'incomeTaxBalance' }
+      : { k: 'יתרה', v: EMPTY, editKey: 'incomeTaxBalance', syncKey: 'incomeTaxBalance' });
     if (client.incomeTaxReportingStatus) {
       const ok = client.incomeTaxReportingStatus.trim() === 'אין דיווחים חסרים';
       facts.push({ k: 'מצב דיווחים', v: client.incomeTaxReportingStatus, tone: ok ? 'ok' : 'warn', editKey: 'incomeTaxReportingStatus' });

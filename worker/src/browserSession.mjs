@@ -561,35 +561,97 @@ export async function extractIncomeTaxFileFacts(page) {
       return text ? { ok: true, text } : { ok: false, reason: 'empty' };
     };
     /**
-     * שיעור המקדמות ותדירותן.
+     * מצב המקדמות: פעילה (שיעור+תדירות) או «לא נדרש במקדמה» (עם סיבה).
      *
-     * ‼ העוגן נלקח מהמסך החי אצל לקוח עם מקדמות פעילות: בכל המסך יש
-     * **בדיוק אלמנט אחד** שכל הטקסט שלו הוא אחוז (`15%`), והוא LABEL שני
-     * בתוך H2.withColor שהראשון בו הוא התדירות (`דו-חדשי`).
-     * ‼ יותר מאחד ⇒ דו-משמעי, ולא קוראים. אפס ⇒ אין ערך — וזה המצב אצל
-     * לקוח שהמקדמות שלו בוטלו, ולא תקלה.
+     * ‼ העוגן הוא <app-meda-header>, רכיב Angular ייעודי שקיים בדיוק פעם
+     * אחת במסך /gmf-134/main/meda בשני המצבים גם יחד — נצפה חי אצל שני
+     * לקוחות אמיתיים. בתוכו h2.withColor הוא **תמיד** קופסת המצב הנוכחי,
+     * וילדיו (LABEL) הם ההבדל היחיד בין המצבים:
+     *   · שני LABEL   ⇒ פעילה: [0]=תדירות («דו-חדשי»), [1]=שיעור («15%»).
+     *   · LABEL אחד, «לא נדרש במקדמה» ⇒ אין מקדמה. הסיבה («בסיס אפס» וכו')
+     *     יושבת בתווית "סיבת אי חיוב" שבתוך אותו הרכיב.
+     * זה חזק בהרבה מ"האלמנט היחיד שמסתיים ב-%": בעבר לא היה עוגן קונטיינר
+     * בכלל, ולכן "אפס % במסך" ו"אין % כי הרכיב לא בכלל שם" לא היו ניתנים
+     * להבחנה. עכשיו שניהם עוברים דרך אותו רכיב, ורק תוכנו קובע.
+     * ‼ כל צורה אחרת (0 או >1 <app-meda-header>, 0 או >1 h2.withColor,
+     * תווית אחת בטקסט לא-מוכר, שיעור שאינו תואם %) ⇒ דו-משמעי. לא מנחשים.
      */
     const readAdvance = () => {
+      const NO_ADVANCE_LABEL = 'לא נדרש במקדמה';
       const PCT = /^\d+(\.\d+)?%$/;
-      const hits = [...document.querySelectorAll('*')]
-        .filter((e) => e.children.length === 0 && PCT.test((e.innerText || '').replace(/\s+/g, ' ').trim()));
-      if (hits.length !== 1) {
+      const fail = (reason) => ({
+        status: { ok: false, reason },
+        rate: { ok: false, reason },
+        frequency: { ok: false, reason },
+        reason: { ok: false, reason: 'not_applicable' },
+      });
+
+      const headers = document.querySelectorAll('app-meda-header');
+      if (headers.length !== 1) return fail(headers.length ? 'ambiguous_header' : 'header_missing');
+      const header = headers[0];
+
+      const rateBlocks = header.querySelectorAll('h2.withColor');
+      if (rateBlocks.length !== 1) {
+        return fail(rateBlocks.length ? 'ambiguous_rate_block' : 'rate_block_missing');
+      }
+      const labels = [...rateBlocks[0].children].filter((c) => c.tagName === 'LABEL');
+
+      if (labels.length === 2) {
+        const freqText = (labels[0].innerText || '').replace(/\s+/g, ' ').trim();
+        const rateText = (labels[1].innerText || '').replace(/\s+/g, ' ').trim();
+        if (!freqText || !PCT.test(rateText)) return fail('unrecognized_active_shape');
         return {
-          rate: { ok: false, reason: hits.length ? 'ambiguous' : 'missing', n: hits.length },
-          frequency: { ok: false, reason: hits.length ? 'ambiguous' : 'missing', n: hits.length },
+          status: { ok: true, text: 'active' },
+          rate: { ok: true, text: rateText },
+          frequency: { ok: true, text: freqText },
+          reason: { ok: false, reason: 'not_applicable' },
         };
       }
-      const el = hits[0];
-      const rateText = (el.innerText || '').replace(/\s+/g, ' ').trim();
-      const freqEl = el.previousElementSibling ?? el.parentElement?.children?.[0];
-      const freqText = freqEl && freqEl !== el
-        ? (freqEl.innerText || '').replace(/\s+/g, ' ').trim() : '';
-      return {
-        rate: { ok: true, text: rateText },
-        frequency: freqText ? { ok: true, text: freqText } : { ok: false, reason: 'missing' },
-      };
+
+      if (labels.length === 1 && (labels[0].innerText || '').trim() === NO_ADVANCE_LABEL) {
+        // ‼ «סיבת אי חיוב» (reason for no charge) יושבת ב-.mt-1 עם שני span:
+        // התווית ("סיבת אי חיוב") והערך ("בסיס אפס"). לא קיימת אצל לקוח
+        // פעיל — נצפה: אין שם צורך "להסביר" חיוב שקיים.
+        const reasonBlock = [...header.querySelectorAll('.mt-1')]
+          .find((d) => (d.innerText || '').includes('סיבת אי חיוב'));
+        const reasonSpans = reasonBlock ? [...reasonBlock.querySelectorAll('span')] : [];
+        const reasonText = reasonSpans.length >= 2
+          ? (reasonSpans[1].innerText || '').replace(/\s+/g, ' ').trim() : '';
+        return {
+          status: { ok: true, text: 'no_advance' },
+          // ‼ לא 0: שע״ם לא מציגה שיעור מספרי כלשהו למצב הזה — אין שם %
+          // בשום מקום. "0" היה נתון שהומצא, לא נתון שנקרא.
+          rate: { ok: false, reason: 'not_applicable' },
+          frequency: { ok: false, reason: 'not_applicable' },
+          reason: reasonText ? { ok: true, text: reasonText } : { ok: false, reason: 'no_reason_shown' },
+        };
+      }
+
+      return fail('unrecognized_label_text');
     };
     const adv = readAdvance();
+
+    /**
+     * יתרת חשבון המקדמות לשנה (יתרה).
+     *
+     * ‼ אותו עוגן מבני כמו ארבעת השדות הפשוטים — תווית מדויקת, וערך ב**אח
+     * הבא** — רק שכאן התווית היא H3 בתוך .boxStatus-white ולא span.small
+     * (זו קופסת הסיכום השנתי: מחזור/חיוב מקדמה/תשלומים/ניכוי במקור/יתרה,
+     * חמש קופסאות זהות במבנה, שכל אחת מזוהה רק לפי תוכן ה-H3 שלה).
+     * ‼ נצפה חי: הקופסה קיימת גם אצל לקוח עם מקדמות פעילות וגם אצל לקוח
+     * שהמקדמות שלו בוטלו — ונעדרת **לגמרי** (אין אף קופסת סיכום) אצל לקוח
+     * במצב «לא נדרש במקדמה». כשהיא נעדרת, 'missing' — לא תקלה, בדיוק כמו
+     * rate/frequency באותו מצב.
+     */
+    const readBalance = () => {
+      const hits = [...document.querySelectorAll('.boxStatus-white')]
+        .filter((box) => (box.querySelector('h3')?.innerText || '').trim() === 'יתרה');
+      if (hits.length !== 1) return { ok: false, reason: hits.length ? 'ambiguous' : 'missing', n: hits.length };
+      const value = hits[0].querySelector('p');
+      if (!value) return { ok: false, reason: 'no_value_node' };
+      const text = (value.innerText || '').replace(/\s+/g, ' ').trim();
+      return text ? { ok: true, text } : { ok: false, reason: 'empty' };
+    };
 
     return {
       pathname: location.pathname,
@@ -597,8 +659,11 @@ export async function extractIncomeTaxFileFacts(page) {
       fileType: read('סוג תיק'),
       unit: read('חולייה'),
       economicIndustry: read('ענף כלכלי'),
+      advanceStatus: adv.status,
       advanceRate: adv.rate,
       advanceFrequency: adv.frequency,
+      advanceReason: adv.reason,
+      balance: readBalance(),
     };
   });
 }
