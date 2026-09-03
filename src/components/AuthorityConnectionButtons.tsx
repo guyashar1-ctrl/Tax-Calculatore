@@ -1,5 +1,12 @@
 // ─── נוריות החיבור לרשויות — בכותרת, ליד "לקוחות"/"משימות" ──────────────────
-// פקד מוצר, לא דיאגנוסטיקה. אפור = לא מחובר · כתום = ממתין לך · ירוק = מחובר.
+// פקד מוצר, לא דיאגנוסטיקה. אפור = לא מחובר עכשיו · כתום = PIVO עצרה
+// וממתינה לך, בחלון שאתה פתחת בלחיצה · ירוק = מחובר. ראה
+// docs/SPEC-HEADER-CONNECTION-CONTROLS.md למפרט המלא.
+//
+// ‼ אין מצב חזותי רביעי. "מתחבר", "מחשב האוטומציה כבוי" ו"נכשל" הם כולם
+// אפור — נבדלים בטקסט הרחיפה ובתוכן הפופאובר בלבד, לא בצבע. הבחנה חזותית
+// בין "אפור נח" ל"אפור כבוי" נשקלה ונדחתה בכוונה: היא הייתה מלמדת שפה
+// חזותית נוספת בשלב הזה, כשההסבר בלחיצה מספיק.
 //
 // ‼ לחיצה כשמנותקים מבקשת מהעובד המקומי לפתוח את חלון הרשות הייעודי. הרו"ח
 // אינו אמור לפתוח קובץ .bat או טרמינל. האימות עצמו — אישור דיגיטלי ו-PIN
@@ -9,112 +16,235 @@
 // ‼ שתי רשויות, שני חלונות, שתי נוריות עצמאיות. התנתקות מאחת אינה נוגעת
 // בשנייה.
 //
-// ‼ "מחשב האוטומציה כבוי" מוצג במפורש ולא כהיעלמות של הכפתור: כפתור שנעלם
-// לא מסביר למה, וזה בדיוק המצב שבו צריך הסבר.
+// ‼ אין טקסט קבוע ליד הכפתורים. ההסבר הנחוץ מופיע רק כשיש משהו לעשות
+// (פופאובר עוגן, נפתח לבד בכניסה ל-needs_you/failed) או בלחיצה מפורשת
+// (ready/offline). הכותרת נשארת שקטה במצב נח.
 
+import { useEffect, useRef, useState } from 'react';
 import { useAuthorityConnections } from '../hooks/useAuthorityConnections';
-import type { AuthorityPhase, BtlPhase } from '../hooks/useAuthorityConnections';
+import type { AuthorityConnState, ConnPhase } from '../hooks/useAuthorityConnections';
 
 interface Props {
   userId: string | undefined;
 }
 
-// ‼ אפור = מנותק · כתום = בהכנה/דרושה פעולה שלך · ירוק = **הסביבה מוכנה
-// לאוטומציה**, כלומר כל ארבע השכבות מוכנות: פורטל שע״ם, מערכת גביית מס
-// הכנסה, מע״מ ומגן. במסלול הרגיל אישור דיגיטלי ו-PIN מספיקים לכולן.
-const PHASE_CLASS: Record<AuthorityPhase, string> = {
-  worker_offline: 'is-off',
-  shaam_disconnected: '',
-  opening: 'is-pending',
-  awaiting_shaam_auth: 'is-pending',
-  awaiting_gmf_auth: 'is-pending',
-  awaiting_vat_auth: 'is-pending',
-  awaiting_nikui_auth: 'is-pending',
+type Authority = 'shaam' | 'btl';
+
+const AUTHORITY_LABEL: Record<Authority, string> = { shaam: 'שע״ם', btl: 'ביטוח לאומי' };
+
+const PHASE_CLASS: Record<ConnPhase, string> = {
+  idle: '',
+  connecting: 'is-pending',
+  needs_you: 'is-pending',
   ready: 'is-on',
+  failed: '',
 };
 
-const PHASE_TITLE: Record<AuthorityPhase, string> = {
-  worker_offline:
-    'מחשב האוטומציה אינו פעיל. יש להפעיל את העובד המקומי במחשב המשרד כדי להתחבר לשע״ם.',
-  shaam_disconnected: 'לא מחובר לשע״ם · לחצו כדי לפתוח את חלון ההתחברות',
-  opening: 'מכין את החיבור לשע״ם…',
-  awaiting_shaam_auth: 'שלב 1 מתוך 4 — יש להשלים אישור דיגיטלי ו-PIN בחלון שע״ם',
-  awaiting_gmf_auth: 'שלב 2 מתוך 4 — מערכת גביית מס הכנסה עדיין לא מוכנה',
-  awaiting_vat_auth: 'שלב 3 מתוך 4 — מע״מ עדיין לא מוכנה',
-  awaiting_nikui_auth: 'שלב 4 מתוך 4 — מגן (ניכויים) עדיין לא מוכנה',
-  ready: 'שע״ם מוכן לאוטומציה · לחצו כדי להתנתק',
+// ‼ הודעת "מה לעשות עכשיו" — בעלת המילים היא הכותרת, לא ה-worker (ראה
+// worker/src/handlers/shaamConnect.mjs / btlConnect.mjs: הטקסט שם נשאר
+// ללוגים בלבד ולא מוצג כאן). מפתח = job.errorCode.
+const NEEDS_YOU_COPY: Record<string, string> = {
+  awaiting_shaam_auth: 'בחלון שע״ם: בחרו אישור דיגיטלי והזינו PIN. PIVO תמשיך לבד.',
+  awaiting_gmf_auth: 'בחלון שע״ם: הזינו את הסיסמה של מערכת גביית מס הכנסה. PIVO תמשיך לבד.',
+  awaiting_vat_auth: 'בחלון שע״ם: הזינו את הסיסמה של מערכת מע״מ. PIVO תמשיך לבד.',
+  awaiting_nikui_auth: 'בחלון שע״ם: הזינו את הסיסמה של מערכת מגן (ניכויים). PIVO תמשיך לבד.',
+  awaiting_btl_auth: 'בחלון ביטוח לאומי: הזינו קוד משתמש וסיסמה, ואת הקוד שנשלח לנייד. PIVO תמשיך לבד.',
+};
+const NEEDS_YOU_FALLBACK: Record<Authority, string> = {
+  shaam: 'חלון שע״ם ממתין לך.',
+  btl: 'חלון ביטוח לאומי ממתין לך.',
 };
 
-// ‼ שכבת אימות אחת בלבד, ולכן אין כאן "שלב 2 מתוך 4": או שהחלון ממתין
-// להזנה שלך, או שהמערכת פתוחה.
-const BTL_PHASE_CLASS: Record<BtlPhase, string> = {
-  worker_offline: 'is-off',
-  btl_disconnected: '',
-  opening: 'is-pending',
-  awaiting_btl_auth: 'is-pending',
-  ready: 'is-on',
-};
+function tooltipFor(authority: Authority, state: AuthorityConnState): string {
+  if (state.workerOffline) return 'מחשב האוטומציה כבוי';
+  switch (state.phase) {
+    case 'idle':
+      return authority === 'shaam'
+        ? 'לא מחובר לשע״ם · לחיצה פותחת את חלון ההתחברות'
+        : 'לא מחובר לביטוח לאומי · לחיצה פותחת את מערכת ייצוג לקוחות';
+    case 'connecting':
+      return authority === 'shaam' ? 'מתחבר לשע״ם…' : 'מתחבר לביטוח לאומי…';
+    case 'needs_you':
+      return authority === 'shaam' ? 'חלון שע״ם ממתין לך' : 'חלון ביטוח לאומי ממתין לך';
+    case 'ready':
+      return authority === 'shaam' ? 'מחובר לשע״ם' : 'מחובר לביטוח לאומי';
+    case 'failed':
+      return 'החיבור לא הצליח · לחיצה מנסה שוב';
+  }
+}
 
-const BTL_PHASE_TITLE: Record<BtlPhase, string> = {
-  worker_offline:
-    'מחשב האוטומציה אינו פעיל. יש להפעיל את העובד המקומי במחשב המשרד כדי להתחבר לביטוח לאומי.',
-  btl_disconnected: 'לא מחובר לביטוח לאומי · לחצו כדי לפתוח את מערכת ייצוג לקוחות',
-  opening: 'פותח את חלון ביטוח לאומי…',
-  awaiting_btl_auth: 'החלון פתוח וממתין לך — יש להזין קוד משתמש ואת הקוד החד-פעמי לנייד',
-  ready: 'ביטוח לאומי מחובר · לחצו כדי להתנתק',
-};
+/** משפט ראשון, מקוצר — לא זורקים על הרו"ח בליטרל טכני שלם מהעובד. */
+function firstSentence(text: string, max = 90): string {
+  const cut = text.split(/(?<=[.!?])\s/)[0] ?? text;
+  return cut.length > max ? `${cut.slice(0, max - 1).trimEnd()}…` : cut;
+}
+
+interface PopoverProps {
+  children: React.ReactNode;
+  onClose: () => void;
+}
+
+function ConnPopover({ children, onClose }: PopoverProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="authconn-popover" role="status" ref={ref}>
+      {children}
+    </div>
+  );
+}
 
 export default function AuthorityConnectionButtons({ userId }: Props) {
   const { shaam, btl, connect, disconnect, connectBtl, disconnectBtl } =
     useAuthorityConnections(userId);
-  const { phase } = shaam;
-  const btlPhase = btl.phase;
+  const [openPopover, setOpenPopover] = useState<Authority | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // ‼ מאותחל ל-'idle' ולא לפאזה הראשונה שחושבה: אם העמוד נטען מחדש באמצע
+  // needs_you אמיתי (חלון עדיין פתוח וממתין), זו עדיין כניסה טרייה שראויה
+  // לפופאובר, לא רק לרחף מעליה כדי לגלות.
+  const prevPhase = useRef<{ shaam: ConnPhase; btl: ConnPhase }>({ shaam: 'idle', btl: 'idle' });
 
-  // ‼ גם במצבי ההמתנה הכפתור לחיץ: הוא מריץ מחדש את זרימת החיבור ומחזיר את
-  // החלון לנקודה הנכונה, למקרה שהרו"ח סגר אותו או איבד אותו מאחורי חלונות.
-  const clickable = phase !== 'worker_offline' && phase !== 'opening';
-  const btlClickable = btlPhase !== 'worker_offline' && btlPhase !== 'opening';
+  // ‼ פופאובר נפתח לבד רק בכניסה ל-needs_you/failed, ונסגר לבד כשעוזבים
+  // אותם — לא בכל poll. "הכניסה האחרונה מנצחת": אם שתי הרשויות נכנסות
+  // למצב שדורש תשומת לב, השנייה משתלטת על הפתיחה האוטומטית, הראשונה
+  // נשארת נגישה בלחיצה.
+  useEffect(() => {
+    (['shaam', 'btl'] as const).forEach((authority) => {
+      const state = authority === 'shaam' ? shaam : btl;
+      const prev = prevPhase.current[authority];
+      const next = state.phase;
+      if (prev !== next) {
+        if (next === 'needs_you' || next === 'failed') {
+          setOpenPopover(authority);
+        } else {
+          setOpenPopover((cur) => (cur === authority ? null : cur));
+        }
+      }
+      prevPhase.current[authority] = next;
+    });
+  }, [shaam, btl]);
+
+  // סגירה בלחיצה מחוץ לאזור הכפתורים/פופאובר.
+  useEffect(() => {
+    if (!openPopover) return;
+    function onDocClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpenPopover(null);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [openPopover]);
+
+  function handleClick(authority: Authority, state: AuthorityConnState) {
+    if (state.busy) return;
+    if (openPopover && openPopover !== authority) setOpenPopover(null);
+
+    if (state.workerOffline) {
+      setOpenPopover(authority);
+      return;
+    }
+    if (state.phase === 'ready' || state.phase === 'needs_you') {
+      setOpenPopover((cur) => (cur === authority ? null : authority));
+      return;
+    }
+    if (state.phase === 'connecting') return;
+    // idle או failed — לחיצה על העיגול עצמו מנסה להתחבר, בלי שער פופאובר.
+    setOpenPopover(null);
+    void (authority === 'shaam' ? connect() : connectBtl());
+  }
+
+  function renderPopoverContent(authority: Authority, state: AuthorityConnState) {
+    if (state.workerOffline) {
+      return (
+        <p>מחשב האוטומציה כבוי. כשיופעל במחשב המשרד אפשר יהיה להתחבר מכאן.</p>
+      );
+    }
+    if (state.phase === 'needs_you') {
+      const text = (state.errorCode && NEEDS_YOU_COPY[state.errorCode]) ?? NEEDS_YOU_FALLBACK[authority];
+      return (
+        <>
+          <p>{text}</p>
+          <button
+            type="button"
+            className="authconn-popover-btn"
+            onClick={() => { void (authority === 'shaam' ? connect() : connectBtl()); }}
+          >
+            הבא את החלון לחזית
+          </button>
+        </>
+      );
+    }
+    if (state.phase === 'ready') {
+      return (
+        <>
+          <p>{authority === 'shaam' ? 'מחובר לשע״ם' : 'מחובר לביטוח לאומי'}</p>
+          <button
+            type="button"
+            className="authconn-popover-btn"
+            onClick={() => {
+              setOpenPopover(null);
+              void (authority === 'shaam' ? disconnect() : disconnectBtl());
+            }}
+          >
+            {authority === 'shaam' ? 'התנתק משע״ם' : 'התנתק מביטוח לאומי'}
+          </button>
+        </>
+      );
+    }
+    if (state.phase === 'failed') {
+      return (
+        <>
+          <p>{state.isTimeout ? 'מחשב האוטומציה לא הגיב.' : 'החיבור לא הצליח.'}</p>
+          {!state.isTimeout && state.errorDetail && <p>{firstSentence(state.errorDetail)}</p>}
+          <button
+            type="button"
+            className="authconn-popover-btn"
+            onClick={() => {
+              setOpenPopover(null);
+              void (authority === 'shaam' ? connect() : connectBtl());
+            }}
+          >
+            נסה שוב
+          </button>
+        </>
+      );
+    }
+    return null;
+  }
+
+  function renderButton(authority: Authority, state: AuthorityConnState) {
+    const label = AUTHORITY_LABEL[authority];
+    const title = tooltipFor(authority, state);
+    return (
+      <div className="authconn-item">
+        <button
+          type="button"
+          className={`authconn-btn ${PHASE_CLASS[state.phase]}`}
+          disabled={state.busy}
+          title={title}
+          aria-label={title}
+          aria-expanded={openPopover === authority}
+          onClick={() => handleClick(authority, state)}
+        >
+          <span className={`authconn-dot${state.phase === 'connecting' ? ' is-pulse' : ''}`} aria-hidden="true" />
+          <span>{label}</span>
+        </button>
+        {openPopover === authority && (
+          <ConnPopover onClose={() => setOpenPopover(null)}>
+            {renderPopoverContent(authority, state)}
+          </ConnPopover>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className="authconn">
-      <button
-        type="button"
-        className={`authconn-btn ${PHASE_CLASS[phase]}`}
-        disabled={shaam.busy || !clickable}
-        title={shaam.message ? `${PHASE_TITLE[phase]} — ${shaam.message}` : PHASE_TITLE[phase]}
-        aria-label={PHASE_TITLE[phase]}
-        onClick={() => { void (phase === 'ready' ? disconnect() : connect()); }}
-      >
-        <span className="authconn-dot" aria-hidden="true" />
-        <span>שע״ם</span>
-      </button>
-
-      <button
-        type="button"
-        className={`authconn-btn ${BTL_PHASE_CLASS[btlPhase]}`}
-        disabled={btl.busy || !btlClickable}
-        title={btl.message ? `${BTL_PHASE_TITLE[btlPhase]} — ${btl.message}` : BTL_PHASE_TITLE[btlPhase]}
-        aria-label={BTL_PHASE_TITLE[btlPhase]}
-        onClick={() => { void (btlPhase === 'ready' ? disconnectBtl() : connectBtl()); }}
-      >
-        <span className="authconn-dot" aria-hidden="true" />
-        <span>ביטוח לאומי</span>
-      </button>
-
-      {/* ‼ הודעת "מה לעשות עכשיו" מוצגת בכותרת ולא רק ב-tooltip: הרו"ח לא
-          ינחש שצריך לרחף מעל כפתור אפור כדי לגלות שהמחשב כבוי.
-          ‼ הודעה אחת בלבד — של הרשות שממתינה לפעולה. שתי הודעות זו לצד זו
-          בכותרת הצרה היו דוחקות את הניווט. */}
-      {(() => {
-        const note =
-          shaam.message
-          ?? (phase === 'awaiting_shaam_auth' || phase === 'awaiting_gmf_auth'
-            || phase === 'awaiting_vat_auth' || phase === 'awaiting_nikui_auth'
-            || phase === 'worker_offline' ? PHASE_TITLE[phase] : null)
-          ?? btl.message
-          ?? (btlPhase === 'awaiting_btl_auth' ? BTL_PHASE_TITLE[btlPhase] : null);
-        return note ? <span className="authconn-note">{note}</span> : null;
-      })()}
+    <div className="authconn" ref={containerRef}>
+      {renderButton('shaam', shaam)}
+      {renderButton('btl', btl)}
     </div>
   );
 }
