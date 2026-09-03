@@ -30,7 +30,7 @@ import { LIST_SPECS, cleanList } from '../../features/taxFile/listModel';
 import type { ListKey, ListItem } from '../../features/taxFile/listModel';
 import ListEditor from '../../features/taxFile/ListEditor';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
-import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
+import type { AutomationJob } from '../../types/automation';
 import { useShaamReadiness } from '../../hooks/shaamReadiness';
 import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
 import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
@@ -300,11 +300,29 @@ export default function TaxFileTab({
   const [bulkBusy, setBulkBusy] = useState(false);
   const [changeErrors, setChangeErrors] = useState<Record<string, string>>({});
 
-  // ‼ קריאה משע״ם על הכרטיס עצמו. ההוק לפני כל return מותנה —
-  // ראה hooks-after-institution-focus-return.
-  const shaamSync = useAutomationJob(client.id || undefined, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
-  // ‼ הכרטיס מציג את הסיבה של **היכולת** (קריאת 134), לא של המוכנות
-  // הגלובלית. הנורית בכותרת ממשיכה לייצג את כל השכבות.
+  // ‼ הוק משימה אחד **לכל רשות אוטומטית**, לא אחד לשע״ם. קודם היה כאן
+  // `shaamSync` יחיד, ולכן כל רשות אחרת קיבלה `job = null` לנצח — כלומר
+  // המנגנון לא היה באמת משותף, ולא היה אפשר לחבר מע״מ או ב״ל בלי לערוך
+  // את המסך. הקריאות קבועות בסדרן (AUTOMATED_AUTHORITIES) — רשות בלי
+  // action_type מקבלת הוק שאינו שולח שאילתה ואינו מריץ.
+  // ‼ ההוקים לפני כל return מותנה — ראה hooks-after-institution-focus-return.
+  const jobIncomeTax = useAutomationJob(client.id || undefined, AUTHORITY_AUTOMATION.income_tax?.actionType ?? '');
+  const jobVat = useAutomationJob(client.id || undefined, AUTHORITY_AUTOMATION.vat?.actionType ?? '');
+  const jobBtl = useAutomationJob(client.id || undefined, AUTHORITY_AUTOMATION.national_insurance?.actionType ?? '');
+  const authorityJobs: Partial<Record<TaxAuthority, ReturnType<typeof useAutomationJob>>> = {
+    income_tax: jobIncomeTax, vat: jobVat, national_insurance: jobBtl,
+  };
+  // ‼ המשימה **החיה** לכל רשות, לקריאה מתוך פונקציה אסינכרונית. אישור
+  // מקובץ נמשך כמה סבבי רשת, ובזמן הזה עשויה להסתיים ריצה חדשה; בלי הפניה
+  // הזאת הפונקציה הייתה משווה לערך שנתפס ברינדור והשער היה חסר משמעות.
+  const authorityJobsRef = useRef<Partial<Record<TaxAuthority, AutomationJob | null>>>({});
+  authorityJobsRef.current = {
+    income_tax: jobIncomeTax.job, vat: jobVat.job, national_insurance: jobBtl.job,
+  };
+  // ‼ הכרטיס מציג את הסיבה של **היכולת** (קריאת 134 / מע״מ / ב״ל), לא של
+  // המוכנות הגלובלית. הנורית בכותרת ממשיכה לייצג את כל השכבות.
+  // ‼ אותו הוק משרת גם את ב״ל, אבל דרך שכבה נפרדת משלה (`btl`) — סשן ב״ל
+  // אינו מאוחד עם סשן שע״ם, ראה shaamReadiness.tsx.
   const shaamReadiness = useShaamReadiness();
   // ‼ אישור מקובץ — פעם אחת לכרטיס, לא לשדה. ראה approveAuthorityChanges.
   const [approvingAuthority, setApprovingAuthority] = useState<TaxAuthority | null>(null);
@@ -555,7 +573,9 @@ export default function TaxFileTab({
         },
         // ‼ הראיה הגולמית מהרשות נשמרת בהצעה עצמה — אחרת «0%» היה נכנס
         // לתיק בלי שום זכר לכך שהמקור היה «בוטלה (שעור דו)».
-        note: f.provenance ? `שע״ם: ${f.provenance}` : undefined,
+        // ‼ שם הרשות מגיע מהרשומה ולא קבוע «שע״ם» — אחרת הצעה של ב״ל
+        // הייתה נרשמת ביומן בשם הרשות הלא נכונה.
+        note: f.provenance ? `${spec.sourceLabel}: ${f.provenance}` : undefined,
       });
     }
     if (toPropose.length > 0) {
@@ -568,6 +588,17 @@ export default function TaxFileTab({
       }
     }
     const after = toPropose.length > 0 ? await listPendingTaxFactChanges(client.id) : existing;
+
+    // ‼ שער התיישנות: בין הלחיצה לבין הכתיבה עברו סבבי רשת. אם בינתיים
+    // הסתיימה **ריצה חדשה** של אותה רשות, הסט שעל המסך כבר אינו הסט שאושר,
+    // ולכן לא כותבים כלום. ההצעות נשארות ממתינות — הן לא אבדו.
+    const liveRunId = authorityJobsRef.current[spec.authority]?.id;
+    if (check.runId && liveRunId && liveRunId !== check.runId) {
+      setApprovingAuthority(null);
+      setApproveError('בינתיים הסתיימה קריאה חדשה מהרשות — ההשוואה התעדכנה, ולא אושר דבר. בדקו שוב.');
+      refresh();
+      return;
+    }
 
     const failures: string[] = [];
     let approved = 0;
@@ -1127,11 +1158,13 @@ export default function TaxFileTab({
             const editingThis = editingSection === sectionId;
 
             // ── אוטומציה ברמת הכרטיס — ראה authorityAutomation.ts ──
-            // ‼ המשימה מגיעה מהוק אחד שנקרא תמיד (shaamSync); כרטיס בלי
-            // action_type תואם פשוט לא מקבל משימה. הסט כולו נגזר מהמשימה
-            // האחרונה + הכרטיס, ולכן אחרי אישור המצבים מתיישבים מעצמם.
+            // ‼ הכול נגזר מהרשומה של הרשות: המשימה, המוכנות, הקלט והפירוש.
+            // אין כאן שום התניה על שע״ם — מע״מ וב״ל נכנסות בדיוק באותו נתיב.
+            // הסט כולו נגזר מהמשימה האחרונה + הכרטיס, ולכן אחרי אישור
+            // המצבים מתיישבים מעצמם.
             const spec = AUTHORITY_AUTOMATION[row.authority];
-            const job = spec?.actionType === SHAAM_SYNC_INCOME_TAX_ACTION_TYPE ? shaamSync.job : null;
+            const sync = authorityJobs[row.authority];
+            const job = spec?.actionType ? (sync?.job ?? null) : null;
             const cardFields = row.facts.map(f => ({ label: f.k, fieldKey: f.syncKey ?? f.btlSyncKey ?? f.editKey }));
             const check = spec ? buildAuthorityCheck(spec, job, client, cardFields) : null;
             const cap = spec?.capability ? shaamReadiness.capability(spec.capability) : null;
@@ -1142,14 +1175,14 @@ export default function TaxFileTab({
               : cap && !cap.ready ? cap.blockedReason
               : null;
             const running = !!spec?.available
-              && (shaamSync.busy || job?.status === 'queued' || job?.status === 'running');
+              && (!!sync?.busy || job?.status === 'queued' || job?.status === 'running');
             const runCheck = () => {
-              if (!spec?.available || !inputRes || !('input' in inputRes)) return;
+              if (!spec?.available || !sync || !inputRes || !('input' in inputRes)) return;
               setApproveError(null);
               setApproveNotice(null);
               // ‼ פותחים את הכרטיס — התוצאות יושבות בו, ובדיקה שלא רואים היא לחיצה שלא עשתה כלום.
               setOpenRows(s => new Set(s).add(sectionId));
-              void shaamSync.run(inputRes.input);
+              void sync.run(inputRes.input);
             };
 
             return (
@@ -1221,12 +1254,15 @@ export default function TaxFileTab({
               {/* ‼ סיכום הבדיקה פעם אחת לכרטיס: מה נבדק, כמה שינויים, כפתור
                   אישור אחד. גם שגיאת ריצה וגם סיבת חסימה מופיעות כאן פעם
                   אחת — לא ליד כל שדה (אותו משפט שש פעמים הכפיל את גובה
-                  התאים ולא הוסיף מידע). */}
-              {spec?.available && !editingThis && (
+                  התאים ולא הוסיף מידע).
+                  ‼ מוצג גם לרשות שהאוטומציה שלה עוד לא נבנתה: שם הוא נושא
+                  את הסיבה. השורה חיה **בתוך** הכרטיס הפתוח, ולכן מצב
+                  הקריאה של המסך אינו משתנה — כרטיס סגור נראה בדיוק כמו קודם. */}
+              {spec && !editingThis && (
                 <AuthorityCheckSummary
                   result={check}
                   sourceLabel={spec.sourceLabel}
-                  runError={shaamSync.error}
+                  runError={sync?.error ?? null}
                   approving={approvingAuthority === row.authority}
                   approveError={approvingAuthority === null ? approveError : null}
                   approveNotice={approvingAuthority === null ? approveNotice : null}

@@ -44,6 +44,15 @@ const POLL_MS = 4000;
 export type ShaamLayer = 'portal' | 'gmf' | 'vat' | 'nikui';
 
 /**
+ * שכבה שיכולת יכולה להיות תלויה בה. ‼ `btl` אינה שכבה של שע״ם: לביטוח
+ * לאומי חלון Chrome ופרופיל משלו, שער אימות משלו, ומצב חיבור שהעובד מדווח
+ * בנפרד (`status.btl`). היא נכנסת לכאן כדי שיכולת אחת תדע להיחסם על
+ * **התלות שלה** — ולא כדי לאחד את שני הסשנים. המוכנות הגלובלית בכותרת
+ * (`ready`) ממשיכה להיגזר משכבות שע״ם בלבד, בלי שינוי.
+ */
+export type ReadinessLayer = ShaamLayer | 'btl';
+
+/**
  * מה כל יכולת דורשת בפועל — נגזר מהמימוש של ה-handler, לא מהתחושה.
  *
  * ‼ «מוכנות גלובלית» ו«מוכנות לפעולה» אינם אותו דבר. הנורית בכותרת אומרת
@@ -59,12 +68,22 @@ export type ShaamLayer = 'portal' | 'gmf' | 'vat' | 'nikui';
  *
  * ‼ אוטומציה חדשה מצהירה כאן על התלויות שלה — לא במסך שמציג אותה.
  */
-export const SHAAM_CAPABILITIES: Record<string, ShaamLayer[]> = {
+export const SHAAM_CAPABILITIES: Record<string, ReadinessLayer[]> = {
   'shaam.read_134': ['gmf'],
+  // ‼ קריאה ממע״מ תלויה בשכבת מע״מ בלבד — לא ב-GMF ולא במגן. הרשומה כאן
+  // מוצהרת מראש כדי שכשייבנה ה-handler, החיבור יהיה טבלה ולא עריכת מסך.
+  'shaam.read_vat': ['vat'],
+  // ‼ ב״ל תלויה **רק** בחיבור ב״ל. הפרדה זו היא העיקר: סשן שע״ם שנפל
+  // אינו אמור לחסום קריאה מב״ל, ולהפך.
+  'btl.read_file': ['btl'],
 };
 
 /** מפתח היכולת של קריאת שאילתה 134. */
 export const SHAAM_READ_134 = 'shaam.read_134';
+/** קריאת פרטי תיק מע״מ ממערכת הגבייה. */
+export const SHAAM_READ_VAT = 'shaam.read_vat';
+/** קריאת פרטי תיק מפורטל המייצגים של ביטוח לאומי. */
+export const BTL_READ_FILE = 'btl.read_file';
 
 export interface ShaamCapability {
   /** אפשר להריץ **את הפעולה הזאת** עכשיו. */
@@ -149,13 +168,18 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
   const ready = !workerOffline && shaam && gmf && vat && nikui;
 
   const WORKER_OFF = 'מחשב האוטומציה אינו פעיל, ולכן אי אפשר לקרוא משע״ם.';
-  const LAYER_REASON: Record<ShaamLayer, string> = {
+  const LAYER_REASON: Record<ReadinessLayer, string> = {
     portal: 'אין חיבור פעיל לפורטל שע״ם.',
     gmf: 'מערכת גביית מס הכנסה אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
     vat: 'מערכת מע״מ אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
     nikui: 'מערכת מגן (ניכויים) אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
+    btl: 'אין חיבור פעיל לביטוח לאומי — יש להתחבר מהכפתור «ביטוח לאומי» בכותרת.',
   };
-  const LAYER_OK: Record<ShaamLayer, boolean> = { portal: shaam, gmf, vat, nikui };
+  // ‼ ב״ל נגזרת מ-status.btl בלבד, ולא מאף שכבת שע״ם. «הדפדפן פתוח» אינו
+  // מוכנות: הצופה מדווח connected רק אחרי שראה סשן מאומת בחלון של ב״ל.
+  const LAYER_OK: Record<ReadinessLayer, boolean> = {
+    portal: shaam, gmf, vat, nikui, btl: !workerOffline && !!status.btl?.connected,
+  };
 
   const blockedReason = workerOffline ? WORKER_OFF
     : (['portal', 'gmf', 'vat', 'nikui'] as ShaamLayer[]).find(l => !LAYER_OK[l]) !== undefined

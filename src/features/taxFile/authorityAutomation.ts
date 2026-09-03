@@ -15,7 +15,7 @@
 import type { Client, TaxAuthority } from '../../types';
 import type { AutomationJob } from '../../types/automation';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
-import { SHAAM_READ_134 } from '../../hooks/shaamReadiness';
+import { SHAAM_READ_134, SHAAM_READ_VAT, BTL_READ_FILE } from '../../hooks/shaamReadiness';
 import { EDIT_FIELD_BY_KEY, editFieldValue } from './editModel';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
 
@@ -87,6 +87,12 @@ export interface AuthorityCheckSummary {
 
 export interface AuthorityCheckResult {
   authority: TaxAuthority;
+  /**
+   * מזהה הריצה שהסט הזה נגזר ממנה. ‼ נדרש לאישור המקובץ: הוא נלכד בלחיצה,
+   * ואם בינתיים הסתיימה ריצה חדשה — לא מאשרים תוצאות של ריצה שכבר אינה
+   * זו שעל המסך.
+   */
+  runId?: string;
   /** מתי הקריאה הסתיימה. */
   checkedAt?: string;
   fields: AuthorityFieldResult[];
@@ -340,12 +346,48 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
       return state ? [{ group: 'advances', label: 'מקדמות', text: state.note }] : [];
     },
   },
+  // ─── מע״מ ──────────────────────────────────────────────────────────────────
+  // ‼ מצב אמיתי (3.9.2026): המשטח המאומת של מע״מ (`/emhanmainmenu`) נגיש
+  // לצופה — הוא מנווט אליו ומדווח מוכנות — אבל **תפריט ראשי בלבד**. אין
+  // handler קריאה (`worker/src/handlers/` מכיל שע״ם-134 ו-btl.connect/disconnect
+  // בלבד), אין מסך תיק עוסק שנצפה, ואין ולו עוגן שדה אחד מוכח. אפס משימות
+  // קריאה למע״מ רצו אי פעם.
+  //
+  // ‼ ולכן `available:false` ו-`supportedFieldKeys` ריק — לא כפתור שמבטיח
+  // קריאה שאין. ברגע שייבנה ה-handler, החיבור כאן הוא הצהרה: actionType,
+  // supportedFieldKeys, ו-interpret. שום שינוי במסך.
+  vat: {
+    authority: 'vat',
+    actionLabel: 'בדוק מול שע״ם',
+    sourceLabel: 'שע״ם',
+    available: false,
+    capability: SHAAM_READ_VAT,
+    sourceRef: 'shaam-vat',
+    supportedFieldKeys: new Set<string>(),
+    unavailableReason:
+      'קריאה אוטומטית ממע״מ עדיין לא נבנתה: מערכת הגבייה נגישה לצופה בתפריט הראשי, '
+      + 'אבל אין עדיין מסך תיק עוסק שנצפה ואין עוגני שדה מוכחים.',
+  },
+
+  // ─── ביטוח לאומי ───────────────────────────────────────────────────────────
+  // ‼ מצב אמיתי (3.9.2026): לב״ל יש חלון, פרופיל וסשן משלה
+  // (`worker/src/btlSession.mjs`), ושני handlers בלבד — `btl.connect`
+  // ו-`btl.disconnect`. אין שום handler קריאה, ולכן אין אף שדה שניתן
+  // לקרוא היום — כולל «יתרה», שהייתה בעבר ⟳ מציין-מקום בלי מסלול מוכח.
+  //
+  // ‼ ה-capability מצביעה על שכבת `btl` בלבד: מוכנות ב״ל אינה נגזרת
+  // ממוכנות שע״ם, ולהפך.
   national_insurance: {
     authority: 'national_insurance',
     actionLabel: 'בדוק מול ביטוח לאומי',
     sourceLabel: 'ב״ל',
     available: false,
-    unavailableReason: 'הקריאה האוטומטית מביטוח לאומי עדיין לא נבנתה.',
+    capability: BTL_READ_FILE,
+    sourceRef: 'btl-file',
+    supportedFieldKeys: new Set<string>(),
+    unavailableReason:
+      'קריאה אוטומטית מביטוח לאומי עדיין לא נבנתה: קיימים חיבור וניתוק בלבד, '
+      + 'בלי מסך קריאה שנצפה — כולל היתרה.',
   },
 };
 
@@ -404,7 +446,16 @@ export function buildAuthorityCheck(
 
   return {
     authority: spec.authority,
+    runId: job.id,
     checkedAt: succeeded ? (job.finishedAt ?? job.updatedAt) : undefined,
     fields, summary, groupNotes, runError,
   };
 }
+
+/**
+ * הרשויות שיש להן רשומת אוטומציה — בסדר קבוע. ‼ המסך קורא הוק משימה אחד
+ * לכל אחת מהן, ולכן הרשימה חייבת להיות סטטית: אורך משתנה היה שובר את סדר
+ * ההוקים של ריאקט.
+ */
+export const AUTOMATED_AUTHORITIES: readonly TaxAuthority[] =
+  ['income_tax', 'vat', 'national_insurance'] as const;

@@ -17,8 +17,10 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
   const [busy, setBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ‼ `actionType` ריק = לרשות הזו אין עדיין פעולה אוטומטית. ההוק נקרא
+  // בכל זאת (סדר ההוקים חייב להיות קבוע), אבל אינו שולח שאילתה ואינו מריץ.
   const reload = useCallback(async (silent: boolean) => {
-    if (!clientId) { setLoading(false); return; }
+    if (!clientId || !actionType) { setLoading(false); return; }
     if (!silent) setLoading(true);
     const { job: j, error: e } = await fetchLatestAutomationJob(clientId, actionType);
     if (e) { setError(e); setLoading(false); return; }
@@ -54,6 +56,7 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
    */
   const run = useCallback(async (input: Record<string, unknown> = {}) => {
     if (!clientId) return { ok: false, error: 'no_client' };
+    if (!actionType) return { ok: false, error: 'no_action_type' };
     setBusy(true);
     setError(null);
 
