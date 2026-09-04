@@ -12,12 +12,27 @@
 // ‼ מציע ולא כותב: שום דבר כאן לא נוגע ב-clients. הסט הזה הוא מה שהרו"ח
 // **רואה**; הכתיבה קורית רק דרך מסלול העובדות המנוהלות, אחרי לחיצה מפורשת.
 
-import type { Client, TaxAuthority } from '../../types';
+import type { Client, PersonRole, TaxAuthority } from '../../types';
 import type { AutomationJob } from '../../types/automation';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
 import { SHAAM_READ_134, SHAAM_READ_VAT, BTL_READ_FILE } from '../../hooks/shaamReadiness';
 import { EDIT_FIELD_BY_KEY, editFieldValue } from './editModel';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
+import { niPersons } from '../../utils/niPersons';
+
+/**
+ * מי בדיוק, ברמת אדם — הנושא שהמשימה שואלת עליו (154). ‼ קיים כדי שרשות
+ * ברמת-אדם (ב"ל) לא תוכל להריץ קריאה אחת "על הכרטיס" בלי לומר במפורש על
+ * מי: `subjects` על ה-input הוא הרשימה, ו-`person` על כל
+ * `AuthorityFieldResult` שחוזר ממנה חייב להתאים לאחד מהם.
+ */
+export interface AutomationSubject {
+  role: PersonRole;
+  /** ת.ז. — הזיהוי שנשלח בפועל לרשות. אדם בלי ת.ז. ידועה אינו subject. */
+  idNumber: string;
+  /** לתצוגה בלוגים/שגיאות בלבד — לעולם לא זהות. */
+  label: string;
+}
 
 /**
  * מצב שדה אחרי בדיקה מול הרשות. ‼ ארבעה צבעים + מצב עסקי אחד:
@@ -68,6 +83,15 @@ export interface AuthorityFieldResult {
   provenance?: string;
   /** מה השתבש — ב-failed בלבד. משפט אחד. */
   error?: string;
+  /**
+   * למי השדה שייך (154) — חובה לכל תוצאה שמגיעה מרשות ברמת-אדם (ב"ל).
+   * ‼ חסר ⇒ הרשות ברמת תא משפחתי/כרטיס (מס הכנסה) ואין עמימות מלכתחילה.
+   * כל מתאם עתידי לב"ל **חייב** למלא את זה מ-`AutomationSubject.role`
+   * שממנו התוצאה הגיעה — לא לנחש מי נבדק. ראה `AutomationSubject`.
+   */
+  person?: PersonRole;
+  /** שם להצגה בלבד (לוגים/שגיאות) — לא זהות. */
+  personLabel?: string;
 }
 
 /** הסבר עסקי אחד לקבוצת שדות — מוצג פעם אחת, בטקסט משני קומפקטי. */
@@ -104,6 +128,12 @@ export interface AuthorityCheckResult {
    * **פעם אחת** בכרטיס, לא ליד כל שדה.
    */
   runError?: string | null;
+  /**
+   * כשל ברמת אדם (154) — משימה אחת שכיסתה כמה נושאים, וחלקם נכשלו וחלקם
+   * לא. ‼ שונה מ-`runError`: שם הריצה כולה נכשלה; כאן ריצה אחת הצליחה
+   * חלקית. חסר/ריק ⇒ אין כשל פר-אדם לדיווח.
+   */
+  runErrorByPerson?: Partial<Record<PersonRole, string>>;
 }
 
 /**
@@ -128,8 +158,13 @@ export interface AuthorityAutomationSpec {
   sourceRef?: string;
   /** השדות (מפתחות בכרטיס הלקוח) שיש להם מקור מוכח ברשות הזו. */
   supportedFieldKeys?: ReadonlySet<string>;
-  /** הקלט למשימה, נגזר מהכרטיס. blocked ⇒ אין מה להריץ (למשל אין מספר תיק). */
-  buildInput?: (client: Client) => { input: Record<string, unknown> } | { blocked: string };
+  /**
+   * הקלט למשימה, נגזר מהכרטיס. blocked ⇒ אין מה להריץ (למשל אין מספר תיק).
+   * ‼ `spouseClient` (154) — לרשות ברמת-אדם שצריכה לדעת על שני האנשים
+   * כדי לבנות `subjects`. מס הכנסה/מע״מ מתעלמים ממנו, ולא צריכים לשנות
+   * את החתימה שלהם כדי זה — פרמטר אופציונלי בסוף.
+   */
+  buildInput?: (client: Client, spouseClient?: Client) => { input: Record<string, unknown> } | { blocked: string };
   /** הופך תוצאת משימה גולמית לסט השוואה. */
   interpret?: (job: AutomationJob | null, client: Client, supportedKeys: readonly string[]) => AuthorityFieldResult[];
   /** הסברים עסקיים ברמת קבוצה, מתוך תוצאת המשימה. */
@@ -381,6 +416,10 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
     authority: 'national_insurance',
     actionLabel: 'בדוק מול ביטוח לאומי',
     sourceLabel: 'ב״ל',
+    // ‼ נשאר available:false בכוונה (154): הזהות פר-אדם למטה היא הצהרה
+    // על **הצורה** של הקלט כשתיבנה קריאה אמיתית — היא לא הופכת קריאה
+    // כלשהי לקיימת. supportedFieldKeys נשאר ריק, ואין interpret. הכפתור
+    // בכרטיס נשאר אפור עם הסיבה, בדיוק כמו קודם.
     available: false,
     capability: BTL_READ_FILE,
     sourceRef: 'btl-file',
@@ -388,6 +427,23 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
     unavailableReason:
       'קריאה אוטומטית מביטוח לאומי עדיין לא נבנתה: קיימים חיבור וניתוק בלבד, '
       + 'בלי מסך קריאה שנצפה — כולל היתרה.',
+    /**
+     * ‼ inert לחלוטין כל עוד available:false — `buildAuthorityCheck`
+     * (למטה) דורש גם `interpret`, שלרשות הזו אין, ו-`runCheck` במסך דורש
+     * גם `spec.available`. הפונקציה הזו לא מבטיחה קריאה — היא רק מוכיחה,
+     * בקוד שעובר טיפוס, ש"מי בדיוק" כבר פתור: הנושאים הם אנשי הכרטיס
+     * (`niPersons`, docs/PLAN-BTL-PER-PERSON.md §G) שיש להם ת.ז. ידועה.
+     * ‼ כשתיבנה קריאה אמיתית: כל AuthorityFieldResult שחוזר מ-interpret
+     * חייב לשאת `person` תואם ל-`role` של אחד מ-subjects כאן — לא לנחש.
+     */
+    buildInput: (client, spouseClient) => {
+      const subjects: AutomationSubject[] = niPersons(client, spouseClient)
+        .filter(p => !!p.idNumber)
+        .map(p => ({ role: p.role, idNumber: p.idNumber, label: p.name }));
+      return subjects.length > 0
+        ? { input: { subjects } }
+        : { blocked: 'אין ת.ז. ידועה לאף אחד מהאנשים בכרטיס — אין את מי לבדוק מול ביטוח לאומי.' };
+    },
   },
 };
 

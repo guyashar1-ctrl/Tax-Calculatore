@@ -4,6 +4,7 @@ import {
   Client,
   RepresentationRequest,
   RepresentationExecution,
+  NiTracking,
   RequestSubmission,
   AccountantPartB,
   Task,
@@ -35,6 +36,8 @@ import { supabase } from './lib/supabase';
 import { edgeFunctionError } from './utils/functionError';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { targetsOf } from './utils/repScope';
+import { recordManualFactChange } from './lib/taxFacts';
+import { clientFromDb } from './lib/dbMappers';
 import {
   seedClientFromEmbeddedSpouse, findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold,
   spousePersonAuthorities,
@@ -807,11 +810,76 @@ export default function App() {
    * ממסך הקליטה של הלקוח למרכז הייצוג שלו. הבקשה נמצאת דרך הכרטיס, ואם
    * הקישור שם ריק (לקוחות ותיקים) — דרך הבקשה שמצביעה על הלקוח.
    */
-  function handleOpenClientRepresentation(clientId: string) {
+  /** בקשת הייצוג המקושרת ללקוח — קודם דרך הקישור על הכרטיס, ואחריו לפי linkedClientId. */
+  function findClientRepresentationRequest(clientId: string): RepresentationRequest | undefined {
     const c = clients.find(x => x.id === clientId);
-    const reqId = c?.representationRequestId
-      ?? requests.find(r => r.linkedClientId === clientId)?.id;
-    if (reqId) handleSelectRequest(reqId);
+    return requests.find(r => r.id === c?.representationRequestId)
+      ?? requests.find(r => r.linkedClientId === clientId);
+  }
+
+  function handleOpenClientRepresentation(clientId: string) {
+    const req = findClientRepresentationRequest(clientId);
+    if (req) handleSelectRequest(req.id);
+  }
+
+  /** מסלולי הביצוע של ב"ל (לקוח/בן-בת-זוג) בבקשת הייצוג המקושרת — לתיק המס. */
+  function clientNiExecution(clientId: string): { client?: NiTracking; spouse?: NiTracking } | undefined {
+    const req = findClientRepresentationRequest(clientId);
+    if (!req) return undefined;
+    return { client: req.execution?.nationalInsurance, spouse: req.execution?.nationalInsuranceSpouse };
+  }
+
+  /**
+   * "בקש ייצוג" בבלוק בן/בת הזוג בכרטיס ב"ל, כשללקוח **כבר יש** בקשת ייצוג.
+   * ‼ תיקון ממוקד על הכרטיס בלבד — לא בקשה שנייה, לא קליטה כללית, לא טוקן
+   * חדש, לא שע״ם/2279/הזדהות/חתימה. ראה docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
+   * אידמפוטנטי: אם התפקיד כבר ב-targets, לא כותב כלום.
+   *
+   * שתי כתיבות בלבד:
+   *   1. authorityRepresentations.nationalInsurance.targets — מוסיף את
+   *      התפקיד; ה-status הקיים (בד"כ in_process) נשאר כמות שהוא.
+   *   2. taxFiles — שורה חדשה ל-(national_insurance, owner=role) אם אין,
+   *      דרך מסלול העובדות המנוהלות (היסטוריה + field_meta), בלי fileNumber
+   *      — לעולם לא נגזר מת.ז.
+   * ‼ מסלול הביצוע (execution.nationalInsurance[Spouse]) מאותחל לאובייקט
+   * ריק אם עוד אינו קיים, כדי שמרכז הייצוג יציג את המסלול השני מיד — לא
+   * נכתב בו שום דבר שמעיד על פעולה שלא קרתה (לא enteredAt, לא הוראות).
+   */
+  async function handleAddNiTarget(clientId: string, role: 'client' | 'spouse') {
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+    const current = targetsOf(client.authorityRepresentations, 'nationalInsurance');
+    if (current.includes(role)) return;
+
+    const rec = client.authorityRepresentations?.nationalInsurance;
+    const updated = await updateClient({
+      ...client,
+      authorityRepresentations: {
+        ...client.authorityRepresentations,
+        nationalInsurance: { ...(rec ?? { status: 'in_process' as const }), targets: [...current, role] },
+      },
+    });
+
+    const hasFile = (updated.taxFiles ?? []).some(f => f.authority === 'national_insurance' && f.owner === role);
+    if (!hasFile) {
+      const files = [...(updated.taxFiles ?? []), {
+        id: `tf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        authority: 'national_insurance' as const, owner: role, repStatus: 'pending' as const,
+      }];
+      const res = await recordManualFactChange(
+        clientId, 'taxFiles', `מספר תיק — ביטוח לאומי${role === 'spouse' ? ' (בן/בת הזוג)' : ''}`,
+        '—', '—', { taxFiles: files },
+      );
+      if (res.ok && res.client) applyClientLocally(clientFromDb(res.client));
+    }
+
+    const req = findClientRepresentationRequest(clientId);
+    if (req) {
+      const execKey = role === 'spouse' ? 'nationalInsuranceSpouse' : 'nationalInsurance';
+      if (!req.execution?.[execKey]) {
+        await updateRequest({ ...req, execution: { ...req.execution, [execKey]: {} } });
+      }
+    }
   }
 
   /**
@@ -1532,7 +1600,14 @@ export default function App() {
     const linkedClient = clients.find(c => c.id === req.linkedClientId);
     if (linkedClient) {
       const reps = { ...(linkedClient.authorityRepresentations || {}) } as AuthorityRepresentations;
+      // ‼ ב"ל נשאר בחוץ בכוונה: "הרשויות אישרו" הוא אישור שע״ם/2279 —
+      // לב"ל אין קשר אליו, והוא מסתיים בנפרד ופר-אדם, רק כשמאושר בפועל
+      // (handleSaveExecution, לפי confirmedAt של כל מסלול). לסמן אותו
+      // 'active' כאן היה מציג בן/בת זוג כמיוצג/ת בלי שום ראיה — בדיוק
+      // ההערה שכבר כתובה ב-handleSaveExecution. ראה
+      // docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md §9.
       for (const k of Object.keys(reps) as RepAuthorityKind[]) {
+        if (k === 'nationalInsurance') continue;
         const r = reps[k];
         if (r) reps[k] = { ...r, status: 'active' };
       }
@@ -2398,6 +2473,8 @@ export default function App() {
             onOpenReleaseLetter={(clientId, stepId, mode) => openReleaseLetter(clientId, stepId, mode)}
             onOpenRepresentation={handleOpenClientRepresentation}
             onStartRepresentation={handleStartRepresentation}
+            onAddNiTarget={(clientId, role) => void handleAddNiTarget(clientId, role)}
+            niExecution={selectedClient ? clientNiExecution(selectedClient.id) : undefined}
             journeyUi={journeyUi}
             checksTabEnabled={checksTab}
             quotations={quotations}

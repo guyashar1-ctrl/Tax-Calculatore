@@ -753,6 +753,20 @@ export interface Client {
   /** בסיס הכנסה למקדמות בביטוח לאומי — לחודש. עובדה מקצועית מאושרת (M2 fix, לא רק תיעוד). */
   niIncomeBasisMonthly?: number;
 
+  /**
+   * חמשת שדות הב"ל התפעוליים — עותק מקביל לבן/בת הזוג (154, docs/PLAN-BTL-PER-PERSON.md).
+   *
+   * ‼ השדות למעלה (`ni*`) ממשיכים לייצג את הלקוח הראשי בלבד — קריאת תאימות,
+   * לא "ברירת מחדל של מי שאין לו כרטיס". השדות האלה קיימים **רק** כשבן/בת
+   * הזוג מיוצג/ת בב"ל בנפרד, ואינם מוסקים מהערכים של הלקוח בשום כיוון.
+   * חסר = טרם ידוע, לא "אין". ראה `NI_FACT_KEYS` לגישה דרך `PersonRole`.
+   */
+  spouseNiBalance?: number;
+  spouseNiOccupations?: NiOccupation[];
+  spouseNiDebitAuthorization?: boolean;
+  spouseNiIncomeBasisMonthly?: number;
+  spouseNiAdvanceMonthly?: number;
+
   vatBalance?: number;
   vatDebitAuthorization?: boolean;
   vatFileType?: string;
@@ -1263,6 +1277,40 @@ export type RepTarget = 'client' | 'spouse';
 export const REP_TARGET_LABELS: Record<RepTarget, string> = {
   client: 'הלקוח/ה',
   spouse: 'בן/בת הזוג',
+};
+
+/**
+ * זהות "מי בכרטיס" — כינוי ל-`RepTarget`, לא מושג שני. ‼ ביטוח לאומי הוא
+ * הרשות הראשונה שמציגה שני אנשים באותו כרטיס בו-זמנית (154,
+ * docs/PLAN-BTL-PER-PERSON.md); `PersonRole` הוא השם שנקרא נכון בהקשר הזה,
+ * אבל הערכים והמשמעות זהים ל-`RepTarget` בכל מקום אחר בפרויקט.
+ */
+export type PersonRole = RepTarget;
+
+/** חמשת עובדות הב"ל התפעוליות, נגישות לפי `PersonRole` במקום מפתח קשיח. */
+export interface NiPersonFacts {
+  occupations?: NiOccupation[];
+  incomeBasisMonthly?: number;
+  advanceMonthly?: number;
+  balance?: number;
+  debitAuthorization?: boolean;
+}
+
+/**
+ * מפתח `PersonFacts` → מפתח שטוח על `Client`. הלקוח קורא/כותב את המפתחות
+ * הקיימים (קריאת תאימות — הם תמיד היו "שלו"); בן/בת הזוג מקבל/ת עמודות
+ * מקבילות שאינן נגזרות מהערכים של הלקוח בשום כיוון. מקור אחד לצמד הזה,
+ * כדי שהעורך והאוטומציה לא יפרשו אותו אחרת.
+ */
+export const NI_FACT_KEYS: Record<PersonRole, Record<keyof NiPersonFacts, keyof Client & string>> = {
+  client: {
+    occupations: 'niOccupations', incomeBasisMonthly: 'niIncomeBasisMonthly',
+    advanceMonthly: 'niAdvanceMonthly', balance: 'niBalance', debitAuthorization: 'niDebitAuthorization',
+  },
+  spouse: {
+    occupations: 'spouseNiOccupations', incomeBasisMonthly: 'spouseNiIncomeBasisMonthly',
+    advanceMonthly: 'spouseNiAdvanceMonthly', balance: 'spouseNiBalance', debitAuthorization: 'spouseNiDebitAuthorization',
+  },
 };
 
 /**

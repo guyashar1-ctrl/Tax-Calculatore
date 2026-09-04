@@ -13,6 +13,10 @@ import { TAX_AUTHORITY_LABELS, TAX_FILE_REP_STATUS_LABELS } from '../types';
 import { VAT_FREQ_LABELS, SHAAM_STATUS_LABELS } from '../types/clientWorkspace';
 import { shortDate } from './clientDerived';
 import { resolvePersonAuthority, resolveIncomeTaxHousehold } from './personRepresentation';
+import {
+  niPersons, niFactsOf, niFileOf, niFieldKeys, niEditable, niRepresentationOf, niRepresentationAction,
+} from './niPersons';
+import type { NiExecutionByRole, NiRepresentationAction } from './niPersons';
 import { registeredFileInfo } from '../features/annualReport/profile';
 import { incomeTaxFileType } from '../data/incomeTaxFileTypes';
 
@@ -60,13 +64,41 @@ export interface AuthorityRow {
    * ב-editModel — המבנה הוא רשימה), ולכן המסך צריך לדעת בנפרד: זו עדיין
    * שורה הניתנת לעריכה, רק דרך מסלול `taxFiles` ולא דרך `EDIT_FIELD_BY_KEY`.
    */
-  facts: {
-    k: string; v: string; tone?: 'warn' | 'ok';
-    syncKey?: string; btlSyncKey?: string; editKey?: string;
-    taxFileNumberAuthority?: TaxAuthority;
-  }[];
+  facts: AuthorityRowFact[];
+  /**
+   * שני האנשים של כרטיס ב"ל, כשיש בן/בת זוג לזהות (154) — ‼ קיים **רק**
+   * על `national_insurance`. `facts` למעלה נשאר זהה לעובדות של הלקוח עצמו
+   * (תאימות: כך שהאוטומציה שקוראת `row.facts` לא צריכה לדעת על אנשים).
+   * `persons[0]` תמיד שווה למה ש-`facts` מתאר; `persons[1]` (אם קיים) הוא
+   * בן/בת הזוג. ראה `utils/niPersons.ts`.
+   */
+  persons?: AuthorityRowPerson[];
   /** יש בכלל מה להציג על הרשות הזו. רשות בלי תיק ובלי נתון אינה שורה. */
   present: boolean;
+}
+
+export interface AuthorityRowFact {
+  k: string; v: string; tone?: 'warn' | 'ok';
+  syncKey?: string; btlSyncKey?: string; editKey?: string;
+  taxFileNumberAuthority?: TaxAuthority;
+  /** מספר התיק שייך לאיזה owner ב-taxFiles. חסר = 'client' (ברירת המחדל של כל הרשויות מלבד ב"ל). */
+  taxFileNumberOwner?: 'client' | 'spouse';
+  /**
+   * פעולה ליד שורת "ייצוג" בב"ל — 'add' ("בקש ייצוג", מוסיף target
+   * ל-authorityRepresentations + טיוטת taxFiles, בלי לגעת בבקשה) או
+   * 'continue' ("המשך במרכז הייצוג"). קיים **רק** על שורת «ייצוג».
+   * ראה docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
+   */
+  niRepAction?: NiRepresentationAction;
+}
+
+export interface AuthorityRowPerson {
+  role: 'client' | 'spouse';
+  name: string;
+  idNumber: string;
+  /** false = הנתונים בכרטיס בן/בת הזוג המקושר — לקריאה בלבד כאן. */
+  editable: boolean;
+  facts: AuthorityRowFact[];
 }
 
 function money(n?: number | null): string {
@@ -103,7 +135,9 @@ function join(parts: (string | null | undefined)[]): string {
  * קוראים דרך `utils/personRepresentation.ts`. חסר ⇒ אין קישור, וההתנהגות
  * זהה למה שהייתה לפני 150.
  */
-export function buildAuthorityRows(client: Client, spouseClient?: Client): AuthorityRow[] {
+export function buildAuthorityRows(
+  client: Client, spouseClient?: Client, niExecution?: NiExecutionByRole,
+): AuthorityRow[] {
   const files = client.taxFiles ?? [];
   const filesOf = (a: TaxAuthority) => files.filter(f => f.authority === a);
   const repOf = (a: TaxAuthority): string | null => {
@@ -285,65 +319,110 @@ export function buildAuthorityRows(client: Client, spouseClient?: Client): Autho
     });
   }
 
-  // ── ביטוח לאומי ──
-  // ‼ אותו מבנה קבוע כמו מע״מ ומס הכנסה — ראה ההערה בסעיף מע״מ.
+  // ── ביטוח לאומי — לפי אדם (154, docs/PLAN-BTL-PER-PERSON.md) ──
+  // ‼ לזוג נשוי, החמישה שדות התפעוליים, מספר התיק והייצוג נגזרים בנפרד
+  // לכל אחד מבני הזוג דרך `utils/niPersons.ts` — הם אינם עוד סינגלטון
+  // ברמת הכרטיס. `facts` נשאר תואם לאחור (=`persons[0]`, כלומר הלקוח עצמו)
+  // כדי שהאוטומציה שממשיכה לקרוא `row.facts` תעבוד בדיוק כמו קודם.
   {
-    const facts: AuthorityRow['facts'] = [];
-    const num = numbersOf('national_insurance');
-    const occ = client.niOccupations ?? [];
-    const bal = balanceText(client.niBalance);
-    const auth = authText(client.niDebitAuthorization);
-    const rep = repOf('national_insurance');
-    // ‼ אין כאן נתון תפעולי משלו/ה (מקדמה, יתרה...) — אבל ייתכן שהייצוג
-    // עצמו כבר הושג דרך בן/בת הזוג המקושר/ת. "אין נתונים" ו"לא מיוצג" הם
-    // שני דברים שונים; הראשון לא אמור להישמע כמו השני.
-    // ‼ נגזר מהנתונים ולא מאורך רשימת השדות — מאז שהשדות נרשמים תמיד,
-    // «הרשימה ריקה» כבר לא מעיד על היעדר נתון.
-    const hasOwnData = !!num || occ.length > 0 || client.niIncomeBasisMonthly != null
-      || client.niAdvanceMonthly != null || !!bal || !!auth;
-    const niViaSpouse = !hasOwnData ? viaSpouse('national_insurance') : null;
+    // ‼ מחושב פעם אחת לכל אדם — עובדות, תיק וייצוג — ונקרא ממנו הלאה
+    // (שורות, תקציר, חריגה, present) בלי לחשב שוב את אותו דבר פעמיים.
+    const built = niPersons(client, spouseClient).map(person => {
+      const rep = niRepresentationOf(person, client, spouseClient, niExecution);
+      return {
+        person,
+        pf: niFactsOf(person, client),
+        file: niFileOf(person, client),
+        rep,
+        niAction: niRepresentationAction(person, client, rep),
+        editable: niEditable(person),
+        keys: niFieldKeys(person, client),
+      };
+    });
 
-    // ‼ ת.ז. הלקוח מוצגת כאן כהקשר מזהה בלבד — לקריאה, לא לעריכה בתיק הזה.
-    // ‼ **אינה** מספר התיק בביטוח לאומי. שתי הרשות שונות: ת.ז. היא זהות
-    // הלקוח, «מספר תיק» הוא רישום נפרד ברשות שלא תמיד קיים ולא נגזר מהת.ז.
-    facts.push({ k: 'ת.ז.', v: client.idNumber || EMPTY });
-    // ‼ «ייצוג» נגזר מ-taxFiles ⇒ לקריאה. «מספר תיק» נגזר מ-taxFiles גם הוא,
-    // אך כן ניתן לעריכה — דרך מסלול נפרד (taxFileNumberAuthority), לא
-    // editKey, כי הערך יושב ברשימה ולא בשדה שטוח. «עיסוקים» הוא רשימה
-    // (niOccupations) עם עורך מובנה משלה — התיק מרכיב אותו בעצמו בעריכה.
-    facts.push({ k: 'מספר תיק', v: num || EMPTY, taxFileNumberAuthority: 'national_insurance' });
-    facts.push({ k: 'עיסוקים', v: occ.length ? `${occ.length} עיסוקים` : EMPTY });
-    facts.push({
-      k: 'בסיס למקדמות',
-      v: client.niIncomeBasisMonthly != null ? `${money(client.niIncomeBasisMonthly)} לחודש` : EMPTY,
-      editKey: 'niIncomeBasisMonthly',
+    const personRows: AuthorityRowPerson[] = built.map(({ person, pf, file, rep, niAction, editable, keys }) => {
+      const bal = balanceText(pf.balance);
+      const auth = authText(pf.debitAuthorization);
+      const facts: AuthorityRow['facts'] = [];
+
+      // ‼ ת.ז. מוצגת כהקשר מזהה בלבד — לקריאה, לעולם לא לעריכה כאן, ולעולם
+      // לא נגזר ממנה מספר התיק. שתי עובדות נפרדות באותה רשות. ‼ נשארת
+      // בעובדות עצמן (לא רק בכותרת) כדי שלקוח/ה יחיד/ה — הענף ללא כותרת-שם
+      // — ימשיך להראות אותה בדיוק כמו לפני 154; בבלוק-אדם עם כותרת היא
+      // מוסתרת כפילות ב-TaxFileTab, לא כאן.
+      facts.push({ k: 'ת.ז.', v: person.idNumber || EMPTY });
+      facts.push({
+        k: 'מספר תיק', v: file?.fileNumber || EMPTY,
+        ...(editable ? { taxFileNumberAuthority: 'national_insurance' as TaxAuthority, taxFileNumberOwner: person.role } : {}),
+      });
+      // ‼ «עיסוקים» הוא רשימה (niOccupations/spouseNiOccupations) עם עורך
+      // מובנה משלה — התיק מרכיב אותו בעצמו בעריכה, לכל אדם בנפרד.
+      facts.push({ k: 'עיסוקים', v: pf.occupations.length ? `${pf.occupations.length} עיסוקים` : EMPTY });
+      facts.push({
+        k: 'בסיס למקדמות',
+        v: pf.incomeBasisMonthly != null ? `${money(pf.incomeBasisMonthly)} לחודש` : EMPTY,
+        ...(editable ? { editKey: keys.incomeBasisMonthly } : {}),
+      });
+      facts.push({
+        k: 'מקדמה חודשית',
+        v: pf.advanceMonthly != null ? money(pf.advanceMonthly) : EMPTY,
+        ...(editable ? { editKey: keys.advanceMonthly } : {}),
+      });
+      // ‼ השדה היחיד בביטוח לאומי שיש לו כרגע מקור ודאי בפורטל (הלקוח
+      // בלבד — האוטומציה עוד לא נתמכת לבן/בת הזוג), ולכן היחיד שמקבל
+      // btlSyncKey. הכפתור **וגם** העריכה — הקריאה מהרשות אינה מחליפה
+      // את היכולת לתקן ידנית.
+      const balSync = editable && person.role === 'client' ? { btlSyncKey: keys.balance } : {};
+      facts.push(bal
+        ? { k: 'יתרה', v: bal.text, tone: bal.tone, ...balSync, ...(editable ? { editKey: keys.balance } : {}) }
+        : { k: 'יתרה', v: EMPTY, ...balSync, ...(editable ? { editKey: keys.balance } : {}) });
+      facts.push(auth
+        ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone, ...(editable ? { editKey: keys.debitAuthorization } : {}) }
+        : { k: 'הרשאה לחיוב', v: EMPTY, ...(editable ? { editKey: keys.debitAuthorization } : {}) });
+      // ‼ `detail` (אסמכתא/"טרם הוזן") מצטרף לערך עצמו, לא שורה נוספת —
+      // בדיוק כמו כל שורת עובדה אחרת בכרטיס. `niRepAction` מוצג ליד
+      // הערך ב-TaxFileTab, לא כאן (זו שכבת נתונים בלבד).
+      facts.push({
+        k: 'ייצוג', v: rep.detail ? `${rep.v} · ${rep.detail}` : rep.v, tone: rep.tone,
+        ...(niAction ? { niRepAction: niAction } : {}),
+      });
+
+      return { role: person.role, name: person.name, idNumber: person.idNumber, editable, facts };
     });
-    facts.push({
-      k: 'מקדמה חודשית',
-      v: client.niAdvanceMonthly != null ? money(client.niAdvanceMonthly) : EMPTY,
-      editKey: 'niAdvanceMonthly',
-    });
-    // ‼ השדה היחיד בביטוח לאומי שיש לו כרגע מקור ודאי בפורטל, ולכן היחיד
-    // שמקבל כפתור קריאה. ‼ הכפתור **וגם** העריכה — הקריאה מהרשות אינה
-    // מחליפה את היכולת לתקן ידנית, בדיוק כמו «פקיד שומה» במס הכנסה.
-    facts.push(bal
-      ? { k: 'יתרה', v: bal.text, tone: bal.tone, btlSyncKey: 'niBalance', editKey: 'niBalance' }
-      : { k: 'יתרה', v: EMPTY, btlSyncKey: 'niBalance', editKey: 'niBalance' });
-    facts.push(auth
-      ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone, editKey: 'niDebitAuthorization' }
-      : { k: 'הרשאה לחיוב', v: EMPTY, editKey: 'niDebitAuthorization' });
-    facts.push(rep
-      ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined }
-      : niViaSpouse ? { k: 'ייצוג', v: niViaSpouse, tone: 'ok' } : { k: 'ייצוג', v: EMPTY });
+
+    // ‼ שורת "אין הרשאה לחיוב" נשארת בדיוק כמו קודם ללקוח יחיד (בלי שם
+    // מצורף — שינוי טקסט היה שובר את התאימות לכרטיס לא-נשוי). לבן/בת זוג
+    // שם מצטרף, כדי שהחריגה תדע למי היא שייכת.
+    const exception: AuthorityException | null = built
+      .map(({ person, pf }, i): AuthorityException | null => pf.debitAuthorization === false
+        ? { text: i === 0 ? 'אין הרשאה לחיוב' : `אין הרשאה לחיוב · ${person.name}`, tone: 'warn' }
+        : null)
+      .find((e): e is AuthorityException => e !== null) ?? null;
+
+    // ‼ תקציר סגור: לקוח יחיד — בדיוק הטקסט הקודם, בלי שם (התאמה לאחור
+    // מלאה לכרטיס לא-נשוי). זוג — שורה לכל אדם, כדי שהתשובה ל"של מי
+    // הנתונים" תהיה קריאה גם בלי לפתוח.
+    const personLine = ({ pf, rep }: (typeof built)[number]) =>
+      join([pf.advanceMonthly != null ? `מקדמה ${money(pf.advanceMonthly)}` : null, balanceText(pf.balance)?.text])
+      || (rep.represented ? rep.v : null);
+
+    const summary = built.length === 1
+      ? (personLine(built[0]) || 'טרם נאספו נתונים')
+      : built.map((b, i) => `${personRows[i].name} · ${personLine(b) || 'לא מיוצג/ת'}`).join(' — ');
+
+    // ‼ `!!file` (לא רק fileNumber): רשומת taxFiles קיימת היא כשלעצמה
+    // "יש מה להציג" גם ברשות none — בדיוק ההתנהגות הקודמת, ש-`repOf` כבר
+    // סיפקה כשהחזירה «אין ייצוג» עבור תיק ריק.
+    const present = built.some(({ pf, file, rep }) =>
+      !!file || pf.occupations.length > 0 || pf.incomeBasisMonthly != null
+      || pf.advanceMonthly != null || pf.balance != null || pf.debitAuthorization != null
+      || rep.represented);
 
     rows.push({
       authority: 'national_insurance', name: TAX_AUTHORITY_LABELS.national_insurance,
-      summary: join([
-        client.niAdvanceMonthly != null ? `מקדמה ${money(client.niAdvanceMonthly)}` : null,
-        bal?.text,
-      ]) || (niViaSpouse ? niViaSpouse : null) || 'טרם נאספו נתונים',
-      exception: client.niDebitAuthorization === false ? { text: 'אין הרשאה לחיוב', tone: 'warn' } : null,
-      facts, present: hasOwnData || !!rep || !!niViaSpouse,
+      summary, exception,
+      facts: personRows[0].facts, persons: personRows,
+      present,
     });
   }
 

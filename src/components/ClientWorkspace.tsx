@@ -5,7 +5,7 @@
 // ארבע לשוניות סביב "המסע"; כבוי — חמש הלשוניות הישנות חוזרות, כולל "קליטה".
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Client, Task, REPRESENTATION_STATUS_LABELS, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS } from '../types';
+import { Client, Task, REPRESENTATION_STATUS_LABELS, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking } from '../types';
 import { ActivityEntry, ClientAlert } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
 import { useDocumentDB } from '../hooks/useIndexedDB';
@@ -134,6 +134,14 @@ interface Props {
   /** פותח RepresentationOnboardingDialog עבור הכרטיס הזה — ללקוח שעדיין
    *  אין לו שום בקשת ייצוג (156). ראה ההערה המקבילה ב-JourneyTab. */
   onStartRepresentation?: (clientId: string) => void;
+  /**
+   * "בקש ייצוג" בבלוק בן/בת הזוג בכרטיס ב"ל, כשללקוח **כבר יש** בקשת
+   * ייצוג — תיקון ממוקד על הכרטיס בלבד, לא בקשה שנייה. ראה
+   * docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
+   */
+  onAddNiTarget?: (clientId: string, role: 'client' | 'spouse') => Promise<void> | void;
+  /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
+  niExecution?: { client?: NiTracking; spouse?: NiTracking };
   // ─── דף המסע ───
   /** כבוי ⇒ חמש הלשוניות הישנות חוזרות (settings.flags.journeyUi=false). */
   journeyUi?: boolean;
@@ -216,6 +224,8 @@ export default function ClientWorkspace({
   onOpenReleaseLetter,
   onOpenRepresentation,
   onStartRepresentation,
+  onAddNiTarget,
+  niExecution,
   journeyUi,
   checksTabEnabled,
   quotations,
@@ -850,6 +860,9 @@ export default function ClientWorkspace({
             onCreateTask={(title) => onAddTaskForClient(client.id, title)}
             onCreateRequest={(flag) => void createFlagRequest(flag)}
             creatingRequestKey={creatingRequestKey}
+            onOpenRepresentation={onOpenRepresentation ? () => onOpenRepresentation(client.id) : undefined}
+            onAddNiTarget={onAddNiTarget ? (role) => onAddNiTarget(client.id, role) : undefined}
+            niExecution={niExecution}
           />
         )}
 

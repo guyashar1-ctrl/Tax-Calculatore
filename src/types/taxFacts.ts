@@ -95,6 +95,9 @@ export const GOVERNED_FACT_KEYS: ReadonlySet<string> = new Set([
   'rentalIncomeAnnual', 'gamblingIncomeAnnual', 'qualifyingSettlementId',
   'academicDegreeType', 'properties', 'foreignAccounts',
   'disabilityInsuranceAnnual', 'medicalInsuranceAnnual', 'businessDescription',
+  // ── 154 — ב"ל של בן/בת הזוג, כשמיוצג/ת בנפרד. אינם מוסקים מ-ni* (ראה שם). ──
+  'spouseNiBalance', 'spouseNiOccupations', 'spouseNiDebitAuthorization',
+  'spouseNiIncomeBasisMonthly', 'spouseNiAdvanceMonthly',
 ]);
 
 export const GOVERNED_FIELD_LABELS: Record<string, string> = {
@@ -141,6 +144,10 @@ export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   hasCrypto: 'קריפטו', businessDataStatus: 'נתוני הנהלת החשבונות',
   hasRentalIncome: 'הכנסה משכירות', hasKrenHashtalmut: 'קרן השתלמות',
   hasDisabilityInsurance: 'ביטוח אובדן כושר עבודה', hasMedicalInsurance: 'ביטוח בריאות',
+  spouseNiBalance: 'יתרה בביטוח לאומי - בן/בת הזוג', spouseNiOccupations: 'עיסוקים בביטוח לאומי - בן/בת הזוג',
+  spouseNiDebitAuthorization: 'הרשאת חיוב - ביטוח לאומי (בן/בת הזוג)',
+  spouseNiIncomeBasisMonthly: 'בסיס הכנסה למקדמות - ביטוח לאומי (בן/בת הזוג)',
+  spouseNiAdvanceMonthly: 'מקדמה חודשית בביטוח לאומי - בן/בת הזוג',
 };
 
 /** השוואה עמוקה מספיק לשדות מנוהלים — כולל מערכים/אובייקטים (ילדים, מעבידים וכו'). */

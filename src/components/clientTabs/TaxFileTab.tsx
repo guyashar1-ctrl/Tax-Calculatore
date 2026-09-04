@@ -10,7 +10,7 @@
 // מקובלות על הלקוח — המלצה מחושבת מתוך ברירות מחדל הייתה מטעה.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Client, RentalTaxTrack, TaxAuthority, NiOccupation } from '../../types';
+import type { Client, RentalTaxTrack, TaxAuthority, NiOccupation, NiTracking } from '../../types';
 import { FAMILY_STATUS_LABELS, TAX_AUTHORITY_LABELS } from '../../types';
 import type { TaxFactChange, ProposedFact } from '../../types/taxFacts';
 import { TAX_FACT_SOURCE_LABELS } from '../../types/taxFacts';
@@ -85,6 +85,16 @@ interface Props {
   /** פותח בקשה ללקוח מתוך דגל — כשהממצא דורש חומר שרק הלקוח יכול לתת. */
   onCreateRequest?: (flag: AuthorityFlag) => void;
   creatingRequestKey?: string | null;
+  /** קפיצה למרכז הייצוג של הלקוח — פעולת "המשך במרכז הייצוג" בשורת ייצוג ב"ל. */
+  onOpenRepresentation?: () => void;
+  /**
+   * "בקש ייצוג" בבלוק בן/בת הזוג בכרטיס ב"ל, כשללקוח **כבר יש** בקשת
+   * ייצוג — תיקון ממוקד על הכרטיס בלבד. ראה
+   * docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
+   */
+  onAddNiTarget?: (role: 'client' | 'spouse') => Promise<void> | void;
+  /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
+  niExecution?: { client?: NiTracking; spouse?: NiTracking };
 }
 
 const RENTAL_TRACK_LABELS: Record<RentalTaxTrack, string> = {
@@ -292,6 +302,7 @@ export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
   onClientPersisted, onSendQuestionnaire, onOpenDetails,
   onRunAlignment, alignBusy, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
+  onOpenRepresentation, onAddNiTarget, niExecution,
 }: Props) {
   const { pending, refresh, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
@@ -352,41 +363,56 @@ export default function TaxFileTab({
   const [sectionListKeys, setSectionListKeys] = useState<ListKey[]>([]);
   const [sectionListDrafts, setSectionListDrafts] = useState<Record<string, ListItem[]>>({});
 
-  /** מפתח taxFiles בתוך sectionDrafts — קידומת כדי שלא יתנגש עם editKey אמיתי. */
-  function taxFileNumberKey(authority: TaxAuthority) { return `__taxFileNumber:${authority}`; }
-  /** תיק הרשות הזו על שם הלקוח עצמו; אם אין — התיק הראשון של הרשות (ראה TaxFilesSection). */
-  function currentTaxFile(authority: TaxAuthority) {
+  /**
+   * מפתח taxFiles בתוך sectionDrafts — קידומת כדי שלא יתנגש עם editKey
+   * אמיתי. ‼ `owner` (154): לב"ל יש שני תיקים אפשריים על אותו כרטיס —
+   * חסר ⇒ 'client', בדיוק כמו כל שאר הרשויות שאף פעם לא היו צריכות להבחין.
+   */
+  function taxFileNumberKey(authority: TaxAuthority, owner: 'client' | 'spouse' = 'client') {
+    return `__taxFileNumber:${authority}:${owner}`;
+  }
+  /**
+   * תיק הרשות הזו על שם ה-owner המבוקש. ‼ לב"ל — התאמה מדויקת בלבד, בלי
+   * נפילה-לאחור: זה בדיוק ההבדל בין "מספר תיק אחד לרשות" ל"מספר תיק לכל
+   * אדם" (154). לשאר הרשויות — כמו קודם: אם אין תיק ל-owner המבוקש,
+   * התיק הראשון של הרשות (ראה TaxFilesSection).
+   */
+  function currentTaxFile(authority: TaxAuthority, owner: 'client' | 'spouse' = 'client') {
     const files = client.taxFiles ?? [];
+    if (authority === 'national_insurance') {
+      return files.find(t => t.authority === authority && t.owner === owner);
+    }
     return files.find(t => t.authority === authority && t.owner === 'client')
       ?? files.find(t => t.authority === authority);
   }
   /**
-   * ‼ עדכון במקום כשיש רשומה, יצירה רק כשאין — לעולם לא כפילות לאותה רשות.
-   * «owner: client» ברשומה חדשה, כי זו העריכה מהכרטיס של הלקוח הזה; שיוך
-   * לבן/בת זוג או ל"משותף" נשאר במסך התיקים הייעודי (TaxFilesSection).
+   * ‼ עדכון במקום כשיש רשומה, יצירה רק כשאין — לעולם לא כפילות לאותו
+   * (רשות, owner). שיוך ל"משותף" (תיק הניכויים בב"ל) נשאר במסך התיקים
+   * הייעודי (TaxFilesSection) — לא נגיש מכאן.
    * ‼ לעולם לא נגזר מ-idNumber — הערך מגיע רק ממה שהוקלד כאן.
    */
-  function buildTaxFilesPatch(authority: TaxAuthority, newNumber: string) {
+  function buildTaxFilesPatch(authority: TaxAuthority, newNumber: string, owner: 'client' | 'spouse' = 'client') {
     const files = client.taxFiles ?? [];
-    const existing = currentTaxFile(authority);
+    const existing = currentTaxFile(authority, owner);
     if (existing) {
       return files.map(t => t.id === existing.id ? { ...t, fileNumber: newNumber || undefined } : t);
     }
     return [...files, {
       id: `tf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      authority, owner: 'client' as const, repStatus: 'none' as const,
+      authority, owner, repStatus: 'none' as const,
       fileNumber: newNumber || undefined,
     }];
   }
 
   function startSectionEdit(
     id: string, fields: EditField[],
-    opts?: { taxFileAuthority?: TaxAuthority; lists?: ListKey[] },
+    opts?: { taxFileAuthority?: TaxAuthority; taxFileOwner?: 'client' | 'spouse'; lists?: ListKey[]; niOwner?: 'client' | 'spouse' },
   ) {
     const drafts: Record<string, string> = {};
     for (const f of fields) drafts[f.key] = editFieldValue(client, f);
     if (opts?.taxFileAuthority) {
-      drafts[taxFileNumberKey(opts.taxFileAuthority)] = currentTaxFile(opts.taxFileAuthority)?.fileNumber ?? '';
+      const owner = opts.taxFileOwner ?? 'client';
+      drafts[taxFileNumberKey(opts.taxFileAuthority, owner)] = currentTaxFile(opts.taxFileAuthority, owner)?.fileNumber ?? '';
     }
     setSectionDrafts(drafts);
     setSectionListKeys(opts?.lists ?? []);
@@ -396,11 +422,10 @@ export default function TaxFileTab({
     ));
     // ‼ תמיד לפחות שורה ריקה אחת, כמו במסך יישור הקו — כדי שיהיה איפה
     // להתחיל להוסיף עיסוק ראשון בלי כפתור "הוסף" נוסף בלחיצה הראשונה.
-    setSectionOccDrafts(
-      client.niOccupations && client.niOccupations.length > 0
-        ? client.niOccupations.map(o => ({ ...o }))
-        : [newOccupationRow(0)],
-    );
+    // ‼ `niOwner` (154): לבן/בת הזוג יש רשימת עיסוקים משלו/ה
+    // (`spouseNiOccupations`) — לא אותה רשימה של הלקוח.
+    const occSource = opts?.niOwner === 'spouse' ? (client.spouseNiOccupations ?? []) : (client.niOccupations ?? []);
+    setSectionOccDrafts(occSource.length > 0 ? occSource.map(o => ({ ...o })) : [newOccupationRow(0)]);
     setSectionError(null);
     setEditingSection(id);
   }
@@ -426,12 +451,13 @@ export default function TaxFileTab({
     setSectionError(null);
     for (const [key, raw] of Object.entries(sectionDrafts)) {
       if (key.startsWith('__taxFileNumber:')) {
-        const authority = key.slice('__taxFileNumber:'.length) as TaxAuthority;
-        const before = currentTaxFile(authority)?.fileNumber ?? '';
+        const [authority, owner] = key.slice('__taxFileNumber:'.length).split(':') as [TaxAuthority, 'client' | 'spouse'];
+        const before = currentTaxFile(authority, owner)?.fileNumber ?? '';
         if (raw === before) continue;
+        const label = `מספר תיק — ${TAX_AUTHORITY_LABELS[authority]}${owner === 'spouse' ? ' (בן/בת הזוג)' : ''}`;
         const res = await recordManualEdit(
-          client.id, 'taxFiles', `מספר תיק — ${TAX_AUTHORITY_LABELS[authority]}`,
-          before || '—', raw || '—', { taxFiles: buildTaxFilesPatch(authority, raw) },
+          client.id, 'taxFiles', label,
+          before || '—', raw || '—', { taxFiles: buildTaxFilesPatch(authority, raw, owner) },
         );
         if (!res.ok) {
           setSectionError(`מספר תיק: ${res.error ?? 'השמירה נכשלה'}`);
@@ -479,16 +505,21 @@ export default function TaxFileTab({
       if (res.client) onClientPersisted(res.client);
     }
 
-    // עיסוקים בביטוח לאומי — רק כשכרטיס ב״ל הוא זה שבעריכה, ורק אם השתנה.
-    if (editingSection === 'auth-national_insurance') {
+    // עיסוקים בביטוח לאומי — רק כשבלוק אדם בכרטיס ב״ל הוא זה שבעריכה, ורק
+    // אם השתנה. ‼ (154) לכל אדם הרשימה שלו/ה — לא אותה רשימה של הלקוח.
+    const niOccMatch = /^auth-national_insurance:(client|spouse)$/.exec(editingSection ?? '');
+    if (niOccMatch) {
+      const occOwner = niOccMatch[1] as 'client' | 'spouse';
+      const occKey = occOwner === 'spouse' ? 'spouseNiOccupations' : 'niOccupations';
+      const occLabel = occOwner === 'spouse' ? 'עיסוקים בביטוח לאומי — בן/בת הזוג' : 'עיסוקים בביטוח לאומי';
       const selected = sectionOccDrafts.filter((o): o is NiOccupation => o.type !== '');
-      const before = client.niOccupations ?? [];
+      const before = (client[occKey] as NiOccupation[] | undefined) ?? [];
       if (JSON.stringify(selected) !== JSON.stringify(before)) {
         const res = await recordManualEdit(
-          client.id, 'niOccupations', 'עיסוקים בביטוח לאומי',
+          client.id, occKey, occLabel,
           before.length ? `${before.length} עיסוקים` : '-',
           selected.length ? `${selected.length} עיסוקים` : '-',
-          { niOccupations: selected },
+          { [occKey]: selected } as Partial<Client>,
         );
         if (!res.ok) {
           setSectionError(`עיסוקים: ${res.error ?? 'השמירה נכשלה'}`);
@@ -736,8 +767,8 @@ export default function TaxFileTab({
   // משהו. לקוח שטרם יושר קו מולו מקבל את ההזמנה לבצע אותו, ולא שלוש שורות
   // ריקות שכתוב בהן «טרם נאספו נתונים».
   const authorityRows = useMemo(
-    () => buildAuthorityRows(client, spouseClient).filter(r => r.facts.length > 0),
-    [client, spouseClient],
+    () => buildAuthorityRows(client, spouseClient, niExecution).filter(r => r.facts.length > 0),
+    [client, spouseClient, niExecution],
   );
   /** תיק מס הכנסה של הזוג — אחד, לא אחד לכל כרטיס. ראה docs/PLAN-PERSON-AND-COUPLE-MODEL.md. */
   const household = useMemo(
@@ -747,8 +778,8 @@ export default function TaxFileTab({
   const domains = useMemo(() => domainKnowledge(client), [client]);
   const readiness = useMemo(() => taxReadiness(client, steps), [client, steps]);
   const flags = useMemo(
-    () => computeAuthorityFlags(client, (steps ?? []) as never),
-    [client, steps],
+    () => computeAuthorityFlags(client, (steps ?? []) as never, spouseClient, niExecution),
+    [client, steps, spouseClient, niExecution],
   );
   const openFlags = flags.filter(f => !f.requestExists && f.severity !== 'info');
 
@@ -1003,16 +1034,27 @@ export default function TaxFileTab({
                       ל«בקש מסמכים מהלקוח». */}
                   {f.requestExists
                     ? <span className="txf-att-stamp">בטיפול</span>
-                    : f.requestTitle && onCreateRequest
+                    /* ‼ דגל ייצוג ב"ל של בן/בת הזוג — לא task/request כלליים.
+                        'add' מוסיף target + טיוטת taxFiles על הכרטיס (בלי
+                        בקשה שנייה); 'continue' מנווט למרכז הייצוג הקיים. */
+                    : f.niAction
                       ? <button type="button" className="ui-btn ui-btn-sm"
-                          disabled={creatingRequestKey === f.key}
-                          onClick={() => onCreateRequest(f)}>
-                          {creatingRequestKey === f.key ? 'יוצר…' : 'בקש מסמכים מהלקוח'}
+                          onClick={() => {
+                            if (f.niAction!.kind === 'add') void onAddNiTarget?.('spouse');
+                            else onOpenRepresentation?.();
+                          }}>
+                          {f.niAction.label}
                         </button>
-                      : f.taskTitle && onCreateTask
+                      : f.requestTitle && onCreateRequest
                         ? <button type="button" className="ui-btn ui-btn-sm"
-                            onClick={() => onCreateTask(f.taskTitle!)}>פתח משימה</button>
-                        : null}
+                            disabled={creatingRequestKey === f.key}
+                            onClick={() => onCreateRequest(f)}>
+                            {creatingRequestKey === f.key ? 'יוצר…' : 'בקש מסמכים מהלקוח'}
+                          </button>
+                        : f.taskTitle && onCreateTask
+                          ? <button type="button" className="ui-btn ui-btn-sm"
+                              onClick={() => onCreateTask(f.taskTitle!)}>פתח משימה</button>
+                          : null}
                 </div>
               ))}
             </div>
@@ -1156,6 +1198,14 @@ export default function TaxFileTab({
           {authorityRows.map(row => {
             const sectionId = 'auth-' + row.authority;
             const editingThis = editingSection === sectionId;
+            // ‼ (154) לב"ל יש עד שני מצבי עריכה בו-זמנית — אחד לכל אדם, לא
+            // עוד "עריכת הכרטיס" יחידה. `cardEditing` מכסה את שניהם, כדי
+            // שסיכום הבדיקה יתחבא בזמן שעורכים כל אדם, בדיוק כמו קודם.
+            // ‼ שני בלוקי-אדם רק כשיש בפועל שני אנשים על השורה (154) —
+            // לקוח/ה יחיד/ה ממשיך במסלול הישן (רשת אחת, בלי כותרת-שם).
+            const twoPersons = !!row.persons && row.persons.length > 1;
+            const cardEditing = editingThis
+              || (twoPersons && row.persons!.some(p => editingSection === `${sectionId}:${p.role}`));
 
             // ── אוטומציה ברמת הכרטיס — ראה authorityAutomation.ts ──
             // ‼ הכול נגזר מהרשומה של הרשות: המשימה, המוכנות, הקלט והפירוש.
@@ -1168,7 +1218,7 @@ export default function TaxFileTab({
             const cardFields = row.facts.map(f => ({ label: f.k, fieldKey: f.syncKey ?? f.btlSyncKey ?? f.editKey }));
             const check = spec ? buildAuthorityCheck(spec, job, client, cardFields) : null;
             const cap = spec?.capability ? shaamReadiness.capability(spec.capability) : null;
-            const inputRes = spec?.buildInput?.(client);
+            const inputRes = spec?.buildInput?.(client, spouseClient);
             const blocked = !spec ? null
               : !spec.available ? (spec.unavailableReason ?? 'האוטומציה עוד לא נבנתה לרשות הזו.')
               : inputRes && 'blocked' in inputRes ? inputRes.blocked
@@ -1199,6 +1249,120 @@ export default function TaxFileTab({
                   running={running} onRun={runCheck} />
               )}
             >
+              {/* ‼ (154) כרטיס ב"ל: שני בלוקי-אדם במקום רשת אחת — התשובה
+                  ל"של מי הנתונים האלה" היא כותרת הבלוק, לא הקשר משתמע.
+                  כל שאר הרשויות (מס הכנסה/מע״מ/ניכויים) ממשיכות בדיוק כמו
+                  קודם דרך הענף השני למטה — `row.persons` קיים רק על ב"ל. */}
+              {/* ‼ בלוקי-אדם רק כשיש שניים בפועל: לקוח/ה יחיד/ה (לא נשוי/אה,
+                  או נשוי/אה בלי בן/בת זוג-כאדם-שני על השורה) ממשיך להיראות
+                  בדיוק כמו לפני 154 — בלי כותרת-שם מיותרת מעל רשת אחת. */}
+              {twoPersons ? (
+                row.persons!.map((person, pi) => {
+                  const personEditId = `${sectionId}:${person.role}`;
+                  const editingPerson = editingSection === personEditId;
+                  return (
+                    <div className="txf-person" key={person.role}>
+                      <div className="txf-person-head">
+                        <span className="txf-person-name">{person.name}</span>
+                        <span className="txf-person-idctx">ת.ז. {person.idNumber || '—'}</span>
+                        {/* ‼ בן/בת זוג מקושר/ת: הנתונים חיים בכרטיס שלו/ה —
+                            כאן לקריאה בלבד, בלי כפתור «ערוך». מקור אמת אחד. */}
+                        {!person.editable && (
+                          <span className="txf-person-linked">
+                            הנתונים בכרטיס של {person.name}
+                            {spouseClient && onOpenSpouseClient && (
+                              <button type="button" className="ui-linkbtn"
+                                onClick={() => onOpenSpouseClient(spouseClient.id)}>
+                                פתיחת הכרטיס
+                              </button>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      <div className="txf-kv">
+                        {person.facts.map((f, i) => {
+                          // ‼ ת.ז. כבר בכותרת הבלוק (name + idctx) — לא כפילות
+                          // כאן. נשארת בעובדות עצמן (index יציב לבדיקת
+                          // האוטומציה למטה) ורק לא מצוירת בבלוק-אדם.
+                          if (f.k === 'ת.ז.') return null;
+                          const def = f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined;
+                          const editingScalar = editingPerson && !!def;
+                          const editingTaxFileNumber = editingPerson && !!f.taxFileNumberAuthority;
+                          // ‼ בדיקת האוטומציה נגזרת מ-row.facts, שזהה בדיוק
+                          // ל-persons[0].facts (הלקוח) — לכן סמן מצב מוצג רק
+                          // באדם הראשון. לבן/בת הזוג עוד אין תוצאת בדיקה.
+                          const fieldCheck = pi === 0 && check?.checkedAt ? check.fields[i] : undefined;
+                          return (
+                          <div key={i}>
+                            <div className="k">{fieldCheck && <FieldStatusMark status={fieldCheck.status} />}{f.k}</div>
+                            {editingScalar && def ? (
+                              <div className="v txf-inline-edit">
+                                <EditControl def={def} value={sectionDrafts[def.key] ?? ''}
+                                  onChange={v => setSectionDrafts(d => ({ ...d, [def.key]: v }))} />
+                                {def.note && <div className="txf-note">{def.note}</div>}
+                              </div>
+                            ) : editingTaxFileNumber ? (
+                              <div className="v txf-inline-edit">
+                                <input type="text" placeholder="—"
+                                  value={sectionDrafts[taxFileNumberKey(f.taxFileNumberAuthority!, f.taxFileNumberOwner ?? 'client')] ?? ''}
+                                  onChange={e => setSectionDrafts(d => ({
+                                    ...d, [taxFileNumberKey(f.taxFileNumberAuthority!, f.taxFileNumberOwner ?? 'client')]: e.target.value,
+                                  }))} />
+                              </div>
+                            ) : (
+                              <div className={'v ' + (f.tone ?? '')}>{f.v}</div>
+                            )}
+                            {/* ‼ שורת "ייצוג" בלבד — "בקש ייצוג" מוסיף target
+                                וטיוטת taxFiles על הכרטיס (לא בקשה שנייה);
+                                "המשך במרכז הייצוג" מנווט לבקשה הקיימת. */}
+                            {f.niRepAction && !editingScalar && !editingTaxFileNumber && (
+                              <button type="button" className="ui-linkbtn"
+                                onClick={() => {
+                                  if (f.niRepAction!.kind === 'add') void onAddNiTarget?.(person.role);
+                                  else onOpenRepresentation?.();
+                                }}>
+                                {f.niRepAction.label}
+                              </button>
+                            )}
+                            {fieldCheck && !editingPerson && spec && (
+                              <FieldAuthorityLine field={fieldCheck} sourceLabel={spec.sourceLabel} />
+                            )}
+                          </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* ‼ עיסוקים — לכל אדם הרשימה שלו/ה, לא רשימה משותפת. */}
+                      {editingPerson && (
+                        <div className="txf-editor">
+                          <h4>עיסוקים בביטוח לאומי{person.role === 'spouse' ? ` — ${person.name}` : ''}</h4>
+                          <OccupationsEditor occupations={sectionOccDrafts} onChange={setSectionOccDrafts} />
+                        </div>
+                      )}
+                      {editingPerson && <EditActions />}
+                      {person.editable && (
+                        <SrcLine
+                          label={alignedAt ? 'יישור קו מול הרשויות · ' + shortDate(alignedAt) : 'תיקי הרשויות בכרטיס הלקוח'}
+                          onEdit={
+                            editingPerson || !person.facts.some(f => f.editKey || f.taxFileNumberAuthority)
+                              ? undefined
+                              : () => {
+                                  const editFields = person.facts
+                                    .map(f => f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined)
+                                    .filter((d): d is EditField => !!d);
+                                  const tf = person.facts.find(f => f.taxFileNumberAuthority);
+                                  startSectionEdit(personEditId, editFields, {
+                                    ...(tf ? { taxFileAuthority: tf.taxFileNumberAuthority, taxFileOwner: tf.taxFileNumberOwner ?? 'client' } : {}),
+                                    niOwner: person.role,
+                                  });
+                                }
+                          }
+                        />
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
               <div className="txf-kv">
                 {row.facts.map((f, i) => {
                   const def = f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined;
@@ -1239,16 +1403,6 @@ export default function TaxFileTab({
                   );
                 })}
               </div>
-
-              {/* ‼ עיסוקים בביטוח לאומי — עורך מובנה, לא תא בודד: הרשימה
-                  הקיימת (בחירת סוג, פירוט לפי סוג, מתאריך/עד תאריך) עוברת
-                  ישירות מ-InstitutionAlignment. שורת «עיסוקים» שלמעלה
-                  ממשיכה להראות את המצב השמור; זה הבלוק שבו באמת עורכים. */}
-              {editingThis && row.authority === 'national_insurance' && (
-                <div className="txf-editor">
-                  <h4>עיסוקים בביטוח לאומי</h4>
-                  <OccupationsEditor occupations={sectionOccDrafts} onChange={setSectionOccDrafts} />
-                </div>
               )}
 
               {/* ‼ סיכום הבדיקה פעם אחת לכרטיס: מה נבדק, כמה שינויים, כפתור
@@ -1257,8 +1411,11 @@ export default function TaxFileTab({
                   התאים ולא הוסיף מידע).
                   ‼ מוצג גם לרשות שהאוטומציה שלה עוד לא נבנתה: שם הוא נושא
                   את הסיבה. השורה חיה **בתוך** הכרטיס הפתוח, ולכן מצב
-                  הקריאה של המסך אינו משתנה — כרטיס סגור נראה בדיוק כמו קודם. */}
-              {spec && !editingThis && (
+                  הקריאה של המסך אינו משתנה — כרטיס סגור נראה בדיוק כמו קודם.
+                  ‼ `cardEditing` ולא `editingThis`: בב"ל אין יותר עריכה
+                  ברמת-כרטיס אחת, ואם לא היינו מסתכלים על שני בלוקי האדם
+                  הסיכום היה נשאר מוצג גם באמצע עריכת מישהו/י. */}
+              {spec && !cardEditing && (
                 <AuthorityCheckSummary
                   result={check}
                   sourceLabel={spec.sourceLabel}
@@ -1272,26 +1429,26 @@ export default function TaxFileTab({
                 </AuthorityCheckSummary>
               )}
 
-              {/* ‼ פעולות העריכה יושבות בתוך הכרטיס. «ביטול» מחזיר לתצוגה
-                  בלי לכתוב כלום; «שמור» כותב רק שדות שהשתנו. */}
-              {editingThis && <EditActions />}
-              {/* ‼ «ערוך» פותח עריכה **כאן**, בכרטיס. הוא לא מנווט לשום
-                  עורך אחר — זה כל המודל המאושר. כרטיס בלי שדות הניתנים
-                  לעריכה לא מקבל כפתור, כדי שלא יבטיח מה שאין. */}
-              <SrcLine
-                label={alignedAt ? 'יישור קו מול הרשויות · ' + shortDate(alignedAt) : 'תיקי הרשויות בכרטיס הלקוח'}
-                onEdit={
-                  editingThis || !row.facts.some(f => f.editKey || f.taxFileNumberAuthority)
-                    ? undefined
-                    : () => {
-                        const editFields = row.facts
-                          .map(f => f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined)
-                          .filter((d): d is EditField => !!d);
-                        const tfAuthority = row.facts.find(f => f.taxFileNumberAuthority)?.taxFileNumberAuthority;
-                        startSectionEdit(sectionId, editFields, tfAuthority ? { taxFileAuthority: tfAuthority } : undefined);
-                      }
-                }
-              />
+              {/* ‼ פעולות העריכה + «ערוך» ברמת-כרטיס — רק כשאין בלוקי-אדם
+                  (כל רשות מלבד ב"ל). ב"ל מציג את שתי הפעולות האלה בתוך כל
+                  בלוק-אדם בנפרד, למעלה. */}
+              {!twoPersons && editingThis && <EditActions />}
+              {!twoPersons && (
+                <SrcLine
+                  label={alignedAt ? 'יישור קו מול הרשויות · ' + shortDate(alignedAt) : 'תיקי הרשויות בכרטיס הלקוח'}
+                  onEdit={
+                    editingThis || !row.facts.some(f => f.editKey || f.taxFileNumberAuthority)
+                      ? undefined
+                      : () => {
+                          const editFields = row.facts
+                            .map(f => f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined)
+                            .filter((d): d is EditField => !!d);
+                          const tfAuthority = row.facts.find(f => f.taxFileNumberAuthority)?.taxFileNumberAuthority;
+                          startSectionEdit(sectionId, editFields, tfAuthority ? { taxFileAuthority: tfAuthority } : undefined);
+                        }
+                  }
+                />
+              )}
             </TRow>
             );
           })}

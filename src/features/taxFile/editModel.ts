@@ -187,6 +187,20 @@ export const EDIT_SECTIONS: EditSection[] = [
     note: 'מקור: יישור קו מול הרשויות.',
   },
   {
+    // ‼ עותק מקביל ל-authNi (154, docs/PLAN-BTL-PER-PERSON.md §F). קיים
+    // כדי ש-EDIT_FIELD_BY_KEY יכיר את מפתחות בן/בת הזוג — התיק עצמו עורך
+    // אותם דרך בלוק האדם השני בכרטיס ב"ל, לא דרך המקטע הזה ישירות.
+    id: 'authNiSpouse', family: 'auth', title: 'ביטוח לאומי — תפעולי (בן/בת הזוג)',
+    summary: c => join(c.spouseNiAdvanceMonthly && `מקדמה ${money(c.spouseNiAdvanceMonthly)}`) || UNKNOWN,
+    fields: [
+      { key: 'spouseNiAdvanceMonthly', label: 'מקדמה חודשית', kind: 'money', authority: true, governed: true },
+      { key: 'spouseNiIncomeBasisMonthly', label: 'בסיס הכנסה לחודש', kind: 'money', authority: true, governed: true },
+      { key: 'spouseNiBalance', label: 'יתרה', kind: 'money', authority: true, governed: true },
+      { key: 'spouseNiDebitAuthorization', label: 'הרשאה לחיוב', kind: 'bool', authority: true, governed: true },
+    ],
+    note: 'מקור: יישור קו מול הרשויות.',
+  },
+  {
     id: 'authNikui', family: 'auth', title: 'ניכויים — תפעולי',
     summary: c => join(c.withholdingRate != null && `ניכוי ${c.withholdingRate}%`) || UNKNOWN,
     fields: [

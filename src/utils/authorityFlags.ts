@@ -13,6 +13,8 @@
 
 import type { Client } from '../types';
 import type { OnboardingStep } from '../types/onboarding';
+import { niPersons, niEditable, niRepresentationOf, niRepresentationAction } from './niPersons';
+import type { NiExecutionByRole, NiRepresentationAction } from './niPersons';
 
 export type FlagSeverity = 'high' | 'medium' | 'info';
 
@@ -34,6 +36,12 @@ export interface AuthorityFlag {
   requestSub?: string;
   /** נוצרה כבר בקשה לדגל הזה ⇒ מציגים חותמת במקום כפתור. */
   requestExists?: boolean;
+  /**
+   * פעולה ייעודית לדגל ייצוג ב"ל של בן/בת הזוג — לא task/request כלליים.
+   * 'add' → onAddNiTarget('spouse'); 'continue' → onOpenRepresentation.
+   * ראה docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
+   */
+  niAction?: NiRepresentationAction;
 }
 
 function money(n: number): string {
@@ -114,11 +122,54 @@ function debitAuthFlags(client: Client): AuthorityFlag[] {
 }
 
 /**
+ * "בן/בת הזוג אינו/ה מיוצג/ת בביטוח לאומי" — הפער היחיד שנגזר מהמצב
+ * האמיתי פר-אדם, לא מרשומה משותפת. ‼ אותו רזולבר בדיוק כמו כרטיס ב"ל
+ * (`niPersons`/`niRepresentationOf`), כדי שהדגל כאן והשורה שם לעולם לא
+ * יסתרו זה את זה. נעלם לגמרי כש-kind הוא 'active'/'elsewhere'/'unknown',
+ * וגם כשאין פעולה בטוחה להציע (אין בקשת ייצוג בכלל — ראה `niRepresentationAction`).
+ * ‼ בן/בת זוג מקושר/ת (`!niEditable`) לא מקבל/ת דגל — המקור אמת אצלו/ה.
+ */
+function niSpouseRepresentationFlag(
+  client: Client, spouseClient: Client | undefined, niExecution: NiExecutionByRole | undefined,
+): AuthorityFlag[] {
+  const spouse = niPersons(client, spouseClient).find(p => p.role === 'spouse');
+  if (!spouse || !niEditable(spouse)) return [];
+
+  const line = niRepresentationOf(spouse, client, spouseClient, niExecution);
+  if (line.kind === 'active' || line.kind === 'elsewhere' || line.kind === 'unknown') return [];
+
+  const action = niRepresentationAction(spouse, client, line);
+  if (!action) return [];
+
+  const why = line.kind === 'pending'
+    ? (line.detail
+        ? `ממתינים לאישור ${spouse.name} בביטוח לאומי — ${line.detail}.`
+        : `התבקש ייצוג בביטוח לאומי עבור ${spouse.name} — נדרשת הזנה ידנית בפורטל ביטוח לאומי.`)
+    : `הייצוג בביטוח לאומי הוא לכל אדם בנפרד — עדיין לא התבקש עבור ${spouse.name}.`;
+
+  return [{
+    key: 'niSpouseNotRepresented',
+    severity: 'medium',
+    title: `${spouse.name} אינו/ה מיוצג/ת בביטוח לאומי`,
+    why,
+    actions: [],
+    niAction: action,
+  }];
+}
+
+/**
  * מחשב את רשימת "דורש טיפול" ללקוח.
  * @param steps שלבי הבקשות של הלקוח — לזיהוי בקשה שכבר נוצרה לדגל (payload.flagKey).
+ * @param spouseClient הכרטיס של בן/בת הזוג, כשהוא/היא לקוח/ה בפני עצמו/ה (150).
+ * @param niExecution מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לדגל הייצוג פר-אדם.
  */
-export function computeAuthorityFlags(client: Client, steps: OnboardingStep[] = []): AuthorityFlag[] {
+export function computeAuthorityFlags(
+  client: Client, steps: OnboardingStep[] = [],
+  spouseClient?: Client, niExecution?: NiExecutionByRole,
+): AuthorityFlag[] {
   const flags: AuthorityFlag[] = [];
+
+  flags.push(...niSpouseRepresentationFlag(client, spouseClient, niExecution));
 
   flags.push(...balanceFlags(client));
 
