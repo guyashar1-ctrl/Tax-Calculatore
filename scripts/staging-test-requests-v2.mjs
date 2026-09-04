@@ -51,8 +51,8 @@ await cleanup();
 
 // ── תיק המקור ───────────────────────────────────────────────────────────────
 const src = (await one(`
-  insert into public.clients (id, user_id, first_name, last_name, email)
-  values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', 'דנה', 'RV-מקור', 'delivered@resend.dev')
+  insert into public.clients (id, user_id, first_name, last_name, email, lifecycle_stage)
+  values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', 'דנה', 'RV-מקור', 'delivered@resend.dev', 'active')
   returning id;`)).id;
 
 /** payload עם ניסוח ללקוח — clientTitle הוא מה שהדף האישי מראה. */
@@ -203,8 +203,8 @@ ok('RV-9 שמירת תבנית הצליחה', saved.ok === true, JSON.stringify(
 const tplId = (await one(
   `select id from public.journey_templates where name = 'RV · רצף פייפרלס' limit 1;`)).id;
 const dst = (await one(`
-  insert into public.clients (id, user_id, first_name, last_name, email)
-  values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', 'יעד', 'RV-יעד', 'delivered@resend.dev')
+  insert into public.clients (id, user_id, first_name, last_name, email, lifecycle_stage)
+  values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', 'יעד', 'RV-יעד', 'delivered@resend.dev', 'active')
   returning id;`)).id;
 const applied = await jrpc(`public.apply_journey_template('${dst}', '${tplId}')`);
 ok('RV-9b החלה על לקוח אחר הצליחה', applied.ok === true, JSON.stringify(applied));

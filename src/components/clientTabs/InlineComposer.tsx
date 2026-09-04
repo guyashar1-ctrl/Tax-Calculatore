@@ -14,6 +14,8 @@ import type { CustomRequirement, CustomRequirementKind, ExternalPartyConfig, Onb
 import { REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
 import type { TemplateEntry } from '../../lib/requestTemplates';
 import { differsFromTemplate, saveRequestTemplate, updateRequestTemplate } from '../../lib/requestTemplates';
+import type { IntakeContext } from '../../lib/clientState';
+import { intakeAcceptsRequired } from '../../lib/clientState';
 import EmailInput from '../ui/EmailInput';
 
 /** שם הבקשה בשביל צ'יפ התלות ורשימת הבחירה.
@@ -62,9 +64,14 @@ function emptyRow(): InputRow {
 }
 
 export default function InlineComposer({
-  clientId, stageId, editStep, initialContent, sourceTemplate, initialDeps, initialOwner, existingSteps, prevAccountant, onSaved, onCancel,
+  clientId, stageId, editStep, initialContent, sourceTemplate, initialDeps, initialOwner, existingSteps, prevAccountant, intake, onSaved, onCancel,
 }: {
   clientId: string;
+  /**
+   * הקשר הקליטה של הלקוח — אותו כלל בדיוק כמו בחלון הקטלוג. שתי נקודות
+   * הכניסה נבדלות ב-UX (אחת מוסיפה בלחיצה, זו מרכיבה טיוטה) אבל לא בכללים.
+   */
+  intake: IntakeContext;
   /** שלב-העל שבו נלחץ "+ הוסף" — נגזר מההקשר, לא נשאל. null = דלי ברירת-מחדל. */
   stageId?: string | null;
   /** מי מטפל כברירת מחדל. 'me' — כשנפתח מ"+ משימה פנימית". */
@@ -132,7 +139,10 @@ export default function InlineComposer({
   const [internalNote, setInternalNote] = useState(String(editContent?.internalNote ?? ''));
   const [clientSub, setClientSub] = useState(String(editContent?.clientSub ?? ''));
   const [clientCta, setClientCta] = useState(String(editContent?.clientCta ?? ''));
-  const [requiredForClose, setRequiredForClose] = useState(edit ? edit.requiredForClose !== false : true);
+  /** ‼ ללא הקשר קליטה — תמיד false ובלי פקד, בדיוק כמו בחלון הקטלוג. */
+  const requiredApplies = intakeAcceptsRequired(intake);
+  const [requiredForClose, setRequiredForClose] = useState(
+    edit ? edit.requiredForClose !== false : requiredApplies);
   const [dueDate, setDueDate] = useState(edit?.dueDate ?? '');
   const [deps, setDeps] = useState<string[]>(
     initialDeps && initialDeps.length > 0
@@ -624,7 +634,7 @@ export default function InlineComposer({
             </label>
           )}
 
-          {!edit && (
+          {!edit && requiredApplies && (
             <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
               <input type="checkbox" checked={requiredForClose}
                 onChange={e => setRequiredForClose(e.target.checked)} />

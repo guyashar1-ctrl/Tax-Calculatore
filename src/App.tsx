@@ -33,6 +33,7 @@ import Icon from './components/ui/Icon';
 import AuthorityConnectionButtons from './components/AuthorityConnectionButtons';
 import { ShaamReadinessProvider } from './hooks/shaamReadiness';
 import { supabase } from './lib/supabase';
+import { isRepresented } from './lib/clientState';
 import { edgeFunctionError } from './utils/functionError';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { targetsOf } from './utils/repScope';
@@ -1175,6 +1176,21 @@ export default function App() {
   }
 
   /**
+   * אחרי מעבר במצב הייצוג — מושכים את הכרטיס מחדש.
+   *
+   * ‼ הדפדפן **אינו** כותב יותר את מצב הייצוג על הכרטיס. הוא מעדכן את הבקשה,
+   * והשרת גוזר ממנה את representation_status, את מרשם הרשויות ואת שלב החיים
+   * (מיגרציה 155). קודם היו כאן שתי כתיבות REST נפרדות בלי טרנזקציה, ולקוח
+   * אחד בפרודקשן כבר נשאר "מיוצג פעיל" על הכרטיס בזמן שהבקשה שלו עוד המתינה
+   * לרו"ח. כאן רק מיישרים את העותק המקומי עם מה שהשרת קבע — בלי זה המסך היה
+   * ממשיך להציג את המצב הקודם עד רענון.
+   */
+  async function syncClientAfterRepTransition(clientId?: string | null) {
+    if (!clientId) return;
+    try { await refreshClient(clientId); } catch { /* הפעימה החיה תיישר בהמשך */ }
+  }
+
+  /**
    * זנב משותף: בקשת ייצוג + מייל, לאחר שכרטיס הלקוח כבר קיים (חדש או ותיק).
    * טופס 2279א'5 (שע"ם) מכסה רק מ"ה/ניכויים/מע"מ — ביטוח לאומי הוא ייצוג
    * נפרד ולכן נשמר רק במרשם הלקוח, לא ברשויות הבקשה.
@@ -1327,6 +1343,15 @@ export default function App() {
    */
   async function handleAttachRepresentation(client: Client, data: CreateRepresentationInput) {
     const { email, areas, spouse, prefill, hasPreviousAccountant, prevAccountant } = data;
+    /* ‼ לקוח שכבר מיוצג אינו נפתח מחדש. הכרעת מוצר (2026-09-04): מרגע שהוא
+       מיוצג הוא נשאר מיוצג עד שייבנה מסלול ביטול מפורש, וייצוג של אדם או
+       רשות נוספים הוא בקשה רגילה במסע — לא איפוס של הייצוג הראשי. עד כה
+       הפונקציה דרסה כל לקוח בחזרה ל-pending_fill בלי לקרוא את מצבו, והבקשה
+       הישנה נשארה יתומה במצב active. השרת חוסם את זה גם הוא (טריגר
+       rep_requests_guard_status), וכאן נעצרים לפני, עם משפט שאפשר לקרוא. */
+    if (isRepresented(client)) {
+      throw new Error('הלקוח כבר מיוצג. ייצוג של אדם או רשות נוספים נוסף כבקשה במסע, ואינו פותח מחדש את הייצוג הקיים.');
+    }
     const reqId = crypto.randomUUID();
     await updateClient({
       ...client,
@@ -1502,12 +1527,12 @@ export default function App() {
         notes: submission.notes
           ? `${linkedClient.notes}\n\nהערות הלקוח:\n${submission.notes}`
           : linkedClient.notes,
-        representationStatus: 'awaiting_accountant',
       });
     }
 
     // ── עדכון Request ──
     await updateRequest({ ...req, submission, status: 'awaiting_accountant', submittedAt: now });
+    await syncClientAfterRepTransition(req.linkedClientId);
     await reloadTasks();
     setView('requestReview');
   }
@@ -1517,10 +1542,7 @@ export default function App() {
    */
   async function handleAccountantSign(req: RepresentationRequest, partB: AccountantPartB, signedPdfStoredId: string) {
     await updateRequest({ ...req, partB, signedPdfStoredId, status: 'awaiting_authorities' });
-    const linkedClient = clients.find(c => c.id === req.linkedClientId);
-    if (linkedClient) {
-      await updateClient({ ...linkedClient, representationStatus: 'awaiting_authorities' });
-    }
+    await syncClientAfterRepTransition(req.linkedClientId);
     await reloadTasks();
   }
 
@@ -1537,10 +1559,7 @@ export default function App() {
 
     // ‼ המסמך הראשון ממשיך להישמר גם בשדות הישנים — ראה withLegacyMirror.
     await updateRequest({ ...req, signers, ...withLegacyMirror(docs), status: 'pending_signature' });
-    const linkedClient = clients.find(c => c.id === req.linkedClientId);
-    if (linkedClient) {
-      await updateClient({ ...linkedClient, representationStatus: 'pending_signature' });
-    }
+    await syncClientAfterRepTransition(req.linkedClientId);
     await reloadTasks();
     // ‼ בכוונה לא נשלח מייל כאן. הפקת הטופס והשליחה ללקוח הן שתי פעולות נפרדות:
     // שליחה אוטומטית בשלב הזה יצאה לפני שהוזנה אסמכתת ב"ל, והלקוח קיבל מייל
@@ -1582,10 +1601,7 @@ export default function App() {
   /** הרו"ח מסמן שהטופס הוגש לשע"ם: awaiting_stamp → awaiting_authorities */
   async function handleMarkSentToShaam(req: RepresentationRequest) {
     await updateRequest({ ...req, status: 'awaiting_authorities' });
-    const linkedClient = clients.find(c => c.id === req.linkedClientId);
-    if (linkedClient) {
-      await updateClient({ ...linkedClient, representationStatus: 'awaiting_authorities' });
-    }
+    await syncClientAfterRepTransition(req.linkedClientId);
     await reloadTasks();
   }
 
@@ -1596,24 +1612,16 @@ export default function App() {
    * בשלב 7 של מרכז הביצוע, עם תצוגה מקדימה לפניה.
    */
   async function handleMarkActive(req: RepresentationRequest) {
+    // ‼ כתיבה אחת. עדכון הבקשה הוא כל מה שקורה כאן, והשרת גוזר ממנו את מצב
+    // הייצוג של הכרטיס, את מרשם הרשויות ואת שלב החיים — בטרנזקציה אחת
+    // (טריגר rep_requests_sync_client, מיגרציה 155). קודם ישבו כאן שתי
+    // כתיבות REST נפרדות, ואם השנייה לא יצאה הכרטיס והבקשה נשארו סותרים.
+    // ‼ ב"ל נשאר בחוץ — וגם בשרת: "הרשויות אישרו" הוא אישור שע״ם/2279, ולב"ל
+    // אין קשר אליו. הוא מסתיים בנפרד ופר-אדם (handleSaveExecution, לפי
+    // confirmedAt של כל מסלול); סימון כאן היה מציג בן/בת זוג כמיוצג/ת בלי
+    // שום ראיה. ראה docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md §9.
     await updateRequest({ ...req, status: 'active' });
-    const linkedClient = clients.find(c => c.id === req.linkedClientId);
-    if (linkedClient) {
-      const reps = { ...(linkedClient.authorityRepresentations || {}) } as AuthorityRepresentations;
-      // ‼ ב"ל נשאר בחוץ בכוונה: "הרשויות אישרו" הוא אישור שע״ם/2279 —
-      // לב"ל אין קשר אליו, והוא מסתיים בנפרד ופר-אדם, רק כשמאושר בפועל
-      // (handleSaveExecution, לפי confirmedAt של כל מסלול). לסמן אותו
-      // 'active' כאן היה מציג בן/בת זוג כמיוצג/ת בלי שום ראיה — בדיוק
-      // ההערה שכבר כתובה ב-handleSaveExecution. ראה
-      // docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md §9.
-      for (const k of Object.keys(reps) as RepAuthorityKind[]) {
-        if (k === 'nationalInsurance') continue;
-        const r = reps[k];
-        if (r) reps[k] = { ...r, status: 'active' };
-      }
-      await updateClient({ ...linkedClient, representationStatus: 'active', authorityRepresentations: reps });
-      void syncLifecycleStage(linkedClient.id);
-    }
+    await syncClientAfterRepTransition(req.linkedClientId);
     await reloadTasks();
   }
 

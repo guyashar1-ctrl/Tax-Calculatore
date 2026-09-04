@@ -32,6 +32,7 @@ import {
   getUpcomingDebts,
   isWithholdingExpired,
 } from '../utils/clientDerived';
+import { representationState } from '../lib/clientState';
 
 const IT_LABELS: Record<IncomeTaxType, string> = {
   employee: 'שכיר',
@@ -409,8 +410,9 @@ export default function ClientList({
       const leadId = leadIdByClient?.get(c.id);
       if (leadId) { onOpenLead(leadId); return; }
     }
-    const status = getStatus(c);
-    if (status !== 'active' && c.representationRequestId) {
+    // ‼ 'in_process' ולא `status !== 'active'`: לקוח שמעולם לא נפתח לו ייצוג
+    // נפל קודם ל-'active' כברירת מחדל, וזה טשטש בין "מיוצג" ל"אין ייצוג".
+    if (representationState(c) === 'in_process' && c.representationRequestId) {
       onSelectRequest(c.representationRequestId);
     } else {
       onSelect(c.id);
@@ -711,7 +713,7 @@ export default function ClientList({
                   const fullName = `${client.firstName} ${client.lastName}`.trim() || '(ללא שם)';
                   const m = metricsByClient.get(client.id);
                   const employee = findEmployee(client.assignedAccountantId);
-                  const repBadgeForNonActive = status !== 'active';
+                  const repBadgeForNonActive = representationState(client) === 'in_process';
                   const overallRep = deriveOverallRep(client.authorityRepresentations ?? undefined);
                   const linkedReq = client.representationRequestId ? requestById.get(client.representationRequestId) : undefined;
                   const idSubmitted = linkedReq?.onboardingStatus === 'submitted' && status !== 'active';

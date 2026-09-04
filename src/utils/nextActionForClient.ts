@@ -11,6 +11,7 @@ import type { OnboardingStep } from '../types/onboarding';
 import { isStepOpen, STEP_TYPE_LABELS, STEP_BALL_LABELS } from '../types/onboarding';
 import type { AnnualReportSession } from '../features/annualReport/types';
 import { deriveNextAction, type NextAction } from './journeyPresentation';
+import { representationState } from '../lib/clientState';
 
 export interface NextActionSources {
   client: Client;
@@ -59,6 +60,10 @@ export function nextActionForClient(src: NextActionSources): NextAction | null {
       stuck: s.status === 'blocked' || s.status === 'failed' || !!s.needsAttention,
       ball: STEP_BALL_LABELS[s.ball],
     })),
-    representationPending: repStatusLabel && repStatusLabel !== 'מיוצג פעיל' ? repStatusLabel : null,
+    /* ‼ נגזר ממצב הייצוג, לא מהשוואת מחרוזת עברית. קודם ישב כאן
+       `repStatusLabel !== 'מיוצג פעיל'` — שינוי ניסוח אחד בתווית היה הופך כל
+       לקוח מיוצג ל"ייצוג בתהליך" בלי ששום דבר בקוד ייראה שבור. */
+    representationPending:
+      representationState(client) === 'in_process' ? (repStatusLabel ?? null) : null,
   });
 }

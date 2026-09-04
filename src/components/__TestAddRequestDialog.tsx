@@ -132,6 +132,8 @@ export default function TestAddRequestDialog() {
   /** שני המשתנים שמשנים את «חומרים מרו״ח קודם»: אימייל על הכרטיס, ומה קיים כבר. */
   const [withEmail, setWithEmail] = useState(false);
   const [withDetails, setWithDetails] = useState(false);
+  /** ברירת המחדל היא **בלי** קליטה — התרחיש שדווח (לקוח מיוצג, בלי התקשרות). */
+  const [hasIntake, setHasIntake] = useState(false);
   /** ‼ נפתח ישר על «שליחת מסמכים ללקוח» עם קובץ מסומן — כמו הקיצור מתיקיית
    *  המסמכים. `?test-addrequest&send` מאפשר גם צילום בכרום ללא-ראש. */
   const [sendMode, setSendMode] = useState(
@@ -180,6 +182,12 @@ export default function TestAddRequestDialog() {
           <input type="checkbox" checked={withDetails} onChange={e => setWithDetails(e.target.checked)} />
           שאלת הפרטים כבר קיימת
         </label>
+        {/* ‼ המתג שבודק את הבאג שדווח: ללקוח מיוצג בלי התקשרות אין קליטה,
+            ולכן «נדרש לסגירת הקליטה» לא אמור להופיע בחלון בכלל. */}
+        <label style={{ display: 'flex', gap: '.35rem', alignItems: 'center', fontSize: 13 }}>
+          <input type="checkbox" checked={hasIntake} onChange={e => setHasIntake(e.target.checked)} />
+          ללקוח יש קליטה פתוחה (התקשרות במצב onboarding)
+        </label>
         <label style={{ display: 'flex', gap: '.35rem', alignItems: 'center', fontSize: 13 }}>
           <input type="checkbox" checked={sendMode} onChange={e => setSendMode(e.target.checked)} />
           לפתוח על «שליחת מסמכים» עם קובץ מסומן
@@ -199,10 +207,11 @@ export default function TestAddRequestDialog() {
 
       {open && (
         <AddRequestDialog
-          key={`${seq}-${withEmail}-${withDetails}-${sendMode}`}
+          key={`${seq}-${withEmail}-${withDetails}-${sendMode}-${hasIntake}`}
           clientId="test-client"
           steps={withDetails ? STEPS_WITH_DETAILS : STEPS}
           processPublished={false}
+          intake={hasIntake ? { state: 'open', engagementId: 'eng-test' } : { state: 'none' }}
           presetDocuments={sendMode
             ? [{ documentId: 'd1', label: 'שומת מס 2024', fileName: 'שומה 2024.pdf' }]
             : undefined}

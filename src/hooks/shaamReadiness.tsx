@@ -31,7 +31,7 @@
 //   · אין שורת עובד כלל ⇒ לא מוכן.
 // שום מסך לא מוסיף כלל משלו.
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { automationWorkerFromDb } from '../lib/dbMappers';
@@ -39,6 +39,19 @@ import { WORKER_STALE_AFTER_MS, SUBSYSTEM_STALE_AFTER_MS } from '../types/automa
 import type { AutomationWorkerStatus } from '../types/automation';
 
 const POLL_MS = 4000;
+
+/**
+ * ‼ "מוכן" של שכבת Tier-B דורש גם checkedAt טרי — לא רק ready=true.
+ * הצופה מדווח checkedAt של המדידה **הישירה** האחרונה (ראה
+ * connectionMonitor.mjs), כולל כשהפורטל למטה והערך רק נשמר מסבב קודם.
+ * בלי הבדיקה כאן, ערך ששמור מזמן היה מוצג "מוכן" בלי גבול זמן.
+ * ‼ ברמת המודול ולא בתוך הרכיב: גם המשיכה וגם החישוב קוראים לה, ופונקציה
+ * שנוצרת מחדש בכל רינדור הייתה מחזירה את בעיית הזהות מהדלת האחורית.
+ */
+const freshLayer = (layer?: { ready: boolean; checkedAt?: string }): boolean => {
+  if (!layer?.ready || !layer.checkedAt) return false;
+  return Date.now() - new Date(layer.checkedAt).getTime() < SUBSYSTEM_STALE_AFTER_MS;
+};
 
 /** שכבות שע״ם שהעובד מדווח עליהן. */
 export type ShaamLayer = 'portal' | 'gmf' | 'vat' | 'nikui';
@@ -130,17 +143,40 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
   const [status, setStatus] = useState<AutomationWorkerStatus>({});
   const [workerOffline, setWorkerOffline] = useState(true);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  /**
+   * ‼ פעימה שמסמנת "המסקנה השתנתה", לא "נמשך מידע". שכבת Tier-B מתיישנת
+   * בזמן בלי ששום שדה במסד משתנה, ולכן בלי הפעימה הזאת ערך ששמור מזמן היה
+   * נשאר "מוכן" לנצח — אין מה שיגרום לחישוב מחדש. היא עולה רק כשהמסקנה
+   * באמת התהפכה, ולכן משיכה שמחזירה בדיוק את אותו מצב אינה מרנדרת דבר.
+   */
+  const [verdictTick, setVerdictTick] = useState(0);
+  const verdictRef = useRef<string>('');
 
   const refresh = useCallback(async () => {
-    if (!userId) { setWorkerOffline(true); setStatus({}); return; }
+    if (!userId) {
+      setWorkerOffline(true);
+      setStatus(prev => (Object.keys(prev).length === 0 ? prev : {}));
+      return;
+    }
     const { data } = await supabase.from('automation_workers').select('*')
       .order('last_seen_at', { ascending: false }).limit(1).maybeSingle();
     const w = data ? automationWorkerFromDb(data) : null;
     // ‼ התיישנות דטרמיניסטית: פעימת לב ישנה מדי היא "לא יודעים", ו"לא
     // יודעים" אינו ירוק. בלי זה עובד שנפל בשקט היה נשאר ירוק לנצח.
     const stale = !w || !(Date.now() - new Date(w.lastSeenAt).getTime() < WORKER_STALE_AFTER_MS);
+    const next: AutomationWorkerStatus = stale ? {} : (w?.status ?? {});
     setWorkerOffline(stale);
-    setStatus(stale ? {} : (w?.status ?? {}));
+    // ‼ שומרים את הזהות כשהתוכן זהה. אובייקט חדש בכל משיכה הוא ערך חדש
+    // בכל הקוראים, וזה מה שהפך פעימה של 4 שניות לרינדור של כל העץ.
+    setStatus(prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    const verdict = [
+      stale, freshLayer(next.gmf), freshLayer(next.vat), freshLayer(next.nikui),
+      !!next.shaam?.connected, !!next.btl?.connected,
+    ].join('|');
+    if (verdict !== verdictRef.current) {
+      verdictRef.current = verdict;
+      setVerdictTick(t => t + 1);
+    }
   }, [userId]);
 
   useEffect(() => {
@@ -151,59 +187,58 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
   }, [refresh]);
 
   /**
-   * ‼ "מוכן" של שכבת Tier-B דורש גם checkedAt טרי — לא רק ready=true.
-   * הצופה מדווח checkedAt של המדידה **הישירה** האחרונה (ראה
-   * connectionMonitor.mjs), כולל כשהפורטל למטה והערך רק נשמר מסבב קודם.
-   * בלי הבדיקה כאן, ערך ששמור מזמן היה מוצג "מוכן" בלי גבול זמן.
+   * ‼ ערך הקשר יציב. קודם הוא נבנה מחדש בכל רינדור, וצרכן אחד
+   * (useAuthorityConnections) החזיק אותו ברשימת התלויות של useCallback —
+   * ולכן כל משיכה יצרה refresh חדש, שהריץ את ה-effect, שמשך שוב. לולאה
+   * שהוגבלה רק בזמן הרשת: ~22 בקשות בשנייה בכל מסך, בלי הפסקה.
+   * ראה docs/AUDIT-STATE-CONSISTENCY-2026-09-04.md §7.
    */
-  const freshLayer = (layer?: { ready: boolean; checkedAt?: string }): boolean => {
-    if (!layer?.ready || !layer.checkedAt) return false;
-    return Date.now() - new Date(layer.checkedAt).getTime() < SUBSYSTEM_STALE_AFTER_MS;
-  };
+  const value = useMemo<ShaamReadiness>(() => {
+    const shaam = !!status.shaam?.connected;
+    const gmf = freshLayer(status.gmf);
+    const vat = freshLayer(status.vat);
+    const nikui = freshLayer(status.nikui);
+    const ready = !workerOffline && shaam && gmf && vat && nikui;
 
-  const shaam = !!status.shaam?.connected;
-  const gmf = freshLayer(status.gmf);
-  const vat = freshLayer(status.vat);
-  const nikui = freshLayer(status.nikui);
-  const ready = !workerOffline && shaam && gmf && vat && nikui;
+    const WORKER_OFF = 'מחשב האוטומציה אינו פעיל, ולכן אי אפשר לקרוא משע״ם.';
+    const LAYER_REASON: Record<ReadinessLayer, string> = {
+      portal: 'אין חיבור פעיל לפורטל שע״ם.',
+      gmf: 'מערכת גביית מס הכנסה אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
+      vat: 'מערכת מע״מ אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
+      nikui: 'מערכת מגן (ניכויים) אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
+      btl: 'אין חיבור פעיל לביטוח לאומי — יש להתחבר מהכפתור «ביטוח לאומי» בכותרת.',
+    };
+    // ‼ ב״ל נגזרת מ-status.btl בלבד, ולא מאף שכבת שע״ם. «הדפדפן פתוח» אינו
+    // מוכנות: הצופה מדווח connected רק אחרי שראה סשן מאומת בחלון של ב״ל.
+    const LAYER_OK: Record<ReadinessLayer, boolean> = {
+      portal: shaam, gmf, vat, nikui, btl: !workerOffline && !!status.btl?.connected,
+    };
 
-  const WORKER_OFF = 'מחשב האוטומציה אינו פעיל, ולכן אי אפשר לקרוא משע״ם.';
-  const LAYER_REASON: Record<ReadinessLayer, string> = {
-    portal: 'אין חיבור פעיל לפורטל שע״ם.',
-    gmf: 'מערכת גביית מס הכנסה אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
-    vat: 'מערכת מע״מ אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
-    nikui: 'מערכת מגן (ניכויים) אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
-    btl: 'אין חיבור פעיל לביטוח לאומי — יש להתחבר מהכפתור «ביטוח לאומי» בכותרת.',
-  };
-  // ‼ ב״ל נגזרת מ-status.btl בלבד, ולא מאף שכבת שע״ם. «הדפדפן פתוח» אינו
-  // מוכנות: הצופה מדווח connected רק אחרי שראה סשן מאומת בחלון של ב״ל.
-  const LAYER_OK: Record<ReadinessLayer, boolean> = {
-    portal: shaam, gmf, vat, nikui, btl: !workerOffline && !!status.btl?.connected,
-  };
-
-  const blockedReason = workerOffline ? WORKER_OFF
-    : (['portal', 'gmf', 'vat', 'nikui'] as ShaamLayer[]).find(l => !LAYER_OK[l]) !== undefined
-      ? LAYER_REASON[(['portal', 'gmf', 'vat', 'nikui'] as ShaamLayer[]).find(l => !LAYER_OK[l])!]
+    const firstMissing = (['portal', 'gmf', 'vat', 'nikui'] as ShaamLayer[]).find(l => !LAYER_OK[l]);
+    const blockedReason = workerOffline ? WORKER_OFF
+      : firstMissing !== undefined ? LAYER_REASON[firstMissing]
       : null;
 
-  /**
-   * ‼ נחסם רק על מה שהפעולה באמת צריכה, והסיבה מצביעה על התלות החוסמת
-   * עצמה — לא על «שע״ם לא מוכנה» כללי. יכולת לא מוכרת נחשבת חסומה, כדי
-   * שהוספת אוטומציה בלי הצהרת תלויות לא תיפתח בטעות.
-   */
-  function capability(name: string): ShaamCapability {
-    if (workerOffline) return { ready: false, blockedReason: WORKER_OFF };
-    const needed = SHAAM_CAPABILITIES[name];
-    if (!needed) return { ready: false, blockedReason: UNKNOWN_REASON };
-    const missing = needed.find(l => !LAYER_OK[l]);
-    return missing
-      ? { ready: false, blockedReason: LAYER_REASON[missing] }
-      : { ready: true, blockedReason: null };
-  }
+    /**
+     * ‼ נחסם רק על מה שהפעולה באמת צריכה, והסיבה מצביעה על התלות החוסמת
+     * עצמה — לא על «שע״ם לא מוכנה» כללי. יכולת לא מוכרת נחשבת חסומה, כדי
+     * שהוספת אוטומציה בלי הצהרת תלויות לא תיפתח בטעות.
+     */
+    function capability(name: string): ShaamCapability {
+      if (workerOffline) return { ready: false, blockedReason: WORKER_OFF };
+      const needed = SHAAM_CAPABILITIES[name];
+      if (!needed) return { ready: false, blockedReason: UNKNOWN_REASON };
+      const missing = needed.find(l => !LAYER_OK[l]);
+      return missing
+        ? { ready: false, blockedReason: LAYER_REASON[missing] }
+        : { ready: true, blockedReason: null };
+    }
 
-  return (
-    <Ctx.Provider value={{ ready, workerOffline, status, blockedReason, capability, refresh }}>
-      {children}
-    </Ctx.Provider>
-  );
+    return { ready, workerOffline, status, blockedReason, capability, refresh };
+    // ‼ verdictTick נמצא כאן בכוונה אף שאינו נקרא בגוף: הוא מה שמכריח חישוב
+    // מחדש כששכבה התיישנה בזמן בלי ששום שדה השתנה.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, workerOffline, refresh, verdictTick]);
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

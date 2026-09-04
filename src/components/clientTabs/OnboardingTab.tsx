@@ -31,6 +31,7 @@ import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
 import { calcTotals, formatILS } from '../../utils/quotationCalc';
 import { flushAccountantNotifications } from '../../lib/notifyAccountant';
+import { intakeAcceptsRequired, intakeContext } from '../../lib/clientState';
 import { supabase } from '../../lib/supabase';
 import { clientFromDb } from '../../lib/dbMappers';
 import {
@@ -140,6 +141,13 @@ const RowOpenContext = createContext<{
    * עוברים דרך StepCardShell, והעברה ידנית הייתה מוסיפה prop לכל אחד מהם.
    */
   nestedByStep?: Map<string, React.ReactNode>;
+  /**
+   * ‼ ללקוח יש קליטה (פתוחה או שתיפתח) שאפשר לחסום את סגירתה — ולכן
+   * ל«רשות/נדרש» יש בכלל משמעות. דרך ה-context ולא prop, מאותה סיבה כמו
+   * openId: השורות עוברות דרך כמה עוטפים. ברירת המחדל false — מסך שלא
+   * הצהיר על הקשר קליטה לא יבטיח חסימה שלא תקרה.
+   */
+  requiredApplies?: boolean;
 }>({ openId: null, toggle: () => {} });
 
 /** שם השורה. בקשה חופשית נושאת את השם שהרו"ח נתן לה, לא תווית גנרית. */
@@ -380,6 +388,15 @@ export default function OnboardingTab({
     () => engagements.filter(e => e.clientId === clientId
       && e.status !== 'ended' && e.status !== 'cancelled' && e.status !== 'scheduled'),
     [engagements, clientId]);
+  /**
+   * ‼ הקשר הקליטה — מקור אחד (lib/clientState), בבואה של client_intake_state
+   * בשרת. הוא שקובע אם «נדרש לסגירת הקליטה» הוא בכלל מושג אצל הלקוח הזה:
+   * לא סוג הבקשה, ולא מצב הייצוג. ראה docs/AUDIT-STATE-CONSISTENCY-2026-09-04.md.
+   */
+  const intake = useMemo(
+    () => intakeContext({ id: clientId, lifecycleStage: client.lifecycleStage }, engagements),
+    [clientId, client.lifecycleStage, engagements]);
+  const requiredApplies = intakeAcceptsRequired(intake);
   /**
    * שכבה אופטימית של הקומפוזר: בקשה שנשמרה מופיעה מיד, בלי לחכות לרענון
    * הכולל של useOnboarding. כשהנתונים מהשרת מגיעים — השכבה מתנקה.
@@ -933,6 +950,10 @@ export default function OnboardingTab({
     if (rpcError || !res?.ok) {
       setError(res?.error === 'step_closed'
         ? 'השלב כבר נסגר - אי אפשר לשנות אם הוא נדרש.'
+        // ‼ השרת דוחה סימון כ"נדרש" כשאין קליטה פתוחה. אמור להיות בלתי-נגיש
+        // מהמסך (הפריט מוסתר), ונשאר כאן בשביל לשונית ישנה שנשארה פתוחה.
+        : res?.error === 'no_open_intake'
+        ? 'אין ללקוח קליטה פתוחה, ולכן אין מה לחסום. הבקשה נשארת בקשה רגילה.'
         : (rpcError?.message ?? 'עדכון הבקשה נכשל.'));
       return;
     }
@@ -972,6 +993,7 @@ export default function OnboardingTab({
                   <InlineComposer
                     key={step.id}
                     clientId={clientId}
+                    intake={intake}
                     editStep={step}
                     initialDeps={depParents.get(step.id)}
                     existingSteps={clientSteps}
@@ -1066,7 +1088,7 @@ export default function OnboardingTab({
                                     onClick={() => { setMenuStepId(null); handleBlock(step); }}>סמן כחסום</button>
                                 </>
                               )}
-                              {!['completed', 'verified', 'cancelled'].includes(step.status) && (
+                              {requiredApplies && !['completed', 'verified', 'cancelled'].includes(step.status) && (
                                 <button type="button" role="menuitem" className={mi}
                                   onClick={() => { setMenuStepId(null); void setStepRequired(step.id, !isStepRequiredForClose(step)); }}
                                   title={isStepRequiredForClose(step)
@@ -1423,6 +1445,7 @@ export default function OnboardingTab({
         {inner}
         <InlineComposer
           clientId={clientId}
+          intake={intake}
           stageId={step.stageId ?? null}
           initialDeps={[step.id]}
           existingSteps={clientSteps}
@@ -1450,6 +1473,7 @@ export default function OnboardingTab({
       depParents,
       depChildren,
       nestedByStep: nestedMap,
+      requiredApplies,
     }}>
     <div className="cw-tabpanel">
       {error && (
@@ -1803,6 +1827,7 @@ export default function OnboardingTab({
             {templateDraft ? (
               <InlineComposer
                 clientId={clientId}
+                intake={intake}
                 initialContent={firstEntry(templateDraft)?.payload}
                 initialOwner={firstEntry(templateDraft)?.owner ?? 'client'}
                 sourceTemplate={{
@@ -1877,6 +1902,7 @@ export default function OnboardingTab({
             {internalComposerOpen ? (
               <InlineComposer
                 clientId={clientId}
+                intake={intake}
                 initialOwner="me"
                 existingSteps={clientSteps}
                 prevAccountant={prevAccountant}
@@ -2034,6 +2060,7 @@ export default function OnboardingTab({
           steps={clientSteps}
           processPublished={!!activeEngagement?.processPublishedAt}
           awaitingQuoteApproval={awaitingQuoteApproval}
+          intake={intake}
           prevAccountantEmail={prevAccountant?.email}
           onUseTemplate={t => { setAddOpen(false); setTemplateDraft(t); }}
           onClose={() => setAddOpen(false)}
@@ -4012,7 +4039,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { openId, toggle, depParents, depChildren, nestedByStep } = useContext(RowOpenContext);
+  const { openId, toggle, depParents, depChildren, nestedByStep, requiredApplies } = useContext(RowOpenContext);
   const open = openId === step.id;
   const nested = nestedByStep?.get(step.id);
   /* ‼ צבע הסטטוס ירד מהטקסט. באב-הטיפוס שורת המצב אפורה אחידה — הצבע חי
@@ -4089,7 +4116,9 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
               <span>{rowTitle(step)}</span>
               {/* ‼ מילה אחת אפורה, ורק על מה שאינו נדרש. הנדרש אינו מסומן —
                   סימון על הרוב הוא רעש, וסימון על המיעוט הוא מידע. */}
-              {!isStepRequiredForClose(step) && <span className="ob-optional">רשות</span>}
+              {/* ‼ ומופיעה רק כשיש קליטה: «רשות» מול «נדרש» הוא הבדל ביחס
+                  לסגירת קליטה, וללקוח שאין לו קליטה אין כאן מה לומר. */}
+              {requiredApplies && !isStepRequiredForClose(step) && <span className="ob-optional">רשות</span>}
               {extName && <span className="ob-pill is-ext">גורם חיצוני · {extName}</span>}
               {/* ‼ טיוטה = הבקשה מוכנה אצלי והלקוח עוד לא רואה אותה. בלי הסימון
                   הזה אין דרך לדעת אם ביקשתי בפועל או רק הכנתי.

@@ -78,6 +78,15 @@ export function useAuthorityConnections(userId: string | undefined) {
   // ‼ המוכנות **אינה** נקראת כאן. היא מגיעה מ-ShaamReadinessProvider, מקור
   // האמת היחיד שגם פקדי השדות קוראים ממנו. כשהיו שני מקורות, הכותרת הייתה
   // ירוקה בזמן שהפקד בשדה הכריז "לא מוכן". כאן נשארות רק משימות ההתחברות.
+  /**
+   * ‼ הפונקציה בלבד, לא אובייקט ההקשר. `readiness` נבנה מחדש בכל רינדור של
+   * הספק, ולכן החזקתו ברשימת התלויות של useCallback יצרה refresh חדש בכל
+   * משיכה — וה-effect שלמטה משך שוב מיד. לולאה בלי סוף, ~22 בקשות בשנייה
+   * בכל מסך. `refresh` של הספק יציב (useCallback על userId), ולכן בטוח.
+   * ראה docs/AUDIT-STATE-CONSISTENCY-2026-09-04.md §7.
+   */
+  const refreshReadiness = readiness.refresh;
+
   const refresh = useCallback(async () => {
     if (!userId) return;
     // ‼ שאילתה אחת לשתי הרשויות, כולל failed — אחרת כשל אמיתי היה נשאר
@@ -94,8 +103,10 @@ export function useAuthorityConnections(userId: string | undefined) {
     const rows = (jobRes.data ?? []).map(automationJobFromDb);
     setShaamJob(rows.find((j) => j.actionType === SHAAM_CONNECT_ACTION_TYPE) ?? null);
     setBtlJob(rows.find((j) => j.actionType === BTL_CONNECT_ACTION_TYPE) ?? null);
-    await readiness.refresh();
-  }, [userId, readiness]);
+    // ‼ המוכנות **אינה** נמשכת כאן. הספק מושך אותה בעצמו באותו קצב, ומשיכה
+    // שנייה כאן רק הכפילה את התעבורה — וגם קשרה בין השניים, וזו הייתה
+    // הלולאה. משיכה יזומה כן נשארת ב-start(), אחרי לחיצה אמיתית.
+  }, [userId]);
 
   useEffect(() => {
     void refresh();
@@ -224,9 +235,9 @@ export function useAuthorityConnections(userId: string | undefined) {
       else btlJobIdRef.current = r.job.id;
     }
     if (!r.ok) setUiError({ authority, text: r.error ?? 'לא הצלחתי ליצור את הפעולה' });
-    await refresh();
+    await Promise.all([refresh(), refreshReadiness()]);
     return r;
-  }, [refresh]);
+  }, [refresh, refreshReadiness]);
 
   const connect = useCallback(
     () => start('shaam', SHAAM_CONNECT_ACTION_TYPE, shaamJob, true),

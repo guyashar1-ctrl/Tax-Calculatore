@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CustomRequirement, CustomRequirementKind, InstitutionKey, OnboardingStep } from '../../types/onboarding';
 import {
   DEBIT_INSTITUTION_ORDER, INSTITUTION_DEBIT_CODES, INSTITUTION_NAMES,
-  REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS, paperlessTaxAuthorityPayload,
+  REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS, isStepOpen, paperlessTaxAuthorityPayload,
 } from '../../types/onboarding';
 import { BANK_DEBIT_TITLE, buildBankDebitPayload } from '../../lib/bankDebitRequest';
 import type { ClientDocument } from '../../lib/clientGuide';
@@ -27,6 +27,8 @@ import {
 import type { RequestTemplate } from '../../lib/requestTemplates';
 import { firstEntry, loadRequestTemplates, templateBySeed } from '../../lib/requestTemplates';
 import { createPrevAccountantTrack, missingPrevAccountantSteps } from '../../lib/prevAccountantTrack';
+import type { IntakeContext } from '../../lib/clientState';
+import { intakeAcceptsRequired } from '../../lib/clientState';
 import { supabase } from '../../lib/supabase';
 
 /** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
@@ -147,6 +149,13 @@ interface Props {
    */
   awaitingQuoteApproval?: boolean;
   /**
+   * הקשר הקליטה של הלקוח. ‼ זה מה שקובע אם «נדרש לסגירת הקליטה» מוצג בכלל:
+   * ללקוח מיוצג בלי התקשרות אין קליטה לסגור, והבטחה שהבקשה "תחסום את
+   * הסגירה" הייתה מתייחסת לאירוע שלא יקרה. השרת כופה את אותו כלל בכתיבה
+   * (מיגרציה 155), וכאן רק לא שואלים שאלה שאין לה משמעות.
+   */
+  intake: IntakeContext;
+  /**
    * סוג בקשה מסומן מראש — לנקודת כניסה הקשרית (למשל "עדכון סטטוס מס"
    * מתוך תיק מס). ‼ זו אינה זרימה שנייה: אותו חלון, אותו state, ואותה
    * קריאת create_onboarding_request. ההבדל היחיד הוא שמדלגים על הקטלוג.
@@ -167,7 +176,9 @@ interface Props {
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, presetType, presetDocuments, prevAccountantEmail, onUseTemplate, onClose, onCreated }: Props) {
+export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, presetType, presetDocuments, prevAccountantEmail, onUseTemplate, onClose, onCreated }: Props) {
+  /** יש בכלל קליטה שאפשר לחסום את סגירתה. */
+  const requiredApplies = intakeAcceptsRequired(intake);
   const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document'>(
     presetDocuments?.length ? 'document' : 'catalog');
   const [busy, setBusy] = useState(false);
@@ -184,8 +195,11 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   /** ריק ⇒ נגזר מסוג הדרישה. מה שהוקלד כאן ידנית גובר. */
   const [clientCta, setClientCta] = useState('');
   /** האם הבקשה חוסמת סגירת קליטה. ברירת מחדל: כן — בקשה שביקשתי היא עבודה.
-   *  שליחת מסמך אינה עבודה של הלקוח, ולכן היא נפתחת כרשות. */
-  const [requiredForClose, setRequiredForClose] = useState(!presetDocuments?.length);
+   *  שליחת מסמך אינה עבודה של הלקוח, ולכן היא נפתחת כרשות.
+   *  ‼ בלי הקשר קליטה — תמיד false, ואין פקד. לא ברירת מחדל שקטה: פשוט אין
+   *  כאן שאלה. השרת כופה את אותו ערך בכל מקרה. */
+  const [requiredForClose, setRequiredForClose] = useState(
+    requiredApplies && !presetDocuments?.length);
   /** דרישות **נוספות** מעבר לראשונה. הראשונה חיה ב-ask/askKind. */
   const [extraReqs, setExtraReqs] = useState<{ kind: CustomRequirementKind; label: string }[]>([]);
   // מסמכים מהלקוח
@@ -440,7 +454,10 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     : c.type === 'prev_accountant_track'
     ? prevMissing.length > 0
     : !(c.once && existing.has(c.type as OnboardingStep['stepType'])));
-  const dependencyOptions = steps.filter(s => s.status !== 'cancelled');
+  /** ‼ רק בקשות פתוחות. תלות בשלב שכבר הושלם אינה דוחה כלום — השרת פותח את
+   *  הבקשה מיד — ולכן "ייפתח רק אחרי «ייצוג מול הרשויות»" על ייצוג שכבר
+   *  הושלם היה משפט לא נכון שהמסך אמר לעצמו. */
+  const dependencyOptions = steps.filter(s => isStepOpen(s.status));
   /** תיק גדול הוא רשימה ארוכה — החיפוש הוא מה שהופך אותו לשמיש. */
   /** יש בין הנבחרים קובץ מהמחשב שעוד לא נשמר — ולכן צריך לתייק אותו. */
   const hasNewFiles = picked.some(p => !!p.file);
@@ -728,7 +745,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                   </label>
                 ))}
               </div>
-              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose, requiredApplies }} />
             </>
           )}
 
@@ -887,7 +904,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                   placeholder="למשל: מצורף הדוח השנתי לחתימה. נשמח שתעבור עליו." />
               </label>
 
-              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose, requiredApplies }} />
             </>
           )}
 
@@ -933,7 +950,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                   {savingOption ? 'שומר…' : 'הוספה'}
                 </button>
               </div>
-              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose, requiredApplies }} />
             </>
           )}
 
@@ -1006,12 +1023,12 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 </div>
               )}
 
-              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+              <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose, requiredApplies }} />
             </>
           )}
 
           {presetType && !existing.has(presetType) && (
-            <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose }} />
+            <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose, requiredApplies }} />
           )}
         </div>
 
@@ -1066,6 +1083,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
 function Shared({
   dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions,
   processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose,
+  requiredApplies,
 }: {
   dueDate: string; setDueDate: (v: string) => void;
   dependsOn: string; setDependsOn: (v: string) => void;
@@ -1074,6 +1092,8 @@ function Shared({
   awaitingQuoteApproval?: boolean;
   sendNow: boolean; setSendNow: (v: boolean) => void;
   requiredForClose: boolean; setRequiredForClose: (v: boolean) => void;
+  /** ללקוח יש קליטה (פתוחה או שתיפתח) שאפשר לחסום את סגירתה. */
+  requiredApplies: boolean;
 }) {
   return (
     <>
@@ -1094,14 +1114,19 @@ function Shared({
       </div>
 
       {/* ‼ בקרה אחת, שורה אחת: האם הבקשה חוסמת סגירת קליטה. אותו סוג בקשה
-          יכול להיות חובה במסע אחד ורשות במסע אחר, ולכן זו החלטה לכל בקשה. */}
-      <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)' }}>
-        <input type="checkbox" checked={requiredForClose} onChange={e => setRequiredForClose(e.target.checked)} />
-        נדרש לסגירת הקליטה
-        <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
-          (לא מסומן ⇒ רשות - לא יחסום את הסגירה)
-        </span>
-      </label>
+          יכול להיות חובה במסע אחד ורשות במסע אחר, ולכן זו החלטה לכל בקשה.
+          ‼ ומופיעה רק כשיש קליטה. ללקוח מיוצג בלי התקשרות אין מה לסגור, וכל
+          מה שהתיבה הזאת הבטיחה שם היה על אירוע שלא קיים. הבקשה עצמה נוצרת
+          כרגיל — היא בקשה ככל בקשה. */}
+      {requiredApplies && (
+        <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)' }}>
+          <input type="checkbox" checked={requiredForClose} onChange={e => setRequiredForClose(e.target.checked)} />
+          נדרש לסגירת הקליטה
+          <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
+            (לא מסומן ⇒ רשות - לא יחסום את הסגירה)
+          </span>
+        </label>
+      )}
 
       {processPublished && !awaitingQuoteApproval && (
         <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)' }}>

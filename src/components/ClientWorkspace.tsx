@@ -24,6 +24,7 @@ import ClientCockpitTab from './clientTabs/ClientCockpitTab';
 import JourneyTab from './clientTabs/JourneyTab';
 import OnboardingTab from './clientTabs/OnboardingTab';
 import TaxFileTab from './clientTabs/TaxFileTab';
+import { currentEngagement, intakeContext, representationState } from '../lib/clientState';
 import { supabase } from '../lib/supabase';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboarding';
 import { isStepOpen, stepAwaitsMe } from '../types/onboarding';
@@ -564,10 +565,17 @@ export default function ClientWorkspace({
       setCreatingRequestKey(null);
     }
   }
-  /** ההתקשרות הפעילה — קובעת אם התהליך כבר פורסם ללקוח (מצב "טיוטה"). */
+  /** ההתקשרות הפעילה — קובעת אם התהליך כבר פורסם ללקוח (מצב "טיוטה").
+   *  ‼ מסנן משותף עם מסך הבקשות (lib/clientState). קודם ישבו כאן שני מסננים
+   *  שונים לאותו מושג — כאן רק 'cancelled' הוצא, ושם גם 'ended'/'scheduled' —
+   *  ולכן אותו לקוח קיבל processPublished שונה לפי המסך שממנו נפתח החלון. */
   const activeEngagement = useMemo(
-    () => (engagements ?? []).find(e => e.clientId === client.id && e.status !== 'cancelled'),
+    () => currentEngagement(client.id, engagements),
     [engagements, client.id]);
+  /** הקשר הקליטה — מקור אחד, בבואה של client_intake_state בשרת. */
+  const intake = useMemo(
+    () => intakeContext({ id: client.id, lifecycleStage: client.lifecycleStage }, engagements),
+    [client.id, client.lifecycleStage, engagements]);
   /** תג תשומת-לב על "הסכם ותשלומים" — מועד תשלום שהגיע ועדיין לא סומן שולם. */
   const overdueChargeCount = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -667,7 +675,7 @@ export default function ClientWorkspace({
                   "ממתין לבדיקתך" נצבע כי אז הכדור אצלי ואף אחד לא יזכיר לי.
                   ‼ כשיש לאן — השורה היא קישור למרכז הייצוג. סטטוס שרק מדווח
                   ולא מוביל לפעולה שולח את הרו"ח לחפש את הדרך במסך אחר. */}
-              {status !== 'active' && (
+              {representationState(client) === 'in_process' && (
                 onOpenRepresentation ? (
                   <button
                     type="button"
@@ -1016,6 +1024,7 @@ export default function ClientWorkspace({
           steps={clientSteps}
           processPublished={!!activeEngagement?.processPublishedAt}
           awaitingQuoteApproval={client.lifecycleStage === 'quoted' || client.lifecycleStage === 'lead'}
+          intake={intake}
           prevAccountantEmail={client.prevAccountantEmail}
           presetType="intake_questionnaire"
           onClose={() => setIntakeModalOpen(false)}

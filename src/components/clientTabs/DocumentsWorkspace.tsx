@@ -22,7 +22,9 @@ import { useToast } from '../ui/Toast';
 import PdfOrganizer, { releaseOrganizerCache, type OrganizerSource, type OrganizerOutput } from './PdfOrganizer';
 import { looksLikePdf, isPdfBytes, buildPdfFromPlan, defaultOutputName, PdfPlanError } from '../../utils/pdfPages';
 import { loadPdf as loadPdfDoc } from '../../utils/pdfRender';
-import type { OnboardingStep } from '../../types/onboarding';
+import type { Engagement, OnboardingStep } from '../../types/onboarding';
+import type { IntakeContext } from '../../lib/clientState';
+import { intakeContext } from '../../lib/clientState';
 import { stepFromDb } from '../../lib/dbMappers';
 import { documentLabel } from '../../lib/sendDocuments';
 import AddRequestDialog from './AddRequestDialog';
@@ -85,6 +87,9 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     docs: { documentId: string; label: string; fileName?: string }[];
     steps: OnboardingStep[];
     processPublished: boolean;
+    /** ‼ אותו הקשר קליטה שכל שאר נקודות הכניסה מחשבות — כאן הוא נגזר
+     *  מהשאילתה המקומית, כי המסך הזה אינו מחזיק את רשימת ההתקשרויות. */
+    intake: IntakeContext;
   } | null>(null);
   const [sendBusy, setSendBusy] = useState(false);
   const [requestBusy, setRequestBusy] = useState(false);
@@ -588,14 +593,19 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
       supabase.from('onboarding_steps').select('*').eq('client_id', client.id)
         .order('sort_order', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: true }),
-      supabase.from('engagements').select('process_published_at').eq('client_id', client.id),
+      supabase.from('engagements').select('id, status, process_published_at, created_at').eq('client_id', client.id),
     ]);
     setSendBusy(false);
     if (stepRes.error) { setDocActionError('לא הצלחנו לטעון את הבקשות של הלקוח.'); return; }
+    const engagements = (engRes.data ?? []).map(e => ({
+      id: String(e.id), clientId: client.id, status: e.status as Engagement['status'],
+      createdAt: e.created_at as string | undefined,
+    })) as Engagement[];
     setSendToClient({
       docs: [{ documentId: doc.id, label: documentLabel(doc), fileName: doc.fileName }],
       steps: (stepRes.data ?? []).map(stepFromDb),
       processPublished: (engRes.data ?? []).some(e => e.process_published_at != null),
+      intake: intakeContext(client, engagements),
     });
   }
 
@@ -1734,6 +1744,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
           clientId={client.id}
           steps={sendToClient.steps}
           processPublished={sendToClient.processPublished}
+          intake={sendToClient.intake}
           presetDocuments={sendToClient.docs}
           onClose={() => setSendToClient(null)}
           onCreated={() => { setSendToClient(null); showToast('המסמך נשלח לדף האישי של הלקוח'); }}

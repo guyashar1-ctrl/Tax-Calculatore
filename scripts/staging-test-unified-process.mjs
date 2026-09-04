@@ -36,9 +36,14 @@ const NAME = 'UP-בדיקה';
 const cleanup = async () => { await writeStaging(`delete from public.clients where last_name = '${NAME}';`); };
 await cleanup();
 
+// ‼ lifecycle_stage='active' במפורש. עמודת ברירת המחדל היא 'lead', ולקוח
+//   שנחשב ליד נכנס לכלל של מיגרציה 135: כל בקשה שלו **מוחזקת** עד שההצעה
+//   תאושר, ולכן היא אינה מופיעה בדף האישי — והבדיקה הזאת עוסקת בפרסום,
+//   בסידור ובביטול שינויים על תיק אמיתי, לא במכירה. staging פיגרה אחרי
+//   הפרודקשן ב-135, ולכן הפיקסצ'ר הזה "עבד" כאן וכשל בייצור.
 const cid = (await one(`
-  insert into public.clients (id, user_id, first_name, last_name, email)
-  values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', 'עדי', '${NAME}', 'delivered@resend.dev')
+  insert into public.clients (id, user_id, first_name, last_name, email, lifecycle_stage)
+  values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', 'עדי', '${NAME}', 'delivered@resend.dev', 'active')
   returning id;`)).id;
 
 const mk = async (title, extra = '{}') => {
