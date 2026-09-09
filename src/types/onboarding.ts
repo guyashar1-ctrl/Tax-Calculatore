@@ -73,7 +73,10 @@ export type OnboardingStepType =
   | 'institution_alignment_vat'
   | 'institution_alignment_income'
   // תלוי בשלושת המוסדות (multi-parent) — לקליטה חדשה בלבד.
-  | 'opening_call';
+  | 'opening_call'
+  // ‼ 157 — ייצוג ברשות×אדם כבקשה עצמאית (docs/PLAN-BTL-SPOUSE-REPRESENTATION-REQUEST.md).
+  // מצב נגזר תמיד מ-execution/taxFiles בשרת — ראה sync_authority_representation_steps.
+  | 'authority_representation';
 
 export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   representation: 'ייצוג מול הרשויות',
@@ -101,6 +104,7 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   institution_alignment_vat: 'יישור קו · מע״מ',
   institution_alignment_income: 'יישור קו · מס הכנסה',
   opening_call: 'שיחת פתיחה',
+  authority_representation: 'ייצוג ברשות',
 };
 
 /** שלושת שלבי המוסדות, בסדר התצוגה המאושר (מוקאפ v3-final2). */

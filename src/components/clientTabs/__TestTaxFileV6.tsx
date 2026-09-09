@@ -366,12 +366,12 @@ export default function TestTaxFileV6() {
    * ה-target כבר קיים הייתה משאירה שורת 'none' תקועה (הבאג בייצור).
    * ‼ `?fail` מדמה כישלון כתיבה — כדי לבדוק שהשגיאה מוצגת והכפתור נשאר.
    */
-  async function handleDemoAddNiTarget(role: 'client' | 'spouse'): Promise<string | null> {
+  async function handleDemoAddNiTarget(role: 'client' | 'spouse'): Promise<{ error: string | null; stepId?: string }> {
     if (DEMO_FAIL) {
       await new Promise(r => setTimeout(r, 400));
-      return 'שמירת שורת התיק נכשלה';
+      return { error: 'שמירת שורת התיק נכשלה' };
     }
-    if (CLIENT_ID_OVERRIDE) { alert(`בהדגמה — מוסיף ${role === 'spouse' ? 'בן/בת הזוג' : 'לקוח/ה'} לייצוג ב"ל`); return null; }
+    if (CLIENT_ID_OVERRIDE) { alert(`בהדגמה — מוסיף ${role === 'spouse' ? 'בן/בת הזוג' : 'לקוח/ה'} לייצוג ב"ל`); return { error: null }; }
     await new Promise(r => setTimeout(r, 250));
     setDemoOverlay(prev => {
       const base = { ...fixture, ...prev } as Client;
@@ -396,7 +396,7 @@ export default function TestTaxFileV6() {
         taxFiles: files,
       };
     });
-    return null;
+    return { error: null, stepId: 'demo-step-id' };
   }
 
   return (
@@ -442,6 +442,11 @@ export default function TestTaxFileV6() {
           onCreateRequest={(f) => alert('בקשה ללקוח: ' + f.requestTitle)}
           onOpenRepresentation={() => alert('בהדגמה — פתיחת מרכז הייצוג')}
           onAddNiTarget={handleDemoAddNiTarget}
+          onOpenRequestStep={() => alert('בהדגמה — קפיצה למשטח "בקשות"')}
+          onUpdateClientFields={async (patch) => {
+            await new Promise(r => setTimeout(r, 200));
+            setDemoOverlay(prev => ({ ...prev, ...patch }));
+          }}
           niExecution={NI_EXECUTION_BY_CASE[CASE]}
         />
         )}

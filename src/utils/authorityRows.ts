@@ -329,12 +329,13 @@ export function buildAuthorityRows(
     // (שורות, תקציר, חריגה, present) בלי לחשב שוב את אותו דבר פעמיים.
     const built = niPersons(client, spouseClient).map(person => {
       const rep = niRepresentationOf(person, client, spouseClient, niExecution);
+      const track = person.role === 'spouse' ? niExecution?.spouse : niExecution?.client;
       return {
         person,
         pf: niFactsOf(person, client),
         file: niFileOf(person, client),
         rep,
-        niAction: niRepresentationAction(person, client, rep),
+        niAction: niRepresentationAction(person, client, rep, track),
         editable: niEditable(person),
         keys: niFieldKeys(person, client),
       };

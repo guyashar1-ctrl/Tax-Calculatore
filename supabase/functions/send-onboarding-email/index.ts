@@ -81,7 +81,12 @@ Deno.serve(async (req: Request) => {
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
   try {
     const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken, preview, force,
-            internalSecret, quotationId: rawQuotationId } = await req.json();
+            internalSecret, quotationId: rawQuotationId, niRole: rawNiRole, stepId } = await req.json();
+    // ‼ 157: הוראות אישור ב"ל עצמאיות — נכתב מודע לכך שהנמען נפתר כאן,
+    // בשרת, מהכרטיס — לעולם לא מהגוף. niRole קובע רק *איזה* מסלול/כתובת;
+    // אינו הכתובת עצמה.
+    const niRole: "client" | "spouse" | undefined =
+      (rawNiRole === "client" || rawNiRole === "spouse") ? rawNiRole : undefined;
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
@@ -186,7 +191,10 @@ Deno.serve(async (req: Request) => {
       const { data } = await admin.from("representation_requests").select("*").eq("id", requestId).single();
       reqRow = data;
       if (!reqRow || reqRow.user_id !== userId) return json({ error: "not found" }, 404);
-      if (!reqRow.client_email) return json({ error: "no client email" }, 400);
+      // ‼ 157: כשה-ni_approve הזה הוא הוראות עצמאיות פר-אדם, הנמען נגזר
+      // מהכרטיס (למטה) ולא מ-reqRow.client_email — אין לדרוש אותו כאן.
+      const skipClientEmailCheck = stage === "ni_approve" && !!niRole;
+      if (!skipClientEmailCheck && !reqRow.client_email) return json({ error: "no client email" }, 400);
       logClientId = reqRow.linked_client_id;
       logRequestId = reqRow.id;
     }
@@ -220,6 +228,43 @@ Deno.serve(async (req: Request) => {
       toEmail = signer.email;
       clientFirst = String(signer.name || "").trim().split(/\s+/)[0] || clientFirst;
       if (signer.role === "spouse") niKey = "nationalInsuranceSpouse";
+    }
+
+    // ‼ 157: הוראות אישור ב"ל עצמאיות — הבקשה כבר קיימת (execution.nationalInsurance[Spouse]
+    // כבר מאותחל דרך request_authority_representation), ואין כאן מייל חתימה שיישא
+    // אותן. הנמען נפתר כאן, בשרת, מהכרטיס — spouse_email/email — לעולם לא מהגוף.
+    // ‼ "נשלח" נחתם רק כאן, אחרי 200 מ-Resend — לא מהדפדפן, כי אין כאן מסך
+    // ביניים ששומר execution בעצמו (כמו ש-handleSendAll עושה למייל החתימה).
+    let stampStandaloneAfterSend = false;
+    let logStepId: string | null = null;
+    if (stage === "ni_approve" && niRole) {
+      niKey = niRole === "spouse" ? "nationalInsuranceSpouse" : "nationalInsurance";
+      const { data: ownerClient } = await admin.from("clients")
+        .select("id,user_id,email,first_name,spouse_email,spouse_first_name,spouse_name")
+        .eq("id", reqRow.linked_client_id).maybeSingle();
+      if (!ownerClient || ownerClient.user_id !== userId) return json({ error: "not found" }, 404);
+      const recipientEmail = niRole === "spouse"
+        ? String(ownerClient.spouse_email || "").trim()
+        : String(ownerClient.email || "").trim();
+      if (!recipientEmail) return json({ error: "no_recipient_email" }, 400);
+      toEmail = recipientEmail;
+      clientFirst = niRole === "spouse"
+        ? (String(ownerClient.spouse_first_name || "").trim()
+           || String(ownerClient.spouse_name || "").trim().split(/\s+/)[0] || "")
+        : (String(ownerClient.first_name || "").trim() || clientFirst);
+      stampStandaloneAfterSend = true;
+
+      // ‼ stepId מאומת נגד הבקשה הזאת ונגד הנושא הזה — כדי שמייל לא ייצא
+      // ל-stepId ששייך לאדם/רשות אחרים, גם אם מישהו יזייף אותו בגוף הבקשה.
+      if (stepId) {
+        const { data: step } = await admin.from("onboarding_steps")
+          .select("id,client_id,step_type,payload").eq("id", String(stepId)).maybeSingle();
+        if (!step || step.client_id !== reqRow.linked_client_id || step.step_type !== "authority_representation"
+            || step.payload?.subjectRole !== niRole || step.payload?.authority !== "national_insurance") {
+          return json({ error: "step_mismatch" }, 400);
+        }
+        logStepId = step.id;
+      }
     }
 
     const f = "Arial, sans-serif";
@@ -387,6 +432,14 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, preview: true, subject: copy.subject, to: toEmail, from: `${brand.firmName} <${fromAddress}>`, html });
     }
 
+    // ‼ 157: שער כפילות להוראות עצמאיות — נבדק מול execution, לא מול היומן:
+    // זה בדיוק מה שקובע את מצב הבקשה (sync_authority_representation_steps),
+    // ולכן זה גם המקור הנכון ביותר ל"כבר נשלח". force עוקף במפורש.
+    if (stampStandaloneAfterSend && !force) {
+      const alreadySentAt = (reqRow?.execution || {})[niKey]?.instructionsSentAt;
+      if (alreadySentAt) return json({ ok: true, alreadySent: true });
+    }
+
     // ── תביעת השליחה ─────────────────────────────────────────────────────────
     // ‼ מייל קישור הייצוג יוצא משני מקומות שאינם יודעים זה על זה: הדפדפן של
     // הלקוח מיד אחרי אישור ההצעה, ורשת הביטחון בכניסת הרו"ח. הסימון "נשלח"
@@ -419,6 +472,16 @@ Deno.serve(async (req: Request) => {
       } else {
         idempotencyKey = `onboard:${logRequestId}`;
       }
+    } else if (stampStandaloneAfterSend && logRequestId) {
+      if (force) {
+        const { count } = await admin
+          .from("email_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("request_id", logRequestId).eq("kind", "ni_approve").contains("meta", { niRole });
+        idempotencyKey = `ni_approve:${logRequestId}:${niRole}:r${(count ?? 0) + 1}`;
+      } else {
+        idempotencyKey = `ni_approve:${logRequestId}:${niRole}`;
+      }
     }
 
     const payload: Record<string, unknown> = { from: `${brand.firmName} <${fromAddress}>`, to: [toEmail], subject: copy.subject, html };
@@ -428,7 +491,14 @@ Deno.serve(async (req: Request) => {
 
     // ה-HTML נשמר יחד עם הרשומה: מפתח ה-API של Resend מוגבל לשליחה, ולכן אין
     // דרך לשלוף בדיעבד מה הלקוח קיבל אם לא נשמור עותק כאן.
-    const logBase = { user_id: userId, client_id: logClientId, request_id: logRequestId, to_email: toEmail, subject: copy.subject, kind: stage, html };
+    // ‼ 157: step_id/meta.niRole מקשרים את המייל לפריט העבודה שגרם לו —
+    // כדי שהכרטיס ב"בקשות" ידע להציג נמסר/נפתח/הוקפץ על עצמו.
+    const logBase = {
+      user_id: userId, client_id: logClientId, request_id: logRequestId, to_email: toEmail,
+      subject: copy.subject, kind: stage, html,
+      ...(logStepId ? { step_id: logStepId } : {}),
+      ...(stampStandaloneAfterSend ? { meta: { niRole } } : {}),
+    };
     if (!r.ok) {
       // ‼ שורת הכישלון נרשמת בלי המפתח הייחודי: אחרת הניסיון החוזר המוצלח היה
       // מתנגש בה, נחשב ל"כבר נשלח" — והמייל לא היה יוצא לעולם.
@@ -471,6 +541,27 @@ Deno.serve(async (req: Request) => {
         .update({ representation_sent_at: new Date().toISOString(), representation_error: null })
         .eq("id", claimQuotationId);
     }
+
+    // ‼ 157: "נשלח" נכתב רק כאן — אחרי תשובת 200 אמיתית מ-Resend, ורק אם
+    // עדיין ריק (שליחה חוזרת לא דורסת את החותמת הראשונה). זו הכתיבה
+    // היחידה ל-execution.<track>.instructionsSentAt במסלול הזה, וטריגר
+    // sync_authority_representation_steps (157) מזיז את הבקשה ל"ממתינים
+    // לאישור" מיד אחריה.
+    if (stampStandaloneAfterSend) {
+      const { data: fresh } = await admin.from("representation_requests")
+        .select("execution").eq("id", reqRow.id).single();
+      const currentTrack = (fresh?.execution || {})[niKey] || {};
+      if (!currentTrack.instructionsSentAt) {
+        await admin.from("representation_requests").update({
+          execution: {
+            ...(fresh?.execution || {}),
+            [niKey]: { ...currentTrack, instructionsSentAt: new Date().toISOString(), instructionsSentWith: "standalone" },
+          },
+          updated_at: new Date().toISOString(),
+        }).eq("id", reqRow.id);
+      }
+    }
+
     return json({ ok: true, id: body.id, logged });
   } catch (e) {
     return json({ error: String(e) }, 500);

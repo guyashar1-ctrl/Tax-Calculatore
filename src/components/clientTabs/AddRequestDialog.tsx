@@ -30,6 +30,8 @@ import { createPrevAccountantTrack, missingPrevAccountantSteps } from '../../lib
 import type { IntakeContext } from '../../lib/clientState';
 import { intakeAcceptsRequired } from '../../lib/clientState';
 import { supabase } from '../../lib/supabase';
+import type { Client, NiTracking } from '../../types';
+import { niPersons, niRepresentationAction, niRepresentationOf } from '../../utils/niPersons';
 
 /** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
  *  'paperless_sequence', 'prev_accountant_track' ו-'bank_debit' אינם סוגי
@@ -54,6 +56,10 @@ const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'paperless_tax_authority',
     hint: 'לעוסק מורשה - הלקוח מחבר את פייפרלס לרשות המסים, ומשם החשבוניות מקבלות מספר הקצאה', once: true },
   { type: 'intake_questionnaire',   hint: 'רענון תיק המס - שאלון ומסמכים לפי מה שחסר', once: true },
+  // ‼ 157: זמינות אינה "פעם אחת לכרטיס" כמו שאר הפריטים — לכל אדם (לקוח/
+  // בן-בת-זוג) יש ייצוג נפרד, ולכן `once:false` והזמינות נגזרת בנפרד למטה
+  // (authRepAvailable) מאותו רזולבר בדיוק כמו תיק המס.
+  { type: 'authority_representation', hint: 'ביטוח לאומי - לפי אדם', once: false },
 ];
 /* ‼ «אישור המייצג באזור האישי» ירד מכאן (הכרעת גיא, 2026-08-25). הוא אינו
    בקשה שמוסיפים אלא צעד בתוך ביצוע הייצוג: נוצר לבד כשהייצוג מוגש לשע"ם
@@ -172,16 +178,28 @@ interface Props {
   prevAccountantEmail?: string | null;
   /** בחירת תבנית — נמסרת החוצה כדי שהקומפוזר ייפתח במקום שבו הבקשות חיות. */
   onUseTemplate?: (t: RequestTemplate) => void;
+  /**
+   * הלקוח והביצוע החי — לזמינות ולתצוגה של «ייצוג ברשות×אדם» (157), אותו
+   * רזולבר בדיוק כמו תיק המס (niPersons/niRepresentationOf/niRepresentationAction).
+   * חסר ⇒ הפריט אינו מוצג בקטלוג כלל.
+   */
+  client?: Client;
+  niExecution?: { client?: NiTracking; spouse?: NiTracking };
+  /** יוצר את הבקשה במשטח "בקשות" (request_authority_representation) — אותה
+   *  קריאה בדיוק כמו "בקש ייצוג" בתיק המס, כדי ששני נקודות הכניסה יתכנסו
+   *  לאותה בקשה. */
+  onRequestAuthorityRepresentation?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
   onClose: () => void;
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, presetType, presetDocuments, prevAccountantEmail, onUseTemplate, onClose, onCreated }: Props) {
+export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, presetType, presetDocuments, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onClose, onCreated }: Props) {
   /** יש בכלל קליטה שאפשר לחסום את סגירתה. */
   const requiredApplies = intakeAcceptsRequired(intake);
-  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document'>(
+  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document' | 'authority_rep'>(
     presetDocuments?.length ? 'document' : 'catalog');
   const [busy, setBusy] = useState(false);
+  const [authRepBusyRole, setAuthRepBusyRole] = useState<'client' | 'spouse' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   /** בקשה חופשית — שני השדות שמספיקים לרוב המוחלט של הבקשות.
@@ -449,10 +467,28 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   );
   const paperlessMissing = PAPERLESS_SEQUENCE.filter(p => !existing.has(p.type));
   const prevMissing = missingPrevAccountantSteps(steps);
+  /** ‼ אותו רזולבר בדיוק כמו תיק המס — אדם זמין רק כשיש לו/ה 'add' (בקשת
+   *  ייצוג קיימת ללקוח, וטרם התבקש ייצוג ב"ל לאדם הזה), ואין כבר שלב
+   *  «ייצוג ברשות» פתוח על שמו/ה — "לא ליצור כפילות" (157). השרת עצמו
+   *  אידמפוטנטי (מחזיר את הבקשה הקיימת), אבל הקטלוג לא אמור בכלל להציע
+   *  מה שכבר בטיפול. */
+  const openAuthRepRoles = new Set(
+    steps.filter(s => s.stepType === 'authority_representation' && s.payload?.authority === 'national_insurance'
+      && !['completed', 'verified', 'cancelled'].includes(s.status))
+      .map(s => s.payload?.subjectRole));
+  const authRepAvailable = client
+    ? niPersons(client).filter(p => {
+        if (openAuthRepRoles.has(p.role)) return false;
+        const line = niRepresentationOf(p, client, undefined, niExecution);
+        return niRepresentationAction(p, client, line)?.kind === 'add';
+      })
+    : [];
   const available = CATALOG.filter(c => c.type === 'paperless_sequence'
     ? paperlessMissing.length > 0
     : c.type === 'prev_accountant_track'
     ? prevMissing.length > 0
+    : c.type === 'authority_representation'
+    ? !!onRequestAuthorityRepresentation && authRepAvailable.length > 0
     : !(c.once && existing.has(c.type as OnboardingStep['stepType'])));
   /** ‼ רק בקשות פתוחות. תלות בשלב שכבר הושלם אינה דוחה כלום — השרת פותח את
    *  הבקשה מיד — ולכן "ייפתח רק אחרי «ייצוג מול הרשויות»" על ייצוג שכבר
@@ -620,6 +656,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
               : mode === 'custom' ? 'בקשה חופשית'
               : mode === 'bank' ? BANK_DEBIT_TITLE
               : mode === 'document' ? 'שליחת מסמכים ללקוח'
+              : mode === 'authority_rep' ? 'ייצוג ברשות - לאדם'
               : 'מסמכים מהלקוח'}
           </h3>
           <button type="button" className="btn btn-sm btn-ghost" onClick={onClose} aria-label="סגירה">✕</button>
@@ -665,6 +702,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                     if (c.type === 'paperless_sequence') { void createPaperlessSequence(); return; }
                     if (c.type === 'paperless_tax_authority') { void createTaxAuthority(); return; }
                     if (c.type === 'prev_accountant_track') { void createPrevTrack(); return; }
+                    if (c.type === 'authority_representation') { setMode('authority_rep'); return; }
                     /* ‼ תוכן ברירת המחדל מגיע מתבנית מובנית ולא מ-{} ריק.
                        בקשה שנוצרה ריקה הגיעה ללקוח בלי ניסוח ובלי רשימה. */
                     void create(c.type, seedPayload(c.type));
@@ -676,6 +714,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                       : c.type === 'prev_accountant_track' ? 'חומרים מרו״ח קודם'
                       : c.type === 'bank_debit' ? BANK_DEBIT_TITLE
                       : c.type === 'send_document' ? 'שליחת מסמכים ללקוח'
+                      : c.type === 'authority_representation' ? 'ייצוג ברשות - לאדם'
                       : STEP_TYPE_LABELS[c.type as OnboardingStep['stepType']]}
                   </span>
                   <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
@@ -746,6 +785,42 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 ))}
               </div>
               <Shared {...{ dueDate, setDueDate, dependsOn, setDependsOn, dependencyOptions, processPublished, awaitingQuoteApproval, sendNow, setSendNow, requiredForClose, setRequiredForClose, requiredApplies }} />
+            </>
+          )}
+
+          {mode === 'authority_rep' && (
+            <>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
+                לאיזה אדם מבקשים ייצוג בביטוח לאומי - הבקשה תופיע אצלכם במשטח "בקשות".
+              </div>
+              {authRepAvailable.length === 0 && (
+                <div className="cw-empty">אין כרגע אדם שאפשר לבקש לו ייצוג חדש.</div>
+              )}
+              {authRepAvailable.map(p => (
+                <button
+                  key={p.role}
+                  type="button"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!onRequestAuthorityRepresentation) return;
+                    setAuthRepBusyRole(p.role);
+                    setBusy(true);
+                    setError(null);
+                    const res = await onRequestAuthorityRepresentation(p.role);
+                    setAuthRepBusyRole(null);
+                    setBusy(false);
+                    if (res.error) { setError(res.error); return; }
+                    onCreated();
+                    onClose();
+                  }}
+                  style={rowBtn}
+                >
+                  <span style={{ fontWeight: 600 }}>{p.name}</span>
+                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                    {authRepBusyRole === p.role ? 'שולח בקשה…' : p.role === 'client' ? 'הלקוח/ה עצמו/ה' : 'בן/בת הזוג'}
+                  </span>
+                </button>
+              ))}
             </>
           )}
 

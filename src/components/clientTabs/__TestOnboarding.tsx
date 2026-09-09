@@ -38,6 +38,14 @@ const FIXTURE_CLIENT = {
   phone: '054-8823001', email: 'sharon.m@example.invalid', city: 'תל אביב',
   incomeTaxType: 'selfEmployed', niType: 'selfEmployed', vatStatus: 'authorizedDealer',
   lifecycleStage: 'onboarding',
+  // ‼ 157: לכרטיס «ייצוג ברשות» (s12) יש requestId אמיתי לבדיקה — בלי זה
+  // NiInstructionsDialog לא נפתח כלל (אותו תנאי כמו בתיק המס). married +
+  // representationStatus כדי שגם "+ בקשה חדשה" ← "ייצוג ברשות - לאדם" יהיה
+  // זמין לבדיקה (עצמו/ה - בת הזוג כבר תפוסה ע"י s12).
+  representationRequestId: 'fixture-req-1',
+  representationStatus: 'active',
+  familyStatus: 'married',
+  spouseName: 'רותם מזרחי', spouseIdNumber: '031122334',
 } as unknown as Client;
 
 // ?theme=light|dark — קיבוע ערכה לצילומי מסך ללא-ראש (אין App שמפעיל useTheme).
@@ -169,6 +177,15 @@ const STEPS: OnboardingStep[] = [
            clientTitle: 'פרטי רואה החשבון הקודם שלך',
            clientSub: 'שם, אימייל וטלפון - כדי שנפנה אליו בשמך',
            clientCta: 'למילוי',
+         } }),
+  // ── 157: «ייצוג ברשות×אדם» — אסמכתא כבר קיימת, טרם נשלחו הוראות אישור.
+  // מצב המבחן החשוב ביותר: הכפתור היחיד שאמור להופיע כאן הוא "שלח הוראות
+  // אישור", והוא צריך לפתוח את אותו דיאלוג כמו בתיק המס.
+  step({ id: 's12', stepType: 'authority_representation', track: 'authorities', scope: 'person',
+         status: 'in_progress', ball: 'me',
+         payload: {
+           authority: 'national_insurance', subjectRole: 'spouse', subjectName: 'רותם מזרחי',
+           title: 'ייצוג בביטוח לאומי — רותם מזרחי', representationRequestId: 'fixture-req-1',
          } }),
 ];
 
@@ -465,6 +482,12 @@ export default function TestOnboarding() {
         onPrepareReleaseLetter={(stepId) => { setMsg(`פתיחת מכתב שחרור לשלב ${stepId}`); setShowRelease(true); }}
         repStatusLabel="בקשת ייצוג · ממתין למילוי הלקוח"
         onOpenRepresentation={() => setMsg('קפיצה למרכז הייצוג')}
+        niExecution={{ spouse: { enteredAt: '2026-08-20T09:00:00Z', referenceNumber: '73882698', deadline: '2026-10-12' } }}
+        onUpdateClientFields={async (patch) => setMsg(`onUpdateClientFields(${JSON.stringify(patch)})`)}
+        onRequestAuthorityRepresentation={async (role) => {
+          setMsg(`onRequestAuthorityRepresentation(${role}, source=catalog)`);
+          return { error: null, stepId: 'demo-catalog-step' };
+        }}
       />
       <h3 style={{ marginTop: '2rem' }}>מקטע "לקוחות בתהליך" - ראש מסך הלקוחות</h3>
       <ClientsOnboardingSection

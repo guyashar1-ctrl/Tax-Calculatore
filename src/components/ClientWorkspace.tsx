@@ -136,12 +136,17 @@ interface Props {
    *  אין לו שום בקשת ייצוג (156). ראה ההערה המקבילה ב-JourneyTab. */
   onStartRepresentation?: (clientId: string) => void;
   /**
-   * "בקש ייצוג" בבלוק בן/בת הזוג בכרטיס ב"ל, כשללקוח **כבר יש** בקשת
-   * ייצוג — תיקון ממוקד על הכרטיס בלבד, לא בקשה שנייה. ראה
-   * docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
+   * "בקש ייצוג" לרשות×אדם — יוצר את הבקשה במשטח "בקשות" (157,
+   * `request_authority_representation`). מחזירה שגיאה בעברית או stepId.
+   * ראה docs/PLAN-BTL-SPOUSE-REPRESENTATION-REQUEST.md.
    */
-  /** מחזירה `null` בהצלחה, או הודעת שגיאה בעברית להצגה ליד הכפתור. */
-  onAddNiTarget?: (clientId: string, role: 'client' | 'spouse') => Promise<string | null>;
+  onAddNiTarget?: (clientId: string, role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
+  /** אותה קריאה בדיוק, מנקודת הכניסה השנייה — "+ בקשה חדשה" במשטח "בקשות". */
+  onRequestAuthorityRepresentationFromCatalog?: (clientId: string, role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
+  /** אחרי שהבקשה נוצרה — קפיצה למשטח "בקשות" כדי שהעבודה תהיה גלויה מיד. */
+  onOpenRequestStep?: (clientId: string) => void;
+  /** עדכון שדה פשוט על הכרטיס (למשל spouseEmail) — לא עובדה מנוהלת. */
+  onUpdateClientFields?: (clientId: string, patch: Partial<Client>) => Promise<void>;
   /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
   // ─── דף המסע ───
@@ -227,6 +232,9 @@ export default function ClientWorkspace({
   onOpenRepresentation,
   onStartRepresentation,
   onAddNiTarget,
+  onRequestAuthorityRepresentationFromCatalog,
+  onOpenRequestStep,
+  onUpdateClientFields,
   niExecution,
   journeyUi,
   checksTabEnabled,
@@ -842,6 +850,10 @@ export default function ClientWorkspace({
             onSelectTask={onSelectTask}
             onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
             onOpenTaxFile={() => setTab('taxfile')}
+            niExecution={niExecution}
+            onUpdateClientFields={onUpdateClientFields ? (patch: Partial<Client>) => onUpdateClientFields(client.id, patch) : undefined}
+            onRequestAuthorityRepresentation={onRequestAuthorityRepresentationFromCatalog
+              ? (role) => onRequestAuthorityRepresentationFromCatalog(client.id, role) : undefined}
           />
         )}
 
@@ -871,6 +883,8 @@ export default function ClientWorkspace({
             creatingRequestKey={creatingRequestKey}
             onOpenRepresentation={onOpenRepresentation ? () => onOpenRepresentation(client.id) : undefined}
             onAddNiTarget={onAddNiTarget ? (role) => onAddNiTarget(client.id, role) : undefined}
+            onOpenRequestStep={onOpenRequestStep ? () => onOpenRequestStep(client.id) : undefined}
+            onUpdateClientFields={onUpdateClientFields ? (patch) => onUpdateClientFields(client.id, patch) : undefined}
             niExecution={niExecution}
           />
         )}
@@ -977,6 +991,10 @@ export default function ClientWorkspace({
               setDocsFolderId(folderId ?? null);
               setTab('docs');
             }}
+            niExecution={niExecution}
+            onUpdateClientFields={onUpdateClientFields ? (patch) => onUpdateClientFields(client.id, patch) : undefined}
+            onRequestAuthorityRepresentation={onRequestAuthorityRepresentationFromCatalog
+              ? (role) => onRequestAuthorityRepresentationFromCatalog(client.id, role) : undefined}
           />
         )}
 

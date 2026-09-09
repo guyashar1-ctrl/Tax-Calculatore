@@ -31,6 +31,9 @@ export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   institution_alignment_vat: 'לבצע יישור קו מול מע״מ',
   institution_alignment_income: 'לבצע יישור קו מול מס הכנסה',
   opening_call: 'לקיים שיחת פתיחה עם הלקוח',
+  // ‼ תמיד נדרס בפועל בזרימה — הפעולה תלוית-מצב ונגזרת מ-execution (ראה
+  // TaxFileTab/NiInstructionsDialog), לא ניסוח קבוע אחד לכל השלב.
+  authority_representation: 'להמשיך את הייצוג ברשות',
 };
 
 /** תאריך יעד רק אם הוא בטווח שבועיים — אחרת הוא אינו שיקול דחיפות. */

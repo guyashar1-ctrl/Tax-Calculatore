@@ -1235,6 +1235,17 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                       color: brand.ink, whiteSpace: 'pre-line',
                     }}>{item.note}</p>
                   )}
+                  {/* ‼ הרחבה קטנה: הודעה שנושאת קישור חיצוני (למשל אתר
+                      ביטוח לאומי) — לא כפתור פעולה, אין כאן מה "לאשר". */}
+                  {item.linkUrl && (
+                    <a href={item.linkUrl} target="_blank" rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-block', marginTop: 8, textDecoration: 'none',
+                        fontSize: 13, fontWeight: 600, color: accent,
+                      }}>
+                      {item.linkLabel || 'לפתיחת הקישור'} ←
+                    </a>
+                  )}
                 </div>
               );
             })}

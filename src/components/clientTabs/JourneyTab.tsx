@@ -9,7 +9,7 @@
 // מחכה לו מאדם אחר — ערבוב שלהן היה מוחק את המשמעות של "אצל מי הכדור".
 
 import { useMemo } from 'react';
-import type { Client, Task, RepresentationStatus } from '../../types';
+import type { Client, NiTracking, Task, RepresentationStatus } from '../../types';
 import type { ClientAlert } from '../../types/clientWorkspace';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
 import type { Quotation, Lead } from '../../types/quotations';
@@ -72,6 +72,12 @@ interface Props {
   onOpenYear?: (taxYear: number) => void;
   /** פתיחת משימה מתוך התמונה המקצועית. המשימות עצמן חיות בלשונית "משימות". */
   onSelectTask: (id: string) => void;
+  /** מסלולי הביצוע של ב"ל (157) — לכרטיס «ייצוג ברשות» בפרק הבקשות. */
+  niExecution?: { client?: NiTracking; spouse?: NiTracking };
+  /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  /** "+ בקשה חדשה" ← "ייצוג ברשות - לאדם" — אותה קריאה כמו מתיק המס (157). */
+  onRequestAuthorityRepresentation?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
 }
 
 export default function JourneyTab(p: Props) {
@@ -348,6 +354,9 @@ export default function JourneyTab(p: Props) {
           repStatus={p.repStatus}
           onOpenRepresentation={p.onOpenRepresentation}
           onOpenTaxFile={p.onOpenTaxFile}
+          niExecution={p.niExecution}
+          onUpdateClientFields={p.onUpdateClientFields}
+          onRequestAuthorityRepresentation={p.onRequestAuthorityRepresentation}
         />
       )}
 

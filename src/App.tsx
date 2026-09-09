@@ -37,8 +37,6 @@ import { isRepresented } from './lib/clientState';
 import { edgeFunctionError } from './utils/functionError';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { targetsOf } from './utils/repScope';
-import { recordManualFactChange } from './lib/taxFacts';
-import { clientFromDb } from './lib/dbMappers';
 import {
   seedClientFromEmbeddedSpouse, findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold,
   spousePersonAuthorities,
@@ -831,77 +829,68 @@ export default function App() {
   }
 
   /**
-   * "בקש ייצוג" בבלוק בן/בת הזוג בכרטיס ב"ל, כשללקוח **כבר יש** בקשת ייצוג.
-   * ‼ תיקון ממוקד על הכרטיס בלבד — לא בקשה שנייה, לא קליטה כללית, לא טוקן
-   * חדש, לא שע״ם/2279/הזדהות/חתימה. ראה docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
-   * אידמפוטנטי: אם התפקיד כבר ב-targets, לא כותב כלום.
-   *
-   * שתי כתיבות בלבד:
-   *   1. authorityRepresentations.nationalInsurance.targets — מוסיף את
-   *      התפקיד; ה-status הקיים (בד"כ in_process) נשאר כמות שהוא.
-   *   2. taxFiles — שורת (national_insurance, owner=role) עוברת ל-'pending':
-   *      נוצרת אם אין, ומקודמת אם קיימת ב-'none'. דרך מסלול העובדות
-   *      המנוהלות (היסטוריה + field_meta), בלי fileNumber — לעולם לא נגזר מת.ז.
-   * ‼ מסלול הביצוע (execution.nationalInsurance[Spouse]) מאותחל לאובייקט
-   * ריק אם עוד אינו קיים, כדי שמרכז הייצוג יציג את המסלול השני מיד — לא
-   * נכתב בו שום דבר שמעיד על פעולה שלא קרתה (לא enteredAt, לא הוראות).
-   *
-   * ‼ אידמפוטנטיות **לכל כתיבה בנפרד**, לא יציאה מוקדמת מהפונקציה כולה:
-   * כרטיס שכבר יש לו את התפקיד ב-targets אך שורת התיק שלו נשארה 'none'
-   * הוא בדיוק המצב שנוצר בייצור, ולחיצה נוספת חייבת להשלים אותו — ולא
-   * לחזור בלי לעשות כלום.
-   *
-   * מחזירה `null` בהצלחה, או הודעת שגיאה בעברית. ‼ לעולם לא בולעת כשל:
-   * לחיצה שנכשלה חייבת להיראות שונה מלחיצה שהצליחה.
+   * עדכון שדות פשוטים על הכרטיס (למשל spouseEmail) — לא עובדה מנוהלת, לא
+   * ייצוג. ‼ הדיאלוג של הוראות האישור העצמאיות (157) הוא הקורא היחיד כרגע.
    */
-  async function handleAddNiTarget(clientId: string, role: 'client' | 'spouse'): Promise<string | null> {
-    const client = clients.find(c => c.id === clientId);
-    if (!client) return 'הכרטיס לא נמצא';
+  async function handleUpdateClientFields(clientId: string, patch: Partial<Client>): Promise<void> {
+    const c = clients.find(x => x.id === clientId);
+    if (!c) throw new Error('הכרטיס לא נמצא');
+    await updateClient({ ...c, ...patch });
+  }
+
+  /**
+   * הודעות שגיאה בעברית לתשובות RPC של `request_authority_representation`.
+   * ‼ מפתח לא ידוע (עדכון עתידי בשרת שהדפדפן טרם יודע) נופל ל-reason הגולמי
+   * ולא ל"שמירה נכשלה" הגנרי — עדיף משהו קריא-למחצה מהודעה שמסתירה מידע.
+   */
+  const REQUEST_AUTH_REP_ERRORS: Record<string, string> = {
+    already_active: 'הייצוג כבר פעיל — אין מה להוסיף.',
+    no_representation: 'אין עדיין בקשת ייצוג ללקוח. יש לפתוח ייצוג קודם.',
+    not_married: 'הלקוח אינו מסומן כנשוי/אה.',
+    linked_subject: 'לבן/בת הזוג יש כרטיס משלו/ה — הבקשה נפתחת מהכרטיס שלו/ה, לא מכאן.',
+    represented_elsewhere: 'בן/בת הזוג מיוצג/ת אצל רו״ח אחר.',
+    bad_authority: 'רשות לא נתמכת בשלב הזה.',
+    bad_subject_role: 'זהות לא תקינה.',
+    forbidden: 'אין הרשאה לפעולה הזו.',
+    client_not_found: 'הכרטיס לא נמצא.',
+    unauthenticated: 'יש להתחבר מחדש.',
+    tax_file_write_failed: 'שמירת שורת התיק נכשלה.',
+  };
+
+  /**
+   * "בקש ייצוג" — לרשות×אדם, מתיק המס וגם מ"+ בקשה חדשה". קריאה אטומית
+   * אחת בשרת (157, `request_authority_representation`) שמחליפה את שלוש
+   * הכתיבות הנפרדות שהיו כאן: targets, שורת taxFiles, ואתחול מסלול הביצוע.
+   * יוצרת גם בקשה גלויה במשטח "בקשות" — ראה docs/PLAN-BTL-SPOUSE-REPRESENTATION-REQUEST.md.
+   * ‼ אידמפוטנטית בשרת (נעילת שורה + אינדקס ייחודי) — לא רק כאן.
+   * מחזירה שגיאה בעברית או stepId בהצלחה. לעולם לא בולעת כשל.
+   */
+  async function handleRequestAuthorityRepresentation(
+    clientId: string, role: 'client' | 'spouse', source: 'tax_file' | 'catalog',
+  ): Promise<{ error: string | null; stepId?: string }> {
     try {
-      const current = targetsOf(client.authorityRepresentations, 'nationalInsurance');
-      let updated = client;
-      if (!current.includes(role)) {
-        const rec = client.authorityRepresentations?.nationalInsurance;
-        updated = await updateClient({
-          ...client,
-          authorityRepresentations: {
-            ...client.authorityRepresentations,
-            nationalInsurance: { ...(rec ?? { status: 'in_process' as const }), targets: [...current, role] },
-          },
-        });
+      const { data, error } = await supabase.rpc('request_authority_representation', {
+        p_client_id: clientId, p_authority: 'national_insurance', p_subject_role: role, p_source: source,
+      });
+      if (error) return { error: error.message };
+      const res = data as { ok?: boolean; stepId?: string; reason?: string } | null;
+      if (!res?.ok) {
+        const reason = res?.reason ?? '';
+        return { error: REQUEST_AUTH_REP_ERRORS[reason] ?? (reason || 'השמירה נכשלה') };
       }
-
-      const files = updated.taxFiles ?? [];
-      const idx = files.findIndex(f => f.authority === 'national_insurance' && f.owner === role);
-      const existing = idx >= 0 ? files[idx] : undefined;
-      if (!existing || existing.repStatus === 'none') {
-        const next = existing
-          ? files.map((f, i) => (i === idx ? { ...f, repStatus: 'pending' as const } : f))
-          : [...files, {
-              id: `tf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              authority: 'national_insurance' as const, owner: role, repStatus: 'pending' as const,
-            }];
-        const res = await recordManualFactChange(
-          clientId, 'taxFiles', `ייצוג בביטוח לאומי${role === 'spouse' ? ' — בן/בת הזוג' : ''}`,
-          existing ? 'אין ייצוג' : '—', 'בתהליך', { taxFiles: next },
-        );
-        if (!res.ok) return res.error === 'stale_conflict'
-          ? 'הכרטיס השתנה בינתיים. רענן/י את המסך ונסה/י שוב.'
-          : res.error || 'שמירת שורת התיק נכשלה';
-        if (res.client) applyClientLocally(clientFromDb(res.client));
-      }
-
-      const req = findClientRepresentationRequest(clientId);
-      if (req) {
-        const execKey = role === 'spouse' ? 'nationalInsuranceSpouse' : 'nationalInsurance';
-        if (!req.execution?.[execKey]) {
-          await updateRequest({ ...req, execution: { ...req.execution, [execKey]: {} } });
-        }
-      }
-      return null;
+      await refreshClient(clientId);
+      onboarding.refresh?.();
+      return { error: null, stepId: res.stepId };
     } catch (e) {
-      return e instanceof Error ? e.message : 'השמירה נכשלה';
+      return { error: e instanceof Error ? e.message : 'השמירה נכשלה' };
     }
+  }
+
+  /** מתיק המס/מ"+ בקשה חדשה" אל משטח "בקשות" — שם הבקשה שנוצרה חיה. */
+  function handleOpenRequestStep(clientId: string) {
+    setSelectedId(clientId);
+    setClientInitialTab(journeyUi ? 'journey' : 'onboarding');
+    setView('form');
   }
 
   /**
@@ -2502,7 +2491,10 @@ export default function App() {
             onOpenReleaseLetter={(clientId, stepId, mode) => openReleaseLetter(clientId, stepId, mode)}
             onOpenRepresentation={handleOpenClientRepresentation}
             onStartRepresentation={handleStartRepresentation}
-            onAddNiTarget={handleAddNiTarget}
+            onAddNiTarget={(clientId, role) => handleRequestAuthorityRepresentation(clientId, role, 'tax_file')}
+            onRequestAuthorityRepresentationFromCatalog={(clientId, role) => handleRequestAuthorityRepresentation(clientId, role, 'catalog')}
+            onOpenRequestStep={handleOpenRequestStep}
+            onUpdateClientFields={handleUpdateClientFields}
             niExecution={selectedClient ? clientNiExecution(selectedClient.id) : undefined}
             journeyUi={journeyUi}
             checksTabEnabled={checksTab}

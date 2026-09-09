@@ -216,25 +216,32 @@ export function niRepresentationOf(
 }
 
 export interface NiRepresentationAction {
-  kind: 'add' | 'continue';
+  kind: 'add' | 'continue' | 'send';
   label: string;
 }
 
 /**
  * הפעולה שמוצעת ליד שורת "ייצוג" — אותה החלטה גם בכרטיס ב"ל וגם בדגל
- * "דורש טיפול" (docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md §6/§10).
- * ‼ 'add' הוא **תיקון ממוקד על הכרטיס בלבד**: מוסיף target + טיוטת
- * taxFiles, לא נוגע בבקשה, לא פותח קליטה כללית, לא יוצר טוקן. זמין רק
- * כשיש כבר בקשת ייצוג ללקוח (`client.representationStatus`) — בלעדיה
- * "להוסיף" אין למה, וזה מקרה אחר (פתיחת ייצוג חדש) שלא נפתר כאן.
+ * "דורש טיפול" וגם בבקשה עצמה במשטח "בקשות"
+ * (docs/PLAN-BTL-SPOUSE-REPRESENTATION-REQUEST.md §4.3).
+ * ‼ 'add' יוצר את הבקשה (`request_authority_representation`) — לא נוגע
+ * בבקשת הייצוג עצמה, לא פותח קליטה כללית, לא יוצר טוקן. זמין רק כשיש כבר
+ * בקשת ייצוג ללקוח (`client.representationStatus`).
+ * ‼ 'send' — האסמכתא כבר קיימת וטרם נשלחו הוראות אישור עצמאיות (ולא
+ * רוכבות על מייל החתימה). זו הפעולה היחידה שפותחת את דיאלוג ההוראות.
  * ‼ אדם מקושר (`!niEditable`) לעולם לא מקבל פעולה — מקור האמת אצלו/ה.
  */
 export function niRepresentationAction(
-  person: NiPerson, client: Client, line: NiRepresentationLine,
+  person: NiPerson, client: Client, line: NiRepresentationLine, track?: NiTracking,
 ): NiRepresentationAction | null {
   if (!niEditable(person)) return null;
   if (line.kind === 'active' || line.kind === 'elsewhere') return null;
-  if (line.represented) return { kind: 'continue', label: 'המשך במרכז הייצוג' };
+  if (line.represented) {
+    if (track?.referenceNumber && !track?.instructionsSentAt && track?.instructionsSentWith !== 'signature') {
+      return { kind: 'send', label: `שלח הוראות אישור ל-${person.name}` };
+    }
+    return { kind: 'continue', label: 'המשך במרכז הייצוג' };
+  }
   if (!client.representationStatus) return null;
   return { kind: 'add', label: 'בקש ייצוג' };
 }

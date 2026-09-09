@@ -131,6 +131,7 @@ function debitAuthFlags(client: Client): AuthorityFlag[] {
  */
 function niSpouseRepresentationFlag(
   client: Client, spouseClient: Client | undefined, niExecution: NiExecutionByRole | undefined,
+  steps: OnboardingStep[],
 ): AuthorityFlag[] {
   const spouse = niPersons(client, spouseClient).find(p => p.role === 'spouse');
   if (!spouse || !niEditable(spouse)) return [];
@@ -138,7 +139,22 @@ function niSpouseRepresentationFlag(
   const line = niRepresentationOf(spouse, client, spouseClient, niExecution);
   if (line.kind === 'active' || line.kind === 'elsewhere' || line.kind === 'unknown') return [];
 
-  const action = niRepresentationAction(spouse, client, line);
+  // ‼ 157: יש כבר בקשה גלויה במשטח "בקשות" (`authority_representation`,
+  // לא `custom_request`) ⇒ "בטיפול" בלי כפתור — לא דגל שני לאותה עבודה.
+  const openStep = steps.find(s => s.stepType === 'authority_representation'
+    && s.payload?.authority === 'national_insurance' && s.payload?.subjectRole === 'spouse'
+    && !['completed', 'verified', 'cancelled'].includes(s.status));
+  if (openStep) {
+    return [{
+      key: 'niSpouseNotRepresented', severity: 'medium', requestExists: true,
+      title: `ייצוג בביטוח לאומי — ${spouse.name}`,
+      why: `כבר קיימת בקשה עבור ${spouse.name} — במשטח "בקשות".`,
+      actions: [],
+    }];
+  }
+
+  const track = niExecution?.spouse;
+  const action = niRepresentationAction(spouse, client, line, track);
   if (!action) return [];
 
   const why = line.kind === 'pending'
@@ -173,7 +189,7 @@ export function computeAuthorityFlags(
 ): AuthorityFlag[] {
   const flags: AuthorityFlag[] = [];
 
-  flags.push(...niSpouseRepresentationFlag(client, spouseClient, niExecution));
+  flags.push(...niSpouseRepresentationFlag(client, spouseClient, niExecution, steps));
 
   flags.push(...balanceFlags(client));
 

@@ -20,7 +20,7 @@ import {
   isBlockingOutstanding, unfiledBlocking,
   outstandingDeliverableLabel, deliverableKeyFor,
 } from '../../types/onboarding';
-import type { Client, RepAuthorityKind, RepresentationStatus } from '../../types';
+import type { Client, NiTracking, RepAuthorityKind, RepresentationStatus } from '../../types';
 import type { Quotation, QuotationItem } from '../../types/quotations';
 import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS } from '../../types';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
@@ -68,6 +68,7 @@ import {
 } from '../../utils/clientFacingRows';
 import EmailInput from '../ui/EmailInput';
 import InfoLines from '../ui/InfoLines';
+import NiInstructionsDialog from '../NiInstructionsDialog';
 
 interface Props {
   clientId: string;
@@ -118,6 +119,12 @@ interface Props {
    */
   /** פותח את תיק המס — היעד היחיד של יישור הקו. */
   onOpenTaxFile?: () => void;
+  /** מסלולי הביצוע של ב"ל (לקוח/בן-בת-זוג) — לכרטיס «ייצוג ברשות» (157). */
+  niExecution?: { client?: NiTracking; spouse?: NiTracking };
+  /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  /** "+ בקשה חדשה" ← "ייצוג ברשות - לאדם" — אותה קריאה כמו מתיק המס (157). */
+  onRequestAuthorityRepresentation?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
 }
 
 /**
@@ -299,7 +306,13 @@ export default function OnboardingTab({
   prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, onOpenRepresentation,
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, ballFilter, onOpenTaxFile,
+  niExecution, onUpdateClientFields, onRequestAuthorityRepresentation,
 }: Props) {
+  // ‼ 157: "שלח הוראות אישור" — נפתח מכרטיס «ייצוג ברשות» באותו דיאלוג
+  // שמשמש את תיק המס (NiInstructionsDialog). אין דיאלוג נפרד לכל כניסה.
+  const [niInstructionsFor, setNiInstructionsFor] = useState<{
+    role: 'client' | 'spouse'; name: string; idNumberMasked?: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [busyStepId, setBusyStepId] = useState<string | null>(null);
@@ -1078,9 +1091,10 @@ export default function OnboardingTab({
 
                               <div className="ob-menu-sep" />
 
-                              {/* ‼ שלב הייצוג מסונכרן מהשרת — "דלג" ו"חסום" ידניים היו
-                                  נדרסים בטריגר הבא ומשקרים עד אז. נשארת רק הערה. */}
-                              {step.stepType !== 'representation' && (
+                              {/* ‼ שלב הייצוג ושלב «ייצוג ברשות» (157) מסונכרנים מהשרת —
+                                  "דלג" ו"חסום" ידניים היו נדרסים בטריגר הבא ומשקרים עד אז.
+                                  נשארת רק הערה. */}
+                              {step.stepType !== 'representation' && step.stepType !== 'authority_representation' && (
                                 <>
                                   <button type="button" role="menuitem" className={mi}
                                     onClick={() => { setMenuStepId(null); handleSkip(step); }}>דלג על הבקשה</button>
@@ -1237,6 +1251,25 @@ export default function OnboardingTab({
                     statusLabel={repStatusLabel}
                     repStatus={repStatus}
                     onOpen={onOpenRepresentation}
+                    menu={menu}
+                  />
+                );
+              }
+
+              if (step.stepType === 'authority_representation') {
+                const subjectRole = step.payload?.subjectRole === 'spouse' ? 'spouse' : 'client';
+                const track = subjectRole === 'spouse' ? niExecution?.spouse : niExecution?.client;
+                return (
+                  <AuthorityRepresentationStepCard
+                    key={step.id}
+                    step={step}
+                    stepById={stepById}
+                    highlight={highlightStepId === step.id}
+                    track={track}
+                    onSendInstructions={() => setNiInstructionsFor({
+                      role: subjectRole,
+                      name: String(step.payload?.subjectName ?? rowTitle(step)),
+                    })}
                     menu={menu}
                   />
                 );
@@ -1467,6 +1500,7 @@ export default function OnboardingTab({
   const nestedMap = new Map<string, React.ReactNode>();
 
   return (
+    <>
     <RowOpenContext.Provider value={{
       openId: openRowId,
       toggle: (id: string) => setOpenRowId(cur => (cur === id ? null : id)),
@@ -1687,6 +1721,11 @@ export default function OnboardingTab({
       {(() => {
         const openVisible = visibleSteps.filter(s => isStepOpen(s.status));
         const repStep = openVisible.find(s => s.stepType === 'representation');
+        /* ‼ 157: כמו הייצוג הכללי, «ייצוג ברשות×אדם» אינו ב-CLIENT_FACING_TYPES
+           — הוא נגזר מהביצוע (execution) ולא נושא checklist ללקוח. בניגוד
+           לייצוג הכללי יכולים להיות כמה כאלה בבת אחת (לקוח + בן/בת זוג), ולכן
+           מערך ולא שלב יחיד. */
+        const authRepSteps = openVisible.filter(s => s.stepType === 'authority_representation');
         /* ‼ משימה פנימית שהרו"ח הוסיף יורדת מרשימת הבקשות ועולה ב"העבודה
            שלי" — היא custom_request בדיוק כמו בקשת לקוח, ומה שמפריד הוא
            הכדור. בלי ההפרדה הזאת משימה לעצמי הייתה נראית כבקשה מהלקוח. */
@@ -1767,7 +1806,7 @@ export default function OnboardingTab({
 
         return (
           <div className="ob-flow">
-            {!repStep && clientRows.length === 0 && !approvedQuotation && !doneRepStep && (
+            {!repStep && authRepSteps.length === 0 && clientRows.length === 0 && !approvedQuotation && !doneRepStep && (
               <div className="cw-empty">אין בקשות פתוחות כרגע.</div>
             )}
 
@@ -1790,6 +1829,7 @@ export default function OnboardingTab({
               ].filter(Boolean).join(' · '))}
 
             {repStep && flowItem(repStep, renderStep(repStep))}
+            {authRepSteps.map(s => flowItem(s, renderStep(s)))}
             {clientRows.map(row => flowItem(row.primary, renderRow(row)))}
 
             {/* ‼ ידוע שיש רו״ח קודם, ואין מסלול — קורה כשהכרטיס נפתח בלי הצעה
@@ -2063,6 +2103,9 @@ export default function OnboardingTab({
           intake={intake}
           prevAccountantEmail={prevAccountant?.email}
           onUseTemplate={t => { setAddOpen(false); setTemplateDraft(t); }}
+          client={client}
+          niExecution={niExecution}
+          onRequestAuthorityRepresentation={onRequestAuthorityRepresentation}
           onClose={() => setAddOpen(false)}
           onCreated={() => refresh?.()}
         />
@@ -2134,6 +2177,23 @@ export default function OnboardingTab({
       )}
     </div>
     </RowOpenContext.Provider>
+    {niInstructionsFor && client.representationRequestId && (
+      <NiInstructionsDialog
+        personName={niInstructionsFor.name}
+        personRole={niInstructionsFor.role}
+        referenceNumber={(niInstructionsFor.role === 'spouse' ? niExecution?.spouse : niExecution?.client)?.referenceNumber}
+        deadline={(niInstructionsFor.role === 'spouse' ? niExecution?.spouse : niExecution?.client)?.deadline}
+        requestId={client.representationRequestId}
+        currentEmail={(niInstructionsFor.role === 'spouse' ? client.spouseEmail : client.email) || ''}
+        onSaveEmail={async email => {
+          if (!onUpdateClientFields) return;
+          await onUpdateClientFields(niInstructionsFor.role === 'spouse' ? { spouseEmail: email } : { email });
+        }}
+        onClose={() => setNiInstructionsFor(null)}
+        onSent={() => setNiInstructionsFor(null)}
+      />
+    )}
+    </>
   );
 }
 
@@ -2915,6 +2975,57 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
             className={`btn btn-sm ${act?.mine ? 'btn-primary' : 'btn-secondary'}`}
             onClick={onOpen}>
             למרכז הייצוג ←
+          </button>
+        </div>
+      )}
+    </StepCardShell>
+  );
+}
+
+/**
+ * כרטיס «ייצוג ברשות×אדם» (157) — פעולה אחת מתאימה למצב, נגזרת תמיד
+ * מ-`track` (מסלול הביצוע החי), לא מ-`step.payload` (שנושא ראיה רק
+ * בסגירה — ראה sync_authority_representation_steps). חמישה מצבים:
+ * הזנה בפורטל → ממתין לאסמכתא → מוכן לשליחה → נשלח וממתינים לאישור → פעיל.
+ */
+function AuthorityRepresentationStepCard({ step, stepById, highlight, track, onSendInstructions, menu }: {
+  step: OnboardingStep;
+  stepById: Map<string, OnboardingStep>;
+  highlight: boolean;
+  track?: NiTracking;
+  onSendInstructions: () => void;
+  menu: React.ReactNode;
+}) {
+  const open = isStepOpen(step.status);
+  const readyToSend = !!track?.referenceNumber && !track?.instructionsSentAt
+    && track?.instructionsSentWith !== 'signature';
+  const sent = !!track?.instructionsSentAt;
+  return (
+    <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}>
+      <div style={cardNote}>
+        {track?.confirmedAt
+          ? 'הייצוג אושר בביטוח לאומי.'
+          : sent
+            ? `הוראות האישור נשלחו ב-${new Date(track!.instructionsSentAt!).toLocaleDateString('he-IL')} — ממתינים לאישור בביטוח לאומי${track?.deadline ? ` עד ${new Date(track.deadline).toLocaleDateString('he-IL')}` : ''}.`
+            : readyToSend
+              ? `האסמכתא התקבלה (${track!.referenceNumber}) — נדרש לשלוח הוראות אישור.`
+              : track?.enteredAt
+                ? 'הוזן בביטוח לאומי · ממתין לאסמכתא.'
+                : open
+                  ? 'יש להזין את הייצוג בפורטל הביטוח הלאומי.'
+                  : 'הבקשה נסגרה.'}
+      </div>
+      {open && readyToSend && (
+        <div style={{ marginTop: '.55rem' }}>
+          <button type="button" className="btn btn-sm btn-primary" onClick={onSendInstructions}>
+            שלח הוראות אישור
+          </button>
+        </div>
+      )}
+      {open && sent && !track?.confirmedAt && (
+        <div style={{ marginTop: '.55rem' }}>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={onSendInstructions}>
+            שלח שוב
           </button>
         </div>
       )}

@@ -41,6 +41,7 @@ import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorit
 import type { AuthorityFlag } from '../../utils/authorityFlags';
 import { findUnsyncedSession, syncIntakeSession } from '../../lib/intakeSync';
 import type { IntakeSyncResult } from '../../lib/intakeSync';
+import NiInstructionsDialog from '../NiInstructionsDialog';
 import SpouseRelationshipCard from './SpouseRelationshipCard';
 import { OccupationsEditor, newOccupationRow } from './InstitutionAlignment';
 import type { OccupationDraft } from './InstitutionAlignment';
@@ -88,11 +89,14 @@ interface Props {
   /** קפיצה למרכז הייצוג של הלקוח — פעולת "המשך במרכז הייצוג" בשורת ייצוג ב"ל. */
   onOpenRepresentation?: () => void;
   /**
-   * "בקש ייצוג" בבלוק בן/בת הזוג בכרטיס ב"ל, כשללקוח **כבר יש** בקשת
-   * ייצוג — תיקון ממוקד על הכרטיס בלבד. ראה
-   * docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
+   * "בקש ייצוג" לרשות×אדם — יוצר את הבקשה במשטח "בקשות" (157). ‼ אחרי
+   * הצלחה, TaxFileTab מנווט ל"בקשות" דרך `onOpenRequestStep` (לא נשאר כאן).
    */
-  onAddNiTarget?: (role: 'client' | 'spouse') => Promise<string | null>;
+  onAddNiTarget?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
+  /** קפיצה למשטח "בקשות" אחרי שנוצרה בקשה — שם היא חיה. */
+  onOpenRequestStep?: () => void;
+  /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור. */
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
   /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
 }
@@ -302,7 +306,7 @@ export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
   onClientPersisted, onSendQuestionnaire, onOpenDetails,
   onRunAlignment, alignBusy, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
-  onOpenRepresentation, onAddNiTarget, niExecution,
+  onOpenRepresentation, onAddNiTarget, onOpenRequestStep, onUpdateClientFields, niExecution,
 }: Props) {
   const { pending, refresh, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
@@ -321,14 +325,22 @@ export default function TaxFileTab({
     setNiAddBusy(role);
     setNiAddError(null);
     try {
-      const err = await onAddNiTarget(role);
-      if (err) setNiAddError(err);
+      const res = await onAddNiTarget(role);
+      if (res.error) { setNiAddError(res.error); return; }
+      // ‼ ההצלחה יוצרת בקשה גלויה במשטח "בקשות" — שם היא חיה, לא כאן.
+      onOpenRequestStep?.();
     } catch (e) {
       setNiAddError(e instanceof Error ? e.message : 'השמירה נכשלה');
     } finally {
       setNiAddBusy(null);
     }
   }
+
+  // ‼ 157: "שלח הוראות אישור" — נפתח מהתא של האדם בכרטיס ב"ל, וגם מהדגל
+  // ב"דורש טיפול" (דרך אותו kind==='send'). אין דיאלוג נפרד לכל כניסה.
+  const [niInstructionsFor, setNiInstructionsFor] = useState<{
+    role: 'client' | 'spouse'; name: string; idNumberMasked?: string;
+  } | null>(null);
 
   // ‼ הוק משימה אחד **לכל רשות אוטומטית**, לא אחד לשע״ם. קודם היה כאן
   // `shaamSync` יחיד, ולכן כל רשות אחרת קיבלה `job = null` לנצח — כלומר
@@ -1008,6 +1020,7 @@ export default function TaxFileTab({
   const showFamilyRow = true;
 
   return (
+    <>
     <div className="txf-root">
       <div className="txf-head">
         <div>
@@ -1062,7 +1075,13 @@ export default function TaxFileTab({
                             disabled={f.niAction.kind === 'add' && niAddBusy !== null}
                             onClick={() => {
                               if (f.niAction!.kind === 'add') void runAddNiTarget('spouse');
-                              else onOpenRepresentation?.();
+                              else if (f.niAction!.kind === 'send') {
+                                setNiInstructionsFor({
+                                  role: 'spouse',
+                                  name: spouseName,
+                                  idNumberMasked: spouseClient?.idNumber || client.spouseIdNumber,
+                                });
+                              } else onOpenRepresentation?.();
                             }}>
                             {f.niAction.kind === 'add' && niAddBusy === 'spouse' ? 'שומר…' : f.niAction.label}
                           </button>
@@ -1346,7 +1365,13 @@ export default function TaxFileTab({
                                   disabled={f.niRepAction.kind === 'add' && niAddBusy !== null}
                                   onClick={() => {
                                     if (f.niRepAction!.kind === 'add') void runAddNiTarget(person.role);
-                                    else onOpenRepresentation?.();
+                                    else if (f.niRepAction!.kind === 'send') {
+                                      setNiInstructionsFor({
+                                        role: person.role,
+                                        name: person.name,
+                                        idNumberMasked: person.idNumber,
+                                      });
+                                    } else onOpenRepresentation?.();
                                   }}>
                                   {f.niRepAction.kind === 'add' && niAddBusy === person.role
                                     ? 'שומר…' : f.niRepAction.label}
@@ -2010,5 +2035,23 @@ export default function TaxFileTab({
         <span>אנשי קשר, תגיות, עובד מטפל ושדות תפעול נוספים — מחוץ לתיק המס.</span>
       </div>
     </div>
+    {niInstructionsFor && client.representationRequestId && (
+      <NiInstructionsDialog
+        personName={niInstructionsFor.name}
+        personRole={niInstructionsFor.role}
+        idNumberMasked={niInstructionsFor.idNumberMasked}
+        referenceNumber={(niInstructionsFor.role === 'spouse' ? niExecution?.spouse : niExecution?.client)?.referenceNumber}
+        deadline={(niInstructionsFor.role === 'spouse' ? niExecution?.spouse : niExecution?.client)?.deadline}
+        requestId={client.representationRequestId}
+        currentEmail={(niInstructionsFor.role === 'spouse' ? client.spouseEmail : client.email) || ''}
+        onSaveEmail={async email => {
+          if (!onUpdateClientFields) return;
+          await onUpdateClientFields(niInstructionsFor.role === 'spouse' ? { spouseEmail: email } : { email });
+        }}
+        onClose={() => setNiInstructionsFor(null)}
+        onSent={() => setNiInstructionsFor(null)}
+      />
+    )}
+    </>
   );
 }
