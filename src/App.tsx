@@ -839,47 +839,68 @@ export default function App() {
    * שתי כתיבות בלבד:
    *   1. authorityRepresentations.nationalInsurance.targets — מוסיף את
    *      התפקיד; ה-status הקיים (בד"כ in_process) נשאר כמות שהוא.
-   *   2. taxFiles — שורה חדשה ל-(national_insurance, owner=role) אם אין,
-   *      דרך מסלול העובדות המנוהלות (היסטוריה + field_meta), בלי fileNumber
-   *      — לעולם לא נגזר מת.ז.
+   *   2. taxFiles — שורת (national_insurance, owner=role) עוברת ל-'pending':
+   *      נוצרת אם אין, ומקודמת אם קיימת ב-'none'. דרך מסלול העובדות
+   *      המנוהלות (היסטוריה + field_meta), בלי fileNumber — לעולם לא נגזר מת.ז.
    * ‼ מסלול הביצוע (execution.nationalInsurance[Spouse]) מאותחל לאובייקט
    * ריק אם עוד אינו קיים, כדי שמרכז הייצוג יציג את המסלול השני מיד — לא
    * נכתב בו שום דבר שמעיד על פעולה שלא קרתה (לא enteredAt, לא הוראות).
+   *
+   * ‼ אידמפוטנטיות **לכל כתיבה בנפרד**, לא יציאה מוקדמת מהפונקציה כולה:
+   * כרטיס שכבר יש לו את התפקיד ב-targets אך שורת התיק שלו נשארה 'none'
+   * הוא בדיוק המצב שנוצר בייצור, ולחיצה נוספת חייבת להשלים אותו — ולא
+   * לחזור בלי לעשות כלום.
+   *
+   * מחזירה `null` בהצלחה, או הודעת שגיאה בעברית. ‼ לעולם לא בולעת כשל:
+   * לחיצה שנכשלה חייבת להיראות שונה מלחיצה שהצליחה.
    */
-  async function handleAddNiTarget(clientId: string, role: 'client' | 'spouse') {
+  async function handleAddNiTarget(clientId: string, role: 'client' | 'spouse'): Promise<string | null> {
     const client = clients.find(c => c.id === clientId);
-    if (!client) return;
-    const current = targetsOf(client.authorityRepresentations, 'nationalInsurance');
-    if (current.includes(role)) return;
-
-    const rec = client.authorityRepresentations?.nationalInsurance;
-    const updated = await updateClient({
-      ...client,
-      authorityRepresentations: {
-        ...client.authorityRepresentations,
-        nationalInsurance: { ...(rec ?? { status: 'in_process' as const }), targets: [...current, role] },
-      },
-    });
-
-    const hasFile = (updated.taxFiles ?? []).some(f => f.authority === 'national_insurance' && f.owner === role);
-    if (!hasFile) {
-      const files = [...(updated.taxFiles ?? []), {
-        id: `tf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        authority: 'national_insurance' as const, owner: role, repStatus: 'pending' as const,
-      }];
-      const res = await recordManualFactChange(
-        clientId, 'taxFiles', `מספר תיק — ביטוח לאומי${role === 'spouse' ? ' (בן/בת הזוג)' : ''}`,
-        '—', '—', { taxFiles: files },
-      );
-      if (res.ok && res.client) applyClientLocally(clientFromDb(res.client));
-    }
-
-    const req = findClientRepresentationRequest(clientId);
-    if (req) {
-      const execKey = role === 'spouse' ? 'nationalInsuranceSpouse' : 'nationalInsurance';
-      if (!req.execution?.[execKey]) {
-        await updateRequest({ ...req, execution: { ...req.execution, [execKey]: {} } });
+    if (!client) return 'הכרטיס לא נמצא';
+    try {
+      const current = targetsOf(client.authorityRepresentations, 'nationalInsurance');
+      let updated = client;
+      if (!current.includes(role)) {
+        const rec = client.authorityRepresentations?.nationalInsurance;
+        updated = await updateClient({
+          ...client,
+          authorityRepresentations: {
+            ...client.authorityRepresentations,
+            nationalInsurance: { ...(rec ?? { status: 'in_process' as const }), targets: [...current, role] },
+          },
+        });
       }
+
+      const files = updated.taxFiles ?? [];
+      const idx = files.findIndex(f => f.authority === 'national_insurance' && f.owner === role);
+      const existing = idx >= 0 ? files[idx] : undefined;
+      if (!existing || existing.repStatus === 'none') {
+        const next = existing
+          ? files.map((f, i) => (i === idx ? { ...f, repStatus: 'pending' as const } : f))
+          : [...files, {
+              id: `tf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              authority: 'national_insurance' as const, owner: role, repStatus: 'pending' as const,
+            }];
+        const res = await recordManualFactChange(
+          clientId, 'taxFiles', `ייצוג בביטוח לאומי${role === 'spouse' ? ' — בן/בת הזוג' : ''}`,
+          existing ? 'אין ייצוג' : '—', 'בתהליך', { taxFiles: next },
+        );
+        if (!res.ok) return res.error === 'stale_conflict'
+          ? 'הכרטיס השתנה בינתיים. רענן/י את המסך ונסה/י שוב.'
+          : res.error || 'שמירת שורת התיק נכשלה';
+        if (res.client) applyClientLocally(clientFromDb(res.client));
+      }
+
+      const req = findClientRepresentationRequest(clientId);
+      if (req) {
+        const execKey = role === 'spouse' ? 'nationalInsuranceSpouse' : 'nationalInsurance';
+        if (!req.execution?.[execKey]) {
+          await updateRequest({ ...req, execution: { ...req.execution, [execKey]: {} } });
+        }
+      }
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : 'השמירה נכשלה';
     }
   }
 
@@ -2481,7 +2502,7 @@ export default function App() {
             onOpenReleaseLetter={(clientId, stepId, mode) => openReleaseLetter(clientId, stepId, mode)}
             onOpenRepresentation={handleOpenClientRepresentation}
             onStartRepresentation={handleStartRepresentation}
-            onAddNiTarget={(clientId, role) => void handleAddNiTarget(clientId, role)}
+            onAddNiTarget={handleAddNiTarget}
             niExecution={selectedClient ? clientNiExecution(selectedClient.id) : undefined}
             journeyUi={journeyUi}
             checksTabEnabled={checksTab}

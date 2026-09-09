@@ -92,7 +92,7 @@ interface Props {
    * ייצוג — תיקון ממוקד על הכרטיס בלבד. ראה
    * docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
    */
-  onAddNiTarget?: (role: 'client' | 'spouse') => Promise<void> | void;
+  onAddNiTarget?: (role: 'client' | 'spouse') => Promise<string | null>;
   /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
 }
@@ -310,6 +310,25 @@ export default function TaxFileTab({
   const [busyChangeId, setBusyChangeId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [changeErrors, setChangeErrors] = useState<Record<string, string>>({});
+
+  // ‼ «בקש ייצוג» — נעילה בזמן הכתיבה (לחיצה כפולה לא תשלח שתי כתיבות)
+  // ושגיאה גלויה. לחיצה שנכשלה חייבת להיראות שונה מלחיצה שהצליחה.
+  const [niAddBusy, setNiAddBusy] = useState<'client' | 'spouse' | null>(null);
+  const [niAddError, setNiAddError] = useState<string | null>(null);
+
+  async function runAddNiTarget(role: 'client' | 'spouse') {
+    if (niAddBusy || !onAddNiTarget) return;
+    setNiAddBusy(role);
+    setNiAddError(null);
+    try {
+      const err = await onAddNiTarget(role);
+      if (err) setNiAddError(err);
+    } catch (e) {
+      setNiAddError(e instanceof Error ? e.message : 'השמירה נכשלה');
+    } finally {
+      setNiAddBusy(null);
+    }
+  }
 
   // ‼ הוק משימה אחד **לכל רשות אוטומטית**, לא אחד לשע״ם. קודם היה כאן
   // `shaamSync` יחיד, ולכן כל רשות אחרת קיבלה `job = null` לנצח — כלומר
@@ -1038,13 +1057,19 @@ export default function TaxFileTab({
                         'add' מוסיף target + טיוטת taxFiles על הכרטיס (בלי
                         בקשה שנייה); 'continue' מנווט למרכז הייצוג הקיים. */
                     : f.niAction
-                      ? <button type="button" className="ui-btn ui-btn-sm"
-                          onClick={() => {
-                            if (f.niAction!.kind === 'add') void onAddNiTarget?.('spouse');
-                            else onOpenRepresentation?.();
-                          }}>
-                          {f.niAction.label}
-                        </button>
+                      ? <>
+                          <button type="button" className="ui-btn ui-btn-sm"
+                            disabled={f.niAction.kind === 'add' && niAddBusy !== null}
+                            onClick={() => {
+                              if (f.niAction!.kind === 'add') void runAddNiTarget('spouse');
+                              else onOpenRepresentation?.();
+                            }}>
+                            {f.niAction.kind === 'add' && niAddBusy === 'spouse' ? 'שומר…' : f.niAction.label}
+                          </button>
+                          {f.niAction.kind === 'add' && niAddError && (
+                            <span className="txf-qt-err">{niAddError}</span>
+                          )}
+                        </>
                       : f.requestTitle && onCreateRequest
                         ? <button type="button" className="ui-btn ui-btn-sm"
                             disabled={creatingRequestKey === f.key}
@@ -1316,13 +1341,20 @@ export default function TaxFileTab({
                                 וטיוטת taxFiles על הכרטיס (לא בקשה שנייה);
                                 "המשך במרכז הייצוג" מנווט לבקשה הקיימת. */}
                             {f.niRepAction && !editingScalar && !editingTaxFileNumber && (
-                              <button type="button" className="ui-linkbtn"
-                                onClick={() => {
-                                  if (f.niRepAction!.kind === 'add') void onAddNiTarget?.(person.role);
-                                  else onOpenRepresentation?.();
-                                }}>
-                                {f.niRepAction.label}
-                              </button>
+                              <>
+                                <button type="button" className="ui-linkbtn"
+                                  disabled={f.niRepAction.kind === 'add' && niAddBusy !== null}
+                                  onClick={() => {
+                                    if (f.niRepAction!.kind === 'add') void runAddNiTarget(person.role);
+                                    else onOpenRepresentation?.();
+                                  }}>
+                                  {f.niRepAction.kind === 'add' && niAddBusy === person.role
+                                    ? 'שומר…' : f.niRepAction.label}
+                                </button>
+                                {f.niRepAction.kind === 'add' && niAddError && (
+                                  <div className="txf-qt-err">{niAddError}</div>
+                                )}
+                              </>
                             )}
                             {fieldCheck && !editingPerson && spec && (
                               <FieldAuthorityLine field={fieldCheck} sourceLabel={spec.sourceLabel} />

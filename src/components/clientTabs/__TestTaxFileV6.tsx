@@ -31,6 +31,9 @@ const CASE = new URLSearchParams(window.location.search).get('case') ?? 'complex
  */
 const CLIENT_ID_OVERRIDE = new URLSearchParams(window.location.search).get('client');
 
+/** `?fail` — מדמה כשל כתיבה ב"בקש ייצוג", לבדיקת הודעת השגיאה. */
+const DEMO_FAIL = new URLSearchParams(window.location.search).has('fail');
+
 const DAY = 86_400_000;
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY).toISOString();
 
@@ -269,6 +272,33 @@ const COUPLE_REP_CONFIRMED = {
   ],
 } as unknown as Client;
 
+/**
+ * ‼ הצורה שבאמת יושבת בייצור, וזו שהפילה את «בקש ייצוג»: לבן/בת הזוג **יש
+ * כבר** שורת תיק ב"ל — נולדה בקליטה — אבל היא `repStatus:'none'`, ואפילו עם
+ * מספר תיק. הפיקסצ'רים הקודמים לא כללו שורה כזו כלל, ולכן המעבר עבד בהם
+ * ונכשל אצל לקוח אמיתי. כאן «בקש ייצוג» חייב לקדם את השורה הקיימת ל-'pending'.
+ */
+const COUPLE_REP_LEGACY_NONE = {
+  ...COUPLE_REP_SPLIT,
+  taxFiles: [
+    ...(COUPLE_REP_SPLIT.taxFiles ?? []),
+    { id: 'f-legacy', authority: 'national_insurance', owner: 'spouse', repStatus: 'none', fileNumber: '019334215' },
+  ],
+} as unknown as Client;
+
+/**
+ * הכרטיס של גיא/דין **אחרי** הלחיצה שנראתה כאילו לא עשתה כלום: התפקיד כבר
+ * ב-targets, אבל שורת התיק נשארה 'none' ולכן השורה המשיכה להציג «אין ייצוג».
+ * לחיצה נוספת חייבת להשלים את התיקון — ולא לצאת בשקט כי ה-target כבר קיים.
+ */
+const COUPLE_REP_STUCK = {
+  ...COUPLE_REP_LEGACY_NONE,
+  authorityRepresentations: {
+    ...COUPLE_REP_LEGACY_NONE.authorityRepresentations,
+    nationalInsurance: { status: 'active', targets: ['client', 'spouse'] },
+  },
+} as unknown as Client;
+
 /** מסלולי הביצוע הסטטיים לכל תרחיש — רק couple-rep-inprogress צריך אחד. */
 const NI_EXECUTION_BY_CASE: Record<string, { client?: NiTracking; spouse?: NiTracking }> = {
   'couple-rep-inprogress': { spouse: { enteredAt: iso(3), referenceNumber: '73882698', deadline: '2026-10-12' } },
@@ -282,6 +312,7 @@ const CLIENTS: Record<string, Client> = {
   'couple-rep-split': COUPLE_REP_SPLIT, 'couple-rep-norequest': COUPLE_REP_NOREQUEST,
   'couple-rep-manual': COUPLE_REP_MANUAL, 'couple-rep-inprogress': COUPLE_REP_INPROGRESS,
   'couple-rep-confirmed': COUPLE_REP_CONFIRMED,
+  'couple-rep-legacy-none': COUPLE_REP_LEGACY_NONE, 'couple-rep-stuck': COUPLE_REP_STUCK,
 };
 
 const STEPS_ALIGNED = [
@@ -329,29 +360,43 @@ export default function TestTaxFileV6() {
 
   /**
    * "בקש ייצוג" — בדיוק מה ש-App.handleAddNiTarget עושה, מקומית בלי RPC:
-   * מוסיף target ל-authorityRepresentations.nationalInsurance, וטיוטת
-   * taxFiles ל-owner=role אם אין. אידמפוטנטי כמו המקור.
+   * מוסיף target ל-authorityRepresentations.nationalInsurance, ומביא את שורת
+   * taxFiles של owner=role ל-'pending' — יוצר אם אין, ומקדם אם קיימת ב-'none'.
+   * ‼ אידמפוטנטיות לכל כתיבה בנפרד, בדיוק כמו במקור: יציאה מוקדמת רק כי
+   * ה-target כבר קיים הייתה משאירה שורת 'none' תקועה (הבאג בייצור).
+   * ‼ `?fail` מדמה כישלון כתיבה — כדי לבדוק שהשגיאה מוצגת והכפתור נשאר.
    */
-  function handleDemoAddNiTarget(role: 'client' | 'spouse') {
-    if (CLIENT_ID_OVERRIDE) { alert(`בהדגמה — מוסיף ${role === 'spouse' ? 'בן/בת הזוג' : 'לקוח/ה'} לייצוג ב"ל`); return; }
+  async function handleDemoAddNiTarget(role: 'client' | 'spouse'): Promise<string | null> {
+    if (DEMO_FAIL) {
+      await new Promise(r => setTimeout(r, 400));
+      return 'שמירת שורת התיק נכשלה';
+    }
+    if (CLIENT_ID_OVERRIDE) { alert(`בהדגמה — מוסיף ${role === 'spouse' ? 'בן/בת הזוג' : 'לקוח/ה'} לייצוג ב"ל`); return null; }
+    await new Promise(r => setTimeout(r, 250));
     setDemoOverlay(prev => {
       const base = { ...fixture, ...prev } as Client;
       const current = targetsOf(base.authorityRepresentations, 'nationalInsurance');
-      if (current.includes(role)) return prev;
       const rec = base.authorityRepresentations?.nationalInsurance;
       const files = [...(base.taxFiles ?? [])];
-      if (!files.some(f => f.authority === 'national_insurance' && f.owner === role)) {
+      const idx = files.findIndex(f => f.authority === 'national_insurance' && f.owner === role);
+      if (idx < 0) {
         files.push({ id: `demo-tf-${role}`, authority: 'national_insurance', owner: role, repStatus: 'pending' });
+      } else if (files[idx].repStatus === 'none') {
+        files[idx] = { ...files[idx], repStatus: 'pending' };
       }
       return {
         ...prev,
         authorityRepresentations: {
           ...base.authorityRepresentations,
-          nationalInsurance: { ...(rec ?? { status: 'in_process' as const }), targets: [...current, role] },
+          nationalInsurance: {
+            ...(rec ?? { status: 'in_process' as const }),
+            targets: current.includes(role) ? current : [...current, role],
+          },
         },
         taxFiles: files,
       };
     });
+    return null;
   }
 
   return (
@@ -364,6 +409,7 @@ export default function TestTaxFileV6() {
           'complex', 'salary', 'sparse', 'stale', 'never', 'business', 'self', 'none',
           'couple', 'couple-nospouseid', 'couple-linked', 'couple-onlyspouse', 'divorced', 'single-ni',
           'couple-rep-split', 'couple-rep-norequest', 'couple-rep-manual', 'couple-rep-inprogress', 'couple-rep-confirmed',
+          'couple-rep-legacy-none', 'couple-rep-stuck',
         ].map(c => (
           <a key={c} href={`?test-taxfile&case=${c}`}>{c}</a>
         ))}

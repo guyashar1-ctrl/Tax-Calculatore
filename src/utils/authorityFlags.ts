@@ -150,7 +150,11 @@ function niSpouseRepresentationFlag(
   return [{
     key: 'niSpouseNotRepresented',
     severity: 'medium',
-    title: `${spouse.name} אינו/ה מיוצג/ת בביטוח לאומי`,
+    // ‼ הכותרת נגזרת מאותו `kind` כמו הגוף. כותרת קבועה «אינו/ה מיוצג/ת»
+    // מעל גוף שאומר «ממתינים לאישור» סותרת את עצמה מיד אחרי «בקש ייצוג».
+    title: line.kind === 'pending'
+      ? `ייצוג בביטוח לאומי — ${spouse.name}`
+      : `${spouse.name} אינו/ה מיוצג/ת בביטוח לאומי`,
     why,
     actions: [],
     niAction: action,

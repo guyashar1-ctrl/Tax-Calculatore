@@ -170,12 +170,18 @@ export function niRepresentationOf(
     return { v: 'בתהליך', represented: true, kind: 'pending', detail: 'הוזן בביטוח לאומי · ממתין לאסמכתא' };
   }
 
-  if (file) {
+  // ‼ `repStatus:'none'` על שורת תיק הוא **היעדר ראיה**, לא ראיה שהייצוג לא
+  // התבקש: השורה הזו נולדת בקליטה לכל בעלים, גם למי שמעולם לא נשקל עבורו
+  // ייצוג. אם היא עוצרת כאן, היא מסתירה בקשה שכן נרשמה ב-`targets` — וזה
+  // בדיוק מה שקרה בייצור: «בקש ייצוג» נכתב במסד, והשורה המשיכה להציג «אין
+  // ייצוג». לכן רק שורה שאומרת משהו (`pending`) מכריעה; `'none'` ממשיכה
+  // הלאה, ואם גם שם אין ראיה — הנפילה-אחורה מחזירה «אין ייצוג» כמו קודם.
+  if (file && file.repStatus !== 'none') {
     return {
       v: TAX_FILE_REP_STATUS_LABELS[file.repStatus],
-      represented: file.repStatus !== 'none',
-      kind: file.repStatus === 'pending' ? 'pending' : 'none',
-      detail: file.repStatus === 'pending' ? 'טרם הוזן בביטוח לאומי' : undefined,
+      represented: true,
+      kind: 'pending',
+      detail: 'טרם הוזן בביטוח לאומי',
     };
   }
 

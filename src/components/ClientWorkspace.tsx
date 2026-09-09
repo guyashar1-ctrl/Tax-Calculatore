@@ -140,7 +140,8 @@ interface Props {
    * ייצוג — תיקון ממוקד על הכרטיס בלבד, לא בקשה שנייה. ראה
    * docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
    */
-  onAddNiTarget?: (clientId: string, role: 'client' | 'spouse') => Promise<void> | void;
+  /** מחזירה `null` בהצלחה, או הודעת שגיאה בעברית להצגה ליד הכפתור. */
+  onAddNiTarget?: (clientId: string, role: 'client' | 'spouse') => Promise<string | null>;
   /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
   // ─── דף המסע ───
