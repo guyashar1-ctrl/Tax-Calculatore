@@ -18,7 +18,7 @@ import type { Client } from '../types';
 import type { AnnualReportSession } from '../features/annualReport/types';
 import { computeDiffs, toProposedFact, isApplicable } from '../features/annualReport/reconcile';
 import type { Diff } from '../features/annualReport/reconcile';
-import { proposeTaxFacts, acceptTaxFactChange } from './taxFacts';
+import { proposeTaxFacts, applyTaxFacts } from './taxFacts';
 import { clientFromDb } from './dbMappers';
 import { supabase } from './supabase';
 
@@ -78,25 +78,46 @@ export async function syncIntakeSession(
   let latest = client;
   const applied: { label: string; value: string }[] = [];
 
-  // ── חדשים: מציעים ומאשרים מיד. הלקוח מסר, אין בתיק ערך נגדי. ──
-  for (const d of fresh) {
-    const res = await proposeTaxFacts(client.id, 'questionnaire', session.id, [toProposedFact(d, latest)]);
-    if (!res.ok || !res.change?.id) continue;
-    const acc = await acceptTaxFactChange(res.change.id);
-    if (acc.ok) {
-      if (acc.client) latest = clientFromDb(acc.client);
-      applied.push({ label: d.label, value: d.fromQuestionnaire });
+  // ── חדשים: קריאה אחת שמציעה ומחילה את כולם בטרנזקציה אחת ──────────────────
+  // ‼ עד מיגרציה 162 זה היה לולאה של propose→accept, וה-accept מעולם לא רץ:
+  // propose לא החזירה מזהה, `res.change?.id` היה תמיד undefined, וה-continue
+  // דילג על כל פריט. התוצאה: אפס עובדות נכתבו, ו-facts_synced_at נכתב בכל
+  // מקרה — כך שהסשן נחשב "נקלט" ולא נקלט שוב לעולם.
+  if (fresh.length > 0) {
+    const pairs = fresh.map(d => ({ d, fact: toProposedFact(d, latest) }));
+    const res = await applyTaxFacts(
+      client.id, 'questionnaire', session.id, pairs.map(p => p.fact));
+
+    // ‼ כישלון עוצר כאן, **לפני** חותמת הקליטה. כך ניסיון חוזר עדיין אפשרי.
+    if (!res.ok) {
+      return { applied: [], conflicts: 0, error: res.error ?? 'קליטת השאלון נכשלה' };
+    }
+    if (res.client) latest = clientFromDb(res.client);
+    for (const outcome of res.results ?? []) {
+      if (outcome.outcome === 'pending_conflict') continue;
+      const hit = pairs.find(p => p.fact.fieldKey === outcome.fieldKey);
+      if (hit) applied.push({ label: hit.d.label, value: hit.d.fromQuestionnaire });
     }
   }
 
   // ── סותרים: מציעים בלבד. ההכרעה של הרו"ח, בתיק המס. ──
   if (conflicting.length > 0) {
-    await proposeTaxFacts(
+    const proposed = await proposeTaxFacts(
       client.id, 'questionnaire', session.id,
       conflicting.map(d => toProposedFact(d, latest)),
     );
+    if (!proposed.ok) {
+      return {
+        applied,
+        conflicts: conflicting.length,
+        client: latest === client ? undefined : latest,
+        error: proposed.error ?? 'רישום הסתירות נכשל',
+      };
+    }
   }
 
+  // ‼ החותמת נכתבת רק אחרי ששני השלבים למעלה הצליחו. היא צורכת את
+  // האידמפוטנטיות של הסשן, ולכן אסור לה להיכתב על ריצה שלא כתבה כלום.
   const { error } = await supabase
     .from('annual_report_sessions')
     .update({ facts_synced_at: new Date().toISOString() })

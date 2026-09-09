@@ -49,6 +49,8 @@ interface Props {
   status?: string;
   onApprove?: (sig: ApprovalSignature) => void;
   approving?: boolean;
+  /** ‼ האישור נכשל בשרת. חייב להיראות: אחרת הלקוח לוחץ ולא קורה כלום. */
+  approveError?: string;
   onDownloadPdf?: () => void;
   /** קישור השלמת פרטי הייצוג — הלקוח מועבר אליו אוטומטית מיד לאחר האישור. */
   nextStepLink?: string;
@@ -72,7 +74,7 @@ const CATEGORY_PRICE_SUFFIX: Record<ServiceCategory, string> = {
 };
 
 export default function QuotationWebView({
-  data, brand, compact, interactive, status, onApprove, approving, onDownloadPdf, nextStepLink, nextStepAuto,
+  data, brand, compact, interactive, status, onApprove, approving, approveError, onDownloadPdf, nextStepLink, nextStepAuto,
 }: Props) {
   const totals = calcTotals(data.items, data.vatRate);
   const repAuthorities = representationAuthorities(data.representation);
@@ -351,6 +353,11 @@ export default function QuotationWebView({
               needsSignature={!isApproved && !isDead && !signature}
               onClick={() => onApprove?.({ signatureDataUrl: signature, signerName: (signerName.trim() || data.recipientName).trim() })}
             />
+            {approveError && (
+              <div role="alert" style={{ marginTop: 10, padding: '10px 12px', borderRadius: brand.radius, background: 'rgba(220,38,38,.16)', border: '1px solid rgba(248,113,113,.5)', color: '#fecaca', fontSize: 13, lineHeight: 1.6, textAlign: 'center' }}>
+                {approveError}
+              </div>
+            )}
             {onDownloadPdf && (
               <button onClick={onDownloadPdf} style={{ width: '100%', marginTop: 10, padding: '11px', borderRadius: brand.buttonStyle === 'pill' ? 999 : brand.radius, border: '1px solid rgba(255,255,255,.28)', background: 'transparent', color: '#fff', fontSize: 13.5, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer' }}>
                 הורדת ההצעה כ־PDF

@@ -14,7 +14,7 @@ import type { OnboardingStep } from '../../types/onboarding';
 import { INSTITUTION_NAMES } from '../../types/onboarding';
 import type { InstitutionKey } from '../../types/onboarding';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
-import { proposeTaxFacts, acceptTaxFactChange } from '../../lib/taxFacts';
+import { applyTaxFacts } from '../../lib/taxFacts';
 import { clientFromDb } from '../../lib/dbMappers';
 import { supabase } from '../../lib/supabase';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
@@ -280,19 +280,33 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
  */
 async function proposeAndAccept(
   client: Client, sourceRef: string, fieldKey: string, label: string, display: string, patch: unknown,
-): Promise<{ client: Client | null; pending: boolean }> {
+): Promise<{ client: Client | null; pending: boolean; error?: string }> {
   const oldRaw = (client as unknown as Record<string, unknown>)[fieldKey];
-  const propose = await proposeTaxFacts(client.id, 'institution_alignment', sourceRef, [
+  // ‼ קריאה אחת שמציעה ומחילה בשרת. עד מיגרציה 162 זה היה צמד קריאות, והשנייה
+  // מעולם לא רצה: propose לא החזירה מזהה, הבדיקה על propose.change?.id נכשלה
+  // תמיד, והפונקציה חזרה כאילו הכל תקין. «סיים יישור» סימן הושלם בלי לכתוב.
+  const res = await applyTaxFacts(client.id, 'institution_alignment', sourceRef, [
     {
       fieldKey, label,
       oldValue: { display: String(oldRaw ?? '-'), patch: { [fieldKey]: oldRaw ?? null } },
       newValue: { display, patch: { [fieldKey]: patch } },
     },
   ]);
-  if (!propose.ok || !propose.change?.id) return { client: null, pending: false };
-  const accept = await acceptTaxFactChange(propose.change.id);
-  if (!accept.ok) return { client: null, pending: accept.error === 'stale_conflict' };
-  return { client: accept.client ? clientFromDb(accept.client) : null, pending: false };
+  // ‼ כישלון מוחזר ולא נבלע. הקורא עוצר לפני שהוא מסמן את השלב כהושלם.
+  if (!res.ok) return { client: null, pending: false, error: res.error ?? 'שמירת העובדה נכשלה' };
+  return {
+    client: res.client ? clientFromDb(res.client) : null,
+    pending: res.results?.[0]?.outcome === 'pending_conflict',
+  };
+}
+
+/**
+ * ‼ שער אחד לכל קריאות העובדות בלולאה. כישלון של פריט בודד מפיל את הפעולה
+ * כולה — לפני שהשלב מסומן כהושלם. זה בדיוק מה שלא קרה עד היום: הכישלון
+ * הוחזר בשקט, הלולאה המשיכה, והשלב נסגר כאילו הכל נכתב.
+ */
+function assertApplied(res: { error?: string }): void {
+  if (res.error) throw new Error(res.error);
 }
 
 /**
@@ -587,6 +601,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
           const patchVal = f.toPatchValue ? f.toPatchValue(String(raw)) : raw;
           const res = await proposeAndAccept(
             latestClient, step.id, f.governedKey, f.label, displayValue(f, raw), patchVal);
+          assertApplied(res);
           if (res.client) latestClient = res.client;
           if (res.pending) pendingCount++;
         }
@@ -595,6 +610,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
         const res = await proposeAndAccept(
           latestClient, step.id, 'niOccupations', 'עיסוקים בביטוח לאומי',
           selectedOccupations.length ? `${selectedOccupations.length} עיסוקים` : '-', selectedOccupations);
+        assertApplied(res);
         if (res.client) latestClient = res.client;
         if (res.pending) pendingCount++;
       }
@@ -603,6 +619,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
         const exempt = fullCollected.withholdingStatus === 'פטור מניכוי';
         const res = await proposeAndAccept(
           latestClient, step.id, 'hasExemptFromWithholding', 'פטור מניכוי במקור', exempt ? 'כן' : 'לא', exempt);
+        assertApplied(res);
         if (res.client) latestClient = res.client;
         if (res.pending) pendingCount++;
       }
@@ -616,6 +633,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
           const patchVal = exc.governedPatch(bad);
           const res = await proposeAndAccept(
             latestClient, step.id, exc.governedKey, exc.label, val, patchVal);
+          assertApplied(res);
           if (res.client) latestClient = res.client;
           if (res.pending) pendingCount++;
         }
@@ -625,6 +643,7 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
           if (raw !== undefined && raw !== '' && f.governedKey) {
             const patchVal = f.toPatchValue ? f.toPatchValue(String(raw)) : raw;
             const res = await proposeAndAccept(latestClient, step.id, f.governedKey, f.label, String(raw), patchVal);
+            assertApplied(res);
             if (res.client) latestClient = res.client;
             if (res.pending) pendingCount++;
           }

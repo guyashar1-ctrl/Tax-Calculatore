@@ -45,10 +45,58 @@ export async function proposeTaxFacts(
   return data as TaxFactRpcResult;
 }
 
+/** תוצאת פריט בודד ב-applyTaxFacts. שלוש אפשרויות, כולן מפורשות. */
+export interface AppliedFactOutcome {
+  fieldKey: string;
+  /** applied = נכתב · already_applied = כבר היה שם · pending_conflict = לא נדרס */
+  outcome: 'applied' | 'already_applied' | 'pending_conflict';
+  changeId?: string;
+}
+
+export interface ApplyTaxFactsResult {
+  ok: boolean;
+  error?: string;
+  applied?: number;
+  pending?: number;
+  results?: AppliedFactOutcome[];
+  client?: Record<string, any>;
+}
+
+/**
+ * מציע **ומחיל** עובדות בקריאה אחת, בטרנזקציה אחת בשרת.
+ *
+ * ‼ למה זה קיים: הצמד propose→accept משני צדי הרשת היה שבור. propose_tax_facts
+ * לא החזירה מזהים, הקוראים בדקו `propose.change?.id`, וקיבלו undefined — כך
+ * ששורת האישור מעולם לא רצה. «סיים יישור» דיווח הצלחה ולא כתב כלום לתיק.
+ * ראה supabase/162-p0-apply-tax-facts.sql.
+ *
+ * ‼ בטוח לניסיון חוזר: ערך שכבר הוחל חוזר כ-already_applied ולא כסתירה.
+ */
+export async function applyTaxFacts(
+  clientId: string,
+  source: 'questionnaire' | 'institution_alignment' | 'import' | 'automation',
+  sourceRef: string | null,
+  items: ProposedFact[],
+): Promise<ApplyTaxFactsResult> {
+  if (items.length === 0) return { ok: true, applied: 0, pending: 0, results: [] };
+  const { data, error } = await supabase.rpc('apply_tax_facts', {
+    p_client_id: clientId,
+    p_source: source,
+    p_source_ref: sourceRef,
+    p_items: items.map(i => ({
+      field_key: i.fieldKey, label: i.label,
+      old_value: i.oldValue ?? null, new_value: i.newValue, note: i.note ?? null,
+    })),
+  });
+  if (error) return { ok: false, error: error.message };
+  return data as ApplyTaxFactsResult;
+}
+
 /**
  * ההצעות הממתינות של לקוח — לשימוש מיידי אחרי propose, כשצריך את המזהים
- * כדי לאשר. ‼ propose_tax_facts מחזירה {ok, proposed} בלבד ולא מזהים, ולכן
- * האישור המקובץ («אשר N שינויים») קורא כאן אחרי ההצעה, ומאשר לפי מפתח שדה.
+ * כדי לאשר. ‼ propose_tax_facts מחזירה מעכשיו גם changes[] (מיגרציה 162),
+ * אבל האישור המקובץ («אשר N שינויים») ממשיך לקרוא כאן: הוא מאשר גם הצעות
+ * שנוצרו בריצות קודמות ולא רק את אלה שהוא עצמו הגיש.
  */
 export async function listPendingTaxFactChanges(clientId: string): Promise<TaxFactChange[]> {
   const { data, error } = await supabase

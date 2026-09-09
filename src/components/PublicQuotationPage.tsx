@@ -47,6 +47,7 @@ export default function PublicQuotationPage({ token }: Props) {
   const [info, setInfo] = useState<QuotationInfo | null>(null);
   const [status, setStatus] = useState<string>('');
   const [approving, setApproving] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
   // הצעד הבא של הלקוח — נחשף רק לאחר אישור, ומוצג מיד באותו מסך
   const [nextStepLink, setNextStepLink] = useState<string | null>(null);
   // מעבר אוטומטי רץ רק אחרי אישור חי. לקוח שחזר לקישור מקבל את הקישור בלבד,
@@ -99,12 +100,21 @@ export default function PublicQuotationPage({ token }: Props) {
    */
   async function handleApprove(sig: ApprovalSignature) {
     setApproving(true);
+    setApproveError(null);
     try {
-      const { data } = await supabase.rpc('approve_quotation', {
+      const { data, error } = await supabase.rpc('approve_quotation', {
         p_token: token,
         p_signature: sig.signatureDataUrl,
         p_signer_name: sig.signerName,
       });
+      // ‼ עד מיגרציה 161 השרת בלע כשל ביצירת ההתקשרות והחזיר "אושר" בכל מקרה,
+      // ולכן לא היה מה לבדוק כאן. עכשיו כשל הוא כשל — והוא חייב להיראות על
+      // המסך. אישור שקרי אינו מתגלה לאף אחד; שגיאה גלויה מביאה ללחיצה נוספת
+      // (שבטוחה — הפעולה אידמפוטנטית) או לפנייה לרו"ח.
+      if (error) {
+        setApproveError('האישור לא הושלם ולא נשמר. אפשר לנסות שוב, ואם זה חוזר — צרו קשר עם המשרד.');
+        return;
+      }
       // אין onboardingToken ⇒ אין מה להשלים: ללקוח כבר קיים תהליך ייצוג שמולא.
       // אסור לשלוח לו "נשאר לאמת את הזהות" ולהעביר אותו לטופס שכבר מילא.
       const result = (typeof data === 'string' ? { status: data } : data) as
@@ -174,6 +184,7 @@ export default function PublicQuotationPage({ token }: Props) {
       status={status}
       onApprove={handleApprove}
       approving={approving}
+      approveError={approveError ?? undefined}
       onDownloadPdf={handleDownloadPdf}
       nextStepLink={nextStepLink ?? undefined}
       nextStepAuto={autoAdvancing}
