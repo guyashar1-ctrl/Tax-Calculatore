@@ -132,6 +132,15 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse, l
   // בן/בת זוג שהוזנה מראש לא הייתה מגיעה לכאן בכלל.
   const pre = request.prefill || {};
 
+  // ‼ 165 (תיקון "צילום היסטורי"): זהות בן/בת הזוג נגזרת מהכרטיס הקנוני
+  // קודם — לא מהצילום שנשמר על הבקשה בזמן שנוצרה. תנאי-הקדם כותבים לכרטיס,
+  // ולכן עדכון שם/ת.ז./שנת לידה אחרי יצירת הבקשה חייב להופיע כאן. הצילום
+  // נשאר רק גיבוי לבקשות ישנות בלי כרטיס מקושר.
+  const spouseFirstNameCanonical = linkedClient?.spouseFirstName || id.spouseFirstName || pre.spouseFirstName || '';
+  const spouseLastNameCanonical = linkedClient?.spouseLastName || id.spouseLastName || pre.spouseLastName || '';
+  const spouseIdNumberCanonical = linkedClient?.spouseIdNumber || id.spouseIdNumber || pre.spouseIdNumber || '';
+  const spouseBirthYearCanonical = linkedClient?.spouseBirthYear ?? id.spouseBirthYear ?? pre.spouseBirthYear;
+
   // בקשות מלפני הטופס המלא שמרו שם מלא אחד בלבד; מפצלים כדי שיהיה מה להעתיק.
   const nameParts = (request.clientName || '').trim().split(/\s+/).filter(Boolean);
   const firstName = id.firstName || pre.firstName || nameParts[0] || '';
@@ -172,8 +181,8 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse, l
   // גם מהשדות המפוצלים — בדיוק כמו niSpouseRows למטה: רשומה שנכתבה עם שם
   // מפוצל בלבד היא עדיין משק בית נשוי.
   const spouseFullForScope = (
-    (id.spouseName || pre.spouseName || '').trim()
-    || `${id.spouseFirstName || pre.spouseFirstName || ''} ${id.spouseLastName || pre.spouseLastName || ''}`.trim()
+    `${spouseFirstNameCanonical} ${spouseLastNameCanonical}`.trim()
+    || (id.spouseName || pre.spouseName || '').trim()
   );
   const scopePeople: ScopePeople = {
     married: (id.familyStatus || pre.familyStatus) === 'married' && !!spouseFullForScope,
@@ -187,9 +196,9 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse, l
   );
 
   const spouseShaamRows: Row[] = [
-    { label: 'שם פרטי', value: id.spouseFirstName || pre.spouseFirstName || '' },
-    { label: 'שם משפחה', value: id.spouseLastName || pre.spouseLastName || '' },
-    { label: 'תעודת זהות', value: id.spouseIdNumber || pre.spouseIdNumber || '' },
+    { label: 'שם פרטי', value: spouseFirstNameCanonical },
+    { label: 'שם משפחה', value: spouseLastNameCanonical },
+    { label: 'תעודת זהות', value: spouseIdNumberCanonical },
     { label: 'תאריך לידה', value: birthDateDisplay(id.spouseBirthDate), copyValue: birthDateCopy(id.spouseBirthDate) },
     {
       label: id.spouseSecondaryType ? ONBOARDING_SECONDARY_LABELS[id.spouseSecondaryType] : 'מזהה משני',
@@ -207,16 +216,16 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse, l
   ];
 
   // ייפוי כוח שני בב"ל, על שם בן/בת הזוג. השם המפוצל שהלקוח מילא בקליטה הוא
-  // המקור (110); פיצול המחרוזת נשאר רק לרשומות ישנות שאין בהן שדות מפוצלים.
+  // המקור (110); פיצול המחרוזת נשאר רק לרשומות ישנות שאין בהן שדות מפוצלים
+  // וגם בלי ערך קנוני על הכרטיס.
   const spouseFull = (id.spouseName || pre.spouseName || '').trim();
   const spouseParts = spouseFull.split(/\s+/).filter(Boolean);
-  const spouseBirthYear = id.spouseBirthYear ?? pre.spouseBirthYear;
-  const spouseFirst = id.spouseFirstName || pre.spouseFirstName || spouseParts[0] || '';
+  const spouseFirst = spouseFirstNameCanonical || spouseParts[0] || '';
   const niSpouseRows: Row[] = [
-    { label: 'תעודת זהות', value: id.spouseIdNumber || pre.spouseIdNumber || '' },
-    { label: 'שנת לידה', value: spouseBirthYear ? String(spouseBirthYear) : '' },
+    { label: 'תעודת זהות', value: spouseIdNumberCanonical },
+    { label: 'שנת לידה', value: spouseBirthYearCanonical ? String(spouseBirthYearCanonical) : '' },
     { label: 'שם פרטי', value: spouseFirst },
-    { label: 'שם משפחה', value: id.spouseLastName || pre.spouseLastName || spouseParts.slice(1).join(' ') },
+    { label: 'שם משפחה', value: spouseLastNameCanonical || spouseParts.slice(1).join(' ') },
   ];
 
   return (

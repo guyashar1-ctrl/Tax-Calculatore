@@ -69,6 +69,7 @@ import {
 import EmailInput from '../ui/EmailInput';
 import InfoLines from '../ui/InfoLines';
 import NiInstructionsDialog from '../NiInstructionsDialog';
+import ParticipantLinkDialog from '../ParticipantLinkDialog';
 
 interface Props {
   clientId: string;
@@ -315,6 +316,11 @@ export default function OnboardingTab({
   const [niInstructionsFor, setNiInstructionsFor] = useState<{
     role: 'client' | 'spouse'; name: string; idNumberMasked?: string;
   } | null>(null);
+  // ‼ 165: "שלח ל-X להשלמת פרטים" — קישור חדש נוצר בפתיחה (ParticipantLinkDialog);
+  // missingLabels רק לתצוגה בדיאלוג, לא חלק מהזהות.
+  const [participantLinkFor, setParticipantLinkFor] = useState<{
+    stepId: string; requestId: string; role: 'client' | 'spouse'; name: string; missingLabels: string[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [busyStepId, setBusyStepId] = useState<string | null>(null);
@@ -361,6 +367,18 @@ export default function OnboardingTab({
   useEffect(() => () => {
     if (highlightTimer.current) window.clearTimeout(highlightTimer.current);
   }, []);
+
+  /** 165: "מלא פרטים עכשיו" — הכותב הקנוני היחיד; ההצלחה מזיזה את הכרטיס
+   *  אוטומטית דרך הסנכרון שה-RPC כבר מריץ בסופו. */
+  async function handleCompletePrerequisites(stepId: string, values: Record<string, string>) {
+    const { data, error: e } = await supabase.rpc('complete_request_prerequisites', {
+      p_step_id: stepId, p_values: values,
+    });
+    if (e || !data) return { ok: false as const, reason: undefined };
+    if (!data.ok) return { ok: false as const, reason: data.reason as string | undefined };
+    refresh?.();
+    return { ok: true as const };
+  }
 
   /* ‼ תפריט ⋯ נסגר בלחיצה בחוץ וב-Escape. בלי זה הוא נשאר פתוח על כרטיס
      אחד בזמן שעובדים על אחר, ושתי שכבות פתוחות בו-זמנית נראות כתקלה. */
@@ -1261,6 +1279,7 @@ export default function OnboardingTab({
               if (step.stepType === 'authority_representation') {
                 const subjectRole = step.payload?.subjectRole === 'spouse' ? 'spouse' : 'client';
                 const track = subjectRole === 'spouse' ? niExecution?.spouse : niExecution?.client;
+                const subjectName = String(step.payload?.subjectName ?? rowTitle(step));
                 return (
                   <AuthorityRepresentationStepCard
                     key={step.id}
@@ -1270,8 +1289,26 @@ export default function OnboardingTab({
                     track={track}
                     onSendInstructions={() => setNiInstructionsFor({
                       role: subjectRole,
-                      name: String(step.payload?.subjectName ?? rowTitle(step)),
+                      name: subjectName,
                     })}
+                    onCompletePrerequisites={(values) => handleCompletePrerequisites(step.id, values)}
+                    onSendParticipantLink={() => {
+                      const missing: string[] = (step.payload?.prerequisites as { missing?: string[] } | undefined)?.missing ?? [];
+                      setParticipantLinkFor({
+                        stepId: step.id,
+                        requestId: String(step.payload?.representationRequestId ?? ''),
+                        role: subjectRole,
+                        name: subjectName,
+                        missingLabels: missing.map(k => PREREQUISITE_FIELD_LABELS[k] ?? k),
+                      });
+                    }}
+                    currentValues={{
+                      spouseFirstName: client.spouseFirstName, spouseLastName: client.spouseLastName,
+                      spouseIdNumber: client.spouseIdNumber,
+                      spouseBirthYear: client.spouseBirthYear ? String(client.spouseBirthYear) : undefined,
+                      firstName: client.firstName, lastName: client.lastName, idNumber: client.idNumber,
+                      birthDate: client.birthDate,
+                    }}
                     menu={menu}
                   />
                 );
@@ -2195,6 +2232,22 @@ export default function OnboardingTab({
         onSent={() => { setNiInstructionsFor(null); void (onNiInstructionsSent ? onNiInstructionsSent() : refresh?.()); }}
       />
     )}
+    {participantLinkFor && (
+      <ParticipantLinkDialog
+        personName={participantLinkFor.name}
+        personRole={participantLinkFor.role}
+        missingLabels={participantLinkFor.missingLabels}
+        requestId={participantLinkFor.requestId}
+        stepId={participantLinkFor.stepId}
+        currentEmail={(participantLinkFor.role === 'spouse' ? client.spouseEmail : client.email) || ''}
+        onSaveEmail={async email => {
+          if (!onUpdateClientFields) return;
+          await onUpdateClientFields(participantLinkFor.role === 'spouse' ? { spouseEmail: email } : { email });
+        }}
+        onClose={() => setParticipantLinkFor(null)}
+        onDone={() => { setParticipantLinkFor(null); refresh?.(); }}
+      />
+    )}
     </>
   );
 }
@@ -2990,46 +3043,148 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
  * בסגירה — ראה sync_authority_representation_steps). חמישה מצבים:
  * הזנה בפורטל → ממתין לאסמכתא → מוכן לשליחה → נשלח וממתינים לאישור → פעיל.
  */
-function AuthorityRepresentationStepCard({ step, stepById, highlight, track, onSendInstructions, menu }: {
+// ‼ 165: תוויות זהות למרשם requirements_for_step ב-SQL — לתצוגה בלבד.
+const PREREQUISITE_FIELD_LABELS: Record<string, string> = {
+  spouseFirstName: 'שם פרטי', spouseLastName: 'שם משפחה',
+  spouseIdNumber: 'תעודת זהות', spouseBirthYear: 'שנת לידה',
+  firstName: 'שם פרטי', lastName: 'שם משפחה', idNumber: 'תעודת זהות', birthDate: 'תאריך לידה',
+};
+const PREREQUISITE_FIELD_KIND: Record<string, 'text' | 'idNumber' | 'year' | 'date'> = {
+  spouseFirstName: 'text', spouseLastName: 'text', spouseIdNumber: 'idNumber', spouseBirthYear: 'year',
+  firstName: 'text', lastName: 'text', idNumber: 'idNumber', birthDate: 'date',
+};
+
+interface StepPrerequisites {
+  missing?: string[];
+  required?: string[];
+  link?: { sentAt?: string | null; openedAt?: string | null; expiresAt?: string | null } | null;
+}
+
+function AuthorityRepresentationStepCard({
+  step, stepById, highlight, track, onSendInstructions, onCompletePrerequisites, onSendParticipantLink,
+  currentValues, menu,
+}: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
   track?: NiTracking;
   onSendInstructions: () => void;
+  onCompletePrerequisites: (values: Record<string, string>) => Promise<{ ok: boolean; reason?: string }>;
+  onSendParticipantLink: () => void;
+  currentValues: Record<string, string | undefined>;
   menu: React.ReactNode;
 }) {
   const open = isStepOpen(step.status);
   const readyToSend = !!track?.referenceNumber && !track?.instructionsSentAt
     && track?.instructionsSentWith !== 'signature';
   const sent = !!track?.instructionsSentAt;
+  const subjectName = String(step.payload?.subjectName ?? 'הנושא');
+  const prereqs = step.payload?.prerequisites as StepPrerequisites | undefined;
+  const missing = prereqs?.missing ?? [];
+  const required = prereqs?.required ?? [];
+  const gated = open && missing.length > 0;
+
+  const [filling, setFilling] = useState(false);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function startFilling() {
+    setValues(Object.fromEntries(required.map(k => [k, currentValues[k] ?? ''])));
+    setFormError(null);
+    setFilling(true);
+  }
+
+  async function submitPrereqs() {
+    setBusy(true); setFormError(null);
+    const res = await onCompletePrerequisites(values);
+    setBusy(false);
+    if (!res.ok) {
+      setFormError(res.reason === 'invalid_value' ? 'אחד השדות אינו תקין — בדקו את הפורמט.' : 'השמירה נכשלה. נסו שוב.');
+      return;
+    }
+    setFilling(false);
+  }
+
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}>
-      <div style={cardNote}>
-        {track?.confirmedAt
-          ? 'הייצוג אושר בביטוח לאומי.'
-          : sent
-            ? `הוראות האישור נשלחו ב-${new Date(track!.instructionsSentAt!).toLocaleDateString('he-IL')} — ממתינים לאישור בביטוח לאומי${track?.deadline ? ` עד ${new Date(track.deadline).toLocaleDateString('he-IL')}` : ''}.`
-            : readyToSend
-              ? `האסמכתא התקבלה (${track!.referenceNumber}) — נדרש לשלוח הוראות אישור.`
-              : track?.enteredAt
-                ? 'הוזן בביטוח לאומי · ממתין לאסמכתא.'
-                : open
-                  ? 'יש להזין את הייצוג בפורטל הביטוח הלאומי.'
-                  : 'הבקשה נסגרה.'}
-      </div>
-      {open && readyToSend && (
-        <div style={{ marginTop: '.55rem' }}>
-          <button type="button" className="btn btn-sm btn-primary" onClick={onSendInstructions}>
-            שלח הוראות אישור
-          </button>
+      {gated && !filling && (
+        <>
+          <div style={cardNote}>
+            {`נדרשים פרטים מ${subjectName} כדי להמשיך — חסר: ${missing.map(k => PREREQUISITE_FIELD_LABELS[k] ?? k).join(', ')}.`}
+          </div>
+          {prereqs?.link?.sentAt && (
+            <div style={{ ...cardNote, marginTop: '.25rem' }}>
+              {`נשלח קישור ל${subjectName} · ${new Date(prereqs.link.sentAt).toLocaleDateString('he-IL')}${prereqs.link.openedAt ? ' · נפתח' : ''} — טרם הוגש.`}
+            </div>
+          )}
+          <div style={{ marginTop: '.55rem', display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+            <button type="button" className="btn btn-sm btn-primary" onClick={startFilling}>
+              מלא פרטים עכשיו
+            </button>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={onSendParticipantLink}>
+              {prereqs?.link?.sentAt ? 'שלח שוב' : `שלח ל${subjectName} להשלמת פרטים`}
+            </button>
+          </div>
+        </>
+      )}
+
+      {gated && filling && (
+        <div style={{ marginTop: '.15rem', display: 'grid', gap: '.55rem' }}>
+          {required.map(key => (
+            <label key={key} style={{ display: 'grid', gap: 2, fontSize: 'var(--fs-13)' }}>
+              <span style={{ color: 'var(--ink-3)' }}>{PREREQUISITE_FIELD_LABELS[key] ?? key}</span>
+              <input className="input"
+                type={PREREQUISITE_FIELD_KIND[key] === 'date' ? 'date' : 'text'}
+                inputMode={PREREQUISITE_FIELD_KIND[key] === 'idNumber' || PREREQUISITE_FIELD_KIND[key] === 'year' ? 'numeric' : undefined}
+                dir={PREREQUISITE_FIELD_KIND[key] === 'date' ? 'ltr' : undefined}
+                value={values[key] ?? ''}
+                onChange={e => setValues(v => ({ ...v, [key]: e.target.value }))} />
+            </label>
+          ))}
+          {formError && <div className="txf-qt-err">{formError}</div>}
+          <div style={{ display: 'flex', gap: '.5rem' }}>
+            <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void submitPrereqs()}>
+              {busy ? 'שומר…' : 'שמירה'}
+            </button>
+            <button type="button" className="btn btn-sm btn-ghost" disabled={busy}
+              onClick={() => { setFilling(false); setFormError(null); }}>
+              ביטול
+            </button>
+          </div>
         </div>
       )}
-      {open && sent && !track?.confirmedAt && (
-        <div style={{ marginTop: '.55rem' }}>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={onSendInstructions}>
-            שלח שוב
-          </button>
-        </div>
+
+      {!gated && (
+        <>
+          <div style={cardNote}>
+            {track?.confirmedAt
+              ? 'הייצוג אושר בביטוח לאומי.'
+              : sent
+                ? `הוראות האישור נשלחו ב-${new Date(track!.instructionsSentAt!).toLocaleDateString('he-IL')} — ממתינים לאישור בביטוח לאומי${track?.deadline ? ` עד ${new Date(track.deadline).toLocaleDateString('he-IL')}` : ''}.`
+                : readyToSend
+                  ? `האסמכתא התקבלה (${track!.referenceNumber}) — נדרש לשלוח הוראות אישור.`
+                  : track?.enteredAt
+                    ? 'הוזן בביטוח לאומי · ממתין לאסמכתא.'
+                    : open
+                      ? 'יש להזין את הייצוג בפורטל הביטוח הלאומי.'
+                      : 'הבקשה נסגרה.'}
+          </div>
+          {open && readyToSend && (
+            <div style={{ marginTop: '.55rem' }}>
+              <button type="button" className="btn btn-sm btn-primary" onClick={onSendInstructions}>
+                שלח הוראות אישור
+              </button>
+            </div>
+          )}
+          {open && sent && !track?.confirmedAt && (
+            <div style={{ marginTop: '.55rem' }}>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={onSendInstructions}>
+                שלח שוב
+              </button>
+            </div>
+          )}
+        </>
       )}
     </StepCardShell>
   );

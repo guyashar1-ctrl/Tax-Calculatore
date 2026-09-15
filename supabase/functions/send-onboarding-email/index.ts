@@ -24,7 +24,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resolveBrand, buildBrandedEmail, emailButton, esc } from "../_shared/designSystem.ts";
 
 // sign_with_ni אינו נשלח מבחוץ — הוא נגזר מ-sign כשקיימת אסמכתת ביטוח לאומי.
-type Stage = "onboard" | "sign" | "active" | "intake" | "ni_approve" | "sign_with_ni";
+type Stage = "onboard" | "sign" | "active" | "intake" | "ni_approve" | "sign_with_ni" | "prerequisites";
+
+// 165: תוויות השדות — זהות למרשם requirements_for_step ב-SQL. רק לתצוגה במייל.
+const PREREQ_FIELD_LABELS: Record<string, string> = {
+  spouseFirstName: "שם פרטי", spouseLastName: "שם משפחה",
+  spouseIdNumber: "תעודת זהות", spouseBirthYear: "שנת לידה",
+  firstName: "שם פרטי", lastName: "שם משפחה", idNumber: "תעודת זהות", birthDate: "תאריך לידה",
+};
 
 // אישור ייפוי כוח בביטוח לאומי נעשה מול הביטוח הלאומי עצמו, לא אצלנו — ולכן
 // הקישור חיצוני והמייל מפרט את שתי הדרכים שהב"ל מאפשר.
@@ -73,6 +80,13 @@ const COPY: Record<Stage, { subject: string; heading: string; body: string; cta:
     body: "הזנו עבורכם את ייפוי הכוח באתר הביטוח הלאומי. הביטוח הלאומי דורש שאתם תאשרו אותו בעצמכם - עד שלא תאשרו, הייצוג בביטוח הלאומי אינו בתוקף. אפשר לאשר באחת משתי הדרכים שלמטה, לוקח כדקה.",
     cta: "לאישור באתר הביטוח הלאומי",
   },
+  // 165: קישור מוגבל-שדות להשלמת פרטים — לפני שאפשר בכלל להזין ברשות.
+  prerequisites: {
+    subject: "כמה פרטים קצרים - כדי להמשיך בטיפול בייצוג בביטוח הלאומי",
+    heading: "נשארו כמה פרטים",
+    body: "כדי שנוכל להמשיך בטיפול בייצוג שלכם מול הביטוח הלאומי, חסרים לנו כמה פרטים. הקישור פותח טופס קצר ומאובטח שמבקש רק את מה שבאמת חסר - לוקח פחות מדקה.",
+    cta: "למילוי הפרטים",
+  },
 };
 
 Deno.serve(async (req: Request) => {
@@ -96,7 +110,8 @@ Deno.serve(async (req: Request) => {
     // ── מסלול (ב): אישור הצעת מחיר. הטוקן הציבורי מזהה הצעה מאושרת אחת ──
     let userId: string | null = null;
     let requestId: string | undefined = rawRequestId;
-    let stage: Stage = (rawStage === "sign" || rawStage === "active" || rawStage === "intake" || rawStage === "ni_approve") ? rawStage : "onboard";
+    let stage: Stage = (rawStage === "sign" || rawStage === "active" || rawStage === "intake"
+      || rawStage === "ni_approve" || rawStage === "prerequisites") ? rawStage : "onboard";
     let quotationId: string | null = null;
     // ההצעה שעליה נתבעת השליחה. במסלול הציבורי היא הטוקן עצמו, ובמסלול ה-JWT
     // היא נמצאת דרך בקשת הייצוג — כדי ששני המסלולים יתחרו על אותה תביעה.
@@ -191,9 +206,9 @@ Deno.serve(async (req: Request) => {
       const { data } = await admin.from("representation_requests").select("*").eq("id", requestId).single();
       reqRow = data;
       if (!reqRow || reqRow.user_id !== userId) return json({ error: "not found" }, 404);
-      // ‼ 157: כשה-ni_approve הזה הוא הוראות עצמאיות פר-אדם, הנמען נגזר
+      // ‼ 157/165: כשה-ni_approve/prerequisites האלה הם פר-אדם, הנמען נגזר
       // מהכרטיס (למטה) ולא מ-reqRow.client_email — אין לדרוש אותו כאן.
-      const skipClientEmailCheck = stage === "ni_approve" && !!niRole;
+      const skipClientEmailCheck = (stage === "ni_approve" || stage === "prerequisites") && !!niRole;
       if (!skipClientEmailCheck && !reqRow.client_email) return json({ error: "no client email" }, 400);
       logClientId = reqRow.linked_client_id;
       logRequestId = reqRow.id;
@@ -237,7 +252,10 @@ Deno.serve(async (req: Request) => {
     // ביניים ששומר execution בעצמו (כמו ש-handleSendAll עושה למייל החתימה).
     let stampStandaloneAfterSend = false;
     let logStepId: string | null = null;
-    if (stage === "ni_approve" && niRole) {
+    // 165: הקישור הפעיל של השלב — נדרש רק ל-stage='prerequisites' (הכתובת
+    // של הטופס), נשלף בשרת, לעולם לא מהגוף.
+    let activeLink: { id: string; token: string; field_keys: string[] } | null = null;
+    if ((stage === "ni_approve" || stage === "prerequisites") && niRole) {
       niKey = niRole === "spouse" ? "nationalInsuranceSpouse" : "nationalInsurance";
       const { data: ownerClient } = await admin.from("clients")
         .select("id,user_id,email,first_name,spouse_email,spouse_first_name,spouse_name")
@@ -252,7 +270,7 @@ Deno.serve(async (req: Request) => {
         ? (String(ownerClient.spouse_first_name || "").trim()
            || String(ownerClient.spouse_name || "").trim().split(/\s+/)[0] || "")
         : (String(ownerClient.first_name || "").trim() || clientFirst);
-      stampStandaloneAfterSend = true;
+      stampStandaloneAfterSend = stage === "ni_approve";
 
       // ‼ stepId מאומת נגד הבקשה הזאת ונגד הנושא הזה — כדי שמייל לא ייצא
       // ל-stepId ששייך לאדם/רשות אחרים, גם אם מישהו יזייף אותו בגוף הבקשה.
@@ -279,6 +297,17 @@ Deno.serve(async (req: Request) => {
           .order("created_at", { ascending: false })
           .limit(1).maybeSingle();
         logStepId = open?.id ?? null;
+      }
+
+      if (stage === "prerequisites") {
+        if (!logStepId) return json({ error: "step_not_found" }, 400);
+        const { data: link } = await admin.from("request_participant_links")
+          .select("id,token,field_keys")
+          .eq("step_id", logStepId).is("submitted_at", null).is("revoked_at", null)
+          .gt("expires_at", new Date().toISOString())
+          .order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (!link) return json({ error: "no_active_link" }, 400);
+        activeLink = link as { id: string; token: string; field_keys: string[] };
       }
     }
 
@@ -383,6 +412,20 @@ Deno.serve(async (req: Request) => {
       ctaHref = NI_SITE;
       ctaLabel = copy.cta;
       extraHtml = niBlock(niData);
+    } else if (stage === "prerequisites") {
+      // 165: הקישור המוגבל-שדות שנוצר ברגע ש"מלא פרטים עכשיו"/"שלח ל-X" נלחץ —
+      // לא מייל-קישור-כללי, אלא טופס יחיד עם רק מה שבאמת חסר.
+      const missingLabels = (activeLink!.field_keys || [])
+        .map((k) => PREREQ_FIELD_LABELS[k] || k).join(", ");
+      ctaHref = `${APP_URL}/?participant=${activeLink!.token}`;
+      ctaLabel = copy.cta;
+      extraHtml = `
+        <tr><td dir="rtl" align="right" style="text-align:right;padding:6px 40px 0;">
+          <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:16px;background:${brand.pageBg};">
+            <div style="font-family:${f};text-align:right;font-size:13px;color:${brand.muted};">מה חסר לנו</div>
+            <div style="font-family:${f};text-align:right;font-size:16px;font-weight:700;color:${brand.ink};padding-top:4px;">${esc(missingLabels)}</div>
+          </div>
+        </td></tr>`;
     } else if (stage === "sign" && !niData.referenceNumber) {
       // ‼ שער: אם התבקש ייצוג בב"ל אך אין אסמכתא, מייל החתימה ייצא בלי חלק
       // הב"ל — והלקוח יקבל אחריו מייל שני. עדיף להיכשל מאשר לפצל את התהליך.
@@ -497,6 +540,10 @@ Deno.serve(async (req: Request) => {
       } else {
         idempotencyKey = `ni_approve:${logRequestId}:${niRole}`;
       }
+    } else if (stage === "prerequisites" && activeLink) {
+      // ‼ מפתח לפי הקישור, לא לפי השלב: כל קישור חדש (create_participant_link,
+      // מבטל את הקודם) הוא אירוע תקשורת חדש לגיטימי — לא כפילות של הקודם.
+      idempotencyKey = `prerequisites:${activeLink.id}`;
     }
 
     const payload: Record<string, unknown> = { from: `${brand.firmName} <${fromAddress}>`, to: [toEmail], subject: copy.subject, html };
@@ -575,6 +622,16 @@ Deno.serve(async (req: Request) => {
           updated_at: new Date().toISOString(),
         }).eq("id", reqRow.id);
       }
+    }
+
+    // 165: "נשלח" נכתב על הקישור עצמו רק אחרי 200 אמיתית, ורק אם עדיין ריק.
+    // הסנכרון הבא (נגרם מהקריאה הבאה לשלב, או ידני) קורא את זה ומעדכן את
+    // payload.prerequisites.link.sentAt על הכרטיס.
+    if (activeLink) {
+      await admin.from("request_participant_links")
+        .update({ sent_at: new Date().toISOString(), sent_to: toEmail })
+        .eq("id", activeLink.id).is("sent_at", null);
+      if (logClientId) await admin.rpc("sync_authority_representation_steps", { p_client_id: logClientId });
     }
 
     return json({ ok: true, id: body.id, logged });

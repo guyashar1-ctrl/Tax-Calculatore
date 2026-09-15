@@ -103,6 +103,7 @@ import PublicIntakePage from './components/PublicIntakePage';
 import PublicPortalPage from './components/PublicPortalPage';
 import PublicReleasePage from './components/PublicReleasePage';
 import PublicQuotationPage from './components/PublicQuotationPage';
+import PublicParticipantPage from './components/PublicParticipantPage';
 import PublicApplyPage from './components/PublicApplyPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
@@ -392,6 +393,9 @@ export default function App() {
     // עמוד הצעת מחיר ציבורי — קישור מאובטח לפי טוקן.
     const quoteToken = new URLSearchParams(window.location.search).get('quote');
     if (quoteToken) return asClientPage(<PublicQuotationPage token={quoteToken} />);
+    // דף המשתתף — קישור לשלב, לתפקיד, לרשימת שדות מפורשת (165).
+    const participantToken = new URLSearchParams(window.location.search).get('participant');
+    if (participantToken) return asClientPage(<PublicParticipantPage token={participantToken} />);
     // דף הרו"ח הקודם — הוא חותם על מכתב השחרור ומעלה את החומרים.
     // גורם חיצוני ולא לקוח, אבל אותו כלל: מיתוג המשרד ותצוגה בהירה.
     const releaseToken = new URLSearchParams(window.location.search).get('release');
