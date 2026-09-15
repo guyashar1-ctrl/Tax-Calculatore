@@ -123,6 +123,8 @@ interface Props {
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
   onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
+  onNiInstructionsSent?: () => Promise<void>;
   /** "+ בקשה חדשה" ← "ייצוג ברשות - לאדם" — אותה קריאה כמו מתיק המס (157). */
   onRequestAuthorityRepresentation?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
 }
@@ -306,7 +308,7 @@ export default function OnboardingTab({
   prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, onOpenRepresentation,
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, ballFilter, onOpenTaxFile,
-  niExecution, onUpdateClientFields, onRequestAuthorityRepresentation,
+  niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent,
 }: Props) {
   // ‼ 157: "שלח הוראות אישור" — נפתח מכרטיס «ייצוג ברשות» באותו דיאלוג
   // שמשמש את תיק המס (NiInstructionsDialog). אין דיאלוג נפרד לכל כניסה.
@@ -2190,7 +2192,7 @@ export default function OnboardingTab({
           await onUpdateClientFields(niInstructionsFor.role === 'spouse' ? { spouseEmail: email } : { email });
         }}
         onClose={() => setNiInstructionsFor(null)}
-        onSent={() => setNiInstructionsFor(null)}
+        onSent={() => { setNiInstructionsFor(null); void (onNiInstructionsSent ? onNiInstructionsSent() : refresh?.()); }}
       />
     )}
     </>

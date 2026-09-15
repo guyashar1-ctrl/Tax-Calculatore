@@ -264,6 +264,21 @@ Deno.serve(async (req: Request) => {
           return json({ error: "step_mismatch" }, 400);
         }
         logStepId = step.id;
+      } else {
+        // ‼ בלי stepId מהדפדפן — הקישור לפריט העבודה נפתר כאן, בשרת: המייל
+        // שייך לבקשה הפתוחה של אותו אדם באותה רשות (docs/PRODUCT-REQUESTS-
+        // WORKFLOW-FOUNDATION — "תקשורת שייכת לפריט העבודה שגרם לה"). נתפס
+        // ב-staging 15.09: שליחה מהדיאלוג נרשמה עם step_id ריק.
+        const { data: open } = await admin.from("onboarding_steps")
+          .select("id")
+          .eq("client_id", reqRow.linked_client_id)
+          .eq("step_type", "authority_representation")
+          .eq("payload->>authority", "national_insurance")
+          .eq("payload->>subjectRole", niRole)
+          .not("status", "in", '("completed","verified","skipped","cancelled")')
+          .order("created_at", { ascending: false })
+          .limit(1).maybeSingle();
+        logStepId = open?.id ?? null;
       }
     }
 

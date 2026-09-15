@@ -97,6 +97,8 @@ interface Props {
   onOpenRequestStep?: () => void;
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור. */
   onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
+  onNiInstructionsSent?: () => Promise<void>;
   /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
 }
@@ -306,7 +308,7 @@ export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
   onClientPersisted, onSendQuestionnaire, onOpenDetails,
   onRunAlignment, alignBusy, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
-  onOpenRepresentation, onAddNiTarget, onOpenRequestStep, onUpdateClientFields, niExecution,
+  onOpenRepresentation, onAddNiTarget, onOpenRequestStep, onUpdateClientFields, onNiInstructionsSent, niExecution,
 }: Props) {
   const { pending, refresh, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
@@ -2049,7 +2051,7 @@ export default function TaxFileTab({
           await onUpdateClientFields(niInstructionsFor.role === 'spouse' ? { spouseEmail: email } : { email });
         }}
         onClose={() => setNiInstructionsFor(null)}
-        onSent={() => setNiInstructionsFor(null)}
+        onSent={() => { setNiInstructionsFor(null); void onNiInstructionsSent?.(); }}
       />
     )}
     </>

@@ -71,5 +71,16 @@ export function useRepresentationRequests(userId: string | undefined) {
     setRequests(prev => prev.filter(r => r.id !== id));
   }
 
-  return { requests, loading, error, addRequest, updateRequest, deleteRequest };
+  /** קריאה מחדש של בקשה אחת אחרי שהשרת כתב עליה בעצמו (חתימת "נשלח" של
+   *  מייל ההוראות ב-send-onboarding-email) — אחרת העותק בדפדפן נשאר ישן. */
+  async function reloadRequest(id: string): Promise<void> {
+    const { data, error } = await supabase.from('representation_requests').select('*').eq('id', id).maybeSingle();
+    if (error || !data) return;
+    const fresh = repRequestFromDb(data);
+    setRequests(prev => prev.some(r => r.id === fresh.id)
+      ? prev.map(r => r.id === fresh.id ? fresh : r)
+      : [...prev, fresh]);
+  }
+
+  return { requests, loading, error, addRequest, updateRequest, deleteRequest, reloadRequest };
 }

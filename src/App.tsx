@@ -423,7 +423,7 @@ export default function App() {
     void addTask(buildQuarterlyFreshnessTask()).catch(() => { /* ניסיון חוזר בכניסה הבאה */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, tasksLoading]);
-  const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
+  const { requests, addRequest, updateRequest, deleteRequest: removeRequest, reloadRequest } = useRepresentationRequests(user?.id);
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
   // ‼ ברירת המחדל דלוקה: הנתונים כבר במסד, והדגל קיים כדי לכבות את המסך
   // (לשונית הקליטה + המקטע בשולחן) בלי שינוי קוד — settings.flags.onboardingTab=false.
@@ -836,6 +836,17 @@ export default function App() {
     const c = clients.find(x => x.id === clientId);
     if (!c) throw new Error('הכרטיס לא נמצא');
     await updateClient({ ...c, ...patch });
+  }
+
+  /**
+   * אחרי שמייל ההוראות העצמאי נשלח בהצלחה: השרת חתם instructionsSentAt על
+   * הביצוע, והשלב עודכן בטריגר. שניהם נקראים מחדש — אחרת הכרטיס ב"בקשות"
+   * ממשיך להציע "שלח הוראות אישור" עד רענון מלא (נתפס ב-staging 15.09).
+   */
+  async function handleNiInstructionsSent(clientId: string): Promise<void> {
+    const req = findClientRepresentationRequest(clientId);
+    if (req) await reloadRequest(req.id);
+    onboarding.refresh();
   }
 
   /**
@@ -2495,6 +2506,7 @@ export default function App() {
             onRequestAuthorityRepresentationFromCatalog={(clientId, role) => handleRequestAuthorityRepresentation(clientId, role, 'catalog')}
             onOpenRequestStep={handleOpenRequestStep}
             onUpdateClientFields={handleUpdateClientFields}
+            onNiInstructionsSent={handleNiInstructionsSent}
             niExecution={selectedClient ? clientNiExecution(selectedClient.id) : undefined}
             journeyUi={journeyUi}
             checksTabEnabled={checksTab}
