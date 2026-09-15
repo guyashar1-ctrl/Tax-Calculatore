@@ -60,8 +60,13 @@ Deno.serve(async (req: Request) => {
 
     // ── הטוקן נפתר ללקוח ─────────────────────────────────────────────────────
     const { data: cli } = await admin
-      .from("clients").select("id").eq("portal_token", token).maybeSingle();
+      .from("clients").select("id, portal_token_expires_at").eq("portal_token", token).maybeSingle();
     if (!cli) return errorPage("הקישור אינו תקין או שאינו פעיל עוד.", 403);
+    // ‼ אותו כלל תפוגה כמו get_client_portal ו-portal-upload-document (165):
+    // טוקן שפג אינו פותח את הדף — ולכן גם אינו פותח מסמך. דלת אחת, כלל אחד.
+    if (cli.portal_token_expires_at && new Date(cli.portal_token_expires_at as string).getTime() < Date.now()) {
+      return errorPage("הקישור אינו תקין או שאינו פעיל עוד.", 403);
+    }
     const clientId = cli.id as string;
 
     // ── הבקשה חייבת להיות של אותו לקוח, ופתוחה לו ────────────────────────────

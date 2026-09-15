@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { createAutomationJob, cancelAutomationJob } from '../lib/automationJobs';
+import { createAutomationJob, cancelAutomationJob, jobIsLive } from '../lib/automationJobs';
 import { automationJobFromDb } from '../lib/dbMappers';
 import {
   SHAAM_CONNECT_ACTION_TYPE,
@@ -10,6 +10,7 @@ import {
 } from '../types/automation';
 import type { AutomationJob } from '../types/automation';
 import { useShaamReadiness } from './shaamReadiness';
+import { keepIfSame } from './useLivePulse';
 
 const POLL_MS = 4000;
 
@@ -101,8 +102,12 @@ export function useAuthorityConnections(userId: string | undefined) {
       .gte('created_at', cutoff)
       .order('created_at', { ascending: false });
     const rows = (jobRes.data ?? []).map(automationJobFromDb);
-    setShaamJob(rows.find((j) => j.actionType === SHAAM_CONNECT_ACTION_TYPE) ?? null);
-    setBtlJob(rows.find((j) => j.actionType === BTL_CONNECT_ACTION_TYPE) ?? null);
+    // ‼ שומרים זהות כשהמשימה לא השתנתה: אובייקט חדש כל 4 שניות היה מריץ
+    // מחדש את ה-effects שתלויים ב-shaamJob/btlJob ובונה מחדש את connect/connectBtl.
+    const nextShaam = rows.find((j) => j.actionType === SHAAM_CONNECT_ACTION_TYPE) ?? null;
+    const nextBtl = rows.find((j) => j.actionType === BTL_CONNECT_ACTION_TYPE) ?? null;
+    setShaamJob(prev => keepIfSame(prev, nextShaam));
+    setBtlJob(prev => keepIfSame(prev, nextBtl));
     // ‼ המוכנות **אינה** נמשכת כאן. הספק מושך אותה בעצמו באותו קצב, ומשיכה
     // שנייה כאן רק הכפילה את התעבורה — וגם קשרה בין השניים, וזו הייתה
     // הלולאה. משיכה יזומה כן נשארת ב-start(), אחרי לחיצה אמיתית.
@@ -111,8 +116,18 @@ export function useAuthorityConnections(userId: string | undefined) {
   useEffect(() => {
     void refresh();
     if (timer.current) clearInterval(timer.current);
-    timer.current = setInterval(() => { void refresh(); }, POLL_MS);
-    return () => { if (timer.current) clearInterval(timer.current); };
+    // ‼ לשונית ברקע לא מושכת — כמו ב-ShaamReadinessProvider. בחזרה ללשונית
+    // מושכים מיד, כי זה הרגע הכי סביר שהחלון שממתין לך כבר נסגר.
+    timer.current = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void refresh();
+    }, POLL_MS);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      if (timer.current) clearInterval(timer.current);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [refresh]);
 
   // ‼ ירוק = **כל ארבע** השכבות מוכנות. פורטל מאומת לבדו אינו "מוכן": כל
@@ -152,7 +167,9 @@ export function useAuthorityConnections(userId: string | undefined) {
           return { phase: 'needs_you', errorCode: job.errorCode ?? null, errorDetail: null, isTimeout: false };
         }
       } else if (job.status === 'queued' || job.status === 'running') {
-        if (ageMs <= CONNECTING_TIMEOUT_MS) {
+        // ‼ (170) 'running' שהחכירה שלו פקעה אינו "מתחבר..." — אף אחד לא
+        // מחזיק אותו. הוא נופל ישר לענף ה-timeout/idle כמו משימה שהזדקנה.
+        if (ageMs <= CONNECTING_TIMEOUT_MS && jobIsLive(job)) {
           return { phase: 'connecting', errorCode: null, errorDetail: null, isTimeout: false };
         }
         // ‼ העובד לא הגיב — זו תקלה, לא המתנה. מוצג רק למי שלחץ, ראה
@@ -215,6 +232,12 @@ export function useAuthorityConnections(userId: string | undefined) {
 
   // משימה תקועה מסבב קודם — מנקים לפני שיוצרים חדשה, אחרת האינדקס
   // הייחודי יחזיר את הישנה והעובד לא ירים כלום.
+  // ‼ (170) כולל 'running' שהחכירה שלו פקעה — עובד שנהרג באמצע ההתחברות
+  // השאיר אותה 'running' לנצח, והכפתור לא עשה כלום. הכלל האחד לכל משפחת
+  // כרטיסי האוטומציה: פתוחה-אבל-לא-חיה ⇒ בטל ואז נסה שוב (jobIsLive).
+  // 'queued' חיה לפי הכלל, אבל כאן היא מבוטלת בכוונה: הלחיצה היא «נסה
+  // שוב» מפורש אחרי timeout של הכותרת, ומשימה שאף עובד לא הרים אינה שווה
+  // יותר מחדשה.
   const start = useCallback(async (
     authority: 'shaam' | 'btl',
     actionType: string,
@@ -223,7 +246,7 @@ export function useAuthorityConnections(userId: string | undefined) {
   ) => {
     setBusy(authority);
     setUiError(null);
-    if (clearStale && open && (open.status === 'needs_human' || open.status === 'queued')) {
+    if (clearStale && open && (open.status === 'queued' || !jobIsLive(open))) {
       await cancelAutomationJob(open.id);
     }
     const r = await createAutomationJob(null, actionType, {});

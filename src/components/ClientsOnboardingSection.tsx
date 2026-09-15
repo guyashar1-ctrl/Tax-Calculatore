@@ -14,7 +14,7 @@ import type { Client } from '../types';
 import { REPRESENTATION_STATUS_LABELS } from '../types';
 import type { Engagement, OnboardingStep } from '../types/onboarding';
 import {
-  STEP_TYPE_LABELS, STEP_BALL_LABELS, isStepOpen, stepStatusLabel,
+  STEP_TYPE_LABELS, STEP_BALL_LABELS, isStepOpen, stepStatusLabel, compareStepsForOffice,
 } from '../types/onboarding';
 import {
   NEXT_ACTION, isStuckStep, summarizeClientOnboarding,
@@ -214,9 +214,7 @@ export default function ClientsOnboardingSection({ clients, steps, engagements, 
               {open && (
                 <ol className="cob-journey">
                   {[...r.steps]
-                    .sort((a, b) =>
-                      (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
-                      (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
+                    .sort(compareStepsForOffice)
                     .map(s => {
                       const closed = !isStepOpen(s.status);
                       const bad = isStuckStep(s);

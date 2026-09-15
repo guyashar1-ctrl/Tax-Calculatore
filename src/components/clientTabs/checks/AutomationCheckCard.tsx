@@ -6,6 +6,7 @@
 import type { ReactNode } from 'react';
 import type { Client } from '../../../types';
 import { useAutomationJob } from '../../../hooks/useAutomationJobs';
+import { jobIsLive } from '../../../lib/automationJobs';
 import { AUTOMATION_JOB_STATUS_LABELS } from '../../../types/automation';
 import type { AutomationJobStatus } from '../../../types/automation';
 import { SkeletonRow } from '../../ui/States';
@@ -51,7 +52,11 @@ export default function AutomationCheckCard({
   client, actionType, title, description, devBadge, runLabel = 'הרץ', runInput = {}, extraActions, renderSuccess,
 }: Props) {
   const { job, loading, error, busy, run, cancel } = useAutomationJob(client.id, actionType);
-  const open = job && ['queued', 'running', 'needs_human'].includes(job.status);
+  // ‼ (170) הכפתור נחסם רק כשמישהו באמת מחזיק את המשימה (jobIsLive) — לא על
+  // needs_human ולא על 'running' שהחכירה שלו פקעה: שניהם ממתינים לאדם,
+  // ולחיצה עליהם מבטלת ומריצה מחדש (בטל-ואז-נסה-שוב) — אותו כלל כמו בתיק המס.
+  const live = jobIsLive(job);
+  const staleRunning = !!job && job.status === 'running' && !live;
 
   return (
     <div className="card">
@@ -73,7 +78,8 @@ export default function AutomationCheckCard({
         {!loading && !error && job && (
           <div className={ALERT_CLASS[job.status]}>
             <strong>{AUTOMATION_JOB_STATUS_LABELS[job.status]}</strong>
-            {job.status === 'running' && ' · העובד המקומי מריץ כעת'}
+            {job.status === 'running' && !staleRunning && ' · העובד המקומי מריץ כעת'}
+            {staleRunning && ' · העובד המקומי הפסיק להגיב - לחיצה על הרצה תבטל ותנסה שוב'}
             {job.status === 'queued' && ' · ממתין שעובד מקומי יתפוס'}
             {job.status === 'succeeded' && (
               <div className="checks-result">
@@ -96,15 +102,15 @@ export default function AutomationCheckCard({
         {!loading && !error && !job && <div className="alert alert-info">עוד לא הורצה על הלקוח הזה.</div>}
 
         <div className="checks-action-buttons">
-          <button type="button" className="ui-btn ui-btn-primary" disabled={busy || !!open} onClick={() => void run(runInput)}>
-            {open ? 'רץ...' : runLabel}
+          <button type="button" className="ui-btn ui-btn-primary" disabled={busy || live} onClick={() => void run(runInput)}>
+            {live ? 'רץ...' : runLabel}
           </button>
           {extraActions?.map((a) => (
             <button
               key={a.label}
               type="button"
               className="ui-btn ui-btn-ghost"
-              disabled={busy || !!open}
+              disabled={busy || live}
               onClick={() => void run(a.input)}
               title={a.title}
             >

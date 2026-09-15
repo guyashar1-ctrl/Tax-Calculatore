@@ -38,6 +38,19 @@ function rowToObject<T>(row: Record<string, any>): T {
   return out as T;
 }
 
+/**
+ * "אותו ערך" לצורך חישוב מה באמת השתנה לפני כתיבה חלקית. ריק/undefined/null
+ * שקולים זה לזה (המסך מנרמל null ל-'' בקריאה, ולכן '' מול null אינו שינוי);
+ * כל השאר — השוואה מבנית.
+ */
+export function sameValue(a: unknown, b: unknown): boolean {
+  const empty = (v: unknown) => v === undefined || v === null || v === '';
+  if (empty(a) && empty(b)) return true;
+  if (empty(a) || empty(b)) return false;
+  if (a === b) return true;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 function objectToRow<T extends Record<string, any>>(obj: T, exclude: string[] = []): Record<string, any> {
   const out: Record<string, any> = {};
   for (const [k, v] of Object.entries(obj)) {
@@ -94,6 +107,55 @@ export function clientToDb(client: Partial<Client>, userId?: string): Record<str
   return row;
 }
 
+// ‼ עמודות שרק השרת כותב. עדכון חלקי (update_client_fields, 166) דוחה אותן
+// בשגיאה — ולכן הן מוצאות כאן לפני השליחה, גם אם העותק המקומי שלהן שונה
+// מהמטמון (למשל field_meta שחזר מ-RPC, או טוקן שהדף האישי חידש).
+const CLIENT_SERVER_OWNED = [
+  'id', 'userId', 'createdAt', ...CLIENT_OMIT_ON_WRITE, 'fieldMeta', 'paperlessStatus',
+  'portalToken', 'portalTokenExpiresAt', 'portalTokenLastUsedAt',
+  'intakeToken', 'intakeTokenExpiresAt', 'intakeTokenLastUsedAt',
+] as const;
+
+// שדות כרטיס שהטופס יכול לנקות. objectToRow מדלג על ''/undefined (כדי לא
+// לשלוח מחרוזת ריקה לעמודת תאריך/מספר), אבל בעדכון חלקי "לא נשלח" פירושו
+// "לא נוקה" — השדה הישן חזר למסך אחרי רענון (K2/H4/A5). כאן, בדיוק כמו
+// LEAD_NULLABLE, ריק מתורגם ל-NULL מפורש — אך ורק למפתחות שנמסרו ב-patch.
+// ‼ שם פרטי/משפחה אינם כאן: שם ריק הוא שגיאת טופס, לא ניקוי.
+// ‼ עובדות מס מנוהלות אינן כאן: הן עוברות דרך record_manual_fact_change,
+// ששם JSON null כבר נכתב כ-NULL (מיגרציה 145).
+const CLIENT_NULLABLE = [
+  'idNumber', 'birthDate', 'gender', 'phone', 'email', 'city', 'address',
+  'type', 'incomeTaxType', 'vatStatus', 'niType', 'taxCoordinationDetails',
+  'spouseName', 'spouseIdNumber', 'spouseIncome', 'spouseFirstName', 'spouseLastName',
+  'spouseBirthYear', 'spouseEmail', 'spousePhone', 'spouseClientId', 'spouse',
+  'marriageYear', 'divorceYear', 'widowhoodYear',
+  'returningYear', 'disabilityType', 'qualifyingSettlementCreditPoints',
+  'propertyAddress', 'rentalNotes', 'investmentBrokerName', 'investmentNotes',
+  'pensionFundName', 'employeePensionPct', 'employerPensionPct', 'krenHashtalmutMonthly',
+  'familyCompanyName', 'foreignCompanyDetails', 'kibbutzName',
+  'businessName', 'dealerType', 'prevAccountantName', 'prevAccountantEmail', 'prevAccountantPhone',
+  'referralSource', 'notes', 'pinnedNote', 'assignedAccountantId',
+  'representationStatus', 'representationRequestId',
+  'vatDetailedReportStartDate', 'withholdingFrequency', 'withholdingValidUntil',
+  'shaamStatus', 'shaamCreatedAt', 'shaamLastUsed', 'shaamSource',
+  'withholdingOfficeName', 'niBranchName', 'lastWealthDeclarationYear',
+] as const;
+
+/**
+ * patch לעדכון חלקי של כרטיס (update_client_fields): רק המפתחות שבאובייקט,
+ * ב-snake_case, בלי עמודות שרת, ועם NULL מפורש לשדה מנוקה מהרשימה למעלה.
+ * ‼ עובדות מס מנוהלות (GOVERNED_FACT_KEYS) אינן עוברות כאן — useClients מפצל
+ * אותן ל-p_facts לפני הקריאה.
+ */
+export function clientPatchToDb(patch: Partial<Client>): Record<string, any> {
+  const row = objectToRow(patch, [...CLIENT_SERVER_OWNED]);
+  const src = patch as Record<string, unknown>;
+  for (const key of CLIENT_NULLABLE) {
+    if (key in src && (src[key] === undefined || src[key] === '' || src[key] === null)) row[toSnake(key)] = null;
+  }
+  return row;
+}
+
 // ───────────────────────────────────────── Task ───────────────────────────
 
 const TASK_OMIT_ON_WRITE = ['updatedAt'];
@@ -105,10 +167,22 @@ export function taskFromDb(row: Record<string, any>): Task {
   return t;
 }
 
+// שדות משימה שהטופס/הלוח מנקים: תאריך יעד שהוסר, תיאור שנמחק, ו-completed_at
+// בפתיחה מחדש. בלי הרשימה הזו objectToRow דילג עליהם, העמודה לא נכללה
+// ב-UPDATE, והערך הישן שרד — משימה שנפתחה מחדש נשארה עם תאריך סיום (K2).
+const TASK_NULLABLE = [
+  'description', 'dueDate', 'completedAt', 'progress', 'contactId', 'caseId',
+  'assigneeId', 'sortOrder', 'signatureRequest',
+] as const;
+
 export function taskToDb(task: Partial<Task>, userId?: string): Record<string, any> {
   const row = objectToRow(task, TASK_OMIT_ON_WRITE);
   if (userId) row.user_id = userId;
   if (row.client_id === 'system') row.client_id = null;
+  const src = task as Record<string, unknown>;
+  for (const key of TASK_NULLABLE) {
+    if (key in src && (src[key] === undefined || src[key] === '')) row[toSnake(key)] = null;
+  }
   return row;
 }
 
@@ -223,10 +297,24 @@ export function quotationTemplateToDb(tpl: Partial<QuotationTemplate>, userId?: 
 // quotation_number נקבע ב-DB (טריגר מונה שנתי) — לא נשלח בהכנסה כדי לא לדרוס
 const QUOTATION_OMIT_ON_INSERT = ['updatedAt', 'quotationNumber'];
 
+/**
+ * תוקף ההצעה נגזר לתצוגה, לא נכתב מהדפדפן (C3): הצעה שנשלחה/נצפתה ועבר
+ * מועדה מוצגת כ«פג תוקף» גם אם השורה עוד אומרת sent. הכתיבה עצמה קורית
+ * בשרת בלבד (expire_stale_quotations, 166), עם WHERE שאינו יכול לדרוס
+ * אישור שהלקוח נתן בינתיים. זה העוזר היחיד — כל מסך שמציג סטטוס הצעה
+ * רואה אותו כי הוא מוחל כאן, בנקודת הכניסה של כל שורת הצעה לאפליקציה.
+ */
+export function deriveQuotationStatus(q: Pick<Quotation, 'status' | 'expiresAt'>): Quotation['status'] {
+  if ((q.status === 'sent' || q.status === 'viewed')
+      && q.expiresAt && new Date(q.expiresAt).getTime() < Date.now()) return 'expired';
+  return q.status;
+}
+
 export function quotationFromDb(row: Record<string, any>): Quotation {
   const q = rowToObject<Quotation>(row);
   if (!q.items) q.items = [];
   if (!q.events) q.events = [];
+  q.status = deriveQuotationStatus(q);
   return q;
 }
 

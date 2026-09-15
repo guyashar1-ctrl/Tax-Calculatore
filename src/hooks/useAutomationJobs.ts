@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AutomationJob } from '../types/automation';
 import { OPEN_AUTOMATION_STATUSES } from '../types/automation';
-import { createAutomationJob, cancelAutomationJob, fetchLatestAutomationJob } from '../lib/automationJobs';
+import { createAutomationJob, cancelAutomationJob, fetchLatestAutomationJob, jobIsLive } from '../lib/automationJobs';
 
 const POLL_MS = 2500;
 
@@ -16,6 +16,9 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // ‼ העותק העדכני של המשימה ל-callbacks — כדי שלא יבנו מחדש בכל פעימה.
+  const jobRef = useRef<AutomationJob | null>(null);
+  jobRef.current = job;
 
   // ‼ `actionType` ריק = לרשות הזו אין עדיין פעולה אוטומטית. ההוק נקרא
   // בכל זאת (סדר ההוקים חייב להיות קבוע), אבל אינו שולח שאילתה ואינו מריץ.
@@ -24,7 +27,8 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
     if (!silent) setLoading(true);
     const { job: j, error: e } = await fetchLatestAutomationJob(clientId, actionType);
     if (e) { setError(e); setLoading(false); return; }
-    setJob(j);
+    // שומרים זהות כשלא השתנה דבר — פעימה שקטה לא מרנדרת.
+    setJob(prev => (JSON.stringify(prev) === JSON.stringify(j) ? prev : j));
     setError(null);
     setLoading(false);
   }, [clientId, actionType]);
@@ -32,13 +36,19 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
   useEffect(() => { void reload(false); }, [reload]);
 
   // ‼ פעימת רענון רק כשיש מה לחכות לו — משימה סגורה לא זקוקה לתשאול חוזר.
+  // ‼ התלות היא "האם פתוחה" ולא אובייקט המשימה: קודם כל פעימה שהחזירה אובייקט
+  // חדש פירקה ובנתה את הטיימר מחדש — ולכן הוא לא פעם אף פעם בקצב שנקבע.
+  const isOpen = !!job && OPEN_AUTOMATION_STATUSES.has(job.status);
   useEffect(() => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-    if (job && OPEN_AUTOMATION_STATUSES.has(job.status)) {
-      pollRef.current = setInterval(() => { void reload(true); }, POLL_MS);
+    if (isOpen) {
+      pollRef.current = setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        void reload(true);
+      }, POLL_MS);
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [job, reload]);
+  }, [isOpen, reload]);
 
   /**
    * ‼ לחיצה מפורשת פירושה «הרץ עכשיו», ולכן משימה מתה חוסמת אותה.
@@ -51,8 +61,12 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
    * ולא אמרה כלום**. קרה בייצור עם משימה בת שש שעות.
    *
    * needs_human הוא מבוי סתום: הוא ממתין לאדם, והאדם בדיוק לחץ. מבטלים
-   * אותו ויוצרים חדשה. משימה שבאמת רצה (queued/running) לא מבוטלת — שם
-   * החזרת הקיימת היא ההתנהגות הנכונה, והכפתור מציג «⋯».
+   * אותו ויוצרים חדשה. משימה שבאמת רצה (חיה — ראה jobIsLive) לא מבוטלת —
+   * שם החזרת הקיימת היא ההתנהגות הנכונה, והכפתור מציג «⋯».
+   *
+   * ‼ (170) אותו דין ל-'running' שהחכירה שלו פקעה: עובד שנהרג באמצע השאיר
+   * את המשימה 'running' לנצח, האינדקס הייחודי חסם משימה חדשה, והכפתור
+   * הפך לכפתור שלא עושה כלום. הכלל האחד: פתוחה-אבל-לא-חיה ⇒ בטל ואז נסה שוב.
    */
   const run = useCallback(async (input: Record<string, unknown> = {}) => {
     if (!clientId) return { ok: false, error: 'no_client' };
@@ -61,7 +75,7 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
     setError(null);
 
     const existing = await fetchLatestAutomationJob(clientId, actionType);
-    if (existing.job && existing.job.status === 'needs_human') {
+    if (existing.job && OPEN_AUTOMATION_STATUSES.has(existing.job.status) && !jobIsLive(existing.job)) {
       await cancelAutomationJob(existing.job.id);
     }
 
@@ -81,13 +95,14 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
   }, [clientId, actionType]);
 
   const cancel = useCallback(async () => {
-    if (!job) return;
+    const current = jobRef.current;
+    if (!current) return;
     setBusy(true);
-    const r = await cancelAutomationJob(job.id);
+    const r = await cancelAutomationJob(current.id);
     setBusy(false);
     if (r.ok && r.job) setJob(r.job);
     else if (!r.ok) setError(r.error ?? 'שגיאה לא ידועה');
-  }, [job]);
+  }, []);
 
   return { job, loading, error, busy, run, cancel, reload: () => reload(false) };
 }

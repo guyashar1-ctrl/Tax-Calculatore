@@ -6,7 +6,7 @@ import CardSectionEditor from './CardSectionEditor';
 import AnnualDeltaScreen, { type DeltaResult } from './AnnualDeltaScreen';
 import { replayAnswers } from './engine';
 import { seedModelFromClient, registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from './profile';
-import { findSession, saveAnswer, updateSessionState } from './repository';
+import { findSession, saveAnswers } from './repository';
 import { useAnnualReportFlow } from './useAnnualReportSession';
 import { getQuestionById } from './engine';
 import { estimateTotalQuestions, chaptersForModel } from './tree';
@@ -64,15 +64,14 @@ export default function Questionnaire({ initialSession, clientName, client, onFi
       const answers = new Map<string, AnswerValue>(result.copiedAnswers);
       answers.set('year_map', result.gateTiles);
       const { model, currentQuestionId, usedQuestionIds } = replayAnswers(answers, session.taxYear, 'annual');
-      for (const qid of usedQuestionIds) {
-        await saveAnswer(session.id, qid, answers.get(qid)!);
-      }
       const done = currentQuestionId === null;
-      const updated = await updateSessionState(session.id, {
+      // כל התשובות שנכנסו במסלול + המודל — כתיבה אחת (174), לא תשובה-תשובה.
+      const toSave: Record<string, AnswerValue> = {};
+      for (const qid of usedQuestionIds) toSave[qid] = answers.get(qid)!;
+      const updated = await saveAnswers(session.id, toSave, {
         model: client ? seedModelFromClient(model, client) : model,
         currentQuestionId,
-        status: done ? 'review' : 'in_progress',
-        completedAt: done ? new Date().toISOString() : null,
+        done,
       });
       // תשובות שלא נכנסו במסלול (פרקים שעוד לא הגענו אליהם) — ייצרכו אוטומטית בהמשך.
       autoAnswersRef.current.clear();

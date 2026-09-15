@@ -28,7 +28,9 @@ function StatusChip({ status }: { status: EmailStatus }) {
 }
 
 export default function EmailActivityModule({ userId, clientId }: Props) {
-  const { messages, loading, error, reload } = useEmailMessages(userId);
+  // יומן המשרד — כאן כן מושכים את הגוף: הטבלה מציגה "צפייה" רק כשיש עותק,
+  // וסופרת כמה חסרים לשחזור מ-Resend.
+  const { messages, loading, error, reload } = useEmailMessages(userId, { clientId, withHtml: true });
   const [viewing, setViewing] = useState<EmailMessage | null>(null);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillNote, setBackfillNote] = useState<{ ok: boolean; text: string } | null>(null);

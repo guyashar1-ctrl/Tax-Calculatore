@@ -4,7 +4,7 @@
 // documents.uploaded_at, client.activity (הערות ידניות). ראה docs/prototypes/
 // client-case-simplified-exploration-v3-final2.html (#v-log) לקטגוריות ולניסוח.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Client } from '../types';
 import type { OnboardingEvent, OnboardingStep } from '../types/onboarding';
 import { EVENT_TYPE_LABELS } from '../types/onboarding';
@@ -73,6 +73,9 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
     return () => { cancelled = true; };
   }, [client.id]);
 
+  // ‼ הצבירה ממוזכרת על הקלטים: קודם היא רצה מחדש בכל רינדור של הלשונית
+  // (כולל כל פעימה חיה), מיינה מאות שורות והחזירה מערך חדש לכל צרכן.
+  const items = useMemo<ActivityEvent[]>(() => {
   const stepIds = new Set(clientSteps.map(s => s.id));
   const engagementIds = new Set(clientSteps.map(s => s.engagementId).filter(Boolean));
   const clientEvents = events.filter(ev => (ev.stepId && stepIds.has(ev.stepId)) || (ev.engagementId && engagementIds.has(ev.engagementId)));
@@ -158,6 +161,8 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
   }
 
   items.sort((a, b) => (b.at || '').localeCompare(a.at || ''));
+  return items;
+  }, [client.id, client.activity, clientSteps, events, quotations, charges, emails, taxChanges, docEvents]);
 
   return { items, loading };
 }

@@ -4,7 +4,7 @@
 
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { useEmailMessages } from '../../hooks/useEmailMessages';
+import { useEmailMessages, fetchEmailHtml } from '../../hooks/useEmailMessages';
 import { emailKindLabel, EmailMessage } from '../../types/emailActivity';
 import { belongsToClientCard } from '../../utils/clientEmailFilter';
 import SentEmailViewer from './SentEmailViewer';
@@ -24,12 +24,14 @@ function Row({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) {
   const opened = !!m.openedAt || ['opened', 'clicked'].includes(m.status);
   const delivered = !!m.deliveredAt || opened;
 
-  /** אין עותק שמור (מייל ישן) ⇒ נמשך מ-Resend ונפתח באותה לחיצה. */
+  /** הגוף נמשך לפי דרישה (הרשימה נטענת בלעדיו). אין עותק שמור (מייל ישן) ⇒ נמשך מ-Resend ונפתח באותה לחיצה. */
   async function view() {
     if (m.html) { setViewing(m); return; }
     setBusy(true);
     setErr(null);
     try {
+      const saved = await fetchEmailHtml(m.id);
+      if (saved) { setViewing({ ...m, html: saved }); return; }
       const { data, error } = await supabase.functions.invoke('backfill-email-html', { body: { messageId: m.id } });
       if (error || !data?.ok) setErr(data?.error === 'missing_read_key' ? 'חסר מפתח קריאה של Resend' : (data?.error || error?.message || 'לא הצלחתי לשלוף'));
       else if (!data.html) setErr('Resend לא מחזיק יותר את תוכן המייל');
@@ -77,7 +79,8 @@ export default function ClientEmailsSection(
   { clientId, emails, since }: { clientId: string; emails?: (string | undefined)[]; since?: string },
 ) {
   const { user } = useAuth();
-  const { messages, loading, reload } = useEmailMessages(user?.id);
+  // שורות הלקוח (וגם שורות ללא שיוך, לזיהוי לפי כתובת) — בלי גוף המייל.
+  const { messages, loading, reload } = useEmailMessages(user?.id, { clientId });
 
   // התאמה גם לפי כתובת: מיילים ישנים נשמרו בלי שיוך ללקוח, וגם בקשות חתימה
   // נשמרות לפעמים על הבקשה בלבד — בלי זה הם היו נעלמים מהכרטיס.

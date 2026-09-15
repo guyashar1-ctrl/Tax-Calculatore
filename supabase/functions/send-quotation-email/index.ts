@@ -82,21 +82,22 @@ Deno.serve(async (req: Request) => {
     // לדעת בדיעבד מה הלקוח קיבל בפועל — מפתח ה-API של Resend מוגבל לשליחה.
     // (עד 2026-07-30 מייל ההצעה היה היחיד בלי עותק, ובדיקה של תקלת תצוגה
     // בטלפון נאלצה להסתמך על הסקה במקום על המייל עצמו.)
-    const logBase = {
-      user_id: user.id,
-      client_id: q.client_id || null,
-      to_email: toEmail,
-      subject: finalSubject,
-      kind: isTest ? "quotation_test" : "quotation",
-      meta: { quotationId, quotationNumber: q.quotation_number, isTest: !!isTest },
-      html,
-    };
+    const kind = isTest ? "quotation_test" : "quotation";
+    const meta = { quotationId, quotationNumber: q.quotation_number, isTest: !!isTest };
     if (!r.ok) {
-      await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
+      await admin.from("email_messages").insert({
+        user_id: user.id, client_id: q.client_id || null, to_email: toEmail, subject: finalSubject, kind, meta, html,
+        status: "failed", error: JSON.stringify(body).slice(0, 500),
+      });
       return json({ error: "resend_failed", detail: body }, 502);
     }
-    await admin.from("email_messages").insert({ ...logBase, resend_id: body.id, status: "sent" });
-    return json({ ok: true, id: body.id });
+    // (170) הרישום דרך נקודת הרישום האחת; המפתח הייחודי נגזר ממזהה הספק.
+    const { error: recErr } = await admin.rpc("record_email_sent", {
+      p_user_id: user.id, p_kind: kind, p_to_email: toEmail, p_subject: finalSubject,
+      p_resend_id: String(body.id), p_html: html, p_client_id: q.client_id || null, p_meta: meta,
+    });
+    if (recErr) console.error("[send-quotation-email] record_email_sent failed", recErr.code, recErr.message);
+    return json({ ok: true, id: body.id, logged: !recErr });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

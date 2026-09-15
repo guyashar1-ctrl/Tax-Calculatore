@@ -97,7 +97,7 @@ export default function JourneyTab(p: Props) {
   /* יומן המיילים נטען פעם אחת כאן ומוזרם גם ללוח האירועים של ההצעה וגם
      למקטע המיילים למטה — אותם נתונים, שאילתה אחת. */
   const { user } = useAuth();
-  const { messages } = useEmailMessages(user?.id);
+  const { messages } = useEmailMessages(user?.id, { clientId: p.client.id });
   const clientEmails = useMemo(() => {
     if (p.emailsOverride) return p.emailsOverride;
     const addr = new Set([p.client.email].filter(Boolean).map(e => e!.trim().toLowerCase()));

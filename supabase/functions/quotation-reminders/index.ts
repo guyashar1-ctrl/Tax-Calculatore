@@ -114,13 +114,6 @@ Deno.serve(async (req: Request) => {
       // נמען
       let toEmail = "";
       let firstName = "";
-      if (q.client_id) {
-        const { data: c } = await admin.from("clients").select("email,first_name").eq("id", q.client_id).single();
-        toEmail = (c?.email || "").trim(); firstName = (c?.first_name || "").trim();
-      } else if (q.lead_id) {
-        const { data: l } = await admin.from("leads").select("email,full_name").eq("id", q.lead_id).single();
-        toEmail = (l?.email || "").trim(); firstName = String(l?.full_name || "").trim().split(/\s+/)[0] || "";
-      }
 
       const fail = async (msg: string) => {
         // שחרור התפיסה + תיעוד שגיאה — לא מסמנים שנשלח (כלל 6)
@@ -128,6 +121,18 @@ Deno.serve(async (req: Request) => {
         await admin.from("email_messages").insert({ user_id: q.user_id, client_id: q.client_id || null, to_email: toEmail || null, subject: "תזכורת - הצעת מחיר", kind: "quotation_reminder", status: "failed", error: msg.slice(0, 500), meta: { quotationId: q.id, quotationNumber: q.quotation_number, auto: true } });
         failed++; results.push({ id: q.id, status: "failed", error: msg });
       };
+
+      // ‼ (170) מכאן ועד הרישום — כל חריגה משחררת את התפיסה. עד כה חריגה
+      // בשליפת הנמען/הפרופיל נפלה ל-catch החיצוני והשאירה auto_reminder_sent_at
+      // מסומן על תזכורת שלא יצאה — ובלי ניסיון נוסף לעולם.
+      try {
+      if (q.client_id) {
+        const { data: c } = await admin.from("clients").select("email,first_name").eq("id", q.client_id).single();
+        toEmail = (c?.email || "").trim(); firstName = (c?.first_name || "").trim();
+      } else if (q.lead_id) {
+        const { data: l } = await admin.from("leads").select("email,full_name").eq("id", q.lead_id).single();
+        toEmail = (l?.email || "").trim(); firstName = String(l?.full_name || "").trim().split(/\s+/)[0] || "";
+      }
 
       if (!toEmail) { await fail("no recipient email"); continue; }
 
@@ -182,10 +187,24 @@ Deno.serve(async (req: Request) => {
       const respBody = await r.json().catch(() => ({}));
       if (!r.ok) { await fail(JSON.stringify(respBody)); continue; }
 
-      // הצלחה — תיעוד to+timestamp בהיסטוריה (כלל 5), ניקוי שגיאה קודמת
-      await admin.from("quotations").update({ auto_reminder_error: null, auto_reminder_error_at: null, events: [...(q.events || []), { type: "reminder_sent", at: nowIso, to: toEmail, auto: true }] }).eq("id", q.id);
-      await admin.from("email_messages").insert({ user_id: q.user_id, client_id: q.client_id || null, to_email: toEmail, subject, kind: "quotation_reminder", status: "sent", resend_id: respBody.id, meta: { quotationId: q.id, quotationNumber: q.quotation_number, auto: true } });
+      // הצלחה — תיעוד to+timestamp בהיסטוריה (כלל 5), ניקוי שגיאה קודמת.
+      // ‼ המייל כבר יצא: מכאן כשל הוא כשל רישום ולא כשל שליחה, והתפיסה נשארת.
+      try {
+        await admin.from("quotations").update({ auto_reminder_error: null, auto_reminder_error_at: null, events: [...(q.events || []), { type: "reminder_sent", at: nowIso, to: toEmail, auto: true }] }).eq("id", q.id);
+        const { error: recErr } = await admin.rpc("record_email_sent", {
+          p_user_id: q.user_id, p_kind: "quotation_reminder", p_to_email: toEmail, p_subject: subject,
+          p_resend_id: String(respBody.id), p_html: html, p_client_id: q.client_id || null,
+          p_idempotency_key: `quotation_reminder:${q.id}`,
+          p_meta: { quotationId: q.id, quotationNumber: q.quotation_number, auto: true },
+        });
+        if (recErr) console.error("[quotation-reminders] record_email_sent failed", recErr.code, recErr.message);
+      } catch (e) {
+        console.error("[quotation-reminders] post-send record failed", String(e));
+      }
       sent++; results.push({ id: q.id, status: "sent", to: toEmail });
+      } catch (e) {
+        await fail(`exception: ${String(e)}`.slice(0, 300));
+      }
     }
 
     // ‼ disabled נספר ומוחזר במפורש. הרצה שלא שלחה כלום כי המתג כבוי חייבת

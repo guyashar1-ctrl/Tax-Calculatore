@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   RepresentationRequest,
   RequestSubmission,
@@ -109,7 +109,22 @@ export default function RepresentationRequestReview({
   const [generating, setGenerating] = useState(false);
 
   // Generated PDF preview
-  const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
+  const [generatedPdfUrl, setGeneratedPdfUrlState] = useState<string | null>(null);
+  // ‼ (170) הכתובת החיה נשמרת גם ב-ref: פונקציית הניקוי של ה-effect למטה
+  // נוצרת כשהכתובת עדיין null, ולכן `if (generatedPdfUrl) revoke` שם לא שחרר
+  // אף פעם כלום — כל פתיחה של בקשה השאירה blob של PDF בזיכרון עד רענון.
+  // כל החלפה עוברת דרך setGeneratedPdfUrl, שמשחרר את הקודמת בעצמו.
+  const generatedPdfUrlRef = useRef<string | null>(null);
+  const setGeneratedPdfUrl = (next: string | null) => {
+    const prev = generatedPdfUrlRef.current;
+    if (prev && prev !== next) URL.revokeObjectURL(prev);
+    generatedPdfUrlRef.current = next;
+    setGeneratedPdfUrlState(next);
+  };
+  useEffect(() => () => {
+    if (generatedPdfUrlRef.current) URL.revokeObjectURL(generatedPdfUrlRef.current);
+    generatedPdfUrlRef.current = null;
+  }, []);
 
   useEffect(() => {
     db.getDocsByClient(`req-${request.id}`).then(setDocs);
@@ -119,30 +134,34 @@ export default function RepresentationRequestReview({
   useEffect(() => {
     // טעינת ה-PDF החתום אם קיים. תלוי ב-user כדי לא לרוץ לפני שההזדהות נטענה
     // (אחרת getDoc מחזיר undefined ולא מנסה שוב).
+    // ‼ בקשה שהתחלפה בזמן שהטעינה באוויר לא דורסת את ה-PDF של הבקשה החדשה.
+    let cancelled = false;
     if (request.signedPdfStoredId && user) {
       db.getDoc(request.signedPdfStoredId).then(d => {
+        if (cancelled) return;
         if (d && d.fileData.byteLength > 0) {
           const blob = new Blob([d.fileData], { type: 'application/pdf' });
-          const url = URL.createObjectURL(blob);
-          setGeneratedPdfUrl(url);
+          setGeneratedPdfUrl(URL.createObjectURL(blob));
         }
       });
     }
-    return () => {
-      if (generatedPdfUrl) URL.revokeObjectURL(generatedPdfUrl);
-    };
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request.signedPdfStoredId, user]);
 
   // טעינת פרופיל המשרד — לחותמת ולמילוי מוקדם של חלק ב'
+  // ‼ (170) המשתמש כבר ידוע מ-useAuth — אין צורך בסבב רשת נוסף (getUser)
+  // רק כדי לגלות את המזהה לפני שליפת הפרופיל.
   useEffect(() => {
+    const uid = user?.id;
+    if (!uid) return;
+    let cancelled = false;
     (async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u?.user) return;
-      const { data } = await supabase.from('profiles').select('*').eq('id', u.user.id).single();
-      setProfile(data);
+      const { data } = await supabase.from('profiles').select('*').eq('id', uid).single();
+      if (!cancelled) setProfile(data);
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!profile) return;
@@ -387,7 +406,6 @@ export default function RepresentationRequestReview({
       await onSaveSignedPdf(request, merged,
         poaDocs.map(d => d.key === target.key ? { ...d, signedPdfStoredId: storedId } : d));
       const blob = new Blob([toPureArrayBuffer(burned)], { type: 'application/pdf' });
-      if (generatedPdfUrl) URL.revokeObjectURL(generatedPdfUrl);
       setGeneratedPdfUrl(URL.createObjectURL(blob));
       setStampRoom(null);
     } catch (e) {
@@ -485,7 +503,6 @@ export default function RepresentationRequestReview({
       });
       // רענון תצוגה
       const blob = new Blob([toPureArrayBuffer(pdfBytes)], { type: 'application/pdf' });
-      if (generatedPdfUrl) URL.revokeObjectURL(generatedPdfUrl);
       setGeneratedPdfUrl(URL.createObjectURL(blob));
     } catch (err) {
       alert(`שגיאה: ${err instanceof Error ? err.message : String(err)}`);

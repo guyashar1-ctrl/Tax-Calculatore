@@ -201,7 +201,10 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
           { key: 'taxOfficeName', label: 'פקיד שומה', placeholder: 'תל אביב 3', governedKey: 'taxOfficeName' },
           { key: 'incomeTaxUnit', label: 'חוליה', governedKey: 'incomeTaxUnit' },
           { key: 'incomeTaxEconomicIndustry', label: 'ענף כלכלי', governedKey: 'incomeTaxEconomicIndustry' },
-          { key: 'pitAdvancePercent', label: 'שיעור מקדמות', placeholder: '6%', governedKey: 'pitAdvancePercent' },
+          { key: 'pitAdvancePercent', label: 'שיעור מקדמות', placeholder: '6%', governedKey: 'pitAdvancePercent',
+            // ‼ העמודה מספרית. "6%" כפי שמקלידים מהפורטל נכשל ב-cast בשרת והשאיר
+            // הצעה ממתינה לנצח (ראה ספר הפערים T4). מנקים סימנים ומחזירים מספר או ריק.
+            toPatchValue: v => { const x = Number(String(v).replace(/[%s]/g, '').replace(',', '.')); return v.trim() === '' || Number.isNaN(x) ? null : x; } },
           { key: 'pitAdvanceFrequency', label: 'תדירות מקדמות', type: 'select',
             options: ['חודשי', 'דו-חודשי'], governedKey: 'pitAdvanceFrequency',
             toPatchValue: v => v === 'חודשי' ? 'monthly' : 'bi_monthly' },
@@ -627,7 +630,12 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
       // 2) חריגות — שלושה יעדי פלט: עובדה מקצועית, הבהרה, או טיוטת בקשה.
       const clarifications: string[] = [];
       for (const exc of cfg.exceptions) {
-        const val = String(exceptions[exc.key] ?? exc.options[0]);
+        // ‼ חריגה שלא נבחרה במפורש אינה עובדה. עד היום options[0] ("קיימת" /
+        // "לא") הוצגה כנבחרת ונכתבה לתיק עם חותמת סנכרון גם כשאיש לא בדק —
+        // ואז השתיקה דגל אמיתי. ריק ⇒ לא נשאל ⇒ לא כותבים ולא מסיקים כלום.
+        const rawExc = exceptions[exc.key];
+        if (rawExc === undefined || rawExc === '') continue;
+        const val = String(rawExc);
         const bad = exc.badValues.includes(val);
         if (exc.governedKey && exc.governedPatch) {
           const patchVal = exc.governedPatch(bad);
@@ -755,12 +763,13 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
           <div className="ial-kicker">יש משהו חריג?</div>
           <div className="ial-fgrid">
             {cfg.exceptions.map(exc => {
-              const val = String(exceptions[exc.key] ?? exc.options[0]);
-              const bad = exc.badValues.includes(val);
+              const val = exceptions[exc.key] === undefined ? '' : String(exceptions[exc.key]);
+              const bad = val !== '' && exc.badValues.includes(val);
               return (
                 <div key={exc.key}>
                   <label>{exc.label}</label>
                   <select className="inp" value={val} onChange={e => setExc(exc.key, e.target.value)}>
+                    <option value="">-</option>
                     {exc.options.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
                   <WhereHint where={exc.where} />
@@ -777,10 +786,10 @@ export function InstitutionFocus({ client, step, allSteps, advance, onClientPers
               );
             })}
           </div>
-          {cfg.exceptions.some(exc => exc.badValues.includes(String(exceptions[exc.key] ?? exc.options[0]))) && (
+          {cfg.exceptions.some(exc => exceptions[exc.key] !== undefined && exc.badValues.includes(String(exceptions[exc.key]))) && (
             <div className="ial-exc-note">
               {cfg.exceptions
-                .filter(exc => exc.badValues.includes(String(exceptions[exc.key] ?? exc.options[0])))
+                .filter(exc => exceptions[exc.key] !== undefined && exc.badValues.includes(String(exceptions[exc.key])))
                 .map(exc => {
                   const outcome = exc.outcome(String(exceptions[exc.key]));
                   return (

@@ -188,7 +188,7 @@ const intake = await step(CID, 'intake_questionnaire');
 ok('השאלון נוצר אוטומטית', !!intake?.id);
 ok('השאלון רשות ואינו חוסם', intake?.required_for_close === false, String(intake?.required_for_close));
 ok('השאלון נולד כטיוטה שאינה מפורסמת',
-  (await one(`select payload->>'published' as p from public.onboarding_steps where id = ${q(intake.id)}`)).p === 'false');
+  (await one(`select (published_at is null) as p from public.onboarding_steps where id = ${q(intake.id)}`)).p === true);
 await writeStaging(`insert into public.documents (id, user_id, client_id, file_name, file_type, file_size,
                       category, year, uploaded_at, storage_path)
                     values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', ${q(CID)},

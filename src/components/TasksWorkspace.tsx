@@ -15,7 +15,8 @@ import type { OnboardingStep } from '../types/onboarding';
 import { STEP_TYPE_LABELS, WAITING_STATUS_LABEL_BY_BALL } from '../types/onboarding';
 import { summarizeClientOnboarding, NEXT_ACTION, type ClientOnboardingSummary } from '../utils/onboardingNext';
 import type { Quotation } from '../types/quotations';
-import { formatDueDate, daysLate, lateLabel } from '../utils/taskUtils';
+import { formatDueDate, lateLabel, isLateTask, isOpenTask } from '../utils/taskUtils';
+import { todayIso } from '../utils/dateFormat';
 import { relativeTime } from '../utils/clientDerived';
 import { useDocumentStore, type DocumentLabel } from '../hooks/useDocumentStore';
 import { AVAILABLE_YEARS } from '../data/taxData';
@@ -28,7 +29,8 @@ interface Props {
   clients: Client[];
   onSelectTask: (id: string) => void;
   onAddTask: (presetClientId?: string) => void;
-  onReorderOpen: (id: string, beforeId: string | null) => void;
+  /** סדר ידני. הבטחה שנדחית = הסדר לא נשמר בשרת; ההודעה מוצגת מעל הרשימה. */
+  onReorderOpen: (id: string, beforeId: string | null) => void | Promise<void>;
   onSelectClient: (id: string) => void;
   onboardingSteps: OnboardingStep[];
   onOpenOnboarding: (clientId: string) => void;
@@ -58,10 +60,9 @@ function clientName(c?: Client): string {
 
 function dueRank(t: Task): 0 | 1 | 2 {
   if (!t.dueDate) return 2;
-  const late = daysLate(t.dueDate) > 0;
-  if (late) return 0;
-  const today = new Date().toISOString().slice(0, 10);
-  return t.dueDate === today ? 1 : 2;
+  if (isLateTask(t)) return 0;
+  // ‼ (168) "היום" לפי השעון המקומי. toISOString הוא UTC, ובערב הוא כבר מחר.
+  return t.dueDate === todayIso() ? 1 : 2;
 }
 
 /** לטיפולי הוא רשימה שטוחה אחת: תאריך שהגיע קופץ למעלה, אבל לא הורס את
@@ -104,6 +105,16 @@ export default function TasksWorkspace({
   const [reqLabels, setReqLabels] = useState<DocumentLabel[]>([]);
   const [reqBusy, setReqBusy] = useState(false);
   const [reqError, setReqError] = useState('');
+  // ‼ כישלון של פעולה על משימה (גרירה/הזזה) חייב להיראות (K12) — עד היום
+  // ההבטחה נדחתה בשקט והרשימה נשארה כפי שהמשתמש סידר, בלי שנשמר דבר.
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  function reorderSafely(id: string, beforeId: string | null) {
+    setActionError(null);
+    Promise.resolve().then(() => onReorderOpen(id, beforeId)).catch((e: unknown) => {
+      setActionError(e instanceof Error ? e.message : 'שמירת הסדר נכשלה.');
+    });
+  }
 
   const clientMap = useMemo(() => {
     const m = new Map<string, Client>();
@@ -123,9 +134,9 @@ export default function TasksWorkspace({
     [quotations]
   );
 
-  const openTasks = useMemo(() => tasks.filter(t => t.status === 'open'), [tasks]);
+  const openTasks = useMemo(() => tasks.filter(isOpenTask), [tasks]);
   const doneTasks = useMemo(
-    () => [...tasks.filter(t => t.status === 'done')]
+    () => [...tasks.filter(t => !isOpenTask(t))]
       .sort((a, b) => (b.completedAt || b.updatedAt || '').localeCompare(a.completedAt || a.updatedAt || '')),
     [tasks]
   );
@@ -190,7 +201,7 @@ export default function TasksWorkspace({
     if (!draggedId || draggedId === targetId) { setDraggedId(null); return; }
     const idx = orderedOpen.findIndex(t => t.id === targetId);
     const beforeId = idx === -1 ? null : orderedOpen[idx].id;
-    onReorderOpen(draggedId, beforeId);
+    reorderSafely(draggedId, beforeId);
     setDraggedId(null);
   }
   function moveBy(id: string, dir: -1 | 1) {
@@ -199,7 +210,7 @@ export default function TasksWorkspace({
     const targetIdx = idx + dir;
     if (targetIdx < 0 || targetIdx >= orderedOpen.length) return;
     const beforeId = dir === -1 ? orderedOpen[targetIdx].id : (orderedOpen[targetIdx + 1]?.id ?? null);
-    onReorderOpen(id, beforeId);
+    reorderSafely(id, beforeId);
   }
 
   const totalCount = tasks.length;
@@ -298,6 +309,9 @@ export default function TasksWorkspace({
           </button>
         )}
       </div>
+      {actionError && (
+        <div role="alert" style={{ color: 'var(--err)', fontSize: 'var(--fs-12)', margin: '.4rem 0' }}>{actionError}</div>
+      )}
 
       {bucket === 'mine' && (
         <>

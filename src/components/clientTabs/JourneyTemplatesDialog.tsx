@@ -16,6 +16,12 @@ export interface JourneyTemplate {
   name: string;
   description?: string;
   /**
+   * בעלות: המשרד (מיגרציה 111). null = תבנית מובנית — נראית לכולם, ניתנת
+   * להחלה, ואינה ניתנת למחיקה (ה-RLS מסרב בשקט, בלי שגיאה — ולכן הכפתור
+   * לא מוצג עליה כלל).
+   */
+  office_id?: string | null;
+  /**
    * ‼ requiredForClose נוסע עם הבקשה. בלעדיו בקשה שהוגדרה כרשות אצל לקוח אחד
    * הייתה חוזרת כ"נדרש" אצל כל מי שהתבנית מוחלת עליו. חסר ⇒ נדרש, כדי
    * שתבניות שנשמרו לפני השינוי ימשיכו להתנהג כמו קודם.
@@ -161,8 +167,10 @@ export default function JourneyTemplatesDialog({ clientId, clientName, onClose, 
                   </div>
                   <button type="button" className="btn btn-sm btn-primary" disabled={busy}
                     onClick={() => void apply(t)}>החל</button>
-                  <button type="button" className="btn btn-sm btn-ghost" disabled={busy}
-                    onClick={() => void remove(t)} aria-label="מחיקת תבנית">✕</button>
+                  {t.office_id != null && (
+                    <button type="button" className="btn btn-sm btn-ghost" disabled={busy}
+                      onClick={() => void remove(t)} aria-label="מחיקת תבנית">✕</button>
+                  )}
                 </div>
               ))}
             </>

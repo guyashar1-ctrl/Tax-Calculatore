@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Quotation, QuotationEvent, QuotationEventType } from '../types/quotations';
+import type { Quotation, QuotationEvent, QuotationEventType, QuotationStatus } from '../types/quotations';
+import { QUOTATION_STATUS_LABELS } from '../types/quotations';
 import { supabase } from '../lib/supabase';
 import { quotationFromDb, quotationToDb } from '../lib/dbMappers';
+import { keepIfSame } from './useLivePulse';
 
 export function useQuotations(userId: string | undefined) {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
@@ -17,6 +19,13 @@ export function useQuotations(userId: string | undefined) {
     let cancelled = false;
     setLoading(true);
     (async () => {
+      // ‼ סימון תוקף קורה בשרת בלבד (expire_stale_quotations, 166): ה-WHERE שם
+      // נוגע רק בהצעות sent/viewed שעבר מועדן, ולכן אינו יכול לדרוס אישור
+      // שהלקוח נתן בין הטעינה לכתיבה — מה שהכתיבה הישנה מהדפדפן, מתוך צילום
+      // ישן של השורה, כן יכלה לעשות (C3). כישלון כאן אינו חוסם: התצוגה
+      // גוזרת «פג תוקף» בעצמה (deriveQuotationStatus ב-dbMappers).
+      const { error: expireErr } = await supabase.rpc('expire_stale_quotations');
+      if (expireErr) console.warn('[quotations] expire_stale_quotations:', expireErr.message);
       const { data, error } = await supabase
         .from('quotations')
         .select('*')
@@ -31,13 +40,6 @@ export function useQuotations(userId: string | undefined) {
       setQuotations(loaded);
       setError(null);
       setLoading(false);
-
-      // סימון אוטומטי של הצעות שפג תוקפן (נשלחו/נצפו אך עבר מועד התוקף)
-      const now = Date.now();
-      const stale = loaded.filter(q =>
-        (q.status === 'sent' || q.status === 'viewed') &&
-        q.expiresAt && new Date(q.expiresAt).getTime() < now);
-      if (stale.length > 0) void expireStale(stale);
     })();
     return () => { cancelled = true; };
   }, [userId]);
@@ -54,23 +56,10 @@ export function useQuotations(userId: string | undefined) {
       .select('*')
       .order('created_at', { ascending: false });
     if (error) return;
-    setQuotations((data ?? []).map(quotationFromDb));
+    // ‼ פעימה שלא שינתה דבר לא מחליפה את המערך — ראה keepIfSame.
+    const next = (data ?? []).map(quotationFromDb);
+    setQuotations(prev => keepIfSame(prev, next));
   }, [userId]);
-
-  async function expireStale(stale: Quotation[]) {
-    for (const q of stale) {
-      try {
-        const updated = quotationFromDb((await supabase
-          .from('quotations')
-          .update({
-            status: 'expired',
-            events: [...q.events, { type: 'expired', at: new Date().toISOString() }],
-          })
-          .eq('id', q.id).select().single()).data);
-        setQuotations(prev => prev.map(x => x.id === updated.id ? updated : x));
-      } catch { /* לא חוסם — סימון תוקף הוא נוחות תצוגה */ }
-    }
-  }
 
   // יצירת טיוטה. quotation_number לא נשלח — נקבע ב-DB מהמונה השנתי (2026-001)
   async function addQuotation(q: Omit<Quotation, 'id' | 'quotationNumber'>): Promise<Quotation> {
@@ -92,6 +81,9 @@ export function useQuotations(userId: string | undefined) {
     delete row.id;
     delete row.user_id;
     delete row.created_at;
+    // «פג תוקף» שנגזר לתצוגה (בלי אירוע expired בשורה) אינו נכתב מהדפדפן —
+    // אחרת שמירת תזכורת/עריכה הייתה מהדהדת אותו על אישור שהגיע בינתיים.
+    if (q.status === 'expired' && !q.events.some(e => e.type === 'expired')) delete row.status;
     const { data, error } = await supabase
       .from('quotations')
       .update(row)
@@ -105,13 +97,21 @@ export function useQuotations(userId: string | undefined) {
   }
 
   // ביטול — הדרך היחידה "לשנות" הצעה שנשלחה: מבטלים ומוציאים חדשה
+  // ‼ 171: הביטול נעשה בשרת, על המצב האמיתי של השורה — לא על העותק שבמסך.
+  // הצעה שכבר אושרה אינה ניתנת לביטול (זו סיום התקשרות); השרת מחזיר את
+  // המצב העדכני, והמסך מתעדכן אליו במקום לדרוס אישור חתום.
   async function cancelQuotation(q: Quotation, note?: string): Promise<Quotation> {
-    return updateQuotation({
-      ...q,
-      status: 'cancelled',
-      cancelledAt: new Date().toISOString(),
-      events: [...q.events, event('cancelled', note)],
-    });
+    const { data, error } = await supabase.rpc('cancel_quotation', { p_quotation_id: q.id, p_note: note ?? null });
+    if (error) throw error;
+    const res = data as { ok: boolean; error?: string; status?: string; quotation?: Record<string, unknown> };
+    if (!res.ok) {
+      await refreshQuotations();
+      const label = res.status ? (QUOTATION_STATUS_LABELS[res.status as QuotationStatus] ?? res.status) : '';
+      throw new Error(res.error === 'not_cancellable' ? `ההצעה כבר במצב «${label}» ואינה ניתנת לביטול` : 'ביטול ההצעה נכשל');
+    }
+    const updated = quotationFromDb(res.quotation as Record<string, unknown>);
+    setQuotations(prev => prev.map(x => x.id === updated.id ? updated : x));
+    return updated;
   }
 
   // מחיקה סופית של הצעה. הדרך המומלצת להצעה שנשלחה היא ביטול (נשאר תיעוד),

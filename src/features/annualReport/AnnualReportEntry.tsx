@@ -9,12 +9,14 @@ interface Props {
   onStart: (clientId: string, taxYear: number) => Promise<void>;
   onDeleteSession: (sessionId: string) => Promise<void>;
   loading?: boolean;
+  /** שנת המס שנפתחת כברירת מחדל — מ-reportTaxYear, אותו כלל כמו בשרת (168). */
+  defaultTaxYear: number;
 }
 
-export default function AnnualReportEntry({ clients, existingSessions, onStart, onDeleteSession, loading }: Props) {
+export default function AnnualReportEntry({ clients, existingSessions, onStart, onDeleteSession, loading, defaultTaxYear }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
-  const [selectedYear, setSelectedYear] = useState<number>(2025);
+  const [selectedYear, setSelectedYear] = useState<number>(defaultTaxYear);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredClients = useMemo(() => {
@@ -39,9 +41,9 @@ export default function AnnualReportEntry({ clients, existingSessions, onStart, 
     : null;
 
   const yearOptions = useMemo(() => {
-    const set = new Set<number>([2025, 2024, 2023, 2022, ...AVAILABLE_YEARS]);
+    const set = new Set<number>([defaultTaxYear, 2025, 2024, 2023, 2022, ...AVAILABLE_YEARS]);
     return Array.from(set).sort((a, b) => b - a);
-  }, []);
+  }, [defaultTaxYear]);
 
   function handleStart() {
     if (!selectedClientId) return;

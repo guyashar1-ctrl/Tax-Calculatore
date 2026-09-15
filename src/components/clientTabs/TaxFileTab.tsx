@@ -45,6 +45,7 @@ import NiInstructionsDialog from '../NiInstructionsDialog';
 import SpouseRelationshipCard from './SpouseRelationshipCard';
 import { OccupationsEditor, newOccupationRow } from './InstitutionAlignment';
 import type { OccupationDraft } from './InstitutionAlignment';
+import { jobIsLive } from '../../lib/automationJobs';
 
 interface Props {
   client: Client;
@@ -1268,8 +1269,9 @@ export default function TaxFileTab({
               : inputRes && 'blocked' in inputRes ? inputRes.blocked
               : cap && !cap.ready ? cap.blockedReason
               : null;
-            const running = !!spec?.available
-              && (!!sync?.busy || job?.status === 'queued' || job?.status === 'running');
+            // ‼ "רץ" רק כשהעובד באמת חי (החכירה בתוקף). עבודה שהעובד שלה מת
+            // הציגה "רץ" לנצח וחסמה את הכפתור (ספר הפערים N5).
+            const running = !!spec?.available && (!!sync?.busy || jobIsLive(job));
             const runCheck = () => {
               if (!spec?.available || !sync || !inputRes || !('input' in inputRes)) return;
               setApproveError(null);
@@ -1520,7 +1522,7 @@ export default function TaxFileTab({
         <h3>תמונת המס</h3>
         <span>מה שידוע, מה חסר — ומה זה אומר על המס</span>
         <span className="txf-qside">
-          <span>{lastQSync ? 'שאלון סטטוס מס · עודכן ' + monthYear(lastQSync) : 'שאלון סטטוס מס · טרם נשלח'}</span>
+          <span>{lastQSync ? 'שאלון סטטוס מס · עודכן ' + monthYear(lastQSync) : 'שאלון סטטוס מס · טרם נקלט'}</span>
           <button type="button" className="ui-btn ui-btn-sm" onClick={onSendQuestionnaire}>
             {lastQSync ? 'שלח שוב' : 'שלח שאלון עדכון'}
           </button>

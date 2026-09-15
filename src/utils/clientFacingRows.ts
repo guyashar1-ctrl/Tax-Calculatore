@@ -12,7 +12,7 @@
 // יושבים הכרטיסים הייעודיים (PaperlessStepCard, ReleaseStepCard…).
 
 import type { OnboardingStep, OnboardingStepType } from '../types/onboarding';
-import { isStepOpen } from '../types/onboarding';
+import { isStepOpen, compareStepsForOffice } from '../types/onboarding';
 
 export type ClientRowKind = 'paperless' | 'prevAccountant' | 'single';
 
@@ -89,8 +89,7 @@ function pickPrimary(members: OnboardingStep[]): OnboardingStep {
 }
 
 const bySort = (a: ClientFacingRow, b: ClientFacingRow) =>
-  (a.primary.sortOrder ?? 0) - (b.primary.sortOrder ?? 0)
-  || (a.primary.createdAt ?? '').localeCompare(b.primary.createdAt ?? '');
+  compareStepsForOffice(a.primary, b.primary);
 
 /**
  * מקבצת את שלבי הלקוח לכרטיסים, בסדר התצוגה.

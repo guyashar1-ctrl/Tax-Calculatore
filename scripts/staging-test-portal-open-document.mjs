@@ -49,9 +49,11 @@ const cleanup = async () => {
 await cleanup();
 
 const mkClient = async (first) => (await one(`
-  insert into public.clients (id, user_id, first_name, last_name, email, portal_token)
+  -- ‼ לקוח פעיל שנוצר ידנית: בלי זה ברירת המחדל היא 'lead', ו-135 מחזיקה כל
+  --   בקשה עד אישור הצעה — הדף האישי ריק והדלת עונה 403 "טרם נפתחה".
+  insert into public.clients (id, user_id, first_name, last_name, email, portal_token, lifecycle_stage)
   values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', '${first}', '${LAST}',
-          'delivered@resend.dev', '${randomBytes(16).toString('hex')}')
+          'delivered@resend.dev', '${randomBytes(16).toString('hex')}', 'active')
   returning id, portal_token;`));
 
 const A = await mkClient('אלף');

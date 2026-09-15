@@ -152,27 +152,52 @@ Deno.serve(async (req: Request) => {
         subject: built.subject,
         html: built.html,
       };
-      const r = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const body = await r.json();
+      // ‼ fetch שזורק (רשת, timeout) נרשם כניסיון שנכשל — attempts כבר עלה
+      // בתפיסה, והניסיון הבא יבוא בהפעלה הבאה. לא קופצים החוצה מהלולאה.
+      let r: Response;
+      try {
+        r = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (e) {
+        await admin.from("accountant_notifications")
+          .update({ error: `resend_unreachable: ${String(e)}`.slice(0, 300) }).eq("id", n.id);
+        continue;
+      }
+      const body = await r.json().catch(() => ({}));
 
-      const logBase = {
-        user_id: userId, client_id: n.client_id, request_id: n.request_id,
-        to_email: toEmail, subject: built.subject, kind: `notify_${n.kind}`, html: built.html,
-      };
       if (!r.ok) {
         await admin.from("accountant_notifications")
           .update({ error: JSON.stringify(body).slice(0, 300) }).eq("id", n.id);
-        await admin.from("email_messages")
-          .insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
+        await admin.from("email_messages").insert({
+          user_id: userId, client_id: n.client_id, request_id: n.request_id,
+          to_email: toEmail, subject: built.subject, kind: `notify_${n.kind}`, html: built.html,
+          status: "failed", error: JSON.stringify(body).slice(0, 500),
+        });
         continue;
       }
-      await admin.from("accountant_notifications")
-        .update({ sent_at: new Date().toISOString(), error: null }).eq("id", n.id);
-      await admin.from("email_messages").insert({ ...logBase, resend_id: body.id, status: "sent" });
+      // (170) sent_at על ההתראה ושורת היומן — כתיבה אחת. קריסה ביניהן הייתה
+      // משאירה התראה "ממתינה" שכבר יצאה, והפעלה הבאה שלחה אותה שוב.
+      const recordArgs = {
+        p_user_id: userId, p_kind: `notify_${n.kind}`, p_to_email: toEmail, p_subject: built.subject,
+        p_resend_id: String(body.id), p_html: built.html as string | null,
+        p_client_id: n.client_id, p_request_id: n.request_id,
+        p_notification_id: n.id,
+      };
+      let { error: recErr } = await admin.rpc("record_email_sent", recordArgs);
+      if (recErr) {
+        console.error("[notify-accountant] record_email_sent failed", recErr.code, recErr.message);
+        ({ error: recErr } = await admin.rpc("record_email_sent", { ...recordArgs, p_html: null }));
+      }
+      if (recErr) {
+        // המייל יצא; לפחות ההתראה עצמה לא תישלח שוב.
+        console.error("[notify-accountant] record_email_sent retry failed", recErr.code, recErr.message);
+        await admin.from("accountant_notifications")
+          .update({ sent_at: new Date().toISOString(), error: `log_failed: ${String(recErr.message ?? "").slice(0, 200)}` })
+          .eq("id", n.id);
+      }
       sent++;
     }
 
@@ -288,6 +313,42 @@ async function buildEmail(
           : `החתימה הושלמה. אפשר להמשיך להזנת הייצוג ברשויות.`),
         extraHtml: card(brand, rows),
         ctaLabel: "לכרטיס הלקוח",
+        ctaHref: `${appUrl}/`,
+        ctaArrow: true,
+        footerTagline: "התראה אוטומטית ממערכת הייצוג",
+      }),
+    };
+  }
+
+  // ‼ (170) עד כאן לא היה בונה ל-representation_link_missing: ההתראה דלוקה
+  // כברירת מחדל בקטלוג, flag_missing_representation_links רושמת אותה בתור
+  // (24 שעות אחרי אישור ההצעה בלי פרטי ייצוג) — והיא נפלה כאן על "לא נמצאו
+  // הנתונים" שלוש פעמים ונשארה בתור לנצח. עכשיו יש לה מייל.
+  if (kind === "representation_link_missing") {
+    const { data: q } = await admin.from("quotations").select("*").eq("id", String(p.quotationId || n.quotation_id || "")).maybeSingle();
+    let clientName = String(p.clientName || q?.snapshot?.recipientName || "").trim();
+    if (!clientName && n.client_id) {
+      const { data: c } = await admin.from("clients").select("first_name,last_name").eq("id", n.client_id).maybeSingle();
+      clientName = [c?.first_name, c?.last_name].filter(Boolean).join(" ").trim();
+    }
+    const name = clientName || "הלקוח";
+    const quotationNumber = String(p.quotationNumber || q?.quotation_number || "").trim();
+    const approvedAt = q?.approved_at ? new Date(q.approved_at) : null;
+    const rows = [
+      row(brand, "לקוח", name),
+      quotationNumber ? row(brand, "הצעה", quotationNumber) : "",
+      approvedAt && !isNaN(approvedAt.getTime())
+        ? row(brand, "ההצעה אושרה", approvedAt.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" }))
+        : "",
+    ].join("");
+
+    return {
+      subject: `⏳ ${name} עדיין לא מילא את פרטי הייצוג`,
+      html: buildBrandedEmail(brand, {
+        heading: "פרטי הייצוג עדיין לא הושלמו",
+        bodyHtml: esc(`${name} אישר את ההצעה לפני יותר מ-24 שעות, ועדיין לא מילא את פרטי הזיהוי לייפוי הכוח. אפשר לשלוח לו תזכורת ממסך בקשת הייצוג.`),
+        extraHtml: card(brand, rows),
+        ctaLabel: "לבקשת הייצוג",
         ctaHref: `${appUrl}/`,
         ctaArrow: true,
         footerTagline: "התראה אוטומטית ממערכת הייצוג",

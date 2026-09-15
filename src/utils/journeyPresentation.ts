@@ -8,7 +8,8 @@ import type { Client, Task } from '../types';
 import type { Quotation, Lead } from '../types/quotations';
 import type { EmailMessage } from '../types/emailActivity';
 import type { AnnualReportSession } from '../features/annualReport/types';
-import { formatDate } from './dateFormat';
+import { formatDate, daysLate } from './dateFormat';
+import { ballLabel, isOpenTask } from './taskUtils';
 
 // ─── עזרי תאריך ──────────────────────────────────────────────────────────────
 
@@ -67,11 +68,15 @@ interface NextActionCtx {
 
 const displayName = (c: Client) => `${c.firstName} ${c.lastName ?? ''}`.trim() || c.idNumber;
 
-/** המשימה שהכי דורשת טיפול: תקועה קודם, אחריה האיחור הגדול ביותר. */
+/** המשימה שהכי דורשת טיפול: תקועה קודם, אחריה האיחור הגדול ביותר.
+ *  ‼ (168) האיחור נמדד ב-daysLate — השוואת תאריכים לפי השעון המקומי — ולא
+ *  ב-daysSince, שהשווה מילישניות ב-UTC ולכן משימה שפגה "היום" נחשבה
+ *  באיחור רק אחרי 03:00 בבוקר. */
 function mostUrgentTask(openTasks: Task[]): { task: Task; lateDays: number } | null {
   let best: { task: Task; lateDays: number } | null = null;
   for (const t of openTasks) {
-    const late = t.dueDate ? (daysSince(t.dueDate) ?? 0) : 0;
+    if (!isOpenTask(t)) continue;
+    const late = daysLate(t.dueDate);
     const stuck = t.ballWith === 'stuck';
     const score = (stuck ? 10_000 : 0) + Math.max(0, late);
     if (score <= 0) continue;
@@ -211,7 +216,9 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
       headline: task.title,
       detail: [
         'משימת משרד',
-        stuck ? 'תקועה' : 'הכדור אצלי',
+        // ‼ (168) "הכדור אצלי" נאמר כאן גם על משימה שהכדור אצל הלקוח או
+        // אצל הרשות. משפט המצב נכתב פעם אחת ב-taskUtils.ballLabel.
+        ballLabel(task),
         task.dueDate ? `יעד ${formatDate(task.dueDate, 'list')}` : null,
         !stuck && lateDays > 0 ? `באיחור ${lateDays} ימים` : null,
       ].filter(Boolean).join(' · '),

@@ -132,16 +132,18 @@ Deno.serve(async (req: Request) => {
 
     // ‼ הרישום על הבקשה הוא מה שסוגר את הדרישה. מערך ולא ערך יחיד: תעודה
     // דו-צדדית או צילום חוזר מוסיפים, ולא דורסים את מה שכבר הגיע.
-    const docs = (reqRow.identity_docs ?? {}) as Record<string, unknown[]>;
-    const mine = Array.isArray(docs[person]) ? [...docs[person]] : [];
-    mine.push({ documentId: docId, docKind, fileName: file.name || "", at: new Date().toISOString() });
-    const { error: patchErr } = await admin
-      .from("representation_requests")
-      .update({ identity_docs: { ...docs, [person]: mine } })
-      .eq("id", reqRow.id);
-    if (patchErr) return json({ error: "link_failed", detail: patchErr.message }, 500);
+    // ההוספה למערך נעשית במשפט אחד בשרת (174) — שני צדי תעודה שעולים במקביל
+    // (או הלקוח ובן/בת הזוג באותו רגע) אינם דורסים זה את רישומו של זה.
+    const { data: appended, error: patchErr } = await admin.rpc("onboarding_identity_doc_append", {
+      p_request_id: reqRow.id,
+      p_person: person,
+      p_entry: { documentId: docId, docKind, fileName: file.name || "", at: new Date().toISOString() },
+    });
+    if (patchErr || !appended?.ok) {
+      return json({ error: "link_failed", detail: patchErr?.message || appended?.error || "" }, 500);
+    }
 
-    return json({ ok: true, documentId: docId, person, docKind, count: mine.length });
+    return json({ ok: true, documentId: docId, person, docKind, count: appended.count });
   } catch (e) {
     return json({ error: "unexpected", detail: e instanceof Error ? e.message : String(e) }, 500);
   }

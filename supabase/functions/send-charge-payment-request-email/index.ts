@@ -24,6 +24,10 @@ Deno.serve(async (req: Request) => {
   const json = (b: unknown, s = 200) =>
     new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
+  // ‼ (170) התפיסה (pending→requested) נלקחת לפני השליחה. כל יציאה בלי מייל
+  // שיצא — כולל חריגה שנזרקה בדרך — חייבת להחזיר אותה, אחרת החיוב מוצג
+  // "נשלח" על מייל שלא יצא ואי אפשר לשלוח אותו שוב.
+  let releaseOnThrow: (() => Promise<void>) | null = null;
   try {
     const { chargeId } = await req.json().catch(() => ({}));
     if (typeof chargeId !== "string" || !chargeId.trim()) return json({ error: "missing_charge_id" }, 400);
@@ -55,14 +59,19 @@ Deno.serve(async (req: Request) => {
       if (!existing) return json({ error: "not_found" }, 404);
       return json({ error: "already_requested" }, 409);
     }
+    const releaseClaim = async () => {
+      releaseOnThrow = null;
+      await admin.from("additional_charges")
+        .update({ status: "pending", requested_at: null }).eq("id", chargeId).eq("user_id", userId);
+    };
+    releaseOnThrow = releaseClaim;
 
     const { data: client } = await admin
       .from("clients").select("id, first_name, last_name, email, user_id").eq("id", claimed.client_id).maybeSingle();
     const toEmail = String(client?.email || "").trim();
     if (!client || client.user_id !== userId || !toEmail) {
       // מחזירים את הסטטוס — לא שלחנו כלום, אז אסור שהחיוב ייראה "נשלח".
-      await admin.from("additional_charges")
-        .update({ status: "pending", requested_at: null }).eq("id", chargeId).eq("user_id", userId);
+      await releaseClaim();
       return json({ error: client ? "missing_client_email" : "client_not_found" }, 400);
     }
 
@@ -101,27 +110,40 @@ Deno.serve(async (req: Request) => {
     };
     if (replyTo) payload.reply_to = replyTo;
 
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const body = await r.json();
+    // גם fetch שזורק (רשת, timeout) — לא רק תשובת שגיאה מהספק — מחזיר את התפיסה.
+    let r: Response;
+    try {
+      r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      await releaseClaim();
+      return json({ error: "resend_unreachable", detail: { message: String(e).slice(0, 300) } }, 502);
+    }
+    const body = await r.json().catch(() => ({}));
 
-    const logBase = {
-      user_id: userId, client_id: claimed.client_id, to_email: toEmail, subject,
-      kind: "charge_payment_request", meta: { chargeId }, html,
-    };
     if (!r.ok) {
       // השליחה עצמה נכשלה — מחזירים ל-pending כדי לא לשקר שהבקשה יצאה.
-      await admin.from("additional_charges")
-        .update({ status: "pending", requested_at: null }).eq("id", chargeId).eq("user_id", userId);
-      await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
+      await releaseClaim();
+      await admin.from("email_messages").insert({
+        user_id: userId, client_id: claimed.client_id, to_email: toEmail, subject,
+        kind: "charge_payment_request", meta: { chargeId }, html,
+        status: "failed", error: JSON.stringify(body).slice(0, 500),
+      });
       return json({ error: "resend_failed", detail: body }, 502);
     }
-    await admin.from("email_messages").insert({ ...logBase, resend_id: body.id, status: "sent" });
-    return json({ ok: true, requestedAt: claimed.requested_at });
+    // המייל יצא — התפיסה היא עכשיו הסימון הנכון. הרישום דרך נקודת הרישום האחת.
+    releaseOnThrow = null;
+    const { error: recErr } = await admin.rpc("record_email_sent", {
+      p_user_id: userId, p_kind: "charge_payment_request", p_to_email: toEmail, p_subject: subject,
+      p_resend_id: String(body.id), p_html: html, p_client_id: claimed.client_id, p_meta: { chargeId },
+    });
+    if (recErr) console.error("[send-charge-payment-request-email] record_email_sent failed", recErr.code, recErr.message);
+    return json({ ok: true, requestedAt: claimed.requested_at, logged: !recErr });
   } catch (e) {
+    if (releaseOnThrow) await (releaseOnThrow as () => Promise<void>)();
     return json({ error: String(e) }, 500);
   }
 });

@@ -308,7 +308,7 @@ console.log('\n— AT-4 · "24 שעות" בודק השלמה, לא שליחת מ
   // מפסיק לתפוס גם אם עברו 24 שעות. זה ההבדל האמיתי בין "בדק מייל" ל"בדק השלמה".
   await writeStaging(`
     update public.representation_requests
-       set onboarding_status = 'active'
+       set onboarding_status = 'submitted'
      where id = (select representation_request_id from public.quotations where id = 'fx-q-at1');
     delete from public.accountant_notifications where kind = 'representation_link_missing';`);
   const doneRun = await one(`select public.flag_missing_representation_links() as n`);

@@ -287,11 +287,14 @@ export type QuotationEventType =
   | 'viewed'
   | 'approved'
   | 'cancelled'
+  /** 165: כמה כרטיסים באותו מייל — נפתח כרטיס חדש במקום להיצמד לשרירותי. */
+  | 'client_match_ambiguous'
   | 'expired'
   | 'lead_converted'
   | 'representation_opened'
   | 'client_precreated'
-  | 'client_linked';
+  | 'client_linked'
+  | 'client_deleted';
 
 export interface QuotationEvent {
   type: QuotationEventType;
@@ -301,6 +304,7 @@ export interface QuotationEvent {
 
 export const QUOTATION_EVENT_LABELS: Record<QuotationEventType, string> = {
   created: 'נוצרה',
+  client_match_ambiguous: 'נפתח כרטיס חדש - כמה כרטיסים עם אותו מייל',
   edited: 'נערכה',
   sent: 'נשלחה ללקוח',
   test_email_sent: 'נשלח מייל בדיקה',
@@ -313,6 +317,7 @@ export const QUOTATION_EVENT_LABELS: Record<QuotationEventType, string> = {
   representation_opened: 'נפתח תהליך ייצוג אוטומטית',
   client_precreated: 'נפתח כרטיס לקוח ודף אישי',
   client_linked: 'שויכה לכרטיס לקוח קיים',
+  client_deleted: 'בוטלה - כרטיס הלקוח נמחק',
 };
 
 // העתק קפוא של ההצעה ברגע השליחה — לא משתנה גם אם המחירון או הפרטים ישתנו

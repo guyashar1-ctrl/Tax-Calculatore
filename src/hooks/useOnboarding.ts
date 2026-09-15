@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboarding';
+import { compareStepsForOffice } from '../types/onboarding';
 import { supabase } from '../lib/supabase';
 import { engagementFromDb, eventFromDb, stepFromDb } from '../lib/dbMappers';
+import { keepIfSame } from './useLivePulse';
 
 /** תשובת advance_onboarding_step. ok=false ⇒ הקורא מציג את ההודעה למשתמש. */
 export interface AdvanceResult {
@@ -57,14 +59,17 @@ export function useOnboarding(userId: string | undefined, clientId?: string) {
         return;
       }
       const loadedEngagements = (engRes.data ?? []).map(engagementFromDb);
-      const loadedSteps = (stepRes.data ?? []).map(stepFromDb);
+      // ‼ סידור שנגרר וטרם פורסם גובר על הסדר החי (167) — אחרת הרשימה קפצה
+      // חזרה אחרי כל רענון עד «עדכן את דף הלקוח». השאילתה לבדה לא יודעת coalesce.
+      const loadedSteps = (stepRes.data ?? []).map(stepFromDb).sort(compareStepsForOffice);
 
       // ליומן אין client_id — כשמסתכלים על לקוח אחד מסננים לפי השלבים שלו,
       // אחרת מביאים את האחרונים בכל המשרד (מקטע "ממתינים לאישורך").
+      // ‼ פעימה חיה שלא שינתה דבר לא מחליפה את המערכים — ראה keepIfSame.
       if (clientId && loadedSteps.length === 0) {
-        setEngagements(loadedEngagements);
-        setSteps(loadedSteps);
-        setEvents([]);
+        setEngagements(prev => keepIfSame(prev, loadedEngagements));
+        setSteps(prev => keepIfSame(prev, loadedSteps));
+        setEvents(prev => (prev.length === 0 ? prev : []));
         setError(null);
         setLoading(false);
         return;
@@ -78,9 +83,10 @@ export function useOnboarding(userId: string | undefined, clientId?: string) {
         setLoading(false);
         return;
       }
-      setEngagements(loadedEngagements);
-      setSteps(loadedSteps);
-      setEvents((eventRes.data ?? []).map(eventFromDb));
+      const loadedEvents = (eventRes.data ?? []).map(eventFromDb);
+      setEngagements(prev => keepIfSame(prev, loadedEngagements));
+      setSteps(prev => keepIfSame(prev, loadedSteps));
+      setEvents(prev => keepIfSame(prev, loadedEvents));
       setError(null);
       setLoading(false);
     })();

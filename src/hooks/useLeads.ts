@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Lead } from '../types/quotations';
 import { supabase } from '../lib/supabase';
 import { leadFromDb, leadToDb } from '../lib/dbMappers';
+import { keepIfSame } from './useLivePulse';
 
 export function useLeads(userId: string | undefined) {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -28,7 +29,9 @@ export function useLeads(userId: string | undefined) {
         setLoading(false);
         return;
       }
-      setLeads((data ?? []).map(leadFromDb));
+      // ‼ רענון בחזרה ללשונית שלא שינה דבר לא מחליף את המערך — ראה keepIfSame.
+      const next = (data ?? []).map(leadFromDb);
+      setLeads(prev => keepIfSame(prev, next));
       setError(null);
       setLoading(false);
     }
@@ -53,7 +56,8 @@ export function useLeads(userId: string | undefined) {
       .select('*')
       .order('created_at', { ascending: false });
     if (error) return;
-    setLeads((data ?? []).map(leadFromDb));
+    const next = (data ?? []).map(leadFromDb);
+    setLeads(prev => keepIfSame(prev, next));
   }, [userId]);
 
   async function addLead(lead: Omit<Lead, 'id'>): Promise<Lead> {

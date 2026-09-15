@@ -34,32 +34,49 @@ function rowToSession(row: SessionRow): AnnualReportSession {
   };
 }
 
+// ‼ "התחל מחדש" (174) לא מוחק: הסשן הישן נשאר עם superseded_by שמצביע לחדש.
+// לכן כל קריאה לפי לקוח+שנה מסננת לסשן החי — אחרת maybeSingle היה נופל על
+// שתי שורות, והרשימות היו מציגות גם היסטוריה.
 export async function findSession(clientId: string, taxYear: number): Promise<AnnualReportSession | null> {
   const { data, error } = await supabase
     .from('annual_report_sessions')
     .select('*')
     .eq('client_id', clientId)
     .eq('tax_year', taxYear)
+    .is('superseded_by', null)
     .maybeSingle();
   if (error) throw error;
   return data ? rowToSession(data as SessionRow) : null;
 }
 
+/** העמודות שהמסכים קוראים — בלי facts_synced_at וכל עמודה עתידית. */
+const SESSION_COLUMNS = 'id,user_id,client_id,tax_year,status,model,current_question_id,created_at,updated_at,completed_at';
+
+/**
+ * רשימת כל תיקי השנה במשרד — למסך הכניסה של הדוח השנתי ולמפת העץ.
+ * ‼ בלי `model`: שני הצרכנים (AnnualReportEntry, TreeMapView) קוראים רק
+ * מזהה/לקוח/שנה/סטטוס; המפה מושכת תשובות ב-getAnswersForSession. הסשן
+ * שנפתח בפועל נטען מלא ב-findSession. המודל שמוחזר כאן הוא ריק (migrateModel
+ * על null) — אין לקרוא אותו מהרשימה הזו.
+ */
 export async function listSessions(): Promise<AnnualReportSession[]> {
   const { data, error } = await supabase
     .from('annual_report_sessions')
-    .select('*')
+    .select('id,user_id,client_id,tax_year,status,current_question_id,created_at,updated_at,completed_at')
+    .is('superseded_by', null)
     .order('updated_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((r) => rowToSession(r as SessionRow));
+  return (data ?? []).map((r) => rowToSession({ ...(r as Omit<SessionRow, 'model'>), model: null as unknown as TaxpayerModel }));
 }
 
 // כל תיקי השנה של לקוח מסוים — לתצוגת "תמונת מס" בכרטיס הלקוח.
+// כאן `model` נחוץ: הכרטיס מסכם את תיק השנה האחרון (summarizeYearFile).
 export async function listSessionsForClient(clientId: string): Promise<AnnualReportSession[]> {
   const { data, error } = await supabase
     .from('annual_report_sessions')
-    .select('*')
+    .select(SESSION_COLUMNS)
     .eq('client_id', clientId)
+    .is('superseded_by', null)
     .order('tax_year', { ascending: false });
   if (error) throw error;
   return (data ?? []).map((r) => rowToSession(r as SessionRow));
@@ -155,36 +172,45 @@ export async function getAnswersForSession(sessionId: string): Promise<StoredAns
   }));
 }
 
-export async function saveAnswer(
+/**
+ * שמירת תשובות + מודל בטרנזקציה אחת (save_intake_answers, 174).
+ * ‼ עד 174 כל תשובה הייתה שתי-שלוש קריאות נפרדות ואחריהן כתיבת המודל —
+ * כשל באמצע (עד 200 תשובות אוטומטיות מהשנה הקודמת) השאיר תשובות בלי מודל.
+ * `done`: true = השאלון הסתיים, false = ממשיכים, null = תשובה ומודל בלבד
+ * (הסטטוס והשאלה הנוכחית לא נוגעים — שער הכיסוי).
+ * מחזירה את הסשן כפי שהשרת שמר אותו — זה מה שהמסך צריך לאמץ.
+ */
+export async function saveAnswers(
   sessionId: string,
-  questionId: string,
-  value: AnswerValue,
-): Promise<void> {
-  // Supersede קיים פעיל (אם יש)
-  await supabase
-    .from('annual_report_answers')
-    .update({ superseded_by: null })  // no-op trick: we use the unique-active index to enforce
-    .eq('session_id', sessionId)
-    .eq('question_id', questionId)
-    .is('superseded_by', null);
-  // לעדכן את הקיים, או להוסיף חדש
-  const { data: existing } = await supabase
-    .from('annual_report_answers')
-    .select('id')
-    .eq('session_id', sessionId)
-    .eq('question_id', questionId)
-    .is('superseded_by', null)
-    .maybeSingle();
-  if (existing) {
-    const { error } = await supabase
-      .from('annual_report_answers')
-      .update({ answer_value: value, answered_at: new Date().toISOString() })
-      .eq('id', existing.id);
-    if (error) throw error;
-  } else {
-    const { error } = await supabase
-      .from('annual_report_answers')
-      .insert({ session_id: sessionId, question_id: questionId, answer_value: value });
-    if (error) throw error;
-  }
+  answers: Record<string, AnswerValue>,
+  patch: { model: TaxpayerModel; currentQuestionId: string | null; done: boolean | null },
+): Promise<AnnualReportSession> {
+  const { data, error } = await supabase.rpc('save_intake_answers', {
+    p_session_id: sessionId,
+    p_answers: answers as unknown as object,
+    p_model: patch.model as unknown as object,
+    p_current_question_id: patch.currentQuestionId,
+    p_done: patch.done,
+  });
+  if (error) throw error;
+  return rowToSession(data as SessionRow);
+}
+
+/**
+ * "התחל מחדש" בשרת (restart_intake_session, 174): הסשן הישן נשאר כהיסטוריה
+ * עם superseded_by שמצביע לסשן חדש וריק. ‼ עד 174 המודל רוקן במקום, אבל
+ * התשובות נשארו — ושער הכיסוי הראה 100% על מודל ריק.
+ */
+export async function restartSession(
+  sessionId: string,
+  rootQuestionId: string,
+  model: TaxpayerModel,
+): Promise<AnnualReportSession> {
+  const { data, error } = await supabase.rpc('restart_intake_session', {
+    p_session_id: sessionId,
+    p_root_question_id: rootQuestionId,
+    p_model: model as unknown as object,
+  });
+  if (error) throw error;
+  return rowToSession(data as SessionRow);
 }

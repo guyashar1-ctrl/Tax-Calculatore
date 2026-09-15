@@ -280,7 +280,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   }
 
   // המיילים של הבקשה — מוצגים בתוך השלב שהם שייכים אליו
-  const { messages, reload: reloadEmails } = useEmailMessages(userId);
+  const { messages, reload: reloadEmails } = useEmailMessages(userId, { requestId: request.id });
   const signatureEmails = messages.filter(m => m.requestId === request.id && m.kind === 'sign');
   const activeEmails = messages.filter(m => m.requestId === request.id && m.kind === 'active');
 

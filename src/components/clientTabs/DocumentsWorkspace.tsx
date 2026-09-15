@@ -55,6 +55,9 @@ interface Props {
 
 interface MetaDraft { year: string; labelId: string }
 
+/** ערך הבורר ל«ללא תווית» — לא מזהה של תווית אמיתית. */
+const NO_LABEL = '__none__';
+
 export default function DocumentsWorkspace({ client, allClients, initialFolderId }: Props) {
   const db = useDocumentStore();
   const [docs, setDocs] = useState<StoredDoc[]>([]);
@@ -267,13 +270,19 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     ];
   }, [q, docs, folders, currentFolderId, foldersById, labelsById]);
 
+  /* ‼ (168) "תווית חובה" נאכפת רק בהעלאה מהמסך הזה; דף הלקוח, מסלול הרו"ח
+     הקודם ועוד כתריסר כותבים שומרים מסמכים בלי תווית — ובכוונה. בורר
+     התוויות לא ידע להציג אותם, ולכן "כל התוויות" היה המקום היחיד לראותם.
+     «ללא תווית» היא ערך בבורר כמו כל תווית. */
+  const matchesLabel = (labelId: string | null | undefined) =>
+    !filterLabel || (filterLabel === NO_LABEL ? !labelId : labelId === filterLabel);
   const filteredRows = rows.filter(r => {
     if (r.kind === 'folder') {
-      if (filterLabel && r.folder!.labelId !== filterLabel) return false;
+      if (!matchesLabel(r.folder!.labelId)) return false;
       if (filterYear && (r.folder!.year || '') !== filterYear) return false;
       return true;
     }
-    if (filterLabel && r.doc!.labelId !== filterLabel) return false;
+    if (!matchesLabel(r.doc!.labelId)) return false;
     // ‼ מסמך נשמר עם year='general' ותיקייה עם 'כללי'. בלי הנרמול הזה בחירת
     // "כללי" בסרגל הייתה מסתירה בדיוק את המסמכים הכלליים שביקשו לראות.
     if (filterYear && docYearLabel(r.doc!.year) !== filterYear) return false;
@@ -1385,6 +1394,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
         <select value={filterLabel} onChange={e => { clearSelection(); setFilterLabel(e.target.value); }}>
           <option value="">כל התוויות</option>
           {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          <option value={NO_LABEL}>ללא תווית</option>
         </select>
         <select value={filterYear} onChange={e => { clearSelection(); setFilterYear(e.target.value); }}>
           <option value="">כל השנים</option>
@@ -1592,7 +1602,9 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                   {d.description || d.fileName}
                   <span className="docw-path-hint">{r.path || d.fileName}</span>
                 </span>
-                <span>{label && <span className="ial-doc-label-chip">{label.name}</span>}</span>
+                <span>{label
+                  ? <span className="ial-doc-label-chip">{label.name}</span>
+                  : <span className="ial-doc-label-chip" style={{ opacity: .6 }}>ללא תווית</span>}</span>
                 <span className="docw-col-year">{d.year === 'general' ? 'כללי' : d.year}</span>
                 <span className="docw-col-updated">{fmtDate(d.uploadedAt)}</span>
               </div>

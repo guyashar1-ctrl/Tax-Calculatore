@@ -10,7 +10,7 @@ import type { Client } from '../../types';
 import { SECTION_LABELS } from './form1301Fields';
 import { computeAllFieldStatuses, getQuestionById, nodeInFlow, buildRequiredDocs, DOC_SOURCE_LABELS } from './engine';
 import { annualReportTree, chaptersForModel } from './tree';
-import { getAnswersForSession, saveAnswer, updateSessionState } from './repository';
+import { getAnswersForSession, saveAnswers, updateSessionState } from './repository';
 import { registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from './profile';
 import QuestionCard from './QuestionCard';
 
@@ -136,8 +136,10 @@ export default function CoverageGate({ session, clientName, client, onSessionUpd
           },
         };
       }
-      await saveAnswer(session.id, node.id, value);
-      const updated = await updateSessionState(session.id, { model: newModel });
+      // תשובה + מודל בכתיבה אחת (174); done=null — הסטטוס של הסשן לא נוגע.
+      const updated = await saveAnswers(session.id, { [node.id]: value }, {
+        model: newModel, currentQuestionId: session.currentQuestionId, done: null,
+      });
       setAnsweredIds((prev) => new Set(prev).add(node.id));
       setOpenDecision(null);
       onSessionUpdate(updated);

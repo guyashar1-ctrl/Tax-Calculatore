@@ -6,7 +6,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  Engagement, InstitutionKey, OnboardingEvent, OnboardingStep, OnboardingStepType, StepChecklistItem,
+  Engagement, InstitutionKey, OnboardingEvent, OnboardingStep, StepChecklistItem,
 } from '../../types/onboarding';
 import {
   ENGAGEMENT_STATUS_LABELS, REQUIREMENT_KIND_LABELS,
@@ -19,6 +19,7 @@ import {
   PAPERLESS_TAX_AUTHORITY,
   isBlockingOutstanding, unfiledBlocking,
   outstandingDeliverableLabel, deliverableKeyFor,
+  portalShowsStep, officeSortOrder,
 } from '../../types/onboarding';
 import type { Client, NiTracking, RepAuthorityKind, RepresentationStatus } from '../../types';
 import type { Quotation, QuotationItem } from '../../types/quotations';
@@ -32,6 +33,7 @@ import { formatDate } from '../../utils/dateFormat';
 import { calcTotals, formatILS } from '../../utils/quotationCalc';
 import { flushAccountantNotifications } from '../../lib/notifyAccountant';
 import { intakeAcceptsRequired, intakeContext } from '../../lib/clientState';
+import { currentEngagement } from '../../utils/engagementSelectors';
 import { supabase } from '../../lib/supabase';
 import { clientFromDb } from '../../lib/dbMappers';
 import {
@@ -43,7 +45,7 @@ import PrevAccountantDocsDrawer from './PrevAccountantDocsDrawer';
 import { useAuth } from '../../hooks/useAuth';
 import type { DocCategory } from '../../hooks/useDocumentStore';
 import { DOC_CATEGORY_LABELS, useDocumentStore } from '../../hooks/useDocumentStore';
-import { useEmailMessages } from '../../hooks/useEmailMessages';
+import { useEmailMessages, fetchEmailHtml } from '../../hooks/useEmailMessages';
 import { EMAIL_STATUS_LABEL, EmailMessage } from '../../types/emailActivity';
 import SentEmailViewer from '../EmailActivity/SentEmailViewer';
 import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
@@ -166,8 +168,8 @@ function rowTitle(step: OnboardingStep): string {
   return STEP_TYPE_LABELS[step.stepType];
 }
 
-/** שלבים שאינם מוצגים ללקוח בדף האישי — ולכן "טיוטה/פורסם" אינו חל עליהם. */
-const PORTAL_HIDDEN_TYPES: OnboardingStepType[] = ['release_letter', 'materials_received'];
+// ‼ (168) הרשימה המקומית של "שלבים שאינם מוצגים ללקוח" (שני סוגים) הוחלפה
+// ב-portalShowsStep מ-types/onboarding — הבבואה של build_client_portal בשרת.
 
 /** טיוטה = הרו"ח הכין, הלקוח עוד לא רואה. published_at ריק במסד, או הסימון
  *  הישן ב-payload (בקשות שנוצרו לפני מיגרציה 77). */
@@ -252,8 +254,8 @@ function lockHint(
      בפועל. "ייפתח אחרי השלב שהוא תלוי בו" הוא משפט שלא אומר כלום למי
      שמסתכל על המסך ומנסה להבין מה לעשות עכשיו. */
   const before = [...byId.values()]
-    .filter(s => (s.sortOrder ?? 0) < (step.sortOrder ?? 0) && isStepOpen(s.status))
-    .sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))[0];
+    .filter(s => officeSortOrder(s) < officeSortOrder(step) && isStepOpen(s.status))
+    .sort((a, b) => officeSortOrder(b) - officeSortOrder(a))[0];
   if (before) return `ייפתח אחרי «${STEP_TYPE_LABELS[before.stepType]}»`;
   return 'ייפתח כשהשלב שלפניו יושלם';
 }
@@ -396,11 +398,12 @@ export default function OnboardingTab({
 
   // ‼ מ-118 יש ללקוח יותר מהתקשרות אחת (חידוש שאושר, הסכמים שהסתיימו).
   // הקליטה רצה רק על ההתקשרות החיה — הסכם שהסתיים או שטרם נכנס לתוקף אינו
-  // מביא איתו קליטה חדשה.
-  const clientEngagements = useMemo(
-    () => engagements.filter(e => e.clientId === clientId
-      && e.status !== 'ended' && e.status !== 'cancelled' && e.status !== 'scheduled'),
-    [engagements, clientId]);
+  // מביא איתו קליטה חדשה. (168) המסנן המקומי שהיה כאן הוחלף בהגדרה האחת
+  // של utils/engagementSelectors — אותה הגדרה כמו current_engagement_id בשרת.
+  const clientEngagements = useMemo(() => {
+    const current = currentEngagement(engagements, clientId);
+    return current ? [current] : [];
+  }, [engagements, clientId]);
   /**
    * ‼ הקשר הקליטה — מקור אחד (lib/clientState), בבואה של client_intake_state
    * בשרת. הוא שקובע אם «נדרש לסגירת הקליטה» הוא בכלל מושג אצל הלקוח הזה:
@@ -417,8 +420,10 @@ export default function OnboardingTab({
   const [optimisticSteps, setOptimisticSteps] = useState<OnboardingStep[]>([]);
   const [optimisticPatches, setOptimisticPatches] = useState<Record<string, Partial<OnboardingStep>>>({});
   useEffect(() => {
-    setOptimisticSteps(prev => prev.filter(o => !steps.some(s => s.id === o.id)));
-    setOptimisticPatches({});
+    // ‼ מחזירים את אותו אובייקט כשאין מה לנקות — אחרת כל פעימת רענון (20ש׳)
+    // כפתה רינדור נוסף של כל הלשונית גם כשדבר לא השתנה.
+    setOptimisticSteps(prev => { const n = prev.filter(o => !steps.some(s => s.id === o.id)); return n.length === prev.length ? prev : n; });
+    setOptimisticPatches(prev => Object.keys(prev).length ? {} : prev);
   }, [steps]);
 
   const clientSteps = useMemo(() => {
@@ -3170,7 +3175,9 @@ function KycStepCard({ step, stepById, clientId, busy, highlight, onRun, menu }:
  * (isStepSatisfiedForClose): מכתב שחלון ההתייחסות שלו עבר נחשב מסופק.
  */
 function objectionWindowPassed(step: OnboardingStep): boolean {
-  const due = step.payload.objectionDueDate;
+  // ‼ 167: due_date היא המקור היחיד לחלון ההתייחסות; payload.objectionDueDate
+  // הוא מראה שהשרת מחזיק מסונכרנת. קוראים את המקור.
+  const due = step.dueDate ?? step.payload.objectionDueDate;
   if (!due || !step.payload.releaseSentAt) return false;
   if (step.payload.prevAccountantResponseNote) return false;
   const end = new Date(due);
@@ -3862,8 +3869,8 @@ function ReleaseStepCard(p: ReleaseCardProps) {
                   <div>
                     נשלח {formatDate(sentAt!, 'list')}
                     {step.payload.releaseSentTo && <> · <span dir="ltr">{step.payload.releaseSentTo}</span></>}
-                    {step.payload.objectionDueDate && !step.payload.prevAccountantSignedAt && (
-                      <> · חלון התייחסות עד {formatDate(step.payload.objectionDueDate, 'list')}</>
+                    {(step.dueDate ?? step.payload.objectionDueDate) && !step.payload.prevAccountantSignedAt && (
+                      <> · חלון התייחסות עד {formatDate((step.dueDate ?? step.payload.objectionDueDate) as string, 'list')}</>
                     )}
                   </div>
                   {/* ‼ לא מבקשים אישור, ולכן אין "טרם התקבל אישור" (הכרעת גיא
@@ -4015,7 +4022,9 @@ function ReleaseStepCard(p: ReleaseCardProps) {
 /** מה קרה למכתב אחרי השליחה — נמסר, נפתח, הוקפץ. מהיומן של המיילים היוצאים. */
 function ReleaseDelivery({ clientId }: { clientId: string }) {
   const { user } = useAuth();
-  const { messages } = useEmailMessages(user?.id);
+  // ‼ רק המיילים של הלקוח הזה, ובלי גוף ה-HTML (נמשך בלחיצה) — במקום 200
+  // מיילים משרדיים עם גוף מלא בכל פתיחת כרטיס.
+  const { messages } = useEmailMessages(user?.id, { clientId });
   const last = useMemo(
     () => messages
       .filter(m => m.kind === 'release' && m.clientId === clientId)
@@ -4035,6 +4044,8 @@ function ReleaseDelivery({ clientId }: { clientId: string }) {
     setFetching(true);
     setViewErr(null);
     try {
+      const saved = await fetchEmailHtml(last.id);
+      if (saved) { setViewing({ ...last, html: saved }); return; }
       const { data, error } = await supabase.functions.invoke('backfill-email-html', { body: { messageId: last.id } });
       if (error || !data?.ok || !data.html) setViewErr('העותק אינו זמין - אפשר לצפות מלשונית הפעילות.');
       else setViewing({ ...last, html: data.html });
@@ -4235,7 +4246,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
                   הזה אין דרך לדעת אם ביקשתי בפועל או רק הכנתי.
                   ‼ מסלול הרו"ח הקודם יוצא מהכלל: הוא לא מופיע בדף הלקוח לעולם,
                   ולכן "טרם פורסם ללקוח" חסר משמעות שם — והוא סתר את "נשלח". */}
-              {isDraft && !PORTAL_HIDDEN_TYPES.includes(step.stepType) && (
+              {isDraft && portalShowsStep(step.stepType) && (
                 <span className="ob-pill is-draft">טיוטה</span>
               )}
               {/* ‼ עריכה ממתינה: הלקוח ממשיך לראות את הנוסח הישן עד "עדכן את

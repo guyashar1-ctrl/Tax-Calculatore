@@ -32,9 +32,10 @@ interface Props {
    */
   presetTitle?: string;
   presetCategory?: TaskCategory;
-  onSave: (task: Task) => void;
+  /** שמירה. הבטחה שנדחית = השמירה נכשלה; ההודעה מוצגת בחלון והוא נשאר פתוח. */
+  onSave: (task: Task) => void | Promise<void>;
   onCancel: () => void;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string) => void | Promise<void>;
   // אם המשתמש מסמן "שמור גם באנשי הקשר של הלקוח" בתוך עורך החתימה — נשמור גם את הלקוח
   onUpdateClient?: (client: Client) => void;
 }
@@ -78,6 +79,10 @@ export default function TaskForm({ task, clients, presetClientId, presetTitle, p
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<{ title?: string; client?: string }>({});
   const [confirmState, setConfirmState] = useState<'delete' | 'discard' | 'removeSig' | null>(null);
+  // ‼ כישלון שמירה חייב להיראות (K12): עד היום ההבטחה נדחתה בשקט, החלון נשאר
+  // פתוח בלי הסבר, והמשתמש חשב שהמערכת "נתקעה".
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (task) setData(task);
@@ -122,7 +127,17 @@ export default function TaskForm({ task, clients, presetClientId, presetTitle, p
     if (!data.title.trim()) next.title = 'חובה';
     setErrors(next);
     if (Object.keys(next).length) return;
-    onSave({ ...data, title: data.title.trim() });
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    Promise.resolve()
+      .then(() => onSave({ ...data, title: data.title.trim() }))
+      .catch((e: unknown) => {
+        setSaveError(e instanceof Error ? e.message
+          : (e && typeof e === 'object' && 'message' in e) ? String((e as { message: unknown }).message)
+          : 'שמירת המשימה נכשלה.');
+      })
+      .finally(() => setSaving(false));
   }
 
   const clientOptions = [...clients].sort((a, b) =>
@@ -342,9 +357,10 @@ export default function TaskForm({ task, clients, presetClientId, presetTitle, p
                 {data.completedAt ? ` · הושלמה ${formatDate(data.completedAt, 'form')}` : ''}
               </span>
             )}
+            {saveError && <span className="field-error" role="alert">{saveError}</span>}
             <button type="button" className="ui-btn ui-btn-ghost" onClick={requestClose}>ביטול</button>
-            <button type="submit" className="ui-btn ui-btn-primary">
-              {isEditing ? 'שמירה' : 'יצירה'}
+            <button type="submit" className="ui-btn ui-btn-primary" disabled={saving}>
+              {saving ? 'שומר…' : isEditing ? 'שמירה' : 'יצירה'}
             </button>
           </div>
         </form>
@@ -369,7 +385,12 @@ export default function TaskForm({ task, clients, presetClientId, presetTitle, p
           title="מחיקת משימה"
           message={<>למחוק את ״{data.title || 'המשימה'}״? הפעולה אינה הפיכה.</>}
           confirmLabel="מחיקה"
-          onConfirm={() => { setConfirmState(null); onDelete?.(data.id); }}
+          onConfirm={() => {
+            setConfirmState(null);
+            Promise.resolve().then(() => onDelete?.(data.id)).catch((e: unknown) => {
+              setSaveError(e instanceof Error ? e.message : 'מחיקת המשימה נכשלה.');
+            });
+          }}
           onCancel={() => setConfirmState(null)}
         />
       )}

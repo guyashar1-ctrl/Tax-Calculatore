@@ -53,11 +53,12 @@ console.log('— המחולל —');
 // ללקוח, ואינו שולח דבר. חשיפה = פעולה מפורשת של הרו"ח.
 console.log('\n— שאלון פתיחת התיק —');
 {
-  const st = await one(`select id, status, required_for_close, payload->>'published' as pub
+  const st = await one(`select id, status, required_for_close, (published_at is null)::text as pub
      from public.onboarding_steps where client_id = '${F3}' and step_type = 'intake_questionnaire'`);
   ok('השאלון נוצר אוטומטית', !!st?.id);
   ok('נולד כרשות', st?.required_for_close === false, String(st?.required_for_close));
-  ok('נולד כטיוטה — לא מפורסם ללקוח', st?.pub === 'false', String(st?.pub));
+  // 172 (JF3): published_at ריק הוא הסימון היחיד לטיוטה; payload.published אינו נכתב עוד.
+  ok('נולד כטיוטה — לא מפורסם ללקוח', st?.pub === 'true', String(st?.pub));
 
   const tok = (await one(`select portal_token from public.clients where id = '${F3}'`)).portal_token;
   const portal = (await one(`select public.get_client_portal('${tok}') as p`)).p;

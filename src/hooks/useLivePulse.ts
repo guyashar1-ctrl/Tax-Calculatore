@@ -15,6 +15,21 @@ import { useEffect, useRef } from 'react';
 export const PULSE_MS = 20_000;
 
 /**
+ * ‼ שומר זהות כשהתוכן זהה. כל פעימה החליפה את המערך של הלקוחות/ההצעות/
+ * הלידים/השלבים באובייקט חדש גם כשלא השתנה דבר — וכל useMemo/useEffect
+ * שתלוי בהם חושב מחדש, כל 20 שניות, בכל מסך. השוואה טקסטואלית של השורות
+ * הממופות זולה בהרבה מרינדור של העץ; להשתמש בתוך setState(prev => …).
+ */
+export function keepIfSame<T>(prev: T, next: T): T {
+  if (prev === next) return prev;
+  try {
+    return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+  } catch {
+    return next;
+  }
+}
+
+/**
  * מריץ את כל הרענונים יחד. הפונקציות חייבות להיות יציבות (useCallback) —
  * אחרת הטיימר נבנה מחדש בכל רינדור ואף פעם לא מספיק לפעום.
  */

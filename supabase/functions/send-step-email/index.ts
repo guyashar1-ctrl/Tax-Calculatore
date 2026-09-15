@@ -87,12 +87,30 @@ Deno.serve(async (req: Request) => {
   const json = (b: unknown, s = 200) =>
     new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+
+  // ‼ (170) התביעה האוטומטית (autoExecutedAt) נלקחת לפני השליחה, ולכן כל
+  // יציאה בלי מייל שיצא — שגיאת קלט, נמען חסר, כשל Resend, ואפילו חריגה
+  // שנזרקה — חייבת לשחרר אותה. אחרת השלב מציג «⚡ בוצע אוטומטית» על מייל
+  // שלא יצא, וההזדמנות היחידה לשלוח נשרפה. `claimedStepId` מתאפס ברגע
+  // שהספק אישר: מאותו רגע התביעה היא הסימון הנכון.
+  let claimedStepId: string | null = null;
+  const releaseClaim = async (why: string) => {
+    if (!claimedStepId) return;
+    const id = claimedStepId;
+    claimedStepId = null;
+    await admin.rpc("release_auto_execution", { p_step_id: id, p_error: why.slice(0, 250) });
+  };
+  const bail = async (b: Record<string, unknown>, s: number) => {
+    await releaseClaim(String(b.error ?? "failed"));
+    return json(b, s);
+  };
+
   try {
     const { stepId, kind: rawKind, preview, overrides, internalSecret } = await req.json();
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
-    const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
     if (!stepId) return json({ error: "missing stepId" }, 400);
     const { data: step } = await admin.from("onboarding_steps").select("*").eq("id", stepId).maybeSingle();
@@ -131,11 +149,12 @@ Deno.serve(async (req: Request) => {
       }
       const { data: claimed } = await admin.rpc("claim_auto_execution", { p_step_id: stepId });
       if (claimed !== true) return json({ ok: true, alreadySent: true });
+      claimedStepId = String(stepId);
     }
 
     const allowed = KIND_FOR_STEP[step.step_type] ?? ["step_reminder"];
     if (!allowed.includes(kind)) {
-      return json({
+      return await bail({
         error: "kind_not_allowed",
         detail: { message: "סוג המייל אינו מתאים לשלב הזה." },
       }, 400);
@@ -143,7 +162,7 @@ Deno.serve(async (req: Request) => {
 
     // ‼ השער של התלות הקשיחה. אין כאן שום דרך לעקוף אותו — גם preview חסום.
     if (kind === "retainer_request" && step.status === "locked") {
-      return json({
+      return await bail({
         error: "step_locked",
         detail: { message: "הרשאת התשלום נעולה עד לאישור חיבור הלקוח לפייפרלס." },
       }, 400);
@@ -154,7 +173,7 @@ Deno.serve(async (req: Request) => {
       .from("clients")
       .select("id,user_id,first_name,last_name,email,intake_token,portal_token,prev_accountant_name,prev_accountant_email")
       .eq("id", step.client_id).maybeSingle();
-    if (!client || client.user_id !== userId) return json({ error: "not found" }, 404);
+    if (!client || client.user_id !== userId) return await bail({ error: "not found" }, 404);
 
     // משימת גורם חיצוני: הנמען נפתר מפרטי הרו"ח הקודם בכרטיס (שמוזנים גם
     // מהבקשה «פרטי רו"ח קודם»), או מהפרטים שהוזנו ידנית ל"גורם אחר".
@@ -172,17 +191,11 @@ Deno.serve(async (req: Request) => {
       recipientName = extParty!.kind === "prev_accountant"
         ? String(client.prev_accountant_name || "").trim()
         : String(extParty!.contact?.name || "").trim();
-      if (!toEmail) {
-        if (isAuto) await admin.rpc("release_auto_execution", { p_step_id: stepId, p_error: "contact_missing" });
-        return json({ error: "contact_missing" }, 400);
-      }
+      if (!toEmail) return await bail({ error: "contact_missing" }, 400);
     } else {
       toEmail = String(client.email || "").trim();
       recipientName = "";
-      if (!toEmail) {
-        if (isAuto) await admin.rpc("release_auto_execution", { p_step_id: stepId, p_error: "no_client_email" });
-        return json({ error: "no client email" }, 400);
-      }
+      if (!toEmail) return await bail({ error: "no client email" }, 400);
     }
 
     const { data: profile } = await admin.from("profiles").select("*").eq("id", userId).single();
@@ -203,13 +216,13 @@ Deno.serve(async (req: Request) => {
     const authUrl = String(payload.authUrl || "").trim();
 
     if (kind === "paperless_invite" && !inviteUrl) {
-      return json({
+      return await bail({
         error: "no_invite_url",
         detail: { message: "לא הוגדר קישור הזמנה לפייפרלס בהגדרות המשרד." },
       }, 400);
     }
     if (kind === "retainer_request" && !authUrl) {
-      return json({
+      return await bail({
         error: "no_auth_url",
         detail: { message: "יש להזין את קישור ההרשאה מפייפרלס לפני השליחה." },
       }, 400);
@@ -222,7 +235,7 @@ Deno.serve(async (req: Request) => {
       const token = crypto.randomUUID().replace(/-/g, "");
       const { error: tokErr } = await admin.from("clients")
         .update({ intake_token: token }).eq("id", client.id);
-      if (tokErr) return json({ error: "token_save_failed" }, 500);
+      if (tokErr) return await bail({ error: "token_save_failed" }, 500);
     }
 
     // ‼ הקישור האחיד (הכרעת גיא): כפתור המייל מוביל תמיד לדף האישי של הלקוח,
@@ -235,7 +248,7 @@ Deno.serve(async (req: Request) => {
       portalToken = crypto.randomUUID().replace(/-/g, "");
       const { error: portalErr } = await admin.from("clients")
         .update({ portal_token: portalToken }).eq("id", client.id);
-      if (portalErr) return json({ error: "token_save_failed" }, 500);
+      if (portalErr) return await bail({ error: "token_save_failed" }, 500);
     }
     const portalUrl = `${APP_URL}/?portal=${portalToken}`;
 
@@ -303,101 +316,88 @@ Deno.serve(async (req: Request) => {
 
     const resendPayload: Record<string, unknown> = { from, to: [toEmail], subject: rendered.subject, html };
     if (replyTo) resendPayload.reply_to = replyTo;
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify(resendPayload),
-    });
-    const body = await r.json();
-
-    const logBase = {
-      user_id: userId,
-      client_id: client.id,
-      step_id: step.id,
-      to_email: toEmail,
-      subject: rendered.subject,
-      kind,
-      html,
-    };
+    // ‼ fetch שזורק (רשת, timeout) אינו "נשלח": התביעה משוחררת בדיוק כמו
+    // בתשובת שגיאה מהספק, והמסך מקבל שגיאה מפורשת ולא 500 סתמי.
+    let r: Response;
+    try {
+      r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(resendPayload),
+      });
+    } catch (e) {
+      return await bail({ error: "resend_unreachable", detail: { message: String(e).slice(0, 300) } }, 502);
+    }
+    const body = await r.json().catch(() => ({}));
 
     if (!r.ok) {
       // ‼ שורת הכישלון נרשמת בלי מפתח ייחודי: אחרת הניסיון החוזר המוצלח היה
       // מתנגש בה ונחשב ל"כבר נשלח" — והמייל לא היה יוצא לעולם.
-      await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
+      await admin.from("email_messages").insert({
+        user_id: userId, client_id: client.id, step_id: step.id, to_email: toEmail,
+        subject: rendered.subject, kind, html,
+        status: "failed", error: JSON.stringify(body).slice(0, 500),
+      });
       // כישלון שליחה אוטומטית משחרר את התביעה — הטריגר הבא ינסה שוב (כמו
       // מייל הייצוג): שקט לעולם לא נחשב הצלחה.
-      if (isAuto) await admin.rpc("release_auto_execution", { p_step_id: stepId, p_error: JSON.stringify(body).slice(0, 250) });
-      return json({ error: "resend_failed", detail: body }, 502);
+      return await bail({ error: "resend_failed", detail: body }, 502);
     }
 
-    // מפתח ייחודי לשורת היומן — שכבת ההגנה מפני רישום כפול. שליחה ידנית
-    // נוספת היא תזכורת לגיטימית ומקבלת מספר רץ; שליחה אוטומטית היא בדיוק
-    // פעם אחת ולכן המפתח שלה קבוע.
-    const { count } = await admin
-      .from("email_messages")
-      .select("id", { count: "exact", head: true })
-      .eq("step_id", step.id)
-      .eq("kind", kind);
-    const idempotencyKey = isAuto
-      ? `auto:step:${step.id}`
-      : `step:${step.id}:${kind}:${(count ?? 0) + 1}`;
+    // ‼ מכאן המייל יצא. התביעה האוטומטית היא עכשיו הסימון הנכון ואסור
+    // לשחרר אותה — גם אם הרישום למטה ייכשל.
+    claimedStepId = null;
 
-    const { error: logErr } = await admin.from("email_messages")
-      .insert({ ...logBase, resend_id: body.id, status: "sent", idempotency_key: idempotencyKey });
-    if (logErr && logErr.code === "23505") return json({ ok: true, alreadySent: true });
-
-    // ‼ המייל כבר יצא לספק הדואר — אי אפשר להחזיר אותו, ולכן כשל רישום אינו
-    // כשל שליחה. אבל שורה שלא נרשמה היא מייל שאין לו עקבה: הוא לא יופיע
-    // ביומן הלקוח, ואיש לא ידע שהוא נשלח. לכן: ניסיון שני מצומצם (בלי ה-html,
-    // שהוא החשוד המרכזי בכשל גודל/קידוד), ודיווח מפורש חזרה למסך.
-    let logged = !logErr;
-    if (logErr) {
-      const { error: minErr } = await admin.from("email_messages").insert({
-        user_id: userId, client_id: client.id, to_email: toEmail,
-        subject: rendered.subject, kind, status: "sent", resend_id: body.id,
-        error: `log_failed: ${logErr.code ?? ""} ${String(logErr.message ?? "").slice(0, 200)}`,
-      });
-      logged = !minErr;
-      console.error("[send-step-email] email_messages insert failed",
-        logErr.code, logErr.message, minErr ? `retry failed: ${minErr.code}` : "retry ok");
-    }
-
-    // ── קידום השלב ────────────────────────────────────────────────────────
+    // ── הרישום + קידום השלב — כתיבה אחת בשרת (170) ──────────────────────
+    // ‼ שורת היומן, סטטוס השלב והאירוע נכתבים ב-record_email_sent באותה
+    // טרנזקציה: או שהכול נרשם, או שכלום — אין יותר מצב שבו היומן אומר
+    // "נשלח" והשלב עדיין "ממתין לרו"ח" (או להפך).
     // ‼ advance_onboarding_step בודק את auth.uid(), שהוא null תחת מפתח השירות,
-    // ולכן הקריאה אליו מכאן הייתה נכשלת. במקומה נעשות כאן בדיוק שתי הכתיבות
-    // שהיא הייתה עושה: הסטטוס והרישום ביומן האירועים.
-    if (kind !== "step_reminder") {
-      // תזכורת אינה מזיזה את הכדור — היא נשלחת גם על שלב שממתין לרו"ח עצמו.
-      await admin.from("onboarding_steps")
-        .update({ status: "waiting_client", ball: "client", updated_at: new Date().toISOString() })
-        .eq("id", step.id);
-    } else if (isAuto) {
-      // המייל האוטומטי של הבקשה יצא — הכדור עובר למי שמטפל: הלקוח, או
-      // הגורם החיצוני (שם הכדור כבר עליו — רק הסטטוס מתעדכן).
-      await admin.from("onboarding_steps")
-        .update({
-          status: "waiting_client",
-          ...(isExternal ? {} : { ball: "client" }),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", step.id);
-    }
-    await admin.from("onboarding_events").insert({
-      user_id: userId,
-      step_id: step.id,
-      engagement_id: step.engagement_id,
-      type: "email_sent",
+    // ולכן הקריאה אליו מכאן הייתה נכשלת. במקומה ה-RPC עושה בדיוק את שתי
+    // הכתיבות שהיא הייתה עושה: הסטטוס והרישום ביומן האירועים.
+    // תזכורת ידנית אינה מזיזה את הכדור — היא נשלחת גם על שלב שממתין לרו"ח
+    // עצמו. המייל האוטומטי של הבקשה כן מזיז: הכדור עובר למי שמטפל — הלקוח,
+    // או הגורם החיצוני (שם הכדור כבר עליו — רק הסטטוס מתעדכן).
+    const moveToClient = kind !== "step_reminder" || isAuto;
+    const recordArgs = {
+      p_user_id: userId,
+      p_kind: kind,
+      p_to_email: toEmail,
+      p_subject: rendered.subject,
+      p_resend_id: String(body.id),
+      p_html: html as string | null,
+      p_client_id: client.id,
+      p_step_id: step.id,
+      // מפתח ייחודי: שליחה אוטומטית היא בדיוק פעם אחת ולכן המפתח שלה קבוע;
+      // שליחה ידנית נוספת היא תזכורת לגיטימית ומזוהה לפי מזהה הספק
+      // (ברירת המחדל של ה-RPC) — ולא לפי COUNT+1, שהיה מרוץ בין שתי
+      // שליחות מקבילות שבו השנייה נחשבה "כבר נשלח" אף שהמייל שלה יצא.
+      p_idempotency_key: isAuto ? `auto:step:${step.id}` : null,
+      p_step_status: moveToClient ? "waiting_client" : null,
+      p_step_ball: moveToClient && !(isAuto && isExternal) ? "client" : null,
       // ‼ ביומן חייב להיות ברור שזה בוצע אוטומטית — לא ביד של גיא (D3 כלל 6).
-      actor: isAuto ? "system" : "accountant",
-      note: (isAuto ? "בוצע אוטומטית - נשלח מייל: " : "נשלח מייל: ") + rendered.subject
-        + (logged ? "" : " (לא נרשם ביומן הדואר - ראה לוג השרת)"),
-      meta: { kind, to: toEmail, resend_id: body.id, logged, automatic: isAuto },
-    });
+      p_event_actor: isAuto ? "system" : "accountant",
+      p_event_note: (isAuto ? "בוצע אוטומטית - נשלח מייל: " : "נשלח מייל: ") + rendered.subject,
+      p_event_meta: { kind, to: toEmail, automatic: isAuto },
+    };
+    let { data: rec, error: recErr } = await admin.rpc("record_email_sent", recordArgs);
+    // ‼ המייל כבר יצא לספק הדואר — אי אפשר להחזיר אותו, ולכן כשל רישום אינו
+    // כשל שליחה. אבל שורה שלא נרשמה היא מייל שאין לו עקבה. לכן: ניסיון שני
+    // בלי ה-html (החשוד המרכזי בכשל גודל/קידוד), ודיווח מפורש חזרה למסך.
+    if (recErr) {
+      console.error("[send-step-email] record_email_sent failed", recErr.code, recErr.message);
+      ({ data: rec, error: recErr } = await admin.rpc("record_email_sent", { ...recordArgs, p_html: null }));
+      if (recErr) console.error("[send-step-email] record_email_sent retry failed", recErr.code, recErr.message);
+    }
+    const logged = !recErr;
+    if ((rec as { alreadyRecorded?: boolean } | null)?.alreadyRecorded) {
+      return json({ ok: true, alreadySent: true });
+    }
 
     // ‼ logged=false אומר "נשלח, אבל לא תועד". המסך מציג את זה — אחרת גיא
     // יחפש את המייל ביומן ולא ימצא, ויסיק שהוא לא נשלח.
     return json({ ok: true, id: body.id, logged });
   } catch (e) {
+    await releaseClaim(`exception: ${String(e)}`);
     return json({ error: String(e) }, 500);
   }
 });

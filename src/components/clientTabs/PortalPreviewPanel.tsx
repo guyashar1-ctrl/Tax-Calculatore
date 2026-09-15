@@ -19,6 +19,7 @@ export default function PortalPreviewPanel({ clientId, mode, onModeChange, refre
 
   const draftCount = mode === 'preview' ? (data?.items ?? []).filter(i => i.draft).length : 0;
   const removingCount = mode === 'preview' ? (data?.items ?? []).filter(i => i.removing).length : 0;
+  const editedCount = mode === 'preview' ? (data?.items ?? []).filter(i => i.edited).length : 0;
 
   const pill = (active: boolean): React.CSSProperties => ({
     font: 'inherit', fontSize: 'var(--fs-12)', fontWeight: 600, cursor: 'pointer',
@@ -46,9 +47,10 @@ export default function PortalPreviewPanel({ clientId, mode, onModeChange, refre
       <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.5rem' }}>
         {mode === 'live'
           ? 'זה הדף האמיתי - לא תצוגה תיאורטית.'
-          : (draftCount || removingCount)
+          : (draftCount || removingCount || editedCount)
             ? [
                 draftCount > 0 ? `${draftCount} יתווספו` : null,
+                editedCount > 0 ? `${editedCount} ישתנו` : null,
                 removingCount > 0 ? `${removingCount} יוסרו` : null,
               ].filter(Boolean).join(' · ') + ' - אחרי "עדכן את דף הלקוח"'
             : 'אין שינויים ממתינים - זהה למה שהלקוח כבר רואה.'}

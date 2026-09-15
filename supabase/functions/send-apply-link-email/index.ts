@@ -89,13 +89,20 @@ Deno.serve(async (req: Request) => {
     });
     const body = await r.json();
 
-    const logBase = { user_id: userId, to_email: toEmail, subject, kind: "apply_link", html };
     if (!r.ok) {
-      await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
+      await admin.from("email_messages").insert({
+        user_id: userId, to_email: toEmail, subject, kind: "apply_link", html,
+        status: "failed", error: JSON.stringify(body).slice(0, 500),
+      });
       return json({ error: "resend_failed", detail: body }, 502);
     }
-    await admin.from("email_messages").insert({ ...logBase, resend_id: body.id, status: "sent" });
-    return json({ ok: true, id: body.id });
+    // (170) הרישום דרך נקודת הרישום האחת; המפתח הייחודי נגזר ממזהה הספק.
+    const { error: recErr } = await admin.rpc("record_email_sent", {
+      p_user_id: userId, p_kind: "apply_link", p_to_email: toEmail, p_subject: subject,
+      p_resend_id: String(body.id), p_html: html,
+    });
+    if (recErr) console.error("[send-apply-link-email] record_email_sent failed", recErr.code, recErr.message);
+    return json({ ok: true, id: body.id, logged: !recErr });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

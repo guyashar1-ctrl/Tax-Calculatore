@@ -66,7 +66,12 @@ export function resolveIncomeTaxHousehold(
   spouseClient: Client | undefined | null,
 ): IncomeTaxHouseholdState {
   if (!client) return { represented: false, holder: 'none', registeredVerified: false };
-  const ownFile = (client.taxFiles ?? []).find(f => f.authority === 'income_tax');
+  // ‼ "מיוצג" = שורת תיק במס הכנסה שהייצוג בה פעיל. שורה במצב pending (או
+  // ריק) היא כוונה, לא ייצוג — וכשנספרה כייצוג היא השתיקה את הבקשה לייצוג
+  // בדיאלוג הקליטה (ספר הפערים A7). מצב הייצוג נגזר בשרת מהבקשה; כאן רק קוראים.
+  const isActive = (f: { authority: string; repStatus?: string }) =>
+    f.authority === 'income_tax' && f.repStatus === 'active';
+  const ownFile = (client.taxFiles ?? []).find(isActive);
   if (ownFile) {
     const reg = registeredFileInfo(client);
     return {
@@ -74,7 +79,7 @@ export function resolveIncomeTaxHousehold(
       registeredName: reg?.name, registeredVerified: !!reg && !reg.unverified,
     };
   }
-  const spouseFile = (spouseClient?.taxFiles ?? []).find(f => f.authority === 'income_tax');
+  const spouseFile = (spouseClient?.taxFiles ?? []).find(isActive);
   if (spouseClient && spouseFile) {
     const reg = registeredFileInfo(spouseClient);
     return {

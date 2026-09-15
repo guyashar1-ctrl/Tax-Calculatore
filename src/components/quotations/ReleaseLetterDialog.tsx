@@ -273,8 +273,11 @@ export default function ReleaseLetterDialog({
         materials,
         heading: followUp ? 'תוספת לבקשת החומרים' : `העברת חומרים - ${clientName}`,
       });
+      // ‼ (170) השרת מסמן «נשלח» על השלב (releaseSentAt) בעצמו, יחד עם
+      // שורת היומן ובאותה טרנזקציה — לפני שהדפדפן נוגע ב-PDF. עדכון המשך
+      // (followUp) נרשם על השלב בלי לסמן אותו כ"נשלח".
       const { data: res, error } = await supabase.functions.invoke('send-release-email', {
-        body: { clientId, to: toEmail.trim(), ccClient: wantsCc, subject, html },
+        body: { clientId, to: toEmail.trim(), ccClient: wantsCc, subject, html, stepId, markSent: !followUp },
       });
       if (error || !res?.ok) {
         // ‼ error.message הוא תמיד "non-2xx status code" — משפט שאי אפשר
@@ -285,30 +288,11 @@ export default function ReleaseLetterDialog({
         setNotice({ kind: 'err', text: `השליחה נכשלה: ${why}` });
         return;
       }
-      const dateStr = new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
-      const pdf = await generateReleaseEmailPdf({
-        from: res.from || fromLabel, to: toEmail.trim(), date: dateStr, subject, bodyText: finalBody,
-        uploadUrl,
-      }, brand);
-      const docId = crypto.randomUUID();
-      const docTitle = followUp ? 'תוספת לבקשת החומרים - רו״ח קודם' : 'מכתב העברת טיפול - רו״ח קודם';
-      await saveDoc({
-        id: docId, clientId,
-        fileName: `${docTitle} ${dateStr}.pdf`,
-        fileType: 'application/pdf',
-        fileSize: pdf.byteLength,
-        category: 'other',
-        year: 'general',
-        uploadedAt: new Date().toISOString(),
-        description: `${followUp ? 'תוספת לבקשת החומרים שנשלחה' : 'מכתב העברת הטיפול שנשלח'} ל${prevAccountant.name || 'רו״ח הקודם'} (${toEmail.trim()})${res.cc ? ` · עותק ל${clientName}` : ''}`,
-        notes: `נשלח מ-${res.from || fromLabel}`,
-        fileData: pdf.buffer.slice(0) as ArrayBuffer,
-      });
+
+      // ‼ המייל יצא — זו העובדה, והיא נמסרת למסך **עכשיו**. עד 170 onSent
+      // נקרא רק אחרי שגם ה-PDF נוצר ונשמר, וכשל ב-PDF השאיר את המכתב "טרם
+      // נשלח": שליחה חוזרת שלחה אותו לרו"ח הקודם פעמיים.
       setDone(true);
-      setNotice({
-        kind: 'ok',
-        text: followUp ? 'העדכון נשלח ונשמר במסמכי הלקוח.' : 'המכתב נשלח ונשמר במסמכי הלקוח.',
-      });
       onSent?.({
         materialKeys: materials.filter(m => m.checked).map(m => m.key),
         materials: materials.filter(m => m.checked && m.label.trim())
@@ -326,6 +310,40 @@ export default function ReleaseLetterDialog({
         to: toEmail.trim(),
         draft: { ...currentDraft(), body: finalBody, subject },
       });
+
+      // ── העותק כ-PDF במסמכי הלקוח — נספח, לא תנאי ────────────────────────
+      // ‼ כשל כאן אינו מבטל את העובדה שהמכתב יצא, ואינו מסתיר אותה: ההודעה
+      // אומרת בדיוק מה קרה — נשלח, והעותק לא נשמר.
+      try {
+        const dateStr = new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
+        const pdf = await generateReleaseEmailPdf({
+          from: res.from || fromLabel, to: toEmail.trim(), date: dateStr, subject, bodyText: finalBody,
+          uploadUrl,
+        }, brand);
+        const docId = crypto.randomUUID();
+        const docTitle = followUp ? 'תוספת לבקשת החומרים - רו״ח קודם' : 'מכתב העברת טיפול - רו״ח קודם';
+        await saveDoc({
+          id: docId, clientId,
+          fileName: `${docTitle} ${dateStr}.pdf`,
+          fileType: 'application/pdf',
+          fileSize: pdf.byteLength,
+          category: 'other',
+          year: 'general',
+          uploadedAt: new Date().toISOString(),
+          description: `${followUp ? 'תוספת לבקשת החומרים שנשלחה' : 'מכתב העברת הטיפול שנשלח'} ל${prevAccountant.name || 'רו״ח הקודם'} (${toEmail.trim()})${res.cc ? ` · עותק ל${clientName}` : ''}`,
+          notes: `נשלח מ-${res.from || fromLabel}`,
+          fileData: pdf.buffer.slice(0) as ArrayBuffer,
+        });
+        setNotice({
+          kind: 'ok',
+          text: followUp ? 'העדכון נשלח ונשמר במסמכי הלקוח.' : 'המכתב נשלח ונשמר במסמכי הלקוח.',
+        });
+      } catch (e) {
+        setNotice({
+          kind: 'err',
+          text: `${followUp ? 'העדכון נשלח' : 'המכתב נשלח'}, אבל העותק כ-PDF לא נשמר במסמכי הלקוח: ${e instanceof Error ? e.message : String(e)}`,
+        });
+      }
     } catch (e) {
       setNotice({ kind: 'err', text: `שגיאה: ${e instanceof Error ? e.message : String(e)}` });
     } finally {

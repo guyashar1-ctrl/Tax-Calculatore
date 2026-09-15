@@ -3,6 +3,7 @@
 
 import { ClientExt, ClientAlert } from '../types/clientWorkspace';
 import { Task } from '../types';
+import { isOpenTask } from './taskUtils';
 
 const DAYS_AHEAD = 21; // "חוב קרוב" = תאריך יעד בתוך 21 ימים
 const WITHHOLDING_WARN_DAYS = 30;
@@ -17,7 +18,7 @@ function daysUntil(dateStr?: string): number | null {
 
 /** משימות פתוחות הקשורות ללקוח */
 export function getClientOpenTasks(clientId: string, tasks: Task[]): Task[] {
-  return tasks.filter(t => t.clientId === clientId && t.status === 'open');
+  return tasks.filter(t => t.clientId === clientId && isOpenTask(t));
 }
 
 /** "חובות קרובים" = משימות פתוחות בקטגוריות רגולטוריות עם dueDate בתוך 21 יום */
@@ -25,7 +26,7 @@ export function getUpcomingDebts(clientId: string, tasks: Task[]): Task[] {
   const regCats = new Set(['ongoing', 'cutoff', 'annual_report', 'personal_report']);
   return tasks.filter(t => {
     if (t.clientId !== clientId) return false;
-    if (t.status !== 'open') return false;
+    if (!isOpenTask(t)) return false;
     if (!regCats.has(t.category)) return false;
     const d = daysUntil(t.dueDate);
     return d !== null && d <= DAYS_AHEAD;

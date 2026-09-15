@@ -5,9 +5,16 @@
 // תמיד ההתקשרות *האחרונה שנוצרה* — ומכירת שירות חד־פעמי, שיצרה התקשרות
 // ריקה בלי שורות חודשיות, הייתה משתלטת על התצוגה ומראה 0 ₪ לחודש.
 //
-// ‼ הבחירה נגזרת מתאריך ולא מסטטוס בלבד: משימת המעבר בשרת
-// (apply_due_engagement_transitions) עשויה לאחר, ואסור שאיחור שלה יציג מחיר
-// לא נכון. אותה נוסחה בדיוק יושבת ב-current_engagement_id בשרת.
+// ‼ (168) ההתקשרות הנוכחית היא השורה היחידה במצב 'onboarding' או 'active' —
+// בלי סינון לפי תאריך. הסינון `effectiveFrom <= today` שהיה כאן (ובשרת)
+// העלים התקשרות ראשונה שהחיוב שלה מתחיל בחודש הבא, וההצעה הבאה של אותו
+// לקוח נפלה על אילוץ הייחודיות. הקליטה מתחילה באישור; החיוב מתחיל כשמתחיל.
+// 'scheduled' הוא חידוש עתידי ואינו נוכחי לעולם — גם אם מועדו הגיע ומשימת
+// המעבר בשרת מאחרת; הוא נהיה נוכחי רק כשהמעבר סוגר את הקודמת.
+//
+// ‼ חייב להישאר זהה תו-בתו ל-public.current_engagement_id (מיגרציה 168).
+//   זו ההגדרה היחידה במסך: lib/clientState מאציל לכאן, ואסור לכתוב מסנן
+//   engagements מקומי במסך.
 
 import type { Engagement } from '../types/onboarding';
 
@@ -25,15 +32,17 @@ function effectiveKey(e: Engagement): string {
 }
 
 /**
- * ההסכם שבתוקף עכשיו: בקליטה או פעיל, שתאריך התוקף שלו כבר הגיע.
- * המאוחר מביניהם גובר — האילוץ במסד מבטיח שיש לכל היותר אחד כזה.
+ * ההסכם שבתוקף עכשיו: בקליטה או פעיל. האילוץ במסד מבטיח שיש לכל היותר
+ * אחד כזה; המיון קיים רק כדי שהשרת והמסך יבחרו אותו דבר גם אם האילוץ
+ * יוסר יום אחד (מי שכבר בתוקף קודם, ואז המאוחר).
  */
 export function currentEngagement(engagements: Engagement[], clientId: string, today = todayKey()): Engagement | undefined {
+  const inForce = (e: Engagement) => (effectiveKey(e) <= today ? 1 : 0);
   return engagements
     .filter(e => e.clientId === clientId
-      && (e.status === 'onboarding' || e.status === 'active')
-      && effectiveKey(e) <= today)
-    .sort((a, b) => effectiveKey(b).localeCompare(effectiveKey(a))
+      && (e.status === 'onboarding' || e.status === 'active'))
+    .sort((a, b) => inForce(b) - inForce(a)
+      || effectiveKey(b).localeCompare(effectiveKey(a))
       || (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0];
 }
 

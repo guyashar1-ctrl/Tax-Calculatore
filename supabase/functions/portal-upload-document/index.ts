@@ -77,18 +77,25 @@ Deno.serve(async (req: Request) => {
     // ── פתרון הטוקן לשלב ולבעליו ─────────────────────────────────────────────
     let clientId = "";
     if (tokenKind === "release") {
+      // ‼ מכתב שבוטל = הטוקן שלו מת — אותו תנאי כמו בפונקציות דף השחרור (165).
       const { data: rel } = await admin
         .from("onboarding_steps")
         .select("client_id")
         .eq("step_type", "release_letter")
         .eq("payload->>releaseToken", token)
+        .neq("status", "cancelled")
         .maybeSingle();
       if (!rel) return json({ error: "invalid_token" }, 403);
       clientId = rel.client_id;
     } else {
       const { data: cli } = await admin
-        .from("clients").select("id").eq("portal_token", token).maybeSingle();
+        .from("clients").select("id, portal_token_expires_at").eq("portal_token", token).maybeSingle();
       if (!cli) return json({ error: "invalid_token" }, 403);
+      // ‼ אותו כלל תפוגה כמו get_client_portal ו-portal_submit_step (97): טוקן
+      // שפג אינו פותח את הדף — ולכן גם אינו מעלה קבצים. דלת אחת, כלל אחד.
+      if (cli.portal_token_expires_at && new Date(cli.portal_token_expires_at).getTime() < Date.now()) {
+        return json({ error: "invalid_token" }, 403);
+      }
       clientId = cli.id;
     }
 
@@ -96,7 +103,20 @@ Deno.serve(async (req: Request) => {
     const { data: step } = await admin
       .from("onboarding_steps").select("*").eq("id", stepId).eq("client_id", clientId).maybeSingle();
     if (!step) return json({ error: "step_not_found" }, 404);
-    if (["cancelled"].includes(step.status)) return json({ error: "step_closed" }, 409);
+    // ‼ מצב השלב — אותו כלל כמו הדלת האחות של כל מסלול (165, PF7):
+    //   · דף אישי  → portal_submit_step: שלב סגור (הושלם/אומת/דולג/בוטל) אינו
+    //     מקבל כלום, ושלב נעול נדחה. עד כאן העלאה עברה גם לשלב נעול או שהושלם,
+    //     והפכה נעול ל"בתהליך" — כלומר פתחה בקשה שהרו"ח עוד לא פתח.
+    //   · דף הרו"ח הקודם → release_portal_*: רק "בוטל" סוגר. החומרים ממשיכים
+    //     להגיע לאורך שבועות, גם אחרי שכל הפריטים סומנו (הכרעת גיא 2026-08-18).
+    if (tokenKind === "portal") {
+      if (["completed", "verified", "skipped", "cancelled"].includes(step.status)) {
+        return json({ error: "step_closed" }, 409);
+      }
+      if (step.status === "locked") return json({ error: "locked" }, 409);
+    } else if (step.status === "cancelled") {
+      return json({ error: "step_closed" }, 409);
+    }
 
     const allowedTypes = tokenKind === "release"
       ? ["materials_received"]

@@ -230,60 +230,56 @@ Deno.serve(async (req: Request) => {
 
     const resendPayload: Record<string, unknown> = { from, to: [toEmail], subject: rendered.subject, html };
     if (replyTo) resendPayload.reply_to = replyTo;
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify(resendPayload),
-    });
-    const body = await r.json();
-
-    const logBase = {
-      user_id: userId, client_id: client.id, to_email: toEmail,
-      subject: rendered.subject, kind: event, html,
-    };
+    let r: Response;
+    try {
+      r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(resendPayload),
+      });
+    } catch (e) {
+      return json({ error: "resend_unreachable", detail: { message: String(e).slice(0, 300) } }, 502);
+    }
+    const body = await r.json().catch(() => ({}));
 
     if (!r.ok) {
-      await admin.from("email_messages")
-        .insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
+      await admin.from("email_messages").insert({
+        user_id: userId, client_id: client.id, to_email: toEmail,
+        subject: rendered.subject, kind: event, html,
+        status: "failed", error: JSON.stringify(body).slice(0, 500),
+      });
       return json({ error: "resend_failed", detail: body }, 502);
     }
 
-    // שליחה חוזרת היא תזכורת לגיטימית ("שלחתי, הוא לא נכנס") ולכן מקבלת מספר
-    // רץ ולא נחסמת — אותו כלל כמו במיילי השלבים.
-    const { count } = await admin
-      .from("email_messages").select("id", { count: "exact", head: true })
-      .eq("client_id", client.id).eq("kind", event);
-    const idempotencyKey = `client:${client.id}:${event}:${(count ?? 0) + 1}`;
-
-    const { error: logErr } = await admin.from("email_messages")
-      .insert({ ...logBase, resend_id: body.id, status: "sent", idempotency_key: idempotencyKey });
-    if (logErr && logErr.code === "23505") return json({ ok: true, alreadySent: true });
-
-    let logged = !logErr;
-    if (logErr) {
-      const { error: minErr } = await admin.from("email_messages").insert({
-        user_id: userId, client_id: client.id, to_email: toEmail,
-        subject: rendered.subject, kind: event, status: "sent", resend_id: body.id,
-        error: `log_failed: ${logErr.code ?? ""} ${String(logErr.message ?? "").slice(0, 200)}`,
-      });
-      logged = !minErr;
-      console.error("[send-process-open-email] email_messages insert failed",
-        logErr.code, logErr.message, minErr ? `retry failed: ${minErr.code}` : "retry ok");
-    }
-
+    // ── הרישום + האירוע — כתיבה אחת (170) ────────────────────────────────
+    // שליחה חוזרת היא תזכורת לגיטימית ("שלחתי, הוא לא נכנס") ולכן אינה
+    // נחסמת: המפתח הייחודי נגזר ממזהה הספק (ברירת המחדל של ה-RPC) ולא
+    // מ-COUNT+1, שהיה מרוץ בין שתי שליחות מקבילות.
     const { data: eng } = await admin.from("engagements")
       .select("id").eq("client_id", client.id).limit(1).maybeSingle();
-    await admin.from("onboarding_events").insert({
-      user_id: userId,
-      engagement_id: eng?.id ?? null,
-      type: "email_sent",
-      actor: "accountant",
-      note: `הדף האישי נשלח ללקוח: ${rendered.subject}`
-        + (logged ? "" : " (לא נרשם ביומן הדואר - ראה לוג השרת)"),
-      meta: { kind: event, to: toEmail, resend_id: body.id, openRequests: actions.length, newDocuments: newDocs.length, logged },
-    });
+    const recordArgs = {
+      p_user_id: userId,
+      p_kind: event,
+      p_to_email: toEmail,
+      p_subject: rendered.subject,
+      p_resend_id: String(body.id),
+      p_html: html as string | null,
+      p_client_id: client.id,
+      p_engagement_id: eng?.id ?? null,
+      p_event_actor: "accountant",
+      p_event_note: `הדף האישי נשלח ללקוח: ${rendered.subject}`,
+      p_event_meta: { kind: event, to: toEmail, openRequests: actions.length, newDocuments: newDocs.length },
+    };
+    let { error: recErr } = await admin.rpc("record_email_sent", recordArgs);
+    if (recErr) {
+      // המייל כבר יצא — כשל רישום אינו כשל שליחה. ניסיון שני בלי ה-html,
+      // ואז דיווח מפורש למסך (logged=false).
+      console.error("[send-process-open-email] record_email_sent failed", recErr.code, recErr.message);
+      ({ error: recErr } = await admin.rpc("record_email_sent", { ...recordArgs, p_html: null }));
+      if (recErr) console.error("[send-process-open-email] record_email_sent retry failed", recErr.code, recErr.message);
+    }
 
-    return json({ ok: true, id: body.id, logged });
+    return json({ ok: true, id: body.id, logged: !recErr });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

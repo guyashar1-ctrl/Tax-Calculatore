@@ -302,7 +302,11 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
     const { updatedAt: _u, createdAt: _c, ...rest } = p as FirmProfile & { updatedAt?: string; createdAt?: string };
     return stableStringify(rest);
   };
-  const dirty = editableJson(draft) !== editableJson(profile);
+  // ‼ שתי הסריאליזציות ממוזכרות על האובייקט שלהן: קודם כל הקשה בשדה הריצה
+  // stableStringify פעמיים על הפרופיל כולו (כולל ה-jsonb של המיתוג).
+  const draftJson = useMemo(() => editableJson(draft), [draft]);
+  const profileJson = useMemo(() => editableJson(profile), [profile]);
+  const dirty = draftJson !== profileJson;
 
   // הטיוטה מאמצת את הפרופיל השמור כשאין שינויים פתוחים (אחרי שמירה, או אם
   // הפרופיל התעדכן ממקום אחר). כך אין מצב של שתי אמיתות על אותה רשומה.

@@ -30,9 +30,7 @@ import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboa
 import { isStepOpen, stepAwaitsMe } from '../types/onboarding';
 import type { Lead, QuotationKind } from '../types/quotations';
 import type { AdvanceResult } from '../hooks/useOnboarding';
-import { GOVERNED_FACT_KEYS, GOVERNED_FIELD_LABELS, governedValuesEqual } from '../types/taxFacts';
-import { recordManualFactChange } from '../lib/taxFacts';
-import { clientFromDb } from '../lib/dbMappers';
+import { StaleClientError, type ClientSaveMeta } from '../hooks/useClients';
 import AgreementPaymentsTab from './clientTabs/AgreementPaymentsTab';
 import ActivityTab from './clientTabs/ActivityTab';
 import ChecksTab from './clientTabs/ChecksTab';
@@ -92,9 +90,14 @@ interface Props {
   client: Client | null;
   clients: Client[];
   tasks: Task[];
-  onSave: (client: Client) => void;
+  /**
+   * שמירה. `meta` אומר לשכבת הנתונים אילו שדות המשתמש ערך בפועל ועל איזו
+   * גרסה של הכרטיס (updated_at) — כדי שרק הם ייכתבו, ולא הד של השורה כולה.
+   * הבטחה שנדחית ב-StaleClientError = הכרטיס השתנה בשרת בינתיים ולא נכתב כלום.
+   */
+  onSave: (client: Client, meta?: ClientSaveMeta) => void | Promise<void>;
   onCancel: () => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, opts?: { force?: boolean }) => void;
   /** העברה לארכיון והחזרה ממנו — הכתיבה היחידה של שלב הכרטיס מהמסך */
   onSetLifecycleStage?: (id: string, stage: LifecycleStage) => Promise<void>;
   /** presetTitle — דגל בתמונת המצב פותח את הטופס עם כותרת מוכנה, לא יוצר בשקט. */
@@ -271,6 +274,15 @@ export default function ClientWorkspace({
   const tabPickedByUser = useRef(!!initialTab);
   const [docCategories, setDocCategories] = useState<Set<string>>(new Set());
   const [dirty, setDirty] = useState(false);
+  /**
+   * ‼ מה המשתמש ערך בפועל — ולא "מה שונה מהעותק שנטען". הכרטיס נכתב בשרת
+   * גם בלי המסך (יישור קו, הדף האישי, שלב חיים), ולכן השוואה מול העותק
+   * הישן ייצרה "שינויים" מדומים שדרסו את השרת (A8/T2). רק המפתחות שכאן
+   * נשלחים בשמירה; `baseRef` הוא הגרסה שעליה העריכה יושבת (ל-updated_at).
+   */
+  const dirtyKeys = useRef<Set<string>>(new Set());
+  const baseRef = useRef<Client | null>(initialClient);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [intakeModalOpen, setIntakeModalOpen] = useState(false);
   /**
    * תמונת המצב מול הרשויות — השתלטות על גוף הכרטיס, לא לשונית.
@@ -329,29 +341,35 @@ export default function ClientWorkspace({
   useEffect(() => {
     if (initialClient) {
       setClient(initialClient);
-      setDirty(false);
     } else {
       setClient(newEmptyClient());
-      setDirty(false);
     }
+    baseRef.current = initialClient;
+    dirtyKeys.current.clear();
+    setDirty(false);
+    setSaveError(null);
   }, [initialClient?.id]);
 
   /**
    * ‼ המסך מחזיק עותק עריכה משלו, ולכן משיכה חדשה של הלקוח מ-App לא הגיעה
    * לכאן — כרטיס פתוח המשיך להציג "ליד" גם אחרי שהלקוח אישר את ההצעה.
-   * שני השדות האלה נכתבים בשרת בלבד (שלב החיים נגזר מההצעה, מצב הייצוג
-   * מתהליך הייצוג) ואינם ניתנים לעריכה במסך — ולכן אפשר לאמץ אותם בבטחה
-   * מבלי לגעת בשדות שהמשתמש עורך כרגע ובלי לאבד עריכה פתוחה.
+   * כשמגיעה גרסה חדשה של אותו כרטיס (updated_at אחר — הפעימה החיה, RPC
+   * שהחזיר שורה, או השמירה שלנו), מאמצים אותה כבסיס ומניחים מעליה רק את
+   * השדות שהמשתמש ערך ועוד לא שמר. כך כל מה שהשרת כתב בינתיים מגיע למסך
+   * בלי לאבד עריכה פתוחה, ובלי שהשמירה הבאה תדרוס אותו.
    */
-  const serverStage = initialClient?.lifecycleStage;
-  const serverRepStatus = initialClient?.representationStatus;
   useEffect(() => {
     if (!initialClient?.id) return;
-    setClient(c => (c.lifecycleStage === serverStage && c.representationStatus === serverRepStatus)
-      ? c
-      : { ...c, lifecycleStage: serverStage, representationStatus: serverRepStatus });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialClient?.id, serverStage, serverRepStatus]);
+    if (baseRef.current && baseRef.current.id === initialClient.id
+        && baseRef.current.updatedAt === initialClient.updatedAt) return;
+    baseRef.current = initialClient;
+    setClient(c => {
+      const keep = c as unknown as Record<string, unknown>;
+      const next = { ...initialClient } as unknown as Record<string, unknown>;
+      dirtyKeys.current.forEach(k => { next[k] = keep[k]; });
+      return next as unknown as Client;
+    });
+  }, [initialClient]);
 
   useEffect(() => {
     if (!client.id) return;
@@ -365,12 +383,40 @@ export default function ClientWorkspace({
 
   function update<K extends keyof Client>(key: K, value: Client[K]) {
     setClient(c => ({ ...c, [key]: value }));
+    dirtyKeys.current.add(key as string);
     setDirty(true);
   }
 
   function patch(partial: Partial<Client>) {
     setClient(c => ({ ...c, ...partial }));
+    Object.keys(partial).forEach(k => dirtyKeys.current.add(k));
     setDirty(true);
+  }
+
+  /** מה שנשלח לשמירה: המפתחות שנערכו, והגרסה שעליה נערכו. */
+  function saveMeta(): ClientSaveMeta {
+    return { fields: Array.from(dirtyKeys.current), expectedUpdatedAt: baseRef.current?.updatedAt };
+  }
+
+  /**
+   * שמירה שקוראת ל-onSave ומטפלת בתשובה: הצלחה מנקה את סימון העריכה;
+   * 'stale' (הכרטיס השתנה בשרת) מציג הודעה — הבסיס החדש מגיע מ-App דרך
+   * האפקט למעלה, והעריכה הפתוחה נשארת מעל; כל כישלון אחר מוצג ומשאיר
+   * את הסימון כדי שהמשתמש ינסה שוב.
+   */
+  async function persist(c: Client, meta: ClientSaveMeta) {
+    const sent = new Set(meta.fields ?? []);
+    sent.forEach(k => dirtyKeys.current.delete(k));
+    setDirty(false);
+    setSaveError(null);
+    try {
+      await onSave(c, meta);
+    } catch (e) {
+      sent.forEach(k => dirtyKeys.current.add(k));
+      setDirty(true);
+      setSaveError(e instanceof StaleClientError ? e.message
+        : e instanceof Error ? e.message : 'שמירת הכרטיס נכשלה.');
+    }
   }
 
   function appendActivity(entry: Omit<ActivityEntry, 'id' | 'at'>) {
@@ -381,6 +427,7 @@ export default function ClientWorkspace({
     };
     const next = [a, ...(client.activity ?? [])];
     setClient(c => ({ ...c, activity: next }));
+    dirtyKeys.current.add('activity');
     setDirty(true);
     // שמירה מיידית של פעילות (לא דורש "שמור")
     handleSaveImmediate({ ...client, activity: next });
@@ -390,28 +437,35 @@ export default function ClientWorkspace({
   async function patchAndSaveImmediate(partial: Partial<Client>) {
     const next = { ...client, ...partial };
     setClient(next);
+    Object.keys(partial).forEach(k => dirtyKeys.current.add(k));
     if (next.id) handleSaveImmediate(next);
     else setDirty(true); // לקוח חדש — נשמר בכפתור "שמור" אחרי מילוי החובה
   }
 
   function handleSaveImmediate(c: Client) {
     if (!c.id) return;  // ללקוח חדש אין שמירה מיידית
-    onSave({ ...c, updatedAt: new Date().toISOString() });
+    void persist({ ...c, updatedAt: new Date().toISOString() }, saveMeta());
+  }
+
+  /** כרטיס שנכתב בשרת דרך לשונית אחרת (RPC שהחזיר שורה) — הבסיס החדש. */
+  function adoptPersisted(updated: Client) {
+    baseRef.current = updated;
+    dirtyKeys.current.clear();
+    setClient(updated);
     setDirty(false);
+    setSaveError(null);
   }
 
   /**
    * ‼ "התיק" (ClientDossierTab/PersonalContactsTab/TaxNITab/TaxFilesSection)
-   * הוא מסך עריכה מלאה ישן — שדות עם update()/patch() ישירות, בלי לעבור דרך
-   * useTaxFacts. חלק מהם הם עובדות מקצועיות שהתאמה מנהלת (GOVERNED_FACT_KEYS,
-   * אותה רשימה בדיוק כמו allowlist השרת ועורך "עדכן בכרטיס" בשאלון).
-   * כתיבה ישירה שלהן דרך updateClient() הרגילה הייתה עוקפת את ההיסטוריה,
-   * את provenance של field_meta, ואת ההגנה מפני דריסה שקטה — בדיוק מה
-   * שהתגלה כפער בביקורת. לכן: בזמן השמירה, שדות מנוהלים שהשתנו מאז
-   * הטעינה עוברים בנפרד דרך record_manual_fact_change (הרו"ח הוא הסמכות
-   * הסופית — נכנס ישר כ-accepted), ומוצאים מתוך השמירה הרגילה כדי שלא
-   * ייכתבו פעמיים. לקוח חדש (עדיין לא קיים ב-DB) מדלג על זה לגמרי —
-   * אין עדיין עובדה מקובלת להגן עליה, וה-RPC ממילא ידרוש שורת clients קיימת.
+   * הוא מסך עריכה מלאה ישן — שדות עם update()/patch() ישירות. חלק מהם הם
+   * עובדות מקצועיות מנוהלות (GOVERNED_FACT_KEYS). המסך אינו מפצל אותן
+   * בעצמו יותר: הוא מוסר ל-onSave רק את המפתחות שנערכו (dirtyKeys) ואת
+   * הגרסה שעליה נערכו, ו-useClients.updateClient הוא שמפריד — שדה רגיל
+   * ל-update_client_fields, עובדה מנוהלת ל-record_manual_fact_change —
+   * באותה טרנזקציה בשרת (166). כך אין יותר "שינוי מנוהל" שנגזר מהשוואה
+   * לעותק ישן, ואין שמירה רגילה שרצה במקביל ודורסת field_meta.
+   * לקוח חדש (עדיין לא קיים ב-DB) נשמר בשלמותו דרך addClient.
    */
   function handleSave() {
     const now = new Date().toISOString();
@@ -422,47 +476,8 @@ export default function ClientWorkspace({
       createdAt: client.createdAt || now,
       updatedAt: now,
     };
-
-    const initialClientRec = initialClient as unknown as Record<string, unknown> | null;
-    const cRec = c as unknown as Record<string, unknown>;
-    const changedGoverned = (!isNew && initialClientRec)
-      ? Array.from(GOVERNED_FACT_KEYS).filter((k) => !governedValuesEqual(initialClientRec[k], cRec[k]))
-      : [];
-
-    if (changedGoverned.length > 0) {
-      const patch: Record<string, unknown> = {};
-      changedGoverned.forEach((k) => { patch[k] = cRec[k]; });
-      const labels = changedGoverned.map((k) => GOVERNED_FIELD_LABELS[k] ?? k);
-      void recordManualFactChange(
-        id, 'dossier-edit', `עדכון בתיק · ${labels.join(', ')}`,
-        'לפני העדכון', 'עודכן בתיק', patch,
-      ).then((res) => {
-        if (!res.ok) { console.error('[dossier] כתיבת עובדה מנוהלת נכשלה:', res.error); return; }
-        // ה-field_meta האמיתי (provenance) נכתב רק בתוך ה-RPC — לא בעותק
-        // המקומי שכבר היה בזיכרון. מציבים אותו בחזרה כשהתשובה חוזרת, כדי
-        // שהמסך יראה "מקור: ידני" בלי לדרוש רענון מלא.
-        if (res.client) setClient((prev) => ({ ...prev, fieldMeta: clientFromDb(res.client!).fieldMeta }));
-      });
-    }
-
-    // שדות מנוהלים שכבר נכתבו אטומית למעלה מוצאים מהאובייקט שהולך ל-onSave
-    // הרגילה (undefined = objectToRow מדלגת על העמודה) — לא כותבים אותם פעמיים.
-    //
-    // ‼ field_meta מוצא תמיד, בלי תנאי — לא רק כשיש שינוי מנוהל. אף שדה
-    // בתיק לא כותב אליו ישירות (הוא provenance שנקרא, לא נערך), ולכן העותק
-    // המקומי הוא תמיד רק מה שנטען פעם אחת ועלול כבר להתיישן. אם לא מוציאים
-    // אותו כאן, השמירה הרגילה — שרצה *בלי המתנה* מקבילית לקריאת ה-RPC
-    // האטומית למעלה — עלולה לדרוס את ה-field_meta העדכני שה-RPC כתב הרגע
-    // בעותק הישן שהיה בזיכרון לפני הלחיצה על "שמור". זה בדיוק מה שקרה
-    // בבדיקה בדפדפן: הערך התעדכן נכון, אבל source='manual' נמחק ברגע אחריו.
-    const plainClient: Client = { ...c };
-    const plainClientRec = plainClient as unknown as Record<string, unknown>;
-    changedGoverned.forEach((k) => { plainClientRec[k] = undefined; });
-    plainClientRec.fieldMeta = undefined;
-
-    onSave(plainClient);
     setClient(c);
-    setDirty(false);
+    void persist(c, isNew ? {} : saveMeta());
   }
 
   // ── חישובים נגזרים ──
@@ -712,9 +727,12 @@ export default function ClientWorkspace({
               כאן. "שמור" מופיע רק כשבאמת יש מה לשמור; ארכיון/מחיקה בתפריט
               פעולות נדירות. ראה docs/prototypes/README.md + סבב ההתכנסות. */}
           <div className="cw-header-actions">
+            {saveError && (
+              <span className="cw-dirty-flag" role="alert" style={{ color: 'var(--red, #b42318)' }}>{saveError}</span>
+            )}
             {dirty && (
               <>
-                <span className="cw-dirty-flag">שינויים לא שמורים</span>
+                {!saveError && <span className="cw-dirty-flag">שינויים לא שמורים</span>}
                 <button className="ui-btn ui-btn-ghost" onClick={handleSave}>שמור</button>
               </>
             )}
@@ -848,7 +866,7 @@ export default function ClientWorkspace({
             taxSessionsLoading={taxSessionsLoading}
             onOpenYear={openYear}
             onSelectTask={onSelectTask}
-            onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
+            onClientPersisted={adoptPersisted}
             onOpenTaxFile={() => setTab('taxfile')}
             niExecution={niExecution}
             onUpdateClientFields={onUpdateClientFields ? (patch: Partial<Client>) => onUpdateClientFields(client.id, patch) : undefined}
@@ -863,7 +881,7 @@ export default function ClientWorkspace({
             spouseClient={spouseClient}
             onCreateSpouseClient={onCreateSpouseClient ? () => onCreateSpouseClient(client) : undefined}
             onOpenSpouseClient={onOpenClient}
-            onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
+            onClientPersisted={adoptPersisted}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
             /* ‼ `onOpenDetails` ו-`onEditFamily` **אינם מועברים יותר, בכוונה.**
                שניהם ניווטו לעורך «התיק» הישן — מסך עם עשרים קבוצות שדות
@@ -961,7 +979,7 @@ export default function ClientWorkspace({
           <OnboardingTab
             clientId={client.id}
             client={client}
-            onClientPersisted={(updated) => { setClient(updated); setDirty(false); }}
+            onClientPersisted={adoptPersisted}
             engagements={engagements ?? []}
             steps={onboardingSteps ?? []}
             events={onboardingEvents ?? []}
@@ -1077,7 +1095,7 @@ export default function ClientWorkspace({
           onArchive={onSetLifecycleStage && !isArchived
             ? async () => { await toggleArchive(); setConfirmDelete(false); }
             : undefined}
-          onDelete={() => { setConfirmDelete(false); onDelete(client.id); }}
+          onDelete={opts => { setConfirmDelete(false); onDelete(client.id, opts); }}
           onCancel={() => setConfirmDelete(false)}
         />
       )}

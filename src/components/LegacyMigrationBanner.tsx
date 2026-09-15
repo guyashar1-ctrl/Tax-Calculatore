@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useDocumentDB } from '../hooks/useIndexedDB';
 import {
+  countLegacyDocs,
   listAllLegacyDocs,
   deleteLegacyDoc,
   deleteLegacyDatabase,
@@ -35,10 +36,11 @@ export default function LegacyMigrationBanner({ knownClientIds }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    listAllLegacyDocs().then(docs => {
+    // ‼ ספירה בלבד — הבייטים נטענים רק כשלוחצים "העלה לענן".
+    countLegacyDocs().then(n => {
       if (cancelled) return;
-      if (docs.length === 0) setStatus('no-legacy');
-      else { setStatus('idle'); setCount(docs.length); }
+      if (n === 0) setStatus('no-legacy');
+      else { setStatus('idle'); setCount(n); }
     });
     return () => { cancelled = true; };
   }, []);

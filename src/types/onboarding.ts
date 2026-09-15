@@ -107,6 +107,31 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   authority_representation: 'ייצוג ברשות',
 };
 
+/**
+ * הסוגים שהדף האישי של הלקוח מכיר. ‼ בבואה תו-בתו של ענפי
+ * `case s.step_type when '…'` ב-public.build_client_portal — בסדר הזה בדיוק.
+ * כל סוג שאינו כאן נופל ב-`else continue` בשרת ולעולם לא מוצג ללקוח, ולכן
+ * "טיוטה"/"פורסם" חסרי משמעות עבורו. עד 168 המשרד החזיק רשימת "מוסתרים" של
+ * שני סוגים בזמן שהשרת הסתיר עשרה, והציג "טיוטה" על שלבי יישור קו שהלקוח
+ * לא יראה לעולם. scripts/staging-test-single-source.mjs משווה את הרשימה
+ * הזו לגוף הפונקציה בפרודקשן ונופל על כל סטייה.
+ */
+export const PORTAL_STEP_TYPES: readonly OnboardingStepType[] = [
+  'representation', 'client_documents', 'custom_request', 'prev_accountant_details',
+  'paperless_invite', 'paperless_connection', 'rep_client_approval', 'paperless_tax_authority',
+  'retainer_authorization', 'intake_questionnaire', 'release_letter', 'materials_received',
+  'file_opening', 'authority_representation',
+];
+
+/** מתוך PORTAL_STEP_TYPES: מסלול הרו"ח הקודם אינו שורה משלו בדף האישי אלא
+ *  מקופל לשורת "קבלת החומרים מרואה החשבון הקודם" אחת — ולכן גם עליו אין
+ *  "טיוטה" (הוא סתר את "נשלח"). */
+export const PORTAL_FOLDED_STEP_TYPES: readonly OnboardingStepType[] = ['release_letter', 'materials_received'];
+
+/** האם הדף האישי מציג את השלב הזה כשורה משלו — ולכן "טיוטה/פורסם" רלוונטי. */
+export const portalShowsStep = (t: OnboardingStepType): boolean =>
+  PORTAL_STEP_TYPES.includes(t) && !PORTAL_FOLDED_STEP_TYPES.includes(t);
+
 /** שלושת שלבי המוסדות, בסדר התצוגה המאושר (מוקאפ v3-final2). */
 export const INSTITUTION_STEP_TYPES: OnboardingStepType[] = [
   'institution_alignment_btl', 'institution_alignment_vat', 'institution_alignment_income',
@@ -803,6 +828,25 @@ export const LEGACY_AUTO_OFFICE_TYPES: OnboardingStepType[] = [
   'data_import', 'data_verification',
 ];
 
+/**
+ * סדר התצוגה במסכי המשרד — "טיוטה עד פרסום" (מיגרציה 101): סידור שנגרר ועדיין
+ * לא פורסם (pendingSortOrder) גובר על הסדר החי, אחרת הרשימה קופצת חזרה אחרי
+ * רענון בזמן שהדף האישי (בתצוגה המקדימה) כבר מציג את הסדר החדש. הלקוח עצמו
+ * ממשיך לראות את sortOrder עד «עדכן את דף הלקוח», ואז publish_case_changes
+ * מעתיק pending ⇒ live. ‼ כל רשימת שלבים במשרד ממוינת דרך המשווה הזה — לא
+ * לפי sortOrder ישירות.
+ */
+export const officeSortOrder = (s: Pick<OnboardingStep, 'sortOrder' | 'pendingSortOrder'>): number =>
+  s.pendingSortOrder ?? s.sortOrder ?? 0;
+
+export function compareStepsForOffice(
+  a: Pick<OnboardingStep, 'sortOrder' | 'pendingSortOrder' | 'createdAt'>,
+  b: Pick<OnboardingStep, 'sortOrder' | 'pendingSortOrder' | 'createdAt'>,
+): number {
+  return officeSortOrder(a) - officeSortOrder(b)
+    || (a.createdAt ?? '').localeCompare(b.createdAt ?? '');
+}
+
 /** מצבים שנחשבים "סגור" לצורך הסגירה. */
 export const SATISFIED_STATUSES: OnboardingStepStatus[] = ['completed', 'verified', 'skipped'];
 
@@ -837,7 +881,10 @@ export function isStepRequiredForClose(step: OnboardingStep): boolean {
  * ‼ שתיקה נחשבת הסכמה רק אחרי ששאלנו. תאריך יעד אפשר לקבוע לכל שלב ידנית,
  * ולכן מכתב שמעולם לא נשלח ותאריכו עבר היה "מספק" את הסגירה בלי שאיש ראה
  * אותו. לכן החלון תקף רק אחרי שהשלב יצא מהכנה (לא pending ולא locked).
- * זהה לתנאי שב-onboarding_close_readiness (מיגרציה 68).
+ * זהה לתנאי שב-onboarding_close_readiness (מיגרציה 68, 167).
+ *
+ * ‼ התנגדות מפורשת אינה שתיקה. רו״ח קודם שכתב שהוא מתנגד לא "הסכים" רק
+ * כי חלון ההתייחסות עבר בינתיים — המכתב חוסם עד שהמשרד סוגר אותו ביד (167).
  */
 export function isStepSatisfiedForClose(step: OnboardingStep): boolean {
   if (SATISFIED_STATUSES.includes(step.status)) return true;
@@ -846,6 +893,7 @@ export function isStepSatisfiedForClose(step: OnboardingStep): boolean {
     step.status !== 'pending' &&
     step.status !== 'locked' &&
     step.dueDate &&
+    !step.payload.prevAccountantResponseNote &&
     new Date(step.dueDate) <= new Date()
   ) return true;
   return false;

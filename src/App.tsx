@@ -60,6 +60,8 @@ import { RELEASE_MATERIALS, readReleaseDraft, releaseTemplateFrom } from './util
 import { unfiledBlocking } from './types/onboarding';
 import { applySecondaryLevels } from './types/quotations';
 import { currentEngagement } from './utils/engagementSelectors';
+import { countTasksNeedingMe } from './utils/taskUtils';
+import { linkLeadToClient } from './lib/leadLink';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
 import { generateQuotationPdf } from './utils/quotationPdf';
@@ -67,6 +69,7 @@ import type { Lead, Quotation, QuotationKind } from './types/quotations';
 import FirmProfileConsole from './components/FirmProfileConsole';
 import type { FirmProfile } from './types/firmProfile';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
+import type { ClientSaveMeta } from './hooks/useClients';
 import { SAMPLE_TASKS } from './data/sampleTasks';
 import ClientList from './components/ClientList';
 import PersonDirectory from './components/PersonDirectory';
@@ -403,7 +406,7 @@ export default function App() {
 
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
 
-  const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients, setClientLifecycleStage, applyClientLocally, refreshClient, refreshClients } = useClients(user?.id);
+  const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients, setClientLifecycleStage, applyClientLocally, refreshClient, refreshClients, linkSpouseClients } = useClients(user?.id);
   const { tasks, loading: tasksLoading, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks, reloadTasks } = useTasks(user?.id);
 
   // בתחילת כל רבעון (ינואר/אפריל/יולי/אוקטובר) נוצרת אוטומטית משימת בדיקת
@@ -423,7 +426,10 @@ export default function App() {
     void addTask(buildQuarterlyFreshnessTask()).catch(() => { /* ניסיון חוזר בכניסה הבאה */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, tasksLoading]);
-  const { requests, addRequest, updateRequest, deleteRequest: removeRequest } = useRepresentationRequests(user?.id);
+  // ‼ lean: 3.2MB של חתימות base64 אינם נטענים בכל כניסה; הבקשה שנפתחת
+  // מושלמת ב-hydrateRequest לפני שמסך הבדיקה מרונדר (אחרת היה דורס חתימות).
+  const { requests, addRequest, updateRequest, deleteRequest: removeRequest, hydrateRequest, isHydrated } =
+    useRepresentationRequests(user?.id, { lean: true });
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
   // ‼ ברירת המחדל דלוקה: הנתונים כבר במסד, והדגל קיים כדי לכבות את המסך
   // (לשונית הקליטה + המקטע בשולחן) בלי שינוי קוד — settings.flags.onboardingTab=false.
@@ -531,6 +537,7 @@ export default function App() {
   const [tasksClientFilter, setTasksClientFilter] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialRoute.clientId ?? null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(initialRoute.requestId ?? null);
+  useEffect(() => { if (selectedRequestId) void hydrateRequest(selectedRequestId); }, [selectedRequestId, hydrateRequest]);
   // התצוגה המהירה במסך הלקוחות — חיה בכתובת (#/clients/p/{id}) כדי ש"אחורה" יסגור
   const [quickViewId, setQuickViewId] = useState<string | null>(initialRoute.quickId ?? null);
   /**
@@ -785,7 +792,8 @@ export default function App() {
   }
 
   const selectedClient = selectedId ? clients.find(c => c.id === selectedId) ?? null : null;
-  const selectedRequest = selectedRequestId ? requests.find(r => r.id === selectedRequestId) ?? null : null;
+  const selectedRequest = selectedRequestId && isHydrated(selectedRequestId)
+    ? requests.find(r => r.id === selectedRequestId) ?? null : null;
 
   function handleSelectClient(id: string) {
     setSelectedId(id);
@@ -940,8 +948,12 @@ export default function App() {
     // כרגע (basics) גוברים על מה שנזרע — הוא הקלד אותם עכשיו במפורש.
     const owner = basics.linkSpouseClientId ? clients.find(c => c.id === basics.linkSpouseClientId) : undefined;
     const seed = owner ? seedClientFromEmbeddedSpouse(owner) : {};
+    // ‼ הקישור עצמו (spouseClientId) לא נכתב בהכנסה — הוא נכתב לשני הצדדים
+    // בבת אחת ב-link_spouse_clients (169). כתיבה בצד אחד כאן ובצד השני
+    // אחר כך השאירה קישור חד-כיווני כשהשנייה נכשלה.
     const draft = makeEmptyClient(crypto.randomUUID(), {
       ...seed,
+      spouseClientId: undefined,
       firstName: basics.firstName,
       lastName: basics.lastName,
       idNumber: basics.idNumber,
@@ -950,7 +962,7 @@ export default function App() {
     });
     const created = await addClient(draft);
     if (owner) {
-      await updateClient({ ...owner, spouseClientId: created.id });
+      await linkSpouseClients(owner.id, created.id);
     }
     return created;
   }
@@ -987,9 +999,10 @@ export default function App() {
         return;
       }
       const seed = seedClientFromEmbeddedSpouse(owner);
-      const draft = makeEmptyClient(crypto.randomUUID(), seed);
+      const draft = makeEmptyClient(crypto.randomUUID(), { ...seed, spouseClientId: undefined });
       const created = await addClient(draft);
-      await updateClient({ ...owner, spouseClientId: created.id, spouseRepresentedElsewhere: false });
+      // ‼ שני הצדדים + הורדת "מיוצג במקום אחר" — בכתיבה אחת בשרת (169).
+      await linkSpouseClients(owner.id, created.id);
       setSpousePromotionOwner(null);
       handleSelectClient(created.id);
     } finally {
@@ -1061,15 +1074,19 @@ export default function App() {
    */
   async function handleContinueLeadRepresentation(lead: Lead, basics: NewPersonBasics) {
     const client = await createPersonFromBasics(basics);
-    await updateLead({ ...lead, status: 'converted', convertedClientId: client.id });
+    // (168) הקישור בשרת; הליד נגזר ממנו. לא כותבים status='converted' מהדפדפן.
+    await linkLeadToClient(lead.id, client.id);
+    await refreshLeads();
     setContinuationLead(null);
     setPendingRepresentationClient(client);
   }
 
-  async function handleSave(client: Client) {
+  // ‼ meta נושא את רשימת השדות שנערכו בפועל ואת updated_at שנטען (166): נשלח
+  // רק מה שהשתנה, ושינוי שהשרת עשה בינתיים אינו נדרס — הוא מוחזר כ-stale.
+  async function handleSave(client: Client, meta?: ClientSaveMeta) {
     const exists = clients.some(c => c.id === client.id);
     if (exists) {
-      await updateClient(client);
+      await updateClient(client, meta);
     } else {
       await addClient(client);
     }
@@ -1077,7 +1094,7 @@ export default function App() {
     setView('form');
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: string, opts?: { force?: boolean }) {
     const client = clients.find(c => c.id === id);
     if (client?.representationRequestId) {
       try { await removeRequest(client.representationRequestId); } catch { /* ignore */ }
@@ -1090,7 +1107,9 @@ export default function App() {
       const docs = await db.getDocsByClient(id);
       await Promise.all(docs.map(d => db.deleteDoc(d.id)));
     } catch { /* ignore */ }
-    await removeClient(id);
+    // ‼ delete_client (169): מבטל הצעות פתוחות, מוחק בקשות ייצוג, ומסרב כשיש
+    // התקשרות חיה — אלא אם הדיאלוג העביר force אחרי שהמשתמש ראה את האזהרה.
+    await removeClient(id, opts);
     // ‼ טעינה מחדש מלאה, ולא רק ניקוי הרשימה. המסד מוחק בגרירה גם משימות,
     // מסמכים, התקשרות ושלבי קליטה — וכל אחד מהם יושב בזיכרון של מסך אחר.
     // ניקוי ידני של כולם היה משאיר תמיד עוד אחד מאחור (כמו שלבי הקליטה
@@ -1123,7 +1142,10 @@ export default function App() {
     setSelectedId(null);
   }
 
+  // ‼ נתוני הדוגמה הם כלי פיתוח: בפרודקשן ההוספה נופלת על מפתחות זרים ומשאירה
+  // כפתור שלא עושה כלום (ספר הפערים K7/F14). מחוץ ל-DEV הפעולה ריקה.
   async function handleLoadSamples() {
+    if (!import.meta.env.DEV) return;
     const existingIds = new Set(clients.map(c => c.id));
     const enriched = enrichClientsWithWorkspace(SAMPLE_CLIENTS);
     const newSamples = enriched.filter(s => !existingIds.has(s.id));
@@ -1132,6 +1154,7 @@ export default function App() {
   }
 
   async function handleLoadSampleTasks() {
+    if (!import.meta.env.DEV) return;
     const existing = new Set(tasks.map(t => t.id));
     const toAdd = SAMPLE_TASKS.filter(t => !existing.has(t.id));
     if (toAdd.length === 0) return;
@@ -1387,10 +1410,15 @@ export default function App() {
           return files ? { taxFiles: files } : {};
         }
         const spouseId = prefill.spouseIdNumber?.trim();
+        // ‼ (168) כוונה חדשה מבטלת אימות ישן: אם הבעלים של תיק מ"ה משתנה כאן,
+        // «אומת» של ההכרעה הקודמת כבר לא מתאר את מה שנכתב. הדגל נדלק שוב
+        // רק ב-handleConfirmRegisteredSpouse — הכותב היחיד שלו.
+        const ownerChanges = existing.some(f => f.authority === 'income_tax' && f.owner !== 'spouse');
         return {
           taxFiles: existing.map(f => (f.authority === 'income_tax'
             ? { ...f, owner: 'spouse' as const, ...(spouseId ? { fileNumber: spouseId } : {}) }
             : f)),
+          ...(ownerChanges && client.registeredSpouseVerified ? { registeredSpouseVerified: false } : {}),
         };
       })(),
       hasPreviousAccountant,
@@ -1500,24 +1528,29 @@ export default function App() {
     if (!req) return;
     const now = new Date().toISOString();
 
-    // ── עדכון שמות הקבצים ב-IndexedDB וקישור ל-Client האמיתי ──
+    // ── שמות הקבצים לפי מוסכמת השמות, תחת כרטיס הלקוח ──
+    // ‼ הקבצים נשמרים מלכתחילה תחת הלקוח המקושר (RepresentationFillForm).
+    // קובץ שבכל זאת יושב אצל כרטיס אחר עובר ב-moveDocToClient — שמזיז גם את
+    // הקובץ באחסון — ולא ב"שמירה מחדש" שחישבה נתיב חדש והשאירה את הבייטים
+    // במקום הישן (המסמך נפתח ל-404).
     try {
-      const storedDocs = await db.getDocsByClient(`req-${req.id}`);
-      for (const stored of storedDocs) {
-        const matchingDoc = req.requestedDocs.find(d =>
-          submission.uploadedDocs.some(u => u.docItemId === d.id && u.storedDocId === stored.id)
-        );
-        const docLabel = matchingDoc?.label || stored.description;
-        const newName = standardFileName(submission.lastName, submission.firstName, docLabel, stored.fileName);
-        await db.saveDoc({
-          ...stored,
-          clientId: req.linkedClientId, // העברה ל-clientId האמיתי
-          fileName: newName,
-          description: docLabel,
-        });
+      let storedDocs = await db.getDocsByClient(req.linkedClientId);
+      for (const u of submission.uploadedDocs) {
+        if (storedDocs.some(d => d.id === u.storedDocId)) continue;
+        const moved = await db.moveDocToClient(u.storedDocId, req.linkedClientId);
+        if (!moved.ok) console.warn('[handleSubmitFill] העברת מסמך נכשלה', u.storedDocId, moved.error);
       }
-    } catch {
-      // ignore
+      storedDocs = await db.getDocsByClient(req.linkedClientId);
+      for (const u of submission.uploadedDocs) {
+        const stored = storedDocs.find(d => d.id === u.storedDocId);
+        if (!stored) continue;
+        const docLabel = req.requestedDocs.find(d => d.id === u.docItemId)?.label || stored.description;
+        const newName = standardFileName(submission.lastName, submission.firstName, docLabel, stored.fileName);
+        if (newName === stored.fileName && docLabel === stored.description) continue;
+        await db.saveDoc({ ...stored, fileName: newName, description: docLabel });
+      }
+    } catch (err) {
+      console.warn('[handleSubmitFill] עדכון שמות הקבצים נכשל', err);
     }
 
     // ── עדכון Client ──
@@ -2064,8 +2097,9 @@ export default function App() {
     const q = convertingQuotation;
     if (q) {
       if (q.leadId) {
-        const lead = leads.find(l => l.id === q.leadId);
-        if (lead) await updateLead({ ...lead, status: 'converted', convertedClientId: res.clientId });
+        // (168) הקישור בשרת; הליד נגזר ממנו. לא כותבים status='converted' מהדפדפן.
+        await linkLeadToClient(q.leadId, res.clientId);
+        await refreshLeads();
       }
       await updateQuotation({
         ...q, clientId: res.clientId,
@@ -2147,7 +2181,9 @@ export default function App() {
     return <NoAccessScreen email={user.email ?? ''} onSignOut={signOut} />;
   }
 
-  const openTasksCount = tasks.filter(t => t.status === 'open' && (t.ballWith === 'me' || t.ballWith === 'stuck')).length;
+  // ‼ (168) הפרדיקט המקומי שהיה כאן הוחלף בהגדרה האחת ב-utils/taskUtils, והיא
+  // גם מוציאה משימות של לקוחות בארכיון — אלה לא נספרו החוצה בשום מונה.
+  const openTasksCount = countTasksNeedingMe(tasks, clients);
 
   // הסרגל נושא רק את שלושת המקומות שבהם העבודה חיה (§4.1).
   // "ידע מס" יושב באשכול הכלים בקצה, מופרד בקו — הוא עזר, לא מקום עבודה (D9).
@@ -2560,6 +2596,7 @@ export default function App() {
             onClientLocallyUpdated={applyClientLocally}
             initialSelection={annualReportSelection}
             onConsumeInitialSelection={() => setAnnualReportSelection(null)}
+            officeSettings={firmProfile?.settings}
           />
         )}
 

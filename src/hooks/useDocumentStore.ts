@@ -11,6 +11,7 @@
 //   getDoc(id)      — מוריד גם את הבייטים של הקובץ. השתמש בו רק כשבאמת צריך
 //                     את התוכן (תצוגה מקדימה / הורדה / OCR וכו').
 
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 
@@ -158,11 +159,28 @@ export function useDocumentStore() {
       throw new Error(msg);
     }
 
-    const path = storagePath(userId, doc.clientId, doc.id);
+    const hasBytes = doc.fileData.byteLength > 0;
+
+    // ‼ שמירה חוזרת של מטא-נתונים בלבד (בלי בייטים) אסור לה לחשב נתיב חדש:
+    // הקובץ יושב איפה שהוא יושב, ורשומה שמצביעה לנתיב שאין בו כלום היא
+    // מסמך "קיים" שנפתח ל-404. העברה ללקוח אחר מזיזה גם את הקובץ —
+    // זה moveDocToClient, לא saveDoc.
+    const { data: existing } = await supabase
+      .from('documents')
+      .select('client_id, storage_path')
+      .eq('id', doc.id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (existing && !hasBytes && existing.client_id !== doc.clientId) {
+      throw new Error('העברת מסמך ללקוח אחר נעשית דרך moveDocToClient, לא דרך שמירה חוזרת של המטא-נתונים.');
+    }
+    const path = existing && !hasBytes && existing.storage_path
+      ? (existing.storage_path as string)
+      : storagePath(userId, doc.clientId, doc.id);
     console.log('[useDocumentStore.saveDoc] storage path:', path);
 
     // 1. אם יש בייטים — מעלים ל-Storage. אם אין (דמה / מטא-בלבד) — מדלגים.
-    if (doc.fileData.byteLength > 0) {
+    if (hasBytes) {
       const blob = new Blob([doc.fileData], { type: doc.fileType || 'application/octet-stream' });
       const { data: upData, error: upErr } = await supabase.storage
         .from(BUCKET)
@@ -201,6 +219,13 @@ export function useDocumentStore() {
       .select();
     if (error) {
       console.error('[useDocumentStore.saveDoc] documents upsert failed', error);
+      // ‼ הקובץ כבר עלה והרשומה לא נכתבה — בלי הפיצוי הזה נשאר קובץ יתום
+      // באחסון שאף מסך לא רואה. רק למסמך חדש: לרשומה קיימת ההעלאה דרסה את
+      // הבייטים הישנים באותו נתיב, והרשומה הישנה עדיין מצביעה אליו.
+      if (hasBytes && !existing) {
+        const { error: rmErr } = await supabase.storage.from(BUCKET).remove([path]);
+        if (rmErr) console.warn('[useDocumentStore.saveDoc] orphan cleanup failed', rmErr);
+      }
       throw new Error(`שמירת מטא-נתונים נכשלה: ${error.message || JSON.stringify(error)}`);
     }
     console.log('[useDocumentStore.saveDoc] DB insert OK', ins);
@@ -695,6 +720,108 @@ export function useDocumentStore() {
     getLinkedTaskIds, getLinkedDocIdsForTask, linkDocumentTask, unlinkDocumentTask,
   };
 }
+
+// ─── קאש משותף של מסמכי לקוח (מטא-נתונים בלבד) ──────────────────────────
+// ‼ למה: הלשונית האישית מרכיבה 14 רכיבי LinkedDocsWidget, וכל אחד שלף בעצמו
+// את *כל* מסמכי הלקוח ורק אז סינן לפי linkKey — 14 שאילתות זהות בפתיחה, ועוד
+// 14 על כל אירוע crm:docs-changed. כאן השליפה נעשית פעם אחת ללקוח, כל הרכיבים
+// קוראים מאותו עותק, והאירוע מרענן פעם אחת ולא לכל רכיב.
+// הקאש מחזיק רק לקוחות שיש להם קורא מורכב; כשהקורא האחרון יורד, הרשומה
+// משתחררת — כך אין נתונים של משתמש קודם אחרי החלפת חשבון.
+
+interface ClientDocsEntry {
+  docs: StoredDoc[];
+  loaded: boolean;
+  inFlight: Promise<StoredDoc[]> | null;
+  /** הגיע אירוע שינוי בזמן שליפה — לשלוף שוב כשהיא תסתיים. */
+  dirty: boolean;
+  subscribers: Set<() => void>;
+}
+
+const clientDocsCache = new Map<string, ClientDocsEntry>();
+
+async function fetchClientDocsRows(clientId: string): Promise<StoredDoc[]> {
+  // אותה שאילתה כמו getDocsByClient — RLS מסנן לפי המשתמש.
+  const { data, error } = await supabase
+    .from('documents')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('uploaded_at', { ascending: false });
+  if (error) {
+    console.error('[useClientDocs] FAILED', error);
+    return [];
+  }
+  return (data ?? []).map(row => rowToStoredDoc(row));
+}
+
+function entryFor(clientId: string): ClientDocsEntry {
+  let e = clientDocsCache.get(clientId);
+  if (!e) {
+    e = { docs: [], loaded: false, inFlight: null, dirty: false, subscribers: new Set() };
+    clientDocsCache.set(clientId, e);
+  }
+  return e;
+}
+
+function refreshClientDocs(clientId: string): Promise<StoredDoc[]> {
+  const e = entryFor(clientId);
+  if (e.inFlight) { e.dirty = true; return e.inFlight; }
+  e.inFlight = fetchClientDocsRows(clientId).then(docs => {
+    e.docs = docs;
+    e.loaded = true;
+    e.inFlight = null;
+    e.subscribers.forEach(fn => fn());
+    if (e.dirty) { e.dirty = false; return refreshClientDocs(clientId); }
+    return docs;
+  });
+  return e.inFlight;
+}
+
+if (typeof window !== 'undefined') {
+  // מאזין אחד לכל הקאש — לא מאזין לכל רכיב.
+  window.addEventListener('crm:docs-changed', (ev: Event) => {
+    const target = (ev as CustomEvent<{ clientId?: string }>).detail?.clientId;
+    for (const [clientId, e] of clientDocsCache) {
+      if (e.subscribers.size === 0) continue;
+      if (!target || target === clientId) void refreshClientDocs(clientId);
+    }
+  });
+}
+
+/**
+ * מסמכי לקוח (מטא-נתונים) מקאש משותף: שליפה אחת ללקוח, לא אחת לכל רכיב.
+ * מתעדכן לבד על crm:docs-changed. `reload` שולף מחדש — פעם אחת לכולם.
+ */
+export function useClientDocs(clientId: string | undefined): {
+  docs: StoredDoc[];
+  loading: boolean;
+  reload: () => Promise<StoredDoc[]>;
+} {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!clientId) return;
+    const e = entryFor(clientId);
+    const notify = () => setTick(t => t + 1);
+    e.subscribers.add(notify);
+    if (!e.loaded && !e.inFlight) void refreshClientDocs(clientId);
+    else notify();
+    return () => {
+      e.subscribers.delete(notify);
+      // הקורא האחרון ירד — משחררים, כדי שלא יישאר עותק ישן בזיכרון.
+      if (e.subscribers.size === 0 && !e.inFlight) clientDocsCache.delete(clientId);
+    };
+  }, [clientId]);
+
+  const e = clientId ? clientDocsCache.get(clientId) : undefined;
+  return {
+    docs: e?.docs ?? EMPTY_DOCS,
+    loading: !!clientId && !(e?.loaded),
+    reload: () => (clientId ? refreshClientDocs(clientId) : Promise.resolve(EMPTY_DOCS)),
+  };
+}
+
+const EMPTY_DOCS: StoredDoc[] = [];
 
 // ─── ייפוי כוח: רק הגרסה העדכנית מוצגת ────────────────────────────────
 // בזרימת הייצוג נשמרים שני קבצים: 'poa-pdf-<reqId>' (הטופס שהועלה לחתימה)

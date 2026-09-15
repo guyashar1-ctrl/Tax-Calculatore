@@ -14,6 +14,7 @@
 
 import type { Client, RepresentationStatus } from '../types/index';
 import type { Engagement, OnboardingStep } from '../types/onboarding';
+import { currentEngagement as selectCurrentEngagement } from '../utils/engagementSelectors';
 
 // ─── קליטה ───────────────────────────────────────────────────────────────────
 
@@ -40,16 +41,16 @@ export interface IntakeContext {
   engagementId?: string;
 }
 
-/** ההתקשרות הנוכחית: בקליטה או פעילה, החדשה מביניהן.
+/** ההתקשרות הנוכחית: בקליטה או פעילה.
  *  ‼ מסנן אחד. קודם היו שניים — אחד סינן רק 'cancelled' והשני גם
  *  'ended'/'scheduled' — ולכן אותו לקוח קיבל processPublished שונה לפי המסך
- *  שממנו נפתח החלון. זהה בכוונה ל-current_engagement_id בשרת. */
+ *  שממנו נפתח החלון. ואז היו שוב שניים: זה כאן בלי סינון תאריך, וזה
+ *  ב-engagementSelectors עם (וההערה כאן טענה "זהה לשרת" בזמן שלא). מ-168
+ *  יש הגדרה אחת — utils/engagementSelectors — וכאן רק מאצילים אליה. */
 export function currentEngagement(
   clientId: string, engagements: Engagement[] | undefined,
 ): Engagement | undefined {
-  return (engagements ?? [])
-    .filter(e => e.clientId === clientId && (e.status === 'onboarding' || e.status === 'active'))
-    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0];
+  return selectCurrentEngagement(engagements ?? [], clientId);
 }
 
 export function intakeContext(

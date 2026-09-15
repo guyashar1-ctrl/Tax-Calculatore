@@ -1,7 +1,49 @@
-import { Task, BallWith } from '../types';
+import { Task, BallWith, Client } from '../types';
+import { BALL_WITH_LABELS } from '../types';
 import { daysBetween, todayIso, formatDate, daysLate } from './dateFormat';
 
 export { daysLate, lateLabel } from './dateFormat';
+
+/* ─── הפרדיקטים של משימה — נכתבים פעם אחת ─────────────────────────────────
+ * ‼ (168) הביקורת מצאה 11 ניסוחים של "משימה פתוחה", 5 של "באיחור" (אחד מהם
+ * השווה תאריכים ב-UTC וקפץ יום בלילה), ותג בכותרת שספר "אצלי+תקועה" בזמן
+ * שלשונית «לטיפולי» ספרה את כל הפתוחות. כל מסך ומונה עובר דרך הפונקציות
+ * האלה; מסנן מקומי על task.status או על task.dueDate הוא באג.
+ */
+
+/** פתוחה = כל מה שלא הושלם. */
+export const isOpenTask = (t: Pick<Task, 'status'>): boolean => t.status !== 'done';
+
+/** באיחור = פתוחה, ותאריך היעד קטן מהיום. ‼ השוואת תאריכים בלבד, לפי השעון
+ *  המקומי (todayIso) — לא מילישניות ולא UTC, אחרת "היום" קופץ ב-21:00. */
+export const isLateTask = (t: Pick<Task, 'status' | 'dueDate'>): boolean =>
+  isOpenTask(t) && !!t.dueDate && daysLate(t.dueDate) > 0;
+
+/** דורשת אותי = פתוחה והכדור אצלי, או תקועה (תקועה היא תמיד שלי לשחרר). */
+export const taskNeedsMe = (t: Pick<Task, 'status' | 'ballWith'>): boolean =>
+  isOpenTask(t) && (t.ballWith === 'me' || t.ballWith === 'stuck');
+
+/** משפט המצב של הכדור — "הכדור אצל הלקוח", לא "הכדור אצלי" לכל מה שלא תקוע. */
+export function ballLabel(t: Pick<Task, 'ballWith'>): string {
+  if (t.ballWith === 'stuck') return 'תקועה';
+  if (t.ballWith === 'me') return 'הכדור אצלי';
+  return `הכדור אצל ${BALL_WITH_LABELS[t.ballWith]}`;
+}
+
+/** לקוחות בארכיון — המשימות שלהם לא נספרות בשום מונה. */
+export function archivedClientIds(clients: Pick<Client, 'id' | 'lifecycleStage'>[]): Set<string> {
+  return new Set(clients.filter(c => c.lifecycleStage === 'archived').map(c => c.id));
+}
+
+/** האם המשימה נספרת — משימה של לקוח בארכיון לא. משימה בלי לקוח כן. */
+export const countsForClient = (t: Pick<Task, 'clientId'>, archived: Set<string>): boolean =>
+  !t.clientId || !archived.has(t.clientId);
+
+/** המספר על תג «משימות» בכותרת: דורשות אותי, בלי לקוחות בארכיון. */
+export function countTasksNeedingMe(tasks: Task[], clients: Pick<Client, 'id' | 'lifecycleStage'>[]): number {
+  const archived = archivedClientIds(clients);
+  return tasks.filter(t => taskNeedsMe(t) && countsForClient(t, archived)).length;
+}
 
 export type DeskBucket = 'urgent' | 'thisWeek' | 'stuck' | 'backlog';
 
@@ -18,9 +60,7 @@ export interface BucketedTasks {
  */
 export function bucketMyDeskTasks(tasks: Task[]): BucketedTasks {
   const today = todayIso();
-  const openMine = tasks.filter(
-    t => t.status === 'open' && (t.ballWith === 'me' || t.ballWith === 'stuck')
-  );
+  const openMine = tasks.filter(taskNeedsMe);
 
   const urgent: Task[] = [];
   const thisWeek: Task[] = [];
@@ -56,15 +96,12 @@ export function bucketMyDeskTasks(tasks: Task[]): BucketedTasks {
   return { urgent, thisWeek, stuck, backlog };
 }
 
-/** האם המשימה באיחור (דד-ליין עבר + לא סגורה) */
-export function isOverdue(task: Task): boolean {
-  if (task.status !== 'open' || !task.dueDate) return false;
-  return task.dueDate < todayIso();
-}
+/** האם המשימה באיחור (דד-ליין עבר + לא סגורה). שם ישן ל-isLateTask. */
+export const isOverdue = isLateTask;
 
 /** האם דד-ליין תוך 7 ימים */
 export function isDueThisWeek(task: Task): boolean {
-  if (task.status !== 'open' || !task.dueDate) return false;
+  if (!isOpenTask(task) || !task.dueDate) return false;
   const d = daysBetween(task.dueDate, todayIso());
   return d >= 0 && d <= 7;
 }
@@ -95,8 +132,8 @@ export type DueTone = 'late' | 'soon' | 'normal' | 'none';
 
 export function dueTone(task: Task): DueTone {
   if (!task.dueDate) return 'none';
-  if (task.status === 'done') return 'normal';
-  if (daysLate(task.dueDate) > 0) return 'late';
+  if (!isOpenTask(task)) return 'normal';
+  if (isLateTask(task)) return 'late';
   const d = daysBetween(task.dueDate, todayIso());
   return d <= 7 ? 'soon' : 'normal';
 }
@@ -118,7 +155,7 @@ export const TASK_GROUP_LABELS: Record<TaskGroupKey, string> = {
 };
 
 export function taskGroupOf(task: Task): TaskGroupKey {
-  if (task.status === 'done') return 'done';
+  if (!isOpenTask(task)) return 'done';
   if (task.ballWith === 'stuck') return 'stuck';
   const tone = dueTone(task);
   return tone === 'late' || tone === 'soon' ? 'now' : 'later';
@@ -167,7 +204,7 @@ export const TASK_STAGE_HINTS: Record<TaskStageKey, string> = {
 };
 
 export function taskStageOf(task: Task): TaskStageKey {
-  if (task.status === 'done') return 'done';
+  if (!isOpenTask(task)) return 'done';
   return task.progress === 'in_progress' ? 'in_progress' : 'new';
 }
 
@@ -180,7 +217,7 @@ export function taskStageOf(task: Task): TaskStageKey {
  * מגויס לכאן, ולכן אין שינוי סכמה ואין מיגרציה.
  */
 export function isPinned(task: Task): boolean {
-  return task.priority === 'urgent' && task.status !== 'done';
+  return task.priority === 'urgent' && isOpenTask(task);
 }
 
 export function groupTasksByStage(tasks: Task[]): Record<TaskStageKey, Task[]> {
@@ -204,12 +241,10 @@ export const NEXT_BALL_WITH: Record<BallWith, BallWith> = {
 
 /** ספירת משימות פתוחות ללקוח */
 export function countOpenTasksForClient(tasks: Task[], clientId: string): number {
-  return tasks.filter(t => t.clientId === clientId && t.status === 'open').length;
+  return tasks.filter(t => t.clientId === clientId && isOpenTask(t)).length;
 }
 
 /** ספירה של משימות שהכדור אצלי + פתוחות ללקוח */
 export function countMyDeskTasksForClient(tasks: Task[], clientId: string): number {
-  return tasks.filter(
-    t => t.clientId === clientId && t.status === 'open' && (t.ballWith === 'me' || t.ballWith === 'stuck')
-  ).length;
+  return tasks.filter(t => t.clientId === clientId && taskNeedsMe(t)).length;
 }

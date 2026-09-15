@@ -136,6 +136,8 @@ export interface PortalItem {
   draft?: boolean;
   /** מסומן רק בתצוגה המקדימה — בקשה שסומנה להסרה בעדכון הבא (מיגרציה 101). */
   removing?: boolean;
+  /** מסומן רק בתצוגה המקדימה — בקשה מפורסמת שיש עליה עריכה שטרם פורסמה (172). */
+  edited?: boolean;
 }
 
 /** מה שהדף מרשה להעלות. אותה רשימה נאכפת שוב בשרת — כאן זה רק כדי לחסוך
@@ -196,6 +198,34 @@ function resourceHref(
   const base = import.meta.env.VITE_SUPABASE_URL;
   const q = new URLSearchParams({ token, stepId, docId: r.documentId });
   return `${base}/functions/v1/portal-open-document?${q}`;
+}
+
+/**
+ * ‼ (170) «נפתח» נרשם רק אחרי שהקובץ באמת נפתח — לא במקביל ללחיצה.
+ *
+ * עד כה הרישום (portal_submit_step) רץ יחד עם פתיחת הלשונית, ולכן קובץ שנמחק
+ * מהתיק הציג ללקוח דף שגיאה — והבקשה אצל הרו"ח נסגרה כ"נפתח". כאן הדפדפן
+ * מבקש את אותה כתובת בדיוק (portal-open-document ⇒ 302 ⇒ Storage) ורושם
+ * רק כשהתשובה היא 2xx. הגוף לא מורד פעם שנייה — ברגע שהכותרות הגיעו
+ * הזרם מבוטל.
+ *
+ * ‼ רק קישורים אצלנו נבדקים: הפונקציה וה-Storage מחזירים כותרות CORS, אבל
+ * מדריך באתר חיצוני (יוטיוב, אתר רשות) לא — ושם fetch נכשל גם כשהדף תקין.
+ * קישור חיצוני נרשם כמו קודם, על סמך הלחיצה.
+ * דף השגיאה של הפונקציה חוזר בלי כותרות CORS ולכן fetch זורק — וזו בדיוק
+ * התשובה הנכונה: לא נפתח, לא נרשם, השורה נשארת פתוחה לניסיון הבא.
+ */
+async function confirmOpened(href: string | undefined | null): Promise<boolean> {
+  if (!href) return false;
+  const base = String(import.meta.env.VITE_SUPABASE_URL || '');
+  if (!base || !href.startsWith(base)) return true;
+  try {
+    const r = await fetch(href, { method: 'GET', credentials: 'omit', cache: 'no-store' });
+    try { await r.body?.cancel(); } catch { /* הגוף כבר לא מעניין */ }
+    return r.ok;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -617,7 +647,8 @@ export interface PortalDocFile {
  *
  * ‼ <a target="_blank"> ולא window.open אחרי await, מאותה סיבה שב-
  * GuideOpenButton: חלון שנפתח אחרי המתנה נבלע בחוסמי חלונות קופצים. הרישום
- * רץ במקביל, וכישלון שלו משאיר את השורה פתוחה לניסיון הבא — הקובץ כבר נפתח.
+ * רץ אחרי הלחיצה, ורק אחרי שאותה כתובת ענתה 2xx (confirmOpened) — קובץ
+ * שנמחק מציג דף שגיאה ולא נרשם. כישלון רישום משאיר את השורה פתוחה לניסיון הבא.
  */
 function DocumentRow({ token, file, brand, accent, onDone }: {
   token: string; file: PortalDocFile;
@@ -631,10 +662,14 @@ function DocumentRow({ token, file, brand, accent, onDone }: {
   async function record() {
     if (previewMode || busy || opened || !res || !item.actionValue) return;
     setBusy(true);
-    await supabase.rpc('portal_submit_step', {
-      p_token: token, p_step_id: item.actionValue, p_data: { key: res.key },
-    });
-    setBusy(false);
+    try {
+      if (!(await confirmOpened(file.href))) return;
+      await supabase.rpc('portal_submit_step', {
+        p_token: token, p_step_id: item.actionValue, p_data: { key: res.key },
+      });
+    } finally {
+      setBusy(false);
+    }
     flushAccountantNotifications(token);
     onDone();
   }
@@ -769,10 +804,16 @@ function GuideOpenButton({ token, item, brand, accent, onDone }: {
     setBusy(true);
     // ‼ אין טיפול בשגיאה במסך: הלקוח כבר קיבל את מה שרצה. חזרה על לחיצה
     // אינה מזיקה — portal_submit_step מחזיר noop על בקשה שכבר הושלמה.
-    await supabase.rpc('portal_submit_step', {
-      p_token: token, p_step_id: item.actionValue, p_data: { key: 'opened' },
-    });
-    setBusy(false);
+    // ‼ (170) קובץ אצלנו נרשם רק אחרי שהכתובת ענתה 2xx (confirmOpened);
+    // מדריך באתר חיצוני נרשם על סמך הלחיצה, כמו קודם.
+    try {
+      if (!(await confirmOpened(item.resourceUrl))) return;
+      await supabase.rpc('portal_submit_step', {
+        p_token: token, p_step_id: item.actionValue, p_data: { key: 'opened' },
+      });
+    } finally {
+      setBusy(false);
+    }
     flushAccountantNotifications(token);
     onDone();
   }

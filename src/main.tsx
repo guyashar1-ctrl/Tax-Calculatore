@@ -5,6 +5,7 @@ import './components/ui/ui.css'
 import './components/ui/pivo-design.css'
 import App from './App.tsx'
 import { ToastProvider } from './components/ui/Toast'
+import { AuthProvider } from './hooks/AuthProvider'
 
 /**
  * ‼ חותמת המקור נחשפת ל-window כדי שבדיקה אוטומטית תוכל לוודא שהיא רואה את
@@ -21,8 +22,10 @@ if (import.meta.env.DEV) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ToastProvider>
-      <App />
-    </ToastProvider>
+    <AuthProvider>
+      <ToastProvider>
+        <App />
+      </ToastProvider>
+    </AuthProvider>
   </StrictMode>,
 )

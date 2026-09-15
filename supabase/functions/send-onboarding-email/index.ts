@@ -79,9 +79,18 @@ Deno.serve(async (req: Request) => {
   const cors: Record<string, string> = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS" };
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
+  // ‼ 170: מוצהרים מחוץ ל-try כדי שגם חריגה לא צפויה תשחרר את התביעה.
+  let claimQuotationId: string | null = null;
+  let claimed = false;
+  let adminForRelease: ReturnType<typeof createClient> | null = null;
   try {
-    const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken, preview, force,
+    const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken, preview, force: rawForce,
             internalSecret, quotationId: rawQuotationId, niRole: rawNiRole, stepId } = await req.json();
+    // ‼ (N1) force — "שלח שוב למרות שכבר נשלח" — הוא פקודה של הרו"ח. במסלול
+    // הציבורי (טוקן הצעה, בלי אף אחד מחובר) הוא היה מכובד גם כן, וכל מי
+    // שמחזיק קישור להצעה יכול היה להציף את תיבת הלקוח במיילים בלולאה.
+    // מכובד רק במסלולים המזוהים (JWT של הרו"ח / סוד פנימי / מפתח השרת).
+    const force = rawForce === true && !quotationToken;
     // ‼ 157: הוראות אישור ב"ל עצמאיות — נכתב מודע לכך שהנמען נפתר כאן,
     // בשרת, מהכרטיס — לעולם לא מהגוף. niRole קובע רק *איזה* מסלול/כתובת;
     // אינו הכתובת עצמה.
@@ -92,6 +101,7 @@ Deno.serve(async (req: Request) => {
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
     const APP_URL = Deno.env.get("APP_URL") || "https://crm.yasharcpa.co.il";
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+    adminForRelease = admin;
 
     // ── מסלול (ב): אישור הצעת מחיר. הטוקן הציבורי מזהה הצעה מאושרת אחת ──
     let userId: string | null = null;
@@ -100,7 +110,6 @@ Deno.serve(async (req: Request) => {
     let quotationId: string | null = null;
     // ההצעה שעליה נתבעת השליחה. במסלול הציבורי היא הטוקן עצמו, ובמסלול ה-JWT
     // היא נמצאת דרך בקשת הייצוג — כדי ששני המסלולים יתחרו על אותה תביעה.
-    let claimQuotationId: string | null = null;
     // ── מסלול (ג): המסד עצמו, מיד עם אישור ההצעה ────────────────────────────
     // ‼ ההבדל ממסלול (ב) אינו טכני אלא מהותי: כאן אין דפדפן בכלל. הבקשה
     // נשלחת מתוך `approve_quotation` דרך pg_net, אחרי שהטרנזקציה נסגרה, ולכן
@@ -446,7 +455,6 @@ Deno.serve(async (req: Request) => {
     // נעשה כאן, בעדכון אחד ולפני הקריאה ל-Resend: שורה אחת שהתעדכנה = אנחנו
     // ששולחים, אפס שורות = מישהו הקדים אותנו והמייל כבר בדרך.
     // שליחה יזומה (force) עוקפת את התביעה — הרו"ח ביקש במפורש לשלוח שוב.
-    let claimed = false;
     if (stage === "onboard" && claimQuotationId && !force) {
       const { data: claimRows } = await admin
         .from("quotations")
@@ -459,111 +467,82 @@ Deno.serve(async (req: Request) => {
     }
 
     // מפתח ייחודי לשורת היומן — שכבת ההגנה השנייה מפני רישום כפול (מיגרציה 29).
-    // שליחה יזומה מקבלת מספר רץ, כי היא אמורה להיות שורה נוספת ולא כפילות.
-    let idempotencyKey: string | undefined;
-    if (stage === "onboard" && logRequestId) {
-      if (force) {
-        const { count } = await admin
-          .from("email_messages")
-          .select("id", { count: "exact", head: true })
-          .eq("request_id", logRequestId)
-          .eq("kind", "onboard");
-        idempotencyKey = `onboard:${logRequestId}:r${(count ?? 0) + 1}`;
-      } else {
-        idempotencyKey = `onboard:${logRequestId}`;
-      }
-    } else if (stampStandaloneAfterSend && logRequestId) {
-      if (force) {
-        const { count } = await admin
-          .from("email_messages")
-          .select("id", { count: "exact", head: true })
-          .eq("request_id", logRequestId).eq("kind", "ni_approve").contains("meta", { niRole });
-        idempotencyKey = `ni_approve:${logRequestId}:${niRole}:r${(count ?? 0) + 1}`;
-      } else {
-        idempotencyKey = `ni_approve:${logRequestId}:${niRole}`;
-      }
+    // ‼ 170: שליחה יזומה (force) אינה מקבלת מפתח כלל — היא אמורה להיות שורה
+    // נוספת. ה-COUNT+1 שהיה כאן נמנה מחוץ לטרנזקציה ולכן יכול היה להתנגש.
+    let idempotencyKey: string | null = null;
+    if (!force) {
+      if (stage === "onboard" && logRequestId) idempotencyKey = `onboard:${logRequestId}`;
+      else if (stampStandaloneAfterSend && logRequestId) idempotencyKey = `ni_approve:${logRequestId}:${niRole}`;
     }
 
     const payload: Record<string, unknown> = { from: `${brand.firmName} <${fromAddress}>`, to: [toEmail], subject: copy.subject, html };
     if (replyTo) payload.reply_to = replyTo;
-    const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const body = await r.json();
-
-    // ה-HTML נשמר יחד עם הרשומה: מפתח ה-API של Resend מוגבל לשליחה, ולכן אין
-    // דרך לשלוף בדיעבד מה הלקוח קיבל אם לא נשמור עותק כאן.
-    // ‼ 157: step_id/meta.niRole מקשרים את המייל לפריט העבודה שגרם לו —
-    // כדי שהכרטיס ב"בקשות" ידע להציג נמסר/נפתח/הוקפץ על עצמו.
-    const logBase = {
-      user_id: userId, client_id: logClientId, request_id: logRequestId, to_email: toEmail,
-      subject: copy.subject, kind: stage, html,
-      ...(logStepId ? { step_id: logStepId } : {}),
-      ...(stampStandaloneAfterSend ? { meta: { niRole } } : {}),
+    // ‼ 170: תביעה שנלקחה לפני השליחה משוחררת בכל כשל — גם כשהרשת נופלת
+    // (fetch שזורק), לא רק כש-Resend עונה בשגיאה. אחרת המסך אומר "נשלח" לנצח.
+    const releaseClaim = async (why: string) => {
+      if (!claimQuotationId) return;
+      await admin.from("quotations").update({
+        ...(claimed ? { representation_sent_at: null } : {}),
+        representation_error: why.slice(0, 300),
+      }).eq("id", claimQuotationId);
     };
+    let r: Response;
+    let body: { id?: string; [k: string]: unknown };
+    try {
+      r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      body = await r.json().catch(() => ({}));
+    } catch (e) {
+      await releaseClaim(String(e));
+      return json({ error: "resend_unreachable", detail: { message: String(e).slice(0, 300) } }, 502);
+    }
     if (!r.ok) {
       // ‼ שורת הכישלון נרשמת בלי המפתח הייחודי: אחרת הניסיון החוזר המוצלח היה
       // מתנגש בה, נחשב ל"כבר נשלח" — והמייל לא היה יוצא לעולם.
-      await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(body).slice(0, 500) });
-      // כשל בשליחה נרשם על ההצעה — אחרת הרו"ח מגלה אותו מהלקוח. התביעה
-      // משוחררת, כי רק כישלון אמיתי ראוי לניסיון חוזר.
-      if (claimQuotationId) {
-        await admin.from("quotations")
-          .update({
-            ...(claimed ? { representation_sent_at: null } : {}),
-            representation_error: JSON.stringify(body).slice(0, 300),
-          })
-          .eq("id", claimQuotationId);
-      }
+      await admin.from("email_messages").insert({
+        user_id: userId, client_id: logClientId, request_id: logRequestId, to_email: toEmail,
+        subject: copy.subject, kind: stage, html, status: "failed", error: JSON.stringify(body).slice(0, 500),
+        ...(logStepId ? { step_id: logStepId } : {}),
+        ...(stampStandaloneAfterSend ? { meta: { niRole } } : {}),
+      });
+      await releaseClaim(JSON.stringify(body));
       return json({ error: "resend_failed", detail: body }, 502);
     }
-    const { error: logErr } = await admin.from("email_messages")
-      .insert({ ...logBase, resend_id: body.id, status: "sent", ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}) });
-    // התנגשות במפתח = השורה כבר קיימת, כלומר השליחה הזו כבר תועדה. לא שגיאה.
-    if (logErr && logErr.code === "23505") return json({ ok: true, alreadySent: true });
 
-    // ‼ כל כשל רישום אחר: המייל כבר יצא ואי אפשר להחזיר אותו, ולכן זו אינה
-    // שגיאת שליחה — אבל מייל בלי שורה ביומן הוא מייל שאיש לא יודע שנשלח.
-    // ניסיון שני מצומצם (בלי ה-html, החשוד המרכזי), ואז דיווח מפורש.
-    let logged = !logErr;
-    if (logErr) {
-      const { error: minErr } = await admin.from("email_messages").insert({
-        user_id: userId, client_id: logClientId, request_id: logRequestId,
-        to_email: toEmail, subject: copy.subject, kind: logBase.kind,
-        status: "sent", resend_id: body.id,
-        error: `log_failed: ${logErr.code ?? ""} ${String(logErr.message ?? "").slice(0, 200)}`,
-      });
-      logged = !minErr;
-      console.error("[send-onboarding-email] email_messages insert failed",
-        logErr.code, logErr.message, minErr ? `retry failed: ${minErr.code}` : "retry ok");
+    // ‼ 170: שורת היומן, החותמת על ההצעה (representation_sent_at) והחותמת
+    // על מסלול הייצוג (execution.<track>.instructionsSentAt) נכתבות יחד,
+    // בטרנזקציה אחת, ורק אחרי 200 אמיתי מ-Resend. p_quotation_id משתמש
+    // ב-coalesce ולכן התביעה שנלקחה לפני השליחה אינה נדרסת; ה-track נכתב רק
+    // כש-instructionsSentAt עדיין ריק (שליחה חוזרת לא דורסת את הראשונה).
+    const recordArgs = {
+      p_user_id: userId, p_kind: stage, p_to_email: toEmail, p_subject: copy.subject,
+      p_resend_id: String(body.id), p_html: html as string | null,
+      p_client_id: logClientId, p_request_id: logRequestId, p_step_id: logStepId ?? null,
+      p_meta: stampStandaloneAfterSend ? { niRole } : null,
+      p_idempotency_key: idempotencyKey,
+      p_quotation_id: claimQuotationId,
+      p_request_track: stampStandaloneAfterSend ? niKey : null,
+      p_request_track_patch: stampStandaloneAfterSend
+        ? { instructionsSentAt: new Date().toISOString(), instructionsSentWith: "standalone" } : null,
+    };
+    let { data: rec, error: recErr } = await admin.rpc("record_email_sent", recordArgs);
+    // המייל כבר יצא — כשל רישום אינו כשל שליחה, אבל מייל בלי שורה הוא מייל
+    // שאיש לא יודע שנשלח. ניסיון שני בלי ה-html, ואז דיווח מפורש.
+    if (recErr) {
+      console.error("[send-onboarding-email] record_email_sent failed", recErr.code, recErr.message);
+      ({ data: rec, error: recErr } = await admin.rpc("record_email_sent", { ...recordArgs, p_html: null }));
+      if (recErr) console.error("[send-onboarding-email] record_email_sent retry failed", recErr.code, recErr.message);
     }
-
-    if (claimQuotationId && !claimed) {
-      await admin.from("quotations")
-        .update({ representation_sent_at: new Date().toISOString(), representation_error: null })
-        .eq("id", claimQuotationId);
+    const logged = !recErr;
+    if ((rec as { alreadyRecorded?: boolean } | null)?.alreadyRecorded) {
+      return json({ ok: true, alreadySent: true });
     }
-
-    // ‼ 157: "נשלח" נכתב רק כאן — אחרי תשובת 200 אמיתית מ-Resend, ורק אם
-    // עדיין ריק (שליחה חוזרת לא דורסת את החותמת הראשונה). זו הכתיבה
-    // היחידה ל-execution.<track>.instructionsSentAt במסלול הזה, וטריגר
-    // sync_authority_representation_steps (157) מזיז את הבקשה ל"ממתינים
-    // לאישור" מיד אחריה.
-    if (stampStandaloneAfterSend) {
-      const { data: fresh } = await admin.from("representation_requests")
-        .select("execution").eq("id", reqRow.id).single();
-      const currentTrack = (fresh?.execution || {})[niKey] || {};
-      if (!currentTrack.instructionsSentAt) {
-        await admin.from("representation_requests").update({
-          execution: {
-            ...(fresh?.execution || {}),
-            [niKey]: { ...currentTrack, instructionsSentAt: new Date().toISOString(), instructionsSentWith: "standalone" },
-          },
-          updated_at: new Date().toISOString(),
-        }).eq("id", reqRow.id);
-      }
-    }
-
     return json({ ok: true, id: body.id, logged });
   } catch (e) {
+    if (claimed && claimQuotationId && adminForRelease) {
+      await adminForRelease.from("quotations")
+        .update({ representation_sent_at: null, representation_error: String(e).slice(0, 300) })
+        .eq("id", claimQuotationId);
+    }
     return json({ error: String(e) }, 500);
   }
 });

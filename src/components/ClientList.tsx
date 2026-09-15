@@ -113,7 +113,7 @@ interface Props {
   tasks: Task[];
   onSelect: (id: string) => void;
   onAdd: () => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, opts?: { force?: boolean }) => void;
   /** העברה לארכיון — האלטרנטיבה שמוצעת ראשונה בדיאלוג המחיקה */
   onArchive?: (id: string) => Promise<void>;
   onLoadSamples: () => void;
@@ -279,15 +279,30 @@ export default function ClientList({
       upcomingDebtsCount: number;
       withholdingExpired: boolean;
     }>();
+    // ‼ המשימות מקובצות לפי לקוח פעם אחת. קודם כל לקוח סרק את כל המשימות
+    // פעמיים (פתוחות + חובות קרובים) — לקוחות×משימות×2 בכל שינוי.
+    const tasksByClient = new Map<string, typeof tasks>();
+    for (const t of tasks) {
+      const list = tasksByClient.get(t.clientId);
+      if (list) list.push(t); else tasksByClient.set(t.clientId, [t]);
+    }
+    const NONE: typeof tasks = [];
     for (const c of clients) {
+      const own = tasksByClient.get(c.id) ?? NONE;
       map.set(c.id, {
-        openTasksCount: getClientOpenTasks(c.id, tasks).length,
-        upcomingDebtsCount: getUpcomingDebts(c.id, tasks).length,
+        openTasksCount: getClientOpenTasks(c.id, own).length,
+        upcomingDebtsCount: getUpcomingDebts(c.id, own).length,
         withholdingExpired: isWithholdingExpired(c).expired,
       });
     }
     return map;
   }, [clients, tasks]);
+
+  // ‼ מפת עובדים למיון לפי מטפל: findEmployee בתוך המשווה סרק את הרשימה
+  // בכל השוואה, ולא היה ברשימת התלויות — שינוי שם עובד לא מיין מחדש.
+  const employeeNameById = useMemo(
+    () => new Map(employees.map(e => [e.id, e.name])),
+    [employees]);
 
   // איש הקשר הראשי — אם תוסף מסומן ראשי משתמשים בו, אחרת הנישום עצמו.
   function getPrimaryContact(c: Client): { name: string; phone: string; email: string; isClient: boolean } {
@@ -370,8 +385,8 @@ export default function ClientList({
           cmp = STATUS_ORDER[getStatus(a)] - STATUS_ORDER[getStatus(b)];
           break;
         case 'assignee':
-          cmp = (findEmployee(a.assignedAccountantId)?.name || '').localeCompare(
-            findEmployee(b.assignedAccountantId)?.name || '', 'he');
+          cmp = (employeeNameById.get(a.assignedAccountantId ?? '') || '').localeCompare(
+            employeeNameById.get(b.assignedAccountantId ?? '') || '', 'he');
           break;
         case 'tasks':
           cmp = (ma?.openTasksCount ?? 0) - (mb?.openTasksCount ?? 0);
@@ -384,7 +399,7 @@ export default function ClientList({
   }, [
     clients, search, sortField, sortDir,
     employeeFilter, vatFilter, itFilter, niFilter, shaamFilter, stageFilter,
-    openTasksOnly, upcomingDebtsOnly, metricsByClient,
+    openTasksOnly, upcomingDebtsOnly, metricsByClient, employeeNameById,
   ]);
 
   const sortIcon = (field: SortField) => {
@@ -896,7 +911,7 @@ export default function ClientList({
           onArchive={onArchive && getStage(pendingDelete) !== 'archived'
             ? async () => { await onArchive(pendingDelete.id); setPendingDelete(null); }
             : undefined}
-          onDelete={() => { onDelete(pendingDelete.id); setPendingDelete(null); }}
+          onDelete={opts => { onDelete(pendingDelete.id, opts); setPendingDelete(null); }}
           onCancel={() => setPendingDelete(null)}
         />
       )}

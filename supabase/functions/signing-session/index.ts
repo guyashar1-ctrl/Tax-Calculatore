@@ -164,24 +164,20 @@ Deno.serve(async (req: Request) => {
         cleaned[f.id] = { fieldId: f.id, imageDataUrl, text, signedAt: new Date().toISOString() };
       }
 
-      const now = new Date().toISOString();
-      const newSigners = signers.map((s) => s.signToken === token ? { ...s, signStatus: "signed", signedAt: now } : s);
-      const allSigned = newSigners.every((s) => s.signStatus === "signed");
-      const newValues = { ...(reqRow.signature_values || {}), ...cleaned };
-
-      const upd: Record<string, unknown> = {
-        signers: newSigners,
-        signature_values: newValues,
-        updated_at: now,
-      };
-      if (allSigned) upd.status = "awaiting_stamp";
-
-      const { error: upErr } = await admin.from("representation_requests").update(upd).eq("id", reqRow.id);
+      // ‼ המיזוג קורה בשרת, תחת נעילת שורה (174): שני חותמים בשני מכשירים
+      // באותה שנייה היו דורסים זה את מערך החותמים של זה, ו-allSigned חושב
+      // ממערך ישן. הפונקציה מסמנת את החותם, ממזגת את הערכים, ומחשבת allSigned
+      // מהשורה שאחרי העדכון. כשכולם חתמו הבקשה עוברת ל-awaiting_stamp — ומצב
+      // הייצוג בכרטיס הלקוח נגזר מזה בטריגר (rep_requests_sync_client), לא
+      // בכתיבה נוספת מכאן.
+      const { data: applied, error: upErr } = await admin.rpc("signing_session_apply", {
+        p_request_id: reqRow.id, p_signer_id: me.id, p_patch: { sign: true, values: cleaned },
+      });
       if (upErr) return json({ error: upErr.message }, 500);
+      if (!applied?.ok) return json({ error: applied?.error || "apply_failed" }, applied?.error === "not_found" ? 404 : 409);
+      const allSigned = applied.allSigned === true;
+      const newSigners: any[] = Array.isArray(applied.signers) ? applied.signers : [];
 
-      if (allSigned && reqRow.linked_client_id) {
-        await admin.from("clients").update({ representation_status: "awaiting_stamp", updated_at: now }).eq("id", reqRow.linked_client_id);
-      }
       // לנישום שחתם וממתינים לבן/בת הזוג — מסך הסיום מציג את בחירת "יחד או בנפרד"
       const spAfter = me.role === "client" && !allSigned ? pendingSpouseOf(newSigners) : null;
       return json({
@@ -212,14 +208,13 @@ Deno.serve(async (req: Request) => {
       const cleanEmail = typeof email === "string" ? email.trim() : "";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return json({ error: "bad_email" }, 400);
 
-      const now = new Date().toISOString();
-      const newSigners = signers.map((s) =>
-        s.signToken === sp.signToken
-          ? { ...s, email: cleanEmail, inviteSentAt: now, emailSource: "client" }
-          : s);
-      const { error: upErr } = await admin.from("representation_requests")
-        .update({ signers: newSigners, updated_at: now }).eq("id", reqRow.id);
+      // עדכון החותם בשרת, תחת נעילה (174) — לא דורס חתימה שנחתה בינתיים.
+      const { data: applied, error: upErr } = await admin.rpc("signing_session_apply", {
+        p_request_id: reqRow.id, p_signer_id: sp.id,
+        p_patch: { signer: { email: cleanEmail, inviteSentAt: new Date().toISOString(), emailSource: "client" } },
+      });
       if (upErr) return json({ error: upErr.message }, 500);
+      if (!applied?.ok) return json({ error: applied?.error || "apply_failed" }, 409);
 
       const sendRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-onboarding-email`, {
         method: "POST",

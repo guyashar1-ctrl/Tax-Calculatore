@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { AnnualReportSession, AnswerValue } from './types';
 import { emptyModel } from './types';
-import { findSession, createSession, updateSessionState, saveAnswer, listSessions, deleteSession, resetSessionToRoot } from './repository';
+import { findSession, createSession, updateSessionState, saveAnswers, listSessions, deleteSession, resetSessionToRoot, restartSession } from './repository';
 import { answerAndAdvance, getRootQuestion } from './engine';
 import { annualReportTree } from './tree';
 
@@ -54,7 +54,15 @@ export function useAnnualReportSessions(userId: string | undefined) {
     return updated;
   }, []);
 
-  return { sessions, loading, error, startOrResume, removeSession, restartForEdit };
+  // "התחל מחדש" מהפלט: סשן חדש וריק; הישן נשאר בשרת כהיסטוריה (superseded_by)
+  // ויורד מהרשימה — הרשימה מציגה רק סשנים חיים.
+  const restartFresh = useCallback(async (session: AnnualReportSession): Promise<AnnualReportSession> => {
+    const created = await restartSession(session.id, getRootQuestion().id, emptyModel(session.taxYear));
+    setSessions((prev) => [created, ...prev.filter((s) => s.id !== session.id)]);
+    return created;
+  }, []);
+
+  return { sessions, loading, error, startOrResume, removeSession, restartForEdit, restartFresh };
 }
 
 export function useAnnualReportFlow(
@@ -108,10 +116,13 @@ export function useAnnualReportFlow(
       }
       // צריכה אוטומטית של תשובות שהועתקו מהשנה הקודמת — הלקוח לא רואה אותן,
       // אבל הן נשמרות למסד כדי שהכיסוי והעריכה יכירו אותן.
+      // ‼ נאספות לאותה כתיבה אחת עם התשובה עצמה והמודל (174) — לא עד 200
+      // קריאות רופפות שכשל באמצען השאיר תשובות בלי מודל.
+      const toSave: Record<string, AnswerValue> = { [qid]: answer };
       let guard = 0;
       while (nextQuestionId && autoAnswers?.has(nextQuestionId) && guard++ < 200) {
         const autoValue = autoAnswers.get(nextQuestionId)!;
-        await saveAnswer(session.id, nextQuestionId, autoValue);
+        toSave[nextQuestionId] = autoValue;
         const res = answerAndAdvance(newModel, nextQuestionId, autoValue);
         newModel = res.model;
         nextQuestionId = res.nextQuestionId;
@@ -129,23 +140,23 @@ export function useAnnualReportFlow(
       };
       setSession(optimistic);
 
-      // persist
-      await saveAnswer(session.id, qid, answer);
-      const updated = await updateSessionState(session.id, {
+      // persist — טרנזקציה אחת; מאמצים את מה שהשרת שמר בפועל
+      const updated = await saveAnswers(session.id, toSave, {
         model: newModel,
         currentQuestionId: nextQuestionId,
-        status: nextStatus,
-        completedAt,
+        done: !nextQuestionId,
       });
       setSession(updated);
     } catch (e) {
       setError((e as Error).message);
-      // revert
-      setSession(initialSession);
+      // ‼ חזרה לסשן האחרון שהשרת אישר (מה שהיה לפני התשובה הזאת) — לא לסשן
+      // של רגע הטעינה, שהיה מוחק על המסך את כל מה שנענה מאז.
+      setSession(session);
+      setHistory((prev) => prev.slice(0, -1));
     } finally {
       setSaving(false);
     }
-  }, [session, initialSession]);
+  }, [session, autoAnswers]);
 
   const goBack = useCallback(async () => {
     const prev = history[history.length - 1];
@@ -168,16 +179,14 @@ export function useAnnualReportFlow(
     }
   }, [history, session.id, saving]);
 
+  // "התחל מחדש" מתוך השאלון — חזרה לשורש עם התשובות הקיימות כברירת מחדל
+  // (כמו "ערוך תשובות"). ‼ לא מרוקן את המודל: מודל ריק לצד תשובות שמורות
+  // הוא בדיוק הפער שהראה 100% כיסוי על כלום (B5). איפוס אמיתי — סשן חדש —
+  // קיים במסך הפלט (restartFresh).
   const restart = useCallback(async () => {
     setSaving(true);
     try {
-      const root = getRootQuestion().id;
-      const updated = await updateSessionState(session.id, {
-        model: emptyModel(session.taxYear),
-        currentQuestionId: root,
-        status: 'in_progress',
-        completedAt: null,
-      });
+      const updated = await resetSessionToRoot(session.id, getRootQuestion().id);
       setSession(updated);
       setHistory([]);
     } finally {

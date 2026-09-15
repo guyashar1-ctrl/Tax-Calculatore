@@ -103,9 +103,12 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
     try {
       const buf = await file.arrayBuffer();
       const storedId = `req-${request.id}-${docItemId}-${crypto.randomUUID().slice(0, 8)}`;
+      // ‼ ישר לכרטיס הלקוח שהבקשה מקושרת אליו (קיים מרגע יצירת הבקשה).
+      // מזהה מדומה כמו `req-<id>` נכשל ב-FK אחרי שהקובץ כבר עלה — קובץ יתום
+      // באחסון בלי רשומה, ואז "העברה" בעת ההגשה שחישבה נתיב חדש בלי להזיז כלום.
       const doc: StoredDoc = {
         id: storedId,
-        clientId: `req-${request.id}`, // יוחלף ל-clientId אמיתי בעת ההמרה
+        clientId: request.linkedClientId,
         fileName: file.name,
         fileType: file.type,
         fileSize: file.size,

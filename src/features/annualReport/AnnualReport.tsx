@@ -16,6 +16,7 @@ import TaxConstantsDashboard from './TaxConstantsDashboard';
 import TreeMapView from './TreeMapView';
 import CoverageGate from './CoverageGate';
 import { seedModelFromClient } from './profile';
+import { reportTaxYear } from './reportTaxYear';
 
 type Mode = 'entry' | 'questionnaire' | 'sync_confirmation' | 'answers_review' | 'gate' | 'output' | 'dashboard' | 'treemap';
 
@@ -40,10 +41,12 @@ interface Props {
   /** בחירה מוקדמת (מ"פתח ←" בכרטיס הלקוח) — נפתחת אוטומטית פעם אחת. */
   initialSelection?: { clientId: string; taxYear: number } | null;
   onConsumeInitialSelection?: () => void;
+  /** profiles.settings של המשרד — ממנו נגזרת שנת המס (reportTaxYear, 168). */
+  officeSettings?: Record<string, unknown> | null;
 }
 
-export default function AnnualReport({ clients, userId, onUpdateClient, onClientLocallyUpdated, initialSelection, onConsumeInitialSelection }: Props) {
-  const { sessions, loading, startOrResume, removeSession, restartForEdit } = useAnnualReportSessions(userId);
+export default function AnnualReport({ clients, userId, onUpdateClient, onClientLocallyUpdated, initialSelection, onConsumeInitialSelection, officeSettings }: Props) {
+  const { sessions, loading, startOrResume, removeSession, restartForEdit, restartFresh } = useAnnualReportSessions(userId);
   const [mode, setMode] = useState<Mode>('entry');
   const [currentSession, setCurrentSession] = useState<AnnualReportSession | null>(null);
 
@@ -180,6 +183,7 @@ export default function AnnualReport({ clients, userId, onUpdateClient, onClient
           onStart={handleStart}
           onDeleteSession={handleDeleteSession}
           loading={loading}
+          defaultTaxYear={reportTaxYear(officeSettings)}
         />
       )}
 
@@ -255,16 +259,11 @@ export default function AnnualReport({ clients, userId, onUpdateClient, onClient
             setCurrentSession(updated);
           }}
           onRestart={async () => {
-            const { updateSessionState } = await import('./repository');
-            const { emptyModel } = await import('./types');
-            const { getRootQuestion } = await import('./engine');
-            const updated = await updateSessionState(currentSession.id, {
-              model: emptyModel(currentSession.taxYear),
-              currentQuestionId: getRootQuestion().id,
-              status: 'in_progress',
-              completedAt: null,
-            });
-            setCurrentSession(updated);
+            // ‼ "התחל מחדש" = סשן חדש בשרת (174). עד עכשיו המודל רוקן במקום
+            // והתשובות נשארו — שער הכיסוי הראה 100% על מודל ריק. הסשן הישן
+            // נשמר כהיסטוריה (superseded_by) ואינו נמחק.
+            const fresh = await restartFresh(currentSession);
+            setCurrentSession(fresh);
             setMode('questionnaire');
           }}
         />

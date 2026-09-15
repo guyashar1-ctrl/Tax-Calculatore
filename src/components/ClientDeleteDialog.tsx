@@ -3,6 +3,11 @@
 // וההתקשרות על כל שלבי הקליטה. משפט כללי כמו "המשימות שלו יימחקו" לא עוצר אף
 // אחד — מספר קונקרטי כן. לכן הדיאלוג סופר בפועל לפני שהוא שואל, ומציע קודם כל
 // את הארכיון: הסתרה בלי לאבד שום דבר.
+//
+// ‼ (169) המספרים מגיעים מ-delete_client_preview — אותה לוגיקה בדיוק שמחיקה
+// (delete_client) פועלת לפיה, ולא ספירה עצמאית טבלה-טבלה במסך. כך מה שנאמר
+// למשתמש הוא מה שיקרה: הצעות פתוחות יבוטלו, בקשות ייצוג יימחקו, הצעה מאושרת
+// תישאר (מנותקת), והתקשרות חיה דורשת אישור מפורש נוסף.
 
 import { useEffect, useState } from 'react';
 import type { Client, Task } from '../types';
@@ -15,37 +20,38 @@ interface Props {
   tasks: Task[];
   /** לא מסופק ⇒ הכרטיס כבר בארכיון, ואין מה להציע */
   onArchive?: () => void | Promise<void>;
-  onDelete: () => void;
+  /** force — המשתמש אישר במפורש מחיקה למרות התקשרות חיה */
+  onDelete: (opts: { force: boolean }) => void;
   onCancel: () => void;
 }
 
-interface Counts {
+interface Preview {
   documents: number;
-  onboardingSteps: number;
-  annualReports: number;
-  quotations: number;
+  onboarding_steps: number;
+  annual_reports: number;
   requests: number;
   emails: number;
+  quotations_open: number;
+  quotations_approved: number;
+  quotations_other: number;
+  live_engagements: number;
+  leads: number;
+  spouse_client_id: string | null;
+  spouse_name: string | null;
 }
 
-const EMPTY: Counts = {
-  documents: 0, onboardingSteps: 0, annualReports: 0,
-  quotations: 0, requests: 0, emails: 0,
+const EMPTY: Preview = {
+  documents: 0, onboarding_steps: 0, annual_reports: 0, requests: 0, emails: 0,
+  quotations_open: 0, quotations_approved: 0, quotations_other: 0,
+  live_engagements: 0, leads: 0, spouse_client_id: null, spouse_name: null,
 };
 
-async function countRows(table: string, column: string, clientId: string): Promise<number> {
-  const { count } = await supabase
-    .from(table)
-    .select('id', { count: 'exact', head: true })
-    .eq(column, clientId);
-  return count ?? 0;
-}
-
 export default function ClientDeleteDialog({ client, tasks, onArchive, onDelete, onCancel }: Props) {
-  const [counts, setCounts] = useState<Counts | null>(null);
+  const [counts, setCounts] = useState<Preview | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [forceAck, setForceAck] = useState(false);
 
   const fullName = `${client.firstName} ${client.lastName}`.trim() || client.idNumber || 'הלקוח';
   const clientTasks = tasks.filter(t => t.clientId === client.id);
@@ -55,17 +61,11 @@ export default function ClientDeleteDialog({ client, tasks, onArchive, onDelete,
     let cancelled = false;
     (async () => {
       try {
-        const [documents, onboardingSteps, annualReports, quotations, requests, emails] =
-          await Promise.all([
-            countRows('documents', 'client_id', client.id),
-            countRows('onboarding_steps', 'client_id', client.id),
-            countRows('annual_report_sessions', 'client_id', client.id),
-            countRows('quotations', 'client_id', client.id),
-            countRows('representation_requests', 'linked_client_id', client.id),
-            countRows('email_messages', 'client_id', client.id),
-          ]);
+        const { data, error } = await supabase.rpc('delete_client_preview', { p_client_id: client.id });
         if (cancelled) return;
-        setCounts({ documents, onboardingSteps, annualReports, quotations, requests, emails });
+        const res = data as (Preview & { ok: boolean }) | null;
+        if (error || !res?.ok) throw new Error(error?.message ?? 'preview failed');
+        setCounts(res);
       } catch {
         if (!cancelled) { setFailed(true); setCounts(EMPTY); }
       }
@@ -74,17 +74,26 @@ export default function ClientDeleteDialog({ client, tasks, onArchive, onDelete,
   }, [client.id]);
 
   const c = counts;
+  const hasLiveEngagement = !!c && c.live_engagements > 0;
   const destroyed = c ? [
     clientTasks.length > 0 && `${clientTasks.length} משימות${openTasks > 0 ? ` (מתוכן ${openTasks} פתוחות)` : ''}`,
-    c.documents > 0 && `${c.documents} מסמכים`,
-    c.onboardingSteps > 0 && `תהליך קליטה - ${c.onboardingSteps} שלבים`,
-    c.annualReports > 0 && `${c.annualReports} דוחות שנתיים`,
+    c.documents > 0 && `${c.documents} מסמכים (כולל הקבצים עצמם)`,
+    c.onboarding_steps > 0 && `תהליך קליטה - ${c.onboarding_steps} שלבים`,
+    c.annual_reports > 0 && `${c.annual_reports} דוחות שנתיים`,
+    c.requests > 0 && `${c.requests} בקשות ייצוג`,
+    c.live_engagements > 0 && `${c.live_engagements} התקשרות פעילה`,
+  ].filter(Boolean) as string[] : [];
+
+  const cancelledLines = c ? [
+    c.quotations_open > 0 && `${c.quotations_open} הצעות מחיר שטרם אושרו (טיוטה / נשלחה) - יסומנו כבוטלו`,
   ].filter(Boolean) as string[] : [];
 
   const detached = c ? [
-    c.quotations > 0 && `${c.quotations} הצעות מחיר`,
-    c.requests > 0 && `${c.requests} בקשות ייצוג`,
+    c.quotations_approved > 0 && `${c.quotations_approved} הצעות מחיר מאושרות (יישארו כהיסטוריה, בלי לקוח)`,
+    c.quotations_other > 0 && `${c.quotations_other} הצעות מחיר שבוטלו / פג תוקפן`,
     c.emails > 0 && `${c.emails} מיילים`,
+    c.leads > 0 && `${c.leads} לידים`,
+    !!c.spouse_client_id && `הקישור לכרטיס בן/בת הזוג${c.spouse_name ? ` "${c.spouse_name}"` : ''} יוסר (הכרטיס שלו/ה נשאר)`,
   ].filter(Boolean) as string[] : [];
 
   async function handleArchive() {
@@ -114,8 +123,8 @@ export default function ClientDeleteDialog({ client, tasks, onArchive, onDelete,
           <button
             type="button"
             className="ui-btn ui-btn-danger"
-            disabled={busy || !counts}
-            onClick={onDelete}
+            disabled={busy || !counts || failed || (hasLiveEngagement && !forceAck)}
+            onClick={() => onDelete({ force: hasLiveEngagement })}
           >
             מחק הכל לצמיתות
           </button>
@@ -167,6 +176,17 @@ export default function ClientDeleteDialog({ client, tasks, onArchive, onDelete,
               </ul>
             )}
 
+            {cancelledLines.length > 0 && (
+              <>
+                <div style={{ fontWeight: 600, marginTop: '.7rem', marginBottom: '.35rem' }}>
+                  יבוטלו:
+                </div>
+                <ul style={{ margin: 0, paddingInlineStart: '1.1rem', color: 'var(--ink-2)' }}>
+                  {cancelledLines.map(line => <li key={line}>{line}</li>)}
+                </ul>
+              </>
+            )}
+
             {detached.length > 0 && (
               <>
                 <div style={{ fontWeight: 600, marginTop: '.7rem', marginBottom: '.35rem' }}>
@@ -178,6 +198,24 @@ export default function ClientDeleteDialog({ client, tasks, onArchive, onDelete,
               </>
             )}
           </div>
+
+          {hasLiveEngagement && (
+            <label style={{
+              display: 'flex', gap: '.5rem', alignItems: 'flex-start',
+              marginTop: '.8rem', fontSize: 'var(--fs-13)', color: 'var(--err)',
+            }}>
+              <input
+                type="checkbox"
+                checked={forceAck}
+                onChange={e => setForceAck(e.target.checked)}
+                style={{ marginTop: '.15rem' }}
+              />
+              <span>
+                ללקוח יש התקשרות פעילה על הצעה מאושרת. אני מבין/ה שההתקשרות תימחק
+                וההצעה המאושרת תישאר בלי לקוח, ורוצה למחוק בכל זאת.
+              </span>
+            </label>
+          )}
 
           <p className="ui-confirm-text" style={{ marginTop: '.8rem', color: 'var(--ink-3)' }}>
             מחיקה אינה הפיכה.

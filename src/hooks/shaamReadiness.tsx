@@ -182,8 +182,18 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
   useEffect(() => {
     void refresh();
     if (timer.current) clearInterval(timer.current);
-    timer.current = setInterval(() => { void refresh(); }, POLL_MS);
-    return () => { if (timer.current) clearInterval(timer.current); };
+    // ‼ לשונית ברקע לא מושכת: אין מי שיראה את הנורית, והמשיכה כל 4 שניות
+    // המשיכה גם כשהחלון היה ממוזער שעות. בחזרה ללשונית מושכים מיד.
+    timer.current = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void refresh();
+    }, POLL_MS);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      if (timer.current) clearInterval(timer.current);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [refresh]);
 
   /**

@@ -6,8 +6,9 @@
 // בעת העלאה — מציג טופס מטא-נתונים (קטגוריה / שנה / תיאור), בדיוק כמו
 // ב-DocumentManager הראשי. אסור לשמור בלי תיאור וקטגוריה ושנה.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDocumentDB, StoredDoc, DocCategory, DOC_CATEGORY_LABELS } from '../hooks/useIndexedDB';
+import { useClientDocs } from '../hooks/useDocumentStore';
 import { AVAILABLE_YEARS } from '../data/taxData';
 
 interface Props {
@@ -46,7 +47,11 @@ export default function LinkedDocsWidget({
   compact = false,
 }: Props) {
   const db = useDocumentDB();
-  const [docs, setDocs] = useState<StoredDoc[]>([]);
+  // ‼ מסמכי הלקוח מגיעים מקאש משותף — שליפה אחת ללקוח לכל הרכיבים שבמסך
+  // (הלשונית האישית מרכיבה 14 כאלה), והרענון על crm:docs-changed קורה שם
+  // פעם אחת. כאן רק מסננים לפי linkKey.
+  const { docs: allClientDocs, reload } = useClientDocs(clientId || undefined);
+  const docs = useMemo(() => allClientDocs.filter(d => d.linkedTo === linkKey), [allClientDocs, linkKey]);
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState<PendingUpload | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -55,41 +60,10 @@ export default function LinkedDocsWidget({
 
   // ── בורר מסמכים קיימים ──
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [allClientDocs, setAllClientDocs] = useState<StoredDoc[]>([]);
   const [pickerSearch, setPickerSearch] = useState('');
 
-  async function reload() {
-    if (!clientId) return;
-    try {
-      const all = await db.getDocsByClient(clientId);
-      console.log('[LinkedDocs.reload]', all.length, 'docs for client', clientId, '- filtering by linkKey:', linkKey);
-      setAllClientDocs(all);
-      const filtered = all.filter(d => d.linkedTo === linkKey);
-      console.log('[LinkedDocs.reload] showing', filtered.length, 'after filter');
-      setDocs(filtered);
-    } catch (err) {
-      console.error('[LinkedDocs.reload] failed', err);
-      setDocs([]);
-      setAllClientDocs([]);
-    }
-  }
-
   useEffect(() => {
-    reload();
     return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, linkKey]);
-
-  // האזנה ל-event גלובלי כדי שאם מישהו שינה מסמכים מאזור אחר באפליקציה — נתעדכן.
-  useEffect(() => {
-    function handleChange(e: Event) {
-      const ce = e as CustomEvent<{ clientId?: string }>;
-      if (!ce.detail?.clientId || ce.detail.clientId === clientId) {
-        reload();
-      }
-    }
-    window.addEventListener('crm:docs-changed', handleChange);
-    return () => window.removeEventListener('crm:docs-changed', handleChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, linkKey]);
 
@@ -143,10 +117,9 @@ export default function LinkedDocsWidget({
         linkedTo: linkKey,
         linkedLabel: linkLabel,
       };
+      // saveDoc משדר crm:docs-changed — הקאש המשותף מתרענן פעם אחת לכל הרכיבים.
       await db.saveDoc(doc);
-      console.log('[LinkedDocs.confirmUpload] saveDoc OK, reloading...');
-      await reload();
-      console.log('[LinkedDocs.confirmUpload] reload done');
+      console.log('[LinkedDocs.confirmUpload] saveDoc OK');
       setPending(null);
     } catch (err: any) {
       console.error('[LinkedDocs.confirmUpload] FAILED', err);
@@ -166,7 +139,6 @@ export default function LinkedDocsWidget({
   async function handleRemove(id: string) {
     if (!confirm('להסיר את המסמך?')) return;
     await db.deleteDoc(id);
-    reload();
   }
 
   /** מבטל קישור (לא מוחק את המסמך — רק מסיר את ה-linkedTo) */
@@ -174,15 +146,12 @@ export default function LinkedDocsWidget({
     if (!confirm('לבטל את הקישור? המסמך עצמו יישאר בתיק המסמכים של הלקוח.')) return;
     const next: StoredDoc = { ...doc, linkedTo: undefined, linkedLabel: undefined };
     await db.saveDoc(next);
-    reload();
   }
 
   async function openPicker() {
     if (!clientId) return;
-    try {
-      const all = await db.getDocsByClient(clientId);
-      setAllClientDocs(all);
-    } catch { /* ignore */ }
+    // הבורר מציג את אותו קאש; שולפים מחדש רק אם הרשימה עדיין ריקה.
+    if (allClientDocs.length === 0) { try { await reload(); } catch { /* ignore */ } }
     setPickerOpen(true);
     setPickerSearch('');
   }
@@ -191,7 +160,6 @@ export default function LinkedDocsWidget({
     const next: StoredDoc = { ...doc, linkedTo: linkKey, linkedLabel: linkLabel };
     await db.saveDoc(next);
     setPickerOpen(false);
-    reload();
   }
 
   async function handlePreview(doc: StoredDoc) {
