@@ -181,6 +181,22 @@ try {
     stamp[0].r?.ok === false && stamp[0].r?.error === 'engagement_not_found',
     JSON.stringify(stamp[0].r));
 
+  // ─── 7 · הבונה של הדף האישי (164) ─────────────────────────────────────────
+  // ‼ מיגרציה 157 פתחה את build_client_portal ל-authenticated, ואין לה בדיקת
+  // בעלות — כל משתמש מחובר יכול היה לבנות את הדף של לקוח של משרד אחר.
+  {
+    const direct = await tryRun((s) => asUser(other, s), `select public.build_client_portal(${q(mine)}, 'live') as r`);
+    ok('7 build_client_portal סגורה בפני משתמש מחובר', direct.denied, direct.denied ? '' : 'רץ!');
+    const directAnon = await tryRun(asAnon, `select public.build_client_portal(${q(mine)}, 'live') as r`);
+    ok('7 build_client_portal סגורה בפני anon', directAnon.denied, directAnon.denied ? '' : 'רץ!');
+    const foreignPreview = await asUser(other, `select public.get_client_portal_preview(${q(mine)}, 'preview') as r`);
+    ok('7 תצוגה מקדימה של לקוח זר נדחית', foreignPreview[0].r?.ok === false, JSON.stringify(foreignPreview[0].r));
+    const ownPreview = await asUser(U, `select public.get_client_portal_preview(${q(mine)}, 'preview') as r`);
+    ok('7 הבעלים כן רואה תצוגה מקדימה', ownPreview[0].r?.ok !== false, JSON.stringify(ownPreview[0].r).slice(0, 120));
+    const inv = await tryRun((s) => asUser(U, s), 'select public.assert_domain_function_invariants() as r');
+    ok('7 שומר הקבועים של פונקציות הדומיין מאשר', !inv.denied && inv.value?.[0]?.r === 'ok', inv.message || JSON.stringify(inv.value));
+  }
+
 } finally {
   await cleanup();
   console.log(`\n${pass} עברו · ${fail} נכשלו`);
