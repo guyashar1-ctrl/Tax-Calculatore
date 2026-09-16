@@ -94,7 +94,7 @@ export default function ReleaseLetterDialog({
   onSent, onClose, stepId, draft, onSaveDraft, template, mode = 'letter', followUpItems = [],
 }: Props) {
   const followUp = mode === 'follow_up';
-  const { saveDoc } = useDocumentStore();
+  const { saveDoc, ensureSystemLabel } = useDocumentStore();
   const ctx: ReleaseContext = {
     clientName, taxFileNumber, spouse, prevAccountantName: prevAccountant.name,
   };
@@ -322,6 +322,8 @@ export default function ReleaseLetterDialog({
         }, brand);
         const docId = crypto.randomUUID();
         const docTitle = followUp ? 'תוספת לבקשת החומרים - רו״ח קודם' : 'מכתב העברת טיפול - רו״ח קודם';
+        // ‼ D4 (179): מכתב שנוצר אוטומטית מקבל תווית מערכת קבועה.
+        const labelId = await ensureSystemLabel('מכתבים לרו״ח קודם');
         await saveDoc({
           id: docId, clientId,
           fileName: `${docTitle} ${dateStr}.pdf`,
@@ -329,6 +331,7 @@ export default function ReleaseLetterDialog({
           fileSize: pdf.byteLength,
           category: 'other',
           year: 'general',
+          labelId,
           uploadedAt: new Date().toISOString(),
           description: `${followUp ? 'תוספת לבקשת החומרים שנשלחה' : 'מכתב העברת הטיפול שנשלח'} ל${prevAccountant.name || 'רו״ח הקודם'} (${toEmail.trim()})${res.cc ? ` · עותק ל${clientName}` : ''}`,
           notes: `נשלח מ-${res.from || fromLabel}`,

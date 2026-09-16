@@ -154,8 +154,9 @@ function bucketFor(category: ServiceCategory): 'monthly' | 'annual' | 'oneTime' 
   }
 }
 
-// עיגול לשתי ספרות — מונע זנבות צפים (0.30000000000000004)
-function round2(n: number): number {
+// עיגול לשתי ספרות — מונע זנבות צפים (0.30000000000000004). זהו כלל העיגול
+// הקנוני היחיד לכל סכום כספי במערכת (C6, 177) — גם ב-SQL (round(x, 2)).
+export function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 

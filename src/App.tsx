@@ -63,6 +63,7 @@ import { currentEngagement } from './utils/engagementSelectors';
 import { countTasksNeedingMe } from './utils/taskUtils';
 import { linkLeadToClient } from './lib/leadLink';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
+import { calcTotals } from './utils/quotationCalc';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
 import { generateQuotationPdf } from './utils/quotationPdf';
 import type { Lead, Quotation, QuotationKind } from './types/quotations';
@@ -1907,6 +1908,10 @@ export default function App() {
       // ההגדרה מוקפאת יחד עם ההצעה: מה שהלקוח ראה ואישר הוא הייצוג שייפתח,
       // גם אם הטיוטה תיערך אחר כך.
       representation: payload.representation,
+      // ‼ C6 (177): הסכומים המחושבים, לא רק הקלטים שמהם אפשר לחשב אותם
+      // מחדש — כדי ש"מה הלקוח ראה וחתם" לא ישתנה בשקט אם נוסחת החישוב או
+      // כלל העיגול ישתנו בעתיד.
+      frozenTotals: calcTotals(payload.items, payload.vatRate),
     };
     if (!isTest) {
       await updateQuotation({
@@ -2154,6 +2159,9 @@ export default function App() {
           approvedAt: q.approvedAt,
         },
       }, deriveQuotationBrand(firmProfile));
+      // ‼ D4 (179): PDF שנוצר אוטומטית מקבל תווית מערכת קבועה — לא נשאל
+      // את הרו"ח לסווג משהו שהמערכת יודעת לבד.
+      const labelId = await db.ensureSystemLabel('הסכם התקשרות');
       await db.saveDoc({
         id: `engagement-${q.id}`,
         clientId,
@@ -2162,6 +2170,7 @@ export default function App() {
         fileSize: bytes.byteLength,
         category: 'engagement_contract',
         year: 'general',
+        labelId,
         uploadedAt: new Date().toISOString(),
         description: `הצעת מחיר ${q.quotationNumber} שאושרה ונחתמה${q.approvalSignerName ? ` על ידי ${q.approvalSignerName}` : ''} - נשמרה אוטומטית עם פתיחת הלקוח`,
         notes: '',

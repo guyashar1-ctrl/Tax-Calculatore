@@ -106,6 +106,12 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
       // ‼ ישר לכרטיס הלקוח שהבקשה מקושרת אליו (קיים מרגע יצירת הבקשה).
       // מזהה מדומה כמו `req-<id>` נכשל ב-FK אחרי שהקובץ כבר עלה — קובץ יתום
       // באחסון בלי רשומה, ואז "העברה" בעת ההגשה שחישבה נתיב חדש בלי להזיז כלום.
+      // ‼ D4 (179): הסוג כבר ידוע — מה-checklist של הבקשה עצמה, לא ניחוש.
+      const itemLabel = request.requestedDocs.find(d => d.id === docItemId)?.label;
+      const systemLabelName = docItemId === 'id_card' ? 'תעודת זהות'
+        : docItemId === 'drivers_license' ? 'רישיון נהיגה'
+        : (itemLabel || 'לבדיקה');
+      const labelId = await db.ensureSystemLabel(systemLabelName);
       const doc: StoredDoc = {
         id: storedId,
         clientId: request.linkedClientId,
@@ -116,8 +122,9 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
                 : docItemId === 'drivers_license' ? 'drivers_license'
                 : 'other',
         year: 'general',
+        labelId,
         uploadedAt: new Date().toISOString(),
-        description: request.requestedDocs.find(d => d.id === docItemId)?.label || file.name,
+        description: itemLabel || file.name,
         notes: '',
         fileData: buf,
       };

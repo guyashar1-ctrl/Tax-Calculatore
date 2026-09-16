@@ -17,6 +17,12 @@ export interface Engagement {
   quotationId?: string;
   status: EngagementStatus;
   monthlyTotal?: number;
+  /** שיעור המע"מ בזמן אישור ההצעה שיצרה את ההתקשרות — הקפאה חד-פעמית (177,
+   *  C6). null בהתקשרויות שנוצרו לפני המיגרציה: אין ראיה לשחזור מדויק. */
+  vatRateAtSigning?: number;
+  /** monthlyTotal כולל מע"מ, בדיוק כפי שהלקוח ראה וחתם — נכתב פעם אחת ולעולם
+   *  אינו מחושב מחדש (177, C6). null בהתקשרויות שקדמו למיגרציה. */
+  monthlyTotalWithVat?: number;
   billingStartMonth?: string;   // 'YYYY-MM'
   /** 'YYYY-MM-DD' — מתי ההתקשרות נעשית הנוכחית. "נוכחית" נגזרת מהתאריך. */
   effectiveFrom?: string;
@@ -27,6 +33,10 @@ export interface Engagement {
   /** מתי התהליך נפתח ללקוח בבונה. ריק ⇒ הלקוח רואה רק את ייפוי הכוח. */
   processPublishedAt?: string;
   endedAt?: string;
+  /** למה הסתיימה — free text, או 'superseded' כשחידוש/החלפה גרמו לסיום (178, C7). */
+  endedReason?: string;
+  /** מי ביצע את הסיום. ריק = פעולת מערכת (חידוש/החלפה); לא ריק = end_engagement מפורשת (178, C7). */
+  endedBy?: string;
   createdAt?: string;
   updatedAt?: string;
 }

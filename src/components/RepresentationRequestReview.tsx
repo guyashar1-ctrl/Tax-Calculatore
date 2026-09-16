@@ -389,6 +389,8 @@ export default function RepresentationRequestReview({
       const merged = { ...(request.signatureValues || {}), ...values };
       const burned = await burnSignaturesIntoPdf(stampRoom.pdfBytes.slice(0), fields || target.fields, merged);
       const storedId = signedDocIdFor(request.id, target.key);
+      // ‼ D4 (179): מסמך שנוצר אוטומטית מקבל תווית מערכת קבועה.
+      const labelId = await db.ensureSystemLabel('ייפוי כוח חתום');
       await db.saveDoc({
         id: storedId,
         clientId: request.linkedClientId,
@@ -397,6 +399,7 @@ export default function RepresentationRequestReview({
         fileSize: burned.byteLength,
         category: 'other',
         year: 'general',
+        labelId,
         uploadedAt: new Date().toISOString(),
         description: `ייפוי כוח חתום (כל החותמים + חותמת המשרד)${poaDocs.length > 1 ? ` - ${target.title}` : ''}`,
         notes: '',
@@ -443,6 +446,7 @@ export default function RepresentationRequestReview({
       // שמירה ל-IndexedDB
       const storedId = `signed-poa-${request.id}`;
       const fileName = `${sub.lastName} ${sub.firstName} ייפוי כוח חתום.pdf`;
+      const labelId = await db.ensureSystemLabel('ייפוי כוח חתום');
       await db.saveDoc({
         id: storedId,
         clientId: request.linkedClientId, // משויך ללקוח האמיתי
@@ -451,6 +455,7 @@ export default function RepresentationRequestReview({
         fileSize: pdfBytes.byteLength,
         category: 'other',
         year: 'general',
+        labelId,
         uploadedAt: new Date().toISOString(),
         description: 'טופס ייפוי כוח 2279א\'5 חתום (מייצג + לקוח)',
         notes: '',
@@ -488,6 +493,7 @@ export default function RepresentationRequestReview({
       const storedId = request.signedPdfStoredId || `signed-poa-${request.id}`;
       const sub = request.submission!;
       const fileName = `${sub.lastName} ${sub.firstName} ייפוי כוח חתום.pdf`;
+      const labelId = await db.ensureSystemLabel('ייפוי כוח חתום');
       await db.saveDoc({
         id: storedId,
         clientId: request.linkedClientId,
@@ -495,6 +501,7 @@ export default function RepresentationRequestReview({
         fileType: 'application/pdf',
         fileSize: pdfBytes.byteLength,
         category: 'other',
+        labelId,
         year: 'general',
         uploadedAt: new Date().toISOString(),
         description: 'טופס ייפוי כוח 2279א\'5 חתום (מייצג + לקוח)',

@@ -191,7 +191,20 @@ Deno.serve(async (req: Request) => {
       else releaseLabelId = (lid as string) ?? null;
     }
     // ‼ שנה ותווית מוגדרות מראש על הבקשה (M3 — "בקש מסמך מהלקוח") — לא מנחשים
-    // אותן כאן. חסרות ⇒ נופלים ל'כללי'/'לבדיקה' בצד הלקוח (fallback שמרני).
+    // אותן כאן. חסרות ⇒ נופלים ל"לבדיקה" (D4, 179): מסמך בלי תווית אינו
+    // מצב שמור תקף יותר — documents.label_id היא NOT NULL בשרת.
+    let labelId: string | null = payload?.documentLabelId ?? releaseLabelId ?? null;
+    if (!labelId) {
+      const { data: fallback, error: labelErr } = await admin.rpc("ensure_reserved_document_label", {
+        p_user_id: step.user_id,
+      });
+      if (labelErr) {
+        // ‼ אותה הגנה מיתומים כמו docErr למטה — הקובץ כבר עלה ל-Storage.
+        await admin.storage.from("client-documents").remove([path]);
+        return json({ error: "label_resolution_failed", detail: labelErr.message }, 500);
+      }
+      labelId = fallback as string;
+    }
     const { error: docErr } = await admin.from("documents").insert({
       id: docId,
       user_id: step.user_id,
@@ -203,7 +216,7 @@ Deno.serve(async (req: Request) => {
       file_size: file.size,
       category: tokenKind === "release" ? "business_document" : (CATEGORY_BY_KEY[itemKey] || "other"),
       year: String(payload?.documentYear ?? "general"),
-      label_id: payload?.documentLabelId ?? releaseLabelId,
+      label_id: labelId,
       // ‼ מדף הרו"ח הקודם: השם הוא שם הקובץ ששלח, ולכן description נשאר ריק
       // (תיק המסמכים נופל ל-fileName). השיוך לפריט חי ב-checklist של השלב,
       // והמקור נקרא מהתווית — לא מהשם.

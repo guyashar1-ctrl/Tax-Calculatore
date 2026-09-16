@@ -3,6 +3,7 @@
 // אין דחייה/בקשת שינויים מצד הלקוח — שינוי מטופל בביטול והוצאת הצעה חדשה.
 
 import type { AuthorityRepresentations, OnboardingPrefill } from './index';
+import type { QuotationTotals } from '../utils/quotationCalc';
 import { REP_AUTHORITIES_WITH_LEVEL } from './index';
 
 // ─── לידים ──────────────────────────────────────────────────────────────────
@@ -336,6 +337,15 @@ export interface QuotationSnapshot {
   emailMessage?: string;
   firmName?: string;
   representation?: QuotationRepresentation;
+  /**
+   * ‼ C6 (ספר הפערים, מיגרציה 177): הסכומים המחושבים ברגע ההקפאה — לא רק
+   * הקלטים (items/vatRate) שמהם אפשר לחשב אותם מחדש. בלי זה, "מה הלקוח ראה
+   * וחתם" היה נגזר-מחדש בכל צפייה — ושינוי עתידי בנוסחת החישוב או בכלל
+   * העיגול היה משנה בשקט הצעות שכבר נחתמו. frozenTotals הוא פלט calcTotals
+   * באותו רגע בדיוק, ולעולם אינו מחושב מחדש. ריק בהצעות שהוקפאו לפני 177 —
+   * אין די ראיה לשחזור מדויק, ואסור להמציא אותו.
+   */
+  frozenTotals?: QuotationTotals;
 }
 
 /**

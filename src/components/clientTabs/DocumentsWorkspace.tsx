@@ -105,7 +105,6 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
   const [drawerDoc, setDrawerDoc] = useState<StoredDoc | null>(null);
   const [drawerLinkedClients, setDrawerLinkedClients] = useState<string[]>([]);
   const [drawerLinkedTasks, setDrawerLinkedTasks] = useState<{ id: string; title: string }[]>([]);
-  const [addClientPick, setAddClientPick] = useState('');
   const [renameDraft, setRenameDraft] = useState('');
   // ‼ העברה ושכפול ירדו מהמגירה ועברו לסרגל הבחירה: הן פועלות על
   // מסמך אחד או על עשרה באותה מחווה, ולכן מקומן ליד "הורדה" ולא בתוך
@@ -713,7 +712,6 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     } else {
       setDrawerLinkedTasks([]);
     }
-    setAddClientPick('');
     setRenameDraft(doc.description || '');
     setDocActionError(''); setConfirmDeleteDoc(false);
     setFileBusy(false); setFileError(''); setConvertError('');
@@ -825,12 +823,6 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     } finally { setFolderBusy(false); }
   }
 
-  async function addClientLink() {
-    if (!drawerDoc || !addClientPick) return;
-    await db.linkDocumentClient(drawerDoc.id, addClientPick);
-    setDrawerLinkedClients(prev => [...prev, addClientPick]);
-    setAddClientPick('');
-  }
   async function removeClientLink(clientId: string) {
     if (!drawerDoc) return;
     await db.unlinkDocumentClient(drawerDoc.id, clientId);
@@ -1709,28 +1701,31 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
               <span>{folderPathLabel(drawerDoc.folderId ?? null, foldersById)}</span>
             </div>
 
-            <div className="ial-doc-sechead" title="קישור = אותו קובץ אצל כמה לקוחות; עריכה משנה אותו אצל כולם">
-              לקוחות מקושרים
-            </div>
-            <div className="ial-doc-fact"><b>{client.firstName} {client.lastName}</b><span>ראשי</span></div>
-            {drawerLinkedClients.map(cid => {
-              const c = allClients.find(x => x.id === cid);
-              if (!c) return null;
-              return (
-                <div className="ial-doc-fact" key={cid}>
-                  <b>{c.firstName} {c.lastName}</b>
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => removeClientLink(cid)}>הסר</button>
+            {/* ‼ D3 (הכרעת מוצר): אין יותר יצירת קישור חדש בין לקוחות — אותו
+                קובץ שעריכה בו משפיעה על כולם. מסמך שצריך להגיע ללקוח נוסף
+                משוכפל (עותק עצמאי, גם באחסון) דרך "שכפול" בסרגל הבחירה, לא
+                מקושר. הסעיף כאן ממשיך להציג ולאפשר להסיר קישורים ישנים
+                בלבד — נכון לכתיבת השורות האלה אין אף אחד כזה בפרודקשן. */}
+            {drawerLinkedClients.length > 0 && (
+              <>
+                <div className="ial-doc-sechead" title="קישור ישן: אותו קובץ מוצג גם כאן. עריכה משנה אותו אצל כל מי שהוא מקושר אליו. אין יותר יצירת קישורים חדשים.">
+                  לקוחות מקושרים (קישור ישן)
                 </div>
-              );
-            })}
-            <div style={{ display: 'flex', gap: '.4rem', marginTop: '.5rem' }}>
-              <select value={addClientPick} onChange={e => setAddClientPick(e.target.value)} style={{ flex: 1 }}>
-                <option value="">קשר ללקוח נוסף…</option>
-                {allClients.filter(c => c.id !== client.id && !drawerLinkedClients.includes(c.id)).map(c => (
-                  <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
-                ))}
-              </select>
-              <button type="button" className="btn btn-sm" disabled={!addClientPick} onClick={addClientLink}>קשר</button>
+                <div className="ial-doc-fact"><b>{client.firstName} {client.lastName}</b><span>ראשי</span></div>
+                {drawerLinkedClients.map(cid => {
+                  const c = allClients.find(x => x.id === cid);
+                  if (!c) return null;
+                  return (
+                    <div className="ial-doc-fact" key={cid}>
+                      <b>{c.firstName} {c.lastName}</b>
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => removeClientLink(cid)}>הסר</button>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+            <div className="ial-doc-hint">
+              כדי שהמסמך יגיע גם ללקוח אחר — לסמן אותו ברשימה ולהשתמש ב"שכפול" בסרגל הבחירה. השכפול יוצר עותק עצמאי; עריכה בו לא נוגעת במקור.
             </div>
 
             {/* נפתח רק כשיש מה להראות — כותרת מעל "אין" היא רעש. */}

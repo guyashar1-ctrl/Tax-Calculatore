@@ -102,6 +102,9 @@ export default function LinkedDocsWidget({
     console.log('[LinkedDocs.confirmUpload] start', { clientId, linkKey, fileName: pending.file.name });
     try {
       const buf = await pending.file.arrayBuffer();
+      // ‼ D4 (179): linkLabel הוא שם השדה שהראיה הזו מוכיחה — ידיעה קיימת,
+      // לא ניחוש.
+      const labelId = await db.ensureSystemLabel(linkLabel);
       const doc: StoredDoc = {
         id: crypto.randomUUID(),
         clientId,
@@ -110,6 +113,7 @@ export default function LinkedDocsWidget({
         fileSize: pending.file.size,
         category: pending.category,
         year: pending.year,
+        labelId,
         uploadedAt: new Date().toISOString(),
         description: pending.description.trim(),
         notes: pending.notes,

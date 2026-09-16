@@ -442,6 +442,9 @@ function ItemAttachment({ clientId, spec, onDocChange }: {
     setErr(null);
     try {
       const buf = await file.arrayBuffer();
+      // ‼ D4 (179): הראיה שמצורפת כאן מתויקת תמיד לפי שם השדה שהיא מוכיחה
+      // (spec.linkLabel) — המערכת יודעת בדיוק מה זה, בלי לשאול.
+      const labelId = doc?.labelId ?? await db.ensureSystemLabel(spec.linkLabel);
       // החלפה משתמשת באותו מזהה ⇒ אותו נתיב באחסון, בלי להשאיר קובץ יתום.
       const next: StoredDoc = {
         id: doc?.id ?? crypto.randomUUID(),
@@ -458,7 +461,7 @@ function ItemAttachment({ clientId, spec, onDocChange }: {
         linkedTo: linkKey,
         linkedLabel: spec.linkLabel,
         folderId: doc?.folderId ?? null,
-        labelId: doc?.labelId ?? null,
+        labelId,
       };
       await db.saveDoc(next);
       setDoc({ ...next, fileData: new ArrayBuffer(0), _remote: true });

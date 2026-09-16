@@ -101,6 +101,8 @@ export default function PoaProduceEditor({ request, targets, onContinue, onCance
       return;
     }
     try {
+      // ‼ D4 (179): מסמך שנוצר אוטומטית מקבל תווית מערכת קבועה.
+      const labelId = await docDb.ensureSystemLabel('ייפוי כוח');
       await docDb.saveDoc({
         id: pdfDocId,
         clientId: request.linkedClientId,
@@ -109,6 +111,7 @@ export default function PoaProduceEditor({ request, targets, onContinue, onCance
         fileSize: file.size,
         category: 'other',
         year: 'general',
+        labelId,
         uploadedAt: new Date().toISOString(),
         description: 'טופס ייפוי כוח - לחתימה',
         notes: '',

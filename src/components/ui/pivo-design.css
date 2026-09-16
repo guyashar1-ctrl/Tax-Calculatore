@@ -3052,6 +3052,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   border-bottom:1px solid var(--hairline-2);font-size:var(--fs-12)}
 .ial-doc-fact label{color:var(--ink-3)}
 .ial-doc-sechead{font-size:var(--fs-11,11px);color:var(--ink-4);font-weight:700;margin:18px 0 6px}
+.ial-doc-hint{font-size:var(--fs-11,11px);color:var(--ink-4);margin-top:12px;line-height:1.5}
 
 @media (max-width:700px){
   .ial-doc-drawer{width:100%}

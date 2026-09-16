@@ -349,6 +349,8 @@ export function chargeToDb(charge: Partial<AdditionalCharge>, userId?: string): 
 export function engagementFromDb(row: Record<string, any>): Engagement {
   const e = rowToObject<Engagement>(row);
   if (e.monthlyTotal !== undefined) e.monthlyTotal = Number(e.monthlyTotal);
+  if (e.vatRateAtSigning != null) e.vatRateAtSigning = Number(e.vatRateAtSigning);
+  if (e.monthlyTotalWithVat != null) e.monthlyTotalWithVat = Number(e.monthlyTotalWithVat);
   return e;
 }
 

@@ -55,6 +55,11 @@ export default function LegacyMigrationBanner({ knownClientIds }: Props) {
     const failedNames: string[] = [];
     setProgress({ total, uploaded, skipped, failed, failedNames });
 
+    // ‼ D4 (179): הפורמט הישן (לפני 95) לא הכיר תוויות כלל. אין דרך לשחזר
+    // רטרואקטיבית לאיזו תווית מסמך כזה שייך — "לבדיקה" היא בדיוק הדלי
+    // המיועד למקרה הזה, לא ניחוש מומצא.
+    const legacyLabelId = docs.length > 0 ? await db.ensureSystemLabel('לבדיקה') : null;
+
     for (const doc of docs) {
       // דלג על קבצים יתומים (לקוח לא קיים) ועל "fake" סמפלים
       if (doc.id.startsWith('fake-') || (doc.fileData?.byteLength ?? 0) === 0) {
@@ -70,7 +75,7 @@ export default function LegacyMigrationBanner({ knownClientIds }: Props) {
         continue;
       }
       try {
-        await db.saveDoc(doc);
+        await db.saveDoc({ ...doc, labelId: legacyLabelId ?? undefined });
         await deleteLegacyDoc(doc.id);
         uploaded++;
       } catch (err: any) {

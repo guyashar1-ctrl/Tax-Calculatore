@@ -221,6 +221,9 @@ export default function SignatureRequestEditor({
     if (client) {
       try {
         const yearNow = new Date().getFullYear();
+        // ‼ D4 (179): המערכת יודעת שזה מסמך שהועלה לצורך חתימה, גם בלי
+        // לדעת את הסיווג המשפטי המדויק שלו — זו ידיעה אמיתית, לא ניחוש.
+        const labelId = await docDb.ensureSystemLabel('מסמך לחתימה');
         await docDb.saveDoc({
           id: pdfDocId,
           clientId: client.id,
@@ -229,6 +232,7 @@ export default function SignatureRequestEditor({
           fileSize: file.size,
           category: 'other',
           year: yearNow,
+          labelId,
           uploadedAt: new Date().toISOString(),
           description: `${file.name} (לחתימה)`,
           notes: '',

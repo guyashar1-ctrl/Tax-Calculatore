@@ -193,6 +193,16 @@ export function useDocumentStore() {
     }
 
     // 2. upsert מטא-נתונים בטבלה
+    // ‼ D4 (179): documents.label_id הוא NOT NULL בשרת — אין דרך לעקוף.
+    // קורא שלא סיפק תווית אבל כן סיפק קטגוריה (המנהל הישן, DocumentManager,
+    // עדיין לא עבר לבחירת תווית) מקבל את התווית הנגזרת מהקטגוריה — מידע
+    // אמיתי שכבר קיים, לא ניחוש. קורא שלא סיפק אף אחד מהשניים נכשל במפורש:
+    // "לא ידוע" הוא מסלול חריג, לא מסמך שנשמר בלי תווית בשקט.
+    let labelId = doc.labelId;
+    if (!labelId) {
+      if (!doc.category) throw new Error('לא ניתן לשמור מסמך בלי תווית — לא סופקה תווית ואף לא קטגוריה שממנה אפשר לגזור אחת.');
+      labelId = await ensureSystemLabel(DOC_CATEGORY_LABELS[doc.category]);
+    }
     const yearText = typeof doc.year === 'number' ? String(doc.year) : doc.year;
     const row = {
       id: doc.id,
@@ -209,7 +219,7 @@ export function useDocumentStore() {
       linked_to: doc.linkedTo ?? null,
       linked_label: doc.linkedLabel ?? null,
       folder_id: doc.folderId ?? null,
-      label_id: doc.labelId ?? null,
+      label_id: labelId,
       uploaded_at: doc.uploadedAt,
     };
     console.log('[useDocumentStore.saveDoc] inserting row:', row);
@@ -548,6 +558,33 @@ export function useDocumentStore() {
     return rowToLabel(data);
   }
 
+  /**
+   * ‼ D4 (מיגרציה 179): כל מסמך חייב תווית — אין יותר מסמך "בלי". מסמך
+   * שנוצר אוטומטית (PDF של הצעה/ייפוי כוח/מכתב שחרור, צילום שחולץ ב-OCR
+   * וכו') מקבל את התווית הנכונה **בעצמו**, בלי לשאול את המשתמש על משהו
+   * שהמערכת כבר יודעת. שם קבוע ⇒ תווית אחת לכל משתמש (find-or-create,
+   * לא כפילות בכל קריאה). המשתמש עדיין יכול לשנות שם/למחוק כמו כל תווית —
+   * זו לא תווית שמורה (is_reserved), רק תווית שמוצעת מראש.
+   */
+  async function ensureSystemLabel(name: string): Promise<string> {
+    if (!userId) throw new Error('אינך מחובר/ת.');
+    const clean = name.trim();
+    const { data: existing } = await supabase
+      .from('document_labels').select('id').eq('user_id', userId).eq('name', clean).maybeSingle();
+    if (existing?.id) return existing.id as string;
+    const { data, error } = await supabase
+      .from('document_labels').insert({ user_id: userId, name: clean }).select('id').single();
+    // ‼ מירוץ: שתי קריאות מקבילות עם אותו שם — השנייה מקבלת "כבר קיים",
+    // לא זורקת. document_labels_user_id_name_key (ייחודי, קיים כבר) הוא ההגנה בפועל.
+    if (error) {
+      const { data: retry } = await supabase
+        .from('document_labels').select('id').eq('user_id', userId).eq('name', clean).maybeSingle();
+      if (retry?.id) return retry.id as string;
+      throw new Error(`יצירת תווית המערכת "${clean}" נכשלה: ${error.message || JSON.stringify(error)}`);
+    }
+    return data.id as string;
+  }
+
   async function renameLabel(id: string, name: string): Promise<void> {
     if (!userId) throw new Error('אינך מחובר/ת.');
     const clean = name.trim();
@@ -714,7 +751,7 @@ export function useDocumentStore() {
     getFoldersByClient, createFolder, renameFolder, updateFolder, deleteFolder, moveDocsToFolder,
     moveFolderToParent,
     setFoldersMeta, setDocsMeta,
-    getLabels, createLabel, renameLabel, deleteLabel,
+    getLabels, createLabel, renameLabel, deleteLabel, ensureSystemLabel,
     getLinkedClientIds, linkDocumentClient, unlinkDocumentClient, getDocsByClientIncludingLinked,
     moveDocToClient, duplicateDocToClient,
     getLinkedTaskIds, getLinkedDocIdsForTask, linkDocumentTask, unlinkDocumentTask,

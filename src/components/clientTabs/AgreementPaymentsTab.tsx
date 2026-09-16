@@ -18,7 +18,7 @@ import type { Client } from '../../types';
 import type { AdditionalCharge } from '../../types/charges';
 import type { Engagement } from '../../types/onboarding';
 import type { Quotation, QuotationItem, QuotationKind } from '../../types/quotations';
-import { itemFinalPrice, formatILS } from '../../utils/quotationCalc';
+import { itemFinalPrice, formatILS, round2 } from '../../utils/quotationCalc';
 import { currentEngagement, upcomingEngagement, previousEngagements } from '../../utils/engagementSelectors';
 import { resolveBillingOwnership } from '../../utils/billingOwnership';
 import { clientDisplayName } from '../../features/annualReport/profile';
@@ -186,6 +186,12 @@ export default function AgreementPaymentsTab({
   }
 
   const monthly = current.monthlyTotal ?? 0;
+  // ‼ C6 (177): withVat מגיע מהשדה הקפוא על ההתקשרות — מה שהלקוח ראה וחתם
+  // עליו בפועל, בלי תלות בשיעור המע"מ הנוכחי. התקשרות שקדמה למיגרציה
+  // (השדה ריק) מקבלת הערכה חיה, מסומנת בפירוש כהערכה ולא כמה שנחתם.
+  const monthlyWithVat = current.monthlyTotalWithVat
+    ?? (current.vatRateAtSigning != null ? round2(monthly * (1 + current.vatRateAtSigning / 100)) : null);
+  const monthlyWithVatIsEstimate = current.monthlyTotalWithVat == null;
 
   return (
     <div className="cw-tabpanel ap">
@@ -194,7 +200,12 @@ export default function AgreementPaymentsTab({
       <div className="ap-label">התקשרות נוכחית</div>
       <div className="ap-amount">
         <span className="ap-amount-num">{formatILS(monthly)}</span>
-        <span className="ap-amount-vat">לחודש + מע״מ</span>
+        <span className="ap-amount-vat">
+          לחודש + מע״מ
+          {monthlyWithVat != null && (
+            <> {'— '}{monthlyWithVatIsEstimate ? '≈' : ''}{formatILS(monthlyWithVat)} בפועל</>
+          )}
+        </span>
       </div>
       {priced.length > 0 && (
         <div className="ap-what">

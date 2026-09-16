@@ -215,7 +215,11 @@ export function computeAuthorityFlags(
       actions: ['task'],
       taskTitle: 'טיפול בפסילת ניהול ספרים',
     });
-  } else if (client.bookStatus === 'unknown') {
+  } else if (!client.bookStatus || client.bookStatus === 'unknown') {
+    // ‼ T6 (180): "מעולם לא נבדק" (undefined) ו-"נבדק ותוצאתו לא ידועה"
+    // ('unknown') הם אותו מצב לכל מקום אחר שקורא bookStatus (authorityRows,
+    // AlignmentStatusView, עריכה ב-TaxNITab) — כאן לבד רק 'unknown' המפורש
+    // הפעיל את הדגל, וכרטיס חדש (undefined) לא קיבל אף תזכורת לברר.
     flags.push({
       key: 'bookStatusUnknown',
       severity: 'medium',
