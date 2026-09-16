@@ -71,7 +71,7 @@ import {
 import EmailInput from '../ui/EmailInput';
 import InfoLines from '../ui/InfoLines';
 import NiInstructionsDialog from '../NiInstructionsDialog';
-import PrerequisiteGate from '../PrerequisiteGate';
+import PrerequisiteGate, { type PrerequisitePerson } from '../PrerequisiteGate';
 
 interface Props {
   clientId: string;
@@ -1285,10 +1285,19 @@ export default function OnboardingTab({
                       firstName: client.firstName, lastName: client.lastName, idNumber: client.idNumber,
                       birthDate: client.birthDate,
                     }}
-                    currentEmail={(subjectRole === 'spouse' ? client.spouseEmail : client.email) || ''}
-                    onSaveEmail={async email => {
+                    client={{
+                      role: 'client',
+                      name: `${client.firstName ?? ''} ${client.lastName ?? ''}`.trim() || 'הלקוח',
+                      email: client.email || '',
+                    }}
+                    spouse={{
+                      role: 'spouse',
+                      name: `${client.spouseFirstName ?? ''} ${client.spouseLastName ?? ''}`.trim() || client.spouseName || 'בן/בת הזוג',
+                      email: client.spouseEmail || '',
+                    }}
+                    onSaveEmail={async (role, email) => {
                       if (!onUpdateClientFields) return;
-                      await onUpdateClientFields(subjectRole === 'spouse' ? { spouseEmail: email } : { email });
+                      await onUpdateClientFields(role === 'spouse' ? { spouseEmail: email } : { email });
                     }}
                     onChanged={() => refresh?.()}
                     menu={menu}
@@ -3011,7 +3020,7 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
  */
 function AuthorityRepresentationStepCard({
   step, stepById, highlight, track, onSendInstructions,
-  currentValues, currentEmail, onSaveEmail, onChanged, menu,
+  currentValues, client, spouse, onSaveEmail, onChanged, menu,
 }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
@@ -3019,8 +3028,9 @@ function AuthorityRepresentationStepCard({
   track?: NiTracking;
   onSendInstructions: () => void;
   currentValues: Record<string, string | undefined>;
-  currentEmail: string;
-  onSaveEmail: (email: string) => Promise<void>;
+  client: PrerequisitePerson;
+  spouse: PrerequisitePerson;
+  onSaveEmail: (role: 'client' | 'spouse', email: string) => Promise<void>;
   onChanged: () => void;
   menu: React.ReactNode;
 }) {
@@ -3031,7 +3041,7 @@ function AuthorityRepresentationStepCard({
 
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}>
-      <PrerequisiteGate step={step} currentValues={currentValues} currentEmail={currentEmail}
+      <PrerequisiteGate step={step} currentValues={currentValues} client={client} spouse={spouse}
         onSaveEmail={onSaveEmail} onChanged={onChanged}>
         <div style={cardNote}>
           {track?.confirmedAt

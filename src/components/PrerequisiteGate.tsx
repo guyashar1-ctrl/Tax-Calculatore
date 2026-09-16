@@ -1,6 +1,6 @@
 // ─── שער תנאי-קדם — מקור יחיד לגזירה ולפעולה ────────────────────────────────
-// docs/PLAN-REQUEST-PREREQUISITES-INFORMATION-COLLECTION.md (165). עוטף כל
-// משטח שמציע פעולת ביצוע לבקשת ייצוג-ברשות — כרטיס «בקשות» (OnboardingTab)
+// docs/PLAN-REQUEST-PREREQUISITES-INFORMATION-COLLECTION.md (165, 167). עוטף
+// כל משטח שמציע פעולת ביצוע לבקשת ייצוג-ברשות — כרטיס «בקשות» (OnboardingTab)
 // **וגם** מרכז ביצוע הייצוג (RepresentationExecutionCenter): כל עוד
 // step.payload.prerequisites.missing לא ריק, ה-children (פקדי הביצוע עצמם —
 // הזנה בפורטל, אסמכתא, מועד, שליחת הוראות אישור) לא מוצגים בכלל, רק המסך
@@ -10,11 +10,15 @@
 // (הנגזר בשרת) ושתי הפעולות הקיימות: complete_request_prerequisites (RPC)
 // ו-ParticipantLinkDialog (קישור-משתתף). מסך שני שרוצה לאכוף את הגבול הזה
 // עוטף את הפקדים שלו כאן ולא מממש שוב את הגזירה/הטופס/הדיאלוג.
+//
+// ‼ 167 (נמען ≠ בעלות): הבקשה שייכת תמיד לכרטיס הבעלים; הנושא (subjectRole)
+// הוא של מי הפרטים, לא משתנה לעולם. קישור-המשתתף יכול להישלח לנושא עצמו או
+// לבעל הכרטיס (שממלא במקומו/ה) — זו רק כתובת אחרת לאותה עבודה בדיוק, ולכן
+// שני האנשים (client/spouse) מועברים לכאן ומטה, לא רק "מי שממלא".
 
 import { useState } from 'react';
 import type { ReactNode, CSSProperties } from 'react';
 import { isStepOpen, type OnboardingStep } from '../types/onboarding';
-import type { PersonRole } from '../types';
 import { supabase } from '../lib/supabase';
 import ParticipantLinkDialog from './ParticipantLinkDialog';
 
@@ -32,7 +36,17 @@ const PREREQUISITE_FIELD_KIND: Record<string, 'text' | 'idNumber' | 'year' | 'da
 interface StepPrerequisites {
   missing?: string[];
   required?: string[];
-  link?: { sentAt?: string | null; openedAt?: string | null; expiresAt?: string | null } | null;
+  link?: {
+    sentAt?: string | null; openedAt?: string | null; expiresAt?: string | null;
+    recipientRole?: 'client' | 'spouse' | null;
+  } | null;
+}
+
+/** זהות אדם על הכרטיס — לתצוגה, לברירת נמען, ולשמירת מייל. */
+export interface PrerequisitePerson {
+  role: 'client' | 'spouse';
+  name: string;
+  email: string;
 }
 
 const noteStyle: CSSProperties = { fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 };
@@ -41,15 +55,18 @@ interface Props {
   step: OnboardingStep;
   /** ערכי השדות הקנוניים הקיימים היום — למילוי מראש של הטופס. */
   currentValues: Record<string, string | undefined>;
-  currentEmail: string;
-  onSaveEmail: (email: string) => Promise<void>;
+  /** בעל הכרטיס — נמען אפשרי גם כשהנושא הוא בן/בת הזוג. */
+  client: PrerequisitePerson;
+  /** בן/בת הזוג — נמען אפשרי כשהוא/היא הנושא. חסר/ריק כשאין בן/בת זוג בכלל. */
+  spouse: PrerequisitePerson;
+  onSaveEmail: (role: 'client' | 'spouse', email: string) => Promise<void>;
   /** נקרא אחרי שמירה מוצלחת (משרד) או פתיחת/סגירת קישור-משתתף — לרענון המסך. */
   onChanged?: () => void;
   /** פקדי הביצוע עצמם — מוצגים רק כשאין תנאי-קדם חסרים. */
   children: ReactNode;
 }
 
-export default function PrerequisiteGate({ step, currentValues, currentEmail, onSaveEmail, onChanged, children }: Props) {
+export default function PrerequisiteGate({ step, currentValues, client, spouse, onSaveEmail, onChanged, children }: Props) {
   const open = isStepOpen(step.status);
   const prereqs = step.payload?.prerequisites as StepPrerequisites | undefined;
   const missing = prereqs?.missing ?? [];
@@ -64,8 +81,16 @@ export default function PrerequisiteGate({ step, currentValues, currentEmail, on
 
   if (!gated) return <>{children}</>;
 
-  const subjectRole: PersonRole = step.payload?.subjectRole === 'spouse' ? 'spouse' : 'client';
-  const subjectName = String(step.payload?.subjectName ?? 'הנושא');
+  const subjectRole: 'client' | 'spouse' = step.payload?.subjectRole === 'spouse' ? 'spouse' : 'client';
+  const subject = subjectRole === 'spouse' ? spouse : client;
+  const subjectName = subject.name || String(step.payload?.subjectName ?? 'הנושא');
+  // ‼ 167: נמען אפשרי שני קיים רק כשהנושא הוא בן/בת הזוג — כשהנושא הוא בעל
+  // הכרטיס עצמו, אין "עוד מישהו" לבחור, וזה בדיוק מה שהיה לפני 167.
+  const recipients: PrerequisitePerson[] = subjectRole === 'spouse' ? [spouse, client] : [client];
+
+  const linkRecipientRole = prereqs?.link?.recipientRole ?? subjectRole;
+  const sentToSubject = linkRecipientRole === subjectRole;
+  const recipientPerson = linkRecipientRole === 'spouse' ? spouse : client;
 
   function startFilling() {
     setValues(Object.fromEntries(required.map(k => [k, currentValues[k] ?? ''])));
@@ -95,7 +120,10 @@ export default function PrerequisiteGate({ step, currentValues, currentEmail, on
       </div>
       {prereqs?.link?.sentAt && !filling && (
         <div style={{ ...noteStyle, marginTop: '.25rem' }}>
-          {`נשלח קישור ל${subjectName} · ${new Date(prereqs.link.sentAt).toLocaleDateString('he-IL')}${prereqs.link.openedAt ? ' · נפתח' : ''} — טרם הוגש.`}
+          {sentToSubject
+            ? `נשלח ל${subjectName} להשלמת הפרטים שלו/שלה`
+            : `נשלח ל${recipientPerson.name || 'הנמען'} להשלמת הפרטים של ${subjectName}`}
+          {` · ${new Date(prereqs.link.sentAt).toLocaleDateString('he-IL')}${prereqs.link.openedAt ? ' · נפתח' : ''} — טרם הוגש.`}
         </div>
       )}
 
@@ -105,7 +133,7 @@ export default function PrerequisiteGate({ step, currentValues, currentEmail, on
             מלא פרטים עכשיו
           </button>
           <button type="button" className="btn btn-sm btn-secondary" onClick={() => setLinkOpen(true)}>
-            {prereqs?.link?.sentAt ? 'שלח שוב' : `שלח ל${subjectName} להשלמת פרטים`}
+            {prereqs?.link?.sentAt ? 'שלח שוב' : 'שלח להשלמת פרטים'}
           </button>
         </div>
       )}
@@ -138,12 +166,13 @@ export default function PrerequisiteGate({ step, currentValues, currentEmail, on
 
       {linkOpen && (
         <ParticipantLinkDialog
-          personName={subjectName}
-          personRole={subjectRole}
+          subjectName={subjectName}
+          subjectRole={subjectRole}
           missingLabels={missing.map(k => PREREQUISITE_FIELD_LABELS[k] ?? k)}
           requestId={String(step.payload?.representationRequestId ?? '')}
           stepId={step.id}
-          currentEmail={currentEmail}
+          recipients={recipients}
+          defaultRecipientRole={linkRecipientRole}
           onSaveEmail={onSaveEmail}
           onClose={() => setLinkOpen(false)}
           onDone={() => { setLinkOpen(false); onChanged?.(); }}
