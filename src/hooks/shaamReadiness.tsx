@@ -19,11 +19,14 @@
 //   · GLOBAL — הכותרת היא סיכום, לא תלות: כל הרשויות מוכנות ליום עבודה.
 // ראה docs/PIVO-AUTOMATION-FOUNDATION.html לניתוח המלא של ההפרדה הזאת.
 //
-// ‼ הכללים, במקום אחד:
-//   · מוכנות **גלובלית** (הנורית בכותרת) = ארבע השכבות מוכנות **וגם**
-//     פעימת הלב טרייה.
+// ‼ הכללים, במקום אחד (עודכן 16.09.2026 — תיקון מוצר: הנורית לא ממתינה
+// יותר להכנת כל היכולות):
+//   · מוכנות **גלובלית** (הנורית בכותרת) = פורטל מחובר **וגם** החיבור הטרי
+//     הזה עבר את שער GMF (status.shaam.bootstrapped — דגל מחזור-חיים
+//     שהצופה מאפס כשהחלון נסגר), וגם פעימת הלב טרייה. מע״מ/מגן/ייצוג
+//     מוכנות **בנפרד** (warmupSummary למטה) ואינן חוסמות את הנורית.
 //   · מוכנות **ליכולת** נגזרת מ-SHAAM_CAPABILITIES: רק השכבות שהפעולה
-//     הזאת מצהירה עליהן, לא כל הארבע.
+//     הזאת מצהירה עליהן — בלתי תלוי בנורית הגלובלית.
 //   · פעימת לב ישנה מ-WORKER_STALE_AFTER_MS ⇒ לא מוכן. מצב לא ידוע אינו
 //     ירוק. אותו עיקרון חל **לכל שכבת GMF/מע״מ/מגן בנפרד**: מדידה ישנה
 //     מ-SUBSYSTEM_STALE_AFTER_MS (checkedAt) נחשבת "לא ידוע" גם אם
@@ -57,11 +60,13 @@ const freshLayer = (layer?: { ready: boolean; checkedAt?: string }): boolean => 
 export type ShaamLayer = 'portal' | 'gmf' | 'vat' | 'nikui' | 'representation';
 
 /**
- * 168: רשימת ברירת המחדל של warm-up, וגם סדר העדיפות שלו. ‼ ready הגלובלי
- * (הנורית בכותרת) נגזר מהרשימה שהמשרד **בחר** להכין (profiles.settings.
- * shaamWarmup.capabilities) — לא מ-ARBEIT קשיח של כל הארבע. הסרה מהרשימה
- * פירושה "לא להכין מראש", לא "לא זמינה" — capability() למטה לא תלויה בבחירה
- * הזאת בכלל, ראה פרק 16 §16.1.
+ * 168: רשימת ברירת המחדל של warm-up, וגם סדר העדיפות שלו — לתצוגת ה-N/M
+ * בפירוט הכפתור (warmupSummary) בלבד. ‼ מאז התיקון (16.09.2026): הנורית
+ * הגלובלית **אינה** נגזרת מהרשימה הזו יותר — היא נגזרת מפורטל + bootstrap
+ * ב-GMF (ready למטה). הרשימה שהמשרד בחר (profiles.settings.shaamWarmup.
+ * capabilities) קובעת רק אילו יכולות מוצגות בסיכום ההכנה, לא את הירוק.
+ * הסרה מהרשימה פירושה "לא להציג בסיכום", לא "לא זמינה" — capability()
+ * למטה לא תלויה בבחירה הזאת בכלל, ראה פרק 16 §16.1.
  */
 export const DEFAULT_WARMUP_LAYERS: ShaamLayer[] = ['gmf', 'vat', 'nikui', 'representation'];
 
@@ -214,7 +219,7 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
     setStatus(prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     const verdict = [
       stale, freshLayer(next.gmf), freshLayer(next.vat), freshLayer(next.nikui), freshLayer(next.representation),
-      !!next.shaam?.connected, !!next.btl?.connected,
+      !!next.shaam?.connected, !!next.shaam?.bootstrapped, !!next.btl?.connected,
     ].join('|');
     if (verdict !== verdictRef.current) {
       verdictRef.current = verdict;
@@ -269,15 +274,18 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
       btl: !workerOffline && !!status.btl?.connected,
     };
 
-    // ‼ 168/פרק 16 §16.4: מוכנות גלובלית נמדדת מול הרשימה **שנבחרה** להכנה
-    // (selectedLayers), לא מול ארבע קבועות. פורטל תמיד נדרש — הוא הבסיס
-    // שכל השאר תלוי בו; שאר השכבות רק אם המשרד בחר להכין אותן.
+    // ‼ תיקון מוצר (16.09.2026): הנורית הגלובלית = פורטל + bootstrap ב-GMF
+    // של החיבור הטרי (דגל מחזור-חיים מהצופה, בלי התיישנות שעון — אחרת
+    // הירוק היה נופל 10 דקות אחרי שהצופה עבר למע״מ). מע״מ/מגן/ייצוג הן
+    // "מוכנות ליכולת" ולא תנאי לחיבור — ראה ההערה הראשית. warmupLayers/
+    // warmupSummary נשארים לתצוגת "N מתוך M" בפירוט הכפתור — לא קלט ל-ready.
+    const bootstrapped = !!status.shaam?.bootstrapped;
     const warmupLayers = selectedLayers.length ? selectedLayers : DEFAULT_WARMUP_LAYERS;
-    const ready = !workerOffline && shaam && warmupLayers.every(l => LAYER_OK[l]);
+    const ready = !workerOffline && shaam && bootstrapped;
 
-    const firstMissing = (['portal', ...warmupLayers] as ShaamLayer[]).find(l => !LAYER_OK[l]);
     const blockedReason = workerOffline ? WORKER_OFF
-      : firstMissing !== undefined ? LAYER_REASON[firstMissing]
+      : !shaam ? LAYER_REASON.portal
+      : !bootstrapped ? LAYER_REASON.gmf
       : null;
 
     const warmupSummary = {

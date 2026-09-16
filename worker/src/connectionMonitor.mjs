@@ -5,14 +5,15 @@
 // וביטוח לאומי (פורט 9223). נורית אחת לכל אחת, ואף אחת לא מדברת על השנייה.
 //
 // ── שע״ם ──
-// ‼ ארבע שכבות, ו"ירוק" (מוכנות **גלובלית**, זו שבכותרת) פירושו שכולן
-// מוכנות בו-זמנית:
-//   1. פורטל שע״ם — כרטיס חכם + PIN. גם ה-bootstrap: דרכו נולד סשן השער
-//      (NS_ID, ~12 שעות) שממנו נולדים סשני שאר המערכות.
-//   2. מערכת גביית מס הכנסה (GMF).
-//   3. מע״מ.
-//   4. מגן — ניכויים.
-// ירוק שמסתמך רק על הראשונה היה שולח כל אוטומציה היישר לקיר סיסמה.
+// ‼ חמש שכבות נמדדות; "ירוק" (הנורית בכותרת) = **1 + 2 בלבד**, באותו
+// מחזור חיים של חלון (תיקון מוצר 16.09.2026 — ראה resetShaamLifecycle):
+//   1. פורטל שע״ם — כרטיס חכם + PIN. דרכו נולד סשן השער (NS_ID, ~12 שעות).
+//   2. מערכת גביית מס הכנסה (GMF) — ה-bootstrap: הסיסמה המשנית שלה משותפת
+//      עם מע״מ, ומעבר השער הזה הוא ההוכחה שהחיבור שמיש.
+//   3. מע״מ · 4. מגן · 5. ייצוג — יכולות עצמאיות, מתגלות ברקע ומובטחות
+//      נקודתית כשפעולה זקוקה להן. אינן תנאי לירוק.
+// ירוק שמסתמך רק על הראשונה היה שולח כל אוטומציה היישר לקיר סיסמה; ירוק
+// שדורש את כל החמש המתין לניווט מיותר בארבע מערכות.
 //
 // ‼ **מוכנות גלובלית ≠ מוכנות ליכולת בודדת.** לכל תת-מערכת (myz/gmf/
 // emhan/nik) יש סשן אפליקציה משלה, והם יכולים להתפצל בשני הכיוונים —
@@ -58,7 +59,7 @@
 
 import {
   attach, detach, classifyShaamAuth, probeServerSession,
-  readGmfOnCurrentPage, openGmfAndCheck,
+  readGmfOnCurrentPage, openGmfAndCheck, readGmfLoginForm, attemptGmfLoginConfirm,
   readVatOnCurrentPage, openVatAndCheck,
   readNikuiOnCurrentPage, openNikuiAndCheck,
   readRepresentationOnCurrentPage, openRepresentationAndCheck,
@@ -89,6 +90,22 @@ let gmfCheckedAtMs = 0;
 let vatCheckedAtMs = 0;
 let nikuiCheckedAtMs = 0;
 let representationCheckedAtMs = 0;
+
+/**
+ * ‼ תיקון מוצר (16.09.2026): "מחובר" ירוק = חיבור **טרי** שעבר את שער GMF
+ * (bootstrapped = פורטל חי **וגם** GMF נמדדה מאומתת באותו מחזור חיים).
+ * מחזור חיים נגמר כשהחלון הייעודי נסגר (attach⇒not_running) או כשהשרת
+ * אישר שסשן הפורטל פג — ואז כל עדות על תת-המערכות נמחקת, כדי ש"GMF מוכנה"
+ * מהבוקר לא תדליק ירוק על חיבור חדש שעוד לא הוכיח את עצמו. בלי האיפוס
+ * הזה הדגלים כאן שרדו סגירת חלון (נבדק בקוד: אין else שמאפס אותם), ושער
+ * `if (!gmf)` למטה גם לא היה בודק את GMF מחדש בחלון החדש.
+ */
+function resetShaamLifecycle(log, why) {
+  const hadEvidence = gmfReported || vatReported || nikuiReported || representationReported;
+  gmfReported = null; vatReported = null; nikuiReported = null; representationReported = null;
+  gmfCheckedAtMs = 0; vatCheckedAtMs = 0; nikuiCheckedAtMs = 0; representationCheckedAtMs = 0;
+  if (hadEvidence) log(`מחזור חיים חדש של שע״ם (${why}) — עדות תת-המערכות אופסה, GMF תוכח מחדש`);
+}
 
 /**
  * הנורית של ביטוח לאומי — חלון נפרד, פורט נפרד, סשן נפרד משע״ם.
@@ -130,12 +147,16 @@ export async function tickConnectionMonitor(userId, workerId, log) {
   lastCheck = now;
 
   let shaam = false;
+
+  const conn = await attach();
+  // ‼ חלון סגור = סוף מחזור החיים. 'blocked' (דיאלוג אישור פתוח) אינו סגירה.
+  if (!conn.ok && conn.reason === 'not_running') resetShaamLifecycle(log, 'החלון הייעודי סגור');
+
   let gmf = gmfReported ?? false;
   let vat = vatReported ?? false;
   let nikui = nikuiReported ?? false;
   let representation = representationReported ?? false;
 
-  const conn = await attach();
   if (conn.ok) {
     try {
       // ‼ הבדיקה המקומית יכולה רק **להעלות** ל"מחובר", לעולם לא להוריד:
@@ -151,6 +172,11 @@ export async function tickConnectionMonitor(userId, workerId, log) {
         if (probe.ok) {
           shaam = probe.authenticated;
           log(`בדיקת סשן פורטל: ${probe.authenticated ? 'חי' : 'פג'} · ${probe.detail}`);
+          // ‼ רק אישור **מהשרת** שהסשן פג פותח מחזור חיים חדש — לא כשל רשת.
+          if (!probe.authenticated && shaamReported) {
+            resetShaamLifecycle(log, 'סשן הפורטל פג בצד השרת');
+            gmf = false; vat = false; nikui = false; representation = false;
+          }
         } else {
           log(`בדיקת סשן פורטל נכשלה: ${probe.detail}`);
         }
@@ -162,7 +188,19 @@ export async function tickConnectionMonitor(userId, workerId, log) {
       // נמדד עכשיו, גם כשהפורטל דיווח "מנותק" (חומת OTP, סשן שער שפג).
       // רק "לא על המערכת בכלל" (ready===null) אינו מדידה, ואז נשאר הערך
       // האחרון שנמדד בפועל.
-      const onGmf = await readGmfOnCurrentPage(conn.page);
+      let onGmf = await readGmfOnCurrentPage(conn.page);
+      // ‼ הלשונית עומדת על מסך הכניסה של GMF והשדה כבר מולא (הרו"ח בחר את
+      // ההצעה של Chrome או הקליד) — PIVO משלימה את הלחיצה על «כניסה» פעם
+      // אחת. זה מה שהופך "בחרתי בחלונית" ל-ירוק גם אחרי שה-job כבר עבר
+      // ל-needs_human. בוליאני בלבד; מודאל (החלפת סיסמה/OTP) = לא נוגעים.
+      if (onGmf.onGmf && onGmf.ready === false && onGmf.reason === 'login_required') {
+        const form = await readGmfLoginForm(conn.page);
+        if (form.onLogin && form.hasValue && !form.humanOnlyModal) {
+          const confirm = await attemptGmfLoginConfirm(conn.page);
+          log(`אישור כניסה ל-GMF אחרי שהשדה מולא: ${confirm.ok ? 'הצליח' : `לא אושר (${confirm.reason})`}`);
+          onGmf = await readGmfOnCurrentPage(conn.page);
+        }
+      }
       const onVat = await readVatOnCurrentPage(conn.page);
       const onNikui = await readNikuiOnCurrentPage(conn.page);
       const onRepresentation = await readRepresentationOnCurrentPage(conn.page);
@@ -245,8 +283,10 @@ export async function tickConnectionMonitor(userId, workerId, log) {
   // שהיא כותבת את הסטטוס הטרי הזה, את ה-needs_human jobs ששייכים לאותו
   // worker_id ומחדשת את מה שהתפנה. אין כאן זיכרון תוך-תהליכי: worker_id
   // קבוע להתקנה, ולכן זהות "אותו worker" שורדת הפעלה מחדש. ראה 170.
+  // ‼ bootstrapped = הנורית בכותרת. דגל מחזור-חיים, לא מדידה עם שעון: נשאר
+  // true גם כשהלשונית עברה למע״מ/מגן, ומתאפס רק ב-resetShaamLifecycle.
   const statusResult = await reportStatus(userId, workerId, {
-    shaam: { connected: shaam, checkedAt: at },
+    shaam: { connected: shaam, bootstrapped: shaam && gmf, checkedAt: at },
     gmf: { ready: gmf, checkedAt: stamp(gmfCheckedAtMs) },
     vat: { ready: vat, checkedAt: stamp(vatCheckedAtMs) },
     nikui: { ready: nikui, checkedAt: stamp(nikuiCheckedAtMs) },

@@ -11,6 +11,7 @@ import {
   openGmfAndCheck, openVatAndCheck, openNikuiAndCheck,
   openRepresentationAndCheck, attemptRepresentationLoginConfirm,
   readGmfOnCurrentPage, readVatOnCurrentPage, readNikuiOnCurrentPage, readRepresentationOnCurrentPage,
+  readGmfLoginForm, focusGmfLoginField, attemptGmfLoginConfirm,
   ensureWithBoundedRecovery,
   isOnWorkScreen,
 } from './browserSession.mjs';
@@ -27,7 +28,7 @@ export const HUMAN_REASON = {
 };
 
 export const HUMAN_MESSAGE = {
-  gmf: 'מערכת גביית מס הכנסה מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם לבד.',
+  gmf: 'מערכת גביית מס הכנסה מבקשת סיסמה. בחלון שע״ם: בחרו את הסיסמה השמורה בחלונית של Chrome, או הקלידו אותה (ושמרו ב-Chrome) — ואמשיך משם לבד.',
   vat: 'מע״מ מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם לבד.',
   nikui: 'מגן (ניכויים) מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם לבד.',
   representation: 'מערכת רישום הייצוג מבקשת התחברות נפרדת משלה. השלימו אותה בחלון שע״ם, ואמשיך משם לבד.',
@@ -49,10 +50,46 @@ function mapLegacyResult(r) {
  * הוא בדיוק אותה openXAndCheck שכבר קיימת; readCurrent הוא הקריאה הזולה
  * הקיימת. שום שינוי בלוגיקת הסיווג של gmfState/vatState/nikuiState עצמן.
  */
-async function ensureGmf(page) {
+/**
+ * ‼ GMF היא ה-bootstrap של החיבור (תיקון מוצר 16.09.2026): "מחובר לשע״ם"
+ * ירוק רק אחרי שהחיבור הטרי הזה נכנס ל-GMF. מסך הכניסה שלה נצפה חי — ראה
+ * browserSession.mjs (readGmfLoginForm): Chrome לא ממלא לבד; הוא מציע את
+ * הסיסמה השמורה בחלונית מקומית כשהשדה בפוקוס, והבחירה בה (או הקלדה בפעם
+ * הראשונה) היא של הרו"ח. PIVO: ממקדת את השדה, ממתינה זמן קצוב לעדות
+ * בוליאנית שהשדה מולא, ואז לוחצת «כניסה» פעם אחת ומאמתת את התפריט.
+ * לעולם לא קוראת/מקלידה את הערך, ולא נוגעת בחלונית של Chrome או במודאלים.
+ */
+const GMF_FILL_WAIT_MS = 25_000;
+const GMF_FILL_POLL_MS = 1_000;
+
+export async function ensureGmf(page, { waitForFillMs = GMF_FILL_WAIT_MS } = {}) {
   const initial = await openGmfAndCheck(page);
   const r = await ensureWithBoundedRecovery(page, { initial, readCurrent: readGmfOnCurrentPage, reopen: openGmfAndCheck });
-  return mapLegacyResult(r);
+  if (r.ready) return { state: 'ready', reasonCode: r.reason, evidenceKind: 'dom_state' };
+  if (r.reason !== 'login_required') return mapLegacyResult(r);
+
+  const form = await readGmfLoginForm(page);
+  if (form.humanOnlyModal) {
+    return { state: 'human_required', reasonCode: 'human_only_modal', evidenceKind: 'dom_state' };
+  }
+  if (!form.hasValue) {
+    await focusGmfLoginField(page);
+    const deadline = Date.now() + waitForFillMs;
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(GMF_FILL_POLL_MS);
+      const f = await readGmfLoginForm(page);
+      if (!f.onLogin) break; // הרו"ח כבר שלח בעצמו (Enter) — נבדוק את היעד למטה
+      if (f.humanOnlyModal) return { state: 'human_required', reasonCode: 'human_only_modal', evidenceKind: 'dom_state' };
+      if (f.hasValue) break;
+    }
+  }
+
+  const now = await readGmfOnCurrentPage(page);
+  if (now.ready === true) return { state: 'ready', reasonCode: now.reason, evidenceKind: 'dom_state' };
+
+  const confirm = await attemptGmfLoginConfirm(page);
+  if (confirm.ok) return { state: 'ready', reasonCode: 'confirmed_fill', evidenceKind: 'dom_state' };
+  return { state: 'human_required', reasonCode: confirm.reason ?? 'login_required', evidenceKind: 'dom_state' };
 }
 async function ensureVat(page) {
   const initial = await openVatAndCheck(page);

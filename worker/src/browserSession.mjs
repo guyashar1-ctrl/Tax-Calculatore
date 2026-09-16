@@ -1066,6 +1066,95 @@ export async function isOnWorkScreen(page) {
   return /^\/gmf-(?!main-menu)/.test(s.pathname);
 }
 
+// ─── מסך הכניסה של GMF — נצפה חי (16.09.2026) ─────────────────────────────
+// ‼ נתיב /gmf-main-menu/login. שם המשתמש הוא **טקסט** (מהכרטיס), לא שדה.
+// שדה יחיד: input#pass בתוך <app-password-input>. כפתור "עין" הופך אותו
+// ל-type=text, ולכן מאתרים אותו לפי #pass ולא לפי input[type=password].
+// ‼ Chrome **לא** ממלא את השדה בטעינה (טופס סיסמה-בלבד): הוא פותח חלונית
+// הצעה מקומית רק כשהשדה בפוקוס, והבחירה בה היא מחווה של אדם. חלונית זו
+// אינה DOM — לחיצות/מקשים דרך CDP לא מגיעים אליה (לחיצה בקואורדינטות שלה
+// נפלה על הדף שמתחת ופתחה את "החלפת סיסמה"). לכן: PIVO רק ממקדת את
+// השדה, ממתינה לעדות בוליאנית שהוא מולא, ולוחצת «כניסה» פעם אחת.
+// ‼ מודאל עם שדות סיסמה (למשל «החלפת סיסמה», 3 שדות) = מצב לאדם בלבד.
+export const GMF_LOGIN_PATH = '/gmf-main-menu/login';
+export const GMF_MENU_PATH = '/gmf-main-menu/main';
+const GMF_PASS_SELECTOR = '#pass, app-password-input input';
+
+/**
+ * עובדות בוליאניות/מבניות בלבד על טופס הכניסה של GMF. לעולם לא הערך.
+ */
+export async function readGmfLoginForm(page) {
+  try {
+    return await page.evaluate((sel) => {
+      const onLogin = location.pathname.startsWith('/gmf-main-menu/login');
+      const pw = document.querySelector(sel);
+      const modal = [...document.querySelectorAll('.modal.d-block, .modal.show, [role=dialog]')]
+        .find((m) => { const r = m.getBoundingClientRect(); return r.width >= 50 && r.height >= 50; });
+      const form = pw?.closest('form') ?? null;
+      const visibleSubmits = form
+        ? [...form.querySelectorAll('button[type=submit]')].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
+        : [];
+      return {
+        onLogin,
+        hasField: !!pw,
+        hasValue: !!pw && !!pw.value && pw.value.length > 0,
+        hasForm: !!form,
+        visibleSubmits: visibleSubmits.length,
+        humanOnlyModal: !!modal,
+        modalTitle: modal ? (modal.innerText || '').trim().split('\n')[0].slice(0, 60) : null,
+      };
+    }, GMF_PASS_SELECTOR);
+  } catch {
+    return { onLogin: false, hasField: false, hasValue: false, hasForm: false, visibleSubmits: 0, humanOnlyModal: false, modalTitle: null };
+  }
+}
+
+/**
+ * מביא את החלון לחזית וממקד את #pass — זה מה שגורם ל-Chrome להציג את
+ * הצעת הסיסמה השמורה. לא מקליד דבר. נצפה: בלי חלון בחזית החלונית לא נפתחת.
+ */
+export async function focusGmfLoginField(page) {
+  try { await page.bringToFront(); } catch { /* לא קריטי */ }
+  const f = await readGmfLoginForm(page);
+  if (!f.onLogin || !f.hasField || f.humanOnlyModal) return false;
+  await page.click(GMF_PASS_SELECTOR.split(',')[0], { timeout: 5000 }).catch(() => {});
+  return true;
+}
+
+/**
+ * ‼ אישור יחיד של טופס הכניסה של GMF, רק אחרי שכל התנאים אומתו: על נתיב
+ * הכניסה, #pass קיים **ומולא** (בוליאני — ע"י הרו"ח או ע"י בחירתו בהצעת
+ * Chrome), אין מודאל, וב-form של השדה יש בדיוק כפתור submit אחד גלוי
+ * («כניסה»; «פתיחה» באותו form אינו גלוי). אומת חי פעמיים: הלחיצה נחתה
+ * על /gmf-main-menu/main/home בלי מודאל. תוצאה לא-חיובית לא מנוסה שוב.
+ */
+export async function attemptGmfLoginConfirm(page) {
+  const f = await readGmfLoginForm(page);
+  if (!f.onLogin) return { ok: false, reason: 'not_on_login' };
+  if (f.humanOnlyModal) return { ok: false, reason: 'human_only_modal', detail: f.modalTitle };
+  if (!f.hasField) return { ok: false, reason: 'no_password_field' };
+  if (!f.hasValue) return { ok: false, reason: 'password_not_filled' };
+  if (!f.hasForm) return { ok: false, reason: 'no_form' };
+  if (f.visibleSubmits !== 1) return { ok: false, reason: 'submit_ambiguous', detail: String(f.visibleSubmits) };
+
+  const clicked = await page.evaluate((sel) => {
+    const pw = document.querySelector(sel);
+    const form = pw?.closest('form');
+    const btn = form && [...form.querySelectorAll('button[type=submit]')]
+      .find((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+    if (!btn) return false;
+    btn.click();
+    return true;
+  }, GMF_PASS_SELECTOR).catch(() => false);
+  if (!clicked) return { ok: false, reason: 'click_failed' };
+
+  await page.waitForURL((u) => new URL(u).pathname.startsWith(GMF_MENU_PATH), { timeout: 15000 }).catch(() => {});
+  const s = await settlePage(page, { idleMs: 10000, watchMs: 3000 });
+  const after = await gmfStateOnPage(page, s);
+  if (after.ready) return { ok: true, reason: 'confirmed' };
+  return { ok: false, reason: after.reason ?? 'not_confirmed' };
+}
+
 /**
  * ‼ חומת אימות = **לא מוכנה**, גם כשהנתיב תקין ואין שדה סיסמה.
  *

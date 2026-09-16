@@ -1,20 +1,23 @@
 // shaamConnect.mjs — מה שקורה כשהרו"ח לוחץ "התחבר לשע״ם" בכותרת של PIVO.
 //
-// ‼ "מחובר" פירושו **הסביבה מוכנה לאוטומציה**, לא "נכנסתי לפורטל". אימות
-// בסיסי (פורטל, כרטיס חכם + PIN) מוזן ידנית ע"י הרו"ח בחלון הגלוי. אחריו,
-// PIVO מכינה אוטומטית את היכולות שנבחרו (GMF/מע״מ/מגן/ייצוג) — ראה
-// warmupManager.mjs. האוטומציה לעולם לא מקלידה אישור, PIN, OTP או סיסמה.
-//
-// ‼ פרק 16 §16.1/§16.9: לא שרשרת throw שנעצרת בראשונה שדורשת אדם. כל
-// capability נבדקת בנפרד ומדווחת בנפרד; "3 מתוך 4 מוכנות" הוא completed
-// עם outcome חלקי, לא failed. needs_human נשלח רק כשאין אף capability
-// מוכנה ואין יותר מה לבדוק ברשימה הנתונה.
+// ‼ "מחובר" (ירוק) = חיבור **טרי** שעבר שני שלבים: (1) פורטל שע״ם — כרטיס
+// חכם + PIN, ידנית בחלון הגלוי; (2) כניסה למערכת גביית מס הכנסה (GMF), שהיא
+// ה-bootstrap: הסיסמה המשנית שלה משותפת עם מע״מ, ומעבר השער הזה הוא מה
+// שהופך את הסשן ל"שמיש". תיקון מוצר (16.09.2026, נצפה חי — ראה
+// warmupManager.ensureGmf): לפני כן ה-job המתין לניווט בארבע תת-המערכות
+// לפני שדיווח הצלחה, והנורית חיכתה יותר מדי. מע״מ/מגן/ייצוג **אינן** תנאי
+// לירוק: connectionMonitor.mjs מגלה אותן ברקע (שכבה אחת בכל סבב), ופעולה
+// עסקית שזקוקה לאחת מהן מבקשת אותה נקודתית (shaam.ensure_capability).
+// סגירת החלון מאפסת את ה-bootstrap — חיבור חדש מוכיח GMF מחדש (ראה
+// resetShaamLifecycle ב-connectionMonitor.mjs).
+// האוטומציה לעולם לא מקלידה אישור, PIN, OTP או סיסמה ולא נוגעת בחלונית
+// הסיסמאות של Chrome — היא רק ממקדת את השדה ולוחצת «כניסה» אחרי שמולא.
 import {
   attach, detach, classifyShaamAuth, probeServerSession,
-  launchDedicatedChrome, focusShaamWindow,
+  launchDedicatedChrome, focusShaamWindow, readGmfOnCurrentPage,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
-import { runCapabilities, firstHumanRequired, anyReady, allSettled, DEFAULT_CAPABILITIES, HUMAN_MESSAGE } from '../warmupManager.mjs';
+import { runCapabilities, HUMAN_MESSAGE } from '../warmupManager.mjs';
 
 export const actionType = 'shaam.connect';
 
@@ -30,11 +33,7 @@ export async function preflight() {
   return { ok: true };
 }
 
-export async function run(ctx, input = {}) {
-  const capabilities = Array.isArray(input.selectedCapabilities) && input.selectedCapabilities.length
-    ? input.selectedCapabilities
-    : DEFAULT_CAPABILITIES;
-
+export async function run(ctx) {
   let conn = await attach();
 
   // ── חלון סגור: לפתוח. ──
@@ -73,25 +72,31 @@ export async function run(ctx, input = {}) {
       await focusShaamWindow(conn.page);
       throw new NeedsHumanError(SHAAM_AUTH_PENDING, 'awaiting_shaam_auth');
     }
-    ctx.log('אימות בסיסי — פורטל שע״ם: מאומת. מתחיל הכנת סביבת עבודה');
+    ctx.log('שלב 1 — פורטל שע״ם: מאומת. עובר ל-bootstrap: מערכת גביית מס הכנסה');
 
-    // ‼ אחרי אימות בסיסי — warm-up אוטומטי, בלי כפתור נוסף. אותו מנגנון
-    // בדיוק שמשמש גם שחזור נקודתי (shaamEnsureCapability.mjs).
-    const { progress } = await runCapabilities(ctx, conn.page, capabilities);
-
-    const outcome = allSettled(progress, capabilities) ? 'full' : 'partial';
-    ctx.log(`הכנת סביבת עבודה: ${outcome}`);
-
-    if (outcome === 'partial' && !anyReady(progress, capabilities)) {
-      // אף capability לא מוכנה — זו עדיין לא כשל סופי, אלא ממתין לאדם.
-      const blocking = firstHumanRequired(progress, capabilities);
-      throw new NeedsHumanError(
-        HUMAN_MESSAGE[blocking] ?? SHAAM_AUTH_PENDING,
-        blocking ? `awaiting_${blocking}_auth` : 'awaiting_shaam_auth',
-      );
+    // ── שלב 2: bootstrap ב-GMF בלבד — אותו מנגנון ensure של ensureCapability,
+    // כולל כתיבת progress עמידה (reasonCode ל-popover) וכיבוד cancel_requested.
+    // ‼ לשונית שכבר עומדת על מסך GMF מאומת (תפריט או מסך עבודה של הרו"ח)
+    // היא הוכחה — לא מנווטים ממנה; runCapabilities בכל מקרה לא נוגע במסך עבודה.
+    const onGmf = await readGmfOnCurrentPage(conn.page);
+    if (onGmf.ready === true) {
+      ctx.log(`שלב 2 — GMF כבר מאומתת בלשונית (${onGmf.reason}). החיבור מוכן`);
+      return { result: { ready: true, system: 'shaam', bootstrap: 'gmf' } };
     }
+    const { progress } = await runCapabilities(ctx, conn.page, ['gmf']);
+    const gmf = progress?.capabilities?.gmf;
 
-    return { result: { ready: outcome === 'full', outcome, progress, system: 'shaam' } };
+    if (gmf?.state === 'ready') {
+      ctx.log(`שלב 2 — GMF: מאומתת (${gmf.reasonCode}). החיבור מוכן`);
+      return { result: { ready: true, system: 'shaam', bootstrap: 'gmf' } };
+    }
+    if (gmf?.state === 'human_required') {
+      throw new NeedsHumanError(HUMAN_MESSAGE.gmf, 'awaiting_gmf_auth');
+    }
+    throw new PermanentError(
+      `הכניסה למערכת גביית מס הכנסה לא הצליחה (${gmf?.reasonCode ?? 'unknown'}).`,
+      'gmf_unavailable',
+    );
   } finally {
     await detach(conn.browser);
   }
