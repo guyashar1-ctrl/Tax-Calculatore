@@ -100,11 +100,31 @@ let representationCheckedAtMs = 0;
  * הזה הדגלים כאן שרדו סגירת חלון (נבדק בקוד: אין else שמאפס אותם), ושער
  * `if (!gmf)` למטה גם לא היה בודק את GMF מחדש בחלון החדש.
  */
-function resetShaamLifecycle(log, why) {
+export function resetShaamLifecycle(log, why) {
   const hadEvidence = gmfReported || vatReported || nikuiReported || representationReported;
   gmfReported = null; vatReported = null; nikuiReported = null; representationReported = null;
   gmfCheckedAtMs = 0; vatCheckedAtMs = 0; nikuiCheckedAtMs = 0; representationCheckedAtMs = 0;
   if (hadEvidence) log(`מחזור חיים חדש של שע״ם (${why}) — עדות תת-המערכות אופסה, GMF תוכח מחדש`);
+}
+
+/**
+ * ‼ שער מחזור-החיים לאישור אוטומטי של טפסי-משנה (ייצוג, ובעתיד מע״מ/מגן):
+ * Chrome רשאי למלא ו-PIVO רשאית ללחוץ «כניסה» **רק** אחרי ש-GMF אומתה
+ * חיובית במחזור החיים הנוכחי — כלומר אחרי שהרו"ח עצמו הקים את החיבור
+ * (כרטיס+PIN, ובמידת הצורך הקלדת הסיסמה המשנית). במחזור חיים חדש (חלון
+ * נסגר, סשן פג בשרת, הפעלה מחדש של העובד) השער סגור עד שהאימות הזה קורה
+ * שוב — סיסמה שמורה ישנה לא עוקפת את ההקמה הידנית. מצב בזיכרון בלבד;
+ * אותו מקור בדיוק שמדליק את הנורית (bootstrapped).
+ */
+export function isShaamLifecycleEstablished() {
+  return !!(shaamReported && gmfReported);
+}
+
+/** ה-job של ההתחברות אימת GMF חיובית — לא ממתינים לסבב המדידה הבא. */
+export function markGmfVerified() {
+  shaamReported = true;
+  gmfReported = true;
+  gmfCheckedAtMs = Date.now();
 }
 
 /**

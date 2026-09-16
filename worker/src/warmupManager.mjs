@@ -16,6 +16,7 @@ import {
   isOnWorkScreen,
 } from './browserSession.mjs';
 import { updateJobProgress } from './apiClient.mjs';
+import { isShaamLifecycleEstablished, markGmfVerified } from './connectionMonitor.mjs';
 
 export const CAPABILITY_ORDER = ['gmf', 'vat', 'nikui', 'representation'];
 export const DEFAULT_CAPABILITIES = [...CAPABILITY_ORDER];
@@ -28,7 +29,7 @@ export const HUMAN_REASON = {
 };
 
 export const HUMAN_MESSAGE = {
-  gmf: 'מערכת גביית מס הכנסה מבקשת סיסמה. בחלון שע״ם: בחרו את הסיסמה השמורה בחלונית של Chrome, או הקלידו אותה (ושמרו ב-Chrome) — ואמשיך משם לבד.',
+  gmf: 'מערכת גביית מס הכנסה מבקשת סיסמה. בחלון שע״ם: הקלידו את הסיסמה (אפשר לאשר ל-Chrome לשמור אותה) — ואמשיך משם לבד.',
   vat: 'מע״מ מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם לבד.',
   nikui: 'מגן (ניכויים) מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם לבד.',
   representation: 'מערכת רישום הייצוג מבקשת התחברות נפרדת משלה. השלימו אותה בחלון שע״ם, ואמשיך משם לבד.',
@@ -65,7 +66,7 @@ const GMF_FILL_POLL_MS = 1_000;
 export async function ensureGmf(page, { waitForFillMs = GMF_FILL_WAIT_MS } = {}) {
   const initial = await openGmfAndCheck(page);
   const r = await ensureWithBoundedRecovery(page, { initial, readCurrent: readGmfOnCurrentPage, reopen: openGmfAndCheck });
-  if (r.ready) return { state: 'ready', reasonCode: r.reason, evidenceKind: 'dom_state' };
+  if (r.ready) { markGmfVerified(); return { state: 'ready', reasonCode: r.reason, evidenceKind: 'dom_state' }; }
   if (r.reason !== 'login_required') return mapLegacyResult(r);
 
   const form = await readGmfLoginForm(page);
@@ -85,10 +86,10 @@ export async function ensureGmf(page, { waitForFillMs = GMF_FILL_WAIT_MS } = {})
   }
 
   const now = await readGmfOnCurrentPage(page);
-  if (now.ready === true) return { state: 'ready', reasonCode: now.reason, evidenceKind: 'dom_state' };
+  if (now.ready === true) { markGmfVerified(); return { state: 'ready', reasonCode: now.reason, evidenceKind: 'dom_state' }; }
 
   const confirm = await attemptGmfLoginConfirm(page);
-  if (confirm.ok) return { state: 'ready', reasonCode: 'confirmed_fill', evidenceKind: 'dom_state' };
+  if (confirm.ok) { markGmfVerified(); return { state: 'ready', reasonCode: 'confirmed_fill', evidenceKind: 'dom_state' }; }
   return { state: 'human_required', reasonCode: confirm.reason ?? 'login_required', evidenceKind: 'dom_state' };
 }
 async function ensureVat(page) {
@@ -109,13 +110,19 @@ async function ensureNikui(page) {
  * מנוסה שוב באותו סבב. ‼ ההתאוששות התחומה חלה על שלב ה**ניווט/סיווג** —
  * לפני שמגיעים בכלל להחלטה אם לנסות אישור אוטומטי, לא אחריה.
  */
-async function ensureRepresentation(page) {
+export async function ensureRepresentation(page) {
   const initial = await openRepresentationAndCheck(page);
   const r = await ensureWithBoundedRecovery(page, {
     initial, readCurrent: readRepresentationOnCurrentPage, reopen: openRepresentationAndCheck,
   });
   if (r.ready) return { state: 'ready', reasonCode: r.reason, evidenceKind: 'dom_state' };
   if (r.reason === 'login_required') {
+    // ‼ שער מחזור-החיים: אישור אוטומטי של סיסמה שמורה מותר רק אחרי ש-GMF
+    // אומתה במחזור החיים הזה (ראה connectionMonitor.isShaamLifecycleEstablished).
+    // במחזור חדש הרו"ח מקים את החיבור בעצמו קודם; הטופס לא נלחץ.
+    if (!isShaamLifecycleEstablished()) {
+      return { state: 'human_required', reasonCode: 'bootstrap_required', evidenceKind: 'dom_state' };
+    }
     const confirm = await attemptRepresentationLoginConfirm(page);
     if (confirm.ok) return { state: 'ready', reasonCode: 'confirmed_autofill', evidenceKind: 'dom_state' };
     return { state: 'human_required', reasonCode: confirm.reason ?? 'login_required', evidenceKind: 'dom_state' };

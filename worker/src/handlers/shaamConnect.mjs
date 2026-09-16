@@ -18,6 +18,7 @@ import {
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { runCapabilities, HUMAN_MESSAGE } from '../warmupManager.mjs';
+import { markGmfVerified } from '../connectionMonitor.mjs';
 
 export const actionType = 'shaam.connect';
 
@@ -80,6 +81,7 @@ export async function run(ctx) {
     // היא הוכחה — לא מנווטים ממנה; runCapabilities בכל מקרה לא נוגע במסך עבודה.
     const onGmf = await readGmfOnCurrentPage(conn.page);
     if (onGmf.ready === true) {
+      markGmfVerified();
       ctx.log(`שלב 2 — GMF כבר מאומתת בלשונית (${onGmf.reason}). החיבור מוכן`);
       return { result: { ready: true, system: 'shaam', bootstrap: 'gmf' } };
     }

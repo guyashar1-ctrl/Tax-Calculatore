@@ -18,6 +18,10 @@ const SHAAM_AUTH_PENDING =
 
 const MISSING_CAPABILITY = 'לא צוינה יכולת לשחזור (capability חסר בקלט).';
 
+const BOOTSTRAP_REQUIRED =
+  'זהו חיבור חדש לשע״ם: קודם התחברו מהכותרת (כרטיס+PIN, וכניסה למערכת גביית מס הכנסה). ' +
+  'אחרי שהחיבור ירוק, אמשיך למערכת הזו לבד.';
+
 export async function preflight() {
   return { ok: true };
 }
@@ -58,6 +62,12 @@ export async function run(ctx, input = {}) {
       return { result: { ready: true, capability, evidence } };
     }
     if (evidence?.state === 'human_required') {
+      // ‼ שער מחזור-החיים: מחזור חדש שטרם הקים GMF. ממתינים ל-GMF (לא
+      // ליכולת עצמה) — כך report_worker_status מחדש את ה-job ברגע ש-GMF
+      // מאומתת, ואז האישור האוטומטי של היכולת מותר.
+      if (evidence.reasonCode === 'bootstrap_required') {
+        throw new NeedsHumanError(BOOTSTRAP_REQUIRED, 'awaiting_gmf_auth');
+      }
       throw new NeedsHumanError(
         HUMAN_MESSAGE[capability] ?? SHAAM_AUTH_PENDING,
         `awaiting_${capability}_auth`,

@@ -47,7 +47,7 @@ const PHASE_CLASS: Record<ConnPhase, string> = {
 // ללוגים בלבד ולא מוצג כאן). מפתח = job.errorCode.
 const NEEDS_YOU_COPY: Record<string, string> = {
   awaiting_shaam_auth: 'בחלון שע״ם: בחרו אישור דיגיטלי והזינו PIN. PIVO תמשיך לבד.',
-  awaiting_gmf_auth: 'בחלון שע״ם: בחרו את הסיסמה השמורה בחלונית של Chrome, או הקלידו את הסיסמה של מערכת גביית מס הכנסה. PIVO תלחץ «כניסה» ותמשיך לבד.',
+  awaiting_gmf_auth: 'בחלון שע״ם: הקלידו את הסיסמה של מערכת גביית מס הכנסה (אפשר לאשר ל-Chrome לשמור אותה). PIVO תלחץ «כניסה» ותמשיך לבד.',
   awaiting_vat_auth: 'בחלון שע״ם: הזינו את הסיסמה של מערכת מע״מ. PIVO תמשיך לבד.',
   awaiting_nikui_auth: 'בחלון שע״ם: הזינו את הסיסמה של מערכת מגן (ניכויים). PIVO תמשיך לבד.',
   awaiting_btl_auth: 'בחלון ביטוח לאומי: הזינו קוד משתמש וסיסמה, ואת הקוד שנשלח לנייד. PIVO תמשיך לבד.',
@@ -227,7 +227,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
       if (authority === 'shaam' && needsCredentialSetup) {
         return (
           <>
-            <p>בחלון שע״ם: בחרו את הסיסמה השמורה בחלונית של Chrome — או, בפעם הראשונה, הקלידו אותה ואשרו ל-Chrome לשמור. PIVO תלחץ «כניסה» ותמשיך לבד; אם לא — אשרו כאן.</p>
+            <p>בחלון שע״ם: הקלידו את הסיסמה של מערכת גביית מס הכנסה, ואשרו ל-Chrome לשמור אותה. PIVO תלחץ «כניסה» ותמשיך לבד; אם לא — אשרו כאן.</p>
             <button
               type="button"
               className="authconn-popover-btn"
