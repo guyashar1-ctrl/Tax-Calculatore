@@ -33,6 +33,7 @@ import { SignatureField, SignatureValue } from '../types';
 import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
 import SigningRoom, { SavedMarks } from './signatureRequest/SigningRoom';
 import { burnSignaturesIntoPdf } from '../utils/signaturePdf';
+import type { OnboardingStep } from '../types/onboarding';
 
 interface Props {
   request: RepresentationRequest;
@@ -57,6 +58,10 @@ interface Props {
   linkedClient?: Client;
   /** עובר כמו שהוא לשלב "הפרטים הוזנו בשע״ם" במרכז הביצוע, שם ההכרעה נעשית. */
   onConfirmRegisteredSpouse?: (clientId: string, owner: 'client' | 'spouse') => Promise<void> | void;
+  /** ‼ 165: עובר כמו שהוא למרכז הביצוע — שער תנאי-הקדם של מסלולי הב"ל. */
+  steps?: OnboardingStep[];
+  onStepsChanged?: () => void;
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
 }
 
 const REP_TYPE_OPTIONS = [
@@ -81,6 +86,9 @@ export default function RepresentationRequestReview({
   onSaveExecution,
   linkedClient,
   onConfirmRegisteredSpouse,
+  steps,
+  onStepsChanged,
+  onUpdateClientFields,
 }: Props) {
   const db = useDocumentDB();
   const { user } = useAuth();
@@ -821,6 +829,9 @@ export default function RepresentationRequestReview({
               onSendToSigner={sendSignatureEmail}
               linkedClient={linkedClient}
               onConfirmRegisteredSpouse={onConfirmRegisteredSpouse}
+              steps={steps}
+              onStepsChanged={onStepsChanged}
+              onUpdateClientFields={onUpdateClientFields}
             />
 
             {request.status === 'pending_signature' && setup && (

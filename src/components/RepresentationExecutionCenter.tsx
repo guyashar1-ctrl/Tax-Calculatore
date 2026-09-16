@@ -14,6 +14,8 @@ import {
   NI_APPROVAL_PHONE,
   Client,
 } from '../types';
+import type { OnboardingStep } from '../types/onboarding';
+import PrerequisiteGate from './PrerequisiteGate';
 import {
   registeredFileInfo, registeredSpouseSentence, hasRegisteredSpouseChoice, registeredOwnerOf,
   clientDisplayName, spouseDisplayName,
@@ -64,6 +66,18 @@ interface Props {
    * רשום שם באמת. אין שלב נוסף, אין מסך אימות שני — הבחירה **היא** הסימון.
    */
   onConfirmRegisteredSpouse?: (clientId: string, owner: 'client' | 'spouse') => Promise<void> | void;
+  /**
+   * ‼ 165: שלבי «בקשות» של הלקוח המקושר — המקור היחיד לתנאי-הקדם של מסלולי
+   * הב"ל (payload.prerequisites, נגזר בשרת). בלעדיהם מרכז הביצוע לא יודע
+   * שיש תנאי-קדם בכלל, וממשיך להציע הזנה/אסמכתא/שליחה גם כשחסרים פרטים —
+   * משטח עוקף לגמרי לכרטיס ב«בקשות». ראה docs/PLAN-REQUEST-PREREQUISITES-
+   * INFORMATION-COLLECTION.md.
+   */
+  steps?: OnboardingStep[];
+  /** נקרא אחרי שתנאי-קדם הושלמו (משרד/קישור-משתתף) — לרענון onboarding.steps. */
+  onStepsChanged?: () => void;
+  /** לשמירת כתובת מייל קנונית מתוך דיאלוג קישור-המשתתף (165). */
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -192,7 +206,7 @@ function Track({ title, subtitle, done, total, tone, children }: {
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, linkedClient, onConfirmRegisteredSpouse }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, linkedClient, onConfirmRegisteredSpouse, steps, onStepsChanged, onUpdateClientFields }: Props) {
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
@@ -207,6 +221,34 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const niTargets = linkedClient ? targetsOf(linkedClient.authorityRepresentations, 'nationalInsurance') : null;
   const niTargetsClient = niTargets ? niTargets.includes('client') : niIncluded;
   const niTargetsSpouse = niTargets ? niTargets.includes('spouse') : !!niCoversSpouse;
+
+  /**
+   * ‼ 165: הבקשה של כל מסלול ב"ל — לתנאי-הקדם. חיפוש ולא payload על
+   * ה-request עצמו: תנאי-הקדם חיים על onboarding_steps, לא על
+   * representation_requests (שני מקורות אמת נפרדים בכוונה — ראה 157/165).
+   * status !== 'cancelled' כמו כל צריכה אחרת של שלבי «בקשות».
+   */
+  const niClientStep = linkedClient
+    ? steps?.find(s => s.clientId === linkedClient.id && s.stepType === 'authority_representation'
+        && s.payload?.authority === 'national_insurance' && s.payload?.subjectRole !== 'spouse'
+        && s.status !== 'cancelled') ?? null
+    : null;
+  const niSpouseStep = linkedClient
+    ? steps?.find(s => s.clientId === linkedClient.id && s.stepType === 'authority_representation'
+        && s.payload?.authority === 'national_insurance' && s.payload?.subjectRole === 'spouse'
+        && s.status !== 'cancelled') ?? null
+    : null;
+  const niPrereqValues = linkedClient ? {
+    spouseFirstName: linkedClient.spouseFirstName, spouseLastName: linkedClient.spouseLastName,
+    spouseIdNumber: linkedClient.spouseIdNumber,
+    spouseBirthYear: linkedClient.spouseBirthYear ? String(linkedClient.spouseBirthYear) : undefined,
+    firstName: linkedClient.firstName, lastName: linkedClient.lastName, idNumber: linkedClient.idNumber,
+    birthDate: linkedClient.birthDate,
+  } : {};
+  const savePrereqEmail = (role: 'client' | 'spouse') => async (email: string) => {
+    if (!onUpdateClientFields) return;
+    await onUpdateClientFields(role === 'spouse' ? { spouseEmail: email } : { email });
+  };
 
   const [busy, setBusy] = useState<string | null>(null);
   /**
@@ -690,6 +732,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   busyPrefix="ni"
                   hasSignatureEmails={signatureEmails.length > 0}
                   onPatch={(p, label) => patch({ ...exec, nationalInsurance: { ...ni, ...p } }, label)}
+                  prereqStep={niClientStep}
+                  prereqCurrentValues={niPrereqValues}
+                  prereqCurrentEmail={linkedClient?.email || ''}
+                  prereqOnSaveEmail={savePrereqEmail('client')}
+                  prereqOnChanged={() => onStepsChanged?.()}
                 />
               )}
               {niTargetsSpouse && (
@@ -700,6 +747,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   busyPrefix="nis"
                   hasSignatureEmails={signatureEmails.length > 0}
                   onPatch={(p, label) => patch({ ...exec, nationalInsuranceSpouse: { ...niSpouse, ...p } }, label)}
+                  prereqStep={niSpouseStep}
+                  prereqCurrentValues={niPrereqValues}
+                  prereqCurrentEmail={linkedClient?.spouseEmail || ''}
+                  prereqOnSaveEmail={savePrereqEmail('spouse')}
+                  prereqOnChanged={() => onStepsChanged?.()}
                 />
               )}
             </>
@@ -818,7 +870,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
  * מסלול הביטוח הלאומי של מבוטח אחד. בב"ל לכל אדם תיק נפרד, ולכן זוג שמיוצג
  * בב"ל מקבל שני מסלולים כאלה — לכל אחד אסמכתא, מועד תפוגה ואישור משלו.
  */
-function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
+function NiTrack({
+  title, ni, busy, busyPrefix, hasSignatureEmails, onPatch,
+  prereqStep, prereqCurrentValues, prereqCurrentEmail, prereqOnSaveEmail, prereqOnChanged,
+}: {
   title: string;
   ni: NiTracking;
   busy: string | null;
@@ -826,6 +881,17 @@ function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
   busyPrefix: string;
   hasSignatureEmails: boolean;
   onPatch: (p: Partial<NiTracking>, label: string) => void;
+  /**
+   * ‼ 165: שלב «בקשות» של המסלול הזה — כשיש תנאי-קדם חסרים, ארבעת הצעדים
+   * למטה (הזנה/אסמכתא/הוראות/אישור) מוחלפים בשער תנאי-הקדם. הכותרת, הגבול
+   * והמונה של העמודה עצמה (Track) נשארים — המסלול לא נעלם, רק הפקדים שלו.
+   * חסר (undefined/null) ⇒ אין תנאי-קדם ידועים, מתנהג כמו לפני 165.
+   */
+  prereqStep?: OnboardingStep | null;
+  prereqCurrentValues?: Record<string, string | undefined>;
+  prereqCurrentEmail?: string;
+  prereqOnSaveEmail?: (email: string) => Promise<void>;
+  prereqOnChanged?: () => void;
 }) {
   const [refNumber, setRefNumber] = useState(ni.referenceNumber || '');
   const [deadline, setDeadline] = useState(ni.deadline || '');
@@ -840,14 +906,8 @@ function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
     : dLeft <= 14 ? { bg: 'var(--orange-light)', fg: 'var(--ink-1)', text: `⏳ נותרו ${dLeft} ימים לאישור` }
     : { bg: 'var(--surface-2)', fg: 'var(--ink-3)', text: `נותרו ${dLeft} ימים לאישור` };
 
-  return (
-    <Track
-      title={title}
-      subtitle="הזנה ידנית · המבוטח מאשר את האסמכתא"
-      done={steps.filter(Boolean).length}
-      total={steps.length}
-      tone="🛡"
-    >
+  const executionSteps = (
+    <>
       <Step n={1} title="ייפוי הכוח הוזן באתר ב״ל" done={!!ni.enteredAt}
         hint={ni.enteredAt ? `סומן ב-${fmt(ni.enteredAt)}` : 'מסך "הוספת ייפוי כח מבוטח" - ארבעת השדות מהבלוק שמעל'}>
         {!ni.enteredAt && (
@@ -913,6 +973,28 @@ function NiTrack({ title, ni, busy, busyPrefix, hasSignatureEmails, onPatch }: {
           </button>
         )}
       </Step>
+    </>
+  );
+
+  return (
+    <Track
+      title={title}
+      subtitle="הזנה ידנית · המבוטח מאשר את האסמכתא"
+      done={steps.filter(Boolean).length}
+      total={steps.length}
+      tone="🛡"
+    >
+      {prereqStep ? (
+        <PrerequisiteGate
+          step={prereqStep}
+          currentValues={prereqCurrentValues ?? {}}
+          currentEmail={prereqCurrentEmail ?? ''}
+          onSaveEmail={prereqOnSaveEmail ?? (async () => {})}
+          onChanged={() => prereqOnChanged?.()}
+        >
+          {executionSteps}
+        </PrerequisiteGate>
+      ) : executionSteps}
     </Track>
   );
 }
