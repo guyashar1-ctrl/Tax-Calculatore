@@ -150,6 +150,8 @@ interface Props {
   onOpenRequestStep?: (clientId: string) => void;
   /** עדכון שדה פשוט על הכרטיס (למשל spouseEmail) — לא עובדה מנוהלת. */
   onUpdateClientFields?: (clientId: string, patch: Partial<Client>) => Promise<void>;
+  /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב. */
+  onNiInstructionsSent?: (clientId: string) => Promise<void>;
   /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
   // ─── דף המסע ───
@@ -238,6 +240,7 @@ export default function ClientWorkspace({
   onRequestAuthorityRepresentationFromCatalog,
   onOpenRequestStep,
   onUpdateClientFields,
+  onNiInstructionsSent,
   niExecution,
   journeyUi,
   checksTabEnabled,
@@ -870,6 +873,7 @@ export default function ClientWorkspace({
             onOpenTaxFile={() => setTab('taxfile')}
             niExecution={niExecution}
             onUpdateClientFields={onUpdateClientFields ? (patch: Partial<Client>) => onUpdateClientFields(client.id, patch) : undefined}
+            onNiInstructionsSent={onNiInstructionsSent ? () => onNiInstructionsSent(client.id) : undefined}
             onRequestAuthorityRepresentation={onRequestAuthorityRepresentationFromCatalog
               ? (role) => onRequestAuthorityRepresentationFromCatalog(client.id, role) : undefined}
           />
@@ -903,6 +907,7 @@ export default function ClientWorkspace({
             onAddNiTarget={onAddNiTarget ? (role) => onAddNiTarget(client.id, role) : undefined}
             onOpenRequestStep={onOpenRequestStep ? () => onOpenRequestStep(client.id) : undefined}
             onUpdateClientFields={onUpdateClientFields ? (patch) => onUpdateClientFields(client.id, patch) : undefined}
+            onNiInstructionsSent={onNiInstructionsSent ? () => onNiInstructionsSent(client.id) : undefined}
             niExecution={niExecution}
           />
         )}
@@ -1011,6 +1016,7 @@ export default function ClientWorkspace({
             }}
             niExecution={niExecution}
             onUpdateClientFields={onUpdateClientFields ? (patch) => onUpdateClientFields(client.id, patch) : undefined}
+            onNiInstructionsSent={onNiInstructionsSent ? () => onNiInstructionsSent(client.id) : undefined}
             onRequestAuthorityRepresentation={onRequestAuthorityRepresentationFromCatalog
               ? (role) => onRequestAuthorityRepresentationFromCatalog(client.id, role) : undefined}
           />

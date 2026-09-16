@@ -115,5 +115,21 @@ export function useRepresentationRequests(userId: string | undefined, opts?: Rep
     setRequests(prev => prev.filter(r => r.id !== id));
   }
 
-  return { requests, loading, error, addRequest, updateRequest, deleteRequest, hydrateRequest, isHydrated };
+  /** קריאה מחדש של בקשה אחת אחרי שהשרת כתב עליה בעצמו (חתימת "נשלח" של
+   *  מייל ההוראות ב-send-onboarding-email, או תנאי-קדם שמולאו דרך קישור
+   *  משתתף) — אחרת העותק בדפדפן נשאר ישן. עובדת גם במצב lean: השורה
+   *  המלאה שחוזרת מסומנת הודרתה, בדיוק כמו hydrateRequest.
+   */
+  const reloadRequest = useCallback(async (id: string): Promise<void> => {
+    const { data, error } = await supabase.from('representation_requests').select('*').eq('id', id).maybeSingle();
+    if (error || !data) return;
+    const fresh = repRequestFromDb(data);
+    hydratedRef.current.add(fresh.id);
+    setRequests(prev => prev.some(r => r.id === fresh.id)
+      ? prev.map(r => r.id === fresh.id ? fresh : r)
+      : [...prev, fresh]);
+    setHydratedTick(t => t + 1);
+  }, []);
+
+  return { requests, loading, error, addRequest, updateRequest, deleteRequest, hydrateRequest, isHydrated, reloadRequest };
 }

@@ -14,6 +14,7 @@
     "test:setup": "node scripts/setup-test-env.mjs",
     "test:status": "node scripts/setup-test-env.mjs --status",
     "test:reset": "node scripts/setup-test-env.mjs --reset-data",
+    "test:authority-model": "node scripts/test-authority-connection-model.ts",
     "test:image-pdf": "node scripts/test-image-pdf.mjs",
     "test:pdf-pages": "node scripts/test-pdf-pages.mjs",
     "test:pdf-edit": "node scripts/test-pdf-edit.mjs",

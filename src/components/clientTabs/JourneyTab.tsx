@@ -76,6 +76,8 @@ interface Props {
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
   onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
+  onNiInstructionsSent?: () => Promise<void>;
   /** "+ בקשה חדשה" ← "ייצוג ברשות - לאדם" — אותה קריאה כמו מתיק המס (157). */
   onRequestAuthorityRepresentation?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
 }
@@ -356,6 +358,7 @@ export default function JourneyTab(p: Props) {
           onOpenTaxFile={p.onOpenTaxFile}
           niExecution={p.niExecution}
           onUpdateClientFields={p.onUpdateClientFields}
+          onNiInstructionsSent={p.onNiInstructionsSent}
           onRequestAuthorityRepresentation={p.onRequestAuthorityRepresentation}
         />
       )}

@@ -289,24 +289,29 @@ begin
   end if;
 
   -- targets מנורמל — אותו כלל בדיוק כמו targetsOf() ב-utils/repScope.ts
+  -- ‼ רשומה ישנה בלי מפתח targets: jsonb_typeof(null) הוא NULL, ו-`not (null)`
+  -- אינו true — הענף הראשון היה נופל ל-else וכותב targets=null (נתפס
+  -- ב-staging 15.09). CASE מבטיח סדר הערכה ומחזיר false אמיתי במקום NULL.
   v_rec := c.authority_representations -> 'nationalInsurance';
-  if v_rec is null or not (jsonb_typeof(v_rec->'targets') = 'array' and jsonb_array_length(v_rec->'targets') > 0) then
-    if coalesce((v_rec->>'coversSpouse')::boolean, false) then
-      v_targets := '["client","spouse"]'::jsonb;
-    else
-      v_targets := '["client"]'::jsonb;
-    end if;
-  else
+  if (case when jsonb_typeof(v_rec->'targets') = 'array'
+           then jsonb_array_length(v_rec->'targets') else 0 end) > 0 then
     v_targets := v_rec->'targets';
+  elsif coalesce((v_rec->>'coversSpouse')::boolean, false) then
+    v_targets := '["client","spouse"]'::jsonb;
+  else
+    v_targets := '["client"]'::jsonb;
   end if;
   if not coalesce((select bool_or(x = p_subject_role) from jsonb_array_elements_text(v_targets) x), false) then
     v_targets := v_targets || to_jsonb(array[p_subject_role]);
   end if;
 
+  -- ‼ מיזוג ולא החלפה: מפתחות אחרים על הרשומה (coversSpouse וכד') נשמרים,
+  -- בדיוק כמו ש-handleAddNiTarget הישן פרס `...rec`.
   update public.clients
      set authority_representations = jsonb_set(
            coalesce(authority_representations, '{}'::jsonb), '{nationalInsurance}',
-           jsonb_build_object('status', coalesce(v_rec->>'status', 'in_process'), 'targets', v_targets)),
+           coalesce(v_rec, '{}'::jsonb)
+             || jsonb_build_object('status', coalesce(v_rec->>'status', 'in_process'), 'targets', v_targets)),
          updated_at = now()
    where id = c.id;
 

@@ -1831,6 +1831,9 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
 
 .modal-footer {
   display: flex;
+  /* ‼ במובייל שלושה כפתורים (פתיחה/ביטול/שלח) רחבים מ-343px, וה-nowrap דחף
+     את הכפתור הראשי אל מחוץ לחלון (נתפס ב-375px, 15.09). */
+  flex-wrap: wrap;
   align-items: center;
   gap: .5rem;
   padding: 1rem 1.25rem;

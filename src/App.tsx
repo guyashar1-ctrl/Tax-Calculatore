@@ -106,6 +106,7 @@ import PublicIntakePage from './components/PublicIntakePage';
 import PublicPortalPage from './components/PublicPortalPage';
 import PublicReleasePage from './components/PublicReleasePage';
 import PublicQuotationPage from './components/PublicQuotationPage';
+import PublicParticipantPage from './components/PublicParticipantPage';
 import PublicApplyPage from './components/PublicApplyPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
@@ -395,6 +396,9 @@ export default function App() {
     // עמוד הצעת מחיר ציבורי — קישור מאובטח לפי טוקן.
     const quoteToken = new URLSearchParams(window.location.search).get('quote');
     if (quoteToken) return asClientPage(<PublicQuotationPage token={quoteToken} />);
+    // דף המשתתף — קישור לשלב, לתפקיד, לרשימת שדות מפורשת (165).
+    const participantToken = new URLSearchParams(window.location.search).get('participant');
+    if (participantToken) return asClientPage(<PublicParticipantPage token={participantToken} />);
     // דף הרו"ח הקודם — הוא חותם על מכתב השחרור ומעלה את החומרים.
     // גורם חיצוני ולא לקוח, אבל אותו כלל: מיתוג המשרד ותצוגה בהירה.
     const releaseToken = new URLSearchParams(window.location.search).get('release');
@@ -428,7 +432,8 @@ export default function App() {
   }, [user?.id, tasksLoading]);
   // ‼ lean: 3.2MB של חתימות base64 אינם נטענים בכל כניסה; הבקשה שנפתחת
   // מושלמת ב-hydrateRequest לפני שמסך הבדיקה מרונדר (אחרת היה דורס חתימות).
-  const { requests, addRequest, updateRequest, deleteRequest: removeRequest, hydrateRequest, isHydrated } =
+  // reloadRequest משמשת גם לתנאי-קדם שמולאו דרך קישור משתתף (165).
+  const { requests, addRequest, updateRequest, deleteRequest: removeRequest, hydrateRequest, isHydrated, reloadRequest } =
     useRepresentationRequests(user?.id, { lean: true });
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
   // ‼ ברירת המחדל דלוקה: הנתונים כבר במסד, והדגל קיים כדי לכבות את המסך
@@ -844,6 +849,17 @@ export default function App() {
     const c = clients.find(x => x.id === clientId);
     if (!c) throw new Error('הכרטיס לא נמצא');
     await updateClient({ ...c, ...patch });
+  }
+
+  /**
+   * אחרי שמייל ההוראות העצמאי נשלח בהצלחה: השרת חתם instructionsSentAt על
+   * הביצוע, והשלב עודכן בטריגר. שניהם נקראים מחדש — אחרת הכרטיס ב"בקשות"
+   * ממשיך להציע "שלח הוראות אישור" עד רענון מלא (נתפס ב-staging 15.09).
+   */
+  async function handleNiInstructionsSent(clientId: string): Promise<void> {
+    const req = findClientRepresentationRequest(clientId);
+    if (req) await reloadRequest(req.id);
+    onboarding.refresh();
   }
 
   /**
@@ -2531,6 +2547,7 @@ export default function App() {
             onRequestAuthorityRepresentationFromCatalog={(clientId, role) => handleRequestAuthorityRepresentation(clientId, role, 'catalog')}
             onOpenRequestStep={handleOpenRequestStep}
             onUpdateClientFields={handleUpdateClientFields}
+            onNiInstructionsSent={handleNiInstructionsSent}
             niExecution={selectedClient ? clientNiExecution(selectedClient.id) : undefined}
             journeyUi={journeyUi}
             checksTabEnabled={checksTab}

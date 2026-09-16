@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { createAutomationJob, cancelAutomationJob, jobIsLive } from '../lib/automationJobs';
+import { createAutomationJob, cancelAutomationJob } from '../lib/automationJobs';
 import { automationJobFromDb } from '../lib/dbMappers';
 import {
   SHAAM_CONNECT_ACTION_TYPE,
@@ -11,41 +11,24 @@ import {
 import type { AutomationJob } from '../types/automation';
 import { useShaamReadiness } from './shaamReadiness';
 import { keepIfSame } from './useLivePulse';
+import {
+  derivePhase, jobStatusFilter, selectAuthorityJob, mustCancelBeforeStart,
+} from './authorityConnectionModel';
+import type { ConnPhase, DerivedConnState } from './authorityConnectionModel';
+
+export type { ConnPhase };
 
 const POLL_MS = 4000;
 
-/**
- * ‼ חמישה מצבים בלבד, ולכל אחד צבע אחד — ראה
- * docs/SPEC-HEADER-CONNECTION-CONTROLS.md. כתום הוא **אך ורק** "PIVO עצרה
- * וממתינה לך, בחלון שפתחת בעצמך". מוכנות חלקית שנצפית פסיבית (פורטל חי אבל
- * GMF/מע״מ/מגן עוד לא), משימת needs_human ישנה, "מתחבר", ו"נכשל" — כולם
- * אפור. אין מצב שישי.
- */
-export type ConnPhase = 'idle' | 'connecting' | 'needs_you' | 'ready' | 'failed';
+// ‼ חמשת המצבים, הספים והגזירה עצמה יושבים ב-authorityConnectionModel.ts —
+// לוגיקה טהורה שנבדקת ב-node (scripts/test-authority-connection-model.ts).
+// כאן רק שליפה, state, וקריאות RPC.
 
-export interface AuthorityConnState {
-  phase: ConnPhase;
+export interface AuthorityConnState extends DerivedConnState {
   busy: boolean;
   /** אין עובד, או שפעימת הלב שלו ישנה מדי. הצבע לא משתנה בגלל זה — רק ההסבר בלחיצה. */
   workerOffline: boolean;
-  /** רק ב-needs_you: איזו הוראה להראות (awaiting_shaam_auth / awaiting_gmf_auth / ...). */
-  errorCode: string | null;
-  /** רק ב-failed: משפט קריא-לאדם מהעובד, אם יש. */
-  errorDetail: string | null;
-  /** true כש-failed נגזר מ"העובד לא הגיב בזמן", לא מכשל מדווח. */
-  isTimeout: boolean;
 }
-
-/**
- * ‼ משימת needs_human ישנה יותר מזה היא היסטוריה, לא מצב — לא הופכת עמוד
- * טרי לכתום. נדיב בכוונה: תהליך אימות אמיתי (כרטיס חכם + PIN + ניווט בין
- * שלוש מערכות Tier-B) יכול לקחת כמה דקות בעומס.
- */
-const NEEDS_YOU_MAX_AGE_MS = 20 * 60_000;
-/** queued/running מעל זה בלי שהעובד הגיב — זו תקלה (timeout), לא "מתחבר...". */
-const CONNECTING_TIMEOUT_MS = 45_000;
-/** כמה אחורה שולפים משימות מערכת בכלל, כולל failed — לא כל ההיסטוריה. */
-const JOB_LOOKBACK_MS = 30 * 60_000;
 
 /**
  * מצב החיבור לרשויות עבור הכותרת. הדפדפן לא יכול לדבר עם העובד המקומי
@@ -90,22 +73,22 @@ export function useAuthorityConnections(userId: string | undefined) {
 
   const refresh = useCallback(async () => {
     if (!userId) return;
-    // ‼ שאילתה אחת לשתי הרשויות, כולל failed — אחרת כשל אמיתי היה נשאר
-    // בלתי-נראה (ראה docs/SPEC-HEADER-CONNECTION-CONTROLS.md §3.12). חסומה
-    // בזמן כדי שלא תצטבר לשלוף היסטוריה שלמה: כל מה שרלוונטי לתצוגה כאן
-    // ובלאו הכי מזדקן תוך 20 דקות (needs_you) או נגמר בלחיצה הבאה.
-    const cutoff = new Date(Date.now() - JOB_LOOKBACK_MS).toISOString();
+    // ‼ שאילתה אחת לשתי הרשויות: **כל** משימה פתוחה (queued/running/
+    // needs_human) בלי סינון גיל, ובנוסף failed מחלון מוגבל. חלון הזמן חל
+    // על failed בלבד — משימה פתוחה שהוסתרה לפי גיל היא בדיוק מה שיצר את
+    // מלכודת שע״ם (ראה OPEN_JOB_STATUSES במודל): המסד עדיין ראה אותה
+    // כפתוחה וחסם יצירה, והכותרת לא ידעה שיש מה לבטל.
     const jobRes = await supabase.from('automation_jobs').select('*')
       .is('client_id', null)
       .in('action_type', [SHAAM_CONNECT_ACTION_TYPE, BTL_CONNECT_ACTION_TYPE])
-      .in('status', ['queued', 'running', 'needs_human', 'failed'])
-      .gte('created_at', cutoff)
+      .or(jobStatusFilter())
       .order('created_at', { ascending: false });
     const rows = (jobRes.data ?? []).map(automationJobFromDb);
     // ‼ שומרים זהות כשהמשימה לא השתנתה: אובייקט חדש כל 4 שניות היה מריץ
     // מחדש את ה-effects שתלויים ב-shaamJob/btlJob ובונה מחדש את connect/connectBtl.
-    const nextShaam = rows.find((j) => j.actionType === SHAAM_CONNECT_ACTION_TYPE) ?? null;
-    const nextBtl = rows.find((j) => j.actionType === BTL_CONNECT_ACTION_TYPE) ?? null;
+    // הבחירה עצמה (פתוחה קודמת ל-failed) עברה ל-selectAuthorityJob (מודל טהור).
+    const nextShaam = selectAuthorityJob(SHAAM_CONNECT_ACTION_TYPE, rows);
+    const nextBtl = selectAuthorityJob(BTL_CONNECT_ACTION_TYPE, rows);
     setShaamJob(prev => keepIfSame(prev, nextShaam));
     setBtlJob(prev => keepIfSame(prev, nextBtl));
     // ‼ המוכנות **אינה** נמשכת כאן. הספק מושך אותה בעצמו באותו קצב, ומשיכה
@@ -137,70 +120,23 @@ export function useAuthorityConnections(userId: string | undefined) {
   // ‼ לביטוח לאומי אין שכבות משנה, ולכן "מחובר" הוא כל הסיפור.
   const btlConnected = !workerOffline && !!status.btl?.connected;
 
-  /**
-   * ‼ גוזר את חמשת המצבים ממקור אחד: מוכנות (ready) קודמת לכול, אחר כך
-   * שגיאת יצירה מקומית, אחר כך המשימה האחרונה שנשלפה. **אין** כאן ענף
-   * שממפה "פורטל חי אבל שכבה חסרה" לכתום — זה בדיוק הצימוד הפסיבי שהוסר.
-   * ראה §1 ו-§3 בספק.
-   */
-  function derivePhase(
-    connected: boolean,
-    job: AutomationJob | null,
-    localError: string | null,
-    isOwnJobId: (id: string) => boolean,
-  ): { phase: ConnPhase; errorCode: string | null; errorDetail: string | null; isTimeout: boolean } {
-    if (connected) return { phase: 'ready', errorCode: null, errorDetail: null, isTimeout: false };
-    // ‼ עובד כבוי גובר על הכול: כתום/failed בלי עובד שיכול להשלים אותם הם
-    // הבטחה שקרית ("פועל על זה עכשיו") כשאין מי שיפעל. הלחיצה עדיין
-    // מסבירה למה — ראה handleClick ב-AuthorityConnectionButtons — רק
-    // הצבע/הפאזה הפנימית לא "נתקעים" כתום מאחורי מסך כבוי.
-    if (workerOffline) return { phase: 'idle', errorCode: null, errorDetail: null, isTimeout: false };
-    if (localError) return { phase: 'failed', errorCode: null, errorDetail: localError, isTimeout: false };
-
-    if (job) {
-      const ageMs = Date.now() - new Date(job.createdAt).getTime();
-
-      if (job.status === 'needs_human') {
-        // ‼ כל לשונית רואה needs_you אם החלון באמת ממתין עכשיו — לא רק
-        // הלשונית שלחצה. משימה ישנה מדי נופלת בשקט ל-idle למטה.
-        if (ageMs <= NEEDS_YOU_MAX_AGE_MS) {
-          return { phase: 'needs_you', errorCode: job.errorCode ?? null, errorDetail: null, isTimeout: false };
-        }
-      } else if (job.status === 'queued' || job.status === 'running') {
-        // ‼ (170) 'running' שהחכירה שלו פקעה אינו "מתחבר..." — אף אחד לא
-        // מחזיק אותו. הוא נופל ישר לענף ה-timeout/idle כמו משימה שהזדקנה.
-        if (ageMs <= CONNECTING_TIMEOUT_MS && jobIsLive(job)) {
-          return { phase: 'connecting', errorCode: null, errorDetail: null, isTimeout: false };
-        }
-        // ‼ העובד לא הגיב — זו תקלה, לא המתנה. מוצג רק למי שלחץ, ראה
-        // isOwnJobId; אחרת לשונית טרייה הייתה מציגה כשל שלא ביקשה.
-        if (isOwnJobId(job.id)) {
-          return { phase: 'failed', errorCode: 'timeout', errorDetail: null, isTimeout: true };
-        }
-      } else if (job.status === 'failed') {
-        // ‼ כשל אמיתי מוצג רק ללשונית שיזמה אותו — ראה §3.5 בספק: כשל
-        // היסטורי/של לשונית אחרת לא אמור להטריד טעינה טרייה.
-        if (isOwnJobId(job.id)) {
-          return { phase: 'failed', errorCode: job.errorCode ?? null, errorDetail: job.errorDetail ?? null, isTimeout: false };
-        }
-      }
-    }
-
-    return { phase: 'idle', errorCode: null, errorDetail: null, isTimeout: false };
-  }
-
-  const shaamState = derivePhase(
-    ready,
-    shaamJob,
-    uiError?.authority === 'shaam' ? uiError.text : null,
-    (id) => shaamJobIdRef.current === id,
-  );
-  const btlState = derivePhase(
-    btlConnected,
-    btlJob,
-    uiError?.authority === 'btl' ? uiError.text : null,
-    (id) => btlJobIdRef.current === id,
-  );
+  // ‼ derivePhase עברה ל-authorityConnectionModel.ts (מודל טהור, נבדק ב-node
+  // דרך scripts/test-authority-connection-model.ts) — כולל שמירת בדיקת
+  // jobIsLive על running שהחכירה שלו פקעה (170/N5), שאוחדה לתוכה בסבב הזה.
+  const shaamState = derivePhase({
+    connected: ready,
+    workerOffline,
+    job: shaamJob,
+    localError: uiError?.authority === 'shaam' ? uiError.text : null,
+    isOwnJobId: (id) => shaamJobIdRef.current === id,
+  });
+  const btlState = derivePhase({
+    connected: btlConnected,
+    workerOffline,
+    job: btlJob,
+    localError: uiError?.authority === 'btl' ? uiError.text : null,
+    isOwnJobId: (id) => btlJobIdRef.current === id,
+  });
 
   // ‼ ברגע שהחיבור הושלם, משימת ה"התחברות" שנותרה פתוחה כבר לא מתארת כלום —
   // והיא חוסמת יצירת משימה חדשה (אינדקס ייחודי על משימה פתוחה אחת). בלי
@@ -230,14 +166,11 @@ export function useAuthorityConnections(userId: string | undefined) {
   // אם עובד אמיתי בכל זאת תופס אותה מאוחר יותר, זה תקין: ההצלחה תתגלה
   // דרך readiness כרגיל, לא משנה מה הכותרת הראתה בינתיים.
 
-  // משימה תקועה מסבב קודם — מנקים לפני שיוצרים חדשה, אחרת האינדקס
-  // הייחודי יחזיר את הישנה והעובד לא ירים כלום.
-  // ‼ (170) כולל 'running' שהחכירה שלו פקעה — עובד שנהרג באמצע ההתחברות
-  // השאיר אותה 'running' לנצח, והכפתור לא עשה כלום. הכלל האחד לכל משפחת
-  // כרטיסי האוטומציה: פתוחה-אבל-לא-חיה ⇒ בטל ואז נסה שוב (jobIsLive).
-  // 'queued' חיה לפי הכלל, אבל כאן היא מבוטלת בכוונה: הלחיצה היא «נסה
-  // שוב» מפורש אחרי timeout של הכותרת, ומשימה שאף עובד לא הרים אינה שווה
-  // יותר מחדשה.
+  // הייחודי יחזיר את הישנה והעובד לא ירים כלום. ‼ `open` חייב להיות המשימה
+  // הפתוחה **בלי קשר לגילה** — זה מה ש-refresh() מבטיח עכשיו. הביטול הוא
+  // דרך cancel_automation_job בלבד; לא עוקפים את מחזור החיים. ‼ (170/N5)
+  // mustCancelBeforeStart מבטלת גם 'running' שהחכירה שלו פקעה — עובד שנהרג
+  // באמצע ההתחברות השאיר אותה 'running' לנצח, והכפתור לא עשה כלום.
   const start = useCallback(async (
     authority: 'shaam' | 'btl',
     actionType: string,
@@ -246,7 +179,7 @@ export function useAuthorityConnections(userId: string | undefined) {
   ) => {
     setBusy(authority);
     setUiError(null);
-    if (clearStale && open && (open.status === 'queued' || !jobIsLive(open))) {
+    if (clearStale && open && mustCancelBeforeStart(open)) {
       await cancelAutomationJob(open.id);
     }
     const r = await createAutomationJob(null, actionType, {});
