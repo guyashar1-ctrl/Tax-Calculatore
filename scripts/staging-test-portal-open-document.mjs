@@ -59,6 +59,11 @@ const mkClient = async (first) => (await one(`
 const A = await mkClient('אלף');
 const B = await mkClient('בית');
 
+// ‼ D4 (179): documents.label_id הוא NOT NULL.
+const testLabelId = (await writeStaging(`
+  insert into public.document_labels (user_id, name) values ('${USER_ID}', 'PODOC-תווית-בדיקה')
+  on conflict (user_id, name) do update set name = excluded.name returning id;`))[0].id;
+
 /** מסמך אמיתי: קובץ ב-Storage + שורה בטבלה, בדיוק כמו העלאה רגילה. */
 const mkDoc = async (clientId, name, body) => {
   const id = randomUUID();
@@ -67,8 +72,8 @@ const mkDoc = async (clientId, name, body) => {
     .upload(path, new Blob([body], { type: 'text/plain' }), { contentType: 'text/plain', upsert: true });
   if (error) throw new Error(`העלאה נכשלה: ${error.message}`);
   await writeStaging(`
-    insert into public.documents (id, user_id, client_id, storage_path, file_name, file_type, file_size, category, year)
-    values ('${id}', '${USER_ID}', '${clientId}', '${path}', '${name}', 'text/plain', ${body.length}, 'other', 'general');`);
+    insert into public.documents (id, user_id, client_id, storage_path, file_name, file_type, file_size, category, year, label_id)
+    values ('${id}', '${USER_ID}', '${clientId}', '${path}', '${name}', 'text/plain', ${body.length}, 'other', 'general', '${testLabelId}');`);
   return { id, path };
 };
 

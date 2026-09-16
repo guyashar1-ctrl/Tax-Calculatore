@@ -60,6 +60,9 @@ const PUBLIC_SURFACE = new Set([
   'get_spouse_onboarding', 'submit_spouse_onboarding',
   'get_release_portal', 'release_portal_set_item', 'release_portal_respond',
   'release_portal_remove_upload', 'release_portal_mark_items',
+  // 165 (הסשן המקביל): קישור-משתתף לתנאי-קדם — token מאומת ב-request_participant_links
+  // (לא נמצא/בוטל/פג/כבר הוגש), אותו דפוס בדיוק כמו שאר המשטח הציבורי כאן.
+  'get_participant_form', 'participant_submit_prerequisites',
 ]);
 
 async function cleanup() {

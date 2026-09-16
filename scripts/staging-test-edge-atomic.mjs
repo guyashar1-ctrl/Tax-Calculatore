@@ -288,8 +288,10 @@ try {
     const newId = r.data?.id;
     const st = await one(`
       select o.superseded_by = ${q(newId)}::uuid as linked, o.status as old_status,
-             (select count(*)::int from public.annual_report_answers where session_id = o.id) as old_answers,
-             (select count(*)::int from public.annual_report_answers where session_id = ${q(newId)}::uuid) as new_answers,
+             -- 181: תשובה שהשתנתה יוצרת שורת היסטוריה (superseded_by) — סופרים
+             -- רק את החי, לא את כל מה שאי-פעם נכתב לסשן הזה.
+             (select count(*)::int from public.annual_report_answers where session_id = o.id and superseded_by is null) as old_answers,
+             (select count(*)::int from public.annual_report_answers where session_id = ${q(newId)}::uuid and superseded_by is null) as new_answers,
              (select count(*)::int from public.annual_report_sessions where client_id = ${q(CLIENT_A)} and tax_year = 2025 and superseded_by is null) as live
         from public.annual_report_sessions o where o.id = '${oldSessionId}';`);
     ok('E2 הישן מצביע לחדש (superseded_by) ושומר את הסטטוס שלו', st.linked === true && st.old_status === 'review', JSON.stringify(st));

@@ -83,8 +83,14 @@ const portalBefore = (await one(`select portal_token from public.clients where i
 ok('נטבע טוקן דף אישי', !!portalBefore);
 
 // ‼ לקוחות קיימים אינם נרשמים ואינם מקבלים דבר בעקבות הזרימה הזאת.
+// הספירה מוציאה גם כרטיסי דמה של חבילות בדיקה אחרות (fx-q-*): final-round3
+// מריץ חבילות במקביל, וכל אחת מאשרת הצעת דמה משלה — בלי הסינון הזה, אישור
+// מקביל בחבילה אחרת נספר כאילו הזרימה שלנו שלחה מייל ל"לקוח אחר".
 const otherMailsBefore = (await one(
-  `select count(*)::int as n from public.email_messages where client_id is distinct from ${q(CID)}`)).n;
+  `select count(*)::int as n from public.email_messages
+    where client_id is distinct from ${q(CID)}
+      and (client_id is null or client_id not in (
+        select client_id from public.quotations where id like 'fx-q-%' and client_id is not null))`)).n;
 
 // ── 3 · אישור ציבורי, בלי רו"ח מחובר ────────────────────────────────────────
 console.log('\n— 3 · אישור ציבורי —');
@@ -124,7 +130,10 @@ const kinds = await writeStaging(
 ok('שום מייל ללקוח לא יצא מעצמו באישור ההצעה', kinds.length === 0,
   JSON.stringify(kinds.map((k) => k.kind)));
 const otherMailsAfter = (await one(
-  `select count(*)::int as n from public.email_messages where client_id is distinct from ${q(CID)}`)).n;
+  `select count(*)::int as n from public.email_messages
+    where client_id is distinct from ${q(CID)}
+      and (client_id is null or client_id not in (
+        select client_id from public.quotations where id like 'fx-q-%' and client_id is not null))`)).n;
 ok('לקוחות קיימים לא קיבלו דבר', otherMailsAfter === otherMailsBefore,
   `${otherMailsBefore} → ${otherMailsAfter}`);
 
@@ -189,10 +198,14 @@ ok('השאלון נוצר אוטומטית', !!intake?.id);
 ok('השאלון רשות ואינו חוסם', intake?.required_for_close === false, String(intake?.required_for_close));
 ok('השאלון נולד כטיוטה שאינה מפורסמת',
   (await one(`select (published_at is null) as p from public.onboarding_steps where id = ${q(intake.id)}`)).p === true);
+// ‼ D4 (179): documents.label_id הוא NOT NULL.
+const lifecycleTestLabelId = (await one(`
+  insert into public.document_labels (user_id, name) values ('${USER_ID}', 'LIFECYCLE-תווית-בדיקה')
+  on conflict (user_id, name) do update set name = excluded.name returning id;`)).id;
 await writeStaging(`insert into public.documents (id, user_id, client_id, file_name, file_type, file_size,
-                      category, year, uploaded_at, storage_path)
+                      category, year, uploaded_at, storage_path, label_id)
                     values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', ${q(CID)},
-                      'מסמך מחזור חיים.pdf', 'application/pdf', 1024, 'other', 'general', now(), 'x/y.pdf');`);
+                      'מסמך מחזור חיים.pdf', 'application/pdf', 1024, 'other', 'general', now(), 'x/y.pdf', '${lifecycleTestLabelId}');`);
 ok('מסמך נשמר', (await one(`select count(*)::int as n from public.documents where client_id = ${q(CID)}`)).n === 1);
 
 // ── 10 · סגירה רגילה, בלי כפייה ─────────────────────────────────────────────

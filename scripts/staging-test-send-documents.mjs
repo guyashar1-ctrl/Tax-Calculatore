@@ -57,9 +57,13 @@ const cid = (await one(`
 
 // מסמך אמיתי בתיק של הלקוח — build_client_portal מעביר את המזהה בלבד, ולכן
 // אין צורך בקובץ ב-Storage כדי לבדוק את הרינדור.
+// ‼ D4 (179): documents.label_id הוא NOT NULL.
+const testLabelId = (await one(`
+  insert into public.document_labels (user_id, name) values ('${USER_ID}', 'SD-תווית-בדיקה')
+  on conflict (user_id, name) do update set name = excluded.name returning id;`)).id;
 const docId = (await one(`
-  insert into public.documents (id, user_id, client_id, storage_path, file_name, file_type, file_size, category, year)
-  values (gen_random_uuid(), '${USER_ID}', '${cid}', '${USER_ID}/${cid}/x', 'שומה 2024.pdf', 'application/pdf', 1234, 'other', 'general')
+  insert into public.documents (id, user_id, client_id, storage_path, file_name, file_type, file_size, category, year, label_id)
+  values (gen_random_uuid(), '${USER_ID}', '${cid}', '${USER_ID}/${cid}/x', 'שומה 2024.pdf', 'application/pdf', 1234, 'other', 'general', '${testLabelId}')
   returning id::text as id;`)).id;
 
 const create = async (payload, { published = true, owner = 'client', dependsOn = null, required = true } = {}) => {

@@ -69,15 +69,20 @@ console.log('\n— שאלון פתיחת התיק —');
   ok('אינו חוסם סגירת קליטה',
     !r.r.blocking.some((b) => b.stepType === 'intake_questionnaire'));
 
-  const before = await one(`select count(*)::int as n from public.email_messages`);
+  // ‼ סופר גלובלי (select count(*) from email_messages) נופל בסביבה משותפת:
+  // final-round3 מריץ חבילות במקביל, וחבילה אחרת ששולחת מייל באמצע החלון
+  // נספרת בטעות כתוצאה של הפעולה הזאת. הסימון הידני לא נוגע במייל של אף אחד —
+  // אז מספיק (ומדויק יותר) לבדוק שלא נולדה שורה חדשה עבור הלקוח/השלב הזה.
+  const before = await one(`select now() as ts`);
   const { data: up } = await user.rpc('set_onboarding_step_required',
     { p_step_id: st.id, p_required: true });
   ok('אפשר לסמן אותו ידנית כנדרש', up?.ok === true && up?.requiredForClose === true, JSON.stringify(up));
   const r2 = await one(`select public.onboarding_close_readiness('${eng.id}') as r`);
   ok('אחרי הסימון הידני הוא כן חוסם',
     r2.r.blocking.some((b) => b.stepType === 'intake_questionnaire'));
-  const after = await one(`select count(*)::int as n from public.email_messages`);
-  ok('שום מייל לא נשלח בעקבות השינוי', after.n === before.n, `${before.n} → ${after.n}`);
+  const newForThisClient = await one(`select count(*)::int as n from public.email_messages
+     where (client_id = '${F3}' or step_id = '${st.id}') and created_at > '${before.ts}'`);
+  ok('שום מייל לא נשלח בעקבות השינוי', newForThisClient.n === 0, String(newForThisClient.n));
   await user.rpc('set_onboarding_step_required', { p_step_id: st.id, p_required: false });
 }
 

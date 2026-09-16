@@ -110,6 +110,24 @@ Deno.serve(async (req: Request) => {
     if (upErr) return json({ error: "storage_failed", detail: upErr.message }, 500);
 
     const label = `${KIND_LABEL[docKind]} - ${PERSON_LABEL[person]}`;
+    // ‼ D4 (179): documents.label_id הוא NOT NULL. הסוג כבר ידוע במלואו
+    // (docKind × person) — אותו טקסט בדיוק שכבר משמש כתיאור, לא ניחוש.
+    let labelId: string;
+    {
+      const { data: existing } = await admin
+        .from("document_labels").select("id").eq("user_id", reqRow.user_id).eq("name", label).maybeSingle();
+      if (existing?.id) {
+        labelId = existing.id as string;
+      } else {
+        const { data: created, error: lblErr } = await admin
+          .from("document_labels").insert({ user_id: reqRow.user_id, name: label }).select("id").single();
+        if (lblErr || !created) {
+          await admin.storage.from("client-documents").remove([path]);
+          return json({ error: "label_failed", detail: lblErr?.message }, 500);
+        }
+        labelId = created.id as string;
+      }
+    }
     const { error: docErr } = await admin.from("documents").insert({
       id: docId,
       user_id: reqRow.user_id,
@@ -120,6 +138,7 @@ Deno.serve(async (req: Request) => {
       file_size: file.size,
       category: "id_card",
       year: "general",
+      label_id: labelId,
       uploaded_at: new Date().toISOString(),
       description: label,
       notes: "צולם על ידי הלקוח בקליטת הייצוג",

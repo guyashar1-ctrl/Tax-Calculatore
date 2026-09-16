@@ -82,6 +82,12 @@ async function cleanup() {
 }
 await cleanup();
 
+// ‼ D4 (179): documents.label_id הוא NOT NULL — כל שורת בדיקה כאן צריכה תווית.
+const TEST_LABEL_ID = (await one(`
+  insert into public.document_labels (user_id, name) values ('${U}', 'DELINT-תווית-בדיקה')
+  on conflict (user_id, name) do update set name = excluded.name
+  returning id;`)).id;
+
 async function mkClient(first, extra = '') {
   return (await one(`
     insert into public.clients (id, user_id, first_name, last_name, email ${extra ? ',' + extra.split('=')[0] : ''})
@@ -99,7 +105,7 @@ async function uploadDoc(clientId, label) {
   const { error } = await user.from('documents').insert({
     id, user_id: U, client_id: clientId, storage_path: path, file_name: `${label}.txt`,
     file_type: 'text/plain', file_size: 10, category: 'other', year: 'general',
-    description: label, notes: '', uploaded_at: new Date().toISOString(),
+    label_id: TEST_LABEL_ID, description: label, notes: '', uploaded_at: new Date().toISOString(),
   });
   if (error) throw new Error(`documents insert: ${error.message}`);
   return { id, path };
@@ -228,7 +234,8 @@ try {
     const { error: upErr } = await user.storage.from(BUCKET).upload(path, new Blob(['orphan']), { upsert: true });
     ok('3.1 הקובץ עלה', !upErr, upErr?.message);
     const { error } = await user.from('documents').insert({
-      id, user_id: U, client_id: `req-${id}`, storage_path: path, file_name: 'x', file_type: 'text/plain', file_size: 6 });
+      id, user_id: U, client_id: `req-${id}`, storage_path: path, file_name: 'x', file_type: 'text/plain', file_size: 6,
+      category: 'other', year: 'general', label_id: TEST_LABEL_ID });
     ok('3.2 רשומה עם מזהה לקוח שאינו קיים נכשלת ב-FK (23503)', error?.code === '23503', JSON.stringify(error));
     // הפיצוי שהדפדפן עושה עכשיו ב-saveDoc
     const { error: rmErr } = await user.storage.from(BUCKET).remove([path]);
