@@ -270,11 +270,14 @@ export interface NiRepresentationAction {
  * בקשת ייצוג ללקוח (`client.representationStatus`).
  * ‼ 'send' — האסמכתא כבר קיימת וטרם נשלחו הוראות אישור עצמאיות (ולא
  * רוכבות על מייל החתימה). זו הפעולה היחידה שפותחת את דיאלוג ההוראות.
- * ‼ 'enter_btl'/'check_btl' — הפעולה הקשרית האוטומטית של ב"ל (16.2):
+ * ‼ 'enter_btl'/'check_btl' — הפעולה הקשרית האוטומטית של ב"ל (פרק 17):
  * לפני שהוזן ייפוי כוח בכלל — "הזן ייפוי כוח בביטוח לאומי" (מריץ
  * btl.create_representation); אחרי שיש אסמכתא וטרם אושר — "בדוק קבלת
- * הייצוג" (מריץ btl.check_representation). ‼ 'send' קודמת לשתיהן: אם
- * צריך עדיין לשלוח הוראות אישור למבוטח, זו הפעולה הדחופה יותר.
+ * הייצוג" (מריץ btl.check_representation). ‼ החלטת מוצר (פרק 17): ברגע
+ * שיש אסמכתא התא הזה מציע את הבדיקה, לא את שליחת ההוראות — 'send' ירדה
+ * מכאן (הייתה הפעולה הראשונה עד 16.09.2026) ונשארת במשטח "בקשות"/מרכז
+ * הביצוע ובתזכורות האוטומטיות (186). ה-kind 'send' עדיין קיים לצרכני
+ * NiRepresentationAction האחרים.
  * ‼ אדם מקושר (`!niEditable`) לעולם לא מקבל פעולה — מקור האמת אצלו/ה.
  */
 export function niRepresentationAction(
@@ -283,9 +286,6 @@ export function niRepresentationAction(
   if (!niEditable(person)) return null;
   if (line.kind === 'active' || line.kind === 'elsewhere') return null;
   if (line.represented) {
-    if (track?.referenceNumber && !track?.instructionsSentAt && track?.instructionsSentWith !== 'signature') {
-      return { kind: 'send', label: `שלח הוראות אישור ל-${person.name}` };
-    }
     if (track?.referenceNumber && !track?.confirmedAt) {
       return { kind: 'check_btl', label: 'בדוק קבלת הייצוג' };
     }

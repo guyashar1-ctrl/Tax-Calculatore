@@ -398,32 +398,53 @@ export async function submitAddPoaForm(page, { idNumber, birthYear, firstName, l
   return { ok: true, dialogHandled, fillResults };
 }
 
-// ‼ עוגן מדויק שנמסר במשימה — «ייפוי הכח נקלט במערכת אך טרם הופעל».
-// בלי הראיה הזו לא מכריעים שהוגש בהצלחה, גם אם אין שגיאה גלויה.
-const SUCCESS_MARKER = 'ייפוי הכח נקלט במערכת אך טרם הופעל';
+// ‼ עוגני ההצלחה **כפי שנצפו חי** במסך התוצאה האמיתי (16.09.2026, אחרי
+// הגשה אמיתית): «רישום הטופס נקלט בהצלחה» (הודעת מערכת) ו«ייפוי הכוח
+// ניקלט במערכת, אך עדיין אינו בתוקף». הניסוח שתואר במקור («ייפוי הכח
+// נקלט במערכת אך טרם הופעל») **לא** מופיע בפועל — ההגשה הראשונה נעצרה
+// כ-ambiguous בדיוק בגלל זה, וזה מה שרצינו: לא להכריז הצלחה על סמך ניסוח
+// מנוחש. נשמר גם כגיבוי, למקרה שיש גרסאות מסך שונות.
+// בלי אחד העוגנים לא מכריעים שהוגש בהצלחה, גם אם אין שגיאה גלויה.
+const SUCCESS_MARKERS = [
+  'רישום הטופס נקלט בהצלחה',
+  'ייפוי הכוח ניקלט במערכת',
+  'ייפוי הכח נקלט במערכת אך טרם הופעל',
+];
 
 /**
- * קורא מהמסך שאחרי הגשה מוצלחת: קוד אסמכתא + מועד אחרון לאישור.
+ * קורא מהמסך שאחרי הגשה מוצלחת: מספר אסמכתא + מועד אחרון לאישור.
  * ‼ «הוספה» מסתיימת ב-postback (טעינת עמוד מלאה) — ממתינים לעוגן ההצלחה
  * עד 20 שניות לפני שמכריעים «לא נמצא». האסמכתא והמועד נקראים **ליד התווית
- * שלהם** (קוד אישור… / המועד האחרון…), לא "המספר/התאריך הראשון בעמוד".
+ * שלהם** («מספר האסמכתא של ייפוי הכוח: N» / «המועד האחרון לאישור הטופס:
+ * D» — נצפו חי), לא "המספר/התאריך הראשון בעמוד".
  */
 export async function extractPoaConfirmation(page) {
   await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
-  await page.getByText(SUCCESS_MARKER, { exact: false }).first()
-    .waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+  const anyMarker = page.getByText(SUCCESS_MARKERS[0], { exact: false })
+    .or(page.getByText(SUCCESS_MARKERS[1], { exact: false }))
+    .or(page.getByText(SUCCESS_MARKERS[2], { exact: false })).first();
+  await anyMarker.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
   const s = await snapPage(page);
   const bodyText = (await page.evaluate(() => document.body.innerText || '')).replace(/\s+/g, ' ');
-  if (!bodyText.includes(SUCCESS_MARKER)) {
+  // ‼ נצפה חי (16.09.2026): הגשה חוזרת לאותו מבוטח נדחית ע"י ביטוח לאומי עם
+  // «מבוטח זה כבר קיים במעקב ייפוי כח - מספר אסמכתא: N». זו לא עמימות —
+  // זו עדות חיובית שייפוי כוח קיים, כולל האסמכתא שלו. מוחזר כ-alreadyExisted
+  // כדי שה-handler ישלים מועד אחרון ממסך המעקב במקום להכריז כישלון.
+  const exists = bodyText.match(/כבר קיים במעקב ייפוי כו?ח[^\d]{0,40}?(\d{5,})/);
+  if (exists) {
+    return { ok: true, alreadyExisted: true, referenceNumber: exists[1], deadline: null, pathname: s.pathname };
+  }
+  if (!SUCCESS_MARKERS.some((m) => bodyText.includes(m))) {
     return { ok: false, reason: 'success_marker_not_found', pathname: s.pathname, snippet: bodyText.slice(0, 400) };
   }
-  const refMatch = bodyText.match(/(?:קוד\s*(?:אישור|זיהוי)|מספר\s*אישור)[^\d]{0,40}?(\d{5,})/);
+  const refMatch = bodyText.match(/מספר\s*האסמכתא[^\d]{0,40}?(\d{5,})/)
+    ?? bodyText.match(/(?:קוד\s*(?:אישור|זיהוי)|מספר\s*אישור)[^\d]{0,40}?(\d{5,})/);
   const deadlineMatch = bodyText.match(/המועד\s*האחרון[^\d]{0,60}?(\d{2}\/\d{2}\/\d{4})/)
     ?? bodyText.match(/(?:תאריך\s*תוקף|בתוקף\s*עד)[^\d]{0,40}?(\d{2}\/\d{2}\/\d{4})/);
   return {
     ok: true,
     referenceNumber: refMatch ? refMatch[1] : null,
-    deadline: deadlineMatch ? deadlineMatch[1] : null,
+    deadline: deadlineMatch ? toIsoDate(deadlineMatch[1]) : null,
     // ‼ אם אחד מהם null למרות שנמצא ה-marker: ה-handler מדווח permanent
     // (no_reference_extracted) — לא כותב ערך חלקי כאילו הוא שלם.
   };
@@ -437,6 +458,34 @@ export async function openPoaTrackingScreen(page) {
   const present = await table.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
   if (!present) return { ok: false, steps: nav.steps, reason: 'tracking_table_not_found' };
   return { ok: true, steps: nav.steps };
+}
+
+/**
+ * ‼ ביטוח לאומי מציג ת.ז. **בלי אפסים מובילים** (נצפה חי, 16.09.2026: ת.ז.
+ * בת 9 ספרות שמתחילה באפס מופיעה במסך המעקב — וגם בשדה הטופס אחרי הגשה —
+ * כ-8 ספרות). השוואת מחרוזות ישירה החמיצה רישום קיים והובילה להגשה חוזרת,
+ * שביטוח לאומי דחה («מבוטח זה כבר קיים במעקב ייפוי כח»). משווים ספרות
+ * בלבד, אחרי הסרת אפסים מובילים, משני הצדדים.
+ */
+export function sameIdNumber(a, b) {
+  const norm = (v) => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
+  const x = norm(a); const y = norm(b);
+  return x.length > 0 && x === y;
+}
+
+/**
+ * ‼ ביטוח לאומי מציג תאריכים DD/MM/YYYY; NiTracking.deadline הוא YYYY-MM-DD,
+ * ו-sync_authority_representation_steps בשרת עושה `::date` — «15/11/2026»
+ * נפל ב-"date/time field value out of range" והפיל את השלמת המשימה כולה
+ * (נצפה חי, 16.09.2026). ממירים כאן, פעם אחת, לפני שהערך עוזב את העובד.
+ * צורה לא מזוהה מוחזרת null — לא תאריך מנוחש.
+ */
+export function toIsoDate(display) {
+  const m = String(display ?? '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  if (Number(mm) < 1 || Number(mm) > 12 || Number(dd) < 1 || Number(dd) > 31) return null;
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 // ‼ עוגן מבני מאומת בסשן אמיתי (16.09.2026): כותרות העמודה כפי שנקראו
@@ -461,6 +510,14 @@ const TRACKING_COLUMNS = {
  * כל השורות — התאמה כפולה מוחזרת כדו-משמעית, לא כ"הראשונה שמצאתי".
  */
 export async function findPoaTrackingRow(page, { referenceNumber, idNumber }) {
+  const row = await findPoaTrackingRowRaw(page, { referenceNumber, idNumber });
+  // ‼ המועד חוזר בפורמט תצוגה (DD/MM/YYYY) — מנורמל ל-ISO לפני שהוא עוזב
+  // את העובד; הגולמי נשמר ב-deadlineRaw לאבחון.
+  if (row?.found) return { ...row, deadlineRaw: row.deadline, deadline: toIsoDate(row.deadline) };
+  return row;
+}
+
+async function findPoaTrackingRowRaw(page, { referenceNumber, idNumber }) {
   return page.evaluate(({ referenceNumber, idNumber, columns }) => {
     const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const tables = [...document.querySelectorAll('table')];
@@ -484,12 +541,16 @@ export async function findPoaTrackingRow(page, { referenceNumber, idNumber }) {
     const dataRows = [...target.querySelectorAll('tr')].slice(1)
       .map((r) => [...r.querySelectorAll('td,th')].map((c) => norm(c.textContent)));
 
+    // ‼ ת.ז. מושווית כספרות בלי אפסים מובילים — ראה sameIdNumber (הגרסה
+    // בתוך הדף, כי page.evaluate לא רואה את הפונקציה שבחוץ).
+    const normId = (v) => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
     let matches;
     if (referenceNumber) {
       matches = dataRows.filter((cells) => cells[idxRef] === referenceNumber);
     } else if (idNumber) {
       if (idxId < 0) return { found: false, reason: 'id_column_not_found', headerCells };
-      matches = dataRows.filter((cells) => cells[idxId] === idNumber);
+      const want = normId(idNumber);
+      matches = dataRows.filter((cells) => normId(cells[idxId]) === want);
     } else {
       return { found: false, reason: 'no_lookup_key' };
     }

@@ -14,7 +14,7 @@
 import {
   attachBtl, detachBtl, classifyBtlAuth, probeBtlSession, pickBtlPage, focusBtlWindow,
   launchDedicatedBtlChrome,
-  openPoaTrackingScreen, findPoaTrackingRow,
+  openPoaTrackingScreen, findPoaTrackingRow, sameIdNumber,
 } from '../btlSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 
@@ -86,9 +86,10 @@ export async function run(ctx, input) {
       return { result: { role, referenceNumber, status: 'not_found' } };
     }
 
-    if (row.idNumber && row.idNumber !== idNumber) {
+    if (row.idNumber && !sameIdNumber(row.idNumber, idNumber)) {
       // ‼ נמצאה שורה עם אותה אסמכתא אבל ת.ז. אחרת — אי-התאמה, לא מדווחים
       // "אושר" על סמך זה. ראה דרישת המשימה: "ID/reference mismatch".
+      // ‼ ההשוואה בלי אפסים מובילים — ביטוח לאומי משמיט אפס מוביל בת.ז.
       throw new PermanentError(
         `נמצאה שורה עם אסמכתא ${referenceNumber} אבל ת.ז. שונה מהצפוי — לא מדווח סטטוס עד שזה מתברר.`,
         'reference_id_mismatch',

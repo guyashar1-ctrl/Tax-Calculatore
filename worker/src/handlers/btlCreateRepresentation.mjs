@@ -157,6 +157,21 @@ export async function run(ctx, input) {
     if (!submitted.ok) throw navFailure('מילוי/שליחת טופס ייפוי הכוח', submitted);
 
     const confirmation = await extractPoaConfirmation(page);
+    if (confirmation.ok && confirmation.alreadyExisted) {
+      // ‼ ביטוח לאומי דחה כי כבר קיים ייפוי כוח למבוטח — ומסר את האסמכתא.
+      // זו תוצאת reconcile, לא כישלון: משלימים מועד אחרון ממסך המעקב.
+      ctx.log(`ביטוח לאומי: ייפוי כוח כבר קיים · אסמכתא ${confirmation.referenceNumber} — משלים מועד ממסך המעקב`);
+      const tracking2 = await openPoaTrackingScreen(page);
+      const row = tracking2.ok ? await findPoaTrackingRow(page, { referenceNumber: confirmation.referenceNumber }) : null;
+      return {
+        result: {
+          role: subject.role,
+          referenceNumber: confirmation.referenceNumber,
+          deadline: row?.found ? (row.deadline ?? null) : null,
+          reconciled: true,
+        },
+      };
+    }
     if (!confirmation.ok) {
       // ‼ תוצאה דו-משמעית אחרי הגשה — בדיוק המצב ש-progress.submitted נועד
       // לו: הניסיון הבא (needs_human, לא permanent) יתאם מול המעקב לפני
