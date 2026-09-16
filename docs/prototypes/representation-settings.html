@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ניהול המשרד → ייצוג · אב-טיפוס</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Manrope:wght@600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   טוקנים — העתק נאמן של src/index.css (ערכה בהירה בלבד; הכהה לא נדרשת כאן)
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --page:#f8f7f5; --card:#fff; --bd:#e2e4e7; --bd-strong:#d3d6da; --gray-300:#d3d6da;
+  --tx:#25282d; --txb:#3b3f45; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b; --gray-400:#8e949b; --gray-600:#4b5058; --gray-800:#25282d;
+  --br:#3f5f8f; --br-strong:#34507a; --on-accent:#fff; --soft:#e8eef5; --soft-bd:#c6d4e6;
+  --s1:#f5f4f2; --s2:#f3f2f0; --s4:#fafaf9;
+  --ok:#24654e; --ok-bg:#eaf4ef; --warn:#8a5b0f; --warn-bg:#fbf3e4; --err:#a63a3a; --err-bg:#fbeded;
+  --chip-green-bg:#e4f1ea; --chip-green-tx:#1e5942; --chip-amber-bg:#f8efdc; --chip-amber-tx:#7a4f0d;
+  --chip-blue-bg:#e3ebf5; --chip-blue-tx:#2c4468;
+  --ink-1:var(--tx); --ink-2:var(--txc); --ink-3:var(--tx2); --ink-4:var(--tx3); --ink-quiet:#c3c7cc;
+  --accent:var(--br); --surface-0:var(--card); --hairline-1:var(--bd); --hairline-2:#eeedeb; --field-read:var(--s1);
+  --focus-ring:rgba(63,95,143,.42);
+  --fs-12:12px; --fs-13:13px; --fs-14:14px; --fs-15:15px; --fs-17:17px; --fs-20:20px;
+  --radius:9px; --radius-lg:12px;
+  --shadow-lg:0 18px 40px -24px rgba(28,30,34,.35),0 4px 10px -6px rgba(28,30,34,.1);
+  --workspace-max:1600px; --content-max:1040px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',system-ui,sans-serif;background:var(--page);color:var(--tx);line-height:1.5;min-height:100vh;font-size:var(--fs-14)}
+button{font:inherit;color:inherit}
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+label{font-size:13px;font-weight:500;color:var(--gray-600)}
+input:not([type]),input[type=text],input[type=number],input[type=date],textarea,select{
+  padding:.5rem .75rem;border:1px solid var(--gray-300);border-radius:var(--radius);font-size:14px;font-family:inherit;
+  color:var(--gray-800);background:var(--card);transition:border-color .15s;width:100%;direction:rtl
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--focus-ring)}
+textarea{resize:vertical;min-height:88px;line-height:1.55}
+
+/* ── פס אב-טיפוס · מחוץ ל-.app לגמרי, לא חלק מ"המשרד" ──────────────────── */
+.demo{background:#1c2433;color:#cfd6e2;font-size:11.5px;padding:6px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:relative;z-index:200}
+.demo b{color:#fff;font-weight:600}
+.demo button{margin-inline-start:auto;border:1px solid #54607a;background:#2a3446;color:#cfd6e2;border-radius:7px;padding:3px 9px;cursor:pointer;font-size:11px}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   מסגרת האפליקציה — העתק נאמן של index.css + pivo-design.css (.app, .header,
+   .app>.header/.app>.main, .main-nav, .nav-tab, .header-account, .account-menu…)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.app{min-height:100vh;background:var(--page);display:block;font-size:var(--fs-14)}
+.header{background:var(--card);border-bottom:1px solid var(--bd);padding:0 1.25rem;height:54px;display:flex;align-items:center;gap:1.25rem;position:sticky;top:0;z-index:100}
+.header-actions{display:flex;align-items:center;gap:.6rem;margin-inline-end:auto}
+.header-logo{cursor:pointer;display:flex;align-items:center;gap:.6rem;flex-shrink:0;white-space:nowrap;background:none;border:none;padding:0;font-family:inherit;color:inherit}
+.brand-lockup{display:inline-flex;align-items:center;gap:.55rem;color:var(--br)}
+.brand-mark{display:block;flex-shrink:0;overflow:visible}
+.brand-wordmark{direction:ltr;display:inline-flex;align-items:center;font-family:'Manrope',system-ui,sans-serif;font-weight:600;font-size:20px;letter-spacing:-.022em;line-height:1;color:var(--tx)}
+.main-nav{display:flex;gap:.25rem;margin-inline-start:1.1rem;flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
+.main-nav::-webkit-scrollbar{display:none}
+.nav-tab{padding:.45rem .7rem;border:none;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:var(--tx2);font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;transition:color .15s,border-color .15s;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap}
+.nav-tab:hover{color:var(--tx)}
+.nav-tab.active{color:var(--tx);font-weight:600;border-bottom-color:var(--br)}
+.nav-badge{display:inline-flex;align-items:center;justify-content:center;min-width:1.15rem;height:1.15rem;padding:0 .3rem;background:var(--s2);color:var(--tx2);border-radius:999px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.nav-tab.active .nav-badge{background:var(--soft);color:var(--br)}
+.header-account{position:relative;display:flex;align-items:center}
+.header-user{display:flex;align-items:center;padding:0;border:2px solid transparent;border-radius:999px;background:transparent;cursor:pointer;transition:border-color .12s}
+.header-user:hover,.header-user.is-open{border-color:var(--soft-bd)}
+.header-user-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;background:var(--br);color:var(--on-accent);display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex-shrink:0}
+.account-menu{position:absolute;top:calc(100% + .5rem);inset-inline-end:0;min-width:200px;background:var(--card);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(20,25,40,.10),0 2px 6px rgba(20,25,40,.04);padding:.35rem;z-index:200}
+.account-menu-id{padding:.5rem .6rem .6rem;border-bottom:1px solid var(--s2);margin-bottom:.35rem}
+.account-menu-name{font-size:13px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-menu-firm{font-size:12px;color:var(--tx3);margin-top:.15rem}
+.account-menu-item{display:flex;align-items:center;gap:.5rem;width:100%;text-align:start;padding:.45rem .6rem;border:none;border-radius:6px;background:transparent;color:var(--txc);font-family:inherit;font-size:13px;cursor:pointer}
+.account-menu-item>svg{flex:none;color:var(--tx3)}
+.account-menu-item:hover{background:var(--s2);color:var(--tx)}
+.account-menu-item:hover>svg{color:inherit}
+.account-menu-item.is-active{color:var(--tx);font-weight:600}
+.account-menu-item.is-active>svg{color:inherit}
+.account-menu-sep{display:block;height:1px;background:var(--s2);margin:.35rem .35rem}
+.account-switch{--sw:16px;width:26px;height:15px;border-radius:8px;background:var(--bd-strong);position:relative;display:inline-block;margin-inline-start:auto;flex-shrink:0}
+.account-switch::after{content:"";position:absolute;top:1.5px;inset-inline-start:1.5px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .15s}
+.account-switch.is-on{background:var(--br)}
+.account-switch.is-on::after{transform:translateX(-11px)}
+
+/* עוגן הפריסה: .app>.header/.app>.main על --workspace-max — נטען אחרון, מנצח */
+.app>.header,.app>.main{max-width:var(--workspace-max);margin-inline:auto;width:100%;background:var(--surface-0)}
+.app>.header{position:sticky;top:0;border-bottom:1px solid var(--hairline-1);padding-inline:clamp(20px,3vw,40px);gap:26px}
+.app>.main{padding:20px clamp(20px,3vw,40px) 48px;flex:none}
+@media (max-width:1100px){ .app>.header,.app>.main{max-width:none;padding-inline:16px} }
+
+/* מובייל — ראש מקוצר + סרגל ניווט תחתון (index.css, בלוק "מובייל") */
+.mobile-nav{display:none}
+@media (max-width:760px){
+  .header{padding:0 .85rem;height:56px;gap:.6rem}
+  .main-nav{display:none}
+  .header-user-avatar{width:28px;height:28px;font-size:12px}
+  .app>.main{padding:.9rem .75rem calc(78px + env(safe-area-inset-bottom,0px))}
+  .mobile-nav{display:flex;position:fixed;inset-inline:0;bottom:0;z-index:120;background:var(--card);border-top:1px solid var(--bd);padding:.5rem 0 calc(.5rem + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 22px -18px rgba(0,0,0,.6)}
+  .mobile-nav-item{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;font-family:inherit;font-size:12px;font-weight:600;color:var(--tx3);cursor:pointer;min-height:48px;justify-content:center;padding:.15rem 0;min-width:0}
+  .mobile-nav-item.active{color:var(--br)}
+  .mobile-nav-label{white-space:nowrap}
+  .mobile-nav-badge{position:absolute;top:-3px;inset-inline-end:20%;min-width:15px;height:15px;padding:0 4px;display:flex;align-items:center;justify-content:center;background:var(--err);color:#fff;border-radius:999px;font-size:10px;font-weight:700}
+}
+
+/* ── כפתורים · index.css ───────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border-radius:var(--radius);font-size:14px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:background .15s,border-color .15s,color .15s;white-space:nowrap;background:var(--card);color:var(--txb);border-color:var(--bd-strong)}
+.btn:hover:not(:disabled){background:var(--s4)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--br);color:var(--on-accent);border-color:var(--br)}
+.btn-primary:hover:not(:disabled){background:var(--br-strong);border-color:var(--br-strong)}
+.btn-ghost{background:transparent;color:var(--txc);border-color:transparent}
+.btn-ghost:hover:not(:disabled){background:var(--s2)}
+.btn-sm{padding:.3rem .75rem;font-size:13px}
+.linkbtn{border:0;background:none;color:var(--accent);cursor:pointer;font-size:inherit;padding:0}
+.linkbtn:hover{text-decoration:underline}
+
+/* ── רשת המשרד · fp-grid / fp-rail / pg-head — העתק נאמן ────────────────── */
+.fp-head{position:sticky;top:0;z-index:20;background:var(--surface-0);margin-bottom:20px}
+.pg-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding-bottom:13px;border-bottom:1px solid var(--hairline-1)}
+.pg-head-main{display:flex;flex-direction:column;gap:3px;min-width:0}
+.pg-title{font-size:var(--fs-17);font-weight:600;letter-spacing:-.015em;color:var(--ink-1)}
+.pg-title-lg{font-size:var(--fs-20)}
+.pg-status{font-size:var(--fs-13);color:var(--ink-3)}
+@media (max-width:700px){.pg-head{flex-wrap:wrap;gap:12px 16px}.pg-head-main{flex:1 1 100%}}
+.fp-grid{display:grid;grid-template-columns:184px 1fr;gap:18px;align-items:start}
+.fp-rail{padding-inline-end:14px;border-inline-end:1px solid var(--hairline-2)}
+.fp-rail-group{font-size:var(--fs-12);letter-spacing:.06em;color:var(--ink-4);padding:14px 0 5px}
+.fp-rail-item{display:flex;align-items:center;gap:9px;width:100%;padding:7px 0;margin-bottom:1px;background:none;border:0;border-inline-start:2px solid transparent;padding-inline-start:9px;margin-inline-start:-11px;cursor:pointer;font-size:var(--fs-13);color:var(--ink-3);text-align:start}
+.fp-rail-item:hover{color:var(--ink-1)}
+.fp-rail-item.is-active{color:var(--ink-1);font-weight:500;border-inline-start-color:var(--accent)}
+.fp-rail-soon{display:flex;align-items:center;gap:9px;padding:6px 0;color:var(--ink-quiet);font-size:var(--fs-12)}
+.fp-rail-soon-tag{margin-inline-start:auto;font-size:var(--fs-12);color:var(--ink-quiet)}
+.fp-rail svg{flex-shrink:0}
+@media (max-width:820px){
+  .fp-grid{grid-template-columns:1fr;gap:0}
+  .fp-grid>.fp-rail{display:flex;flex-wrap:wrap;gap:4px 10px;padding-inline-end:0;padding-bottom:12px;margin-bottom:14px;border-inline-end:0;border-bottom:1px solid var(--hairline-2)}
+  .fp-grid>.fp-rail .fp-rail-group{width:100%;padding:8px 0 2px}
+  .fp-grid>.fp-rail .fp-rail-item{width:auto;margin-inline-start:0;padding-inline-start:6px}
+  .fp-grid>.fp-rail .fp-rail-soon{display:none}
+}
+
+/* ── תוכן «ייצוג» ───────────────────────────────────────────────────────── */
+.sec-intro{padding:2px 0 18px}
+.sec-title{font-size:var(--fs-17);font-weight:600;color:var(--ink-1);letter-spacing:-.01em}
+.sec-lead{font-size:var(--fs-14);color:var(--ink-2);margin-top:4px;max-width:640px;line-height:1.6}
+.sec-ref{font-size:var(--fs-12);color:var(--ink-3);margin-top:10px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.sec-ref .sep{color:var(--ink-quiet)}
+.sec-summary{font-size:var(--fs-13);color:var(--ink-3);padding:12px 0 6px;border-top:1px solid var(--hairline-2);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sec-summary .sep{color:var(--ink-quiet)}
+
+.spine{position:relative;margin-top:6px}
+.stage{border-top:1px solid var(--hairline-2)}
+.stage:last-child{border-bottom:1px solid var(--hairline-2)}
+.stage-head{display:grid;grid-template-columns:28px 1fr auto 18px;align-items:center;gap:14px;width:100%;padding:15px 2px;background:none;border:0;cursor:pointer;text-align:start}
+.stage-head:hover .stage-name{color:var(--ink-1)}
+.stage-num{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--bd-strong);color:var(--ink-3);font-size:var(--fs-12);font-weight:600;display:flex;align-items:center;justify-content:center;background:var(--card);position:relative;z-index:1}
+.stage.is-open .stage-num{border-color:var(--accent);color:var(--accent)}
+.stage-name{font-size:var(--fs-15);font-weight:500;color:var(--ink-1);letter-spacing:-.005em}
+.stage-sum{font-size:var(--fs-12);color:var(--ink-3);white-space:nowrap}
+.stage-sum .dot{color:var(--ink-quiet);margin:0 4px}
+.chev{width:16px;height:16px;color:var(--ink-4);transition:transform .18s}
+.stage.is-open .chev{transform:rotate(180deg)}
+.stage-body{display:none;padding:2px 0 22px 0;padding-inline-start:42px;max-width:1180px}
+.stage.is-open .stage-body{display:block}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:28px}
+@media (max-width:900px){
+  .stage-head{grid-template-columns:24px 1fr 18px;gap:10px}
+  .stage-sum{grid-column:2;grid-row:2;white-space:normal;margin-top:1px}
+  .chev{grid-column:3;grid-row:1}
+  .stage-body{padding-inline-start:0}
+  .cols{grid-template-columns:1fr;gap:18px}
+}
+.col-label{font-size:var(--fs-12);letter-spacing:.04em;color:var(--ink-4);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.col-label .tag{font-size:11px;color:var(--ink-4);background:var(--s2);padding:1px 7px;border-radius:10px;letter-spacing:0}
+.happens{font-size:var(--fs-14);color:var(--ink-2);line-height:1.65}
+.happens p+p{margin-top:8px}
+.happens .quiet{color:var(--ink-3);font-size:var(--fs-13)}
+
+.artifact{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--hairline-2)}
+.artifact:first-of-type{border-top:0;padding-top:2px}
+.art-icon{width:32px;height:32px;border-radius:8px;background:var(--s2);display:flex;align-items:center;justify-content:center;color:var(--ink-3)}
+.art-main{min-width:0}
+.art-kind{font-size:var(--fs-12);color:var(--ink-4)}
+.art-title{font-size:var(--fs-14);color:var(--ink-1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.art-meta{display:flex;align-items:center;gap:8px;font-size:var(--fs-12);color:var(--ink-3);margin-top:2px}
+.state{font-size:11px;padding:1px 7px;border-radius:10px;background:var(--s2);color:var(--txc)}
+.state.custom{background:var(--chip-blue-bg);color:var(--chip-blue-tx)}
+.state.system{background:var(--s1);color:var(--ink-4)}
+.art-actions{display:flex;gap:4px;align-items:center}
+@media (max-width:520px){.artifact{grid-template-columns:auto 1fr}.art-actions{grid-column:2;justify-content:flex-start;margin-top:-2px}}
+
+.opt-list{display:grid;gap:9px}
+.opt-row{}
+.opt{display:flex;align-items:center;gap:9px;font-size:var(--fs-14);color:var(--ink-1);cursor:pointer}
+.opt input{width:16px;height:16px;accent-color:var(--accent);margin:0}
+.opt .sub{font-size:var(--fs-12);color:var(--ink-3)}
+.level-row{display:none;margin:6px 0 2px 25px;gap:6px}
+.level-row.is-shown{display:flex}
+.pill{font-size:12px;padding:4px 11px;border-radius:20px;border:1px solid var(--bd-strong);background:var(--card);color:var(--ink-2);cursor:pointer}
+.pill.is-on{background:var(--soft);border-color:var(--soft-bd);color:var(--br);font-weight:500}
+.opt-group{margin-top:16px}
+.opt-group-title{font-size:var(--fs-12);color:var(--ink-4);margin-bottom:8px}
+.note{font-size:var(--fs-12);color:var(--ink-3);line-height:1.55;margin-top:14px;padding-top:12px;border-top:1px solid var(--hairline-2)}
+
+.reminders{margin-top:16px;padding-top:14px;border-top:1px solid var(--hairline-2)}
+.reminders+.reminders{margin-top:10px;padding-top:10px}
+.rem-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rem-title{font-size:var(--fs-14);font-weight:500;color:var(--ink-1)}
+.rem-audience{font-size:var(--fs-12);color:var(--ink-3)}
+.new-tag{font-size:11px;padding:1px 7px;border-radius:10px;background:var(--chip-amber-bg);color:var(--chip-amber-tx);font-weight:500}
+.switch{margin-inline-start:auto;display:inline-flex;align-items:center;gap:8px;font-size:var(--fs-13);color:var(--ink-3);cursor:pointer;user-select:none}
+.sw{width:34px;height:20px;border-radius:12px;background:var(--bd-strong);position:relative;transition:background .15s}
+.sw::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch input{position:absolute;opacity:0;width:0;height:0}
+.switch input:checked+.sw{background:var(--accent)}
+.switch input:checked+.sw::after{transform:translateX(-14px)}
+.rem-body{display:none;margin-top:10px;font-size:var(--fs-14);color:var(--ink-2);line-height:2}
+.reminders.is-on .rem-body{display:block}
+.rem-body input{width:52px;display:inline-block;padding:.2rem .4rem;text-align:center;margin:0 3px;font-size:var(--fs-13)}
+.rem-note{font-size:var(--fs-12);color:var(--ink-3);margin-top:4px;line-height:1.55}
+.rem-off-note{font-size:var(--fs-12);color:var(--ink-3);margin-top:8px;line-height:1.55}
+
+.scrim{position:fixed;inset:0;background:rgba(28,30,34,.28);z-index:150;display:none}
+.drawer{position:fixed;top:0;bottom:0;inset-inline-end:auto;inset-inline-start:0;width:min(600px,100vw);background:var(--card);z-index:151;box-shadow:var(--shadow-lg);display:none;flex-direction:column;transform:translateX(-24px);opacity:0;transition:transform .2s,opacity .2s}
+.drawer.is-open,.scrim.is-open{display:flex}
+.drawer.is-in{transform:none;opacity:1}
+.dr-head{padding:16px 22px 12px;border-bottom:1px solid var(--hairline-1);display:flex;align-items:flex-start;gap:12px}
+.dr-title{font-size:var(--fs-15);font-weight:600;color:var(--ink-1)}
+.dr-sub{font-size:var(--fs-12);color:var(--ink-3);margin-top:2px}
+.dr-close{margin-inline-start:auto;border:0;background:none;cursor:pointer;color:var(--ink-3);width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.dr-close:hover{background:var(--s2);color:var(--ink-1)}
+.dr-tabs{display:flex;gap:18px;padding:0 22px;border-bottom:1px solid var(--hairline-2);font-size:var(--fs-13)}
+.dr-tab{padding:10px 2px;border:0;background:none;color:var(--ink-3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.dr-tab.is-active{color:var(--ink-1);font-weight:500;border-bottom-color:var(--accent)}
+.dr-body{flex:1;overflow:auto;padding:18px 22px 24px}
+.dr-pane{display:none}
+.dr-pane.is-active{display:block}
+.field{display:grid;gap:5px;margin-bottom:14px}
+.field label{font-size:var(--fs-12);color:var(--ink-3)}
+.field .hint{font-size:var(--fs-12);color:var(--ink-4)}
+.locked{margin-top:6px;padding:12px 14px;background:var(--field-read);border-radius:var(--radius);font-size:var(--fs-12);color:var(--ink-3);line-height:1.6}
+.locked b{color:var(--ink-2);font-weight:500}
+.locked ul{padding-inline-start:16px;margin-top:4px}
+.dr-foot{padding:12px 22px;border-top:1px solid var(--hairline-1);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dr-foot .spacer{flex:1}
+.dr-state{font-size:var(--fs-12);color:var(--ink-3)}
+@media (max-width:640px){.drawer{width:100vw}.dr-body{padding:14px 16px 20px}.dr-head,.dr-foot,.dr-tabs{padding-inline:16px}}
+
+.pv-wrap{background:#eceae6;padding:18px;border-radius:var(--radius-lg)}
+.pv-hint{font-size:var(--fs-12);color:var(--ink-3);margin-bottom:10px}
+.mail{max-width:460px;margin:auto;background:#fff;border:1px solid #e4e2dd;border-radius:10px;overflow:hidden;font-size:13.5px;color:#25282d}
+.mail-top{padding:16px 22px 10px;display:flex;align-items:center;gap:10px}
+.mail-lockup{font-weight:700;color:#3f5f8f;letter-spacing:.02em}
+.mail-lockup small{display:block;font-weight:400;color:#8e949b;font-size:11px;letter-spacing:0}
+.mail-hr{height:2px;background:#3f5f8f;margin:0 22px}
+.mail-h{padding:18px 22px 6px;font-size:18px;font-weight:600}
+.mail-b{padding:0 22px 16px;line-height:1.65;color:#4b5058;white-space:pre-line}
+.mail-btn{display:inline-block;margin:0 22px 18px;background:#3f5f8f;color:#fff;padding:9px 18px;border-radius:8px;font-weight:500}
+.mail-block{margin:0 22px 18px;border:1px solid #e4e2dd;border-radius:8px;padding:12px 14px;background:#f8f7f5;font-size:12.5px;color:#4b5058;line-height:1.6}
+.mail-block b{display:block;color:#25282d;font-size:15px}
+.mail-foot{padding:12px 22px 16px;border-top:1px solid #eeedeb;font-size:11.5px;color:#8e949b;line-height:1.6}
+.mail-sig{color:#4b5058}
+.portal{max-width:460px;margin:auto;background:#f8f7f5;border:1px solid #e4e2dd;border-radius:10px;overflow:hidden;font-size:13.5px;color:#25282d}
+.portal-top{background:#fff;padding:12px 18px;border-bottom:1px solid #e4e2dd;display:flex;align-items:center;gap:10px}
+.portal-sec{padding:14px 18px 4px;font-size:11.5px;color:#8e949b;letter-spacing:.04em}
+.pcard{margin:6px 18px 18px;background:#fff;border:1px solid #e4e2dd;border-radius:10px;padding:16px 18px}
+.pcard-t{font-weight:600;font-size:15px}
+.pcard-s{color:#63686f;font-size:12.5px;margin-top:2px}
+.pcard-n{margin-top:12px;color:#4b5058;line-height:1.65;white-space:pre-line;font-size:13px}
+.pcard-link{display:inline-block;margin-top:12px;border:1px solid #c6d4e6;color:#3f5f8f;border-radius:8px;padding:7px 14px;font-weight:500;font-size:13px}
+.pcard-link small{display:block;font-weight:400;font-size:10.5px;color:#8e949b}
+.pcard-after{margin-top:12px;color:#63686f;font-size:12.5px;line-height:1.6}
+.pcard-cta{display:inline-block;margin-top:14px;background:#3f5f8f;color:#fff;border-radius:8px;padding:9px 16px;font-weight:500;font-size:13px}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#25282d;color:#fff;padding:9px 14px;border-radius:9px;font-size:var(--fs-13);z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
+.toast.is-on{opacity:1}
+.confirm{position:fixed;inset:0;z-index:170;background:rgba(28,30,34,.35);display:none;align-items:center;justify-content:center;padding:16px}
+.confirm.is-open{display:flex}
+.confirm-box{background:var(--card);border-radius:var(--radius-lg);padding:20px 22px;max-width:380px;width:100%;box-shadow:var(--shadow-lg)}
+.confirm-box p{font-size:var(--fs-14);color:var(--ink-2);margin-bottom:16px;line-height:1.55}
+.confirm-box .row{display:flex;gap:8px;justify-content:flex-start}
+</style>
+</head>
+<body>
+
+<div class="demo"><b>אב-טיפוס</b> ניהול המשרד → ייצוג · מעטפת "המשרד" הקיימת ללא שינוי, נוסף רק פריט ניווט אחד · נתונים מדומים <button id="demoReset" type="button">איפוס האב-טיפוס</button></div>
+
+<div class="app">
+  <header class="header">
+    <button type="button" class="header-logo" aria-label="חזרה למשימות">
+      <span class="brand-lockup">
+        <svg class="brand-mark" viewBox="0 0 100 100" width="28" height="28" aria-hidden="true"><path d="M14 50 A36 36 0 0 1 86 50 A28 28 0 0 1 30 50 A20 20 0 0 1 70 50 A12 12 0 0 1 46 50" fill="none" stroke="currentColor" stroke-width="8.5" stroke-linecap="round"/></svg>
+        <span class="brand-wordmark">PIVO</span>
+      </span>
+    </button>
+    <nav class="main-nav">
+      <button type="button" class="nav-tab">לקוחות</button>
+      <button type="button" class="nav-tab">משימות<span class="nav-badge">6</span></button>
+    </nav>
+    <div class="header-actions">
+      <div class="header-account">
+        <button type="button" class="header-user" id="avatarBtn" aria-label="חשבון והגדרות" aria-expanded="false">
+          <span class="header-user-avatar">ג</span>
+        </button>
+        <div class="account-menu" id="accountMenu" hidden>
+          <div class="account-menu-id">
+            <div class="account-menu-name">גיא ישר</div>
+            <div class="account-menu-firm">ישר רואי חשבון</div>
+          </div>
+          <button type="button" class="account-menu-item is-active" aria-current="page">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.6 13.8V3a.6.6 0 01.6-.6h5a.6.6 0 01.6.6v10.8"/><path d="M9.8 6.6h2.6a.6.6 0 01.6.6v6.6"/><path d="M2.2 13.8h11.6"/><path d="M5.6 5.1h2M5.6 7.6h2M5.6 10.1h2"/></svg>
+            <span>המשרד</span>
+          </button>
+          <button type="button" class="account-menu-item" id="gotoRef">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2H4.5A1.5 1.5 0 003 3.5v9A1.5 1.5 0 014.5 11H13z"/><path d="M4.5 11H13v3H4.5A1.5 1.5 0 013 12.5"/></svg>
+            <span>ידע מס</span>
+          </button>
+          <span class="account-menu-sep" aria-hidden="true"></span>
+          <button type="button" class="account-menu-item account-menu-toggle" id="themeToggle" role="menuitemcheckbox" aria-checked="false">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 9.4A5.2 5.2 0 016.6 3 5.4 5.4 0 108 13.4a5.4 5.4 0 005-4z"/></svg>
+            <span>מצב כהה</span>
+            <span class="account-switch" id="themeSwitch" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="account-menu-item" id="signOut">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13.8h2.4a1.4 1.4 0 001.4-1.4V3.6a1.4 1.4 0 00-1.4-1.4H10"/><path d="M5.5 11.2L2.3 8l3.2-3.2"/><path d="M2.3 8H10"/></svg>
+            <span>התנתק</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="fp-head">
+      <div class="pg-head">
+        <div class="pg-head-main">
+          <div class="pg-title pg-title-lg">המשרד</div>
+          <div class="pg-status">מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="chip" id="saveChip">אין שינויים</span>
+          <button class="btn btn-primary" id="saveBtn" type="button" disabled>שמירת שינויים</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="fp-grid">
+      <nav class="fp-rail" aria-label="ניווט בפרופיל המשרד" id="rail"></nav>
+
+      <div id="content">
+        <div class="sec-intro">
+          <div class="sec-title">ייצוג</div>
+          <div class="sec-lead">כך מתנהל תהליך הייצוג מול הלקוח, מהפתיחה ועד שהייצוג פעיל. המערכת מובילה את השלבים; המשרד קובע מה הלקוח קורא ומקבל בדרך.</div>
+          <div class="sec-ref">
+            <span>ההודעות יוצאות מ-<span dir="ltr">office@yasharcpa.co.il</span> עם חתימת המשרד והמיתוג שלכם.</span>
+            <span class="sep">·</span><button class="linkbtn" data-goto="ערוצי תקשורת">ערוצי תקשורת ←</button>
+            <span class="sep">·</span><button class="linkbtn" data-goto="מותג">מותג ←</button>
+            <span class="sep">·</span><button class="linkbtn" data-goto="חתימת מייל">חתימת מייל ←</button>
+          </div>
+        </div>
+
+        <div class="sec-summary" id="summary"></div>
+        <div class="spine" id="spine"></div>
+      </div>
+    </div>
+  </main>
+
+  <nav class="mobile-nav">
+    <button type="button" class="mobile-nav-item" data-goto="לקוחות"><span class="mobile-nav-label">לקוחות</span></button>
+    <button type="button" class="mobile-nav-item" data-goto="משימות"><span class="mobile-nav-label">משימות</span><span class="mobile-nav-badge">6</span></button>
+  </nav>
+</div>
+
+<!-- מגירת עריכה / תצוגה מקדימה -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drTitle">
+  <div class="dr-head">
+    <div>
+      <div class="dr-title" id="drTitle"></div>
+      <div class="dr-sub" id="drSub"></div>
+    </div>
+    <button class="dr-close" id="drClose" type="button" aria-label="סגירה">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="dr-tabs">
+    <button class="dr-tab is-active" type="button" data-tab="edit">עריכה</button>
+    <button class="dr-tab" type="button" data-tab="preview">תצוגה מקדימה</button>
+  </div>
+  <div class="dr-body">
+    <div class="dr-pane is-active" id="paneEdit"></div>
+    <div class="dr-pane" id="panePreview"></div>
+  </div>
+  <div class="dr-foot">
+    <button class="btn btn-ghost btn-sm" id="drReset" type="button">חזרה לברירת המחדל</button>
+    <span class="dr-state" id="drState"></span>
+    <span class="spacer"></span>
+    <button class="btn btn-sm" id="drCancel" type="button">ביטול</button>
+    <button class="btn btn-primary btn-sm" id="drApply" type="button">החל</button>
+  </div>
+</aside>
+
+<div class="confirm" id="confirm">
+  <div class="confirm-box">
+    <p id="confirmText"></p>
+    <div class="row"><button class="btn btn-primary btn-sm" id="confirmYes" type="button">כן</button><button class="btn btn-sm" id="confirmNo" type="button">חזרה</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   נתוני האב-טיפוס. הנוסחים של ב״ל, «השלמת פרטים» ו«זירוז אישור הייצוג»
+   לקוחים מהמערכת כמות שהם; נוסחי הזיהוי, החתימה ו«פעיל» — מייצגים.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const FIRM = { name: 'ישר רואי חשבון', rep: 'רואה חשבון · מספר מייצג 33421', phone: '03-6011234', sender: 'office@yasharcpa.co.il', client: 'דנה', spouse: 'יואב' };
+
+const ARTIFACTS = [
+  { id:'onboard', stage:1, type:'mail', label:'מייל הזיהוי',
+    system:{ subject:'נתחיל בייצוג — כמה פרטים וצילום תעודה', heading:'שלום {שם פרטי}, נתחיל', body:'כדי שנוכל לייצג אתכם מול הרשויות, נצטרך כמה פרטים אישיים וצילום של תעודה מזהה. הקישור מוביל לדף האישי שלכם — לוקח כמה דקות.', cta:'למילוי הפרטים' },
+    locked:['כפתור המייל מוביל לדף האישי של הלקוח — קישור אחד קבוע לכל אורך הקשר.','בזוג, לכל אחד קישור לפרטיו; פרטים שהמשרד כבר מילא לא נשאלים שוב.'] },
+  { id:'sign', stage:2, type:'mail', label:'מייל החתימה',
+    system:{ subject:'ייפוי הכוח מוכן לחתימה', heading:'נשאר רק לחתום', body:'הכנו את ייפוי הכוח לייצוג מול הרשויות. הקישור מוביל לחתימה דיגיטלית קצרה — כל חותם מקבל קישור משלו.', cta:'לחתימה על ייפוי הכוח' },
+    locked:['לכל חותם קישור חתימה אישי.','כשביטוח לאומי כלול ויש אסמכתא — המייל כולל אוטומטית את מספר האסמכתא, המועד האחרון ושתי דרכי האישור בב״ל. הבלוק הזה אינו ניתן לעריכה.'],
+    niBlock:true },
+  { id:'ni_approve', stage:3, type:'mail', label:'הוראות אישור בביטוח הלאומי',
+    system:{ subject:'אישור ייפוי הכוח בביטוח הלאומי', heading:'אישור קצר בביטוח הלאומי', body:'הזנו עבורכם את ייפוי הכוח באתר הביטוח הלאומי. הביטוח הלאומי דורש שאתם תאשרו אותו בעצמכם - עד שלא תאשרו, הייצוג בביטוח הלאומי אינו בתוקף. אפשר לאשר באחת משתי הדרכים שלמטה, לוקח כדקה.', cta:'לאישור באתר הביטוח הלאומי' },
+    locked:['הקישור מוביל לאתר הביטוח הלאומי; דרך האישור השנייה היא בטלפון 02-5393740.','מספר האסמכתא והמועד האחרון נלקחים מהבקשה של אותו אדם.'],
+    niBlock:true, standalone:'נשלח בנפרד רק כשההוראות לא נכנסו למייל החתימה.' },
+  { id:'prereq', stage:3, type:'mail', label:'השלמת פרטים חסרים',
+    system:{ subject:'כמה פרטים קצרים - כדי להמשיך בטיפול בייצוג בביטוח הלאומי', heading:'נשארו כמה פרטים', body:'כדי שנוכל להמשיך בטיפול בייצוג שלכם מול הביטוח הלאומי, חסרים לנו כמה פרטים. הקישור פותח טופס קצר ומאובטח שמבקש רק את מה שבאמת חסר - לוקח פחות מדקה.', cta:'למילוי הפרטים' },
+    locked:['המייל מפרט אוטומטית אילו פרטים חסרים (למשל: שנת לידה, תעודת זהות).','הקישור פותח טופס עם השדות החסרים בלבד, ותקף 14 יום.'],
+    missingBlock:true },
+  { id:'portal', stage:4, type:'portal', label:'כרטיס בדף האישי',
+    system:{ title:'זירוז אישור הייצוג באזור האישי', sub:'אופציונלי - שלוש דקות שמקצרות את ההמתנה לאישור הרשויות',
+      note:'נכנסים לאזור האישי של רשות המסים עם הזדהות ממשלתית. מי שכבר יש לו חשבון — מתחבר; מי שאין — נרשם פעם אחת.\nבמסך «מייצגים» מאשרים את המייצג החדש.\nאם קיבלתם מרשות המסים הודעת SMS על רישום המייצג — הקישור שבה מוביל ישירות למסך האישור.',
+      noteAfter:'ואם לא הסתדר - אין בעיה. הייצוג ייכנס לתוקף גם בלי זה, פשוט קצת יותר לאט.',
+      linkLabel:'לכניסה לאזור האישי', cta:'אישרתי באזור האישי' },
+    locked:['כותרת הכרטיס וטקסט הכפתור («אישרתי באזור האישי») הם חלק מהמנגנון עצמו — קבועים ולא ניתנים לעריכה.','יעד הקישור: gov.il — האזור האישי של רשות המסים. קבוע.','לחיצה על «אישרתי» מחזירה את הכדור למשרד לבדיקה בשע״ם. הדיווח של הלקוח לבדו אינו מפעיל את הייצוג, והכרטיס נסגר רק כשהמשרד מסמן שהייצוג פעיל.'] },
+  { id:'active', stage:5, type:'mail', label:'מייל «הייצוג פעיל»',
+    system:{ subject:'הייצוג שלכם מול הרשויות פעיל', heading:'הייצוג אושר', body:'רשות המסים אישרה את ייפוי הכוח, ומעכשיו אנחנו מייצגים אתכם מול הרשויות. אין צורך בפעולה נוספת מצדכם.', cta:'לדף האישי' },
+    locked:['נשלח רק בלחיצה מהמשרד, אחרי תצוגה מקדימה — לעולם לא כתופעת לוואי של סימון «פעיל».'] },
+];
+
+/* פורטל: title/cta הם המנגנון עצמו — אין להם שדה עריכה בכלל (§ מה קבוע). */
+const FIELD_DEFS = {
+  mail:   [ ['subject','נושא המייל'], ['heading','כותרת בגוף המייל'], ['body','טקסט', 'textarea'], ['cta','טקסט הכפתור'] ],
+  portal: [ ['sub','שורת משנה'], ['note','ההוראות ללקוח','textarea'], ['linkLabel','טקסט הקישור לאזור האישי'], ['noteAfter','משפט מרגיע בסוף','textarea'] ],
+};
+
+const STAGES = [
+  { n:0, name:'פתיחת בקשה' },
+  { n:1, name:'זיהוי ופרטים' },
+  { n:2, name:'חתימה על ייפוי הכוח', reminders:['sign'] },
+  { n:3, name:'ביטוח לאומי', reminders:['ni_client','ni_spouse'] },
+  { n:4, name:'הגשה ואישור', reminders:['portal'] },
+  { n:5, name:'הייצוג פעיל' },
+];
+
+const HAPPENS = {
+  0: ['בקשת ייצוג נפתחת מכרטיס הלקוח, מלקוח חדש או מהצעת מחיר שאושרה. הבקשה מופיעה בלשונית «בקשות» של הלקוח, והכדור עובר אליו.',
+      '<span class="quiet">כשהצעת מחיר מאושרת כבר קבעה את היקף הייצוג — ההיקף הזה תמיד גובר. הברירות שכאן חלות רק כשפותחים ייצוג בלי היקף שנקבע מראש.</span>'],
+  1: ['הלקוח מקבל קישור אישי ומאובטח לדף שלו, ממלא פרטים אישיים ומשפחתיים ומצלם תעודה מזהה. בזוג — לכל אחד קישור לפרטיו שלו, בלי לראות את של האחר.',
+      'כשהטופס נשלח, הכדור חוזר למשרד: להזין ברשויות ולהפיק את ייפוי הכוח.'],
+  2: ['המשרד מפיק את ייפוי הכוח (טופס 2279א׳5 — מסמך לכל אדם, כי ההגשה בשע״ם היא לפי תעודת זהות) ושולח לכל חותם קישור אישי.',
+      'אחרי שכולם חתמו, המשרד חותם ומחתים. כשביטוח לאומי כלול ויש כבר אסמכתא, הוראות האישור בב״ל נכנסות לאותו מייל — כדי שהלקוח לא יקבל שני מיילים.'],
+  3: ['ביטוח לאומי מתנהל בנפרד לכל אדם — הלקוח, ובן/בת הזוג כשנבחרו. המשרד מזין את ייפוי הכוח באתר ב״ל ומקבל מספר אסמכתא ומועד אחרון.',
+      'המבוטח מאשר בעצמו, באתר או בטלפון — ורק אז הייצוג בב״ל בתוקף. המשרד מסמן את האישור כשהוא מתקבל.',
+      '<span class="quiet">אם חסרים פרטים שהאתר דורש (למשל שנת לידה של בן/בת הזוג), המערכת מציעה למלא במשרד או לשלוח קישור קצר להשלמה — לפני שמוצעת הזנה.</span>'],
+  4: ['אחרי שהמשרד מגיש את ייפוי הכוח למס הכנסה, ההמתנה היא לאישור הרשות. באותו רגע נפתח ללקוח בדף האישי כרטיס שמאפשר לזרז את האישור באזור האישי של רשות המסים. זה אופציונלי ולא מעכב דבר.',
+      'כשהלקוח מדווח «אישרתי», הכדור חוזר למשרד לבדיקה בשע״ם. הדיווח של הלקוח לבדו אינו מפעיל את הייצוג.'],
+  5: ['כשהרשות אישרה, המשרד מסמן שהייצוג פעיל. הסימון סוגר את הכרטיס בדף האישי ומעדכן את כרטיס הלקוח; משם הייצוג נשאר בתוקף עד ביטול מפורש.',
+      'ההודעה ללקוח לא יוצאת מעצמה — המשרד שולח אותה בלחיצה, אחרי תצוגה מקדימה.'],
+};
+
+const REMINDER_DEFS = {
+  sign:      { title:'תזכורות אוטומטיות', audience:null, when:'אם לא כל החותמים חתמו' },
+  ni_client: { title:'תזכורות אוטומטיות', audience:'כשהלקוח עצמו הוא מי שצריך לאשר', when:'אם הלקוח עדיין לא אישר בביטוח הלאומי' },
+  ni_spouse: { title:'תזכורות אוטומטיות', audience:'כשבן/בת הזוג הם מי שצריך לאשר', when:'אם בן/בת הזוג עדיין לא אישרו בביטוח הלאומי' },
+  portal:    { title:'תזכורות אוטומטיות', audience:null, when:'אם הלקוח לא דיווח שאישר באזור האישי' },
+};
+const LEVEL_AUTHORITIES = ['incomeTax','vat','withholding'];
+
+/* ── מצב ────────────────────────────────────────────────────────────────── */
+function initialFirmState() {
+  return {
+    overrides: {
+      sign:   { body:'הכנו את ייפוי הכוח לייצוג מול הרשויות. הקישור מוביל לחתימה דיגיטלית קצרה — כל חותם מקבל קישור משלו. לוקח פחות מדקה, ואפשר גם מהנייד.' },
+      portal: { sub:'אופציונלי — שלוש דקות שחוסכות לרוב כשבועיים של המתנה' },
+    },
+    defaults: {
+      incomeTax:true, vat:true, withholding:false, ni:true, niSpouse:true,
+      levels: { incomeTax:'primary', vat:'primary', withholding:'primary' },
+      delivery:'email',
+    },
+    reminders: {
+      sign:      { on:false, after:7,  max:2 },
+      ni_client: { on:false, after:7,  max:2 },
+      ni_spouse: { on:false, after:10, max:1 },
+      portal:    { on:false, after:10, max:1 },
+    },
+  };
+}
+const clone = v => JSON.parse(JSON.stringify(v));
+let saved = initialFirmState();
+let draft = clone(saved);
+let openStages = new Set();
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const isDirty = () => JSON.stringify(draft) !== JSON.stringify(saved);
+const artById = id => ARTIFACTS.find(a => a.id === id);
+const valuesOf = (a, ov) => ({ ...a.system, ...(ov ?? draft.overrides[a.id] ?? {}) });
+const isCustom = a => Object.keys(draft.overrides[a.id] ?? {}).length > 0;
+const LEVEL_LABEL = { primary:'ראשי', secondary:'משני' };
+
+/* ── ניווט: הסרגל האמיתי + פריט "ייצוג" חדש אחרי "פייפרלס ותקשורת" ─────── */
+const ICON = {
+  identity:'M4 5h16v14H4z M10 11a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M8.5 16.5c.4-1.3 1.8-2 3.5-2s3.1.7 3.5 2',
+  branding:'M12 21a9 9 0 1 1 0-18 8 8 0 0 1 8 8h-3.5a2.5 2.5 0 0 0 0 5H18a2 2 0 0 1 0 5z M7.5 10.5h.01 M11 7.5h.01 M15 9h.01',
+  design:'M4 20s3 .8 5-1.2c1.5-1.5 1-4 3-5l7-7-2-2-7 7c-1 2-3.5 1.5-5 3-2 2-1 5.2-1 5.2z',
+  contact:'M6 3h13v18H6z M6 3v18 M11 10a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M10.5 16c.3-1.1 1.4-1.7 2.5-1.7s2.2.6 2.5 1.7',
+  signature:'M3 19c3 0 5-2 6-5s2-6 4-6 2 3 0 6-4 4-6 4c3 0 6 1 8 1s3-1 3-1',
+  communication:'M8 9h8 M8 13h5 M4 5h16v11H9l-5 4z',
+  bell:'M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6 M9 17v1a3 3 0 0 0 6 0v-1',
+  mailCog:'M3 6h18v7 M3 7l9 6 9-6 M17.5 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0',
+  rep:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9 12l2 2 4-4',
+  requests:'M9 4h6v3H9z M7 5H5v15h14V5h-2 M9 12h6 M9 16h4',
+  fileUpload:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M12 17v-5 M9.5 14.5 12 12l2.5 2.5',
+  emailActivity:'M3 6h18v12H3z M3 7l9 6 9-6',
+  quotations:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4',
+  employees:'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M17.5 5.2a3 3 0 0 1 0 5.6 M21 20v-1a4 4 0 0 0-3-3.85',
+  bolt:'M13 2 4 14h7l-1 8 9-12h-7z', userCheck:'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M16 12.5l2 2 4-4',
+  dashboard:'M4 4h7v7H4z M13 4h7v4h-7z M13 10h7v10h-7z M4 13h7v7H4z', shieldLock:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M12 11v3',
+};
+const icon = (n, s=16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON[n]||''}"/></svg>`;
+const RAIL = [['זהות','identity'],['מותג','branding'],['עיצוב עמודי לקוח','design'],['פרטי קשר','contact'],['חתימת מייל','signature'],['ערוצי תקשורת','communication'],['התראות למשרד','bell'],['פייפרלס ותקשורת','mailCog'],['ייצוג','rep',true],['בקשות מסמכים','requests'],['מסמכים ללקוחות','fileUpload'],['פעילות מייל','emailActivity'],['הצעות מחיר','quotations']];
+function renderRail() {
+  let h = '<div class="fp-rail-group">המשרד</div>';
+  for (const [label, ic, active] of RAIL) h += `<button type="button" class="fp-rail-item ${active?'is-active':''}" ${active?'aria-current="page"':''} data-goto="${esc(label)}">${icon(ic)}${esc(label)}</button>`;
+  h += '<div class="fp-rail-group">צוות</div><button type="button" class="fp-rail-item" data-goto="עובדים">'+icon('employees')+'עובדים</button>';
+  h += '<div class="fp-rail-group">תקשורת ואוטומציה</div><div class="fp-rail-soon">'+icon('bolt')+'אוטומציות<span class="fp-rail-soon-tag">בקרוב</span></div>';
+  h += '<div class="fp-rail-group">חוויות לקוח</div><div class="fp-rail-soon">'+icon('userCheck')+'עמודי הזדהות<span class="fp-rail-soon-tag">בקרוב</span></div><div class="fp-rail-soon">'+icon('signature')+'חתימה דיגיטלית<span class="fp-rail-soon-tag">בקרוב</span></div><div class="fp-rail-soon">'+icon('dashboard')+'פורטל לקוחות<span class="fp-rail-soon-tag">בקרוב</span></div>';
+  h += '<div class="fp-rail-group">מערכת</div><div class="fp-rail-soon">'+icon('shieldLock')+'הרשאות ותפקידים<span class="fp-rail-soon-tag">בקרוב</span></div>';
+  $('#rail').innerHTML = h;
+}
+
+/* ── סיכומים ────────────────────────────────────────────────────────────── */
+function authorityNames() {
+  const d = draft.defaults, out = [];
+  const withLevel = (key, label) => d[key] ? `${label} (${LEVEL_LABEL[d.levels[key]]})` : null;
+  [withLevel('incomeTax','מס הכנסה'), withLevel('vat','מע״מ'), withLevel('withholding','ניכויים'), d.ni ? 'ביטוח לאומי' : null]
+    .filter(Boolean).forEach(x => out.push(x));
+  return out;
+}
+function stageSummary(st) {
+  if (st.n === 0) {
+    const names = authorityNames();
+    return `ברירות מחדל<span class="dot">·</span>${names.length ? esc(names.join(', ')) : 'ללא רשות מסומנת מראש'}`;
+  }
+  const arts = ARTIFACTS.filter(a => a.stage === st.n);
+  const custom = arts.filter(isCustom).length;
+  const parts = [];
+  const mails = arts.filter(a => a.type==='mail').length, cards = arts.filter(a => a.type==='portal').length;
+  if (mails) parts.push(mails === 1 ? 'הודעה אחת' : `${mails} הודעות`);
+  if (cards) parts.push('כרטיס בדף האישי');
+  if (arts.length === 1) parts.push(custom ? (arts[0].type === 'portal' ? 'מותאם' : 'מותאמת') : 'ברירת מחדל');
+  else parts.push(custom === 0 ? 'ברירת מחדל' : custom === 1 ? 'אחת מותאמת' : `${custom} מותאמות`);
+  if (st.reminders) {
+    const on = st.reminders.map(k => draft.reminders[k].on);
+    if (on.every(Boolean)) parts.push(st.reminders.length > 1 ? 'תזכורות פעילות לשניהם' : 'תזכורות פעילות');
+    else if (on.some(Boolean)) parts.push('תזכורת פעילה לאחד מהם');
+    else parts.push('תזכורות כבויות');
+  }
+  if (st.n === 5) parts.push('נשלחת רק בלחיצה');
+  return parts.map(esc).join('<span class="dot">·</span>');
+}
+function renderSummary() {
+  const total = ARTIFACTS.length, custom = ARTIFACTS.filter(isCustom).length;
+  const remOn = Object.values(draft.reminders).filter(r => r.on).length;
+  $('#summary').innerHTML = [`${total} הודעות וכרטיסים ללקוח`, custom ? `${custom} מותאמים על ידי המשרד` : 'הכל בנוסח ברירת המחדל', remOn ? `תזכורות אוטומטיות: פעילות ב-${remOn} מתוך 4` : 'תזכורות אוטומטיות: כבויות']
+    .map(esc).join('<span class="sep">·</span>');
+}
+
+/* ── ציר המסע ───────────────────────────────────────────────────────────── */
+function artifactRow(a) {
+  const v = valuesOf(a);
+  const title = a.type === 'mail' ? v.subject : v.title;
+  const kind = a.type === 'mail' ? 'מייל' : 'כרטיס בדף האישי';
+  const ic = a.type === 'mail' ? icon('emailActivity') : icon('dashboard');
+  return `<div class="artifact" data-art="${a.id}">
+    <div class="art-icon">${ic}</div>
+    <div class="art-main">
+      <div class="art-kind">${kind}${a.standalone ? ' · ' + esc(a.standalone) : ''}</div>
+      <div class="art-title" title="${esc(title)}">${esc(title)}</div>
+      <div class="art-meta"><span class="state ${isCustom(a)?'custom':''}">${isCustom(a)?'מותאם':'ברירת מחדל'}</span></div>
+    </div>
+    <div class="art-actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-preview="${a.id}">תצוגה מקדימה</button>
+      <button type="button" class="btn btn-sm" data-edit="${a.id}">ערוך</button>
+    </div>
+  </div>`;
+}
+function levelRow(key) {
+  const cur = draft.defaults.levels[key];
+  return `<div class="level-row ${draft.defaults[key]?'is-shown':''}" data-level-row="${key}">
+    <button type="button" class="pill ${cur==='primary'?'is-on':''}" data-level="${key}" data-val="primary">ראשי</button>
+    <button type="button" class="pill ${cur==='secondary'?'is-on':''}" data-level="${key}" data-val="secondary">משני</button>
+  </div>`;
+}
+function defaultsPanel() {
+  const d = draft.defaults;
+  const cb = (k, label) => `<div class="opt-row">
+      <label class="opt"><input type="checkbox" data-def="${k}" ${d[k]?'checked':''}><span>${label}</span></label>
+      ${levelRow(k)}
+    </div>`;
+  return `<div class="col-label">מה נבחר מראש בפתיחת בקשה</div>
+    <div class="opt-list">
+      ${cb('incomeTax','מס הכנסה')}
+      ${cb('vat','מע״מ')}
+      ${cb('withholding','ניכויים')}
+      <label class="opt"><input type="checkbox" data-def="ni" ${d.ni?'checked':''}><span>ביטוח לאומי <span class="sub">אין דרגת ייצוג — מתנהל בנפרד לכל אדם</span></span></label>
+    </div>
+    <div class="opt-group">
+      <div class="opt-group-title">ללקוח נשוי</div>
+      <label class="opt"><input type="checkbox" data-def="niSpouse" ${d.niSpouse?'checked':''} ${d.ni?'':'disabled'}><span>לבקש ביטוח לאומי גם לבן/בת הזוג</span></label>
+    </div>
+    <div class="opt-group">
+      <div class="opt-group-title">איך הקישור מגיע ללקוח</div>
+      <div class="opt-list">
+        <label class="opt"><input type="radio" name="delivery" value="email" ${d.delivery==='email'?'checked':''}><span>במייל <span class="sub">מהכתובת של המשרד</span></span></label>
+        <label class="opt"><input type="radio" name="delivery" value="link" ${d.delivery==='link'?'checked':''}><span>קישור להעתקה <span class="sub">לוואטסאפ או SMS — שליחה ידנית מהמכשיר שלכם</span></span></label>
+      </div>
+    </div>
+    <div class="note">כשהיקף הייצוג כבר נקבע בהצעת מחיר שאושרה, ההיקף הזה תמיד גובר על הברירות שכאן — הן חלות רק על ייצוג שנפתח בלי הצעה שקדמה לו.</div>`;
+}
+function remindersBlock(key) {
+  const r = draft.reminders[key], def = REMINDER_DEFS[key];
+  return `<div class="reminders ${r.on?'is-on':''}" data-rem="${key}">
+    <div class="rem-head">
+      <span class="rem-title">${esc(def.title)}</span><span class="new-tag">חדש</span>
+      ${def.audience ? `<span class="rem-audience">· ${esc(def.audience)}</span>` : ''}
+      <label class="switch"><span>${r.on?'פעיל':'כבוי'}</span><input type="checkbox" data-rem-on="${key}" ${r.on?'checked':''}><span class="sw"></span></label>
+    </div>
+    <div class="rem-body">
+      ${esc(def.when)} אחרי <input type="number" min="1" max="60" value="${r.after}" data-rem-after="${key}" aria-label="ימים"> ימים — לשלוח תזכורת במייל, עד <input type="number" min="1" max="5" value="${r.max}" data-rem-max="${key}" aria-label="מספר תזכורות"> תזכורות.
+      <div class="rem-note">התזכורת יוצאת באותו נוסח ומאותו שולח, ונרשמת ב«פעילות מייל». כשמי שצריך לאשר מגיב — התזכורות נעצרות מעצמן.</div>
+    </div>
+    ${r.on ? '' : '<div class="rem-off-note">יכולת חדשה, כבויה כברירת מחדל. עד שתופעל, תזכורת יוצאת רק ידנית מכרטיס הלקוח («שלח שוב»).</div>'}
+  </div>`;
+}
+function renderSpine() {
+  $('#spine').innerHTML = STAGES.map(st => {
+    const open = openStages.has(st.n);
+    const arts = ARTIFACTS.filter(a => a.stage === st.n);
+    const rem = (st.reminders || []).map(remindersBlock).join('');
+    const left = st.n === 0 ? defaultsPanel()
+      : `<div class="col-label">מה הלקוח מקבל</div>${arts.map(artifactRow).join('')}${rem}`;
+    return `<section class="stage ${open?'is-open':''}" data-stage="${st.n}">
+      <button type="button" class="stage-head" aria-expanded="${open}" data-toggle="${st.n}">
+        <span class="stage-num">${st.n}</span>
+        <span class="stage-name">${esc(st.name)}</span>
+        <span class="stage-sum">${stageSummary(st)}</span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="stage-body">
+        <div class="cols">
+          <div>
+            <div class="col-label">מה קורה <span class="tag">מנוהל על ידי המערכת</span></div>
+            <div class="happens">${HAPPENS[st.n].map(p => `<p>${p}</p>`).join('')}</div>
+          </div>
+          <div>${left}</div>
+        </div>
+      </div>
+    </section>`;
+  }).join('');
+}
+function renderAll() { renderSummary(); renderSpine(); renderSaveState(); }
+
+/* ── שמירה (עקבי ל«המשרד»: טיוטה אחת, כפתור אחד) ───────────────────────── */
+let savedAt = null, saving = false;
+function renderSaveState() {
+  const chip = $('#saveChip'), btn = $('#saveBtn'), dirty = isDirty();
+  chip.className = 'chip';
+  chip.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-12);padding:5px 11px;border-radius:20px;white-space:nowrap;font-weight:500;';
+  if (saving) { chip.style.background = 'var(--s2)'; chip.style.color = 'var(--txc)'; chip.textContent = 'שומר…'; }
+  else if (dirty) { chip.style.background = 'var(--warn-bg)'; chip.style.color = 'var(--chip-amber-tx)'; chip.textContent = 'שינויים שלא נשמרו'; }
+  else if (savedAt) { chip.style.background = 'var(--chip-green-bg)'; chip.style.color = 'var(--chip-green-tx)'; chip.textContent = 'נשמר'; }
+  else { chip.style.background = 'var(--s2)'; chip.style.color = 'var(--txc)'; chip.textContent = 'אין שינויים'; }
+  btn.disabled = saving || !dirty;
+  btn.textContent = saving ? 'שומר…' : 'שמירת שינויים';
+}
+$('#saveBtn').addEventListener('click', () => {
+  saving = true; renderSaveState();
+  setTimeout(() => { saved = clone(draft); saving = false; savedAt = Date.now(); renderSaveState(); toast('השינויים נשמרו. ההודעות הבאות ללקוחות ייצאו בנוסח החדש.'); }, 700);
+});
+window.addEventListener('beforeunload', e => { if (isDirty()) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ── אירועים בציר ────────────────────────────────────────────────────────── */
+$('#content').addEventListener('click', e => {
+  const t = e.target.closest('[data-toggle],[data-edit],[data-preview],[data-goto],[data-level]');
+  if (!t) return;
+  if (t.dataset.toggle !== undefined) {
+    const n = Number(t.dataset.toggle);
+    openStages.has(n) ? openStages.delete(n) : openStages.add(n);
+    renderSpine();
+  } else if (t.dataset.edit) openDrawer(t.dataset.edit, 'edit');
+  else if (t.dataset.preview) openDrawer(t.dataset.preview, 'preview');
+  else if (t.dataset.level) { draft.defaults.levels[t.dataset.level] = t.dataset.val; renderAll(); }
+  else if (t.dataset.goto) gotoSection(t.dataset.goto);
+});
+$('#content').addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.def) { draft.defaults[el.dataset.def] = el.checked; if (el.dataset.def === 'ni' && !el.checked) draft.defaults.niSpouse = false; }
+  else if (el.name === 'delivery') draft.defaults.delivery = el.value;
+  else if (el.dataset.remOn) draft.reminders[el.dataset.remOn].on = el.checked;
+  else if (el.dataset.remAfter) draft.reminders[el.dataset.remAfter].after = clamp(el.value, 1, 60);
+  else if (el.dataset.remMax) draft.reminders[el.dataset.remMax].max = clamp(el.value, 1, 5);
+  else return;
+  renderAll();
+});
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Number(v) || lo));
+
+/* ── כותרת "המשרד" האמיתית: תפריט חשבון + ניווט מדומה מחוץ ל"ייצוג" ─────── */
+$('#rail').addEventListener('click', e => { const b = e.target.closest('[data-goto]'); if (b) gotoSection(b.dataset.goto); });
+document.querySelector('.mobile-nav').addEventListener('click', e => { const b = e.target.closest('[data-goto]'); if (b) gotoSection(b.dataset.goto); });
+function gotoSection(name) {
+  if (name === 'ייצוג') return;
+  if (isDirty()) return confirmDialog(`יש שינויים שלא נשמרו. לעבור ל«${name}» בלי לשמור?`, () => toast(`באב-טיפוס הזה רק «ייצוג» פעיל · המעבר ל«${name}» מדומה`));
+  toast(`באב-טיפוס הזה רק «ייצוג» פעיל · המעבר ל«${name}» מדומה`);
+}
+const avatarBtn = $('#avatarBtn'), accountMenu = $('#accountMenu');
+function setMenuOpen(open) {
+  accountMenu.hidden = !open;
+  avatarBtn.classList.toggle('is-open', open);
+  avatarBtn.setAttribute('aria-expanded', String(open));
+}
+avatarBtn.addEventListener('click', () => setMenuOpen(accountMenu.hidden));
+document.addEventListener('click', e => { if (!e.target.closest('.header-account') && !accountMenu.hidden) setMenuOpen(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !accountMenu.hidden) setMenuOpen(false); });
+$('#gotoRef').addEventListener('click', () => { setMenuOpen(false); toast('באב-טיפוס הזה רק «המשרד» פעיל · המעבר ל«ידע מס» מדומה'); });
+$('#signOut').addEventListener('click', () => { setMenuOpen(false); toast('מדומה — לא מתנתק בפועל'); });
+$('#themeToggle').addEventListener('click', () => {
+  const on = $('#themeToggle').getAttribute('aria-checked') !== 'true';
+  $('#themeToggle').setAttribute('aria-checked', String(on));
+  $('#themeSwitch').classList.toggle('is-on', on);
+  toast('מצב כהה אינו חלק מהאב-טיפוס הזה');
+});
+
+/* ── מגירה ─────────────────────────────────────────────────────────────── */
+let drArt = null, drValues = null, drMode = 'edit';
+function openDrawer(id, mode) {
+  drArt = artById(id); drMode = mode;
+  drValues = { ...(draft.overrides[id] ?? {}) };
+  $('#drTitle').textContent = (mode === 'edit' ? 'עריכה · ' : 'תצוגה מקדימה · ') + drArt.label;
+  $('#drSub').textContent = drArt.type === 'mail' ? 'שלב ' + drArt.stage + ' · ' + STAGES[drArt.stage].name + ' · מייל ללקוח' : 'שלב ' + drArt.stage + ' · ' + STAGES[drArt.stage].name + ' · כרטיס בדף האישי של הלקוח';
+  renderDrawerEdit(); renderDrawerPreview(); setTab(mode === 'edit' ? 'edit' : 'preview');
+  $('#scrim').classList.add('is-open'); $('#drawer').classList.add('is-open');
+  requestAnimationFrame(() => $('#drawer').classList.add('is-in'));
+  setTimeout(() => { const f = $('#paneEdit input, #paneEdit textarea'); if (mode === 'edit' && f) f.focus(); else $('#drClose').focus(); }, 60);
+}
+function closeDrawer(force) {
+  if (!force && drawerDirty()) return confirmDialog('יש שינויים שלא הוחלו. לסגור בלי להחיל?', () => closeDrawer(true));
+  $('#drawer').classList.remove('is-in');
+  setTimeout(() => { $('#drawer').classList.remove('is-open'); $('#scrim').classList.remove('is-open'); }, 180);
+}
+const drawerDirty = () => JSON.stringify(drValues) !== JSON.stringify(draft.overrides[drArt.id] ?? {});
+function setTab(tab) {
+  document.querySelectorAll('.dr-tab').forEach(b => b.classList.toggle('is-active', b.dataset.tab === tab));
+  $('#paneEdit').classList.toggle('is-active', tab === 'edit');
+  $('#panePreview').classList.toggle('is-active', tab === 'preview');
+}
+function renderDrawerEdit() {
+  const a = drArt, v = { ...a.system, ...drValues };
+  const custom = Object.keys(drValues).length > 0;
+  let h = '';
+  for (const [key, label, kind] of FIELD_DEFS[a.type]) {
+    const changed = key in drValues;
+    h += `<div class="field"><label for="f_${key}">${esc(label)}${changed ? ' <span class="state custom">שונה</span>' : ''}</label>`;
+    h += kind === 'textarea' ? `<textarea id="f_${key}" data-f="${key}">${esc(v[key])}</textarea>` : `<input type="text" id="f_${key}" data-f="${key}" value="${esc(v[key])}">`;
+    if (key === 'heading' || key === 'body') h += '<div class="hint">אפשר להשתמש ב-{שם פרטי} — יוחלף בשם הלקוח.</div>';
+    h += '</div>';
+  }
+  h += `<div class="locked"><b>מה קבוע ולא משתנה כאן</b><ul>${a.locked.map(l => `<li>${esc(l)}</li>`).join('')}<li>השולח, החתימה והמיתוג — לפי «ערוצי תקשורת», «חתימת מייל» ו«מותג».</li></ul></div>`;
+  $('#paneEdit').innerHTML = h;
+  $('#drReset').style.visibility = custom ? 'visible' : 'hidden';
+  $('#drState').textContent = custom ? 'נוסח המשרד' : 'נוסח ברירת המחדל';
+  $('#drApply').disabled = !drawerDirty();
+}
+function renderDrawerPreview() {
+  const a = drArt, v = { ...a.system, ...drValues };
+  const sub = s => String(s).replace(/\{שם פרטי\}/g, FIRM.client);
+  let inner;
+  if (a.type === 'mail') {
+    const ni = a.niBlock ? `<div class="mail-block">מספר אסמכתא בביטוח הלאומי<b dir="ltr" style="text-align:right">A-4471-9082</b>לאשר עד 30.09.2026 · באתר הביטוח הלאומי, או בטלפון <span dir="ltr">02-5393740</span></div>` : '';
+    const missing = a.missingBlock ? `<div class="mail-block">מה חסר לנו<b>שנת לידה, תעודת זהות</b></div>` : '';
+    inner = `<div class="mail">
+      <div class="mail-top"><div class="mail-lockup">${esc(FIRM.name)}<small>${esc(FIRM.rep)}</small></div></div><div class="mail-hr"></div>
+      <div class="mail-h">${esc(sub(v.heading))}</div>
+      <div class="mail-b">${esc(sub(v.body))}</div>
+      ${a.id==='sign' ? ni : ''}${missing}
+      <span class="mail-btn">${esc(v.cta)}</span>
+      ${a.id==='ni_approve' ? ni : ''}
+      <div class="mail-foot"><div class="mail-sig">בברכה,<br>גיא ישר, רו״ח · ${esc(FIRM.name)} · ${esc(FIRM.phone)}</div><div style="margin-top:6px">שאלות? פשוט השיבו למייל הזה.</div></div>
+    </div>`;
+    $('#panePreview').innerHTML = `<div class="pv-hint">כך ייראה המייל אצל ${esc(FIRM.client)} · נושא: <b>${esc(sub(v.subject))}</b></div><div class="pv-wrap">${inner}</div>`;
+  } else {
+    inner = `<div class="portal">
+      <div class="portal-top"><div class="mail-lockup">${esc(FIRM.name)}<small>הדף האישי של ${esc(FIRM.client)} כהן</small></div></div>
+      <div class="portal-sec">מה צריך ממך</div>
+      <div class="pcard">
+        <div class="pcard-t">${esc(v.title)}</div>
+        <div class="pcard-s">${esc(v.sub)}</div>
+        <div class="pcard-n">${esc(v.note)}</div>
+        <span class="pcard-link">${esc(v.linkLabel)} ↗<small>gov.il · האזור האישי של רשות המסים</small></span>
+        <div class="pcard-after">${esc(v.noteAfter)}</div>
+        <span class="pcard-cta">${esc(v.cta)}</span>
+      </div>
+    </div>`;
+    $('#panePreview').innerHTML = `<div class="pv-hint">כך ייראה הכרטיס בדף האישי של ${esc(FIRM.client)} אחרי ההגשה למס הכנסה.</div><div class="pv-wrap">${inner}</div>`;
+  }
+}
+$('#paneEdit').addEventListener('input', e => {
+  const key = e.target.dataset.f; if (!key) return;
+  const val = e.target.value;
+  if (val === drArt.system[key]) delete drValues[key]; else drValues[key] = val;
+  const lbl = e.target.closest('.field').querySelector('label');
+  lbl.innerHTML = esc(FIELD_DEFS[drArt.type].find(f => f[0] === key)[1]) + (key in drValues ? ' <span class="state custom">שונה</span>' : '');
+  $('#drApply').disabled = !drawerDirty();
+  $('#drReset').style.visibility = Object.keys(drValues).length ? 'visible' : 'hidden';
+  $('#drState').textContent = Object.keys(drValues).length ? 'נוסח המשרד' : 'נוסח ברירת המחדל';
+  renderDrawerPreview();
+});
+document.querySelectorAll('.dr-tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$('#drClose').addEventListener('click', () => closeDrawer(false));
+$('#drCancel').addEventListener('click', () => closeDrawer(false));
+$('#scrim').addEventListener('click', () => closeDrawer(false));
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#drawer').classList.contains('is-open')) closeDrawer(false); });
+$('#drReset').addEventListener('click', () => {
+  confirmDialog('לחזור לנוסח ברירת המחדל של המערכת? הנוסח של המשרד לפריט הזה יימחק כשתשמרו.', () => { drValues = {}; renderDrawerEdit(); renderDrawerPreview(); setTab('edit'); $('#drApply').disabled = !drawerDirty(); });
+});
+$('#drApply').addEventListener('click', () => {
+  if (Object.keys(drValues).length) draft.overrides[drArt.id] = { ...drValues }; else delete draft.overrides[drArt.id];
+  renderAll(); closeDrawer(true);
+  toast('הוחל. השינוי ייכנס לתוקף ב«שמירת שינויים» למעלה.');
+});
+
+/* ── עזרים ─────────────────────────────────────────────────────────────── */
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('is-on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('is-on'), 2800); }
+let confirmCb = null;
+function confirmDialog(text, ok) { $('#confirmText').textContent = text; confirmCb = ok; $('#confirm').classList.add('is-open'); $('#confirmNo').focus(); }
+$('#confirmYes').addEventListener('click', () => { $('#confirm').classList.remove('is-open'); const cb = confirmCb; confirmCb = null; cb && cb(); });
+$('#confirmNo').addEventListener('click', () => { $('#confirm').classList.remove('is-open'); confirmCb = null; });
+$('#demoReset').addEventListener('click', () => { saved = initialFirmState(); draft = clone(saved); savedAt = null; openStages = new Set(); setMenuOpen(false); renderAll(); toast('האב-טיפוס אופס'); });
+
+renderRail(); renderAll();
+</script>
+</body>
+</html>

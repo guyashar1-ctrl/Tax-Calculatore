@@ -22,6 +22,10 @@
 //       שהרו"ח ייכנס למערכת — וזו כל הנקודה של האוטומציה.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resolveBrand, buildBrandedEmail, emailButton, esc } from "../_shared/designSystem.ts";
+// 186: נוסח ברירת המחדל של מיילי הייצוג עבר ל-_shared/repTemplates.ts — אותו
+// טקסט בדיוק, רק שגם מסך "ניהול המשרד → ייצוג" קורא ממנו. resolveRepMailTemplate
+// ממזג override של המשרד (profile.settings.representation.templates) מעליו.
+import { RepMailKind, resolveRepMailTemplate } from "../_shared/repTemplates.ts";
 
 // sign_with_ni אינו נשלח מבחוץ — הוא נגזר מ-sign כשקיימת אסמכתת ביטוח לאומי.
 type Stage = "onboard" | "sign" | "active" | "intake" | "ni_approve" | "sign_with_ni" | "prerequisites";
@@ -41,6 +45,17 @@ const NI_SITE = "https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx
 const NI_SITE_LABEL = "מסך אישור ייפוי כוח למייצג";
 const NI_PHONE = "02-5393740";
 
+// 186: onboard/sign/ni_approve/prerequisites/active נטענים כעת מ-_shared/repTemplates.ts
+// (אותו טקסט, רק שגם מסך ההגדרות קורא ממנו) ומעורבבים בהמשך עם override של
+// המשרד. intake ו-sign_with_ni אינם חלק ממסך "ניהול המשרד → ייצוג" ונשארים כאן.
+// ‼ sign_with_ni בכוונה **לא** כאן: זו הודעה משולבת עם נוסח ייחודי משלה
+// ("שתי פעולות אחרונות") שאינו נגזר מ-rep_sign — מיזוג override של rep_sign
+// לתוכה היה מוחק את ניסוח השילוב. היא נשארת system-fixed, כפי שהייתה.
+const REP_STAGE_TEMPLATE_KEY: Partial<Record<Stage, RepMailKind>> = {
+  onboard: "rep_onboard", sign: "rep_sign",
+  ni_approve: "rep_ni_approve", prerequisites: "rep_prerequisites", active: "rep_active",
+};
+
 const COPY: Record<Stage, { subject: string; heading: string; body: string; cta: string }> = {
   intake: {
     subject: "שאלון קצר - כדי שהתיק שלכם יישאר מעודכן",
@@ -48,45 +63,21 @@ const COPY: Record<Stage, { subject: string; heading: string; body: string; cta:
     body: "כדי שנוכל להמשיך לטפל בענייני המס שלכם בצורה מדויקת, נשמח שתענו על שאלון קצר. השאלון מתאים את עצמו אליכם - עונים רק על מה שרלוונטי, ואפשר לסמן \"לא בטוח\" בכל שאלה.",
     cta: "למילוי השאלון",
   },
-  onboard: {
-    subject: "ברוכים הבאים - נשאר רק לאמת את הזהות",
-    heading: "נעים להכיר",
-    body: "שמחים שבחרתם בנו. כדי שנתחיל לייצג אתכם מול רשויות המס, נשאר רק לאמת כמה פרטי זיהוי.",
-    cta: "להשלמת הפרטים",
-  },
-  sign: {
-    subject: "הטופס מוכן - נשאר רק לחתום",
-    heading: "כמעט סיימנו",
-    body: "הכנו עבורכם את טופס ייפוי הכוח לייצוג מול רשויות המס. נשאר רק לחתום. אחרי החתימה נגיש את בקשת הייצוג לרשויות.",
-    cta: "לחתימה על הטופס",
-  },
+  onboard: resolveRepMailTemplate("rep_onboard"),
+  sign: resolveRepMailTemplate("rep_sign"),
   // כשיש גם ייצוג בב"ל, שתי הפעולות נשלחות במייל אחד. שני מיילים נפרדים באותו
-  // רגע גורמים ללקוח לטפל באחד ולהתעלם מהשני, והייצוג נתקע על חצי.
+  // רגע גורמים ללקוח לטפל באחד ולהתעלם מהשני, והייצוג נתקע על חצי. הטקסט הזה
+  // ייחודי לשילוב הזה ואינו ניתן להתאמה בנפרד — עורכים את "מייל החתימה" (rep_sign).
   sign_with_ni: {
     subject: "שתי פעולות אחרונות - חתימה ואישור בביטוח הלאומי",
     heading: "כמעט סיימנו",
     body: "כדי שנוכל לייצג אתכם בפועל, נשארו שתי פעולות קצרות. שתיהן יחד לוקחות כשתי דקות.",
     cta: "לחתימה על הטופס",
   },
-  active: {
-    subject: "הייצוג אושר - נתחיל לעבוד",
-    heading: "הכול מוכן",
-    body: "הייצוג שלכם מול רשויות המס אושר בהצלחה. ניצור קשר בקרוב להשלמת הפרטים הראשוניים. תודה שבחרתם בנו!",
-    cta: "",
-  },
-  ni_approve: {
-    subject: "פעולה נדרשת - אישור ייפוי הכוח בביטוח הלאומי",
-    heading: "נשאר צעד אחד בביטוח הלאומי",
-    body: "הזנו עבורכם את ייפוי הכוח באתר הביטוח הלאומי. הביטוח הלאומי דורש שאתם תאשרו אותו בעצמכם - עד שלא תאשרו, הייצוג בביטוח הלאומי אינו בתוקף. אפשר לאשר באחת משתי הדרכים שלמטה, לוקח כדקה.",
-    cta: "לאישור באתר הביטוח הלאומי",
-  },
+  active: resolveRepMailTemplate("rep_active"),
+  ni_approve: resolveRepMailTemplate("rep_ni_approve"),
   // 165: קישור מוגבל-שדות להשלמת פרטים — לפני שאפשר בכלל להזין ברשות.
-  prerequisites: {
-    subject: "כמה פרטים קצרים - כדי להמשיך בטיפול בייצוג בביטוח הלאומי",
-    heading: "נשארו כמה פרטים",
-    body: "כדי שנוכל להמשיך בטיפול בייצוג שלכם מול הביטוח הלאומי, חסרים לנו כמה פרטים. הקישור פותח טופס קצר ומאובטח שמבקש רק את מה שבאמת חסר - לוקח פחות מדקה.",
-    cta: "למילוי הפרטים",
-  },
+  prerequisites: resolveRepMailTemplate("rep_prerequisites"),
 };
 
 Deno.serve(async (req: Request) => {
@@ -392,6 +383,19 @@ Deno.serve(async (req: Request) => {
     let ctaHref = link;
     let ctaLabel: string | undefined;
     let copy = COPY[stage];
+    // 186: נוסח המשרד (profiles.settings.representation.templates.<key>) דורס
+    // רק את השלבים הבסיסיים המנוהלים ב"ניהול המשרד → ייצוג" — לא intake
+    // ולא sign_with_ni (system-fixed, ראה REP_STAGE_TEMPLATE_KEY למעלה).
+    // ‼ גם לא כש-quotationId עומד לשכתב את copy למטה (וריאציית "נשאר צעד קטן
+    // אחד"): בלי ה-!quotationId הזה, cta היה נשאר מהתאמת המשרד בעוד
+    // subject/heading/body נדרסים על ידי הנרטיב הקבוע — ערבוב בין שני מקורות
+    // באותה הודעה. במקום זה כל השדות שם נשארים system-fixed, עקבי.
+    const repTplKey = REP_STAGE_TEMPLATE_KEY[stage];
+    if (repTplKey && !quotationId) {
+      const repOverride = (profile?.settings as { representation?: { templates?: Record<string, unknown> } } | undefined)
+        ?.representation?.templates?.[repTplKey] as { subject?: string; heading?: string; body?: string; cta?: string } | undefined;
+      if (repOverride) copy = resolveRepMailTemplate(repTplKey, repOverride);
+    }
 
     // ‼ הקישור האחיד (הכרעת גיא): מייל קישור-הייצוג מוביל לדף האישי של הלקוח,
     // שמציג את הפעולה הנוכחית — וגם את כל השאר. נשארים ישירים בכוונה:

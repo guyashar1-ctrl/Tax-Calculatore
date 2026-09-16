@@ -14,6 +14,7 @@ import {
   AuthorityKind,
   AuthorityRepresentations,
   RepAuthorityKind,
+  RepLevel,
   RepSigner,
   RepSignatureDocument,
   SignatureValue,
@@ -127,6 +128,7 @@ import TestAgreement from './components/clientTabs/__TestAgreement';
 import TestBuilder from './components/quotations/__TestBuilder';
 import TestSignDone from './components/ui/__TestSignDone';
 import TestFirmNotifications from './components/__TestFirmNotifications';
+import TestRepresentationSettings from './components/__TestRepresentationSettings';
 import TestRepDialog from './components/__TestRepDialog';
 import TestStartRepresentation from './components/__TestStartRepresentation';
 import TestSpouseLink from './components/__TestSpouseLink';
@@ -354,6 +356,9 @@ export default function App() {
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-firm-notifications')) {
     return <TestFirmNotifications />;
   }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-representation-settings')) {
+    return <TestRepresentationSettings />;
+  }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-repdialog')) {
     return <TestRepDialog />;
   }
@@ -437,6 +442,21 @@ export default function App() {
   const { requests, addRequest, updateRequest, deleteRequest: removeRequest, hydrateRequest, isHydrated, reloadRequest } =
     useRepresentationRequests(user?.id, { lean: true });
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
+  // ‼ (186) ברירות המחדל מ"ניהול המשרד → ייצוג" — undefined ⇒ הדיאלוג נופל
+  // לברירת המחדל הקשיחה שהייתה תמיד. מועברות רק לשתי הזרימות שאין להן היקף
+  // שכבר נקבע (showOnboarding, pendingRepresentationClient); הדיאלוג של
+  // convertingQuotation (הצעת מחיר) אינו מקבל את זה בכלל, כדי שהיקף ההצעה
+  // תמיד יגבור על הברירות — לא דריסה, פשוט אף פעם לא מגיע לשם.
+  const officeRepDefaults = (firmProfile?.settings as
+    { representation?: { defaults?: {
+        authorities?: Partial<Record<RepAuthorityKind, { on?: boolean; level?: RepLevel }>>;
+        niSpouse?: boolean; delivery?: 'email' | 'link';
+      } } } | undefined
+  )?.representation?.defaults;
+  const officeAreaDefaults = officeRepDefaults?.authorities && Object.fromEntries(
+    (Object.entries(officeRepDefaults.authorities) as [RepAuthorityKind, { on?: boolean; level?: RepLevel }][])
+      .map(([k, v]) => [k, { selected: v.on, level: v.level }]),
+  ) as Partial<Record<RepAuthorityKind, { selected?: boolean; level?: RepLevel }>> | undefined;
   // ‼ ברירת המחדל דלוקה: הנתונים כבר במסד, והדגל קיים כדי לכבות את המסך
   // (לשונית הקליטה + המקטע בשולחן) בלי שינוי קוד — settings.flags.onboardingTab=false.
   const onboardingEnabled =
@@ -2841,6 +2861,9 @@ export default function App() {
           alreadyRepresented={alreadyRepresentedFor(pendingRepresentationClient)}
           spouseAlreadyRepresented={spousePersonAuthorities(
             pendingRepresentationClient, findSpouseClient(pendingRepresentationClient, clients))}
+          officeAreaDefaults={officeAreaDefaults}
+          officeNiSpouseDefault={officeRepDefaults?.niSpouse}
+          officeDeliveryDefault={officeRepDefaults?.delivery}
         />
       )}
 
@@ -2860,6 +2883,9 @@ export default function App() {
           onCreate={handleCreateRepresentation}
           onCancel={() => setShowOnboarding(false)}
           checkEmailConflict={repEmailConflictMessage}
+          officeAreaDefaults={officeAreaDefaults}
+          officeNiSpouseDefault={officeRepDefaults?.niSpouse}
+          officeDeliveryDefault={officeRepDefaults?.delivery}
         />
       )}
 

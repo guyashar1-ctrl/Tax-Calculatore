@@ -78,6 +78,17 @@ interface Props {
   initialFamilyStatus?: FamilyStatus;
   initialSpouseName?: string;
   initialSpouseIdNumber?: string;
+  /**
+   * ברירות המחדל שהוגדרו ב"ניהול המשרד → ייצוג" (186) — אילו רשויות מסומנות
+   * מראש, באיזו רמה, והאם ביטוח לאומי מבוקש גם לבן/בת הזוג. `undefined` ⇒
+   * ברירת המחדל הקשיחה שהייתה כאן תמיד (משרד שלא הגדיר דבר, או תמיד).
+   * ‼ אינו מגיע כשהזרימה יוצאת מהצעת מחיר שכבר קבעה היקף — הצעת המחיר תמיד
+   * גוברת, ולכן הקורא (App.tsx) פשוט לא מעביר את הפרופ הזה שם.
+   */
+  officeAreaDefaults?: Partial<Record<RepAuthorityKind, { selected?: boolean; level?: RepLevel }>>;
+  officeNiSpouseDefault?: boolean;
+  /** ברירת מחדל לאופן המשלוח כשאין כתובת מייל ידועה ("- שהלקוח יבחר -" אינו קיים כאן). */
+  officeDeliveryDefault?: 'email' | 'link';
 }
 
 interface AreaState {
@@ -97,11 +108,13 @@ export default function RepresentationOnboardingDialog({
   onCreate, onCancel, checkEmailConflict, initialName, initialEmail, isTransfer = false, initialPrevAccountant,
   alreadyRepresented, spouseAlreadyRepresented,
   initialFamilyStatus, initialSpouseName, initialSpouseIdNumber,
+  officeAreaDefaults, officeNiSpouseDefault, officeDeliveryDefault,
 }: Props) {
   const [name, setName] = useState(initialName ?? '');
   const [email, setEmail] = useState(initialEmail ?? '');
-  // הגעה עם מייל ידוע (הפיכת ליד ללקוח) ⇒ שליחה במייל היא ברירת המחדל ההגיונית
-  const [sendBy, setSendBy] = useState<'link' | 'email'>(initialEmail ? 'email' : 'link');
+  // הגעה עם מייל ידוע (הפיכת ליד ללקוח) ⇒ שליחה במייל היא ברירת המחדל ההגיונית.
+  // בלי מייל ידוע — ברירת המחדל של המשרד (186) אם הוגדרה, אחרת הישנה ('link').
+  const [sendBy, setSendBy] = useState<'link' | 'email'>(initialEmail ? 'email' : (officeDeliveryDefault ?? 'link'));
   // נפתח מראש רק כשהגענו לכאן עם פרטים ידועים (הפיכת ליד ללקוח)
   const [showDetails, setShowDetails] = useState(!!initialName);
   // '' = לא נבחר ⇒ הלקוח יישאל בטופס. ‼ (160) כשהמצב כבר ידוע מהכרטיס
@@ -128,15 +141,26 @@ export default function RepresentationOnboardingDialog({
   // ‼ ראשי גם במעבר מרו"ח אחר (הכרעת גיא 2026-08-18): במעבר נקי אין סיבה
   // להמתין כמשני. משני נרשמים רק כשנשארת אצל הקודם עבודה חוסמת (דוח שנתי /
   // הצהרת הון) — וזה נגזר במכתב העברת הטיפול, לא כאן. אפשר לשנות ידנית.
-  const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>(() => ({
-    incomeTax: { selected: true, level: 'primary', targets: ['client'] },
-    withholding: { selected: false, level: 'primary', targets: ['client'] },
-    vat: { selected: true, level: 'primary', targets: ['client'] },
-    // ‼ ברירת המחדל ללקוח נשוי: ייצוג בב"ל לשני בני הזוג (הכרעה 2026-08-17,
-    // נשמרת אחרי שב"ל הצטרף ל-"עבור מי" ב-31.8) — הצ'יפים מוצגים רק כשיש
-    // בן/בת זוג ידוע (showTargets), אז ברירת המחדל כאן נראית רק אז.
-    nationalInsurance: { selected: true, level: 'primary', targets: ['client', 'spouse'] },
-  }));
+  const [areas, setAreas] = useState<Record<RepAuthorityKind, AreaState>>(() => {
+    // ‼ (186) officeAreaDefaults מגיע רק מהזרימות שאין להן היקף שכבר נקבע
+    // (App.tsx לא מעביר אותו כשמגיעים מהצעת מחיר — ראה הערה על ה-prop).
+    // ברירת המחדל הקשיחה ההיסטורית נשארת כשאין הגדרת משרד, בדיוק כפי שהייתה.
+    const niSpouseDefault = officeNiSpouseDefault ?? true;
+    return {
+      incomeTax: { selected: officeAreaDefaults?.incomeTax?.selected ?? true, level: officeAreaDefaults?.incomeTax?.level ?? 'primary', targets: ['client'] },
+      withholding: { selected: officeAreaDefaults?.withholding?.selected ?? false, level: officeAreaDefaults?.withholding?.level ?? 'primary', targets: ['client'] },
+      vat: { selected: officeAreaDefaults?.vat?.selected ?? true, level: officeAreaDefaults?.vat?.level ?? 'primary', targets: ['client'] },
+      // ‼ ברירת המחדל ללקוח נשוי: ייצוג בב"ל לשני בני הזוג (הכרעה 2026-08-17,
+      // נשמרת אחרי שב"ל הצטרף ל-"עבור מי" ב-31.8) — הצ'יפים מוצגים רק כשיש
+      // בן/בת זוג ידוע (showTargets), אז ברירת המחדל כאן נראית רק אז. ביטוח
+      // לאומי אין לו רמה — officeAreaDefaults.nationalInsurance.level מתעלם ממנו בכוונה.
+      nationalInsurance: {
+        selected: officeAreaDefaults?.nationalInsurance?.selected ?? true,
+        level: 'primary',
+        targets: niSpouseDefault ? ['client', 'spouse'] : ['client'],
+      },
+    };
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CreateResult | null>(null);
