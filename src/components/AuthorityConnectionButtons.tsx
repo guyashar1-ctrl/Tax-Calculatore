@@ -23,6 +23,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuthorityConnections } from '../hooks/useAuthorityConnections';
 import type { AuthorityConnState, ConnPhase } from '../hooks/useAuthorityConnections';
+import { SHAAM_WARMUP_CAPABILITY_LABELS } from '../types/automation';
+import type { ShaamWarmupCapability } from '../types/automation';
 
 interface Props {
   userId: string | undefined;
@@ -55,7 +57,13 @@ const NEEDS_YOU_FALLBACK: Record<Authority, string> = {
   btl: 'חלון ביטוח לאומי ממתין לך.',
 };
 
-function tooltipFor(authority: Authority, state: AuthorityConnState): string {
+/** 168: "3/4 מוכנות" — רק לשע״ם, שבה יש פירוק ל-capabilities; לב״ל אין שכבות משנה. */
+function warmupCountFor(authority: Authority, summary: { ready: number; total: number }): string {
+  if (authority !== 'shaam' || summary.total === 0) return '';
+  return ` (${summary.ready}/${summary.total} מוכנות)`;
+}
+
+function tooltipFor(authority: Authority, state: AuthorityConnState, summary: { ready: number; total: number }): string {
   if (state.workerOffline) return 'מחשב האוטומציה כבוי';
   switch (state.phase) {
     case 'idle':
@@ -63,9 +71,9 @@ function tooltipFor(authority: Authority, state: AuthorityConnState): string {
         ? 'לא מחובר לשע״ם · לחיצה פותחת את חלון ההתחברות'
         : 'לא מחובר לביטוח לאומי · לחיצה פותחת את מערכת ייצוג לקוחות';
     case 'connecting':
-      return authority === 'shaam' ? 'מתחבר לשע״ם…' : 'מתחבר לביטוח לאומי…';
+      return `${authority === 'shaam' ? 'מכין את סביבת העבודה' : 'מתחבר לביטוח לאומי'}…${warmupCountFor(authority, summary)}`;
     case 'needs_you':
-      return authority === 'shaam' ? 'חלון שע״ם ממתין לך' : 'חלון ביטוח לאומי ממתין לך';
+      return `${authority === 'shaam' ? 'חלון שע״ם ממתין לך' : 'חלון ביטוח לאומי ממתין לך'}${warmupCountFor(authority, summary)}`;
     case 'ready':
       return authority === 'shaam' ? 'מחובר לשע״ם' : 'מחובר לביטוח לאומי';
     case 'failed':
@@ -99,8 +107,21 @@ function ConnPopover({ children, onClose }: PopoverProps) {
 }
 
 export default function AuthorityConnectionButtons({ userId }: Props) {
-  const { shaam, btl, connect, disconnect, connectBtl, disconnectBtl } =
-    useAuthorityConnections(userId);
+  const {
+    shaam, btl, connect, disconnect, connectBtl, disconnectBtl,
+    cancelRunningShaam, deferShaamCapability, shaamWarmupSummary, shaamJob,
+  } = useAuthorityConnections(userId);
+
+  // ‼ פרק 16 §16.1.1: setup/repair חד-פעמי (אין credential שמור בכלל) נבדל
+  // מ"ממתין לך" רגיל (יש credential, סתם עוד לא הוזן/פג) — לא אותה הודעה.
+  // המדד: reasonCode שכתב ה-worker על ה-capability החוסמת, לא errorCode
+  // הגלובלי (שנשאר "awaiting_X_auth" בשני המקרים).
+  const CREDENTIAL_SETUP_REASONS = new Set(['password_not_filled', 'no_password_field']);
+  const blockingCapability = shaamJob?.errorCode?.match(/^awaiting_(\w+)_auth$/)?.[1];
+  const blockingReasonCode = blockingCapability
+    ? shaamJob?.progress?.capabilities?.[blockingCapability]?.reasonCode
+    : undefined;
+  const needsCredentialSetup = !!blockingReasonCode && CREDENTIAL_SETUP_REASONS.has(blockingReasonCode);
   const [openPopover, setOpenPopover] = useState<Authority | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // ‼ מאותחל ל-'idle' ולא לפאזה הראשונה שחושבה: אם העמוד נטען מחדש באמצע
@@ -150,10 +171,36 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
       setOpenPopover((cur) => (cur === authority ? null : authority));
       return;
     }
-    if (state.phase === 'connecting') return;
+    // ‼ 168: בשע״ם, connecting נפתח בלחיצה כדי להראות N/M — לא רק אפור שקט.
+    // לב״ל אין פירוק ל-capabilities, ולכן אין מה להראות; ההתנהגות שם נשארת.
+    if (state.phase === 'connecting') {
+      if (authority === 'shaam') setOpenPopover((cur) => (cur === authority ? null : authority));
+      return;
+    }
     // idle או failed — לחיצה על העיגול עצמו מנסה להתחבר, בלי שער פופאובר.
     setOpenPopover(null);
     void (authority === 'shaam' ? connect() : connectBtl());
+  }
+
+  /** 168: פירוט N/M — רק לשע״ם, ורק כשיש יותר מ-capability מוכנה אחת לדווח עליה. */
+  function renderWarmupBreakdown() {
+    const layers = Object.entries(shaamWarmupSummary.layers) as [ShaamWarmupCapability, boolean][];
+    if (!layers.length) return null;
+    return (
+      <ul className="authconn-warmup-list">
+        {layers.map(([cap, ok]) => (
+          <li key={cap} className={ok ? 'is-ready' : 'is-pending'}>
+            <span>{SHAAM_WARMUP_CAPABILITY_LABELS[cap]}</span>
+            <span>{ok ? 'מוכנה' : 'ממתינה'}</span>
+            {!ok && (
+              <button type="button" className="authconn-popover-link" onClick={() => { void deferShaamCapability(cap); }}>
+                דלג כרגע
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    );
   }
 
   function renderPopoverContent(authority: Authority, state: AuthorityConnState) {
@@ -162,11 +209,45 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
         <p>מחשב האוטומציה כבוי. כשיופעל במחשב המשרד אפשר יהיה להתחבר מכאן.</p>
       );
     }
+    if (authority === 'shaam' && state.phase === 'connecting') {
+      return (
+        <>
+          <p>מכינה את סביבת העבודה — {shaamWarmupSummary.ready} מתוך {shaamWarmupSummary.total} מוכנות.</p>
+          {renderWarmupBreakdown()}
+          <button type="button" className="authconn-popover-btn" onClick={() => { void cancelRunningShaam(); }}>
+            בטל
+          </button>
+        </>
+      );
+    }
     if (state.phase === 'needs_you') {
+      // ‼ מסלול חריג: אין credential שמור בכלל למערכת שחוסמת. הודעה ופעולה
+      // נפרדות מ"הבא לחזית" הרגיל — "סיימתי" הוא אישור מפורש שההגדרה
+      // הושלמה, לא רק תזכורת שהחלון פתוח.
+      if (authority === 'shaam' && needsCredentialSetup) {
+        return (
+          <>
+            <p>נדרשת הגדרה של פרטי הכניסה למערכת שחוסמת. היכנסו בחלון שע״ם, הזינו ושמרו את הסיסמה בכרום — ואז אשרו כאן.</p>
+            <button
+              type="button"
+              className="authconn-popover-btn"
+              onClick={() => { void connect(); }}
+            >
+              סיימתי — המשך אוטומטית
+            </button>
+          </>
+        );
+      }
       const text = (state.errorCode && NEEDS_YOU_COPY[state.errorCode]) ?? NEEDS_YOU_FALLBACK[authority];
       return (
         <>
           <p>{text}</p>
+          {authority === 'shaam' && shaamWarmupSummary.total > 0 && (
+            <>
+              <p>{shaamWarmupSummary.ready} מתוך {shaamWarmupSummary.total} מוכנות כרגע.</p>
+              {renderWarmupBreakdown()}
+            </>
+          )}
           <button
             type="button"
             className="authconn-popover-btn"
@@ -217,7 +298,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
 
   function renderButton(authority: Authority, state: AuthorityConnState) {
     const label = AUTHORITY_LABEL[authority];
-    const title = tooltipFor(authority, state);
+    const title = tooltipFor(authority, state, shaamWarmupSummary);
     return (
       <div className="authconn-item">
         <button

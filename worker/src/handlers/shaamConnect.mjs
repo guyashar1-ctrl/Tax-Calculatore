@@ -1,42 +1,26 @@
-// shaamConnect.mjs — מה שקורה כשהרו"ח לוחץ "שע״ם" בכותרת של PIVO.
+// shaamConnect.mjs — מה שקורה כשהרו"ח לוחץ "התחבר לשע״ם" בכותרת של PIVO.
 //
-// ‼ "מחובר" פירושו **הסביבה מוכנה לאוטומציה**, לא "נכנסתי לפורטל". יש שתי
-// שכבות אימות נפרדות, ואם השנייה לא מוכנה כל אוטומציה תיתקל בקיר סיסמה
-// באמצע הדרך:
-//   1. פורטל שע״ם  — אישור דיגיטלי + PIN (כרטיס חכם).
-//   2. מערכת גביית מס הכנסה (GMF) — שם משתמש וסיסמה משלה.
-// שתיהן מוזנות **ידנית** על ידי הרו"ח בחלון הגלוי. האוטומציה מביאה אותו
-// לנקודה הנכונה ועוצרת — היא לא מקלידה אישור, PIN, OTP או סיסמה. אף פעם.
+// ‼ "מחובר" פירושו **הסביבה מוכנה לאוטומציה**, לא "נכנסתי לפורטל". אימות
+// בסיסי (פורטל, כרטיס חכם + PIN) מוזן ידנית ע"י הרו"ח בחלון הגלוי. אחריו,
+// PIVO מכינה אוטומטית את היכולות שנבחרו (GMF/מע״מ/מגן/ייצוג) — ראה
+// warmupManager.mjs. האוטומציה לעולם לא מקלידה אישור, PIN, OTP או סיסמה.
 //
-// הזרימה: חלון קיים? לנצל. סגור? לפתוח. פורטל לא מאומת? לעצור שם.
-// פורטל מאומת אך GMF לא? להביא למסך ה-GMF ולעצור שם. שתיהן מוכנות? ירוק.
+// ‼ פרק 16 §16.1/§16.9: לא שרשרת throw שנעצרת בראשונה שדורשת אדם. כל
+// capability נבדקת בנפרד ומדווחת בנפרד; "3 מתוך 4 מוכנות" הוא completed
+// עם outcome חלקי, לא failed. needs_human נשלח רק כשאין אף capability
+// מוכנה ואין יותר מה לבדוק ברשימה הנתונה.
 import {
   attach, detach, classifyShaamAuth, probeServerSession,
   launchDedicatedChrome, focusShaamWindow,
-  openGmfAndCheck, openVatAndCheck, openNikuiAndCheck,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
+import { runCapabilities, firstHumanRequired, anyReady, allSettled, DEFAULT_CAPABILITIES, HUMAN_MESSAGE } from '../warmupManager.mjs';
 
 export const actionType = 'shaam.connect';
 
 const SHAAM_AUTH_PENDING =
   'חלון שע״ם פתוח וממתין לך. יש להשלים בו בחירת אישור דיגיטלי והזנת PIN — ' +
   'ואז אמשיך אוטומטית, בלי צורך ללחוץ שוב.';
-
-const GMF_AUTH_PENDING =
-  'שלב 2 מתוך 3 — מערכת גביית מס הכנסה מבקשת סיסמה. הזינו אותה בחלון שע״ם ' +
-  'שנפתח, ואמשיך משם לבד. האוטומציה לא מזינה סיסמאות.';
-
-const VAT_AUTH_PENDING =
-  'שלב 3 מתוך 4 — מע״מ מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם ' +
-  'לבד. האוטומציה לא מזינה סיסמאות.';
-
-const NIKUI_AUTH_PENDING =
-  'שלב 4 מתוך 4 — מגן (ניכויים) מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ' +
-  'ואז הנורית תידלק בירוק לבד. האוטומציה לא מזינה סיסמאות.';
-
-// ‼ "היישום כבר פתוח" אינו מטופל כאן כשגיאה — ראה nikuiState ב-browserSession:
-// הוא מעיד על סשן קיים ולכן נחשב מוכן. אין מה לבקש מהרו"ח במצב הזה.
 
 const CHROME_NOT_FOUND =
   'לא נמצאה התקנה של Google Chrome במחשב הזה. התקינו Chrome, או הגדירו את הנתיב ' +
@@ -46,7 +30,11 @@ export async function preflight() {
   return { ok: true };
 }
 
-export async function run(ctx) {
+export async function run(ctx, input = {}) {
+  const capabilities = Array.isArray(input.selectedCapabilities) && input.selectedCapabilities.length
+    ? input.selectedCapabilities
+    : DEFAULT_CAPABILITIES;
+
   let conn = await attach();
 
   // ── חלון סגור: לפתוח. ──
@@ -65,66 +53,45 @@ export async function run(ctx) {
   }
 
   try {
-    // ── שכבה 1: פורטל שע״ם ──
+    // ── אימות בסיסי: פורטל שע״ם ──
+    // ‼ תוקן חי (16.09.2026, ראה docs/SHAAM-AUTOMATION-HANDOFF.md): הבדיקה
+    // המקומית (כותרת הטאב) יכולה **רק להעלות** ל"מאומת" — היא שוללת בטעות
+    // ברגע שהטאב עומד על GMF/מע״מ/מגן ולא על HomePage, מה שקורה בדיוק אחרי
+    // כל warm-up מוצלח (connectionMonitor מזיז את הטאב הזה). בלי fallback
+    // ל-probeServerSession, כל connect שני היה נכשל ב-awaiting_shaam_auth
+    // למרות שהסשן חי — נצפה בפועל בבדיקה הזו. אותו עיקרון בדיוק שכבר קיים
+    // ב-connectionMonitor.mjs, כאן עם probe בלתי-מותנה בזמן כי זו פעולה
+    // חד-פעמית ולא תשאול תקופתי.
     const local = await classifyShaamAuth(conn.page);
-    if (!local.authenticated) {
+    let authenticated = local.authenticated;
+    if (!authenticated) {
+      const session = await probeServerSession(conn.page);
+      authenticated = session.authenticated;
+    }
+    if (!authenticated) {
       ctx.log('הפורטל אינו מאומת — מביא את החלון לנקודת ההתחברות');
       await focusShaamWindow(conn.page);
       throw new NeedsHumanError(SHAAM_AUTH_PENDING, 'awaiting_shaam_auth');
     }
-    const session = await probeServerSession(conn.page);
-    if (!session.authenticated) {
-      ctx.log('סשן הפורטל פג מול השרת');
-      await focusShaamWindow(conn.page);
-      throw new NeedsHumanError(SHAAM_AUTH_PENDING, 'awaiting_shaam_auth');
-    }
-    ctx.log('שכבה 1 — פורטל שע״ם: מאומת');
+    ctx.log('אימות בסיסי — פורטל שע״ם: מאומת. מתחיל הכנת סביבת עבודה');
 
-    // ── שכבה 2: מערכת גביית מס הכנסה ──
-    // ‼ ברצף, באותה לשונית. המערכות האלה מסרבות להיפתח פעמיים במקביל
-    // ("למניעת שיבוש הנתונים לא ניתן לפתוח את אותו הישום" — נצפה במגן),
-    // ולכן פתיחה מקבילה או בלשוניות נוספות הייתה מייצרת שגיאות בעצמה.
-    const gmf = await openGmfAndCheck(conn.page);
-    ctx.log(`שכבה 2 — GMF: ${gmf.ready ? 'מוכנה' : `דרושה התחברות (${gmf.reason})`} · ${gmf.pathname}`);
-    if (!gmf.ready) {
-      if (gmf.reason === 'unexpected_destination') {
-        throw new PermanentError(
-          `הניווט למערכת הגבייה הגיע ליעד לא צפוי (${gmf.pathname}).`,
-          'gmf_unexpected_destination',
-        );
-      }
-      throw new NeedsHumanError(GMF_AUTH_PENDING, 'awaiting_gmf_auth');
+    // ‼ אחרי אימות בסיסי — warm-up אוטומטי, בלי כפתור נוסף. אותו מנגנון
+    // בדיוק שמשמש גם שחזור נקודתי (shaamEnsureCapability.mjs).
+    const { progress } = await runCapabilities(ctx, conn.page, capabilities);
+
+    const outcome = allSettled(progress, capabilities) ? 'full' : 'partial';
+    ctx.log(`הכנת סביבת עבודה: ${outcome}`);
+
+    if (outcome === 'partial' && !anyReady(progress, capabilities)) {
+      // אף capability לא מוכנה — זו עדיין לא כשל סופי, אלא ממתין לאדם.
+      const blocking = firstHumanRequired(progress, capabilities);
+      throw new NeedsHumanError(
+        HUMAN_MESSAGE[blocking] ?? SHAAM_AUTH_PENDING,
+        blocking ? `awaiting_${blocking}_auth` : 'awaiting_shaam_auth',
+      );
     }
 
-    // ── שכבה 3: מע״מ ──
-    const vat = await openVatAndCheck(conn.page);
-    ctx.log(`שכבה 3 — מע״מ: ${vat.ready ? 'מוכנה' : `דרושה התחברות (${vat.reason})`} · ${vat.pathname}`);
-    if (!vat.ready) {
-      if (vat.reason === 'unexpected_destination') {
-        throw new PermanentError(
-          `הניווט למע״מ הגיע ליעד לא צפוי (${vat.pathname}).`,
-          'vat_unexpected_destination',
-        );
-      }
-      throw new NeedsHumanError(VAT_AUTH_PENDING, 'awaiting_vat_auth');
-    }
-
-    // ── שכבה 4: מגן (ניכויים) ──
-    const nikui = await openNikuiAndCheck(conn.page);
-    ctx.log(`שכבה 4 — מגן: ${nikui.ready ? 'מוכנה' : `לא מוכנה (${nikui.reason})`} · ${nikui.pathname}`);
-    if (!nikui.ready) {
-      if (nikui.reason === 'unexpected_destination') {
-        throw new PermanentError(
-          `הניווט למגן הגיע ליעד לא צפוי (${nikui.pathname}).`,
-          'nikui_unexpected_destination',
-        );
-      }
-      throw new NeedsHumanError(NIKUI_AUTH_PENDING, 'awaiting_nikui_auth');
-    }
-
-    return {
-      result: { ready: true, system: 'shaam', shaam: true, gmf: true, vat: true, nikui: true },
-    };
+    return { result: { ready: outcome === 'full', outcome, progress, system: 'shaam' } };
   } finally {
     await detach(conn.browser);
   }

@@ -31,6 +31,8 @@ import type { ListKey, ListItem } from '../../features/taxFile/listModel';
 import ListEditor from '../../features/taxFile/ListEditor';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
 import type { AutomationJob } from '../../types/automation';
+import { SHAAM_ENSURE_CAPABILITY_ACTION_TYPE } from '../../types/automation';
+import { createAutomationJob, jobIsLive } from '../../lib/automationJobs';
 import { useShaamReadiness } from '../../hooks/shaamReadiness';
 import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
 import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
@@ -45,7 +47,6 @@ import NiInstructionsDialog from '../NiInstructionsDialog';
 import SpouseRelationshipCard from './SpouseRelationshipCard';
 import { OccupationsEditor, newOccupationRow } from './InstitutionAlignment';
 import type { OccupationDraft } from './InstitutionAlignment';
-import { jobIsLive } from '../../lib/automationJobs';
 
 interface Props {
   client: Client;
@@ -369,6 +370,30 @@ export default function TaxFileTab({
   // ‼ אותו הוק משרת גם את ב״ל, אבל דרך שכבה נפרדת משלה (`btl`) — סשן ב״ל
   // אינו מאוחד עם סשן שע״ם, ראה shaamReadiness.tsx.
   const shaamReadiness = useShaamReadiness();
+
+  /**
+   * 168/פרק 16 §16.1 §16.9: שחזור נקודתי + המשך אוטומטי של הפעולה העסקית
+   * שנעצרה — לא רק חסימה שקטה. "הכן והמשך" יוצר shaam.ensure_capability
+   * עבור השכבה החסרה בלבד (לא warm-up מלא) ורושם כאן איזו פעולה לחדש
+   * ברגע שהיא תהפוך מוכנה — בלי לחיצה שנייה. ref ולא state: זה לא צריך
+   * רינדור משלו, רק לשרוד בין בדיקות readiness שמגיעות מה-poll של 4 שניות.
+   */
+  const pendingEnsureRef = useRef<Partial<Record<TaxAuthority, { layer: string; input: Record<string, unknown> }>>>({});
+  useEffect(() => {
+    for (const authority of Object.keys(pendingEnsureRef.current) as TaxAuthority[]) {
+      const pending = pendingEnsureRef.current[authority];
+      const spec = AUTHORITY_AUTOMATION[authority];
+      if (!pending || !spec?.capability) continue;
+      if (!shaamReadiness.capability(spec.capability).ready) continue;
+      delete pendingEnsureRef.current[authority];
+      void authorityJobs[authority]?.run(pending.input);
+    }
+    // ‼ authorityJobs עצמו לא ברשימת התלויות: הוא אובייקט חדש בכל רינדור
+    // (נבנה מ-jobIncomeTax/jobVat/jobBtl למעלה), וזה היה מריץ את זה בכל
+    // רינדור בלי קשר ל-readiness. shaamReadiness משתנה זהות רק כשמסקנה
+    // באמת השתנתה (ראה verdictTick שם) — זה התנאי הנכון להרצה מחדש.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shaamReadiness]);
   // ‼ אישור מקובץ — פעם אחת לכרטיס, לא לשדה. ראה approveAuthorityChanges.
   const [approvingAuthority, setApprovingAuthority] = useState<TaxAuthority | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
@@ -1282,6 +1307,15 @@ export default function TaxFileTab({
               setOpenRows(s => new Set(s).add(sectionId));
               void sync.run(inputRes.input);
             };
+            // ‼ 168: כש-blocked הוא בגלל capability חסרה (לא קלט חסר/רשות
+            // לא זמינה) — מציעים לשחזר רק אותה ולהמשיך אוטומטית, במקום
+            // חסימה שקטה. אותו runCheck בדיוק, רק אחרי שהשכבה תתפנה.
+            const canEnsure = !!(cap && !cap.ready && cap.missingLayer && inputRes && 'input' in inputRes);
+            const ensureAndResume = () => {
+              if (!canEnsure || !cap?.missingLayer || !inputRes || !('input' in inputRes)) return;
+              pendingEnsureRef.current[row.authority] = { layer: cap.missingLayer, input: inputRes.input };
+              void createAutomationJob(null, SHAAM_ENSURE_CAPABILITY_ACTION_TYPE, { capability: cap.missingLayer });
+            };
 
             return (
             <TRow
@@ -1294,7 +1328,7 @@ export default function TaxFileTab({
               onToggle={toggleRow}
               action={spec && (
                 <AuthorityCheckButton label={spec.actionLabel} ready={!blocked} blockedReason={blocked}
-                  running={running} onRun={runCheck} />
+                  running={running} onRun={runCheck} canEnsure={canEnsure} onEnsure={ensureAndResume} />
               )}
             >
               {/* ‼ (154) כרטיס ב"ל: שני בלוקי-אדם במקום רשת אחת — התשובה

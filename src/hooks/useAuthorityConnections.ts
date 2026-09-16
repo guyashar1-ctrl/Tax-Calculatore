@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { createAutomationJob, cancelAutomationJob } from '../lib/automationJobs';
+import { createAutomationJob, cancelAutomationJob, requestJobCancellation, deferJobCapability } from '../lib/automationJobs';
 import { automationJobFromDb } from '../lib/dbMappers';
 import {
   SHAAM_CONNECT_ACTION_TYPE,
@@ -138,21 +138,16 @@ export function useAuthorityConnections(userId: string | undefined) {
     isOwnJobId: (id) => btlJobIdRef.current === id,
   });
 
-  // ‼ ברגע שהחיבור הושלם, משימת ה"התחברות" שנותרה פתוחה כבר לא מתארת כלום —
-  // והיא חוסמת יצירת משימה חדשה (אינדקס ייחודי על משימה פתוחה אחת). בלי
-  // הניקוי הזה הלחיצה הבאה על הכפתור הייתה מחזירה את אותה משימה ישנה ולא
-  // עושה כלום — כפתור שנראה תקין ולא מגיב.
-  useEffect(() => {
-    if (ready && shaamJob && shaamJob.status === 'needs_human') {
-      void cancelAutomationJob(shaamJob.id).then(() => refresh());
-    }
-  }, [ready, shaamJob, refresh]);
-
-  useEffect(() => {
-    if (btlConnected && btlJob && btlJob.status === 'needs_human') {
-      void cancelAutomationJob(btlJob.id).then(() => refresh());
-    }
-  }, [btlConnected, btlJob, refresh]);
+  // ‼ 168: הוסר במכוון — כאן ישב הבאג שפרק 16 מצביע עליו: הדפדפן ביטל job
+  // שכבר "needs_human" ברגע ש-ready התהפך, על סמך **טבלה אחרת**
+  // (automation_workers.status) ולא על סמך ראיית ה-job עצמו — מרוץ אמיתי
+  // מול סיום ה-worker (שיכול לסיים את אותו job success באותו רגע ממש).
+  // אין בכך צורך גם ללא המרוץ: ברגע ש-ready=true, derivePhase כבר מציג
+  // 'ready' בלי קשר בכלל למצב ה-job (הענף הראשון בפונקציה). ניקוי job
+  // תקוע-אבל-לא-מזיק קורה באופן עצלני ובטוח בלבד: ה-worker עצמו מחדש אותו
+  // (resolve_needs_human_job, connectionMonitor.mjs) ברגע שהוא רואה עדות
+  // ישירה שהאתגר נפתר; ואם בכל זאת נשאר תקוע, mustCancelBeforeStart+
+  // clearStale ב-start() למטה מנקים אותו בלחיצה המפורשת הבאה — לא בפולינג.
 
   // ‼ queued/running שהזדקנה מעל CONNECTING_TIMEOUT_MS **לא** מבוטלת כאן
   // באופן יזום. ניסיון קודם עשה בדיוק את זה ונתקל בתקלה אמיתית: הביטול
@@ -199,6 +194,23 @@ export function useAuthorityConnections(userId: string | undefined) {
     () => start('shaam', SHAAM_CONNECT_ACTION_TYPE, shaamJob, true),
     [start, shaamJob],
   );
+
+  // ‼ 168: ביטול job שכבר running (בעוד ה-worker באמצע warm-up) — לא היה
+  // אפשרי בכלל לפני 168 (cancel_automation_job מכוון בלעדית ל-queued/
+  // needs_human). מבקש בלבד; ה-worker מסיים בעצמו בין capabilities.
+  const cancelRunningShaam = useCallback(async () => {
+    if (!shaamJob) return;
+    await requestJobCancellation(shaamJob.id);
+    await refresh();
+  }, [shaamJob, refresh]);
+
+  // ‼ "דלג כרגע" על capability בודדת מתוך ה-job הנוכחי — לא מבטל את כל
+  // ההכנה, רק מסמן שאין טעם לחכות לזאת יותר. ה-worker לא בודק אותה שוב.
+  const deferShaamCapability = useCallback(async (capability: string) => {
+    if (!shaamJob) return;
+    await deferJobCapability(shaamJob.id, capability);
+    await refresh();
+  }, [shaamJob, refresh]);
   const disconnect = useCallback(
     () => start('shaam', SHAAM_DISCONNECT_ACTION_TYPE, null, false),
     [start],
@@ -219,6 +231,12 @@ export function useAuthorityConnections(userId: string | undefined) {
     disconnect,
     connectBtl,
     disconnectBtl,
+    cancelRunningShaam,
+    deferShaamCapability,
+    shaamJob,
+    // ‼ 168: פירוט N/M לפי הרשימה שנבחרה להכנה — לא ready/לא-ready גלובלי
+    // בלבד. אותו מקור אמת כמו הנורית עצמה (ShaamReadinessProvider).
+    shaamWarmupSummary: readiness.warmupSummary,
     refresh,
   };
 }

@@ -48,7 +48,14 @@ async function runJob(job) {
   }, Math.max(5, Math.floor(LEASE_SECONDS / 2)) * 1000);
 
   try {
-    const ctx = { log: (...a) => log('  ', ...a), heartbeat: () => heartbeat(USER_ID, WORKER_ID, job.id, LEASE_SECONDS, VERSION) };
+    // ‼ job מלא ב-ctx (לא רק input): warmupManager.mjs צריך id/progress/revision
+    // כדי לכתוב התקדמות עמידה (CAS) תוך כדי ריצה, לא רק את הקלט שנשלח אליו.
+    const ctx = {
+      log: (...a) => log('  ', ...a),
+      heartbeat: () => heartbeat(USER_ID, WORKER_ID, job.id, LEASE_SECONDS, VERSION),
+      workerId: WORKER_ID,
+      job,
+    };
     const out = await h.run(ctx, job.input ?? {});
     clearInterval(heartbeatTimer);
     const r = await complete(WORKER_ID, job.id, out.result ?? {}, out.artifacts ?? []);
@@ -57,6 +64,10 @@ async function runJob(job) {
     clearInterval(heartbeatTimer);
     if (e instanceof NeedsHumanError) {
       log(`⏸ ${job.actionType}: דרוש אדם — ${e.message}`);
+      // ‼ 170: אין כאן עוד רישום תוך-תהליכי של מה לחדש — e.code (בתבנית
+      // 'awaiting_<capability>_auth') כבר נשמר כ-error_code על ה-job עצמו
+      // ע"י fail_automation_job, וזו הראיה העמידה ש-report_worker_status
+      // קוראת בעצמה בכל סבב. שורד הפעלה מחדש בלי זיכרון בתהליך.
       await fail(WORKER_ID, job.id, e.code, e.message, e.message);
     } else if (e instanceof PermanentError) {
       log(`✗ ${job.actionType} נכשל (${e.code}): ${e.message}`);

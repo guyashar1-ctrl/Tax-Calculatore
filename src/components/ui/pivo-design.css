@@ -4278,6 +4278,16 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   font:inherit;color:var(--accent);text-decoration:underline;cursor:pointer;
 }
 
+/* 168: פירוט N/M להכנת שע״ם — רשימת capabilities קצרה בתוך אותו פופאובר. */
+.authconn-warmup-list{list-style:none;margin:.5rem 0 0;padding:0;display:flex;flex-direction:column;gap:.3rem}
+.authconn-warmup-list li{display:flex;align-items:center;gap:.4rem;justify-content:space-between}
+.authconn-warmup-list li.is-ready{color:var(--success)}
+.authconn-warmup-list li.is-pending{color:var(--ink-3)}
+.authconn-popover-link{
+  background:transparent;border:none;padding:0;font:inherit;font-size:var(--fs-12);
+  color:var(--accent);text-decoration:underline;cursor:pointer;
+}
+
 /* ── בדיקות (checksTab) — הרתך פיתוח, ראה ChecksTab.tsx ── */
 /* ‼ משטח פיתוח בכוונה: הרבה כרטיסים קטנים זה אחר זה. הכותרות מפרידות בין
    קבוצות primitives כדי שהרשימה תישאר קריאה גם כשיצטברו עוד. */
@@ -4593,6 +4603,11 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .txf-check-btn:disabled{opacity:.45;cursor:default}
 .txf-check-btn.is-running{color:var(--ink-3)}
 .txf-check-ic{font-size:12px;line-height:1}
+/* 168: "הכן והמשך" — פעולה משנית, לא מתחרה בכפתור הבדיקה עצמו. */
+.txf-check-ensure-btn{
+  background:transparent;border:none;padding:0;font:inherit;font-size:var(--fs-12);
+  color:var(--accent);text-decoration:underline;cursor:pointer;white-space:nowrap;
+}
 
 /* סמן מצב: עיגול 7px לפני תווית השדה. */
 .txf-fstat{display:inline-block;width:7px;height:7px;border-radius:50%;margin-inline-end:5px;

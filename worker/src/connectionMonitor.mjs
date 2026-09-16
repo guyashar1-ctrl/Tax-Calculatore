@@ -61,6 +61,7 @@ import {
   readGmfOnCurrentPage, openGmfAndCheck,
   readVatOnCurrentPage, openVatAndCheck,
   readNikuiOnCurrentPage, openNikuiAndCheck,
+  readRepresentationOnCurrentPage, openRepresentationAndCheck,
   isOnWorkScreen,
 } from './browserSession.mjs';
 import {
@@ -80,12 +81,14 @@ let shaamReported = null;
 let gmfReported = null;
 let vatReported = null;
 let nikuiReported = null;
+let representationReported = null;
 let btlReported = null;
 
 /** זמן (ms) המדידה הישירה האחרונה של כל שכבת Tier-B. 0 = מעולם לא נמדדה. */
 let gmfCheckedAtMs = 0;
 let vatCheckedAtMs = 0;
 let nikuiCheckedAtMs = 0;
+let representationCheckedAtMs = 0;
 
 /**
  * הנורית של ביטוח לאומי — חלון נפרד, פורט נפרד, סשן נפרד משע״ם.
@@ -130,6 +133,7 @@ export async function tickConnectionMonitor(userId, workerId, log) {
   let gmf = gmfReported ?? false;
   let vat = vatReported ?? false;
   let nikui = nikuiReported ?? false;
+  let representation = representationReported ?? false;
 
   const conn = await attach();
   if (conn.ok) {
@@ -161,10 +165,12 @@ export async function tickConnectionMonitor(userId, workerId, log) {
       const onGmf = await readGmfOnCurrentPage(conn.page);
       const onVat = await readVatOnCurrentPage(conn.page);
       const onNikui = await readNikuiOnCurrentPage(conn.page);
+      const onRepresentation = await readRepresentationOnCurrentPage(conn.page);
 
       if (onGmf.ready !== null) { gmf = onGmf.ready; gmfCheckedAtMs = now; }
       if (onVat.ready !== null) { vat = onVat.ready; vatCheckedAtMs = now; }
       if (onNikui.ready !== null) { nikui = onNikui.ready; nikuiCheckedAtMs = now; }
+      if (onRepresentation.ready !== null) { representation = onRepresentation.ready; representationCheckedAtMs = now; }
 
       // ── ניווט יזום לשכבה שעוד לא אושרה, שכבה אחת בכל סבב ──
       // ‼ מותר **רק כשהפורטל מוכן**: בלי סשן שער חי כל ניווט ינחת על
@@ -197,6 +203,12 @@ export async function tickConnectionMonitor(userId, workerId, log) {
           nikui = checked.ready;
           nikuiCheckedAtMs = now;
           log(`בדיקת מגן: ${checked.ready ? 'מוכנה' : `לא מוכנה (${checked.reason})`}`);
+        } else if (!representation) {
+          lastSubNav = now;
+          const checked = await openRepresentationAndCheck(conn.page);
+          representation = checked.ready;
+          representationCheckedAtMs = now;
+          log(`בדיקת מערכת ייצוג: ${checked.ready ? 'מוכנה' : `לא מוכנה (${checked.reason})`}`);
         }
       }
     } finally {
@@ -214,13 +226,14 @@ export async function tickConnectionMonitor(userId, workerId, log) {
   const btl = await checkBtl(now, log).catch(() => false);
 
   if (shaam !== shaamReported || gmf !== gmfReported || vat !== vatReported
-    || nikui !== nikuiReported || btl !== btlReported) {
-    log(`מצב: פורטל=${shaam ? 'מחובר' : 'מנותק'} · GMF=${gmf ? 'מוכנה' : 'לא מוכנה'} · מע״מ=${vat ? 'מוכנה' : 'לא מוכנה'} · מגן=${nikui ? 'מוכנה' : 'לא מוכנה'} · ב״ל=${btl ? 'מחובר' : 'מנותק'}`);
+    || nikui !== nikuiReported || representation !== representationReported || btl !== btlReported) {
+    log(`מצב: פורטל=${shaam ? 'מחובר' : 'מנותק'} · GMF=${gmf ? 'מוכנה' : 'לא מוכנה'} · מע״מ=${vat ? 'מוכנה' : 'לא מוכנה'} · מגן=${nikui ? 'מוכנה' : 'לא מוכנה'} · ייצוג=${representation ? 'מוכנה' : 'לא מוכנה'} · ב״ל=${btl ? 'מחובר' : 'מנותק'}`);
   }
   shaamReported = shaam;
   gmfReported = gmf;
   vatReported = vat;
   nikuiReported = nikui;
+  representationReported = representation;
   btlReported = btl;
 
   const at = new Date(now).toISOString();
@@ -228,13 +241,21 @@ export async function tickConnectionMonitor(userId, workerId, log) {
   // חייב להיראות ישן מהרגע הראשון, אחרת ה-fallback הראשוני (false) היה
   // מוצג כאילו הוא תוצאה של מדידה טרייה.
   const stamp = (ms) => new Date(ms || 0).toISOString();
-  await reportStatus(userId, workerId, {
+  // ‼ 170: חידוש needs_human עמיד — report_worker_status עצמה סורקת, אחרי
+  // שהיא כותבת את הסטטוס הטרי הזה, את ה-needs_human jobs ששייכים לאותו
+  // worker_id ומחדשת את מה שהתפנה. אין כאן זיכרון תוך-תהליכי: worker_id
+  // קבוע להתקנה, ולכן זהות "אותו worker" שורדת הפעלה מחדש. ראה 170.
+  const statusResult = await reportStatus(userId, workerId, {
     shaam: { connected: shaam, checkedAt: at },
     gmf: { ready: gmf, checkedAt: stamp(gmfCheckedAtMs) },
     vat: { ready: vat, checkedAt: stamp(vatCheckedAtMs) },
     nikui: { ready: nikui, checkedAt: stamp(nikuiCheckedAtMs) },
+    representation: { ready: representation, checkedAt: stamp(representationCheckedAtMs) },
     btl: { connected: btl, checkedAt: at },
-  }).catch(() => { /* דיווח מצב שנכשל לא מפיל את העובד */ });
+  }).catch(() => null);
+  if (statusResult?.resumed?.length) {
+    log(`חידשתי jobs שממתינים ל-capability שהתפנתה: ${statusResult.resumed.join(', ')}`);
+  }
 }
 
 /** אחרי connect/disconnect — מאלץ בדיקה מיידית במקום להמתין. */

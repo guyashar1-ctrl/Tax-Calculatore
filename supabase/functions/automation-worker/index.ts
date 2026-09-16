@@ -1,8 +1,10 @@
 // Edge Function: automation-worker — נקודת הכניסה היחידה של העובד המקומי.
 //
 // ‼ יסוד האוטומציה הכללי (לא ספציפי לשע״ם), ראה docs/PIVO-AUTOMATION-FOUNDATION.html
-// ו-supabase/150-automation-jobs.sql לסמנטיקה המלאה. ארבע פעולות בלבד —
-// claim / heartbeat / complete / fail — כל אחת עוטפת RPC אחד ב-security definer.
+// ו-supabase/150-automation-jobs.sql לסמנטיקה המלאה. שש פעולות — claim /
+// heartbeat / complete / fail / status / progress / resolve_needs_human —
+// כל אחת עוטפת RPC אחד ב-security definer. progress/resolve_needs_human
+// נוספו ב-168 להכנת סביבת עבודה לשע״ם (warm-up היברידי, פרק 16).
 //
 // ‼ אימות: x-worker-secret בלבד, מאומת מול verify_automation_worker_secret
 // (Vault). לא Authorization/service-role — הסוד הזה מוגבל לתפיסה/דיווח על
@@ -10,7 +12,7 @@
 // עצמו יושב רק כאן, על השרת, ולעולם לא מגיע לתהליך העובד על מחשב המשרד.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-type Op = "claim" | "heartbeat" | "complete" | "fail" | "status";
+type Op = "claim" | "heartbeat" | "complete" | "fail" | "status" | "progress" | "resolve_needs_human";
 
 interface Body {
   op: Op;
@@ -27,6 +29,9 @@ interface Body {
   needsHuman?: string;
   /** מצב חיבור לרשויות — דגלים בלבד, לעולם לא מידע אימות. */
   status?: Record<string, unknown>;
+  /** 168: התקדמות עמידה לפי capability, ראה update_automation_job_progress. */
+  expectedRevision?: number;
+  progress?: Record<string, unknown>;
 }
 
 Deno.serve(async (req: Request) => {
@@ -97,6 +102,31 @@ Deno.serve(async (req: Request) => {
         p_job_id: body.jobId,
         p_result: body.result ?? {},
         p_artifacts: body.artifacts ?? [],
+      });
+      if (error) return json({ ok: false, error: error.message }, 500);
+      return json(data);
+    }
+
+    if (body.op === "progress") {
+      if (!body.jobId || body.expectedRevision == null) {
+        return json({ ok: false, error: "bad_request: jobId+expectedRevision required" }, 400);
+      }
+      const { data, error } = await admin.rpc("update_automation_job_progress", {
+        p_worker_id: body.workerId,
+        p_job_id: body.jobId,
+        p_expected_revision: body.expectedRevision,
+        p_progress: body.progress ?? {},
+      });
+      if (error) return json({ ok: false, error: error.message }, 500);
+      return json(data);
+    }
+
+    if (body.op === "resolve_needs_human") {
+      if (!body.jobId) return json({ ok: false, error: "bad_request: jobId required" }, 400);
+      const { data, error } = await admin.rpc("resolve_needs_human_job", {
+        p_worker_id: body.workerId,
+        p_job_id: body.jobId,
+        p_lease_seconds: body.leaseSeconds ?? 60,
       });
       if (error) return json({ ok: false, error: error.message }, 500);
       return json(data);

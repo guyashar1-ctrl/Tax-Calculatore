@@ -48,6 +48,30 @@ export async function cancelAutomationJob(jobId: string): Promise<AutomationJobR
   return { ok: true, job: r.job ? automationJobFromDb(r.job) : undefined };
 }
 
+/**
+ * 168: מבקשת ביטול של job שכבר running — ה-worker בודק את הדגל בין
+ * capabilities ומסיים בעצמו. ‼ לא מבטלת מיידית: זו בקשה, לא פעולה סופית.
+ */
+export async function requestJobCancellation(jobId: string): Promise<AutomationJobRpcResult> {
+  const { data, error } = await supabase.rpc('request_job_cancellation', { p_job_id: jobId });
+  if (error) return { ok: false, error: error.message };
+  const r = data as { ok: boolean; error?: string; job?: Record<string, any> };
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, job: r.job ? automationJobFromDb(r.job) : undefined };
+}
+
+/** 168: "דלג כרגע" על capability בודדת — ה-worker לא בודק אותה שוב באותו job. */
+export async function deferJobCapability(jobId: string, capability: string): Promise<AutomationJobRpcResult> {
+  const { data, error } = await supabase.rpc('defer_job_capability', {
+    p_job_id: jobId,
+    p_capability: capability,
+  });
+  if (error) return { ok: false, error: error.message };
+  const r = data as { ok: boolean; error?: string; job?: Record<string, any> };
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, job: r.job ? automationJobFromDb(r.job) : undefined };
+}
+
 /** המשימה הפתוחה (queued/running/needs_human) האחרונה לאותו (לקוח, פעולה), אם יש. */
 export async function fetchOpenAutomationJob(
   clientId: string,

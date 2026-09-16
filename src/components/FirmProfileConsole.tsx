@@ -12,6 +12,7 @@ import { Client } from '../types';
 import EmployeesPanel from './EmployeesPanel';
 import EmailActivityModule from './EmailActivity/EmailActivityModule';
 import RequestDefaultsSection from './office/RequestDefaultsSection';
+import ShaamWarmupSettingsSection from './office/ShaamWarmupSettingsSection';
 import QuotationSettings from './quotations/QuotationSettings';
 import QuotationDesignStudio from './quotations/QuotationDesignStudio';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
@@ -54,7 +55,7 @@ interface Props {
   onSave: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'notifications' | 'paperless' | 'requestDefaults' | 'clientDocs' | 'emailActivity' | 'quotations' | 'employees';
+type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'notifications' | 'paperless' | 'shaamWarmup' | 'requestDefaults' | 'clientDocs' | 'emailActivity' | 'quotations' | 'employees';
 
 // אייקוני הניווט כ-SVG מוטמע. (הפרויקט לא טוען את פונט Tabler, ולכן ה-<i class="ti">
 // שהיו כאן קודם פשוט לא הוצגו — זה מחליף אותם באייקונים שבאמת נראים.)
@@ -70,6 +71,7 @@ const ICON_PATHS: Record<string, string> = {
   quotations: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4',
   employees: 'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M17.5 5.2a3 3 0 0 1 0 5.6 M21 20v-1a4 4 0 0 0-3-3.85',
   mailCog: 'M3 6h18v7 M3 7l9 6 9-6 M17.5 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0',
+  shaam: 'M9 15 15 9 M8 16l-2 2a3 3 0 0 1-4-4l3-3a3 3 0 0 1 4 0 M16 8l2-2a3 3 0 0 1 4 4l-3 3a3 3 0 0 1-4 0',
   requests: 'M9 4h6v3H9z M7 5H5v15h14V5h-2 M9 12h6 M9 16h4',
   bolt: 'M13 2 4 14h7l-1 8 9-12h-7z',
   userCheck: 'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M16 12.5l2 2 4-4',
@@ -100,6 +102,7 @@ const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'communication', label: 'ערוצי תקשורת', icon: 'communication' },
   { id: 'notifications', label: 'התראות למשרד', icon: 'bell' },
   { id: 'paperless', label: 'פייפרלס ותקשורת', icon: 'mailCog' },
+  { id: 'shaamWarmup', label: 'חיבור לשע״ם', icon: 'shaam' },
   { id: 'requestDefaults', label: 'בקשות מסמכים', icon: 'requests' },
   { id: 'clientDocs', label: 'מסמכים ללקוחות', icon: 'fileUpload' },
   { id: 'emailActivity', label: 'פעילות מייל', icon: 'emailActivity' },
@@ -638,6 +641,10 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 
           {section === 'paperless' && (
             <PaperlessCommSection profile={draft} onChangeProfile={setDraft} />
+          )}
+
+          {section === 'shaamWarmup' && (
+            <ShaamWarmupSettingsSection profile={draft} onChangeProfile={setDraft} />
           )}
 
           {section === 'requestDefaults' && (

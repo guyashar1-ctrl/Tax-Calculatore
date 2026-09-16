@@ -4,6 +4,7 @@ import * as devTestAutomation from './handlers/devTestAutomation.mjs';
 import * as shaamDetect from './handlers/shaamDetect.mjs';
 import * as shaamCheckAuth from './handlers/shaamCheckAuth.mjs';
 import * as shaamConnect from './handlers/shaamConnect.mjs';
+import * as shaamEnsureCapability from './handlers/shaamEnsureCapability.mjs';
 import * as shaamDisconnect from './handlers/shaamDisconnect.mjs';
 import * as shaamOpenIncomeTax from './handlers/shaamOpenIncomeTax.mjs';
 import * as shaamOpenClientFile from './handlers/shaamOpenClientFile.mjs';
@@ -13,7 +14,7 @@ import * as btlDisconnect from './handlers/btlDisconnect.mjs';
 
 const HANDLERS = [
   devTestAutomation, shaamDetect, shaamCheckAuth,
-  shaamConnect, shaamDisconnect, shaamOpenIncomeTax, shaamOpenClientFile,
+  shaamConnect, shaamEnsureCapability, shaamDisconnect, shaamOpenIncomeTax, shaamOpenClientFile,
   shaamSyncIncomeTaxFile,
   btlConnect, btlDisconnect,
 ];

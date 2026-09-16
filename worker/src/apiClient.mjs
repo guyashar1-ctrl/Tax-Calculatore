@@ -27,3 +27,13 @@ export const fail = (workerId, jobId, errorCode, errorDetail, needsHuman) =>
 /** מצב חיבור לרשויות — דגלים בלבד. לעולם לא עוגיות/טוקנים/PIN. */
 export const reportStatus = (userId, workerId, status) =>
   call({ op: 'status', userId, workerId, status });
+
+// ‼ 168: התקדמות עמידה לפי capability (warmupManager.mjs) — CAS על revision,
+// כדי ש-worker "זומבי" שהחכירה שלו פקעה לא ידרוס עדכון של המחזיק הנוכחי.
+export const updateJobProgress = (workerId, jobId, expectedRevision, progress) =>
+  call({ op: 'progress', workerId, jobId, expectedRevision, progress });
+
+// ‼ 170: אין כאן עטיפה ל-resolve_needs_human — חידוש needs_human עמיד קורה
+// עכשיו בתוך report_worker_status עצמה (RPC), נגזר מהסטטוס שכבר נכתב, בלי
+// זיכרון תוך-תהליכי. ה-op/RPC resolve_needs_human עדיין קיימים במסד כפרימיטיב
+// זמין (למשל לכפתור "נסה עכשיו" ידני עתידי), אך אינם בשימוש בנתיב האוטומטי.

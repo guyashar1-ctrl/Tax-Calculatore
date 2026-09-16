@@ -373,6 +373,182 @@ export async function openNikuiAndCheck(page) {
   return { ...nikuiState(s), pathname: s.pathname };
 }
 
+// ─── שכבה חמישית: מערכת רישום ייצוג — «רשימת מיוצגים» ──────────────────────
+// ‼ נבדק חי מול הסביבה האמיתית (16.09.2026, ראה docs/SHAAM-AUTOMATION-HANDOFF.md):
+// זו מערכת עם סשן משלה, נפרד לגמרי מהפורטל/GMF/מע״מ/מגן — למרות אותו origin.
+// אחרי אימות פורטל+GMF+מע״מ+מגן מלא, ניווט לכתובת הזו עדיין נחת על מסך
+// התחברות ייעודי (#/login) עם שדה סיסמה. אין להניח readiness של השכבה הזו
+// מכל שכבה אחרת — היא תמיד נמדדת בעצמה.
+//
+// ‼ מוכנות = ראיה חיובית למסך הרשימה עצמו (#/reshimatMeyuzagim, בלי שדה
+// סיסמה) — לא רק "לא על מסך login". דף לבן/מצב ביניים לא נחשב מוכן.
+export const REPRESENTATION_URL = 'https://shaam.taxes.gov.il/srReshMeyuzagim';
+export const REPRESENTATION_PATH = '/srReshMeyuzagim';
+const REPRESENTATION_LOGIN_HASH = '#/login';
+const REPRESENTATION_READY_HASH = '#/reshimatMeyuzagim';
+
+/**
+ * ‼ הכתובת הזו נשלטת ב-Angular hash routing, לא ב-pathname: שני המצבים
+ * (login/ready) חולקים אותו pathname ונבדלים רק ב-hash. snapPage הקיים לא
+ * קורא hash — ולכן שכבה זו קוראת אותו ישירות מ-page.url(), ולא מסתמכת על
+ * snapPage.hasPasswordField בלבד (שדה סיסמה יכול תיאורטית להישאר ב-DOM
+ * במעבר בין מסכים; ה-hash הוא הראיה החזקה יותר, ושתיהן נבדקות יחד).
+ */
+function representationState(href, hasPasswordField) {
+  let pathname = '/';
+  let hash = '';
+  try {
+    const u = new URL(href);
+    pathname = u.pathname;
+    hash = u.hash;
+  } catch { /* about:blank וכדומה */ }
+  if (!pathname.startsWith(REPRESENTATION_PATH)) {
+    return { ready: false, reason: 'unexpected_destination' };
+  }
+  if (hash.startsWith(REPRESENTATION_READY_HASH) && !hasPasswordField) {
+    return { ready: true, reason: 'list_screen' };
+  }
+  if (hash.startsWith(REPRESENTATION_LOGIN_HASH) || hasPasswordField) {
+    return { ready: false, reason: 'login_required' };
+  }
+  // ‼ לא login ולא מסך הרשימה המוכר — מצב ביניים/לא ידוע. לא מנחשים ready.
+  return { ready: false, reason: 'unknown_screen' };
+}
+
+async function snapRepresentation(page) {
+  const href = page.url();
+  let hasPasswordField = false;
+  try {
+    hasPasswordField = await page.evaluate(() => !!document.querySelector('input[type=password]'));
+  } catch { /* ניווט באמצע */ }
+  return { href, hasPasswordField, ...representationState(href, hasPasswordField) };
+}
+
+/** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על מערכת הייצוג. */
+export async function readRepresentationOnCurrentPage(page) {
+  let pathname;
+  try { pathname = new URL(page.url()).pathname; } catch { return { onRepresentation: false, ready: null }; }
+  if (!pathname.startsWith(REPRESENTATION_PATH)) return { onRepresentation: false, ready: null };
+  const s = await snapRepresentation(page);
+  return { onRepresentation: true, ready: s.ready, reason: s.reason, pathname };
+}
+
+/**
+ * מנווט למערכת הייצוג ומחזיר את מצבה אחרי התייצבות. משאיר את הדפדפן שם.
+ * ‼ בניגוד ל-openGmfAndCheck/openVatAndCheck: אין נסיון reuse של לשונית
+ * פתוחה — המערכת הזו לא נצפתה נפתחת פעמיים, ולשונית ישנה עלולה לשבת על
+ * hash ישן (#/login) גם אחרי שהתחברות הצליחה בלשונית אחרת.
+ */
+export async function openRepresentationAndCheck(page) {
+  await page.goto(REPRESENTATION_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
+  await page.waitForTimeout(2500); // ‼ Angular hash routing — לא תמיד תחת networkidle
+  await page.waitForLoadState('networkidle', { timeout: 12000 }).catch(() => {});
+  const s = await snapRepresentation(page);
+  return { ready: s.ready, reason: s.reason, pathname: REPRESENTATION_PATH, href: s.href };
+}
+
+/**
+ * ‼ אישור אוטומטי מוגבל לטופס login של מערכת הייצוג — פעם אחת, ורק אחרי
+ * שכל התנאים הבאים אומתו. זו המימוש הקונקרטי היחיד של "autofill-confirm"
+ * שנבדק חי (16.09.2026): לחיצה שגויה על אחד מכפתורי "אישור" האחרים באותו
+ * עמוד (יש כמה — התראת התנתקות, טופס תקלה, זיהוי משתמש) הפעילה טופס לא
+ * קשור ("כתובת מייל אינה תקינה"). הכפתור הנכון אותר **מבנית**: זה שיושב
+ * בתוך/צמוד ל-form שמכיל את שדה הסיסמה עצמו — לא לפי טקסט "אישור" הכללי,
+ * שאינו ייחודי בעמוד הזה.
+ *
+ * ‼ לעולם לא קורא input.value של שדה הסיסמה — רק בודק hasValue (בוליאני).
+ * ניסיון אישור יחיד: תוצאה לא-חיובית לא מנוסה שוב.
+ */
+export async function attemptRepresentationLoginConfirm(page) {
+  const before = await page.evaluate(() => {
+    const pw = document.querySelector('input[type="password"]');
+    if (!pw) return { ok: false, reason: 'no_password_field' };
+    if (!pw.value || pw.value.length === 0) return { ok: false, reason: 'password_not_filled' };
+    const form = pw.closest('form');
+    if (!form) return { ok: false, reason: 'no_form' };
+    let container = form;
+    let btn = container.querySelector('button.btn-primary');
+    if (!btn && form.parentElement) {
+      container = form.parentElement;
+      btn = container.querySelector('button.btn-primary');
+    }
+    if (!btn) return { ok: false, reason: 'no_button_found' };
+    return { ok: true };
+  });
+  if (!before.ok) return before;
+
+  const clicked = await page.evaluate(() => {
+    const pw = document.querySelector('input[type="password"]');
+    const form = pw?.closest('form');
+    if (!form) return false;
+    let btn = form.querySelector('button.btn-primary');
+    if (!btn && form.parentElement) btn = form.parentElement.querySelector('button.btn-primary');
+    if (!btn) return false;
+    btn.click();
+    return true;
+  });
+  if (!clicked) return { ok: false, reason: 'click_failed' };
+
+  await page.waitForTimeout(2500);
+  await page.waitForLoadState('networkidle', { timeout: 12000 }).catch(() => {});
+  const after = await snapRepresentation(page);
+  if (after.ready) return { ok: true, reason: 'confirmed' };
+  // ‼ לא מנוסה שוב: תוצאה לא-חיובית לאחר לחיצה יחידה עוברת ל-needs_human
+  // בצד הקורא, לא לניסיון חוזר עיוור.
+  return { ok: false, reason: after.reason ?? 'not_confirmed' };
+}
+
+// ─── התאוששות תחומה מדף לא-ודאי (ריק/בטעינה) ───────────────────────────────
+// ‼ פרק 16 §16.8: לכל היותר שתי התאוששויות — reload של הדף שה-worker כבר
+// בבעלותו, ואז סגירת אותו דף ופתיחה מחדש דרך כניסה מאומתת (ניווט מלא) —
+// לפני שדף לא-ודאי נחשב "לא זמינה". דף שנחת ב-unexpected_destination/
+// unknown_screen עשוי פשוט להיות עדיין בטעינה, לא בהכרח יעד שגוי לצמיתות.
+//
+// ‼ משותף לכל capability במכוון — לא מנגנון ייעודי לייצוג. משתמש ב-reader
+// הזול הקיים (readXOnCurrentPage) לסיווג אחרי reload בלי ניווט נוסף, ובפונקציית
+// ה-open+check המלאה של כל capability בתור "כניסה מאומתת מחדש".
+//
+// ‼ עוצר מיד אם: מסך עבודה פתוח לרו"ח (isOnWorkScreen), התוצאה כבר סופית
+// (ready/human_required — לא ambiguous), או תקציב הזמן/הניסיונות מוצה.
+// לעולם לא יותר משתי ניווטים נוספים — לא "storm".
+const TRANSIENT_REASONS = new Set(['unexpected_destination', 'unknown_screen']);
+const RECOVERY_WAIT_MS = 3000;
+const RECOVERY_BUDGET_MS = 45_000;
+
+export async function ensureWithBoundedRecovery(page, { initial, readCurrent, reopen }) {
+  let attempt = initial;
+  let recoveries = 0;
+  const start = Date.now();
+
+  const isAmbiguous = (r) => !r.ready && TRANSIENT_REASONS.has(r.reason);
+
+  while (isAmbiguous(attempt) && recoveries < 2 && Date.now() - start < RECOVERY_BUDGET_MS) {
+    if (await isOnWorkScreen(page)) break; // ‼ לא נוגעים במסך שהרו"ח פתח
+    recoveries++;
+    await page.waitForTimeout(RECOVERY_WAIT_MS);
+
+    if (recoveries === 1) {
+      // התאוששות 1: reload של הדף הנוכחי בלבד — לא ניווט ליעד חדש.
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+      await settlePage(page, { idleMs: 10000, watchMs: 4000 });
+      const current = await readCurrent(page);
+      // ‼ ready===null = "עדיין לא על הנתיב בכלל" — לא מדידה, משאירים
+      // את הניסיון הקודם ונותנים להתאוששות הבאה (ניווט מלא) להכריע.
+      if (current.ready !== null) attempt = { ready: current.ready, reason: current.reason, pathname: current.pathname };
+    } else {
+      // התאוששות 2: סגירת אותו דף ופתיחה מחדש דרך כניסה מאומתת — ניווט מלא.
+      attempt = await reopen(page);
+    }
+  }
+
+  if (recoveries > 0 && isAmbiguous(attempt)) {
+    // ‼ "לא זמינה כרגע" אמיתי — לא human_required. מוצה תקציב ההתאוששות,
+    // לא התגלה challenge קונקרטי שדורש אדם.
+    return { ...attempt, reason: 'transient_recovery_exhausted', recoveries };
+  }
+  return { ...attempt, recoveries };
+}
+
 // ─── «פרטי תיק» — שאילתה 181 במערכת גביית מס הכנסה ─────────────────────────
 // ‼ כל המזהים כאן נלקחו מהמסך החי, לא נוחשו:
 //   #gmftxtMisTik — תווית "מספר תיק", 9 תווים.

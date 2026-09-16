@@ -384,6 +384,7 @@ export function automationJobFromDb(row: Record<string, any>): AutomationJob {
   const j = rowToObject<AutomationJob>(row);
   if (!j.input) j.input = {};
   if (!j.artifacts) j.artifacts = [];
+  if (!j.progress) j.progress = {};
   return j;
 }
 

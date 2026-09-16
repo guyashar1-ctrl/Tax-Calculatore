@@ -55,6 +55,12 @@ export interface AuthorityCheckButtonProps {
   blockedReason?: string | null;
   running: boolean;
   onRun: () => void;
+  /**
+   * 168: כש-true, "לא מוכן" נובע מ-capability חסרה ספציפית (לא מקלט חסר
+   * או מרשות שעוד לא נבנתה) — יש מה להציע חוץ מחסימה שקטה.
+   */
+  canEnsure?: boolean;
+  onEnsure?: () => void;
 }
 
 /**
@@ -62,15 +68,26 @@ export interface AuthorityCheckButtonProps {
  * בתוכו — כפתור בתוך כפתור אינו HTML תקין, ולחיצה עליו הייתה גם פותחת
  * וגם מריצה.
  */
-export function AuthorityCheckButton({ label, ready, blockedReason, running, onRun }: AuthorityCheckButtonProps) {
+export function AuthorityCheckButton({ label, ready, blockedReason, running, onRun, canEnsure, onEnsure }: AuthorityCheckButtonProps) {
   const title = running ? 'הקריאה מהרשות רצה…' : ready ? label : (blockedReason ?? 'האוטומציה אינה זמינה כרגע');
   return (
-    <button type="button" className={`txf-check-btn ${running ? 'is-running' : ''}`}
-      disabled={!ready || running} title={title} aria-label={title}
-      onClick={onRun}>
-      <span className="txf-check-ic" aria-hidden="true">{running ? '⋯' : '⟳'}</span>
-      <span className="txf-check-lbl">{running ? 'בודק…' : label}</span>
-    </button>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <button type="button" className={`txf-check-btn ${running ? 'is-running' : ''}`}
+        disabled={!ready || running} title={title} aria-label={title}
+        onClick={onRun}>
+        <span className="txf-check-ic" aria-hidden="true">{running ? '⋯' : '⟳'}</span>
+        <span className="txf-check-lbl">{running ? 'בודק…' : label}</span>
+      </button>
+      {/* ‼ 168/פרק 16 §16.1: שחזור נקודתי + המשך אוטומטי — לא חסימה שקטה
+          כש-blocked נובע מ-capability חסרה. אותה פעולה עסקית ממש, רק אחרי
+          שההכנה הסתיימה. ראה TaxFileTab.tsx: pendingEnsureRef. */}
+      {!ready && !running && canEnsure && onEnsure && (
+        <button type="button" className="txf-check-ensure-btn" title="הכן את שכבת הרשות החסרה, והמשך אוטומטית"
+          onClick={onEnsure}>
+          הכן והמשך
+        </button>
+      )}
+    </span>
   );
 }
 

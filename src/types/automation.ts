@@ -26,9 +26,37 @@ export interface AutomationJob {
   errorDetail?: string;
   needsHuman?: string;
 
+  /** 168: התקדמות עמידה לפי capability — ראה CapabilityEvidence. */
+  progress?: JobProgress;
+  /** 168: מונה CAS — worker כותב progress רק כשהוא מחזיק את הגרסה האחרונה. */
+  revision?: number;
+  /** 168: דגל שהדפדפן מרים כשמבטלים job שכבר running; ה-worker בודק בין capabilities. */
+  cancelRequested?: boolean;
+
   createdAt: string;
   updatedAt: string;
   finishedAt?: string;
+}
+
+/**
+ * ‼ פרק 16 §16.4 — תשעה מצבים לכל capability, לא boolean ready/לא-ready:
+ * "ready" בלבד לא מבחין בין "עוד לא נבדק", "מתעכב אצל הרשות", "דורש אותך"
+ * ו"דילגת עליו". ה-UI צריך את ההבדל כדי לתאר partial readiness באמת.
+ */
+export type CapabilityState =
+  | 'unknown' | 'checking' | 'waiting_external' | 'ready'
+  | 'human_required' | 'stale' | 'expired' | 'unavailable' | 'deferred';
+
+export interface CapabilityEvidence {
+  state: CapabilityState;
+  reasonCode?: string;
+  observedAt?: string;
+  evidenceKind?: string;
+}
+
+export interface JobProgress {
+  capabilities?: Record<string, CapabilityEvidence>;
+  challenges?: unknown[];
 }
 
 /** מצבים "פתוחים" — עוד לא הגיעו לתוצאה סופית. */
@@ -70,6 +98,8 @@ export interface AutomationWorkerStatus {
   gmf?: { ready: boolean; checkedAt?: string };
   vat?: { ready: boolean; checkedAt?: string };
   nikui?: { ready: boolean; checkedAt?: string };
+  /** 168: מערכת רישום ייצוג — סשן נפרד לגמרי, לא נגזר מ-shaam/gmf/vat/nikui. */
+  representation?: { ready: boolean; checkedAt?: string };
   btl?: AuthorityConnection;
 }
 
@@ -124,6 +154,19 @@ export const SHAAM_OPEN_INCOME_TAX_ACTION_TYPE = 'shaam.open_income_tax';
 export const SHAAM_OPEN_CLIENT_FILE_ACTION_TYPE = 'shaam.open_client_file';
 /** «קרא משע״ם» — שאילתה 134, שדות ראש התיק במס הכנסה. */
 export const SHAAM_SYNC_INCOME_TAX_ACTION_TYPE = 'shaam.sync_income_tax_file';
+/** 168: שחזור נקודתי — "הכן רק capability X", לא warm-up מלא. ראה פרק 16 §16.1. */
+export const SHAAM_ENSURE_CAPABILITY_ACTION_TYPE = 'shaam.ensure_capability';
+
+/** 168: רשימת ברירת המחדל של warm-up — ניתנת להגדרה ב-profiles.settings.shaamWarmup. */
+export const SHAAM_WARMUP_CAPABILITIES = ['gmf', 'vat', 'nikui', 'representation'] as const;
+export type ShaamWarmupCapability = typeof SHAAM_WARMUP_CAPABILITIES[number];
+
+export const SHAAM_WARMUP_CAPABILITY_LABELS: Record<ShaamWarmupCapability, string> = {
+  gmf: 'מערכת גביית מס הכנסה',
+  vat: 'מע״מ',
+  nikui: 'מגן (ניכויים)',
+  representation: 'רישום ייצוג',
+};
 
 // ── ביטוח לאומי: «מערכת ייצוג לקוחות» ──────────────────────────────────────
 // ‼ רשות נפרדת לחלוטין משע״ם — חלון Chrome ייעודי משלה, סשן משלה, ונורית
