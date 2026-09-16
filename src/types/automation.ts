@@ -94,7 +94,12 @@ export interface AuthorityConnection {
  * ירוק שמסתמך רק על הראשונה היה שולח כל אוטומציה היישר לקיר סיסמה.
  */
 export interface AutomationWorkerStatus {
-  shaam?: AuthorityConnection;
+  /**
+   * ‼ bootstrapped (16.09.2026): החיבור **הטרי** הזה עבר גם את שער GMF.
+   * דגל מחזור-חיים שהצופה מאפס כשהחלון נסגר/הסשן פג — לא מדידה עם שעון.
+   * הירוק בכותרת נגזר ממנו, לא מ-gmf.ready (שיש לו התיישנות משלו).
+   */
+  shaam?: AuthorityConnection & { bootstrapped?: boolean };
   gmf?: { ready: boolean; checkedAt?: string };
   vat?: { ready: boolean; checkedAt?: string };
   nikui?: { ready: boolean; checkedAt?: string };
@@ -176,3 +181,17 @@ export const SHAAM_WARMUP_CAPABILITY_LABELS: Record<ShaamWarmupCapability, strin
 export const BTL_CONNECT_ACTION_TYPE = 'btl.connect';
 /** לחיצה כשמחובר — סוגרת את חלון ביטוח לאומי הייעודי. */
 export const BTL_DISCONNECT_ACTION_TYPE = 'btl.disconnect';
+/**
+ * "הזן ייפוי כוח בביטוח לאומי" — לאדם אחד (154): מיוצגים → ייפוי כוח →
+ * הוספת ייפוי כוח מבוטח. ‼ input: `{ role, idNumber, firstName, lastName,
+ * birthYear }`. תוצאה מוצלחת נכתבת ל-`representation_requests.execution`
+ * בטריגר בשרת (187) — לא בדפדפן. ראה worker/src/handlers/btlCreateRepresentation.mjs.
+ */
+export const BTL_CREATE_REPRESENTATION_ACTION_TYPE = 'btl.create_representation';
+/**
+ * "בדוק קבלת הייצוג" — מסך «מעקב ייפוי כוח» בב"ל, לפי אסמכתא + ת.ז.
+ * ‼ input: `{ role, idNumber, referenceNumber }`. תוצאה `{status:
+ * 'approved'|'pending'|'unknown', ...}` — 'approved' בלבד מסמן פעיל,
+ * בטריגר בשרת (187). ראה worker/src/handlers/btlCheckRepresentation.mjs.
+ */
+export const BTL_CHECK_REPRESENTATION_ACTION_TYPE = 'btl.check_representation';

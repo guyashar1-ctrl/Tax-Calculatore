@@ -81,6 +81,47 @@ export function niFactsOf(person: NiPerson, client: Client): NiPersonFactsValue 
   };
 }
 
+export interface NiPersonIdentity {
+  idNumber: string;
+  firstName: string;
+  lastName: string;
+  /** null = אין תאריך לידה ידוע — לא ניתן להזין ייפוי כוח בב"ל בלעדיו. */
+  birthYear: number | null;
+}
+
+/**
+ * פרטי הזהות של האדם הזה כפי שהם דרושים לטופס ייפוי הכוח בביטוח לאומי —
+ * ת.ז., שם פרטי, שם משפחה, שנת לידה. ‼ אותו דפוס "מי הבעלים בפועל" כמו
+ * `niHome`/`niFactsOf`, אבל על שדות זהות כלליים (לא ספציפיים לב"ל) ולכן לא
+ * דרך `NI_FACT_KEYS`: אדם מקושר נקרא מהכרטיס שלו/ה עצמו/ה, ובן/בת זוג בלי
+ * כרטיס נקרא מ-`spouseFirstName`/`spouseLastName`/`spouseBirthYear` על
+ * הכרטיס הראשי.
+ */
+export function niPersonIdentity(person: NiPerson, client: Client): NiPersonIdentity | null {
+  if (!person.idNumber) return null;
+  const yearFromDate = (birthDate?: string): number | null => {
+    const y = birthDate ? Number(birthDate.slice(0, 4)) : NaN;
+    return Number.isFinite(y) && y > 1900 ? y : null;
+  };
+  if (person.role === 'client') {
+    return {
+      idNumber: person.idNumber, firstName: client.firstName ?? '', lastName: client.lastName ?? '',
+      birthYear: yearFromDate(client.birthDate),
+    };
+  }
+  if (person.source.kind === 'linked') {
+    const sc = person.source.client;
+    return {
+      idNumber: person.idNumber, firstName: sc.firstName ?? '', lastName: sc.lastName ?? '',
+      birthYear: yearFromDate(sc.birthDate),
+    };
+  }
+  return {
+    idNumber: person.idNumber, firstName: client.spouseFirstName ?? '', lastName: client.spouseLastName ?? '',
+    birthYear: client.spouseBirthYear ?? null,
+  };
+}
+
 /**
  * מפתחות ה-Client שהעובדות של האדם הזה יושבות בהם. ‼ כתיבה תמיד יעד אחד:
  * העריכה קיימת רק כש-`niEditable` אמת, ואז `niHome` תמיד `client` עצמו
@@ -216,7 +257,7 @@ export function niRepresentationOf(
 }
 
 export interface NiRepresentationAction {
-  kind: 'add' | 'continue' | 'send';
+  kind: 'add' | 'continue' | 'send' | 'enter_btl' | 'check_btl';
   label: string;
 }
 
@@ -229,6 +270,11 @@ export interface NiRepresentationAction {
  * בקשת ייצוג ללקוח (`client.representationStatus`).
  * ‼ 'send' — האסמכתא כבר קיימת וטרם נשלחו הוראות אישור עצמאיות (ולא
  * רוכבות על מייל החתימה). זו הפעולה היחידה שפותחת את דיאלוג ההוראות.
+ * ‼ 'enter_btl'/'check_btl' — הפעולה הקשרית האוטומטית של ב"ל (16.2):
+ * לפני שהוזן ייפוי כוח בכלל — "הזן ייפוי כוח בביטוח לאומי" (מריץ
+ * btl.create_representation); אחרי שיש אסמכתא וטרם אושר — "בדוק קבלת
+ * הייצוג" (מריץ btl.check_representation). ‼ 'send' קודמת לשתיהן: אם
+ * צריך עדיין לשלוח הוראות אישור למבוטח, זו הפעולה הדחופה יותר.
  * ‼ אדם מקושר (`!niEditable`) לעולם לא מקבל פעולה — מקור האמת אצלו/ה.
  */
 export function niRepresentationAction(
@@ -239,6 +285,12 @@ export function niRepresentationAction(
   if (line.represented) {
     if (track?.referenceNumber && !track?.instructionsSentAt && track?.instructionsSentWith !== 'signature') {
       return { kind: 'send', label: `שלח הוראות אישור ל-${person.name}` };
+    }
+    if (track?.referenceNumber && !track?.confirmedAt) {
+      return { kind: 'check_btl', label: 'בדוק קבלת הייצוג' };
+    }
+    if (!track?.referenceNumber && !track?.enteredAt) {
+      return { kind: 'enter_btl', label: 'הזן ייפוי כוח בביטוח לאומי' };
     }
     return { kind: 'continue', label: 'המשך במרכז הייצוג' };
   }

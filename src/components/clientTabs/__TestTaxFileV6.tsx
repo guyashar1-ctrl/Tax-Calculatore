@@ -301,7 +301,7 @@ const COUPLE_REP_STUCK = {
 
 /** מסלולי הביצוע הסטטיים לכל תרחיש — רק couple-rep-inprogress צריך אחד. */
 const NI_EXECUTION_BY_CASE: Record<string, { client?: NiTracking; spouse?: NiTracking }> = {
-  'couple-rep-inprogress': { spouse: { enteredAt: iso(3), referenceNumber: '73882698', deadline: '2026-10-12' } },
+  'couple-rep-inprogress': { spouse: { enteredAt: iso(3), referenceNumber: '73882698', deadline: '2026-10-12', instructionsSentAt: iso(1) } },
 };
 
 const CLIENTS: Record<string, Client> = {

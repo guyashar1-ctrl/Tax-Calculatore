@@ -11,12 +11,14 @@ import * as shaamOpenClientFile from './handlers/shaamOpenClientFile.mjs';
 import * as shaamSyncIncomeTaxFile from './handlers/shaamSyncIncomeTaxFile.mjs';
 import * as btlConnect from './handlers/btlConnect.mjs';
 import * as btlDisconnect from './handlers/btlDisconnect.mjs';
+import * as btlCreateRepresentation from './handlers/btlCreateRepresentation.mjs';
+import * as btlCheckRepresentation from './handlers/btlCheckRepresentation.mjs';
 
 const HANDLERS = [
   devTestAutomation, shaamDetect, shaamCheckAuth,
   shaamConnect, shaamEnsureCapability, shaamDisconnect, shaamOpenIncomeTax, shaamOpenClientFile,
   shaamSyncIncomeTaxFile,
-  btlConnect, btlDisconnect,
+  btlConnect, btlDisconnect, btlCreateRepresentation, btlCheckRepresentation,
 ];
 
 const byActionType = new Map(HANDLERS.map((h) => [h.actionType, h]));

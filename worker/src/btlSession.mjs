@@ -222,3 +222,287 @@ export async function probeBtlSession(page) {
     return { ok: false, connected: false, detail: e instanceof Error ? e.message.slice(0, 120) : String(e) };
   }
 }
+
+// ─── ניווט בתוך «מערכת ייצוג לקוחות» — ייפוי כוח מבוטח (פרק 17) ─────────────
+//
+// ‼ כל העוגנים כאן נצפו חי בסשן מאומת (16.09.2026), לא נוחשו:
+//   · תפריט עליון: `a "מיוצגים"` — postback של ASP.NET (‎__doPostBack‎), טעינת
+//     עמוד מלאה ל-groupdefaultpage.aspx עם אקורדיון בצד.
+//   · באקורדיון: `button "ייפוי כח"` (href="#", מתקפל/נפתח בלחיצה) ובתוכו
+//     ארבעה קישורים; אנחנו משתמשים בשניים: «הוספת ייפוי כח מבוטח» ו«מעקב
+//     ייפוי כח». ‼ לחיצה על כותרת האקורדיון כשהוא כבר פתוח **סוגרת** אותו —
+//     לכן בודקים קודם אם קישור היעד כבר גלוי.
+//   · מסך ההוספה (y114z_…aspx?type=mv): ארבעה `<label for=…>` עם הטקסט
+//     המדויק «תעודת זהות» / «שנת לידה» / «שם פרטי» / «שם משפחה» (בלי
+//     נקודתיים — הן מ-CSS), ו-`<input type="button" value="הוספה">` שקורא
+//     ל-showModalPopup לפני ה-postback.
+//   · מסך המעקב (y114_…aspx?type=ik): GridView `#SherutData_GridViewMainList`
+//     עם כותרות «אסמכתא / זהות/תיק מעסיק / שם / מ/עד תאריך / סטטוס», וערכי
+//     סטטוס «ממתין לאישור» / «מאושר».
+//   · חלון האישור: רכיב מודל משותף לאתר, `#modal.modalWindow`, כבר ב-DOM
+//     ומוסתר, כפתוריו ב-`.modalWindowButtons`.
+//
+// ‼ מה **לא** נצפה חי: מסך התוצאה שאחרי «הוספה» (הטקסט «ייפוי הכח נקלט
+// במערכת אך טרם הופעל», קוד האישור והמועד האחרון) — מקורו בתיאור המשימה.
+// `extractPoaConfirmation` דורש את העוגן הזה במפורש ולא מכריע הצלחה בלעדיו.
+
+/** קישור/כפתור/טקסט לפי שם מדויק — עדיפות למבנה (link/button) לפני טקסט חופשי. */
+function byExactName(page, label) {
+  const link = page.getByRole('link', { name: label, exact: true });
+  const button = page.getByRole('button', { name: label, exact: true });
+  const text = page.getByText(label, { exact: true });
+  return link.or(button).or(text).first();
+}
+
+/**
+ * מיוצגים → ייפוי כח → <תת-מסך>. ‼ לא "שרשרת לחיצות עיוורת": אחרי
+ * ה-postback של «מיוצגים» בודקים אם קישור היעד כבר גלוי (האקורדיון פתוח)
+ * ורק אם לא — לוחצים על כותרת «ייפוי כח». נכשל בקול עם השלב שנעצר בו.
+ */
+async function openPoaSubScreen(page, subLabel) {
+  const steps = [];
+  let current = 'מיוצגים';
+  const click = async (label) => {
+    current = label;
+    const loc = byExactName(page, label);
+    await loc.waitFor({ state: 'visible', timeout: 10000 });
+    await loc.click({ timeout: 10000 });
+    steps.push(`clicked:${label}`);
+  };
+  try {
+    await click('מיוצגים');
+    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(500);
+    const sub = byExactName(page, subLabel);
+    if (!(await sub.isVisible().catch(() => false))) {
+      await click('ייפוי כח');
+      await page.waitForTimeout(500);
+    }
+    await click(subLabel);
+    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(800);
+    return { ok: true, steps };
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    return { ok: false, steps, failedAt: current, detail: detail.slice(0, 200) };
+  }
+}
+
+/**
+ * ממלא input לפי טקסט התווית שלו — לא לפי id/class (לא ידועים). מחפש תא/
+ * span/label עם טקסט מדויק, ואז input בשורה/בהורה הקרוב. דו-משמעיות או
+ * העדר תוצאה מוחזרים כשגיאה מפורשת, לא כניחוש.
+ */
+async function fillFieldByLabel(page, label, value) {
+  return page.evaluate(({ label, value }) => {
+    const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const target = norm(label);
+    const candidates = [...document.querySelectorAll('label, span, td, div')]
+      .filter((e) => norm(e.textContent) === target && e.children.length === 0);
+    if (candidates.length !== 1) {
+      return { ok: false, reason: candidates.length ? 'ambiguous_label' : 'label_not_found', n: candidates.length };
+    }
+    const labelEl = candidates[0];
+    let input = null;
+    if (labelEl.tagName === 'LABEL' && labelEl.htmlFor) {
+      input = document.getElementById(labelEl.htmlFor);
+    }
+    if (!input) {
+      const row = labelEl.closest('tr, .row, fieldset') || labelEl.parentElement;
+      input = row?.querySelector('input:not([type=hidden]):not([type=submit]):not([type=button])') ?? null;
+    }
+    if (!input) return { ok: false, reason: 'input_not_found_near_label' };
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    input.focus();
+    setter.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.blur();
+    return { ok: true };
+  }, { label, value });
+}
+
+/** מיוצגים → ייפוי כח → הוספת ייפוי כח מבוטח. מאמת הגעה לפי שדה «תעודת זהות» — לא לפי URL. */
+export async function openAddPoaScreen(page) {
+  const nav = await openPoaSubScreen(page, 'הוספת ייפוי כח מבוטח');
+  if (!nav.ok) return nav;
+  const idField = page.getByLabel('תעודת זהות', { exact: true }).first();
+  const present = await idField.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
+  if (!present) return { ok: false, steps: nav.steps, reason: 'id_field_not_found_after_nav' };
+  const s = await snapPage(page);
+  return { ok: true, steps: nav.steps, pathname: s.pathname };
+}
+
+/**
+ * ממלא ת.ז./שנת לידה/שם פרטי/שם משפחה ולוחץ «הוספה», כולל חלון האישור.
+ * ‼ לעולם לא קורא סיסמה/OTP — רק ארבעת השדות העסקיים שנמסרו.
+ * ‼ מחזיר {ok:false} בכל כשל שלב — ה-handler מחליט needs_human/permanent.
+ */
+export async function submitAddPoaForm(page, { idNumber, birthYear, firstName, lastName }) {
+  const fillResults = {};
+  for (const [label, value] of [
+    ['תעודת זהות', idNumber],
+    ['שנת לידה', String(birthYear)],
+    ['שם פרטי', firstName],
+    ['שם משפחה', lastName],
+  ]) {
+    const r = await fillFieldByLabel(page, label, value);
+    fillResults[label] = r;
+    if (!r.ok) return { ok: false, reason: 'field_fill_failed', field: label, detail: r.reason, fillResults };
+  }
+
+  // ‼ כפתור «הוספה» — נצפה חי (16.09.2026) כ-`<input type="button"
+  // id="SherutButtons_btnUpdate" value="הוספה">` עם
+  // `onclick="return showModalPopup(this,'UPDATE',''); __doPostBack(...)"`.
+  // Playwright ממפה role=button גם ל-input type=button/submit (שם נגיש
+  // מ-value, לא textContent) — getByRole כאן אינו ניחוש.
+  const submitBtn = page.getByRole('button', { name: 'הוספה', exact: true }).first();
+  if (!(await submitBtn.count())) return { ok: false, reason: 'submit_button_not_found', fillResults };
+
+  let dialogHandled = null;
+  const onDialog = async (dialog) => {
+    dialogHandled = { type: 'native', message: dialog.message().slice(0, 200) };
+    await dialog.accept().catch(() => {});
+  };
+  page.on('dialog', onDialog);
+  try {
+    await submitBtn.click({ timeout: 10000 });
+    await page.waitForTimeout(600);
+    if (!dialogHandled) {
+      // ‼ עוגן מדויק ולא ניחוש: `showModalPopup` (נצפה חי, 16.09.2026) הוא
+      // רכיב מודל **משותף לכל האתר** שכבר יושב ב-DOM מטעינת הדף, מוסתר
+      // (`#modal.modalWindow{display:none}`), עם כפתוריו תחת `.modalWindowButtons`
+      // בתוכו. תחום לקונטיינר הזה **בשמו המדויק** — לא לכפתור "אישור" גלובלי
+      // בעמוד (ראה דרישת המשימה) — עם רשימת מחלקות גנריות כגיבוי בלבד, למקרה
+      // שמסך אחר משתמש ברכיב מודל שונה.
+      const modal = page.locator('#modal.modalWindow, [role="dialog"], .modal, .ui-dialog, .k-window').first();
+      await modal.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      if (await modal.isVisible().catch(() => false)) {
+        const buttonsScope = modal.locator('.modalWindowButtons').first();
+        const scope = (await buttonsScope.count()) ? buttonsScope : modal;
+        const confirmBtn = scope.getByRole('button', { name: /^(אישור|אישור\/י|OK|כן|הוספה)$/i }).first();
+        if (await confirmBtn.count()) {
+          await confirmBtn.click({ timeout: 8000 });
+          dialogHandled = { type: 'modal' };
+        } else {
+          return { ok: false, reason: 'modal_confirm_button_not_found', fillResults };
+        }
+      }
+      // ‼ אין דיאלוג טבעי ואין מודל גלוי — לא כשל: ייתכן שהאתר ממשיך בלי
+      // אישור ביניים. extractPoaConfirmation הוא הבודק האמיתי של הצלחה.
+    }
+  } finally {
+    page.off('dialog', onDialog);
+  }
+
+  return { ok: true, dialogHandled, fillResults };
+}
+
+// ‼ עוגן מדויק שנמסר במשימה — «ייפוי הכח נקלט במערכת אך טרם הופעל».
+// בלי הראיה הזו לא מכריעים שהוגש בהצלחה, גם אם אין שגיאה גלויה.
+const SUCCESS_MARKER = 'ייפוי הכח נקלט במערכת אך טרם הופעל';
+
+/**
+ * קורא מהמסך שאחרי הגשה מוצלחת: קוד אסמכתא + מועד אחרון לאישור.
+ * ‼ «הוספה» מסתיימת ב-postback (טעינת עמוד מלאה) — ממתינים לעוגן ההצלחה
+ * עד 20 שניות לפני שמכריעים «לא נמצא». האסמכתא והמועד נקראים **ליד התווית
+ * שלהם** (קוד אישור… / המועד האחרון…), לא "המספר/התאריך הראשון בעמוד".
+ */
+export async function extractPoaConfirmation(page) {
+  await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+  await page.getByText(SUCCESS_MARKER, { exact: false }).first()
+    .waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+  const s = await snapPage(page);
+  const bodyText = (await page.evaluate(() => document.body.innerText || '')).replace(/\s+/g, ' ');
+  if (!bodyText.includes(SUCCESS_MARKER)) {
+    return { ok: false, reason: 'success_marker_not_found', pathname: s.pathname, snippet: bodyText.slice(0, 400) };
+  }
+  const refMatch = bodyText.match(/(?:קוד\s*(?:אישור|זיהוי)|מספר\s*אישור)[^\d]{0,40}?(\d{5,})/);
+  const deadlineMatch = bodyText.match(/המועד\s*האחרון[^\d]{0,60}?(\d{2}\/\d{2}\/\d{4})/)
+    ?? bodyText.match(/(?:תאריך\s*תוקף|בתוקף\s*עד)[^\d]{0,40}?(\d{2}\/\d{2}\/\d{4})/);
+  return {
+    ok: true,
+    referenceNumber: refMatch ? refMatch[1] : null,
+    deadline: deadlineMatch ? deadlineMatch[1] : null,
+    // ‼ אם אחד מהם null למרות שנמצא ה-marker: ה-handler מדווח permanent
+    // (no_reference_extracted) — לא כותב ערך חלקי כאילו הוא שלם.
+  };
+}
+
+/** מיוצגים → ייפוי כח → מעקב ייפוי כח. מאמת הגעה לפי טבלת המעקב — לא לפי URL. */
+export async function openPoaTrackingScreen(page) {
+  const nav = await openPoaSubScreen(page, 'מעקב ייפוי כח');
+  if (!nav.ok) return nav;
+  const table = page.locator('table').filter({ has: page.getByText('אסמכתא', { exact: true }) }).first();
+  const present = await table.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
+  if (!present) return { ok: false, steps: nav.steps, reason: 'tracking_table_not_found' };
+  return { ok: true, steps: nav.steps };
+}
+
+// ‼ עוגן מבני מאומת בסשן אמיתי (16.09.2026): כותרות העמודה כפי שנקראו
+// מילה-במילה מתוך `document.querySelectorAll('table')` על מסך המעקב האמיתי
+// (הטבלה: `#SherutData_GridViewMainList`, GridView קלאסי של ASP.NET) —
+// לא מהתיאור המילולי במשימה, שהיה קרוב אך לא מדויק ("זהות/ח.פ מעסיק" מול
+// "זהות/תיק מעסיק" בפועל, "מועד אחרון" מול "מ/עד תאריך" בפועל). אם ביטוח
+// לאומי משנה ניסוח — הקוד נכשל ב-'columns_not_found' ולא מחזיר ניחוש.
+const TRACKING_COLUMNS = {
+  reference: ['אסמכתא'],
+  idNumber: ['זהות/תיק מעסיק'],
+  status: ['סטטוס'],
+  deadline: ['מ/עד תאריך'],
+};
+
+/**
+ * מאתר בטבלת המעקב שורה אחת — לפי קוד אסמכתא כשהוא ידוע (מסלול הבדיקה
+ * הרגיל: `btlCheckRepresentation`), או לפי ת.ז. כשאין עדיין אסמכתא (מסלול
+ * ההתאוששות ביצירה, אחרי worker שקרס בין «הוספה» לחילוץ התוצאה — ראה
+ * handlers/btlCreateRepresentation.mjs). ‼ לעולם לא "שורה ראשונה": מוצא
+ * את הטבלה **שכותרתה** מכילה "אסמכתא", ממפה עמודות לפי הכותרות, ובודק את
+ * כל השורות — התאמה כפולה מוחזרת כדו-משמעית, לא כ"הראשונה שמצאתי".
+ */
+export async function findPoaTrackingRow(page, { referenceNumber, idNumber }) {
+  return page.evaluate(({ referenceNumber, idNumber, columns }) => {
+    const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const tables = [...document.querySelectorAll('table')];
+    let target = null;
+    let headerCells = null;
+    for (const t of tables) {
+      const headerRow = t.querySelector('tr');
+      if (!headerRow) continue;
+      const cells = [...headerRow.querySelectorAll('th,td')].map((c) => norm(c.textContent));
+      if (cells.some((c) => columns.reference.includes(c))) { target = t; headerCells = cells; break; }
+    }
+    if (!target) return { found: false, reason: 'table_not_found' };
+
+    const colIndex = (labels) => headerCells.findIndex((c) => labels.includes(c));
+    const idxRef = colIndex(columns.reference);
+    const idxId = colIndex(columns.idNumber);
+    const idxStatus = colIndex(columns.status);
+    const idxDeadline = colIndex(columns.deadline);
+    if (idxRef < 0 || idxStatus < 0) return { found: false, reason: 'columns_not_found', headerCells };
+
+    const dataRows = [...target.querySelectorAll('tr')].slice(1)
+      .map((r) => [...r.querySelectorAll('td,th')].map((c) => norm(c.textContent)));
+
+    let matches;
+    if (referenceNumber) {
+      matches = dataRows.filter((cells) => cells[idxRef] === referenceNumber);
+    } else if (idNumber) {
+      if (idxId < 0) return { found: false, reason: 'id_column_not_found', headerCells };
+      matches = dataRows.filter((cells) => cells[idxId] === idNumber);
+    } else {
+      return { found: false, reason: 'no_lookup_key' };
+    }
+    if (matches.length === 0) return { found: false, reason: referenceNumber ? 'reference_not_found' : 'id_not_found' };
+    if (matches.length > 1) return { found: false, reason: 'ambiguous_match', count: matches.length };
+
+    const cells = matches[0];
+    return {
+      found: true,
+      referenceNumber: idxRef >= 0 ? cells[idxRef] : null,
+      idNumber: idxId >= 0 ? cells[idxId] : null,
+      rawStatus: cells[idxStatus],
+      deadline: idxDeadline >= 0 ? cells[idxDeadline] : null,
+    };
+  }, { referenceNumber: referenceNumber ?? null, idNumber: idNumber ?? null, columns: TRACKING_COLUMNS });
+}
