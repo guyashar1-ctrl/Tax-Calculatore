@@ -2682,6 +2682,15 @@ export default function App() {
               onSaveExecution={handleSaveExecution}
               linkedClient={clients.find(c => c.id === selectedRequest.linkedClientId)}
               onConfirmRegisteredSpouse={handleConfirmRegisteredSpouse}
+              steps={onboarding.steps}
+              onStepsChanged={() => {
+                onboarding.refresh();
+                // ‼ 165: הדף הזה קורא זהות בן/בת זוג מ-clients (RepresentationAuthorityData),
+                // לא רק מ-onboarding.steps — בלי זה הבלוק להעתקה נשאר עם ערך ישן
+                // רגע אחרי שתנאי-הקדם הושלמו, גם שהכרטיס הפך זמין.
+                if (selectedRequest.linkedClientId) void refreshClient(selectedRequest.linkedClientId);
+              }}
+              onUpdateClientFields={patch => handleUpdateClientFields(selectedRequest.linkedClientId, patch)}
             />
           ) : (
             <div className="empty-state">

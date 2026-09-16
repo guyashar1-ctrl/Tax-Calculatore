@@ -132,14 +132,24 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse, l
   // בן/בת זוג שהוזנה מראש לא הייתה מגיעה לכאן בכלל.
   const pre = request.prefill || {};
 
-  // ‼ 165 (תיקון "צילום היסטורי"): זהות בן/בת הזוג נגזרת מהכרטיס הקנוני
-  // קודם — לא מהצילום שנשמר על הבקשה בזמן שנוצרה. תנאי-הקדם כותבים לכרטיס,
-  // ולכן עדכון שם/ת.ז./שנת לידה אחרי יצירת הבקשה חייב להופיע כאן. הצילום
-  // נשאר רק גיבוי לבקשות ישנות בלי כרטיס מקושר.
-  const spouseFirstNameCanonical = linkedClient?.spouseFirstName || id.spouseFirstName || pre.spouseFirstName || '';
-  const spouseLastNameCanonical = linkedClient?.spouseLastName || id.spouseLastName || pre.spouseLastName || '';
-  const spouseIdNumberCanonical = linkedClient?.spouseIdNumber || id.spouseIdNumber || pre.spouseIdNumber || '';
-  const spouseBirthYearCanonical = linkedClient?.spouseBirthYear ?? id.spouseBirthYear ?? pre.spouseBirthYear;
+  // ‼ 165 (תיקון "צילום היסטורי"): כשיש כרטיס מקושר, זהות בן/בת הזוג
+  // נקראת **אך ורק** מהכרטיס הקנוני — לא בעדיפות-עם-נפילה-לצילום. שדה קנוני
+  // ריק חייב להישאר ריק כאן, אחרת בדיוק ברגע שתנאי-הקדם חוסמים (השדה עדיין
+  // לא נכתב לכרטיס) הבלוק היה מציג ערך היסטורי מהצילום כאילו הוא ידוע וניתן
+  // להעתקה — עוקף בפועל את החסימה למרות שהיא נאכפת נכון במרכז הביצוע.
+  // הצילום משמש נפילה רק כשאין כרטיס מקושר בכלל (בקשה יתומה/ישנה מאוד).
+  const spouseFirstNameCanonical = linkedClient
+    ? (linkedClient.spouseFirstName || '')
+    : (id.spouseFirstName || pre.spouseFirstName || '');
+  const spouseLastNameCanonical = linkedClient
+    ? (linkedClient.spouseLastName || '')
+    : (id.spouseLastName || pre.spouseLastName || '');
+  const spouseIdNumberCanonical = linkedClient
+    ? (linkedClient.spouseIdNumber || '')
+    : (id.spouseIdNumber || pre.spouseIdNumber || '');
+  const spouseBirthYearCanonical = linkedClient
+    ? linkedClient.spouseBirthYear
+    : (id.spouseBirthYear ?? pre.spouseBirthYear);
 
   // בקשות מלפני הטופס המלא שמרו שם מלא אחד בלבד; מפצלים כדי שיהיה מה להעתיק.
   const nameParts = (request.clientName || '').trim().split(/\s+/).filter(Boolean);
