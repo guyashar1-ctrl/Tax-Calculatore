@@ -15,7 +15,7 @@ import {
   Client,
 } from '../types';
 import type { OnboardingStep } from '../types/onboarding';
-import PrerequisiteGate from './PrerequisiteGate';
+import PrerequisiteGate, { type PrerequisitePerson } from './PrerequisiteGate';
 import {
   registeredFileInfo, registeredSpouseSentence, hasRegisteredSpouseChoice, registeredOwnerOf,
   clientDisplayName, spouseDisplayName,
@@ -245,7 +245,21 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     firstName: linkedClient.firstName, lastName: linkedClient.lastName, idNumber: linkedClient.idNumber,
     birthDate: linkedClient.birthDate,
   } : {};
-  const savePrereqEmail = (role: 'client' | 'spouse') => async (email: string) => {
+  // ‼ 167: שני הנמענים האפשריים לקישור-משתתף — בעל הכרטיס ובן/בת הזוג —
+  // נגזרים כאן פעם אחת ומועברים לשני המסלולים כאחד (ראה PrerequisiteGate).
+  const prereqClient: PrerequisitePerson = {
+    role: 'client',
+    name: linkedClient ? `${linkedClient.firstName ?? ''} ${linkedClient.lastName ?? ''}`.trim() || 'הלקוח' : 'הלקוח',
+    email: linkedClient?.email || '',
+  };
+  const prereqSpouse: PrerequisitePerson = {
+    role: 'spouse',
+    name: linkedClient
+      ? (`${linkedClient.spouseFirstName ?? ''} ${linkedClient.spouseLastName ?? ''}`.trim() || linkedClient.spouseName || 'בן/בת הזוג')
+      : 'בן/בת הזוג',
+    email: linkedClient?.spouseEmail || '',
+  };
+  const prereqOnSaveEmail = async (role: 'client' | 'spouse', email: string) => {
     if (!onUpdateClientFields) return;
     await onUpdateClientFields(role === 'spouse' ? { spouseEmail: email } : { email });
   };
@@ -734,8 +748,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   onPatch={(p, label) => patch({ ...exec, nationalInsurance: { ...ni, ...p } }, label)}
                   prereqStep={niClientStep}
                   prereqCurrentValues={niPrereqValues}
-                  prereqCurrentEmail={linkedClient?.email || ''}
-                  prereqOnSaveEmail={savePrereqEmail('client')}
+                  prereqClient={prereqClient}
+                  prereqSpouse={prereqSpouse}
+                  prereqOnSaveEmail={prereqOnSaveEmail}
                   prereqOnChanged={() => onStepsChanged?.()}
                 />
               )}
@@ -749,8 +764,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   onPatch={(p, label) => patch({ ...exec, nationalInsuranceSpouse: { ...niSpouse, ...p } }, label)}
                   prereqStep={niSpouseStep}
                   prereqCurrentValues={niPrereqValues}
-                  prereqCurrentEmail={linkedClient?.spouseEmail || ''}
-                  prereqOnSaveEmail={savePrereqEmail('spouse')}
+                  prereqClient={prereqClient}
+                  prereqSpouse={prereqSpouse}
+                  prereqOnSaveEmail={prereqOnSaveEmail}
                   prereqOnChanged={() => onStepsChanged?.()}
                 />
               )}
@@ -872,7 +888,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
  */
 function NiTrack({
   title, ni, busy, busyPrefix, hasSignatureEmails, onPatch,
-  prereqStep, prereqCurrentValues, prereqCurrentEmail, prereqOnSaveEmail, prereqOnChanged,
+  prereqStep, prereqCurrentValues, prereqClient, prereqSpouse, prereqOnSaveEmail, prereqOnChanged,
 }: {
   title: string;
   ni: NiTracking;
@@ -889,8 +905,9 @@ function NiTrack({
    */
   prereqStep?: OnboardingStep | null;
   prereqCurrentValues?: Record<string, string | undefined>;
-  prereqCurrentEmail?: string;
-  prereqOnSaveEmail?: (email: string) => Promise<void>;
+  prereqClient?: PrerequisitePerson;
+  prereqSpouse?: PrerequisitePerson;
+  prereqOnSaveEmail?: (role: 'client' | 'spouse', email: string) => Promise<void>;
   prereqOnChanged?: () => void;
 }) {
   const [refNumber, setRefNumber] = useState(ni.referenceNumber || '');
@@ -984,11 +1001,12 @@ function NiTrack({
       total={steps.length}
       tone="🛡"
     >
-      {prereqStep ? (
+      {prereqStep && prereqClient && prereqSpouse ? (
         <PrerequisiteGate
           step={prereqStep}
           currentValues={prereqCurrentValues ?? {}}
-          currentEmail={prereqCurrentEmail ?? ''}
+          client={prereqClient}
+          spouse={prereqSpouse}
           onSaveEmail={prereqOnSaveEmail ?? (async () => {})}
           onChanged={() => prereqOnChanged?.()}
         >

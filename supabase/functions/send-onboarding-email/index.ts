@@ -95,12 +95,19 @@ Deno.serve(async (req: Request) => {
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
   try {
     const { requestId: rawRequestId, stage: rawStage, signerId, clientId, email, quotationToken, preview, force,
-            internalSecret, quotationId: rawQuotationId, niRole: rawNiRole, stepId } = await req.json();
+            internalSecret, quotationId: rawQuotationId, niRole: rawNiRole, stepId,
+            recipientRole: rawRecipientRole } = await req.json();
     // ‼ 157: הוראות אישור ב"ל עצמאיות — נכתב מודע לכך שהנמען נפתר כאן,
     // בשרת, מהכרטיס — לעולם לא מהגוף. niRole קובע רק *איזה* מסלול/כתובת;
     // אינו הכתובת עצמה.
     const niRole: "client" | "spouse" | undefined =
       (rawNiRole === "client" || rawNiRole === "spouse") ? rawNiRole : undefined;
+    // ‼ (recipient≠subject) niRole נשאר "מי הנושא" — קובע איזה שלב/מסלול. הנמען
+    // עשוי להיות אדם אחר (בעל הכרטיס ממלא במקום בן/בת הזוג) — recipientRole
+    // הוא ורק הוא שקובע כתובת/שם לברכה. תקף רק ל-stage='prerequisites'; אצל
+    // ni_approve הנמען הוא תמיד הנושא עצמו, בלי שינוי מהתנהגות היום.
+    const recipientRole: "client" | "spouse" | undefined =
+      (rawRecipientRole === "client" || rawRecipientRole === "spouse") ? rawRecipientRole : undefined;
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
@@ -255,21 +262,32 @@ Deno.serve(async (req: Request) => {
     // 165: הקישור הפעיל של השלב — נדרש רק ל-stage='prerequisites' (הכתובת
     // של הטופס), נשלף בשרת, לעולם לא מהגוף.
     let activeLink: { id: string; token: string; field_keys: string[] } | null = null;
+    // ‼ (recipient≠subject) שם מלא של הנושא — לבלוק ההבהרה במייל כשהנמען אינו
+    // הנושא עצמו ("הפרטים המבוקשים הם של X" למרות שהמייל מגיע ל-Y).
+    let subjectFullName = "";
     if ((stage === "ni_approve" || stage === "prerequisites") && niRole) {
       niKey = niRole === "spouse" ? "nationalInsuranceSpouse" : "nationalInsurance";
+      // recipientRole תקף רק לשלב prerequisites (165) — ni_approve תמיד פונה
+      // לנושא עצמו, בדיוק כמו לפני התוספת הזו.
+      const effectiveRecipientRole: "client" | "spouse" =
+        (stage === "prerequisites" && recipientRole) ? recipientRole : niRole;
       const { data: ownerClient } = await admin.from("clients")
-        .select("id,user_id,email,first_name,spouse_email,spouse_first_name,spouse_name")
+        .select("id,user_id,email,first_name,last_name,spouse_email,spouse_first_name,spouse_last_name,spouse_name")
         .eq("id", reqRow.linked_client_id).maybeSingle();
       if (!ownerClient || ownerClient.user_id !== userId) return json({ error: "not found" }, 404);
-      const recipientEmail = niRole === "spouse"
+      const recipientEmail = effectiveRecipientRole === "spouse"
         ? String(ownerClient.spouse_email || "").trim()
         : String(ownerClient.email || "").trim();
       if (!recipientEmail) return json({ error: "no_recipient_email" }, 400);
       toEmail = recipientEmail;
-      clientFirst = niRole === "spouse"
+      clientFirst = effectiveRecipientRole === "spouse"
         ? (String(ownerClient.spouse_first_name || "").trim()
            || String(ownerClient.spouse_name || "").trim().split(/\s+/)[0] || "")
         : (String(ownerClient.first_name || "").trim() || clientFirst);
+      subjectFullName = niRole === "spouse"
+        ? (`${String(ownerClient.spouse_first_name || "").trim()} ${String(ownerClient.spouse_last_name || "").trim()}`.trim()
+           || String(ownerClient.spouse_name || "").trim() || "בן/בת הזוג")
+        : (`${String(ownerClient.first_name || "").trim()} ${String(ownerClient.last_name || "").trim()}`.trim() || clientFirst);
       stampStandaloneAfterSend = stage === "ni_approve";
 
       // ‼ stepId מאומת נגד הבקשה הזאת ונגד הנושא הזה — כדי שמייל לא ייצא
@@ -415,13 +433,20 @@ Deno.serve(async (req: Request) => {
     } else if (stage === "prerequisites") {
       // 165: הקישור המוגבל-שדות שנוצר ברגע ש"מלא פרטים עכשיו"/"שלח ל-X" נלחץ —
       // לא מייל-קישור-כללי, אלא טופס יחיד עם רק מה שבאמת חסר.
+      // ‼ (recipient≠subject) הנמען עשוי להיות בעל הכרטיס וממלא במקום בן/בת
+      // הזוג — הבלוק חייב לומר בפירוש של מי הפרטים, אחרת "מה חסר לנו" נקרא
+      // כאילו זה על הנמען עצמו.
       const missingLabels = (activeLink!.field_keys || [])
         .map((k) => PREREQ_FIELD_LABELS[k] || k).join(", ");
+      const isOtherSubject = niRole === "spouse"
+        ? String(recipientRole ?? niRole) !== "spouse"
+        : String(recipientRole ?? niRole) !== "client";
       ctaHref = `${APP_URL}/?participant=${activeLink!.token}`;
       ctaLabel = copy.cta;
       extraHtml = `
         <tr><td dir="rtl" align="right" style="text-align:right;padding:6px 40px 0;">
           <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:16px;background:${brand.pageBg};">
+            ${isOtherSubject ? `<div style="font-family:${f};text-align:right;font-size:14px;color:${brand.ink};padding-bottom:8px;">הפרטים למטה הם של <strong>${esc(subjectFullName)}</strong>.</div>` : ""}
             <div style="font-family:${f};text-align:right;font-size:13px;color:${brand.muted};">מה חסר לנו</div>
             <div style="font-family:${f};text-align:right;font-size:16px;font-weight:700;color:${brand.ink};padding-top:4px;">${esc(missingLabels)}</div>
           </div>
