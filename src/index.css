@@ -111,6 +111,16 @@
   --accent-fill: var(--br);
   --on-accent-fill: var(--on-br);
 
+  /* ורוד = פעולה ש-PIVO מבצעת (או תבצע) אוטומטית בשביל המשתמש — שפה
+     סמנטית, לא קישוט (החלטת מוצר 17.09.2026). טוקן אחד לתפקיד, כמו --accent:
+     מילוי, hover, דיו-על-מילוי, ורקע רך למצבים מושבת/רץ. */
+  --automation-fill: #b8437d;
+  --automation-hover: #9d3468;
+  --on-automation-fill: #ffffff;
+  --automation-text: #a63b72;
+  --automation-soft: #fbe9f2;
+  --automation-soft-bd: #e9b7cf;
+
   --danger: var(--err);          /* איחור / חוסם / חובה־וריק / הרסני — ותו לא (D2) */
   --danger-bg: var(--err-bg);
   /* --warn קיים בערכת המותג: ממתין לאחרים (הלקוח, רשויות), מצב חלקי */
@@ -213,6 +223,14 @@
   --on-accent: #0e0e10;
   --accent-fill: #3a6fc4;
   --on-accent-fill: #ffffff;
+  /* ורוד האוטומציה בכהה: מילוי רווי עם טקסט לבן (כמו --accent-fill), דיו
+     בהיר לקריאה על רקע כהה, ורקע רך כהה למושבת/רץ. */
+  --automation-fill: #b4457c;
+  --automation-hover: #c85c92;
+  --on-automation-fill: #ffffff;
+  --automation-text: #e08ab6;
+  --automation-soft: #33212b;
+  --automation-soft-bd: #6a3a53;
   --soft: #1e2734;
   --soft-bd: #35455c;
 

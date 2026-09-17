@@ -527,14 +527,14 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const niNextActionNode = (role: 'client' | 'spouse') => linkedClient ? (
     <NiNextActionButton
       client={linkedClient} role={role} action={niActionFor(role)} track={niExecutionByRole[role]}
-      onChanged={onStepsChanged} className="btn btn-primary btn-sm" errorClassName="rep-track-next-err"
+      onChanged={onStepsChanged} className="btn btn-sm" errorClassName="rep-track-next-err"
     />
   ) : null;
 
   // ‼ שע״ם: תא מוכן במבנה, מושבת עם הסיבה — אין עדיין אוטומציה מול שע״ם.
   const shaamAction = shaamRepresentationAction(status);
   const shaamNextActionNode = shaamAction ? (
-    <button type="button" className="btn btn-secondary btn-sm" disabled
+    <button type="button" className="btn btn-sm btn-automation" disabled
       title={shaamAction.reason} aria-label={`${shaamAction.label} — ${shaamAction.reason}`}>
       {shaamAction.label}
     </button>

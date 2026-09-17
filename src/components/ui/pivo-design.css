@@ -4656,3 +4656,52 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .txf-inline-edit select:focus{outline:none;border-color:var(--accent)}
 .txf-inline-edit .txf-note{margin-top:3px;font-size:11px;line-height:1.45;color:var(--ink-4)}
 .txf-editor-err{font-size:12px;color:var(--danger);margin-inline-start:10px}
+
+/* ── פעולת אוטומציה — וריאנט סמנטי אחד לכל המערכת (17.09.2026) ─────────────
+   ורוד = פעולה ש-PIVO מבצעת (או תבצע) אוטומטית בשביל המשתמש. הכלל הוא
+   "אוטומציה ⇒ ורוד", לא "ב״ל ⇒ ורוד"/"מסך X ⇒ ורוד" — כדי שגם כשהפעולות
+   יתאגדו בדף הבקשות הן יזוהו במבט. מונח על כל בסיס קיים (.btn / .ui-btn /
+   .txf-check-btn) בלי לגעת בגודל/ריפוד שלו — רק צבע והמצבים.
+   ‼ לא לכפתורים רגילים (שמירה/העתק/ניווט): אלה נשארים כמו שהם. */
+.btn-automation,
+.btn.btn-automation,
+.ui-btn.btn-automation,
+.txf-check-btn.btn-automation {
+  background: var(--automation-fill);
+  border: 1px solid var(--automation-fill);
+  color: var(--on-automation-fill);
+  font-weight: 500;
+}
+.btn.btn-automation:hover:not(:disabled),
+.ui-btn.btn-automation:hover:not(:disabled),
+.txf-check-btn.btn-automation:hover:not(:disabled) {
+  background: var(--automation-hover);
+  border-color: var(--automation-hover);
+  color: var(--on-automation-fill);
+}
+.btn-automation:focus-visible {
+  outline: 2px solid var(--automation-fill);
+  outline-offset: 2px;
+}
+/* רץ בעובד (aria-busy) — נשאר בני המשפחה, אך ברור שאין מה ללחוץ עכשיו */
+.btn-automation[aria-busy='true'],
+.btn.btn-automation[aria-busy='true'],
+.ui-btn.btn-automation[aria-busy='true'] {
+  background: var(--automation-soft);
+  border-color: var(--automation-soft-bd);
+  color: var(--automation-text);
+  cursor: progress;
+}
+/* מושבת — למשל שע״ם עד שתיבנה האוטומציה: עדיין ורוד, עדיין קריא, אבל
+   בבירור לא ניתן להפעלה. מבטל את ה-opacity הגנרי של .btn/.ui-btn/.txf-check-btn
+   כדי שהתווית לא תיעלם לאפור. */
+.btn-automation:disabled,
+.btn.btn-automation:disabled,
+.ui-btn.btn-automation:disabled,
+.txf-check-btn.btn-automation:disabled {
+  background: var(--automation-soft);
+  border: 1px dashed var(--automation-soft-bd);
+  color: var(--automation-text);
+  opacity: 1;
+  cursor: not-allowed;
+}

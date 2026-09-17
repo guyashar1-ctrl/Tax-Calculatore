@@ -1355,7 +1355,7 @@ export default function TaxFileTab({
                       הפקד תמיד מושבת עם הסיבה, בדיוק כמו AuthorityCheckButton
                       כש-available:false. */}
                   {row.authority === 'income_tax' && shaamRepAction && (
-                    <button type="button" className="txf-check-btn" disabled
+                    <button type="button" className="txf-check-btn btn-automation" disabled
                       title={shaamRepAction.reason} aria-label={`${shaamRepAction.label} — ${shaamRepAction.reason}`}>
                       <span className="txf-check-lbl">{shaamRepAction.label}</span>
                     </button>

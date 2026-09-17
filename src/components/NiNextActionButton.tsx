@@ -30,7 +30,10 @@ interface Props {
   track?: NiTracking;
   /** נקרא פעם אחת כשמשימה מסתיימת בהצלחה — הקורא מרענן את הבקשה/הכרטיס. */
   onChanged?: () => void;
-  /** מחלקת הכפתור — כל משטח בשפת העיצוב שלו. */
+  /**
+   * בסיס הכפתור של המשטח (גודל/ריפוד). ‼ הצבע אינו של המשטח: זו פעולת
+   * אוטומציה ולכן `btn-automation` (ורוד) מתווסף תמיד, בכל משטח.
+   */
   className?: string;
   /** מחלקת שורת השגיאה מתחת לכפתור. */
   errorClassName?: string;
@@ -41,7 +44,7 @@ const jobForRole = (job: AutomationJob | null, role: PersonRole) =>
 
 export default function NiNextActionButton({
   client, spouseClient, role, action, track, onChanged,
-  className = 'ui-linkbtn', errorClassName = 'txf-qt-err',
+  className = 'ui-btn ui-btn-sm', errorClassName = 'txf-qt-err',
 }: Props) {
   const create = useAutomationJob(client.id || undefined, BTL_CREATE_REPRESENTATION_ACTION_TYPE);
   const check = useAutomationJob(client.id || undefined, BTL_CHECK_REPRESENTATION_ACTION_TYPE);
@@ -94,9 +97,11 @@ export default function NiNextActionButton({
   }
 
   const busyLabel = isCheck ? 'בודק…' : 'שולח…';
+  const running = hook.busy || job?.status === 'queued' || job?.status === 'running';
   return (
     <>
-      <button type="button" className={className} disabled={hook.busy} onClick={() => void run()}>
+      <button type="button" className={`${className} btn-automation`} disabled={hook.busy}
+        aria-busy={running || undefined} onClick={() => void run()}>
         {hook.busy ? busyLabel : action.label}
       </button>
       {localError && <div className={errorClassName}>{localError}</div>}
