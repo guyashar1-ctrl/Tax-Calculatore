@@ -2756,6 +2756,10 @@ export default function App() {
                 // לא רק מ-onboarding.steps — בלי זה הבלוק להעתקה נשאר עם ערך ישן
                 // רגע אחרי שתנאי-הקדם הושלמו, גם שהכרטיס הפך זמין.
                 if (selectedRequest.linkedClientId) void refreshClient(selectedRequest.linkedClientId);
+                // ‼ פרק 17: משימת ב״ל שהסתיימה כתבה ל-representation_requests.execution
+                // בטריגר בשרת (187/190) — מרכז הביצוע קורא את הבקשה מה-state, ולכן
+                // בלי קריאה מחדש הפעולה ההקשרית נשארת על המצב הישן עד רענון מלא.
+                void reloadRequest(selectedRequest.id);
               }}
               onUpdateClientFields={patch => handleUpdateClientFields(selectedRequest.linkedClientId, patch)}
             />

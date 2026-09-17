@@ -31,11 +31,9 @@ import type { ListKey, ListItem } from '../../features/taxFile/listModel';
 import ListEditor from '../../features/taxFile/ListEditor';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
 import type { AutomationJob } from '../../types/automation';
-import {
-  SHAAM_ENSURE_CAPABILITY_ACTION_TYPE,
-  BTL_CREATE_REPRESENTATION_ACTION_TYPE, BTL_CHECK_REPRESENTATION_ACTION_TYPE,
-} from '../../types/automation';
-import { niPersons, niPersonIdentity } from '../../utils/niPersons';
+import { SHAAM_ENSURE_CAPABILITY_ACTION_TYPE } from '../../types/automation';
+import NiNextActionButton from '../NiNextActionButton';
+import { shaamRepresentationAction } from '../../features/taxFile/shaamRepresentationAction';
 import { createAutomationJob, jobIsLive } from '../../lib/automationJobs';
 import { useShaamReadiness } from '../../hooks/shaamReadiness';
 import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
@@ -116,25 +114,6 @@ const RENTAL_TRACK_LABELS: Record<RentalTaxTrack, string> = {
 
 
 
-
-/**
- * ‼ פרק 17: תא הפעולה ההקשרית של מס הכנסה/שע״ם — מוכן מבנית, לא מחובר
- * לאוטומציה אמיתית (המשימה אוסרת זאת במפורש עבור הפרק הזה). שלוש תוויות
- * מתוך ארבע מוצגות תמיד מושבתות עם הסיבה; 'active' אינו מקבל פקד בכלל.
- * ‼ הנגזרת היחידה שקיימת כבר בכרטיס: client.representationStatus — לא
- * ממציאים "נשלח לשע״ם" בלי ראיה; awaiting_authorities כבר אומר את זה.
- */
-function shaamRepresentationAction(client: Client): { label: string; reason: string } | null {
-  const status = client.representationStatus;
-  if (!status || status === 'active') return null;
-  if (status === 'awaiting_stamp') {
-    return { label: 'שלח טופס חתום לשע״ם', reason: 'שליחה אוטומטית לשע״ם עדיין לא נבנתה — יש להמשיך במרכז הייצוג.' };
-  }
-  if (status === 'awaiting_authorities') {
-    return { label: 'בדוק קבלת הייצוג', reason: 'בדיקה אוטומטית מול שע״ם עדיין לא נבנתה — יש לבדוק ידנית ולסמן "הייצוג פעיל" במרכז הייצוג.' };
-  }
-  return { label: 'הזן את הפרטים בשע״ם', reason: 'הזנה אוטומטית בשע״ם עדיין לא נבנתה — יש להמשיך במרכז הייצוג.' };
-}
 
 function money(n?: number): string | undefined {
   return typeof n === 'number' && !Number.isNaN(n) ? `₪${Math.round(n).toLocaleString('he-IL')}` : undefined;
@@ -363,38 +342,12 @@ export default function TaxFileTab({
     }
   }
 
-  // ‼ פרק 17 — "הזן ייפוי כוח בביטוח לאומי" / "בדוק קבלת הייצוג". שתי
-  // משימות עובד אמיתיות (worker/src/handlers/btlCreateRepresentation.mjs,
-  // btlCheckRepresentation.mjs), לא כתיבה מקומית: התוצאה חוזרת ל-execution
-  // דרך טריגר בשרת (187), ולא מכאן. ‼ שגיאת "חסרים פרטים" נבדקת כאן *לפני*
-  // יצירת job — עדיף לומר לרו"ח מיד מה חסר בכרטיס מאשר לתת ל-worker לגלות
-  // את זה אחרי שהוא כבר תפס משימה.
-  const [btlActionError, setBtlActionError] = useState<string | null>(null);
-
-  async function runEnterBtl(role: 'client' | 'spouse') {
-    setBtlActionError(null);
-    const person = niPersons(client, spouseClient).find(p => p.role === role);
-    const identity = person ? niPersonIdentity(person, client) : null;
-    if (!identity || identity.birthYear == null) {
-      setBtlActionError('חסרים בכרטיס פרטים הדרושים לטופס ביטוח לאומי (שם פרטי, שם משפחה או שנת לידה).');
-      return;
-    }
-    await jobBtlCreateRep.run({
-      role, idNumber: identity.idNumber, firstName: identity.firstName,
-      lastName: identity.lastName, birthYear: identity.birthYear,
-    });
-  }
-
-  async function runCheckBtl(role: 'client' | 'spouse') {
-    setBtlActionError(null);
-    const person = niPersons(client, spouseClient).find(p => p.role === role);
-    const track = role === 'spouse' ? niExecution?.spouse : niExecution?.client;
-    if (!person?.idNumber || !track?.referenceNumber) {
-      setBtlActionError('אין עדיין קוד אסמכתא שמור לאדם הזה — אין מה לבדוק מול ביטוח לאומי.');
-      return;
-    }
-    await jobBtlCheckRep.run({ role, idNumber: person.idNumber, referenceNumber: track.referenceNumber });
-  }
+  // ‼ פרק 17 — "הזן ייפוי כוח בביטוח לאומי" / "בדוק קבלת הייצוג" חיים
+  // ברכיב משותף (NiNextActionButton) לשני המשטחים — תיק המס ומרכז ביצוע
+  // הייצוג. כאן רק מציירים אותו ליד שורת «ייצוג» של האדם הנכון.
+  // אחרי הצלחה, טריגר בשרת (187/190) כבר כתב ל-execution; onNiInstructionsSent
+  // עושה בדיוק את הרענון הדרוש (reloadRequest + onboarding.refresh).
+  const niTrackOf = (role: 'client' | 'spouse') => (role === 'spouse' ? niExecution?.spouse : niExecution?.client);
 
   // ‼ 157: "שלח הוראות אישור" — נפתח מהתא של האדם בכרטיס ב"ל, וגם מהדגל
   // ב"דורש טיפול" (דרך אותו kind==='send'). אין דיאלוג נפרד לכל כניסה.
@@ -415,33 +368,6 @@ export default function TaxFileTab({
     income_tax: jobIncomeTax, vat: jobVat, national_insurance: jobBtl,
   };
 
-  // ‼ פרק 17 — שתי משימות נוספות, נפרדות לגמרי מ-jobBtl (זו את"ז השוואת
-  // שדות שעדיין אינה זמינה; אלה יצירת/בדיקת ייפוי כוח בפועל). client
-  // ובן/בת הזוג חולקים את אותו client_id וכתוצאה מכך את אותה (client_id,
-  // action_type) — automation_jobs_open_unique מבטיח job פתוח אחד בלבד
-  // מכל סוג בכל רגע נתון, ולכן מסננים לפי job.input.role כדי לא להציג
-  // בטעות תוצאה של האדם האחר.
-  const jobBtlCreateRep = useAutomationJob(client.id || undefined, BTL_CREATE_REPRESENTATION_ACTION_TYPE);
-  const jobBtlCheckRep = useAutomationJob(client.id || undefined, BTL_CHECK_REPRESENTATION_ACTION_TYPE);
-  const btlJobForRole = (job: AutomationJob | null, role: 'client' | 'spouse') =>
-    job && job.input?.role === role ? job : null;
-
-  // ‼ ברגע שאחת מהמשימות מסתיימת בהצלחה, טריגר בשרת (187) כבר כתב את
-  // הערכים ל-execution — כאן רק מרעננים את הבקשה/המשימות כדי שהמסך יראה
-  // אותם בלי לחכות לרענון מלא. onNiInstructionsSent עושה בדיוק את הרענון
-  // הזה (reloadRequest + onboarding.refresh) — לא בונים מסלול שני.
-  const prevBtlCreateStatus = useRef<string | undefined>(undefined);
-  const prevBtlCheckStatus = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    const st = jobBtlCreateRep.job?.status;
-    if (st === 'succeeded' && prevBtlCreateStatus.current !== 'succeeded') void onNiInstructionsSent?.();
-    prevBtlCreateStatus.current = st;
-  }, [jobBtlCreateRep.job?.status, onNiInstructionsSent]);
-  useEffect(() => {
-    const st = jobBtlCheckRep.job?.status;
-    if (st === 'succeeded' && prevBtlCheckStatus.current !== 'succeeded') void onNiInstructionsSent?.();
-    prevBtlCheckStatus.current = st;
-  }, [jobBtlCheckRep.job?.status, onNiInstructionsSent]);
   // ‼ המשימה **החיה** לכל רשות, לקריאה מתוך פונקציה אסינכרונית. אישור
   // מקובץ נמשך כמה סבבי רשת, ובזמן הזה עשויה להסתיים ריצה חדשה; בלי הפניה
   // הזאת הפונקציה הייתה משווה לערך שנתפס ברינדור והשער היה חסר משמעות.
@@ -1182,13 +1108,15 @@ export default function TaxFileTab({
                         'add' מוסיף target + טיוטת taxFiles על הכרטיס (בלי
                         בקשה שנייה); 'continue' מנווט למרכז הייצוג הקיים. */
                     : f.niAction
-                      ? <>
+                      ? (f.niAction.kind === 'enter_btl' || f.niAction.kind === 'check_btl')
+                        /* ‼ הדגל הזה הוא תמיד של בן/בת הזוג (ראה authorityFlags) —
+                            ולכן role='spouse' מפורש, לא "האדם השני ברשימה". */
+                        ? <NiNextActionButton client={client} spouseClient={spouseClient} role="spouse"
+                            action={f.niAction} track={niTrackOf('spouse')} onChanged={onNiInstructionsSent}
+                            className="ui-btn ui-btn-sm" />
+                        : <>
                           <button type="button" className="ui-btn ui-btn-sm"
-                            disabled={
-                              (f.niAction.kind === 'add' && niAddBusy !== null)
-                              || (f.niAction.kind === 'enter_btl' && jobBtlCreateRep.busy)
-                              || (f.niAction.kind === 'check_btl' && jobBtlCheckRep.busy)
-                            }
+                            disabled={f.niAction.kind === 'add' && niAddBusy !== null}
                             onClick={() => {
                               if (f.niAction!.kind === 'add') void runAddNiTarget('spouse');
                               else if (f.niAction!.kind === 'send') {
@@ -1197,27 +1125,12 @@ export default function TaxFileTab({
                                   name: spouseName,
                                   idNumberMasked: spouseClient?.idNumber || client.spouseIdNumber,
                                 });
-                              } else if (f.niAction!.kind === 'enter_btl') void runEnterBtl('spouse');
-                              else if (f.niAction!.kind === 'check_btl') void runCheckBtl('spouse');
-                              else onOpenRepresentation?.();
+                              } else onOpenRepresentation?.();
                             }}>
-                            {f.niAction.kind === 'add' && niAddBusy === 'spouse' ? 'שומר…'
-                              : f.niAction.kind === 'enter_btl' && jobBtlCreateRep.busy ? 'שולח…'
-                              : f.niAction.kind === 'check_btl' && jobBtlCheckRep.busy ? 'בודק…'
-                              : f.niAction.label}
+                            {f.niAction.kind === 'add' && niAddBusy === 'spouse' ? 'שומר…' : f.niAction.label}
                           </button>
                           {f.niAction.kind === 'add' && niAddError && (
                             <span className="txf-qt-err">{niAddError}</span>
-                          )}
-                          {(f.niAction.kind === 'enter_btl' || f.niAction.kind === 'check_btl') && (
-                            <>
-                              {btlActionError && <span className="txf-qt-err">{btlActionError}</span>}
-                              {(f.niAction.kind === 'enter_btl' ? jobBtlCreateRep.error : jobBtlCheckRep.error) && (
-                                <span className="txf-qt-err">
-                                  {f.niAction.kind === 'enter_btl' ? jobBtlCreateRep.error : jobBtlCheckRep.error}
-                                </span>
-                              )}
-                            </>
                           )}
                         </>
                       : f.requestTitle && onCreateRequest
@@ -1388,7 +1301,7 @@ export default function TaxFileTab({
             // הסט כולו נגזר מהמשימה האחרונה + הכרטיס, ולכן אחרי אישור
             // המצבים מתיישבים מעצמם.
             const spec = AUTHORITY_AUTOMATION[row.authority];
-            const shaamRepAction = row.authority === 'income_tax' ? shaamRepresentationAction(client) : null;
+            const shaamRepAction = row.authority === 'income_tax' ? shaamRepresentationAction(client.representationStatus) : null;
             const sync = authorityJobs[row.authority];
             const job = spec?.actionType ? (sync?.job ?? null) : null;
             const cardFields = row.facts.map(f => ({ label: f.k, fieldKey: f.syncKey ?? f.btlSyncKey ?? f.editKey }));
@@ -1517,13 +1430,13 @@ export default function TaxFileTab({
                                 וטיוטת taxFiles על הכרטיס (לא בקשה שנייה);
                                 "המשך במרכז הייצוג" מנווט לבקשה הקיימת. */}
                             {f.niRepAction && !editingScalar && !editingTaxFileNumber && (
-                              <>
+                              (f.niRepAction.kind === 'enter_btl' || f.niRepAction.kind === 'check_btl')
+                                /* ‼ היעד הוא person.role של הבלוק הזה — מפורש, לא מיקום ברשימה. */
+                                ? <NiNextActionButton client={client} spouseClient={spouseClient} role={person.role}
+                                    action={f.niRepAction} track={niTrackOf(person.role)} onChanged={onNiInstructionsSent} />
+                                : <>
                                 <button type="button" className="ui-linkbtn"
-                                  disabled={
-                                    (f.niRepAction.kind === 'add' && niAddBusy !== null)
-                                    || (f.niRepAction.kind === 'enter_btl' && jobBtlCreateRep.busy)
-                                    || (f.niRepAction.kind === 'check_btl' && jobBtlCheckRep.busy)
-                                  }
+                                  disabled={f.niRepAction.kind === 'add' && niAddBusy !== null}
                                   onClick={() => {
                                     if (f.niRepAction!.kind === 'add') void runAddNiTarget(person.role);
                                     else if (f.niRepAction!.kind === 'send') {
@@ -1532,38 +1445,12 @@ export default function TaxFileTab({
                                         name: person.name,
                                         idNumberMasked: person.idNumber,
                                       });
-                                    } else if (f.niRepAction!.kind === 'enter_btl') void runEnterBtl(person.role);
-                                    else if (f.niRepAction!.kind === 'check_btl') void runCheckBtl(person.role);
-                                    else onOpenRepresentation?.();
+                                    } else onOpenRepresentation?.();
                                   }}>
-                                  {f.niRepAction.kind === 'add' && niAddBusy === person.role ? 'שומר…'
-                                    : f.niRepAction.kind === 'enter_btl' && jobBtlCreateRep.busy ? 'שולח…'
-                                    : f.niRepAction.kind === 'check_btl' && jobBtlCheckRep.busy ? 'בודק…'
-                                    : f.niRepAction.label}
+                                  {f.niRepAction.kind === 'add' && niAddBusy === person.role ? 'שומר…' : f.niRepAction.label}
                                 </button>
                                 {f.niRepAction.kind === 'add' && niAddError && (
                                   <div className="txf-qt-err">{niAddError}</div>
-                                )}
-                                {(f.niRepAction.kind === 'enter_btl' || f.niRepAction.kind === 'check_btl') && (
-                                  <>
-                                    {btlActionError && <div className="txf-qt-err">{btlActionError}</div>}
-                                    {/* ‼ שגיאת יצירת ה-job עצמה (לא ריצתו) — למשל תקלת רשת/הרשאה
-                                        ברגע הלחיצה. בלי זה לחיצה כושלת נראית כאילו לא קרה כלום. */}
-                                    {(f.niRepAction.kind === 'enter_btl' ? jobBtlCreateRep.error : jobBtlCheckRep.error) && (
-                                      <div className="txf-qt-err">
-                                        {f.niRepAction.kind === 'enter_btl' ? jobBtlCreateRep.error : jobBtlCheckRep.error}
-                                      </div>
-                                    )}
-                                    {(() => {
-                                      const j = btlJobForRole(
-                                        f.niRepAction.kind === 'enter_btl' ? jobBtlCreateRep.job : jobBtlCheckRep.job,
-                                        person.role,
-                                      );
-                                      if (j?.status === 'needs_human') return <div className="txf-qt-err">{j.needsHuman}</div>;
-                                      if (j?.status === 'failed') return <div className="txf-qt-err">{j.errorDetail}</div>;
-                                      return null;
-                                    })()}
-                                  </>
                                 )}
                               </>
                             )}

@@ -32,6 +32,9 @@ import EmailStatusRow from './EmailActivity/EmailStatusRow';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
 import InfoLines from './ui/InfoLines';
+import NiNextActionButton from './NiNextActionButton';
+import { niPersons, niRepresentationOf, niRepresentationAction } from '../utils/niPersons';
+import { shaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
 
 interface Props {
   request: RepresentationRequest;
@@ -174,8 +177,15 @@ function Step({ n, title, done, hint, children }: {
   );
 }
 
-function Track({ title, subtitle, done, total, tone, children }: {
-  title: string; subtitle: string; done: number; total: number; tone: string; children: React.ReactNode;
+function Track({ title, subtitle, done, total, tone, nextAction, children }: {
+  title: string; subtitle: string; done: number; total: number; tone: string;
+  /**
+   * ‼ פרק 17: תא «הפעולה הבאה» של הרשות — פקד אחד, בכותרת העמודה, מתחת
+   * לשם ולמונה. ב״ל: יצירה/בדיקה דרך העובד לאדם של העמודה הזאת. שע״ם: תא
+   * מוכן ומושבת עד שתיבנה האוטומציה. ריק ⇒ אין פעולה (למשל ייצוג פעיל).
+   */
+  nextAction?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   const complete = done >= total;
   return (
@@ -200,6 +210,11 @@ function Track({ title, subtitle, done, total, tone, children }: {
             {done}/{total}
           </span>
         </div>
+        {nextAction && (
+          <div className="rep-track-next" style={{ marginTop: '.5rem', display: 'flex', flexDirection: 'column', gap: '.25rem', alignItems: 'flex-start' }}>
+            {nextAction}
+          </div>
+        )}
       </div>
       <div style={{ padding: '.6rem 0 .8rem' }}>{children}</div>
     </div>
@@ -496,6 +511,34 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const nameOf = (role: 'client' | 'spouse') =>
     signers.find(s => s.role === role)?.name?.trim();
   const clientNiTitle = niTargetsSpouse ? `ב״ל - ${nameOf('client') || 'הנישום'}` : 'ביטוח לאומי';
+
+  // ── הפעולה ההקשרית של ב״ל — לכל אדם בנפרד (פרק 17) ──────────────────────
+  // ‼ אותה נגזרת בדיוק כמו בתיק המס (niRepresentationOf → niRepresentationAction),
+  // מאותו כרטיס ומאותו מסלול ביצוע — כדי ששני המשטחים לא יסטו. המצב של
+  // אדם אחד לעולם לא נגזר מהשני: role מפורש לכל עמודה.
+  const niExecutionByRole = { client: ni, spouse: niSpouse };
+  const niActionFor = (role: 'client' | 'spouse') => {
+    if (!linkedClient) return null;
+    const person = niPersons(linkedClient).find(p => p.role === role);
+    if (!person) return null;
+    const line = niRepresentationOf(person, linkedClient, undefined, niExecutionByRole);
+    return niRepresentationAction(person, linkedClient, line, niExecutionByRole[role]);
+  };
+  const niNextActionNode = (role: 'client' | 'spouse') => linkedClient ? (
+    <NiNextActionButton
+      client={linkedClient} role={role} action={niActionFor(role)} track={niExecutionByRole[role]}
+      onChanged={onStepsChanged} className="btn btn-primary btn-sm" errorClassName="rep-track-next-err"
+    />
+  ) : null;
+
+  // ‼ שע״ם: תא מוכן במבנה, מושבת עם הסיבה — אין עדיין אוטומציה מול שע״ם.
+  const shaamAction = shaamRepresentationAction(status);
+  const shaamNextActionNode = shaamAction ? (
+    <button type="button" className="btn btn-secondary btn-sm" disabled
+      title={shaamAction.reason} aria-label={`${shaamAction.label} — ${shaamAction.reason}`}>
+      {shaamAction.label}
+    </button>
+  ) : null;
   // מי מבין השניים תקוע בלי אסמכתא — כדי שהחסימה תגיד לאן ללכת, ולא רק שנחסם
   const missingRefFor = !niTargetsSpouse ? '' : [
     !ni.referenceNumber && (nameOf('client') || 'הנישום'),
@@ -520,6 +563,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             done={itSteps.filter(Boolean).length}
             total={itSteps.length}
             tone="🏛"
+            nextAction={shaamNextActionNode}
           >
             {/* ‼ הזנה אחת לכל אדם, לא אחת לכל רשות: בשע״ם נכנסים עם ת.ז. אחת
                 ומזינים את כל המוסדות של אותו אדם בבת אחת. השלב מפרט מה נכנס
@@ -744,6 +788,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   ni={ni}
                   busy={busy}
                   busyPrefix="ni"
+                  nextAction={niNextActionNode('client')}
                   hasSignatureEmails={signatureEmails.length > 0}
                   onPatch={(p, label) => patch({ ...exec, nationalInsurance: { ...ni, ...p } }, label)}
                   prereqStep={niClientStep}
@@ -760,6 +805,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   ni={niSpouse}
                   busy={busy}
                   busyPrefix="nis"
+                  nextAction={niNextActionNode('spouse')}
                   hasSignatureEmails={signatureEmails.length > 0}
                   onPatch={(p, label) => patch({ ...exec, nationalInsuranceSpouse: { ...niSpouse, ...p } }, label)}
                   prereqStep={niSpouseStep}
@@ -887,7 +933,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
  * בב"ל מקבל שני מסלולים כאלה — לכל אחד אסמכתא, מועד תפוגה ואישור משלו.
  */
 function NiTrack({
-  title, ni, busy, busyPrefix, hasSignatureEmails, onPatch,
+  title, ni, busy, busyPrefix, nextAction, hasSignatureEmails, onPatch,
   prereqStep, prereqCurrentValues, prereqClient, prereqSpouse, prereqOnSaveEmail, prereqOnChanged,
 }: {
   title: string;
@@ -895,6 +941,8 @@ function NiTrack({
   busy: string | null;
   /** מבדיל בין מצבי ה"שומר…" של שני המסלולים, שלא יידלקו יחד */
   busyPrefix: string;
+  /** הפעולה ההקשרית של האדם הזה (פרק 17) — נגזרת בהורה לפי role מפורש. */
+  nextAction?: React.ReactNode;
   hasSignatureEmails: boolean;
   onPatch: (p: Partial<NiTracking>, label: string) => void;
   /**
@@ -1000,6 +1048,7 @@ function NiTrack({
       done={steps.filter(Boolean).length}
       total={steps.length}
       tone="🛡"
+      nextAction={nextAction}
     >
       {prereqStep && prereqClient && prereqSpouse ? (
         <PrerequisiteGate
