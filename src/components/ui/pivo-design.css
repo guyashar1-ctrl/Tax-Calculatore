@@ -4683,15 +4683,6 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   outline: 2px solid var(--automation-fill);
   outline-offset: 2px;
 }
-/* רץ בעובד (aria-busy) — נשאר בני המשפחה, אך ברור שאין מה ללחוץ עכשיו */
-.btn-automation[aria-busy='true'],
-.btn.btn-automation[aria-busy='true'],
-.ui-btn.btn-automation[aria-busy='true'] {
-  background: var(--automation-soft);
-  border-color: var(--automation-soft-bd);
-  color: var(--automation-text);
-  cursor: progress;
-}
 /* מושבת — למשל שע״ם עד שתיבנה האוטומציה: עדיין ורוד, עדיין קריא, אבל
    בבירור לא ניתן להפעלה. מבטל את ה-opacity הגנרי של .btn/.ui-btn/.txf-check-btn
    כדי שהתווית לא תיעלם לאפור. */
@@ -4705,3 +4696,17 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   opacity: 1;
   cursor: not-allowed;
 }
+/* רץ בעובד (aria-busy) — נשאר בן המשפחה, אך ברור שאין מה ללחוץ עכשיו.
+   ‼ אחרי «מושבת» בכוונה: כפתור שרץ הוא גם disabled, והריצה צריכה לנצח —
+   מסגרת מלאה (לא מקווקווית) וסמן «בתהליך». */
+.btn-automation[aria-busy='true'],
+.btn.btn-automation[aria-busy='true']:disabled,
+.ui-btn.btn-automation[aria-busy='true']:disabled,
+.txf-check-btn.btn-automation[aria-busy='true']:disabled {
+  background: var(--automation-soft);
+  border: 1px solid var(--automation-soft-bd);
+  color: var(--automation-text);
+  cursor: progress;
+}
+/* «הכן והמשך» ליד כפתור הבדיקה — אותה משפחה, כקישור. */
+.txf-check-ensure-btn { color: var(--automation-text); }

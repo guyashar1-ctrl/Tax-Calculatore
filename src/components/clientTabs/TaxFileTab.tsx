@@ -1257,8 +1257,8 @@ export default function TaxFileTab({
         <span className="txf-align-meta">
           <span>{alignedAt ? 'יישור קו אחרון: ' + shortDate(alignedAt) : 'טרם בוצע יישור קו'}</span>
           {onRunAlignment && (
-            <button type="button" className="ui-btn ui-btn-sm" disabled={alignBusy}
-              onClick={onRunAlignment}>
+            <button type="button" className="ui-btn ui-btn-sm btn-automation" disabled={alignBusy}
+              aria-busy={alignBusy || undefined} onClick={onRunAlignment}>
               {alignBusy ? 'מעדכן…' : alignedAt ? 'בצע יישור קו מחדש' : 'בצע יישור קו מול הרשויות'}
             </button>
           )}
@@ -1274,8 +1274,8 @@ export default function TaxFileTab({
               ניהול ספרים ואישורים. משם התיק מתעדכן לבד, וכל מה שדורש טיפול יופיע למעלה.
             </p>
             {onRunAlignment && (
-              <button type="button" className="ui-btn ui-btn-primary" disabled={alignBusy}
-                onClick={onRunAlignment}>
+              <button type="button" className="ui-btn btn-automation" disabled={alignBusy}
+                aria-busy={alignBusy || undefined} onClick={onRunAlignment}>
                 {alignBusy ? 'מעדכן…' : 'בצע יישור קו מול הרשויות'}
               </button>
             )}

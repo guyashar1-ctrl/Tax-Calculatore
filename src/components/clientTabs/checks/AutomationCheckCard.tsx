@@ -102,7 +102,7 @@ export default function AutomationCheckCard({
         {!loading && !error && !job && <div className="alert alert-info">עוד לא הורצה על הלקוח הזה.</div>}
 
         <div className="checks-action-buttons">
-          <button type="button" className="ui-btn ui-btn-primary" disabled={busy || live} onClick={() => void run(runInput)}>
+          <button type="button" className="ui-btn btn-automation" disabled={busy || live} aria-busy={live || undefined} onClick={() => void run(runInput)}>
             {live ? 'רץ...' : runLabel}
           </button>
           {extraActions?.map((a) => (

@@ -296,7 +296,7 @@ export default function AlignmentStatusView({
           {anyChecked && (
             <button type="button" className="ui-btn" onClick={() => window.print()}>הדפס / שמור PDF</button>
           )}
-          <button type="button" className="ui-btn ui-btn-primary" disabled={rerunBusy} onClick={onRerun}>
+          <button type="button" className="ui-btn btn-automation" disabled={rerunBusy} aria-busy={rerunBusy || undefined} onClick={onRerun}>
             {rerunBusy ? 'מעדכן…' : anyChecked ? 'בצע יישור קו מחדש' : 'התחל יישור קו'}
           </button>
         </div>

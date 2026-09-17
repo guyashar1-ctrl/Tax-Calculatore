@@ -72,8 +72,8 @@ export function AuthorityCheckButton({ label, ready, blockedReason, running, onR
   const title = running ? 'הקריאה מהרשות רצה…' : ready ? label : (blockedReason ?? 'האוטומציה אינה זמינה כרגע');
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <button type="button" className={`txf-check-btn ${running ? 'is-running' : ''}`}
-        disabled={!ready || running} title={title} aria-label={title}
+      <button type="button" className={`txf-check-btn btn-automation ${running ? 'is-running' : ''}`}
+        disabled={!ready || running} aria-busy={running || undefined} title={title} aria-label={title}
         onClick={onRun}>
         <span className="txf-check-ic" aria-hidden="true">{running ? '⋯' : '⟳'}</span>
         <span className="txf-check-lbl">{running ? 'בודק…' : label}</span>
