@@ -5,15 +5,18 @@
 import { RepresentationRequest } from '../types';
 import { allDocumentsStamped } from '../utils/repDocuments';
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
+import { onboardingProgressLine, type RepresentationInsight } from '../utils/representationInsight';
 
 interface Props {
   request: RepresentationRequest;
   niIncluded: boolean;
   /** הייצוג בב"ל נלקח גם לבן/בת הזוג — שני תיקים, שני אישורים. */
   niCoversSpouse?: boolean;
+  /** 191: התקדמות הקליטה וצילום חסר — היטל שנגזר פעם אחת במסך הבקשה. */
+  insight?: RepresentationInsight;
 }
 
-export default function RepresentationNextStep({ request, niIncluded, niCoversSpouse }: Props) {
+export default function RepresentationNextStep({ request, niIncluded, niCoversSpouse, insight }: Props) {
   const exec = request.execution || {};
   const ni = exec.nationalInsurance || {};
   const niSpouse = exec.nationalInsuranceSpouse || {};
@@ -32,7 +35,10 @@ export default function RepresentationNextStep({ request, niIncluded, niCoversSp
   if (status === 'pending_fill') {
     ball = 'client';
     title = 'ממתינים שהלקוח ימלא את פרטיו';
-    sub = 'הקישור נשלח. כשימלא - הפרטים ייכנסו אוטומטית לכרטיס.';
+    // 191: לא רק «הקישור נשלח» — עד איפה הלקוח הגיע, כדי לדעת אם לשלוח שוב או להתקשר.
+    sub = insight
+      ? `${onboardingProgressLine(insight)}. כשימלא - הפרטים ייכנסו לכרטיס מעצמם.`
+      : 'הקישור נשלח. כשימלא - הפרטים ייכנסו אוטומטית לכרטיס.';
   } else if (status === 'awaiting_accountant' && !(it.enteredAt && (!niIncluded || niEntered))) {
     title = 'להזין את פרטי הלקוח ברשויות';
     const niLeft = niIncluded && !niEntered
@@ -68,6 +74,12 @@ export default function RepresentationNextStep({ request, niIncluded, niCoversSp
           ? `מס הכנסה הושלם. בביטוח לאומי ממתינים לאישור: ${[!ni.confirmedAt && 'הנישום', !niSpouse.confirmedAt && 'בן/בת הזוג'].filter(Boolean).join(' ו-')}.`
           : 'מס הכנסה הושלם. בביטוח לאומי - ודאו שהלקוח אישר את האסמכתא.')
       : 'הלקוח מיוצג מול כל הרשויות שנבחרו.';
+  }
+
+  // 191: צילום תעודה שחסר אחרי ההגשה — נאמר גם בשורת המצב, לא רק בכרטיס ההיקף.
+  const missingIds = insight?.missingIdentity ?? [];
+  if (missingIds.length > 0 && ['awaiting_accountant', 'pending_signature', 'awaiting_stamp'].includes(status)) {
+    sub += ' · חסר צילום תעודה: ' + missingIds.map(m => m.name).join(', ');
   }
 
   const tone = {

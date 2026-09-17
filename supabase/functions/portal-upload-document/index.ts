@@ -27,6 +27,9 @@ const ALLOWED = new Set([
 // קטגוריית המסמך נגזרת מהפריט שביקשנו, כדי שהקובץ ימצא את מקומו בתיק לבד.
 const CATEGORY_BY_KEY: Record<string, string> = {
   id_card: "id_card",
+  // 191: צילום התעודה של בן/בת הזוג שנדחה בקליטת הייצוג — אותה קטגוריה.
+  // הרישום ב-identity_docs של הבקשה נעשה בטריגר על השלב (client_documents_to_identity_docs_trg).
+  id_card_spouse: "id_card",
   bank_confirm: "business_document",
   vat_cert: "business_document",
   last_return: "tax_assessment",

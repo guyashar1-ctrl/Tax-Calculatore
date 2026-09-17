@@ -58,6 +58,8 @@ interface Props {
   repStatusLabel?: string;
   /** אותו מצב, גולמי — כדי לגזור ממנו את הפעולה עצמה ולא רק את שמו. */
   repStatus?: RepresentationStatus;
+  /** 191: שורת הקליטה — מועברת כמו שהיא לכרטיס הייצוג. */
+  repNote?: string;
   // ── מרכז השליטה ──
   onPinNote: (text: string) => void;
   onAddNote: (text: string) => void;
@@ -354,6 +356,7 @@ export default function JourneyTab(p: Props) {
           quotations={clientQuotations}
           repStatusLabel={p.repStatusLabel}
           repStatus={p.repStatus}
+          repNote={p.repNote}
           onOpenRepresentation={p.onOpenRepresentation}
           onOpenTaxFile={p.onOpenTaxFile}
           niExecution={p.niExecution}

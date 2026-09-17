@@ -1,6 +1,9 @@
 // ─── «ייצוג» · ניהול המשרד ───────────────────────────────────────────────────
 // המימוש נאמן לאב-הטיפוס המאושר: docs/prototypes/representation-settings.html.
-// ציר מסע קבוע (6 שלבים), "מה קורה" (קריאה בלבד) מול "מה הלקוח מקבל" (עריכה).
+// ציר המסע נגזר מהגדרת התהליך המשותפת (lib/representationJourney.ts — M2):
+// "מה קורה" (קריאה בלבד) מול "מה הלקוח מקבל" (עריכה). ההודעות והתזכורות
+// מקושרות לשלב לפי מפתח, לא לפי מספר — הרשימה ב«תהליכים» ובטופס הלקוח
+// היא אותה רשימה.
 //
 // הכל נשמר תחת profile.settings.representation — עמודת jsonb קיימת, בלי
 // migration חדשה — וחולק את הטיוטה ואת כפתור השמירה של כל שאר "המשרד"
@@ -21,11 +24,15 @@ import {
   RepPortalCardOverride, REP_PORTAL_CARD_DEFAULTS, REP_PORTAL_CARD_FIXED, resolveRepPortalCard,
   RepReminderAudience, RepReminderConfig, resolveRepReminderConfig,
 } from '../../../supabase/functions/_shared/repTemplates.ts';
+import { REP_STAGES, type RepStageKey } from '../../lib/representationJourney';
+import { ACTOR_LABELS, numberStages } from '../../lib/processDefinition';
 import './representationSettings.css';
 
 interface Props {
   profile: FirmProfile;
   onChangeProfile: React.Dispatch<React.SetStateAction<FirmProfile>>;
+  /** קפיצה להגדרת התהליך המלאה ב«תהליכים». */
+  onOpenProcess?: () => void;
 }
 
 // ── מודל הנתונים תחת settings.representation ────────────────────────────────
@@ -63,55 +70,34 @@ function currentAuthority(rep: RepSettings, a: RepAuthorityKind): { on: boolean;
 function currentNiSpouse(rep: RepSettings): boolean { return rep.defaults?.niSpouse ?? SYSTEM_DEFAULT_NI_SPOUSE; }
 function currentDelivery(rep: RepSettings): 'email' | 'link' { return rep.defaults?.delivery ?? SYSTEM_DEFAULT_DELIVERY; }
 
-// ── ציר המסע: שלבים, "מה קורה", וסוגי התזכורות שלכל שלב ─────────────────────
+// ── ציר המסע: מה הלקוח מקבל ואילו תזכורות — לפי מפתח השלב בהגדרה המשותפת ──
 type ArtifactType = 'mail' | 'portal';
-interface Artifact { id: string; stage: number; type: ArtifactType; label: string; kind: RepMailKind | 'portalCard'; standalone?: string; }
+interface Artifact { id: string; stage: RepStageKey; type: ArtifactType; label: string; kind: RepMailKind | 'portalCard'; standalone?: string; }
 
 const ARTIFACTS: Artifact[] = [
-  { id: 'onboard', stage: 1, type: 'mail', label: 'מייל הזיהוי', kind: 'rep_onboard' },
-  { id: 'sign', stage: 2, type: 'mail', label: 'מייל החתימה', kind: 'rep_sign' },
-  { id: 'ni_approve', stage: 3, type: 'mail', label: 'הוראות אישור בביטוח הלאומי', kind: 'rep_ni_approve', standalone: 'נשלח בנפרד רק כשההוראות לא נכנסו למייל החתימה' },
-  { id: 'prerequisites', stage: 3, type: 'mail', label: 'השלמת פרטים חסרים', kind: 'rep_prerequisites' },
-  { id: 'portal', stage: 4, type: 'portal', label: 'כרטיס בדף האישי', kind: 'portalCard' },
-  { id: 'active', stage: 5, type: 'mail', label: 'מייל "הייצוג פעיל"', kind: 'rep_active' },
+  { id: 'onboard', stage: 'open', type: 'mail', label: 'מייל הזיהוי', kind: 'rep_onboard' },
+  { id: 'sign', stage: 'sign', type: 'mail', label: 'מייל החתימה', kind: 'rep_sign' },
+  { id: 'ni_approve', stage: 'ni', type: 'mail', label: 'הוראות אישור בביטוח הלאומי', kind: 'rep_ni_approve', standalone: 'נשלח בנפרד רק כשההוראות לא נכנסו למייל החתימה' },
+  { id: 'prerequisites', stage: 'ni', type: 'mail', label: 'השלמת פרטים חסרים', kind: 'rep_prerequisites' },
+  { id: 'portal', stage: 'client_approval', type: 'portal', label: 'כרטיס בדף האישי', kind: 'portalCard' },
+  { id: 'active', stage: 'active', type: 'mail', label: 'מייל "הייצוג פעיל"', kind: 'rep_active' },
 ];
 
-interface StageDef { n: number; name: string; reminders?: RepReminderAudience[]; }
-const STAGES: StageDef[] = [
-  { n: 0, name: 'פתיחת בקשה' },
-  { n: 1, name: 'זיהוי ופרטים' },
-  { n: 2, name: 'חתימה על ייפוי הכוח', reminders: ['sign'] },
-  { n: 3, name: 'ביטוח לאומי', reminders: ['niClient', 'niSpouse'] },
-  { n: 4, name: 'הגשה ואישור', reminders: ['portal'] },
-  { n: 5, name: 'הייצוג פעיל' },
-];
+/** אילו תזכורות אוטומטיות שייכות לכל שלב. */
+const REMINDERS_BY_STAGE: Partial<Record<RepStageKey, RepReminderAudience[]>> = {
+  sign: ['sign'],
+  ni: ['niClient', 'niSpouse'],
+  client_approval: ['portal'],
+};
 
-const HAPPENS: Record<number, string[]> = {
-  0: [
-    'בקשת ייצוג נפתחת מכרטיס הלקוח, מלקוח חדש או מהצעת מחיר שאושרה. הבקשה מופיעה בלשונית "בקשות" של הלקוח, והכדור עובר אליו.',
-    'כשהצעת מחיר מאושרת כבר קבעה את היקף הייצוג — ההיקף הזה תמיד גובר. הברירות שכאן חלות רק כשפותחים ייצוג בלי היקף שנקבע מראש.',
-  ],
-  1: [
-    'הלקוח מקבל קישור אישי ומאובטח לדף שלו, ממלא פרטים אישיים ומשפחתיים ומצלם תעודה מזהה. בזוג — לכל אחד קישור לפרטיו שלו, בלי לראות את של האחר.',
-    'כשהטופס נשלח, הכדור חוזר למשרד: להזין ברשויות ולהפיק את ייפוי הכוח.',
-  ],
-  2: [
-    'המשרד מפיק את ייפוי הכוח (טופס 2279א׳5 — מסמך לכל אדם, כי ההגשה בשע"ם היא לפי תעודת זהות) ושולח לכל חותם קישור אישי.',
-    'אחרי שכולם חתמו, המשרד חותם ומחתים. כשביטוח לאומי כלול ויש כבר אסמכתא, המערכת שולחת הודעה משולבת אחת עם שתי הפעולות — כדי שהלקוח לא יקבל שני מיילים. ההודעה המשולבת הזאת בנוסח קבוע ואינה נערכת כאן; מה שכן נערך הוא מייל החתימה הרגיל, לשאר המקרים.',
-  ],
-  3: [
-    'ביטוח לאומי מתנהל בנפרד לכל אדם — הלקוח, ובן/בת הזוג כשנבחרו. המשרד מזין את ייפוי הכוח באתר ב"ל ומקבל מספר אסמכתא ומועד אחרון.',
-    'המבוטח מאשר בעצמו, באתר או בטלפון — ורק אז הייצוג בב"ל בתוקף. המשרד מסמן את האישור כשהוא מתקבל.',
-    'אם חסרים פרטים שהאתר דורש (למשל שנת לידה של בן/בת הזוג), המערכת מציעה למלא במשרד או לשלוח קישור קצר להשלמה — לפני שמוצעת הזנה.',
-  ],
-  4: [
-    'אחרי שהמשרד מגיש את ייפוי הכוח למס הכנסה, ההמתנה היא לאישור הרשות. באותו רגע נפתח ללקוח בדף האישי כרטיס שמאפשר לזרז את האישור באזור האישי של רשות המסים. זה אופציונלי ולא מעכב דבר.',
-    'כשהלקוח מדווח "אישרתי", הכדור חוזר למשרד לבדיקה בשע"ם. הדיווח של הלקוח לבדו אינו מפעיל את הייצוג.',
-  ],
-  5: [
-    'כשהרשות אישרה, המשרד מסמן שהייצוג פעיל. הסימון סוגר את הכרטיס בדף האישי ומעדכן את כרטיס הלקוח; משם הייצוג נשאר בתוקף עד ביטול מפורש.',
-    'ההודעה ללקוח לא יוצאת מעצמה — המשרד שולח אותה בלחיצה, אחרי תצוגה מקדימה.',
-  ],
+/**
+ * הערות שהן של מסך ההגדרות ולא של הגדרת התהליך — מה שברירות המחדל כאן
+ * משפיעות עליו. השאר ("מה קורה") נקרא מ-REP_STAGES.
+ */
+const SETTINGS_NOTES: Partial<Record<RepStageKey, string>> = {
+  open: 'כשהצעת מחיר מאושרת כבר קבעה את היקף הייצוג - ההיקף הזה תמיד גובר. הברירות שכאן חלות רק כשפותחים ייצוג בלי היקף שנקבע מראש.',
+  sign: 'כשביטוח לאומי כלול ויש כבר אסמכתא, המערכת שולחת הודעה משולבת אחת עם שתי הפעולות. ההודעה המשולבת בנוסח קבוע ואינה נערכת כאן; מה שכן נערך הוא מייל החתימה הרגיל, לשאר המקרים.',
+  active: 'ההודעה ללקוח לא יוצאת מעצמה - המשרד שולח אותה בלחיצה, אחרי תצוגה מקדימה.',
 };
 
 const REMINDER_LABEL: Record<RepReminderAudience, { audience: string | null; when: string }> = {
@@ -127,8 +113,8 @@ const FIELD_DEFS: Record<ArtifactType, [string, string, boolean?][]> = {
   portal: [['sub', 'שורת משנה'], ['note', 'ההוראות ללקוח', true], ['linkLabel', 'טקסט הקישור לאזור האישי'], ['noteAfter', 'משפט מרגיע בסוף', true]],
 };
 
-export default function RepresentationSettingsSection({ profile, onChangeProfile }: Props) {
-  const [openStages, setOpenStages] = useState<Set<number>>(new Set());
+export default function RepresentationSettingsSection({ profile, onChangeProfile, onOpenProcess }: Props) {
+  const [openStages, setOpenStages] = useState<Set<RepStageKey>>(new Set());
   const [drawerArt, setDrawerArt] = useState<{ id: string; mode: 'edit' | 'preview' } | null>(null);
   const [drawerTab, setDrawerTab] = useState<'edit' | 'preview'>('edit');
   const [drawerValues, setDrawerValues] = useState<Record<string, string>>({});
@@ -178,7 +164,7 @@ export default function RepresentationSettingsSection({ profile, onChangeProfile
     return defaultRepMailTemplate(art.kind as RepMailKind) as unknown as Record<string, string>;
   }
 
-  function toggleStage(n: number) {
+  function toggleStage(n: RepStageKey) {
     setOpenStages(prev => { const next = new Set(prev); next.has(n) ? next.delete(n) : next.add(n); return next; });
   }
 
@@ -232,27 +218,30 @@ export default function RepresentationSettingsSection({ profile, onChangeProfile
     }
     return out;
   }
-  function stageSummary(st: StageDef): string {
-    if (st.n === 0) {
-      const names = authorityNames();
-      return `ברירות מחדל · ${names.length ? names.join(', ') : 'ללא רשות מסומנת מראש'}`;
-    }
-    const arts = ARTIFACTS.filter(a => a.stage === st.n);
-    const custom = arts.filter(isCustom).length;
+  function stageSummary(key: RepStageKey): string {
+    const arts = ARTIFACTS.filter(a => a.stage === key);
+    const reminders = REMINDERS_BY_STAGE[key];
     const parts: string[] = [];
+    if (key === 'open') {
+      const names = authorityNames();
+      parts.push(`ברירות מחדל · ${names.length ? names.join(', ') : 'ללא רשות מסומנת מראש'}`);
+    }
+    if (arts.length === 0 && !reminders) return parts.join(' · ');
+    const custom = arts.filter(isCustom).length;
     const mails = arts.filter(a => a.type === 'mail').length;
     const cards = arts.filter(a => a.type === 'portal').length;
     if (mails) parts.push(mails === 1 ? 'הודעה אחת' : `${mails} הודעות`);
     if (cards) parts.push('כרטיס בדף האישי');
     if (arts.length === 1) parts.push(custom ? 'מותאם' : 'ברירת מחדל');
-    else parts.push(custom === 0 ? 'ברירת מחדל' : custom === 1 ? 'אחת מותאמת' : `${custom} מותאמות`);
-    if (st.reminders) {
-      const on = st.reminders.map(k => reminderCfg(k).enabled);
-      parts.push(on.every(Boolean) ? (st.reminders.length > 1 ? 'תזכורות פעילות לשניהם' : 'תזכורות פעילות') : on.some(Boolean) ? 'תזכורת פעילה לאחד מהם' : 'תזכורות כבויות');
+    else if (arts.length > 1) parts.push(custom === 0 ? 'ברירת מחדל' : custom === 1 ? 'אחת מותאמת' : `${custom} מותאמות`);
+    if (reminders) {
+      const on = reminders.map(k => reminderCfg(k).enabled);
+      parts.push(on.every(Boolean) ? (reminders.length > 1 ? 'תזכורות פעילות לשניהם' : 'תזכורות פעילות') : on.some(Boolean) ? 'תזכורת פעילה לאחד מהם' : 'תזכורות כבויות');
     }
-    if (st.n === 5) parts.push('נשלחת רק בלחיצה');
+    if (key === 'active') parts.push('נשלחת רק בלחיצה');
     return parts.join(' · ');
   }
+  const numbered = numberStages(REP_STAGES);
   const totalArtifacts = ARTIFACTS.length;
   const customCount = ARTIFACTS.filter(isCustom).length;
   const remOnCount = (['sign', 'niClient', 'niSpouse', 'portal'] as RepReminderAudience[]).filter(a => reminderCfg(a).enabled).length;
@@ -264,6 +253,15 @@ export default function RepresentationSettingsSection({ profile, onChangeProfile
         <div className="rs-lead">כך מתנהל תהליך הייצוג מול הלקוח, מהפתיחה ועד שהייצוג פעיל. המערכת מובילה את השלבים; המשרד קובע מה הלקוח קורא ומקבל בדרך.</div>
         <div className="rs-ref">
           <span>ההודעות יוצאות עם השולח, החתימה והמיתוג שהוגדרו למשרד.</span>
+          {onOpenProcess && (
+            <>
+              <span className="sep">·</span>
+              <button type="button" onClick={onOpenProcess}
+                style={{ font: 'inherit', color: 'var(--br)', background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
+                ההגדרה המלאה של התהליך ב«תהליכים» ←
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -276,14 +274,20 @@ export default function RepresentationSettingsSection({ profile, onChangeProfile
       </div>
 
       <div className="rs-spine">
-        {STAGES.map(st => {
-          const open = openStages.has(st.n);
+        {numbered.map(({ stage: st, n }) => {
+          const open = openStages.has(st.key);
+          const arts = ARTIFACTS.filter(a => a.stage === st.key);
+          const reminders = REMINDERS_BY_STAGE[st.key];
+          const note = SETTINGS_NOTES[st.key];
           return (
-            <section key={st.n} className={`rs-stage ${open ? 'is-open' : ''}`}>
-              <button type="button" className="rs-stage-head" aria-expanded={open} onClick={() => toggleStage(st.n)}>
-                <span className="rs-stage-num">{st.n}</span>
-                <span className="rs-stage-name">{st.name}</span>
-                <span className="rs-stage-sum">{stageSummary(st)}</span>
+            <section key={st.key} className={`rs-stage ${open ? 'is-open' : ''}`}>
+              <button type="button" className="rs-stage-head" aria-expanded={open} onClick={() => toggleStage(st.key)}>
+                <span className="rs-stage-num" style={st.parallel ? { borderStyle: 'dashed' } : undefined}>{n ?? '∥'}</span>
+                <span className="rs-stage-name">
+                  {st.title}
+                  <span className="rs-stage-sum" style={{ marginInlineStart: 8 }}>{ACTOR_LABELS[st.actor]}{st.kind === 'conditional' ? ' · מותנה' : st.kind === 'optional' ? ' · אופציונלי' : ''}</span>
+                </span>
+                <span className="rs-stage-sum">{stageSummary(st.key)}</span>
                 <svg className="rs-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
               </button>
               {open && (
@@ -291,24 +295,38 @@ export default function RepresentationSettingsSection({ profile, onChangeProfile
                   <div className="rs-cols">
                     <div>
                       <div className="rs-col-label">מה קורה <span className="rs-tag">מנוהל על ידי המערכת</span></div>
-                      <div className="rs-happens">{HAPPENS[st.n].map((p, i) => <p key={i}>{p}</p>)}</div>
+                      <div className="rs-happens">
+                        {st.when && <p className="rs-quiet">{st.when}</p>}
+                        <p>{st.what}</p>
+                        {st.substages?.map(sub => (
+                          <p key={sub.key}><strong style={{ fontWeight: 500 }}>{sub.title}:</strong> {sub.when ? `${sub.when} ` : ''}{sub.what}</p>
+                        ))}
+                        {st.deferrable && <p className="rs-quiet">אפשר לדחות: {st.deferrable}</p>}
+                        {st.blocks && <p className="rs-quiet">מה יכול לתקוע: {st.blocks}</p>}
+                        {note && <p className="rs-quiet">{note}</p>}
+                      </div>
                     </div>
                     <div>
-                      {st.n === 0 ? (
+                      {st.key === 'open' ? (
                         <DefaultsPanel rep={rep} onSetOn={setAuthorityOn} onSetLevel={setAuthorityLevel}
                           niSpouse={currentNiSpouse(rep)} onNiSpouse={v => patchDefaults({ niSpouse: v })}
                           delivery={currentDelivery(rep)} onDelivery={v => patchDefaults({ delivery: v })} />
-                      ) : (
+                      ) : arts.length > 0 || reminders ? (
                         <>
                           <div className="rs-col-label">מה הלקוח מקבל</div>
-                          {ARTIFACTS.filter(a => a.stage === st.n).map(a => (
+                          {arts.map(a => (
                             <ArtifactRow key={a.id} art={a} custom={isCustom(a)}
                               title={a.type === 'mail' ? valuesOf(a).subject : REP_PORTAL_CARD_FIXED.title}
                               onEdit={() => openDrawer(a.id, 'edit')} onPreview={() => openDrawer(a.id, 'preview')} />
                           ))}
-                          {st.reminders?.map(k => (
+                          {reminders?.map(k => (
                             <ReminderBlock key={k} audience={k} cfg={reminderCfg(k)} onPatch={p => patchReminder(k, p)} />
                           ))}
+                        </>
+                      ) : (
+                        <>
+                          <div className="rs-col-label">מה הלקוח מקבל</div>
+                          <div className="rs-happens rs-quiet">שלב של המשרד - הלקוח אינו מקבל בו הודעה.</div>
                         </>
                       )}
                     </div>

@@ -1070,6 +1070,30 @@ export interface OnboardingIdentification {
   /** נמסר לבן/בת הזוג להשלמה עצמית (149). ממתינים = התבקש ולא הושלם. */
   spouseFillRequestedAt?: string;
   spouseFillSubmittedAt?: string;
+  /**
+   * הטיוטה של טופס הקליטה (191) — נשמרת במעבר שלב («המשך») ונמחקת בהגשה.
+   * ‼ נפרדת מהשדות שלמעלה בכוונה: אלה מה שהוגש, וזו מה שהלקוח הספיק להקליד.
+   * מסך משרד שקורא את השדות העליונים לא יראה טיוטה כהגשה.
+   */
+  draft?: OnboardingDraft;
+  /** מי בחר/ה «אעלה מאוחר יותר» בשלב צילום התעודה (191). ריק = לא נדחה. */
+  identityDeferred?: RepTarget[];
+  identityDeferredAt?: string;
+}
+
+/** הטיוטה של טופס הקליטה — נכתבת רק ב-save_onboarding_step / touch_onboarding. */
+export interface OnboardingDraft {
+  /** השלב הגבוה ביותר שנשמר (1–3). חסר = טרם נשמר שלב. */
+  step?: number;
+  savedAt?: string;
+  openedAt?: string;
+  lastActivityAt?: string;
+  /** הערכים שנשמרו — אותם מפתחות כמו OnboardingIdentification, ללא ההגשה. */
+  values?: Partial<Pick<OnboardingIdentification,
+    'firstName' | 'lastName' | 'idNumber' | 'birthDate' | 'secondaryType' | 'secondaryValue'
+    | 'phone' | 'email' | 'city' | 'address' | 'familyStatus' | 'familyStatusYear'
+    | 'spouseFirstName' | 'spouseLastName' | 'spouseIdNumber' | 'spouseBirthYear'
+    | 'spouseBirthDate' | 'spouseSecondaryType' | 'spouseSecondaryValue'>>;
 }
 
 /**

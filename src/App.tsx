@@ -38,6 +38,7 @@ import { isRepresented } from './lib/clientState';
 import { edgeFunctionError } from './utils/functionError';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { targetsOf } from './utils/repScope';
+import { representationInsight, onboardingProgressLine, missingIdentityLine } from './utils/representationInsight';
 import {
   seedClientFromEmbeddedSpouse, findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold,
   spousePersonAuthorities,
@@ -820,6 +821,18 @@ export default function App() {
   const selectedClient = selectedId ? clients.find(c => c.id === selectedId) ?? null : null;
   const selectedRequest = selectedRequestId && isHydrated(selectedRequestId)
     ? requests.find(r => r.id === selectedRequestId) ?? null : null;
+  // 191: שורה אחת לכרטיס הייצוג של הלקוח הפתוח — מהשורה הרזה שכבר נטענה
+  // (identification ו-identity_docs ב-LEAN_COLUMNS), בלי שליפה נוספת.
+  const selectedRepNote = (() => {
+    if (!selectedClient) return undefined;
+    const req = requests.filter(r => r.linkedClientId === selectedClient.id)
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+    if (!req) return undefined;
+    const insight = representationInsight(req, selectedClient, onboarding.steps);
+    if (req.status === 'pending_fill' && req.onboardingStatus !== 'submitted') return onboardingProgressLine(insight);
+    if (req.status !== 'active') return missingIdentityLine(insight) || undefined;
+    return undefined;
+  })();
 
   function handleSelectClient(id: string) {
     setSelectedId(id);
@@ -2565,6 +2578,7 @@ export default function App() {
             onboardingEnabled={onboardingEnabled}
             engagements={onboarding.engagements}
             onboardingSteps={onboarding.steps}
+            repNote={selectedRepNote}
             onboardingEvents={onboarding.events}
             onboardingLoading={onboarding.loading}
             advanceOnboardingStep={onboarding.advance}

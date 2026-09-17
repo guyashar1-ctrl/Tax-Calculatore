@@ -126,6 +126,8 @@ interface Props {
   onboardingEnabled?: boolean;
   engagements?: Engagement[];
   onboardingSteps?: OnboardingStep[];
+  /** 191: שורת הקליטה של בקשת הייצוג — מחושבת ב-App, מוצגת בכרטיס הייצוג. */
+  repNote?: string;
   onboardingEvents?: OnboardingEvent[];
   onboardingLoading?: boolean;
   advanceOnboardingStep?: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
@@ -229,6 +231,7 @@ export default function ClientWorkspace({
   onboardingEnabled,
   engagements,
   onboardingSteps,
+  repNote,
   onboardingEvents,
   onboardingLoading,
   advanceOnboardingStep,
@@ -862,6 +865,7 @@ export default function ClientWorkspace({
               ? (stepId, mode) => onOpenReleaseLetter(client.id, stepId, mode) : undefined}
             repStatusLabel={client.representationStatus ? REPRESENTATION_STATUS_LABELS[client.representationStatus] : undefined}
             repStatus={client.representationStatus ?? undefined}
+            repNote={repNote}
             onPinNote={(note) => update('pinnedNote', note)}
             onAddNote={(text) => appendActivity({ kind: 'note', text })}
             onGotoTab={(t) => { if (t === 'tasks') { onOpenClientTasks?.(client.id); return; } setTab(t); }}
@@ -1003,6 +1007,7 @@ export default function ClientWorkspace({
               ? `בקשת ייצוג · ${REPRESENTATION_STATUS_LABELS[status]}`
               : undefined}
             repStatus={client.representationStatus ?? undefined}
+            repNote={repNote}
             onOpenRepresentation={onOpenRepresentation
               ? () => onOpenRepresentation(client.id)
               : undefined}

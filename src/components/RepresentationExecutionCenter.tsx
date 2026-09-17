@@ -35,6 +35,8 @@ import InfoLines from './ui/InfoLines';
 import NiNextActionButton from './NiNextActionButton';
 import { niPersons, niRepresentationOf, niRepresentationAction } from '../utils/niPersons';
 import { shaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
+import { representationInsight } from '../utils/representationInsight';
+import ConfirmDialog from './ui/ConfirmDialog';
 
 interface Props {
   request: RepresentationRequest;
@@ -360,6 +362,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // תצוגה מקדימה של מייל החתימה. השליחה עצמה נשארת בכפתור המשותף, שגם מסמן
   // שההוראות לב"ל יצאו — ולכן כאן צפייה בלבד.
   const [previewSignerId, setPreviewSignerId] = useState<string | null>(null);
+  const missingIds = representationInsight(request, linkedClient, steps).missingIdentity;
+  const [confirmSendWithoutId, setConfirmSendWithoutId] = useState(false);
 
   /** שולח לכל החותמים שטרם חתמו, ומתעד שההוראות לב"ל יצאו עם אותו מייל. */
   async function handleSendAll() {
@@ -856,7 +860,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           {formReady && !exec.signatureEmailSentAt && (
             <div style={{ marginTop: '.7rem' }}>
               <button className="btn btn-green" disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0}
-                onClick={handleSendAll}>
+                onClick={() => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void handleSendAll())}>
                 {busy === 'send' ? 'שולח…' : `שלח ללקוח${pendingSigners.length > 1 ? ` (${pendingSigners.length} חותמים)` : ''}`}
               </button>
               {pendingSigners.length > 0 && !niRefMissing && (
@@ -912,6 +916,20 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           body={{ requestId: request.id, stage: 'active' }}
           onSent={reloadEmails}
           onClose={() => setPreviewActive(false)}
+        />
+      )}
+
+      {confirmSendWithoutId && (
+        <ConfirmDialog
+          tone="normal"
+          title="לשלוח לחתימה בלי צילום תעודה?"
+          message={<>
+            <div>טרם התקבל צילום תעודה של: <b>{missingIds.map(m => m.name).join(', ')}</b>.</div>
+            <div style={{ marginTop: '.4rem' }}>אפשר לשלוח לחתימה גם עכשיו; הצילום ימשיך להופיע כחסר עד שיגיע - מהדף האישי של הלקוח או מהעלאה בתיק המסמכים.</div>
+          </>}
+          confirmLabel="שלח בכל זאת"
+          onCancel={() => setConfirmSendWithoutId(false)}
+          onConfirm={() => { setConfirmSendWithoutId(false); void handleSendAll(); }}
         />
       )}
 

@@ -14,6 +14,7 @@ import EmailActivityModule from './EmailActivity/EmailActivityModule';
 import RequestDefaultsSection from './office/RequestDefaultsSection';
 import RepresentationSettingsSection from './office/RepresentationSettingsSection';
 import ShaamWarmupSettingsSection from './office/ShaamWarmupSettingsSection';
+import ProcessCatalogSection from './office/ProcessCatalogSection';
 import QuotationSettings from './quotations/QuotationSettings';
 import QuotationDesignStudio from './quotations/QuotationDesignStudio';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
@@ -56,7 +57,7 @@ interface Props {
   onSave: (p: FirmProfile) => Promise<void> | void;
 }
 
-type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'notifications' | 'paperless' | 'representation' | 'shaamWarmup' | 'requestDefaults' | 'clientDocs' | 'emailActivity' | 'quotations' | 'employees';
+type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'notifications' | 'processes' | 'paperless' | 'representation' | 'shaamWarmup' | 'requestDefaults' | 'clientDocs' | 'emailActivity' | 'quotations' | 'employees';
 
 // אייקוני הניווט כ-SVG מוטמע. (הפרויקט לא טוען את פונט Tabler, ולכן ה-<i class="ti">
 // שהיו כאן קודם פשוט לא הוצגו — זה מחליף אותם באייקונים שבאמת נראים.)
@@ -84,6 +85,7 @@ const ICON_PATHS: Record<string, string> = {
   trash: 'M4 7h16 M10 11v6 M14 11v6 M5.5 7l1 13h11l1-13 M9 7V4h6v3',
   stamp: 'M9 10V6.5a3 3 0 0 1 6 0V10 M5 14h14v3.5H5z M4 20.5h16',
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11.5v4.5 M12 8h.01',
+  flow: 'M4 6h5v4H4z M15 4h5v4h-5z M15 16h5v4h-5z M9 8h3v6H9 M12 6h3 M12 18h3 M12 11v7',
 };
 
 function NavIcon({ name, size = 16 }: { name: string; size?: number }) {
@@ -103,6 +105,9 @@ const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
   { id: 'signature', label: 'חתימת מייל', icon: 'signature' },
   { id: 'communication', label: 'ערוצי תקשורת', icon: 'communication' },
   { id: 'notifications', label: 'התראות למשרד', icon: 'bell' },
+  // M2: «ממה מורכב כל תהליך» — הגדרה, לא מצב של לקוח. יושב לפני מקטעי ההגדרות
+  // של התהליכים עצמם (פייפרלס, ייצוג, בקשות), כי הוא ההסבר שלהם.
+  { id: 'processes', label: 'תהליכים', icon: 'flow' },
   { id: 'paperless', label: 'פייפרלס ותקשורת', icon: 'mailCog' },
   { id: 'representation', label: 'ייצוג', icon: 'rep' },
   { id: 'shaamWarmup', label: 'חיבור לשע״ם', icon: 'shaam' },
@@ -143,6 +148,8 @@ const ACCENT = 'var(--br)';
 export default function FirmProfileConsole({ profile, clients, onSave }: Props) {
   const [draft, setDraft] = useState<FirmProfile>(profile);
   const [section, setSection] = useState<Section>('identity');
+  /** איזה תהליך «תהליכים» פותח — כשמגיעים אליו ממקטע אחר. */
+  const [processKey, setProcessKey] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -642,12 +649,18 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
             <OfficeNotificationsSection profile={draft} onChangeProfile={setDraft} />
           )}
 
+          {section === 'processes' && (
+            <ProcessCatalogSection profile={draft} initialKey={processKey}
+              onOpenSection={id => setSection(id)} />
+          )}
+
           {section === 'paperless' && (
             <PaperlessCommSection profile={draft} onChangeProfile={setDraft} />
           )}
 
           {section === 'representation' && (
-            <RepresentationSettingsSection profile={draft} onChangeProfile={setDraft} />
+            <RepresentationSettingsSection profile={draft} onChangeProfile={setDraft}
+              onOpenProcess={() => { setProcessKey('representation'); setSection('processes'); }} />
           )}
 
           {section === 'shaamWarmup' && (

@@ -17,6 +17,7 @@ import { registeredFileInfo, hasRegisteredSpouseChoice, registeredOwnerOf } from
 import { scopeLines, requestScope, peopleFromClient, shaamSubmissions, partBPartyNames } from '../utils/repScope';
 import { signatureDocumentsOf, signedDocIdFor } from '../utils/repDocuments';
 import { identityRequirements } from '../utils/identityEvidence';
+import { representationInsight, missingIdentityLine, onboardingProgressLine } from '../utils/representationInsight';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
@@ -250,6 +251,8 @@ export default function RepresentationRequestReview({
   }
 
   const onboardingSubmitted = request.onboardingStatus === 'submitted';
+  // 191: מה קרה בקליטה, מה חסר, ואיפה הלקוח יעלה — היטל אחד לכל המסכים.
+  const insight = representationInsight(request, linkedClient, steps);
   const onboardingLink = request.onboardingToken
     ? `${window.location.origin}/?onboard=${request.onboardingToken}`
     : '';
@@ -582,7 +585,7 @@ export default function RepresentationRequestReview({
       </div>
 
       {isNewOnboarding && (
-        <RepresentationNextStep request={request} niIncluded={niIncluded} niCoversSpouse={niCoversSpouse} />
+        <RepresentationNextStep request={request} niIncluded={niIncluded} niCoversSpouse={niCoversSpouse} insight={insight} />
       )}
 
       {/* סטטוס חתימות — נישום + בן/בת זוג */}
@@ -636,6 +639,25 @@ export default function RepresentationRequestReview({
               {idEvidence.length > 0 && (
                 <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem' }}>
                   צילומי תעודות: {idEvidence.map(e => `${e.name} ${e.got ? '✓' : '- טרם התקבל'}`).join(' · ')}
+                </div>
+              )}
+              {/* ‼ 191: הלקוח הגיש בלי צילום — הבקשה אינה «שלמה» עד שיגיע. השורה
+                  אומרת מי חסר, שהלקוח בחר בזה, ואיפה הוא יעלה (או שעדיין לא
+                  רואה את הבקשה — המקרה שבו המשרד ממתין ללקוח שלא יודע שממתינים לו). */}
+              {onboardingSubmitted && missingIdentityLine(insight) && (
+                <div style={{
+                  fontSize: 'var(--fs-12)', color: '#8A4B00', background: '#FFF4E0',
+                  borderRadius: 8, padding: '.45rem .6rem', marginTop: '.4rem', lineHeight: 1.6,
+                }}>
+                  {'⚠'} {missingIdentityLine(insight)}
+                </div>
+              )}
+              {/* ‼ 191: לפני ההגשה — עד איפה הלקוח הגיע. «הקישור טרם נפתח» הוא
+                  תשובה שונה מ«שמר עד שלב 3 לפני 5 ימים»: הראשונה אומרת לשלוח
+                  שוב, השנייה אומרת שהלקוח נתקע במשהו. */}
+              {!onboardingSubmitted && request.status === 'pending_fill' && (
+                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem' }}>
+                  {'⏱'} {onboardingProgressLine(insight)}
                 </div>
               )}
               {/* ‼ הלקוח לא ידע את פרטי בן/בת הזוג ומסר לו/ה קישור להשלמה (149).

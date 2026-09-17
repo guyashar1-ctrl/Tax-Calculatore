@@ -100,6 +100,8 @@ interface Props {
   repStatusLabel?: string;
   /** אותו מצב, גולמי — כדי לגזור ממנו את הפעולה עצמה ולא רק את שמו. */
   repStatus?: RepresentationStatus;
+  /** 191: שורה אחת על הקליטה — עד איפה הלקוח הגיע / צילום תעודה שחסר. */
+  repNote?: string;
   /** קפיצה למרכז הייצוג — המסך שבו העבודה באמת נעשית. */
   onOpenRepresentation?: () => void;
   /** מעבר ללשונית המסמכים — משם ניגשים למה שהרו"ח הקודם שלח. */
@@ -308,7 +310,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 
 export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
-  prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, onOpenRepresentation,
+  prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, repNote, onOpenRepresentation,
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, ballFilter, onOpenTaxFile,
   niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent,
@@ -1258,6 +1260,7 @@ export default function OnboardingTab({
                     highlight={highlightStepId === step.id}
                     statusLabel={repStatusLabel}
                     repStatus={repStatus}
+                    repNote={repNote}
                     onOpen={onOpenRepresentation}
                     menu={menu}
                   />
@@ -2973,12 +2976,13 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
 // מה שכן יש: הדלת למרכז הייצוג, כי משם עושים את העבודה — וגיא צדק שלא
 // הגיוני לצאת למסך הלקוחות כדי למצוא אותה.
 
-function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, onOpen, menu }: {
+function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, onOpen, menu }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
   statusLabel?: string;
   repStatus?: RepresentationStatus;
+  repNote?: string;
   onOpen?: () => void;
   menu: React.ReactNode;
 }) {
@@ -2999,6 +3003,12 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
           : open ? 'הבדיקה, החתימה וההגשה נעשות במרכז הייצוג.'
             : 'הייצוג הושלם. הפירוט המלא - במרכז הייצוג.'}
       </div>
+      {/* 191: עד איפה הלקוח הגיע בקליטה, או צילום תעודה שחסר אחרי ההגשה. */}
+      {open && repNote && (
+        <div style={{ ...cardNote, color: repNote.startsWith('חסר') ? '#8A4B00' : undefined }}>
+          {repNote.startsWith('חסר') ? '⚠ ' : '⏱ '}{repNote}
+        </div>
+      )}
       {onOpen && (
         <div style={{ marginTop: '.55rem' }}>
           <button type="button"

@@ -63,6 +63,9 @@ const PUBLIC_SURFACE = new Set([
   // 165 (הסשן המקביל): קישור-משתתף לתנאי-קדם — token מאומת ב-request_participant_links
   // (לא נמצא/בוטל/פג/כבר הוגש), אותו דפוס בדיוק כמו שאר המשטח הציבורי כאן.
   'get_participant_form', 'participant_submit_prerequisites',
+  // 191: שמירת שלב בטופס הקליטה ו«הקישור נפתח» — נפתרים מטוקן הקליטה בלבד,
+  // כותבים רק identification.draft ורק כל עוד הבקשה ב-pending_fill.
+  'save_onboarding_step', 'touch_onboarding',
 ]);
 
 async function cleanup() {

@@ -13,6 +13,7 @@ import {
   FAMILY_STATUS_YEAR_LABELS,
   AuthorityRepresentations,
   RepTarget,
+  OnboardingDraft,
 } from '../types';
 import { shaamSubmissions, type ScopePeople } from '../utils/repScope';
 import {
@@ -25,6 +26,7 @@ import SignaturePad from './SignaturePad';
 import { isValidIsraeliId } from '../utils/israeliId';
 import { isValidEmail } from '../utils/email';
 import EmailInput from './ui/EmailInput';
+import { customerProcessMap } from '../lib/representationJourney';
 
 interface Props {
   token: string;
@@ -45,6 +47,10 @@ interface OnboardingInfo {
   niIncluded: boolean;
   /** ההיקף שהתבקש — קובע ממי מבקשים צילום תעודה. */
   scope?: AuthorityRepresentations;
+  /** הטיוטה שנשמרה במעבר שלב (191) — ממנה הטופס חוזר לאותו מקום. */
+  draft: OnboardingDraft;
+  /** בן/בת הזוג כבר קיבל/ה קישור להשלמה עצמית (149) — נזכר גם אחרי רענון. */
+  spouseFill: { requestedAt?: string; submittedAt?: string; token?: string };
 }
 
 // הקישור הזה מסיים בבקשת הייצוג בלבד. שאלון ההיכרות נשלח בנפרד מכרטיס הלקוח
@@ -102,10 +108,18 @@ export default function OnboardingPage({ token }: Props) {
   //   מאמצעי הזיהוי שנבחר. ראה utils/identityEvidence.
   const [idDocs, setIdDocs] = useState<IdentityDocsMap>({});
   const [uploading, setUploading] = useState<RepTarget | null>(null);
+  // ── «אין לי את זה זמין כרגע» ─────────────────────────────────────────────
+  // ‼ בחירה מפורשת לכל אדם, לא ברירת מחדל: הצילום עדיין נדרש, רק לא עכשיו.
+  //   מי שנדחה מקבל פריט העלאה בדף האישי, והמשרד רואה שחסר. ראה מיגרציה 191.
+  const [idDeferred, setIdDeferred] = useState<Partial<Record<RepTarget, boolean>>>({});
 
   const [signature, setSignature] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** הטופס נפתח על טיוטה שמורה — מציגים «ממשיכים מאיפה שעצרתם» פעם אחת. */
+  const [resumed, setResumed] = useState(false);
+  /** אישור קצר אחרי שמירה במעבר שלב — נעלם לבד. */
+  const [savedFlash, setSavedFlash] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,6 +133,8 @@ export default function OnboardingPage({ token }: Props) {
       }
       const st: string = row.status || 'pending_fill';
       const prefill: OnboardingPrefill = row.prefill || {};
+      const draft: OnboardingDraft = (row.draft && typeof row.draft === 'object') ? row.draft : {};
+      const spouseFill = (row.spouse_fill && typeof row.spouse_fill === 'object') ? row.spouse_fill : {};
       setInfo({
         clientName: row.client_name || '',
         firmName: row.firm_name || 'המשרד',
@@ -133,6 +149,8 @@ export default function OnboardingPage({ token }: Props) {
         knownEmail: row.known_email || '',
         niIncluded: !!row.ni_included,
         scope: (row.scope || {}) as AuthorityRepresentations,
+        draft,
+        spouseFill,
       });
       setIdDocs((row.identity_docs || {}) as IdentityDocsMap);
       // מה שהרו"ח כבר מילא (או שכבר רשום בכרטיס) נכנס כערך פתיחה; מה שלא —
@@ -148,6 +166,40 @@ export default function OnboardingPage({ token }: Props) {
       setSpouseLastName(prefill.spouseLastName || spParts.slice(1).join(' ') || '');
       if (prefill.spouseIdNumber) setSpouseIdNumber(prefill.spouseIdNumber);
       if (prefill.spouseBirthYear) setSpouseBirthYear(String(prefill.spouseBirthYear));
+
+      // ── מה שהלקוח עצמו כבר שמר גובר על כל זריעה (191) ──────────────────
+      // ‼ הטיוטה היא של הלקוח — הוא הקליד, הוא המקור. חוזרים לשלב שאחרי
+      //   האחרון שנשמר, כדי שלא יצטרך ללחוץ «המשך» על מה שכבר מילא.
+      const v = draft.values ?? {};
+      if (v.firstName) setFirstName(v.firstName);
+      if (v.lastName) setLastName(v.lastName);
+      if (v.idNumber) setIdNumber(v.idNumber);
+      if (v.birthDate) setBirthDate(v.birthDate);
+      if (v.secondaryType) setSecondaryType(v.secondaryType);
+      if (v.secondaryValue) setSecondaryValue(v.secondaryValue);
+      if (v.phone) setPhone(v.phone);
+      if (v.email) setEmail(v.email);
+      if (v.city) setCity(v.city);
+      if (v.address) setAddress(v.address);
+      if (v.familyStatus) setFamilyStatus(v.familyStatus);
+      if (v.familyStatusYear) setFamilyYear(String(v.familyStatusYear));
+      if (v.spouseFirstName) setSpouseFirstName(v.spouseFirstName);
+      if (v.spouseLastName) setSpouseLastName(v.spouseLastName);
+      if (v.spouseIdNumber) setSpouseIdNumber(v.spouseIdNumber);
+      if (v.spouseBirthYear) setSpouseBirthYear(String(v.spouseBirthYear));
+      if (v.spouseBirthDate) setSpouseBirthDate(v.spouseBirthDate);
+      if (v.spouseSecondaryType) setSpouseSecondaryType(v.spouseSecondaryType);
+      if (v.spouseSecondaryValue) setSpouseSecondaryValue(v.spouseSecondaryValue);
+      const savedStep = Number(draft.step ?? 0) || 0;
+      if (savedStep >= 1 && st === 'pending_fill' && !row.already_submitted) {
+        setStep(Math.min(savedStep + 1, 4));
+        setResumed(true);
+      }
+      // הקישור לבן/בת הזוג נזכר: מי שכבר מסר לא מתבקש למלא במקומו/ה.
+      if (spouseFill.requestedAt && spouseFill.token) {
+        setSpouseLink(`${window.location.origin}/?spousefill=${spouseFill.token}`);
+      }
+
       // בזרימת החתימה החדשה (יש הגדרת PDF) — החתימה נעשית בקישור האישי, לא כאן.
       if (st === 'pending_signature' && row.has_setup) setPhase('signLinkSent');
       else if (st === 'pending_signature' && !row.already_signed) setPhase('sign');
@@ -155,10 +207,20 @@ export default function OnboardingPage({ token }: Props) {
       else if (row.already_submitted || row.already_signed || ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(st)) {
         setPhase(row.already_signed ? 'signed' : 'submitted');
       }
-      else setPhase('form');
+      else {
+        setPhase('form');
+        // «הקישור נפתח» — למשרד. לא חוסם ולא מוצג ללקוח; כישלון שקט.
+        void supabase.rpc('touch_onboarding', { p_token: token });
+      }
     })();
     return () => { cancelled = true; };
   }, [token]);
+
+  useEffect(() => {
+    if (!savedFlash) return;
+    const t = setTimeout(() => setSavedFlash(false), 2200);
+    return () => clearTimeout(t);
+  }, [savedFlash]);
 
   // עיצוב אחיד — אותם טוקנים של עמוד ההצעה, כדי שהמראה יהיה זהה בשני העמודים
   const brand = deriveQuotationBrand({
@@ -200,6 +262,44 @@ export default function OnboardingPage({ token }: Props) {
     ...(spouseSub ? { spouse: spouseSecondaryType } : {}),
   }).filter(r => !(spouseDelegated && r.person === 'spouse'));
   const idMissing = missingIdentity(idRequirements, idDocs);
+  /** מי חסר *ולא* נדחה — רק אלה חוסמים את השליחה. */
+  const idBlocking = idMissing.filter(r => !idDeferred[r.person]);
+  /** מי נדחה ועדיין חסר — מה שנשלח לשרת ומה שמופיע במסך הסיום. */
+  const idDeferredPersons = idMissing.filter(r => !!idDeferred[r.person]).map(r => r.person);
+
+  /**
+   * שמירת השלב בשרת — במעבר «המשך» בלבד (191). כותב רק את שדות השלב;
+   * השרת מאמת שוב ודוחה מפתח זר. כישלון עוצר את המעבר: לא ממשיכים על
+   * טיוטה שלא נשמרה, אחרת הלקוח חושב שנשמר ויוצא.
+   */
+  async function saveStep(s: number): Promise<boolean> {
+    const values: Record<string, string | number> =
+      s === 1 ? { firstName, lastName, idNumber, birthDate, secondaryType, secondaryValue }
+      : s === 2 ? { phone, email, city, address }
+      : {
+        familyStatus, familyStatusYear: familyYear,
+        ...(familyStatus === 'married' ? {
+          spouseFirstName, spouseLastName, spouseIdNumber,
+          spouseBirthYear: spouseSub ? '' : spouseBirthYear,
+          spouseBirthDate: spouseSub && !spouseDelegated ? spouseBirthDate : '',
+          spouseSecondaryType: spouseSub && !spouseDelegated ? spouseSecondaryType : '',
+          spouseSecondaryValue: spouseSub && !spouseDelegated ? spouseSecondaryValue : '',
+        } : {}),
+      };
+    const clean: Record<string, string | number> = {};
+    for (const [k, v] of Object.entries(values)) clean[k] = typeof v === 'string' ? v.trim() : v;
+    const { data, error: e } = await supabase.rpc('save_onboarding_step', { p_token: token, p_step: s, p_values: clean });
+    if (e || !data?.ok) {
+      const code = data?.error;
+      setError(
+        code === 'already_submitted' ? 'הפרטים כבר נשלחו מקישור זה. אם נדרש תיקון - פנו למשרד.'
+          : code === 'invalid_value' ? 'אחד הפרטים לא התקבל בשרת. בדקו את מה שהוזן ונסו שוב.'
+            : 'לא הצלחנו לשמור את הפרטים. בדקו את החיבור לאינטרנט ונסו שוב.',
+      );
+      return false;
+    }
+    return true;
+  }
 
   /**
    * פותח לבן/בת הזוג קישור משלו/ה להשלמת הפרטים שלו/ה.
@@ -274,10 +374,11 @@ export default function OnboardingPage({ token }: Props) {
       if (!address.trim()) return 'יש להזין כתובת (רחוב ומספר)';
     }
     if (s === 4) {
-      // ‼ חוסם את ההגשה: הרשויות דורשות את התעודה עצמה, ובלעדיה הבקשה לא
-      // תיקלט. השגיאה נוקבת בשם — "יש לצרף צילום" סתמי שולח לחפש איפה.
-      const m = missingIdentity(idRequirements, idDocs);
-      if (m.length) return `יש לצרף ${m[0].prompt} של ${m[0].personName}`;
+      // ‼ הצילום נדרש, אבל אינו חייב להיות ביד עכשיו (191): מי שבחר «אעלה
+      // מאוחר יותר» עובר, והצילום נדרש ממנו בדף האישי. מי שלא בחר — חסום,
+      // והשגיאה נוקבת בשם: "יש לצרף צילום" סתמי שולח לחפש איפה.
+      const m = missingIdentity(idRequirements, idDocs).filter(r => !idDeferred[r.person]);
+      if (m.length) return `יש לצרף ${m[0].prompt} של ${m[0].personName} - או לסמן שתעלו אותו מאוחר יותר`;
     }
     if (s === 3) {
       if (!familyStatus) return 'יש לבחור מצב משפחתי';
@@ -312,11 +413,17 @@ export default function OnboardingPage({ token }: Props) {
     return null;
   }
 
-  function handleNext() {
+  async function handleNext() {
     const v = validateStep(step);
     if (v) { setError(v); return; }
     setError(null);
-    if (step >= lastStep) { handleSubmit(); return; }
+    if (step >= lastStep) { void handleSubmit(); return; }
+    // ‼ שמירה לפני המעבר — זו נקודת העמידות של הטופס (191).
+    setBusy(true);
+    const saved = await saveStep(step);
+    setBusy(false);
+    if (!saved) return;
+    setSavedFlash(true);
     setStep(step + 1);
   }
 
@@ -352,9 +459,14 @@ export default function OnboardingPage({ token }: Props) {
         ? (spouseSub && spouseBirthDate ? Number(spouseBirthDate.slice(0, 4))
             : spouseBirthYear.trim() ? Number(spouseBirthYear) : null)
         : null,
-      p_spouse_birth_date: familyStatus === 'married' && spouseSub ? (spouseBirthDate || null) : null,
-      p_spouse_secondary_type: familyStatus === 'married' && spouseSub ? spouseSecondaryType : null,
-      p_spouse_secondary_value: familyStatus === 'married' && spouseSub ? (spouseSecondaryValue.trim() || null) : null,
+      // ‼ נמסר לבן/בת הזוג ⇒ לא שולחים את ערכי הזיהוי שלו/ה מכאן: הם כבר
+      //   (או עוד) נכתבים מהקישור שלו/ה, וברירת המחדל של הבורר כאן הייתה
+      //   דורסת את מה שהוא/היא בחר/ה.
+      p_spouse_birth_date: familyStatus === 'married' && spouseSub && !spouseDelegated ? (spouseBirthDate || null) : null,
+      p_spouse_secondary_type: familyStatus === 'married' && spouseSub && !spouseDelegated ? spouseSecondaryType : null,
+      p_spouse_secondary_value: familyStatus === 'married' && spouseSub && !spouseDelegated ? (spouseSecondaryValue.trim() || null) : null,
+      // 191: מי בחר/ה להעלות את צילום התעודה מאוחר יותר — נדרש בדף האישי.
+      p_identity_deferred: idDeferredPersons,
     });
     if (error || data === false) {
       setError('השליחה לא הצליחה. נסו שוב, ואם זה חוזר - פנו למשרד.');
@@ -452,12 +564,19 @@ export default function OnboardingPage({ token }: Props) {
               לרשויות → ייצוג פעיל. אין הגשה לרשויות לפני החתימה. */}
           <div style={{ background: accent, color: '#fff', borderRadius: '10px 10px 0 0', padding: '13px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 17, fontWeight: 600 }}>
-              {info?.niIncluded ? 'עוד לא סיימנו - נשארו שתי פעולות' : 'עוד לא סיימנו - נשארה פעולה אחת'}
+              {(() => {
+                const n = 1 + (info?.niIncluded ? 1 : 0) + (idDeferredPersons.length > 0 ? 1 : 0);
+                return n === 1 ? 'עוד לא סיימנו - נשארה פעולה אחת'
+                  : n === 2 ? 'עוד לא סיימנו - נשארו שתי פעולות'
+                    : 'עוד לא סיימנו - נשארו שלוש פעולות';
+              })()}
             </div>
             <div style={{ fontSize: 13, fontWeight: 500, opacity: .92, marginTop: 3 }}>
-              {info?.niIncluded
-                ? 'קישור החתימה יגיע בשעות הקרובות, ואישור הביטוח הלאומי - אחרי שנגיש'
-                : 'נשלח לכם קישור אישי לחתימה, בשעות הקרובות'}
+              {idDeferredPersons.length > 0
+                ? 'צילום התעודה ממתין בדף האישי, וקישור החתימה יגיע בשעות הקרובות'
+                : info?.niIncluded
+                  ? 'קישור החתימה יגיע בשעות הקרובות, ואישור הביטוח הלאומי - אחרי שנגיש'
+                  : 'נשלח לכם קישור אישי לחתימה, בשעות הקרובות'}
             </div>
           </div>
           <div style={{ border: `2px solid ${accent}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '16px', marginBottom: 20 }}>
@@ -472,10 +591,16 @@ export default function OnboardingPage({ token }: Props) {
               {email.trim() || info?.knownEmail || '-'}
             </div>
 
-            <NextAction n={1} title="חתימה על ייפוי הכוח" tone={accent}
+            {/* ‼ צילום שנדחה (191): פעולה ראשונה, לפני החתימה — כי בלעדיו המשרד
+                לא יגיש. מוצג רק למי שבחר, ואומר איפה מעלים: הדף האישי. */}
+            {idDeferredPersons.length > 0 && (
+              <NextAction n={1} title="צילום התעודה - כשיהיה זמין" tone="#8A4B00"
+                text={`${idDeferredPersons.map(p => idRequirements.find(r => r.person === p)?.personName).filter(Boolean).join(' ו-')}: הצילום ממתין להעלאה בדף האישי שלכם, תחת «מסמכים שביקשנו». אפשר להעלות משם בכל רגע, גם מהטלפון.`} />
+            )}
+            <NextAction n={idDeferredPersons.length > 0 ? 2 : 1} title="חתימה על ייפוי הכוח" tone={accent}
               text="חתימה דיגיטלית בלחיצה, גם מהטלפון. אחרי החתימה נגיש את בקשת הייצוג לרשויות." />
             {info?.niIncluded && (
-              <NextAction n={2} title="אישור בביטוח הלאומי" tone="#C2410C"
+              <NextAction n={idDeferredPersons.length > 0 ? 3 : 2} title="אישור בביטוח הלאומי" tone="#C2410C"
                 text="אחרי ההגשה נשלח לכם מספר אסמכתא. מאשרים באתר הביטוח הלאומי או בטלפון - לוקח כדקה." />
             )}
 
@@ -593,14 +718,14 @@ export default function OnboardingPage({ token }: Props) {
   /**
    * מפת התהליך כולו. מוצגת בכניסה ובסיום — הלקוח צריך לדעת מראש שיגיע אליו
    * מייל נוסף, אחרת הוא חושב שסיים ולא פותח אותו, והייצוג נתקע.
+   * ‼ M2: נגזרת מאותה הגדרת תהליך שהמשרד רואה ב«תהליכים» (customerProcessMap),
+   *   ולכן אותו סדר ואותן אבני-דרך — רק בלי שלבי המשרד. ביטוח לאומי מופיע
+   *   כשהוא כלול.
    */
   function ProcessMap({ current }: { current: 1 | 2 }) {
-    const steps = [
-      { n: 1, title: 'הפרטים שלכם', text: 'ממלאים כאן - וזהו' },
-      { n: 2, title: 'חתימה על ייפוי הכוח', text: 'נשלח לכם קישור אישי. חותמים בלחיצה, גם מהטלפון.' },
-      { n: 3, title: 'אנחנו מגישים לרשויות', text: 'אחרי החתימה אנחנו פותחים עבורכם בקשת ייצוג מול הרשויות' },
-      { n: 4, title: 'הייצוג פעיל', text: 'מרגע שהרשויות מאשרות, אנחנו מטפלים בכל עבורכם.' },
-    ];
+    const steps = customerProcessMap({ niIncluded: !!info?.niIncluded })
+      .map((m, i) => ({ n: i + 1, title: m.title, text: m.text }));
+    const last = steps.length;
     return (
       <div style={{ background: '#F7F6F3', borderRadius: 10, padding: '14px 15px', marginBottom: 24 }}>
         <div style={{ fontSize: 11.5, letterSpacing: '.06em', color: '#9A9A95', marginBottom: 11 }}>איך זה עובד</div>
@@ -608,7 +733,7 @@ export default function OnboardingPage({ token }: Props) {
           const done = s.n < current;
           const now = s.n === current;
           return (
-            <div key={s.n} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', paddingBottom: s.n < 4 ? 10 : 0 }}>
+            <div key={s.n} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', paddingBottom: s.n < last ? 10 : 0 }}>
               <div style={{
                 flex: '0 0 auto', width: 19, height: 19, borderRadius: '50%', marginTop: 1,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -636,9 +761,32 @@ export default function OnboardingPage({ token }: Props) {
       <div style={card}>
         <Header />
         <Progress />
-        <div style={{ fontSize: 11, letterSpacing: '.08em', color: '#9A9A95', marginBottom: 8 }}>
-          שלב {step} מתוך {lastStep} · {stepTitles[step - 1]}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, letterSpacing: '.08em', color: '#9A9A95' }}>
+            שלב {step} מתוך {lastStep} · {stepTitles[step - 1]}
+          </div>
+          {/* ‼ אישור קצר אחרי «המשך»: השמירה קרתה בשרת, לא רק במסך. */}
+          <span aria-live="polite" style={{
+            marginInlineStart: 'auto', fontSize: 11.5, color: '#2E7D53',
+            opacity: savedFlash ? 1 : 0, transition: 'opacity .3s',
+          }}>{'✓'} נשמר</span>
         </div>
+
+        {/* ‼ חזרה לטופס שנשמר (191): אומרים במפורש שהפרטים נשמרו ושממשיכים
+            מאותה נקודה — אחרת לקוח שרואה שלב 3 חושב שהמערכת "דילגה" לו. */}
+        {resumed && step > 1 && (
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16,
+            padding: '10px 12px', borderRadius: 9, border: '1px solid #CFE3D4', background: '#F5FAF6',
+          }}>
+            <span style={{ color: '#2E7D53', marginTop: 1 }}>{'✓'}</span>
+            <span style={{ fontSize: 12.5, lineHeight: 1.55, color: '#1f3d2b' }}>
+              <strong>ממשיכים מאיפה שעצרתם.</strong> הפרטים שמילאתם נשמרו; אפשר לחזור אחורה ולתקן.
+            </span>
+            <button type="button" onClick={() => setResumed(false)} aria-label="סגירה"
+              style={{ marginInlineStart: 'auto', border: 'none', background: 'transparent', color: '#6B6B68', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>×</button>
+          </div>
+        )}
 
         {step === 1 && (
           <>
@@ -947,11 +1095,12 @@ export default function OnboardingPage({ token }: Props) {
             {idRequirements.map(r => {
               const have = idDocs[r.person] ?? [];
               const busyMe = uploading === r.person;
+              const deferred = !have.length && !!idDeferred[r.person];
               return (
                 <div key={r.person} style={{
                   marginBottom: 14, padding: '14px 14px 12px', borderRadius: 10,
-                  border: `1px solid ${have.length ? '#CFE3D4' : '#E3E2DD'}`,
-                  background: have.length ? '#F5FAF6' : '#fff',
+                  border: `1px solid ${have.length ? '#CFE3D4' : deferred ? '#EAD9B8' : '#E3E2DD'}`,
+                  background: have.length ? '#F5FAF6' : deferred ? '#FFFBF2' : '#fff',
                 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#111', marginBottom: 2 }}>
                     {r.prompt}
@@ -967,33 +1116,67 @@ export default function OnboardingPage({ token }: Props) {
                     </div>
                   ))}
 
-                  <label style={{
-                    display: 'inline-block', cursor: busyMe ? 'default' : 'pointer',
-                    border: `1px solid ${ink}`, borderRadius: btnRadius, padding: '9px 16px',
-                    fontSize: 13.5, color: ink, opacity: busyMe ? 0.6 : 1,
-                  }}>
-                    {busyMe ? 'מעלה…' : have.length ? 'צירוף צילום נוסף' : `${'\u{1F4F7}'} צילום או קובץ`}
-                    {/* capture — בטלפון נפתחת המצלמה ישירות, במחשב בוחר קובץ */}
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      capture="environment"
-                      disabled={busyMe}
-                      style={{ display: 'none' }}
-                      onChange={e => {
-                        const f = e.target.files?.[0];
-                        e.target.value = '';
-                        if (f) void uploadIdDoc(r, f);
-                      }}
-                    />
-                  </label>
+                  {deferred ? (
+                    /* ‼ דחייה היא בחירה, לא שגיאה: צבע חם ולא אדום, ומשפט שאומר
+                       מה קורה הלאה ואיפה — הדף האישי. ביטול בלחיצה אחת. */
+                    <div style={{ fontSize: 12.5, color: '#6B5A2E', lineHeight: 1.6 }}>
+                      <div style={{ fontWeight: 600, color: '#5C4A1E', marginBottom: 2 }}>
+                        {'🕒'} נעלה מאוחר יותר
+                      </div>
+                      הצילום יופיע ברשימת המסמכים בדף האישי שלכם, ואפשר להעלות אותו משם בכל רגע - גם מהטלפון.
+                      <div style={{ marginTop: 8 }}>
+                        <button type="button"
+                          onClick={() => setIdDeferred(prev => ({ ...prev, [r.person]: false }))}
+                          style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+                            fontSize: 12.5, color: ink, textDecoration: 'underline', font: 'inherit' }}>
+                          בכל זאת יש לי - לצרף עכשיו
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <label style={{
+                        display: 'inline-block', cursor: busyMe ? 'default' : 'pointer',
+                        border: `1px solid ${ink}`, borderRadius: btnRadius, padding: '9px 16px',
+                        fontSize: 13.5, color: ink, opacity: busyMe ? 0.6 : 1,
+                      }}>
+                        {busyMe ? 'מעלה…' : have.length ? 'צירוף צילום נוסף' : `${'\u{1F4F7}'} צילום או קובץ`}
+                        {/* capture — בטלפון נפתחת המצלמה ישירות, במחשב בוחר קובץ */}
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          capture="environment"
+                          disabled={busyMe}
+                          style={{ display: 'none' }}
+                          onChange={e => {
+                            const f = e.target.files?.[0];
+                            e.target.value = '';
+                            if (f) void uploadIdDoc(r, f);
+                          }}
+                        />
+                      </label>
+                      {/* ── מוצא, ולא קיר (191) ─────────────────────────────────
+                          ‼ מי שאין לו את התעודה ביד לא צריך לאבד את מה שמילא.
+                          הבחירה מפורשת ולכל אדם בנפרד; המשרד רואה שחסר. */}
+                      {!have.length && (
+                        <div style={{ marginTop: 10 }}>
+                          <button type="button" disabled={busyMe}
+                            onClick={() => { setError(null); setIdDeferred(prev => ({ ...prev, [r.person]: true })); }}
+                            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+                              fontSize: 12.5, color: '#6B6B68', textDecoration: 'underline', font: 'inherit' }}>
+                            אין לי את המסמך זמין כרגע - אעלה אותו מאוחר יותר
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               );
             })}
 
-            {idMissing.length > 0 && idRequirements.length > 1 && (
+            {idBlocking.length > 0 && idRequirements.length > 1 && (
               <div style={{ fontSize: 12.5, color: '#6B6B68', marginTop: 4, marginBottom: 18 }}>
-                נשאר לצרף: {idMissing.map(m => m.personName).join(', ')}
+                נשאר לצרף: {idBlocking.map(m => m.personName).join(', ')}
               </div>
             )}
           </>
@@ -1001,7 +1184,10 @@ export default function OnboardingPage({ token }: Props) {
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, background: '#F7F6F3', borderRadius: 9, padding: '10px 12px', marginBottom: 22 }}>
           <span style={{ color: accent, marginTop: 1 }}>{'\u{1F6E1}'}</span>
-          <span style={{ fontSize: 11.5, lineHeight: 1.5, color: '#6B6B68' }}>הפרטים מוצפנים ומשמשים אך ורק להקמת הייצוג מול רשויות המס. לא יועברו לאף גורם אחר.</span>
+          <span style={{ fontSize: 11.5, lineHeight: 1.5, color: '#6B6B68' }}>
+            הפרטים מוצפנים ומשמשים אך ורק להקמת הייצוג מול רשויות המס. לא יועברו לאף גורם אחר.
+            {' '}כל שלב נשמר בלחיצה על «המשך» - אפשר לסגור ולחזור לקישור הזה בכל זמן.
+          </span>
         </div>
 
         {error && (
@@ -1018,7 +1204,7 @@ export default function OnboardingPage({ token }: Props) {
           )}
           <button type="button" onClick={handleNext} disabled={busy}
             style={{ flex: 1, ...ctaStyle, borderRadius: btnRadius, padding: 13, fontSize: 14.5, fontWeight: 600, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1 }}>
-            {busy ? 'שולח…' : step >= lastStep ? 'שליחת הפרטים' : 'המשך'}
+            {busy ? (step >= lastStep ? 'שולח…' : 'שומר…') : step >= lastStep ? 'שליחת הפרטים' : 'המשך'}
           </button>
         </div>
 
