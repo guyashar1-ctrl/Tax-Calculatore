@@ -141,6 +141,11 @@ interface Props {
    * באו — כדי שהחזרה תנחת בהקשר המקורי. `tick` משתנה בכל בקשה.
    */
   detailedAlignment?: { key: InstitutionKey | null; origin: 'taxfile' | 'journey'; tick: number };
+  /**
+   * הבקשה טופלה — המארח מאפס אותה. ‼ בלי זה, כל חזרה ללשונית הבקשות הייתה
+   * מרכיבה את הרכיב מחדש ופותחת שוב את אותו מסך מלא.
+   */
+  onDetailedAlignmentConsumed?: () => void;
 }
 
 /**
@@ -323,7 +328,7 @@ export default function OnboardingTab({
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, ballFilter, onOpenTaxFile,
   niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent,
-  spouseClient, onOpenSpouseClient, detailedAlignment,
+  spouseClient, onOpenSpouseClient, detailedAlignment, onDetailedAlignmentConsumed,
 }: Props) {
   // ‼ 157: "שלח הוראות אישור" — נפתח מכרטיס «ייצוג ברשות» באותו דיאלוג
   // שמשמש את תיק המס (NiInstructionsDialog). אין דיאלוג נפרד לכל כניסה.
@@ -386,6 +391,7 @@ export default function OnboardingTab({
     // ‼ יש שלב למוסד המבוקש ⇒ ישר למסך המלא שלו; אין ⇒ הכרטיס עם הרשימה
     // (ו«התחל», אם עוד לא נוצרו שלבים). לא יוצרים שלבים מעצם הצפייה.
     if (target) setFocusedInstitutionKey(detailedAlignment.key);
+    onDetailedAlignmentConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailedTick]);
   const openDetailedFor = (authority: TaxAuthority) => {

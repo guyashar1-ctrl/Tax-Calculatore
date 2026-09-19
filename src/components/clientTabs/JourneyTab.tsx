@@ -82,6 +82,7 @@ interface Props {
   onOpenSpouseClient?: (clientId: string) => void;
   /** בקשה מתיק המס לפתוח «תצוגה מפורטת» של מוסד — ראה OnboardingTab. */
   detailedAlignment?: { key: InstitutionKey | null; origin: 'taxfile' | 'journey'; tick: number };
+  onDetailedAlignmentConsumed?: () => void;
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
   onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
@@ -369,6 +370,7 @@ export default function JourneyTab(p: Props) {
           spouseClient={p.spouseClient}
           onOpenSpouseClient={p.onOpenSpouseClient}
           detailedAlignment={p.detailedAlignment}
+          onDetailedAlignmentConsumed={p.onDetailedAlignmentConsumed}
           onUpdateClientFields={p.onUpdateClientFields}
           onNiInstructionsSent={p.onNiInstructionsSent}
           onRequestAuthorityRepresentation={p.onRequestAuthorityRepresentation}

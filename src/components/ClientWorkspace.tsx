@@ -885,6 +885,7 @@ export default function ClientWorkspace({
             spouseClient={spouseClient}
             onOpenSpouseClient={onOpenClient}
             detailedAlignment={detailedAlignment}
+            onDetailedAlignmentConsumed={() => setDetailedAlignment(d => (d.tick === 0 ? d : { ...d, tick: 0 }))}
           />
         )}
 
