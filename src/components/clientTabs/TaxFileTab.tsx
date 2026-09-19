@@ -34,7 +34,6 @@ import type { AutomationJob } from '../../types/automation';
 import NiNextActionButton from '../NiNextActionButton';
 import { shaamRepresentationAction } from '../../features/taxFile/shaamRepresentationAction';
 import { jobIsLive } from '../../lib/automationJobs';
-import { useShaamReadiness } from '../../hooks/shaamReadiness';
 import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
 import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
 import { AuthorityCheckButton, AuthorityCheckSummary, FieldStatusMark, FieldAuthorityLine } from './AuthorityCheckPanel';
@@ -374,12 +373,6 @@ export default function TaxFileTab({
   authorityJobsRef.current = {
     income_tax: jobIncomeTax.job, vat: jobVat.job, national_insurance: jobBtl.job,
   };
-  // ‼ הכרטיס מציג את הסיבה של **היכולת** (קריאת 134 / מע״מ / ב״ל), לא של
-  // המוכנות הגלובלית. הנורית בכותרת ממשיכה לייצג את כל השכבות.
-  // ‼ אותו הוק משרת גם את ב״ל, אבל דרך שכבה נפרדת משלה (`btl`) — סשן ב״ל
-  // אינו מאוחד עם סשן שע״ם, ראה shaamReadiness.tsx.
-  const shaamReadiness = useShaamReadiness();
-
   // ‼ אישור מקובץ — פעם אחת לכרטיס, לא לשדה. ראה approveAuthorityChanges.
   const [approvingAuthority, setApprovingAuthority] = useState<TaxAuthority | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
@@ -1233,8 +1226,8 @@ export default function TaxFileTab({
         <span className="txf-align-meta">
           <span>{alignedAt ? 'יישור קו אחרון: ' + shortDate(alignedAt) : 'טרם בוצע יישור קו'}</span>
           {onRunAlignment && (
-            <button type="button" className="ui-btn ui-btn-sm btn-automation" disabled={alignBusy}
-              aria-busy={alignBusy || undefined} onClick={onRunAlignment}>
+            <button type="button" className="ui-btn ui-btn-sm" disabled={alignBusy}
+              onClick={onRunAlignment}>
               {alignBusy ? 'מעדכן…' : alignedAt ? 'בצע יישור קו מחדש' : 'בצע יישור קו מול הרשויות'}
             </button>
           )}
@@ -1250,8 +1243,8 @@ export default function TaxFileTab({
               ניהול ספרים ואישורים. משם התיק מתעדכן לבד, וכל מה שדורש טיפול יופיע למעלה.
             </p>
             {onRunAlignment && (
-              <button type="button" className="ui-btn btn-automation" disabled={alignBusy}
-                aria-busy={alignBusy || undefined} onClick={onRunAlignment}>
+              <button type="button" className="ui-btn ui-btn-primary" disabled={alignBusy}
+                onClick={onRunAlignment}>
                 {alignBusy ? 'מעדכן…' : 'בצע יישור קו מול הרשויות'}
               </button>
             )}
@@ -1282,16 +1275,15 @@ export default function TaxFileTab({
             const job = spec?.actionType ? (sync?.job ?? null) : null;
             const cardFields = row.facts.map(f => ({ label: f.k, fieldKey: f.syncKey ?? f.btlSyncKey ?? f.editKey }));
             const check = spec ? buildAuthorityCheck(spec, job, client, cardFields) : null;
-            const cap = spec?.capability ? shaamReadiness.capability(spec.capability) : null;
             const inputRes = spec?.buildInput?.(client, spouseClient);
-            // ‼ שני סוגי «לא עכשיו» שנראים אחרת (ראה AuthorityCheckButton):
-            // רשות שהאוטומציה שלה עוד לא נבנתה — מושבת באמת; חיבור שאינו
-            // מוכן או קלט חסר — הכפתור לחיץ ומסביר בהודעה מה צריך קודם.
+            // ‼ שני סוגי «לא עכשיו» (ראה AuthorityCheckButton): רשות שהאוטומציה
+            // שלה עוד לא נבנתה — מושבת באמת; קלט חסר בכרטיס — הלחיצה מסבירה.
+            // חיבור שאינו מוכן אינו «חסימה» בכלל: הכפתור עצמו פותח את
+            // ההתחברות וממשיך (useAutomationGate) — לא כאן.
             const unavailable = spec && !spec.available
               ? (spec.unavailableReason ?? 'האוטומציה עוד לא נבנתה לרשות הזו.') : null;
-            const blocked = !spec || unavailable ? null
+            const inputBlocked = !spec || unavailable ? null
               : inputRes && 'blocked' in inputRes ? inputRes.blocked
-              : cap && !cap.ready ? cap.blockedReason
               : null;
             // ‼ "רץ" רק כשהעובד באמת חי (החכירה בתוקף). עבודה שהעובד שלה מת
             // הציגה "רץ" לנצח וחסמה את הכפתור (ספר הפערים N5).
@@ -1317,8 +1309,8 @@ export default function TaxFileTab({
               action={
                 <>
                   {spec && (
-                    <AuthorityCheckButton label={spec.actionLabel} ready={!blocked} blockedReason={blocked}
-                      running={running} onRun={runCheck} unavailableReason={unavailable} />
+                    <AuthorityCheckButton label={spec.actionLabel} capability={spec.capability ?? ''}
+                      running={running} onRun={runCheck} unavailableReason={unavailable} inputBlockedReason={inputBlocked} />
                   )}
                   {/* ‼ פרק 17: תא הפעולה ההקשרית של שע״ם, מוכן במבנה אך לא
                       מחובר לאוטומציה אמיתית — ראה shaamRepresentationAction
@@ -1526,7 +1518,7 @@ export default function TaxFileTab({
                   approveNotice={approvingAuthority === null ? approveNotice : null}
                   onApprove={() => { if (check) void approveAuthorityChanges(spec, check); }}
                 >
-                  {blocked && !running && <div className="txf-check-note">{blocked}</div>}
+                  {(inputBlocked ?? unavailable) && !running && <div className="txf-check-note">{inputBlocked ?? unavailable}</div>}
                 </AuthorityCheckSummary>
               )}
 

@@ -9,6 +9,7 @@
 import type { ReactNode } from 'react';
 import type { AuthorityCheckResult, AuthorityFieldResult, AuthorityFieldStatus } from '../../features/taxFile/authorityAutomation';
 import { useToast } from '../ui/Toast';
+import { useAutomationGate } from '../../hooks/useAutomationGate';
 
 /** סמן מצב ליד תווית השדה. עיגול קטן אחד; הצבע אומר הכול, בלי מילים. */
 export function FieldStatusMark({ status, title }: { status: AuthorityFieldStatus; title?: string }) {
@@ -51,14 +52,14 @@ export function FieldAuthorityLine({ field, sourceLabel }: { field: AuthorityFie
 
 export interface AuthorityCheckButtonProps {
   label: string;
-  /** החיבור/הקלט שהפעולה צריכה קיימים — לחיצה מריצה. */
-  ready: boolean;
-  /** כשלא מוכן: מה חסר. מוצג בהודעה חולפת בלחיצה, לא חוסם את הכפתור. */
-  blockedReason?: string | null;
+  /** היכולת שהפעולה צריכה (מפתח ב-SHAAM_CAPABILITIES) — ממנה נגזר החיבור. */
+  capability: string;
   running: boolean;
   onRun: () => void;
   /** האוטומציה עוד לא נבנתה לרשות הזו — הכפתור מושבת באמת, עם הסיבה. */
   unavailableReason?: string | null;
+  /** חסר קלט בכרטיס — אין חיבור שיפתור את זה; הלחיצה מסבירה. */
+  inputBlockedReason?: string | null;
 }
 
 /**
@@ -68,24 +69,29 @@ export interface AuthorityCheckButtonProps {
  *
  * ‼ שלושה מצבים, אותה שפה בכל האוטומציות (הכרעת גיא, 19.09.2026):
  *   ורוד מלא   — החיבור לרשות קיים ⇒ לחיצה מריצה.
- *   ורוד בהיר  — החיבור לא קיים (הנורית בכותרת לא ירוקה) או חסר קלט ⇒
- *                 הכפתור **לחיץ**, והלחיצה מקפיצה הודעה מה צריך קודם.
- *                 אין «הכן והמשך»: החיבור נעשה מהכותרת.
+ *   ורוד בהיר  — החיבור לא קיים (הנורית בכותרת לא ירוקה) ⇒ הלחיצה פותחת
+ *                 את ההתחברות, ואחריה הפעולה רצה לבד (useAutomationGate).
+ *                 חסר קלט בכרטיס ⇒ הלחיצה מסבירה מה למלא.
  *   מקווקו     — האוטומציה עוד לא נבנתה ⇒ מושבת באמת.
  */
-export function AuthorityCheckButton({ label, ready, blockedReason, running, onRun, unavailableReason }: AuthorityCheckButtonProps) {
+export function AuthorityCheckButton({ label, capability, running, onRun, unavailableReason, inputBlockedReason }: AuthorityCheckButtonProps) {
   const { showToast } = useToast();
-  const soft = !running && !unavailableReason && !ready;
+  const gate = useAutomationGate(capability);
+  const busy = running || gate.connecting;
+  const soft = !busy && !unavailableReason && (!gate.ready || !!inputBlockedReason);
   const title = running ? 'הקריאה מהרשות רצה…'
+    : gate.connecting ? 'ממתין להתחברות — הבדיקה תרוץ לבד אחריה'
     : unavailableReason ? unavailableReason
-    : soft ? (blockedReason ?? 'יש להתחבר לרשות קודם.')
+    : inputBlockedReason ? inputBlockedReason
+    : soft ? `${gate.blockedReason ?? 'לא מחובר'}${gate.workerOffline ? '' : ' · לחיצה פותחת את ההתחברות'}`
     : label;
+  const onClick = inputBlockedReason ? () => showToast(inputBlockedReason) : () => gate.runOrConnect(onRun);
   return (
-    <button type="button" className={`txf-check-btn btn-automation ${running ? 'is-running' : ''} ${soft ? 'is-soft' : ''}`}
-      disabled={!!unavailableReason || running} aria-busy={running || undefined} title={title} aria-label={title}
-      onClick={soft ? () => showToast(blockedReason ?? 'יש להתחבר לרשות קודם.') : onRun}>
-      <span className="txf-check-ic" aria-hidden="true">{running ? '⋯' : '⟳'}</span>
-      <span className="txf-check-lbl">{running ? 'בודק…' : label}</span>
+    <button type="button" className={`txf-check-btn btn-automation ${busy ? 'is-running' : ''} ${soft ? 'is-soft' : ''}`}
+      disabled={!!unavailableReason || busy} aria-busy={busy || undefined} title={title} aria-label={title}
+      onClick={onClick}>
+      <span className="txf-check-ic" aria-hidden="true">{busy ? '⋯' : '⟳'}</span>
+      <span className="txf-check-lbl">{running ? 'בודק…' : gate.connecting ? 'ממתין לחיבור…' : label}</span>
     </button>
   );
 }

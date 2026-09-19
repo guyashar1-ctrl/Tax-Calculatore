@@ -112,6 +112,11 @@ export const SHAAM_CAPABILITIES: Record<string, ReadinessLayer[]> = {
   'shaam.representation_readiness': ['representation'],
 };
 
+/** לאיזו רשות (ואיזה כפתור בכותרת) שייכת יכולת — לפי השכבות שהיא דורשת. */
+export function capabilityAuthority(name: string): 'shaam' | 'btl' {
+  return SHAAM_CAPABILITIES[name]?.includes('btl') ? 'btl' : 'shaam';
+}
+
 /** מפתח היכולת של קריאת שאילתה 134. */
 export const SHAAM_READ_134 = 'shaam.read_134';
 /** קריאת פרטי תיק מע״מ ממערכת הגבייה. */

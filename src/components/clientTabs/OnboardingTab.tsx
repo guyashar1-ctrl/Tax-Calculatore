@@ -1949,8 +1949,8 @@ export default function OnboardingTab({
                   </div>
                   {(alignSteps.length === 0 || alignDone) && (
                     <div className="ob-card-actions">
-                      <button type="button" className="btn btn-sm btn-automation" disabled={alignBusy}
-                        aria-busy={alignBusy || undefined} onClick={() => void startOrRerunAlignment(alignSteps)}>
+                      <button type="button" className="btn btn-sm btn-secondary" disabled={alignBusy}
+                        onClick={() => void startOrRerunAlignment(alignSteps)}>
                         {alignBusy ? 'מעדכן…' : alignSteps.length === 0 ? 'התחל' : 'בצע מחדש'}
                       </button>
                     </div>

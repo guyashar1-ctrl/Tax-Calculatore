@@ -230,8 +230,8 @@ export default function TaxFileEdit({
                           {sec.fields.some(f => f.authority) && onRunAlignment && (
                             <div className="txe-auth">
                               <span>⟳ הדרך הנכונה לרענן את השדות האלה היא יישור קו.</span>
-                              <button type="button" className="ui-btn ui-btn-sm btn-automation" disabled={alignBusy}
-                                aria-busy={alignBusy || undefined} onClick={onRunAlignment}>
+                              <button type="button" className="ui-linkbtn" disabled={alignBusy}
+                                onClick={onRunAlignment}>
                                 {alignBusy ? 'מעדכן…' : 'בצע יישור קו'}
                               </button>
                             </div>

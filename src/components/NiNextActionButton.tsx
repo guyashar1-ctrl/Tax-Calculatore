@@ -18,8 +18,7 @@ import type { Client, NiTracking, PersonRole } from '../types';
 import type { AutomationJob } from '../types/automation';
 import { BTL_CREATE_REPRESENTATION_ACTION_TYPE, BTL_CHECK_REPRESENTATION_ACTION_TYPE } from '../types/automation';
 import { useAutomationJob } from '../hooks/useAutomationJobs';
-import { useShaamReadiness } from '../hooks/shaamReadiness';
-import { useToast } from './ui/Toast';
+import { useAutomationGate } from '../hooks/useAutomationGate';
 import { niPersons, niPersonIdentity } from '../utils/niPersons';
 import type { NiRepresentationAction } from '../utils/niPersons';
 
@@ -51,8 +50,8 @@ export default function NiNextActionButton({
   const create = useAutomationJob(client.id || undefined, BTL_CREATE_REPRESENTATION_ACTION_TYPE);
   const check = useAutomationJob(client.id || undefined, BTL_CHECK_REPRESENTATION_ACTION_TYPE);
   const [localError, setLocalError] = useState<string | null>(null);
-  const readiness = useShaamReadiness();
-  const { showToast } = useToast();
+  const createGate = useAutomationGate(BTL_CREATE_REPRESENTATION_ACTION_TYPE);
+  const checkGate = useAutomationGate(BTL_CHECK_REPRESENTATION_ACTION_TYPE);
 
   // ‼ אחרי הצלחה, טריגר בשרת (187/190) כבר כתב ל-execution — כאן רק מבקשים
   // מהקורא לרענן, פעם אחת למעבר. הפול של useAutomationJob רץ רק כשהלשונית
@@ -103,16 +102,18 @@ export default function NiNextActionButton({
   const busyLabel = isCheck ? 'בודק…' : 'שולח…';
   const running = hook.busy || job?.status === 'queued' || job?.status === 'running';
   // ‼ אותה שפה כמו AuthorityCheckButton: בלי חיבור ב״ל (הנורית בכותרת לא
-  // ירוקה) הכפתור ורוד בהיר ולחיץ — הלחיצה מקפיצה הודעה להתחבר קודם, ולא
-  // יוצרת משימה שתחכה בשקט לאימות.
-  const cap = readiness.capability(isCheck ? BTL_CHECK_REPRESENTATION_ACTION_TYPE : BTL_CREATE_REPRESENTATION_ACTION_TYPE);
-  const soft = !running && !cap.ready;
+  // ירוקה) הכפתור ורוד בהיר — הלחיצה פותחת את ההתחברות לב״ל, ואחריה
+  // הפעולה רצה לבד (useAutomationGate). לא נוצרת משימה שממתינה בשקט.
+  const gate = isCheck ? checkGate : createGate;
+  const busy = hook.busy || gate.connecting;
+  const soft = !busy && !running && !gate.ready;
   return (
     <>
-      <button type="button" className={`${className} btn-automation ${soft ? 'is-soft' : ''}`} disabled={hook.busy}
-        aria-busy={running || undefined} title={soft ? (cap.blockedReason ?? undefined) : undefined}
-        onClick={soft ? () => showToast(cap.blockedReason ?? 'יש להתחבר לביטוח לאומי קודם.') : () => void run()}>
-        {hook.busy ? busyLabel : action.label}
+      <button type="button" className={`${className} btn-automation ${soft ? 'is-soft' : ''}`} disabled={busy}
+        aria-busy={running || busy || undefined}
+        title={soft ? `${gate.blockedReason ?? 'לא מחובר'}${gate.workerOffline ? '' : ' · לחיצה פותחת את ההתחברות'}` : undefined}
+        onClick={() => gate.runOrConnect(() => void run())}>
+        {hook.busy ? busyLabel : gate.connecting ? 'ממתין לחיבור…' : action.label}
       </button>
       {localError && <div className={errorClassName}>{localError}</div>}
       {/* ‼ שגיאת יצירת ה-job עצמה (לא ריצתו) — בלי זה לחיצה כושלת נראית כאילו לא קרה כלום. */}
