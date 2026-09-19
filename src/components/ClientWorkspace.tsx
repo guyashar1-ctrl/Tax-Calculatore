@@ -26,7 +26,7 @@ import OnboardingTab from './clientTabs/OnboardingTab';
 import TaxFileTab from './clientTabs/TaxFileTab';
 import { currentEngagement, intakeContext, representationState } from '../lib/clientState';
 import { supabase } from '../lib/supabase';
-import type { Engagement, OnboardingEvent, OnboardingStep } from '../types/onboarding';
+import type { Engagement, InstitutionKey, OnboardingEvent, OnboardingStep } from '../types/onboarding';
 import { isStepOpen, stepAwaitsMe } from '../types/onboarding';
 import type { Lead, QuotationKind } from '../types/quotations';
 import type { AdvanceResult } from '../hooks/useOnboarding';
@@ -303,6 +303,8 @@ export default function ClientWorkspace({
    */
   const [creatingRequestKey, setCreatingRequestKey] = useState<string | null>(null);
   const [alignRerunBusy, setAlignRerunBusy] = useState(false);
+  /** «תצוגה מפורטת» שהתבקשה מתיק המס — נמסרת ללשונית הבקשות (ראה OnboardingTab). */
+  const [detailedAlignment, setDetailedAlignment] = useState<{ key: InstitutionKey | null; origin: 'taxfile' | 'journey'; tick: number }>({ key: null, origin: 'journey', tick: 0 });
 
   const db = useDocumentDB();
   const { employees, findEmployee } = useEmployees();
@@ -880,6 +882,9 @@ export default function ClientWorkspace({
             onNiInstructionsSent={onNiInstructionsSent ? () => onNiInstructionsSent(client.id) : undefined}
             onRequestAuthorityRepresentation={onRequestAuthorityRepresentationFromCatalog
               ? (role) => onRequestAuthorityRepresentationFromCatalog(client.id, role) : undefined}
+            spouseClient={spouseClient}
+            onOpenSpouseClient={onOpenClient}
+            detailedAlignment={detailedAlignment}
           />
         )}
 
@@ -902,6 +907,14 @@ export default function ClientWorkspace({
                כי שם חיים מסכי המיקוד לכל מוסד. */
             onRunAlignment={() => void rerunAlignment()}
             alignBusy={alignRerunBusy}
+            /* ‼ «תצוגה מפורטת» — מסכי יישור הקו המלאים חיים בלשונית הבקשות;
+               עוברים לשם עם המוסד המבוקש, והחזרה נוחתת שוב בתיק המס. */
+            onOpenDetailedAlignment={(authority) => {
+              const key: InstitutionKey | null = authority === 'income_tax' ? 'income'
+                : authority === 'vat' ? 'vat' : authority === 'national_insurance' ? 'btl' : null;
+              setDetailedAlignment(d => ({ key, origin: 'taxfile', tick: d.tick + 1 }));
+              setTab('journey');
+            }}
             alignedAt={latestAlignedAt}
             steps={clientOnboardingSteps}
             onCreateTask={(title) => onAddTaskForClient(client.id, title)}

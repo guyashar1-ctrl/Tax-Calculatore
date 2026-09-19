@@ -951,3 +951,6 @@ export default function InstitutionAlignmentGroup({ steps, onOpen }: GroupProps)
 }
 
 export { INSTITUTIONS };
+// ‼ המטא-דאטה של «איפה מוצאים» (where/guide) הוא המקור היחיד גם לעזרת השדה
+// בתצוגה הקומפקטית — ראה features/taxFile/authorityFieldHelp.ts. לא מעתיקים.
+export type { WherePath, HowToGuide, AlignmentField, AlignmentSection, AlignmentException, InstitutionConfig };

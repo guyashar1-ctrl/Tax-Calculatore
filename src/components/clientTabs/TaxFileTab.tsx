@@ -10,18 +10,15 @@
 // מקובלות על הלקוח — המלצה מחושבת מתוך ברירות מחדל הייתה מטעה.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Client, RentalTaxTrack, TaxAuthority, NiOccupation, NiTracking } from '../../types';
-import { FAMILY_STATUS_LABELS, TAX_AUTHORITY_LABELS } from '../../types';
-import type { TaxFactChange, ProposedFact } from '../../types/taxFacts';
+import type { Client, RentalTaxTrack, TaxAuthority, NiTracking } from '../../types';
+import { FAMILY_STATUS_LABELS } from '../../types';
+import type { TaxFactChange } from '../../types/taxFacts';
 import { TAX_FACT_SOURCE_LABELS } from '../../types/taxFacts';
-import { proposeTaxFacts, listPendingTaxFactChanges } from '../../lib/taxFacts';
 import { useTaxFacts } from '../../hooks/useTaxFacts';
 import { shortDate } from '../../utils/clientDerived';
 import { spouseDisplayName, registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from '../../features/annualReport/profile';
-import { getTaxYearData, CURRENT_TAX_YEAR } from '../../data/taxData';
-import { getEligibleSettlements } from '../../data/eligibleSettlements';
+import { getTaxYearData } from '../../data/taxData';
 import { calcCreditPoints } from '../../utils/taxCalculations';
-import { buildAuthorityRows } from '../../utils/authorityRows';
 import {
   EDIT_FIELD_BY_KEY, EDIT_SECTIONS, editFieldValue, coerceEditField, editFieldDisplay,
 } from '../../features/taxFile/editModel';
@@ -29,14 +26,10 @@ import type { EditField, FamilyKey } from '../../features/taxFile/editModel';
 import { LIST_SPECS, cleanList } from '../../features/taxFile/listModel';
 import type { ListKey, ListItem } from '../../features/taxFile/listModel';
 import ListEditor from '../../features/taxFile/ListEditor';
-import { useAutomationJob } from '../../hooks/useAutomationJobs';
-import type { AutomationJob } from '../../types/automation';
+import EditControl from '../../features/taxFile/EditControl';
 import NiNextActionButton from '../NiNextActionButton';
-import { shaamRepresentationAction } from '../../features/taxFile/shaamRepresentationAction';
-import { jobIsLive } from '../../lib/automationJobs';
-import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
-import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
-import { AuthorityCheckButton, AuthorityCheckSummary, FieldStatusMark, FieldAuthorityLine } from './AuthorityCheckPanel';
+import AuthoritiesPanel from '../authorities/AuthoritiesPanel';
+import { TRow, SrcLine } from './taxFileRows';
 import { resolveIncomeTaxHousehold } from '../../utils/personRepresentation';
 import { domainKnowledge, taxReadiness } from '../../utils/taxKnowledge';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
@@ -45,8 +38,6 @@ import { findUnsyncedSession, syncIntakeSession } from '../../lib/intakeSync';
 import type { IntakeSyncResult } from '../../lib/intakeSync';
 import NiInstructionsDialog from '../NiInstructionsDialog';
 import SpouseRelationshipCard from './SpouseRelationshipCard';
-import { OccupationsEditor, newOccupationRow } from './InstitutionAlignment';
-import type { OccupationDraft } from './InstitutionAlignment';
 
 interface Props {
   client: Client;
@@ -79,6 +70,11 @@ interface Props {
    */
   onRunAlignment?: () => void;
   alignBusy?: boolean;
+  /**
+   * «תצוגה מפורטת» — מסך יישור הקו המלא (הקיים ב«בקשות»), לרשות מסוימת או
+   * לכולן. כלי בדיקה זמני בזמן שהאוטומציות נבנות — לא אוטומציה ולא ורוד.
+   */
+  onOpenDetailedAlignment?: (authority?: TaxAuthority) => void;
   /** מתי בוצע יישור הקו האחרון (payload.checkedAt של שלבי המוסדות). */
   alignedAt?: string;
   /** שלבי הבקשות — לזיהוי דגלים שכבר טופלו ולמצב נתוני ההנהלה. */
@@ -150,52 +146,6 @@ function buildSentence(client: Client): string {
   return out;
 }
 
-/**
- * שורה מתקפלת אחת — סיכום קבוע, פרטים רק אחרי פתיחה.
- * ‼ `exception` הוא חריגה שנקראת **מתוך השורה הסגורה** (המודל המאושר):
- * סריקה של ארבע שורות אמורה לספר מה לא בסדר בלי לפתוח כלום.
- * ‼ `unknown` מסמן «טרם ביררנו» — במשקל נמוך ובלי צבע אזהרה, כי חוסר ידיעה
- * אינו תקלה. קיר של לא-ידועים צבוע באדום היה נקרא כשריפה.
- */
-function TRow({
-  id, name, summary, warn, exception, unknown, stale, open, onToggle, action, children,
-}: {
-  id: string; name: string; summary: string; warn?: string;
-  exception?: { text: string; tone: 'high' | 'warn' | 'ok' } | null;
-  unknown?: boolean; stale?: boolean;
-  open: boolean; onToggle: (id: string) => void;
-  /**
-   * פקד הפעולה של הכרטיס (למשל «בדוק מול שע״ם») — **ליד** כפתור הפתיחה,
-   * לא בתוכו: כפתור בתוך כפתור אינו HTML תקין, ולחיצה עליו הייתה גם פותחת
-   * וגם מריצה.
-   */
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={`txf-row ${open ? 'is-open' : ''}`}>
-      <div className="txf-row-headwrap">
-        <button type="button" className="txf-row-head" onClick={() => onToggle(id)} aria-expanded={open}>
-          <span className="txf-row-name">{name}</span>
-          <span className="txf-row-sum">
-            <span className={unknown ? 'txf-unknown' : ''}>{summary}</span>
-            {unknown && <span className="txf-qmark" aria-hidden="true">?</span>}
-            {stale && <span className="txf-stale">⏱</span>}
-            {warn && <span className="txf-warn-inline">⚠ {warn}</span>}
-            {exception && (
-              <span className={`txf-exc is-${exception.tone}`}>
-                {exception.tone === 'ok' ? '✓' : '⚠'} {exception.text}
-              </span>
-            )}
-          </span>
-          <span className="txf-row-chev">◂</span>
-        </button>
-        {action && <span className="txf-row-act">{action}</span>}
-      </div>
-      {open && <div className="txf-row-body">{children}</div>}
-    </div>
-  );
-}
 
 /**
  * כותרת קטע עם זהות משפחת-המס — נקודה, שם, ולמה הקבוצה קיימת.
@@ -225,61 +175,7 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
 }
 
 
-function SrcLine({ label, onEdit }: { label: string; onEdit?: () => void }) {
-  return (
-    <div className="txf-srcline">
-      <span>{label}</span>
-      {onEdit && <button type="button" onClick={onEdit}>ערוך</button>}
-    </div>
-  );
-}
 
-/**
- * פקד עריכה אחד לפי סוג השדה — המנגנון היחיד בתיק המס. ‼ נבנה פעם אחת
- * ומשמש את כל הכרטיסים ואת תמונת המס: כרטיס-רשות, שכירות, שוק ההון,
- * משפחה, זיכויים, נכסים, ביטוחים ו"טרם ביררנו" — כולם אותו רכיב, לא
- * עותקים נפרדים שעלולים להתפצל בהתנהגות.
- *
- * ‼ יישוב מזכה הוא המקרה החריג היחיד: הרשימה דינמית (תלויה בשנה), לא
- * הרשימה הסטטית של editModel — ולכן מקבל טיפול נפרד לפי מפתח השדה.
- */
-function EditControl({ def, value, onChange }: {
-  def: EditField; value: string; onChange: (v: string) => void;
-}) {
-  if (def.key === 'qualifyingSettlementId') {
-    return (
-      <select value={value} onChange={e => onChange(e.target.value)}>
-        <option value="">- לא יישוב מוטב -</option>
-        {getEligibleSettlements(CURRENT_TAX_YEAR).map(s => (
-          <option key={s.name} value={s.name}>{s.name} ({s.ratePercent}%)</option>
-        ))}
-      </select>
-    );
-  }
-  if (def.kind === 'bool') {
-    return (
-      <select value={value} onChange={e => onChange(e.target.value)}>
-        <option value="">טרם ביררנו</option>
-        <option value="true">כן</option>
-        <option value="false">לא</option>
-      </select>
-    );
-  }
-  if (def.options) {
-    return (
-      <select value={value} onChange={e => onChange(e.target.value)}>
-        <option value="">טרם ביררנו</option>
-        {def.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-      </select>
-    );
-  }
-  return (
-    <input type={def.kind === 'date' ? 'date' : 'text'}
-      inputMode={def.kind === 'number' || def.kind === 'money' ? 'numeric' : undefined}
-      value={value} placeholder="—"
-      onChange={e => onChange(e.target.value)} />
-  );
-}
 
 /** תא שדה-ערך שלם — תווית + פקד + הערה. אותה צורה בכל שורת עריכה. */
 function EditableKV({ def, value, onChange }: {
@@ -309,7 +205,7 @@ function fieldsOf(...sectionIds: string[]): EditField[] {
 export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
   onClientPersisted, onSendQuestionnaire, onOpenDetails,
-  onRunAlignment, alignBusy, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
+  onRunAlignment, alignBusy, onOpenDetailedAlignment, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
   onOpenRepresentation, onAddNiTarget, onOpenRequestStep, onUpdateClientFields, onNiInstructionsSent, niExecution,
 }: Props) {
   const { pending, refresh, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
@@ -353,30 +249,6 @@ export default function TaxFileTab({
     role: 'client' | 'spouse'; name: string; idNumberMasked?: string;
   } | null>(null);
 
-  // ‼ הוק משימה אחד **לכל רשות אוטומטית**, לא אחד לשע״ם. קודם היה כאן
-  // `shaamSync` יחיד, ולכן כל רשות אחרת קיבלה `job = null` לנצח — כלומר
-  // המנגנון לא היה באמת משותף, ולא היה אפשר לחבר מע״מ או ב״ל בלי לערוך
-  // את המסך. הקריאות קבועות בסדרן (AUTOMATED_AUTHORITIES) — רשות בלי
-  // action_type מקבלת הוק שאינו שולח שאילתה ואינו מריץ.
-  // ‼ ההוקים לפני כל return מותנה — ראה hooks-after-institution-focus-return.
-  const jobIncomeTax = useAutomationJob(client.id || undefined, AUTHORITY_AUTOMATION.income_tax?.actionType ?? '');
-  const jobVat = useAutomationJob(client.id || undefined, AUTHORITY_AUTOMATION.vat?.actionType ?? '');
-  const jobBtl = useAutomationJob(client.id || undefined, AUTHORITY_AUTOMATION.national_insurance?.actionType ?? '');
-  const authorityJobs: Partial<Record<TaxAuthority, ReturnType<typeof useAutomationJob>>> = {
-    income_tax: jobIncomeTax, vat: jobVat, national_insurance: jobBtl,
-  };
-
-  // ‼ המשימה **החיה** לכל רשות, לקריאה מתוך פונקציה אסינכרונית. אישור
-  // מקובץ נמשך כמה סבבי רשת, ובזמן הזה עשויה להסתיים ריצה חדשה; בלי הפניה
-  // הזאת הפונקציה הייתה משווה לערך שנתפס ברינדור והשער היה חסר משמעות.
-  const authorityJobsRef = useRef<Partial<Record<TaxAuthority, AutomationJob | null>>>({});
-  authorityJobsRef.current = {
-    income_tax: jobIncomeTax.job, vat: jobVat.job, national_insurance: jobBtl.job,
-  };
-  // ‼ אישור מקובץ — פעם אחת לכרטיס, לא לשדה. ראה approveAuthorityChanges.
-  const [approvingAuthority, setApprovingAuthority] = useState<TaxAuthority | null>(null);
-  const [approveError, setApproveError] = useState<string | null>(null);
-  const [approveNotice, setApproveNotice] = useState<string | null>(null);
 
   // ─── עריכה במקום — מנגנון אחד לכל תיק המס ──────────────────────────────────
   // ‼ המודל המאושר: צפייה, עריכה ואוטומציה באותו מסך. «ערוך» פותח שדות
@@ -390,10 +262,6 @@ export default function TaxFileTab({
   const [sectionDrafts, setSectionDrafts] = useState<Record<string, string>>({});
   const [sectionSaving, setSectionSaving] = useState(false);
   const [sectionError, setSectionError] = useState<string | null>(null);
-  // ‼ עיסוקים בביטוח לאומי הם רשימה, לא שדה שטוח — טיוטה נפרדת מ-sectionDrafts
-  // (שמחזיק רק מחרוזות). רלוונטית רק כשעורכים את כרטיס ב״ל, אך תמיד קיימת
-  // כדי שלא לשמור state מותנה.
-  const [sectionOccDrafts, setSectionOccDrafts] = useState<OccupationDraft[]>([]);
   // ‼ אותו רעיון בדיוק, לשבע הרשימות המובנות (ילדים, מעסיקים, נכסים, חשבונות
   // בנק, קופות, תיקי השקעות וחשבונות בחו״ל): טיוטה מקומית שנשמרת רק ב«שמור».
   // `sectionListKeys` זוכר אילו רשימות שייכות לשורה שבעריכה — כדי שהשמירה
@@ -401,69 +269,20 @@ export default function TaxFileTab({
   const [sectionListKeys, setSectionListKeys] = useState<ListKey[]>([]);
   const [sectionListDrafts, setSectionListDrafts] = useState<Record<string, ListItem[]>>({});
 
-  /**
-   * מפתח taxFiles בתוך sectionDrafts — קידומת כדי שלא יתנגש עם editKey
-   * אמיתי. ‼ `owner` (154): לב"ל יש שני תיקים אפשריים על אותו כרטיס —
-   * חסר ⇒ 'client', בדיוק כמו כל שאר הרשויות שאף פעם לא היו צריכות להבחין.
-   */
-  function taxFileNumberKey(authority: TaxAuthority, owner: 'client' | 'spouse' = 'client') {
-    return `__taxFileNumber:${authority}:${owner}`;
-  }
-  /**
-   * תיק הרשות הזו על שם ה-owner המבוקש. ‼ לב"ל — התאמה מדויקת בלבד, בלי
-   * נפילה-לאחור: זה בדיוק ההבדל בין "מספר תיק אחד לרשות" ל"מספר תיק לכל
-   * אדם" (154). לשאר הרשויות — כמו קודם: אם אין תיק ל-owner המבוקש,
-   * התיק הראשון של הרשות (ראה TaxFilesSection).
-   */
-  function currentTaxFile(authority: TaxAuthority, owner: 'client' | 'spouse' = 'client') {
-    const files = client.taxFiles ?? [];
-    if (authority === 'national_insurance') {
-      return files.find(t => t.authority === authority && t.owner === owner);
-    }
-    return files.find(t => t.authority === authority && t.owner === 'client')
-      ?? files.find(t => t.authority === authority);
-  }
-  /**
-   * ‼ עדכון במקום כשיש רשומה, יצירה רק כשאין — לעולם לא כפילות לאותו
-   * (רשות, owner). שיוך ל"משותף" (תיק הניכויים בב"ל) נשאר במסך התיקים
-   * הייעודי (TaxFilesSection) — לא נגיש מכאן.
-   * ‼ לעולם לא נגזר מ-idNumber — הערך מגיע רק ממה שהוקלד כאן.
-   */
-  function buildTaxFilesPatch(authority: TaxAuthority, newNumber: string, owner: 'client' | 'spouse' = 'client') {
-    const files = client.taxFiles ?? [];
-    const existing = currentTaxFile(authority, owner);
-    if (existing) {
-      return files.map(t => t.id === existing.id ? { ...t, fileNumber: newNumber || undefined } : t);
-    }
-    return [...files, {
-      id: `tf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      authority, owner, repStatus: 'none' as const,
-      fileNumber: newNumber || undefined,
-    }];
-  }
-
+  // ‼ עובדות הרשויות (מספרי תיקים, עיסוקים בב"ל) נערכות ב-AuthoritiesPanel —
+  // כאן נשאר המנגנון לשאר תמונת המס בלבד.
   function startSectionEdit(
     id: string, fields: EditField[],
-    opts?: { taxFileAuthority?: TaxAuthority; taxFileOwner?: 'client' | 'spouse'; lists?: ListKey[]; niOwner?: 'client' | 'spouse' },
+    opts?: { lists?: ListKey[] },
   ) {
     const drafts: Record<string, string> = {};
     for (const f of fields) drafts[f.key] = editFieldValue(client, f);
-    if (opts?.taxFileAuthority) {
-      const owner = opts.taxFileOwner ?? 'client';
-      drafts[taxFileNumberKey(opts.taxFileAuthority, owner)] = currentTaxFile(opts.taxFileAuthority, owner)?.fileNumber ?? '';
-    }
     setSectionDrafts(drafts);
     setSectionListKeys(opts?.lists ?? []);
     // ‼ העתק עמוק — כדי שעריכת שדה בפריט לא תשנה את הכרטיס עצמו לפני «שמור».
     setSectionListDrafts(Object.fromEntries(
       (opts?.lists ?? []).map(k => [k, ((client[k] as ListItem[] | undefined) ?? []).map(o => ({ ...o }))]),
     ));
-    // ‼ תמיד לפחות שורה ריקה אחת, כמו במסך יישור הקו — כדי שיהיה איפה
-    // להתחיל להוסיף עיסוק ראשון בלי כפתור "הוסף" נוסף בלחיצה הראשונה.
-    // ‼ `niOwner` (154): לבן/בת הזוג יש רשימת עיסוקים משלו/ה
-    // (`spouseNiOccupations`) — לא אותה רשימה של הלקוח.
-    const occSource = opts?.niOwner === 'spouse' ? (client.spouseNiOccupations ?? []) : (client.niOccupations ?? []);
-    setSectionOccDrafts(occSource.length > 0 ? occSource.map(o => ({ ...o })) : [newOccupationRow(0)]);
     setSectionError(null);
     setEditingSection(id);
   }
@@ -471,7 +290,6 @@ export default function TaxFileTab({
   function cancelSectionEdit() {
     setEditingSection(null);
     setSectionDrafts({});
-    setSectionOccDrafts([]);
     setSectionListKeys([]);
     setSectionListDrafts({});
     setSectionError(null);
@@ -488,23 +306,6 @@ export default function TaxFileTab({
     setSectionSaving(true);
     setSectionError(null);
     for (const [key, raw] of Object.entries(sectionDrafts)) {
-      if (key.startsWith('__taxFileNumber:')) {
-        const [authority, owner] = key.slice('__taxFileNumber:'.length).split(':') as [TaxAuthority, 'client' | 'spouse'];
-        const before = currentTaxFile(authority, owner)?.fileNumber ?? '';
-        if (raw === before) continue;
-        const label = `מספר תיק — ${TAX_AUTHORITY_LABELS[authority]}${owner === 'spouse' ? ' (בן/בת הזוג)' : ''}`;
-        const res = await recordManualEdit(
-          client.id, 'taxFiles', label,
-          before || '—', raw || '—', { taxFiles: buildTaxFilesPatch(authority, raw, owner) },
-        );
-        if (!res.ok) {
-          setSectionError(`מספר תיק: ${res.error ?? 'השמירה נכשלה'}`);
-          setSectionSaving(false);
-          return;
-        }
-        if (res.client) onClientPersisted(res.client);
-        continue;
-      }
       const def = EDIT_FIELD_BY_KEY[key];
       if (!def) continue;
       const before = editFieldValue(client, def);
@@ -543,30 +344,6 @@ export default function TaxFileTab({
       if (res.client) onClientPersisted(res.client);
     }
 
-    // עיסוקים בביטוח לאומי — רק כשבלוק אדם בכרטיס ב״ל הוא זה שבעריכה, ורק
-    // אם השתנה. ‼ (154) לכל אדם הרשימה שלו/ה — לא אותה רשימה של הלקוח.
-    const niOccMatch = /^auth-national_insurance:(client|spouse)$/.exec(editingSection ?? '');
-    if (niOccMatch) {
-      const occOwner = niOccMatch[1] as 'client' | 'spouse';
-      const occKey = occOwner === 'spouse' ? 'spouseNiOccupations' : 'niOccupations';
-      const occLabel = occOwner === 'spouse' ? 'עיסוקים בביטוח לאומי — בן/בת הזוג' : 'עיסוקים בביטוח לאומי';
-      const selected = sectionOccDrafts.filter((o): o is NiOccupation => o.type !== '');
-      const before = (client[occKey] as NiOccupation[] | undefined) ?? [];
-      if (JSON.stringify(selected) !== JSON.stringify(before)) {
-        const res = await recordManualEdit(
-          client.id, occKey, occLabel,
-          before.length ? `${before.length} עיסוקים` : '-',
-          selected.length ? `${selected.length} עיסוקים` : '-',
-          { [occKey]: selected } as Partial<Client>,
-        );
-        if (!res.ok) {
-          setSectionError(`עיסוקים: ${res.error ?? 'השמירה נכשלה'}`);
-          setSectionSaving(false);
-          return;
-        }
-        if (res.client) onClientPersisted(res.client);
-      }
-    }
     setSectionSaving(false);
     cancelSectionEdit();
   }
@@ -599,99 +376,6 @@ export default function TaxFileTab({
     );
   }
 
-  /**
-   * «אשר N שינויים» — האישור המקובץ של כרטיס הרשות.
-   *
-   * ‼ עובר דרך מסלול העובדות המנוהלות ולא עוקף אותו: כל שדה ששונה מוצע
-   * (propose_tax_facts, מקור 'automation', עם הערך הישן כתמונת מצב) ואז
-   * מאושר (accept_tax_fact_change) — כך נשמרים פרובננס, היסטוריה, ובדיקת
-   * stale_conflict בשרת. הרו"ח כבר ראה כל השוואה בכרטיס לפני הלחיצה; זו
-   * הלחיצה המפורשת. שום דבר לא נכתב מעצם הקריאה מהרשות.
-   * ‼ בלי כפילויות: הצעה ממתינה קיימת לאותו שדה ואותו ערך מאושרת במקומה,
-   * ולא נוצרת שוב. שדה שנכשל (למשל הערך בתיק השתנה בינתיים) לא עוצר את
-   * השאר — ההצעה שלו נשארת ממתינה ברשימת השינויים, והכישלון מדווח פעם אחת.
-   * ‼ הפאץ' עובר דרך coerceEditField: שע״ם מחזירה טקסט, והשדה בתיק עשוי
-   * להיות מספרי (שיעור מקדמות, יתרה). מחרוזת בעמודה מספרית היא באג שקט.
-   */
-  async function approveAuthorityChanges(spec: AuthorityAutomationSpec, check: AuthorityCheckResult) {
-    if (!client.id) return;
-    const changed = check.fields.filter(f => f.status === 'changed' && f.fieldKey && f.authorityValue != null);
-    if (changed.length === 0) return;
-    setApprovingAuthority(spec.authority);
-    setApproveError(null);
-    setApproveNotice(null);
-
-    const existing = await listPendingTaxFactChanges(client.id);
-    const reuse = new Map<string, TaxFactChange>();
-    const toPropose: ProposedFact[] = [];
-    for (const f of changed) {
-      const def = EDIT_FIELD_BY_KEY[f.fieldKey];
-      // ‼ patchValue גובר: «אין תדירות» הוא ניקוי השדה (null), ולא מחרוזת ריקה.
-      const newPatch = f.patchValue !== undefined ? f.patchValue
-        : def ? coerceEditField(def, f.authorityValue!) : f.authorityValue!;
-      const oldRaw = (client as unknown as Record<string, unknown>)[f.fieldKey] ?? null;
-      const dup = existing.find(c => c.fieldKey === f.fieldKey && c.source === 'automation'
-        && JSON.stringify(c.newValue.patch?.[f.fieldKey]) === JSON.stringify(newPatch));
-      if (dup) { reuse.set(f.fieldKey, dup); continue; }
-      toPropose.push({
-        fieldKey: f.fieldKey, label: f.label,
-        oldValue: { display: String(oldRaw ?? '') || '—', patch: { [f.fieldKey]: oldRaw } },
-        newValue: {
-          display: f.authorityDisplay ?? f.authorityRaw ?? f.authorityValue!,
-          patch: { [f.fieldKey]: newPatch },
-        },
-        // ‼ הראיה הגולמית מהרשות נשמרת בהצעה עצמה — אחרת «0%» היה נכנס
-        // לתיק בלי שום זכר לכך שהמקור היה «בוטלה (שעור דו)».
-        // ‼ שם הרשות מגיע מהרשומה ולא קבוע «שע״ם» — אחרת הצעה של ב״ל
-        // הייתה נרשמת ביומן בשם הרשות הלא נכונה.
-        note: f.provenance ? `${spec.sourceLabel}: ${f.provenance}` : undefined,
-      });
-    }
-    if (toPropose.length > 0) {
-      const res = await proposeTaxFacts(client.id, 'automation', spec.sourceRef ?? null, toPropose);
-      // ‼ כישלון כאן חייב להיראות. אישור ששותק נראה בדיוק כמו אישור שעבד.
-      if (!res.ok) {
-        setApproveError(res.error ?? 'ההצעה נכשלה');
-        setApprovingAuthority(null);
-        return;
-      }
-    }
-    const after = toPropose.length > 0 ? await listPendingTaxFactChanges(client.id) : existing;
-
-    // ‼ שער התיישנות: בין הלחיצה לבין הכתיבה עברו סבבי רשת. אם בינתיים
-    // הסתיימה **ריצה חדשה** של אותה רשות, הסט שעל המסך כבר אינו הסט שאושר,
-    // ולכן לא כותבים כלום. ההצעות נשארות ממתינות — הן לא אבדו.
-    const liveRunId = authorityJobsRef.current[spec.authority]?.id;
-    if (check.runId && liveRunId && liveRunId !== check.runId) {
-      setApprovingAuthority(null);
-      setApproveError('בינתיים הסתיימה קריאה חדשה מהרשות — ההשוואה התעדכנה, ולא אושר דבר. בדקו שוב.');
-      refresh();
-      return;
-    }
-
-    const failures: string[] = [];
-    let approved = 0;
-    for (const f of changed) {
-      const change = reuse.get(f.fieldKey)
-        ?? [...after].reverse().find(c => c.fieldKey === f.fieldKey && c.source === 'automation');
-      if (!change) { failures.push(f.label); continue; }
-      const r = await acceptFact(change);
-      if (!r.ok) {
-        failures.push(r.error === 'stale_conflict' ? `${f.label} (הערך בתיק השתנה בינתיים)` : f.label);
-        continue;
-      }
-      if (r.client) onClientPersisted(r.client);
-      approved++;
-    }
-    setApprovingAuthority(null);
-    if (failures.length > 0) {
-      setApproveError(`לא אושרו: ${failures.join(' · ')}. ההצעות נשארו ממתינות ברשימת השינויים.`);
-    }
-    setApproveNotice(approved > 0
-      ? `${approved === 1 ? 'שינוי אחד אושר' : `${approved} שינויים אושרו`} ונרשמו ביומן.`
-      : null);
-    refresh();
-  }
   // ‼ תרומות נשארה מחוץ למנגנון הכללי בכוונה — היא הייתה שם ראשונה ועובדת,
   // ואין סיבה למחזר אותה רק בשביל האחידות. שכירות עברה למנגנון הכללי, כי
   // שם היא מקבלת גם את שאר השדות (הכנסה, הוצאות) ולא רק את המסלול.
@@ -804,10 +488,6 @@ export default function TaxFileTab({
   // ‼ שורת רשות בלי אף עובדה אינה מידע — היא רק תופסת מקום ומרמזת שנבדק
   // משהו. לקוח שטרם יושר קו מולו מקבל את ההזמנה לבצע אותו, ולא שלוש שורות
   // ריקות שכתוב בהן «טרם נאספו נתונים».
-  const authorityRows = useMemo(
-    () => buildAuthorityRows(client, spouseClient, niExecution).filter(r => r.facts.length > 0),
-    [client, spouseClient, niExecution],
-  );
   /** תיק מס הכנסה של הזוג — אחד, לא אחד לכל כרטיס. ראה docs/PLAN-PERSON-AND-COUPLE-MODEL.md. */
   const household = useMemo(
     () => resolveIncomeTaxHousehold(client, spouseClient),
@@ -1225,328 +905,52 @@ export default function TaxFileTab({
         why="עובדות תפעוליות — מתעדכנות ביישור קו">
         <span className="txf-align-meta">
           <span>{alignedAt ? 'יישור קו אחרון: ' + shortDate(alignedAt) : 'טרם בוצע יישור קו'}</span>
-          {onRunAlignment && (
-            <button type="button" className="ui-btn ui-btn-sm" disabled={alignBusy}
-              onClick={onRunAlignment}>
-              {alignBusy ? 'מעדכן…' : alignedAt ? 'בצע יישור קו מחדש' : 'בצע יישור קו מול הרשויות'}
+          {/* ‼ «תצוגה מפורטת» — קישור משני למסכי יישור הקו המלאים (כלי בדיקה
+              זמני). לא אוטומציה ⇒ לא ורוד. «בצע יישור קו» הוסר מהכותרת:
+              הוא פתח את התהליך הידני ונקרא כאילו הוא מפעיל משהו. */}
+          {onOpenDetailedAlignment && (
+            <button type="button" className="ui-linkbtn" onClick={() => onOpenDetailedAlignment()}>
+              תצוגה מפורטת
             </button>
           )}
         </span>
       </SectHead>
 
-      {authorityRows.length === 0 ? (
-        <div className="txf-sect">
-          <div className="txf-blank">
-            <b>עוד לא בדקנו את {client.firstName} מול הרשויות</b>
-            <p>
-              יישור קו אחד עובר על ביטוח לאומי, מע״מ ומס הכנסה ואוסף יתרות, מקדמות,
-              ניהול ספרים ואישורים. משם התיק מתעדכן לבד, וכל מה שדורש טיפול יופיע למעלה.
-            </p>
-            {onRunAlignment && (
-              <button type="button" className="ui-btn ui-btn-primary" disabled={alignBusy}
-                onClick={onRunAlignment}>
-                {alignBusy ? 'מעדכן…' : 'בצע יישור קו מול הרשויות'}
-              </button>
-            )}
+      {/* ‼ התצוגה הקומפקטית של הרשויות — רכיב אחד לכל ההקשרים (גם ב«בקשות»).
+          כל מה שקשור לרשויות — אוטומציה, עריכה, ב"ל לכל אדם, «איפה
+          מוצאים?», «תצוגה מפורטת» — חי שם ולא כאן. */}
+      <AuthoritiesPanel
+        client={client}
+        spouseClient={spouseClient}
+        niExecution={niExecution}
+        alignedAt={alignedAt}
+        onClientPersisted={onClientPersisted}
+        onFactsChanged={refresh}
+        onOpenSpouseClient={onOpenSpouseClient}
+        onOpenRepresentation={onOpenRepresentation}
+        onAddNiTarget={onAddNiTarget}
+        onOpenRequestStep={onOpenRequestStep}
+        onSendNiInstructions={setNiInstructionsFor}
+        onNiInstructionsSent={onNiInstructionsSent}
+        onOpenDetailed={onOpenDetailedAlignment}
+        emptyState={(
+          <div className="txf-sect">
+            <div className="txf-blank">
+              <b>עוד לא בדקנו את {client.firstName} מול הרשויות</b>
+              <p>
+                יישור קו אחד עובר על ביטוח לאומי, מע״מ ומס הכנסה ואוסף יתרות, מקדמות,
+                ניהול ספרים ואישורים. משם התיק מתעדכן לבד, וכל מה שדורש טיפול יופיע למעלה.
+              </p>
+              {onRunAlignment && (
+                <button type="button" className="ui-btn ui-btn-primary" disabled={alignBusy}
+                  onClick={onRunAlignment}>
+                  {alignBusy ? 'מעדכן…' : 'בצע יישור קו מול הרשויות'}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="txf-sect">
-          {authorityRows.map(row => {
-            const sectionId = 'auth-' + row.authority;
-            const editingThis = editingSection === sectionId;
-            // ‼ (154) לב"ל יש עד שני מצבי עריכה בו-זמנית — אחד לכל אדם, לא
-            // עוד "עריכת הכרטיס" יחידה. `cardEditing` מכסה את שניהם, כדי
-            // שסיכום הבדיקה יתחבא בזמן שעורכים כל אדם, בדיוק כמו קודם.
-            // ‼ שני בלוקי-אדם רק כשיש בפועל שני אנשים על השורה (154) —
-            // לקוח/ה יחיד/ה ממשיך במסלול הישן (רשת אחת, בלי כותרת-שם).
-            const twoPersons = !!row.persons && row.persons.length > 1;
-            const cardEditing = editingThis
-              || (twoPersons && row.persons!.some(p => editingSection === `${sectionId}:${p.role}`));
-
-            // ── אוטומציה ברמת הכרטיס — ראה authorityAutomation.ts ──
-            // ‼ הכול נגזר מהרשומה של הרשות: המשימה, המוכנות, הקלט והפירוש.
-            // אין כאן שום התניה על שע״ם — מע״מ וב״ל נכנסות בדיוק באותו נתיב.
-            // הסט כולו נגזר מהמשימה האחרונה + הכרטיס, ולכן אחרי אישור
-            // המצבים מתיישבים מעצמם.
-            const spec = AUTHORITY_AUTOMATION[row.authority];
-            const shaamRepAction = row.authority === 'income_tax' ? shaamRepresentationAction(client.representationStatus) : null;
-            const sync = authorityJobs[row.authority];
-            const job = spec?.actionType ? (sync?.job ?? null) : null;
-            const cardFields = row.facts.map(f => ({ label: f.k, fieldKey: f.syncKey ?? f.btlSyncKey ?? f.editKey }));
-            const check = spec ? buildAuthorityCheck(spec, job, client, cardFields) : null;
-            const inputRes = spec?.buildInput?.(client, spouseClient);
-            // ‼ שני סוגי «לא עכשיו» (ראה AuthorityCheckButton): רשות שהאוטומציה
-            // שלה עוד לא נבנתה — מושבת באמת; קלט חסר בכרטיס — הלחיצה מסבירה.
-            // חיבור שאינו מוכן אינו «חסימה» בכלל: הכפתור עצמו פותח את
-            // ההתחברות וממשיך (useAutomationGate) — לא כאן.
-            const unavailable = spec && !spec.available
-              ? (spec.unavailableReason ?? 'האוטומציה עוד לא נבנתה לרשות הזו.') : null;
-            const inputBlocked = !spec || unavailable ? null
-              : inputRes && 'blocked' in inputRes ? inputRes.blocked
-              : null;
-            // ‼ "רץ" רק כשהעובד באמת חי (החכירה בתוקף). עבודה שהעובד שלה מת
-            // הציגה "רץ" לנצח וחסמה את הכפתור (ספר הפערים N5).
-            const running = !!spec?.available && (!!sync?.busy || jobIsLive(job));
-            const runCheck = () => {
-              if (!spec?.available || !sync || !inputRes || !('input' in inputRes)) return;
-              setApproveError(null);
-              setApproveNotice(null);
-              // ‼ פותחים את הכרטיס — התוצאות יושבות בו, ובדיקה שלא רואים היא לחיצה שלא עשתה כלום.
-              setOpenRows(s => new Set(s).add(sectionId));
-              void sync.run(inputRes.input);
-            };
-
-            return (
-            <TRow
-              key={row.authority}
-              id={sectionId}
-              name={row.name}
-              summary={row.summary}
-              exception={row.exception}
-              open={openRows.has(sectionId)}
-              onToggle={toggleRow}
-              action={
-                <>
-                  {spec && (
-                    <AuthorityCheckButton label={spec.actionLabel} capability={spec.capability ?? ''}
-                      running={running} onRun={runCheck} unavailableReason={unavailable} inputBlockedReason={inputBlocked} />
-                  )}
-                  {/* ‼ פרק 17: תא הפעולה ההקשרית של שע״ם, מוכן במבנה אך לא
-                      מחובר לאוטומציה אמיתית — ראה shaamRepresentationAction
-                      למטה. אין handler שמזין/שולח/בודק מול שע״ם עדיין, ולכן
-                      הפקד תמיד מושבת עם הסיבה, בדיוק כמו AuthorityCheckButton
-                      כש-available:false. */}
-                  {row.authority === 'income_tax' && shaamRepAction && (
-                    <button type="button" className="txf-check-btn btn-automation" disabled
-                      title={shaamRepAction.reason} aria-label={`${shaamRepAction.label} — ${shaamRepAction.reason}`}>
-                      <span className="txf-check-lbl">{shaamRepAction.label}</span>
-                    </button>
-                  )}
-                </>
-              }
-            >
-              {/* ‼ (154) כרטיס ב"ל: שני בלוקי-אדם במקום רשת אחת — התשובה
-                  ל"של מי הנתונים האלה" היא כותרת הבלוק, לא הקשר משתמע.
-                  כל שאר הרשויות (מס הכנסה/מע״מ/ניכויים) ממשיכות בדיוק כמו
-                  קודם דרך הענף השני למטה — `row.persons` קיים רק על ב"ל. */}
-              {/* ‼ בלוקי-אדם רק כשיש שניים בפועל: לקוח/ה יחיד/ה (לא נשוי/אה,
-                  או נשוי/אה בלי בן/בת זוג-כאדם-שני על השורה) ממשיך להיראות
-                  בדיוק כמו לפני 154 — בלי כותרת-שם מיותרת מעל רשת אחת. */}
-              {twoPersons ? (
-                row.persons!.map((person, pi) => {
-                  const personEditId = `${sectionId}:${person.role}`;
-                  const editingPerson = editingSection === personEditId;
-                  return (
-                    <div className="txf-person" key={person.role}>
-                      <div className="txf-person-head">
-                        <span className="txf-person-name">{person.name}</span>
-                        <span className="txf-person-idctx">ת.ז. {person.idNumber || '—'}</span>
-                        {/* ‼ בן/בת זוג מקושר/ת: הנתונים חיים בכרטיס שלו/ה —
-                            כאן לקריאה בלבד, בלי כפתור «ערוך». מקור אמת אחד. */}
-                        {!person.editable && (
-                          <span className="txf-person-linked">
-                            הנתונים בכרטיס של {person.name}
-                            {spouseClient && onOpenSpouseClient && (
-                              <button type="button" className="ui-linkbtn"
-                                onClick={() => onOpenSpouseClient(spouseClient.id)}>
-                                פתיחת הכרטיס
-                              </button>
-                            )}
-                          </span>
-                        )}
-                      </div>
-                      <div className="txf-kv">
-                        {person.facts.map((f, i) => {
-                          // ‼ ת.ז. כבר בכותרת הבלוק (name + idctx) — לא כפילות
-                          // כאן. נשארת בעובדות עצמן (index יציב לבדיקת
-                          // האוטומציה למטה) ורק לא מצוירת בבלוק-אדם.
-                          if (f.k === 'ת.ז.') return null;
-                          const def = f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined;
-                          const editingScalar = editingPerson && !!def;
-                          const editingTaxFileNumber = editingPerson && !!f.taxFileNumberAuthority;
-                          // ‼ בדיקת האוטומציה נגזרת מ-row.facts, שזהה בדיוק
-                          // ל-persons[0].facts (הלקוח) — לכן סמן מצב מוצג רק
-                          // באדם הראשון. לבן/בת הזוג עוד אין תוצאת בדיקה.
-                          const fieldCheck = pi === 0 && check?.checkedAt ? check.fields[i] : undefined;
-                          return (
-                          <div key={i}>
-                            <div className="k">{fieldCheck && <FieldStatusMark status={fieldCheck.status} />}{f.k}</div>
-                            {editingScalar && def ? (
-                              <div className="v txf-inline-edit">
-                                <EditControl def={def} value={sectionDrafts[def.key] ?? ''}
-                                  onChange={v => setSectionDrafts(d => ({ ...d, [def.key]: v }))} />
-                                {def.note && <div className="txf-note">{def.note}</div>}
-                              </div>
-                            ) : editingTaxFileNumber ? (
-                              <div className="v txf-inline-edit">
-                                <input type="text" placeholder="—"
-                                  value={sectionDrafts[taxFileNumberKey(f.taxFileNumberAuthority!, f.taxFileNumberOwner ?? 'client')] ?? ''}
-                                  onChange={e => setSectionDrafts(d => ({
-                                    ...d, [taxFileNumberKey(f.taxFileNumberAuthority!, f.taxFileNumberOwner ?? 'client')]: e.target.value,
-                                  }))} />
-                              </div>
-                            ) : (
-                              <div className={'v ' + (f.tone ?? '')}>{f.v}</div>
-                            )}
-                            {/* ‼ שורת "ייצוג" בלבד — "בקש ייצוג" מוסיף target
-                                וטיוטת taxFiles על הכרטיס (לא בקשה שנייה);
-                                "המשך במרכז הייצוג" מנווט לבקשה הקיימת. */}
-                            {f.niRepAction && !editingScalar && !editingTaxFileNumber && (
-                              (f.niRepAction.kind === 'enter_btl' || f.niRepAction.kind === 'check_btl')
-                                /* ‼ היעד הוא person.role של הבלוק הזה — מפורש, לא מיקום ברשימה. */
-                                ? <NiNextActionButton client={client} spouseClient={spouseClient} role={person.role}
-                                    action={f.niRepAction} track={niTrackOf(person.role)} onChanged={onNiInstructionsSent} />
-                                : <>
-                                <button type="button" className="ui-linkbtn"
-                                  disabled={f.niRepAction.kind === 'add' && niAddBusy !== null}
-                                  onClick={() => {
-                                    if (f.niRepAction!.kind === 'add') void runAddNiTarget(person.role);
-                                    else if (f.niRepAction!.kind === 'send') {
-                                      setNiInstructionsFor({
-                                        role: person.role,
-                                        name: person.name,
-                                        idNumberMasked: person.idNumber,
-                                      });
-                                    } else onOpenRepresentation?.();
-                                  }}>
-                                  {f.niRepAction.kind === 'add' && niAddBusy === person.role ? 'שומר…' : f.niRepAction.label}
-                                </button>
-                                {f.niRepAction.kind === 'add' && niAddError && (
-                                  <div className="txf-qt-err">{niAddError}</div>
-                                )}
-                              </>
-                            )}
-                            {fieldCheck && !editingPerson && spec && (
-                              <FieldAuthorityLine field={fieldCheck} sourceLabel={spec.sourceLabel} />
-                            )}
-                          </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* ‼ עיסוקים — לכל אדם הרשימה שלו/ה, לא רשימה משותפת. */}
-                      {editingPerson && (
-                        <div className="txf-editor">
-                          <h4>עיסוקים בביטוח לאומי{person.role === 'spouse' ? ` — ${person.name}` : ''}</h4>
-                          <OccupationsEditor occupations={sectionOccDrafts} onChange={setSectionOccDrafts} />
-                        </div>
-                      )}
-                      {editingPerson && <EditActions />}
-                      {person.editable && (
-                        <SrcLine
-                          label={alignedAt ? 'יישור קו מול הרשויות · ' + shortDate(alignedAt) : 'תיקי הרשויות בכרטיס הלקוח'}
-                          onEdit={
-                            editingPerson || !person.facts.some(f => f.editKey || f.taxFileNumberAuthority)
-                              ? undefined
-                              : () => {
-                                  const editFields = person.facts
-                                    .map(f => f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined)
-                                    .filter((d): d is EditField => !!d);
-                                  const tf = person.facts.find(f => f.taxFileNumberAuthority);
-                                  startSectionEdit(personEditId, editFields, {
-                                    ...(tf ? { taxFileAuthority: tf.taxFileNumberAuthority, taxFileOwner: tf.taxFileNumberOwner ?? 'client' } : {}),
-                                    niOwner: person.role,
-                                  });
-                                }
-                          }
-                        />
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-              <div className="txf-kv">
-                {row.facts.map((f, i) => {
-                  const def = f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined;
-                  const editingScalar = editingThis && !!def;
-                  const editingTaxFileNumber = editingThis && !!f.taxFileNumberAuthority;
-                  const fieldCheck = check?.checkedAt ? check.fields[i] : undefined;
-                  return (
-                  <div key={i}>
-                    {/* ‼ סמן המצב לפני התווית, קטן וללא מילים. מופיע רק אחרי
-                        בדיקה — לפני כן אין מה לסמן, וקיר של אפורים הוא רעש. */}
-                    <div className="k">{fieldCheck && <FieldStatusMark status={fieldCheck.status} />}{f.k}</div>
-                    {/* ‼ באותו מקום בדיוק שבו יושב הערך — לא בטופס נפרד ולא
-                        במסך אחר. שדה בלי הגדרת עריכה נשאר לקריאה עם «—». */}
-                    {editingScalar && def ? (
-                      <div className="v txf-inline-edit">
-                        <EditControl def={def} value={sectionDrafts[def.key] ?? ''}
-                          onChange={v => setSectionDrafts(d => ({ ...d, [def.key]: v }))} />
-                        {def.note && <div className="txf-note">{def.note}</div>}
-                      </div>
-                    ) : editingTaxFileNumber ? (
-                      <div className="v txf-inline-edit">
-                        <input type="text" placeholder="—"
-                          value={sectionDrafts[taxFileNumberKey(f.taxFileNumberAuthority!)] ?? ''}
-                          onChange={e => setSectionDrafts(d => ({
-                            ...d, [taxFileNumberKey(f.taxFileNumberAuthority!)]: e.target.value,
-                          }))} />
-                      </div>
-                    ) : (
-                      <div className={'v ' + (f.tone ?? '')}>{f.v}</div>
-                    )}
-                    {/* ‼ שורת הרשות רק כשיש מה לומר (שונה / מצב עסקי / כשל).
-                        שדה תואם לא מקבל שורה, ואין כאן שום כפתור — האישור
-                        מקובץ בסיכום הכרטיס. */}
-                    {fieldCheck && !editingThis && spec && (
-                      <FieldAuthorityLine field={fieldCheck} sourceLabel={spec.sourceLabel} />
-                    )}
-                  </div>
-                  );
-                })}
-              </div>
-              )}
-
-              {/* ‼ סיכום הבדיקה פעם אחת לכרטיס: מה נבדק, כמה שינויים, כפתור
-                  אישור אחד. גם שגיאת ריצה וגם סיבת חסימה מופיעות כאן פעם
-                  אחת — לא ליד כל שדה (אותו משפט שש פעמים הכפיל את גובה
-                  התאים ולא הוסיף מידע).
-                  ‼ מוצג גם לרשות שהאוטומציה שלה עוד לא נבנתה: שם הוא נושא
-                  את הסיבה. השורה חיה **בתוך** הכרטיס הפתוח, ולכן מצב
-                  הקריאה של המסך אינו משתנה — כרטיס סגור נראה בדיוק כמו קודם.
-                  ‼ `cardEditing` ולא `editingThis`: בב"ל אין יותר עריכה
-                  ברמת-כרטיס אחת, ואם לא היינו מסתכלים על שני בלוקי האדם
-                  הסיכום היה נשאר מוצג גם באמצע עריכת מישהו/י. */}
-              {spec && !cardEditing && (
-                <AuthorityCheckSummary
-                  result={check}
-                  sourceLabel={spec.sourceLabel}
-                  runError={sync?.error ?? null}
-                  approving={approvingAuthority === row.authority}
-                  approveError={approvingAuthority === null ? approveError : null}
-                  approveNotice={approvingAuthority === null ? approveNotice : null}
-                  onApprove={() => { if (check) void approveAuthorityChanges(spec, check); }}
-                >
-                  {(inputBlocked ?? unavailable) && !running && <div className="txf-check-note">{inputBlocked ?? unavailable}</div>}
-                </AuthorityCheckSummary>
-              )}
-
-              {/* ‼ פעולות העריכה + «ערוך» ברמת-כרטיס — רק כשאין בלוקי-אדם
-                  (כל רשות מלבד ב"ל). ב"ל מציג את שתי הפעולות האלה בתוך כל
-                  בלוק-אדם בנפרד, למעלה. */}
-              {!twoPersons && editingThis && <EditActions />}
-              {!twoPersons && (
-                <SrcLine
-                  label={alignedAt ? 'יישור קו מול הרשויות · ' + shortDate(alignedAt) : 'תיקי הרשויות בכרטיס הלקוח'}
-                  onEdit={
-                    editingThis || !row.facts.some(f => f.editKey || f.taxFileNumberAuthority)
-                      ? undefined
-                      : () => {
-                          const editFields = row.facts
-                            .map(f => f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined)
-                            .filter((d): d is EditField => !!d);
-                          const tfAuthority = row.facts.find(f => f.taxFileNumberAuthority)?.taxFileNumberAuthority;
-                          startSectionEdit(sectionId, editFields, tfAuthority ? { taxFileAuthority: tfAuthority } : undefined);
-                        }
-                  }
-                />
-              )}
-            </TRow>
-            );
-          })}
-        </div>
-      )}
+        )}
+      />
 
       {/* ═══ תמונת המס ═════════════════════════════════════════════════════
           ‼ שתי שורות מוכנות ולעולם לא ציון אחד: "מה אני צריך לשאול" ו"על מה

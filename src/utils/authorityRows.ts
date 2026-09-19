@@ -80,6 +80,12 @@ export interface AuthorityRow {
 export interface AuthorityRowFact {
   k: string; v: string; tone?: 'warn' | 'ok';
   syncKey?: string; btlSyncKey?: string; editKey?: string;
+  /**
+   * מפתח לעזרת «איפה מוצאים?» (authorityFieldHelp) כשאין editKey — למשל
+   * עובדות ב"ל של בן/בת זוג מקושר/ת, שאינן נערכות כאן אבל המסלול בפורטל
+   * זהה. חסר ⇒ העזרה נגזרת מ-editKey/syncKey.
+   */
+  helpKey?: string;
   taxFileNumberAuthority?: TaxAuthority;
   /** מספר התיק שייך לאיזה owner ב-taxFiles. חסר = 'client' (ברירת המחדל של כל הרשויות מלבד ב"ל). */
   taxFileNumberOwner?: 'client' | 'spouse';
@@ -358,15 +364,17 @@ export function buildAuthorityRows(
       });
       // ‼ «עיסוקים» הוא רשימה (niOccupations/spouseNiOccupations) עם עורך
       // מובנה משלה — התיק מרכיב אותו בעצמו בעריכה, לכל אדם בנפרד.
-      facts.push({ k: 'עיסוקים', v: pf.occupations.length ? `${pf.occupations.length} עיסוקים` : EMPTY });
+      facts.push({ k: 'עיסוקים', v: pf.occupations.length ? `${pf.occupations.length} עיסוקים` : EMPTY, helpKey: 'niOccupations' });
       facts.push({
         k: 'בסיס למקדמות',
         v: pf.incomeBasisMonthly != null ? `${money(pf.incomeBasisMonthly)} לחודש` : EMPTY,
+        helpKey: 'niIncomeBasisMonthly',
         ...(editable ? { editKey: keys.incomeBasisMonthly } : {}),
       });
       facts.push({
         k: 'מקדמה חודשית',
         v: pf.advanceMonthly != null ? money(pf.advanceMonthly) : EMPTY,
+        helpKey: 'niAdvanceMonthly',
         ...(editable ? { editKey: keys.advanceMonthly } : {}),
       });
       // ‼ השדה היחיד בביטוח לאומי שיש לו כרגע מקור ודאי בפורטל (הלקוח
@@ -375,11 +383,11 @@ export function buildAuthorityRows(
       // את היכולת לתקן ידנית.
       const balSync = editable && person.role === 'client' ? { btlSyncKey: keys.balance } : {};
       facts.push(bal
-        ? { k: 'יתרה', v: bal.text, tone: bal.tone, ...balSync, ...(editable ? { editKey: keys.balance } : {}) }
-        : { k: 'יתרה', v: EMPTY, ...balSync, ...(editable ? { editKey: keys.balance } : {}) });
+        ? { k: 'יתרה', v: bal.text, tone: bal.tone, helpKey: 'niBalance', ...balSync, ...(editable ? { editKey: keys.balance } : {}) }
+        : { k: 'יתרה', v: EMPTY, helpKey: 'niBalance', ...balSync, ...(editable ? { editKey: keys.balance } : {}) });
       facts.push(auth
-        ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone, ...(editable ? { editKey: keys.debitAuthorization } : {}) }
-        : { k: 'הרשאה לחיוב', v: EMPTY, ...(editable ? { editKey: keys.debitAuthorization } : {}) });
+        ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone, helpKey: 'niDebitAuthorization', ...(editable ? { editKey: keys.debitAuthorization } : {}) }
+        : { k: 'הרשאה לחיוב', v: EMPTY, helpKey: 'niDebitAuthorization', ...(editable ? { editKey: keys.debitAuthorization } : {}) });
       // ‼ `detail` (אסמכתא/"טרם הוזן") מצטרף לערך עצמו, לא שורה נוספת —
       // בדיוק כמו כל שורת עובדה אחרת בכרטיס. `niRepAction` מוצג ליד
       // הערך ב-TaxFileTab, לא כאן (זו שכבת נתונים בלבד).

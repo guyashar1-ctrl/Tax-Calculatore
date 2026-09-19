@@ -4721,3 +4721,37 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   border-color: var(--automation-fill);
   color: var(--automation-text);
 }
+
+/* ── «איפה מוצאים?» — עזרת שדה בתצוגת הרשויות הקומפקטית (19.09.2026) ──────
+   גילוי הדרגתי: «?» זעיר וחיוור ליד התווית, מתחזק בריחוף על השורה; ההסבר
+   עצמו נפתח בריחוף/פוקוס/לחיצה בלבד. התוכן מ-authorityFieldHelp. */
+.afh{position:relative;display:inline-block;margin-inline-start:5px;vertical-align:middle}
+.afh-btn{width:14px;height:14px;padding:0;border:1px solid var(--hairline-2);border-radius:50%;
+  background:transparent;color:var(--ink-4);font:inherit;font-size:9px;font-weight:700;line-height:12px;
+  cursor:help;opacity:.45;transition:opacity .12s,color .12s,border-color .12s}
+.txf-kv > div:hover .afh-btn,.afh-btn:hover,.afh-btn:focus-visible,.afh.is-open .afh-btn{
+  opacity:1;color:var(--accent);border-color:var(--accent)}
+.afh-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:1px}
+.afh-tip{display:none;position:absolute;top:calc(100% + 6px);inset-inline-start:0;z-index:30;
+  min-width:220px;max-width:320px;padding:8px 10px;border-radius:8px;
+  background:var(--ink-1);color:var(--surface-0);font-size:var(--fs-12);font-weight:400;line-height:1.5;
+  box-shadow:0 6px 20px rgba(0,0,0,.18);text-align:start;white-space:normal}
+.afh:hover .afh-tip,.afh-btn:focus-visible + .afh-tip,.afh.is-open .afh-tip{display:block}
+.afh-tip-title{display:block;font-weight:700;margin-bottom:3px}
+.afh-path{display:block;direction:rtl}
+.afh-guide{display:block;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.18)}
+.afh-guide-intro{display:block}
+.afh-guide ol{margin:2px 0 0;padding-inline-start:18px}
+:root[data-theme='dark'] .afh-tip{background:var(--surface-1);color:var(--ink-1);border:1px solid var(--hairline-1)}
+/* פעולות משניות בשורת המקור: «תצוגה מפורטת» (לא אוטומציה — לא ורוד) ו«ערוך». */
+.txf-srcline-acts{display:inline-flex;gap:12px;align-items:center}
+.txf-srcline button.txf-srcline-2nd{color:var(--ink-4)}
+.txf-srcline button.txf-srcline-2nd:hover{color:var(--ink-2)}
+/* כרטיס יישור הקו ב«בקשות» — התצוגה הקומפקטית בתוכו, והמסכים המלאים מאחורי «תצוגה מפורטת». */
+.ob-auth-body{padding-top:6px}
+.ob-auth-body .txf-sect{margin:0}
+.ob-auth-empty{font-size:var(--fs-13);color:var(--ink-3);padding:6px 2px}
+.ob-auth-detailed{margin-top:10px;font-size:var(--fs-12);color:var(--ink-4);display:flex;flex-direction:column;gap:8px}
+.ob-auth-detailed-btn{align-self:flex-start;color:var(--ink-4)}
+.ob-auth-detailed-btn:hover{color:var(--ink-2)}
+.ob-auth-detailed-none{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 14px}

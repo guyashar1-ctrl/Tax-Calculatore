@@ -10,6 +10,7 @@
 
 import { useMemo } from 'react';
 import type { Client, NiTracking, Task, RepresentationStatus } from '../../types';
+import type { InstitutionKey } from '../../types/onboarding';
 import type { ClientAlert } from '../../types/clientWorkspace';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
 import type { Quotation, Lead } from '../../types/quotations';
@@ -76,6 +77,11 @@ interface Props {
   onSelectTask: (id: string) => void;
   /** מסלולי הביצוע של ב"ל (157) — לכרטיס «ייצוג ברשות» בפרק הבקשות. */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
+  /** לתצוגת הרשויות הקומפקטית בכרטיס יישור הקו — ב"ל לכל אדם. */
+  spouseClient?: Client;
+  onOpenSpouseClient?: (clientId: string) => void;
+  /** בקשה מתיק המס לפתוח «תצוגה מפורטת» של מוסד — ראה OnboardingTab. */
+  detailedAlignment?: { key: InstitutionKey | null; origin: 'taxfile' | 'journey'; tick: number };
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
   onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
@@ -360,6 +366,9 @@ export default function JourneyTab(p: Props) {
           onOpenRepresentation={p.onOpenRepresentation}
           onOpenTaxFile={p.onOpenTaxFile}
           niExecution={p.niExecution}
+          spouseClient={p.spouseClient}
+          onOpenSpouseClient={p.onOpenSpouseClient}
+          detailedAlignment={p.detailedAlignment}
           onUpdateClientFields={p.onUpdateClientFields}
           onNiInstructionsSent={p.onNiInstructionsSent}
           onRequestAuthorityRepresentation={p.onRequestAuthorityRepresentation}
