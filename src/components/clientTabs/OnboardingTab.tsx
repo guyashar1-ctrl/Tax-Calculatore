@@ -374,34 +374,45 @@ export default function OnboardingTab({
   /** מוסד במיקוד — כשמוגדר, המסך משתלט לגמרי (המודל המאושר: בידוד חזותי וקוגניטיבי). */
   const [focusedInstitutionKey, setFocusedInstitutionKey] = useState<InstitutionKey | null>(null);
   /**
-   * «תצוגה מפורטת» בכרטיס יישור הקו — רשימת המוסדות של המסכים המלאים.
-   * ברירת המחדל היא התצוגה הקומפקטית (AuthoritiesPanel); הרשימה נפתחת רק
-   * לפי בקשה. מאיפה נפתח המיקוד קובע לאן חוזרים בסגירה.
+   * «תצוגה מפורטת» = המסך המלא של **אותה רשות**, ישירות — בלי מסך-ביניים
+   * של בחירת מוסד (הכרעת גיא, 19.09.2026). ברירת המחדל בכרטיס יישור הקו
+   * היא התצוגה הקומפקטית בלבד; רשימת המוסדות הישנה («כניסה») אינה מוצגת
+   * שם יותר. מאיפה נפתח המיקוד קובע לאן חוזרים בסגירה.
+   *
+   * ‼ עוד אין שלבי יישור קו ⇒ יוצרים אותם באותה פעולה בדיוק כמו «התחל»
+   * (ensure_institution_alignment_steps) ונכנסים למסך ברגע שהם מגיעים —
+   * המשתמש כבר בחר רשות, ואין טעם להחזיר אותו לכפתור אחר.
    */
-  const [showDetailedAlignment, setShowDetailedAlignment] = useState(false);
   const [focusOrigin, setFocusOrigin] = useState<'taxfile' | 'journey'>('journey');
+  const pendingFocusKey = useRef<InstitutionKey | null>(null);
+  const institutionKeyOf = (authority: TaxAuthority): InstitutionKey | null =>
+    authority === 'income_tax' ? 'income' : authority === 'vat' ? 'vat'
+    : authority === 'national_insurance' ? 'btl' : null;
+  const openInstitutionDetailed = (key: InstitutionKey | null, origin: 'taxfile' | 'journey') => {
+    if (!key) return;
+    const instSteps = steps.filter(s => s.stepType.startsWith('institution_alignment_'));
+    setFocusOrigin(origin);
+    if (instSteps.some(s => s.payload.institution === key)) { setFocusedInstitutionKey(key); return; }
+    pendingFocusKey.current = key;
+    if (instSteps.length === 0 && !alignBusy) void startOrRerunAlignment([]);
+  };
+  // ‼ השלבים הגיעו אחרי יצירה ⇒ נכנסים למוסד שהתבקש, פעם אחת.
+  useEffect(() => {
+    const key = pendingFocusKey.current;
+    if (!key) return;
+    if (steps.some(s => s.stepType.startsWith('institution_alignment_') && s.payload.institution === key)) {
+      pendingFocusKey.current = null;
+      setFocusedInstitutionKey(key);
+    }
+  }, [steps]);
   const detailedTick = detailedAlignment?.tick ?? 0;
   useEffect(() => {
     if (!detailedAlignment || detailedTick === 0) return;
-    const instSteps = steps.filter(s => s.stepType.startsWith('institution_alignment_'));
-    const target = detailedAlignment.key
-      ? instSteps.find(s => s.payload.institution === detailedAlignment.key) : undefined;
-    setFocusOrigin(detailedAlignment.origin);
-    setShowDetailedAlignment(true);
-    // ‼ יש שלב למוסד המבוקש ⇒ ישר למסך המלא שלו; אין ⇒ הכרטיס עם הרשימה
-    // (ו«התחל», אם עוד לא נוצרו שלבים). לא יוצרים שלבים מעצם הצפייה.
-    if (target) setFocusedInstitutionKey(detailedAlignment.key);
+    openInstitutionDetailed(detailedAlignment.key, detailedAlignment.origin);
     onDetailedAlignmentConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailedTick]);
-  const openDetailedFor = (authority: TaxAuthority) => {
-    const key: InstitutionKey | null = authority === 'income_tax' ? 'income'
-      : authority === 'vat' ? 'vat' : authority === 'national_insurance' ? 'btl' : null;
-    const instSteps = steps.filter(s => s.stepType.startsWith('institution_alignment_'));
-    setFocusOrigin('journey');
-    setShowDetailedAlignment(true);
-    if (key && instSteps.some(s => s.payload.institution === key)) setFocusedInstitutionKey(key);
-  };
+  const openDetailedFor = (authority: TaxAuthority) => openInstitutionDetailed(institutionKeyOf(authority), 'journey');
   /** מסלול הרו"ח הקודם. ‼ חייב לשבת כאן ולא ליד המשתמשים בו (שורה ~940) —
       שם הוא אחרי ה-return המוקדם של מסך המיקוד, וכל כניסה למוסד קורסת. */
   const [prevTrackBusy, setPrevTrackBusy] = useState(false);
@@ -2007,8 +2018,8 @@ export default function OnboardingTab({
                 </div>
                 {/* ‼ ברירת המחדל כאן היא **אותה** תצוגה קומפקטית של תיק המס —
                     רכיב אחד (AuthoritiesPanel), לא עותק. מסכי יישור הקו
-                    המלאים נשארים מאחורי «תצוגה מפורטת» — כלי בדיקה זמני
-                    בזמן שהאוטומציות נבנות; כשיוסרו, הכרטיס לא ישתנה. */}
+                    המלאים נפתחים רק מ«תצוגה מפורטת» של רשות — ישירות למסך
+                    שלה, בלי רשימת-ביניים. כלי בדיקה זמני; כשיוסר, הכרטיס לא ישתנה. */}
                 <div className="ob-card-body ob-auth-body">
                   <AuthoritiesPanel
                     client={client}
@@ -2029,32 +2040,8 @@ export default function OnboardingTab({
                       </div>
                     )}
                   />
-                  {/* ‼ הגיעו מ«תצוגה מפורטת» בתיק המס ועוד אין מסכי יישור קו:
-                      אומרים את זה במקום לנחות בשקט, ומחזירים לתיק המס. */}
-                  {showDetailedAlignment && alignSteps.length === 0 && (
-                    <div className="ob-auth-detailed ob-auth-detailed-none">
-                      <span>התצוגה המפורטת נפתחת אחרי «התחל» — הוא יוצר את מסכי יישור הקו לשלוש הרשויות.</span>
-                      {focusOrigin === 'taxfile' && onOpenTaxFile && (
-                        <button type="button" className="ui-linkbtn"
-                          onClick={() => { setFocusOrigin('journey'); setShowDetailedAlignment(false); onOpenTaxFile(); }}>
-                          ← חזרה לתיק המס
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {alignSteps.length > 0 && (
-                    <div className="ob-auth-detailed">
-                      <button type="button" className="ui-linkbtn ob-auth-detailed-btn"
-                        aria-expanded={showDetailedAlignment}
-                        onClick={() => setShowDetailedAlignment(v => !v)}>
-                        {showDetailedAlignment ? 'הסתר תצוגה מפורטת' : 'תצוגה מפורטת'}
-                      </button>
-                      {showDetailedAlignment && (
-                        <InstitutionAlignmentGroup steps={alignSteps}
-                          onOpen={key => { setFocusOrigin('journey'); setFocusedInstitutionKey(key); }} />
-                      )}
-                    </div>
-                  )}
+                  {/* ‼ אין כאן רשימת מוסדות («כניסה»): המסך המלא של כל רשות
+                      נפתח ישירות מ«תצוגה מפורטת» בשורת אותה רשות למעלה. */}
                   {alignDone && onOpenTaxFile && (
                     <button type="button" className="ui-linkbtn" style={{ marginTop: 8 }}
                       onClick={onOpenTaxFile}>לתיק המס ←</button>

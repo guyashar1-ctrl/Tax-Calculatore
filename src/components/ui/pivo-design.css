@@ -4751,7 +4751,3 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .ob-auth-body{padding-top:6px}
 .ob-auth-body .txf-sect{margin:0}
 .ob-auth-empty{font-size:var(--fs-13);color:var(--ink-3);padding:6px 2px}
-.ob-auth-detailed{margin-top:10px;font-size:var(--fs-12);color:var(--ink-4);display:flex;flex-direction:column;gap:8px}
-.ob-auth-detailed-btn{align-self:flex-start;color:var(--ink-4)}
-.ob-auth-detailed-btn:hover{color:var(--ink-2)}
-.ob-auth-detailed-none{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 14px}
