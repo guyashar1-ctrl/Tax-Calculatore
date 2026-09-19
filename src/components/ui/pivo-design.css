@@ -4605,11 +4605,6 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .txf-check-btn:disabled{opacity:.45;cursor:default}
 .txf-check-btn.is-running{color:var(--ink-3)}
 .txf-check-ic{font-size:12px;line-height:1}
-/* 168: "הכן והמשך" — פעולה משנית, לא מתחרה בכפתור הבדיקה עצמו. */
-.txf-check-ensure-btn{
-  background:transparent;border:none;padding:0;font:inherit;font-size:var(--fs-12);
-  color:var(--accent);text-decoration:underline;cursor:pointer;white-space:nowrap;
-}
 
 /* סמן מצב: עיגול 7px לפני תווית השדה. */
 .txf-fstat{display:inline-block;width:7px;height:7px;border-radius:50%;margin-inline-end:5px;
@@ -4708,5 +4703,21 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   color: var(--automation-text);
   cursor: progress;
 }
-/* «הכן והמשך» ליד כפתור הבדיקה — אותה משפחה, כקישור. */
-.txf-check-ensure-btn { color: var(--automation-text); }
+/* ורוד בהיר = «אפשר, אבל קודם צריך להתחבר»: לחיץ, והלחיצה מסבירה (הודעה
+   חולפת). שונה ממושבת (מקווקו) — כאן יש מה לעשות, רק לא כאן. */
+.btn-automation.is-soft,
+.btn.btn-automation.is-soft,
+.ui-btn.btn-automation.is-soft,
+.txf-check-btn.btn-automation.is-soft {
+  background: var(--automation-soft);
+  border: 1px solid var(--automation-soft-bd);
+  color: var(--automation-text);
+  cursor: pointer;
+}
+.btn.btn-automation.is-soft:hover,
+.ui-btn.btn-automation.is-soft:hover,
+.txf-check-btn.btn-automation.is-soft:hover {
+  background: var(--automation-soft);
+  border-color: var(--automation-fill);
+  color: var(--automation-text);
+}

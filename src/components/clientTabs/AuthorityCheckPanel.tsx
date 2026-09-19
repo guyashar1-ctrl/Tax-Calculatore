@@ -8,6 +8,7 @@
 
 import type { ReactNode } from 'react';
 import type { AuthorityCheckResult, AuthorityFieldResult, AuthorityFieldStatus } from '../../features/taxFile/authorityAutomation';
+import { useToast } from '../ui/Toast';
 
 /** סמן מצב ליד תווית השדה. עיגול קטן אחד; הצבע אומר הכול, בלי מילים. */
 export function FieldStatusMark({ status, title }: { status: AuthorityFieldStatus; title?: string }) {
@@ -50,44 +51,42 @@ export function FieldAuthorityLine({ field, sourceLabel }: { field: AuthorityFie
 
 export interface AuthorityCheckButtonProps {
   label: string;
-  /** אפשר להריץ עכשיו. כשלא — הכפתור מושבת והסיבה ב-title. */
+  /** החיבור/הקלט שהפעולה צריכה קיימים — לחיצה מריצה. */
   ready: boolean;
+  /** כשלא מוכן: מה חסר. מוצג בהודעה חולפת בלחיצה, לא חוסם את הכפתור. */
   blockedReason?: string | null;
   running: boolean;
   onRun: () => void;
-  /**
-   * 168: כש-true, "לא מוכן" נובע מ-capability חסרה ספציפית (לא מקלט חסר
-   * או מרשות שעוד לא נבנתה) — יש מה להציע חוץ מחסימה שקטה.
-   */
-  canEnsure?: boolean;
-  onEnsure?: () => void;
+  /** האוטומציה עוד לא נבנתה לרשות הזו — הכפתור מושבת באמת, עם הסיבה. */
+  unavailableReason?: string | null;
 }
 
 /**
  * הפקד היחיד בכותרת הכרטיס. ‼ יושב **ליד** כפתור הפתיחה של השורה ולא
  * בתוכו — כפתור בתוך כפתור אינו HTML תקין, ולחיצה עליו הייתה גם פותחת
  * וגם מריצה.
+ *
+ * ‼ שלושה מצבים, אותה שפה בכל האוטומציות (הכרעת גיא, 19.09.2026):
+ *   ורוד מלא   — החיבור לרשות קיים ⇒ לחיצה מריצה.
+ *   ורוד בהיר  — החיבור לא קיים (הנורית בכותרת לא ירוקה) או חסר קלט ⇒
+ *                 הכפתור **לחיץ**, והלחיצה מקפיצה הודעה מה צריך קודם.
+ *                 אין «הכן והמשך»: החיבור נעשה מהכותרת.
+ *   מקווקו     — האוטומציה עוד לא נבנתה ⇒ מושבת באמת.
  */
-export function AuthorityCheckButton({ label, ready, blockedReason, running, onRun, canEnsure, onEnsure }: AuthorityCheckButtonProps) {
-  const title = running ? 'הקריאה מהרשות רצה…' : ready ? label : (blockedReason ?? 'האוטומציה אינה זמינה כרגע');
+export function AuthorityCheckButton({ label, ready, blockedReason, running, onRun, unavailableReason }: AuthorityCheckButtonProps) {
+  const { showToast } = useToast();
+  const soft = !running && !unavailableReason && !ready;
+  const title = running ? 'הקריאה מהרשות רצה…'
+    : unavailableReason ? unavailableReason
+    : soft ? (blockedReason ?? 'יש להתחבר לרשות קודם.')
+    : label;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <button type="button" className={`txf-check-btn btn-automation ${running ? 'is-running' : ''}`}
-        disabled={!ready || running} aria-busy={running || undefined} title={title} aria-label={title}
-        onClick={onRun}>
-        <span className="txf-check-ic" aria-hidden="true">{running ? '⋯' : '⟳'}</span>
-        <span className="txf-check-lbl">{running ? 'בודק…' : label}</span>
-      </button>
-      {/* ‼ 168/פרק 16 §16.1: שחזור נקודתי + המשך אוטומטי — לא חסימה שקטה
-          כש-blocked נובע מ-capability חסרה. אותה פעולה עסקית ממש, רק אחרי
-          שההכנה הסתיימה. ראה TaxFileTab.tsx: pendingEnsureRef. */}
-      {!ready && !running && canEnsure && onEnsure && (
-        <button type="button" className="txf-check-ensure-btn" title="הכן את שכבת הרשות החסרה, והמשך אוטומטית"
-          onClick={onEnsure}>
-          הכן והמשך
-        </button>
-      )}
-    </span>
+    <button type="button" className={`txf-check-btn btn-automation ${running ? 'is-running' : ''} ${soft ? 'is-soft' : ''}`}
+      disabled={!!unavailableReason || running} aria-busy={running || undefined} title={title} aria-label={title}
+      onClick={soft ? () => showToast(blockedReason ?? 'יש להתחבר לרשות קודם.') : onRun}>
+      <span className="txf-check-ic" aria-hidden="true">{running ? '⋯' : '⟳'}</span>
+      <span className="txf-check-lbl">{running ? 'בודק…' : label}</span>
+    </button>
   );
 }
 
