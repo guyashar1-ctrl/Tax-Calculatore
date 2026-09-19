@@ -210,7 +210,8 @@ export default function OnboardingPage({ token }: Props) {
       else {
         setPhase('form');
         // «הקישור נפתח» — למשרד. לא חוסם ולא מוצג ללקוח; כישלון שקט.
-        void supabase.rpc('touch_onboarding', { p_token: token });
+        // ‼ בונה הבקשה של supabase-js עצל — בלי then/await הבקשה לא יוצאת בכלל.
+        supabase.rpc('touch_onboarding', { p_token: token }).then(() => undefined, () => undefined);
       }
     })();
     return () => { cancelled = true; };

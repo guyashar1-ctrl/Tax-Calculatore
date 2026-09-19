@@ -11,6 +11,7 @@ import type { Client, RepresentationRequest } from '../types';
 import type { OnboardingStep } from '../types/onboarding';
 import { identityRequirements, missingIdentity } from './identityEvidence';
 import { peopleFromClient, requestScope } from './repScope';
+import { noOpenInfoLine } from '../lib/onboardingTracking';
 
 export const ONBOARDING_FORM_STEPS = 4;
 export const ONBOARDING_STEP_TITLES = ['הפרטים', 'פרטי קשר', 'מצב משפחתי', 'צילום תעודות'];
@@ -18,6 +19,8 @@ export const ONBOARDING_STEP_TITLES = ['הפרטים', 'פרטי קשר', 'מצ�
 export interface RepresentationInsight {
   /** שלב הטופס האחרון שנשמר (1–3), 0 = טרם נשמר. */
   draftStep: number;
+  /** מתי הבקשה נוצרה — קובע אם היעדר חותמת פתיחה אומר «טרם נפתח» או «אין מידע». */
+  createdAt?: string;
   openedAt?: string;
   lastActivityAt?: string;
   /** מי עדיין חייב צילום תעודה — לפי היקף הבקשה ומה שכבר הגיע. */
@@ -56,6 +59,7 @@ export function representationInsight(
 
   return {
     draftStep: Number(draft.step ?? 0) || 0,
+    createdAt: request.createdAt,
     openedAt: draft.openedAt,
     lastActivityAt: draft.lastActivityAt ?? draft.savedAt,
     missingIdentity: missing,
@@ -83,9 +87,10 @@ export function relativeDays(iso?: string): string {
 /**
  * שורת ההתקדמות של הקליטה, לכרטיס ולשורת המצב — כשהבקשה עוד ב-pending_fill.
  * «הקישור טרם נפתח» · «נפתח, טרם שמר פרטים» · «שמר עד שלב 2 מתוך 4 (פרטי קשר) · לפני 3 ימים».
+ * ‼ בקשה מלפני המעקב (191) בלי חותמת ⇒ «אין מידע», לא «טרם נפתח» — ראה lib/onboardingTracking.
  */
 export function onboardingProgressLine(i: RepresentationInsight): string {
-  if (!i.openedAt && !i.draftStep) return 'הקישור טרם נפתח';
+  if (!i.openedAt && !i.draftStep) return noOpenInfoLine(i.createdAt);
   const when = i.lastActivityAt ? ` · ${relativeDays(i.lastActivityAt)}` : '';
   if (!i.draftStep) return `הלקוח פתח את הקישור, טרם שמר פרטים${when}`;
   const next = Math.min(i.draftStep + 1, ONBOARDING_FORM_STEPS);
