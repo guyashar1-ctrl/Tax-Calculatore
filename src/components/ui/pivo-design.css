@@ -4751,3 +4751,99 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .ob-auth-body{padding-top:6px}
 .ob-auth-body .txf-sect{margin:0}
 .ob-auth-empty{font-size:var(--fs-13);color:var(--ink-3);padding:6px 2px}
+
+/* ═══ בקשות v3 · לפי אחריות ופעולה הבאה ═══════════════════════════════════════
+   מקור: docs/prototypes/requests-v3-responsibility-v1.html (מאושר 19.09.2026).
+   ארבעה מקטעים — לטיפולי · ממתינים · העבודה שלי · עבר. הצבע חי בנקודת פס
+   הזמן בלבד: כחול = יש כאן כפתור ללחוץ עכשיו, אפור = ממתינים, אדום = בעיה. */
+.ob-context {
+  margin-top: 4px; font-size: var(--fs-12); color: var(--ink-3);
+  display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+}
+.ob-context .ok { color: var(--ok); font-weight: 700; }
+.ob-context .sep { color: var(--ink-4); }
+.ob-sec { margin-top: 26px; }
+.ob-sec:first-child { margin-top: 4px; }
+.ob-sec-head {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: var(--fs-13); font-weight: 700; color: var(--ink-1);
+}
+.ob-sec-head.is-quiet { color: var(--ink-3); }
+.ob-sec-head .cnt { font-size: var(--fs-12); color: var(--ink-4); font-weight: 600; }
+.ob-sec-head .hint { font-size: var(--fs-12); color: var(--ink-4); font-weight: 400; margin-inline-start: 6px; }
+.ob-sub-label { font-size: var(--fs-12); color: var(--ink-4); font-weight: 700; margin: 16px 2px 0; }
+.ob-sub-label .lite { font-weight: 400; }
+.ob-sub-label .warnx { color: var(--warn); font-weight: 600; }
+.ob-empty {
+  margin-top: 10px; border: 1px dashed var(--bd-strong); border-radius: 14px;
+  padding: 14px 16px; color: var(--ink-4); font-size: var(--fs-13);
+}
+.ob-pill.is-unsent { background: var(--warn-bg, #fbf3e4); color: var(--warn); }
+.ob-pivo-line {
+  margin-top: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  font-size: var(--fs-12); border-radius: 9px; padding: 8px 10px;
+  background: var(--surface-2); color: var(--ink-2);
+}
+.ob-pivo-line.is-stuck { background: var(--err-bg); color: var(--err); }
+.ob-pivo-line.is-running { background: var(--automation-soft); color: var(--automation-text); }
+.ob-pivo-line .tag { font-weight: 700; font-size: 11px; letter-spacing: .02em; }
+.ob-pivo-line .grow { flex: 1; min-width: 0; }
+.ob-spin {
+  display: inline-block; width: 11px; height: 11px; border: 2px solid currentColor;
+  border-inline-end-color: transparent; border-radius: 50%; animation: ob-sp .8s linear infinite;
+  vertical-align: -1px;
+}
+@keyframes ob-sp { to { transform: rotate(360deg); } }
+.ob-card-lead { font-size: var(--fs-12); color: var(--ink-2); font-weight: 600; margin-top: 4px; line-height: 1.5; }
+.ob-past {
+  width: 100%; margin-top: 12px; border: 1px solid var(--hairline-1); border-radius: 14px;
+  padding: 12px 16px; cursor: pointer; color: var(--ink-3); font-size: var(--fs-13); font-weight: 700;
+  display: flex; justify-content: space-between; background: transparent; font-family: inherit;
+}
+.ob-past:hover { background: var(--surface-2); }
+@media (max-width: 640px) {
+  .ob-pivo-line .btn { flex-basis: 100%; justify-content: center; }
+}
+
+/* ── המגש «שלח בקשות» ─────────────────────────────────────────────────────── */
+.srd-rcp { border: 1px solid var(--bd); border-radius: 14px; margin-top: 12px; overflow: hidden; }
+.srd-rcp.is-off { opacity: .55; }
+.srd-rcp-head {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  background: var(--surface-2); flex-wrap: wrap;
+}
+.srd-rcp-head input[type=checkbox] { width: 16px; height: 16px; }
+.srd-who { font-weight: 700; font-size: var(--fs-14); }
+.srd-addr { font-size: var(--fs-12); color: var(--ink-3); unicode-bidi: isolate; }
+.srd-addr.is-missing { color: var(--warn); }
+.srd-addr-btn { font-size: 11px; }
+.srd-addr-edit { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.srd-addr-edit input { min-width: 200px; }
+.srd-what { margin-inline-start: auto; font-size: var(--fs-12); color: var(--ink-4); }
+.srd-err { padding: 6px 14px; font-size: var(--fs-12); color: var(--err); background: var(--err-bg); }
+.srd-rcp-body { padding: 6px 14px 12px; }
+.srd-item { display: flex; flex-direction: column; padding: 8px 0; border-top: 1px solid var(--hairline-2); font-size: var(--fs-13); }
+.srd-item:first-child { border-top: 0; }
+.srd-item small { color: var(--ink-4); font-size: var(--fs-12); }
+.srd-line { margin-top: 8px; font-size: var(--fs-12); color: var(--ink-3); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.srd-line .ui-linkbtn { font-size: var(--fs-12); }
+.srd-preview { margin-top: 10px; border: 1px solid var(--hairline-1); border-radius: 12px; overflow: hidden; }
+.srd-preview-hdr { background: var(--surface-2); padding: 8px 12px; font-size: 11px; color: var(--ink-3); display: grid; gap: 2px; }
+.srd-preview-hdr b { color: var(--ink-2); font-weight: 600; }
+.srd-preview-note { padding: 10px 12px; font-size: var(--fs-12); color: var(--ink-3); }
+.srd-preview-frame { width: 100%; height: 460px; border: 0; background: #fff; display: block; }
+.srd-status { padding: 10px 14px; font-size: var(--fs-12); }
+.srd-status.is-sending { background: var(--surface-2); color: var(--ink-3); }
+.srd-status.is-ok { background: var(--ok-bg); color: var(--ok); }
+.srd-status.is-err { background: var(--err-bg); color: var(--err); }
+.srd-done { text-align: center; padding: 22px 10px 8px; }
+.srd-done-mark { font-size: 36px; color: var(--ok); }
+.srd-done h4 { margin: 8px 0 4px; font-size: var(--fs-15); }
+.srd-done p { margin: 0; font-size: var(--fs-13); color: var(--ink-3); }
+@media (max-width: 640px) {
+  .srd-what { margin-inline-start: 0; width: 100%; }
+}
+
+/* המונה על «שלח בקשות» — כמה נמענים */
+.ob-send-cnt { background: rgba(255,255,255,.22); border-radius: 999px; padding: 0 7px; font-size: 11px; margin-inline-start: 6px; }
+.ob-clientpage .btn-primary { font-weight: 600; }

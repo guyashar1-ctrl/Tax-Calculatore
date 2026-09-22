@@ -23,7 +23,7 @@ import {
 } from '../../types/onboarding';
 import type { Client, NiTracking, RepAuthorityKind, RepresentationStatus, TaxAuthority } from '../../types';
 import type { Quotation, QuotationItem } from '../../types/quotations';
-import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS } from '../../types';
+import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS, NI_APPROVAL_PHONE } from '../../types';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
 import AuthoritiesPanel from '../authorities/AuthoritiesPanel';
@@ -71,8 +71,14 @@ import {
 } from '../../utils/clientFacingRows';
 import EmailInput from '../ui/EmailInput';
 import InfoLines from '../ui/InfoLines';
-import NiInstructionsDialog from '../NiInstructionsDialog';
 import PrerequisiteGate, { type PrerequisitePerson } from '../PrerequisiteGate';
+import NiNextActionButton from '../NiNextActionButton';
+import SendRequestsDialog from './SendRequestsDialog';
+import { useReadyToSend, readyRecipientCount } from '../../hooks/useReadyToSend';
+import { useAutomationJob } from '../../hooks/useAutomationJobs';
+import { BTL_CHECK_REPRESENTATION_ACTION_TYPE, BTL_CREATE_REPRESENTATION_ACTION_TYPE } from '../../types/automation';
+import type { AutomationJob } from '../../types/automation';
+import { stepAttention, isManualInternal, type Attention, type AttentionContext, type WaitingOn } from '../../utils/requestAttention';
 
 interface Props {
   clientId: string;
@@ -330,11 +336,8 @@ export default function OnboardingTab({
   niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent,
   spouseClient, onOpenSpouseClient, detailedAlignment, onDetailedAlignmentConsumed,
 }: Props) {
-  // ‼ 157: "שלח הוראות אישור" — נפתח מכרטיס «ייצוג ברשות» באותו דיאלוג
-  // שמשמש את תיק המס (NiInstructionsDialog). אין דיאלוג נפרד לכל כניסה.
-  const [niInstructionsFor, setNiInstructionsFor] = useState<{
-    role: 'client' | 'spouse'; name: string; idNumberMasked?: string;
-  } | null>(null);
+  // ‼ v3: הוראות האישור לב"ל יוצאות ממשטח הבקשות דרך «שלח בקשות» בלבד
+  // (SendRequestsDialog · stage ni_approve). NiInstructionsDialog נשאר לתיק המס.
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [busyStepId, setBusyStepId] = useState<string | null>(null);
@@ -754,6 +757,32 @@ export default function OnboardingTab({
   // ‼ "העתק קישור" לבדו הכריח את הרו"ח להרכיב את ההודעה בעצמו בכל פעם. אותו
   // קישור עדיין כאן — אבל כאפשרות בתוך שליחה, לצד המייל שמפרט מה ממתין.
   const [sendOpen, setSendOpen] = useState(false);
+  /**
+   * «שלח בקשות» (המודל המאושר v3): מגש אחד לכל מה שמוכן לצאת, לפי נמען.
+   * null = סגור; מחרוזת = מפתח הקבוצה שבמוקד ('owner' / 'ni:spouse').
+   */
+  const [sendRequestsFocus, setSendRequestsFocus] = useState<string | null>(null);
+  const [readyTick, setReadyTick] = useState(0);
+  const niSentKey = `${niExecution?.client?.instructionsSentAt ?? ''}|${niExecution?.spouse?.instructionsSentAt ?? ''}|${niExecution?.client?.referenceNumber ?? ''}|${niExecution?.spouse?.referenceNumber ?? ''}`;
+  const { ready: readyToSend, reload: reloadReady } = useReadyToSend(
+    embedded ? clientId : undefined, `${portalRefreshKey}|${niSentKey}|${readyTick}`);
+  /* ‼ משימות ב"ל של הלקוח — לשורת PIVO בכרטיס «ייצוג ברשות» ולצבע שלו:
+     משימה שרצה ⇒ ממתינים (לא כחול); נתקעה ⇒ אדום עם ההתחברות מחדש. */
+  const btlCreateJob = useAutomationJob(embedded ? clientId : undefined, BTL_CREATE_REPRESENTATION_ACTION_TYPE);
+  const btlCheckJob = useAutomationJob(embedded ? clientId : undefined, BTL_CHECK_REPRESENTATION_ACTION_TYPE);
+  const jobForRole = (role: 'client' | 'spouse'): AutomationJob | null => {
+    const pick = (j: AutomationJob | null) => (j && j.input?.role === role ? j : null);
+    // המשימה החיה קודמת; אחרת האחרונה מבין השתיים.
+    const c = pick(btlCreateJob.job), k = pick(btlCheckJob.job);
+    const live = (j: AutomationJob | null) => !!j && (j.status === 'queued' || j.status === 'running' || j.status === 'needs_human');
+    if (live(k)) return k; if (live(c)) return c;
+    return (k?.updatedAt ?? '') > (c?.updatedAt ?? '') ? k : c;
+  };
+  const attnCtx: AttentionContext = {
+    niExecution, repStatus,
+    niJobs: { client: jobForRole('client'), spouse: jobForRole('spouse') },
+  };
+  const attnOf = (s: OnboardingStep): Attention => stepAttention(s, attnCtx);
   /** תצוגה מקדימה של הדף האישי — הדף האמיתי, לא חיקוי. */
   const [previewOpen, setPreviewOpen] = useState(false);
   /** העתקת הקישור הקבוע לדף האישי — אותו טוקן שמונפק גם בשליחה במייל. */
@@ -878,6 +907,31 @@ export default function OnboardingTab({
   const openCount = clientSteps.filter(s => isStepOpen(s.status)).length;
   const activeEngagement = clientEngagements[0];
 
+  /* ── רצועת ההקשר (v3) ─────────────────────────────────────────────────────
+     ‼ **אין מצב חדש כאן.** quotations.approvedAt, שלב ה-representation שנסגר,
+     ו-execution.nationalInsurance.confirmedAt של הלקוח עצמו — מקורות קיימים. */
+  const approvedQuotationForContext = (quotations ?? [])
+    .filter(q => q.clientId === clientId && (q.status === 'approved' || !!q.approvedAt))
+    .sort((a, b) => (a.id === activeEngagement?.quotationId ? 1 : 0) - (b.id === activeEngagement?.quotationId ? 1 : 0)
+      || (a.approvedAt ?? '').localeCompare(b.approvedAt ?? ''))
+    .slice(-1)[0];
+  const doneRepStepForContext = clientSteps.find(
+    s => s.stepType === 'representation' && (s.status === 'completed' || s.status === 'verified'));
+  const contextBits: string[] = [];
+  if (doneRepStepForContext) {
+    contextBits.push(repStatus === 'active' || !repStatus
+      ? `מיוצג פעיל${doneRepStepForContext.completedAt ? ` מ-${formatDate(doneRepStepForContext.completedAt, 'list')}` : ''}`
+      : `בקשת הייצוג הושלמה${doneRepStepForContext.completedAt ? ` ${formatDate(doneRepStepForContext.completedAt, 'list')}` : ''}${repStatus === 'awaiting_authorities' ? ' · ' + REPRESENTATION_STATUS_LABELS[repStatus] : ''}`);
+  }
+  if (approvedQuotationForContext) {
+    contextBits.push(`ההצעה אושרה${approvedQuotationForContext.approvedAt ? ` ${formatDate(approvedQuotationForContext.approvedAt, 'list')}` : ''}`);
+  }
+  if (niExecution?.client?.confirmedAt) {
+    contextBits.push(`ייפוי הכוח של ${client.firstName || 'הלקוח'} בביטוח לאומי אושר ${formatDate(niExecution.client.confirmedAt, 'list')}`);
+  }
+  const readyCount = readyRecipientCount(readyToSend);
+  const unsentStepIds = new Set(readyToSend.owner.items.map(i => i.stepId));
+
   /* ‼ עוד לא נמכר כלום ⇒ בקשה חדשה היא הכנה ולא שליחה, והשרת מחזיק אותה
      (מיגרציה 135). המסך חייב לומר את אותו דבר, אחרת הרו"ח מוסיף בקשה ולא
      מבין למה היא לא מגיעה. הגבול זהה לזה שבשרת: derive_lifecycle_stage.
@@ -925,9 +979,10 @@ export default function OnboardingTab({
     && s.status !== 'cancelled'
     && visibleSteps.some(o => o.stepType === 'materials_received' && isStepOpen(o.status)));
 
+  /* v3: הייצוג שהושלם עלה לרצועת ההקשר, ולכן הוא גם ב«עבר» כמו כל בקשה
+     שנסגרה — שם הוא היסטוריה, לא כרטיס. */
   const doneSteps = visibleSteps.filter(
-    s => !isStepOpen(s.status) && s.stepType !== 'representation'
-      && !releaseAnchor.some(a => a.id === s.id));
+    s => !isStepOpen(s.status) && !releaseAnchor.some(a => a.id === s.id));
 
   /**
    * הזזת שורה בסדר התצוגה. מסדרים את כל הפתוחות, לא רק את מה שמסונן.
@@ -1104,6 +1159,8 @@ export default function OnboardingTab({
               const locked = step.status === 'locked';
               const busy = busyStepId === step.id;
               const checklist = step.payload.checklist ?? [];
+              const attn = attnOf(step);
+              const unsent = unsentStepIds.has(step.id);
 
               // ── תפריט הפעולות המשניות ────────────────────────────────────
               // ‼ כל מה שאינו "הפעולה של עכשיו" גר כאן. קודם ישבו על כל שורה,
@@ -1145,6 +1202,19 @@ export default function OnboardingTab({
                           {step.stepType === 'custom_request' && (
                             <button type="button" role="menuitem" className={mi}
                               onClick={() => { setMenuStepId(null); setEditingStepId(step.id); }}>עריכה והגדרות</button>
+                          )}
+                          {/* ‼ v3: הסגירה של בקשה ממתינה חיה כאן, לא ככפתור על
+                              הכרטיס. הכפתור נקרא על שם מי שבאמת מחזיק את הכדור. */}
+                          {attn.kind === 'waiting' && !locked && !isManualInternal(step)
+                            && ['client_documents', 'custom_request', 'paperless_tax_authority',
+                                'prev_accountant_details', 'materials_received'].includes(step.stepType) && (
+                            <button type="button" role="menuitem" className={mi} disabled={busy}
+                              onClick={() => { setMenuStepId(null); void run(step, 'complete'); }}>
+                              {step.ball === 'prev_accountant' ? 'החומרים הגיעו'
+                                : step.ball === 'authority' ? 'התקבל מהרשות'
+                                : step.ball === 'external' ? 'התקבל מהגורם החיצוני'
+                                : 'סמן שהתקבל / בוצע'}
+                            </button>
                           )}
                           <button type="button" role="menuitem" className={mi}
                             onClick={() => { setMenuStepId(null); handleNote(step); }}>הוסף הערה</button>
@@ -1337,10 +1407,14 @@ export default function OnboardingTab({
                     stepById={stepById}
                     highlight={highlightStepId === step.id}
                     track={track}
-                    onSendInstructions={() => setNiInstructionsFor({
-                      role: subjectRole,
-                      name: String(step.payload?.subjectName ?? rowTitle(step)),
-                    })}
+                    attn={attn}
+                    job={attnCtx.niJobs?.[subjectRole] ?? null}
+                    clientRecord={client}
+                    spouseClient={spouseClient}
+                    /* ‼ v3: השליחה עוברת דרך המגש האחד — לא דיאלוג נסתר בתוך הכרטיס.
+                       הקבוצה של האדם הזה נפתחת במוקד. */
+                    onSendInstructions={() => setSendRequestsFocus(`ni:${subjectRole}`)}
+                    onExecutionChanged={() => { void onNiInstructionsSent?.(); refresh?.(); setReadyTick(t => t + 1); }}
                     currentValues={{
                       spouseFirstName: client.spouseFirstName, spouseLastName: client.spouseLastName,
                       spouseIdNumber: client.spouseIdNumber,
@@ -1458,44 +1532,33 @@ export default function OnboardingTab({
                   stepById={stepById}
                   highlight={highlightStepId === step.id}
                   noteLine={contactNote ?? undefined}
+                  unsent={unsent}
+                  /* ‼ v3: בקשה שממתינה ללקוח אומרת מאז מתי היא בדף — לא "ממתין". */
+                  statusLabel={attn.kind === 'waiting' && attn.waitingOn === 'client' && step.publishedAt && !isDraftStep(step)
+                    ? `בדף מ-${formatDate(step.publishedAt, 'list')}`
+                    : attn.kind === 'mine' && attn.tone === 'blue' && step.needsAttention && step.status === 'in_progress' && !isManualInternal(step)
+                      ? `${client.firstName || 'הלקוח'} סיים/ה — לבדיקה` : undefined}
                   menu={<>
                     {/* ‼ בבקשה לגורם חיצוני השליחה היא הפעולה — לא "התחל".
                         "התחל" על מייל שלא יצא הוא סימון עצמי שלא קרה כלום. */}
                     {externalSend}
-                    {locked && !extCfg && (
-                      <button type="button" className="btn btn-sm btn-secondary" disabled>התחל</button>
-                    )}
-                    {/* ‼ "התחל" הוא כפתור של מי שעושה את העבודה. בחיבור לרשות
-                        המסים העבודה היא של הלקוח, ולכן מה שצריך כאן הוא סגירה
-                        בלחיצה אחת — לרוב אחרי שהוא אמר בטלפון שביצע. */}
-                    {step.status === 'pending' && !extSendable
-                      && step.stepType !== 'paperless_tax_authority' && (
-                      <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
-                        onClick={() => void run(step, 'start')}>התחל</button>
-                    )}
-                    {step.status === 'pending' && step.stepType === 'paperless_tax_authority' && (
+                    {/* ‼ v3: אין «התחל» על בקשה ממתינה. הוא שינה pending→in_progress
+                        בלבד — לא הודיע ללקוח, לא פתח תלות, לא שינה את הדף.
+                        בקשה שממתינה לאחר נושאת רק ⋯ (ושם «סמן שהתקבל / בוצע»);
+                        עבודה שלי מציגה את הפועל עצמו. */}
+                    {attn.kind === 'mine' && (step.status === 'pending' || step.status === 'in_progress')
+                      && !extSendable && !isManualInternal(step) && step.needsAttention && (
                       <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-                        title="הלקוח מסמן בעצמו בדף האישי - זה כאן למקרה שהוא עדכן אותך אחרת"
-                        onClick={() => void run(step, 'complete')}>הלקוח השלים</button>
+                        title="הלקוח סיים - בדיקה וסגירה"
+                        onClick={() => void run(step, 'complete')}>בדוק וסגור</button>
                     )}
-                    {step.status === 'in_progress' && (
+                    {isManualInternal(step) && (step.status === 'pending' || step.status === 'in_progress') && (
                       <>
                         <button type="button" className="btn btn-sm btn-primary" disabled={busy}
                           onClick={() => void run(step, 'complete')}>סיימתי</button>
                         <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
                           onClick={() => void run(step, 'wait_client')}>ממתין ללקוח</button>
                       </>
-                    )}
-                    {/* ‼ הכפתור נקרא על שם מי שבאמת מחזיק את הכדור. "הלקוח השלים"
-                        על שלב שממתין לרו״ח הקודם או לרשות הוא פשוט לא נכון. */}
-                    {step.status === 'waiting_client' && (
-                      <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-                        onClick={() => void run(step, 'complete')}>
-                        {step.ball === 'prev_accountant' ? 'החומרים הגיעו'
-                          : step.ball === 'authority' ? 'התקבל מהרשות'
-                          : step.ball === 'external' ? 'התקבל מהגורם החיצוני'
-                          : 'הלקוח השלים'}
-                      </button>
                     )}
                     {step.status === 'completed' && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
@@ -1664,6 +1727,24 @@ export default function OnboardingTab({
           יש דבר אחד לשלוח, ושולחים אותו פעם אחת (ואפשר לשלוח שוב).
           עד היום הפס הזה הופיע רק בזמן קליטה; אבל בקשה אינה שייכת לקליטה,
           ולקוח ותיק שמבקשים ממנו מסמך צריך בדיוק את אותו קישור. */}
+      {/* ── רצועת הקשר (v3): מה שהיה שני כרטיסי אבן-דרך ─────────────────────
+          הצעה שאושרה, ייצוג שהושלם, ייפוי כוח ב"ל של הלקוח עצמו — שורה
+          אחת שקטה מעל הבקשות. הם הקשר, לא בקשה פתוחה; כרטיס גדול בראש
+          הרשימה נקרא כ"עוד משהו לטפל בו". ‼ מקורות קיימים בלבד. */}
+      {embedded && contextBits.length > 0 && (
+        <div className="ob-context">
+          <span className="ok" aria-hidden="true">✓</span>
+          {contextBits.map((b, i) => (
+            <span key={b}>{i > 0 && <span className="sep">· </span>}{b}</span>
+          ))}
+          {onOpenRepresentation && (
+            <>
+              <span className="sep">·</span>
+              <button type="button" className="ui-linkbtn" onClick={onOpenRepresentation}>למרכז הייצוג ←</button>
+            </>
+          )}
+        </div>
+      )}
       {embedded && (
         <div className="ob-clientpage">
           <span className="ob-clientpage-lead">
@@ -1673,11 +1754,6 @@ export default function OnboardingTab({
             onClick={() => void copyPortalLink()}
             title="מעתיק את הקישור לדף האישי - לוואטסאפ או לכל מקום אחר">
             {linkCopied ? 'הועתק ✓' : linkBusy ? 'מכין…' : 'העתק קישור'}
-          </button>
-          <button type="button" className="ui-linkbtn"
-            onClick={() => setSendOpen(true)}
-            title="מייל עם מה שממתין לו, או הקישור לשליחה בוואטסאפ">
-            שלח שוב את הקישור
           </button>
           <button type="button" className="ui-linkbtn"
             onClick={() => setPreviewOpen(true)}
@@ -1698,6 +1774,16 @@ export default function OnboardingTab({
               {closing ? 'סוגר…' : 'סגור קליטה'}
             </button>
           )}
+          {/* ‼ הפעולה הראשית של העמוד (v3): מגש אחד לכל מה שמוכן לצאת — הדף
+              לבעל הכרטיס, הוראות ב"ל לאדם במשק הבית — מקובץ לפי נמען.
+              "שלח שוב את הקישור" הישן חי בתוך המגש כשאין מה לשלוח. */}
+          <button type="button" className={`btn btn-sm ${readyCount > 0 ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setSendRequestsFocus(readyCount > 0 ? 'owner' : 'none')}
+            title={readyCount > 0 ? 'סקירה לפי נמען לפני השליחה - שום דבר לא יוצא לפני «שלח»' : 'אין כרגע בקשה שטרם נשלחה - אפשר לשלוח שוב את הקישור לדף'}>
+            שלח בקשות{readyCount > 0 && (
+              <span className="ob-send-cnt">{readyCount === 1 ? 'נמען אחד' : `${readyCount} נמענים`}</span>
+            )}
+          </button>
         </div>
       )}
       {/* ‼ המשפט שמסביר את המודל, מאב-הטיפוס המאושר. הוא לא קישוט: בלעדיו
@@ -1827,14 +1913,15 @@ export default function OnboardingTab({
           [...openVisible, ...releaseAnchor].filter(s => !isManualInternalTask(s)), depParents);
         const alignSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
 
-        /** כרטיס אחד + פס הזמן שלו. active = יש בו מה לעשות עכשיו. */
-        const flowItem = (step: OnboardingStep, body: React.ReactNode) => (
+        /** כרטיס אחד + פס הזמן שלו. הצבע נגזר מ-stepAttention בלבד (v3):
+         *  כחול = יש כאן כפתור ללחוץ עכשיו · אדום = בעיה · אפור = ממתינים. */
+        const flowItem = (step: OnboardingStep, body: React.ReactNode, attn: Attention = attnOf(step)) => (
           <div
             key={step.id}
             className={[
               'ob-req',
-              stepAwaitsMe(step) ? 'is-active' : '',
-              step.status === 'blocked' || step.status === 'failed' || step.needsAttention ? 'is-danger' : '',
+              attn.kind === 'mine' && attn.tone === 'blue' ? 'is-active' : '',
+              attn.tone === 'red' ? 'is-danger' : '',
             ].filter(Boolean).join(' ')}
           >
             <span className="ob-req-dot" aria-hidden="true" />
@@ -1863,94 +1950,123 @@ export default function OnboardingTab({
         const alignDone = alignSteps.length > 0
           && alignSteps.every(s => s.status === 'completed' || s.status === 'verified');
 
-        /* ── אבני-דרך שהובילו לכאן ────────────────────────────────────────
-           ‼ בלעדיהן הרצף מתחיל באמצע: הכרטיס הראשון על המסך הוא "פתיחת
-           חשבון פייפרלס", ואי אפשר להבין ממנו למה בכלל נפתחה קליטה. שתי
-           אבני-דרך בלבד — אישור ההצעה וסגירת בקשת הייצוג — כי הן שתי
-           הנקודות שיוצרות את כל מה שמתחתן.
-           ‼ **אין מצב חדש כאן.** מקורות קיימים בלבד: `quotations.approvedAt`
-           ושלב ה-representation עצמו. שום דבר לא משוכפל ולא נכתב. */
-        const approvedQuotations = (quotations ?? [])
-          .filter(q => q.clientId === clientId && (q.status === 'approved' || !!q.approvedAt))
-          // ההצעה שממנה נולדה ההתקשרות הפעילה גוברת; אחרת האחרונה שאושרה.
-          .sort((a, b) => (a.id === activeEngagement?.quotationId ? 1 : 0) - (b.id === activeEngagement?.quotationId ? 1 : 0)
-            || (a.approvedAt ?? '').localeCompare(b.approvedAt ?? ''));
-        const approvedQuotation = approvedQuotations[approvedQuotations.length - 1];
+        /* ── המודל המאושר (v3): מקטעים לפי אחריות, לא רשימה כרונולוגית ─────
+           לטיפולי · ממתינים (אצל מי) · העבודה שלי · עבר. אבני-הדרך (הצעה,
+           ייצוג שהושלם) עלו לרצועת ההקשר מעל הפס — הן הקשר, לא כרטיס.
+           ‼ שרשרת-מושג (פייפרלס, רו"ח קודם) נשארת כרטיס אחד; המקטע שלה
+           נקבע לפי החבר הפתוח הראשון — הפנים של המסלול יכולות להיות שלב
+           שכבר נסגר (המכתב נחתם, החומרים עוד בדרך). */
+        type Placed = { key: string; step: OnboardingStep; attn: Attention; node: React.ReactNode };
+        const rowAttention = (row: ClientFacingRow): Attention => {
+          const live = isStepOpen(row.primary.status) ? row.primary : row.members.find(m => isStepOpen(m.status));
+          return live ? attnOf(live) : { kind: 'done', tone: 'gray' };
+        };
+        const placed: Placed[] = [
+          ...(repStep ? [{ key: repStep.id, step: repStep, attn: attnOf(repStep), node: renderStep(repStep) }] : []),
+          ...authRepSteps.map(s => ({ key: s.id, step: s, attn: attnOf(s), node: renderStep(s) })),
+          ...clientRows.map(row => ({ key: row.primary.id, step: row.primary, attn: rowAttention(row), node: renderRow(row) })),
+        ];
+        const mineItems = placed.filter(p => p.attn.kind === 'mine');
+        const waitingItems = placed.filter(p => p.attn.kind === 'waiting');
 
-        const doneRepStep = clientSteps.find(
-          s => s.stepType === 'representation' && (s.status === 'completed' || s.status === 'verified'));
-
-        /** כרטיס אבן-דרך: ✓, שם, ומשפט אחד. בלי פעולות — אין מה לעשות בו. */
-        const milestone = (key: string, title: string, sub: string) => (
-          <div key={key} className="ob-req is-done">
-            <span className="ob-req-dot" aria-hidden="true" />
-            <div className="ob-card is-done">
-              <div className="ob-card-row">
-                <div className="ob-card-main">
-                  <div className="ob-card-title">
-                    <span className="ob-done-mark" aria-hidden="true">✓</span>{title}
-                  </div>
-                  <div className="ob-card-meta">{sub}</div>
-                </div>
-              </div>
-            </div>
-          </div>
+        /* תת-הכותרות של «ממתינים» — אצל מי, בסדר קבוע. הלקוח ראשון: הוא
+           הרוב, ושם יושבת גם השורה "הדף נשלח לאחרונה… · N טרם נשלחו". */
+        const WAITING_ORDER: WaitingOn[] = ['client', 'spouse', 'paperless', 'authority', 'prev_accountant', 'external', 'pivo', 'locked'];
+        const spouseFirst = (client.spouseFirstName || client.spouseName || 'בן/בת הזוג').trim().split(/\s+/)[0];
+        const WAITING_LABEL: Record<WaitingOn, string> = {
+          client: `אצל ${client.firstName || 'הלקוח'} — בדף האישי`,
+          spouse: `אצל ${spouseFirst}`,
+          paperless: 'אצל פייפרלס',
+          authority: 'אצל הרשות',
+          prev_accountant: 'אצל הרו״ח הקודם',
+          external: 'אצל גורם חיצוני',
+          pivo: 'PIVO עובד',
+          locked: 'ייפתח אחרי בקשה אחרת',
+        };
+        const lastSent = readyToSend.owner.lastSentAt;
+        const unsentCount = readyToSend.owner.items.length;
+        const ownerWaitingNote = (
+          <>
+            <span className="lite">
+              {' · '}{lastSent ? `הדף נשלח לאחרונה ${formatDate(lastSent, 'list')}` : 'הדף עוד לא נשלח מ-PIVO'}
+            </span>
+            {unsentCount > 0 && (
+              <span className="warnx">
+                {' · '}{unsentCount === 1
+                  ? (lastSent ? 'בקשה אחת נוספה מאז ולא נשלחה — נכללת' : 'בקשה אחת לא נשלחה — נכללת')
+                  : (lastSent ? `${unsentCount} בקשות נוספו מאז ולא נשלחו — נכללות` : `${unsentCount} בקשות לא נשלחו — נכללות`)} ב«שלח בקשות»
+              </span>
+            )}
+          </>
         );
 
         return (
           <div className="ob-flow">
-            {!repStep && authRepSteps.length === 0 && clientRows.length === 0 && !approvedQuotation && !doneRepStep && (
-              <div className="cw-empty">אין בקשות פתוחות כרגע.</div>
-            )}
+            {/* ── לטיפולי ─────────────────────────────────────────────────
+                מה שנספר בתג: כרטיסים כחולים/אדומים שמוצגים כאן בפועל. */}
+            <section className="ob-sec">
+              <div className="ob-sec-head"><span>לטיפולי</span><span className="cnt">{mineItems.length + (needsPrevTrack ? 1 : 0)}</span></div>
+              {mineItems.length === 0 && !needsPrevTrack && (
+                <div className="ob-empty">
+                  {waitingItems.length > 0
+                    ? 'אין מה לטפל כרגע. כל הבקשות אצל אחרים — ראה «ממתינים».'
+                    : 'אין בקשות פתוחות כרגע.'}
+                </div>
+              )}
+              {mineItems.map(p => flowItem(p.step, p.node, p.attn))}
 
-            {approvedQuotation && milestone('ms-quotation', 'הצעת מחיר',
-              [
-                'אושרה',
-                approvedQuotation.approvedAt ? formatDate(approvedQuotation.approvedAt, 'list') : null,
-                approvedQuotation.approvalSignerName || null,
-              ].filter(Boolean).join(' · '))}
-
-            {/* ‼ "הושלמה" ולא repStatusLabel: מצב בקשת הייצוג ממשיך לזוז אחרי
-                שהשלב נסגר, ובפועל ראיתי כרטיס עם ✓ שכתוב עליו "ממתין למילוי
-                הלקוח". רק מצב שהוא באמת אחרי ההשלמה מתווסף כזנב. */}
-            {doneRepStep && milestone('ms-representation', 'בקשת ייצוג',
-              [
-                'הושלמה',
-                doneRepStep.completedAt ? formatDate(doneRepStep.completedAt, 'list') : null,
-                repStatus === 'awaiting_authorities' || repStatus === 'active'
-                  ? REPRESENTATION_STATUS_LABELS[repStatus] : null,
-              ].filter(Boolean).join(' · '))}
-
-            {repStep && flowItem(repStep, renderStep(repStep))}
-            {authRepSteps.map(s => flowItem(s, renderStep(s)))}
-            {clientRows.map(row => flowItem(row.primary, renderRow(row)))}
-
-            {/* ‼ ידוע שיש רו״ח קודם, ואין מסלול — קורה כשהכרטיס נפתח בלי הצעה
-                שסומנה כמעבר, או כשהפרטים הוזנו ידנית אחר כך. כאן פותחים את
-                אותו מסלול בדיוק (create_onboarding_request), לא מסלול שני. */}
-            {needsPrevTrack && (
-              <div className="ob-req">
-                <span className="ob-req-dot" aria-hidden="true" />
-                <div className="ob-card">
-                  <div className="ob-card-row">
-                    <div className="ob-card-main">
-                      <div className="ob-card-title">רו״ח קודם</div>
-                      <div className="ob-card-meta">
-                        {prevAccountant?.name
-                          ? `${prevAccountant.name} רשום בכרטיס - עוד לא נפתח מסלול העברה.`
-                          : 'רשום שהלקוח הגיע מרו״ח אחר - עוד לא נפתח מסלול העברה.'}
+              {/* ‼ ידוע שיש רו״ח קודם, ואין מסלול — קורה כשהכרטיס נפתח בלי הצעה
+                  שסומנה כמעבר, או כשהפרטים הוזנו ידנית אחר כך. כאן פותחים את
+                  אותו מסלול בדיוק (create_onboarding_request), לא מסלול שני.
+                  זו החלטה של המשרד ⇒ לטיפולי. */}
+              {needsPrevTrack && (
+                <div className="ob-req is-active">
+                  <span className="ob-req-dot" aria-hidden="true" />
+                  <div className="ob-card">
+                    <div className="ob-card-row">
+                      <div className="ob-card-main">
+                        <div className="ob-card-title">רו״ח קודם</div>
+                        <div className="ob-card-meta">
+                          {prevAccountant?.name
+                            ? `${prevAccountant.name} רשום בכרטיס - עוד לא נפתח מסלול העברה.`
+                            : 'רשום שהלקוח הגיע מרו״ח אחר - עוד לא נפתח מסלול העברה.'}
+                        </div>
                       </div>
-                    </div>
-                    <div className="ob-card-actions">
-                      <button type="button" className="btn btn-sm btn-primary" disabled={prevTrackBusy}
-                        onClick={() => void openPrevAccountantTrack()}>
-                        {prevTrackBusy ? 'פותח…' : 'פתח מסלול רו״ח קודם'}
-                      </button>
+                      <div className="ob-card-actions">
+                        <button type="button" className="btn btn-sm btn-primary" disabled={prevTrackBusy}
+                          onClick={() => void openPrevAccountantTrack()}>
+                          {prevTrackBusy ? 'פותח…' : 'פתח מסלול רו״ח קודם'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
+              )}
+            </section>
+
+            {/* ── ממתינים ─────────────────────────────────────────────────
+                אין מה לעשות עכשיו. לא נספר. מוצג אצל מי ומאז מתי, ואם
+                הלקוח בכלל יודע (גלולת «טרם נשלח» על הכרטיס). */}
+            <section className="ob-sec">
+              <div className="ob-sec-head is-quiet">
+                <span>ממתינים</span><span className="cnt">{waitingItems.length}</span>
+                <span className="hint">אין מה לעשות עכשיו — מוצג אצל מי ומאז מתי</span>
               </div>
-            )}
+              {waitingItems.length === 0 && <div className="ob-empty">לא ממתינים לאף אחד.</div>}
+              {WAITING_ORDER.map(who => {
+                const items = waitingItems.filter(p => (p.attn.waitingOn ?? 'client') === who);
+                if (items.length === 0) return null;
+                return (
+                  <div key={who}>
+                    <div className="ob-sub-label">
+                      {WAITING_LABEL[who]}
+                      {who === 'client' && ownerWaitingNote}
+                    </div>
+                    {items.map(p => flowItem(p.step, p.node, p.attn))}
+                  </div>
+                );
+              })}
+            </section>
 
             {/* ‼ הוספה ותבניות זמינות תמיד — לאורך כל חיי הלקוח, לא רק בקליטה
                 ולא רק במצב עריכה. זו בקשה חדשה, לא תצורה. */}
@@ -1991,7 +2107,11 @@ export default function OnboardingTab({
                 ומשימות שהרו"ח הוסיף בעצמו. הכרטיסים האוטומטיים (הקמה פנימית,
                 הכרת הלקוח, ביקורת חודש ראשון…) ירדו מהמסך — הם הפכו את משטח
                 הבקשות ללוח מטלות. הם ממשיכים להתקיים במסד ובשער הסגירה. */}
-            <div className="ob-flow-label">העבודה שלי · לא מופיע בדף הלקוח</div>
+            <section className="ob-sec">
+            <div className="ob-sec-head is-quiet">
+              <span>העבודה שלי</span><span className="cnt">{1 + manualInternal.length}</span>
+              <span className="hint">לא מופיע בדף הלקוח</span>
+            </div>
 
             <div className="ob-req">
               <span className="ob-req-dot" aria-hidden="true" />
@@ -2011,7 +2131,7 @@ export default function OnboardingTab({
                     <div className="ob-card-actions">
                       <button type="button" className="btn btn-sm btn-secondary" disabled={alignBusy}
                         onClick={() => void startOrRerunAlignment(alignSteps)}>
-                        {alignBusy ? 'מעדכן…' : alignSteps.length === 0 ? 'התחל' : 'בצע מחדש'}
+                        {alignBusy ? 'מעדכן…' : alignSteps.length === 0 ? 'התחל יישור קו' : 'בצע מחדש'}
                       </button>
                     </div>
                   )}
@@ -2031,7 +2151,11 @@ export default function OnboardingTab({
                     onOpenSpouseClient={onOpenSpouseClient}
                     onOpenRepresentation={onOpenRepresentation}
                     onAddNiTarget={onRequestAuthorityRepresentation}
-                    onSendNiInstructions={setNiInstructionsFor}
+                    /* ‼ v3: מסלול שליחה אחד — המגש «שלח בקשות». הדיאלוג הישן
+                       (NiInstructionsDialog) נשאר לתיק המס בלבד. */
+                    onSendNiInstructions={t => setSendRequestsFocus(`ni:${t.role}`)}
+                    hideRepresentationPlaceholder
+                    hideNiRepresentationActions
                     onNiInstructionsSent={onNiInstructionsSent}
                     onOpenDetailed={openDetailedFor}
                     emptyState={(
@@ -2074,6 +2198,7 @@ export default function OnboardingTab({
                 ＋ משימה פנימית
               </button>
             )}
+            </section>
           </div>
         );
       })()}
@@ -2084,11 +2209,13 @@ export default function OnboardingTab({
           דילוג נשאר מובחן מהשלמה: "דולג" הוא החלטה שנרשמה, לא משהו שקרה. */}
       {doneSteps.length > 0 && (
         <>
-          <div className="ob-flow-label">עבר</div>
-          <div className="ob-card" style={{ opacity: .72, cursor: 'pointer' }}
-            onClick={() => setShowDone(v => !v)}>
+          {embedded
+            ? <div className="ob-sec-head is-quiet" style={{ marginTop: 26 }}><span>עבר</span></div>
+            : <div className="ob-flow-label">עבר</div>}
+          <div className="ob-card ob-past" style={{ cursor: 'pointer' }}
+            onClick={() => setShowDone(v => !v)} role="button" aria-expanded={showDone}>
             <div className="ob-card-row">
-              <div className="ob-card-title">בקשות שהושלמו · {doneSteps.length}</div>
+              <div className="ob-card-title" style={{ color: 'var(--ink-3)' }}>בקשות שהושלמו · {doneSteps.length}</div>
               <span aria-hidden="true" style={{ color: 'var(--ink-4)', fontSize: 16 }}>
                 {showDone ? '⌃' : '⌄'}
               </span>
@@ -2270,9 +2397,36 @@ export default function OnboardingTab({
           clientName={clientDisplayName ?? 'הלקוח'}
           clientEmail={clientEmail}
           onClose={() => setSendOpen(false)}
-          onSent={() => refresh?.()}
+          onSent={() => { refresh?.(); setReadyTick(t => t + 1); }}
         />
       )}
+      {/* ‼ v3: «שלח בקשות» — כשיש מה לשלוח, המגש לפי נמען; כשאין, המסלול
+          הישן של הקישור (SendPortalDialog) — היכולת לא נמחקה, רק נכנסה פנימה. */}
+      {sendRequestsFocus !== null && (readyCount > 0 ? (
+        <SendRequestsDialog
+          clientId={clientId}
+          clientName={clientDisplayName ?? 'הלקוח'}
+          ready={readyToSend}
+          focusKey={sendRequestsFocus === 'none' ? undefined : sendRequestsFocus}
+          onUpdateClientFields={onUpdateClientFields}
+          onClose={() => setSendRequestsFocus(null)}
+          onSent={() => {
+            refresh?.();
+            void onNiInstructionsSent?.();
+            setReadyTick(t => t + 1);
+            void reloadReady();
+          }}
+        />
+      ) : (
+        <SendPortalDialog
+          clientId={clientId}
+          clientName={clientDisplayName ?? 'הלקוח'}
+          clientEmail={clientEmail}
+          heading="שלח שוב את הקישור לדף"
+          onClose={() => setSendRequestsFocus(null)}
+          onSent={() => { refresh?.(); setReadyTick(t => t + 1); }}
+        />
+      ))}
       {previewOpen && (
         <ClientPagePreviewDialog
           clientId={clientId}
@@ -2292,22 +2446,6 @@ export default function OnboardingTab({
       )}
     </div>
     </RowOpenContext.Provider>
-    {niInstructionsFor && client.representationRequestId && (
-      <NiInstructionsDialog
-        personName={niInstructionsFor.name}
-        personRole={niInstructionsFor.role}
-        referenceNumber={(niInstructionsFor.role === 'spouse' ? niExecution?.spouse : niExecution?.client)?.referenceNumber}
-        deadline={(niInstructionsFor.role === 'spouse' ? niExecution?.spouse : niExecution?.client)?.deadline}
-        requestId={client.representationRequestId}
-        currentEmail={(niInstructionsFor.role === 'spouse' ? client.spouseEmail : client.email) || ''}
-        onSaveEmail={async email => {
-          if (!onUpdateClientFields) return;
-          await onUpdateClientFields(niInstructionsFor.role === 'spouse' ? { spouseEmail: email } : { email });
-        }}
-        onClose={() => setNiInstructionsFor(null)}
-        onSent={() => { setNiInstructionsFor(null); void (onNiInstructionsSent ? onNiInstructionsSent() : refresh?.()); }}
-      />
-    )}
     </>
   );
 }
@@ -2849,8 +2987,15 @@ function RetainerStepCard(p: RetainerCardProps) {
   const manual = step.payload.method === 'manual_arrangement';
   const [method, setMethod] = useState(String(step.payload.collectionMethod ?? ''));
 
+  /* ‼ v3: המסד אומר "אצלי", אבל מי שמחזיק את הכדור הוא פייפרלס — היא מבקשת
+     מהלקוח כרטיס. משפט המצב אומר את זה במקום "ממתין". */
+  const waitingLabel = !manual && isStepOpen(step.status) && step.status !== 'locked'
+    ? `ממתינים ש${p.client.firstName || 'הלקוח'} יזין/תזין כרטיס אשראי בפייפרלס`
+    : undefined;
+
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={p.menu}
+      statusLabel={waitingLabel}
       danger={step.needsAttention}>
       {step.needsAttention && (
         <div style={{ marginTop: '.35rem', fontSize: 'var(--fs-13)', color: 'var(--err)', fontWeight: 600 }}>
@@ -3074,12 +3219,18 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
   const act = open && repStatus ? representationAction(repStatus) : null;
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}
-      statusLabel={statusLabel}>
-      {act && (
-        <div style={{ fontSize: 'var(--fs-14)', fontWeight: act.mine ? 600 : 500, color: 'var(--ink-1)' }}>
-          {act.action}
+      statusLabel={act ? act.action : statusLabel}
+      /* ‼ v3: הפעולה גלויה גם כשהכרטיס סגור — כרטיס כחול בלי כפתור הוא בדיוק
+         מה שגרם לחפש במסכים. */
+      always={onOpen && open ? (
+        <div style={{ marginTop: '.55rem' }}>
+          <button type="button"
+            className={`btn btn-sm ${act?.mine ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={onOpen}>
+            למרכז הייצוג ←
+          </button>
         </div>
-      )}
+      ) : undefined}>
       <div style={cardNote}>
         {act ? act.why
           : open ? 'הבדיקה, החתימה וההגשה נעשות במרכז הייצוג.'
@@ -3091,13 +3242,9 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
           {repNote.startsWith('חסר') ? '⚠ ' : '⏱ '}{repNote}
         </div>
       )}
-      {onOpen && (
+      {onOpen && !open && (
         <div style={{ marginTop: '.55rem' }}>
-          <button type="button"
-            className={`btn btn-sm ${act?.mine ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={onOpen}>
-            למרכז הייצוג ←
-          </button>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={onOpen}>למרכז הייצוג ←</button>
         </div>
       )}
     </StepCardShell>
@@ -3111,14 +3258,24 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
  * הזנה בפורטל → ממתין לאסמכתא → מוכן לשליחה → נשלח וממתינים לאישור → פעיל.
  */
 function AuthorityRepresentationStepCard({
-  step, stepById, highlight, track, onSendInstructions,
+  step, stepById, highlight, track, attn, job, clientRecord, spouseClient,
+  onSendInstructions, onExecutionChanged,
   currentValues, client, spouse, onSaveEmail, onChanged, menu,
 }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
   track?: NiTracking;
+  /** המקטע והצבע — מ-stepAttention, אותו מקור של התג. */
+  attn: Attention;
+  /** משימת ב"ל האחרונה של האדם הזה (הזנה/בדיקה) — לשורת PIVO. */
+  job: AutomationJob | null;
+  clientRecord: Client;
+  spouseClient?: Client;
+  /** פותח את «שלח בקשות» עם הקבוצה של האדם הזה במוקד. */
   onSendInstructions: () => void;
+  /** משימת ב"ל הסתיימה בהצלחה — הביצוע והשלב נכתבו בשרת; לרענן. */
+  onExecutionChanged: () => void;
   currentValues: Record<string, string | undefined>;
   client: PrerequisitePerson;
   spouse: PrerequisitePerson;
@@ -3127,42 +3284,123 @@ function AuthorityRepresentationStepCard({
   menu: React.ReactNode;
 }) {
   const open = isStepOpen(step.status);
-  const readyToSend = !!track?.referenceNumber && !track?.instructionsSentAt
-    && track?.instructionsSentWith !== 'signature';
+  const role: 'client' | 'spouse' = step.payload?.subjectRole === 'spouse' ? 'spouse' : 'client';
+  const first = String(step.payload?.subjectName ?? '').trim().split(/\s+/)[0]
+    || (role === 'spouse' ? 'בן/בת הזוג' : 'הלקוח');
   const sent = !!track?.instructionsSentAt;
+  const confirmed = !!track?.confirmedAt;
+  const expired = attn.tone === 'red' && !confirmed && !!track?.deadline && track.deadline < new Date().toISOString().slice(0, 10);
+  const readyToSend = !!track?.referenceNumber && !sent && !expired;
+  const deadline = track?.deadline ? formatDate(track.deadline, 'form') : null;
+  const fmtStamp = (iso?: string) => (iso ? formatDate(iso, 'list') : '');
 
-  return (
-    <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}>
-      <PrerequisiteGate step={step} currentValues={currentValues} client={client} spouse={spouse}
-        onSaveEmail={onSaveEmail} onChanged={onChanged}>
-        <div style={cardNote}>
-          {track?.confirmedAt
-            ? 'הייצוג אושר בביטוח לאומי.'
-            : sent
-              ? `הוראות האישור נשלחו ב-${new Date(track!.instructionsSentAt!).toLocaleDateString('he-IL')} — ממתינים לאישור בביטוח לאומי${track?.deadline ? ` עד ${new Date(track.deadline).toLocaleDateString('he-IL')}` : ''}.`
-              : readyToSend
-                ? `האסמכתא התקבלה (${track!.referenceNumber}) — נדרש לשלוח הוראות אישור.`
-                : track?.enteredAt
-                  ? 'הוזן בביטוח לאומי · ממתין לאסמכתא.'
-                  : open
-                    ? 'יש להזין את הייצוג בפורטל הביטוח הלאומי.'
-                    : 'הבקשה נסגרה.'}
-        </div>
+  /* ── משפט המצב — מה קרה, מי צריך לפעול ─────────────────────────────────
+     ‼ בשפת האדם, לא בשפת המסלול: לא "האסמכתא התקבלה — נדרש לשלוח", אלא
+     "PIVO הזין… · דין צריכה לאשר — ההוראות עוד לא נשלחו אליה". */
+  const statusLine = confirmed
+    ? `הייצוג של ${first} בביטוח לאומי אושר${track?.confirmedAt ? ` ${fmtStamp(track.confirmedAt)}` : ''}.`
+    : expired
+      ? `האסמכתא ${track?.referenceNumber ?? ''} פגה ב-${deadline} — ${first} לא אישר/ה בזמן.`
+      : sent
+        ? `נשלח ל${first} ${fmtStamp(track!.instructionsSentAt)} · ממתינים לאישור שלו/ה בביטוח לאומי${deadline ? ` עד ${deadline}` : ''}.`
+        : readyToSend
+          ? `PIVO הזין את ייפוי הכוח בביטוח לאומי · אסמכתא ${track!.referenceNumber}${deadline ? ` · לאשר עד ${deadline}` : ''}`
+          : track?.enteredAt
+            ? 'הוזן בביטוח לאומי · ממתינים לאסמכתא.'
+            : open
+              ? 'טרם הוזן ייפוי כוח בביטוח לאומי — PIVO מזין מהחלון של ביטוח לאומי.'
+              : 'הבקשה נסגרה.';
+  const lead = readyToSend ? `${first} צריכ/ה לאשר את ייפוי הכוח — ההוראות עוד לא נשלחו אליו/ה.` : null;
+
+  /* ── שורת PIVO — בתוך הכרטיס, לא קטגוריה משלה ─────────────────────────── */
+  const live = !!job && (job.status === 'queued' || job.status === 'running');
+  const stuck = !!job && job.status === 'needs_human';
+  const failed = !!job && job.status === 'failed';
+  const jobVerb = job?.actionType === BTL_CHECK_REPRESENTATION_ACTION_TYPE
+    ? `PIVO בודק בביטוח לאומי אם ${first} אישר/ה…`
+    : 'PIVO מזין את ייפוי הכוח בביטוח לאומי…';
+  const checkedJustNow = !!job && job.status === 'succeeded' && job.actionType === BTL_CHECK_REPRESENTATION_ACTION_TYPE
+    && !confirmed && (job.result as { status?: string } | undefined)?.status === 'pending'
+    && !!job.finishedAt && (Date.now() - new Date(job.finishedAt).getTime()) < 6 * 3600_000;
+
+  /* ‼ הפעולה האוטומטית — אותו רכיב של תיק המס ומרכז הביצוע (NiNextActionButton):
+     גם החיבור לחלון ב"ל, גם ההרצה, גם השגיאה. כאן רק בוחרים איזו פעולה. */
+  const autoAction = expired
+    ? { kind: 'enter_btl' as const, label: 'הזן מחדש בביטוח לאומי' }
+    : sent && !confirmed
+      ? { kind: 'check_btl' as const, label: 'בדוק קבלת הייצוג' }
+      : !track?.referenceNumber && !track?.enteredAt
+        ? { kind: 'enter_btl' as const, label: 'הזן ייפוי כוח בביטוח לאומי' }
+        : null;
+
+  const alwaysBlock = (
+    <>
+        {lead && <div className="ob-card-lead">{lead}</div>}
         {open && readyToSend && (
-          <div style={{ marginTop: '.55rem' }}>
+          <div style={{ marginTop: '.55rem', display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
             <button type="button" className="btn btn-sm btn-primary" onClick={onSendInstructions}>
-              שלח הוראות אישור
+              שלח ל{first} את ההוראות
             </button>
           </div>
         )}
-        {open && sent && !track?.confirmedAt && (
-          <div style={{ marginTop: '.55rem' }}>
-            <button type="button" className="btn btn-sm btn-secondary" onClick={onSendInstructions}>
-              שלח שוב
-            </button>
+        {open && autoAction && !live && (
+          <div style={{ marginTop: '.55rem', display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <NiNextActionButton client={clientRecord} spouseClient={spouseClient} role={role}
+              action={autoAction} track={track} onChanged={onExecutionChanged}
+              className="btn btn-sm" errorClassName="ob-pivo-line is-stuck" />
+            {sent && !confirmed && !expired && (
+              <button type="button" className="ui-linkbtn" onClick={onSendInstructions}>שלח שוב את ההוראות</button>
+            )}
           </div>
         )}
-      </PrerequisiteGate>
+        {live && (
+          <div className="ob-pivo-line is-running">
+            <span className="tag">PIVO</span><span className="ob-spin" aria-hidden="true" />
+            <span className="grow">{jobVerb}</span>
+            {job?.createdAt && <span style={{ fontSize: 11 }}>התחיל {new Date(job.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>}
+          </div>
+        )}
+        {stuck && !live && !autoAction && (
+          <div className="ob-pivo-line is-stuck">
+            <span className="tag">PIVO</span>
+            <span className="grow">⚠ {job?.needsHuman || 'המשימה נתקעה - נדרשת התערבות.'}</span>
+          </div>
+        )}
+        {failed && !live && !autoAction && (
+          <div className="ob-pivo-line is-stuck">
+            <span className="tag">PIVO</span>
+            <span className="grow">⚠ {job?.errorDetail || 'המשימה נכשלה.'}</span>
+          </div>
+        )}
+        {checkedJustNow && !live && !stuck && (
+          <div className="ob-pivo-line">
+            <span className="tag">PIVO</span>
+            <span className="grow">נבדק {new Date(job!.finishedAt!).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })} — {first} עדיין לא אישר/ה.</span>
+          </div>
+        )}
+    </>
+  );
+
+  /* ‼ v3: משפט המצב הוא שורת המטא של הכרטיס; הפעולה ושורת PIVO גלויות גם
+     כשהכרטיס סגור (always). מה שנפתח בלחיצה הוא ההסבר בלבד. */
+  return (
+    <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}
+      statusLabel={statusLine}
+      always={(
+        <PrerequisiteGate step={step} currentValues={currentValues} client={client} spouse={spouse}
+          onSaveEmail={onSaveEmail} onChanged={onChanged}>
+          {alwaysBlock}
+        </PrerequisiteGate>
+      )}>
+      <div style={cardNote}>
+        {confirmed
+          ? 'הייצוג בביטוח לאומי פעיל. הפירוט המלא - במרכז הייצוג.'
+          : readyToSend
+            ? `המייל ל${first}: מספר האסמכתא, המועד האחרון, וקישור למסך האישור באתר ביטוח לאומי (או בטלפון ${NI_APPROVAL_PHONE}). כשיאושר - PIVO יזהה את זה בבדיקה, והבקשה תעבור ל«עבר».`
+            : sent
+              ? `אסמכתא ${track?.referenceNumber ?? ''}. ${first} מאשר/ת באתר ביטוח לאומי או בטלפון ${NI_APPROVAL_PHONE}. אפשר לבדוק עכשיו, ו-PIVO בודק גם בעצמו.`
+              : 'ביטוח לאומי מנפיק אסמכתא לכל מבוטח בנפרד; המבוטח מאשר אותה בעצמו, ואז הייצוג בב"ל פעיל עבורו.'}
+      </div>
     </StepCardShell>
   );
 }
@@ -4249,7 +4487,8 @@ function OpeningCallCard({ step, busy, highlight, onRun, menu }: {
 
 // ═══════════════ מעטפת משותפת לכרטיסים ═══════════════════════════════════
 
-function StepCardShell({ step, stepById, highlight, danger, statusLabel, always, menu, children }: {
+function StepCardShell({ step, stepById, highlight, danger, statusLabel, always, menu, children, unsent }: {
+  unsent?: boolean;
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
@@ -4263,7 +4502,7 @@ function StepCardShell({ step, stepById, highlight, danger, statusLabel, always,
 }) {
   return (
     <JourneyRow step={step} stepById={stepById} highlight={highlight} danger={danger}
-      statusLabel={statusLabel} always={always} menu={menu}>
+      statusLabel={statusLabel} always={always} menu={menu} unsent={unsent}>
       {children}
     </JourneyRow>
   );
@@ -4274,8 +4513,10 @@ function StepCardShell({ step, stepById, highlight, danger, statusLabel, always,
  * סגור: שם · משפט מצב אחד · פרטים משניים בשקט · פעולה אחת רלוונטית + ⋯.
  * פתוח: כל הפרטים של אותה בקשה. פותחים אחת בכל פעם, כדי שהמסך יישאר קריא.
  */
-function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, always, menu, children }: {
+function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, always, menu, children, unsent }: {
   step: OnboardingStep;
+  /** v3: הבקשה בדף האישי אבל הלקוח עוד לא קיבל עליה מייל — גלולת «טרם נשלח». */
+  unsent?: boolean;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
   danger?: boolean;
@@ -4327,9 +4568,11 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
      ‼ זה השינוי המרכזי מול הרשימה הצפופה שהייתה כאן: המטא לא נפרשת לרצועה
      של שישה פריטים מופרדים בנקודות. שורה ראשונה = מה קורה / למה ממתינים
      (בדיוק כמו .meta באב-הטיפוס), ושורה שנייה שקטה יותר לפרטים המשניים. */
+  /* ‼ v3: "הכדור אצל X" ירד מהמשפט — המקטע ותת-הכותרת כבר אומרים אצל מי.
+     נשאר: מה קורה (סטטוס בשפת המסלול), ומאז מתי. */
   const statusSentence = locked
     ? lockHint(step, stepById, depParents?.get(step.id))
-    : [statusLabel ?? stepStatusLabel(step), `הכדור ${STEP_BALL_LABELS[step.ball]}`, age]
+    : [statusLabel ?? stepStatusLabel(step), age]
         .filter(Boolean).join(' · ');
 
   /* ‼ "כמה זמן" נכנס למשפט המצב ולא לשורה נפרדת: הוא חלק מ"מה קורה", ושורה
@@ -4381,10 +4624,11 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
               {/* ‼ עריכה ממתינה: הלקוח ממשיך לראות את הנוסח הישן עד "עדכן את
                   דף הלקוח". בלי הסימון, עריכה נראית כאילו כבר פורסמה. */}
               {hasPendingEdit && <span className="ob-pill is-draft">עריכה ממתינה</span>}
+              {unsent && !isDraft && <span className="ob-pill is-unsent" title="הבקשה בדף האישי, אבל הלקוח עוד לא קיבל עליה מייל - נכללת ב«שלח בקשות»">טרם נשלח</span>}
               {step.pendingCancel && <span className="ob-pill is-draft">יוסר בעדכון</span>}
             </div>
             <div className="ob-card-meta">{statusSentence}</div>
-            {(dimParts.length > 0 || noteLine || (step.needsAttention && !danger)) && (
+            {(dimParts.length > 0 || noteLine || (step.needsAttention && !danger && step.status !== 'in_progress')) && (
               <div className="ob-card-dim">
                 {dimParts.join(' · ')}
                 {noteLine && (
@@ -4392,8 +4636,10 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
                     {dimParts.length ? ' · ' : ''}חסר לפרטי קשר: {noteLine}
                   </span>
                 )}
-                {step.needsAttention && !danger && (
-                  <span style={{ color: 'var(--err)' }}>
+                {/* ‼ v3: "דורש טיפול" באדום רק כשזו בעיה; "הלקוח סיים" הוא כחול
+                    ונאמר במשפט המצב. */}
+                {step.needsAttention && !danger && step.status !== 'in_progress' && (
+                  <span style={{ color: 'var(--warn)' }}>
                     {dimParts.length || noteLine ? ' · ' : ''}דורש טיפול
                   </span>
                 )}

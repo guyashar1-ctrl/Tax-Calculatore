@@ -67,6 +67,18 @@ export interface AuthoritiesPanelProps {
   onOpenRequestStep?: () => void;
   /** «שלח הוראות אישור» — המארח פותח את הדיאלוג הקיים שלו (NiInstructionsDialog). */
   onSendNiInstructions?: (target: { role: 'client' | 'spouse'; name: string; idNumberMasked?: string }) => void;
+  /**
+   * v3: במשטח הבקשות אין מקום לפקד-מקום מושבת («הזן את הפרטים בשע״ם» /
+   * «בדוק קבלת הייצוג» של שע״ם שטרם נבנה) — מצב הייצוג מול שע״ם חי שם על
+   * כרטיס «ייצוג מול הרשויות». בתיק המס הוא נשאר, עם הסיבה ב-title.
+   */
+  hideRepresentationPlaceholder?: boolean;
+  /**
+   * v3: במשטח הבקשות פעולות הייצוג של ב"ל לכל אדם (הזן / בדוק / בקש ייצוג)
+   * חיות על כרטיס «ייצוג בביטוח לאומי — X» ב«לטיפולי»; אותו כפתור פעמיים
+   * באותו עמוד הוא הכפילות שהמודל בא להסיר. בתיק המס הן נשארות כאן.
+   */
+  hideNiRepresentationActions?: boolean;
   /** אחרי שמשימת ב"ל הסתיימה בהצלחה — רענון הבקשה/הכרטיס. */
   onNiInstructionsSent?: () => void | Promise<void>;
   /**
@@ -89,7 +101,7 @@ const HAS_DETAILED: Partial<Record<TaxAuthority, true>> = { income_tax: true, va
 export default function AuthoritiesPanel({
   client, spouseClient, niExecution, alignedAt, onClientPersisted, onFactsChanged,
   onOpenSpouseClient, onOpenRepresentation, onAddNiTarget, onOpenRequestStep,
-  onSendNiInstructions, onNiInstructionsSent, onOpenDetailed, emptyState,
+  onSendNiInstructions, onNiInstructionsSent, onOpenDetailed, emptyState, hideRepresentationPlaceholder, hideNiRepresentationActions,
 }: AuthoritiesPanelProps) {
   const { acceptFact, recordManualEdit, refresh: refreshFacts } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
@@ -457,7 +469,7 @@ export default function AuthoritiesPanel({
                 )}
                 {/* ‼ פרק 17: תא הפעולה של שע״ם — מוכן במבנה, מושבת עם הסיבה
                     עד שתיבנה אוטומציה אמיתית. */}
-                {row.authority === 'income_tax' && shaamRepAction && (
+                {row.authority === 'income_tax' && shaamRepAction && !hideRepresentationPlaceholder && (
                   <button type="button" className="txf-check-btn btn-automation" disabled
                     title={shaamRepAction.reason} aria-label={`${shaamRepAction.label} — ${shaamRepAction.reason}`}>
                     <span className="txf-check-lbl">{shaamRepAction.label}</span>
@@ -502,7 +514,7 @@ export default function AuthoritiesPanel({
                             <FieldLabel f={f} status={fieldCheck && <FieldStatusMark status={fieldCheck.status} />} />
                             {renderValue(f, editingPerson, person.role)}
                             {/* ‼ שורת "ייצוג" — הפעולה ההקשרית של האדם הזה, לפי role מפורש. */}
-                            {f.niRepAction && !editingScalar && !editingTaxFileNumber && (
+                            {f.niRepAction && !hideNiRepresentationActions && !editingScalar && !editingTaxFileNumber && (
                               (f.niRepAction.kind === 'enter_btl' || f.niRepAction.kind === 'check_btl')
                                 ? <NiNextActionButton client={client} spouseClient={spouseClient} role={person.role}
                                     action={f.niRepAction} track={niTrackOf(person.role)} onChanged={onNiInstructionsSent} />
@@ -575,7 +587,7 @@ export default function AuthoritiesPanel({
                         <FieldAuthorityLine field={fieldCheck} sourceLabel={spec.sourceLabel} />
                       )}
                       {/* ‼ לקוח/ה יחיד/ה בב"ל: הפעולה ההקשרית של הייצוג יושבת כאן. */}
-                      {f.niRepAction && !editingThis && (
+                      {f.niRepAction && !hideNiRepresentationActions && !editingThis && (
                         (f.niRepAction.kind === 'enter_btl' || f.niRepAction.kind === 'check_btl')
                           ? <NiNextActionButton client={client} spouseClient={spouseClient} role="client"
                               action={f.niRepAction} track={niTrackOf('client')} onChanged={onNiInstructionsSent} />

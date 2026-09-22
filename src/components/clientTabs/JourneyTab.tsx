@@ -198,7 +198,10 @@ export default function JourneyTab(p: Props) {
       {/* ── הפעולה הבאה — משפט אחד ופעולה אחת ──────────────────────────────
           בפרק הקליטה הפאנל יורד בכוונה: שורות הקליטה כבר נושאות את הפעולה
           הבאה שלהן, ושתי חזיתות לאותה שאלה הן בדיוק הכפילות שסומנה בסקירה. */}
-      {!leadClosed && nextAction && (
+      {/* ‼ v3: כשמשטח הבקשות מוצג ויש ללקוח בקשות, המקטע «לטיפולי» הוא התשובה
+          ל"מה עכשיו" — פאנל שני שאומר "N בקשות" מעליו הוא בדיוק הכפילות שירדה. */}
+      {!leadClosed && nextAction && !(showRequests && (stage === 'onboarding' || stage === 'active')
+          && p.steps.some(s => s.clientId === p.client.id && s.status !== 'cancelled')) && (
         <div className={`jt-panel jt-next jt-next-${nextAction.tone}`}>
           <div className="jt-panel-head">
             <span className="jt-panel-eyebrow">הפעולה הבאה</span>

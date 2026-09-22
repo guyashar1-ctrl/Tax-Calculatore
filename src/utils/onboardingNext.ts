@@ -5,6 +5,7 @@
 
 import type { OnboardingStep, OnboardingStepType } from '../types/onboarding';
 import { isStepOpen } from '../types/onboarding';
+import { countRequestsNeedingMe, isOnRequestsSurface, isManualInternal, stepNeedsMe } from './requestAttention';
 
 /** מה הפעולה הבאה כשהכדור אצלי — ניסוח של עשייה, לא של סטטוס. */
 export const NEXT_ACTION: Record<OnboardingStepType, string> = {
@@ -65,7 +66,12 @@ export function nextStepForClient(steps: OnboardingStep[]): OnboardingStep | nul
   const open = steps.filter(s => isStepOpen(s.status));
   if (open.length === 0) return null;
   const actionable = open.filter(s => s.status !== 'locked');
+  /* ‼ v3: מה שמוצג במסך הבקשות ודורש לחיצה קודם לכל שלב מוסתר — אחרת "עכשיו:
+     לבצע את ביקורת החודש הראשון" הצביע על שלב שהמסך בכוונה לא מראה. */
+  const rank = (s: OnboardingStep) => (isOnRequestsSurface(s) && !isManualInternal(s) && stepNeedsMe(s) ? 0 : 1);
   return (actionable.length > 0 ? actionable : open).slice().sort((a, b) => {
+    const r = rank(a) - rank(b);
+    if (r !== 0) return r;
     const u = urgency(a) - urgency(b);
     if (u !== 0) return u;
     // ‼ יעד רחוק אינו דוחק. שלב בלי תאריך הוא העבודה של עכשיו, ואילו "ביקורת
@@ -77,9 +83,11 @@ export function nextStepForClient(steps: OnboardingStep[]): OnboardingStep | nul
   })[0];
 }
 
-/** שלב שדורש תשומת לב מיידית — חסום, נכשל, או שהמערכת סימנה אותו. */
+/** שלב תקוע = בעיה אמיתית: חסום או נכשל. ‼ v3: needs_attention לבדו אינו
+ *  "תקוע" — השרת מרים אותו גם כש"הלקוח סיים, לבדיקה", וזו פעולה (כחול),
+ *  לא תקלה (אדום). */
 export function isStuckStep(s: OnboardingStep): boolean {
-  return isStepOpen(s.status) && (s.status === 'blocked' || s.status === 'failed' || s.needsAttention);
+  return isStepOpen(s.status) && (s.status === 'blocked' || s.status === 'failed');
 }
 
 /** לאיזה מקטע בשולחן שייך הלקוח. תקוע גובר על הכול. */
@@ -120,7 +128,10 @@ export function summarizeClientOnboarding(steps: OnboardingStep[]): ClientOnboar
 
     const next = nextStepForClient(clientSteps);
     const stuck = openSteps.filter(isStuckStep).sort((a, b) => urgency(a) - urgency(b))[0] ?? null;
-    const bucket: DeskBucket = stuck ? 'stuck' : next?.ball === 'me' ? 'mine' : 'others';
+    /* ‼ v3: "לטיפולי" במסך המשימות = אותה הגדרה כמו התג ומקטע «לטיפולי» של
+       הלקוח (requestAttention). ball='me' לבדו ספר גם המתנה לפייפרלס ועבודה
+       פנימית מוסתרת — ולקוח היה "אצלי" בלי שום כפתור ללחוץ. */
+    const bucket: DeskBucket = stuck ? 'stuck' : countRequestsNeedingMe(clientSteps) > 0 ? 'mine' : 'others';
 
     out.push({
       clientId,

@@ -61,7 +61,7 @@ interface NextActionCtx {
   openTasks: Task[];
   latestSession?: AnnualReportSession | null;
   /** בקשות פתוחות של הלקוח — כולל אחרי סגירת הקליטה. */
-  openRequests?: { title: string; stuck: boolean; ball: string }[];
+  openRequests?: { title: string; stuck: boolean; ball: string; mine?: boolean }[];
   /** ייצוג שטרם הושלם — לא מציגים "הכול מסודר" בזמן שהוא פתוח. */
   representationPending?: string | null;
 }
@@ -264,12 +264,24 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
       buttons: [{ label: 'התחלת ייצוג', kind: 'primary', action: 'startRepresentation' }],
     };
   }
+  /* ‼ v3: "N בקשות פתוחות" הטעה — ספר גם בקשות שאיש במשרד לא צריך לגעת בהן.
+     המשפט אומר עכשיו מה שהמסך אומר: כמה לטיפולי, או שהכול אצל אחרים. */
   if (openRequests.length > 0) {
-    const first = openRequests[0];
+    const mine = openRequests.filter(r => r.mine);
+    if (mine.length > 0) {
+      return {
+        headline: mine.length === 1 ? mine[0].title : `${mine.length} בקשות לטיפולך`,
+        detail: mine.length === 1 ? 'לטיפולך · בלשונית «בקשות»' : `הראשונה: ${mine[0].title}`,
+        tone: 'normal',
+        buttons: [],
+      };
+    }
     return {
-      headline: openRequests.length === 1 ? first.title : `${openRequests.length} בקשות פתוחות`,
-      detail: openRequests.length === 1 ? `בקשה פתוחה · ${first.ball}` : `הראשונה: ${first.title}`,
-      tone: 'normal',
+      headline: 'הבקשות ממתינות לאחרים',
+      detail: openRequests.length === 1
+        ? `בקשה אחת · ${openRequests[0].ball} · אין מה לטפל כרגע`
+        : `${openRequests.length} בקשות אצל אחרים · אין מה לטפל כרגע`,
+      tone: 'calm',
       buttons: [],
     };
   }

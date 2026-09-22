@@ -9,6 +9,7 @@ import { REPRESENTATION_STATUS_LABELS } from '../types';
 import type { Quotation, Lead } from './../types/quotations';
 import type { OnboardingStep } from '../types/onboarding';
 import { isStepOpen, STEP_TYPE_LABELS, STEP_BALL_LABELS } from '../types/onboarding';
+import { stepNeedsMe, isOnRequestsSurface, isManualInternal } from './requestAttention';
 import type { AnnualReportSession } from '../features/annualReport/types';
 import { deriveNextAction, type NextAction } from './journeyPresentation';
 import { representationState } from '../lib/clientState';
@@ -55,11 +56,16 @@ export function nextActionForClient(src: NextActionSources): NextAction | null {
     latestQuotation: clientQuotations[0],
     openTasks: src.openTasks,
     latestSession: src.taxSessions?.[0] ?? null,
-    openRequests: clientSteps.filter(s => isStepOpen(s.status)).map(s => ({
-      title: String(s.payload?.title ?? '').trim() || STEP_TYPE_LABELS[s.stepType],
-      stuck: s.status === 'blocked' || s.status === 'failed' || !!s.needsAttention,
-      ball: STEP_BALL_LABELS[s.ball],
-    })),
+    /* ‼ v3: רק מה שמוצג במסך הבקשות, עם אותה הגדרה של "לטיפולי" (requestAttention).
+       שלבים מוסתרים ועבודה פנימית לא נספרים כאן — כמו בתג. */
+    openRequests: clientSteps
+      .filter(s => isStepOpen(s.status) && isOnRequestsSurface(s) && !isManualInternal(s))
+      .map(s => ({
+        title: String(s.payload?.title ?? '').trim() || STEP_TYPE_LABELS[s.stepType],
+        stuck: s.status === 'blocked' || s.status === 'failed',
+        ball: STEP_BALL_LABELS[s.ball],
+        mine: stepNeedsMe(s, { repStatus: client.representationStatus ?? undefined }),
+      })),
     /* ‼ נגזר ממצב הייצוג, לא מהשוואת מחרוזת עברית. קודם ישב כאן
        `repStatusLabel !== 'מיוצג פעיל'` — שינוי ניסוח אחד בתווית היה הופך כל
        לקוח מיוצג ל"ייצוג בתהליך" בלי ששום דבר בקוד ייראה שבור. */

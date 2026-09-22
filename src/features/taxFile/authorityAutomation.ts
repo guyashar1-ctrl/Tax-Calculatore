@@ -362,7 +362,9 @@ function incomeTaxFileNumber(client: Client): string {
 export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomationSpec>> = {
   income_tax: {
     authority: 'income_tax',
-    actionLabel: 'בדוק מול שע״ם',
+    // ‼ «עדכן נתונים» ולא «בדוק»: זו קריאת נתוני התיק (134), לא בדיקת ייצוג.
+    // בדיקת קבלת הייצוג היא פעולה אחרת, על כרטיס הייצוג/האדם (NiNextActionButton).
+    actionLabel: 'עדכן נתונים משע״ם',
     sourceLabel: 'שע״ם',
     available: true,
     actionType: SHAAM_SYNC_INCOME_TAX_ACTION_TYPE,
@@ -393,7 +395,7 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
   // supportedFieldKeys, ו-interpret. שום שינוי במסך.
   vat: {
     authority: 'vat',
-    actionLabel: 'בדוק מול שע״ם',
+    actionLabel: 'עדכן נתונים משע״ם',
     sourceLabel: 'שע״ם',
     available: false,
     capability: SHAAM_READ_VAT,
@@ -414,7 +416,7 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
   // ממוכנות שע״ם, ולהפך.
   national_insurance: {
     authority: 'national_insurance',
-    actionLabel: 'בדוק מול ביטוח לאומי',
+    actionLabel: 'עדכן נתונים מביטוח לאומי',
     sourceLabel: 'ב״ל',
     // ‼ נשאר available:false בכוונה (154): הזהות פר-אדם למטה היא הצהרה
     // על **הצורה** של הקלט כשתיבנה קריאה אמיתית — היא לא הופכת קריאה

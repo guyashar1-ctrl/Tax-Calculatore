@@ -27,7 +27,7 @@ import TaxFileTab from './clientTabs/TaxFileTab';
 import { currentEngagement, intakeContext, representationState } from '../lib/clientState';
 import { supabase } from '../lib/supabase';
 import type { Engagement, InstitutionKey, OnboardingEvent, OnboardingStep } from '../types/onboarding';
-import { isStepOpen, stepAwaitsMe } from '../types/onboarding';
+import { countRequestsNeedingMe, hasRedRequest } from '../utils/requestAttention';
 import type { Lead, QuotationKind } from '../types/quotations';
 import type { AdvanceResult } from '../hooks/useOnboarding';
 import { StaleClientError, type ClientSaveMeta } from '../hooks/useClients';
@@ -510,14 +510,17 @@ export default function ClientWorkspace({
   // ── התג על לשונית «המסע» ──────────────────────────────────────────────────
   // ‼ סופר רק מה שאפשר לעשות עכשיו. תג שסופר גם שלבים נעולים מבטיח עבודה
   // שהמסך עצמו חוסם, ואז לומדים להתעלם ממנו — וזה בדיוק מה שהתג בא למנוע.
+  // ‼ v3: אותה הגדרה כמו מקטע «לטיפולי» במסך עצמו (requestAttention) — כרטיסים
+  // שמוצגים בפועל ודורשים לחיצה. שלבים מוסתרים ועבודה פנימית אינם נספרים.
+  // "תקוע" = בעיה אמיתית (אדום), לא "הלקוח סיים - לבדיקה".
   const journeyBadge = useMemo(() => {
     const mine = (onboardingSteps ?? []).filter(s => s.clientId === client.id);
+    const ctx = { niExecution, repStatus: client.representationStatus ?? undefined };
     return {
-      n: mine.filter(stepAwaitsMe).length,
-      stuck: mine.some(s => isStepOpen(s.status)
-        && (s.status === 'blocked' || s.status === 'failed' || !!s.needsAttention)),
+      n: countRequestsNeedingMe(mine, ctx),
+      stuck: hasRedRequest(mine, ctx),
     };
-  }, [onboardingSteps, client.id]);
+  }, [onboardingSteps, client.id, niExecution, client.representationStatus]);
 
   const clientCharges = useMemo(
     () => (charges ?? []).filter(c => c.clientId === client.id),

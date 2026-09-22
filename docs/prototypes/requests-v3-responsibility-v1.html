@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>בקשות — v3 · לפי אחריות ופעולה הבאה · v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══ טוקנים — העתק של src/index.css (בהיר) כדי שהאב-טיפוס ייראה כמו המוצר ═══ */
+:root{
+  --page:#f8f7f5; --card:#fff; --bd:#e2e4e7; --bd-strong:#d3d6da;
+  --ink-1:#25282d; --ink-2:#4b5058; --ink-3:#63686f; --ink-4:#8e949b;
+  --accent:#3f5f8f; --accent-hover:#34507a; --soft:#e8eef5; --soft-bd:#c6d4e6;
+  --surface-2:#f3f2f0; --hairline-1:#e2e4e7; --hairline-2:#eeedeb;
+  --ok:#24654e; --ok-bg:#eaf4ef; --warn:#8a5b0f; --warn-bg:#fbf3e4; --err:#a63a3a; --err-bg:#fbeded;
+  --chip-blue-bg:#e3ebf5; --chip-blue-tx:#2c4468;
+  --automation-fill:#b8437d; --automation-hover:#9d3468; --automation-text:#a63b72; --automation-soft:#fbe9f2; --automation-soft-bd:#e9b7cf;
+  --radius:9px; --fs-12:12px; --fs-13:13px; --fs-14:14px; --fs-15:15px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--ink-1);font-family:'Heebo',system-ui,sans-serif;font-size:14px;line-height:1.45}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--accent)}
+
+/* ═══ סרגל הדגמה — לא חלק מהמוצר ═══ */
+.demo{position:sticky;top:0;z-index:80;background:#fff8e6;border-bottom:1px dashed #d9b86a;padding:6px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:#6b4e0d}
+.demo b{margin-inline-end:4px}
+.demo button{border:1px solid #d9b86a;background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;color:#6b4e0d}
+.demo button.on{background:#6b4e0d;color:#fff;border-color:#6b4e0d}
+
+/* ═══ כותרת האפליקציה ═══ */
+.app-header{background:var(--card);border-bottom:1px solid var(--hairline-1);height:52px;display:flex;align-items:center;gap:18px;padding:0 20px}
+.brand{font-family:Manrope,'Heebo',sans-serif;font-weight:800;letter-spacing:.06em;font-size:15px}
+.nav{display:flex;gap:4px}
+.nav button{border:0;background:none;padding:6px 10px;border-radius:8px;color:var(--ink-3);font-weight:500}
+.nav button.active{color:var(--ink-1);background:var(--surface-2)}
+.nav .n{display:inline-block;min-width:18px;padding:0 5px;border-radius:999px;background:var(--chip-blue-bg);color:var(--chip-blue-tx);font-size:11px;font-weight:700;margin-inline-start:4px}
+.hdr-tools{margin-inline-start:auto;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink-3)}
+.pill-conn{border:1px solid var(--bd);border-radius:999px;padding:3px 9px;background:#fff}
+.pill-conn i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-inline-end:5px}
+.pill-conn.off i{background:var(--err)}
+
+/* ═══ עמוד הלקוח ═══ */
+.shell{max-width:1180px;margin:0 auto;padding:18px 20px 60px}
+.crumb{font-size:12px;color:var(--ink-4)}
+.crumb a{text-decoration:none;color:var(--ink-4)}
+.client-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:4px}
+.client-head h1{margin:0;font-size:22px;font-weight:700}
+.client-head .id{font-size:12px;color:var(--ink-4)}
+.status-chip{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--ok-bg);color:var(--ok)}
+.tabs{display:flex;gap:2px;margin-top:12px;border-bottom:1px solid var(--hairline-1)}
+.tabs button{border:0;background:none;padding:9px 12px;color:var(--ink-3);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button.active{color:var(--ink-1);border-bottom-color:var(--accent);font-weight:600}
+.tabs .n{display:inline-block;min-width:18px;height:18px;line-height:18px;text-align:center;padding:0 5px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;margin-inline-start:5px;vertical-align:1px}
+.tabs .n.zero{background:var(--surface-2);color:var(--ink-4)}
+
+/* רצועת הקשר — מה שהיה שני כרטיסי אבן-דרך */
+.context{margin-top:14px;font-size:12px;color:var(--ink-3);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.context .ok{color:var(--ok);font-weight:700}
+.context .sep{color:var(--ink-4)}
+.context a{font-size:12px}
+
+/* פס העמוד — הקישור הקבוע + הפעולה הראשית */
+.pagebar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding:12px 14px;background:var(--card);border:1px solid var(--bd);border-radius:12px}
+.pagebar .lead{font-size:12px;color:var(--ink-3)}
+.linkbtn{border:0;background:none;color:var(--accent);font-size:12px;padding:0;text-decoration:underline;text-underline-offset:3px}
+.pagebar .grow{flex:1}
+.btn{border:1px solid var(--bd);background:var(--card);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:500;min-height:32px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-primary:disabled{opacity:.45;cursor:default}
+.btn-ghost{border-color:transparent;color:var(--ink-3)}
+.btn-sm{padding:4px 10px;min-height:28px;font-size:12px}
+.btn .cnt{background:rgba(255,255,255,.22);border-radius:999px;padding:0 7px;font-size:11px}
+.btn-automation{background:var(--automation-fill);border-color:var(--automation-fill);color:#fff}
+.btn-automation:hover{background:var(--automation-hover)}
+.btn-automation.is-soft{background:var(--automation-soft);border:1px dashed var(--automation-soft-bd);color:var(--automation-text)}
+.ob-card .btn-primary{background:var(--chip-blue-bg);color:var(--chip-blue-tx);border-color:transparent;font-weight:700}
+.ob-card .btn-primary:hover{filter:brightness(.97)}
+
+/* ═══ פריסה ═══ */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,21rem);gap:22px;align-items:start;margin-top:18px}
+.flow{display:flex;flex-direction:column;max-width:760px}
+
+/* מקטע */
+.sec{margin-top:26px}
+.sec:first-child{margin-top:4px}
+.sec-head{display:flex;align-items:baseline;gap:8px;font-size:13px;font-weight:700;color:var(--ink-1)}
+.sec-head .cnt{font-size:12px;color:var(--ink-4);font-weight:600}
+.sec-head .hint{font-size:12px;color:var(--ink-4);font-weight:400;margin-inline-start:6px}
+.sec-head.quiet{color:var(--ink-3)}
+.sub-label{font-size:12px;color:var(--ink-4);font-weight:700;margin:16px 2px 0}
+.sub-label .lite{font-weight:400}
+.sub-label .warnx{color:var(--warn);font-weight:600}
+.empty{margin-top:10px;border:1px dashed var(--bd-strong);border-radius:14px;padding:14px 16px;color:var(--ink-4);font-size:13px}
+
+/* ═══ כרטיס בקשה — שפת הכרטיס המאושרת (requests-v2) ═══ */
+.ob-req{position:relative;padding-inline-start:26px;margin-top:12px}
+.ob-req::before{content:"";position:absolute;inset-inline-start:7px;top:25px;bottom:-16px;width:1px;background:var(--hairline-1)}
+.ob-req:last-child::before{display:none}
+.ob-req-dot{position:absolute;inset-inline-start:2px;top:25px;width:11px;height:11px;border-radius:50%;background:var(--bd-strong);border:2px solid var(--card);box-shadow:0 0 0 1px var(--bd)}
+.ob-req.is-active>.ob-req-dot{background:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.ob-req.is-danger>.ob-req-dot{background:var(--err);box-shadow:0 0 0 1px var(--err)}
+.ob-card{position:relative;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px 18px;box-shadow:0 1px 2px rgba(20,25,30,.04);transition:background .3s}
+.ob-card.is-highlight{background:#f6f8fb}
+.ob-card-row{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.ob-card-main{min-width:0;flex:1}
+.ob-card-title{font-size:14px;font-weight:750;color:var(--ink-1);line-height:1.45;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ob-card-meta{font-size:12px;color:var(--ink-4);margin-top:7px;line-height:1.5}
+.ob-card-meta b{color:var(--ink-2);font-weight:600}
+.ob-card-dim{font-size:11px;color:var(--ink-4);opacity:.85;margin-top:4px}
+.ob-card-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.ob-card .titlebtn{display:block;width:100%;text-align:start;background:none;border:0;padding:0;color:inherit}
+.ob-more{border:0;background:none;color:var(--ink-4);font-size:17px;padding:4px 7px;border-radius:8px;opacity:.35;line-height:1}
+.ob-more:hover{opacity:1;background:var(--surface-2)}
+.ob-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-3);font-size:11px;font-weight:700;white-space:nowrap}
+.ob-pill.is-unsent{background:var(--warn-bg);color:var(--warn)}
+.ob-pill.is-ok{background:var(--ok-bg);color:var(--ok)}
+.ob-card-body{margin-top:12px;border-top:1px solid var(--hairline-2);padding-top:12px;font-size:13px;color:var(--ink-2);line-height:1.6}
+.ob-card-body .note{font-size:12px;color:var(--ink-3)}
+.pivo-line{margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;border-radius:9px;padding:8px 10px;background:var(--surface-2);color:var(--ink-2)}
+.pivo-line.is-stuck{background:var(--err-bg);color:var(--err)}
+.pivo-line.is-running{background:var(--automation-soft);color:var(--automation-text)}
+.pivo-line .tag{font-weight:700;font-size:11px;letter-spacing:.02em}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid currentColor;border-inline-end-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-1px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.check-row{display:flex;gap:.45rem;align-items:center;font-size:13px;color:var(--ink-2);margin-top:4px}
+.check-row.done{color:var(--ink-4);text-decoration:line-through}
+.inst{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--hairline-2);font-size:13px}
+.inst:first-child{border-top:0}
+.inst .st{color:var(--ink-4);font-size:12px;flex:1}
+.ob-add{width:100%;border:1px dashed var(--bd-strong);background:transparent;border-radius:14px;padding:14px;color:var(--ink-3);font-weight:700;margin-top:14px}
+.ob-add:hover{background:var(--surface-2);color:var(--ink-2)}
+.ob-add.quiet{display:inline-block;width:auto;border:0;padding:6px 2px;margin-top:8px;font-size:12px;font-weight:600;color:var(--ink-4)}
+.past{width:100%;margin-top:12px;border:1px solid var(--hairline-1);border-radius:14px;padding:12px 16px;cursor:pointer;color:var(--ink-3);font-size:13px;font-weight:700;display:flex;justify-content:space-between;background:transparent}
+.past-list{font-size:12px;color:var(--ink-4);margin-top:8px;display:grid;gap:6px}
+.past-list span{display:flex;gap:8px;justify-content:space-between}
+
+/* ═══ תפריט ⋯ ═══ */
+.menu-wrap{position:relative;display:inline-flex}
+.menu{position:absolute;top:100%;inset-inline-end:0;margin-top:6px;background:var(--card);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(20,25,40,.10);z-index:60;padding:.35rem;display:none;flex-direction:column;min-width:210px}
+.menu.open{display:flex}
+.menu button{border:0;background:none;font-size:13px;text-align:start;padding:.5rem .6rem;border-radius:7px;white-space:nowrap}
+.menu button:hover{background:var(--surface-2)}
+.menu .danger{color:var(--err)}
+.menu .sep{height:1px;background:var(--hairline-1);margin:.3rem .2rem}
+
+/* ═══ הפאנל "מה הלקוח רואה" ═══ */
+.aside{position:sticky;top:64px}
+.aside-head{font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.aside-head .lite{font-size:11px;color:var(--ink-4);font-weight:400}
+.portal{margin-top:8px;border:1px solid var(--bd);border-radius:14px;background:#fff;padding:14px;font-size:12px;max-height:70vh;overflow:auto}
+.portal h4{margin:0 0 4px;font-size:15px}
+.portal .grp{font-size:11px;font-weight:700;color:var(--accent);margin:12px 0 4px}
+.portal .it{border:1px solid var(--hairline-1);border-radius:10px;padding:8px 10px;margin-top:6px}
+.portal .it b{display:block;font-size:12px}
+.portal .it .s{color:var(--ink-4);font-size:11px;margin-top:2px}
+.portal .it.off{color:var(--ink-4)}
+.portal .it .dotc{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ink-4);margin-inline-end:5px}
+
+/* ═══ שכבת «שלח בקשות» ═══ */
+.overlay{position:fixed;inset:0;background:rgba(20,25,40,.42);display:none;align-items:flex-start;justify-content:center;padding:34px 16px;z-index:100;overflow:auto}
+.overlay.open{display:flex}
+.modal{background:var(--card);border-radius:16px;width:min(720px,100%);box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:calc(100vh - 68px)}
+.modal-head{padding:16px 20px 12px;border-bottom:1px solid var(--hairline-1);display:flex;align-items:flex-start;gap:12px}
+.modal-head h3{margin:0;font-size:16px}
+.modal-head .sub{font-size:12px;color:var(--ink-3);margin-top:3px}
+.modal-head .x{margin-inline-start:auto;border:0;background:none;font-size:18px;color:var(--ink-4)}
+.modal-body{padding:8px 20px 16px;overflow:auto}
+.modal-foot{padding:12px 20px;border-top:1px solid var(--hairline-1);display:flex;gap:10px;align-items:center;justify-content:flex-end}
+.modal-foot .summary{margin-inline-end:auto;font-size:12px;color:var(--ink-3)}
+.rcp{border:1px solid var(--bd);border-radius:14px;margin-top:12px;overflow:hidden}
+.rcp.off{opacity:.55}
+.rcp-head{display:flex;align-items:center;gap:12px;padding:12px 14px;background:#fafaf9}
+.rcp-head input[type=checkbox]{width:16px;height:16px}
+.rcp-head .who{font-weight:700;font-size:14px}
+.rcp-head .addr{font-size:12px;color:var(--ink-3);direction:ltr;unicode-bidi:isolate}
+.rcp-head .addr.missing{color:var(--warn);direction:rtl}
+.rcp-head .k{margin-inline-start:auto;font-size:12px;color:var(--ink-4)}
+.rcp-body{padding:6px 14px 12px}
+.rcp-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--hairline-2);font-size:13px}
+.rcp-item:first-child{border-top:0}
+.rcp-item input{margin-top:3px}
+.rcp-item .t{flex:1}
+.rcp-item .t small{display:block;color:var(--ink-4);font-size:12px}
+.rcp-item.off .t{color:var(--ink-4);text-decoration:line-through}
+.rcp-what{margin-top:8px;font-size:12px;color:var(--ink-3);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rcp-what .linkbtn{font-size:12px}
+.preview{margin-top:10px;border:1px solid var(--hairline-1);border-radius:12px;overflow:hidden;display:none}
+.preview.open{display:block}
+.preview .hdr{background:var(--surface-2);padding:8px 12px;font-size:11px;color:var(--ink-3);display:grid;gap:2px}
+.preview .hdr span b{color:var(--ink-2);font-weight:600}
+.mail{padding:16px 18px;background:#fff;font-size:13px;line-height:1.7}
+.mail .logo{font-family:Manrope,'Heebo',sans-serif;font-weight:800;letter-spacing:.12em;color:#1c2430;font-size:13px;margin-bottom:10px}
+.mail h5{margin:0 0 6px;font-size:16px}
+.mail ul{margin:8px 0;padding-inline-start:18px}
+.mail .cta{display:inline-block;margin-top:10px;background:#2f6fdc;color:#fff;border-radius:999px;padding:7px 16px;font-weight:600;font-size:13px}
+.mail .ref{display:inline-block;margin:6px 0;font-size:24px;font-weight:800;color:#2f6fdc;letter-spacing:.06em;direction:ltr}
+.mail .foot{font-size:11px;color:var(--ink-4);margin-top:12px}
+.rcp-status{padding:10px 14px;font-size:12px;display:none;align-items:center;gap:8px}
+.rcp-status.show{display:flex}
+.rcp-status.ok{background:var(--ok-bg);color:var(--ok)}
+.rcp-status.sending{background:var(--surface-2);color:var(--ink-3)}
+.rcp-status.err{background:var(--err-bg);color:var(--err)}
+.addr-edit{display:flex;gap:6px;align-items:center;margin-inline-start:auto}
+.addr-edit input{border:1px solid var(--bd-strong);border-radius:7px;padding:4px 8px;font:inherit;font-size:12px;direction:ltr;min-width:200px}
+.done-panel{text-align:center;padding:26px 10px 10px}
+.done-panel .big{font-size:36px;color:var(--ok)}
+.done-panel h4{margin:8px 0 4px;font-size:16px}
+.done-panel p{margin:0;font-size:13px;color:var(--ink-3)}
+
+.toast{position:fixed;bottom:22px;inset-inline-start:50%;transform:translateX(50%);background:#1f2530;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s;z-index:120}
+.toast.show{opacity:1}
+
+@media (max-width: 860px){
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .aside{position:static}
+  .aside details{border:1px solid var(--bd);border-radius:12px;padding:8px 12px;background:#fff}
+}
+@media (max-width: 640px){
+  .shell{padding:12px 16px 50px}
+  .app-header{padding:0 14px;gap:10px}
+  .hdr-tools .pill-conn:nth-child(2){display:none}
+  .ob-card-row{flex-direction:column;align-items:flex-start;gap:10px}
+  .ob-card-actions{align-self:flex-start}
+  .ob-req{padding-inline-start:20px}
+  .pagebar .grow{display:none}
+  .pagebar{gap:8px}
+  .modal{max-height:calc(100vh - 40px)}
+  .overlay{padding:20px 10px}
+  .rcp-head{flex-wrap:wrap}
+  .rcp-head .k{margin-inline-start:0;width:100%}
+  .pivo-line{flex-direction:column;align-items:flex-start}
+  .pivo-line .btn{align-self:stretch;justify-content:center}
+}
+</style>
+</head>
+<body>
+
+<!-- ─── סרגל הדגמה: תרחישים. לא חלק מהמוצר. ─── -->
+<div class="demo" id="demo">
+  <b>הדגמה · תרחיש:</b>
+  <button data-sc="now" class="on">עכשיו (הפרודקשן של 19.09)</button>
+  <button data-sc="pivoRunning">PIVO עובד ברקע</button>
+  <button data-sc="sent">אחרי «שלח בקשות»</button>
+  <button data-sc="authority">ממתין לרשות (ייפוי כוח בשע״ם)</button>
+  <button data-sc="review">הלקוח סיים — לבדיקה</button>
+  <button data-sc="expired">אסמכתא פגה</button>
+  <button data-sc="quiet">הכול ממתין — אין מה לטפל</button>
+</div>
+
+<header class="app-header">
+  <span class="brand">PIVO</span>
+  <nav class="nav"><button class="active">לקוחות</button><button>משימות <span class="n">4</span></button></nav>
+  <div class="hdr-tools">
+    <span class="pill-conn"><i></i>שע״ם</span>
+    <span class="pill-conn" id="btlConn"><i></i>ביטוח לאומי</span>
+  </div>
+</header>
+
+<main class="shell">
+  <div class="crumb"><a href="#">‹ לקוחות</a></div>
+  <div class="client-head">
+    <h1>גיא ישר</h1>
+    <span class="status-chip">מיוצג פעיל</span>
+    <span class="id">ת.ז. 000000018</span>
+  </div>
+  <div class="tabs">
+    <button class="active">בקשות <span class="n" id="tabBadge">1</span></button>
+    <button>תיק מס</button><button>מסמכים</button><button>הסכם ותשלומים</button><button>פעילות</button>
+  </div>
+
+  <!-- רצועת הקשר: מה שהיה שני כרטיסי אבן-דרך (הצעה · בקשת ייצוג) -->
+  <div class="context" id="context"></div>
+
+  <!-- פס העמוד: הקישור הקבוע + הפעולה הראשית -->
+  <div class="pagebar">
+    <span class="lead">הדף של גיא ישר — קישור קבוע אחד:</span>
+    <button class="linkbtn" onclick="toast('הקישור הועתק')">העתק קישור</button>
+    <button class="linkbtn" onclick="document.getElementById('asideBox').scrollIntoView({behavior:'smooth'})">מה הלקוח רואה</button>
+    <span class="grow"></span>
+    <button class="btn btn-ghost btn-sm" onclick="toast('מצב עריכה: חצי סידור ותצורה נחשפים על הכרטיסים (כמו היום)')">עריכת הבקשות</button>
+    <button class="btn btn-primary" id="sendBtn" onclick="openTray()">שלח בקשות <span class="cnt" id="sendCnt"></span></button>
+  </div>
+
+  <div class="grid">
+    <div class="flow" id="flow"></div>
+    <aside class="aside" id="asideBox">
+      <div class="aside-head"><span>מה הלקוח רואה עכשיו</span><span class="lite">הדף האמיתי · חי</span></div>
+      <div class="portal" id="portal"></div>
+    </aside>
+  </div>
+</main>
+
+<!-- ─── שכבת «שלח בקשות» ─── -->
+<div class="overlay" id="tray" onclick="if(event.target===this)closeTray()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="trayTitle">
+    <div class="modal-head">
+      <div><h3 id="trayTitle">שלח בקשות</h3><div class="sub" id="traySub"></div></div>
+      <button class="x" onclick="closeTray()" aria-label="סגירה">✕</button>
+    </div>
+    <div class="modal-body" id="trayBody"></div>
+    <div class="modal-foot" id="trayFoot"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═════════════════════════════════════════════════════════════════════════
+   נתונים סטטיים — הכרטיס האמיתי של גיא ישר, 19.09.2026 (מה שנמצא במסד).
+   שדות "פנימיים" (status/ball) לא מוצגים; מה שמוצג נגזר מ-attention.
+   ═════════════════════════════════════════════════════════════════════════ */
+const BASE = () => ({
+  context: { activeSince: '15.07.26', quoteApproved: '14.07.26', btlOwnApproved: '09.09' },
+  page: { lastSentAt: '17.08', lastSentLabel: 'הדף נשלח לאחרונה 17.08' },
+  btl: { // ייצוג בביטוח לאומי — דין וולוצקי ישר
+    id: 'din', title: 'ייצוג בביטוח לאומי — דין וולוצקי ישר',
+    person: 'דין וולוצקי ישר', first: 'דין', email: 'din@example.com',
+    reference: '75071159', deadline: '15.11.2026',
+    instructionsSentAt: null,
+    confirmedAt: null,
+    expired: false,
+    pivo: { kind: 'check', state: 'stuck', at: '07:29', text: 'בדיקת אישור מהיום 07:29 נתקעה — חלון ביטוח לאומי סגור' },
+  },
+  clientReqs: [ // ממתינים אצל גיא — בדף האישי
+    { id: 'inst', title: 'הקמת הרשאה לחיוב חשבון במוסדות', kind: 'checklist', done: 0, total: 3, publishedAt: '04.09', sent: false,
+      body: 'שלושה סעיפים שהלקוח מסמן בדף האישי: מס הכנסה · מע״מ · ביטוח לאומי. הוראת הקבע נפתחת באתר כל מוסד.' },
+    { id: 'plta', title: 'חיבור פייפרלס לרשות המסים', kind: 'declare', publishedAt: '27.08', sent: false,
+      body: 'הלקוח מזדהה מול רשות המסים מתוך פייפרלס (ת.ז. וקוד קבוע) ומסמן «ביצעתי את החיבור». התוקף שלושה חודשים.' },
+    { id: 'docs', title: 'מסמכים מהלקוח', kind: 'upload', done: 0, total: 1, publishedAt: '04.09', sent: false,
+      body: 'צילום תעודת זהות של בן/בת הזוג. הקובץ עולה ישירות לתיקיית המסמכים.' },
+  ],
+  retainer: { id: 'ret', title: 'הרשאה לתשלום חודשי', since: '16.08', cardEntered: false,
+    body: 'הריטיינר עודכן בפייפרלס. פייפרלס שולחת ללקוח בקשה להזין כרטיס אשראי, ומראה על כך הנחיה בדף האישי. כשהכרטיס הוזן — לסמן כאן, והחיוב החודשי יוצא לדרך.' },
+  alignment: [
+    { key: 'btl', label: 'ביטוח לאומי', done: false },
+    { key: 'vat', label: 'מע״מ', done: false },
+    { key: 'income', label: 'מס הכנסה', done: false },
+  ],
+  extra: [],   // כרטיסים של תרחישים (ייפוי כוח בשע״ם, לבדיקה…)
+  past: [
+    ['בקשת ייצוג — ייפוי כוח לרשויות', 'הושלמה · 15.07.26'],
+    ['ייצוג בביטוח לאומי — גיא ישר', 'אושר · 09.09'],
+    ['הרשמה לפייפרלס', 'הושלם · 17.08'],
+    ['חיבור לפייפרלס', 'הושלם · 17.08'],
+    ['מדריך: איך עובדים עם פייפרלס', 'נפתח · 17.08'],
+    ['מדריך הוצאות מוכרות', 'נפתח · 17.08'],
+  ],
+});
+
+let S = BASE();
+let ui = { openCard: null, pastOpen: false, menuFor: null, scenario: 'now' };
+
+/* ─── תרחישים (הדגמה בלבד) ─── */
+const SCENARIOS = {
+  now: s => s,
+  pivoRunning: s => { s.btl.pivo = { kind: 'check', state: 'running', at: 'עכשיו', text: 'PIVO בודק בביטוח לאומי אם דין אישרה…' }; return s; },
+  sent: s => { s.btl.instructionsSentAt = 'היום 19.09'; s.btl.pivo = null; s.clientReqs.forEach(r => r.sent = true); s.page.lastSentAt = 'היום'; s.page.lastSentLabel = 'הדף נשלח היום · 3 בקשות'; return s; },
+  authority: s => { s.extra.push({ id: 'shaam', type: 'authority', title: 'ייפוי כוח לרשויות המס — שע״ם', submitted: '27.08', checkAfter: '10.09', overdue: false }); return s; },
+  review: s => { s.clientReqs[2] = { ...s.clientReqs[2], review: true, done: 1, total: 1, sent: true, finishedAt: 'היום 09:40' }; s.clientReqs[0].sent = true; s.clientReqs[1].sent = true; s.page.lastSentAt = '05.09'; s.page.lastSentLabel = 'הדף נשלח לאחרונה 05.09 · נפתח 06.09'; return s; },
+  expired: s => { s.btl.expired = true; s.btl.deadline = '15.09.2026'; s.btl.pivo = null; s.btl.instructionsSentAt = '17.08'; return s; },
+  quiet: s => { s.btl.instructionsSentAt = '17.09'; s.btl.pivo = null; s.clientReqs.forEach(r => r.sent = true); s.page.lastSentAt = '17.09'; s.page.lastSentLabel = 'הדף נשלח לאחרונה 17.09 · נפתח 18.09'; return s; },
+};
+document.querySelectorAll('#demo button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#demo button').forEach(x => x.classList.toggle('on', x === b));
+  ui = { openCard: null, pastOpen: false, menuFor: null, scenario: b.dataset.sc };
+  S = SCENARIOS[b.dataset.sc](BASE());
+  document.getElementById('btlConn').classList.toggle('off', !!(S.btl.pivo && S.btl.pivo.state === 'stuck'));
+  render();
+});
+
+/* ═════════════════════════════════════════════════════════════════════════
+   גזירת "מי צריך לעשות מה" — זה הלב של המודל. כרטיס = {attn, ...}
+   attn: 'mine' | 'waiting' | 'internal' | 'done'   ·  tone: 'blue' | 'gray' | 'red'
+   ═════════════════════════════════════════════════════════════════════════ */
+function btlCard() {
+  const b = S.btl;
+  if (b.confirmedAt) return null;
+  if (b.expired) return { attn: 'mine', tone: 'red', id: b.id, title: b.title,
+    meta: `האסמכתא ${b.reference} פגה ב-${b.deadline} — דין לא אישרה בזמן`,
+    body: 'ביטוח לאומי מאפשר לאשר עד המועד שעל האסמכתא. אחרי שפגה צריך להזין ייפוי כוח מחדש ולקבל אסמכתא חדשה — PIVO עושה את זה מהחלון של ביטוח לאומי.',
+    primary: { label: 'הזן מחדש בביטוח לאומי', cls: 'btn-automation', act: () => { toast('PIVO מזין ייפוי כוח מחדש… (הדגמה)'); } } };
+  if (!b.instructionsSentAt) return { attn: 'mine', tone: 'blue', id: b.id, title: b.title,
+    meta: `PIVO הזין את ייפוי הכוח בביטוח לאומי · אסמכתא ${b.reference} · לאשר עד ${b.deadline}`,
+    lead: 'דין צריכה לאשר את ייפוי הכוח — ההוראות עוד לא נשלחו אליה.',
+    body: `המייל לדין: מספר האסמכתא, המועד האחרון, וקישור למסך האישור באתר ביטוח לאומי (או בטלפון 02-5393740). כשהיא תאשר — PIVO יזהה את זה בבדיקה, והבקשה תעבור ל«עבר».`,
+    primary: { label: 'שלח לדין את ההוראות', cls: 'btn-primary', act: () => openTray('din') },
+    pivo: b.pivo };
+  return { attn: 'waiting', tone: 'gray', id: b.id, title: b.title, whom: 'din',
+    meta: `נשלח לדין ${b.instructionsSentAt} · ממתינים לאישור שלה בביטוח לאומי עד ${b.deadline}`,
+    body: `אסמכתא ${b.reference}. דין מאשרת באתר ביטוח לאומי או בטלפון. PIVO בודק את הסטטוס; אפשר גם לבדוק עכשיו.`,
+    secondary: { label: 'בדוק קבלת הייצוג', cls: 'btn-automation', act: runCheck },
+    resend: true, pivo: b.pivo };
+}
+function clientCards() {
+  return S.clientReqs.map(r => {
+    const progress = r.kind === 'upload' ? `${r.done}/${r.total} התקבלו` : r.kind === 'checklist' ? `${r.done}/${r.total} סומנו` : null;
+    if (r.review) return { attn: 'mine', tone: 'blue', id: r.id, title: r.title, src: r,
+      meta: `גיא העלה את המסמך ${r.finishedAt} — לבדיקה`, body: r.body,
+      primary: { label: 'בדוק וסגור', cls: 'btn-primary', act: () => { r.review = false; r.closed = true; toast('הבקשה נסגרה ועברה ל«עבר»'); render(); } } };
+    if (r.closed) return null;
+    return { attn: 'waiting', tone: 'gray', id: r.id, title: r.title, src: r, whom: 'guy',
+      meta: [progress, `בדף מ-${r.publishedAt}`].filter(Boolean).join(' · '),
+      unsent: !r.sent, body: r.body,
+      menu: [['סמן שהתקבל / בוצע', () => { r.closed = true; toast('סומן כהושלם'); render(); }], ['הוסף הערה'], ['הסר את הבקשה', 'danger']] };
+  }).filter(Boolean);
+}
+function retainerCard() {
+  const r = S.retainer;
+  if (r.cardEntered) return null;
+  return { attn: 'waiting', tone: 'gray', id: r.id, title: r.title, whom: 'paperless',
+    meta: `ממתינים שגיא יזין כרטיס אשראי בפייפרלס · מ-${r.since}`, body: r.body,
+    menu: [['הכרטיס הוזן בפייפרלס', () => { r.cardEntered = true; toast('ההרשאה החודשית הושלמה'); render(); }], ['הוסף הערה']] };
+}
+function extraCards() {
+  return S.extra.map(x => {
+    if (x.type === 'authority') return x.overdue
+      ? { attn: 'mine', tone: 'blue', id: x.id, title: x.title, meta: `הוגש לשע״ם ${x.submitted} · עברו 14 יום — לבדוק אם הייצוג נקלט`, primary: { label: 'בדוק בשע״ם', cls: 'btn-automation', act: () => toast('PIVO בודק בשע״ם… (הדגמה)') } }
+      : { attn: 'waiting', tone: 'gray', id: x.id, title: x.title, whom: 'authority',
+          meta: `הוגש לשע״ם ${x.submitted} · ממתינים לרשות · לבדוק אחרי ${x.checkAfter}`,
+          body: 'ייפוי הכוח נחתם, נחתם על ידך והוגש. רשות המסים מאשרת בדרך כלל תוך שבועיים. כשיעבור המועד, הכרטיס יעלה ל«לטיפולי» עם «בדוק בשע״ם».' };
+  });
+}
+function allCards() { return [btlCard(), ...extraCards(), ...clientCards(), retainerCard()].filter(Boolean); }
+function mine() { return allCards().filter(c => c.attn === 'mine'); }
+function waiting() { return allCards().filter(c => c.attn === 'waiting'); }
+function readyGroups() {
+  const g = [];
+  const guyItems = S.clientReqs.filter(r => !r.sent && !r.closed && !r.review);
+  if (guyItems.length) g.push({ key: 'guy', who: 'גיא ישר', first: 'גיא', email: 'guy@example.com', kind: 'page',
+    what: 'מייל אחד עם קישור לדף האישי — מפרט את מה שממתין לו', items: guyItems.map(r => ({ id: r.id, title: r.title, sub: `בדף מ-${r.publishedAt} · טרם נשלח` })) });
+  if (!S.btl.instructionsSentAt && !S.btl.confirmedAt && !S.btl.expired)
+    g.push({ key: 'din', who: 'דין וולוצקי ישר', first: 'דין', email: S.btl.email, kind: 'btl',
+      what: 'מייל ייעודי — אין לדין דף אישי', items: [{ id: 'din', title: 'הוראות לאישור ייפוי הכוח בביטוח לאומי', sub: `אסמכתא ${S.btl.reference} · עד ${S.btl.deadline}` }] });
+  return g;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   רינדור העמוד
+   ═════════════════════════════════════════════════════════════════════════ */
+const WHOM = { guy: 'אצל גיא — בדף האישי', din: 'אצל דין', paperless: 'אצל פייפרלס', authority: 'אצל הרשות', pivo: 'PIVO עובד' };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function h(strings, ...vals) { return strings.reduce((a, s, i) => a + s + (vals[i] ?? ''), ''); }
+
+function cardHtml(c) {
+  const open = ui.openCard === c.id;
+  const pills = [];
+  if (c.unsent) pills.push('<span class="ob-pill is-unsent">טרם נשלח</span>');
+  const actions = [];
+  if (c.primary) actions.push(`<button class="btn btn-sm ${c.primary.cls}" data-act="${c.id}">${esc(c.primary.label)}</button>`);
+  if (c.secondary) actions.push(`<button class="btn btn-sm ${c.secondary.cls}" data-act2="${c.id}">${esc(c.secondary.label)}</button>`);
+  const menuItems = (c.menu || [['הוסף הערה'], ['הסר את הבקשה', 'danger']]).concat(c.resend ? [['שלח שוב את ההוראות']] : []);
+  actions.push(`<span class="menu-wrap"><button class="ob-more" aria-label="עריכה ואפשרויות" data-menu="${c.id}">⋯</button>
+    <div class="menu ${ui.menuFor === c.id ? 'open' : ''}">${menuItems.map((m, i) => `<button class="${m[1] === 'danger' ? 'danger' : ''}" data-mi="${c.id}:${i}">${esc(m[0])}</button>`).join('')}</div></span>`);
+  const pivo = c.pivo ? pivoLine(c.pivo) : '';
+  return `<div class="ob-req ${c.tone === 'blue' ? 'is-active' : c.tone === 'red' ? 'is-danger' : ''}"><span class="ob-req-dot"></span>
+    <div class="ob-card ${open ? 'is-highlight' : ''}" id="card-${c.id}">
+      <div class="ob-card-row">
+        <div class="ob-card-main"><button class="titlebtn" data-toggle="${c.id}" aria-expanded="${open}">
+          <div class="ob-card-title"><span>${esc(c.title)}</span>${pills.join('')}</div>
+          <div class="ob-card-meta">${c.meta}</div>
+          ${c.lead ? `<div class="ob-card-meta" style="margin-top:4px"><b>${esc(c.lead)}</b></div>` : ''}
+        </button></div>
+        <div class="ob-card-actions">${actions.join('')}</div>
+      </div>
+      ${pivo}
+      ${open && c.body ? `<div class="ob-card-body">${esc(c.body)}</div>` : ''}
+    </div></div>`;
+}
+function pivoLine(p) {
+  if (!p) return '';
+  if (p.state === 'stuck') return `<div class="pivo-line is-stuck"><span class="tag">PIVO</span><span style="flex:1">⚠ ${esc(p.text)}</span><button class="btn btn-sm btn-automation is-soft" data-reconnect="1">התחבר לביטוח לאומי והרץ שוב</button></div>`;
+  if (p.state === 'running') return `<div class="pivo-line is-running"><span class="tag">PIVO</span><span class="spin"></span><span style="flex:1">${esc(p.text)}</span><span style="font-size:11px">התחיל ${esc(p.at)}</span></div>`;
+  if (p.state === 'checked') return `<div class="pivo-line"><span class="tag">PIVO</span><span style="flex:1">${esc(p.text)}</span></div>`;
+  return '';
+}
+function sectionHtml(title, cnt, hint, inner, quiet) {
+  return `<section class="sec"><div class="sec-head ${quiet ? 'quiet' : ''}"><span>${title}</span><span class="cnt">${cnt}</span>${hint ? `<span class="hint">${hint}</span>` : ''}</div>${inner}</section>`;
+}
+
+function render() {
+  const m = mine(), w = waiting(), ready = readyGroups();
+  const n = m.length;
+  const badge = document.getElementById('tabBadge'); badge.textContent = n; badge.classList.toggle('zero', n === 0);
+  document.getElementById('sendCnt').textContent = ready.length === 0 ? '' : ready.length === 1 ? 'נמען אחד' : `${ready.length} נמענים`;
+  document.getElementById('sendBtn').disabled = ready.length === 0;
+  document.getElementById('sendBtn').title = ready.length ? '' : 'אין כרגע מה לשלוח — כל הבקשות כבר נשלחו';
+
+  const ctx = S.context;
+  document.getElementById('context').innerHTML =
+    `<span class="ok">✓</span><span>מיוצג פעיל מ-${ctx.activeSince}</span><span class="sep">·</span><span>ההצעה אושרה ${ctx.quoteApproved}</span><span class="sep">·</span><span>ייפוי הכוח שלך בביטוח לאומי אושר ${ctx.btlOwnApproved}</span><span class="sep">·</span><a href="#" onclick="toast('נפתח מרכז הייצוג');return false">למרכז הייצוג ←</a>`;
+
+  let out = '';
+  // ── לטיפולי ──
+  out += sectionHtml('לטיפולי', n, n ? '' : '', n ? m.map(cardHtml).join('') : `<div class="empty">אין מה לטפל כרגע. כל הבקשות אצל אחרים — ראה «ממתינים».</div>`);
+
+  // ── ממתינים · לפי אצל מי ──
+  const groups = ['guy', 'din', 'paperless', 'authority'];
+  let wi = '';
+  for (const g of groups) {
+    const cards = w.filter(c => c.whom === g);
+    if (!cards.length) continue;
+    let label = WHOM[g];
+    let extra = '';
+    if (g === 'guy') {
+      const unsent = cards.filter(c => c.unsent).length;
+      extra = ` <span class="lite">· ${esc(S.page.lastSentLabel)}</span>` + (unsent ? ` <span class="warnx">· ${unsent === 1 ? 'בקשה אחת נוספה מאז ולא נשלחה — נכללת' : unsent + ' בקשות נוספו מאז ולא נשלחו — נכללות'} ב«שלח בקשות»</span>` : '');
+    }
+    wi += `<div class="sub-label">${label}${extra}</div>` + cards.map(cardHtml).join('');
+  }
+  out += sectionHtml('ממתינים', w.length, 'אין מה לעשות עכשיו — מוצג אצל מי ומאז מתי', wi || `<div class="empty">לא ממתינים לאף אחד.</div>`, true);
+
+  // ── העבודה שלי ──
+  const aDone = S.alignment.filter(a => a.done).length;
+  const internal = `<div class="ob-req"><span class="ob-req-dot"></span><div class="ob-card">
+      <div class="ob-card-row"><div class="ob-card-main">
+        <div class="ob-card-title">יישור קו ללקוח</div>
+        <div class="ob-card-meta">${aDone === 3 ? 'הושלם' : `בתהליך · ${aDone} מתוך 3 · נכנסים לכל רשות, מעתיקים ומסמנים חריג`}</div>
+      </div><div class="ob-card-actions"><span class="menu-wrap"><button class="ob-more">⋯</button></span></div></div>
+      <div class="ob-card-body" style="padding-top:4px">
+        ${S.alignment.map(a => `<div class="inst"><span style="font-weight:600;min-width:90px">${a.label}</span><span class="st">${a.done ? 'בוצע · היום' : 'טרם בוצע'}</span>${a.done ? '<span class="ob-pill is-ok">✓</span>' : `<button class="btn btn-sm" data-align="${a.key}">כניסה</button>`}</div>`).join('')}
+      </div></div></div>
+    <button class="ob-add quiet" onclick="toast('נפתח קומפוזר משימה פנימית (כמו היום)')">＋ משימה פנימית</button>`;
+  out += sectionHtml('העבודה שלי', 1, 'לא מופיע בדף הלקוח', internal, true);
+
+  // ── ＋ בקשה חדשה ──
+  out += `<div style="display:flex;gap:10px;margin-top:22px"><button class="ob-add" style="margin-top:0;flex:1" onclick="toast('הוספת בקשה — נולדת טיוטה, תופיע ב«ממתינים» עם «טרם נשלח» אחרי הפרסום')">＋ בקשה חדשה</button><button class="btn" onclick="toast('ספריית התבניות')">מתבנית</button></div>`;
+
+  // ── עבר ──
+  const closed = S.clientReqs.filter(r => r.closed).map(r => [r.title, 'הושלם · היום']);
+  const retDone = S.retainer.cardEntered ? [['הרשאה לתשלום חודשי', 'הושלם · היום']] : [];
+  const btlDone = S.btl.confirmedAt ? [[S.btl.title, `אושר · ${S.btl.confirmedAt}`]] : [];
+  const past = [...btlDone, ...closed, ...retDone, ...S.past];
+  out += `<section class="sec"><div class="sec-head quiet"><span>עבר</span></div>
+    <button class="past" data-past="1"><span>בקשות שהושלמו · ${past.length}</span><span>${ui.pastOpen ? '⌃' : '⌄'}</span></button>
+    ${ui.pastOpen ? `<div class="past-list">${past.map(p => `<span><span>✓ ${esc(p[0])}</span><span>${esc(p[1])}</span></span>`).join('')}</div>` : ''}</section>`;
+
+  document.getElementById('flow').innerHTML = out;
+  renderPortal();
+  bind();
+}
+
+function renderPortal() {
+  const reqs = S.clientReqs.filter(r => !r.closed);
+  const office = [];
+  if (!S.retainer.cardEntered) office.push(['להזין אמצעי תשלום', 'בהמשך תגיע אליכם מפייפרלס בקשה להזנת כרטיס אשראי - נעדכן אותכם כאן.']);
+  if (!S.btl.confirmedAt && !S.btl.expired) office.push([S.btl.title, S.btl.instructionsSentAt ? `אסמכתא ${S.btl.reference} · יש לאשר עד ${S.btl.deadline} · לאתר הביטוח הלאומי ←` : 'האסמכתא התקבלה — נשלח הוראות אישור בקרוב']);
+  document.getElementById('portal').innerHTML = `<h4>שלום גיא,</h4>
+    <div class="grp">מה צריך ממך</div>
+    ${reqs.map(r => `<div class="it"><b>${esc(r.title)}</b><div class="s">${r.kind === 'upload' ? `${r.done} מתוך ${r.total} התקבלו` : r.kind === 'checklist' ? `${r.done} מתוך ${r.total} הושלמו` : 'לחיצה אחת אחרי הביצוע'}</div></div>`).join('')}
+    <div class="grp">מסמכים מהמשרד</div><div class="it off"><b>✓ מדריך: איך עובדים עם פייפרלס</b></div><div class="it off"><b>✓ מדריך הוצאות מוכרות</b></div>
+    <div class="grp">בטיפול המשרד</div>
+    ${office.map(o => `<div class="it off"><b><span class="dotc"></span>${esc(o[0])}</b><div class="s">${esc(o[1])}</div></div>`).join('')}
+    <div class="grp" style="color:var(--ink-4)">✓ ${4 + S.clientReqs.filter(r => r.closed).length} דברים שכבר הושלמו</div>`;
+}
+
+function bind() {
+  const flow = document.getElementById('flow');
+  flow.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => { ui.openCard = ui.openCard === b.dataset.toggle ? null : b.dataset.toggle; ui.menuFor = null; render(); });
+  flow.querySelectorAll('[data-act]').forEach(b => b.onclick = e => { e.stopPropagation(); const c = allCards().find(x => x.id === b.dataset.act); c && c.primary.act(); });
+  flow.querySelectorAll('[data-act2]').forEach(b => b.onclick = e => { e.stopPropagation(); const c = allCards().find(x => x.id === b.dataset.act2); c && c.secondary.act(); });
+  flow.querySelectorAll('[data-menu]').forEach(b => b.onclick = e => { e.stopPropagation(); ui.menuFor = ui.menuFor === b.dataset.menu ? null : b.dataset.menu; render(); });
+  flow.querySelectorAll('[data-mi]').forEach(b => b.onclick = e => { e.stopPropagation(); const [id, i] = b.dataset.mi.split(':'); const c = allCards().find(x => x.id === id); const items = (c.menu || [['הוסף הערה'], ['הסר את הבקשה', 'danger']]).concat(c.resend ? [['שלח שוב את ההוראות']] : []); const it = items[+i]; ui.menuFor = null; if (typeof it[1] === 'function') it[1](); else if (it[0].startsWith('שלח שוב')) openTray('din', true); else { toast(it[0] + ' (הדגמה)'); render(); } });
+  flow.querySelectorAll('[data-reconnect]').forEach(b => b.onclick = e => { e.stopPropagation(); reconnectAndRun(); });
+  flow.querySelectorAll('[data-align]').forEach(b => b.onclick = () => { const a = S.alignment.find(x => x.key === b.dataset.align); toast(`נפתח מסך המיקוד: ${a.label} — כניסה, העתקה וסימון חריג`); a.done = true; render(); });
+  flow.querySelectorAll('[data-past]').forEach(b => b.onclick = () => { ui.pastOpen = !ui.pastOpen; render(); });
+  document.body.onclick = () => { if (ui.menuFor) { ui.menuFor = null; render(); } };
+}
+
+/* ─── PIVO: חיבור והרצה מחדש / בדיקה ─── */
+function reconnectAndRun() {
+  document.getElementById('btlConn').classList.remove('off');
+  S.btl.pivo = { kind: 'check', state: 'running', at: 'עכשיו', text: 'PIVO בודק בביטוח לאומי אם דין אישרה…' };
+  render();
+  setTimeout(() => { S.btl.pivo = { state: 'checked', text: 'נבדק עכשיו — דין עדיין לא אישרה. ההוראות טרם נשלחו אליה.' }; render(); }, 2400);
+}
+function runCheck() {
+  S.btl.pivo = { kind: 'check', state: 'running', at: 'עכשיו', text: 'PIVO בודק בביטוח לאומי אם דין אישרה…' };
+  render();
+  setTimeout(() => { S.btl.pivo = { state: 'checked', text: 'נבדק עכשיו — עדיין ממתין לאישור של דין.' }; render(); }, 2400);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   «שלח בקשות» — סקירה לפי נמען, שליחה, ומה קורה אחר כך
+   ═════════════════════════════════════════════════════════════════════════ */
+let T = null; // מצב המגש
+function openTray(focusKey, resend) {
+  let groups = readyGroups();
+  if (resend && focusKey === 'din') groups = [{ key: 'din', who: 'דין וולוצקי ישר', first: 'דין', email: S.btl.email, kind: 'btl', resend: true, what: 'שליחה חוזרת של אותן הוראות', items: [{ id: 'din', title: 'הוראות לאישור ייפוי הכוח בביטוח לאומי', sub: `אסמכתא ${S.btl.reference} · עד ${S.btl.deadline}` }] }];
+  if (!groups.length) return;
+  T = { groups: groups.map(g => ({ ...g, on: true, items: g.items.map(i => ({ ...i, on: true })), preview: false, status: null, editAddr: false })), phase: 'review', focus: focusKey };
+  document.getElementById('tray').classList.add('open');
+  renderTray();
+}
+function closeTray() { document.getElementById('tray').classList.remove('open'); T = null; render(); }
+
+function mailHtml(g) {
+  const items = g.items.filter(i => i.on);
+  if (g.kind === 'page') return `<div class="mail"><div class="logo">YASHAR.</div><h5>${esc(g.first)}, יש דברים שממתינים לך</h5>
+    <div>בדף האישי שלך נוספו בקשות. הנה מה שנשאר:</div>
+    <ul>${items.map(i => `<li>${esc(i.title)}</li>`).join('')}</ul>
+    <div>הכול נעשה מהדף האישי — אותו קישור קבוע.</div>
+    <span class="cta">לדף האישי שלך ←</span>
+    <div class="foot">${items.length} פעולות ממתינות · שאלות? פשוט השיבו למייל הזה.</div></div>`;
+  return `<div class="mail"><div class="logo">YASHAR.</div><h5>נשאר צעד אחד בביטוח הלאומי, ${esc(g.first)}</h5>
+    <div>הזנו עבורך את ייפוי הכוח בביטוח הלאומי. הביטוח הלאומי דורש שתאשרי אותו בעצמך — זה לוקח כדקה.</div>
+    <div style="margin-top:8px;font-size:12px;color:var(--ink-3)">מספר האסמכתא שלך</div><span class="ref">${S.btl.reference}</span>
+    <div style="font-size:12px;color:var(--warn)">יש לאשר עד ${S.btl.deadline}</div>
+    <div style="margin-top:8px"><b>א. באתר הביטוח הלאומי</b> — נכנסים למסך אישור ייפוי כוח למייצג, מזינים את מספר האסמכתא ומאשרים.</div>
+    <div><b>ב. בטלפון</b> — 02-5393740 (מענה קולי), מקישים את מספר האסמכתא.</div>
+    <span class="cta">לאישור באתר הביטוח הלאומי ←</span>
+    <div class="foot">אישור מול הביטוח הלאומי · כדקה</div></div>`;
+}
+function renderTray() {
+  const body = document.getElementById('trayBody'), foot = document.getElementById('trayFoot');
+  const onGroups = T.groups.filter(g => g.on && g.email && g.items.some(i => i.on));
+  if (T.phase === 'done') {
+    document.getElementById('traySub').textContent = '';
+    const sentG = T.groups.filter(g => g.status === 'ok');
+    body.innerHTML = `<div class="done-panel"><div class="big">✓</div><h4>${sentG.length === 1 ? 'מייל אחד נשלח' : `${sentG.length} מיילים נשלחו`}</h4>
+      <p>${sentG.map(g => `${esc(g.who)} — ${g.items.filter(i => i.on).length === 1 ? 'פריט אחד' : g.items.filter(i => i.on).length + ' פריטים'}`).join(' · ')}</p>
+      <p style="margin-top:10px">כל מה שנשלח עבר ל«ממתינים» עם «נשלח היום». PIVO יעקוב ויעדכן כשמישהו יבצע.</p></div>`;
+    foot.innerHTML = `<button class="btn btn-primary" onclick="closeTray()">חזרה לבקשות</button>`;
+    return;
+  }
+  document.getElementById('traySub').textContent = T.groups.length === 1
+    ? (T.groups[0].resend ? 'שליחה חוזרת — אותו מייל, אותה כתובת' : 'נמען אחד')
+    : `${T.groups.length} נמענים · ${T.groups.reduce((a, g) => a + g.items.length, 0)} פריטים · כל נמען מקבל מייל משלו`;
+  body.innerHTML = T.groups.map((g, gi) => {
+    const nOn = g.items.filter(i => i.on).length;
+    const addr = g.editAddr
+      ? `<span class="addr-edit"><input value="${esc(g.email)}" id="addr-${gi}" placeholder="name@example.com"><button class="btn btn-sm" data-saveaddr="${gi}">שמור בכרטיס</button></span>`
+      : g.email ? `<span class="addr">${esc(g.email)}</span> <button class="linkbtn" data-editaddr="${gi}" style="font-size:11px">שנה</button>`
+                : `<span class="addr missing">אין כתובת מייל בכרטיס</span> <button class="linkbtn" data-editaddr="${gi}" style="font-size:11px">הוסף</button>`;
+    return `<div class="rcp ${g.on ? '' : 'off'}" id="rcp-${gi}">
+      <div class="rcp-head"><input type="checkbox" ${g.on ? 'checked' : ''} data-gon="${gi}" aria-label="לשלוח ל${esc(g.who)}">
+        <span class="who">${esc(g.who)}</span>${addr}<span class="k">${esc(g.what)}</span></div>
+      <div class="rcp-body">
+        ${g.items.map((it, ii) => `<div class="rcp-item ${it.on ? '' : 'off'}">${g.items.length > 1 ? `<input type="checkbox" ${it.on ? 'checked' : ''} data-ion="${gi}:${ii}" ${g.on ? '' : 'disabled'}>` : '<span style="width:13px"></span>'}<div class="t">${esc(it.title)}<small>${esc(it.sub)}</small></div></div>`).join('')}
+        <div class="rcp-what"><span>${g.kind === 'page' ? `מייל אחד · ${nOn} ${nOn === 1 ? 'פריט' : 'פריטים'} · נושא: «${esc(g.first)}, יש דברים שממתינים לך»` : 'נושא: «נשאר צעד אחד בביטוח הלאומי, דין» · אסמכתא, מועד, קישור וטלפון'}</span>
+          <button class="linkbtn" data-pv="${gi}">${g.preview ? 'הסתר תצוגה מקדימה' : 'תצוגה מקדימה'}</button></div>
+        <div class="preview ${g.preview ? 'open' : ''}"><div class="hdr"><span>אל: <b>${esc(g.email || '—')}</b></span><span>מאת: <b>רואה חשבון גיא ישר &lt;office@yasharcpa.co.il&gt;</b></span></div>${mailHtml(g)}</div>
+      </div>
+      <div class="rcp-status ${g.status ? 'show ' + g.status : ''}">${g.status === 'sending' ? '<span class="spin"></span> שולח…' : g.status === 'ok' ? '✓ נשלח · נרשם ביומן' : g.status === 'err' ? '⚠ השליחה נכשלה — אפשר לנסות שוב' : ''}</div>
+    </div>`;
+  }).join('');
+  const sending = T.phase === 'sending';
+  const missing = T.groups.filter(g => g.on && !g.email).length;
+  foot.innerHTML = `<span class="summary">${missing ? `⚠ ${missing === 1 ? 'לנמען אחד אין כתובת' : missing + ' נמענים בלי כתובת'} — הוסף או בטל אותו` : onGroups.length === 0 ? 'לא נבחר דבר לשליחה' : onGroups.length === 1 ? `מייל אחד יישלח ל${esc(onGroups[0].who)}` : `${onGroups.length} מיילים יישלחו · אחד לכל נמען`}</span>
+    <button class="btn btn-ghost" onclick="closeTray()" ${sending ? 'disabled' : ''}>ביטול</button>
+    <button class="btn btn-primary" id="traySend" ${sending || onGroups.length === 0 || missing ? 'disabled' : ''}>${sending ? 'שולח…' : onGroups.length <= 1 ? 'שלח' : `שלח ${onGroups.length} מיילים`}</button>`;
+
+  body.querySelectorAll('[data-gon]').forEach(c => c.onchange = () => { T.groups[+c.dataset.gon].on = c.checked; renderTray(); });
+  body.querySelectorAll('[data-ion]').forEach(c => c.onchange = () => { const [gi, ii] = c.dataset.ion.split(':').map(Number); T.groups[gi].items[ii].on = c.checked; renderTray(); });
+  body.querySelectorAll('[data-pv]').forEach(b => b.onclick = () => { T.groups[+b.dataset.pv].preview = !T.groups[+b.dataset.pv].preview; renderTray(); });
+  body.querySelectorAll('[data-editaddr]').forEach(b => b.onclick = () => { T.groups[+b.dataset.editaddr].editAddr = true; renderTray(); document.getElementById('addr-' + b.dataset.editaddr)?.focus(); });
+  body.querySelectorAll('[data-saveaddr]').forEach(b => b.onclick = () => { const g = T.groups[+b.dataset.saveaddr]; g.email = document.getElementById('addr-' + b.dataset.saveaddr).value.trim(); g.editAddr = false; if (g.key === 'din') S.btl.email = g.email; toast('הכתובת נשמרה בכרטיס הלקוח'); renderTray(); });
+  const sendBtn = document.getElementById('traySend'); if (sendBtn) sendBtn.onclick = doSend;
+  if (T.focus && T.phase === 'review') { const gi = T.groups.findIndex(g => g.key === T.focus); if (gi >= 0) { document.getElementById('rcp-' + gi)?.scrollIntoView({ block: 'nearest' }); } T.focus = null; }
+}
+async function doSend() {
+  T.phase = 'sending';
+  const targets = T.groups.filter(g => g.on && g.email && g.items.some(i => i.on));
+  for (const g of targets) { g.status = 'sending'; renderTray(); await wait(900);
+    // ‼ כל קבוצה עוברת דרך מנגנון השליחה הקיים שלה: הדף → send-process-open-email · דין → send-onboarding-email(ni_approve).
+    g.status = 'ok'; renderTray();
+    if (g.kind === 'page') { g.items.filter(i => i.on).forEach(i => { const r = S.clientReqs.find(x => x.id === i.id); if (r) r.sent = true; }); S.page.lastSentAt = 'היום'; const k = g.items.filter(i => i.on).length; S.page.lastSentLabel = `הדף נשלח היום · ${k === 1 ? 'בקשה אחת' : k + ' בקשות'}`; }
+    if (g.kind === 'btl') { S.btl.instructionsSentAt = 'היום 19.09'; S.btl.pivo = null; }
+  }
+  await wait(400);
+  T.phase = 'done'; renderTray();
+  render();
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+let toastT;
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200); }
+
+render();
+</script>
+</body>
+</html>
