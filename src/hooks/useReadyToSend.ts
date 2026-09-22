@@ -2,64 +2,32 @@
 // עוטף את client_ready_to_send (מיגרציה 192). המגש «שלח בקשות», גלולת
 // «טרם נשלח» על הכרטיסים ותת-הכותרת «הדף נשלח לאחרונה…» קוראים כולם מכאן —
 // אם היו גוזרים כל אחד לבד, המונים היו סוטים זה מזה כמו "פתוחות" הישן.
+//
+// ‼ מעבר לקוח בלי רענון: המצב מתאפס מיד, ותשובה של הלקוח הקודם שמגיעה
+// באיחור נזרקת (ראה readyToSendLoader — שם הלוגיקה, כאן רק החיבור ל-React).
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { createReadyToSendLoader, EMPTY_READY, type ReadyLoaderState, type ReadyRpcResult } from './readyToSendLoader';
 
-export interface ReadyOwnerItem {
-  stepId: string;
-  stepType: string;
-  title?: string;
-  publishedAt: string;
-  /** תוכן שהשתנה אחרי הפרסום (פריט שנוסף, עריכה שפורסמה, פתיחה מחדש) — 192. */
-  changedAt?: string;
-}
+export type { ReadyOwnerItem, ReadyPerson, ReadyToSend } from './readyToSendLoader';
+export { EMPTY_READY, readyRecipientCount } from './readyToSendLoader';
 
-export interface ReadyPerson {
-  role: 'client' | 'spouse';
-  name: string;
-  email?: string;
-  stepId: string;
-  requestId: string;
-  referenceNumber: string;
-  deadline?: string;
-}
-
-export interface ReadyToSend {
-  owner: { email?: string; lastSentAt?: string | null; items: ReadyOwnerItem[] };
-  persons: ReadyPerson[];
-}
-
-export const EMPTY_READY: ReadyToSend = { owner: { items: [] }, persons: [] };
+const rpc = async (clientId: string): Promise<ReadyRpcResult> => {
+  const { data, error } = await supabase.rpc('client_ready_to_send', { p_client_id: clientId });
+  return { data: data as ReadyRpcResult['data'], error: error ? { message: error.message } : null };
+};
 
 export function useReadyToSend(clientId: string | undefined, refreshKey: unknown) {
-  const [ready, setReady] = useState<ReadyToSend>(EMPTY_READY);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<ReadyLoaderState>({ clientId, ready: EMPTY_READY, loading: !!clientId, error: null });
+  // טוען אחד לכל חיי הרכיב — המונה שלו הוא מה שמגן מפני תשובה ישנה.
+  const loader = useMemo(() => createReadyToSendLoader(rpc, setState), []);
 
-  const reload = useCallback(async () => {
-    if (!clientId) { setReady(EMPTY_READY); return; }
-    setLoading(true);
-    const { data, error: rpcError } = await supabase.rpc('client_ready_to_send', { p_client_id: clientId });
-    setLoading(false);
-    const res = data as (ReadyToSend & { ok?: boolean; error?: string }) | null;
-    if (rpcError || !res?.ok) {
-      setError(rpcError?.message ?? res?.error ?? 'לא הצלחתי לבדוק מה מוכן לשליחה.');
-      return;
-    }
-    setError(null);
-    setReady({
-      owner: { email: res.owner?.email, lastSentAt: res.owner?.lastSentAt ?? null, items: res.owner?.items ?? [] },
-      persons: res.persons ?? [],
-    });
-  }, [clientId]);
+  // ‼ שינוי לקוח מאפס לפני הבאה — הרינדור הבא כבר מציג "ריק/טוען", לא את הקודם.
+  useEffect(() => { loader.setClient(clientId); }, [loader, clientId]);
+  useEffect(() => { void loader.load(); }, [loader, clientId, refreshKey]);
 
-  useEffect(() => { void reload(); }, [reload, refreshKey]);
-
-  return { ready, loading, error, reload };
-}
-
-/** כמה מיילים ייצאו מ«שלח בקשות» — נמען לכל קבוצה. */
-export function readyRecipientCount(r: ReadyToSend): number {
-  return (r.owner.items.length > 0 ? 1 : 0) + r.persons.length;
+  // ‼ מצב של לקוח אחר לעולם לא מוצג — גם אם setState רץ לפני ש-setClient הספיק.
+  const current = state.clientId === clientId ? state : { clientId, ready: EMPTY_READY, loading: !!clientId, error: null };
+  return { ready: current.ready, loading: current.loading, error: current.error, reload: () => loader.load() };
 }

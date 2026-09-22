@@ -4,7 +4,7 @@
 // ‼ מספר הלשוניות תלוי בקילל-סוויץ': עם journeyUi דלוק (ברירת המחדל) —
 // ארבע לשוניות סביב "המסע"; כבוי — חמש הלשוניות הישנות חוזרות, כולל "קליטה".
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Client, Task, REPRESENTATION_STATUS_LABELS, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking } from '../types';
 import { ActivityEntry, ClientAlert } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
@@ -513,14 +513,19 @@ export default function ClientWorkspace({
   // ‼ v3: אותה הגדרה כמו מקטע «לטיפולי» במסך עצמו (requestAttention) — כרטיסים
   // שמוצגים בפועל ודורשים לחיצה. שלבים מוסתרים ועבודה פנימית אינם נספרים.
   // "תקוע" = בעיה אמיתית (אדום), לא "הלקוח סיים - לבדיקה".
+  // ‼ כשלשונית הבקשות מורכבת היא מדווחת את המונה שלה — כולל מצב משימות ב"ל
+  // (PIVO רץ ⇒ הכרטיס ב«ממתינים» ולא נספר). בלי הדיווח, התג ספר אותו כ"אצלי".
+  const [reported, setReported] = useState<{ clientId: string; n: number; red: boolean } | null>(null);
+  const onAttentionSummary = useCallback((s: { n: number; red: boolean }) => setReported({ clientId: client.id, ...s }), [client.id]);
   const journeyBadge = useMemo(() => {
+    if (reported && reported.clientId === client.id) return { n: reported.n, stuck: reported.red };
     const mine = (onboardingSteps ?? []).filter(s => s.clientId === client.id);
     const ctx = { niExecution, repStatus: client.representationStatus ?? undefined };
     return {
       n: countRequestsNeedingMe(mine, ctx),
       stuck: hasRedRequest(mine, ctx),
     };
-  }, [onboardingSteps, client.id, niExecution, client.representationStatus]);
+  }, [onboardingSteps, client.id, niExecution, client.representationStatus, reported]);
 
   const clientCharges = useMemo(
     () => (charges ?? []).filter(c => c.clientId === client.id),
@@ -883,6 +888,7 @@ export default function ClientWorkspace({
             niExecution={niExecution}
             onUpdateClientFields={onUpdateClientFields ? (patch: Partial<Client>) => onUpdateClientFields(client.id, patch) : undefined}
             onNiInstructionsSent={onNiInstructionsSent ? () => onNiInstructionsSent(client.id) : undefined}
+            onAttentionSummary={onAttentionSummary}
             onRequestAuthorityRepresentation={onRequestAuthorityRepresentationFromCatalog
               ? (role) => onRequestAuthorityRepresentationFromCatalog(client.id, role) : undefined}
             spouseClient={spouseClient}

@@ -78,7 +78,7 @@ import { useReadyToSend, readyRecipientCount } from '../../hooks/useReadyToSend'
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
 import { BTL_CHECK_REPRESENTATION_ACTION_TYPE, BTL_CREATE_REPRESENTATION_ACTION_TYPE } from '../../types/automation';
 import type { AutomationJob } from '../../types/automation';
-import { stepAttention, isManualInternal, type Attention, type AttentionContext, type WaitingOn } from '../../utils/requestAttention';
+import { stepAttention, isManualInternal, countRequestsNeedingMe, hasRedRequest, type Attention, type AttentionContext, type WaitingOn } from '../../utils/requestAttention';
 
 interface Props {
   clientId: string;
@@ -137,6 +137,12 @@ interface Props {
   onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
   onNiInstructionsSent?: () => Promise<void>;
+  /**
+   * v3: המונה של «לטיפולי» כפי שהמסך עצמו חישב — כולל מצב משימות ב"ל
+   * (PIVO רץ ⇒ לא נספר; נתקע ⇒ אדום). התג בלשונית לא מכיר משימות, ולכן
+   * הוא קורא מכאן כשהמסך מורכב, כדי ששני המספרים לא יסטו.
+   */
+  onAttentionSummary?: (summary: { n: number; red: boolean }) => void;
   /** "+ בקשה חדשה" ← "ייצוג ברשות - לאדם" — אותה קריאה כמו מתיק המס (157). */
   onRequestAuthorityRepresentation?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
   /** הכרטיס של בן/בת הזוג המקושר/ת — לתצוגת הרשויות הקומפקטית (ב"ל לכל אדם). */
@@ -333,7 +339,7 @@ export default function OnboardingTab({
   prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, repNote, onOpenRepresentation,
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, ballFilter, onOpenTaxFile,
-  niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent,
+  niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent, onAttentionSummary,
   spouseClient, onOpenSpouseClient, detailedAlignment, onDetailedAlignmentConsumed,
 }: Props) {
   // ‼ v3: הוראות האישור לב"ל יוצאות ממשטח הבקשות דרך «שלח בקשות» בלבד
@@ -783,6 +789,9 @@ export default function OnboardingTab({
     niJobs: { client: jobForRole('client'), spouse: jobForRole('spouse') },
   };
   const attnOf = (s: OnboardingStep): Attention => stepAttention(s, attnCtx);
+  const attentionN = countRequestsNeedingMe(clientSteps, attnCtx);
+  const attentionRed = hasRedRequest(clientSteps, attnCtx);
+  useEffect(() => { onAttentionSummary?.({ n: attentionN, red: attentionRed }); }, [onAttentionSummary, attentionN, attentionRed]);
   /** תצוגה מקדימה של הדף האישי — הדף האמיתי, לא חיקוי. */
   const [previewOpen, setPreviewOpen] = useState(false);
   /** העתקת הקישור הקבוע לדף האישי — אותו טוקן שמונפק גם בשליחה במייל. */
