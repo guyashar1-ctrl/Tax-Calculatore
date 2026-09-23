@@ -73,10 +73,15 @@ export async function run(ctx, input) {
     const tracking = await openPoaTrackingScreen(page);
     if (!tracking.ok) {
       throw new PermanentError(
-        `פתיחת מסך מעקב ייפוי כוח נכשלה (${tracking.reason ?? 'unknown'})` +
+        // ‼ אותו תיקון כמו ב-btlCreateRepresentation (23.09.2026): הניווט
+        // כבר מנסה לעבור בעצמו ל«מערכת ייצוג לקוחות», ולכן ההודעה מפנה
+        // למה שבאמת נשאר לבדוק במקום להאשים את הקוד.
+        'פתיחת מסך "מעקב ייפוי כוח" נכשלה' +
         (tracking.failedAt ? ` — לא נמצא "${tracking.failedAt}" בתפריט` : '') +
-        '. ייתכן שהמסך השתנה או שהניווט טרם אומת מול האתר האמיתי.',
-        `tracking_nav_${tracking.reason ?? 'failed'}`,
+        '. ' + (tracking.recoveryAttempted
+          ? 'פתחתי את «מערכת ייצוג לקוחות» מחדש וגם אז לא נמצא התפריט. בדקו שחלון ביטוח לאומי עדיין מחובר (ייתכן שהסשן פג).'
+          : 'בדקו שחלון ביטוח לאומי פתוח ומחובר.'),
+        `tracking_nav_${tracking.reason ?? 'nav_failed'}`,
       );
     }
     const row = await findPoaTrackingRow(page, { referenceNumber, idNumber });

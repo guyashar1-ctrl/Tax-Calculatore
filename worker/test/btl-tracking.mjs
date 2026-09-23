@@ -10,7 +10,7 @@ import {
   classifyPoaStatus, normalizeStatusText, selectTrackingRow, toIsoDate,
   sameIdNumber, sameReference,
 } from '../src/btlTracking.mjs';
-import { confirmationState } from '../src/btlSession.mjs';
+import { confirmationState, btlPageRank } from '../src/btlSession.mjs';
 
 let failures = 0;
 let passes = 0;
@@ -287,6 +287,36 @@ eq(confirmationState('ייפוי הכוח ניקלט במערכת, אך עדיי
 eq(confirmationState('רישום הטופס נקלט בהצלחה'), 'unknown',
   '"נקלט בהצלחה" לבדו אינו אומר דבר על תוקף ⇒ unknown, לא approved');
 eq(confirmationState(''), 'unknown', 'ריק ⇒ unknown');
+
+section('בחירת הלשונית — אותו דומיין, אפליקציות שונות');
+{
+  // ‼ נצפה חי (23.09.2026) בחלון של גיא: שתי לשוניות על meyazegs.btl.gov.il —
+  // מסך הפירוט של «מערכת ייצוג לקוחות», ו«תרמי"ל». הבחירה נפלה על תרמי"ל,
+  // שאין בו «מיוצגים», והמשימה נכשלה עם «המסך השתנה — יש לעדכן את הקוד».
+  const repApp = {
+    href: 'https://meyazegs.btl.gov.il/BTL.ILG.Meyazgim.New/y114z_yipuicoachmamtinishur.aspx?type=MV',
+    pathname: '/BTL.ILG.Meyazgim.New/y114z_yipuicoachmamtinishur.aspx', hasPasswordField: false,
+  };
+  const tarmil = {
+    href: 'https://meyazegs.btl.gov.il/tarmil/?q=v141z_peruthachnasa_hagdalatmikdamot',
+    pathname: '/tarmil/', hasPasswordField: false,
+  };
+  const loginGate = {
+    href: 'https://meyazegs.btl.gov.il/my.policy', pathname: '/my.policy', hasPasswordField: true,
+  };
+  const elsewhere = { href: 'https://www.btl.gov.il/', pathname: '/', hasPasswordField: false };
+
+  eq(btlPageRank(repApp), 3, 'מערכת ייצוג לקוחות — העדיפות הגבוהה ביותר');
+  eq(btlPageRank(tarmil), 2, 'תרמי"ל — מחובר, אבל אפליקציה אחרת');
+  eq(btlPageRank(loginGate), 1, 'מסך הכניסה — לא מחובר');
+  eq(btlPageRank(elsewhere), 0, 'דומיין אחר של ביטוח לאומי אינו רלוונטי');
+  eq(btlPageRank(undefined), 0, 'אין לשונית');
+
+  check(btlPageRank(repApp) > btlPageRank(tarmil),
+    '‼ מערכת הייצוג תמיד גוברת על תרמי"ל — זה הבאג של 23.09');
+  check(btlPageRank(tarmil) > btlPageRank(loginGate),
+    'לשונית מחוברת גוברת על מסך כניסה');
+}
 
 // ── סיכום ──────────────────────────────────────────────────────────────────
 console.log(`\n${passes} עברו, ${failures} נכשלו`);
