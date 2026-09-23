@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import {
   pickUploadDocumentsControl, openedRequestIdentity, documentsStepPlan,
   wizardStepFromText, wizardStepResolve, pickContinueButton, submissionAcceptedEvidence,
-  NEVER_CLICK_BTNTYPES,
+  NEVER_CLICK_BTNTYPES, pickPoaFileInput, pickDialogCloseButton, uploadDialogEvidence,
 } from '../src/shaamRepresentationSession.mjs';
 
 const src = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
@@ -23,6 +23,7 @@ const SESSION = src('../src/shaamRepresentationSession.mjs');
 const fnBody = (s, sig) => { const i = s.indexOf(sig); assert.ok(i >= 0, sig); return s.slice(i, s.indexOf('\n}', i)); };
 const LIST_ROW = JSON.parse(src('./fixtures/shaam-list-row.live.json'));
 const CONTACT = JSON.parse(src('./fixtures/shaam-contact-step.live.json'));
+const DIALOG = JSON.parse(src('./fixtures/shaam-upload-dialog.json'));
 
 const ID = '034605212';
 const NAME_ON_SCREEN = 'סלע הדסה';
@@ -156,10 +157,8 @@ test('שלב 4 · הבוררים לקוחים מהתבנית: .BoxA, input.plus,
   assert.ok(probe.includes('if (out.plusControls !== 1 || out.poaHasFile) return { ...out, clicked: false };'));
   assert.ok(SESSION.includes("const POA_DIALOG = '#dialogTeinatAsmachta';"));
   const up = fnBody(SESSION, 'export async function uploadSignedForm');
-  assert.ok(up.includes("dialog.locator('input[type=file]')"), 'שדה הקובץ מתוך הדיאלוג הפתוח בלבד');
-  assert.ok(up.includes("'upload_dialog_ambiguous'") && up.includes("'file_input_ambiguous'"));
-  assert.equal((up.match(/setInputFiles\(/g) || []).length, 1, 'העלאה אחת');
-  assert.ok(up.includes('#errDiv'), 'שגיאת טעינה מתוך הדיאלוג');
+  assert.equal(up.split('setInputFiles(').length - 1, 1, 'העלאה אחת');
+  assert.ok(up.includes("dialog.locator('input[type=file]').nth(inputIndex)"), 'ה-input שנבחר לפני הנגיעה');
   const conf = fnBody(SESSION, 'export async function confirmDocumentsStep');
   assert.ok(conf.includes('input[type=checkbox][ng-model="vm.isCheckeChatimatBz"]'));
   assert.ok(conf.indexOf("reason: row.poaHasFile ? undefined : 'no_file_listed'") < conf.indexOf('if (checkSpouse)'));
@@ -218,4 +217,47 @@ test('נשלח · submitted=true במקום אחד, אחרי confirmDocumentsSte
   const save = HANDLER.indexOf('progress.set({ requestNumber: opened.requestNumber })');
   assert.ok(save > 0 && save < HANDLER.indexOf('if (!opened.ok)'));
   assert.ok(HANDLER.includes('getDocument(ctx.workerId, ctx.job.id, documentId)') && HANDLER.includes('buffer: doc.buffer'));
+});
+
+// ── דיאלוג הטעינה (תבנית shaam-file-upload + צילום המסך) ─────────────────────
+
+test('דיאלוג · שני input[type=file]: myFile (גלוי) נבחר, myFile1 (mode==3, מוסתר) לא — זה מה שעצר את ניסיון 4', () => {
+  assert.deepEqual(pickPoaFileInput(DIALOG.beforeSelection.inputs), { ok: true, index: 0 });
+  const both = DIALOG.beforeSelection.inputs.map((x) => ({ ...x, containerVisible: true, name: 'myFile' }));
+  assert.equal(pickPoaFileInput(both).reason, 'file_input_ambiguous');
+  assert.equal(pickPoaFileInput([{ name: 'myFile1', containerVisible: true }]).reason, 'file_input_not_found');
+  assert.equal(pickPoaFileInput([{ name: 'myFile', containerVisible: true, disabled: true }]).reason, 'file_input_not_found');
+});
+
+test('דיאלוג · «סגירה» הוא כפתור התחתית עם הטקסט — לא ה-×; מוסתר/כפול ⇒ עצירה', () => {
+  assert.deepEqual(pickDialogCloseButton(DIALOG.beforeSelection.buttons), { ok: true, index: 1 });
+  assert.equal(pickDialogCloseButton([{ text: '×', visible: true }]).reason, 'close_button_not_found');
+  assert.equal(pickDialogCloseButton([{ text: 'סגירה', visible: false }]).reason, 'close_button_not_found');
+  assert.equal(pickDialogCloseButton([{ text: 'סגירה', visible: true }, { text: 'סגירה', visible: true }]).reason, 'close_button_ambiguous');
+});
+
+test('דיאלוג · ראיית העלאה: קובץ PDF אחד ברשימה ⇒ נטען; שגיאה ⇒ נדחה; כלום ⇒ ממתין; שניים ⇒ עצירה', () => {
+  assert.equal(uploadDialogEvidence(DIALOG.beforeSelection, 'x.pdf').state, 'pending');
+  const up = uploadDialogEvidence(DIALOG.afterUpload, 'הדסה סלע - ייפוי כוח חתום.pdf');
+  assert.deepEqual([up.state, up.uploadName, up.sameName], ['uploaded', 'הדסה סלע - ייפוי כוח חתום.pdf', true]);
+  assert.equal(uploadDialogEvidence(DIALOG.uploadError, 'x.pdf').state, 'rejected');
+  assert.equal(uploadDialogEvidence({ files: ['a.pdf', 'b.pdf'] }, 'a.pdf').state, 'ambiguous');
+  assert.equal(uploadDialogEvidence({ files: ['a.docx'] }, 'a.docx').state, 'pending', 'לא PDF אינו «נטען»');
+});
+
+test('דיאלוג · הגבול: «+» ופתיחת הדיאלוג לפני הסימן; בחירת הקובץ אחריו; השורה מאומתת אחרי «סגירה»', () => {
+  const at = (needle) => { const i = HANDLER.indexOf(needle); assert.ok(i > 0, `חסר: ${needle}`); return i; };
+  const plan = at('documentsStepPlan(opened.documents');
+  const open = at('await openPoaUploadDialog(page)');
+  const mark = at("markExternalAttempt('upload_signed_form')");
+  const upload = at('await uploadSignedForm(');
+  assert.ok(plan < open && open < mark && mark < upload);
+  assert.ok(HANDLER.includes('inputIndex: dlg.inputIndex'));
+  const opener = fnBody(SESSION, 'export async function openPoaUploadDialog');
+  assert.ok(!opener.includes('setInputFiles'), 'פתיחת הדיאלוג אינה בוחרת קובץ');
+  assert.ok(opener.includes("reason: 'upload_dialog_ambiguous'") && opener.includes('pickPoaFileInput(d.inputs)'));
+  assert.ok(opener.includes("reason: 'poa_already_uploaded'"), 'קובץ כבר בדיאלוג ⇒ לא מעלים שני');
+  const up = fnBody(SESSION, 'export async function uploadSignedForm');
+  assert.ok(up.indexOf('uploadDialogEvidence(') < up.indexOf('pickDialogCloseButton('), 'קודם ראיה, אחר כך «סגירה»');
+  assert.ok(up.includes("reason: 'row_not_updated'") && up.includes("reason: 'row_file_mismatch'"), 'השורה אחרי הסגירה');
 });

@@ -1,0 +1,25 @@
+{
+  "source": "shaam-file-upload.html (read from the live page's $templateCache, 23.09.2026) + screenshot of the open dialog; the dialog was already closed when inspected live, so this is template-derived, not a live DOM capture",
+  "dialogId": "dialogTeinatAsmachta",
+  "titleOnScreen": "טעינת בקשה/…",
+  "beforeSelection": {
+    "openModals": ["dialogTeinatAsmachta"],
+    "inputs": [
+      { "name": "myFile", "containerVisible": true, "disabled": false },
+      { "name": "myFile1", "containerVisible": false, "disabled": false }
+    ],
+    "buttonLabel": "טעינת קובץ",
+    "files": [],
+    "err": null,
+    "buttons": [
+      { "text": "×", "visible": true, "cls": "close" },
+      { "text": "סגירה", "visible": true, "cls": "btn btn-primary" }
+    ]
+  },
+  "afterUpload": {
+    "buttonLabel": "החלפת קובץ",
+    "files": ["הדסה סלע - ייפוי כוח חתום.pdf"],
+    "err": null
+  },
+  "uploadError": { "files": [], "err": "תקלה בטעינת מסמך", "buttonLabel": "טעינת קובץ" }
+}

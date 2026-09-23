@@ -1207,55 +1207,142 @@ export async function openRequestForDocuments(page, { requestNumber, entityId, e
 
 const POA_DIALOG = '#dialogTeinatAsmachta';
 
+// ── דיאלוג הטעינה של «טופס ייפוי כוח» — מתוך תבנית shaam-file-upload וה-DOM החי ─────
+// ‼ 23.09.2026 · ניסיון 4 פתח את הדיאלוג ועצר על file_input_ambiguous, לפני
+// בחירת קובץ: ברכיב יש **שני** input[type=file] חיים — name="myFile" בחלק
+// של mode!=3 (הגלוי כאן, mode=1), ו-name="myFile1" בחלק של mode==3 (מוסתר).
+// «טעינת קובץ» הוא .k-upload-button של Kendo שעוטף את input[name=myFile];
+// לחיצה עליו פותחת את בוחר הקבצים של Windows — ולכן מזינים את הקובץ ישירות
+// לאותו input (בדיוק מה שהבוחר עושה). autoUpload מעלה לאחסון זמני, וב-success:
+// הקובץ ברשימה (.divbutton2 a = UploadName), הכפתור «החלפת קובץ», ו-
+// vm.uploadFile(0) ⇒ בשורה <u>UploadName</u> + .icon.checkmark. שגיאה: #errDiv.
+// «סגירה» = הכפתור בתחתית הדיאלוג (shaam-buttons, ng-bind=tranbtn); ה-×
+// בכותרת עושה אותו דבר, אבל נלחץ הכפתור «סגירה» כפי שנדרש.
+
+/** טהורה: input הקובץ של «טופס ייפוי כוח» — myFile בחלק הגלוי, בדיוק אחד. */
+export function pickPoaFileInput(inputs) {
+  const list = Array.isArray(inputs) ? inputs : [];
+  const live = list.map((x, i) => ({ ...x, i })).filter((x) => x.name === 'myFile' && x.containerVisible && !x.disabled);
+  if (live.length !== 1) return { ok: false, reason: live.length ? 'file_input_ambiguous' : 'file_input_not_found', detail: list.map((x) => `${x.name}:${x.containerVisible ? 'גלוי' : 'מוסתר'}`).join(',') };
+  return { ok: true, index: live[0].i };
+}
+
+/** טהורה: «סגירה» בתחתית הדיאלוג — כפתור גלוי אחד עם הטקסט «סגירה» (לא ה-×). */
+export function pickDialogCloseButton(buttons) {
+  const live = (Array.isArray(buttons) ? buttons : []).map((b, i) => ({ ...b, i }))
+    .filter((b) => b.visible && String(b.text ?? '').trim() === 'סגירה');
+  if (live.length !== 1) return { ok: false, reason: live.length ? 'close_button_ambiguous' : 'close_button_not_found' };
+  return { ok: true, index: live[0].i };
+}
+
 /**
- * העלאת הטופס החתום לשורת «טופס ייפוי כוח». ‼ נקראת רק אחרי
- * markExternalAttempt ורק אחרי documentsStepPlan שאישר.
- * «+» ⇒ #dialogTeinatAsmachta ⇒ input[type=file] אחד בתוכו ⇒ ממתינים
- * לראיה בשורה (שם הקובץ / V) ⇒ סוגרים את הדיאלוג בכפתור שלו.
+ * טהורה: מה הדיאלוג אומר על ההעלאה.
+ * ‼ «נטען» רק כשברשימת הדיאלוג יש בדיוק קובץ PDF אחד ואין שגיאה. שגיאה ⇒
+ * נדחה. שום דבר ⇒ עדיין לא (או לא ידוע, אם נגמר הזמן).
  */
-export async function uploadSignedForm(page, { fileName, buffer }) {
+export function uploadDialogEvidence({ files, err, buttonLabel } = {}, fileName) {
+  if (err) return { state: 'rejected', detail: err };
+  const list = (files ?? []).map((f) => String(f).trim()).filter(Boolean);
+  if (list.length === 1 && /\.pdf$/i.test(list[0])) {
+    return { state: 'uploaded', uploadName: list[0], sameName: list[0] === String(fileName ?? '').trim(), buttonLabel };
+  }
+  if (list.length > 1) return { state: 'ambiguous', detail: list.join(', ') };
+  return { state: 'pending' };
+}
+
+async function readPoaDialog(page) {
+  return page.evaluate((sel) => {
+    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const visible = (e) => !!e && e.offsetParent !== null && getComputedStyle(e).visibility !== 'hidden';
+    const dlg = document.querySelector(sel);
+    const openModals = [...document.querySelectorAll('.modal')]
+      .filter((m) => visible(m) || getComputedStyle(m).display === 'block').map((m) => m.id);
+    if (!dlg) return { exists: false, openModals };
+    const err = dlg.querySelector('#errDiv');
+    return {
+      exists: true,
+      openModals,
+      title: clean(dlg.querySelector('.modal-title')?.textContent),
+      inputs: [...dlg.querySelectorAll('input[type=file]')].map((f) => ({
+        name: f.getAttribute('name') || '',
+        containerVisible: visible(f.closest('.k-upload-button') || f.parentElement),
+        disabled: !!f.disabled,
+      })),
+      buttonLabel: clean([...dlg.querySelectorAll('.k-upload-button span')].filter(visible).map((s) => s.textContent).join(' ')),
+      files: [...dlg.querySelectorAll('.divbutton2 a')].filter(visible).map((a) => clean(a.textContent)),
+      err: err && visible(err) ? clean(err.textContent) : null,
+      buttons: [...dlg.querySelectorAll('button')].map((b) => ({ text: clean(b.textContent), visible: visible(b), cls: String(b.className) })),
+    };
+  }, POA_DIALOG);
+}
+
+/**
+ * פותח את דיאלוג הטעינה של «טופס ייפוי כוח» ומוודא שהוא הנכון — **לפני**
+ * סימן הנגיעה. ‼ «+» הוא onClickTeinatMismachim(1) ⇒ isOpenDialog בלבד (תצוגה);
+ * שום דבר לא נשלח לשע״ם עד שנבחר קובץ.
+ */
+export async function openPoaUploadDialog(page) {
   const step = await currentWizardStep(page);
-  if (step !== 4) return { ok: false, reason: 'not_on_documents_step', currentStep: step, step: 'upload' };
+  if (step !== 4) return { ok: false, reason: 'not_on_documents_step', currentStep: step };
 
   const probe = await page.evaluate(poaRowProbe, 'clickPlus');
   if (!probe.clicked) {
-    return { ok: false, step: 'upload_open', reason: probe.poaHasFile ? 'poa_already_uploaded'
+    return { ok: false, reason: probe.poaHasFile ? 'poa_already_uploaded'
       : probe.poaRows !== 1 ? (probe.poaRows ? 'poa_row_ambiguous' : 'poa_row_not_found')
       : (probe.plusControls ? 'upload_opener_ambiguous' : 'upload_opener_not_found') };
   }
-  const dialog = page.locator(POA_DIALOG);
-  const opened = await dialog.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
-  if (!opened) return { ok: false, reason: 'upload_dialog_not_open', step: 'upload_open' };
-  const openModals = await page.evaluate(() => [...document.querySelectorAll('.modal')].filter((m) => m.offsetParent !== null || getComputedStyle(m).display === 'block').map((m) => m.id));
-  if (openModals.length !== 1 || openModals[0] !== POA_DIALOG.slice(1)) {
-    return { ok: false, reason: 'upload_dialog_ambiguous', detail: openModals.join(','), step: 'upload_open' };
+  const opened = await page.locator(POA_DIALOG).waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
+  if (!opened) return { ok: false, reason: 'upload_dialog_not_open' };
+  await page.waitForTimeout(400);
+  const d = await readPoaDialog(page);
+  if (d.openModals.length !== 1 || d.openModals[0] !== POA_DIALOG.slice(1)) {
+    return { ok: false, reason: 'upload_dialog_ambiguous', detail: d.openModals.join(',') };
   }
+  const input = pickPoaFileInput(d.inputs);
+  if (!input.ok) return input;
+  // ‼ כבר יש קובץ בדיאלוג («החלפת קובץ» / רשימה לא ריקה) ⇒ לא מעלים שני.
+  if ((d.files ?? []).length || /החלפת/.test(d.buttonLabel ?? '')) return { ok: false, reason: 'poa_already_uploaded' };
+  if (!/טעינת\s+קובץ/.test(d.buttonLabel ?? '')) return { ok: false, reason: 'upload_button_not_found', detail: d.buttonLabel };
+  if (!pickDialogCloseButton(d.buttons).ok) return { ok: false, reason: 'close_button_not_found' };
+  return { ok: true, inputIndex: input.index };
+}
 
-  const fileInput = dialog.locator('input[type=file]');
-  if (await fileInput.count() !== 1) return { ok: false, reason: 'file_input_ambiguous', step: 'upload_open' };
-  await fileInput.setInputFiles({ name: fileName, mimeType: 'application/pdf', buffer });
+/**
+ * מזין את ה-PDF החתום ל-input הקובץ של הדיאלוג, ממתין לראיית העלאה, וסוגר
+ * ב«סגירה». ‼ נקראת רק אחרי markExternalAttempt — הבחירה מעלה מיד לאחסון זמני.
+ */
+export async function uploadSignedForm(page, { fileName, buffer, inputIndex }) {
+  const dialog = page.locator(POA_DIALOG);
+  const before = await readPoaDialog(page);
+  const again = pickPoaFileInput(before.inputs);
+  if (!again.ok || again.index !== inputIndex) return { ok: false, reason: 'file_input_changed', step: 'upload' };
 
-  // ‼ autoUpload של Kendo: ההצלחה נראית בשורה (שם הקובץ + V) אחרי vm.uploadFile(0).
+  await dialog.locator('input[type=file]').nth(inputIndex).setInputFiles({ name: fileName, mimeType: 'application/pdf', buffer });
+
   const deadline = Date.now() + 60000;
-  let row = null;
-  let dialogErr = null;
+  let ev = { state: 'pending' };
   while (Date.now() < deadline) {
     await page.waitForTimeout(700);
-    row = await page.evaluate(poaRowProbe, 'read');
-    dialogErr = await page.evaluate((sel) => {
-      const e = document.querySelector(`${sel} #errDiv`);
-      return e && e.offsetParent !== null ? (e.textContent || '').replace(/\s+/g, ' ').trim() : null;
-    }, POA_DIALOG);
-    if (row.poaHasFile || dialogErr) break;
+    ev = uploadDialogEvidence(await readPoaDialog(page), fileName);
+    if (ev.state !== 'pending') break;
   }
-  if (dialogErr) return { ok: false, reason: 'upload_rejected', detail: dialogErr, step: 'upload' };
-  if (!row?.poaHasFile) return { ok: false, reason: 'upload_not_confirmed', step: 'upload' };
+  if (ev.state === 'rejected') return { ok: false, reason: 'upload_rejected', detail: ev.detail, step: 'upload' };
+  if (ev.state !== 'uploaded') return { ok: false, reason: ev.state === 'ambiguous' ? 'upload_ambiguous' : 'upload_not_confirmed', detail: ev.detail, step: 'upload' };
 
-  // סוגרים את הדיאלוג בכפתור הסגירה שלו (לא «סגירה» כללי במסך).
-  await dialog.locator('button.close').first().click({ timeout: 5000 }).catch(() => {});
+  // «סגירה» בתחתית הדיאלוג — בדיוק כפתור אחד.
+  const d = await readPoaDialog(page);
+  const close = pickDialogCloseButton(d.buttons);
+  if (!close.ok) return { ok: false, reason: close.reason, step: 'upload_close' };
+  const closed = await dialog.locator('button').nth(close.index).click({ timeout: 5000 }).then(() => true).catch(() => false);
+  if (!closed) return { ok: false, reason: 'close_click_failed', step: 'upload_close' };
   await dialog.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   await settle(page);
-  return { ok: true, uploadName: row.uploadName };
+
+  // ‼ הראיה בשורה אחרי הסגירה: שם הקובץ + V (vm.uploadFile(0)).
+  const row = await page.evaluate(poaRowProbe, 'read');
+  if (!row.poaHasFile || !row.uploadName) return { ok: false, reason: 'row_not_updated', step: 'upload_close' };
+  if (row.uploadName !== ev.uploadName) return { ok: false, reason: 'row_file_mismatch', detail: `${row.uploadName} ≠ ${ev.uploadName}`, step: 'upload_close' };
+  return { ok: true, uploadName: row.uploadName, sameName: ev.sameName };
 }
 
 /**

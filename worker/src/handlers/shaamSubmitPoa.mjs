@@ -21,7 +21,7 @@
 import { attach, detach } from '../browserSession.mjs';
 import {
   openRepresentationSystem, openRequestForDocuments, uploadSignedForm,
-  confirmDocumentsStep, currentWizardStep, documentsStepPlan,
+  confirmDocumentsStep, currentWizardStep, documentsStepPlan, openPoaUploadDialog,
 } from '../shaamRepresentationSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { getDocument } from '../apiClient.mjs';
@@ -60,6 +60,13 @@ const BEFORE_TOUCH_STOPS = {
   continue_ambiguous: 'נמצא יותר מכפתור «המשך» אחד גלוי',
   continue_label_mismatch: 'הכפתור שסומן «המשך» אינו נושא את הטקסט «המשך»',
   contact_step_error: 'במסך פרטי ההתקשרות מוצגת שגיאה',
+  not_on_documents_step: 'המסך אינו מסך טעינת המסמכים',
+  upload_dialog_not_open: 'דיאלוג הטעינה של «טופס ייפוי כוח» לא נפתח',
+  upload_dialog_ambiguous: 'נפתח דיאלוג אחר, או יותר מדיאלוג אחד',
+  file_input_ambiguous: 'בדיאלוג יותר משדה קובץ פעיל אחד',
+  file_input_not_found: 'שדה הקובץ בדיאלוג לא נמצא',
+  upload_button_not_found: 'כפתור «טעינת קובץ» לא נמצא בדיאלוג',
+  close_button_not_found: 'כפתור «סגירה» לא נמצא בדיאלוג',
   spouse_checkbox_not_found: 'המסך מבקש לאשר את חתימת בן/בת הזוג, אבל תיבת האישור לא נמצאה',
   spouse_signature_not_proven: 'שע״ם מבקשת לאשר את חתימת בן/בת הזוג, ו-PIVO לא הוכיחה אותה בטופס החתום',
 };
@@ -176,14 +183,25 @@ export async function run(ctx, input) {
       );
     }
 
-    // ‼ הגבול: מכאן הקובץ עלול להיקלט בשע״ם. קריסה מכאן והלאה חייבת
-    // להיקרא «לא ידוע אם נקלט» — ולעולם לא «ננסה שוב» (196).
+    // ── «+» ⇒ דיאלוג הטעינה של «טופס ייפוי כוח» — תצוגה בלבד, עדיין לפני הנגיעה ──
+    const dlg = await openPoaUploadDialog(page);
+    if (!dlg.ok) {
+      ctx.log(`עצירה לפני טעינה: ${dlg.reason}${dlg.detail ? ` · ${dlg.detail}` : ''}`);
+      throw new NeedsHumanError(
+        `${BEFORE_TOUCH_STOPS[dlg.reason] ?? dlg.reason}${dlg.detail ? ` (${dlg.detail})` : ''}. ${NOTHING_SENT}`,
+        dlg.reason === 'poa_already_uploaded' ? 'poa_already_uploaded' : 'request_identity_unverified',
+      );
+    }
+
+    // ‼ הגבול: בחירת הקובץ מעלה אותו מיד לאחסון זמני של שע״ם (autoUpload).
+    // קריסה מכאן והלאה חייבת להיקרא «לא ידוע אם נקלט» — ולעולם לא «ננסה שוב» (196).
     await progress.markExternalAttempt('upload_signed_form');
 
     ctx.log(`מעלה את הטופס החתום (${doc.buffer.length} בתים) לשורת «טופס ייפוי כוח»`);
     const uploaded = await uploadSignedForm(page, {
       fileName: doc.fileName || 'ייפוי כוח חתום.pdf',
       buffer: doc.buffer,
+      inputIndex: dlg.inputIndex,
     });
     if (!uploaded.ok) {
       const signal = await detectBlockingSignal(page);
