@@ -45,7 +45,7 @@ try {
   const suites = files.map((f, i) => `  { file: ${JSON.stringify(relative(ROOT, f).replace(/\\/g, '/'))}, tests: T${i} },`).join('\n');
   writeFileSync(entry, `
 ${imports}
-import { runSuite } from ${esc(join(SRC, 'testkit/tinyTest.ts'))};
+import { runSuiteAsync } from ${esc(join(SRC, 'testkit/tinyTest.ts'))};
 
 const suites = [
 ${suites}
@@ -54,7 +54,7 @@ ${suites}
 let failed = 0, passed = 0;
 for (const s of suites) {
   console.log('\\n── ' + s.file);
-  for (const r of runSuite(s.tests)) {
+  for (const r of await runSuiteAsync(s.tests)) {
     if (r.error) { failed++; console.log('  ✗ ' + r.name + '\\n      ' + r.error); }
     else { passed++; console.log('  ✓ ' + r.name); }
   }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AutomationJob } from '../types/automation';
 import { OPEN_AUTOMATION_STATUSES } from '../types/automation';
 import { createAutomationJob, cancelAutomationJob, fetchLatestAutomationJob, jobIsLive } from '../lib/automationJobs';
+import { startAutomationJob, startJobMessage, type StartJobResult } from '../lib/automationJobStart';
 
 const POLL_MS = 2500;
 
@@ -15,6 +16,11 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // ‼ תוצאת הלחיצה האחרונה — **לא** נמחקת בפעימת הרענון. קודם נשמרה ב-error,
+  // ש-reload מאפס כל 2.5 שניות כל עוד יש משימה פתוחה: סירוב השרת הופיע לרגע
+  // ונעלם, והרו"ח ראה «לא קרה כלום» (23.09.2026, שש לחיצות).
+  const [runError, setRunError] = useState<string | null>(null);
+  const [lastStart, setLastStart] = useState<StartJobResult | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // ‼ העותק העדכני של המשימה ל-callbacks — כדי שלא יבנו מחדש בכל פעימה.
   const jobRef = useRef<AutomationJob | null>(null);
@@ -76,36 +82,19 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
   const run = useCallback(async (
     input: Record<string, unknown> = {},
     opts: { acknowledgeExternal?: boolean } = {},
-  ) => {
-    if (!clientId) return { ok: false, error: 'no_client' };
-    if (!actionType) return { ok: false, error: 'no_action_type' };
+  ): Promise<StartJobResult> => {
+    if (!clientId) return { ok: false, code: 'fetch_failed', error: 'no_client' };
+    if (!actionType) return { ok: false, code: 'fetch_failed', error: 'no_action_type' };
     setBusy(true);
-    setError(null);
-
-    const existing = await fetchLatestAutomationJob(clientId, actionType);
-    if (existing.job && OPEN_AUTOMATION_STATUSES.has(existing.job.status) && !jobIsLive(existing.job)) {
-      const c = await cancelAutomationJob(existing.job.id, opts.acknowledgeExternal === true);
-      // ‼ הסירוב הזה הוא תכונה, לא תקלה: המשימה כבר נגעה בשע״ם, והמסך
-      // חייב להציג לרו"ח מה קרה לפני שמותר לנסות שוב.
-      if (!c.ok && c.error === 'external_attempt_requires_acknowledgement') {
-        setBusy(false);
-        setError('הפעולה הזו כבר נוסתה מול שע״ם ולא ידוע אם נקלטה. בדקו מה נקלט לפני ניסיון נוסף.');
-        return { ok: false, error: 'external_attempt_requires_acknowledgement' };
-      }
-    }
-
-    const r = await createAutomationJob(clientId, actionType, input);
+    setRunError(null);
+    const r = await startAutomationJob(
+      { fetchLatest: fetchLatestAutomationJob, cancel: cancelAutomationJob, create: createAutomationJob, isLive: jobIsLive },
+      { clientId, actionType, input, acknowledgeExternal: opts.acknowledgeExternal === true },
+    );
     setBusy(false);
-    if (!r.ok) {
-      setError(r.error ?? 'שגיאה לא ידועה');
-      return r;
-    }
     if (r.job) setJob(r.job);
-    // ‼ שקט אינו תוצאה. אם אחרי הכול לא נוצרה משימה חדשה ולא רצה שום דבר,
-    // אומרים זאת במקום להיראות כאילו הלחיצה נקלטה.
-    if (!r.created && r.job && !OPEN_AUTOMATION_STATUSES.has(r.job.status)) {
-      setError('לא נפתחה קריאה חדשה — נסו שוב.');
-    }
+    setLastStart(r);
+    setRunError(startJobMessage(r));
     return r;
   }, [clientId, actionType]);
 
@@ -119,5 +108,5 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
     else if (!r.ok) setError(r.error ?? 'שגיאה לא ידועה');
   }, []);
 
-  return { job, loading, error, busy, run, cancel, reload: () => reload(false) };
+  return { job, loading, error: runError ?? error, busy, run, cancel, lastStart, reload: () => reload(false) };
 }

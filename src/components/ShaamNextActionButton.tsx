@@ -95,6 +95,12 @@ export default function ShaamNextActionButton({
     : null;
   const missingData = action.kind === 'create' ? missingText : null;
 
+  // ‼ השרת סירב כי הניסיון הקודם כבר נגע בשע״ם — פותחים את האישור במקום
+  // להשאיר את הרו"ח מול כפתור שלא עושה כלום.
+  const afterStart = (r: { code?: string } | undefined) => {
+    if (r?.code === 'requires_acknowledgement') setConfirmRetry(true);
+  };
+
   async function run(acknowledgeExternal = false) {
     setLocalError(null);
     setConfirmRetry(false);
@@ -129,7 +135,7 @@ export default function ShaamNextActionButton({
         formFileName: `ייפוי כוח לחתימה - ${person.name}.pdf`,
         existingRequestNumber: tracking?.requestNumber ?? null,
         alreadyFoundInShaam: shaamRequestExists(tracking),
-      }, { acknowledgeExternal });
+      }, { acknowledgeExternal }).then(afterStart);
       return;
     }
 
@@ -161,7 +167,7 @@ export default function ShaamNextActionButton({
         // ועוצר לפני העלאה אם שע״ם מציגה את התיבה והדגל חסר.
         spouseSignatureConfirmed: spouseSignatureProof(request, linkedClient, doc, married).ok,
         alreadySubmittedAt: tracking?.submittedAt ?? null,
-      }, { acknowledgeExternal });
+      }, { acknowledgeExternal }).then(afterStart);
       return;
     }
 
@@ -181,7 +187,7 @@ export default function ShaamNextActionButton({
       entityId: person.idNumber.replace(/\D/g, ''),
       // ‼ ראיית שיוך כשאין עדיין מספר בקשה — ראה attributeRows/matchRegisteredPersonName.
       personName: person.name,
-    }, { acknowledgeExternal });
+    }, { acknowledgeExternal }).then(afterStart);
   }
 
   const busyLabel = action.kind === 'create' ? 'פותח בקשה…'
@@ -208,12 +214,16 @@ export default function ShaamNextActionButton({
         className={`${className} btn-automation ${soft ? 'is-soft' : ''}`}
         disabled={busy || !!action.disabled}
         aria-busy={running || busy || undefined}
-        title={title}
+        title={stop?.mayHaveActed && !action.disabled ? 'הניסיון הקודם נעצר באמצע — לחיצה פותחת אישור לניסיון חדש' : title}
         aria-label={action.disabled ? `${action.label} — ${action.reason}` : undefined}
         onClick={() => {
           // ‼ נתון חסר עוצר כאן, לפני שער החיבור: אין טעם לפתוח חלון
           // התחברות כדי לגלות מיד שחסר מספר בכרטיס.
           if (missingData) { setLocalError(missingData); return; }
+          // ‼ 23.09.2026 · במצב שבו הניסיון הקודם כבר נגע בשע״ם, הכפתור הראשי לא
+          // יכול להריץ בלי אישור (196) — קודם הוא ביקש, נדחה בשקט, וההודעה
+          // נמחקה. עכשיו הוא פותח את האישור עצמו; «כן, נסה שוב» הוא ההרשאה.
+          if (stop?.mayHaveActed) { setConfirmRetry(true); return; }
           gate.runOrConnect(() => void run());
         }}>
         {hook.busy ? busyLabel : gate.connecting ? 'ממתין לחיבור…' : action.label}
@@ -243,6 +253,11 @@ export default function ShaamNextActionButton({
         />
       )}
 
+      {running && hook.lastStart?.code === 'created' && hook.lastStart.replacedJobId
+        ? <div className={errorClassName} style={{ color: 'var(--ink-2)' }}>
+            ניסיון חדש נפתח ונשלח לעובד המקומי. הניסיון הקודם נסגר ונשמר בהיסטוריה.
+          </div>
+        : null}
       {running
         ? <div className={errorClassName} style={{ color: 'var(--ink-3)' }}>{runningLabel}</div>
         : null}

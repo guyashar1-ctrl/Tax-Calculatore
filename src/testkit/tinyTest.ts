@@ -6,10 +6,10 @@
 
 export interface TestCase {
   name: string;
-  fn: () => void;
+  fn: () => void | Promise<void>;
 }
 
-export function test(name: string, fn: () => void): TestCase {
+export function test(name: string, fn: () => void | Promise<void>): TestCase {
   return { name, fn };
 }
 
@@ -56,4 +56,21 @@ export function runSuite(suite: TestCase[]): { name: string; error?: string }[] 
       return { name: t.name, error: e instanceof Error ? e.message : String(e) };
     }
   });
+}
+
+/**
+ * כמו runSuite, אבל ממתין לבדיקות אסינכרוניות. ‼ בלי זה בדיקה async «עוברת»
+ * לפני שהטענות שלה רצו — וכישלון מופיע אחר כך כקריסה בלי שם.
+ */
+export async function runSuiteAsync(suite: TestCase[]): Promise<{ name: string; error?: string }[]> {
+  const out: { name: string; error?: string }[] = [];
+  for (const t of suite) {
+    try {
+      await t.fn();
+      out.push({ name: t.name });
+    } catch (e) {
+      out.push({ name: t.name, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return out;
 }
