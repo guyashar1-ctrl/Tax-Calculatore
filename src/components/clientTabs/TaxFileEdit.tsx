@@ -17,6 +17,7 @@ import { useTaxFacts } from '../../hooks/useTaxFacts';
 import { getTaxYearData } from '../../data/taxData';
 import { calcCreditPoints } from '../../utils/taxCalculations';
 import { shortDate } from '../../utils/clientDerived';
+import HebrewTextInput from '../ui/HebrewTextInput';
 import { TAX_FACT_SOURCE_LABELS } from '../../types/taxFacts';
 import {
   TAX_FAMILIES, SECTIONS_BY_FAMILY, type FamilyKey, type EditField, type EditSection,
@@ -311,6 +312,9 @@ function Field({ f, meta, value, onChange }: {
           <option value="">טרם ביררנו</option>
           {(f.options ?? []).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
+      ) : f.hebrew ? (
+        <HebrewTextInput id={`f-${f.key}`} value={value} placeholder="—"
+          onChange={e => onChange(e.target.value)} />
       ) : (
         <input id={`f-${f.key}`} type={f.kind === 'text' ? 'text' : 'text'}
           inputMode={f.kind === 'text' ? undefined : 'numeric'}

@@ -28,6 +28,7 @@ import { getEligibleSettlements, resolveSettlement } from '../../data/eligibleSe
 import { CURRENT_TAX_YEAR } from '../../data/taxData';
 import LinkedDocsWidget from '../LinkedDocsWidget';
 import EmailInput from '../ui/EmailInput';
+import HebrewTextInput from '../ui/HebrewTextInput';
 import Employer106Details from './Employer106Details';
 import InvestmentAccount867Details from './InvestmentAccount867Details';
 import Business1320Details from './Business1320Details';
@@ -542,11 +543,11 @@ export default function PersonalContactsTab({
           </div>
           <div className="form-group span-2">
             <label>כתובת</label>
-            <input type="text" value={client.address} onChange={e => update('address', e.target.value)} />
+            <HebrewTextInput value={client.address} onChange={e => update('address', e.target.value)} />
           </div>
           <div className="form-group">
             <label>עיר</label>
-            <input type="text" value={client.city} onChange={e => update('city', e.target.value)} />
+            <HebrewTextInput value={client.city} onChange={e => update('city', e.target.value)} />
           </div>
         </div>
 
@@ -1324,7 +1325,7 @@ export default function PersonalContactsTab({
                     </div>
                     <div className="form-group span-2">
                       <label>כתובת</label>
-                      <input type="text" value={p.address} onChange={e => updateProperty(p.id, 'address', e.target.value)} placeholder="רחוב, מספר, עיר" />
+                      <HebrewTextInput value={p.address} onChange={e => updateProperty(p.id, 'address', e.target.value)} placeholder="רחוב, מספר, עיר" />
                     </div>
                     <div className="form-group">
                       <label>שטח (מ״ר)</label>

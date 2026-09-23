@@ -6,6 +6,7 @@
 // המלאה בכרטיס.
 
 import { useState } from 'react';
+import HebrewTextInput from '../../components/ui/HebrewTextInput';
 import type { Client, Child, EmployerInfo, InvestmentAccount, BankAccountInfo, PensionFundInfo } from '../../types';
 import type { CardEditSection } from './types';
 
@@ -154,11 +155,11 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
         </div>
         <div className="form-group">
           <label>עיר</label>
-          <input type="text" value={city} onChange={(e) => setCity(e.target.value)} />
+          <HebrewTextInput value={city} onChange={(e) => setCity(e.target.value)} />
         </div>
         <div className="form-group">
           <label>כתובת</label>
-          <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} />
+          <HebrewTextInput value={address} onChange={(e) => setAddress(e.target.value)} />
         </div>
 
         {sub('משפחה ותושבות')}

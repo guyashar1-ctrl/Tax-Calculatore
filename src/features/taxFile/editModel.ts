@@ -78,6 +78,8 @@ export interface EditField {
   authority?: boolean;
   /** נשמר דרך מסלול העובדות (field_meta + פרובננס). */
   governed?: boolean;
+  /** עברית בלבד — יישוב וכתובת נוסעים כמות שהם לטפסי הרשויות. */
+  hebrew?: boolean;
 }
 
 export interface EditSection {
@@ -113,8 +115,8 @@ export const EDIT_SECTIONS: EditSection[] = [
       { key: 'birthDate', label: 'תאריך לידה', kind: 'text' },
       { key: 'phone', label: 'טלפון', kind: 'text' },
       { key: 'email', label: 'אימייל', kind: 'text' },
-      { key: 'city', label: 'יישוב', kind: 'text' },
-      { key: 'address', label: 'כתובת', kind: 'text' },
+      { key: 'city', label: 'יישוב', kind: 'text', hebrew: true },
+      { key: 'address', label: 'כתובת', kind: 'text', hebrew: true },
     ],
   },
   {

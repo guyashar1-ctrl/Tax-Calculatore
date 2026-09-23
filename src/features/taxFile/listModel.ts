@@ -32,6 +32,8 @@ export interface ListField {
   options?: [string, string][];
   /** חשיפה הדרגתית — השדה מופיע רק כשהתנאי מתקיים על הפריט עצמו. */
   when?: (item: ListItem) => boolean;
+  /** עברית בלבד — כתובת ויישוב נוסעים כמות שהם לטפסי הרשויות. */
+  hebrew?: boolean;
 }
 
 /** מפתחות הרשימות — כולם `GOVERNED_FACT_KEYS`, ולכן נשמרים במסלול העובדות. */
@@ -108,8 +110,8 @@ export const LIST_SPECS: Record<ListKey, ListSpec> = {
     key: 'properties', label: 'נכסי מקרקעין', itemLabel: 'נכס',
     fields: [
       { key: 'type', label: 'סוג הנכס', kind: 'select', options: opts(PROPERTY_TYPE_LABELS) },
-      { key: 'address', label: 'כתובת', kind: 'text' },
-      { key: 'city', label: 'עיר', kind: 'text' },
+      { key: 'address', label: 'כתובת', kind: 'text', hebrew: true },
+      { key: 'city', label: 'עיר', kind: 'text', hebrew: true },
       { key: 'sizeSqm', label: 'שטח (מ״ר)', kind: 'number' },
       { key: 'rooms', label: 'חדרים', kind: 'number' },
       { key: 'purchaseYear', label: 'שנת רכישה', kind: 'number' },

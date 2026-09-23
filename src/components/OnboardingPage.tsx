@@ -26,6 +26,7 @@ import SignaturePad from './SignaturePad';
 import { isValidIsraeliId } from '../utils/israeliId';
 import { isValidEmail } from '../utils/email';
 import EmailInput from './ui/EmailInput';
+import HebrewTextInput from './ui/HebrewTextInput';
 import { customerProcessMap } from '../lib/representationJourney';
 
 interface Props {
@@ -869,14 +870,14 @@ export default function OnboardingPage({ token }: Props) {
 
             <div style={fieldBox}>
               <label style={label}>עיר מגורים
-                <input style={inputStyle} value={city} onChange={e => setCity(e.target.value)}
+                <HebrewTextInput style={inputStyle} value={city} onChange={e => setCity(e.target.value)}
                   placeholder="תל אביב" autoComplete="address-level2" />
               </label>
             </div>
 
             <div style={{ marginBottom: 22 }}>
               <label style={label}>רחוב ומספר בית
-                <input style={inputStyle} value={address} onChange={e => setAddress(e.target.value)}
+                <HebrewTextInput style={inputStyle} value={address} onChange={e => setAddress(e.target.value)}
                   placeholder="הרצל 10, דירה 3" autoComplete="street-address" />
               </label>
             </div>

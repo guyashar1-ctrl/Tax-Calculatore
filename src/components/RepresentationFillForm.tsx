@@ -11,6 +11,7 @@ import { analyzeDocument, isGeminiAvailable } from '../utils/geminiVision';
 import SignaturePad from './SignaturePad';
 import { isValidEmail } from '../utils/email';
 import EmailInput from './ui/EmailInput';
+import HebrewTextInput from './ui/HebrewTextInput';
 
 interface Props {
   request: RepresentationRequest;
@@ -308,11 +309,11 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
             </div>
             <div className="form-group">
               <label>עיר</label>
-              <input value={fields.city} onChange={e => upd('city', e.target.value)} />
+              <HebrewTextInput value={fields.city} onChange={e => upd('city', e.target.value)} />
             </div>
             <div className="form-group span-2">
               <label>כתובת</label>
-              <input value={fields.address} onChange={e => upd('address', e.target.value)} />
+              <HebrewTextInput value={fields.address} onChange={e => upd('address', e.target.value)} />
             </div>
             <div className="form-group span-2">
               <label>הערות (אופציונלי)</label>

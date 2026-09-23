@@ -8,6 +8,7 @@
 // ‼ הרכיב לא שומר כלום ולא יודע על הלקוח: הוא מקבל טיוטה ומחזיר טיוטה.
 // השמירה — דרך מסלול העובדות המנוהלות — נשארת ב-TaxFileTab.
 
+import HebrewTextInput from '../../components/ui/HebrewTextInput';
 import type { ListField, ListItem, ListSpec } from './listModel';
 import { listFieldValue, coerceListField } from './listModel';
 
@@ -30,6 +31,12 @@ function Control({ f, item, onChange }: {
         <option value="">טרם ביררנו</option>
         {(f.options ?? []).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
+    );
+  }
+  if (f.hebrew) {
+    return (
+      <HebrewTextInput className="inp" value={value} placeholder="—"
+        onChange={e => onChange(coerceListField(f, e.target.value))} />
     );
   }
   return (
