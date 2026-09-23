@@ -19,6 +19,11 @@ export interface RepApprovalStep {
   clientDeclaredAt?: string;
   /** מה שהלקוח רואה ככותרת — מוצג גם לרו"ח כדי ששניהם ידברו באותן מילים. */
   clientTitle?: string;
+  /**
+   * ‼ 201 · 'shaam' ⇒ שע״ם הציגה «ממתין לאישור לקוח», והאישור הפך מזירוז
+   * לחובה (shaam_require_client_approval). נכתב בשרת בלבד.
+   */
+  requiredBy?: string;
 }
 
 const CLOSED = ['completed', 'verified', 'skipped', 'cancelled'];
@@ -59,6 +64,7 @@ export function useRepApprovalStep(clientId: string | undefined | null) {
         ball: row.ball,
         clientDeclaredAt: (row.payload?.clientDeclaredAt as string) || undefined,
         clientTitle: (row.payload?.clientTitle as string) || undefined,
+        requiredBy: (row.payload?.requiredBy as string) || undefined,
       }
       : null);
     setLoading(false);

@@ -34,6 +34,7 @@ import EmailStatusRow from './EmailActivity/EmailStatusRow';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
 import InfoLines from './ui/InfoLines';
+import ShaamLifecyclePanel, { ShaamRequiredDocsList } from './ShaamLifecyclePanel';
 import NiNextActionButton from './NiNextActionButton';
 import NiDropSubjectButton from './NiDropSubjectButton';
 import { niPersons, niRepresentationOf, niRepresentationAction, niExternalEvidence } from '../utils/niPersons';
@@ -43,7 +44,7 @@ import ShaamNextActionButton from './ShaamNextActionButton';
 import type { ShaamSubmission } from '../utils/repScope';
 import {
   shaamProgressLine, shaamSystemViews, SHAAM_REQUEST_STATE_LABELS, SHAAM_SYSTEM_STATE_LABELS,
-  parseShaamRequestState, shaamRequestExists,
+  parseShaamRequestState, shaamRequestExists, shaamLifecycle,
   type ShaamRequestTracking,
 } from '../features/representation/shaamRepresentation';
 import { representationInsight } from '../utils/representationInsight';
@@ -131,9 +132,12 @@ function daysUntil(deadline?: string): number | null {
  * ‼ גם אינו נספר במונה המסלול — "6 מתוך 8" היה מציג תהליך שלא הושלם
  * כשהוא למעשה הושלם.
  */
-function SideStep({ title, done, tone, hint, children }: {
+function SideStep({ title, done, tone, hint, required, children }: {
   title: string; done: boolean; tone?: 'wait' | 'attention';
-  hint?: string; children?: React.ReactNode;
+  hint?: string;
+  /** ‼ 201 · שע״ם דורשת את הצעד (למשל «ממתין לאישור לקוח») — אז הוא לא «אופציונלי». */
+  required?: boolean;
+  children?: React.ReactNode;
 }) {
   const dot = done ? 'var(--success)'
     : tone === 'attention' ? 'var(--orange)' : 'var(--ink-4)';
@@ -160,9 +164,9 @@ function SideStep({ title, done, tone, hint, children }: {
           {title}
           <span style={{
             marginInlineStart: '.4rem', fontSize: 'var(--fs-11)',
-            fontWeight: 400, color: 'var(--ink-4)',
+            fontWeight: required ? 600 : 400, color: required ? 'var(--chip-orange-tx)' : 'var(--ink-4)',
           }}>
-            אופציונלי
+            {required ? 'חובה' : 'אופציונלי'}
           </span>
         </div>
         {hint && <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>{hint}</div>}
@@ -635,6 +639,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const { step: loadedRepApproval, reload: reloadRepApproval } = useRepApprovalStep(request.linkedClientId);
   const repApproval = repApprovalOverride !== undefined ? repApprovalOverride : loadedRepApproval;
   const declared = isRepApprovalDeclared(repApproval);
+  // ‼ 201 · «ממתין לאישור לקוח» בשע״ם ⇒ האישור הוא חובה, לא זירוז. שני מקורות,
+  // שניהם שמורים: הסימון בשלב (השרת), ומה ששע״ם מציגה עכשיו בהגשה כלשהי.
+  const approvalRequired = repApproval?.requiredBy === 'shaam'
+    || submissions.some(sub => !!shaamLifecycle(exec.shaam?.[sub.key]).clientAction);
   useEffect(() => { void reloadRepApproval(); }, [status, reloadRepApproval]);
 
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
@@ -916,6 +924,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                           <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.2rem' }}>{sub.title}</div>
                         )}
                         {node}
+                        {/* ‼ 201 · מסמך נוסף ששע״ם דרשה במסך טעינת המסמכים (ת.ז./דרכון) — ומה נעשה איתו. */}
+                        <ShaamRequiredDocsList docs={shaamTrack(sub.key)?.requiredDocuments ?? []} />
                       </div>
                     );
                   })}
@@ -936,15 +946,20 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 של שלב 7 — אותו כפתור, לא כפתור שני. */}
             {repApproval && (
               <SideStep
-                title="זירוז אישור הייצוג באזור האישי"
+                title={approvalRequired ? 'אישור הלקוח באזור האישי' : 'זירוז אישור הייצוג באזור האישי'}
+                required={approvalRequired}
                 done={isRepApprovalClosed(repApproval)}
-                tone={declared ? 'attention' : 'wait'}
+                tone={declared || approvalRequired ? 'attention' : 'wait'}
                 hint={
                   isRepApprovalClosed(repApproval)
                     ? undefined
                     : declared
-                      ? 'הלקוח דיווח שאישר - ממתין לאימות בשע״ם'
-                      : 'ממתין ללקוח - הבקשה מופיעה בדף האישי שלו'
+                      ? (approvalRequired
+                          ? 'הלקוח דיווח שאישר - בדקו בשע״ם שהסטטוס כבר אינו «ממתין לאישור לקוח»'
+                          : 'הלקוח דיווח שאישר - ממתין לאימות בשע״ם')
+                      : approvalRequired
+                        ? 'שע״ם ממתינה לאישור הלקוח - בלי האישור הייצוג לא ייקלט. הבקשה מופיעה בדף האישי שלו כפעולה נדרשת'
+                        : 'ממתין ללקוח - הבקשה מופיעה בדף האישי שלו'
                 }>
                 {declared && (
                   /* ‼ גודל מוקטן במפורש: ברירת המחדל של ui-lines גדולה מהשורה
@@ -966,6 +981,18 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               {submissions.map(sub => {
                 const t = shaamTrack(sub.key);
                 if (!t || !shaamRequestExists(t)) return null;
+                // ‼ 201 · אחרי ההגשה שע״ם היא מקור האמת — ומה שנקרא לפניה לא מוצג.
+                if (t.submittedAt) {
+                  return (
+                    <div key={sub.key} style={{ marginBottom: '.6rem' }}>
+                      {sub.title && (
+                        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{sub.title}</div>
+                      )}
+                      <ShaamLifecyclePanel view={shaamLifecycle(t)} />
+                      <div style={{ marginTop: '.35rem' }}>{shaamNode(sub, 'check')}</div>
+                    </div>
+                  );
+                }
                 const line = shaamProgressLine(t);
                 const reqState = t.rawRequestState ? parseShaamRequestState(t.rawRequestState) : undefined;
                 return (

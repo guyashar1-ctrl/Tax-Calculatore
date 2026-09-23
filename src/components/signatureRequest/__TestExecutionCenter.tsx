@@ -58,6 +58,8 @@ const REP_APPROVAL_STATES: Record<string, RepApprovalStep | null> = {
   pending: { id: 'ra1', status: 'pending', ball: 'client' },
   declared: { id: 'ra1', status: 'in_progress', ball: 'me', clientDeclaredAt: '2026-08-24T09:12:00.000Z' },
   done: { id: 'ra1', status: 'completed', ball: 'me', clientDeclaredAt: '2026-08-24T09:12:00.000Z' },
+  // ‼ 201 · שע״ם הציגה «ממתין לאישור לקוח» — השלב הפך לחובה (shaam_require_client_approval).
+  required: { id: 'ra1', status: 'pending', ball: 'client', requiredBy: 'shaam' },
 };
 
 const APPROVAL_LABELS: Record<string, string> = {
@@ -65,6 +67,7 @@ const APPROVAL_LABELS: Record<string, string> = {
   pending: 'ממתין ללקוח',
   declared: 'הלקוח דיווח',
   done: 'נסגר',
+  required: 'נדרש (שע״ם)',
 };
 
 type Scenario = { key: string; label: string; req: RepresentationRequest };
@@ -74,7 +77,72 @@ const withSetup = {
 };
 const ni = (exec: RepresentationExecution) => exec;
 
+// ── 201 · אחרי ההגשה לשע״ם — הדסה סלע, בקשה 2026538930 ─────────────────────
+const SHAAM_SUBMITTED = '2026-09-23T20:42:35Z';
+const shaamRow = (systemLabel: string, rawRequestState: string, rawSystemState: string, extra: Record<string, string> = {}) => ({
+  systemLabel, rawRequestState, rawSystemState, clientName: 'סלע הדסה', fileNumber: '034605212',
+  repType: 'ראשי', enteredAt: '23/09/2026', requestNumber: '2026538930', ...extra,
+});
+const SHAAM_BEFORE = {
+  requestNumber: '2026538930', syncedAt: '2026-09-23T14:50:03Z', submittedAt: SHAAM_SUBMITTED,
+  rawRequestState: 'המתנה למסמכים',
+  systems: [shaamRow('מס הכנסה', 'המתנה למסמכים', ''), shaamRow('מעמ', 'המתנה למסמכים', ''), shaamRow('ניכויים', 'המתנה למסמכים', '', { fileNumber: 'לא קיים תיק' })],
+};
+const SHAAM_CONFIRMED = {
+  ...SHAAM_BEFORE,
+  suspensionEndsAt: '2026-10-06', suspensionEndsSource: 'submission_confirmation',
+  submissionConfirmation: { text: 'בקשתך תיקלט במערכת ותמתין לסיום השהייה הצפויה להסתיים ביום 06/10/2026.', at: SHAAM_SUBMITTED },
+};
+const SHAAM_RECONCILED = {
+  ...SHAAM_CONFIRMED,
+  syncedAt: '2026-09-24T07:00:05Z', observedAt: '2026-09-24T07:00:00Z', rawRequestState: 'התקבלו המסמכים',
+  suspensionEndsSource: 'request_list',
+  systems: [
+    shaamRow('מס הכנסה', 'התקבלו המסמכים', 'השהייה', { suspensionEndsRaw: '06/10/2026' }),
+    shaamRow('מעמ', 'התקבלו המסמכים', 'השהייה'),
+    shaamRow('ניכויים', 'התקבלו המסמכים', 'השהייה', { fileNumber: 'לא קיים תיק' }),
+  ],
+};
+const shaamReq = (track: object, over: Partial<RepresentationRequest> = {}) => ({
+  ...BASE, ...withSetup, status: 'awaiting_authorities', signedPdfStoredId: 'doc-signed', clientName: 'הדסה סלע',
+  authorities: ['incomeTax'],
+  scope: { incomeTax: { status: 'in_process', level: 'primary' }, vat: { status: 'in_process', level: 'primary' }, withholding: { status: 'in_process', level: 'primary' } },
+  execution: { incomeTax: { enteredAt: '2026-09-23T09:00:00.000Z' }, signatureEmailSentAt: '2026-09-23T17:25:18.636Z', shaam: { 'person:client': track } },
+  ...over,
+}) as unknown as RepresentationRequest;
+
 const SCENARIOS: Scenario[] = [
+  { key: 'shaam-before', label: 'שע״ם א. הוגש - הצילום הישן (לפני 201)', req: shaamReq(SHAAM_BEFORE) },
+  { key: 'shaam-confirmed', label: 'שע״ם ב. הוגש + צפי ממסך האישור', req: shaamReq(SHAAM_CONFIRMED) },
+  { key: 'shaam-suspended', label: 'שע״ם ג. התקבלו המסמכים / השהייה', req: shaamReq(SHAAM_RECONCILED) },
+  {
+    key: 'shaam-client-approval', label: 'שע״ם ד. ממתין לאישור לקוח',
+    req: shaamReq({ ...SHAAM_RECONCILED, clientApprovalRequiredAt: '2026-09-24T07:00:05Z', systems: [
+      shaamRow('מס הכנסה', 'התקבלו המסמכים', 'ממתין לאישור לקוח'),
+      shaamRow('מעמ', 'התקבלו המסמכים', 'השהייה'),
+      shaamRow('ניכויים', 'התקבלו המסמכים', 'ממתין לפתיחת תיק', { fileNumber: 'לא קיים תיק' }),
+    ] }),
+  },
+  {
+    key: 'shaam-file-opening', label: 'שע״ם ה. ממתין לפתיחת תיק',
+    req: shaamReq({ ...SHAAM_RECONCILED, systems: [
+      shaamRow('מס הכנסה', 'מסמכים אושרו', 'נקלט בהצלחה'),
+      shaamRow('ניכויים', 'מסמכים אושרו', 'ממתין לפתיחת תיק', { fileNumber: 'לא קיים תיק' }),
+    ] }),
+  },
+  {
+    key: 'shaam-accepted', label: 'שע״ם ו. נקלט בהצלחה',
+    req: shaamReq({ ...SHAAM_RECONCILED, systems: [
+      shaamRow('מס הכנסה', 'מסמכים אושרו', 'נקלט בהצלחה'), shaamRow('מעמ', 'מסמכים אושרו', 'נקלט בהצלחה'),
+    ] }),
+  },
+  {
+    key: 'shaam-docs', label: 'שע״ם ז. דרישת ת.ז./דרכון',
+    req: shaamReq({ ...SHAAM_BEFORE, submittedAt: undefined, requiredDocuments: [
+      { label: 'צילום תעודת זהות', required: true, kind: 'idCard', handling: 'requested' },
+      { label: 'צילום דרכון', required: true, kind: 'passport', handling: 'exists' },
+    ] }, { status: 'awaiting_stamp' }),
+  },
   {
     key: 'no-form',
     label: '1. הטופס עוד לא הופק',
@@ -178,7 +246,9 @@ export default function TestExecutionCenter() {
   // במצבה האמיתי: ממתין ללקוח, הלקוח דיווח, או סגור.
   // ‼ עם ?client= לא דורסים את הנתיב המזורז: שם רוצים בדיוק את מה שבמסד.
   const realClientId = new URLSearchParams(window.location.search).get('client');
-  const [key, setKey] = useState('ready');
+  // ?scenario=<key> — פתיחה ישירה של מצב (ו-F5 שמחזיר אליו).
+  const scenarioFromUrl = new URLSearchParams(window.location.search).get('scenario');
+  const [key, setKey] = useState(scenarioFromUrl && SCENARIOS.some(s => s.key === scenarioFromUrl) ? scenarioFromUrl : 'ready');
   const [niIncluded, setNiIncluded] = useState(true);
   const [niSpouse, setNiSpouse] = useState(false);
   // ?approval=none|pending|declared|done — כדי שאפשר יהיה לפתוח מצב ישירות

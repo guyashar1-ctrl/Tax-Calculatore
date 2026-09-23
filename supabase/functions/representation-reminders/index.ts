@@ -295,10 +295,17 @@ Deno.serve(async (req: Request) => {
 
         const profileBrand = resolveBrand({ firmName: profile?.firm_name, branding: profile?.branding || {}, email: profile?.email, phone: profile?.phone, emailSignature: profile?.communication?.emailSignature });
         const link = `${APP_URL}/?portal=${client.portal_token}`;
-        const subject = "תזכורת - יש לכם פעולה זמינה בדף האישי";
+        // ‼ 201 · כששע״ם מציגה «ממתין לאישור לקוח» האישור הוא חובה, לא זירוז —
+        // ותזכורת שאומרת «אפשר לדלג» הייתה מטעה את הלקוח בדיוק ברגע הקובע.
+        const required = s.payload?.requiredBy === "shaam";
+        const subject = required
+          ? "תזכורת - נדרש אישור שלך לבקשת הייצוג ברשות המסים"
+          : "תזכורת - יש לכם פעולה זמינה בדף האישי";
         const html = buildBrandedEmail(profileBrand, {
-          heading: "תזכורת קטנה",
-          bodyHtml: esc("יש לכם פעולה אופציונלית ממתינה בדף האישי שלכם, שיכולה לקצר את ההמתנה לאישור הרשויות. אפשר גם לדלג עליה - הייצוג ייכנס לתוקף בכל מקרה."),
+          heading: required ? "נדרש אישור שלך" : "תזכורת קטנה",
+          bodyHtml: esc(required
+            ? "רשות המסים ממתינה לאישור שלך לבקשת הייצוג. בלי האישור הייצוג לא ייקלט. ההסבר המלא נמצא בדף האישי שלך."
+            : "יש לכם פעולה אופציונלית ממתינה בדף האישי שלכם, שיכולה לקצר את ההמתנה לאישור הרשויות. אפשר גם לדלג עליה - הייצוג ייכנס לתוקף בכל מקרה."),
           ctaLabel: "לדף האישי", ctaHref: link, ctaArrow: true, showLinkFallback: true,
         });
 

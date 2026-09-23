@@ -79,7 +79,10 @@ export async function run(ctx, input) {
       throw unknownScreenError('בדיקת קבלת הייצוג', 'פתיחת מערכת רישום הייצוג', diag);
     }
 
-    const found = await findRequestRows(page, { requestNumber, entityId, expectedClientName: personName });
+    // ‼ 201 · מתי נקראה שע״ם — לפני הקריאה. השרת לא נותן לקריאה ישנה יותר
+    // (או לקריאה שקדמה להגשה) לדרוס מצב שנקרא אחריה.
+    const observedAt = new Date().toISOString();
+    const found = await findRequestRows(page, { requestNumber, entityId, expectedClientName: personName, expandDetails: true });
     if (!found.ok) {
       // ‼ כשלא ניתן לבסס שהשורות שייכות לבקשה שלנו — לא מדווחים מצב.
       // מצב שגוי כאן מסמן ייצוג כפעיל על סמך שורה של אדם אחר.
@@ -104,6 +107,7 @@ export async function run(ctx, input) {
         result: {
           submissionKey, role, requestNumber,
           found: false,
+          observedAt,
           rows: [],
           allAccepted: false,
           note: 'הבקשה אינה מופיעה ברשימת הבקשות בתהליך.',
@@ -132,13 +136,14 @@ export async function run(ctx, input) {
 
     const allAccepted = allRowsAccepted(rows);
     ctx.log(`נמצאו ${rows.length} שורות · כולן נקלטו: ${allAccepted}`);
-    for (const r of rows) ctx.log(`  · ${r.systemLabel}: בקשה="${r.rawRequestState}" מערך="${r.rawSystemState}"`);
+    for (const r of rows) ctx.log(`  · ${r.systemLabel}: בקשה="${r.rawRequestState}" מערך="${r.rawSystemState}"${r.suspensionEndsRaw ? ` צפי="${r.suspensionEndsRaw}"` : ''}`);
 
     return {
       result: {
         submissionKey, role,
         requestNumber: rows[0].requestNumber || requestNumber,
         found: true,
+        observedAt,
         rows,
         allAccepted,
       },

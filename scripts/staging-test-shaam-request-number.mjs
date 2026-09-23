@@ -44,6 +44,10 @@ console.log(`לקוח הבדיקה: ${CID} · בקשה: ${REQ}\n`);
 async function runJob(id, actionType, result) {
   await writeStaging(`
     delete from public.automation_jobs where id = '${id}';
+    -- ‼ 201: שידור מוצלח יוצר משימת בדיקה פתוחה (יישוב אחרי ההגשה), ואותה
+    -- (client_id, action_type) יכולה להיות פתוחה פעם אחת בלבד.
+    delete from public.automation_jobs where client_id = '${CID}' and action_type = '${actionType}'
+       and status in ('queued', 'running', 'needs_human');
     insert into public.automation_jobs (id, user_id, client_id, action_type, input, status)
     values ('${id}', '${USER_ID}', '${CID}', '${actionType}',
             '${q(JSON.stringify({ role: 'client', submissionKey: 'person:client' }))}'::jsonb, 'queued');
@@ -125,7 +129,8 @@ try {
   eq('מספר קצר מדי לא נכתב', track(row).requestNumber, '');
 } finally {
   await writeStaging(`
-    delete from public.automation_jobs where id like 'fx-198-%' or id like 'fx-199-%';
+    delete from public.automation_jobs where id like 'fx-198-%' or id like 'fx-199-%'
+       or (client_id = '${CID}' and input ->> 'reason' = 'post_submission_reconciliation');
     update public.representation_requests
        set execution = '${q(ORIGINAL_EXECUTION)}'::jsonb, status = '${q(ORIGINAL_STATUS)}'
      where id = '${REQ}';`);

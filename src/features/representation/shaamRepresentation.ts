@@ -206,6 +206,8 @@ export type ShaamRequestState =
   | 'documents_uploading'   // מסמכים בטעינה
   | 'documents_received'    // התקבלו המסמכים
   | 'documents_approved'    // מסמכים אושרו
+  | 'rejected'              // נדחתה
+  | 'cancelled'             // בוטלה
   | 'unknown';
 
 export type ShaamSystemState =
@@ -213,6 +215,8 @@ export type ShaamSystemState =
   | 'suspended'                // השהיה לקליטה
   | 'awaiting_client_approval' // ממתין לאישור לקוח
   | 'awaiting_file_opening'    // ממתין לפתיחת תיק
+  | 'rejected'                 // נדחה
+  | 'cancelled'                // בוטל
   | 'pending'                  // נמסר, אין עדיין מצב
   | 'unknown';
 
@@ -221,6 +225,8 @@ export const SHAAM_REQUEST_STATE_LABELS: Record<ShaamRequestState, string> = {
   documents_uploading: 'מסמכים בטעינה',
   documents_received: 'התקבלו המסמכים',
   documents_approved: 'מסמכים אושרו',
+  rejected: 'נדחתה',
+  cancelled: 'בוטלה',
   unknown: 'מצב לא ידוע',
 };
 
@@ -229,6 +235,8 @@ export const SHAAM_SYSTEM_STATE_LABELS: Record<ShaamSystemState, string> = {
   suspended: 'השהיה לקליטה',
   awaiting_client_approval: 'ממתין לאישור הלקוח',
   awaiting_file_opening: 'ממתין לפתיחת תיק',
+  rejected: 'נדחה',
+  cancelled: 'בוטל',
   pending: 'בטיפול שע״ם',
   unknown: 'מצב לא ידוע',
 };
@@ -246,6 +254,8 @@ export function parseShaamRequestState(text: string | undefined | null): ShaamRe
   const t = norm(text);
   if (!t) return 'unknown';
   if (t.includes('המתנה למסמכים') || t.includes('ממתין למסמכים')) return 'awaiting_documents';
+  if (t.includes('בוטל')) return 'cancelled';
+  if (t.includes('נדח')) return 'rejected';
   if (t.includes('בטעינה')) return 'documents_uploading';
   if (t.includes('אושרו')) return 'documents_approved';
   if (t.includes('התקבלו')) return 'documents_received';
@@ -256,7 +266,9 @@ export function parseShaamRequestState(text: string | undefined | null): ShaamRe
 export function parseShaamSystemState(text: string | undefined | null): ShaamSystemState {
   const t = norm(text);
   if (!t) return 'pending';
-  if (t.includes('לאישור לקוח')) return 'awaiting_client_approval';
+  if (t.includes('בוטל')) return 'cancelled';
+  if (t.includes('נדח')) return 'rejected';
+  if (t.includes('לאישור לקוח') || t.includes('לאישור הלקוח')) return 'awaiting_client_approval';
   if (t.includes('לפתיחת התיק') || t.includes('לפתיחת תיק')) return 'awaiting_file_opening';
   if (t.includes('נקלט')) return 'accepted';
   if (t.includes('השהי')) return 'suspended';
@@ -337,6 +349,63 @@ export interface ShaamRequestTracking {
   systems?: ShaamSystemStatus[];
   /** השלב שהאוטומציה הגיעה אליו — כדי שניסיון חוזר ימשיך ולא יתחיל מחדש. */
   stage?: ShaamIntegrationStage;
+  // ── 201 · אחרי ההגשה ──────────────────────────────────────────────────────
+  /** מתי נקראה שע״ם בפועל (לא מתי נשמר). קריאה ישנה ממנה אינה דורסת. */
+  observedAt?: string;
+  /** הבדיקה האחרונה לא מצאה את הבקשה ב«בקשות בתהליך». עובדה, לא מסקנה. */
+  notInListAt?: string;
+  /** צפי סיום ההשהייה (ISO) — **כפי ששע״ם מסרה**, לעולם לא מחושב אצלנו. */
+  suspensionEndsAt?: string;
+  suspensionEndsSource?: 'request_list' | 'submission_confirmation';
+  /** מה ששע״ם אמרה במסך אישור הקליטה — כמו שהוא. */
+  submissionConfirmation?: { text: string; at: string };
+  /** הפעם הראשונה ששע״ם הציגה «ממתין לאישור לקוח». */
+  clientApprovalRequiredAt?: string;
+  /** מסמכים נוספים ששע״ם דרשה במסך טעינת המסמכים, ומה PIVO עשתה עם כל אחד. */
+  requiredDocuments?: ShaamRequiredDocument[];
+  requiredDocumentsObservedAt?: string;
+  lastStaleReadingAt?: string;
+}
+
+/** סוג המסמך המזהה ששע״ם מבקשת. null ⇒ לא מסמך מזהה (או לא זוהה). */
+export type ShaamIdentityDocKind = 'idCard' | 'passport' | 'idOrPassport';
+
+/** מה נעשה עם דרישת מסמך — נכתב בשרת (201, ensure_shaam_identity_document_request). */
+export type ShaamRequiredDocumentHandling =
+  | 'exists' | 'requested' | 'already_requested' | 'ambiguous_materials' | 'unrecognized' | 'no_request';
+
+export interface ShaamRequiredDocument {
+  label: string;
+  required?: boolean;
+  kind?: ShaamIdentityDocKind | null;
+  handling?: ShaamRequiredDocumentHandling;
+}
+
+/**
+ * סוג המסמך המזהה מתוך התווית בשע״ם. ‼ תאום של public.shaam_identity_doc_kind
+ * (201) — אותו כלל בשני הצדדים. תווית שלא זוהתה ⇒ null, ולא ניחוש.
+ */
+export function shaamIdentityDocKind(label: string | undefined | null): ShaamIdentityDocKind | null {
+  const l = (label ?? '').replace(/["״׳']/g, '');
+  const id = /(תעודת\s*זהות|ת\.\s*ז\.?|תז(?![א-ת])|ספח)/.test(l);
+  const passport = /דרכון/.test(l);
+  if (id && passport) return 'idOrPassport';
+  if (id) return 'idCard';
+  if (passport) return 'passport';
+  return null;
+}
+
+const REQUIRED_DOC_HANDLING_TEXT: Record<ShaamRequiredDocumentHandling, string> = {
+  exists: 'כבר קיים בחומרי הלקוח - לא נדרש לבקש שוב',
+  requested: 'נוספה בקשת מסמך ללקוח',
+  already_requested: 'כבר מבוקש מהלקוח',
+  ambiguous_materials: 'בתיק יש צילום תעודה שלא ידוע של מי הוא - יש לשייך אותו או לבקש ידנית',
+  unrecognized: 'מסמך שאינו ת.ז./דרכון - לטיפול המשרד',
+  no_request: 'אין בקשת ייצוג פעילה לשייך אליה את הדרישה',
+};
+
+export function shaamRequiredDocumentText(d: ShaamRequiredDocument): string {
+  return d.handling ? REQUIRED_DOC_HANDLING_TEXT[d.handling] : '';
 }
 
 /** מפת ההגשות של הבקשה, לפי `ShaamSubmission.key` ('person:client'). */
@@ -404,6 +473,8 @@ export function stageAtLeast(a: ShaamIntegrationStage, b: ShaamIntegrationStage)
  * שנצפה, אין ראיה לשום דבר.
  */
 export function allSystemsAccepted(t: ShaamRequestTracking | undefined): boolean {
+  // ‼ 201 · אחרי ההגשה רק קריאה שמאחריה נחשבת ראיה.
+  if (t?.submittedAt && !shaamReconciledAfterSubmission(t)) return false;
   const list = t?.systems ?? [];
   if (list.length === 0) return false;
   return list.every(row => classifyShaamSystem(row).state === 'accepted');
@@ -425,11 +496,155 @@ export interface ShaamProgressLine {
   until?: string;
 }
 
+// ── 5. אחרי ההגשה — מה שע״ם אומרת עכשיו ─────────────────────────────────────
+//
+// ‼ 201 · שע״ם היא מקור האמת אחרי ההגשה. שלושה כללים:
+//   · צילום רשימה שנקרא **לפני** ההגשה אינו מתאר את המצב — לא מוצג בכלל.
+//   · הטקסט של שע״ם מוצג כמו שהוא («השהייה», לא «השהיה לקליטה»). הסיווג
+//     משמש להחלטה מי צריך לפעול, לא להחלפת המילים של הרשות.
+//   · «ממתין לאישור לקוח» הוא **פעולת חובה** של הלקוח — לא זירוז.
+
+const ms = (iso?: string) => (iso ? Date.parse(iso) : NaN);
+
+/** יש קריאה של שע״ם שנעשתה אחרי ההגשה (ולכן מתארת את מה שקרה לטופס). */
+export function shaamReconciledAfterSubmission(t: ShaamRequestTracking | undefined): boolean {
+  if (!t?.submittedAt) return false;
+  const seen = ms(t.observedAt ?? t.syncedAt);
+  return Number.isFinite(seen) && seen >= ms(t.submittedAt);
+}
+
+export interface ShaamSystemLine {
+  label: string;
+  /** «מצב מערך» כפי ששע״ם כתבה אותו. ריק ⇒ שע״ם טרם עדכנה. */
+  raw: string;
+  state: ShaamSystemState;
+}
+
+export interface ShaamLifecycleView {
+  submitted: boolean;
+  submittedAt?: string;
+  /** יש קריאה מאחרי ההגשה. בלעדיה — אין מצב חיצוני להציג. */
+  reconciled: boolean;
+  observedAt?: string;
+  /** «מצב בקשה» כפי ששע״ם כתבה אותו (רק מקריאה שאחרי ההגשה). */
+  requestStateRaw?: string;
+  systems: ShaamSystemLine[];
+  ball: ShaamBall;
+  headline: string;
+  /** פעולת חובה של הלקוח — כרגע רק «ממתין לאישור לקוח». */
+  clientAction?: { required: true; title: string; text: string };
+  /** מה המשרד צריך לעשות, כשיש. */
+  officeAction?: string;
+  /** מידע נוסף על מערך אחר באותה בקשה (למשל «ממתין לפתיחת תיק»). */
+  note?: string;
+  /** אבן הדרך הבאה ומועדה — רק תאריך ששע״ם מסרה. */
+  nextMilestone?: { text: string; date?: string };
+  requiredDocuments: ShaamRequiredDocument[];
+}
+
+export function shaamLifecycle(t: ShaamRequestTracking | undefined): ShaamLifecycleView {
+  const requiredDocuments = t?.requiredDocuments ?? [];
+  const base = {
+    submitted: !!t?.submittedAt, submittedAt: t?.submittedAt, observedAt: t?.observedAt,
+    requiredDocuments,
+  };
+  if (!t?.submittedAt) {
+    const line = shaamProgressLine(t);
+    return { ...base, reconciled: false, systems: [], ball: line.ball, headline: line.text };
+  }
+
+  const reconciled = shaamReconciledAfterSubmission(t);
+  const systems: ShaamSystemLine[] = reconciled
+    ? (t.systems ?? []).map(r => ({
+      label: r.systemLabel || 'מערך',
+      raw: (r.rawSystemState ?? '').trim(),
+      state: parseShaamSystemState(r.rawSystemState),
+    }))
+    : [];
+  // «מצב בקשה» מהשורה שנקראה (כמו שהשרת שומר אותו), ורק מקריאה שאחרי ההגשה.
+  const requestStateRaw = reconciled ? (t.systems?.[0]?.rawRequestState ?? t.rawRequestState ?? '').trim() || undefined : undefined;
+  // ‼ רק תאריך ששע״ם מסרה: מהשרת (201), ואם אין — מפירוט השורה שנקרא.
+  const suspensionDate = t.suspensionEndsAt
+    ?? (reconciled ? (t.systems ?? []).map(r => parseShaamDate(r.suspensionEndsRaw)).find(Boolean) : undefined);
+  const suspensionMilestone = suspensionDate
+    ? { text: t.suspensionEndsSource === 'submission_confirmation'
+          ? 'צפי לסיום ההשהייה (כפי ששע״ם מסרה באישור הקליטה)'
+          : 'צפי לסיום ההשהייה (כפי ששע״ם מציגה)',
+        date: suspensionDate }
+    : undefined;
+  const opening = systems.filter(s => s.state === 'awaiting_file_opening');
+  // ‼ «ממתין לפתיחת תיק» — הכדור אצל הרשות (כמו לפני 201). לא ממציאים פעולה למשרד.
+  const openingNote = opening.length
+    ? `${opening.map(s => s.label).join(', ')}: שע״ם ממתינה לפתיחת תיק - הייצוג במערך הזה ייקלט רק אחרי שייפתח תיק.`
+    : undefined;
+  const v = { ...base, reconciled, systems, requestStateRaw };
+
+  if (!reconciled) {
+    return {
+      ...v, ball: 'authority',
+      headline: 'הטופס החתום נקלט בשע״ם. המצב העדכני אחרי ההגשה טרם נקרא משע״ם.',
+      officeAction: 'להריץ «בדוק קבלת הייצוג» כשהחיבור לשע״ם פתוח - קריאה בלבד.',
+      nextMilestone: suspensionMilestone,
+    };
+  }
+  if (systems.length > 0 && systems.every(s => s.state === 'accepted')) {
+    return { ...v, ball: 'done', headline: 'הייצוג נקלט בשע״ם בכל המערכים שהתבקשו.' };
+  }
+  if (t.notInListAt && ms(t.notInListAt) >= ms(t.submittedAt)) {
+    return {
+      ...v, ball: 'office',
+      headline: 'הבקשה כבר לא מופיעה ב«בקשות בתהליך» בשע״ם.',
+      officeAction: 'לבדוק בשע״ם אם הייצוג נקלט או שהבקשה בוטלה - PIVO לא מסיקה אחד מהשניים.',
+    };
+  }
+  if (systems.some(s => s.state === 'awaiting_client_approval')) {
+    return {
+      ...v, ball: 'client',
+      headline: 'הייצוג ממתין לאישור הלקוח.',
+      clientAction: {
+        required: true,
+        title: 'הייצוג ממתין לאישור הלקוח',
+        text: 'הלקוח חייב לאשר את בקשת הייצוג באזור האישי ברשות המסים (או בקישור שקיבל מרשות המסים). בלי האישור שע״ם לא תקלוט את הייצוג.',
+      },
+      note: openingNote,
+    };
+  }
+  const stopped = systems.find(s => s.state === 'rejected' || s.state === 'cancelled');
+  if (stopped) {
+    return {
+      ...v, ball: 'office',
+      headline: `שע״ם מציגה «${stopped.raw}» ב${stopped.label}.`,
+      officeAction: 'לבדוק את הבקשה בשע״ם ולהחליט איך ממשיכים.',
+    };
+  }
+  if (systems.some(s => s.state === 'suspended')) {
+    return {
+      ...v, ball: 'authority',
+      headline: 'הבקשה בהשהייה בשע״ם - אין פעולה נדרשת עד סיום ההשהייה.',
+      note: openingNote,
+      nextMilestone: suspensionMilestone,
+    };
+  }
+  if (opening.length) {
+    return { ...v, ball: 'authority', headline: 'שע״ם ממתינה לפתיחת תיק - הבקשה תיקלט כשייפתח.', note: openingNote };
+  }
+  const unknown = systems.find(s => s.state === 'unknown');
+  return {
+    ...v, ball: 'authority',
+    headline: unknown ? `שע״ם מציגה «${unknown.raw}» ב${unknown.label}.` : 'הטופס נקלט בשע״ם - הבקשה בטיפול הרשות.',
+  };
+}
+
 /**
  * התרגום היחיד ממצב חיצוני למשפט אנושי. ‼ במקום אחד, כדי ששני המשטחים
  * (מרכז הביצוע וכרטיס הרשות) לא יספרו שני סיפורים על אותה בקשה.
  */
 export function shaamProgressLine(t: ShaamRequestTracking | undefined): ShaamProgressLine {
+  // ‼ 201 · אחרי ההגשה — אותו מקור כמו המסך (shaamLifecycle), כדי שלא יהיו שני סיפורים.
+  if (t?.submittedAt) {
+    const l = shaamLifecycle(t);
+    return { ball: l.ball, text: l.headline, until: l.nextMilestone?.date };
+  }
   if (!t || !shaamRequestExists(t)) {
     return { ball: 'office', text: 'טרם נפתחה בקשת ייצוג בשע״ם.' };
   }

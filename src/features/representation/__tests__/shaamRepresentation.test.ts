@@ -20,6 +20,10 @@ import { shaamRepresentationAction } from '../../taxFile/shaamRepresentationActi
 import { peopleFromClient } from '../../../utils/repScope';
 import { allDocumentsStamped } from '../../../utils/repDocuments';
 
+// ‼ 201: קריאה של שע״ם נחשבת ראיה אחרי ההגשה רק כשנעשתה אחריה.
+const SUBMITTED = '2026-09-23T20:42:35Z';
+const OBSERVED = '2026-09-23T20:43:10Z';
+
 function hadassaTracking(): ShaamRequestTracking {
   const row = (systemLabel: string, fileNumber: string) => ({
     systemLabel, fileNumber, repType: 'ראשי', enteredAt: '23/09/2026', clientName: 'סלע הדסה',
@@ -300,7 +304,7 @@ export const TESTS: TestCase[] = [
     equal(shaamStageOf({ requestNumber: 'x', formDocumentId: 'd' }), 'form_fetched');
     equal(shaamStageOf({ requestNumber: 'x', formDocumentId: 'd', submittedAt: 't' }), 'submitted');
     equal(shaamStageOf({
-      requestNumber: 'x', formDocumentId: 'd', submittedAt: 't',
+      requestNumber: 'x', formDocumentId: 'd', submittedAt: SUBMITTED, observedAt: OBSERVED,
       systems: [{ systemLabel: 'מס הכנסה', rawSystemState: 'נקלט בהצלחה' }],
     }), 'active');
   }),
@@ -321,7 +325,7 @@ export const TESTS: TestCase[] = [
   test('22 · ממתין לאישור לקוח — הכדור אצל הלקוח', () => {
     equal(parseShaamSystemState('ממתין:91-לאישור לקוח,כל השאר-לפתיחת התיק'), 'awaiting_client_approval');
     const line = shaamProgressLine({
-      requestNumber: 'x', submittedAt: 't',
+      requestNumber: 'x', submittedAt: SUBMITTED, observedAt: OBSERVED,
       systems: [{ systemLabel: 'מס הכנסה', rawSystemState: 'ממתין:91-לאישור לקוח,כל השאר-לפתיחת התיק' }],
     });
     equal(line.ball, 'client');
@@ -332,7 +336,7 @@ export const TESTS: TestCase[] = [
     equal(parseShaamDate('24/09/2026'), '2026-09-24');
     equal(parseShaamDate('ממתין לאישור לקוח'), undefined);
     const line = shaamProgressLine({
-      requestNumber: 'x', submittedAt: 't',
+      requestNumber: 'x', submittedAt: SUBMITTED, observedAt: OBSERVED,
       systems: [{ systemLabel: 'מס הכנסה', rawSystemState: 'השהיה', suspensionEndsRaw: '24/09/2026' }],
     });
     equal(line.ball, 'authority');
@@ -342,7 +346,7 @@ export const TESTS: TestCase[] = [
   test('24 · תיק פעיל — כל המערכים נקלטו', () => {
     equal(parseShaamSystemState('נקלט בהצלחה'), 'accepted');
     const t: ShaamRequestTracking = {
-      requestNumber: 'x', submittedAt: 't',
+      requestNumber: 'x', submittedAt: SUBMITTED, observedAt: OBSERVED,
       systems: [
         { systemLabel: 'מס הכנסה', rawSystemState: 'נקלט בהצלחה' },
         { systemLabel: 'מעמ', rawSystemState: 'נקלט בהצלחה' },
@@ -355,7 +359,7 @@ export const TESTS: TestCase[] = [
   test('25 · ממתין לפתיחת תיק — לא כישלון', () => {
     equal(parseShaamSystemState('ממתין לפתיחת התיק'), 'awaiting_file_opening');
     const t: ShaamRequestTracking = {
-      requestNumber: 'x', submittedAt: 't',
+      requestNumber: 'x', submittedAt: SUBMITTED, observedAt: OBSERVED,
       systems: [
         { systemLabel: 'מס הכנסה', rawSystemState: 'נקלט בהצלחה' },
         { systemLabel: 'ניכויים', rawSystemState: 'ממתין לפתיחת התיק' },

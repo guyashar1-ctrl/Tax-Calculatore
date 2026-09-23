@@ -590,6 +590,37 @@ function nameMatches(rowName, expectedFullName) {
 }
 
 /**
+ * פירוט שורה ברשימת «בקשות בתהליך» — טקסט ⇒ שדות. טהורה.
+ *
+ * ‼ 201 · הניסוח האמיתי (הדסה סלע, 2026538930): «מספר בקשה: 2026538930»,
+ * «מספר לקוח: 034605212», «צפי לסיום השהייה: 06/10/2026». הגרסה הקודמת
+ * חיפשה «צפוי לסיום», «ישות הלקוח» ומספר בלי נקודתיים — ולכן אף שדה לא
+ * נקרא. כאן: נקודתיים אופציונליים, «צפי»/«צפוי», «מספר לקוח»/«ישות הלקוח».
+ * ‼ ערך שאינו תאריך ב«צפי לסיום השהייה» נשמר כטקסט — PIVO לא ממציאה תאריך.
+ */
+export function parseRequestDetailText(text) {
+  const t = String(text ?? '').replace(/\s+/g, ' ').trim();
+  const out = {};
+  if (!t) return out;
+  const grab = (re) => { const m = re.exec(t); return m ? m[1].trim() : undefined; };
+  const requestNumber = grab(/מספר\s*בקשה\s*:?\s*(\d{6,})/);
+  const entityId = grab(/(?:מספר\s*לקוח|ישות\s*(?:ה)?לקוח)\s*:?\s*(\d{5,9})/);
+  const systemUpdatedAt = grab(/(?:ת\.?\s*עדכון|תאריך\s*עדכון)\s*(?:מערך|מערכת)?\s*:?\s*(\d{1,2}[/.]\d{1,2}[/.]\d{4})/);
+  let suspensionEnds = grab(/צפו?י\s*ל?סיום\s*(?:ה)?השהי+ה\s*:?\s*(\d{1,2}[/.]\d{1,2}[/.]\d{4})/);
+  if (!suspensionEnds) {
+    const m = /צפו?י\s*ל?סיום\s*(?:ה)?השהי+ה\s*:?\s*(.{1,40}?)\s*(?:מספר\s*בקשה|מספר\s*לקוח|ישות|ת\.?\s*עדכון|תאריך\s*עדכון|שם\s*תיק|$)/.exec(t);
+    if (m && m[1].trim()) suspensionEnds = m[1].trim();
+  }
+  const fileName = grab(/שם\s*תיק\s*:?\s*([^\s].{0,40}?)(?:\s*(?:מספר\s*בקשה|מספר\s*לקוח|צפו?י)|$)/);
+  if (requestNumber) out.requestNumber = requestNumber;
+  if (entityId) out.entityId = entityId;
+  if (systemUpdatedAt) out.systemUpdatedAt = systemUpdatedAt;
+  if (suspensionEnds) out.suspensionEnds = suspensionEnds;
+  if (fileName) out.fileName = fileName;
+  return out;
+}
+
+/**
  * מייחס שורות שנקראו מהרשימה לבקשה המבוקשת — או עוצר.
  *
  * ‼ 23.09.2026 · תוקן אחרי אירוע אמיתי: הענף הישן (`if (!want) return
@@ -613,9 +644,11 @@ export function attributeRows(rows, { requestNumber, entityId, searchedBy, expec
   const wantEntity = String(entityId ?? '').replace(/\D/g, '');
   const list = Array.isArray(rows) ? rows : [];
 
+  // ‼ 201: «מספר לקוח» בפירוט יכול להופיע בלי אפסים מובילים — אותה ישות.
+  const bareId = (v) => v.replace(/^0+/, '');
   for (const r of list) {
     const rowEntity = String(r?.detail?.entityId ?? '').replace(/\D/g, '');
-    if (wantEntity && rowEntity && rowEntity !== wantEntity) {
+    if (wantEntity && rowEntity && bareId(rowEntity) !== bareId(wantEntity)) {
       return { ok: false, reason: 'identity_mismatch', detail: 'ישות הלקוח בשורה אינה הישות המבוקשת' };
     }
   }
@@ -669,7 +702,7 @@ export function attributeRows(rows, { requestNumber, entityId, searchedBy, expec
  * ‼ חיפוש לפי מספר הבקשה שנשמר, ולא לפי שם לקוח: שמות חוזרים, מספרים לא.
  * ‼ מחזיר את **כל** שורות המערכים של אותה בקשה, כי לכל מערך מצב משלו.
  */
-export async function findRequestRows(page, { requestNumber, entityId, expectedClientName } = {}) {
+export async function findRequestRows(page, { requestNumber, entityId, expectedClientName, expandDetails = false } = {}) {
   const tab = await clickExact(page, TAB_IN_PROGRESS);
   if (!tab.ok) return { ...tab, step: 'tab_in_progress' };
   await settle(page);
@@ -713,6 +746,34 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
     { timeout: 8000 },
   ).catch(() => {}); // ‼ אם לא הופיע — ממשיכים לקרוא בכל זאת; found:false נשאר תוצאה תקפה
 
+  // ‼ 201 · «צפי לסיום השהייה», «מספר בקשה» ו«מספר לקוח» מוצגים רק בפירוט
+  // השורה, שנפתח בחץ ההרחבה של Kendo (k-hierarchy-cell / k-i-expand). זו
+  // פתיחת תצוגה בלבד — לא ניווט ולא פעולה אצל הרשות. נעשה רק בבדיקה
+  // (expandDetails): בשידור, trIndex של השורות משמש ללחיצה, והרחבה הייתה
+  // מזיזה אותו.
+  if (expandDetails) {
+    const expanded = await page.evaluate(() => {
+      const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+      const forbidden = /ביטול|מחיק|מחק|הדפס|טעינת|pdf|delete|cancel|upload/i;
+      let clicked = 0;
+      for (const tr of document.querySelectorAll('tr.k-master-row')) {
+        const icon = [...tr.querySelectorAll('td.k-hierarchy-cell a, a.k-i-expand, .k-icon.k-i-expand, a.k-plus, .k-i-plus')]
+          .find((e) => e.offsetParent !== null
+            && (e.closest('td.k-hierarchy-cell') || /k-i-expand|k-plus|k-i-plus/.test(String(e.className || '')))
+            && !/k-i-collapse|k-minus/.test(String(e.className || ''))
+            && !forbidden.test(`${clean(e.textContent)} ${e.getAttribute('title') || ''} ${e.getAttribute('aria-label') || ''}`));
+        if (!icon) continue;
+        icon.click();
+        clicked++;
+      }
+      return clicked;
+    }).catch(() => 0);
+    if (expanded > 0) {
+      await page.waitForFunction(() => document.querySelectorAll('tr.k-detail-row').length > 0, { timeout: 6000 }).catch(() => {});
+      await settle(page, { idleMs: 8000 });
+    }
+  }
+
   const rows = await page.evaluate(({ columns, requestNumber }) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const tables = [...document.querySelectorAll('table')];
@@ -745,20 +806,11 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
           out.push(currentRow);
           continue;
         }
-        // שורת הפירוט שנפתחת מתחת: זוגות תווית/ערך.
+        // שורת הפירוט שנפתחת מתחת — הטקסט נאסף כמו שהוא, והפירוש נעשה
+        // מחוץ לדפדפן (parseRequestDetailText), כדי שייבדק בלי דפדפן.
         const text = clean(tr.textContent);
         if (!currentRow || !text) continue;
-        const pairs = [
-          ['requestNumber', /מספר\s+בקשה\s*([0-9]{6,})/],
-          ['systemUpdatedAt', /ת\.?\s*עדכון\s+מערך\s*([0-9/.]{8,10})/],
-          ['suspensionEnds', /צפוי\s+לסיום\s+השהייה\s*([^\s].{0,30}?)(?:ישות|שם\s+תיק|$)/],
-          ['entityId', /ישות\s+הלקוח\s*([0-9]{5,9})/],
-          ['fileName', /שם\s+תיק\s*([^\s].{0,40}?)$/],
-        ];
-        for (const [key, re] of pairs) {
-          const m = re.exec(text);
-          if (m) currentRow.detail[key] = clean(m[1]);
-        }
+        currentRow.detailText = `${currentRow.detailText ?? ''} ${text}`.trim().slice(0, 1500);
       }
       // ‼ הייחוס לבקשה לא נעשה כאן אלא ב-attributeRows: זו הכרעת זהות,
       // והיא חייבת להיות ניתנת לבדיקה בלי דפדפן.
@@ -768,6 +820,10 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
   }, { columns: LIST_COLUMNS, requestNumber: requestNumber ?? '' });
 
   if (!rows.ok) return { ...rows, step: 'list_read' };
+  for (const r of rows.rows) {
+    r.detail = parseRequestDetailText(r.detailText);
+    delete r.detailText;
+  }
 
   const attributed = attributeRows(rows.rows, {
     requestNumber, entityId, searchedBy: searched.by, expectedClientName,
@@ -1051,8 +1107,15 @@ function poaRowProbe(mode) {
   const boxes = [...document.querySelectorAll('.BoxA')].filter(visible);
   const docName = (b) => clean(b.querySelector('label')?.textContent);
   const poa = boxes.filter((b) => /^\*?\s*טופס\s+ייפוי\s+כוח\s*\*?$/.test(docName(b)));
-  const others = boxes.filter((b) => !poa.includes(b)).map(docName).filter(Boolean);
-  const out = { poaRows: poa.length, otherDocs: others, plusControls: 0, poaHasFile: false, uploadName: '', rowText: '' };
+  const otherBoxes = boxes.filter((b) => !poa.includes(b)).filter((b) => docName(b));
+  const others = otherBoxes.map(docName);
+  // ‼ 201 · לכל מסמך נוסף — התווית כמו שהיא, והאם שע״ם מסמנת אותו כחובה
+  // (label.required או כוכבית). הסיווג לת.ז./דרכון נעשה ב-PIVO.
+  const otherDocsDetail = otherBoxes.map((b) => ({
+    label: docName(b).replace(/^\*\s*|\s*\*$/g, ''),
+    required: !!b.querySelector('label')?.classList?.contains('required') || /\*/.test(docName(b)),
+  }));
+  const out = { poaRows: poa.length, otherDocs: others, otherDocsDetail, plusControls: 0, poaHasFile: false, uploadName: '', rowText: '' };
   if (poa.length !== 1) return out;
   const row = poa[0];
   const plus = [...row.querySelectorAll('input[type=button].plus, .icon.plus')].filter(visible)
@@ -1112,7 +1175,8 @@ async function readDocumentsStep(page, { entityId, expectedClientName }) {
   const id = openedRequestIdentity(raw.body, { entityId, expectedClientName });
   return {
     ...raw, body: undefined,
-    poaRows: row.poaRows, otherDocs: row.otherDocs, plusControls: row.plusControls, poaHasFile: row.poaHasFile,
+    poaRows: row.poaRows, otherDocs: row.otherDocs, otherDocsDetail: row.otherDocsDetail ?? [],
+    plusControls: row.plusControls, poaHasFile: row.poaHasFile,
     identityOk: id.ok, requestNumber: id.requestNumber,
   };
 }

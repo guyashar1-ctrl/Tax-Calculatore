@@ -55,7 +55,9 @@ const BEFORE_TOUCH_STOPS = {
   upload_opener_not_found: 'פקד ה-«+» של «טופס ייפוי כוח» לא נמצא',
   upload_opener_ambiguous: 'יותר מפקד «+» אחד בשורת «טופס ייפוי כוח»',
   spouse_checkbox_ambiguous: 'יותר מתיבת אישור אחת לחתימת בן/בת הזוג',
-  other_documents_required: 'שע״ם דורשת בבקשה הזאת מסמך נוסף מלבד ייפוי הכוח',
+  // ‼ 201: הדרישה עצמה נשמרה ב-PIVO (shaamRequiredDocuments); ת.ז./דרכון שחסרים
+  // בתיק הופכים לבקשת מסמך אצל הלקוח — מוצג במרכז ביצוע הייצוג.
+  other_documents_required: 'שע״ם דורשת בבקשה הזאת מסמך נוסף מלבד ייפוי הכוח — הדרישה מוצגת במרכז ביצוע הייצוג',
   continue_not_found: 'כפתור «המשך» לא נמצא (או מושבת) במסך',
   continue_ambiguous: 'נמצא יותר מכפתור «המשך» אחד גלוי',
   continue_label_mismatch: 'הכפתור שסומן «המשך» אינו נושא את הטקסט «המשך»',
@@ -173,6 +175,13 @@ export async function run(ctx, input) {
     }
 
     // ── ההחלטה על מסך המסמכים — עדיין לפני כל נגיעה ────────────────────────
+    // ‼ 201 · מסמך נוסף ששע״ם דורשת (למשל ת.ז./דרכון) — מדווח ל-PIVO לפני
+    // העצירה, והשרת פותח עליו בקשת מסמך אצל הלקוח כשחסר (201). קריאה בלבד.
+    const otherDocs = opened.documents?.otherDocsDetail ?? [];
+    if (otherDocs.length) {
+      ctx.log(`שע״ם דורשת מסמכים נוספים: ${otherDocs.map((d) => d.label).join(', ')}`);
+      await progress.set({ shaamRequiredDocuments: otherDocs });
+    }
     const plan = documentsStepPlan(opened.documents, { spouseSignatureConfirmed });
     if (!plan.ok) {
       ctx.log(`עצירה לפני טעינה: ${plan.reason}`);
