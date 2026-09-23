@@ -847,7 +847,21 @@ export function newOccupationRow(index: number): OccupationDraft {
 
 export function OccupationsEditor({ occupations, onChange }: { occupations: OccupationDraft[]; onChange: (o: OccupationDraft[]) => void }) {
   function update(id: string, patch: Partial<OccupationDraft>) {
-    onChange(occupations.map(o => o.id === id ? { ...o, ...patch } : o));
+    onChange(occupations.map(o => {
+      if (o.id !== id) return o;
+      // ‼ עיסוק שנקרא מביטוח לאומי ונערך ביד אינו עוד «מהפורטל»: סוג אחר ⇒
+      // השם המקורי כבר לא נכון; תאריכים אחרים ⇒ הרשומות המקוריות כבר לא הרצף.
+      const retyped = 'type' in patch && patch.type !== o.type;
+      const redated = ('fromDate' in patch && patch.fromDate !== o.fromDate) || ('toDate' in patch && patch.toDate !== o.toDate);
+      if (!retyped && !redated) return { ...o, ...patch };
+      const { sourceLabel, sourcePeriods, ...rest } = o;
+      return {
+        ...rest, ...patch,
+        ...(o.source ? { source: 'manual' as const } : {}),
+        ...(retyped || !sourceLabel ? {} : { sourceLabel }),
+        ...(sourcePeriods && !retyped && !redated ? { sourcePeriods } : {}),
+      };
+    }));
   }
   function remove(id: string) {
     onChange(occupations.filter(o => o.id !== id));

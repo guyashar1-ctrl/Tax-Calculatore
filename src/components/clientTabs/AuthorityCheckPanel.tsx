@@ -39,7 +39,8 @@ export function FieldAuthorityLine({ field, sourceLabel }: { field: AuthorityFie
       </div>
     );
   }
-  if (field.status === 'failed') {
+  // ‼ כשל בלי הסבר משלו — ההסבר נאמר פעם אחת ברמה שמעליו (אדם/ריצה).
+  if (field.status === 'failed' && (field.error || field.authorityRaw)) {
     return (
       <div className="txf-authline is-failed">
         {field.authorityRaw ? <><span className="txf-authline-tag">{sourceLabel}:</span> {field.authorityRaw} · </> : null}
@@ -47,7 +48,34 @@ export function FieldAuthorityLine({ field, sourceLabel }: { field: AuthorityFie
       </div>
     );
   }
+  // ‼ מצב עסקי עם ראיה משלו (למשל «מופיע ברשימת המיוצגים») — שורה ניטרלית.
+  // מצב עסקי בלי ראיה משלו מוסבר פעם אחת בקבוצה, כמו קודם.
+  if (field.status === 'info' && field.authorityDisplay) {
+    return (
+      <div className="txf-authline is-info">
+        <span className="txf-authline-tag">{sourceLabel}:</span> {field.authorityDisplay}
+      </div>
+    );
+  }
   return null;
+}
+
+/**
+ * «עדכן רק את X» — אותה קריאה, לאדם אחד. ‼ אותו שער חיבור כמו הכפתור
+ * בכותרת: לא מחובר ⇒ הלחיצה פותחת את ההתחברות וממשיכה לבד.
+ */
+export function PersonSyncButton({ label, capability, running, onRun }: {
+  label: string; capability: string; running: boolean; onRun: () => void;
+}) {
+  const gate = useAutomationGate(capability);
+  const busy = running || gate.connecting;
+  return (
+    <button type="button" className="ui-linkbtn txf-person-sync" disabled={busy} aria-busy={busy || undefined}
+      title={gate.ready ? label : `${gate.blockedReason ?? 'לא מחובר'} · לחיצה פותחת את ההתחברות`}
+      onClick={() => gate.runOrConnect(onRun)}>
+      {busy ? 'בודק…' : label}
+    </button>
+  );
 }
 
 export interface AuthorityCheckButtonProps {
@@ -137,6 +165,10 @@ export function AuthorityCheckSummary({
     if (s.failed > 0) parts.push(s.failed === 1 ? 'שדה אחד לא נקרא' : `${s.failed} שדות לא נקראו`);
     if (s.unsupported > 0) parts.push(`${s.unsupported} טרם נתמכים`);
   }
+  // ‼ בזמן ריצה אין עדיין מה לסכם — בלי זה נשארת מסגרת ריקה עם קו מפריד.
+  const hasContent = parts.length > 0 || (result?.groupNotes.length ?? 0) > 0 || !!runError || !!result?.runError
+    || !!approveError || !!approveNotice || !!children;
+  if (!hasContent) return null;
 
   return (
     <div className="txf-check">

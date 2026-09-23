@@ -75,6 +75,12 @@ if (failed > 0) process.exit(1);
     // ‼ הבדיקות טהורות ואינן נוגעות ב-DOM, אבל מודולים משותפים עלולים לייבא
     // קבצי סגנון/נכסים — esbuild מדלג עליהם במקום ליפול.
     loader: { '.css': 'empty', '.png': 'empty', '.svg': 'empty' },
+    // ‼ מודולים משותפים (למשל מתאמי האוטומציה) מייבאים בעקיפין את לקוח
+    // Supabase, שנבנה בטעינה מ-import.meta.env. ערכי דמה — הבדיקות טהורות
+    // ואינן פונות לרשת.
+    define: {
+      'import.meta.env': JSON.stringify({ VITE_SUPABASE_URL: 'http://localhost:54321', VITE_SUPABASE_ANON_KEY: 'unit-test', DEV: false, PROD: false, MODE: 'test' }),
+    },
   });
 
   await import(pathToFileURL(outfile).href);

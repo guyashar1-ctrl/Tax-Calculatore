@@ -39,7 +39,8 @@ import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFil
 import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
 import { shaamRepresentationAction } from '../../features/taxFile/shaamRepresentationAction';
 import { authorityFieldHelp } from '../../features/taxFile/authorityFieldHelp';
-import { AuthorityCheckButton, AuthorityCheckSummary, FieldStatusMark, FieldAuthorityLine } from '../clientTabs/AuthorityCheckPanel';
+import { AuthorityCheckButton, AuthorityCheckSummary, FieldStatusMark, FieldAuthorityLine, PersonSyncButton } from '../clientTabs/AuthorityCheckPanel';
+import NiOccupationsDisclosure from './NiOccupationsDisclosure';
 import { TRow, SrcLine } from '../clientTabs/taxFileRows';
 import { OccupationsEditor, newOccupationRow } from '../clientTabs/InstitutionAlignment';
 import type { OccupationDraft } from '../clientTabs/InstitutionAlignment';
@@ -88,6 +89,11 @@ export interface AuthoritiesPanelProps {
   onOpenDetailed?: (authority: TaxAuthority) => void;
   /** מה לצייר כשאין אף שורת רשות (למשל בלוק «עוד לא בדקנו…» של תיק המס). */
   emptyState?: ReactNode;
+  /**
+   * מסכי בדיקה בלבד (?test-…): משימה מדומה לרשות, במקום השליפה מהמסד — כדי
+   * לראות תוצאת קריאה בלי עובד ובלי לקוח אמיתי. ‼ בייצור אינו מועבר.
+   */
+  jobOverrides?: Partial<Record<TaxAuthority, AutomationJob | null>>;
 }
 
 /** מפתח taxFiles בתוך הטיוטות — קידומת כדי שלא יתנגש עם editKey אמיתי. */
@@ -102,6 +108,7 @@ export default function AuthoritiesPanel({
   client, spouseClient, niExecution, alignedAt, onClientPersisted, onFactsChanged,
   onOpenSpouseClient, onOpenRepresentation, onAddNiTarget, onOpenRequestStep,
   onSendNiInstructions, onNiInstructionsSent, onOpenDetailed, emptyState, hideRepresentationPlaceholder, hideNiRepresentationActions,
+  jobOverrides,
 }: AuthoritiesPanelProps) {
   const { acceptFact, recordManualEdit, refresh: refreshFacts } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
@@ -144,7 +151,9 @@ export default function AuthoritiesPanel({
   };
   // ‼ המשימה **החיה** לכל רשות, לקריאה מתוך פונקציה אסינכרונית (שער ההתיישנות באישור).
   const authorityJobsRef = useRef<Partial<Record<TaxAuthority, AutomationJob | null>>>({});
-  authorityJobsRef.current = { income_tax: jobIncomeTax.job, vat: jobVat.job, national_insurance: jobBtl.job };
+  const liveJobOf = (a: TaxAuthority): AutomationJob | null =>
+    (jobOverrides && a in jobOverrides ? jobOverrides[a] : authorityJobs[a]?.job) ?? null;
+  authorityJobsRef.current = { income_tax: liveJobOf('income_tax'), vat: liveJobOf('vat'), national_insurance: liveJobOf('national_insurance') };
 
   // ‼ אישור מקובץ — פעם אחת לכרטיס, לא לשדה.
   const [approvingAuthority, setApprovingAuthority] = useState<TaxAuthority | null>(null);
@@ -323,7 +332,7 @@ export default function AuthoritiesPanel({
       if (dup) { reuse.set(f.fieldKey, dup); continue; }
       toPropose.push({
         fieldKey: f.fieldKey, label: f.label,
-        oldValue: { display: String(oldRaw ?? '') || '—', patch: { [f.fieldKey]: oldRaw } },
+        oldValue: { display: f.currentDisplay ?? (String(oldRaw ?? '') || '—'), patch: { [f.fieldKey]: oldRaw } },
         newValue: {
           display: f.authorityDisplay ?? f.authorityRaw ?? f.authorityValue!,
           patch: { [f.fieldKey]: newPatch },
@@ -406,9 +415,16 @@ export default function AuthoritiesPanel({
         const spec = AUTHORITY_AUTOMATION[row.authority];
         const shaamRepAction = row.authority === 'income_tax' ? shaamRepresentationAction(client.representationStatus) : null;
         const sync = authorityJobs[row.authority];
-        const job = spec?.actionType ? (sync?.job ?? null) : null;
-        const cardFields = row.facts.map(f => ({ label: f.k, fieldKey: f.syncKey ?? f.btlSyncKey ?? f.editKey }));
+        const job = spec?.actionType ? liveJobOf(row.authority) : null;
+        // ‼ (154) ב"ל: השדות של **כל** האנשים נכנסים להשוואה — לכל אדם מפתחות
+        // משלו (niX / spouseNiX), ולכן הסמן בכל בלוק-אדם נשלף לפי מפתח ולא לפי
+        // מיקום. רשויות אחרות: row.facts כמו קודם.
+        const checkFacts = row.persons ? row.persons.flatMap(p => p.facts) : row.facts;
+        const factKey = (f: AuthorityRowFact) => f.syncKey ?? f.btlSyncKey ?? f.editKey;
+        const cardFields = checkFacts.map(f => ({ label: f.k, fieldKey: factKey(f) }));
         const check = spec ? buildAuthorityCheck(spec, job, client, cardFields) : null;
+        const checkByKey = new Map((check?.checkedAt ? check.fields : []).filter(x => x.fieldKey).map(x => [x.fieldKey, x]));
+        const personCheck = (f: AuthorityRowFact) => { const k = factKey(f); return k ? checkByKey.get(k) : undefined; };
         const inputRes = spec?.buildInput?.(client, spouseClient);
         // ‼ שני סוגי «לא עכשיו»: רשות שהאוטומציה שלה עוד לא נבנתה — מושבת
         // באמת; קלט חסר בכרטיס — הלחיצה מסבירה. חיבור שאינו מוכן אינו
@@ -420,14 +436,26 @@ export default function AuthoritiesPanel({
           : null;
         // ‼ "רץ" רק כשהעובד באמת חי (החכירה בתוקף) — ספר הפערים N5.
         const running = !!spec?.available && (!!sync?.busy || jobIsLive(job));
-        const runCheck = () => {
+        /**
+         * `onlyRole` — קריאה לאדם אחד בלבד (ב"ל). ‼ אותה משימה ואותו קלט,
+         * רק רשימת הנושאים מצטמצמת; השדות של האדם האחר נשארים כפי שהם בתיק.
+         */
+        const runCheck = (onlyRole?: 'client' | 'spouse') => {
           if (!spec?.available || !sync || !inputRes || !('input' in inputRes)) return;
           setApproveError(null);
           setApproveNotice(null);
           // ‼ פותחים את הכרטיס — התוצאות יושבות בו.
           setOpenRows(s => new Set(s).add(sectionId));
-          void sync.run(inputRes.input);
+          const input = inputRes.input;
+          const subjects = input.subjects as { role: string }[] | undefined;
+          void sync.run(onlyRole && Array.isArray(subjects)
+            ? { ...input, subjects: subjects.filter(s => s.role === onlyRole) }
+            : input);
         };
+        const runnableRoles = new Set(
+          inputRes && 'input' in inputRes && Array.isArray(inputRes.input.subjects)
+            ? (inputRes.input.subjects as { role: string }[]).map(s => s.role) : [],
+        );
 
         const renderValue = (f: AuthorityRowFact, editing: boolean, owner: 'client' | 'spouse') => {
           const def = f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined;
@@ -449,7 +477,14 @@ export default function AuthoritiesPanel({
               </div>
             );
           }
-          return <div className={'v ' + (f.tone ?? '')}>{f.v}</div>;
+          // ‼ עיסוקים: הספירה, והרשומות עצמן נפתחות מתחתיה.
+          if (f.occupations) return <NiOccupationsDisclosure summary={f.v} occupations={f.occupations} />;
+          return (
+            <>
+              <div className={'v ' + (f.tone ?? '')}>{f.v}</div>
+              {f.sub?.map((s, i) => <div className="txf-vsub" key={i}>{s}</div>)}
+            </>
+          );
         };
 
         return (
@@ -465,7 +500,7 @@ export default function AuthoritiesPanel({
               <>
                 {spec && (
                   <AuthorityCheckButton label={spec.actionLabel} capability={spec.capability ?? ''}
-                    running={running} onRun={runCheck} unavailableReason={unavailable} inputBlockedReason={inputBlocked} />
+                    running={running} onRun={() => runCheck()} unavailableReason={unavailable} inputBlockedReason={inputBlocked} />
                 )}
                 {/* ‼ פרק 17/194: תא הפעולה של שע״ם. האוטומציה עצמה רצה
                     במרכז ביצוע הייצוג — שם יושבים הבקשה, ההגשות, הטפסים
@@ -497,6 +532,11 @@ export default function AuthoritiesPanel({
                     <div className="txf-person-head">
                       <span className="txf-person-name">{person.name}</span>
                       <span className="txf-person-idctx">ת.ז. {person.idNumber || '—'}</span>
+                      {/* ‼ עדכון לאדם אחד בלבד — רק כשיש קריאה אמיתית ויש את מי לקרוא. */}
+                      {spec?.available && person.editable && runnableRoles.has(person.role) && !cardEditing && (
+                        <PersonSyncButton label={`עדכן רק את ${person.name}`} capability={spec.capability ?? ''}
+                          running={running} onRun={() => runCheck(person.role)} />
+                      )}
                       {!person.editable && (
                         <span className="txf-person-linked">
                           הנתונים בכרטיס של {person.name}
@@ -515,8 +555,8 @@ export default function AuthoritiesPanel({
                         if (f.k === 'ת.ז.') return null;
                         const editingScalar = editingPerson && !!(f.editKey && EDIT_FIELD_BY_KEY[f.editKey]);
                         const editingTaxFileNumber = editingPerson && !!f.taxFileNumberAuthority;
-                        // ‼ בדיקת האוטומציה נגזרת מ-row.facts (=persons[0]) — סמן רק באדם הראשון.
-                        const fieldCheck = pi === 0 && check?.checkedAt ? check.fields[i] : undefined;
+                        // ‼ לפי מפתח: לכל אדם שדות משלו, והסמן שייך לאדם שנבדק בפועל.
+                        const fieldCheck = personCheck(f);
                         return (
                           <div key={i}>
                             <FieldLabel f={f} status={fieldCheck && <FieldStatusMark status={fieldCheck.status} />} />
@@ -549,6 +589,16 @@ export default function AuthoritiesPanel({
                         );
                       })}
                     </div>
+
+                    {/* ‼ כשל של אדם אחד בריצה שהצליחה לאחר — כאן, בבלוק שלו, ולא בסיכום. */}
+                    {check?.runErrorByPerson?.[person.role] && !editingPerson && (
+                      <div className="txf-check-err txf-person-err">
+                        {spec?.sourceLabel ? `${spec.sourceLabel}: ` : ''}{check.runErrorByPerson[person.role]} · הנתונים בתיק לא שונו.
+                      </div>
+                    )}
+                    {!person.editable && spec?.available && !editingPerson && (
+                      <div className="txf-check-note">מתעדכן מביטוח לאומי מהכרטיס של {person.name}.</div>
+                    )}
 
                     {/* ‼ עיסוקים — לכל אדם הרשימה שלו/ה. */}
                     {editingPerson && (

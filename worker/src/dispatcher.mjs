@@ -16,6 +16,7 @@ import * as btlConnect from './handlers/btlConnect.mjs';
 import * as btlDisconnect from './handlers/btlDisconnect.mjs';
 import * as btlCreateRepresentation from './handlers/btlCreateRepresentation.mjs';
 import * as btlCheckRepresentation from './handlers/btlCheckRepresentation.mjs';
+import * as btlSyncFile from './handlers/btlSyncFile.mjs';
 
 const HANDLERS = [
   devTestAutomation, shaamDetect, shaamCheckAuth,
@@ -24,6 +25,8 @@ const HANDLERS = [
   // מחזור חיי בקשת הייצוג בשע״ם (194): יצירה+הבאת טופס · שידור חתום · בדיקת מצב.
   shaamCreateRepresentation, shaamSubmitPoa, shaamCheckRepresentation,
   btlConnect, btlDisconnect, btlCreateRepresentation, btlCheckRepresentation,
+  // קריאת תיק המבוטח (עיסוקים, מקדמה, הכנסה, הרשאה, יתרה) — קריאה בלבד.
+  btlSyncFile,
 ];
 
 const byActionType = new Map(HANDLERS.map((h) => [h.actionType, h]));

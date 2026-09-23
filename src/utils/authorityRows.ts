@@ -8,7 +8,10 @@
 // מה שמניע עבודה שוטפת (מקדמות, תדירות דיווח, מקדמה חודשית) ומה שהוא כסף
 // (יתרה). מספרי התיקים ירדו לפירוט הפתוח, פעם אחת.
 
-import type { Client, TaxAuthority, TaxFileInfo } from '../types';
+import type { Client, NiOccupation, TaxAuthority, TaxFileInfo } from '../types';
+import { niOccupationsCountText } from '../features/nationalInsurance/niOccupations';
+import { niBasisView } from '../features/nationalInsurance/niBasisDisplay';
+import { BTL_REPRESENTATION_KEY } from '../features/nationalInsurance/btlFieldKeys';
 import { TAX_AUTHORITY_LABELS, TAX_FILE_REP_STATUS_LABELS } from '../types';
 import { VAT_FREQ_LABELS, SHAAM_STATUS_LABELS } from '../types/clientWorkspace';
 import { shortDate } from './clientDerived';
@@ -96,6 +99,13 @@ export interface AuthorityRowFact {
    * ראה docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
    */
   niRepAction?: NiRepresentationAction;
+  /** שורות משנה קטנות מתחת לערך (למשל הבסיס לחודש ושחזור ההכנסה). */
+  sub?: string[];
+  /**
+   * עיסוקי ב"ל של האדם — קיים רק על שורת «עיסוקים». הערך (`v`) הוא הספירה;
+   * הרשימה נפתחת מתחתיה בחשיפה הדרגתית.
+   */
+  occupations?: NiOccupation[];
 }
 
 export interface AuthorityRowPerson {
@@ -362,38 +372,62 @@ export function buildAuthorityRows(
         k: 'מספר תיק', v: file?.fileNumber || EMPTY,
         ...(editable ? { taxFileNumberAuthority: 'national_insurance' as TaxAuthority, taxFileNumberOwner: person.role } : {}),
       });
-      // ‼ «עיסוקים» הוא רשימה (niOccupations/spouseNiOccupations) עם עורך
-      // מובנה משלה — התיק מרכיב אותו בעצמו בעריכה, לכל אדם בנפרד.
-      facts.push({ k: 'עיסוקים', v: pf.occupations.length ? `${pf.occupations.length} עיסוקים` : EMPTY, helpKey: 'niOccupations' });
+      // ‼ מפתחות הסנכרון מול הפורטל (btl.sync_file) — לכל אדם שהנתונים
+      // שלו יושבים בכרטיס הזה. אדם מקושר מתעדכן מהכרטיס שלו/ה. הקריאה
+      // מהרשות אינה מחליפה את העריכה הידנית — שתיהן קיימות.
+      const sync = (k: keyof typeof keys) => (editable ? { btlSyncKey: keys[k] } : {});
+
+      // ‼ «עיסוקים» — הספירה נגזרת מהרשומות, והרשומות עצמן (שם + תקופה)
+      // נגללות מתחתיה בלחיצה. הכרטיס לא דורש מסך אחר כדי להבין מה הם.
       facts.push({
-        k: 'בסיס למקדמות',
+        k: 'עיסוקים', v: niOccupationsCountText(pf.occupations.length) || EMPTY, helpKey: 'niOccupations',
+        occupations: pf.occupations, ...sync('occupations'),
+      });
+      // ‼ ההכנסה המוצהרת (רשימת הכנסות) — ולא «בסיס»: בביטוח לאומי «בסיס»
+      // הוא 47,583 לרבעון, אחרי קידום וניכוי. שני מספרים שונים, שני שמות.
+      facts.push({
+        k: 'הכנסה מוצהרת',
         v: pf.incomeBasisMonthly != null ? `${money(pf.incomeBasisMonthly)} לחודש` : EMPTY,
         helpKey: 'niIncomeBasisMonthly',
         ...(editable ? { editKey: keys.incomeBasisMonthly } : {}),
+        ...sync('incomeBasisMonthly'),
       });
+      if (pf.insuranceBasis) {
+        const view = niBasisView(pf.insuranceBasis, {
+          directMonthlyIncome: pf.incomeBasisMonthly ?? null,
+          statusesCount: pf.occupations.length || undefined,
+        });
+        const recon = view.reconstructionText
+          ? `${view.reconstructionText}${view.matchesDirect === true ? ' · תואם להצהרה' : view.matchesDirect === false ? ' · שונה מההצהרה' : ''}`
+          : view.reconstructionNote;
+        facts.push({
+          k: 'בסיס לדמי ביטוח', v: view.periodText, helpKey: 'niInsuranceBasis',
+          sub: [view.monthlyText, recon].filter((x): x is string => !!x),
+          ...sync('insuranceBasis'),
+        });
+      } else {
+        facts.push({ k: 'בסיס לדמי ביטוח', v: EMPTY, helpKey: 'niInsuranceBasis', ...sync('insuranceBasis') });
+      }
       facts.push({
         k: 'מקדמה חודשית',
         v: pf.advanceMonthly != null ? money(pf.advanceMonthly) : EMPTY,
         helpKey: 'niAdvanceMonthly',
         ...(editable ? { editKey: keys.advanceMonthly } : {}),
+        ...sync('advanceMonthly'),
       });
-      // ‼ השדה היחיד בביטוח לאומי שיש לו כרגע מקור ודאי בפורטל (הלקוח
-      // בלבד — האוטומציה עוד לא נתמכת לבן/בת הזוג), ולכן היחיד שמקבל
-      // btlSyncKey. הכפתור **וגם** העריכה — הקריאה מהרשות אינה מחליפה
-      // את היכולת לתקן ידנית.
-      const balSync = editable && person.role === 'client' ? { btlSyncKey: keys.balance } : {};
       facts.push(bal
-        ? { k: 'יתרה', v: bal.text, tone: bal.tone, helpKey: 'niBalance', ...balSync, ...(editable ? { editKey: keys.balance } : {}) }
-        : { k: 'יתרה', v: EMPTY, helpKey: 'niBalance', ...balSync, ...(editable ? { editKey: keys.balance } : {}) });
+        ? { k: 'יתרה', v: bal.text, tone: bal.tone, helpKey: 'niBalance', ...sync('balance'), ...(editable ? { editKey: keys.balance } : {}) }
+        : { k: 'יתרה', v: EMPTY, helpKey: 'niBalance', ...sync('balance'), ...(editable ? { editKey: keys.balance } : {}) });
       facts.push(auth
-        ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone, helpKey: 'niDebitAuthorization', ...(editable ? { editKey: keys.debitAuthorization } : {}) }
-        : { k: 'הרשאה לחיוב', v: EMPTY, helpKey: 'niDebitAuthorization', ...(editable ? { editKey: keys.debitAuthorization } : {}) });
+        ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone, helpKey: 'niDebitAuthorization', ...sync('debitAuthorization'), ...(editable ? { editKey: keys.debitAuthorization } : {}) }
+        : { k: 'הרשאה לחיוב', v: EMPTY, helpKey: 'niDebitAuthorization', ...sync('debitAuthorization'), ...(editable ? { editKey: keys.debitAuthorization } : {}) });
       // ‼ `detail` (אסמכתא/"טרם הוזן") מצטרף לערך עצמו, לא שורה נוספת —
       // בדיוק כמו כל שורת עובדה אחרת בכרטיס. `niRepAction` מוצג ליד
       // הערך ב-TaxFileTab, לא כאן (זו שכבת נתונים בלבד).
       facts.push({
         k: 'ייצוג', v: rep.detail ? `${rep.v} · ${rep.detail}` : rep.v, tone: rep.tone,
         ...(niAction ? { niRepAction: niAction } : {}),
+        ...(editable ? { btlSyncKey: BTL_REPRESENTATION_KEY[person.role] } : {}),
       });
 
       return { role: person.role, name: person.name, idNumber: person.idNumber, editable, facts };

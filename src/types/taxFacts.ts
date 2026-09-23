@@ -98,6 +98,8 @@ export const GOVERNED_FACT_KEYS: ReadonlySet<string> = new Set([
   // ── 154 — ב"ל של בן/בת הזוג, כשמיוצג/ת בנפרד. אינם מוסקים מ-ni* (ראה שם). ──
   'spouseNiBalance', 'spouseNiOccupations', 'spouseNiDebitAuthorization',
   'spouseNiIncomeBasisMonthly', 'spouseNiAdvanceMonthly',
+  // ── 197 — בסיס דמי הביטוח לתקופה, לכל אדם. ‼ לא הכנסה. ──
+  'niInsuranceBasis', 'spouseNiInsuranceBasis',
 ]);
 
 export const GOVERNED_FIELD_LABELS: Record<string, string> = {
@@ -148,6 +150,8 @@ export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   spouseNiDebitAuthorization: 'הרשאת חיוב - ביטוח לאומי (בן/בת הזוג)',
   spouseNiIncomeBasisMonthly: 'בסיס הכנסה למקדמות - ביטוח לאומי (בן/בת הזוג)',
   spouseNiAdvanceMonthly: 'מקדמה חודשית בביטוח לאומי - בן/בת הזוג',
+  niInsuranceBasis: 'בסיס דמי ביטוח לתקופה - ביטוח לאומי',
+  spouseNiInsuranceBasis: 'בסיס דמי ביטוח לתקופה - ביטוח לאומי (בן/בת הזוג)',
 };
 
 /** השוואה עמוקה מספיק לשדות מנוהלים — כולל מערכים/אובייקטים (ילדים, מעבידים וכו'). */

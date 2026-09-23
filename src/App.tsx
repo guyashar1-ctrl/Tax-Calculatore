@@ -120,6 +120,7 @@ import TestJourney from './components/clientTabs/__TestJourney';
 import TestInstitutions from './components/clientTabs/__TestInstitutions';
 import TestAlignmentStatus from './components/clientTabs/__TestAlignmentStatus';
 import TestTaxFileV6 from './components/clientTabs/__TestTaxFileV6';
+import TestBtlSync from './components/authorities/__TestBtlSync';
 import TestJourneyBall from './components/clientTabs/__TestJourneyBall';
 import TestPortalPreview from './components/clientTabs/__TestPortalPreview';
 import TestCaseComposer from './components/clientTabs/__TestCaseComposer';
@@ -334,6 +335,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-taxfile')) {
     return <TestTaxFileV6 />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-btl-sync')) {
+    return <TestBtlSync />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-alignment-status')) {
     return <TestAlignmentStatus />;

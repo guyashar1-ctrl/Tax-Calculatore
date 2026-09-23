@@ -4414,6 +4414,28 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .txf-person-name{font-size:var(--fs-13);font-weight:600;color:var(--ink-1)}
 .txf-person-idctx{font-size:11.5px;color:var(--ink-4)}
 .txf-person-linked{font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px;margin-inline-start:auto}
+.txf-person-sync{font-size:11.5px;margin-inline-start:auto}
+.txf-person-err{margin:6px 0 2px}
+
+/* ── עיסוקי ב"ל: «2 עיסוקים ›» ונפתח מתחת ──
+   ‼ פירוט קל בכפיפות לערך: אותו גודל טקסט משני של הכרטיס, בלי מסגרת ובלי
+   טבלה. השם כפי שביטוח לאומי קורא לו, והתקופה ב«עד» — לא במקף, שמתהפך ב-RTL. */
+.txf-occ-toggle{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+  color:var(--ink-1);font-size:var(--fs-13);border-radius:4px}
+.txf-occ-toggle:hover{color:var(--accent)}
+.txf-occ-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* חץ מקווים ולא תו: «›» משתקף ב-RTL. סגור — מצביע קדימה (שמאלה), פתוח — מטה. */
+.txf-occ-chev{display:inline-block;width:5px;height:5px;border-right:1.5px solid var(--ink-4);
+  border-bottom:1.5px solid var(--ink-4);transform:rotate(135deg);transition:transform .15s;margin-top:-1px}
+.txf-occ-chev.is-open{transform:rotate(45deg);margin-top:-4px}
+.txf-occ-list{list-style:none;margin:5px 0 0;padding:0 0 0 0;padding-inline-start:10px;
+  border-inline-start:2px solid var(--hairline-2);display:grid;gap:4px}
+.txf-occ-list li{display:flex;flex-direction:column;line-height:1.35}
+.txf-occ-name{font-size:12px;color:var(--ink-2)}
+.txf-occ-period{font-size:11px;color:var(--ink-4)}
+.txf-occ-open{color:var(--ink-3)}
+/* שורת משנה מתחת לערך (בסיס לחודש, שחזור הכנסה) */
+.txf-vsub{font-size:11px;color:var(--ink-4);line-height:1.45}
 
 /* ── כרטיס יישור הקו: שורות מוסדות ──
    מקור מחייב: client-case-simplified-exploration-v3-final2.html (.insts/.inst).

@@ -9,7 +9,7 @@
 // ‼ «אדם» הוא PersonRole ('client'|'spouse') — לא שם, לא מגדר.
 
 import type {
-  Client, NiExternalState, NiOccupation, NiTracking, PersonRole, TaxAuthority, TaxFileInfo,
+  Client, NiExternalState, NiInsuranceBasis, NiOccupation, NiTracking, PersonRole, TaxAuthority, TaxFileInfo,
 } from '../types';
 import {
   NI_FACT_KEYS, NI_EXTERNAL_STATE_LABELS, TAX_FILE_REP_STATUS_LABELS, REP_AREA_STATUS_LABELS,
@@ -27,6 +27,7 @@ export interface NiPersonFactsValue {
   advanceMonthly?: number;
   balance?: number;
   debitAuthorization?: boolean;
+  insuranceBasis?: NiInsuranceBasis;
 }
 
 export interface NiPerson {
@@ -82,6 +83,7 @@ export function niFactsOf(person: NiPerson, client: Client): NiPersonFactsValue 
     advanceMonthly: c[keys.advanceMonthly] as number | undefined,
     balance: c[keys.balance] as number | undefined,
     debitAuthorization: c[keys.debitAuthorization] as boolean | undefined,
+    insuranceBasis: c[keys.insuranceBasis] as NiInsuranceBasis | undefined,
   };
 }
 

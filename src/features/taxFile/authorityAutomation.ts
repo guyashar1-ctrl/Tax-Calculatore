@@ -12,13 +12,20 @@
 // ‼ מציע ולא כותב: שום דבר כאן לא נוגע ב-clients. הסט הזה הוא מה שהרו"ח
 // **רואה**; הכתיבה קורית רק דרך מסלול העובדות המנוהלות, אחרי לחיצה מפורשת.
 
-import type { Client, PersonRole, TaxAuthority } from '../../types';
+import type { Client, NiInsuranceBasis, NiOccupation, PersonRole, TaxAuthority } from '../../types';
+import { NI_FACT_KEYS } from '../../types';
 import type { AutomationJob } from '../../types/automation';
-import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
+import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE, BTL_SYNC_FILE_ACTION_TYPE } from '../../types/automation';
 import { SHAAM_READ_134, SHAAM_READ_VAT, BTL_READ_FILE } from '../../hooks/shaamReadiness';
 import { EDIT_FIELD_BY_KEY, editFieldValue } from './editModel';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
-import { niPersons } from '../../utils/niPersons';
+import { niPersons, niEditable } from '../../utils/niPersons';
+import {
+  niOccupationsFromBtl, niOccupationsKey, niOccupationsInline, niDate,
+} from '../nationalInsurance/niOccupations';
+import type { BtlOccupationChain } from '../nationalInsurance/niOccupations';
+import { niBasisView, niBasisPeriodText, niMonthsText } from '../nationalInsurance/niBasisDisplay';
+import { BTL_REPRESENTATION_KEY } from '../nationalInsurance/btlFieldKeys';
 
 /**
  * מי בדיוק, ברמת אדם — הנושא שהמשימה שואלת עליו (154). ‼ קיים כדי שרשות
@@ -56,6 +63,11 @@ export interface AuthorityFieldResult {
   status: AuthorityFieldStatus;
   /** הערך הגולמי בתיק היום — מה שמשווים מולו. */
   currentValue: string;
+  /**
+   * איך מציגים את הערך הנוכחי ביומן השינויים, כשהוא אינו סקלר (רשימת
+   * עיסוקים, בסיס לתקופה). חסר ⇒ String(ערך).
+   */
+  currentDisplay?: string;
   /** מה הרשות החזירה, מילה במילה. */
   authorityRaw?: string;
   /** הערך שיישמר בתיק אם השינוי יאושר (מנורמל). קיים רק ב-changed. */
@@ -169,6 +181,8 @@ export interface AuthorityAutomationSpec {
   interpret?: (job: AutomationJob | null, client: Client, supportedKeys: readonly string[]) => AuthorityFieldResult[];
   /** הסברים עסקיים ברמת קבוצה, מתוך תוצאת המשימה. */
   groupNotes?: (fields: Record<string, string>) => AuthorityGroupNote[];
+  /** לרשות ברמת-אדם: מי מהאנשים לא נקרא, ולמה (ריצה שהצליחה חלקית). */
+  personErrors?: (job: AutomationJob) => Partial<Record<PersonRole, string>>;
 }
 
 // ─── מס הכנסה — שאילתה 134 ─────────────────────────────────────────────────────
@@ -354,6 +368,237 @@ function incomeTaxFileNumber(client: Client): string {
   return ((client.taxFiles ?? []).find(t => t.authority === 'income_tax')?.fileNumber ?? '').replace(/\D/g, '');
 }
 
+// ─── ביטוח לאומי — תיק המבוטח (btl.sync_file) ─────────────────────────────────
+// ‼ התוצאה היא **לכל אדם**, וכל מקטע בה עצמאי: { ok, value } או { ok:false }.
+// מקטע שנכשל ⇒ השדה «לא נקרא» (אדום), ולעולם לא הצעה לרוקן אותו. מקטע
+// שהצליח עם value:null ⇒ «המקור אומר שאין» — מוצג, אבל לא מוחק ערך קיים.
+
+interface BtlSection<T> {
+  ok: boolean;
+  value?: T;
+  reason?: string;
+  warnings?: string[];
+  source?: string;
+  openSince?: string | null;
+}
+
+interface BtlAdvanceValue {
+  year: number; fromMonth: number; toMonth: number; months: number;
+  basisCategory: string | null; periodBasis: number; advanceMonthly: number;
+}
+
+interface BtlDirectIncome {
+  year: number; monthlyAmount: number; infoSource: string | null; incomeSource: string | null;
+  receivedDate: string | null; fromMonth: number | null; toMonth: number | null;
+}
+
+interface BtlPersonResult {
+  role: PersonRole;
+  label?: string | null;
+  ok: boolean;
+  error?: string;
+  errorCode?: string;
+  representation?: { found: boolean; type?: string | null; receivedDate?: string | null };
+  sections?: {
+    advance?: BtlSection<BtlAdvanceValue>;
+    occupations?: BtlSection<BtlOccupationChain[]>;
+    directIncome?: BtlSection<BtlDirectIncome | null>;
+    debitAuthorization?: BtlSection<boolean>;
+    balance?: BtlSection<number>;
+  };
+}
+
+export const BTL_FIELD_KEYS: readonly string[] = (['client', 'spouse'] as const).flatMap(r => [
+  NI_FACT_KEYS[r].occupations, NI_FACT_KEYS[r].incomeBasisMonthly, NI_FACT_KEYS[r].advanceMonthly,
+  NI_FACT_KEYS[r].balance, NI_FACT_KEYS[r].debitAuthorization, NI_FACT_KEYS[r].insuranceBasis,
+  BTL_REPRESENTATION_KEY[r],
+]);
+
+function btlPersons(job: AutomationJob | null): BtlPersonResult[] {
+  if (job?.status !== 'succeeded') return [];
+  const persons = (job.result as { persons?: BtlPersonResult[] } | undefined)?.persons;
+  return Array.isArray(persons) ? persons.filter(p => p && (p.role === 'client' || p.role === 'spouse')) : [];
+}
+
+function btlPersonErrors(job: AutomationJob): Partial<Record<PersonRole, string>> {
+  const out: Partial<Record<PersonRole, string>> = {};
+  for (const p of btlPersons(job)) if (!p.ok) out[p.role] = p.error ?? 'לא הצלחתי לקרוא את התיק בביטוח לאומי.';
+  return out;
+}
+
+const ils = (n: number) => `${Math.abs(Math.round(n)).toLocaleString('he-IL')} ₪`;
+
+const SECTION_FAILED: Record<string, string> = {
+  advance: 'שורת דמי הביטוח לא נקראה מריכוז המידע.',
+  occupations: 'רשימת העיסוקים לא נקראה במלואה — לא עודכן דבר.',
+  directIncome: 'רשימת ההכנסות לא נקראה.',
+  debitAuthorization: 'מסך הרשאות החיוב לא נקרא.',
+  balance: 'מצב החשבון לא נקרא.',
+};
+
+function sameBasis(a: NiInsuranceBasis | undefined, b: NiInsuranceBasis): boolean {
+  return !!a && a.year === b.year && a.fromMonth === b.fromMonth && a.toMonth === b.toMonth
+    && a.periodBasis === b.periodBasis && (a.advanceMonthly ?? null) === (b.advanceMonthly ?? null);
+}
+
+function interpretBtlFile(
+  job: AutomationJob | null, client: Client, supportedKeys: readonly string[],
+): AuthorityFieldResult[] {
+  const wanted = new Set(supportedKeys);
+  const out: AuthorityFieldResult[] = [];
+  const c = client as unknown as Record<string, unknown>;
+
+  for (const p of btlPersons(job)) {
+    const keys = NI_FACT_KEYS[p.role];
+    const person = { person: p.role, personLabel: p.label ?? undefined };
+    const repKey = BTL_REPRESENTATION_KEY[p.role];
+    const push = (r: AuthorityFieldResult) => { if (wanted.has(r.fieldKey)) out.push(r); };
+
+    if (!p.ok) {
+      // ‼ כשל של אדם שלם: סמן אדום לכל שדה, אבל **ההסבר פעם אחת** — בבלוק
+      // של האדם (runErrorByPerson), לא אותו משפט מתחת לשישה שדות.
+      const error = p.error ?? 'לא הצלחתי לקרוא את התיק בביטוח לאומי.';
+      for (const k of [keys.occupations, keys.incomeBasisMonthly, keys.advanceMonthly, keys.balance, keys.debitAuthorization, keys.insuranceBasis]) {
+        push({ fieldKey: k, label: k, status: 'failed', currentValue: String(c[k] ?? ''), ...person });
+      }
+      // ‼ «לא נמצא ברשימת המיוצגים» היא תשובה, לא תקלה — מוצגת ליד «ייצוג».
+      push(p.errorCode === 'not_found'
+        ? { fieldKey: repKey, label: 'ייצוג', status: 'info', currentValue: '', authorityDisplay: 'לא נמצא ברשימת המיוצגים', ...person }
+        : { fieldKey: repKey, label: 'ייצוג', status: 'failed', currentValue: '', error, ...person });
+      continue;
+    }
+    const s = p.sections ?? {};
+    const failed = (key: string, section: keyof typeof SECTION_FAILED): AuthorityFieldResult =>
+      ({ fieldKey: key, label: key, status: 'failed', currentValue: String(c[key] ?? ''), error: SECTION_FAILED[section], ...person });
+
+    // ── ייצוג: ראיה בלבד ──
+    push({
+      fieldKey: repKey, label: 'ייצוג', status: 'info', currentValue: '',
+      authorityDisplay: `מופיע ברשימת המיוצגים${p.representation?.receivedDate ? ` · נקלט ${niDate(p.representation.receivedDate)}` : ''}`,
+      ...person,
+    });
+
+    // ── עיסוקים — רשומות עם תקופות, לא ספירה ──
+    {
+      const k = keys.occupations;
+      const current = (c[k] as NiOccupation[] | undefined) ?? [];
+      if (!s.occupations?.ok || !Array.isArray(s.occupations.value)) push(failed(k, 'occupations'));
+      else {
+        const next = niOccupationsFromBtl(s.occupations.value, current);
+        const same = niOccupationsKey(current) === niOccupationsKey(next);
+        const earlier = (s.occupations.warnings ?? []).some(w => w.startsWith('start_differs'));
+        push({
+          fieldKey: k, label: 'עיסוקים', status: same ? 'match' : 'changed',
+          currentValue: niOccupationsKey(current),
+          currentDisplay: current.length ? niOccupationsInline(current) : '—',
+          authorityDisplay: next.length ? niOccupationsInline(next) : 'אין עיסוק בתוקף',
+          authorityValue: niOccupationsKey(next),
+          patchValue: next,
+          hint: earlier ? 'בסיכום של ביטוח לאומי הרצף מתחיל מוקדם יותר — ייתכן שחסרה רשומה קודמת.' : undefined,
+          provenance: 'עיסוקים והכנסות → רשימת עיסוקים → עיסוקים בתקופה',
+          ...person,
+        });
+      }
+    }
+
+    // ── הכנסה מוצהרת (ישירה) — רשימת הכנסות ──
+    const direct = s.directIncome?.ok ? s.directIncome.value ?? null : undefined;
+    {
+      const k = keys.incomeBasisMonthly;
+      const current = c[k] as number | undefined;
+      if (!s.directIncome?.ok) push(failed(k, 'directIncome'));
+      else if (direct == null) {
+        push({ fieldKey: k, label: k, status: 'info', currentValue: String(current ?? ''), authorityDisplay: 'אין הכנסה תקפה ברשימת ההכנסות', ...person });
+      } else {
+        const prov = [`רשימת הכנסות · ${direct.year}`, direct.infoSource, direct.incomeSource,
+          direct.receivedDate ? `התקבל ${niDate(direct.receivedDate)}` : null].filter(Boolean).join(' · ');
+        push({
+          fieldKey: k, label: k, status: current != null && Number(current) === direct.monthlyAmount ? 'match' : 'changed',
+          currentValue: String(current ?? ''),
+          authorityDisplay: `${ils(direct.monthlyAmount)} לחודש`, authorityValue: String(direct.monthlyAmount),
+          patchValue: direct.monthlyAmount, hint: prov, provenance: prov, ...person,
+        });
+      }
+    }
+
+    // ── מקדמה חודשית ובסיס לתקופה — ריכוז מידע ──
+    {
+      const kAdv = keys.advanceMonthly;
+      const kBasis = keys.insuranceBasis;
+      const a = s.advance?.ok ? s.advance.value : undefined;
+      if (!a) { push(failed(kAdv, 'advance')); push(failed(kBasis, 'advance')); }
+      else {
+        const curAdv = c[kAdv] as number | undefined;
+        push({
+          fieldKey: kAdv, label: kAdv, status: curAdv != null && Number(curAdv) === a.advanceMonthly ? 'match' : 'changed',
+          currentValue: String(curAdv ?? ''), authorityDisplay: ils(a.advanceMonthly), authorityValue: String(a.advanceMonthly),
+          patchValue: a.advanceMonthly, provenance: `ריכוז מידע · דמי ביטוח ${niMonthsText(a.fromMonth, a.toMonth, a.year)}`, ...person,
+        });
+
+        const basis: NiInsuranceBasis = {
+          year: a.year, fromMonth: a.fromMonth, toMonth: a.toMonth, months: a.months,
+          periodBasis: a.periodBasis, advanceMonthly: a.advanceMonthly,
+          ...(a.basisCategory ? { category: a.basisCategory } : {}),
+          // ‼ שנת המקור — רק מההכנסה הישירה, ורק כשהיא לפני שנת הביטוח.
+          ...(direct && direct.year < a.year ? { sourceIncomeYear: direct.year } : {}),
+        };
+        const curBasis = c[kBasis] as NiInsuranceBasis | undefined;
+        const occupations = s.occupations?.ok ? s.occupations.value ?? [] : [];
+        const view = niBasisView(basis, { directMonthlyIncome: direct?.monthlyAmount ?? null, statusesCount: occupations.length || undefined });
+        push({
+          fieldKey: kBasis, label: kBasis, status: sameBasis(curBasis, basis) ? 'match' : 'changed',
+          currentValue: curBasis ? `${curBasis.periodBasis}|${niBasisPeriodText(curBasis)}` : '',
+          currentDisplay: curBasis ? `${ils(curBasis.periodBasis)} · ${niBasisPeriodText(curBasis)}` : '—',
+          authorityDisplay: view.periodText,
+          authorityValue: `${basis.periodBasis}|${niBasisPeriodText(basis)}`,
+          patchValue: basis,
+          hint: [view.monthlyText, view.reconstructionText].filter(Boolean).join(' · ') || undefined,
+          provenance: `ריכוז מידע · בסיס ${a.basisCategory ?? ''} ${a.periodBasis} · ${niMonthsText(a.fromMonth, a.toMonth, a.year)}`.replace(/\s+/g, ' '),
+          ...person,
+        });
+      }
+    }
+
+    // ── הרשאה לחיוב ──
+    {
+      const k = keys.debitAuthorization;
+      const cur = c[k] as boolean | undefined;
+      const d = s.debitAuthorization;
+      if (!d?.ok || typeof d.value !== 'boolean') push(failed(k, 'debitAuthorization'));
+      else {
+        push({
+          fieldKey: k, label: k, status: cur === d.value ? 'match' : 'changed',
+          currentValue: cur == null ? '' : String(cur),
+          authorityDisplay: d.value ? 'קיימת' : 'אין הרשאה', authorityValue: String(d.value), patchValue: d.value,
+          hint: d.value && d.openSince ? `פתוחה מ-${niDate(d.openSince)}` : undefined,
+          provenance: d.source === 'header' ? 'כותרת המבוטח' : 'הוראות כספיות → הרשאות לחיוב',
+          ...person,
+        });
+      }
+    }
+
+    // ── יתרה ── ‼ אותה מוסכמה כמו בכרטיס: חיובי=חוב, שלילי=זכות.
+    {
+      const k = keys.balance;
+      const cur = c[k] as number | undefined;
+      const b = s.balance;
+      if (!b?.ok || typeof b.value !== 'number') push(failed(k, 'balance'));
+      else {
+        const n = b.value;
+        push({
+          fieldKey: k, label: k, status: cur != null && Number(cur) === n ? 'match' : 'changed',
+          currentValue: String(cur ?? ''),
+          authorityDisplay: n === 0 ? 'אין יתרה' : n > 0 ? `חוב ${ils(n)}` : `יתרת זכות ${ils(n)}`,
+          authorityValue: String(n), patchValue: n,
+          provenance: b.source === 'header' ? 'כותרת המבוטח' : 'מצב חשבון → לפי ימי ערך ריאלי',
+          ...person,
+        });
+      }
+    }
+  }
+  return out;
+}
+
 /**
  * ‼ הרשומה לכל רשות — מקום אחד. רשות שאינה כאן אינה מקבלת פקד בכותרת
  * (אין מה להריץ ואין מה להבטיח). ב״ל רשומה עם available:false בכוונה:
@@ -407,45 +652,34 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
   },
 
   // ─── ביטוח לאומי ───────────────────────────────────────────────────────────
-  // ‼ מצב אמיתי (3.9.2026): לב״ל יש חלון, פרופיל וסשן משלה
-  // (`worker/src/btlSession.mjs`), ושני handlers בלבד — `btl.connect`
-  // ו-`btl.disconnect`. אין שום handler קריאה, ולכן אין אף שדה שניתן
-  // לקרוא היום — כולל «יתרה», שהייתה בעבר ⟳ מציין-מקום בלי מסלול מוכח.
-  //
-  // ‼ ה-capability מצביעה על שכבת `btl` בלבד: מוכנות ב״ל אינה נגזרת
-  // ממוכנות שע״ם, ולהפך.
+  // ‼ btl.sync_file (worker/src/handlers/btlSyncFile.mjs) קורא את תיק המבוטח
+  // בפורטל המייצגים — לכל אדם בנפרד — והמתאם כאן הופך את התוצאה לסט
+  // השוואה. ‼ ה-capability מצביעה על שכבת `btl` בלבד: מוכנות ב״ל אינה
+  // נגזרת ממוכנות שע״ם, ולהפך.
   national_insurance: {
     authority: 'national_insurance',
     actionLabel: 'עדכן נתונים מביטוח לאומי',
     sourceLabel: 'ב״ל',
-    // ‼ נשאר available:false בכוונה (154): הזהות פר-אדם למטה היא הצהרה
-    // על **הצורה** של הקלט כשתיבנה קריאה אמיתית — היא לא הופכת קריאה
-    // כלשהי לקיימת. supportedFieldKeys נשאר ריק, ואין interpret. הכפתור
-    // בכרטיס נשאר אפור עם הסיבה, בדיוק כמו קודם.
-    available: false,
+    available: true,
+    actionType: BTL_SYNC_FILE_ACTION_TYPE,
     capability: BTL_READ_FILE,
     sourceRef: 'btl-file',
-    supportedFieldKeys: new Set<string>(),
-    unavailableReason:
-      'קריאה אוטומטית מביטוח לאומי עדיין לא נבנתה: קיימים חיבור וניתוק בלבד, '
-      + 'בלי מסך קריאה שנצפה — כולל היתרה.',
+    supportedFieldKeys: new Set(BTL_FIELD_KEYS),
     /**
-     * ‼ inert לחלוטין כל עוד available:false — `buildAuthorityCheck`
-     * (למטה) דורש גם `interpret`, שלרשות הזו אין, ו-`runCheck` במסך דורש
-     * גם `spec.available`. הפונקציה הזו לא מבטיחה קריאה — היא רק מוכיחה,
-     * בקוד שעובר טיפוס, ש"מי בדיוק" כבר פתור: הנושאים הם אנשי הכרטיס
-     * (`niPersons`, docs/PLAN-BTL-PER-PERSON.md §G) שיש להם ת.ז. ידועה.
-     * ‼ כשתיבנה קריאה אמיתית: כל AuthorityFieldResult שחוזר מ-interpret
-     * חייב לשאת `person` תואם ל-`role` של אחד מ-subjects כאן — לא לנחש.
+     * ‼ הנושאים הם אנשי הכרטיס (`niPersons`) שיש להם ת.ז. **ושהנתונים שלהם
+     * יושבים בכרטיס הזה**. בן/בת זוג עם כרטיס משלו/ה מתעדכן/ת משם — כך אף
+     * אישור כאן לא כותב לכרטיס אחר.
      */
     buildInput: (client, spouseClient) => {
       const subjects: AutomationSubject[] = niPersons(client, spouseClient)
-        .filter(p => !!p.idNumber)
+        .filter(p => !!p.idNumber && niEditable(p))
         .map(p => ({ role: p.role, idNumber: p.idNumber, label: p.name }));
       return subjects.length > 0
         ? { input: { subjects } }
         : { blocked: 'אין ת.ז. ידועה לאף אחד מהאנשים בכרטיס — אין את מי לבדוק מול ביטוח לאומי.' };
     },
+    interpret: interpretBtlFile,
+    personErrors: btlPersonErrors,
   },
 };
 
@@ -502,11 +736,14 @@ export function buildAuthorityCheck(
   const groups = new Set(fields.map(f => f.group).filter(Boolean));
   const groupNotes = (spec.groupNotes?.(resultFields) ?? []).filter(n => groups.has(n.group));
 
+  const runErrorByPerson = succeeded && spec.personErrors ? spec.personErrors(job) : undefined;
+
   return {
     authority: spec.authority,
     runId: job.id,
     checkedAt: succeeded ? (job.finishedAt ?? job.updatedAt) : undefined,
     fields, summary, groupNotes, runError,
+    ...(runErrorByPerson && Object.keys(runErrorByPerson).length ? { runErrorByPerson } : {}),
   };
 }
 

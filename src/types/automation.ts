@@ -171,6 +171,8 @@ export const SHAAM_OPEN_INCOME_TAX_ACTION_TYPE = 'shaam.open_income_tax';
 export const SHAAM_OPEN_CLIENT_FILE_ACTION_TYPE = 'shaam.open_client_file';
 /** «קרא משע״ם» — שאילתה 134, שדות ראש התיק במס הכנסה. */
 export const SHAAM_SYNC_INCOME_TAX_ACTION_TYPE = 'shaam.sync_income_tax_file';
+/** «עדכן נתונים מביטוח לאומי» — קריאת תיק המבוטח לכל אדם (קריאה בלבד). */
+export const BTL_SYNC_FILE_ACTION_TYPE = 'btl.sync_file';
 /** 168: שחזור נקודתי — "הכן רק capability X", לא warm-up מלא. ראה פרק 16 §16.1. */
 export const SHAAM_ENSURE_CAPABILITY_ACTION_TYPE = 'shaam.ensure_capability';
 

@@ -254,7 +254,7 @@ export async function probeBtlSession(page) {
 // `extractPoaConfirmation` דורש את העוגן הזה במפורש ולא מכריע הצלחה בלעדיו.
 
 /** קישור/כפתור/טקסט לפי שם מדויק — עדיפות למבנה (link/button) לפני טקסט חופשי. */
-function byExactName(page, label) {
+export function byExactName(page, label) {
   const link = page.getByRole('link', { name: label, exact: true });
   const button = page.getByRole('button', { name: label, exact: true });
   const text = page.getByText(label, { exact: true });
@@ -300,7 +300,7 @@ async function openPoaSubScreen(page, subLabel) {
  * span/label עם טקסט מדויק, ואז input בשורה/בהורה הקרוב. דו-משמעיות או
  * העדר תוצאה מוחזרים כשגיאה מפורשת, לא כניחוש.
  */
-async function fillFieldByLabel(page, label, value) {
+export async function fillFieldByLabel(page, label, value) {
   return page.evaluate(({ label, value }) => {
     const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const target = norm(label);

@@ -345,6 +345,44 @@ export interface NiOccupation {
   // ── משותף לשכיר ולעצמאי ──
   fromDate?: string;
   toDate?: string;
+  /**
+   * השם המדויק כפי שביטוח לאומי מציג אותו («תלמיד להשכלה גבוהה»). ‼ קיים
+   * כשהעיסוק נקרא מהפורטל — ואז הוא מה שמוצג, לא התווית של `type`.
+   */
+  sourceLabel?: string;
+  /** מאיפה הרשומה: הוזנה ביד, או נקראה מפורטל המייצגים. */
+  source?: 'manual' | 'btl_portal';
+  /**
+   * הרשומות כפי שהתקבלו מהפורטל, לפני איחוד רצף (למשל שנת לימודים אחת
+   * לכל רשומה). `fromDate`/`toDate` למעלה הם הרצף; כאן — המקור.
+   */
+  sourcePeriods?: { fromDate: string; toDate?: string | null }[];
+}
+
+/**
+ * בסיס דמי הביטוח לתקופה, כפי שביטוח לאומי מציג אותו בריכוז המידע
+ * («2026 / 7-9 בסיס : עצמאי 47,583 … סכום : 2062»).
+ *
+ * ‼ זה **אינו** ההכנסה. 47,583 הוא הבסיס לרבעון אחרי קידום ואחרי ניכוי 52%
+ * מדמי הביטוח הלאומי; ההכנסה המוצהרת (16,500 לחודש) היא עובדה אחרת
+ * (`niIncomeBasisMonthly`, מרשימת ההכנסות). השחזור ביניהם —
+ * features/nationalInsurance/niContribution.ts.
+ */
+export interface NiInsuranceBasis {
+  /** שנת הביטוח. */
+  year: number;
+  fromMonth: number;
+  toMonth: number;
+  /** מספר החודשים שהבסיס מייצג. */
+  months: number;
+  /** הבסיס לתקופה כפי שמוצג (מעוגל לשקל). */
+  periodBasis: number;
+  /** הקטגוריה שבפורטל («עצמאי»). */
+  category?: string;
+  /** המקדמה החודשית שהפורטל הציג לצד הבסיס. */
+  advanceMonthly?: number;
+  /** שנת ההכנסה שעליה נשען הבסיס, כשהיא ידועה (מרשימת ההכנסות). */
+  sourceIncomeYear?: number;
 }
 
 // ─── עסקים — לעצמאי עם 2+ עסקים ────────────────────────────────────────
@@ -774,6 +812,10 @@ export interface Client {
   spouseNiDebitAuthorization?: boolean;
   spouseNiIncomeBasisMonthly?: number;
   spouseNiAdvanceMonthly?: number;
+
+  /** בסיס דמי הביטוח לתקופה (197) — ‼ לא הכנסה. ראה NiInsuranceBasis. */
+  niInsuranceBasis?: NiInsuranceBasis;
+  spouseNiInsuranceBasis?: NiInsuranceBasis;
 
   vatBalance?: number;
   vatDebitAuthorization?: boolean;
@@ -1385,6 +1427,7 @@ export interface NiPersonFacts {
   advanceMonthly?: number;
   balance?: number;
   debitAuthorization?: boolean;
+  insuranceBasis?: NiInsuranceBasis;
 }
 
 /**
@@ -1397,10 +1440,12 @@ export const NI_FACT_KEYS: Record<PersonRole, Record<keyof NiPersonFacts, keyof 
   client: {
     occupations: 'niOccupations', incomeBasisMonthly: 'niIncomeBasisMonthly',
     advanceMonthly: 'niAdvanceMonthly', balance: 'niBalance', debitAuthorization: 'niDebitAuthorization',
+    insuranceBasis: 'niInsuranceBasis',
   },
   spouse: {
     occupations: 'spouseNiOccupations', incomeBasisMonthly: 'spouseNiIncomeBasisMonthly',
     advanceMonthly: 'spouseNiAdvanceMonthly', balance: 'spouseNiBalance', debitAuthorization: 'spouseNiDebitAuthorization',
+    insuranceBasis: 'spouseNiInsuranceBasis',
   },
 };
 
