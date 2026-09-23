@@ -6,6 +6,7 @@ import './components/ui/pivo-design.css'
 import App from './App.tsx'
 import { ToastProvider } from './components/ui/Toast'
 import { AuthProvider } from './hooks/AuthProvider'
+import NewVersionBanner from './components/NewVersionBanner'
 
 /**
  * ‼ חותמת המקור נחשפת ל-window כדי שבדיקה אוטומטית תוכל לוודא שהיא רואה את
@@ -25,6 +26,7 @@ createRoot(document.getElementById('root')!).render(
     <AuthProvider>
       <ToastProvider>
         <App />
+        <NewVersionBanner />
       </ToastProvider>
     </AuthProvider>
   </StrictMode>,
