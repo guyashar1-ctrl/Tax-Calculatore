@@ -28,6 +28,26 @@ export const fail = (workerId, jobId, errorCode, errorDetail, needsHuman) =>
 export const reportStatus = (userId, workerId, status) =>
   call({ op: 'status', userId, workerId, status });
 
+/**
+ * 194 · שמירת מסמך בתיק הלקוח של ה-job שהעובד מחזיק עכשיו.
+ * ‼ הגבול: ה-edge function מאמת מול automation_job_document_context שה-job
+ * בבעלות העובד ורץ. אין כאן שום גישה כללית למסמכים.
+ */
+export const putDocument = (workerId, jobId, doc) =>
+  call({
+    op: 'put_document', workerId, jobId,
+    documentId: doc.documentId, fileName: doc.fileName,
+    contentBase64: doc.buffer.toString('base64'),
+    description: doc.description, linkedTo: doc.linkedTo, linkedLabel: doc.linkedLabel,
+  });
+
+/** 194 · קריאת מסמך של אותו לקוח — לשידור הטופס החתום חזרה לשע״ם. */
+export const getDocument = async (workerId, jobId, documentId) => {
+  const r = await call({ op: 'get_document', workerId, jobId, documentId });
+  if (!r?.ok) return r;
+  return { ...r, buffer: Buffer.from(r.contentBase64, 'base64') };
+};
+
 // ‼ 168: התקדמות עמידה לפי capability (warmupManager.mjs) — CAS על revision,
 // כדי ש-worker "זומבי" שהחכירה שלו פקעה לא ידרוס עדכון של המחזיק הנוכחי.
 export const updateJobProgress = (workerId, jobId, expectedRevision, progress) =>

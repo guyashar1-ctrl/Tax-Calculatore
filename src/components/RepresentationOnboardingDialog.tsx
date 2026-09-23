@@ -22,7 +22,10 @@ import InfoLines from './ui/InfoLines';
 
 interface CreateResult { link: string; emailSent: boolean; emailError?: string; }
 
-interface SpouseInput { name: string; email: string; idNumber?: string; }
+// ‼ טלפון ומייל של בן/בת הזוג הם פרטי קשר קבועים של אדם, לא אמצעי חתימה
+// חד-פעמי: הם נשמרים על הכרטיס וממשיכים לשרת כל מה שדורש אותם אחר כך —
+// ובכלל זה מסך «פרטי התקשרות» בבקשת הייצוג בשע״ם, שמבקש את הטלפון.
+interface SpouseInput { name: string; email: string; phone?: string; idNumber?: string; }
 
 export interface CreateRepresentationInput {
   name: string;
@@ -124,6 +127,7 @@ export default function RepresentationOnboardingDialog({
   const [spouseName, setSpouseName] = useState(initialSpouseName ?? '');
   const [spouseIdNumber, setSpouseIdNumber] = useState(initialSpouseIdNumber ?? '');
   const [spouseEmail, setSpouseEmail] = useState('');
+  const [spousePhone, setSpousePhone] = useState('');
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
   // ‼ עובדה נפרדת לגמרי ממצב משפחתי (155) — ראה showTargets. לא לגזור
   // "יש עסק" מ"נשוי/אה"; מע"מ/ניכויים הם תיק אישי, לא נגזר מנישואין.
@@ -291,6 +295,10 @@ export default function RepresentationOnboardingDialog({
       return 'תעודת הזהות של בן/בת הזוג אינה תקינה';
     }
     if (married && spouseEmail.trim() && !isValidEmail(spouseEmail)) return 'כתובת אימייל של בן/בת הזוג לא תקינה';
+    // ‼ אימות צורה בלבד, ולא חובה: מה שלא ידוע עכשיו יושלם בכרטיס אחר כך.
+    if (married && spousePhone.trim() && spousePhone.replace(/D/g, '').length < 9) {
+      return 'מספר הטלפון של בן/בת הזוג נראה קצר מדי';
+    }
     // ‼ פרטי בן/בת הזוג אינם חוסמים שליחה (הכרעה 2026-08-17): מה שהרו"ח לא
     // יודע — הלקוח ממלא בעצמו בקישור, כולל ארבעת שדות ייפוי הכוח בב"ל.
     // רק ערך שהוזן בפועל נבדק שהוא תקין.
@@ -333,6 +341,8 @@ export default function RepresentationOnboardingDialog({
     if (married && spouseName.trim()) prefill.spouseName = spouseName.trim();
     if (married && spouseIdNumber.trim()) prefill.spouseIdNumber = spouseIdNumber.trim();
     if (married && spouseBirthYear.trim()) prefill.spouseBirthYear = Number(spouseBirthYear);
+    // ‼ מה שהרו"ח מילא כאן לא יישאל שוב מהלקוח — כולל הטלפון.
+    if (married && spousePhone.trim()) prefill.spousePhone = spousePhone.trim();
     if (married && spouseHasBusiness) prefill.spouseHasBusiness = true;
     // ‼ נשלח רק כשהוא באמת נגזר ממשהו: זוג נשוי עם שם, וייצוג במ"ה. אחרת אין
     // תיק משפחתי להצביע עליו, ושליחת 'client' הייתה נראית כהכרעה שלא נעשתה.
@@ -346,6 +356,7 @@ export default function RepresentationOnboardingDialog({
       ? {
           name: spouseName.trim(),
           email: spouseEmail.trim(),
+          phone: spousePhone.trim() || undefined,
           idNumber: spouseIdNumber.trim() || undefined,
         }
       : null;
@@ -915,9 +926,21 @@ export default function RepresentationOnboardingDialog({
                       <label>אימייל של בן/בת הזוג</label>
                       <EmailInput value={spouseEmail} onChange={e => setSpouseEmail(e.target.value)} placeholder="spouse@example.com" disabled={busy} />
                     </div>
+                    <div className="form-group">
+                      {/* ‼ שע״ם מבקשת אותו במסך פרטי ההתקשרות של בקשת הייצוג.
+                          לא חובה כאן — אבל בלעדיו האוטומציה תעצור ותבקש אותו,
+                          ולעולם לא תשלים מספר בעצמה. */}
+                      <label>טלפון של בן/בת הזוג</label>
+                      <input
+                        type="tel" dir="ltr" value={spousePhone}
+                        onChange={e => setSpousePhone(e.target.value)}
+                        placeholder="050-0000000" disabled={busy}
+                      />
+                    </div>
                   </div>
                   <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.35rem', lineHeight: 1.5 }}>
                     גם אלה לא חובה. בלי מייל - הלקוח יבחר בשלב החתימה אם לחתום יחד או לשלוח קישור אישי.
+                    הטלפון נדרש בבקשת הייצוג בשע״ם; אפשר להשלים אותו בכרטיס בכל שלב.
                   </div>
 
                   {/* ‼ נשאל כאן ולא מאוחר יותר (הכרעת גיא 2026-08-20), אבל

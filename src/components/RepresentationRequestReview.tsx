@@ -63,6 +63,8 @@ interface Props {
   steps?: OnboardingStep[];
   onStepsChanged?: () => void;
   onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  /** 194 · מסמכי החתימה אחרי שטופס 2279 הובא משע״ם — ראה מרכז הביצוע. */
+  onAttachShaamForms?: (docs: RepSignatureDocument[]) => Promise<void>;
 }
 
 const REP_TYPE_OPTIONS = [
@@ -90,6 +92,7 @@ export default function RepresentationRequestReview({
   steps,
   onStepsChanged,
   onUpdateClientFields,
+  onAttachShaamForms,
 }: Props) {
   const db = useDocumentDB();
   const { user } = useAuth();
@@ -854,6 +857,7 @@ export default function RepresentationRequestReview({
               steps={steps}
               onStepsChanged={onStepsChanged}
               onUpdateClientFields={onUpdateClientFields}
+              onAttachShaamForms={onAttachShaamForms}
             />
 
             {request.status === 'pending_signature' && setup && (
