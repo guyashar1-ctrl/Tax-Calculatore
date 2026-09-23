@@ -1,3 +1,11 @@
+// ‼ ייבוא-טיפוס בלבד (נמחק בקומפילציה) — כדי שמודל האינטגרציה מול שע״ם
+// יחיה במקום אחד (`features/representation/shaamRepresentation.ts`) ובכל
+// זאת יהיה חלק מ-`RepresentationExecution`, בלי מעגל ריצה.
+import type { ShaamRequestTracking } from '../features/representation/shaamRepresentation';
+
+/** כינוי מקומי, כדי ש-`RepresentationExecution` יקרא כמו שאר הקובץ. */
+export type ShaamRequestTrackingShape = ShaamRequestTracking;
+
 // ─── סיווגי מס ──────────────────────────────────────────────────────────────
 
 /** סיווג לצורכי מס הכנסה */
@@ -1055,6 +1063,12 @@ export interface OnboardingIdentification {
   familyStatus?: FamilyStatus;
   familyStatusYear?: number;    // שנת נישואין / גירושין ברבנות / פטירה, לפי המצב
   spouseEmail?: string;         // לשליחת בקשת חתימה נפרדת לבן/בת הזוג
+  /**
+   * טלפון בן/בת הזוג (194). ‼ פרט קשר קבוע — נשמר גם בכרטיס
+   * (`Client.spousePhone`), ומשם נקרא כשבקשת הייצוג בשע״ם מבקשת אותו
+   * במסך «פרטי התקשרות». לעולם לא נגזר מהטלפון של הנישום/ת.
+   */
+  spousePhone?: string;
   spouseIdNumber?: string;
   // שם בן/בת הזוג מפוצל + שנת לידה — ארבעת שדות ייפוי הכוח בב"ל, שהלקוח
   // ממלא בעצמו בקליטה (110). spouseName נשאר כשרשור לתאימות לאחור.
@@ -1092,7 +1106,7 @@ export interface OnboardingDraft {
   values?: Partial<Pick<OnboardingIdentification,
     'firstName' | 'lastName' | 'idNumber' | 'birthDate' | 'secondaryType' | 'secondaryValue'
     | 'phone' | 'email' | 'city' | 'address' | 'familyStatus' | 'familyStatusYear'
-    | 'spouseFirstName' | 'spouseLastName' | 'spouseIdNumber' | 'spouseBirthYear'
+    | 'spouseFirstName' | 'spouseLastName' | 'spouseIdNumber' | 'spouseBirthYear' | 'spousePhone'
     | 'spouseBirthDate' | 'spouseSecondaryType' | 'spouseSecondaryValue'>>;
 }
 
@@ -1179,6 +1193,18 @@ export interface RepresentationExecution {
    * הזאת מציגה בדיוק את מה שהציגה קודם.
    */
   shaamEntries?: Record<string, { enteredAt?: string }>;
+  /**
+   * מצב האינטגרציה מול שע״ם, לפי אותו מפתח הגשה (`person:client`).
+   *
+   * ‼ נפרד מ-`shaamEntries` בכוונה: שם נשמר **סימון ידני** של הרו"ח
+   * ("הזנתי"), וכאן נשמרות **עובדות שחזרו מהרשות** — מספר הבקשה, הטופס
+   * שהורד, אישור השידור והמצב שנקרא. שני דברים שונים, ולכן שני מקומות:
+   * סימון ידני לעולם אינו מתחזה לראיה חיצונית, וראיה חיצונית לא נמחקת
+   * כשמבטלים סימון.
+   * ‼ המבנה המלא: `features/representation/shaamRepresentation.ts`
+   * (`ShaamRequestTracking`). נכתב **רק** בטריגר בשרת (194).
+   */
+  shaam?: Record<string, ShaamRequestTrackingShape>;
   /** ב"ל של הנישום עצמו */
   nationalInsurance?: NiTracking;
   /** ב"ל של בן/בת הזוג — קיים רק כשנלקח ייצוג ב"ל גם עבורו/ה */
@@ -1215,6 +1241,8 @@ export interface OnboardingPrefill {
   familyStatusYear?: number;
   spouseName?: string;
   spouseIdNumber?: string;
+  /** טלפון בן/בת הזוג שהרו"ח הזין בפתיחת הבקשה (194). */
+  spousePhone?: string;
   /** טופס "הוספת ייפוי כח מבוטח" בב"ל דורש שנת לידה. לא חובה אצל הרו"ח —
       מה שחסר, הלקוח משלים בקישור (110). */
   spouseBirthYear?: number;

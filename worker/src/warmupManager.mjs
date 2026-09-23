@@ -104,6 +104,36 @@ async function ensureNikui(page) {
 }
 
 /**
+ * ‼ 23.09.2026 · הדגל של isShaamLifecycleEstablished הוא זיכרון **תוך-תהליכי**
+ * (משתנה מודול, לא DB) — תהליך worker שהופעל מחדש (או עותק מבודד שרץ
+ * במקביל לזה שראה בפועל את ההתחברות) לא "זוכר" ש-GMF כבר אומתה שם. בלי
+ * הבדיקה הזאת, כל תהליך חדש היה נכנס ל-bootstrap_required תמיד — גם כשה-
+ * סשן האמיתי (Chrome, אותו פרופיל) עדיין חי לגמרי, מה שהיה כופה מסך אדם
+ * מיותר. הפתרון: כשהדגל כבוי — למדוד את GMF **בפועל**, לא לנחש שהוא כבוי.
+ *
+ * ‼ בלשונית **נפרדת**, לא ב-`page` שהקורא מעביר: אם GMF כבר מחוברת (המצב
+ * הצפוי, כי הרו"ח לא נדרש להתחברות ראשית מחדש) — הבדיקה נוחתת ישר על
+ * התפריט שלה, בלי מסך כניסה ובלי לחיצה. אם לא — `ensureGmf` מטפלת בה לפי
+ * אותו כלל בדיוק (המתנה למילוי + אישור יחיד). בשני המקרים הלשונית של
+ * מערכת הייצוג (`page`) לא זזה, כדי לא לחטוף אותה מתחת לרו"ח.
+ */
+async function refreshLifecycleIfStale(page) {
+  if (isShaamLifecycleEstablished()) return;
+  let scratch = null;
+  try {
+    scratch = await page.context().newPage();
+  } catch {
+    return; // אין דרך למדוד בלי לשונית — הקורא ימשיך לראות "לא מבוסס"
+  }
+  try {
+    await ensureGmf(scratch);
+  } catch { /* מדידה שנכשלה — נשאר "לא מבוסס", לא זורקים */ }
+  finally {
+    await scratch.close().catch(() => {});
+  }
+}
+
+/**
  * ‼ שכבת הייצוג היא היחידה עם אישור אוטומטי: אם הטופס כבר מלא (Chrome),
  * מנסים לאשר פעם אחת. attemptRepresentationLoginConfirm לא קורא/מקליד
  * סיסמה בעצמו — רק בודק ולוחץ על כפתור מזוהה מבנית. תוצאה לא-חיובית לא
@@ -120,6 +150,9 @@ export async function ensureRepresentation(page) {
     // ‼ שער מחזור-החיים: אישור אוטומטי של סיסמה שמורה מותר רק אחרי ש-GMF
     // אומתה במחזור החיים הזה (ראה connectionMonitor.isShaamLifecycleEstablished).
     // במחזור חדש הרו"ח מקים את החיבור בעצמו קודם; הטופס לא נלחץ.
+    if (!isShaamLifecycleEstablished()) {
+      await refreshLifecycleIfStale(page);
+    }
     if (!isShaamLifecycleEstablished()) {
       return { state: 'human_required', reasonCode: 'bootstrap_required', evidenceKind: 'dom_state' };
     }

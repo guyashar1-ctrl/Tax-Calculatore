@@ -40,8 +40,18 @@ export async function createAutomationJob(
  * מבטלת משימה שאין מי שמחזיק אותה: queued, needs_human, או running שהחכירה
  * שלו פקעה (170). משימה חיה מוחזרת כ-not_cancellable.
  */
-export async function cancelAutomationJob(jobId: string): Promise<AutomationJobRpcResult> {
-  const { data, error } = await supabase.rpc('cancel_automation_job', { p_job_id: jobId });
+export async function cancelAutomationJob(
+  jobId: string,
+  /**
+   * 196: אישור מפורש לביטול פעולה שכבר **נגעה בשע״ם**. בלעדיו השרת דוחה —
+   * וזה בכוונה: «בטל-ואז-נסה-שוב» השקט היה הדרך שבה פנייה חיצונית שנייה
+   * נולדת בלי שאף אחד החליט. מועבר רק ממסך שהציג לרו"ח מה קרה ומה הסיכון.
+   */
+  acknowledgeExternal = false,
+): Promise<AutomationJobRpcResult> {
+  const { data, error } = await supabase.rpc('cancel_automation_job', {
+    p_job_id: jobId, p_acknowledge_external: acknowledgeExternal,
+  });
   if (error) return { ok: false, error: error.message };
   const r = data as { ok: boolean; error?: string; job?: Record<string, any> };
   if (!r.ok) return { ok: false, error: r.error };

@@ -57,6 +57,18 @@ export interface CapabilityEvidence {
 export interface JobProgress {
   capabilities?: Record<string, CapabilityEvidence>;
   challenges?: unknown[];
+  /**
+   * 196: **הסימן שהמשימה כבר נגעה במערכת חיצונית.** נכתב ע"י העובד
+   * מיד **לפני** האינטראקציה הראשונה, ולא אחריה — ולכן קריסה בדיוק שם
+   * משאירה אותו דלוק, וזה מה שמבדיל «נכשל לפני שנגענו» מ«לא ידוע אם נקלט».
+   * ‼ התשתית (claim_next_automation_job / cancel_automation_job) קוראת אותו
+   * כדי לסרב לניסיון חוזר אוטומטי על פעולה משנה.
+   */
+  externalAttempt?: { at: string; stage?: string };
+  /** השלב שהמשימה הגיעה אליו, לאבחון. */
+  stage?: string;
+  /** מזהה חיצוני שנתפס תוך כדי, כדי שלא יאבד בקריסה. */
+  requestNumber?: string;
 }
 
 /** מצבים "פתוחים" — עוד לא הגיעו לתוצאה סופית. */
@@ -161,6 +173,30 @@ export const SHAAM_OPEN_CLIENT_FILE_ACTION_TYPE = 'shaam.open_client_file';
 export const SHAAM_SYNC_INCOME_TAX_ACTION_TYPE = 'shaam.sync_income_tax_file';
 /** 168: שחזור נקודתי — "הכן רק capability X", לא warm-up מלא. ראה פרק 16 §16.1. */
 export const SHAAM_ENSURE_CAPABILITY_ACTION_TYPE = 'shaam.ensure_capability';
+
+// ── מערכת רישום ייצוג בשע״ם — שלוש הפעולות של מחזור חיי הבקשה ───────────────
+// ‼ שלוש פעולות ולא אחת, כי הן נפרדות בזמן ובאחריות: הראשונה פותחת בקשה
+// ומביאה את הטופס, השנייה משדרת את הטופס **אחרי** שהוחתם אצלנו, והשלישית
+// רק קוראת מצב. ניסיון חוזר של כל אחת מהן מתחיל מאותה נקודה בדיוק (194).
+// ‼ המפתח לכל השלוש הוא `submissionKey` (`person:client`) — בשע״ם נכנסים
+// עם ת.ז. אחת, ולכן «הגשה» היא אדם ולא רשות.
+/**
+ * «הזן את הפרטים בשע״ם» — אימות ישות → בקשות ייפוי כוח → פרטי התקשרות,
+ * ואז הורדת טופס 2279 שנוצר ושמירתו בתיק הלקוח.
+ * ‼ input: `{ submissionKey, role, systems[], fileNumbers{}, person{}, ... }`.
+ * התוצאה נכתבת ל-`representation_requests.execution.shaam` בטריגר (194).
+ */
+export const SHAAM_CREATE_REPRESENTATION_ACTION_TYPE = 'shaam.create_representation';
+/**
+ * «שלח טופס חתום לשע״ם» — טעינת מסמכים → «טופס ייפוי כוח» → העלאה → המשך.
+ * ‼ `submittedAt` נכתב **רק** כשהמסך אישר קליטה. לחיצה אינה ראיה.
+ */
+export const SHAAM_SUBMIT_POA_ACTION_TYPE = 'shaam.submit_poa';
+/**
+ * «בדוק קבלת הייצוג» — קריאת «מצב בקשה» ו«מצב מערך» מרשימת הבקשות, לפי
+ * מספר הבקשה שנשמר. ‼ פעולה קוראת בלבד: אינה יוצרת, אינה משדרת.
+ */
+export const SHAAM_CHECK_REPRESENTATION_ACTION_TYPE = 'shaam.check_representation';
 
 /** 168: רשימת ברירת המחדל של warm-up — ניתנת להגדרה ב-profiles.settings.shaamWarmup. */
 export const SHAAM_WARMUP_CAPABILITIES = ['gmf', 'vat', 'nikui', 'representation'] as const;
