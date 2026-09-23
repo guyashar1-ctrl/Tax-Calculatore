@@ -205,7 +205,12 @@ export function niRepresentationOf(
     return { v: TAX_FILE_REP_STATUS_LABELS.active, tone: 'ok', represented: true, kind: 'active' };
   }
 
-  const track = person.role === 'spouse' ? niExecution?.spouse : niExecution?.client;
+  // ‼ 200: אדם שהוסר מהייצוג (יצא מ-targets) שומר את מסלול הביצוע כהיסטוריה —
+  // אסמכתא שנשארה שם אינה «בתהליך». רק אישור שכבר התקבל עדיין נחשב.
+  const rawTrack = person.role === 'spouse' ? niExecution?.spouse : niExecution?.client;
+  const dropped = !!card.authorityRepresentations?.nationalInsurance
+    && !targetsOf(card.authorityRepresentations, 'nationalInsurance').includes(owner);
+  const track = dropped && !rawTrack?.confirmedAt ? undefined : rawTrack;
   if (track?.confirmedAt) {
     return { v: TAX_FILE_REP_STATUS_LABELS.active, tone: 'ok', represented: true, kind: 'active' };
   }

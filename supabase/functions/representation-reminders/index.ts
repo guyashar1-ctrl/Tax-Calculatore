@@ -221,8 +221,15 @@ Deno.serve(async (req: Request) => {
         if (daysSince(since, now) < cfg.afterDays) { skippedNotDue++; continue; }
         if (!req.linked_client_id) continue;
         const { data: client } = await admin.from("clients")
-          .select("id,email,spouse_email,first_name,spouse_first_name,spouse_name").eq("id", req.linked_client_id).maybeSingle();
+          .select("id,email,spouse_email,first_name,spouse_first_name,spouse_name,authority_representations").eq("id", req.linked_client_id).maybeSingle();
         if (!client) continue;
+        // ‼ 200: מי שהוסר/ה מהייצוג בב"ל שומר/ת את מסלול הביצוע (אסמכתא, הוראות)
+        // כהיסטוריה — ולכן המסלול לבדו אינו אומר «עדיין מבקשים». targets כן.
+        // אותו נרמול כמו targetsOf() ב-src/utils/repScope.ts.
+        const niRec = client.authority_representations?.nationalInsurance;
+        const niTargets: string[] = Array.isArray(niRec?.targets) && niRec.targets.length
+          ? niRec.targets : niRec?.coversSpouse ? ["client", "spouse"] : ["client"];
+        if (!niTargets.includes(role)) continue;
         // ‼ הנמען נגזר מהכרטיס, לעולם לא מ-request.client_email — כלל §9.
         // audience ('niClient'/'niSpouse') ו-role ('client'/'spouse') נגזרים
         // מאותו לולאה-אב ואינם יכולים להתפצל — אין נתיב שבו נמען של אדם אחד

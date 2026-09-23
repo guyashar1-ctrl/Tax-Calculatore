@@ -35,6 +35,7 @@ import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
 import InfoLines from './ui/InfoLines';
 import NiNextActionButton from './NiNextActionButton';
+import NiDropSubjectButton from './NiDropSubjectButton';
 import { niPersons, niRepresentationOf, niRepresentationAction, niExternalEvidence } from '../utils/niPersons';
 import { shaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
 import type { ShaamActionKind } from '../features/taxFile/shaamRepresentationAction';
@@ -658,11 +659,21 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     const line = niRepresentationOf(person, linkedClient, undefined, niExecutionByRole);
     return niRepresentationAction(person, linkedClient, line, niExecutionByRole[role]);
   };
+  // ‼ 200: «הסר מהבקשה» רק כששני האנשים בב"ל — הסרת האחרון אינה הסרה (השרת דוחה).
   const niNextActionNode = (role: 'client' | 'spouse') => linkedClient ? (
-    <NiNextActionButton
-      client={linkedClient} role={role} action={niActionFor(role)} track={niExecutionByRole[role]}
-      onChanged={onStepsChanged} className="btn btn-sm" errorClassName="rep-track-next-err"
-    />
+    <>
+      <NiNextActionButton
+        client={linkedClient} role={role} action={niActionFor(role)} track={niExecutionByRole[role]}
+        onChanged={onStepsChanged} className="btn btn-sm" errorClassName="rep-track-next-err"
+      />
+      {niTargetsClient && niTargetsSpouse && (
+        <NiDropSubjectButton
+          clientId={linkedClient.id} role={role} track={niExecutionByRole[role]}
+          name={nameOf(role) || (role === 'spouse' ? 'בן/בת הזוג' : 'הנישום')}
+          onChanged={onStepsChanged}
+        />
+      )}
+    </>
   ) : null;
 
   // ── שע״ם: הפעולה ההקשרית, לכל הגשה בנפרד (194) ──────────────────────────
