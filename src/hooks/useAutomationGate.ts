@@ -60,6 +60,8 @@ export interface AutomationGate {
   blockedReason: string | null;
   /** ההתחברות נפתחה מהכפתור הזה ואנחנו ממתינים שתושלם כדי להריץ. */
   connecting: boolean;
+  /** שע״ם מחוברת; רק מערכת-המשנה לא נבדקה עדיין — הלחיצה תפתח אותה ותמשיך. */
+  unverified: boolean;
   /** אין עובד — לחיצה לא יכולה לפתוח חלון, רק להסביר. */
   workerOffline: boolean;
   /** מריץ אם מוכן; אחרת פותח התחברות ומריץ לבד כשתהיה מוכנה. */
@@ -112,5 +114,5 @@ export function useAutomationGate(capability: string): AutomationGate {
     });
   }, [cap.ready, cap.blockedReason, cap.missingLayer, capability, readiness, showToast]);
 
-  return { ready: cap.ready, blockedReason: cap.blockedReason, connecting, workerOffline: readiness.workerOffline, runOrConnect };
+  return { ready: cap.ready, blockedReason: cap.blockedReason, connecting, unverified: !!cap.unverified, workerOffline: readiness.workerOffline, runOrConnect };
 }

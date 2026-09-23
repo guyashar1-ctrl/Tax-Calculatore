@@ -56,6 +56,19 @@ const freshLayer = (layer?: { ready: boolean; checkedAt?: string }): boolean => 
   return Date.now() - new Date(layer.checkedAt).getTime() < SUBSYSTEM_STALE_AFTER_MS;
 };
 
+/**
+ * ‼ 23.09.2026 · שכבה ש**לא נבדקה** (checkedAt חסר או 1970) אינה «לא מוכנה».
+ * מערכת רישום הייצוג נבדקת בעצלות — רק כשיש לה עבודה או כשהחלון עומד עליה —
+ * ואחרי כל הפעלה מחדש של העובד היא חוזרת ל-checkedAt=1970. הכפתור נראה אז
+ * «מנותק» (ורוד בהיר) אף ששע״ם מחוברת. «לא נבדקה» מול «נבדקה ואינה מוכנה»
+ * הם שני דברים; רק השני הוא מצב מנותק.
+ */
+export const layerNeverChecked = (layer?: { ready: boolean; checkedAt?: string }): boolean => {
+  if (!layer?.checkedAt) return true;
+  const t = new Date(layer.checkedAt).getTime();
+  return Number.isNaN(t) || t < Date.UTC(2000, 0, 1);
+};
+
 /** שכבות שע״ם שהעובד מדווח עליהן. */
 export type ShaamLayer = 'portal' | 'gmf' | 'vat' | 'nikui' | 'representation';
 
@@ -143,6 +156,11 @@ export interface ShaamCapability {
    * (shaam.ensure_capability) בלי לנחש איזו capability לשלוח.
    */
   missingLayer?: ReadinessLayer;
+  /**
+   * השכבה החסרה מעולם לא נבדקה, והפורטל מחובר ומאותחל. הפעולה תפתח אותה
+   * (shaam.ensure_capability) ותמשיך — ולכן הכפתור נראה פעיל, לא «מנותק».
+   */
+  unverified?: boolean;
 }
 
 export interface ShaamReadiness {
@@ -319,9 +337,10 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
       const needed = SHAAM_CAPABILITIES[name];
       if (!needed) return { ready: false, blockedReason: UNKNOWN_REASON };
       const missing = needed.find(l => !LAYER_OK[l]);
-      return missing
-        ? { ready: false, blockedReason: LAYER_REASON[missing], missingLayer: missing }
-        : { ready: true, blockedReason: null };
+      if (!missing) return { ready: true, blockedReason: null };
+      const sub = missing === 'gmf' || missing === 'vat' || missing === 'nikui' || missing === 'representation';
+      const unverified = sub && shaam && bootstrapped && layerNeverChecked(status[missing]);
+      return { ready: false, blockedReason: LAYER_REASON[missing], missingLayer: missing, unverified };
     }
 
     return { ready, workerOffline, status, blockedReason, capability, selectedLayers: warmupLayers, warmupSummary, refresh };

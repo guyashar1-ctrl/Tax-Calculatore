@@ -29,6 +29,7 @@ import { signatureDocumentsOf } from '../utils/repDocuments';
 import { shaamStopState } from '../features/representation/shaamJobSafety';
 import { spouseSignatureProof } from '../features/representation/shaamSpouseConfirmation';
 import ShaamStopNotice from './ShaamStopNotice';
+import ConfirmDialog from './ui/ConfirmDialog';
 
 interface Props {
   request: RepresentationRequest;
@@ -202,7 +203,9 @@ export default function ShaamNextActionButton({
   // ‼ מצב העצירה נגזר במקום אחד (shaamJobSafety) ולא מנוסח כאן — אחרת כל
   // מסך היה ממציא ניסוח משלו, ו«לא ידוע אם נקלט» היה נראה ככישלון רגיל.
   const stop = shaamStopState(job);
-  const soft = !busy && !running && !gate.ready && !action.disabled && !missingData;
+  // ‼ «רך» (ורוד בהיר) = באמת לא מחובר. מערכת-משנה שרק לא נבדקה עדיין
+  // (שע״ם מחוברת) אינה «לא מחובר» — הלחיצה פותחת אותה וממשיכה.
+  const soft = !busy && !running && !gate.ready && !gate.unverified && !action.disabled && !missingData;
   const title = action.disabled ? action.reason
     : missingData ? missingData
     : soft ? `${gate.blockedReason ?? 'לא מחובר'}${gate.workerOffline ? '' : ' · לחיצה פותחת את ההתחברות'}`
@@ -245,11 +248,32 @@ export default function ShaamNextActionButton({
           stop={stop}
           workerMessage={job?.needsHuman ?? undefined}
           className={errorClassName}
-          confirming={confirmRetry}
           busy={busy}
+          confirming={false}
           onAskConfirm={() => setConfirmRetry(true)}
           onCancelConfirm={() => setConfirmRetry(false)}
           onConfirmRetry={() => gate.runOrConnect(() => void run(true))}
+        />
+      )}
+
+      {/* ‼ 23.09.2026 · האישור היה שורת טקסט קטנה בתוך הודעת העצירה, ובעמוד
+          יש שני מופעים של הכפתור — הרו"ח לחץ וראה «כלום». עכשיו: דיאלוג.
+          הפתיחה אינה פועלת מול שום דבר; רק «כן, נסה שוב» היא ההרשאה. */}
+      {stop && confirmRetry && (
+        <ConfirmDialog
+          title="ניסיון חדש מול שע״ם"
+          tone="normal"
+          confirmLabel="כן, נסה שוב"
+          cancelLabel="ביטול"
+          message={
+            <>
+              <div>{stop.title}.</div>
+              {stop.mayHaveActed && <div>ייתכן שהניסיון הקודם כבר התקבל בשע״ם, ולכן ניסיון נוסף עלול ליצור כפילות.</div>}
+              <div>אישור יסגור את הניסיון הקודם (הוא יישאר בהיסטוריה) ויפתח ניסיון חדש אחד בעובד המקומי.</div>
+            </>
+          }
+          onCancel={() => setConfirmRetry(false)}
+          onConfirm={() => { setConfirmRetry(false); gate.runOrConnect(() => void run(true)); }}
         />
       )}
 
