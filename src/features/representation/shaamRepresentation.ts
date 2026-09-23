@@ -366,6 +366,26 @@ export function shaamRequestExists(t: ShaamRequestTracking | undefined): boolean
   return !!t?.requestNumber || (t?.systems?.length ?? 0) > 0;
 }
 
+/**
+ * השורות שנשמרו מתארות **בקשה אחת** — התנאי לשידור בלי מספר בקשה.
+ *
+ * ‼ אותו כלל כמו singleAttributedRequest בעובד (שם הוא נאכף שוב, חי, לפני
+ * כל העלאה): אותו יום הזנה, אותו מצב בקשה, ואף מערך לא פעמיים. מערך כפול
+ * פירושו שתי בקשות פתוחות לאותו אדם — ואז אין «הבקשה» לשדר אליה.
+ */
+export function shaamRowsFormOneRequest(t: ShaamRequestTracking | undefined): boolean {
+  const rows = t?.systems ?? [];
+  if (rows.length === 0) return false;
+  const clean = (v: string | undefined) => (v ?? '').replace(/\s+/g, ' ').trim();
+  const numbers = new Set(rows.map(r => (r.requestNumber ?? '').replace(/\D/g, '')).filter(Boolean));
+  if (numbers.size > 1) return false;
+  const dates = new Set(rows.map(r => clean(r.enteredAt)));
+  if (dates.size !== 1 || dates.has('')) return false;
+  if (new Set(rows.map(r => clean(r.rawRequestState))).size !== 1) return false;
+  const systems = rows.map(r => clean(r.systemLabel));
+  return systems.every(Boolean) && new Set(systems).size === systems.length;
+}
+
 export function shaamStageOf(t: ShaamRequestTracking | undefined): ShaamIntegrationStage {
   if (!t) return 'none';
   if (allSystemsAccepted(t)) return 'active';

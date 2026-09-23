@@ -139,17 +139,24 @@ export default function ShaamNextActionButton({
         setLocalError('הטופס החתום של ההגשה הזאת עדיין לא נשמר — אין מה לשדר.');
         return;
       }
-      if (!tracking?.requestNumber) {
-        setLocalError('לא נשמר מספר בקשה בשע״ם להגשה הזאת — אי אפשר לאתר את הבקשה הנכונה.');
+      // ‼ מספר בקשה אינו תנאי: כשהוא לא מוצג ברשימה, העובד מאתר את הבקשה
+      // לפי ישות + שם ועוצר לפני העלאה אם הייחוס אינו חד-משמעי.
+      if (!shaamRequestExists(tracking)) {
+        setLocalError('הבקשה בשע״ם טרם נמצאה — הריצו קודם «בדוק קבלת הייצוג».');
+        return;
+      }
+      if (!tracking?.requestNumber && !person.idNumber.replace(/\D/g, '')) {
+        setLocalError('אין תעודת זהות תקינה לאדם הזה בכרטיס — אי אפשר לאתר את הבקשה בשע״ם.');
         return;
       }
       await hook.run({
         submissionKey: submission.key,
         role: submission.target,
-        requestNumber: tracking.requestNumber,
+        requestNumber: tracking?.requestNumber ?? '',
         entityId: person.idNumber.replace(/\D/g, ''),
+        personName: person.name,
         signedDocumentId: doc.signedPdfStoredId,
-        alreadySubmittedAt: tracking.submittedAt ?? null,
+        alreadySubmittedAt: tracking?.submittedAt ?? null,
       }, { acknowledgeExternal });
       return;
     }

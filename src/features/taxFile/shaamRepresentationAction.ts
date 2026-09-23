@@ -7,7 +7,7 @@
 
 import type { RepresentationStatus } from '../../types';
 import type { ShaamRequestTracking } from '../representation/shaamRepresentation';
-import { allSystemsAccepted, shaamRequestExists } from '../representation/shaamRepresentation';
+import { allSystemsAccepted, shaamRequestExists, shaamRowsFormOneRequest } from '../representation/shaamRepresentation';
 import {
   SHAAM_CREATE_REPRESENTATION_ACTION_TYPE,
   SHAAM_SUBMIT_POA_ACTION_TYPE,
@@ -79,16 +79,26 @@ export function shaamRepresentationAction(
   // ‼ «בדוק» מצא את הבקשה בשע״ם (שורות משויכות) אבל מספר הבקשה לא נחשף
   // ב-DOM — המקרה האמיתי של הדסה סלע (23.09.2026). הבקשה **קיימת**, ולכן
   // לעולם לא «צור»: זו הייתה פותחת אימות ישות חוזר מול שע״ם על בקשה פתוחה.
+  // ‼ השידור לא דורש מספר בקשה: העובד מאתר אותה לפי ישות + שם, ועוצר לפני
+  // העלאה אם הייחוס אינו חד-משמעי (singleAttributedRequest, openedScreenMatches).
+  // כאן חוסמים רק את מה שכבר ידוע כדו-משמעי מהבדיקה האחרונה.
   if (shaamRequestExists(tracking)) {
-    if (stamped) {
+    const submit = { kind: 'submit' as const, label: 'שלח טופס חתום לשע״ם', actionType: SHAAM_SUBMIT_POA_ACTION_TYPE };
+    if (!shaamRowsFormOneRequest(tracking)) {
       return {
-        kind: 'submit', label: 'שלח טופס חתום לשע״ם', actionType: SHAAM_SUBMIT_POA_ACTION_TYPE,
-        disabled: true,
-        reason: 'מספר הבקשה בשע״ם לא נקרא מרשימת הבקשות, ולכן אי אפשר לאתר אותה לשידור אוטומטי. '
-          + 'שדרו את הטופס החתום ידנית בשע״ם, ואז «בדוק קבלת הייצוג».',
+        ...submit, disabled: true,
+        reason: 'בבדיקה האחרונה בשע״ם נמצאו שורות שאינן בקשה אחת (תאריכים/מצבים שונים או מערך כפול) — '
+          + 'אי אפשר לקבוע לאיזו בקשה לשדר, ולכן לא משדרים. בדקו בשע״ם את הבקשות הפתוחות של האדם הזה.',
       };
     }
-    return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
+    if (stamped) return submit;
+    if (status === 'awaiting_authorities') {
+      return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
+    }
+    return {
+      ...submit, disabled: true,
+      reason: 'הטופס טרם נחתם בידי כל החותמים והוחתם בחותמת המשרד — אי אפשר לשדר לשע״ם.',
+    };
   }
   if (!tracking?.syncedAt) {
     return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };

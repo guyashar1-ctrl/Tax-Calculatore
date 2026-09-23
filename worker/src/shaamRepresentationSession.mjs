@@ -829,7 +829,7 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
   const rows = await page.evaluate(({ columns, requestNumber }) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const tables = [...document.querySelectorAll('table')];
-    for (const table of tables) {
+    for (const [tableIndex, table] of tables.entries()) {
       // ‼ 23.09.2026 · נכשל בפועל: הטבלה האמיתית (Kendo grid) איחדה שתי
       // שורות שונות תחת `tr:first-child` — שורת הכותרת (ראשונה ב-thead)
       // **וגם** השורה הראשונה בגוף הטבלה (ראשונה ב-tbody), כי כל אחת היא
@@ -849,10 +849,10 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
 
       const out = [];
       let currentRow = null;
-      for (const tr of [...table.querySelectorAll('tbody tr, tr')]) {
+      for (const [trIndex, tr] of [...table.querySelectorAll('tbody tr, tr')].entries()) {
         const cells = [...tr.querySelectorAll('td')].map((c) => clean(c.textContent));
         if (cells.length >= headCells.length - 1 && cells.length > 3) {
-          currentRow = {};
+          currentRow = { tableIndex, trIndex };
           for (const [key, i] of Object.entries(index)) currentRow[key] = cells[i] ?? '';
           currentRow.detail = {};
           out.push(currentRow);
@@ -890,38 +890,115 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
 }
 
 /**
- * פותח בקשה קיימת בשלב «טעינת מסמכים», לפי מספר בקשה.
+ * השורות שיוחסו מתארות **בקשה אחת** — או שעוצרים.
  *
- * ‼ שני מסלולים, ושניהם מאמתים את מספר הבקשה לפני שממשיכים. בלי אימות
- * הזה, לחיצה על שורה שכנה הייתה משדרת טופס של לקוח אחר.
+ * ‼ 23.09.2026 · הבקשה של הדסה סלע נמצאה בשע״ם, אבל מספר הבקשה לא מוצג
+ * ברשימה. בלי מספר, «זו הבקשה» נשען על שלושה דברים יחד: השורות יוחסו לאדם
+ * (attributeRows, לפי שם), כולן מאותו יום הזנה ובאותו מצב בקשה, ואף מערך
+ * לא מופיע פעמיים. מערך כפול פירושו שתי בקשות פתוחות לאותו אדם — ואז
+ * לחיצה על «הראשונה» היא ניחוש. טהורה, כדי שתיבדק בלי דפדפן.
  */
-export async function openRequestForDocuments(page, { requestNumber, entityId }) {
-  const found = await findRequestRows(page, { requestNumber, entityId });
+export function singleAttributedRequest(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length === 0) return { ok: false, reason: 'request_not_found_in_list' };
+  const clean = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
+  const numbers = new Set(list.map((r) => String(r?.detail?.requestNumber ?? '').replace(/\D/g, '')).filter(Boolean));
+  if (numbers.size > 1) return { ok: false, reason: 'ambiguous_request', detail: 'השורות שייכות ליותר ממספר בקשה אחד' };
+  const dates = new Set(list.map((r) => clean(r.date)));
+  const states = new Set(list.map((r) => clean(r.requestState)));
+  if (dates.size !== 1 || [...dates][0] === '') {
+    return { ok: false, reason: 'ambiguous_request', detail: 'לשורות של האדם הזה תאריכי הזנה שונים (או חסרים)' };
+  }
+  if (states.size !== 1) return { ok: false, reason: 'ambiguous_request', detail: 'לשורות של האדם הזה מצבי בקשה שונים' };
+  const systems = list.map((r) => clean(r.system));
+  if (systems.some((x) => !x) || new Set(systems).size !== systems.length) {
+    return { ok: false, reason: 'ambiguous_request', detail: 'אותו מערך מופיע יותר מפעם אחת — ייתכן שיש שתי בקשות פתוחות' };
+  }
+  if (list.some((r) => !Number.isInteger(r.trIndex) || !Number.isInteger(r.tableIndex))) {
+    return { ok: false, reason: 'ambiguous_request', detail: 'מיקום השורה בטבלה לא נקרא' };
+  }
+  return { ok: true, row: list[0], requestNumber: [...numbers][0] ?? null };
+}
+
+/**
+ * המסך שנפתח שייך לאדם שלנו? נבדק **אחרי** הפתיחה ו**לפני** כל העלאה.
+ * ‼ ראיה חיובית בלבד: הת.ז. של הישות, או שם הלקוח המלא, מופיעים במסך.
+ * «לא סותר» אינו מספיק — מסך שלא מראה אף אחד מהשניים עוצר.
+ */
+export function openedScreenMatches(bodyText, { entityId, expectedClientName }) {
+  const text = String(bodyText ?? '').replace(/\s+/g, ' ');
+  const id = String(entityId ?? '').replace(/\D/g, '');
+  if (id) {
+    const bare = id.replace(/^0+/, '');
+    const digits = text.match(/\d{5,9}/g) ?? [];
+    if (digits.some((d) => d === id || (bare && d.replace(/^0+/, '') === bare))) return true;
+  }
+  return !!expectedClientName && nameMatches(text, expectedClientName);
+}
+
+/**
+ * פותח בקשה קיימת בשלב «טעינת מסמכים».
+ *
+ * ‼ שני מסלולים לאיתור, ושניהם נעצרים לפני העלאה אם הזהות אינה מבוססת:
+ *   · יש מספר בקשה — השורה שמכילה אותו, והמספר במסך שנפתח חייב להתאים.
+ *   · אין מספר (הוא לא מוצג ברשימה) — חיפוש לפי ישות, ייחוס לפי שם,
+ *     singleAttributedRequest, לחיצה על **אותה שורה בדיוק** (לפי מיקומה),
+ *     ואז openedScreenMatches על המסך שנפתח.
+ * כל זה ניווט בלבד. שום דבר לא נטען לשע״ם בפונקציה הזאת.
+ */
+export async function openRequestForDocuments(page, { requestNumber, entityId, expectedClientName }) {
+  const want = String(requestNumber ?? '').replace(/\D/g, '');
+  if (!want && !(entityId && expectedClientName)) {
+    return { ok: false, reason: 'cannot_attribute', detail: 'אין מספר בקשה, ואין ישות ושם לייחוס', step: 'resume' };
+  }
+  const found = await findRequestRows(page, { requestNumber: want, entityId, expectedClientName });
   if (!found.ok) return found;
   if (found.rows.length === 0) return { ok: false, reason: 'request_not_found_in_list', step: 'resume' };
 
-  const clicked = await page.evaluate((requestNumber) => {
+  let target = null;
+  if (!want) {
+    const single = singleAttributedRequest(found.rows);
+    if (!single.ok) return { ...single, step: 'resume' };
+    target = { tableIndex: single.row.tableIndex, trIndex: single.row.trIndex };
+  }
+
+  const clicked = await page.evaluate(({ requestNumber, target }) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const isResume = (e) => /טעינ|מסמכ|המשך|עדכון/.test(clean(e.getAttribute?.('title') || e.getAttribute?.('alt') || e.textContent || ''));
+    if (target) {
+      const table = document.querySelectorAll('table')[target.tableIndex];
+      const tr = table ? [...table.querySelectorAll('tbody tr, tr')][target.trIndex] : null;
+      if (!tr) return { ok: false, reason: 'target_row_gone' };
+      const control = [...tr.querySelectorAll('a, button, input[type=button], img')].find(isResume);
+      if (!control) return { ok: false, reason: 'resume_control_not_found' };
+      control.click();
+      return { ok: true, via: 'attributed_row' };
+    }
     for (const tr of [...document.querySelectorAll('tr')]) {
       const text = clean(tr.textContent);
       if (!text) continue;
       const sibling = tr.nextElementSibling ? clean(tr.nextElementSibling.textContent) : '';
       if (!text.includes(requestNumber) && !sibling.includes(requestNumber)) continue;
-      const control = [...tr.querySelectorAll('a, button, input[type=button], img')]
-        .find((e) => /טעינ|מסמכ|המשך|עדכון/.test(clean(e.getAttribute?.('title') || e.getAttribute?.('alt') || e.textContent || '')));
+      const control = [...tr.querySelectorAll('a, button, input[type=button], img')].find(isResume);
       if (control) { control.click(); return { ok: true, via: 'row_action' }; }
     }
     return { ok: false, reason: 'resume_control_not_found' };
-  }, requestNumber);
+  }, { requestNumber: want, target });
 
   if (!clicked.ok) return { ...clicked, step: 'resume' };
   await settle(page, { idleMs: 20000 });
 
   const step = await currentWizardStep(page);
   const onScreenNumber = await readRequestNumber(page);
-  if (onScreenNumber && onScreenNumber !== requestNumber) {
+  if (want && onScreenNumber && onScreenNumber !== want) {
     return { ok: false, reason: 'opened_wrong_request', detail: onScreenNumber, step: 'resume' };
   }
   if (step !== 4) return { ok: false, reason: 'did_not_reach_documents_step', detail: `שלב נוכחי: ${step}`, step: 'resume' };
-  return { ok: true };
+  if (!want) {
+    const body = await page.evaluate(() => document.body.innerText || '');
+    if (!openedScreenMatches(body, { entityId, expectedClientName })) {
+      return { ok: false, reason: 'cannot_verify_opened_request', step: 'resume' };
+    }
+  }
+  return { ok: true, requestNumber: want || onScreenNumber || null };
 }

@@ -1,6 +1,7 @@
-// shaamSubmitPoa.mjs — «שלח טופס חתום לשע״ם»: מאתר את הבקשה לפי מספר
-// הבקשה שנשמר, נכנס לשלב «טעינת מסמכים», מעלה את טופס ייפוי הכוח החתום
-// וממשיך — ורק אחרי שהמסך הציג ראיה לקליטה, מדווח שהוגש.
+// shaamSubmitPoa.mjs — «שלח טופס חתום לשע״ם»: מאתר את הבקשה (לפי מספר
+// הבקשה, או — כשהמספר לא מוצג ברשימה — לפי ישות + שם, בייחוס חד-משמעי),
+// נכנס לשלב «טעינת מסמכים», מעלה את טופס ייפוי הכוח החתום וממשיך — ורק
+// אחרי שהמסך הציג ראיה לקליטה, מדווח שהוגש.
 //
 // ‼ הכלל היחיד שאסור לפספס כאן: **«נשלח לשע״ם» אינו לחיצה.** הפעולה
 // מחזירה `submitted: true` אך ורק כשהשורה מציגה את הקובץ והאשף התקדם
@@ -38,14 +39,17 @@ export async function run(ctx, input) {
   const requestNumber = String(input?.requestNumber ?? '').replace(/\D/g, '');
   const entityId = String(input?.entityId ?? '').replace(/\D/g, '');
   const documentId = String(input?.signedDocumentId ?? '');
+  const personName = String(input?.personName ?? '').trim();
 
   if (role !== 'client' && role !== 'spouse') {
     throw new PermanentError('לא נמסר תפקיד תקין (client/spouse) לפעולה הזו.', 'bad_subject_role');
   }
   if (!submissionKey) throw new PermanentError('לא נמסר מפתח הגשה.', 'missing_submission_key');
-  if (!requestNumber) {
+  // ‼ 23.09.2026 · בלי מספר בקשה מותר רק עם ישות **ושם** — שניהם נדרשים
+  // לייחוס (attributeRows) ולאימות המסך שנפתח (openedScreenMatches).
+  if (!requestNumber && !(entityId && personName)) {
     throw new PermanentError(
-      'לא נשמר מספר בקשה בשע״ם להגשה הזאת — אי אפשר לאתר את הבקשה הנכונה, ולא מנחשים.',
+      'אין מספר בקשה בשע״ם, ואין ת.ז. ושם לאיתור הבקשה — אי אפשר לאתר את הבקשה הנכונה, ולא מנחשים.',
       'missing_request_number',
     );
   }
@@ -93,8 +97,10 @@ export async function run(ctx, input) {
       throw unknownScreenError('שידור הטופס לשע״ם', 'פתיחת מערכת רישום הייצוג', diag);
     }
 
-    ctx.log(`מאתר בקשה ${requestNumber} ופותח את שלב טעינת המסמכים`);
-    const opened = await openRequestForDocuments(page, { requestNumber, entityId });
+    ctx.log(requestNumber
+      ? `מאתר בקשה ${requestNumber} ופותח את שלב טעינת המסמכים`
+      : 'מאתר את הבקשה לפי ישות ושם (מספר הבקשה לא מוצג ברשימה) ופותח את שלב טעינת המסמכים');
+    const opened = await openRequestForDocuments(page, { requestNumber, entityId, expectedClientName: personName });
     if (!opened.ok) {
       if (opened.reason === 'opened_wrong_request') {
         throw new PermanentError(
@@ -104,6 +110,20 @@ export async function run(ctx, input) {
       }
       // ‼ לפני העלאה — אם לא ניתן לבסס שהשורות הן של הבקשה שלנו, עוצרים.
       // כאן המחיר של ניחוש הוא טופס חתום שנטען לתיק של אדם אחר.
+      if (opened.reason === 'ambiguous_request') {
+        throw new NeedsHumanError(
+          `לא ניתן לקבוע בוודאות איזו בקשה בשע״ם היא של ההגשה הזאת (${opened.detail ?? 'יותר מבקשה אחת'}), ` +
+          'ולכן לא טענתי את הטופס. שום דבר לא נשלח לשע״ם.',
+          'request_identity_unverified',
+        );
+      }
+      if (opened.reason === 'cannot_verify_opened_request') {
+        throw new NeedsHumanError(
+          'המסך שנפתח בשע״ם לא הציג את ת.ז. או את שם הלקוח, ולכן אי אפשר לוודא שזו הבקשה שלו. ' +
+          'לא טענתי את הטופס, ושום דבר לא נשלח לשע״ם.',
+          'request_identity_unverified',
+        );
+      }
       if (opened.reason === 'identity_mismatch' || opened.reason === 'cannot_attribute') {
         throw new NeedsHumanError(
           'לא הצלחתי לוודא שהבקשה שהוצגה ברשימה היא הבקשה של הלקוח הזה, ולכן לא טענתי ' +
@@ -113,7 +133,7 @@ export async function run(ctx, input) {
       }
       if (opened.reason === 'request_not_found_in_list') {
         throw new NeedsHumanError(
-          `בקשה ${requestNumber} לא נמצאה ברשימת הבקשות בתהליך. ייתכן שהיא כבר נקלטה או בוטלה — ` +
+          `בקשה ${requestNumber || 'של הלקוח'} לא נמצאה ברשימת הבקשות בתהליך. ייתכן שהיא כבר נקלטה או בוטלה — ` +
           'בדקו בשע״ם. אפשר להריץ «בדוק קבלת הייצוג» כדי לסנכרן מצב.',
           'request_not_found',
         );
@@ -171,12 +191,13 @@ export async function run(ctx, input) {
     ctx.log(`הטופס נקלט · שלב נוכחי ${step} · ${confirmed.fileLine}`);
     return {
       result: {
-        submissionKey, role, requestNumber,
+        submissionKey, role,
+        requestNumber: requestNumber || opened.requestNumber || '',
         submitted: true,
         fileLine: confirmed.fileLine,
         summary: (confirmed.summary ?? '').slice(0, 400),
       },
-      artifacts: [{ kind: 'poa_submitted', requestNumber, fileName: doc.fileName }],
+      artifacts: [{ kind: 'poa_submitted', requestNumber: requestNumber || opened.requestNumber || '', fileName: doc.fileName }],
     };
   } finally {
     await detach(conn.browser);

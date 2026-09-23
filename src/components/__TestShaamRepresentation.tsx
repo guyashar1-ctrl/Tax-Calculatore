@@ -128,8 +128,8 @@ const TRACK_FOUND_NO_NUMBER: RepresentationExecution = {
       syncedAt: '2026-09-23T13:00:00.000Z',
       rawRequestState: 'המתנה למסמכים',
       systems: [
-        { systemLabel: 'מס הכנסה', rawRequestState: 'המתנה למסמכים', rawSystemState: 'ממתין', clientName: 'הדסה סלע' },
-        { systemLabel: 'מעמ', rawRequestState: 'המתנה למסמכים', rawSystemState: 'ממתין', clientName: 'הדסה סלע' },
+        { systemLabel: 'מס הכנסה', rawRequestState: 'המתנה למסמכים', rawSystemState: '', clientName: 'סלע הדסה', enteredAt: '23/09/2026', fileNumber: '034605212' },
+        { systemLabel: 'מעמ', rawRequestState: 'המתנה למסמכים', rawSystemState: '', clientName: 'סלע הדסה', enteredAt: '23/09/2026', fileNumber: '034605212' },
       ],
     },
   },
@@ -171,6 +171,7 @@ const SCENARIOS: Scenario[] = [
   },
   { key: 'found-no-number', label: '2ב · נמצאה בשע״ם בלי מספר בקשה', status: 'awaiting_accountant', execution: TRACK_FOUND_NO_NUMBER },
   { key: 'created', label: '3 · הבקשה נפתחה והטופס הובא', status: 'pending_signature', execution: TRACK_CREATED, docs: shaamDoc(false) },
+  { key: 'found-stamped', label: '4ב · נמצאה בלי מספר + נחתם - מוכן לשידור', status: 'awaiting_stamp', execution: TRACK_FOUND_NO_NUMBER, docs: shaamDoc(true), signed: true },
   { key: 'stamped', label: '4 · נחתם והוחתם - מוכן לשידור', status: 'awaiting_stamp', execution: TRACK_CREATED, docs: shaamDoc(true), signed: true },
   { key: 'suspended', label: '5 · שודר · השהיה + ממתין לפתיחת תיק', status: 'awaiting_authorities', execution: TRACK_SUSPENDED, docs: shaamDoc(true), signed: true },
   { key: 'client', label: '6 · ממתין לאישור הלקוח', status: 'awaiting_authorities', execution: TRACK_AWAITING_CLIENT, docs: shaamDoc(true), signed: true },

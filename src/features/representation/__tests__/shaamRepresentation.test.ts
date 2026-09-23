@@ -12,11 +12,24 @@ import {
   parseShaamRequestState, parseShaamSystemState, parseShaamDate,
   shaamStageOf, allSystemsAccepted, shaamProgressLine,
   buildForm2279Fields, form2279BothSign, FORM_2279_TEMPLATE, matchRegisteredPersonName,
+  shaamRowsFormOneRequest,
   type ShaamRequestTracking,
 } from '../shaamRepresentation';
 import { shaamPersonFacts, shaamBirthDateInput } from '../shaamPersonFacts';
 import { shaamRepresentationAction } from '../../taxFile/shaamRepresentationAction';
 import { peopleFromClient } from '../../../utils/repScope';
+import { allDocumentsStamped } from '../../../utils/repDocuments';
+
+function hadassaTracking(): ShaamRequestTracking {
+  const row = (systemLabel: string, fileNumber: string) => ({
+    systemLabel, fileNumber, repType: 'ראשי', enteredAt: '23/09/2026', clientName: 'סלע הדסה',
+    requestNumber: '', rawSystemState: '', rawRequestState: 'המתנה למסמכים',
+  });
+  return {
+    syncedAt: '2026-09-23T14:50:03Z', requestNumber: '', rawRequestState: 'המתנה למסמכים',
+    systems: [row('מס הכנסה', '034605212'), row('מעמ', '034605212'), row('ניכויים', 'לא קיים תיק')],
+  };
+}
 
 // ── מכונות עזר ──────────────────────────────────────────────────────────────
 
@@ -484,34 +497,71 @@ export const TESTS: TestCase[] = [
   // ‼ «בדוק» ייחס שורות לבקשה, אבל מספר הבקשה לא נחשף ב-DOM. הבקשה קיימת,
   // ולכן לעולם לא «צור» (אימות ישות חוזר), ולא «טרם נפתחה».
 
-  test('29 · שורות משויכות בלי מספר בקשה — הבקשה קיימת, הפעולה «בדוק» ולא «צור»', () => {
-    const t: ShaamRequestTracking = {
-      syncedAt: '2026-09-23T13:00:00Z',
-      rawRequestState: 'המתנה למסמכים',
-      systems: [{ systemLabel: 'מס הכנסה', rawRequestState: 'המתנה למסמכים', rawSystemState: 'ממתין' }],
-    };
+  // השורות כפי שנקראו בפועל משע״ם (הדסה סלע, 23.09.2026): שלוש שורות, אותו
+  // יום הזנה ואותו מצב בקשה, בלי מספר בקשה.
+  // (הפונקציה, ולא קבוע: TESTS נבנה לפני שהקוד שמתחת רץ.)
+
+  test('29 · שורות משויכות בלי מספר בקשה — הבקשה קיימת; לא «צור», לא «טרם נפתחה»', () => {
+    const t = hadassaTracking();
     equal(shaamStageOf(t), 'request_created');
-    equal(shaamRepresentationAction('awaiting_accountant', t, false)?.kind, 'check');
+    const a = shaamRepresentationAction('awaiting_accountant', t, false);
+    assert(a?.kind !== 'create', 'אסור להציע יצירה על בקשה קיימת');
     const line = shaamProgressLine(t).text;
     assert(!line.includes('טרם נפתחה'), 'לא «טרם נפתחה» כשנמצאו שורות');
     assert(!line.includes('()'), 'אין סוגריים ריקים במקום מספר');
     assert(line.includes('נמצאה ברשימת הבקשות'), line);
   }),
 
-  test('29ב · אותה צורה עם טופס חתום — «שדר» מושבת עם הסבר', () => {
-    const t: ShaamRequestTracking = {
-      syncedAt: '2026-09-23T13:00:00Z',
-      systems: [{ systemLabel: 'מס הכנסה', rawRequestState: 'המתנה למסמכים' }],
-    };
-    const a = shaamRepresentationAction('awaiting_stamp', t, true);
+  test('29ב · טופס חתום + בקשה שיוחסה בלי מספר — «שלח טופס חתום לשע״ם» פעיל', () => {
+    const a = shaamRepresentationAction('awaiting_stamp', hadassaTracking(), true);
     equal(a?.kind, 'submit');
-    equal(a?.disabled, true);
-    assert((a?.reason ?? '').includes('ידנית'), a?.reason ?? '');
+    equal(a?.actionType, 'shaam.submit_poa');
+    equal(a?.disabled, undefined);
+    equal(shaamRowsFormOneRequest(hadassaTracking()), true);
   }),
 
-  test('29ג · נבדקה ולא נמצאה שום שורה — רק אז «צור»; «פעיל» עם שורות שטרם נקלטו — «בדוק»', () => {
+  test('29ג · אין טופס חתום סופי (חתימה חסרה / חותמת חסרה) — «שלח» מושבת עם סיבה', () => {
+    const a = shaamRepresentationAction('awaiting_stamp', hadassaTracking(), false);
+    equal(a?.kind, 'submit');
+    equal(a?.disabled, true);
+    assert((a?.reason ?? '').includes('טרם נחתם'), a?.reason ?? '');
+    // ‼ «חתום» = לכל מסמך יש PDF סופי, שנוצר רק בחדר החותמת אחרי כל החותמים.
+    const doc = { key: 'person:client', title: '', pdfDocId: 'p', pdfFileName: 'f.pdf', fields: [], createdAt: '' };
+    equal(allDocumentsStamped({ signatureDocuments: [{ ...doc, signedPdfStoredId: null }] } as unknown as RepresentationRequest), false);
+    equal(allDocumentsStamped({ signatureDocuments: [{ ...doc, signedPdfStoredId: 'signed-poa-x' }] } as unknown as RepresentationRequest), true);
+  }),
+
+  test('29ד · שורות שאינן בקשה אחת — «שלח» מושבת, לא מנחשים', () => {
+    const base = hadassaTracking();
+    const dupSystem: ShaamRequestTracking = { ...base, systems: [...base.systems!, { ...base.systems![0] }] };
+    const twoDates: ShaamRequestTracking = { ...base, systems: [base.systems![0], { ...base.systems![1], enteredAt: '01/08/2026' }] };
+    const twoNumbers: ShaamRequestTracking = { ...base, systems: [
+      { ...base.systems![0], requestNumber: '2026000001' }, { ...base.systems![1], requestNumber: '2026000002' }] };
+    for (const t of [dupSystem, twoDates, twoNumbers]) {
+      equal(shaamRowsFormOneRequest(t), false);
+      const a = shaamRepresentationAction('awaiting_stamp', t, true);
+      equal(a?.kind, 'submit');
+      equal(a?.disabled, true);
+    }
+  }),
+
+  test('29ה · כבר שודר — אין «שלח» נוסף, רק «בדוק»', () => {
+    const t = { ...hadassaTracking(), submittedAt: '2026-09-23T19:00:00Z' };
+    equal(shaamRepresentationAction('awaiting_authorities', t, true)?.kind, 'check');
+  }),
+
+  test('29ו · נבדקה ולא נמצאה שום שורה — רק אז «צור»; «פעיל» עם שורות שטרם נקלטו — «בדוק»', () => {
     equal(shaamRepresentationAction('awaiting_accountant', { syncedAt: 't', systems: [] }, false)?.kind, 'create');
-    const t: ShaamRequestTracking = { syncedAt: 't', systems: [{ systemLabel: 'מס הכנסה', rawSystemState: 'ממתין' }] };
-    equal(shaamRepresentationAction('active', t, false)?.kind, 'check');
+    equal(shaamRepresentationAction('active', hadassaTracking(), false)?.kind, 'check');
+  }),
+
+  test('29ז · הדסה בתיבת «בן זוג רשום» בטופס — לפי ההכרעה, לא לפי מגדר או סדר', () => {
+    // אזורי החתימה כפי שנשמרו בבקשה האמיתית (23.09.2026).
+    const fields = buildForm2279Fields('client', true);
+    const at = (signer: string) => fields.find(f => f.signerId === signer)!;
+    equal(at('client').xPct, FORM_2279_TEMPLATE.registeredSigner.xPct);
+    equal(at('spouse').xPct, FORM_2279_TEMPLATE.otherSpouse.xPct);
+    equal(at('accountant').xPct, FORM_2279_TEMPLATE.accountantStamp.xPct);
+    equal(matchRegisteredPersonName('סלע הדסה', 'הדסה סלע', 'יאיר סלע'), 'client');
   }),
 ];
