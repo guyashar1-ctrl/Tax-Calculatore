@@ -60,9 +60,9 @@
 import {
   attach, detach, classifyShaamAuth, probeServerSession,
   readGmfOnCurrentPage, openGmfAndCheck, readGmfLoginForm, attemptGmfLoginConfirm,
-  readVatOnCurrentPage, openVatAndCheck,
-  readNikuiOnCurrentPage, openNikuiAndCheck,
-  readRepresentationOnCurrentPage, openRepresentationAndCheck,
+  readVatOnCurrentPage,
+  readNikuiOnCurrentPage,
+  readRepresentationOnCurrentPage,
   isOnWorkScreen,
 } from './browserSession.mjs';
 import {
@@ -230,43 +230,27 @@ export async function tickConnectionMonitor(userId, workerId, log) {
       if (onNikui.ready !== null) { nikui = onNikui.ready; nikuiCheckedAtMs = now; }
       if (onRepresentation.ready !== null) { representation = onRepresentation.ready; representationCheckedAtMs = now; }
 
-      // ── ניווט יזום לשכבה שעוד לא אושרה, שכבה אחת בכל סבב ──
-      // ‼ מותר **רק כשהפורטל מוכן**: בלי סשן שער חי כל ניווט ינחת על
-      // מסך ההתחברות של הפורטל עצמו ולא מלמד כלום על תת-המערכת. כשהפורטל
-      // למטה, המדידה היחידה האפשרית היא הקריאה החינמית שלמעלה.
-      // ‼ הסדר הוא גם ההתקדמות האוטומטית: אחרי שהרו"ח מזין סיסמה לשכבה
-      // אחת, הסבב הבא רואה אותה מוכנה ועובר מעצמו לבאה. בלי לחיצה נוספת.
-      // ‼ אף פעם לא שתי מערכות בו-זמנית: שע״ם חוסם פתיחה כפולה של אותו
-      // יישום ומחזיר מסך שגיאה במקום תוכן.
-      if (shaam && now - lastSubNav >= SUB_RECHECK_MS) {
+      // ── בוטסטרפ יזום, GMF בלבד — החלטת מוצר מאושרת 23.09.2026 ──
+      // ‼ מודל האימות המאושר: התחברות ראשית פעם אחת → הכנת אמצעי המשנה
+      // **פעם אחת** → מוכן. GMF היא תת-המערכת היחידה שניווט אליה יזום כדי
+      // להשיג את הכנת אמצעי המשנה (bootstrapped = shaam && gmf, למטה) —
+      // כי "מוכן" כבר נגזר ממנה, לא מכל תת-מערכת.
+      // ‼ מע״מ/מגן/ייצוג הוסרו מהניווט היזום בכוונה. תת-מערכות הן
+      // **עצלות**: נבדקות רק דרך הקריאה החינמית שלמעלה (אם הלשונית כבר
+      // שם) או כשעבודה אמיתית פותחת אותן (openXAndCheck שכל handler קורא
+      // בעצמו, כבר קיים). לפני זה: "מחובר" היה מחכה לסיור בארבע מערכות
+      // ומנווט את הלשונית שוב ושוב ברקע — גם כשהרו"ח לא ביקש שום דבר מהן.
+      if (shaam && !gmf && now - lastSubNav >= SUB_RECHECK_MS) {
         if (await isOnWorkScreen(conn.page)) {
           // בדיקת מוכנות לא שווה את זה שהמסך שהרו"ח פתח ייעלם מתחת לידיו.
           lastSubNav = now;
-          log('דילוג על בדיקת שכבה: הדפדפן עומד על מסך שנפתח עבור הרו"ח');
-        } else if (!gmf) {
+          log('דילוג על בוטסטרפ GMF: הדפדפן עומד על מסך שנפתח עבור הרו"ח');
+        } else {
           lastSubNav = now;
           const checked = await openGmfAndCheck(conn.page);
           gmf = checked.ready;
           gmfCheckedAtMs = now;
-          log(`בדיקת GMF: ${checked.ready ? 'מוכנה' : `לא מוכנה (${checked.reason})`}`);
-        } else if (!vat) {
-          lastSubNav = now;
-          const checked = await openVatAndCheck(conn.page);
-          vat = checked.ready;
-          vatCheckedAtMs = now;
-          log(`בדיקת מע״מ: ${checked.ready ? 'מוכנה' : `לא מוכנה (${checked.reason})`}`);
-        } else if (!nikui) {
-          lastSubNav = now;
-          const checked = await openNikuiAndCheck(conn.page);
-          nikui = checked.ready;
-          nikuiCheckedAtMs = now;
-          log(`בדיקת מגן: ${checked.ready ? 'מוכנה' : `לא מוכנה (${checked.reason})`}`);
-        } else if (!representation) {
-          lastSubNav = now;
-          const checked = await openRepresentationAndCheck(conn.page);
-          representation = checked.ready;
-          representationCheckedAtMs = now;
-          log(`בדיקת מערכת ייצוג: ${checked.ready ? 'מוכנה' : `לא מוכנה (${checked.reason})`}`);
+          log(`בוטסטרפ GMF: ${checked.ready ? 'מוכנה' : `לא מוכנה (${checked.reason})`}`);
         }
       }
     } finally {

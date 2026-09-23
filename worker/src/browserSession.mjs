@@ -382,53 +382,85 @@ export async function openNikuiAndCheck(page) {
 //
 // ‼ מוכנות = ראיה חיובית למסך הרשימה עצמו (#/reshimatMeyuzagim, בלי שדה
 // סיסמה) — לא רק "לא על מסך login". דף לבן/מצב ביניים לא נחשב מוכן.
-export const REPRESENTATION_URL = 'https://shaam.taxes.gov.il/srReshMeyuzagim';
-export const REPRESENTATION_PATH = '/srReshMeyuzagim';
-const REPRESENTATION_LOGIN_HASH = '#/login';
-const REPRESENTATION_READY_HASH = '#/reshimatMeyuzagim';
+// ‼ 23.09.2026 · תוקן אחרי כשל אמיתי: `/srReshMeyuzagim` בזמן שהסשן כבר
+// מאומת נוחת על **מסך אחר לגמרי** — "רשימת מיוצגים" (title שונה, שדות
+// שונים: מספר תיק/נושא מס, בלי «בקשות בתהליך»/«בקשה חדשה»). המערכת שאליה
+// באמת מתכוונים ("מערכת לרישום ייצוג", עם שתי הלשוניות) נצפתה **חוזר ונשנה**
+// תחת `/srmyzgipuykoach` — גם דף כניסה שם, וגם רשימת הבקשות בפועל שם.
+// לכן זה נתיב הניווט; `/srReshMeyuzagim` נשאר מתקבל בזיהוי (REPRESENTATION_PATHS)
+// כי נצפה גם הוא בהקשר login — אך לא מנווטים אליו יזום. ראה docs/SHAAM-AUTOMATION-HANDOFF.md.
+export const REPRESENTATION_URL = 'https://shaam.taxes.gov.il/srmyzgipuykoach';
+export const REPRESENTATION_PATH = '/srmyzgipuykoach';
+const REPRESENTATION_PATHS = ['/srmyzgipuykoach', '/srReshMeyuzagim'];
+const isRepresentationPath = (pathname) => REPRESENTATION_PATHS.some((p) => pathname.startsWith(p));
 
 /**
- * ‼ הכתובת הזו נשלטת ב-Angular hash routing, לא ב-pathname: שני המצבים
- * (login/ready) חולקים אותו pathname ונבדלים רק ב-hash. snapPage הקיים לא
- * קורא hash — ולכן שכבה זו קוראת אותו ישירות מ-page.url(), ולא מסתמכת על
- * snapPage.hasPasswordField בלבד (שדה סיסמה יכול תיאורטית להישאר ב-DOM
- * במעבר בין מסכים; ה-hash הוא הראיה החזקה יותר, ושתיהן נבדקות יחד).
+ * ‼ 23.09.2026 · תוקן אחרי כשל אמיתי: `#/reshimatMeyuzagim` (ה-hash שהיה
+ * כאן) הוא בכלל מסך **אחר** — "רשימת מיוצגים" (title שונה, בלי «בקשות
+ * בתהליך»/«בקשה חדשה»). hash לבד היה ראיה שקרית. לכן ההכרעה נשענת על
+ * **מבנה הדף עצמו**: כותרת "מערכת לרישום ייצוג" וגם אחת מתוויות הלשוניות
+ * המוכרות — לא על ה-hash. ה-pathname עדיין משמש רק לסינון "בכלל לא שם".
  */
-function representationState(href, hasPasswordField) {
+function representationState(href, hasPasswordField, titleMatches, hasReadyMarkers, hasCredentialControl) {
   let pathname = '/';
-  let hash = '';
-  try {
-    const u = new URL(href);
-    pathname = u.pathname;
-    hash = u.hash;
-  } catch { /* about:blank וכדומה */ }
-  if (!pathname.startsWith(REPRESENTATION_PATH)) {
+  try { pathname = new URL(href).pathname; } catch { /* about:blank וכדומה */ }
+  if (!isRepresentationPath(pathname)) {
     return { ready: false, reason: 'unexpected_destination' };
   }
-  if (hash.startsWith(REPRESENTATION_READY_HASH) && !hasPasswordField) {
+  if (!titleMatches) {
+    // ‼ בנתיב הנכון, אבל לא על "מערכת לרישום ייצוג" (למשל "רשימת מיוצגים") —
+    // לא מנחשים שזו אותה מערכת רק כי הנתיב מקורב.
+    return { ready: false, reason: 'unexpected_destination' };
+  }
+  if (hasReadyMarkers && !hasPasswordField) {
     return { ready: true, reason: 'list_screen' };
   }
-  if (hash.startsWith(REPRESENTATION_LOGIN_HASH) || hasPasswordField) {
+  // ‼ hasCredentialControl — לא רק input[type=password]: המסך האמיתי (23.09)
+  // הציג input[type=text] יחיד במקום שדה סיסמה רגיל. אותו כלל בדיוק כמו
+  // readRepresentationLoginForm — שדה סיסמה, או השדה הגלוי היחיד במסך הזה.
+  if (hasPasswordField || hasCredentialControl) {
     return { ready: false, reason: 'login_required' };
   }
-  // ‼ לא login ולא מסך הרשימה המוכר — מצב ביניים/לא ידוע. לא מנחשים ready.
+  // ‼ הכותרת הנכונה, אבל לא login ולא מסך הרשימה המוכר — מצב ביניים/לא
+  // ידוע (למשל דיאלוג התראה על גבי המסך). לא מנחשים ready.
   return { ready: false, reason: 'unknown_screen' };
 }
 
 async function snapRepresentation(page) {
   const href = page.url();
   let hasPasswordField = false;
+  let titleMatches = false;
+  let hasReadyMarkers = false;
+  let hasCredentialControl = false;
   try {
-    hasPasswordField = await page.evaluate(() => !!document.querySelector('input[type=password]'));
+    const s = await page.evaluate(() => {
+      const pwField = !!document.querySelector('input[type=password]');
+      const titleOk = /מערכת לרישום ייצוג/.test(document.title);
+      const ready = /בקשה חדשה|בקשות בתהליך/.test(document.body.innerText || '');
+      // ‼ אותה נפילה בדיוק כמו readRepresentationLoginForm: בלי שדה סיסמה
+      // רגיל, אבל השדה הגלוי היחיד במסך המוכר הזה — נחשב שדה אישורים.
+      let credControl = pwField;
+      if (!credControl && !ready && titleOk) {
+        const visible = (el) => el.getBoundingClientRect().width > 0;
+        const inputs = [...document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio])')]
+          .filter(visible);
+        credControl = inputs.length === 1;
+      }
+      return { hasPasswordField: pwField, titleMatches: titleOk, hasReadyMarkers: ready, hasCredentialControl: credControl };
+    });
+    ({ hasPasswordField, titleMatches, hasReadyMarkers, hasCredentialControl } = s);
   } catch { /* ניווט באמצע */ }
-  return { href, hasPasswordField, ...representationState(href, hasPasswordField) };
+  return {
+    href, hasPasswordField,
+    ...representationState(href, hasPasswordField, titleMatches, hasReadyMarkers, hasCredentialControl),
+  };
 }
 
 /** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על מערכת הייצוג. */
 export async function readRepresentationOnCurrentPage(page) {
   let pathname;
   try { pathname = new URL(page.url()).pathname; } catch { return { onRepresentation: false, ready: null }; }
-  if (!pathname.startsWith(REPRESENTATION_PATH)) return { onRepresentation: false, ready: null };
+  if (!isRepresentationPath(pathname)) return { onRepresentation: false, ready: null };
   const s = await snapRepresentation(page);
   return { onRepresentation: true, ready: s.ready, reason: s.reason, pathname };
 }
@@ -444,7 +476,9 @@ export async function openRepresentationAndCheck(page) {
   await page.waitForTimeout(2500); // ‼ Angular hash routing — לא תמיד תחת networkidle
   await page.waitForLoadState('networkidle', { timeout: 12000 }).catch(() => {});
   const s = await snapRepresentation(page);
-  return { ready: s.ready, reason: s.reason, pathname: REPRESENTATION_PATH, href: s.href };
+  let pathname = REPRESENTATION_PATH;
+  try { pathname = new URL(s.href).pathname; } catch { /* about:blank וכדומה */ }
+  return { ready: s.ready, reason: s.reason, pathname, href: s.href };
 }
 
 /**
@@ -459,34 +493,101 @@ export async function openRepresentationAndCheck(page) {
  * ‼ לעולם לא קורא input.value של שדה הסיסמה — רק בודק hasValue (בוליאני).
  * ניסיון אישור יחיד: תוצאה לא-חיובית לא מנוסה שוב.
  */
+/**
+ * עובדות בוליאניות/מבניות בלבד על מסך הכניסה של מערכת הייצוג — לעולם לא
+ * ה-value. נבדלת מ-`snapRepresentation` בכך שהיא קוראת את **צורת הטופס**
+ * (יש שדה? יש ערך? כמה כפתורי אישור נמצאו מבנית?) ולא רק hash/pathname —
+ * זו הראיה שמזינה את מודל המצב המפורש (`shaamAuthState.mjs`, חובה 6:
+ * URL בלבד אינו מצב-אימות).
+ *
+ * ‼ נצפה בפועל (23.09.2026): למסך הזה יש לפעמים **בלי בכלל** שדה סיסמה
+ * (שם המשתמש טקסט קבוע מהכרטיס, "סיסמא כפי שמוגדרת במחשב המרכזי" — צורה
+ * שלא נצפתה קודם). `hasField: false` הוא אז המצב הנכון — לא "לא צריך
+ * הכנה", אלא "לא מזוהה", וכך זה גם מתורגם ב-shaamAuthState.
+ */
+/**
+ * ‼ 23.09.2026 · נבדק חי: שדה הסיסמה במסך הזה הוא `input[type="text"]`,
+ * **לא** `type="password"`, ובלי `-webkit-text-security` (אין מיסוך CSS
+ * גלוי גם כן — האפליקציה של שע״ם עושה משהו אחר, שלא בדקנו ולא צריך: מה
+ * שקובע כאן הוא **מצב**, לא מנגנון המיסוך). לכן: קודם מחפשים
+ * `input[type=password]` (התבנית הרגילה, GMF וכו'); אם אין — נופלים
+ * ל**שדה הקלט הגלוי היחיד בעמוד**, ורק אם כותרת העמוד תואמת בוודאות את
+ * המסך הזה. תנאי כפול בכוונה: שדה בודד לבדו לא מספיק (מסך אחר, לא קשור,
+ * עם שדה טקסט יחיד לא הופך אוטומטית לתבנית סיסמה מוכרת).
+ * ‼ אף פעם לא נקרא ה-value עצמו — רק length>0 ותכונות מבניות.
+ */
+const REPRESENTATION_TITLE_RE = /מערכת לרישום ייצוג/;
+
+export async function readRepresentationLoginForm(page) {
+  try {
+    return await page.evaluate((titleSrc) => {
+      const titleRe = new RegExp(titleSrc);
+      const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+      const modal = [...document.querySelectorAll('.modal.d-block, .modal.show, [role=dialog]')]
+        .find((m) => { const r = m.getBoundingClientRect(); return r.width >= 50 && r.height >= 50; });
+
+      let cred = document.querySelector('input[type="password"]');
+      let kind = cred ? 'password_field' : null;
+      if (!cred) {
+        const visibleInputs = [...document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio])')]
+          .filter(visible);
+        if (visibleInputs.length === 1 && titleRe.test(document.title)) {
+          cred = visibleInputs[0];
+          kind = 'sole_visible_field_on_known_screen';
+        }
+      }
+
+      let btnCount = 0;
+      if (cred) {
+        const form = cred.closest('form');
+        const container = form?.querySelector('button.btn-primary') ? form : form?.parentElement;
+        const btns = container ? [...container.querySelectorAll('button.btn-primary')] : [];
+        btnCount = btns.filter(visible).length;
+      }
+      return {
+        hasField: !!cred,
+        fieldKind: kind,
+        hasValue: !!cred && !!cred.value && cred.value.length > 0,
+        hasForm: !!cred?.closest('form'),
+        submitButtonCount: btnCount,
+        humanOnlyModal: !!modal,
+        modalTitle: modal ? (modal.innerText || '').trim().split('\n')[0].slice(0, 60) : null,
+      };
+    }, REPRESENTATION_TITLE_RE.source);
+  } catch {
+    return { hasField: false, fieldKind: null, hasValue: false, hasForm: false, submitButtonCount: 0, humanOnlyModal: false, modalTitle: null };
+  }
+}
+
 export async function attemptRepresentationLoginConfirm(page) {
-  const before = await page.evaluate(() => {
-    const pw = document.querySelector('input[type="password"]');
-    if (!pw) return { ok: false, reason: 'no_password_field' };
-    if (!pw.value || pw.value.length === 0) return { ok: false, reason: 'password_not_filled' };
-    const form = pw.closest('form');
-    if (!form) return { ok: false, reason: 'no_form' };
-    let container = form;
-    let btn = container.querySelector('button.btn-primary');
-    if (!btn && form.parentElement) {
-      container = form.parentElement;
-      btn = container.querySelector('button.btn-primary');
-    }
-    if (!btn) return { ok: false, reason: 'no_button_found' };
-    return { ok: true };
-  });
+  const form = await readRepresentationLoginForm(page);
+  const before = form.humanOnlyModal ? { ok: false, reason: 'human_only_modal', detail: form.modalTitle }
+    : !form.hasField ? { ok: false, reason: 'no_password_field' }
+    : !form.hasValue ? { ok: false, reason: 'password_not_filled' }
+    : !form.hasForm ? { ok: false, reason: 'no_form' }
+    : form.submitButtonCount !== 1 ? { ok: false, reason: 'no_button_found', detail: String(form.submitButtonCount) }
+    : { ok: true };
   if (!before.ok) return before;
 
-  const clicked = await page.evaluate(() => {
-    const pw = document.querySelector('input[type="password"]');
-    const form = pw?.closest('form');
+  // ‼ אותו איתור בדיוק כמו readRepresentationLoginForm (password field, או
+  // נפילה לשדה הגלוי היחיד במסך המוכר) — כדי שמה שנבדק הוא מה שנלחץ.
+  const clicked = await page.evaluate((titleSrc) => {
+    const titleRe = new RegExp(titleSrc);
+    const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    let cred = document.querySelector('input[type="password"]');
+    if (!cred) {
+      const visibleInputs = [...document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio])')]
+        .filter(visible);
+      if (visibleInputs.length === 1 && titleRe.test(document.title)) cred = visibleInputs[0];
+    }
+    const form = cred?.closest('form');
     if (!form) return false;
     let btn = form.querySelector('button.btn-primary');
     if (!btn && form.parentElement) btn = form.parentElement.querySelector('button.btn-primary');
     if (!btn) return false;
     btn.click();
     return true;
-  });
+  }, REPRESENTATION_TITLE_RE.source);
   if (!clicked) return { ok: false, reason: 'click_failed' };
 
   await page.waitForTimeout(2500);

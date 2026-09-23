@@ -19,7 +19,10 @@
     "test:image-pdf": "node scripts/test-image-pdf.mjs",
     "test:pdf-pages": "node scripts/test-pdf-pages.mjs",
     "test:pdf-edit": "node scripts/test-pdf-edit.mjs",
-    "verify:close-rules": "node scripts/verify-close-rules.mjs"
+    "verify:close-rules": "node scripts/verify-close-rules.mjs",
+    "test:unit": "node scripts/run-unit-tests.mjs",
+    "test:worker": "node --test \"worker/test/*.test.mjs\" && node worker/test/btl-tracking.mjs",
+    "test:all": "node scripts/run-unit-tests.mjs && node --test \"worker/test/*.test.mjs\" && node worker/test/btl-tracking.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

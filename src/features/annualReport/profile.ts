@@ -91,18 +91,15 @@ export function registeredOwnerOf(client: Client): 'client' | 'spouse' | null {
 }
 
 /**
- * המשפט שמסכם את ההכרעה: "מיכל סלע היא בת הזוג הרשומה במס הכנסה".
+ * המשפט שמסכם את ההכרעה: "התיק במס הכנסה רשום על שם מיכל סלע".
  *
- * ‼ מגדר רק כשהוא ידוע בפועל — מגדר הלקוח מהכרטיס, או `spouse.gender` כשיש
- * רשומת בן/בת זוג מלאה. לבן/בת זוג שנקלט/ה בבקשת ייצוג אין שדה מגדר, ושם
- * נשארת הצורה הכפולה: עדיף מאשר לנחש מגדר של אדם אמיתי לפי שם.
+ * ‼ ניסוח בלי מגדר. שדה המגדר בכרטיס אינו ראיה (אצל לקוחה אמיתית נשמר
+ * "male" כברירת מחדל, והמסך כתב «הדסה סלע הוא בן הזוג הרשום»), ולבן/בת זוג
+ * שנקלט/ה בבקשת ייצוג אין שדה מגדר בכלל.
  */
 export function registeredSpouseSentence(client: Client, owner: 'client' | 'spouse'): string {
   const name = owner === 'spouse' ? spouseDisplayName(client) : clientDisplayName(client);
-  const gender = owner === 'spouse' ? client.spouse?.gender : client.gender;
-  if (gender === 'female') return `${name} היא בת הזוג הרשומה במס הכנסה`;
-  if (gender === 'male') return `${name} הוא בן הזוג הרשום במס הכנסה`;
-  return `${name} - בן/בת הזוג הרשום/ה במס הכנסה`;
+  return `התיק במס הכנסה רשום על שם ${name}`;
 }
 
 /**

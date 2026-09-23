@@ -131,7 +131,9 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
         where: ['דמי ביטוח → דמי ביטוח שנתיים → פירוט חודשים'],
         fields: [
           { key: 'incomeBasisMonthly', label: 'בסיס הכנסה למקדמות (לחודש)', type: 'number',
-            governedKey: 'niIncomeBasisMonthly', toPatchValue: v => v === '' ? null : Number(v) },
+            governedKey: 'niIncomeBasisMonthly',
+            where: ['עיסוקים והכנסות → רשימת הכנסות → סכום הכנסה'],
+            toPatchValue: v => v === '' ? null : Number(v) },
           { key: 'niAdvanceMonthly', label: 'מקדמה חודשית', type: 'number', governedKey: 'niAdvanceMonthly',
             toPatchValue: v => v === '' ? null : Number(v) },
         ],

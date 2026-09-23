@@ -136,6 +136,7 @@ import TestSpouseLink from './components/__TestSpouseLink';
 import TestAddRequestDialog from './components/__TestAddRequestDialog';
 import TestRegisteredSpouse from './components/__TestRegisteredSpouse';
 import TestPoaStamp from './components/__TestPoaStamp';
+import TestShaamRepresentation from './components/__TestShaamRepresentation';
 import PublicSignPage from './components/PublicSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
@@ -311,6 +312,10 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-exec')) {
     return <TestExecutionCenter />;
+  }
+  // 194 · מחזור חיי בקשת הייצוג בשע״ם, בכל מצביו.
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-shaam-rep')) {
+    return <TestShaamRepresentation />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-repdocs')) {
     return <TestRepDocs />;
@@ -1382,6 +1387,11 @@ export default function App() {
       ...(prefill.familyStatusYear && prefill.familyStatus === 'widowed'  ? { widowhoodYear: prefill.familyStatusYear } : {}),
       ...(spouse ? { spouseName: spouse.name } : {}),
       ...(spouse?.idNumber ? { spouseIdNumber: spouse.idNumber } : {}),
+      // ‼ פרטי קשר של בן/בת הזוג נשמרים על הכרטיס מרגע שנמסרו, ולא רק
+      // ברשומת החותם: כתובת/טלפון שנמסרו פעם אחת אינם צריכים להיקבר בתוך
+      // בקשת ייצוג. הטלפון הוא גם מה ששע״ם מבקשת במסך פרטי ההתקשרות.
+      ...(spouse?.email ? { spouseEmail: spouse.email } : {}),
+      ...(spouse?.phone ? { spousePhone: spouse.phone } : {}),
       ...(() => {
         const files = taxFilesForRegisteredSpouse(areas, prefill, undefined);
         return files ? { taxFiles: files } : {};
@@ -1450,6 +1460,11 @@ export default function App() {
       ...(prefill.familyStatusYear && prefill.familyStatus === 'widowed'  ? { widowhoodYear: prefill.familyStatusYear } : {}),
       ...(spouse ? { spouseName: spouse.name } : {}),
       ...(spouse?.idNumber ? { spouseIdNumber: spouse.idNumber } : {}),
+      // ‼ פרטי קשר של בן/בת הזוג נשמרים על הכרטיס מרגע שנמסרו, ולא רק
+      // ברשומת החותם: כתובת/טלפון שנמסרו פעם אחת אינם צריכים להיקבר בתוך
+      // בקשת ייצוג. הטלפון הוא גם מה ששע״ם מבקשת במסך פרטי ההתקשרות.
+      ...(spouse?.email ? { spouseEmail: spouse.email } : {}),
+      ...(spouse?.phone ? { spousePhone: spouse.phone } : {}),
       // ‼ ללקוח קיים לא דורסים מבנה תיקים שכבר נבנה — רק קובעים את הבעלים
       // של תיק מ"ה, שזו התשובה שהתקבלה עכשיו.
       ...(() => {
@@ -2776,6 +2791,12 @@ export default function App() {
                 void reloadRequest(selectedRequest.id);
               }}
               onUpdateClientFields={patch => handleUpdateClientFields(selectedRequest.linkedClientId, patch)}
+              // ‼ 194: כתיבה שקטה של מסמכי החתימה בלבד, אחרי שטופס 2279 הובא
+              // משע״ם. בכוונה לא handleProduceFormWithSetup — הוא גם מקדם ל
+              // «נשלח לחתימה», והבאת טופס אינה שליחה ללקוח.
+              onAttachShaamForms={async docs => {
+                await updateRequest({ ...selectedRequest, ...withLegacyMirror(docs) });
+              }}
             />
           ) : (
             <div className="empty-state">

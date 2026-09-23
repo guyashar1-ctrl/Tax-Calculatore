@@ -12,7 +12,15 @@
 // עצמו יושב רק כאן, על השרת, ולעולם לא מגיע לתהליך העובד על מחשב המשרד.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-type Op = "claim" | "heartbeat" | "complete" | "fail" | "status" | "progress" | "resolve_needs_human";
+// ‼ 194: שתי פעולות מסמך. הן הכרחיות לזרימת הייצוג בשע״ם — הטופס שמופק שם
+// חייב להגיע לתיק הלקוח, והטופס החתום חייב לחזור לשם — **בלי** מסלול
+// «הורד לשולחן העבודה, אתר את הקובץ, העלה ידנית». הגבול שמונע מהן להיות
+// «דלת שירות למסד»: שתיהן מורשות אך ורק על הלקוח של job שהעובד **מחזיק
+// עכשיו** (claimed_by = workerId, status = running) — ראה
+// automation_job_document_context.
+type Op =
+  | "claim" | "heartbeat" | "complete" | "fail" | "status" | "progress" | "resolve_needs_human"
+  | "put_document" | "get_document";
 
 interface Body {
   op: Op;
@@ -32,6 +40,34 @@ interface Body {
   /** 168: התקדמות עמידה לפי capability, ראה update_automation_job_progress. */
   expectedRevision?: number;
   progress?: Record<string, unknown>;
+  /** 194 · put_document/get_document — ראה ההערה ליד Op. */
+  documentId?: string;
+  fileName?: string;
+  /** תוכן הקובץ ב-base64. רק application/pdf נתמך בנתיב הזה. */
+  contentBase64?: string;
+  description?: string;
+  linkedTo?: string;
+  linkedLabel?: string;
+}
+
+const DOC_BUCKET = "client-documents";
+/** תקרה שמרנית: טופס 2279 שנצפה הוא ~60KB, וחתום ~740KB. */
+const MAX_DOC_BYTES = 20 * 1024 * 1024;
+
+function decodeBase64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
 }
 
 Deno.serve(async (req: Request) => {
@@ -130,6 +166,90 @@ Deno.serve(async (req: Request) => {
       });
       if (error) return json({ ok: false, error: error.message }, 500);
       return json(data);
+    }
+
+    // ── 194 · מסמכים, בגבול ה-job שהעובד מחזיק ──────────────────────────────
+    if (body.op === "put_document" || body.op === "get_document") {
+      if (!body.jobId || !body.documentId) {
+        return json({ ok: false, error: "bad_request: jobId+documentId required" }, 400);
+      }
+      const { data: ctx, error: ctxErr } = await admin.rpc("automation_job_document_context", {
+        p_worker_id: body.workerId, p_job_id: body.jobId,
+      });
+      if (ctxErr) return json({ ok: false, error: ctxErr.message }, 500);
+      // ‼ אין job מוחזק ⇒ אין הרשאה. לא «אולי בכל זאת»: זו כל ההגנה כאן.
+      if (!ctx?.ok) return json({ ok: false, error: ctx?.error ?? "not_owner_or_finished" }, 403);
+      const userId = ctx.user_id as string;
+      const clientId = ctx.client_id as string | null;
+      if (!clientId) return json({ ok: false, error: "job_has_no_client" }, 400);
+
+      const path = `${userId}/${clientId}/${body.documentId}`;
+
+      if (body.op === "get_document") {
+        // ‼ מאמתים שהמסמך באמת שייך ללקוח של ה-job — מזהה שהומצא לא יחזיר
+        // קובץ של לקוח אחר, גם אם ה-storage_path שלו נראה דומה.
+        const { data: row, error: rowErr } = await admin.from("documents")
+          .select("id, storage_path, file_name, file_type, client_id, user_id")
+          .eq("id", body.documentId).eq("user_id", userId).eq("client_id", clientId).maybeSingle();
+        if (rowErr) return json({ ok: false, error: rowErr.message }, 500);
+        if (!row) return json({ ok: false, error: "document_not_found" }, 404);
+        const { data: file, error: dlErr } = await admin.storage.from(DOC_BUCKET).download(row.storage_path);
+        if (dlErr || !file) return json({ ok: false, error: dlErr?.message ?? "download_failed" }, 500);
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (bytes.length > MAX_DOC_BYTES) return json({ ok: false, error: "document_too_large" }, 413);
+        return json({
+          ok: true, fileName: row.file_name, fileType: row.file_type,
+          contentBase64: encodeBase64(bytes),
+        });
+      }
+
+      if (!body.contentBase64) return json({ ok: false, error: "bad_request: contentBase64 required" }, 400);
+      let bytes: Uint8Array;
+      try { bytes = decodeBase64(body.contentBase64); }
+      catch { return json({ ok: false, error: "bad_base64" }, 400); }
+      if (bytes.length === 0) return json({ ok: false, error: "empty_document" }, 400);
+      if (bytes.length > MAX_DOC_BYTES) return json({ ok: false, error: "document_too_large" }, 413);
+      // ‼ PDF בלבד בנתיב הזה, ונבדק מהתוכן ולא מהשם.
+      if (!(bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46)) {
+        return json({ ok: false, error: "not_a_pdf" }, 400);
+      }
+
+      const { error: upErr } = await admin.storage.from(DOC_BUCKET)
+        .upload(path, bytes, { contentType: "application/pdf", upsert: true });
+      if (upErr) return json({ ok: false, error: upErr.message }, 500);
+
+      // ‼ D4 (179): documents.label_id הוא NOT NULL. תווית ייעודית לטופסי
+      // ייפוי כוח, ולא «לבדיקה» — הקובץ הזה אינו ממתין להחלטה של אדם.
+      const { data: labelId, error: labelErr } = await admin.rpc("ensure_automation_document_label", {
+        p_user_id: userId, p_name: "ייפוי כוח",
+      });
+      if (labelErr) {
+        await admin.storage.from(DOC_BUCKET).remove([path]);
+        return json({ ok: false, error: labelErr.message }, 500);
+      }
+
+      const { error: docErr } = await admin.from("documents").upsert({
+        id: body.documentId,
+        user_id: userId,
+        client_id: clientId,
+        storage_path: path,
+        file_name: body.fileName || "ייפוי כוח.pdf",
+        file_type: "application/pdf",
+        file_size: bytes.length,
+        category: "other",
+        year: "general",
+        label_id: labelId,
+        description: body.description ?? "טופס ייפוי כוח - לחתימה",
+        notes: "הובא אוטומטית משע״ם",
+        linked_to: body.linkedTo ?? null,
+        linked_label: body.linkedLabel ?? null,
+        status: "received",
+      }, { onConflict: "id" });
+      if (docErr) {
+        await admin.storage.from(DOC_BUCKET).remove([path]);
+        return json({ ok: false, error: docErr.message }, 500);
+      }
+      return json({ ok: true, documentId: body.documentId, size: bytes.length });
     }
 
     if (body.op === "fail") {
