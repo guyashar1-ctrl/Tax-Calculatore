@@ -8,8 +8,12 @@
 // ‼ פונקציות טהורות בלבד, כמו personRepresentation.ts. שום כתיבה כאן.
 // ‼ «אדם» הוא PersonRole ('client'|'spouse') — לא שם, לא מגדר.
 
-import type { Client, NiOccupation, NiTracking, PersonRole, TaxAuthority, TaxFileInfo } from '../types';
-import { NI_FACT_KEYS, TAX_FILE_REP_STATUS_LABELS, REP_AREA_STATUS_LABELS } from '../types';
+import type {
+  Client, NiExternalState, NiOccupation, NiTracking, PersonRole, TaxAuthority, TaxFileInfo,
+} from '../types';
+import {
+  NI_FACT_KEYS, NI_EXTERNAL_STATE_LABELS, TAX_FILE_REP_STATUS_LABELS, REP_AREA_STATUS_LABELS,
+} from '../types';
 import { targetsOf } from './repScope';
 import { resolvePersonAuthority } from './personRepresentation';
 import { clientDisplayName, spouseDisplayName } from '../features/annualReport/profile';
@@ -254,6 +258,37 @@ export function niRepresentationOf(
   }
 
   return unknownOrNone(person);
+}
+
+/**
+ * מה שביטוח לאומי הראתה בקריאה האחרונה למסך «מעקב ייפוי כוח» (195).
+ * ‼ **ראיה, לא מצב עסקי.** «הייצוג פעיל» נגזר מ-`confirmedAt` בלבד, וזה
+ * נכתב רק כשהמצב שנקרא היה 'approved' — בשרת, בטריגר אחד. הפונקציה הזאת
+ * קיימת כדי שהמסך יוכל **לומר מה נראה** במקום לשתוק: אירוע 23.09.2026
+ * (הדסה סלע) התחיל בכך שהמסך הציג אסמכתא ומועד בלי שום אמירה על כך
+ * שביטוח לאומי אומרת «ממתין לאישור».
+ * ‼ אין כאן שום נפילה-אחורה: מצב לא מזוהה מוצג כלא מזוהה, עם הטקסט הגולמי.
+ */
+export interface NiExternalEvidence {
+  state: NiExternalState;
+  label: string;
+  /** הטקסט המדויק מהמסך — מוצג רק כשהמצב עצמו לא זוהה, שם הוא כל המידע. */
+  raw?: string;
+  /** מתי נקראה (ISO). */
+  at?: string;
+  tone: 'ok' | 'warn' | 'muted';
+}
+
+export function niExternalEvidence(ni?: NiTracking | null): NiExternalEvidence | null {
+  const state = ni?.externalState;
+  if (!state) return null;
+  return {
+    state,
+    label: NI_EXTERNAL_STATE_LABELS[state] ?? NI_EXTERNAL_STATE_LABELS.unknown,
+    raw: state === 'unknown' ? (ni?.rawExternalState || undefined) : undefined,
+    at: ni?.syncedAt || undefined,
+    tone: state === 'approved' ? 'ok' : state === 'pending' ? 'muted' : 'warn',
+  };
 }
 
 export interface NiRepresentationAction {

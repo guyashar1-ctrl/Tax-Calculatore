@@ -29,6 +29,9 @@ const BASE: RepresentationRequest = {
   status: 'awaiting_accountant',
   createdAt: '2026-07-01T08:00:00.000Z',
   linkedClientId: 'client-1',
+  // ‼ בלי זה המסך נופל על `request.authorities.includes(...)` — הפיקסטורה
+  // דילגה על השדה, ולכן דף הבדיקה כולו לא עלה (נתפס ב-QA של 23.09.2026).
+  authorities: ['incomeTax', 'nationalInsurance'],
   signers: [
     { id: 'client', role: 'client', source: 'client_self', name: 'רותי לקוח', email: 'ruti@example.com', order: 1, signStatus: 'pending' },
     { id: 'spouse', role: 'spouse', source: 'spouse', name: 'דני לקוח', email: 'dani@example.com', order: 2, signStatus: 'pending' },
@@ -84,6 +87,46 @@ const SCENARIOS: Scenario[] = [
     key: 'awaiting',
     label: '5. הוגש לשע״ם - ממתין לאישור',
     req: { ...BASE, ...withSetup, status: 'awaiting_authorities', signedPdfStoredId: 'doc-signed', execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' }, signatureEmailSentAt: '2026-07-03T10:00:00.000Z', nationalInsurance: { enteredAt: '2026-07-02T09:00:00.000Z', referenceNumber: '73882698', deadline: '2028-01-01', instructionsSentAt: '2026-07-03T10:00:00.000Z', instructionsSentWith: 'signature', confirmedAt: '2026-07-05T10:00:00.000Z' } }) } as unknown as RepresentationRequest,
+  },
+  {
+    // ‼ האירוע של 23.09.2026 (הדסה סלע) כפיקסטורה: ייפוי הכוח נוצר **ידנית**
+    // בפורטל ב"ל, PIVO מצאה אותו ויישבה אסמכתא + מועד, וביטוח לאומי אומרת
+    // «ממתין לאישור». שני הדברים שנשברו נבדקים כאן ביחד: שני השדות חייבים
+    // להציג את הערכים (ולא את ה-placeholder), והמסך חייב לומר «ממתין
+    // לאישור» במקום להיראות כאילו הכול נסגר.
+    // ‼ מעבר **מתרחיש 2 לתרחיש הזה** הוא הרפרודוקציה המדויקת: הרכיב כבר
+    // עלה עם ni ריק, והערכים מגיעים אחריו — בדיוק כמו טעינת הבקשה במסך האמיתי.
+    key: 'reconciled-pending',
+    label: '7. יושב מב״ל - ממתין לאישור (אירוע 23.09)',
+    req: { ...BASE, ...withSetup, execution: ni({
+      incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' },
+      nationalInsurance: {
+        enteredAt: '2026-09-23T09:52:33.656Z',
+        referenceNumber: '75165449',
+        deadline: '2026-11-22',
+        externalState: 'pending',
+        rawExternalState: 'ממתין לאישור',
+        syncedAt: '2026-09-23T09:52:33.656Z',
+        foundExternally: true,
+      },
+    }) } as RepresentationRequest,
+  },
+  {
+    // ‼ מצב שלא זוהה — הניסוח של ביטוח לאומי מוצג כמו שהוא, והמסך לא
+    // מתקדם. הגבול שאסור להיסדק: «לא הבנתי» אינו «אושר».
+    key: 'external-unknown',
+    label: '8. ב״ל החזירה ניסוח לא מוכר',
+    req: { ...BASE, ...withSetup, execution: ni({
+      incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' },
+      nationalInsurance: {
+        enteredAt: '2026-09-23T09:52:33.656Z',
+        referenceNumber: '75165449',
+        deadline: '2026-11-22',
+        externalState: 'unknown',
+        rawExternalState: 'בהמתנה לאישור המבוטח',
+        syncedAt: '2026-09-23T09:52:33.656Z',
+      },
+    }) } as RepresentationRequest,
   },
   {
     // אחרי הסימון — כאן נבדק שהמייל ללקוח אינו יוצא מעצמו אלא בכפתור
