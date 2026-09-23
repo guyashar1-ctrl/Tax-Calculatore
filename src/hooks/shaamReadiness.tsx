@@ -110,6 +110,12 @@ export const SHAAM_CAPABILITIES: Record<string, ReadinessLayer[]> = {
   // לא הוכחת הרשאה לשדר בקשת ייצוג. אין עדיין פעולה עסקית שמשתמשת בזה;
   // מוצהר מראש לפי אותה מוסכמה (ה-134/מע״מ הוצהרו לפני שהיה handler).
   'shaam.representation_readiness': ['representation'],
+  // ‼ שלוש פעולות מחזור חיי הבקשה תלויות **רק** במערכת רישום הייצוג. GMF,
+  // מע"מ ומגן אינן נוגעות בהן: סשן GMF שנפל אינו סיבה לחסום פתיחת בקשת
+  // ייצוג, וגם ההפך. ביטוח לאומי בוודאי לא — פורטל אחר לגמרי.
+  'shaam.create_representation': ['representation'],
+  'shaam.submit_poa': ['representation'],
+  'shaam.check_representation': ['representation'],
 };
 
 /** לאיזו רשות (ואיזה כפתור בכותרת) שייכת יכולת — לפי השכבות שהיא דורשת. */

@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PIVO Automation Foundation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+
+<style>
+  :root {
+    --ground:   #F5F7F8;
+    --surface:  #FFFFFF;
+    --sunk:     #EDF0F2;
+    --ink:      #101619;
+    --ink-2:    #3D4A52;
+    --muted:    #5F6E77;
+    --hair:     #DCE3E6;
+    --hair-2:   #C3CED3;
+
+    --machine:  #10606E;
+    --machine-w:#E2F0F2;
+    --human:    #9A5E06;
+    --human-w:  #FAEEDA;
+    --pivo:     #3B4E86;
+    --pivo-w:   #E7EAF5;
+    --stop:     #9A2B2B;
+    --stop-w:   #F8E6E6;
+    --go:       #2C6338;
+    --go-w:     #E4EFE6;
+
+    --shadow: 0 1px 2px rgba(16,22,25,.05), 0 8px 24px -16px rgba(16,22,25,.25);
+
+    --sans: "IBM Plex Sans", "IBM Plex Sans Hebrew", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:   #0D1214;
+      --surface:  #151D20;
+      --sunk:     #101719;
+      --ink:      #E7EDEF;
+      --ink-2:    #B4C1C6;
+      --muted:    #8698A0;
+      --hair:     #26343A;
+      --hair-2:   #35474E;
+
+      --machine:  #5FB9C7;
+      --machine-w:#123035;
+      --human:    #E0A64C;
+      --human-w:  #33260F;
+      --pivo:     #94A5DC;
+      --pivo-w:   #1D2340;
+      --stop:     #E08585;
+      --stop-w:   #351B1B;
+      --go:       #7FBE8D;
+      --go-w:     #16301C;
+
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:   #0D1214;
+    --surface:  #151D20;
+    --sunk:     #101719;
+    --ink:      #E7EDEF;
+    --ink-2:    #B4C1C6;
+    --muted:    #8698A0;
+    --hair:     #26343A;
+    --hair-2:   #35474E;
+
+    --machine:  #5FB9C7;
+    --machine-w:#123035;
+    --human:    #E0A64C;
+    --human-w:  #33260F;
+    --pivo:     #94A5DC;
+    --pivo-w:   #1D2340;
+    --stop:     #E08585;
+    --stop-w:   #351B1B;
+    --go:       #7FBE8D;
+    --go-w:     #16301C;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.62;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 28px 120px;
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 56px;
+    align-items: start;
+  }
+
+  /* ── masthead ─────────────────────────────────────────── */
+  .mast {
+    grid-column: 1 / -1;
+    padding: 76px 0 40px;
+    border-bottom: 1px solid var(--hair);
+    margin-bottom: 52px;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--machine);
+    margin: 0 0 20px;
+    font-weight: 500;
+  }
+  h1 {
+    font-size: clamp(34px, 5.4vw, 55px);
+    line-height: 1.04;
+    letter-spacing: -.028em;
+    font-weight: 600;
+    margin: 0 0 22px;
+    text-wrap: balance;
+    max-width: 17ch;
+  }
+  .standfirst {
+    font-size: 18.5px;
+    line-height: 1.58;
+    color: var(--ink-2);
+    max-width: 62ch;
+    margin: 0;
+  }
+  .standfirst strong { font-weight: 600; color: var(--ink); }
+
+  .mast-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 30px;
+  }
+
+  /* ── side index ───────────────────────────────────────── */
+  nav.index {
+    position: sticky;
+    top: 28px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  nav.index p {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--hair);
+  }
+  nav.index ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+  nav.index a {
+    color: var(--ink-2);
+    text-decoration: none;
+    display: grid;
+    grid-template-columns: 20px 1fr;
+    gap: 8px;
+    padding: 5px 8px 5px 6px;
+    border-radius: 5px;
+    border-left: 2px solid transparent;
+  }
+  nav.index a:hover { background: var(--sunk); color: var(--ink); border-left-color: var(--machine); }
+  nav.index a:focus-visible { outline: 2px solid var(--machine); outline-offset: 1px; }
+  nav.index .ltr { font-family: var(--mono); font-size: 11px; color: var(--machine); font-weight: 600; padding-top: 1px; }
+
+  /* ── sections ─────────────────────────────────────────── */
+  main { min-width: 0; }
+  section { margin-bottom: 76px; scroll-margin-top: 24px; }
+
+  .shead { margin-bottom: 26px; }
+  .shead .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .12em;
+    color: var(--machine);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 9px;
+  }
+  h2 {
+    font-size: 27px;
+    letter-spacing: -.019em;
+    font-weight: 600;
+    margin: 0 0 8px;
+    line-height: 1.22;
+    text-wrap: balance;
+  }
+  .sub { color: var(--muted); margin: 0; font-size: 15.5px; max-width: 64ch; }
+
+  h3 {
+    font-size: 17.5px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    margin: 40px 0 12px;
+    line-height: 1.32;
+  }
+  h4 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+
+  p { max-width: 68ch; margin: 0 0 15px; }
+  p.wide { max-width: none; }
+  main ul, main ol { max-width: 68ch; margin: 0 0 15px; padding-left: 21px; }
+  main li { margin-bottom: 7px; }
+  main li::marker { color: var(--hair-2); }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  code, .m {
+    font-family: var(--mono);
+    font-size: .865em;
+    background: var(--sunk);
+    border: 1px solid var(--hair);
+    border-radius: 4px;
+    padding: .1em .38em;
+    white-space: nowrap;
+  }
+  .he { font-family: "IBM Plex Sans Hebrew", var(--sans); direction: rtl; unicode-bidi: isolate; }
+
+  /* ── chips ────────────────────────────────────────────── */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+    vertical-align: 1px;
+  }
+  .c-machine { background: var(--machine-w); color: var(--machine); }
+  .c-human   { background: var(--human-w);   color: var(--human); }
+  .c-pivo    { background: var(--pivo-w);    color: var(--pivo); }
+  .c-stop    { background: var(--stop-w);    color: var(--stop); }
+  .c-go      { background: var(--go-w);      color: var(--go); }
+  .c-none    { background: var(--sunk);      color: var(--muted); }
+
+  /* ── cards ────────────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: 9px;
+    padding: 22px 24px;
+    box-shadow: var(--shadow);
+    margin-bottom: 14px;
+  }
+  .card > :last-child { margin-bottom: 0; }
+  .card h4 { margin-bottom: 8px; }
+  .card .title {
+    font-size: 16.5px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    margin: 0 0 8px;
+    line-height: 1.35;
+  }
+  .card p { font-size: 15px; }
+  .path {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    display: block;
+    margin-top: 12px;
+    padding-top: 11px;
+    border-top: 1px solid var(--hair);
+    line-height: 1.6;
+    word-break: break-word;
+    white-space: normal;
+  }
+  .card.flag { border-left: 3px solid var(--human); }
+  .card.keep { border-left: 3px solid var(--go); }
+  .card.gone { border-left: 3px solid var(--stop); }
+
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .grid2 .card { margin-bottom: 0; }
+
+  /* ── tables ───────────────────────────────────────────── */
+  .tscroll {
+    overflow-x: auto;
+    border: 1px solid var(--hair);
+    border-radius: 9px;
+    background: var(--surface);
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 580px; }
+  th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--hair-2);
+    background: var(--sunk);
+    white-space: nowrap;
+  }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--hair); vertical-align: top; line-height: 1.5; }
+  tr:last-child td { border-bottom: none; }
+  td.k { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; color: var(--ink); }
+  td.n { font-variant-numeric: tabular-nums; }
+
+  /* ── flow ─────────────────────────────────────────────── */
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: stretch;
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: 9px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .node {
+    flex: 1 1 130px;
+    min-width: 128px;
+    border: 1px solid var(--hair);
+    border-radius: 7px;
+    padding: 13px 14px;
+    background: var(--sunk);
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .node .nm { font-size: 13.5px; font-weight: 600; line-height: 1.32; }
+  .node .nd { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .node.mach { border-color: var(--machine); background: var(--machine-w); }
+  .node.hum  { border-color: var(--human);   background: var(--human-w); }
+  .node.piv  { border-color: var(--pivo);    background: var(--pivo-w); }
+
+  /* ── state machine ────────────────────────────────────── */
+  .states { display: flex; flex-direction: column; gap: 0; margin-bottom: 16px; }
+  .state {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 18px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--hair);
+    align-items: baseline;
+  }
+  .state:last-child { border-bottom: none; }
+  .state .sn { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+  .state .sd { font-size: 14.5px; color: var(--ink-2); line-height: 1.5; }
+  .state .sd strong { color: var(--ink); }
+
+  /* ── schema block ─────────────────────────────────────── */
+  pre {
+    font-family: var(--mono);
+    font-size: 12.8px;
+    line-height: 1.68;
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: 9px;
+    padding: 20px 22px;
+    overflow-x: auto;
+    margin: 0 0 16px;
+    box-shadow: var(--shadow);
+    color: var(--ink-2);
+  }
+  pre b { color: var(--ink); font-weight: 600; }
+  pre i { color: var(--muted); font-style: normal; }
+  pre u { color: var(--machine); text-decoration: none; font-weight: 500; }
+
+  /* ── callout ──────────────────────────────────────────── */
+  .call {
+    border-left: 3px solid var(--machine);
+    background: var(--sunk);
+    border-radius: 0 7px 7px 0;
+    padding: 16px 20px;
+    margin: 0 0 16px;
+  }
+  .call.warn { border-left-color: var(--human); }
+  .call p { margin: 0; font-size: 15px; max-width: 66ch; }
+  .call p + p { margin-top: 10px; }
+  .call .lab {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--machine);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .call.warn .lab { color: var(--human); }
+
+  /* ── milestone ────────────────────────────────────────── */
+  .ms {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 20px;
+    padding: 24px 0;
+    border-top: 1px solid var(--hair);
+  }
+  .ms .num {
+    font-family: var(--mono);
+    font-size: 25px;
+    font-weight: 500;
+    color: var(--hair-2);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .ms .title { font-size: 18px; font-weight: 600; margin: 0 0 4px; letter-spacing: -.012em; }
+  .ms .gate { font-size: 13.5px; color: var(--muted); margin: 10px 0 0; }
+  .ms .gate b { color: var(--human); font-weight: 600; }
+
+  footer {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--hair);
+    padding-top: 22px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; gap: 0; padding: 0 20px 80px; }
+    nav.index { display: none; }
+    .mast { padding-top: 48px; }
+    .state { grid-template-columns: 1fr; gap: 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <p class="eyebrow">Architecture &amp; repo discovery · 31 Aug 2026</p>
+    <h1>A foundation for many automations</h1>
+    <p class="standfirst">PIVO needs a reusable path from a client action to a government system and back. <strong>The withholding-tax certificate is the first vertical slice, not the design target.</strong> What follows is the smallest structure that makes automation #2 and #3 cheap — grounded in what the repository already has, which turns out to be more than half of it.</p>
+    <div class="mast-meta">
+      <span class="chip c-pivo">PIVO · control</span>
+      <span class="chip c-machine">Worker · deterministic</span>
+      <span class="chip c-human">Human · authentication</span>
+    </div>
+  </header>
+
+  <nav class="index">
+    <p>Contents</p>
+    <ol>
+      <li><a href="#a"><span class="ltr">A</span><span>Repo findings</span></a></li>
+      <li><a href="#b"><span class="ltr">B</span><span>Architecture</span></a></li>
+      <li><a href="#c"><span class="ltr">C</span><span>Job &amp; action model</span></a></li>
+      <li><a href="#d"><span class="ltr">D</span><span>Session lifecycle</span></a></li>
+      <li><a href="#e"><span class="ltr">E</span><span>First slice</span></a></li>
+      <li><a href="#f"><span class="ltr">F</span><span>Needs approval</span></a></li>
+      <li><a href="#g"><span class="ltr">G</span><span>Capture unknowns</span></a></li>
+      <li><a href="#h"><span class="ltr">H</span><span>Milestones</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ══════════════════════════ A ══════════════════════════ -->
+    <section id="a">
+      <div class="shead">
+        <span class="tag">A</span>
+        <h2>What the repository already gives us</h2>
+        <p class="sub">Checked across <code>package.json</code>, <code>src/</code>, <code>scripts/</code>, <code>supabase/</code> (149 migrations) and <code>docs/</code>. Two findings change the design; one constrains the UI.</p>
+      </div>
+
+      <h3>The load-bearing discovery</h3>
+
+      <div class="card keep">
+        <p class="title">A proposal → human-decision pipeline already exists, and it is the right result channel</p>
+        <p><code>tax_fact_changes</code> holds a proposed change to a professional fact: field key, old value, new value, source, and a <code>pending / accepted / rejected</code> status with a decider and a timestamp. <code>propose_tax_facts</code> <em>never</em> writes to <code>clients</code> — every proposal lands as pending, without exception. The accountant accepts or rejects.</p>
+        <p>This is exactly what an automation should produce. A check that reads a government system is making a claim about a fact; the accountant remains the one who accepts it. <strong>Automation results should not get a bespoke surface — they should land here.</strong> That single decision is what makes the second and third automation cheap, because their output needs no new UI at all.</p>
+        <p>It is also already idempotent in the way a retrying worker needs: a partial unique index on <code>(client_id, field_key) WHERE status = 'pending'</code> means re-proposing the same fact refreshes the pending row instead of stacking duplicates.</p>
+        <span class="path">supabase/90-tax-fact-reconciliation.sql — tax_fact_changes · propose_tax_facts · accept_tax_fact_change · reject_tax_fact_change</span>
+      </div>
+
+      <div class="card keep">
+        <p class="title">The first action's output field already exists as a governed fact</p>
+        <p>Migration 146 added <code>clients.withholding_status</code> with exactly three values — <code>exempt</code> (<span class="he">פטור</span>), <code>rates</code> (<span class="he">שיעורים לפי פעילות</span>), <code>none</code> (<span class="he">אין אישור תקף</span>) — and wired <code>withholdingStatus</code> into the tax-fact field dispatcher so it can be proposed and accepted like any other fact. The reason given in the migration is that the authority-flags generator must tell "no valid certificate" apart from "rates by activity", because one is fine and the other needs work.</p>
+        <p>So the first automation has no schema to invent. It reads SHAAM and proposes a value for a column that is already governed, already displayed, and already drives a flag.</p>
+        <span class="path">supabase/146-withholding-status-governed.sql · src/utils/authorityFlags.ts</span>
+      </div>
+
+      <h3>What is missing</h3>
+
+      <div class="grid2">
+        <div class="card gone">
+          <p class="title">There is no job queue</p>
+          <p>Not a table, not a view, nothing. Searched every migration. Every asynchronous thing in the system today is a cron firing an edge function that finishes within its own invocation.</p>
+        </div>
+        <div class="card gone">
+          <p class="title">There is no browser automation</p>
+          <p>No Playwright, no Puppeteer, not even transitively. All 45 Node scripts are plain <code>fetch</code> against the Supabase Management API. A local worker is a from-scratch addition.</p>
+        </div>
+      </div>
+
+      <div class="card flag">
+        <p class="title">The existing claim/release pattern is right in shape and wrong in scope — and it has no lease</p>
+        <p><code>claim_auto_execution</code> is a single <code>UPDATE … WHERE payload-&gt;&gt;'autoExecutedAt' IS NULL</code>: two concurrent callers, one winner. That is the correct primitive and worth copying. But it is bound to <code>onboarding_steps</code> and claims by writing into a step's payload, so it is a <em>pattern</em> to reuse, not a table.</p>
+        <p>More important: <strong>the claim has no expiry.</strong> Release only happens because the caller is an edge function that runs to completion and calls it. A local worker on an office PC can be killed, lose its network, or have the machine sleep — and a claim with no lease leaves that job wedged forever with no retry. The generic model must add a lease; this is the one place where copying the existing pattern verbatim would be a mistake.</p>
+        <span class="path">supabase/83-automatic-tasks.sql:115–149 — claim_auto_execution / release_auto_execution</span>
+      </div>
+
+      <h3>Patterns to reuse as-is</h3>
+
+      <div class="grid2">
+        <div class="card">
+          <p class="title">Secret-authenticated edge functions</p>
+          <p>Functions already accept either <code>x-cron-secret</code> (checked against Supabase Vault) or a service-role bearer. The worker gets its own secret on the same shape — never the service-role key.</p>
+          <span class="path">supabase/functions/quotation-reminders/index.ts · supabase/21-weekly-backup-cron.sql</span>
+        </div>
+        <div class="card">
+          <p class="title">Default-on feature flags</p>
+          <p><code>firmProfile.settings.flags.X !== false</code> already gates <code>onboardingTab</code>, <code>journeyUi</code> and <code>personDirectory</code>. A temporary surface gets a flag on this exact pattern.</p>
+          <span class="path">src/App.tsx:408–416</span>
+        </div>
+        <div class="card">
+          <p class="title">Accountant notification channel</p>
+          <p>A shared helper already notifies the accountant from server-side code. "Your check finished" needs no new plumbing.</p>
+          <span class="path">supabase/functions/_shared/accountantNotifications.ts</span>
+        </div>
+        <div class="card">
+          <p class="title">Flat numbered migrations</p>
+          <p>149 files applied verbatim through the Management API, with idempotency asserted inside the file. No Docker, no local Postgres.</p>
+          <span class="path">scripts/prod-apply-migration.mjs</span>
+        </div>
+      </div>
+
+      <h3 id="tab">The UI constraint you should know about before deciding on the tab</h3>
+
+      <div class="call warn">
+        <span class="lab">Standing decision in the code</span>
+        <p><code>ClientWorkspace.tsx</code> carries an explicit architectural rule, approved 15.07.2026: <em>a new capability enters as a section inside <span class="he">"התיק"</span> or as a letter in the control center — never as a tab.</em> The comment states the reason plainly: a dead tab on every client is exactly what the rule exists to prevent. Two tabs have been added since, and each required a frozen, named design source to override the rule.</p>
+        <p>Separately, <strong>a surface that answers "what needs attention for this client, per authority" already exists</strong>: <code>AlignmentStatusView</code> — <span class="he">תמונת מצב מול הרשויות</span> — renders conclusions above the data across <span class="he">ב״ל</span>, <span class="he">מע״מ</span> and <span class="he">מ״ה</span>, driven by <code>computeAuthorityFlags</code>.</p>
+      </div>
+
+      <p>You asked for a <span class="he">"בדיקות"</span> tab <em>temporarily</em>, and that word does the work: as a scaffold behind a flag it is a reasonable way to build and see the machinery before deciding where it lands. The recommendation is to make that explicit rather than accidental — ship it as <code>flags.checksTab</code>, defaulting <em>off</em> in production and on for you, so it is a workbench and not a third exception to a rule you wrote for good reasons. Where the results ultimately belong is a product decision (§F), and the strongest candidate is the surface that already exists.</p>
+    </section>
+
+    <!-- ══════════════════════════ B ══════════════════════════ -->
+    <section id="b">
+      <div class="shead">
+        <span class="tag">B</span>
+        <h2>Recommended architecture</h2>
+        <p class="sub">Three planes. The only new infrastructure is the ledger in the middle and the worker on the right.</p>
+      </div>
+
+      <div class="flow">
+        <div class="node piv">
+          <span class="chip c-pivo">PIVO</span>
+          <span class="nm">Action button</span>
+          <span class="nd">Client tab. Writes one row: action type, client, input.</span>
+        </div>
+        <div class="node">
+          <span class="chip c-none">Supabase</span>
+          <span class="nm">Job ledger</span>
+          <span class="nd">One table. Status, lease, attempts, result.</span>
+        </div>
+        <div class="node mach">
+          <span class="chip c-machine">Worker</span>
+          <span class="nm">Poll &amp; claim</span>
+          <span class="nd">Office PC. Narrow edge function, never the DB directly.</span>
+        </div>
+        <div class="node hum">
+          <span class="chip c-human">Human</span>
+          <span class="nm">Authenticate</span>
+          <span class="nd">Card, PIN, OTP. Worker detects and waits — never acts.</span>
+        </div>
+        <div class="node mach">
+          <span class="chip c-machine">Module</span>
+          <span class="nm">Run action</span>
+          <span class="nd">Playwright in the authenticated profile.</span>
+        </div>
+        <div class="node piv">
+          <span class="chip c-pivo">PIVO</span>
+          <span class="nm">Proposed fact</span>
+          <span class="nd">Result lands as a pending tax fact. Accountant accepts.</span>
+        </div>
+      </div>
+
+      <h3>The four decisions that define it</h3>
+
+      <p><strong>1. The worker pulls; it is never pushed to.</strong> The card is physical, so the worker lives on the office Windows machine, behind no inbound address. This inverts the existing pattern — <code>pg_cron</code> pushes to edge functions today — and it is not optional. The worker polls a narrow endpoint on an interval.</p>
+
+      <p><strong>2. The worker never holds a service-role key and never touches the database directly.</strong> It authenticates to two edge functions with a dedicated worker secret from Vault: one to claim work, one to report a result. This keeps the blast radius of a compromised office PC to "can claim and complete automation jobs", not "can read every client".</p>
+
+      <p><strong>3. Results are proposals, not writes.</strong> The worker's structured output becomes a <code>tax_fact_changes</code> row in <code>pending</code>. The accountant accepts. No automation writes a professional fact directly — which is already the rule the codebase enforces for every other source.</p>
+
+      <p><strong>4. Actions are modules behind one interface.</strong> The worker is a dispatcher: it claims a job, looks up a handler by <code>action_type</code>, and runs it. Adding automation #2 means adding a file that exports one function and registering it. Everything else — claiming, leasing, retrying, reporting, the human-gate handling, the UI — is shared and written once.</p>
+
+      <div class="call">
+        <span class="lab">What "minimum" means here</span>
+        <p>One new table, two new edge functions, one new local package, one flag-gated UI surface, and a handler interface. No queue infrastructure, no message broker, no worker registry, no orchestration layer. Polling a table on a 30-second interval is entirely adequate for a workload of a few actions per day.</p>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════ C ══════════════════════════ -->
+    <section id="c">
+      <div class="shead">
+        <span class="tag">C</span>
+        <h2>The generic job and action model</h2>
+        <p class="sub">One table, seven states, one handler interface. Everything action-specific lives inside two JSON columns.</p>
+      </div>
+
+      <h3>The ledger</h3>
+
+      <pre><b>automation_jobs</b>
+  id             text primary key
+  user_id        uuid        <i>-- owning accountant; drives RLS in PIVO</i>
+  client_id      text        <i>-- who this is about</i>
+  <b>action_type</b>    text        <i>-- 'shaam.withholding_certificate' — the dispatch key</i>
+  <b>input</b>          jsonb       <i>-- action-specific. resolved by PIVO at create time,</i>
+                             <i>   never re-read from clients by the worker</i>
+
+  status         text        <i>-- see states below</i>
+  <u>claimed_by</u>     text        <i>-- worker instance id</i>
+  <u>claimed_at</u>     timestamptz
+  <u>lease_until</u>    timestamptz <i>-- ‼ the thing the existing pattern lacks</i>
+  attempts       int  default 0
+  max_attempts   int  default 3
+
+  <b>result</b>         jsonb       <i>-- action-specific structured output</i>
+  <b>artifacts</b>      jsonb       <i>-- [{ document_id, kind, filename }] — files land in</i>
+                             <i>   the existing documents store, not in this row</i>
+  error_code     text        <i>-- machine-readable: 'auth_required', 'not_found', …</i>
+  error_detail   text        <i>-- human sentence, shown in PIVO</i>
+  needs_human    text        <i>-- what the accountant must do, when blocked</i>
+
+  created_at, updated_at, finished_at   timestamptz
+
+  <i>-- one open job per client per action:</i>
+  unique (client_id, action_type) where status in
+    ('queued','claimed','running','needs_human')</pre>
+
+      <p>The last line is the idempotency guarantee at the product level: pressing the button twice cannot create two jobs, and the UI can simply show the open one. It also means a retry is the same row, not a new one.</p>
+
+      <h3>States</h3>
+
+      <div class="states">
+        <div class="state"><span class="sn"><span class="chip c-none">queued</span></span><span class="sd">PIVO created it. Nobody has touched it.</span></div>
+        <div class="state"><span class="sn"><span class="chip c-machine">claimed</span></span><span class="sd">A worker won the atomic update and holds a lease. <strong>If the lease expires, the job returns to <code>queued</code></strong> and <code>attempts</code> stands — this is what makes a killed worker recoverable.</span></div>
+        <div class="state"><span class="sn"><span class="chip c-machine">running</span></span><span class="sd">The handler is executing. The worker extends the lease on a heartbeat.</span></div>
+        <div class="state"><span class="sn"><span class="chip c-human">needs_human</span></span><span class="sd"><strong>The distinctive state, and the reason this model differs from an ordinary queue.</strong> The government system wants a certificate, a PIN, or an OTP. The worker stops, records what is needed, and releases. PIVO shows it. Nothing retries automatically — a human acts, and the job goes back to <code>queued</code>.</span></div>
+        <div class="state"><span class="sn"><span class="chip c-go">succeeded</span></span><span class="sd">Structured result written; any proposed fact is pending the accountant's acceptance.</span></div>
+        <div class="state"><span class="sn"><span class="chip c-stop">failed</span></span><span class="sd">Attempts exhausted, or a non-retryable error. Carries a code and a sentence.</span></div>
+        <div class="state"><span class="sn"><span class="chip c-none">cancelled</span></span><span class="sd">The accountant withdrew it.</span></div>
+      </div>
+
+      <div class="call warn">
+        <span class="lab">Retry semantics — say this out loud before building</span>
+        <p>Only two error classes may be retried automatically: transport failures and lease expiry. <strong>An action that reached the government system and got an answer is never retried automatically</strong>, even a bad answer — because we cannot generally know whether a submission took effect. For the read-only first slice this is theoretical; the moment an action <em>writes</em> to a government system it is the whole ballgame, so the rule belongs in the foundation now.</p>
+      </div>
+
+      <h3>The handler interface</h3>
+
+      <pre><i>// every automation is this, and nothing more</i>
+<b>interface AutomationHandler</b> {
+  actionType: string;              <i>// 'shaam.withholding_certificate'</i>
+  system: 'shaam' | 'btl';         <i>// which session this needs</i>
+
+  <i>// may this run now? cheap, no navigation</i>
+  <u>preflight</u>(ctx): Promise&lt;{ ok: true } | { ok: false; needsHuman: string }&gt;;
+
+  <i>// do the thing. throws Retryable / Permanent / NeedsHuman</i>
+  <u>run</u>(ctx, input): Promise&lt;{
+    result: Record&lt;string, unknown&gt;;
+    facts?: { fieldKey: string; label: string; value: unknown }[];
+    artifacts?: { path: string; kind: string }[];
+  }&gt;;
+}</pre>
+
+      <p>The context carries an authenticated Playwright page, a logger, and a heartbeat callback. It carries no Supabase client — a handler cannot reach the database, so a badly written module cannot corrupt anything. Its only outputs are its return value and its exceptions.</p>
+
+      <p><code>facts</code> is the bridge to §A: whatever a handler returns there is proposed through <code>propose_tax_facts</code> by the reporting endpoint, using the existing machinery.</p>
+    </section>
+
+    <!-- ══════════════════════════ D ══════════════════════════ -->
+    <section id="d">
+      <div class="shead">
+        <span class="tag">D</span>
+        <h2>Browser and session lifecycle</h2>
+        <p class="sub">The part where the architecture meets a physical smart card.</p>
+      </div>
+
+      <h3>Placement</h3>
+      <p>A new workspace package in this repo — <code>worker/</code> — with its own <code>package.json</code>. It shares the repo for versioning and review but not the build: the app must never bundle Playwright, and the worker must never import React. Node, TypeScript, one dependency.</p>
+
+      <h3>The profile is the session</h3>
+      <p>The worker uses a <strong>persistent Chrome profile directory it owns</strong> (<code>launchPersistentContext</code>), dedicated to automation and separate from the accountant's daily browser. That directory holds the cookies and the certificate decision; it lives on the office PC and is never uploaded, backed up, or synced. Both of the auth modes you described work against it: the accountant authenticates in that window once, and the worker's later runs reuse it.</p>
+
+      <div class="call warn">
+        <span class="lab">Hard boundary</span>
+        <p>The worker's authentication logic is <em>detection only</em>. It reads the state — tab title <code>HomePage</code>, <code>Error_nocard</code>, a navigation that bounces back, a page call that times out because a native dialog is modal — and maps it to an outcome. It never clicks a certificate dialog, never types a PIN, never touches an OTP field. The detection table for this is already written in the <code>shaam-login</code> skill's <code>screens.md</code>, observed in the field, and it becomes the implementation of one function.</p>
+      </div>
+
+      <h3>The waiting protocol</h3>
+      <ol>
+        <li>Worker claims a job and opens the profile.</li>
+        <li><code>preflight</code> checks for a live session. Live → run.</li>
+        <li>Not live → the worker <strong>brings the window forward and leaves it on the login page</strong>, sets the job to <code>needs_human</code> with a sentence naming what is needed, and releases the claim. It does not sit in a loop holding the job.</li>
+        <li>PIVO shows the job as waiting for authentication, with that sentence.</li>
+        <li>The accountant authenticates in the window that is already open. Nothing to install, nothing to copy.</li>
+        <li>The next poll finds a live session and the job runs. Whether that requeue is automatic on detecting a live session, or requires the accountant to press "continue", is a product call (§F).</li>
+      </ol>
+
+      <h3>One worker, one browser, one job at a time</h3>
+      <p>Serial execution. A single card, a single session, and a workload of a few jobs a day make concurrency pure cost. The lease and the atomic claim still matter — not for parallelism, but because a second worker will eventually get started by accident, and because a killed worker must not wedge a job.</p>
+    </section>
+
+    <!-- ══════════════════════════ E ══════════════════════════ -->
+    <section id="e">
+      <div class="shead">
+        <span class="tag">E</span>
+        <h2>What the first slice actually proves</h2>
+        <p class="sub"><span class="he">אישור ניכוי מס במקור</span> — separating what it validates about the reusable system from what it teaches us about one SHAAM screen.</p>
+      </div>
+
+      <p>The withholding certificate is a good first slice for reasons that have nothing to do with withholding tax: it is <strong>read-only</strong>, so a bug cannot submit anything to a government system; its output is <strong>a three-value enum that already exists as a governed fact</strong>, so it exercises the full result path without inventing schema; and it <strong>produces a downloadable certificate</strong>, so it exercises the artifact path too.</p>
+
+      <div class="grid2">
+        <div class="card keep">
+          <h4>Proves — about the system</h4>
+          <ul style="margin-bottom:0">
+            <li>A button in PIVO creates a job that a machine outside Supabase picks up.</li>
+            <li>The atomic claim works across processes; a second worker gets nothing.</li>
+            <li>A killed worker's lease expires and the job is picked up again — no wedge.</li>
+            <li>A card-bound session survives between worker invocations.</li>
+            <li>The human gate works end to end: no session → <code>needs_human</code> → accountant authenticates → job completes.</li>
+            <li>A structured result becomes a pending fact the accountant can accept, moving <code>clients.withholding_status</code> through the existing path.</li>
+            <li>A downloaded PDF lands in the documents store, attached to the client.</li>
+          </ul>
+        </div>
+        <div class="card flag">
+          <h4>Does not prove — needs slice 2</h4>
+          <ul style="margin-bottom:0">
+            <li>Anything about <em>writing</em> to a government system, where retry rules bite.</li>
+            <li>That the handler interface fits a second, differently-shaped action — the real test of the abstraction, which is why automation #2 should be chosen deliberately (a BTL action would prove the multi-system assumption).</li>
+            <li>Multi-step actions that span human waits in the middle rather than at the start.</li>
+            <li>Anything about concurrency beyond "one at a time is enough".</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="call">
+        <span class="lab">Keep these two things apart</span>
+        <p>The reusable foundation can be built and tested <em>before</em> the SHAAM screens are understood, using a fake handler that returns a fixed answer. That is the recommendation in §H: prove the machinery against a stub, then drop the real handler in. Otherwise a session-lifecycle bug and a page-selector bug arrive on the same afternoon looking identical.</p>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════ F ══════════════════════════ -->
+    <section id="f">
+      <div class="shead">
+        <span class="tag">F</span>
+        <h2>Decisions that need you, not me</h2>
+        <p class="sub">Five. The first two are genuine data-model commitments; the rest are product calls that change what gets built.</p>
+      </div>
+
+      <div class="card flag">
+        <p class="title">1 · Does automation become a new fact source?</p>
+        <p><code>tax_fact_changes.source</code> is a CHECK constraint over exactly four values: <code>questionnaire</code>, <code>manual</code>, <code>institution_alignment</code>, <code>import</code>. Automation output needs a fifth — <code>automation</code> — or it must masquerade as one of these. Adding it is a small migration, but it is a permanent vocabulary change to a governed model, and it affects how provenance reads in the UI for every fact from now on.</p>
+        <p><strong>Recommendation:</strong> add it. A fact whose source was a robot reading a government screen is meaningfully different from one the accountant typed, and the model exists precisely to record that difference.</p>
+      </div>
+
+      <div class="card flag">
+        <p class="title">2 · Where do check results live once the scaffold comes down?</p>
+        <p>The <span class="he">בדיקות</span> tab is a workbench (§A). The durable answer is either a section inside the existing <span class="he">תמונת מצב מול הרשויות</span> — which already answers "what needs attention, per authority" and would then also carry "and here is what we verified directly" — or a permanent tab, which needs the same kind of frozen design source the other two exceptions required.</p>
+        <p><strong>Recommendation:</strong> build behind <code>flags.checksTab</code>, decide after slice 2, when there are two actions to look at rather than one.</p>
+      </div>
+
+      <div class="card flag">
+        <p class="title">3 · After the accountant authenticates, does the job resume by itself?</p>
+        <p>Automatic resume is smoother. Explicit resume is honest: the accountant may have logged in for something else entirely, and a job silently starting inside their browser session is surprising. This affects the state machine, so it is worth settling before it is written.</p>
+        <p><strong>Recommendation:</strong> automatic for read-only actions, explicit for anything that writes. Which means the handler declares it — one more field on the interface.</p>
+      </div>
+
+      <div class="card flag">
+        <p class="title">4 · Who owns the worker machine, and what happens when it is off?</p>
+        <p>A job created on Friday evening sits until the office PC wakes. PIVO should say so rather than showing an indefinite spinner — which means the worker reports a heartbeat, and PIVO surfaces "the worker has not checked in since…". Small, but it is the difference between a system that looks broken and one that looks honest.</p>
+      </div>
+
+      <div class="card flag">
+        <p class="title">5 · How long do job rows and their inputs live?</p>
+        <p><code>input</code> will contain client identifiers by necessity. A job ledger is an audit trail worth keeping, but it is also a second copy of identifying data with a different access path than <code>clients</code>. Decide a retention window now — 90 days of finished jobs, say — rather than discovering in a year that the ledger is the largest table of personal data in the system.</p>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════ G ══════════════════════════ -->
+    <section id="g">
+      <div class="shead">
+        <span class="tag">G</span>
+        <h2>What still needs one manual capture</h2>
+        <p class="sub">The handoff's capture protocol holds — but its unknowns were framed around the representation request. Re-pointed at the withholding certificate, this is the shorter list.</p>
+      </div>
+
+      <ol>
+        <li><strong>Where the certificate check lives in the portal.</strong> Which menu path, and whether it is its own screen or a section of the client query used for representation.</li>
+        <li><strong>Postback or JSON.</strong> Unchanged and still first: it decides whether the handler issues a request or drives a page. Answered in ten seconds with the Fetch/XHR filter.</li>
+        <li><strong>What the screen actually returns</strong>, and how it distinguishes the three states the data model already has — exempt, rates by activity, no valid certificate — plus the validity dates, which the model does <em>not</em> yet carry and may need to.</li>
+        <li><strong>Whether a certificate PDF is downloadable</strong>, and under what filename pattern. This is what exercises the artifact path.</li>
+        <li><strong>PIN cadence.</strong> Once per session, or once per operation. Decides whether unattended runs exist at all.</li>
+        <li><strong>Session lifetime</strong> — how long an idle authenticated session survives. Sets the polling interval and the lease duration.</li>
+        <li><strong>Whether automated access is permitted</strong> under the portal's own <span class="he">נהלים</span> and <span class="he">אבטחת מידע</span> pages. Stop-or-go, and it belongs before the code.</li>
+      </ol>
+
+      <p>Items 5 and 6 are properties of the <em>session</em>, not of this action — they are answered once and they are inputs to the foundation, which is another reason the capture should happen before milestone 2 rather than during it.</p>
+    </section>
+
+    <!-- ══════════════════════════ H ══════════════════════════ -->
+    <section id="h">
+      <div class="shead">
+        <span class="tag">H</span>
+        <h2>Three milestones</h2>
+        <p class="sub">Each one ends somewhere you can stop, look at a working thing, and decide whether to continue.</p>
+      </div>
+
+      <div class="ms">
+        <span class="num">01</span>
+        <div>
+          <p class="title">The machinery, proven against a stub</p>
+          <p>The <code>automation_jobs</code> table with its lease and its atomic claim. Two edge functions — claim and report — on the existing secret pattern. The <code>worker/</code> package with the dispatcher, the lease heartbeat, and one fake handler that sleeps two seconds and returns a fixed answer. The <span class="he">בדיקות</span> tab behind <code>flags.checksTab</code>, with a button, a live status, and an error.</p>
+          <p><strong>Done when:</strong> pressing the button in PIVO changes a row on the office PC and the answer appears back on screen; two workers race and one loses; a worker killed mid-job releases its lease and the next run picks it up.</p>
+          <p class="gate"><b>No SHAAM involved.</b> No browser involved. If this milestone is hard, the problem is the foundation — which is exactly what you want to find out before Playwright is in the room.</p>
+        </div>
+      </div>
+
+      <div class="ms">
+        <span class="num">02</span>
+        <div>
+          <p class="title">The session, and the human gate</p>
+          <p>Playwright with a persistent profile. Session detection implemented from the observed screen signatures. The <code>needs_human</code> path end to end: no session → PIVO says what is needed → the accountant authenticates in the open window → the job completes. Still no real action — the handler navigates to the portal home and reports "session live".</p>
+          <p><strong>Done when:</strong> the gate works from both starting points — an already-authenticated Chrome, and a cold start where the accountant authenticates on request — and a session survives between two worker invocations an hour apart.</p>
+          <p class="gate"><b>Gated on:</b> the manual capture (§G items 5–7) and a yes on Playwright as a dependency.</p>
+        </div>
+      </div>
+
+      <div class="ms">
+        <span class="num">03</span>
+        <div>
+          <p class="title">The first real action, on rails already built</p>
+          <p>The withholding-certificate handler: navigate, read, return a structured result plus a proposed <code>withholdingStatus</code> fact and the certificate PDF as an artifact. The proposal appears in the existing tax-fact review; accepting it moves the client's governed field.</p>
+          <p><strong>Done when:</strong> a real client's status is read from SHAAM and accepted into PIVO without anyone opening the portal by hand — and the diff for this milestone is one handler file plus its registration, which is the actual proof that automation #2 is cheap.</p>
+          <p class="gate"><b>Gated on:</b> the manual capture (§G items 1–4).</p>
+        </div>
+      </div>
+
+      <div class="call" style="margin-top:32px">
+        <span class="lab">Sequencing note</span>
+        <p>Milestone 1 needs nothing from you but a yes. It touches no government system, adds no browser dependency, and is the half of the architecture most likely to be wrong in a way that is expensive later. It can start while the capture is still unscheduled.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    Architecture and repo discovery only · no files changed, nothing committed · repository read at <code>e32559a</code>, which moved twice during this session — a parallel session is working in <code>RepresentationExecutionCenter.tsx</code> and <code>repScope.ts</code>. Companion document: <code>docs/SHAAM-AUTOMATION-HANDOFF.md</code>.
+  </footer>
+
+</div>
+</body>
+</html>

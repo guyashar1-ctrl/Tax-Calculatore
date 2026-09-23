@@ -467,11 +467,19 @@ export default function AuthoritiesPanel({
                   <AuthorityCheckButton label={spec.actionLabel} capability={spec.capability ?? ''}
                     running={running} onRun={runCheck} unavailableReason={unavailable} inputBlockedReason={inputBlocked} />
                 )}
-                {/* ‼ פרק 17: תא הפעולה של שע״ם — מוכן במבנה, מושבת עם הסיבה
-                    עד שתיבנה אוטומציה אמיתית. */}
+                {/* ‼ פרק 17/194: תא הפעולה של שע״ם. האוטומציה עצמה רצה
+                    במרכז ביצוע הייצוג — שם יושבים הבקשה, ההגשות, הטפסים
+                    והחתימות שהיא צריכה. כאן מוצגת **אותה תווית בדיוק**
+                    (מאותה נגזרת), והלחיצה מביאה לשם. ‼ בכוונה לא משוכפלת
+                    כאן פעולה שנייה מול רשות: שני כפתורים שמריצים את אותה
+                    פעולה משני מסכים הם בדיוק איך נוצרות בקשות כפולות. */}
                 {row.authority === 'income_tax' && shaamRepAction && !hideRepresentationPlaceholder && (
-                  <button type="button" className="txf-check-btn btn-automation" disabled
-                    title={shaamRepAction.reason} aria-label={`${shaamRepAction.label} — ${shaamRepAction.reason}`}>
+                  <button type="button" className="txf-check-btn btn-automation"
+                    disabled={!onOpenRepresentation}
+                    title={onOpenRepresentation
+                      ? `${shaamRepAction.label} — במרכז ביצוע הייצוג`
+                      : 'הפעולה זמינה במרכז ביצוע הייצוג.'}
+                    onClick={() => onOpenRepresentation?.()}>
                     <span className="txf-check-lbl">{shaamRepAction.label}</span>
                   </button>
                 )}

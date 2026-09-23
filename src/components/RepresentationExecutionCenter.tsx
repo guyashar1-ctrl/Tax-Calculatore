@@ -6,7 +6,7 @@
 //     ומי שמאשר בסוף הוא הלקוח. כל השלבים כאן נשמרים ב-execution.
 // המטרה: להיכנס לבקשה ולדעת בשנייה מה נשאר לעשות ואצל מי הכדור.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   RepresentationRequest,
   RepresentationExecution,
@@ -23,6 +23,8 @@ import {
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { shaamSubmissions, requestScope, peopleFromClient, targetsOf } from '../utils/repScope';
 import { signatureDocumentsOf, allDocumentsStamped } from '../utils/repDocuments';
+import type { RepSignatureDocument } from '../types';
+import { buildForm2279Fields, form2279BothSign, matchRegisteredPersonName } from '../features/representation/shaamRepresentation';
 import { useEmailMessages } from '../hooks/useEmailMessages';
 import {
   useRepApprovalStep, isRepApprovalClosed, isRepApprovalDeclared,
@@ -33,8 +35,16 @@ import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
 import InfoLines from './ui/InfoLines';
 import NiNextActionButton from './NiNextActionButton';
-import { niPersons, niRepresentationOf, niRepresentationAction } from '../utils/niPersons';
+import { niPersons, niRepresentationOf, niRepresentationAction, niExternalEvidence } from '../utils/niPersons';
 import { shaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
+import type { ShaamActionKind } from '../features/taxFile/shaamRepresentationAction';
+import ShaamNextActionButton from './ShaamNextActionButton';
+import type { ShaamSubmission } from '../utils/repScope';
+import {
+  shaamProgressLine, shaamSystemViews, SHAAM_REQUEST_STATE_LABELS, SHAAM_SYSTEM_STATE_LABELS,
+  parseShaamRequestState, shaamRequestExists,
+  type ShaamRequestTracking,
+} from '../features/representation/shaamRepresentation';
 import { representationInsight } from '../utils/representationInsight';
 import ConfirmDialog from './ui/ConfirmDialog';
 
@@ -83,6 +93,13 @@ interface Props {
   onStepsChanged?: () => void;
   /** לשמירת כתובת מייל קנונית מתוך דיאלוג קישור-המשתתף (165). */
   onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  /**
+   * 194 · שמירת מסמכי החתימה אחרי שטופס 2279 הובא משע״ם ואזורי החתימה
+   * סומנו אוטומטית. ‼ כתיבה שקטה של **המסמכים בלבד** — בכוונה לא
+   * `onProduceWithSetup`, שגם מקדם את הסטטוס ל«נשלח לחתימה»: הבאת הטופס
+   * אינה שליחה ללקוח, והשליחה נשארת פעולה מפורשת של הרו"ח.
+   */
+  onAttachShaamForms?: (docs: RepSignatureDocument[]) => Promise<void>;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -223,7 +240,7 @@ function Track({ title, subtitle, done, total, tone, nextAction, children }: {
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, linkedClient, onConfirmRegisteredSpouse, steps, onStepsChanged, onUpdateClientFields }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, linkedClient, onConfirmRegisteredSpouse, steps, onStepsChanged, onUpdateClientFields, onAttachShaamForms }: Props) {
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
@@ -499,6 +516,66 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       ]
     : [];
 
+  // ── בן/בת הזוג הרשום/ה — הכרעה אוטומטית מראיה שנקראה משע״ם (23.09.2026) ────
+  // ‼ «בדוק קבלת הייצוג» מחזירה «שם הלקוח» כפי שהוא מוצג ברשימת הבקשות
+  // בשע״ם — ראיה חיצונית, לא ניחוש. כשההתאמה חד-משמעית (מתאימה לשם אחד
+  // בדיוק מבין שני בני הזוג הידועים) — כותבים דרך **אותו נתיב** שהרו"ח
+  // משתמש בו ידנית (`onConfirmRegisteredSpouse`, בדיוק כמו לחיצה על השם).
+  // תוצאה מעורפלת (שני שמות, או אף אחד) — לא כותבים כלום; ההכרעה הידנית
+  // נשארת כרגיל. ‼ שומר ref: לא כותבים פעמיים על אותה ראיה (StrictMode,
+  // ורענוני progress חוזרים על אותו job שכבר טופל).
+  const regAutoRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!linkedClient || !onConfirmRegisteredSpouse || regVerified || !regChoice) return;
+    const rows = (exec.shaam?.[regRowKey ?? '']?.systems ?? []) as Array<{ clientName?: string }>;
+    const shaamName = rows.find((r) => r?.clientName)?.clientName;
+    if (!shaamName) return;
+    const evidenceKey = `${regRowKey}:${shaamName}`;
+    if (regAutoRef.current.has(evidenceKey)) return;
+    const match = matchRegisteredPersonName(shaamName, clientDisplayName(linkedClient), spouseDisplayName(linkedClient) || null);
+    if (match !== 'client' && match !== 'spouse') return; // ambiguous/no_match — לא כותבים
+    regAutoRef.current.add(evidenceKey);
+    void onConfirmRegisteredSpouse(linkedClient.id, match);
+  }, [linkedClient, onConfirmRegisteredSpouse, regVerified, regChoice, regRowKey, exec.shaam]);
+
+  // ── אזורי החתימה על טופס 2279 — אוטומטית (194) ────────────────────────────
+  // ‼ הטופס מגיע משע״ם, וכל טופסי 2279 שנבדקו זהים במבנה (עמוד אחד,
+  // 612×792 נק'). המיקומים ב-FORM_2279_TEMPLATE נמדדו מסימון ידני אמיתי
+  // על טופס כזה, ולכן ההכנה כאן היא שחזור של מה שהרו"ח עשה — לא אומדן.
+  // ‼ המיקום נגזר מהתפקיד בטופס: הרשום/ה חותם/ת ב«חתימת בן זוג רשום»,
+  // והשני/ה ב«חתימת בן/בת הזוג». מגדר אינו משתתף בהחלטה.
+  // ‼ רץ פעם אחת לכל הגשה, עם שומר ref: StrictMode מריץ אפקטים פעמיים,
+  // וכתיבה כפולה כאן הייתה יוצרת שני מסמכים לאותו טופס.
+  const preparedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!onAttachShaamForms) return;
+    const existing = signatureDocumentsOf(request);
+    const additions: RepSignatureDocument[] = [];
+    for (const sub of submissions) {
+      const t = exec.shaam?.[sub.key];
+      if (!t?.formDocumentId) continue;
+      if (existing.some(d => d.key === sub.key)) continue;
+      if (preparedRef.current.has(sub.key)) continue;
+      preparedRef.current.add(sub.key);
+      additions.push({
+        key: sub.key,
+        title: sub.title ? `${sub.title} · ${sub.authoritiesLabel}` : sub.authoritiesLabel,
+        pdfDocId: t.formDocumentId,
+        pdfFileName: t.formFileName || 'ייפוי כוח לחתימה.pdf',
+        fields: buildForm2279Fields(
+          // ‼ מי חותם/ת ב«בן זוג רשום»: ההכרעה כשהיא קיימת, אחרת בעל/ת
+          // ההגשה — הטופס הופק על שמו/ה, וזו התשובה הכי קרובה לוודאית.
+          regOwner ?? sub.target,
+          form2279BothSign(sub, scopePeople.married),
+        ),
+        createdAt: new Date().toISOString(),
+        signedPdfStoredId: null,
+      });
+    }
+    if (additions.length === 0) return;
+    void onAttachShaamForms([...existing, ...additions]);
+  }, [request, exec.shaam, submissions, regOwner, scopePeople.married, onAttachShaamForms]);
+
   // ‼ הנתיב המזורז נטען כאן ואינו מגיע כ-prop — ראה useRepApprovalStep.
   // מרוענן כשהסטטוס משתנה, כי המעבר ל-awaiting_authorities הוא שיוצר אותו.
   const { step: loadedRepApproval, reload: reloadRepApproval } = useRepApprovalStep(request.linkedClientId);
@@ -535,14 +612,31 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     />
   ) : null;
 
-  // ‼ שע״ם: תא מוכן במבנה, מושבת עם הסיבה — אין עדיין אוטומציה מול שע״ם.
-  const shaamAction = shaamRepresentationAction(status);
-  const shaamNextActionNode = shaamAction ? (
-    <button type="button" className="btn btn-sm btn-automation" disabled
-      title={shaamAction.reason} aria-label={`${shaamAction.label} — ${shaamAction.reason}`}>
-      {shaamAction.label}
-    </button>
-  ) : null;
+  // ── שע״ם: הפעולה ההקשרית, לכל הגשה בנפרד (194) ──────────────────────────
+  // ‼ אותה נגזרת בדיוק כמו בתיק המס (shaamRepresentationAction), מאותו
+  // סטטוס ומאותו מצב אינטגרציה — כדי ששני המשטחים לא יסטו. המצב של הגשה
+  // אחת לעולם אינו נגזר מהשנייה: `submissionKey` מפורש בכל מקום.
+  const shaamTrack = (key: string): ShaamRequestTracking | undefined => exec.shaam?.[key];
+  const shaamActionFor = (sub: ShaamSubmission) =>
+    shaamRepresentationAction(status, shaamTrack(sub.key), stamped);
+  const shaamNode = (sub: ShaamSubmission, only?: ShaamActionKind) => {
+    const a = shaamActionFor(sub);
+    if (!a || (only && a.kind !== only)) return null;
+    return (
+      <ShaamNextActionButton
+        request={request} linkedClient={linkedClient ?? null} submission={sub}
+        action={a} tracking={shaamTrack(sub.key)} married={scopePeople.married}
+        onChanged={onStepsChanged} className="btn btn-sm" errorClassName="rep-track-next-err"
+      />
+    );
+  };
+  // ‼ הפעולה שבראש המסלול היא של ההגשה הראשונה שעוד יש בה עבודה — לא
+  // «הראשונה ברשימה»: אצל זוג, אחת עשויה כבר להיות מוגשת והשנייה לא.
+  const shaamLeadSubmission = submissions.find(s => {
+    const a = shaamActionFor(s);
+    return !!a && !a.disabled;
+  }) ?? submissions[0] ?? null;
+  const shaamNextActionNode = shaamLeadSubmission ? shaamNode(shaamLeadSubmission) : null;
   // מי מבין השניים תקוע בלי אסמכתא — כדי שהחסימה תגיד לאן ללכת, ולא רק שנחסם
   const missingRefFor = !niTargetsSpouse ? '' : [
     !ni.referenceNumber && (nameOf('client') || 'הנישום'),
@@ -634,10 +728,17 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                       </div>
                     </>
                   ) : !at ? (
-                    <button className="btn btn-secondary btn-sm" disabled={busy === busyKey}
-                      onClick={() => void mark()}>
-                      {busy === busyKey ? 'שומר…' : 'סמן כהוזן'}
-                    </button>
+                    /* ‼ שני מסלולים, ובמפורש: האוטומציה פותחת את הבקשה בשע״ם
+                       ומביאה את הטופס; «סמן כהוזן» נשאר למי שעשה את זה ביד.
+                       סימון ידני אינו מתחזה לראיה חיצונית — הוא לא כותב מספר
+                       בקשה, ולכן גם לא פותח את השידור האוטומטי. */
+                    <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                      {shaamNode(sub, 'create')}
+                      <button className="btn btn-ghost btn-sm" disabled={busy === busyKey}
+                        onClick={() => void mark()}>
+                        {busy === busyKey ? 'שומר…' : 'סמן כהוזן ידנית'}
+                      </button>
+                    </div>
                   ) : (
                     /* ‼ חזרה לאחור. קישורים שקטים ולא כפתורים: זו פעולת תיקון,
                        והיא לא צריכה להתחרות בשלב הבא על תשומת הלב. */
@@ -652,6 +753,16 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                         onClick={() => void unmarkEntry(sub.key, first)}>
                         {busy === busyKey ? 'שומר…' : 'ביטול הסימון'}
                       </button>
+                    </div>
+                  )}
+                  {/* ‼ המזהה החיצוני מוצג ברגע שהוא קיים: ממנו נגזרת כל
+                      פעולה הבאה מול שע״ם, והוא גם מה שהרו"ח מחפש שם ידנית. */}
+                  {shaamRequestExists(shaamTrack(sub.key)) && (
+                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.4rem' }}>
+                      {shaamTrack(sub.key)?.requestNumber
+                        ? <>מספר בקשה בשע״ם: <span className="ltr-isolate">{shaamTrack(sub.key)!.requestNumber}</span></>
+                        : 'הבקשה נמצאה ברשימת הבקשות בשע״ם (מספר הבקשה לא מוצג שם)'}
+                      {shaamTrack(sub.key)?.formDocumentId ? ' · טופס ייפוי הכוח הובא לתיק הלקוח' : ''}
                     </div>
                   )}
                 </Step>
@@ -717,9 +828,30 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             </Step>
 
             <Step n={6 + extraEntries.length} title="נשלח לשע״ם" done={sentToShaam}
-              hint={stamped && !sentToShaam ? 'הגישו את הטופס החתום בשע״ם, ואז סמנו' : undefined}>
+              hint={stamped && !sentToShaam ? 'שדרו את הטופס החתום לשע״ם' : undefined}>
               {stamped && !sentToShaam && (
-                <button className="btn btn-green btn-sm" onClick={onMarkSentToShaam}>נשלח לשע"ם</button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                  {/* ‼ שידור לכל הגשה בנפרד: לכל אדם בקשה משלו בשע״ם וטופס
+                      משלו, וסיום של אחת אינו אומר דבר על השנייה. */}
+                  {submissions.map(sub => {
+                    const node = shaamNode(sub, 'submit');
+                    if (!node) return null;
+                    return (
+                      <div key={sub.key}>
+                        {sub.title && (
+                          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.2rem' }}>{sub.title}</div>
+                        )}
+                        {node}
+                      </div>
+                    );
+                  })}
+                  {/* ‼ הסימון הידני נשאר — אבל כקישור שקט, לא ככפתור ראשי:
+                      «נשלח לשע״ם» אמיתי נכתב רק מאישור קליטה של הרשות (194).
+                      מי שהגיש ביד עדיין צריך דרך לומר את זה. */}
+                  <button className="btn btn-ghost btn-sm" onClick={onMarkSentToShaam}>
+                    שודר ידנית - סמנו כנשלח
+                  </button>
+                </div>
               )}
             </Step>
 
@@ -752,9 +884,47 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             )}
 
             <Step n={7 + extraEntries.length} title="הייצוג פעיל" done={status === 'active'}
-              hint={status === 'awaiting_authorities' ? 'כשהייצוג יאושר בשע״ם - סמנו כאן' : undefined}>
+              hint={status === 'awaiting_authorities' ? 'בדקו מול שע״ם אם הייצוג נקלט' : undefined}>
+              {/* ── מה שע״ם אומרת עכשיו, לכל הגשה ──────────────────────────
+                  ‼ שתי עמודות נפרדות ולא סטטוס אחד: «מצב בקשה» מתאר את
+                  המסמכים, «מצב מערך» את הקליטה של כל מערך. שיטוח לשניהם
+                  היה מוחק בדיוק את מה שצריך לדעת — אצל מי הכדור. */}
+              {submissions.map(sub => {
+                const t = shaamTrack(sub.key);
+                if (!t || !shaamRequestExists(t)) return null;
+                const line = shaamProgressLine(t);
+                const reqState = t.rawRequestState ? parseShaamRequestState(t.rawRequestState) : undefined;
+                return (
+                  <div key={sub.key} style={{ marginBottom: '.6rem' }}>
+                    {sub.title && (
+                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{sub.title}</div>
+                    )}
+                    <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
+                      {line.text}
+                      {line.until ? ` צפי לסיום: ${fmt(line.until)}.` : ''}
+                    </div>
+                    {(reqState || shaamSystemViews(t).length > 0) && (
+                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', lineHeight: 1.7, marginTop: '.2rem' }}>
+                        {reqState && <div>מצב הבקשה: {SHAAM_REQUEST_STATE_LABELS[reqState]}</div>}
+                        {shaamSystemViews(t).map((s, i) => (
+                          <div key={`${s.systemLabel}-${i}`}>
+                            {s.systemLabel}: {SHAAM_SYSTEM_STATE_LABELS[s.state]}
+                            {s.suspensionEndsAt ? ` · עד ${fmt(s.suspensionEndsAt)}` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {t.syncedAt && (
+                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
+                        נבדק לאחרונה: {fmt(t.syncedAt)}
+                      </div>
+                    )}
+                    <div style={{ marginTop: '.35rem' }}>{shaamNode(sub, 'check')}</div>
+                  </div>
+                );
+              })}
               {status === 'awaiting_authorities' && (
-                <button className="btn btn-green btn-sm" onClick={onMarkActive}>סמן כמיוצג פעיל</button>
+                <button className="btn btn-ghost btn-sm" onClick={onMarkActive}>סמן ידנית כמיוצג פעיל</button>
               )}
 
               {/* ‼ הסימון לבדו לא שולח דבר. עד היום יצא כאן מייל אוטומטית והרו"ח
@@ -979,6 +1149,17 @@ function NiTrack({
   const [refNumber, setRefNumber] = useState(ni.referenceNumber || '');
   const [deadline, setDeadline] = useState(ni.deadline || '');
 
+  /* ‼ הבאג שהוליד את 195 בצד המסך: `useState(ni.x)` קורא את הערך **פעם
+     אחת**, ברינדור הראשון — ובו הבקשה עדיין נטענת ו-`ni` הוא `{}`. כשהערך
+     האמיתי הגיע (מהאוטומציה או משמירה), הצעד למעלה נצבע ירוק והשובל
+     "נותרו N ימים" הופיע — ושני השדות נשארו ריקים עם ה-placeholder
+     (73882698), כך שהם **נראו** ריקים גם אחרי רענון. כאן מסתנכרנים עם
+     הערך שהשרת מחזיק; התלות היא הערך עצמו, ולכן הקלדה של הרו"ח נדרסת רק
+     כשהשרת באמת שינה את הערך. ראה memory/stale-client-after-server-write. */
+  useEffect(() => { setRefNumber(ni.referenceNumber || ''); }, [ni.referenceNumber]);
+  useEffect(() => { setDeadline(ni.deadline || ''); }, [ni.deadline]);
+
+  const external = niExternalEvidence(ni);
   const steps = [!!ni.enteredAt, !!ni.referenceNumber, !!ni.instructionsSentAt, !!ni.confirmedAt];
   const sentWithSignature = ni.instructionsSentWith === 'signature';
   const k = (suffix: string) => `${busyPrefix}-${suffix}`;
@@ -991,8 +1172,13 @@ function NiTrack({
 
   const executionSteps = (
     <>
+      {/* ‼ `foundExternally` (195): הרישום נמצא קיים בב"ל ולא נוצר מכאן —
+          כמעט תמיד כי הוזן ידנית בפורטל. הצעד בוצע, אבל לא "סומן" על ידינו,
+          והמסך לא ייחס לעצמו פעולה שלא עשה. */}
       <Step n={1} title="ייפוי הכוח הוזן באתר ב״ל" done={!!ni.enteredAt}
-        hint={ni.enteredAt ? `סומן ב-${fmt(ni.enteredAt)}` : 'מסך "הוספת ייפוי כח מבוטח" - ארבעת השדות מהבלוק שמעל'}>
+        hint={!ni.enteredAt ? 'מסך "הוספת ייפוי כח מבוטח" - ארבעת השדות מהבלוק שמעל'
+          : ni.foundExternally ? `נמצא קיים באתר ב״ל (הוזן שם, לא מכאן) · אותר ב-${fmt(ni.enteredAt)}`
+          : `סומן ב-${fmt(ni.enteredAt)}`}>
         {!ni.enteredAt && (
           <button className="btn btn-secondary btn-sm" disabled={busy === k('entered')}
             onClick={() => onPatch({ enteredAt: new Date().toISOString() }, k('entered'))}>
@@ -1049,6 +1235,21 @@ function NiTrack({
 
       <Step n={4} title="אושר - הייצוג בב״ל פעיל" done={!!ni.confirmedAt}
         hint={ni.confirmedAt ? `אושר ב-${fmt(ni.confirmedAt)}` : 'בדקו באתר ב״ל שהאישור נקלט'}>
+        {/* ‼ 195 — מה שביטוח לאומי **אמרה** בקריאה האחרונה, במילים שלה.
+            הצעד נשאר לא-מסומן עד שהמצב שנקרא היה «מאושר»; השורה הזאת קיימת
+            כדי שהמסך לא ישתוק על «ממתין לאישור» ויותיר את הרו"ח לנחש. */}
+        {external && !ni.confirmedAt && (
+          <div style={{
+            marginBottom: '.45rem', padding: '.35rem .6rem', borderRadius: 'var(--radius)',
+            fontSize: 'var(--fs-13)',
+            background: external.tone === 'warn' ? 'var(--orange-light)' : 'var(--surface-2)',
+            color: external.tone === 'warn' ? 'var(--ink-1)' : 'var(--ink-3)',
+          }}>
+            ביטוח לאומי: <b>{external.label}</b>
+            {external.raw && ` ("${external.raw}")`}
+            {external.at && ` · נקרא ${fmt(external.at)}`}
+          </div>
+        )}
         {!ni.confirmedAt && (
           <button className="btn btn-secondary btn-sm" disabled={busy === k('conf')}
             onClick={() => onPatch({ confirmedAt: new Date().toISOString() }, k('conf'))}>

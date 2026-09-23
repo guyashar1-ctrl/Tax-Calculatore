@@ -11,6 +11,12 @@
 // ‼ סטטוס לא מוכר: לא מנחשים. חוזרים עם status:'unknown' ו-rawStatus לאבחון.
 // ‼ לא נמצאה שורה תואמת: status:'not_found' — לא כישלון-משימה, זו תשובה
 // אמיתית שיכולה לקרות (למשל אם המועד עבר וביטוח לאומי מחק את הרישום).
+//
+// ‼ התוצאה היא **תמיד** קריאה מלאה של השורה — status קנוני
+// ('approved'|'pending'|'expired'|'cancelled'|'unknown'|'not_found'),
+// rawStatus גולמי, אסמכתא, מועד אחרון ות.ז. כפי שהופיעו. עד 23.09.2026
+// מסלול ה-'approved' החזיר רק סטטוס וזרק את המועד; זה נראה מיותר עד
+// שהתברר שהוא בדיוק מה שהרו"ח מחפש כשהוא מיישב רישום שנוצר ידנית בפורטל.
 import {
   attachBtl, detachBtl, classifyBtlAuth, probeBtlSession, pickBtlPage, focusBtlWindow,
   launchDedicatedBtlChrome,
@@ -83,7 +89,7 @@ export async function run(ctx, input) {
     }
     if (!row?.found) {
       ctx.log(`לא נמצאה שורה תואמת במסך המעקב (${row?.reason ?? 'unknown'})`);
-      return { result: { role, referenceNumber, status: 'not_found' } };
+      return { result: { role, referenceNumber, found: false, status: 'not_found', reason: row?.reason ?? 'unknown' } };
     }
 
     if (row.idNumber && !sameIdNumber(row.idNumber, idNumber)) {
@@ -96,14 +102,25 @@ export async function run(ctx, input) {
       );
     }
 
-    ctx.log(`סטטוס במסך המעקב: ${row.rawStatus ?? '—'}`);
-    if (row.rawStatus === 'ממתין לאישור') {
-      return { result: { role, referenceNumber, status: 'pending', rawStatus: row.rawStatus, deadline: row.deadline ?? null } };
-    }
-    if (row.rawStatus === 'מאושר') {
-      return { result: { role, referenceNumber, status: 'approved', rawStatus: row.rawStatus } };
-    }
-    return { result: { role, referenceNumber, status: 'unknown', rawStatus: row.rawStatus ?? null } };
+    // ‼ הסיווג נעשה ב-selectTrackingRow (btlTracking.mjs) ולא כאן, ולא
+    // בהשוואת מחרוזות מקומית: תו כיווניות אחד או רווח קשיח בעמודת הסטטוס
+    // הפילו השוואה ישירה, ונפילה כזו הייתה יוצאת כ-'unknown' בשקט. ‼ מה
+    // שאסור: 'unknown' לעולם אינו מתגלגל ל-'approved' — לא כאן ולא בשרת.
+    ctx.log(`סטטוס במסך המעקב: ${row.rawStatus ?? '—'} ⇒ ${row.status}`);
+    return {
+      result: {
+        role,
+        referenceNumber: row.referenceNumber ?? referenceNumber,
+        found: true,
+        status: row.status,
+        rawStatus: row.rawStatus ?? null,
+        // ‼ גם באישור: המועד והאסמכתא הם עובדות חיצוניות שה-CRM צריך גם
+        // כשהוא כבר יודע שאושר. עד 23.09.2026 הם נזרקו במסלול 'approved'.
+        deadline: row.deadline ?? null,
+        idNumber: row.idNumber ?? null,
+        candidates: row.candidates ?? 1,
+      },
+    };
   } finally {
     await detachBtl(conn.browser);
   }

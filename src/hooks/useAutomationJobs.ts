@@ -68,7 +68,15 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
    * את המשימה 'running' לנצח, האינדקס הייחודי חסם משימה חדשה, והכפתור
    * הפך לכפתור שלא עושה כלום. הכלל האחד: פתוחה-אבל-לא-חיה ⇒ בטל ואז נסה שוב.
    */
-  const run = useCallback(async (input: Record<string, unknown> = {}) => {
+  /**
+   * @param opts.acknowledgeExternal 196 — הרו"ח ראה שהפעולה כבר נגעה בשע״ם
+   *   ובכל זאת בחר לנסות שוב. בלי זה השרת דוחה את הביטול, ולכן גם לא
+   *   תיווצר משימה חדשה: «בטל-ואז-נסה-שוב» השקט לא יכול להוליד פנייה שנייה.
+   */
+  const run = useCallback(async (
+    input: Record<string, unknown> = {},
+    opts: { acknowledgeExternal?: boolean } = {},
+  ) => {
     if (!clientId) return { ok: false, error: 'no_client' };
     if (!actionType) return { ok: false, error: 'no_action_type' };
     setBusy(true);
@@ -76,7 +84,14 @@ export function useAutomationJob(clientId: string | undefined, actionType: strin
 
     const existing = await fetchLatestAutomationJob(clientId, actionType);
     if (existing.job && OPEN_AUTOMATION_STATUSES.has(existing.job.status) && !jobIsLive(existing.job)) {
-      await cancelAutomationJob(existing.job.id);
+      const c = await cancelAutomationJob(existing.job.id, opts.acknowledgeExternal === true);
+      // ‼ הסירוב הזה הוא תכונה, לא תקלה: המשימה כבר נגעה בשע״ם, והמסך
+      // חייב להציג לרו"ח מה קרה לפני שמותר לנסות שוב.
+      if (!c.ok && c.error === 'external_attempt_requires_acknowledgement') {
+        setBusy(false);
+        setError('הפעולה הזו כבר נוסתה מול שע״ם ולא ידוע אם נקלטה. בדקו מה נקלט לפני ניסיון נוסף.');
+        return { ok: false, error: 'external_attempt_requires_acknowledgement' };
+      }
     }
 
     const r = await createAutomationJob(clientId, actionType, input);

@@ -482,7 +482,14 @@ export default function TestOnboarding() {
         onPrepareReleaseLetter={(stepId) => { setMsg(`פתיחת מכתב שחרור לשלב ${stepId}`); setShowRelease(true); }}
         repStatusLabel="בקשת ייצוג · ממתין למילוי הלקוח"
         onOpenRepresentation={() => setMsg('קפיצה למרכז הייצוג')}
-        niExecution={{ spouse: { enteredAt: '2026-08-20T09:00:00Z', referenceNumber: '73882698', deadline: '2026-10-12' } }}
+        /* ‼ רישום שנוצר **ידנית** בפורטל ב"ל ויושב ע"י PIVO (195) — הצורה
+           שהפילה את הכרטיס ב-23.09.2026. הכרטיס חייב לומר «קיים», לא
+           «PIVO הזין», ולהציג את מה שביטוח לאומי אומרת. */
+        niExecution={{ spouse: {
+          enteredAt: '2026-08-20T09:00:00Z', referenceNumber: '73882698', deadline: '2026-10-12',
+          externalState: 'pending', rawExternalState: 'ממתין לאישור',
+          syncedAt: '2026-08-20T09:00:00Z', foundExternally: true,
+        } }}
         onUpdateClientFields={async (patch) => setMsg(`onUpdateClientFields(${JSON.stringify(patch)})`)}
         onRequestAuthorityRepresentation={async (role) => {
           setMsg(`onRequestAuthorityRepresentation(${role}, source=catalog)`);

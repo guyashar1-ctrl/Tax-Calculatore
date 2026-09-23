@@ -21,9 +21,9 @@ import {
   outstandingDeliverableLabel, deliverableKeyFor,
   portalShowsStep, officeSortOrder,
 } from '../../types/onboarding';
-import type { Client, NiTracking, RepAuthorityKind, RepresentationStatus, TaxAuthority } from '../../types';
+import type { Client, NiExternalState, NiTracking, RepAuthorityKind, RepresentationStatus, TaxAuthority } from '../../types';
 import type { Quotation, QuotationItem } from '../../types/quotations';
-import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS, NI_APPROVAL_PHONE } from '../../types';
+import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS, NI_APPROVAL_PHONE, NI_EXTERNAL_STATE_LABELS } from '../../types';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
 import AuthoritiesPanel from '../authorities/AuthoritiesPanel';
@@ -3313,7 +3313,10 @@ function AuthorityRepresentationStepCard({
       : sent
         ? `נשלח ל${first} ${fmtStamp(track!.instructionsSentAt)} · ממתינים לאישור שלו/ה בביטוח לאומי${deadline ? ` עד ${deadline}` : ''}.`
         : readyToSend
-          ? `PIVO הזין את ייפוי הכוח בביטוח לאומי · אסמכתא ${track!.referenceNumber}${deadline ? ` · לאשר עד ${deadline}` : ''}`
+          // ‼ 195 — «PIVO הזין» נאמר רק כשזה מה שקרה. רישום שנוצר ידנית
+          // בפורטל ונמצא ביישוב מסומן `foundExternally`, ואז המשפט מספר
+          // מה **יש**, לא מי עשה.
+          ? `${track!.foundExternally ? 'ייפוי הכוח קיים בביטוח לאומי' : 'PIVO הזין את ייפוי הכוח בביטוח לאומי'} · אסמכתא ${track!.referenceNumber}${deadline ? ` · לאשר עד ${deadline}` : ''}`
           : track?.enteredAt
             ? 'הוזן בביטוח לאומי · ממתינים לאסמכתא.'
             : open
@@ -3328,9 +3331,16 @@ function AuthorityRepresentationStepCard({
   const jobVerb = job?.actionType === BTL_CHECK_REPRESENTATION_ACTION_TYPE
     ? `PIVO בודק בביטוח לאומי אם ${first} אישר/ה…`
     : 'PIVO מזין את ייפוי הכוח בביטוח לאומי…';
+  // ‼ 195: כל מצב שאינו 'approved' הוא "עדיין לא אישר/ה" — לא רק 'pending'.
+  // קודם נבדק `=== 'pending'` בלבד, ולכן בדיקה שחזרה 'unknown'/'not_found'
+  // לא הותירה שום עקבה במסך, והרו"ח ראה מסך שנראה כאילו לא קרה כלום.
+  const checkedState = (job?.result as { status?: string } | undefined)?.status;
   const checkedJustNow = !!job && job.status === 'succeeded' && job.actionType === BTL_CHECK_REPRESENTATION_ACTION_TYPE
-    && !confirmed && (job.result as { status?: string } | undefined)?.status === 'pending'
+    && !confirmed && !!checkedState && checkedState !== 'approved'
     && !!job.finishedAt && (Date.now() - new Date(job.finishedAt).getTime()) < 6 * 3600_000;
+  const checkedLabel = checkedState && checkedState !== 'pending'
+    ? NI_EXTERNAL_STATE_LABELS[checkedState as NiExternalState] ?? NI_EXTERNAL_STATE_LABELS.unknown
+    : null;
 
   /* ‼ הפעולה האוטומטית — אותו רכיב של תיק המס ומרכז הביצוע (NiNextActionButton):
      גם החיבור לחלון ב"ל, גם ההרצה, גם השגיאה. כאן רק בוחרים איזו פעולה. */
@@ -3384,7 +3394,10 @@ function AuthorityRepresentationStepCard({
         {checkedJustNow && !live && !stuck && (
           <div className="ob-pivo-line">
             <span className="tag">PIVO</span>
-            <span className="grow">נבדק {new Date(job!.finishedAt!).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })} — {first} עדיין לא אישר/ה.</span>
+            <span className="grow">
+              נבדק {new Date(job!.finishedAt!).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })} — {first} עדיין לא אישר/ה
+              {checkedLabel ? ` (ב״ל: ${checkedLabel})` : ''}.
+            </span>
           </div>
         )}
     </>

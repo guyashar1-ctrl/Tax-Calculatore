@@ -91,6 +91,10 @@ export default function OnboardingPage({ token }: Props) {
   const [spouseLastName, setSpouseLastName] = useState('');
   const [spouseIdNumber, setSpouseIdNumber] = useState('');
   const [spouseBirthYear, setSpouseBirthYear] = useState('');
+  // ‼ פרט קשר קבוע של בן/בת הזוג, ולא ערך חד-פעמי: הוא נשמר בכרטיס
+  // (clients.spouse_phone) ומשמש בהמשך גם את מסך «פרטי התקשרות» בבקשת
+  // הייצוג בשע״ם. מה שלא יימסר כאן — המשרד ישלים בכרטיס, ולא יומצא.
+  const [spousePhone, setSpousePhone] = useState('');
   // ── פרטי הזדהות של בן/בת הזוג — רק כשיש לו/לה הגשה משלו/ה בשע״ם ──
   const [spouseBirthDate, setSpouseBirthDate] = useState('');
   const [spouseSecondaryType, setSpouseSecondaryType] = useState<OnboardingSecondaryType>('parentId');
@@ -167,6 +171,7 @@ export default function OnboardingPage({ token }: Props) {
       setSpouseLastName(prefill.spouseLastName || spParts.slice(1).join(' ') || '');
       if (prefill.spouseIdNumber) setSpouseIdNumber(prefill.spouseIdNumber);
       if (prefill.spouseBirthYear) setSpouseBirthYear(String(prefill.spouseBirthYear));
+      if (prefill.spousePhone) setSpousePhone(prefill.spousePhone);
 
       // ── מה שהלקוח עצמו כבר שמר גובר על כל זריעה (191) ──────────────────
       // ‼ הטיוטה היא של הלקוח — הוא הקליד, הוא המקור. חוזרים לשלב שאחרי
@@ -188,6 +193,7 @@ export default function OnboardingPage({ token }: Props) {
       if (v.spouseLastName) setSpouseLastName(v.spouseLastName);
       if (v.spouseIdNumber) setSpouseIdNumber(v.spouseIdNumber);
       if (v.spouseBirthYear) setSpouseBirthYear(String(v.spouseBirthYear));
+      if (v.spousePhone) setSpousePhone(v.spousePhone);
       if (v.spouseBirthDate) setSpouseBirthDate(v.spouseBirthDate);
       if (v.spouseSecondaryType) setSpouseSecondaryType(v.spouseSecondaryType);
       if (v.spouseSecondaryValue) setSpouseSecondaryValue(v.spouseSecondaryValue);
@@ -281,7 +287,7 @@ export default function OnboardingPage({ token }: Props) {
       : {
         familyStatus, familyStatusYear: familyYear,
         ...(familyStatus === 'married' ? {
-          spouseFirstName, spouseLastName, spouseIdNumber,
+          spouseFirstName, spouseLastName, spouseIdNumber, spousePhone,
           spouseBirthYear: spouseSub ? '' : spouseBirthYear,
           spouseBirthDate: spouseSub && !spouseDelegated ? spouseBirthDate : '',
           spouseSecondaryType: spouseSub && !spouseDelegated ? spouseSecondaryType : '',
@@ -469,6 +475,8 @@ export default function OnboardingPage({ token }: Props) {
       p_spouse_secondary_value: familyStatus === 'married' && spouseSub && !spouseDelegated ? (spouseSecondaryValue.trim() || null) : null,
       // 191: מי בחר/ה להעלות את צילום התעודה מאוחר יותר — נדרש בדף האישי.
       p_identity_deferred: idDeferredPersons,
+      // ‼ נשמר בכרטיס כפרט קשר קבוע (194). ריק נשאר ריק.
+      p_spouse_phone: familyStatus === 'married' ? (spousePhone.trim() || null) : null,
     });
     if (error || data === false) {
       setError('השליחה לא הצליחה. נסו שוב, ואם זה חוזר - פנו למשרד.');
@@ -952,6 +960,14 @@ export default function OnboardingPage({ token }: Props) {
                   <label style={label}>תעודת זהות של בן/בת הזוג
                     <input style={inputStyle} inputMode="numeric" maxLength={9} dir="ltr" value={spouseIdNumber}
                       onChange={e => setSpouseIdNumber(e.target.value.replace(/\D/g, ''))} placeholder="9 ספרות" />
+                  </label>
+                </div>
+                {/* ‼ רשות המסים שולחת לבן/בת הזוג הודעה על בקשת הייצוג, ולכן
+                    היא מבקשת את הטלפון שלו/ה בנפרד משלכם. לא חובה כאן. */}
+                <div style={fieldBox}>
+                  <label style={label}>טלפון של בן/בת הזוג
+                    <input style={inputStyle} type="tel" inputMode="tel" dir="ltr" value={spousePhone}
+                      onChange={e => setSpousePhone(e.target.value)} placeholder="050-0000000" />
                   </label>
                 </div>
                 {/* ‼ יש לבן/בת הזוג תיק (מע"מ/ניכויים על שמו/ה, או תיק מ"ה שמתנהל
